@@ -10,6 +10,7 @@ Make the Stage 1A simulation modules work together. They were built in parallel 
 
 ## You own (for this task)
 Integration edits anywhere under `src/sim/**`, `src/worldgen/**`, `src/core/**`, `tools/sim/**` and their tests. Rules: fix a defect where its root cause lives; keep each edit minimal; never weaken a test to make it pass (fix the code, or fix a test that is itself wrong and say why); contracts stay additive; list every file you touched with a one-line reason. Do not edit `src/render/**`, `src/game/**`, `src/ui/**`, `tests/e2e/**` (the application-half engineer owns those) — if you find a defect there, describe it precisely in your report. Do not start Stage 1B features.
+Timing note: the world-generation engineer is still applying review fixes under `src/worldgen/**` when you start. Do everything else first and come to world generation last; if its files are still changing under you then, do not edit them — report what you found instead.
 
 ## Work
 1. Baseline: `npm run typecheck` and the full `npm test`; record failures; fix every simulation-side failure at its root (including tests that still expect stub behaviour and must now assert the real behaviour).
