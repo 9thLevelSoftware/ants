@@ -2,7 +2,7 @@
 
 The `SpeciesDef` data model, the four playable species, and the four economy modules (honeydew ranching, wood nesting, granary, fungus garden).
 
-Binding sources: `docs/01-design-seed.md`, `docs/02-design-directions.md` (section J identifiers and reference economy), `docs/03-architecture.md`. Research: `research/bio-lasius-niger.md`, `bio-camponotus.md`, `bio-messor.md`, `bio-atta.md` (all four final, with verification logs), `research/ecology-habitats.md`, `research/genre-ux.md`. Sibling chapters already drafted and followed here: Ch 01 (modes, controls, action primitives), Ch 06 (calendar, climate, thermal profile, opening, reproduction), Ch 08 (UI). Other chapter numbers used: Ch 02 colony simulation (brood, nutrition, task allocation, foraging), Ch 03 nest and excavation, Ch 04 world and worldgen (incl. human events), Ch 05 ecology, creatures, rivals, combat.
+Binding sources: `docs/01-design-seed.md`, `docs/02-design-directions.md` (section J identifiers and reference economy), `docs/03-architecture.md`. Research: `research/bio-lasius-niger.md`, `bio-camponotus.md`, `bio-messor.md`, `bio-atta.md` (all four final, with verification logs), `research/ecology-habitats.md`, `research/genre-ux.md`. Sibling chapters followed here (they own the values marked with their number): Ch 01 (modes, controls, action primitives), Ch 02 (colony simulation: brood, lifespans, egg laying, nutrition, task allocation, foraging), Ch 05 (ecology, herds, creatures, rivals, combat), Ch 06 (calendar, climate, thermal profile, opening, winter, reproduction), Ch 08 (UI). Also referenced: Ch 03 nest and excavation, Ch 04 world, worldgen and human events.
 
 ---
 
@@ -74,7 +74,7 @@ All named constants in this chapter live in species data files or `src/sim/balan
 
 This chapter uses Ch 06's calendar: `d = (date − 20 March) / 13.04 real days`. Reference points: 1 Apr d 0.9; 1 May 3.2; 1 Jun 5.6; 1 Jul 7.9; 17 Jul 9.1; 1 Aug 10.3; 1 Sep 12.7; 1 Oct 15.0; 1 Nov 17.3; 1 Dec 19.6; 1 Jan 22.0; 1 Feb 24.4; 1 Mar 26.5. Seasons are `spring` d 0-7, `summer` 7-14, `autumn` 14-21, `winter` 21-28.
 
-**Deviation (calendar).** The Messor and Atta dossiers counted game days from 1 March; their windows are shifted here by −1.45 GD to the equinox calendar (Messor flights Sep-Nov become d 12.7-19.6; Atta flights Apr-Jun become d 0.9-7.9).
+**Calendar note.** The Lasius and Camponotus dossiers counted game days from 20 March (same as Ch 06); the Messor and Atta dossiers counted from 1 March, so the same date carries a day number about 1.45 higher than on the equinox calendar (Messor flights Sep-Nov are d 12.7-19.6; Atta flights Apr-Jun are d 0.9-7.9). Ch 06's windows for these two species use the dossiers' numbers; the species data repeat Ch 06 and the difference is open risk R3 (Appendix F.1).
 
 ### 2.2 The economy is sim-native; `w` is presentational
 
@@ -952,6 +952,19 @@ Purpose: aphid herds on host plants are renewable carbohydrate sources that the 
 | Relay | any nestmate | prefers media and majors as receivers (largest crops) [D, low reliability] |
 | Shelters | T3 (stretch) | no |
 
+**Seasonal cycle as the colony experiences it** (aphid-herd phases from Ch 05 §1.4, by `doy`):
+
+| `doy` | Herd (Ch 05) | What ranching means then |
+|---|---|---|
+| 1 | stem mothers hatch from overwintering eggs (≤ 8 aphids) | find and claim herds early; small yield |
+| 1-7 | spring growth (r 0.9 /GD; tending raises growth × 1.3 and K × 1.25) | tending now multiplies the summer harvest |
+| 8-10 | summer peak | main honeydew income; most tenders needed (1 per 50 aphids) |
+| 11-14 | host decline, predators: midsummer crash | defend herds; relocate aphids from declining hosts (Lasius) |
+| 15-17 | autumn return flight (r −0.2) | yield falls; foragers shift to other food |
+| 18-21 | sexual forms, eggs (r −0.5) | herds wane; stores must be built before winter |
+| 22-28 | dormant (eggs only) | no honeydew; root herds (T3 stretch) are the only source |
+| scale herds | stable all season, no crash (doy 1-21) | Camponotus' dependable night income |
+
 #### 6.1.4 Tender behaviour (task `tend`)
 
 | State | Entry | Behaviour | Exit |
@@ -1320,7 +1333,7 @@ Media: cut and carry; choose fragment size (longer cut, bigger load, slower and 
 | Entrance kind | `window` (others are `main`) |
 | Nest-site roles / states | `parent`, `satellite`; `candidate`, `founding`, `active`, `isolated`, `abandoned` |
 | Wood placements | `buried-log`, `log-on-soil`, `stump`, `standing-dead`, `living-tree-wound`, `firewood`, `fence-post`, `structural-dry`, `structural-leak`, `window-sill`, `door-frame-ext` |
-| Herd phases / kinds | `dormant`, `emerging`, `growing`, `crash`, `late`, `waning`, `lost`; `aphid`, `scale`, `root` |
+| Herd kinds (module tag) | `aphid`, `scale`, `root` (T3 stretch) |
 | Seed cohort states | `stored`, `damp`, `germinating`, `sprouted`, `rotting`, `rotten`, `milled` |
 | Garden states | `seeded`, `establishing`, `healthy`, `stressed`, `infected`, `collapsing`, `dead`; colony flag `garden-less` |
 | Chamber flag | `central` (Atta), `unstable` (wood) |
@@ -1357,8 +1370,7 @@ Media: cut and carry; choose fragment size (longer cut, bigger load, slower and 
 | `wood` | `{ sites: NestSite[]; frassVisibility: number; queenMove: {targetSiteId, dueTick} \| null }` | 6.2.5-6.2.7 |
 | `granary` | `{ granaries: GranaryState[]; pasteLoads: number; pasteHalfLifeTicks: number; middens: {entranceId, pileId, viableSeeds}[]; seedlings: {pos, plantedTick}[] }` | 6.3 |
 | `fungus` | `{ gardens: GardenState[]; rejected: {plantId, untilTick}[]; gardenLess: boolean; gardenLessTick: number }` | 6.4 |
-| `founding` | `{ pellet: number (GU) \| -1; pelletDeadlineTick; eatenFrac; reserves; lineage?: {own: 'A'\|'B', mates: ('A'\|'B')[]} }` | 5.x.3 |
-| `reproduction` | `{ eligibleYear: number; alatesPlanned: number }` | 5.x.4 |
+| `lineage` (Messor, T3) | `{ own: 'A' \| 'B'; mates: ('A' \| 'B')[] }` on the queen | 5.3.3; founding state itself is Ch 06's `opening` |
 | `casteEmphasis` etc. | numbers/booleans | directives |
 
 ### A.4 World state (in `worldDelta`)
@@ -1396,7 +1408,6 @@ All persisted values are plain numbers, arrays and records (seed rule); duration
 | `herd-claimed` / `herd-lost` | `herdId, colony, cause` | journal, alerts, audio |
 | `honeydew-relay` | `fromAnt, toAnt, loads` | render cue, codex unlock |
 | `aphid-moved` | `herdFrom, herdTo, ant` | journal (first), codex |
-| `herd-phase` | `herdId, phase` | UI herd card |
 | `frass-ejected` | `siteId, pos` | particles, audio `sfx.frass-eject` |
 | `frass-pile-grew` | `pileId, units` | render, human-event scheduler |
 | `wood-moisture-alert` | `siteId, mc, status` | alerts |
@@ -1408,7 +1419,6 @@ All persisted values are plain numbers, arrays and records (seed rule); duration
 | `seed-milled` | `ant, loads, pasteOut` | audio `sfx.mill-crunch` |
 | `radicle-gnawed` | `ant, loads` | codex (first) |
 | `midden-seedling` / `midden-plant` | `pos` | journal ("a plant has grown from the midden"), Ch 05 |
-| `pellet-planted` / `pellet-lost` | `colony` | opening flow, journal, epitaph |
 | `garden-state` | `chamberId, state, cause` | alerts, journal |
 | `garden-infected` | `chamberId, visible: boolean` | alerts when visible |
 | `all-gardens-lost` | `colony, cause` | major alert, epitaph |
@@ -1479,13 +1489,27 @@ Each diagnostic follows the contract `Diagnostic { id, system, status, label, va
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **Ch 06 (calendar):** `d = 0` is 20 March (adopted). Ch 06's start windows for Messor (doy 15-19) and Atta (doy 3-10) appear to use the dossiers' 1-March day numbers; on the equinox calendar the research windows are Messor d 12.7-19.6 and Atta d 0.9-7.9 (see risk R3). Flight windows in this chapter use the corrected values.
+1. **Ch 06 (calendar):** `d = 0` is 20 March (adopted). Ch 06's start windows for Messor (doy 15-19) and Atta (doy 3-10) appear to use the dossiers' 1-March day numbers; on the equinox calendar the research windows are Messor d 12.7-19.6 and Atta d 0.9-7.9 (see risk R3). This chapter repeats Ch 06's windows in the species data and flags the shift as risk R3.
 2. **Ch 06 (thermal, light, climate):** owns `SpeciesDef.thermal`, `lightPref` and `ClimateDef`; the values repeated here are copied from Ch 06 §1.5, §2.1, §2.6 and must stay identical.
 3. **Ch 06 (opening, overwinter, reproduction):** owns the founding model, reserve drains, clutch caps, the Atta pellet rules, winter modes and the aggregate winter model, the reproduction gate, alate costs, windows and flight rolls; the species values in this chapter repeat Ch 06 §5.5, §5.15, §6.1-6.3 and §11.2 and must stay identical (except where risks R3-R5 propose corrections). Ch 06's `W_eq` thresholds use `realEstimate` as gates only; no flow is multiplied by `w`.
 4. **Ch 02 (colony):** implements brood development with the `devRate` tables, feeding, starvation and cannibalism; task allocation with `taskWeights`, subtypes and sliders from `directiveTasks`; caste destiny (2.6); collective nutrition using `pTargetFrac`; the egg-laying accumulator; the Gordon-style interaction-rate activation with the Messor patrol gate and summer-lull floor; refuse-worker network exclusion; per-species `ageRateOutside` / `ageRateDormant`; worker and nanitic brood and lifespan values for Lasius (Ch 02 §1-3 are authoritative; this chapter repeats them).
 5. **Ch 01 (actions):** its action primitive list is the source of truth; this chapter adds `drum`, `cut-seed-head`, `process-leaf`, overrides `carryCap` defaults (CP minor 0.5 instead of 0.8), sets `MILL_S` semantics (12 × (1 + 4 × hardness) s per load) and lets media mill and gnaw radicles in addition to the castes Ch 01 lists.
 6. **Ch 03 (nest):** provides material dig factors for soil (this chapter supplies wood factors), a pile/mound primitive API for frass piles, chaff middens and waste heaps, chamber climate (temperature from Ch 06, humidity from soil moisture), an entrance `kind` field (`window`), chamber flags (`central`, `unstable`), collapse rules for unstable wood, and architect hooks to accept per-species templates and module proposals (satellites, granaries, fungus/midden chambers, windows).
 7. **Ch 04 (world):** worldgen tags wood primitives with `placement`, `grainAxis`, `thicknessBu`; places pre-existing interior wall voids; places seed-bearing plants and acceptable leaf plants for Messor and Atta near valid nest sites; validation guarantees at least one valid founding site per species; human events may add/repair leaks, switch porch lights, place bait stations, and read `frassVisibility`.
-8. **Ch 05 (ecology, creatures, combat):** owns herd entities and aphid predators, plant leaf quality/protein/toxin, seed patches and seed heads, `phorid-fly` and `ant-spider` behaviour, `bird` events, bite/sting/spray damage, alarm responses (including drumming and stridulation stimuli), and the rival *Atta* colony (if any) whose garden can be raided.
+8. **Ch 05 (ecology, creatures, combat):** owns herd entities (§1.4 production, growth, phases, tending ratio, pool and film, carry life, scale herds) and aphid predators, plant leaf quality/protein/toxin, seed patches and seed heads, `phorid-fly` and `ant-spider` behaviour, `bird` events, bite/sting/spray damage, alarm responses (including drumming and stridulation stimuli), and the rival *Atta* colony (if any) whose garden can be raided.
 9. **Performance / Ch 08:** `popCapScale` may lower `simCapWorkers`; render supports continuous ant sizes, macrocephalic heads, Atta spines, leaf-fragment and hitchhiker attachments, frass/chaff particles; Ch 08 shows species cards from `available`, `complexity`, `playstyleLine`, `foundingSeason`.
-10. **Difficulty (Ch 06):** supplies `hazardMult`, `diseaseMult`, reserve scaling and the queen-senescence and lineage toggles used here.
+10. **Difficulty (Ch 06):** supplies `diseaseMult` (Escovopsis), reserve scaling, `flightLossMult` and the queen-senescence toggle used here.
+11. **Ch 05 species scaling:** Ch 05's `loadScale` turns reference-species food nodes into the same number of species loads per node; this matches 2.2 (sim-native, species-relative loads).
+
+### F.1 Open risks for the consistency pass
+
+| Id | Risk | Proposal |
+|---|---|---|
+| R1 | The dossiers scale flows by `w`; this chapter (2.2) keeps flows sim-native and uses `w` for display and gates only. If Ch 02 or Ch 06 multiply any flow by `w`, numbers diverge. | Confirm sim-native everywhere; `W_eq` only for thresholds and display. |
+| R2 | Several species values are copies of Ch 02 (Lasius brood, lifespans, laying), Ch 05 (herds) and Ch 06 (thermal, opening, winter, reproduction). Copies drift. | Species data files import those constants by name instead of re-typing them. |
+| R3 | Ch 06 start and flight windows for Messor (`doy` 15-20) and Atta (`doy` 3-10) look like the dossiers' 1-March numbering. On Ch 06's own equinox calendar the research months are Messor Sep-Nov = `doy` 13-20 and Atta Apr-Jun = `doy` 1-8. | Shift both windows by about −1.5 GD, or accept as a stylisation and note it in the codex. |
+| R4 | Ch 06 §11.2 Camponotus sexual cost 28 / 4.6 × 1.6 loads treats the dossier's minor-relative nitrogen units as media-relative; the gyne would cost about 3.5 × too much. | Use 8.0 / 1.3 × the media larval cost (5.2.4). |
+| R5 | Lasius sexual larval cost differs between Ch 02 (gyne × 6 = 7.2 P + 2.4 C) and Ch 06 (gyne 12 × 1.6 = 14.4 P + 4.8 C). | This chapter follows Ch 06 (consistent with the mass rule of 2.3). |
+| R6 | Three T3 economy modules are each large (wood, granary, fungus); together with polymorphism they are the riskiest T3 work. | Build order: granary (fewest new systems), then wood, then fungus; T3 (stretch) items may be cut. |
+| R7 | Many species numbers are estimates (Messor development times, Atta load sizes and garden yields, Camponotus lifespans and caste masses). | Treat all [EST] values as balance placeholders for the headless growth-target runs (3.5 `growthTargets`). |
+
