@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_TO_COLONY_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig, copyPose, makePose, planTransition, type TransitionPlan,
+  CAM_SWITCH_DIP_HALF_S, CAM_TO_COLONY_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig, copyPose, makePose, planTransition, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
 import { SLICE_REPEAT_HZ } from '@/input';
@@ -59,9 +59,22 @@ const ZERO2 = { x: 0, y: 0 };
  * dip); every other switch flies clamp(0.4 + d/300, 0.4, 0.9) s, or dip-fades beyond 150 BU; reduced motion
  * cross-fades 0.3 s.
  */
-export function handoverPlan(from: ViewId, to: ViewId, a: CameraPose, b: CameraPose, bu: number, reducedMotion: boolean): TransitionPlan {
+export function handoverPlan(from: ViewId, to: ViewId, a: CameraPose, b: CameraPose, bu: number, reducedMotion: boolean, trace?: TraceFn): TransitionPlan {
+  if (!reducedMotion && trace && crossesSolid(a.pos, b.pos, trace)) return { kind: 'dip', duration: 2 * CAM_SWITCH_DIP_HALF_S };
   if (!reducedMotion && (from === 'colony' || to === 'colony')) return { kind: 'fly', duration: CAM_TO_COLONY_S };
   return planTransition(a, b, bu, reducedMotion);
+}
+
+/**
+ * Views-task deviation (GDD 01 §2): a flight whose straight path would pass through solid - the colony camera above
+ * the ground descending to an ant in the nest, an ant switch across a wall - dip-fades instead, so the camera is
+ * never seen inside the soil.
+ */
+function crossesSolid(a: Vec3, b: Vec3, trace: TraceFn): boolean {
+  const d = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }, l = Math.hypot(d.x, d.y, d.z);
+  if (l < 1e-6) return false;
+  d.x /= l; d.y /= l; d.z /= l;
+  return trace(a, d, l, 0) < l - 1e-3;
 }
 
 /** The colony rotation from the mouse drag alone (degrees, like InputState.look), without the Q / E keys. */
@@ -141,7 +154,7 @@ export class ViewDirector {
     // possess -> possess is a switch to another ant: it flies (or dips beyond CAM_SWITCH_FADE_DIST_BU) like any
     // other hand-over (GDD 01 §2); re-entering any other view it is already in is a cut
     const cut = instant || (prev === view && view !== 'possess');
-    const plan = cut ? { kind: 'fly' as const, duration: 0 } : handoverPlan(prev, view, from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion);
+    const plan = cut ? { kind: 'fly' as const, duration: 0 } : handoverPlan(prev, view, from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion, this.world.trace);
     // photo mode keeps the pose: no blend in or out
     this.transition.start(from, view === 'photo' || prev === 'photo' ? { kind: 'fly', duration: 0 } : plan);
   }

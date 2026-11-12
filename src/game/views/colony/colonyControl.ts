@@ -85,7 +85,9 @@ export function colonyClick(sim: Sim, pick: ScenePick | null, st: ViewsState, to
   const chamber = pick?.hits.find((x) => x.kind === 'chamber') ?? null;
   if (st.tool) {
     const kind = st.tool as MarkerToolKind;
-    const at: Vec3 | null = (kind === 'move-brood' || kind === 'move-queen') && chamber ? chamber.pos : surface;
+    let at: Vec3 | null = (kind === 'move-brood' || kind === 'move-queen') && chamber ? chamber.pos : surface;
+    // forage / avoid mark the ground (GDD 08 §4.3): a click on a cut face or a nest wall marks the ground above it
+    if (at && (kind === 'forage' || kind === 'avoid') && pick?.surface?.underground) at = { x: at.x, y: sim.field.height(at.x, at.z), z: at.z };
     if (!at) { st.message = 'Point at the ground or a chamber'; h.toast(st.message); return; }
     const r = tools.markers.place(h, kind, at, chamber?.id ?? -1);
     if (!r.ok && r.reason) { st.message = r.reason; h.toast(r.reason); }

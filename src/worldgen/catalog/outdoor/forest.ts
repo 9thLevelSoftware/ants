@@ -28,12 +28,16 @@ export const FOREST = {
     /** Roots keep this far (BU, beyond their radius) out of each branch's climb corridor at the trunk foot. */
     corridorClearBu: 6,
   },
-  log: { dia: [150, 400], len: [1000, 2500], embedK: [0.1, 0.2], decayedP: 0.6, barkSlabs: [0, 3], barkGapBu: [1, 3], galleryP: 0.7 },
-  stump: { dia: [300, 800], h: [150, 500], roots: [4, 5], decayedP: 0.7, galleryP: 0.7 },
+  log: { dia: [150, 400], len: [1000, 2500], embedK: [0.1, 0.2], decayedP: 0.6, barkSlabs: [0, 3], barkGapBu: [1, 3], galleryP: 0.7,
+    /** Loose bark slabs: angle off the crest (rad), thickness, size (along x across, mm), keep-off from the ends and the route section. */
+    barkPhi: [0.35, 1.1] as [number, number], barkT: [5, 20] as [number, number], barkSize: [200, 100] as [number, number], barkEndMm: 150, barkRouteMm: 200 },
+  stump: { dia: [300, 800], h: [150, 500], roots: [4, 5], decayedP: 0.7, galleryP: 0.7,
+    /** Root flares: largest diameter (mm), share of the stump diameter, reach beyond the rim (mm). */
+    rootDiaMax: 200, rootDiaK: 0.25, rootReach: [200, 500] as [number, number] },
   /** Gallery inside decayed wood (GDD 04 §7 log-gallery): tube diameter, total length, chambers. */
   gallery: { tubeDiaBu: [1.5, 2], lenBu: [30, 120], chambers: [1, 2], chamberBu: [4, 6] },
   branch: { dia: [20, 60], len: [500, 1500], segs: [2, 4], bendDeg: [10, 25], twigs: [0, 2], decayedP: 0.5 },
-  twig: { dia: [2, 20], len: [50, 300] },
+  twig: { dia: [2, 20], len: [50, 300], straightP: 0.5, bendX: 0.1, bendZ: 0.15 },
   stone: { len: [40, 200], smallShare: 0.7, smallMax: 80, thickK: [0.25, 0.4], widthK: [0.6, 0.9], elP: 0.6, embedK: [0.3, 0.5],
     /** under-stone lens (GDD 04 §7): share of stones >= minLenBu, footprint share, height (BU), radius cap (BU). */
     cavityP: 0.4, cavityMinLenBu: 6, cavityFoot: [0.6, 0.9], lensBu: [0.5, 1], lensMaxRBu: 10 },
@@ -75,11 +79,11 @@ export function log(rng: RngState, env: Env): Built {
   const xs = R(rng, -len * 0.3, len * 0.3), ro = r + foot;
   const nb = rngInt(rng, L.barkSlabs[0], L.barkSlabs[1]);
   for (let i = 0; i < nb; i++) {
-    const phi = R(rng, 0.35, 1.1) * (rngFloat(rng) < 0.5 ? -1 : 1);
-    const t = R(rng, 5, 20), gap = R(rng, L.barkGapBu[0], L.barkGapBu[1]) * bu;
-    const x = R(rng, -len / 2 + 150, len / 2 - 150), rr = r + gap + t / 2;
-    if (Math.abs(x - xs) < 200 + 4 * bu) continue;
-    prims.push(rb(v(x, r + rr * dcos(phi), -rr * dsin(phi)), 200, t, 100, 3, 'bark', C | S, pitchQ(-phi)));
+    const phi = R(rng, L.barkPhi[0], L.barkPhi[1]) * (rngFloat(rng) < 0.5 ? -1 : 1);
+    const t = R(rng, L.barkT[0], L.barkT[1]), gap = R(rng, L.barkGapBu[0], L.barkGapBu[1]) * bu;
+    const x = R(rng, -len / 2 + L.barkEndMm, len / 2 - L.barkEndMm), rr = r + gap + t / 2;
+    if (Math.abs(x - xs) < L.barkRouteMm + 4 * bu) continue;
+    prims.push(rb(v(x, r + rr * dcos(phi), -rr * dsin(phi)), L.barkSize[0], t, L.barkSize[1], 3, 'bark', C | S, pitchQ(-phi)));
   }
   // litter banked along both sides fills the acute wedge under the log's bulge (an overhang no walker turns into)
   const rbm = 0.6 * (r - embed), zcb = Math.sqrt(Math.max(0, r * r - (r - embed) * (r - embed)));
@@ -163,7 +167,7 @@ export function stump(rng: RngState, env: Env): Built {
   for (let k = 0; k < nr; k++) {
     const a = y0 + (k * TAU) / nr;
     rootYaws.push(a);
-    const dd = dirYaw(a), rd = Math.min(200, d * 0.25), out = r + R(rng, 200, 500);
+    const dd = dirYaw(a), rd = Math.min(T.rootDiaMax, d * T.rootDiaK), out = r + R(rng, T.rootReach[0], T.rootReach[1]);
     prims.push(ca(add(v(0, h * 0.25, 0), scale(dd, r * 0.4)), add(v(0, g(dd.x * out, dd.z * out) - 0.4 * rd, 0), scale(dd, out)), rd, mat, C | S | (decayed ? D : 0)));
   }
   const ra = freestAngle(rootYaws, R(rng, 0, TAU)), sd = dirYaw(ra);
@@ -218,8 +222,8 @@ export function twig(rng: RngState): Built {
   const T = FOREST.twig;
   const dia = R(rng, T.dia[0], T.dia[1]), len = R(rng, T.len[0], T.len[1]);
   const r = dia / 2;
-  if (chance(rng, 0.5)) return { tpl: { id: 'twig', prims: [ca(v(-len / 2 + r, r, 0), v(len / 2 - r, r, 0), dia, 'wood-sound', C)], tags: ['prop'] } };
-  const mid = v(R(rng, -len * 0.1, len * 0.1), r, R(rng, -len * 0.15, len * 0.15));
+  if (chance(rng, T.straightP)) return { tpl: { id: 'twig', prims: [ca(v(-len / 2 + r, r, 0), v(len / 2 - r, r, 0), dia, 'wood-sound', C)], tags: ['prop'] } };
+  const mid = v(R(rng, -len * T.bendX, len * T.bendX), r, R(rng, -len * T.bendZ, len * T.bendZ));
   return { tpl: { id: 'twig', prims: chain([v(-len / 2 + r, r, 0), mid, v(len / 2 - r, r, 0)], dia, 'wood-sound', C), tags: ['prop'] } };
 }
 
