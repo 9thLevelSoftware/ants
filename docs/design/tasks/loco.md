@@ -13,6 +13,7 @@ Everything that makes ants and creatures get from A to B: steering, the navigati
 `src/sim/locomotion/**` except the kernel files `walker.ts` / `walkerMath.ts`; `src/sim/world/navGrid.ts`; `src/sim/world/entityIndex.ts`. Replace the stub `src/sim/locomotion/index.ts` keeping its exported names and signatures (extend additively).
 
 ## Boundaries
+- Apply the nest spike's findings (`docs/research/spike-nest.md` section 5): item 4 (helix drift in round tunnels: give AI and the possessed ant an optional prefer-floor bias), item 12 (ants pile up at turn-around points: add light avoidance and spread arrival points), item 2 (placing entities in saturated cavity space needs a hint direction).
 - You implement movement only. Behaviours (other tasks) decide where to go by calling `navTo` / `navStop` / `navWander` / `navFollowTrail` / `navRetrace` and polling `nav.status`.
 - Pheromone sensing goes through the `PheromoneField` service interface (another task implements it; test with a fake).
 - Speed multipliers from temperature, load, health and age are inputs read from the entity (or passed by a small function in the stub of the owning module); do not compute physiology here.

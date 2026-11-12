@@ -12,6 +12,7 @@ The single library through which any ant — autonomous or possessed — changes
 `src/sim/ants/actions/**`, `src/sim/ants/player/**`, `src/sim/ants/lifecycle.ts`, and the parts of `src/sim/ants/index.ts` that export them (keep the stub's exported names and signatures; extend additively). Constants go in `src/sim/balance/actions.ts`.
 
 ## Boundaries
+- The `dig-bite` primitive passes the digger's position, horizontal heading and the chosen slope (player input: default slope with look-up/look-down adjustment) to the nest module, which implements the ramp brush described in `docs/research/spike-nest.md` section 5 item 5.
 - Primitives CALL other modules' functions for the real effect (dig bite and pellets -> nest; food transfers, brood feeding, egg laying -> colony; pheromone deposits -> pheromones; harvesting -> ecology sources; damage -> combat). Those modules are being written in parallel: code against their stub signatures, test with fakes, and list every function you rely on in your report.
 - Movement itself is the locomotion task. Combat resolution (bite/hold/spray damage) is a Tier 2 task: implement the primitives' lifecycle, reach, cooldown and events now, delegating damage to the combat stub.
 - Behaviours (later tasks) and the possessed ant both use `canDo` / `begin` / `cancel`.

@@ -14,6 +14,7 @@ Draw the surface world at ant scale from `WorldData`: chunked terrain with real 
 `src/render/world/{terrain,sky,lighting,primitives,materials}/**` and a demo page `spikes/render-world-demo/**`.
 
 ## Boundaries
+- Nest spike finding (`docs/research/spike-nest.md` section 5, item 7): a uniform list of breach spheres does not scale. Use a 2D hole-mask texture over the terrain, rasterised locally from the field when carving breaches the surface (the kernel exposes breaches and the cavity field); keep the uniform list only as a fallback for the `test` preset if simpler.
 - Grass, draped decor, water, weather effects, creatures, ants and the carve-grid meshes are other tasks. Leave a clean API for them (shared material library, shared uniforms for wetness, time and wind, the breach list).
 - You read simulation data; you never write it.
 

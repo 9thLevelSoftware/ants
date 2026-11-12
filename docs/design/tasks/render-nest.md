@@ -14,6 +14,7 @@ Draw excavated space: marching-cubes chunk meshes that update as ants dig, tunne
 `src/render/nest/**` and a demo page `spikes/render-nest-demo/**`.
 
 ## Boundaries
+- Apply the nest spike's rendering findings (`docs/research/spike-nest.md` section 5 items 6, 8 and 11, and section 6): discard by soil distance only with a thin skin below the soil; smooth coarse tunnel silhouettes by relaxing vertices toward the true iso-surface; depth-below-soil darkening plus a warm lantern around the possessed ant; the slice cap texture and the x-ray cast for the cutaway, with the improvements the spike lists as missing (plane following camera yaw, marker snapping).
 - Mounds are dynamic primitives drawn by the world renderer; you only add the granular detail around entrances if needed.
 - Dig-plan ghosts and markers are a later task (`views`); expose the hooks (a way to draw translucent spheres/ellipsoids in nest space).
 

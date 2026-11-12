@@ -13,6 +13,7 @@ Turn the kernel's raw carve grid into nests: dig bites and soil pellets, mounds,
 `src/sim/nest/**` except `carve/**`, `nav/**` (kernel) and `architect/**` (later task). Replace the stub `src/sim/nest/index.ts` keeping its exported names and signatures (extend additively). Nest balance constants go in `src/sim/balance/nest.ts`.
 
 ## Boundaries
+- Apply the nest spike's most important finding (`docs/research/spike-nest.md` section 5, item 5): a dig sphere placed relative to the body can engulf the digger and curls back on itself. The dig bite must use the spike's RAMP BRUSH (a capsule whose floor starts at the digger's feet and runs along its horizontal heading at a world-relative slope) and must re-project nearby walkers after each carve (`surfaceChanged`). Design `digBite` around that; dig plans supply the slope/heading for AI diggers.
 - The action library decides WHEN an ant bites or drops a pellet; you implement WHAT happens (`digBite`, `dumpPellet`, `sealEntrance`, …). Dig behaviours (later task) call `claimDigSite` / `releaseDigSite`.
 - Chamber temperature and humidity are computed by the environment module from the depth/cover data you provide.
 - The architect (automatic planning) is a later task: expose the queries it needs (free wall space, chamber stats, nest bounds).
