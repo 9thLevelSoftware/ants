@@ -97,3 +97,5 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - 12:03 DONE: worldgen-terrain (zone map reviewed by orchestrator: plausible lot layout). Ruling added (directions §K): founding-site quality must discriminate (distribution targets; queen start rule) -> owned by worldgen-life (calibration) and founding (same factors).
 - 12:05 Launched worldgen-outdoor + worldgen-interior (Opus). Running: gates int-1A-app + int-1A-sim, render-decor, ui-shell, save.
 - Stage 1B still to launch after the gates: beh-forage, beh-nest, architect, worldgen-life (after outdoor/interior), founding, views, ui-hud, packaging.
+- 12:48 DONE: ui-shell, save (orchestrator viewed title + new-colony screenshots: good). TODO noted: title screen needs a live 3D backdrop scene (add to a Stage 2 polish task "title-scene").
+- Running: gates int-1A-app + int-1A-sim, render-decor, worldgen-outdoor, worldgen-interior.
