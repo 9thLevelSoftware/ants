@@ -73,3 +73,6 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - 07:51 ALL task specs written: Stage 1A, 1B, 2, 3 (docs/design/tasks/*.md, 57 files). Remaining orchestrator work: launch waves per module map, integration gates, QA playtests, packaging/delivery.
 - 07:52 Stage 1A wave 1 launched (kernel-independent): phero, colony-core, actions, sources-core (Opus), env-core (Sonnet/Opus verify). Also running: F1c verify, F2 fix, render-ants, render-world.
 - Pending triggers: F2 done -> launch F-int + render-nest. F-int done -> launch loco, nestops, worldgen-terrain, F3b. F3b done -> ui-shell, save. Then Stage 1A integration gate (write int-1A spec), then Stage 1B.
+- 08:01 F2 kernel DONE (9 review findings fixed, 91 tests, perf budgets met). Launched render-nest.
+- 08:11 F1c DONE: contracts synced with design index and FROZEN (additive only from now). Launched F-int (implement-only; wf-build.js now supports tasks with skipImpl:true for a later verify+fix run).
+- When F-int impl completes: launch (a) F-int verify+fix via {key:'F-int-foundation', spec, skipImpl:true}, (b) loco, nestops, worldgen-terrain, (c) F3b. Notes for integrators: docs/design/tasks/notes-foundation.md (regenerate with scratchpad/collect-notes.py).
