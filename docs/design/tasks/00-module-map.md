@@ -8,6 +8,8 @@ Model tiers: **O** = Opus 5.5, **S** = Sonnet 5.5. No Fable subagents.
 | Key | Owned paths | Content | Tier |
 | --- | --- | --- | --- |
 | F1a-scaffold-core | config files, `src/core/**`, `tools/sim/run-ts.mjs` | build config, core maths/rng/noise/sdf/spatial/store/serialize | O |
+| F1c-contracts-sync | same paths as F1b | applies the design index's contract-affecting decisions; contracts FROZEN afterwards | O |
+| F-int-foundation | `src/sim/services.ts`, testing helpers, `tools/sim/soak.ts` | wires the real kernel into the sim; mound height overlays; soak tool | O |
 | F1b-contracts | `src/sim/types/**`, `src/sim/balance/index.ts`, `src/sim/sim.ts`, `src/sim/systems.ts`, `src/sim/createGame.ts`, `src/sim/save/**`, `src/sim/testing/**`, stub `index.ts` of every sim module, `src/worldgen/index.ts` (flat test world) | contracts from the GDD digest, sim skeleton that ticks, snapshot/restore, test world | O |
 | F2-kernel | `src/sim/world/{field,primHash}.ts`, `src/sim/nest/carve/**`, `src/sim/nest/nav/**`, `src/sim/locomotion/walker.ts` | port of the nest spike: field f(p), carve grid, marching cubes, breaches, BFS nest nav, surface walker | O |
 | F3-appshell | `src/main.ts`, `src/game/**`, `src/input/**`, `src/render/app/**`, `src/render/index.ts`, `src/render/camera/**`, `src/render/debug/**`, `src/ui/App.tsx`, `src/ui/store.ts` | Game orchestrator, loop, quality presets, post chain, asset loader, input, third-person/observer camera port, debug API `window.__game`, minimal debug rendering | O |
@@ -20,8 +22,9 @@ Model tiers: **O** = Opus 5.5, **S** = Sonnet 5.5. No Fable subagents.
 | nestops | `src/sim/nest/{entrances,chambers,plans,pellets,mound,system}*.ts` | 03 | F2 | O | no |
 | worldgen-terrain | `src/worldgen/{index,params,layout,terrain,maps,validate,kit}/**` | 04 | F1b, F2 | O | no |
 | colony-core | `src/sim/colony/**` | 02 | F1b | O | no |
-| actions | `src/sim/ants/actions/**`, `src/sim/ants/player/**`, `src/sim/ants/lifecycle.ts` | 01, 02 | F2 | O | no |
+| actions | `src/sim/ants/actions/**`, `src/sim/ants/player/**`, `src/sim/ants/lifecycle.ts`, `src/sim/ants/behaviourRunner.ts`, `src/sim/ants/index.ts` | 01, 02 | F2 | O | no |
 | env-core | `src/sim/environment/{calendar,temperature,weather,system}*.ts` | 06 | F1b | S | no |
+| sources-core | `src/sim/ecology/sources/**` | 05 | F1c | O | no |
 | render-world | `src/render/world/{terrain,sky,lighting,primitives,materials}/**` | 04, 08, look spike | F3 | O | yes |
 | render-nest | `src/render/nest/**` | 03, 08, nest + look spikes | F2, F3 | O | yes |
 | render-ants | `src/render/ants/**` | 07, 08, ants spike | F3 | O | yes |
@@ -31,9 +34,8 @@ Model tiers: **O** = Opus 5.5, **S** = Sonnet 5.5. No Fable subagents.
 ## Stage 1B — first playable colony loop
 | Key | Owned paths | GDD | Depends | Tier | Visual |
 | --- | --- | --- | --- | --- | --- |
-| beh-forage | `src/sim/ants/behaviours/{scout,forage,tend,flee}*.ts`, `src/sim/ants/perception.ts` | 02 | loco, phero, actions, colony-core, sources-core | O | no |
-| beh-nest | `src/sim/ants/behaviours/{nurse,queenCare,store,dig,haul,idle,guard,queen}*.ts` | 02, 03 | loco, nestops, actions, colony-core | O | no |
-| sources-core | `src/sim/ecology/sources/**` | 05 | F1b | O | no |
+| beh-forage | `src/sim/ants/behaviours/outdoor/**` (scout, forage, tend, flee), `src/sim/ants/perception/**` | 02 | loco, phero, actions, colony-core, sources-core | O | no |
+| beh-nest | `src/sim/ants/behaviours/nest/**` (nurse, queen-care, store, dig, haul, idle, guard, queen) | 02, 03 | loco, nestops, actions, colony-core | O | no |
 | architect | `src/sim/nest/architect/**` | 03 | nestops | O | no |
 | worldgen-outdoor | `src/worldgen/catalog/outdoor/**`, `src/worldgen/place/outdoor/**` | 04 | worldgen-terrain | O | yes |
 | worldgen-interior | `src/worldgen/catalog/interior/**`, `src/worldgen/place/interior/**` | 04 | worldgen-terrain | O | yes |

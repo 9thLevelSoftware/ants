@@ -9,7 +9,7 @@ The single library through which any ant — autonomous or possessed — changes
 - `src/sim/types/**` (`Ant`, `ActionInProgress`, `TargetRef`, commands, events), `src/sim/entities/**`, and the stubs `src/sim/ants/index.ts`, `src/sim/colony/index.ts`, `src/sim/nest/index.ts`, `src/sim/pheromones/index.ts`, `src/sim/ecology/index.ts`.
 
 ## You own
-`src/sim/ants/actions/**`, `src/sim/ants/player/**`, `src/sim/ants/lifecycle.ts`, and the parts of `src/sim/ants/index.ts` that export them (keep the stub's exported names and signatures; extend additively). Constants go in `src/sim/balance/actions.ts`.
+`src/sim/ants/actions/**`, `src/sim/ants/player/**`, `src/sim/ants/lifecycle.ts`, `src/sim/ants/behaviourRunner.ts`, the two stub files `src/sim/ants/behaviours/{outdoor,nest}/index.ts`, and `src/sim/ants/index.ts` (keep the stub's exported names and signatures; extend additively). Constants go in `src/sim/balance/actions.ts`.
 
 ## Boundaries
 - The `dig-bite` primitive passes the digger's position, horizontal heading and the chosen slope (player input: default slope with look-up/look-down adjustment) to the nest module, which implements the ramp brush described in `docs/research/spike-nest.md` section 5 item 5.
@@ -23,6 +23,7 @@ The single library through which any ant — autonomous or possessed — changes
 3. Possession: `possess` / `release` commands and rules (who, how, soft release), the `POSSESSED` flag semantics, the release-inference table (what an ant does next from what it carries and where it is), death and loss of the possessed ant, idle auto-release.
 4. Player control system: turns held/pressed intents into primitives for the possessed ant; target selection with scoring and hysteresis; the current context prompt (`prompt` query: primitive id, target, enabled/disabled reason) for the HUD; inspect read-outs as plain data for every target kind in GDD 01 §10.
 5. Ant lifecycle helpers: death processing (cause, corpse item, events, dropping what was carried), eclosion hook, and removal.
+6. The behaviour runner: a `behaviourSystem` that, for each autonomous ant on its think tick, runs the registered behaviour for its task (calling `exit`/`enter` when the task changes) and skips possessed ants; plus the registration plumbing. Later tasks write the behaviours themselves in `src/sim/ants/behaviours/outdoor/**` and `src/sim/ants/behaviours/nest/**`: create those two folders now, each with an `index.ts` exporting an empty `behaviours` array, and have `src/sim/ants/index.ts` assemble the behaviour table from them, so those tasks never touch your files. Provide a trivial default behaviour (stand still, face a sensible direction) for tasks with no registered behaviour.
 
 ## Acceptance criteria
 1. `npm run typecheck` clean; tests green; no `three`/DOM imports.
