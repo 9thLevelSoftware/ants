@@ -85,8 +85,10 @@ export const CAMPONOTUS_NANITIC_MINOR = {
 export const CAMPONOTUS_ACID_CHARGES = { minor: 3, media: 5, major: 6 } as const;
 
 export const CAMPONOTUS_PENNSYLVANICUS: SpeciesDef = {
+  // `available` is false in the T1 build (GDD 07 Appendix E1): the wood-nesting module is not implemented yet, so the
+  // New Game screen must not offer this species. The task that ships the module flips it to true.
   id: 'camponotus-pennsylvanicus', binomial: 'Camponotus pennsylvanicus', commonName: 'Black carpenter ant',
-  subfamily: 'formicinae', buMm: 9, stdMassMg: 7, available: true, tier: 'T3', complexity: 2,
+  subfamily: 'formicinae', buMm: 9, stdMassMg: 7, available: false, tier: 'T3', complexity: 2,
   playstyleLine: 'A night-shift colonist of damp wood: slow to grow, split between a moist parent nest and dry satellites.',
   foundingSeason: 'spring', economyModules: ['honeydew-ranching', 'wood-nesting'],
   codexIds: ['cx-claustral-founding', 'cx-honeydew', 'cx-wood-moisture', 'cx-frass', 'cx-satellite-nests', 'cx-night-foraging'],

@@ -86,8 +86,10 @@ const CASTES: CasteDef[] = [
 export const ATTA_SMALL_MEDIA_SHARE: Curve = [[0, 1], [100, 1], [100.01, 0.4615], [400, 0.4615], [1000, 0.4032]];
 
 export const ATTA_TEXANA: SpeciesDef = {
+  // `available` is false in the T1 build (GDD 07 Appendix E1): the fungus-garden module is not implemented yet, so the
+  // New Game screen must not offer this species. The task that ships the module flips it to true.
   id: 'atta-texana', binomial: 'Atta texana', commonName: 'Texas leafcutter ant', subfamily: 'myrmicinae',
-  buMm: 7, stdMassMg: 5, available: true, tier: 'T3', complexity: 3,
+  buMm: 7, stdMassMg: 5, available: false, tier: 'T3', complexity: 3,
   playstyleLine: 'A leaf-cutting farmer: a living fungus garden feeds everyone, and the whole chain must keep up.',
   foundingSeason: 'spring', economyModules: ['fungus-garden'],
   codexIds: [

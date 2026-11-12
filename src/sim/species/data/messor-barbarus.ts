@@ -80,8 +80,10 @@ export const MESSOR_NANITIC_MINOR = {
 } as const;
 
 export const MESSOR_BARBARUS: SpeciesDef = {
+  // `available` is false in the T1 build (GDD 07 Appendix E1): the granary module is not implemented yet, so the
+  // New Game screen must not offer this species. The task that ships the module flips it to true.
   id: 'messor-barbarus', binomial: 'Messor barbarus', commonName: 'Harvester ant', subfamily: 'myrmicinae',
-  buMm: 7, stdMassMg: 7, available: true, tier: 'T3', complexity: 2,
+  buMm: 7, stdMassMg: 7, available: false, tier: 'T3', complexity: 2,
   playstyleLine: 'A seed harvester of dry soil: granaries, milling majors and trunk trails that avoid the midday heat.',
   foundingSeason: 'autumn', economyModules: ['granary'],
   codexIds: ['cx-claustral-founding', 'cx-seed-classes', 'cx-trunk-trail', 'cx-granary-chaff', 'cx-hybridogenesis'],

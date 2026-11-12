@@ -32,7 +32,7 @@ export function fillBrown(a: Float32Array, rng: AudioRng): void {
 
 /** Per-context synthesis kit. */
 export class SynthKit {
-  private noise = new Map<NoiseKind, AudioBuffer>();
+  private noiseBufs = new Map<NoiseKind, AudioBuffer>();
   readonly rng: AudioRng;
 
   constructor(readonly ctx: BaseAudioContext, seed = 1234) {
@@ -40,14 +40,14 @@ export class SynthKit {
   }
 
   noiseBuffer(kind: NoiseKind): AudioBuffer {
-    let b = this.noise.get(kind);
+    let b = this.noiseBufs.get(kind);
     if (!b) {
       const len = Math.round(this.ctx.sampleRate * 2);
       b = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = b.getChannelData(0);
       const rng = new AudioRng(kind === 'white' ? 11 : kind === 'pink' ? 22 : 33);
       if (kind === 'white') fillWhite(data, rng); else if (kind === 'pink') fillPink(data, rng); else fillBrown(data, rng);
-      this.noise.set(kind, b);
+      this.noiseBufs.set(kind, b);
     }
     return b;
   }
