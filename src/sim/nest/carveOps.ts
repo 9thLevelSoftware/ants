@@ -8,6 +8,7 @@ import { SURFACE_REFRESH_PAD_BU } from '@/sim/balance/nest';
 import { walkerSurfaceChanged } from '@/sim/locomotion/walker';
 import type { VoxelBox } from './carve/keys';
 import { onCarveChanged } from './entrances';
+import { joinNaturalCavities } from './naturalCavities';
 
 /** Re-projects walkers within `radius` of `c` after the field changed there (walkers in the air are left alone). */
 export function refreshWalkers(sim: Sim, c: Vec3, radius: number): void {
@@ -27,6 +28,7 @@ export function afterBrush(sim: Sim, res: BrushResult, c: Vec3, reach: number): 
   sim.emit({ type: 'carve-chunks-dirty', keys: res.dirty });
   refreshWalkers(sim, c, reach + SURFACE_REFRESH_PAD_BU * sim.world.bu);
   onCarveChanged(sim, res.box, res.breach);
+  if (res.opened > 0) joinNaturalCavities(sim, res.box);
 }
 
 export function carveSphere(sim: Sim, c: Vec3, r: number, opts?: BrushOptions): BrushResult {

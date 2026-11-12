@@ -152,7 +152,7 @@ function render(dt = 0): void {
 }
 
 function hudText(): string {
-  const s = app.frameStats(), n = nestRenderer.stats();
+  const s = app.frameStats(), n = nestRenderer.details();
   return `${qualityId} post:${!!app.post} view:${Object.keys(VIEWS).find((k) => VIEWS[k] === view) ?? 'custom'} cut:${cutaway.mode}${cutaway.section === 'vertical' ? '(section)' : ''}\n` +
     `draws ${s.drawCalls}  tris ${s.triangles}  ${s.width}x${s.height}\n` +
     `nest: ${n.chunks} chunks ${n.regions} regions ${n.triangles} tris  pending ${n.pending}  remesh ${n.lastFrame.ms.toFixed(2)} ms  ` +
@@ -208,22 +208,38 @@ function bite(): void {
   kernel.carveSphere(c, 0.6 * BU);
 }
 
-interface FrameRec { ms: number; commitMs: number; built: number; committed: boolean; pending: number }
+interface FrameRec { ms: number; commitMs: number; built: number; steps: number; maxStepMs: number; maxStep: number; committed: boolean; pending: number; renderMs: number }
 
-/** n bites (all at once, or one per frame), then frames until every mesh is rebuilt; per-frame remesh records. */
-function dig(n: number, perFrame = false, renderFrames = true): { frames: FrameRec[]; budgetMs: number; framesToVisible: number } {
+/**
+ * n bites (all at once, or one per frame), then frames until every mesh is rebuilt. Per frame: the re-meshing time
+ * (nest update: builds + writing into region buffers) and, when frames are rendered, the CPU time of the render call
+ * (which includes the buffer uploads of the rebuilt chunk ranges); `baseRenderMs` is the same call without edits.
+ */
+function dig(n: number, perFrame = false, renderFrames = true): { frames: FrameRec[]; budgetMs: number; framesToVisible: number; baseRenderMs: number } {
   const recs: FrameRec[] = [];
+  // the GPU (SwiftShader in the harness) finishes the previous frame first, so the timed render call measures its own
+  // CPU work (draw submission + buffer uploads), not a wait for the software rasteriser
+  const gl = app.renderer.getContext(), px = new Uint8Array(4);
+  const timeRender = (dt: number) => {
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const t0 = performance.now();
+    app.renderFrame(dt);
+    return performance.now() - t0;
+  };
+  let base = 0;
+  if (renderFrames) { const b: number[] = []; for (let i = 0; i < 5; i++) { frame(1 / 60); b.push(timeRender(1 / 60)); } base = b.sort((x, y) => x - y)[2]; }
   const step = () => {
-    if (renderFrames) render(1 / 60); else frame(1 / 60);
-    const s = nestRenderer.stats().lastFrame;
-    recs.push({ ms: +s.ms.toFixed(3), commitMs: +s.commitMs.toFixed(3), built: s.built, committed: s.committed, pending: s.pending });
+    frame(1 / 60);
+    const renderMs = renderFrames ? timeRender(1 / 60) : 0;
+    const s = nestRenderer.details().lastFrame;
+    recs.push({ ms: +s.ms.toFixed(3), commitMs: +s.commitMs.toFixed(3), built: s.built, steps: s.steps, maxStepMs: +s.maxStepMs.toFixed(2), maxStep: s.maxStep, committed: s.committed, pending: s.pending, renderMs: +renderMs.toFixed(2) });
   };
   if (perFrame) for (let i = 0; i < n; i++) { bite(); step(); }
   else for (let i = 0; i < n; i++) bite();
   let guard = 0;
-  do step(); while (nestRenderer.stats().pending > 0 && guard++ < 200);
+  do step(); while (nestRenderer.details().pending > 0 && guard++ < 200);
   const firstCommit = recs.findIndex((r) => r.committed);
-  return { frames: recs, budgetMs: MESH_QUALITY[qualityId].budgetMs, framesToVisible: perFrame ? -1 : firstCommit + 1 };
+  return { frames: recs, budgetMs: MESH_QUALITY[qualityId].budgetMs, framesToVisible: perFrame ? -1 : firstCommit + 1, baseRenderMs: +base.toFixed(2) };
 }
 
 // ------------------------------------------------------------------------------------------- API
@@ -253,8 +269,13 @@ window.__demo = {
   setGhosts: (on: boolean) => { setGhosts(on); render(0); },
   render: () => { render(0); return app.frameStats(); },
   frames: (n: number, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; render(dt); } return app.frameStats(); },
-  stats: () => ({ frame: app.frameStats(), nest: nestRenderer.stats(), look: { ...nestRenderer.look }, exposureEV: worldRenderer.lighting.exposureEV, world: worldRenderer.stats() }),
+  stats: () => ({ frame: app.frameStats(), nest: nestRenderer.details(), look: { ...nestRenderer.look }, exposureEV: worldRenderer.lighting.exposureEV, world: worldRenderer.stats() }),
   pick: (x: number, y: number) => nestRenderer.pick(x, y),
+  /** Diagnosis: ground height, soil distance and the terrain hole probe (> 0 open) at a column, mm. */
+  ground: (x: number, z: number) => {
+    const h = kernel.field.height(x, z);
+    return { h, cavity: kernel.carve.cavity(x, h - 0.1 * BU, z, null), open: kernel.carve.cavity(x, h - 0.1 * BU, z, null) - 0.125 * BU };
+  },
   /** Layer visibility for diagnosis: 'nest' | 'world' | 'ant'. */
   setVisible: (layer: string, on: boolean) => {
     const o = layer === 'nest' ? nestRenderer.group : layer === 'world' ? worldRenderer.group : ant;

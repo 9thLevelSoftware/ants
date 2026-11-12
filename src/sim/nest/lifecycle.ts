@@ -7,6 +7,7 @@ import {
   BULKING, FOUNDING_TEMPLATE, TEMPLATE_NEST_CHAMBERS, nestTemplate,
 } from '@/sim/balance/nest';
 import { createNest } from '@/sim/entities';
+import { markNestDirty } from './runtime';
 import { OPEN_MIN } from './carve/keys';
 import { carveCapsule, carveEllipsoid } from './carveOps';
 import { nestOpenVolume } from './chambers/upkeep';
@@ -19,7 +20,9 @@ import { packSample } from './voxelKey';
 /** A new nest record with a founding dig (`site-search`) for a colony at `origin` (daughters, rivals). */
 export function createFoundingNest(sim: Sim, colonyId: number, origin: Vec3): Nest {
   const substrate = sim.field.materialAt({ x: origin.x, y: origin.y - sim.world.bu, z: origin.z });
-  return createNest(sim, { colony: colonyId, origin, founding: true, substrate });
+  const nest = createNest(sim, { colony: colonyId, origin, founding: true, substrate });
+  markNestDirty(sim, nest.id); // open space already in its box (a natural cavity) is detected at its next turn
+  return nest;
 }
 
 export interface TemplateNestOptions {

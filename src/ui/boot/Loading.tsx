@@ -8,6 +8,7 @@ export function Loading({ loading }: { loading: UiLoading | null }) {
     <div class="fd-screen" role="status" aria-live="polite">
       <p>{l.error ? 'This seed would not produce a viable locality' : l.phase}</p>
       {l.error ? <pre>{l.error}</pre> : <div class="fd-bar"><div style={{ width: `${Math.round(l.progress * 100)}%` }} /></div>}
+      {l.maxAttempts > 1 && <p>attempt {l.attempt} of {l.maxAttempts}</p>}
       {l.error && <button class="fd-btn" type="button" onClick={() => facade.value?.quitToTitle()}>Back</button>}
     </div>
   );

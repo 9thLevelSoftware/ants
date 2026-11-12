@@ -17,24 +17,46 @@ export const TOASTS = {
   steppedDown: (from: number, to: number) => `Simulation could not keep pace at ${from}×; running at ${to}×`,
   noRole: (role: string) => `No ant is ${role === 'forager' ? 'foraging' : role === 'digger' ? 'digging' : role === 'nurse' ? 'nursing' : 'available'} now`,
   autoPaused: 'Paused while the window is in the background',
+  padConnected: 'Controller connected',
+  padDisconnected: 'Controller disconnected',
+  pointerLockRefused: 'Mouse capture is not available here: drag with the right button to look',
 } as const;
 
 /** Recent sim events kept for the debug API (`__game.events()`), newest last. */
 export const EVENT_LOG_SIZE = 200;
 
+export interface LoggedEvent {
+  /** Position in the stream of all events since attach (1, 2, ...); unlike the index it survives the cap. */
+  seq: number;
+  tick: number;
+  type: string;
+  event: SimEvent;
+}
+
 export class PossessionEvents {
   readonly reactions: GameReaction[] = [];
-  readonly log: { tick: number; type: string; event: SimEvent }[] = [];
+  /** The last EVENT_LOG_SIZE events. Find the events of an action with since(seq), never by array index. */
+  readonly log: LoggedEvent[] = [];
+  /** seq of the newest event (0 before the first). */
+  seq = 0;
   private off: (() => void) | null = null;
 
   attach(sim: Sim): void {
     this.detach();
     this.off = sim.events.onAny((type, payload) => {
       const ev = payload as SimEvent;
-      this.log.push({ tick: sim.state.tick, type: String(type), event: ev });
+      this.log.push({ seq: ++this.seq, tick: sim.state.tick, type: String(type), event: ev });
       if (this.log.length > EVENT_LOG_SIZE) this.log.shift();
       this.react(ev);
     });
+  }
+
+  /** Logged events newer than `seq` (take `seq` before the action). Older than EVENT_LOG_SIZE events are gone. */
+  since(seq: number): LoggedEvent[] {
+    const log = this.log;
+    let i = log.length;
+    while (i > 0 && log[i - 1].seq > seq) i--;
+    return log.slice(i);
   }
 
   private react(ev: SimEvent): void {

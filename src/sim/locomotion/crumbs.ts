@@ -88,12 +88,11 @@ export function recordCrumb(ant: Ant, r: LocoRuntime): void {
 }
 
 /**
- * Path integration (GDD 02 §9.1): homeVec (ant -> home entrance) integrates the displacement since the last call,
- * with PI_NOISE error in a hashed random horizontal direction. Reset with resetHomeVec on leaving an entrance.
+ * Path integration (GDD 02 §9.1): homeVec (ant -> home entrance) integrates this step's displacement (pos - prevPos;
+ * call after the step), with PI_NOISE error in a hashed random horizontal direction. resetHomeVec on leaving.
  */
-export function integrateHome(ant: Ant, s: NavScratch, r: LocoRuntime, tick: number): void {
-  if (!s.piValid) { s.piPos.x = ant.pos.x; s.piPos.y = ant.pos.y; s.piPos.z = ant.pos.z; s.piValid = 1; return; }
-  const dx = ant.pos.x - s.piPos.x, dy = ant.pos.y - s.piPos.y, dz = ant.pos.z - s.piPos.z;
+export function integrateHome(ant: Ant, r: LocoRuntime, tick: number): void {
+  const dx = ant.pos.x - ant.prevPos.x, dy = ant.pos.y - ant.prevPos.y, dz = ant.pos.z - ant.prevPos.z;
   const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
   const h = ant.mem.homeVec;
   h.x -= dx; h.y -= dy; h.z -= dz;
@@ -102,14 +101,12 @@ export function integrateHome(ant: Ant, s: NavScratch, r: LocoRuntime, tick: num
     h.x += Math.cos(a) * e; h.z += Math.sin(a) * e;
     ant.mem.homeVecErr += e;
   }
-  s.piPos.x = ant.pos.x; s.piPos.y = ant.pos.y; s.piPos.z = ant.pos.z;
 }
 
-export function resetHomeVec(ant: Ant, s: NavScratch, entrance: Vec3 | null): void {
+export function resetHomeVec(ant: Ant, entrance: Vec3 | null): void {
   const h = ant.mem.homeVec;
   if (entrance) set3(h, entrance.x - ant.pos.x, entrance.y - ant.pos.y, entrance.z - ant.pos.z); else set3(h, 0, 0, 0);
   ant.mem.homeVecErr = 0;
-  s.piPos.x = ant.pos.x; s.piPos.y = ant.pos.y; s.piPos.z = ant.pos.z; s.piValid = 1;
 }
 
 /** Straight walkable line for a shortcut (GDD 02 §9.2). */

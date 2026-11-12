@@ -81,3 +81,68 @@ describe('cap raster', () => {
     expect(r.solidAt(0, -40)).toBeGreaterThan(0.5); // well below the ground
   });
 });
+
+describe('cap raster under edits', () => {
+  function world() {
+    const kernel = createKernel(makeFlatWorld({ size: 400, bu: BU, h0: 0 }), emptyCarve(BU));
+    kernel.carveCapsule({ x: 100, y: -40, z: 200 }, { x: 300, y: -40, z: 200 }, 4, { force: true });
+    const src = nestSourceFromSim(kernelSim(kernel));
+    return { kernel, src };
+  }
+  const full = (src: ReturnType<typeof world>['src'], face: ReturnType<typeof capFaces>[number]) => {
+    const r = new CapRaster();
+    r.start(face, 'fresh', 2, 512);
+    while (!r.step(src, Infinity));
+    return r.current!.data;
+  };
+
+  it('a carve edit re-rasterises only the texels near it, and the result equals a full raster (disc and pit wall)', () => {
+    const { kernel, src } = world();
+    const cp = computeCutPlane({ mode: 'slice', planeY: -40, radius: 120, center: { x: 200, z: 200 } }, ground, BU, createCutPlane());
+    const faces = capFaces(cp, 0, BU);
+    const rs = faces.map((f, i) => { const r = new CapRaster(); r.start(f, `k${i}`, 2, 512); while (!r.step(src, Infinity)); return r; });
+    const unsub: (() => void)[] = [];
+    unsub.push(src.onCarve((e) => rs.forEach((r) => r.invalidate(e, 2 * src.voxel))));
+    kernel.carveSphere({ x: 230, y: -41, z: 230 }, 5, { force: true }); // crosses the disc
+    kernel.carveSphere({ x: 200 + 120, y: -10, z: 200 }, 4, { force: true }); // crosses the pit wall at u ~ pi/2 R
+    kernel.carveSphere({ x: 200, y: -10, z: 200 - 120 }, 4, { force: true }); // crosses the pit wall at u ~ pi R
+    kernel.carveSphere({ x: 200 - 1, y: -10, z: 200 + 120 }, 4, { force: true }); // across u = 0 (the seam)
+    const revs = rs.map((r) => r.revision);
+    rs.forEach((r) => expect(r.busy).toBe(true));
+    let calls = 0;
+    for (const r of rs) while (r.busy) { r.step(src, 0); calls++; }
+    expect(calls).toBeLessThan(400); // patch rows only, not the 240 + 240 rows of both faces again
+    rs.forEach((r, i) => {
+      expect(r.revision).toBe(revs[i] + 1);
+      expect(Array.from(r.current!.data)).toEqual(Array.from(full(src, faces[i])));
+    });
+    unsub.forEach((u) => u());
+  });
+
+  it('a new face while a raster runs: the running one completes first, then the newest is rasterised', () => {
+    const { src } = world();
+    const at = (y: number) => computeCutPlane({ mode: 'slice', planeY: y, radius: 60, center: { x: 200, z: 200 } }, ground, BU, createCutPlane());
+    const r = new CapRaster();
+    r.start(capFaces(at(-40), 0, BU)[0], 'a', 2, 512);
+    r.step(src, 0);
+    r.start(capFaces(at(-41), 0, BU)[0], 'b', 2, 512);
+    r.start(capFaces(at(-42), 0, BU)[0], 'c', 2, 512); // replaces b in the queue
+    while (!r.step(src, 0));
+    expect(r.current!.key).toBe('a');
+    while (!r.step(src, 0));
+    expect(r.current!.key).toBe('c');
+    expect(r.busy).toBe(false);
+  });
+
+  it('after a cancel (cutaway closed) the same face is rasterised again, showing the old image meanwhile', () => {
+    const { src } = world();
+    const cp = computeCutPlane({ mode: 'slice', planeY: -40, radius: 60, center: { x: 200, z: 200 } }, ground, BU, createCutPlane());
+    const r = new CapRaster();
+    r.start(capFaces(cp, 0, BU)[0], 'a', 2, 512);
+    while (!r.step(src, Infinity));
+    r.cancel();
+    r.start(capFaces(cp, 0, BU)[0], 'a', 2, 512);
+    expect(r.busy).toBe(true);
+    expect(r.current).not.toBeNull();
+  });
+});

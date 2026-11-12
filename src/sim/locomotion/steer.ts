@@ -20,7 +20,7 @@ const DOWN: Vec3 = { x: 0, y: -1, z: 0 };
  */
 export function turnToward(w: Walker, dir: Vec3, maxAngle: number, minSteer: number): number {
   const dl = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
-  if (!(dl > 1e-9)) return -1;
+  if (!(dl > 1e-9) || !Number.isFinite(dl)) return -1;
   const tl = tangentPart(_t, dir, w.up);
   if (tl < minSteer * dl) return -1;
   _t.x /= tl; _t.y /= tl; _t.z /= tl;

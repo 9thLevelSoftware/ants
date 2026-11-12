@@ -37,16 +37,39 @@ export function togglePhoto(h: ViewSwitchHost): void {
   h.viewChanged();
 }
 
-/** UI / debug view request. Possession goes through the sim (the view follows its possession-started event). */
+/**
+ * UI / debug view request: ends in the requested view (possession goes through the sim, and the view follows its
+ * possession-started event, so in real time it lands one tick later). Photo mode is left to its origin first.
+ * Only a request for the colony view's origin uses the M toggle: an explicit 'observer' leaves the colony view
+ * without re-possessing the return ant.
+ */
 export function requestView(h: ViewSwitchHost, view: ViewId): void {
   const s = h.session;
   if (!s || view === s.view) return;
-  if (view === 'photo' || s.view === 'photo') { togglePhoto(h); return; }
-  if (view === 'colony' || s.view === 'colony') { toggleColonyView(h); return; }
+  if (s.view === 'photo') {
+    togglePhoto(h);
+    if (s.view !== 'photo' && s.view !== view) requestView(h, view);
+    return;
+  }
+  if (view === 'photo') { togglePhoto(h); return; }
+  if (s.view === 'colony') {
+    if (view === 'possess') { possessReturnOrFollowed(h, s); return; }
+    s.setView('observer'); // follows the released ant when there is one
+    h.viewChanged();
+    return;
+  }
+  if (view === 'colony') { toggleColonyView(h); return; }
   if (view === 'observer') {
     h.release();
     if (s.possessedId === -1 && s.view !== 'observer') { s.setView('observer'); h.viewChanged(); }
     return;
   }
   h.possess(s.followId >= 0 ? s.followId : 'queen');
+}
+
+/** Possession requested from the colony view: the return ant (soft release) if alive, else the followed ant or the queen. */
+function possessReturnOrFollowed(h: ViewSwitchHost, s: GameSession): void {
+  const ret = s.sim.state.player.returnAntId;
+  if (ret >= 0 && s.sim.stores.ants.get(ret)) { toggleColonyView(h); return; }
+  h.possess(s.followId >= 0 && s.sim.stores.ants.get(s.followId) ? s.followId : 'queen');
 }

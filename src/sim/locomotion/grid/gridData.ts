@@ -2,12 +2,13 @@
 // costs, ground height, holes, water bodies, map edge) and from the world field (cells covered by objects taller
 // than NAV_OVER_MAX, or flagged NAV_BLOCK). Pure; typed arrays only.
 
+import type { Vec3 } from '@/core/math/vec3';
 import type { Primitive, WorldData } from '@/sim/types';
 import { NAV_CLASSES, PrimFlag } from '@/sim/types';
 import { NAV_CELL_BU } from '@/sim/balance/world';
 import type { PrimBounds, WorldField } from '@/sim/world/field';
 import { byteAt, heightAt } from '@/sim/world/terrainSample';
-import { LOCO_TUNING } from '../params';
+import { LOCO_TUNING, MATERIAL_GRIP } from '../params';
 
 /** Nav-grid tuning (GDD 04 §11), BU unless noted. */
 export const NAV_GRID_TUNING = {
@@ -28,7 +29,31 @@ export const NAV_GRID_TUNING = {
   partialCost: 3,
   /** Sample heights above the ground for the "tall solid column" test, as fractions of overMax. */
   coverHeights: [0.025, 0.35, 0.7, 1] as readonly number[],
+  /**
+   * The barrier test (full row or column) counts a sample as covered within this fraction of the sample spacing
+   * of a solid (pseudo-distance), so a wall thinner than the spacing still forms a closed line of samples.
+   */
+  crossInflateFrac: 0.5,
+  /** A cell's ground is the top of a low object when that top is this far above the terrain, BU. */
+  lowTopBU: 0.5,
+  /** A step edge onto a face with less grip than this is blocked (GDD 04 §11 "climbable if grip >= 0.5"). */
+  stepGripMin: 0.5,
 } as const;
+
+/** A micro-connection as a nav edge between the passable cells at its two mouths (GDD 04 §11). */
+export interface Portal {
+  id: number;
+  posA: Vec3;
+  posB: Vec3;
+  /** Cells at the mouths (-1 = no passable cell near the mouth: the portal is unused). */
+  cellA: number;
+  cellB: number;
+  /** Edge cost = channel length x 1.0, mm. */
+  cost: number;
+  /** Smallest clear dimension, BU: a walker needing more clearance cannot use it. */
+  clearanceBu: number;
+  open: boolean;
+}
 
 export const CLS = {
   open: NAV_CLASSES.indexOf('open'),
@@ -57,8 +82,13 @@ export interface GridData {
   cost: Float32Array;
   /** Runtime cost overlay (1 = none, Infinity = blocked). */
   dyn: Float32Array;
-  /** Ground height at the cell centre, mm. */
+  /** Ground height at the cell centre (top of a low object there, else terrain with mounds), mm. */
   ground: Float32Array;
+  /** Grip of the cell's ground (1 on terrain; the object's material on top of a low object). */
+  grip: Float32Array;
+  /** Micro-connection edges and, per cell, the indices of the portals with a mouth there. */
+  portals: Portal[];
+  portalsAt: Map<number, number[]>;
 }
 
 export function cellCount(size: number, cell: number): number {
@@ -71,7 +101,12 @@ export function deriveFromWorld(world: WorldData): GridData {
   const N = n * n;
   const g: GridData = {
     cell, w: n, h: n, size: world.size, bu, cls: new Uint8Array(N), covered: new Uint8Array(N), partial: new Float32Array(N),
-    cost: new Float32Array(N), dyn: new Float32Array(N).fill(1), ground: new Float32Array(N),
+    cost: new Float32Array(N), dyn: new Float32Array(N).fill(1), ground: new Float32Array(N), grip: new Float32Array(N).fill(1),
+    portals: world.micro.map((m) => ({
+      id: m.id, posA: { ...m.posA }, posB: { ...m.posB }, cellA: -1, cellB: -1, cost: m.lengthBu * bu,
+      clearanceBu: m.minClearanceBu, open: true,
+    })),
+    portalsAt: new Map(),
   };
   const margin = LOCO_TUNING.edgeMarginBU * bu;
   for (let iz = 0; iz < n; iz++) {
@@ -87,7 +122,42 @@ export function deriveFromWorld(world: WorldData): GridData {
   }
   // static water (GDD 04 §13: water bodies are blocked for planning; floating is Tier 2)
   for (const wb of world.waterBodies) markDisc(g, wb.pos.x, wb.pos.z, wb.radius, CLS.water);
+  linkPortals(g);
   return g;
+}
+
+/**
+ * Attaches each portal to the passable cell nearest each mouth, on that mouth's side (the mouth pushed half a
+ * cell away from the other one): the mouths of a door crack lie in the cells the door blocks.
+ */
+export function linkPortals(g: GridData): void {
+  g.portalsAt.clear();
+  g.portals.forEach((p, i) => {
+    p.cellA = mouthCell(g, p.posA, p.posB);
+    p.cellB = mouthCell(g, p.posB, p.posA);
+    if (p.cellA < 0 || p.cellB < 0 || p.cellA === p.cellB) { p.cellA = -1; p.cellB = -1; return; }
+    for (const c of [p.cellA, p.cellB]) {
+      const list = g.portalsAt.get(c);
+      if (list) list.push(i); else g.portalsAt.set(c, [i]);
+    }
+  });
+}
+
+const MOUTH_SNAP_CELLS = 2;
+
+function mouthCell(g: GridData, m: Vec3, other: Vec3): number {
+  const dx = m.x - other.x, dz = m.z - other.z, l = Math.hypot(dx, dz);
+  const qx = m.x + (l > 0 ? (dx / l) * 0.5 * g.cell : 0), qz = m.z + (l > 0 ? (dz / l) * 0.5 * g.cell : 0);
+  const cx = Math.floor(qx / g.cell), cz = Math.floor(qz / g.cell);
+  let best = -1, bd = Infinity;
+  for (let k = cz - MOUTH_SNAP_CELLS; k <= cz + MOUTH_SNAP_CELLS; k++) for (let i = cx - MOUTH_SNAP_CELLS; i <= cx + MOUTH_SNAP_CELLS; i++) {
+    if (i < 0 || k < 0 || i >= g.w || k >= g.h) continue;
+    const c = k * g.w + i;
+    if (isBlocked(g, c)) continue;
+    const d = ((i + 0.5) * g.cell - qx) ** 2 + ((k + 0.5) * g.cell - qz) ** 2;
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
 }
 
 function markDisc(g: GridData, cx: number, cz: number, r: number, cls: number): void {
@@ -113,12 +183,13 @@ export function deriveFromField(g: GridData, field: WorldField, prims: readonly 
   const T = NAV_GRID_TUNING, bu = g.bu, overMax = T.overMaxBU * bu;
   const ia = clampCell(Math.floor(x0 / g.cell), g.w), ib = clampCell(Math.floor(x1 / g.cell), g.w);
   const ka = clampCell(Math.floor(z0 / g.cell), g.h), kb = clampCell(Math.floor(z1 / g.cell), g.h);
-  // 0 = no candidate, 1 = tall-column test, 2 = NAV_BLOCK (foot-level test)
+  // 0 = no candidate, 1 = tall-column test, 2 = NAV_BLOCK (foot-level test), 3 = low object (ground only)
   const mark = new Uint8Array((ib - ia + 1) * (kb - ka + 1));
   const mw = ib - ia + 1;
   for (let k = ka; k <= kb; k++) for (let i = ia; i <= ib; i++) {
     const c = k * g.w + i;
     g.ground[c] = field.height((i + 0.5) * g.cell, (k + 0.5) * g.cell);
+    g.grip[c] = 1;
     g.covered[c] = 0;
     g.partial[c] = 0;
   }
@@ -131,26 +202,54 @@ export function deriveFromField(g: GridData, field: WorldField, prims: readonly 
     for (let k = pk0; k <= pk1; k++) for (let i = pi0; i <= pi1; i++) {
       const tall = _b.maxY - g.ground[k * g.w + i] > overMax;
       const m = (k - ka) * mw + (i - ia);
-      if (tall) mark[m] = 1; else if (navBlock && mark[m] === 0) mark[m] = 2;
+      if (tall) mark[m] = 1; else if (navBlock && mark[m] !== 1) mark[m] = 2; else if (mark[m] === 0) mark[m] = 3;
     }
   }
+  for (let k = ka; k <= kb; k++) for (let i = ia; i <= ib; i++) {
+    if (mark[(k - ka) * mw + (i - ia)] !== 0) lowTop(g, field, k * g.w + i, overMax);
+  }
   const S = T.coverSamples, need = Math.ceil(T.coverFraction * S * S - 1e-9);
+  const inflate = (T.crossInflateFrac * g.cell) / S;
   for (let k = ka; k <= kb; k++) for (let i = ia; i <= ib; i++) {
     const m = mark[(k - ka) * mw + (i - ia)];
-    if (m === 0) continue;
+    if (m === 0 || m === 3) continue;
     const c = k * g.w + i;
-    let hit = 0;
+    let hit = 0, near = 0;
     for (let sz = 0; sz < S; sz++) for (let sx = 0; sx < S; sx++) {
       const x = (i + (sx + 0.5) / S) * g.cell, z = (k + (sz + 0.5) / S) * g.cell;
-      const on = columnCovered(field, x, field.height(x, z), z, overMax, m === 2);
-      _cov[sz * S + sx] = on ? 1 : 0;
-      if (on) hit++;
+      const f = columnClearance(field, x, field.height(x, z), z, overMax, m === 2);
+      _cov[sz * S + sx] = f < inflate ? 1 : 0;
+      if (f < 0) hit++;
+      if (f < inflate) near++;
     }
-    if (hit >= need || (hit >= S && crossesCell(S))) g.covered[c] = 1;
+    if (hit >= need || (near >= S && crossesCell(S))) g.covered[c] = 1;
     g.partial[c] = hit / (S * S);
+  }
+  linkPortals(g);
+}
+
+/**
+ * Ground of a cell with an object in it: the highest solid surface at the cell centre within overMax of the
+ * terrain (a kerb, a slab, a log), found by sphere tracing down; a centre inside a tall solid keeps the terrain.
+ */
+function lowTop(g: GridData, field: WorldField, c: number, overMax: number): void {
+  const T = NAV_GRID_TUNING, bu = g.bu, ix = c % g.w, iz = (c - ix) / g.w;
+  const x = (ix + 0.5) * g.cell, z = (iz + 0.5) * g.cell, h = g.ground[c];
+  let y = h + overMax;
+  if (field.substrateXYZ(x, y, z) < 0) return;
+  for (let guard = 0; guard < 256 && y > h + T.lowTopBU * bu; guard++) {
+    const f = field.substrateXYZ(x, y, z);
+    if (f <= 0.02 * bu) {
+      g.ground[c] = y;
+      _p.x = x; _p.y = y - 0.05 * bu; _p.z = z;
+      g.grip[c] = MATERIAL_GRIP[field.materialAt(_p)] ?? LOCO_TUNING.gripDefault;
+      return;
+    }
+    y -= Math.max(0.9 * f, 0.05 * bu);
   }
 }
 
+const _p: Vec3 = { x: 0, y: 0, z: 0 };
 const _cov = new Uint8Array(NAV_GRID_TUNING.coverSamples * NAV_GRID_TUNING.coverSamples);
 
 /** A full row or column of covered samples: a barrier across the cell. */
@@ -163,12 +262,16 @@ function crossesCell(S: number): boolean {
   return false;
 }
 
-function columnCovered(field: WorldField, x: number, gy: number, z: number, overMax: number, footOnly: boolean): boolean {
+/**
+ * Largest substrate pseudo-distance over the column's sample heights (< 0: solid all the way up = covered; small:
+ * solid within that distance at every height). NAV_BLOCK primitives test the foot height only.
+ */
+function columnClearance(field: WorldField, x: number, gy: number, z: number, overMax: number, footOnly: boolean): number {
   const H = NAV_GRID_TUNING.coverHeights;
-  if (!(field.substrateXYZ(x, gy + H[0] * overMax, z) < 0)) return false;
-  if (footOnly) return true;
-  for (let j = 1; j < H.length; j++) if (!(field.substrateXYZ(x, gy + H[j] * overMax, z) < 0)) return false;
-  return true;
+  let f = field.substrateXYZ(x, gy + H[0] * overMax, z);
+  if (footOnly) return f;
+  for (let j = 1; j < H.length; j++) f = Math.max(f, field.substrateXYZ(x, gy + H[j] * overMax, z));
+  return f;
 }
 
 function clampCell(i: number, n: number): number {

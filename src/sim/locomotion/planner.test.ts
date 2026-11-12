@@ -5,6 +5,7 @@ import type { Primitive } from '@/sim/types';
 import { PrimFlag } from '@/sim/types';
 import { isLocoNavGrid } from './grid/navGridImpl';
 import { navTo, navToPoi } from './index';
+import { makeTestWorld } from '@/sim/testing/testWorld';
 import { locoSim, runUntilDone, v3 } from './testkit';
 
 const ROT = { x: 0, y: 0, z: 0, w: 1 };
@@ -99,5 +100,44 @@ describe('nav grid planning on the surface', () => {
     runUntilDone(sim, [ant], 3000, () => { minD = Math.min(minD, Math.hypot(ant.pos.x - c, ant.pos.z - c)); });
     expect(ant.nav.status).toBe('arrived');
     expect(minD).toBeGreaterThan(28 * bu);
+  });
+
+  it('GDD 04 §11: a walker crosses a full-width wall through a door crack (micro-portal edge), there and back', () => {
+    const bu = 4;
+    // a 60 BU tall door across the map, its foot 1.5 BU above the ground: the crack under it is the only way (the
+    // walker is the founding queen, 2.1 BU long: she needs 0.45 x 2.1 = 0.96 BU of clearance)
+    const door: Primitive = {
+      id: 1, shape: 'box', pos: { x: 160 * bu, y: 31.5 * bu, z: 160 * bu }, rot: { ...ROT },
+      size: { x: 1.5 * bu, y: 30 * bu, z: 170 * bu }, round: 0, material: 'wood-sound', flags: PrimFlag.CLIMBABLE, objectId: -1,
+    };
+    const world = makeTestWorld({ sizeBu: 320, prims: [door] });
+    world.micro.push({
+      id: 1, kind: 'door-crack', posA: v3(157 * bu, 0, 150 * bu), posB: v3(163 * bu, 0, 150 * bu), gapMm: 1.5 * bu,
+      minClearanceBu: 1.2, lengthBu: 6, useful: true, reason: 'test',
+    });
+    const sim = locoSim({ world });
+    const ant = sim.state.ants[0];
+    expect(ant.caste).toBe('queen');
+    sim.enqueue({ type: 'cheat.teleport', antId: ant.id, pos: v3(110 * bu, 0, 180 * bu) });
+    sim.tick();
+    for (const goalX of [210, 110]) {
+      expect(navTo(sim, ant, v3(goalX * bu, 0, 180 * bu), 2 * bu, { speed: 6 * bu })).toBe(true);
+      let maxY = -Infinity, crossZ = NaN, prevX = ant.pos.x;
+      runUntilDone(sim, [ant], 3000, () => {
+        maxY = Math.max(maxY, ant.pos.y);
+        if ((prevX - 160 * bu) * (ant.pos.x - 160 * bu) <= 0 && prevX !== ant.pos.x) crossZ = ant.pos.z / bu;
+        prevX = ant.pos.x;
+      });
+      expect(ant.nav.status).toBe('arrived');
+      expect(maxY).toBeLessThan(2 * bu); // under the door, not over it
+      expect(Math.abs(crossZ - 150)).toBeLessThan(4);
+    }
+    // a closed crack (weather strip) leaves no route
+    sim.state.worldDelta.microState.push({ id: 1, discovered: false, discoveredTick: -1, open: false });
+    sim.tick();
+    navTo(sim, ant, v3(210 * bu, 0, 180 * bu), 2 * bu, { speed: 6 * bu });
+    runUntilDone(sim, [ant], 50);
+    expect(ant.nav.status).toBe('failed');
+    expect(ant.pos.x).toBeLessThan(160 * bu);
   });
 });

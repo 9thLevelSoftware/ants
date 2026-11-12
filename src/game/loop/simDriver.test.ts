@@ -89,4 +89,14 @@ describe('SimDriver: real time -> ticks, pause, freezes, time-scale rules on the
     };
     expect(run()).toBe(run());
   });
+
+  it('measures simulation time per tick (warm-up tick does not dominate)', () => {
+    const d = new SimDriver(makeTestSim());
+    let t = 0, calls = 0;
+    // the timer is read before and after each tick: the first tick "costs" 50 ms, the others 1 ms
+    d.timer = () => { calls++; if (calls % 2 === 0) t += calls === 2 ? 50 : 1; return t; };
+    d.step(100);
+    expect(d.tickMs).toBeGreaterThan(0.9);
+    expect(d.tickMs).toBeLessThan(2);
+  });
 });

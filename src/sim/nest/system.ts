@@ -9,9 +9,11 @@ import {
   CHAMBER_DETECT_TICKS, ENTRANCE_CHECK_TICKS, MICRO_UPDATE_TICKS, OCCUPANCY_TICKS, PLAN_UPDATE_TICKS, ROYAL_CHECK_TICKS,
 } from '@/sim/balance/nest';
 import { checkEntrances, processNewBreaches } from './entrances';
+import { flagNaturalPreCarves } from './naturalCavities';
 import { checkRoyal, detectNestChambers, updateMicroclimate, updateOccupancy } from './chambers/upkeep';
 import { moundBatches, tampDuePellets } from './pellets';
 import { dropOldPlans, updatePlan } from './plans/plans';
+import { ensureNestFields } from './navFields';
 import { takeNestDirty } from './runtime';
 
 const MILESTONES: { kind: NestMilestoneKind; value: (n: Nest) => number; at: number }[] = [
@@ -32,6 +34,8 @@ function detect(sim: Sim, nest: Nest): void {
 
 export function runNestSystem(sim: Sim): void {
   const tick = sim.state.tick;
+  ensureNestFields(sim); // a Sim built by createSim after a load (normally done earlier by nestFieldsSystem)
+  if (tick === 0) flagNaturalPreCarves(sim);
   processNewBreaches(sim);
   if (tick % ENTRANCE_CHECK_TICKS === 0) checkEntrances(sim);
   let detections = 0;
@@ -53,3 +57,9 @@ export function runNestSystem(sim: Sim): void {
 
 /** Carve ops, breaches / entrances, chamber detection, nav-field refresh, pellets and mounds (GDD 03). */
 export const nestSystem: System = { name: 'nest', phase: 'nest', run: runNestSystem };
+
+/**
+ * Completes the nest-nav field set of a new Sim (plug-seeded D_seal, D_plan: see navFields.ts) at the start of its
+ * first tick, before behaviours and locomotion read the fields. A no-op afterwards.
+ */
+export const nestFieldsSystem: System = { name: 'nest-fields', phase: 'commands', run: ensureNestFields };

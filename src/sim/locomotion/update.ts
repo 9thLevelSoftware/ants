@@ -14,14 +14,16 @@ import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
 import { aiSpeed as aiSpeedImp } from './speed';
 import { checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp } from './stuck';
-import { afterClimb as afterClimbImp, followLeg as followLegImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
+import { afterClimb as afterClimbImp, discsChanged as discsChangedImp, finalLeg as finalLegImp, finite3 as finite3Imp, followLeg as followLegImp, legFlow as legFlowImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, surfaceDist as surfaceDistImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeed = aiSpeedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, followLeg = followLegImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
+const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeed = aiSpeedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
 const MOVING_KINDS = new Set(['ant', 'creature', 'item', 'brood']);
 const MAX_LEG_SWITCHES = 3;
+/** Speed cap (mm/s) of the arrive behaviour, set by tripUpdate for this walker's step (Infinity = none). */
+let speedCap = Infinity;
 
 export function nestIdOf(w: Walker): number {
   const n = (w as Partial<Ant>).nestId;
@@ -49,12 +51,8 @@ function legTarget(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3
     case 'seek': copy3(out, s.seekTarget); return true;
     case 'path': {
       if (nav.path && nav.path.length > 0) { copy3(out, nav.path[Math.min(nav.pathIdx, nav.path.length - 1)]); return true; }
-      const g = sim.navGrid;
-      if (s.flowKey && isLocoNavGrid(g)) {
-        copy3(out, w.pos);
-        return true;
-      }
-      return false;
+      const g = sim.navGrid, flow = legFlow(sim, s, r);
+      return flow !== null && isLocoNavGrid(g) && Number.isFinite(g.flowNext(flow, w.pos, r.P.relocateSteps, out));
     }
     case 'field': return Number.isFinite(sim.nestNav.lookahead(s.legField, w.pos, r.P.relocateSteps, out));
     case 'climb': {
@@ -77,18 +75,23 @@ function stuckStep(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numbe
   return true;
 }
 
-function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, out: Vec3): boolean {
+function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, dt: number, out: Vec3): boolean {
   const tick = sim.state.tick, nav = w.nav;
   if (s.timeoutTick >= 0 && tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r); return false; }
   const here = walkerNest(sim, w, nestIdOf(w));
-  if (nav.destId >= 0 && MOVING_KINDS.has(nav.destKind) && tick - s.retargetTick >= r.P.retargetS * TICKS_PER_SECOND) {
+  // a moving target is re-resolved every retargetS, and every tick once the walker is close to it (arrival is
+  // judged against where the target is now, not where it was up to a second ago)
+  if (nav.destId >= 0 && MOVING_KINDS.has(nav.destKind)
+    && (tick - s.retargetTick >= r.P.retargetS * TICKS_PER_SECOND || surfaceDist(w, nav.dest) < nav.arriveDist + r.P.retarget)) {
     s.retargetTick = tick;
     copy3(_tmp, nav.dest);
-    if (!resolveTarget(sim, nav.destKind, nav.destId, nav.dest, s, r, nav.dest)) { fail(w, s, r); return false; }
-    setGoal(s, nav.dest, nav.arriveDist, id, r.P.spread);
+    if (!resolveTarget(sim, nav.destKind, nav.destId, nav.dest, s, r, nav.dest) || !finite3(nav.dest)) { fail(w, s, r); return false; }
+    setGoal(sim, s, nav.dest, nav.arriveDist, id, r.P.spread);
     if (dist3(_tmp, nav.dest) > r.P.retarget) s.planTick = -1;
   }
   if (tripArrived(sim, w, s, here, r.P.spread)) { arrive(w, s, r); return false; }
+  // an avoid marker placed (or removed) while the walker is under way: plan the surface leg again
+  if (here < 0 && s.planTick >= 0 && discsChanged(sim, w, s, r)) s.planTick = -1;
   if (s.planTick < 0 || here !== s.legNest) {
     if (!planLeg(sim, w, s, r, here)) { fail(w, s, r); return false; }
   }
@@ -101,7 +104,33 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
     if (prev === 'fail' && res.state === 'fail') { fail(w, s, r); return false; }
   }
   if (res.state === 'fail') { fail(w, s, r); return false; }
+  // stuck within the arrival radius of the destination (the spread goal may be unreachable, e.g. inside a stone):
+  // that is arrival, not a reason to climb the recovery ladder
+  if (tick - s.bestTick > r.P.stuckWindowS * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
+  if (finalLeg(w, s)) speedCap = arriveCap(w, s, r, res.metric, dt, out);
   return stuckStep(sim, w, s, r, id, res, out);
+}
+
+/**
+ * Arrive behaviour on the last leg: never cover more than about half the distance left in one step, and pivot
+ * toward a goal that lies beside or behind the walker when it is within a few turning radii.
+ */
+function arriveCap(w: Walker, s: NavScratch, r: LocoRuntime, fieldMetric: number, dt: number, dir: Vec3): number {
+  const P = r.P;
+  const left = w.nav.mode === 'seek' || !s.goalField || s.goalField.startsWith('loco:pt:')
+    ? Math.max(0, surfaceDist(w, s.goal) - (1 - P.spread) * 0.5 * w.nav.arriveDist)
+    : fieldMetric;
+  let cap = left / Math.max(P.brakeS, 2 * dt);
+  const turnRadius = cap / P.aiTurn;
+  if (left < P.arriveTurnRadii * Math.max(turnRadius, P.bu)) {
+    const u = w.up, dn = dir.x * u.x + dir.y * u.y + dir.z * u.z;
+    const tx = dir.x - u.x * dn, ty = dir.y - u.y * dn, tz = dir.z - u.z * dn, tl = Math.hypot(tx, ty, tz);
+    if (tl > P.minSteer * Math.hypot(dir.x, dir.y, dir.z)) {
+      const c = (tx * w.fwd.x + ty * w.fwd.y + tz * w.fwd.z) / tl;
+      cap *= c > 0 ? c : 0;
+    }
+  }
+  return cap;
 }
 
 function fieldUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, out: Vec3): boolean {
@@ -125,8 +154,9 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
   set3(out, 0, 0, 0);
   const tick = sim.state.tick;
   let go = false;
+  speedCap = Infinity;
   switch (s.req) {
-    case 'goto': go = tripUpdate(sim, w, s, r, id, out); break;
+    case 'goto': go = tripUpdate(sim, w, s, r, id, dt, out); break;
     case 'field': go = fieldUpdate(sim, w, s, r, id, out); break;
     case 'climb': go = climbUpdate(sim, w, s, r, id, out); break;
     case 'wander':
@@ -159,7 +189,7 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
     default: go = false;
   }
   if (!go) { w.nav.desiredSpeed = 0; return 0; }
-  const v = aiSpeed(sim, w, s, r.P);
+  const v = Math.min(aiSpeed(sim, w, s, r.P), speedCap);
   w.nav.desiredSpeed = v;
   return v;
 }

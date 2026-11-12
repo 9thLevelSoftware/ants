@@ -26,13 +26,13 @@ import { rt, type LocoRuntime } from './runtime';
 import { NO_PROGRESS, scratchOf, walkerId, type LocoSpeedKind, type NavScratch } from './scratch';
 import { aiSpeed } from './speed';
 import { locomotionSystem } from './system';
-import { startTrip } from './trip';
+import { finite3, startTrip } from './trip';
 import { walkerPlace, walkerSurfaceChanged } from './walker';
 import { crumbAt } from './crumbs';
 
 export { locomotionSystem } from './system';
 export { possessedPose, stepPossessed } from './possessed';
-export { setLocoObserver, locoStats, type LocoStats } from './runtime';
+export { setLocoObserver, locoStats, registerMovementOverride, type LocoStats, type MovementOverride } from './runtime';
 export { registerSpeedFactor, aiSpeed, playerSpeed, casteSpeeds, type SpeedFactor } from './speed';
 export { crumbAt, crumbCount, clearCrumbs } from './crumbs';
 export { LOCO_TUNING, locoParams, MATERIAL_GRIP } from './params';
@@ -103,8 +103,8 @@ export function navToPoi(sim: Sim, w: Walker, poiId: number, arriveDist?: number
 
 /** Stop and hold position (status 'idle'). */
 export function navStop(_sim: Sim, w: Walker): void {
-  const s = scratchOf(w);
-  s.req = 'none';
+  const s = w.nav.loco; // no scratch is created for a walker that never had a request (keeps saves small)
+  if (s) s.req = 'none';
   w.nav.mode = 'none';
   w.nav.status = 'idle';
   w.nav.desiredSpeed = 0;
@@ -114,6 +114,7 @@ export function navStop(_sim: Sim, w: Walker): void {
 /** Random walk around a centre within a radius (mm; 0 = unbounded). Never arrives; stop it with another request. */
 export function navWander(sim: Sim, w: Walker, center: Vec3, radius: number, opts?: NavOptions): boolean {
   const { s } = begin(sim, w, opts, Infinity);
+  if (!finite3(center)) return rejected(w, s);
   s.req = 'wander';
   copy3(s.center, center);
   s.radius = Number.isFinite(radius) && radius > 0 ? radius : 0;
@@ -137,8 +138,6 @@ export function navFollowTrail(sim: Sim, w: Walker, colony: number, channel: Phe
   s.trailDir = dir === 'out' ? 1 : dir === 'in' ? -1 : 0;
   s.trailLostS = 0;
   s.trailTurned = 0;
-  s.trailSide = 0;
-  s.trailSideAge = 0;
   copy3(s.lastDir, w.fwd);
   w.nav.mode = 'trail';
   w.nav.status = 'moving';
@@ -232,9 +231,8 @@ export function notifySurfaceChanged(sim: Sim, min: Vec3, max: Vec3): void {
     if (!w.alive) return;
     if (w.pos.x < min.x - m || w.pos.x > max.x + m || w.pos.y < min.y - m || w.pos.y > max.y + m || w.pos.z < min.z - m || w.pos.z > max.z + m) return;
     if (w.medium !== 'air') walkerSurfaceChanged(sim.field, w, sim.kernel.walker);
-    const s = scratchOf(w);
-    s.planTick = -1;
-    s.open = -1;
+    const s = w.nav.loco;
+    if (s) { s.planTick = -1; s.open = -1; }
   };
   for (const a of sim.stores.ants.list) touch(a);
   for (const c of sim.stores.creatures.list) touch(c);

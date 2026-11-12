@@ -55,6 +55,12 @@ export class NestGhosts {
 
   constructor() {
     this.group.name = 'nest:ghosts';
+    this.restore();
+  }
+
+  /** Creates the two layers again after dispose() (NestRenderer.init calls it); no-op while they exist. */
+  restore(): void {
+    if (this.layers.length > 0) return;
     for (const onTop of [false, true]) {
       const geo = new SphereGeometry(1, 32, 20);
       const col = new InstancedBufferAttribute(new Float32Array(MAX_GHOSTS * 4), 4);
@@ -75,6 +81,7 @@ export class NestGhosts {
 
   /** Replaces the ghost list (at most 256 per layer). */
   set(list: readonly NestGhost[]): void {
+    if (this.layers.length === 0) return; // disposed
     const counts = [0, 0];
     for (const g of list) {
       const li = g.onTop ? 1 : 0;
@@ -97,11 +104,14 @@ export class NestGhosts {
   }
 
   get count(): number {
-    return this.layers[0].mesh.count + this.layers[1].mesh.count;
+    let n = 0;
+    for (const L of this.layers) n += L.mesh.count;
+    return n;
   }
 
   dispose(): void {
     for (const L of this.layers) { L.mesh.geometry.dispose(); (L.mesh.material as ShaderMaterial).dispose(); L.mesh.dispose(); }
+    this.layers = [];
     this.group.clear();
   }
 }

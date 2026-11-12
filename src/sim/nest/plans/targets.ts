@@ -1,5 +1,5 @@
-// Target voxels of a plan (GDD 03 §7.2): samples with g > 0 that the species can dig, per plan and per sphere,
-// cached per Sim (a pure function of the plan record and the world; rebuilt after a load).
+// Target voxels of a plan (GDD 03 §7.2): samples with g > 0 inside the substrate that the species can dig, per
+// plan and per sphere, cached per Sim (a pure function of the plan record and the world; rebuilt after a load).
 
 import type { DigPlan, Nest, Sim, SpeciesId } from '@/sim/types';
 import { digFactor } from '@/sim/balance/nest';
@@ -29,6 +29,17 @@ export function sampleDiggable(sim: Sim, species: SpeciesId, i: number, j: numbe
   return sim.kernel.canDigAt(x, y, z) && digFactor(species, sim.field.materialAt({ x, y, z })) > 0;
 }
 
+/**
+ * Is the sample outside every solid (open air above the ground, a gap between primitives), carve grid ignored?
+ * Such samples are not plan targets: a bite has nothing to remove there, so a shaft that overshoots the surface
+ * would otherwise never complete. The test ignores the carve grid so the target set does not depend on when the
+ * cache was built (it is rebuilt after a load).
+ */
+export function sampleInOpenAir(sim: Sim, i: number, j: number, k: number): boolean {
+  const v = sim.carve.voxel;
+  return sim.field.substrateXYZ(i * v, j * v, k * v) > 0;
+}
+
 /** Calls fn for every sample with g > 0 (fixed order: z, y, x ascending). */
 export function forPlanSamples(sim: Sim, g: PlanGeometry, fn: (i: number, j: number, k: number) => void): void {
   const v = sim.carve.voxel;
@@ -47,7 +58,9 @@ export function planCache(sim: Sim, nest: Nest, plan: DigPlan): PlanCache | null
   const geometry = buildGeometry(plan, species, sim.world.bu);
   if (!geometry) return null;
   const targets: number[] = [], hard: number[] = [];
-  forPlanSamples(sim, geometry, (i, j, k) => (sampleDiggable(sim, species, i, j, k) ? targets : hard).push(packSample(i, j, k)));
+  forPlanSamples(sim, geometry, (i, j, k) => {
+    if (!sampleInOpenAir(sim, i, j, k)) (sampleDiggable(sim, species, i, j, k) ? targets : hard).push(packSample(i, j, k));
+  });
   targets.sort((a, b) => a - b);
   const v = sim.carve.voxel;
   const sphereTargets = plan.spheres.map(() => [] as number[]);

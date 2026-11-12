@@ -29,7 +29,7 @@ async function boot(): Promise<void> {
   window.__crash = (message = 'FOUNDRESS deliberate test error') => { setTimeout(() => { throw new Error(message); }, 0); };
   const flags = parseGameFlags(location.search);
   log.info(`FOUNDRESS ${FOUNDRESS_VERSION}${flags.test ? ' (test mode)' : ''}`);
-  if (!webgl2Available()) {
+  if (flags.noWebgl || !webgl2Available()) {
     setBootScreen('unsupported');
     window.__ready = true;
     return;
@@ -38,11 +38,14 @@ async function boot(): Promise<void> {
     canvas, testMode: flags.test, quality: flags.quality, post: flags.post, forceDebugRender: flags.forceDebugRender,
     onSnapshot: setSnapshot,
   });
+  game.newGameDefaults = flags.newGame;
   window.__game = createDebugApi(game);
   facade.value = game;
   await game.boot();
-  if (flags.autostart) await game.newGame(flags.newGame);
-  else game.renderNow();
+  if (flags.autostart) {
+    const r = await game.newGame();
+    if (!r.ok && !r.cancelled) console.error('[main] autostart: new game failed:', r.error); // the error panel shows
+  } else game.renderNow();
   window.__ready = true;
 }
 

@@ -5,7 +5,7 @@ import type { Command, PlayerIntent, PossessRole, SpeedLevel, TargetRef } from '
 import { ACTION_IDS } from '@/sim/types';
 import type { Vec3 } from '@/core';
 import { stateHash } from '@/sim/save/hash';
-import { cameraRelativeDir } from '../intent/cameraRelative';
+import { cameraRelativeDir, sanitizeDir } from '../intent/cameraRelative';
 import type { Game } from '../Game';
 import { GameSession } from '../session';
 import type { NewGameOptions } from '../newGame/options';
@@ -14,6 +14,7 @@ import type { ViewId } from '../time/speedRules';
 import { buildSummary } from './summary';
 import { buildQueries, plain } from './query';
 import { buildCheats } from './cheats';
+import { possessResult } from './possessResult';
 
 export interface IntentInput {
   /** World-space direction (length 0..1). */
@@ -24,6 +25,9 @@ export interface IntentInput {
   grip?: boolean;
   held?: string[];
 }
+
+const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+const clampAxis = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(-1, v)) : 0);
 
 function now(): number {
   return performance.now();
@@ -43,8 +47,10 @@ export function createDebugApi(game: Game) {
   const api = {
     ready: game.ready,
     get testMode() { return game.opts.testMode; },
+    /** Rejects when generation failed or was cancelled (the game shows the loading error panel). */
     async newGame(opts: NewGameOptions = {}) {
-      await game.newGame(opts);
+      const r = await game.newGame(opts);
+      if (!r.ok) throw new Error(`__game.newGame failed: ${r.error ?? 'unknown'}`);
       return summary();
     },
     endGame() { game.endGame(true); },
@@ -53,7 +59,7 @@ export function createDebugApi(game: Game) {
       const s = sessionOrThrow();
       const t0 = now();
       const ran = s.driver.step(n);
-      game.afterStep(s);
+      game.afterStep(s, ran);
       return { ticks: ran, tick: s.sim.state.tick, ms: Math.round((now() - t0) * 100) / 100 };
     },
     /** Render the current state once; in test mode the camera rig is settled first. */
@@ -65,16 +71,16 @@ export function createDebugApi(game: Game) {
     summary,
     stateHash() { return stateHash(sessionOrThrow().sim.state); },
     query: buildQueries(() => game.sim),
-    events(type?: string, limit = 50) {
-      const log = game.session?.events.log ?? [];
-      return plain(log.filter((e) => !type || e.type === type).slice(-limit).map((e) => ({ tick: e.tick, ...e.event })));
+    /** Recent sim events (newest last). `since`: only events with a larger seq (take `seq` from an earlier call). */
+    events(type?: string, limit = 50, since = 0) {
+      const log = game.session?.events.since(since) ?? [];
+      return plain(log.filter((e) => !type || e.type === type).slice(-limit).map((e) => ({ seq: e.seq, tick: e.tick, ...e.event })));
     },
     possess(target: number | string) {
       const t = GameSession.parseTarget(target);
       if (t === null) return { ok: false, reason: 'bad-target' };
-      game.possess(t as number | PossessRole);
-      const s = sessionOrThrow();
-      return { ok: s.possessedId !== -1, id: s.possessedId, pending: game.realtime };
+      const r = game.possess(t);
+      return plain(possessResult(t, r, sessionOrThrow().possessedId));
     },
     release() { game.release(); return { id: game.session?.possessedId ?? -1 }; },
     /** Sets the player intent directly (bypasses keyboard input until the next frame with input focus). */
@@ -82,10 +88,10 @@ export function createDebugApi(game: Game) {
       const s = sessionOrThrow();
       const ant = s.possessedAnt();
       const intent: PlayerIntent = { dir: { x: 0, y: 0, z: 0 }, hurry: !!i.hurry, grip: !!i.grip, held: [], flight: null };
-      if (i.dir) intent.dir = { x: i.dir.x, y: i.dir.y, z: i.dir.z };
+      if (i.dir) sanitizeDir(intent.dir, { x: Number(i.dir.x), y: Number(i.dir.y), z: Number(i.dir.z) });
       else if (i.move && ant) {
         const b = game.cameraBasis();
-        cameraRelativeDir(intent.dir, i.move.x, i.move.y, b.fwd, b.up, ant.up);
+        cameraRelativeDir(intent.dir, Number(i.move.x), Number(i.move.y), b.fwd, b.up, ant.up);
       }
       intent.held = (i.held ?? []).filter((h): h is PlayerIntent['held'][number] => (ACTION_IDS as readonly string[]).includes(h));
       game.setDebugIntent(intent);
@@ -106,11 +112,9 @@ export function createDebugApi(game: Game) {
       return plain(s.sim.stores.ants.get(id)?.pos ?? null);
     },
     command(cmd: Command) {
-      const s = sessionOrThrow();
-      const before = s.events.log.length;
-      game.command(cmd);
-      const rejected = s.events.log.slice(before).filter((e) => e.type === 'command-rejected').map((e) => e.event);
-      return plain({ applied: !game.realtime, rejected });
+      sessionOrThrow();
+      const r = game.command(cmd);
+      return plain({ ok: r.rejected.length === 0, applied: r.applied, rejected: r.rejected });
     },
     setSpeed(level: SpeedLevel) { game.setSpeed(level); return summary(); },
     /** Real-time ticking on/off (test mode starts with it off). */
@@ -131,7 +135,7 @@ export function createDebugApi(game: Game) {
         const s = sessionOrThrow();
         if (s.view !== 'observer') return null;
         const f = s.focus();
-        s.followId = -1;
+        s.followId = -1; s.followItemId = -1;
         s.views.freeFlyAbove(f);
         game.renderNow(0);
         return api.camera.pose();
@@ -140,7 +144,7 @@ export function createDebugApi(game: Game) {
       setPose: (pos: Vec3, look: Vec3) => {
         const s = sessionOrThrow();
         if (s.view !== 'observer') return null;
-        s.followId = -1;
+        s.followId = -1; s.followItemId = -1;
         s.views.freeFlyAt(pos, look);
         game.renderNow(0);
         return api.camera.pose();
@@ -160,7 +164,12 @@ export function createDebugApi(game: Game) {
     },
     cheat: buildCheats(game),
     ui: {
-      open: (screen: string) => { if (screen === 'pause') game.openPauseMenu(); return game.mode; },
+      /** Screens that exist so far: 'pause' (the menu). Anything else is refused (not silently ignored). */
+      open: (screen: string) => {
+        if (screen !== 'pause') return { ok: false, mode: game.mode, reason: `unknown screen '${screen}' (known: pause)` };
+        game.openPauseMenu();
+        return { ok: game.mode === 'paused', mode: game.mode };
+      },
       close: () => { game.closePauseMenu(); return game.mode; },
       screen: () => game.mode,
       snapshot: () => plain(game.lastSnapshot),
@@ -172,6 +181,17 @@ export function createDebugApi(game: Game) {
         if (state !== 'down') game.input.keyUp(code);
       },
       blur: () => game.input.focusLost(),
+      /**
+       * Simulated standard-mapping gamepad (index 0) from the next frame on; null disconnects it. Buttons and axes
+       * follow the standard mapping order (e.g. axes [lx, ly, rx, ry], buttons[0] = A).
+       */
+      pad: (p: { buttons?: number[]; axes?: number[]; id?: string } | null) => {
+        if (!p) { game.setDebugPads([]); return null; }
+        const buttons = Array.from({ length: 17 }, (_, i) => clamp01(Number(p.buttons?.[i] ?? 0)));
+        const axes = Array.from({ length: 4 }, (_, i) => clampAxis(Number(p.axes?.[i] ?? 0)));
+        game.setDebugPads([{ index: 0, id: p.id ?? 'debug pad (standard)', mapping: 'standard', buttons, axes }]);
+        return plain({ buttons, axes });
+      },
       summary: () => plain(game.input.debugSummary()),
     },
     perf() { return game.perf(); },

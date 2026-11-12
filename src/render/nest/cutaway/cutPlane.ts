@@ -59,7 +59,12 @@ export function computeCutPlane(p: NestCutawayParams, groundAt: (x: number, z: n
     return out;
   }
   let dx = p.viewDir?.x ?? 0, dz = p.viewDir?.z ?? 1;
-  const l = Math.hypot(dx, dz) || 1;
+  let l = Math.hypot(dx, dz);
+  if (!(l > 1e-9)) {
+    // looking straight down (no yaw): keep the previous vertical orientation, else face +Z
+    dx = -out.n.x; dz = -out.n.z; l = Math.hypot(dx, dz);
+    if (!(l > 1e-9)) { dx = 0; dz = 1; l = 1; }
+  }
   dx /= l; dz /= l;
   set(out.n, -dx, 0, -dz); // towards the camera: the camera side is hidden
   set(out.u, -dz, 0, dx); // camera right (view x up): the section is never mirrored

@@ -8,7 +8,8 @@ import { digFactor } from '@/sim/balance';
 import type { GenContext } from '../kit/context';
 import { CLS } from './nav';
 import { mapState } from './state';
-import { DISTURBANCE_FULL, DISTURBANCE_PASSES, SUIT, SUITABILITY, type SuitabilityProfile } from '../tuning/maps';
+import { DISTURBANCE_FULL, DISTURBANCE_PASSES, SUIT, SUITABILITY, WOOD_MOIST, type SuitabilityProfile } from '../tuning/maps';
+import { heightAt } from '@/sim/world/terrainSample';
 import { OVER_WARM } from './columns';
 
 /** Moisture window factor (linear ramps). */
@@ -70,7 +71,16 @@ function factorsAt(ctx: GenContext, species: SpeciesId, dig: Float32Array, c: nu
   else if (zone.type === 'lawn') fCover = SUIT.coverSward;
   const warmMult = fCover === SUIT.coverCeiling && (st.col.over[j] & OVER_WARM) !== 0 ? SUIT.warmStoneMult : 1;
   const fWarm = Math.min(1, (1 - st.shade.mean[c]) * warmMult);
-  const fMoist = moistFactor(prof.moist, theta);
+  // wood nesters read the moisture of the wood they nest in (GDD 04 §13.6), else the soil's theta0
+  let moist = theta;
+  if (prof.woodNester && woodIdx >= 0) {
+    const p = w.prims[woodIdx], shade = st.shade.mean[c];
+    const minY = p.pos.y - Math.max(p.size.x, p.size.y, p.size.z);
+    const contact = minY <= heightAt(w.terrain, p.pos.x, p.pos.z) + WOOD_MOIST.contactBu * bu ? 1 : 0;
+    moist = (p.material === 'wood-decayed' ? WOOD_MOIST.decayed : WOOD_MOIST.sound) + WOOD_MOIST.contact * contact
+      + WOOD_MOIST.shadeK * shade - WOOD_MOIST.shadeK * (1 - shade);
+  }
+  const fMoist = moistFactor(prof.moist, moist);
   const fFlood = 1 - st.water.flood[c];
   const fQuiet = 1 - Math.min(1, (DISTURBANCE_PASSES[zone.variant] ?? 0) / DISTURBANCE_FULL);
   const wt = prof.weights;

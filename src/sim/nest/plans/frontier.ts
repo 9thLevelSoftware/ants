@@ -9,7 +9,7 @@ import {
   SLOTS_PER_SPHERE, SPHERE_DONE, SPOIL_POINT_BU, SPOIL_RECOMPUTE_BU,
 } from '@/sim/balance/nest';
 import { OPEN_MIN } from '../carve/keys';
-import { refreshPlanField } from '../navFields';
+import { ensureNestFields, refreshPlanField } from '../navFields';
 import { digPowerOf, headScaleOf } from '../substrate';
 import { packSample, sampleI, sampleJ, sampleK } from '../voxelKey';
 import { planCache, type PlanCache } from './targets';
@@ -195,6 +195,7 @@ export function offersSlots(plan: DigPlan): boolean {
 export function claimSlot(sim: Sim, ant: Ant): boolean {
   if (digPowerOf(ant) <= 0) return false;
   if (antSlot(sim, ant)) return true;
+  ensureNestFields(sim); // D_plan scores below
   const bu = sim.world.bu;
   let best: { nest: Nest; plan: DigPlan; score: number } | null = null;
   for (const nest of sim.stores.nests.list) {

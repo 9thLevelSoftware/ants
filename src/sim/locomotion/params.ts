@@ -49,22 +49,22 @@ export const LOCO_TUNING = {
    */
   antennaReachBU: 3,
   antennaAngleDeg: 35,
-  /** omega = gain x (L - R) / (L + R + 1), rad/s. */
-  trailTurnGain: 2.5,
+  /**
+   * omega = gain x (L - R) / (L + R + 1), rad/s, scaled by the step's dt (so a walker stepped less often by the LOD
+   * turns as much per game second). GDD 02 §8.4 gives 2.5 rad/s for 0.9 BU antennae over a fine field; with the
+   * 3 BU reach over 4 BU cells the side difference is weak and 2.5 rad/s loses 60 deg bends, so the gain is
+   * 6 rad/s (recorded deviation).
+   */
+  trailTurnGain: 6,
   /** Below this a sensor reading is not followable (GDD 02 TRAIL_DETECT), ph. */
   trailDetect: 0.3,
   /** No sensor above detect for this long = trail lost (GDD 02 TRAIL_LOST_S). */
   trailLostS: 8,
   /**
-   * Edge following: when the centre antenna reads less than a side one (the trail curves away), turn toward the
-   * stronger side at least this fast, rad/s; when the trail fades just after such an asymmetry (a bend, not a gap)
-   * keep turning that way for trailSearchS. Needed because a 4 BU cell field gives the GDD 02 formula only a weak
-   * difference across the 1 BU antenna baseline.
+   * Trail followers far from the observer step at most every this many ticks: the sensors must be read at least
+   * every ~1.2 BU of travel or bends are walked past (the LOD must not change where foragers go).
    */
-  trailEdgeRate: 2.5,
-  trailSideFrac: 0.08,
-  trailSideMemoryS: 1,
-  trailSearchS: 0.7,
+  lodTrailMaxEvery: 2,
 
   // ---- breadcrumbs and retrace (GDD 02 §9.2) ----
   crumbSpacingBU: 6,
@@ -91,6 +91,13 @@ export const LOCO_TUNING = {
   entranceHandoverBU: 1.5,
   /** Arrival points are spread around entrances and point goals over this fraction of the radius. */
   arrivalSpread: 0.6,
+  /**
+   * Arrive behaviour on a trip's last leg: the walker covers at most dt / max(arriveBrakeS, 2 dt) of the distance
+   * left per step (no overshoot, however small the arrival radius), and within arriveTurnRadii turning radii of the
+   * goal its speed scales with cos(angle to the goal) (it pivots instead of orbiting a goal beside or behind it).
+   */
+  arriveBrakeS: 0.2,
+  arriveTurnRadii: 2,
   /** A goal this far above the ground under it is "elevated" (reached by a climb route if one is near), BU. */
   elevatedBU: 3,
   /** Climb routes: goal / walker counted on a route within this distance of one of its nodes, BU. */
@@ -112,6 +119,9 @@ export const LOCO_TUNING = {
   /** Request timeout: base, s, plus this many times the straight-line travel time. */
   timeoutBaseS: 60,
   timeoutMult: 8,
+
+  /** After a carve change, a walker farther than this from its level set re-attaches and replans, BU. */
+  surfaceChangeTolBU: 0.05,
 
   // ---- stuck detection and recovery ladder ----
   /** A leg is stuck when its progress metric did not improve by stuckProgressBU within stuckWindowS. */
@@ -164,6 +174,10 @@ export const LOCO_TUNING = {
   predictBlendS: 0.1,
   predictSnapBU: 1,
 
+  // ---- micro-connections (GDD 04 §6.1) ----
+  /** Clearance a caste needs in a gap, BU per BU of body length (PASS_CLEAR_K). */
+  passClearK: 0.45,
+
   // ---- grip and slopes (GDD 04 §3) ----
   /** Maximum sustained tilt (angle between up and world up), deg, by grip band. */
   tiltMaxHighGrip: 180,
@@ -191,13 +205,13 @@ export interface LocoParams {
   hurryMult: number; gripSpeedMult: number; coldCrawl: number; callow: number; run: number; creature: number;
   aiTurn: number; playerTurn: number; pivotEnter: number; pivotExit: number; minSteer: number;
   sepR: number; sepW: number; sepMax: number; sepNearGoal: number; floorW: number; wanderSigma: number; wanderPull: number; trailNoise: number;
-  antReach: number; antAngle: number; trailGain: number; trailDetect: number; trailLostS: number;
-  trailEdge: number; trailSideFrac: number; trailSideMem: number; trailSearchS: number;
+  antReach: number; antAngle: number; trailGain: number; trailDetect: number; trailLostS: number; lodTrailMax: number;
   crumbSpacing: number; crumbTurnCos: number; crumbTurnMin: number; loopClose: number; shortcutN: number;
   shortcutLift: number; shortcutR: number; crumbReach: number; piNoise: number;
   wpReach: number; climbReach: number; fieldLook: number; entranceHandover: number; spread: number; elevated: number;
+  brakeS: number; arriveTurnRadii: number;
   routeSnap: number; routeGoal: number; direct: number; planBudget: number; retargetS: number; retarget: number;
-  pointFieldMax: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number;
+  pointFieldMax: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
   episodesMax: number; relocateSteps: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
@@ -222,17 +236,17 @@ export function locoParams(bu: number): LocoParams {
     sepR: T.separationBU * bu, sepW: T.separationWeight, sepMax: T.separationMax, sepNearGoal: T.separationNearGoalBU * bu, floorW: T.preferFloorWeight,
     wanderSigma: T.wanderSigmaDeg * DEG, wanderPull: T.wanderPull, trailNoise: T.trailNoiseDeg * DEG,
     antReach: T.antennaReachBU * bu, antAngle: T.antennaAngleDeg * DEG, trailGain: T.trailTurnGain,
-    trailDetect: T.trailDetect, trailLostS: T.trailLostS, trailEdge: T.trailEdgeRate, trailSideFrac: T.trailSideFrac,
-    trailSideMem: T.trailSideMemoryS, trailSearchS: T.trailSearchS,
+    trailDetect: T.trailDetect, trailLostS: T.trailLostS, lodTrailMax: T.lodTrailMaxEvery,
     crumbSpacing: T.crumbSpacingBU * bu, crumbTurnCos: Math.cos(T.crumbTurnDeg * DEG), crumbTurnMin: T.crumbTurnMinBU * bu,
     loopClose: T.loopCloseBU * bu, shortcutN: T.shortcutLookahead, shortcutLift: T.shortcutLiftBU * bu,
     shortcutR: T.shortcutRadiusBU * bu, crumbReach: T.crumbReachBU * bu, piNoise: T.piNoise,
     wpReach: T.waypointReachBU * bu, climbReach: T.climbReachBU * bu, fieldLook: T.fieldLookahead,
     entranceHandover: T.entranceHandoverBU * bu, spread: T.arrivalSpread, elevated: T.elevatedBU * bu,
+    brakeS: T.arriveBrakeS, arriveTurnRadii: T.arriveTurnRadii,
     routeSnap: T.routeSnapBU * bu, routeGoal: T.routeGoalBU * bu, direct: T.directBU * bu, planBudget: T.planBudget,
     retargetS: T.retargetS, retarget: T.retargetBU * bu, pointFieldMax: T.pointFieldMax,
     pointFieldCell: T.pointFieldCellBU * bu, pointFieldR: T.pointFieldRadiusBU * bu, timeoutBase: T.timeoutBaseS,
-    timeoutMult: T.timeoutMult,
+    timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,
     stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
     relocateMax: T.relocateMax, episodesMax: T.episodesMax, relocateSteps: T.relocateFieldSteps,
     lodNear: T.lodNearBU * bu, lodFar: T.lodFarBU * bu, lodMid: T.lodMidEvery, lodFarEvery: T.lodFarEvery,
@@ -246,6 +260,9 @@ export function locoParams(bu: number): LocoParams {
   cache.set(bu, p);
   return p;
 }
+
+/** GDD 04 §6.1 PASS_CLEAR_K. */
+export const PASS_CLEAR_K = LOCO_TUNING.passClearK;
 
 /** Maximum sustained tilt (rad) on a surface of this grip (GDD 04 §3). */
 export function tiltLimit(grip: number): number {

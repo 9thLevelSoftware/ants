@@ -24,6 +24,9 @@ function projectUnit(out: Vec3, v: Vec3, n: Vec3): boolean {
  * `antUp` must be unit vectors. mx = right, my = forward.
  */
 export function cameraRelativeDir(out: Vec3, mx: number, my: number, camFwd: Vec3, camUp: Vec3, antUp: Vec3): number {
+  // a non-finite axis (bad pad data, debug input) counts as centred: NaN must never reach the persisted intent
+  if (!Number.isFinite(mx)) mx = 0;
+  if (!Number.isFinite(my)) my = 0;
   let mag = Math.hypot(mx, my);
   if (mag < 1e-9) { out.x = 0; out.y = 0; out.z = 0; return 0; }
   if (mag > 1) { mx /= mag; my /= mag; mag = 1; }
@@ -40,7 +43,20 @@ export function cameraRelativeDir(out: Vec3, mx: number, my: number, camFwd: Vec
   _rc.z = _fc.x * antUp.y - _fc.y * antUp.x;
   const dx = my * _fc.x + mx * _rc.x, dy = my * _fc.y + mx * _rc.y, dz = my * _fc.z + mx * _rc.z;
   const len = Math.hypot(dx, dy, dz);
-  if (len < 1e-9) { out.x = 0; out.y = 0; out.z = 0; return 0; }
+  if (!(len >= 1e-9) || !Number.isFinite(len)) { out.x = 0; out.y = 0; out.z = 0; return 0; } // also a NaN camera basis
   out.x = (dx / len) * mag; out.y = (dy / len) * mag; out.z = (dz / len) * mag;
   return mag;
+}
+
+/**
+ * A world-space direction safe to put into PlayerIntent: finite components, length at most 1. Anything non-finite
+ * becomes the zero vector.
+ */
+export function sanitizeDir(out: Vec3, v: Vec3): Vec3 {
+  const x = v.x, y = v.y, z = v.z;
+  const len = Math.hypot(x, y, z);
+  if (!Number.isFinite(len) || len < 1e-9) { out.x = 0; out.y = 0; out.z = 0; return out; }
+  const k = len > 1 ? 1 / len : 1;
+  out.x = x * k; out.y = y * k; out.z = z * k;
+  return out;
 }

@@ -2,6 +2,7 @@
 // (carved entrances open visibly, seed §4) and, for the coarse far mesh, inside the rectangle the fine patch
 // covers (no z-fighting between the two grids).
 import { MeshLambertMaterial, Vector4, type WebGLProgramParametersWithUniforms } from 'three';
+import type { Breach } from '@/sim/types';
 
 /** Breach spheres passed to the shader (nearest to the camera subject). */
 export const MAX_HOLES = 32;
@@ -34,15 +35,37 @@ export function makeTerrainMaterial(u: TerrainUniforms, opts: { polygonOffset?: 
 varying vec3 vDbgWorld;
 uniform vec4 uHoles[${MAX_HOLES}];
 uniform int uHoleCount;
-uniform vec4 uCutRect;`)
+uniform vec4 uCutRect;
+${IN_HOLE_GLSL}`)
       .replace('void main() {', `void main() {
   if (uCutRect.z > uCutRect.x && vDbgWorld.x > uCutRect.x && vDbgWorld.x < uCutRect.z && vDbgWorld.z > uCutRect.y && vDbgWorld.z < uCutRect.w) discard;
-  for (int i = 0; i < ${MAX_HOLES}; i++) {
-    if (i >= uHoleCount) break;
-    vec3 d = vDbgWorld - uHoles[i].xyz;
-    if (dot(d, d) < uHoles[i].w * uHoles[i].w) discard;
-  }`);
+  if (dbgInHole(vDbgWorld)) discard;`);
   };
   m.customProgramCacheKey = () => `dbg-terrain-${opts.polygonOffset ? 1 : 0}`;
   return m;
 }
+
+export type HoleUniforms = Pick<TerrainUniforms, 'uHoles' | 'uHoleCount'>;
+
+/** The breach spheres nearest to (x, z), at most MAX_HOLES, into each uniform set. */
+export function fillHoles(targets: readonly HoleUniforms[], breaches: readonly Breach[], x: number, z: number): void {
+  let list = breaches;
+  if (breaches.length > MAX_HOLES) {
+    list = [...breaches].sort((a, b) => ((a.pos.x - x) ** 2 + (a.pos.z - z) ** 2) - ((b.pos.x - x) ** 2 + (b.pos.z - z) ** 2)).slice(0, MAX_HOLES);
+  }
+  for (const u of targets) {
+    u.uHoleCount.value = list.length;
+    list.forEach((b, i) => u.uHoles.value[i].set(b.pos.x, b.pos.y, b.pos.z, b.r));
+  }
+}
+
+/** GLSL: true when p lies inside one of the uHoles spheres (declare uHoles / uHoleCount first). */
+export const IN_HOLE_GLSL = `
+bool dbgInHole(vec3 p) {
+  for (int i = 0; i < ${MAX_HOLES}; i++) {
+    if (i >= uHoleCount) break;
+    vec3 d = p - uHoles[i].xyz;
+    if (dot(d, d) < uHoles[i].w * uHoles[i].w) return true;
+  }
+  return false;
+}`;

@@ -1,6 +1,6 @@
 // Acceptance 7: the kernel builds from every generated world, a surface walker crosses the map along the nav grid,
 // and a new game starts on each world (pre-carves applied, queen placed on the surface).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Vec3 } from '@/core/math/vec3';
 import { createKernel } from '@/sim/kernel';
 import { createWalkerKin, walkerPlace, walkerStep } from '@/sim/locomotion/walker';
@@ -9,6 +9,9 @@ import type { WorldData } from '@/sim/types';
 import { report, T1_ARCHETYPES } from './testing/fixtures';
 import { cellAt, navDistances } from './validate/graph';
 import { walkable } from './maps/nav';
+
+// world generation takes ~1-2 s per world and the shared machine is often loaded
+vi.setConfig({ testTimeout: 120_000 });
 
 function navCtx(w: WorldData) {
   return { dims: { navN: w.nav.cls.nx, navCell: w.nav.cls.cell, bu: w.bu }, world: w } as unknown as Parameters<typeof navDistances>[0];

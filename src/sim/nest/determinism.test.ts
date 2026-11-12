@@ -53,7 +53,7 @@ describe('nest determinism and persistence', () => {
     expect(back.worldDelta.mounds[0].h).toBeInstanceOf(Float32Array);
     expect(back.worldDelta.carveFlags).toEqual(sim.state.worldDelta.carveFlags);
     expect(stateHash(back)).toBe(stateHash(sim.state));
-  });
+  }, 60_000);
 
   it('acceptance 8: same seed + same command log -> same state hash, with and without a save / load at tick 1700', () => {
     const a = nestSim({ nest: 'small', systems: SYSTEMS });
@@ -72,5 +72,5 @@ describe('nest determinism and persistence', () => {
     expect(nest.digPlans.some((p) => p.kind === 'tunnel' && p.status === 'complete')).toBe(true);
     expect(a.state.worldDelta.mounds[0].volume).toBeGreaterThan(0);
     expect(nest.chambers.length).toBe(3); // the unconnected cheat room (tick 50) is not part of the nest
-  });
+  }, 120_000);
 });

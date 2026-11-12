@@ -44,6 +44,8 @@ function toward3(out: Vec3, w: Walker, t: Vec3): void {
 export function followSeek(w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3): LegResult {
   const d = dist3(w.pos, s.seekTarget);
   if (w.medium === 'surface' && s.legNest < 0) towardXZ(out, w, s.seekTarget); else toward3(out, w, s.seekTarget);
+  // the final seek never ends by itself: only the trip's arrival test ends it (no replan loop at the goal)
+  if (s.seekFinal === 1) return result('go', Math.max(0, d - w.footOffset));
   if (d <= r.P.wpReach * 0.5) return result('done', d);
   // horizontal surface seek: the target may be above or below (a mound, a stone); close enough in plan view
   if (w.medium === 'surface' && distXZ(w.pos, s.seekTarget) <= r.P.wpReach * 0.4 && Math.abs(w.pos.y - s.seekTarget.y) < 2 * r.P.bu) {
@@ -52,7 +54,7 @@ export function followSeek(w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3):
   return result('go', d);
 }
 
-export function followPath(w: Walker, r: LocoRuntime, out: Vec3): LegResult {
+export function followPath(w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3): LegResult {
   const path = w.nav.path;
   if (!path || path.length === 0) return result('done', 0);
   let advanced = false;
@@ -63,7 +65,10 @@ export function followPath(w: Walker, r: LocoRuntime, out: Vec3): LegResult {
   const t = path[w.nav.pathIdx];
   const d = dist3(w.pos, t);
   towardXZ(out, w, t);
-  if (w.nav.pathIdx === path.length - 1 && distXZ(w.pos, t) <= r.P.wpReach * 0.5) return result('done', d, advanced);
+  const last = w.nav.pathIdx === path.length - 1;
+  // the last waypoint of a path to the trip's goal never ends the leg: only the arrival test does
+  if (last && s.seekFinal === 1) return result('go', Math.max(0, d - w.footOffset), advanced);
+  if (last && distXZ(w.pos, t) <= r.P.wpReach * 0.5) return result('done', d, advanced);
   return result('go', d, advanced);
 }
 
@@ -103,6 +108,17 @@ export function followField(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, 
   return result('go', d);
 }
 
+/**
+ * Reach radius of route node i walked in direction dir: climbReach, but at most half the way from the previous
+ * node, so closely spaced nodes around an edge (top -> lip -> underside of a table top) are each really passed:
+ * a walker counted at the lip while still on the top would head for the underside across the top.
+ */
+function nodeReach(pts: readonly Vec3[], i: number, dir: number, w: Walker, r: LocoRuntime): number {
+  const prev = pts[i - dir];
+  const half = prev ? 0.5 * dist3(prev, pts[i]) : Infinity;
+  return Math.max(Math.min(r.P.climbReach, half), 2 * w.footOffset);
+}
+
 /** Climb-route leg: node to node along the route in routeDir until routeEnd. */
 export function followClimb(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3): LegResult {
   const route = routeById(sim.world, w.nav.routeId);
@@ -110,7 +126,7 @@ export function followClimb(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, 
   const pts = route.points;
   let advanced = false;
   const past = (i: number) => (s.routeDir > 0 ? i > s.routeEnd : i < s.routeEnd);
-  while (!past(w.nav.pathIdx) && dist3(w.pos, pts[w.nav.pathIdx]) <= r.P.climbReach) {
+  while (!past(w.nav.pathIdx) && dist3(w.pos, pts[w.nav.pathIdx]) <= nodeReach(pts, w.nav.pathIdx, s.routeDir, w, r)) {
     w.nav.pathIdx += s.routeDir;
     advanced = true;
   }

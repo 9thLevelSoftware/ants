@@ -76,3 +76,22 @@ export function buildTerrainPatch(sim: Sim, spec: PatchSpec, geo?: BufferGeometr
   g.computeBoundingBox();
   return g;
 }
+
+/**
+ * Height of the rendered patch surface at (x, z): the grid has vertices every `step` mm from the world origin
+ * (patches start on grid lines) and each cell is split along its (x1, z0)-(x0, z1) diagonal, as built above.
+ */
+export function patchSurfaceHeight(sim: Sim, x: number, z: number, step: number): number {
+  const f = sim.field;
+  const fx = x / step, fz = z / step;
+  const ix = Math.floor(fx), iz = Math.floor(fz);
+  const u = fx - ix, v = fz - iz;
+  const x0 = ix * step, z0 = iz * step, x1 = x0 + step, z1 = z0 + step;
+  const hb = f.height(x1, z0), hc = f.height(x0, z1);
+  if (u + v <= 1) {
+    const ha = f.height(x0, z0);
+    return ha + u * (hb - ha) + v * (hc - ha);
+  }
+  const hd = f.height(x1, z1);
+  return hd + (1 - u) * (hc - hd) + (1 - v) * (hb - hd);
+}

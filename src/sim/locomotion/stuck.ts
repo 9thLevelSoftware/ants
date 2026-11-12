@@ -22,9 +22,13 @@ const _t: Vec3 = { x: 0, y: 0, z: 0 }, _p: Vec3 = { x: 0, y: 0, z: 0 }, _from: V
 
 export type StuckAction = 'none' | 'replan' | 'fail';
 
-/** Updates the progress record with this tick's metric (mm, lower is better). */
+/**
+ * Updates the progress record with this tick's metric (mm, lower is better). The first metric of a new leg
+ * (best = NO_PROGRESS) is only a baseline: the window keeps running from the last real progress.
+ */
 export function trackProgress(s: NavScratch, metric: number, advanced: boolean, tick: number, r: LocoRuntime): void {
-  if (advanced || s.best === NO_PROGRESS) { s.best = metric; s.bestTick = tick; return; }
+  if (advanced) { s.best = metric; s.bestTick = tick; s.ladder = 0; return; }
+  if (s.best === NO_PROGRESS) { s.best = metric; return; }
   if (metric < s.best - r.P.stuckProgress) { s.best = metric; s.bestTick = tick; s.ladder = 0; }
 }
 

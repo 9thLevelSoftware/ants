@@ -1,7 +1,7 @@
 // Pipeline: determinism and fingerprint (GDD 04 §4.4, App. E 1), validity of every Tier 1 archetype at every
 // size with the Node time budget (App. E 8), forced validation failure and repair (App. E 10), progress and
 // placer registration.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { WorldData } from '@/sim/types';
 import { generateWorld, generateWorldReport, worldFingerprint } from './index';
 import { paramsFor, PERF_STRICT, report, T1_ARCHETYPES } from './testing/fixtures';
@@ -10,6 +10,9 @@ import { SIZE_SCALE, BUDGETS } from './tuning/pipeline';
 import type { WorldgenModule } from './kit/registry';
 import { placeObject } from './kit/template';
 import { PrimFlag } from '@/sim/types';
+
+// world generation takes ~1-2 s per world and the shared machine is often loaded
+vi.setConfig({ testTimeout: 120_000 });
 
 const now = () => performance.now();
 
@@ -89,6 +92,14 @@ describe('regeneration and repair (GDD 04 §4.3)', () => {
     expect(r.checks.find((c) => c.id === 'v-found')?.status).toBe('pass');
     expect(r.world.objects.some((o) => o.templateId === 'repair-stone')).toBe(true);
   }, 120_000);
+
+  it('wood nesters without catalogue wood go straight to repair R2 (decayed logs) instead of regenerating', () => {
+    const r = generateWorldReport(paramsFor('kitchen-door', 13, 'standard', 'camponotus-pennsylvanicus'));
+    expect(r.attempts).toBe(1);
+    expect(r.repairs).toContain('R2');
+    expect(r.world.objects.some((o) => o.templateId === 'repair-log')).toBe(true);
+    expect(r.checks.filter((c) => c.status === 'fail')).toEqual([]);
+  });
 
   it('a forced failure on the first attempt regenerates once with a different attempt seed', () => {
     const plain = report('car-park-verge', 6);

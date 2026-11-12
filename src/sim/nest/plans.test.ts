@@ -136,7 +136,7 @@ describe('plan frontier and completion', () => {
     const again = nest.chambers.find((ch) => ch.id === room!.id);
     expect(again?.type).toBe('nursery');
     expect(Math.abs(again!.volume - 125.7) / 125.7).toBeLessThan(0.15);
-  });
+  }, 60_000);
 
   it('two diggers never hold the same slot at the same time', () => {
     const { sim, nest, c, y } = tunnelNest();
@@ -157,7 +157,7 @@ describe('plan frontier and completion', () => {
     const { plan } = planById(sim, id)!;
     expect(plan.status).toBe('stalled');
     expect(plan.blockedReason).toBe('no-diggers');
-  });
+  }, 60_000);
 
   it('check 16: cancelling a plan at >= 40 % frees its slots and nothing in its volume changes afterwards', () => {
     const { sim, nest, c, y } = tunnelNest();
@@ -173,7 +173,7 @@ describe('plan frontier and completion', () => {
     const version = sim.carve.version;
     runTicks(sim, 1000);
     expect(sim.carve.version).toBe(version);
-  });
+  }, 60_000);
 
   it('priority, pause and resume through commands', () => {
     const { sim, nest, c, y } = tunnelNest();

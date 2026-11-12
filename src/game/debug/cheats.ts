@@ -3,6 +3,7 @@
 import type { Caste, Command, CreatureKind, FoodKind, HumanEventKind, Task, WeatherState } from '@/sim/types';
 import type { Vec3 } from '@/core';
 import type { Game } from '../Game';
+import { collectRefusals } from '../refusals';
 import { plain } from './query';
 
 export function buildCheats(game: Game) {
@@ -15,10 +16,10 @@ export function buildCheats(game: Game) {
   const run = (cmd: Command) => {
     const s = game.session;
     if (!s) return { ok: false, reason: 'no-game' };
-    const before = s.events.log.length;
-    game.command(cmd);
-    const rejected = s.events.log.slice(before).filter((e) => e.type === 'command-rejected');
-    return plain({ ok: rejected.length === 0, rejected: rejected.map((e) => e.event) });
+    let applied = true;
+    const rejected = collectRefusals(s.sim, () => { applied = game.command(cmd)?.applied !== false; });
+    // in real time the command waits for the next tick (applied false): a refusal then shows in __game.events()
+    return plain({ ok: rejected.length === 0, applied, rejected });
   };
   return {
     /** Any cheat command by type, payload as in src/sim/types/commandsCheat.ts. */

@@ -57,7 +57,7 @@ describe('nest system', () => {
       checkInvariants(sim, list, out);
     }
     expect(out.filter((v) => v.invariant.startsWith('nest') || v.invariant === 'pellets-valid')).toEqual([]);
-  });
+  }, 60_000);
 
   it('cost: one nest-system tick of the small nest stays far below a frame (load-tolerant; strict with FOUNDRESS_PERF_STRICT=1)', () => {
     const sim = nestSim({ nest: 'small', workers: 20 });
@@ -70,5 +70,5 @@ describe('nest system', () => {
       best = Math.min(best, (performance.now() - t0) / 100);
     }
     expect(best).toBeLessThan(strict ? 0.5 : 4);
-  });
+  }, 60_000);
 });

@@ -4,6 +4,7 @@ import { emptyCarve, makeFlatWorld } from '@/sim/kernel.testWorld';
 import { nestSourceFromSim } from '../simAdapter';
 import { kernelSim } from '../testing/kernelSim';
 import { buildChunk } from './chunkBuild';
+import { NEST_ATTR } from '../params';
 
 const BU = 4;
 
@@ -88,8 +89,8 @@ describe('silhouette refinement', () => {
       const c = buildChunk(w.src, key, { refine: false, ao: true });
       if (!c) continue;
       for (let i = 0; i < c.vertexCount; i++) {
-        expect(c.nest[i * 3]).toBeGreaterThanOrEqual(0);
-        expect(c.nest[i * 3]).toBeLessThanOrEqual(1);
+        expect(c.nest[i * NEST_ATTR]).toBeGreaterThanOrEqual(0);
+        expect(c.nest[i * NEST_ATTR]).toBeLessThanOrEqual(1);
       }
       expect(c.groups.map((g) => g.code)).toEqual([0]); // all loam (code 0)
       total += c.groups.reduce((s, g) => s + g.indices.length / 3, 0);

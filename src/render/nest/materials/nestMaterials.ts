@@ -7,7 +7,7 @@ import {
 } from 'three';
 import { MATERIAL_IDS, type MaterialId } from '@/sim/types';
 import { materialDef, type MaterialLibrary } from '@/render/world/materials';
-import { DETAIL_NORMAL_SCALE, DETAIL_NORMAL_WEIGHT, WALL_LOOKS, WOODY, XRAY, type WallLook } from '../params';
+import { DETAIL_NORMAL_SCALE, DETAIL_NORMAL_WEIGHT, WALL_DEPTH_OFFSET, WALL_LOOKS, WOODY, XRAY, type WallLook } from '../params';
 import type { WallMaterialSet } from '../mesh/chunkMeshManager';
 import { fragmentPrelude, NEST_VERT, wallFragment, XRAY_FRAGMENT } from './glsl';
 import type { NestUniforms } from './nestUniforms';
@@ -52,6 +52,8 @@ export class NestMaterials implements WallMaterialSet {
       },
       fog: true,
       side: FrontSide,
+      // wall tops flush with the terrain at a hole's lip lose the depth test to it (see the skin band in glsl.ts)
+      polygonOffset: true, polygonOffsetFactor: WALL_DEPTH_OFFSET.factor, polygonOffsetUnits: WALL_DEPTH_OFFSET.units,
     });
     m.defines = this.detail ? { NEST_DETAIL: 1 } : {};
     this.walls.set(code, m);

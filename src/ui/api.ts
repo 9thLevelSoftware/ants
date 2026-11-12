@@ -135,9 +135,17 @@ export interface SaveSlotInfo {
   workers: number;
 }
 
+/** Outcome of GameFacade.newGame: it resolves (never rejects); a failure also shows the loading error panel. */
+export interface NewGameResult {
+  ok: boolean;
+  /** A later newGame / quit superseded this one. */
+  cancelled?: boolean;
+  error?: string;
+}
+
 /** Everything the UI may ask of the game. Methods enqueue commands or change game-level state; they never throw. */
 export interface GameFacade {
-  newGame(opts?: NewGameOptions): Promise<void>;
+  newGame(opts?: NewGameOptions): Promise<NewGameResult>;
   /** Cancel a running generation / leave the game and show the title. */
   quitToTitle(): void;
   openPauseMenu(): void;

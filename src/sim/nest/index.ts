@@ -13,6 +13,7 @@ import { AntFlag, VoxelFlag, nestFieldId } from '@/sim/types';
 import { ARCHITECT_EVERY, ARCHITECT_OFFSET } from '@/sim/balance';
 import { DIG_MIN_SPEED } from '@/sim/balance/actions';
 import { PLAN_CLIP_BU, DIG_RAMP_RADIUS_BU } from '@/sim/balance/nest';
+import { TICKS_PER_DAY } from '@/sim/time';
 import { digBiteImpl } from './bite';
 import { carveEllipsoid, carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { chamberById, designateChamberImpl, findChamberAtImpl } from './chambers/registry';
@@ -29,9 +30,10 @@ import { planCache } from './plans/targets';
 import { validatePlanImpl } from './plans/validate';
 import { nestRuntime } from './runtime';
 import { digPowerOf, digSpeedAt, speciesOf } from './substrate';
-import { nestSystem } from './system';
+import { nestFieldsSystem, nestSystem } from './system';
 
-export { nestSystem } from './system';
+export { nestFieldsSystem, nestSystem } from './system';
+export { registerNestFields } from './navFields';
 export { biteTicks, digSpeedAt, moistureAt, sMax, wallMin } from './substrate';
 export { clutterSpeedMult, chokedSpots } from './pellets';
 export { createFoundingNest, carveTemplateNest, nestStatsImpl as nestStats, type NestStats } from './lifecycle';
@@ -49,7 +51,8 @@ export function createCarveGrid(kernel: Kernel): CarveGrid {
 /**
  * The NestNav contract over the kernel's nav: a thin forwarding object (the kernel's class has private members
  * whose names the nest-level helpers would shadow, e.g. `descend`), plus the helpers keyed by (nestId, target)
- * through nestFieldId. Fields are registered by src/sim/services.ts registerNestTargets.
+ * through nestFieldId. createServices registers the exit / seal / chamber fields (registerNestTargets); the nest
+ * module completes the set (navFields.ts: registerNestFields / ensureNestFields).
  */
 export function createNestNav(kernel: Kernel): NestNav {
   const raw = kernel.nav;
@@ -91,7 +94,7 @@ export const architectSystem: System = {
   name: 'architect', phase: 'nest', every: ARCHITECT_EVERY, offset: ARCHITECT_OFFSET, run: () => {},
 };
 
-export const systems: readonly System[] = [nestSystem, architectSystem];
+export const systems: readonly System[] = [nestFieldsSystem, nestSystem, architectSystem];
 
 // ---- digging ----
 
@@ -190,6 +193,19 @@ export function bestBroodChamber(sim: Sim, nestId: number, stage: BroodStage): n
 /** Nearest open entrance of a nest to p, or null. */
 export function nearestEntrance(sim: Sim, nestId: number, p: Vec3): Entrance | null {
   return nearestOpenEntrance(sim, nestId, p);
+}
+
+/**
+ * Flooding hook (GDD 03 §11, T2 weather-effects): sets a chamber's flooded fraction 0..1; a chamber that was
+ * flooded stays humid for a game day (`wetUntilTick`, read by the chamber humidity). False for an unknown id.
+ */
+export function setChamberFlooded(sim: Sim, chamberId: number, fraction: number): boolean {
+  const found = chamberById(sim, chamberId);
+  if (!found) return false;
+  const f = Math.max(0, Math.min(1, fraction));
+  if (f > 0) found.c.wetUntilTick = sim.state.tick + TICKS_PER_DAY;
+  found.c.flooded = f;
+  return true;
 }
 
 /** Human or weather disturbance of the nest near center (collapse checks, T2). Hook only: no effect in T1. */

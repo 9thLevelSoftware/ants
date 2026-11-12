@@ -67,6 +67,8 @@ export interface PlaceOptions {
 }
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 };
+/** Quaternion components quantised like angles (DET-5). */
+const q6 = (v: number) => Math.round(v * PLACE.angleQuantum) / PLACE.angleQuantum;
 const _v: Vec3 = { x: 0, y: 0, z: 0 };
 const _hits: number[] = [];
 
@@ -140,7 +142,6 @@ function buildPrims(t: ObjectTemplate, pos: Vec3, rot: Quat, objectId: number): 
     quatRotateVec3(_v, rot, p.pos);
     const r = p.rot ? quatMultiply({ x: 0, y: 0, z: 0, w: 1 }, rot, p.rot) : { ...rot };
     quatNormalize(r, r);
-    const q6 = (v: number) => Math.round(v * PLACE.angleQuantum) / PLACE.angleQuantum;
     const prim: Primitive = {
       id: 0, shape: p.shape,
       pos: { x: qmm(pos.x + _v.x), y: qmm(pos.y + _v.y), z: qmm(pos.z + _v.z) },
@@ -192,7 +193,8 @@ export function placeObject(ctx: GenContext, t: ObjectTemplate, o: PlaceOptions)
   if (o.collide && intersectsWorld(ctx, prims, PLACE.overlapTolMm, o.ignoreObjects)) return -1;
   ctx.ids.object++;
   const obj: WorldObject = {
-    id, templateId: t.id, pos: { x: qmm(pos.x), y: qmm(pos.y), z: qmm(pos.z) }, rot,
+    id, templateId: t.id, pos: { x: qmm(pos.x), y: qmm(pos.y), z: qmm(pos.z) },
+    rot: { x: q6(rot.x), y: q6(rot.y), z: q6(rot.z), w: q6(rot.w) },
     primStart: ctx.world.prims.length, primCount: prims.length, tags: [...(t.tags ?? [])], routeIds: [], poiIds: [],
   };
   for (const p of prims) {

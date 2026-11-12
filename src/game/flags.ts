@@ -1,5 +1,5 @@
 // URL flags (architecture §5, task F3b): test, seed, quality, species, archetype, size, autostart, view, plus
-// `post` (render layer) and `render=debug` (debug renderers in every slot). Pure: takes the search string.
+// `post` (render layer), `render=debug` (debug renderers in every slot) and `nowebgl=1` (test the unsupported screen). Pure: takes the search string.
 import { parseRenderFlags, type QualitySetting } from '@/render/app';
 import type { NewGameOptions, StartView } from './newGame/options';
 
@@ -9,6 +9,8 @@ export interface GameFlags {
   post: boolean | null;
   autostart: boolean;
   forceDebugRender: boolean;
+  /** Pretend WebGL2 is missing (verifies the unsupported screen). */
+  noWebgl: boolean;
   /** Options for the autostarted (or first) new game. */
   newGame: NewGameOptions;
 }
@@ -29,6 +31,6 @@ export function parseGameFlags(search: string): GameFlags {
   if (r.test) opts.cheats = true;
   return {
     test: r.test, quality: r.quality, post: r.post, autostart: q.get('autostart') === '1',
-    forceDebugRender: q.get('render') === 'debug', newGame: opts,
+    forceDebugRender: q.get('render') === 'debug', noWebgl: q.get('nowebgl') === '1', newGame: opts,
   };
 }

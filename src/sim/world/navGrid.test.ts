@@ -121,4 +121,51 @@ describe('nav grid', () => {
     g.refreshArea(130 * BU, 130 * BU, 190 * BU, 190 * BU, [...world.prims, p]);
     expect(g.blocked(160 * BU, 160 * BU)).toBe(true);
   });
+
+  it('a wall thinner than the cover sample spacing still blocks the cells it crosses (any offset)', () => {
+    for (const x of [160, 161.3, 166.7]) {
+      const g = gridFor(makeTestWorld({ sizeBu: 320, prims: [tallBox(1, x, 160, 0.5, 80)] }));
+      for (let z = 100; z <= 220; z += 16) expect(g.blocked(x * BU, z * BU)).toBe(true);
+      const path: { x: number; y: number; z: number }[] = [];
+      expect(g.findPathEx(v(120, 160), v(200, 160), path)).toBe(true);
+      expect(path.some((p) => Math.abs(p.z - 160 * BU) > 80 * BU)).toBe(true); // around an end, not through
+    }
+  });
+
+  it('micro-portals: skipped when narrower than the walker clearance or closed; flow fields lead through them', () => {
+    // a full-width wall with one crack: mouths at x = 156 / 164 BU, z = 100 BU
+    const world = makeTestWorld({ sizeBu: 320, prims: [tallBox(1, 160, 160, 1.5, 170)] });
+    world.micro.push({ id: 5, kind: 'fence-gap', posA: v(156, 100), posB: v(164, 100), gapMm: 0.8 * BU, minClearanceBu: 0.7, lengthBu: 8, useful: true, reason: 'test' });
+    const g = gridFor(world);
+    const path: { x: number; y: number; z: number }[] = [];
+    const a = v(100, 200), b = v(220, 200);
+    expect(g.findPathEx(a, b, path, { clearanceBu: 0.45 })).toBe(true);
+    // the mouths are waypoints, entry first
+    const iA = path.findIndex((p) => p.x === 156 * BU && p.z === 100 * BU), iB = path.findIndex((p) => p.x === 164 * BU && p.z === 100 * BU);
+    expect(iA).toBeGreaterThanOrEqual(0);
+    expect(iB).toBe(iA + 1);
+    expect(g.findPathEx(a, b, path, { clearanceBu: 0.9 })).toBe(false); // a major that does not fit
+    // a flow field seeded on the far side steers a walker on the near side to the entry mouth, then through
+    const flow = g.flowField('t', 's', [b]);
+    const out = { x: 0, y: 0, z: 0 };
+    expect(Number.isFinite(g.flowNext(flow, v(150, 100), 3, out))).toBe(true);
+    expect([out.x / BU, out.z / BU]).toEqual([156, 100]);
+    g.flowNext(flow, v(156.5, 100), 3, out);
+    expect([out.x / BU, out.z / BU]).toEqual([164, 100]);
+    g.setPortalOpen(5, false);
+    expect(g.findPathEx(a, b, path, { clearanceBu: 0.45 })).toBe(false);
+    expect(Number.isFinite(g.flowField('t', 's', [b])[g.cellOf(a.x, a.z)])).toBe(false);
+  });
+
+  it('a step edge onto a face with too little grip is blocked (GDD 04 §11 step rule)', () => {
+    const low: Primitive = { ...tallBox(1, 160, 160, 40, 40, 20), material: 'glass' };
+    const g = gridFor(makeTestWorld({ sizeBu: 320, prims: [low] }));
+    const c = g.cellOf(160 * BU, 160 * BU);
+    expect(g.groundAt(c)).toBeGreaterThan(15 * BU);
+    const path: { x: number; y: number; z: number }[] = [];
+    expect(g.findPathEx(v(160, 60), v(160, 160), path)).toBe(true); // glass grip 0.7: climbable
+    g.data.grip.fill(0.3, 0); // a greased block (Tier 2 wet / greasy multipliers)
+    for (let i = 0; i < g.data.grip.length; i++) if (g.data.ground[i] < 5 * BU) g.data.grip[i] = 1;
+    expect(g.findPathEx(v(160, 60), v(160, 160), path)).toBe(false);
+  });
 });

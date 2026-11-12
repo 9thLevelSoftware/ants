@@ -3,7 +3,7 @@
 // renderers), the UI bridge, and the GameFacade the UI calls. The only module that wires sim, render, input and
 // UI together. The debug API (window.__game) is built on top of it in src/game/debug.
 import { PerspectiveCamera, Scene, Vector3 } from 'three';
-import { attachDomInput, InputState, type DomInput, type InputContext } from '@/input';
+import { attachDomInput, InputState, type DomInput, type InputContext, type PadSnapshot } from '@/input';
 import {
   applyOverrides, createRenderApp, getPreset, pickQuality, runStartupBenchmark, type QualityId, type QualityPreset, type QualitySetting,
   type RenderApp,
@@ -11,11 +11,12 @@ import {
 import { createBrowserAssetLoader, type AssetLoader } from '@/render/assets';
 import { applyPose } from '@/render/camera';
 import { RenderRegistry, type FrameInfo } from '@/render';
-import type { Command, DirectivesPatch, MarkerKind, PlayerIntent, PossessRole, SpeedLevel } from '@/sim/types';
-import { calendarTick, dayOf } from '@/sim/time';
+import type { Command, DirectivesPatch, MarkerKind, PlayerIntent, PossessRole, Sim, SpeedLevel } from '@/sim/types';
+import { WORLDGEN_MAX_ATTEMPTS } from '@/worldgen/tuning/pipeline';
+import { calendarTick, dayOf, TICKS_PER_DAY } from '@/sim/time';
 import type { Vec3 } from '@/core';
-import type { GameFacade, SaveResult, SaveSlotInfo, UiLoading, UiSnapshot } from '@/ui/api';
-import { TEST_CAMERA_SETTLE_DT, TEST_CAMERA_SETTLE_S, UI_REFRESH_HZ } from './config/loop';
+import type { GameFacade, NewGameResult, SaveResult, SaveSlotInfo, UiLoading, UiSnapshot } from '@/ui/api';
+import { TEST_CAMERA_SETTLE_DT, TEST_CAMERA_SETTLE_S, TICK_SECONDS, UI_REFRESH_HZ } from './config/loop';
 import { handleGlobalInput, handlePhotoInput, type GlobalControls } from './globalInput';
 import { applyIntent } from './intent/applyIntent';
 import { newPossessionInputResult } from './intent/possessionInput';
@@ -25,6 +26,7 @@ import { SaveHooks } from './saveHooks';
 import { Toasts } from './toasts';
 import { resolveNewGame, type NewGameOptions } from './newGame/options';
 import { TOASTS } from './possessionEvents';
+import { collectRefusals, type Rejection } from './refusals';
 import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
@@ -45,6 +47,20 @@ export interface GameOptions {
   onSnapshot: (s: UiSnapshot) => void;
 }
 
+export interface CommandOutcome {
+  /** Applied before returning (false: it waits for the next real-time tick, so refusals are not known yet). */
+  applied: boolean;
+  rejected: Rejection[];
+}
+
+/** Thrown inside newGame when a newer request superseded it. */
+class Cancelled extends Error {}
+
+export interface PossessOutcome extends CommandOutcome {
+  /** Game-level refusal (not playing, photo mode, nobody has that role), null when the command was sent. */
+  refused: string | null;
+}
+
 const CONTEXT_OF_VIEW: Record<ViewId, InputContext> = { possess: 'P', observer: 'O', colony: 'C', photo: 'Ph' };
 const _fwd = new Vector3(), _up = new Vector3();
 
@@ -58,6 +74,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   readonly assets: AssetLoader;
   app!: RenderApp;
   registry!: RenderRegistry;
+  /** Defaults for newGame() (the URL flags); explicit options win. */
+  newGameDefaults: NewGameOptions = {};
   /** Real-time ticking (off in test mode until __game.realtime(true)). */
   realtime: boolean;
   hudHidden = false;
@@ -68,6 +86,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Animation clock, seconds (stays 0 in test mode). */
   time = 0;
   private dom: DomInput | null = null;
+  private debugPads: (PadSnapshot | null)[] | null = null;
   private readonly toasts = new Toasts();
   /** Save / load / autosave hook points (the save task fills them in). */
   readonly saves = new SaveHooks();
@@ -137,49 +156,62 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   }
 
   // ------------------------------------------------------------------ new game / end
-  async newGame(options: NewGameOptions = {}): Promise<void> {
+  /**
+   * Generates a world and starts playing in it. A failure shows the loading error panel and resolves with
+   * ok:false (it does not reject: the UI's Begin button must not also raise the uncaught-error overlay; the debug
+   * API turns it into a rejection for scripts). A newer newGame / endGame cancels this one (ok:false, cancelled).
+   */
+  async newGame(options: NewGameOptions = {}): Promise<NewGameResult> {
     if (this.session) this.endGame(false);
     const token = ++this.loadToken;
     const phases = loadingPhases();
+    let attempt = 1;
     const show = async (p: LoadingPhase) => {
-      this.loading = { phase: p.label, progress: p.progress, attempt: 1, maxAttempts: 1, error: null };
+      this.loading = { phase: p.label, progress: p.progress, attempt, maxAttempts: WORLDGEN_MAX_ATTEMPTS, error: null };
       this.mode = 'loading';
       this.input.contexts.setBase('UI');
       this.refreshUi();
       await nextFrame(this.opts.testMode);
-      if (token !== this.loadToken) throw new Error('cancelled');
+      if (token !== this.loadToken) throw new Cancelled();
     };
     try {
-      const opts = { ...options, cheats: options.cheats ?? this.opts.testMode };
+      const opts = { ...this.newGameDefaults, ...options };
+      opts.cheats = opts.cheats ?? this.opts.testMode;
       await show(phases.generate);
       const resolved = resolveNewGame(opts);
       const created = generate(resolved);
+      attempt = created?.world.meta.attempts ?? 1;
       await show(phases.simulate);
       const sim = wake(resolved, created);
       await show(phases.render);
-      const cam = this.settings.get().camera;
-      const session = new GameSession(sim, cam);
-      session.driver.timer = () => performance.now();
-      this.session = session;
-      this.registry.onGameStart(sim);
-      this.loading = null;
-      this.mode = 'playing';
-      this.epitaph = null;
-      if (resolved.view === 'possess') {
-        session.driver.enqueue(session.possessCommand('queen', this.settings.get().gameplay.dropTo1xOnPossess, 'auto'));
-        session.driver.applyCommandsNow();
-        session.update(0);
-      }
-      if (session.view !== 'possess') session.setView('observer', true);
-      this.syncContexts();
-      this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
+      this.startPlaying(sim, resolved.view === 'possess');
+      return { ok: true };
     } catch (e) {
-      if ((e as Error).message === 'cancelled') return;
-      this.loading = { phase: 'Generation failed', progress: 0, attempt: 1, maxAttempts: 1, error: String((e as Error)?.message ?? e) };
+      if (e instanceof Cancelled) return { ok: false, cancelled: true, error: 'cancelled' };
+      const error = String((e as Error)?.message ?? e);
+      this.loading = { phase: 'Generation failed', progress: 0, attempt, maxAttempts: WORLDGEN_MAX_ATTEMPTS, error };
       this.mode = 'loading';
       this.refreshUi();
-      throw e;
+      return { ok: false, error };
     }
+  }
+
+  private startPlaying(sim: Sim, possessQueen: boolean): void {
+    const session = new GameSession(sim, this.settings.get().camera);
+    session.driver.timer = () => performance.now();
+    this.session = session;
+    this.registry.onGameStart(sim);
+    this.loading = null;
+    this.mode = 'playing';
+    this.epitaph = null;
+    if (possessQueen) {
+      session.driver.enqueue(session.possessCommand('queen', this.settings.get().gameplay.dropTo1xOnPossess, 'auto'));
+      session.driver.applyCommandsNow();
+      session.update(0);
+    }
+    if (session.view !== 'possess') session.setView('observer', true);
+    this.syncContexts();
+    this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
   }
 
   /** Leaves the running game (renderers drop their meshes); `toTitle` shows the title screen. */
@@ -201,13 +233,14 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   // ------------------------------------------------------------------ frame loop
   private onFrame = (dt: number, nowMs: number): void => {
     this.nowS = nowMs / 1000;
-    this.dom?.poll();
+    if (this.debugPads) this.input.setPads(this.debugPads); // simulated pads instead of navigator.getGamepads()
+    else this.dom?.poll();
     this.input.update(nowMs);
     this.handleInputEvents();
     if (!this.opts.testMode) this.time += dt;
     const s = this.session;
     if (s && (this.mode === 'playing' || this.mode === 'paused')) this.playFrame(s, dt);
-    if (!this.opts.testMode && this.toasts.tick(dt)) this.refreshUi(); // test mode: toasts stay for screenshots
+    if (!this.opts.testMode && this.toasts.tick(dt)) this.refreshUi(); // test mode: toasts age in afterStep()
     this.uiAccum += dt;
     if (this.uiAccum >= 1 / UI_REFRESH_HZ) { this.uiAccum = 0; this.refreshUi(); }
   };
@@ -222,12 +255,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     applyIntent(s, this.input, this.cameraBasis(), s.view === 'possess' && this.mode === 'playing', this.intentBuf, this.debugIntent);
     const f = s.driver.frame(dt, { frozen: isFrozen({ mode: this.mode, view: s.view }), realtime: this.realtime, now: () => performance.now() });
     if (f.steppedDownTo !== null) this.toast(TOASTS.steppedDown(s.driver.speed, f.steppedDownTo));
-    if (f.running && s.possessedId >= 0) s.sim.integratePossessed(dt * s.driver.speed);
+    if (f.running) s.predict(f.advancedS); // game time that really passed, not dt x requested speed
     this.afterSimChange(s, dt);
     if (f.ran > 0) this.saves.noteDay(dayOf(calendarTick(s.sim.state)));
     const changed = f.ran > 0 || this.input.anyActivity || s.views.transition.running || this.dirty || f.running;
     if (!this.opts.testMode || changed) {
-      this.renderScene(s, dt, f.alpha, 0);
+      this.renderScene(s, dt, this.realtime ? f.alpha : 1, 0); // manual clock: show the latest tick
       this.app.requestRender();
       this.dirty = false;
     }
@@ -236,9 +269,11 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Reactions to sim events (views, toasts) and the epitaph check. */
   private afterSimChange(s: GameSession, realDt: number): void {
     const before = s.view;
+    s.autoRepossessOnDeath = this.settings.get().gameplay.autoRepossessOnDeath;
     const r = s.update(realDt);
     for (const t of s.toasts.splice(0)) this.toast(t);
     if (s.view !== before) this.viewChanged();
+    if (r.repossessId >= 0) this.possess(r.repossessId, 'cycle');
     if (r.epitaph && this.mode !== 'epitaph') this.enterEpitaph(s);
   }
 
@@ -246,7 +281,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const st = s.sim.state;
     this.mode = 'epitaph';
     const cause = Object.entries(st.progression.deaths.byCause).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
-    this.epitaph = { ageDays: Math.floor(st.tick / 6000), peakWorkers: st.progression.peakWorkers, cause };
+    this.epitaph = { ageDays: Math.floor(st.tick / TICKS_PER_DAY), peakWorkers: st.progression.peakWorkers, cause };
     this.input.contexts.setBase('UI');
     this.refreshUi();
   }
@@ -284,8 +319,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (s && intent) s.sim.setPlayerIntent(intent);
   }
 
-  /** After a synchronous debug step: game reactions to the new events, UI refresh, redraw request. */
-  afterStep(s: GameSession): void {
+  /**
+   * After a synchronous debug step of `ticks`: game reactions to the new events, UI refresh, redraw request. On the
+   * manual clock toasts age with the stepped game time (deterministic screenshots, and they do not stay forever).
+   */
+  afterStep(s: GameSession, ticks = 0): void {
+    if (this.opts.testMode) this.toasts.tick(ticks * TICK_SECONDS);
     this.afterSimChange(s, 0);
     this.dirty = true;
     this.refreshUi();
@@ -297,29 +336,42 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Synchronous render of the current state (debug API, after loading). */
   renderNow(settleS = 0): void {
     const s = this.session;
-    if (s) this.renderScene(s, 0, s.driver.clock.alpha, settleS);
+    if (s) this.renderScene(s, 0, this.realtime ? s.driver.clock.alpha : 1, settleS);
     this.app.renderFrame(0);
     this.refreshUi();
   }
 
   // ------------------------------------------------------------------ input events, contexts
+  /** GDD 01 §5.8 device events: blur and active-pad loss pause, pad changes and pointer-lock refusal toast. */
   private handleInputEvents(): void {
     for (const e of this.input.drainEvents()) {
-      if (e.type === 'focus-lost' && this.settings.get().gameplay.pauseOnBlur) this.autoPause();
-      if (e.type === 'pad-disconnected' && e.wasActiveDevice) this.autoPause();
-      if (e.type === 'pointer-lock' && e.state === 'refused') this.toast('Mouse capture is not available here: drag with the right button to look');
+      if (e.type === 'focus-lost' && this.settings.get().gameplay.pauseOnBlur) this.autoPause(TOASTS.autoPaused);
+      if (e.type === 'pad-connected') this.toast(TOASTS.padConnected);
+      if (e.type === 'pad-disconnected' && e.wasActiveDevice) {
+        if (!this.autoPause(TOASTS.padDisconnected)) this.toast(TOASTS.padDisconnected);
+      }
+      if (e.type === 'pointer-lock' && e.state === 'refused') this.toast(TOASTS.pointerLockRefused);
     }
   }
 
-  /** Pause because the window lost focus or the active pad vanished (applied at once, zero-time). */
-  autoPause(): void {
+  /** Pause because the window lost focus or the active pad vanished (applied at once, zero-time). False: no pause. */
+  autoPause(toast: string = TOASTS.autoPaused): boolean {
     const s = this.session;
-    if (!s || this.mode !== 'playing' || s.driver.paused) return;
+    if (!s || this.mode !== 'playing' || s.driver.paused) return false;
     s.driver.enqueue({ type: 'setSpeed', speed: 0 });
     s.driver.applyCommandsNow();
     this.autoPaused = true;
-    this.toast(TOASTS.autoPaused);
+    this.toast(toast);
     this.refreshUi();
+    return true;
+  }
+
+  /**
+   * Debug API gamepad simulation (GDD 01 App. F 17): these pads replace navigator.getGamepads() from the next frame
+   * on, for the rest of the page's life ([] = all disconnected).
+   */
+  setDebugPads(pads: (PadSnapshot | null)[]): void {
+    this.debugPads = pads;
   }
 
   private syncContexts(): void {
@@ -328,14 +380,22 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   }
 
   // ------------------------------------------------------------------ GlobalControls / GameFacade
-  /** Enqueue a command; applied at once (zero time) whenever the sim is not ticking in real time. */
-  command(cmd: Command): void {
+  /**
+   * Enqueue a command; applied at once (zero time) whenever the sim is not ticking in real time. The refusals the
+   * sim raised while applying it come back in the outcome (none when it waits for the next tick: applied false).
+   */
+  command(cmd: Command): CommandOutcome {
     const s = this.session;
-    if (!s) return;
+    if (!s) return { applied: false, rejected: [] };
     s.driver.enqueue(cmd);
     const ticking = this.realtime && !s.driver.paused && !isFrozen({ mode: this.mode, view: s.view });
-    if (!ticking) { s.driver.applyCommandsNow(); this.afterSimChange(s, 0); }
+    let rejected: Rejection[] = [];
+    if (!ticking) {
+      rejected = collectRefusals(s.sim, () => s.driver.applyCommandsNow());
+      this.afterSimChange(s, 0);
+    }
     this.dirty = true;
+    return { applied: !ticking, rejected };
   }
 
   setSpeed(level: SpeedLevel): void {
@@ -382,11 +442,17 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   quitToTitle(): void { this.endGame(true); }
 
-  possess(target: number | PossessRole, via: 'command' | 'role-key' | 'cycle' | 'last' = 'command'): void {
+  /** Possess an ant or a role. `refused` names a game-level refusal (no command was sent). */
+  possess(target: number | PossessRole, via: 'command' | 'role-key' | 'cycle' | 'last' = 'command'): PossessOutcome {
     const s = this.session;
-    if (!s || this.mode !== 'playing' || s.view === 'photo') return;
-    if (typeof target === 'string' && !s.roleAvailable(target)) { this.toast(GameSession.noRoleToast(target)); return; }
-    this.command(s.possessCommand(target, this.settings.get().gameplay.dropTo1xOnPossess, via));
+    if (!s) return { applied: false, rejected: [], refused: 'no-game' };
+    if (this.mode !== 'playing') return { applied: false, rejected: [], refused: `mode-${this.mode}` };
+    if (s.view === 'photo') return { applied: false, rejected: [], refused: 'photo-mode' };
+    if (typeof target === 'string' && !s.roleAvailable(target)) {
+      this.toast(GameSession.noRoleToast(target));
+      return { applied: false, rejected: [], refused: 'no-ant-for-role' };
+    }
+    return { ...this.command(s.possessCommand(target, this.settings.get().gameplay.dropTo1xOnPossess, via)), refused: null };
   }
 
   possessLast(): void {
@@ -463,7 +529,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const snap = buildSnapshot({
       sim: s?.sim ?? null, mode: this.mode, view: s?.view ?? 'observer', loading: this.loading,
       speed: s ? s.driver.speedReport() : null, manualClock: !this.realtime, toasts: this.toasts.list, hudHidden: this.hudHidden,
-      error: this.error, underground: this.lastFrame.underground, epitaph: this.epitaph,
+      error: this.error, underground: this.lastFrame.underground, epitaph: this.epitaph, observerPrompt: s?.observerPrompt ?? null,
     }, this.uiRev);
     this.uiRev = snap.rev;
     this.lastSnapshot = snap;

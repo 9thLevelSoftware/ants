@@ -11,11 +11,25 @@ import { mapState } from '../maps/state';
 import { walkable } from '../maps/nav';
 import { cellAt, navDistances } from './graph';
 import { evaluateMicro, usefulInteriorAccess } from './micro';
-import { SUIT } from '../tuning/maps';
+import { SUIT, SUITABILITY } from '../tuning/maps';
 import { LANE_ZONES, MICRO, SIZE_SCALE, VALID } from '../tuning/pipeline';
 
 export type CheckStatus = 'pass' | 'fail' | 'n/a';
-export interface CheckResult { id: WorldgenCheck; status: CheckStatus; detail: string }
+export interface CheckResult {
+  id: WorldgenCheck;
+  status: CheckStatus;
+  detail: string;
+  /** false: regenerating cannot fix this failure (missing content); the pipeline repairs the attempt at once. */
+  regenerate?: boolean;
+}
+
+/**
+ * A wood-nesting species founds in wood primitives (logs, stumps) that only the catalogue places: with no prop
+ * placer registered there is no founding site on any attempt, so the failure goes straight to repair R2.
+ */
+function contentLimited(ctx: GenContext, good: number): boolean {
+  return good === 0 && SUITABILITY[ctx.params.speciesId].woodNester && !ctx.provides.has('props');
+}
 
 const CARB_RENEWABLE: readonly FoodKind[] = ['honeydew', 'nectar', 'sugar', 'crumb', 'fruit'];
 const PROTEIN: readonly FoodKind[] = ['carrion', 'prey', 'pet-food'];
@@ -47,7 +61,9 @@ export function checkFound(ctx: GenContext): CheckResult {
   const d = navDistances(ctx, [startCell(ctx)], { maxBu: VALID.startRadiusBu });
   const nearStart = good.filter((c) => d[c] <= VALID.startRadiusBu).length;
   const pass = good.length >= need && sep >= VALID.foundClusterSepBu && nearStart >= VALID.startGoodMin;
-  return ok('v-found', pass, `good=${good.length}/${need} spread=${sep.toFixed(0)}BU nearStart=${nearStart}`);
+  const r = ok('v-found', pass, `good=${good.length}/${need} spread=${sep.toFixed(0)}BU nearStart=${nearStart}`);
+  if (!pass && contentLimited(ctx, good.length)) r.regenerate = false;
+  return r;
 }
 
 export function checkConnect(ctx: GenContext): CheckResult {
@@ -70,7 +86,11 @@ export function checkConnect(ctx: GenContext): CheckResult {
   let queenGood = 0;
   for (let c = 0; c < q.length && queenGood < VALID.queenGoodMin; c++) if (q[c] >= SUIT.good && dq[c] < Infinity) queenGood++;
   const pass = share >= VALID.connectShare && missing.length === 0 && queenGood >= VALID.queenGoodMin;
-  return ok('v-connect', pass, `reach=${(share * 100).toFixed(1)}% missing=[${missing.join(',')}] queenGood=${queenGood}`);
+  const r = ok('v-connect', pass, `reach=${(share * 100).toFixed(1)}% missing=[${missing.join(',')}] queenGood=${queenGood}`);
+  let good = 0;
+  for (let c = 0; c < q.length; c++) if (q[c] >= SUIT.good) good++;
+  if (!pass && share >= VALID.connectShare && missing.length === 0 && contentLimited(ctx, good)) r.regenerate = false;
+  return r;
 }
 
 export function checkFood(ctx: GenContext): CheckResult {

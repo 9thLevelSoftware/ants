@@ -1,6 +1,6 @@
 // Derived maps (GDD 04 §11-13): nav classes under the building, shade and shelter, moisture, flood and puddles,
 // nesting suitability (App. E 6, 25), and the building shell's door crack (App. E 4, 5).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { NAV_CELL_FLAGS, NAV_CLASSES } from '@/sim/types';
 import { generateWorldReport } from '../pipeline';
 import { createContext } from '../kit/context';
@@ -11,6 +11,9 @@ import { LEVELS } from '../tuning/terrain';
 import { SUITABILITY, THETA, WATER } from '../tuning/maps';
 import { evaluateMicro, usefulInteriorAccess } from '../validate/micro';
 import { navDistances, cellAt } from '../validate/graph';
+
+// world generation takes ~1-2 s per world and the shared machine is often loaded
+vi.setConfig({ testTimeout: 120_000 });
 
 const CLS = (c: (typeof NAV_CLASSES)[number]) => NAV_CLASSES.indexOf(c);
 

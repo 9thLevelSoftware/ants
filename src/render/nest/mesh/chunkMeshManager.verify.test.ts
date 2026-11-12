@@ -35,14 +35,16 @@ describe('ChunkMeshManager (review)', () => {
     // the player keeps digging next to the camera: one bite per frame inside the same chunk
     // (budget 0 = one chunk per frame, the "at least one chunk" rule; the same happens whenever one frame's budget
     // only fits the chunks the nearby digging re-dirties)
+    // (the loop runs all 200 frames: stopping at the first display would leave `changed` far below 100 for any
+    // implementation that shows the far edit early, which is what this test asks for)
     let farShown = false, changed = 0;
-    for (let f = 0; f < 200 && !farShown; f++) {
+    for (let f = 0; f < 200; f++) {
       const v0 = kernel.carve.version;
       const a = f * 1.9; // a spiral that keeps opening new samples, all inside chunk (1, -2, 1)
       kernel.carveSphere({ x: 48 + 5 * Math.cos(a), y: -48 + 5 * Math.sin(a), z: 40 + f * 0.08 }, 2.5, { force: true });
       if (kernel.carve.version !== v0) changed++;
       m.update(48, -48, 48, 0);
-      farShown = [...farKeys].every((k) => m.chunk(k) !== undefined);
+      farShown ||= [...farKeys].every((k) => m.chunk(k) !== undefined);
     }
     expect(changed).toBeGreaterThan(100); // the digging really went on
     expect(farShown).toBe(true);

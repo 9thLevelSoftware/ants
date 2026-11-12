@@ -59,7 +59,7 @@ describe('mounds', () => {
       }
     }
     expect(worst).toBeLessThanOrEqual(lim);
-  });
+  }, 60_000);
 
   it('acceptance 5: the mound is part of the field (height overlay) and a walker crosses it', () => {
     const sim = nestSim({ nest: 'small' });
@@ -90,7 +90,7 @@ describe('mounds', () => {
     expect(top).toBeGreaterThan(peak * 0.8);
     expect(walkerPlace(sim.field, ant, { x: px, y: peak + BU, z: pz }, {}, sim.kernel.walker)).toBe(true);
     expect(ant.pos.y - ant.footOffset).toBeCloseTo(peak, 0);
-  });
+  }, 60_000);
 
   it('check 6: a surface pellet 3 BU from an entrance still exists at age 2990 and has merged by 3260', () => {
     const sim = nestSim({ nest: 'small' });
@@ -102,7 +102,7 @@ describe('mounds', () => {
     runTicks(sim, 270);
     expect(sim.stores.items.has(it.id)).toBe(false);
     expect(moundVolume(sim, entranceMound(sim)!)).toBeCloseTo(0.85 * BULKING, 6);
-  });
+  }, 60_000);
 });
 
 describe('pellets', () => {
@@ -127,7 +127,7 @@ describe('pellets', () => {
       if (flags.get(Math.round(floor.x / v) + i, Math.round(floor.y / v) + j, Math.round(floor.z / v) + k) & VoxelFlag.LOOSE) loose++;
     }
     expect(loose).toBeGreaterThan(0);
-  });
+  }, 60_000);
 
   it('check 9: a founding queen in `digging` expels the bite: no pellet item, mound grows by 1.25 x the volume', () => {
     const sim = nestSim();

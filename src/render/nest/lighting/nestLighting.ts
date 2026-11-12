@@ -3,7 +3,7 @@
 import { Color, Vector3 } from 'three';
 import type { Vec3 } from '@/core/math/vec3';
 import type { NestUniforms } from '../materials/nestUniforms';
-import { CAVITY_SKIN_BU, CUTAWAY, NEST_LIGHT, XRAY } from '../params';
+import { CAVITY_SKIN_BU, HOLE_LIP_BU, CUTAWAY, NEST_LIGHT, XRAY } from '../params';
 import type { NestSource, Opening } from '../simAdapter';
 
 const tmp = new Color();
@@ -23,6 +23,7 @@ export class NestLighting {
     const u = this.u;
     u.uBu.value = bu;
     u.uSkin.value = CAVITY_SKIN_BU * bu;
+    u.uHoleLip.value = HOLE_LIP_BU * bu;
     u.uSkyLen.value = NEST_LIGHT.skyFalloffBU * bu;
     u.uAmb.value.set(NEST_LIGHT.ambientHex).multiplyScalar(NEST_LIGHT.ambientLevel);
     u.uAmbNear.value.set(NEST_LIGHT.ambientNearBoost, NEST_LIGHT.ambientNearBU * bu);

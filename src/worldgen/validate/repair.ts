@@ -4,7 +4,7 @@
 // R5 rival sites moved to the farthest valid cells. R1 (open closed sockets) belongs to the micro-connection
 // module and arrives as a module repair.
 
-import { PrimFlag } from '@/sim/types';
+import { PrimFlag, SEASONS } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import type { RepairDef } from '../kit/registry';
 import type { ObjectTemplate } from '../kit/template';
@@ -81,7 +81,7 @@ export function repairFood(ctx: GenContext): boolean {
   kinds.forEach((kind, i) => {
     const c = cands[Math.floor(((i + 0.5) * cands.length) / kinds.length)];
     const p = centre(ctx, c);
-    addFoodAnchor(ctx, { kind, pos: { x: p.x, y: supportAt(ctx, p.x, p.z), z: p.z }, up: { x: 0, y: 1, z: 0 }, hostObjectId: -1, seasonMask: 15, initialState: 'full' });
+    addFoodAnchor(ctx, { kind, pos: { x: p.x, y: supportAt(ctx, p.x, p.z), z: p.z }, up: { x: 0, y: 1, z: 0 }, hostObjectId: -1, seasonMask: (1 << SEASONS.length) - 1, initialState: 'full' });
   });
   return true;
 }

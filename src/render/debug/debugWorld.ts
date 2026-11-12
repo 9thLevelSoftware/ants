@@ -9,7 +9,7 @@ import type { FrameInfo, RenderContext, SubRenderer } from '../index';
 import { DEBUG_COLORS } from './palette';
 import { DebugPrimLayer } from './primMeshes';
 import { buildTerrainPatch, type PatchSpec } from './terrainMesh';
-import { makeTerrainMaterial, makeTerrainUniforms, MAX_HOLES, type TerrainUniforms } from './terrainMaterial';
+import { fillHoles, makeTerrainMaterial, makeTerrainUniforms, type TerrainUniforms } from './terrainMaterial';
 
 /** Fine patch size in terrain cells; it re-centres when the subject moved a quarter of it. */
 const PATCH_CELLS = 192;
@@ -96,13 +96,7 @@ export class DebugWorldRenderer implements SubRenderer {
 
   /** Nearest breach spheres to (x, z) into both materials. */
   private updateHoles(sim: Sim, x: number, z: number): void {
-    const br = sim.state.worldDelta.carve.breaches;
-    let list = br;
-    if (br.length > MAX_HOLES) list = [...br].sort((a, b) => ((a.pos.x - x) ** 2 + (a.pos.z - z) ** 2) - ((b.pos.x - x) ** 2 + (b.pos.z - z) ** 2)).slice(0, MAX_HOLES);
-    for (const u of [this.uniforms, this.coarseUniforms]) {
-      u.uHoleCount.value = list.length;
-      list.forEach((b, i) => u.uHoles.value[i].set(b.pos.x, b.pos.y, b.pos.z, b.r));
-    }
+    fillHoles([this.uniforms, this.coarseUniforms], sim.state.worldDelta.carve.breaches, x, z);
   }
 
   update(frame: FrameInfo): void {

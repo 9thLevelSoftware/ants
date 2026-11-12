@@ -34,14 +34,15 @@ export interface NavScratch {
   routeThenSeek: number;
   /** Target of a 'seek' leg, mm. */
   seekTarget: Vec3;
-  /** Surface leg following a cached flow field (key; '' = waypoints in nav.path) and its colony. */
+  /** The seek leg heads for the trip's final goal (1): it never ends by itself, only tripArrived ends it. */
+  seekFinal: number;
+  /** Surface leg following a cached flow field (key; '' = waypoints in nav.path) and the nest it leads into. */
   flowKey: string;
-  flowColony: number;
+  flowNest: number;
+  /** Avoid-disc signature the current leg was planned with (a change triggers a replan). */
+  discSig: number;
   /** Nest the walker was in when the current leg was planned (a change triggers a replan). */
   legNest: number;
-  /** Replans already made this tick (bounded). */
-  replansThisTick: number;
-  replanTickMark: number;
   /** Speed request. */
   speedKind: LocoSpeedKind;
   speedMult: number;
@@ -75,9 +76,6 @@ export interface NavScratch {
   trailLostS: number;
   /** The walker already turned round to face the requested trail direction (1). */
   trailTurned: number;
-  /** Side (+1 left, -1 right, 0 none) where the trail was last stronger, and how long ago, s. */
-  trailSide: number;
-  trailSideAge: number;
   // retrace
   crumbIdx: number;
   // possessed ant
@@ -95,15 +93,10 @@ export interface NavScratch {
   pivot: number;
   rescueS: number;
   rescueFrom: Vec3;
-  /** The carve grid changed near the walker since its last step (1): re-attach and replan (persisted). */
-  surfaceDirty: number;
   /** Open-ground test cache: where it was made (x, z, mm) and its result (1 open, 0 not, -1 none yet). */
   openX: number;
   openZ: number;
   open: number;
-  // path integration bookkeeping (ants): last position integrated (valid when piValid = 1)
-  piPos: Vec3;
-  piValid: number;
 }
 
 const v = (x = 0, y = 0, z = 0): Vec3 => ({ x, y, z });
@@ -114,12 +107,12 @@ export const NO_PROGRESS = 1e30;
 export function newScratch(): NavScratch {
   return {
     req: 'none', reqTick: 0, timeoutTick: -1, goal: v(), goalNest: -1, goalField: '', legField: '', legExit: false,
-    entranceId: -1, routeDir: 1, routeEnd: -1, routeThenSeek: 0, seekTarget: v(), flowKey: '', flowColony: -1, legNest: -1,
-    replansThisTick: 0, replanTickMark: -1, speedKind: 'cruise', speedMult: 1, speedFixed: 0,
+    entranceId: -1, routeDir: 1, routeEnd: -1, routeThenSeek: 0, seekTarget: v(), seekFinal: 0, flowKey: '', flowNest: -1, discSig: 0, legNest: -1,
+    speedKind: 'cruise', speedMult: 1, speedFixed: 0,
     planTick: -1, retargetTick: 0, best: NO_PROGRESS, bestTick: 0, anchor: v(), ladder: 0, ladderUntil: 0, side: 1, episodes: 0,
-    relocations: 0, center: v(), radius: 0, trailColony: -1, trailChannel: '', trailDir: 0, trailLostS: 0, trailTurned: 0, trailSide: 0, trailSideAge: 0,
+    relocations: 0, center: v(), radius: 0, trailColony: -1, trailChannel: '', trailDir: 0, trailLostS: 0, trailTurned: 0,
     crumbIdx: -1, latch: 0, latchAngle: 0, latchS: 0, lowMagS: 0, upRef: v(0, 1, 0), upRefAge: -1, latchDir: v(1, 0, 0), lastDir: v(),
-    pivot: 0, rescueS: 0, rescueFrom: v(), surfaceDirty: 0, openX: 0, openZ: 0, open: -1, piPos: v(), piValid: 0,
+    pivot: 0, rescueS: 0, rescueFrom: v(), openX: 0, openZ: 0, open: -1,
   };
 }
 

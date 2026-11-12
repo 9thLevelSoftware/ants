@@ -11,11 +11,12 @@ import { followClimb as followClimbImp, followField as followFieldImp, followFlo
 import { copy3 as copy3Imp, dist3 as dist3Imp, distXZ as distXZImp, noise01 as noise01Imp, set3 as set3Imp } from './mathx';
 import { chamberById as chamberByIdImp, chamberField as chamberFieldImp, entranceById as entranceByIdImp, exitField as exitFieldImp, isBelowGround as isBelowGroundImp, nearestOpenEntrance as nearestOpenEntranceImp, nestContaining as nestContainingImp, planField as planFieldImp, pointField as pointFieldImp } from './nests';
 import { nearestRouteNode as nearestRouteNodeImp } from './routes';
-import { avoidDiscs as avoidDiscsImp, colonyEntrances as colonyEntrancesImp, takePlanBudget as takePlanBudgetImp, type LocoRuntime } from './runtime';
+import { avoidDiscs as avoidDiscsImp, avoidSig as avoidSigImp, nestEntrances as nestEntrancesImp, nestFlowKey as nestFlowKeyImp, takePlanBudget as takePlanBudgetImp, type LocoRuntime } from './runtime';
 import { NO_PROGRESS, type NavScratch } from './scratch';
+import { PASS_CLEAR_K } from './params';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, followFlow = followFlowImp, followPath = followPathImp, followSeek = followSeekImp, copy3 = copy3Imp, dist3 = dist3Imp, distXZ = distXZImp, noise01 = noise01Imp, set3 = set3Imp, chamberById = chamberByIdImp, chamberField = chamberFieldImp, entranceById = entranceByIdImp, exitField = exitFieldImp, isBelowGround = isBelowGroundImp, nearestOpenEntrance = nearestOpenEntranceImp, nestContaining = nestContainingImp, planField = planFieldImp, pointField = pointFieldImp, nearestRouteNode = nearestRouteNodeImp, avoidDiscs = avoidDiscsImp, colonyEntrances = colonyEntrancesImp, takePlanBudget = takePlanBudgetImp;
+const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, followFlow = followFlowImp, followPath = followPathImp, followSeek = followSeekImp, copy3 = copy3Imp, dist3 = dist3Imp, distXZ = distXZImp, noise01 = noise01Imp, set3 = set3Imp, chamberById = chamberByIdImp, chamberField = chamberFieldImp, entranceById = entranceByIdImp, exitField = exitFieldImp, isBelowGround = isBelowGroundImp, nearestOpenEntrance = nearestOpenEntranceImp, nestContaining = nestContainingImp, planField = planFieldImp, pointField = pointFieldImp, nearestRouteNode = nearestRouteNodeImp, avoidDiscs = avoidDiscsImp, avoidSig = avoidSigImp, nestEntrances = nestEntrancesImp, nestFlowKey = nestFlowKeyImp, takePlanBudget = takePlanBudgetImp;
 
 const _d: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -36,7 +37,7 @@ function colonyOf(w: Walker): number {
   return typeof c === 'number' ? c : -1;
 }
 
-function isAutonomousAnt(w: Walker): boolean {
+export function isAutonomousAnt(w: Walker): boolean {
   const a = w as Partial<Ant>;
   return typeof a.caste === 'string' && ((a.flags ?? 0) & AntFlag.POSSESSED) === 0;
 }
@@ -44,13 +45,38 @@ function isAutonomousAnt(w: Walker): boolean {
 /**
  * Sets the steering goal: field goals as they are, point goals jittered within spread x arriveDist of the
  * destination (deterministic per walker and request), so a crowd arriving at one place spreads out instead of
- * piling up (spike-nest §5 item 12). tripArrived uses the remaining (1 - spread) x arriveDist around this goal, so an
- * arrived walker is always within arriveDist of the destination.
+ * piling up (spike-nest §5 item 12), and put back on the surface there. tripArrived uses the remaining
+ * (1 - spread) x arriveDist around this goal, so an arrived walker is always within arriveDist of the destination.
  */
-export function setGoal(s: NavScratch, dest: Vec3, arrive: number, id: number, spread: number): void {
+export function setGoal(sim: Sim, s: NavScratch, dest: Vec3, arrive: number, id: number, spread: number): void {
   if (s.goalNest >= 0 && s.goalField && !s.goalField.startsWith('loco:pt:')) { copy3(s.goal, dest); return; }
   const a = noise01(id, s.reqTick, 17) * 2 * Math.PI, rr = Math.sqrt(noise01(id, s.reqTick, 29)) * spread * arrive;
   set3(s.goal, dest.x + Math.cos(a) * rr, dest.y, dest.z + Math.sin(a) * rr);
+  if (rr > 0) snapToSurface(sim, s.goal, sim.world.bu);
+}
+
+const DOWN: Vec3 = { x: 0, y: -1, z: 0 };
+/** A goal farther than this from any surface is moved onto the surface below (or above, if inside a solid), BU. */
+const SNAP_TOL_BU = 0.2;
+const SNAP_MAX_BU = 16;
+
+/**
+ * Moves a goal point onto the walkable surface: a point in open space (a chamber's centre, a point above the
+ * ground) drops onto the surface below it, a point inside a solid (y = 0 under a mound) rises to the surface above.
+ * Walkers stand on the level set, so a goal off it could never satisfy the arrival test.
+ */
+export function snapToSurface(sim: Sim, p: Vec3, bu: number): void {
+  const f = sim.field.sample(p);
+  if (!Number.isFinite(f) || Math.abs(f) <= SNAP_TOL_BU * bu) return;
+  const maxD = SNAP_MAX_BU * bu;
+  if (f > 0) {
+    const t = sim.field.sphereTrace(p, DOWN, maxD, 0);
+    if (t < maxD) p.y -= t;
+    return;
+  }
+  let y = p.y, g = f;
+  for (let i = 0; i < 64 && g < 0 && y - p.y < maxD; i++) { y += Math.max(-g, 0.05 * bu); g = sim.field.sample(set3(_d, p.x, y, p.z)); }
+  if (g >= 0) p.y = y;
 }
 
 /** Resolves where a target ref is now; false if it is gone. Also sets the goal nest / field for nest targets. */
@@ -96,6 +122,8 @@ export function resolveTarget(sim: Sim, kind: TargetKind, id: number, fallback: 
     case 'none': return false;
     default: copy3(out, fallback); break;
   }
+  if (!finite3(out)) return false;
+  snapToSurface(sim, out, sim.world.bu);
   if (isBelowGround(sim, out)) {
     const n = nestContaining(sim, out);
     if (n >= 0) { s.goalNest = n; s.goalField = pointField(sim, r, out); }
@@ -107,13 +135,15 @@ export function resolveTarget(sim: Sim, kind: TargetKind, id: number, fallback: 
 function resetLeg(w: Walker, s: NavScratch): void {
   w.nav.path = null; w.nav.pathIdx = 0; w.nav.routeId = -1;
   w.nav.fieldNest = -1; w.nav.fieldTarget = -1; w.nav.fieldKind = 'none';
-  s.legField = ''; s.legExit = false; s.flowKey = '';
+  s.legField = ''; s.legExit = false; s.flowKey = ''; s.seekFinal = 0;
 }
 
+/** Seek leg to t; a seek to the trip's goal itself (t === s.goal) is the final one. */
 function setSeek(w: Walker, s: NavScratch, t: Vec3): void {
   resetLeg(w, s);
   w.nav.mode = 'seek';
   copy3(s.seekTarget, t);
+  s.seekFinal = t === s.goal ? 1 : 0;
 }
 
 function setField(w: Walker, s: NavScratch, nestId: number, field: string, exit: boolean): void {
@@ -137,30 +167,68 @@ function setClimb(w: Walker, s: NavScratch, routeId: number, from: number, to: n
   w.nav.pathIdx = from;
 }
 
-/** Surface leg to t: direct when close and clear, else entrance flow field, else A* (budgeted). False = no route. */
-function planSurface(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, t: Vec3, flowColony: number): boolean {
+/**
+ * Surface leg to t: direct when close and clear, else the entrance flow field of nest `flowNest` (a trip home into
+ * one's own nest), else A* (budgeted). False = no route.
+ */
+function planSurface(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, t: Vec3, flowNest: number): boolean {
   const g = sim.navGrid;
   const discs = isAutonomousAnt(w) ? avoidDiscs(sim, r, colonyOf(w)) : null;
   const loco = isLocoNavGrid(g) ? g : null;
-  if (distXZ(w.pos, t) < r.P.direct && (!loco || loco.segmentWalkable(w.pos, t, discs))) { setSeek(w, s, t); return true; }
-  if (loco && flowColony >= 0 && (!discs || discs.length === 0)) {
-    const f = colonyEntrances(sim, r, flowColony);
+  const d = distXZ(w.pos, t);
+  // within one nav cell of the entrance there is nothing left for the flow field to do (it ends there): walk, and
+  // climb a stone beside the hole if need be, straight to it
+  const atEntrance = flowNest >= 0 && loco !== null && d <= loco.cell;
+  if (d < r.P.direct && (!loco || atEntrance || loco.segmentWalkable(w.pos, t, discs))) { setSeek(w, s, t); return true; }
+  if (loco && flowNest >= 0 && (!discs || discs.length === 0)) {
+    const f = nestEntrances(sim, r, flowNest);
     if (f.seeds.length > 0) {
       resetLeg(w, s);
       w.nav.mode = 'path';
-      s.flowKey = `colony:${flowColony}`;
-      s.flowColony = flowColony;
+      s.flowKey = nestFlowKey(flowNest);
+      s.flowNest = flowNest;
       return true;
     }
   }
   if (!takePlanBudget(sim, r)) { setSeek(w, s, t); s.planTick = -1; return true; }
   const path: Vec3[] = [];
-  const ok = loco ? loco.findPathEx(w.pos, t, path, { discs }) : g.findPath(w.pos, t, path);
+  const ok = loco ? loco.findPathEx(w.pos, t, path, { discs, clearanceBu: clearanceOf(w) }) : g.findPath(w.pos, t, path);
   if (!ok) { r.stats.planFailed++; return false; }
   resetLeg(w, s);
   w.nav.mode = 'path';
   w.nav.path = path;
   w.nav.pathIdx = 0;
+  // a path that ends at the trip's goal: its last waypoint behaves like the final seek
+  s.seekFinal = t === s.goal ? 1 : 0;
+  return true;
+}
+
+/** Clearance a walker needs in a micro-connection, BU (GDD 04 §6.1: PASS_CLEAR_K x size). */
+function clearanceOf(w: Walker): number {
+  const len = (w as Partial<Ant>).lengthBu;
+  return PASS_CLEAR_K * (typeof len === 'number' && len > 0 ? len : 1);
+}
+
+/**
+ * Leg out of carved space that belongs to no nest (natural cavity, crack, pit): to the nearest opening of the
+ * natural cavity containing the walker, else straight toward the goal (the walker climbs the walls in its way).
+ */
+function planCavityExit(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  const p = w.pos, bu = r.P.bu;
+  let best: { pos: Vec3; normal: Vec3 } | null = null, bd = Infinity;
+  for (const c of sim.world.cavities) {
+    if (p.x < c.min.x - bu || p.y < c.min.y - bu || p.z < c.min.z - bu || p.x > c.max.x + bu || p.y > c.max.y + bu || p.z > c.max.z + bu) continue;
+    for (const o of c.openings) {
+      const dd = dist3(p, o.pos);
+      if (dd < bd) { bd = dd; best = o; }
+    }
+  }
+  if (best && bd > r.P.wpReach) {
+    set3(_d, best.pos.x + best.normal.x * bu, best.pos.y + best.normal.y * bu, best.pos.z + best.normal.z * bu);
+    setSeek(w, s, _d);
+    return true;
+  }
+  setSeek(w, s, s.goal);
   return true;
 }
 
@@ -169,8 +237,11 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
   const P = r.P;
   s.planTick = sim.state.tick;
   s.legNest = here;
-  s.best = NO_PROGRESS; s.bestTick = sim.state.tick; copy3(s.anchor, w.pos);
-  if (here < 0 && w.medium === 'cavity') return false; // underground in no known nest: nothing to plan with
+  // a new leg has a new progress metric, but planning is not progress: the stuck window keeps running (a leg that
+  // ends without the trip arriving would otherwise re-plan every tick and never count as stuck)
+  s.best = NO_PROGRESS; copy3(s.anchor, w.pos);
+  s.discSig = isAutonomousAnt(w) ? avoidSig(sim, r, colonyOf(w)) : 0;
+  if (here < 0 && w.medium === 'cavity' && s.goalNest < 0) return planCavityExit(sim, w, s, r);
   if (here >= 0) {
     if (s.goalNest === here) {
       setField(w, s, here, s.goalField || pointField(sim, r, s.goal), false);
@@ -193,7 +264,7 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
       return true;
     }
     const nest = sim.stores.nests.get(s.goalNest);
-    const own = nest && nest.colony === colonyOf(w) ? nest.colony : -1;
+    const own = nest && nest.colony === colonyOf(w) ? nest.id : -1;
     return planSurface(sim, w, s, r, e.pos, own);
   }
   const groundW = sim.field.height(w.pos.x, w.pos.z), groundG = sim.field.height(s.goal.x, s.goal.z);
@@ -216,6 +287,14 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
   return planSurface(sim, w, s, r, s.goal, -1);
 }
 
+/**
+ * Distance from a walker to a goal point on a surface, mm: the walker's centre sits footOffset above the surface,
+ * so a walker standing on the goal is at distance 0.
+ */
+export function surfaceDist(w: Walker, p: Vec3): number {
+  return Math.max(0, dist3(w.pos, p) - w.footOffset);
+}
+
 /** Whether the trip has arrived (goal field reached inside the goal nest, or within arriveDist of the goal). */
 export function tripArrived(sim: Sim, w: Walker, s: NavScratch, here: number, spread: number): boolean {
   const nav = w.nav;
@@ -225,7 +304,20 @@ export function tripArrived(sim: Sim, w: Walker, s: NavScratch, here: number, sp
     const d = sim.nestNav.distanceAt(s.goalField, w.pos);
     return d <= Math.max(nav.arriveDist, 1.5 * sim.carve.voxel);
   }
-  return dist3(w.pos, s.goal) <= (1 - spread) * nav.arriveDist || dist3(w.pos, nav.dest) <= 0.25 * nav.arriveDist;
+  return surfaceDist(w, s.goal) <= (1 - spread) * nav.arriveDist || surfaceDist(w, nav.dest) <= 0.25 * nav.arriveDist;
+}
+
+/** The current leg is the last one of the trip (the walker brakes on it so it does not overshoot the goal). */
+export function finalLeg(w: Walker, s: NavScratch): boolean {
+  const nav = w.nav;
+  if (nav.mode === 'seek') return s.seekFinal === 1;
+  if (nav.mode === 'path') return s.seekFinal === 1 && nav.path !== null && nav.pathIdx >= nav.path.length - 1;
+  return nav.mode === 'field' && !s.legExit && s.goalNest >= 0;
+}
+
+/** The avoid discs changed since the current surface leg was planned. */
+export function discsChanged(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  return isAutonomousAnt(w) && avoidSig(sim, r, colonyOf(w)) !== s.discSig;
 }
 
 /** Follows the current leg; leg ends trigger an immediate re-plan (bounded per tick). */
@@ -234,18 +326,21 @@ export function followLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, ou
   switch (w.nav.mode) {
     case 'seek': return followSeek(w, s, r, out);
     case 'path': {
-      if (s.flowKey) {
-        const f = colonyEntrances(sim, r, s.flowColony);
-        const g = sim.navGrid;
-        const flow = isLocoNavGrid(g) && f.seeds.length > 0 ? g.flowField(s.flowKey, f.sig, f.seeds) : null;
-        return followFlow(sim, w, s, r, flow, out);
-      }
-      return followPath(w, r, out);
+      if (s.flowKey) return followFlow(sim, w, s, r, legFlow(sim, s, r), out);
+      return followPath(w, s, r, out);
     }
     case 'field': return followField(sim, w, s, r, w.nav.arriveDist, out);
     case 'climb': return followClimb(sim, w, s, r, out);
     default: return { state: 'done', metric: 0, advanced: false };
   }
+}
+
+/** Distance array of the flow-field leg (the leg's nest entrances), or null. */
+export function legFlow(sim: Sim, s: NavScratch, r: LocoRuntime): Float32Array | null {
+  const g = sim.navGrid;
+  if (!s.flowKey || !isLocoNavGrid(g)) return null;
+  const f = nestEntrances(sim, r, s.flowNest);
+  return f.seeds.length > 0 ? g.flowField(s.flowKey, f.sig, f.seeds) : null;
 }
 
 /** After a climb leg: seek the goal or re-plan. */
@@ -258,19 +353,21 @@ export function afterClimb(w: Walker, s: NavScratch): boolean {
 export function startTrip(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, dest: Vec3, kind: TargetKind, id: number,
   arrive: number, wid: number): boolean {
   const nav = w.nav;
-  if (!resolveTarget(sim, kind, id, dest, s, r, nav.dest)) return false;
+  if (!finite3(dest) || !resolveTarget(sim, kind, id, dest, s, r, nav.dest) || !finite3(nav.dest)) return false;
   nav.destKind = kind; nav.destId = id; nav.arriveDist = arrive;
   nav.status = 'moving'; nav.stuckTicks = 0;
   s.req = 'goto'; s.reqTick = sim.state.tick; s.retargetTick = sim.state.tick;
-  setGoal(s, nav.dest, arrive, wid, r.P.spread);
+  setGoal(sim, s, nav.dest, arrive, wid, r.P.spread);
   s.planTick = -1; s.ladder = 0; s.episodes = 0; s.relocations = 0; s.entranceId = -1;
   s.best = NO_PROGRESS; s.bestTick = sim.state.tick;
-  resetLeg(w, s);
-  nav.mode = 'seek';
-  copy3(s.seekTarget, s.goal);
+  setSeek(w, s, s.goal);
   // feasibility: a goal inside a nest needs an open entrance unless the walker is already in that nest
   if (s.goalNest >= 0 && w.medium !== 'cavity' && !nearestOpenEntrance(sim, s.goalNest, w.pos)) return false;
   return true;
+}
+
+export function finite3(p: Vec3): boolean {
+  return Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
 }
 
 /** Field id helper for nest field requests. */

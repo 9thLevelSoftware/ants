@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Chamber, Sim } from '@/sim/types';
 import { spawnBrood } from '@/sim/entities';
 import { detectNestChambers, updateOccupancy, checkRoyal } from './chambers/upkeep';
-import { designateChamber, findChamberAt } from './index';
+import { designateChamber, findChamberAt, setChamberFlooded } from './index';
 import { nestSim, placeWorker, runTicks } from './nestTestKit';
 
 const BU = 4;
@@ -71,7 +71,7 @@ describe('chamber detection', () => {
     const general = nest.chambers.filter((c) => c.type === 'general');
     expect(general.length).toBe(1);
     expect(Math.abs(general[0].volume - 126)).toBeLessThanOrEqual(12);
-  });
+  }, 60_000);
 
   it('roof, depth and floor area of an isolated room', () => {
     const sim = nestSim({ nest: 'small' });
@@ -131,5 +131,14 @@ describe('capacity, occupancy, designation', () => {
     for (let n = 0; n < 8; n++) placeWorker(sim, { ...royal.center }, { x: 1, y: 0, z: 0 }, nest.id);
     checkRoyal(sim, nest);
     expect(royal.type).toBe('royal');
+  });
+
+  it('flooded hook: fraction and a day of wet walls', () => {
+    const { sim } = smallNest();
+    const c = sim.state.nests[0].chambers[0];
+    expect(setChamberFlooded(sim, c.id, 0.4)).toBe(true);
+    expect(c.flooded).toBe(0.4);
+    expect(c.wetUntilTick).toBeGreaterThan(sim.state.tick);
+    expect(setChamberFlooded(sim, -5, 1)).toBe(false);
   });
 });

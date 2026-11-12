@@ -4,11 +4,9 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, Walker } from '@/sim/types';
-import type { CarveChange } from '@/sim/nest/carve';
 import type { CostDisc } from './grid/search';
 import { isLocoNavGrid } from './grid/navGridImpl';
 import { locoParams, type LocoParams } from './params';
-import { scratchOf } from './scratch';
 
 /** Counters exposed for diagnostics (locoStats). Monotone over the sim's lifetime. */
 export interface LocoStats {
@@ -40,6 +38,12 @@ interface FlowSig {
   seeds: Vec3[];
 }
 
+/**
+ * Movement override for special media (Tier 2 hooks: alate flight, floating on water). Called before the normal
+ * step of every walker that is due; returns true when it moved the walker itself (locomotion then skips the step).
+ */
+export type MovementOverride = (sim: Sim, w: Walker, dt: number) => boolean;
+
 export interface LocoRuntime {
   P: LocoParams;
   stats: LocoStats;
@@ -53,11 +57,17 @@ export interface LocoRuntime {
   /** Per-tick caches. */
   discTick: number;
   discs: Map<number, CostDisc[]>;
+  /** Signature (hash) of each colony's avoid discs this tick: a change makes walkers replan. */
+  discSigs: Map<number, number>;
+  /** Entrance flow seeds per nest (one flow field per nest: a trip into nest A must not end at nest B). */
   flowSigs: Map<number, FlowSig>;
   /** Scratch id buffer for neighbour queries. */
   ids: number[];
   /** The nav grid has the world field attached. */
   gridReady: boolean;
+  overrides: MovementOverride[];
+  /** Carve grid version seen by the last locomotion tick (-1 = none yet). */
+  carveVersion: number;
 }
 
 const runtimes = new WeakMap<Sim, LocoRuntime>();
@@ -75,31 +85,10 @@ export function rt(sim: Sim): LocoRuntime {
   if (r) return r;
   const created: LocoRuntime = {
     P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, observer: null,
-    pointFields: [], discTick: -1, discs: new Map(), flowSigs: new Map(), ids: [], gridReady: false,
+    pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1,
   };
-  // walkers inside a changed carve box are flagged in their own (persisted) scratch, so the re-attachment and
-  // replan on their next step survive a save between the carve and that step
-  const voxel = sim.carve.voxel;
-  sim.carve.addListener((c: CarveChange) => {
-    const b = c.box, m = sim.world.bu;
-    markWalkers(sim, b.i0 * voxel - m, b.j0 * voxel - m, b.k0 * voxel - m, b.i1 * voxel + m, b.j1 * voxel + m, b.k1 * voxel + m);
-  });
   runtimes.set(sim, created);
   return created;
-}
-
-/** Flags every walker inside the box (mm) for re-attachment and a replan on its next step. */
-export function markWalkers(sim: Sim, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
-  const mark = (list: readonly Walker[], alive: (i: number) => boolean) => {
-    for (let i = 0; i < list.length; i++) {
-      const p = list[i].pos;
-      if (!alive(i) || p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1 || p.z < z0 || p.z > z1) continue;
-      scratchOf(list[i]).surfaceDirty = 1;
-    }
-  };
-  const ants = sim.stores.ants.list, cr = sim.stores.creatures.list;
-  mark(ants, (i) => ants[i].alive);
-  mark(cr, (i) => cr[i].alive);
 }
 
 /** Attaches the world field to the nav grid once (tall-object cover, mound ground). */
@@ -123,27 +112,41 @@ export function takePlanBudget(sim: Sim, r: LocoRuntime): boolean {
 /** Avoid-marker discs of a colony (GDD 02 §12.2), cached per tick. */
 export function avoidDiscs(sim: Sim, r: LocoRuntime, colony: number): CostDisc[] {
   const t = sim.state.tick;
-  if (r.discTick !== t) { r.discTick = t; r.discs.clear(); }
+  if (r.discTick !== t) { r.discTick = t; r.discs.clear(); r.discSigs.clear(); }
   let d = r.discs.get(colony);
   if (!d) {
     d = [];
+    let sig = 0;
     for (const m of sim.state.markers) {
-      if (m.alive && m.kind === 'avoid' && m.colony === colony) d.push({ x: m.pos.x, z: m.pos.z, r: m.radius, mult: r.P.avoidCost });
+      if (!m.alive || m.kind !== 'avoid' || m.colony !== colony) continue;
+      d.push({ x: m.pos.x, z: m.pos.z, r: m.radius, mult: r.P.avoidCost });
+      sig = mixSig(mixSig(mixSig(mixSig(sig, m.id), m.pos.x), m.pos.z), m.radius);
     }
     r.discs.set(colony, d);
+    r.discSigs.set(colony, sig);
   }
   return d;
 }
 
-/** Open entrances of a colony's nests as flow seeds plus a signature that changes when they change (per tick). */
-export function colonyEntrances(sim: Sim, r: LocoRuntime, colony: number): FlowSig {
+/** Signature of a colony's avoid discs (0 = none); equal signatures mean the same discs. */
+export function avoidSig(sim: Sim, r: LocoRuntime, colony: number): number {
+  avoidDiscs(sim, r, colony);
+  return r.discSigs.get(colony) ?? 0;
+}
+
+function mixSig(h: number, v: number): number {
+  return (Math.imul(h ^ Math.round(v * 16), 0x9e3779b1) + 0x7f4a7c15) | 0;
+}
+
+/** Open entrances of one nest as flow seeds plus a signature that changes when they change (per tick). */
+export function nestEntrances(sim: Sim, r: LocoRuntime, nestId: number): FlowSig {
   const t = sim.state.tick;
-  let f = r.flowSigs.get(colony);
+  let f = r.flowSigs.get(nestId);
   if (f && f.tick === t) return f;
   const seeds: Vec3[] = [];
   let sig = '';
-  for (const n of sim.state.nests) {
-    if (!n.alive || n.colony !== colony) continue;
+  const n = sim.stores.nests.get(nestId);
+  if (n && n.alive) {
     for (const e of n.entrances) {
       if (e.status !== 'open') continue;
       seeds.push(e.pos);
@@ -151,8 +154,20 @@ export function colonyEntrances(sim: Sim, r: LocoRuntime, colony: number): FlowS
     }
   }
   f = { tick: t, sig, seeds };
-  r.flowSigs.set(colony, f);
+  r.flowSigs.set(nestId, f);
   return f;
+}
+
+/** Flow-field cache key of a nest's entrances. */
+export function nestFlowKey(nestId: number): string {
+  return `nest:${nestId}`;
+}
+
+/** Registers a movement override (flight, afloat drift: Tier 2). Returns an unregister function. */
+export function registerMovementOverride(sim: Sim, f: MovementOverride): () => void {
+  const list = rt(sim).overrides;
+  list.push(f);
+  return () => { const i = list.indexOf(f); if (i >= 0) list.splice(i, 1); };
 }
 
 /** Sets the LOD observer (the camera focus); null returns to automatic. */

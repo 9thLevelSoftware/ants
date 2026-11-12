@@ -1,6 +1,6 @@
 // World generation parameters (GDD 04 §4.1, App. A `WorldParams`) and the grid dimensions they imply.
 
-import type { ArchetypeId, DifficultyId, SpeciesId, WorldParams, WorldSizeId } from '@/sim/types';
+import type { ArchetypeId, ClimateId, DifficultyId, RegionId, SpeciesId, WorldParams, WorldSizeId } from '@/sim/types';
 import { ARCHETYPES } from '@/sim/types';
 import { DIFFICULTY_PARAMS, NAV_CELL_BU, presetHumanActivity, presetRivals, TERRAIN_CELL_BU, WORLD_SIZE_BU } from '@/sim/balance';
 import { getSpecies } from '@/sim/species';
@@ -20,6 +20,11 @@ export const SUPPORTED_GENERATOR_VERSIONS: readonly number[] = [2];
 const SPECIES_REGION: Record<SpeciesId, WorldParams['region']> = {
   'lasius-niger': 'temperate-eu', 'camponotus-pennsylvanicus': 'ne-america',
   'messor-barbarus': 'mediterranean', 'atta-texana': 'southern-us',
+};
+
+/** Climate profile of a region (GDD 00-index B5: region -> chapter 06 climate). */
+export const REGION_CLIMATE: Record<RegionId, ClimateId> = {
+  'temperate-eu': 'temperate-maritime', 'ne-america': 'temperate-continental', mediterranean: 'mediterranean', 'southern-us': 'subtropical',
 };
 
 /** Rule values the generator reads; by default those of the difficulty preset (balance/difficulty.ts). */

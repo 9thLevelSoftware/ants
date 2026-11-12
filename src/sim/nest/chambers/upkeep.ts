@@ -3,21 +3,24 @@
 // founding-to-royal rule (§6.5).
 
 import type { BroodStage, Chamber, Nest, Sim } from '@/sim/types';
-import { BROOD_CHAMBER_TYPES, BROOD_PREF, BROOD_SPACE, nestTemplate } from '@/sim/balance/nest';
+import { BROOD_CHAMBER_TYPES, BROOD_PREF, BROOD_SPACE, MICRO_UPDATE_TICKS, nestTemplate } from '@/sim/balance/nest';
 import { chamberHumidity, chamberTemp } from '@/sim/environment/chamber';
 import { nestComponents } from '../entrances';
-import { nestRuntime } from '../runtime';
+import { nestRuntime, type ChunkVolume } from '../runtime';
+import { CHUNK, keyCx, keyCy, keyCz, type VoxelBox } from '../carve/keys';
+import { heightAt } from '@/sim/world/terrainSample';
 import { sampleI, sampleJ, sampleK } from '../voxelKey';
 import { detectRegions, nestSampleBox, type Region } from './detect';
 import { planG } from '../plans/geometry';
 import { planCache } from '../plans/targets';
-import { applyDetection, chamberAtIn, designateChamberImpl } from './registry';
+import { applyDetection, chamberAtIn, designateChamberImpl, refreshChamberMarch } from './registry';
 
 /** Detection pass over one nest: regions connected to the nest's cavity, then the identity rules. */
 export function detectNestChambers(sim: Sim, nest: Nest): void {
   const v = sim.carve.voxel;
   const comps = nestComponents(sim, nest);
-  const regions = detectRegions(sim, nestSampleBox(sim, nest)).filter((r) => {
+  const rt = nestRuntime(sim);
+  const regions = detectRegions(sim, nestSampleBox(sim, nest), rt.coreByChunk, rt.passGrid).filter((r) => {
     const s = r.core[0];
     const c = sim.nestNav.componentAt({ x: sampleI(s) * v, y: sampleJ(s) * v, z: sampleK(s) * v });
     return c >= 0 && comps.has(c);
@@ -26,21 +29,47 @@ export function detectNestChambers(sim: Sim, nest: Nest): void {
   nest.volumeOpen = nestOpenVolume(sim, nest);
 }
 
-/** Open carved volume of the nest's sample box below the surface, BU^3 (OPEN_FRACTION x solid share). */
+/**
+ * Open carved volume of the nest's sample box below the surface, BU^3 (OPEN_FRACTION x solid share). Only the
+ * carve chunks inside the box are read; per chunk the samples deep under the (static) terrain are summed once and
+ * cached (dropped by the carve listener), the few near the surface are evaluated against the live field.
+ */
 export function nestOpenVolume(sim: Sim, nest: Nest): number {
-  const b = nestSampleBox(sim, nest), carve = sim.carve, v = carve.voxel;
+  const b = nestSampleBox(sim, nest), carve = sim.carve, v = carve.voxel, rt = nestRuntime(sim);
+  let cache = rt.deepVolByNest.get(nest.id);
+  if (!cache) { cache = new Map(); rt.deepVolByNest.set(nest.id, cache); }
+  const keys = carve.data.keys.filter((key) => {
+    const ci = keyCx(key) * CHUNK, cj = keyCy(key) * CHUNK, ck = keyCz(key) * CHUNK;
+    return ci + CHUNK > b.i0 && ci <= b.i1 && cj + CHUNK > b.j0 && cj <= b.j1 && ck + CHUNK > b.k0 && ck <= b.k1;
+  }).sort((p, q) => p - q);
   let vol = 0;
-  for (const key of carve.data.keys) {
-    carve.forEachOpenSample(key, (i, j, k, o) => {
-      if (i < b.i0 || i > b.i1 || j < b.j0 || j > b.j1 || k < b.k0 || k > b.k1) return;
-      const x = i * v, y = j * v, z = k * v;
-      // well below the surface the solid share is 1 (cheap test first)
-      let solid = y < sim.field.height(x, z) - 2 * v ? 1 : 0.5 - sim.field.substrateXYZ(x, y, z) / v;
+  for (const key of keys) {
+    let cv = cache.get(key);
+    if (!cv) { cv = chunkVolume(sim, key, b); cache.set(key, cv); }
+    let part = cv.deep;
+    const sh = cv.shallow;
+    for (let n = 0; n < sh.length; n += 4) {
+      let solid = 0.5 - sim.field.substrateXYZ(sh[n] * v, sh[n + 1] * v, sh[n + 2] * v) / v;
       solid = solid < 0 ? 0 : solid > 1 ? 1 : solid;
-      vol += Math.min(1, Math.max(0, o / 127.5 - 0.5)) * solid;
-    });
+      part += openShare(sh[n + 3]) * solid;
+    }
+    vol += part;
   }
   return vol * (v / sim.world.bu) ** 3;
+}
+
+const openShare = (o: number): number => Math.min(1, Math.max(0, o / 127.5 - 0.5));
+
+/** Splits a chunk's open samples inside the box into the deep sum and the near-surface list. */
+function chunkVolume(sim: Sim, key: number, b: VoxelBox): ChunkVolume {
+  const v = sim.carve.voxel, terrain = sim.world.terrain, out: ChunkVolume = { deep: 0, shallow: [] };
+  sim.carve.forEachOpenSample(key, (i, j, k, o) => {
+    if (i < b.i0 || i > b.i1 || j < b.j0 || j > b.j1 || k < b.k0 || k > b.k1) return;
+    // well below the terrain the solid share is 1 (mound piles and primitives only add solid above it)
+    if (j * v < heightAt(terrain, i * v, k * v) - 2 * v) out.deep += openShare(o);
+    else out.shallow.push(i, j, k, o);
+  });
+  return out;
 }
 
 /** Occupancy of every chamber of the nest from the positions of its colony's adults, brood and items. */
@@ -66,8 +95,16 @@ export function updateOccupancy(sim: Sim, nest: Nest): void {
   }
 }
 
-/** Chamber temperature and humidity from the environment's cavity model (debug overrides win). */
+/**
+ * Chamber temperature and humidity from the environment's cavity model (debug overrides win). First one chamber
+ * per update (round robin by id) re-marches its depth, roof and cover, which detection keeps while the room's
+ * voxels do not change (registry.ts keptRegionStats).
+ */
 export function updateMicroclimate(sim: Sim, nest: Nest): void {
+  if (nest.chambers.length > 0) {
+    const byId = [...nest.chambers].sort((a, b) => a.id - b.id);
+    refreshChamberMarch(sim, byId[Math.floor(sim.state.tick / MICRO_UPDATE_TICKS) % byId.length]);
+  }
   const over = nestRuntime(sim).climate;
   for (const c of nest.chambers) {
     const o = over.get(c.id);

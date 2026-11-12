@@ -14,7 +14,7 @@ import { moistureAt, sMax, wallMin } from '../substrate';
 import { packSample } from '../voxelKey';
 import { buildGeometry, planG, type PlanGeometry } from './geometry';
 import { draftPlan, nearestNestOpen, resolvePlan, type ResolvedPlan } from './resolve';
-import { forPlanSamples, planCache, planSpecies, sampleDiggable } from './targets';
+import { forPlanSamples, planCache, planSpecies, sampleDiggable, sampleInOpenAir } from './targets';
 
 export interface ValidationResult extends PlanValidation {
   /** Resolved record parts and geometry when the request could be built. */
@@ -95,6 +95,7 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
   const target = new Set<number>();
   const cols = new Map<number, [number, number, number, number]>(); // column -> i, k, top j, bottom j
   forPlanSamples(sim, geometry, (i, j, k) => {
+    if (sampleInOpenAir(sim, i, j, k)) return; // nothing to dig (a shaft overshooting the surface)
     target.add(packSample(i, j, k));
     const col = packSample(i, 0, k), c = cols.get(col);
     if (!c) cols.set(col, [i, k, j, j]); else { c[2] = Math.max(c[2], j); c[3] = Math.min(c[3], j); }

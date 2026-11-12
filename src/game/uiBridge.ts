@@ -21,6 +21,8 @@ export interface SnapshotSource {
   /** The possessed ant is below the original ground. */
   underground: boolean;
   epitaph: UiSnapshot['epitaph'];
+  /** Game-level prompt shown when no ant is possessed (optional: null / absent = none). */
+  observerPrompt?: string | null;
 }
 
 function cap(s: string): string {
@@ -83,6 +85,11 @@ export function promptOf(sim: Sim): UiPrompt | null {
   }
 }
 
+/** A game-level prompt while no ant is possessed (after the death hold: "Tab: take another ant"). */
+function observerPromptOf(src: SnapshotSource): UiPrompt | null {
+  return src.observerPrompt ? { primary: src.observerPrompt, secondary: null, extras: [] } : null;
+}
+
 function alertsOf(sim: Sim): UiAlert[] {
   return sim.state.progression.alerts.map((a) => ({ id: a.id, kind: a.kind, level: a.level, title: a.title }));
 }
@@ -111,7 +118,7 @@ export function buildSnapshot(src: SnapshotSource, prevRev: number): UiSnapshot 
     speed: inGame ? speedOf(src, sim) : null,
     colony: inGame ? colonyOf(sim) : null,
     possessed: inGame ? possessedOf(sim, src.underground) : null,
-    prompt: inGame ? promptOf(sim) : null,
+    prompt: inGame ? promptOf(sim) ?? observerPromptOf(src) : null,
     alerts: inGame ? alertsOf(sim) : [],
     toasts: [...src.toasts], hudHidden: src.hudHidden, error: src.error, epitaph: src.epitaph,
   };

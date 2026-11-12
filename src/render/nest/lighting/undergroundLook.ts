@@ -24,16 +24,17 @@ export function createNestLook(): NestLook {
 
 /**
  * One frame. `substrate` = camera's distance to the substrate surface (mm, > 0 above ground, carve ignored).
- * `dt` = real seconds since the last frame (0 = snap, used for the first frame and deterministic screenshots).
+ * `dt` = real seconds since the last frame (0, NaN or Infinity = snap: the first frame and deterministic screenshots).
  */
 export function updateNestLook(look: NestLook, substrate: number, bu: number, dt: number, surfaceEV: number): NestLook {
-  const depth = -substrate;
+  // a camera outside the field (NaN distance) counts as above ground
+  const depth = Number.isFinite(substrate) ? -substrate : -Infinity;
   look.depthMm = depth;
   if (!look.underground && depth > NEST_LOOK.enterDepthBU * bu) look.underground = true;
   else if (look.underground && depth < NEST_LOOK.exitDepthBU * bu) look.underground = false;
   const target = look.underground ? 1 : 0;
   const tau = NEST_LOOK.adaptS / 3;
-  look.under = dt <= 0 ? target : look.under + (target - look.under) * (1 - Math.exp(-dt / tau));
+  look.under = !(dt > 0) || !Number.isFinite(dt) ? target : look.under + (target - look.under) * (1 - Math.exp(-dt / tau));
   if (Math.abs(look.under - target) < 1e-4) look.under = target;
   look.exposureEV = surfaceEV + (NEST_LOOK.exposureEV - surfaceEV) * look.under;
   look.fogDensity = 1 / (NEST_LOOK.fogVisBU * bu);

@@ -13,7 +13,7 @@ import { navDistances } from '../validate/graph';
 import { SUIT } from '../tuning/maps';
 import { START, VALID } from '../tuning/pipeline';
 
-interface Cand { c: number; score: number }
+interface Cand { c: number; score: number; good: number }
 
 function candidates(ctx: GenContext, relaxGood: boolean): Cand[] {
   const { navN, navCell, size: L, bu } = ctx.dims;
@@ -42,9 +42,10 @@ function candidates(ctx: GenContext, relaxGood: boolean): Cand[] {
     const good = sat[k1 * (navN + 1) + i1] - sat[k0 * (navN + 1) + i1] - sat[k1 * (navN + 1) + i0] + sat[k0 * (navN + 1) + i0];
     if (good === 0) continue;
     const shelter = w.maps.shelter.data[c] / 255, exposure = st.surface.exposure[c];
-    out.push({ c, score: START.wGood * Math.min(good, START.goodCap) / START.goodCap + START.wShelter * shelter + START.wExposure * (1 - exposure) });
+    out.push({ c, good, score: START.wGood * Math.min(good, START.goodCap) / START.goodCap + START.wShelter * shelter + START.wExposure * (1 - exposure) });
   }
-  return out.sort((a, b) => b.score - a.score || a.c - b.c);
+  // ties (the good-site term is capped): more good sites in the window first, then cell index
+  return out.sort((a, b) => b.score - a.score || b.good - a.good || a.c - b.c);
 }
 
 /** Good cells within the start radius (path distance) of cell c, and the nearest one. */

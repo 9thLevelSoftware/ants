@@ -72,6 +72,7 @@ export class CapMesh {
   private tex: DataTexture | null = null;
   private material: ShaderMaterial;
   private uploaded = -1;
+  private placed: CapFace | null = null;
 
   constructor(u: NestUniforms, soil: TextureSet, soilScaleMm: number) {
     this.material = new ShaderMaterial({
@@ -114,7 +115,8 @@ export class CapMesh {
         this.tex.image.data = img.data;
       }
       this.tex.needsUpdate = true;
-      this.place(img.face);
+      // a re-rasterised patch keeps the face: only a new face needs new geometry
+      if (img.face !== this.placed) { this.place(img.face); this.placed = img.face; }
     }
     this.mesh.visible = true;
   }

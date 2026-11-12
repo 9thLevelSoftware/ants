@@ -1,5 +1,6 @@
 // All cut faces of the current cutaway: computes the faces from the cut plane, rasterises them within a per-frame
-// budget (nearest work first: the main face) and keeps their meshes up to date.
+// budget (nearest work first: the main face) and keeps their meshes up to date. Carve edits re-rasterise only the
+// texels near them (invalidate), so digging while the slice is open never restarts a face.
 import { Group } from 'three';
 import type { TextureSet } from '@/render/world/materials';
 import type { NestUniforms } from '../materials/nestUniforms';
@@ -32,6 +33,11 @@ export class CapSet {
     return this.rasters[0];
   }
 
+  /** Rasters of the faces on screen (picking tests every shown face). */
+  get shown(): CapRaster[] {
+    return this.rasters.slice(0, this.faceCount).filter((r) => r.current !== null);
+  }
+
   get busy(): boolean {
     return this.rasters.some((r) => r.busy);
   }
@@ -48,6 +54,11 @@ export class CapSet {
       if (performance.now() >= deadline) break;
     }
     this.show();
+  }
+
+  /** The carve grid changed inside the box (mm): every shown or pending face re-rasterises the texels near it. */
+  invalidate(box: { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number }, padMm: number): void {
+    for (let i = 0; i < this.faceCount; i++) this.rasters[i].invalidate(box, padMm);
   }
 
   /** Completes every face now (screenshots, tests). */

@@ -6,7 +6,7 @@ import { restore, snapshot, stateHash } from '@/sim/save';
 import { createSim } from '@/sim/sim';
 import { commandsSystem } from '@/sim/systems';
 import { collectInvariants } from '@/sim/testing/invariants';
-import { locomotionSystem, locoStats, navTo, navToTarget, notifySurfaceChanged, setLocoObserver } from './index';
+import { locomotionSystem, locoStats, navTo, navToTarget, navWander, notifySurfaceChanged, setLocoObserver } from './index';
 import { busyScenario } from './scenario';
 import { clearance, deepestChamber, locoSim, playerNest, runUntilDone, v3, workers } from './testkit';
 
@@ -95,6 +95,7 @@ describe('locomotion system', () => {
     const sim = locoSim({ sizeBu: 200 });
     const bu = sim.world.bu;
     const ant = sim.state.ants[0];
+    navWander(sim, ant, ant.pos, 0, { speed: 0 });
     sim.tick(); // the locomotion runtime (and its carve listener) exists from the first tick
     const p = { ...ant.pos };
     sim.kernel.carveSphere(v3(p.x, p.y - 0.5 * bu, p.z), 1.5 * bu, { force: true });

@@ -7,7 +7,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { NavClass, NavGrid, Primitive, WorldData } from '@/sim/types';
 import { NAV_CLASSES } from '@/sim/types';
 import type { WorldField } from '@/sim/world/field';
-import { deriveFromField, deriveFromWorld, isBlocked, type GridData } from './gridData';
+import { deriveFromField, deriveFromWorld, isBlocked, type GridData, type Portal } from './gridData';
 import { GridSearch, lineClear, type CostDisc } from './search';
 
 /** Smoothing: segments are tested this far above the ground, with this sweep radius (BU). */
@@ -17,12 +17,18 @@ const SMOOTH_RADIUS_BU = 1;
 const SMOOTH_MAX_CELLS = 12;
 /** Nearest passable cell search radius when an endpoint is blocked, cells. */
 const SNAP_RADIUS = 6;
-/** Flow fields kept (least recently used dropped). */
-const FLOW_CACHE = 12;
+/** Flow fields kept (least recently used dropped; one per nest that walkers head home to). */
+const FLOW_CACHE = 24;
+/** Flow fields use micro-portals passable by the standard worker (GDD 04 §6.1 PASS_CLEAR_K x 1), BU. */
+const FLOW_CLEARANCE_BU = 0.45;
+/** Down a flow field: a walker this close (horizontally) to a portal's entry mouth heads for the exit mouth, BU. */
+const PORTAL_REACH_BU = 2;
 
 export interface FindPathOptions {
   /** Cost discs (avoid markers). */
   discs?: readonly CostDisc[] | null;
+  /** The walker's clearance (GDD 04 §6.1), BU: narrower micro-portals are skipped. Default 0 (all). */
+  clearanceBu?: number;
 }
 
 interface FlowEntry {
@@ -56,8 +62,14 @@ export interface LocoNavGrid extends NavGrid {
    * `sig` or the grid version changes. Returns the distance array (Infinity = unreachable).
    */
   flowField(key: string, sig: string, seeds: readonly Vec3[]): Float32Array;
-  /** Next cell down a flow field from p after up to `steps` steps (cell centre into out); returns dist at p. */
+  /**
+   * Next cell down a flow field from p after up to `steps` steps (cell centre into out; a micro-portal's mouth when
+   * the way down leads through one); returns dist at p.
+   */
   flowNext(dist: Float32Array, p: Vec3, steps: number, out: Vec3): number;
+  /** Opens or closes a micro-portal (GDD 04 §6: weather strip, blocked crack); no-op if unchanged. */
+  setPortalOpen(id: number, open: boolean): void;
+  readonly portals: readonly Portal[];
   stats(): { searches: number; expanded: number; flowBuilds: number };
 }
 
@@ -69,7 +81,7 @@ export function createLocoNavGrid(world: WorldData): LocoNavGrid {
   return new NavGridImpl(world);
 }
 
-const _cells: number[] = [];
+const _cells: number[] = [], _via: number[] = [];
 const _a: Vec3 = { x: 0, y: 0, z: 0 }, _b: Vec3 = { x: 0, y: 0, z: 0 }, _t: Vec3 = { x: 0, y: 0, z: 0 };
 
 class NavGridImpl implements LocoNavGrid {
@@ -94,6 +106,14 @@ class NavGridImpl implements LocoNavGrid {
 
   get hasField(): boolean {
     return this.field !== null;
+  }
+
+  get portals(): readonly Portal[] {
+    return this.data.portals;
+  }
+
+  setPortalOpen(id: number, open: boolean): void {
+    for (const p of this.data.portals) if (p.id === id && p.open !== open) { p.open = open; this.version++; }
   }
 
   attachField(field: WorldField, prims: readonly Primitive[]): void {
@@ -200,18 +220,38 @@ class NavGridImpl implements LocoNavGrid {
     const s = this.snap(this.clampedCell(from)), t = this.snap(this.clampedCell(to));
     if (s < 0 || t < 0) return false;
     this.counters.searches++;
-    if (!this.search.astar(s, t, discs, _cells)) { this.counters.expanded += this.search.expanded; return false; }
+    const ok = this.search.astar(s, t, discs, _cells, _via, opts.clearanceBu ?? 0);
     this.counters.expanded += this.search.expanded;
-    // waypoints: cell centres, string-pulled; the true goal last
-    let prev: Vec3 = from;
-    let i = 0;
-    const last = _cells.length - 1;
+    if (!ok) return false;
+    // waypoints: string-pulled runs of neighbour moves; a portal edge adds its entry and exit mouths
+    let prev: Vec3 = from, i0 = 0;
+    for (let i = 1; i < _cells.length; i++) {
+      const pi = _via[i];
+      if (pi < 0) continue;
+      const p = this.data.portals[pi];
+      const fromA = _cells[i - 1] === p.cellA;
+      const entry = fromA ? p.posA : p.posB, exit = fromA ? p.posB : p.posA;
+      this.pull(prev, i0, i - 1, entry, discs, out);
+      out.push({ x: exit.x, y: exit.y, z: exit.z });
+      prev = exit;
+      i0 = i;
+    }
+    this.pull(prev, i0, _cells.length - 1, to, discs, out);
+    return true;
+  }
+
+  /**
+   * String-pulls the run _cells[i0..last] (neighbour moves) from prev to the end point: waypoints at cell centres
+   * where the straight line is blocked, the end point last.
+   */
+  private pull(prev: Vec3, i0: number, last: number, end: Vec3, discs: readonly CostDisc[] | null, out: Vec3[]): void {
+    let i = i0;
     while (i < last) {
       // farthest cell in grid line of sight (cheap), then the field test from there back (few traces)
       let j = i + 1;
-      while (j < Math.min(last, i + SMOOTH_MAX_CELLS) && this.gridVisible(prev, j + 1 === last ? to : this.centre(_cells[j + 1], _t), discs)) j++;
+      while (j < Math.min(last, i + SMOOTH_MAX_CELLS) && this.gridVisible(prev, j + 1 === last ? end : this.centre(_cells[j + 1], _t), discs)) j++;
       for (; j > i + 1; j -= 2) {
-        const target = j === last ? to : this.centre(_cells[j], _t);
+        const target = j === last ? end : this.centre(_cells[j], _t);
         if (this.segmentWalkable(prev, target, discs)) break;
       }
       if (j <= i) j = i + 1;
@@ -221,8 +261,7 @@ class NavGridImpl implements LocoNavGrid {
       prev = wp;
       i = j;
     }
-    out.push({ x: to.x, y: to.y, z: to.z });
-    return true;
+    out.push({ x: end.x, y: end.y, z: end.z });
   }
 
   flowField(key: string, sig: string, seeds: readonly Vec3[]): Float32Array {
@@ -243,7 +282,7 @@ class NavGridImpl implements LocoNavGrid {
       const c = this.snap(this.clampedCell(p));
       if (c >= 0 && !cells.includes(c)) cells.push(c);
     }
-    this.search.dijkstra(cells, e.dist);
+    this.search.dijkstra(cells, e.dist, FLOW_CLEARANCE_BU);
     e.sig = sig; e.version = this.version; e.used = this.clock;
     this.counters.flowBuilds++;
     return e.dist;
@@ -264,11 +303,33 @@ class NavGridImpl implements LocoNavGrid {
         const n = z * this.w + x;
         if (dist[n] < bd) { bd = dist[n]; best = n; }
       }
+      const portal = this.portalDown(dist, c, bd);
+      if (portal) {
+        const fromA = c === portal.cellA, entry = fromA ? portal.posA : portal.posB, exit = fromA ? portal.posB : portal.posA;
+        const reach = PORTAL_REACH_BU * this.data.bu;
+        const there = k === 0 && (p.x - entry.x) ** 2 + (p.z - entry.z) ** 2 <= reach * reach;
+        const m = there ? exit : entry;
+        out.x = m.x; out.y = m.y; out.z = m.z;
+        return d0;
+      }
       if (best === c) break;
       c = best;
     }
     this.centre(c, out);
     return d0;
+  }
+
+  /** A portal at cell c leading lower down the flow field than `below` (the best neighbour), or null. */
+  private portalDown(dist: Float32Array, c: number, below: number): Portal | null {
+    const ps = this.data.portalsAt.get(c);
+    if (!ps) return null;
+    let best: Portal | null = null, bd = below;
+    for (const pi of ps) {
+      const p = this.data.portals[pi];
+      const o = this.search.portalOther(p, c, FLOW_CLEARANCE_BU);
+      if (o >= 0 && dist[o] < bd) { bd = dist[o]; best = p; }
+    }
+    return best;
   }
 
   stats(): { searches: number; expanded: number; flowBuilds: number } {

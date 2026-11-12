@@ -50,7 +50,6 @@ export function trailDesired(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime,
   const C = phero.sample(col, ch, sensor(_c, w, 0, P.antReach));
   const R = phero.sample(col, ch, sensor(_rr, w, -P.antAngle, P.antReach));
   const best = Math.max(L, C, R);
-  s.trailSideAge += dt;
   if (best < P.trailDetect) {
     // a gap: go on along the recent trail heading (the average of the last second, not the momentary zig-zag)
     // so short breaks are crossed; bends are taken while still on the trail
@@ -58,12 +57,10 @@ export function trailDesired(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime,
     else set3(out, w.fwd.x, w.fwd.y, w.fwd.z);
     return 0;
   }
-  if (Math.abs(L - R) > P.trailSideFrac * best) { s.trailSide = L > R ? 1 : -1; s.trailSideAge = 0; }
-  else if (s.trailSideAge > P.trailSideMem) s.trailSide = 0;
   // GDD 02 §8.4 steering law on the side antennae (the centre one only tells strength: steering on it makes
-  // walkers orbit cell peaks); applied as a heading offset of up to the antenna angle per tick, which the
-  // walker's turn-rate limit then smooths.
-  const turn = (P.antAngle * (L - R)) / (L + R + 1) + noiseGauss(id, tick, 11) * P.trailNoise * Math.sqrt(dt);
+  // walkers orbit cell peaks): omega = gain (L - R) / (L + R + 1), integrated over this step's dt, as a heading
+  // offset that the walker's turn-rate limit then smooths.
+  const turn = (P.trailGain * dt * (L - R)) / (L + R + 1) + noiseGauss(id, tick, 11) * P.trailNoise * Math.sqrt(dt);
   rotateTangent(out, w.fwd, w.up, turn);
   // no reversals while following: keep within 100 deg of the recent trail heading
   const lx = s.lastDir.x, ly = s.lastDir.y, lz = s.lastDir.z, ll = Math.hypot(lx, ly, lz);

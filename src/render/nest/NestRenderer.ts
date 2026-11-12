@@ -48,14 +48,20 @@ export interface NestFrame {
 }
 
 export interface NestStats {
-  chunks: number; regions: number; triangles: number; vertices: number; pending: number; gpuBytes: number;
+  chunks: number; regions: number; draws: number; triangles: number; vertices: number; pending: number; gpuBytes: number;
   lastFrame: MeshFrameStats; maxFrameMs: number; totalBuilt: number; openings: number; capBusy: boolean; ghosts: number;
 }
 
 /** Frames between re-reads of the entrance list (it changes rarely; carve edits also trigger a re-read). */
 const OPENINGS_EVERY = 30;
 
+/**
+ * Satisfies the registry's SubRenderer contract (src/render/index.ts): RenderContext and FrameInfo are structurally
+ * NestRenderContext and NestFrame; init's promise (textures ready) may be ignored, everything else is set up
+ * synchronously.
+ */
 export class NestRenderer {
+  readonly name = 'nest';
   readonly group = new Group();
   readonly uniforms: NestUniforms = createNestUniforms();
   readonly look: NestLook = createNestLook();
@@ -80,7 +86,8 @@ export class NestRenderer {
   private fresh = new FreshWalls(FRESH_WALL.ticks, 2);
   private unsubscribe: (() => void) | null = null;
 
-  async init(ctx: NestRenderContext): Promise<void> {
+  /** Sets everything up synchronously; the promise resolves when the wall textures are loaded. */
+  init(ctx: NestRenderContext): Promise<void> {
     this.ctx = ctx;
     this.group.name = 'nest';
     this.library = ctx.library ?? new MaterialLibrary(ctx.assets, createWorldUniforms(), { anisotropy: ctx.quality.anisotropy });
@@ -92,10 +99,20 @@ export class NestRenderer {
     this.caps = new CapSet(this.uniforms, this.library.textureSet(materialDef(soilLook.textureFrom)), soilLook.scaleMm);
     this.xray = new XRayPass(this.materials);
     this.applyQuality();
+    this.ghosts.restore(); // after a dispose()
     this.group.add(this.meshes.group, this.caps.group, this.xray.group, this.ghosts.group);
     ctx.scene.add(this.group);
     const textures = [...new Set(Object.values(WALL_LOOKS).map((l) => l.textureFrom))];
-    await this.library.ready(textures);
+    return this.library.ready(textures).then(() => undefined);
+  }
+
+  /** Registry lifecycle (SubRenderer): a new game / the end of a game. */
+  onGameStart(sim: Sim): void {
+    this.setSim(sim);
+  }
+
+  onGameEnd(): void {
+    this.setSim(null);
   }
 
   /** Follows a simulation (null = none): every stored chunk is meshed again. */
@@ -116,7 +133,11 @@ export class NestRenderer {
     if (src) {
       this.lighting.setBodyUnit(src.bu);
       this.lighting.refreshOpenings(src);
-      this.unsubscribe = src.onCarve((e) => this.fresh.add(e, src.tick()));
+      this.unsubscribe = src.onCarve((e) => {
+        this.fresh.add(e, src.tick());
+        // the open slice re-rasterises the texels next to the edit (trilinear reach of the samples: 2 voxels)
+        if (this.plane.mode === 'slice') this.caps.invalidate(e, 2 * src.voxel);
+      });
     }
   }
 
@@ -197,7 +218,7 @@ export class NestRenderer {
   pick(ndcX: number, ndcY: number, maxDist = 1e5): NestPick | null {
     if (!this.src) return null;
     return pickNest(ndcX, ndcY, this.ctx.camera, {
-      src: this.src, manager: this.meshes, plane: this.plane, cap: this.caps.main, skinMm: this.uniforms.uSkin.value, maxDist,
+      src: this.src, manager: this.meshes, plane: this.plane, cap: this.caps.main, faces: this.caps.shown, skinMm: this.uniforms.uSkin.value, maxDist,
     });
   }
 
@@ -215,10 +236,21 @@ export class NestRenderer {
     return this.plane;
   }
 
-  stats(): NestStats {
+  /** Everything the demo and tools show. */
+  details(): NestStats {
     return {
       ...this.meshes.stats(), lastFrame: { ...this.meshes.last }, maxFrameMs: this.meshes.maxFrameMs, totalBuilt: this.meshes.totalBuilt,
       openings: this.lighting.openingsInUse, capBusy: this.caps.busy, ghosts: this.ghosts.count,
+    };
+  }
+
+  /** Small numeric statistics (SubRenderer.stats: perf() and debugging). */
+  stats(): Record<string, number> {
+    const d = this.details(), f = d.lastFrame;
+    return {
+      chunks: d.chunks, regions: d.regions, draws: d.draws, triangles: d.triangles, vertices: d.vertices, pending: d.pending,
+      gpuBytes: d.gpuBytes, meshMs: f.ms, meshBuilt: f.built, meshSteps: f.steps, maxFrameMs: d.maxFrameMs, totalBuilt: d.totalBuilt,
+      openings: d.openings, capBusy: d.capBusy ? 1 : 0, ghosts: d.ghosts,
     };
   }
 
@@ -273,7 +305,7 @@ export class NestRenderer {
       this.caps.hide();
       return;
     }
-    const key = `${cutKey(cp)}|${src.version()}`; // digging while cut open redraws the face
+    const key = cutKey(cp); // carve edits patch the face (setSource's carve listener), they do not restart it
     const texel = Math.max(CUTAWAY.capTexelBU * src.bu, (2 * cp.radius) / CUTAWAY.capMaxTexels);
     this.caps.update(cp, src, key, texel, CUTAWAY.capMaxTexels, CUTAWAY.capBudgetMs);
   }

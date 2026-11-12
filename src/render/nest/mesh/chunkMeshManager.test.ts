@@ -5,6 +5,7 @@ import { emptyCarve, makeFlatWorld } from '@/sim/kernel.testWorld';
 import { nestSourceFromSim } from '../simAdapter';
 import { kernelSim } from '../testing/kernelSim';
 import { BATCH_MAX_FRAMES, ChunkMeshManager, type WallMaterialSet } from './chunkMeshManager';
+import { BUILD_STAGES } from './chunkBuild';
 
 const BU = 4;
 const mats: WallMaterialSet = { wall: () => new MeshBasicMaterial(), depth: new MeshDepthMaterial() };
@@ -40,15 +41,52 @@ describe('ChunkMeshManager', () => {
     kernel.carveSphere({ x: 300, y: -40, z: 300 }, 6, { force: true });
     kernel.carveSphere({ x: 40, y: -40, z: 40 }, 6, { force: true });
     const before = m.commits;
-    const st = m.update(40, -40, 40, 0); // budget 0: exactly one chunk per frame
-    expect(st.built).toBe(1);
+    const st = m.update(40, -40, 40, 0); // budget 0: exactly one build stage per frame
+    expect(st.steps).toBe(1);
     expect(st.committed).toBe(false); // the batch is not complete yet: nothing changes on screen
     expect(m.commits).toBe(before);
+    // the first chunk built is the one near the camera
     let frames = 1;
-    while (m.stats().pending > 0 && frames < 100) { m.update(40, -40, 40, 0); frames++; }
+    while (m.last.built === 0 && frames < 10) { m.update(40, -40, 40, 0); frames++; }
+    const first = [...m.regions.values()].length; // nothing shown before the batch commits
+    expect(first).toBe(0);
+    while (m.stats().pending > 0 && frames < 200) { m.update(40, -40, 40, 0); frames++; }
     expect(m.commits).toBeGreaterThan(before);
-    // with a 0 ms budget a large batch is committed after BATCH_MAX_FRAMES at the latest
+    expect(m.stats().pending).toBe(0);
     expect(frames).toBeGreaterThanOrEqual(2);
+  });
+
+  it('builds the edit nearest to the camera first', () => {
+    const { kernel, src, m } = setup();
+    const calls: number[] = [];
+    m.setSource({ ...src, meshChunk: (k) => { calls.push(k); return src.meshChunk(k); } });
+    m.flush();
+    kernel.carveSphere({ x: 300, y: -40, z: 300 }, 6, { force: true });
+    kernel.carveSphere({ x: 40, y: -40, z: 40 }, 6, { force: true });
+    calls.length = 0;
+    m.update(40, -40, 40, 0);
+    const c = { x: 0, y: 0, z: 0 };
+    src.keyToChunk(calls[0], c);
+    expect(Math.max(c.x, c.z)).toBeLessThan(3); // the chunk near (40, -40, 40), not the one near (300, -40, 300)
+  });
+
+  it('spreads a busy chunk over several frames at a small budget, whole stages per frame', () => {
+    const { kernel, src, m } = setup();
+    m.build = { refine: true, ao: true };
+    for (let x = 98; x < 128; x += 5) for (let y = -94; y < -64; y += 5) for (let z = 98; z < 128; z += 5) {
+      kernel.carveSphere({ x: x + ((y + z) % 3), y, z: z + ((x + y) % 2) }, 2.4, { force: true });
+    }
+    const busy = kernel.meshKeys().map((k) => ({ k, n: kernel.meshChunk(k)?.indices.length ?? 0 })).sort((a, b) => b.n - a.n)[0].k;
+    m.setSource({ ...src, meshKeys: () => [] }); // nothing in the backlog
+    m.markDirty([busy]);
+    // warm the cost estimate on the same chunk, then rebuild it once more at a 0.5 ms budget
+    for (let f = 0; f < 20 && m.pendingCount > 0; f++) m.update(0, 0, 0, 1000);
+    m.markDirty([busy]);
+    const frames: number[] = [];
+    for (let f = 0; f < 20 && m.pendingCount > 0; f++) frames.push(m.update(0, 0, 0, 0.5).steps);
+    expect(frames.length).toBeGreaterThan(1); // one chunk, several frames
+    expect(Math.max(...frames)).toBeLessThan(BUILD_STAGES); // no frame ran the whole build
+    expect(m.chunk(busy)).toBeDefined();
   });
 
   it('commits a long batch after BATCH_MAX_FRAMES even if digging continues', () => {

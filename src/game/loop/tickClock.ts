@@ -77,7 +77,25 @@ export class TickClock {
     return this.acc >= 1 ? 1 : this.acc <= 0 ? 0 : this.acc;
   }
 
-  /** Forget owed time (pause, load, step from the debug API). */
+  /**
+   * Time stops (pause, freeze): keep the fractional part so the drawn pose (prev + (cur - prev) * alpha) stays where
+   * it was, but forget whole owed ticks so nothing is caught up on resume (GDD 06 §4.3).
+   */
+  hold(): void {
+    if (this.acc > 1) this.acc = 1;
+    this.behind = false;
+  }
+
+  /**
+   * The sim was just advanced by hand (debug step): the latest tick is what should be drawn (alpha 1). Real time
+   * continues from there; the next running frame computes the following tick and interpolates towards it.
+   */
+  atLatestTick(): void {
+    this.acc = 1;
+    this.behind = false;
+  }
+
+  /** Forget owed time completely (new game, load). */
   reset(): void {
     this.acc = 0;
     this.behind = false;

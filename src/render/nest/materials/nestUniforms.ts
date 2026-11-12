@@ -8,6 +8,8 @@ export const CUT_OFF = 0, CUT_SLICE = 1, CUT_XRAY = 2;
 export interface NestUniforms {
   /** Discard band below the soil surface, mm. */
   uSkin: Uniform<number>;
+  /** Width outside a terrain hole's edge where the skin band is not applied, mm (HOLE_LIP_BU). */
+  uHoleLip: Uniform<number>;
   /** Sky openings near the camera: xyz centre on the surface, w radius (mm), and how many are valid. */
   uSky: Uniform<Vector4[]>;
   uSkyN: Uniform<number>;
@@ -57,6 +59,7 @@ export interface NestUniforms {
 export function createNestUniforms(): NestUniforms {
   return {
     uSkin: new Uniform(0.2),
+    uHoleLip: new Uniform(1),
     uSky: new Uniform(Array.from({ length: NEST_LIGHT.maxOpenings }, () => new Vector4(0, -1e6, 0, 0))),
     uSkyN: new Uniform(0),
     uSkyLen: new Uniform(4.8),

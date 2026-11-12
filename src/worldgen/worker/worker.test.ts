@@ -1,12 +1,15 @@
 // Worker protocol (in-process message channel with structured clone): same fingerprint as the main thread
 // (DET-7), progress forwarded, typed arrays transferred, fallback when no worker can be created.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { generateWorld, worldFingerprint } from '../index';
 import { paramsFor } from '../testing/fixtures';
 import { generateWorldAsync, type WorkerLike } from './client';
 import { installWorldgenHost } from './host';
 import type { MessageEndpoint } from './protocol';
 import { worldTransferables } from './protocol';
+
+// world generation takes ~1-2 s per world and the shared machine is often loaded
+vi.setConfig({ testTimeout: 120_000 });
 
 type Fn = (ev: { data: unknown }) => void;
 

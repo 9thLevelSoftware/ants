@@ -89,7 +89,7 @@ export const MICRO = {
 };
 
 /** Start pose score weights (GDD 04 §12.5). */
-export const START = { goodCap: 4, wGood: 0.5, wShelter: 0.3, wExposure: 0.2, candidates: 12 };
+export const START = { goodCap: 4, wGood: 0.5, wShelter: 0.3, wExposure: 0.2, candidates: 200 };
 
 /** Repairs (GDD 04 §4.3). */
 export const REPAIR = {

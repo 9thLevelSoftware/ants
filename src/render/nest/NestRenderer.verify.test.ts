@@ -5,6 +5,7 @@ import { PerspectiveCamera, Scene, type Object3D, type WebGLRenderer } from 'thr
 import { getPreset } from '@/render/app';
 import { createKernel } from '@/sim/kernel';
 import { emptyCarve, makeFlatWorld } from '@/sim/kernel.testWorld';
+import type { SubRenderer } from '@/render/index';
 import { NestRenderer, type NestCutawayParams } from './index';
 import { kernelSim } from './testing/kernelSim';
 
@@ -111,6 +112,29 @@ describe('NestRenderer (review)', () => {
     r.update({ dt: Number.NaN, time: 0 });
     expect(Number.isFinite(r.look.under)).toBe(true);
     expect(Number.isFinite(r.look.exposureEV)).toBe(true);
+    r.dispose();
+  });
+});
+
+describe('NestRenderer as a registry sub-renderer', () => {
+  it('satisfies SubRenderer (name, sync init, numeric stats) and follows the game lifecycle', async () => {
+    const r: SubRenderer = new NestRenderer();
+    expect(r.name).toBe('nest');
+    const scene = new Scene();
+    const camera = new PerspectiveCamera(60, 16 / 9, 0.5, 40000);
+    r.init({ renderer: {} as WebGLRenderer, scene, camera, quality: getPreset('test'), assets: null, game: { requestRender: () => {}, testMode: true } });
+    const { sim } = world();
+    r.onGameStart?.(sim);
+    camera.position.set(300, -40, 300); camera.updateMatrixWorld();
+    r.update({
+      dt: 0.016, time: 0, alpha: 0, sim, view: 'colony', underground: true, camera, viewportHeightPx: 720, subject: null, possessedId: -1,
+      possessedPose: null, subjectOpacity: 1, cutaway: null,
+    });
+    const s = r.stats!();
+    for (const v of Object.values(s)) expect(typeof v).toBe('number');
+    expect(s.pending).toBeGreaterThan(0); // meshing goes on within the per-frame budget
+    r.onGameEnd?.();
+    expect(r.stats!().chunks).toBe(0);
     r.dispose();
   });
 });

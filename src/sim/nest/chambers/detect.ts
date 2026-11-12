@@ -1,17 +1,24 @@
 // Chamber detection (GDD 03 §6.2) over a nest's carved space: core voxels (in-layer support >= CORE_HALF and a
 // vertical open run >= CORE_RUN), 26-connected core components, regions = core opened by the CORE_HALF disk and
 // dilated by CHAMBER_DILATE inside open voxels, regions below CHAMBER_MIN_VOLUME dropped. Pure reads of the carve
-// grid in fixed scan orders (deterministic).
+// grid in fixed scan orders (deterministic). The core test is local (it reads CORE_APRON samples around each
+// sample), so its result per chunk is cached by the caller and recomputed only for chunks near a carve.
 
 import type { Nest, Sim } from '@/sim/types';
 import {
   CHAMBER_CORE_HALF_BU, CHAMBER_CORE_RUN_BU, CHAMBER_DILATE_BU, CHAMBER_MIN_VOLUME, nestTemplate,
 } from '@/sim/balance/nest';
+import { CARVE_VOXEL_BU } from '@/sim/balance/world';
 import { CHUNK as CHUNKImp, OPEN_MIN as OPEN_MINImp, keyCx, keyCy, keyCz, type VoxelBox } from '../carve/keys';
 
 // Hot imports re-bound as local consts (docs/design/tdd/02-kernel.md §2.11: Vitest reads imports through getters).
 const CHUNK = CHUNKImp, OPEN_MIN = OPEN_MINImp;
-import { packSample as packSampleImp } from '../voxelKey';
+import { packSample as packSampleImp, sampleI as sampleIImp, sampleJ as sampleJImp, sampleK as sampleKImp } from '../voxelKey';
+const sampleI = sampleIImp, sampleJ = sampleJImp, sampleK = sampleKImp, packSample = packSampleImp;
+import { PassGrid, delta } from './tiles';
+
+/** Samples around a sample that its core test reads (in-layer disk radius, vertical run), + 1 for safety. */
+export const CORE_APRON = Math.ceil(Math.max(CHAMBER_CORE_HALF_BU, CHAMBER_CORE_RUN_BU) / CARVE_VOXEL_BU) + 1;
 
 export interface Region {
   /** Packed sample keys (voxelKey), ascending. */
@@ -78,99 +85,186 @@ function paddedBlock(sim: Sim, key: number, ax: number, ay: number, out: Uint8Ar
       }
 }
 
-/** Regions of the open samples inside `box`, in the order of their smallest core sample. */
-export function detectRegions(sim: Sim, box: VoxelBox): Region[] {
-  const carve = sim.carve, v = carve.voxel, bu = sim.world.bu;
-  const packSample = packSampleImp;
+/** Core-test geometry (voxels) and scratch, shared by the chunks of one detection pass. */
+interface CoreScan { ax: number; ay: number; sx: number; runNeed: number; layer: number; diskIdx: Int32Array; block: Uint8Array }
+
+function coreScan(sim: Sim): CoreScan {
+  const v = sim.carve.voxel, bu = sim.world.bu;
   const halfV = (CHAMBER_CORE_HALF_BU * bu) / v;
   const runNeed = Math.ceil((CHAMBER_CORE_RUN_BU * bu) / v - 1e-9);
   const disk = diskOffsets(halfV);
-  const ball = ballOffsets((CHAMBER_DILATE_BU * bu) / v);
-  const open = (i: number, j: number, k: number) => carve.sampleAt(i, j, k) >= OPEN_MIN;
-
-  // 1. core samples, scanned chunk by chunk in key order over padded local blocks
   const ax = Math.ceil(halfV), ay = runNeed - 1, sx = CHUNK + 2 * ax, sy = CHUNK + 2 * ay;
-  const block = new Uint8Array(sx * sx * sy);
   const diskIdx = new Int32Array(disk.length / 2);
   for (let n = 0; n < diskIdx.length; n++) diskIdx[n] = disk[2 * n] + disk[2 * n + 1] * sx;
-  const layer = sx * sx;
+  return { ax, ay, sx, runNeed, layer: sx * sx, diskIdx, block: new Uint8Array(sx * sx * sy) };
+}
+
+/** Core samples of one chunk (packed keys, scan order): open, vertical open run >= CORE_RUN, full in-layer disk. */
+function chunkCore(sim: Sim, key: number, sc: CoreScan): number[] {
+  const { ax, ay, sx, runNeed, layer, diskIdx, block } = sc;
+  paddedBlock(sim, key, ax, ay, block);
+  const bi = keyCx(key) * CHUNK, bj = keyCy(key) * CHUNK, bk = keyCz(key) * CHUNK;
+  const out: number[] = [];
+  for (let lj = 0; lj < CHUNK; lj++) for (let lk = 0; lk < CHUNK; lk++) for (let li = 0; li < CHUNK; li++) {
+    const at = ((lj + ay) * sx + (lk + ax)) * sx + li + ax;
+    if (block[at] < OPEN_MIN) continue;
+    let run = 1;
+    for (let d = 1; run < runNeed && block[at + d * layer] >= OPEN_MIN; d++) run++;
+    for (let d = 1; run < runNeed && block[at - d * layer] >= OPEN_MIN; d++) run++;
+    if (run < runNeed) continue;
+    let ok = true;
+    for (let n = 0; n < diskIdx.length; n++) if (block[at + diskIdx[n]] < OPEN_MIN) { ok = false; break; }
+    if (ok) out.push(packSample(bi + li, bj + lj, bk + lk));
+  }
+  return out;
+}
+
+/**
+ * Regions of the open samples inside `box`, in the order of their smallest core sample. `coreCache` (chunk key ->
+ * core samples) is read and filled; the caller drops entries of chunks within CORE_APRON samples of a carve.
+ * `grid` is reusable scratch (any PassGrid; a new one when omitted).
+ */
+export function detectRegions(sim: Sim, box: VoxelBox, coreCache?: Map<number, number[]>, grid: PassGrid = new PassGrid()): Region[] {
+  const carve = sim.carve, v = carve.voxel, bu = sim.world.bu;
+  const halfV = (CHAMBER_CORE_HALF_BU * bu) / v;
+  const disk = diskOffsets(halfV);
+  const ball = ballOffsets((CHAMBER_DILATE_BU * bu) / v);
+  const inBox = (i: number, j: number, k: number) => i >= box.i0 && i <= box.i1 && j >= box.j0 && j <= box.j1 && k >= box.k0 && k <= box.k1;
+
+  // 1. core samples (packed keys), chunk by chunk in key order (cached per chunk), kept inside the box
+  let sc: CoreScan | null = null;
   const keys = carve.data.keys.filter((key) => {
     const ci = keyCx(key) * CHUNK, cj = keyCy(key) * CHUNK, ck = keyCz(key) * CHUNK;
     return ci + CHUNK > box.i0 && ci <= box.i1 && cj + CHUNK > box.j0 && cj <= box.j1 && ck + CHUNK > box.k0 && ck <= box.k1;
   }).sort((a, b) => a - b);
+  grid.reset(carve, keys, box);
+  const g = grid, isCore = g.core, compOf = g.comp, owner = g.owner, openB = g.open;
   const core: number[] = [];
   for (const key of keys) {
-    paddedBlock(sim, key, ax, ay, block);
-    const bi = keyCx(key) * CHUNK, bj = keyCy(key) * CHUNK, bk = keyCz(key) * CHUNK;
-    for (let lj = 0; lj < CHUNK; lj++) for (let lk = 0; lk < CHUNK; lk++) for (let li = 0; li < CHUNK; li++) {
-      const at = ((lj + ay) * sx + (lk + ax)) * sx + li + ax;
-      if (block[at] < OPEN_MIN) continue;
-      const i = bi + li, j = bj + lj, k = bk + lk;
-      if (i < box.i0 || i > box.i1 || j < box.j0 || j > box.j1 || k < box.k0 || k > box.k1) continue;
-      let run = 1;
-      for (let d = 1; run < runNeed && block[at + d * layer] >= OPEN_MIN; d++) run++;
-      for (let d = 1; run < runNeed && block[at - d * layer] >= OPEN_MIN; d++) run++;
-      if (run < runNeed) continue;
-      let ok = true;
-      for (let n = 0; n < diskIdx.length; n++) if (block[at + diskIdx[n]] < OPEN_MIN) { ok = false; break; }
-      if (ok) core.push((i - box.i0) + ((j - box.j0) + (k - box.k0) * (box.j1 - box.j0 + 1)) * (box.i1 - box.i0 + 1));
+    let list = coreCache?.get(key);
+    if (!list) {
+      list = chunkCore(sim, key, sc ?? (sc = coreScan(sim)));
+      coreCache?.set(key, list);
+    }
+    for (const s of list) {
+      const i = sampleI(s), j = sampleJ(s), k = sampleK(s);
+      if (!inBox(i, j, k)) continue;
+      core.push(s);
+      isCore[g.at(i, j, k)] = 1;
     }
   }
   core.sort((a, b) => a - b);
-  const coreSet = new Set(core);
-  // local integer keys (small integers hash fast; packed keys only for the output)
-  const nx = box.i1 - box.i0 + 1, ny = box.j1 - box.j0 + 1;
-  const L = (i: number, j: number, k: number): number =>
-    i < box.i0 || i > box.i1 || j < box.j0 || j > box.j1 || k < box.k0 || k > box.k1 ? -1 : (i - box.i0) + ((j - box.j0) + (k - box.k0) * ny) * nx;
-  const li = (key: number) => key % nx + box.i0;
-  const lj = (key: number) => Math.floor(key / nx) % ny + box.j0;
-  const lk = (key: number) => Math.floor(key / (nx * ny)) + box.k0;
+  // index of an in-box sample of the pass, else -1
+  const idx = (i: number, j: number, k: number) => (inBox(i, j, k) ? g.at(i, j, k) : -1);
+  // neighbour offsets: [di, dj, dk] triples with their slot-index and packed-key deltas (interior fast path)
+  const P0 = packSample(0, 0, 0);
+  const offsets = (tr: number[]) => {
+    const d = new Int32Array(tr.length / 3), p = new Float64Array(tr.length / 3);
+    for (let n = 0; n < d.length; n++) { d[n] = delta(tr[3 * n], tr[3 * n + 1], tr[3 * n + 2]); p[n] = packSample(tr[3 * n], tr[3 * n + 1], tr[3 * n + 2]) - P0; }
+    return { tr, d, p };
+  };
+  const n26: number[] = [];
+  for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) n26.push(di, dj, dk);
+  const N26 = offsets(n26);
+  const diskTr: number[] = [];
+  for (let n = 0; n < disk.length; n += 2) diskTr.push(disk[n], 0, disk[n + 1]);
+  const DISK = offsets(diskTr), BALL = offsets(ball), N4 = offsets([1, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, -1]);
+  const N6 = offsets([1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1]);
+  const mDisk = Math.ceil(halfV), mBall = Math.floor((CHAMBER_DILATE_BU * bu) / v);
+  /** Calls fn(index, packed) for each offset of `o` around sample s (index x); m / my: the offsets' reach. */
+  const around = (s: number, x: number, o: ReturnType<typeof offsets>, m: number, my: number, fn: (y: number, p: number) => void) => {
+    if (g.interior(x, m, my)) {
+      for (let n = 0; n < o.d.length; n++) fn(x + o.d[n], s + o.p[n]);
+      return;
+    }
+    const i = sampleI(s), j = sampleJ(s), k = sampleK(s), tr = o.tr;
+    for (let n = 0; n < o.d.length; n++) {
+      const y = idx(i + tr[3 * n], j + tr[3 * n + 1], k + tr[3 * n + 2]);
+      if (y >= 0) fn(y, s + o.p[n]);
+    }
+  };
+  /** Do all offsets of `o` around s satisfy test(index)? (outside the pass counts as false) */
+  const allAround = (s: number, x: number, o: ReturnType<typeof offsets>, test: (y: number) => boolean) => {
+    if (g.interior(x, 1, 1)) {
+      for (let n = 0; n < o.d.length; n++) if (!test(x + o.d[n])) return false;
+      return true;
+    }
+    const i = sampleI(s), j = sampleJ(s), k = sampleK(s), tr = o.tr;
+    for (let n = 0; n < o.d.length; n++) {
+      const y = idx(i + tr[3 * n], j + tr[3 * n + 1], k + tr[3 * n + 2]);
+      if (y < 0 || !test(y)) return false;
+    }
+    return true;
+  };
 
-  // 2. 26-connected components of the core
-  const comp = new Map<number, number>();
+  // 2. 26-connected components of the core (compOf = component index + 1)
   const comps: number[][] = [];
   for (const start of core) {
-    if (comp.has(start)) continue;
-    const id = comps.length, list = [start];
-    comp.set(start, id);
+    const x0 = g.at(sampleI(start), sampleJ(start), sampleK(start));
+    if (compOf[x0] !== 0) continue;
+    const id = comps.length + 1, list = [start], xs = [x0];
+    compOf[x0] = id;
+    const visit = (y: number, p: number) => {
+      if (isCore[y] !== 1 || compOf[y] !== 0) return;
+      compOf[y] = id;
+      list.push(p); xs.push(y);
+    };
+    const d26 = N26.d, p26 = N26.p;
     for (let q = 0; q < list.length; q++) {
-      const s = list[q], i = li(s), j = lj(s), k = lk(s);
-      for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        const nkey = L(i + di, j + dj, k + dk);
-        if (nkey >= 0 && coreSet.has(nkey) && !comp.has(nkey)) { comp.set(nkey, id); list.push(nkey); }
+      const x = xs[q];
+      if (!g.interior(x, 1, 1)) { around(list[q], x, N26, 1, 1, visit); continue; }
+      for (let n = 0; n < d26.length; n++) {
+        const y = x + d26[n];
+        if (isCore[y] !== 1 || compOf[y] !== 0) continue;
+        compOf[y] = id;
+        list.push(list[q] + p26[n]); xs.push(y);
       }
     }
     comps.push(list.sort((a, b) => a - b));
   }
 
-  // 3. regions: opening by the core disk, then dilation inside open samples (first component wins a sample)
-  const owner = new Map<number, number>();
+  // 3. regions: opening by the core disk, then dilation inside open samples (first component wins a sample;
+  //    owner = component index + 1)
   const regions: Region[] = [];
   const minCount = CHAMBER_MIN_VOLUME / (v / bu) ** 3;
-  const toPacked = (keys: number[]) => keys.map((key) => packSample(li(key), lj(key), lk(key)));
+  const isCoreAt = (y: number) => isCore[y] === 1;
   for (let c = 0; c < comps.length; c++) {
-    const list: number[] = [];
-    const claim = (key: number) => { if (key >= 0 && !owner.has(key)) { owner.set(key, c); list.push(key); } };
-    for (const s of comps[c]) claim(s);
+    const id = c + 1, list: number[] = [], xs: number[] = [];
+    const claim = (y: number, p: number) => {
+      if (owner[y] !== 0) return;
+      owner[y] = id;
+      list.push(p); xs.push(y);
+    };
+    const cxs = comps[c].map((s) => g.at(sampleI(s), sampleJ(s), sampleK(s)));
+    comps[c].forEach((s, n) => claim(cxs[n], s));
     // the disk union of the core equals that of its in-layer boundary (a far point's segment exits the core there)
-    for (const s of comps[c]) {
-      const i = li(s), j = lj(s), k = lk(s);
-      if (coreSet.has(L(i + 1, j, k)) && coreSet.has(L(i - 1, j, k)) && coreSet.has(L(i, j, k + 1)) && coreSet.has(L(i, j, k - 1))) continue;
-      for (let n = 0; n < disk.length; n += 2) claim(L(i + disk[n], j, k + disk[n + 1]));
-    }
+    comps[c].forEach((s, n) => {
+      if (allAround(s, cxs[n], N4, isCoreAt)) return;
+      around(s, cxs[n], DISK, mDisk, 0, claim);
+    });
     const opened = list.length;
+    const mine = (y: number) => owner[y] === id;
+    const claimOpen = (y: number, p: number) => { if (openB[y] >= OPEN_MIN) claim(y, p); };
+    const d6 = N6.d, dB = BALL.d, pB = BALL.p;
     for (let q = 0; q < opened; q++) {
-      const s = list[q], i = li(s), j = lj(s), k = lk(s);
-      // dilation only grows from the boundary of the opened region
-      if (owner.get(L(i + 1, j, k)) === c && owner.get(L(i - 1, j, k)) === c && owner.get(L(i, j + 1, k)) === c
-        && owner.get(L(i, j - 1, k)) === c && owner.get(L(i, j, k + 1)) === c && owner.get(L(i, j, k - 1)) === c) continue;
-      for (let n = 0; n < ball.length; n += 3) {
-        const ni = i + ball[n], nj = j + ball[n + 1], nk = k + ball[n + 2];
-        if (open(ni, nj, nk)) claim(L(ni, nj, nk));
+      const x = xs[q];
+      if (!g.interior(x, mBall, mBall)) {
+        // dilation only grows from the boundary of the opened region
+        if (!allAround(list[q], x, N6, mine)) around(list[q], x, BALL, mBall, mBall, claimOpen);
+        continue;
+      }
+      let inner = true;
+      for (let n = 0; n < 6; n++) if (owner[x + d6[n]] !== id) { inner = false; break; }
+      if (inner) continue;
+      for (let n = 0; n < dB.length; n++) {
+        const y = x + dB[n];
+        if (openB[y] < OPEN_MIN || owner[y] !== 0) continue;
+        owner[y] = id;
+        list.push(list[q] + pB[n]); xs.push(y);
       }
     }
     if (list.length < minCount) continue;
-    regions.push({ keys: toPacked(list.sort((a, b) => a - b)), core: toPacked(comps[c]) });
+    regions.push({ keys: list.sort((a, b) => a - b), core: comps[c] });
   }
   return regions;
 }

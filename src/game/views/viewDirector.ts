@@ -107,10 +107,10 @@ export class ViewDirector {
       return;
     }
     if (view === 'photo') { this.photoOrigin = prev === 'photo' ? this.photoOrigin : prev; this.photo.enter(this.last); }
-    if (view === 'possess') this.third.snap();
+    if (view === 'possess') { this.third.snap(); this.stopFollowing(); }
     if (view === 'observer') {
       if (subject) this.follow(subject);
-      else if (prev !== 'photo') { this.unfollow(); this.placeObserverAbove(this.last.look); }
+      else { this.stopFollowing(); this.placeObserverAbove(this.last.look); }
     }
     if (view === 'colony') {
       const f = subject?.pos ?? this.last.look;
@@ -118,7 +118,10 @@ export class ViewDirector {
     }
     this.view = view;
     if (subject) this.setSubject(subject);
-    const plan = instant || prev === view ? { kind: 'fly' as const, duration: 0 } : planTransition(from, this.peekPose(), this.world.bu, false);
+    // possess -> possess is a switch to another ant: it flies (or dips beyond CAM_SWITCH_FADE_DIST_BU) like any
+    // other hand-over (GDD 01 §2); re-entering any other view it is already in is a cut
+    const cut = instant || (prev === view && view !== 'possess');
+    const plan = cut ? { kind: 'fly' as const, duration: 0 } : planTransition(from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion);
     // photo mode keeps the pose: no blend in or out
     this.transition.start(from, view === 'photo' || prev === 'photo' ? { kind: 'fly', duration: 0 } : plan);
   }

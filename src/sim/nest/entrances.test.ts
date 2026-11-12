@@ -8,6 +8,10 @@ import { detectNestChambers } from './chambers/upkeep';
 import { carveTemplateNest, createPlan, digBite, instantCarvePlan, sealEntrance, unsealEntrance } from './index';
 import { collect, feetOf, nestSim, placeWorker, playerNest, runTicks } from './nestTestKit';
 import { walkerStep } from '@/sim/locomotion/walker';
+import { VoxelFlag } from '@/sim/types';
+import { makeTestWorld } from '@/sim/testing';
+import { carveCapsule } from './carveOps';
+import { nestRuntime } from './runtime';
 
 const BU = 4;
 const EXIT = { kind: 'exit' as const, id: -1 };
@@ -112,5 +116,30 @@ describe('entrances', () => {
     expect(events.some((x) => x.type === 'founding-sealed')).toBe(true);
     expect(nest.founding?.state).toBe('sealed');
     expect(sim.nestNav.hasTarget(nestFieldId(nest.id, EXIT))).toBe(false);
+  });
+});
+
+describe('natural cavities (GDD 03 §3, check 25 second clause)', () => {
+  it('a tunnel dug into an unowned under-slab cavity joins it: natural-cavity-joined and a natural entrance', () => {
+    const world = makeTestWorld();
+    const c = world.size / 2, y = -3 * BU;
+    const cav = { x: c + 12 * BU, y, z: c };
+    world.preCarve.push({ shape: 'ellipsoid', a: cav, b: { x: 4 * BU, y: 1 * BU, z: 3 * BU }, r: 0, natural: true, cavityId: 1 });
+    world.cavities.push({
+      id: 1, kind: 'under-slab', min: { x: cav.x - 4 * BU, y: y - BU, z: cav.z - 3 * BU }, max: { x: cav.x + 4 * BU, y: y + BU, z: cav.z + 3 * BU },
+      openings: [{ pos: { x: cav.x + 4 * BU, y: 0, z: cav.z }, normal: { x: 0, y: 1, z: 0 }, radius: BU }],
+    });
+    const sim = nestSim({ world });
+    runTicks(sim, 1); // tick 0 flags the pre-carve NATURAL
+    expect(nestRuntime(sim).flags.count(VoxelFlag.NATURAL)).toBeGreaterThan(0);
+    const room = { x: c, y, z: c };
+    sim.kernel.carveEllipsoid(room, { x: 3 * BU, y: 1.25 * BU, z: 3 * BU }, { force: true });
+    const nest = playerNest(sim, room);
+    const events = collect<{ type: string; kind?: string; cavityId?: number }>(sim, ['natural-cavity-joined', 'entrance-opened'], () => {
+      carveCapsule(sim, { x: c + 2 * BU, y, z: c }, { x: cav.x - 3 * BU, y, z: c }, BU);
+    });
+    expect(events.some((e) => e.type === 'natural-cavity-joined' && e.cavityId === 1)).toBe(true);
+    expect(nest.entrances.some((e) => e.kind === 'natural')).toBe(true);
+    expect(sim.state.worldDelta.naturalOwners['1']).toBe(nest.id);
   });
 });

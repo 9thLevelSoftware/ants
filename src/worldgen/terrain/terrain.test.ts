@@ -1,11 +1,14 @@
 // Heightfield, ground layers and the map boundary (GDD 04 §2.1-2.3, §14; acceptance 5).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MATERIAL_IDS, NAV_CLASSES } from '@/sim/types';
 import { digFactor } from '@/sim/balance';
 import { report, T1_ARCHETYPES } from '../testing/fixtures';
 import { REGION_STRATA, STRATA, SOFT_ZONES, TERRAIN, LEVELS } from '../tuning/terrain';
 import { NAV } from '../tuning/maps';
 import { VALID } from '../tuning/pipeline';
+
+// world generation takes ~1-2 s per world and the shared machine is often loaded
+vi.setConfig({ testTimeout: 120_000 });
 
 describe('ground layers agree with zones', () => {
   for (const a of T1_ARCHETYPES) {

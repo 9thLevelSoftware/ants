@@ -58,12 +58,18 @@ function roofAbove(sim: Sim, x: number, y0: number, z: number): number {
   return max;
 }
 
-/** Stats of a region of open samples (ascending packed keys); `core` (optional) picks the seed voxel. */
-export function regionStats(sim: Sim, keys: readonly number[], core?: readonly number[]): RegionStats {
-  const carve = sim.carve, v = carve.voxel, bu = sim.world.bu;
+/** The cheap, voxel-only part of the stats (one pass over the keys) and the region's column tops. */
+interface RegionShape {
+  voxelCount: number; floor: number; center: Vec3; radii: Vec3; seedVoxel: number;
+  /** column (packed i, 0, k) -> top j */
+  tops: Map<number, number>;
+}
+
+function regionShape(sim: Sim, keys: readonly number[], core?: readonly number[]): RegionShape {
+  const carve = sim.carve, v = carve.voxel;
   let sx = 0, sy = 0, sz = 0, floor = 0;
   let i0 = Infinity, i1 = -Infinity, j0 = Infinity, j1 = -Infinity, k0 = Infinity, k1 = -Infinity;
-  const tops = new Map<number, number>(); // column (packed i, 0, k) -> top j
+  const tops = new Map<number, number>();
   for (const key of keys) {
     const i = sampleI(key), j = sampleJ(key), k = sampleK(key);
     sx += i; sy += j; sz += k;
@@ -80,17 +86,55 @@ export function regionStats(sim: Sim, keys: readonly number[], core?: readonly n
     const d = (sampleI(key) * v - center.x) ** 2 + (sampleJ(key) * v - center.y) ** 2 + (sampleK(key) * v - center.z) ** 2;
     if (d < best) { best = d; seed = key; }
   }
+  return { voxelCount: n, floor, center, radii, seedVoxel: seed, tops };
+}
+
+/** The field-marching part of the stats (depth, cover, thinnest roof): the expensive part. */
+function regionMarch(sim: Sim, center: Vec3, tops: Map<number, number>): Pick<RegionStats, 'depthBu' | 'depthMm' | 'roofMin' | 'covered'> {
+  const v = sim.carve.voxel, bu = sim.world.bu;
   const { depthMm, covered } = depthAbove(sim, center);
   let roof = Infinity, c = 0;
   for (const [col, j] of tops) {
     if (c++ % 2 === 1) continue; // every second column is enough for the thinnest roof
     roof = Math.min(roof, roofAbove(sim, sampleI(col) * v, j * v, sampleK(col) * v));
   }
-  const unit = (v / bu) ** 3;
+  return { depthBu: depthMm / bu, depthMm, roofMin: Number.isFinite(roof) ? roof / bu : 0, covered };
+}
+
+function statsOf(sim: Sim, sh: RegionShape, march: Pick<RegionStats, 'depthBu' | 'depthMm' | 'roofMin' | 'covered'>): RegionStats {
+  const unit = (sim.carve.voxel / sim.world.bu) ** 3;
   return {
-    voxelCount: n, volume: n * unit, floorArea: floor * (v / bu) ** 2, center, radii,
-    depthBu: depthMm / bu, depthMm, roofMin: Number.isFinite(roof) ? roof / bu : 0, covered, seedVoxel: seed,
+    voxelCount: sh.voxelCount, volume: sh.voxelCount * unit, floorArea: sh.floor * (sim.carve.voxel / sim.world.bu) ** 2,
+    center: sh.center, radii: sh.radii, seedVoxel: sh.seedVoxel, ...march,
   };
+}
+
+/** Stats of a region of open samples (ascending packed keys); `core` (optional) picks the seed voxel. */
+export function regionStats(sim: Sim, keys: readonly number[], core?: readonly number[]): RegionStats {
+  const sh = regionShape(sim, keys, core);
+  return statsOf(sim, sh, regionMarch(sim, sh.center, sh.tops));
+}
+
+/**
+ * Stats of a region a chamber keeps: when its voxels did not change shape (count, centroid, extent, seed voxel all
+ * equal the chamber's persisted values) the chamber's depth / roof / cover are kept, otherwise marched again. The
+ * kept values follow field changes over the room through refreshChamberMarch (microclimate cadence, GDD 03 §6.2:
+ * these stats are "updated with microclimate"). Only persisted data decides, so a load changes nothing.
+ */
+function keptRegionStats(sim: Sim, c: Chamber, r: Region): RegionStats {
+  const sh = regionShape(sim, r.keys, r.core);
+  const same = sh.voxelCount === c.voxelCount && sh.seedVoxel === c.seedVoxel && sameVec(sh.center, c.center) && sameVec(sh.radii, c.radii);
+  return statsOf(sim, sh, same ? { depthBu: c.depthBu, depthMm: c.depthMm, roofMin: c.roofMin, covered: c.covered } : regionMarch(sim, sh.center, sh.tops));
+}
+
+const sameVec = (a: Vec3, b: Vec3): boolean => a.x === b.x && a.y === b.y && a.z === b.z;
+
+/** Re-marches a chamber's depth, roof and cover from its own voxels (field changes: mounds, primitives). */
+export function refreshChamberMarch(sim: Sim, c: Chamber): void {
+  const keys = chamberSamples(sim, c);
+  if (keys.length === 0) return;
+  const m = regionMarch(sim, c.center, regionShape(sim, keys).tops);
+  c.depthBu = m.depthBu; c.depthMm = m.depthMm; c.roofMin = m.roofMin; c.covered = m.covered;
 }
 
 export function capacityOf(type: ChamberType, volume: number): ChamberLoad {
@@ -126,17 +170,29 @@ function removeChamber(sim: Sim, nest: Nest, c: Chamber, reason: string): void {
 }
 
 /** Region samples inside the chamber's box (center +- radii + half a voxel). */
-function overlap(sim: Sim, c: Chamber, r: Region): number {
+function overlap(sim: Sim, c: Chamber, r: Region, rb: SampleBounds): number {
   const v = sim.carve.voxel, pad = v / 2;
   const x0 = c.center.x - c.radii.x - pad, x1 = c.center.x + c.radii.x + pad;
   const y0 = c.center.y - c.radii.y - pad, y1 = c.center.y + c.radii.y + pad;
   const z0 = c.center.z - c.radii.z - pad, z1 = c.center.z + c.radii.z + pad;
+  if (rb.i1 * v < x0 || rb.i0 * v > x1 || rb.j1 * v < y0 || rb.j0 * v > y1 || rb.k1 * v < z0 || rb.k0 * v > z1) return 0;
   let n = 0;
   for (const key of r.keys) {
     const x = sampleI(key) * v, y = sampleJ(key) * v, z = sampleK(key) * v;
     if (x >= x0 && x <= x1 && y >= y0 && y <= y1 && z >= z0 && z <= z1) n++;
   }
   return n;
+}
+
+interface SampleBounds { i0: number; i1: number; j0: number; j1: number; k0: number; k1: number }
+
+function boundsOf(keys: readonly number[]): SampleBounds {
+  const b = { i0: Infinity, i1: -Infinity, j0: Infinity, j1: -Infinity, k0: Infinity, k1: -Infinity };
+  for (const key of keys) {
+    const i = sampleI(key), j = sampleJ(key), k = sampleK(key);
+    if (i < b.i0) b.i0 = i; if (i > b.i1) b.i1 = i; if (j < b.j0) b.j0 = j; if (j > b.j1) b.j1 = j; if (k < b.k0) b.k0 = k; if (k > b.k1) b.k1 = k;
+  }
+  return b;
 }
 
 /** Open samples inside a chamber's ellipsoid (+ half a voxel): the region of a chamber no detection region matches. */
@@ -162,10 +218,11 @@ export function applyDetection(sim: Sim, nest: Nest, regions: Region[], reserved
   const claims = new Map<number, Chamber[]>();
   const chambers = [...nest.chambers].sort((a, b) => a.id - b.id);
   const unmatched: Chamber[] = [];
+  const bounds = regions.map((r) => boundsOf(r.keys));
   for (const c of chambers) {
     let bestR = -1, bestN = 0;
     for (let r = 0; r < regions.length; r++) {
-      const n = overlap(sim, c, regions[r]);
+      const n = overlap(sim, c, regions[r], bounds[r]);
       if (n > bestN) { bestN = n; bestR = r; }
     }
     const need = Math.max(1, c.voxelCount);
@@ -177,15 +234,15 @@ export function applyDetection(sim: Sim, nest: Nest, regions: Region[], reserved
   }
   let changed = false;
   for (let r = 0; r < regions.length; r++) {
-    const s = regionStats(sim, regions[r].keys, regions[r].core);
     const list = claims.get(r);
     if (!list) {
       // a room an active chamber plan is digging registers when the plan completes (with its type)
-      if (!reserved(regions[r])) registerChamber(sim, nest, 'general', 'auto', s);
+      if (!reserved(regions[r])) registerChamber(sim, nest, 'general', 'auto', regionStats(sim, regions[r].keys, regions[r].core));
       continue;
     }
     list.sort((a, b) => b.voxelCount - a.voxelCount || a.id - b.id);
     const keep = list[0];
+    const s = keptRegionStats(sim, keep, regions[r]);
     for (let n = 1; n < list.length; n++) { removeChamber(sim, nest, list[n], 'merged'); changed = true; }
     const before = keep.volume;
     applyStats(keep, s);
@@ -202,7 +259,7 @@ export function applyDetection(sim: Sim, nest: Nest, regions: Region[], reserved
       continue;
     }
     const before = c.volume;
-    applyStats(c, regionStats(sim, keys));
+    applyStats(c, keptRegionStats(sim, c, { keys, core: [] }));
     if (Math.abs(c.volume - before) >= CHAMBER_CHANGE_FRACTION * Math.max(before, 1e-9)) {
       sim.emit({ type: 'chamber-changed', chamberId: c.id, chamberType: c.type, volume: c.volume, reason: 'detected' });
       changed = true;

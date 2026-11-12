@@ -19,6 +19,9 @@ export const STEP_DOWN_AFTER_S = 3;
 /** After the player raises the speed again, no step-down for this long. */
 export const STEP_DOWN_GRACE_S = 10;
 
+/** At most one `time.speed-limited` event per this many real seconds (ticks dropped meanwhile are summed). */
+export const SPEED_LIMITED_EVENT_MIN_INTERVAL_S = 1;
+
 /** UI snapshot refresh rate while playing (real Hz). */
 export const UI_REFRESH_HZ = 4;
 /** Simulated seconds of camera settling before a debug-API renderFrame() in test mode. */

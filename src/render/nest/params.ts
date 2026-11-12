@@ -12,9 +12,9 @@ import type { MaterialId } from '@/sim/types';
 export const REGION_CHUNKS = 4;
 
 export interface MeshQuality {
-  /** Wall-clock budget for re-meshing per frame, ms (at least one chunk is always built). */
+  /** Wall-clock budget for re-meshing per frame, ms (at least one build stage always runs). */
   budgetMs: number;
-  /** Edge-midpoint subdivision projected onto the iso surface (rounder tunnel silhouettes, x4 triangles). */
+  /** Curved edges split at midpoints moved onto the curve of the end normals (rounder tunnels; refine.ts). */
   refine: boolean;
   /** Per-vertex ambient occlusion taps from the carve field. */
   ao: boolean;
@@ -49,6 +49,26 @@ export const AO_MIN = 0.35;
  * terrain hole margin (render-world HOLE_MARGIN_BU = 0.125) so the terrain lip always hides the cut.
  */
 export const CAVITY_SKIN_BU = 0.05;
+/**
+ * The skin band is not applied where the terrain hole probe is above -this (BU): inside the hole and under the
+ * terrain lip (render-world HOLE_MARGIN_BU = 0.125, plus 0.025 for the hole mask's outline error). There the wall
+ * top must reach the surface, or grazing views across the hole see the sky through the band under the lip.
+ */
+export const HOLE_LIP_BU = 0.15;
+/** Polygon offset of the wall materials (pushes walls behind terrain they are flush with; spike-nest 5.6b). */
+export const WALL_DEPTH_OFFSET = { factor: 2, units: 8 } as const;
+
+/** Chunk builds: smoothing of the per-stage cost estimate (ms per marching-cubes triangle) and its first guess. */
+export const BUILD_COST_EMA = 0.25;
+export const BUILD_COST_INITIAL_MS_PER_TRI = 0.0004;
+/** Edit batches: frames until a batch is shown as far as it got; the backlog gets a chunk at least this often. */
+export const BATCH_MAX_FRAMES = 8;
+export const BACKLOG_MAX_WAIT_FRAMES = 4;
+/** A finished batch waits one frame when the builds of this frame already used this fraction of the budget. */
+export const COMMIT_DEFER_FRACTION = 0.6;
+/** Backlog ordering: distance buckets (in chunk edges) and how far the camera may move before re-bucketing. */
+export const BACKLOG_BUCKET_CHUNKS = 1;
+export const BACKLOG_REORDER_CHUNKS = 2;
 
 // ------------------------------------------------------------------------------------------------ wall look
 
@@ -134,8 +154,15 @@ export const FRESH_WALL = {
   wet: 0.6,
 } as const;
 
-/** Per-vertex nest attribute: ambient occlusion, soil moisture, tick the wall was carved (fresh look). */
-export const NEST_ATTR = 3;
+/**
+ * Per-vertex nest attribute: ambient occlusion, soil moisture, tick the wall was carved (fresh look), and the signed
+ * openness of the ground above the vertex (mm, > 0 where the terrain is cut open: no skin band there).
+ */
+export const NEST_ATTR = 4;
+/** Ground openness is evaluated for vertices shallower than this (BU); deeper ones never reach the skin band. */
+export const HOLE_ATTR_DEPTH_BU = 1;
+/** Ground openness is clamped to +-this (mm) so interpolation stays local to the hole outline. */
+export const HOLE_ATTR_CLAMP_MM = 4;
 
 /** GDD 08 11.5 fog and the exposure switch, for callers that drive the post chain from the nest renderer. */
 export const NEST_LOOK = {

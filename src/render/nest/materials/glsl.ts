@@ -16,7 +16,7 @@ float nestN3(vec3 x) {
 /** Shared uniform declarations and the cutaway test (hidden = on the plane's normal side within the radius). */
 export const GLSL_NEST_COMMON = /* glsl */ `
 #define NEST_MAXO ${NEST_LIGHT.maxOpenings}
-uniform float uSkin;
+uniform float uSkin; uniform float uHoleLip;
 uniform vec4 uSky[NEST_MAXO]; uniform int uSkyN; uniform float uSkyLen; uniform vec3 uSkyCol;
 uniform vec3 uAmb; uniform vec2 uAmbNear; uniform vec2 uAmbDeep;
 uniform vec3 uLanternPos; uniform vec3 uLanternCol; uniform float uLanternR; uniform float uLanternWrap;
@@ -43,11 +43,11 @@ export const NEST_VERT = /* glsl */ `
 #include <fog_pars_vertex>
 #include <logdepthbuf_pars_vertex>
 attribute float aSub;
-attribute vec3 aNest;
+attribute vec4 aNest;
 varying vec3 vNestW;
 varying vec3 vNestN;
 varying float vNestSub;
-varying vec3 vNestAttr;
+varying vec4 vNestAttr;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vNestW = w.xyz;
@@ -79,11 +79,19 @@ uniform vec3 uWrTint;
 varying vec3 vNestW;
 varying vec3 vNestN;
 varying float vNestSub;
-varying vec3 vNestAttr;
+varying vec4 vNestAttr;
 void main() {
   #include <logdepthbuf_fragment>
-  // openings: daylight, ambient boost, and where the ground is open (no skin band there)
-  float sky = 0.0; float near = 0.0; float inHole = 0.0; vec3 skyDir = vec3(0.0, 1.0, 0.0);
+  // skin band (spike-nest 5.6b): wall fragments just below the soil surface are dropped under intact ground so
+  // they cannot poke through the terrain. aNest.w is the terrain hole probe (mm, > 0 where the ground is cut open:
+  // the world renderer's own test). Within the terrain lip around a hole the band is kept, or grazing views across
+  // the hole see the sky through it under the lip; those wall tops lie flush with the terrain there, so the wall
+  // materials carry a polygon offset and the terrain wins wherever both are drawn (no specks next to the hole).
+  bool nestBand = vNestAttr.w <= -uHoleLip;
+  if (vNestSub > (nestBand ? -uSkin : 0.0)) discard;
+  if (uCutMode == 1 && nestCutHidden(vNestW)) discard;
+  // openings: daylight and the ambient boost
+  float sky = 0.0; float near = 0.0; vec3 skyDir = vec3(0.0, 1.0, 0.0);
   for (int i = 0; i < NEST_MAXO; i++) {
     if (i >= uSkyN) break;
     vec3 d = uSky[i].xyz - vNestW;
@@ -92,12 +100,7 @@ void main() {
     float s = exp(-dist / uSkyLen);
     if (s > sky) { sky = s; skyDir = normalize(d + vec3(0.0, 0.01, 0.0)); }
     near = max(near, exp(-dist / uAmbNear.y));
-    if (dc < uSky[i].w + 2.0 * uSkin + 0.5 * uBu) inHole = 1.0;
   }
-  // skin band (spike-nest 5.6b) only where the ground is intact: inside an opening the wall must reach the surface,
-  // or grazing views across the hole see the sky through the band under the terrain lip
-  if (vNestSub > (inHole > 0.5 ? 0.0 : -uSkin)) discard;
-  if (uCutMode == 1 && nestCutHidden(vNestW)) discard;
   // occlusion cutaway (GDD 01 6.5 rule 3): walls inside the camera-to-ant capsule are dithered to uOcc.y
   if (uOcc.x > 0.0) {
     vec3 ab = uOccB - uOccA;
@@ -168,7 +171,7 @@ export const XRAY_FRAGMENT = /* glsl */ `
 varying vec3 vNestW;
 varying vec3 vNestN;
 varying float vNestSub;
-varying vec3 vNestAttr;
+varying vec4 vNestAttr;
 void main() {
   #include <logdepthbuf_fragment>
   if (vNestSub > -uSkin) discard;

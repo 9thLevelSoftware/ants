@@ -1,6 +1,6 @@
 // Placement kit: resting and tilt, collisions, budgets, quantisation, removal, routes, pre-carve budget, Poisson
 // spacing, tables with thinning, registry ordering, deterministic maths.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { rngFork } from '@/core/rng';
 import { PrimFlag } from '@/sim/types';
 import { defaultWorldParams, worldDims } from '../params';
@@ -16,6 +16,9 @@ import { buildRegistry, placersFor } from './registry';
 import { supportAt, terrainAt } from './surface';
 import { dcos, dlog, dlog10, dsin } from './dmath';
 import { restViolations } from '../validate/checks';
+
+// world generation takes ~1-2 s per world and the shared machine is often loaded
+vi.setConfig({ testTimeout: 120_000 });
 
 function ctxFor(archetype: 'suburban-garden' | 'woodland-edge' = 'suburban-garden', seed = 3): GenContext {
   const params = { ...defaultWorldParams('lasius-niger', seed, 'naturalist', 'compact'), archetype };

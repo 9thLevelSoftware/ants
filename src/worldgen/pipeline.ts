@@ -37,6 +37,8 @@ export interface WorldgenReport {
   checks: CheckResult[];
   attempts: number;
   repairs: string[];
+  /** Failed checks of every rejected attempt (the `worldgen.retry` event payloads). */
+  retries: { attempt: number; failedChecks: WorldgenCheck[]; details: string[] }[];
   /** Per-step wall time of the returned attempt (and 'total'), ms; empty without a clock. */
   timingsMs: Record<string, number>;
   notes: string[];
@@ -138,11 +140,16 @@ export function generateWorldReport(params: WorldParams, opts: GenerateOptions =
   let best: Attempt | null = null;
   let attempts = 0;
   let repairs: string[] = [];
+  const retries: WorldgenReport['retries'] = [];
   for (let a = 0; a < WORLDGEN_MAX_ATTEMPTS; a++) {
     const at = runAttempt(params, dims, a, reg, opts);
     attempts = a + 1;
     if (!best || at.score > best.score) best = at;
     if (at.checks.every((c) => c.status !== 'fail')) { best = at; break; }
+    const failed = at.checks.filter((c) => c.status === 'fail');
+    retries.push({ attempt: a, failedChecks: failed.map((c) => c.id), details: failed.map((c) => `${c.id}: ${c.detail}`) });
+    // failures no other attempt can fix (missing content) go straight to repair
+    if (failed.every((c) => c.regenerate === false) && !(opts.forceFail && a < opts.forceFail.attempts)) { best = at; break; }
   }
   const chosen = best!;
   if (chosen.checks.some((c) => c.status === 'fail')) repairs = repairAttempt(chosen, reg);
@@ -153,7 +160,7 @@ export function generateWorldReport(params: WorldParams, opts: GenerateOptions =
   opts.onProgress?.({ step: 'validate', fraction: 1, attempt: attempts - 1 });
   const timingsMs = { ...chosen.timings };
   if (opts.now) timingsMs.total = opts.now() - t0;
-  return { world: w, checks: chosen.checks, attempts, repairs, timingsMs, notes: chosen.ctx.notes };
+  return { world: w, checks: chosen.checks, attempts, repairs, retries, timingsMs, notes: chosen.ctx.notes };
 }
 
 export { STEP_ORDER };

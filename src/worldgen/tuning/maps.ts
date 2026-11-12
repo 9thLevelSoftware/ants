@@ -157,3 +157,6 @@ export const CEILING_MATERIALS: readonly MaterialId[] = [
   'stone', 'concrete', 'brick', 'tile', 'wood-sound', 'wood-decayed', 'bark', 'plastic', 'rubber', 'ceramic', 'metal',
 ];
 export const WARM_COVER_MATERIALS: readonly MaterialId[] = ['stone', 'concrete', 'brick', 'tile'];
+
+/** Initial wood moisture (GDD 04 §13.6): base by decay + 0.08 ground contact + 0.05 shade - 0.05 (1 - shade). */
+export const WOOD_MOIST = { sound: 0.12, decayed: 0.22, contact: 0.08, shadeK: 0.05, contactBu: 1 };

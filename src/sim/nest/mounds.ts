@@ -103,9 +103,13 @@ function clearEntranceCells(sim: Sim, m: Mound): void {
     if (ix < 0 || iz < 0 || ix >= m.n || iz >= m.n) continue;
     const idx = iz * m.n + ix;
     if (m.h[idx] <= 0 || usable(sim, m, e, idx)) continue;
-    const amount = m.h[idx];
+    const vol = m.h[idx] * m.cell * m.cell;
+    // take it off the pile (grid and Mound.volume), then deposit it again outward: depositHeight adds it back
     m.h[idx] = 0;
-    depositHeight(sim, m, e, x0 + ix * m.cell + Math.sign(ix - ci) * (reach + 1) * m.cell, z0 + iz * m.cell + Math.sign(iz - ck) * (reach + 1) * m.cell, amount * m.cell * m.cell);
+    m.volume -= vol / sim.world.bu ** 3;
+    const moved = depositHeight(sim, m, e, x0 + ix * m.cell + Math.sign(ix - ci) * (reach + 1) * m.cell, z0 + iz * m.cell + Math.sign(iz - ck) * (reach + 1) * m.cell, vol);
+    // the outward point is off the grid: the nearest usable cell to this one takes it (lost only without any)
+    if (!moved) depositHeight(sim, m, e, x0 + ix * m.cell, z0 + iz * m.cell, vol);
   }
 }
 
