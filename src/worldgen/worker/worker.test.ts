@@ -7,6 +7,7 @@ import { generateWorldAsync, type WorkerLike } from './client';
 import { installWorldgenHost } from './host';
 import type { MessageEndpoint } from './protocol';
 import { worldTransferables } from './protocol';
+import { WORKER_SILENCE_MS } from '../tuning/pipeline';
 
 // world generation takes ~1-2 s per world and the shared machine is often loaded
 vi.setConfig({ testTimeout: 120_000 });
@@ -23,10 +24,11 @@ function channel(): { main: WorkerLike; scope: MessageEndpoint; transferred: num
       const copy = structuredClone(msg);
       setTimeout(() => { for (const f of [...listeners[other]]) f({ data: copy }); }, 0);
     },
-    addEventListener(_t: 'message', f: Fn) { listeners[self].push(f); },
-    removeEventListener(_t: 'message', f: Fn) { listeners[self] = listeners[self].filter((g) => g !== f); },
+    // only 'message' is ever dispatched here (an in-process channel cannot fail to load)
+    addEventListener(t: string, f: Fn) { if (t === 'message') listeners[self].push(f); },
+    removeEventListener(t: string, f: Fn) { if (t === 'message') listeners[self] = listeners[self].filter((g) => g !== f); },
   });
-  const main = { ...endpoint('main', 'scope'), terminate() {} } as WorkerLike;
+  const main = { ...endpoint('main', 'scope'), terminate() {} } as unknown as WorkerLike;
   return { main, scope: endpoint('scope', 'main'), transferred };
 }
 
@@ -60,6 +62,23 @@ describe('worldgen worker', () => {
     });
     const c = await generateWorldAsync(p, { createWorker: () => ch.main });
     expect(c.meta.fingerprint).toBe(direct.meta.fingerprint);
+  }, 120_000);
+
+  it('falls back to the main thread when the worker never answers (silence watchdog)', async () => {
+    const p = paramsFor('car-park-verge', 7, 'compact');
+    const direct = generateWorld(p);
+    let terminated = false;
+    const silent = { postMessage() {}, addEventListener() {}, removeEventListener() {}, terminate() { terminated = true; } } as unknown as WorkerLike;
+    vi.useFakeTimers();
+    try {
+      const pending = generateWorldAsync(p, { createWorker: () => silent });
+      await vi.advanceTimersByTimeAsync(WORKER_SILENCE_MS + 1);
+      const w = await pending;
+      expect(w.meta.fingerprint).toBe(direct.meta.fingerprint);
+      expect(terminated).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   }, 120_000);
 
   it('collects every typed-array buffer for transfer', () => {

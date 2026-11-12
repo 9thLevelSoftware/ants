@@ -103,6 +103,8 @@ export class SaveManager {
   private working = false;
   private thumb: { url: string | null; atMs: number } | null = null;
   private notedUnavailable = false;
+  private lastKind: 'auto' | 'quick' | 'manual' | null = null;
+  private lastLabel = '';
   private st: SaveStatus = {
     availability: 'unknown', backend: 'indexeddb', persistent: true, lastCode: 'ok', lastMessage: '', autosaveDisabled: false,
     busy: false, lastSaveMs: -1, diagnostic: 'ok',
@@ -151,9 +153,27 @@ export class SaveManager {
     this.emit({ type: 'status-changed', status: this.status() });
   }
 
-  /** Seconds since the last successful save of any kind in this page's life; Infinity when none. */
+  /** Seconds since the last successful save of any kind in this game; Infinity when none. */
   secondsSinceSave(): number {
     return this.st.lastSaveMs < 0 ? Infinity : (this.now() - this.st.lastSaveMs) / 1000;
+  }
+
+  /** `UiSnapshot.lastSave` (pause menu "Saved 3 min ago", the unsaved-progress warning): null = never saved this game. */
+  lastSaveInfo(): { agoS: number; kind: 'auto' | 'quick' | 'manual'; timeLabel?: string } | null {
+    if (this.st.lastSaveMs < 0 || !this.lastKind) return null;
+    return { agoS: this.secondsSinceSave(), kind: this.lastKind, timeLabel: this.lastLabel };
+  }
+
+  /** A new game started: nothing of it is saved yet. */
+  noteNewGame(): void {
+    this.st.lastSaveMs = -1;
+    this.lastKind = null;
+  }
+
+  private noteSaved(key: string, dateLabel: string): void {
+    this.st.lastSaveMs = this.now();
+    this.lastKind = isAutoKey(key) || key === 'opening-start' ? 'auto' : key === 'quick' ? 'quick' : 'manual';
+    this.lastLabel = dateLabel;
   }
 
   /** The back end in use now (IndexedDB, or the in-memory fallback after a failure). The profile store shares it. */
@@ -298,7 +318,7 @@ export class SaveManager {
         if (w.ok) {
           this.cache.set(key, stored);
           this.damaged.delete(key);
-          this.st.lastSaveMs = this.now();
+          this.noteSaved(key, stored.dateLabel);
           const volatile = !this.storage.persistent;
           return this.result(slot, key, autosave, label, 'ok', volatile
             ? 'Saved for this session only: this browser cannot store saves. Use Export to keep your colony.'
@@ -367,19 +387,21 @@ export class SaveManager {
   // ------------------------------------------------------------------ load
   /**
    * Loads a slot: `auto` = the newest valid generation (a damaged one is skipped), `quick` = the quick save or, when
-   * empty and `fallbackToAuto`, the newest autosave, or any physical key. Replaces the running game on success.
+   * empty and `fallbackToAuto`, the newest autosave, or any physical key. `skipPinned` leaves out the `final` generation
+   * (the Epitaph's "Load the last autosave"). Replaces the running game on success.
    */
-  async load(slot: string, opts: { fallbackToAuto?: boolean } = {}): Promise<SaveOutcome<SaveMeta>> {
+  async load(slot: string, opts: { fallbackToAuto?: boolean; skipPinned?: boolean } = {}): Promise<SaveOutcome<SaveMeta>> {
     await this.ensureReady();
     if (this.working) return this.loadResult(slot, 'busy', MESSAGES.busy);
     this.working = true;
     try {
       let keys: string[];
-      if (slot === 'auto') keys = autoGenerations(this.cache).map((m) => m.key);
+      const generations = () => autoGenerations(this.cache).filter((m) => !(opts.skipPinned && m.pinned)).map((m) => m.key);
+      if (slot === 'auto') keys = generations();
       else if (ALL_KEYS.includes(slot)) keys = [slot];
       else return this.loadResult(slot, 'failed', 'Unknown slot.');
       if (slot === 'quick' && opts.fallbackToAuto !== false && !this.cache.has('quick') && !this.damaged.has('quick')) {
-        keys = autoGenerations(this.cache).map((m) => m.key);
+        keys = generations();
       }
       if (keys.length === 0 && !this.damaged.has(slot)) return this.loadResult(slot, 'not-found', MESSAGES['not-found']);
       let sawDamaged = false;
@@ -516,6 +538,7 @@ export class SaveManager {
       return { ok: false, code: 'failed', message: `The game could not start from this save: ${e instanceof Error ? e.message : String(e)}` };
     }
     this.playTimeS = meta.playTimeS;
+    this.noteSaved(meta.key, meta.dateLabel); // the game now equals that save: no unsaved progress
     return { ok: true };
   }
 

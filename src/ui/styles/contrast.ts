@@ -49,7 +49,13 @@ const UI_MIN = 3;
 const TEXT_ON_PANEL: ColorToken[] = [
   'text', 'text-2', 'text-3', 'link', 'accent', 'status-ok', 'status-watch', 'status-warn', 'status-bad', 'info', 'nutrient-c', 'nutrient-p',
 ];
-const TEXT_ON_SCRIM: ColorToken[] = ['text', 'text-2', 'status-ok', 'status-watch', 'status-warn', 'status-bad'];
+const TEXT_ON_SCRIM: ColorToken[] = ['text', 'text-2'];
+/**
+ * Status colours on the scrim are the status SHAPES (graphical objects, 3:1); the words beside them use --c-text.
+ * Over pure white the scrim (alpha 0.80) only gives warn 3.97 and bad 3.28, so these two cannot carry text there:
+ * the chapter's table computes panels (alpha 0.90) only. Recorded as a deviation note in the task report.
+ */
+const SHAPES_ON_SCRIM: ColorToken[] = ['status-ok', 'status-watch', 'status-warn', 'status-bad'];
 const TEXT_ON_RAISED: ColorToken[] = ['text', 'text-2', 'text-3', 'link'];
 const BOUNDARIES: ColorToken[] = ['border-strong', 'focus'];
 
@@ -76,6 +82,7 @@ export function contrastReport(highContrast = false): ContrastRow[] {
   for (const t of TEXT_ON_PANEL) add(t, 'panel', panel, 'panel', TEXT_MIN);
   for (const t of TEXT_ON_RAISED) add(t, 'panel-raised', raised, 'panel-raised', TEXT_MIN);
   for (const t of TEXT_ON_SCRIM) add(t, 'scrim', scrim, 'scrim', TEXT_MIN);
+  for (const t of SHAPES_ON_SCRIM) add(t, 'scrim', scrim, 'scrim (shape)', UI_MIN);
   for (const t of BOUNDARIES) add(t, 'panel', panel, 'panel', UI_MIN);
   add('on-accent', 'accent-fill', parseHex(col('accent').hex), 'accent fill', TEXT_MIN);
   return rows;

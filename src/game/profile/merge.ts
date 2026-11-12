@@ -19,8 +19,8 @@ function cleanDate(v: unknown): { tick: number; doy: number; year: number } | nu
 }
 
 export function cleanHint(v: unknown): StoredHint | null {
-  if (!isObj(v) || !(HINT_STATES as readonly unknown[]).includes(v.state)) return null;
-  return { uses: Math.max(0, Math.floor(num(v.uses))), state: v.state as StoredHint['state'] };
+  if (!isObj(v) || !isNum(v.uses) || !(HINT_STATES as readonly unknown[]).includes(v.state)) return null;
+  return { uses: Math.max(0, Math.floor(v.uses)), state: v.state as StoredHint['state'] };
 }
 
 export function cleanCodex(v: unknown): CodexUnlock | null {

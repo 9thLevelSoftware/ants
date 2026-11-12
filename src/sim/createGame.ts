@@ -195,6 +195,7 @@ export function initialState(config: GameConfig, world: WorldData): SimState {
 export function createNewGame(cfg: GameConfig, world?: WorldData): { state: SimState; world: WorldData } {
   // A generated world follows the rules; a prepared world (tests) keeps the params it was built with.
   const config = world ? cfg : syncWorldParams(cfg);
+  startCalendarTick(config); // refuses an invalid start (winter) before the world is generated
   const w = world ?? generateWorld(config.world);
   const state = initialState(config, w);
   const ctx: EntityCtx = { state, stores: createStores(state), emit: () => {}, world: w };

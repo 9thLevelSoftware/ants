@@ -11,7 +11,8 @@ import type { ObjectTemplate, PlaceOptions } from './template';
 import { placeObject } from './template';
 import { poissonDisk } from './poisson';
 import { inZones } from './terrainEdit';
-import type { BudgetCategory } from '../tuning/pipeline';
+import { PLACE, type BudgetCategory } from '../tuning/pipeline';
+import type { Rect } from '../layout/types';
 
 export interface PlacementTable {
   /** Table id (also the RNG label suffix: `wg/<step>/<id>`). */
@@ -33,15 +34,25 @@ export interface PlacementTable {
   max?: number;
 }
 
-/** Eligible area of a table, m^2 (terrain cells of its zones). */
-export function tableAreaM2(ctx: GenContext, t: PlacementTable): number {
+/** Eligible area of a table, m^2 (terrain cells of its zones), and the bounding rect of those cells, mm. */
+function tableExtent(ctx: GenContext, t: PlacementTable): { areaM2: number; rect: Rect | null } {
   const { cell, cells } = ctx.dims;
   const ok = new Uint8Array(ctx.layout.zones.length);
   for (const z of ctx.layout.zones) ok[z.id] = t.zones.includes(z.type) && (!t.variants || t.variants.includes(z.variant)) ? 1 : 0;
-  let n = 0;
+  let n = 0, i0 = cells, i1 = -1, k0 = cells, k1 = -1;
   const c = ctx.layout.cells;
-  for (let i = 0; i < cells * cells; i++) n += ok[c[i]];
-  return (n * cell * cell) / 1e6;
+  for (let k = 0; k < cells; k++) for (let i = 0; i < cells; i++) {
+    if (!ok[c[k * cells + i]]) continue;
+    n++;
+    if (i < i0) i0 = i; if (i > i1) i1 = i; if (k < k0) k0 = k; if (k > k1) k1 = k;
+  }
+  const rect = n > 0 ? { x0: i0 * cell, z0: k0 * cell, x1: (i1 + 1) * cell, z1: (k1 + 1) * cell } : null;
+  return { areaM2: (n * cell * cell) / 1e6, rect };
+}
+
+/** Eligible area of a table, m^2 (terrain cells of its zones). */
+export function tableAreaM2(ctx: GenContext, t: PlacementTable): number {
+  return tableExtent(ctx, t).areaM2;
 }
 
 /** Density multiplier per category so expected counts fit the remaining budgets. */
@@ -60,14 +71,16 @@ export function thinning(ctx: GenContext, tables: readonly PlacementTable[]): Re
 export function placeTables(ctx: GenContext, step: string, tables: readonly PlacementTable[]): Record<string, number> {
   const thin = thinning(ctx, tables);
   const placed: Record<string, number> = {};
-  const full = { x0: 0, z0: 0, x1: ctx.dims.size, z1: ctx.dims.size };
   for (const t of tables) {
     const label = `wg/${step}/${t.id}`;
+    const { areaM2: area, rect } = tableExtent(ctx, t);
+    const wanted = t.densityPerM2 * thin[t.category];
+    if (!rect || !(wanted > 0)) { placed[t.id] = 0; continue; }
     const accept = (x: number, z: number) => inZones(ctx, x, z, t.zones, t.variants) && (!t.eligible || t.eligible(ctx, x, z));
-    const pts = poissonDisk(ctx.rng(label), full, t.spacingMm, accept);
-    const area = tableAreaM2(ctx, t);
+    const spacing = Math.max(t.spacingMm, Math.sqrt(PLACE.tableFill / (wanted / 1e6)));
+    const pts = poissonDisk(ctx.rng(label), rect, spacing, accept);
     const poissonDensity = area > 0 ? pts.length / area : 0;
-    const p = poissonDensity > 0 ? (t.densityPerM2 * thin[t.category]) / poissonDensity : 0;
+    const p = poissonDensity > 0 ? wanted / poissonDensity : 0;
     const choose = ctx.rng(`${label}/accept`);
     let n = 0;
     for (let i = 0; i < pts.length; i++) {

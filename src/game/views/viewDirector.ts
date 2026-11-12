@@ -49,9 +49,6 @@ export interface CameraOptions {
 }
 
 const ZERO2 = { x: 0, y: 0 };
-/** Run-out of the observer's follow-loss hold: steps of the rig's own dt cap, enough for its 2 s hold. */
-const HOLD_RUNOUT_DT = 0.25;
-const HOLD_RUNOUT_STEPS = 16;
 
 export class ViewDirector {
   readonly third: ThirdPersonRig;
@@ -143,10 +140,7 @@ export class ViewDirector {
     this.following = false;
   }
 
-  /**
-   * Player-chosen free fly from above a point. The rig's follow-loss hold (2 s at the last position, meant for a
-   * followed entity that disappeared) is run out first so it cannot overwrite the new pose.
-   */
+  /** Player-chosen free fly from above a point (no follow-loss hold: that is for an entity that disappeared). */
   freeFlyAbove(p: Vec3): void {
     this.stopFollowing();
     this.placeObserverAbove(p);
@@ -159,10 +153,8 @@ export class ViewDirector {
   }
 
   private stopFollowing(): void {
-    this.unfollow();
-    const env = { trace: this.world.trace, groundHeight: this.world.groundHeight };
-    const still = { yawDeg: 0, pitchDeg: 0, zoomLog: 0, move: ZERO2, vertical: 0, fast: false };
-    for (let i = 0; i < HOLD_RUNOUT_STEPS && this.observer.update(HOLD_RUNOUT_DT, still, env).mode === 'hold'; i++);
+    this.observer.stopFollow();
+    this.following = false;
   }
 
   /** Update the followed / possessed subject (each frame; the rigs keep a reference to the copy). */

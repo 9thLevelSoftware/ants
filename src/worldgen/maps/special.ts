@@ -4,6 +4,7 @@
 import type { SpeciesId } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import { mapState } from './state';
+import { markDisc } from './nav';
 import { SUIT } from '../tuning/maps';
 
 /** Volume of a primitive's bounding solid, mm^3 (box/ellipsoid/cylinder/capsule formulas). */
@@ -16,48 +17,61 @@ function primVolume(s: { x: number; y: number; z: number }, shape: string): numb
   }
 }
 
+/**
+ * Adds `value(item)` to every nav cell whose centre lies within r of the item (a disc splat: cost per item, not
+ * per cell x item, so thousands of plant primitives stay cheap).
+ */
+function splat<T extends { x: number; z: number }>(ctx: GenContext, items: readonly T[], r: number, value: (t: T) => number): Float32Array {
+  const { navN } = ctx.dims;
+  const out = new Float32Array(navN * navN);
+  for (const it of items) {
+    const v = value(it);
+    markDisc(ctx, it.x, it.z, r, (c) => { out[c] += v; });
+  }
+  return out;
+}
+
 /** Per-nav-cell fSpecial of a species (0..1). */
 export function specialFactor(ctx: GenContext, species: SpeciesId): (c: number) => number {
-  const { navN, navCell, bu } = ctx.dims;
+  const { navCell, bu } = ctx.dims;
   const w = ctx.world;
-  const centre = (c: number) => ({ x: ((c % navN) + 0.5) * navCell, z: (Math.floor(c / navN) + 0.5) * navCell });
   if (species === 'camponotus-pennsylvanicus') {
-    const wood = w.prims.filter((p) => p.material === 'wood-decayed');
-    const r = SUIT.woodRadiusBu * bu, need = SUIT.woodVolumeBu3 * bu * bu * bu;
-    return (c) => {
-      if (wood.length === 0) return 0;
-      const p = centre(c);
-      let v = 0;
-      for (const q of wood) if ((q.pos.x - p.x) ** 2 + (q.pos.z - p.z) ** 2 <= r * r) v += primVolume(q.size, q.shape);
-      return Math.min(1, v / need);
-    };
+    const wood = w.prims.filter((p) => p.material === 'wood-decayed').map((p) => ({ x: p.pos.x, z: p.pos.z, v: primVolume(p.size, p.shape) }));
+    const need = SUIT.woodVolumeBu3 * bu * bu * bu;
+    const vol = splat(ctx, wood, SUIT.woodRadiusBu * bu, (q) => q.v);
+    return (c) => Math.min(1, vol[c] / need);
   }
   if (species === 'messor-barbarus') {
     const shade = mapState(ctx).shade.mean;
-    const seeds = w.placements.foodAnchors.filter((a) => a.kind === 'seed');
-    const r = SUIT.seedRadiusBu * bu;
-    return (c) => {
-      if (shade[c] >= SUIT.seedOpenShade) return 0;
-      const p = centre(c);
-      let n = 0;
-      for (const a of seeds) if ((a.pos.x - p.x) ** 2 + (a.pos.z - p.z) ** 2 <= r * r) n++;
-      return Math.min(1, n * SUIT.seedEach);
-    };
+    const seeds = w.placements.foodAnchors.filter((a) => a.kind === 'seed').map((a) => ({ x: a.pos.x, z: a.pos.z }));
+    const count = splat(ctx, seeds, SUIT.seedRadiusBu * bu, () => 1);
+    return (c) => (shade[c] >= SUIT.seedOpenShade ? 0 : Math.min(1, count[c] * SUIT.seedEach));
   }
   if (species === 'atta-texana') {
-    const plants = w.prims.filter((p) => p.material === 'plant');
-    const r = SUIT.leafRadiusBu * bu, clear = SUIT.pavingClearBu * bu;
-    const lay = ctx.layout;
-    return (c) => {
-      const p = centre(c);
-      const ci = c % navN, ck = Math.floor(c / navN), cr = Math.ceil(clear / navCell);
-      for (let k = Math.max(0, ck - cr); k <= Math.min(navN - 1, ck + cr); k++)
-        for (let i = Math.max(0, ci - cr); i <= Math.min(navN - 1, ci + cr); i++)
-          if (lay.zones[lay.nav[k * navN + i]].type === 'pavement') return 0;
-      let n = 0;
-      for (const q of plants) if ((q.pos.x - p.x) ** 2 + (q.pos.z - p.z) ** 2 <= r * r) n++;
-      return Math.min(1, n / SUIT.leafPrimsFull);
-    };
+    const plants = w.prims.filter((p) => p.material === 'plant').map((p) => ({ x: p.pos.x, z: p.pos.z }));
+    const count = splat(ctx, plants, SUIT.leafRadiusBu * bu, () => 1);
+    const nearPaving = pavingWithin(ctx, Math.ceil((SUIT.pavingClearBu * bu) / navCell));
+    return (c) => (nearPaving[c] ? 0 : Math.min(1, count[c] / SUIT.leafPrimsFull));
   }
   return () => 0;
+}
+
+/** 1 where a pavement nav cell lies within r cells (Chebyshev square, as before), by a separable max filter. */
+function pavingWithin(ctx: GenContext, r: number): Uint8Array {
+  const { navN: n } = ctx.dims;
+  const lay = ctx.layout;
+  const pav = new Uint8Array(n * n);
+  for (let c = 0; c < n * n; c++) pav[c] = lay.zones[lay.nav[c]].type === 'pavement' ? 1 : 0;
+  const rows = new Uint8Array(n * n), out = new Uint8Array(n * n);
+  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+    let v = 0;
+    for (let d = Math.max(0, i - r); d <= Math.min(n - 1, i + r) && !v; d++) v = pav[k * n + d];
+    rows[k * n + i] = v;
+  }
+  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+    let v = 0;
+    for (let d = Math.max(0, k - r); d <= Math.min(n - 1, k + r) && !v; d++) v = rows[d * n + i];
+    out[k * n + i] = v;
+  }
+  return out;
 }

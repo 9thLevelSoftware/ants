@@ -12,6 +12,7 @@ The first ten minutes of every game, exactly as the brief describes: begin as a 
 `src/sim/colony/founding/**` (simulation side: founding state machine, reserves, site assessment read-out, time-lapse stepping and outcome), `src/game/flows/founding/**` (the flow driver: phases, camera choices, time-lapse control, skip), `src/ui/screens/founding/**` (intro card, site read-out, readiness indicator, time-lapse overlay), and `tests/e2e/founding.mjs`.
 
 ## Boundaries
+- Site quality ruling (`docs/02-design-directions.md` §K, last bullet): founding-site quality must discriminate; calibrate the suitability factors and word thresholds to the stated distribution targets, and place the queen start by the stated rule. The live assessment must call the same factor functions and thresholds as the static suitability map (import them; do not re-implement), so the overlay and the read-out always agree.
 - Use existing action primitives and module functions; if the founding rules need a function that is missing (for example a faster dig rate for the queen or automatic pellet expulsion), implement it inside your folder as a founding-phase rule that calls the owning module's public API, and report it.
 - Onboarding prompts in general are a later task; the prompts that belong to the founding script itself are yours.
 

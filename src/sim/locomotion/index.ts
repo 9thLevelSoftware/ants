@@ -249,6 +249,22 @@ export const invariants: readonly SimInvariant[] = [{
     for (const a of sim.state.ants) if (a.alive) test('ant', a.id, a.pos);
     for (const c of sim.state.creatures) if (c.alive) test('creature', c.id, c.pos);
   },
+}, {
+  // architecture §5 "no stuck-agent explosions": most walkers with a request must be making progress
+  name: 'walker-stuck-explosion',
+  check(sim, fail) {
+    const P = rt(sim).P, now = sim.state.tick, limit = P.stuckExplosionTicks;
+    let moving = 0, stuck = 0;
+    for (const a of sim.state.ants) {
+      const s = a.alive ? a.nav.loco : undefined;
+      if (!s || s.req === 'none' || s.req === 'wander' || a.nav.status !== 'moving') continue;
+      moving++;
+      if (now - Math.max(s.bestTick, s.reqTick) > limit) stuck++;
+    }
+    if (moving >= P.stuckExplosionMin && stuck > P.stuckExplosionFrac * moving) {
+      fail(`${stuck} of ${moving} moving walkers without progress for > ${limit} ticks`);
+    }
+  },
 }];
 
 export const commandHandlers: Partial<CommandHandlerMap> = {

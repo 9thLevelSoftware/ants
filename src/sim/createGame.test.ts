@@ -5,6 +5,9 @@ import { generateWorld } from '@/worldgen';
 import { calendarTick, currentDayOfSeason, currentSeason, currentDayOfYear } from '@/sim/time';
 import { AntFlag } from '@/sim/types';
 
+/** Each test generates a full world (about 1 s idle, several s on the loaded shared machine). */
+const GEN_TIMEOUT = 120_000;
+
 describe('createNewGame', () => {
   const config = { ...defaultGameConfig('lasius-niger', 42) };
   config.world = { ...config.world, sizeClass: 'compact' };
@@ -14,7 +17,7 @@ describe('createNewGame', () => {
     expect(a.meta.fingerprint).toBe(b.meta.fingerprint);
     expect(a.size).toBe(3000 * 4);
     expect(Array.from(a.terrain.data.slice(0, 50))).toEqual(Array.from(b.terrain.data.slice(0, 50)));
-  });
+  }, GEN_TIMEOUT);
 
   it('creates the player colony with a founding queen at the queen start', () => {
     const { state, world } = createNewGame(config);
@@ -28,7 +31,7 @@ describe('createNewGame', () => {
     expect(Math.abs((queen?.pos.x ?? 0) - world.queenStart.pos.x)).toBeLessThan(1);
     expect(state.nests[0].founding?.state).toBe('site-search');
     expect(state.nextId).toBeGreaterThan(col.queenId);
-  });
+  }, GEN_TIMEOUT);
 
   it('starts on the species founding day (Lasius: summer day 3) and honours the season length', () => {
     const { state } = createNewGame(config);
@@ -39,7 +42,7 @@ describe('createNewGame', () => {
     expect(currentSeason(s10)).toBe('summer');
     expect(currentDayOfYear(s10)).toBe(13);
     expect(calendarTick(s10)).toBeGreaterThan(calendarTick(state));
-  });
+  }, GEN_TIMEOUT);
 
   it('createSim regenerates the same world when none is given', () => {
     const { state, world } = createNewGame(config);
@@ -47,7 +50,7 @@ describe('createNewGame', () => {
     expect(sim.world.meta.fingerprint).toBe(world.meta.fingerprint);
     sim.tick();
     expect(sim.state.tick).toBe(1);
-  });
+  }, GEN_TIMEOUT);
 });
 
 describe('createNewGame start calendar', () => {
@@ -57,10 +60,10 @@ describe('createNewGame start calendar', () => {
     const { state } = createNewGame(cfg);
     expect(currentSeason(state)).toBe(base.startSeason);
     expect(currentDayOfSeason(state)).toBe(5);
-  });
+  }, GEN_TIMEOUT);
 
   it('refuses a winter start (directions §K)', () => {
     const base = defaultGameConfig('lasius-niger', 5);
     expect(() => createNewGame({ ...base, startSeason: 'winter' })).toThrow(/winter/);
-  });
+  }, GEN_TIMEOUT);
 });

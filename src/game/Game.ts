@@ -10,7 +10,8 @@ import {
 } from '@/render/app';
 import { createBrowserAssetLoader, type AssetLoader } from '@/render/assets';
 import { applyPose } from '@/render/camera';
-import { RenderRegistry, type FrameInfo } from '@/render';
+import { RenderRegistry, type FrameInfo, type HighlightRef } from '@/render';
+import { setLocoObserver } from '@/sim/locomotion';
 import type { Command, DirectivesPatch, MarkerKind, PlayerIntent, PossessRole, Sim, SpeedLevel } from '@/sim/types';
 import { WORLDGEN_MAX_ATTEMPTS } from '@/worldgen/tuning/pipeline';
 import { calendarTick, dayOf, TICKS_PER_DAY } from '@/sim/time';
@@ -32,6 +33,7 @@ import { SettingsStore, type SettingsPatch } from './settings/settings';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
 import { loadingPhases, type LoadingPhase } from './newGame/loading';
+import { UndergroundSwitch } from './undergroundSwitch';
 import { requestView, toggleColonyView, togglePhoto, type ViewSwitchHost } from './views/viewSwitch';
 
 export interface GameOptions {
@@ -103,6 +105,13 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Camera facts of the last rendered frame (summary, debug API). */
   lastFrame: { underground: boolean; possessionState: string | null; observerMode: string | null } = { underground: false, possessionState: null, observerMode: null };
   private loadToken = 0;
+  private readonly undergroundSw = new UndergroundSwitch();
+  /** LOD observer last given to locomotion (it is re-sent only when the focus moved). */
+  private readonly observerAt = { x: Number.NaN, y: 0, z: 0 };
+  private readonly focusBuf = { x: 0, y: 0, z: 0 };
+  /** Hover / inspect highlights (the views task sets them from picking; the debug API for now). */
+  hover: HighlightRef | null = null;
+  inspect: HighlightRef | null = null;
   readonly ready: Promise<void>;
   private resolveReady: () => void = () => {};
 
@@ -139,13 +148,13 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.dom = attachDomInput(this.input, { canvas: this.opts.canvas });
     this.input.contexts.setBase('UI');
     this.registry = new RenderRegistry({ forceDebug: this.opts.forceDebugRender });
-    this.registry.init({
+    const assetsReady = this.registry.init({
       renderer: this.app.renderer, scene: this.scene, camera: this.camera, quality: this.app.quality, assets: this.assets,
       game: { requestRender: () => this.requestRender(), testMode: this.opts.testMode }, setExposure: (ev) => this.app.setExposure(ev),
     });
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
-    await this.app.ready;
+    await Promise.all([this.app.ready, assetsReady]);
     this.refreshUi();
     this.resolveReady();
   }
@@ -185,6 +194,9 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       await show(phases.simulate);
       const sim = wake(resolved, created);
       await show(phases.render);
+      // the renderers build the world (textures, terrain, nest meshes) before the first frame of play
+      await this.registry.onGameStart(sim);
+      if (token !== this.loadToken) throw new Cancelled(); // the newer request (or endGame) owns the renderers now
       this.startPlaying(sim, resolved.view === 'possess');
       return { ok: true };
     } catch (e) {
@@ -199,9 +211,9 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   private startPlaying(sim: Sim, possessQueen: boolean): void {
     const session = new GameSession(sim, this.settings.get().camera);
+    this.observerAt.x = Number.NaN;
     session.driver.timer = () => performance.now();
     this.session = session;
-    this.registry.onGameStart(sim);
     this.loading = null;
     this.mode = 'playing';
     this.epitaph = null;
@@ -220,10 +232,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.loadToken++;
     if (this.session) {
       this.saves.quitting();
-      this.registry.onGameEnd();
       this.session.dispose();
       this.session = null;
     }
+    this.registry?.onGameEnd(); // also after a cancelled load whose world the renderers already built
     this.loading = null;
     if (toTitle) this.mode = 'title';
     this.input.contexts.setBase('UI');
@@ -295,17 +307,35 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const vf = settleS > 0 ? s.views.settle(settleS, TEST_CAMERA_SETTLE_DT) : s.views.update(dt, live);
     const canvas = this.opts.canvas;
     applyPose(this.camera, vf.pose, canvas.clientWidth / Math.max(1, canvas.clientHeight));
-    const underground = s.view === 'possess' && subject ? subject.underground : s.sim.field.substrate(this.camera.position) < 0;
+    const underground = this.undergroundSw.update(s.sim.field.substrate(this.camera.position), s.sim.world.bu, settleS > 0);
     this.app.setFocus(vf.focus, undefined, settleS > 0 || dt === 0);
     const pred = s.possessedId >= 0 && s.view === 'possess' && subject ? subject : null;
     const frame: FrameInfo = {
       dt, time: this.time, alpha, sim: s.sim, view: s.view, underground, camera: this.camera,
       viewportHeightPx: this.app.renderer.domElement.height, subject: subject ? subject.pos : null, possessedId: s.possessedId,
       possessedPose: pred, subjectOpacity: s.view === 'possess' ? vf.subjectOpacity : 1, cutaway: vf.cutaway,
+      fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion,
     };
     this.registry.update(frame);
+    this.updateLodObserver(s);
     this.lastFrame = { underground, possessionState: vf.possessionState, observerMode: vf.observerMode };
     return frame;
+  }
+
+  /** Locomotion's level-of-detail observer follows the camera focus (re-sent when it moved more than 1 BU). */
+  private updateLodObserver(s: GameSession): void {
+    const f = s.focus(this.focusBuf), o = this.observerAt;
+    if (Math.hypot(f.x - o.x, f.y - o.y, f.z - o.z) <= s.sim.world.bu) return; // NaN (first frame) never returns
+    o.x = f.x; o.y = f.y; o.z = f.z;
+    setLocoObserver(s.sim, f);
+  }
+
+  /** Switches the quality preset at runtime (renderer, post chain and every sub-renderer). */
+  setQuality(id: QualityId): void {
+    this.settings.set({ graphics: { quality: id } });
+    this.app.setQuality(this.presetFor(id));
+    this.registry.setQuality(this.app.quality);
+    this.requestRender();
   }
 
   /** Camera forward and up (world space, unit) for camera-relative movement. */
@@ -339,6 +369,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const s = this.session;
     if (s) this.renderScene(s, 0, this.realtime ? s.driver.clock.alpha : 1, settleS);
     this.app.renderFrame(0);
+    this.dirty = false;
+    if (this.opts.testMode) waitForGpu(this.app);
     this.refreshUi();
   }
 
@@ -543,6 +575,17 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.dom?.detach();
     this.app?.dispose();
   }
+}
+
+const onePixel = new Uint8Array(4);
+
+/**
+ * Blocks until the GPU has finished the frame (a 1-pixel read-back). Scripted test-mode renders call it so software
+ * GL never builds a backlog of heavy frames that would make the next screenshot time out (tech-stack 7).
+ */
+function waitForGpu(app: RenderApp): void {
+  const gl = app.renderer.getContext();
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, onePixel);
 }
 
 /** Lets the browser paint between loading phases (skipped in test mode for speed). */

@@ -21,6 +21,26 @@ export function digStimulus(sim: Sim, colonyId: number): number {
   return s;
 }
 
+/**
+ * Dig demand of a colony in worker-equivalents (GDD 02 §6.2 `digDemand` from the nest chapter): over the plans that
+ * offer slots, the occupied slots plus the free slots weighted by priority relative to 'normal' (so a normal plan
+ * asks for exactly its slots; the occupied ones keep counting, or allocation would pull its diggers away).
+ */
+export function digDemand(sim: Sim, colonyId: number): number {
+  let d = 0;
+  const norm = PLAN_PRIORITY_WEIGHT.normal;
+  for (const nest of sim.stores.nests.list) {
+    if (!nest.alive || nest.colony !== colonyId) continue;
+    for (const plan of nest.digPlans) {
+      if (!offersSlots(plan)) continue;
+      let free = 0;
+      for (const x of plan.slots) if (x.antId < 0) free++;
+      d += plan.slots.length - free + (free * PLAN_PRIORITY_WEIGHT[plan.priority]) / norm;
+    }
+  }
+  return d;
+}
+
 /** Haul stimulus of a colony: spoil-pile pellets + HAUL_CLUTTER_WEIGHT x clutter pellets in its nests. */
 export function haulStimulus(sim: Sim, colonyId: number): number {
   let s = 0;

@@ -15,9 +15,10 @@ import { TerrainRenderer } from '../terrain/terrainRenderer';
 import type { HoleProbe } from '../terrain/holeMask';
 import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, STARS_DOF_GAIN, UNDERGROUND } from './constants';
 import { LightingRig } from './lightingRig';
+import { HASH_SEED, hashNum, hashStr } from './signature';
 import {
   breachHoleProbe, breaches, carveView, createEnvSample, dynamicPrims, fieldHoleProbe, heightDeltaSignature, mounds,
-  movedStaticPrims, moonFromSun, objectMoves, readEnvironment, readWeather, staticPrims, sunFromCalendar, terrainSource, zoneMask, zoneTypeAt, type CarveView,
+  movedStaticPrims, moonFromSun, objectMoves, objectMovesSignature, readEnvironment, readWeather, staticPrims, sunFromCalendar, terrainSource, zoneMask, zoneTypeAt, type CarveView,
   type EnvSample,
 } from './simAdapter';
 import { computeLighting, createLightingState, hazeVisBU, type LightingState } from './timeOfDay';
@@ -62,6 +63,8 @@ export class WorldRenderer {
   private lastExposure = NaN;
   private wet = 0;
   private moved = new Map<number, import('@/sim/types').Primitive>();
+  /** objectMovesSignature the `moved` replacements were built for (NaN = rebuild). */
+  private movesSig = Number.NaN;
   private canopyTex: DataTexture | null = null;
   private camPos = new Vector3();
   private camDir = new Vector3();
@@ -106,6 +109,13 @@ export class WorldRenderer {
     this.attachSim(sim);
   }
 
+  /** The game ended: drops the world's meshes and textures and lets go of the sim (cancels a pending setWorld). */
+  clearWorld(): void {
+    this.worldGen++;
+    this.detachWorld();
+    this.terrain.clear();
+  }
+
   /** Canopy mask for the forest dapple: the forest zones, linearly filtered for soft edges. */
   private setCanopy(world: WorldData): void {
     this.canopyTex?.dispose();
@@ -130,6 +140,7 @@ export class WorldRenderer {
     if (this.mounds) { this.group.remove(this.mounds.group); this.mounds.dispose(); }
     this.prims.clear();
     this.moved.clear();
+    this.movesSig = Number.NaN;
   }
 
   /** Follows a (new) simulation for the same world: hole mask, dynamic primitives, mounds. */
@@ -223,7 +234,8 @@ export class WorldRenderer {
     this.skyMesh.position.copy(this.camPos);
     // real time for the throttle (the animation clock may be frozen); a settle frame (dt 0) bakes at once
     const nowS = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
-    const envKey = `${this.env.weather}|${Math.round(this.under * 4)}|${Math.round(this.env.cloud * 10)}|${Math.round(this.interior * 4)}`;
+    let envKey = hashStr(HASH_SEED, this.env.weather);
+    envKey = hashNum(hashNum(hashNum(envKey, Math.round(this.under * 4)), Math.round(this.env.cloud * 10)), Math.round(this.interior * 4));
     if (this.skyEnv.update(nowS, envKey, ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, dt === 0)) {
       this.ctx.scene.environment = this.skyEnv.texture;
     }
@@ -244,7 +256,9 @@ export class WorldRenderer {
     this.terrain.update(this.camPos.x, this.camPos.z);
     const hs = heightDeltaSignature(sim);
     if (hs !== this.heightSig) { this.heightSig = hs; this.terrain.updateHeights(terrainSource(this.world, sim).heights); }
-    this.prims.syncDynamic(dynamicPrims(sim), movedStaticPrims(this.world, objectMoves(sim), this.moved));
+    const moves = objectMoves(sim), movesSig = objectMovesSignature(moves);
+    if (movesSig !== this.movesSig) { this.movesSig = movesSig; movedStaticPrims(this.world, moves, this.moved); }
+    this.prims.syncDynamic(dynamicPrims(sim), this.moved);
     this.prims.setBreaches(breaches(sim), this.camPos);
     this.prims.update(this.camPos, this.primCullMm());
     this.mounds.sync(mounds(sim));

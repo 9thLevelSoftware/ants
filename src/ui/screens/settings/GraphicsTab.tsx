@@ -3,35 +3,10 @@
 // fullscreen. Choosing a preset clears the individual overrides so the preset's own values apply; the controls
 // show the values in effect (override, else the preset's).
 import { useState } from 'preact/hooks';
-import { getPreset, type GraphicsOverrides, type QualityId, type QualitySetting } from '@/render/app/quality';
+import type { GraphicsOverrides, QualitySetting } from '@/render/app/quality';
 import { Button, Field, SegmentedControl, Slider, Toggle } from '../../components';
+import { effectiveGraphics } from './graphicsModel';
 import { useGameSettings } from './useSettings';
-
-export interface EffectiveGraphics {
-  resolutionScale: number;
-  dynamicResolution: boolean;
-  targetFps: 30 | 60;
-  depthOfField: 'off' | 'subtle' | 'full';
-  haze: boolean;
-  shadows: 'off' | 'low' | 'high';
-  density: number;
-}
-
-/** What the controls show: the player's override when set, otherwise what the preset does. */
-export function effectiveGraphics(quality: QualitySetting, o: GraphicsOverrides): EffectiveGraphics {
-  const id: QualityId = quality === 'auto' ? 'medium' : quality;
-  const p = getPreset(id);
-  const dofOn = p.post.enabled && p.post.dof.enabled;
-  return {
-    resolutionScale: o.resolutionScale ?? p.resolutionScale,
-    dynamicResolution: o.dynamicResolution ?? p.dynamicResolution.enabled,
-    targetFps: o.targetFps ?? (p.dynamicResolution.targetFps >= 45 ? 60 : 30),
-    depthOfField: o.depthOfField ?? (dofOn ? 'full' : 'off'),
-    haze: o.haze ?? p.fog.enabled,
-    shadows: o.shadows ?? (p.shadows.enabled ? (p.shadows.mapSize >= 2048 ? 'high' : 'low') : 'off'),
-    density: Math.min(1, o.density ?? p.density.grass),
-  };
-}
 
 const QUALITY_OPTIONS = [
   { value: 'auto', label: 'Auto' }, { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }, { value: 'ultra', label: 'Ultra' },

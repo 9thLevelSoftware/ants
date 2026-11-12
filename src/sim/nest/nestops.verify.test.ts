@@ -142,11 +142,9 @@ describe('nestops review: persistence of derived nav fields', () => {
 
   // DEFECT (same root cause): D_seal is seeded at the plug voxels by nestops (navFields.refreshNestFields), but a
   // load re-seeds it at the entrance positions (registerNestTargets), so D_seal distances differ after a load.
-  // FIXER: right after createSim (no tick yet) only services.ts code has run, and it calls registerNestTargets alone
-  // (not nestops' file). nestops now exports registerNestFields for createServices; until that one-line change
-  // lands this assertion still fails, hence `it.fails` (it flips to a failure once the hook is called: then make it
-  // a plain `it`). The two tests below cover the fix in nestops' own paths.
-  it.fails('D_seal of a sealed entrance is the same after save / load (straight after createSim)', () => {
+  // Straight after createSim (no tick yet) only services.ts has run: since the Stage 1A gate createServices calls
+  // registerNestFields, so this holds before the first tick (it was `it.fails` until that hook was wired).
+  it('D_seal of a sealed entrance is the same after save / load (straight after createSim)', () => {
     const { sim, nest, room, seal, before } = sealedNest();
     const back = createSim(restore(snapshot(sim)).state, sim.world, { systems: SYSTEMS });
     expect(back.nestNav.distance(nest.id, seal, room)).toBeCloseTo(before, 6);

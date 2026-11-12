@@ -45,8 +45,6 @@ export class AutosavePolicy {
   private lastSavedTick = -1;
   private retryAtClockS = -1;
   private failures = 0;
-  /** Real seconds the interval autosave has been due and waiting (combat deferral is capped by it). */
-  private dueForS = 0;
 
   constructor(opts: { intervalS?: number; enabled?: boolean } = {}) {
     if (opts.intervalS !== undefined) this.intervalS = opts.intervalS;
@@ -63,7 +61,6 @@ export class AutosavePolicy {
     const dt = Math.max(0, f.dtS);
     this.clockS += dt;
     if (f.playing && f.visible) this.playedS += dt;
-    this.dueForS = this.secondsToNext() <= 0 ? this.dueForS + dt : 0;
   }
 
   /** Real seconds until the interval autosave falls due (Infinity when there is none). Drives the thumbnail pre-capture. */
@@ -71,6 +68,11 @@ export class AutosavePolicy {
     if (!this.enabled || this.disabled || this.intervalS <= 0) return Infinity;
     if (this.retryAtClockS >= 0) return Math.max(0, this.retryAtClockS - this.clockS);
     return Math.max(0, this.intervalS - this.playedS);
+  }
+
+  /** Real seconds the interval autosave has been due and waiting (the combat deferral is capped by it). */
+  private overdueS(): number {
+    return Math.max(0, this.retryAtClockS >= 0 ? this.clockS - this.retryAtClockS : this.playedS - this.intervalS);
   }
 
   /** True when a thumbnail should be captured now so the coming autosave can reuse it. */
@@ -82,7 +84,7 @@ export class AutosavePolicy {
   poll(ctx: PolicyContext): AutosaveLabel | null {
     if (this.secondsToNext() > 0) return null;
     if (ctx.block) return null; // stays due until the block lifts
-    if (ctx.combat && this.dueForS < AUTOSAVE_DEFER_MAX_S) return null;
+    if (ctx.combat && this.overdueS() < AUTOSAVE_DEFER_MAX_S) return null;
     if (this.clockS - this.lastAttemptClockS < AUTOSAVE_MIN_GAP_S) return null;
     if (ctx.tick === this.lastSavedTick) { this.playedS = 0; this.retryAtClockS = -1; return null; } // nothing new to save
     this.markAttempt();
@@ -105,7 +107,6 @@ export class AutosavePolicy {
   private markAttempt(): void {
     this.lastAttemptClockS = this.clockS;
     this.playedS = 0;
-    this.dueForS = 0;
     this.retryAtClockS = -1;
   }
 
@@ -130,7 +131,6 @@ export class AutosavePolicy {
     this.playedS = 0;
     this.lastSavedTick = -1;
     this.retryAtClockS = -1;
-    this.dueForS = 0;
   }
 
   /** Re-enables autosave (the player exported or fixed storage and pressed "try again"). */

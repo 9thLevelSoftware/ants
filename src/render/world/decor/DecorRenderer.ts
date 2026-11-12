@@ -148,7 +148,7 @@ export class DecorRenderer {
     const g = this.ground;
     if (!g) return;
     this.frameNo++;
-    const cam = this.ctx.camera, q = this.ctx.quality, bu = g.bu;
+    const cam = this.ctx.camera, q = this.ctx.quality;
     const sim = frame.sim ?? this.sim;
     if (sim !== this.sim) { this.sim = sim ?? null; g.setSim(this.sim); }
     const cx = cam.matrixWorld.elements[12], cy = cam.matrixWorld.elements[13], cz = cam.matrixWorld.elements[14];

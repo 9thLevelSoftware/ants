@@ -120,11 +120,11 @@ export class TerrainRenderer {
     if (!this.src || !this.levels.length) return;
     const tq = TERRAIN_QUALITY[this.quality.id];
     layoutClipmap(camX, camZ, this.src.cell * tq.spacingCells, tq.gridQuads, this.levels.length, this.layout);
-    this.levels.forEach((l, i) => {
-      const lv = this.layout.levels[i];
+    for (let i = 0; i < this.levels.length; i++) {
+      const l = this.levels[i], lv = this.layout.levels[i];
       l.u.uWrLevel.value.set(lv.originX, lv.originZ, lv.spacing, lv.n);
       l.u.uWrInner.value.set(lv.innerX0, lv.innerZ0, lv.innerX1, lv.innerZ1);
-    });
+    }
     this.holeMask?.update(tq.holeTilesPerFrame, camX, camZ);
   }
 
@@ -152,8 +152,13 @@ export class TerrainRenderer {
     this.holeMask = null;
   }
 
-  dispose(): void {
+  /** Drops the current world (end of a game): nothing is drawn until the next setSource. */
+  clear(): void {
     this.disposeWorld();
     this.src = null;
+  }
+
+  dispose(): void {
+    this.clear();
   }
 }

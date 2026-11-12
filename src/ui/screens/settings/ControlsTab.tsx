@@ -2,26 +2,13 @@
 // back to the game through GameFacade.getBindings / setBindings; without them the table works on a local copy that
 // is kept in localStorage `foundress.bindings.v1` (the key the input module names) so rebinding still persists.
 import { useState } from 'preact/hooks';
-import { ACTIONS, BINDINGS_STORAGE_KEY, defaultBindings, parseBindings, resetAll, serializeBindings, type ActionDef, type BindingSet } from '@/input';
+import { BINDINGS_STORAGE_KEY, defaultBindings, parseBindings, resetAll, serializeBindings, type BindingSet } from '@/input';
 import { Button, ConfirmDialog, Field, SegmentedControl, Slider, Toggle, setCurrentBindings } from '../../components';
 import { Icon } from '../../icons';
 import { facade } from '../../store';
-import { contextName } from './captureBinding';
+import { groupActions } from './bindingGroups';
 import { KeybindRow } from './KeybindRow';
 import { useGameSettings } from './useSettings';
-
-/** Display order of the groups (GDD 01 5: contexts). */
-const GROUP_ORDER = ['G', 'P', 'O', 'C', 'Ph', 'TL', 'UI'] as const;
-const GROUP_TITLES: Record<string, string> = {
-  G: 'Everywhere', P: 'Possession', O: 'Observer', C: 'Colony view', Ph: 'Photo mode', TL: 'Time-lapse', UI: 'Menus',
-};
-
-/** Actions grouped by their first context, in the table's display order. */
-export function groupActions(actions: readonly ActionDef[] = ACTIONS): { id: string; title: string; actions: ActionDef[] }[] {
-  const out = GROUP_ORDER.map((id) => ({ id: id as string, title: GROUP_TITLES[id] ?? contextName(id), actions: [] as ActionDef[] }));
-  for (const a of actions) out.find((g) => g.id === a.contexts[0])?.actions.push(a);
-  return out.filter((g) => g.actions.length > 0);
-}
 
 function loadLocalBindings(): BindingSet {
   try {
@@ -55,7 +42,7 @@ export function writeBindings(set: BindingSet): void {
 export function ControlsTab() {
   const [settings, setSettings] = useGameSettings();
   const [bindings, setBindings] = useState<BindingSet>(() => readBindings());
-  const [open, setOpen] = useState<Record<string, boolean>>({ G: true, P: true });
+  const [open, setOpen] = useState<Record<string, boolean>>({ G: true });
   const [confirmReset, setConfirmReset] = useState(false);
   if (!settings) return <p class="ui-notice">Settings are not available yet.</p>;
   const c = settings.controls;

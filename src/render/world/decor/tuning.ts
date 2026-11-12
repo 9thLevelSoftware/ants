@@ -134,7 +134,7 @@ export const LEAF = {
 export const NEEDLE = { density: 2000, lengthMm: [40, 150] as const, widthMm: 1 } as const;
 
 /** decor-petal [T2]: within 1.5 m of flowering shrubs and fruit trees, 8-20 mm, 80/m² in spring doy 2-6. */
-export const PETAL = { density: 80, sizeMm: [8, 20] as const, radiusMm: 1500, doy: [2, 6] as const } as const;
+export const PETAL = { density: 80, sizeMm: [8, 16] as const, radiusMm: 1500, doy: [2, 6] as const } as const;
 
 /** decor-litter: pavement, asphalt, playground; 0.05/m², 0.5/m² within 1 m of bins; wrappers 50-150 mm. */
 export const LITTER = { density: 0.05, binDensity: 0.5, binRadiusMm: 1000, sizeMm: [50, 150] as const, receiptShare: 0.35 } as const;

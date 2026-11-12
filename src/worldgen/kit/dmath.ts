@@ -32,6 +32,7 @@ export function dcos(a: number): number {
 /** Natural logarithm for x > 0 (relative error < 1e-12): x = m 2^e, ln m by the atanh series. */
 export function dlog(x: number): number {
   if (!(x > 0)) return x === 0 ? -Infinity : NaN;
+  if (x === Infinity) return Infinity; // the range reduction below would never end
   let e = 0;
   let m = x;
   while (m >= 2) { m *= 0.5; e++; }

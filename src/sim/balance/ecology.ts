@@ -1,5 +1,5 @@
 // Ecology balance (GDD 05). Sections are owned by different tasks: keep each inside its own block.
-// Not re-exported from balance/index.ts yet (that file is not owned here): import from '@/sim/balance/ecology'.
+// Re-exported from balance/index.ts (Stage 1A gate).
 
 import type { CarrionStage, DifficultyId, FoodKind, FoodVariant, ItemKind, Season, ZoneType } from '@/sim/types';
 

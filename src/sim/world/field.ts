@@ -630,29 +630,36 @@ function copy3(o: Vec3, a: Vec3): void {
 
 /** Adds the overlays' bilinear heights and slopes at (x, z) to T (allocation-free). */
 function addOverlays(list: HeightOverlay[], x: number, z: number, T: HeightSlope): void {
-  for (let n = 0; n < list.length; n++) {
-    const o = list[n], inv = 1 / o.cell;
-    const fx = (x - o.x0) * inv, fz = (z - o.z0) * inv;
-    if (!(fx >= 0 && fz >= 0 && fx < o.nx - 1 && fz < o.nz - 1)) continue;
-    const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
-    const i = ix + iz * o.nx, d = o.h;
-    const a = d[i], b = d[i + 1], c = d[i + o.nx], e = d[i + o.nx + 1];
-    const cross = a - b - c + e;
-    T.h += a + (b - a) * tx + (c - a) * tz + cross * tx * tz;
-    T.gx += ((b - a) + cross * tz) * inv;
-    T.gz += ((c - a) + cross * tx) * inv;
-  }
+  for (let n = 0; n < list.length; n++) addOverlay(list[n], x, z, T);
 }
+
+/** Adds one overlay's bilinear height and slope at (x, z) to T; false (T unchanged) outside its grid. */
+function addOverlay(o: HeightOverlay, x: number, z: number, T: HeightSlope): boolean {
+  const inv = 1 / o.cell;
+  const fx = (x - o.x0) * inv, fz = (z - o.z0) * inv;
+  if (!(fx >= 0 && fz >= 0 && fx < o.nx - 1 && fz < o.nz - 1)) return false;
+  const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
+  const i = ix + iz * o.nx, d = o.h;
+  const a = d[i], b = d[i + 1], c = d[i + o.nx], e = d[i + o.nx + 1];
+  const cross = a - b - c + e;
+  T.h += a + (b - a) * tx + (c - a) * tz + cross * tx * tz;
+  T.gx += ((b - a) + cross * tz) * inv;
+  T.gz += ((c - a) + cross * tx) * inv;
+  return true;
+}
+
+/** Scratch of overlayMaterialAt (materialAt runs per bite, per diggability query and per pellet lookup). */
+const OVERLAY_SCRATCH: HeightSlope = { h: 0, gx: 0, gz: 0 };
 
 /** Material of the overlay contributing the most height at (x, z), null if none with a material covers it. */
 function overlayMaterialAt(list: HeightOverlay[], x: number, z: number): MaterialId | null {
-  const T: HeightSlope = { h: 0, gx: 0, gz: 0 };
+  const T = OVERLAY_SCRATCH;
   let best = 0, mat: MaterialId | null = null;
-  for (const o of list) {
+  for (let n = 0; n < list.length; n++) {
+    const o = list[n];
     if (o.material === null) continue;
     T.h = 0;
-    addOverlays([o], x, z, T);
-    if (T.h > best) { best = T.h; mat = o.material; }
+    if (addOverlay(o, x, z, T) && T.h > best) { best = T.h; mat = o.material; }
   }
   return mat;
 }

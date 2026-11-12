@@ -12,7 +12,8 @@ export { Modal, ConfirmDialog, type ModalProps, type ConfirmDialogProps } from '
 export { Tooltip, type TooltipProps } from './Tooltip';
 export { Card, RadioCards, type CardProps, type RadioCardsProps, type RadioCardOption } from './Card';
 export { List, ListItem, type ListProps, type ListItemProps } from './List';
-export { ProgressBar, stageIndex, type ProgressBarProps } from './ProgressBar';
+export { ProgressBar, type ProgressBarProps } from './ProgressBar';
+export { stageIndex } from './logic/stages';
 export { Meter, type MeterProps, type MeterSegment, type MeterTone } from './Meter';
 export { KeyHint, KeyCap, currentBindings, setCurrentBindings, hintLabel, type KeyHintProps } from './KeyHint';
 export { AlertItem, type AlertItemProps } from './Toast';

@@ -56,9 +56,12 @@ function digSamplePoint(sim: Sim, contact: Vec3, out: Vec3): Vec3 {
 
 const sp = { x: 0, y: 0, z: 0 };
 
-/** digSpeed(material, moisture) at the bite: the field's species diggability there. */
+/**
+ * digSpeed at the bite (GDD 03 §2.1, §2.2): the nest module's substrate rule at the sample point inside the
+ * solid, which includes moisture, LOOSE fill and mound piles, and crusts (the bare field diggability does not).
+ */
 export function digSpeedAt(sim: Sim, ant: Ant, contact: Vec3): number {
-  return sim.field.diggability(digSamplePoint(sim, contact, sp), speciesIdOf(sim, ant));
+  return ports.nestDigSpeedAt(sim, speciesIdOf(sim, ant), digSamplePoint(sim, contact, sp));
 }
 
 /** Horizontal unit heading for the ramp brush; on a wall facing up or down, into the wall. */

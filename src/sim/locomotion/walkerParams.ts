@@ -1,6 +1,6 @@
 // Surface-walker tuning, in BU so it scales with the species (values that worked in the nest spike at BU = 4,
 // docs/research/spike-nest.md §4). Physical constants (gravity, drag) are absolute.
-// TODO(integration): re-export from src/sim/balance once that module exists (kernel did not own it).
+// Re-exported from src/sim/balance (balance/kernel.ts).
 
 export const WALKER_TUNING = {
   /** Default level-set offset (body-centre height above the surface). The walker's own footOffset wins. */

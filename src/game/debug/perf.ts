@@ -15,5 +15,7 @@ export function gamePerf(app: RenderApp, registry: RenderRegistry, s: GameSessio
     effectiveSpeed: s ? r2(s.driver.speedReport().effective) : null,
     ants: s ? s.sim.state.ants.reduce((n, a) => n + (a.alive ? 1 : 0), 0) : 0,
     renderers: registry.stats(),
+    /** GPU resources three.js holds (leak checks across quality switches and games). */
+    memory: { geometries: app.renderer.info.memory.geometries, textures: app.renderer.info.memory.textures, programs: app.renderer.info.programs?.length ?? 0 },
   };
 }

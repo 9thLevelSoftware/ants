@@ -1,11 +1,11 @@
 // Select (GDD 08 2.7): a button that opens a listbox popover. Arrow keys move, Enter / Space choose, Esc closes
 // (and is swallowed so it does not also close the screen), type-ahead jumps by first letters. The popover is
 // position: fixed so scroll containers cannot clip it.
-import { useEffect, useId, useRef, useState } from 'preact/hooks';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../icons';
 import { cx } from './cx';
 import { useFieldA11y } from './Field';
-import { pushBack } from './logic/escapeStack';
+import { BACK_LEVEL, pushBack } from './logic/escapeStack';
 import { groupNext } from './logic/groupNav';
 import { typeaheadNext, type TypeaheadState } from './logic/typeahead';
 
@@ -47,7 +47,7 @@ export function Select<T extends string | number>(p: SelectProps<T>) {
     close();
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const b = button.current;
     if (b) {
@@ -57,8 +57,7 @@ export function Select<T extends string | number>(p: SelectProps<T>) {
       setPos({ left: r.left, top: up ? r.top : r.bottom, width: r.width, up });
     }
     setActive(selected);
-    list.current?.focus({ preventScroll: true });
-    const off = pushBack(() => close());
+    const off = pushBack(() => close(), BACK_LEVEL.popover);
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node;
       if (!list.current?.contains(t) && !button.current?.contains(t)) close(false);
@@ -67,6 +66,9 @@ export function Select<T extends string | number>(p: SelectProps<T>) {
     return () => { off(); window.removeEventListener('pointerdown', onDown, true); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // the popover mounts once its position is known; focus it then so the keys reach the listbox
+  useEffect(() => { if (open && pos) list.current?.focus({ preventScroll: true }); }, [open, pos]);
 
   useEffect(() => {
     if (open) list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });

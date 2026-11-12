@@ -11,6 +11,11 @@ export const AUTOSAVE_MIN_GAP_S = 5;
 export const AUTOSAVE_RETRY_S = 30;
 /** An autosave blocked by combat of the possessed ant is deferred at most this long (GDD 08 §7.6). */
 export const AUTOSAVE_DEFER_MAX_S = 30;
+/**
+ * The intro card blocks autosave only while the game is this young (ticks). The card is shown at the very start; if
+ * the opening module has not left the `intro-card` phase by then, autosave must not stay blocked for ever.
+ */
+export const INTRO_CARD_BLOCK_TICKS = 600;
 /** Number of generations in the `auto` ring (00-index B6, E-84). */
 export const AUTO_RING_SIZE = 3;
 /** Manual slots `slot-1`..`slot-N`. */

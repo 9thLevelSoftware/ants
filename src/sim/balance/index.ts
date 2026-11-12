@@ -13,3 +13,9 @@ export * from './progression';
 export * from './cadence';
 export * from './difficulty';
 export * from './kernel';
+// Stage 1A modules (added by the integration gate): every tunable reachable from here.
+export * from './actions';
+export * from './ecology';
+export * from './nestTemplates';
+export * from './pheromone';
+export * from './locomotion';

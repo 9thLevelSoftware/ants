@@ -4,6 +4,8 @@
 import type { Command, PlayerIntent, PossessRole, SpeedLevel, TargetRef } from '@/sim/types';
 import { ACTION_IDS } from '@/sim/types';
 import type { Vec3 } from '@/core';
+import type { HighlightRef } from '@/render';
+import { isQualityId } from '@/render/app';
 import { stateHash } from '@/sim/save/hash';
 import { cameraRelativeDir, sanitizeDir } from '../intent/cameraRelative';
 import type { Game } from '../Game';
@@ -195,6 +197,21 @@ export function createDebugApi(game: Game) {
       summary: () => plain(game.input.debugSummary()),
     },
     perf() { return game.perf(); },
+    /** Quality preset now (no argument) or switch it at runtime ('test' | 'low' | 'medium' | 'high' | 'ultra'). */
+    quality(id?: string) {
+      if (id !== undefined) {
+        if (!isQualityId(id)) return { ok: false, reason: `unknown quality '${id}'`, quality: game.app.quality.id };
+        game.setQuality(id);
+      }
+      return { ok: true, quality: game.app.quality.id, post: game.app.quality.post.enabled, shadows: game.app.quality.shadows.enabled };
+    },
+    /** Hover / inspect highlight targets ({kind: 'ant' | 'brood' | 'item', id}); null clears; undefined keeps. */
+    highlight(hover?: HighlightRef | null, inspect?: HighlightRef | null) {
+      if (hover !== undefined) game.hover = hover;
+      if (inspect !== undefined) game.inspect = inspect;
+      game.requestRender();
+      return plain({ hover: game.hover, inspect: game.inspect });
+    },
     dispose() { game.dispose(); },
   };
   return api;

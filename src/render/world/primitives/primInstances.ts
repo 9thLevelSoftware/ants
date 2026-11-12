@@ -1,6 +1,7 @@
 // Primitive -> instance data (pure, tested): which shared geometry draws it, its per-instance size vector, tint
 // colour, bounding radius, and the bucket key it batches under.
 import type { Primitive } from '@/sim/types';
+import { HASH_SEED, hashNum, hashStr } from '../lighting/signature';
 
 export type GeomKind = 'box' | 'cyl' | 'sphere';
 /** Levels of detail: detailed near the camera, coarse farther, and a minimal shape for primitives a few pixels big. */
@@ -78,7 +79,12 @@ export function lodFor(p: Primitive, radius: number, cx: number, cy: number, cz:
   return lodAt(Math.hypot(p.pos.x - cx, p.pos.y - cy, p.pos.z - cz) - radius, radius, nearMm);
 }
 
-/** Change signature of a primitive (everything that affects drawing). */
-export function primSignature(p: Primitive): string {
-  return `${p.shape}|${p.pos.x}|${p.pos.y}|${p.pos.z}|${p.rot.x}|${p.rot.y}|${p.rot.z}|${p.rot.w}|${p.size.x}|${p.size.y}|${p.size.z}|${p.round}|${p.material}|${p.flags}|${p.tint ?? ''}`;
+/** Change signature of a primitive (everything that affects drawing); a number, so per-frame checks allocate nothing. */
+export function primSignature(p: Primitive): number {
+  let h = hashStr(HASH_SEED, p.shape);
+  h = hashNum(h, p.pos.x); h = hashNum(h, p.pos.y); h = hashNum(h, p.pos.z);
+  h = hashNum(h, p.rot.x); h = hashNum(h, p.rot.y); h = hashNum(h, p.rot.z); h = hashNum(h, p.rot.w);
+  h = hashNum(h, p.size.x); h = hashNum(h, p.size.y); h = hashNum(h, p.size.z);
+  h = hashNum(h, p.round); h = hashStr(h, p.material); h = hashNum(h, p.flags);
+  return hashNum(h, p.tint ?? Number.NaN);
 }

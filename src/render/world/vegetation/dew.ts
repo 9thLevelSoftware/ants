@@ -65,7 +65,7 @@ vec3 objectNormal = normal;`)
       .replace('#include <map_fragment>', 'if (vDrop < 0.5) discard;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 { float nv = saturate(dot(normalize(normal), normalize(vViewPosition)));
-  totalEmissiveRadiance += uHaze * (0.08 + 0.5 * pow(nv, 1.5)) * 0.45; }`);
+  totalEmissiveRadiance += uHaze * (0.1 + 0.65 * pow(nv, 1.5)) * 0.6; }`);
   });
   return m;
 }

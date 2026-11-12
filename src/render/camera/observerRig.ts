@@ -77,6 +77,16 @@ export class ObserverRig {
     this.follow = null;
   }
 
+  /**
+   * The player stopped following (free fly chosen): no follow-loss hold, the free camera starts from the current
+   * pose. setFollow(null) is for an entity that disappeared (it holds 2 s first).
+   */
+  stopFollow(): void {
+    this.follow = null;
+    this.holdT = -1;
+    v3Set(this.vel, 0, 0, 0);
+  }
+
   update(dt: number, input: ObserverInput, env: ObserverEnv): this['out'] {
     dt = Math.max(0, Math.min(dt, 0.25));
     const bu = this.opts.bu, o = this.out;
@@ -143,7 +153,9 @@ export class ObserverRig {
       o.mode = 'hold';
       return o;
     }
-    this.pitch = clampN(this.pitch + input.pitchDeg * DEG, OBS_PITCH_FOLLOW_DEG[0] * DEG, OBS_PITCH_FOLLOW_DEG[1] * DEG);
+    // OBS_PITCH_FOLLOW_DEG is the camera's ELEVATION above the subject (GDD 01 6.6); `pitch` is the look pitch, and
+    // the camera sits opposite the look direction, so elevation = -pitch
+    this.pitch = clampN(this.pitch + input.pitchDeg * DEG, -OBS_PITCH_FOLLOW_DEG[1] * DEG, -OBS_PITCH_FOLLOW_DEG[0] * DEG);
     this.followDistL = clampN(this.followDistL * Math.exp(input.zoomLog), OBS_FOLLOW_DIST_L[0], OBS_FOLLOW_DIST_L[2]);
     const centre = v3AddScaled(this.tmp, this.follow.pos, this.follow.up, 0.5 * L);
     // orbit direction: from the centre back towards the camera (opposite the look direction)

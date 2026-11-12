@@ -2,11 +2,11 @@
 // restored to the opener, Esc cancels (through the back stack so it never also closes the screen below),
 // the backdrop is --e-3. ConfirmDialog is the common Cancel / confirm pair; `danger` marks destructive confirms.
 import type { ComponentChildren } from 'preact';
-import { useEffect, useId, useRef } from 'preact/hooks';
+import { useId, useRef } from 'preact/hooks';
 import { cx } from './cx';
 import { Button } from './Button';
-import { useFocusScope } from './focus';
-import { pushBack } from './logic/escapeStack';
+import { useBackLayer, useFocusScope } from './focus';
+import { BACK_LEVEL } from './logic/escapeStack';
 
 export interface ModalProps {
   title: string;
@@ -27,7 +27,7 @@ export function Modal(p: ModalProps) {
   const titleId = useId();
   const bodyId = useId();
   useFocusScope(ref, { trap: true, initial: p.initialFocus });
-  useEffect(() => pushBack(p.onClose), [p.onClose]);
+  useBackLayer(p.onClose, BACK_LEVEL.dialog);
   return (
     <div class="ui-modal-backdrop" onPointerDown={(e: PointerEvent) => { if (e.target === e.currentTarget) p.onClose(); }}>
       <div

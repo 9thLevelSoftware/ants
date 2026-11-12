@@ -7,8 +7,9 @@ import type { Vec3 } from '@/core';
 import type { Sim } from '@/sim/types';
 import type { QualityPreset } from '@/render/app';
 import type { AssetLoader } from '@/render/assets';
-import type { CutawayParams } from '@/render/camera';
+import type { CutawayParams, FadeOutput } from '@/render/camera';
 import { DEBUG_RENDERERS } from './debug';
+import { AntsSlot, NestSlot, WorldSlot } from './slots';
 
 export type RendererSlot = 'world' | 'nest' | 'ants' | 'creatures' | 'fx';
 /** Update and init order. `world` first: it owns the lights, sky and fog. */
@@ -34,6 +35,17 @@ export interface RenderContext {
   game: RenderGameHooks;
   /** Exposure hook (RenderApp.setExposure). */
   setExposure?: (ev: number) => void;
+  /**
+   * Another slot's renderer (set by RenderRegistry; every slot's renderer exists before any init runs, slots
+   * earlier in RENDERER_SLOTS are initialised first). Lets the nest share the world's material library.
+   */
+  peer?: (slot: RendererSlot) => SubRenderer | null;
+}
+
+/** A hover / inspect highlight target. */
+export interface HighlightRef {
+  kind: 'ant' | 'brood' | 'item';
+  id: number;
 }
 
 /** A pose the renderers draw for the possessed ant (per-frame prediction), mm and unit vectors. */
@@ -67,12 +79,21 @@ export interface FrameInfo {
   subjectOpacity: number;
   /** Colony-view cutaway, null outside the colony view. */
   cutaway: CutawayParams | null;
+  /** Possession camera fade and occlusion cutaway (GDD 01 6.5), null outside the possess view. */
+  fade?: FadeOutput | null;
+  /** Entity under the cursor / being inspected (highlights), null none. */
+  hover?: HighlightRef | null;
+  inspect?: HighlightRef | null;
+  /** Accessibility: no moving light patterns or idle animation flourishes. */
+  reducedMotion?: boolean;
 }
 
 export interface SubRenderer {
   readonly name: string;
-  init(ctx: RenderContext): void;
-  onGameStart?(sim: Sim): void;
+  /** Set-up; a returned promise resolves when its assets (textures) are loaded. */
+  init(ctx: RenderContext): void | Promise<void>;
+  /** A game starts; a returned promise resolves when its world is fully built (the first frame shows it). */
+  onGameStart?(sim: Sim): void | Promise<void>;
   update(frame: FrameInfo): void;
   onGameEnd?(): void;
   setQuality?(q: QualityPreset): void;
@@ -90,7 +111,10 @@ export function registerRenderer(slot: RendererSlot, factory: SubRendererFactory
   REAL_RENDERERS[slot] = factory;
 }
 
-// --- registrations of real renderers (task int-1A wires world, nest and ants here) ---
+// --- registrations of real renderers (task int-1A) ---
+registerRenderer('world', () => new WorldSlot());
+registerRenderer('nest', () => new NestSlot());
+registerRenderer('ants', () => new AntsSlot());
 
 export interface RegistryEntry {
   slot: RendererSlot;
@@ -114,12 +138,17 @@ export class RenderRegistry {
     });
   }
 
-  init(ctx: RenderContext): void {
-    for (const e of this.entries) e.renderer.init(ctx);
+  /** Initialises every slot in order; resolves when all of them have loaded their assets. */
+  init(ctx: RenderContext): Promise<void> {
+    const peer = (slot: RendererSlot) => this.entries.find((e) => e.slot === slot)?.renderer ?? null;
+    const pending = this.entries.map((e) => e.renderer.init({ ...ctx, peer }));
+    return Promise.all(pending).then(() => undefined);
   }
 
-  onGameStart(sim: Sim): void {
-    for (const e of this.entries) e.renderer.onGameStart?.(sim);
+  /** A game starts; resolves when every slot has built what it draws for it. */
+  onGameStart(sim: Sim): Promise<void> {
+    const pending = this.entries.map((e) => e.renderer.onGameStart?.(sim));
+    return Promise.all(pending).then(() => undefined);
   }
 
   update(frame: FrameInfo): void {

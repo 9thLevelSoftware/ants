@@ -2,6 +2,7 @@
 // applies immediately. Closing is refused while a required action (move, interact, release) has no key.
 import { useState } from 'preact/hooks';
 import { actionDef, unboundRequired } from '@/input';
+import { actionLabel } from './captureBinding';
 import { Button, Modal, ScrollArea, BookScreen, type TabDef } from '../../components';
 import { uiPrefs } from '../../styles/prefs';
 import { updateNav, type SettingsTabId } from '../nav';
@@ -21,7 +22,7 @@ export function Settings({ tab, onTab, onClose }: { tab: SettingsTabId; onTab: (
   const persistent = uiPrefs.persistent.value;
   const tryClose = () => {
     const missing = unboundRequired(readBindings());
-    if (missing.length) { setBlocked(missing.map((id) => actionDef(id)?.label ?? id)); updateNav((n) => ({ ...n, settingsTab: 'controls' })); return; }
+    if (missing.length) { setBlocked(missing.map((id) => { const d = actionDef(id); return d ? actionLabel(d) : id; })); updateNav((n) => ({ ...n, settingsTab: 'controls' })); return; }
     onClose();
   };
   return (

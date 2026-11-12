@@ -7,6 +7,7 @@ export * from './ids';
 export * from './geom';
 export * from './refs';
 export * from './walker';
+export type { LocoRequest, LocoSpeedKind, NavScratch } from './navScratch';
 export * from './ant';
 export * from './brood';
 export * from './item';

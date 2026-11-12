@@ -12,6 +12,20 @@ import type { WallMaterialSet } from '../mesh/chunkMeshManager';
 import { fragmentPrelude, NEST_VERT, wallFragment, XRAY_FRAGMENT } from './glsl';
 import type { NestUniforms } from './nestUniforms';
 
+/** Depth-pass copies of the wall shader's existence tests (glsl.ts wallFragment, GLSL_NEST_COMMON nestCutHidden). */
+const DEPTH_DECL = /* glsl */ `
+uniform float uSkin; uniform float uHoleLip;
+uniform int uCutMode; uniform vec3 uCutC; uniform vec3 uCutN; uniform float uCutR;
+varying float vNestSub; varying float vNestHole; varying vec3 vNestW;`;
+const DEPTH_DISCARD = /* glsl */ `
+if (vNestSub > (vNestHole <= -uHoleLip ? -uSkin : 0.0)) discard;
+if (uCutMode == 1) {
+  vec3 cd = vNestW - uCutC;
+  float ch = dot(cd, uCutN);
+  vec2 cr = (cd - uCutN * ch).xz;
+  if (ch > 0.0 && dot(cr, cr) < uCutR * uCutR) discard;
+}`;
+
 export function wallLook(m: MaterialId): WallLook {
   return WALL_LOOKS[m] ?? WALL_LOOKS.loam!;
 }
@@ -76,19 +90,25 @@ export class NestMaterials implements WallMaterialSet {
     this.walls.clear();
   }
 
+  /**
+   * Shadow depth material: the same discards as the wall shader that decide where a wall exists (the skin band
+   * with its terrain-hole exception, and the colony slice), so hidden walls cast no sun shadow. The occlusion
+   * dither is a view effect only: a dithered wall still blocks the sun.
+   */
   private makeDepth(): MeshDepthMaterial {
     const m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
     m.name = 'nest:depth';
     m.onBeforeCompile = (s) => {
-      s.uniforms.uSkin = this.u.uSkin;
+      const u = this.u;
+      Object.assign(s.uniforms, { uSkin: u.uSkin, uHoleLip: u.uHoleLip, uCutMode: u.uCutMode, uCutC: u.uCutC, uCutN: u.uCutN, uCutR: u.uCutR });
       s.vertexShader = s.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aSub;\nvarying float vNestSub;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNestSub = aSub;');
+        .replace('#include <common>', '#include <common>\nattribute float aSub;\nattribute vec4 aNest;\nvarying float vNestSub;\nvarying float vNestHole;\nvarying vec3 vNestW;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNestSub = aSub;\nvNestHole = aNest.w;\nvNestW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
       s.fragmentShader = s.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uSkin;\nvarying float vNestSub;')
-        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (vNestSub > -uSkin) discard;');
+        .replace('#include <common>', `#include <common>\n${DEPTH_DECL}`)
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${DEPTH_DISCARD}`);
     };
-    m.customProgramCacheKey = () => 'nest-depth';
+    m.customProgramCacheKey = () => 'nest-depth-v2';
     return m;
   }
 

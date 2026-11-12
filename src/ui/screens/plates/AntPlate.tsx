@@ -21,6 +21,16 @@ const BUILDS: Record<SpeciesId, Build> = {
   'atta-texana': { hw: 10, hh: 11, thorax: 28, gw: 15, gh: 22, nodes: 2, spines: true, mand: 6, scale: 1.02 },
 };
 
+/** Standard worker length in mm (the species' body unit, design seed section 3). */
+const BU_MM: Record<SpeciesId, number> = { 'lasius-niger': 4, 'camponotus-pennsylvanicus': 9, 'messor-barbarus': 7, 'atta-texana': 7 };
+
+/** Head-top to gaster-tip length of the sketch in its own units (excluding antennae and mandibles). */
+function bodyLength(b: Build): number {
+  const headY = 24, thBot = headY + b.hh - 1 + b.thorax, nodeY = thBot + 3;
+  const gasterY = nodeY + (b.nodes === 2 ? 11 : 7) + b.gh;
+  return gasterY + b.gh - (headY - b.hh);
+}
+
 export interface AntPlateProps {
   species: SpeciesId;
   /** Draw the plate frame, caption and scale bar (Loading); cards use the bare sketch. */
@@ -45,7 +55,7 @@ function Sketch({ b }: { b: Build }) {
   };
   const ly = [thTop + b.thorax * 0.18, thTop + b.thorax * 0.5, thTop + b.thorax * 0.82];
   return (
-    <g fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" transform={`translate(50 75) scale(${b.scale}) translate(-50 -75)`}>
+    <g fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" transform={`translate(0 16) translate(50 66) scale(${b.scale}) translate(-50 -66)`}>
       {/* legs first so the body overlaps them */}
       {[1, -1].map((s) => (
         <g key={s} stroke-width="0.9">
@@ -66,8 +76,9 @@ function Sketch({ b }: { b: Build }) {
       <circle cx={cx + b.hw - 2} cy={headY - 2} r="2.1" />
       <path d={`M${cx - b.hw * 0.5} ${headY + 3} q${b.hw * 0.5} 4 ${b.hw} 0`} stroke-width="0.7" />
       {/* thorax: pronotum, mesonotum, propodeum */}
-      <path d={`M${cx - 8} ${thTop} q-3 ${b.thorax * 0.2} 0 ${b.thorax * 0.34} q-2 ${b.thorax * 0.2} 1 ${b.thorax * 0.3} q0 ${b.thorax * 0.16} 3 ${b.thorax * 0.2} h8 q3 -${b.thorax * 0.04} 3 -${b.thorax * 0.2} q3 -${b.thorax * 0.1} 1 -${b.thorax * 0.3} q3 -${b.thorax * 0.14} 0 -${b.thorax * 0.34} z`} />
-      <path d={`M${cx - 7} ${thTop + b.thorax * 0.34} h14M${cx - 6} ${thTop + b.thorax * 0.66} h12`} stroke-width="0.7" />
+      <ellipse cx={cx} cy={thTop + b.thorax * 0.17} rx="6.6" ry={b.thorax * 0.2} />
+      <ellipse cx={cx} cy={thTop + b.thorax * 0.5} rx="5.6" ry={b.thorax * 0.17} />
+      <ellipse cx={cx} cy={thTop + b.thorax * 0.82} rx="5" ry={b.thorax * 0.2} />
       {b.spines && (
         <g stroke-width="0.9">
           <path d={`M${cx - 4} ${thBot - 4} l-6 6M${cx + 4} ${thBot - 4} l6 6`} />
@@ -90,24 +101,25 @@ export function AntPlate({ species, framed, caption, class: cls }: AntPlateProps
   const b = BUILDS[species];
   if (!framed) {
     return (
-      <svg class={`ui-plate ${cls ?? ''}`} viewBox="0 0 100 150" role="img" aria-label={caption ?? 'Line sketch of a worker ant seen from above'}>
+      <svg class={`ui-plate ${cls ?? ''}`} viewBox="0 0 100 135" role="img" aria-label={caption ?? 'Line sketch of a worker ant seen from above'}>
         <Sketch b={b} />
       </svg>
     );
   }
+  const k = 2.0; // framed plate magnification
+  const mmPx = (bodyLength(b) / BU_MM[species]) * b.scale * k; // svg units per millimetre
   return (
     <svg class={`ui-plate is-framed ${cls ?? ''}`} viewBox="0 0 480 320" role="img" aria-label={caption ?? 'Line sketch of a worker ant seen from above'}>
       <rect x="1" y="1" width="478" height="318" rx="4" fill="none" stroke="var(--c-border-strong)" />
       <rect x="9" y="9" width="462" height="302" rx="2" fill="none" stroke="var(--c-border)" />
-      <g transform="translate(150 8) scale(1.74)" color="var(--c-text-2)">
+      <g transform={`translate(${240 - 50 * k} 36) scale(${k})`} style={{ color: 'var(--c-text-2)' }}>
         <Sketch b={b} />
       </g>
-      {/* 1 mm scale bar for the standard worker (BU in mm: Lasius 4, Camponotus 9, Messor 7, Atta 7) */}
-      <g stroke="var(--c-text-2)" stroke-width="1.4" fill="none" transform="translate(40 280)">
-        <path d="M0 0h60M0 -4v8M60 -4v8" />
+      <g stroke="var(--c-text-2)" stroke-width="1.4" fill="none" transform="translate(412 284)">
+        <path d={`M${-mmPx} 0h${mmPx}M${-mmPx} -4v8M0 -4v8`} />
       </g>
-      <text x="40" y="270" fill="var(--c-text-3)" font-family="var(--font-sans)" font-size="12">scale bar</text>
-      <text x="40" y="38" fill="var(--c-text-2)" font-family="var(--font-serif)" font-size="15" font-style="italic">{caption ?? ''}</text>
+      <text x="412" y="272" text-anchor="end" fill="var(--c-text-3)" font-family="var(--font-sans)" font-size="12">1 mm</text>
+      <text x="32" y="294" fill="var(--c-text-2)" font-family="var(--font-serif)" font-size="15" font-style="italic">{caption ?? ''}</text>
     </svg>
   );
 }

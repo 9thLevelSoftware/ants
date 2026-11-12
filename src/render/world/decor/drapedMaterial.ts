@@ -68,8 +68,11 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     vec2 q = uv * vec2(1.0, 1.15);
     float r = length(q) + 0.12 * smoothstep(0.7, 1.0, uv.x) * (1.0 - smoothstep(0.0, 0.2, abs(uv.y)));
     a = 1.0 - smoothstep(0.86, 1.0, r);
-    col = mix(vec3(0.95, 0.93, 0.88), vec3(0.93, 0.68, 0.74), smoothstep(0.55, 1.0, rb));
-    col *= 0.9 + 0.1 * sin(atan(uv.y, uv.x + 1.2) * 40.0);
+    // blossom petal: cream to blush, faint radiating veins, a greener claw at the base, browning when old
+    col = mix(vec3(0.93, 0.88, 0.82), vec3(0.92, 0.66, 0.70), smoothstep(0.35, 1.0, rb));
+    col *= 0.92 + 0.08 * sin(atan(uv.y, uv.x + 1.2) * 34.0);
+    col = mix(col, vec3(0.62, 0.66, 0.42), (1.0 - smoothstep(-1.0, -0.55, uv.x)) * 0.6);
+    col = mix(col, vec3(0.55, 0.42, 0.30), smoothstep(0.75, 1.0, ra) * smoothstep(0.5, 1.0, length(uv)) * 0.7);
     rough = 0.5; tr = 1.6; bump = -uv * 0.4;
   } else if (k < ${K.receipt + 0.5}) {
     bool receipt = k > ${K.wrapper + 0.5};

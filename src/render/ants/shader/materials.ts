@@ -15,13 +15,18 @@ import { ANT_EMISSIVE, ANT_FRAG_PARS, ANT_NORMAL, ANT_ROUGHNESS, ANT_SHEEN, WING
 import { CUTICLE, HIGHLIGHT } from '../tuning';
 
 /** Uniforms shared by every ant material (one object each, so updating .value once updates all). */
-export interface SharedAntUniforms { uTime: Uniform<number>; uHiWarm: Uniform<Color>; uHiCool: Uniform<Color> }
+export interface SharedAntUniforms {
+  uTime: Uniform<number>; uHiWarm: Uniform<Color>; uHiCool: Uniform<Color>;
+  /** Opacity of the possessed ant (third-person camera fade, GDD 01 6.5), drawn as an ordered dither; 1 = solid. */
+  uSubjectOpacity: Uniform<number>;
+}
 
 export function createSharedUniforms(): SharedAntUniforms {
   return {
     uTime: new Uniform(0),
     uHiWarm: new Uniform(new Color(HIGHLIGHT.warm).multiplyScalar(HIGHLIGHT.warmGain)),
     uHiCool: new Uniform(new Color(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain)),
+    uSubjectOpacity: new Uniform(1),
   };
 }
 

@@ -91,8 +91,8 @@ export const DIG_ADVANCE_L = 1.5;
 export const PLUG_DIG_FACTOR = 0.5;
 /** Pellet yielded by one unseal bite, BU^3 (about one bite of loose soil). */
 export const UNSEAL_PELLET_VOLUME_BU3 = 0.85;
-/** Pellet bulk per BU^3 of volume (GDD 03 §1.3). */
-export const PELLET_BULK_PER_BU3 = 0.6;
+/** Pellet bulk per BU^3 of volume (GDD 03 §1.3); single source: balance/nest.ts. */
+export { PELLET_BULK_PER_BU3 } from './nest';
 /** `seal-entrance` works within this distance of the opening, inside the throat, BU. */
 export const SEAL_THROAT_BU = 3;
 /** A carried pellet is dropped this far behind the feet when a dig bite starts, L. */
@@ -134,9 +134,8 @@ export const GROOM_REDUCTION = 0.5;
 
 // ---- pheromones (GDD 02 §8.2) ----
 
-/** Trail dab while laying: strength (ph) and spacing (BU walked). */
-export const TRAIL_DAB = 0.25;
-export const TRAIL_DAB_SPACING_BU = 1.5;
+/** Trail dab while laying: strength (ph) and spacing (BU walked); single source: balance/pheromone.ts. */
+export { TRAIL_DAB, TRAIL_DAB_SPACING_BU } from './pheromone';
 /** Player dab factor when carrying food or crop >= TRAIL_LADEN_CROP, otherwise TRAIL_UNLADEN_FACTOR. */
 export const TRAIL_LADEN_CROP = 0.5;
 /** At most this many dabs per tick (a teleport or a very fast tick cannot paint a long line at once). */
@@ -235,8 +234,8 @@ export const BEHAVIOUR_THINK_TICKS = 5;
 
 // ---- death (GDD 05 §4.7) ----
 
-/** Corpse bulk = massMg / REF_CARRY_MG; protein = CORPSE_P_PER_MG x massMg loads. */
-export const REF_CARRY_MG = 2;
+/** Corpse bulk = massMg / REF_CARRY_MG (single source: balance/ecology.ts); protein = CORPSE_P_PER_MG x massMg loads. */
+export { REF_CARRY_MG } from './ecology';
 export const CORPSE_P_PER_MG = 0.4;
 /** Necrophoresis cue delay after death, game s. */
 export const CORPSE_CUE_S = 60;

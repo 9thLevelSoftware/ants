@@ -72,35 +72,46 @@ describe('makeTestSim small nest', () => {
     expect(sim.nestNav.distance(nest.id, exit, floor)).toBeLessThan(80 * bu);
   });
 
-  it('a worker walks from the deepest chamber out to the surface with kernel nest-nav + walker only', () => {
-    const royal = nest.chambers[2];
-    const ant = sim.state.ants.find((a) => a.chamberId === royal.id)!;
+  // Controller: phase 1 descends the exit field to the opening; phase 2 (latched once reached, so the walker cannot
+  // flip back to the field at the rim and oscillate between surface and cavity) walks up and away from the hole.
+  function walkOut(ant: Ant): { ticks: number; startDist: number; minClear: number } {
     const field = nestFieldId(nest.id, exit);
     const target = { x: 0, y: 0, z: 0 }, want = { x: 0, y: 0, z: 0 };
     const ent = nest.entrances[0];
-    let ticks = 0, minClear = Infinity;
+    let ticks = 0, minClear = Infinity, atOpening = false;
     const startDist = sim.kernel.nav.distanceAt(field, ant.pos);
-    expect(Number.isFinite(startDist)).toBe(true);
-    // phase 1: descend the exit field to the opening; phase 2: walk out along the entrance direction
     for (; ticks < 1500; ticks++) {
-      const d = sim.kernel.nav.lookahead(field, ant.pos, 4, target);
       const out = !sim.field.isInSubstrate(ant.pos.x, ant.pos.y, ant.pos.z);
       if (out && Math.hypot(ant.pos.x - ent.pos.x, ant.pos.z - ent.pos.z) > ent.radius + bu) break;
+      const d = atOpening ? 0 : sim.kernel.nav.lookahead(field, ant.pos, 4, target);
       if (d > 0.5 * bu && Number.isFinite(d)) {
         want.x = target.x - ant.pos.x; want.y = target.y - ant.pos.y; want.z = target.z - ant.pos.z;
       } else {
-        // at the opening: up and away from the hole
-        want.x = ant.pos.x - ent.pos.x + ent.dir.x * bu; want.y = ent.dir.y * bu; want.z = ant.pos.z - ent.pos.z + ent.dir.z * bu + 0.3 * bu;
+        atOpening = true;
+        const ax = ant.pos.x - ent.pos.x, az = ant.pos.z - ent.pos.z, al = Math.hypot(ax, az);
+        // away from the hole's axis (or along +z when standing on it), plus a lift out of the throat
+        want.x = al > 1e-6 ? ax / al : 0; want.z = al > 1e-6 ? az / al : 1;
+        want.y = sim.field.isInSubstrate(ant.pos.x, ant.pos.y, ant.pos.z) ? 1 : 0;
       }
       walkerSnapshot(ant);
       walkerStep(sim.field, ant, want, CRUISE_BU * bu, DT, sim.kernel.walker);
       minClear = Math.min(minClear, sim.field.sample(ant.pos) / ant.footOffset);
     }
-    // path length / cruise speed is about 3-4 s; allow generous slack for wall corners but not a random walk
-    expect(ticks).toBeLessThan(10 * Math.ceil(startDist / (CRUISE_BU * bu) + 6));
-    expect(minClear).toBeGreaterThan(0.3);
-    expect(ant.medium).toBe('surface');
-    expect(sim.field.isInSubstrate(ant.pos.x, ant.pos.y, ant.pos.z)).toBe(false);
-    expect(ant.pos.y).toBeGreaterThan(sim.field.height(ant.pos.x, ant.pos.z) - 0.5 * bu);
+    return { ticks, startDist, minClear };
+  }
+
+  it('every worker walks from its chamber out to the surface with kernel nest-nav + walker only', () => {
+    const workers = sim.state.ants.filter((a) => a.caste === 'worker');
+    expect(workers.length).toBe(20);
+    for (const ant of workers) {
+      const { ticks, startDist, minClear } = walkOut(ant);
+      expect(Number.isFinite(startDist), `ant ${ant.id} start`).toBe(true);
+      // path length / cruise speed is about 3-4 s; allow generous slack for wall corners but not a random walk
+      expect(ticks, `ant ${ant.id} ticks`).toBeLessThan(10 * Math.ceil(startDist / (CRUISE_BU * bu) + 6));
+      expect(minClear, `ant ${ant.id} clearance`).toBeGreaterThan(0.3);
+      expect(ant.medium, `ant ${ant.id} medium`).toBe('surface');
+      expect(sim.field.isInSubstrate(ant.pos.x, ant.pos.y, ant.pos.z)).toBe(false);
+      expect(ant.pos.y).toBeGreaterThan(sim.field.height(ant.pos.x, ant.pos.z) - 0.5 * bu);
+    }
   });
 });

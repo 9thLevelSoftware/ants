@@ -1,5 +1,5 @@
 // Tunable numbers of the nest navigation fields.
-// TODO(integration): re-export from src/sim/balance once that module exists (kernel did not own it).
+// Re-exported from src/sim/balance (balance/kernel.ts).
 
 export const NAV_TUNING = {
   /** Distance fields kept built at once; least recently used ones are freed and rebuilt on demand. */

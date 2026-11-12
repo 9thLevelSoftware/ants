@@ -107,6 +107,16 @@ export const LOCO_TUNING = {
   directBU: 24,
   /** Planner calls (A*) per tick across all walkers; the rest seek directly and retry next tick. */
   planBudget: 12,
+  /**
+   * A* node expansions per tick across all walkers (the budget is a cost, not only a count: one corner-to-corner
+   * search on a standard map expands tens of thousands of nodes). The first plan of a tick always runs.
+   */
+  planExpandBudget: 20000,
+  /** Soak invariant 'walker-stuck-explosion': more than this share of at least `min` moving walkers without
+   * progress for `s` game seconds fails it. */
+  stuckExplosionS: 120,
+  stuckExplosionFrac: 0.25,
+  stuckExplosionMin: 8,
   /** Moving targets (entities) are re-resolved this often, s, or when they moved this far, BU. */
   retargetS: 1,
   retargetBU: 3,
@@ -210,7 +220,7 @@ export interface LocoParams {
   shortcutLift: number; shortcutR: number; crumbReach: number; piNoise: number;
   wpReach: number; climbReach: number; fieldLook: number; entranceHandover: number; spread: number; elevated: number;
   brakeS: number; arriveTurnRadii: number;
-  routeSnap: number; routeGoal: number; direct: number; planBudget: number; retargetS: number; retarget: number;
+  routeSnap: number; routeGoal: number; direct: number; planBudget: number; planExpandBudget: number; stuckExplosionTicks: number; stuckExplosionFrac: number; stuckExplosionMin: number; retargetS: number; retarget: number;
   pointFieldMax: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
   episodesMax: number; relocateSteps: number;
@@ -243,7 +253,7 @@ export function locoParams(bu: number): LocoParams {
     wpReach: T.waypointReachBU * bu, climbReach: T.climbReachBU * bu, fieldLook: T.fieldLookahead,
     entranceHandover: T.entranceHandoverBU * bu, spread: T.arrivalSpread, elevated: T.elevatedBU * bu,
     brakeS: T.arriveBrakeS, arriveTurnRadii: T.arriveTurnRadii,
-    routeSnap: T.routeSnapBU * bu, routeGoal: T.routeGoalBU * bu, direct: T.directBU * bu, planBudget: T.planBudget,
+    routeSnap: T.routeSnapBU * bu, routeGoal: T.routeGoalBU * bu, direct: T.directBU * bu, planBudget: T.planBudget, planExpandBudget: T.planExpandBudget, stuckExplosionTicks: T.stuckExplosionS * 10, stuckExplosionFrac: T.stuckExplosionFrac, stuckExplosionMin: T.stuckExplosionMin,
     retargetS: T.retargetS, retarget: T.retargetBU * bu, pointFieldMax: T.pointFieldMax,
     pointFieldCell: T.pointFieldCellBU * bu, pointFieldR: T.pointFieldRadiusBU * bu, timeoutBase: T.timeoutBaseS,
     timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,

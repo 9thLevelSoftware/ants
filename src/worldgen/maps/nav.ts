@@ -18,6 +18,8 @@ export interface NavDerived {
   baseY: Float32Array;
   /** Share 0..1 of each nav cell under an overhead primitive. */
   shelterShare: Float32Array;
+  /** 1 where most of the walkable ground is a non-climbable primitive top: steps onto the cell are blocked. */
+  noClimb: Uint8Array;
 }
 
 export function buildNav(ctx: GenContext, col: Columns): NavDerived {
@@ -27,12 +29,12 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
   const cls = w.nav.cls.data, cost = w.nav.cost.data;
   const groundY = new Float32Array(nn);
   const flags = new Uint8Array(nn);
-  const baseY = new Float32Array(nn), shelterShare = new Float32Array(nn);
+  const baseY = new Float32Array(nn), shelterShare = new Float32Array(nn), noClimb = new Uint8Array(nn);
   const holes = w.terrainHoles?.data;
   const margin = NAV.edgeMarginBu * bu;
   for (let k = 0; k < navN; k++) for (let i = 0; i < navN; i++) {
     const c = k * navN + i;
-    let blocked = 0, total = 0, walk = 0, nWalk = 0, b = 0, hole = 0, shel = 0, hot = 0, maxTop = -Infinity;
+    let blocked = 0, total = 0, walk = 0, nWalk = 0, b = 0, hole = 0, shel = 0, hot = 0, slick = 0, maxTop = -Infinity;
     for (let dk = 0; dk < sub; dk++) for (let di = 0; di < sub; di++) {
       const ti = i * sub + di, tk = k * sub + dk;
       if (ti >= cells || tk >= cells) continue;
@@ -40,7 +42,7 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
       total++;
       b += col.base[j];
       if (col.topAll[j] > maxTop) maxTop = col.topAll[j];
-      if (Number.isNaN(col.walkTop[j])) blocked++; else { walk += col.walkTop[j]; nWalk++; }
+      if (Number.isNaN(col.walkTop[j])) blocked++; else { walk += col.walkTop[j]; nWalk++; slick += col.noClimb[j]; }
       if (holes && holes[j]) hole++;
       if (col.over[j] & OVER_SHELTER) shel++;
       hot += HOT_CODE[w.ground.surface.data[j]];
@@ -48,6 +50,7 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
     baseY[c] = total > 0 ? b / total : 0;
     shelterShare[c] = total > 0 ? shel / total : 0;
     groundY[c] = nWalk > 0 ? walk / nWalk : maxTop;
+    noClimb[c] = nWalk > 0 && slick * 2 >= nWalk ? 1 : 0;
     const cx = (i + 0.5) * navCell, cz = (k + 0.5) * navCell;
     let cl: NavClass = 'open';
     if (cx < margin || cz < margin || cx > L - margin || cz > L - margin || (i + 1) * navCell > L + 1e-6 || (k + 1) * navCell > L + 1e-6) cl = 'edge';
@@ -84,7 +87,7 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
   }
   w.nav.groundY = groundY;
   w.nav.flags = { cell: navCell, nx: navN, nz: navN, data: flags };
-  return { baseY, shelterShare };
+  return { baseY, shelterShare, noClimb };
 }
 
 /**

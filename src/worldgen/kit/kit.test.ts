@@ -124,6 +124,21 @@ describe('Poisson disk and placement tables', () => {
     expect(thinning(ctx, [t]).props).toBeLessThan(1);
     expect(placeTables(ctx, 'props', [{ ...t, id: 'more' }]).more).toBeLessThanOrEqual(5);
   });
+
+  it('a sparse table with a tiny minimum spacing samples at its density, not at the spacing (cost trap)', () => {
+    const ctx = ctxFor();
+    // 5 mm spacing over every lawn of a standard map would be millions of Poisson points before the fix
+    const t: PlacementTable = {
+      id: 'pebbles', category: 'props', zones: ['lawn'], densityPerM2: 0.4, spacingMm: 5,
+      template: () => slab(80, 15, 60), options: () => ({ tilt: false }),
+    };
+    const t0 = Date.now();
+    const placed = placeTables(ctx, 'props', [t]).pebbles;
+    const lawnArea = ctx.world.zones.filter((z) => z.type === 'lawn').reduce((s, z) => s + z.areaMm2, 0) / 1e6;
+    expect(placed).toBeGreaterThan(0.6 * 0.4 * lawnArea);
+    expect(placed).toBeLessThan(1.5 * 0.4 * lawnArea);
+    expect(Date.now() - t0).toBeLessThan(20_000); // load-tolerant: well under a second when idle
+  });
 });
 
 describe('registry', () => {
@@ -146,5 +161,13 @@ describe('deterministic maths (DET-4)', () => {
     }
     for (const x of [1e-6, 0.3, 1, 2, 21, 12345.6]) expect(dlog(x)).toBeCloseTo(Math.log(x), 10);
     expect(dlog10(1000)).toBeCloseTo(3, 10);
+    // non-finite and extreme inputs terminate (dlog(Infinity) used to loop forever)
+    expect(dlog(Infinity)).toBe(Infinity);
+    expect(dlog10(Infinity)).toBe(Infinity);
+    expect(dlog(Number.NaN)).toBeNaN();
+    expect(dlog(-Infinity)).toBeNaN();
+    expect(dlog(0)).toBe(-Infinity);
+    expect(dlog(Number.MIN_VALUE)).toBeCloseTo(Math.log(Number.MIN_VALUE), 8);
+    expect(dlog(Number.MAX_VALUE)).toBeCloseTo(Math.log(Number.MAX_VALUE), 8);
   });
 });

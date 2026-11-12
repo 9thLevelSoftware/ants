@@ -9,7 +9,7 @@ export class SkyEnvironment {
   private scene = new Scene();
   private pmrem: PMREMGenerator;
   private target: WebGLRenderTarget | null = null;
-  private lastKey = '';
+  private lastKey = Number.NaN;
   private lastSun = { x: 0, y: -2, z: 0 };
   private lastBakeS = -1e9;
   bakes = 0;
@@ -29,7 +29,7 @@ export class SkyEnvironment {
    * compared by angle. `nowS` is REAL time (the animation clock may be frozen); `force` bakes any pending change
    * at once (settle frames, screenshots). Returns true if a new texture was produced.
    */
-  update(nowS: number, key: string, rebakeDeg: number, minIntervalS: number, force = false): boolean {
+  update(nowS: number, key: number, rebakeDeg: number, minIntervalS: number, force = false): boolean {
     const s = this.uniforms.sunDir.value;
     const cos = s.x * this.lastSun.x + s.y * this.lastSun.y + s.z * this.lastSun.z;
     const changed = !this.target || key !== this.lastKey || cos < Math.cos((rebakeDeg * Math.PI) / 180);

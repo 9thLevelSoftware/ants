@@ -210,7 +210,7 @@ function TransferTab(p: {
     <div class="ui-transfer">
       <section class="ui-section" aria-labelledby="export-h">
         <h2 id="export-h" class="ui-section-title">Export</h2>
-        <p class="ui-field-help">A `.foundress` file holds one colony. Keep it to move the colony to another browser or to back it up.</p>
+        <p class="ui-field-help">A .foundress file holds one colony. Keep it to move the colony to another browser or to back it up.</p>
         <Field label="Colony" layout="stack">
           <div class="ui-inline">
             <Select options={exportOptions} value={exportSlot} onChange={setExportSlot} disabled={!occupied.length} />

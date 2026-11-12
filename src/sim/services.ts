@@ -2,7 +2,6 @@
 // The geometric services come from ONE kernel (src/sim/kernel.ts): field, carve grid and nest nav share the
 // carve data in state.worldDelta.carve, the played species' dig rules and the state's mound overlays.
 
-import { HashGrid3 } from '@/core/spatial/hashGrid';
 import { Store } from '@/core/store';
 import type { Vec3 } from '@/core/math/vec3';
 import type {
@@ -10,9 +9,10 @@ import type {
   PheromoneField, SimState, SimStores, WorldData, WorldField,
 } from '@/sim/types';
 import { MATERIAL_IDS, nestFieldId } from '@/sim/types';
-import { digFactor, INDEX_CELL_BU } from '@/sim/balance';
+import { digFactor, ENTRANCE_SEED_PAD_BU, INDEX_CELL_BU } from '@/sim/balance';
 import { createNavGrid, createWorldField } from '@/sim/world';
-import { createCarveGrid, createNestNav } from '@/sim/nest';
+import { createEntityIndexImpl } from '@/sim/world/entityIndex';
+import { createCarveGrid, createNestNav, registerNestFields } from '@/sim/nest';
 import { createPheromoneField } from '@/sim/pheromones';
 import { createKernel } from '@/sim/kernel';
 
@@ -43,38 +43,9 @@ export function createStores(state: SimState): SimStores {
   };
 }
 
-interface Positioned {
-  id: number;
-  alive: boolean;
-  pos: Vec3;
-}
-
-function fill(grid: HashGrid3, list: readonly Positioned[]): void {
-  grid.clear();
-  for (let i = 0; i < list.length; i++) {
-    const e = list[i];
-    if (e.alive) grid.insert(e.id, e.pos.x, e.pos.y, e.pos.z);
-  }
-}
-
-/** Spatial hash over ants, brood, items, sources and creatures; refresh() once per tick. */
+/** Spatial hash over ants, brood, items, sources and creatures (loco's index: refresh() + refreshWalkers()). */
 export function createEntityIndex(stores: SimStores, cellMm: number): EntityIndex {
-  const ants = new HashGrid3(cellMm), brood = new HashGrid3(cellMm), items = new HashGrid3(cellMm);
-  const sources = new HashGrid3(cellMm), creatures = new HashGrid3(cellMm);
-  return {
-    refresh() {
-      fill(ants, stores.ants.list);
-      fill(brood, stores.brood.list);
-      fill(items, stores.items.list);
-      fill(sources, stores.sources.list);
-      fill(creatures, stores.creatures.list);
-    },
-    queryAnts: (p, r, out) => (ants.queryRadius(p.x, p.y, p.z, r, out), out),
-    queryBrood: (p, r, out) => (brood.queryRadius(p.x, p.y, p.z, r, out), out),
-    queryItems: (p, r, out) => (items.queryRadius(p.x, p.y, p.z, r, out), out),
-    querySources: (p, r, out) => (sources.queryRadius(p.x, p.y, p.z, r, out), out),
-    queryCreatures: (p, r, out) => (creatures.queryRadius(p.x, p.y, p.z, r, out), out),
-  };
+  return createEntityIndexImpl(stores, cellMm);
 }
 
 /**
@@ -121,8 +92,6 @@ export function registerNestTargets(nav: NestNav, nest: Nest, bu: number): void 
   }
 }
 
-/** Extra seed radius around an entrance opening, BU (the opening samples sit just below the surface). */
-const ENTRANCE_SEED_PAD_BU = 1;
 const EXIT: NestFieldTarget = { kind: 'exit', id: -1 };
 const SEAL: NestFieldTarget = { kind: 'seal', id: -1 };
 
@@ -133,7 +102,8 @@ export function createServices(state: SimState, world: WorldData): Services {
   const field = createWorldField(kernel);
   const carve = createCarveGrid(kernel);
   const nestNav = createNestNav(kernel);
-  for (const nest of state.nests) if (nest.alive) registerNestTargets(nestNav, nest, world.bu);
+  // the nest module's full field set (exit / seal / chambers via registerNestTargets, plug-seeded D_seal, D_plan)
+  registerNestFields(nestNav, carve, state, world.bu);
   const navGrid = createNavGrid(world);
   const phero = createPheromoneField(state.phero);
   return { stores, index, kernel, field, carve, nestNav, navGrid, phero };

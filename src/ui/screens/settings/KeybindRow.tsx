@@ -2,12 +2,13 @@
 // gamepad remapping tier), and a reset button. Clicking a binding starts listening ("Press a key (Esc to cancel)");
 // the next key, mouse button or wheel notch becomes the binding. A conflict is never silent: the row says what the
 // input is already used for and offers Swap / Unbind other / Cancel. All rules come from src/input/rebind.ts.
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
   bindingLabel, defaultBindings, rebind, type ActionDef, type Binding, type BindingSet, type Conflict, type ConflictResolution, type Slot,
 } from '@/input';
 import { Button, IconButton, cx, pushBack } from '../../components';
-import { captureKey, captureMouse, captureWheel, conflictMessage, REFUSAL_TEXT } from './captureBinding';
+import { BACK_LEVEL } from '../../components/logic/escapeStack';
+import { actionLabel, captureKey, captureMouse, captureWheel, conflictMessage, REFUSAL_TEXT } from './captureBinding';
 
 export interface KeybindRowProps {
   def: ActionDef;
@@ -51,7 +52,7 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
     else { setPending(null); setMessage(''); }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (listening === null || listening === 'pad') return;
     const slot = listening;
     let shiftPending: string | null = null;
@@ -87,7 +88,7 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('mousedown', onMouseDown, true);
     window.addEventListener('wheel', onWheel, { capture: true, passive: false });
-    const off = pushBack(() => { setListening(null); setMessage(''); });
+    const off = pushBack(() => { setListening(null); setMessage(''); }, BACK_LEVEL.capture);
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
@@ -105,14 +106,17 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
     setListening(slot);
   };
 
+  /** Gamepad-stick components are pad-only: the keyboard slots do not apply (rebind refuses them). */
+  const padOnly = def.id.endsWith('.stick');
   const slotButton = (slot: 0 | 1) => {
+    if (padOnly) return <span class="ui-keybind-na" aria-hidden="true">–</span>;
     const b = bound[slot];
     const isListening = listening === slot;
     const text = isListening ? 'Press a key…' : b ? bindingLabel(b) : 'Unbound';
     return (
       <button
         type="button" class={cx('ui-keybind-slot', isListening && 'is-listening', !b && 'is-empty')} data-listening={isListening ? '1' : undefined}
-        aria-label={`${slot === 0 ? 'Primary' : 'Secondary'} binding of ${def.label}: ${b ? bindingLabel(b) : 'unbound'}. Activate to change.`}
+        aria-label={`${slot === 0 ? 'Primary' : 'Secondary'} binding of ${actionLabel(def)}: ${b ? bindingLabel(b) : 'unbound'}. Activate to change.`}
         disabled={!!def.locked}
         onClick={() => startListening(slot)}
         onKeyDown={(e: KeyboardEvent) => {
@@ -129,12 +133,12 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
   const pad = bindings.pad[def.id];
   return (
     <div class={cx('ui-keybind', unboundRequired && 'is-required-missing', pending && 'has-conflict')} ref={rowRef} data-action={def.id}>
-      <span class="ui-keybind-name">{def.label}{unboundRequired && <span class="ui-keybind-req"> (required)</span>}</span>
+      <span class="ui-keybind-name">{actionLabel(def)}{unboundRequired && <span class="ui-keybind-req"> (required)</span>}</span>
       {slotButton(0)}
       {slotButton(1)}
       <span class="ui-keybind-pad" aria-label={pad ? `Gamepad: ${bindingLabel(pad)}` : 'Gamepad: none'}>{pad ? bindingLabel(pad) : ''}</span>
       <IconButton
-        icon="reset" label={`Reset ${def.label} to default`} class={cx('ui-keybind-reset', !changed && 'is-hidden')}
+        icon="reset" label={`Reset ${actionLabel(def)} to default`} class={cx('ui-keybind-reset', !changed && 'is-hidden')}
         disabled={!changed} onClick={() => { const d = defaultBindings(); const next = JSON.parse(JSON.stringify(bindings)) as BindingSet; next.kbm[def.id] = d.kbm[def.id]; next.pad[def.id] = d.pad[def.id]; setPending(null); setMessage(''); onChange(next); }}
       />
       {(message || pending) && (

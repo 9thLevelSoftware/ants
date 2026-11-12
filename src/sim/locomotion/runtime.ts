@@ -50,6 +50,8 @@ export interface LocoRuntime {
   /** Planner calls made in `planTick`. */
   planTick: number;
   plans: number;
+  /** Nav-grid A* expansions counted at the start of `planTick` (expansion budget). */
+  planExpand0: number;
   /** LOD observer (camera focus); null = automatic (possessed ant, else the player's nest). */
   observer: Vec3 | null;
   /** Registered shared point fields, oldest first. */
@@ -84,7 +86,7 @@ export function rt(sim: Sim): LocoRuntime {
   let r = runtimes.get(sim);
   if (r) return r;
   const created: LocoRuntime = {
-    P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, observer: null,
+    P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, planExpand0: 0, observer: null,
     pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1,
   };
   runtimes.set(sim, created);
@@ -102,8 +104,13 @@ export function ensureGrid(sim: Sim, r: LocoRuntime): void {
 /** Takes one planner call from this tick's budget; false when exhausted (caller retries next tick). */
 export function takePlanBudget(sim: Sim, r: LocoRuntime): boolean {
   const t = sim.state.tick;
-  if (r.planTick !== t) { r.planTick = t; r.plans = 0; }
-  if (r.plans >= r.P.planBudget) { r.stats.planDeferred++; return false; }
+  const g = sim.navGrid;
+  const expanded = isLocoNavGrid(g) ? g.expandedTotal : 0;
+  if (r.planTick !== t) { r.planTick = t; r.plans = 0; r.planExpand0 = expanded; }
+  if (r.plans >= r.P.planBudget || (r.plans > 0 && expanded - r.planExpand0 >= r.P.planExpandBudget)) {
+    r.stats.planDeferred++;
+    return false;
+  }
   r.plans++;
   r.stats.plans++;
   return true;

@@ -90,17 +90,17 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
     host, storage: opts.storage, fallback: opts.fallback, loader: opts.loader, noDownload: opts.noDownload ?? flags.get('nodownload') === '1',
   });
   driver = new AutosaveDriver(manager, policy, host);
+  // ---- notices (before init: the storage-unavailable notice is raised by it)
+  const unsubEvents = manager.on((e) => {
+    if (e.type === 'storage-unavailable' || e.type === 'autosave-disabled') game.toast(e.message);
+    else if (e.type === 'save-result' && e.ok && e.key === 'quick' && !e.autosave) game.toast(e.message === 'Saved.' ? 'Quick saved.' : e.message);
+  });
+
   await manager.init();
 
   // ---- profile (shares the storage the manager ended up with)
   const profile = new ProfileStore({ storage: manager.currentStorage(), kv });
   await profile.load();
-
-  // ---- notices
-  const unsubEvents = manager.on((e) => {
-    if (e.type === 'storage-unavailable' || e.type === 'autosave-disabled') game.toast(e.message);
-    else if (e.type === 'save-result' && e.ok && e.key === 'quick' && !e.autosave) game.toast('Quick saved.');
-  });
 
   // ---- the hooks Game already calls
   const hooks = game.saves as unknown as HooksLike;
@@ -132,7 +132,7 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
       const sim = game.sim;
       if (sim !== driver.attachedSim) {
         driver.attachSim(sim);
-        if (sim && sim !== adopted) { policy.resetGame(); manager.playTimeS = 0; void manager.clearPinned(); } // a new game started
+        if (sim && sim !== adopted) { policy.resetGame(); manager.playTimeS = 0; manager.noteNewGame(); void manager.clearPinned(); } // a new game started
         adopted = null;
       }
       driver.frame(dt);

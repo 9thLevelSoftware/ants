@@ -6,6 +6,7 @@ varying vec3 vRest;
 varying float vAntHi;
 uniform float uFacet;
 uniform vec3 uHiWarm;
+uniform float uSubjectOpacity;
 uniform vec3 uHiCool;
 float antHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 vec3 antHash3(vec3 p) { return vec3(antHash(p), antHash(p + 19.19), antHash(p + 47.47)); }
@@ -37,10 +38,15 @@ export const ANT_NORMAL = /* glsl */ `#include <normal_fragment_maps>
   }`;
 
 export const ANT_EMISSIVE = /* glsl */ `#include <emissivemap_fragment>
+  // the possessed ant (the only positive highlight) fades with the third-person camera: ordered 4x4 dither
+  if (vAntHi > 0.0 && uSubjectOpacity < 1.0) {
+    vec2 dc = mod(floor(gl_FragCoord.xy), 4.0);
+    if (mod(dc.x * 4.0 + dc.y * 9.0 + dc.x * dc.y * 3.0, 16.0) / 16.0 >= uSubjectOpacity) discard;
+  }
   {
     float hiA = abs(vAntHi);
     if (hiA > 0.001) {
-      float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 2.0);
+      float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 4.0); // a rim: silhouettes only
       totalEmissiveRadiance += (vAntHi > 0.0 ? uHiWarm : uHiCool) * hiA * (fr + 0.015);
     }
   }`;
@@ -77,5 +83,6 @@ export const WING_COLOR = /* glsl */ `#include <color_fragment>
     float m = max(vein, stigma);
     float edge = smoothstep(0.0, 0.04, w.y) * smoothstep(1.0, 0.94, w.y);
     diffuseColor.rgb = mix(diffuseColor.rgb, uVein, m);
-    diffuseColor.a = mix(0.16, 0.92, m) * mix(1.6, 1.0, edge);
+    // hyaline membrane: four folded layers over a dark body must stay clear (0.16 read as milky white)
+    diffuseColor.a = mix(0.07, 0.92, m) * mix(1.6, 1.0, edge);
   }`;

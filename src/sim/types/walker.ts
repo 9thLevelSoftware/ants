@@ -5,7 +5,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { NestFieldKind } from './ids/nest';
 import type { TargetKind } from './refs';
-import type { NavScratch } from '@/sim/locomotion/scratch';
+import type { NavScratch } from './navScratch';
 
 export const WALKER_MEDIA = ['surface', 'cavity', 'air', 'water'] as const;
 export type WalkerMedium = (typeof WALKER_MEDIA)[number];

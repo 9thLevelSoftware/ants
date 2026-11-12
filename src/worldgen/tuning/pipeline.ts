@@ -37,6 +37,11 @@ export const BUDGETS = {
 export type BudgetCategory = 'props' | 'plants' | 'trees' | 'structures';
 /** Worldgen wall-clock budgets, ms (reported, never used to change the output: DET-1). */
 export const WORLDGEN_TIME_MS = { browser: 5000, node: 3000 };
+/**
+ * The worker client falls back to the main thread when the worker stays silent this long (no progress reply), ms.
+ * Steps report progress, so a working worker never goes quiet for anywhere near this.
+ */
+export const WORKER_SILENCE_MS = 20000;
 /** Props below this largest dimension become decor; flat props thinner than `decalBu` become decals, BU. */
 export const PROP_MIN_SOLID_BU = 0.75;
 export const PROP_DECAL_BU = 0.15;
@@ -54,6 +59,12 @@ export const PLACE = {
   angleQuantum: 1e6,
   /** Climb-route node spacing, BU (GDD 04 §10). */
   routeNodeBu: 8,
+  /**
+   * Placement tables sample Poisson points at an effective spacing s >= the table's minimum with
+   * s^2 x wanted density = this (Bridson fills ~0.7 / s^2, so ~3x the wanted count), then thin to the density:
+   * the cost follows the object count, not zone area / minimum spacing^2.
+   */
+  tableFill: 0.25,
 };
 
 /** Validation (GDD 04 §4.3). Counts are for standard size and scale with SIZE_SCALE. */

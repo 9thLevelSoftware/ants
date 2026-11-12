@@ -6,6 +6,8 @@ import { handleBack, hasBackHandler } from '../components/logic/escapeStack';
 function textFieldFocused(): HTMLElement | null {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return null;
+  // a read-only field has nothing to leave: Esc goes straight to the layer
+  if ((el as HTMLInputElement).readOnly) return null;
   if (el.tagName === 'TEXTAREA') return el;
   if (el.tagName === 'INPUT') {
     const type = (el as HTMLInputElement).type;

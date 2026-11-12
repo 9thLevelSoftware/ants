@@ -46,13 +46,16 @@ describe('dig-bite', () => {
     expect(sim.stores.items.get(ant.carry.id)?.kind).toBe('soil-pellet');
   });
 
+  // The dig speed comes from the nest module's substrate rule (ports.nestDigSpeedAt: material, moisture, loose
+  // fill, crusts; GDD 03 §2.1-2.2) since the Stage 1A gate; these tests set it through that port.
   it('duration = DIG_BITE_S / (digSpeed x digPower x workRate): founding queen 1.3 s in loam', () => {
     const { sim } = setup();
     const q = sim.stores.ants.get(sim.state.colonies[0].queenId)!;
+    ports.nestDigSpeedAt = () => 1; // loam at medium moisture
     expect(begin(sim, q, 'dig-bite', null)).toBe(true);
     expect(q.action?.durationTicks).toBe(13);
     const w = worker(sim, 50, 50);
-    sim.field.diggability = () => 1.6; // sand
+    ports.nestDigSpeedAt = () => 1.6; // sand
     begin(sim, w, 'dig-bite', null);
     expect(w.action?.durationTicks).toBe(7);
   });
@@ -60,10 +63,9 @@ describe('dig-bite', () => {
   it('failure codes: not-diggable, caste (established queen), hands-full, not-allowed-here, effect refusal', () => {
     const { sim } = setup();
     const ant = worker(sim, 50, 50);
-    const dig = sim.field.diggability;
-    sim.field.diggability = () => 0;
+    ports.nestDigSpeedAt = () => 0;
     expect(canDo(sim, ant, 'dig-bite', null).reason).toBe('not-diggable');
-    sim.field.diggability = dig;
+    ports.nestDigSpeedAt = () => 1;
     const q = sim.stores.ants.get(sim.state.colonies[0].queenId)!;
     q.flags = 0;
     expect(canDo(sim, q, 'dig-bite', null).reason).toBe('caste');

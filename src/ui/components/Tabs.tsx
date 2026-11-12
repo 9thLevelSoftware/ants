@@ -70,16 +70,24 @@ function textFieldFocused(): boolean {
 
 /** Q / E switch to the previous / next enabled tab while no text field has focus. */
 export function useTabHotkeys<T extends string>(tabs: readonly TabDef<T>[], value: T, onChange: (id: T) => void): void {
+  // the handler reads the latest values through a ref, so two quick presses before a re-render still step twice
+  const latest = useRef({ tabs, value, onChange });
+  latest.current = { tabs, value, onChange };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.metaKey || textFieldFocused()) return;
       const dir = e.code === 'KeyQ' ? -1 : e.code === 'KeyE' ? 1 : 0;
       if (!dir) return;
-      const i = tabs.findIndex((t) => t.id === value);
-      const next = groupNext(tabs.length, i, dir > 0 ? 'ArrowRight' : 'ArrowLeft', { orientation: 'horizontal', skip: (k) => !!tabs[k].disabled });
-      if (next !== null && next !== i) { e.preventDefault(); onChange(tabs[next].id); }
+      const { tabs: ts, value: v, onChange: change } = latest.current;
+      const i = ts.findIndex((t) => t.id === v);
+      const next = groupNext(ts.length, i, dir > 0 ? 'ArrowRight' : 'ArrowLeft', { orientation: 'horizontal', skip: (k) => !!ts[k].disabled });
+      if (next !== null && next !== i) {
+        e.preventDefault();
+        latest.current = { ...latest.current, value: ts[next].id };
+        change(ts[next].id);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tabs, value, onChange]);
+  }, []);
 }

@@ -5,6 +5,8 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Chamber, ChamberType, Entrance, Nest, Sim } from '@/sim/types';
 import { registerNestTargets } from '@/sim/services';
+import { capacityOf } from '@/sim/nest/chambers/registry';
+import { packSample } from '@/sim/nest/voxelKey';
 
 /** Layout, BU. The entrance sits ENTRANCE_DX east of the queen start; depths are below the entrance ground. */
 const ENTRANCE_DX = 14;
@@ -27,13 +29,19 @@ export interface SmallNest {
 
 const v = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 
-function newChamber(id: number, type: ChamberType, center: Vec3, radii: Vec3, bu: number, groundY: number, tick: number): Chamber {
+/**
+ * A chamber record as the nest module would detect it, from the carved ellipsoid's analytic shape: capacity from
+ * the nest module's per-type table (capacityOf), voxel count from the volume, seed voxel at the centre sample.
+ */
+function newChamber(id: number, type: ChamberType, center: Vec3, radii: Vec3, bu: number, groundY: number, tick: number, voxel: number): Chamber {
   const load = () => ({ adults: 0, brood: 0, food: 0, other: 0 });
   const volBu3 = (4 / 3) * Math.PI * (radii.x * radii.y * radii.z) / (bu * bu * bu);
+  const seed = packSample(Math.round(center.x / voxel), Math.round(center.y / voxel), Math.round(center.z / voxel));
   return {
     id, type, designatedBy: 'player', center, radii, volume: volBu3, floorArea: Math.PI * radii.x * radii.z / (bu * bu),
     depthBu: (groundY - center.y) / bu, depthMm: groundY - center.y, roofMin: (groundY - center.y - radii.y) / bu,
-    covered: false, seedVoxel: -1, voxelCount: 0, capacity: load(), occupancy: load(), temp: 20, humidity: 0.7,
+    covered: false, seedVoxel: seed, voxelCount: Math.round((volBu3 * bu * bu * bu) / (voxel * voxel * voxel)),
+    capacity: capacityOf(type, volBu3), occupancy: load(), temp: 20, humidity: 0.7,
     wetUntilTick: -1, flooded: 0, floodRisk: 0, flags: 0, createdTick: tick,
   };
 }
@@ -79,7 +87,7 @@ export function installSmallNest(sim: Sim): SmallNest {
     id: state.nextId++, kind: 'dug', status: 'open', pos: v(ex, g, ez), dir: v(0, 1, 0), radius: ENTRANCE_R * bu,
     moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: tick, trafficIn: 0, trafficOut: 0,
   };
-  const chambers = centres.map((c, i) => newChamber(state.nextId++, CHAMBERS[i].name, c, radii[i], bu, g, tick));
+  const chambers = centres.map((c, i) => newChamber(state.nextId++, CHAMBERS[i].name, c, radii[i], bu, g, tick, kernel.carve.voxel));
   nest.origin = v(ex, g, ez);
   nest.entrances.push(entrance);
   nest.chambers.push(...chambers);

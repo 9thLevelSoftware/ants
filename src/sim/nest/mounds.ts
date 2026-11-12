@@ -5,6 +5,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import { rngRange } from '@/core/rng';
 import type { Entrance, Mound, Nest, Sim } from '@/sim/types';
+import { notifySurfaceChanged } from '@/sim/locomotion';
 import {
   DUMP_RING_BU, DUMP_RING_RIM_BU, MOUND_CELL_BU, MOUND_CLEAR_PAD_BU, MOUND_GRID_N, MOUND_MAX_SWEEPS,
   MOUND_SWEEP_PAD, MOUND_TRANSFER_EPS_BU, RIM_RING_BU,
@@ -246,7 +247,10 @@ export function publishMound(sim: Sim, m: Mound): void {
     if (m.base[i] < bottom) bottom = m.base[i];
     if (m.base[i] + m.h[i] > top) top = m.base[i] + m.h[i];
   }
-  sim.emit({ type: 'mound-changed', moundId: m.id, min: { x: x0, y: bottom, z: z0 }, max: { x: x0 + span, y: top, z: z0 + span } });
+  const min = { x: x0, y: bottom, z: z0 }, max = { x: x0 + span, y: top, z: z0 + span };
+  // the pile changed the walkable ground: locomotion re-derives the nav-grid cells under it and replans walkers
+  if (top >= bottom) notifySurfaceChanged(sim, min, max);
+  sim.emit({ type: 'mound-changed', moundId: m.id, min: { ...min }, max: { ...max } });
 }
 
 /**

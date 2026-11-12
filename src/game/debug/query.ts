@@ -50,6 +50,16 @@ export function buildQueries(getSim: () => Sim | null) {
       queenStart: sim.world.queenStart, generatorVersion: sim.world.generatorVersion, fingerprint: sim.world.meta?.fingerprint ?? null,
     })),
     stateHash: withSim((sim) => stateHash(sim.state)),
+    /** Mounds and spoil heaps (world delta): id, entrance, cells, volume (mm^3), centre. */
+    mounds: withSim((sim) => sim.state.worldDelta.mounds.map((m) => ({
+      id: m.id, entranceId: m.entranceId, n: m.n, cell: m.cell, volume: m.volume, absorbed: m.absorbed, centerX: m.centerX, centerZ: m.centerZ,
+    }))),
+    /** Living items counted by kind. */
+    items: withSim((sim) => {
+      const out: Record<string, number> = {};
+      for (const it of sim.state.items) if (it.alive) out[it.kind] = (out[it.kind] ?? 0) + 1;
+      return out;
+    }),
   };
   return new Proxy(base as Record<string, (...a: unknown[]) => unknown>, {
     get(target, prop: string) {

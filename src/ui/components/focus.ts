@@ -1,11 +1,14 @@
 // Focus handling shared by the components: finding focusable elements, a Tab trap for dialogs, restoring focus to
 // the opener when a layer closes (GDD 08 section 8), and initial focus per screen.
-import { useEffect } from 'preact/hooks';
-import type { RefObject } from 'preact';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
+import { pushBack } from './logic/escapeStack';
 import { trapIndex } from './logic/groupNav';
 
-export const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const NOT_REMOVED = ':not([tabindex="-1"])';
+export const FOCUSABLE = [
+  `a[href]${NOT_REMOVED}`, `button:not([disabled])${NOT_REMOVED}`, `input:not([disabled]):not([type="hidden"])${NOT_REMOVED}`,
+  `select:not([disabled])${NOT_REMOVED}`, `textarea:not([disabled])${NOT_REMOVED}`, '[tabindex]:not([tabindex="-1"])',
+].join(', ');
 
 function isVisible(el: HTMLElement): boolean {
   if (el.closest('[inert]') || el.closest('[hidden]')) return false;
@@ -53,14 +56,28 @@ export interface FocusScopeOptions {
 }
 
 /**
+ * The last element that received focus. When a layer opens, the browser drops focus from the (now inert or hidden)
+ * element underneath before effects run, so `document.activeElement` is already `body`; this keeps the opener.
+ */
+let lastFocused: HTMLElement | null = null;
+if (typeof document !== 'undefined') {
+  document.addEventListener('focusin', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (t && t !== document.body) lastFocused = t;
+  }, true);
+}
+
+/**
  * A focus scope: on mount remembers the opener and focuses `initial`; optionally traps Tab; on unmount restores
  * focus to the opener if it is still in the document.
  */
-export function useFocusScope(ref: RefObject<HTMLElement>, opts: FocusScopeOptions = {}): void {
+export function useFocusScope(ref: { current: HTMLElement | null }, opts: FocusScopeOptions = {}): void {
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
-    const opener = document.activeElement as HTMLElement | null;
+    const current = document.activeElement as HTMLElement | null;
+    const candidate = current && current !== document.body ? current : lastFocused;
+    const opener = candidate && !root.contains(candidate) ? candidate : null;
     // focus after the first paint so layout (and `inert` on the layer below) has settled
     const raf = requestAnimationFrame(() => focusInitial(root, opts.initial));
     const onKey = (e: KeyboardEvent) => { if (opts.trap) trapTabKey(root, e); };
@@ -75,4 +92,11 @@ export function useFocusScope(ref: RefObject<HTMLElement>, opts: FocusScopeOptio
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+}
+
+/** Registers `onClose` as a back layer once; later renders update the handler without changing the stack order. */
+export function useBackLayer(onClose: () => void, level: number, enabled = true): void {
+  const ref = useRef(onClose);
+  ref.current = onClose;
+  useLayoutEffect(() => (enabled ? pushBack(() => ref.current(), level) : undefined), [enabled, level]);
 }

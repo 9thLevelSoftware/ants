@@ -1,6 +1,6 @@
 // Tunable numbers of the carve grid (values that worked in the nest spike, docs/research/spike-nest.md §4).
 // Lengths are given in voxels or BU so the grid behaves the same for every species.
-// TODO(integration): re-export from src/sim/balance once that module exists (kernel did not own it).
+// Re-exported from src/sim/balance (balance/kernel.ts).
 
 export const CARVE_TUNING = {
   /** Width of the linear openness ramp written by brushes, in voxels (2 voxels = 1 BU). */

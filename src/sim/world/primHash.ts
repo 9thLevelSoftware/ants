@@ -241,6 +241,8 @@ export class PrimHash {
   /** Unique entries whose registration overlaps the AABB, appended to out (cleared first). */
   query(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, out: PrimEntry[]): PrimEntry[] {
     out.length = 0;
+    // a non-finite bound would never end the loops below (-Infinity + 1 === -Infinity): nothing overlaps it
+    if (!Number.isFinite(minX + minY + minZ + maxX + maxY + maxZ)) return out;
     const stamp = ++this.stampCounter;
     const inv = this.inv;
     for (let iz = Math.floor(minZ * inv); iz <= Math.floor(maxZ * inv); iz++)

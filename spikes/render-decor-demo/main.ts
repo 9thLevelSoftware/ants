@@ -155,7 +155,7 @@ async function setQuality(id: QualityId): Promise<void> {
 }
 
 /** Moves the camera far away (blocks around the view are disposed), comes back and compares the block hashes. */
-function revisit(): { before: Record<number, number>; after: Record<number, number>; same: boolean; mismatches: number } {
+function revisit(): { before: Record<number, number>; after: Record<number, number>; common: number; same: boolean; mismatches: number } {
   const before = decor.blockHashes();
   const keep = viewName;
   camera.position.set(500, 300, 7500); camera.lookAt(600, 0, 7600); camera.updateMatrixWorld();
@@ -163,9 +163,10 @@ function revisit(): { before: Record<number, number>; after: Record<number, numb
   placeCamera(keep);
   render(0);
   const after = decor.blockHashes();
-  const keys = Object.keys(before);
+  // blocks kept by the dispose hysteresis before the trip may not be wanted again: compare the blocks in both sets
+  const keys = Object.keys(before).filter((k) => Number(k) in after);
   const same = keys.length > 0 && keys.every((k) => after[Number(k)] === before[Number(k)]);
-  return { before, after, same, mismatches: decor.stats().revisitMismatches };
+  return { before, after, common: keys.length, same, mismatches: decor.stats().revisitMismatches };
 }
 
 // --------------------------------------------------------------------------------------------- interaction

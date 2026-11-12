@@ -129,6 +129,11 @@ function keptRegionStats(sim: Sim, c: Chamber, r: Region): RegionStats {
 
 const sameVec = (a: Vec3, b: Vec3): boolean => a.x === b.x && a.y === b.y && a.z === b.z;
 
+/** What a chamber's nav-field seeds depend on (centre and radii), as a comparable key. */
+function fieldSeedOf(c: Chamber): string {
+  return `${c.center.x},${c.center.y},${c.center.z},${c.radii.x},${c.radii.y},${c.radii.z}`;
+}
+
 /** Re-marches a chamber's depth, roof and cover from its own voxels (field changes: mounds, primitives). */
 export function refreshChamberMarch(sim: Sim, c: Chamber): void {
   const keys = chamberSamples(sim, c);
@@ -244,12 +249,16 @@ export function applyDetection(sim: Sim, nest: Nest, regions: Region[], reserved
     const keep = list[0];
     const s = keptRegionStats(sim, keep, regions[r]);
     for (let n = 1; n < list.length; n++) { removeChamber(sim, nest, list[n], 'merged'); changed = true; }
-    const before = keep.volume;
+    const before = keep.volume, seedBefore = fieldSeedOf(keep);
     applyStats(keep, s);
     if (Math.abs(keep.volume - before) >= CHAMBER_CHANGE_FRACTION * Math.max(before, 1e-9)) {
       sim.emit({ type: 'chamber-changed', chamberId: keep.id, chamberType: keep.type, volume: keep.volume, reason: 'detected' });
       changed = true;
     }
+    // the chamber's nav field is seeded from its centre and radii (services.registerNestTargets): any change of
+    // those must re-seed it, or the field stays on the old seeds until the next big change (and a load, which
+    // seeds from the record, disagrees with the running game)
+    if (fieldSeedOf(keep) !== seedBefore) changed = true;
   }
   for (const c of unmatched) {
     const keys = chamberSamples(sim, c);
@@ -258,8 +267,13 @@ export function applyDetection(sim: Sim, nest: Nest, regions: Region[], reserved
       changed = true;
       continue;
     }
-    const before = c.volume;
+    // Without a detected region the chamber keeps its record and only ever shrinks (fill, collapse). Re-deriving it
+    // from its padded ellipsoid on every pass made it creep along adjacent tunnels (a founding cell under its shaft
+    // grew by a few voxels per pass), so detection was not idempotent and a load re-detected it differently.
+    if (keys.length >= c.voxelCount) continue;
+    const before = c.volume, seedBefore = fieldSeedOf(c);
     applyStats(c, keptRegionStats(sim, c, { keys, core: [] }));
+    if (fieldSeedOf(c) !== seedBefore) changed = true;
     if (Math.abs(c.volume - before) >= CHAMBER_CHANGE_FRACTION * Math.max(before, 1e-9)) {
       sim.emit({ type: 'chamber-changed', chamberId: c.id, chamberType: c.type, volume: c.volume, reason: 'detected' });
       changed = true;

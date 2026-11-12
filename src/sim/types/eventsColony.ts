@@ -31,7 +31,7 @@ export type ColonyEvent =
   | { type: 'ant-died'; antId: number; colonyId: number; cause: DeathCause; pos: Vec3; task: Task; caste: Caste }
   | { type: 'egg-laid'; broodId: number; queenId: number; destined: BroodCaste }
   | { type: 'brood-stage'; broodId: number; from: BroodStage; to: BroodStage }
-  | { type: 'brood-died'; broodId: number; stage: BroodStage; cause: BroodDeathCause }
+  | { type: 'brood-died'; broodId: number; stage: BroodStage; cause: BroodDeathCause; /** Owner colony (Stage 1A gate, additive). */ colonyId?: number }
   | { type: 'brood-moved'; broodId: number; fromChamber: number; toChamber: number; reason: string }
   | { type: 'feed'; giverId: number; receiverId: number; broodId: number; c: number; p: number }
   | { type: 'trophallaxis'; donorId: number; receiverId: number; amount: number; ambient: boolean }

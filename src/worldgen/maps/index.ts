@@ -1,6 +1,6 @@
 // Step 6 — derived maps (GDD 04 §4.2): top surface (columns), nav grid, shade samples, water (catchment, flood,
 // puddles), moisture / litter / shelter / exposure / access, and nesting suitability of the played species.
-// Re-run after later steps add primitives (rivals, cavities) or after repairs.
+// Re-run after steps 7-9 when any placer is registered there, and after repairs.
 
 import type { GenContext } from '../kit/context';
 import { rasterColumns } from './columns';

@@ -2,7 +2,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MATERIAL_IDS, NAV_CLASSES } from '@/sim/types';
 import { digFactor } from '@/sim/balance';
-import { report, T1_ARCHETYPES } from '../testing/fixtures';
+import { FULL, report, T1_ARCHETYPES } from '../testing/fixtures';
+import { heightAt } from '@/sim/world/terrainSample';
+import type { WorldData } from '@/sim/types';
 import { REGION_STRATA, STRATA, SOFT_ZONES, TERRAIN, LEVELS } from '../tuning/terrain';
 import { NAV } from '../tuning/maps';
 import { VALID } from '../tuning/pipeline';
@@ -73,6 +75,60 @@ describe('heightfield continuity and levels', () => {
       }
     }
   });
+});
+
+/** Largest |dH| between neighbouring samples whose touching terrain cells all satisfy `ok` (zone type). */
+function maxStepWhere(w: WorldData, ok: (type: string) => boolean): number {
+  const t = w.terrain, n = t.nx, cells = w.maps.zone.nx;
+  const type = (i: number, k: number) => w.zones[w.maps.zone.data[k * cells + i]].type;
+  let best = 0;
+  for (let k = 1; k < n - 1; k++) for (let i = 1; i < n - 1; i++) for (const [di, dk] of [[1, 0], [0, 1]] as const) {
+    let all = true;
+    for (let b = -1; b <= (dk ? 1 : 0) && all; b++) for (let a = -1; a <= (di ? 1 : 0) && all; a++) {
+      const ci = i + a, ck = k + b;
+      if (ci >= 0 && ck >= 0 && ci < cells && ck < cells && !ok(type(ci, ck))) all = false;
+    }
+    if (all) best = Math.max(best, Math.abs(t.data[(k + dk) * n + i + di] - t.data[k * n + i]));
+  }
+  return best;
+}
+
+describe('heightfield continuity over many seeds (review fix: path junctions, pavement joins, house wall)', () => {
+  const seeds = FULL ? 8 : 3;
+  const bound = TERRAIN.wormCastHeight[1] + 0.5 * 16; // worm casts + half a Lasius cell of slope
+  for (const a of T1_ARCHETYPES) {
+    it(`${a}: natural ground and pavement have no cliffs where built zones meet (${seeds} seeds)`, () => {
+      for (let s = 1; s <= seeds; s++) {
+        const w = report(a, s).world;
+        // paths blend to rigid built levels like natural ground does, so lawn and forest next to a junction and
+        // path-to-patio joins stay continuous
+        expect(maxStepWhere(w, (t) => t === 'forest' || t === 'lawn'), `${a} s${s} natural`).toBeLessThanOrEqual(bound);
+        expect(maxStepWhere(w, (t) => t === 'pavement'), `${a} s${s} pavement`).toBeLessThanOrEqual(bound);
+      }
+    }, 300_000);
+  }
+
+  it('the ground outside the house wall keeps its level on every side (no groove at the outer face)', () => {
+    const sides = new Set<string>();
+    for (let s = 1; s <= (FULL ? 12 : 6); s++) {
+      const w = report('kitchen-door', s).world;
+      const t = w.terrain, cells = w.maps.zone.nx, c = t.cell;
+      const interior = (i: number, k: number) => w.zones[w.maps.zone.data[k * cells + i]].type === 'interior';
+      sides.add(w.edges!.find((e) => e.kind === 'facade')!.side);
+      let worst = 0;
+      for (let k = 2; k < cells - 2; k++) for (let i = 2; i < cells - 2; i++) {
+        if (interior(i, k)) continue;
+        for (const [di, dk] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          if (!interior(i + di, k + dk)) continue;
+          const fx = (i + 0.5 + 0.5 * di) * c, fz = (k + 0.5 + 0.5 * dk) * c; // the zone boundary = the wall face
+          const drop = heightAt(t, fx - di * 1.5 * c, fz - dk * 1.5 * c) - heightAt(t, fx - di * 0.1 * c, fz - dk * 0.1 * c);
+          worst = Math.max(worst, drop);
+        }
+      }
+      expect(worst, `kitchen-door s${s}`).toBeLessThan(10);
+    }
+    expect(sides.size).toBeGreaterThanOrEqual(2); // the seeds cover the house on more than one map side
+  }, 300_000);
 });
 
 describe('map boundary (GDD 04 §14)', () => {

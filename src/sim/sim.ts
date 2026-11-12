@@ -16,6 +16,7 @@ import { getSpecies, requireSpecies } from '@/sim/species';
 import { createServices } from '@/sim/services';
 import { BEHAVIOURS, createBehaviourTable, SYSTEMS } from '@/sim/systems';
 import { generateWorld } from '@/worldgen';
+import { installRuntimeHooks } from '@/sim/wiring';
 
 export interface CreateSimOptions {
   /** Replaces the default system list (module tests run only the systems they need). */
@@ -83,7 +84,11 @@ export function createSim(state: SimState, world?: WorldData, opts: CreateSimOpt
       if (applied > 0) svc.index.refresh();
     },
     setPlayerIntent(intent: PlayerIntent) {
-      state.player.intent = clonePlain(intent);
+      const next = clonePlain(intent);
+      // a non-finite direction (bad input mapping) would reach the walker as NaN: treat it as "no input"
+      const d = next.dir;
+      if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.y) || !Number.isFinite(d.z)) next.dir = { x: 0, y: 0, z: 0 };
+      state.player.intent = next;
     },
     integratePossessed(dtSeconds: number) {
       const ant = svc.stores.ants.get(state.player.possessedAntId);
@@ -94,6 +99,7 @@ export function createSim(state: SimState, world?: WorldData, opts: CreateSimOpt
     },
     stream: (name) => rngStream(state, name),
   };
+  installRuntimeHooks(sim);
   return sim;
 }
 

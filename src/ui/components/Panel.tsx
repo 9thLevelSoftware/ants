@@ -1,11 +1,11 @@
 // Panel, Drawer and BookScreen (GDD 08 2.7, 7.1). Panel = a semi-opaque surface; Drawer = right-docked panel with a
 // close button; BookScreen = centred 1120 x 640 dp page with a vertical tab rail (Q / E switch tabs, Esc closes).
 import type { ComponentChildren } from 'preact';
-import { useEffect, useId, useRef } from 'preact/hooks';
+import { useId, useRef } from 'preact/hooks';
 import { cx } from './cx';
-import { IconButton } from './Button';
-import { useFocusScope } from './focus';
-import { pushBack } from './logic/escapeStack';
+import { Button, IconButton } from './Button';
+import { useBackLayer, useFocusScope } from './focus';
+import { BACK_LEVEL } from './logic/escapeStack';
 import { Tabs, useTabHotkeys, type TabDef } from './Tabs';
 
 export interface PanelProps {
@@ -38,7 +38,7 @@ export function Drawer(p: DrawerProps) {
   const ref = useRef<HTMLElement>(null);
   const id = useId();
   useFocusScope(ref as never, {});
-  useEffect(() => pushBack(p.onClose), [p.onClose]);
+  useBackLayer(p.onClose, BACK_LEVEL.screen);
   return (
     <aside ref={ref} class={cx('ui-drawer', 'ui-surface', p.class)} aria-labelledby={id}>
       <header class="ui-drawer-head">
@@ -70,9 +70,9 @@ export interface BookScreenProps<T extends string> {
 export function BookScreen<T extends string>(p: BookScreenProps<T>) {
   const ref = useRef<HTMLDivElement>(null);
   const prefix = p.idPrefix ?? 'book';
-  useFocusScope(ref, { initial: p.initialFocus });
+  useFocusScope(ref, { initial: p.initialFocus, trap: true });
   useTabHotkeys(p.tabs, p.tab, p.onTab);
-  useEffect(() => (p.noEscape ? undefined : pushBack(p.onClose)), [p.onClose, p.noEscape]);
+  useBackLayer(p.onClose, BACK_LEVEL.screen, !p.noEscape);
   return (
     <div class="ui-book-wrap">
       <div ref={ref} class={cx('ui-book', 'ui-surface', 'is-elevated', p.class)} role="dialog" aria-label={p.title}>
@@ -105,13 +105,13 @@ export interface BookPageProps {
 /** A book screen without a tab rail (New Game, Credits, Lineage): header with Back, then the page. */
 export function BookPage(p: BookPageProps) {
   const ref = useRef<HTMLDivElement>(null);
-  useFocusScope(ref, { initial: p.initialFocus });
-  useEffect(() => (p.noEscape ? undefined : pushBack(p.onClose)), [p.onClose, p.noEscape]);
+  useFocusScope(ref, { initial: p.initialFocus, trap: true });
+  useBackLayer(p.onClose, BACK_LEVEL.screen, !p.noEscape);
   return (
     <div class="ui-book-wrap">
       <div ref={ref} class={cx('ui-book', 'is-plain', 'ui-surface', 'is-elevated', p.class)} role="dialog" aria-label={p.title}>
         <header class="ui-book-head">
-          <IconButton icon="back" label={p.backLabel ?? 'Back'} onClick={p.onClose} class="ui-book-back" data-testid="book-back" />
+          <Button variant="ghost" icon="back" onClick={p.onClose} class="ui-book-back" data-testid="book-back">{p.backLabel ?? 'Back'}</Button>
           <h1 class="ui-book-title">{p.title}</h1>
           <div class="ui-book-head-right">{p.headerRight}</div>
         </header>

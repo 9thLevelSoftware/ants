@@ -3,8 +3,6 @@
 // replace a port with a fake (vi.spyOn(ports, 'feedBrood')). The defaults are the owning modules' exports.
 
 import * as colony from '@/sim/colony';
-// Not re-exported by the colony index yet (reported); used by the brood inspect ETA only.
-import { devRate, stageDu } from '@/sim/colony/life';
 import * as combat from '@/sim/combat';
 import * as ecology from '@/sim/ecology';
 import * as environment from '@/sim/environment';
@@ -17,6 +15,8 @@ export const ports = {
   // nest (nestops): digging, pellets, plugs, chambers, entrances
   canDigAt: nest.canDigAt,
   digBite: nest.digBite,
+  /** Dig speed at a point inside the solid (moisture, loose fill, crusts; GDD 03 §2.1-2.2). */
+  nestDigSpeedAt: nest.digSpeedAt,
   dumpPellet: nest.dumpPellet,
   sealEntrance: nest.sealEntrance,
   unsealEntrance: nest.unsealEntrance,
@@ -30,8 +30,8 @@ export const ports = {
   layEgg: colony.layEgg,
   canLay: colony.canLay,
   colonyDemand: colony.colonyDemand,
-  broodDevRate: devRate,
-  broodStageDu: stageDu,
+  broodDevRate: colony.devRate,
+  broodStageDu: colony.stageDu,
   // ecology (sources-core): harvesting. takeFromSource puts the food into the crop (liquids, `amount` = game s of
   // drinking) or an item into the mandibles (pick: whole units; tear: one piece).
   takeFromSource: ecology.takeFromSource,

@@ -125,9 +125,11 @@ export function buildHeightfield(ctx: GenContext, rng: RngState): void {
     H[j] = smooth[j] + (target - smooth[j]) * wMax[j];
   }
   // micro relief fades out toward footpaths (a path is the smooth ground, so its edges stay flush)
-  const isPath = Uint8Array.from(role, (r) => (r === 1 ? 1 : 0));
-  const pathDist = new Float32Array(nS);
-  nearestSites(isPath, samples, samples, pathDist);
+  const isPath = new Uint8Array(nS);
+  let paths = 0;
+  for (let j = 0; j < nS; j++) if (role[j] === 1) { isPath[j] = 1; paths++; }
+  const pathDist = new Float32Array(nS).fill(Infinity);
+  if (paths > 0) nearestSites(isPath, samples, samples, pathDist);
   const castW = new Float32Array(nS), hollowW = new Float32Array(nS);
   for (let j = 0; j < nS; j++) {
     if (role[j] === 2) continue;
@@ -150,16 +152,12 @@ export function buildHeightfield(ctx: GenContext, rng: RngState): void {
  * outer face keeps the outside level.
  */
 function sampleCell(lay: { cells: Uint8Array; zones: { built: BuiltShape['kind'] | null }[] }, cells: number, i: number, k: number): number {
-  let first = -1;
-  for (const [di, dk] of CORNER_CELLS) {
-    const ci = Math.min(cells - 1, Math.max(0, i + di)), ck = Math.min(cells - 1, Math.max(0, k + dk));
-    const c = ck * cells + ci;
-    if (first < 0) first = c;
-    if (lay.zones[lay.cells[c]].built !== 'interior') return c;
-  }
+  const i1 = Math.min(cells - 1, i), k1 = Math.min(cells - 1, k), i0 = Math.max(0, i - 1), k0 = Math.max(0, k - 1);
+  const first = k1 * cells + i1;
+  if (lay.zones[lay.cells[first]].built !== 'interior') return first;
+  for (const c of [k1 * cells + i0, k0 * cells + i1, k0 * cells + i0]) if (lay.zones[lay.cells[c]].built !== 'interior') return c;
   return first;
 }
-const CORNER_CELLS: readonly [number, number][] = [[0, 0], [-1, 0], [0, -1], [-1, -1]];
 
 /**
  * Adds the blend contribution of rigid group g to the non-rigid samples within `blendCells` of it: blend weight

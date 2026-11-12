@@ -36,6 +36,17 @@ export class NestLighting {
     u.uXDepth.value = XRAY.deepBU * bu;
   }
 
+  /**
+   * Scales the nest's own artificial light (the warm ambient and the sense light), which is calibrated for the
+   * underground exposure. Above ground the eye adapts to the surface (night exposure is 2-3 EV brighter), and the
+   * unscaled ambient made open holes glow orange at night; the caller passes 2^(underground EV - current EV), <= 1.
+   */
+  setArtificialGain(g: number): void {
+    const k = Number.isFinite(g) ? Math.max(0, g) : 1;
+    this.u.uAmb.value.set(NEST_LIGHT.ambientHex).multiplyScalar(NEST_LIGHT.ambientLevel * k);
+    this.u.uLanternCol.value.set(NEST_LIGHT.lanternHex).multiplyScalar(NEST_LIGHT.lanternLevel * k);
+  }
+
   /** Daylight as linear RGB radiance (e.g. the world's sky ambient + sun at the surface); 0 = night. */
   setDaylight(r: number, g: number, b: number): void {
     this.daylight.setRGB(r, g, b);

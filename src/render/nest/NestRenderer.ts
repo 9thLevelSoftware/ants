@@ -154,6 +154,11 @@ export class NestRenderer {
     this.lighting.setDaylight(r, g, b);
   }
 
+  /** Gain on the nest's artificial light (ambient + sense light), see NestLighting.setArtificialGain. */
+  setArtificialGain(g: number): void {
+    this.lighting.setArtificialGain(g);
+  }
+
   /** Moisture darkening hook: wetness = clamp(soilMoisture * scale + offset) (rain soaking, flooding). */
   setMoisture(scale: number, offset = 0): void {
     this.uniforms.uMoist.value.set(scale, offset);
@@ -230,6 +235,11 @@ export class NestRenderer {
   /** Projection of a point on the current cut plane (marker shadow on the cap). */
   projectOnCut(p: Vec3, out: Vec3): Vec3 {
     return projectOnCut(this.plane, p, out);
+  }
+
+  /** Where the sense light is this frame (the possessed ant / subject, else the camera), mm. */
+  get lanternPos(): Readonly<Vector3> {
+    return this.lighting.lantern;
   }
 
   get cutPlane(): Readonly<CutPlane> {

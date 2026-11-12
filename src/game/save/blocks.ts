@@ -1,5 +1,6 @@
 // When saving must wait (GDD 06 §15 rule 3, GDD 08 §7.6): a pure read of the state and the game mode.
 import type { SimState } from '@/sim/types';
+import { INTRO_CARD_BLOCK_TICKS } from './constants';
 
 export interface BlockContext {
   /** Game mode: only `playing` and `paused` can save. */
@@ -26,7 +27,7 @@ export function blockReason(
   if (state.env.winter.phase === 'lapse') return 'The winter time-lapse is running.';
   if (kind === 'manual') return null;
   if (ctx.view === 'photo') return 'Photo mode is open.';
-  if (state.player.opening?.phase === 'intro-card') return 'The intro card is showing.';
+  if (state.player.opening?.phase === 'intro-card' && state.tick < INTRO_CARD_BLOCK_TICKS) return 'The intro card is showing.';
   if (state.colonies[0]?.repro.active) return 'A nuptial flight is in progress.';
   return null;
 }

@@ -34,6 +34,11 @@ export class GridSearch {
   private readonly via: Int32Array;
   private gen = 0;
   private readonly heap = new MinHeap(256);
+  /** Flow repair scratch: per-cell verdict stamps and the branch being resolved. */
+  private readonly mark: Uint32Array;
+  private markGen = 0;
+  private readonly seedMark: Uint32Array;
+  private readonly stack: number[] = [];
   /** Nodes expanded by the last search (diagnostics). */
   expanded = 0;
 
@@ -45,6 +50,8 @@ export class GridSearch {
     this.seen = new Uint32Array(n);
     this.done = new Uint32Array(n);
     this.via = new Int32Array(n);
+    this.mark = new Uint32Array(n);
+    this.seedMark = new Uint32Array(n);
   }
 
   /** Extra factor of entering cell c from the avoid discs (1 = none). */
@@ -92,7 +99,7 @@ export class GridSearch {
 
   private nextGen(): number {
     this.gen = (this.gen + 1) >>> 0;
-    if (this.gen === 0) { this.seen.fill(0); this.done.fill(0); this.gen = 1; }
+    if (this.gen === 0) { this.seen.fill(0); this.done.fill(0); this.seedMark.fill(0); this.gen = 1; }
     return this.gen;
   }
 
@@ -146,14 +153,27 @@ export class GridSearch {
     return true;
   }
 
-  /** Multi-source Dijkstra: cost-to-nearest-seed per cell into dist (Infinity = unreachable). */
-  dijkstra(seeds: readonly number[], dist: Float32Array, clearanceBu = 0): void {
-    const g = this.g, heap = this.heap, gen = this.nextGen();
+  /**
+   * Multi-source Dijkstra: cost-to-nearest-seed per cell into dist (Infinity = unreachable) and, when given, the
+   * cell each one was reached from into parent (-1 = seed or unreachable). Distances stay in mm, but edge costs
+   * are quantised to whole multiples of 1 / flowQuantPerMm mm (a power of two, so the sums are exact in float32):
+   * every shortest distance is then exact and unique, and the same field built in one go or repaired
+   * incrementally (flowRepair) is bit-identical, which keeps runs deterministic across save / load.
+   */
+  dijkstra(seeds: readonly number[], dist: Float32Array, clearanceBu = 0, parent: Int32Array | null = null): void {
+    const heap = this.heap;
     dist.fill(Infinity);
+    if (parent) parent.fill(-1);
     heap.clear();
     for (const s of seeds) { dist[s] = 0; heap.push(s, 0); }
+    this.flowRun(dist, parent, clearanceBu, this.nextGen());
+  }
+
+  /** The Dijkstra loop over the heap's current contents (shared by the full build and the repair). */
+  private flowRun(dist: Float32Array, parent: Int32Array | null, clearanceBu: number, gen: number): void {
+    const g = this.g, heap = this.heap, q = NAV_GRID_TUNING.flowQuantPerMm, iq = 1 / q;
     while (heap.size > 0) {
-      // (the first pop of a cell is its final distance; dist is Float32, so no key-vs-dist staleness test)
+      // the first pop of a cell is its final distance (integer keys, no key-vs-dist staleness test needed)
       const c = heap.pop();
       if (this.done[c] === gen) continue;
       this.done[c] = gen;
@@ -165,17 +185,77 @@ export class GridSearch {
         // costs are symmetric except the destination cell's blocked test: walk "backwards" from the seeds
         const ec = this.edgeCost(nb, c, k >= 4, null);
         if (ec === Infinity || isBlocked(g, nb)) continue;
-        const nd = dist[c] + ec;
-        if (nd < dist[nb]) { dist[nb] = nd; heap.push(nb, nd); }
+        const nd = dist[c] + Math.max(1, Math.round(ec * q)) * iq;
+        if (nd < dist[nb]) { dist[nb] = nd; if (parent) parent[nb] = c; heap.push(nb, nd); }
       }
       const ps = g.portalsAt.get(c);
       if (ps) for (const pi of ps) {
         const nb = this.portalOther(g.portals[pi], c, clearanceBu);
         if (nb < 0) continue;
-        const nd = dist[c] + g.portals[pi].cost;
-        if (nd < dist[nb]) { dist[nb] = nd; heap.push(nb, nd); }
+        const nd = dist[c] + Math.max(1, Math.round(g.portals[pi].cost * q)) * iq;
+        if (nd < dist[nb]) { dist[nb] = nd; if (parent) parent[nb] = c; heap.push(nb, nd); }
       }
     }
+  }
+
+  /**
+   * Repairs a flow field after the cells in `dirty` changed (cost, blocking, ground, portals), giving exactly the
+   * result of a full rebuild with the same seeds. Every cell whose shortest-path tree branch uses an edge next to
+   * a dirty cell is reset; the Dijkstra then restarts from the valid cells bordering the reset region and from the
+   * valid cells around the dirty ones (cost decreases). Work is the reset region plus one O(cells) tree scan.
+   */
+  flowRepair(dist: Float32Array, parent: Int32Array, seeds: readonly number[], dirty: readonly number[], clearanceBu = 0): number {
+    const g = this.g, n = g.w * g.h, heap = this.heap;
+    const near = this.seen, state = this.mark, gen = this.nextGen();
+    // near[c] === gen: c is within one cell (8-neighbourhood, portal ends) of a dirty cell: its edges may have changed
+    for (const d of dirty) {
+      const dx0 = d % g.w, dz0 = (d - dx0) / g.w;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        const x = dx0 + dx, z = dz0 + dz;
+        if (x >= 0 && z >= 0 && x < g.w && z < g.h) near[z * g.w + x] = gen;
+      }
+      const ps = g.portalsAt.get(d);
+      if (ps) for (const pi of ps) { const p = g.portals[pi]; if (p.cellA >= 0) near[p.cellA] = gen; if (p.cellB >= 0) near[p.cellB] = gen; }
+    }
+    const isSeed = this.seedMark;
+    for (const s of seeds) isSeed[s] = gen;
+    // state: VALID / RESET stamps (no clearing pass); resolve each finite cell's branch once
+    if (this.markGen >= 0xfffffff0) { state.fill(0); this.markGen = 0; }
+    const VALID = (this.markGen += 2), RESET = VALID + 1, stack = this.stack;
+    let reset = 0;
+    for (let c = 0; c < n; c++) {
+      if (!(dist[c] < Infinity) || state[c] === VALID || state[c] === RESET) continue;
+      let x = c, verdict = VALID;
+      stack.length = 0;
+      for (;;) {
+        if (state[x] === VALID || state[x] === RESET) { verdict = state[x]; break; }
+        if (isSeed[x] === gen) { verdict = VALID; state[x] = VALID; break; }
+        const p = parent[x];
+        if (near[x] === gen || p < 0 || near[p] === gen) { verdict = RESET; stack.push(x); break; }
+        stack.push(x);
+        x = p;
+      }
+      for (const y of stack) state[y] = verdict;
+    }
+    heap.clear();
+    for (let c = 0; c < n; c++) if (state[c] === RESET) { dist[c] = Infinity; parent[c] = -1; reset++; }
+    // restart: valid finite cells next to the reset region or to a dirty cell
+    const pushIfValid = (c: number): void => {
+      if (c >= 0 && dist[c] < Infinity && state[c] !== RESET) heap.push(c, dist[c]);
+    };
+    for (let c = 0; c < n; c++) {
+      if (state[c] === RESET) {
+        const cx = c % g.w, cz = (c - cx) / g.w;
+        for (let k = 0; k < 8; k++) {
+          const x = cx + DX[k], z = cz + DZ[k];
+          if (x >= 0 && z >= 0 && x < g.w && z < g.h) pushIfValid(z * g.w + x);
+        }
+        const ps = g.portalsAt.get(c);
+        if (ps) for (const pi of ps) { const p = g.portals[pi]; pushIfValid(p.cellA === c ? p.cellB : p.cellA); }
+      } else if (near[c] === gen) pushIfValid(c);
+    }
+    this.flowRun(dist, parent, clearanceBu, this.nextGen());
+    return reset;
   }
 }
 

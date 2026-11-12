@@ -1,8 +1,7 @@
 // `__game.saves`: plain-JSON verification surface for the harness (page.evaluate can return only JSON). It wraps the
 // save manager, the profile and the settings persistence; nothing here is used by the game itself.
 import type { Persistence } from './install';
-import { bytesToText } from './container';
-import { toBase64 } from '@/core/serialize';
+import { fromBase64, toBase64 } from '@/core/serialize';
 import { readFileBytes } from './download';
 import { listSlotInfos } from './facade';
 
@@ -32,7 +31,6 @@ export function buildSavesDebug(p: Persistence) {
       return outcome(target === 'now' ? await m.loadParsed(parsed.value) : await m.importToSlot(parsed.value, target));
     },
     importBase64: async (b64: string, target: string) => {
-      const { fromBase64 } = await import('@/core/serialize');
       const parsed = m.parseImport(fromBase64(b64));
       if (!parsed.ok || !parsed.value) return outcome(parsed);
       return outcome(target === 'now' ? await m.loadParsed(parsed.value) : await m.importToSlot(parsed.value, target));
@@ -65,7 +63,7 @@ export function buildSavesDebug(p: Persistence) {
     frame: (dtS: number) => { p.driver.frame(dtS); return policyState(p); },
     trigger: (label: string) => p.driver.trigger(label as never),
     written: () => p.driver.written.slice(),
-    textOf: (base64: string) => bytesToText(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))).length,
+    lastSave: () => m.lastSaveInfo(),
     thumbnail: () => { const t = m.captureThumbnail(); return t ? { chars: t.length, prefix: t.slice(0, 22) } : null; },
     settings: { get: () => p.game.settings.get(), set: (patch: never) => { p.game.setSettings(patch); return p.game.settings.get(); }, flush: () => p.settings.flush() },
     profile: {

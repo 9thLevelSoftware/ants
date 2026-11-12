@@ -1,6 +1,6 @@
 // Turning a pressed input into a Binding while a KeybindRow is listening (GDD 08 7.5), and the plain-words messages
 // for conflicts and refusals. Pure: the row feeds it event-like data and decides what to do with the answer.
-import { actionDef, bindingLabel, type Binding, type Conflict, type RefusalReason, type Slot } from '@/input';
+import { actionDef, axisDef, bindingLabel, type ActionDef, type Binding, type Conflict, type RefusalReason, type Slot } from '@/input';
 
 export type Captured =
   | { kind: 'binding'; binding: Binding }
@@ -56,11 +56,21 @@ export function contextName(code: string): string {
   return CONTEXT_NAMES[code] ?? code;
 }
 
+/** Name of an action in plain words: axis components read "Move right", not "Move (right)". */
+export function actionLabel(def: ActionDef): string {
+  if (def.axis) {
+    const comp = def.id.split('.')[1];
+    const axis = axisDef(def.axis)?.label ?? def.axis;
+    return comp === 'stick' ? `${axis} (gamepad stick)` : comp === 'drag' ? `${axis} (mouse drag)` : `${axis} ${comp}`;
+  }
+  return def.label;
+}
+
 /** "D is already Move right." naming the first conflicting action (GDD 08 7.5). */
 export function conflictMessage(binding: Binding, conflicts: readonly Conflict[]): string {
   const first = conflicts[0];
   const def = first ? actionDef(first.actionId) : undefined;
-  const name = def ? def.label : first?.actionId ?? 'another action';
+  const name = def ? actionLabel(def) : first?.actionId ?? 'another action';
   const where = def && def.contexts[0] !== 'G' ? ` (${contextName(def.contexts[0])})` : '';
   const more = conflicts.length > 1 ? ` and ${conflicts.length - 1} more` : '';
   return `${bindingLabel(binding)} is already ${name}${where}${more}.`;

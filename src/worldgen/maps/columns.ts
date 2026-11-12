@@ -14,6 +14,11 @@ export const OVER_WARM = 2;
 export interface Columns extends DerivedCache {
   /** Ground under objects: terrain or a ground-defining primitive (floor slab), per terrain cell, mm. */
   base: Float32Array;
+  /**
+   * 1 where the walkable surface is the top of a primitive the AI may not climb (no CLIMBABLE flag, or SLIPPERY):
+   * a step up onto it is not a climbable face (GDD 04 §11). Terrain materials all have grip >= 0.6 (GDD 04 §3).
+   */
+  noClimb: Uint8Array;
 }
 
 const WOOD: readonly MaterialId[] = ['wood-decayed', 'wood-sound'];
@@ -26,6 +31,7 @@ export function rasterColumns(ctx: GenContext): Columns {
   const overMin = new Float32Array(n).fill(Infinity);
   const coverCeil = new Uint8Array(n), over = new Uint8Array(n);
   const wood = new Int32Array(n).fill(-1);
+  const top = new Int32Array(n).fill(-1); // primitive whose top is the walkable surface, -1 terrain
   for (let k = 0; k < cells; k++) for (let i = 0; i < cells; i++) {
     const s = k * samples + i;
     base[k * cells + i] = (H[s] + H[s + 1] + H[s + samples] + H[s + samples + 1]) / 4;
@@ -47,13 +53,13 @@ export function rasterColumns(ctx: GenContext): Columns {
   // 1. ground-defining primitives (floor slabs) replace the terrain as the ground
   for (let pi = 0; pi < prims.length; pi++) {
     if (!solid(pi) || !ctx.groundPrims.has(prims[pi].id)) continue;
-    forCells(pi, (j, _b, t) => { if (t > base[j]) base[j] = t; });
+    forCells(pi, (j, _b, t) => { if (t > base[j]) { base[j] = t; top[j] = pi; } });
   }
   contact.set(base);
   topAll.set(base);
   // 2. objects standing on the ground (or within the clearance of it), then one level of stacking
   const contactPass = (pi: number) => forCells(pi, (j, b, t) => {
-    if (b <= contact[j] + clear && t > contact[j]) contact[j] = t;
+    if (b <= contact[j] + clear && t > contact[j]) { contact[j] = t; top[j] = pi; }
   });
   for (let pi = 0; pi < prims.length; pi++) if (solid(pi) && !ctx.groundPrims.has(prims[pi].id)) contactPass(pi);
   for (let pi = 0; pi < prims.length; pi++) if (solid(pi) && !ctx.groundPrims.has(prims[pi].id)) contactPass(pi);
@@ -82,5 +88,10 @@ export function rasterColumns(ctx: GenContext): Columns {
     walkTop[j] = contact[j] - base[j] > overMaxMm || tallLow[j] ? NaN : contact[j];
     if (overMin[j] < Infinity && overMin[j] > contact[j]) over[j] |= OVER_SHELTER;
   }
-  return { base, walkTop, topAll, coverCeil, over, wood };
+  const noClimb = new Uint8Array(n);
+  for (let j = 0; j < n; j++) {
+    const f = top[j] >= 0 ? prims[top[j]].flags : PrimFlag.CLIMBABLE;
+    noClimb[j] = (f & PrimFlag.CLIMBABLE) === 0 || (f & PrimFlag.SLIPPERY) !== 0 ? 1 : 0;
+  }
+  return { base, walkTop, topAll, coverCeil, over, wood, noClimb };
 }

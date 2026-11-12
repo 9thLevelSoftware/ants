@@ -7,7 +7,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { NavClass, NavGrid, Primitive, WorldData } from '@/sim/types';
 import { NAV_CLASSES } from '@/sim/types';
 import type { WorldField } from '@/sim/world/field';
-import { deriveFromField, deriveFromWorld, isBlocked, type GridData, type Portal } from './gridData';
+import { deriveFromField, deriveFromWorld, isBlocked, NAV_GRID_TUNING, type GridData, type Portal } from './gridData';
 import { GridSearch, lineClear, type CostDisc } from './search';
 
 /** Smoothing: segments are tested this far above the ground, with this sweep radius (BU). */
@@ -36,7 +36,29 @@ interface FlowEntry {
   sig: string;
   version: number;
   dist: Float32Array;
+  /** Cell each cell's distance came from (-1 = seed / unreachable): the shortest-path tree, for repairs. */
+  parent: Int32Array;
+  /** Seed cells the field was built from (a change of snapped seeds forces a full rebuild). */
+  seedCells: number[];
   used: number;
+}
+
+/** Cost-relevant cell data of a box before a re-derivation (copied exactly, compared exactly). */
+interface AreaSnapshot {
+  i0: number; i1: number; k0: number; k1: number;
+  ground: Float32Array;
+  cls: Uint8Array; covered: Uint8Array; partial: Float32Array; cost: Float32Array; grip: Float32Array;
+}
+
+function sameCell(d: GridData, c: number, b: AreaSnapshot, q: number): boolean {
+  return d.cls[c] === b.cls[q] && d.covered[c] === b.covered[q] && d.partial[c] === b.partial[q] && d.cost[c] === b.cost[q]
+    && d.grip[c] === b.grip[q];
+}
+
+/** Cells changed by one grid version bump (flow-field repair log). */
+interface ChangeEntry {
+  version: number;
+  cells: number[];
 }
 
 /** The locomotion nav grid: the NavGrid contract plus planner queries. */
@@ -70,7 +92,9 @@ export interface LocoNavGrid extends NavGrid {
   /** Opens or closes a micro-portal (GDD 04 §6: weather strip, blocked crack); no-op if unchanged. */
   setPortalOpen(id: number, open: boolean): void;
   readonly portals: readonly Portal[];
-  stats(): { searches: number; expanded: number; flowBuilds: number };
+  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number };
+  /** Nodes expanded by all A* searches so far. */
+  readonly expandedTotal: number;
 }
 
 export function isLocoNavGrid(g: NavGrid): g is LocoNavGrid {
@@ -94,7 +118,11 @@ class NavGridImpl implements LocoNavGrid {
   private readonly search: GridSearch;
   private readonly flows: FlowEntry[] = [];
   private clock = 0;
-  private counters = { searches: 0, expanded: 0, flowBuilds: 0 };
+  private counters = { searches: 0, expanded: 0, flowBuilds: 0, flowRepairs: 0, flowRepairCells: 0 };
+  /** Recent cell changes, oldest first; fields older than `fullVersion` need a full rebuild. */
+  private readonly changes: ChangeEntry[] = [];
+  private fullVersion = 0;
+  private logCells = 0;
 
   constructor(world: WorldData) {
     this.data = deriveFromWorld(world);
@@ -113,19 +141,95 @@ class NavGridImpl implements LocoNavGrid {
   }
 
   setPortalOpen(id: number, open: boolean): void {
-    for (const p of this.data.portals) if (p.id === id && p.open !== open) { p.open = open; this.version++; }
+    for (const p of this.data.portals) {
+      if (p.id !== id || p.open === open) continue;
+      p.open = open;
+      this.bump([p.cellA, p.cellB].filter((c) => c >= 0));
+    }
+  }
+
+  /** New grid version whose changed cells are `cells` (null = everything: flow fields rebuild in full). */
+  private bump(cells: number[] | null): void {
+    this.version++;
+    if (cells === null) {
+      this.fullVersion = this.version;
+      this.changes.length = 0;
+      this.logCells = 0;
+      return;
+    }
+    this.changes.push({ version: this.version, cells });
+    this.logCells += cells.length;
+    while (this.logCells > NAV_GRID_TUNING.flowLogMaxCells && this.changes.length > 0) {
+      const dropped = this.changes.shift()!;
+      this.logCells -= dropped.cells.length;
+      this.fullVersion = Math.max(this.fullVersion, dropped.version);
+    }
+  }
+
+  /** Cells changed after `version`, or null when the log no longer reaches back that far. */
+  private changedSince(version: number): number[] | null {
+    if (version < this.fullVersion) return null;
+    const out: number[] = [];
+    for (const ch of this.changes) if (ch.version > version) for (const c of ch.cells) out.push(c);
+    return out;
   }
 
   attachField(field: WorldField, prims: readonly Primitive[]): void {
     this.field = field;
     deriveFromField(this.data, field, prims);
-    this.version++;
+    this.bump(null);
   }
 
   refreshArea(x0: number, z0: number, x1: number, z1: number, prims: readonly Primitive[]): void {
     if (!this.field) return;
+    // the cells deriveFromField rewrites (it clamps the box to the grid the same way), plus a ring for the step test
+    const c = this.cell, cl = (v: number, n: number) => Math.min(n - 1, Math.max(0, Math.floor(v / c)));
+    const ia = cl(x0, this.w), ib = cl(x1, this.w), ka = cl(z0, this.h), kb = cl(z1, this.h);
+    const before = this.snapshotArea(ia - 1, ib + 1, ka - 1, kb + 1);
     deriveFromField(this.data, this.field, prims, x0, z0, x1, z1);
-    this.version++;
+    this.bump(this.changedCells(before, ia, ib, ka, kb));
+  }
+
+  /** Copy of the cost-relevant cell data in a clamped box (flow-repair change detection). */
+  private snapshotArea(i0: number, i1: number, k0: number, k1: number): AreaSnapshot {
+    const d = this.data;
+    i0 = Math.max(0, i0); k0 = Math.max(0, k0); i1 = Math.min(this.w - 1, i1); k1 = Math.min(this.h - 1, k1);
+    const n = (i1 - i0 + 1) * (k1 - k0 + 1);
+    const snap: AreaSnapshot = {
+      i0, i1, k0, k1, ground: new Float32Array(n), cls: new Uint8Array(n), covered: new Uint8Array(n),
+      partial: new Float32Array(n), cost: new Float32Array(n), grip: new Float32Array(n),
+    };
+    let q = 0;
+    for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++, q++) {
+      const cc = k * this.w + i;
+      snap.ground[q] = d.ground[cc]; snap.cls[q] = d.cls[cc]; snap.covered[q] = d.covered[cc];
+      snap.partial[q] = d.partial[cc]; snap.cost[q] = d.cost[cc]; snap.grip[q] = d.grip[cc];
+    }
+    return snap;
+  }
+
+  /**
+   * Cells of the box whose edges' costs may have changed: class, cover, cost or grip changed, or the ground moved
+   * where an edge to a neighbour is (or was) a step edge (edge costs read the ground only through the climb term).
+   */
+  private changedCells(b: AreaSnapshot, ia: number, ib: number, ka: number, kb: number): number[] {
+    const d = this.data, out: number[] = [], step = NAV_GRID_TUNING.stepBU * d.bu, bw = b.i1 - b.i0 + 1;
+    const oldGround = (i: number, k: number) => b.ground[(k - b.k0) * bw + (i - b.i0)];
+    for (let k = ka; k <= kb; k++) for (let i = ia; i <= ib; i++) {
+      const cc = k * this.w + i, q = (k - b.k0) * bw + (i - b.i0);
+      if (!sameCell(d, cc, b, q)) { out.push(cc); continue; }
+      const g0 = b.ground[q], g1 = d.ground[cc];
+      if (g0 === g1) continue;
+      let stepEdge = false;
+      for (let dk = -1; dk <= 1 && !stepEdge; dk++) for (let di = -1; di <= 1 && !stepEdge; di++) {
+        const ni = i + di, nk = k + dk;
+        if ((di === 0 && dk === 0) || ni < b.i0 || nk < b.k0 || ni > b.i1 || nk > b.k1) continue;
+        const n0 = oldGround(ni, nk), n1 = d.ground[nk * this.w + ni];
+        stepEdge = Math.abs(g0 - n0) > step || Math.abs(g1 - n1) > step || Math.abs(g1 - n0) > step || Math.abs(g0 - n1) > step;
+      }
+      if (stepEdge) out.push(cc);
+    }
+    return out;
   }
 
   cellOf(x: number, z: number): number {
@@ -162,7 +266,7 @@ class NavGridImpl implements LocoNavGrid {
     if (ix < 0 || iz < 0 || ix >= this.w || iz >= this.h) return;
     const m = Number.isNaN(mult) ? 1 : Math.max(1, mult);
     const c = iz * this.w + ix;
-    if (this.data.dyn[c] !== m) { this.data.dyn[c] = m; this.version++; }
+    if (this.data.dyn[c] !== m) { this.data.dyn[c] = m; this.bump([c]); }
   }
 
   findPath(from: Vec3, to: Vec3, out: Vec3[]): boolean {
@@ -268,22 +372,34 @@ class NavGridImpl implements LocoNavGrid {
     this.clock++;
     let e = this.flows.find((f) => f.key === key);
     if (e && e.sig === sig && e.version === this.version) { e.used = this.clock; return e.dist; }
+    const cells: number[] = [];
+    for (const p of seeds) {
+      const c = this.snap(this.clampedCell(p));
+      if (c >= 0 && !cells.includes(c)) cells.push(c);
+    }
+    // same seeds and a change log reaching back to the field's version: repair only what the changes touched
+    // (GDD 04 §11 incremental re-derivation); the result equals a full rebuild exactly (search.ts flowRepair)
+    if (e && e.sig === sig && sameCells(e.seedCells, cells)) {
+      const dirty = this.changedSince(e.version);
+      if (dirty !== null) {
+        this.counters.flowRepairCells += this.search.flowRepair(e.dist, e.parent, cells, dirty, FLOW_CLEARANCE_BU);
+        this.counters.flowRepairs++;
+        e.version = this.version; e.used = this.clock;
+        return e.dist;
+      }
+    }
     if (!e) {
       if (this.flows.length >= FLOW_CACHE) {
         let lru = 0;
         for (let i = 1; i < this.flows.length; i++) if (this.flows[i].used < this.flows[lru].used) lru = i;
         this.flows.splice(lru, 1);
       }
-      e = { key, sig, version: -1, dist: new Float32Array(this.w * this.h), used: this.clock };
+      const n = this.w * this.h;
+      e = { key, sig, version: -1, dist: new Float32Array(n), parent: new Int32Array(n), seedCells: [], used: this.clock };
       this.flows.push(e);
     }
-    const cells: number[] = [];
-    for (const p of seeds) {
-      const c = this.snap(this.clampedCell(p));
-      if (c >= 0 && !cells.includes(c)) cells.push(c);
-    }
-    this.search.dijkstra(cells, e.dist, FLOW_CLEARANCE_BU);
-    e.sig = sig; e.version = this.version; e.used = this.clock;
+    this.search.dijkstra(cells, e.dist, FLOW_CLEARANCE_BU, e.parent);
+    e.sig = sig; e.version = this.version; e.used = this.clock; e.seedCells = cells;
     this.counters.flowBuilds++;
     return e.dist;
   }
@@ -332,7 +448,18 @@ class NavGridImpl implements LocoNavGrid {
     return best;
   }
 
-  stats(): { searches: number; expanded: number; flowBuilds: number } {
+  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number } {
     return { ...this.counters };
   }
+
+  /** Nodes expanded by all A* searches so far (the planner's per-tick cost budget reads it). */
+  get expandedTotal(): number {
+    return this.counters.expanded;
+  }
+}
+
+function sameCells(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }

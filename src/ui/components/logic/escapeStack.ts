@@ -3,13 +3,28 @@
 // example resuming from the pause menu, then applies).
 export type BackHandler = () => void;
 
-const stack: BackHandler[] = [];
+interface Entry {
+  handler: BackHandler;
+  /** Layers of a higher level sit above lower ones whatever order they registered in. */
+  level: number;
+}
 
-/** Registers a layer; returns the function that removes it again. */
-export function pushBack(handler: BackHandler): () => void {
-  stack.push(handler);
+const stack: Entry[] = [];
+
+/** Layer levels: a screen, a dialog over it, a popover or a key capture over that. */
+export const BACK_LEVEL = { screen: 0, dialog: 10, popover: 20, capture: 30 } as const;
+
+/**
+ * Registers a layer; returns the function that removes it again. Entries are ordered by level, then by
+ * registration, so a screen that re-registers after a render never ends up above its own dialog.
+ */
+export function pushBack(handler: BackHandler, level: number = BACK_LEVEL.screen): () => void {
+  const entry: Entry = { handler, level };
+  let at = stack.length;
+  while (at > 0 && stack[at - 1].level > level) at--;
+  stack.splice(at, 0, entry);
   return () => {
-    const i = stack.lastIndexOf(handler);
+    const i = stack.indexOf(entry);
     if (i >= 0) stack.splice(i, 1);
   };
 }
@@ -23,7 +38,7 @@ export function hasBackHandler(): boolean {
 export function handleBack(): boolean {
   const top = stack[stack.length - 1];
   if (!top) return false;
-  top();
+  top.handler();
   return true;
 }
 

@@ -1,6 +1,7 @@
 // The cross-module API of F1c task step 3: every listed function exists and is callable on a fresh game without
-// throwing. Stubs return a safe "not available" value until their owner implements them; for modules that have
-// landed (environment, pheromones) the checks are only that values are finite and in range.
+// throwing. Stubs return a safe "not available" value until their owner implements them (combat, progression,
+// nest.siteAt). Since the Stage 1A gate the modules that landed (locomotion, nest, colony, ecology, ants,
+// environment, pheromones) are checked for their REAL answers on a fresh game: a founding queen alone on flat loam.
 import { describe, expect, it } from 'vitest';
 import * as ants from '@/sim/ants';
 import * as colony from '@/sim/colony';
@@ -39,15 +40,20 @@ describe('cross-module stub API', () => {
     const q = sim.state.ants[0];
     const p = { ...q.pos };
     const h = { x: 1, y: 0, z: 0 };
-    expect(locomotion.navTo(sim, q, p)).toBe(false);
-    expect(locomotion.navWander(sim, q, p, 10)).toBe(false);
-    expect(locomotion.navFollowTrail(sim, q, q.colony, 'trail')).toBe(false);
+    const below = { x: p.x, y: sim.field.height(p.x, p.z) - sim.world.bu, z: p.z };
+    // locomotion (loco): requests are accepted; a retrace needs breadcrumbs, which a fresh queen has none of
+    expect(locomotion.navTo(sim, q, p)).toBe(true);
+    expect(locomotion.navWander(sim, q, p, 10)).toBe(true);
+    expect(locomotion.navFollowTrail(sim, q, q.colony, 'trail')).toBe(true);
     expect(locomotion.navRetrace(sim, q)).toBe(false);
     expect(() => locomotion.navStop(sim, q)).not.toThrow();
+    expect(q.nav.status).toBe('idle');
     expect(() => locomotion.integratePossessed(sim, q, 0.016)).not.toThrow();
     expect(locomotion.placeOnSurface(sim, q, p)).toBe(true);
-    expect(nest.canDigAt(sim, q, p)).toBe(false);
-    expect(nest.digBite(sim, q, p, h, 30)).toMatchObject({ ok: false, voxels: 0, pelletId: -1 });
+    // nest (nestops): a founding queen in site-search may bite loam (GDD 03 §13.2); no plans, entrances or chambers
+    expect(nest.canDigAt(sim, q, below)).toBe(true);
+    const bite = nest.digBite(sim, q, { x: p.x, y: p.y - q.footOffset, z: p.z }, h, 30);
+    expect(Number.isFinite(bite.voxels)).toBe(true);
     expect(nest.dumpPellet(sim, q, -1, p)).toBeNull();
     expect(nest.sealEntrance(sim, -1, q.id)).toBe(false);
     expect(nest.unsealEntrance(sim, -1, q.id)).toBe(false);
@@ -57,7 +63,8 @@ describe('cross-module stub API', () => {
     expect(nest.createPlan(sim, spec, 'player')).toBe(-1);
     expect(nest.cancelPlan(sim, -1, 'player')).toBe(false);
     expect(nest.designateChamber(sim, -1, 'nursery', 'player')).toBe(false);
-    expect(nest.siteAt(sim, p)).toBeNull();
+    expect(nest.siteAt(sim, p)).toBeNull(); // still a stub: founding (Stage 1B)
+    // colony (colony-core): no workers yet, so nothing is deposited, withdrawn or fed; no laying before the opening's lay phase
     expect(colony.depositFood(sim, q.colony, 1, 1)).toEqual({ c: 0, p: 0 });
     expect(colony.withdrawFood(sim, q.colony, 1, 1)).toEqual({ c: 0, p: 0 });
     expect(colony.feedBrood(sim, q, -1, 1, 1)).toEqual({ c: 0, p: 0 });
@@ -83,12 +90,14 @@ describe('cross-module stub API', () => {
     expect(Math.hypot(sun.x, sun.y, sun.z)).toBeCloseTo(1, 5);
     expect(environment.isRaining(sim)).toBe(false);
     expect(environment.rainRate(sim, p)).toBe(0);
-    expect(ants.canDo(sim, q, 'dig-bite', null).ok).toBe(false);
-    expect(ants.begin(sim, q, 'dig-bite', null)).toBe(false);
+    // ants (actions): the founding queen can dig the loam in front of her
+    expect(ants.canDo(sim, q, 'dig-bite', null).ok).toBe(true);
+    expect(ants.begin(sim, q, 'dig-bite', null)).toBe(true);
     expect(() => ants.cancel(sim, q, null)).not.toThrow();
     expect(ants.currentPrompt(sim, q)).toBeNull();
     expect(ants.inspect(sim, q.id)?.caste).toBe('queen');
     expect(ants.inspect(sim, -1)).toBeNull();
+    // still stubs: combat (above) and progression (Stage 2)
     expect(() => progression.publishDiagnostic(sim, {
       id: 'diag-stores', system: 'colony', status: 'ok', label: '', value: 0, factors: [], remedies: [], sinceTick: 0, focus: null,
     })).not.toThrow();

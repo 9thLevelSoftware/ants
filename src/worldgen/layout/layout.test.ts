@@ -2,6 +2,7 @@
 // built-zone size rules, adjacency, rasters, kerbs and edges. Layout only (cheap), so 20 seeds always run.
 import { describe, expect, it } from 'vitest';
 import { rngFork } from '@/core/rng';
+import { hash2u } from '@/core/math/noise';
 import type { ArchetypeId, WorldSizeId } from '@/sim/types';
 import { defaultWorldParams, worldDims } from '../params';
 import { ARCHETYPE_DEFS, BUILT_SIZE, BUILT_ZONE, FRACTION_TOLERANCE, ZONE_TYPES_MAX, ZONE_TYPES_MIN } from '../tuning/archetypes';
@@ -138,4 +139,33 @@ describe('determinism of the layout', () => {
     expect(eq(a.cells, b.cells)).toBe(true);
     expect(eq(a.cells, c.cells)).toBe(false);
   });
+});
+
+describe('compact and large maps: the partial last nav column and row (review fix)', () => {
+  // L / 16 BU is 187.5 (compact) or 312.5 (large) cells: the last nav column and row are half cells. A band on the
+  // x1/z1 side used to leave them free (their centre at x = L lay outside the band), a natural zone seeded there
+  // was boxed in behind the band and vanished on the 4 BU raster.
+  for (const size of ['compact', 'large'] as const) {
+    it(`${size}: bands reaching x1/z1 cover the partial cells; mandatory natural zones keep >= half their minimum share`, () => {
+      for (const a of T1) for (let s = 1; s <= SEEDS; s++) {
+        // the seed the pipeline really uses on attempt 0
+        const params = { ...defaultWorldParams('lasius-niger', s, 'naturalist', size), archetype: a };
+        const dims = worldDims(params), seedA = hash2u(s, 0) | 0;
+        const lay = buildLayout(rngFork(seedA, 'wg/zones'), params, dims, seedA);
+        const n = dims.navN, L = dims.size;
+        expect(n * dims.navCell).toBeGreaterThan(L);
+        for (const b of lay.built) {
+          if (!b.rect) continue;
+          const r = b.rect;
+          const zMid = Math.min(n - 1, Math.floor((r.z0 + r.z1) / 2 / dims.navCell)), xMid = Math.min(n - 1, Math.floor((r.x0 + r.x1) / 2 / dims.navCell));
+          if (r.x1 >= L) expect(lay.nav[zMid * n + n - 1], `${a} s${s} ${b.kind} x1`).toBe(b.zoneId);
+          if (r.z1 >= L) expect(lay.nav[(n - 1) * n + xMid], `${a} s${s} ${b.kind} z1`).toBe(b.zoneId);
+        }
+        const shares = naturalShares(lay);
+        for (const z of lay.zones.filter((q) => !q.built)) {
+          expect(shares.get(z.id) ?? 0, `${a} s${s} ${z.type}`).toBeGreaterThanOrEqual(0.5 * z.range![0]);
+        }
+      }
+    }, 300_000);
+  }
 });

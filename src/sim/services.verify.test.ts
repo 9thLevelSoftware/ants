@@ -102,9 +102,8 @@ describe('F-int verify: dig table and contracts', () => {
 
   it('diggability never returns NaN, even for a non-finite or out-of-world position', () => {
     const sim = makeTestSim({ systems: [] });
-    // NOTE: v(10, Infinity, 10) is left out on purpose: it never returns (PrimHash.query loops from -Infinity),
-    // see the review report. A hanging test would block the suite.
-    for (const p of [v(NaN, 0, 0), v(-1e6, -5, -1e6), v(1e9, -5, 1e9)]) {
+    // Infinity included since the Stage 1A gate guarded PrimHash.query against non-finite bounds (it looped forever).
+    for (const p of [v(NaN, 0, 0), v(-1e6, -5, -1e6), v(1e9, -5, 1e9), v(10, Infinity, 10), v(-Infinity, 0, 10)]) {
       const d = sim.field.diggability(p, 'lasius-niger');
       expect(Number.isNaN(d), JSON.stringify(p)).toBe(false);
     }

@@ -2,7 +2,7 @@
 // options), the audio mix beyond master, and the gameplay rows that have no home in GameSettings yet. Persisted in
 // localStorage `foundress.ui.v1` (try/catch; the session keeps working without storage). When the settings task
 // brings these into `foundress.settings.v1` it can read/replace this store through getPrefs()/replacePrefs().
-import { signal } from '@preact/signals';
+import { signal, type Signal } from '@preact/signals';
 import { SCALE } from './tokens';
 import { snapUiScale } from './scale';
 
@@ -123,9 +123,9 @@ export function mergePrefs(base: UiPrefs, patch: PrefsPatch): UiPrefs {
 }
 
 export interface PrefsStore {
-  prefs: ReturnType<typeof signal<UiPrefs>>;
+  prefs: Signal<UiPrefs>;
   /** False once a write failed or storage is absent: Settings shows "cannot be stored in this browser context". */
-  persistent: ReturnType<typeof signal<boolean>>;
+  persistent: Signal<boolean>;
   set(patch: PrefsPatch): UiPrefs;
   replace(p: UiPrefs): void;
 }
@@ -149,8 +149,8 @@ export function createPrefsStore(storage: StorageLike | null = defaultStorage())
       persistent = false;
     }
   }
-  const prefs = signal(initial);
-  const persistentSig = signal(persistent);
+  const prefs = signal<UiPrefs>(initial);
+  const persistentSig = signal<boolean>(persistent);
   const write = () => {
     if (!storage) return;
     try {

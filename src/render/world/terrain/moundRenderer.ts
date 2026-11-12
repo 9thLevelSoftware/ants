@@ -15,7 +15,8 @@ export const MOUND_MIN_PILE_MM = 0.05;
 export const MOUND_RIM_BLEND_MM = 2.5;
 
 interface MoundMesh {
-  sig: string;
+  /** moundSignature at the last build; NaN forces a rebuild. */
+  sig: number;
   mesh: Mesh;
 }
 
@@ -63,6 +64,7 @@ export function buildMoundArrays(m: Mound): { pos: Float32Array; normal: Float32
 export class MoundRenderer {
   readonly group = new Group();
   private meshes = new Map<number, MoundMesh>();
+  private readonly seen = new Set<number>();
   /** Materials by def id. Owned here (not cached in the library): they bind THIS world's hole mask. */
   private materials = new Map<string, MeshStandardMaterial>();
   /** Rebuilds so far (statistics / tests). */
@@ -101,7 +103,8 @@ wrWet = max(wrWet, 0.25 * wrRim);`,
 
   /** Syncs meshes with the simulation's mounds (rebuilds only changed ones). */
   sync(list: readonly Mound[]): void {
-    const seen = new Set<number>();
+    const seen = this.seen;
+    seen.clear();
     for (const m of list) {
       seen.add(m.id);
       const sig = moundSignature(m);
@@ -136,7 +139,7 @@ wrWet = max(wrWet, 0.25 * wrRim);`,
   /** Forces a rebuild of one mound on the next sync (the 'mound-changed' event). */
   invalidate(id: number): void {
     const cur = this.meshes.get(id);
-    if (cur) cur.sig = '';
+    if (cur) cur.sig = Number.NaN;
   }
 
   get count(): number {

@@ -51,6 +51,8 @@ export class ProfileStore {
   private timer: unknown = null;
   private writing: Promise<void> | null = null;
   private dirty = false;
+  /** Reads and writes go through the storage's `profile` store (it answered and is persistent). */
+  private viaStorage = false;
   private st: ProfileStatus = { backend: 'memory', persistent: false, loaded: 'pending', writeFailed: false, message: '' };
 
   constructor(opts: ProfileOptions = {}) {
@@ -223,16 +225,17 @@ export class ProfileStore {
   }
 
   private async readStored(): Promise<{ kind: 'found'; profile: unknown } | { kind: 'none' } | { kind: 'damaged' }> {
-    if (this.storage) {
+    // The storage's `profile` store, when it is the persistent one (a volatile fallback is no place for a profile).
+    if (this.storage && this.storage.persistent) {
       const r = await this.storage.get('profile', PROFILE_KEY);
       if (r.ok) {
         this.st.backend = this.storage.kind === 'indexeddb' ? 'indexeddb' : 'memory';
-        this.st.persistent = this.storage.persistent;
+        this.st.persistent = true;
+        this.viaStorage = true;
         const env = r.value as Envelope | undefined;
         if (env && typeof env === 'object' && 'profile' in env) return { kind: 'found', profile: env.profile };
         if (env !== undefined) return { kind: 'damaged' };
-        if (this.storage.persistent) return this.readLocal(true);
-        return { kind: 'none' };
+        return this.readLocal(true); // nothing in IndexedDB yet: a localStorage copy is migrated on the first write
       }
     }
     return this.readLocal(false);
@@ -281,14 +284,14 @@ export class ProfileStore {
       this.resetting = false;
       const env: Envelope = { v: PROFILE_SCHEMA_VERSION, profile: this.data };
       let ok = false;
-      if (this.storage && this.st.backend === 'indexeddb') {
+      if (this.storage && this.viaStorage) {
         const w = await this.storage.write([{ op: 'put', store: 'profile', key: PROFILE_KEY, value: env }]);
         ok = w.ok;
         if (!w.ok) log.warn('profile write to IndexedDB failed:', w.message);
       }
       if (!ok && this.kv?.available) {
         ok = this.kv.set(PROFILE_STORAGE_KEY, JSON.stringify(env));
-        if (ok && this.st.backend !== 'indexeddb') { this.st.backend = 'localstorage'; this.st.persistent = true; }
+        if (ok && !this.viaStorage) { this.st.backend = 'localstorage'; this.st.persistent = true; }
       }
       this.st.writeFailed = !ok && (this.st.persistent || this.kv?.available === true || this.storage?.persistent === true);
       this.st.message = ok || !this.st.writeFailed ? '' : 'Progress could not be stored in this browser; it is kept until you close the page.';

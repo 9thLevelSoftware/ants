@@ -40,7 +40,7 @@ export class PrimitiveRenderer {
   private depthMats = new Map<string, MeshDepthMaterial>();
   private statics: readonly Primitive[] = [];
   /** Current dynamic list (dynamic prims + moved static copies) and their signatures. */
-  private dynamicSigs = new Map<number, string>();
+  private dynamicSigs = new Map<number, number>();
   private movedIds = new Set<number>();
   private staticDirty = true;
   private dynamicDirty = true;

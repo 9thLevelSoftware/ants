@@ -14,6 +14,7 @@ import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
 import { intakeTarget } from '../needs';
 import { queenOf } from '../queen';
+import { digDemand as nestDigDemand } from '@/sim/nest';
 
 const T = (t: Task): number => ti(t);
 
@@ -27,15 +28,9 @@ export function knownCapacity(sim: Sim, col: Colony): { ants: number; loads: num
   return { ants, loads: ants * col.yieldPerForager };
 }
 
-/** Worker-equivalents of open dig work: claimable slots of active plans (nest module API pending). */
+/** Worker-equivalents of open dig work: the nest module's digDemand over the colony's plans (GDD 03 §7.7). */
 export function digDemand(sim: Sim, col: Colony): number {
-  let d = 0;
-  for (const nid of col.nestIds) {
-    const n = sim.stores.nests.get(nid);
-    if (!n) continue;
-    for (const p of n.digPlans) if (p.status === 'active' || p.status === 'queued') d += Math.max(1, p.slots.length);
-  }
-  return d;
+  return nestDigDemand(sim, col.id);
 }
 
 /** Threat multiplier for guards and patrols: alarm near an entrance. */

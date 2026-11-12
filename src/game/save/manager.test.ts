@@ -72,6 +72,26 @@ describe('slot scheme', () => {
   });
 });
 
+describe('last save info (pause menu, unsaved-progress warning)', () => {
+  it('reports how long ago and of which kind; a load counts as saved; a new game forgets', async () => {
+    const r = makeRig();
+    expect(r.manager.lastSaveInfo()).toBeNull();
+    expect(r.manager.secondsSinceSave()).toBe(Infinity);
+    await r.manager.saveTo('slot-2');
+    r.clock.ms += 90_000;
+    expect(r.manager.lastSaveInfo()).toMatchObject({ kind: 'manual', agoS: 90 });
+    await r.manager.autosave('season');
+    expect(r.manager.lastSaveInfo()).toMatchObject({ kind: 'auto', agoS: 0 });
+    await r.manager.saveTo('quick');
+    expect(r.manager.lastSaveInfo()?.kind).toBe('quick');
+    r.manager.noteNewGame();
+    expect(r.manager.lastSaveInfo()).toBeNull();
+    r.clock.ms += 5000;
+    await r.manager.load('slot-2');
+    expect(r.manager.lastSaveInfo()).toMatchObject({ kind: 'manual', agoS: 0 });
+  });
+});
+
 describe('autosave ring', () => {
   it('rotates 3 generations and overwrites the oldest', async () => {
     const r = makeRig();
@@ -116,6 +136,17 @@ describe('autosave ring', () => {
     list = (await r.manager.list()).value!;
     expect(list.some((l) => l.pinned)).toBe(false);
     expect(list.filter((l) => l.label === 'final')).toHaveLength(1);
+  });
+
+  it('the epitaph can load the last autosave before the pinned final one', async () => {
+    const r = makeRig();
+    await r.manager.autosave('interval');
+    tickN(r.host.sim!, 3);
+    await r.manager.autosave('final');
+    expect((await r.manager.load('auto')).ok).toBe(true);
+    expect(r.host.adopted.at(-1)!.meta.label).toBe('final'); // the newest
+    expect((await r.manager.load('auto', { skipPinned: true })).ok).toBe(true);
+    expect(r.host.adopted.at(-1)!.meta.label).toBe('interval');
   });
 
   it('opening-start is a hidden checkpoint outside the ring', async () => {

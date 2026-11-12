@@ -4,7 +4,7 @@
  */
 import type { Object3D, PerspectiveCamera } from 'three';
 import type { QualityPreset } from '@/render/app/quality';
-import type { AntSimSource } from './simAdapter';
+import type { AntSimSource, WalkerPose } from './simAdapter';
 
 export interface AntRenderContext {
   scene: Object3D;
@@ -26,6 +26,13 @@ export interface AntFrameInfo {
   /** Drawing-buffer height in px (projected-size LOD). */
   viewportHeightPx?: number;
   underground?: boolean;
+  /** The possessed ant's per-frame predicted pose (drawn instead of its tick-interpolated pose); null = none. */
+  possessedPose?: WalkerPose | null;
+  /** Opacity of the possessed ant from the third-person camera fade (GDD 01 6.5), 0..1; default 1. */
+  subjectOpacity?: number;
+  /** Hover / inspect highlights (null = none); when given they replace setHover / setInspect for this frame. */
+  hover?: PickTarget | null;
+  inspect?: PickTarget | null;
 }
 
 /** What the hover / inspect highlight points at. */

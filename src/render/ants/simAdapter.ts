@@ -21,6 +21,9 @@ export type BroodView = Pick<Brood, 'id' | 'alive' | 'colony' | 'stage' | 'desti
 export type ItemView = Pick<Item, 'id' | 'alive' | 'kind' | 'pos' | 'carrierIds' | 'lengthMm' | 'count' | 'species' | 'colony' | 'decay' | 'foodKind' | 'variant' | 'wasteKind'>;
 export type ColonyView = Pick<Colony, 'id' | 'species'>;
 
+/** A walker pose (mm, unit vectors): position on the level set f = footOffset, surface normal and heading. */
+export interface WalkerPose { pos: Vec3; up: Vec3; fwd: Vec3 }
+
 export interface SpeciesView { buMm: number; appearance?: AppearanceLike; cruiseBuS?: number }
 
 export interface AntSimSource {
@@ -143,8 +146,11 @@ export class SimReader {
     return s;
   }
 
-  /** Fills `out` for one live ant at interpolation factor alpha (0 = previous tick, 1 = current). */
-  readAnt(a: AntView, alpha: number, out: AntSample): AntSample {
+  /**
+   * Fills `out` for one live ant at interpolation factor alpha (0 = previous tick, 1 = current). `pose` replaces the
+   * interpolated walker pose (the possessed ant's per-frame prediction, GDD 01 3.4), so ant and camera agree.
+   */
+  readAnt(a: AntView, alpha: number, out: AntSample, pose: WalkerPose | null = null): AntSample {
     // consecutive ants are mostly of one colony: skip the two map lookups then
     if (a.colony !== this.lastColony) {
       this.lastColony = a.colony; this.lastSpecies = this.speciesOfColony(a.colony); this.lastBuMm = this.speciesInfo(this.lastSpecies).buMm;
@@ -155,12 +161,18 @@ export class SimReader {
     out.caste = a.caste;
     out.sizeClass = a.sizeClass;
     out.lengthMm = a.lengthBu * this.lastBuMm;
-    lerpUnit(a.prevUp, a.up, alpha, out.up);
-    lerpUnit(a.prevFwd, a.fwd, alpha, out.fwd);
     const fo = a.footOffset || 0;
-    out.pos.x = a.prevPos.x + (a.pos.x - a.prevPos.x) * alpha - out.up.x * fo;
-    out.pos.y = a.prevPos.y + (a.pos.y - a.prevPos.y) * alpha - out.up.y * fo;
-    out.pos.z = a.prevPos.z + (a.pos.z - a.prevPos.z) * alpha - out.up.z * fo;
+    if (pose) {
+      lerpUnit(pose.up, pose.up, 1, out.up); // t = 1: just the unit vector
+      lerpUnit(pose.fwd, pose.fwd, 1, out.fwd);
+      out.pos.x = pose.pos.x - out.up.x * fo; out.pos.y = pose.pos.y - out.up.y * fo; out.pos.z = pose.pos.z - out.up.z * fo;
+    } else {
+      lerpUnit(a.prevUp, a.up, alpha, out.up);
+      lerpUnit(a.prevFwd, a.fwd, alpha, out.fwd);
+      out.pos.x = a.prevPos.x + (a.pos.x - a.prevPos.x) * alpha - out.up.x * fo;
+      out.pos.y = a.prevPos.y + (a.pos.y - a.prevPos.y) * alpha - out.up.y * fo;
+      out.pos.z = a.prevPos.z + (a.pos.z - a.prevPos.z) * alpha - out.up.z * fo;
+    }
     out.speed = a.speed;
     out.airborne = a.medium === 'air';
     out.poseId = POSES[a.pose] ?? 'walk';

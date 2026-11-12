@@ -24,7 +24,7 @@ export function AudioTab() {
       {bus('Effects', 'effects')}
       {bus('Giant sounds', 'giants')}
       {bus('Interface', 'interface')}
-      {bus('Music', 'music')}
+      {bus('Music volume', 'music')}
       <Field label="Music">
         <SegmentedControl value={a.musicMode} onChange={(v: MusicMode) => set({ musicMode: v })} options={[{ value: 'off', label: 'Off' }, { value: 'sparse', label: 'Sparse' }, { value: 'frequent', label: 'Frequent' }]} />
       </Field>

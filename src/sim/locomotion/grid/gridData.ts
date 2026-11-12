@@ -38,6 +38,13 @@ export const NAV_GRID_TUNING = {
   lowTopBU: 0.5,
   /** A step edge onto a face with less grip than this is blocked (GDD 04 §11 "climbable if grip >= 0.5"). */
   stepGripMin: 0.5,
+  /**
+   * Flow-field edge costs are rounded to multiples of 1 / this mm (must be a power of two: the sums stay exact in
+   * float32 up to 2^24 / this mm of path cost), so incremental repair equals a full rebuild bit for bit.
+   */
+  flowQuantPerMm: 4,
+  /** Changed cells kept in the flow-field repair log (a field older than the log is rebuilt in full). */
+  flowLogMaxCells: 8192,
 } as const;
 
 /** A micro-connection as a nav edge between the passable cells at its two mouths (GDD 04 §11). */

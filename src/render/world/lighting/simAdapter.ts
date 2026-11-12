@@ -9,6 +9,7 @@ import type {
 } from '@/sim/types';
 import { PrimFlag } from '@/sim/types';
 import type { HoleProbe } from '../terrain/holeMask';
+import { HASH_SEED, hashNum } from './signature';
 
 // ---------------------------------------------------------------------------------------------------- terrain
 
@@ -146,9 +147,22 @@ export function mounds(sim: Sim | null | undefined): readonly Mound[] {
   return sim?.state.worldDelta.mounds ?? [];
 }
 
-/** Change signature of one mound (the nest system rewrites h[] in place every batch). */
-export function moundSignature(m: Mound): string {
-  return `${m.n}|${m.cell}|${m.volume}|${m.absorbed}|${m.lastBatchTick}|${m.centerX}|${m.centerZ}`;
+/** Change signature of one mound (the nest system rewrites h[] in place every batch); a number: no allocation. */
+export function moundSignature(m: Mound): number {
+  let h = hashNum(HASH_SEED, m.n);
+  h = hashNum(h, m.cell); h = hashNum(h, m.volume); h = hashNum(h, m.absorbed); h = hashNum(h, m.lastBatchTick);
+  return hashNum(hashNum(h, m.centerX), m.centerZ);
+}
+
+/** Change signature of the recorded object moves (position / rotation per moved object). */
+export function objectMovesSignature(moves: readonly ObjectStateChange[]): number {
+  let h = hashNum(HASH_SEED, moves.length);
+  for (const m of moves) {
+    h = hashNum(h, m.objectId);
+    if (m.pos) { h = hashNum(h, m.pos.x); h = hashNum(h, m.pos.y); h = hashNum(h, m.pos.z); } else h = hashNum(h, Number.NaN);
+    if (m.rot) { h = hashNum(h, m.rot.x); h = hashNum(h, m.rot.y); h = hashNum(h, m.rot.z); h = hashNum(h, m.rot.w); } else h = hashNum(h, Number.NaN);
+  }
+  return h;
 }
 
 export function breaches(sim: Sim | null | undefined): readonly Breach[] {

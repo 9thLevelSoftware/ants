@@ -21,6 +21,8 @@ export const GYNE_SHARE_DEFAULT = 0.4;
 export const STAY_IN_DAYS = 1;
 /** Ants spawned by cheat.spawnAnts are scattered within this radius of the spawn point, BU. */
 export const CHEAT_SPAWN_SCATTER_BU = 4;
+/** Cheat-spawned ants are placed from this far above the ground, sphere-traced down onto the surface, BU. */
+export const CHEAT_SPAWN_LIFT_BU = 2;
 /** Default species directive extras (GDD 07 §3 `directiveExtras`): casteEmphasis -1..1 (0 = species mix). */
 export const CASTE_EMPHASIS_DEFAULT = 0;
 /** Messor granary-care priority multiplier 0..1 (GDD 07 granary care; no default given, mid value). */

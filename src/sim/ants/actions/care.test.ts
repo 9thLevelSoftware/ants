@@ -203,12 +203,13 @@ describe('groom, antennate, sniff', () => {
     expect(w.action?.durationTicks).toBe(8);
   });
 
-  it('sniff: 1.5 s, no state change; gyne cannot (species data)', () => {
+  it('sniff: 1.5 s, no state change; a gyne can too (GDD 01 §7.3: all adults)', () => {
     const { sim } = setup();
     const w = worker(sim, 50, 50);
     const ev = capture(sim, ['action-completed'], () => { begin(sim, w, 'sniff', null); step(sim, 15); });
     expect(ev[0]).toMatchObject({ action: 'sniff' });
     const g = worker(sim, 70, 70, 'gyne');
-    expect(canDo(sim, g, 'sniff', null).reason).toBe('caste');
+    // GDD 01 §7.3: every adult may sniff; the Lasius gyne's action list lacked it until the Stage 1A gate fixed the data
+    expect(canDo(sim, g, 'sniff', null).reason).toBeNull();
   });
 });

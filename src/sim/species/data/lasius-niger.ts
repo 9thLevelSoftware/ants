@@ -27,8 +27,11 @@ const CASTES: CasteDef[] = [
     lifespanGd: { mean: 560, sd: 60 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
     fixedStats: { maxHp: 50, bite: 2.0, foundingMaxHp: 40 }, // GDD 05 §4.1
     upkeepOverride: { restC: 0.3, activeC: 0.3, p: 0.1 }, devMult: 1,
-    actions: ['dig-bite', 'seal-entrance', 'lay-egg', 'feed-larva', 'groom', 'pick-up', 'put-down', 'spray-acid',
-      'bite', 'trophallaxis-receive', 'sniff', 'antennate', 'move', 'grip', 'let-go'],
+    // GDD 01 §7.3 'Who': drop (any carrier), harvest-liquid (adults that feed), unseal (the founding queen, as dig-bite),
+    // trophallaxis-give (feeding the first brood's carers) - added by the Stage 1A gate
+    actions: ['dig-bite', 'seal-entrance', 'unseal-entrance', 'lay-egg', 'feed-larva', 'groom', 'pick-up', 'put-down',
+      'drop', 'spray-acid', 'bite', 'harvest-liquid', 'trophallaxis-give', 'trophallaxis-receive', 'sniff', 'antennate',
+      'move', 'grip', 'let-go'],
     taskWeights: {}, unlock: NO_UNLOCK,
   },
   {
@@ -37,7 +40,8 @@ const CASTES: CasteDef[] = [
     lifespanGd: { mean: 60, sd: 10 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
     fixedStats: { maxHp: 35, bite: 1.5, foundingMaxHp: null },
     upkeepOverride: { restC: 0.15, activeC: 0.15, p: 0 }, devMult: 1,
-    actions: ['fly', 'mate', 'dealate', 'groom', 'trophallaxis-receive', 'spray-acid', 'move', 'grip', 'let-go'],
+    actions: ['fly', 'mate', 'dealate', 'groom', 'trophallaxis-receive', 'spray-acid', 'sniff', 'antennate', 'move', 'grip',
+      'let-go'], // sniff / antennate: all adults (GDD 01 §7.3), added by the Stage 1A gate
     taskWeights: {}, unlock: NO_UNLOCK,
   },
   {
@@ -46,7 +50,7 @@ const CASTES: CasteDef[] = [
     lifespanGd: { mean: 30, sd: 5 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
     fixedStats: { maxHp: 6, bite: 0.2, foundingMaxHp: null },
     upkeepOverride: { restC: 0.06, activeC: 0.06, p: 0 }, devMult: 1, // GDD 07 caste table (ruling 10)
-    actions: ['fly', 'mate', 'groom', 'trophallaxis-receive', 'move', 'grip', 'let-go'],
+    actions: ['fly', 'mate', 'groom', 'trophallaxis-receive', 'sniff', 'antennate', 'move', 'grip', 'let-go'], // sniff / antennate: all adults
     taskWeights: {}, unlock: NO_UNLOCK,
   },
 ];

@@ -3,7 +3,6 @@
 // and the snapshot then switches to the loading screen. No game logic here.
 import { useState } from 'preact/hooks';
 import type { ArchetypeId, DifficultyId, SpeciesId } from '@/sim/types';
-import { ARCHETYPE_DEFS } from '@/worldgen/tuning/archetypes';
 import { Icon } from '../../icons';
 import { Button, Field, RadioCards, ScrollArea, SegmentedControl, Stepper, TextField, Toggle, BookPage, cx, type RadioCardOption } from '../../components';
 import { facade } from '../../store';
@@ -11,6 +10,7 @@ import { updateNav } from '../nav';
 import { AntPlate } from '../plates/AntPlate';
 import { applyPreset, buildRequest, isCustom, lastRequest, LOCALITY_ARCHETYPES, newGameForm, setRule, type NewGameForm } from './form';
 import { randomSeedText, resolveSeed, SEED_MAX_CHARS } from './seed';
+import { suitability, zoneChips } from './locality';
 import { isSpeciesAvailable, SHOW_UNRELEASED_SPECIES, SPECIES_CARDS, speciesCard } from './species';
 
 const ARCHETYPE_NAMES: Record<ArchetypeId | 'random', string> = {
@@ -18,23 +18,7 @@ const ARCHETYPE_NAMES: Record<ArchetypeId | 'random', string> = {
   'car-park-verge': 'Car Park Verge', 'kitchen-door': 'Kitchen Door', 'field-margin': 'Field Margin', random: 'Random',
 };
 
-const ZONE_WORDS: Record<string, string> = {
-  forest: 'forest', lawn: 'lawn', 'garden-bed': 'garden', interior: 'interior', patio: 'patio', path: 'path', sidewalk: 'pavement',
-  'car-park': 'car park', driveway: 'driveway', lane: 'lane', sand: 'sand', rubber: 'rubber', wild: 'meadow', meadow: 'meadow', paving: 'paving',
-};
-
-/** Zone chips of an archetype: the natural zones, then the built ones, at most four. */
-export function zoneChips(id: ArchetypeId): string[] {
-  const d = ARCHETYPE_DEFS[id];
-  const words = [...d.natural.map((n) => n.type as string), ...d.built as string[]].map((z) => ZONE_WORDS[z] ?? z.replace(/-/g, ' '));
-  return Array.from(new Set(words)).slice(0, 4);
-}
-
-/** Nesting suitability word for the chosen species (GDD 08 3.7 Good / Fair / Poor). */
-export function suitability(id: ArchetypeId, species: SpeciesId): 'Good' | 'Fair' | 'Poor' {
-  const fit = ARCHETYPE_DEFS[id].fit[species];
-  return fit >= 3 ? 'Good' : fit === 2 ? 'Fair' : 'Poor';
-}
+const SIZE_BU = { compact: 3000, standard: 4000, large: 5000 } as const;
 
 const PRESET_TEXT: Record<DifficultyId, { name: string; text: string }> = {
   gentle: { name: 'Gentle', text: 'Fewer predators and rivals, kinder weather and a lenient first season. Mistakes can be recovered from.' },
@@ -106,9 +90,9 @@ function LocalityColumn({ form, set }: { form: NewGameForm; set: (f: NewGameForm
       <Field label="Size" layout="stack">
         <SegmentedControl
           value={form.size} onChange={(size) => set({ ...form, size })}
-          options={[{ value: 'compact', label: 'Compact 3000' }, { value: 'standard', label: 'Standard 4000' }, { value: 'large', label: 'Large 5000' }]}
+          options={[{ value: 'compact', label: 'Compact' }, { value: 'standard', label: 'Standard' }, { value: 'large', label: 'Large' }]}
         />
-        <span class="ui-field-help">Locality edge in body units.</span>
+        <span class="ui-field-help">Locality edge: {SIZE_BU[form.size]} body units.</span>
       </Field>
       <Field label="Seed" layout="stack">
         <div class="ui-seedrow">
@@ -223,8 +207,10 @@ export function NewGame({ onClose }: { onClose: () => void }) {
         <section class="ui-column" aria-label="Rules">
           <h2 class="ui-column-title">Rules</h2>
           <ScrollArea label="Rules" class="ui-column-scroll"><RulesColumn form={form} set={set} /></ScrollArea>
-          <Button variant="primary" block class="ui-begin" onClick={begin} disabled={!f} data-testid="begin">Begin</Button>
         </section>
+      </div>
+      <div class="ui-newgame-foot">
+        <Button variant="primary" block class="ui-begin" onClick={begin} disabled={!f} data-testid="begin">Begin</Button>
       </div>
     </BookPage>
   );

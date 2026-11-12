@@ -36,6 +36,8 @@ export function installFakes(sim: Sim, over: Partial<Ports> = {}): { fake: FakeW
   const fakes: Partial<Ports> = {
     speedMult: () => fake.tempFactor,
     canDigAt: () => true,
+    // fake substrate: the field's material table only (no moisture, loose fill or crusts)
+    nestDigSpeedAt: (s, species, p) => s.field.diggability(p, species),
     digBite: (s, ant) => {
       fake.bites++;
       const it = spawnItem(s, { kind: 'soil-pellet', pos: ant.pos, init: { volume: 0.85, material: 'loam', bulk: 0.5 } });

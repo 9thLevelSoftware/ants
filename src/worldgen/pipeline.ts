@@ -11,8 +11,6 @@ import { buildLayout, zoneDefs } from './layout';
 import { buildHeightfield } from './terrain/heightfield';
 import { buildStrata } from './terrain/strata';
 import { deriveMaps } from './maps';
-import { applyRivalFactor } from './maps/suitability';
-import { specialFactor } from './maps/special';
 import { startPlacer } from './maps/start';
 import { shellPlacer } from './structures/shell';
 import { runChecks, type CheckResult } from './validate/checks';
@@ -56,11 +54,14 @@ const weightBefore = (id: StepId) => {
 
 interface Attempt { ctx: GenContext; checks: CheckResult[]; score: number; timings: Record<string, number> }
 
-function runPlacers(ctx: GenContext, reg: Registry, step: PlacerStep): void {
-  for (const p of placersFor(reg, step, ctx.params.archetype)) {
+/** Runs the placers registered for a step; returns how many ran. */
+function runPlacers(ctx: GenContext, reg: Registry, step: PlacerStep): number {
+  const list = placersFor(reg, step, ctx.params.archetype);
+  for (const p of list) {
     for (const k of p.provides ?? []) ctx.provides.add(k);
     p.run(ctx);
   }
+  return list.length;
 }
 
 function runAttempt(params: WorldParams, dims: WorldDims, a: number, reg: Registry, opts: GenerateOptions): Attempt {
@@ -85,16 +86,12 @@ function runAttempt(params: WorldParams, dims: WorldDims, a: number, reg: Regist
     buildStrata(ctx, ctx.rng('wg/height/strata'));
   });
   for (const id of ['structures', 'props', 'plants'] as const) step(id, () => runPlacers(ctx, reg, id));
-  let primsAtDerive = 0, holesAtDerive = false;
-  step('derived', () => {
-    deriveMaps(ctx);
-    primsAtDerive = ctx.world.prims.length;
-    holesAtDerive = !!ctx.world.terrainHoles;
-  });
-  for (const id of ['resources', 'rivals', 'cavities'] as const) step(id, () => runPlacers(ctx, reg, id));
-  // re-derive what later steps touched (new primitives or holes; rival sites change fRival)
-  if (ctx.world.prims.length !== primsAtDerive || !!ctx.world.terrainHoles !== holesAtDerive) deriveMaps(ctx);
-  else applyRivalFactor(ctx, specialFactor(ctx, params.speciesId));
+  step('derived', () => deriveMaps(ctx));
+  let late = 0;
+  for (const id of ['resources', 'rivals', 'cavities'] as const) step(id, () => { late += runPlacers(ctx, reg, id); });
+  // Steps 7-9 can change anything the maps read (primitives, holes, water bodies, ground paint, height edits,
+  // food anchors for fSpecial, rival sites for fRival, pre-carve cavities): any placer there means re-deriving.
+  if (late > 0) deriveMaps(ctx);
   step('start', () => runPlacers(ctx, reg, 'start'));
   let checks: CheckResult[] = [];
   step('validate', () => {

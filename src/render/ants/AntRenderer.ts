@@ -91,6 +91,16 @@ export class AntRenderer {
   setLod(o: Partial<AntLodSettings>): AntLodSettings { Object.assign(this.settings, o); return this.settings; }
   get lodSettings(): Readonly<AntLodSettings> { return this.settings; }
 
+  /**
+   * The highlight rim is emissive and would scale with the scene exposure (night and the underground look add 2-3
+   * EV, which turned the possessed ant pale): pass the current exposure (EV) to keep it the same on screen.
+   */
+  setHighlightExposure(ev: number): void {
+    const k = Math.pow(2, -(Number.isFinite(ev) ? ev : 0));
+    this.shared.uHiWarm.value.set(HIGHLIGHT.warm).multiplyScalar(HIGHLIGHT.warmGain * k);
+    this.shared.uHiCool.value.set(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain * k);
+  }
+
   setHover(t: PickTarget | null): void { this.hover = t; }
   setInspect(t: PickTarget | null): void { this.inspect = t; }
 
@@ -114,10 +124,14 @@ export class AntRenderer {
     const t0 = performance.now();
     if (frame.sim !== undefined && (frame.sim === null ? this.reader !== null : this.reader?.sim !== frame.sim)) this.setSim(frame.sim);
     const reader = this.reader;
+    if (frame.hover !== undefined) this.hover = frame.hover;
+    if (frame.inspect !== undefined) this.inspect = frame.inspect;
     const camera: PerspectiveCamera = frame.camera ?? this.ctx.camera;
     this.store.resetAll();
     this.stamp++;
     this.shared.uTime.value = frame.time;
+    const op = frame.subjectOpacity;
+    this.shared.uSubjectOpacity.value = op !== undefined && Number.isFinite(op) ? Math.min(1, Math.max(0, op)) : 1;
     if (!reader) { this.store.commitAll(); this.loose.update([], camera, 1, 1, 0); return; }
     reader.beginFrame();
     camera.updateMatrixWorld();
@@ -134,9 +148,10 @@ export class AntRenderer {
     this.ensureCap(ants.length);
     let n = 0, culled = 0;
     const smp = this.sample;
+    const predicted = frame.possessedPose ?? null, possessedId = reader.possessedId;
     for (const a of ants) {
       if (!reader.isLive(a)) continue;
-      reader.readAnt(a, frame.alpha, smp);
+      reader.readAnt(a, frame.alpha, smp, predicted && a.id === possessedId ? predicted : null);
       const st = this.states.get(smp.id, this.stamp);
       if (st.vi < 0 || st.vSpecies !== smp.species || st.vCaste !== smp.caste || st.vSize !== smp.sizeClass || st.vWinged !== smp.winged) {
         // a new body (caste change, dealation) has its own rig: start its gait and pose afresh

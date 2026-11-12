@@ -12,6 +12,7 @@ The living layer of the generated world: where food can occur, which plants host
 `src/worldgen/populate/**`, registered with the pipeline through the kit's mechanism, and the validation checks about resources, connections and fairness inside `src/worldgen/validate/` that the terrain task left as "not applicable yet" (edit only those check bodies and report it).
 
 ## Deliverables
+- Site quality ruling (`docs/02-design-directions.md` §K, last bullet): founding-site quality must discriminate; calibrate the suitability factors and word thresholds to the stated distribution targets, and place the queen start by the stated rule. You own this calibration: adjust the suitability weights/thresholds in `src/worldgen/maps/**` (authorised edit outside your folder; report it) and add a test that checks the distribution over 20 seeds per archetype.
 1. Food anchors by zone, season and kind per GDD 04/05 (sugar and crumbs near human areas, carrion, static honeydew sites, nectar plants, seeds, fruit under fruit trees, pet food and counter food indoors, bait where enabled), attached to points of interest where they exist, with the renewal schedule data the source system reads.
 2. Plant host assignments (which climbable plants can carry herds or nectar, at which points) for the Tier 2 ecology to use.
 3. Creature territories and spawn tables per habitat (prey, neutral fauna, predators) as data.

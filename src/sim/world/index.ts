@@ -34,9 +34,16 @@ export function zoneAt(world: WorldData, x: number, z: number): ZoneType {
   return world.zones.find((zd) => zd.id === id)?.type ?? FALLBACK_ZONE;
 }
 
-/** Shade 0 (full sun) .. 1 at p for a sun direction. Stub: 0 (worldgen-terrain / env-core replace). */
-export function shadeAt(_sim: Sim, _p: Vec3, _sunDir: Vec3): number {
-  return 0;
+/**
+ * Shade 0 (full sun) .. 1 at p: the generated day-averaged shade map (worldgen-terrain's maps.shade), the same
+ * source the environment's surface temperatures use. The sun direction is not used yet (per-sun-direction
+ * shadows, GDD 06 §2.3, are a later refinement).
+ */
+export function shadeAt(sim: Sim, p: Vec3, _sunDir: Vec3): number {
+  const m = sim.world.maps.shade;
+  const ix = Math.floor(p.x / m.cell), iz = Math.floor(p.z / m.cell);
+  if (ix < 0 || iz < 0 || ix >= m.nx || iz >= m.nz) return 0;
+  return m.data[iz * m.nx + ix] / 255;
 }
 
 /** World systems (micro-connection discovery, terrain deformation). None yet: worldgen-life / loco add them. */

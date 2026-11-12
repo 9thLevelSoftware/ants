@@ -9,7 +9,8 @@ import type {
   TargetRef, Task,
 } from '@/sim/types';
 import { ACTION_IDS, BROOD_DEATH_CAUSES, isOneOf, REASON_CODES } from '@/sim/types';
-import { killBrood, killCreature } from '@/sim/entities';
+import { killCreature } from '@/sim/entities';
+import { killColonyBrood } from '@/sim/colony';
 import * as actions from './actions';
 import { behaviourSystem } from './behaviourRunner';
 import * as nestBehaviours from './behaviours/nest';
@@ -109,6 +110,6 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
     const cause = String(c.cause);
     if (sim.stores.ants.has(c.id)) processAntDeath(sim, c.id, toDeathCause(cause));
     else if (sim.stores.creatures.has(c.id)) killCreature(sim, c.id, cause);
-    else if (sim.stores.brood.has(c.id)) killBrood(sim, c.id, isOneOf(BROOD_DEATH_CAUSES, cause) ? cause : 'base');
+    else if (sim.stores.brood.has(c.id)) killColonyBrood(sim, c.id, isOneOf(BROOD_DEATH_CAUSES, cause) ? cause : 'base');
   },
 };

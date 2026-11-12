@@ -3,7 +3,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Brood, ColonySpeciesId, Sim } from '@/sim/types';
-import { chamberTemp, rainIntensityAt, relHumidity, surfaceActivity, surfaceTemp } from '@/sim/environment';
+import { chamberTemp, microTemp, rainIntensityAt, relHumidity, surfaceActivity } from '@/sim/environment';
 import { currentDefaultYearDay } from '@/sim/time';
 import { chamberById } from './census';
 
@@ -38,7 +38,8 @@ export function chamberTempC(sim: Sim, chamberId: number): number {
 export function pointTempC(sim: Sim, p: Vec3): number {
   const o = overrides.get(sim);
   if (o?.pointTemp) return o.pointTemp(p);
-  return surfaceTemp(sim, p);
+  // microTemp: the cavity column underground (brood in an unregistered founding cell), Tmicro on the surface
+  return microTemp(sim, p);
 }
 
 /** Chamber relative humidity 0..1 (chamber -1: at the point). */

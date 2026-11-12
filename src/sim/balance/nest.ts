@@ -180,6 +180,8 @@ export const ENTRANCE_MIN_HOLE_COLUMNS = 3;
 export const ENTRANCE_SCAN_BU = 4;
 /** Throat: open voxels within this path distance of the opening, BU. */
 export const THROAT_BU = 3;
+/** Extra seed radius of the exit / seal nav fields around an entrance opening, BU (opening samples sit just below the surface). */
+export const ENTRANCE_SEED_PAD_BU = 1;
 /** Plug sphere (`seal-entrance`): radius and offset ahead of the head toward the opening, BU. */
 export const PLUG_RADIUS_BU = 1.2;
 export const PLUG_AHEAD_BU = 1.0;

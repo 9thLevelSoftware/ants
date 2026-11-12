@@ -154,6 +154,8 @@ export interface SaveSlotInfo {
   seedCode?: string;
   /** "Summer · Day 5 · Year 2" */
   dateLabel?: string;
+  /** Adult ants (workers and queen) at save time. */
+  population?: number;
   playTimeS?: number;
   version?: string;
   /** JPEG data URL captured at save time. */

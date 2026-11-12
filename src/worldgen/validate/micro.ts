@@ -5,7 +5,7 @@
 
 import type { MicroConn } from '@/sim/types';
 import type { GenContext } from '../kit/context';
-import { navDistances, portals } from './graph';
+import { navDistanceTo, portals } from './graph';
 import { MICRO } from '../tuning/pipeline';
 
 function cavityNear(ctx: GenContext, m: MicroConn): boolean {
@@ -30,9 +30,9 @@ export function evaluateMicro(ctx: GenContext): number {
     let useful = false, reason = 'no gain';
     if (p) {
       const limit = MICRO.shortcutRatio * p.lenBu;
-      const d = navDistances(ctx, [p.a], { skipMicro: m.id, maxBu: limit + 1 });
-      if (!(d[p.b] < Infinity)) { useful = true; reason = 'only path'; }
-      else if (d[p.b] >= limit) { useful = true; reason = 'shortcut'; }
+      const d = navDistanceTo(ctx, p.a, p.b, { skipMicro: m.id, maxBu: limit + 1 }, ports);
+      if (!(d < Infinity)) { useful = true; reason = 'only path'; }
+      else if (d >= limit) { useful = true; reason = 'shortcut'; }
     }
     if (!useful && cavityNear(ctx, m)) { useful = true; reason = 'shelter cavity'; }
     m.useful = useful;

@@ -22,6 +22,6 @@ export { MinHeap } from './heap';
 // derived-map helpers usable from the resources / rivals / start steps
 export { computeSuitability, suitabilityAt, mapState } from '../maps';
 export { specialFactor } from '../maps/special';
-export { navDistances, cellAt, snapWalkable, portals } from '../validate/graph';
+export { navDistances, navDistanceTo, cellAt, snapWalkable, portals } from '../validate/graph';
 export { evaluateMicro, usefulInteriorAccess } from '../validate/micro';
 export type { Layout, LayoutZone, BuiltShape, HouseLayout, CarParkLayout, KerbLine, HumanNode, RaisedBed, Rect, Point2, Side } from '../layout/types';

@@ -34,7 +34,7 @@ export function spawnBrood(ctx: EntityCtx, o: SpawnBroodOptions): Brood {
 export function killBrood(ctx: EntityCtx, id: number, cause: BroodDeathCause): boolean {
   const b = ctx.stores.brood.get(id);
   if (!b || !ctx.stores.brood.markDead(id)) return false;
-  ctx.emit({ type: 'brood-died', broodId: id, stage: b.stage, cause });
+  ctx.emit({ type: 'brood-died', broodId: id, stage: b.stage, cause, colonyId: b.colony });
   ctx.emit({ type: 'entity-removed', entity: 'brood', id, cause });
   return true;
 }

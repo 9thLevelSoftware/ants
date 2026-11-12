@@ -15,7 +15,9 @@ describe('pheromone decay', () => {
       const sim = makeTestSim({ systems: [pheromoneSystem] });
       const rt = pheroRuntime(sim.phero);
       expect(rt).toBeDefined();
-      rt?.setHooks({ isFree: () => false }); // isolate decay from alarm diffusion (tested below)
+      // the base half-life: no environment decay modifier (createSim installs one since the Stage 1A gate; it is
+      // tested in src/sim/wiring.test.ts) and no alarm diffusion (tested below)
+      rt?.setHooks({ decayModifier: null, isFree: () => false });
       const p = { x: 200.5 * sim.state.phero.cell, y: 0.5 * sim.state.phero.cell, z: 100.5 * sim.state.phero.cell };
       sim.phero.deposit(0, ch, p, 1.0);
       const ticks = PHERO_HALF_LIFE_S[ch] * TICKS_PER_SECOND;

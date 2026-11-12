@@ -163,7 +163,7 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
 
   out.exposureEV = lerp(a.exposureEV, b.exposureEV, t) + W.exposureEV + WEATHER_LOOK.overcast.exposureEV * cloudy;
   out.saturation = lerp(a.saturation, b.saturation, t) * W.saturation;
-  out.gain = [lerp(a.gain[0], b.gain[0], t), lerp(a.gain[1], b.gain[1], t), lerp(a.gain[2], b.gain[2], t)];
+  out.gain[0] = lerp(a.gain[0], b.gain[0], t); out.gain[1] = lerp(a.gain[1], b.gain[1], t); out.gain[2] = lerp(a.gain[2], b.gain[2], t);
 
   // frost: blue shadows (GDD 08 11.4): the sky fill takes the frost hue at its own brightness
   if (W.shadowHex) {

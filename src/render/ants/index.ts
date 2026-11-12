@@ -1,7 +1,7 @@
 // Ants, brood and carried items renderer (task render-ants). See AntRenderer.ts.
 export { AntRenderer } from './AntRenderer';
 export type { AntFrameInfo, AntRenderContext, AntRenderStats, PickTarget } from './frame';
-export type { AntSimSource, AntView, BroodView, ItemView, ColonyView, SpeciesView } from './simAdapter';
+export type { AntSimSource, AntView, BroodView, ItemView, ColonyView, SpeciesView, WalkerPose } from './simAdapter';
 export { lodSettingsFor, type AntLodSettings } from './tuning';
 export { POSE_TARGETS, poseTarget } from './poses';
 export { advanceGait, footTarget, newGaitState, resetGait, type GaitState } from './gait';

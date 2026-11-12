@@ -6,11 +6,12 @@
 import { ti } from './taskIdx';
 import { rngRange } from '@/core/rng';
 import type {
-  Ant, BroodCaste, Colony, CommandHandlerMap, CommandOf, FoodAmount, ReasonCode, Sim, System, Task,
+  Ant, BroodCaste, BroodDeathCause, Colony, CommandHandlerMap, CommandOf, FoodAmount, ReasonCode, Sim, System, Task,
 } from '@/sim/types';
 import { BROOD_CASTES, DEATH_CAUSES, isOneOf } from '@/sim/types';
-import { CHEAT_SPAWN_SCATTER_BU, LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
+import { CHEAT_SPAWN_LIFT_BU, CHEAT_SPAWN_SCATTER_BU, LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
 import { killAnt, removeMarker, spawnAnt, spawnBrood } from '@/sim/entities';
+import { walkerPlace } from '@/sim/locomotion/walker';
 import { daysPerYear, daysToTicks, TICKS_PER_DAY } from '@/sim/time';
 import { book } from './core';
 import { deposit, feedFromCrop, withdraw, type DepositSource, type WithdrawPurpose } from './stores';
@@ -18,6 +19,7 @@ import { layEgg as queenLayEgg, queenRationPShare } from './queen';
 import { requestTask as allocRequestTask } from './allocation';
 import { injectReturn } from './activation';
 import { addToxinDose } from './physiology';
+import { broodDies } from './brood';
 import { applyDirectives, placePlayerMarker } from './directives';
 
 import {
@@ -120,6 +122,15 @@ export { daysOfStock, intakeTarget, needRates, nutrientWeights, recruitAcceptanc
 export { poolCapacity, poolSpace, type DepositSource, type WithdrawPurpose } from './stores';
 export { colonySummary, queryLedger, type ColonySummary } from './summary';
 export { bandOf, health, reserveCap } from './physiology';
+export { devRate, stageDu } from './life';
+
+/** Kills a brood item with the colony's bookkeeping (death counters by cause, brood-corpse waste). */
+export function killColonyBrood(sim: Sim, broodId: number, cause: BroodDeathCause): boolean {
+  const b = sim.stores.brood.get(broodId);
+  if (!b) return false;
+  broodDies(sim, b, cause);
+  return !b.alive;
+}
 export { setClimateOverride, type ClimateOverride } from './envAdapter';
 export { censusOf } from './census';
 
@@ -200,7 +211,10 @@ function cheatSpawnAnts(sim: Sim, cmd: CommandOf<'cheat.spawnAnts'>): void {
     const x = base.x + rngRange(sim.state.rng, -r, r);
     const z = base.z + rngRange(sim.state.rng, -r, r);
     const pos = { x, y: sim.field.height(x, z), z };
-    spawnAnt(sim, { colony: col.id, caste: cmd.caste, pos, task: cmd.task ?? 'idle', ageGd: cmd.ageGd });
+    const ant = spawnAnt(sim, { colony: col.id, caste: cmd.caste, pos, task: cmd.task ?? 'idle', ageGd: cmd.ageGd });
+    // onto the kernel's level set f = footOffset (the ground height alone can be inside a stone or a primitive):
+    // from above the ground, sphere-traced down onto whatever top is there
+    walkerPlace(sim.field, ant, { x, y: pos.y + CHEAT_SPAWN_LIFT_BU * sim.world.bu, z }, {}, sim.kernel.walker);
   }
 }
 

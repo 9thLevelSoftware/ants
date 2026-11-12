@@ -32,7 +32,9 @@ bundle includes them) and sorts them by path. Nothing else to edit.
 - **Repairs** run on the best attempt after 8 failed attempts, for the checks that failed; return true if the
   world changed (the id is listed in `WorldMeta.repairs`).
 - Placers in `resources` and later steps may read the derived maps (`mapState(ctx)`, `computeSuitability`,
-  `navDistances`). If they add primitives or terrain holes the maps are derived again before `start`.
+  `navDistances`; `navDistanceTo(ctx, from, to, opts, portals)` for many single-target queries). When any placer
+  is registered in `resources`, `rivals` or `cavities`, all maps are derived again before `start`, so what those
+  steps add (anchors, water, paint, height edits, holes, rival sites) reaches suitability, nav and moisture.
 
 ## 2. What a placer can read
 
@@ -63,10 +65,17 @@ const id = placeObject(ctx, tpl, { x, z, yaw, embed: 10, collide: true, category
   every object counts against the total primitive budget. Placement beyond a budget returns -1.
 - Positions, sizes and rotations are quantised (DET-5); primitive ids are unique and sequential.
 - `ground: true` marks the primitives as walkable ground for the nav grid (floor slabs).
+- Nav grid: a primitive whose top is more than 40 BU above the ground blocks the cells under it when it stands on
+  the ground or hovers less than `NAV.crawlGapBu` (4 BU) above it (a door leaf over its 3-10 mm crack): such slots
+  are micro-connections (`addMicro`), not open ground. Thin barriers that cut a nav cell with a full row or column
+  of 4 BU samples block it too. Steps up onto a primitive top are climbable only if the primitive is
+  `CLIMBABLE` and not `SLIPPERY` (GDD 04 §11): set the flags to what the AI may climb.
 - Tag props `prop`: v-rest checks that they rest on something. `removeObject` drops one (and its routes, POIs).
 - **Tables**: `placeTables(ctx, step, tables)` takes `PlacementTable`s (zones, density per m^2, spacing, template
   factory, options), thins all tables of a category together when the expected count exceeds the budget,
-  Poisson-samples (`poissonDisk`) each table's zones and places with per-object RNG streams.
+  Poisson-samples (`poissonDisk`) the bounding rect of each table's zones and places with per-object RNG streams.
+  The sampling spacing is `max(spacingMm, sqrt(PLACE.tableFill / density))`: a sparse table with a tiny minimum
+  spacing costs about its object count, not zone area / spacing^2.
 
 ## 4. Other records
 
