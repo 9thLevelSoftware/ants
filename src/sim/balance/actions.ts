@@ -171,6 +171,9 @@ export const RESUME_SOURCE_BU = 5;
 /** GDD 02 CROP_RETURN_FRACTION and the "partly full, source empty" crop floor. */
 export const CROP_RETURN_FRACTION = 0.8;
 export const CROP_RETURN_MIN = 0.1;
+/** Fight-or-flee split of release rule 1: health below this flees (GDD 05 RETREAT_HEALTH, owner combat). */
+export const RESUME_RETREAT_HEALTH_OUT = 0.35;
+export const RESUME_RETREAT_HEALTH_IN = 0.15;
 
 // ---- prompts (GDD 01 §9) ----
 

@@ -16,7 +16,7 @@ export interface DiagnosticFactor {
 }
 
 export interface Diagnostic {
-  /** DiagnosticId; per-subject instances append ':<subjectId>' (e.g. 'dig-progress:42'). */
+  /** DiagnosticId; per-subject instances append ':<subjectId>' (e.g. 'diag-dig-progress:42'). */
   id: string;
   /** Publishing system ('colony', 'nest', 'world', 'ecology', 'environment', 'species', ...). */
   system: string;

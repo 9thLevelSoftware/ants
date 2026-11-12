@@ -23,7 +23,7 @@ import { createStores } from '@/sim/services';
 import { requireSpecies } from '@/sim/species';
 import { calendarTickAt } from '@/sim/time';
 import { clonePlain } from '@/sim/entities';
-import { defaultWorldParams, generateWorld } from '@/worldgen';
+import { defaultWorldParams, generateWorld, type WorldRuleInputs } from '@/worldgen';
 
 /**
  * Config for a new game of `species` on a difficulty preset, with the species' natural founding day. The species
@@ -39,14 +39,32 @@ export function defaultGameConfig(
   const seasonIdx = Math.floor((doy - 1) / refLen);
   const dayInSeason = ((doy - 1) % refLen) + 1;
   const scaledDay = Math.max(1, Math.min(seasonLengthDays, Math.round(1 + ((dayInSeason - 1) * seasonLengthDays) / refLen)));
+  const difficulty = { preset, params: clonePlain(DIFFICULTY_PARAMS[preset]), custom: {} };
+  const rules = resolveRules(preset, {}, seasonLengthDays);
   return {
-    species,
-    difficulty: { preset, params: clonePlain(DIFFICULTY_PARAMS[preset]), custom: {} },
-    rules: resolveRules(preset, {}, seasonLengthDays),
+    species, difficulty, rules,
     startSeason: SEASONS[seasonIdx], startDayOfSeason: scaledDay,
     startHour: def.opening.startHours[0] ?? DEFAULT_START_HOUR,
-    world: defaultWorldParams(species, seed, preset), cheats: false,
+    world: defaultWorldParams(species, seed, preset, 'standard', worldRuleInputs({ difficulty, rules })), cheats: false,
   };
+}
+
+/**
+ * The world generator's copy of the rules (WorldParams.difficulty / rivalCount / incipientCount / humanActivity).
+ * Single source of truth: `config.difficulty` and `config.rules` win. `config.world` records what the world was
+ * GENERATED with (so a load regenerates the same world); systems read the rules, never these copies, so a
+ * mid-game setDifficulty (e.g. humanActivity 'off') needs no world change.
+ */
+export function worldRuleInputs(config: Pick<GameConfig, 'difficulty' | 'rules'>): WorldRuleInputs {
+  return {
+    rivalCount: config.rules.rivals, incipientCount: config.difficulty.params.incipientRivals,
+    humanActivity: config.rules.humanActivity,
+  };
+}
+
+/** `config` with its world params brought in line with its difficulty and rules (call before generating). */
+export function syncWorldParams(config: GameConfig): GameConfig {
+  return { ...config, world: { ...config.world, difficulty: config.difficulty.preset, ...worldRuleInputs(config) } };
 }
 
 /**
@@ -174,7 +192,9 @@ export function initialState(config: GameConfig, world: WorldData): SimState {
 }
 
 /** Creates a new game. Pass `world` to use a prepared world (tests); otherwise it is generated from config. */
-export function createNewGame(config: GameConfig, world?: WorldData): { state: SimState; world: WorldData } {
+export function createNewGame(cfg: GameConfig, world?: WorldData): { state: SimState; world: WorldData } {
+  // A generated world follows the rules; a prepared world (tests) keeps the params it was built with.
+  const config = world ? cfg : syncWorldParams(cfg);
   const w = world ?? generateWorld(config.world);
   const state = initialState(config, w);
   const ctx: EntityCtx = { state, stores: createStores(state), emit: () => {}, world: w };

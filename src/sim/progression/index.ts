@@ -55,6 +55,7 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
   },
   /** D4.18 / D1.12: a preset and/or rule overrides. Rules fixed at generation are never changed mid-game. */
   setDifficulty: (sim, c) => {
+    // Preset and rule values were checked by the command layer (commands.ts PAYLOAD_GUARDS).
     const cfg = sim.state.config;
     const d = cfg.difficulty;
     if (c.preset !== undefined && c.preset !== d.preset) {

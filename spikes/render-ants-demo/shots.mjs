@@ -48,13 +48,13 @@ export default async ({ page, shot, log }) => {
     // fixed camera, side view; three frames 1/6 gait cycle apart; footSlide projects the stance feet of every frame
     await D('setScene', 'gait'); await D('step', 0.5);
     const pos = await page.evaluate(() => { const a = window.__demo.sim.state.ants[0]; return [a.pos.x, a.pos.y, a.pos.z]; });
-    await D('setCamera', { target: [pos[0], 0.45, pos[2] + 0.8], dist: 11, az: 90, el: 4, fov: 30, follow: -1 });
+    await D('setCamera', { target: [pos[0], 0.45, pos[2] - 0.2], dist: 11, az: 90, el: 4, fov: 30, follow: -1 });
     const cycle = 2.0 / 24; // stride (mm per cycle) / speed (mm/s), Lasius worker
     for (let k = 0; k < 3; k++) { if (k) await D('step', cycle / 6, cycle / 24); else await D('render'); await shot(`14-gait-${k + 1}`); }
     await D('setScene', 'gait'); await D('step', 0.5);
-    await D('setCamera', { target: [pos[0], 0.45, pos[2] + 0.8], dist: 11, az: 90, el: 4, fov: 30, follow: -1 });
+    await D('setCamera', { target: [pos[0], 0.45, pos[2] - 0.2], dist: 11, az: 90, el: 4, fov: 30, follow: -1 });
     out.footSlide = await D('footSlide', 3, cycle / 6);
-    await D('setCamera', { target: [pos[0], 0.45, pos[2] + 0.8], dist: 11, az: 90, el: 4, fov: 30, follow: 0 });
+    await D('setCamera', { target: [pos[0], 0.45, pos[2] - 0.2], dist: 11, az: 90, el: 4, fov: 30, follow: 0 });
     out.footSlide60 = await D('footSlide', 60, 1 / 60); // camera follows: world-space drift is the measure here
     delete out.footSlide60.feet;
     log('footSlide', JSON.stringify({ ...out.footSlide, feet: undefined }), JSON.stringify(out.footSlide60));

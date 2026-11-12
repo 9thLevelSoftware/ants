@@ -63,7 +63,7 @@ export function buildScene(sim: DemoSim, name: string, p: URLSearchParams | Reco
       addAnt(sim, col, s, 'major', { heading: 0.5 });
       addAnt(sim, col, s, 'minor', { pos: { x: M * 0.85, y: 0, z: M * 0.1 }, heading: 0.1 });
       return {
-        cam: { target: [M * 0.45, M * 0.1, M * 0.05], dist: M * 2.0, az: 30, el: 24, fov: 30 },
+        cam: { target: [M * 0.45, M * 0.1, M * 0.05], dist: M * 2.1, az: 62, el: 22, fov: 30 },
         labels: [{ text: `major ${M.toFixed(1)} mm`, at: [0, M * 0.45, 0] }, { text: `minor ${m.toFixed(1)} mm`, at: [M * 0.85, m * 0.6, M * 0.1] }], stage: none,
       };
     }
@@ -115,7 +115,7 @@ function crowd(sim: DemoSim, n: number, sp: Species): SceneSetup {
     else { a.cropC = 1; a.targetSpeed = 4 * bu; a.speed = a.targetSpeed; }
   }
   if (sim.state.ants[0]) sim.state.player.possessedAntId = sim.state.ants[0].id;
-  return { cam: { target: [0, 1, sim.bound * 0.45], dist: sim.bound * 1.25, az: 20, el: 13, fov: 45 }, labels: [], stage: { grains: false, fogFar: 5000 } };
+  return { cam: { target: [0, 1, sim.bound * 0.1], dist: sim.bound * 0.28, az: 20, el: 13, fov: 45 }, labels: [], stage: { grains: false, fogFar: 5000 } };
 }
 
 function broodPile(sim: DemoSim, sp: Species): SceneSetup {
@@ -170,7 +170,7 @@ function items(sim: DemoSim): SceneSetup {
     sim.give(a, sim.item(k, a.pos, { species: 'lasius-niger' }));
     labels.push({ text: k, at: [x, 3.4, 0] });
   });
-  return { cam: { target: [-42, 0.8, 2.5], dist: 92, az: 0, el: 30, fov: 36 }, labels, stage: { grains: false } };
+  return { cam: { target: [-42, 0.8, 2.5], dist: 72, az: 0, el: 30, fov: 36 }, labels, stage: { grains: false } };
 }
 
 function lineup(sim: DemoSim, which: string): SceneSetup {

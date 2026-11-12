@@ -38,6 +38,8 @@ interface Bucket {
 
 /** Macro albedo variation on primitives. */
 const PRIM_MACRO = 0.08;
+/** Far-detail buckets cast shadows only if they hold a primitive at least this big (bounding radius, mm). */
+const FAR_SHADOW_MIN_RADIUS = 40;
 
 export class PrimitiveRenderer {
   readonly group = new Group();
@@ -214,6 +216,8 @@ export class PrimitiveRenderer {
       });
       b.mesh.count = list.length;
       b.mesh.visible = true;
+      // distant pebbles' shadows are sub-texel: skip them in the shadow pass
+      b.mesh.castShadow = b.lod === 'near' || maxR >= FAR_SHADOW_MIN_RADIUS;
       b.mesh.instanceMatrix.needsUpdate = true;
       b.mesh.instanceColor!.needsUpdate = true;
       b.size.needsUpdate = true;

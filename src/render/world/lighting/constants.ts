@@ -100,8 +100,8 @@ export interface WeatherLook {
 
 export const WEATHER_LOOK: Record<WeatherState, WeatherLook> = {
   clear: { sunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 1, hazeHex: null },
-  overcast: { sunMult: 0.35, penumbra: 4, hazeMult: 1.2, exposureEV: 0.6, overcast: 1, saturation: 0.95, hazeHex: null },
-  rain: { sunMult: 0.2, penumbra: 4, hazeMult: 1.35, exposureEV: 0.8, overcast: 1, saturation: 0.95, hazeHex: null },
+  overcast: { sunMult: 0.35, penumbra: 4, hazeMult: 1.2, exposureEV: 0.3, overcast: 1, saturation: 0.95, hazeHex: null },
+  rain: { sunMult: 0.2, penumbra: 4, hazeMult: 1.35, exposureEV: 0.4, overcast: 1, saturation: 0.95, hazeHex: null },
   storm: { sunMult: 0.12, penumbra: 4, hazeMult: 1.5, exposureEV: 0.1, overcast: 1, saturation: 0.9, hazeHex: null },
   heat: { sunMult: 1.05, penumbra: 1, hazeMult: 1.1, exposureEV: -0.1, overcast: 0, saturation: 0.95, hazeHex: '#EADBC0' },
   frost: { sunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 0.7, hazeHex: null },

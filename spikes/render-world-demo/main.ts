@@ -129,9 +129,13 @@ function frame(dt: number): void {
   app.setFocus(camera.position.distanceTo(subject), undefined, true);
 }
 
+const pixel = new Uint8Array(4);
 function render(dt = 0): void {
   frame(dt);
   app.renderFrame(dt);
+  // wait for the GPU (software GL queues work asynchronously; scripted renders must not build a backlog)
+  const gl = app.renderer.getContext();
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
   if (showHud) hudEl.textContent = hudText();
 }
 

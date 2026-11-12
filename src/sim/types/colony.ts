@@ -213,4 +213,50 @@ export interface Colony {
   fungus: FungusModule | null;
   /** Messor hybridogenetic lineage of the queen (GDD 07 5.3.3); null otherwise. */
   lineage: { own: 'A' | 'B'; mates: ('A' | 'B')[] } | null;
+  /**
+   * Colony-core bookkeeping (GDD 02 §5-§14) that the fields above do not hold. Additive (colony-core): created by the
+   * colony module on its first update, so it is absent only on a colony that has never been simulated.
+   */
+  core?: ColonyCoreState;
+}
+
+/**
+ * Colony-core bookkeeping: lifetime ledger, starvation and alert timers, rate caches and diagnostics windows.
+ * Timers are absolute ticks (-1 = condition not holding). Rates are loads (or eggs) per game day.
+ */
+export interface ColonyCoreState {
+  /** Cumulative pool ledger since the colony was first simulated (`Colony.ledger` is the current game day). */
+  life: ColonyLedger;
+  /** Calendar day index (0-based) the daily ledger and today counters belong to. */
+  day: number;
+  /** Living adult workers at the last colony update (capacity and demand cache). */
+  workers: number;
+  /** Solid pile capacity of the colony's chambers, loads, at the last colony update. */
+  pileCap: number;
+  /** Tick pool C / pool P became zero, -1 while positive. */
+  cZeroSinceTick: number;
+  pZeroSinceTick: number;
+  /** Tick the exit condition of the current starvation stage began to hold, -1 none. */
+  exitSinceTick: number;
+  /** Tick colony needP rose to MINIM_NEED_P or more, -1 none. */
+  minimSinceTick: number;
+  /** Tick the pool reached capacity, -1 when not full. */
+  fullSinceTick: number;
+  /** First tick the next brood item may be cannibalised (CANNIBAL_RATE). */
+  cannibalReadyTick: number;
+  /** Spoiled loads not yet turned into a `spoiled-food` waste item. */
+  spoiledPending: number;
+  /** EMA of eggs laid, eggs per game day. */
+  layingRate: number;
+  /** Departures of foragers since the start of the day. */
+  departuresToday: number;
+  /**
+   * Named running sums and caches (cycle sums of per-gd rates, the last instantaneous rates, laying factors,
+   * diagnostics window sums). Keys are documented in src/sim/colony/core.ts.
+   */
+  acc: Record<string, number>;
+  /** Diagnostics status hysteresis: candidate status per diagnostic id and the tick it first appeared. */
+  diagPending: { id: string; status: string; sinceTick: number }[];
+  /** Adult deaths of this colony since the start of the day, by cause. */
+  deathsToday: Record<string, number>;
 }

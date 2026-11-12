@@ -72,8 +72,13 @@ describe('calendar helpers read the season length from the config (D1.2)', () =>
 
 const SIM_SOURCES = import.meta.glob('/src/sim/**/*.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
-/** Named declarations allowed to hold the numbers: the default season length, the week and the rule's options. */
-const ALLOWED = [/DEFAULT_SEASON_LENGTH_DAYS = 7;/, /WEEK_DAYS = 7;/, /SEASON_LENGTHS = \[5, 7, 10\]/];
+/**
+ * Named declarations allowed to hold the numbers: the default season length, the default (reference) year in
+ * which the GDD writes day numbers, the week and the rule's options.
+ */
+const ALLOWED = [
+  /DEFAULT_SEASON_LENGTH_DAYS = 7;/, /REFERENCE_DAYS_PER_YEAR = 28;/, /WEEK_DAYS = 7;/, /SEASON_LENGTHS = \[5, 7, 10\]/,
+];
 
 function codeOnly(src: string): string {
   return src
@@ -88,7 +93,8 @@ describe('no hard-coded season or year length', () => {
     for (const [file, src] of Object.entries(SIM_SOURCES)) {
       if (file.endsWith('.test.ts') || file.includes('/species/data/')) continue; // species data: default-year windows
       codeOnly(src).split('\n').forEach((line, i) => {
-        if (!/(?<![\d.])(7|28)(?![\d.])/.test(line) || !/day|season|year|week|doy/i.test(line)) return;
+        // A bare number only: the C1 names `d28` / `doy28` are identifiers, not hard-coded lengths.
+        if (!/(?<![\w.])(7|28)(?![\w.])/.test(line) || !/day|season|year|week|doy/i.test(line)) return;
         if (ALLOWED.some((r) => r.test(line))) return;
         bad.push(`${file}:${i + 1}: ${line.trim()}`);
       });

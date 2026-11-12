@@ -26,15 +26,15 @@ export class SkyEnvironment {
 
   /**
    * Re-bakes when needed. `key` summarises discrete changes (weather, underground); the sun direction is
-   * compared by angle. Returns true if a new texture was produced.
+   * compared by angle. `nowS` is REAL time (the animation clock may be frozen); `force` bakes any pending change
+   * at once (settle frames, screenshots). Returns true if a new texture was produced.
    */
   update(nowS: number, key: string, rebakeDeg: number, minIntervalS: number, force = false): boolean {
     const s = this.uniforms.sunDir.value;
     const cos = s.x * this.lastSun.x + s.y * this.lastSun.y + s.z * this.lastSun.z;
-    const moved = cos < Math.cos((rebakeDeg * Math.PI) / 180);
-    const changed = key !== this.lastKey || moved;
-    if (!force && (!changed || nowS - this.lastBakeS < minIntervalS) && this.target) return false;
-    if (!force && !changed && this.target) return false;
+    const changed = !this.target || key !== this.lastKey || cos < Math.cos((rebakeDeg * Math.PI) / 180);
+    if (!changed) return false;
+    if (!force && nowS - this.lastBakeS < minIntervalS) return false;
     this.uniforms.envPass.value = 1;
     const rt = this.pmrem.fromScene(this.scene, 0, 0.1, 1000);
     this.uniforms.envPass.value = 0;

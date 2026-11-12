@@ -60,9 +60,12 @@ export const LASIUS_NIGER: SpeciesDef = {
   castes: CASTES,
   life: {
     stageGd: { egg: 1.4, larva: 0.6, pupa: 1.9 }, devRefC: 21,
-    devRate: [[10, 0], [15, 0.45], [20, 0.91], [21, 1.0], [25, 1.36], [30, 1.82], [32, 1.85], [35, 1.4], [38, 0]],
+    // GDD 02 §2.2 r(T) (authoritative; registry C5, GDD 07 Lasius table): (T - 10) / 11 up to 30 °C, flat to 32, 0 at 36.
+    devRate: [[10, 0], [15, 0.455], [20, 0.909], [21, 1.0], [25, 1.364], [30, 1.818], [32, 1.818], [34, 0.909], [36, 0]],
     larvaFood: 'trophallaxis+solid', animalProteinMinFrac: 0, qMax: 100, sizeBase: 0.3, sizeK: 300,
-    fSeason: [[1, 0.3], [2, 0.3], [5, 1.0], [15, 1.0], [15.01, 0.6], [18, 0.6], [18.01, 0.2], [21, 0.2], [21.01, 0], [29, 0]],
+    // GDD 02 §3.2 on d28 (0-based default-year day, C1 / E-123): 0.3 over [0, 1), ramp to 1.0 over [1, 4),
+    // 1.0 over [4, 14), 0.6 over [14, 17), 0.2 over [17, 20), 0 over [20, 28).
+    fSeason: [[0, 0.3], [1, 0.3], [4, 1.0], [14, 1.0], [14.01, 0.6], [17, 0.6], [17.01, 0.2], [20, 0.2], [20.01, 0], [28, 0]],
     layWindows: null, fTempQ: [[14, 0], [20, 1], [30, 1], [34, 0.5], [36, 0]],
     queenUpkeep: { c: 0.3, p: 0.1 }, queenLifespanYears: { min: 15, max: 25 },
     casteMixTarget: [[0, 0, 1, 0]], broodHazard: {},
@@ -72,7 +75,7 @@ export const LASIUS_NIGER: SpeciesDef = {
     siteHard: ['no-hard-surface'], siteBonuses: ['under-cover', 'recent-rain', 'rival-scent-penalty'],
     dMinOpenBu: 8, dMinCoverBu: 5, vMinBu3: 10, wMinBu: 3.5, shaftTargetBu: 10, seal: true, R0: 56, clutchCap: 48,
     trophicFraction: 0, firstBroodClass: { caste: 'worker', nanitic: true }, expectedFirstWorkers: { min: 8, max: 16 },
-    special: [], startDoy: { min: 8, max: 12, default: 10 }, startHours: [14, 16],
+    special: [], startDoy: { min: 9, max: 12, default: 10 }, startHours: [14, 16],
   },
   scale: {
     simCapWorkers: 1500, wildColonySize: { typical: [5000, 10000], max: 17000 },

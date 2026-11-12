@@ -1,7 +1,8 @@
 // Climate profiles (GDD 06 §2.1), one per climate id. Pure data plus the seasonal-mean curve.
 
 import type { ClimateId, Season } from '@/sim/types';
-import { SEASONAL_PEAK_DAY, REFERENCE_DAYS_PER_YEAR } from '@/sim/balance';
+import { SEASONAL_PEAK_DAY } from '@/sim/balance';
+import { DEFAULT_DAYS_PER_YEAR } from '@/sim/time';
 
 export interface ClimateDef {
   id: ClimateId;
@@ -51,7 +52,7 @@ export const CLIMATES: Record<ClimateId, ClimateDef> = {
 };
 
 /** Year fraction of the seasonal temperature peak (d = 9.5 of the default 28-day year). */
-export const SEASONAL_PEAK_FRAC = SEASONAL_PEAK_DAY / REFERENCE_DAYS_PER_YEAR;
+export const SEASONAL_PEAK_FRAC = SEASONAL_PEAK_DAY / DEFAULT_DAYS_PER_YEAR;
 
 /** Seasonal mean air temperature: Tann + Aseas cos(2 pi (yearFrac - peak)). */
 export function seasonalMean(c: ClimateDef, yearFrac: number): number {

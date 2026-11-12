@@ -56,6 +56,11 @@ export type SpeedLevel = (typeof SPEED_LEVELS)[number];
 export const RUN_SPEEDS = [1, 2, 4, 8] as const;
 export type RunSpeed = (typeof RUN_SPEEDS)[number];
 
+/** True if `v` is a valid `setSpeed` value (commands may arrive as untyped JSON; rejects NaN, 3, -1 ...). */
+export function isSpeedLevel(v: unknown): v is SpeedLevel {
+  return typeof v === 'number' && (SPEED_LEVELS as readonly number[]).includes(v);
+}
+
 export const JOURNAL_KINDS = ['milestone', 'stage', 'season', 'weather', 'loss', 'event', 'winter-report', 'flight', 'aim'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 

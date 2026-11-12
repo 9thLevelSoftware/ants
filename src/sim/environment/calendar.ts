@@ -4,12 +4,12 @@
 import type { CalendarDerived, DayPhase, Sim, SimState, System } from '@/sim/types';
 import {
   DAY_LENGTH_AMP_H, DAY_LENGTH_MEAN_H, MOON_PERIOD_DAYS, PEAK_SOLAR_L_MIN_H, PEAK_SOLAR_L_SPAN_H, PEAK_SOLAR_MAX,
-  PEAK_SOLAR_MIN, PHASE_MIDDAY_END_H, PHASE_MIDDAY_START_H, REFERENCE_DAYS_PER_YEAR, TWILIGHT_HALF_H, WEEKEND_FROM,
+  PEAK_SOLAR_MIN, PHASE_MIDDAY_END_H, PHASE_MIDDAY_START_H, TWILIGHT_HALF_H, WEEKEND_FROM,
 } from '@/sim/balance';
 import { smoothstep } from '@/core/math/scalar';
 import {
-  calendarTick, dayOf, dayOfSeason, dayOfYear, hourOf, seasonIndexOf, seasonOf, TICKS_PER_DAY, TICKS_PER_HOUR,
-  weekdayOf, yearFraction, yearOf, type SeasonLengthSource,
+  calendarTick, dayOf, dayOfSeason, dayOfYear, hourOf, inDefaultYearWindow, seasonIndexOf, seasonOf, TICKS_PER_DAY,
+  TICKS_PER_HOUR, weekdayOf, yearFraction, yearOf, type SeasonLengthSource,
 } from '@/sim/time';
 
 /** Day length in hours at a year fraction (GDD 06 §1.3; one curve for all climates, deviation D1). */
@@ -86,28 +86,23 @@ export function deriveCalendar(
   return out;
 }
 
-interface CacheEntry { calTick: number; moon0: number; seasonLen: number; value: CalendarDerived }
+interface CacheEntry { calTick: number; moon0: number; seasonLen: number; value: Readonly<CalendarDerived> }
 const cache = new WeakMap<SimState, CacheEntry>();
 
 /**
- * Calendar values of the current tick, memoised per calendar tick. The returned record is reused and overwritten
- * when the tick changes: read it, do not keep it across ticks (copy the fields you need).
+ * Calendar values of the current tick, memoised per calendar tick, start anchor and season length. The record is
+ * frozen and replaced (not mutated) when any of them changes, so it is safe to keep.
  */
-export function calendarNow(sim: { state: SimState }): CalendarDerived {
+export function calendarNow(sim: { state: SimState }): Readonly<CalendarDerived> {
   const s = sim.state;
   const ct = calendarTick(s);
   const moon0 = s.env.calendar.moonPhase0;
   const len = s.config.rules.seasonLengthDays;
-  let hit = cache.get(s);
+  const hit = cache.get(s);
   if (hit && hit.calTick === ct && hit.moon0 === moon0 && hit.seasonLen === len) return hit.value;
-  if (!hit) {
-    hit = { calTick: ct, moon0, seasonLen: len, value: newDerived() };
-    cache.set(s, hit);
-  }
-  hit.calTick = ct;
-  hit.moon0 = moon0;
-  hit.seasonLen = len;
-  return deriveCalendar(ct, s.config, moon0, hit.value);
+  const value = Object.freeze(deriveCalendar(ct, s.config, moon0));
+  cache.set(s, { calTick: ct, moon0, seasonLen: len, value });
+  return value;
 }
 
 /** Weekend day (7-day week, game day 1 = weekday 0). */
@@ -115,27 +110,11 @@ export function isWeekend(sim: Sim): boolean {
   return weekdayOf(calendarTick(sim.state)) >= WEEKEND_FROM;
 }
 
-// ---- default-year windows (directions §K "calendar windows", GDD 06 §1.7, 00-index C1/D7.1) ----
+// ---- default-year windows (directions §K, GDD 06 §1.7, 00-index C1/D7.1: the helpers live in time.ts) ----
 
-/** Day of the default 28-day year, 0-based fractional (`d28`), at a calendar tick: scaled by the year fraction. */
-export function defaultYearDayOf(calTick: number, cfg: SeasonLengthSource): number {
-  return yearFraction(calTick, cfg) * REFERENCE_DAYS_PER_YEAR;
-}
-
-/** Day of the default year, 1-based integer (`doy28`). */
-export function defaultYearDoyOf(calTick: number, cfg: SeasonLengthSource): number {
-  return Math.floor(defaultYearDayOf(calTick, cfg)) + 1;
-}
-
-/** True while the default-year window `doy a..b` (inclusive) holds: `a - 1 <= d28 < b`. */
-export function inDefaultWindow(calTick: number, cfg: SeasonLengthSource, doyFrom: number, doyTo: number): boolean {
-  const d = defaultYearDayOf(calTick, cfg);
-  return d >= doyFrom - 1 && d < doyTo;
-}
-
-/** Default-year window of the current tick of a sim. */
+/** True while the default-year window `doy a..b` (inclusive) holds at the sim's current tick. */
 export function inWindow(sim: { state: SimState }, doyFrom: number, doyTo: number): boolean {
-  return inDefaultWindow(calendarTick(sim.state), sim.state.config, doyFrom, doyTo);
+  return inDefaultYearWindow(calendarTick(sim.state), sim.state.config, doyFrom, doyTo);
 }
 
 /** Calendar tick at which the next season starts after `calTick`. */

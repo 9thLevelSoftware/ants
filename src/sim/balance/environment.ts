@@ -40,8 +40,6 @@ export const WEEKEND_FROM = 5;
  * Calendar code never uses this as the current season length: it reads `config.rules.seasonLengthDays`.
  */
 export const DEFAULT_SEASON_LENGTH_DAYS = 7;
-/** Days of the reference (default) year, for converting default-year day numbers to year fractions. */
-export const REFERENCE_DAYS_PER_YEAR = 28;
 /** Moon period in game days (29.53 real days / 13.04 real days per game day). */
 export const MOON_PERIOD_DAYS = 2.265;
 /** Highest speed allowed while an ant is possessed (seed §1: 8x only when not possessing). */

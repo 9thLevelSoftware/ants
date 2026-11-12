@@ -2,6 +2,10 @@
 // The difficulty-rules task owns the plumbing; systems read config.difficulty.params and config.rules.
 
 import type { CustomRules, DifficultyId, DifficultyParams } from '@/sim/types';
+import {
+  FOUNDING_LENIENCIES, HUMAN_ACTIVITY_LEVELS, PREDATOR_SETTINGS, SEASON_LENGTHS, START_SEASON_RULES,
+  WEATHER_SEVERITIES, WINTER_RULES,
+} from '@/sim/types';
 
 export const DIFFICULTY_PARAMS: Record<DifficultyId, DifficultyParams> = {
   gentle: {
@@ -74,4 +78,51 @@ export function resolveRules(
     if (v !== undefined) (out as unknown as Record<string, unknown>)[k] = v;
   }
   return out;
+}
+
+/** Highest established rival count of the custom rule (GDD 06 §14.1: 0-4). */
+export const MAX_RIVALS = 4;
+
+/** Rival colonies a preset sites by default (worldgen reads this; the custom rule `rivals` overrides it). */
+export function presetRivals(preset: DifficultyId): number {
+  return PRESET_RULES[preset].rivals;
+}
+
+/** Human activity level a preset implies (the custom rule `humanActivity` overrides it, D4.18). */
+export function presetHumanActivity(preset: DifficultyId): CustomRules['humanActivity'] {
+  return PRESET_RULES[preset].humanActivity;
+}
+
+/** Allowed values of each custom rule, for checking overrides that arrive as untyped JSON. */
+const RULE_VALUES: { [K in keyof CustomRules]: (v: unknown) => boolean } = {
+  predators: (v) => isIn(PREDATOR_SETTINGS, v),
+  rivals: (v) => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= MAX_RIVALS,
+  humanActivity: (v) => isIn(HUMAN_ACTIVITY_LEVELS, v),
+  weatherSeverity: (v) => isIn(WEATHER_SEVERITIES, v),
+  seasonLengthDays: (v) => isIn(SEASON_LENGTHS, v),
+  startSeason: (v) => isIn(START_SEASON_RULES, v),
+  foundingLeniency: (v) => isIn(FOUNDING_LENIENCIES, v),
+  winterMode: (v) => isIn(WINTER_RULES, v),
+  foundingAssist: (v) => typeof v === 'boolean',
+  queenSenescence: (v) => typeof v === 'boolean',
+  collapse: (v) => typeof v === 'boolean',
+  extinctionEndsGame: (v) => typeof v === 'boolean',
+};
+
+function isIn(set: readonly (string | number)[], v: unknown): boolean {
+  return (typeof v === 'string' || typeof v === 'number') && set.includes(v);
+}
+
+/**
+ * Checks rule overrides that may come from untyped JSON. Returns the bad keys (unknown rule or invalid value),
+ * empty when every given value is valid; `undefined` values are allowed (they clear an override).
+ */
+export function invalidCustomRules(custom: unknown): string[] {
+  if (typeof custom !== 'object' || custom === null || Array.isArray(custom)) return ['<not an object>'];
+  const bad: string[] = [];
+  for (const [k, v] of Object.entries(custom)) {
+    const check = (RULE_VALUES as Record<string, ((v: unknown) => boolean) | undefined>)[k];
+    if (!check || (v !== undefined && !check(v))) bad.push(k);
+  }
+  return bad;
 }

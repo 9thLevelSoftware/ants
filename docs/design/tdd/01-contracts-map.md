@@ -663,6 +663,18 @@ seasonLength?)`. Calendar helpers take a `SeasonLengthSource` (a config or a num
 `AGE_YOUNG_MAX_GD`, `AGE_MID_MAX_GD`, `OPENING_MAX_SPEED`, `MARKER_CAP`, `MARKER_DEFAULT_RADIUS_BU`,
 `DIFFICULTY_PARAMS`, `resolveRules`. Worldgen: incipient rivals 0/1/2 → 1/2/3 (GDD 05 §3.1).
 
+Changes from the F1c review round (before any module consumes them)
+
+| Old | New |
+| --- | --- |
+| `Brood.destined: Caste` (also `egg-laid`, `cheat.spawnBrood`, `layEgg`, `SpawnBroodOptions`) | `BroodCaste` = `Exclude<Caste, 'queen'>` (D7.3) |
+| `LifeHistory.fSeason` keyed on 1-based `D` | keyed on 0-based `d28` (Lasius data `D − 1`); `layWindows` on `d28` |
+| Lasius `devRate` upper end `32: 1.85, 35: 1.4, 38: 0` | `32: 1.818, 34: 0.909, 36: 0` (C5) |
+| Lasius `startDoy.min` 8 | 9 (C1) |
+| worldgen `RIVALS_BY_DIFFICULTY` (inline) | balance `presetRivals`, `presetHumanActivity`; createGame `worldRuleInputs`, `syncWorldParams` |
+| `calendarNow(sim): CalendarDerived` cached on `state.tick` | `Readonly<CalendarDerived>` (frozen) cached on calendar tick and season length |
+| `setSpeed`, `setDifficulty`, `cheat.kill`, `cheat.killQueen` accepted any JSON value | invalid values → `command-rejected` (`invalid-speed`, `invalid-difficulty`); kill causes kept when canonical, else `unknown` / `base` |
+
 ## (g) 00-index §D rows and their outcome
 
 All rows are **applied** unless marked otherwise.
@@ -754,6 +766,10 @@ All rows are **applied** unless marked otherwise.
 | D6.9 | applied (already): `last-ants` |
 | D6.10 | applied (already): `hintsMirror`, `player.promptLearned` |
 | D6.11 | applied: aims and `cx-interface-orders`; `milestoneNotices` is a UI setting (not a sim contract) |
+| D7.1 | applied (F1c review): `src/sim/time.ts` (the calendar module) adds `defaultYearDay(calTick, cfg)` → `d28` (0-based float, exact integer-tick arithmetic), `defaultYearDoy(calTick, cfg)` → `doy28`, `inDefaultYearWindow(calTick, cfg, a, b)` (`a − 1 ≤ d28 < b`), `currentDefaultYearDay/Doy(state)` and `DEFAULT_DAYS_PER_YEAR`; `LifeHistory.fSeason` and `layWindows` are keyed on `d28` (Lasius data re-keyed: `D − 1`) |
+| D7.2 | applied (F1c review): environment `thermalInputs(sim, pos, out?)` → `ThermalInputs {T_top, T_dayMean, T_seasonMean, T_annual}` and `rainIntensityAt(sim, pos)` (stubs: T1 constants, 0); `env.thermal` gains `emaCell` (per 4 BU heightfield cell, `emaCellMm/Nx/Nz`) and `emaCover` (per cover primitive, `emaCoverPrimIds`), each interleaving [day mean, season mean], lazily allocated (ruling 3); `chamberTemp` documented as the GDD 03 §9.1 value; balance `RAIN_INTENSITY` (drizzle 0.1, shower 0.4, downpour 0.7), `RAIN_INTENSITY_STORM` 1.0, `RAIN_INTENSITY_SPRINKLER` 0.5, `THERMAL_DAY_EMA_TAU_GD` 1 |
+| D7.3 | applied (F1c review): `BroodCaste = Exclude<Caste, 'queen'>` and `BROOD_CASTES`; `Brood.destined`, `egg-laid.destined`, `cheat.spawnBrood.destined`, `layEgg(…, destined)` and `SpawnBroodOptions.destined` narrowed (a narrowing made before any module consumes it; `destinedLengthBu` already present); `cheat.spawnBrood` rejects a non-brood caste from untyped JSON (`invalid-caste`) |
+| D7.4 | applied: `progression.peakWorkers` (simulated workers; no `peakWorkerEq` anywhere) |
 
 Registry B9 events not in the union, with reason: `speed-changed` (GDD 01) is the same event as GDD 06's
 `time.speed-changed` and is emitted once under the GDD 06 name (E-71, E-73: no double emission);
@@ -778,3 +794,19 @@ Registry B9 events not in the union, with reason: `speed-changed` (GDD 01) is th
 9. Rival T3 rows (`src/sim/species/rivals.ts`) are estimates marked [E]; rival cruise speed is not in the GDD (6 body
    lengths/s used).
 10. `THERMAL_STATES` keeps `normal` beside the B6 states `heat-stupor`, `cold-coma` (an ant needs a neutral state).
+11. Day convention of species curves: `fSeason` and `layWindows` are keyed on the 0-based `d28` (C1, E-123, D7.1).
+    GDD 07 tables (Lasius §, Camponotus, Messor `fSeason(D)`) are still written on the 1-based `D = d28 + 1`:
+    species-data must subtract 1 when entering them (Lasius already done). GDD 07 line "by 1-based `D = d + 1`"
+    should be edited to `d28` by the design owner.
+12. D7.2 storage: env-core added the additive optional `thermal.tsurfDay` / `tsurfSeason` (EMAs per material x shade,
+    the `tsurf` layout). That is a compression of the per-cell EMAs valid while `T_top` depends only on material and
+    shade; the contract keeps D7.2's per-cell / per-cover-primitive arrays (`emaCell`, `emaCover`, empty until
+    allocated). env-core to choose one and document it; `thermalInputs` hides the choice from callers.
+13. One source of truth for generation rules: `config.world.{difficulty, rivalCount, incipientCount, humanActivity}`
+    are the generator's copies of `config.difficulty` / `config.rules`, taken by `syncWorldParams` in `createNewGame`
+    (a prepared test world keeps its params). At run time systems read `config.rules` / `config.difficulty`, never the
+    copies (so `setDifficulty {custom: {humanActivity: 'off'}}` needs no world change). Defaults come from
+    `presetRivals` / `presetHumanActivity` in balance/difficulty.ts (worldgen's inline table removed).
+14. `defaultYearDay` exists twice: `src/sim/time.ts` (contract, D7.1) and env-core's `defaultYearDayOf` /
+    `inDefaultWindow` in `environment/calendar.ts` (and `REFERENCE_DAYS_PER_YEAR` beside `DEFAULT_DAYS_PER_YEAR`).
+    env-core should delegate to the time.ts helpers.

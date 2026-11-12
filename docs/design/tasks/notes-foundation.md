@@ -241,23 +241,22 @@ Fixed:
 
 ## F1c-contracts-sync
 
-**Summary:** I applied every row of 00-index §D, applied all 13 orchestrator rulings and froze the contracts. `npm run typecheck` is clean for the whole project (0 errors). `npm test` shows 506 passed and 4 failed. All 4 failures are in the kernel's own new `*.verify.test.ts` files (kernel.verify, world/field.verify, nest/carve/grid.verify). Those files are outside my paths, I did not touch them, and they test the crust dig predicate, breach and project behaviour that the F2 review is still fixing. Every test in my paths passes.
+**Summary:** I reproduced all 8 review findings. Every one was real, and each has a fix plus a test. 15 of the reviewer's 15 tests now pass, and none of them was weakened. Midway through, the env-core engineer replaced src/sim/environment/index.ts with their real implementation, and my stub edits there were overwritten. So the environment-side fixes now live either in their code, which picked up my contract types and balance constants, or in my own paths. The 5 tests that still fail in the full suite are all caused by other engineers' work in progress (listed in needsFromOthers).
 
-What changed:
-- **Identifier sets** now match registry B:
-  - 62 `diag-*` ids; statuses ok/info/warn/bad.
-  - Canonical adult, brood and founding death causes.
-  - Aims, hints, milestones (59), codex (57 base ids plus the fixed additions and the `cx-species/material/habitat` families) and 35 alert kinds.
-  - Cue ids with namespaced forms; `mortar` added; T2 tier.
-  - New sets for save slots, autosave labels, history series, reproduction gates, rival profiles and rival nest templates.
-  - Old aliases removed: opening prompts, auto-slow triggers, production modes, `street-broom`.
-- **State placement and entity fields** follow D1 and D2: `env.calendar.startTick` (the derived calendar is now a runtime cache), `env.time` with a separate paused flag, `progression.journal/history/difficultyHistory`, `config.difficulty {preset, params, custom}`, `Colony.repro/rival/danger`, the new queen record, ant ages in game days, reserve in C loads, cooldowns as absolute ticks, `Item.carrierIds`, `FoodSource.units`, top-level marker chamber fields, and the species founding geometry, `wildColonySize`, stage thresholds and fixed stats.
-- **Commands and events** follow D4 and D5 (`possess` takes an ant id or a role, flat `setDirectives` and `planDig`, `timelapseRespond`, `cue` wi
+What was fixed:
+(1) D7.1-D7.4 are applied and recorded in contracts-map section (g).
+- D7.1: src/sim/time.ts gains `defaultYearDay` (d28, exact tick arithmetic), `defaultYearDoy` (doy28), `inDefaultYearWindow`, `currentDefaultYearDay/Doy` and `DEFAULT_DAYS_PER_YEAR`.
+- D7.2: new contract type `ThermalInputs`. `env.thermal` gains `emaCell` (per 4 BU heightfield cell, with `emaCellMm/Nx/Nz`) and `emaCover` (per cover primitive, with `emaCoverPrimIds`); both start empty (lazily allocated, ruling 3) and createGame sizes the grid. New balance file `thermalInputs.ts` holds `RAIN_INTENSITY` and the related constants. env-core already uses them in their `rainIntensityAt` and `thermalInputs`.
+- D7.3: new `BroodCaste = Exclude<Caste,'queen'>` and `BROOD_CASTES`. Brood.destined, egg-laid.destined, cheat.spawnBrood.destined, layEgg and SpawnBroodOptions are narrowed. cheat.spawnBrood now rejects a queen caste with `invalid-caste`.
+- D7.4: documented.
+(2) Commands arriving as untyped JSON: a new `PAYLOAD_GUARDS` table in src/sim/commands.ts checks setSpeed (via new `isSpeedLevel`) and setDifficulty (preset, plus the new `invalidCustomRules` in balance/difficulty) before any handler runs. A bad command is refused with `
 
 ### Not done
 - npm test is not fully green: 4 kernel verify tests fail. They are outside my paths and belong to the F2 review in progress.
 - WorldField and NestNav are not reconciled with the kernel, and the kernel is not wired in (ruling 1 and the spec leave both to the wiring task).
 - GDD 01's `speed-changed` and GDD 06's `autosave.done/failed` are not in the event union, on purpose (reasons in the contracts map §(g)). If the orchestrator wants them, they can be added later as new members.
+- Finding 8 is only partly met: the shared calendar record is not frozen. env-core's implementation reuses one mutable record to avoid allocating, and documents 'do not keep it'. I cannot change their file.
+- src/sim/testing/stubs.test.ts, src/sim/testing/layering.test.ts and the time.test.ts scan fail because of other engineers' in-progress files (see needsFromOthers). I did not edit those files.
 
 ### Needs from others
 - Wiring task: reconcile types/services.ts WorldField and NestNav with src/sim/world/field.ts and src/sim/nest/nav, and replace the createWorldField / createNestNav stubs. Note nest/index.ts createCarveGrid ignores the world (no substrate probe yet).
@@ -265,6 +264,14 @@ What changed:
 - difficulty-rules: confirm the preset rule values I chose in balance/difficulty.ts (open question 5).
 - species-data: encode GDD 03's Lasius entrance rule (3 entrances, 4 from 800 workers); fill in the other three SpeciesDefs with the new fields (fixedStats, wildColonySize, growThreshold/matureThreshold, dMin*/vMin/wMin, R0).
 - rivals: refine the T3 rival rows marked [E] in src/sim/species/rivals.ts.
+- env-core: surfaceTemp (and anything that reads env.thermal.tsurf) returns NaN on a fresh game before the first weather tick. The lawn slot index lies beyond createGame's MATERIAL_IDS.length*2 array, and ensureThermal is never called on the query path. Call ensureThermal in the queries, or ask me to size tsurf to SURFACE_SLOTS. This makes src/sim/testing/stubs.test.ts fail.
+- env-core: src/sim/environment/envTestKit.ts is not a .test.ts file and contains hard-coded 7 and 28 (`?? 7`, `/ 28`, `5 | 7 | 10`). Use DEFAULT_SEASON_LENGTH_DAYS, DEFAULT_DAYS_PER_YEAR and SeasonLengthDays. This makes the time.test.ts scan fail.
+- env-core: src/sim/environment/zz-explore.test.ts fails to load (it looks like a scratch file).
+- env-core: delegate defaultYearDayOf/defaultYearDoyOf/inDefaultWindow to time.ts defaultYearDay/defaultYearDoy/inDefaultYearWindow, and REFERENCE_DAYS_PER_YEAR to DEFAULT_DAYS_PER_YEAR (map (h)14). Also choose between the per-material tsurfDay/tsurfSeason and the per-cell/per-cover emaCell/emaCover from D7.2, and document the choice (map (h)12).
+- env-core: setSpeed validation now lives in commands.ts PAYLOAD_GUARDS. timeCommands.ts does not need to repeat it, but must not depend on receiving invalid speeds.
+- sources-core: src/sim/ecology/sources/season.ts names a parameter `window`, which the layering test flags as a DOM global. Rename it, e.g. to `win`.
+- phero: src/sim/pheromones/sense.test.ts has a type error and 3 failing tests (work in progress).
+- Design owner: GDD 07 still writes fSeason on the 1-based D (line 116 says 'by 1-based D = d + 1'). Edit it to d28 to match C1 and E-123, and tell species-data to subtract 1 when entering the GDD 07 tables.
 
 ### Notes for the integrator
 - To register a system, behaviour or command handler, add it to your own module's `systems`, `behaviours` or `commandHandlers` export. Never edit systems.ts or commands.ts for that. A new command type also needs a row in COMMAND_OWNERS in src/sim/commands.ts (the compiler forces it).
@@ -275,6 +282,10 @@ What changed:
 - Ant.lengthBu is now in world BU (the same as species BU for the player's species), so rival-only ants collide consistently.
 - Decisions made without asking (recorded in the contracts map): default marker radii for point markers (4 BU); cue `variant` replaced by namespaced cue ids; the release-alarm cooldown dropped; the brood causes `raided` and `poison` dropped to match registry B3.
 - I found no uncommitted state outside my paths that I changed. Other engineers edited kernel files while I worked; I did not touch them.
+- env-core rewrote src/sim/environment/index.ts during this round, so the module now has its real implementation. My stub additions there (thermalInputs, rainIntensityAt, setSpeed check, calendarNow cache) were superseded. Their versions use my ThermalInputs type and RAIN_INTENSITY constants. The setSpeed and setDifficulty checks live in commands.ts so module rewrites cannot drop them.
+- ThermalStateData's new required fields are filled only by createGame. No saves exist yet (SAVE_VERSION is still 1), so no migration was added.
+- time.test.ts scan change: the regex now ignores numbers that are part of identifiers (the C1 names d28 and doy28 were false positives), and REFERENCE_DAYS_PER_YEAR = 28 is on the allowed list as a named reference-year constant. commands.test.ts 'F1b tick order' now checks the F1b systems as an ordered subsequence, because module owners may add systems (ruling 13). env-core added ant-thermal and skip.
+- The setDifficulty handler in progression/index.ts no longer validates on its own; it relies on the command layer (applyCommand is the only caller, via sim.ts).
 
 ### Contract changes
 - This task was allowed to rename and remove (the freeze takes effect after F1c). Every rename and removal is listed in docs/design/tdd/01-contracts-map.md §(f).
@@ -283,16 +294,18 @@ What changed:
 - MATERIAL_IDS: 'mortar' appended at the end, so existing material codes are unchanged (the kernel reads them).
 - FROZEN comment added at the top of src/sim/types/index.ts.
 - Nothing changed in src/core.
+- types/ids.ts: new type BroodCaste = Exclude<Caste,'queen'> and new const BROOD_CASTES
+- types/brood.ts, commandsCheat.ts (cheat.spawnBrood.destined), eventsColony.ts (egg-laid.destined): narrowed from Caste to BroodCaste (D7.3). This is a narrowing, not an additive change; it is recorded in map §(f) and no module consumed the old type
+- types/ids/progression.ts: new helper isSpeedLevel(v)
+- types/environment.ts: ThermalStateData gains emaCellMm, emaCellNx, emaCellNz, emaCell, emaCoverPrimIds, emaCover (D7.2); new interface ThermalInputs. env-core separately added the optional tsurfDay/tsurfSeason fields and WeatherForecast
+- types/species.ts: comments only. fSeason and layWindows are keyed on d28
+- types/config.ts: comment only. WorldParams rule fields are generation-time copies
+- types/diagnostics.ts: comment example fixed
+- balance: new file thermalInputs.ts (RAIN_INTENSITY, RAIN_INTENSITY_STORM, RAIN_INTENSITY_SPRINKLER, THERMAL_DAY_EMA_TAU_GD); difficulty.ts gains MAX_RIVALS, presetRivals, presetHumanActivity, invalidCustomRules
+- time.ts: defaultYearDay, defaultYearDoy, inDefaultYearWindow, currentDefaultYearDay, currentDefaultYearDoy, DEFAULT_DAYS_PER_YEAR
+- createGame.ts: worldRuleInputs, syncWorldParams; createNewGame syncs world params when it generates the world
+- worldgen/params.ts: defaultWorldParams takes an optional 5th argument with rule inputs; new type WorldRuleInputs
 
 ### Acceptance criteria not fully met
-- [partial] 1. npm run typecheck clean for the whole project; npm test green (existing tests adapted, none deleted without an equivalent) — Typecheck: 0 errors project-wide on the final run. Tests: 506 passed, 4 failed. All 4 failures are in kernel verify tests outside my paths (F2 review work in progress). All F1b tests were adapted, not deleted. The old 'patch: null' throwing-handler test now uses 'placeMarker pos: null' to cover the same thing. The old possessRole/pause test was rewritten for the new paused-flag semantics.
-
-### Review findings left unfixed (minor)
-- [major] Section D7 (second pass) is neither applied nor accounted for in the contracts map (docs/design/tdd/01-contracts-map.md §(g); src/sim/time.ts; src/sim/environment/index.ts; src/sim/types/environment.ts:83 (ThermalStateData); src/sim/types/brood.ts:24): Acceptance criterion 2 and work item 1 say every 00-index §D row must be applied or rejected with a reason. Section (g) of the map stops at D6.11: D7.1-D7.4 are not mentioned anywhere. The code shows three of them were never applied. D7.1: there is no defaultYearDay(tick, cfg) -> d28 or defaultYearDoy(tick, cfg) -> doy28 in the calendar. Only scaleDoy/scaleDays exist, which convert the other way, so every species window and doy rule lacks the helper the registry made binding. D7.2: environment h
-- [minor] Untyped debug-API commands silently corrupt persisted config and time state (src/sim/progression/index.ts setDifficulty handler (~line 56); src/sim/environment/index.ts setSpeed (~line 146)): commands.ts says commands arrive as untyped JSON from the debug API, and setDirectives filters for that reason, but these two handlers do not validate. Example 1: enqueue {type:'setDifficulty', preset:'easy'}. The result is config.difficulty.preset='easy', params=undefined, and config.rules reduced to {seasonLengthDays, startSeason, rivals}: predators, humanActivity, collapse and the other rules are gone. No command-rejected is emitted, and a save would persist this state. Any later system that 
-- [minor] cheat.kill ignores the requested death cause (src/sim/ants/index.ts commandHandlers['cheat.kill']): The handler maps every cause except 'old-age' to 'unknown': `c.cause === 'old-age' ? 'old-age' : 'unknown'`. So cheat.kill {cause:'predation'} emits ant-died {cause:'unknown'}. Harness tests of the deaths-by-cause statistics, the epitaph cause chain and the codex triggers cannot produce real causes. The fix is to accept any member of DEATH_CAUSES (isOneOf) and fall back to 'unknown'. Reproduction: src/sim/commands.verify.test.ts 'a worker killed with cause predation dies of predation' (fails: ['
-- [minor] Lasius species data contradicts the registry (start window, development curve) (src/sim/species/data/lasius-niger.ts:63 (devRate), :75 (startDoy)): startDoy is {min: 8, max: 12, default: 10}, but C1, GDD 06 §1.6 and GDD 07 give the natural window as doy 9..12, so a seeded start can fall on doy 8 (Summer 1), outside the design. The devRate upper end is [32, 1.85], [35, 1.4], [38, 0]. Registry C5 and GDD 07 (authoritative) give 32: 1.818, 34: 0.909, 36: 0. With the current data, brood still develops at 36-38 °C, where the design says zero.
-- [minor] fSeason day convention conflicts with C1 / E-123 and is not listed as an open question (src/sim/types/species.ts:66; src/sim/species/data/lasius-niger.ts:65): The contract comment and the data use a 1-based day D ([1,0.3]...[29,0], following GDD 07). C1 says 'No chapter uses a 1-based fractional day', and E-123 rewrote GDD 02's fSeason on 0-based d28. The data values are D = d28 + 1, so they are self-consistent, but whoever implements colony-core (the queen) has to guess whether to add 1. This is made worse by the missing defaultYearDay helper (D7.1). Fix: either re-key the curve on d28 or record the offset in the contract comment and in map §(h).
-- [minor] Rival count, human activity and difficulty each have two sources of truth; worldgen hard-codes rival counts (src/worldgen/params.ts:18 (RIVALS_BY_DIFFICULTY); src/sim/types/config.ts WorldParams.{difficulty, rivalCount, humanActivity}): RIVALS_BY_DIFFICULTY {gentle 2, naturalist 3, harsh 4} is an inline table in worldgen. It duplicates PRESET_RULES.rivals in balance/difficulty.ts, against the rule that all tunable numbers live in balance. WorldParams.humanActivity and WorldParams.difficulty duplicate config.rules.humanActivity and config.difficulty.preset. D4.18 says human activity is custom.humanActivity. After setDifficulty {custom:{humanActivity:'off'}}, config.rules.humanActivity is 'off' while config.world.humanActivity st
-- [minor] Diagnostic.id doc example uses an unprefixed id (src/sim/types/diagnostics.ts:19): The comment reads "per-subject instances append ':<subjectId>' (e.g. 'dig-progress:42')". D6.1 and ruling 7 require the diag- prefix ('diag-dig-progress:42'). This comment sits in the frozen contract that module owners copy from.
-- [minor] calendarNow cache is keyed only on state.tick and returns a shared mutable object (src/sim/environment/index.ts calendarNow (~lines 60-70)): The WeakMap memo is invalidated only when state.tick changes. If env.calendar.startTick changes during a tick (cheat.setTime is still a stub, and env-core may implement it that way), every caller in the rest of that tick gets the old calendar. The cached object is also handed out by reference, so one caller that mutates it corrupts the value for all others. Cheap fix: also key the cache on startTick and on the season length, and document the value as read-only (or freeze it in tests).
+- [partial] Finding 8: calendarNow cache keys and sharing — The stale-cache part is fixed: env-core's calendarNow (environment/calendar.ts) keys on calendar tick, moon phase and season length, and d7.test.ts covers it. The record is still shared and mutable: env-core reuses it on purpose to avoid allocating and documents 'do not keep it'. My frozen-object fix was overwritten by their rewrite.
+- [partial] typecheck clean and tests green in my paths — No type errors in my paths. Three of my test files fail only because of others' work in progress: layering (sources season.ts), stubs (env-core surfaceTemp NaN), time.test (env-core envTestKit literals).

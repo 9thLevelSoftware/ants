@@ -65,7 +65,7 @@ export const MATERIAL_DEFS: Record<MaterialId, MaterialDef> = withIds({
   sand: { ...SOIL, texture: 'sand_playground', scaleMm: 70, tint: [1, 0.98, 0.95], wetDarken: 0.62, wetRough: 0.6 },
   clay: { ...SOIL, tint: [0.92, 0.7, 0.55], scaleMm: 120, normalScale: 0.6, wetRough: 0.5 },
   gravel: { ...SOIL, texture: 'gravel_fine', scaleMm: 140, tint: [0.9, 0.89, 0.87], roughMin: 0.65, wetDarken: 0.7, wetRough: 0.3 },
-  concrete: { ...HARD, texture: 'gravel_fine', scaleMm: 140, tint: [0.84, 0.82, 0.79], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.72, wetRough: 0.35, dualScale: 6 },
+  concrete: { ...HARD, texture: 'gravel_fine', scaleMm: 140, tint: [0.66, 0.64, 0.6], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.72, wetRough: 0.35, dualScale: 6 },
   asphalt: { ...HARD, texture: 'asphalt', scaleMm: 260, tint: [0.85, 0.85, 0.85], roughness: 1, normalScale: 1.2, wetDarken: 0.6, wetRough: 0.18, dualScale: 5 },
   stone: { ...HARD, texture: 'gravel_fine', scaleMm: 70, tint: [0.62, 0.6, 0.57], roughMin: 0.75, roughness: 1, normalScale: 0.7, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
   brick: { ...HARD, texture: 'brick', scaleMm: 1050, tint: [1, 1, 1], roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 0 },

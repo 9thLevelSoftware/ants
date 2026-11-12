@@ -124,9 +124,6 @@ export const STORM_RAIN_MMH = 30;
 /** Normalised precipitation (`peakPrecip`) by class and for storms (GDD 06 §3.7 precipNorm). */
 export const PRECIP_NORM: Record<RainClass, number> = { drizzle: 0.05, shower: 0.3, downpour: 0.8 };
 export const STORM_PRECIP_NORM = 1.0;
-/** Entrance inflow factor `I` by class and storm (GDD 06 §2.9 `rainIntensityAt`). */
-export const RAIN_INFLOW: Record<RainClass, number> = { drizzle: 0.1, shower: 0.4, downpour: 0.7 };
-export const STORM_RAIN_INFLOW = 1.0;
 /** Surface activity weight `fW` of rain by class, and of a storm. */
 export const RAIN_ACTIVITY: Record<RainClass, number> = { drizzle: 0.4, shower: 0.1, downpour: 0 };
 /** Precipitation bell: the peak sits at this share of the dwell. */

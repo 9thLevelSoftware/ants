@@ -48,6 +48,7 @@ uniform sampler2D tWrMat; uniform sampler2D tWrHoles;
 uniform vec4 uWrMatGrid; uniform vec4 uWrHoleGrid; uniform vec4 uWrInner;
 uniform vec4 uWrMatA[${MAT_SLOTS}]; uniform vec4 uWrMatB[${MAT_SLOTS}]; uniform vec4 uWrMatC[${MAT_SLOTS}];
 uniform float uWet;
+const mat2 WR_VAR_ROT = mat2(0.4848, 0.8746, -0.8746, 0.4848); // 61 degrees
 
 int wrCode(ivec2 c) {
   c = clamp(c, ivec2(0), ivec2(int(uWrMatGrid.y) - 1, int(uWrMatGrid.z) - 1));
@@ -61,8 +62,18 @@ void wrTriA(float layer, vec3 p, vec3 n, float sc, float ns, out vec3 alb, out v
   if (w.y > 0.985) {
     vec2 uy = p.xz / sc; uy.x *= sg.y;
     vec4 a = texture(tWrAR, vec3(uy, layer)); vec4 b = texture(tWrNH, vec3(uy, layer));
+    vec3 ty = b.xyz * 2.0 - 1.0;
+    // anti-tiling: a second, rotated and shifted copy of the tile fades in by low-frequency noise, so long
+    // runs of one material (a road, a lawn) never show the same crack or pebble at regular intervals
+    float vb = smoothstep(0.38, 0.62, wrNoise(p.xz / (sc * 1.7) + layer * 7.3));
+    if (vb > 0.01) {
+      vec2 uv2 = WR_VAR_ROT * uy + vec2(0.37, 0.71);
+      vec4 a2 = texture(tWrAR, vec3(uv2, layer)); vec4 b2 = texture(tWrNH, vec3(uv2, layer));
+      vec3 t2 = b2.xyz * 2.0 - 1.0; t2.xy = transpose(WR_VAR_ROT) * t2.xy;
+      a = mix(a, a2, vb); b.a = mix(b.a, b2.a, vb); ty = normalize(mix(ty, t2, vb));
+    }
     alb = a.rgb; rg = a.a; ht = b.a;
-    vec3 ty = b.xyz * 2.0 - 1.0; ty.xy *= ns; ty.x *= sg.y;
+    ty.xy *= ns; ty.x *= sg.y;
     ty = vec3(ty.xy + n.xz, abs(ty.z) * n.y); nw = normalize(ty.xzy);
     return;
   }

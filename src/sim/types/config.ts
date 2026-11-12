@@ -7,7 +7,13 @@ import type {
 } from './ids/progression';
 import type { ArchetypeId, RegionId, WorldSizeId } from './ids/world';
 
-/** Inputs of the world generator. Same params + generator version => identical WorldData. */
+/**
+ * Inputs of the world generator. Same params + generator version => identical WorldData.
+ * `difficulty`, `rivalCount`, `incipientCount` and `humanActivity` are the generator's COPIES of
+ * `config.difficulty.preset`, `config.rules.rivals`, `config.difficulty.params.incipientRivals` and
+ * `config.rules.humanActivity`, taken when the world is generated (createGame `syncWorldParams`). At run time
+ * `config.difficulty` / `config.rules` win: systems never read these copies.
+ */
 export interface WorldParams {
   generatorVersion: number;
   /** Seed as typed by the player (shown in UI); '' when random. */

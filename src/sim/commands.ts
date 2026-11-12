@@ -7,8 +7,9 @@
 // immediately by sim.applyPendingCommands() while paused.
 
 import { createLogger } from '@/core/log';
-import type { Command, CommandHandler, CommandHandlerMap, CommandType, Sim } from '@/sim/types';
-import { COMMAND_TYPES, isCheatCommand } from '@/sim/types';
+import type { Command, CommandHandler, CommandHandlerMap, CommandOf, CommandType, Sim } from '@/sim/types';
+import { COMMAND_TYPES, DIFFICULTY_IDS, isCheatCommand, isOneOf, isSpeedLevel } from '@/sim/types';
+import { invalidCustomRules } from '@/sim/balance';
 import { SIM_MODULES, type SimModule, type SimModuleKey } from '@/sim/systems';
 
 const log = createLogger('commands');
@@ -96,6 +97,29 @@ export function commandHandler(type: CommandType): CommandHandler<CommandType> |
   return HANDLERS[type] as CommandHandler<CommandType> | undefined;
 }
 
+/** Why a command's payload is refused: `command-rejected` reason and detail. */
+interface PayloadError { reason: string; detail: string }
+
+/**
+ * Payload checks applied before any handler runs, for fields typed by a contract union that persisted state takes
+ * as is (commands arrive as untyped JSON from the debug API). A refused command changes nothing. Handlers
+ * still validate what only they understand (ids, ranges of their own data).
+ */
+const PAYLOAD_GUARDS: { [K in CommandType]?: (cmd: CommandOf<K>) => PayloadError | null } = {
+  setSpeed: (c) => (isSpeedLevel(c.speed) ? null : { reason: 'invalid-speed', detail: String(c.speed) }),
+  setDifficulty: (c) => {
+    const bad: string[] = [];
+    if (c.preset !== undefined && !isOneOf(DIFFICULTY_IDS, String(c.preset))) bad.push(`preset=${String(c.preset)}`);
+    if (c.custom !== undefined) bad.push(...invalidCustomRules(c.custom));
+    return bad.length > 0 ? { reason: 'invalid-difficulty', detail: bad.join(',') } : null;
+  },
+};
+
+function payloadError(cmd: Command): PayloadError | null {
+  const guard = PAYLOAD_GUARDS[cmd.type] as ((c: Command) => PayloadError | null) | undefined;
+  return guard ? guard(cmd) : null;
+}
+
 /** True if `cmd` is an object whose `type` is a command type (commands arrive as untyped JSON from the debug API). */
 function isKnownCommand(cmd: unknown): cmd is Command {
   if (typeof cmd !== 'object' || cmd === null) return false;
@@ -115,6 +139,11 @@ export function applyCommand(sim: Sim, cmd: Command): void {
   }
   if (isCheatCommand(cmd) && !sim.state.config.cheats) {
     sim.emit({ type: 'command-rejected', commandType: cmd.type, reason: 'cheats-disabled' });
+    return;
+  }
+  const bad = payloadError(cmd);
+  if (bad) {
+    sim.emit({ type: 'command-rejected', commandType: cmd.type, reason: bad.reason, detail: bad.detail });
     return;
   }
   const handler = commandHandler(cmd.type);

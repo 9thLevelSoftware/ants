@@ -40,7 +40,7 @@ export const ANT_EMISSIVE = /* glsl */ `#include <emissivemap_fragment>
   {
     float hiA = abs(vAntHi);
     if (hiA > 0.001) {
-      float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 2.5);
+      float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 2.0);
       totalEmissiveRadiance += (vAntHi > 0.0 ? uHiWarm : uHiCool) * hiA * (fr + 0.015);
     }
   }`;

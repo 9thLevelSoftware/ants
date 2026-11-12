@@ -177,7 +177,10 @@ export class WorldRenderer {
     this.rig.apply(this.lighting, this.ctx.scene, q.fog.enabled);
     applySky(this.sky, this.lighting, this.env.moonDir, this.env.moonIllum, this.lighting.keyColor);
     this.skyMesh.position.copy(this.camPos);
-    if (this.skyEnv.update(frame.time, `${this.env.weather}|${Math.round(this.under * 4)}|${Math.round(this.env.cloud * 10)}`, ENV_REBAKE_DEG, ENV_REBAKE_MIN_S)) {
+    // real time for the throttle (the animation clock may be frozen); a settle frame (dt 0) bakes at once
+    const nowS = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    const envKey = `${this.env.weather}|${Math.round(this.under * 4)}|${Math.round(this.env.cloud * 10)}|${Math.round(this.interior * 4)}`;
+    if (this.skyEnv.update(nowS, envKey, ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, frame.dt === 0)) {
       this.ctx.scene.environment = this.skyEnv.texture;
     }
     this.rig.follow(this.subject, this.camDir, this.lighting.keyDir);

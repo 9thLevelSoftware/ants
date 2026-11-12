@@ -1,7 +1,7 @@
 // World generation parameters (GDD 04 App. A `WorldParams`). The worldgen tasks extend this file.
 
 import type { DifficultyId, SpeciesId, WorldParams, WorldSizeId } from '@/sim/types';
-import { DIFFICULTY_PARAMS, WORLD_SIZE_BU } from '@/sim/balance';
+import { DIFFICULTY_PARAMS, presetHumanActivity, presetRivals, WORLD_SIZE_BU } from '@/sim/balance';
 
 /** Bumped whenever the generator's output for the same params changes (saves record it). */
 export const GENERATOR_VERSION = 1;
@@ -14,17 +14,23 @@ const SPECIES_REGION: Record<SpeciesId, WorldParams['region']> = {
   'messor-barbarus': 'mediterranean', 'atta-texana': 'southern-us',
 };
 
-/** Established rival colonies per difficulty (GDD 05 §3.1 / §5; the custom rule `rivals` may override). */
-const RIVALS_BY_DIFFICULTY: Record<DifficultyId, number> = { gentle: 2, naturalist: 3, harsh: 4 };
+/** Rule values the generator reads; by default those of the difficulty preset (balance/difficulty.ts). */
+export type WorldRuleInputs = Pick<WorldParams, 'rivalCount' | 'incipientCount' | 'humanActivity'>;
 
+/**
+ * World params for a species, seed and preset. `rules` overrides the preset's rival count, incipient count and
+ * human activity (the New Game custom rules: pass `worldRuleInputs(config)` from createGame).
+ */
 export function defaultWorldParams(
   species: SpeciesId, seed: number, difficulty: DifficultyId = 'naturalist', sizeClass: WorldSizeId = 'standard',
+  rules: Partial<WorldRuleInputs> = {},
 ): WorldParams {
   return {
     generatorVersion: GENERATOR_VERSION, seedText: '', seed: seed >>> 0, speciesId: species,
     archetype: 'suburban-garden', region: SPECIES_REGION[species], sizeClass, difficulty,
-    rivalCount: RIVALS_BY_DIFFICULTY[difficulty], incipientCount: DIFFICULTY_PARAMS[difficulty].incipientRivals,
-    humanActivity: 'normal',
+    rivalCount: rules.rivalCount ?? presetRivals(difficulty),
+    incipientCount: rules.incipientCount ?? DIFFICULTY_PARAMS[difficulty].incipientRivals,
+    humanActivity: rules.humanActivity ?? presetHumanActivity(difficulty),
   };
 }
 

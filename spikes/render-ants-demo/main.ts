@@ -167,9 +167,10 @@ window.__demo = {
     if ('debugTint' in o) ants.debugLodTint = !!o.debugTint;
     if ('force' in o) ants.forceLod = (o.force as number | null) ?? null;
     const { debugTint: _d, force: _f, ...rest } = o; void _d; void _f;
-    return ants.setLod(rest);
+    const r = ants.setLod(rest); update(0);
+    return r;
   },
-  setHover: (id: number | null) => { ants.setHover(id === null ? null : { kind: 'ant', id }); return render(); },
+  setHover: (id: number | null) => { ants.setHover(id === null ? null : { kind: 'ant', id }); update(0); return render(); },
   possess: (id: number) => { sim.state.player.possessedAntId = id; update(0); return render(); },
   setFrozen: (t: number) => { clock = t; update(0); return render(); },
   prebuildAll: () => { const t0 = performance.now(); for (const sp of SPECIES) ants.prebuild(sp, CASTES[sp]!.map((c) => (c === 'small-media' ? { caste: 'media', sizeClass: 'small-media' } : { caste: c }))); return { ms: performance.now() - t0, variants: ants.stats.variants }; },

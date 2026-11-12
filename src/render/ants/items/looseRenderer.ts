@@ -25,7 +25,7 @@ function looseMaterial(def: ItemDef, shared: SharedAntUniforms): MeshStandardMat
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = vItemRough;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   if (abs(vAntHi) > 0.001) {
-    float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 2.5);
+    float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 2.0);
     totalEmissiveRadiance += (vAntHi > 0.0 ? uHiWarm : uHiCool) * abs(vAntHi) * (fr + 0.015);
   }`);
   };

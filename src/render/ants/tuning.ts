@@ -41,7 +41,7 @@ export function lodSettingsFor(quality: QualityId, crowdLod: number, shadows: bo
 }
 
 /** Subtle selection highlight: a faint rim (no outlines, GDD 08 §11.8). Linear-colour gains. */
-export const HIGHLIGHT = { warm: '#ffd9a0', warmGain: 0.16, cool: '#bcd8ff', coolGain: 0.24, possessed: 1, hovered: 1, inspected: 0.7 };
+export const HIGHLIGHT = { warm: '#ffd9a0', warmGain: 0.35, cool: '#bcd8ff', coolGain: 0.4, possessed: 1, hovered: 1, inspected: 0.7 };
 
 /** Time constants (s) of render-side smoothing. Pose blend 80-150 ms per GDD 08 §11.9. */
 export const SMOOTH = { pose: 0.11, up: 0.06, turn: 0.15 };

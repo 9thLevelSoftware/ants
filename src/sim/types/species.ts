@@ -63,9 +63,13 @@ export interface LifeHistory {
   qMax: number;
   sizeBase: number;
   sizeK: number;
-  /** [1-based day D, factor] over the default 28-day year (scaled with season length by the calendar). */
+  /**
+   * [d28, factor] over the default 28-day year: `d28` is the 0-based fractional default-year day (time
+   * `defaultYearDay`, C1 / E-123 / D7.1), so the curve scales with the season length. GDD 07 tables still
+   * written on the 1-based `D = d28 + 1` are converted by subtracting 1 (contracts map §(h)).
+   */
   fSeason: Curve;
-  /** Laying windows [d0, d1] in year days, null = all year. */
+  /** Laying windows [d28 from, d28 to) on the default-year day (time `defaultYearDay`), null = all year. */
   layWindows: [number, number][] | null;
   /** [°C, factor] royal-chamber temperature factor. */
   fTempQ: Curve;

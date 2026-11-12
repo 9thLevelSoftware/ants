@@ -21,7 +21,7 @@ const API: Record<string, [Record<string, unknown>, string[]]> = {
   ecology: [ecology, ['harvest', 'nearestSource', 'discoverSource']],
   combat: [combat, ['applyDamage', 'beginGrapple', 'releaseGrapple']],
   environment: [environment, ['airTemp', 'surfaceTemp', 'soilTemp', 'chamberTemp', 'speedMult', 'lightLevel',
-    'sunDirection', 'isRaining', 'rainRate']],
+    'sunDirection', 'isRaining', 'rainRate', 'thermalInputs', 'rainIntensityAt']], // last two: D7.2
   ants: [ants, ['canDo', 'begin', 'cancel', 'currentPrompt', 'inspect']],
   progression: [progression, ['publishDiagnostic', 'recordMilestone', 'unlockCodex', 'raiseAlert']],
 };

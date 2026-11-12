@@ -110,6 +110,34 @@ export function scaleDays(daysDefaultYear: number, cfg: SeasonLengthSource): num
   return (daysDefaultYear * seasonLengthOf(cfg)) / DEFAULT_SEASON_LENGTH_DAYS;
 }
 
+// ---- Default-year day numbers (C1 "default-year conversion", D7.1, E-123) ----
+// Every day number in a chapter or in species data is written for the default year (DEFAULT_SEASON_LENGTH_DAYS
+// per season). Rules compare the CURRENT time against them through these helpers, never through raw `doy`.
+
+/** Days of the default year in which the GDD and species data write day numbers. */
+export const DEFAULT_DAYS_PER_YEAR = DEFAULT_SEASON_LENGTH_DAYS * SEASONS_PER_YEAR;
+
+/**
+ * `d28`: 0-based fractional day of the default year at a calendar tick, `d × DEFAULT_DAYS_PER_YEAR / DAYS_PER_YEAR`
+ * (= year fraction × default year length). Continuous breakpoints (fSeason, layWindows) are read on it.
+ */
+export function defaultYearDay(calTick: number, cfg: SeasonLengthSource): number {
+  const n = ticksPerYear(cfg);
+  const t = calTick % n;
+  return ((t < 0 ? t + n : t) * DEFAULT_DAYS_PER_YEAR) / n;
+}
+
+/** `doy28`: 1-based integer day of the default year, `floor(d28) + 1`. */
+export function defaultYearDoy(calTick: number, cfg: SeasonLengthSource): number {
+  return Math.floor(defaultYearDay(calTick, cfg)) + 1;
+}
+
+/** True inside the default-year window "doy a-b" (inclusive): `a − 1 ≤ d28 < b` (C1). */
+export function inDefaultYearWindow(calTick: number, cfg: SeasonLengthSource, doyFrom: number, doyTo: number): boolean {
+  const d = defaultYearDay(calTick, cfg);
+  return d >= doyFrom - 1 && d < doyTo;
+}
+
 /** Calendar tick at the start of a 1-based day of a season, plus an hour. */
 export function calendarTickAt(season: Season, dayInSeason: number, hour: number, cfg: SeasonLengthSource): number {
   const day = SEASONS.indexOf(season) * seasonLengthOf(cfg) + (dayInSeason - 1);
@@ -146,4 +174,14 @@ export function currentYear(state: SimState): number {
 
 export function currentHour(state: SimState): number {
   return hourOf(calendarTick(state));
+}
+
+/** `d28` of the current tick (see defaultYearDay). */
+export function currentDefaultYearDay(state: SimState): number {
+  return defaultYearDay(calendarTick(state), state.config);
+}
+
+/** `doy28` of the current tick (see defaultYearDoy). */
+export function currentDefaultYearDoy(state: SimState): number {
+  return defaultYearDoy(calendarTick(state), state.config);
 }

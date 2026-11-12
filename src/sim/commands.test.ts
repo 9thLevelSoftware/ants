@@ -39,13 +39,15 @@ describe('system list (assembled from module exports, ruling 13)', () => {
     expect(SYSTEMS[SYSTEMS.length - 1].name).toBe('lifecycle');
   });
 
-  it('keeps the F1b tick order', () => {
-    expect(SYSTEMS.map((s) => s.name)).toEqual([
+  it('keeps the F1b tick order (module owners may add systems in between, ruling 13)', () => {
+    const names = SYSTEMS.map((s) => s.name);
+    const f1b = [
       'commands', 'calendar', 'weather', 'human-events', 'environment-effects', 'sources', 'plants', 'allocation',
       'queen', 'founding', 'brood', 'perception', 'behaviours', 'player-control', 'actions', 'creature-director',
       'creatures', 'locomotion', 'combat', 'nest', 'architect', 'pheromones', 'economy', 'colony-stats',
       'overwinter', 'reproduction', 'rivals', 'progression', 'diagnostics', 'lifecycle',
-    ]);
+    ];
+    expect(names.filter((n) => f1b.includes(n))).toEqual(f1b);
   });
 
   it('places a module system by phase whatever the module order', () => {

@@ -53,4 +53,11 @@ export interface Brood {
   destinedLengthBu: number;
   /** Share of animal protein in the diet 0..1 (Messor rule, GDD 07). */
   animalPShare: number;
+  /** Ticks a pupa has waited `READY` for eclosion help (GDD 02 §2.5 `eclosion-failed`). Additive (colony-core). */
+  readyTicks?: number;
+  /**
+   * Larva diapause clock (GDD 02 §2.8), ticks: time spent cold while active (entry), or warm in spring while in
+   * diapause (exit). Additive (colony-core).
+   */
+  diapauseTicks?: number;
 }

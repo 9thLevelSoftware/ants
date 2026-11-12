@@ -27,6 +27,9 @@ import type { Item } from './item';
 import type { Marker } from './marker';
 import type { Behaviour } from './moduleApi';
 import type { Nest } from './nest';
+import type {
+  PheroCellTest, PheroCellVisitor, PheroChannelFactors, PheroHooks, PheroRegion, PheroWipeOptions,
+} from './pheromone';
 import type { Herd, PlantState } from './plant';
 import type { FoodSource } from './source';
 import type { SpeciesDef } from './species';
