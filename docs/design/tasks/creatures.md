@@ -26,3 +26,11 @@ Damage exchange goes through the combat module's functions (a parallel Stage 2 t
 4. A possessed-ant scenario per predator: the telegraph precedes the attack by at least the stated time and the counterplay the chapter describes works (scripted intent).
 5. Ladybirds reduce an undefended herd; prey killed by ants becomes food pieces with the right nutrients.
 6. Determinism; plain-data state; no creature ends inside a solid.
+
+## Addendum (integrator; this task starts while Stage 1B is being integrated)
+- Territories and spawn tables are produced by the world-population step, which another engineer is finishing now: code against the contract types as they stand (`CreatureTerritorySeed` and the placement tables in `src/sim/types/world.ts`), build your own fixtures for tests, and if a field you need is missing add it additively and optional, and report it.
+- The combat module does not exist yet (`src/sim/combat/**` holds stubs): code against the stub signatures, test with a fake, and list every function and payload you rely on.
+- Other engineers are editing `src/sim/locomotion/**` and `src/sim/ants/**` right now (walker stall fixes, action primitives): use the public locomotion functions, do not edit those folders, and report anything a creature needs that the walker does not offer (hopping, burrowing, flying, pit geometry) instead of working around it inside locomotion.
+- Sound: the audio system already maps cue ids that wait for you — `creature-step`, `wing-buzz`, `bird-strike`, `antlion-flick`, `prey-struggle`, `cricket-call` and the `ambient.<kind>` family (see `src/audio/README.md`, "cues waiting for an emitter"): emit exactly those ids.
+- The 28-game-day soak of criterion 3 goes behind `FOUNDRESS_LONG=1` (run it once for the report) with a 2-day always-on version; keep every committed test file to about 20 s on an idle machine.
+- Registration: add your systems through your own module index and the simulation's registration mechanism (one import line in the ecology index if that is how it is wired — report it).
