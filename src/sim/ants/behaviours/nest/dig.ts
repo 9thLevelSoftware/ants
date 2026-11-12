@@ -7,11 +7,14 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Behaviour, DigPlan, DigSlot, Nest, Sim } from '@/sim/types';
 import { navTo, navStop } from '@/sim/locomotion';
 import { claimDigSite, planDigAim, releaseDigSite } from '@/sim/nest';
+import { cancel, interruptible } from '@/sim/ants/actions';
 import { taskHeadcount } from '@/sim/colony';
 import {
-  DIG_BITE_FAILS_MAX, DIG_CLAIM_TRIES, DIG_RETRY_S, DIG_TURN_BU, DIG_TURN_S, DROP_ARRIVE_BU, SLOT_ARRIVE_BU, SLOT_HOLD_BU,
-  SPOIL_STOW_MAX,
+  DIG_AIM_BU, DIG_BITE_CHECK_TICKS, DIG_BITE_FAILS_MAX, DIG_CLAIM_TRIES, DIG_FACE_CONE_DEG, DIG_RETRY_S, DIG_TURN_ARRIVE_BU, DIG_TURN_BU,
+  DIG_TURN_S, DROP_ARRIVE_BU, REACH_NEAR_BU, SLOT_ARRIVE_BU, SHORT_HOP_SPEED_MULT, SLOT_HOLD_BU, SLOT_STALL_ACCEPT_BU,
+  SPOIL_PILE_RADIUS_BU,
 } from '@/sim/balance/nestwork';
+import { SPOIL_PILE_MAX } from '@/sim/balance/nest';
 import { secondsToTicks } from '@/sim/time';
 import { carryTo } from './carry';
 import { approach, endCycle, primitiveDone, recover, releaseAll, think } from './common';
@@ -21,6 +24,8 @@ import { act, entity, travel } from './travel';
 const ENTRY = 'dig.claim';
 /** bb: failed bites at the slot; turning now; turned for this aim; force a step toward the face. */
 const FAILS = 'bn.df', TURN = 'bn.tn', TURNED = 'bn.td', FORCE = 'bn.fo';
+/** bb: the current turning walk is a step toward the face after a missed bite (1), not a turn (0). */
+const STEP = 'bn.dsp';
 const feet: Vec3 = { x: 0, y: 0, z: 0 };
 const heading: Vec3 = { x: 0, y: 0, z: 0 };
 const ids: number[] = [];
@@ -55,7 +60,8 @@ function travelStep(sim: Sim, ant: Ant): void {
   // the plan's own field (D_plan) to the frontier, then the slot itself
   const far = Math.hypot(ant.pos.x - ref.slot.pos.x, ant.pos.y - ref.slot.pos.y, ant.pos.z - ref.slot.pos.z) > SLOT_HOLD_BU * sim.world.bu;
   const t = far && bbv(ant, B.n, 0) === 0 ? entity('plan', ref.plan.id, ref.slot.pos) : entity('point', -1, ref.slot.pos);
-  let st = approach(sim, ant, t, SLOT_ARRIVE_BU * sim.world.bu, true);
+  // a stalled walk counts as arrived only within reach of the face (SLOT_STALL_ACCEPT_BU, inside SLOT_HOLD_BU)
+  let st = approach(sim, ant, t, SLOT_ARRIVE_BU * sim.world.bu, true, (t.kind === 'plan' ? REACH_NEAR_BU : SLOT_STALL_ACCEPT_BU) * sim.world.bu);
   if (st === 'arrived' && t.kind === 'plan') { ant.bb[B.n] = 1; st = 'moving'; }
   if (st === 'arrived') { ant.bb[FAILS] = 0; setState(sim, ant, 'dig.bite'); }
   else if (st === 'failed') recover(sim, ant, ENTRY, 'stuck', true);
@@ -67,6 +73,8 @@ function feetOf(ant: Ant): Vec3 {
   feet.z = ant.pos.z - ant.up.z * ant.footOffset;
   return feet;
 }
+
+const faceCos = (): number => Math.cos((DIG_FACE_CONE_DEG * Math.PI) / 180);
 
 /** Cosine between the ant's horizontal heading and the aim heading. */
 function facing(ant: Ant): number {
@@ -92,7 +100,12 @@ function biteStep(sim: Sim, ant: Ant): void {
   }
   // turning toward the face (or stepping up to it after a missed bite): a short walk along the aim
   if (bbv(ant, TURN, 0) === 1) {
-    if (ant.nav.status === 'moving' && sim.state.tick - bbv(ant, B.until, 0) < secondsToTicks(DIG_TURN_S)) return;
+    // a turn (not a step after a miss) ends as soon as the ant faces the aim: walking on would carry it off the slot
+    const faced = bbv(ant, STEP, 0) === 0 && planDigAim(sim, ant, feetOf(ant), heading) !== null && facing(ant) >= faceCos();
+    if (!faced && ant.nav.status === 'moving' && sim.state.tick - bbv(ant, B.until, 0) < secondsToTicks(DIG_TURN_S)) {
+      ant.thinkTick = sim.state.tick + 1;
+      return;
+    }
     navStop(sim, ant);
     ant.bb[TURN] = 0;
   }
@@ -102,16 +115,19 @@ function biteStep(sim: Sim, ant: Ant): void {
   }
   const slope = planDigAim(sim, ant, feetOf(ant), heading);
   if (slope === null) { giveUpSlot(sim, ant); return; }
-  if ((facing(ant) < Math.cos(Math.PI / 4) || bbv(ant, FORCE, 0) === 1) && bbv(ant, TURNED, 0) === 0) {
+  if ((facing(ant) < faceCos() || bbv(ant, FORCE, 0) === 1) && bbv(ant, TURNED, 0) === 0) {
+    ant.bb[STEP] = bbv(ant, FORCE, 0);
     ant.bb[TURN] = 1; ant.bb[TURNED] = 1; ant.bb[FORCE] = 0;
     ant.bb[B.until] = sim.state.tick;
-    navTo(sim, ant, { x: feet.x + heading.x * DIG_TURN_BU * bu, y: feet.y, z: feet.z + heading.z * DIG_TURN_BU * bu }, 0.2 * bu);
+    navTo(sim, ant, { x: feet.x + heading.x * DIG_TURN_BU * bu, y: feet.y, z: feet.z + heading.z * DIG_TURN_BU * bu }, DIG_TURN_ARRIVE_BU * bu,
+      { speedMult: SHORT_HOP_SPEED_MULT });
+    ant.thinkTick = sim.state.tick + 1;
     return;
   }
   ant.bb[TURNED] = 0;
-  const h = 2 * bu, drop = Math.tan((slope * Math.PI) / 180) * h;
+  const h = DIG_AIM_BU * bu, drop = Math.tan((slope * Math.PI) / 180) * h;
   const aim = { x: feet.x + heading.x * h, y: feet.y - drop, z: feet.z + heading.z * h };
-  if (act(sim, ant, 'dig-bite', { kind: 'point', id: -1, pos: aim })) return;
+  if (act(sim, ant, 'dig-bite', { kind: 'point', id: -1, pos: aim })) { ant.thinkTick = sim.state.tick + DIG_BITE_CHECK_TICKS; return; }
   ant.bb[FAILS] = bbv(ant, FAILS, 0) + 1;
   ant.bb[FORCE] = 1;
   if (ant.bb[FAILS] >= DIG_BITE_FAILS_MAX) giveUpSlot(sim, ant);
@@ -120,7 +136,7 @@ function biteStep(sim: Sim, ant: Ant): void {
 /** Pellets lying on the plan's spoil pile. */
 function spoilPileCount(sim: Sim, plan: DigPlan): number {
   ids.length = 0;
-  sim.index.queryItems(plan.spoilPoint, 2 * sim.world.bu, ids);
+  sim.index.queryItems(plan.spoilPoint, SPOIL_PILE_RADIUS_BU * sim.world.bu, ids);
   let n = 0;
   for (const id of ids) {
     const it = sim.stores.items.get(id);
@@ -143,7 +159,7 @@ function stowStep(sim: Sim, ant: Ant): void {
     // an oversized pellet (bulk above the digger's own carry capacity: no hauler could pick it up again) goes out
     const it = sim.stores.items.get(ant.carry.id);
     const liftable = !!it && it.bulk <= ant.carryCap;
-    mode = liftable && ref && spoilPileCount(sim, ref.plan) < SPOIL_STOW_MAX && taskHeadcount(sim, ant.colony, 'haul') > 0 ? 1 : 2;
+    mode = liftable && ref && spoilPileCount(sim, ref.plan) < SPOIL_PILE_MAX && taskHeadcount(sim, ant.colony, 'haul') > 0 ? 1 : 2;
     ant.bb[B.n] = mode;
   }
   if (mode === 1) {
@@ -177,6 +193,22 @@ function step(sim: Sim, ant: Ant): void {
 export const digBehaviour: Behaviour = {
   task: 'dig',
   enter: (sim, ant) => setState(sim, ant, ENTRY),
-  update: (sim, ant) => think(sim, ant, ENTRY, step),
+  update: (sim, ant) => {
+    if (biteOrphaned(sim, ant)) return;
+    think(sim, ant, ENTRY, step);
+  },
   exit: (sim, ant) => releaseAll(sim, ant),
 };
+
+/**
+ * A bite whose slot is gone (plan cancelled or completed, slot timed out) is stopped before it lands: a cancelled
+ * plan's volume must not change any more (GDD 03 App. E 16). The digger looks every DIG_BITE_CHECK_TICKS.
+ */
+function biteOrphaned(sim: Sim, ant: Ant): boolean {
+  if (ant.action?.id !== 'dig-bite') return false;
+  if (slotOf(sim, ant)) { ant.thinkTick = sim.state.tick + DIG_BITE_CHECK_TICKS; return true; }
+  if (interruptible(ant)) cancel(sim, ant, null);
+  ant.bb[B.began] = 0;
+  setState(sim, ant, ENTRY, 'job:dig');
+  return true;
+}

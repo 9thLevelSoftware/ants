@@ -19,9 +19,9 @@ export interface HudRequests {
   roster: UiRosterQuery | null;
   /** The card to show: the UI's pinned or hovered choice (see ui/hud/inspectState.ts). */
   inspect: InspectRequest | null;
-  /** The Directives panel is open: the bridge fills `UiSnapshot.directives` (it is cheap, but only then). */
+  /** The Directives panel is open: only then does the bridge fill `UiSnapshot.directives` (a pass over ants and brood). */
   directivesOpen: boolean;
   hooks: BridgeHooks | null;
 }
 
-export const hudRequests: HudRequests = { roster: null, inspect: null, directivesOpen: true, hooks: null };
+export const hudRequests: HudRequests = { roster: null, inspect: null, directivesOpen: false, hooks: null };

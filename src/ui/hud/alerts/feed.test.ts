@@ -144,3 +144,55 @@ describe('AlertFeed (GDD 08 6.3)', () => {
     expect(v.cards[0].cause).toBe('because');
   });
 });
+
+describe('AlertFeed: another game in the same page', () => {
+  const a = (kind: string, level: UiAlert['level'], subjectId = 1): UiAlert => ({ id: 1, kind, level, title: kind, cause: 'c', count: 1, subjectId, raisedTick: 0 });
+
+  it('reset() forgets entries, cooldowns, snoozes and the rate window (the title screen between two games)', () => {
+    const f = new AlertFeed();
+    f.update([a('food-c-low', 'warning')], { nowS: 0, tick: 100, hudHidden: false });
+    f.snooze('source-found', 100);
+    f.reset();
+    expect(f.isSnoozed('source-found', 100)).toBe(false);
+    const v = f.update([a('food-c-low', 'warning')], { nowS: 1, tick: 100, hudHidden: false });
+    expect(v.cards).toHaveLength(1); // not on the 20 s real-time cooldown of the old game
+  });
+
+  it('a load whose tick is lower than the current one resets by itself', () => {
+    const f = new AlertFeed();
+    f.update([a('nest-crowded', 'notice')], { nowS: 0, tick: 9000, hudHidden: false });
+    const v = f.update([], { nowS: 1, tick: 100, hudHidden: false });
+    expect(v.cards).toHaveLength(0); // the old card is gone, not turned into "Resolved"
+  });
+});
+
+describe('AlertFeed: Resolved only for a card that is on screen', () => {
+  const a = (kind: string, subjectId: number, level: UiAlert['level'] = 'warning'): UiAlert => ({ id: subjectId, kind, level, title: kind, cause: 'c', count: 1, subjectId, raisedTick: subjectId });
+
+  it('a card cut by the visible limit (it sits behind "+n more") does not pop up as Resolved', () => {
+    const f = new AlertFeed();
+    const list = [1, 2, 3, 4].map((i) => a('nest-attacked', i, 'critical'));
+    const v = f.update(list, { nowS: 0, tick: 10, hudHidden: false });
+    expect(v.cards).toHaveLength(3);
+    expect(v.more).toBe(1);
+    // the hidden one (subject 1, the oldest) clears: nothing new appears on screen
+    const after = f.update(list.slice(1), { nowS: 1, tick: 11, hudHidden: false });
+    expect(after.cards.every((c) => !c.resolved)).toBe(true);
+  });
+
+  it('a non-critical card hidden by the HUD being off does not come back as Resolved', () => {
+    const f = new AlertFeed();
+    const w = a('food-c-low', 3);
+    f.update([w], { nowS: 0, tick: 10, hudHidden: false });
+    f.update([w], { nowS: 1, tick: 11, hudHidden: true });
+    const v = f.update([], { nowS: 2, tick: 12, hudHidden: false });
+    expect(v.cards).toHaveLength(0);
+  });
+
+  it('with the HUD hidden the other criticals wait behind the "+n" chip', () => {
+    const f = new AlertFeed();
+    const v = f.update([a('queen-in-danger', 1, 'critical'), a('nest-flooding', 2, 'critical'), a('nest-attacked', 3, 'critical')], { nowS: 0, tick: 10, hudHidden: true });
+    expect(v.cards).toHaveLength(1);
+    expect(v.more).toBe(2);
+  });
+});

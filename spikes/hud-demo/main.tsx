@@ -2,7 +2,7 @@
 // URL flags:
 //   ?scene=worker|queen|observer|orders|roster|inspect|alerts|hidden|empty|critical
 //   &scale=80..150   &text=100|115|130   &bg=scene|bright|dark   &reducedMotion=1   &contrast=high   &view=WxH is set by the harness
-//   &anchor=1 (prompt anchored over a fake ant at the centre of the screen)   &paused=1
+//   &anchor=1 (prompt anchored over a fake ant at the centre of the screen)   &paused=1   &lag=1 (4x asked, 2.6x achieved)
 // Sets window.__ready when the first frame and the fonts are in. window.__hud is the debug surface (see hud/debugHook.ts),
 // window.__hudDemo gives scripts the facade (calls, commands) and the scene setters.
 import { render } from 'preact';
@@ -43,6 +43,7 @@ async function main(): Promise<void> {
 
   const alerts = scene === 'alerts' ? 'many' : scene === 'critical' ? 'critical' : scene === 'empty' ? 'none' : 'few';
   const snap = demoSnapshot({ hudHidden: scene === 'hidden' }, { queen: scene === 'queen' || scene === 'orders', alerts, possessed: scene !== 'observer' });
+  if (q.get('lag') === '1' && snap.speed) snap.speed = { ...snap.speed, level: 4, requested: 4, effective: 2.6, lagging: true, belowRealTime: false };
   if (q.get('paused') === '1' && snap.speed) snap.speed = { ...snap.speed, paused: true, level: 0 };
   if (scene === 'orders' && snap.directives && q.get('manual') === '1') snap.directives = { ...snap.directives, allocationMode: 'manual' };
   setSnapshot(snap);

@@ -33,12 +33,12 @@ export const WORLDGEN_WORKER_ASSET_PATH = 'workers/worldgen.js';
 export const TEXTURE_GROUPS = [
   {
     name: 'core',
-    materials: ['soil_garden', 'humus_forest', 'gravel_fine', 'moss', 'bark_oak', 'wood_decayed', 'asphalt',
+    materials: ['soil_garden', 'humus_forest', 'gravel_fine', 'moss', 'bark_oak', 'wood_decayed',
       'leaf_atlas_maple', 'leaf_atlas_oak_dry', 'grass_blades_atlas'],
   },
   {
     name: 'zones',
-    materials: ['sand_playground', 'brick', 'plaster_wall', 'tile_ceramic', 'wood_floor', 'wood_furniture', 'rubber_playground', 'metal_painted'],
+    materials: ['asphalt', 'sand_playground', 'brick', 'plaster_wall', 'tile_ceramic', 'wood_floor', 'wood_furniture', 'rubber_playground', 'metal_painted'],
   },
 ];
 

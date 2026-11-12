@@ -24,11 +24,27 @@ export function dateLine(season: string, day: number, year: number): string {
   return `${season.charAt(0).toUpperCase()}${season.slice(1)} · Day ${day} · Year ${year}`;
 }
 
+/** The speed the simulation really achieves, "5.6x" (GDD 01 section 8: "8x (running at 5.6x)"). */
+export function effectiveRate(effective: number): string {
+  return `${Math.round(effective * 10) / 10}x`;
+}
+
 /** "about 0.5 game days": days of stock as the alerts word them. */
 export function gameDays(d: number): string {
   if (!Number.isFinite(d)) return 'plenty';
   if (d >= 10) return `${Math.round(d)} game days`;
   return `${(Math.round(d * 10) / 10).toFixed(1)} game days`;
+}
+
+const CASTE_NOUN: Record<string, [string, string]> = {
+  worker: ['worker', 'workers'], minor: ['minor', 'minors'], media: ['media worker', 'media workers'], major: ['major', 'majors'],
+  queen: ['queen', 'queens'], gyne: ['gyne', 'gynes'], male: ['male', 'males'],
+};
+
+/** "1 worker", "40 workers": a caste count with its noun in the right number (unknown castes get an "s"). */
+export function casteCount(n: number, caste: string): string {
+  const [one, many] = CASTE_NOUN[caste] ?? [caste, `${caste}s`];
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 /** Sentence case: first letter up. */

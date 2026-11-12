@@ -97,6 +97,9 @@ export function floorPoint(c: Chamber, frac: number, angle: number, out: Vec3): 
   return out;
 }
 
+/** The golden angle, rad: successive items of a pile spread evenly around its point (sunflower spiral). */
+export const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 /** Pile point for brood put down in a chamber: a fixed spot per stage group so piles form (GDD 02 §10.4.1). */
 export function pilePoint(c: Chamber, group: number, out: Vec3): Vec3 {
   return floorPoint(c, PILE_SPREAD, (group * 2 * Math.PI) / 3 + 0.5, out);
@@ -108,7 +111,7 @@ export function pilePoint(c: Chamber, group: number, out: Vec3): Vec3 {
  */
 export function pileSlot(c: Chamber, group: number, k: number, bu: number, out: Vec3): Vec3 {
   pilePoint(c, group, out);
-  const r = PILE_RADIUS_BU * bu * Math.sqrt(((k * 7) % 23) / 23), a = k * 2.39996;
+  const r = PILE_RADIUS_BU * bu * Math.sqrt(((k * 7) % 23) / 23), a = k * GOLDEN_ANGLE;
   out.x += Math.cos(a) * r;
   out.z += Math.sin(a) * r;
   out.y = floorY(c, out.x, out.z);
@@ -124,11 +127,6 @@ export function nearestOpenEntrance(nest: Nest, p: Vec3): Entrance | undefined {
     if (d < bestD) { best = e; bestD = d; }
   }
   return best;
-}
-
-/** The main entrance: the nest's first open entrance (then any). */
-export function mainEntrance(nest: Nest): Entrance | undefined {
-  return nest.entrances.find((e) => e.status === 'open') ?? nest.entrances[0];
 }
 
 /**
@@ -147,7 +145,8 @@ export function middenPoint(sim: Sim, nest: Nest, out: Vec3): Vec3 | null {
 function computeMidden(sim: Sim, nest: Nest, out: Vec3): Vec3 | null {
   const room = nest.chambers.find((c) => c.type === 'midden');
   if (room) return floorPoint(room, 0, 0, out);
-  const e = mainEntrance(nest);
+  // a surface midden needs an open entrance to reach it (the GDD's internal dump is not implemented: see haul.ts)
+  const e = nest.entrances.find((x) => x.status === 'open');
   if (!e) return null;
   const r = MIDDEN_DIST_BU * sim.world.bu;
   let bestY = Infinity, found = false;

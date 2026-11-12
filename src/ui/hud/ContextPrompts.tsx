@@ -1,6 +1,7 @@
 // Context prompts (GDD 08 5.3, GDD 01 9): chips on the scrim, key cap + verb + object, anchored 1.2 BU above the
 // possessed ant's head and 48 dp up, clamped 16 dp inside the viewport; off-screen or behind the camera the chip sits
-// at the bottom centre (the fallback box). Up to three action lines stack; "Colony orders" is never dropped. Prompts
+// at the bottom centre (the fallback box); either way it slides off the other HUD regions (promptPlacement.ts), so it
+// never covers an alert card or the inspect card. Up to three action lines stack; "Colony orders" is never dropped. Prompts
 // never take focus and never block input (pointer-events none). The position is updated from its own animation frame
 // loop with transform writes only: no layout reads, no component re-render.
 import { useEffect, useRef } from 'preact/hooks';
@@ -10,6 +11,8 @@ import { promptSlice, possessedSlice } from './slices';
 import { facade } from '../store';
 import { hudBridge } from './state';
 import { ACTION_OF, visibleLines } from './promptLines';
+import { keepOutRects } from './keepOut';
+import { placeAvoiding } from './promptPlacement';
 
 function Line({ line }: { line: UiPromptLine }) {
   const label = hintLabel(currentBindings.value, ACTION_OF[line.input] ?? line.input);
@@ -41,20 +44,16 @@ function useAnchor(ref: { current: HTMLElement | null }, active: boolean): void 
     const size = { w: el.offsetWidth, h: el.offsetHeight };
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver((es) => { const r = es[0]?.contentRect; if (r) { size.w = r.width; size.h = r.height; } }) : null;
     ro?.observe(el);
-    const out = { x: 0, y: 0 };
+    const out = { x: 0, y: 0 }, want = { x: 0, y: 0 };
     let raf = 0, lastX = NaN, lastY = NaN, mode = '';
     const loop = () => {
       const m = 1 * view.rem; // 16 dp margin
       const up = 3 * view.rem; // 48 dp above the anchor
       const anchored = hudBridge.peek()?.possessedAnchor(1.2, view.w, view.h, out) ?? false;
-      let x: number, y: number;
-      if (anchored) {
-        x = Math.min(Math.max(out.x - size.w / 2, m), Math.max(m, view.w - size.w - m));
-        y = Math.min(Math.max(out.y - up - size.h, m), Math.max(m, view.h - size.h - m));
-      } else {
-        x = Math.max(m, (view.w - size.w) / 2);
-        y = Math.max(m, view.h - size.h - m);
-      }
+      // the wanted spot: above the ant, or the fallback box at the bottom centre; then clear of the other HUD regions
+      want.x = anchored ? out.x - size.w / 2 : (view.w - size.w) / 2;
+      want.y = anchored ? out.y - up - size.h : view.h - size.h - m;
+      const { x, y } = placeAvoiding(want, size, view, m, keepOutRects(), view.rem * 0.5);
       const nextMode = anchored ? 'ant' : 'fallback';
       if (!(Math.abs(x - lastX) <= 0.4) || !(Math.abs(y - lastY) <= 0.4)) {
         el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;

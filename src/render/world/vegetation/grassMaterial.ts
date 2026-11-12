@@ -8,6 +8,7 @@ import {
 import { GLSL_DAPPLE } from '../materials/dapple';
 import { GLSL_NOISE, GLSL_WET } from '../materials/glsl';
 import { addPatch } from '../materials/surfacePatch';
+import { GLSL_OCCLUSION, occlusionUniforms } from '../materials/occlusion';
 import { HOLE_MASK_GLSL } from '../terrain/holeMask';
 import { foliageLightsChunk } from '../decor/foliageLight';
 import type { DecorShared } from '../decor/shared';
@@ -70,14 +71,16 @@ void grClip() {
 export function createGrassMaterials(shared: DecorShared, strip: Texture | null): { main: MeshStandardMaterial; depth: MeshDepthMaterial } {
   const main = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0, side: DoubleSide });
   main.name = 'decor:grass';
-  addPatch(main, `decor-grass-${strip ? 'atlas' : 'proc'}`, (s) => {
+  addPatch(main, `decor-grass-${strip ? 'atlas' : 'proc'}-occ`, (s) => {
     bindBlade(s, shared);
+    Object.assign(s.uniforms, occlusionUniforms(shared.world));
     s.uniforms.tGrStrip = new Uniform(strip);
     VERT_HOOKS(true)(s);
     s.fragmentShader = s.fragmentShader
-      .replace('#include <common>', `#include <common>\n${FRAG_COMMON}\n${GLSL_WET}\n${GLSL_DAPPLE}\nuniform sampler2D tGrStrip; uniform float uWet; uniform float uTransl; varying vec3 vWrW;`)
+      .replace('#include <common>', `#include <common>\n${FRAG_COMMON}\n${GLSL_WET}\n${GLSL_DAPPLE}\n${GLSL_OCCLUSION}\nuniform sampler2D tGrStrip; uniform float uWet; uniform float uTransl; varying vec3 vWrW;`)
       .replace('#include <map_fragment>', `
 grClip();
+wrOccDither(vWrW, 1.0);
 ${strip
     ? `vec3 bc = texture2D(tGrStrip, vec2(0.02 + vBH * 0.96, (vBInfo.y + 0.5 + vBS * 0.4) / ${GRASS.strips.toFixed(1)})).rgb;`
     : 'vec3 bc = mix(vec3(0.05, 0.13, 0.02), vec3(0.16, 0.30, 0.05), vBH) * (0.9 + 0.1 * sin(vBS * 18.0));'}

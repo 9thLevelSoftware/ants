@@ -63,9 +63,10 @@ export const OUTDOOR = {
     gullySampleMm: 250, gullyJitterMm: 100, bollardStart: [800, 3000] as [number, number], bollardBehindMm: 300,
     lampAlong: [0.3, 0.7] as [number, number], lampBehindMm: 450 },
   playground: { benches: [1, 3] as [number, number], binsPerBench: [1, 2] as [number, number], benchOffset: 350, benchHalfDepth: 250, binOffset: 1350,
-    /** Equipment footprints (half extents, footprint centre offset along local Z), fall-zone gap between pieces, tries. */
+    /** Equipment footprints (half extents, footprint centre offset along local Z), fall-zone gap between pieces,
+     * placements tried per piece (best packed first) and the candidate grid step (mm). */
     footprints: { slide: { hx: 400, hz: 1600, cz: 1000 }, swing: { hx: 1350, hz: 700, cz: 0 }, rider: { hx: 400, hz: 400, cz: 0 } },
-    equipmentClearMm: 1500, equipmentTries: 48,
+    equipmentClearMm: 1500, equipmentTries: 40, equipmentGridMm: 100,
     picnicP: 0.5, swingP: 0.7, riderP: 0.5,
     matSeamP: 0.3, matSeamDepthBu: [6, 12] as [number, number] },
   /** Map edges: fence inset (16 BU nav cells inside the margin), fence-gap guarantee, dry-stone wall sections (mm,

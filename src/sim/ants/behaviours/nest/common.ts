@@ -5,7 +5,9 @@
 import type { ActionId, Ant, Sim, TargetRef } from '@/sim/types';
 import { INJURED_HEALTH, INJURED_RECOVER_HEALTH, REST_ENTER, REST_EXIT } from '@/sim/balance';
 import {
-  APPROACH_BU, BACK_OFF_BU, BACK_OFF_CONE_DEG, CEILING_UP_Y, DROP_ABOVE_BU, REACH_NEAR_BU, REACH_STALL_S,
+  CEILING_UP_Y, CLOSE_THINK_BU, DROP_ABOVE_BU, PASS_ARRIVE_BU, PASS_BEYOND_BU, PASS_TRIES, REACH_APPROACH_BU,
+  REACH_NEAR_BU, REACH_STALL_S, ROOM_ARRIVE_FRAC, SHORT_HOP_BU, SHORT_HOP_SPEED_MULT, STALL_ACCEPT_BU, WALK_STALL_S,
+  WALK_STALL_SPEED_BU,
 } from '@/sim/balance/nestwork';
 import { secondsToTicks } from '@/sim/time';
 import { navStop, navTo } from '@/sim/locomotion';
@@ -14,79 +16,123 @@ import { releaseDigSite } from '@/sim/nest';
 import { canDo, cancel, interruptible } from '@/sim/ants/actions';
 import { B, clearJob, noteStuck, setState, skip, timedOut } from './fsm';
 import { cancelCare, careRunning, stepCare } from './careActs';
-import { chamberIn, homeNest, restChamber } from './places';
-import { act, actEnded, busy, entity, travel } from './travel';
+import { deliverHeldBrood } from './deliver';
+import { chamberIn, dist, homeNest, restChamber } from './places';
+import { act, actEnded, busy, entity, resetTravel, travel } from './travel';
 
 export type ReachStatus = 'moving' | 'started' | 'failed';
 
 
 /**
  * Walks up to the target and starts the primitive on it as soon as it can (reach and facing are the primitive's
- * own test, checked every think). An approach that ends without reach is followed by a closer one; after the
- * last, or a refusal other than reach, 'failed'. Uses B.n of the current state.
+ * own test, checked every think, and every tick close by). An approach that ends, or stalls, beside the target
+ * without reach is followed by a pass: a walk to a point PASS_BEYOND_BU beyond the target on the line from the ant
+ * through it, so the target comes into the ant's path ahead (the nest walker cannot make sub-voxel adjustments, so
+ * short corrective steps do not work). After PASS_TRIES passes, or a refusal other than reach, 'failed'.
+ * Uses B.n of the current state (0 approach, k = pass k) and the pass point keys.
  */
 export function reachAndAct(sim: Sim, ant: Ant, t: TargetRef, action: ActionId, actTarget: TargetRef | null = t): ReachStatus {
   const check = canDo(sim, ant, action, actTarget);
   if (check.ok) return act(sim, ant, action, actTarget) ? 'started' : 'failed';
   if (check.reason !== 'out-of-reach') return 'failed';
-  // close by but not getting there (other ants in the way, an awkward spot): give it up after REACH_STALL_S
   const bu = sim.world.bu;
+  // close by but not getting there (other ants in the way, an awkward spot): give it up after REACH_STALL_S
   if (nearStalled(sim, ant, t, bu)) { skip(ant, t.id); return 'failed'; }
-  // on a chamber ceiling right above the target: let go and drop onto the floor (GDD 01 `let-go`)
-  if (ant.up.y < CEILING_UP_Y && ant.pos.y - t.pos.y > bu && Math.hypot(t.pos.x - ant.pos.x, t.pos.z - ant.pos.z) < DROP_ABOVE_BU * bu
-    && canDo(sim, ant, 'let-go', null).ok) {
-    act(sim, ant, 'let-go', null);
-    ant.bb[B.began] = 0;
-    return 'moving';
+  if (dropOntoTarget(sim, ant, t)) return 'moving';
+  const d = dist(ant.pos, t.pos);
+  thinkCloseBy(sim, ant, d);
+  const phase = ant.bb[B.n] ?? 0;
+  let st: ReturnType<typeof travel>;
+  // a short hop is walked slowly: at cruise the turning circle is wider than the hop and the ant circles the target
+  if (phase === 0) st = travel(sim, ant, t, REACH_APPROACH_BU * bu, d <= SHORT_HOP_BU * bu ? SHORT_HOP : undefined);
+  else {
+    pass.x = ant.bb[B.passX]; pass.y = ant.bb[B.passY]; pass.z = ant.bb[B.passZ];
+    st = ant.nav.status === 'moving' ? 'moving' : ant.nav.status === 'failed' ? 'failed' : 'arrived';
   }
-  const close = Math.hypot(t.pos.x - ant.pos.x, t.pos.y - ant.pos.y, t.pos.z - ant.pos.z) <= REACH_NEAR_BU * bu;
-  for (let tries = ant.bb[B.n] ?? 0; tries < APPROACH_BU.length; tries++) {
-    const st = travel(sim, ant, t, APPROACH_BU[tries] * sim.world.bu);
-    if (st === 'moving') {
-      if (close) ant.thinkTick = sim.state.tick + 1; // close by: check reach every tick, it may last only a moment
-      return 'moving';
-    }
-    if (st === 'failed') return 'failed';
-    // arrived but still out of reach: at once a new, closer request; if the target is beside or behind the ant,
-    // first a step back along the line through it, so the next approach walks straight at it
-    ant.bb[B.n] = tries + 1;
-    ant.bb[B.goKind] = -1;
-    if (tries === 0 && backOff(sim, ant, t)) return 'moving';
-  }
-  if (t.id >= 0) skip(ant, t.id);
-  return 'failed';
+  // standing still beside the target while the walk still runs ends this approach or pass
+  if (st === 'moving' && d <= REACH_NEAR_BU * bu && walkStalled(sim, ant)) st = 'arrived';
+  if (st === 'moving') return 'moving';
+  if (st === 'failed' && phase === 0) return 'failed';
+  if (phase >= PASS_TRIES) { if (t.id >= 0) skip(ant, t.id); return 'failed'; }
+  return startPass(sim, ant, t) ? 'moving' : 'failed';
 }
 
-const back = { x: 0, y: 0, z: 0 };
+const pass = { x: 0, y: 0, z: 0 };
 
-/** Steps back from a target that lies outside the ant's forward cone; true if a step was requested. */
-function backOff(sim: Sim, ant: Ant, t: TargetRef): boolean {
-  const dx = ant.pos.x - t.pos.x, dy = ant.pos.y - t.pos.y, dz = ant.pos.z - t.pos.z;
-  const d = Math.hypot(dx, dy, dz);
-  if (d < 1e-6 || -(dx * ant.fwd.x + dy * ant.fwd.y + dz * ant.fwd.z) / d > Math.cos((BACK_OFF_CONE_DEG * Math.PI) / 180)) return false;
-  const k = (BACK_OFF_BU * sim.world.bu) / d;
-  back.x = t.pos.x + dx * k; back.y = t.pos.y + dy * k; back.z = t.pos.z + dz * k;
-  return navTo(sim, ant, back, 0.2 * sim.world.bu);
+/** Starts the next pass over the target (see reachAndAct); false when no pass point can be walked to. */
+function startPass(sim: Sim, ant: Ant, t: TargetRef): boolean {
+  const bu = sim.world.bu;
+  let dx = t.pos.x - ant.pos.x, dz = t.pos.z - ant.pos.z;
+  let l = Math.hypot(dx, dz);
+  if (l < 0.05 * bu) { dx = ant.fwd.x; dz = ant.fwd.z; l = Math.hypot(dx, dz) || 1; }
+  const k = (PASS_BEYOND_BU * bu) / l;
+  pass.x = t.pos.x + dx * k; pass.y = t.pos.y; pass.z = t.pos.z + dz * k;
+  ant.bb[B.n] = (ant.bb[B.n] ?? 0) + 1;
+  ant.bb[B.passX] = pass.x; ant.bb[B.passY] = pass.y; ant.bb[B.passZ] = pass.z;
+  ant.bb[B.stall] = -1;
+  resetTravel(ant);
+  return navTo(sim, ant, pass, PASS_ARRIVE_BU * bu, SHORT_HOP);
+}
+
+const SHORT_HOP = { speedMult: SHORT_HOP_SPEED_MULT };
+
+/**
+ * Walking upside down on a chamber ceiling right above the target: let go and drop onto the floor (GDD 01
+ * `let-go`). True if the ant let go (the caller waits for the landing).
+ */
+function dropOntoTarget(sim: Sim, ant: Ant, t: TargetRef): boolean {
+  const bu = sim.world.bu;
+  if (ant.up.y >= CEILING_UP_Y || ant.pos.y - t.pos.y <= bu) return false;
+  if (Math.hypot(t.pos.x - ant.pos.x, t.pos.z - ant.pos.z) >= DROP_ABOVE_BU * bu || !canDo(sim, ant, 'let-go', null).ok) return false;
+  act(sim, ant, 'let-go', null);
+  ant.bb[B.began] = 0;
+  resetTravel(ant);
+  return true;
+}
+
+/** Near the target the ant thinks every tick: the reach window of a walking ant may last only a tick or two. */
+function thinkCloseBy(sim: Sim, ant: Ant, distMm: number): void {
+  if (distMm <= CLOSE_THINK_BU * sim.world.bu) ant.thinkTick = sim.state.tick + 1;
+}
+
+/**
+ * The walk is under way but the ant has stood still for WALK_STALL_S (the walker can hold a request it cannot
+ * finish right beside its goal). Uses B.stall of the current state.
+ */
+function walkStalled(sim: Sim, ant: Ant): boolean {
+  if (ant.nav.status !== 'moving' || ant.speed > WALK_STALL_SPEED_BU * sim.world.bu) { ant.bb[B.stall] = -1; return false; }
+  const t0 = ant.bb[B.stall] ?? -1;
+  if (t0 < 0) { ant.bb[B.stall] = sim.state.tick; return false; }
+  return sim.state.tick - t0 >= secondsToTicks(WALK_STALL_S);
 }
 
 /** Has the ant been within REACH_NEAR_BU of this target for more than REACH_STALL_S (per state and target)? */
 function nearStalled(sim: Sim, ant: Ant, t: TargetRef, bu: number): boolean {
   const key = t.id >= 0 ? t.id : -2 - Math.round(t.pos.x + t.pos.z);
   if (ant.bb[B.nearId] !== key) { ant.bb[B.nearId] = key; ant.bb[B.near] = -1; }
-  if (Math.hypot(t.pos.x - ant.pos.x, t.pos.y - ant.pos.y, t.pos.z - ant.pos.z) > REACH_NEAR_BU * bu) return false;
+  if (dist(t.pos, ant.pos) > REACH_NEAR_BU * bu) return false;
   const t0 = ant.bb[B.near] ?? -1;
   if (t0 < 0) { ant.bb[B.near] = sim.state.tick; return false; }
   return sim.state.tick - t0 > secondsToTicks(REACH_STALL_S);
 }
 
 /**
- * travel() with the near-stall rule of reachAndAct: within REACH_NEAR_BU but not arrived after REACH_STALL_S,
- * 'failed' (entity targets are skipped by this ant for a while) or, with `settle`, 'arrived' where it stands.
+ * travel() with the rules of reachAndAct: let go of a ceiling above the target, think every tick close by, and a
+ * walk that stalls (WALK_STALL_S) within `acceptMm` of the target counts as arrived (default: REACH_NEAR_BU with
+ * `settle`, a drop spot being good anywhere close by; else STALL_ACCEPT_BU, a care act wanting the ant close).
+ * Farther out the walker's own recovery is left to work (a fresh request would restart it). Within REACH_NEAR_BU
+ * but not arrived after REACH_STALL_S: 'failed' (entity targets are skipped by this ant for a while) or, with
+ * `settle`, 'arrived' where it stands.
  */
-export function approach(sim: Sim, ant: Ant, t: TargetRef, arriveMm: number, settle = false): ReturnType<typeof travel> {
+export function approach(sim: Sim, ant: Ant, t: TargetRef, arriveMm: number, settle = false, acceptMm = -1): ReturnType<typeof travel> {
+  if (dropOntoTarget(sim, ant, t)) return 'moving';
   const st = travel(sim, ant, t, arriveMm);
   if (st !== 'moving') return st;
-  if (!nearStalled(sim, ant, t, sim.world.bu)) return st;
+  const bu = sim.world.bu, d = dist(ant.pos, t.pos);
+  thinkCloseBy(sim, ant, d);
+  const accept = acceptMm >= 0 ? acceptMm : (settle ? REACH_NEAR_BU : STALL_ACCEPT_BU) * bu;
+  if (d <= Math.max(arriveMm, accept) && walkStalled(sim, ant)) { navStop(sim, ant); return 'arrived'; }
+  if (!nearStalled(sim, ant, t, bu)) return st;
   if (settle) { navStop(sim, ant); return 'arrived'; }
   if (t.id >= 0) skip(ant, t.id);
   return 'failed';
@@ -135,7 +181,7 @@ export function restStep(sim: Sim, ant: Ant, entry: string): boolean {
   if (!nest || busy(ant)) return true;
   if (ant.chamberId >= 0 && chamberIn(nest, ant.chamberId)) { if (ant.nav.status === 'moving') navStop(sim, ant); return true; }
   const room = restChamber(sim, nest);
-  if (room && travel(sim, ant, entity('chamber', room.id, room.center), 0.6 * Math.min(room.radii.x, room.radii.z)) === 'failed') {
+  if (room && travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z)) === 'failed') {
     navStop(sim, ant);
   }
   return true;
@@ -183,5 +229,6 @@ export function think(
     return;
   }
   if (late) { recover(sim, ant, entry, 'timeout'); return; }
+  if (deliverHeldBrood(sim, ant)) return;
   step(sim, ant);
 }

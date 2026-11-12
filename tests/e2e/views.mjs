@@ -18,6 +18,7 @@ export default async ({ page, shot, log, wait }) => {
   const only = process.env.VIEWS_ONLY ? process.env.VIEWS_ONLY.split(',') : null;
   const run = (name) => !only || only.includes(name);
   const out = { checks: {} };
+  let s, st;
   const ok = (name, data) => { out.checks[name] = data ?? 'ok'; log('OK', name, data === undefined ? '' : JSON.stringify(data)); };
 
   await g(() => window.__game.newGame({ seed: 5, testWorld: { features: 'all', nest: 'small', workers: 8 } }));
@@ -92,12 +93,13 @@ export default async ({ page, shot, log, wait }) => {
   if (run('tunnel')) {
   await teleport({ x: ent.x + 0.3 * bu, y: ent.y - 1.2 * bu, z: ent.z + 0.1 * bu });
   let tunnel = null;
-  for (let i = 0; i < 12 && !tunnel; i++) {
+  for (let i = 0; i < 14 && !tunnel; i++) {
     w = await walk(3, { toward: food.center });
     expect(w.minF >= w.clearance, 'shaft walk: camera inside solid', w);
     const p = await poss();
     const a = await antNow();
-    if ((p.state === 'tunnel' || p.state === 'crevice') && a.pos.y < ent.y - 2 * bu) tunnel = p;
+    // a few steps of real walking first: the camera rides the queen's own trail down the shaft
+    if (i >= 3 && (p.state === 'tunnel' || p.state === 'crevice') && a.pos.y < ent.y - 2 * bu) tunnel = p;
   }
   expect(tunnel, 'the camera reached the tunnel state in the shaft');
   await render();
@@ -137,7 +139,7 @@ export default async ({ page, shot, log, wait }) => {
   await g(() => window.__game.step(2));
   await g(() => window.__game.release());
   await g(() => window.__game.step(1));
-  let s = await sum();
+  s = await sum();
   expect(s.view === 'observer', 'release -> observer', s.view);
   const workers = await g(([qid]) => {
     const gm = window.__game, q = gm.query.ant(qid);
@@ -150,7 +152,7 @@ export default async ({ page, shot, log, wait }) => {
   expect(scr, 'worker on screen');
   await g(([x, y]) => window.__game.views.pointer(x, y), [scr.x, scr.y]);
   await render();
-  let st = await g(() => window.__game.views.state());
+  st = await g(() => window.__game.views.state());
   const hl = await g(() => window.__game.highlight());
   expect(st.hover && st.hover.kind === 'ant', 'hover pick on an ant', st.hover);
   expect(hl.hover && hl.hover.kind === 'ant' && hl.hover.id === st.hover.id, 'hover highlight set from the pick', hl);
@@ -172,8 +174,11 @@ export default async ({ page, shot, log, wait }) => {
   await g(() => window.__game.release());
   await g(() => window.__game.step(1));
   await render();
-  const other = workers[1];
-  const scr2 = await g((p) => window.__game.views.project(p), { x: other.pos.x, y: other.pos.y + 0.3 * bu, z: other.pos.z });
+  const other = await g(([id, w]) => {
+    const gm = window.__game; // a worker other than the one just released, where it is now
+    return w.map((x) => gm.query.ant(x.id)).find((a) => a && a.id !== id);
+  }, [hovered, workers]);
+  const scr2 = await g((p) => window.__game.views.project(p), { x: other.pos.x + other.up.x * 0.3 * bu, y: other.pos.y + other.up.y * 0.3 * bu, z: other.pos.z + other.up.z * 0.3 * bu });
   const r2 = await g(([x, y]) => window.__game.views.possessAt(x, y), [scr2.x, scr2.y]);
   expect(r2.ok, 'click-hold possess', r2);
   ok('possess-hold', r2.id);
@@ -211,7 +216,7 @@ export default async ({ page, shot, log, wait }) => {
   s = await sum();
   expect(s.view === 'colony', 'colony view', s.view);
   const centre = { x: (ent.x + nursery.center.x) / 2 + 2 * bu, z: (ent.z + nursery.center.z) / 2 + 3 * bu };
-  await g((o) => window.__game.views.colonyCamera(o), { x: centre.x, z: centre.z, distBu: 75, pitchDeg: 58, yawDeg: 20, cutaway: 'slice', planeYBu: -11.5, radiusBu: 60 });
+  await g((o) => window.__game.views.colonyCamera(o), { x: centre.x, z: centre.z, distBu: 75, pitchDeg: 58, yawDeg: 20, cutaway: 'slice', planeYBu: -13, radiusBu: 60 });
   await render();
   if (!quick) {
     await shot('07-colony-slice');
@@ -233,6 +238,8 @@ export default async ({ page, shot, log, wait }) => {
   const markers = await g(() => window.__game.views.markers());
   expect(markers.length === before + 1 && markers.some((m) => m.kind === 'forage' && Math.abs(m.radius - 15 * bu) < 1e-6), 'forage marker placed with its radius', { markers, msg: st.message });
   await g(() => window.__game.views.tool(null));
+  await render();
+  await shot('08b-colony-forage-marker');
   ok('forage-marker', markers.find((m) => m.kind === 'forage'));
 
   // --- 10. dig-plan ghost on a tunnel wall with validation feedback, then placed ----------------------------------------
@@ -311,7 +318,7 @@ export default async ({ page, shot, log, wait }) => {
     await g(() => window.__game.camera.set('colony'));
     await g(() => window.__game.step(1));
     await g(() => window.__game.quality('high'));
-    await g((o) => window.__game.views.colonyCamera(o), { x: centre.x, z: centre.z, distBu: 75, pitchDeg: 58, yawDeg: 20, cutaway: 'slice', planeYBu: -11.5, radiusBu: 60 });
+    await g((o) => window.__game.views.colonyCamera(o), { x: centre.x, z: centre.z, distBu: 75, pitchDeg: 58, yawDeg: 20, cutaway: 'slice', planeYBu: -13, radiusBu: 60 });
     await render();
     await shot('12-high-colony-slice');
     await g(() => window.__game.quality('test'));

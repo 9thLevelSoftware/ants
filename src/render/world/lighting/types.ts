@@ -4,6 +4,7 @@ import type { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import type { QualityPreset } from '@/render/app';
 import type { AssetLoader } from '@/render/assets';
 import type { Sim, WeatherState } from '@/sim/types';
+import type { FadeOutput } from '@/render/camera';
 
 export interface WorldRenderContext {
   renderer: WebGLRenderer;
@@ -43,4 +44,9 @@ export interface WorldFrame {
   env?: EnvOverride | null;
   /** Accessibility setting: no moving light patterns (the forest dapple stands still). */
   reducedMotion?: boolean;
+  /**
+   * Possession camera occlusion (GDD 01 6.5 rule 3, FrameInfo.fade passed through by the world slot): terrain,
+   * primitives, decor and grass between the camera and the ant dither inside this cone; null / absent = none.
+   */
+  occlusion?: FadeOutput | null;
 }

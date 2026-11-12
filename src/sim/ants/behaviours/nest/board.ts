@@ -38,6 +38,8 @@ export interface BoardJob {
   nestId: number;
   /** move-brood marker decided it (reason `marker:move-brood`). */
   marker: boolean;
+  /** A move job of a larva that also asks for food: carried first, fed at the destination (see jobFor). */
+  feedAfter: boolean;
 }
 
 interface Board {
@@ -88,33 +90,47 @@ function readClaims(sim: Sim, colonyId: number, claims: Map<number, number>, inc
   return nurses;
 }
 
-function chamberAlarmed(sim: Sim, colonyId: number, nest: Nest, chamberId: number): boolean {
-  const c = nest.chambers.find((x) => x.id === chamberId);
-  if (!c) return false;
-  if (c.flooded >= EVACUATE_FLOOD) return true;
-  return sim.phero.sample(colonyId, 'alarm', c.center) >= ALARM_STRONG;
+/** Chamber ids of the nest that are flooded or alarmed (evacuate), once per board build. */
+function alarmedChambers(sim: Sim, colonyId: number, nest: Nest): Set<number> {
+  const out = new Set<number>();
+  for (const c of nest.chambers) {
+    if (c.flooded >= EVACUATE_FLOOD || sim.phero.sample(colonyId, 'alarm', c.center) >= ALARM_STRONG) out.add(c.id);
+  }
+  return out;
 }
+
+/** Per-nest data of one board build. */
+interface NestInfo { ctx: SortContext; alarmed: Set<number>; chamberIds: Set<number> }
 
 const markerOut = { marker: false };
 
 /** The highest-priority job of one lying brood item, or null. */
-function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, ctx: SortContext, b: Brood, movesLeft: number): BoardJob | null {
+function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestInfo, b: Brood, movesLeft: number): BoardJob | null {
+  const ctx = info.ctx;
   const now = sim.state.tick;
-  const job = (kind: JobKindId, prio: number, dest = -1, marker = false): BoardJob => ({ kind, id: b.id, dest, prio, pos: b.pos, nestId: nest.id, marker });
-  if (b.chamberId < 0 || !nest.chambers.some((c) => c.id === b.chamberId)) {
+  const job = (kind: JobKindId, prio: number, dest = -1, marker = false, feedAfter = false): BoardJob => ({
+    kind, id: b.id, dest, prio, pos: b.pos, nestId: nest.id, marker, feedAfter,
+  });
+  if (b.chamberId < 0 || !info.chamberIds.has(b.chamberId)) {
     const dest = ctx.best[groupOf(b)];
     return dest >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, ctx.chambers[dest].id) : null;
   }
-  if (chamberAlarmed(sim, col.id, nest, b.chamberId)) {
+  if (info.alarmed.has(b.chamberId)) {
     const dest = ctx.best[groupOf(b)];
     if (dest >= 0 && ctx.chambers[dest].id !== b.chamberId) return job(Job.evacuate, JOB_PRIORITY.evacuate, ctx.chambers[dest].id);
   }
   if (b.stage === 'pupa' && (b.flags & BroodFlag.READY) !== 0) return job(Job.assist, JOB_PRIORITY.assistEclosion);
-  if (b.stage === 'larva' && wantsFeed(b, def)) return job(Job.feed, JOB_PRIORITY.feedBase + JOB_PRIORITY.feedUrgency * feedUrgency(b, col));
-  if (movesLeft > 0) {
-    const dest = moveTarget(ctx, b, markerOut);
-    if (dest >= 0) return job(Job.move, markerOut.marker ? JOB_PRIORITY.moveMarker : JOB_PRIORITY.move, dest, markerOut.marker);
+  if (b.stage === 'larva' && wantsFeed(b, def)) {
+    const feedPrio = JOB_PRIORITY.feedBase + JOB_PRIORITY.feedUrgency * feedUrgency(b, col);
+    // A hungry larva in the wrong chamber is carried first and fed where it is going (decision: with one job per
+    // item and feed above move, larvae that keep asking for food would never be sorted, against GDD 02 App. E 19).
+    // These moves are outside the per-pass cap: a larva left out would be fed where it lies and then wait.
+    const to = moveTarget(ctx, b, markerOut);
+    if (to >= 0) return job(Job.move, Math.min(feedPrio + JOB_PRIORITY.moveHungryBonus, JOB_PRIORITY.moveHungryMax), to, markerOut.marker, true);
+    return job(Job.feed, feedPrio);
   }
+  const dest = movesLeft > 0 ? moveTarget(ctx, b, markerOut) : -1;
+  if (dest >= 0) return job(Job.move, markerOut.marker ? JOB_PRIORITY.moveMarker : JOB_PRIORITY.move, dest, markerOut.marker);
   if (b.stage !== 'larva') {
     const age = now - b.lastTendedTick;
     if (age > daysToTicks(TEND_DUE_GD)) return job(Job.tend, JOB_PRIORITY.tend + (age > daysToTicks(TEND_URGENT_GD) ? JOB_PRIORITY.tendUrgent : 0));
@@ -130,20 +146,24 @@ function build(sim: Sim, col: Colony, def: SpeciesDef): Board {
     if (b.alive && b.colony === col.id && b.carriedBy < 0 && b.chamberId >= 0) space.set(b.chamberId, (space.get(b.chamberId) ?? 0) + broodSpace(b));
   }
   const sort = new Map<number, SortContext>();
+  const infos = new Map<number, NestInfo>();
   for (const nid of col.nestIds) {
     const nest = sim.stores.nests.get(nid);
-    if (nest) sort.set(nid, sortContext(sim, nest, def, (id) => (space.get(id) ?? 0) + (incoming.get(id) ?? 0)));
+    if (!nest) continue;
+    const ctx = sortContext(sim, nest, def, (id) => (space.get(id) ?? 0) + (incoming.get(id) ?? 0));
+    sort.set(nid, ctx);
+    infos.set(nid, { ctx, alarmed: alarmedChambers(sim, col.id, nest), chamberIds: new Set(nest.chambers.map((c) => c.id)) });
   }
   const jobs: BoardJob[] = [];
   let movesLeft = SORT_MOVES_PER_NURSE * Math.max(1, nurses);
   for (const b of sim.stores.brood.list) {
     if (!b.alive || b.colony !== col.id || b.carriedBy >= 0) continue;
     const nest = sim.stores.nests.get(b.nestId) ?? sim.stores.nests.get(col.nestIds[0]);
-    const ctx = nest ? sort.get(nest.id) : undefined;
-    if (!nest || !ctx) continue;
-    const j = jobFor(sim, col, def, nest, ctx, b, movesLeft);
+    const info = nest ? infos.get(nest.id) : undefined;
+    if (!nest || !info) continue;
+    const j = jobFor(sim, col, def, nest, info, b, movesLeft);
     if (!j) continue;
-    if (j.kind === Job.move && !claims.has(b.id)) movesLeft--;
+    if (j.kind === Job.move && !j.feedAfter && !claims.has(b.id)) movesLeft--;
     jobs.push(j);
   }
   return { tick: sim.state.tick, jobs, claims, incoming, sort, nurses };
@@ -193,7 +213,9 @@ export function selectJob(sim: Sim, ant: Ant, nestId: number, skipFeed: boolean)
     const c = board.claims.get(j.id);
     if ((c !== undefined && c !== ant.id) || skipped(sim, ant, j.id)) continue;
     const d = Math.hypot(j.pos.x - ant.pos.x, j.pos.y - ant.pos.y, j.pos.z - ant.pos.z) / bu;
-    const s = j.prio - JOB_DIST_PENALTY_PER_BU * d;
+    // a hungry larva to be carried out of a poor chamber is fetched from wherever the nurse is (no distance penalty:
+    // the nurses feeding next to her would otherwise always be preferred to it)
+    const s = j.prio - (j.feedAfter ? 0 : JOB_DIST_PENALTY_PER_BU * d);
     if (s > bestS || (s === bestS && best && j.id < best.id)) { best = j; bestS = s; }
   }
   return best;

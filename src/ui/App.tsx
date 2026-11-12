@@ -3,6 +3,7 @@
 import { render } from 'preact';
 import { BOOT_CSS, Epitaph, ErrorOverlay, Loading, PauseMenu, Title, Unsupported } from './boot';
 import { HudRoot } from './hud';
+import { FoundingOverlay } from './screens/founding';
 import { snapshot } from './store';
 
 export function App() {
@@ -13,6 +14,7 @@ export function App() {
       {s.screen === 'title' && <Title />}
       {s.screen === 'loading' && <Loading loading={s.loading} />}
       <HudRoot />
+      <FoundingOverlay />
       {s.screen === 'paused' && <PauseMenu />}
       {s.screen === 'epitaph' && <Epitaph e={s.epitaph} />}
       {s.error && <ErrorOverlay text={s.error} />}

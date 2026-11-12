@@ -75,7 +75,7 @@ export class SnapshotBuilder {
       prompt: inGame ? share(p?.prompt ?? undefined, promptOf(sim) ?? observerPromptOf(src)) : null,
       alerts: inGame ? share(p?.alerts, alertsOf(sim)) : [],
       toasts: share(p?.toasts, [...src.toasts]), hudHidden: src.hudHidden, error: src.error, epitaph: share(p?.epitaph ?? undefined, src.epitaph),
-      directives: inGame ? share(p?.directives ?? undefined, directivesOf(sim)) : null,
+      directives: inGame && req.directivesOpen ? share(p?.directives ?? undefined, directivesOf(sim)) : null,
       roster: inGame && req.roster ? share(p?.roster ?? undefined, this.roster.build(sim, req.roster, nowMs)) : null,
       inspect: inGame ? share(p?.inspect ?? undefined, inspectOf(sim, inspectReq)) : null,
     };

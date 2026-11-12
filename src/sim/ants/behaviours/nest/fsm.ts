@@ -35,6 +35,10 @@ export const B = {
   near: 'bn.nr', nearId: 'bn.ni',
   /** Entity the ant failed to reach, and the tick from which the skip runs. */
   skip: 'bn.sx', skipTick: 'bn.sxt',
+  /** Tick from which a running walk has stood still (-1 not standing). */
+  stall: 'bn.sl', travelStall: 'bn.ts',
+  /** Pass point of reachAndAct, mm. */
+  passX: 'bn.qx', passY: 'bn.qy', passZ: 'bn.qz',
 } as const;
 
 const STATE_INDEX = new Map<string, number>(BEHAVIOUR_STATES.map((s, i) => [s, i]));
@@ -73,6 +77,8 @@ export function setState(sim: Sim, ant: Ant, state: string, reason?: ReasonCode)
   ant.bb[B.n] = 0;
   ant.bb[B.leg] = 0;
   ant.bb[B.near] = -1;
+  ant.bb[B.stall] = -1;
+  ant.bb[B.travelStall] = -1;
   ant.thinkTick = sim.state.tick + 1; // carry on in the new state at once
 }
 

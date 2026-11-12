@@ -5,14 +5,17 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Behaviour, Brood, Chamber, Sim } from '@/sim/types';
 import { queenWantsFood, requestTask } from '@/sim/colony';
-import { QUEEN_TARGET_GUT_C } from '@/sim/balance/colony';
-import { CARER_KEEP_RESERVE, EGG_COLLECT_BU, EGG_PILE_OFFSET, QUEEN_ATTEND_BU, QUEEN_FEED_LOADS, QUEEN_GROOM_EVERY_S, QUEEN_RATION } from '@/sim/balance/nestwork';
+import { QUEEN_RATION_BASE, QUEEN_TARGET_GUT_C } from '@/sim/balance/colony';
+import {
+  BROOD_DROP_ARRIVE_BU, CARER_KEEP_RESERVE, EGG_COLLECT_BU, EGG_PILE_OFFSET, EGG_PILE_RADIUS_BU, QUEEN_ATTEND_BU,
+  QUEEN_FEED_ARRIVE_BU, QUEEN_FEED_LOADS, QUEEN_GROOM_EVERY_S, ROOM_ARRIVE_FRAC,
+} from '@/sim/balance/nestwork';
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, Job, sortOf } from './board';
 import { CareOp, startCare } from './careActs';
 import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
-import { chamberIn, floorPoint, floorY, foodChamber, homeNest, pileSlot } from './places';
+import { chamberIn, floorPoint, floorY, foodChamber, GOLDEN_ANGLE, homeNest, pileSlot } from './places';
 import { isFoundingQueen } from './queen';
 import { bestChamberId } from './sorting';
 import { act, entity, resetTravel, travel } from './travel';
@@ -22,6 +25,7 @@ const ENTRY = 'queen-care.attend';
 const RESERVE = 'bn.res';
 const PICKED = 'bn.pk';
 const pile = { x: 0, y: 0, z: 0 };
+const near: number[] = [];
 
 function queenOf(sim: Sim, ant: Ant): Ant | undefined {
   const col = sim.stores.colonies.get(ant.colony);
@@ -42,7 +46,7 @@ function eggPile(sim: Sim, ant: Ant, room: Chamber, k: number, out: Vec3): Vec3 
   const q = queenOf(sim, ant);
   if (!q || q.chamberId !== room.id) return pileSlot(room, 0, k, sim.world.bu, out);
   floorPoint(room, EGG_PILE_OFFSET, Math.atan2(q.pos.z - room.center.z, q.pos.x - room.center.x) + Math.PI, out);
-  const a = k * 2.39996, r = 0.5 * sim.world.bu * Math.sqrt(((k * 7) % 23) / 23);
+  const a = k * GOLDEN_ANGLE, r = EGG_PILE_RADIUS_BU * sim.world.bu * Math.sqrt(((k * 7) % 23) / 23);
   out.x += Math.cos(a) * r;
   out.z += Math.sin(a) * r;
   out.y = floorY(room, out.x, out.z);
@@ -52,8 +56,11 @@ function eggPile(sim: Sim, ant: Ant, room: Chamber, k: number, out: Vec3): Vec3 
 function eggNearQueen(sim: Sim, ant: Ant, q: Ant): Brood | null {
   const r = EGG_COLLECT_BU * sim.world.bu;
   let best: Brood | null = null;
-  for (const b of sim.stores.brood.list) {
-    if (!b.alive || b.colony !== ant.colony || b.stage !== 'egg' || b.carriedBy >= 0) continue;
+  near.length = 0;
+  sim.index.queryBrood(q.pos, r, near);
+  for (const id of near) {
+    const b = sim.stores.brood.get(id);
+    if (!b || !b.alive || b.colony !== ant.colony || b.stage !== 'egg' || b.carriedBy >= 0) continue;
     if (Math.hypot(b.pos.x - q.pos.x, b.pos.y - q.pos.y, b.pos.z - q.pos.z) > r || !freeFor(sim, ant, b.id)) continue;
     if (!best || b.id < best.id) best = b;
   }
@@ -90,9 +97,9 @@ function load(sim: Sim, ant: Ant): void {
   const nest = homeNest(sim, ant);
   const room = nest ? foodChamber(sim, nest, ant.pos) : undefined;
   if (!room) { recover(sim, ant, ENTRY, 'job:load'); return; }
-  const st = ant.chamberId === room.id ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), 0.6 * Math.min(room.radii.x, room.radii.z));
+  const st = ant.chamberId === room.id ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z));
   if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
-  if (st === 'arrived') startCare(sim, ant, CareOp.loadRation, -1, Math.max(0, QUEEN_RATION - ant.cropC - ant.cropP));
+  if (st === 'arrived') startCare(sim, ant, CareOp.loadRation, -1, Math.max(0, QUEEN_RATION_BASE - ant.cropC - ant.cropP));
 }
 
 function feed(sim: Sim, ant: Ant): void {
@@ -105,7 +112,7 @@ function feed(sim: Sim, ant: Ant): void {
     endCycle(sim, ant, ENTRY);
     return;
   }
-  const st = approach(sim, ant, entity('ant', q.id, q.pos), 1.2 * sim.world.bu, true);
+  const st = approach(sim, ant, entity('ant', q.id, q.pos), QUEEN_FEED_ARRIVE_BU * sim.world.bu, true);
   if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
   if (st === 'arrived') startCare(sim, ant, fromReserve ? CareOp.feedQueenReserve : CareOp.feedQueen, q.id,
     fromReserve ? Math.min(QUEEN_FEED_LOADS, ant.energy - CARER_KEEP_RESERVE) : QUEEN_FEED_LOADS);
@@ -121,7 +128,7 @@ function collectEggs(sim: Sim, ant: Ant): void {
     if (!room) { recover(sim, ant, ENTRY, 'job:collect-eggs'); return; }
     ant.bb[PICKED] = 2;
     eggPile(sim, ant, room, b.id, pile);
-    const st = approach(sim, ant, entity('point', -1, pile), 0.5 * sim.world.bu, true);
+    const st = approach(sim, ant, entity('point', -1, pile), BROOD_DROP_ARRIVE_BU * sim.world.bu, true);
     if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
     if (st === 'arrived') act(sim, ant, 'put-down', null);
     return;

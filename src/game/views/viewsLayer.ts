@@ -89,19 +89,19 @@ export class ViewsLayer {
    * screenshots): picking and drawing still happen, clicks do not.
    */
   frame(s: GameSession, input: InputState | null, nowS: number): void {
-    const view = s.view, st = this.state;
+    const view = s.view, st = this.state, entered = this.lastView !== view;
+    this.lastView = view;
     s.views.colonyCapture = view === 'colony' && plannerActive(st);
     if (view === 'colony') {
       const rig = s.views.colony;
       rig.setDeepest(deepestNestY(s.sim));
       // just entered: the slice starts 2 BU above the ant the camera rose from (ColonyRig.enter could only clamp it
       // to the default depth range: it does not know the nest)
-      if (this.lastView !== 'colony' && rig.cutaway.mode === 'slice') {
+      if (entered && rig.cutaway.mode === 'slice') {
         const a = s.sim.stores.ants.get(s.followId >= 0 ? s.followId : s.sim.state.player.returnAntId);
         if (a) rig.cutaway.planeY = Math.max(rig.cutaway.minPlaneY, Math.min(0, a.pos.y + 2 * s.sim.world.bu));
       }
     }
-    this.lastView = view;
     const pick = view === 'observer' || view === 'colony' ? this.pick(s) : null;
     if (view === 'observer') {
       observerInput(input, pick?.hits ?? [], st, this.observerHost(s), nowS, this.cursor);
@@ -112,7 +112,10 @@ export class ViewsLayer {
         if (input.pressed('cv-confirm')) colonyClick(s.sim, pick, st, this.tools, this.colonyHost(s), nowS, input.codeHeld('ShiftLeft') || input.codeHeld('ShiftRight'));
         if (input.pressed('cv-cancel')) colonyCancel(st, this.tools);
       }
-    } else st.hover = null;
+    } else {
+      st.hover = null;
+      if (view === 'possess' && entered) st.selected = null; // the possessed ant inspects with T
+    }
     if (view !== 'colony' && st.tool) selectTool(st, this.tools, null);
     this.feedCreature(s);
     this.applyHighlights();

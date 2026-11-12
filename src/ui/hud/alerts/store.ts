@@ -16,7 +16,10 @@ function nowS(): number {
 
 /** Re-evaluates the feed against the latest alerts (called on every snapshot and once a second). */
 export function refreshFeed(): void {
-  const tick = snapshot.peek().time?.tick ?? 0;
+  const time = snapshot.peek().time;
+  // no game (title, loading, epitaph): whatever the feed remembers belongs to a game that is over
+  if (!time) alertFeed.reset();
+  const tick = time?.tick ?? 0;
   const compact = document.documentElement.dataset.layout === 'compact';
   feedView.value = alertFeed.update(alertsSlice.peek(), { nowS: nowS(), tick, hudHidden: hudHiddenSlice.peek(), maxVisible: compact ? 2 : 3 });
 }

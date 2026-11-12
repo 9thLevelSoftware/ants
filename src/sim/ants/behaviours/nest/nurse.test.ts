@@ -3,17 +3,17 @@
 import { describe, expect, it } from 'vitest';
 import { AntFlag, BroodFlag } from '@/sim/types';
 import { boardOf, Job } from './board';
-import { makeNestColony, run } from './testkit';
+import { makeNestColony } from './testkit';
 
 describe('nurse (GDD 02 §10.4)', () => {
   it('E4: a ready pupa with nurses about ecloses within 30 s as a callow, leaving a cocoon', () => {
     const k = makeNestColony({ workers: 12, stores: { c: 50, p: 50 }, brood: [{ stage: 'pupa', n: 1, chamber: 'nursery', progress: 0.999 }] });
     const { sim } = k;
-    run(sim, 600); // allocation puts nurses on the pupa
+    // watched from the start: the allocation puts nurses on the pupa while it finishes its stage
     const pupa = sim.stores.brood.list.find((b) => b.stage === 'pupa')!;
     let readyAt = -1, eclosedAt = -1, adult = -1;
     sim.events.on('ant-eclosed', (e) => { eclosedAt = sim.state.tick; adult = e.antId; });
-    for (let t = 0; t < 3000 && eclosedAt < 0; t++) {
+    for (let t = 0; t < 3600 && eclosedAt < 0; t++) {
       sim.tick();
       if (readyAt < 0 && pupa.alive && (pupa.flags & BroodFlag.READY) !== 0) readyAt = sim.state.tick;
     }

@@ -7,7 +7,7 @@ import { Slider } from '../../components/Slider';
 import { Toggle } from '../../components/Toggle';
 import { Tooltip } from '../../components/Tooltip';
 import type { UiDirectives } from '../../api';
-import { gameDays, loads } from '../../hud/format';
+import { casteCount, gameDays, loads } from '../../hud/format';
 import { useCommit } from './useCommit';
 import { blockSyntheticVertical } from '../../hud/padGuard';
 
@@ -25,7 +25,7 @@ export function BroodSection({ d, setDirectives }: SectionProps) {
   const blocked = !d.alates.ok || !d.queenAlive;
   const reason = !d.queenAlive ? 'No queen: no new eggs' : d.alates.reason ?? '';
   const preset = BROOD_PRESETS.reduce((best, p) => (Math.abs(p.value - invest) < Math.abs(best.value - invest) ? p : best), BROOD_PRESETS[0]);
-  const castes = Object.entries(d.broodByCaste).map(([k, n]) => `${n} ${k}`).join(' · ');
+  const castes = Object.entries(d.broodByCaste).map(([k, n]) => casteCount(n, k)).join(' · ');
   return (
     <section class="fd-sec" aria-labelledby="fd-sec-brood" data-testid="dir-brood">
       <h3 id="fd-sec-brood" class="fd-sec-h">Brood production</h3>

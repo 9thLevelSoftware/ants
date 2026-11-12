@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clock, cap, dateLine, degrees, gameDays, loads, pct } from './format';
+import { casteCount, clock, cap, dateLine, degrees, effectiveRate, gameDays, loads, pct } from './format';
 import { matchesAction } from './hotkeys';
 import { defaultBindings } from '@/input';
 import { setCurrentBindings } from '../components';
@@ -34,5 +34,17 @@ describe('hotkeys read the current bindings', () => {
     expect(matchesAction(ev('KeyJ'), 'roster')).toBe(true);
     expect(matchesAction(ev('KeyL'), 'roster')).toBe(false);
     setCurrentBindings(b);
+  });
+  it('effective speed: one decimal, no trailing zero (GDD 01 section 8)', () => {
+    expect(effectiveRate(5.62)).toBe('5.6x');
+    expect(effectiveRate(8)).toBe('8x');
+    expect(effectiveRate(0.5)).toBe('0.5x');
+  });
+  it('caste counts are pluralised', () => {
+    expect(casteCount(40, 'worker')).toBe('40 workers');
+    expect(casteCount(1, 'worker')).toBe('1 worker');
+    expect(casteCount(3, 'gyne')).toBe('3 gynes');
+    expect(casteCount(2, 'male')).toBe('2 males');
+    expect(casteCount(2, 'larva-thing')).toBe('2 larva-things');
   });
 });

@@ -26,6 +26,12 @@ export interface WorldUniforms {
   /** Where the canopy is (R: 1 forest .. 0 open sky) over the world, and 1 / its extent in mm (x, z). */
   tDappleMask: Uniform<Texture | null>;
   uDappleMaskInv: Uniform<Vector2>;
+  /** Near-camera occlusion cone (occlusion.ts): camera end, ant end, (radius at the ant end mm 0 = off, kept fraction, cone start, floor k). */
+  uOccA: Uniform<Vector3>;
+  uOccB: Uniform<Vector3>;
+  uOcc: Uniform<Vector4>;
+  /** Contact darkening under the subject ant: ground point (xyz, mm) and radius (w, mm; 0 = off). */
+  uContact: Uniform<Vector4>;
 }
 
 export function createWorldUniforms(): WorldUniforms {
@@ -42,5 +48,9 @@ export function createWorldUniforms(): WorldUniforms {
     uDappleMm: new Uniform(64),
     tDappleMask: new Uniform(null),
     uDappleMaskInv: new Uniform(new Vector2(0, 0)),
+    uOccA: new Uniform(new Vector3()),
+    uOccB: new Uniform(new Vector3()),
+    uOcc: new Uniform(new Vector4(0, 1, 1, 0.35)),
+    uContact: new Uniform(new Vector4(0, 0, 0, 0)),
   };
 }

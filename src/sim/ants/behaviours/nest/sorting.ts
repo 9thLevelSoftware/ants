@@ -6,10 +6,11 @@
 import type { Brood, Chamber, Marker, Nest, Sim, SpeciesDef } from '@/sim/types';
 import { BROOD_SPACE } from '@/sim/balance/nest';
 import {
-  MOVE_BROOD_LOCK_GD, SORT_CROWD_SPAN, SORT_CROWD_START, SORT_FLOOD_WEIGHT, SORT_HUM_EGG_LARVA, SORT_HUM_PUPA,
+  SORT_CROWD_SPAN, SORT_CROWD_START, SORT_FLOOD_WEIGHT, SORT_HUM_EGG_LARVA, SORT_HUM_PUPA,
   SORT_NURSERY_BONUS, SORT_R_MAX, SORT_ROYAL_DIST_PER_BU, SORT_ROYAL_EGG_BONUS, SORT_TRIGGER_ADD, SORT_TRIGGER_MULT,
   SORT_WASTE_FULL, SORT_YOUNG_LARVA_PROGRESS,
 } from '@/sim/balance/nestwork';
+import { MOVE_BROOD_LOCK_GD } from '@/sim/balance/colony';
 import { devRate } from '@/sim/colony';
 import { daysToTicks } from '@/sim/time';
 import { royalChamber } from './places';

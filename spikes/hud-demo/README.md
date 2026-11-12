@@ -17,15 +17,16 @@ node tools/harness/play.mjs --root spikes/hud-demo --query "scene=worker&anchor=
 | `text` | text size `100`, `115`, `130` |
 | `bg` | `scene` (default), `bright` (the legibility worst case), `dark` |
 | `anchor=1` | prompt anchored over a fake ant at the middle of the screen (otherwise the bottom-centre fallback box) |
-| `paused=1`, `reducedMotion=1`, `contrast=high` | states |
+| `paused=1`, `lag=1` (4x asked, 2.6x achieved), `reducedMotion=1`, `contrast=high` | states |
 | `scroll=1` (`scrollTo=<px>`) | scroll the open drawer |
+| `norole=digger,nurse` | roster quick buttons without a living ant (disabled with their reason) |
 
 Scripts (through the harness)
 
 | Script | What it does |
 |---|---|
 | `scripts/shots.mjs` | Screenshots of scenes at sizes and scales: `HUD_SIZES`, `HUD_SCALES`, `HUD_SCENES`, `HUD_PREFIX`, `HUD_EXTRA`. |
-| `scripts/behaviour.mjs` | Keyboard and gamepad reachability of every control, focus visible, slider-sum behaviour in the page, alert throttling in the page, roster virtualisation (DOM rows <= 60), no remote requests. |
+| `scripts/behaviour.mjs` | HUD chips outside the tab order, the alert feed entered by backquote or LB + View and left by Esc or B, a mouse click never leaving focus on a chip, keyboard and gamepad reachability of every drawer control, focus visible, slider-sum behaviour in the page, alert throttling in the page, roster virtualisation (DOM rows <= 60), no remote requests. |
 
 The classic single-file build:
 

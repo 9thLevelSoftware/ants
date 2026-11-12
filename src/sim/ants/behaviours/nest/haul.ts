@@ -6,6 +6,7 @@
 import type { Ant, Behaviour, Item, Nest, Sim } from '@/sim/types';
 import {
   CORPSE_DETECT_S, CORPSE_HAUL_RADIUS_BU, HAUL_CLUTTER_COST, HAUL_IDLE_S, HAUL_PRIORITY, MIDDEN_RADIUS_BU,
+  ROOM_ARRIVE_FRAC,
 } from '@/sim/balance/nestwork';
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, Job } from './board';
@@ -35,6 +36,9 @@ function nearEntrance(sim: Sim, nest: Nest, it: Item): boolean {
  */
 export function haulPriority(sim: Sim, nest: Nest, it: Item): number {
   if (!it.alive || it.carrierIds.length > 0) return 0;
+  // nowhere to take it (no open entrance, no midden chamber): not a job; it waits (GDD 03 §7.7 `internal-dump`
+  // to a dead-end tunnel tip is not implemented, so haulers do not pick it up only to put it down again)
+  if (!destinationOpen(sim, nest, it)) return 0;
   if (it.kind === 'corpse') {
     if (it.colony !== nest.colony || sim.state.tick < it.createdTick + secondsToTicks(CORPSE_DETECT_S)) return 0;
     if (!(it.inNest && it.nestId === nest.id) && !nearEntrance(sim, nest, it)) return 0;
@@ -44,6 +48,12 @@ export function haulPriority(sim: Sim, nest: Nest, it: Item): number {
   if (it.kind === 'waste') return atMidden(sim, nest, it) || !onSurface(sim, it.pos) ? 0 : HAUL_PRIORITY.waste;
   if (it.kind === 'soil-pellet' || it.kind === 'frass') return onSurface(sim, it.pos) ? HAUL_PRIORITY.pellet : 0;
   return 0;
+}
+
+/** Can a carry trip for this item end anywhere: soil at an open entrance's dump point, waste and corpses at the midden? */
+function destinationOpen(sim: Sim, nest: Nest, it: Item): boolean {
+  if (it.kind === 'soil-pellet' || it.kind === 'frass') return nest.entrances.some((e) => e.status === 'open');
+  return middenPoint(sim, nest, mid) !== null;
 }
 
 interface HaulCandidate { it: Item; pr: number; cost: number }
@@ -126,7 +136,7 @@ function returnStep(sim: Sim, ant: Ant): void {
   const nest = homeNest(sim, ant);
   const room = nest ? entranceChamber(sim, nest) : undefined;
   if (!room || ant.nestId === nest!.id) { endCycle(sim, ant, ENTRY); return; }
-  const st = travel(sim, ant, entity('chamber', room.id, room.center), 0.6 * Math.min(room.radii.x, room.radii.z));
+  const st = travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z));
   if (st === 'arrived') endCycle(sim, ant, ENTRY);
   else if (st === 'failed') recover(sim, ant, ENTRY, 'stuck', true);
 }

@@ -15,10 +15,12 @@ import { generateEvaluated, floating, interpenetrations, OUTDOOR_TEMPLATES } fro
 import { applyPreCarves, passageMinField, walkRoute } from './routeWalk';
 import { OUTDOOR } from './tuning';
 import { ASPHALT } from '../../catalog/outdoor/asphalt';
+import { entryOf } from '../../kit/column';
 
 vi.setConfig({ testTimeout: 600_000 });
 
 const SEEDS = FULL ? 10 : 2;
+
 const cache = new Map<string, { r: WorldgenReport; ms: number }>();
 function world(a: ArchetypeId, seed: number): { r: WorldgenReport; ms: number } {
   const key = `${a}|${seed}`;
@@ -130,8 +132,8 @@ describe('outdoor content: counts per zone (GDD 04 §5 densities)', () => {
       const boxes = w.objects.filter((o) => ['slide', 'swing-frame', 'spring-rider'].includes(o.templateId)).map((o) => {
         let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
         for (let i = o.primStart; i < o.primStart + o.primCount; i++) {
-          const p = w.prims[i], e = Math.max(p.size.x, p.size.y, p.size.z);
-          x0 = Math.min(x0, p.pos.x - e); x1 = Math.max(x1, p.pos.x + e); z0 = Math.min(z0, p.pos.z - e); z1 = Math.max(z1, p.pos.z + e);
+          const e = entryOf(w.prims[i]);
+          x0 = Math.min(x0, e.minX); x1 = Math.max(x1, e.maxX); z0 = Math.min(z0, e.minZ); z1 = Math.max(z1, e.maxZ);
         }
         return { id: o.templateId, x0, z0, x1, z1 };
       });
@@ -286,11 +288,14 @@ describe('decor, water, cavities, determinism, time', () => {
     expect(a).toBe(b);
   });
 
-  it('standard-world generation stays within the time budget (generous unless FOUNDRESS_PERF_STRICT=1)', () => {
+  it('standard-world generation stays within the time budget (only a sanity bound unless FOUNDRESS_PERF_STRICT=1)', () => {
+    // the machine is shared by up to ten engineers (load 15-25 on 4 cores): without FOUNDRESS_PERF_STRICT=1 only a
+    // pathological regression fails (NON_STRICT_FACTOR x the budget); the strict run checks WORLDGEN_TIME_MS.node
+    const NON_STRICT_FACTOR = 20;
     const times: string[] = [];
     for (const { a, seed, ms, r } of all()) {
       times.push(`${a}#${seed} ${Math.round(ms)} ms (attempts ${r.attempts})`);
-      expect(ms, `${a}#${seed}`).toBeLessThan(PERF_STRICT ? WORLDGEN_TIME_MS.node : 8 * WORLDGEN_TIME_MS.node);
+      expect(ms, `${a}#${seed}`).toBeLessThan(PERF_STRICT ? WORLDGEN_TIME_MS.node : NON_STRICT_FACTOR * WORLDGEN_TIME_MS.node);
     }
     console.info('[time] ' + times.join(', '));
   });

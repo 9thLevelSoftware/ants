@@ -139,6 +139,17 @@ export class DecorRenderer {
     this.water.reset();
   }
 
+  /** The game ended (render-integration wiring): drops every block, the ground and the water; nothing is drawn until the next setWorld. */
+  clearWorld(): void {
+    this.clearBlocks();
+    this.seenHashes.clear();
+    this.ground = null;
+    this.watch = null;
+    this.sim = null;
+    this.drape.dispose(); // frees the height texture; setSource rebuilds it
+    this.water?.reset();
+  }
+
   setQuality(q: QualityPreset): void {
     this.ctx.quality = q;
     this.drape.setQuality(q);

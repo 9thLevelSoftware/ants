@@ -145,13 +145,16 @@ export function swingFrame(rng: RngState, env: Env): Built {
     prims.push(rb(v(x, W.seatY, 0), sw, st, sd, 4, 'rubber', C | S));
     for (const cx of [x - sw / 2 + 20, x + sw / 2 - 20]) prims.push(cyAB(v(cx, W.seatY + st / 2, 0), v(cx, H - W.legDia / 2, 0), W.chainDia, 'metal', C));
   }
-  // sleeve gaps (p 0.5 per post) where the legs enter the ground, on the outer side of each foot
+  // sleeve gaps (p 0.5 per post) where the legs enter the ground, on the inner side of each foot (the leaning leg
+  // runs on outward below the ground, away from a vertical slot on its inner side)
   const cavities: LocalCavity[] = [], micro: LocalMicro[] = [];
   const tg = 200 / (H + 200);
   for (const x of [-half, half]) for (const sz of [-1, 1]) {
     if (!chance(rng, PLAYGROUND.sleeve.p)) continue;
     const zg = sz * (spread + 200 * (spread / H)) * (1 - tg);
-    const s = sleeveGap(rng, env, x, zg, W.legDia / 2 / dcos(lean), sz > 0 ? Math.PI / 2 : -Math.PI / 2);
+    // clear of the leg up to the mouth 2 BU above the ground (the leg leans in over the slot by that height)
+    const reach = W.legDia / 2 / dcos(lean) + 3 * env.bu * (dsin(lean) / dcos(lean));
+    const s = sleeveGap(rng, env, x, zg, reach, sz > 0 ? -Math.PI / 2 : Math.PI / 2);
     s.micro.cavity = cavities.length;
     cavities.push(s.cav);
     micro.push(s.micro);

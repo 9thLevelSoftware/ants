@@ -22,6 +22,7 @@ import { addToxinDose } from './physiology';
 import { broodDies } from './brood';
 import { applyDirectives, placePlayerMarker } from './directives';
 
+import { foundingCommandHandlers, foundingSystem } from './founding';
 import {
   allocationSystem, broodSystem, colonyDiagnosticsSystem, colonyStatsSystem, economySystem, queenSystem,
   taskReevalSystem,
@@ -31,8 +32,8 @@ export {
   allocationSystem, broodSystem, colonyDiagnosticsSystem, colonyStatsSystem, economySystem, queenSystem,
   taskReevalSystem,
 };
-/** Founding sequence (opening phases, founding model, time-lapse). Stub: founding. */
-export const foundingSystem: System = { name: 'founding', phase: 'queen', run: () => {} };
+/** Founding sequence (opening phases, founding model, time-lapse): src/sim/colony/founding (owner: founding). */
+export { foundingSystem };
 /** Overwintering notice/banner/lapse/report. Stub: overwinter-repro. */
 export const overwinterSystem: System = { name: 'overwinter', phase: 'colony-economy', run: () => {} };
 /** Alate rearing, nuptial flights, queen death and orphaning. Stub: overwinter-repro. */
@@ -249,14 +250,8 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
   removeMarker: (sim, c) => {
     removeMarker(sim, c.markerId, 'player');
   },
-  // founding (owner: founding)
-  openingSkipIntro: noop,
-  openingBeginTimelapse: noop,
-  skipTimelapse: noop, // founding / overwinter-repro (both time-lapses)
-  timelapseRespond: noop,
-  openingUndo: noop,
-  'cheat.completeFounding': noop,
-  'cheat.setFoundingState': noop,
+  // founding (owner: founding; skipTimelapse leaves the winter lapse to overwinter-repro)
+  ...foundingCommandHandlers,
   // overwintering and reproduction (owner: overwinter-repro)
   overwinterChoice: noop,
   flightRelease: noop,

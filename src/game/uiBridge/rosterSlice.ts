@@ -54,7 +54,8 @@ export class RosterBuilder {
     const throttled = this.sim === sim && this.last !== null && !resort && nowMs - this.lastMs < ROSTER_MIN_INTERVAL_MS;
     if (throttled && this.last) {
       // only the scroll window moved: new rows from the frozen order, the counts stay
-      const next = { ...this.last, rows: this.rows(sim, q), offset: q.offset };
+      this.pruneDead(sim);
+      const next = { ...this.last, rows: this.rows(sim, q), offset: q.offset, total: this.order.length };
       this.lastQuery = { ...q };
       return (this.last = next);
     }
@@ -63,6 +64,16 @@ export class RosterBuilder {
     this.lastMs = nowMs;
     this.lastQuery = { ...q };
     return (this.last = this.refresh(sim, q, resort));
+  }
+
+  /** Ants that died since the order was frozen leave it; the survivors keep their relative order. */
+  private pruneDead(sim: Sim): void {
+    let kept = 0;
+    for (const id of this.order) {
+      const a = sim.stores.ants.get(id);
+      if (a && a.alive) this.order[kept++] = id;
+    }
+    this.order.length = kept;
   }
 
   private rows(sim: Sim, q: UiRosterQuery): UiRosterRow[] {
@@ -97,6 +108,8 @@ export class RosterBuilder {
     if (resort) {
       matched.sort(comparator(q.sort, q.dir));
       this.order = matched.map((a) => a.id);
+    } else {
+      this.pruneDead(sim);
     }
     const window = this.rows(sim, q);
     const live: Ant[] = [];

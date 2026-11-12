@@ -1,13 +1,12 @@
 // Time cluster (GDD 08 3.4, 5.1): season glyph and date, clock, sun or moon, weather and surface temperature, and the
-// speed control (pause, 1x, 2x, 4x, 8x, next event). The box is 304 x 56 dp at the top left.
-import { useRef } from 'preact/hooks';
+// speed control (pause, 1x, 2x, 4x, 8x, next event). The box is 304 x 56 dp at the top left. The buttons are for the
+// pointer: the keyboard operates the same actions with their keys and the HUD is not in the tab order (focusPolicy.ts).
 import type { UiSpeed, UiTime } from '../api';
 import { currentBindings, hintLabel } from '../components';
-import { groupNext } from '../components/logic/groupNav';
 import { Tooltip } from '../components/Tooltip';
 import { Icon } from '../icons';
 import { facade } from '../store';
-import { clock, dateLine, degrees, SEASON_ICON, WEATHER_ICON } from './format';
+import { clock, dateLine, degrees, effectiveRate, SEASON_ICON, WEATHER_ICON } from './format';
 import { speedSlice, timeSlice } from './slices';
 import { isSelected, speedRefusal, type SpeedButtonId } from './speedModel';
 
@@ -28,7 +27,6 @@ const BUTTONS: readonly SpeedBtn[] = [
 ];
 
 function SpeedControl({ speed }: { speed: UiSpeed }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const f = facade.value;
   const choose = (b: SpeedBtn['id']) => {
     if (b === 'pause') f?.togglePause();
@@ -38,25 +36,18 @@ function SpeedControl({ speed }: { speed: UiSpeed }) {
     const l = hintLabel(currentBindings.value, action);
     return l ? ` (${l})` : '';
   };
-  const selected = Math.max(0, BUTTONS.findIndex((b) => isSelected(b.id, speed)));
   return (
     <div class="fd-speed" role="group" aria-label="Time controls">
-      {BUTTONS.map((b, i) => {
+      {BUTTONS.map((b) => {
         const why = speedRefusal(b.id, speed);
         const sel = isSelected(b.id, speed);
         return (
           <Tooltip key={String(b.id)} text={why ? `${b.label}: ${why}` : `${b.label}${keyOf(b.action)}`} placement="bottom">
             <button
-              type="button" ref={(el) => { refs.current[i] = el; }} class={`fd-speed-btn${sel ? ' is-selected' : ''}`}
+              type="button" class={`fd-speed-btn${sel ? ' is-selected' : ''}`}
               aria-label={b.label} aria-pressed={sel ? 'true' : 'false'} aria-disabled={why ? 'true' : undefined}
-              tabIndex={i === selected ? 0 : -1} data-testid={`speed-${b.id}`}
+              tabIndex={-1} data-testid={`speed-${b.id}`}
               onClick={() => { if (!why) choose(b.id); }}
-              onKeyDown={(e: KeyboardEvent) => {
-                const n = groupNext(BUTTONS.length, i, e.key, { orientation: 'horizontal' });
-                if (n === null) return;
-                e.preventDefault();
-                refs.current[n]?.focus();
-              }}
             >
               <Icon name={why && b.id === 8 ? 'lock' : b.icon} size={18} decorative />
             </button>
@@ -84,10 +75,18 @@ function DateRow({ time }: { time: UiTime }) {
 
 function ClockRow({ time, speed }: { time: UiTime; speed: UiSpeed | null }) {
   const w = time.weather;
+  // the sim cannot keep up with the speed asked for: say what it really manages (it replaces the weather word, which
+  // the date row's temperature and the sun glyph still back up)
+  const lag = speed && speed.lagging && !speed.paused ? speed : null;
   return (
     <div class="fd-time-clock" data-testid="hud-clock">
       <span class="fd-clock">{clock(time.hour, time.minute)}</span>
-      {w && (
+      {lag && (
+        <span class="fd-lag" data-testid="hud-lag" title={`The simulation cannot keep up with ${lag.requested}x: running at ${effectiveRate(lag.effective)}`}>
+          <Icon name="status-warn" size={16} decorative /> <span class="ui-sr-only">Running at </span>{effectiveRate(lag.effective)}
+        </span>
+      )}
+      {w && !lag && (
         <>
           <Icon name={WEATHER_ICON[w.state] ?? 'weather-clear'} size={16} decorative />
           <span class="fd-weather">{w.word}</span>

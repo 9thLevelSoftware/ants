@@ -7,7 +7,10 @@ import type { Ant, Behaviour, Sim } from '@/sim/types';
 import { rngChance } from '@/core/rng';
 import { navWander } from '@/sim/locomotion';
 import { requestTask } from '@/sim/colony';
-import { AMBIENT_TROPH_IDLE_MIN, IDLE_CYCLE_S, IDLE_SPEED_MULT, IDLE_WANDER_FRAC, WAIT_THINK_TICKS } from '@/sim/balance/nestwork';
+import {
+  AMBIENT_TROPH_IDLE_MIN, AMBIENT_TROPH_RADIUS_BU, IDLE_CYCLE_S, IDLE_SPEED_MULT, IDLE_WANDER_FRAC, ROOM_WAIT_FRAC,
+  WAIT_THINK_TICKS,
+} from '@/sim/balance/nestwork';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { needsRest, recover, releaseAll, think } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
@@ -21,7 +24,7 @@ function ambientTrophallaxis(sim: Sim, ant: Ant): void {
   const p = WAIT_THINK_TICKS / (AMBIENT_TROPH_IDLE_MIN * 60 * TICKS_PER_SECOND);
   if (!rngChance(sim.stream('rng.behaviour'), p)) return;
   scratch.length = 0;
-  sim.index.queryAnts(ant.pos, 1.5 * sim.world.bu, scratch);
+  sim.index.queryAnts(ant.pos, AMBIENT_TROPH_RADIUS_BU * sim.world.bu, scratch);
   for (const id of scratch) {
     const o = sim.stores.ants.get(id);
     if (o && o.id !== ant.id && o.colony === ant.colony && o.task === 'idle') {
@@ -40,7 +43,7 @@ function idleStep(sim: Sim, ant: Ant): void {
   if (!room) return;
   if (ant.chamberId !== room.id) {
     ant.bb[B.n] = 0;
-    if (travel(sim, ant, entity('chamber', room.id, room.center), 0.5 * Math.min(room.radii.x, room.radii.z)) === 'failed') {
+    if (travel(sim, ant, entity('chamber', room.id, room.center), ROOM_WAIT_FRAC * Math.min(room.radii.x, room.radii.z)) === 'failed') {
       recover(sim, ant, 'idle', 'stuck', true);
     }
     return;

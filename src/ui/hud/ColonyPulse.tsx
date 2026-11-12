@@ -61,7 +61,7 @@ export function ColonyPulse() {
   const status = c.status ?? 'ok';
   const tC = trendFor(c.stores.c, c.past?.c), tP = trendFor(c.stores.p, c.past?.p);
   return (
-    <section class="fd-pulse fd-chip" tabIndex={0} role="group" aria-label="Colony" data-hud="pulse" data-testid="pulse">
+    <section class="fd-pulse fd-chip" tabIndex={-1} role="group" aria-label="Colony" data-hud="pulse" data-testid="pulse">
       <div class="fd-pulse-head">
         <span class="fd-pulse-status" title={`Colony ${STATUS_WORD[status].toLowerCase()}`}>
           <Icon name={STATUS_SHAPE[status]} size={20} label={`Colony status: ${STATUS_WORD[status]}`} class={`is-${status}`} />

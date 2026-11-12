@@ -7,7 +7,10 @@ import type { Sim, WorldData } from '@/sim/types';
 import { FOREST_DAPPLE } from '../materials/dapple';
 import { MaterialLibrary } from '../materials/materialLibrary';
 import { createWorldUniforms, type WorldUniforms } from '../materials/uniforms';
+import { applyOcclusion, CONTACT_RADIUS_BU } from '../materials/occlusion';
 import { PrimitiveRenderer } from '../primitives/primitiveRenderer';
+import { lookTable } from '../dressing/looks';
+import { GroundGrit } from '../dressing/groundGrit';
 import { applySky, createSkyDome, createSkyUniforms, type SkyUniforms } from '../sky/skyDome';
 import { SkyEnvironment } from '../sky/skyEnvironment';
 import { MoundRenderer } from '../terrain/moundRenderer';
@@ -44,6 +47,8 @@ export class WorldRenderer {
   prims!: PrimitiveRenderer;
   mounds!: MoundRenderer;
   rig!: LightingRig;
+  /** Loose grains with volume on the ground near the camera focus (dressing/groundGrit.ts). */
+  grit!: GroundGrit;
   readonly lighting: LightingState = createLightingState();
   readonly env: EnvSample = createEnvSample();
   private ctx!: WorldRenderContext;
@@ -78,10 +83,11 @@ export class WorldRenderer {
     this.terrain = new TerrainRenderer(this.library, this.uniforms, ctx.quality);
     this.prims = new PrimitiveRenderer(this.library, PRIM_NEAR_BU[ctx.quality.id] * 4);
     this.rig = new LightingRig(ctx.quality, 4);
+    this.grit = new GroundGrit(this.uniforms, ctx.quality);
     this.sky = createSkyUniforms();
     this.skyMesh = createSkyDome(this.sky, SKY_RADIUS);
     this.skyEnv = new SkyEnvironment(ctx.renderer, this.sky);
-    this.group.add(this.skyMesh, this.rig.group, this.terrain.group, this.prims.group);
+    this.group.add(this.skyMesh, this.rig.group, this.terrain.group, this.prims.group, this.grit.group);
     ctx.scene.add(this.group);
     await this.library.ready();
   }
@@ -101,6 +107,8 @@ export class WorldRenderer {
     this.setCanopy(world);
     this.mounds = new MoundRenderer(this.library, this.terrain.holeMask!.uniforms);
     this.group.add(this.mounds.group);
+    this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
+    this.prims.setLooks(lookTable(world.objects));
     this.prims.setStatic(staticPrims(world));
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
@@ -139,6 +147,7 @@ export class WorldRenderer {
     this.sim = null;
     if (this.mounds) { this.group.remove(this.mounds.group); this.mounds.dispose(); }
     this.prims.clear();
+    this.grit.setSource(null);
     this.moved.clear();
     this.movesSig = Number.NaN;
   }
@@ -191,6 +200,7 @@ export class WorldRenderer {
     this.ctx.quality = q;
     this.terrain.setQuality(q);
     this.library.setAnisotropy(q.anisotropy);
+    this.grit.setQuality(q);
     if (this.world) {
       this.rig.setQuality(q, this.world.bu);
       this.prims.nearMm = PRIM_NEAR_BU[q.id] * this.world.bu;
@@ -250,12 +260,21 @@ export class WorldRenderer {
     u.uUnder.value = this.under;
     u.uHaze.value.copy(this.lighting.fogColor);
     u.uWindDir.value.set(this.env.windDir.x, this.env.windDir.z);
+    applyOcclusion(u, frame.occlusion);
+    // contact darkening only under a real subject (no subject: the focus point ahead of the camera is no ant)
+    if (frame.subject && this.under < 0.99) u.uContact.value.set(this.subject.x, this.subject.y, this.subject.z, CONTACT_RADIUS_BU * bu);
+    else u.uContact.value.w = 0;
     this.applyDapple(frame);
 
     // dynamic world
     this.terrain.update(this.camPos.x, this.camPos.z);
     const hs = heightDeltaSignature(sim);
-    if (hs !== this.heightSig) { this.heightSig = hs; this.terrain.updateHeights(terrainSource(this.world, sim).heights); }
+    if (hs !== this.heightSig) {
+      this.heightSig = hs;
+      this.terrain.updateHeights(terrainSource(this.world, sim).heights);
+      this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
+    }
+    this.grit.update(this.subject.x, this.subject.z, this.under);
     const moves = objectMoves(sim), movesSig = objectMovesSignature(moves);
     if (movesSig !== this.movesSig) { this.movesSig = movesSig; movedStaticPrims(this.world, moves, this.moved); }
     this.prims.syncDynamic(dynamicPrims(sim), this.moved);
@@ -274,6 +293,12 @@ export class WorldRenderer {
     const k = l.keyDir, y = Math.max(0.05, k.y);
     d.set(amount, frame.reducedMotion ? 0 : frame.time, k.x / y, k.z / y);
     this.uniforms.uDappleMm.value = FOREST_DAPPLE.scaleBU * (this.world?.bu ?? 4);
+  }
+
+  /** A nest opening (breach sphere) reaches the ground at (x, z): no grit there. */
+  private inBreach(x: number, z: number): boolean {
+    for (const b of breaches(this.sim)) if (Math.hypot(b.pos.x - x, b.pos.z - z) < b.r) return true;
+    return false;
   }
 
   /** Distance past which primitives are invisible: the haze (when on) or the preset's draw distance, mm. */
@@ -315,8 +340,9 @@ export class WorldRenderer {
   }
 
   /** Counters for budgets and tests. */
-  stats(): { terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; holeTilesDropped: number; envBakes: number } {
+  stats(): { terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; holeTilesDropped: number; envBakes: number; gritGrains: number; gritTriangles: number } {
     return {
+      gritGrains: this.grit.count, gritTriangles: this.grit.triangles,
       terrainLevels: this.terrain.levelCount, terrainTriangles: this.terrain.triangles, prims: this.prims.stats(), mounds: this.mounds?.count ?? 0,
       holeSlots: this.terrain.holeMask?.usedSlots ?? 0, holeTilesDropped: this.terrain.holeMask?.droppedTiles ?? 0, envBakes: this.skyEnv.bakes,
     };
@@ -331,6 +357,7 @@ export class WorldRenderer {
     if (this.ctx.scene.fog === this.rig.fog) this.ctx.scene.fog = null;
     this.terrain.dispose();
     this.prims.dispose();
+    this.grit.dispose();
     this.mounds?.dispose();
     this.rig.dispose();
     this.skyEnv.dispose();

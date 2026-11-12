@@ -28,10 +28,15 @@ export function onHudKey(e: KeyboardEvent): void {
   if (snapshot.peek().mode !== 'playing') return;
   if (matchesAction(e, 'directives')) { e.preventDefault(); togglePanel('directives'); return; }
   if (matchesAction(e, 'roster')) { e.preventDefault(); togglePanel('roster'); return; }
-  if (e.code === BACKQUOTE && !e.shiftKey) {
-    const first = document.querySelector<HTMLElement>('[data-hud="alerts"] [data-alert-button]');
-    if (first) { e.preventDefault(); first.focus(); }
-  }
+  if (e.code === BACKQUOTE && !e.shiftKey && enterFeed()) e.preventDefault();
+}
+
+/** Moves the focus into the alerts feed; with no card on screen, into the colony pulse (it expands on keyboard focus). */
+export function enterFeed(): boolean {
+  const first = document.querySelector<HTMLElement>('[data-hud="alerts"] [data-alert-button]') ?? document.querySelector<HTMLElement>('[data-hud="pulse"]');
+  if (!first) return false;
+  first.focus();
+  return true;
 }
 
 export function installHudKeys(win: Window = window): () => void {

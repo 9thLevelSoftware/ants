@@ -6,7 +6,10 @@
 // Mapping happens in primitive-local space for instances (moved objects keep their texture) or world space.
 import type { MeshStandardMaterial, Uniform, Vector4, WebGLProgramParametersWithUniforms } from 'three';
 import { dappledLightsChunk, GLSL_DAPPLE } from './dapple';
+import { foliageLightsChunk } from '../decor/foliageLight';
+import { LOOK_FRAG_DECL, LOOK_VERT_DECL, LOOK_VERT_MAIN, lookFragMain } from '../dressing/finishGlsl';
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
+import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms } from './occlusion';
 import type { MaterialDef } from './materialDefs';
 import type { TextureSet } from './materialLibrary';
 import type { WorldUniforms } from './uniforms';
@@ -41,6 +44,11 @@ export interface SurfacePatchOptions {
   breaches?: BreachList;
   /** Macro albedo noise strength (0 = off). */
   macro?: number;
+  /**
+   * Per-instance finishes (dressing/looks.ts): needs `prim` and the per-instance `iLook` attribute. Replaces the
+   * instance colour multiply, roughness, metalness and clear coat, and adds foliage translucency.
+   */
+  looks?: boolean;
   extra?: SurfaceExtra;
 }
 
@@ -73,7 +81,9 @@ attribute vec4 iSize;`)
 
 export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOptions): void {
   const d = o.def;
-  const key = `surf|${d.id}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}`;
+  const looks = !!(o.looks && o.prim);
+  const rustScan = d.texture === 'metal_painted';
+  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|v3`;
   addPatch(mat, key, (s) => {
     if (o.prim) primVertexPatch(s, o.prim);
     s.uniforms.tWrA = { value: o.set.albedo };
@@ -88,6 +98,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
     s.uniforms.tWrCanopy = o.uniforms.tDappleMask;
     s.uniforms.uWrCanopyInv = o.uniforms.uDappleMaskInv;
     if (o.breaches) { s.uniforms.uWrBreach = o.breaches.spheres; s.uniforms.uWrBreachN = o.breaches.count; }
+    Object.assign(s.uniforms, occlusionUniforms(o.uniforms));
     if (o.extra) Object.assign(s.uniforms, o.extra.uniforms);
     const defs = [
       o.space === 'instance' ? '#define WR_LOCAL' : '',
@@ -97,6 +108,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
       `#define WR_WETDARK ${d.wetDarken.toFixed(3)}`,
       `#define WR_WETROUGH ${d.wetRough.toFixed(3)}`,
       `#define WR_ROUGHMIN ${d.roughMin.toFixed(3)}`,
+      looks ? '#define WR_LOOKS' : '',
     ].join('\n');
 
     s.vertexShader = s.vertexShader
@@ -106,6 +118,7 @@ varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 #ifdef WR_LOCAL
 varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
 #endif
+${looks ? LOOK_VERT_DECL : ''}
 ${o.extra?.vertDecl ?? ''}`)
       .replace('#include <project_vertex>', `#include <project_vertex>
 {
@@ -122,6 +135,7 @@ ${o.extra?.vertDecl ?? ''}`)
   #else
   vWrP = wrW.xyz; vWrN = normalize(wrR * objectNormal);
   #endif
+  ${looks ? LOOK_VERT_MAIN : ''}
   ${o.extra?.vertMain ?? ''}
 }`);
 
@@ -131,6 +145,8 @@ ${defs}
 ${GLSL_NOISE}
 ${GLSL_TRIPLANAR}
 ${GLSL_WET}
+${GLSL_OCCLUSION}
+${GLSL_CONTACT}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 ${GLSL_DAPPLE}
 #ifdef WR_LOCAL
@@ -140,8 +156,10 @@ uniform sampler2D tWrA, tWrN, tWrR; uniform float uWrScale, uWrNs; uniform vec3 
 #ifdef WR_BREACH
 uniform vec4 uWrBreach[WR_BREACH]; uniform int uWrBreachN;
 #endif
+${looks ? LOOK_FRAG_DECL : ''}
 ${o.extra?.fragDecl ?? ''}`)
       .replace('#include <map_fragment>', `
+wrOccDither(vWrW, 1.0);
 #ifdef WR_BREACH
 for (int i = 0; i < WR_BREACH; i++) {
   if (i >= uWrBreachN) break;
@@ -172,18 +190,34 @@ wrAlb *= uWrTint;
 #ifdef WR_MACRO
 wrAlb *= mix(1.0 - WR_MACRO, 1.0 + WR_MACRO, wrFbm(vWrW.xz / 340.0));
 #endif
+// detail fade where a texel is smaller than a few pixels (far, or grazing views): the normal map and the
+// albedo contrast fall toward their mean instead of sparkling, and the lost micro-relief turns into roughness
+float wrFootprint = length(fwidth(vWrW)) / (uWrScale / float(textureSize(tWrA, 0).x));
+float wrFade = smoothstep(1.5, 7.0, wrFootprint);
+wrNw = normalize(mix(wrNw, wrN0, 0.7 * wrFade));
+wrAlb = mix(wrAlb, textureLod(tWrA, vec2(0.5), 12.0).rgb * uWrTint, 0.35 * wrFade);
+wrRg = min(1.0, wrRg + 0.12 * wrFade);
+${looks ? lookFragMain(rustScan) : ''}
 vec3 wrNwWorld = normalize(wrRot * wrNw);
 // undersides stay drier than tops (rain falls, shelter flags are a sim matter)
 float wrWet = uWet * (0.45 + 0.55 * smoothstep(-0.3, 0.7, normalize(wrRot * wrN0).y));
 ${o.extra?.fragMain ?? ''}
-diffuseColor.rgb *= wrWetAlbedo(wrAlb, wrWet, WR_WETDARK);
+diffuseColor.rgb *= wrWetAlbedo(wrAlb, wrWet, WR_WETDARK) * wrContactAO(vWrW);
 `)
-      .replace('#include <roughnessmap_fragment>', `
+      .replace('#include <roughnessmap_fragment>', looks ? `
+float roughnessFactor = wrWetRough(wrRoughO >= 0.0 ? wrRoughO : max(WR_ROUGHMIN, roughness * wrRg), wrWet, WR_WETROUGH);
+` : `
 float roughnessFactor = wrWetRough(max(WR_ROUGHMIN, roughness * wrRg), wrWet, WR_WETROUGH);
 `)
       .replace('#include <normal_fragment_maps>', `
 normal = normalize((viewMatrix * vec4(wrNwWorld, 0.0)).xyz);
 `)
-      .replace('#include <lights_fragment_begin>', dappledLightsChunk());
+      .replace('#include <lights_fragment_begin>', looks ? foliageLightsChunk('wrTransl', 'vec3(1.0, 1.05, 0.8)') : dappledLightsChunk());
+    if (looks) {
+      s.fragmentShader = s.fragmentShader
+        .replace('#include <color_fragment>', '') // the instance colour is applied by the finish (lookFragMain)
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = wrMetal;')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\nmaterial.clearcoat *= wrCoat;\n#endif');
+    }
   });
 }

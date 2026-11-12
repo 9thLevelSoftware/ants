@@ -8,9 +8,10 @@ import {
   BOOM_SPRING_TAU, CAM_AUTOFOLLOW_DELAY_S, CAM_AUTOFOLLOW_MAX_DEG_S, CAM_AUTOFOLLOW_MAX_TURN_DEG_S, CAM_AUTOFOLLOW_MIN_SPEED_BU,
   CAM_AUTOFOLLOW_TAU, CAM_FAR_BU, CAM_LOOKAHEAD_MAX_L, CAM_LOOKAHEAD_T, CAM_PIVOT_UP_L, CAM_PUSHOUT_TAU, CAM_RADIUS_L, CAM_RADIUS_MAX_BU,
   CAM_RADIUS_MIN_BU, CAM_RECENTRE_S, CAM_REDUCED_FOV_SPREAD_DEG, CAM_STATE_BLEND_S, CAM_STATE_BLEND_S_REDUCED, CAM_TUNNEL_LOOKAHEAD_BU,
-  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_MAX_REL_SPEED_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
+  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
 } from './constants';
-import { boomPoint, solveBoom } from './boomPath';
+import { boomPoint, fitsAt, solveBoom } from './boomPath';
+import { MotionGuard } from './motionGuard';
 import type { FieldFn } from './sphereTrace';
 import { creviceForcesCutaway, OcclusionTracker, writeFade } from './fade';
 import { comfortWeight, leanUp, PinchFallback } from './pinch';
@@ -68,6 +69,9 @@ export interface ThirdPersonOutput extends CameraPose {
 }
 
 const WORLD_UP: Vec3 = { x: 0, y: 1, z: 0 };
+/** Directions tried when the trail behind the target is rebuilt (degrees from straight back; tilt out of the plane). */
+const REBUILD_YAWS = [0, 30, -30, 60, -60, 90, -90];
+const REBUILD_TILTS = [0, 30, -30];
 
 export class ThirdPersonRig {
   readonly opts: Required<ThirdPersonOptions>;
@@ -101,13 +105,10 @@ export class ThirdPersonRig {
   /** Path assist (orbit squeezed by a low ceiling -> the boom path): weight 0..1 and its switch. */
   private assist = 0;
   private assistOn = false;
-  /** Last frame's camera and pivot base (motion limiter). */
-  private lastCam = vec3();
-  private lastBase = vec3();
-  private hasLast = false;
+  private guard = new MotionGuard();
   // scratch
   private pivot = vec3(); private base = vec3(); private tmp = vec3(); private tmp2 = vec3(); private h = vec3(); private dir = vec3();
-  private posA = vec3(); private posB = vec3(); private posC = vec3(); private goal = vec3(); private bUp = vec3(); private thorax = vec3();
+  private posA = vec3(); private posB = vec3(); private goal = vec3(); private bUp = vec3(); private thorax = vec3();
 
   constructor(opts: ThirdPersonOptions) {
     this.opts = { autoFollow: 'gentle', reducedMotion: false, worldUpLock: false, fovOffset: 0, far: CAM_FAR_BU * opts.bu, ceilingComfort: false, ...opts };
@@ -172,7 +173,7 @@ export class ThirdPersonRig {
     this.boomArc = Infinity;
     this.occl.reset();
     this.pinch.reset();
-    this.hasLast = false;
+    this.guard.reset();
     this.assist = 0; this.assistOn = false;
     this.initialised = true;
   }
@@ -182,9 +183,23 @@ export class ThirdPersonRig {
     this.crumbs.clear();
     const L = this.lengthMm;
     v3AddScaled(this.tmp, t.pos, t.up, 0.3 * L);
-    v3Scale(this.tmp2, t.fwd, -1);
-    const free = trace(this.tmp, this.tmp2, 6 * L, 0.1 * L);
-    const n = Math.max(1, Math.floor(free / this.crumbs.spacing));
+    // straight back unless a wall is there: an ant just possessed in a tunnel faces any way, so the first direction of
+    // a fan behind it (in its tangent plane, then tilted +-30 degrees out of it; nearest to straight back first) with
+    // room for the tunnel boom becomes the trail, else the freest of them
+    tangentDir(this.h, t.fwd, t.up);
+    const enough = this.stateDistMm('tunnel');
+    let best = -1;
+    search: for (const tilt of REBUILD_TILTS) {
+      for (const yaw of REBUILD_YAWS) {
+        rotateAboutAxis(this.dir, this.h, t.up, Math.PI + yaw * DEG);
+        v3Cross(this.posB, this.dir, t.up);
+        if (tilt !== 0 && v3Normalize(this.posB, this.posB) > 1e-9) rotateAboutAxis(this.dir, this.dir, this.posB, tilt * DEG);
+        const free = trace(this.tmp, this.dir, 6 * L, 0.1 * L);
+        if (free > best + 0.05 * L) { best = free; v3Copy(this.tmp2, this.dir); }
+        if (free >= enough) break search;
+      }
+    }
+    const n = Math.max(1, Math.floor(best / this.crumbs.spacing));
     for (let i = n; i >= 1; i--) {
       v3AddScaled(this.posA, t.pos, this.tmp2, i * this.crumbs.spacing);
       this.crumbs.push(this.posA, t.up);
@@ -205,6 +220,8 @@ export class ThirdPersonRig {
   }
 
   update(dt: number, t: CameraTarget, input: OrbitInput, env: ThirdPersonEnv): ThirdPersonOutput {
+    // a teleport (or a new subject) is not motion: start over behind it (no flight through the world, no stale trail)
+    if (this.initialised && v3Distance(t.pos, this.prevPos) > CAM_SNAP_JUMP_L * this.lengthMm) this.initialised = false;
     if (!this.initialised) this.init(t, env);
     const L = this.lengthMm, R = this.collisionRadiusMm, o = this.out, trace = env.trace;
     dt = Math.max(0, Math.min(dt, 0.25));
@@ -298,17 +315,10 @@ export class ThirdPersonRig {
     const allowed = v3Distance(o.pos, this.base);
     this.pinch.update(dt, allowed, L);
     this.pinch.apply(o.pos, o.up, this.base, u, t.fwd, L, R, trace);
-    // no jumps: relative to the moving pivot the camera travels at most CAM_MAX_REL_SPEED_L L/s (a pull-in that is
-    // still in free space may take a few frames; line of sight is then the occlusion cutaway's job, rule 3)
+    // no jumps, and GDD 6.1's f >= 0.5 R on every frame (motionGuard.ts)
     v3Copy(this.goal, o.pos);
-    o.guarded = false;
-    this.limitStep(o.pos, dt, L);
-    // last line of defence for GDD 6.1 (f >= 0.5 R every frame)
-    this.ensureClear(o.pos, this.goal, trace, u);
-    v3Copy(this.lastCam, o.pos);
-    v3Copy(this.lastBase, this.base);
+    o.guarded = this.guard.apply(o.pos, this.goal, this.base, u, dt, L, this.clearanceMm, trace);
     v3Copy(o.base, this.base);
-    this.hasLast = true;
     const origin = sp.framing === 'boom' ? this.base : this.pivot;
     if (!useOrbit) this.dist = v3Distance(o.pos, origin);
 
@@ -406,7 +416,7 @@ export class ThirdPersonRig {
       v3Cross(this.h, this.tmp, u);
       if (v3Normalize(this.h, this.h) > 1e-9) rotateAboutAxis(this.tmp, this.tmp, this.h, this.boomPitch);
       v3AddScaled(this.dir, this.base, this.tmp, 1);
-      if (fits(trace, this.dir, u, check)) v3Copy(out, this.dir);
+      if (fitsAt(trace, this.dir, u, check)) v3Copy(out, this.dir);
     }
     return out;
   }
@@ -430,40 +440,6 @@ export class ThirdPersonRig {
     if (allowed < this.dist) this.dist = allowed;
     else this.dist += (allowed - this.dist) * smoothK(dt, CAM_PUSHOUT_TAU);
     return v3AddScaled(out, this.pivot, this.dir, this.dist);
-  }
-
-  /** Rate-limits the camera's motion relative to the pivot base (see update). */
-  private limitStep(p: Vec3, dt: number, L: number): void {
-    if (!this.hasLast || dt <= 0) return;
-    // where last frame's camera would be if it had moved with the pivot
-    this.tmp.x = this.lastCam.x + this.base.x - this.lastBase.x;
-    this.tmp.y = this.lastCam.y + this.base.y - this.lastBase.y;
-    this.tmp.z = this.lastCam.z + this.base.z - this.lastBase.z;
-    v3Sub(this.dir, p, this.tmp);
-    const d = v3Length(this.dir), max = CAM_MAX_REL_SPEED_L * L * dt;
-    if (d > max) v3AddScaled(p, this.tmp, this.dir, max / d);
-  }
-
-  /**
-   * GDD 6.1 guard: if a sphere of 0.5 R (plus a margin) does not fit at p, p moves toward an anchor that fits - this
-   * frame's framing result `goal` (collision-resolved, so normally clear), else the pivot base - by bisection, so it
-   * stays as close as possible to where the motion limiter wanted it.
-   */
-  private ensureClear(p: Vec3, goal: Vec3, trace: TraceFn, u: Vec3): void {
-    const r = this.clearanceMm * 1.05;
-    if (fits(trace, p, u, r)) return;
-    this.out.guarded = true;
-    const anchor = fits(trace, goal, u, r) ? goal : this.base;
-    if (anchor === this.base && !fits(trace, this.base, u, r)) { v3Copy(p, this.base); return; }
-    v3Copy(this.posA, p);
-    v3Copy(this.posC, anchor);
-    let lo = 0, hi = 1; // fraction of the way from the anchor to p
-    for (let i = 0; i < 10; i++) {
-      const m = (lo + hi) / 2;
-      v3Lerp(this.tmp, this.posC, this.posA, m);
-      if (fits(trace, this.tmp, u, r)) lo = m; else hi = m;
-    }
-    v3Lerp(p, this.posC, this.posA, lo);
   }
 
   /** Where an orbit / chase framing wants the camera (before collision). */
@@ -495,11 +471,6 @@ export class ThirdPersonRig {
       this.reversalFor = 0;
     }
   }
-}
-
-/** Does a sphere of radius `r` at `p` lie in free space? (The trace returns 0 when it already touches solid.) */
-function fits(trace: TraceFn, p: Vec3, dir: Vec3, r: number): boolean {
-  return trace(p, dir, r * 0.01, r) > 0;
 }
 
 /** Convenience: unit heading set on a CameraTarget literal. */

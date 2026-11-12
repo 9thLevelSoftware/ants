@@ -12,6 +12,7 @@ import { HOLE_MASK_GLSL } from '../terrain/holeMask';
 import { DRAPE_GLSL } from './drape';
 import { DRAPED_RESOLVE_GLSL, DRAPED_VERT_GLSL, LEAF_ATLAS } from './drapedShape';
 import { foliageLightsChunk } from './foliageLight';
+import { GLSL_OCCLUSION, occlusionUniforms, WORLD_OCCLUSION_TERRAIN_TMAX } from '../materials/occlusion';
 import { DRAPED_KIND as K } from './instances';
 import type { DecorShared } from './shared';
 
@@ -108,7 +109,7 @@ export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): 
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0, side: DoubleSide });
   m.name = 'decor:draped';
   const w = shared.world, d = shared.decor, dr = shared.drape, h = shared.hole;
-  addPatch(m, 'decor-draped', (s) => {
+  addPatch(m, 'decor-draped-occ', (s) => {
     Object.assign(s.uniforms, {
       uTime: w.uTime, uCamPos: w.uCamPos, uWet: w.uWet,
       uWrDapple: w.uDapple, uWrDappleMm: w.uDappleMm, tWrCanopy: w.tDappleMask, uWrCanopyInv: w.uDappleMaskInv,
@@ -118,6 +119,7 @@ export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): 
       uDcDry: d.uDcDry, uDcFreshTint: d.uDcFreshTint, uTransl: d.uTransl,
       tDcFresh: new Uniform(tex.freshAlbedo), tDcFreshA: new Uniform(tex.freshAlpha), tDcDry: new Uniform(tex.dryAlbedo),
       tDcDryA: new Uniform(tex.dryAlpha), tDcMoss: new Uniform(tex.moss),
+      ...occlusionUniforms(w),
     });
     s.vertexShader = s.vertexShader
       .replace('#include <common>', `#include <common>\n${DRAPE_GLSL}\n${DRAPED_VERT_GLSL}\nvarying vec3 vWrW; varying vec3 vDcT;`)
@@ -125,10 +127,11 @@ export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): 
       .replace('#include <begin_vertex>', 'vec3 transformed = dcP;')
       .replace('#include <project_vertex>', '#include <project_vertex>\ngl_Position = drapedBias(gl_Position, mvPosition.xyz, iC.w);');
     s.fragmentShader = s.fragmentShader
-      .replace('#include <common>', `#include <common>\n${DRAPE_GLSL}\nvarying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;\nuniform vec2 uDcBias; uniform vec3 uCamPos; uniform float uDcBu;\n${FRAG_DECL}`)
+      .replace('#include <common>', `#include <common>\n${DRAPE_GLSL}\nvarying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;\nuniform vec2 uDcBias; uniform vec3 uCamPos; uniform float uDcBu;\n${GLSL_OCCLUSION}\n${FRAG_DECL}`)
       .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\ndcIn = dcResolve(dcUv, dcWp);\ngl_FragDepth = length(vDcW - uCamPos) > uDcFix.x ? gl_FragCoord.z : dcDepth(dcWp);')
       .replace('#include <map_fragment>', `
 if (!dcIn || vDcFade <= 0.0 || wrHoleMask(dcWp.xz) > 0.5) discard;
+wrOccDither(dcWp, ${WORLD_OCCLUSION_TERRAIN_TMAX.toFixed(3)}); // lies on the ground: like the terrain
 vec3 dcCol; float dcA, dcRough, dcTr; vec2 dcBump;
 dcItem(dcCol, dcA, dcRough, dcTr, dcBump);
 if (dcA < 0.5 || wrHash12(floor(gl_FragCoord.xy)) > vDcFade) discard;

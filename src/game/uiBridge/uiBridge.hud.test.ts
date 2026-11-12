@@ -24,7 +24,7 @@ function simWith(workers: number, extra = 0): Sim {
   return sim;
 }
 
-beforeEach(() => { hudRequests.roster = null; hudRequests.inspect = null; hudRequests.hooks = null; });
+beforeEach(() => { hudRequests.roster = null; hudRequests.inspect = null; hudRequests.hooks = null; hudRequests.directivesOpen = true; });
 
 describe('structural sharing', () => {
   it('plainEqual compares plain data deeply', () => {
@@ -117,6 +117,13 @@ describe('HUD slices', () => {
 });
 
 describe('directives slice', () => {
+  it('is built only while the Directives drawer is open (no pass over the colony otherwise)', () => {
+    const sim = simWith(4);
+    hudRequests.directivesOpen = false;
+    expect(new SnapshotBuilder().build(src(sim), 0, 0).directives).toBeNull();
+    hudRequests.directivesOpen = true;
+    expect(new SnapshotBuilder().build(src(sim), 0, 0).directives).not.toBeNull();
+  });
   it('reports the allocation mode, shares, need, target and actual per group', () => {
     const sim = simWith(8);
     const d = new SnapshotBuilder().build(src(sim), 0, 0).directives!;
@@ -140,6 +147,23 @@ describe('directives slice', () => {
 });
 
 describe('roster slice', () => {
+  it('ants that die between refreshes leave the list at once, also inside the 500 ms throttle', () => {
+    const sim = simWith(12);
+    const b = new SnapshotBuilder();
+    hudRequests.roster = { ...defaultQuery(), limit: 8 };
+    const r1 = b.build(src(sim), 0, 0).roster!;
+    const doomed = r1.rows.slice(2, 4).map((x) => x.id);
+    for (const id of doomed) sim.enqueue({ type: 'cheat.kill', id, cause: 'injury' });
+    sim.applyPendingCommands();
+    sim.tick();
+    // inside the throttle a scroll still builds rows from the frozen order: the dead are skipped and the total follows
+    hudRequests.roster = { ...defaultQuery(), limit: 8, offset: 1 };
+    const r2 = b.build(src(sim), 1, 100).roster!;
+    expect(r2.rows.map((x) => x.id)).not.toContain(doomed[0]);
+    expect(r2.rows.map((x) => x.id)).not.toContain(doomed[1]);
+    expect(r2.rows).toHaveLength(8);
+    expect(r2.total).toBe(r1.total - 2);
+  });
   it('is empty while closed and answers a query while open', () => {
     const sim = simWith(10);
     const b = new SnapshotBuilder();

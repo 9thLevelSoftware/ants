@@ -3,7 +3,11 @@
 // bounding radius, largest first. A partition pass visits only cells inside the cull distance and, inside a run,
 // stops at the first primitive too small to see from the cell; so its cost follows what is visible, not the world.
 import type { Primitive } from '@/sim/types';
+import type { PrimLook } from '../dressing/looks';
 import { instanceShape, lodAt, tintColor, type GeomKind, type Lod } from './primInstances';
+
+/** Look of a primitive (render-only dressing): colour + finish vector; null = default colour, natural finish. */
+export type LookFn = (p: Primitive) => PrimLook;
 
 /** One batch of instances that can share a draw call (per level of detail). */
 export interface BatchDef {
@@ -45,6 +49,8 @@ export class PrimSet {
   readonly ids: Int32Array;
   readonly matrices: Float32Array;
   readonly colors: Float32Array;
+  /** Per-instance finish vector (dressing/looks.ts iLook), 4 floats each. */
+  readonly looks: Float32Array;
   readonly sizes: Float32Array;
   readonly pos: Float32Array;
   readonly radius: Float32Array;
@@ -60,11 +66,12 @@ export class PrimSet {
    * @param cellMm edge of a grid cell, mm (a primitive belongs to the cell of its centre; the cell bounds grow to
    *   hold its whole bounding sphere, so big objects are never culled early)
    */
-  constructor(prims: readonly Primitive[], diggable: (p: Primitive) => boolean, cellMm: number) {
+  constructor(prims: readonly Primitive[], diggable: (p: Primitive) => boolean, cellMm: number, look?: LookFn) {
     const n = prims.length;
     this.ids = new Int32Array(n);
     this.matrices = new Float32Array(n * 16);
     this.colors = new Float32Array(n * 3);
+    this.looks = new Float32Array(n * 4);
     this.sizes = new Float32Array(n * 4);
     this.pos = new Float32Array(n * 3);
     this.radius = new Float32Array(n);
@@ -88,7 +95,14 @@ export class PrimSet {
       this.ids[i] = p.id;
       this.indexById.set(p.id, i);
       composeMatrix(p, this.matrices, i * 16);
-      this.colors.set(tintColor(p, rgb), i * 3);
+      tintColor(p, rgb);
+      const lk = look?.(p);
+      if (lk) {
+        // a looked-up colour keeps a little of the per-primitive variation (no two cars of one paint are equal)
+        if (lk.color) { const v = 0.94 + 0.12 * ((rgb[1] - 0.84) / 0.32); rgb[0] = lk.color[0] * v; rgb[1] = lk.color[1] * v; rgb[2] = lk.color[2] * v; }
+        this.looks.set(lk.look, i * 4);
+      }
+      this.colors.set(rgb, i * 3);
       this.sizes.set(shape.size, i * 4);
       this.pos[i * 3] = p.pos.x; this.pos[i * 3 + 1] = p.pos.y; this.pos[i * 3 + 2] = p.pos.z;
       this.radius[i] = Number.isFinite(shape.radius) ? Math.max(0, shape.radius) : 0;

@@ -44,11 +44,17 @@ describe('SimReader', () => {
     expect(r.readAnt(r.ants[1]!, 1, newAntSample()).callow).toBe(0);
   });
   it('wings follow the WINGED flag and the founding queen\'s wings, not the caste', () => {
-    const r = new SimReader(source([
+    const src = source([
       ant({ caste: 'gyne', flags: AntFlag.WINGED }), ant({ id: 2, caste: 'gyne' }),
       ant({ id: 3, caste: 'queen', queen: { founding: { wings: true } } }), ant({ id: 4, caste: 'queen', queen: { founding: null } }),
-    ]));
-    expect(r.ants.map((a) => r.readAnt(a, 1, newAntSample()).winged)).toEqual([true, false, true, false]);
+    ]);
+    const read = () => { const r = new SimReader(src); r.beginFrame(); return r.ants.map((a) => r.readAnt(a, 1, newAntSample()).winged); };
+    // look-pass: the founding queen has already flown; her wings show only while the dealation is on screen
+    expect(read()).toEqual([true, false, false, false]);
+    src.state.player.opening = { phase: 'dealation' };
+    expect(read()).toEqual([true, false, true, false]);
+    src.state.player.opening = { phase: 'search' };
+    expect(read()).toEqual([true, false, false, false]);
   });
   it('reads brood and items into samples (carried, species, pile kinds)', () => {
     const src = source([]);

@@ -118,3 +118,27 @@ describe('possession camera in the real nest (views acceptance 3)', () => {
     });
   }
 });
+
+describe('possessing an ant that stands in a tunnel (no trail yet)', () => {
+  it('the rebuilt trail runs along the tunnel whatever way the ant faces: the shot frames her from > 1 L', async () => {
+    const { makeTestSim } = await import('@/sim/testing');
+    const { walkerPlace } = await import('@/sim/locomotion/walker');
+    const sim = makeTestSim({ nest: 'small', systems: [] });
+    const nest = sim.state.nests[0], bu = sim.world.bu;
+    const queen = sim.state.ants.find((a) => a.caste === 'queen')!;
+    const nursery = nest.chambers.find((c) => c.type === 'nursery')!, royal = nest.chambers.find((c) => c.type === 'royal')!;
+    // the middle of the nursery -> royal tunnel, facing across it (into the wall) rather than along it
+    const p = { x: (nursery.center.x + royal.center.x) / 2, y: (nursery.center.y + royal.center.y) / 2 - 2 * bu, z: (nursery.center.z + royal.center.z) / 2 };
+    const along = { x: royal.center.x - nursery.center.x, z: royal.center.z - nursery.center.z };
+    walkerPlace(sim.field, queen, p, { dir: { x: 0, y: -1, z: 0 }, heading: { x: -along.z, y: 0, z: along.x } }, sim.kernel.walker);
+    const d = director(sim);
+    const s: ViewSubject = { pos: { ...queen.pos }, up: { ...queen.up }, fwd: { ...queen.fwd }, lengthBu: queen.lengthBu, underground: true, airborne: false };
+    d.setView('possess', s, true);
+    d.settle(2, 1 / 30);
+    const o = d.third.out;
+    const L = queen.lengthBu * bu;
+    expect(sim.field.sampleXYZ(o.pos.x, o.pos.y, o.pos.z)).toBeGreaterThanOrEqual(d.third.clearanceMm);
+    expect(Math.hypot(o.pos.x - queen.pos.x, o.pos.y - queen.pos.y, o.pos.z - queen.pos.z)).toBeGreaterThan(1 * L);
+    expect(o.fade.target).toBeGreaterThan(0.9);
+  });
+});

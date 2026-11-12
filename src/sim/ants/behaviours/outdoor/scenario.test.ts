@@ -85,8 +85,9 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
     expect(hourDeliveries.length).toBeGreaterThanOrEqual(Math.floor(lo * (1 - EDGE_TOLERANCE)));
     expect(hourDeliveries.length).toBeLessThanOrEqual(Math.ceil(hi * (1 + EDGE_TOLERANCE)));
 
-    // remove the sugar: traffic to its rim stops; nobody keeps going there. A spill is worked at its rim, so the
-    // zone is the footprint plus 15 BU, and the traffic in it is measured before the removal as well.
+    // remove the sugar: forager traffic to its rim stops; no forager keeps going there. A spill is worked at its rim,
+    // so the zone is the footprint plus 15 BU, and the traffic in it is measured before the removal as well. Scouts
+    // are not counted: exploring, they may cross any ground, the empty spot included, without being sent there.
     const spot = { ...sugar.pos };
     const zone = footprintMm(sugar, sim.world.bu) + 15 * sim.world.bu;
     const visitsIn = (ticks: number) => {
@@ -95,7 +96,7 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
       let last = -1;
       run(sim, ticks, 20, () => {
         for (const a of sim.state.ants) {
-          if (!isOutdoorAnt(a) || a.nestId >= 0) continue;
+          if (!isOutdoorAnt(a) || a.task === 'scout' || a.nestId >= 0) continue;
           const near = Math.hypot(a.pos.x - spot.x, a.pos.z - spot.z) <= zone;
           if (near && !inside.has(a.id)) { visits.set(a.id, (visits.get(a.id) ?? 0) + 1); last = sim.state.tick; }
           if (near) inside.add(a.id); else inside.delete(a.id);

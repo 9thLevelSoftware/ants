@@ -1,7 +1,7 @@
 // Roster drawer (GDD 08 4.5, screen id `roster`, key L): quick possess buttons, filters, an id search and a virtualised,
 // sortable table of the colony's ants with Follow and Possess. Rows are 32 dp; only the rows in view (plus a few) exist
 // in the DOM, so 2,500 ants cost the same as 25. The list updates at most twice a second and keeps its order between
-// updates; a "Re-sort" chip appears when the order went stale. The drawer is 30 rem wide (a deviation from the 25 rem
+// updates; a "Re-sort" chip appears when the order went stale. The drawer is 34 rem wide (a deviation from the 25 rem
 // of the other drawers) so the eight columns of the chapter fit.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { UiRosterQuery, UiRosterRow } from '../../api';
@@ -12,7 +12,7 @@ import { TextField } from '../../components/TextField';
 import { DrawerShell } from '../../hud/DrawerShell';
 import { Meter } from '../../components';
 import { Icon } from '../../icons';
-import { CASTE_ICON, loads, TASK_ICON } from '../../hud/format';
+import { CASTE_ICON, casteCount, loads, TASK_ICON } from '../../hud/format';
 import { rosterSlice } from '../../hud/slices';
 import { closePanel, hudBridge, rosterQuery } from '../../hud/state';
 import { facade } from '../../store';
@@ -187,7 +187,7 @@ export function Roster() {
       {b && (
         <footer class="fd-roster-foot" data-testid="roster-brood">
           <Icon name="egg" size={16} decorative /> {b.egg} eggs <Icon name="larva" size={16} decorative /> {b.larva} larvae <Icon name="pupa" size={16} decorative /> {b.pupa} pupae
-          {Object.keys(b.byCaste).length > 0 && <span class="fd-roster-castes"> · will be {Object.entries(b.byCaste).map(([k, n]) => `${n} ${k}`).join(', ')}</span>}
+          {Object.keys(b.byCaste).length > 0 && <span class="fd-roster-castes"> · will be {Object.entries(b.byCaste).map(([k, n]) => casteCount(n, k)).join(', ')}</span>}
         </footer>
       )}
     </DrawerShell>

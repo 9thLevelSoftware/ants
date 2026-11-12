@@ -73,10 +73,13 @@ export default async ({ page, shot, log, wait }) => {
   await pic('02-queen-prompt-1280');
 
   // the key opens Directives without releasing her or changing the speed or the directives record
+  // the Directives data is built only while the drawer is open (it costs a pass over the colony)
+  expect(await g(() => window.__hud.snapshot().directives) === null, 'the directives slice is built while the drawer is closed');
   const before = { dirs: await dirs(), speed: (await summary()).time.speed, id: (await summary()).possessed.id };
   await page.keyboard.press('KeyI');
   await wait.frames(3);
   expect(await count('[data-testid="dir-workforce"]') === 1, 'I did not open Directives');
+  expect(await g(() => window.__hud.snapshot().directives !== null), 'the drawer opened without data (no refresh on open)');
   const afterOpen = { dirs: await dirs(), speed: (await summary()).time.speed, id: (await summary()).possessed.id };
   expect(JSON.stringify(afterOpen) === JSON.stringify(before), 'opening Directives changed the game', { before, afterOpen });
   expect(afterOpen.id === queenId, 'the queen is no longer possessed');
@@ -125,6 +128,16 @@ export default async ({ page, shot, log, wait }) => {
   await wait.frames(3);
   let t = (await summary()).time;
   expect(t.paused === true, 'the pause button did not pause', t);
+  // a mouse click must not leave the focus on the chip: Space ("let go") would press it again, Tab would walk the HUD
+  const focusAfterClick = await g(() => { const a = document.activeElement; return a && a !== document.body && a.tagName !== 'CANVAS' ? `${a.tagName}.${a.className}` : null; });
+  expect(focusAfterClick === null, 'a mouse click left the focus on a HUD chip', focusAfterClick);
+  await page.keyboard.press('Space');
+  await wait.frames(3);
+  expect((await summary()).time.paused === true, 'Space un-paused the game after a click on the pause button');
+  // (Tab is the game's cycle-ant key while the game has the focus: it is not pressed here)
+  const chipsTabbable = await g(() => [...document.querySelectorAll('.fd-root button, .fd-root [tabindex], .fd-root input')].filter((el) => !el.closest('.fd-drawer, .fd-alert-menu') && el.tabIndex >= 0).length);
+  expect(chipsTabbable === 0, 'HUD chips are in the tab order', chipsTabbable);
+  result.checks.focus = { afterClick: focusAfterClick, chipsInTabOrder: chipsTabbable };
   await q('[data-testid="speed-2"]').click();
   await wait.frames(3);
   t = (await summary()).time;
@@ -193,6 +206,23 @@ export default async ({ page, shot, log, wait }) => {
   expect(header === `Worker ${String(target).padStart(4, '0')}`, 'inspect header', header);
   expect(await count('.fd-ins-row') >= 6, 'inspect rows');
   await pic('07-inspect-1280');
+  // Esc unpins the card (and does not open the pause menu while it does)
+  await page.keyboard.press('Escape');
+  await wait.frames(3);
+  expect(await g(() => window.__hud.screen().drawer === null && !document.querySelector('.ui-pausecard')), 'Esc opened the pause menu instead of unpinning the card');
+  await wait(600);
+  await refresh();
+  expect(await count('[data-testid="inspect-card"]') === 0, 'Esc did not unpin the inspect card');
+  // a pinned card whose target dies goes away by itself
+  const victim = await g(() => window.__game.query.ants().filter((a) => a.caste === 'worker')[1].id);
+  await g((id) => window.__hud.inspect({ kind: 'ant', id }), victim);
+  await refresh();
+  expect(await count('[data-testid="inspect-card"]') === 1, 'no card for the second target');
+  await g((id) => window.__game.cheat.kill?.(id), victim);
+  await g(() => window.__game.step(2));
+  await wait(1400);
+  await refresh();
+  expect(await count('[data-testid="inspect-card"]') === 0, 'the pinned card of a dead target stayed');
   await g(() => window.__hud.inspect(null));
   await wait(600);
 
@@ -215,7 +245,20 @@ export default async ({ page, shot, log, wait }) => {
   expect(feed.more === 2, 'the +n chip should show 2', feed.more);
   await pic('08-alerts-1280', { draw: false }); // alerts age in real time (notices leave after 12 s): shoot at once, the scene is already drawn
   result.checks.alerts = { cards: feed.cards.map((c) => c.kind), more: feed.more, toasts: feed.toasts.length };
+  // HUD hidden (H): only critical alerts show, as one pinned card (GDD 08 3.4)
+  await sim((sm) => {
+    const mk = (id, kind, title) => ({ id, kind, level: 'critical', subjectId: id, title, cause: 'test', focus: null, diagnosticId: null, raisedTick: sm.state.tick + id, updatedTick: sm.state.tick, count: 1, acknowledged: false });
+    sm.state.progression.alerts.push(mk(9101, 'queen-in-danger', 'Queen in danger'), mk(9102, 'nest-flooding', 'Nest flooding'));
+  });
+  await g(() => window.__hud.game.toggleHud());
+  await refresh();
+  await wait.frames(3);
+  const hiddenFeed = await g(() => window.__hud.alerts());
+  expect(hiddenFeed.cards.length === 1 && hiddenFeed.cards[0].level === 'critical', 'a hidden HUD should show one pinned critical card', hiddenFeed.cards.map((c) => `${c.kind}:${c.level}`));
+  await g(() => window.__hud.game.toggleHud());
+  result.checks.hiddenCriticals = { cards: hiddenFeed.cards.length, more: hiddenFeed.more };
   await sim((sm) => { sm.state.progression.alerts.length = 0; });
+  await refresh();
 
   // --- 7. no forced reflow from the HUD in the frame loop --------------------------------------------------------
   await g(() => window.__game.release());
@@ -230,7 +273,7 @@ export default async ({ page, shot, log, wait }) => {
       if (!d) return () => {};
       const patched = { ...d };
       if (d.get) patched.get = function () { const st = new Error().stack ?? ''; if (/\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st) && !/useAnchor|ResizeObserver/.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.get.call(this); };
-      else if (typeof d.value === 'function') patched.value = function (...a) { const st = new Error().stack ?? ''; if (/\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.value.apply(this, a); };
+      else if (typeof d.value === 'function') patched.value = function (...a) { const st = new Error().stack ?? ''; if (/\/src\/ui\/hud\/|\/src\/ui\/panels\//.test(st) && !/ResizeObserver/.test(st)) hits.push(`${name}@${st.split('\n')[2]?.trim()}`); return d.value.apply(this, a); };
       Object.defineProperty(proto, name, patched);
       return () => Object.defineProperty(proto, name, d);
     };

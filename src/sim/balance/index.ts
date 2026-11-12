@@ -19,3 +19,4 @@ export * from './ecology';
 export * from './nestTemplates';
 export * from './pheromone';
 export * from './locomotion';
+export * from './founding';

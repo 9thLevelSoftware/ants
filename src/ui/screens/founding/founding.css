@@ -1,0 +1,79 @@
+/* The opening's screens (GDD 06 §5, GDD 08 §7.10, §9.2, §9.3): intro card, queen meters, site read-out, readiness
+   bar, glyph prompts, clutch forecast, time-lapse overlay, outcome card, hand-over banner, failure card. Tokens
+   from the shell (src/ui/styles); sizes in rem (1 rem = 16 dp). Nothing covers the middle of the screen except the
+   intro card, the outcome card and the failure card. */
+
+.fo-root { position: absolute; inset: 0; pointer-events: none; z-index: 12; color: var(--c-text); font-family: var(--font-ui, inherit); }
+.fo-chip { position: absolute; background: var(--c-scrim); border-radius: var(--r-m); box-shadow: var(--e-0); pointer-events: auto; padding: 0.5rem 0.75rem; }
+.fo-label { font-size: var(--t-small); line-height: var(--t-small-lh); color: var(--c-text-2); }
+.fo-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---- intro card: a field-journal plate ---- */
+.fo-intro { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(14, 12, 10, 0.55); pointer-events: auto; animation: fo-fade 0.8s ease-out both; }
+.fo-intro.is-instant { animation: none; }
+.fo-plate { display: grid; grid-template-columns: 13rem 1fr; gap: 1.5rem; padding: 1.75rem 2rem 1.25rem; width: 38rem; background: #e9dfc8; color: #2b241b; border: 1px solid #8a7c66; border-radius: 4px; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.45); }
+.fo-plate svg { width: 13rem; height: 9rem; }
+.fo-plate-cap { font-family: Georgia, 'Times New Roman', serif; display: flex; flex-direction: column; gap: 0.35rem; justify-content: center; }
+.fo-plate-common { font-size: 1.5rem; }
+.fo-plate-binomial { font-style: italic; font-size: 1.05rem; color: #4a3f31; }
+.fo-plate-place { font-size: 0.95rem; color: #4a3f31; margin-top: 0.5rem; }
+.fo-plate-when { font-size: 0.9rem; color: #5a4e3e; }
+.fo-plate-glyphs { grid-column: 1 / -1; display: flex; gap: 1.5rem; justify-content: center; padding-top: 0.75rem; border-top: 1px solid #b9ab8f; }
+.fo-plate-glyphs .ui-keycap { background: #f6efdc; color: #2b241b; border-color: #8a7c66; }
+.fo-glyph { display: inline-flex; gap: 0.35rem; align-items: center; color: #4a3f31; font-size: 0.85rem; }
+@keyframes fo-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- queen meters (bottom left, above the possessed-ant panel) ---- */
+.fo-queen { left: 1rem; bottom: 9.5rem; width: 15rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.fo-meter { display: grid; grid-template-columns: 5.5rem 1fr 2.75rem; gap: 0.5rem; align-items: center; font-size: var(--t-small); }
+.fo-bar { height: 0.5rem; border-radius: 0.25rem; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.fo-bar > i { display: block; height: 100%; background: var(--c-accent); }
+.fo-bar.is-dry > i { background: var(--c-status-warn); }
+.fo-bar.is-health > i { background: var(--c-status-ok); }
+
+/* ---- site read-out (beside the queen: right of centre) ---- */
+.fo-site { right: 1rem; top: 6rem; width: 20rem; }
+.fo-site-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
+.fo-site-word { font-size: 1.25rem; font-weight: 600; }
+.fo-site-word.is-poor { color: var(--c-status-bad); } .fo-site-word.is-fair { color: var(--c-status-watch); }
+.fo-site-word.is-good { color: var(--c-status-ok); } .fo-site-word.is-excellent { color: var(--c-info); }
+.fo-site-row { display: grid; grid-template-columns: 6.5rem 4.5rem 1fr; gap: 0.5rem; align-items: center; font-size: var(--t-small); line-height: 1.5rem; }
+.fo-dots { letter-spacing: 0.1em; color: var(--c-accent); white-space: nowrap; }
+.fo-dots .off { color: rgba(255, 255, 255, 0.25); }
+
+/* ---- readiness (under the possessed-ant panel title: bottom left) ---- */
+.fo-ready { left: 1rem; bottom: 7rem; width: 15rem; }
+.fo-ready .ui-progress { margin-top: 0.25rem; }
+.fo-ready-parts { display: flex; justify-content: space-between; font-size: var(--t-caption); color: var(--c-text-2); }
+
+/* ---- glyph prompts (bottom centre) ---- */
+.fo-prompts { left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; gap: 1rem; align-items: center; }
+.fo-prompts .ui-btn { pointer-events: auto; }
+
+/* ---- clutch forecast (right) ---- */
+.fo-clutch { right: 1rem; top: 6rem; width: 18rem; display: flex; flex-direction: column; gap: 0.3rem; font-size: var(--t-small); }
+.fo-clutch .is-amber { color: var(--c-status-watch); } .fo-clutch .is-red { color: var(--c-status-bad); }
+
+/* ---- time-lapse overlay ---- */
+.fo-lapse-cap { left: 50%; top: 1rem; transform: translateX(-50%); text-align: center; padding: 0.5rem 1.5rem; }
+.fo-lapse-title { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.02em; }
+.fo-lapse-date { font-size: var(--t-small); color: var(--c-text-2); }
+.fo-lapse-strip { left: 50%; bottom: 1.25rem; transform: translateX(-50%); width: 40rem; padding: 0.6rem 1rem 0.75rem; }
+.fo-stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.5rem; }
+.fo-stage { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.3rem; border-radius: var(--r-s); opacity: 0.55; }
+.fo-stage.is-now { background: rgba(226, 176, 74, 0.18); opacity: 1; }
+.fo-stage b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.fo-stage span { font-size: var(--t-caption); color: var(--c-text-2); text-transform: uppercase; letter-spacing: 0.06em; }
+.fo-lapse-foot { display: flex; align-items: center; gap: 1rem; }
+.fo-lapse-foot .ui-progress { flex: 1; }
+.fo-lapse-gauge { left: 1rem; top: 40%; width: 11rem; }
+.fo-lapse-losses { right: 1rem; top: 40%; width: 11rem; font-size: var(--t-small); }
+
+/* ---- cards ---- */
+.fo-card-wrap { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.fo-card { pointer-events: auto; background: var(--c-panel); border: 1px solid var(--c-border-strong); border-radius: var(--r-m); padding: 1.5rem 2rem; min-width: 24rem; max-width: 34rem; text-align: center; box-shadow: var(--e-2, 0 1rem 2rem rgba(0,0,0,0.4)); }
+.fo-card h2 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 600; }
+.fo-card p { margin: 0.25rem 0 1rem; color: var(--c-text-2); }
+.fo-card-buttons { display: flex; gap: 0.75rem; justify-content: center; }
+.fo-handover { left: 50%; top: 5.5rem; transform: translateX(-50%); width: 30rem; text-align: center; }
+.fo-handover ul { list-style: none; padding: 0; margin: 0.5rem 0; color: var(--c-text-2); font-size: var(--t-small); }

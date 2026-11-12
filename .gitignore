@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-classic
+dist-portable
 test-output
 .harness-out
 *.log

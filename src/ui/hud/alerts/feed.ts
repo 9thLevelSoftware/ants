@@ -2,27 +2,11 @@
 // SEES: which alerts become cards (a "toast"), how many cards show, what waits in the "+n more" chip. Pure and driven
 // by injected time, so it is unit-tested without a browser. One instance lives for the page (src/ui/hud/alerts/store.ts).
 import type { UiAlert } from '../../api';
+import { ALERT_BALANCE } from '../balance';
 
 export type AlertLevelId = 'info' | 'notice' | 'warning' | 'critical';
 
-/** Constants named by GDD 08 6.1 / 6.3. */
-export const ALERT_BALANCE = {
-  maxVisible: 3,
-  /** Game hours after a key clears during which its next raise goes to the log only. */
-  cooldownGameH: { info: 0, notice: 3, warning: 1, critical: 0 } as Record<AlertLevelId, number>,
-  /** The same key may not toast twice within this many real seconds, whatever the speed. */
-  cooldownRealS: 20,
-  rateMax: 4,
-  rateWindowRealS: 30,
-  resolvedRealS: 4,
-  noticeRealS: 12,
-  warningRealS: 30,
-  /** `info` toasts show only during the first game day, for this long. */
-  infoRealS: 6,
-  snoozeGameDays: 1,
-  ticksPerGameHour: 250,
-  ticksPerGameDay: 6000,
-} as const;
+export { ALERT_BALANCE };
 
 const LEVEL_RANK: Record<AlertLevelId, number> = { info: 0, notice: 1, warning: 2, critical: 3 };
 const asLevel = (l: string): AlertLevelId => (l === 'info' || l === 'notice' || l === 'warning' || l === 'critical' ? l : 'notice');
@@ -97,6 +81,8 @@ export class AlertFeed {
   private toastedAtS = new Map<string, number>();
   private snoozedUntilTick = new Map<string, number>();
   private recentToastsS: number[] = [];
+  /** Newest simulation tick seen. A tick below it means a different game (new game, load): game-time state is void. */
+  private lastTick = 0;
   /** Every toast granted so far (the test-mode "toast log", GDD 08 App. E check 4). */
   readonly toastLog: ToastRecord[] = [];
   /** Cards raised while the rate limit was full or the kind snoozed, counted for the chip while their alert is active. */
@@ -104,11 +90,27 @@ export class AlertFeed {
 
   /** Reads the alerts of the latest snapshot; returns the view (the same object while nothing changed). */
   update(alerts: readonly UiAlert[], ctx: FeedContext): FeedView {
+    if (ctx.tick < this.lastTick) this.reset();
+    this.lastTick = ctx.tick;
     const incoming = new Map<string, UiAlert>();
     for (const a of alerts) incoming.set(keyOf(a), a);
     this.clearGone(incoming, ctx);
     for (const [key, a] of incoming) this.observe(key, a, ctx);
     return this.compose(ctx);
+  }
+
+  /**
+   * Forgets everything about the previous game: entries, cooldowns, snoozes and rate limits all refer to a tick count
+   * that no longer exists once another game (or a load) is running. The toast log is a page diagnostic and stays.
+   */
+  reset(): void {
+    this.entries.clear();
+    this.clearedTick.clear();
+    this.toastedAtS.clear();
+    this.snoozedUntilTick.clear();
+    this.recentToastsS = [];
+    this.lastTick = 0;
+    this.view = { cards: [], more: 0 };
   }
 
   /** The player acknowledged a card: a pinned critical unpins, anything else leaves. */
@@ -119,6 +121,7 @@ export class AlertFeed {
 
   /** Snooze a kind for a game day (critical kinds cannot be snoozed). Session only. */
   snooze(kind: string, tick: number): void {
+    this.lastTick = Math.max(this.lastTick, tick);
     this.snoozedUntilTick.set(kind, tick + ALERT_BALANCE.snoozeGameDays * ALERT_BALANCE.ticksPerGameDay);
   }
 
@@ -131,9 +134,16 @@ export class AlertFeed {
       if (incoming.has(key)) continue;
       if (e.resolvedUntilS >= 0) { if (ctx.nowS >= e.resolvedUntilS) this.entries.delete(key); continue; }
       this.clearedTick.set(key, ctx.tick);
-      if (e.fate === 'card' && !e.acknowledged) e.resolvedUntilS = ctx.nowS + ALERT_BALANCE.resolvedRealS;
+      if (this.onScreen(e, ctx)) e.resolvedUntilS = ctx.nowS + ALERT_BALANCE.resolvedRealS;
       else this.entries.delete(key);
     }
+  }
+
+  /** Whether the card of `e` is on screen right now: only such a card turns into "Resolved" when the simulation clears it. */
+  private onScreen(e: Entry, ctx: FeedContext): boolean {
+    if (e.fate !== 'card' || e.acknowledged || this.lifetimeOver(e, ctx)) return false;
+    if (ctx.hudHidden && e.level !== 'critical') return false;
+    return this.view.cards.some((c) => c.key === e.key); // not cut by the visible limit
   }
 
   private observe(key: string, a: UiAlert, ctx: FeedContext): void {
@@ -216,7 +226,9 @@ export class AlertFeed {
     const order = new Map<string, number>();
     for (const e of this.entries.values()) order.set(e.key, e.raisedTick);
     cards.sort((a, b) => LEVEL_RANK[b.level] - LEVEL_RANK[a.level] || (order.get(b.key) ?? 0) - (order.get(a.key) ?? 0) || b.alertId - a.alertId);
-    const visible = cards.slice(0, ctx.maxVisible ?? ALERT_BALANCE.maxVisible);
+    // HUD hidden: one pinned card, the most urgent (GDD 08 3.4); the other criticals wait behind its "+n" chip
+    const limit = ctx.hudHidden ? ALERT_BALANCE.hiddenMaxVisible : (ctx.maxVisible ?? ALERT_BALANCE.maxVisible);
+    const visible = cards.slice(0, limit);
     const more = cards.length - visible.length + collapsed + (ctx.hudHidden ? 0 : overflow);
     const next: FeedView = { cards: visible, more };
     return sameView(this.view, next) ? this.view : (this.view = next);

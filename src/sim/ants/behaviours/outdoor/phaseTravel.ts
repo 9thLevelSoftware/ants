@@ -88,21 +88,20 @@ function maybeFollowTrail(sim: Sim, ant: Ant): boolean {
   return true;
 }
 
-/** Judges the followed trail's course; false when the ant left it (another source's trail). */
-function keepTrail(sim: Sim, ant: Ant): boolean {
+/** Judges the followed trail's course: dabs only on course; another source's trail -> planner (§6.7). */
+function keepTrail(sim: Sim, ant: Ant): void {
   switch (checkCourse(sim, ant, destOf(ant, tmp))) {
     case 'on':
       if ((ant.flags & AntFlag.TRAIL_ON) === 0) startOutboundDabs(sim, ant);
-      return true;
+      return;
     case 'drift':
       stopLaying(sim, ant);
-      return true;
+      return;
     case 'off':
       logDecision(sim, ant, 'job:other-trail', ant.bb[K.src] ?? -1);
       toPlanner(sim, ant);
-      return false;
+      return;
     default:
-      return true;
   }
 }
 

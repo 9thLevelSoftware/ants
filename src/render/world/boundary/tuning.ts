@@ -1,0 +1,82 @@
+// Presentation constants of the map boundary (GDD 04 §14 "What the player sees"). Render-only numbers: nothing here
+// changes the simulation (the soft margin and the hard limit are locomotion's, src/sim/locomotion/params.ts).
+import type { ZoneType } from '@/sim/types';
+
+/** Skirt width beyond each map edge as a fraction of the map side L (GDD 04 §14: 0.5 L). */
+export const SKIRT_WIDTH_L = 0.5;
+/** Skirt vertices along each edge (the skirt is low detail; the haze hides it within a few metres). */
+export const SKIRT_EDGE_SEGMENTS = 96;
+/** Rows outward from the edge: first row offset (BU), then each row this many times farther (geometric). */
+export const SKIRT_FIRST_ROW_BU = 0.5;
+export const SKIRT_ROW_GROWTH = 1.6;
+/** Extrapolated relief beyond the edge: amplitude grows by this many mm per mm outward, capped (mm). */
+export const SKIRT_RELIEF_SLOPE = 0.03;
+export const SKIRT_RELIEF_MAX_MM = 500;
+/** Feature size of the extrapolation noise as a fraction of L. */
+export const SKIRT_NOISE_SCALE_L = 0.06;
+/** The skirt is lifted this far (mm) above the clamped terrain plane at its outer rows so the two never fight. */
+export const SKIRT_LIFT_MAX_MM = 2;
+
+/**
+ * Exponential haze from the edge outward (GDD 04 §14): extra haze fraction 1 - exp(-d / (k L)) for a point d mm
+ * outside the map, on top of the scene's distance haze. At 0.5 L it is ~98 % so the skirt's end never shows.
+ */
+export const EDGE_HAZE_K_L = 0.12;
+/** ...but never shorter than this (mm): small maps (the title vignette) still show human-scale silhouettes softly. */
+export const EDGE_HAZE_MIN_MM = 2500;
+/** Grazing silhouettes of the backdrop shapes take this much more haze (soft, blurred-looking edges). */
+export const BACKDROP_RIM_HAZE = 0.7;
+/** Backdrop shapes always carry at least this much haze (aerial perspective: they are never crisp foreground). */
+export const BACKDROP_MIN_HAZE = 0.15;
+/** Silhouette fuzz: the outermost rim of a backdrop shape is dithered away (hashed alpha), 0..1 strength. */
+export const BACKDROP_FUZZ = 0.85;
+/** Foliage masses: radius noise amplitude and underside darkening of canopies, shrubs and hedges. */
+export const FOLIAGE_LUMP = 0.35;
+export const FOLIAGE_SHADE = 0.45;
+
+/** Ground colour of the skirt per zone (GDD 08 11.3 dominant palette, sRGB hex), mixed with a little variation. */
+export const SKIRT_ZONE_HEX: Record<ZoneType, string> = {
+  forest: '#4a3a2a', lawn: '#5e7f3c', 'garden-bed': '#3e2f24', pavement: '#9c978e', asphalt: '#34322f', sand: '#c4ad84',
+  rubber: '#6e3a32', interior: '#8b6544',
+};
+/** Farther out the skirt tends toward this far-ground tone (soft vegetation), fraction at the skirt's end. */
+export const SKIRT_FAR_HEX = '#5a6448';
+export const SKIRT_FAR_MIX = 0.6;
+
+/**
+ * How far beyond the edge each kind of backdrop shape stands, mm [min, max] (real-world distances, independent of the
+ * map size: a neighbour's fence a couple of metres away, trees a few metres into the woods).
+ */
+export const BACKDROP_BAND_MM = {
+  trees: [2000, 8000], roadTrees: [3000, 8000], gardenTrees: [3000, 8000], shrubs: [600, 2500], fence: [1600, 2000],
+  cars: [1200, 2200], hedge: [300, 500], facade: [200, 200],
+} as const satisfies Record<string, readonly [number, number]>;
+/** Every shape keeps at least this clearance (mm) from the map square (nothing hangs over the playable area). */
+export const BACKDROP_MARGIN_MM = 100;
+/** Shapes per metre of edge, per treatment (human-scale objects: sizes in mm, independent of BU). */
+export const BACKDROP_DENSITY_PER_M = { trees: 0.35, shrubs: 0.6, fence: 1 / 1.83, hedge: 0.9, cars: 0.18, facade: 0 } as const;
+
+/** Sizes, mm (real-world objects at true scale, GDD 08 11.7: never shown whole from ant height). */
+export const BACKDROP_SIZE = {
+  trunkDiameter: [220, 650] as const,
+  trunkHeight: [6000, 12000] as const,
+  canopyRadius: [1800, 3500] as const,
+  shrubRadius: [350, 900] as const,
+  hedgeHeight: [1200, 1700] as const,
+  hedgeDepth: [700, 1000] as const,
+  fencePanel: { width: 1830, height: 1800, thick: 20, post: 90 },
+  car: { length: 4300, width: 1800, height: 1450 },
+  facadeHeight: 6200,
+  facadeDepth: 4000,
+} as const;
+
+/** Silhouette colours (sRGB hex). The haze does most of the work; these keep them believable when close. */
+export const BACKDROP_HEX = {
+  bark: '#3e3328', canopy: '#3d5230', shrub: '#45592f', hedge: '#3b5129', fence: '#6b5845', car: ['#5a6670', '#7a2e2a', '#c9c6be', '#2b2d30'],
+  facade: '#b3a28c', roof: '#5b4a42',
+} as const;
+
+/** Edge glyph (GDD 04 §14 "edge of the locality"): shown while the possessed ant presses against the hard limit. */
+export const EDGE_GLYPH_BAND_BU = 1;
+/** Minimum outward component of the ant's intended direction for "pressing outward". */
+export const EDGE_GLYPH_MIN_OUTWARD = 0.3;

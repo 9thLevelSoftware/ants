@@ -10,6 +10,7 @@ import { FrameStats, type FrameStatsSnapshot } from './frameStats';
 import { PostChain } from './postChain';
 import { type QualityPreset } from './quality';
 import { markMaterialsDirty } from './disposeObject';
+import { DirectGrade, type GradeParams } from './look';
 
 export interface RenderAppOptions {
   quality: QualityPreset;
@@ -48,6 +49,8 @@ export interface RenderApp {
   /** Reduced motion: DoF focus changes become instant. */
   setReducedMotion(on: boolean): void;
   setExposure(ev: number): void;
+  /** Colour grade (saturation, linear gain) from the world lighting: post effect or the no-post grading pass. */
+  setGrade(g: GradeParams): void;
   requestRender(): void;
   /** Force render-on-demand on or off (paused game, frozen screenshots); null = the preset decides. */
   setOnDemand(on: boolean | null): void;
@@ -75,6 +78,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
   let scene = options.scene ?? new Scene();
   let camera = options.camera ?? new PerspectiveCamera(60, 1, 0.1, 1000);
   let post: PostChain | null = null;
+  const direct = new DirectGrade(); // no-post colour grade (render-integration); skipped while the grade is neutral
   const stats = new FrameStats();
   const dynres = new DynamicResolution(dynResConfig(quality.dynamicResolution.targetFps, quality.dynamicResolution.minScale, quality.dynamicResolution.maxScale));
   let needsRecreate = false;
@@ -101,13 +105,15 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     renderer.shadowMap.needsUpdate = true;
     if (shadowChanged && prev) markMaterialsDirty(scene); // shadow defines are compiled into programs
     if (quality.post.enabled) {
-      if (!post) { post = new PostChain(renderer, scene, camera, quality.post); post.reducedMotion = reducedMotion; }
+      if (!post) { post = new PostChain(renderer, scene, camera, quality.post); post.reducedMotion = reducedMotion; post.setGrade(direct.grade); }
       else post.setParams(quality.post);
       readyPromise = Promise.all([firstFramePromise, post.ready]).then(() => undefined);
     } else if (post) {
       post.dispose();
       post = null;
     }
+    direct.setMsaa(!quality.post.enabled && quality.msaa);
+    if (quality.post.enabled) direct.releaseTarget(); // the post chain grades; free the direct path's target
     const d = quality.dynamicResolution;
     dynres.cfg = dynResConfig(d.targetFps, d.minScale, d.maxScale);
     dynres.reset(d.enabled ? Math.min(dynres.scale, d.maxScale) : 1);
@@ -149,6 +155,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     const t0 = performance.now();
     renderer.info.reset();
     if (post) post.render(dt);
+    else if (direct.active) direct.render(renderer, scene, camera);
     else renderer.render(scene, camera);
     stats.record(t0, performance.now() - t0, renderer.info.render);
     dirty = false;
@@ -179,7 +186,8 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     // three re-initialises its GL state itself and re-uploads geometry/textures lazily from retained sources; the
     // composer's render targets and effect programs are rebuilt from scratch to be safe.
     lost = false;
-    if (post) { post.dispose(); post = new PostChain(renderer, scene, camera, quality.post); post.reducedMotion = reducedMotion; }
+    if (post) { post.dispose(); post = new PostChain(renderer, scene, camera, quality.post); post.reducedMotion = reducedMotion; post.setGrade(direct.grade); }
+    direct.releaseTarget();
     markMaterialsDirty(scene);
     renderer.shadowMap.needsUpdate = true;
     sizeKey = '';
@@ -226,6 +234,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     setFocus(d, r, instant) { post?.setFocus(d, r, instant); },
     setReducedMotion(on) { reducedMotion = on; if (post) post.reducedMotion = on; },
     setExposure(ev) { exposureEV = ev; renderer.toneMappingExposure = Math.pow(2, ev); dirty = true; },
+    setGrade(g) { direct.set(g); post?.setGrade(g); },
     requestRender() { dirty = true; },
     setOnDemand(on) { onDemandOverride = on; dirty = true; },
     renderFrame,
@@ -241,6 +250,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
       ro?.disconnect();
       post?.dispose();
       post = null;
+      direct.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
     },

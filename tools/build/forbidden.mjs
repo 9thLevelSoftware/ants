@@ -100,7 +100,9 @@ export function scanSources(srcDir = SRC_DIR) {
     if (!/\.(ts|tsx)$/.test(rel) || /\.(test|verify\.test)\.tsx?$/.test(rel)) continue;
     const text = stripComments(fs.readFileSync(path.join(srcDir, rel), 'utf8'));
     const inLoader = rel.startsWith(LOADER_DIR);
+    const shadowsFetch = /\bfunction\s+fetch\s*\(/.test(text); // a local helper that happens to be called fetch
     for (const r of DIRECT_LOAD_RULES) {
+      if (r.name === 'fetch(' && shadowsFetch) continue;
       for (const m of matches(text, r.re)) {
         if (inLoader) { if (r.name === 'fetch(') loaderFetchCalls++; continue; }
         findings.push({ file: `src/${rel}`, rule: `${r.name} outside the asset loader`, excerpt: excerpt(text, m.index) });

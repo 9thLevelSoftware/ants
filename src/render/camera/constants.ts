@@ -17,6 +17,8 @@ export const CAM_PUSHOUT_TAU = 0.4;
  * a few frames at this speed.
  */
 export const CAM_MAX_REL_SPEED_L = 20;
+/** A target that moved more than this (L) since the last frame was teleported: the rig snaps behind it. */
+export const CAM_SNAP_JUMP_L = 3;
 export const CAM_AUTOFOLLOW_DELAY_S = 1.5;
 export const CAM_AUTOFOLLOW_TAU = { gentle: 1.2, strong: 0.6 } as const;
 export const CAM_AUTOFOLLOW_MAX_DEG_S = 60;

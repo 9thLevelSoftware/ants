@@ -88,6 +88,7 @@ function installGuard(sim: Sim): Guard {
     for (const k of ['onBegin', 'effect', 'tick', 'onEnd'] as const) patch(def, k, sanctioned('primitive'));
   }
   patch(careEffects, 'apply', sanctioned('adapter'));
+  patch(careEffects, 'tendPileAround', sanctioned('adapter'));
   const bracket = (fn: (...a: unknown[]) => unknown) => (...args: unknown[]) => {
     const outer = g.inPass;
     if (!outer) { g.inPass = true; g.cur = worldDigest(sim); }

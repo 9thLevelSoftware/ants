@@ -9,6 +9,7 @@ import { MeshStandardMaterial, Uniform, Vector4, type DataArrayTexture } from 't
 import { GLSL_NOISE, GLSL_WET } from '../materials/glsl';
 import { dappledLightsChunk, GLSL_DAPPLE } from '../materials/dapple';
 import { addPatch } from '../materials/surfacePatch';
+import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms, WORLD_OCCLUSION_TERRAIN_TMAX } from '../materials/occlusion';
 import type { WorldUniforms } from '../materials/uniforms';
 import { CLIPMAP_GLSL } from './clipmap';
 import { HOLE_MASK_GLSL, type HoleMaskUniforms } from './holeMask';
@@ -42,6 +43,8 @@ float wrH(vec2 xz) {
 const FRAG_DECL = /* glsl */ `
 ${GLSL_NOISE}
 ${GLSL_WET}
+${GLSL_OCCLUSION}
+${GLSL_CONTACT}
 ${HOLE_MASK_GLSL}
 varying vec3 vWrW;
 ${GLSL_DAPPLE}
@@ -92,11 +95,15 @@ void wrTriA(float layer, vec3 p, vec3 n, float sc, float ns, out vec3 alb, out v
   nw = normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
 }
 
-// One material code: dual-scale sample (near tile fades into a coarser tile with distance).
-void wrMaterial(int code, vec3 p, vec3 n, float dist, out vec3 alb, out vec3 nw, out float rg, out float ht) {
+// One material code: dual-scale sample (near tile fades into a coarser tile with distance). fpw = how many mm
+// one pixel covers here (fwidth of the world position, computed in uniform control flow by the caller): where a
+// texel shrinks below a few pixels (far, or a grazing view) the normal map and the albedo contrast fall toward the
+// layer's mean and the lost relief becomes roughness, so gravel and grit stop sparkling.
+void wrMaterial(int code, vec3 p, vec3 n, float dist, float fpw, out vec3 alb, out vec3 nw, out float rg, out float ht) {
   vec4 A = uWrMatA[code]; vec4 C = uWrMatC[code];
   float sc = A.y;
-  float ns = A.z * mix(1.0, 0.45, smoothstep(sc * 15.0, sc * 80.0, dist));
+  float fade = smoothstep(1.5, 7.0, fpw / (sc / float(textureSize(tWrAR, 0).x)));
+  float ns = A.z * mix(1.0, 0.45, smoothstep(sc * 15.0, sc * 80.0, dist)) * (1.0 - 0.65 * fade);
   if (C.y > 0.0) {
     float wf = smoothstep(sc * 3.0, sc * 12.0, dist);
     vec3 a1 = vec3(0.0), n1 = n, a2 = vec3(0.0), n2 = n; float r1 = 0.0, r2 = 0.0, h1 = 0.0, h2 = 0.0;
@@ -106,13 +113,15 @@ void wrMaterial(int code, vec3 p, vec3 n, float dist, out vec3 alb, out vec3 nw,
   } else {
     wrTriA(A.x, p, n, sc, ns, alb, nw, rg, ht);
   }
+  alb = mix(alb, textureLod(tWrAR, vec3(0.5, 0.5, A.x), 12.0).rgb, 0.35 * fade);
   alb *= uWrMatB[code].rgb;
-  rg = max(C.w, rg * A.w);
+  rg = max(C.w, min(1.0, rg + 0.12 * fade) * A.w);
 }
 `;
 
 const FRAG_MAIN = /* glsl */ `
 if (vWrW.x > uWrInner.x && vWrW.x < uWrInner.z && vWrW.z > uWrInner.y && vWrW.z < uWrInner.w) discard;
+wrOccDither(vWrW, ${WORLD_OCCLUSION_TERRAIN_TMAX.toFixed(3)});
 if (wrHoleMask(vWrW.xz) > 0.5) discard;
 if (uWrHoleGrid.z > 0.5) {
   ivec2 hc = ivec2(floor(vWrW.xz / uWrMatGrid.w));
@@ -120,6 +129,7 @@ if (uWrHoleGrid.z > 0.5) {
 }
 vec3 wrN0 = normalize(vNormalWr);
 float wrDist = length(vWrW - cameraPosition);
+float wrFpw = length(fwidth(vWrW));
 // material cells: centres at (i + 0.5) * cell; borders jittered by noise so they never run straight
 vec2 wrCf = vWrW.xz / uWrMatGrid.x - 0.5;
 // laid hard surfaces keep crisp edges: the jitter is the smaller one of the cell's own material and its neighbours'
@@ -137,11 +147,11 @@ int ib = ia == 0 ? 1 : 0; for (int i = 0; i < 4; i++) if (i != ia && ws[i] > ws[
 int codeA = ids[ia], codeB = ids[ib];
 float wA = ws[ia], wB = ws[ib];
 vec3 wrAlb; vec3 wrNw; float wrRg; float wrHt;
-wrMaterial(codeA, vWrW, wrN0, wrDist, wrAlb, wrNw, wrRg, wrHt);
+wrMaterial(codeA, vWrW, wrN0, wrDist, wrFpw, wrAlb, wrNw, wrRg, wrHt);
 float wrWD = uWrMatB[codeA].w, wrWR = uWrMatC[codeA].x;
 if (wB > 0.02) {
   vec3 bA; vec3 bN; float bR; float bH;
-  wrMaterial(codeB, vWrW, wrN0, wrDist, bA, bN, bR, bH);
+  wrMaterial(codeB, vWrW, wrN0, wrDist, wrFpw, bA, bN, bR, bH);
   // height-aware blend: grains of the higher layer poke through first
   float t = wB / (wA + wB);
   float hb = clamp((t - 0.5) * 5.0 + 0.5 + (bH - wrHt) * 2.0, 0.0, 1.0);
@@ -151,7 +161,7 @@ if (wB > 0.02) {
 // macro variation so large areas never look printed
 wrAlb *= mix(0.86, 1.12, wrFbm(vWrW.xz / 340.0));
 float wrWet = uWet;
-diffuseColor.rgb *= wrWetAlbedo(wrAlb, wrWet, wrWD);
+diffuseColor.rgb *= wrWetAlbedo(wrAlb, wrWet, wrWD) * wrContactAO(vWrW);
 `;
 
 export function createTerrainMaterial(shared: TerrainShared): { material: MeshStandardMaterial; level: TerrainLevelUniforms } {
@@ -161,7 +171,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
   m.name = 'world:terrain';
-  addPatch(m, 'terrain-v1', (s) => {
+  addPatch(m, 'terrain-v3', (s) => {
     const t = shared.textures.uniforms;
     Object.assign(s.uniforms, {
       tWrHeight: t.tWrHeight, uWrHf: t.uWrHf, tWrMat: t.tWrMat, tWrHoles: t.tWrHoles, uWrMatGrid: t.uWrMatGrid, uWrHoleGrid: t.uWrHoleGrid,
@@ -171,6 +181,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
       uWrDapple: shared.world.uDapple, uWrDappleMm: shared.world.uDappleMm,
       tWrCanopy: shared.world.tDappleMask, uWrCanopyInv: shared.world.uDappleMaskInv,
       ...shared.holeMask,
+      ...occlusionUniforms(shared.world),
       ...level,
     });
     s.vertexShader = s.vertexShader

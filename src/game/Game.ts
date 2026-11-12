@@ -36,6 +36,9 @@ import { loadingPhases, type LoadingPhase } from './newGame/loading';
 import { UndergroundSwitch } from './undergroundSwitch';
 import { requestView, toggleColonyView, togglePhoto, type ViewSwitchHost } from './views/viewSwitch';
 import { ViewsLayer } from './views/viewsLayer';
+import { FoundingFlow, installFoundingDebug } from './flows/founding';
+import { registerScenicQueries, TitleHost, titleSceneWanted } from './title';
+import { edgeGlyphActive } from '@/render/world/boundary';
 
 export interface GameOptions {
   canvas: HTMLCanvasElement;
@@ -115,6 +118,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   inspect: HighlightRef | null = null;
   /** Picking, hover / inspect, colony tools and markers (src/game/views); `viewsLayer.inspectTarget` for the HUD. */
   readonly viewsLayer = new ViewsLayer(this);
+  /** The opening sequence's flow: intro card, time-lapse playback, hand-over, failure (src/game/flows/founding). */
+  readonly founding: FoundingFlow = new FoundingFlow(this);
+  /** The live scene behind the title menu (src/game/title, render-integration). */
+  readonly title: TitleHost;
+  /** GDD 04 §14 edge glyph hook: the possessed ant presses outward against the map's hard limit (for the HUD). */
+  atLocalityEdge = false;
   readonly ready: Promise<void>;
   private resolveReady: () => void = () => {};
 
@@ -123,6 +132,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.assets = createBrowserAssetLoader();
     this.ready = new Promise<void>((r) => { this.resolveReady = r; });
     this.settings.set({ graphics: { quality: opts.quality, overrides: {} } });
+    registerScenicQueries();
+    installFoundingDebug(this.founding, this);
+    this.title = new TitleHost({
+      registry: () => this.registry, app: () => this.app, camera: this.camera, canvas: opts.canvas, testMode: opts.testMode,
+      reducedMotion: () => this.settings.get().camera.reducedMotion,
+    });
   }
 
   get sim() { return this.session?.sim ?? null; }
@@ -154,11 +169,13 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const assetsReady = this.registry.init({
       renderer: this.app.renderer, scene: this.scene, camera: this.camera, quality: this.app.quality, assets: this.assets,
       game: { requestRender: () => this.requestRender(), testMode: this.opts.testMode }, setExposure: (ev) => this.app.setExposure(ev),
+      setGrade: (g) => this.app.setGrade(g),
     });
     this.viewsLayer.attach(this.opts.canvas, this.scene, this.registry);
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
     await Promise.all([this.app.ready, assetsReady]);
+    if (this.mode === 'title' && typeof location !== 'undefined' && titleSceneWanted(location.search)) await this.title.enter();
     this.refreshUi();
     this.resolveReady();
   }
@@ -175,6 +192,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
    * API turns it into a rejection for scripts). A newer newGame / endGame cancels this one (ok:false, cancelled).
    */
   async newGame(options: NewGameOptions = {}): Promise<NewGameResult> {
+    this.title.leave();
     if (this.session) this.endGame(false);
     const token = ++this.loadToken;
     const phases = loadingPhases();
@@ -230,8 +248,17 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       session.update(0);
     }
     if (session.view !== 'possess') session.setView('observer', true);
+    this.founding.attach(session);
     this.syncContexts();
     this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
+  }
+
+  /** Founding retry (src/game/flows/founding): continue in a restored simulation of the same world. */
+  async restartWith(sim: Sim): Promise<void> {
+    if (this.session) { this.session.dispose(); this.session = null; }
+    this.registry.onGameEnd();
+    await this.registry.onGameStart(sim);
+    this.startPlaying(sim, true);
   }
 
   /** Leaves the running game (renderers drop their meshes); `toTitle` shows the title screen. */
@@ -243,9 +270,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       this.session = null;
     }
     this.registry?.onGameEnd(); // also after a cancelled load whose world the renderers already built
+    this.founding.detach();
     this.viewsLayer.reset();
     this.loading = null;
-    if (toTitle) this.mode = 'title';
+    if (toTitle) { this.mode = 'title'; void this.title.enter(); }
     this.input.contexts.setBase('UI');
     this.requestRender();
     this.refreshUi();
@@ -261,6 +289,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (!this.opts.testMode) this.time += dt;
     const s = this.session;
     if (s && (this.mode === 'playing' || this.mode === 'paused')) this.playFrame(s, dt);
+    else if (!s && this.mode === 'title' && !this.opts.testMode) this.title.frame(dt);
     if (!this.opts.testMode && this.toasts.tick(dt)) this.refreshUi(); // test mode: toasts age in afterStep()
     this.uiAccum += dt;
     if (this.uiAccum >= 1 / UI_REFRESH_HZ) { this.uiAccum = 0; this.refreshUi(); }
@@ -274,6 +303,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (!this.session) return; // a handler ended the game
     if (this.debugIntent && this.input.anyActivity) this.debugIntent = null; // real input takes over again
     applyIntent(s, this.input, this.cameraBasis(), s.view === 'possess' && this.mode === 'playing', this.intentBuf, this.debugIntent);
+    this.founding.frame(s, dt); // the opening's own playback (time-lapse) before the normal clock
     const f = s.driver.frame(dt, { frozen: isFrozen({ mode: this.mode, view: s.view }), realtime: this.realtime, now: () => performance.now() });
     if (f.steppedDownTo !== null) this.toast(TOASTS.steppedDown(s.driver.speed, f.steppedDownTo));
     if (f.running) s.predict(f.advancedS); // game time that really passed, not dt x requested speed
@@ -326,6 +356,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion,
     };
     this.registry.update(frame);
+    const pa = s.possessedId >= 0 ? s.sim.stores.ants.get(s.possessedId) : undefined;
+    this.atLocalityEdge = !!pa && edgeGlyphActive(pa.pos, s.sim.state.player.intent.dir, s.sim.world.size, s.sim.world.bu);
     this.lastFrame = { underground, possessionState: vf.possessionState, observerMode: vf.observerMode };
     return frame;
   }
@@ -368,6 +400,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   renderNow(settleS = 0): void {
     const s = this.session;
     if (s) this.renderScene(s, 0, this.realtime ? s.driver.clock.alpha : 1, settleS);
+    else if (this.mode === 'title') this.title.frame(0);
     this.app.renderFrame(0);
     this.dirty = false;
     if (this.opts.testMode) waitForGpu(this.app);
@@ -571,6 +604,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   }
 
   dispose(): void {
+    this.title.leave();
     this.endGame(false);
     this.viewsLayer.dispose();
     this.registry?.dispose();

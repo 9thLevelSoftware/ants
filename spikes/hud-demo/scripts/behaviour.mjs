@@ -1,6 +1,7 @@
-// Behaviour checks of the HUD demo (task ui-hud acceptance 5): every control reachable from the keyboard with a
-// visible focus ring, gamepad movement inside an open drawer, linked sliders, alert throttling in the page, roster
-// virtualisation, speed and pause buttons, the 8x lock, key hints that follow rebinding, no remote requests.
+// Behaviour checks of the HUD demo (task ui-hud acceptance 5): the HUD outside the tab order with the alert feed entered by
+// backquote (or LB + View on a pad) and left by Esc (or B), a mouse click never leaving the focus on a chip, every drawer
+// control reachable from the keyboard with a visible focus ring, gamepad movement inside an open drawer, linked sliders,
+// alert throttling in the page, roster virtualisation, speed and pause buttons, the 8x lock, no remote requests.
 //   node tools/harness/play.mjs --root spikes/hud-demo --script spikes/hud-demo/scripts/behaviour.mjs --query "scene=queen&anchor=1"
 export default async ({ page, log, wait, context }) => {
   const expect = (cond, msg, data) => { if (!cond) throw new Error(`hud-behaviour: ${msg} ${data === undefined ? '' : JSON.stringify(data)}`); };
@@ -29,15 +30,48 @@ export default async ({ page, log, wait, context }) => {
     return seen;
   };
 
-  // --- keyboard reach: HUD, then Directives, then Roster -------------------------------------------------------------
-  let seen = await tabThrough();
-  const hudControls = seen.map((s) => s.label);
-  expect(seen.some((s) => /Normal speed/.test(s.label)), 'the speed buttons are not reachable (roving tab stop on the selected one)', hudControls);
-  expect(seen.some((s) => /^Colony$/.test(s.label)), 'the colony pulse is not reachable', hudControls);
-  expect(seen.some((s) => /Protein short/.test(s.label)), 'an alert card is not reachable', hudControls);
-  expect(seen.some((s) => /Colony orders/.test(s.label)), 'the Colony orders button is not reachable', hudControls);
-  expect(seen.every((s) => s.ring), 'a control shows no focus indicator', seen.filter((s) => !s.ring));
+  // --- keyboard reach of the HUD (GDD 08 section 8: the HUD is not in the tab order; the feed is entered with backquote) ---
+  const chipsInTabOrder = await g(() => [...document.querySelectorAll('.fd-root button, .fd-root [tabindex], .fd-root a[href], .fd-root input')]
+    .filter((el) => !el.closest('.fd-drawer, .fd-alert-menu') && el.tabIndex >= 0).map((el) => el.getAttribute('aria-label') ?? el.className));
+  expect(chipsInTabOrder.length === 0, 'HUD chips are in the tab order', chipsInTabOrder);
+  let seen = await tabThrough(12);
+  expect(seen.every((s) => !/Normal speed|^Colony$|Protein short|Colony orders/.test(s.label)), 'Tab walked into the HUD', seen.map((s) => s.label));
   out.hudTabStops = seen.length;
+  // backquote enters the alert feed, with a visible focus ring; arrows move between cards; Esc hands the focus back
+  await page.keyboard.press('Backquote');
+  let a = await active();
+  expect(a && /Protein short|alert|New food|Rain/i.test(a.label), 'backquote did not enter the alert feed', a);
+  expect(a.ring, 'the focused alert card shows no focus indicator', a);
+  const firstCard = a.label;
+  await page.keyboard.press('ArrowDown');
+  a = await active();
+  expect(a && a.label !== firstCard, 'arrow down did not move to the next alert card', a);
+  await page.keyboard.press('Escape');
+  expect(await active() === null, 'Esc did not hand the focus back to the game');
+  // gamepad: LB + View enters the feed, X opens the card menu, B leaves
+  await g(() => { window.__fakePad = { buttons: Array.from({ length: 17 }, () => ({ pressed: false })), axes: [0, 0, 0, 0], connected: true, id: 'test pad', index: 0, mapping: 'standard' }; navigator.getGamepads = () => [window.__fakePad]; window.dispatchEvent(new Event('gamepadconnected')); });
+  const press = async (...ids) => { await g((ks) => ks.forEach((k) => { window.__fakePad.buttons[k].pressed = true; }), ids); await wait.frames(4); await g((ks) => ks.forEach((k) => { window.__fakePad.buttons[k].pressed = false; }), ids); await wait.frames(3); };
+  await g(() => { window.__fakePad.buttons[4].pressed = true; });
+  await press(8); // View, with LB held
+  await g(() => { window.__fakePad.buttons[4].pressed = false; });
+  a = await active();
+  expect(a && /Protein short|alert|New food|Rain/i.test(a.label), 'LB + View did not enter the alert feed', a);
+  await press(2); // X: the card menu
+  expect(await g(() => !!document.querySelector('.fd-alert-menu')), 'X did not open the alert card menu');
+  await page.keyboard.press('Escape'); // closes the menu, focus stays on the card
+  await wait.frames(2);
+  await press(1); // B: back to the game
+  expect(await active() === null, 'B did not hand the focus back to the game');
+  // a mouse click on a chip never leaves the focus on it, so Space cannot press it again (the review's reproduction)
+  await page.locator('[data-testid="speed-pause"]').click(); // paused
+  await page.locator('[data-testid="speed-pause"]').click(); // running again: the later checks start from the same state
+  expect(await active() === null, 'a mouse click left the focus on the pause button', await active());
+  const pausedBefore = await g(() => document.querySelector('[data-testid="speed-pause"]').getAttribute('aria-pressed'));
+  await page.keyboard.press('Space');
+  await wait.frames(2);
+  expect(await g(() => document.querySelector('[data-testid="speed-pause"]').getAttribute('aria-pressed')) === pausedBefore, 'Space pressed the pause button again');
+  // the Colony orders doorway is reachable without the tab order: the I key opens it (button and prompt are pointer doorways)
+  expect(await g(() => !!document.querySelector('[data-testid="colony-orders-button"]')), 'the Colony orders button is missing in the queen scene');
 
   await page.keyboard.press('KeyI');
   await wait.frames(4);
@@ -64,8 +98,6 @@ export default async ({ page, log, wait, context }) => {
   out.shares = shares;
 
   // gamepad: the D-pad moves focus inside the drawer, A activates, B closes it
-  await g(() => { window.__fakePad = { buttons: Array.from({ length: 17 }, () => ({ pressed: false })), axes: [0, 0, 0, 0], connected: true, id: 'test pad', index: 0, mapping: 'standard' }; navigator.getGamepads = () => [window.__fakePad]; });
-  const press = async (i) => { await g((k) => { window.__fakePad.buttons[k].pressed = true; }, i); await wait.frames(3); await g((k) => { window.__fakePad.buttons[k].pressed = false; }, i); await wait.frames(2); };
   await g(() => document.querySelector('[data-group="forage"] [role="slider"]').focus());
   const forageBefore = await g(() => document.querySelector('[data-group="forage"] [role="slider"]').getAttribute('aria-valuenow'));
   await press(13); // down
@@ -121,10 +153,6 @@ export default async ({ page, log, wait, context }) => {
   await wait.frames(3);
   expect(await g(() => document.querySelector('[data-testid="speed-4"]').getAttribute('aria-pressed')) === 'true', '4x not pressed');
   expect(await g(() => document.querySelector('[data-testid="speed-8"]').getAttribute('aria-disabled')) === 'true', '8x should be locked while possessing');
-  // arrow keys inside the speed group move focus without changing the speed
-  await g(() => document.querySelector('[data-testid="speed-1"]').focus());
-  await page.keyboard.press('ArrowRight');
-  expect(await g(() => document.activeElement.dataset.testid) === 'speed-2', 'arrow right in the speed group');
 
   // --- alert throttling in the page (GDD 08 App. E checks 4 and 5) -----------------------------------------------------
   // a fresh page with no alerts, then five at once: three cards and "+2 more", at most four toasts

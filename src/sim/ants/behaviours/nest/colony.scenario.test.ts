@@ -1,6 +1,6 @@
 // beh-nest acceptance 2: the standard small nest, an established queen, 40 workers, 30 brood of mixed stages and
 // ample stores run 2 game days with only autonomous behaviours. No larva stays hungry up to the starvation
-// threshold (LARVA_STARVE_GD) and the mean is reported against the laying threshold (0.6, GDD 02 §3.3), the queen lays
+// threshold (LARVA_STARVE_GD) and the mean stays below the laying threshold (0.6, GDD 02 §3.3), the queen lays
 // through `lay-egg` and her eggs end up on brood piles away from her, and brood reaches adulthood at about the
 // rate the brood model predicts (GDD 02 §2.2-2.3 at the forced reference 21 C).
 import { describe, expect, it } from 'vitest';
@@ -69,10 +69,10 @@ describe('beh-nest colony scenario (acceptance 2)', () => {
       lastEclosionGd: eclosedAt.length ? +(eclosedAt[eclosedAt.length - 1] / TICKS_PER_DAY).toFixed(2) : null, deaths,
     };
     console.log('[beh-nest AC2]', JSON.stringify(report));
-    // the chapter's larval hunger threshold: no larva goes hungry for LARVA_STARVE_GD (GDD 02 §2.5); the colony
-    // mean stays about at the laying-permission limit LAYING_LARVAL_HUNGER_MAX (reported; a soft bound here)
+    // the chapter's larval hunger threshold: no larva goes hungry for LARVA_STARVE_GD (GDD 02 §2.5), and the colony
+    // mean stays below the laying-permission limit LAYING_LARVAL_HUNGER_MAX (GDD 02 §3.3)
     expect(report.longestHungerGd).toBeLessThan(LARVA_STARVE_GD);
-    expect(report.meanLarvalHunger).toBeLessThan(LAYING_LARVAL_HUNGER_MAX + 0.1);
+    expect(report.meanLarvalHunger).toBeLessThan(LAYING_LARVAL_HUNGER_MAX);
     expect(deaths['larva:starvation'] ?? 0).toBe(0);
     expect(laid.length).toBeGreaterThan(10);
     // collected: at most the last few (laid in the last minutes) still lie by the queen

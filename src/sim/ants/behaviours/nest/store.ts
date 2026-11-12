@@ -5,11 +5,16 @@
 
 import type { Ant, Behaviour, Item, Nest, Sim } from '@/sim/types';
 import { isFoodItem } from '@/sim/ants/actions';
-import { DROP_ZONE_BU, RECEIVER_SEARCH_BU, STORE_DISPERSE_S } from '@/sim/balance/nestwork';
+import {
+  DROP_ARRIVE_BU, DROP_ZONE_BU, ROOM_ARRIVE_FRAC, STORE_DISPERSE_S, STORE_PILE_FRAC, STORE_POST_ARRIVE_BU,
+  STORE_POST_CYCLE_S, STORE_POST_FRAC, STORE_REBOOK_MIN,
+} from '@/sim/balance/nestwork';
+import { RECEIVER_SEARCH_BU } from '@/sim/balance/foraging';
+import { poolSpace } from '@/sim/colony';
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, Job } from './board';
 import { carryTo } from './carry';
-import { endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
+import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
 import { B, bbv, setState, skipped, waitThink } from './fsm';
 import { chamberIn, entranceChamber, floorPoint, foodChamber, homeNest, onSurface, royalChamber } from './places';
 import { act, entity, travel } from './travel';
@@ -32,8 +37,17 @@ function giverTo(sim: Sim, ant: Ant): Ant | undefined {
   return undefined;
 }
 
-function inFoodChamber(nest: Nest, it: Item): boolean {
-  return it.chamberId >= 0 && chamberIn(nest, it.chamberId)?.type === 'food';
+/**
+ * Is shifting this food item into the store useful? Not when it already lies in a `food` chamber, nor when it
+ * lies in the very chamber a shift would carry it to (a young nest storing in its `general` or entrance chamber)
+ * while the pool has no room for it: the put-down there would book nothing, and the item would be shifted again
+ * and again. With room, picking it up and putting it down in place books it (stores kept tidy).
+ */
+function needsShift(sim: Sim, nest: Nest, it: Item, room: { c: number; p: number }): boolean {
+  const here = it.chamberId >= 0 ? chamberIn(nest, it.chamberId) : undefined;
+  if (here?.type === 'food') return false;
+  if (!here || foodChamber(sim, nest, it.pos)?.id !== here.id) return true;
+  return Math.min(it.c, room.c) + Math.min(it.p, room.p) >= STORE_REBOOK_MIN;
 }
 
 interface StoreJobs { solid: Item[]; spoiled: Item[] }
@@ -50,10 +64,12 @@ function storeJobs(sim: Sim, nest: Nest): StoreJobs {
       sim.index.queryItems(p, r, ids);
       for (const id of ids) { const it = sim.stores.items.get(id); if (it && it.carrierIds.length === 0) take(it); }
     };
-    const food = (it: Item) => { if (isFoodItem(it) && !inFoodChamber(nest, it) && onSurface(sim, it.pos)) solid.add(it); };
+    const col = sim.stores.colonies.get(nest.colony);
+    const room = col ? poolSpace(col) : { c: 0, p: 0 };
+    const food = (it: Item) => { if (isFoodItem(it) && needsShift(sim, nest, it, room) && onSurface(sim, it.pos)) solid.add(it); };
     for (const e of nest.entrances) scan(e.pos, DROP_ZONE_BU * sim.world.bu, food);
-    const room = entranceChamber(sim, nest);
-    if (room) scan(room.center, Math.max(room.radii.x, room.radii.z), food);
+    const entry = entranceChamber(sim, nest);
+    if (entry) scan(entry.center, Math.max(entry.radii.x, entry.radii.z), food);
     for (const c of nest.chambers) {
       if (c.type !== 'food') continue;
       scan(c.center, Math.max(c.radii.x, c.radii.y, c.radii.z), (it) => {
@@ -83,11 +99,11 @@ function post(sim: Sim, ant: Ant): void {
   if (solid) { claim(sim, ant, Job.shift, solid.id); setState(sim, ant, 'store.shift', 'job:shift'); return; }
   const bad = firstFree(sim, ant, jobs.spoiled);
   if (bad) { claim(sim, ant, Job.clean, bad.id); setState(sim, ant, 'store.clean', 'job:clean'); return; }
-  floorPoint(room, 0.25, 0, spot);
-  const st = travel(sim, ant, entity('point', -1, spot), 0.8 * sim.world.bu);
+  floorPoint(room, STORE_POST_FRAC, 0, spot);
+  const st = travel(sim, ant, entity('point', -1, spot), STORE_POST_ARRIVE_BU * sim.world.bu);
   if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
   // waiting is a cycle of its own: re-stamped, so only a really stuck store ant times out
-  if (sim.state.tick - ant.stateTick > secondsToTicks(STORE_DISPERSE_S * 4)) endCycle(sim, ant, ENTRY);
+  if (sim.state.tick - ant.stateTick > secondsToTicks(STORE_POST_CYCLE_S)) endCycle(sim, ant, ENTRY);
   else if (st === 'arrived') waitThink(sim, ant);
 }
 
@@ -100,7 +116,7 @@ function disperse(sim: Sim, ant: Ant): void {
   const nest = homeNest(sim, ant);
   const deep = nest ? royalChamber(nest) : undefined;
   if (!deep || sim.state.tick - ant.stateTick >= secondsToTicks(STORE_DISPERSE_S)) { endCycle(sim, ant, ENTRY); return; }
-  if (travel(sim, ant, entity('chamber', deep.id, deep.center), 0.6 * Math.min(deep.radii.x, deep.radii.z)) === 'arrived') endCycle(sim, ant, ENTRY);
+  if (travel(sim, ant, entity('chamber', deep.id, deep.center), ROOM_ARRIVE_FRAC * Math.min(deep.radii.x, deep.radii.z)) === 'arrived') endCycle(sim, ant, ENTRY);
 }
 
 /** Picks up the claimed item, then runs `deliver` until it reports the item put down (end of the cycle). */
@@ -125,8 +141,9 @@ function shift(sim: Sim, ant: Ant): void {
     const nest = homeNest(sim, ant);
     const room = nest ? foodChamber(sim, nest, ant.pos) : undefined;
     if (!room) return 'failed';
-    floorPoint(room, 0.3, Math.PI, spot);
-    const st = ant.chamberId === room.id ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), 0.6 * Math.min(room.radii.x, room.radii.z));
+    // onto the store pile of the chamber (the put-down inside a chamber books the food, GDD 02 §5.3)
+    floorPoint(room, STORE_PILE_FRAC, Math.PI, spot);
+    const st = approach(sim, ant, entity('point', -1, spot), DROP_ARRIVE_BU * sim.world.bu, true);
     if (st !== 'arrived') return st;
     if (!act(sim, ant, 'put-down', null)) return 'failed';
     ant.bb[B.leg] = 2;

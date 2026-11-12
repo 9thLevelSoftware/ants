@@ -203,6 +203,7 @@ export class HudMockFacade implements GameFacade {
       const g = GROUP[a.task] ?? 'idle';
       if (a.caste !== 'queen') { byGroup[g] = (byGroup[g] ?? 0) + 1; const r = roleOfTask(a.task); if (r) roles[r]++; }
     }
+    for (const r of (new URLSearchParams(location.search).get('norole') ?? '').split(',')) if (r in roles) roles[r as keyof typeof roles] = 0; // ?norole=digger,nurse: quick buttons disabled with a reason
     const live = this.order.slice(q.offset, q.offset + rows.length).map((id) => byId.get(id) as MockAnt);
     this.roster = {
       rows, offset: q.offset, total: this.order.length, all: this.ants.length, roles, byCaste, byGroup, stale: orderIsStale(live, q.sort, q.dir),

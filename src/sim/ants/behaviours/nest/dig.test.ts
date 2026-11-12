@@ -35,7 +35,11 @@ function plan(nest: Nest, id: number) {
   return nest.digPlans.find((p) => p.id === id);
 }
 
-/** Every slot claim is held by one ant whose own claim keys point at it. */
+/**
+ * Claims are consistent both ways: no ant holds two slots, every held slot names an ant whose own claim keys
+ * (bb.planId / bb.slotIdx) point back at it, and no two ants' claim keys point at the same slot (a second digger
+ * believing it holds a slot that the plan gave to another).
+ */
 function claimsConsistent(sim: Sim, nest: Nest): boolean {
   const holders = new Set<number>();
   for (const p of nest.digPlans) {
@@ -44,7 +48,16 @@ function claimsConsistent(sim: Sim, nest: Nest): boolean {
       if (a < 0) continue;
       if (holders.has(a)) return false;
       holders.add(a);
+      const ant = sim.stores.ants.get(a);
+      if (ant && (ant.bb.planId !== p.id || ant.bb.slotIdx !== k)) return false;
     }
+  }
+  const keys = new Set<string>();
+  for (const a of sim.stores.ants.list) {
+    if (!a.alive || (a.bb.planId ?? -1) < 0) continue;
+    const key = `${a.bb.planId}:${a.bb.slotIdx}`;
+    if (keys.has(key)) return false;
+    keys.add(key);
   }
   return true;
 }

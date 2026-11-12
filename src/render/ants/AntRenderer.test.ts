@@ -74,13 +74,30 @@ describe('AntRenderer (CPU side)', () => {
     const dealate = ant(2, 0, 0, { caste: 'gyne', lengthBu: 2.1 });
     const male = ant(3, 6, 0, { caste: 'male' });
     const gyne = ant(4, 12, 0, { caste: 'gyne', lengthBu: 2.1, flags: AntFlag.WINGED });
-    const { r, camera } = setup([founding, dealate, male, gyne]);
+    const { r, camera, sim } = setup([founding, dealate, male, gyne]);
     camera.position.set(3, 20, -40); camera.lookAt(3, 0, 0); camera.updateMatrixWorld();
+    sim.state.player.opening = { phase: 'dealation' }; // on screen: she sheds them now (GDD 06 §5.4)
     r.update(frame(camera));
     expect(r.stats.wings).toBe(2); // founding queen + flagged gyne
-    founding.queen = { founding: { wings: false } }; // dealation (GDD 06 §5.2)
+    founding.queen = { founding: { wings: false } }; // dealation done (GDD 06 §5.2)
     r.update(frame(camera));
     expect(r.stats.wings).toBe(1);
+  });
+
+  it('the founding queen is wingless (wing scars) except while the dealation is on screen (look-pass)', () => {
+    const founding = ant(1, 0, 0, { caste: 'queen', lengthBu: 2.1, flags: AntFlag.FOUNDING, queen: { founding: { wings: true } } });
+    const { r, camera, sim } = setup([founding]);
+    camera.position.set(0, 20, -40); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+    r.update(frame(camera));
+    expect(r.stats.wings).toBe(0); // a new game without an opening state: she has already flown
+    sim.state.player.opening = { phase: 'dealation' };
+    r.update(frame(camera));
+    expect(r.stats.wings).toBe(1); // shedding them on screen
+    for (const phase of ['intro-card', 'search', 'dig', 'seal', 'lay', 'done']) {
+      sim.state.player.opening = { phase };
+      r.update(frame(camera));
+      expect(r.stats.wings, phase).toBe(0);
+    }
   });
 
   it('a quality switch keeps variants, carried items and wings drawing (materials rebuilt in place)', () => {

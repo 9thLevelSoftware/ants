@@ -14,3 +14,4 @@ import { defaultBackends, type AssetGlobals } from './backends';
 export function createBrowserAssetLoader(opts: Omit<AssetLoaderOptions, 'backends'> = {}): AssetLoader {
   return new AssetLoader({ ...opts, backends: defaultBackends(window as Window & AssetGlobals) });
 }
+export { loadWorkerSource, WORLDGEN_WORKER_PATH } from './workerSource';

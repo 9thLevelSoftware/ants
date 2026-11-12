@@ -6,6 +6,7 @@ import type { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import type { Vec3 } from '@/core';
 import type { Sim } from '@/sim/types';
 import type { QualityPreset } from '@/render/app';
+import type { GradeParams } from '@/render/app/look';
 import type { AssetLoader } from '@/render/assets';
 import type { CutawayParams, FadeOutput } from '@/render/camera';
 import { DEBUG_RENDERERS } from './debug';
@@ -35,6 +36,8 @@ export interface RenderContext {
   game: RenderGameHooks;
   /** Exposure hook (RenderApp.setExposure). */
   setExposure?: (ev: number) => void;
+  /** Colour grade hook (RenderApp.setGrade): saturation and linear gain from the world lighting (render-integration). */
+  setGrade?: (g: GradeParams) => void;
   /**
    * Another slot's renderer (set by RenderRegistry; every slot's renderer exists before any init runs, slots
    * earlier in RENDERER_SLOTS are initialised first). Lets the nest share the world's material library.

@@ -126,6 +126,24 @@ describe('PrimitiveRenderer dynamics (headless)', () => {
     expect(r.has(3)).toBe(true);
     r.dispose();
   });
+  it('uploads the render-only look of each primitive (finish vector and colour) with its instance (look-pass)', async () => {
+    const { lookTable } = await import('../dressing/looks');
+    const { FINISH } = await import('../dressing/finishes');
+    const { PALETTE } = await import('../dressing/palette');
+    const { InstancedMesh: IM } = await import('three');
+    const r = new PrimitiveRenderer(lib, 280);
+    r.setLooks(lookTable([{ id: 9, templateId: 'fridge', pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, primStart: 0, primCount: 1, tags: [], routeIds: [], poiIds: [] }]));
+    r.setStatic([prim('box', [10, 10, 10], 1, { id: 1, material: 'metal', objectId: 9 }), prim('box', [10, 10, 10], 1, { id: 2, material: 'stone', objectId: -1, pos: { x: 30, y: 0, z: 0 } })]);
+    r.update(new Vector3());
+    const meshes = r.group.children.filter((c): c is InstanceType<typeof IM> => c instanceof IM && c.visible && c.count > 0);
+    const metal = meshes.find((m) => m.name.includes('|metal|'))!, stone = meshes.find((m) => m.name.includes('|stone|'))!;
+    const look = (m: InstanceType<typeof IM>) => Array.from((m.geometry.getAttribute('iLook').array as Float32Array).slice(0, 4));
+    expect(look(metal)[0]).toBe(FINISH.colour); // white enamel, not the rust scan
+    expect(look(stone)).toEqual([0, 0, 0, 0]); // natural
+    const c = Array.from((metal.instanceColor!.array as Float32Array).slice(0, 3));
+    for (let k = 0; k < 3; k++) expect(Math.abs(c[k] - PALETTE.enamel[k])).toBeLessThan(PALETTE.enamel[k] * 0.07);
+    r.dispose();
+  });
   it('batches by material and shape', () => {
     const r = new PrimitiveRenderer(lib, 280);
     const list: Primitive[] = [];

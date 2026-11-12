@@ -103,20 +103,14 @@ function placeFenceLine(ctx: GenContext, ln: Line, idx: number): void {
     const id = commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' });
     if (gap) { if (id >= 0) { gapsPlaced++; owedGap = false; } else owedGap = true; }
   }
-  // a guaranteed gap whose section was refused moves to the next panel; past the last panel it is lost (reported
-  // by validation as a closed fence line)
-  if (OUTDOOR.edges.gapGuarantee && panels.length > 0 && gapsPlaced === 0) owedGapLost(ctx, ln);
+  // a guaranteed gap whose section was refused moved on to the next panel; past the last panel it is lost (the
+  // map-wide guarantee of worldgen-life can still open a targeted fence gap)
+  if (OUTDOOR.edges.gapGuarantee && panels.length > 0 && gapsPlaced === 0) ctx.notes.push(`outdoor: fence line ${ln.side} has no fence gap`);
   // closing post at the line end
   if (naturalAt(ctx, end.x, end.z)) {
     commit(ctx, fenceSection(ctx.rngFor(`wg/structures/outdoor/fence/${idx}`, 9999), groundAt(end.x, end.z), { panel: false, gap: false, route: false, postSq: posts[n] }),
       { x: end.x, z: end.z, yaw, atGround: 'terrain', collide: true, category: 'structures' });
   }
-}
-
-/** Counter of fence lines that ended up without any fence gap (tests read it). */
-function owedGapLost(ctx: GenContext, ln: Line): void {
-  const st = outdoorState(ctx);
-  st.counts[`fence-line-no-gap/${ln.side}`] = 1;
 }
 
 /**

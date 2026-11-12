@@ -17,6 +17,17 @@ export type AntView = Pick<Ant,
   /** Only the founding queen's wing state is read (GDD 06 §5.2: wings stay on until the dealation phase). */
   queen?: { founding: { wings: boolean } | null } | null;
 };
+
+/**
+ * Opening phases in which the founding queen is shown winged: only the dealation (GDD 06 §5.1 / §5.4), where she
+ * sheds them on screen. The intro card covers the screen; from `search` on, and in any game without an opening
+ * state (tests, loads past the opening), she has already shed them: wing scars only, even when the sim's
+ * `queen.founding.wings` was never cleared (look-pass: the flag starts true at spawn and only the founding
+ * module's dealation clears it; until that module advances the phases a new game stays in `intro-card`).
+ */
+export const WINGED_OPENING_PHASES: readonly string[] = ['dealation'];
+
+type PlayerView = { possessedAntId: number; opening?: { phase: string } | null };
 export type BroodView = Pick<Brood, 'id' | 'alive' | 'colony' | 'stage' | 'destined' | 'progress' | 'pos' | 'carriedBy' | 'destinedLengthBu'>;
 export type ItemView = Pick<Item, 'id' | 'alive' | 'kind' | 'pos' | 'carrierIds' | 'lengthMm' | 'count' | 'species' | 'colony' | 'decay' | 'foodKind' | 'variant' | 'wasteKind'>;
 export type ColonyView = Pick<Colony, 'id' | 'species'>;
@@ -33,7 +44,7 @@ export interface AntSimSource {
     brood: readonly BroodView[];
     items: readonly ItemView[];
     colonies: readonly ColonyView[];
-    player: { possessedAntId: number };
+    player: PlayerView;
   };
   getSpecies?(id: string): SpeciesView | undefined;
 }
@@ -119,12 +130,16 @@ export class SimReader {
   get brood(): readonly BroodView[] { return this.sim.state.brood; }
   get items(): readonly ItemView[] { return this.sim.state.items; }
   get possessedId(): number { return this.sim.state.player.possessedAntId; }
+  /** The opening shows the founding queen winged (dealation on screen). */
+  foundingWingsShown = false;
 
   /** Refreshes the colony -> species map (a handful of colonies; called once per frame). */
   beginFrame(): void {
     this.lastColony = Number.NaN;
     this.colonySpecies.clear();
     for (const c of this.sim.state.colonies) this.colonySpecies.set(c.id, c.species);
+    const phase = this.sim.state.player.opening?.phase;
+    this.foundingWingsShown = phase !== undefined && WINGED_OPENING_PHASES.includes(phase);
   }
 
   speciesOfColony(colony: number): string {
@@ -184,9 +199,9 @@ export class SimReader {
     out.callow = (a.flags & AntFlag.CALLOW) !== 0 ? Math.max(0, 1 - Math.max(0, age) / CALLOW_DARKEN_TICKS) : 0;
     out.alarm = (a.flags & AntFlag.ALARMED) !== 0 ? Math.max(0.7, Math.min(1, a.alarmLevel)) : Math.min(1, Math.max(0, a.alarmLevel - 0.3));
     out.possessed = a.id === this.sim.state.player.possessedAntId || (a.flags & AntFlag.POSSESSED) !== 0;
-    // the sim sets WINGED on alates and clears it when they shed their wings; the founding queen keeps hers in
-    // her founding reserves until dealation
-    out.winged = (a.flags & AntFlag.WINGED) !== 0 || a.queen?.founding?.wings === true;
+    // the sim sets WINGED on alates and clears it when they shed their wings; the founding queen has flown already
+    // and shows her wings only while the opening's dealation is on screen (WINGED_OPENING_PHASES)
+    out.winged = (a.flags & AntFlag.WINGED) !== 0 || (a.queen?.founding?.wings === true && this.foundingWingsShown);
     return out;
   }
 

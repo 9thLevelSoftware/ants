@@ -134,3 +134,16 @@ describe('path boom (GDD 01 6.4, views retune)', () => {
     expect(got).toBeLessThan(1.5 * L);
   });
 });
+
+describe('teleport snap', () => {
+  it('a subject that jumps more than CAM_SNAP_JUMP_L starts over behind it (no stale tunnel trail)', () => {
+    const trace = makeSphereTracer(() => 1e3);
+    const r = new ThirdPersonRig({ bu: BU, bodyL: 1, autoFollow: 'off' });
+    const t = { pos: vec3(0, 0, 0), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) };
+    for (let i = 0; i < 30; i++) { t.pos.x += 0.2; r.update(1 / 30, t, NO_ORBIT_INPUT, { trace }); }
+    t.pos = vec3(500, 0, 500);
+    const o = r.update(1 / 30, t, NO_ORBIT_INPUT, { trace });
+    expect(Math.hypot(o.pos.x - 500, o.pos.z - 500)).toBeLessThan(10 * BU);
+    expect(o.guarded).toBe(false);
+  });
+});

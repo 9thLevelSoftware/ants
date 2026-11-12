@@ -86,9 +86,9 @@ export function planAssets({ manifestPath = path.join(PUBLIC_ASSETS, 'manifest.j
   const packs = [];
   for (const [name, items] of [...groups, ...audioGroups]) {
     if (!items.length) continue;
-    const reserve = name === 'core' ? 4 * 1000 * 1000 : 0; // room for the manifest, the worker source and the credits
+    const reserve = name === 'core' ? 1000 * 1000 : 0; // room for the manifest and the worker source
     const parts = chunk(items.sort((x, y) => x.path.localeCompare(y.path)), PACK_TARGET_BYTES - reserve);
-    parts.forEach((assets, i) => packs.push({ name: parts.length > 1 ? `${name}-${i + 1}` : name, assets }));
+    parts.forEach((assets, i) => packs.push({ name: i === 0 ? name : `${name}-${i + 1}`, assets }));
   }
   // Merge small audio groups so ambience, foley and the rest do not each cost a request.
   const merged = [];

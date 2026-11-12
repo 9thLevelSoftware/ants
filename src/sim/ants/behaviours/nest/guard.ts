@@ -62,7 +62,10 @@ function post(sim: Sim, ant: Ant): void {
 
 function alarmRaise(sim: Sim, ant: Ant): void {
   if (bbv(ant, 'bn.bg', 0) === 0) {
-    if (!act(sim, ant, 'release-alarm', null)) setState(sim, ant, ENTRY); // on cooldown: back to the post
+    if (act(sim, ant, 'release-alarm', null)) return;
+    // refused (the gland is on cooldown): wait it out here while the intruder is still about, else back to post
+    if (intruder(sim, ant)) waitThink(sim, ant);
+    else setState(sim, ant, ENTRY, 'alarm');
     return;
   }
   if (!primitiveDone(ant)) return;

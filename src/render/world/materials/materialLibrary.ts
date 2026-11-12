@@ -2,7 +2,7 @@
 // sets for materials without a scan, and cached MeshStandardMaterials for primitives. Other world renderers
 // (decor, water, weather) take texture sets and surface materials from here so every surface shares one look.
 import {
-  DataTexture, LinearFilter, LinearMipmapLinearFilter, MeshStandardMaterial, RepeatWrapping, RGBAFormat, SRGBColorSpace, UnsignedByteType,
+  DataTexture, LinearFilter, LinearMipmapLinearFilter, MeshPhysicalMaterial, MeshStandardMaterial, RepeatWrapping, RGBAFormat, SRGBColorSpace, UnsignedByteType,
   type Texture,
 } from 'three';
 import type { AssetLoader } from '@/render/assets';
@@ -22,6 +22,9 @@ export interface TextureSet {
 
 const DEFAULT_LOOK: ProceduralLook = { base: '#7a6a58', alt: '#8a7a66', grain: 0.2, bump: 0.3, rough: 0.8 };
 const proceduralSeed = (def: MaterialDef) => def.id.length * 131 + def.id.charCodeAt(0);
+
+/** Materials whose looked-up primitives may carry a clear coat (MeshPhysicalMaterial). */
+const PHYSICAL_MATERIALS = new Set(['metal', 'glass']);
 
 /** Edge of procedural textures, px. */
 export const PROCEDURAL_TEXTURE_SIZE = 256;
@@ -82,7 +85,8 @@ export class MaterialLibrary {
   }
 
   private proceduralSet(def: MaterialDef): TextureSet {
-    const px = proceduralPixels(def.procedural ?? DEFAULT_LOOK, PROCEDURAL_TEXTURE_SIZE, proceduralSeed(def));
+    const look = def.procedural ?? DEFAULT_LOOK;
+    const px = proceduralPixels(look, look.size ?? PROCEDURAL_TEXTURE_SIZE, proceduralSeed(def));
     const mk = (data: Uint8Array, srgb: boolean): Texture => {
       const t = new DataTexture(data, px.size, px.size, RGBAFormat, UnsignedByteType);
       t.wrapS = t.wrapT = RepeatWrapping;
@@ -120,7 +124,11 @@ export class MaterialLibrary {
    * uniforms (the hole mask of one world): a cached material would outlive that world and keep its stale uniforms.
    */
   createSurfaceMaterial(def: MaterialDef, variant: SurfaceVariant, breaches?: BreachList): MeshStandardMaterial {
-    const m = new MeshStandardMaterial({ color: 0xffffff, roughness: def.roughness, metalness: def.metalness });
+    // clear-coated finishes (car paint, glass, enamel) need the physical model; only metal and glass batches pay for it
+    const coat = variant.looks && PHYSICAL_MATERIALS.has(def.id);
+    const m = coat
+      ? new MeshPhysicalMaterial({ color: 0xffffff, roughness: def.roughness, metalness: def.metalness, clearcoat: 1, clearcoatRoughness: 0.05 })
+      : new MeshStandardMaterial({ color: 0xffffff, roughness: def.roughness, metalness: def.metalness });
     m.name = `world:${def.id}|${variant.key}`;
     applySurfacePatch(m, { ...variant, def, set: this.textureSet(def), uniforms: this.uniforms, breaches });
     return m;
@@ -133,7 +141,7 @@ export class MaterialLibrary {
       return { kind: 'images', albedo: img('albedo'), normal: img('normal'), rough: img('rough') };
     }
     const look = def.procedural ?? DEFAULT_LOOK;
-    return { kind: 'pixels', set: proceduralPixels(look, PROCEDURAL_TEXTURE_SIZE, proceduralSeed(def)) };
+    return { kind: 'pixels', set: proceduralPixels(look, look.size ?? PROCEDURAL_TEXTURE_SIZE, proceduralSeed(def)) };
   }
 
   setAnisotropy(n: number): void {

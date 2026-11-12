@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FLOOR_BUDGET_PCT } from '../../hud/balance';
 import { boundsFor, GROUP_ORDER, moveShare, quantise, sharesSum, type Flags, type Shares } from './linkedShares';
 
 const S = (forage: number, nurse: number, dig: number, defend: number): Shares => ({ forage, nurse, dig, defend });
@@ -91,5 +92,28 @@ describe('boundsFor', () => {
   });
   it('has no bounds without workers', () => {
     expect(boundsFor({ forage: 1, nurse: 1, dig: 1, defend: 1 }, 0)).toEqual({});
+  });
+});
+
+describe('boundsFor with more need than workers (a founding colony)', () => {
+  const total = (b: ReturnType<typeof boundsFor>): number => GROUP_ORDER.reduce((a, g) => a + (b[g]?.min ?? 0), 0);
+
+  it('the floors together never exceed the floor budget, whatever the need', () => {
+    for (const workers of [1, 2, 3, 5, 9]) {
+      for (const need of [{ forage: 2, nurse: 3, dig: 1, defend: 0 }, { forage: 40, nurse: 40, dig: 40, defend: 40 }, { forage: 1, nurse: 0, dig: 0, defend: 0 }]) {
+        expect(total(boundsFor(need, workers))).toBeLessThanOrEqual(FLOOR_BUDGET_PCT);
+      }
+    }
+  });
+
+  it('keeps the relative size of the floors when it scales them down', () => {
+    const b = boundsFor({ forage: 2, nurse: 6, dig: 0, defend: 0 }, 1);
+    expect(b.nurse!.min).toBeGreaterThan(b.forage!.min);
+  });
+
+  it('a colony with room to spare keeps its exact floors (no scaling)', () => {
+    const b = boundsFor({ forage: 8, nurse: 20, dig: 0, defend: 0 }, 40);
+    expect(b.forage?.min).toBe(5);
+    expect(b.nurse?.min).toBe(10);
   });
 });

@@ -7,6 +7,7 @@ import {
   VignetteEffect, type Effect,
 } from 'postprocessing';
 import type { PostParams } from './quality';
+import { GradeEffect, neutralGrade, type GradeParams } from './look';
 
 /** DoF focus easing (GDD 08 11.1 LOOK_DOF_FOCUS: eased over 300 ms, instant in reduced motion). */
 export const LOOK_DOF_EASE_S = 0.3 / 3; // time constant: ~95 % of the change within 300 ms
@@ -31,6 +32,9 @@ export class PostChain {
   private bloom: BloomEffect | null = null;
   private vignette: VignetteEffect | null = null;
   private smaa: SMAAEffect | null = null;
+  /** Colour grade (render-integration): rebuilt with the passes, always present, values kept across rebuilds. */
+  private grade: GradeEffect | null = null;
+  private readonly gradeValues: GradeParams = neutralGrade();
   private params: PostParams;
   private camera: Camera;
   private smaaReady: Promise<void> = Promise.resolve();
@@ -76,6 +80,8 @@ export class PostChain {
       });
       main.push(this.bloom);
     }
+    this.grade = new GradeEffect(this.gradeValues); // linear HDR, before tone mapping (as on the no-post path)
+    main.push(this.grade);
     main.push(new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }));
     if (P.vignette.enabled) {
       this.vignette = new VignetteEffect({ offset: P.vignette.offset, darkness: P.vignette.darkness });
@@ -129,6 +135,13 @@ export class PostChain {
   setHooks(h: Partial<PostHooks>): void {
     Object.assign(this.hooks, h);
     this.applyHooks();
+  }
+
+  /** Colour grade from the world lighting (render-integration, src/render/app/look). */
+  setGrade(g: GradeParams): void {
+    this.gradeValues.saturation = g.saturation;
+    this.gradeValues.gain[0] = g.gain[0]; this.gradeValues.gain[1] = g.gain[1]; this.gradeValues.gain[2] = g.gain[2];
+    this.grade?.set(this.gradeValues);
   }
 
   /** Focus distance in mm (world units); range defaults to rangeK x distance (LOOK_DOF_RANGE). */

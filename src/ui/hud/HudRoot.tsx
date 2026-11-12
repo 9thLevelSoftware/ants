@@ -4,7 +4,7 @@
 // game toggles `hudHidden`); a hidden HUD keeps only critical alerts.
 import { Component, type ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import { effect } from '@preact/signals';
+import { effect, untracked } from '@preact/signals';
 import { hudRequests } from '@/game/uiBridge/requests';
 import { installHudBridge } from '@/game/uiBridge/install';
 import { facade, snapshot } from '../store';
@@ -18,8 +18,11 @@ import { AlertsFeed } from './AlertsFeed';
 import { startFeed } from './alerts/store';
 import { ColonyPulse } from './ColonyPulse';
 import { installHudDebug } from './debugHook';
+import { watchKeepOut } from './keepOut';
+import { ENTERED_SELECTOR, keepChipsOutOfTabOrder, onChipClick, onChipMouseDown, onLeaveKey } from './focusPolicy';
 import { startDrawerPad } from './drawerPad';
 import { installHudKeys } from './hotkeys';
+import { startHudPad } from './hudPad';
 import { PossessedPanel } from './PossessedPanel';
 import { ContextPrompts } from './ContextPrompts';
 import { hudHiddenSlice, screenSlice, viewSlice } from './slices';
@@ -37,7 +40,7 @@ function useHudWiring(): void {
       installEnvironment(window, () => { const q = facade.value?.getSettings?.().graphics.quality; return q === 'high' || q === 'ultra'; }),
     ];
     installHudStyles();
-    stops.push(installMenuKeys(window), installHudKeys(), startFeed(), startInspectRequests());
+    stops.push(installMenuKeys(window), installHudKeys(), startHudPad(), startFeed(), startInspectRequests());
     const params = new URLSearchParams(location.search);
     if (params.get('test') === '1' || document.documentElement.dataset.hudDemo === '1') stops.push(installHudDebug());
     // the roster request follows the open drawer; any change of the query refreshes the snapshot (at most once a frame)
@@ -48,19 +51,26 @@ function useHudWiring(): void {
       hudRequests.roster = open ? q : null;
       if (!raf) raf = requestAnimationFrame(() => { raf = 0; facade.peek()?.refreshUi?.(); });
     }));
+    // the Directives data costs a pass over the colony: it is built only while that drawer is open, and at once on opening
+    stops.push(effect(() => {
+      const open = openDrawer.value === 'directives';
+      hudRequests.directivesOpen = open;
+      // untracked: building the snapshot reads signals of its own, and this effect must not subscribe to (and then loop on) them
+      if (open) untracked(() => facade.peek()?.refreshUi?.());
+    }));
     stops.push(effect(() => {
       const f = facade.value;
       if (!f) { hudBridge.value = null; return; }
       hudBridge.value = installHudBridge(f);
     }));
     stops.push(effect(() => { void snapshot.value; hudBridge.peek()?.settle(); }));
-    return () => { stops.forEach((s) => s()); cancelAnimationFrame(raf); hudRequests.roster = null; };
+    return () => { stops.forEach((s) => s()); cancelAnimationFrame(raf); hudRequests.roster = null; hudRequests.directivesOpen = false; };
   }, []);
   // gamepad movement inside the open drawer (polls only while one is open)
   useEffect(() => effect(() => (openDrawer.value ? startDrawerPad(() => document.querySelector<HTMLElement>('.fd-drawer')) : undefined)), []);
-  // keys belong to the drawer while focus is inside it (the game's Tab cycles ants, its arrows orbit the camera)
+  // keys belong to the drawer, the alerts feed or the pulse while focus is inside it (the game's Tab cycles ants, its arrows orbit the camera)
   useEffect(() => {
-    const inside = (t: EventTarget | null): boolean => !!(t as Element | null)?.closest?.('.fd-drawer');
+    const inside = (t: EventTarget | null): boolean => !!(t as Element | null)?.closest?.(ENTERED_SELECTOR);
     const onIn = (e: FocusEvent) => { if (inside(e.target)) hudBridge.peek()?.suspendGameKeys(true); };
     const onOut = (e: FocusEvent) => { if (inside(e.target) && !inside(e.relatedTarget)) hudBridge.peek()?.suspendGameKeys(false); };
     document.addEventListener('focusin', onIn);
@@ -95,11 +105,19 @@ function HudLayer() {
   const hidden = hudHiddenSlice.value;
   const photo = viewSlice.value === 'photo';
   const drawer = openDrawer.value;
-  const root = useRef<HTMLDivElement>(null);
+  const stops = useRef<(() => void)[]>([]);
+  // for as long as the HUD root exists: chips stay out of the tab order, prompts know which regions to avoid
+  const root = (el: HTMLDivElement | null) => {
+    stops.current.forEach((s) => s());
+    stops.current = el ? [keepChipsOutOfTabOrder(el), watchKeepOut(el)] : [];
+  };
   useHudWiring();
   if ((screen !== 'playing' && screen !== 'paused') || photo) return null; // photo mode shows the world alone
   return (
-    <div ref={root} class={`ui-root fd-root${drawer ? ' has-drawer' : ''}`} data-testid="hud-root" data-hidden={hidden ? '1' : undefined}>
+    <div
+      ref={root} class={`ui-root fd-root${drawer ? ' has-drawer' : ''}`} data-testid="hud-root" data-hidden={hidden ? '1' : undefined}
+      onMouseDown={onChipMouseDown} onClick={onChipClick} onKeyDown={onLeaveKey}
+    >
       {!hidden && <TimeCluster />}
       {!hidden && drawer === null && <ColonyPulse />}
       {(!hidden ? drawer === null : true) && <AlertsFeed />}

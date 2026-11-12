@@ -3,6 +3,7 @@
 // so there is no floating-point drift: 100 % = 20 steps of 5 %.
 import { MANUAL_FLOOR, MANUAL_RESERVE } from '@/sim/balance';
 import type { UiGroupId } from '../../api';
+import { FLOOR_BUDGET_PCT } from '../../hud/balance';
 
 export const GROUP_ORDER: readonly UiGroupId[] = ['forage', 'nurse', 'dig', 'defend'];
 export const SHARE_STEP = 5;
@@ -138,11 +139,15 @@ export function sharesSum(s: Shares): number {
 export function boundsFor(need: Record<UiGroupId, number>, workers: number): BoundsMap {
   const out: BoundsMap = {};
   if (workers <= 0) return out;
-  for (const g of GROUP_ORDER) {
-    // the sim's floor (a quarter of the group's need) as a share of the orderable workers, rounded down to a step
-    const floorShare = Math.min(100, ((MANUAL_FLOOR * need[g]) / (workers * (1 - MANUAL_RESERVE))) * 100);
-    const min = Math.floor(floorShare / SHARE_STEP) * SHARE_STEP;
+  const raw = GROUP_ORDER.map((g) => Math.min(100, ((MANUAL_FLOOR * need[g]) / (workers * (1 - MANUAL_RESERVE))) * 100));
+  // With few workers and a large need (a founding colony) the floors alone can exceed 100 %, which would freeze every
+  // slider. Scale them down together so they never claim more than FLOOR_BUDGET_PCT; the simulation keeps its own floors.
+  const total = raw.reduce((a, b) => a + b, 0);
+  const k = total > FLOOR_BUDGET_PCT ? FLOOR_BUDGET_PCT / total : 1;
+  GROUP_ORDER.forEach((g, i) => {
+    // as a share of the orderable workers, rounded down to a step
+    const min = Math.floor((raw[i] * k) / SHARE_STEP) * SHARE_STEP;
     if (min > 0) out[g] = { min, max: SHARE_TOTAL };
-  }
+  });
   return out;
 }

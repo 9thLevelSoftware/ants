@@ -5,9 +5,11 @@
 import type { ActionId, Ant, Sim, TargetKind, TargetRef } from '@/sim/types';
 import { TARGET_KINDS } from '@/sim/types';
 import { navStop, navToTarget, type NavOptions } from '@/sim/locomotion';
-import { begin } from '@/sim/ants/actions';
+import { begin, canDo } from '@/sim/ants/actions';
 import { B } from './fsm';
 import { dist } from './places';
+import { CEILING_UP_Y, TRAVEL_STALL_S, WALK_STALL_SPEED_BU } from '@/sim/balance/nestwork';
+import { secondsToTicks } from '@/sim/time';
 
 export type TravelStatus = 'arrived' | 'moving' | 'failed';
 
@@ -26,13 +28,35 @@ export function travel(sim: Sim, ant: Ant, t: TargetRef, arriveMm: number, opts?
   const issued = ant.bb[B.goKind] === k && ant.bb[B.goId] === t.id;
   if (issued) {
     const st = ant.nav.status;
-    if (st === 'moving') return 'moving';
+    if (st === 'moving') {
+      // stuck upside down on a ceiling with the target lower down: let go and drop (GDD 01 `let-go`), then on
+      if (standingStill(sim, ant) && ant.up.y < CEILING_UP_Y && t.pos.y < ant.pos.y - sim.world.bu && canDo(sim, ant, 'let-go', null).ok) {
+        act(sim, ant, 'let-go', null);
+        ant.bb[B.began] = 0;
+        ant.bb[B.goKind] = -1;
+      }
+      return 'moving';
+    }
     if (st === 'arrived') return 'arrived';
     if (st === 'failed') return 'failed';
   }
   ant.bb[B.goKind] = k;
   ant.bb[B.goId] = t.id;
+  ant.bb[B.travelStall] = -1;
   return navToTarget(sim, ant, t, arriveMm, opts) ? 'moving' : 'failed';
+}
+
+/**
+ * The walk runs but the ant has stood still for TRAVEL_STALL_S (the walker can hold a request it makes no headway
+ * on for seconds; its own recovery ladder handles most cases, not a ceiling over the goal). Uses B.travelStall.
+ */
+function standingStill(sim: Sim, ant: Ant): boolean {
+  if (ant.speed > WALK_STALL_SPEED_BU * sim.world.bu) { ant.bb[B.travelStall] = -1; return false; }
+  const t0 = ant.bb[B.travelStall] ?? -1;
+  if (t0 < 0) { ant.bb[B.travelStall] = sim.state.tick; return false; }
+  if (sim.state.tick - t0 < secondsToTicks(TRAVEL_STALL_S)) return false;
+  ant.bb[B.travelStall] = -1;
+  return true;
 }
 
 /** Forgets the travel request of the current state (the next travel() issues a new one). */

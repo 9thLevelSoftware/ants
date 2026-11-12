@@ -15,7 +15,8 @@ import { primMaterialDef } from '../materials/materialDefs';
 import { addPatch, BREACH_UNIFORM_MAX, primVertexPatch, type BreachList } from '../materials/surfacePatch';
 import { isDiggablePrim } from '../lighting/simAdapter';
 import { PRIM_DETAIL, roundedBoxData, roundedCylinderData, sphereData, toBufferGeometry } from './primGeometry';
-import { PrimSet, type BatchDef, type PartitionView } from './primCells';
+import { PrimSet, type BatchDef, type LookFn, type PartitionView } from './primCells';
+import { LEAF_OUTLINE_GLSL, LOOK_DEPTH_FRAG } from '../dressing/finishGlsl';
 import { PrimLayer } from './primLayer';
 import { primSignature, type GeomKind, type Lod } from './primInstances';
 
@@ -51,6 +52,8 @@ export class PrimitiveRenderer {
   nearMm: number;
   /** Updates that re-partitioned anything (statistics / tests). */
   rebuilds = 0;
+  /** Render-only look of each primitive (dressing/looks.ts); none = default colours, natural finish. */
+  private look: LookFn | undefined;
 
   constructor(private readonly lib: MaterialLibrary, nearMm: number) {
     this.group.name = 'world:primitives';
@@ -63,10 +66,15 @@ export class PrimitiveRenderer {
     this.dynamicLayer = new PrimLayer('world:prims:dyn:', factory, this.group);
   }
 
+  /** Sets the look function used by the next setStatic / dynamic sync (null = default looks). */
+  setLooks(look: LookFn | null): void {
+    this.look = look ?? undefined;
+  }
+
   /** Replaces the static primitive set (new world). */
   setStatic(prims: readonly Primitive[]): void {
     this.statics = prims;
-    this.staticLayer.setSet(new PrimSet(prims, isDiggablePrim, Math.max(1, this.nearMm * STATIC_CELL_IN_NEAR)));
+    this.staticLayer.setSet(new PrimSet(prims, isDiggablePrim, Math.max(1, this.nearMm * STATIC_CELL_IN_NEAR), this.look));
     this.movedIds.clear();
     this.dynamicSigs.clear();
     this.dynamicLayer.setSet(null);
@@ -97,7 +105,7 @@ export class PrimitiveRenderer {
     for (const p of moved.values()) list.push(p);
     this.dynamicSigs.clear();
     for (const p of list) this.dynamicSigs.set(p.id, primSignature(p));
-    this.dynamicLayer.setSet(new PrimSet(list, isDiggablePrim, Math.max(1, this.nearMm * STATIC_CELL_IN_NEAR)));
+    this.dynamicLayer.setSet(new PrimSet(list, isDiggablePrim, Math.max(1, this.nearMm * STATIC_CELL_IN_NEAR), this.look));
     this.dynamicDirty = true;
     // hide / show static originals only when the set of moved objects changed
     const set = this.staticLayer.set;
@@ -159,23 +167,34 @@ export class PrimitiveRenderer {
     let m = this.depthMats.get(family);
     if (!m) {
       m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
-      addPatch(m, `prim-depth-${family}`, (s) => primVertexPatch(s, family));
+      addPatch(m, `prim-depth-${family}-looks`, (s) => {
+        primVertexPatch(s, family);
+        // leaf silhouettes cut in the shadow map too (dressing/finishGlsl.ts)
+        s.vertexShader = s.vertexShader
+          .replace('#include <common>', '#include <common>\nattribute vec4 iLook; varying vec4 vWrLook; varying vec4 vWrSize; varying vec3 vWrP;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvWrLook = iLook; vWrSize = iSize; vWrP = transformed;');
+        s.fragmentShader = s.fragmentShader
+          .replace('#include <common>', `#include <common>\nvarying vec4 vWrLook; varying vec4 vWrSize; varying vec3 vWrP;\n${LEAF_OUTLINE_GLSL}`)
+          .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${LOOK_DEPTH_FRAG}`);
+      });
       this.depthMats.set(family, m);
     }
     return m;
   }
 
-  private makeMesh(def: BatchDef, lod: Lod, capacity: number, name: string): { mesh: InstancedMesh; size: InstancedBufferAttribute } {
+  private makeMesh(def: BatchDef, lod: Lod, capacity: number, name: string): { mesh: InstancedMesh; size: InstancedBufferAttribute; look: InstancedBufferAttribute } {
     const base = this.baseGeometry(def.geom, lod);
     const g = new BufferGeometry();
     for (const attr of ['position', 'normal', 'aCorner']) g.setAttribute(attr, base.getAttribute(attr));
     g.setIndex(base.getIndex());
     const size = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
     g.setAttribute('iSize', size);
+    const look = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
+    g.setAttribute('iLook', look);
     const family = def.geom === 'sphere' ? 'ellipsoid' : 'rounded';
     const mat = this.lib.surfaceMaterialFor(
       primMaterialDef(def.material),
-      { key: `prim-${family}${def.diggable ? '-dig' : ''}`, space: 'instance', prim: family, macro: PRIM_MACRO },
+      { key: `prim-${family}${def.diggable ? '-dig' : ''}-looks`, space: 'instance', prim: family, macro: PRIM_MACRO, looks: true },
       def.diggable ? this.breaches : undefined,
     );
     const mesh = new InstancedMesh(g, mat, capacity);
@@ -185,7 +204,7 @@ export class PrimitiveRenderer {
     mesh.customDepthMaterial = this.depthMaterial(family);
     mesh.boundingSphere = new Sphere();
     mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
-    return { mesh, size };
+    return { mesh, size, look };
   }
 
   /** Draw statistics (visible meshes and instances). */

@@ -6,11 +6,12 @@ import type { BatchDef, PartitionView, PrimSet } from './primCells';
 import { bucketKey, LODS, type Lod } from './primInstances';
 
 /** Builds the shared geometry + material of a batch mesh (provided by the PrimitiveRenderer). */
-export type BatchMeshFactory = (def: BatchDef, lod: Lod, capacity: number, name: string) => { mesh: InstancedMesh; size: InstancedBufferAttribute };
+export type BatchMeshFactory = (def: BatchDef, lod: Lod, capacity: number, name: string) => { mesh: InstancedMesh; size: InstancedBufferAttribute; look: InstancedBufferAttribute };
 
 interface BatchMesh {
   mesh: InstancedMesh;
   size: InstancedBufferAttribute;
+  look: InstancedBufferAttribute;
   lod: Lod;
   capacity: number;
   /** Instances written by the running pass, and a hash of their record indices. */
@@ -55,11 +56,11 @@ export class PrimLayer {
         }
         let cap = 16;
         while (cap < def.count) cap *= 2;
-        const { mesh, size } = this.factory(def, lod, cap, name);
+        const { mesh, size, look } = this.factory(def, lod, cap, name);
         mesh.count = 0;
         mesh.visible = false;
         this.group.add(mesh);
-        return { mesh, size, lod, capacity: cap, n: 0, hash: 0, lastHash: -1, maxR: 0, lo: [0, 0, 0], hi: [0, 0, 0] } as BatchMesh;
+        return { mesh, size, look, lod, capacity: cap, n: 0, hash: 0, lastHash: -1, maxR: 0, lo: [0, 0, 0], hi: [0, 0, 0] } as BatchMesh;
       }));
     }
     for (const b of old.values()) { this.group.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.dispose(); }
@@ -74,13 +75,14 @@ export class PrimLayer {
       b.lo[0] = b.lo[1] = b.lo[2] = Infinity;
       b.hi[0] = b.hi[1] = b.hi[2] = -Infinity;
     }
-    const { matrices, colors, sizes, pos, radius } = set;
+    const { matrices, colors, sizes, looks, pos, radius } = set;
     set.partition(v, (i, batch, lod) => {
       const b = this.meshes[batch][lod === 'near' ? 0 : lod === 'far' ? 1 : 2];
       const k = b.n++;
       (b.mesh.instanceMatrix.array as Float32Array).set(matrices.subarray(i * 16, i * 16 + 16), k * 16);
       (b.mesh.instanceColor!.array as Float32Array).set(colors.subarray(i * 3, i * 3 + 3), k * 3);
       (b.size.array as Float32Array).set(sizes.subarray(i * 4, i * 4 + 4), k * 4);
+      (b.look.array as Float32Array).set(looks.subarray(i * 4, i * 4 + 4), k * 4);
       b.hash = Math.imul(b.hash ^ i, 0x01000193);
       const r = radius[i];
       if (r > b.maxR) b.maxR = r;
@@ -109,6 +111,7 @@ export class PrimLayer {
     upload(m.instanceMatrix, b.n * 16);
     upload(m.instanceColor!, b.n * 3);
     upload(b.size, b.n * 4);
+    upload(b.look, b.n * 4);
     // distant pebbles' shadows are sub-texel: skip them in the shadow pass
     m.castShadow = b.lod === 'near' || b.maxR >= FAR_SHADOW_MIN_RADIUS;
     const s = m.boundingSphere ?? (m.boundingSphere = new Sphere());

@@ -1,0 +1,187 @@
+// The opening sequence and the founding model (GDD 06 §5; 00-index C6; owner: founding, src/sim/colony/founding).
+// Per-species values that are species facts (R0, clutch cap, readiness geometry) live in SpeciesDef.opening; this
+// file holds the opening's rules. Rates are per game day (GD) unless the name says otherwise.
+
+import type { SpeciesId } from '@/sim/types';
+
+// ---- phases and timing (GDD 06 §5.1-§5.4) ----
+
+/** The wordless intro card lasts this long (real s) unless a key skips it. */
+export const OPEN_INTRO_S = 6;
+/** Dealation: the queen sheds her wings (game s); input is locked for the first OPEN_DEALATION_LOCK_S. */
+export const OPEN_DEALATION_S = 8;
+export const OPEN_DEALATION_LOCK_S = 3;
+
+// ---- reserves (GDD 06 §5.5) ----
+
+/** Queen upkeep from the founding pool at all times (0.30 C + 0.10 P), loads per GD. */
+export const FOUND_UPKEEP_PER_GD = 0.4;
+/** Extra drain while she is above ground, loads per GD. */
+export const FOUND_SURFACE_EXTRA_PER_GD = 0.35;
+/** Each dig bite of the founding queen costs this much of the pool, loads. */
+export const FOUND_DIG_COST_PER_BITE = 0.02;
+/** Larval food over the whole larval stage (1.2 P + 0.4 C), drawn progressively, loads per larva. */
+export const LARVA_COST_LOADS = 1.6;
+/** Upkeep factor while development is frozen in winter. */
+export const FOUND_WINTER_UPKEEP_FACTOR = 0.4;
+/** Visible abdomen thickness = BASE + SPAN x reserves. */
+export const FOUND_ABDOMEN_BASE = 0.55;
+export const FOUND_ABDOMEN_SPAN = 0.45;
+
+// ---- desiccation (shelter clock) and health (GDD 06 §5.5) ----
+
+/** Desiccation per GD: open sun / shade or cover / in a shaft deeper than SHAFT_REFUGE_BU / sealed and humid. */
+export const DESICC_OPEN_PER_GD = 1.2;
+export const DESICC_SHADE_PER_GD = 0.4;
+export const DESICC_SHAFT_PER_GD = 0.1;
+export const DESICC_SEALED_PER_GD = -0.5;
+/** Shaft depth that counts as shelter, BU (also the threat refuge depth of §5.6 is deeper, 4 BU). */
+export const DESICC_SHAFT_REFUGE_BU = 3;
+/** Static day-mean shade (0..1) from which the ground counts as shaded. */
+export const DESICC_SHADE_MIN = 0.5;
+/** Sealed chamber humidity from which the queen recovers. */
+export const DESICC_SEALED_RH_MIN = 0.6;
+/** Rate multiplier while the micro temperature is at or above the species' shadeSeekC. */
+export const DESICC_HEAT_MULT = 1.5;
+/** Health regained per GD while sealed (fraction of max). */
+export const FOUND_HEALTH_REGEN_SEALED = 0.05;
+
+// ---- site assessment (GDD 06 §5.7) ----
+
+/** Holding T this long starts a read-out; standing still this long over diggable ground starts one too, game s. */
+export const SITE_SNIFF_HOLD_S = 1.2;
+export const SITE_AUTO_STILL_S = 1.5;
+/** A read-out persists while the queen stays within this radius, BU, and refreshes this often, game s. */
+export const SITE_KEEP_RADIUS_BU = 8;
+export const SITE_REFRESH_S = 0.5;
+/** Moving slower than this counts as standing still, BU/s. */
+export const SITE_STILL_SPEED_BU_S = 0.2;
+/** Depth of the substrate and moisture samples, BU. */
+export const SITE_SAMPLE_DEPTH_BU = 8;
+/** Cover: a solid roof found within this height above the ground, BU. */
+export const SITE_ROOF_MAX_BU = 3;
+/**
+ * Cover factor values: solid roof, dense litter / moss, grass canopy, bare ground. GDD 06 §5.7 gives 1.0 / 0.6 / 0.35 /
+ * 0.1; directions §K (binding, after the world-generation review) asks for missing cover to be a LOW value so that
+ * open lawn reads fair: litter 0.5 and grass 0.15, calibrated with SITE_WORD_Q on generated worlds (founding report).
+ */
+export const SITE_COVER = { roof: 1.0, litter: 0.5, grass: 0.15, bare: 0.1 } as const;
+/** Litter map value from which the ground counts as densely littered. */
+export const SITE_LITTER_MIN = 0.5;
+/** Sand diggability: 0.8 x clamp(0.4 + theta / 0.5, 0.4, 1) (dry sand collapses). */
+export const SITE_SAND = { mult: 0.8, base: 0.4, per: 0.5, min: 0.4 } as const;
+/** Rival scent: 1 - clamp(home scent / RIVAL_FULL_PH). */
+export const SITE_RIVAL_FULL_PH = 0.5;
+/** Exposure: 1 - clamp(FOOT x footTraffic + SKY x openSky). */
+export const SITE_EXPOSURE = { foot: 0.6, sky: 0.4 } as const;
+/** Warmth: 1 inside [Topt_lo, Topt_hi], linear to 0 this many C beyond. */
+export const SITE_WARMTH_FALLOFF_C = 10;
+/** A factor below this counts as this in the geometric mean (one terrible factor drags the whole). */
+export const SITE_FACTOR_FLOOR = 0.05;
+/**
+ * Overall word thresholds: Q below FAIR is poor, below GOOD fair, below EXCELLENT good. GDD 06 §5.7 says 0.30 / 0.55 /
+ * 0.75; directions §K's distribution targets (excellent <= ~10 % of diggable ground, good <= ~25 %, fair ~40 %, poor
+ * the rest; open mown lawn fair) need these on generated worlds (3 seeds, 643k diggable samples: 23 / 39 / 27 / 9 %).
+ */
+export const SITE_WORD_Q = { fair: 0.68, good: 0.74, excellent: 0.89 } as const;
+
+/** Moisture trapezoid (0 at lo0, 1 from lo1 to hi1, 0 at hi0) and the optimal chamber temperature band, C. */
+export interface SiteProfile {
+  moist: { lo0: number; lo1: number; hi1: number; hi0: number };
+  toptC: [number, number];
+  /** Weights in SITE_FACTORS order: diggability, moisture, warmth, cover, floodSafety, rivalScent, exposure. */
+  weights: [number, number, number, number, number, number, number];
+}
+
+export const SITE_PROFILES: Record<SpeciesId, SiteProfile> = {
+  'lasius-niger': { moist: { lo0: 0.1, lo1: 0.35, hi1: 0.65, hi0: 0.95 }, toptC: [20, 26], weights: [0.2, 0.2, 0.2, 0.15, 0.15, 0.05, 0.05] },
+  'camponotus-pennsylvanicus': { moist: { lo0: 0.08, lo1: 0.15, hi1: 0.3, hi0: 0.5 }, toptC: [22, 28], weights: [0.2, 0.3, 0.15, 0.15, 0.05, 0.05, 0.1] },
+  'messor-barbarus': { moist: { lo0: 0.1, lo1: 0.2, hi1: 0.5, hi0: 0.95 }, toptC: [22, 28], weights: [0.2, 0.15, 0.25, 0.05, 0.2, 0.05, 0.1] },
+  'atta-texana': { moist: { lo0: 0.1, lo1: 0.4, hi1: 0.7, hi0: 0.95 }, toptC: [21, 25], weights: [0.15, 0.2, 0.2, 0.05, 0.25, 0.1, 0.05] },
+};
+
+// ---- digging, readiness, sealing (GDD 06 §5.8-§5.9, GDD 03 §13) ----
+
+/** Readiness is re-measured this often while digging, ticks (GDD 03: every game second). */
+export const FOUND_READINESS_EVERY_TICKS = 10;
+/** A bite this far (BU) from the founding cavity, not connected to it, starts a new site (GDD 03 §13.4). */
+export const FOUND_ABANDON_BU = 6;
+/** At most this many abandoned burrows per queen (GDD 03 §13.4). */
+export const FOUND_ABANDON_MAX = 3;
+/** The queen counts as inside the cell when this deep below the ground (with readiness met), BU below D_MIN. */
+export const FOUND_IN_CELL_MARGIN_BU = 2;
+/** An entrance belongs to the founding cavity when a point this far down its throat (BU) is connected to the cell. */
+export const FOUND_THROAT_PROBE_BU = [1, 2, 3, 4] as const;
+
+// ---- clutch (GDD 06 §5.10) ----
+
+/** Chamber volume per egg of the clutch, BU^3 (maxEggsByVolume = floor(volume / this)). */
+export const EGG_VOLUME_BU3 = 0.25;
+/** No batch within this long after sealing: prompt; after OPEN_AUTO_LAY_GD the queen lays one batch herself. */
+export const OPEN_LAY_PROMPT_GD = 1.0;
+export const OPEN_AUTO_LAY_GD = 1.5;
+/** Forecast safe band: the highest clutch whose expected end reserves stay at or above this. */
+export const FORECAST_SAFE_RESERVE = 0.15;
+/** Forecast range shown: [LO x E, HI x E]. */
+export const FORECAST_RANGE = [0.7, 1.3] as const;
+
+// ---- founding model (GDD 06 §5.12) ----
+
+/** Brood hazard mu per GD = min(MAX, max(MIN, K x (Q_REF - Q))) x muSpecies x difficulty. */
+export const FOUND_MU = { min: 0.06, max: 0.6, k: 0.42, qRef: 1.1 } as const;
+export const FOUND_MU_SPECIES: Record<SpeciesId, number> = {
+  'lasius-niger': 1.0, 'camponotus-pennsylvanicus': 0.55, 'messor-barbarus': 1.0, 'atta-texana': 0.9,
+};
+/** Moisture adds x (1 + GAIN x max(0, REF - moisture) / REF). */
+export const FOUND_MU_MOIST = { ref: 0.3, gain: 2 } as const;
+/** Cannibalism below LOW x R0: every EVERY_GD with probability P the queen eats the youngest larva. */
+export const FOUND_CANNIBAL = { low: 0.1, everyGd: 0.05, p: 0.25, larvaReturn: 0.6, eggReturn: 0.024 } as const;
+/** Hazard rates per GD (sealed): flood base, intruder base and seal factor, fungus base, collapse base and depth. */
+export const FOUND_HAZARD = {
+  floodBase: 0.35, intruderBase: 0.05, intruderSealed: 0.4, intruderRivalGain: 2, fungusBase: 0.03,
+  fungusHumidityFrom: 0.8, fungusHumiditySpan: 0.2, collapseBase: 0.06, collapseDepthBu: 5,
+} as const;
+/** Default (no response) outcomes of a hazard: share of brood lost, queen health lost. */
+export const FOUND_HAZARD_LOSS = {
+  flood: { brood: 0.6, health: 0 }, intruder: { brood: 0.8, health: 0.4 }, fungus: { brood: 0.5, health: 0 },
+  collapse: { brood: 0.5, health: 0 }, outbreak: { brood: 0.5, health: 0 },
+} as const;
+/** Gentle resolves hazards silently with the "responded" outcome halved (GDD 06 §5.11 table / 2). */
+export const FOUND_HAZARD_RESPONDED = {
+  flood: { brood: 0.075, health: 0 }, intruder: { brood: 0.05, health: 0.05 }, fungus: { brood: 0.05, health: 0 },
+  collapse: { brood: 0.1, health: 0 }, outbreak: { brood: 0.05, health: 0 },
+} as const;
+/** The founding hazards are rolled this often, GD. */
+export const FOUND_HAZARD_EVERY_GD = 0.05;
+
+// ---- automatic queen care in the claustral cell (GDD 02 §2.7 `queen.found-care`, GDD 06 §5.11) ----
+
+/** Care runs this often, ticks (the colony's slow tick). */
+export const FOUND_CARE_EVERY_TICKS = 10;
+/** The queen tops a larva's gut up when it falls below this, loads. */
+export const FOUND_CARE_FEED_BELOW = 0.15;
+
+// ---- time-lapse (GDD 06 §5.11) ----
+
+/** The lapse ends this long after the first eclosion, GD. */
+export const FOUND_END_AFTER_ECLOSION_GD = 0.4;
+/** Playback target and limits, real s; speed = span x 600 / target. */
+export const TIMELAPSE_TARGET_S = 75;
+export const TIMELAPSE_MIN_S = 45;
+export const TIMELAPSE_MAX_S = 120;
+/** Expected span used for the progress bar before the first eclosion is known, GD (Lasius 4.5-5.5). */
+export const TIMELAPSE_SPAN_GUESS_GD = 4.9;
+/** Beat boundaries by playback fraction (eggs, larvae, pupae, cocoons, eclosion, final card). */
+export const TIMELAPSE_BEATS = [0.12, 0.35, 0.55, 0.8, 0.95] as const;
+/** Skipped: the final card stays this long, real s. */
+export const TIMELAPSE_SKIP_CARD_S = 2;
+
+// ---- hand-over and failure (GDD 06 §5.13, §5.14) ----
+
+/** Hand-over: paused for the first second; `done` on first movement input or after this long, real s. */
+export const HANDOVER_PAUSE_S = 1;
+export const HANDOVER_DONE_S = 10;
+/** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */
+export const BROOD_LOST_RELAY_MIN = 0.35;
+/** ... else `failed` with cause `no-workers` after this long, GD. */
+export const BROOD_LOST_FAIL_GD = 1;

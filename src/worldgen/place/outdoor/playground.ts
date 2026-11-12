@@ -68,19 +68,33 @@ function equipment(ctx: GenContext, r: Rect, zoneId: number): void {
   ];
   const placed: Rect[] = [];
   const clear = G.equipmentClearMm;
+  // packed toward the rect's corners (the first piece in a random corner, the next ones in the opposite and the
+  // remaining corners), so that the fall zones fit in a small rubber area
+  const corners = [[r.x0, r.z0], [r.x1, r.z1], [r.x1, r.z0], [r.x0, r.z1]];
+  const k0 = rngInt(rng, 0, 1) * 2;
+  let n = 0;
   for (const it of items) {
     if (rngFloat(rng) >= it.p) continue;
     const b = it.make();
-    for (let t = 0; t < G.equipmentTries; t++) {
-      const yaw = (rngInt(rng, 0, 3) * Math.PI) / 2;
-      const x = range(rng, r.x0, r.x1), z = range(rng, r.z0, r.z1);
-      const c = localToWorld(x, z, yaw, 0, it.f.cz);
-      if (!footprintIn(ctx, c.x, c.z, yaw, it.f.hx, it.f.hz, [zoneId])) continue;
-      const turned = Math.abs(dsin(yaw)) > 0.5;
-      const hx = turned ? it.f.hz : it.f.hx, hz = turned ? it.f.hx : it.f.hz;
-      const fp: Rect = { x0: c.x - hx, z0: c.z - hz, x1: c.x + hx, z1: c.z + hz };
-      if (placed.some((q) => rectGap(q, fp) < clear)) continue;
-      if (commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' }) >= 0) { placed.push(fp); break; }
+    const [kx, kz] = corners[(k0 + n) % 4];
+    const cands: { x: number; z: number; yaw: number; fp: Rect; d: number }[] = [];
+    for (let q = 0; q < 4; q++) {
+      const yaw = (q * Math.PI) / 2;
+      for (let x = r.x0; x <= r.x1; x += G.equipmentGridMm) for (let z = r.z0; z <= r.z1; z += G.equipmentGridMm) {
+        const c = localToWorld(x, z, yaw, 0, it.f.cz);
+        const turned = q % 2 === 1;
+        const hx = turned ? it.f.hz : it.f.hx, hz = turned ? it.f.hx : it.f.hz;
+        const fp: Rect = { x0: c.x - hx, z0: c.z - hz, x1: c.x + hx, z1: c.z + hz };
+        if (fp.x0 < r.x0 || fp.x1 > r.x1 || fp.z0 < r.z0 || fp.z1 > r.z1) continue;
+        if (placed.some((o) => rectGap(o, fp) < clear)) continue;
+        cands.push({ x, z, yaw, fp, d: Math.abs(c.x - kx) + Math.abs(c.z - kz) });
+      }
+    }
+    cands.sort((a, b2) => a.d - b2.d || a.x - b2.x || a.z - b2.z || a.yaw - b2.yaw);
+    for (const c of cands.slice(0, G.equipmentTries)) {
+      const m = localToWorld(c.x, c.z, c.yaw, 0, it.f.cz);
+      if (!footprintIn(ctx, m.x, m.z, c.yaw, it.f.hx, it.f.hz, [zoneId])) continue;
+      if (commit(ctx, b, { x: c.x, z: c.z, yaw: c.yaw, atGround: 'terrain', collide: true, category: 'structures' }) >= 0) { placed.push(c.fp); n++; break; }
     }
   }
 }
