@@ -94,3 +94,6 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - 11:08 Launched the Stage 1A integration gate as two parallel halves: int-1A-app (renderer registration, game flow, browser e2e) and int-1A-sim (module seams, tests, soak). Specs docs/design/tasks/int-1A-{sim,app}.md; notes docs/design/tasks/notes-1A.md (27k words).
 - Still running besides the gates: worldgen-terrain fix, render-decor impl, ui-shell impl, save impl.
 - After the gates: read docs/design/tasks/gate-1A-{sim,app}-report.md, view the stage1a screenshots, then launch Stage 1B (beh-forage, beh-nest, architect, worldgen-outdoor, worldgen-interior, worldgen-life, founding, views, ui-hud, packaging), 2-3 workflows side by side, visual tasks capped at 2-3.
+- 12:03 DONE: worldgen-terrain (zone map reviewed by orchestrator: plausible lot layout). Ruling added (directions §K): founding-site quality must discriminate (distribution targets; queen start rule) -> owned by worldgen-life (calibration) and founding (same factors).
+- 12:05 Launched worldgen-outdoor + worldgen-interior (Opus). Running: gates int-1A-app + int-1A-sim, render-decor, ui-shell, save.
+- Stage 1B still to launch after the gates: beh-forage, beh-nest, architect, worldgen-life (after outdoor/interior), founding, views, ui-hud, packaging.
