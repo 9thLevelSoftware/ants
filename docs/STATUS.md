@@ -76,3 +76,7 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - 08:01 F2 kernel DONE (9 review findings fixed, 91 tests, perf budgets met). Launched render-nest.
 - 08:11 F1c DONE: contracts synced with design index and FROZEN (additive only from now). Launched F-int (implement-only; wf-build.js now supports tasks with skipImpl:true for a later verify+fix run).
 - When F-int impl completes: launch (a) F-int verify+fix via {key:'F-int-foundation', spec, skipImpl:true}, (b) loco, nestops, worldgen-terrain, (c) F3b. Notes for integrators: docs/design/tasks/notes-foundation.md (regenerate with scratchpad/collect-notes.py).
+- 08:54 F-int impl DONE (sim on real kernel, height overlays, makeTestSim nest/workers options, tools/sim/soak.ts). Launched loco, nestops, worldgen-terrain (Opus) and F-int verify+fix (skipImpl).
+- Machine load ~17: HOLD F3b (visual) until the render-ants/render-world workflow finishes; cap visual agents at 2-3. wf-build.js preamble now warns about load-noisy perf numbers.
+- Stage 1A status: phero/env-core/sources-core in fix; actions in verify; colony-core in impl; render-ants in fix; render-world in verify; render-nest in impl.
+- TODO next: launch F3b when a render slot frees; then ui-shell + save after F3b; write int-1A gate spec; then Stage 1B.
