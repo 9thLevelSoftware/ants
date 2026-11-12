@@ -6,8 +6,9 @@ import { OPENING_MAX_SPEED, POSSESS_MAX_SPEED, SKIP_MAX_GD, SKIP_SPEED } from '@
 import { calendarTick, TICKS_PER_DAY } from '@/sim/time';
 import { calendarNow, deriveCalendar } from './calendar';
 import { setNoLag } from './noLag';
+import { ensureThermal, resetThermal } from './surface';
 import { drawForecast, forceWeather, rollDryspell, settleLagged } from './weather';
-import { baseWind } from './weatherStep';
+import { baseWind, setWindHold } from './wind';
 
 /** Opening phases in which time runs at most OPENING_MAX_SPEED (GDD 06 §4, E-17). */
 const SLOW_OPENING_PHASES: ReadonlySet<string> = new Set(['search', 'dig', 'seal', 'lay']);
@@ -77,13 +78,16 @@ export const skipSystem: System = {
   },
 };
 
-/** Recomputes everything derived from the calendar after the clock was moved (cheat.setTime). */
+/**
+ * Recomputes everything derived from the calendar after the clock was moved (cheat.setTime). A game that has not
+ * started its weather yet simply starts it now, at the new time.
+ */
 function resettleAfterClockChange(sim: Sim): void {
-  const t = sim.state.env.thermal;
-  t.tsurfDay = undefined;
+  if (ensureThermal(sim)) return;
   rollDryspell(sim, sim.state.tick);
   drawForecast(sim);
   settleLagged(sim);
+  resetThermal(sim);
 }
 
 export const timeHandlers: Partial<CommandHandlerMap> = {
@@ -98,23 +102,33 @@ export const timeHandlers: Partial<CommandHandlerMap> = {
     sim.state.env.calendar.startTick = c.tick - sim.state.tick;
     resettleAfterClockChange(sim);
   },
-  'cheat.setWeather': (sim, c) => forceWeather(sim, c.state, c.intensityClass, 'cheat'),
+  'cheat.setWeather': (sim, c) => {
+    ensureThermal(sim);
+    forceWeather(sim, c.state, c.intensityClass, 'cheat');
+  },
+  // The wind stays at `ms` until the next setWind (a negative value releases it): the noise term is shifted too, so a
+  // release continues from there.
   'cheat.setWind': (sim, c) => {
+    ensureThermal(sim);
     const w = sim.state.env.weather;
-    w.windOu = (w.windOu ?? 0) + (c.ms - baseWind(sim));
-    w.gustUntilTick = -1;
-    w.wind2m = c.ms;
+    if (c.ms >= 0) {
+      w.windOu = (w.windOu ?? 0) + (c.ms - baseWind(sim));
+      w.gustUntilTick = -1;
+      w.wind2m = c.ms;
+    }
+    setWindHold(sim.state, c.ms);
   },
   'cheat.setAnomaly': (sim, c) => {
+    ensureThermal(sim);
     const w = sim.state.env.weather;
     w.anomalyPrev = c.c;
     w.anomalyCur = c.c;
   },
   'cheat.noLag': (sim, c) => {
     setNoLag(sim.state, c.on);
-    if (c.on) {
-      settleLagged(sim);
-      sim.state.env.thermal.tsurfDay = undefined; // re-seed the surfaces at their equilibrium
-    }
+    if (!c.on) return;
+    if (ensureThermal(sim)) return; // a fresh game starts settled
+    settleLagged(sim);
+    resetThermal(sim); // surfaces at their equilibrium
   },
 };

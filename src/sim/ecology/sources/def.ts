@@ -55,8 +55,12 @@ export function setAmount(s: FoodSource, v: number): void {
   if (s.pool >= 0) s.pool = a;
 }
 
-/** Nothing left to take (liquids below LIQUID_EMPTY_EPS, solids below one hundredth of a unit). */
+/**
+ * Nothing left to take: below LIQUID_EMPTY_EPS, or, for sources picked as whole units, less than one whole unit
+ * (a fraction of a crumb cannot be picked, so the source must not keep attracting foragers).
+ */
 export function isEmpty(s: FoodSource): boolean {
+  if (defOf(s)?.form === 'pick') return s.units < 1 - LIQUID_EMPTY_EPS;
   return s.units <= LIQUID_EMPTY_EPS;
 }
 

@@ -56,6 +56,17 @@ export function buildScene(sim: DemoSim, name: string, p: URLSearchParams | Reco
         labels: [{ text: `queen ${q.toFixed(1)} mm`, at: [0, q * 0.4, 0] }, { text: `worker ${w.toFixed(1)} mm`, at: [q, w * 0.45, q * 0.18] }], stage: none,
       };
     }
+    case 'founding': {
+      // the founding queen still has her wings until dealation (GDD 06 §5.2); next to her a dealate queen
+      const col = sim.colony(sp); const q = L('queen');
+      const f = addAnt(sim, col, sp, 'queen', { heading: 0.25 });
+      f.queen = { founding: { wings: true } };
+      addAnt(sim, col, sp, 'queen', { pos: { x: q * 1.2, y: 0, z: q * 0.2 }, heading: -0.35 });
+      return {
+        cam: { target: [q * 0.6, q * 0.14, q * 0.06], dist: q * 3.1, az: 30, el: 30, fov: 30 },
+        labels: [{ text: 'founding queen, winged', at: [0, q * 0.45, 0] }, { text: 'dealate queen', at: [q * 1.2, q * 0.45, q * 0.2] }], stage: none,
+      };
+    }
     case 'poly': {
       // a major and a minor side by side (default Messor)
       const s = (get('species', 'messor-barbarus') as Species);

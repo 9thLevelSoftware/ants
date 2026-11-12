@@ -1,6 +1,7 @@
 // New game: config -> { state, world }. Generates the world (or uses the one given, e.g. a test world),
-// builds the initial plain state, creates the player colony with a founding queen at the queen start, and
-// lets the ecology / rival modules seed their entities.
+// builds the initial plain state, applies the world's pre-carves through the kernel's carve grid, creates the
+// player colony with a founding queen placed on the surface at the queen start (kernel walkerPlace), and lets
+// the ecology / rival modules seed their entities.
 
 import { rngFork } from '@/core/rng';
 import type {
@@ -15,11 +16,10 @@ import {
 } from '@/sim/balance';
 import { createColony, createNest, spawnAnt, type EntityCtx } from '@/sim/entities';
 import { initEcology } from '@/sim/ecology';
-import { createCarveGrid } from '@/sim/nest';
 import { initRivals } from '@/sim/rivals';
-import { createWorldField } from '@/sim/world';
+import { walkerPlace } from '@/sim/locomotion/walker';
 import { SAVE_VERSION } from '@/sim/save/version';
-import { createStores } from '@/sim/services';
+import { createSimKernel, createStores } from '@/sim/services';
 import { requireSpecies } from '@/sim/species';
 import { calendarTickAt } from '@/sim/time';
 import { clonePlain } from '@/sim/entities';
@@ -199,7 +199,10 @@ export function createNewGame(cfg: GameConfig, world?: WorldData): { state: SimS
   const state = initialState(config, w);
   const ctx: EntityCtx = { state, stores: createStores(state), emit: () => {}, world: w };
 
-  const carve = createCarveGrid(state.worldDelta.carve, w);
+  // World pre-carves go through the kernel's carve grid into state.worldDelta.carve (force: they may open
+  // cracks through hard crusts, directions §K). NATURAL voxel flags (carveFlags) are the nest module's.
+  const kernel = createSimKernel(state, w);
+  const carve = kernel.carve;
   for (const op of w.preCarve) {
     const opts = { force: true, recordBreach: true };
     if (op.shape === 'sphere') carve.carveSphere(op.a, op.r, opts);
@@ -212,11 +215,15 @@ export function createNewGame(cfg: GameConfig, world?: WorldData): { state: SimS
   state.player.colonyId = colony.id;
   state.rivals.territory.slotColony[0] = colony.id;
   const start = w.queenStart;
-  const substrate = createWorldField(w, carve).materialAt(start.pos);
+  const substrate = kernel.field.materialAt(start.pos);
   createNest(ctx, { colony: colony.id, origin: start.pos, founding: true, substrate });
   // nestId stays -1: Ant.nestId is the nest the ant is IN, and the foundress starts on the surface searching
   // for a site (her colony's nest is colony.nestIds[0]).
   const queen = spawnAnt(ctx, { colony: colony.id, caste: 'queen', pos: start.pos, fwd: start.fwd, founding: true });
+  // onto the kernel's level set f = footOffset (sphere-traces down first if the start is above the ground)
+  if (!walkerPlace(kernel.field, queen, start.pos, { heading: start.fwd }, kernel.walker)) {
+    throw new Error(`createNewGame: no surface at the queen start (${start.pos.x}, ${start.pos.y}, ${start.pos.z})`);
+  }
   colony.queenId = queen.id;
   colony.queens.push({ antId: queen.id, lifespanDays: null }); // senescence draw: overwinter-repro
 

@@ -1,7 +1,8 @@
 // Taking food from a source (GDD 05 §1.1, §1.5; GDD 01 §7 harvest-liquid / harvest-solid / pick-up).
 //
 //   liquid: `amount` = game seconds of drinking; 0.05 load/s x drinkRateMult into the crop, up to its room.
-//   pick:   `amount` = whole units wanted; one item of up to floor(carryCap / unitBulk) units in the mandibles.
+//   pick:   `amount` = whole units wanted (at least 1); one item of up to floor(carryCap / unitBulk) units.
+// A NaN amount takes nothing (status 'ok', taken 0) so a caller's bad dt cannot wipe a source.
 //   tear:   `amount` = pieces wanted (1 per call); one piece of bulk carryCap (or what is left) in the mandibles.
 // Never takes more than is there or than the ant can hold; feeding slots are enforced (slots.ts). A depleted
 // non-renewable source is removed with its events; a renewable one is flagged exhausted for the colony.
@@ -63,6 +64,7 @@ export function withinReach(sim: Sim, ant: Ant, s: FoodSource): boolean {
 export function takeFromSource(sim: Sim, ant: Ant, sourceId: number, amount: number, opts: HarvestOptions = {}): HarvestResult {
   const s = sim.stores.sources.get(sourceId);
   if (!s) return result('no-source');
+  if (Number.isNaN(amount)) return result('ok'); // a caller bug takes nothing rather than wiping the source
   if (!isInSeason(sim, s)) return result('out-of-season');
   if (isEmpty(s)) return result('empty');
   if ((opts.checkReach ?? true) && !withinReach(sim, ant, s)) return result('out-of-reach');
@@ -115,6 +117,7 @@ function pick(sim: Sim, ant: Ant, s: FoodSource, wanted: number): HarvestResult 
 
 function tear(sim: Sim, ant: Ant, s: FoodSource): HarvestResult {
   if (!handsFree(ant)) return result('hands-full');
+  if (ant.carryCap <= LIQUID_EMPTY_EPS) return result('too-heavy'); // it could only tear an empty piece
   const left = s.units * s.unitBulk;
   const piece = Math.min(ant.carryCap, left);
   const takenUnits = piece / s.unitBulk;

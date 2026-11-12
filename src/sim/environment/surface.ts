@@ -7,20 +7,17 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, ThermalStateData } from '@/sim/types';
 import { MATERIAL_IDS } from '@/sim/types';
 import {
-  ACCL_GAIN, ACCL_MAX_C, ACCL_MIN_C, ACCL_REF_C, ACCL_TAU_GD, CLEAR_NIGHT_LIGHT, LAWN_SURFACE_PARAMS,
+  ACCL_GAIN, ACCL_MAX_C, ACCL_MIN_C, ACCL_REF_C, ACCL_TAU_GD, CLEAR_NIGHT_LIGHT, DEGRADED_AIR_C, EMA_SEED_CLEAR_NIGHT, EMA_SEED_SUN_WEATHER,
+  LAWN_SURFACE_PARAMS,
   OVERCAST_NIGHT_FACTOR, SHADE_SUN_RESIDUAL, SURFACE_PARAMS, THERMAL_DAY_EMA_TAU_GD, WSOIL_TAU_GD, type SurfaceParams,
 } from '@/sim/balance';
 import { TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { calendarNow, peakSolarOf } from './calendar';
-import { isInteriorAt, LAWN_SLOT, shadeAt, surfaceSlotAt, SURFACE_SLOTS } from './ground';
+import { isInteriorAt, shadeAt, surfaceSlotAt, SURFACE_SLOTS } from './ground';
 import { insolation, skyLight } from './light';
 import { isNoLag } from './noLag';
 import { airTemp, anomalyNow, interiorTemp } from './temperature';
 import { initWeather } from './weather';
-
-/** Initial EMA seed: share of clear sun the weather lets through on average, and the average clear-night factor [E]. */
-const MEAN_SUN_WEATHER = 0.7;
-const MEAN_CLEAR_NIGHT = 0.3;
 
 const SLOT_PARAMS: SurfaceParams[] = [
   ...MATERIAL_IDS.map((m) => SURFACE_PARAMS[m]),
@@ -40,20 +37,43 @@ export function surfaceTarget(p: SurfaceParams, tair: number, ins: number, shade
   return tair + p.gain * ins * (shaded ? SHADE_SUN_RESIDUAL : 1) - p.nightLoss * clearNight;
 }
 
+/** True when the first weather has been drawn and the thermal arrays have the current layout. Pure read. */
+export function thermalReady(sim: Sim): boolean {
+  if (sim.state.env.weather.dwellEndTick < 0) return false;
+  const t = sim.state.env.thermal;
+  const n = SURFACE_SLOTS * 2;
+  return t.tsurf.length === n && t.tsurfDay !== undefined && t.tsurfDay.length === n
+    && t.tsurfSeason !== undefined && t.tsurfSeason.length === n;
+}
+
 /**
  * Makes sure the weather has its first state and the thermal arrays exist with the current layout (both start
- * empty in a new game); true when the arrays had to be (re)created. Cheap when nothing is missing.
+ * empty in a new game); true when something had to be started. Cheap when nothing is missing.
+ *
+ * This WRITES sim state (it draws the opening weather from rng.weather), so it may be called only from the
+ * simulation side: the weather system, command handlers, game start. Queries never call it; they read
+ * `thermalReady` and fall back to the T1 degraded constants until the simulation has run it.
  */
 export function ensureThermal(sim: Sim): boolean {
+  const fresh = sim.state.env.weather.dwellEndTick < 0;
+  if (fresh) initWeather(sim);
+  if (thermalReady(sim)) return fresh;
+  resetThermal(sim);
+  return true;
+}
+
+/**
+ * Re-seeds the lagged surface temperatures, their EMAs, the soil soak and acclimation at the settled values of the
+ * moment (after the clock moved or the lags were switched off). Allocates the arrays if they have the wrong layout.
+ */
+export function resetThermal(sim: Sim): void {
   if (sim.state.env.weather.dwellEndTick < 0) initWeather(sim);
   const t = sim.state.env.thermal;
   const n = SURFACE_SLOTS * 2;
-  if (t.tsurf.length === n && t.tsurfDay && t.tsurfDay.length === n && t.tsurfSeason && t.tsurfSeason.length === n) return false;
-  t.tsurf = new Float32Array(n);
-  t.tsurfDay = new Float32Array(n);
-  t.tsurfSeason = new Float32Array(n);
+  if (t.tsurf.length !== n) t.tsurf = new Float32Array(n);
+  if (!t.tsurfDay || t.tsurfDay.length !== n) t.tsurfDay = new Float32Array(n);
+  if (!t.tsurfSeason || t.tsurfSeason.length !== n) t.tsurfSeason = new Float32Array(n);
   initThermal(sim, t);
-  return true;
 }
 
 /**
@@ -65,13 +85,13 @@ function initThermal(sim: Sim, t: ThermalStateData): void {
   const tair = airTemp(sim);
   const ins = insolation(sim);
   const cn = clearNightFactor(sim);
-  const meanIns = MEAN_SUN_WEATHER * (2 / Math.PI) * (cal.dayLength / 24) * peakSolarOf(cal.dayLength);
+  const meanIns = EMA_SEED_SUN_WEATHER * (2 / Math.PI) * (cal.dayLength / 24) * peakSolarOf(cal.dayLength);
   for (let slot = 0; slot < SURFACE_SLOTS; slot++) {
     const p = SLOT_PARAMS[slot];
     for (let s = 0; s < 2; s++) {
       const i = slot * 2 + s;
       t.tsurf[i] = surfaceTarget(p, tair, ins, s === 1, cn);
-      const mean = surfaceTarget(p, tair, meanIns, s === 1, MEAN_CLEAR_NIGHT);
+      const mean = surfaceTarget(p, tair, meanIns, s === 1, EMA_SEED_CLEAR_NIGHT);
       t.tsurfDay![i] = mean;
       t.tsurfSeason![i] = mean;
     }
@@ -112,9 +132,9 @@ export function updateThermal(sim: Sim, dtTicks: number): void {
   t.heatAccl += (acclTarget - t.heatAccl) * (1 - Math.exp(-dtGd / ACCL_TAU_GD));
 }
 
-/** Lagged temperature of a surface slot blended between its sun and shade state by `shade` 0..1. */
+/** Lagged temperature of a surface slot blended between its sun and shade state by `shade` 0..1 (degraded constant until the simulation has started the thermal state). */
 export function slotTemp(sim: Sim, slot: number, shade: number): number {
-  ensureThermal(sim);
+  if (!thermalReady(sim)) return DEGRADED_AIR_C;
   const a = sim.state.env.thermal.tsurf;
   const i = slot * 2;
   return a[i] + (a[i + 1] - a[i]) * shade;

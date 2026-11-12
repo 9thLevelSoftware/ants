@@ -1,15 +1,16 @@
 // move, let-go, grip, pick-up, put-down, drop, drag (GDD 01 §7.3).
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Sim, TargetRef } from '@/sim/types';
+import type { ActionFailReason, Ant, Sim, TargetRef } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
   COOP_MAX_ANTS, FLOOR_NORMAL_MIN, LET_GO_PUSH_MM_S, MANDIBLE_FWD_L, PICK_UP_S, PUT_DOWN_S, SOLO_DRAG_MAX,
 } from '@/sim/balance/actions';
-import { removeItem, spawnItem } from '@/sim/entities';
+import { removeItem } from '@/sim/entities';
 import { carriedItem, handsFree, releaseCarried, takeBrood, takeItem } from '../carry';
 import { antLengthMm, feetPoint } from '../geometry';
 import { ports } from '../ports';
+import { harvestFailure } from '../harvestStatus';
 import { isFoodItem, isLiquidSource, isPickableSource } from '../sourceKinds';
 import type { ActionDef } from '../types';
 
@@ -75,7 +76,7 @@ export const pickUp: ActionDef = {
     if (queen) return 'caste';
     const s = sim.stores.sources.get(t.id);
     if (!s || s.units <= 0) return 'no-target';
-    if (!isPickableSource(s, ant.carryCap)) return isLiquidSource(s) ? 'not-allowed-here' : 'too-heavy';
+    if (!isPickableSource(sim, s, ant.carryCap)) return isLiquidSource(sim, s) ? 'not-allowed-here' : 'too-heavy';
     return null;
   },
   durationS: () => PICK_UP_S,
@@ -95,19 +96,12 @@ export const pickUp: ActionDef = {
   },
 };
 
-/** Takes one whole unit (crumb, seed, granule) from a source into the mandibles. */
-function pickFromSource(sim: Sim, ant: Ant, t: TargetRef): number | 'no-target' {
-  const s = sim.stores.sources.get(t.id);
-  if (!s) return 'no-target';
-  const got = ports.harvest(sim, ant, s.id, 1);
-  if (got.c + got.p <= 0) return 'no-target';
-  const it = spawnItem(sim, {
-    kind: s.kind === 'seed' ? 'seed' : 'food-piece', pos: ant.pos,
-    init: { c: got.c, p: got.p, bulk: s.unitBulk, foodKind: s.kind, variant: s.variant, hardness: s.hardness },
-  });
-  takeItem(ant, it);
-  ant.mem.knownSourceId = s.id;
-  return got.c + got.p;
+/** Takes one whole unit (crumb, seed, granule) from a source into the mandibles (ecology makes the item). */
+function pickFromSource(sim: Sim, ant: Ant, t: TargetRef): number | ActionFailReason {
+  const r = ports.takeFromSource(sim, ant, t.id, 1, { checkReach: false });
+  if (r.status !== 'ok' || r.itemId < 0) return harvestFailure(r.status);
+  ant.mem.knownSourceId = t.id;
+  return r.c + r.p;
 }
 
 const scratch = { x: 0, y: 0, z: 0 };
@@ -120,7 +114,8 @@ export const putDown: ActionDef = {
   durationS: () => PUT_DOWN_S,
   effect(sim, ant, t) {
     if (ant.carry.kind === 'none') return 'no-target';
-    const at = t.kind === 'surface' || t.kind === 'point' ? t.pos : floorAhead(sim, ant, scratch);
+    // on a receiver (brood pile, store pile) or an aimed point; otherwise on the floor in front of the head
+    const at = t.kind === 'none' || t.kind === 'entrance' ? floorAhead(sim, ant, scratch) : t.pos;
     if (deliverFood(sim, ant, at)) return 1;
     return releaseCarried(sim, ant, at);
   },

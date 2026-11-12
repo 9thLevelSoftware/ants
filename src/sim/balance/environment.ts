@@ -11,6 +11,9 @@ export * from './environmentWeather';
 export const DEGRADED_AIR_C = 21;
 export const DEGRADED_SOIL_C = 19;
 export const DEGRADED_RH = 0.7;
+/** Seeds of the surface EMAs at game start [E]: mean share of clear sun the weather lets through, mean clear-night factor. */
+export const EMA_SEED_SUN_WEATHER = 0.7;
+export const EMA_SEED_CLEAR_NIGHT = 0.3;
 /** Surface activity when no environment model is running (0..1). */
 export const DEGRADED_SURFACE_ACTIVITY = 1;
 /** Default day-of-season and hour if neither config nor species gives one. */

@@ -9,7 +9,9 @@
 import { Frustum, Group, Matrix4, Sphere, type PerspectiveCamera } from 'three';
 import type { QualityPreset } from '@/render/app/quality';
 import type { AntFrameInfo, AntRenderContext, AntRenderStats, PickTarget } from './frame';
-import { SimReader, newAntSample, type AntSimSource, type BroodView, type ItemView } from './simAdapter';
+import {
+  SimReader, newAntSample, newBroodSample, newItemSample, type AntSimSource, type BroodSample, type ItemSample,
+} from './simAdapter';
 import { AntStateTable, smoothFactors, stepAntState, trackOffscreen, type SmoothFactors } from './antState';
 import { footTarget } from './gait';
 import { copyPose, poseTarget, withAlarm, withCarry, NEUTRAL_POSE, type PoseTarget } from './poses';
@@ -17,13 +19,13 @@ import { selectLods, type SelectResult } from './select';
 import { GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
 import { createSharedUniforms, type SharedAntUniforms } from './shader/materials';
 import { VariantStore } from './variantStore';
-import { ItemCatalog } from './items/catalog';
+import { ItemCatalog, type ItemRef } from './items/catalog';
 import { LooseItemRenderer, type LooseInstance } from './items/looseRenderer';
 import { speciesMorphs } from './morph/catalog';
 import type { InstanceBatch } from './batches';
 
-/** Floats staged per ant: matrix 16 + aGait, aPose, aTint, aAct, aExtra (4 each). */
-const STRIDE = 36;
+/** Floats staged per ant: matrix 16 + aGait, aPose, aTint, aAct, aExtra, aFootA, aFootB (4 each; batches.ts ATTRS order). */
+const STRIDE = 44;
 const DEBUG_LOD_TINT: [number, number, number][] = [[12, 1, 1], [1, 10, 1.5], [1.5, 3, 16], [14, 12, 1]];
 
 export class AntRenderer {
@@ -46,16 +48,20 @@ export class AntRenderer {
   private dist = new Float32Array(0); private px = new Float32Array(0);
   private forced = new Uint8Array(0); private lod = new Int8Array(0); private order = new Int32Array(0);
   private vIdx = new Int32Array(0); private stagedId = new Int32Array(0); private stagedCount = 0; private carryKey: (string | null)[] = []; private carrySize = new Float32Array(0);
+  private winged = new Uint8Array(0);
   private sel: SelectResult = { counts: [0, 0, 0, 0], dropped: 0, sorted: false };
   private frustum = new Frustum(); private pm = new Matrix4(); private sph = new Sphere();
-  private carriedBrood = new Map<number, BroodView>(); private carriedItems = new Map<number, ItemView>();
+  private carriedBrood = new Map<number, BroodSample>(); private carriedItems = new Map<number, ItemSample>();
+  private broodPool = new SamplePool(newBroodSample); private itemPool = new SamplePool(newItemSample);
+  private ref: ItemRef = { key: '', sizeMm: 0 };
   private looseList: LooseInstance[] = []; private loosePool: LooseInstance[] = [];
   private hover: PickTarget | null = null; private inspect: PickTarget | null = null;
   /** Debug: tint each ant by its LOD (red 0, green 1, blue 2, yellow 3). */
   debugLodTint = false;
   /** Debug: force every ant to one LOD (null = automatic). */
   forceLod: number | null = null;
-  stats: AntRenderStats = { ants: 0, visible: [0, 0, 0, 0], culled: 0, dropped: 0, wings: 0, carried: 0, looseItems: 0, drawCalls: 0, triangles: 0, cpuMs: 0, sampleMs: 0, uploadMs: 0, variants: 0, buildMs: 0 };
+  /** Stats of the last update (one object, rewritten each frame). */
+  readonly stats: AntRenderStats = { ants: 0, visible: [0, 0, 0, 0], culled: 0, dropped: 0, wings: 0, carried: 0, looseItems: 0, drawCalls: 0, triangles: 0, cpuMs: 0, sampleMs: 0, uploadMs: 0, variants: 0, buildMs: 0 };
 
   init(ctx: AntRenderContext): void {
     this.ctx = ctx;
@@ -129,11 +135,12 @@ export class AntRenderer {
     let n = 0, culled = 0;
     const smp = this.sample;
     for (const a of ants) {
-      if (!a.alive) continue;
+      if (!reader.isLive(a)) continue;
       reader.readAnt(a, frame.alpha, smp);
       const st = this.states.get(smp.id, this.stamp);
-      if (st.vi < 0 || st.vSpecies !== smp.species || st.vCaste !== smp.caste || st.vSize !== smp.sizeClass) {
-        st.vi = this.store.index(smp.species, smp.caste, smp.sizeClass); st.vSpecies = smp.species; st.vCaste = smp.caste; st.vSize = smp.sizeClass;
+      if (st.vi < 0 || st.vSpecies !== smp.species || st.vCaste !== smp.caste || st.vSize !== smp.sizeClass || st.vWinged !== smp.winged) {
+        st.vi = this.store.index(smp.species, smp.caste, smp.sizeClass, smp.winged);
+        st.vSpecies = smp.species; st.vCaste = smp.caste; st.vSize = smp.sizeClass; st.vWinged = smp.winged;
       }
       const vi = st.vi;
       const v = this.store.entries[vi]!.variant;
@@ -147,19 +154,19 @@ export class AntRenderer {
       let ck: string | null = null, cs = 0;
       if (smp.carryKind === 'brood') {
         const b = this.carriedBrood.get(smp.carryId);
-        if (b) { const r = this.catalog.brood(b, reader.speciesOfColony(b.colony), true); ck = r.key; cs = r.sizeMm; }
+        if (b) { const r = this.catalog.brood(b, b.species, true, this.ref); ck = r.key; cs = r.sizeMm; }
       } else if (smp.carryKind === 'item') {
         const it = this.carriedItems.get(smp.carryId);
-        if (it) { const r = this.catalog.item(it, it.species ?? smp.species); ck = r.key; cs = r.sizeMm; }
+        if (it) { const r = this.catalog.item(it, it.species ?? smp.species, this.ref); ck = r.key; cs = r.sizeMm; }
       }
       const target = this.pose;
       if (ck) { const c = this.catalog.get(ck).carry; withCarry(poseTarget(smp.poseId), c.raise, c.gape, target); }
       else copyPose(poseTarget(smp.poseId), target);
       withAlarm(target, smp.alarm);
-      stepAntState(st, smp, target, v.rig.gait[0] * scale, dt, this.kSmooth);
+      stepAntState(st, smp, target, v.rig, scale, dt, this.kSmooth);
       const d = Math.max(1e-3, camPos.distanceTo(this.sph.center));
       this.dist[n] = d; this.px[n] = (L / d) * pxPerMm; this.forced[n] = smp.possessed ? 1 : 0;
-      this.vIdx[n] = vi; this.stagedId[n] = smp.id; this.carryKey[n] = ck; this.carrySize[n] = cs;
+      this.vIdx[n] = vi; this.stagedId[n] = smp.id; this.carryKey[n] = ck; this.carrySize[n] = cs; this.winged[n] = smp.winged ? 1 : 0;
       this.stageAnt(n, st, scale, L);
       n++;
     }
@@ -179,7 +186,7 @@ export class AntRenderer {
       const b = e.lods[lod]!;
       const j = this.writeStaged(b, i);
       if (this.debugLodTint) { const t = DEBUG_LOD_TINT[lod]!; b.a.aTint[j * 4] *= t[0]; b.a.aTint[j * 4 + 1] *= t[1]; b.a.aTint[j * 4 + 2] *= t[2]; }
-      if (lod < 2 && e.wings) { e.wings.copyFrom(b, j); wings++; }
+      if (lod < 2 && e.wings && this.winged[i]) { e.wings.copyFrom(b, j); wings++; }
       const ck = this.carryKey[i];
       if (ck && lod < 2) {
         const def = this.catalog.get(ck);
@@ -196,37 +203,46 @@ export class AntRenderer {
     this.loose.update(this.looseList, camera, viewportH, s.itemMinPx, s.maxItems);
 
     let calls = 0, tris = 0;
-    this.store.forEachBatch((b) => { if (b.n > 0) { calls++; tris += b.n * b.tris; } });
-    this.stats = {
-      ants: n + culled, visible: [...this.sel.counts], culled, dropped: this.sel.dropped, wings, carried,
-      looseItems: this.loose.drawn, drawCalls: calls + this.loose.drawCalls, triangles: tris + this.loose.triangles,
-      cpuMs: performance.now() - t0, sampleMs: t1 - t0, uploadMs: t2 - t1, variants: this.store.entries.length, buildMs: this.store.buildMs,
-    };
+    for (const e of this.store.entries) {
+      for (const b of e.lods) if (b.n > 0) { calls++; tris += b.n * b.tris; }
+      if (e.wings && e.wings.n > 0) { calls++; tris += e.wings.n * e.wings.tris; }
+      for (const b of e.items.values()) if (b.n > 0) { calls++; tris += b.n * b.tris; }
+    }
+    const st = this.stats;
+    st.ants = n + culled; for (let k = 0; k < 4; k++) st.visible[k] = this.sel.counts[k]!;
+    st.culled = culled; st.dropped = this.sel.dropped; st.wings = wings; st.carried = carried;
+    st.looseItems = this.loose.drawn; st.drawCalls = calls + this.loose.drawCalls; st.triangles = tris + this.loose.triangles;
+    st.cpuMs = performance.now() - t0; st.sampleMs = t1 - t0; st.uploadMs = t2 - t1;
+    st.variants = this.store.entries.length; st.buildMs = this.store.buildMs;
   }
 
   /** Splits brood/items into carried (attached to the carrier's head) and loose (drawn where they lie). */
   private collectCarried(reader: SimReader): void {
     this.carriedBrood.clear(); this.carriedItems.clear();
+    this.broodPool.reset(); this.itemPool.reset();
     for (const l of this.looseList) this.loosePool.push(l);
     this.looseList.length = 0;
-    const push = (key: string, x: number, y: number, z: number, sizeMm: number, id: number, hi: number, pile: boolean) => {
-      const o = this.loosePool.pop() ?? { key, x, y, z, sizeMm, id, highlight: hi, pile };
-      o.key = key; o.x = x; o.y = y; o.z = z; o.sizeMm = sizeMm; o.id = id; o.highlight = hi; o.pile = pile;
-      this.looseList.push(o);
-    };
-    for (const b of reader.brood) {
-      if (!b.alive) continue;
-      if (b.carriedBy >= 0) { this.carriedBrood.set(b.id, b); continue; }
-      const r = this.catalog.brood(b, reader.speciesOfColony(b.colony), false);
-      push(r.key, b.pos.x, b.pos.y, b.pos.z, r.sizeMm, b.id, this.highlightOf('brood', b.id, false), true);
+    const r = this.ref;
+    for (const view of reader.brood) {
+      if (!reader.isLive(view)) continue;
+      const b = reader.readBrood(view, this.broodPool.take());
+      if (b.carried) { this.carriedBrood.set(b.id, b); continue; }
+      this.catalog.brood(b, b.species, false, r);
+      this.pushLoose(r.key, b.pos.x, b.pos.y, b.pos.z, r.sizeMm, b.id, this.highlightOf('brood', b.id, false), true);
     }
-    for (const it of reader.items) {
-      if (!it.alive) continue;
-      if (reader.itemCarrier(it) >= 0) { this.carriedItems.set(it.id, it); continue; }
-      const sp = it.species ?? reader.speciesOfColony(it.colony);
-      const r = this.catalog.item(it, sp);
-      push(r.key, it.pos.x, it.pos.y, it.pos.z, r.sizeMm, it.id, this.highlightOf('item', it.id, false), it.kind === 'soil-pellet' || it.kind === 'seed');
+    for (const view of reader.items) {
+      if (!reader.isLive(view)) continue;
+      const it = reader.readItem(view, this.itemPool.take());
+      if (it.carried) { this.carriedItems.set(it.id, it); continue; }
+      this.catalog.item(it, it.species ?? 'lasius-niger', r);
+      this.pushLoose(r.key, it.pos.x, it.pos.y, it.pos.z, r.sizeMm, it.id, this.highlightOf('item', it.id, false), it.piles);
     }
+  }
+
+  private pushLoose(key: string, x: number, y: number, z: number, sizeMm: number, id: number, hi: number, pile: boolean): void {
+    const o = this.loosePool.pop() ?? { key, x, y, z, sizeMm, id, highlight: hi, pile };
+    o.key = key; o.x = x; o.y = y; o.z = z; o.sizeMm = sizeMm; o.id = id; o.highlight = hi; o.pile = pile;
+    this.looseList.push(o);
   }
 
   private ensureCap(n: number): void {
@@ -236,7 +252,7 @@ export class AntRenderer {
     this.stage = new Float32Array(c * STRIDE);
     this.dist = new Float32Array(c); this.px = new Float32Array(c); this.forced = new Uint8Array(c);
     this.lod = new Int8Array(c); this.order = new Int32Array(c); this.vIdx = new Int32Array(c); this.stagedId = new Int32Array(c);
-    this.carrySize = new Float32Array(c); this.carryKey = new Array<string | null>(c).fill(null);
+    this.carrySize = new Float32Array(c); this.carryKey = new Array<string | null>(c).fill(null); this.winged = new Uint8Array(c);
   }
 
   /** Writes ant n's instance data (matrix + 5 vec4) into the staging buffer. */
@@ -252,21 +268,26 @@ export class AntRenderer {
     const p = st.pose;
     const moving = smp.speed / (GAIT.cruiseBodyLengthsPerS * L);
     const idle = moving < 0.03 && smp.poseId === 'walk' ? 1 : 0;
-    S[o + 16] = st.gait.phase; S[o + 17] = moving; S[o + 18] = st.gait.yawPerCycle; S[o + 19] = st.seed;
+    const g = st.gait;
+    S[o + 16] = g.phase; S[o + 17] = moving; S[o + 18] = g.yawPerCycle; S[o + 19] = st.seed;
     S[o + 20] = p.raise; S[o + 21] = p.gaster; S[o + 22] = smp.crop; S[o + 23] = p.gape;
     S[o + 24] = st.tint[0]; S[o + 25] = st.tint[1]; S[o + 26] = st.tint[2]; S[o + 27] = idle;
-    S[o + 28] = st.gait.share; S[o + 29] = p.pitch; S[o + 30] = p.groom; S[o + 31] = p.chew;
+    S[o + 28] = g.share; S[o + 29] = p.pitch; S[o + 30] = p.groom; S[o + 31] = p.chew;
     S[o + 32] = Math.max(p.spread, smp.airborne ? 0.8 : 0); S[o + 33] = this.highlightOf('ant', smp.id, smp.possessed); S[o + 34] = smp.callow; S[o + 35] = p.antenna;
+    const pl = g.feet;
+    S[o + 36] = pl[0]!; S[o + 37] = pl[1]!; S[o + 38] = pl[2]!; S[o + 39] = g.dir;
+    S[o + 40] = pl[3]!; S[o + 41] = pl[4]!; S[o + 42] = pl[5]!; S[o + 43] = 0;
   }
 
+  /** Copies staged ant i into the next slot of batch b (plain loops: no typed-array views per ant). */
   private writeStaged(b: InstanceBatch, i: number): number {
-    const j = b.next(); const o = i * STRIDE; const S = this.stage;
-    b.m.set(S.subarray(o, o + 16), j * 16);
-    b.a.aGait.set(S.subarray(o + 16, o + 20), j * 4);
-    b.a.aPose.set(S.subarray(o + 20, o + 24), j * 4);
-    b.a.aTint.set(S.subarray(o + 24, o + 28), j * 4);
-    b.a.aAct.set(S.subarray(o + 28, o + 32), j * 4);
-    b.a.aExtra.set(S.subarray(o + 32, o + 36), j * 4);
+    const j = b.next(); const S = this.stage; let o = i * STRIDE;
+    const m = b.m; const mj = j * 16;
+    for (let k = 0; k < 16; k++) m[mj + k] = S[o + k]!;
+    o += 16;
+    const a = b.a; const aj = j * 4;
+    copy4(a.aGait, aj, S, o); copy4(a.aPose, aj, S, o + 4); copy4(a.aTint, aj, S, o + 8); copy4(a.aAct, aj, S, o + 12);
+    copy4(a.aExtra, aj, S, o + 16); copy4(a.aFootA, aj, S, o + 20); copy4(a.aFootB, aj, S, o + 24);
     return j;
   }
 
@@ -283,8 +304,10 @@ export class AntRenderer {
     const rig = this.store.entries[this.vIdx[i]!]!.variant.rig; const S = this.stage; const o = i * STRIDE;
     const out: { x: number; y: number; z: number; stance: boolean }[] = [];
     const ft = { x: 0, y: 0, z: 0, stance: false };
+    const v = Math.min(1.5, Math.max(0, S[o + 17]!)); const u = Math.min(1, Math.max(0, (v - 0.02) / 0.23));
+    const moving = u * u * (3 - 2 * u); // the shader's smoothstep(0.02, 0.25, aGait.y)
     for (let leg = 0; leg < 6; leg++) {
-      footTarget(rig, leg, st.gait, S[o + 17]!, ft);
+      footTarget(rig, leg, st.gait, moving, ft);
       out.push({
         x: S[o]! * ft.x + S[o + 4]! * ft.y + S[o + 8]! * ft.z + S[o + 12]!,
         y: S[o + 1]! * ft.x + S[o + 5]! * ft.y + S[o + 9]! * ft.z + S[o + 13]!,
@@ -300,5 +323,21 @@ export class AntRenderer {
     this.loose?.dispose();
     this.group.removeFromParent();
     this.reader = null;
+  }
+}
+
+function copy4(dst: Float32Array, d: number, src: Float32Array, s: number): void {
+  dst[d] = src[s]!; dst[d + 1] = src[s + 1]!; dst[d + 2] = src[s + 2]!; dst[d + 3] = src[s + 3]!;
+}
+
+/** Reusable sample objects (no allocation per brood/item per frame once warmed up). */
+class SamplePool<T> {
+  private items: T[] = [];
+  private used = 0;
+  constructor(private readonly make: () => T) {}
+  reset(): void { this.used = 0; }
+  take(): T {
+    if (this.used === this.items.length) this.items.push(this.make());
+    return this.items[this.used++]!;
   }
 }

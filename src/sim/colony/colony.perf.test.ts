@@ -1,0 +1,81 @@
+// AC8: cost of the colony systems with 1,500 ants and 600 brood, measured per tick (the scripted care fake that
+// stands in for nurses is excluded from the measurement).
+
+import { describe, expect, it } from 'vitest';
+import type { System } from '@/sim/types';
+import { TASKS } from '@/sim/types';
+import { createSim } from '@/sim/sim';
+import { makeTestSim } from '@/sim/testing';
+import { commandsSystem } from '@/sim/systems';
+import {
+  allocationSystem, broodSystem, colonyDiagnosticsSystem, colonyStatsSystem, economySystem, queenSystem,
+  taskReevalSystem,
+} from './colonySystems';
+import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen } from './testkit';
+import { setClimateOverride } from './envAdapter';
+
+/** Process CPU time (Node; vitest runs each test file in its own process). */
+const cpuUsage = (prev?: { user: number; system: number }): { user: number; system: number } =>
+  (globalThis as unknown as { process: { cpuUsage(p?: { user: number; system: number }): { user: number; system: number } } }).process.cpuUsage(prev);
+
+describe('colony systems performance (AC8)', () => {
+  it('1,500 ants + 600 brood cost under 0.35 ms per tick on average', { timeout: 120000 }, () => {
+    let spent = 0, cpu = 0;
+    const per: Record<string, number> = {};
+    const timed = (s: System): System => ({
+      ...s,
+      run: (sim) => {
+        const c0 = cpuUsage();
+        const t0 = performance.now();
+        s.run(sim);
+        const dt = performance.now() - t0;
+        const c1 = cpuUsage(c0);
+        spent += dt;
+        cpu += (c1.user + c1.system) / 1000;
+        per[s.name] = (per[s.name] ?? 0) + dt;
+      },
+    });
+    const colonySystems = [allocationSystem, taskReevalSystem, queenSystem, broodSystem, economySystem, colonyStatsSystem, colonyDiagnosticsSystem];
+    const base = makeTestSim({ seed: 3, config: { startSeason: 'summer', startDayOfSeason: 2, startHour: 0 } });
+    const sim = createSim(base.state, base.world, {
+      systems: [commandsSystem, ...colonySystems.map(timed), careSystem({ tend: true, feedLarvae: true, assist: true, feedQueen: true })],
+    });
+    setClimateOverride(sim, { chamberTemp: () => 25, pointTemp: () => 25, rh: () => 0.8, surfaceActivity: () => 1 });
+    const nursery = addChamber(sim, 'nursery', { x: 100, y: -40, z: 100 }, 400);
+    addChamber(sim, 'food', { x: 160, y: -40, z: 100 }, 600);
+    establishQueen(sim, nursery);
+    for (let i = 0; i < 1500; i++) {
+      const [a] = addWorkers(sim, 1, { chamber: i % 5 === 0 ? null : nursery, ageGd: i % 25, task: TASKS[(i * 7) % 12] });
+      a.state = i % 3 === 0 ? 'forage.outbound' : 'idle';
+    }
+    addBrood(sim, 'egg', 200, nursery, 0.2);
+    addBrood(sim, 'larva', 200, nursery, 0.2);
+    addBrood(sim, 'pupa', 200, nursery, 0.2);
+    sim.enqueue({ type: 'cheat.addFood', colonyId: colonyOf(sim).id, c: 1000, p: 400, toxin: 0 });
+    for (let i = 0; i < 600; i++) sim.tick(); // warm-up (JIT, first allocation and diagnostics passes)
+    // The machine is shared with other jobs: measure 6 blocks of 500 ticks and use the median block, so a burst
+    // of foreign load in one block does not decide the result. The mean over all blocks is reported too.
+    const ticks = 500;
+    const blocks: number[] = [];
+    let total = 0;
+    for (const k of Object.keys(per)) per[k] = 0;
+    cpu = 0;
+    for (let k = 0; k < 6; k++) {
+      spent = 0;
+      for (let i = 0; i < ticks; i++) sim.tick();
+      blocks.push(spent / ticks);
+      total += spent;
+    }
+    blocks.sort((x, y) => x - y);
+    const perTick = (blocks[2] + blocks[3]) / 2;
+    const meanPerTick = total / (6 * ticks);
+    const cpuPerTick = cpu / (6 * ticks);
+    const brood = sim.stores.brood.count;
+    // eslint-disable-next-line no-console
+    console.log(`colony systems: CPU ${cpuPerTick.toFixed(4)} ms per tick; wall median ${perTick.toFixed(4)} (mean ${meanPerTick.toFixed(4)}, best block ${blocks[0].toFixed(4)}) with ${sim.stores.ants.count} ants and ${brood} brood`, Object.fromEntries(Object.entries(per).map(([k, v]) => [k, +(v / (6 * ticks)).toFixed(4)])));
+    expect(sim.stores.ants.count).toBeGreaterThanOrEqual(1500);
+    expect(brood).toBeGreaterThan(450);
+    // CPU time is the cost measure: wall time on this shared machine includes time slices given to other jobs.
+    expect(cpuPerTick).toBeLessThan(0.35);
+  });
+});

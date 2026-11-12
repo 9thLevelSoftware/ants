@@ -3,8 +3,9 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, Sim, TargetRef } from '@/sim/types';
 import {
-  ANT_TARGET_RADIUS_L, BROOD_RADIUS_BU, ITEM_RADIUS_BU, MANDIBLE_FWD_L, REACH_CONE_DEG, REACH_L, SOURCE_RADIUS_BU,
+  ANT_TARGET_RADIUS_L, BROOD_RADIUS_BU, ITEM_RADIUS_BU, MANDIBLE_FWD_L, REACH_CONE_DEG, REACH_L,
 } from '@/sim/balance/actions';
+import { ports } from './ports';
 
 const DEG = Math.PI / 180;
 
@@ -75,7 +76,7 @@ export function placeOf(sim: Sim, ant: Ant, t: TargetRef, out: TargetPlace): Tar
     }
     case 'source': {
       const s = sim.stores.sources.get(t.id);
-      return s ? set(s.pos, SOURCE_RADIUS_BU * bu) : null;
+      return s ? set(s.pos, ports.sourceFootprintMm(s, bu)) : null;
     }
     case 'creature': {
       const c = sim.stores.creatures.get(t.id);

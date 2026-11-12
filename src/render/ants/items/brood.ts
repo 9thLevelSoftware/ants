@@ -102,7 +102,8 @@ export function nakedPupa(v: AntVariant): ItemDef {
 
 /** Dead adult: legs curled, gaster down. Carried gripped at the waist, body hanging forward on its side. */
 export function corpse(v: AntVariant): ItemDef {
-  const g = bakeStaticPose(v, 'corpse', 1);
+  // LOD0: corpses lie next to live LOD0 ants at close range (LOD1 reads faceted there)
+  const g = bakeStaticPose(v, 'corpse', 0);
   const L = v.morph.bodyLength;
   const m = new Matrix4().makeTranslation(0, -0.08 * L, 0.32 * L).multiply(new Matrix4().makeRotationZ(1.35));
   g.applyMatrix4(m);

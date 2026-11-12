@@ -12,7 +12,7 @@ import type { AntRig, V4 } from '../geometry/rig';
 import type { V3 } from '../geometry/meshBuilder';
 import { ANT_COLOR_VERTEX, ANT_VERT_PARS } from './vertexChunk';
 import { ANT_EMISSIVE, ANT_FRAG_PARS, ANT_NORMAL, ANT_ROUGHNESS, ANT_SHEEN, WING_COLOR, WING_FRAG_PARS } from './fragmentChunk';
-import { HIGHLIGHT } from '../tuning';
+import { CUTICLE, HIGHLIGHT } from '../tuning';
 
 /** Uniforms shared by every ant material (one object each, so updating .value once updates all). */
 export interface SharedAntUniforms { uTime: Uniform<number>; uHiWarm: Uniform<Color>; uHiCool: Uniform<Color> }
@@ -60,13 +60,13 @@ function patchFragment(shader: WebGLProgramParametersWithUniforms, physical: boo
   if (physical) shader.fragmentShader = shader.fragmentShader.replace('#include <lights_physical_fragment>', ANT_SHEEN);
 }
 
-export interface AntMatOptions { physical?: boolean; roughness?: number; sheen?: number; clearcoat?: number; transparent?: boolean; opacity?: number }
+export interface AntMatOptions { physical?: boolean; roughness?: number; sheen?: number; clearcoat?: number; clearcoatRoughness?: number; transparent?: boolean; opacity?: number }
 
 /** Body (or carried-item) material for one variant. physical = LOD0 look (clearcoat cuticle + pubescence sheen). */
 export function makeAntMaterial(rig: AntRig, shared: SharedAntUniforms, o: AntMatOptions = {}): Material {
-  const common = { vertexColors: true, roughness: o.roughness ?? 0.42, metalness: 0.0, transparent: o.transparent ?? false, opacity: o.opacity ?? 1 };
+  const common = { vertexColors: true, roughness: o.roughness ?? CUTICLE.roughness, metalness: 0.0, transparent: o.transparent ?? false, opacity: o.opacity ?? 1 };
   const mat = o.physical
-    ? new MeshPhysicalMaterial({ ...common, sheen: o.sheen ?? 0.5, sheenRoughness: 0.6, sheenColor: new Color('#5f5a50'), clearcoat: o.clearcoat ?? 0.3, clearcoatRoughness: 0.38 })
+    ? new MeshPhysicalMaterial({ ...common, sheen: o.sheen ?? 0.5, sheenRoughness: 0.6, sheenColor: new Color('#5f5a50'), clearcoat: o.clearcoat ?? CUTICLE.clearcoat, clearcoatRoughness: o.clearcoatRoughness ?? CUTICLE.clearcoatRoughness })
     : new MeshStandardMaterial(common);
   const u = rigUniforms(rig, shared);
   mat.onBeforeCompile = (shader) => {

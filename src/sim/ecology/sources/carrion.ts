@@ -33,13 +33,17 @@ function startP(s: FoodSource): number {
   return d && d.unitBulk > 0 ? (d.p / d.unitBulk) * s.unitBulk : s.p;
 }
 
-/** Advances the stage clock by dtGd; returns true if the husk was removed. */
-export function advanceCarrion(sim: Sim, s: FoodSource, dtGd: number): boolean {
+/**
+ * Advances the stage clock by dtGd at the temperature at the carcass (or the given one); returns true if the husk
+ * was removed.
+ */
+export function advanceCarrion(sim: Sim, s: FoodSource, dtGd: number, tempC: number = surfaceTemp(sim, s.pos)): boolean {
   const before = s.stage;
-  s.stageClock += dtGd * stageClockRate(surfaceTemp(sim, s.pos));
+  const dClock = dtGd * stageClockRate(tempC);
+  s.stageClock += dClock;
   let st = stageAt(s.stageClock);
   if (st === 'putrid') {
-    s.p *= Math.pow(1 - CARRION_PUTRID_P_LOSS_PER_GD, dtGd);
+    s.p *= Math.pow(1 - CARRION_PUTRID_P_LOSS_PER_GD, dClock); // per stage-clock gd, like the stage table
     if (s.p < CARRION_PUTRID_MIN_P * startP(s)) st = 'husk';
   }
   if (st === 'husk' || before === 'husk') {

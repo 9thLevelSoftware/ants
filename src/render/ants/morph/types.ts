@@ -45,6 +45,8 @@ export interface AntMorphology {
   rearWeapon: 'acidopore' | 'sting';
   colors: AntColors;
   roughness: number; sheen: number; clearcoat: number;
+  /** Clearcoat roughness (default CUTICLE.clearcoatRoughness). */
+  clearcoatRoughness?: number;
   /** Stride per gait cycle and swing lift as fraction of bodyLength; duty factor (stance fraction). */
   gait: { stride: number; lift: number; duty: number };
 }

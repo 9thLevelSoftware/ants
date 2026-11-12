@@ -16,11 +16,16 @@ export function colonyClearAlert(sim: Sim, kind: AlertKind, subjectId: number): 
   clearAlert(sim, kind, subjectId);
 }
 
-/** Publishes a diagnostic through progression, then makes sure the record is present in state. */
-export function colonyPublish(sim: Sim, d: Diagnostic): void {
+/**
+ * Publishes a diagnostic through progression; if progression did not store it (its stub), upserts it into
+ * progression.diagnostics here. Returns true when this fallback was used (the caller then emits the event).
+ */
+export function colonyPublish(sim: Sim, d: Diagnostic): boolean {
   publishDiagnostic(sim, d);
   const list = sim.state.progression.diagnostics;
   const i = list.findIndex((x) => x.id === d.id);
+  if (i >= 0 && list[i] === d) return false;
   if (i < 0) list.push(d);
-  else if (list[i] !== d) list[i] = d;
+  else list[i] = d;
+  return true;
 }

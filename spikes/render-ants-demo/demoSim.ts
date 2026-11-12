@@ -5,7 +5,7 @@
  */
 import type { Vec3 } from '@/core/math/vec3';
 import type { AntSimSource, AntView, BroodView, ColonyView, ItemView } from '@/render/ants';
-import type { BroodCaste, BroodStage, Caste, ItemKind } from '@/sim/types';
+import { AntFlag, type BroodCaste, type BroodStage, type Caste, type ItemKind } from '@/sim/types';
 
 export const TICK_S = 0.1;
 
@@ -65,9 +65,11 @@ export class DemoSim implements AntSimSource {
     const pos = o.pos ?? v(); const up = o.up ?? v(0, 1, 0);
     const h = o.heading ?? 0;
     const fwd = o.fwd ?? v(Math.sin(h), 0, Math.cos(h));
+    // like the sim's spawnAnt: alates carry the WINGED flag (the renderer draws wings from the flag, not the caste)
+    const flags = (o.flags ?? 0) | (caste === 'gyne' || caste === 'male' ? AntFlag.WINGED : 0);
     const a: DemoAnt = {
       id: this.nextId++, alive: true, colony, caste, pos: cp(pos), prevPos: cp(pos), up: cp(up), prevUp: cp(up), fwd: cp(fwd), prevFwd: cp(fwd),
-      speed: o.speed ?? 0, footOffset: 0, medium: 'surface', lengthBu: o.lengthBu ?? 1, sizeClass: o.sizeClass ?? null, flags: o.flags ?? 0,
+      speed: o.speed ?? 0, footOffset: 0, medium: 'surface', lengthBu: o.lengthBu ?? 1, sizeClass: o.sizeClass ?? null, flags,
       pose: o.pose ?? 0, carry: o.carry ?? { kind: 'none', id: -1 }, cropC: o.crop ?? 0, cropP: 0, cropCap: 1, bornTick: o.bornTick ?? 0,
       alarmLevel: o.alarm ?? 0, script: o.script ?? (o.speed ? 'walk' : 'still'), turnRate: o.turnRate ?? 0, targetSpeed: o.speed ?? 0,
     };

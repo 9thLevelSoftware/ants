@@ -3,7 +3,7 @@
  * and carried-item batches (near/mid) that reuse the carrier's instance data, so items and wings follow the head and
  * body exactly through the same vertex shader (also in the shadow pass).
  */
-import { Matrix4, type Material, type Object3D } from 'three';
+import { Matrix4, type BufferGeometry, type Material, type Object3D } from 'three';
 import { buildAntVariant } from './geometry/buildAnt';
 import type { AntVariant } from './geometry/rig';
 import { morphCaste, resolveMorph, variantKey, type AppearanceLike } from './morph/catalog';
@@ -18,6 +18,8 @@ export interface VariantEntry {
   wings: InstanceBatch | null;
   items: Map<string, InstanceBatch>;
   materials: Material[];
+  /** Geometries built for this entry's carried-item batches (the variant's own geometry is not listed). */
+  itemGeometries: BufferGeometry[];
 }
 
 export interface VariantStoreOptions { physicalLod0: boolean; shadows: boolean }
@@ -32,9 +34,9 @@ export class VariantStore {
     private readonly appearance: (species: string) => AppearanceLike | null, private opts: VariantStoreOptions,
   ) {}
 
-  /** Variant index for a sim species/caste/size class (built on first use). */
-  index(species: string, caste: string, sizeClass: string | null): number {
-    const mc = morphCaste(species, caste, sizeClass);
+  /** Variant index for a sim species/caste/size class and wing state (built on first use; see morphCaste). */
+  index(species: string, caste: string, sizeClass: string | null, winged: boolean | null = null): number {
+    const mc = morphCaste(species, caste, sizeClass, winged);
     const key = variantKey(species, mc);
     let i = this.byKey.get(key);
     if (i === undefined) {
@@ -55,7 +57,7 @@ export class VariantStore {
 
   private makeEntry(v: AntVariant): VariantEntry {
     const m = v.morph; const sh = this.shared;
-    const m0 = makeAntMaterial(v.rig, sh, this.opts.physicalLod0 ? { physical: true, roughness: m.roughness, sheen: m.sheen, clearcoat: m.clearcoat } : { roughness: m.roughness });
+    const m0 = makeAntMaterial(v.rig, sh, this.opts.physicalLod0 ? { physical: true, roughness: m.roughness, sheen: m.sheen, clearcoat: m.clearcoat, clearcoatRoughness: m.clearcoatRoughness } : { roughness: m.roughness });
     const m1 = makeAntMaterial(v.rig, sh, { roughness: m.roughness + 0.05 });
     const depth = makeAntDepthMaterial(v.rig, sh);
     const lods = [
@@ -72,7 +74,7 @@ export class VariantStore {
       wings.mesh.receiveShadow = false;
       materials.push(wm);
     }
-    return { variant: v, lods, wings, items: new Map(), materials };
+    return { variant: v, lods, wings, items: new Map(), materials, itemGeometries: [] };
   }
 
   /** Carried-item batch of a variant: the item mesh baked at this carrier's grip. */
@@ -91,7 +93,7 @@ export class VariantStore {
       const shadow = near && this.opts.shadows && !t ? makeAntDepthMaterial(r, this.shared) : null;
       b = new InstanceBatch(g, mat, this.parent, shadow, t ? 3 : 0, 16);
       e.materials.push(mat); if (shadow) e.materials.push(shadow);
-      e.items.set(key, b);
+      e.items.set(key, b); e.itemGeometries.push(g);
     }
     return b;
   }
@@ -100,16 +102,30 @@ export class VariantStore {
     for (const e of this.entries) { for (const b of e.lods) fn(b); if (e.wings) fn(e.wings); for (const b of e.items.values()) fn(b); }
   }
 
-  /** Changing the material class or shadows rebuilds the GPU side (variants are rebuilt lazily). */
+  /**
+   * Changing the material class or shadows rebuilds the materials and batches of every variant in place. Entries keep
+   * their index and geometry, so variant indices cached by callers (per-ant render state) stay valid.
+   */
   setOptions(o: VariantStoreOptions): void {
     if (o.physicalLod0 === this.opts.physicalLod0 && o.shadows === this.opts.shadows) return;
     this.opts = o;
-    this.dispose();
+    for (let i = 0; i < this.entries.length; i++) {
+      const old = this.entries[i]!;
+      this.disposeGpu(old);
+      this.entries[i] = this.makeEntry(old.variant);
+    }
+  }
+
+  private disposeGpu(e: VariantEntry): void {
+    for (const b of e.lods) b.dispose();
+    e.wings?.dispose();
+    for (const b of e.items.values()) b.dispose();
+    for (const m of e.materials) m.dispose();
+    for (const g of e.itemGeometries) g.dispose();
   }
 
   dispose(): void {
-    this.forEachBatch((b) => b.dispose());
-    for (const e of this.entries) { for (const m of e.materials) m.dispose(); for (const g of e.variant.lods) g.dispose(); e.variant.wings?.dispose(); }
+    for (const e of this.entries) { this.disposeGpu(e); for (const g of e.variant.lods) g.dispose(); e.variant.wings?.dispose(); }
     this.entries.length = 0;
     this.byKey.clear();
   }

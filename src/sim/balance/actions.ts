@@ -30,10 +30,9 @@ export const MANDIBLE_FWD_L = 0.5;
 export const ANTENNATE_RANGE_L = 2;
 /** Radius of an ant as a target, L. */
 export const ANT_TARGET_RADIUS_L = 0.3;
-/** Target radii of brood by stage and the default item / source radius, BU. */
+/** Target radii of brood by stage and the default item radius, BU (sources use their catalogue footprint). */
 export const BROOD_RADIUS_BU = { egg: 0.12, larva: 0.25, pupa: 0.3 } as const;
 export const ITEM_RADIUS_BU = 0.25;
-export const SOURCE_RADIUS_BU = 0.5;
 
 // ---- catalogue durations, game s at workRate 1 (GDD 01 §7.3) ----
 
@@ -126,8 +125,6 @@ export const TROPH_POOL_DAYS_MIN = 0.5;
 export const TROPH_POOL_MAX = 0.5;
 /** A beggar with crop C below this counts as hungry (GDD 02 §5.4.1). */
 export const TROPH_HUNGRY_C = 0.05;
-/** Drinking rate, load / game s (x source drinkRateMult). */
-export const DRINK_RATE = 0.05;
 /** Grooming removes this share of the target's dirt. */
 export const GROOM_REDUCTION = 0.5;
 
@@ -162,6 +159,7 @@ export const POSSESS_AFK_S = 120;
 /** Input magnitude above which the intent counts as input (stick dead zone). */
 export const INPUT_DEADZONE = 0.15;
 export const RESUME_COMBAT_WINDOW_S = 3;
+/** Rule 10: a released aphid carrier places it on a host plant within this radius (used by the tend behaviour). */
 export const RESUME_APHID_RADIUS_BU = 100;
 export const RESUME_LOCALITY_BONUS = 0.25;
 /** Locality radius for the allocation bonus (rule 16) and the release-rule distances (rules 7, 13, 14), BU. */

@@ -9,12 +9,12 @@ import type {
 import { PHERO_CHANNELS } from '@/sim/types';
 import { PHERO_CELL_BU, PHERO_CHUNK_CELLS } from '@/sim/balance';
 import {
-  PHERO_CHUNK_POOL_MAX, PHERO_EPS, PHERO_MAX, PHERO_MAX_CELLS, PHERO_MAX_CHUNKS, PHERO_SENSOR_REACH_BU,
+  PHERO_CHUNK_POOL_MAX, PHERO_EPS, PHERO_MAX, PHERO_MAX_CELLS, PHERO_MAX_CHUNKS, PHERO_STEER_REACH_BU,
   PHERO_SHARED_CHANNELS, PHERO_SHARED_COLONY,
 } from './balance';
-import { decayLayer, diffuseLayer } from './decay';
+import { decayLayer, diffuseLayer, PHERO_DECAY_GROUPS, uniformDt } from './decay';
 import { chunkInRange, type ChunkPool, type LayerLimits, LayerRuntime, pheroChunkKey } from './layer';
-import { cellBoxOf, cellBoxSize, type CellBox, regionExtent, regionTest, regionValid } from './region';
+import { cellBoxOf, cellBoxSize, type CellBox, clampCellBox, regionExtent, regionTest, regionValid } from './region';
 import { type PointRead, readPoint, type SenseReading, senseLayer } from './sampling';
 
 export interface PheroFieldOptions {
@@ -37,6 +37,11 @@ export interface PheromoneRuntime extends Required<PheromoneField> {
   readonly cellMm: number;
   /** L / C / R readings and turn angle of the last sense() call. */
   readonly lastSense: SenseReading;
+  /**
+   * Staggered decay (pheromoneSystem): decays the chunks of stagger group g by dtByGroup[g] seconds (0 = skip),
+   * then diffuses alarm over diffuseDt seconds (0 = not this call). step(dt) is the unstaggered equivalent.
+   */
+  decayStaggered(dtByGroup: ArrayLike<number>, diffuseDt: number): void;
   stats(): PheroFieldStats;
   /** Invariant check of every layer (tests, soak runs); empty = consistent. Slow: O(chunks x 4096). */
   validate(): string[];
@@ -69,7 +74,7 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
   if (!Array.isArray(data.layers)) data.layers = [];
   if (!Number.isFinite(data.lastDecayTick)) data.lastDecayTick = 0;
   const cell = data.cell, inv = 1 / cell, n = data.chunkCells;
-  const reach = Number(process.env.REACH ?? PHERO_SENSOR_REACH_BU) * (cell / PHERO_CELL_BU);
+  const reach = PHERO_STEER_REACH_BU * (cell / PHERO_CELL_BU);
   const pool: ChunkPool = { values: [], flags: [], max: PHERO_CHUNK_POOL_MAX };
   const layers: LayerRuntime[] = [];
   const byKey = new Map<number, LayerRuntime>();
@@ -130,6 +135,8 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
   }
 
   const box: CellBox = { x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0 };
+  const cellLimit = empty.cellLimit;
+  const dtAll = new Float64Array(PHERO_DECAY_GROUPS);
   const ext = new Float64Array(6);
   const centre = { x: 0, y: 0, z: 0 };
 
@@ -153,7 +160,8 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
             const v = vals[loc];
             if (v === 0 || !test((ix + 0.5) * cell, (iy + 0.5) * cell, (iz + 0.5) * cell)) continue;
             const nv = v * f;
-            vals[loc] = nv >= PHERO_EPS ? nv : 0;
+            if (nv >= PHERO_EPS) vals[loc] = nv;
+            else { vals[loc] = 0; l.nz--; }
             changed++;
           }
         }
@@ -178,6 +186,7 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
     const test: PheroCellTest = filter ? (x, y, z) => inside(x, y, z) && filter(x, y, z) : inside;
     regionExtent(region, ext);
     cellBoxOf(ext, cell, box);
+    clampCellBox(box, cellLimit);
     const size = cellBoxSize(box);
     if (size === 0) return 0;
     let changed = 0;
@@ -202,6 +211,7 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
     ext[0] = p.x - radius; ext[1] = p.y - radius; ext[2] = p.z - radius;
     ext[3] = p.x + radius; ext[4] = p.y + radius; ext[5] = p.z + radius;
     cellBoxOf(ext, cell, box);
+    clampCellBox(box, cellLimit);
     const s = l.shift, m = l.mask;
     if (cellBoxSize(box) <= l.count) {
       for (let iz = box.z0; iz <= box.z1; iz++) for (let iy = box.y0; iy <= box.y1; iy++) for (let ix = box.x0; ix <= box.x1; ix++) {
@@ -273,10 +283,14 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
 
     step(dtSeconds) {
       if (!(dtSeconds > 0) || !Number.isFinite(dtSeconds)) return;
+      field.decayStaggered(uniformDt(dtSeconds, dtAll), dtSeconds);
+    },
+
+    decayStaggered(dtByGroup, diffuseDt) {
       for (let i = 0; i < layers.length; i++) {
         const l = layers[i];
-        decayLayer(l, dtSeconds, cell, hooks.decayModifier);
-        diffuseLayer(l, dtSeconds, cell, hooks.isFree);
+        decayLayer(l, dtByGroup, cell, hooks.decayModifier);
+        if (diffuseDt > 0 && Number.isFinite(diffuseDt)) diffuseLayer(l, diffuseDt, cell, hooks.isFree);
       }
     },
 
@@ -344,7 +358,7 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
       for (const l of layers) {
         if (channel !== undefined && l.channel !== channel) continue;
         if (colony !== undefined && l.colony !== storeColony(colony, l.channel)) continue;
-        total += l.count;
+        total += l.nz;
       }
       return total;
     },
@@ -361,7 +375,7 @@ export function createPheromoneField(data: PheromoneState, opts: PheroFieldOptio
     stats() {
       let cells = 0, chunks = 0, bytes = 0;
       for (const l of layers) {
-        cells += l.count;
+        cells += l.nz;
         chunks += l.chunkCount;
         bytes += l.bytes();
       }

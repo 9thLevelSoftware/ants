@@ -44,9 +44,10 @@ function fail(reason: ActionFailReason, target: TargetRef | null = null): Valida
 
 /** Validation in the order of GDD 01 §7.1: permission, target, busy, preconditions, reach, conditions. */
 function validate(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null): Validation {
-  const def = actionDef(id);
-  if (!def || !ant.alive) return fail('conditions');
+  if (!ant.alive) return fail('conditions');
   if (!casteAllows(sim, ant, id)) return fail(speciesHasAction(sim, ant, id) ? 'caste' : 'species');
+  const def = actionDef(id);
+  if (!def) return fail('conditions'); // a later tier's primitive (fly, sting, cut-leaf ...)
   const t = target ?? def.autoTarget?.(sim, ant) ?? (def.targets.includes('none') ? selfTarget(ant) : null);
   if (!t || !def.targets.includes(t.kind)) return fail('no-target', t);
   if (ant.action && !def.concurrent) {

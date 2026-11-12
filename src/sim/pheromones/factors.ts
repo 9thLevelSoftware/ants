@@ -25,16 +25,29 @@ export interface PheroCellClimate {
   exposure?: PheroExposure;
   /** Micro-temperature at the surface, C (trail heat decay); defaults to tempC. */
   tmicroC?: number;
+  /**
+   * Species trail half-life, s, at trailRefC (GDD 07 `trailHalfLifeS` / `trailRefC`; the decay modifier receives
+   * the colony, so the wiring can pass each colony's species). Absent = the GDD 02 base, 900 s at 22 C.
+   */
+  trailHalfLifeS?: number;
+  trailRefC?: number;
 }
 
 /**
  * Decay-rate multiplier of one cell (1 = base half-life): 1 / (temperature factor x exposure factor), and x 1.5
- * for trail on surfaces at Tmicro >= 35 C. Use it to build a PheroDecayModifier.
+ * for trail on surfaces at Tmicro >= 35 C; trail uses the species half-life when given. Use it to build a
+ * PheroDecayModifier.
  */
 export function pheroDecayRateMult(channel: PheroChannel, c: PheroCellClimate): number {
   let hl = pheroTempHalfLifeFactor(c.tempC);
   let rate = 1;
   if (channel === 'trail') {
+    if (c.trailHalfLifeS !== undefined && c.trailHalfLifeS > 0) {
+      // Species half-life at T relative to the base at T: the temperature factor is taken about the species'
+      // own reference temperature.
+      const ref = Number.isFinite(c.trailRefC) ? c.trailRefC! : PHERO_REF_TEMP_C;
+      hl = (c.trailHalfLifeS / PHERO_HALF_LIFE_S.trail) * pheroTempHalfLifeFactor(c.tempC - ref + PHERO_REF_TEMP_C);
+    }
     if (c.exposure === 'sunlit-porous') hl *= PHERO_TRAIL_HL_SUNLIT_POROUS;
     else if (c.exposure === 'sheltered') hl *= PHERO_TRAIL_HL_SHELTERED;
     if ((c.tmicroC ?? c.tempC) >= PHERO_HEAT_TMICRO_C) rate = PHERO_TRAIL_HEAT_RATE;

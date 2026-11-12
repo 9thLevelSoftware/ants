@@ -2,13 +2,13 @@
 // Everything is driven by the record's own fields (refillPerGd, decayPerGd, stage, spawnedTick ...), so a T1 static
 // honeydew site and a T2 herd film follow the same code with different data.
 
-import type { FoodSource, Sim } from '@/sim/types';
+import type { FoodSource, FoodVariant, Sim } from '@/sim/types';
 import { calendarNow, surfaceTemp } from '@/sim/environment';
 import { zoneAt } from '@/sim/world';
 import { TICKS_PER_DAY } from '@/sim/time';
 import {
   CRUST_DRY_GD, CRUST_DRY_HARDNESS, ECOLOGY_TIER, EFN_LATE_FROM_DOY, EFN_LATE_REFILL_MULT, LIQUID_EMPTY_EPS,
-  PET_BOWL_REFILL_HOURS, SPILL_HALF_LIFE_GD, SPILL_RESIDUE_FRACTION, SPILL_SUN_C, WET_FOOD_DRY_GD,
+  PET_BOWL_REFILL_HOURS, SPILL_HALF_LIFE_GD, SPILL_RESIDUE_FRACTION, SPILL_SUN_C, T1_CARRION_REMOVE_GD, WET_FOOD_DRY_GD,
   WET_FOOD_DRY_HARDNESS, WINDFALL_STAGES, WINDFALL_WASP_DRAIN_PER_H,
 } from '@/sim/balance/ecology';
 import { defOf, isEmpty, setAmount, sourceDef } from './def';
@@ -33,7 +33,7 @@ export function updateSource(sim: Sim, s: FoodSource, dtGd: number): void {
   if (s.stage !== null && d.carrion) {
     if (advanceCarrion(sim, s, dtGd)) return; // removed as a husk
   } else {
-    const lifetime = sourceDef(d.variant, ECOLOGY_TIER).lifetimeGd;
+    const lifetime = lifetimeGd(d.variant, d.carrion);
     if (lifetime > 0 && age >= lifetime) {
       retireSource(sim, s, d.variant === 'elaiosome-seed' ? 'germinated' : 'expired');
       return;
@@ -45,16 +45,32 @@ export function updateSource(sim: Sim, s: FoodSource, dtGd: number): void {
   if (s.alive && isEmpty(s) && !d.renewable) retireSource(sim, s, 'depleted');
 }
 
+/**
+ * Removal age of a source that is not on a carrion stage clock (0 = none). Carrion without a stage (T1, or a
+ * catalogue row without its own T1 age, e.g. a large corpse turned to carrion at T1) always gets one, so no
+ * carcass stays on the map for ever.
+ */
+function lifetimeGd(variant: FoodVariant, carrion: boolean): number {
+  const t = sourceDef(variant, ECOLOGY_TIER).lifetimeGd;
+  return t > 0 || !carrion ? t : T1_CARRION_REMOVE_GD;
+}
+
 function renew(sim: Sim, s: FoodSource, dtGd: number): void {
   if (s.refillPerGd > 0 && s.units < s.capacity) {
     const cal = calendarNow(sim);
     let rate = s.refillPerGd;
-    if (defOf(s)?.refillDaylightOnly) rate = cal.daylight > 0 && cal.dayLength > 0 ? rate * (HOURS_PER_DAY / cal.dayLength) : 0;
+    if (defOf(s)?.refillDaylightOnly) rate = isDaytime(sim) && cal.dayLength > 0 ? rate * (HOURS_PER_DAY / cal.dayLength) : 0;
     if (s.variant === 'extrafloral-nectary' && d28Of(cal.yearFrac) >= EFN_LATE_FROM_DOY - 1) rate *= EFN_LATE_REFILL_MULT;
     setAmount(s, Math.min(s.capacity, s.units + rate * dtGd));
   }
   if (s.variant === 'kibble' && isBowlRefillHour(sim)) setAmount(s, s.capacity);
   if (!isEmpty(s)) s.exhaustedBy = 0;
+}
+
+/** Between sunrise and sunset (GDD 05 "in daylight (SR..SS)", "by day"). */
+export function isDaytime(sim: Sim): boolean {
+  const cal = calendarNow(sim);
+  return cal.hour >= cal.sunrise && cal.hour < cal.sunset;
 }
 
 function isBowlRefillHour(sim: Sim): boolean {
@@ -64,7 +80,7 @@ function isBowlRefillHour(sim: Sim): boolean {
 
 function decay(sim: Sim, s: FoodSource, dtGd: number): void {
   if (s.variant === 'sugary-spill') s.decayPerGd = halfLifeToDecay(spillHalfLife(sim, s));
-  if (s.variant === 'windfall' && calendarNow(sim).daylight > 0) {
+  if (s.variant === 'windfall' && isDaytime(sim)) {
     setAmount(s, s.units * (1 - WINDFALL_WASP_DRAIN_PER_H * dtGd * HOURS_PER_DAY));
   }
   if (s.decayPerGd > 0 && s.units > 0) {

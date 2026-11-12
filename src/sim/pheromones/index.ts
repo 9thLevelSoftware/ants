@@ -29,27 +29,51 @@ export function pheroRuntime(f: PheromoneField): PheromoneRuntime | undefined {
   return typeof f.step === 'function' && typeof f.wipeRegion === 'function' ? (f as PheromoneRuntime) : undefined;
 }
 
+/** Tick through which stagger group g (of PHERO_DECAY_EVERY) is decayed when the field is current at tick t. */
+function groupDecayedThrough(g: number, t: number): number {
+  const E = PHERO_DECAY_EVERY;
+  return t - ((((t - g) % E) + E) % E);
+}
+
+const dtByGroup = new Float64Array(PHERO_DECAY_EVERY);
+
 /**
- * Advances the field to the current tick: decay over active cells (per-channel half-lives, environment modifier
- * hook), alarm diffusion, removal below PHERO_EPS, cap enforcement. Uses elapsed time since lastDecayTick, so
- * skipped ticks (time-lapse) decay correctly.
+ * Advances the field to the current tick. Decay is staggered (GDD 02 §8.2): chunks fall into PHERO_DECAY_EVERY
+ * groups by key, and group g decays on ticks t = g (mod PHERO_DECAY_EVERY) by the time elapsed since its previous
+ * turn, so each tick decays about a tenth of the cells and every cell still decays every PHERO_DECAY_EVERY ticks.
+ * Which group is due follows from the tick and lastDecayTick alone (no extra saved state), and a call after
+ * skipped ticks (time-lapse, irregular callers) catches every group up by its own elapsed time. Alarm diffusion
+ * runs on group 0's turn over its elapsed time.
  */
 export function stepPheromones(sim: Sim): void {
   const st = sim.state.phero;
   const t = sim.state.tick;
-  const dt = (t - st.lastDecayTick) / TICKS_PER_SECOND;
-  if (!(dt > 0)) {
-    if (t < st.lastDecayTick) st.lastDecayTick = t;
+  const last = st.lastDecayTick;
+  if (!(t > last)) {
+    if (t < last) st.lastDecayTick = t;
     return;
   }
   const rt = pheroRuntime(sim.phero);
-  if (rt) rt.step(dt);
-  else for (const ch of PHERO_CHANNELS) sim.phero.decay(ch, Math.pow(2, -dt / PHERO_HALF_LIFE_S[ch]));
+  if (rt) {
+    let any = false;
+    for (let g = 0; g < PHERO_DECAY_EVERY; g++) {
+      const ticks = groupDecayedThrough(g, t) - groupDecayedThrough(g, last);
+      dtByGroup[g] = ticks / TICKS_PER_SECOND;
+      if (ticks > 0) any = true;
+    }
+    if (any) rt.decayStaggered(dtByGroup, dtByGroup[0]);
+  } else {
+    const dt = (t - last) / TICKS_PER_SECOND;
+    for (const ch of PHERO_CHANNELS) sim.phero.decay(ch, Math.pow(2, -dt / PHERO_HALF_LIFE_S[ch]));
+  }
   st.lastDecayTick = t;
 }
 
-/** Decay, diffusion and caps every PHERO_DECAY_EVERY ticks. Rain washing and wipes are called by their owners. */
-export const pheromoneSystem: System = { name: 'pheromones', phase: 'pheromones', every: PHERO_DECAY_EVERY, run: stepPheromones };
+/**
+ * Staggered decay, diffusion and caps: runs every tick and decays the chunks whose stagger group is due (each chunk
+ * every PHERO_DECAY_EVERY ticks). Rain washing and wipes are called by their owners.
+ */
+export const pheromoneSystem: System = { name: 'pheromones', phase: 'pheromones', run: stepPheromones };
 
 export const systems: readonly System[] = [pheromoneSystem];
 
@@ -64,7 +88,7 @@ export function sample(sim: Sim, colony: number, channel: PheroChannel, p: Vec3)
 }
 
 /**
- * Antennal sensing: three sensors 0.9 BU ahead (straight and at +-35 deg) on the tangent plane of `up`; the best
+ * Antennal sensing: three sensors 3 BU ahead (straight and at +-35 deg) on the tangent plane of `up`; the best
  * heading (unit, tangent) goes into out and the strongest sensor reading (ph) is returned. Heading = fwd when
  * nothing is sensed. Readings of the last call: pheroRuntime(sim.phero)?.lastSense.
  */

@@ -14,6 +14,7 @@ export default async ({ page, shot, log }) => {
   await take('01-lasius-worker-three-quarter', async () => { await D('setScene', 'hero', { species: 'lasius-niger', caste: 'worker' }); await D('step', 0.3); });
   await take('01b-lasius-worker-head', async () => { await D('setScene', 'hero', { species: 'lasius-niger', caste: 'worker' }); await D('setCamera', { target: [0, 0.45, 1.3], dist: 3.2, az: 28, el: 20, fov: 30 }); await D('step', 0.2); });
   await take('02-queen-and-worker', async () => { await D('setScene', 'queen', { species: 'lasius-niger' }); await D('step', 0.2); });
+  await take('02b-founding-queen-winged', async () => { await D('setScene', 'founding', { species: 'lasius-niger' }); await D('step', 0.2); });
   await take('03-gyne-winged', async () => { await D('setScene', 'hero', { species: 'lasius-niger', caste: 'gyne' }); await D('setCamera', { target: [0, 1.2, -0.6], dist: 22, az: 40, el: 30, fov: 30 }); await D('step', 0.2); });
   await take('03b-camponotus-gyne', async () => { await D('setScene', 'hero', { species: 'camponotus-pennsylvanicus', caste: 'gyne' }); await D('setCamera', { target: [0, 2.5, -1.5], dist: 48, az: 40, el: 30, fov: 30 }); await D('step', 0.2); });
   await take('04-messor-major-minor', async () => { await D('setScene', 'poly', { species: 'messor-barbarus' }); await D('step', 0.2); });
@@ -58,6 +59,16 @@ export default async ({ page, shot, log }) => {
     out.footSlide60 = await D('footSlide', 60, 1 / 60); // camera follows: world-space drift is the measure here
     delete out.footSlide60.feet;
     log('footSlide', JSON.stringify({ ...out.footSlide, feet: undefined }), JSON.stringify(out.footSlide60));
+    // turning and wandering (the sim steers constantly): frame-to-frame movement of every stance foot, 60 frames
+    out.footSlideTurning = {};
+    for (const [name, turn, script] of [['turn1.5', 1.5, 'walk'], ['turn3', 3, 'walk'], ['wander', 0, 'wander']]) {
+      await D('setScene', 'gait');
+      await page.evaluate(([t, sc]) => { const a = window.__demo.sim.state.ants[0]; a.turnRate = t; a.script = sc; }, [turn, script]);
+      await D('step', 0.5);
+      const r = await D('footSlide', 60, 1 / 60); delete r.feet;
+      out.footSlideTurning[name] = r;
+    }
+    log('footSlideTurning', JSON.stringify(out.footSlideTurning));
   }
   return out;
 };

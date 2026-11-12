@@ -49,6 +49,13 @@ export const SMOOTH = { pose: 0.11, up: 0.06, turn: 0.15 };
 /** Gait bookkeeping: effective foot lever for turning on the spot (fraction of body length). */
 export const GAIT = { turnLever: 0.45, cruiseBodyLengthsPerS: 6, teleportBodyLengths: 6 };
 
+/**
+ * Cuticle material (GDD 08 §11.6): glossy chitin, base roughness 0.35, clearcoat 0.6 with clearcoat roughness 0.2;
+ * fine erect hairs as a soft rim (sheen) term on legs and scapes. Species presets start from these; Camponotus
+ * (dull black) and Atta (matte) are rougher, as §11.6 describes them.
+ */
+export const CUTICLE = { roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.2, hairRimSheen: 1.8 };
+
 /** Callow adults darken over CALLOW_DARKEN_GAME_H = 6 game hours (GDD 08 §11.6): 6 x 25 s x 10 ticks. */
 export const CALLOW_DARKEN_TICKS = 1500;
 

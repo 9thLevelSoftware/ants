@@ -13,6 +13,13 @@ import type { CarrionStage, DifficultyId, FoodKind, FoodVariant, ItemKind, Seaso
  */
 export const ECOLOGY_TIER: 1 | 2 = 1;
 
+/**
+ * Age (gd) at which carrion without a stage clock (all carrion at T1) is removed. GDD 05 §1.2 writes the T1 age
+ * only on the insect-small row ("T1: no decay, removed after 3 gd"); T1 drops the stages of every carrion row, so
+ * the same age applies to all of them (decision, sources-core review: otherwise T1 carcasses never leave).
+ */
+export const T1_CARRION_REMOVE_GD = 3;
+
 /** How a source is harvested (GDD 05 §1.1): drunk, picked up as whole units, or torn into carryCap pieces. */
 export type SourceForm = 'liquid' | 'pick' | 'tear';
 
@@ -127,17 +134,17 @@ export const SOURCE_CATALOGUE: Record<FoodVariant, SourceDef> = {
     unitMm: 50, units: [20, 20], lifetimeGd: 6, slots: [2, 2], hardness: 0.5, odourBu: 40, quality: 0.7,
     window: [15, 20], footprintBu: 6,
   }),
-  // Carrion. T1: no stages; insect-small removed after 3 gd (§1.2).
+  // Carrion. T1: no stages; removed after T1_CARRION_REMOVE_GD (§1.2 on insect-small; applied to all carrion).
   'insect-small': def({
     variant: 'insect-small', kind: 'carrion', tier: 1, form: 'pick', item: 'carcass', c: 0.02, p: 0.5,
     unitBulk: 0.5, unitMm: 2.5, units: [1, 1], slots: [1, 1], odourBu: 8, quality: 0.9, carrion: true,
-    footprintBu: 0.5, t1: { lifetimeGd: 3 },
+    footprintBu: 0.5, t1: { lifetimeGd: T1_CARRION_REMOVE_GD },
   }),
   // Slots = H/2 tearers with H = round(3 l / L) = 7 for a 9 mm carcass and a 4 mm worker (§1.5).
   'insect-medium': def({
     variant: 'insect-medium', kind: 'carrion', tier: 1, form: 'tear', item: 'food-piece', c: 0.1, p: 4,
     unitBulk: 5, unitMm: 9, units: [1, 1], slots: [3, 3], hardness: 1.5, odourBu: 20, quality: 0.9, carrion: true,
-    footprintBu: 1.5,
+    footprintBu: 1.5, t1: { lifetimeGd: T1_CARRION_REMOVE_GD },
   }),
   'insect-large': def({
     variant: 'insect-large', kind: 'carrion', tier: 2, form: 'tear', item: 'food-piece', c: 0.5, p: 15,

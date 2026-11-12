@@ -64,39 +64,42 @@ function distToTrail(pl: Plane, pts: [number, number][], p: Vec3): number {
 }
 
 /**
- * Walks an ant by repeatedly stepping along senseDirection (6 BU/s, 0.1 s steps: the new heading IS the sensed
- * one). Returns the worst deviation from the trail line and whether it reached the end.
+ * Walks an ant by repeatedly stepping along senseDirection (0.1 s steps at `speedBu` BU/s; the new heading IS the
+ * sensed one), starting `offsetBu` to the side of the trail start. Returns the worst deviation from the trail
+ * line (after the first 10 steps), whether it reached the end and the weakest strength reading.
  */
-function follow(f: PheromoneRuntime, pl: Plane, pts: [number, number][]) {
-  const pos = at(pl, pts[0][0], pts[0][1]);
+function follow(f: PheromoneRuntime, pl: Plane, pts: [number, number][], speedBu = 6, offsetBu = 0) {
+  const pos = at(pl, pts[0][0], pts[0][1] + offsetBu * TEST_BU);
   const p1 = at(pl, pts[8][0], pts[8][1]);
   const fwd = { x: p1.x - pos.x, y: p1.y - pos.y, z: p1.z - pos.z };
   const l = Math.hypot(fwd.x, fwd.y, fwd.z);
   fwd.x /= l; fwd.y /= l; fwd.z /= l;
   const end = at(pl, pts[pts.length - 1][0], pts[pts.length - 1][1]);
   const out = { x: 0, y: 0, z: 0 };
-  const stepLen = 0.6 * TEST_BU;
+  const stepLen = speedBu * 0.1 * TEST_BU;
   let worst = 0, minStrength = Infinity, reached = false;
   for (let i = 0; i < 2000; i++) {
     const s = f.sense(1, 'trail', pos, fwd, pl.up, out);
     minStrength = Math.min(minStrength, s);
     fwd.x = out.x; fwd.y = out.y; fwd.z = out.z;
     pos.x += fwd.x * stepLen; pos.y += fwd.y * stepLen; pos.z += fwd.z * stepLen;
-    worst = Math.max(worst, distToTrail(pl, pts, pos));
-    if (i % 20 === 0 && process.env.DBG) console.log(i, s.toFixed(3), f.lastSense.left.toFixed(3), f.lastSense.centre.toFixed(3), f.lastSense.right.toFixed(3), f.lastSense.angle.toFixed(3), distToTrail(pl, pts, pos).toFixed(1));
+    if (i >= 10) worst = Math.max(worst, distToTrail(pl, pts, pos));
     if (Math.hypot(pos.x - end.x, pos.y - end.y, pos.z - end.z) < 2 * TEST_BU) { reached = true; break; }
   }
   return { worst, reached, minStrength };
 }
 
 describe('senseDirection follows a curved trail end to end', () => {
-  for (const [name, pl] of [['flat ground', ground], ['vertical wall', wall]] as const) {
+  const cases = [
+    ['flat ground', ground, 6, 0], ['vertical wall', wall, 6, 0],
+    ['flat ground, running 12 BU/s', ground, 12, 0], ['vertical wall, starting 1.5 BU to the side', wall, 6, 1.5],
+  ] as const;
+  for (const [name, pl, speed, offset] of cases) {
     it(`on ${name}`, () => {
       const f = newField();
       const pts = curvedTrail();
       layTrail(f, pl, pts);
-      const r = follow(f, pl, pts);
-      if (process.env.DBG2) expect(name + JSON.stringify(r)).toBe('');
+      const r = follow(f, pl, pts, speed, offset);
       expect(r.reached).toBe(true);
       expect(r.worst).toBeLessThan(4 * TEST_BU); // stays within one cell of the trail line
       expect(r.minStrength).toBeGreaterThan(TRAIL_DETECT); // never loses the trail

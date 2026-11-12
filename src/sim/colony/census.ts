@@ -1,10 +1,19 @@
 // Per-tick derived counts (never persisted): chambers by id, the colony census, item counts per chamber.
 // Each is computed lazily once per tick and cached per sim.
 
+import { ti } from './taskIdx';
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Caste, Chamber, Colony, Sim } from '@/sim/types';
+import type { Ant, Caste, Chamber, Colony, ColonyCoreState, Sim } from '@/sim/types';
 import { CORPSE_HAUL_RADIUS_BU } from '@/sim/balance';
-import { AntFlag, BroodFlag, TASK_COUNT, taskIndex } from '@/sim/types';
+import { AntFlag, BroodFlag, TASK_COUNT } from '@/sim/types';
+
+// Imported bindings are accessor reads under Vite's SSR module runner (tests, headless tools); the hot per-entity
+// steps below read these module-local copies instead.
+const _ti = ti;
+const _CORPSE_HAUL_RADIUS_BU = CORPSE_HAUL_RADIUS_BU;
+const _AntFlag = AntFlag;
+const _BroodFlag = BroodFlag;
+const _TASK_COUNT = TASK_COUNT;
 
 const WORKER_CASTES: ReadonlySet<Caste> = new Set<Caste>(['worker', 'minor', 'media', 'major']);
 
@@ -97,19 +106,19 @@ export interface Census {
 
 function emptyCensus(): Census {
   return {
-    workers: 0, callows: 0, byTask: new Int16Array(TASK_COUNT), available: 0, availableOutside: 0, injured: 0,
+    workers: 0, callows: 0, byTask: new Int16Array(_TASK_COUNT), available: 0, availableOutside: 0, injured: 0,
     resting: 0, eggs: 0, larvae: 0, pupae: 0, workerEggs: 0, workerLarvae: 0, workerPupae: 0, diapause: 0,
     readyPupae: 0, meanLarvalHunger: 0, gynes: 0, males: 0,
   };
 }
 
-const FIGHT = taskIndex('fight');
-const FLEE = taskIndex('flee');
+const FIGHT = _ti('fight');
+const FLEE = _ti('flee');
 
 /** True if the allocator may count this worker as available (`A`). */
 export function isAvailable(a: Ant): boolean {
-  if ((a.flags & (AntFlag.POSSESSED | AntFlag.DORMANT)) !== 0) return false;
-  const t = taskIndex(a.task);
+  if ((a.flags & (_AntFlag.POSSESSED | _AntFlag.DORMANT)) !== 0) return false;
+  const t = _ti(a.task);
   return t !== FIGHT && t !== FLEE;
 }
 
@@ -131,13 +140,13 @@ function buildCensus(sim: Sim): Map<number, Census> {
     if (!WORKER_CASTES.has(a.caste)) continue;
     const c = get(a.colony);
     c.workers++;
-    if (a.flags & AntFlag.CALLOW) c.callows++;
-    c.byTask[taskIndex(a.task)]++;
+    if (a.flags & _AntFlag.CALLOW) c.callows++;
+    c.byTask[_ti(a.task)]++;
     if (a.task === 'rest' || a.state === 'rest') c.resting++;
-    if (a.flags & AntFlag.INJURED) c.injured++;
+    if (a.flags & _AntFlag.INJURED) c.injured++;
     if (isAvailable(a)) {
       c.available++;
-      if ((a.flags & (AntFlag.INJURED | AntFlag.CALLOW)) === 0) c.availableOutside++;
+      if ((a.flags & (_AntFlag.INJURED | _AntFlag.CALLOW)) === 0) c.availableOutside++;
     }
   }
   const hungerSum = new Map<number, number>();
@@ -150,12 +159,12 @@ function buildCensus(sim: Sim): Map<number, Census> {
     if (b.stage === 'egg') { c.eggs++; if (w) c.workerEggs++; } else if (b.stage === 'larva') {
       c.larvae++;
       if (w) c.workerLarvae++;
-      if (b.flags & BroodFlag.DIAPAUSE) c.diapause++;
+      if (b.flags & _BroodFlag.DIAPAUSE) c.diapause++;
       else hungerSum.set(b.colony, (hungerSum.get(b.colony) ?? 0) + b.hunger);
     } else {
       c.pupae++;
       if (w) c.workerPupae++;
-      if (b.flags & BroodFlag.READY) c.readyPupae++;
+      if (b.flags & _BroodFlag.READY) c.readyPupae++;
     }
   }
   for (const [id, c] of m) {
@@ -186,11 +195,11 @@ export interface ItemCounts {
   byColony: Map<number, { waste: number; pellets: number; corpses: number; spoiled: number }>;
 }
 
-/** Within CORPSE_HAUL_RADIUS_BU of one of the colony's entrances (GDD 02 §10.8). */
+/** Within _CORPSE_HAUL_RADIUS_BU of one of the colony's entrances (GDD 02 §10.8). */
 function nearHome(sim: Sim, colonyId: number, p: Vec3): boolean {
   const col = sim.stores.colonies.get(colonyId);
   if (!col) return false;
-  const r = CORPSE_HAUL_RADIUS_BU * sim.world.bu;
+  const r = _CORPSE_HAUL_RADIUS_BU * sim.world.bu;
   for (const nid of col.nestIds) {
     const n = sim.stores.nests.get(nid);
     if (!n) continue;
@@ -236,4 +245,61 @@ export function itemCounts(sim: Sim): ItemCounts {
     }
     return { wasteByChamber, byColony };
   });
+}
+
+// ---- cycle snapshot (persisted in Colony.core.acc so readers between cycles stay deterministic on reload) ----
+
+/** The census fields the queen and brood read between colony cycles. */
+export interface CensusSnapshot {
+  workers: number;
+  larvae: number;
+  diapause: number;
+  workerEggs: number;
+  workerLarvae: number;
+  workerPupae: number;
+  nurses: number;
+  meanLarvalHunger: number;
+}
+
+const NURSE_I = ti('nurse');
+
+/** Stores the census and the waste per chamber of this colony cycle in core.acc. */
+export function storeCycleSnapshot(sim: Sim, col: Colony, core: ColonyCoreState): void {
+  const c = censusOf(sim, col.id);
+  const a = core.acc;
+  a['cen.valid'] = 1;
+  a['cen.workers'] = c.workers;
+  a['cen.larvae'] = c.larvae;
+  a['cen.diapause'] = c.diapause;
+  a['cen.wEggs'] = c.workerEggs;
+  a['cen.wLarvae'] = c.workerLarvae;
+  a['cen.wPupae'] = c.workerPupae;
+  a['cen.nurses'] = c.byTask[NURSE_I];
+  a['cen.hunger'] = c.meanLarvalHunger;
+  const waste = itemCounts(sim).wasteByChamber;
+  for (const ch of colonyChambers(sim, col)) {
+    const n = waste.get(ch.id) ?? 0;
+    if (n > 0 || a[`waste.${ch.id}`] !== undefined) a[`waste.${ch.id}`] = n;
+  }
+}
+
+/** The last cycle snapshot, or a fresh census before the first cycle. */
+export function cycleCensus(sim: Sim, col: Colony): CensusSnapshot {
+  const a = col.core?.acc;
+  if (a && a['cen.valid'] === 1) {
+    return {
+      workers: a['cen.workers'], larvae: a['cen.larvae'], diapause: a['cen.diapause'], workerEggs: a['cen.wEggs'],
+      workerLarvae: a['cen.wLarvae'], workerPupae: a['cen.wPupae'], nurses: a['cen.nurses'], meanLarvalHunger: a['cen.hunger'],
+    };
+  }
+  const c = censusOf(sim, col.id);
+  return {
+    workers: c.workers, larvae: c.larvae, diapause: c.diapause, workerEggs: c.workerEggs, workerLarvae: c.workerLarvae,
+    workerPupae: c.workerPupae, nurses: c.byTask[NURSE_I], meanLarvalHunger: c.meanLarvalHunger,
+  };
+}
+
+/** Waste items in a chamber at the last colony cycle. */
+export function cycleWaste(col: Colony, chamberId: number): number {
+  return col.core?.acc[`waste.${chamberId}`] ?? 0;
 }

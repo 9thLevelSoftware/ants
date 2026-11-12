@@ -10,11 +10,10 @@ import { calendarNow } from './calendar';
 import { SEASONAL_PEAK_FRAC } from './climates';
 import { coverSlotKind, surfaceSlotAt } from './ground';
 import { dmTarget, climateOf } from './temperature';
-import { ensureThermal } from './surface';
+import { thermalReady } from './surface';
 
 /** Soil temperature at a depth below an open-ground surface with the given cover, C. */
 export function soilTempAtDepth(sim: Sim, depthMm: number, cover: CoverClass = 'bare'): number {
-  ensureThermal(sim);
   const cal = calendarNow(sim);
   const w = sim.state.env.weather;
   const c = climateOf(sim);
@@ -24,7 +23,8 @@ export function soilTempAtDepth(sim: Sim, depthMm: number, cover: CoverClass = '
   const dm = w.dmCur ?? dmTarget(w.state);
   const adSoil = SOIL_DIURNAL_FACTOR * c.ad[cal.season] * dm;
   const diurnal = adSoil * Math.exp(-z / SOIL_DD_MM) * Math.cos((2 * Math.PI * (cal.hour - AIR_PEAK_HOUR)) / 24 - z / SOIL_DD_MM) * cv.amp;
-  const soak = sim.state.env.thermal.wsoil * Math.exp(-z / SOIL_DW_MM);
+  // Before the simulation has started the thermal state the soak is 0 (createGame's placeholder is not a soak).
+  const soak = thermalReady(sim) ? sim.state.env.thermal.wsoil * Math.exp(-z / SOIL_DW_MM) : 0;
   return c.tann + SOIL_MEAN_OFFSET_C + annual + diurnal + soak + cv.mean;
 }
 

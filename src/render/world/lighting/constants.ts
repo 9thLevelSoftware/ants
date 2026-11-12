@@ -128,8 +128,8 @@ export const UNDERGROUND = {
  * the ground's horizontal irradiance is compared with midday and AUTO_EXPOSURE_K of the difference in stops is
  * added on top of the GDD 08 11.2 exposure, clamped to AUTO_EXPOSURE_MAX_EV.
  */
-export const AUTO_EXPOSURE_K = 0.5;
-export const AUTO_EXPOSURE_MAX_EV = 1.5;
+export const AUTO_EXPOSURE_K = 0.6;
+export const AUTO_EXPOSURE_MAX_EV = 2.0;
 
 /** GDD 08 11.3 interior: warm tungsten from above, daylight only through windows and doors. */
 export const INTERIOR_LOOK = {

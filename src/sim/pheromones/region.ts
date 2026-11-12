@@ -66,6 +66,16 @@ export function cellBoxOf(ext: Float64Array, cell: number, out: CellBox): void {
   out.z0 = Math.ceil(ext[2] / cell - 0.5); out.z1 = Math.floor(ext[5] / cell - 0.5);
 }
 
+/** Clips a cell box to [-limit, limit - 1] on every axis (the chunk-key range; may leave it empty). */
+export function clampCellBox(b: CellBox, limit: number): void {
+  if (b.x0 < -limit) b.x0 = -limit;
+  if (b.y0 < -limit) b.y0 = -limit;
+  if (b.z0 < -limit) b.z0 = -limit;
+  if (b.x1 > limit - 1) b.x1 = limit - 1;
+  if (b.y1 > limit - 1) b.y1 = limit - 1;
+  if (b.z1 > limit - 1) b.z1 = limit - 1;
+}
+
 /** Number of cells in a box (0 if empty). */
 export function cellBoxSize(b: CellBox): number {
   if (b.x1 < b.x0 || b.y1 < b.y0 || b.z1 < b.z0) return 0;

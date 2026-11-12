@@ -87,3 +87,15 @@ export interface AntInspect {
   /** Last decisions, newest first: reason code text and detail. */
   decisions: { tick: number; reason: string; detail: number }[];
 }
+
+/**
+ * A simulation invariant checked by soak runs (tools/sim/soak.ts) and tests. A module adds its own by exporting
+ * `invariants: readonly SimInvariant[]` from its index.ts (collected through SIM_MODULES by
+ * src/sim/testing/invariants.ts); no shared file is edited. Additive (F-int).
+ */
+export interface SimInvariant {
+  /** Short kebab-case id, e.g. 'walker-finite'. */
+  name: string;
+  /** Calls `fail(detail)` once per violation (detail names the entity and the bad value). Must not mutate sim. */
+  check(sim: Sim, fail: (detail: string) => void): void;
+}

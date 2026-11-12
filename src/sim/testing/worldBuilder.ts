@@ -2,8 +2,11 @@
 // optional primitives, empty catalogues. Used by the test world and by the placeholder world generator.
 
 import { hashString } from '@/core/rng';
-import type { ByteMap, HeightField, Primitive, WorldData, WorldParams, ZoneType } from '@/sim/types';
+import type {
+  ByteMap, ClimbRoute, HeightField, PreCarveOp, Primitive, StartPose, WorldData, WorldObject, WorldParams, ZoneType,
+} from '@/sim/types';
 import { materialCode, type MaterialId } from '@/sim/types';
+import { terrainHeightAt as terrainAt } from '@/sim/entities/placement';
 import { NAV_CELL_BU, PLACEHOLDER_MOISTURE, TERRAIN_CELL_BU } from '@/sim/balance';
 
 export interface WorldBuildSpec {
@@ -15,6 +18,11 @@ export interface WorldBuildSpec {
   /** Terrain height at (x, z), mm. */
   height: (x: number, z: number) => number;
   prims?: Primitive[];
+  objects?: WorldObject[];
+  climbRoutes?: ClimbRoute[];
+  preCarve?: PreCarveOp[];
+  /** Default: the world centre on the terrain, facing +X. */
+  queenStart?: StartPose;
   zone?: ZoneType;
   surface?: MaterialId;
   subsoil?: MaterialId;
@@ -62,9 +70,10 @@ export function buildWorld(spec: WorldBuildSpec): WorldData {
       suitability: {},
     },
     nav: { cls: byteMap(navCell, navN, navN, 0), cost: byteMap(navCell, navN, navN, NAV_COST_UNIT) },
-    objects: [], climbRoutes: [], pois: [], waterBodies: [], micro: [], cavities: [], preCarve: [],
+    objects: spec.objects ?? [], climbRoutes: spec.climbRoutes ?? [], pois: [], waterBodies: [], micro: [], cavities: [],
+    preCarve: spec.preCarve ?? [],
     placements: { foodAnchors: [], plants: [], territories: [], rivalSites: [] },
-    queenStart: { pos: { x: center, y: spec.height(center, center), z: center }, fwd: { x: 1, y: 0, z: 0 } },
+    queenStart: spec.queenStart ?? { pos: { x: center, y: terrainAt(terrain, center, center), z: center }, fwd: { x: 1, y: 0, z: 0 } },
     meta: {
       fingerprint: hashString(`${spec.params.seed}|${size}|${bu}|${prims.length}|${spec.params.generatorVersion}`),
       attempts: 1, repairs: [], disabledEvents: [],

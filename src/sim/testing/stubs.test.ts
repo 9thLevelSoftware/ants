@@ -1,5 +1,6 @@
-// The cross-module API of F1c task step 3: every listed function exists, is callable on a fresh game and returns
-// a safe "not available" value until its owner implements it (owners are named in each module's index.ts).
+// The cross-module API of F1c task step 3: every listed function exists and is callable on a fresh game without
+// throwing. Stubs return a safe "not available" value until their owner implements them; for modules that have
+// landed (environment, pheromones) the checks are only that values are finite and in range.
 import { describe, expect, it } from 'vitest';
 import * as ants from '@/sim/ants';
 import * as colony from '@/sim/colony';
@@ -76,9 +77,10 @@ describe('cross-module stub API', () => {
     expect(environment.surfaceTemp(sim, p)).toBeGreaterThan(0);
     expect(environment.soilTemp(sim, p)).toBeGreaterThan(0);
     expect(environment.chamberTemp(sim, -1)).toBeGreaterThan(0);
-    expect(environment.speedMult(sim, 25, 'lasius-niger')).toBe(1);
+    expect(environment.speedMult(sim, 25, 'lasius-niger')).toBeGreaterThan(0);
     expect(environment.lightLevel(sim, p)).toBeGreaterThanOrEqual(0);
-    expect(environment.sunDirection(sim, { x: 0, y: 0, z: 0 }).y).toBe(1);
+    const sun = environment.sunDirection(sim, { x: 0, y: 0, z: 0 });
+    expect(Math.hypot(sun.x, sun.y, sun.z)).toBeCloseTo(1, 5);
     expect(environment.isRaining(sim)).toBe(false);
     expect(environment.rainRate(sim, p)).toBe(0);
     expect(ants.canDo(sim, q, 'dig-bite', null).ok).toBe(false);

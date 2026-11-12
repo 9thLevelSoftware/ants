@@ -7,7 +7,7 @@ import {
   BufferGeometry, DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, type Material, type Object3D,
 } from 'three';
 
-const ATTRS = ['aGait', 'aPose', 'aTint', 'aAct', 'aExtra'] as const;
+const ATTRS = ['aGait', 'aPose', 'aTint', 'aAct', 'aExtra', 'aFootA', 'aFootB'] as const;
 export type InstanceAttr = (typeof ATTRS)[number];
 
 /** A geometry that shares the source's vertex buffers (one GPU copy) but owns its instance attributes. */
@@ -21,7 +21,7 @@ function shareGeometry(src: BufferGeometry): BufferGeometry {
 
 export class InstanceBatch {
   mesh!: InstancedMesh;
-  /** instanceMatrix array and the five vec4 arrays (same order as ATTRS). */
+  /** instanceMatrix array and the per-instance vec4 arrays (same order as ATTRS). */
   m!: Float32Array;
   a: Record<InstanceAttr, Float32Array> = {} as Record<InstanceAttr, Float32Array>;
   n = 0;
@@ -81,8 +81,12 @@ export class InstanceBatch {
   /** Copies instance i of another batch into slot j of this one (carried items, wings reuse the carrier's data). */
   copyFrom(other: InstanceBatch, i: number): number {
     const j = this.next();
-    this.m.set(other.m.subarray(i * 16, i * 16 + 16), j * 16);
-    for (const k of ATTRS) this.a[k].set(other.a[k].subarray(i * 4, i * 4 + 4), j * 4);
+    const m = this.m, om = other.m;
+    for (let k = 0; k < 16; k++) m[j * 16 + k] = om[i * 16 + k]!;
+    for (const name of ATTRS) {
+      const d = this.a[name], s = other.a[name];
+      d[j * 4] = s[i * 4]!; d[j * 4 + 1] = s[i * 4 + 1]!; d[j * 4 + 2] = s[i * 4 + 2]!; d[j * 4 + 3] = s[i * 4 + 3]!;
+    }
     return j;
   }
 

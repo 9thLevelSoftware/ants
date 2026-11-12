@@ -3,13 +3,13 @@
 import type { Ant, Sim, TargetRef } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  DRINK_RATE, TEAR_S, TROPH_ACCEPT_FRAC, TROPH_DONOR_MIN, TROPH_HUNGRY_C, TROPH_MAX_S, TROPH_POOL_DAYS_MIN,
+  TEAR_S, TROPH_ACCEPT_FRAC, TROPH_DONOR_MIN, TROPH_HUNGRY_C, TROPH_MAX_S, TROPH_POOL_DAYS_MIN,
   TROPH_POOL_MAX, TROPH_RATE,
 } from '@/sim/balance/actions';
-import { spawnItem } from '@/sim/entities';
-import { handsFree, takeItem } from '../carry';
+import { handsFree } from '../carry';
 import { inReach, placeOf } from '../geometry';
 import { ports } from '../ports';
+import { harvestFailure } from '../harvestStatus';
 import { isLiquidSource, isTearSource } from '../sourceKinds';
 import type { ActionDef } from '../types';
 import { isPossessed } from '../workRate';
@@ -39,23 +39,20 @@ export const harvestLiquidDef: ActionDef = {
   check(sim, ant, t) {
     const s = sim.stores.sources.get(t.id);
     if (!s || s.units <= 0) return 'no-target';
-    if (!isLiquidSource(s)) return 'not-allowed-here';
+    if (!isLiquidSource(sim, s)) return 'not-allowed-here';
     return cropSpace(ant) <= EPS ? 'crop-full' : null;
   },
   durationS: () => 0,
   onBegin: (sim, ant, t) => knowSource(sim, ant, t.id),
-  // Crop += DRINK_RATE x drinkRateMult per game s (x workRate), the source loses the same (owner: ecology harvest).
+  // dt game s of drinking (x workRate): ecology puts 0.05 load/s x drinkRateMult into the crop and takes it from
+  // the source (sources-core takeFromSource). Ends when the crop is full or the source is empty.
   tick(sim, ant, t, dt) {
-    const s = sim.stores.sources.get(t.id);
-    if (!s) return 'no-target';
-    const want = Math.min(DRINK_RATE * s.drinkRateMult * dt, cropSpace(ant));
-    if (want <= EPS) return 'done';
-    const got = ports.harvest(sim, ant, s.id, want);
-    const n = got.c + got.p;
-    ant.cropC += got.c;
-    ant.cropP += got.p;
+    const r = ports.takeFromSource(sim, ant, t.id, dt, { checkReach: false });
+    if (r.status === 'crop-full' || r.status === 'empty') return 'done';
+    if (r.status !== 'ok') return harvestFailure(r.status);
+    const n = r.c + r.p;
     addMoved(ant, n);
-    return n <= EPS || cropSpace(ant) <= EPS ? 'done' : 'continue';
+    return r.depleted || r.taken <= EPS || cropSpace(ant) <= EPS ? 'done' : 'continue';
   },
 };
 
@@ -64,27 +61,17 @@ export const harvestSolidDef: ActionDef = {
   check(sim, ant, t) {
     const s = sim.stores.sources.get(t.id);
     if (!s || s.units <= 0) return 'no-target';
-    if (!isTearSource(s)) return 'not-allowed-here';
+    if (!isTearSource(sim, s)) return 'not-allowed-here';
     return handsFree(ant) ? null : 'hands-full';
   },
   durationS: (sim, _ant, t) => TEAR_S * (sim.stores.sources.get(t.id)?.hardness ?? 1),
-  // One piece of carryCap loads in the mandibles, of the source's profile; the source loses the same.
+  // One piece of carryCap loads in the mandibles, of the source's profile; the source loses the same (ecology).
   effect(sim, ant, t) {
-    const s = sim.stores.sources.get(t.id);
-    if (!s || !handsFree(ant)) return 'no-target';
-    const units = Math.min(s.units, ant.carryCap / Math.max(s.unitBulk, 1e-6));
-    const got = ports.harvest(sim, ant, s.id, units);
-    if (got.c + got.p <= EPS) return 'no-target';
-    const piece = spawnItem(sim, {
-      kind: 'food-piece', pos: ant.pos,
-      init: {
-        c: got.c, p: got.p, bulk: Math.min(ant.carryCap, units * s.unitBulk), foodKind: s.kind, variant: s.variant,
-        hardness: s.hardness,
-      },
-    });
-    takeItem(ant, piece);
-    knowSource(sim, ant, s.id);
-    return got.c + got.p;
+    if (!handsFree(ant)) return 'hands-full';
+    const r = ports.takeFromSource(sim, ant, t.id, 1, { checkReach: false });
+    if (r.status !== 'ok' || r.itemId < 0) return harvestFailure(r.status);
+    ant.mem.knownSourceId = t.id;
+    return r.c + r.p;
   },
 };
 

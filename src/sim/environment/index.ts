@@ -23,6 +23,7 @@ export * from './thermalResponse';
 export * from './antThermal';
 export * from './weather';
 export * from './weatherStep';
+export * from './wind';
 export * from './weatherDraw';
 export * from './queries';
 export * from './system';

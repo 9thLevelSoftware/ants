@@ -13,17 +13,19 @@ import { antLengthMm, inReach, placeOf } from '../geometry';
 import { ports } from '../ports';
 import { isFoodItem } from '../sourceKinds';
 import type { ActionDef } from '../types';
-import { isPossessed } from '../workRate';
+import { isPossessed, speciesIdOf } from '../workRate';
 
 /** The opening's batch laying applies (GDD 06 §5.10): phase `lay`, no cooldown, 4 s per batch. */
 function openingLay(sim: Sim, ant: Ant): boolean {
   return sim.state.player.opening?.phase === 'lay' && (ant.flags & AntFlag.FOUNDING) !== 0;
 }
 
-function proteinAvailable(ant: Ant): number {
+/** Not enough protein for an egg: the founding pool, else gut P (or reserve P while still in founding mode). */
+function proteinShort(ant: Ant): boolean {
   const q = ant.queen;
-  if (!q) return 0;
-  return q.founding ? q.founding.reserveLoads : q.reserveP + q.gut.p;
+  if (!q) return true;
+  if (q.founding) return q.founding.reserveLoads < EGG_COST_P;
+  return q.gut.p < EGG_COST_P && !(q.mode === 'founding' && q.reserveP >= EGG_COST_P);
 }
 
 function inLayingPlace(sim: Sim, ant: Ant): boolean {
@@ -34,17 +36,13 @@ export const layEggDef: ActionDef = {
   id: 'lay-egg', kind: 'timed', targets: ['none'], cancellable: true, lockedAfterWindup: true, pose: 'lay',
   cue: 'lay-egg',
   check(sim, ant) {
-    const q = ant.queen;
-    if (ant.caste !== 'queen' || !q) return 'caste';
+    if (ant.caste !== 'queen' || !ant.queen) return 'caste';
     if (!inLayingPlace(sim, ant)) return 'not-allowed-here';
-    if (proteinAvailable(ant) < EGG_COST_P) return 'no-reserve';
     const opening = openingLay(sim, ant);
-    if (opening) {
-      const cap = sim.species.opening.clutchCap;
-      if (q.clutchLaid >= cap) return 'budget';
-    } else if (q.eggBudget < 1) return 'budget';
     // The AI queen is never subject to the cooldown (GDD 02 §3.2); the player's laying only changes timing.
     if (!opening && isPossessed(ant) && sim.state.tick < ant.layCooldownUntilTick) return 'cooldown';
+    // Budget, clutch cap and protein rules are the colony's (shared with the AI queen).
+    if (!ports.canLay(sim, ant)) return proteinShort(ant) ? 'no-reserve' : 'budget';
     return null;
   },
   durationS: (sim, ant) => (openingLay(sim, ant) ? OPEN_LAY_ACTION_S : LAY_EGG_S),
@@ -69,30 +67,34 @@ export const feedLarvaDef: ActionDef = {
   check(sim, ant, t) {
     const b = sim.stores.brood.get(t.id);
     if (!b || b.stage !== 'larva') return 'no-target';
-    if (sim.species.id === 'atta-texana' && carriedItem(sim, ant)?.kind !== 'staphylae') return 'no-reserve';
+    if (speciesIdOf(sim, ant) === 'atta-texana' && carriedItem(sim, ant)?.kind !== 'staphylae') return 'no-reserve';
     return feedSource(sim, ant) ? null : 'crop-empty';
   },
   durationS: () => FEED_LARVA_S,
-  // Contract with the colony: feedBrood debits the giver's crop (or a founding queen's reserve pool), credits the
-  // larva and returns what moved. A carried protein item is first chewed into the crop.
+  // Contract with the colony: feedBrood debits the giver's crop, credits the larva and returns what moved. A founding
+  // queen first turns one feed of her reserve pool into crop food; a carried protein item is first chewed into it.
   effect(sim, ant, t) {
     const src = feedSource(sim, ant);
     if (!src) return 'crop-empty';
-    let c = 0, p = 0;
-    if (src === 'reserves') {
-      p = FEED_LARVA_LOADS * FOUNDING_FEED_P_SHARE;
-      c = FEED_LARVA_LOADS - p;
-    } else {
-      if (src === 'item') chewIntoCrop(sim, ant);
-      const crop = ant.cropC + ant.cropP;
-      const amount = Math.min(FEED_LARVA_LOADS, crop);
-      c = (amount * ant.cropC) / crop;
-      p = amount - c;
-    }
-    const got = ports.feedBrood(sim, ant, t.id, c, p);
+    if (src === 'reserves') reservesIntoCrop(ant);
+    if (src === 'item') chewIntoCrop(sim, ant);
+    const crop = ant.cropC + ant.cropP;
+    const amount = Math.min(FEED_LARVA_LOADS, crop);
+    const c = (amount * ant.cropC) / crop;
+    const got = ports.feedBrood(sim, ant, t.id, c, amount - c);
     return got.c + got.p;
   },
 };
+
+/** One feed of a founding queen's reserve pool as trophic food in her crop (mix 0.75 P / 0.25 C, GDD 02 §5.4.1). */
+function reservesIntoCrop(ant: Ant): void {
+  const f = ant.queen?.founding;
+  if (!f) return;
+  const n = Math.min(FEED_LARVA_LOADS, f.reserveLoads);
+  f.reserveLoads -= n;
+  ant.cropP += n * FOUNDING_FEED_P_SHARE;
+  ant.cropC += n * (1 - FOUNDING_FEED_P_SHARE);
+}
 
 /** Moves up to one feed's worth of protein (and its share of C) from the carried item into the crop. */
 function chewIntoCrop(sim: Sim, ant: Ant): void {

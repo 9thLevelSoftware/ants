@@ -28,6 +28,7 @@ export const ATTA_MEDIA: AntMorphology = {
   hairs: 45, gasterHairs: 0.6,
   rearWeapon: 'sting',
   colors: COLORS,
+  // GDD 08 §11.6: rust-brown, matte
   roughness: 0.72, sheen: 0.2, clearcoat: 0.05,
   gait: { stride: 0.5, lift: 0.065, duty: 0.55 },
 };

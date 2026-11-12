@@ -13,6 +13,7 @@ import { carriedItem, releaseCarried, takeItem } from '../carry';
 import { antLengthMm, feetPoint, findEntrance, mandiblePoint, reachMm } from '../geometry';
 import { ports } from '../ports';
 import type { ActionDef } from '../types';
+import { speciesIdOf } from '../workRate';
 
 const DEG = Math.PI / 180;
 
@@ -56,9 +57,7 @@ const sp = { x: 0, y: 0, z: 0 };
 
 /** digSpeed(material, moisture) at the bite: the field's species diggability there. */
 export function digSpeedAt(sim: Sim, ant: Ant, contact: Vec3): number {
-  const colony = sim.stores.colonies.get(ant.colony);
-  const species = (colony ? sim.getSpecies(colony.species)?.id : undefined) ?? sim.species.id;
-  return sim.field.diggability(digSamplePoint(sim, contact, sp), species);
+  return sim.field.diggability(digSamplePoint(sim, contact, sp), speciesIdOf(sim, ant));
 }
 
 /** Horizontal unit heading for the ramp brush; on a wall facing up or down, into the wall. */
@@ -112,8 +111,9 @@ const feet = { x: 0, y: 0, z: 0 };
 export const digBiteDef: ActionDef = {
   id: 'dig-bite', kind: 'timed', targets: ['none', 'surface', 'point'], cancellable: true, repeatable: true,
   pose: 'dig', cue: 'dig-bite',
+  // The face straight ahead within DIG_ADVANCE_L (the ant steps up to it: auto-advance), else the floor ahead.
   autoTarget: (sim, ant) => {
-    const c = digContact(sim, ant, reachMm(sim, ant), contact);
+    const c = digContact(sim, ant, DIG_ADVANCE_L * antLengthMm(sim, ant), contact);
     return { kind: 'surface', id: -1, pos: { x: c.x, y: c.y, z: c.z } };
   },
   // A face beyond reach but within DIG_ADVANCE_L straight ahead counts: the ant steps forward first (auto-advance).

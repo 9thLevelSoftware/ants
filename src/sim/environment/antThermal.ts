@@ -40,7 +40,9 @@ export const antThermalSystem: System = {
     const dtS = ANT_THERMAL_EVERY / TICKS_PER_SECOND;
     let colonyId = -2;
     let def: ThermalDef = sim.species.thermal;
-    for (const ant of sim.stores.ants.list) {
+    const ants = sim.stores.ants.list;
+    for (let i = 0; i < ants.length; i++) {
+      const ant = ants[i];
       if (!ant.alive || (ant.id + tick) % ANT_THERMAL_EVERY !== 0) continue;
       if (ant.colony !== colonyId) {
         colonyId = ant.colony;

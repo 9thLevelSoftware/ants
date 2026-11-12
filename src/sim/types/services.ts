@@ -1,11 +1,8 @@
 // Runtime services on Sim (contracts guidance §7). Derived caches, never persisted: createSim(state, world)
-// rebuilds them. Implementations: src/sim/world (field), src/sim/nest (carve grid, nest nav), src/sim/world
-// navGrid (locomotion task), src/sim/pheromones. Until those land, src/sim/testing/placeholders provides safe no-ops.
-//
-// CarveGrid is the kernel's own interface (src/sim/nest/carve), re-exported: the kernel is the source of truth.
-// WorldField and NestNav below are the interfaces the modules program against; reconciling them with the kernel's
-// exports (src/sim/world/field.ts, src/sim/nest/nav) is the WIRING TASK's responsibility (ruling 1). Until then
-// src/sim/testing/placeholders provides safe implementations.
+// rebuilds them (src/sim/services.ts). The geometric services ARE the kernel's (task F2, wired by F-int):
+// WorldField = src/sim/world/field.ts (+ diggability), CarveGrid = src/sim/nest/carve, NestNav = src/sim/nest/nav
+// (+ nest-level helpers), built together by createKernel (src/sim/kernel.ts) and exposed as `sim.kernel`.
+// NavGrid (loco) and PheromoneField (phero) are owned by their modules.
 
 import type { EventBus } from '@/core/events';
 import type { RngState } from '@/core/rng';
@@ -17,7 +14,6 @@ import type { Colony } from './colony';
 import type { Command, CommandOf, CommandType } from './commands';
 import type { Creature } from './creature';
 import type { SimEvent, SimEventMap } from './events';
-import type { MaterialId } from './geom';
 import type { ColonySpeciesId, PheroChannel, SpeciesId, Task } from './ids';
 import type { NestFieldKind } from './ids/nest';
 import type { NavClass } from './ids/world';
@@ -36,41 +32,34 @@ import type { SpeciesDef } from './species';
 import type { SimState } from './state';
 import type { WorldData } from './world';
 import type { CarveGrid } from '@/sim/nest/carve';
+import type { NestNav as KernelNestNav } from '@/sim/nest/nav';
+import type { Kernel } from '@/sim/kernel';
+import type { WorldField as KernelWorldField } from '@/sim/world/field';
 
 /**
- * The solid/free field f(p): mm, POSITIVE in free space (docs/01-design-seed.md §3). Reconciled with the kernel's
- * src/sim/world/field.ts by the wiring task (ruling 1).
+ * The solid/free field f(p): mm, POSITIVE in free space (docs/01-design-seed.md §3). This IS the kernel's field
+ * (src/sim/world/field.ts, API in docs/design/tdd/02-kernel.md §4) plus one species query the contracts had
+ * before the kernel existed. `height(x, z)` includes the registered mound height overlays.
  */
-export interface WorldField {
-  /** Terrain surface height at (x, z), mm (heightfield + mounds + deltas). */
-  height(x: number, z: number): number;
-  /** fSubstrate: min(terrain term, solid primitives); > 0 in open air (ignores the carve grid). */
-  substrate(p: Vec3): number;
-  /** fCavity: > 0 inside carved space, negative in un-carved material. */
-  cavity(p: Vec3): number;
-  /** f(p) = max(fSubstrate, fCavity) (smoothed). */
-  sample(p: Vec3): number;
-  /** Unnormalised gradient of f into out; returns its length. */
-  gradient(p: Vec3, out: Vec3): number;
-  /** Unit normal (direction of increasing f) into out; returns |grad| (0 = degenerate, out = +Y). */
-  normal(p: Vec3, out: Vec3): number;
-  /** Projects p onto the level set f = offset (out may alias p); false if it did not converge. */
-  project(p: Vec3, offset: number, out: Vec3): boolean;
-  /** Distance along unit dir at which a sphere of `radius` first touches solid, or maxDist. */
-  sphereTrace(origin: Vec3, dir: Vec3, maxDist: number, radius: number): number;
-  /** Material of the solid nearest to p. */
-  materialAt(p: Vec3): MaterialId;
-  /** Dig-speed multiplier for this species at p; 0 = not diggable. */
+export interface WorldField extends KernelWorldField {
+  /** Dig-speed multiplier for this species at p (material table, GDD 03 §2.1); 0 = not diggable. */
   diggability(p: Vec3, species: SpeciesId): number;
 }
 
+export type { FieldParams, HeightOverlay, PrimBounds } from '@/sim/world/field';
+
 /**
- * Carve grid over SimState.worldDelta.carve. ALIGNED with the kernel: the interface is the one exported by
- * src/sim/nest/carve (F2-kernel), re-exported here so modules import it from the contracts barrel.
+ * Carve grid over SimState.worldDelta.carve: the kernel's own interface (src/sim/nest/carve), re-exported so
+ * modules import it from the contracts barrel.
  */
 export type {
   BrushOptions, BrushResult, CarveChange, CarveGrid, CarveListener, ChunkMesh, DigPredicate,
 } from '@/sim/nest/carve';
+
+export type { NavSeeds, NavStats } from '@/sim/nest/nav';
+export type { Kernel, KernelOptions } from '@/sim/kernel';
+export type { WalkerKin, WalkStatus } from '@/sim/locomotion/walker';
+export type { WalkerParams } from '@/sim/locomotion/walkerParams';
 
 export interface NestFieldTarget {
   kind: NestFieldKind;
@@ -78,15 +67,28 @@ export interface NestFieldTarget {
   id: number;
 }
 
-/** BFS distance fields over open voxels per nest. Reconciled with the kernel's src/sim/nest/nav by the wiring task. */
-export interface NestNav {
-  /** Path distance from p to the target, mm; -1 if unreachable or unknown. */
+/**
+ * Name of a nest's distance field in the kernel's NestNav (`setTarget(id, seeds)`): one field per nest and
+ * target (exit, seal, chamber id, plan id). Fields are derived caches: createSim registers them for every nest
+ * in the state (src/sim/services.ts registerNestTargets); the nest module re-registers them when entrances,
+ * chambers or plans change.
+ */
+export function nestFieldId(nestId: number, target: NestFieldTarget): string {
+  return `nest:${nestId}:${target.kind}:${target.id}`;
+}
+
+/**
+ * BFS distance fields over open voxels: the kernel's NestNav (src/sim/nest/nav, keyed by field name, distances
+ * Infinity when unreachable) plus nest-level helpers keyed by (nestId, NestFieldTarget) via nestFieldId().
+ */
+export interface NestNav extends KernelNestNav {
+  /** Path distance from p to the target, mm; -1 if unreachable, unknown, or p is not in open nest space. */
   distance(nestId: number, target: NestFieldTarget, p: Vec3): number;
-  /** Unit downhill direction toward the target into out; false if none. */
+  /** Unit downhill direction toward the target into out; false if none (unknown, unreachable, at the target). */
   descend(nestId: number, target: NestFieldTarget, p: Vec3, out: Vec3): boolean;
-  /** Incremental update after carving the given chunks. */
+  /** No-op kept for compatibility: the kernel's nav listens to the carve grid and updates lazily. */
   onCarve(keys: readonly number[]): void;
-  /** Full rebuild of one nest's fields (after fills or load). */
+  /** Rebuilds every field of the nav from the carve grid (after load or bulk edits); nestId is not needed. */
   rebuild(nestId: number): void;
 }
 
@@ -205,6 +207,12 @@ export interface Sim {
   phero: PheromoneField;
   index: EntityIndex;
   stores: SimStores;
+  /**
+   * The geometric kernel the field, carve grid and nest nav belong to: brushes with the species' dig predicate
+   * (canDigAt), dynamic primitives (addPrim / updatePrim / removePrim keep nav and meshes in step), height
+   * overlays (mounds), chunk meshing, walker parameters. Additive to guidance §7.
+   */
+  kernel: Kernel;
   /** Behaviour state machines by task (assembled in systems.ts). */
   behaviours: BehaviourTable;
   /** Player's species. */

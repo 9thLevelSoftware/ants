@@ -67,13 +67,18 @@ export function speciesMorphs(species: string): { morphs: SpeciesMorphs; scale: 
   return { morphs: SPECIES_MORPHS[base]!, scale, tint, base };
 }
 
-/** Render caste for a sim caste and size class. */
-export function morphCaste(species: string, caste: string, sizeClass: string | null): MorphCaste {
+/**
+ * Render caste for a sim caste, size class and (when known) the sim's wing state. Wings follow the sim, not the
+ * caste: a founding queen that still has her wings has the gyne's body plan; a gyne that has shed them is drawn
+ * dealate (the queen's body with wing stubs). `winged` null = follow the caste (brood, corpses).
+ */
+export function morphCaste(species: string, caste: string, sizeClass: string | null, winged: boolean | null = null): MorphCaste {
   const { morphs } = speciesMorphs(species);
   if (caste === 'media' && sizeClass === 'small-media' && morphs.castes['small-media']) return 'small-media';
   const c = caste as MorphCaste;
+  if (winged === true && c === 'queen' && morphs.castes.gyne) return 'gyne';
+  if (winged === false && c === 'gyne' && morphs.castes.queen) return 'queen';
   if (morphs.castes[c]) return c;
-  if (c === 'worker' || c === 'minor' || c === 'media' || c === 'major') return morphs.standard;
   return morphs.standard;
 }
 

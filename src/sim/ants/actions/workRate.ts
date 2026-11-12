@@ -1,6 +1,6 @@
 // How fast an ant works (GDD 01 §7.1): workRate = tempFactor' x healthFactor x caste multiplier, and who may do what.
 
-import type { ActionId, Ant, CasteDef, Sim } from '@/sim/types';
+import type { ActionId, Ant, CasteDef, Sim, SpeciesId } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { HEALTH_FACTOR_BASE } from '@/sim/balance/actions';
 import { casteDef } from '@/sim/entities';
@@ -8,6 +8,11 @@ import { ports } from './ports';
 
 export function isPossessed(ant: Ant): boolean {
   return (ant.flags & AntFlag.POSSESSED) !== 0;
+}
+
+/** The ant is gripping (locomotion: speed x GRIP_SPEED_MULT and dislodge immunity). */
+export function isGripping(ant: Ant): boolean {
+  return ant.action?.id === 'grip';
 }
 
 /** Temperature factor of work and movement; the possessed ant gets the difficulty's comfort floor (GDD 01 §3.4). */
@@ -26,6 +31,12 @@ export function healthFactor(ant: Ant): number {
 /** workRate without the per-primitive caste multiplier (dig power is applied by dig-bite itself). */
 export function workRate(sim: Sim, ant: Ant): number {
   return tempFactor(sim, ant) * healthFactor(ant);
+}
+
+/** Playable species of the ant's colony (rival-only species fall back to the player's species). */
+export function speciesIdOf(sim: Sim, ant: Ant): SpeciesId {
+  const colony = sim.stores.colonies.get(ant.colony);
+  return (colony ? sim.getSpecies(colony.species)?.id : undefined) ?? sim.species.id;
 }
 
 /** The caste definition of an ant's species, if the species is playable. */

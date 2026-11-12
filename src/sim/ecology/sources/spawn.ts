@@ -21,7 +21,10 @@ export interface CreateSourceOptions {
   units?: number;
   /** Rules of this tier (default ECOLOGY_TIER): T1 sources have no carrion stages, T1 overrides apply. */
   tier?: number;
-  /** Carrion stage to start in (T2 rules); default 'fresh' for carrion at tier >= 2, null otherwise. */
+  /**
+   * Carrion stage to start in (T2 rules). Carrion at tier >= 2 always has a stage ('fresh' when this is null or
+   * missing, e.g. a fresh corpse item); other sources and all T1 sources have none.
+   */
   stage?: CarrionStage | null;
   objectId?: number;
   plantId?: number;
@@ -51,13 +54,14 @@ export function createSource(ctx: EntityCtx, o: CreateSourceOptions): FoodSource
   const pool = d.poolCap > 0;
   const rolled = d.units[1] > d.units[0] ? rngInt(rng, d.units[0], d.units[1]) : d.units[0];
   let units = o.units ?? (d.form === 'liquid' ? rolled * mult : Math.max(1, Math.round(rolled * mult)));
+  if (d.form === 'pick') units = Math.round(units); // a fraction of a crumb could never be picked
   const slots = d.slots[1] > d.slots[0] ? rngInt(rng, d.slots[0], d.slots[1]) : d.slots[0];
   const init: Partial<FoodSource> = {
     variant: o.variant, objectId: o.objectId ?? -1, plantId: o.plantId ?? -1, herdId: o.herdId ?? -1,
     anchorId: o.anchorId ?? -1, unitBulk: d.unitBulk, c: d.c, p: d.p, toxin: d.toxin, water: d.water,
     pool: -1, poolCap: 0, refillPerGd: d.refillPerGd * mult, decayPerGd: halfLifeToDecay(d.halfLifeGd),
     quality: d.quality, hardness: d.hardness, slots, drinkRateMult: d.drinkRateMult, odour: odourFromRadiusBu(d.odourBu),
-    stage: o.stage !== undefined ? o.stage : d.carrion && tier >= 2 ? 'fresh' : null, stageClock: 0,
+    stage: d.carrion && tier >= 2 ? o.stage ?? 'fresh' : null, stageClock: 0,
     seasonMask: o.seasonMask ?? (1 << SEASONS.length) - 1,
   };
   if (pool) {

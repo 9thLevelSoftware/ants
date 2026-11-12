@@ -1,22 +1,29 @@
-// Runtime world queries. STUB written by F1b/F1c: field.ts / primHash.ts come from F2-kernel (wired in by the
-// wiring task), zone and map queries from worldgen-terrain, navGrid.ts from loco. Each owner replaces the body of
-// its function here.
+// Runtime world queries. The field is the kernel's (src/sim/world/field.ts, F2; wired by F-int); zone and map
+// queries come from worldgen-terrain, navGrid.ts from loco. Each owner replaces the body of its function here.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { CarveGrid, CommandHandlerMap, NavGrid, Sim, System, WorldData, WorldField, ZoneType } from '@/sim/types';
-import { createPlaceholderField, createPlaceholderNavGrid } from '@/sim/testing/placeholders';
+import type { CommandHandlerMap, Kernel, NavGrid, Sim, SpeciesId, System, WorldData, WorldField, ZoneType } from '@/sim/types';
+import { digFactor } from '@/sim/balance';
+import { fakeNavGrid } from '@/sim/testing/doubles/navGrid';
 
 /** Zone reported where the map has no zone. */
 const FALLBACK_ZONE: ZoneType = 'lawn';
 
-/** The world field f(p) over static world + carve grid. Stub: terrain-only placeholder (wiring task replaces). */
-export function createWorldField(world: WorldData, _carve: CarveGrid): WorldField {
-  return createPlaceholderField(world);
+/**
+ * The world field contract over the kernel's field (the same object, so hot callers pay no indirection), with the
+ * species diggability query added: material table of GDD 03 §2.1 (balance digFactor).
+ */
+export function createWorldField(kernel: Kernel): WorldField {
+  // adding a property to the kernel's instance must never shadow one of its own members
+  if ('diggability' in kernel.field) throw new Error('createWorldField: the kernel field already has diggability');
+  const f = kernel.field as WorldField;
+  f.diggability = (p: Vec3, species: SpeciesId) => digFactor(species, kernel.field.materialAt(p));
+  return f;
 }
 
-/** Coarse 16 BU nav grid. Stub: everything open (loco replaces with src/sim/world/navGrid.ts). */
+/** Coarse 16 BU nav grid. Stub: the open-grid test double (loco replaces with src/sim/world/navGrid.ts). */
 export function createNavGrid(world: WorldData): NavGrid {
-  return createPlaceholderNavGrid(world);
+  return fakeNavGrid(world);
 }
 
 /** Zone type at (x, z), from the zone map. Stub-quality but real (worldgen-terrain may refine). */

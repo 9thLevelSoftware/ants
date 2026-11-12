@@ -1,44 +1,44 @@
-// Colony module API: allocation, queen, brood, economy, stats, directives, markers, founding, overwintering,
-// reproduction. STUB written by F1b/F1c with final signatures. Owners: colony-core (allocation, queen, brood,
-// economy, stats, markers/directives), founding (colony/founding), overwinter-repro (colony/overwinter,
-// reproduction, succession).
+// Colony module API: allocation, queen, brood, economy, stats, diagnostics, directives, markers (colony-core,
+// implemented in this folder), founding (colony/founding) and overwintering / reproduction / succession
+// (overwinter-repro; their systems and handlers below are still stubs). Signatures of the F1c stub are kept;
+// additions are optional trailing parameters and new exports.
 
+import { ti } from './taskIdx';
 import { rngRange } from '@/core/rng';
 import type {
   Ant, BroodCaste, Colony, CommandHandlerMap, CommandOf, FoodAmount, ReasonCode, Sim, System, Task,
 } from '@/sim/types';
-import { BROOD_CASTES, DEATH_CAUSES, isOneOf, taskIndex } from '@/sim/types';
-import {
-  ALLOC_EVERY, ALLOC_OFFSET, CHEAT_SPAWN_SCATTER_BU, COLONY_STATS_OFFSET, HOURLY_EVERY, MARKER_DEFAULT_RADIUS_BU,
-  STAY_IN_DAYS,
-} from '@/sim/balance';
-import { killAnt, placeMarker, removeMarker, spawnAnt, spawnBrood } from '@/sim/entities';
+import { BROOD_CASTES, DEATH_CAUSES, isOneOf } from '@/sim/types';
+import { CHEAT_SPAWN_SCATTER_BU, LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
+import { killAnt, removeMarker, spawnAnt, spawnBrood } from '@/sim/entities';
 import { daysPerYear, daysToTicks, TICKS_PER_DAY } from '@/sim/time';
+import { book } from './core';
+import { deposit, feedFromCrop, withdraw, type DepositSource, type WithdrawPurpose } from './stores';
+import { layEgg as queenLayEgg, queenRationPShare } from './queen';
+import { requestTask as allocRequestTask } from './allocation';
+import { injectReturn } from './activation';
+import { addToxinDose } from './physiology';
+import { applyDirectives, placePlayerMarker } from './directives';
 
-/** Task allocation (thresholds, demand, targets). Stub: colony-core. */
-export const allocationSystem: System = {
-  name: 'allocation', phase: 'colony-allocation', every: ALLOC_EVERY, offset: ALLOC_OFFSET, run: () => {},
+import {
+  allocationSystem, broodSystem, colonyDiagnosticsSystem, colonyStatsSystem, economySystem, queenSystem,
+  taskReevalSystem,
+} from './colonySystems';
+
+export {
+  allocationSystem, broodSystem, colonyDiagnosticsSystem, colonyStatsSystem, economySystem, queenSystem,
+  taskReevalSystem,
 };
-/** Queen egg laying, queen nutrition. Stub: colony-core. */
-export const queenSystem: System = { name: 'queen', phase: 'queen', run: () => {} };
 /** Founding sequence (opening phases, founding model, time-lapse). Stub: founding. */
 export const foundingSystem: System = { name: 'founding', phase: 'queen', run: () => {} };
-/** Brood development, feeding requests, hazards, eclosion. Stub: colony-core. */
-export const broodSystem: System = { name: 'brood', phase: 'brood', run: () => {} };
-/** Food pool, upkeep, spoilage, starvation stages, needs. Stub: colony-core. */
-export const economySystem: System = { name: 'economy', phase: 'colony-economy', run: () => {} };
-/** Counters and hourly/daily statistics series. Stub: colony-core. */
-export const colonyStatsSystem: System = {
-  name: 'colony-stats', phase: 'colony-economy', every: HOURLY_EVERY, offset: COLONY_STATS_OFFSET, run: () => {},
-};
 /** Overwintering notice/banner/lapse/report. Stub: overwinter-repro. */
 export const overwinterSystem: System = { name: 'overwinter', phase: 'colony-economy', run: () => {} };
 /** Alate rearing, nuptial flights, queen death and orphaning. Stub: overwinter-repro. */
 export const reproductionSystem: System = { name: 'reproduction', phase: 'colony-economy', run: () => {} };
 
 export const systems: readonly System[] = [
-  allocationSystem, queenSystem, foundingSystem, broodSystem, economySystem, colonyStatsSystem, overwinterSystem,
-  reproductionSystem,
+  allocationSystem, taskReevalSystem, queenSystem, foundingSystem, broodSystem, economySystem, colonyStatsSystem,
+  colonyDiagnosticsSystem, overwinterSystem, reproductionSystem,
 ];
 
 // ---- queries ----
@@ -56,69 +56,134 @@ export function colonyOf(sim: Sim, ant: Ant): Colony | undefined {
 /** Current headcount of a task (allocation cache). */
 export function taskHeadcount(sim: Sim, colonyId: number, task: Task): number {
   const c = sim.stores.colonies.get(colonyId);
-  return c ? c.alloc.actual[taskIndex(task)] : 0;
+  return c ? c.alloc.actual[ti(task)] : 0;
 }
 
 // ---- food, brood, tasks (owner: colony-core) ----
 
-/** Adds food to the colony pool; returns what was accepted (capacity limits). Stub: accepts nothing. */
-export function depositFood(_sim: Sim, _colonyId: number, _c: number, _p: number, _toxin = 0): FoodAmount {
-  return { c: 0, p: 0 };
+/**
+ * Adds food to the colony pool; returns what was accepted (capacity limits; nothing while the colony has no
+ * worker). `source` selects the ledger key: a delivery (default), recycled brood, or a nurse's crop going back.
+ */
+export function depositFood(sim: Sim, colonyId: number, c: number, p: number, toxin = 0, source: DepositSource = 'delivery'): FoodAmount {
+  const col = sim.stores.colonies.get(colonyId);
+  if (!col) return { c: 0, p: 0 };
+  const got = deposit(col, c, p, toxin, source);
+  return { c: got.c, p: got.p };
 }
 
-/** Takes food from the colony pool; returns what was taken. Stub: nothing. */
-export function withdrawFood(_sim: Sim, _colonyId: number, _c: number, _p: number): FoodAmount {
-  return { c: 0, p: 0 };
+/**
+ * Takes food from the colony pool; returns what was taken. `purpose` selects the ledger key (default `transit`:
+ * a nurse's or carer's crop load, later booked as larval or queen food when fed). The pool's toxin share goes
+ * to `ant` when given.
+ */
+export function withdrawFood(sim: Sim, colonyId: number, c: number, p: number, purpose: WithdrawPurpose = 'transit', ant?: Ant): FoodAmount {
+  const col = sim.stores.colonies.get(colonyId);
+  if (!col) return { c: 0, p: 0 };
+  const got = withdraw(col, c, p, purpose);
+  if (ant) addToxinDose(ant, got.toxin);
+  return { c: got.c, p: got.p };
 }
 
-/** An ant feeds a larva (or the queen when broodId is -1) from its crop; returns what was transferred. Stub: nothing. */
-export function feedBrood(_sim: Sim, _giver: Ant, _broodId: number, _c: number, _p: number): FoodAmount {
-  return { c: 0, p: 0 };
+/** An ant feeds a larva (or the queen when broodId is -1) from its crop; returns what was transferred. */
+export function feedBrood(sim: Sim, giver: Ant, broodId: number, c: number, p: number): FoodAmount {
+  return feedFromCrop(sim, giver, broodId, c, p);
 }
 
-/** The queen lays one egg (or one opening batch); returns the brood id, -1 if she cannot. Stub: -1. */
-export function layEgg(_sim: Sim, _queen: Ant, _destined: BroodCaste = 'worker'): number {
-  return -1;
+/** The queen lays one egg (or one egg of the founding clutch); returns the brood id, -1 if she cannot. */
+export function layEgg(sim: Sim, queen: Ant, destined: BroodCaste = 'worker'): number {
+  return queenLayEgg(sim, queen, destined);
 }
 
-/** Asks the allocator to switch an ant to a task (markers, jobs, release); false if refused. Stub: false. */
-export function requestTask(_sim: Sim, _ant: Ant, _task: Task, _reason: ReasonCode): boolean {
-  return false;
+/** Asks the allocator to switch an ant to a task (markers, jobs, release); false if refused. */
+export function requestTask(sim: Sim, ant: Ant, task: Task, reason: ReasonCode): boolean {
+  return allocRequestTask(sim, ant, task, reason);
 }
 
-/** Current demand for a task in worker-equivalents (GDD 02 §6.2). Stub: 0. */
-export function colonyDemand(_sim: Sim, _colonyId: number, _task: Task): number {
-  return 0;
+/** Current demand for a task in worker-equivalents (GDD 02 §6.2), from the last allocation pass. */
+export function colonyDemand(sim: Sim, colonyId: number, task: Task): number {
+  const c = sim.stores.colonies.get(colonyId);
+  return c ? c.alloc.demand[ti(task)] : 0;
+}
+
+// Further colony API for behaviours, actions, UI and debug (see each file's header).
+export { taskCycleDone } from './allocation';
+export { recordDelivery, recordForagerReturn, shouldDepart, curfew, fEnv, isWaitingForager, injectReturn } from './activation';
+export {
+  ecloseBrood, feedUrgency, larvaHunger, larvaRemainingNeed, setBroodDiapause, tendBrood, tendBroodAt, wantsFeed,
+} from './brood';
+export { cannibaliseBrood, nextCannibalVictim } from './cannibalism';
+export {
+  canLay, feedQueenFromReserve, layingFactors, layingProteinPermitted, queenRationPShare, queenWantsFood,
+} from './queen';
+export { daysOfStock, intakeTarget, needRates, nutrientWeights, recruitAcceptance, sourceWeight } from './needs';
+export { poolCapacity, poolSpace, type DepositSource, type WithdrawPurpose } from './stores';
+export { colonySummary, queryLedger, type ColonySummary } from './summary';
+export { bandOf, health, reserveCap } from './physiology';
+export { setClimateOverride, type ClimateOverride } from './envAdapter';
+export { censusOf } from './census';
+
+/**
+ * The mix of a nurse crop load of `load` loads (GDD 02 §5.4.2): P share P_req / (P_req + C_req); if the pool is
+ * short of P she takes what exists and fills with C. Pass the result to withdrawFood.
+ */
+export function nurseLoadMix(sim: Sim, colonyId: number, load: number): FoodAmount {
+  const col = sim.stores.colonies.get(colonyId);
+  const share = LARVA_P_REQ / (LARVA_P_REQ + LARVA_C_REQ);
+  if (!col) return { c: 0, p: 0 };
+  const p = Math.min(share * load, col.stores.p);
+  return { c: Math.min(load - p, col.stores.c), p };
+}
+
+/** The mix of a queen-carer's ration of `load` loads (laying permitted or withheld, GDD 02 §5.4.2). */
+export function queenRationMix(sim: Sim, colonyId: number, load: number): FoodAmount {
+  const col = sim.stores.colonies.get(colonyId);
+  if (!col) return { c: 0, p: 0 };
+  const p = Math.min(queenRationPShare(sim, col) * load, col.stores.p);
+  return { c: Math.min(load - p, col.stores.c), p };
 }
 
 // ---- commands owned by this module ----
 
+/** setDirectives (GDD 02 §12.1): validated per key, applied at the start of the next tick (or while paused). */
 function setDirectives(sim: Sim, cmd: CommandOf<'setDirectives'>): void {
   const col = cmd.colonyId !== undefined ? sim.stores.colonies.get(cmd.colonyId) : playerColony(sim);
-  if (!col) return;
-  // Only known directive keys are copied (commands may arrive as untyped JSON); validation ranges: colony-core.
-  const d = col.directives as unknown as Record<string, unknown>;
-  const patch = cmd as unknown as Record<string, unknown>;
-  for (const k of Object.keys(d)) {
-    const v = patch[k];
-    if (v === undefined || k === 'stayInUntil') continue;
-    d[k] = typeof v === 'object' && v !== null ? { ...v } : v;
-  }
-  if (cmd.stayIn !== undefined) {
-    col.directives.stayInUntil = cmd.stayIn ? sim.state.tick + daysToTicks(STAY_IN_DAYS) : -1;
-  }
+  if (col) applyDirectives(sim, col, cmd);
 }
 
-/** Places a player marker (caps and validity rules: colony-core). */
+/** Places a player marker (caps and radius ranges, GDD 02 §12.2). */
 function addMarker(sim: Sim, cmd: CommandOf<'placeMarker'>): void {
   const col = playerColony(sim);
+  if (col) placePlayerMarker(sim, col, cmd);
+}
+
+/** cheat.setQueen values: gutC, gutP, reserve, reserveP, health (0..1), eggBudget, fecundity. */
+function cheatSetQueen(sim: Sim, cmd: CommandOf<'cheat.setQueen'>): void {
+  const col = sim.stores.colonies.get(cmd.colonyId);
+  const q = col ? sim.stores.ants.get(col.queenId) : undefined;
+  if (!q || !q.queen) return;
+  const v = cmd.values;
+  const qs = q.queen;
+  if (v.gutC !== undefined) qs.gut.c = v.gutC;
+  if (v.gutP !== undefined) qs.gut.p = v.gutP;
+  if (v.reserve !== undefined) qs.reserve = v.reserve;
+  if (v.reserveP !== undefined) qs.reserveP = v.reserveP;
+  if (v.eggBudget !== undefined) qs.eggBudget = v.eggBudget;
+  if (v.fecundity !== undefined) qs.fecundity = v.fecundity;
+  if (v.health !== undefined) q.hp = v.health * q.maxHp;
+}
+
+/** Debug stock changes are booked as deliveries so the ledger stays exact. */
+function cheatStock(sim: Sim, colonyId: number, c: number, p: number, toxin: number, set: boolean): void {
+  const col = sim.stores.colonies.get(colonyId);
   if (!col) return;
-  const ids = cmd.chamberIds ?? [];
-  placeMarker(sim, {
-    kind: cmd.kind, colony: col.id, pos: cmd.pos, radius: cmd.radius ?? MARKER_DEFAULT_RADIUS_BU[cmd.kind] * sim.world.bu,
-    targetChamberId: ids.length > 0 ? ids[0] : -1, sourceChamberId: ids.length > 1 ? ids[1] : -1,
-    params: { mode: cmd.params?.mode ?? null, priority: cmd.params?.priority ?? null, chamberType: cmd.params?.chamberType ?? null },
-  });
+  const dc = set ? c - col.stores.c : c;
+  const dp = set ? p - col.stores.p : p;
+  col.stores.c = Math.max(0, col.stores.c + dc);
+  col.stores.p = Math.max(0, col.stores.p + dp);
+  col.stores.toxin += set ? 0 : toxin;
+  book(col, 'inDeliveryC', dc);
+  book(col, 'inDeliveryP', dp);
 }
 
 function cheatSpawnAnts(sim: Sim, cmd: CommandOf<'cheat.spawnAnts'>): void {
@@ -183,18 +248,12 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
   'cheat.forceFlight': noop,
   'cheat.triggerWinter': noop,
   // colony-core cheats
-  'cheat.addFood': (sim, c) => {
-    const col = sim.stores.colonies.get(c.colonyId);
-    if (col) { col.stores.c += c.c; col.stores.p += c.p; col.stores.toxin += c.toxin; }
-  },
-  'cheat.setStores': (sim, c) => {
-    const col = sim.stores.colonies.get(c.colonyId);
-    if (col) { col.stores.c = c.c; col.stores.p = c.p; }
-  },
+  'cheat.addFood': (sim, c) => cheatStock(sim, c.colonyId, c.c, c.p, c.toxin, false),
+  'cheat.setStores': (sim, c) => cheatStock(sim, c.colonyId, c.c, c.p, 0, true),
   'cheat.spawnAnts': cheatSpawnAnts,
   'cheat.spawnBrood': cheatSpawnBrood,
-  'cheat.setQueen': noop, // owner: colony-core
-  'cheat.injectReturn': noop, // owner: colony-core (forager activation)
+  'cheat.setQueen': cheatSetQueen,
+  'cheat.injectReturn': (sim, c) => { injectReturn(sim, c.entranceId, c.success, c.sourceId); },
   'cheat.killAll': (sim, c) => {
     for (const a of sim.stores.ants.list) if (a.alive && a.colony === c.colonyId) killAnt(sim, a.id, 'unknown');
   },

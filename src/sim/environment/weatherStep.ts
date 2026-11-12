@@ -9,13 +9,13 @@ import {
   DEW_GONE_AFTER_SUNRISE_OVERCAST_H, DEW_START_AFTER_SUNSET_H, DM_TAU_H, GUST_MULT, GUST_RATE_PER_H, GUST_RATE_STORM_PER_H,
   GUST_TICKS, LIGHTNING_MEAN_EXTRA_TICKS, LIGHTNING_MIN_GAP_TICKS, MIST_DENSITY, MIST_WIND_MAX, P_DEW_CLEAR, P_DEW_OVERCAST,
   PRECIP_PEAK_FRACTION, RAIN_CUM_TAU_H, RAIN_HISTORY_HOURS, RAIN_MIN_RATE_MMH, RAIN_RATE_MMH, STORM_RAIN_MMH,
-  THUNDER_DELAY_MAX_S, THUNDER_DELAY_MIN_S, WEATHER_DEFS, WIND_BLEND_H, WIND_DAY_FROM_H, WIND_DAY_MULT, WIND_DAY_TO_H,
-  WIND_DIR_WALK_DEG, WIND_MIN_MS, WIND_NIGHT_FROM_H, WIND_NIGHT_MULT, WIND_NIGHT_TO_H, WIND_OU_SD, WIND_OU_TAU_H, WOFF_TAU_H,
+  THUNDER_DELAY_MAX_S, THUNDER_DELAY_MIN_S, WEATHER_DEFS, WIND_DIR_WALK_DEG, WIND_OU_SD, WIND_OU_TAU_H, WOFF_TAU_H,
 } from '@/sim/balance';
 import { calendarTick, seasonIndexOf, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { calendarNow } from './calendar';
 import { isNoLag } from './noLag';
-import { airTemp, climateOf, dmTarget, woffTarget } from './temperature';
+import { airTemp, dmTarget, woffTarget } from './temperature';
+import { baseWind, windHold } from './wind';
 import { advanceWeather, rollDryspell } from './weather';
 
 /** Exponent that puts the precipitation bell's peak at PRECIP_PEAK_FRACTION of the dwell: sin(pi * u^k). */
@@ -25,27 +25,6 @@ const BELL_K = Math.log(0.5) / Math.log(PRECIP_PEAK_FRACTION);
 export function precipBell(u: number): number {
   const c = u < 0 ? 0 : u > 1 ? 1 : u;
   return Math.sin(Math.PI * Math.pow(c, BELL_K));
-}
-
-/** Trapezoid 0..1: rises over `blend` before `from`, 1 on [from, to], falls over `blend` after `to`. */
-function plateau(h: number, from: number, to: number, blend: number): number {
-  if (h >= from && h <= to) return 1;
-  if (h < from) return h > from - blend ? 1 - (from - h) / blend : 0;
-  return h < to + blend ? 1 - (h - to) / blend : 0;
-}
-
-/** Diurnal wind multiplier: 0.65 at night, 1.3 in the afternoon, 1 otherwise, with linear blends (GDD 06 §3.4). */
-export function windDiurnal(hour: number): number {
-  const night = Math.max(plateau(hour, WIND_NIGHT_FROM_H, 24, WIND_BLEND_H), plateau(hour, 0, WIND_NIGHT_TO_H, WIND_BLEND_H));
-  const day = plateau(hour, WIND_DAY_FROM_H, WIND_DAY_TO_H, WIND_BLEND_H);
-  return 1 + (WIND_NIGHT_MULT - 1) * night + (WIND_DAY_MULT - 1) * day;
-}
-
-/** Wind at 2 m without gusts, m/s: climate * diurnal * state wind + noise (GDD 06 §3.4). */
-export function baseWind(sim: Sim): number {
-  const w = sim.state.env.weather;
-  const v = climateOf(sim).windBase * windDiurnal(calendarNow(sim).hour) * WEATHER_DEFS[w.state].stateWind + (w.windOu ?? 0);
-  return v < WIND_MIN_MS ? WIND_MIN_MS : v;
 }
 
 function dewLevel(sim: Sim): number {
@@ -121,7 +100,8 @@ function stepWind(sim: Sim, dtH: number): void {
     sim.emit({ type: 'weather.gust', windMs: v * GUST_MULT });
   }
   if (tick < w.gustUntilTick) v *= GUST_MULT;
-  w.wind2m = v;
+  const held = windHold(sim.state);
+  w.wind2m = held ?? v;
   const turn = ((rngGauss(rng, 0, 1) * WIND_DIR_WALK_DEG * Math.sqrt(dtH)) * Math.PI) / 180;
   const c = Math.cos(turn), sn = Math.sin(turn), d = w.windDir;
   const x = d.x * c - d.z * sn, z = d.x * sn + d.z * c;

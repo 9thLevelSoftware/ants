@@ -29,6 +29,7 @@ export const CAMPONOTUS_MEDIA: AntMorphology = {
   hairs: 80, gasterHairs: 3,
   rearWeapon: 'acidopore',
   colors: COLORS,
+  // GDD 08 §11.6: dull black (rougher than the glossy base cuticle)
   roughness: 0.58, sheen: 0.35, clearcoat: 0.15,
   gait: { stride: 0.48, lift: 0.06, duty: 0.55 },
 };

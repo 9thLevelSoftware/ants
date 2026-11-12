@@ -8,7 +8,7 @@ import { TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { airTemp, diurnalShape, interiorTemp, relHumidity, seasonalMeanNow } from './temperature';
 import { chamberColumnTemp, chamberHumidity, chamberTemp, effectiveDepthMm, newThermalInputs, soilRelHumidity, thermalInputs } from './chamber';
 import { soilTempAtDepth } from './soil';
-import { slotTemp, surfaceTemp, updateThermal } from './surface';
+import { resetThermal, slotTemp, surfaceTemp, updateThermal } from './surface';
 import { calendarNow } from './calendar';
 import { setNoLag } from './noLag';
 import { envSim, setClockD, settleWeather } from './envTestKit';
@@ -61,6 +61,21 @@ describe('air temperature (E4)', () => {
       settleWeather(sim, dm[0]);
       const c2 = calendarNow(sim);
       expect(Math.abs(airTemp(sim) - (chapterAir(day + 5 / 24, 5, season, dm[1], c2.sunrise) + off))).toBeLessThan(0.5);
+    }
+  });
+
+  it.each([5, 10] as const)('season length %d: the air temperature table scales by year fraction (formula at the same year fraction)', (len) => {
+    const sim = envSim({ seasonLengthDays: len });
+    for (const f of [0.05, 0.2, 0.37, 0.5, 0.62, 0.8, 0.95]) {
+      for (const sub of [0, 0.31, 0.62, 0.93]) {
+        const ticks = Math.floor(f * 4 * len) * TICKS_PER_DAY + Math.round(sub * TICKS_PER_DAY);
+        sim.state.tick = 0;
+        sim.state.env.calendar.startTick = ticks;
+        settleWeather(sim, 'clear');
+        const cal = calendarNow(sim);
+        const expected = chapterAir(cal.yearFrac * 28, cal.hour, cal.season, 1.2, cal.sunrise);
+        expect(Math.abs(airTemp(sim) - expected), `f ${f} sub ${sub}`).toBeLessThan(0.02);
+      }
     }
   });
 
@@ -339,10 +354,11 @@ describe('chamber temperature and humidity (GDD 03 §9)', () => {
     const sim = envSim({ zone: 'forest', surface: 'loam' });
     setClockD(sim, 10 + 15 / 24);
     settleWeather(sim, 'clear');
-    sim.state.env.thermal.tsurfDay = undefined; // re-seed
+    resetThermal(sim);
     const open = nestWith(sim, 30, false), under = nestWith(sim, 30, true);
     expect(chamberTemp(sim, under.nest, under.chamber)).not.toBeCloseTo(chamberTemp(sim, open.nest, open.chamber), 3);
-    expect(effectiveDepthMm(sim, 1000, 1000, 30, true)).toBeLessThan(effectiveDepthMm(sim, 1000, 1000, 30, false));
+    // the stone adds thermal depth on top of the soil column (GDD 03 §9.1: 50 x 0.35 mm)
+    expect(effectiveDepthMm(sim, 1000, 1000, 30, true)).toBeCloseTo(effectiveDepthMm(sim, 1000, 1000, 30, false) + 17.5, 6);
   });
 
   it('finds a chamber by id, and unknown ids fall back to the degraded soil constant', () => {

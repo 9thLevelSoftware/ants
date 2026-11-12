@@ -1,9 +1,11 @@
 /**
  * Lasius niger (BU 4 mm; GDD 07 §5.1.1, docs/research/bio-lasius-niger.md): worker 3.4-5 mm, queen 8-9 mm, male
  * 3.5-4.7 mm; one petiole scale, acidopore, silk cocoons; dark brown to blackish, queen brownish black with a
- * massive mesosoma; hyaline wings. Values from the ants spike (spike-ants.md section 4), tuned by eye there.
+ * massive mesosoma; hyaline wings. Shapes from the ants spike (spike-ants.md section 4), tuned by eye there; the
+ * cuticle uses the GDD 08 §11.6 base values (glossy, greyish sheen).
  */
 import type { AntColors, AntMorphology } from './types';
+import { CUTICLE } from '../tuning';
 
 export const LASIUS_COLORS: AntColors = {
   head: '#2b221d', mesosoma: '#30251f', gaster: '#231d1a', legs: '#3a2c22', tarsi: '#5a4433', antenna: '#3a2c23',
@@ -28,7 +30,7 @@ export const LASIUS_WORKER: AntMorphology = {
   hairs: 70, gasterHairs: 1,
   rearWeapon: 'acidopore',
   colors: LASIUS_COLORS,
-  roughness: 0.42, sheen: 0.3, clearcoat: 0.3,
+  roughness: CUTICLE.roughness, sheen: 0.35, clearcoat: CUTICLE.clearcoat,
   gait: { stride: 0.5, lift: 0.065, duty: 0.55 },
 };
 
@@ -49,7 +51,7 @@ export const LASIUS_QUEEN: AntMorphology = {
   wings: 'stubs', wingLength: 0,
   hairs: 110,
   colors: { ...LASIUS_COLORS, mesosoma: '#2a1f1a', gaster: '#201a17', head: '#251d19' },
-  roughness: 0.32, sheen: 0.45, clearcoat: 0.55,
+  roughness: CUTICLE.roughness - 0.03, sheen: 0.45, clearcoat: CUTICLE.clearcoat,
   gait: { stride: 0.36, lift: 0.045, duty: 0.6 },
 };
 
@@ -73,5 +75,5 @@ export const LASIUS_MALE: AntMorphology = {
   wings: 'full', wingLength: 1.02,
   hairs: 40,
   colors: { ...LASIUS_COLORS, head: '#1d1917', mesosoma: '#1f1a17', gaster: '#221c19', legs: '#5a4634', tarsi: '#7a644c', antenna: '#5b4836', mandible: '#6a4a2c' },
-  roughness: 0.4, sheen: 0.4, clearcoat: 0.4,
+  roughness: CUTICLE.roughness, sheen: 0.4, clearcoat: CUTICLE.clearcoat,
 };

@@ -12,3 +12,4 @@ export * from './nest';
 export * from './progression';
 export * from './cadence';
 export * from './difficulty';
+export * from './kernel';

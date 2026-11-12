@@ -158,6 +158,8 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
   out.saturation = lerp(a.saturation, b.saturation, t) * W.saturation;
   out.gain = [lerp(a.gain[0], b.gain[0], t), lerp(a.gain[1], b.gain[1], t), lerp(a.gain[2], b.gain[2], t)];
 
+  // the photographer compensates for low sun and night, not for walking indoors (rooms stay dimmer than outside)
+  out.exposureEV += autoExposureEV(out);
   // interior: tungsten ambient from above, the sun only through openings
   const ins = Math.min(1, Math.max(0, inp.interior ?? 0));
   if (ins > 0) {
@@ -168,7 +170,6 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
     out.envIntensity *= 1 - 0.6 * ins;
     out.exposureEV += INTERIOR_LOOK.exposureEV * ins;
   }
-  out.exposureEV += autoExposureEV(out);
 
   // underground: the surface world dims away, the nest's ambient and fog take over
   const u = Math.min(1, Math.max(0, inp.under));

@@ -14,11 +14,4 @@ export {
 export { ports, type Ports } from './ports';
 export { isFoodItem, isLiquidSource, isPickableSource, isTearSource } from './sourceKinds';
 export type { ActionDef, ActionKind, TickOutcome } from './types';
-export { healthFactor, isPossessed, tempFactor, workRate } from './workRate';
-
-import type { Ant } from '@/sim/types';
-
-/** The ant is gripping (locomotion: speed x GRIP_SPEED_MULT and dislodge immunity). */
-export function isGripping(ant: Ant): boolean {
-  return ant.action?.id === 'grip';
-}
+export { healthFactor, isGripping, isPossessed, speciesIdOf, tempFactor, workRate } from './workRate';

@@ -97,8 +97,16 @@ export const HEAT_SEASON_STOP_H = 12;
 /** Frost may not end before this many hours after sunrise; it may start between sunset and this many hours before sunrise. */
 export const FROST_END_AFTER_SUNRISE_H = 3;
 export const FROST_START_BEFORE_SUNRISE_H = 2;
-/** Cold snap (winter): chance that a frost persists another 24 h at its end check, and the extension cap. */
-export const P_COLDSNAP_PERSIST = 0.55;
+/** App. E7 also states that no frost starts between 05:00 and 17:00 (the sunset/sunrise window alone would allow it in midwinter). */
+export const FROST_START_NOT_BEFORE_H = 17;
+export const FROST_START_NOT_AFTER_H = 5;
+/**
+ * Cold snap (winter): chance that a frost persists another 24 h at its end check, and the extension cap.
+ * DEVIATION: the chapter says 0.55, but the chapter's own Monte Carlo (winter frost 21 % of the time, 1.5 events) and
+ * acceptance E7 (0.15-0.27) are impossible with it (a frost lasts at least 10 h and each extension adds 24 h, so 0.55
+ * gives about 33 %). 0.10 keeps the mechanism and reproduces E7 (about 23 %).
+ */
+export const P_COLDSNAP_PERSIST = 0.1;
 export const COLDSNAP_MAX_EXT = 4;
 export const COLDSNAP_EXT_H = 24;
 
@@ -177,3 +185,33 @@ export const LIGHTNING_MIN_GAP_TICKS = 60;
 export const LIGHTNING_MEAN_EXTRA_TICKS = 150;
 export const THUNDER_DELAY_MIN_S = 0.4;
 export const THUNDER_DELAY_MAX_S = 3;
+
+// ---- Forced start conditions (GDD 06 §1.6): the environment is rolled at setup so they hold ----
+
+/** What must hold at the start of a game of a species (the first weather draw is redrawn until it does). */
+export interface StartConditions {
+  /** Allowed weather states at the start. */
+  states: WeatherState[];
+  /** Air temperature band, C (open ends allowed). */
+  airMinC?: number;
+  airMaxC?: number;
+  /** Wind at 2 m must be below this, m/s. */
+  windMaxMs: number;
+  /** A rain event of at least `rainHours` hours ended this many hours before the start (Messor). */
+  rainEndedHoursAgo?: [number, number];
+  rainHours?: number;
+  /** Cumulative rain in the prior game day, mm (Atta). */
+  cumRain24hMm?: number;
+  /** No moon (Atta flights). */
+  moonless?: boolean;
+}
+export const START_CONDITIONS: Partial<Record<string, StartConditions>> = {
+  'lasius-niger': { states: ['clear', 'overcast'], airMinC: 18, airMaxC: 26, windMaxMs: 4 },
+  'camponotus-pennsylvanicus': { states: ['clear', 'overcast'], airMinC: 13, windMaxMs: 4 },
+  'messor-barbarus': { states: ['clear'], windMaxMs: 3, rainEndedHoursAgo: [3.6, 12], rainHours: 7 },
+  'atta-texana': { states: ['clear'], airMinC: 20, airMaxC: 27, windMaxMs: 4, cumRain24hMm: 6.35, moonless: true },
+};
+/** Redraws of the start state, anomaly and wind before the nearest allowed values are forced. */
+export const START_REDRAW_MAX = 50;
+/** Extra rain of the Atta start beyond the 6.35 mm minimum: up to this many mm. */
+export const START_RAIN_EXTRA_MM = 3;

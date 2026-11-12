@@ -3,7 +3,7 @@
 import { v3Clone, v3DistanceSq as dist2, type Vec3 } from '@/core/math/vec3';
 import type { FoodKind, FoodSource, FoodVariant, Sim } from '@/sim/types';
 import { colonySlotBit } from '@/sim/entities';
-import { amountOf, defOf, isEmpty, odourRadiusMm } from './def';
+import { amountOf, defOf, footprintMm, isEmpty, odourRadiusMm } from './def';
 import { forEachSourceNear, maxOdourMm } from './lookup';
 import { isInSeason } from './season';
 
@@ -27,11 +27,16 @@ export function isDiscoveredBy(sim: Sim, s: FoodSource, colonyId: number): boole
   return bit !== 0 && (s.discoveredBy & bit) !== 0;
 }
 
-/** An `avoid` marker of the colony overlaps the source (GDD 05 §1.8: quality 0 for that colony). */
+/**
+ * An `avoid` marker of the colony overlaps the source's footprint (GDD 05 §1.8 "any marker overlapping it":
+ * quality 0 for that colony).
+ */
 export function isAvoidedBy(sim: Sim, s: FoodSource, colonyId: number): boolean {
+  const foot = footprintMm(s, sim.world.bu);
   for (const m of sim.stores.markers.list) {
     if (!m.alive || m.kind !== 'avoid' || m.colony !== colonyId) continue;
-    if (dist2(m.pos, s.pos) <= m.radius * m.radius) return true;
+    const reach = m.radius + foot;
+    if (dist2(m.pos, s.pos) <= reach * reach) return true;
   }
   return false;
 }

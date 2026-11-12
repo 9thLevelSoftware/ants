@@ -1,33 +1,22 @@
 // What kind of harvesting a food source allows (GDD 01 §7.3, GDD 05 §1): drinking, tearing pieces, or picking up
-// whole units.
+// whole units. The form comes from the ecology catalogue (sources-core `harvestForm`).
 
-import type { FoodKind, FoodSource, FoodVariant, Item } from '@/sim/types';
+import type { FoodSource, Item, Sim } from '@/sim/types';
+import { ports } from './ports';
 
-const LIQUID_KINDS: readonly FoodKind[] = ['honeydew', 'nectar', 'sugar', 'dew'];
-const LIQUID_VARIANTS: readonly FoodVariant[] = [
-  'honeydew-film', 'sugary-spill', 'sticky-residue', 'dew', 'water', 'extrafloral-nectary', 'flower',
-];
-/** Kinds whose flesh or body is torn into pieces (fruit has both juice and flesh). */
-const TEAR_KINDS: readonly FoodKind[] = ['carrion', 'prey', 'fruit', 'crumb', 'pet-food', 'leaf'];
-
-/** Drinkable: a pool source or a liquid kind / variant. */
-export function isLiquidSource(s: FoodSource): boolean {
-  return s.pool >= 0 || LIQUID_KINDS.includes(s.kind) || (s.variant !== null && LIQUID_VARIANTS.includes(s.variant))
-    || s.kind === 'fruit';
+/** Drinkable (`harvest-liquid`). */
+export function isLiquidSource(sim: Sim, s: FoodSource): boolean {
+  return ports.harvestForm(sim, s) === 'liquid';
 }
 
-/** Solid flesh that `harvest-solid` tears pieces from. */
-export function isTearSource(s: FoodSource): boolean {
-  return TEAR_KINDS.includes(s.kind) && !(s.variant !== null && LIQUID_VARIANTS.includes(s.variant));
+/** Solid flesh or a large crumb that `harvest-solid` tears pieces from. */
+export function isTearSource(sim: Sim, s: FoodSource): boolean {
+  return ports.harvestForm(sim, s) === 'tear';
 }
 
 /** Whole units small enough to be picked up by an ant of this carry capacity (crumbs, seeds, granules). */
-export function isPickableSource(s: FoodSource, carryCap: number): boolean {
-  return !isLiquidOnly(s) && s.unitBulk > 0 && s.unitBulk <= carryCap;
-}
-
-function isLiquidOnly(s: FoodSource): boolean {
-  return isLiquidSource(s) && !isTearSource(s) && s.kind !== 'sugar';
+export function isPickableSource(sim: Sim, s: FoodSource, carryCap: number): boolean {
+  return ports.harvestForm(sim, s) === 'pick' && s.unitBulk > 0 && s.unitBulk <= carryCap;
 }
 
 /** A carried food item (food piece, seed, carcass, prey). */

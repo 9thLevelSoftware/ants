@@ -10,6 +10,7 @@ import { spawnItem } from '@/sim/entities';
 import { book, coreOf } from './core';
 import { colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
+import { larvaRemainingNeed } from './brood';
 
 /** Where deposited food comes from: a delivery, recycled brood, or a nurse's unused crop going back. */
 export type DepositSource = 'delivery' | 'recycled' | 'transit-return';
@@ -118,7 +119,7 @@ export function withdraw(col: Colony, c: number, p: number, purpose: WithdrawPur
     col.counters.useTodayC += tc;
     col.counters.useTodayP += tp;
   }
-  refreshCapacity(col);
+  // stores.cap (display) is refreshed by deposits and on the colony cycle, not on every withdrawal.
   return { c: tc, p: tp, toxin };
 }
 
@@ -127,8 +128,10 @@ export function withdraw(col: Colony, c: number, p: number, purpose: WithdrawPur
  * never passed through the pool and is booked as a direct delivery consumed at once (pool unchanged).
  */
 function bookCropFeed(col: Colony, c: number, p: number, to: 'larvae' | 'queen'): void {
-  const fromTransitC = Math.min(c, Math.max(0, col.ledger.transitC));
-  const fromTransitP = Math.min(p, Math.max(0, col.ledger.transitP));
+  // The lifetime transit total is the food currently out in nurses' crops (the daily ledger resets each day).
+  const life = coreOf(col).life;
+  const fromTransitC = Math.min(c, Math.max(0, life.transitC));
+  const fromTransitP = Math.min(p, Math.max(0, life.transitP));
   book(col, 'transitC', -fromTransitC);
   book(col, 'transitP', -fromTransitP);
   book(col, 'inDeliveryC', c - fromTransitC);
@@ -156,7 +159,10 @@ export function feedFromCrop(sim: Sim, giver: Ant, broodId: number, c: number, p
   const queen = broodId < 0 ? sim.stores.ants.get(col.queenId) : undefined;
   if (larva) {
     if (larva.stage !== 'larva' || larva.colony !== col.id) return { c: 0, p: 0 };
-    space = LARVA_GUT_CAP - larva.gutC - larva.gutP;
+    // A larva takes no more than it still needs to finish the stage (GDD 02 §2.3 totals).
+    const def = sim.getSpecies(col.species);
+    const remaining = def ? larvaRemainingNeed(def, larva) : Infinity;
+    space = Math.min(LARVA_GUT_CAP - larva.gutC - larva.gutP, remaining);
   } else if (queen && queen.queen) {
     space = QUEEN_GUT_CAP - queen.queen.gut.c - queen.queen.gut.p;
     receiverId = queen.id;

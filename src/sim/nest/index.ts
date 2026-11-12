@@ -1,24 +1,58 @@
 // Nest module API. STUB written by F1b/F1c with final signatures. Owners: carve grid + nest nav = F2-kernel
-// (src/sim/nest/carve, nav; wired in by the wiring task); systems, entrances, chambers, plans, pellets, mounds,
-// voxel flags (WorldDelta.carveFlags) = nestops; architect = architect.
+// (src/sim/nest/carve, nav; wired in by F-int through src/sim/kernel.ts); systems, entrances, chambers, plans,
+// pellets, mounds, voxel flags (WorldDelta.carveFlags) = nestops; architect = architect.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type {
-  Ant, BroodStage, CarveData, CarveGrid, Chamber, ChamberType, CommandHandlerMap, DesignatedBy, DigBiteResult,
-  Entrance, NestNav, PelletDumpTarget, PlanSource, PlanSpec, PlanValidation, Sim, SiteReport, System, WorldData,
+  Ant, BroodStage, CarveGrid, Chamber, ChamberType, CommandHandlerMap, DesignatedBy, DigBiteResult,
+  Entrance, Kernel, NestNav, PelletDumpTarget, PlanSource, PlanSpec, PlanValidation, Sim, SiteReport, System,
 } from '@/sim/types';
+import { nestFieldId } from '@/sim/types';
 import { ARCHITECT_EVERY, ARCHITECT_OFFSET } from '@/sim/balance';
-import { createPlaceholderNestNav } from '@/sim/testing/placeholders';
-import { createCarveGrid as createKernelCarveGrid } from './carve';
 
-/** Carve grid over the persisted carve data (the kernel's grid; the wiring task adds the substrate probe). */
-export function createCarveGrid(data: CarveData, _world: WorldData): CarveGrid {
-  return createKernelCarveGrid(data);
+/** Carve grid over the persisted carve data: the kernel's grid (substrate and hole probes wired by createKernel). */
+export function createCarveGrid(kernel: Kernel): CarveGrid {
+  return kernel.carve;
 }
 
-/** BFS nest distance fields. Stub: nothing reachable (the wiring task connects src/sim/nest/nav). */
-export function createNestNav(_world: WorldData, _carve: CarveGrid): NestNav {
-  return createPlaceholderNestNav();
+/**
+ * The NestNav contract over the kernel's nav: a thin forwarding object (the kernel's class has private members
+ * whose names the nest-level helpers would shadow, e.g. `descend`), plus the helpers keyed by (nestId, target)
+ * through nestFieldId. Fields are registered by src/sim/services.ts registerNestTargets.
+ */
+export function createNestNav(kernel: Kernel): NestNav {
+  const raw = kernel.nav;
+  return {
+    setTarget: (id, seeds) => raw.setTarget(id, seeds),
+    removeTarget: (id) => raw.removeTarget(id),
+    hasTarget: (id) => raw.hasTarget(id),
+    targets: () => raw.targets(),
+    distanceAt: (id, p) => raw.distanceAt(id, p),
+    stepDir: (id, p, out) => raw.stepDir(id, p, out),
+    lookahead: (id, p, steps, out) => raw.lookahead(id, p, steps, out),
+    componentAt: (p) => raw.componentAt(p),
+    nearestOpen: (p, out) => raw.nearestOpen(p, out),
+    build: (id) => raw.build(id),
+    flush: () => raw.flush(),
+    invalidateBox: (box) => raw.invalidateBox(box),
+    rebuildAll: () => raw.rebuildAll(),
+    stats: () => raw.stats(),
+    dispose: () => raw.dispose(),
+    distance(nestId, target, p) {
+      const id = nestFieldId(nestId, target);
+      if (!raw.hasTarget(id)) return -1;
+      const d = raw.distanceAt(id, p);
+      return Number.isFinite(d) ? d : -1;
+    },
+    descend(nestId, target, p, out) {
+      const id = nestFieldId(nestId, target);
+      if (!raw.hasTarget(id)) return false;
+      const d = raw.stepDir(id, p, out);
+      return Number.isFinite(d) && d > 0 && out.x * out.x + out.y * out.y + out.z * out.z > 0;
+    },
+    onCarve: () => {},
+    rebuild: () => raw.rebuildAll(),
+  };
 }
 
 /** Carve ops, breaches/entrances, chamber detection, nav-field refresh, pellets and mounds. Stub: nestops. */

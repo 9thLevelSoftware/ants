@@ -49,13 +49,14 @@ describe('D7.1 default-year day numbers', () => {
 });
 
 describe('D7.2 thermal inputs and rain intensity', () => {
-  it('thermalInputs fills the given record with finite temperatures; no inflow in clear weather', () => {
+  it('thermalInputs fills the given record with finite temperatures; no inflow without rain', () => {
     const sim = makeTestSim();
     const out: ThermalInputs = { T_top: NaN, T_dayMean: NaN, T_seasonMean: NaN, T_annual: NaN };
     const r = environment.thermalInputs(sim, sim.state.ants[0].pos, out);
     expect(r).toBe(out);
     for (const v of Object.values(r)) expect(Number.isFinite(v)).toBe(true);
-    expect(sim.state.env.weather.state).toBe('clear');
+    // env-core picks the opening weather; a fresh game never starts in rain
+    expect(environment.isRaining(sim)).toBe(false);
     expect(environment.rainIntensityAt(sim, sim.state.ants[0].pos)).toBe(0);
   });
 

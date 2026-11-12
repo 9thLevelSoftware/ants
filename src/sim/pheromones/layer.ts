@@ -4,12 +4,16 @@
 // Invariants (checked by tests):
 // - a cell is in `active` exactly once iff its `listed` flag is set; every nonzero cell is listed. A listed cell
 //   may be 0 for a while (wiped) until the next compaction, which also removes cells below PHERO_EPS.
+// - `nz` counts nonzero cells; the caps test nz (a reload preserves it), so a reloaded field evicts and frees
+//   exactly what the original would.
 // - `live[slot]` counts the listed cells of a chunk. Chunks are freed only by `freeEmptyChunks` (decay steps and
 //   evictions), never on load, so a loaded field and the field it was saved from keep identical chunk orders.
 
 import type { PheroChannel, PheromoneLayer } from '@/sim/types';
-import { PHERO_EVICT_BINS_PER_OCTAVE, PHERO_EVICT_FRACTION, PHERO_EPS } from './balance';
-import { evictionThreshold, pickWeakest, valueBin } from './evict';
+import { PHERO_DECAY_EVERY } from '@/sim/balance';
+import { PHERO_EPS } from './balance';
+import { evictWeakestCells, evictWeakestChunks } from './evict';
+import { validateLayer } from './validate';
 
 /** Chunk-key packing shared with the carve grid: (c + 512) + (c + 512) * 1024 + (c + 512) * 1048576. */
 const KEY_OFF = 512;
@@ -23,6 +27,14 @@ export function pheroChunkKey(cx: number, cy: number, cz: number): number {
 /** True if chunk coordinates fit the key packing. */
 export function chunkInRange(cx: number, cy: number, cz: number): boolean {
   return cx >= -KEY_OFF && cx < KEY_OFF && cy >= -KEY_OFF && cy < KEY_OFF && cz >= -KEY_OFF && cz < KEY_OFF;
+}
+
+/**
+ * Decay stagger group of a chunk (0 .. PHERO_DECAY_EVERY - 1): a hash of its key, so it does not depend on slot
+ * order and a reloaded field decays the same chunks on the same ticks.
+ */
+export function pheroChunkGroup(key: number): number {
+  return (Math.imul(key, 0x9e3779b1) >>> 0) % PHERO_DECAY_EVERY;
 }
 
 /** Recycled zeroed chunk arrays, shared by all layers of a field. */
@@ -56,6 +68,8 @@ export class LayerRuntime {
   readonly mask: number;
   readonly shift3: number;
   readonly n3: number;
+  /** Cell coordinates must lie in [-cellLimit, cellLimit) on every axis (the chunk-key range). */
+  readonly cellLimit: number;
   limits: LayerLimits;
 
   /** Per slot (parallel to data.keys): listed flags, listed count, chunk coordinates. */
@@ -64,15 +78,24 @@ export class LayerRuntime {
   ccx = new Int32Array(16);
   ccy = new Int32Array(16);
   ccz = new Int32Array(16);
+  /** Decay stagger group per slot (pheroChunkGroup of its key). */
+  grp = new Int32Array(16);
   /** Active cells: slot << shift3 | local index. */
   active = new Int32Array(64);
   count = 0;
+  /** Nonzero cells (count also holds cells wiped to 0 until the next compaction; caps use nz, which a reload preserves). */
+  nz = 0;
   /** Bumped whenever cell values or the cell set change. */
   version = 0;
 
-  private index = new Map<number, number>();
+
+  /** Chunk key -> slot. */
+  readonly index = new Map<number, number>();
+  // Two-entry chunk cache (reads near a chunk face alternate between two chunks).
   private lastKey = -1;
   private lastSlot = -1;
+  private prevKey = -1;
+  private prevSlot = -1;
   private readonly pool: ChunkPool;
 
   constructor(data: PheromoneLayer, chunkCells: number, limits: LayerLimits, pool: ChunkPool) {
@@ -83,6 +106,7 @@ export class LayerRuntime {
     this.mask = chunkCells - 1;
     this.shift3 = this.shift * 3;
     this.n3 = chunkCells * chunkCells * chunkCells;
+    this.cellLimit = KEY_OFF * chunkCells;
     this.limits = limits;
     this.pool = pool;
     this.rebuild();
@@ -111,13 +135,16 @@ export class LayerRuntime {
     this.ccx = new Int32Array(this.live.length);
     this.ccy = new Int32Array(this.live.length);
     this.ccz = new Int32Array(this.live.length);
+    this.grp = new Int32Array(this.live.length);
     this.count = 0;
+    this.nz = 0;
     for (let s = 0; s < w; s++) {
       const key = keys[s];
       this.index.set(key, s);
       this.ccx[s] = (key % KEY_Y) - KEY_OFF;
       this.ccy[s] = (Math.floor(key / KEY_Y) % KEY_Y) - KEY_OFF;
       this.ccz[s] = Math.floor(key / KEY_Z) - KEY_OFF;
+      this.grp[s] = pheroChunkGroup(key);
       const vals = chunks[s];
       const flags = new Uint8Array(this.n3);
       this.listed.push(flags);
@@ -127,6 +154,7 @@ export class LayerRuntime {
           if (!(v > 0) || !Number.isFinite(v)) { vals[i] = 0; continue; } // repair NaN / negative from a bad save
           flags[i] = 1;
           this.live[s]++;
+          this.nz++;
           this.pushActive((s << this.shift3) | i);
         }
       }
@@ -141,21 +169,46 @@ export class LayerRuntime {
   }
 
   private invalidateCache(): void {
-    this.lastKey = -1;
-    this.lastSlot = -1;
+    this.lastKey = this.prevKey = -1;
+    this.lastSlot = this.prevSlot = -1;
   }
 
   /** Slot of a chunk key, -1 if absent. */
   slotOf(key: number): number {
     if (key === this.lastKey) return this.lastSlot;
-    const s = this.index.get(key);
+    let s: number;
+    if (key === this.prevKey) {
+      s = this.prevSlot;
+    } else {
+      const found = this.index.get(key);
+      s = found === undefined ? -1 : found;
+    }
+    this.prevKey = this.lastKey;
+    this.prevSlot = this.lastSlot;
     this.lastKey = key;
-    this.lastSlot = s === undefined ? -1 : s;
-    return this.lastSlot;
+    this.lastSlot = s;
+    return s;
+  }
+
+  /** Value array of chunk (cx, cy, cz), null when absent. */
+  chunkAt(cx: number, cy: number, cz: number): Float32Array | null {
+    if (!chunkInRange(cx, cy, cz)) return null;
+    const slot = this.slotOf(pheroChunkKey(cx, cy, cz));
+    return slot < 0 ? null : this.data.chunks[slot];
+  }
+
+  /**
+   * True if integer cell coordinates lie inside the chunk-key range. Checked BEFORE any shift: `>>` truncates to
+   * int32, so a huge finite coordinate would otherwise wrap onto a real cell.
+   */
+  cellInRange(ix: number, iy: number, iz: number): boolean {
+    const L = this.cellLimit;
+    return ix >= -L && ix < L && iy >= -L && iy < L && iz >= -L && iz < L;
   }
 
   /** Value of cell (ix, iy, iz), 0 when absent. */
   get(ix: number, iy: number, iz: number): number {
+    if (!this.cellInRange(ix, iy, iz)) return 0;
     const s = this.shift;
     const cx = ix >> s, cy = iy >> s, cz = iz >> s;
     if (!chunkInRange(cx, cy, cz)) return 0;
@@ -166,29 +219,48 @@ export class LayerRuntime {
   }
 
   /**
-   * Adds amount to a cell (clamped to the channel maximum), creating chunk and list entry as needed. May evict
-   * the weakest cells or chunks first when a cap is reached. Returns false if the cell is out of range.
+   * Adds amount to a cell (clamped to the channel maximum), creating chunk and list entry as needed. A deposit is
+   * never refused for being weak: at a cap the weakest cells (chunks) are evicted first, so a newcomer always gets
+   * its slot and keeps it if it is reinforced before the next eviction (each eviction frees 1/16 of the cells or 1/8
+   * of the chunks, which bounds how often it runs). Returns the amount actually stored (0 only out of range).
    */
-  add(ix: number, iy: number, iz: number, amount: number): boolean {
+  add(ix: number, iy: number, iz: number, amount: number): number {
+    if (!this.cellInRange(ix, iy, iz)) return 0;
     const s = this.shift;
     const cx = ix >> s, cy = iy >> s, cz = iz >> s;
-    if (!chunkInRange(cx, cy, cz)) return false;
     const key = pheroChunkKey(cx, cy, cz);
     const m = this.mask;
     const local = (ix & m) | ((iy & m) << s) | ((iz & m) << (2 * s));
     let slot = this.slotOf(key);
-    if (slot < 0 || this.listed[slot][local] === 0) {
-      if (this.count >= this.limits.maxCells) {
-        this.makeRoomForCell();
-        slot = this.slotOf(key);
+    if (slot < 0 || this.data.chunks[slot][local] === 0) {
+      if (this.nz >= this.limits.maxCells) {
+        evictWeakestCells(this);
+        slot = this.slotOf(key); // the eviction may have freed this chunk
       }
       if (slot < 0) {
         slot = this.createChunk(key, cx, cy, cz);
-        if (slot < 0) return false;
+        if (slot < 0) return 0;
       }
     }
+    return this.store(slot, local, amount);
+  }
+
+  /** Adds amount to a cell only if it is listed (no chunk creation, no eviction). Returns the amount stored. */
+  addExisting(ix: number, iy: number, iz: number, amount: number): number {
+    if (!this.cellInRange(ix, iy, iz)) return 0;
+    const s = this.shift, m = this.mask;
+    const slot = this.slotOf(pheroChunkKey(ix >> s, iy >> s, iz >> s));
+    if (slot < 0) return 0;
+    const local = (ix & m) | ((iy & m) << s) | ((iz & m) << (2 * s));
+    if (this.listed[slot][local] === 0) return 0;
+    return this.store(slot, local, amount);
+  }
+
+  private store(slot: number, local: number, amount: number): number {
     const vals = this.data.chunks[slot];
-    const v = vals[local] + amount;
+    const old = vals[local];
+    if (old === 0) this.nz++;
+    const v = old + amount;
     vals[local] = v < this.limits.maxValue ? v : this.limits.maxValue;
     const flags = this.listed[slot];
     if (flags[local] === 0) {
@@ -197,11 +269,11 @@ export class LayerRuntime {
       this.pushActive((slot << this.shift3) | local);
     }
     this.version++;
-    return true;
+    return vals[local] - old;
   }
 
   private createChunk(key: number, cx: number, cy: number, cz: number): number {
-    if (this.data.keys.length >= this.limits.maxChunks) this.evictChunks();
+    if (this.data.keys.length >= this.limits.maxChunks) evictWeakestChunks(this);
     if (this.data.keys.length >= this.limits.maxChunks) return -1;
     const slot = this.data.keys.length;
     const vals = this.pool.values.pop() ?? new Float32Array(this.n3);
@@ -214,12 +286,15 @@ export class LayerRuntime {
       this.ccx = grow(this.ccx, this.live.length);
       this.ccy = grow(this.ccy, this.live.length);
       this.ccz = grow(this.ccz, this.live.length);
+      this.grp = grow(this.grp, this.live.length);
     }
     this.live[slot] = 0;
+    this.grp[slot] = pheroChunkGroup(key);
     this.ccx[slot] = cx;
     this.ccy[slot] = cy;
     this.ccz[slot] = cz;
     this.index.set(key, slot);
+    if (this.prevKey === key) this.prevKey = -1;
     this.lastKey = key;
     this.lastSlot = slot;
     return slot;
@@ -241,6 +316,7 @@ export class LayerRuntime {
       if (v > 0 && v >= floor) {
         act[w++] = e;
       } else {
+        if (v !== 0) this.nz--;
         vals[loc] = 0;
         listed[slot][loc] = 0;
         if (--live[slot] === 0) emptied++;
@@ -265,6 +341,7 @@ export class LayerRuntime {
         vals[loc] = v;
         act[w++] = e;
       } else {
+        if (vals[loc] !== 0) this.nz--;
         vals[loc] = 0;
         listed[slot][loc] = 0;
         if (--live[slot] === 0) emptied++;
@@ -296,6 +373,7 @@ export class LayerRuntime {
         vals[loc] = v;
         act[w++] = e;
       } else {
+        if (old !== 0) this.nz--;
         vals[loc] = 0;
         listed[slot][loc] = 0;
         live[slot]--;
@@ -332,6 +410,7 @@ export class LayerRuntime {
       this.ccx[w] = this.ccx[s];
       this.ccy[w] = this.ccy[s];
       this.ccz[w] = this.ccz[s];
+      this.grp[w] = this.grp[s];
       w++;
     }
     keys.length = w;
@@ -346,92 +425,6 @@ export class LayerRuntime {
     }
     this.invalidateCache();
     this.version++;
-  }
-
-  /** Cell cap reached: drop exact zeros; if still full, evict the weakest PHERO_EVICT_FRACTION of the cells. */
-  private makeRoomForCell(): void {
-    this.compact(0);
-    if (this.count < this.limits.maxCells) return;
-    const sh = this.shift3, lm = this.n3 - 1, act = this.active, chunks = this.data.chunks, keys = this.data.keys;
-    const nb = evictBinCount(this.limits.maxValue), bpo = PHERO_EVICT_BINS_PER_OCTAVE;
-    const bins = new Int32Array(nb);
-    for (let i = 0; i < this.count; i++) {
-      const e = act[i];
-      bins[valueBin(chunks[e >>> sh][e & lm], bpo, nb)]++;
-    }
-    const cut = evictionThreshold(bins, Math.ceil(this.count * PHERO_EVICT_FRACTION));
-    const tieV = new Float64Array(bins[cut.bin]), tieC = new Float64Array(bins[cut.bin]);
-    let nt = 0;
-    for (let i = 0; i < this.count; i++) {
-      const e = act[i];
-      const v = chunks[e >>> sh][e & lm];
-      if (valueBin(v, bpo, nb) !== cut.bin) continue;
-      tieV[nt] = v;
-      tieC[nt++] = keys[e >>> sh] * this.n3 + (e & lm);
-    }
-    const pick = pickWeakest(tieV, tieC, nt, cut.need);
-    const listed = this.listed, live = this.live;
-    let w = 0, j = 0;
-    for (let i = 0, n = this.count; i < n; i++) {
-      const e = act[i];
-      const slot = e >>> sh, loc = e & lm;
-      const vals = chunks[slot];
-      const b = valueBin(vals[loc], bpo, nb);
-      const evict = b < cut.bin || (b === cut.bin && pick[j++] === 1);
-      if (!evict) {
-        act[w++] = e;
-      } else {
-        vals[loc] = 0;
-        listed[slot][loc] = 0;
-        live[slot]--;
-      }
-    }
-    this.count = w;
-    this.freeEmptyChunks();
-  }
-
-  /** Chunk cap reached: evict the PHERO_EVICT_FRACTION of chunks whose strongest cell is weakest. */
-  private evictChunks(): void {
-    this.compact(0);
-    const n = this.data.keys.length;
-    const sh = this.shift3, lm = this.n3 - 1, act = this.active, chunks = this.data.chunks, keys = this.data.keys;
-    const nb = evictBinCount(this.limits.maxValue), bpo = PHERO_EVICT_BINS_PER_OCTAVE;
-    const peak = new Float64Array(n);
-    for (let i = 0; i < this.count; i++) {
-      const e = act[i];
-      const v = chunks[e >>> sh][e & lm];
-      if (v > peak[e >>> sh]) peak[e >>> sh] = v;
-    }
-    const bins = new Int32Array(nb);
-    for (let s = 0; s < n; s++) bins[valueBin(peak[s], bpo, nb)]++;
-    const cut = evictionThreshold(bins, Math.ceil(n * PHERO_EVICT_FRACTION));
-    const tieV = new Float64Array(bins[cut.bin]), tieC = new Float64Array(bins[cut.bin]), tieS = new Int32Array(bins[cut.bin]);
-    let nt = 0;
-    for (let s = 0; s < n; s++) {
-      if (valueBin(peak[s], bpo, nb) !== cut.bin) continue;
-      tieV[nt] = peak[s];
-      tieC[nt] = keys[s];
-      tieS[nt++] = s;
-    }
-    const pick = pickWeakest(tieV, tieC, nt, cut.need);
-    const evict = new Uint8Array(n);
-    for (let s = 0; s < n; s++) if (valueBin(peak[s], bpo, nb) < cut.bin) evict[s] = 1;
-    for (let t = 0; t < nt; t++) if (pick[t] === 1) evict[tieS[t]] = 1;
-    const listed = this.listed, live = this.live;
-    let w = 0;
-    for (let i = 0, c = this.count; i < c; i++) {
-      const e = act[i];
-      const slot = e >>> sh;
-      if (evict[slot] === 0) {
-        act[w++] = e;
-      } else {
-        chunks[slot][e & lm] = 0;
-        listed[slot][e & lm] = 0;
-        live[slot]--;
-      }
-    }
-    this.count = w;
-    this.freeEmptyChunks();
   }
 
   /** Cell centre of an active entry into out (world mm, cell edge `cell`). */
@@ -461,50 +454,19 @@ export class LayerRuntime {
 
   /** Overwrites the value of an active (listed) entry; 0 is allowed (removed at the next compaction). */
   setValue(e: number, v: number): void {
-    this.data.chunks[e >>> this.shift3][e & (this.n3 - 1)] = v;
+    const vals = this.data.chunks[e >>> this.shift3], loc = e & (this.n3 - 1);
+    if (vals[loc] !== 0 && v === 0) this.nz--;
+    else if (vals[loc] === 0 && v !== 0) this.nz++;
+    vals[loc] = v;
   }
 
-  /** Invariant check (tests, soak runs): returns problems found, empty when consistent. O(chunks x 4096). */
+  /** Invariant check (tests, soak runs): problems found, empty when consistent. O(chunks x 4096). */
   validate(): string[] {
-    const bad: string[] = [];
-    const tag = `${this.colony}/${this.channel}`;
-    const { keys, chunks } = this.data;
-    const nc = keys.length;
-    if (chunks.length !== nc || this.listed.length !== nc) bad.push(`${tag}: parallel arrays differ`);
-    if (nc > this.limits.maxChunks) bad.push(`${tag}: ${nc} chunks > cap`);
-    if (this.count > this.limits.maxCells) bad.push(`${tag}: ${this.count} cells > cap`);
-    const seen = new Set<number>();
-    const perSlot = new Int32Array(nc);
-    for (let i = 0; i < this.count; i++) {
-      const e = this.active[i];
-      const slot = e >>> this.shift3, loc = e & (this.n3 - 1);
-      if (seen.has(e)) bad.push(`${tag}: duplicate entry`);
-      seen.add(e);
-      if (slot >= nc) { bad.push(`${tag}: entry slot out of range`); continue; }
-      if (this.listed[slot][loc] !== 1) bad.push(`${tag}: entry not flagged`);
-      perSlot[slot]++;
-    }
-    for (let s = 0; s < nc; s++) {
-      if (perSlot[s] !== this.live[s]) bad.push(`${tag}: live count ${this.live[s]} != ${perSlot[s]}`);
-      if (this.index.get(keys[s]) !== s) bad.push(`${tag}: index mismatch`);
-      const vals = chunks[s], flags = this.listed[s];
-      for (let i = 0; i < this.n3; i++) {
-        const v = vals[i];
-        if (!(v >= 0) || !Number.isFinite(v) || v > this.limits.maxValue) bad.push(`${tag}: bad value ${v}`);
-        if (v !== 0 && flags[i] !== 1) bad.push(`${tag}: nonzero cell not listed`);
-        if (bad.length > 20) return bad;
-      }
-    }
-    return bad;
+    return validateLayer(this);
   }
 
   /** Bytes held by this layer's arrays (values, flags, runtime arrays). */
   bytes(): number {
     return this.data.keys.length * this.n3 * 5 + (this.active.length + this.live.length * 4) * 4;
   }
-}
-
-/** Histogram bins needed to cover PHERO_EPS..maxValue, plus bin 0 for zero / sub-floor values. */
-function evictBinCount(maxValue: number): number {
-  return 2 + Math.ceil(Math.log2(maxValue / PHERO_EPS) * PHERO_EVICT_BINS_PER_OCTAVE);
 }

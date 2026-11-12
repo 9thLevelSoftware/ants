@@ -1,7 +1,7 @@
 /**
  * FOUNDRESS render-ants demo: the production AntRenderer (src/render/ants) driven by a scripted stand-in sim.
  *
- * URL flags: ?scene=hero|queen|poly|carry|wall|crowd|brood|poses|items|lineup|gait  &species=<id>  &caste=<caste>
+ * URL flags: ?scene=hero|queen|founding|poly|carry|wall|crowd|brood|poses|items|lineup|gait  &species=<id>  &caste=<caste>
  *            &n=2000 (crowd)  &quality=test|low|medium|high|ultra (default high; test=1 -> test)  &seed=N  &t=SECONDS
  *            &live=1 (animate in real time; default: deterministic, time advances only through __demo.step)
  * window.__ready after the first rendered frame; window.__demo = { setScene, setCamera, step, render, info, bench,

@@ -36,11 +36,27 @@ export function slotUsers(sim: Sim, s: FoodSource): Ant[] {
   return users;
 }
 
-/** Whether the ant may harvest now: it is among the first `slots` users (or a slot is free for it). */
+/**
+ * Whether the ant may harvest now: it is among the first `slots` users (or a slot is free for it). Called every
+ * tick by each drinking ant, so it counts the users ahead of the ant instead of building and sorting a list.
+ */
 export function hasSlot(sim: Sim, ant: Ant, s: FoodSource): boolean {
-  const users = slotUsers(sim, s);
-  const i = users.findIndex((u) => u.id === ant.id);
-  return (i >= 0 ? i : users.length) < s.slots;
+  const r = reachMm(s, sim.world.bu) + SOURCE_QUEUE_RADIUS_BU * sim.world.bu;
+  scratch.length = 0;
+  sim.index.queryAnts(s.pos, r, scratch);
+  const holds = holdsSlotAction(ant, s.id) && scratch.includes(ant.id); // as in slotUsers
+  const start = ant.action?.startTick ?? 0;
+  let ahead = 0;
+  for (const id of scratch) {
+    if (id === ant.id) continue;
+    const u = sim.stores.ants.get(id);
+    if (!u || !holdsSlotAction(u, s.id)) continue;
+    // A direct caller (no slot action) ranks after every holder; holders rank by start tick, then id.
+    const us = u.action?.startTick ?? 0;
+    if (!holds || us < start || (us === start && u.id < ant.id)) ahead++;
+    if (ahead >= s.slots) return false;
+  }
+  return ahead < s.slots;
 }
 
 /** Free feeding slots (0 when every slot is held). */

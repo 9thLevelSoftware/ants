@@ -3,20 +3,23 @@
 // The next state is drawn when the current one begins and kept as the forecast, so what is announced is what
 // happens. Randomness comes only from the stream `rng.weather`; everything lives in `state.env.weather`.
 
-import { rngChance, rngFloat, rngGauss } from '@/core/rng';
+import { rngChance, rngFloat } from '@/core/rng';
 import type { CalendarDerived, RainClass, Sim, WeatherForecast, WeatherState } from '@/sim/types';
 import {
-  ANOMALY_AR, ANOMALY_CLAMP_C, ANOMALY_SD_C, COLDSNAP_EXT_H, COLDSNAP_MAX_EXT, DEFAULT_SEASON_LENGTH_DAYS, DRYSPELL_DAYS, FROST_END_AFTER_SUNRISE_H, HEAT_SEASON_STOP_H,
-  INITIAL_WEATHER_WEIGHTS, LIGHTNING_MEAN_EXTRA_TICKS, LIGHTNING_MIN_GAP_TICKS, P_COLDSNAP_PERSIST, PRECIP_NORM,
+  COLDSNAP_EXT_H, COLDSNAP_MAX_EXT, DEFAULT_SEASON_LENGTH_DAYS, DRYSPELL_DAYS, FROST_END_AFTER_SUNRISE_H, HEAT_SEASON_STOP_H,
+  LIGHTNING_MEAN_EXTRA_TICKS, LIGHTNING_MIN_GAP_TICKS, P_COLDSNAP_PERSIST, PRECIP_NORM,
   STORM_PRECIP_NORM, WEATHER_DEFS, WIND_STORM_TURN_DEG,
 } from '@/sim/balance';
 import { calendarTick, dayOf, TICKS_PER_DAY, TICKS_PER_HOUR, yearFraction } from '@/sim/time';
 import { dayLengthH, deriveCalendar, nextSeasonStartTick } from './calendar';
 import { climateDef, seasonalMean } from './climates';
 import { climateOf, dmTarget, severityMult, woffTarget } from './temperature';
+import { airTemp } from './temperature';
+import { applyStartHistory, drawStart } from './weatherStart';
+import { baseWind } from './wind';
 import { drawDwellHours, drawNextState, drawRainClass, type WeatherDrawCtx } from './weatherDraw';
 
-const calScratch: CalendarDerived = deriveCalendar(0, 7);
+const calScratch: CalendarDerived = deriveCalendar(0, DEFAULT_SEASON_LENGTH_DAYS);
 const ctxScratch: WeatherDrawCtx = {
   season: 'spring', hour: 0, sunrise: 6, sunset: 18, tSeason: 0, climate: climateDef('temperate-maritime'), rainMult: 1,
   stormMult: 1, heatMult: 1, frostMult: 1, clearOvercastOnly: false, dryspell: false,
@@ -32,8 +35,11 @@ export function dryspellActiveAt(sim: Sim, stateTick: number): boolean {
   return end >= 0 && stateTick >= end - dryspellTicks(sim) && stateTick < end;
 }
 
-/** Fills the shared draw context for the moment `stateTick` (a state-tick time, possibly in the future). */
-function fillCtx(sim: Sim, stateTick: number): WeatherDrawCtx {
+/**
+ * The draw context (season, hour, seasonal mean, effective multipliers, dry spell) of the moment `stateTick` (a
+ * state-tick time, possibly in the future). The returned object is shared scratch: read it before the next call.
+ */
+export function drawContextAt(sim: Sim, stateTick: number): WeatherDrawCtx {
   const s = sim.state;
   const ct = s.env.calendar.startTick + stateTick;
   const cal = deriveCalendar(ct, s.config, s.env.calendar.moonPhase0, calScratch);
@@ -87,27 +93,22 @@ function hardHeatStop(sim: Sim, startTick: number): number {
   return nextSeasonStartTick(ct, s.config) - s.env.calendar.startTick + HEAT_SEASON_STOP_H * TICKS_PER_HOUR;
 }
 
-/** Moves a frost end to no earlier than sunrise + 3 h of a day (the thaw), leaving a daytime end alone. */
+/** Moves a frost end that falls before sunrise + 3 h of its day to that thaw time; a later end is left alone. */
 function thawAdjusted(sim: Sim, endTick: number): number {
   const start = sim.state.env.calendar.startTick;
   const ct = start + endTick;
   const day = dayOf(ct);
   const tod = (ct - day * TICKS_PER_DAY) / TICKS_PER_HOUR;
   const sr = 12 - dayLengthH(yearFraction(ct, sim.state.config)) / 2;
-  const ss = 24 - sr;
   const thaw = sr + FROST_END_AFTER_SUNRISE_H;
-  if (tod >= thaw && tod < ss) return endTick;
-  if (tod < thaw) return day * TICKS_PER_DAY + Math.round(thaw * TICKS_PER_HOUR) - start;
-  const nextCt = (day + 1) * TICKS_PER_DAY;
-  const sr2 = 12 - dayLengthH(yearFraction(nextCt, sim.state.config)) / 2;
-  return nextCt + Math.round((sr2 + FROST_END_AFTER_SUNRISE_H) * TICKS_PER_HOUR) - start;
+  return tod < thaw ? day * TICKS_PER_DAY + Math.round(thaw * TICKS_PER_HOUR) - start : endTick;
 }
 
 /** Draws the next state for the moment the current one ends and stores it as the forecast. */
 export function drawForecast(sim: Sim): void {
   const w = sim.state.env.weather;
   const rng = sim.stream('rng.weather');
-  const ctx = fillCtx(sim, w.dwellEndTick);
+  const ctx = drawContextAt(sim, w.dwellEndTick);
   const state = drawNextState(ctx, w.state, rng);
   const fc: WeatherForecast = { state, intensityClass: state === 'rain' ? drawRainClass(rng) : null, startTick: w.dwellEndTick };
   w.forecast = fc;
@@ -123,7 +124,7 @@ export function enterState(sim: Sim, to: WeatherState, cls: RainClass | null, re
   const rng = sim.stream('rng.weather');
   const from = w.state;
   const tick = s.tick;
-  const ctx = fillCtx(sim, tick);
+  const ctx = drawContextAt(sim, tick);
   w.state = to;
   w.intensityClass = to === 'rain' ? (cls ?? drawRainClass(rng)) : null;
   w.startTick = tick;
@@ -173,23 +174,29 @@ export function advanceWeather(sim: Sim): void {
     enterState(sim, fc.state, fc.intensityClass, 'transition', true);
     return;
   }
-  const next = drawNextState(fillCtx(sim, s.tick), w.state, rng);
+  const next = drawNextState(drawContextAt(sim, s.tick), w.state, rng);
   enterState(sim, next, null, 'transition', true);
 }
 
-/** First weather of a game: `clear` or `overcast`, the first dry spell, and lagged values settled at their targets. */
+/**
+ * First weather of a game: a state that satisfies the species' start conditions (GDD 06 §1.6), the first dry spell,
+ * the rain history those conditions need, and lagged values settled at their targets.
+ */
 export function initWeather(sim: Sim): void {
   const s = sim.state;
   const w = s.env.weather;
   const rng = sim.stream('rng.weather');
-  const total = (INITIAL_WEATHER_WEIGHTS.clear ?? 0) + (INITIAL_WEATHER_WEIGHTS.overcast ?? 0);
-  const first: WeatherState = rngFloat(rng) * total < (INITIAL_WEATHER_WEIGHTS.clear ?? 0) ? 'clear' : 'overcast';
   rollDryspell(sim, s.tick);
-  enterState(sim, first, null, 'init', false);
+  applyStartHistory(sim, rng);
+  const start = drawStart(sim, rng, () => settleLagged(sim));
+  enterState(sim, start.state, null, 'init', false);
   settleLagged(sim);
-  const a = Math.max(-ANOMALY_CLAMP_C, Math.min(ANOMALY_CLAMP_C, rngGauss(rng, 0, ANOMALY_SD_C / Math.sqrt(1 - ANOMALY_AR * ANOMALY_AR))));
-  w.anomalyPrev = a;
-  w.anomalyCur = a;
+  w.anomalyPrev = start.anomaly;
+  w.anomalyCur = start.anomaly;
+  w.windOu = start.windOu;
+  w.wind2m = baseWind(sim);
+  w.history.tmaxToday = airTemp(sim);
+  w.history.tmaxYesterday = w.history.tmaxToday;
 }
 
 /** Puts the lagged weather values (cloud, offset, diurnal multiplier) at their targets. */

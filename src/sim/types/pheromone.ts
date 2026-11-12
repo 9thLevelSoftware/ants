@@ -12,6 +12,12 @@ export interface PheromoneLayer {
   keys: number[];
   /** One Float32Array(4096) per key: concentration in pheromone units (ph). */
   chunks: Float32Array[];
+  /**
+   * Unused since the phero review fix (eviction no longer refuses weak deposits); kept so old saves still type-check.
+   * Ignored on load, never written.
+   */
+  cellFloor?: number;
+  chunkFloor?: number;
 }
 
 export interface PheromoneState {
@@ -45,10 +51,12 @@ export type PheroCellTest = (x: number, y: number, z: number) => boolean;
 export type PheroCellVisitor = (x: number, y: number, z: number, value: number) => void;
 
 /**
- * Decay-rate multiplier of one cell (1 = the channel's base half-life at 22 C; 2 = twice as fast). Supplied by the
- * environment (temperature, exposure, heat): see pheroDecayRateMult in src/sim/pheromones.
+ * Decay-rate multiplier at a point (1 = the channel's base half-life at 22 C; 2 = twice as fast). Supplied by the
+ * environment (temperature, exposure, heat; species trail half-life by colony): see pheroDecayRateMult in
+ * src/sim/pheromones. Called once per decay patch (PHERO_DECAY_PATCH_CELLS), not per cell; must be a pure function
+ * of its arguments. `colony` is the layer's colony (-1 = the shared alarm layer).
  */
-export type PheroDecayModifier = (channel: PheroChannel, x: number, y: number, z: number) => number;
+export type PheroDecayModifier = (channel: PheroChannel, x: number, y: number, z: number, colony?: number) => number;
 
 /** Optional runtime hooks the wiring layer installs on the pheromone service. */
 export interface PheroHooks {

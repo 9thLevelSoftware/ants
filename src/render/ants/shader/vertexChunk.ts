@@ -4,8 +4,9 @@
  * PER-VERTEX (geometry): position/normal (rest, body frame; LEG vertices segment-local), color, aRig = (part id,
  * side or leg index, leg segment or gaster band, aux).
  *
- * PER-INSTANCE (InstancedBufferAttribute, 144 bytes with instanceMatrix). The scheme is meant to be reused by
- * creatures (spiders, aphids ...) with their own deform function:
+ * PER-INSTANCE (InstancedBufferAttribute, 176 bytes with instanceMatrix). The scheme is meant to be reused by
+ * creatures (spiders, aphids ...) with their own deform function (a creature uses as many foot groups as its gait
+ * has: an alternating-tetrapod spider needs two, like the ant's tripods):
  *   instanceMatrix  body frame -> world: translation on the surface, rotation = surface frame (+Y up, +Z heading), uniform scale
  *   aGait   x gait phase (cycles)  y moving (speed / cruise, 0..1.5)  z heading change per gait cycle (rad, + left)  w seed 0..1
  *   aPose   x head raise 0..1  y gaster -1 (curled under) .. +1 (raised)  z gaster swell 0..1 (crop)  w mandible gape 0..1
@@ -14,10 +15,15 @@
  *           z forced foreleg grooming 0..1  w chewing / rasping 0..1
  *   aExtra  x ants: leg spread 0..1 (falling) | carried-item batches: item size factor  y highlight (+ possessed, - hovered)
  *           z callow 0..1  w antenna activity (1 normal, 0 calm, 2 searching / alarmed)
+ *   aFootA  foot placement of tripod A (L1 R2 L3): x angle (rad), y, z offset (body frame, rig units)  w walking direction +1 / -1
+ *   aFootB  the same for tripod B (R1 L2 R3)  w unused
  *
- * Feet do not slide: in stance the foot target moves backward in the body frame by exactly the distance the body
- * advanced (phase advances by distance / stride on the CPU) and rotates back by the heading change since mid-stance.
+ * Feet do not slide: the CPU (gait.ts) tracks each tripod's placement through its stance with the exact inverse of the
+ * body's motion (forward, sideways, turning), so a stance foot here is just R(angle) * restFoot + offset. In swing the
+ * placement is the frozen lift-off point and the foot travels to the predicted touchdown point.
  */
+import { CUTICLE } from '../tuning';
+
 export const ANT_VERT_PARS = /* glsl */ `
 attribute vec4 aRig;
 attribute vec4 aGait;
@@ -25,6 +31,8 @@ attribute vec4 aPose;
 attribute vec4 aTint;
 attribute vec4 aAct;
 attribute vec4 aExtra;
+attribute vec4 aFootA;
+attribute vec4 aFootB;
 uniform float uTime;
 uniform vec4 uLegA[3];
 uniform vec4 uFoot[3];
@@ -86,13 +94,20 @@ void antDeform(vec3 P, vec3 N, out vec3 oP, out vec3 oN) {
     float s = leg < 3 ? 1.0 : -1.0;
     vec4 LA = uLegA[pair]; vec4 LF = uFoot[pair]; vec4 LL = uLegLen[pair];
     bool tripodB = (s > 0.0) == (pair == 1);           // A = L1 R2 L3, B = R1 L2 R3
-    float lp = fract(phase + (tripodB ? 0.5 : 0.0) + float(pair) * 0.03);
-    float duty = uGaitP.z; float L = uGaitP.x * aAct.x;
-    float w, lift;                                      // w: +0.5 at touchdown .. -0.5 at lift-off
-    if (lp < duty) { w = 0.5 - lp / duty; lift = 0.0; }
-    else { float u = (lp - duty) / (1.0 - duty); float e = u * u * (3.0 - 2.0 * u); w = e - 0.5; lift = sin(3.14159265 * u) * uGaitP.y * moving; }
-    vec3 F = vec3(LF.x * s, 0.0, LF.z + L * duty * w);
-    F = antRotY(aGait.z * duty * w) * F;                // turning: the planted foot keeps its world heading
+    vec4 FP = tripodB ? aFootB : aFootA;
+    float lp = fract(phase + (tripodB ? 0.5 : 0.0));
+    float duty = uGaitP.z;
+    vec3 R0 = vec3(LF.x * s, 0.0, LF.z);
+    vec3 F = antRotY(FP.x) * R0 + vec3(FP.y, 0.0, FP.z); // stance: planted; swing: the lift-off point
+    float lift = 0.0;
+    if (lp >= duty) {
+      // swing to the predicted touchdown (front when walking forward, back when walking backward)
+      float dir = aFootA.w < 0.0 ? -1.0 : 1.0; float wt = 0.5 * dir;
+      float u = (lp - duty) / (1.0 - duty); float e = u * u * (3.0 - 2.0 * u);
+      vec3 T = antRotY(aGait.z * duty * wt) * (R0 + vec3(0.0, 0.0, uGaitP.x * aAct.x * duty * wt));
+      F = mix(F, T, dir > 0.0 ? e : 1.0 - e);
+      lift = sin(3.14159265 * u) * uGaitP.y * moving;
+    }
     F.y = lift;
     // falling: legs splay out and up
     F = mix(F, vec3(LF.x * s * 1.15, uGaitP.x * 0.45, LF.z * 1.1), aExtra.x);
@@ -184,7 +199,10 @@ void antDeform(vec3 P, vec3 N, out vec3 oP, out vec3 oN) {
 }
 `;
 
-/** Vertex colour: stretched membranes, callow colour, tint; material overrides per part; highlight varying. */
+/**
+ * Vertex colour: stretched membranes, callow colour, tint; material overrides per part (eyes, mandibles, wings, the
+ * hair rim on legs and scapes, GDD 08 §11.6); highlight varying.
+ */
 export const ANT_COLOR_VERTEX = /* glsl */ `#include <color_vertex>
 #ifdef USE_COLOR
   if (aRig.x > 5.5 && aRig.x < 6.5) vColor.rgb = mix(vColor.rgb, uMembrane, aRig.w * smoothstep(0.05, 0.6, aPose.z));
@@ -194,6 +212,7 @@ export const ANT_COLOR_VERTEX = /* glsl */ `#include <color_vertex>
 #endif
   vAntHi = aExtra.y;
   vAntMat = vec3(-1.0, 1.0, 0.0);
+  if (aRig.x > 2.5 && aRig.x < 5.5) vAntMat.y = ${CUTICLE.hairRimSheen.toFixed(3)};
   if (aRig.x > 0.5 && aRig.x < 1.5 && aRig.w > 0.5) vAntMat = aRig.w > 1.5 ? vec3(0.08, 0.0, 0.0) : vec3(0.22, 0.15, 1.0);
   if (aRig.x > 7.5 && aRig.x < 8.5) vAntMat = vec3(aRig.w, 0.0, 0.0);
   if (aRig.x > 1.5 && aRig.x < 2.5) vAntMat = vec3(0.5, 0.15, 0.0);

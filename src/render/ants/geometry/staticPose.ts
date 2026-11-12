@@ -51,7 +51,7 @@ const CORPSE: PoseSpec = {
   roughness: 0.7,
 };
 
-/** Bakes a static pose. LOD1 is plenty for items on the ground and in mandibles. */
+/** Bakes a static pose from one LOD of the variant (callers use LOD0: items lie next to LOD0 ants up close). */
 export function bakeStaticPose(v: AntVariant, pose: StaticPose, lodIndex = 1): BufferGeometry {
   const spec = pose === 'pupa' ? PUPA : CORPSE;
   const g = v.lods[lodIndex]!; const rig = v.rig;

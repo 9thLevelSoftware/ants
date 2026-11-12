@@ -345,3 +345,5 @@ export const DIAG_BROOD_REF_C = 28;
 /** Reference trip time of diag-food-intake distance factor, game s. */
 export const DIAG_TRIP_REF_S = 150;
 export const BROOD_STALLED_GD = 0.2;
+/** Stagger offset of the colony diagnostics system (never on the same tick as another >= 50-tick system). */
+export const COLONY_DIAGNOSTICS_OFFSET = 125;

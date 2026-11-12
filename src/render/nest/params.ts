@@ -9,7 +9,7 @@ import type { MaterialId } from '@/sim/types';
 // ------------------------------------------------------------------------------------------------ meshing
 
 /** Chunks per region edge: a region (R^3 chunks) is one geometry and one draw per wall material. */
-export const REGION_CHUNKS = 4;
+export const REGION_CHUNKS = 2;
 
 export interface MeshQuality {
   /** Wall-clock budget for re-meshing per frame, ms (at least one chunk is always built). */
@@ -32,9 +32,10 @@ export const MESH_QUALITY: Record<QualityId, MeshQuality> = {
   ultra: { budgetMs: 4, refine: true, ao: true, castShadow: true, detailNormals: true },
 };
 
-/** Midpoint projection: Newton iterations and largest move, in voxels (keeps thin features from folding). */
-export const REFINE_ITERS = 3;
+/** Largest move of a refined midpoint off its chord, in voxels (keeps thin features from folding). */
 export const REFINE_MAX_MOVE_VOXELS = 0.35;
+/** Edges whose endpoint normals differ by less than this are not split (flat floors stay coarse), degrees. */
+export const REFINE_FLAT_DEG = 9;
 /** Below this soil depth (BU) a midpoint's discard attribute is interpolated instead of evaluated. */
 export const REFINE_EXACT_SOIL_BU = 2;
 
@@ -67,7 +68,7 @@ export interface WallLook {
   wetDarken: number;
 }
 
-const SOIL_WALL: WallLook = { textureFrom: 'loam', scaleMm: 48, tint: [0.62, 0.66, 0.82], normalScale: 1.2, strata: 0.55, grain: 0.35, wetDarken: 0.55 };
+const SOIL_WALL: WallLook = { textureFrom: 'loam', scaleMm: 48, tint: [0.64, 0.72, 0.95], normalScale: 1.2, strata: 0.45, grain: 0.35, wetDarken: 0.55 };
 
 /** Wall looks per substrate material; anything missing uses `loam`. */
 export const WALL_LOOKS: Partial<Record<MaterialId, WallLook>> = {
@@ -99,7 +100,7 @@ export const DETAIL_NORMAL_WEIGHT = 0.45;
  */
 export const NEST_LIGHT = {
   ambientHex: '#2A1F17',
-  ambientLevel: 1.15,
+  ambientLevel: 1.3,
   /** Ambient boost near entrances (factor at the mouth) and its falloff length, BU. */
   ambientNearBoost: 1.6,
   ambientNearBU: 10,
@@ -108,15 +109,19 @@ export const NEST_LIGHT = {
   ambientDeepBU: 40,
   lanternHex: '#FFB775',
   lanternRadiusBU: 12,
-  lanternLevel: 1.6,
+  lanternLevel: 1.25,
   /** Wrap lighting of the lantern (0 = Lambert, 1 = flat). */
   lanternWrap: 0.35,
   /** Daylight shaft: e-folding length into the tunnel, BU (e^-3 at 3.6 BU: "3-4 BU", GDD 08 11.5). */
   skyFalloffBU: 1.2,
-  /** Daylight at full day on the walls at the mouth (linear radiance multiplier of the daylight colour). */
-  skyLevel: 2.4,
+  /** Daylight at full day on the walls at the mouth (linear radiance multiplier of the daylight colour): sky light
+   *  only (no direct sun inside a hole), so well below the sunlit ground. */
+  skyLevel: 1.1,
   /** Default daylight colour (sRGB) and level when nobody sets one (midday). */
   daylightHex: '#E8E4DA',
+  /** Default moisture -> wetness mapping (wet = moisture * scale + offset): soil at 0.4 reads slightly damp. */
+  moistScale: 0.6,
+  moistOffset: -0.1,
   /** Max sky openings in the shader (nearest to the camera). */
   maxOpenings: 16,
 } as const;
@@ -148,11 +153,13 @@ export const CUTAWAY = {
   /** Cap rasterisation budget per frame, ms (the previous cap stays until the new one is complete). */
   capBudgetMs: 6,
   /** Fill light into the cut nest from the cut side (so the colony view reads), level and falloff BU. */
-  fillLevel: 1.1,
+  fillLevel: 5,
   fillFalloffBU: 40,
   fillHex: '#D8CDB8',
   /** Hard primitives seen in the cap. */
   stoneHex: '#77736C',
+  /** Radiance multiplier of the cap colour (so the tone-mapped cap reads as #3A2A1E on screen). */
+  capLevel: 1.8,
 } as const;
 
 /** GDD 08 4.3: ground over the nest at alpha 0.15 -> the nest cast is drawn at 0.85 over the ground. */

@@ -5,6 +5,7 @@
  * naked pupae. Worker antennae 12-segmented (funiculus 11).
  */
 import type { AntColors, AntMorphology } from './types';
+import { CUTICLE } from '../tuning';
 
 const COLORS: AntColors = {
   head: '#1c1411', mesosoma: '#1e1512', gaster: '#171110', legs: '#2c1e17', tarsi: '#4a3324', antenna: '#2c1d16',
@@ -29,7 +30,7 @@ export const MESSOR_MEDIA: AntMorphology = {
   hairs: 80, gasterHairs: 1,
   rearWeapon: 'sting',
   colors: { ...COLORS, head: '#2a1610' },
-  roughness: 0.4, sheen: 0.3, clearcoat: 0.45,
+  roughness: CUTICLE.roughness, sheen: 0.3, clearcoat: CUTICLE.clearcoat,
   gait: { stride: 0.44, lift: 0.058, duty: 0.55 },
 };
 
@@ -63,7 +64,7 @@ export const MESSOR_MAJOR: AntMorphology = {
   legs: { length: 0.8, thickness: 1.15 },
   hairs: 100,
   colors: { ...COLORS, head: '#3a1a12', mandible: '#3a1a0e' },
-  roughness: 0.38, clearcoat: 0.5,
+  roughness: CUTICLE.roughness - 0.02,
   gait: { stride: 0.42, lift: 0.055, duty: 0.55 },
 };
 

@@ -460,15 +460,15 @@ Rule applied: directions §J name, else the name used by the chapter that owns t
 
 | Item | Why | Owner who confirms |
 | --- | --- | --- |
-| `WorldField` interface (`types/services.ts`) | interface the modules program against; the kernel's `src/sim/world/field.ts` is the source of truth (ruling 1) | wiring task |
-| `NestNav` interface | same, against `src/sim/nest/nav` (ruling 1) | wiring task |
+| `WorldField` interface | **RESOLVED (F-int)**: `WorldField extends` the kernel's `src/sim/world/field.ts` interface (+ `diggability`); see (i) | — |
+| `NestNav` interface | **RESOLVED (F-int)**: `NestNav extends` the kernel's `src/sim/nest/nav` interface (+ nest-level helpers); see (i) | — |
 | `CarveGrid` | NOT provisional: re-exported from the kernel's `src/sim/nest/carve` (it existed) | — |
 | `SpeciesDef` / `CasteDef` schema — PROVISIONAL | written from GDD 07 §3 and App. A–D directly before digest 07 existed; Lasius data minimal; not yet cross-checked against the digest | species-data |
 | `PlayerIntent.held: ActionId[]` | the game maps held inputs to the species' action ids | actions / F3-appshell |
 | `PheromoneState` layout (per colony+channel layers of 16^3 chunks) | phero task may change the internals but must stay plain data | phero |
 | `WorldMaps`, `NavGridData` subsets | GDD 04 lists more maps; T1 subset only | worldgen-terrain, loco |
-| `CalendarDerived` computed by `environment.deriveCalendar` / `calendarNow(sim)` (sine day length, simple phases; runtime cache, not persisted) | placeholder until env-core | env-core |
-| Placeholder services in `src/sim/testing/placeholders/` (terrain-only field, unreachable nest nav, open nav grid, minimal pheromones) | to be replaced through the module `index.ts` factories | F2-kernel, loco, phero |
+| `CalendarDerived` computed by `environment.deriveCalendar` / `calendarNow(sim)` (runtime cache, not persisted) | env-core has landed its implementation; confirm and drop this row | env-core |
+| Placeholder services | **RESOLVED (F-int)**: field and nest nav are the kernel's; `src/sim/testing/placeholders/` deleted. Test doubles kept in `src/sim/testing/doubles/` (`fakeNavGrid`, also the `createNavGrid` stub body until loco; `fakePheromoneField`) | loco (nav grid) |
 | Stub module APIs (`src/sim/<module>/index.ts`) | signatures final in intent; bodies are safe no-ops | each module task |
 | `EntityIndex` cell size `INDEX_CELL_BU = 8` | tuning | beh-forage / perf |
 | Event payload details where the chapters were loose (`flight.ended`, `human.scheduled`, `mound-changed`) | summarised to ids and numbers | owners |
@@ -810,3 +810,48 @@ Registry B9 events not in the union, with reason: `speed-changed` (GDD 01) is th
 14. `defaultYearDay` exists twice: `src/sim/time.ts` (contract, D7.1) and env-core's `defaultYearDayOf` /
     `inDefaultWindow` in `environment/calendar.ts` (and `REFERENCE_DAYS_PER_YEAR` beside `DEFAULT_DAYS_PER_YEAR`).
     env-core should delegate to the time.ts helpers.
+
+## (i) F-int: the kernel wired into the contracts
+
+Code: `src/sim/services.ts` (`createSimKernel`, `createServices`, `registerNestTargets`, `moundOverlay`), the module
+factories `createWorldField(kernel)` (world), `createCarveGrid(kernel)` / `createNestNav(kernel)` (nest),
+`createNewGame` (pre-carves, queen placement), `src/sim/testing/**` (test world, small nest, invariants),
+`tools/sim/soak.ts`.
+
+| Contract | Now |
+| --- | --- |
+| `Sim.kernel: Kernel` | NEW (additive): the one `createKernel(world, state.worldDelta.carve, { canDigMaterial })` per sim. `sim.field` and `sim.carve` are the kernel's objects; modules carve with `sim.kernel.carve*` (default dig predicate `canDigAt`), change dynamic primitives with `sim.kernel.addPrim / updatePrim / removePrim`, mounds with `sim.kernel.setHeightOverlay`, mesh with `sim.kernel.meshChunk`, and use `sim.kernel.walker` (walker parameters) with the walker functions. |
+| `WorldField` | `interface WorldField extends` kernel `WorldField` + `diggability(p, species)` (= balance `digFactor(species, materialAt(p))`). The old provisional methods all exist with compatible signatures (`project` gained an optional `outNormal`). `height()` includes mound overlays. |
+| `NestNav` | `interface NestNav extends` kernel `NestNav` (fields keyed by name, `Infinity` = unreachable) + nest-level helpers `distance(nestId, target, p)` (−1 when unknown / unreachable), `descend(...)`, `onCarve` (no-op: the kernel nav listens to the grid), `rebuild` (= `rebuildAll`). `sim.nestNav` is a forwarding object (the kernel class has a private `descend`). |
+| `nestFieldId(nestId, target)` | NEW helper (types/services.ts): field name `nest:<nestId>:<kind>:<id>`. `registerNestTargets(nav, nest, bu)` (services.ts) defines `exit` (open entrances, radius r_ent + 1 BU), `seal` (other entrances) and one `chamber` field per chamber (centre, radius min radius); createSim calls it for every nest (fields are derived caches, rebuilt on load); nestops calls it again whenever entrances or chambers change. Plan fields (`plan`) are nestops'. |
+| Kernel types re-exported from the barrel | `FieldParams`, `HeightOverlay`, `PrimBounds`, `NavSeeds`, `NavStats`, `Kernel`, `KernelOptions`, `WalkerKin`, `WalkStatus`, `WalkerParams` |
+| `Walker` / `WalkerKin` | already structurally compatible (same `medium` union); an `Ant` or `Creature` is passed to the walker functions directly (tests do). No change. |
+| `SimInvariant` | NEW (types/moduleApi.ts): `{ name, check(sim, fail) }`. Modules export `invariants` from their index.ts; `src/sim/testing/invariants.ts` collects them through `SIM_MODULES` (no shared edit). Core: `walker-finite`, `walker-free-space`, `non-negative`, `state-encodes`. |
+
+Kernel change (the one planned): **height overlays** in `src/sim/world/field.ts` (`setHeightOverlay`,
+`removeHeightOverlay`, `heightOverlay`; type `HeightOverlay {id, x0, z0, cell, nx, nz, h, material}`): bilinear
+heights added to the terrain in `height()` and in the terrain term of f with the analytic slope; zero outside
+the grid; `materialAt` returns the overlay material between the terrain and the overlay top. Kernel wrappers
+`kernel.setHeightOverlay / removeHeightOverlay` also mark the carve meshes over the pile dirty. A mound record
+maps to an overlay with `moundOverlay(m)`: `n x n` points centred on `(centerX, centerZ)`, heights `h` read live;
+`Mound.base` (support height on primitives) is NOT modelled (piles sit on the terrain): nestops' call.
+
+Dig rules: balance `nest.ts` `DIG_SPEED` (GDD 03 §2.1 base digSpeed) x `DIG_SPECIES_MULT` (the "diggable by" column
+per species), `digFactor(species, m)`; the kernel's `canDigMaterial` is `digFactor > 0`, so the default dig
+predicate and diggable primitives follow the played species. Moisture, LOOSE and crust multipliers are nestops'.
+`SpeciesDef.nestTemplate.nestMaterials` (species data) holds different Lasius numbers (humus 1.1, sand 1.4, clay 0.5,
+gravel 0.6) than GDD 03 §2.1 (1.3, 1.6, 0.45, 0.35); GDD 03 owns substrates, so the balance table is used and
+species-data should align or drop `nestMaterials`.
+
+Kernel tunables are re-exported from `src/sim/balance/kernel.ts` (`FIELD_TUNING`, `CARVE_TUNING`, `NAV_TUNING`,
+`WALKER_TUNING`).
+
+New game: `createNewGame` applies `WorldData.preCarve` through the kernel's carve grid (`force`, breaches recorded)
+and places the founding queen with the kernel's `walkerPlace` at `queenStart` (throws if there is no surface).
+`locomotion.placeOnSurface` now uses `walkerPlace` too. `WorldDelta.dynPrims` and `mounds` are registered in the
+kernel by `createSimKernel`, so they survive save/load.
+
+Remaining PROVISIONAL items in `src/sim/types/**`: none are marked in the code. Still provisional by this map:
+`SpeciesDef` (species-data), `PlayerIntent.held` (actions), `PheromoneState` internals (phero), `WorldMaps` /
+`NavGridData` subsets (worldgen-terrain, loco), `INDEX_CELL_BU` (perf), loose event payloads (owners).
+

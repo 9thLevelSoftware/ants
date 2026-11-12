@@ -5,7 +5,7 @@ import { rngFloat, type RngState } from '@/core/rng';
 import type { RainClass, Season, WeatherState } from '@/sim/types';
 import { RAIN_CLASSES, WEATHER_STATES } from '@/sim/types';
 import {
-  DRYSPELL_HEAT_MULT, DRYSPELL_RAIN_MULT, DWELL_CAP_MEAN_MULT, DWELL_H, FALLBACK_ROW_SEASON, FROST_START_BEFORE_SUNRISE_H,
+  DRYSPELL_HEAT_MULT, DRYSPELL_RAIN_MULT, DWELL_CAP_MEAN_MULT, DWELL_H, FALLBACK_ROW_SEASON, FROST_START_BEFORE_SUNRISE_H, FROST_START_NOT_AFTER_H, FROST_START_NOT_BEFORE_H,
   HEAT_DWELL_CAP_H, RAIN_CLASS_DWELL_MULT, RAIN_CLASS_WEIGHTS, SHOULDER_HEAT_SHARE, TRANSITIONS,
 } from '@/sim/balance';
 import type { ClimateDef } from './climates';
@@ -38,7 +38,9 @@ function rowFor(season: Season, from: WeatherState): Partial<Record<WeatherState
 }
 
 function frostHourOk(ctx: WeatherDrawCtx): boolean {
-  return ctx.hour >= ctx.sunset || ctx.hour <= ctx.sunrise - FROST_START_BEFORE_SUNRISE_H;
+  const evening = ctx.hour >= Math.max(ctx.sunset, FROST_START_NOT_BEFORE_H);
+  const morning = ctx.hour <= Math.min(ctx.sunrise - FROST_START_BEFORE_SUNRISE_H, FROST_START_NOT_AFTER_H);
+  return evening || morning;
 }
 
 /**

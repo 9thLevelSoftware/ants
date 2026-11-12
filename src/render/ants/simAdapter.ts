@@ -13,7 +13,10 @@ import { CALLOW_DARKEN_TICKS } from './tuning';
 
 export type AntView = Pick<Ant,
   'id' | 'alive' | 'colony' | 'caste' | 'pos' | 'prevPos' | 'up' | 'prevUp' | 'fwd' | 'prevFwd' | 'speed' | 'footOffset' |
-  'medium' | 'lengthBu' | 'sizeClass' | 'flags' | 'pose' | 'carry' | 'cropC' | 'cropP' | 'cropCap' | 'bornTick' | 'alarmLevel'>;
+  'medium' | 'lengthBu' | 'sizeClass' | 'flags' | 'pose' | 'carry' | 'cropC' | 'cropP' | 'cropCap' | 'bornTick' | 'alarmLevel'> & {
+  /** Only the founding queen's wing state is read (GDD 06 §5.2: wings stay on until the dealation phase). */
+  queen?: { founding: { wings: boolean } | null } | null;
+};
 export type BroodView = Pick<Brood, 'id' | 'alive' | 'colony' | 'stage' | 'destined' | 'progress' | 'pos' | 'carriedBy' | 'destinedLengthBu'>;
 export type ItemView = Pick<Item, 'id' | 'alive' | 'kind' | 'pos' | 'carrierIds' | 'lengthMm' | 'count' | 'species' | 'colony' | 'decay' | 'foodKind' | 'variant' | 'wasteKind'>;
 export type ColonyView = Pick<Colony, 'id' | 'species'>;
@@ -68,6 +71,38 @@ export function newAntSample(): AntSample {
   };
 }
 
+/** What the brood/item catalog needs to pick a mesh and a size (field names are the renderer's own). */
+export interface BroodLook { stage: string; destined: string; progress: number; destinedLengthBu: number }
+export interface ItemLook { kind: string; lengthMm: number; wasteKind: string | null; foodKind: string | null }
+
+/** One brood entity as the renderer needs it. Reused; never retained by callers. */
+export interface BroodSample extends BroodLook {
+  id: number;
+  species: string;
+  pos: Vec3;
+  /** Held in a carrier's mandibles (drawn at the carrier's head, not where it lies). */
+  carried: boolean;
+}
+
+/** One item as the renderer needs it. Reused; never retained by callers. */
+export interface ItemSample extends ItemLook {
+  id: number;
+  /** Species of a corpse or of the owning colony; null when unknown (the carrier's species is used). */
+  species: string | null;
+  pos: Vec3;
+  /** Carried by exactly one ant (cooperative transport is drawn loose, where the sim puts the item). */
+  carried: boolean;
+  /** Stackable on a pile (soil pellets, seeds): coincident ones are spread so the pile reads as a pile. */
+  piles: boolean;
+}
+
+export function newBroodSample(): BroodSample {
+  return { id: -1, species: '', pos: { x: 0, y: 0, z: 0 }, carried: false, stage: 'egg', destined: 'worker', progress: 0, destinedLengthBu: 1 };
+}
+export function newItemSample(): ItemSample {
+  return { id: -1, species: null, pos: { x: 0, y: 0, z: 0 }, carried: false, piles: false, kind: 'waste', lengthMm: 0, wasteKind: null, foodKind: null };
+}
+
 /** Per-source lookup caches (colony -> species, species -> BU / appearance). */
 export class SimReader {
   private colonySpecies = new Map<number, string>();
@@ -88,8 +123,12 @@ export class SimReader {
   }
 
   speciesOfColony(colony: number): string {
+    return this.speciesOfColonyOrNull(colony) ?? 'lasius-niger';
+  }
+
+  speciesOfColonyOrNull(colony: number): string | null {
     if (this.colonySpecies.size === 0) this.beginFrame();
-    return this.colonySpecies.get(colony) ?? 'lasius-niger';
+    return this.colonySpecies.get(colony) ?? null;
   }
 
   speciesInfo(species: string): SpeciesView {
@@ -127,19 +166,38 @@ export class SimReader {
     out.callow = (a.flags & AntFlag.CALLOW) !== 0 ? Math.max(0, 1 - Math.max(0, age) / CALLOW_DARKEN_TICKS) : 0;
     out.alarm = (a.flags & AntFlag.ALARMED) !== 0 ? Math.max(0.7, Math.min(1, a.alarmLevel)) : Math.min(1, Math.max(0, a.alarmLevel - 0.3));
     out.possessed = a.id === this.sim.state.player.possessedAntId || (a.flags & AntFlag.POSSESSED) !== 0;
-    out.winged = a.caste === 'gyne' || a.caste === 'male' || (a.flags & AntFlag.WINGED) !== 0;
+    // the sim sets WINGED on alates and clears it when they shed their wings; the founding queen keeps hers in
+    // her founding reserves until dealation
+    out.winged = (a.flags & AntFlag.WINGED) !== 0 || a.queen?.founding?.wings === true;
     return out;
   }
 
-  /** The single carrier of an item, or -1 when it lies loose or is moved cooperatively. */
-  itemCarrier(it: ItemView): number {
-    return it.carrierIds.length === 1 ? it.carrierIds[0]! : -1;
+  /** Live entities only are drawn. */
+  isLive(e: AntView | BroodView | ItemView): boolean { return e.alive; }
+
+  readBrood(b: BroodView, out: BroodSample): BroodSample {
+    out.id = b.id;
+    out.species = this.speciesOfColony(b.colony);
+    out.pos.x = b.pos.x; out.pos.y = b.pos.y; out.pos.z = b.pos.z;
+    out.carried = b.carriedBy >= 0;
+    out.stage = b.stage; out.destined = b.destined; out.progress = b.progress; out.destinedLengthBu = b.destinedLengthBu;
+    return out;
+  }
+
+  readItem(it: ItemView, out: ItemSample): ItemSample {
+    out.id = it.id;
+    out.species = it.species ?? this.speciesOfColonyOrNull(it.colony);
+    out.pos.x = it.pos.x; out.pos.y = it.pos.y; out.pos.z = it.pos.z;
+    out.carried = it.carrierIds.length === 1;
+    out.piles = it.kind === 'soil-pellet' || it.kind === 'seed';
+    out.kind = it.kind; out.lengthMm = it.lengthMm; out.wasteKind = it.wasteKind; out.foodKind = it.foodKind;
+    return out;
   }
 }
 
 function lerpUnit(a: Vec3, b: Vec3, t: number, out: Vec3): void {
   const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t, z = a.z + (b.z - a.z) * t;
-  const l = Math.hypot(x, y, z);
+  const l = Math.sqrt(x * x + y * y + z * z);
   if (l < 1e-6) { out.x = b.x; out.y = b.y; out.z = b.z; return; }
   out.x = x / l; out.y = y / l; out.z = z / l;
 }

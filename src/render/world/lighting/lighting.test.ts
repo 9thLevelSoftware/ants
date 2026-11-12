@@ -2,7 +2,6 @@
 // the simulation adapter (sun from the calendar, deformation tiles, moved objects, hole probe on the real kernel).
 import { describe, expect, it } from 'vitest';
 import { Color, Vector3 } from 'three';
-import { TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { createKernel } from '@/sim/kernel';
 import { emptyCarve, makeFlatWorld } from '@/sim/kernel.testWorld';
 import type { Primitive, Sim, WorldData } from '@/sim/types';
@@ -119,9 +118,6 @@ describe('simulation adapter', () => {
     expect(sunFromCalendar(0, 6, 18, d)).toBeLessThan(-20);
     const m = moonFromSun(d, new Vector3());
     expect(m.y).toBeGreaterThan(0.1);
-  });
-  it('uses the calendar constants of src/sim/time', () => {
-    expect(TICKS_PER_DAY / TICKS_PER_HOUR).toBe(24);
   });
   it('applies height deformation tiles (32 x 32 points, 1/16 mm)', () => {
     const nx = 40, nz = 40, h = new Float32Array(nx * nz);

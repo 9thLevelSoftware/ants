@@ -17,10 +17,10 @@ export function d28Of(yearFrac: number): number {
 }
 
 /** Whether a doy28 window [a, b] (inclusive integer days, null = all year) holds at a year fraction. */
-export function windowActive(window: readonly [number, number] | null, yearFrac: number): boolean {
-  if (!window) return true;
+export function windowActive(days: readonly [number, number] | null, yearFrac: number): boolean {
+  if (!days) return true;
   const d = d28Of(yearFrac);
-  return d >= window[0] - 1 && d < window[1];
+  return d >= days[0] - 1 && d < days[1];
 }
 
 /** Season bit of the SEASONS index. */

@@ -12,8 +12,8 @@ import type { BrushOptions, BrushResult } from './nest/carve/brushes';
 import { keyCx, keyCy, keyCz, type VoxelBox } from './nest/carve/keys';
 import { meshChunk, type ChunkMesh, type MeshOptions } from './nest/carve/mc';
 import { createNestNav, type NestNav, type NestNavOptions } from './nest/nav/nestNav';
-import { createWorldField, type FieldParams, type PrimBounds, type WorldField } from './world/field';
-import { hardLayerNear as hardLayerNearImp, heightSlope as heightSlopeImp, type HeightSlope } from './world/terrainSample';
+import { createWorldField, type FieldParams, type HeightOverlay, type PrimBounds, type WorldField } from './world/field';
+import { hardLayerNear as hardLayerNearImp, heightAt, heightSlope as heightSlopeImp, type HeightSlope } from './world/terrainSample';
 import { walkerParamsForBU, type WalkerParams } from './locomotion/walkerParams';
 
 // Hot imports re-bound as local consts (canDigAt runs per brush sample): see docs/design/tdd/02-kernel.md §2.11.
@@ -78,6 +78,14 @@ export interface Kernel {
   addPrim(p: Primitive): void;
   updatePrim(p: Primitive): void;
   removePrim(id: number): boolean;
+  /**
+   * Height overlays (mound piles, GDD 03 §1.4): `field.setHeightOverlay` / `removeHeightOverlay`, then marks
+   * the carve meshes over the overlay dirty (their discard attribute is the soil distance, which the pile
+   * raises). The pile is soil, so nest-nav passability is unchanged. After editing `h` in place, call
+   * setHeightOverlay again with the same object. Walkers on the pile still call walkerSurfaceChanged.
+   */
+  setHeightOverlay(o: HeightOverlay): void;
+  removeHeightOverlay(id: number): boolean;
   /** After replacing CarveData contents (load): rebuild grid index and navigation. */
   rebuild(): void;
 }
@@ -132,6 +140,21 @@ export function createKernel(world: KernelWorldInput, carveData: CarveData, opts
     if (bounds.diggable) carve.markDirty(box);
   };
 
+  // height overlays: the soil distance changes between the terrain and the overlay top
+  const touchOverlay = (o: HeightOverlay): void => {
+    let lo = Infinity, hi = -Infinity;
+    for (let iz = 0; iz < o.nz; iz++) for (let ix = 0; ix < o.nx; ix++) {
+      const g = heightAt(world.terrain, o.x0 + ix * o.cell, o.z0 + iz * o.cell), h = o.h[iz * o.nx + ix];
+      lo = Math.min(lo, g + Math.min(0, h)); hi = Math.max(hi, g + Math.max(0, h));
+    }
+    const v = carveData.voxel, pad = field.params.blend + v + o.cell; // bilinear terrain between grid points
+    carve.markDirty({
+      i0: Math.floor((o.x0 - pad) / v), j0: Math.floor((lo - pad) / v), k0: Math.floor((o.z0 - pad) / v),
+      i1: Math.ceil((o.x0 + (o.nx - 1) * o.cell + pad) / v), j1: Math.ceil((hi + pad) / v),
+      k1: Math.ceil((o.z0 + (o.nz - 1) * o.cell + pad) / v),
+    });
+  };
+
   return {
     bu, world, field, carve, nav, walker: walkerParamsForBU(bu), canDigAt,
     carveSphere: (c, r, o) => carve.carveSphere(c, r, withDefault(o)),
@@ -143,6 +166,18 @@ export function createKernel(world: KernelWorldInput, carveData: CarveData, opts
     addPrim: (p) => { touchPrim(p.id); field.addPrim(p); touchPrim(p.id); },
     updatePrim: (p) => { touchPrim(p.id); field.updatePrim(p); touchPrim(p.id); },
     removePrim: (id) => { touchPrim(id); return field.removePrim(id); },
+    setHeightOverlay: (o) => {
+      const old = field.heightOverlay(o.id);
+      if (old && old !== o) touchOverlay(old);
+      field.setHeightOverlay(o);
+      touchOverlay(o);
+    },
+    removeHeightOverlay: (id) => {
+      const old = field.heightOverlay(id);
+      if (!old) return false;
+      touchOverlay(old);
+      return field.removeHeightOverlay(id);
+    },
     rebuild: () => { carve.rebuild(); nav.rebuildAll(); },
   };
 }

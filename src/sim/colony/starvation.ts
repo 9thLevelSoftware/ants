@@ -38,6 +38,7 @@ export function updateStarvation(sim: Sim, col: Colony, starvingAdults: number):
   if (RANK[cur] >= 2) {
     // S2-S4 leave together once the pool holds some of both again (back to S1, which then exits normally).
     if (s.c > RATION_EXIT_C && s.p > RATION_EXIT_P) next = 'lean';
+    else if (cur === 'adult-starvation') next = cur; // S4 has no exit but a refilled pool (GDD 02 §5.7)
     else if (sacrifice) next = starvingAdults > 0 ? 'adult-starvation' : 'brood-sacrifice';
     else next = 'rationing';
   } else if (empty) {

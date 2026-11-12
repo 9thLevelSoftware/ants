@@ -36,15 +36,30 @@ export const PHERO_SHARED_COLONY = -1;
  */
 export const PHERO_MAX_CELLS: Readonly<Record<PheroChannel, number>> = { trail: 40000, home: 60000, alarm: 16000 };
 export const PHERO_MAX_CHUNKS: Readonly<Record<PheroChannel, number>> = { trail: 192, home: 384, alarm: 96 };
-/** Share of cells (or chunks) removed, weakest first, when a cap is hit. */
+/**
+ * Share of cells (chunks) removed, weakest first, when a cap is hit. A deposit is never refused: the newcomer takes
+ * a freed slot and survives the next eviction if it is reinforced by then. Evicting a fixed share bounds how often
+ * an eviction runs (at most once per 1/16 of the cell cap new cells, 1/8 of the chunk cap new chunks).
+ */
 export const PHERO_EVICT_FRACTION = 1 / 16;
+export const PHERO_EVICT_CHUNK_FRACTION = 1 / 8;
 /** Resolution of the eviction histogram (log2 bins per octave of value). */
 export const PHERO_EVICT_BINS_PER_OCTAVE = 8;
+/**
+ * Decay-modifier resolution, cells: the environment's rate multiplier (temperature, exposure, heat) is evaluated
+ * once per patch of this many cells in x and z (one cell in y) per decay pass, at the patch's x/z centre.
+ * 4 cells = 16 BU (64 mm for Lasius); surface temperature, shade and material vary over tens of BU.
+ */
+export const PHERO_DECAY_PATCH_CELLS = 4;
 /** Freed chunk arrays kept for reuse. */
 export const PHERO_CHUNK_POOL_MAX = 32;
 
-/** Antennal sensors (GDD 02 §7): reach ahead of the body centre, BU, and side-sensor angle, rad. */
-export const PHERO_SENSOR_REACH_BU = 0.9;
+/**
+ * Steering sensors of senseDirection: reach ahead of the body centre, BU, and side-sensor angle, rad. GDD 02 §7
+ * gives the antenna as 0.9 BU at +-35 deg; on 4 BU cells that cannot resolve a heading (all sensors sit on one
+ * cell's linear ramp, and walkers drift off curves), so the fan keeps the angle and looks 3 BU ahead.
+ */
+export const PHERO_STEER_REACH_BU = 3;
 export const PHERO_SENSOR_ANGLE_RAD = (35 * Math.PI) / 180;
 /** Damping of the left/right steering ratio, ph (GDD 02 §8.4: (L - R) / (L + R + 1.0)). */
 export const PHERO_SENSE_DAMP = 1.0;

@@ -91,7 +91,7 @@ export interface WorldField {
   readonly minHeight: number;
   /** Number of field evaluations so far (profiling). */
   evals: number;
-  /** Terrain height (bilinear), mm. */
+  /** Terrain height (bilinear) plus the registered height overlays (mounds), mm. */
   height(x: number, z: number): number;
   /** Free distance to all solids, carve grid ignored: smin(fSoil, fHard). > 0 in open air. */
   substrate(p: Vec3): number;
@@ -152,6 +152,39 @@ export interface WorldField {
   updatePrim(p: Primitive): void;
   /** World AABB (mm) and group of a registered primitive into out; false if the id is not in the field. */
   primBounds(id: number, out: PrimBounds): boolean;
+  /**
+   * Registers (or replaces, by id) a height overlay: its heights are added to the terrain height in height()
+   * and in the terrain term of f, with the analytic gradient. The grid is read live, so editing `h` in place
+   * takes effect at once (call it again to change origin, size or material). Prefer the kernel's wrapper, which
+   * also marks the carve meshes over the overlay dirty. Walkers on it should call walkerSurfaceChanged.
+   */
+  setHeightOverlay(o: HeightOverlay): void;
+  removeHeightOverlay(id: number): boolean;
+  /** The registered overlay with this id, or undefined. */
+  heightOverlay(id: number): HeightOverlay | undefined;
+}
+
+/**
+ * A small heightfield patch added to the terrain (mounds and spoil heaps, GDD 03 §1.4). Grid point (ix, iz) sits
+ * at (x0 + ix cell, z0 + iz cell); the added height is bilinear between points and 0 outside the grid, so the
+ * border points should be 0 for a continuous field. Heights should be >= 0 (piles); negative values dig the
+ * terrain down and also lower `minHeight`.
+ */
+export interface HeightOverlay {
+  /** Caller's id (mound id). */
+  id: number;
+  /** World x / z of grid point (0, 0), mm. */
+  x0: number;
+  z0: number;
+  /** Grid spacing, mm. */
+  cell: number;
+  /** Grid points along x and z (>= 2). */
+  nx: number;
+  nz: number;
+  /** Added height per grid point, mm, index iz * nx + ix. */
+  h: Float32Array;
+  /** Material of the pile (materialAt between the terrain and the overlay top); null keeps the ground layers. */
+  material: MaterialId | null;
 }
 
 /** Bounds of a primitive as registered in the field. */
@@ -227,7 +260,7 @@ class FieldImpl implements WorldField {
   readonly size: number;
   readonly params: FieldParams;
   readonly carve: CarveGrid | null;
-  readonly minHeight: number;
+  minHeight: number;
   evals = 0;
   private readonly world: KernelWorldInput;
   private readonly k: number;
@@ -236,6 +269,8 @@ class FieldImpl implements WorldField {
   private readonly hash: PrimHash;
   private readonly isDiggablePrim: (p: Primitive) => boolean;
   private readonly holesNear: Uint8Array | null;
+  private readonly terrainMin: number;
+  private overlays: HeightOverlay[] = [];
   // scratch (never escapes)
   private readonly hs: HeightSlope = { h: 0, gx: 0, gz: 0 };
   private readonly g2: Grad2 = { d: 0, gx: 0, gz: 0 };
@@ -264,6 +299,7 @@ class FieldImpl implements WorldField {
     this.holesNear = holes && holes.data.some((b) => b !== 0) ? dilateHoles(holes) : null;
     let minH = Infinity;
     for (const h of world.terrain.data) minH = Math.min(minH, h);
+    this.terrainMin = minH;
     this.minHeight = minH;
   }
 
@@ -273,6 +309,7 @@ class FieldImpl implements WorldField {
   private parts(x: number, y: number, z: number, want: boolean): void {
     const k = this.k;
     const T = heightSlope(this.world.terrain, x, z, this.hs);
+    if (this.overlays.length !== 0) addOverlays(this.overlays, x, z, T);
     const invS = 1 / Math.sqrt(1 + T.gx * T.gx + T.gz * T.gz);
     let soil = (y - T.h) * invS;
     const gs = this.gSoil;
@@ -356,7 +393,12 @@ class FieldImpl implements WorldField {
   // ---- public queries ------------------------------------------------------------------------------------
 
   height(x: number, z: number): number {
-    return heightAt(this.world.terrain, x, z);
+    const h = heightAt(this.world.terrain, x, z);
+    if (this.overlays.length === 0) return h;
+    const T = this.hs;
+    T.h = h; T.gx = 0; T.gz = 0;
+    addOverlays(this.overlays, x, z, T);
+    return T.h;
   }
 
   substrateXYZ(x: number, y: number, z: number): number {
@@ -522,7 +564,12 @@ class FieldImpl implements WorldField {
     const prim = this.primAt(p, this.params.materialPrimDist);
     if (prim) return prim.material;
     const g = this.world.ground;
-    const depth = this.height(p.x, p.z) - p.y;
+    const ground = heightAt(this.world.terrain, p.x, p.z);
+    if (this.overlays.length !== 0 && p.y > ground) {
+      const pile = overlayMaterialAt(this.overlays, p.x, p.z);
+      if (pile !== null) return pile;
+    }
+    const depth = ground - p.y;
     const crust = byteAt(g.crustMm, p.x, p.z);
     return materialFromCode(depth < crust ? byteAt(g.surface, p.x, p.z) : byteAt(g.subsoil, p.x, p.z));
   }
@@ -545,6 +592,28 @@ class FieldImpl implements WorldField {
   updatePrim(p: Primitive): void {
     this.addPrim(p);
   }
+  setHeightOverlay(o: HeightOverlay): void {
+    if (!(o.nx >= 2 && o.nz >= 2 && o.cell > 0 && o.h.length === o.nx * o.nz)) throw new Error(`height overlay ${o.id}: bad grid`);
+    const i = this.overlays.findIndex((e) => e.id === o.id);
+    if (i >= 0) this.overlays[i] = o; else this.overlays.push(o);
+    this.updateMinHeight();
+  }
+  removeHeightOverlay(id: number): boolean {
+    const i = this.overlays.findIndex((e) => e.id === id);
+    if (i < 0) return false;
+    this.overlays.splice(i, 1);
+    this.updateMinHeight();
+    return true;
+  }
+  heightOverlay(id: number): HeightOverlay | undefined {
+    return this.overlays.find((e) => e.id === id);
+  }
+  private updateMinHeight(): void {
+    let low = 0;
+    for (const o of this.overlays) for (let i = 0; i < o.h.length; i++) if (o.h[i] < low) low = o.h[i];
+    this.minHeight = this.terrainMin + low;
+  }
+
   primBounds(id: number, out: PrimBounds): boolean {
     const e = this.hash.get(id);
     if (!e) return false;
@@ -557,4 +626,33 @@ class FieldImpl implements WorldField {
 
 function copy3(o: Vec3, a: Vec3): void {
   o.x = a.x; o.y = a.y; o.z = a.z;
+}
+
+/** Adds the overlays' bilinear heights and slopes at (x, z) to T (allocation-free). */
+function addOverlays(list: HeightOverlay[], x: number, z: number, T: HeightSlope): void {
+  for (let n = 0; n < list.length; n++) {
+    const o = list[n], inv = 1 / o.cell;
+    const fx = (x - o.x0) * inv, fz = (z - o.z0) * inv;
+    if (!(fx >= 0 && fz >= 0 && fx < o.nx - 1 && fz < o.nz - 1)) continue;
+    const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
+    const i = ix + iz * o.nx, d = o.h;
+    const a = d[i], b = d[i + 1], c = d[i + o.nx], e = d[i + o.nx + 1];
+    const cross = a - b - c + e;
+    T.h += a + (b - a) * tx + (c - a) * tz + cross * tx * tz;
+    T.gx += ((b - a) + cross * tz) * inv;
+    T.gz += ((c - a) + cross * tx) * inv;
+  }
+}
+
+/** Material of the overlay contributing the most height at (x, z), null if none with a material covers it. */
+function overlayMaterialAt(list: HeightOverlay[], x: number, z: number): MaterialId | null {
+  const T: HeightSlope = { h: 0, gx: 0, gz: 0 };
+  let best = 0, mat: MaterialId | null = null;
+  for (const o of list) {
+    if (o.material === null) continue;
+    T.h = 0;
+    addOverlays([o], x, z, T);
+    if (T.h > best) { best = T.h; mat = o.material; }
+  }
+  return mat;
 }
