@@ -30,17 +30,22 @@ export default async ({ page, shot, log }) => {
   const s2 = await g(() => window.__game.summary());
   expect(s2.time.speed === 1 && refused.some((e) => e.reason === 'possession'), '8x not refused while possessing', { time: s2.time, refused });
 
-  // walk forward (camera-relative W) for 5 game seconds
+  // upright on the ground where she starts (after walking she may legitimately be climbing: the surface walker
+  // takes walls, and generated worlds can put a bank a few BU ahead of the start)
+  expect(s2.possessed.up[1] > 0.9, 'queen is not upright on the ground at the start', s2.possessed.up);
+
+  // walk forward (camera-relative W) for 2 game seconds
   const before = s2.possessed.pos;
   await g(() => window.__game.setIntent({ move: { x: 0, y: 1 } }));
-  await g(() => window.__game.step(50));
+  await g(() => window.__game.step(20));
   await g(() => window.__game.setIntent({}));
   const s3 = await g(() => window.__game.summary());
   const moved = Math.hypot(s3.possessed.pos[0] - before[0], s3.possessed.pos[1] - before[1], s3.possessed.pos[2] - before[2]);
-  log('queen moved (mm) in 50 ticks:', moved.toFixed(2));
+  log('queen moved (mm) in 20 ticks:', moved.toFixed(2));
   result.walkedMm = moved;
+  result.upAfterWalk = s3.possessed.up;
   expect(moved > 1, 'possessed queen did not move under setIntent', { before, after: s3.possessed.pos });
-  expect(s3.possessed.up[1] > 0.5, 'queen is not upright on the ground', s3.possessed.up);
+  expect(s3.possessed.up.every(Number.isFinite) && Math.abs(Math.hypot(...s3.possessed.up) - 1) < 0.01, 'queen up vector broken', s3.possessed.up);
 
   // third-person screenshot: camera behind and above the ant
   await g(() => window.__game.renderFrame());

@@ -54,7 +54,7 @@ export function drapedVertex(rec: Float32Array, o: number, u: number, v: number,
 export const DRAPED_VERT_GLSL = /* glsl */ `
 attribute vec4 iA; attribute vec4 iB; attribute vec4 iC;
 uniform vec4 uDcKeep; uniform vec4 uDcLod; uniform float uDcFresh; uniform float uDcBu; uniform vec2 uDcBias; uniform vec3 uCamPos;
-varying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec2 vDcGround;
+varying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;
 float dcKeep(float kind) {
   float k = kind < ${DRAPED_KIND.needle - 0.5} ? uDcKeep.x : (kind < ${DRAPED_KIND.petal + 0.5} && kind > ${DRAPED_KIND.petal - 0.5} ? uDcKeep.y : uDcKeep.z);
   return k * uDcKeep.w;
@@ -66,7 +66,7 @@ void drapedShape(out vec3 P, out vec3 N) {
   bool fresh = iC.z < uDcFresh;
   vDcInfo = vec4(kind, iC.y, iC.z, fresh ? 1.0 : 0.0);
   vDcUv = position.xy;
-  if (iA.w >= keep) { P = vec3(iA.x, -1e5, iA.y); N = vec3(0.0, 1.0, 0.0); vDcFade = 0.0; vDcW = P; vDcN = N; vDcGround = vec2(0.0); return; }
+  if (iA.w >= keep) { P = vec3(iA.x, -1e5, iA.y); N = vec3(0.0, 1.0, 0.0); vDcFade = 0.0; vDcW = P; vDcN = N; vDcC = vec4(0.0); vDcS = vec4(1.0); return; }
   vDcFade = keep >= 1.0 ? 1.0 : 1.0 - smoothstep(keep * 0.85, keep, iA.w);
   vec2 card = iB.xy;
   if (kind < ${DRAPED_KIND.needle - 0.5}) {
@@ -81,7 +81,7 @@ void drapedShape(out vec3 P, out vec3 N) {
   float r2 = min(1.0, dot(position.xy, position.xy));
   float lift = (${DRAPE.liftBU.toFixed(4)} + iB.z * ${DRAPE.curlBU.toFixed(4)} * r2) * uDcBu;
   P = vec3(xz.x, g + lift, xz.y);
-  vDcGround = vec2(fixedY ? iB.w : -1e9, lift);
+  vDcC = vec4(iA.xy, iA.z, iB.w); vDcS = vec4(card, iB.z, 0.0);
   vec3 ng = fixedY ? vec3(0.0, 1.0, 0.0) : drN(xz);
   // curled rim: the surface tilts up toward the rim (shading only; the lift itself stays tiny)
   vec2 rim = vec2(c * position.x - s * position.y, s * position.x + c * position.y) * iB.z * 0.9;
@@ -98,32 +98,75 @@ vec4 drapedBias(vec4 clip, vec3 viewPos, float order) {
 }
 `;
 
+/** Fixed-point steps of the per-pixel resolve and the largest step along the ray, mm. */
+export const RESOLVE_STEPS = 4;
+export const RESOLVE_MAX_STEP_MM = 8;
+
 /**
- * Fragment stage: the depth of a draped fragment is the depth of the ground-hugging point under it (drawn ground +
- * lift at the fragment's xz), biased toward the camera. Whatever the card tessellation, the depth buffer then sees
- * the decor exactly on the drawn ground: an ant standing there is in front of it, a nearer bump of ground hides it.
- * Beyond uDcFix.x mm the interpolated depth (with the vertex bias) is kept (cheaper; errors are sub-pixel there).
- * Needs DRAPE_GLSL; uniforms uDcFix (distance limit mm, -, -, -), uDcBias, uCamPos.
+ * Fragment stage: decal-style resolve. The pixel's view ray is followed from the card point to the hugging surface
+ * (ground + lift, where "ground" is the higher of the drawn terrain and the walker's bilinear surface), the item is
+ * shaded at that point (card coordinates recomputed there) and that point's depth is written. Whatever the card
+ * tessellation, colour and depth then lie exactly on the surface ants stand on: an ant on a leaf is in front of it, a
+ * nearer bump of ground hides it. Beyond uDcFix.x mm the interpolated card (with the vertex bias) is used as is.
+ * Needs DRAPE_GLSL; uniforms uDcFix, uDcBias, uDcBu, uCamPos; varyings vDcC (centre x, z, yaw, fixed y),
+ * vDcS (card length, width, curl), vDcW, vDcUv.
  */
-export const DRAPED_DEPTH_GLSL = /* glsl */ `
+export const DRAPED_RESOLVE_GLSL = /* glsl */ `
 uniform vec4 uDcFix; uniform mat4 projectionMatrix; // three declares it in the vertex stage only
-float drapedFragDepth() {
-  float d = length(vDcW - uCamPos);
-  if (d > uDcFix.x) return gl_FragCoord.z;
-  // the higher of the drawn ground and the walker's (bilinear) surface: ants stand on the latter
-  float gy = vDcGround.x > -1e8 ? vDcGround.x : max(drapeY(vDcW.xz), drH(vDcW.xz));
-  vec3 wp = vec3(vDcW.x, gy + vDcGround.y, vDcW.z);
+float dcSurf(vec2 xz) { return vDcC.w > ${(NO_FIXED_Y * 0.5).toExponential(1)} ? vDcC.w : max(drapeY(xz), drH(xz)); }
+vec2 dcUvOf(vec2 xz) {
+  vec2 d = xz - vDcC.xy; float c = cos(vDcC.z), s = sin(vDcC.z);
+  return vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / (vDcS.xy * 0.5);
+}
+float dcLift(vec2 uv) { return (${DRAPE.liftBU.toFixed(4)} + vDcS.z * ${DRAPE.curlBU.toFixed(4)} * min(1.0, dot(uv, uv))) * uDcBu; }
+// false when the resolved point lies outside the item's card
+bool dcResolve(out vec2 uv, out vec3 wp) {
+  wp = vDcW; uv = vDcUv;
+  if (length(vDcW - uCamPos) > uDcFix.x) return true;
+  vec3 r = normalize(vDcW - uCamPos);
+  float ry = abs(r.y) < 0.03 ? (r.y < 0.0 ? -0.03 : 0.03) : r.y;
+  for (int i = 0; i < ${RESOLVE_STEPS}; i++) {
+    float dy = wp.y - (dcSurf(wp.xz) + dcLift(dcUvOf(wp.xz)));
+    wp += r * clamp(-dy / ry, -${RESOLVE_MAX_STEP_MM.toFixed(1)}, ${RESOLVE_MAX_STEP_MM.toFixed(1)});
+  }
+  uv = dcUvOf(wp.xz);
+  return max(abs(uv.x), abs(uv.y)) <= 1.0;
+}
+float dcDepth(vec3 wp) {
+  float d = length(wp - uCamPos);
   float delta = max(uDcBias.x * d, uDcBias.y * d * d);
-  wp += (uCamPos - wp) * (delta / max(d, 1e-4));
-  vec4 c = projectionMatrix * (viewMatrix * vec4(wp, 1.0));
+  vec3 q = wp + (uCamPos - wp) * (delta / max(d, 1e-4));
+  vec4 c = projectionMatrix * (viewMatrix * vec4(q, 1.0));
   return clamp((c.z / c.w) * 0.5 + 0.5, 0.0, 1.0);
 }
 `;
 
+type HSrc = Pick<TerrainSource, 'cell' | 'nx' | 'nz' | 'heights'>;
+
+/** The surface draped items hug (twin of dcSurf): the higher of the drawn terrain and the walker surface. */
+export function hugSurface(src: HSrc, layout: ClipmapLayout, x: number, z: number, fixedY: number): number {
+  return fixedY > NO_FIXED_Y * 0.5 ? fixedY : Math.max(drapeHeight(src, layout, x, z), sampleHeight(src, x, z));
+}
+
 /**
- * The point whose depth a draped fragment at world (x, z) writes (twin of drapedFragDepth, without the bias): the
- * higher of the drawn ground and the walker's bilinear surface, plus the lift.
+ * CPU twin of dcResolve for record `o`: follows the ray from `cam` through the card point `p` onto the hugging
+ * surface. Returns the resolved point, its card coordinates and whether it lies on the item.
  */
-export function drapedDepthPoint(src: Pick<TerrainSource, 'cell' | 'nx' | 'nz' | 'heights'>, layout: ClipmapLayout, x: number, z: number, fixedY: number, lift: number): number {
-  return (fixedY > NO_FIXED_Y * 0.5 ? fixedY : Math.max(drapeHeight(src, layout, x, z), sampleHeight(src, x, z))) + lift;
+export function drapedResolve(rec: Float32Array, o: number, cam: { x: number; y: number; z: number }, p: { x: number; y: number; z: number },
+  freshShare: number, bu: number, src: HSrc, layout: ClipmapLayout): { x: number; y: number; z: number; u: number; v: number; inside: boolean } {
+  const kind = rec[o + 8], [L, W] = cardSize(kind, rec[o + 4], rec[o + 5], rec[o + 10] < freshShare);
+  const cx = rec[o], cz = rec[o + 1], c = Math.cos(rec[o + 2]), s = Math.sin(rec[o + 2]), fy = rec[o + 7], curl = rec[o + 6];
+  const uvOf = (x: number, z: number) => { const dx = x - cx, dz = z - cz; return [(c * dx + s * dz) / (L * 0.5), (-s * dx + c * dz) / (W * 0.5)]; };
+  let rx = p.x - cam.x, ryv = p.y - cam.y, rz = p.z - cam.z;
+  const l = Math.hypot(rx, ryv, rz); rx /= l; ryv /= l; rz /= l;
+  const ry = Math.abs(ryv) < 0.03 ? (ryv < 0 ? -0.03 : 0.03) : ryv;
+  let x = p.x, y = p.y, z = p.z;
+  for (let i = 0; i < RESOLVE_STEPS; i++) {
+    const [u, v] = uvOf(x, z);
+    const dy = y - (hugSurface(src, layout, x, z, fy) + drapeLift(curl, u, v, bu));
+    const t = Math.min(RESOLVE_MAX_STEP_MM, Math.max(-RESOLVE_MAX_STEP_MM, -dy / ry));
+    x += rx * t; y += ryv * t; z += rz * t;
+  }
+  const [u, v] = uvOf(x, z);
+  return { x, y, z, u, v, inside: Math.max(Math.abs(u), Math.abs(v)) <= 1 };
 }

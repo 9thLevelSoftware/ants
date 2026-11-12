@@ -42,4 +42,11 @@ describe('UI snapshot building', () => {
     const s = buildSnapshot(src({ sim }), 0);
     expect(s.speed).toMatchObject({ level: 0, paused: true, requested: 4 });
   });
+
+  it('an observer prompt (after the death hold) shows while no ant is possessed', () => {
+    const sim = makeTestSim({ nest: 'small', workers: 2 });
+    const s = buildSnapshot(src({ sim, observerPrompt: 'Tab: take another ant' }), 0);
+    expect(s.prompt).toEqual({ primary: 'Tab: take another ant', secondary: null, extras: [] });
+    expect(buildSnapshot(src({ sim }), 0).prompt).toBeNull();
+  });
 });

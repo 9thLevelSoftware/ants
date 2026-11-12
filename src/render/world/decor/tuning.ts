@@ -78,8 +78,8 @@ export const PARTING = {
   /** Extra bend at the tip, radians, at the segment. */
   bendMaxRad: 1.3,
   /** Eye proximity fade: invisible within near BU of the camera, fully visible beyond far BU. */
-  eyeNearBU: 2.5,
-  eyeFarBU: 3.5,
+  eyeNearBU: 2.8,
+  eyeFarBU: 3.2,
   /** The segment continues this far beyond the subject, BU (so blades just behind the ant also part). */
   beyondBU: 1.5,
 } as const;
@@ -177,16 +177,16 @@ export const DECOR_OBJECTS = {
 /** Dew droplets on blades (GDD 06 §3.8: droplet size 0.2-2 mm; dewLevel 0..1). */
 export const DEW = {
   /** Only blocks nearer than this (nearest point) get droplets, BU. */
-  radiusBU: 90,
+  radiusBU: 60,
   /** Share of blades with droplets at dewLevel 1, and droplets per such blade. */
   bladeShare: 0.45,
-  perBlade: [2, 5] as const,
-  radiusMm: [0.3, 1.6] as const,
+  perBlade: [1, 4] as const,
+  radiusMm: [0.25, 1.1] as const,
 } as const;
 
 export const WATER = {
   /** Meniscus band at the waterline, mm (bright rim, slight alpha boost). */
-  meniscusMm: 0.6,
+  meniscusMm: 0.2,
   /** Depth at which the water reaches its full darkening, mm. */
   fullDepthMm: 8,
   /** Clear water in vessels darkens over this depth, mm. */
@@ -212,5 +212,5 @@ export const LEAF_PALETTE = {
   /** Tint of fresh leaves per season. */
   freshTint: [[0.9, 0.95, 0.8], [0.85, 0.95, 0.75], [1.05, 1.0, 0.95], [0.7, 0.65, 0.6]] as const,
   /** Saturation per season (1 = atlas). */
-  saturation: [0.85, 0.9, 1.08, 0.7] as const,
+  saturation: [0.85, 0.9, 0.95, 0.7] as const,
 } as const;

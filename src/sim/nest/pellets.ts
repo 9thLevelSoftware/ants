@@ -8,11 +8,11 @@ import { VoxelFlag } from '@/sim/types';
 import {
   BULKING, CHOKE_COUNT, CHOKE_LEN_BU, CLUTTER_RADIUS_BU, CLUTTER_SLOW_MIN, CLUTTER_SLOW_PER, HEAP_CAP,
   HEAP_MERGE_DIST_BU, MAX_LOOSE_PELLETS_PER_NEST, MOUND_BATCH_TICKS, MOUND_CELL_BU, MOUND_GRID_N, PELLET_BULK_PER_BU3, PELLET_SETTLE_S,
-  PELLET_TAMP_S, SPOIL_JOIN_BU, TAMP_RADIUS_FALLBACK_BU,
+  PELLET_TAMP_S, SPOIL_JOIN_BU, TAMP_RADIUS_BU, TAMP_RADIUS_FALLBACK_BU, TAMP_SPHERE_BU, TAMP_ROUNDS,
 } from '@/sim/balance/nest';
 import { removeItem, spawnItem } from '@/sim/entities';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { OPEN_FRACTION } from './carve/keys';
+import { OPEN_FRACTION, OPEN_MIN } from './carve/keys';
 import { fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { findChamberAtImpl } from './chambers/registry';
 import { createMound, deposit, dumpPoint, moundById, moundContains, publishMound, relax } from './mounds';
@@ -128,55 +128,92 @@ export function tampDuePellets(sim: Sim): void {
 }
 
 /**
- * Presses a pellet's volume into the floor under it: fills open space around the pellet's floor point until the
- * pellet volume is used (the fill radius is fitted on a dry run, then topped up), flags the voxels LOOSE.
+ * Presses a pellet's volume into the floor under it (GDD 03 §1.3): the floor voxels near it (open, with a
+ * non-open voxel directly below) within TAMP_RADIUS of it, TAMP_RADIUS_FALLBACK when that is not enough,
+ * lose openness evenly until the pellet volume is used, and are flagged LOOSE. The floor rises; standing ants are
+ * re-projected by the fill (carveOps.afterBrush).
  */
 export function tampPellet(sim: Sim, it: Item): void {
-  const bu = sim.world.bu;
-  fillToVolume(sim, it.pos, it.volume * bu ** 3, TAMP_RADIUS_FALLBACK_BU * bu);
+  raiseFloor(sim, it.pos, it.volume * sim.world.bu ** 3);
   removeItem(sim, it.id, 'tamp');
   sim.emit({ type: 'pellet-dumped', itemId: it.id, into: 'tamp' });
 }
 
-/** Volume (mm^3) a fill sphere (c, r) would close now (the grid's own accounting, without residual clearing). */
-function dryFillVolume(sim: Sim, c: Vec3, r: number): number {
-  const carve = sim.carve, v = carve.voxel, ramp = carve.ramp;
-  const b = sphereBox(sim, c, r + ramp / 2, 0);
-  let vol = 0;
-  for (let k = b.k0; k <= b.k1; k++) for (let j = b.j0; j <= b.j1; j++) for (let i = b.i0; i <= b.i1; i++) {
-    const old = carve.sampleAt(i, j, k);
-    if (old === 0) continue;
-    const sd = Math.hypot(i * v - c.x, j * v - c.y, k * v - c.z) - r;
-    let q = 0.5 - sd / ramp;
-    q = q < 0 ? 0 : q > 1 ? 1 : q;
-    const nv = 255 - Math.round(q * 255);
-    if (old <= nv) continue;
-    let solid = 0.5 - sim.field.substrateXYZ(i * v, j * v, k * v) / v;
-    solid = solid < 0 ? 0 : solid > 1 ? 1 : solid;
-    vol += (OPEN_FRACTION[old] - OPEN_FRACTION[nv]) * solid;
+/**
+ * Floor samples around p: open, inside the substrate, with a non-open sample below, within `radius` of p (fixed
+ * scan order).
+ */
+function floorSamples(sim: Sim, p: Vec3, radius: number): Vec3[] {
+  const carve = sim.carve, v = carve.voxel, out: Vec3[] = [];
+  for (let k = Math.floor((p.z - radius) / v); k <= Math.ceil((p.z + radius) / v); k++)
+    for (let j = Math.floor((p.y - radius) / v); j <= Math.ceil((p.y + radius) / v); j++)
+      for (let i = Math.floor((p.x - radius) / v); i <= Math.ceil((p.x + radius) / v); i++) {
+        if (Math.hypot(i * v - p.x, j * v - p.y, k * v - p.z) > radius) continue;
+        if (carve.sampleAt(i, j, k) < OPEN_MIN || carve.sampleAt(i, j - 1, k) >= OPEN_MIN) continue;
+        if (sim.field.substrateXYZ(i * v, j * v, k * v) > 0) continue;
+        out.push({ x: i * v, y: j * v, z: k * v });
+      }
+  return out;
+}
+
+/** Volume (mm^3) a fill of the spheres (centres, r) would close now (the grid's own accounting, no residual clearing). */
+function dryFillVolume(sim: Sim, centres: readonly Vec3[], r: number): number {
+  const carve = sim.carve, v = carve.voxel, ramp = carve.ramp, reach = r + ramp / 2;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const c of centres) {
+    x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); z0 = Math.min(z0, c.z); z1 = Math.max(z1, c.z);
   }
+  let vol = 0;
+  for (let k = Math.floor((z0 - reach) / v); k <= Math.ceil((z1 + reach) / v); k++)
+    for (let j = Math.floor((y0 - reach) / v); j <= Math.ceil((y1 + reach) / v); j++)
+      for (let i = Math.floor((x0 - reach) / v); i <= Math.ceil((x1 + reach) / v); i++) {
+        const old = carve.sampleAt(i, j, k);
+        if (old === 0) continue;
+        let sd = Infinity;
+        for (const c of centres) sd = Math.min(sd, Math.hypot(i * v - c.x, j * v - c.y, k * v - c.z) - r);
+        let q = 0.5 - sd / ramp;
+        q = q < 0 ? 0 : q > 1 ? 1 : q;
+        const nv = 255 - Math.round(q * 255);
+        if (old <= nv) continue;
+        let solid = 0.5 - sim.field.substrateXYZ(i * v, j * v, k * v) / v;
+        solid = solid < 0 ? 0 : solid > 1 ? 1 : solid;
+        vol += (OPEN_FRACTION[old] - OPEN_FRACTION[nv]) * solid;
+      }
   return vol * v * v * v;
 }
 
-/** Fills around c until `target` mm^3 are closed (at most rMax), flags the closed samples LOOSE; returns mm^3 closed. */
-export function fillToVolume(sim: Sim, c: Vec3, target: number, rMax: number): number {
-  const flags = nestRuntime(sim).flags, v = sim.carve.voxel;
+/**
+ * Closes `target` mm^3 of floor around p: one small fill sphere (radius TAMP_SPHERE) under each floor sample, all
+ * lowered by one depth fitted on a dry run, so the floor rises evenly; topped up over a few rounds (each round
+ * finds the risen floor). Lowering instead of shrinking the spheres keeps the fill a continuous function of the
+ * fit (the brush's openness ramp makes even a zero-radius sphere close its centre sample). Returns mm^3 closed.
+ */
+function raiseFloor(sim: Sim, p: Vec3, target: number): number {
+  const flags = nestRuntime(sim).flags, bu = sim.world.bu, r = TAMP_SPHERE_BU * bu;
+  const sMax = r + sim.carve.ramp / 2; // spheres lowered this far no longer reach their floor sample
+  const lowered = (floor: readonly Vec3[], s: number) => floor.map((c) => ({ x: c.x, y: c.y - s, z: c.z }));
   let closed = 0;
-  for (let round = 0; round < 3 && target - closed > target * 0.002; round++) {
+  for (let round = 0; round < TAMP_ROUNDS && target - closed > target * 0.002; round++) {
     const want = target - closed;
-    let lo = 0, hi = rMax;
-    if (dryFillVolume(sim, c, hi) <= want) lo = hi;
-    else for (let s = 0; s < 18; s++) {
+    let floor = floorSamples(sim, p, TAMP_RADIUS_BU * bu);
+    if (floor.length === 0 || dryFillVolume(sim, floor, r) < want) floor = floorSamples(sim, p, TAMP_RADIUS_FALLBACK_BU * bu);
+    if (floor.length === 0) break;
+    // depth s: 0 closes the most; the dry volume falls as s grows
+    let lo = 0, hi = sMax;
+    if (dryFillVolume(sim, floor, r) <= want) hi = 0;
+    else for (let n = 0; n < 18; n++) {
       const mid = (lo + hi) / 2;
-      if (dryFillVolume(sim, c, mid) < want) lo = mid; else hi = mid;
+      if (dryFillVolume(sim, lowered(floor, mid), r) > want) lo = mid; else hi = mid;
     }
-    if (lo < v * 0.25) lo = hi;
-    const box = sphereBox(sim, c, lo, 2);
-    const before = readBox(sim, box);
-    const res = fillSphere(sim, c, lo);
-    forChangedSamples(sim, box, before, (i, j, k, old, now) => { if (now < old) flags.add(i, j, k, VoxelFlag.LOOSE); });
-    if (res.volume <= 0) break;
-    closed += res.volume;
+    let got = 0;
+    for (const c of lowered(floor, hi)) {
+      const box = sphereBox(sim, c, r, 2);
+      const before = readBox(sim, box);
+      got += fillSphere(sim, c, r).volume;
+      forChangedSamples(sim, box, before, (i, j, k, old, now) => { if (now < old) flags.add(i, j, k, VoxelFlag.LOOSE); });
+    }
+    if (got <= 0) break;
+    closed += got;
   }
   return closed;
 }

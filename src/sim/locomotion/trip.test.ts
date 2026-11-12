@@ -1,7 +1,7 @@
 // Trips: nest -> surface -> nest with automatic legs (criterion 2), arrival spreading, entity targets.
 import { describe, expect, it } from 'vitest';
 import { nestFieldId } from '@/sim/types';
-import { locoStats, navTo, navToTarget } from './index';
+import { locoStats, navTo, navToTarget, placeOnSurface } from './index';
 import { clearance, deepestChamber, locoSim, placeInChamber, playerNest, runUntilDone, workers } from './testkit';
 
 const EXIT = { kind: 'exit', id: -1 } as const;
@@ -76,5 +76,28 @@ describe('trips with automatic legs', () => {
     expect(Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y, a.pos.z - b.pos.z)).toBeLessThan(4 * bu);
     expect(navToTarget(sim, a, { kind: 'item', id: 999999, pos: { ...a.pos } }, bu)).toBe(false);
     expect(a.nav.status).toBe('failed');
+  });
+
+  it('leaves a natural cavity (no nest) by its opening, even when the goal lies the other way', () => {
+    const sim = locoSim({ sizeBu: 300 });
+    const bu = sim.world.bu, c = sim.world.size / 2, y = -8 * bu;
+    // a closed cavity 8 BU below ground, a channel east to a shaft that rises to the surface 10 BU east
+    sim.kernel.carveSphere({ x: c, y, z: c }, 4 * bu, { force: true });
+    for (let t = 0; t <= 1; t += 0.02) sim.kernel.carveSphere({ x: c + (3 + 7 * t) * bu, y: y + 0.5 * bu, z: c }, 1.2 * bu, { force: true });
+    for (let t = 0; t <= 1; t += 0.02) sim.kernel.carveSphere({ x: c + 10 * bu, y: y + (0.5 + 8 * t) * bu, z: c }, 1.2 * bu, { force: true });
+    sim.world.cavities.push({
+      id: 1, kind: 'root-gallery', min: { x: c - 4 * bu, y: y - 4 * bu, z: c - 4 * bu }, max: { x: c + 12 * bu, y: 1 * bu, z: c + 4 * bu },
+      openings: [{ pos: { x: c + 10 * bu, y: 0, z: c }, normal: { x: 0, y: 1, z: 0 }, radius: 1.2 * bu }],
+    });
+    sim.tick();
+    const ant = sim.state.ants[0];
+    expect(placeOnSurface(sim, ant, { x: c - 1 * bu, y, z: c }, { x: 0, y: -1, z: 0 })).toBe(true);
+    sim.tick();
+    expect(ant.medium).toBe('cavity');
+    expect(navTo(sim, ant, { x: c - 40 * bu, y: 0, z: c }, 2 * bu, { speed: 6 * bu })).toBe(true);
+    let maxX = -Infinity;
+    runUntilDone(sim, [ant], 3000, () => { maxX = Math.max(maxX, ant.pos.x); });
+    expect(ant.nav.status).toBe('arrived');
+    expect((maxX - c) / bu).toBeGreaterThan(8); // out through the opening in the east
   });
 });

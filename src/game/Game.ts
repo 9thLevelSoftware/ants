@@ -178,6 +178,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       const opts = { ...this.newGameDefaults, ...options };
       opts.cheats = opts.cheats ?? this.opts.testMode;
       await show(phases.generate);
+      if (this.opts.testMode && opts.failGenerationForTest) throw new Error(opts.failGenerationForTest);
       const resolved = resolveNewGame(opts);
       const created = generate(resolved);
       attempt = created?.world.meta.attempts ?? 1;

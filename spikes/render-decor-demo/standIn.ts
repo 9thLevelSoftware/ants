@@ -3,7 +3,7 @@
  * bright foot beads exactly on the walker's surface point, where the ant renderer puts the feet (walker position
  * minus the foot offset). If draped decor rose above foot height the beads would sink into it.
  */
-import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3, type Object3D } from 'three';
 
 const cuticle = new MeshStandardMaterial({ color: 0x1b120c, roughness: 0.38, metalness: 0 });
 const bead = new MeshStandardMaterial({ color: 0xff5a10, emissive: 0x401000, roughness: 0.4 });
@@ -33,8 +33,25 @@ export function makeStandIn(): Group {
     m.castShadow = true;
     g.add(m);
     const b = new Mesh(foot, bead);
-    b.position.set(toe.x, 0.13, toe.z); // bead resting on the surface point
+    b.position.set(toe.x, 0.13, toe.z); // bead resting on the surface point (conformFeet moves it onto the ground)
+    b.name = 'footBead';
     g.add(b);
   }
   return g;
+}
+
+/**
+ * Puts every foot bead on the walker surface under it: the ground is rough at ant scale
+ * (forest micro relief 8 mm), so one height for the whole stand-in would bury some feet. `height` is the sim's
+ * bilinear terrain height (the walker surface, f = 0). Call after placing the group (world matrix up to date).
+ */
+export function conformFeet(g: Group, height: (x: number, z: number) => number): void {
+  g.updateMatrixWorld(true);
+  const w = new Vector3();
+  g.children.forEach((c: Object3D) => {
+    if (c.name !== 'footBead') return;
+    c.position.y = 0.13;
+    c.getWorldPosition(w);
+    c.position.y += height(w.x, w.z) - (w.y - 0.13);
+  });
 }

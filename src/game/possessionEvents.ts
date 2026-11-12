@@ -24,6 +24,8 @@ export const TOASTS = {
 
 /** Recent sim events kept for the debug API (`__game.events()`), newest last. */
 export const EVENT_LOG_SIZE = 200;
+/** Death positions remembered (only the possessed ant's is ever needed, a few seconds later). */
+const DEATH_MEMORY = 64;
 
 export interface LoggedEvent {
   /** Position in the stream of all events since attach (1, 2, ...); unlike the index it survives the cap. */
@@ -39,6 +41,8 @@ export class PossessionEvents {
   readonly log: LoggedEvent[] = [];
   /** seq of the newest event (0 before the first). */
   seq = 0;
+  /** Where recent ants died (ant-died events), for the camera after a possessed ant's death; oldest dropped. */
+  private readonly deaths = new Map<number, { x: number; y: number; z: number }>();
   private off: (() => void) | null = null;
 
   attach(sim: Sim): void {
@@ -59,8 +63,17 @@ export class PossessionEvents {
     return log.slice(i);
   }
 
+  /** Position of a recent death (undefined when unknown or long ago). */
+  deathPos(antId: number): { x: number; y: number; z: number } | undefined {
+    return this.deaths.get(antId);
+  }
+
   private react(ev: SimEvent): void {
     switch (ev.type) {
+      case 'ant-died':
+        this.deaths.set(ev.antId, { x: ev.pos.x, y: ev.pos.y, z: ev.pos.z });
+        if (this.deaths.size > DEATH_MEMORY) this.deaths.delete(this.deaths.keys().next().value as number);
+        break;
       case 'possession-started': this.reactions.push({ kind: 'possessed', antId: ev.antId }); break;
       case 'possession-ended':
         if (ev.reason !== 'death' && ev.reason !== 'switch') this.reactions.push({ kind: 'released', antId: ev.antId, reason: ev.reason });
@@ -83,5 +96,6 @@ export class PossessionEvents {
     this.off = null;
     this.reactions.length = 0;
     this.log.length = 0;
+    this.deaths.clear();
   }
 }

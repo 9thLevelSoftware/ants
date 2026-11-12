@@ -64,6 +64,11 @@ export class PassGrid {
     return li >= m && li <= 15 - m && lk >= m && lk <= 15 - m && lj >= my && lj <= 15 - my && this.inside[x >> 12] === 1;
   }
 
+  /** Does the chunk of sample index `x` lie wholly inside the pass box? */
+  slotInside(x: number): boolean {
+    return this.inside[x >> 12] === 1;
+  }
+
   /** Index of sample (i, j, k) in the arrays, or -1 when its chunk is not part of the pass. */
   at(i: number, j: number, k: number): number {
     const cx = (i >> 4) - this.cx0, cy = (j >> 4) - this.cy0, cz = (k >> 4) - this.cz0;

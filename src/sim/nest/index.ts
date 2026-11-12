@@ -39,6 +39,7 @@ export { clutterSpeedMult, chokedSpots } from './pellets';
 export { createFoundingNest, carveTemplateNest, nestStatsImpl as nestStats, type NestStats } from './lifecycle';
 export { chamberStats, nestBounds, voxelAt, wallSpots, type WallSpot } from './queries';
 export { planDigAim } from './plans/frontier';
+export { digStimulus, haulStimulus, planNoHaulers } from './plans/stimuli';
 export { progressOf, slotInReach, instantCarvePlan } from './plans/plans';
 export { rimHeight, moundVolume, dumpPoint } from './mounds';
 export { broodScore } from './chambers/upkeep';

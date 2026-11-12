@@ -88,15 +88,35 @@ function rasterBuilt(built: BuiltShape[], n: number, c: number, L: number): Uint
   const r = new Uint8Array(n * n).fill(FREE);
   for (const b of built) {
     if (!b.rect) continue;
-    const i0 = Math.max(0, Math.ceil(b.rect.x0 / c - 0.5)), i1 = Math.min(n - 1, Math.ceil(b.rect.x1 / c - 0.5) - 1);
-    const k0 = Math.max(0, Math.ceil(b.rect.z0 / c - 0.5)), k1 = Math.min(n - 1, Math.ceil(b.rect.z1 / c - 0.5) - 1);
+    const [i0, i1] = cellSpan(b.rect.x0, b.rect.x1, n, c, L), [k0, k1] = cellSpan(b.rect.z0, b.rect.z1, n, c, L);
     for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++) r[k * n + i] = b.zoneId;
   }
   for (const b of built) if (b.line) rasterLine(r, n, c, L, b.line, b.width / 2, b.zoneId);
   return r;
 }
 
-function rasterLine(r: Uint8Array, n: number, c: number, _L: number, line: Point2[], half: number, id: number): void {
+/**
+ * Centre of cell i, measured on its in-map part: the last nav cell is partial when L is not a multiple of the
+ * cell (compact and large maps), and its centre must stay inside [0, L) or bands on the x1/z1 edges miss it.
+ */
+function cellCentre(i: number, c: number, L: number): number {
+  return (i * c + Math.min((i + 1) * c, L)) / 2;
+}
+
+/** First and last cell index whose (in-map) centre lies in [a, b). */
+function cellSpan(a: number, b: number, n: number, c: number, L: number): [number, number] {
+  let i0 = Math.max(0, Math.ceil(a / c - 0.5)), i1 = Math.min(n - 1, Math.ceil(b / c - 0.5) - 1);
+  // the partial last cell has a centre left of (n - 0.5) c: test it directly
+  if (n * c > L) {
+    const last = n - 1, cx = cellCentre(last, c, L);
+    if (cx >= a && cx < b) i1 = last;
+    else if (i1 === last) i1 = last - 1;
+    if (i0 === last && !(cx >= a && cx < b)) i0 = n;
+  }
+  return [i0, i1];
+}
+
+function rasterLine(r: Uint8Array, n: number, c: number, L: number, line: Point2[], half: number, id: number): void {
   for (let s = 0; s + 1 < line.length; s++) {
     const a = line[s], b = line[s + 1];
     const i0 = Math.max(0, Math.floor((Math.min(a.x, b.x) - half) / c)), i1 = Math.min(n - 1, Math.floor((Math.max(a.x, b.x) + half) / c));
@@ -105,7 +125,7 @@ function rasterLine(r: Uint8Array, n: number, c: number, _L: number, line: Point
     for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++) {
       const j = k * n + i;
       if (r[j] !== FREE) continue;
-      const x = (i + 0.5) * c, z = (k + 0.5) * c;
+      const x = cellCentre(i, c, L), z = cellCentre(k, c, L);
       const t = el > 0 ? Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / el)) : 0;
       const dx = x - (a.x + ex * t), dz = z - (a.z + ez * t);
       if (dx * dx + dz * dz <= half * half) r[j] = id;

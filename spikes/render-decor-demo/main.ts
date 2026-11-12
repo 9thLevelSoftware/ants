@@ -16,7 +16,7 @@ import { WorldRenderer } from '@/render/world/lighting';
 import { DecorRenderer } from '@/render/world/decor';
 import type { WeatherState } from '@/sim/types';
 import { AREA, BOWL, buildDecorDemoWorld, BU, PUDDLE, sampleH, SHRUB, SLAB } from './demoWorld';
-import { makeStandIn } from './standIn';
+import { conformFeet, makeStandIn } from './standIn';
 
 declare global {
   interface Window { __ready?: boolean; __demo?: unknown }
@@ -90,6 +90,7 @@ function placeCamera(name: string): boolean {
   ant.visible = v.ant;
   ant.position.set(sx, sy, sz);
   ant.rotation.set(0, v.antYaw ?? v.yaw + Math.PI / 2, 0);
+  conformFeet(ant, H);
   subject.set(sx, sy + (v.ant ? 1 : 0), sz);
   camera.position.set(sx - Math.cos(v.yaw) * Math.cos(v.pitch) * v.dist, sy + Math.sin(v.pitch) * v.dist + 1, sz - Math.sin(v.yaw) * Math.cos(v.pitch) * v.dist);
   camera.lookAt(sx, sy + v.lookUp, sz);

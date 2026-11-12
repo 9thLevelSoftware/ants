@@ -43,13 +43,7 @@ export class SimDriver {
   timer: (() => number) | null = null;
   /** Mean simulation time per tick, ms (EMA over about 50 ticks; NaN before the first timed tick). */
   tickMs = NaN;
-  /**
-   * Bumped whenever the sim changes without real time passing (step(), commands applied at once). A per-frame
-   * prediction made before such a change is stale.
-   */
-  zeroTimeRev = 0;
   private timedTicks = 0;
-  private queued = 0;
   /** Dropped ticks not yet reported by a time.speed-limited event, and real s since the last one. */
   private unreportedDrops = 0;
   private sinceLimitedS = Infinity;
@@ -63,21 +57,17 @@ export class SimDriver {
   get level(): SpeedLevel { return this.paused ? 0 : this.speed; }
 
   enqueue(cmd: Command): void {
-    this.queued++;
     this.sim.enqueue(cmd);
   }
 
   /** Applies queued commands without advancing time and delivers their events (paused / frozen / step 0). */
   applyCommandsNow(): void {
-    if (this.queued > 0) this.zeroTimeRev++;
-    this.queued = 0;
     this.sim.applyPendingCommands();
     this.sim.events.flush();
   }
 
   private tickOnce = (): void => {
     this.beforeTick?.();
-    this.queued = 0; // the tick applies whatever is queued
     const t0 = this.timer ? this.timer() : 0;
     this.sim.tick();
     if (this.timer) {
@@ -140,7 +130,6 @@ export class SimDriver {
     const count = Math.max(0, Math.floor(n));
     if (count === 0) { this.applyCommandsNow(); return 0; }
     for (let i = 0; i < count; i++) this.tickOnce();
-    this.zeroTimeRev++;
     this.clock.atLatestTick(); // draw the stepped state, not the tick before it
     return count;
   }

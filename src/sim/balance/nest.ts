@@ -115,12 +115,20 @@ export const PELLET_TAMP_S = 1200;
 /** Tamping spreads the volume over floor voxels within this radius, BU (then the fallback radius). */
 export const TAMP_RADIUS_BU = 1.0;
 export const TAMP_RADIUS_FALLBACK_BU = 1.5;
+/** Radius of the fill sphere placed under each floor sample when tamping (one round raises the floor <= ~0.75 BU), BU. */
+export const TAMP_SPHERE_BU = 0.25;
+/** Tamping rounds (each finds the risen floor and tops up the volume still to close). */
+export const TAMP_ROUNDS = 4;
 /** Loose pellets per nest above which the oldest clutter pellet tamps at once. */
 export const MAX_LOOSE_PELLETS_PER_NEST = 400;
 /** A pellet dropped within this distance of a plan's spoil point joins its spoil pile, BU. */
 export const SPOIL_JOIN_BU = 1;
 /** Spoil pile size above which diggers carry out themselves (GDD 03 §7.7). */
 export const SPOIL_PILE_MAX = 6;
+/** Weight of a clutter pellet in the haul stimulus (spoil-pile pellets weigh 1; GDD 03 §7.7). */
+export const HAUL_CLUTTER_WEIGHT = 0.5;
+/** Most plug voxels used as D_seal seeds per nest (strided beyond). */
+export const MAX_PLUG_SEEDS = 64;
 /** Clutter slow-down (GDD 03 §1.3): multiplier max(MIN, 1 - PER x n), n pellets within RADIUS. */
 export const CLUTTER_SLOW_MIN = 0.6;
 export const CLUTTER_SLOW_PER = 0.08;

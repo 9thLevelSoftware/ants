@@ -177,8 +177,13 @@ export function detectRegions(sim: Sim, box: VoxelBox, coreCache?: Map<number, n
       for (let n = 0; n < o.d.length; n++) fn(x + o.d[n], s + o.p[n]);
       return;
     }
-    const i = sampleI(s), j = sampleJ(s), k = sampleK(s), tr = o.tr;
+    // near a chunk face: offsets that stay in the chunk (inside the box) by delta, the others by lookup
+    const l = x & 4095, li = l & 15, lj = (l >> 4) & 15, lk = l >> 8, inside = g.slotInside(x), tr = o.tr;
+    let i = 0, j = 0, k = 0, decoded = false;
     for (let n = 0; n < o.d.length; n++) {
+      const a = li + tr[3 * n], b = lj + tr[3 * n + 1], c = lk + tr[3 * n + 2];
+      if (inside && a >= 0 && a < 16 && b >= 0 && b < 16 && c >= 0 && c < 16) { fn(x + o.d[n], s + o.p[n]); continue; }
+      if (!decoded) { i = sampleI(s); j = sampleJ(s); k = sampleK(s); decoded = true; }
       const y = idx(i + tr[3 * n], j + tr[3 * n + 1], k + tr[3 * n + 2]);
       if (y >= 0) fn(y, s + o.p[n]);
     }

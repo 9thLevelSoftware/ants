@@ -10,7 +10,7 @@ import { GLSL_NOISE, GLSL_WET } from '../materials/glsl';
 import { addPatch } from '../materials/surfacePatch';
 import { HOLE_MASK_GLSL } from '../terrain/holeMask';
 import { DRAPE_GLSL } from './drape';
-import { DRAPED_DEPTH_GLSL, DRAPED_VERT_GLSL, LEAF_ATLAS } from './drapedShape';
+import { DRAPED_RESOLVE_GLSL, DRAPED_VERT_GLSL, LEAF_ATLAS } from './drapedShape';
 import { foliageLightsChunk } from './foliageLight';
 import { DRAPED_KIND as K } from './instances';
 import type { DecorShared } from './shared';
@@ -40,8 +40,10 @@ vec2 dcCell(float rnd, vec4 cr, vec2 uv) {
 }
 vec3 dcSat(vec3 c, float s) { float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); return max(mix(vec3(l), c, s), 0.0); }
 // colour (rgb), alpha, roughness, transmission and a tangent-space bump (x along the card, y across)
+// the resolved point on the hugging surface (dcResolve) and its card coordinates
+vec2 dcUv; vec3 dcWp; bool dcIn;
 void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 bump) {
-  float k = vDcInfo.x, ra = vDcInfo.y, rb = vDcInfo.z; vec2 uv = vDcUv;
+  float k = vDcInfo.x, ra = vDcInfo.y, rb = vDcInfo.z; vec2 uv = dcUv;
   bump = vec2(0.0); tr = 0.0; rough = 0.7;
   if (k < ${K.needle - 0.5}) {
     bool fresh = vDcInfo.w > 0.5;
@@ -49,13 +51,12 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     col = fresh ? texture2D(tDcFresh, t).rgb * uDcFreshTint : texture2D(tDcDry, t).rgb * uDcDry.rgb;
     a = fresh ? texture2D(tDcFreshA, t).r : texture2D(tDcDryA, t).r;
     col = dcSat(col, uDcDry.w) * (0.85 + 0.3 * rb);
-    // fine detail the atlas cannot hold at an ant's distance: mottling, a pale midrib, secondary veins, a dry rim
-    vec2 lp = vDcW.xz;
+    // fine detail the atlas cannot hold at an ant's distance: mottling, a pale midrib, a darker dry rim
+    vec2 lp = dcWp.xz;
     float mot = wrFbm(lp * 0.35 + ra * 40.0);
-    col *= 0.8 + 0.4 * mot;
+    col *= (0.72 + 0.56 * mot) * (0.94 + 0.12 * wrNoise(lp * 3.0));
     float mid = 1.0 - smoothstep(0.0, 0.03, abs(uv.y));
-    float sec = 1.0 - smoothstep(0.0, 0.05, abs(fract(uv.x * 3.5 + abs(uv.y) * 2.2 + ra) - 0.5) - 0.42);
-    col *= 1.0 + 0.22 * mid + 0.1 * sec * (1.0 - mid);
+    col *= 1.0 + 0.18 * mid;
     col *= mix(0.75, 1.0, smoothstep(0.35, 0.75, a));
     bump = vec2(wrNoise(lp * 1.3) - 0.5, wrNoise(lp.yx * 1.3 + 5.0) - 0.5) * 0.7 + vec2(0.0, sign(uv.y) * mid * 0.6);
     rough = 0.62; tr = fresh ? 1.0 : 0.45;
@@ -81,10 +82,10 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     col *= 0.85 + 0.25 * wrNoise(uv * 3.0 + ra * 5.0);
     rough = receipt ? 0.8 : 0.32; tr = receipt ? 0.3 : 0.0;
   } else if (k < ${K.moss + 0.5}) {
-    float m = wrFbm(vWrW.xz / 3.0 + ra * 50.0);
+    float m = wrFbm(dcWp.xz / 3.0 + ra * 50.0);
     a = smoothstep(0.42, 0.58, (1.0 - length(uv)) * 0.9 + m * 0.55);
-    col = texture2D(tDcMoss, vWrW.xz / 70.0).rgb * vec3(0.95, 1.05, 0.8) * (0.8 + 0.4 * m);
-    rough = 0.85; tr = 0.5; bump = (vec2(wrNoise(vWrW.xz * 0.9), wrNoise(vWrW.zx * 0.9 + 3.0)) - 0.5) * 1.2;
+    col = texture2D(tDcMoss, dcWp.xz / 70.0).rgb * vec3(0.95, 1.05, 0.8) * (0.8 + 0.4 * m);
+    rough = 0.85; tr = 0.5; bump = (vec2(wrNoise(dcWp.xz * 0.9), wrNoise(dcWp.zx * 0.9 + 3.0)) - 0.5) * 1.2;
   } else if (k < ${K.chip + 0.5}) {
     float edge = max(abs(uv.x) * 0.95, abs(uv.y)) + (wrNoise(uv * 7.0 + ra * 20.0) - 0.5) * 0.25;
     a = step(edge, 0.9);
@@ -97,7 +98,7 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     rough = 0.75; bump = uv * 1.6; // a dome
   }
 }
-${DRAPED_DEPTH_GLSL}
+${DRAPED_RESOLVE_GLSL}
 `;
 
 export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): MeshStandardMaterial {
@@ -121,15 +122,21 @@ export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): 
       .replace('#include <begin_vertex>', 'vec3 transformed = dcP;')
       .replace('#include <project_vertex>', '#include <project_vertex>\ngl_Position = drapedBias(gl_Position, mvPosition.xyz, iC.w);');
     s.fragmentShader = s.fragmentShader
-      .replace('#include <common>', `#include <common>\n${DRAPE_GLSL}\nvarying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec2 vDcGround;\nuniform vec2 uDcBias; uniform vec3 uCamPos;\n${FRAG_DECL}`)
-      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\ngl_FragDepth = drapedFragDepth();')
+      .replace('#include <common>', `#include <common>\n${DRAPE_GLSL}\nvarying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;\nuniform vec2 uDcBias; uniform vec3 uCamPos; uniform float uDcBu;\n${FRAG_DECL}`)
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\ndcIn = dcResolve(dcUv, dcWp);\ngl_FragDepth = length(vDcW - uCamPos) > uDcFix.x ? gl_FragCoord.z : dcDepth(dcWp);')
       .replace('#include <map_fragment>', `
-if (vDcFade <= 0.0 || wrHoleMask(vDcW.xz) > 0.5) discard;
+if (!dcIn || vDcFade <= 0.0 || wrHoleMask(dcWp.xz) > 0.5) discard;
 vec3 dcCol; float dcA, dcRough, dcTr; vec2 dcBump;
 dcItem(dcCol, dcA, dcRough, dcTr, dcBump);
 if (dcA < 0.5 || wrHash12(floor(gl_FragCoord.xy)) > vDcFade) discard;
 diffuseColor.rgb *= wrWetAlbedo(dcCol, uWet, 0.7);
 vec3 dcNw = normalize(vDcN);
+if (length(vDcW - uCamPos) <= uDcFix.x) {
+  vec3 ng = vDcC.w > -5e8 ? vec3(0.0, 1.0, 0.0) : drN(dcWp.xz);
+  float c = cos(vDcC.z), s = sin(vDcC.z), r2 = min(1.0, dot(dcUv, dcUv));
+  vec2 rim = vec2(c * dcUv.x - s * dcUv.y, s * dcUv.x + c * dcUv.y) * vDcS.z * 0.9;
+  dcNw = normalize(ng - vec3(rim.x, 0.0, rim.y) * r2);
+}
 { vec3 t = normalize(vDcT - dcNw * dot(vDcT, dcNw)); vec3 b = cross(dcNw, t); dcNw = normalize(dcNw - t * dcBump.x * 0.35 - b * dcBump.y * 0.35); }`)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(dcRough, uWet, 0.25);')
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(dcNw, 0.0)).xyz);')

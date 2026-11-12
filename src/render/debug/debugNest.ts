@@ -13,7 +13,7 @@ import {
 import type { Sim } from '@/sim/types';
 import type { FrameInfo, RenderContext, SubRenderer } from '../index';
 import { DEBUG_COLORS } from './palette';
-import { fillHoles, IN_HOLE_GLSL, makeTerrainUniforms, MAX_HOLES, type HoleUniforms } from './terrainMaterial';
+import { fillHoles, HOLE_INSET_BU, IN_HOLE_GLSL, makeTerrainUniforms, MAX_HOLES, type HoleUniforms } from './terrainMaterial';
 import { patchSurfaceHeight } from './terrainMesh';
 
 /** Chunks re-meshed per frame at most (the rest wait); the first build after game start is unbudgeted. */
@@ -115,7 +115,7 @@ export class DebugNestRenderer implements SubRenderer {
     const sim = frame.sim;
     if (!sim || sim !== this.sim) return;
     const focus = frame.subject ?? frame.camera.position;
-    fillHoles([this.uniforms], sim.state.worldDelta.carve.breaches, focus.x, focus.z); // the terrain's holes
+    fillHoles([this.uniforms], sim.state.worldDelta.carve.breaches, focus.x, focus.z, HOLE_INSET_BU * sim.world.bu); // = the terrain's
     for (const k of sim.carve.takeDirty()) this.pending.add(k);
     let n = 0;
     // test mode / single renders (dt 0): mesh everything so screenshots show the current state

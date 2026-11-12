@@ -71,8 +71,10 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
     || Math.hypot((geometry.min.x + geometry.max.x) / 2 - nest.origin.x, (geometry.min.z + geometry.max.z) / 2 - nest.origin.z) > t.footprintR * bu) {
     return fail('out-of-bounds', { resolved, geometry });
   }
-  // unstable (chambers): the span rule at the ceiling material and moisture; pillars where they fix it
-  let pillars = 0;
+  // unstable (chambers): the span rule at the ceiling material and moisture; pillars where they fix it. The pillar
+  // layout changes the target volume, so it is decided here; `unstable` itself is reported in the GDD's order,
+  // after too-large.
+  let pillars = 0, unstable = false;
   if (spec.kind === 'chamber' && geometry.ellipsoid) {
     const e = geometry.ellipsoid;
     const top = { x: e.c.x, y: e.c.y + e.hh + v, z: e.c.z };
@@ -80,7 +82,7 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
     if (digFactor(species, ceiling) > 0) {
       const w = (2 * e.hw) / bu, l = (2 * e.hl) / bu;
       pillars = pillarsFor(w, l, sMax(ceiling, moistureAt(sim, top)));
-      if (pillars < 0) return fail('unstable', { resolved, geometry });
+      if (pillars < 0) { unstable = true; pillars = 0; }
       if (pillars > 0) {
         draft.geom.length = pillars;
         resolved.geom.length = pillars;
@@ -124,6 +126,7 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
   if (source === 'player' && nest.digPlans.filter((p) => p.source === 'player' && !TERMINAL.has(p.status)).length >= PLAN_CAP_PLAYER) {
     if (!codes.includes('too-large')) codes.push('too-large');
   }
+  if (unstable) return { ...fail('unstable', { resolved, geometry }), codes: [...codes, 'unstable'], targetVolume };
   // undermines: roof, floor below, entrance keep-out
   const anchor = resolved.anchor.pos, connection = ANCHOR_CONNECTION_BU * bu;
   const nearAnchor = (x: number, y: number, z: number) => Math.hypot(x - anchor.x, y - anchor.y, z - anchor.z) <= connection;

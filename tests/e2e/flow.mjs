@@ -101,7 +101,33 @@ export default async ({ page, log, wait, shot }) => {
   s = await sum();
   const died = (await g(() => window.__game.events('possessed-ant-died', 10))).filter((e) => e.antId === victim);
   expect(s.possessed === null && s.view === 'observer' && died.length === 1, 'E24 death -> observer', { view: s.view, died });
+  // GDD 01 §3.7: the observer follow-orbits the corpse and prompts for another ant
+  const ui = await g(() => window.__game.ui.snapshot());
+  expect(ui.prompt && ui.prompt.primary === 'Tab: take another ant', 'E24 prompt after the hold', ui.prompt);
+  expect(s.camera.observerMode === 'follow', 'E24 observer follows the corpse', s.camera);
   out.E24 = 'ok';
+
+  // __game.possess() reports a refusal even while an ant is possessed (review finding)
+  await g(() => window.__game.realtime(false));
+  await g(() => window.__game.possess('queen'));
+  const bad = await g(() => window.__game.possess(987654));
+  expect(bad.ok === false && typeof bad.reason === 'string', 'possess of a missing ant must report the refusal', bad);
+
+  // simulated gamepad (GDD 01 App. F 17): connecting shows the toast; unknown ui screens are refused
+  await g(() => window.__game.input.pad({ buttons: [1] }));
+  await frames(2);
+  const toasts = (await g(() => window.__game.ui.snapshot())).toasts.map((t) => t.text);
+  expect(toasts.includes('Controller connected'), 'pad connect toast', toasts);
+  // E19 (game side): the pad was the last-used device (button held) and the sim runs: losing it pauses
+  await g(() => window.__game.setSpeed(1));
+  await g(() => window.__game.input.pad(null));
+  await frames(2);
+  const s19 = await sum();
+  const t19 = (await g(() => window.__game.ui.snapshot())).toasts.map((t) => t.text);
+  expect(s19.time.paused && s19.time.autoPaused && t19.includes('Controller disconnected'), 'E19 pad loss pauses', { time: s19.time, t19 });
+  const open = await g(() => window.__game.ui.open('no-such-screen'));
+  expect(open.ok === false, 'ui.open of an unknown screen must be refused', open);
+  out.pad = 'ok';
   log(JSON.stringify(out));
   return out;
 };

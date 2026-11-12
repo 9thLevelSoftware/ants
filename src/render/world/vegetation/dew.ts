@@ -33,9 +33,9 @@ export function placeDew(blades: Float32Array, seed: number): Float32Array {
   return Float32Array.from(out);
 }
 
-/** Low-poly droplet (80 triangles), indexed so it can be a shared instancing base. */
+/** Low-poly droplet (20 triangles: drops are 0.2-1 mm), indexed so it can be a shared instancing base. */
 export function dropletGeometry(): BufferGeometry {
-  const g = new IcosahedronGeometry(1, 1);
+  const g = new IcosahedronGeometry(1, 0);
   const n = g.getAttribute('position').count;
   g.setIndex(new BufferAttribute(Uint16Array.from({ length: n }, (_, i) => i), 1));
   return g;
@@ -65,7 +65,7 @@ vec3 objectNormal = normal;`)
       .replace('#include <map_fragment>', 'if (vDrop < 0.5) discard;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 { float nv = saturate(dot(normalize(normal), normalize(vViewPosition)));
-  totalEmissiveRadiance += uHaze * (0.12 + 0.75 * pow(nv, 1.5)) * 0.7; }`);
+  totalEmissiveRadiance += uHaze * (0.08 + 0.5 * pow(nv, 1.5)) * 0.45; }`);
   });
   return m;
 }

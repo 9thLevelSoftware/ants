@@ -36,6 +36,8 @@ export class GameSession {
   deathHoldS = -1;
   /** Counting up while the colony has no living ant (real s), -1 idle. */
   extinctS = -1;
+  /** The possessed ant that died (during and after the hold), -1 none. */
+  private deadAntId = -1;
   /** Corpse item the observer follows after the death hold, -1 none. */
   followItemId = -1;
   /** Observer prompt after the possessed ant died ("Tab: take another ant"), null when none. */
@@ -43,8 +45,8 @@ export class GameSession {
   /** Setting autoRepossessOnDeath (GDD 01 §3.7): after the hold, take the nearest nestmate. Game keeps it current. */
   autoRepossessOnDeath = false;
   readonly toasts: string[] = [];
-  /** When the per-frame predictor last ran: for which ant, at which tick, at which driver zero-time revision. */
-  private readonly predictedAt = { antId: -1, tick: -1, rev: -1 };
+  /** When the per-frame predictor last ran: for which ant, at which tick, from which authoritative position. */
+  private readonly predictedAt = { antId: -1, tick: -1, x: 0, y: 0, z: 0 };
   private readonly lastSubjectPos = vec3();
   private readonly subj: ViewSubject = { pos: vec3(), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0), lengthBu: 1, underground: false, airborne: false };
 
@@ -71,14 +73,21 @@ export class GameSession {
     const id = this.possessedId;
     if (id < 0 || !(gameS > 0)) return; // nothing integrated: a new tick then reads as "no valid prediction"
     this.sim.integratePossessed(gameS);
+    const a = this.possessedAnt();
+    if (!a) return;
     const p = this.predictedAt;
-    p.antId = id; p.tick = this.sim.state.tick; p.rev = this.driver.zeroTimeRev;
+    p.antId = id; p.tick = this.sim.state.tick; p.x = a.pos.x; p.y = a.pos.y; p.z = a.pos.z;
   }
 
-  /** The predictor's pose describes the current state (same ant, no tick, step or command since it ran). */
+  /**
+   * The predictor's pose describes the current state: same ant, no tick since it ran (a step) and the ant was not
+   * moved by a command applied at once (teleport). A pause by itself keeps it valid, so the ant does not snap back.
+   */
   predictionValid(): boolean {
     const p = this.predictedAt;
-    return p.antId >= 0 && p.antId === this.possessedId && p.tick === this.sim.state.tick && p.rev === this.driver.zeroTimeRev;
+    if (p.antId < 0 || p.antId !== this.possessedId || p.tick !== this.sim.state.tick) return false;
+    const a = this.possessedAnt();
+    return !!a && a.pos.x === p.x && a.pos.y === p.y && a.pos.z === p.z;
   }
 
   /** Pose of an ant for the camera: the per-frame prediction for the possessed ant, else tick-interpolated. */
@@ -163,7 +172,7 @@ export class GameSession {
       } else if (r.kind === 'released') {
         this.followId = r.antId;
         if (r.reason !== 'colony-view' && r.reason !== 'timelapse' && this.view === 'possess') this.setView('observer');
-      } else if (r.kind === 'possessed-died') { this.deathHoldS = POSSESS_DEATH_HOLD_S; }
+      } else if (r.kind === 'possessed-died') { this.deathHoldS = POSSESS_DEATH_HOLD_S; this.deadAntId = r.antId; }
     }
     let repossessId = -1;
     if (this.deathHoldS >= 0) {
@@ -182,7 +191,7 @@ export class GameSession {
    * autoRepossessOnDeath the nearest nestmate is returned for possession instead (-1 none).
    */
   private endDeathHold(): number {
-    const body = this.lastSubjectPos;
+    const body = this.events.deathPos(this.deadAntId) ?? this.lastSubjectPos;
     this.followId = -1;
     if (this.view !== 'possess') return -1; // the player already left (colony view, photo)
     if (this.autoRepossessOnDeath) {

@@ -142,6 +142,9 @@ export function digBiteImpl(sim: Sim, ant: Ant, feet: Vec3, heading: Vec3, slope
     }
     len = hi;
   }
+  // too little to remove: refuse before carving, so a `no-target` bite leaves the grid unchanged (GDD 03 §1.2,
+  // and the §1.3 conservation identity: every carved mm^3 ends up in a pellet)
+  if (volumeAt(len) < BITE_MIN_REMOVED * bu ** 3) return FAIL('no-target');
   const b = { x: ramp.a.x + ramp.d.x * len, y: ramp.a.y + ramp.d.y * len, z: ramp.a.z + ramp.d.z * len };
   const flags = nestRuntime(sim).flags;
   const v = sim.carve.voxel, r = ramp.r + v;
@@ -157,8 +160,9 @@ export function digBiteImpl(sim: Sim, ant: Ant, feet: Vec3, heading: Vec3, slope
       if (now >= OPEN_MIN) flags.clear(i, j, k, VoxelFlag.LOOSE | VoxelFlag.PLUG | VoxelFlag.NATURAL);
     });
   }
+  // the dry run predicted >= BITE_MIN_REMOVED; whatever the brush really removed goes into the pellet
   const removed = res.volume / bu ** 3;
-  if (removed < BITE_MIN_REMOVED) return { ok: false, reason: 'no-target', voxels: res.opened, pelletId: -1, material: null };
+  if (removed <= 0) return { ok: false, reason: 'no-target', voxels: res.opened, pelletId: -1, material: null };
   const ref = antSlot(sim, ant);
   if (ref) notePlanBite(sim, ref.plan.id);
   sim.emit({ type: 'cue', cue: `dig-bite.${material}`, pos: { x: hit.x, y: hit.y, z: hit.z }, strength: removed });

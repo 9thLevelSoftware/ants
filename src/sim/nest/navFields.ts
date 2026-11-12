@@ -11,14 +11,11 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { CarveGrid, Nest, NestNav, Sim, SimState } from '@/sim/types';
 import { VoxelFlag, nestFieldId } from '@/sim/types';
-import { THROAT_BU } from '@/sim/balance/nest';
+import { MAX_PLUG_SEEDS, THROAT_BU } from '@/sim/balance/nest';
 import { registerNestTargets } from '@/sim/services';
 import { OPEN_MIN } from './carve/keys';
 import { FlagStore } from './flags';
 import { nestRuntime } from './runtime';
-
-/** Most plug points used as D_seal seeds per nest. */
-const MAX_PLUG_SEEDS = 64;
 
 /** Plans whose slots are offered (non-terminal and not paused). */
 export function planIsLive(status: string): boolean {

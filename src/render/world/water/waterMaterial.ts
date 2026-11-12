@@ -44,8 +44,8 @@ diffuseColor.rgb = mix(${v3(WATER.shallowTint)}, ${v3(WATER.deepTint)}, waDeep) 
       .replace('#include <opaque_fragment>', `
 { float nv = saturate(dot(normal, normalize(vViewPosition)));
   float fres = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
-  diffuseColor.a = clamp(max(mix(0.2, 0.88, waDeep), fres) + waEdge * 0.5, 0.0, 1.0);
-  outgoingLight += waEdge * (reflectedLight.indirectSpecular * 1.5 + reflectedLight.directSpecular * 0.5); }
+  diffuseColor.a = clamp(max(mix(0.2, 0.88, waDeep), fres) + waEdge * 0.25, 0.0, 1.0);
+  outgoingLight += waEdge * (reflectedLight.indirectSpecular * 0.4 + reflectedLight.directSpecular * 0.3); }
 #include <opaque_fragment>`);
   });
   return m;

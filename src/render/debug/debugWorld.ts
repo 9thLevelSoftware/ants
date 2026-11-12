@@ -9,7 +9,7 @@ import type { FrameInfo, RenderContext, SubRenderer } from '../index';
 import { DEBUG_COLORS } from './palette';
 import { DebugPrimLayer } from './primMeshes';
 import { buildTerrainPatch, type PatchSpec } from './terrainMesh';
-import { fillHoles, makeTerrainMaterial, makeTerrainUniforms, type TerrainUniforms } from './terrainMaterial';
+import { fillHoles, HOLE_INSET_BU, makeTerrainMaterial, makeTerrainUniforms, type TerrainUniforms } from './terrainMaterial';
 
 /** Fine patch size in terrain cells; it re-centres when the subject moved a quarter of it. */
 const PATCH_CELLS = 192;
@@ -96,7 +96,7 @@ export class DebugWorldRenderer implements SubRenderer {
 
   /** Nearest breach spheres to (x, z) into both materials. */
   private updateHoles(sim: Sim, x: number, z: number): void {
-    fillHoles([this.uniforms, this.coarseUniforms], sim.state.worldDelta.carve.breaches, x, z);
+    fillHoles([this.uniforms, this.coarseUniforms], sim.state.worldDelta.carve.breaches, x, z, HOLE_INSET_BU * sim.world.bu);
   }
 
   update(frame: FrameInfo): void {

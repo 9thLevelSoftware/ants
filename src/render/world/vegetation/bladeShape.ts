@@ -95,7 +95,7 @@ export function bladeFragFade(x: number, y: number, z: number, v: BladeView): nu
   let fade = smooth(PARTING.eyeNearBU * v.bu, PARTING.eyeFarBU * v.bu, Math.hypot(x - v.cam.x, y - v.cam.y, z - v.cam.z));
   if (v.part) {
     const e = partEnd(v);
-    fade = Math.min(fade, smooth(PARTING.rayFadeBU * v.bu * 0.75, PARTING.rayFadeBU * v.bu, segDist(x, y, z, v.cam, e.x, e.y, e.z)));
+    fade = Math.min(fade, smooth(PARTING.rayFadeBU * v.bu * 0.85, PARTING.rayFadeBU * v.bu, segDist(x, y, z, v.cam, e.x, e.y, e.z)));
   }
   return fade;
 }
@@ -159,7 +159,7 @@ float grFragFade() {
   if (uGrPart > 0.5) {
     vec3 E = uSubject + normalize(uSubject - uCamPos + vec3(1e-5)) * uGrPartP.w;
     vec3 ab = E - uCamPos; float t = clamp(dot(vBW - uCamPos, ab) / max(dot(ab, ab), 1e-9), 0.0, 1.0);
-    fade = min(fade, smoothstep(uGrPartP.z * 0.75, uGrPartP.z, length(vBW - uCamPos - ab * t)));
+    fade = min(fade, smoothstep(uGrPartP.z * 0.85, uGrPartP.z, length(vBW - uCamPos - ab * t)));
   }
   return fade;
 }

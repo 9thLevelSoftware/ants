@@ -4,6 +4,13 @@
 import { MeshLambertMaterial, Vector4, type WebGLProgramParametersWithUniforms } from 'three';
 import type { Breach } from '@/sim/types';
 
+/**
+ * Drawn terrain holes are the breach spheres shrunk by this much (BU). The debug ground is a coarse triangle grid
+ * and the cavity a marching-cubes surface, so the full sphere reached past the cavity's mouth at the rim and the
+ * background showed through a thin seam; a slightly smaller hole is covered by cavity wall all round.
+ */
+export const HOLE_INSET_BU = 0.25;
+
 /** Breach spheres passed to the shader (nearest to the camera subject). */
 export const MAX_HOLES = 32;
 
@@ -47,15 +54,18 @@ ${IN_HOLE_GLSL}`)
 
 export type HoleUniforms = Pick<TerrainUniforms, 'uHoles' | 'uHoleCount'>;
 
-/** The breach spheres nearest to (x, z), at most MAX_HOLES, into each uniform set. */
-export function fillHoles(targets: readonly HoleUniforms[], breaches: readonly Breach[], x: number, z: number): void {
+/**
+ * The breach spheres nearest to (x, z), at most MAX_HOLES, into each uniform set, each shrunk by `inset` mm (the
+ * drawn hole then stays inside the cavity's mouth: HOLE_INSET_BU).
+ */
+export function fillHoles(targets: readonly HoleUniforms[], breaches: readonly Breach[], x: number, z: number, inset = 0): void {
   let list = breaches;
   if (breaches.length > MAX_HOLES) {
     list = [...breaches].sort((a, b) => ((a.pos.x - x) ** 2 + (a.pos.z - z) ** 2) - ((b.pos.x - x) ** 2 + (b.pos.z - z) ** 2)).slice(0, MAX_HOLES);
   }
   for (const u of targets) {
     u.uHoleCount.value = list.length;
-    list.forEach((b, i) => u.uHoles.value[i].set(b.pos.x, b.pos.y, b.pos.z, b.r));
+    list.forEach((b, i) => u.uHoles.value[i].set(b.pos.x, b.pos.y, b.pos.z, Math.max(0, b.r - inset)));
   }
 }
 

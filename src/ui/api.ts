@@ -2,6 +2,8 @@
 // GameFacade the UI calls. The UI never touches SimState. Extend both additively (new optional fields / methods).
 import type { DirectivesPatch, MarkerKind, PossessRole, RunSpeed, SpeedLevel } from '@/sim/types';
 import type { Vec3 } from '@/core';
+import type { BindingSet } from '@/input';
+import type { CustomRules, StartSeasonRule } from '@/sim/types';
 import type { NewGameOptions } from '@/game/newGame/options';
 import type { GameMode, ViewId } from '@/game/time/speedRules';
 import type { GameSettings, SettingsPatch } from '@/game/settings/settings';
@@ -111,6 +113,11 @@ export interface UiSnapshot {
   error: string | null;
   /** Epitaph card (T1 minimal), null outside the epitaph. */
   epitaph: { ageDays: number; peakWorkers: number; cause: string } | null;
+  /**
+   * ui-shell: how long ago the newest save of any kind was written (null = never saved this game). Drives the pause
+   * menu's "Saved 3 min ago" line and the 60 s unsaved-progress warning (GDD 08 3.5). Absent = unknown.
+   */
+  lastSave?: { agoS: number; kind: 'auto' | 'quick' | 'manual'; timeLabel?: string } | null;
 }
 
 export function emptySnapshot(screen: UiScreen = 'boot'): UiSnapshot {
@@ -125,6 +132,10 @@ export interface SaveResult {
   ok: boolean;
   status: 'ok' | 'unavailable' | 'failed';
   message?: string;
+  /** Finer word of the save layer (src/game/save/types.ts SaveCode): 'quota', 'world-mismatch', 'corrupt', ... */
+  code?: string;
+  /** Saved to the in-memory fallback only: lost when the page closes (storage unavailable). */
+  volatile?: boolean;
 }
 
 export interface SaveSlotInfo {
@@ -133,7 +144,47 @@ export interface SaveSlotInfo {
   savedAt: string;
   colonyDay: number;
   workers: number;
+  // ui-shell additions (all optional): what the slot card of GDD 08 7.6 shows
+  kind?: 'auto' | 'quick' | 'manual';
+  /** Autosave ring generation label, e.g. "Season change". */
+  trigger?: string;
+  species?: string;
+  archetype?: string;
+  /** Resolved seed code, e.g. "4F7A-21C9". */
+  seedCode?: string;
+  /** "Summer · Day 5 · Year 2" */
+  dateLabel?: string;
+  playTimeS?: number;
+  version?: string;
+  /** JPEG data URL captured at save time. */
+  thumbnail?: string | null;
+  /** The stored data failed validation: show "damaged" (save task). */
+  damaged?: boolean;
+  /** Autosave ring write counter (largest = newest); 0 for other slots (save task). */
+  generation?: number;
+  /** A pinned autosave generation (`final`) is kept until a new game starts (save task). */
+  pinned?: boolean;
 }
+
+/** Result of building an export file (the UI does the download or the text fallback). */
+export interface ExportResult {
+  ok: boolean;
+  bytes?: Uint8Array;
+  message?: string;
+}
+
+/** What the New Game screen sends on top of NewGameOptions (the game ignores fields it does not know yet). */
+export interface NewGameExtras {
+  /** 'natural' = the species' own founding day (GDD 08 3.7). */
+  startSeason?: StartSeasonRule;
+  /** Overrides on top of the difficulty preset (GDD 08 3.7 custom rules). */
+  customRules?: Partial<CustomRules>;
+  /** Onboarding hints on or off for this colony. */
+  hints?: boolean;
+  /** The seed as the player typed it (the resolved uint32 goes in `seed`). */
+  seedText?: string;
+}
+export type NewGameRequest = NewGameOptions & NewGameExtras;
 
 /** Outcome of GameFacade.newGame: it resolves (never rejects); a failure also shows the loading error panel. */
 export interface NewGameResult {
@@ -145,7 +196,7 @@ export interface NewGameResult {
 
 /** Everything the UI may ask of the game. Methods enqueue commands or change game-level state; they never throw. */
 export interface GameFacade {
-  newGame(opts?: NewGameOptions): Promise<NewGameResult>;
+  newGame(opts?: NewGameRequest): Promise<NewGameResult>;
   /** Cancel a running generation / leave the game and show the title. */
   quitToTitle(): void;
   openPauseMenu(): void;
@@ -167,4 +218,20 @@ export interface GameFacade {
   // settings
   getSettings(): GameSettings;
   setSettings(patch: SettingsPatch): void;
+  // ui-shell additions (optional: the screens degrade when the game does not provide them yet)
+  /** Current key bindings (Settings > Controls). */
+  getBindings?(): BindingSet;
+  /** Replace the bindings; the owner persists them (`foundress.bindings.v1`). */
+  setBindings?(bindings: BindingSet): void;
+  /** False when IndexedDB is unavailable: the Save tab is disabled and Export / Import remain (GDD 08 7.6). */
+  storageAvailable?(): boolean;
+  deleteSave?(slot: string): Promise<SaveResult>;
+  /** The `.foundress` bytes of a slot. */
+  exportSave?(slot: string): Promise<ExportResult>;
+  /** Import `.foundress` bytes or the `FOUNDRESS1:` text into `target` (a slot id, or 'now' = load without storing). */
+  importSave?(data: Uint8Array | string, target: string): Promise<SaveResult>;
+  /** Forget which onboarding hints were learned (Settings > Gameplay). */
+  resetHints?(): void;
+  /** True when the lineage store has records (the Title shows Lineage only then). */
+  hasLineage?(): boolean;
 }

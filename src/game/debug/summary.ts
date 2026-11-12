@@ -84,7 +84,7 @@ export function buildSummary(ctx: SummaryContext) {
     previousAntId: st.player.previousAntId,
     returnAntId: st.player.returnAntId,
     opening: st.player.opening ? { phase: st.player.opening.phase, done: st.player.opening.done } : null,
-    camera: { state: ctx.camera.state, observerMode: ctx.camera.observerMode, pos: vec(ctx.camera.pos), underground: ctx.camera.underground, followId: s.followId },
+    camera: { state: ctx.camera.state, observerMode: ctx.camera.observerMode, pos: vec(ctx.camera.pos), underground: ctx.camera.underground, followId: s.followId, followItemId: s.followItemId },
     renderers: ctx.renderers,
   };
 }

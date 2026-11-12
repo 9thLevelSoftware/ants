@@ -24,6 +24,8 @@ export interface NewGameOptions {
    * standard pre-carved nest with `workers` adult workers in it.
    */
   testWorld?: TestWorldOptions & { nest?: 'none' | 'small'; workers?: number };
+  /** ?test=1 only: generation fails with this message (verifies the loading error panel). Ignored otherwise. */
+  failGenerationForTest?: string;
 }
 
 export interface ResolvedNewGame {

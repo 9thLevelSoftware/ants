@@ -214,12 +214,15 @@ function clearanceOf(w: Walker): number {
  * natural cavity containing the walker, else straight toward the goal (the walker climbs the walls in its way).
  */
 function planCavityExit(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
-  const p = w.pos, bu = r.P.bu;
+  const bu = r.P.bu;
+  const inBox = (c: { min: Vec3; max: Vec3 }, p: Vec3) => p.x >= c.min.x - bu && p.y >= c.min.y - bu && p.z >= c.min.z - bu
+    && p.x <= c.max.x + bu && p.y <= c.max.y + bu && p.z <= c.max.z + bu;
   let best: { pos: Vec3; normal: Vec3 } | null = null, bd = Infinity;
   for (const c of sim.world.cavities) {
-    if (p.x < c.min.x - bu || p.y < c.min.y - bu || p.z < c.min.z - bu || p.x > c.max.x + bu || p.y > c.max.y + bu || p.z > c.max.z + bu) continue;
+    // a goal in the same cavity is sought directly
+    if (!inBox(c, w.pos) || inBox(c, s.goal)) continue;
     for (const o of c.openings) {
-      const dd = dist3(p, o.pos);
+      const dd = dist3(w.pos, o.pos);
       if (dd < bd) { bd = dd; best = o; }
     }
   }
