@@ -86,21 +86,21 @@ All canonical ids of directions J are used unchanged. Additions (kebab-case):
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id`, `colonyId` | int | stable ids |
+| `id`, `colony` | int | stable ids (`colony` = owning colony id; "colonyId" in payloads) |
 | `caste` | `worker` / `queen` / `gyne` / `male` | canonical caste |
-| `flags` | bitset: `nanitic`, `minim`, `callow`, `controlled`, `trailIgnorer`, `dormant` | see below |
-| `scale` | float | body length in BU (worker 1.0 nominal) |
+| `flags` | bitset: `NANITIC`, `MINIM`, `CALLOW`, `POSSESSED` ("controlled" in the text), `TRAIL_IGNORER`, `DORMANT` (+ guidance bits, 00-index B3) | see below |
+| `lengthBu`, `massMg` | float | body length in BU (worker 1.0 nominal; "scale" in the formulas below = `lengthBu` / species standard length) and mass (GDD 07) |
 | `bornTick` | int | eclosion tick |
-| `physioAge` | float gd | behavioural/physiological age (1.3) |
-| `lifespan` | float gd | intrinsic lifespan drawn at eclosion |
-| `health` | 0..1 | 0 = dead |
-| `crop` | `{C, P}` loads | liquid carried (cap `cropCap`) |
-| `reserve` | loads C-equivalent | fat body (cap by age band) |
+| `physioAgeGd` | float gd | behavioural/physiological age (1.3; "physioAge" in the text) |
+| `lifespanGd` | float gd | intrinsic lifespan drawn at eclosion |
+| `hp`, `maxHp` | HP | "health" in the text = `hp / maxHp` (0 = dead; GDD 05 §4.1) |
+| `cropC`, `cropP` | loads | liquid carried (cap `cropCap`; "crop" / `crop.C` in the text) |
+| `energy` | loads C | fat body reserve (cap by age band; "reserve" in the text) |
 | `fatigue` | 0..1 | rest drive (1.7) |
-| `task`, `state`, `stateT` | ids, s | current task, behaviour state, time in state |
+| `task`, `state`, `stateTick` | ids, tick | current task, behaviour state, tick the state was entered ("time in state" = now − `stateTick`) |
 | `target` | `TargetRef` | entity / position the state works on |
 | `carry` | `ItemRef` or null | carried solid item, brood, pellet, corpse |
-| `thresholds` | Float32[17] | response thresholds per canonical task (6.4) |
+| `thresholds` | Float32Array(`TASK_COUNT` = 18) | response thresholds per canonical task (6.4; J order, then `raid`) |
 | `activation` | float | forager stimulus (6.6) |
 | `lead` | `{sourceId, pos, tick}` or null | recruitment information (6.7) |
 | `homeVec` | vec3 + error | path integrator (9.1) |
@@ -109,6 +109,8 @@ All canonical ids of directions J are used unchanged. Additions (kebab-case):
 | `depleted[4]` | `{sourceId, untilTick}` | sources found empty |
 | `decisions[5]` | ring of `{tick, code, detail}` | "last decisions" for inspection |
 | `Tb`, `heatLoad`, `coldLoad` | owned by chapter 06 | thermal state |
+
+Field names above are the frozen contract forms (`00-index.md` §D2.1-D2.9, D2.13); the prose of this chapter keeps the readable words in quotes.
 
 ### 1.2 Body scale and capacity
 
@@ -240,7 +242,7 @@ Multipliers by destined caste and flag:
   - gut has C but not P → consume `0.5 × dC`, no progress, `pStarveT += dt_gd`.
   - gut empty → no progress, `hungerT += dt_gd`.
   - `hungerT` resets to 0 when fed; `pStarveT` resets when gut P > 0.
-- **Hunger signal**: `hunger = 1 − (gut.C + gut.P)/LARVA_GUT_CAP`. A larva emits a **feed job** (10.6) when `gut.C + gut.P < LARVA_FEED_REQUEST 0.15`. Job urgency = `hunger + 0.5 × min(1, hungerT / 0.1)`.
+- **Hunger signal**: `hunger = 1 − (gut.C + gut.P)/LARVA_GUT_CAP`. A larva emits a **feed job** (nursery job board, 10.4) when `gut.C + gut.P < LARVA_FEED_REQUEST 0.15`. Job urgency = `hunger + 0.5 × min(1, hungerT / 0.1)`.
 - **Feeding mix**: a nurse feed transfers 0.1 load from her crop in crop proportion. Nurses load crops at `NURSE_LOAD_MIX`: P share = `P_req/(P_req + C_req)` = 0.75 (5.4.2).
 - Throughput check: at 25 C a larva digests 1.6 load / 0.44 gd = 3.6 loads per gd (one 0.1 feed every ~17 s); one nurse delivers about `NURSE_FEED_CAPACITY` 4.5 loads per gd (load 6 s, walk, 6 feeds of 4 s, walk back: ~60 s per 0.6 load at 80 % duty), so a feeding larva at 25 C occupies ~0.8 nurse; allocation uses this (6.2). Because the larval stage is short, the standing number of larvae is small relative to eggs and pupae.
 
@@ -280,7 +282,7 @@ Expected outcome (GDD 06 §5.12 calibration, chamber 19.5 C, `Q` 0.7, clutch 24)
 
 ### 2.8 Diapause and winter [T2]
 
-- Larvae enter `diapause` when `doy ≥ DIAPAUSE_DOY 19` or chamber T ≤ 12 C for > 0.5 gd. Diapause larvae: no progress, no feeding, base hazard × 0.1, no starvation.
+- Larvae enter `diapause` when the default-year day `doy28 ≥ DIAPAUSE_DOY 19` (`doy28 = floor(d28) + 1`, `00-index.md` C1; scales with season length) or chamber T ≤ 12 C for > 0.5 gd. Diapause larvae: no progress, no feeding, base hazard × 0.1, no starvation.
 - Eggs in autumn still hatch (into diapause larvae); pupae complete and eclose. Thus "all brood overwinters as larvae" emerges.
 - Exit: `season = spring` and chamber T ≥ 12 C for 0.2 gd. The overwinter aggregate (chapter 06) reads brood counts and applies its own losses.
 
@@ -306,14 +308,14 @@ When a pupa reaches `PUPA_DU` it becomes `ready` and emits an `assist-eclosion` 
 ### 3.2 Egg-laying rate
 
 ```
-potential (eggs/gd) = Q_MAX × fSize(N) × fSeason(d) × fTempQ(T_royal) × fHealth × fecundity × fCap
+potential (eggs/gd) = Q_MAX × fSize(N) × fSeason(d28) × fTempQ(T_royal) × fHealth × fecundity × fCap
 fSize(N)  = 0.30 + 0.70 × (1 − exp(−N / 300))
 ```
 
 | Factor | Definition |
 |---|---|
 | `Q_MAX` (S) | 100 eggs/gd. `fSize` gives 34 at N = 18, 49.8 at N = 100, 74.2 at N = 300, 97 at N = 900 |
-| `fSeason(D)` (S), `D = doy + hour/24` (1-based; chapter 06's 0-based `d` = `D − 1`) | `D` in [1, 2): 0.3; linear 0.3 → 1.0 over [2, 5); 1.0 over [5, 15); 0.6 over [15, 18); 0.2 over [18, 21); 0 over [21, 29) (day 21 and winter days 22-28). Matches the dossier: spring day 1 0.3, days 2-4 ramp, summer 1.0, autumn days 15-17 0.6, 18-20 0.2, day 21 0 |
+| `fSeason(d28)` (S), `d28` = default-year fractional day of year (0-based, `00-index.md` C1: `d28 = d × 28 / DAYS_PER_YEAR`, `d = (doy − 1) + hour/24`) | `d28` in [0, 1): 0.3; linear 0.3 → 1.0 over [1, 4); 1.0 over [4, 14); 0.6 over [14, 17); 0.2 over [17, 20); 0 over [20, 28) (`doy` 21 and winter `doy` 22-28). Matches the dossier: spring `doy` 1 0.3, `doy` 2-4 ramp, `doy` 5-14 1.0, autumn `doy` 15-17 0.6, 18-20 0.2, `doy` 21 0. Breakpoints scale with the configured season length because they are read on `d28` (directions K) |
 | `fTempQ(T)` | 0 at ≤ 14 C; linear to 1 at 20 C; 1 to 30 C; linear to 0.5 at 34 C; 0 at ≥ 36 C |
 | `fHealth` | `health` if ≥ 0.3, else 0 |
 | `fCap` | `clamp((WORKER_CAP − projected) / (CAP_TAPER × WORKER_CAP), 0, 1)`, `projected = N + pupae + larvae + 0.9 × eggs` (worker-destined), `WORKER_CAP` (S) 1500 (directions K), `CAP_TAPER` 0.15 |
@@ -632,7 +634,7 @@ Equilibrium check: one returning forager per 150 s on a trail lays 2.67 dabs × 
 
 - Steering: turn rate `ω = TRAIL_TURN_GAIN 2.5 rad/s × (L − R)/(L + R + 1.0)` plus wander noise × (0.3 when on trail ≥ 1 ph). Direction along the trail: outbound = increasing `homeVec` length; inbound = decreasing. U-turn probability per s: 0.02 on the correct heading, 0.15 if the trail weakens below 0.5 × its value 5 BU earlier.
 - Trail ignorers: at the start of each foraging bout an ant sets `trailIgnorer` with `P = TRAIL_IGNORE_P` 0.20 (not a fixed trait). Ignorers use route memory, lead position (planner) or search.
-- Lost trail: no sensor above `TRAIL_DETECT` for `TRAIL_LOST_S` 8 s → route memory if any; else local search 20 s (10.2 F3); else planner to `lead.pos` (hidden fallback). Event `trail-lost` when ≥ 3 ants lose the same trail within 60 s (alert `trail-lost`).
+- Lost trail: no sensor above `TRAIL_DETECT` for `TRAIL_LOST_S` 8 s → route memory if any; else local search 20 s (the expanding spiral of 10.2 `forage.search`); else planner to `lead.pos` (hidden fallback). Event `trail-lost` when ≥ 3 ants lose the same trail within 60 s (alert `trail-lost`).
 - Experienced ants: with a learned route (9.3), the route wins over a conflicting trail (memory overrides pheromone in *L. niger*).
 
 ### 8.5 Sweeping and other disturbances
@@ -948,7 +950,7 @@ Alerts raised by this chapter (kinds from chapter 08 plus additions): `food-c-lo
 
 ## 15. Worked example: one summer day of a 60-worker colony
 
-Setting: Summer day 9 (`fSeason` 1), nest and surface at 25 C (`fMet` 1.0, `r` = 1.364), auto allocation, one entrance. Known sources: an aphid herd (honeydew) 150 BU away and a dead beetle (carrion, cut into 1 lm pieces) 200 BU away. Stock at the start of the day: C 30.0 (cap 2 + 0.8 × 60 = 50), P 10.0 (stomach 0.15 × 60 = 9, so 1.0 P sits in the pile).
+Setting: `doy` 9 = Summer · Day 2 (`fSeason` 1), nest and surface at 25 C (`fMet` 1.0, `r` = 1.364), auto allocation, one entrance. Known sources: an aphid herd (honeydew) 150 BU away and a dead beetle (carrion, cut into 1 lm pieces) 200 BU away. Stock at the start of the day: C 30.0 (cap 2 + 0.8 × 60 = 50), P 10.0 (stomach 0.15 × 60 = 9, so 1.0 P sits in the pile).
 
 Workforce (60):
 
@@ -1000,9 +1002,9 @@ Checks:
 
 | Name | Type sketch | Purpose |
 |---|---|---|
-| `colonies[]` | `{ id, speciesId, queenId, entranceIds[], stores:{C,P,toxin,inCrops}, ledger:{in:{delivery,recycled}, out:{workers,queen,larvae,spoiled,ration}, transit}, needs:{rateC,rateP,needC,needP,sP}, starvationStage, starvationSince, directives:{allocation, taskShares, diet, alateInvestment, gyneShare, alatePolicy, stockTarget, stayIn, stayInUntil, sealInCold, stance, casteEmphasis, …species extras}, alloc:{demand:Float32Array(TASK_COUNT), target:Int16Array(TASK_COUNT), actual:Int16Array(TASK_COUNT), lastTick} (TASK_COUNT = 18: the 17 J tasks plus GDD 05 `raid`), yieldPerForager, news:[{sourceId,pos,tick}×5], knownSourceIds:int[], exploredBits:Uint8Array, jobBoard (derived), counters }` (the time series of 13.2 live in `progression.history`, GDD 06 §9.2; consistency pass) | colony economy, allocation, knowledge |
+| `colonies[]` | `{ id, species, queenId, entranceIds[], stores:{c,p,toxin,inCrops}, ledger:{in:{delivery,recycled}, out:{workers,queen,larvae,spoiled,ration}, transit}, needs:{rateC,rateP,needC,needP,sP}, starvationStage, starvationSince, directives:{allocation, taskShares, diet, alateInvestment, gyneShare, alatePolicy, stockTarget, stayIn, stayInUntil, sealInCold, stance, casteEmphasis, …species extras}, alloc:{demand:Float32Array(TASK_COUNT), target:Int16Array(TASK_COUNT), actual:Int16Array(TASK_COUNT), lastTick} (TASK_COUNT = 18: the 17 J tasks plus GDD 05 `raid`), yieldPerForager, news:[{sourceId,pos,tick}×5], knownSourceIds:int[], exploredBits:Uint8Array, jobBoard (derived), counters }` (the time series of 13.2 live in `progression.history`, GDD 06 §9.2; consistency pass) | colony economy, allocation, knowledge |
 | `ants[]` | fields of 1.1 (plain data; `thresholds` Float32Array(TASK_COUNT = 18), one per canonical task (J order, then `raid`), unused entries for Lasius = 1e9; `crumbs` Float32Array(96×3) + head/len; `routes` 2 × `{sourceId, wp:Float32Array(96), n, visits, lastUsed}`; `decisions` 5 × `{tick, code:int, detail:int}`) | individual agents |
-| `queen extras` | `{ mode, gut:{C,P}, reserve, reserveP, fecundity, eggBudget, layingLog:Int16Array(28), clutchLaid }` on the queen ant | laying and nutrition |
+| `queen extras` | `ant.queen: { mode, gut:{c,p}, reserve, reserveP, fecundity, eggBudget, layingLog:Int16Array(28) (a fixed 28-GD buffer, not the year length), clutchLaid, founding: {reserveLoads, R0, desiccation, wings, eggsLaid} \| null }` on the queen ant (`00-index.md` D1.18) | laying and nutrition |
 | `brood[]` | fields of 2.1 | brood entities |
 | `items[]` (shared with ecology/nest) | `{ id, kind:'food-piece'|'soil-pellet'|'waste'|'corpse'|… (canonical item kinds), wasteKind?, foodKind?, c, p, bulk, pos, chamberId, carrierIds[], diedTick? }` | carried and stored things (brood is not an item) |
 | `markers[]` (shared) | `{ id, kind, pos, radius, targetChamberId?, sourceChamberId?, expiresTick? }` | colony-wide marker state |
@@ -1064,7 +1066,7 @@ Published ids: `diag-food-intake-c`, `diag-food-intake-p`, `diag-stores`, `diag-
 3. **Given** brood in a chamber at 8 C, **when** 1 gd passes, **then** no brood `progress` changes.
 4. **Given** a `ready` pupa and one nurse in the chamber, **when** stepping, **then** an adult with `callow` ecloses within 30 game s and a `cocoon` waste item exists; **given** no nurse and no queen, **then** after 0.3 gd its hazard is 3.0/gd (`eclosion-failed`).
 5. **Given** a colony of 10 workers with full reserves forced to `rest` in a 25 C nest, no brood, queen removed, pool C 10, P 0, **when** 1 gd passes, **then** pool C = 10 − 0.80 ± 0.01.
-6. **Given** N = 300 (spawned), summer day 10, royal chamber 25 C, queen gut P held ≥ 0.5 by cheat, **when** 1 gd passes, **then** eggs laid = 74 ± 3.
+6. **Given** N = 300 (spawned), `doy` 10 (Summer · Day 3), royal chamber 25 C, queen gut P held ≥ 0.5 by cheat, **when** 1 gd passes, **then** eggs laid = 74 ± 3.
 7. **Given** the same queen with gut P = 0 and no queen-carers, **when** 0.5 gd passes, **then** 0 eggs are laid and `egg-laying` lists `protein-supply` as top factor.
 8. **Given** a founding queen alone, sealed, `R0` 56, `Q` 0.7, clutch 24, nest at a constant 19.5 C, **when** the founding runs unattended, **then** the first nanitic ecloses 4.52 ± 0.1 gd after the first egg (3.9 ± 0.1 gd at 21 C) and over 200 seeds the mean is 11.5 ± 1.5 nanitics (p10 8, p90 15), as GDD 06 E18-E19.
 9. **Given** a colony with pool C = P = 0, `stayIn` renewed every gd, 20 eggs, 10 larvae, 10 pupae, an established queen and 20 workers (5 per age band, crops empty, reserves full), **when** stepping until extinction, **then** no larva is cannibalised while any egg remains, the first adult `starvation` death is an `old`-band worker, no pupa dies of `starvation`, and the queen is the last adult to die.

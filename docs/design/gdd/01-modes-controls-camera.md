@@ -8,7 +8,7 @@ Research used: `research/genre-ux.md` (2.1, 2.5, 2.6, 2.7, 3), `research/bio-las
 
 | Term | Meaning |
 | --- | --- |
-| **L** | Body length of the ant concerned, in BU (from `SpeciesDef`: Lasius worker 1.0, Lasius queen 2.0, Atta minim 0.35, Atta major 1.8, Atta queen 2.6, Camponotus major ~1.5). Camera distances and reach are given in L so one rule serves every caste. |
+| **L** | Body length of the ant concerned, in BU (from `SpeciesDef`: Lasius worker 1.0, Lasius queen 2.0, Atta minim 0.35, Atta major 1.8, Atta queen 2.6, Camponotus major ~1.5). Camera distances and reach are given in L so one rule serves every caste. Atta "minim" is the J caste `minor` and "small media" is caste `media` with GDD 07 size class `small-media`; neither is a caste id. |
 | **game s** | Game seconds (= real seconds at 1x). Action durations are in game s and scale with time speed. |
 | **real s / ms** | Wall-clock time. Camera smoothing, input timings and UI timings are in real time and do not scale with speed. |
 | **Tier** | T1 / T2 / T3 per seed section 5. A feature tagged T2 is specified now but built in wave 2; T1 code must leave its hook (enum member, empty handler). |
@@ -143,7 +143,7 @@ On any release of a living ant (X, switching to another ant, AFK, colony view, t
 | 4 | Caste `gyne` / `male` not in flight | Return into the nest, `rest`. |
 | 5 | Carrying brood | `nurse`: deliver to the brood chamber the colony chapter selects for that stage. |
 | 6 | Carrying a solid food item | `forage` (return leg): deliver to food store / larvae. The source it came from is registered in its route memory as a discovered source. |
-| 7 | Crop ≥ `RESUME_CROP_FRACTION` of capacity, outside the nest | `forage` (return leg), then distributes by trophallaxis. Inside: `store`. |
+| 7 | Outside the nest with crop ≥ GDD 02 `CROP_RETURN_FRACTION` (0.8) of capacity, or with crop ≥ 0.1 load and no source with food left within 5 BU (the same exit rule as GDD 02 `forage.collect`) | `forage` (return leg), then distributes by trophallaxis. Inside: `store`. A partly filled forager next to a source with food left falls to rule 14 and keeps drinking, as the AI would. |
 | 8 | Carrying a soil pellet | `haul` to the mound of the nearest open entrance. In a sealed founding cell: put it into the plug (seal) instead. |
 | 9 | Carrying corpse, waste, chaff, frass | `haul` to the midden (Camponotus: nearest window, `eject-frass`). |
 | 10 | Carrying an aphid (T2) | `tend`: place on the nearest host plant within `RESUME_APHID_RADIUS`; else put down. |
@@ -181,7 +181,6 @@ Entering `colony` or `timelapse` from `possession` performs a normal release (3.
 | `POSSESS_AFK_S` | 120 | real s of running sim without input |
 | `POSSESS_DEATH_HOLD_S` | 3 | real s |
 | `RESUME_COMBAT_WINDOW_S` | 3 | game s |
-| `RESUME_CROP_FRACTION` | 0.5 | of crop capacity (release inference only; the AI forager's own turn-back threshold is GDD 02 `CROP_RETURN_FRACTION` 0.8) |
 | `RESUME_APHID_RADIUS` | 100 | BU |
 | `RESUME_LOCALITY_BONUS` | 0.25 | added to the allocation stimulus score (allocation chapter's scale 0-1) |
 | `PLAYER_TEMP_FLOOR` | gentle 0.6 / naturalist 0.5 / harsh 0.3 | multiplier floor |
@@ -207,7 +206,7 @@ Given stick/key vector m = (mx, my), |m| ≤ 1, camera forward c, ant up n (auth
 | Constant | Value | Unit | Rule |
 | --- | --- | --- | --- |
 | Walk speed | species cruise × `tempFactor'` × health × load factor | BU/s | Lasius cruise 6 BU/s; `tempFactor' = max(PLAYER_TEMP_FLOOR, tempFactor)` while tempFactor > 0. |
-| `PLAYER_HURRY_MULT` | 1.6 | × | Hold/toggle Shift. Lasius ≈ 9.6 BU/s. C burn while hurrying ×2 (economy chapter's active rate). |
+| `PLAYER_HURRY_MULT` | 1.6 | × | Hold/toggle Shift. Lasius worker 9.6 BU/s; never above the caste's `sprintBuS` (GDD 07; Lasius 12 = alarm running, K). C burn while hurrying ×2 (economy chapter's active rate). |
 | `LOAD_SPEED_MULT` | 0.85 | × | When carrying a solo item (species data may override). |
 | `TURN_RATE` | 300 | °/s | Turning toward d. |
 | `PIVOT_ANGLE` | 135 | ° | If the angle to d exceeds this, the ant turns on the spot until < 60°. |
@@ -348,7 +347,7 @@ Queen only (after hand-over): the global `directives` action (I, 5.1) is shown a
 | Rule | Detail |
 | --- | --- |
 | Slots | Up to 2 KBM bindings + 1 gamepad binding per action. |
-| Contexts | A binding conflicts only with actions whose contexts overlap (`G` overlaps all; P, O, C, Ph, TL are mutually exclusive). Same key in P and C is allowed (e.g., F). |
+| Contexts | A binding conflicts only with actions whose contexts overlap (`G` overlaps all; P, O, C, Ph, TL are mutually exclusive). Same key in P and C is allowed (e.g., F). In `Ph` only `menu`, `photo-mode` and `pointer-lock-toggle` of the `G` actions are live (the sim is frozen and the HUD hidden), so `ph-guides` H, `ph-exposure` − = and `ph-capture` Enter do not collide with `hide-hud`, `speed-up`/`speed-down` and `alert-jump`. |
 | Conflict dialog | "F is already used for Dig (Possession)." Options: Swap (the other action gets the old key of this one), Unbind other, Cancel. Never silent. |
 | Reserved / refused | Esc (menu); browser-owned: Ctrl/Cmd+W, T, N, Q, Tab; F11, F12, Alt+F4, Meta combinations. Ctrl and Alt are not offered as modifiers at all (Ctrl+W closes the tab when W is held). |
 | Modifiers | Only Shift as a modifier, plus modifier-only bindings for hold actions (Shift = hurry). |
@@ -544,10 +543,10 @@ Timing split: **timed** primitives (dig-bite, lay-egg, pick-up, tear, groom...) 
 | `move` | T1 | all adults | Not in a non-moving primitive | continuous | Surface-walker step toward desired direction at the speed of 4.2. | `pose.walk` gait phase by speed; `pose.hurry` | `sfx.step.<material>` per footfall group |
 | `let-go` | T1 | all adults | On a surface with normal·up < 0.7; not gripping | instant | Leaves the surface; ballistic fall; item kept. | `pose.fall` legs spread | `sfx.let-go` (faint) |
 | `grip` | T1 | all adults | On any surface | hold | Dislodge immunity; speed × `GRIP_SPEED_MULT`. | `pose.grip` body lowered | none |
-| `pick-up` | T1 | worker castes; founding queen (brood, pellets) | Hands free; item bulk ≤ caste `carryCap`; brood: eggs picked as a clump of up to `EGG_CLUMP_MAX` 5 | 0.5 | Item -> `ant.carrying`. | `pose.pick` head down, mandibles close | `sfx.pickup.<itemClass>` |
+| `pick-up` | T1 | worker castes; founding queen (brood, pellets) | Hands free; item bulk ≤ caste `carryCap`; brood: eggs picked as a clump of up to `EGG_CLUMP_MAX` 6 (= one opening batch `OPEN_LAY_BATCH_EGGS`, GDD 06 §5.10) | 0.5 | Item -> `ant.carrying`. | `pose.pick` head down, mandibles close | `sfx.pickup.<itemClass>` |
 | `put-down` | T1 | carrier | Carrying; free floor within reach (or a valid receiver: brood pile, store pile, mound area, plug) | 0.4 | Item placed at the target point, oriented on the surface; at a receiver, the receiver's logic applies (e.g., food store intake). | `pose.place` | `sfx.putdown.<itemClass>` |
 | `drop` | T1 | carrier | Carrying | instant | Item released where it is; falls/rolls under gravity. AI uses it when fleeing or attacked. | `pose.release` | `sfx.drop` |
-| `dig-bite` | T1 | LN worker, founding queen; CP all workers (wood); MB minor/media/major; AT small media/media/major; queen founding | Facing a diggable surface (material diggable for the species) within reach; no item, or carrying a pellet (auto-dropped behind first) | `DIG_BITE_S` 1.0 × material factor (owner: nest chapter) | Carve sphere radius `DIG_BITE_RADIUS` 0.6 BU centred 0.4 BU into the face (≈ 0.9 BU³); spawns one `soil-pellet` (wood: `frass`) in the mandibles. Repeats while held. Auto-advance: if the face has receded beyond reach but lies within 1.5 L straight ahead, the ant steps forward into reach before the next bite (AI and player alike). | `pose.dig` head-down rasp | `sfx.dig.<material>` |
+| `dig-bite` | T1 | LN worker, founding queen; CP all workers (wood); MB minor/media/major; AT small media/media/major; queen founding | Facing a diggable surface (material diggable for the species) within reach; no item, or carrying a pellet (auto-dropped behind first) | `DIG_BITE_S` 1.0 s / (`digSpeed`(material, moisture) × caste `digPower` × `workRate`) (owner GDD 03 §1.2, §2.1; wood: GDD 07 wood bite factor) | Carve sphere radius `DIG_BITE_RADIUS` 0.6 BU centred 0.4 BU into the face (≈ 0.9 BU³); spawns one `soil-pellet` (wood: `frass`) in the mandibles. Repeats while held. Auto-advance: if the face has receded beyond reach but lies within 1.5 L straight ahead, the ant steps forward into reach before the next bite (AI and player alike). | `pose.dig` head-down rasp | `sfx.dig.<material>` |
 | `seal-entrance` | T1 | LN worker, founding queen; species with plugging | Carrying `soil-pellet`; inside an entrance throat within 3 BU of its surface opening | 2.0 | Adds a plug sphere (radius 1.2 BU) of loose soil at the throat (reverse carve, flag `plug`). Entrance state `sealed` once the throat cross-section is closed (typically 3 pellets). Pellet consumed. | `pose.tamp` head pressing | `sfx.seal-pat` |
 | `unseal-entrance` | T1 | as `dig-bite` | Facing a plug | `dig-bite` × `PLUG_DIG_FACTOR` 0.5 | Removes plug voxels; pellets yielded as `dig-bite`. Entrance `open` when passable. | `pose.dig` | `sfx.dig.loam` |
 | `lay-egg` | T1 | `queen` (dealate, mated) | In a chamber or the founding cell; protein/reserve ≥ `EGG_COST_P` 0.04 P; queen's daily egg budget (colony chapter) not exhausted; cooldown `LAY_COOLDOWN_S` 10 elapsed | 6.0, non-cancellable after windup | Spawns an `egg` at the gaster tip on the floor; deducts 0.04 P (from the founding pool `R` during claustral founding, GDD 06 §5.5). Player laying shares the AI budget; it only changes timing. **Opening exception (GDD 06 §5.10):** while the opening phase is `lay`, one `lay-egg` lays a batch of `OPEN_LAY_BATCH_EGGS` 6 eggs over 4 s (no cooldown; capped by the clutch limits); the AI queen is never subject to `LAY_COOLDOWN_S` (GDD 02 §3.2). | `pose.lay` gaster curled under | `sfx.egg-lay` (very soft) |
@@ -689,20 +688,20 @@ Opened by `inspect` (tap T) in possession for the current target, or by clicking
 | `state.player.intent` | `{ dir: [x,y,z]; mag: number; hurry: boolean; grip: boolean; held: { dig, bite, special, interact, inspect: boolean }; flight?: { thrust, brake, bank, climb, descend: number } }` | Latest player intent consumed by the player-control system; world-space desired direction already projected by the game layer | yes (for replay) |
 | `state.player.lastInputTick` | `number` | AFK release | no (reset on load) |
 | `state.player.promptLearned` | `Record<actionId, number>` | Prompt compaction | yes |
-| `state.time.speed` / `state.time.paused` | `0\|1\|2\|4\|8`, `boolean` | Time control | yes |
-| `ant.controlled` | `boolean` | Excludes from allocation; switches behaviour to player control | yes |
+| `state.time.speed` / `state.time.paused` | `1\|2\|4\|8`, `boolean` (part of the GDD 06 `state.time` record; `setSpeed {speed: 0}` sets `paused`) | Time control | yes |
+| `ant.flags` bit `POSSESSED` ("controlled" in the text) | flag bit | Excludes from allocation; switches behaviour to player control | yes |
 | `ant.suspendedTask` | task id | Resume rule 15 | yes |
-| `ant.action` | `{ id; phase; t: number; duration: number; target: EntityRef \| SurfaceRef \| null; repeat: boolean; reason?: string }` or `null` | Shared action lifecycle | yes |
-| `ant.trailOn` | `boolean` | lay-trail toggle | yes |
-| `ant.acid` | `number` (0..ACID_MAX), `ant.acidRegenT` | spray-acid reserve | yes |
-| `ant.layCooldownT` (queen) | `number` game s | lay-egg cooldown | yes |
+| `ant.action` | `{ id: ActionId; phase; startTick: number; durationTicks: number; target: EntityRef \| SurfaceRef \| null; repeat: boolean; reason?: string }` or `null` (durations in this chapter are written in game s; code stores ticks = s × 10) | Shared action lifecycle | yes |
+| `ant.flags` bit `TRAIL_ON` | flag bit | lay-trail toggle | yes |
+| `ant.acid` | `number` (0..ACID_MAX), `ant.acidRegenTick` (absolute tick of the next regen step) | spray-acid reserve | yes |
+| `ant.layCooldownUntilTick` (queen) | `number` absolute tick | lay-egg cooldown (possessed queen only; the AI queen's laying is GDD 02 §3) | yes |
 | `ant.dirt` | `number` 0..1 | groom target value (shared with hygiene) | yes |
 | Game-side `view` | view id + origin view | View machine | saved as `meta.view` for resume |
 | Game-side camera rig | per view: pose, yaw, pitch, distance per state, breadcrumb buffer, latch | Camera | `meta.camera` pose only |
 | Game-side input | bindings, active device, held set, autoPaused | Input | bindings in localStorage |
 | Settings | camera/controls/prompts/gameplay settings above | Presentation | localStorage |
 
-Contract forms fixed by the consistency pass (`00-index.md` §D): `ant.controlled` is the `POSSESSED` bit of `ant.flags` and `ant.trailOn` the `TRAIL_ON` bit (no separate booleans); `ant.action` is `{ id, phase, startTick, durationTicks, target, repeat, reason }` (ticks, not seconds); `ant.acidRegenT` and `ant.layCooldownT` become `acidRegenTick` and `layCooldownUntilTick` (absolute ticks); `state.time` is the GDD 06 record `{ speed, paused, requested, autoSlow, cooldowns, skipUntil, commandSeq }`.
+Contract forms fixed by the consistency pass (`00-index.md` §D2.8, D2.10, D2.11, D1.7; the table above is written in them): no `controlled`/`trailOn` booleans (flag bits); `ant.action` in ticks; cooldowns as absolute ticks; `state.time` is the GDD 06 record `{ speed, paused, requested, autoSlow, cooldowns, skipUntil, commandSeq }`.
 
 ## Appendix B — Commands
 
@@ -790,7 +789,7 @@ Command `type` names are camelCase (consistency pass, `00-index.md` §D); the ea
 13. **UI chapter** implements screens, toasts, cards, prompts anchoring, roster and the HUD possessed-ant panel (health, crop C/P, carrying, trail indicator, hurry/grip state).
 14. **Alerts/progression chapter** provides alert severity for `autoSlow` and the notable-event predicate for `skip-ahead`, and unlocks codex entries from `action-completed` events.
 15. **Architecture/TDD** accepts zero-time command application while paused (section 8) and intent logging for deterministic replay; `__game.query.prompt()` and `camera.state()` are added to the debug API.
-16. **Directives/markers chapter** does not claim digit keys 1-8 or E/R/F/G/Q in the colony view (they are taken by speed, role possession, rotation, slicing and cutaway mode); marker tool hotkeys use Shift+digits or the palette.
+16. **Directives/markers chapter** (GDD 02 §12 semantics, GDD 08 §4.3 tools) does not claim digit keys 1-8 or E/R/F/G/Q in the colony view (they are taken by speed, role possession, rotation, slicing and cutaway mode); marker tool hotkeys are Shift+1..7 or the palette. One declared exception (second consistency pass): while the dig-planner tool holds a ghost, Q/E rotate the ghost in 15° steps and Shift+Wheel changes its size (GDD 08 §4.3) instead of `cv-rotate` and the Shift+Wheel slice binding; R/F still move the slice.
 17. **Debug API** additionally exposes `cheat.kill(id)`, `query.prompt()`, `camera.state()`, `camera.pose()`, and input simulation for keys/gamepad events (used by checks 16-20).
 18. **Species data** carry per caste: `L`, `carryCap`, which primitives are enabled (the "Who" column), acid availability, trail-laying castes.
 

@@ -463,7 +463,7 @@ Prompt display setting (Settings > Gameplay > Prompts): Always / While learning 
 
 ### 5.4 Default bindings (all rebindable)
 
-Directions A bindings are kept. Additions made by this chapter:
+Directions A bindings are kept. GDD 01 §5 owns every input action id and its default binding (keyboard and gamepad); this table repeats them for the UI and must match GDD 01 (second consistency pass: gamepad column aligned). Additions made by this chapter:
 
 | Action | Key | Gamepad (standard mapping, T3) |
 |---|---|---|

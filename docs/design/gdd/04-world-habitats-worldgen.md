@@ -158,22 +158,22 @@ On the 16 BU nav grid: `texture` (`sand`/`loam`/`clay`/`humus`, top layer), `per
 
 ## 3. Surface properties per material [T1 grip, dig, sound; T2 heat, wetness]
 
-Surface temperature coefficients (sun gain `G`, night loss, lag `tau`) are owned by chapter 06 section 2.3 and are not repeated here; this table maps world surfaces onto those materials and supplies the other properties. `grip` scales the walker's adhesion: maximum sustained surface tilt is 180° (ceilings) at grip ≥ 0.8, 120° at 0.5-0.8, 45° below 0.5 (`slippery`). Wet surfaces multiply grip by `WET_GRIP_MULT = 0.6`, greasy (hob, oil) by `GREASE_GRIP_MULT = 0.4`; rime and dew multipliers are chapter 06's. `DIG_REL` was a proposal for the nest chapter (1.0 = loam); the consistency pass adopts GDD 03 §2.1 `digSpeed` as the only dig-rate table (loam 1.0, humus 1.3, sand 1.6, clay 0.45, gravel 0.35, `wood-decayed` 1.0, `wood-sound` 0.4); the `DIG_REL` column below is used only inside `fDig` (12.1) and must equal GDD 03's values.
+Surface temperature coefficients (sun gain `G`, night loss, lag `tau`) are owned by chapter 06 section 2.3 and are not repeated here; this table maps world surfaces onto those materials and supplies the other properties. `grip` scales the walker's adhesion: maximum sustained surface tilt is 180° (ceilings) at grip ≥ 0.8, 120° at 0.5-0.8, 45° below 0.5 (`slippery`). Wet surfaces multiply grip by `WET_GRIP_MULT = 0.6`, greasy (hob, oil) by `GREASE_GRIP_MULT = 0.4`; rime and dew multipliers are chapter 06's. GDD 03 §2.1 `digSpeed` is the only dig-rate table (owner GDD 03; the former `DIG_REL` proposal of this chapter is withdrawn, second consistency pass). The `digSpeed` column below is a verbatim copy of GDD 03 §2.1 at medium moisture, used here only inside `fDig` (12.1); if the two ever differ, GDD 03 wins.
 
-| Material (J) | grip dry | Wetness behaviour | `DIG_REL` | Footstep sound class (new ids) | Notes |
+| Material (J) | grip dry | Wetness behaviour | `digSpeed` (copy of GDD 03 §2.1) | Footstep sound class (new ids) | Notes |
 |---|---|---|---|---|---|
 | `loam` | 0.90 | absorbs; mud at theta0 > 0.9 (grip 0.6) | 1.0 | `soft-soil` | |
-| `humus` | 0.85 | absorbs, slow drying | 1.2 | `soft-soil` | |
+| `humus` | 0.85 | absorbs, slow drying | 1.3 | `soft-soil` | |
 | `sand` | 0.60 | absorbs fast; damp sand (theta0 ≥ 0.25) holds tunnels | 1.6 (collapse rules: nest chapter) | `grit` | loose slopes > 34° slide |
-| `clay` | 0.85 (wet 0.45) | slow absorb, puddles on top | 0.4 | `soft-soil` | |
-| `gravel` | 0.80 | drains | 0.25 | `grit` | |
+| `clay` | 0.85 (wet 0.45) | slow absorb, puddles on top | 0.45 | `soft-soil` | |
+| `gravel` | 0.80 | drains | 0.35 | `grit` | |
 | `concrete` | 0.95 | film, runs to basins | 0 | `hard` | |
 | `asphalt` | 0.95 | film, runs to basins | 0 | `hard` | |
 | `stone` | 0.90 | film | 0 | `hard` | |
 | `brick` | 0.95 | film, absorbs slightly | 0 | `hard` | |
 | `tile` | 0.75 | film; wet tile 0.45 = slippery | 0 | `hard` | |
-| `wood-sound` | 0.90 | absorbs slowly | 0.4 (wood-nesting species only) | `wood` | |
-| `wood-decayed` | 0.90 | stays damp | 1.0 (wood-nesting); 0.6 others | `wood` | |
+| `wood-sound` | 0.90 | absorbs slowly | 0.4 at wood moisture ≥ 0.15, 0.25 below (Camponotus only) | `wood` | |
+| `wood-decayed` | 0.90 | stays damp | 1.0 (× 0.5 below wood moisture 0.15) × species multiplier (CP 1, LN 0.5) | `wood` | |
 | `bark` | 1.00 | absorbs | 0 | `wood` | |
 | `plant` | 0.85 (waxy variant 0.45 = slippery) | beads; dew | 0 | `plant` | |
 | `leaf` | 0.80 | beads | 0 | `litter` | |
@@ -614,7 +614,7 @@ Micro-portal edges: from the cell at one mouth to the cell at the other, cost = 
 
 | Factor | Definition |
 |---|---|
-| `fDig` | dig ease of strata at depth 2-15 BU (founding band): `clamp(DIG_REL / 1.2, 0, 1)` averaged over 4 samples; damp sand (theta0 ≥ 0.25) 0.9, dry sand 0.4; wood nesters use the wood primitive at the point instead (`wood-decayed` 1.0, `wood-sound` 0.4). 0 = veto |
+| `fDig` | dig ease of strata at depth 2-15 BU (founding band): `clamp(digSpeed × speciesMult / 1.2, 0, 1)` (GDD 03 §2.1 values and species multipliers) averaged over 4 samples; damp sand (theta0 ≥ 0.25) 0.9, dry sand 0.4; wood nesters use the wood primitive at the point instead (`wood-decayed` 1.0, `wood-sound` 0.4). 0 = veto |
 | `fCover` | 1.0 under a primitive ceiling (stone, slab, board, log, root, bark) within 3 BU above and extending ≥ 3 BU around; 0.6 under litter or mulch; 0.4 under sward; 0 bare |
 | `fWarm` | mean sun fraction 08:00-18:00 from shade samples × (1.2 if the cover is stone/slab/concrete), clamp 1 |
 | `fMoist` | species window over static `theta0` (wood moisture for wood nesters, 13.6): Lasius ideal 0.30-0.55 (0 at 0.10 and 0.85); Messor 0.10-0.30 (0 at 0.02 and 0.55); Atta 0.20-0.45 (0 at 0.05 and 0.70); Camponotus wood 0.15-0.30 (0 at 0.08; above 0.30 falls to 0.5 at 0.40, mould) — linear ramps |
@@ -946,7 +946,7 @@ Status words above are the `label` text; the record's `status` uses the shared e
 
 1. **Chapter 06 (environment)** owns surface temperature (`G`, lag), soil moisture, puddle depth (drowning damage is the shared GDD 03 §11 rule), rain and dew, entrance inflow and weekdays (`isWeekend`, 7-day week); it reads this chapter's static per-cell data (2.4), `shadeAt`, `catchArea`, `puddleCapMm`; sprinklers and hoses add local `rainRateMmH` as this chapter specifies.
 2. **Chapter 06 (opening)** shows the live site assessment by re-evaluating the factors of 12.1 at a point; its founding outcome model may weight them differently, but uses the same factor definitions so the overlay and the assessment agree.
-3. **Nest chapter** owns dig rates (proposal `DIG_REL`, section 3), sand collapse, carve-op masking by material (non-diggable primitives and terrain layers never open), cave-ins from `world.cave-in`, flood inside tunnels, wood moisture over time, and per-chunk copy-on-write saving of carve chunks with a `preexisting` flag.
+3. **Nest chapter** owns dig rates (GDD 03 §2.1 `digSpeed`, copied in section 3), sand collapse, carve-op masking by material (non-diggable primitives and terrain layers never open), cave-ins from `world.cave-in`, flood inside tunnels, wood moisture over time, and per-chunk copy-on-write saving of carve chunks with a `preexisting` flag.
 4. **Locomotion chapter** owns the walker: foot offset small enough (≤ 0.15 BU) that gaps ≥ 0.6 BU are enterable; uses `grip` and the slope limits of section 3; implements clearance checks with `PASS_CLEAR_K`; follows climb routes; implements afloat drift and climbing out of water (13.3).
 5. **Seed `f(p)`** is extended additively with a `terrainHole` mask (13.2) that removes the terrain term inside masked cells; the terrain renderer drops triangles there.
 6. **Ecology chapter** defines amounts, nutrients, renewal and decay for every anchor kind, the `bait` toxicant, item sizes for `food-drop`, and creature spawning inside the territories of 8.2.

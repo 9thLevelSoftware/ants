@@ -118,7 +118,7 @@ Brood progress per stage advances at `dProgress/dt = devRate(Tchamber) / (stageG
 
 ### 2.7 Speed
 
-Cruise speeds below are AI walking speeds at speed multiplier 1.0 (Ch 06 §2.6 curve, shifted by `thermalShiftC`). Sprint is used for alarm, flee and the player's `hurry`. **Deviation:** the seed's "~12 BU/s" is treated as sprint, not cruise: the measured Lasius walking speed is 23.5-26 mm/s = 6 BU/s [D], and directions J's "600 BU round trip in about 2 minutes" matches 6 BU/s. Loaded speed is cruise × `loadSpeedMult` (Ch 01 `LOAD_SPEED_MULT`, overridden per species).
+Cruise speeds below are AI walking speeds at speed multiplier 1.0 (Ch 06 §2.6 curve, shifted by `thermalShiftC`). Sprint (`sprintBuS`) is the alarm and flee running speed (Lasius worker 12 BU/s = Ch 02 `RUN_SPEED`, directions K). The player's `hurry` is not sprint: it is cruise × Ch 01 `PLAYER_HURRY_MULT` 1.6 (Lasius worker 9.6 BU/s, K), never above the caste's sprint (second consistency pass). **Deviation:** the seed's "~12 BU/s" is treated as sprint, not cruise: the measured Lasius walking speed is 23.5-26 mm/s = 6 BU/s [D], and directions J's "600 BU round trip in about 2 minutes" matches 6 BU/s. Loaded speed is cruise × `loadSpeedMult` (Ch 01 `LOAD_SPEED_MULT`, overridden per species).
 
 ---
 
@@ -343,7 +343,7 @@ Nutrient profiles of sources belong to Ch 05; the species only says which kinds 
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `worker` | 0.9 / 1.0 / 1.15 | 1.0 | 1.0 | 10 | 1.0 | 1.0 | 1.0 | 0.08 / 0.20 | 6 / 12 | 33 if colony N < 100 at eclosion, 24 if N ≥ 250, linear between; sd 10 [D] | 0.45 |
 | `worker` (nanitic flag, first brood) | 0.8 / 0.85 / 0.9 | 0.6 | 0.6 | 7 | 0.7 | 0.6 | 0.74 | 0.054 / 0.136 | 6 / 12 | 24, sd 10 (Ch 02 `NANITIC_LIFESPAN_MEAN`) | 0.38 |
-| `queen` | 2.0 / 2.1 / 2.25 | 30 (founding 22) | 30 | 50 (founding 40; Ch 05) | 2.0 | 1.0 (gut, Ch 02) | 0 food; brood and pellets during founding | 0.30 C + 0.10 P + egg costs (J) | established 3 / 5; founding (dealate on the surface) 6 / 9.6 (Ch 01 hurry) | 15-25 game years | 0.95 |
+| `queen` | 2.0 / 2.1 / 2.25 | 30 (founding 22) | 30 | 50 (founding 40; Ch 05) | 2.0 | 1.0 (gut, Ch 02) | 0 food; brood and pellets during founding | 0.30 C + 0.10 P + egg costs (J) | established 3 / 5; founding (dealate on the surface) 6 / 9.6 (sprint 9.6 = her hurry 6 × 1.6; Ch 00-index C3) | 15-25 game years | 0.95 |
 | `gyne` | 2.0 / 2.1 / 2.25 | 25 | 25 | 35 | 1.5 | 3.0 | 0 | 0.15 C | 6 / 10 | until flight | 0.95 |
 | `male` | 0.9 / 0.95 / 1.05 | 0.8 | 0.8 | 6 | 0.2 | 0.3 | 0 | 0.06 C | 6 / 10 | flight + 0.1 GD | 0.43 |
 
