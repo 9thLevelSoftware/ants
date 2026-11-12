@@ -728,7 +728,7 @@ Typical Lasius result: 8-16 nanitics at `Q` 0.55-0.8, ending reserves 0.2-0.5, s
 
 ### 5.13 Hand-over and the first journal aims [T2]
 
-On entering `handover`: (a) the surviving first workers (`N_w` nanitics plus any still-pupating brood, which eclose over the next 0.5 GD) are placed in the chamber; (b) the entrance is reopened by the first workers (milestone `ms-nest-reopened` when one exits); (c) the queen keeps her remaining reserves and is fed by workers as soon as stores exist; (d) autosave `opening-complete`; (e) speed 1x, `autoSlow` active; (f) a banner "Tab to take a worker, or stay with the queen" (`p-possess-worker`); (g) the journal opens a page "Day {n}" with the first aims. The player may possess a worker, remain as the queen, or use the Observer.
+On entering `handover`: (a) the surviving first workers (`N_w` nanitics plus any still-pupating brood, which eclose over the next 0.5 GD) are placed in the chamber; (b) the entrance is reopened by the first workers (milestone `ms-nest-reopened` when one exits); (c) the queen keeps her remaining reserves, split equally into GDD 02 `reserve` (C) and `reserveP` (P) (GDD 02 §2.7; `QUEEN_FAT_CAP` 3.0 C caps only later refilling, so a larger hand-over reserve is kept and spent first), and is fed by workers as soon as stores exist; (d) autosave `opening-complete`; (e) speed 1x, `autoSlow` active; (f) a banner "Tab to take a worker, or stay with the queen" (hint `hint-cycle`, GDD 08 §9.2); (g) the journal opens a page "Day {n}" with the first aims. The player may possess a worker, remain as the queen, or use the Observer.
 
 **Aims (journal "Current focus", at most 3 shown, phrased as naturalist questions; no score, no rewards).**
 
@@ -747,7 +747,7 @@ On entering `handover`: (a) the surviving first workers (`N_w` nanitics plus any
 | `aim-second-entrance` | 25 or more workers (`ms-workers-25`) | Is one way in and out enough for this many workers? | `ms-second-entrance` |
 | `aim-cross-zone` | stage `growing` | What lies past the edge of the home ground? | `ms-zone-crossed` |
 | `aim-herd` (Lasius) [T2 herds] | stage `growing` and an `aphid-herd` source discovered by the colony | Can the aphids on that stem be kept, and guarded? | `ms-first-aphid-herd` |
-| `aim-alates` | stage `mature` and `doy` inside the species' `alateLayWindow` (11.1 `gate-season`) | Is the colony ready to raise winged queens and males? | `ms-first-alate` |
+| `aim-alates` | stage `mature` (in any season; while `doy` is outside the species' `alateLayWindow` the aim carries the hint "Out of season", 11.1 `gate-season`) | Is the colony ready to raise winged queens and males? | `ms-first-alate` |
 | `aim-flight` | `ms-first-alate` | Will the weather give the winged ants their day? | `ms-first-flight` |
 
 Open-aim rules (all rows): an aim whose completing milestone has already fired is never opened; at most 3 aims are shown, oldest first, and further eligible aims wait in order until a slot frees; growing and mature colonies therefore keep receiving questions after the founding aims are done (brief §5, continuing goals). `aim-alates` stays open across seasons until `ms-first-alate`; outside the window it is shown with the journal hint "Out of season" taken from the 11.1 gate text. No aim ever gates play or carries a reward.
