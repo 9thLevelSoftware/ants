@@ -4,6 +4,7 @@
 The shipping artefact: a portable build that runs from any static host AND inside a sandboxed iframe with an opaque origin — one classic script bundle, assets embedded in pack scripts, fonts inlined, no module scripts, no fetches — with a verification script that proves it.
 
 ## Read first
+- `docs/design/tasks/gate-1A-sim-report.md` (§1 what works end to end, §2 what is stubbed, §8 what Stage 1B tasks must know — the public functions to call) and `docs/design/tasks/gate-1A-app-report.md` §7. The scripted stand-ins under `src/sim/testing/e2e/` show working call sequences against the real modules.
 - `docs/03-architecture.md` §8 (packaging constraints — binding) and `docs/research/tech-stack.md` §6-7 (classic build mode, the sandboxed-iframe findings, harness `--static` and `--mount`).
 - `src/render/assets/**` — the asset loader's embedded-pack back end and the pack format documented in `src/render/assets/backends.ts`; `spikes/appshell-demo/scripts/make-pack-fixture.mjs` is a working reference for packs and the sandboxed test.
 - `vite.config.ts` (the `classic` mode), `package.json` scripts, `public/assets/manifest.json` and `public/assets/CREDITS.md`.

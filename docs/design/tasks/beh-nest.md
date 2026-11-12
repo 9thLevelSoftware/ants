@@ -4,6 +4,7 @@
 The autonomous indoor life of the colony: larvae get fed, eggs gathered, brood moved to the best microclimate, the queen attended, incoming food received and stored, dig plans excavated and their soil hauled to the mound, waste and corpses taken to the midden, tired ants resting, and the entrance watched — all without the player.
 
 ## Read first
+- `docs/design/tasks/gate-1A-sim-report.md` (§1 what works end to end, §2 what is stubbed, §8 what Stage 1B tasks must know — the public functions to call) and `docs/design/tasks/gate-1A-app-report.md` §7. The scripted stand-ins under `src/sim/testing/e2e/` show working call sequences against the real modules.
 - GDD 02 (`docs/design/gdd/02-colony-simulation.md`): read in full the behaviour state machines for `nurse`, `queen-care`, `store`, `dig`, `haul`, `idle`/`rest`, `guard` and the established queen, plus brood placement by microclimate, the starvation and feeding rules those behaviours implement, and necrophoresis/midden rules. `docs/design/gdd/digests/02.md` gives the map.
 - GDD 03 digest and the chapter's sections on the dig/haul loop, pellets, spoil points, the midden site, and brood-placement ranking by chamber climate.
 - The modules you drive (read their `index.ts` exports and API docs): `src/sim/locomotion`, `src/sim/nest` (dig sites, plans, pellets, chambers), `src/sim/ants/actions`, `src/sim/colony` (brood, queen, stores, ledger, allocation), `src/sim/environment` (chamber temperature), `src/sim/ants/behaviourRunner.ts`.

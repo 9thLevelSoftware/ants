@@ -4,6 +4,7 @@
 The nest architect: it watches the colony's needs and proposes dig plans so that an untended colony builds itself a navigable, species-typical nest — and so that the player's manual plans and the automatic ones coexist.
 
 ## Read first
+- `docs/design/tasks/gate-1A-sim-report.md` (§1 what works end to end, §2 what is stubbed, §8 what Stage 1B tasks must know — the public functions to call) and `docs/design/tasks/gate-1A-app-report.md` §7. The scripted stand-ins under `src/sim/testing/e2e/` show working call sequences against the real modules.
 - GDD 03 (`docs/design/gdd/03-nest-excavation.md`): read in full the nest-architect section (per-species nest template, the needs that trigger plans, the placement algorithm and spacing rules, modes, blacklist, interaction with player plans), the dig-plan section (templates, validation codes), chamber types and capacities, nest navigation requirements, and the Tier 1 / Tier 2 split of needs. `docs/design/gdd/digests/03.md` gives the map.
 - GDD 07 digest: the nest template fields in the species definition (Lasius values for Tier 1).
 - `src/sim/nest/**` (plans, validation, chamber registry, nest statistics, queries for free wall space — the nest module's API docs), `src/sim/colony` (population, brood counts, store levels), `src/sim/types/nest.ts` (`ArchitectState`).
