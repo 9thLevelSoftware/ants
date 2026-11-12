@@ -8,6 +8,7 @@ import type { GenContext } from '../../kit/context';
 import { restViolations } from '../../validate/checks';
 import { PROP_MIN_SOLID_BU } from '../../tuning/pipeline';
 import { dropObject, outdoorState } from './commit';
+import { snapRoutes } from './routeSnap';
 
 export const DECOR = {
   tileBu: 64,
@@ -106,6 +107,8 @@ export function dropFloatingProps(ctx: GenContext): number {
 export function placeDecor(ctx: GenContext): void {
   const dropped = dropFloatingProps(ctx);
   if (dropped > 0) ctx.notes.push(`outdoor: dropped ${dropped} floating props`);
+  const snap = snapRoutes(ctx, outdoorState(ctx).objects);
+  ctx.notes.push(`outdoor: route nodes snapped ${snap.nodes}, not converged ${snap.failed}`);
   const decor: WorldDecor = { tileBu: DECOR.tileBu, zones: zoneRules(ctx), maps: densityMaps(ctx), decals: outdoorState(ctx).decals };
   ctx.world.decor = decor;
 }

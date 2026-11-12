@@ -30,12 +30,14 @@ export interface OutdoorState {
   counts: Record<string, number>;
   /** Decals for the decor descriptors (painted bay lines, cracks, seams). */
   decals: DecorDecal[];
+  /** Ids of the objects the outdoor placers created. */
+  objects: Set<number>;
 }
 
 const states = new WeakMap<GenContext, OutdoorState>();
 export function outdoorState(ctx: GenContext): OutdoorState {
   let s = states.get(ctx);
-  if (!s) { s = { keepOut: [], extras: new Map(), counts: {}, decals: [] }; states.set(ctx, s); }
+  if (!s) { s = { keepOut: [], extras: new Map(), counts: {}, decals: [], objects: new Set() }; states.set(ctx, s); }
   return s;
 }
 
@@ -90,6 +92,7 @@ export function commit(ctx: GenContext, b: Built, o: CommitOptions): number {
   const id = placeObject(ctx, b.tpl, opts);
   if (id < 0) return -1;
   const obj = ctx.world.objects[ctx.world.objects.length - 1];
+  outdoorState(ctx).objects.add(id);
   const T = (p: Vec3): Vec3 => {
     const r = quatRotateVec3({ x: 0, y: 0, z: 0 }, obj.rot, p);
     return { x: obj.pos.x + r.x, y: obj.pos.y + r.y, z: obj.pos.z + r.z };
