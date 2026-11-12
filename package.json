@@ -1,0 +1,34 @@
+{
+  "name": "foundress",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FOUNDRESS - a naturalistic ant colony sandbox (browser, TypeScript + Three.js)",
+  "dependencies": {
+    "@preact/signals": "2.11.4",
+    "fflate": "0.8.3",
+    "postprocessing": "6.39.6",
+    "preact": "11.2.0",
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "2.10.6",
+    "@types/three": "0.187.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  },
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
+    "build:classic": "vite build --config vite.config.ts --mode classic",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "play": "node tools/harness/play.mjs",
+    "sim": "node tools/sim/run-ts.mjs",
+    "dev:spike": "vite spikes/stack --config vite.config.ts",
+    "build:spike": "vite build spikes/stack --config vite.config.ts --outDir ../../dist/spike-stack --emptyOutDir",
+    "build:spike:classic": "vite build spikes/stack --config vite.config.ts --mode classic --outDir ../../dist/spike-stack-classic --emptyOutDir"
+  }
+}
