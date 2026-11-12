@@ -4,6 +4,7 @@
 Turn the kernel's raw carve grid into nests: dig bites and soil pellets, mounds, entrances, chamber detection and designation, dig plans with a frontier that diggers can claim, and the per-tick nest system that keeps navigation fields and chamber data current.
 
 ## Read first
+- `docs/design/tasks/notes-foundation.md` — reports of the foundation tasks, including the integration task that wired the kernel into the simulation (`sim.kernel`, `sim.field`, `sim.carve`, `sim.nestNav`, height overlays for mounds, `makeTestSim` options, the soak tool). Read the sections for F2-kernel and F-int-foundation and act on every item addressed to your task.
 - GDD 03 (`docs/design/gdd/03-nest-excavation.md`) — read it in full except the nest-architect section (a later task) and the flooding/collapse details (Tier 2: read them to leave the right hooks). `docs/design/gdd/digests/03.md` gives the map.
 - `docs/design/tdd/02-kernel.md` and the kernel sources under `src/sim/nest/carve/**` and `src/sim/nest/nav/**` — you build on them and do not modify them.
 - GDD 01 digest (`docs/design/gdd/digests/01.md`): the `dig-bite`, `seal-entrance`, `unseal-entrance`, `pick-up`/`put-down` primitives (the action library, another task, calls your functions).

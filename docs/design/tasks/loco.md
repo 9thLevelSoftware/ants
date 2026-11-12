@@ -4,6 +4,7 @@
 Everything that makes ants and creatures get from A to B: steering, the navigation request API that behaviours call, the coarse surface nav grid, routing in and out of nests, climb routes, stuck recovery, the per-tick locomotion system, and the per-frame movement of the possessed ant.
 
 ## Read first
+- `docs/design/tasks/notes-foundation.md` — reports of the foundation tasks, including the integration task that wired the kernel into the simulation (`sim.kernel`, `sim.field`, `sim.carve`, `sim.nestNav`, height overlays for mounds, `makeTestSim` options, the soak tool). Read the sections for F2-kernel and F-int-foundation and act on every item addressed to your task.
 - `docs/design/tdd/02-kernel.md` and the kernel sources (`src/sim/world/field.ts`, `src/sim/nest/nav/**`, `src/sim/locomotion/walker.ts`) — you build on these and do not modify them.
 - `docs/02-design-directions.md` §J "AI navigation model" and §K (speeds, passages).
 - GDD 01 (`docs/design/gdd/01-modes-controls-camera.md`): section 4 (movement of the possessed ant: camera-relative mapping, edge latch, speeds, grip and let-go) in full. GDD 02: the sections on perception, route memory (breadcrumbs, shortcuts, route learning) and cooperative transport speeds. GDD 04: the sections on the coarse navigation grid, climb routes and points of interest, surface properties (grip, slope limits), water. Use the digests (`docs/design/gdd/digests/01.md`, `02.md`, `04.md`) to find them.
