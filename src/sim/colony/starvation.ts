@@ -18,7 +18,7 @@ export function stageRank(s: StarvationStage): number {
 }
 
 /**
- * Advances the colony's starvation stage. `starvingAdults` = workers at reserve 0 with an empty crop (S4 gate).
+ * Advances the colony's starvation stage. `starvingAdults` = workers at reserve 0 with no food source this cycle (S4 gate).
  */
 export function updateStarvation(sim: Sim, col: Colony, starvingAdults: number): void {
   const core = coreOf(col);
@@ -39,10 +39,11 @@ export function updateStarvation(sim: Sim, col: Colony, starvingAdults: number):
     // S2-S4 leave together once the pool holds some of both again (back to S1, which then exits normally).
     if (s.c > RATION_EXIT_C && s.p > RATION_EXIT_P) next = 'lean';
     else if (cur === 'adult-starvation') next = cur; // S4 has no exit but a refilled pool (GDD 02 §5.7)
-    else if (sacrifice) next = starvingAdults > 0 ? 'adult-starvation' : 'brood-sacrifice';
-    else next = 'rationing';
+    else if (!sacrifice) next = 'rationing';
+    // S4 follows S3: adults starve only once brood sacrifice is under way (the order of death in §5.7).
+    else next = cur === 'brood-sacrifice' && starvingAdults > 0 ? 'adult-starvation' : 'brood-sacrifice';
   } else if (empty) {
-    next = sacrifice ? (starvingAdults > 0 ? 'adult-starvation' : 'brood-sacrifice') : 'rationing';
+    next = sacrifice ? 'brood-sacrifice' : 'rationing';
   } else if (cur === 'lean') {
     const exitHolds = days.c > LEAN_EXIT_DAYS_C && days.p > LEAN_EXIT_DAYS_P;
     if (!exitHolds) core.exitSinceTick = -1;

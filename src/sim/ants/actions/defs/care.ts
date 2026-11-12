@@ -4,7 +4,8 @@ import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
   ANTENNATE_AI_S, ANTENNATE_RANGE_L, ANTENNATE_S, EGG_COST_P, FEED_LARVA_LOADS, FEED_LARVA_S, FOUNDING_FEED_P_SHARE,
-  GROOM_BROOD_S, GROOM_OTHER_S, GROOM_REDUCTION, GROOM_SELF_S, LAY_COOLDOWN_S, LAY_EGG_S, OPEN_LAY_ACTION_S, SNIFF_S,
+  GROOM_BROOD_S, GROOM_OTHER_S, GROOM_REDUCTION, GROOM_SELF_S, LAY_COOLDOWN_S, LAY_EGG_S, OPEN_LAY_ACTION_S, OPEN_LAY_BATCH_EGGS,
+  SNIFF_S,
 } from '@/sim/balance/actions';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { removeItem } from '@/sim/entities';
@@ -46,11 +47,16 @@ export const layEggDef: ActionDef = {
     return null;
   },
   durationS: (sim, ant) => (openingLay(sim, ant) ? OPEN_LAY_ACTION_S : LAY_EGG_S),
+  // The opening lays a whole batch at the end of active (no partial batch on interrupt); the colony's canLay stops
+  // it early at the clutch limits. Counting batches (opening.layBatches) is the opening script's, from the
+  // action-completed event.
   effect(sim, ant) {
     const opening = openingLay(sim, ant);
-    const id = ports.layEgg(sim, ant, 'worker');
+    const want = opening ? OPEN_LAY_BATCH_EGGS : 1;
+    let laid = 0;
+    while (laid < want && ports.layEgg(sim, ant, 'worker') >= 0) laid++;
     if (!opening) ant.layCooldownUntilTick = sim.state.tick + LAY_COOLDOWN_S * TICKS_PER_SECOND;
-    return id >= 0 ? 1 : 'budget';
+    return laid > 0 ? laid : 'budget';
   },
 };
 

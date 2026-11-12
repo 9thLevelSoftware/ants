@@ -5,6 +5,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { NestFieldKind } from './ids/nest';
 import type { TargetKind } from './refs';
+import type { NavScratch } from '@/sim/locomotion/scratch';
 
 export const WALKER_MEDIA = ['surface', 'cavity', 'air', 'water'] as const;
 export type WalkerMedium = (typeof WALKER_MEDIA)[number];
@@ -45,6 +46,11 @@ export interface NavState {
   desiredSpeed: number;
   /** Climb route id being followed (mode 'climb'), -1 otherwise. Additive. */
   routeId: number;
+  /**
+   * Locomotion's own working state (trip legs, stuck ladder, wander region, trail, latch): plain data, created by
+   * locomotion on the first request and never read by other modules. Additive (loco).
+   */
+  loco?: NavScratch;
 }
 
 /** Kinematic state on the level set f(p) = footOffset. */

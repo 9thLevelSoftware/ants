@@ -53,7 +53,14 @@ export interface NestSource {
   project(p: Vec3, out: Vec3, n: Vec3): boolean;
   /** Full field f(p), > 0 free. */
   f(x: number, y: number, z: number): number;
+  /** Simulation tick (10 per game second). */
+  tick(): number;
+  /** Subscribes to carve edits (world box of the samples written, mm); returns the unsubscribe function. */
+  onCarve(fn: (e: CarveEdit) => void): () => void;
 }
+
+/** A carve-grid edit as the renderer sees it. */
+export interface CarveEdit { kind: 'carve' | 'fill'; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number }
 
 type FieldExt = Sim['field'] & {
   soilXYZ?(x: number, y: number, z: number): number;
@@ -118,6 +125,13 @@ export function nestSourceFromSim(sim: Sim): NestSource {
       return true;
     },
     f: fXYZ,
+    tick: () => sim.state.tick ?? 0,
+    onCarve: (fn) => {
+      const l = (c: { kind: 'carve' | 'fill'; box: { i0: number; j0: number; k0: number; i1: number; j1: number; k1: number } }) =>
+        fn({ kind: c.kind, x0: c.box.i0 * voxel, y0: c.box.j0 * voxel, z0: c.box.k0 * voxel, x1: c.box.i1 * voxel, y1: c.box.j1 * voxel, z1: c.box.k1 * voxel });
+      carve.addListener(l);
+      return () => carve.removeListener(l);
+    },
   };
 }
 

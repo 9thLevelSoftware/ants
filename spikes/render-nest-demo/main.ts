@@ -204,6 +204,7 @@ function bite(): void {
     y: s.y + f.y * along + (side.y * Math.cos(a) + up.y * Math.sin(a)) * rad,
     z: s.z + f.z * along + (side.z * Math.cos(a) + up.z * Math.sin(a)) * rad,
   };
+  (sim.state as { tick: number }).tick += 10; // one game second per bite: the fresh-wall look fades with ticks
   kernel.carveSphere(c, 0.6 * BU);
 }
 
@@ -261,10 +262,10 @@ window.__demo = {
     render(0);
   },
   /** Renders one frame and waits for the GPU (1-pixel readback): call before a screenshot. Returns ms. */
-  sync: () => {
+  sync: (update = true) => {
     const gl = app.renderer.getContext();
     const t0 = performance.now();
-    render(0);
+    if (update) render(0); else app.renderFrame(0); // no update: keeps eased values (exposure series)
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     return performance.now() - t0;
   },

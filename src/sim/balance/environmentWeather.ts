@@ -63,12 +63,19 @@ export const TRANSITIONS: Record<Season, TransitionTable> = {
     frost: { clear: 0.35, overcast: 0.65, rain: 0, storm: 0, heat: 0 },
   },
 };
+/**
+ * Calibration of every `heat` destination weight (applied with the climate and difficulty multipliers, before
+ * normalisation). The chapter's table (`.27`) and its dwells measure, stepping the clock, 32 % summer heat time and
+ * 1.3 heat waves per summer on the reference climate; the chapter's own targets (its Monte Carlo line, E7) are 25 %
+ * and 1.0. 0.63 gives 26 % and 1.0 with every seed inside E7's 0.15-0.35 (App. E7 time test in envCore.verify).
+ */
+export const HEAT_WEIGHT_CALIBRATION = 0.63;
 /** Spring and autumn `clear -> heat` is this share of the summer weight (E-136), behind the seasonal-mean guard. */
 export const SHOULDER_HEAT_SHARE = 0.3;
 /** Season whose row a state uses when its own season has no row for it (heat in autumn/winter, frost in summer). */
 export const FALLBACK_ROW_SEASON: Season = 'spring';
-/** A redraw is tried this many times before the state falls back to `overcast` (here: all weights were guarded out). */
-export const WEATHER_REDRAW_MAX = 50;
+/** Weather record repaired after corruption (GDD 06 §3.12): overcast for this many game hours. */
+export const WEATHER_REPAIR_DWELL_H = 6;
 
 /** Dwell time per season and state: `min + Exp(mean - min)` hours, capped (GDD 06 §3.2). */
 export const DWELL_H: Record<Season, Record<WeatherState, { min: number; mean: number }>> = {
@@ -165,6 +172,9 @@ export const WIND_DIR_WALK_DEG = 15;
 export const WIND_STORM_TURN_DEG = 90;
 /** Ground-level wind = factor * wind at 2 m. */
 export const WIND_GROUND_FACTOR = 0.2;
+/** Inside a grass canopy (sward above GRASS_CANOPY_MIN_BU) the ground wind is halved. */
+export const GRASS_CANOPY_MIN_BU = 8;
+export const GRASS_CANOPY_WIND_FACTOR = 0.5;
 
 // ---- Dew, mist, lightning (GDD 06 §3.8, §3.11) ----
 
@@ -176,10 +186,9 @@ export const DEW_BLOCK_WIND = 3.5;
 export const DEW_START_AFTER_SUNSET_H = 1;
 export const DEW_GONE_AFTER_SUNRISE_CLEAR_H = 5;
 export const DEW_GONE_AFTER_SUNRISE_OVERCAST_H = 8;
-/** Mist after a dew night with light wind: density and the hour after sunrise until which it lasts. */
+/** Mist after a dew night with light wind: density. It lasts while the dew level is above 0.6 (about 2 h after a clear sunrise). */
 export const MIST_WIND_MAX = 1.5;
 export const MIST_DENSITY = 0.3;
-export const MIST_UNTIL_AFTER_SUNRISE_H = 2;
 /** Lightning in storms: minimum gap (ticks), extra mean gap (ticks), thunder delay range (s). */
 export const LIGHTNING_MIN_GAP_TICKS = 60;
 export const LIGHTNING_MEAN_EXTRA_TICKS = 150;
@@ -215,3 +224,8 @@ export const START_CONDITIONS: Partial<Record<string, StartConditions>> = {
 export const START_REDRAW_MAX = 50;
 /** Extra rain of the Atta start beyond the 6.35 mm minimum: up to this many mm. */
 export const START_RAIN_EXTRA_MM = 3;
+/** The Atta start's last rain ended this many game hours ago: from `min`, plus up to `span` more. */
+export const START_RAIN_AGO_MIN_H = 1;
+export const START_RAIN_AGO_SPAN_H = 8;
+/** A moonless start (new moon) lands within +-this fraction of the 29.5-day cycle of it (about 6 h). */
+export const START_NEW_MOON_JITTER = 0.02;

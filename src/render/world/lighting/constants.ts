@@ -82,9 +82,19 @@ export const HAZE_HEIGHT_K = 4;
 /** Easing time constant of haze changes when the camera crosses habitats, s. */
 export const HAZE_EASE_S = 1.5;
 
+/** GDD 08 11.3: habitats whose haze visibility changes in a weather state (asphalt 450 BU, 250 BU in heat). */
+export const HAZE_VIS_WEATHER_BU: Partial<Record<WeatherState, Partial<Record<ZoneType, number>>>> = {
+  heat: { asphalt: 250 },
+};
+
 /** Weather modifiers (GDD 08 11.4; sun multipliers from GDD 06 3.1 `sunMult`). */
 export interface WeatherLook {
   sunMult: number;
+  /**
+   * Sun multiplier the exposure metering assumes. Equal to sunMult except for the storm: GDD 08 11.4 defines the
+   * storm as the rain look darkened by 0.7 EV, so it meters like rain and its own exposure is rain's - 0.7.
+   */
+  meterSunMult: number;
   /** Shadow penumbra multiplier. */
   penumbra: number;
   /** Haze density multiplier. */
@@ -96,15 +106,19 @@ export interface WeatherLook {
   saturation: number;
   /** Warmer haze tint (heat) or null. */
   hazeHex: string | null;
+  /** Hue of the sky fill in the shadows (frost: blue shadows), or null. The fill keeps its brightness. */
+  shadowHex: string | null;
 }
 
+// hazeMult: overcast +20 % (GDD 08 11.4); rain and storm are not given in the GDD (the rain curtain thickens the
+// air: +35 % / +50 %, tuning values); heat changes the haze colour, and its density only over asphalt (above).
 export const WEATHER_LOOK: Record<WeatherState, WeatherLook> = {
-  clear: { sunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 1, hazeHex: null },
-  overcast: { sunMult: 0.35, penumbra: 4, hazeMult: 1.2, exposureEV: 0.3, overcast: 1, saturation: 0.95, hazeHex: null },
-  rain: { sunMult: 0.2, penumbra: 4, hazeMult: 1.35, exposureEV: 0.4, overcast: 1, saturation: 0.95, hazeHex: null },
-  storm: { sunMult: 0.12, penumbra: 4, hazeMult: 1.5, exposureEV: 0.1, overcast: 1, saturation: 0.9, hazeHex: null },
-  heat: { sunMult: 1.05, penumbra: 1, hazeMult: 1.1, exposureEV: -0.1, overcast: 0, saturation: 0.95, hazeHex: '#EADBC0' },
-  frost: { sunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 0.7, hazeHex: null },
+  clear: { sunMult: 1, meterSunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 1, hazeHex: null, shadowHex: null },
+  overcast: { sunMult: 0.35, meterSunMult: 0.35, penumbra: 4, hazeMult: 1.2, exposureEV: 0.3, overcast: 1, saturation: 0.95, hazeHex: null, shadowHex: null },
+  rain: { sunMult: 0.2, meterSunMult: 0.2, penumbra: 4, hazeMult: 1.35, exposureEV: 0.4, overcast: 1, saturation: 0.95, hazeHex: null, shadowHex: null },
+  storm: { sunMult: 0.12, meterSunMult: 0.2, penumbra: 4, hazeMult: 1.5, exposureEV: 0.4 - 0.7, overcast: 1, saturation: 0.9, hazeHex: null, shadowHex: null },
+  heat: { sunMult: 1.05, meterSunMult: 1.05, penumbra: 1, hazeMult: 1, exposureEV: -0.1, overcast: 0, saturation: 0.95, hazeHex: '#EADBC0', shadowHex: null },
+  frost: { sunMult: 1, meterSunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 0.7, hazeHex: null, shadowHex: '#5A6E8C' },
 };
 /** Overcast sky colour (linear) the dome flattens toward. */
 export const OVERCAST_SKY: [number, number, number] = [0.4, 0.42, 0.46];
@@ -127,6 +141,14 @@ export const UNDERGROUND = {
  * Photographer's exposure compensation (spike-look.md 2.3 calibrated golden hour at +0.85 EV and night at +2.8 EV):
  * the ground's horizontal irradiance is compared with midday and AUTO_EXPOSURE_K of the difference in stops is
  * added on top of the GDD 08 11.2 exposure, clamped to AUTO_EXPOSURE_MAX_EV.
+ *
+ * RECORDED DEPARTURE from the GDD 08 11.2 exposure column (night +1.2, dawn/dusk +0.3, low sun and day 0): the GDD
+ * column is applied as written, and this metering comes on top. Reason: the renderer lights the ground physically
+ * (key light x sin(elevation)), which the GDD's relative-intensity column does not model; without metering the
+ * ground at night sits 2.8 stops under midday and golden hour 1.9 stops under, which breaks GDD 08 11.2 "night
+ * must stay readable" and the warm golden-hour look of 11.1. Final values at a clear sky (pinned by lighting.test.ts):
+ * night ~3.0 EV, horizon ~1.9, 8 deg ~1.3, 15 deg ~0.9, 30 deg ~0.4, 50 deg+ ~0.1. Weather does not drive the
+ * metering beyond `meterSunMult`, so overcast, rain and storm stay visibly darker than a clear day.
  */
 export const AUTO_EXPOSURE_K = 0.6;
 export const AUTO_EXPOSURE_MAX_EV = 2.0;

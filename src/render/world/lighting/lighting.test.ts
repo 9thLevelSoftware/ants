@@ -63,7 +63,7 @@ describe('weather and places', () => {
     const ov = computeLighting(input(50, { weather: 'overcast', cloud: 0.9 }));
     expect(ov.keyIntensity / clear.keyIntensity).toBeCloseTo(0.35, 2);
     expect(ov.penumbra).toBeCloseTo(4, 5);
-    expect(ov.fogDensity / clear.fogDensity).toBeCloseTo(1.2 * 1.2, 2);
+    expect(ov.fogDensity / clear.fogDensity).toBeCloseTo(1.2, 2); // GDD 08 11.4: +20 % (counted once)
     expect(ov.overcast).toBe(1);
   });
   it('haze visibility per habitat (63 % at HAZE_VIS_BU), thinner for high cameras', () => {
@@ -79,6 +79,29 @@ describe('weather and places', () => {
     const u = computeLighting(input(50, { under: 1 }));
     expect(u.keyIntensity).toBeCloseTo(SUN_INTENSITY * UNDERGROUND.surfaceDim, 4);
     expect(u.fogDensity).toBeCloseTo(1 / (UNDERGROUND.visBU * 4), 8);
+  });
+  it('heat: asphalt haze closes in to 250 BU, other habitats keep theirs (GDD 08 11.3)', () => {
+    const hot = computeLighting(input(50, { weather: 'heat', cloud: 0.05, zone: 'asphalt' }));
+    expect(hot.fogDensity).toBeCloseTo(1 / (250 * 4), 8);
+    const lawn = computeLighting(input(50, { weather: 'heat', cloud: 0.05, zone: 'lawn' }));
+    expect(lawn.fogDensity).toBeCloseTo(1 / (HAZE_VIS_BU.lawn * 4), 8);
+  });
+  it('frost: blue shadow fill #5A6E8C at the clear-sky fill brightness (GDD 08 11.4)', () => {
+    const clear = computeLighting(input(20));
+    const frost = computeLighting(input(20, { weather: 'frost' }));
+    const lum = (c: Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    expect(lum(frost.hemiSky)).toBeCloseTo(lum(clear.hemiSky), 5);
+    const want = new Color('#5A6E8C');
+    expect(frost.hemiSky.b / frost.hemiSky.r).toBeCloseTo(want.b / want.r, 4);
+  });
+  it('exposure: GDD 08 11.2 column plus the recorded metering (constants.ts AUTO_EXPOSURE_K)', () => {
+    // pinned so any change of the departure is deliberate; see the RECORDED DEPARTURE note in constants.ts
+    const ev = (e: number) => computeLighting(input(e)).exposureEV;
+    expect(ev(-30)).toBeCloseTo(3.02, 1);
+    expect(ev(0)).toBeCloseTo(1.91, 1);
+    expect(ev(8)).toBeCloseTo(1.28, 1);
+    expect(ev(30)).toBeLessThan(0.5);
+    expect(ev(60)).toBeCloseTo(0, 5);
   });
   it('interior: warm ambient, little direct sun', () => {
     const out = computeLighting(input(50));

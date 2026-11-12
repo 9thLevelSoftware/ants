@@ -9,16 +9,17 @@ import { createWorldUniforms, materialDef, MaterialLibrary } from '@/render/worl
 import type { Sim } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
 import { CapSet } from './cutaway/capSet';
-import { computeCutPlane, createCutPlane, cutKey, type NestCutawayParams } from './cutaway/cutPlane';
+import { computeCutPlane, createCutPlane, cutKey, type CutPlane, type NestCutawayParams } from './cutaway/cutPlane';
 import { patchSurfaceForCutaway } from './cutaway/surfaceCutPatch';
 import { XRayPass } from './cutaway/xray';
 import { NestGhosts } from './ghosts';
+import { FreshWalls } from './lighting/freshWalls';
 import { NestLighting } from './lighting/nestLighting';
 import { createNestLook, updateNestLook, type NestLook } from './lighting/undergroundLook';
 import { NestMaterials, wallLook } from './materials/nestMaterials';
 import { createNestUniforms, CUT_OFF, CUT_SLICE, CUT_XRAY, type NestUniforms } from './materials/nestUniforms';
 import { ChunkMeshManager, type MeshFrameStats } from './mesh/chunkMeshManager';
-import { CUTAWAY, MESH_QUALITY, WALL_LOOKS, type MeshQuality } from './params';
+import { CUTAWAY, FRESH_WALL, MESH_QUALITY, WALL_LOOKS, type MeshQuality } from './params';
 import { pickNest, projectOnCut, snapToWall, type NestPick } from './picking';
 import { nestSourceFromSim, type NestSource } from './simAdapter';
 
@@ -76,6 +77,8 @@ export class NestRenderer {
   private subject = { x: 0, y: 0, z: 0 };
   private frames = 0;
   private lastVersion = -1;
+  private fresh = new FreshWalls(FRESH_WALL.ticks, 2);
+  private unsubscribe: (() => void) | null = null;
 
   async init(ctx: NestRenderContext): Promise<void> {
     this.ctx = ctx;
@@ -103,6 +106,9 @@ export class NestRenderer {
 
   /** Lower-level: any NestSource (tests, tools). */
   setSource(src: NestSource | null): void {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    this.fresh.clear();
     this.src = src;
     this.meshes.setSource(src);
     this.caps.hide();
@@ -110,6 +116,7 @@ export class NestRenderer {
     if (src) {
       this.lighting.setBodyUnit(src.bu);
       this.lighting.refreshOpenings(src);
+      this.unsubscribe = src.onCarve((e) => this.fresh.add(e, src.tick()));
     }
   }
 
@@ -129,6 +136,21 @@ export class NestRenderer {
   /** Moisture darkening hook: wetness = clamp(soilMoisture * scale + offset) (rain soaking, flooding). */
   setMoisture(scale: number, offset = 0): void {
     this.uniforms.uMoist.value.set(scale, offset);
+  }
+
+  /** Chunk keys reported dirty by the sim's `carve-chunks-dirty` event (the grid's own queue is drained anyway). */
+  markDirty(keys: readonly number[]): void {
+    this.meshes.markDirty(keys);
+  }
+
+  /**
+   * Occlusion cutaway (GDD 01 6.5 rule 3): nest walls inside the capsule from `a` (camera) to `b` (possessed ant) are
+   * dithered so only `keep` of their fragments remain; radius 0 turns it off.
+   */
+  setOcclusionCapsule(a: Vec3, b: Vec3, radius: number, keep = 0.25): void {
+    this.uniforms.uOccA.value.set(a.x, a.y, a.z);
+    this.uniforms.uOccB.value.set(b.x, b.y, b.z);
+    this.uniforms.uOcc.value.set(radius, keep);
   }
 
   /** Adds the cutaway behaviour (hide above the slice, darken outside R_cut) to another renderer's material. */
@@ -161,7 +183,9 @@ export class NestRenderer {
     if (!lantern && src.possessedPos(this.subject)) lantern = this.subject;
     this.lighting.update(src, this.camPos, lantern);
 
-    // meshes
+    // meshes (rebuilt walls remember where they were freshly carved)
+    this.uniforms.uTick.value = src.tick();
+    this.fresh.prune(src.tick());
     this.meshes.update(this.camPos.x, this.camPos.y, this.camPos.z, this.quality.budgetMs);
 
     // cutaway
@@ -187,7 +211,7 @@ export class NestRenderer {
     return projectOnCut(this.plane, p, out);
   }
 
-  get cutPlane(): Readonly<ReturnType<typeof createCutPlane>> {
+  get cutPlane(): Readonly<CutPlane> {
     return this.plane;
   }
 
@@ -203,6 +227,7 @@ export class NestRenderer {
   }
 
   dispose(): void {
+    this.unsubscribe?.();
     this.ctx?.scene.remove(this.group);
     this.meshes?.dispose();
     this.xray?.dispose();
@@ -217,7 +242,7 @@ export class NestRenderer {
 
   private applyQuality(): void {
     const q = this.quality;
-    this.meshes.build = { refine: q.refine, ao: q.ao };
+    this.meshes.build = { refine: q.refine, ao: q.ao, carvedAt: this.fresh.carvedAt };
     this.meshes.setCastShadow(q.castShadow && this.ctx.quality.shadows.enabled);
     this.materials.setDetail(q.detailNormals);
   }

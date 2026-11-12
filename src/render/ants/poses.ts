@@ -56,6 +56,14 @@ export function copyPose(src: PoseTarget, out: PoseTarget): PoseTarget {
   return out;
 }
 
+/** out += (target - out) * k, field by field (explicit fields: this runs per ant per frame). */
+export function blendPose(out: PoseTarget, target: PoseTarget, k: number): void {
+  out.raise += (target.raise - out.raise) * k; out.gaster += (target.gaster - out.gaster) * k;
+  out.gape += (target.gape - out.gape) * k; out.pitch += (target.pitch - out.pitch) * k;
+  out.groom += (target.groom - out.groom) * k; out.chew += (target.chew - out.chew) * k;
+  out.spread += (target.spread - out.spread) * k; out.antenna += (target.antenna - out.antenna) * k;
+}
+
 /** Carry adds its own head raise and gape (from the carried item's definition); takes the larger of each. */
 export function withCarry(base: PoseTarget, raise: number, gape: number, out: PoseTarget): PoseTarget {
   copyPose(base, out);

@@ -8,6 +8,8 @@ import { censusOf } from './census';
 import { daysOfStock, needRates } from './needs';
 import { queenOf } from './queen';
 import { GROUP_TASKS } from './allocation';
+import { meanUnloadWaitS, popOf } from './population';
+import { TICKS_PER_SECOND } from '@/sim/time';
 
 export interface ColonySummary {
   N: number;
@@ -25,6 +27,26 @@ export interface ColonySummary {
   queen: { mode: string; gut: { c: number; p: number }; reserve: number; reserveP: number; health: number } | null;
   allocation: { mode: string; need: Record<string, number>; target: Record<string, number>; actual: Record<string, number> };
   trips: { today: number; successRate: number };
+  /** GDD 02 §13.1 accounting beyond the §13.3 fields (additive). */
+  population: ColonyPopulationSummary;
+}
+
+export interface ColonyPopulationSummary {
+  byBand: { callow: number; young: number; mid: number; old: number };
+  inside: number;
+  outside: number;
+  nanitics: number;
+  minims: number;
+  controlled: number;
+  eggsLaid: number;
+  eggsHatched: number;
+  larvaePupated: number;
+  eclosions: number;
+  deathsByCause: Record<string, number>;
+  broodDeathsByCause: Record<string, number>;
+  intakeByKind: Record<string, { n: number; c: number; p: number }>;
+  meanUnloadWaitS: number;
+  recountFixes: number;
 }
 
 export function colonySummary(sim: Sim, colonyId: number): ColonySummary | null {
@@ -62,6 +84,23 @@ export function colonySummary(sim: Sim, colonyId: number): ColonySummary | null 
     queen: q?.queen ? { mode: q.queen.mode, gut: { ...q.queen.gut }, reserve: q.queen.reserve, reserveP: q.queen.reserveP, health: q.hp / q.maxHp } : null,
     allocation: { mode: col.directives.allocation === 'auto' ? 'auto' : 'manual', need, target, actual },
     trips: { today: core.departuresToday, successRate: col.counters.trips > 0 ? col.counters.tripSuccesses / col.counters.trips : 0 },
+    population: populationSummary(sim, col.id),
+  };
+}
+
+function populationSummary(sim: Sim, colonyId: number): ColonyPopulationSummary {
+  const col = sim.stores.colonies.get(colonyId)!;
+  const cen = censusOf(sim, colonyId);
+  const pop = popOf(col);
+  const intakeByKind: Record<string, { n: number; c: number; p: number }> = {};
+  for (const [k, t] of Object.entries(pop.intakeByKind)) intakeByKind[k] = { n: t.n, c: t.c, p: t.p };
+  return {
+    byBand: { callow: cen.callows, young: cen.young, mid: cen.mid, old: cen.old },
+    inside: cen.inside, outside: cen.outside, nanitics: cen.nanitics, minims: cen.minims, controlled: cen.controlled,
+    eggsLaid: col.counters.eggsLaid, eggsHatched: pop.eggsHatched, larvaePupated: pop.larvaePupated,
+    eclosions: col.counters.eclosions, deathsByCause: { ...pop.deathsByCause },
+    broodDeathsByCause: { ...pop.broodDeathsByCause }, intakeByKind,
+    meanUnloadWaitS: meanUnloadWaitS(col, TICKS_PER_SECOND), recountFixes: pop.recountFixes,
   };
 }
 

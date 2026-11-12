@@ -3,6 +3,7 @@
 
 import type { Sim } from '@/sim/types';
 import { coreOf } from './core';
+import { countAdultDeath } from './population';
 
 const watched = new WeakSet<Sim>();
 
@@ -15,5 +16,6 @@ export function watchColonyEvents(sim: Sim): void {
     col.counters.deaths++;
     const core = coreOf(col);
     core.deathsToday[ev.cause] = (core.deathsToday[ev.cause] ?? 0) + 1;
+    countAdultDeath(col, ev.cause);
   });
 }

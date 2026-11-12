@@ -178,6 +178,40 @@ export interface WorldMaps {
   exposure: ByteMap;
   /** Nesting suitability 0..255 per species. */
   suitability: Record<string, ByteMap>;
+  // ---- Additive (worldgen-terrain; GDD 04 §2.4, §12.3, §12.4, §13.4). All on the 16 BU nav grid. ----
+  /** Shade samples per sun hour (GDD 04 §12.3): `maps[i]` is the shade 0..255 at `hours[i]` (game clock). */
+  shadeHours?: { hours: number[]; maps: ByteMap[] };
+  /** Static puddle capacity, mm (0-30), on impermeable cells (GDD 04 §13.4). */
+  puddleCapMm?: ByteMap;
+  /** D8 catchment per nav cell, BU^2 (impermeable cells contribute fully, soils x0.3). Row-major like the maps. */
+  catchAreaBu2?: Float32Array;
+  /** Surface permeability 0..255 (= 0..1): asphalt/concrete/tile 0, sand-jointed paving 0.05, soils 1. */
+  permeable?: ByteMap;
+  /** Litter / mulch cover 0..255 (= 0..1). */
+  litter?: ByteMap;
+  /** Travel access per species: cost multiplier x10 (10 = 1.0), 255 = impassable (GDD 04 §12.4). */
+  access?: Record<string, ByteMap>;
+}
+
+/** Bits of `NavGridData.flags` (GDD 04 §11). */
+export const NAV_CELL_FLAGS = {
+  /** Overhead cover (a primitive ceiling or canopy) over the ground. */
+  SHELTER: 1 << 0,
+  /** No overhead cover at ground level. */
+  EXPOSED: 1 << 1,
+  /** Inside the building (interior zone). */
+  INTERIOR: 1 << 2,
+  /** Hot surface material (asphalt, rubber, metal). */
+  HOT: 1 << 3,
+  /** Static water body. */
+  WATER: 1 << 4,
+} as const;
+
+/** Physical treatment of one map edge (GDD 04 §4.2 step 1g, §14): what the skirt impostors continue. */
+export interface MapEdge {
+  /** x0: x = 0, x1: x = size, z0: z = 0, z1: z = size. */
+  side: 'x0' | 'x1' | 'z0' | 'z1';
+  kind: 'fence' | 'dry-stone-wall' | 'hedge' | 'road' | 'facade' | 'open';
 }
 
 /** Coarse 16 BU navigation grid data (GDD 04 §11). */
@@ -186,6 +220,10 @@ export interface NavGridData {
   cls: ByteMap;
   /** Cost multiplier per cell, x10 (10 = 1.0). */
   cost: ByteMap;
+  /** Additive (worldgen-terrain): top-surface height of the walkable ground per cell, mm. */
+  groundY?: Float32Array;
+  /** Additive (worldgen-terrain): NAV_CELL_FLAGS bits per cell. */
+  flags?: ByteMap;
 }
 
 export interface WorldMeta {
@@ -222,6 +260,8 @@ export interface WorldData {
   placements: WorldPlacements;
   queenStart: StartPose;
   meta: WorldMeta;
+  /** Additive (worldgen-terrain): edge treatment of each map side, for the boundary skirt. */
+  edges?: MapEdge[];
 }
 
 /** Mound heightfield around an entrance (GDD 03 §1.5). */

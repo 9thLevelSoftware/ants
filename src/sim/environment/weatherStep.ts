@@ -15,6 +15,7 @@ import { calendarTick, seasonIndexOf, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/si
 import { calendarNow } from './calendar';
 import { isNoLag } from './noLag';
 import { airTemp, dmTarget, woffTarget } from './temperature';
+import { guardWeather } from './envGuard';
 import { baseWind, windHold } from './wind';
 import { advanceWeather, rollDryspell } from './weather';
 
@@ -149,6 +150,7 @@ export function stepWeather(sim: Sim, dtTicks: number): void {
   const w = s.env.weather;
   const ct = calendarTick(s);
   const dtH = dtTicks / TICKS_PER_HOUR;
+  guardWeather(sim);
   stepDaily(sim, ct, dtTicks);
   if (s.tick >= w.dwellEndTick) advanceWeather(sim);
   stepPrecip(sim, ct, dtTicks, dtH);
@@ -156,6 +158,7 @@ export function stepWeather(sim: Sim, dtTicks: number): void {
   stepWind(sim, dtH);
   stepLightning(sim);
   stepDew(sim, ct, dtTicks);
+  guardWeather(sim);
   const t = airTemp(sim);
   if (t > w.history.tmaxToday) w.history.tmaxToday = t;
 }

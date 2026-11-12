@@ -72,13 +72,18 @@ export function applyHeightDeltas(heights: Float32Array, nx: number, nz: number,
   }
 }
 
-/** Cheap change signature of the deformation tiles (count + checksum of a few samples). */
+/**
+ * Change signature of the deformation tiles: a hash over the tile count, every tile index and EVERY value (a
+ * footprint can change any cell; the contract has no per-tile revision counter to read instead). Cost is one
+ * multiply-xor per value, about 0.1 ms per frame for 100 tiles.
+ */
 export function heightDeltaSignature(sim: Sim | null | undefined): number {
   const tiles = heightDeltaTiles(sim);
-  let s = tiles.length;
+  let s = tiles.length | 0;
   for (const t of tiles) {
-    s = (s * 31 + t.tileIndex) | 0;
-    for (let i = 0; i < t.data.length; i += 37) s = (s * 31 + t.data[i]) | 0;
+    s = Math.imul(s ^ t.tileIndex, 0x01000193);
+    const d = t.data;
+    for (let i = 0; i < d.length; i++) s = Math.imul(s ^ (d[i] & 0xffff), 0x01000193);
   }
   return s;
 }
@@ -311,7 +316,18 @@ export function readEnvironment(sim: Sim, camPos: { x: number; y: number; z: num
     out.sunElevDeg = sunFromCalendar(out.hour, sr, ss, out.sunDir);
   }
   moonFromSun(out.sunDir, out.moonDir);
-  const w = sim.state.env.weather;
+  readWeather(sim, out);
+  out.light = env.lightLevel ? env.lightLevel(sim, camPos) : (cal?.daylight ?? 1);
+  return out;
+}
+
+/**
+ * Weather, cloud, fog, precipitation and wind of the simulation into `out` (also used when the hour is overridden:
+ * photo mode keeps the real weather). Leaves `out` unchanged when the sim has no weather state yet.
+ */
+export function readWeather(sim: Sim, out: EnvSample): EnvSample {
+  const w = (sim.state as { env?: { weather?: Sim['state']['env']['weather'] } }).env?.weather;
+  if (!w) return out;
   out.weather = w.state;
   out.cloud = w.cloud;
   out.fog = w.fogDensity;
@@ -320,6 +336,5 @@ export function readEnvironment(sim: Sim, camPos: { x: number; y: number; z: num
   out.windDir.set(w.windDir.x, 0, w.windDir.z);
   if (out.windDir.lengthSq() < 1e-6) out.windDir.set(1, 0, 0);
   out.windDir.normalize();
-  out.light = env.lightLevel ? env.lightLevel(sim, camPos) : (cal?.daylight ?? 1);
   return out;
 }

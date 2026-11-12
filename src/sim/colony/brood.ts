@@ -22,6 +22,7 @@ import { chamberById, cycleWaste, isWorkerCaste } from './census';
 import { broodTempC, chamberRh } from './envAdapter';
 import { devRate, larvaFood, stageDu } from './life';
 import { daysOfStock } from './needs';
+import { countBroodDeath, countStageChange } from './population';
 
 // Imported bindings are accessor reads under Vite's SSR module runner (tests, headless tools); the hot per-entity
 // steps below read these module-local copies instead.
@@ -143,7 +144,10 @@ function spawnWaste(sim: Sim, b: Brood, wasteKind: 'meconium' | 'cocoon' | 'broo
 export function broodDies(sim: Sim, b: Brood, cause: BroodDeathCause): void {
   const col = sim.stores.colonies.get(b.colony);
   if (!_killBrood(sim, b.id, cause)) return;
-  if (col) col.counters.broodDeaths++;
+  if (col) {
+    col.counters.broodDeaths++;
+    countBroodDeath(col, cause);
+  }
   if (cause !== 'cannibalised') spawnWaste(sim, b, 'brood-corpse');
 }
 
@@ -158,6 +162,8 @@ function setStage(sim: Sim, b: Brood, to: Brood['stage']): void {
   b.gutC = 0;
   b.gutP = 0;
   sim.emit({ type: 'brood-stage', broodId: b.id, from, to });
+  const col = sim.stores.colonies.get(b.colony);
+  if (col) countStageChange(col, from, to);
   if (from === 'larva' && to === 'pupa') spawnWaste(sim, b, 'meconium');
 }
 

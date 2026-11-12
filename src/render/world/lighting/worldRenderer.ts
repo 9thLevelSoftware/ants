@@ -12,18 +12,23 @@ import { SkyEnvironment } from '../sky/skyEnvironment';
 import { MoundRenderer } from '../terrain/moundRenderer';
 import { TerrainRenderer } from '../terrain/terrainRenderer';
 import type { HoleProbe } from '../terrain/holeMask';
-import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, HAZE_VIS_BU, INTERIOR_LOOK, UNDERGROUND } from './constants';
+import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, UNDERGROUND } from './constants';
 import { LightingRig } from './lightingRig';
 import {
   breachHoleProbe, breaches, carveView, createEnvSample, dynamicPrims, fieldHoleProbe, heightDeltaSignature, mounds,
-  movedStaticPrims, moonFromSun, objectMoves, readEnvironment, staticPrims, sunFromCalendar, terrainSource, zoneTypeAt, type CarveView,
+  movedStaticPrims, moonFromSun, objectMoves, readEnvironment, readWeather, staticPrims, sunFromCalendar, terrainSource, zoneTypeAt, type CarveView,
   type EnvSample,
 } from './simAdapter';
-import { computeLighting, createLightingState, type LightingState } from './timeOfDay';
+import { computeLighting, createLightingState, hazeVisBU, type LightingState } from './timeOfDay';
 import type { EnvOverride, WorldFrame, WorldRenderContext } from './types';
 
 /** Primitive detail switch distance per preset, BU (from the camera to the primitive's bounding sphere). */
 export const PRIM_NEAR_BU: Record<QualityPreset['id'], number> = { test: 40, low: 30, medium: 50, high: 70, ultra: 100 };
+/**
+ * Primitives farther than this many haze visibilities are not drawn. FogExp2 reaches 99.4 % at 2.26 visibilities;
+ * fog uses view depth, so the cull radius allows for objects up to 45 degrees off the view axis.
+ */
+export const PRIM_FOG_CULL_K = 3.2;
 /** Sky dome radius, mm (drawn on the far plane; only needs to exceed the near plane). */
 const SKY_RADIUS = 1000;
 
@@ -48,6 +53,8 @@ export class WorldRenderer {
   private carve: CarveView | null = null;
   private carveListener: ((c: { box: Box }) => void) | null = null;
   private heightSig = 0;
+  /** Incremented by every setWorld / dispose; a pending setWorld that sees another value was superseded. */
+  private worldGen = 0;
   private under = 0;
   private hazeVis = -1;
   private interior = -1;
@@ -74,26 +81,44 @@ export class WorldRenderer {
     await this.library.ready();
   }
 
-  /** Builds the renderers for a world. With a sim, dynamic data (prims, mounds, holes) follow it every frame. */
+  /**
+   * Builds the renderers for a world. With a sim, dynamic data (prims, mounds, holes) follow it every frame.
+   * The caller may keep calling update() while this is pending (the render loop does not wait): the old world is
+   * taken down at once and nothing is drawn until the new one is complete. A newer setWorld supersedes this one.
+   */
   async setWorld(world: WorldData, sim: Sim | null = null): Promise<void> {
-    this.world = world;
+    const gen = ++this.worldGen;
+    this.detachWorld();
     this.rig.setQuality(this.ctx.quality, world.bu);
     this.prims.nearMm = PRIM_NEAR_BU[this.ctx.quality.id] * world.bu;
     await this.terrain.setSource(terrainSource(world, sim));
-    this.mounds?.dispose();
-    if (this.mounds) this.group.remove(this.mounds.group);
+    if (gen !== this.worldGen) return; // a newer setWorld (or dispose) took over while the textures loaded
     this.mounds = new MoundRenderer(this.library, this.terrain.holeMask!.uniforms);
     this.group.add(this.mounds.group);
     this.prims.setStatic(staticPrims(world));
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
     this.interior = -1;
+    this.world = world; // last: update() draws only a completely built world
     this.attachSim(sim);
+  }
+
+  /** Takes the current world down (its terrain is about to be replaced): no drawing until the next world is ready. */
+  private detachWorld(): void {
+    this.world = null;
+    if (this.carve && this.carveListener) this.carve.removeListener(this.carveListener);
+    this.carve = null;
+    this.carveListener = null;
+    this.sim = null;
+    if (this.mounds) { this.group.remove(this.mounds.group); this.mounds.dispose(); }
+    this.prims.clear();
+    this.moved.clear();
   }
 
   /** Follows a (new) simulation for the same world: hole mask, dynamic primitives, mounds. */
   attachSim(sim: Sim | null): void {
     if (this.carve && this.carveListener) this.carve.removeListener(this.carveListener);
+    this.carveListener = null;
     this.sim = sim;
     this.carve = carveView(sim);
     const hm = this.terrain.holeMask;
@@ -158,11 +183,12 @@ export class WorldRenderer {
 
     // environment -> lighting
     this.sampleEnvironment(sim, frame.env ?? null);
-    const dt = Math.max(0, frame.dt);
+    // a NaN or negative dt (clock glitch, paused tab) counts as a settle frame instead of poisoning the eased state
+    const dt = Number.isFinite(frame.dt) && frame.dt > 0 ? frame.dt : 0;
     const ue = UNDERGROUND.easeS > 0 ? 1 - Math.exp(-dt / UNDERGROUND.easeS) : 1;
     this.under += ((frame.underground ? 1 : 0) - this.under) * (dt === 0 ? 1 : ue);
     const zone = zoneTypeAt(this.world, this.camPos.x, this.camPos.z);
-    const zoneVis = HAZE_VIS_BU[zone];
+    const zoneVis = hazeVisBU(zone, this.env.weather);
     this.hazeVis = this.hazeVis < 0 || dt === 0 ? zoneVis : this.hazeVis + (zoneVis - this.hazeVis) * (1 - Math.exp(-dt / HAZE_EASE_S));
     const inside = zone === 'interior' ? 1 : 0;
     this.interior = this.interior < 0 || dt === 0 ? inside : this.interior + (inside - this.interior) * (1 - Math.exp(-dt / INTERIOR_LOOK.easeS));
@@ -180,7 +206,7 @@ export class WorldRenderer {
     // real time for the throttle (the animation clock may be frozen); a settle frame (dt 0) bakes at once
     const nowS = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     const envKey = `${this.env.weather}|${Math.round(this.under * 4)}|${Math.round(this.env.cloud * 10)}|${Math.round(this.interior * 4)}`;
-    if (this.skyEnv.update(nowS, envKey, ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, frame.dt === 0)) {
+    if (this.skyEnv.update(nowS, envKey, ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, dt === 0)) {
       this.ctx.scene.environment = this.skyEnv.texture;
     }
     this.rig.follow(this.subject, this.camDir, this.lighting.keyDir);
@@ -201,8 +227,15 @@ export class WorldRenderer {
     if (hs !== this.heightSig) { this.heightSig = hs; this.terrain.updateHeights(terrainSource(this.world, sim).heights); }
     this.prims.syncDynamic(dynamicPrims(sim), movedStaticPrims(this.world, objectMoves(sim), this.moved));
     this.prims.setBreaches(breaches(sim), this.camPos);
-    this.prims.update(this.camPos);
+    this.prims.update(this.camPos, this.primCullMm());
     this.mounds.sync(mounds(sim));
+  }
+
+  /** Distance past which primitives are invisible: the haze (when on) or the preset's draw distance, mm. */
+  private primCullMm(): number {
+    const draw = this.ctx.quality.drawDistanceBU * (this.world?.bu ?? 4);
+    const d = this.lighting.fogDensity;
+    return d > 0 && this.ctx.quality.fog.enabled ? Math.min(draw, PRIM_FOG_CULL_K / d) : draw;
   }
 
   private sampleEnvironment(sim: Sim | null, o: EnvOverride | null): void {
@@ -210,13 +243,16 @@ export class WorldRenderer {
     if (sim && !(o && o.hour !== undefined)) {
       readEnvironment(sim, this.camPos, e);
     } else {
+      // no sim, or an hour override (photo mode, demo flag): the calendar sun of that hour; the sim's weather stays
+      if (sim) readWeather(sim, e);
       e.hour = o?.hour ?? 12;
       e.yearFrac = o?.yearFrac ?? 0.3;
       const L = 12 + 4 * Math.sin(2 * Math.PI * e.yearFrac);
       e.sunElevDeg = sunFromCalendar(e.hour, 12 - L / 2, 12 + L / 2, e.sunDir);
       moonFromSun(e.sunDir, e.moonDir);
       e.moonIllum = 0.8;
-      if (!sim) { e.weather = 'clear'; e.cloud = 0.1; e.fog = 0; e.light = Math.max(0, Math.min(1, e.sunElevDeg / 10 + 0.5)); }
+      e.light = Math.max(0, Math.min(1, e.sunElevDeg / 10 + 0.5));
+      if (!sim) { e.weather = 'clear'; e.cloud = 0.1; e.fog = 0; }
     }
     if (o) {
       if (o.weather !== undefined) e.weather = o.weather;
@@ -242,6 +278,7 @@ export class WorldRenderer {
   }
 
   dispose(): void {
+    this.worldGen++;
     if (this.carve && this.carveListener) this.carve.removeListener(this.carveListener);
     this.ctx.scene.remove(this.group);
     this.group.clear();

@@ -3,7 +3,9 @@
 import type { Primitive } from '@/sim/types';
 
 export type GeomKind = 'box' | 'cyl' | 'sphere';
-export type Lod = 'near' | 'far';
+/** Levels of detail: detailed near the camera, coarse farther, and a minimal shape for primitives a few pixels big. */
+export type Lod = 'near' | 'far' | 'tiny';
+export const LODS: readonly Lod[] = ['near', 'far', 'tiny'];
 
 export interface InstanceShape {
   geom: GeomKind;
@@ -57,12 +59,23 @@ export function bucketKey(geom: GeomKind, material: string, diggable: boolean, l
 export const LOD_SIZE_K = 12;
 
 /**
- * Near or far level of detail for a primitive seen from (cx, cy, cz): near within `nearMm` of its bounding sphere,
- * or while it still covers a large angle (radius x LOD_SIZE_K farther for big objects).
+ * Past this many of its radii a primitive covers about 3 px or less (1080p, 50 degree field of view) and is drawn
+ * with the minimal shape.
+ */
+export const LOD_TINY_K = 500;
+
+/** Level of detail for a primitive whose bounding sphere is `d` mm away (surface distance). */
+export function lodAt(d: number, radius: number, nearMm: number): Lod {
+  if (d < nearMm + radius * LOD_SIZE_K) return 'near';
+  return d > radius * LOD_TINY_K ? 'tiny' : 'far';
+}
+
+/**
+ * Level of detail for a primitive seen from (cx, cy, cz): near within `nearMm` of its bounding sphere, or while it
+ * still covers a large angle (radius x LOD_SIZE_K farther for big objects); tiny once it is a few pixels big.
  */
 export function lodFor(p: Primitive, radius: number, cx: number, cy: number, cz: number, nearMm: number): Lod {
-  const d = Math.hypot(p.pos.x - cx, p.pos.y - cy, p.pos.z - cz) - radius;
-  return d < nearMm + radius * LOD_SIZE_K ? 'near' : 'far';
+  return lodAt(Math.hypot(p.pos.x - cx, p.pos.y - cy, p.pos.z - cz) - radius, radius, nearMm);
 }
 
 /** Change signature of a primitive (everything that affects drawing). */

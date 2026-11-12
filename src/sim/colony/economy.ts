@@ -17,6 +17,7 @@ import { updateNeeds } from './needs';
 import { updateStarvation } from './starvation';
 import { measurePileCap, poolSpace, refreshCapacity, spoil } from './stores';
 import { fileDay } from './stats';
+import { dailyRecount } from './population';
 import { queenOf } from './queen';
 import { colonyAlert, colonyClearAlert } from './alerts';
 import { relaxExperience } from './allocation/assign';
@@ -64,7 +65,10 @@ function updateTimers(sim: Sim, col: Colony, core: ColonyCoreState): void {
 /** Starts a new game day: files the finished day, resets the daily ledger and today counters. */
 function rollDay(sim: Sim, col: Colony, core: ColonyCoreState, day: number): void {
   const days = core.day >= 0 ? day - core.day : 0;
-  if (core.day >= 0) fileDay(sim, col);
+  if (core.day >= 0) {
+    fileDay(sim, col);
+    dailyRecount(sim, col);
+  }
   core.day = day;
   col.ledger = emptyLedger(sim.state.tick);
   const c = col.counters;

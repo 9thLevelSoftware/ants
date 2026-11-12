@@ -66,7 +66,7 @@ describe('pheromone decay', () => {
     expect(pheroDecayRateMult('home', { tempC: 60 })).toBeCloseTo(4, 9); // clamp: half-life x0.25 min
   });
 
-  it('a decay modifier of 0 freezes a cell; per-cell modifiers act per cell', () => {
+  it('a decay modifier of 0 freezes a cell; modifiers act per patch (PHERO_DECAY_PATCH_CELLS)', () => {
     const f = newField();
     f.setHooks({ decayModifier: (_ch, x) => (x < 10 * TEST_CELL ? 0 : 2) });
     f.deposit(1, 'home', C(1, 0, 0), 4);

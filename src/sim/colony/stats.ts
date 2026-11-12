@@ -8,11 +8,12 @@ import { tsCreate, tsPush } from '@/core/timeSeries';
 import type { Colony, Sim } from '@/sim/types';
 import { ALLOCATION_GROUPS, STARVATION_STAGES } from '@/sim/types';
 import { HOURLY_HISTORY_CAP } from '@/sim/balance';
-import { HOURS_PER_DAY } from '@/sim/time';
+import { HOURS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { accGet, accSet, coreOf, type LedgerKey } from './core';
 import { censusOf, colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
 import { queenOf } from './queen';
+import { popOf } from './population';
 
 /** Series that accumulate a flow per hour (summed per day); every other series is a level (averaged per day). */
 const FLOW_SERIES = new Set([
@@ -60,12 +61,15 @@ export function sampleHour(sim: Sim): void {
   push(sim, 'eggs-laid', delta(col, 'eggs', c.eggsLaid));
   push(sim, 'eclosions', delta(col, 'ecl', c.eclosions));
   push(sim, 'deaths', delta(col, 'deaths', c.deaths));
+  // Deaths by cause: one series per cause seen so far (`deaths:<cause>`, from its first death on; read from the end).
+  const byCause = popOf(col).deathsByCause;
+  for (const cause of Object.keys(byCause).sort()) push(sim, `deaths:${cause}`, delta(col, `death.${cause}`, byCause[cause]));
   push(sim, 'brood-deaths', delta(col, 'bdeaths', c.broodDeaths));
   const trips = delta(col, 'trips', c.trips);
   push(sim, 'trips', trips);
   push(sim, 'trip-success', delta(col, 'tripOk', c.tripSuccesses));
   const tt = delta(col, 'tripTicks', c.tripTicks);
-  push(sim, 'trip-time', trips > 0 ? tt / trips / 10 : 0);
+  push(sim, 'trip-time', trips > 0 ? tt / trips / TICKS_PER_SECOND : 0);
   const nursery = colonyChambers(sim, col).find((ch) => ch.type === 'nursery');
   push(sim, 'nursery-temp', nursery ? chamberTempC(sim, nursery.id) : chamberTempC(sim, -1));
   push(sim, 'known-sources', col.knownSourceIds.length);
@@ -84,7 +88,7 @@ export function fileDay(sim: Sim, col: Colony): void {
     if (!key.startsWith('day.') || key.startsWith('day.n.')) continue;
     const id = key.slice(4);
     const n = core.acc[`day.n.${id}`] ?? 0;
-    const v = FLOW_SERIES.has(id) || id.startsWith('ledger') ? core.acc[key] : n > 0 ? core.acc[key] / n : 0;
+    const v = FLOW_SERIES.has(id) || id.startsWith('deaths:') || id.startsWith('ledger') ? core.acc[key] : n > 0 ? core.acc[key] / n : 0;
     (h.daily[id] ??= []).push(v);
     core.acc[key] = 0;
     core.acc[`day.n.${id}`] = 0;

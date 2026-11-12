@@ -3,7 +3,10 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim } from '@/sim/types';
-import { RAIN_INTENSITY, RAIN_INTENSITY_STORM, RAIN_MIN_RATE_MMH, UNDERGROUND_MM, WIND_GROUND_FACTOR } from '@/sim/balance';
+import {
+  GRASS_CANOPY_MIN_BU, GRASS_CANOPY_WIND_FACTOR, RAIN_INTENSITY, RAIN_INTENSITY_STORM, RAIN_MIN_RATE_MMH, UNDERGROUND_MM,
+  WIND_GROUND_FACTOR,
+} from '@/sim/balance';
 import { isInteriorAt } from './ground';
 
 function sheltered(sim: Sim, p: Vec3 | undefined): boolean {
@@ -39,9 +42,21 @@ export function windAt(sim: Sim, p?: Vec3): number {
   return sim.state.env.weather.wind2m;
 }
 
-/** Ground-level wind, m/s: 0.2 of the 2 m wind (GDD 06 §3.4). */
+/** True when `p` is inside a grass canopy taller than GRASS_CANOPY_MIN_BU (the sward height of its nav cell). */
+function inGrassCanopy(sim: Sim, p: Vec3): boolean {
+  const nav = sim.world.nav.cls;
+  let ix = Math.floor(p.x / nav.cell), iz = Math.floor(p.z / nav.cell);
+  ix = ix < 0 ? 0 : ix >= nav.nx ? nav.nx - 1 : ix;
+  iz = iz < 0 ? 0 : iz >= nav.nz ? nav.nz - 1 : iz;
+  const sward = sim.state.worldDelta.grassHeightMm[iz * nav.nx + ix] ?? 0;
+  if (sward <= GRASS_CANOPY_MIN_BU * sim.world.bu) return false;
+  return p.y - sim.field.height(p.x, p.z) < sward;
+}
+
+/** Ground-level wind, m/s: 0.2 of the 2 m wind, halved inside a grass canopy (GDD 06 §3.4). */
 export function windGround(sim: Sim, p?: Vec3): number {
-  return WIND_GROUND_FACTOR * windAt(sim, p);
+  const k = p && inGrassCanopy(sim, p) ? GRASS_CANOPY_WIND_FACTOR : 1;
+  return WIND_GROUND_FACTOR * k * windAt(sim, p);
 }
 
 /** Unit wind direction (the way the wind blows, in the XZ plane) into out; returns out. */

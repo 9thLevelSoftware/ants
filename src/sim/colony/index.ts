@@ -177,13 +177,17 @@ function cheatSetQueen(sim: Sim, cmd: CommandOf<'cheat.setQueen'>): void {
 function cheatStock(sim: Sim, colonyId: number, c: number, p: number, toxin: number, set: boolean): void {
   const col = sim.stores.colonies.get(colonyId);
   if (!col) return;
-  const dc = set ? c - col.stores.c : c;
-  const dp = set ? p - col.stores.p : p;
-  col.stores.c = Math.max(0, col.stores.c + dc);
-  col.stores.p = Math.max(0, col.stores.p + dp);
-  col.stores.toxin += set ? 0 : toxin;
-  book(col, 'inDeliveryC', dc);
-  book(col, 'inDeliveryP', dp);
+  const s = col.stores;
+  const c0 = s.c;
+  const p0 = s.p;
+  // Non-finite inputs leave a nutrient unchanged; the stock never goes below 0.
+  const target = (cur: number, v: number): number => (Number.isFinite(v) ? Math.max(0, set ? v : cur + v) : cur);
+  s.c = target(c0, c);
+  s.p = target(p0, p);
+  if (!set && toxin > 0 && Number.isFinite(toxin)) s.toxin += toxin;
+  // Book the change actually applied, so the ledger stays exact when a negative amount is clamped at 0.
+  book(col, 'inDeliveryC', s.c - c0);
+  book(col, 'inDeliveryP', s.p - p0);
 }
 
 function cheatSpawnAnts(sim: Sim, cmd: CommandOf<'cheat.spawnAnts'>): void {

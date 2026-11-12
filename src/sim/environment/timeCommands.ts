@@ -1,8 +1,8 @@
 // Time control commands and the environment's cheats (GDD 06 §4, App. B). Sim state is written by commands and read
 // by the game loop: `env.time` holds speed, pause and skip target. The loop itself lives in the game layer.
 
-import type { CommandHandlerMap, Sim, SpeedLevel, System } from '@/sim/types';
-import { OPENING_MAX_SPEED, POSSESS_MAX_SPEED, SKIP_MAX_GD, SKIP_SPEED } from '@/sim/balance';
+import type { CalendarDerived, CommandHandlerMap, Sim, SpeedLevel, System } from '@/sim/types';
+import { DEFAULT_SEASON_LENGTH_DAYS, OPENING_MAX_SPEED, POSSESS_MAX_SPEED, SKIP_MAX_GD, SKIP_SPEED } from '@/sim/balance';
 import { calendarTick, TICKS_PER_DAY } from '@/sim/time';
 import { calendarNow, deriveCalendar } from './calendar';
 import { setNoLag } from './noLag';
@@ -17,6 +17,8 @@ function setSpeed(sim: Sim, speed: SpeedLevel): void {
   const time = sim.state.env.time;
   const from: SpeedLevel = time.paused ? 0 : time.speed;
   if (speed > POSSESS_MAX_SPEED && sim.state.player.possessedAntId !== -1) {
+    // E12: the typed refusal for the command, and the toast event GDD 01 §5.8 listens to.
+    sim.emit({ type: 'command-rejected', commandType: 'setSpeed', reason: 'not-allowed-while-possessing', detail: String(speed) });
     return sim.emit({ type: 'speed-refused', speed, reason: 'possession' });
   }
   const phase = sim.state.player.opening?.phase;
@@ -61,6 +63,8 @@ function skipToNextEvent(sim: Sim): void {
   if (from !== SKIP_SPEED) sim.emit({ type: 'time.speed-changed', from, to: SKIP_SPEED, reason: 'skip' });
 }
 
+const prevCal: CalendarDerived = deriveCalendar(0, DEFAULT_SEASON_LENGTH_DAYS);
+
 /** Ends a skip at the next dawn, dusk, weather change or season change, or after SKIP_MAX_GD ("quiet day"). */
 export const skipSystem: System = {
   name: 'skip-to-event',
@@ -71,7 +75,7 @@ export const skipSystem: System = {
     if (s.tick >= s.env.time.skipUntil) return endSkip(sim, 'quiet-day');
     const ct = calendarTick(s);
     const now = calendarNow(sim);
-    const prev = deriveCalendar(ct - 1, s.config, s.env.calendar.moonPhase0);
+    const prev = deriveCalendar(ct - 1, s.config, s.env.calendar.moonPhase0, prevCal);
     if (prev.phase !== now.phase && (now.phase === 'dawn' || now.phase === 'dusk')) return endSkip(sim, now.phase);
     if (prev.season !== now.season) return endSkip(sim, 'season');
     if (s.env.weather.startTick === s.tick) return endSkip(sim, 'weather');

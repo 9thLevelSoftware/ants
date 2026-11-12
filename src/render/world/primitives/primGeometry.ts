@@ -25,10 +25,14 @@ export interface PrimDetail {
 export const PRIM_DETAIL = {
   near: { arc: 3, around: 20 } as PrimDetail,
   far: { arc: 1, around: 12 } as PrimDetail,
+  /** A few pixels big: box = 12 triangles (rounding folded into the corners), cylinder 60, ellipsoid 48. */
+  tiny: { arc: 0, around: 6 } as PrimDetail,
 } as const;
 
 /** Face parameter positions of a rounded box: flat middle, `arc` steps per half rounding band (angle-uniform). */
 function boxParams(arc: number): number[] {
+  // arc 0: one quad per face; its corners all take the cube-corner direction, so the faces still meet exactly
+  if (arc <= 0) return [-1, 1];
   const half: number[] = [];
   for (let k = 0; k <= arc; k++) {
     const th = (k / arc) * (Math.PI / 4);

@@ -43,7 +43,16 @@ export function decayLayer(
     groupLn[g] = (-dt / hl) * Math.LN2;
     groupF[g] = Math.pow(2, -dt / hl);
   }
-  if (!anyDue || layer.count === 0) return;
+  if (!anyDue) return;
+  // Floors and admission counters decay by group 0's time (every group gets the same total over a cadence).
+  const f0 = groupF[0];
+  if (f0 !== 1) {
+    layer.data.cellFloor = (layer.data.cellFloor ?? 0) * f0;
+    layer.data.chunkFloor = (layer.data.chunkFloor ?? 0) * f0;
+    layer.pendingCells.scale(f0);
+    layer.pendingChunks.scale(f0);
+  }
+  if (layer.count === 0) return;
   const sh3 = layer.shift3, lm = layer.n3 - 1, s = layer.shift, m = layer.mask;
   const act = layer.active, chunks = layer.data.chunks, listed = layer.listed, live = layer.live, grp = layer.grp;
   // Patch layout inside a chunk: px + pz * pn + ly * pn * pn, with pn = chunkCells / patch.

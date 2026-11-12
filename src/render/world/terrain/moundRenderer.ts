@@ -2,7 +2,7 @@
 // displaced mesh cropped to the cells that carry soil, in a granular fresh-soil material. Where the pile thins out
 // (the rim, the kept-clear entrance) fragments are discarded so the terrain shows through and the entrance hole
 // stays open; the hole mask is applied as well. Meshes rebuild when the mound's change signature moves.
-import { BufferAttribute, BufferGeometry, Group, Mesh, Sphere, Uniform, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Group, Mesh, Sphere, Uniform, Vector3, type MeshStandardMaterial } from 'three';
 import type { Mound } from '@/sim/types';
 import { MaterialLibrary } from '../materials/materialLibrary';
 import { MATERIAL_DEFS, MOUND_SOIL, type MaterialDef } from '../materials/materialDefs';
@@ -63,6 +63,8 @@ export function buildMoundArrays(m: Mound): { pos: Float32Array; normal: Float32
 export class MoundRenderer {
   readonly group = new Group();
   private meshes = new Map<number, MoundMesh>();
+  /** Materials by def id. Owned here (not cached in the library): they bind THIS world's hole mask. */
+  private materials = new Map<string, MeshStandardMaterial>();
   /** Rebuilds so far (statistics / tests). */
   rebuilds = 0;
 
@@ -73,7 +75,13 @@ export class MoundRenderer {
   private materialFor(m: Mound) {
     const known = (MATERIAL_DEFS as Record<string, MaterialDef>)[m.material];
     const def: MaterialDef = known && m.material !== 'loam' && m.material !== 'humus' ? { ...known, scaleMm: known.scaleMm * 0.5, dualScale: 0 } : MOUND_SOIL;
-    return this.lib.surfaceMaterialFor(def, {
+    let mat = this.materials.get(def.id);
+    if (!mat) this.materials.set(def.id, (mat = this.createMaterial(def)));
+    return mat;
+  }
+
+  private createMaterial(def: MaterialDef): MeshStandardMaterial {
+    return this.lib.createSurfaceMaterial(def, {
       key: 'mound', space: 'world', prim: null, macro: 0.1,
       extra: {
         key: 'mound-v1',
@@ -137,6 +145,8 @@ wrWet = max(wrWet, 0.25 * wrRim);`,
 
   dispose(): void {
     for (const cur of this.meshes.values()) cur.mesh.geometry.dispose();
+    for (const m of this.materials.values()) m.dispose();
+    this.materials.clear();
     this.meshes.clear();
     this.group.clear();
   }

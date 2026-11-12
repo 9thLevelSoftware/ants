@@ -129,7 +129,7 @@ describe('PrimitiveRenderer dynamics (headless)', () => {
   it('batches by material and shape', () => {
     const r = new PrimitiveRenderer(lib, 280);
     const list: Primitive[] = [];
-    for (let i = 0; i < 40; i++) list.push(prim(i % 2 ? 'box' : 'ellipsoid', [3, 3, 3], 0, { id: 10 + i, material: i % 4 < 2 ? 'stone' : 'bark', pos: { x: 5000 + i, y: 0, z: 0 } }));
+    for (let i = 0; i < 40; i++) list.push(prim(i % 2 ? 'box' : 'ellipsoid', [3, 3, 3], 0, { id: 10 + i, material: i % 4 < 2 ? 'stone' : 'bark', pos: { x: 1000 + i, y: 0, z: 0 } }));
     r.setStatic(list);
     r.update(new Vector3());
     expect(r.stats().buckets).toBe(4);

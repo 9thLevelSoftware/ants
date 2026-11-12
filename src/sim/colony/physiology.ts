@@ -81,6 +81,7 @@ export interface PhysioAcc {
   alateC: number;
   cropC: number;
   cropP: number;
+  /** Workers that had no food source this run: unpaid upkeep, or empty crop and reserve with no pool access. */
   starving: number;
   /** Reserve refills allowed this run (stage fed and daysC >= _RESERVE_REFILL_MIN_DAYS_C). */
   refillOk: boolean;
@@ -225,5 +226,6 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
     _killAnt(sim, a.id, 'old-age');
     return;
   }
-  if (worker && a.cropC <= 0 && a.energy <= 0) acc.starving++;
+  // S4 gate (GDD 02 §5.7): reserve 0 AND no food source. An ant whose upkeep the pool paid is not starving.
+  if (worker && starving) acc.starving++;
 }

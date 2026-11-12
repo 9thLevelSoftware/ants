@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
-import { begin, canDo } from './runner';
+import { begin, cancel, canDo } from './runner';
 import { ahead, capture, foodItem, installFakes, larva, makeAntSim, source, step, worker } from './testkit';
 
 let restore = (): void => {};
@@ -84,6 +84,31 @@ describe('lay-egg', () => {
     expect(q.action?.durationTicks).toBe(40);
     step(sim, 40);
     expect(canDo(sim, q, 'lay-egg', null).ok).toBe(true);
+  });
+
+  it('opening batch (real colony): stops at the clutch cap; cancelled before the effect it lays nothing', () => {
+    restore();
+    const sim = makeAntSim();
+    const q = sim.stores.ants.get(sim.state.colonies[0].queenId)!;
+    q.flags |= AntFlag.POSSESSED | AntFlag.FOUNDING;
+    sim.state.player.possessedAntId = q.id;
+    q.nestId = sim.state.nests[0].id;
+    sim.state.player.opening!.phase = 'lay';
+    const f = q.queen!.founding!;
+    f.reserveLoads = 5;
+    const cap = sim.getSpecies(sim.state.colonies[0].species)!.opening.clutchCap;
+    f.eggsLaid = cap - 2;
+    let before = eggs(sim);
+    expect(begin(sim, q, 'lay-egg', null)).toBe(true);
+    step(sim, 41);
+    expect(eggs(sim) - before).toBe(2);
+    f.eggsLaid = 0;
+    before = eggs(sim);
+    expect(begin(sim, q, 'lay-egg', null)).toBe(true);
+    step(sim, 5);
+    cancel(sim, q, null);
+    step(sim, 40);
+    expect(eggs(sim)).toBe(before);
   });
 });
 

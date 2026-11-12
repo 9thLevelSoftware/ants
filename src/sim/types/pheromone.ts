@@ -13,11 +13,15 @@ export interface PheromoneLayer {
   /** One Float32Array(4096) per key: concentration in pheromone units (ph). */
   chunks: Float32Array[];
   /**
-   * Unused since the phero review fix (eviction no longer refuses weak deposits); kept so old saves still type-check.
-   * Ignored on load, never written.
+   * Eviction floors, ph (phero task): after a cap eviction, a new cell / chunk is admitted once the deposits it has
+   * accumulated while waiting (pendingCells / pendingChunks) beat the strongest evicted cell / chunk total. Decay
+   * with the layer. Absent = 0.
    */
   cellFloor?: number;
   chunkFloor?: number;
+  /** Pending admission counters at a cap: flat (cell code, ph) and (chunk key, ph) pairs. Absent = empty. */
+  pendingCells?: number[];
+  pendingChunks?: number[];
 }
 
 export interface PheromoneState {

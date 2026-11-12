@@ -4,15 +4,16 @@
 // Invariants (checked by tests):
 // - a cell is in `active` exactly once iff its `listed` flag is set; every nonzero cell is listed. A listed cell
 //   may be 0 for a while (wiped) until the next compaction, which also removes cells below PHERO_EPS.
-// - `nz` counts nonzero cells; the caps test nz (a reload preserves it), so a reloaded field evicts and frees
-//   exactly what the original would.
+// - `nz` counts nonzero cells; the caps test nz, the eviction floors and the pending admission counters persisted
+//   in the layer, so a reloaded field admits, evicts and frees exactly what the original would.
 // - `live[slot]` counts the listed cells of a chunk. Chunks are freed only by `freeEmptyChunks` (decay steps and
 //   evictions), never on load, so a loaded field and the field it was saved from keep identical chunk orders.
 
 import type { PheroChannel, PheromoneLayer } from '@/sim/types';
 import { PHERO_DECAY_EVERY } from '@/sim/balance';
-import { PHERO_EPS } from './balance';
+import { PHERO_EPS, PHERO_PENDING_CELLS, PHERO_PENDING_CHUNKS } from './balance';
 import { evictWeakestCells, evictWeakestChunks } from './evict';
+import { PendingTable } from './pending';
 import { validateLayer } from './validate';
 
 /** Chunk-key packing shared with the carve grid: (c + 512) + (c + 512) * 1024 + (c + 512) * 1048576. */
@@ -89,6 +90,10 @@ export class LayerRuntime {
   version = 0;
 
 
+  /** Admission counters of refused new cells (by cell code) and new chunks (by chunk key), see pending.ts. */
+  pendingCells!: PendingTable;
+  pendingChunks!: PendingTable;
+
   /** Chunk key -> slot. */
   readonly index = new Map<number, number>();
   // Two-entry chunk cache (reads near a chunk face alternate between two chunks).
@@ -138,6 +143,12 @@ export class LayerRuntime {
     this.grp = new Int32Array(this.live.length);
     this.count = 0;
     this.nz = 0;
+    if (!(this.data.cellFloor! >= 0) || !Number.isFinite(this.data.cellFloor)) this.data.cellFloor = 0;
+    if (!(this.data.chunkFloor! >= 0) || !Number.isFinite(this.data.chunkFloor)) this.data.chunkFloor = 0;
+    if (!Array.isArray(this.data.pendingCells)) this.data.pendingCells = [];
+    if (!Array.isArray(this.data.pendingChunks)) this.data.pendingChunks = [];
+    this.pendingCells = new PendingTable(this.data.pendingCells, PHERO_PENDING_CELLS);
+    this.pendingChunks = new PendingTable(this.data.pendingChunks, PHERO_PENDING_CHUNKS);
     for (let s = 0; s < w; s++) {
       const key = keys[s];
       this.index.set(key, s);
@@ -219,10 +230,10 @@ export class LayerRuntime {
   }
 
   /**
-   * Adds amount to a cell (clamped to the channel maximum), creating chunk and list entry as needed. A deposit is
-   * never refused for being weak: at a cap the weakest cells (chunks) are evicted first, so a newcomer always gets
-   * its slot and keeps it if it is reinforced before the next eviction (each eviction frees 1/16 of the cells or 1/8
-   * of the chunks, which bounds how often it runs). Returns the amount actually stored (0 only out of range).
+   * Adds amount to a cell (clamped to the channel maximum), creating chunk and list entry as needed. At a cap, a
+   * NEW cell (chunk) is admitted only once the deposits it has received while waiting (pending.ts) beat the
+   * strongest cell (chunk content) the last eviction removed; it then evicts the weakest and is stored with its
+   * accumulated amount. Returns the amount actually stored (0 if pending or out of range).
    */
   add(ix: number, iy: number, iz: number, amount: number): number {
     if (!this.cellInRange(ix, iy, iz)) return 0;
@@ -232,15 +243,27 @@ export class LayerRuntime {
     const m = this.mask;
     const local = (ix & m) | ((iy & m) << s) | ((iz & m) << (2 * s));
     let slot = this.slotOf(key);
-    if (slot < 0 || this.data.chunks[slot][local] === 0) {
-      if (this.nz >= this.limits.maxCells) {
+    if (slot >= 0 && this.data.chunks[slot][local] !== 0) return this.store(slot, local, amount);
+    // A new cell. Both admission tests run (and both counters accumulate) before either ticket is used, so a
+    // chunk ticket is never spent on a cell that is still refused.
+    const needChunk = slot < 0 && this.data.keys.length >= this.limits.maxChunks;
+    const needCell = this.nz >= this.limits.maxCells;
+    if (needChunk || needCell) {
+      const code = key * this.n3 + local;
+      const chunkOk = !needChunk || this.pendingChunks.accumulate(key, amount) > this.data.chunkFloor!;
+      const cellTotal = needCell ? this.pendingCells.accumulate(code, amount) : amount;
+      if (!chunkOk || !(cellTotal > this.data.cellFloor!)) return 0;
+      if (needChunk) this.pendingChunks.remove(key);
+      if (needCell) {
+        this.pendingCells.remove(code);
+        amount = cellTotal;
         evictWeakestCells(this);
         slot = this.slotOf(key); // the eviction may have freed this chunk
       }
-      if (slot < 0) {
-        slot = this.createChunk(key, cx, cy, cz);
-        if (slot < 0) return 0;
-      }
+    }
+    if (slot < 0) {
+      slot = this.createChunk(key, cx, cy, cz);
+      if (slot < 0) return 0;
     }
     return this.store(slot, local, amount);
   }

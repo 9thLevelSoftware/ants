@@ -11,6 +11,7 @@ export function validateLayer(l: LayerRuntime): string[] {
   if (chunks.length !== nc || l.listed.length !== nc) bad.push(`${tag}: parallel arrays differ`);
   if (nc > l.limits.maxChunks) bad.push(`${tag}: ${nc} chunks > cap`);
   if (l.nz > l.limits.maxCells) bad.push(`${tag}: ${l.nz} cells > cap`);
+  bad.push(...l.pendingCells.validate(`${tag} cells`), ...l.pendingChunks.validate(`${tag} chunks`));
   let nonzero = 0;
   for (const c of chunks) for (let i = 0; i < c.length; i++) if (c[i] !== 0) nonzero++;
   if (nonzero !== l.nz) bad.push(`${tag}: nz ${l.nz} != ${nonzero}`);

@@ -25,6 +25,8 @@ uniform int uCutMode; uniform vec3 uCutC; uniform vec3 uCutN; uniform float uCut
 uniform vec3 uCutFill; uniform float uCutFillLen;
 uniform vec3 uXNear; uniform vec3 uXDeep; uniform float uXDepth; uniform float uXOpacity;
 uniform float uBu;
+uniform float uTick; uniform vec3 uFresh;
+uniform vec3 uOccA; uniform vec3 uOccB; uniform vec2 uOcc;
 // hidden = on the normal side of the plane and within uCutR horizontally along the plane (a cylinder above a
 // horizontal slice, a vertical slab in front of a vertical section)
 bool nestCutHidden(vec3 p) {
@@ -41,11 +43,11 @@ export const NEST_VERT = /* glsl */ `
 #include <fog_pars_vertex>
 #include <logdepthbuf_pars_vertex>
 attribute float aSub;
-attribute vec2 aNest;
+attribute vec3 aNest;
 varying vec3 vNestW;
 varying vec3 vNestN;
 varying float vNestSub;
-varying vec2 vNestAttr;
+varying vec3 vNestAttr;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vNestW = w.xyz;
@@ -77,7 +79,7 @@ uniform vec3 uWrTint;
 varying vec3 vNestW;
 varying vec3 vNestN;
 varying float vNestSub;
-varying vec2 vNestAttr;
+varying vec3 vNestAttr;
 void main() {
   #include <logdepthbuf_fragment>
   // openings: daylight, ambient boost, and where the ground is open (no skin band there)
@@ -96,6 +98,16 @@ void main() {
   // or grazing views across the hole see the sky through the band under the terrain lip
   if (vNestSub > (inHole > 0.5 ? 0.0 : -uSkin)) discard;
   if (uCutMode == 1 && nestCutHidden(vNestW)) discard;
+  // occlusion cutaway (GDD 01 6.5 rule 3): walls inside the camera-to-ant capsule are dithered to uOcc.y
+  if (uOcc.x > 0.0) {
+    vec3 ab = uOccB - uOccA;
+    float t = clamp(dot(vNestW - uOccA, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    if (length(vNestW - (uOccA + ab * t)) < uOcc.x) {
+      vec2 c = mod(floor(gl_FragCoord.xy), 4.0);
+      float bayer = mod(c.x * 4.0 + c.y * 9.0 + c.x * c.y * 3.0, 16.0) / 16.0; // ordered 4x4 pattern
+      if (bayer >= uOcc.y) discard;
+    }
+  }
   vec3 n0 = normalize(vNestN);
   if (!gl_FrontFacing) n0 = -n0;
   vec3 alb; vec3 nw; float rg;
@@ -121,8 +133,10 @@ void main() {
     alb = mix(alb, alb * vec3(1.08, 0.97, 0.88), strata * uStrata);
 #endif
   }
-  float wet = clamp(vNestAttr.y * uMoist.x + uMoist.y, 0.0, 1.0);
-  alb = wrWetAlbedo(alb, wet, uWetDark);
+  // freshly carved walls: darker and damper for one game hour (GDD 08 11.5)
+  float fresh = clamp(1.0 - (uTick - vNestAttr.z) / uFresh.x, 0.0, 1.0);
+  float wet = clamp(vNestAttr.y * uMoist.x + uMoist.y + fresh * uFresh.z, 0.0, 1.0);
+  alb = wrWetAlbedo(alb, wet, uWetDark) * mix(1.0, uFresh.y, fresh);
   float ao = vNestAttr.x;
 
   float depth = max(-vNestSub, 0.0);
@@ -154,7 +168,7 @@ export const XRAY_FRAGMENT = /* glsl */ `
 varying vec3 vNestW;
 varying vec3 vNestN;
 varying float vNestSub;
-varying vec2 vNestAttr;
+varying vec3 vNestAttr;
 void main() {
   #include <logdepthbuf_fragment>
   if (vNestSub > -uSkin) discard;

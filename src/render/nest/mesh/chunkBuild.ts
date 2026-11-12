@@ -3,12 +3,14 @@
 // Pure typed-array code (no three).
 import { MATERIAL_IDS, type MaterialId } from '@/sim/types';
 import type { NestSource } from '../simAdapter';
-import { AO_MIN, AO_TAPS_BU, REFINE_EXACT_SOIL_BU, REFINE_FLAT_DEG, REFINE_MAX_MOVE_VOXELS } from '../params';
+import { AO_MIN, AO_TAPS_BU, NEST_ATTR, REFINE_EXACT_SOIL_BU, REFINE_FLAT_DEG, REFINE_MAX_MOVE_VOXELS } from '../params';
 import { refineMesh, type MeshArrays } from './refine';
 
 export interface BuildOptions {
   refine: boolean;
   ao: boolean;
+  /** Tick at which the wall at a point was carved during play (fresh look), or a large negative number. */
+  carvedAt?: (x: number, y: number, z: number) => number;
 }
 
 /** Triangles of one material: indices into the chunk's vertex arrays. */
@@ -25,7 +27,7 @@ export interface BuiltChunk {
   normals: Float32Array;
   /** Soil distance per vertex, mm (> -skin: discarded). */
   sub: Float32Array;
-  /** Per vertex: x = ambient occlusion 0..1, y = soil moisture 0..1. */
+  /** Per vertex (NEST_ATTR): ambient occlusion 0..1, soil moisture 0..1, tick the wall was carved. */
   nest: Float32Array;
   groups: MaterialGroup[];
   vertexCount: number;
@@ -39,6 +41,8 @@ export function materialIndex(m: MaterialId): number {
 }
 
 const c3 = { x: 0, y: 0, z: 0 };
+/** carvedAt value of walls that are not fresh. */
+export const NOT_FRESH = -1e9;
 
 /** Builds one chunk; null when it has no surface. */
 export function buildChunk(src: NestSource, key: number, opts: BuildOptions): BuiltChunk | null {
@@ -64,21 +68,29 @@ export function buildChunk(src: NestSource, key: number, opts: BuildOptions): Bu
 
   // per original vertex: material code and moisture; midpoints inherit from their parent
   const mat = new Uint8Array(nv);
-  const nest = new Float32Array(nv * 2);
+  const A = NEST_ATTR;
+  const nest = new Float32Array(nv * A);
+  const carvedAt = opts.carvedAt;
   for (let i = 0; i < original; i++) {
     const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
     mat[i] = materialIndex(src.materialAt(x, y, z));
-    nest[i * 2 + 1] = src.moistureAt(x, y, z);
+    nest[i * A + 1] = src.moistureAt(x, y, z);
+    nest[i * A + 2] = carvedAt ? carvedAt(x, y, z) : NOT_FRESH;
   }
-  if (parent) for (let i = original; i < nv; i++) { const a = parent[i]; mat[i] = mat[a]; nest[i * 2 + 1] = nest[a * 2 + 1]; }
+  if (parent) {
+    for (let i = original; i < nv; i++) {
+      const a = parent[i];
+      mat[i] = mat[a]; nest[i * A + 1] = nest[a * A + 1]; nest[i * A + 2] = nest[a * A + 2];
+    }
+  }
 
   // ambient occlusion: openness two taps along the normal (corners and pinches darken)
   const t1 = AO_TAPS_BU[0] * src.bu, t2 = AO_TAPS_BU[1] * src.bu;
   for (let i = 0; i < nv; i++) {
-    if (!opts.ao) { nest[i * 2] = 1; continue; }
+    if (!opts.ao) { nest[i * A] = 1; continue; }
     const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2], nx = N[i * 3], ny = N[i * 3 + 1], nz = N[i * 3 + 2];
     const o = 0.5 * (src.openness(x + nx * t1, y + ny * t1, z + nz * t1) + src.openness(x + nx * t2, y + ny * t2, z + nz * t2));
-    nest[i * 2] = AO_MIN + (1 - AO_MIN) * Math.min(1, Math.max(0, (o - 0.5) * 2));
+    nest[i * A] = AO_MIN + (1 - AO_MIN) * Math.min(1, Math.max(0, (o - 0.5) * 2));
   }
 
   // triangles grouped by the majority material of their corners

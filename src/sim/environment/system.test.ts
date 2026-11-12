@@ -124,8 +124,10 @@ describe('time control commands', () => {
     const sim = envSim();
     sim.state.player.possessedAntId = sim.state.ants[0].id;
     const refused = collect<{ speed: number; reason: string }>(sim, 'speed-refused');
+    const rejected = collect<{ type: string }>(sim, 'command-rejected');
     apply(sim, cmd({ type: 'setSpeed', speed: 8 as SpeedLevel }));
     expect(refused).toEqual([{ type: 'speed-refused', speed: 8, reason: 'possession' }]);
+    expect(rejected).toEqual([{ type: 'command-rejected', commandType: 'setSpeed', reason: 'not-allowed-while-possessing', detail: '8' }]);
     expect(sim.state.env.time.speed).toBe(1);
     apply(sim, cmd({ type: 'setSpeed', speed: 4 }));
     expect(sim.state.env.time.speed).toBe(4);

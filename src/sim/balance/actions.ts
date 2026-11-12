@@ -58,8 +58,10 @@ export const TROPH_MAX_S = 10;
 
 // ---- carrying ----
 
-/** Eggs picked up together as one clump (GDD 01 §7.3, = OPEN_LAY_BATCH_EGGS). */
-export const EGG_CLUMP_MAX = 6;
+/** Opening phase `lay`: eggs laid by one `lay-egg` (GDD 06 §5.10; capped by the clutch limits). */
+export const OPEN_LAY_BATCH_EGGS = 6;
+/** Eggs picked up together as one clump (GDD 01 §7.3, = OPEN_LAY_BATCH_EGGS: one laid batch is one clump, E-117). */
+export const EGG_CLUMP_MAX = OPEN_LAY_BATCH_EGGS;
 /** Eggs within this distance of the picked egg join the clump, BU. */
 export const EGG_CLUMP_RADIUS_BU = 0.6;
 /** Solo drag allowed up to carryCap x SOLO_DRAG_MAX; cooperative drag up to COOP_MAX_ANTS ants. */
@@ -106,7 +108,7 @@ export const DIG_POWER_NANITIC = 0.8;
 export const EGG_COST_P = 0.04;
 /** Cooldown between player `lay-egg`s, game s (possessed queen only). */
 export const LAY_COOLDOWN_S = 10;
-/** Opening phase `lay`: one action lays a batch over this long (no cooldown). */
+/** Opening phase `lay`: one action lays a batch of OPEN_LAY_BATCH_EGGS over this long (no cooldown). */
 export const OPEN_LAY_ACTION_S = 4;
 
 // ---- food and transfers (GDD 01 §7.3, GDD 02 §5.4) ----

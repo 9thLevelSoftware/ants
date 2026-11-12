@@ -45,7 +45,7 @@ describe('silhouette refinement', () => {
     const keys = w.kernel.meshKeys();
     const coarse = centroidError(keys, false, w);
     const fine = centroidError(keys, true, w);
-    expect(fine.tris).toBeGreaterThan(coarse.tris * 3); // a round tunnel is curved everywhere: nearly every edge splits
+    expect(fine.tris).toBeGreaterThan(coarse.tris * 2); // edges across the tube split, edges along its axis (parallel normals) do not
     // chord sagitta of a 4 mm radius tube with 2 mm voxels: ~0.1 mm; refinement must cut it substantially
     expect(fine.err).toBeLessThan(coarse.err * 0.5); // measured 0.119 -> 0.045 mm
     expect(fine.err).toBeLessThan(0.06);
@@ -88,8 +88,8 @@ describe('silhouette refinement', () => {
       const c = buildChunk(w.src, key, { refine: false, ao: true });
       if (!c) continue;
       for (let i = 0; i < c.vertexCount; i++) {
-        expect(c.nest[i * 2]).toBeGreaterThanOrEqual(0);
-        expect(c.nest[i * 2]).toBeLessThanOrEqual(1);
+        expect(c.nest[i * 3]).toBeGreaterThanOrEqual(0);
+        expect(c.nest[i * 3]).toBeLessThanOrEqual(1);
       }
       expect(c.groups.map((g) => g.code)).toEqual([0]); // all loam (code 0)
       total += c.groups.reduce((s, g) => s + g.indices.length / 3, 0);

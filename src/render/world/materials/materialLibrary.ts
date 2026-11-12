@@ -110,10 +110,19 @@ export class MaterialLibrary {
     const key = `${def.id}|${variant.key}`;
     let m = this.mats.get(key);
     if (m) return m;
-    m = new MeshStandardMaterial({ color: 0xffffff, roughness: def.roughness, metalness: def.metalness });
-    m.name = `world:${key}`;
-    applySurfacePatch(m, { ...variant, def, set: this.textureSet(def), uniforms: this.uniforms, breaches });
+    m = this.createSurfaceMaterial(def, variant, breaches);
     this.mats.set(key, m);
+    return m;
+  }
+
+  /**
+   * An UNCACHED surface material: the caller owns and disposes it. Use this when the variant binds per-world
+   * uniforms (the hole mask of one world): a cached material would outlive that world and keep its stale uniforms.
+   */
+  createSurfaceMaterial(def: MaterialDef, variant: SurfaceVariant, breaches?: BreachList): MeshStandardMaterial {
+    const m = new MeshStandardMaterial({ color: 0xffffff, roughness: def.roughness, metalness: def.metalness });
+    m.name = `world:${def.id}|${variant.key}`;
+    applySurfacePatch(m, { ...variant, def, set: this.textureSet(def), uniforms: this.uniforms, breaches });
     return m;
   }
 

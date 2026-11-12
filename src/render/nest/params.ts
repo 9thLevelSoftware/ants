@@ -9,7 +9,7 @@ import type { MaterialId } from '@/sim/types';
 // ------------------------------------------------------------------------------------------------ meshing
 
 /** Chunks per region edge: a region (R^3 chunks) is one geometry and one draw per wall material. */
-export const REGION_CHUNKS = 2;
+export const REGION_CHUNKS = 4;
 
 export interface MeshQuality {
   /** Wall-clock budget for re-meshing per frame, ms (at least one chunk is always built). */
@@ -68,7 +68,7 @@ export interface WallLook {
   wetDarken: number;
 }
 
-const SOIL_WALL: WallLook = { textureFrom: 'loam', scaleMm: 48, tint: [0.64, 0.72, 0.95], normalScale: 1.2, strata: 0.45, grain: 0.35, wetDarken: 0.55 };
+const SOIL_WALL: WallLook = { textureFrom: 'loam', scaleMm: 48, tint: [0.62, 0.7, 0.97], normalScale: 1.2, strata: 0.45, grain: 0.35, wetDarken: 0.55 };
 
 /** Wall looks per substrate material; anything missing uses `loam`. */
 export const WALL_LOOKS: Partial<Record<MaterialId, WallLook>> = {
@@ -125,6 +125,17 @@ export const NEST_LIGHT = {
   /** Max sky openings in the shader (nearest to the camera). */
   maxOpenings: 16,
 } as const;
+
+/** GDD 08 11.5: freshly carved walls are darker and damper-looking for 1 game hour (250 ticks). */
+export const FRESH_WALL = {
+  ticks: 250,
+  /** Albedo factor and extra wetness at the moment of carving (fading linearly to none). */
+  darken: 0.72,
+  wet: 0.6,
+} as const;
+
+/** Per-vertex nest attribute: ambient occlusion, soil moisture, tick the wall was carved (fresh look). */
+export const NEST_ATTR = 3;
 
 /** GDD 08 11.5 fog and the exposure switch, for callers that drive the post chain from the nest renderer. */
 export const NEST_LOOK = {

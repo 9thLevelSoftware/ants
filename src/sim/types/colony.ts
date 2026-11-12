@@ -259,4 +259,36 @@ export interface ColonyCoreState {
   diagPending: { id: string; status: string; sinceTick: number }[];
   /** Adult deaths of this colony since the start of the day, by cause. */
   deathsToday: Record<string, number>;
+  /** Cumulative population and intake accounting (GDD 02 §13.1). Additive (colony-core review): created on first use. */
+  pop?: ColonyPopulation;
+}
+
+/** Intake of one food kind or one source, cumulative: deliveries and loads accepted into the pool. */
+export interface IntakeTally {
+  n: number;
+  c: number;
+  p: number;
+  /** Tick of the last delivery. */
+  lastTick: number;
+}
+
+/** Cumulative counters of GDD 02 §13.1 that `ColonyCounters` does not hold. Keys of the records are ids as strings. */
+export interface ColonyPopulation {
+  /** Adult deaths by cause (canonical `DeathCause` ids), whole life. */
+  deathsByCause: Record<string, number>;
+  /** Brood deaths by cause (`BroodDeathCause` ids, incl. `cannibalised`), whole life. */
+  broodDeathsByCause: Record<string, number>;
+  eggsHatched: number;
+  larvaePupated: number;
+  /** Deliveries by food kind (source kind id, or the action library's kind string). */
+  intakeByKind: Record<string, IntakeTally>;
+  /** Deliveries by source id; entries of sources gone for a day are dropped at the daily recount. */
+  intakeBySource: Record<string, IntakeTally>;
+  /** Unloads with a measured wait, and their summed wait in ticks (mean unload wait). */
+  unloads: number;
+  unloadWaitTicks: number;
+  /** Corrections the daily full recount made to incrementally kept counts (should stay 0). */
+  recountFixes: number;
+  /** Tick of the last daily recount, -1 never. */
+  lastRecountTick: number;
 }

@@ -107,6 +107,7 @@ export function newItemSample(): ItemSample {
 export class SimReader {
   private colonySpecies = new Map<number, string>();
   private species = new Map<string, SpeciesView>();
+  private lastColony = Number.NaN; private lastSpecies = 'lasius-niger'; private lastBuMm = 4;
 
   constructor(readonly sim: AntSimSource) {}
 
@@ -118,6 +119,7 @@ export class SimReader {
 
   /** Refreshes the colony -> species map (a handful of colonies; called once per frame). */
   beginFrame(): void {
+    this.lastColony = Number.NaN;
     this.colonySpecies.clear();
     for (const c of this.sim.state.colonies) this.colonySpecies.set(c.id, c.species);
   }
@@ -143,12 +145,16 @@ export class SimReader {
 
   /** Fills `out` for one live ant at interpolation factor alpha (0 = previous tick, 1 = current). */
   readAnt(a: AntView, alpha: number, out: AntSample): AntSample {
-    const species = this.speciesOfColony(a.colony);
+    // consecutive ants are mostly of one colony: skip the two map lookups then
+    if (a.colony !== this.lastColony) {
+      this.lastColony = a.colony; this.lastSpecies = this.speciesOfColony(a.colony); this.lastBuMm = this.speciesInfo(this.lastSpecies).buMm;
+    }
+    const species = this.lastSpecies;
     out.id = a.id;
     out.species = species;
     out.caste = a.caste;
     out.sizeClass = a.sizeClass;
-    out.lengthMm = a.lengthBu * this.speciesInfo(species).buMm;
+    out.lengthMm = a.lengthBu * this.lastBuMm;
     lerpUnit(a.prevUp, a.up, alpha, out.up);
     lerpUnit(a.prevFwd, a.fwd, alpha, out.fwd);
     const fo = a.footOffset || 0;

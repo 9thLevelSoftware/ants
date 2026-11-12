@@ -98,6 +98,16 @@ export class VariantStore {
     return b;
   }
 
+  /** Empties every batch (start of a frame). */
+  resetAll(): void {
+    for (const e of this.entries) { for (const b of e.lods) b.reset(); e.wings?.reset(); for (const b of e.items.values()) b.reset(); }
+  }
+
+  /** Flags the used ranges of every batch for upload (end of a frame). */
+  commitAll(): void {
+    for (const e of this.entries) { for (const b of e.lods) b.commit(); e.wings?.commit(); for (const b of e.items.values()) b.commit(); }
+  }
+
   forEachBatch(fn: (b: InstanceBatch) => void): void {
     for (const e of this.entries) { for (const b of e.lods) fn(b); if (e.wings) fn(e.wings); for (const b of e.items.values()) fn(b); }
   }

@@ -4,7 +4,7 @@
  */
 import type { Vec3 } from '@/core/math/vec3';
 import { advanceGait, newGaitState, resetGait, type GaitState, type RigGait } from './gait';
-import { NEUTRAL_POSE, POSE_FIELDS, type PoseTarget } from './poses';
+import { blendPose, copyPose, NEUTRAL_POSE, type PoseTarget } from './poses';
 import { GAIT, SMOOTH } from './tuning';
 import type { AntSample } from './simAdapter';
 
@@ -40,7 +40,7 @@ export class AntStateTable {
       };
       // a recycled state must not carry the previous ant's pose or gait into this one
       s.id = id; s.fresh = true; s.vi = -1;
-      for (const k of POSE_FIELDS) s.pose[k] = NEUTRAL_POSE[k];
+      copyPose(NEUTRAL_POSE, s.pose);
       const h = hash01(id);
       s.seed = h;
       s.gait.phase = hash01(id * 7 + 3); s.gait.share = 1; s.gait.yawPerCycle = 0; s.gait.dir = 1;
@@ -88,13 +88,12 @@ export function stepAntState(s: AntRenderState, a: AntSample, target: PoseTarget
   const pu = PREV_UP, pf = PREV_FWD; copy(s.up, pu); copy(s.fwd, pf);
   if (snap) {
     copy(a.up, s.up);
-    for (const k of POSE_FIELDS) s.pose[k] = target[k];
+    copyPose(target, s.pose);
   } else {
     const ku = k ? k.up : 1 - Math.exp(-dt / SMOOTH.up);
     s.up.x += (a.up.x - s.up.x) * ku; s.up.y += (a.up.y - s.up.y) * ku; s.up.z += (a.up.z - s.up.z) * ku;
     normalize(s.up, a.up);
-    const kp = k ? k.pose : 1 - Math.exp(-dt / SMOOTH.pose);
-    for (const k of POSE_FIELDS) s.pose[k] += (target[k] - s.pose[k]) * kp;
+    blendPose(s.pose, target, k ? k.pose : 1 - Math.exp(-dt / SMOOTH.pose));
   }
   // forward: the sample's heading made tangent to the smoothed up
   const d = a.fwd.x * s.up.x + a.fwd.y * s.up.y + a.fwd.z * s.up.z;

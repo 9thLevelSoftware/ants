@@ -7,6 +7,7 @@ import { rngChance, rngFloat } from '@/core/rng';
 import type { CalendarDerived, RainClass, Sim, WeatherForecast, WeatherState } from '@/sim/types';
 import {
   COLDSNAP_EXT_H, COLDSNAP_MAX_EXT, DEFAULT_SEASON_LENGTH_DAYS, DRYSPELL_DAYS, FROST_END_AFTER_SUNRISE_H, HEAT_SEASON_STOP_H,
+  HEAT_WEIGHT_CALIBRATION,
   LIGHTNING_MEAN_EXTRA_TICKS, LIGHTNING_MIN_GAP_TICKS, P_COLDSNAP_PERSIST, PRECIP_NORM,
   STORM_PRECIP_NORM, WEATHER_DEFS, WIND_STORM_TURN_DEG,
 } from '@/sim/balance';
@@ -55,7 +56,7 @@ export function drawContextAt(sim: Sim, stateTick: number): WeatherDrawCtx {
   x.tSeason = seasonalMean(c, cal.yearFrac);
   x.rainMult = c.rainMult * p.rainFreqMult * sev;
   x.stormMult = c.stormMult * p.stormFreqMult * sev;
-  x.heatMult = c.heatMult * p.heatWaveFreqMult * sev;
+  x.heatMult = c.heatMult * p.heatWaveFreqMult * sev * HEAT_WEIGHT_CALIBRATION;
   x.frostMult = c.frostMult * p.frostFreqMult * sev;
   x.clearOvercastOnly = s.config.rules.weatherSeverity === 'none';
   x.dryspell = dryspellActiveAt(sim, stateTick);

@@ -4,13 +4,15 @@
 import { ti } from './taskIdx';
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Caste, Chamber, Colony, ColonyCoreState, Sim } from '@/sim/types';
-import { CORPSE_HAUL_RADIUS_BU } from '@/sim/balance';
+import { AGE_MID_MAX_GD, AGE_YOUNG_MAX_GD, CORPSE_HAUL_RADIUS_BU } from '@/sim/balance';
 import { AntFlag, BroodFlag, TASK_COUNT } from '@/sim/types';
 
 // Imported bindings are accessor reads under Vite's SSR module runner (tests, headless tools); the hot per-entity
 // steps below read these module-local copies instead.
 const _ti = ti;
 const _CORPSE_HAUL_RADIUS_BU = CORPSE_HAUL_RADIUS_BU;
+const _AGE_YOUNG_MAX_GD = AGE_YOUNG_MAX_GD;
+const _AGE_MID_MAX_GD = AGE_MID_MAX_GD;
 const _AntFlag = AntFlag;
 const _BroodFlag = BroodFlag;
 const _TASK_COUNT = TASK_COUNT;
@@ -102,13 +104,24 @@ export interface Census {
   meanLarvalHunger: number;
   gynes: number;
   males: number;
+  /** Workers by age band (GDD 02 §1.3; `callows` is the callow band), inside a nest / outside, flagged (§13.1). */
+  young: number;
+  mid: number;
+  old: number;
+  inside: number;
+  outside: number;
+  nanitics: number;
+  minims: number;
+  /** Possessed (player-controlled) workers. */
+  controlled: number;
 }
 
 function emptyCensus(): Census {
   return {
     workers: 0, callows: 0, byTask: new Int16Array(_TASK_COUNT), available: 0, availableOutside: 0, injured: 0,
     resting: 0, eggs: 0, larvae: 0, pupae: 0, workerEggs: 0, workerLarvae: 0, workerPupae: 0, diapause: 0,
-    readyPupae: 0, meanLarvalHunger: 0, gynes: 0, males: 0,
+    readyPupae: 0, meanLarvalHunger: 0, gynes: 0, males: 0, young: 0, mid: 0, old: 0, inside: 0,
+    outside: 0, nanitics: 0, minims: 0, controlled: 0,
   };
 }
 
@@ -140,7 +153,15 @@ function buildCensus(sim: Sim): Map<number, Census> {
     if (!WORKER_CASTES.has(a.caste)) continue;
     const c = get(a.colony);
     c.workers++;
-    if (a.flags & _AntFlag.CALLOW) c.callows++;
+    const f = a.flags;
+    if (f & _AntFlag.CALLOW) c.callows++; else if (a.physioAgeGd < _AGE_YOUNG_MAX_GD) c.young++;
+    else if (a.physioAgeGd < _AGE_MID_MAX_GD) c.mid++;
+    else c.old++;
+    if (a.nestId !== -1) c.inside++;
+    else c.outside++;
+    if (f & _AntFlag.NANITIC) c.nanitics++;
+    if (f & _AntFlag.MINIM) c.minims++;
+    if (f & _AntFlag.POSSESSED) c.controlled++;
     c.byTask[_ti(a.task)]++;
     if (a.task === 'rest' || a.state === 'rest') c.resting++;
     if (a.flags & _AntFlag.INJURED) c.injured++;

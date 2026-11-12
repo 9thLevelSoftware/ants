@@ -10,7 +10,7 @@ import { XRAY } from '../params';
 export class XRayPass {
   readonly group = new Group();
   private sentinel: Mesh;
-  private meshes = new Map<number, { pre: Mesh; col: Mesh }>();
+  private meshes = new Map<Mesh, { pre: Mesh; col: Mesh }>();
   private revision = -1;
 
   constructor(private readonly materials: NestMaterials) {
@@ -41,22 +41,21 @@ export class XRayPass {
   sync(manager: ChunkMeshManager): void {
     if (manager.revision === this.revision) return;
     this.revision = manager.revision;
-    const seen = new Set<number>();
-    for (const r of manager.regions.values()) {
-      if (!r.mesh) continue;
-      seen.add(r.key);
-      let e = this.meshes.get(r.key);
+    const seen = new Set<Mesh>();
+    for (const src of manager.meshes()) {
+      seen.add(src);
+      let e = this.meshes.get(src);
       if (!e) {
-        const pre = new Mesh(r.mesh.geometry, this.materials.xrayPrepass);
-        const col = new Mesh(r.mesh.geometry, this.materials.xrayColor);
+        const pre = new Mesh(src.geometry, this.materials.xrayPrepass);
+        const col = new Mesh(src.geometry, this.materials.xrayColor);
         pre.renderOrder = XRAY.renderOrder;
         col.renderOrder = XRAY.renderOrder + 1;
         for (const m of [pre, col]) { m.matrixAutoUpdate = false; this.group.add(m); }
         e = { pre, col };
-        this.meshes.set(r.key, e);
+        this.meshes.set(src, e);
       }
-      e.pre.geometry = r.mesh.geometry;
-      e.col.geometry = r.mesh.geometry;
+      e.pre.geometry = src.geometry;
+      e.col.geometry = src.geometry;
     }
     for (const [k, e] of this.meshes) {
       if (seen.has(k)) continue;

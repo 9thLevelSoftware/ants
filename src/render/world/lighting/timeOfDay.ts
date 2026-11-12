@@ -4,7 +4,7 @@
 import { Color, Vector3 } from 'three';
 import type { WeatherState, ZoneType } from '@/sim/types';
 import {
-  AMBIENT_SCALE, AUTO_EXPOSURE_K, AUTO_EXPOSURE_MAX_EV, ENV_INTENSITY, HAZE_HEIGHT_K, INTERIOR_LOOK, HAZE_VIS_BU, HAZE_VIS_SCALE, LIGHT_KEYS, OVERCAST_SKY, SUN_INTENSITY, UNDERGROUND, WEATHER_LOOK,
+  AMBIENT_SCALE, AUTO_EXPOSURE_K, AUTO_EXPOSURE_MAX_EV, ENV_INTENSITY, HAZE_HEIGHT_K, INTERIOR_LOOK, HAZE_VIS_BU, HAZE_VIS_SCALE, HAZE_VIS_WEATHER_BU, LIGHT_KEYS, OVERCAST_SKY, SUN_INTENSITY, UNDERGROUND, WEATHER_LOOK,
   type LightKey,
 } from './constants';
 
@@ -96,9 +96,14 @@ export function keyframesAt(elevDeg: number): { a: LightKey; b: LightKey; t: num
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/** Haze visibility (63 % extinction) of a habitat in a weather state, BU (GDD 08 11.3, before weather density). */
+export function hazeVisBU(zone: ZoneType, weather: WeatherState = 'clear'): number {
+  return HAZE_VIS_WEATHER_BU[weather]?.[zone] ?? HAZE_VIS_BU[zone];
+}
+
 /** Haze visibility (63 % extinction) for a habitat, mm, before weather. */
-export function hazeVisibilityMm(zone: ZoneType, bu: number): number {
-  return HAZE_VIS_BU[zone] * HAZE_VIS_SCALE * bu;
+export function hazeVisibilityMm(zone: ZoneType, bu: number, weather: WeatherState = 'clear'): number {
+  return hazeVisBU(zone, weather) * HAZE_VIS_SCALE * bu;
 }
 
 export function computeLighting(inp: LightingInput, out: LightingState = createLightingState()): LightingState {
@@ -150,16 +155,27 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
 
   // haze
   out.fogColor.copy(out.skyHorizon);
-  const visBU = (inp.hazeVisBU ?? HAZE_VIS_BU[inp.zone]) * HAZE_VIS_SCALE + HAZE_HEIGHT_K * Math.max(0, inp.cameraHeightBU ?? 0);
+  const visBU = (inp.hazeVisBU ?? hazeVisBU(inp.zone, inp.weather)) * HAZE_VIS_SCALE + HAZE_HEIGHT_K * Math.max(0, inp.cameraHeightBU ?? 0);
   const vis = visBU * inp.bu;
-  out.fogDensity = inp.hazeScale > 0 ? (inp.hazeScale * W.hazeMult * (1 + 0.2 * ov) * (1 + 2 * inp.fog)) / vis : 0;
+  // a weather state's own haze, or (cloudy 'clear' sky) toward the overcast haze: never both
+  const hazeMult = W.hazeMult * lerp(1, WEATHER_LOOK.overcast.hazeMult, cloudy);
+  out.fogDensity = inp.hazeScale > 0 ? (inp.hazeScale * hazeMult * (1 + 2 * inp.fog)) / vis : 0;
 
   out.exposureEV = lerp(a.exposureEV, b.exposureEV, t) + W.exposureEV + WEATHER_LOOK.overcast.exposureEV * cloudy;
   out.saturation = lerp(a.saturation, b.saturation, t) * W.saturation;
   out.gain = [lerp(a.gain[0], b.gain[0], t), lerp(a.gain[1], b.gain[1], t), lerp(a.gain[2], b.gain[2], t)];
 
-  // the photographer compensates for low sun and night, not for walking indoors (rooms stay dimmer than outside)
-  out.exposureEV += autoExposureEV(out);
+  // frost: blue shadows (GDD 08 11.4): the sky fill takes the frost hue at its own brightness
+  if (W.shadowHex) {
+    const lum = luminance(out.hemiSky);
+    ca.set(W.shadowHex);
+    out.hemiSky.copy(ca).multiplyScalar(lum / Math.max(1e-6, luminance(ca)));
+  }
+
+  // the photographer compensates for low sun and night, not for walking indoors (rooms stay dimmer than outside);
+  // weather meters through meterSunMult (the storm meters like rain, so its -0.7 EV stays on screen)
+  const meter = sunUp && W.sunMult > 0 ? (W.meterSunMult * lerp(1, WEATHER_LOOK.overcast.sunMult, cloudy)) / sunMult : 1;
+  out.exposureEV += autoExposureEV(out, meter);
   // interior: tungsten ambient from above, the sun only through openings
   const ins = Math.min(1, Math.max(0, inp.interior ?? 0));
   if (ins > 0) {
@@ -192,9 +208,14 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
 /** Midday horizontal irradiance proxy (sun at 60 degrees + day ambient). */
 const E_REF = SUN_INTENSITY * Math.sin(Math.PI / 3) + AMBIENT_SCALE * 0.35;
 
-/** Exposure compensation for a dim scene (low sun, night, indoors), EV >= 0. */
-export function autoExposureEV(l: LightingState): number {
-  const e = l.keyIntensity * Math.max(0, l.keyDir.y) + l.hemiIntensity;
+const luminance = (c: Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+/**
+ * Exposure compensation for a dim scene (low sun, night, indoors), EV >= 0. `keyMeterScale` scales the key light
+ * as the meter sees it (weather looks that must stay darker than the metered scene).
+ */
+export function autoExposureEV(l: LightingState, keyMeterScale = 1): number {
+  const e = l.keyIntensity * keyMeterScale * Math.max(0, l.keyDir.y) + l.hemiIntensity;
   const stops = Math.log2(E_REF / Math.max(1e-4, e));
   return Math.min(AUTO_EXPOSURE_MAX_EV, Math.max(0, stops * AUTO_EXPOSURE_K));
 }

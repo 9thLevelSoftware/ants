@@ -4,7 +4,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { CommandHandlerMap, Kernel, NavGrid, Sim, SpeciesId, System, WorldData, WorldField, ZoneType } from '@/sim/types';
 import { digFactor } from '@/sim/balance';
-import { fakeNavGrid } from '@/sim/testing/doubles/navGrid';
+import { createNavGridImpl } from './navGrid';
 
 /** Zone reported where the map has no zone. */
 const FALLBACK_ZONE: ZoneType = 'lawn';
@@ -21,9 +21,9 @@ export function createWorldField(kernel: Kernel): WorldField {
   return f;
 }
 
-/** Coarse 16 BU nav grid. Stub: the open-grid test double (loco replaces with src/sim/world/navGrid.ts). */
+/** Coarse 16 BU nav grid (loco: src/sim/world/navGrid.ts). */
 export function createNavGrid(world: WorldData): NavGrid {
-  return fakeNavGrid(world);
+  return createNavGridImpl(world);
 }
 
 /** Zone type at (x, z), from the zone map. Stub-quality but real (worldgen-terrain may refine). */

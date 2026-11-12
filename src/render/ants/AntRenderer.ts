@@ -115,10 +115,10 @@ export class AntRenderer {
     if (frame.sim !== undefined && (frame.sim === null ? this.reader !== null : this.reader?.sim !== frame.sim)) this.setSim(frame.sim);
     const reader = this.reader;
     const camera: PerspectiveCamera = frame.camera ?? this.ctx.camera;
-    this.store.forEachBatch((b) => b.reset());
+    this.store.resetAll();
     this.stamp++;
     this.shared.uTime.value = frame.time;
-    if (!reader) { this.store.forEachBatch((b) => b.commit()); this.loose.update([], camera, 1, 1, 0); return; }
+    if (!reader) { this.store.commitAll(); this.loose.update([], camera, 1, 1, 0); return; }
     reader.beginFrame();
     camera.updateMatrixWorld();
     this.pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.pm);
@@ -139,6 +139,8 @@ export class AntRenderer {
       reader.readAnt(a, frame.alpha, smp);
       const st = this.states.get(smp.id, this.stamp);
       if (st.vi < 0 || st.vSpecies !== smp.species || st.vCaste !== smp.caste || st.vSize !== smp.sizeClass || st.vWinged !== smp.winged) {
+        // a new body (caste change, dealation) has its own rig: start its gait and pose afresh
+        if (st.vi >= 0) st.fresh = true;
         st.vi = this.store.index(smp.species, smp.caste, smp.sizeClass, smp.winged);
         st.vSpecies = smp.species; st.vCaste = smp.caste; st.vSize = smp.sizeClass; st.vWinged = smp.winged;
       }
@@ -196,7 +198,7 @@ export class AntRenderer {
         carried++;
       }
     }
-    this.store.forEachBatch((b) => b.commit());
+    this.store.commitAll();
     const t2 = performance.now();
 
     // ---- loose brood and items

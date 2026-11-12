@@ -70,10 +70,9 @@ export function pickNest(ndcX: number, ndcY: number, camera: Camera, ctx: PickCo
   // 2. nest walls (double-sided, skipping discarded fragments: open air and the hidden half of the cut)
   if (!best) {
     const hits: Intersection[] = [];
-    for (const r of ctx.manager.regions.values()) {
-      if (!r.mesh) continue;
-      const m = new Mesh(r.mesh.geometry, rayMat);
-      m.matrixWorld.copy(r.mesh.matrixWorld);
+    for (const src of ctx.manager.meshes()) {
+      const m = new Mesh(src.geometry, rayMat);
+      m.matrixWorld.copy(src.matrixWorld);
       m.raycast(ray, hits);
     }
     hits.sort((a, b) => a.distance - b.distance);

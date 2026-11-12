@@ -15,6 +15,7 @@ import { TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { calendarNow, peakSolarOf } from './calendar';
 import { isInteriorAt, shadeAt, surfaceSlotAt, SURFACE_SLOTS } from './ground';
 import { insolation, skyLight } from './light';
+import { noteEnvNan } from './envGuard';
 import { isNoLag } from './noLag';
 import { airTemp, anomalyNow, interiorTemp } from './temperature';
 import { initWeather } from './weather';
@@ -121,6 +122,10 @@ export function updateThermal(sim: Sim, dtTicks: number): void {
       const i = slot * 2 + s;
       const target = surfaceTarget(p, tair, ins, s === 1, cn);
       const v = t.tsurf[i] + (target - t.tsurf[i]) * a;
+      if (!Number.isFinite(v)) { // GDD 06 §3.12: keep the previous value
+        noteEnvNan(sim.state);
+        continue;
+      }
       t.tsurf[i] = v;
       day[i] += (v - day[i]) * dayA;
       season[i] += (v - season[i]) * seasonA;

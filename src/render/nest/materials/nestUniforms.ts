@@ -1,7 +1,7 @@
 // Uniforms shared by every nest material (walls of every substrate, x-ray passes, cap). One Uniform object per
 // value: update `.value` once per frame and every material sees it (tech-stack 7).
 import { Color, Uniform, Vector2, Vector3, Vector4 } from 'three';
-import { NEST_LIGHT, XRAY } from '../params';
+import { FRESH_WALL, NEST_LIGHT, XRAY } from '../params';
 
 export const CUT_OFF = 0, CUT_SLICE = 1, CUT_XRAY = 2;
 
@@ -45,6 +45,13 @@ export interface NestUniforms {
   uXOpacity: Uniform<number>;
   /** Body unit, mm (noise scales). */
   uBu: Uniform<number>;
+  /** Simulation tick now, and the fresh-wall look: x duration (ticks), y albedo factor, z extra wetness. */
+  uTick: Uniform<number>;
+  uFresh: Uniform<Vector3>;
+  /** Occlusion capsule (camera -> possessed ant): ends, x radius (0 = off), y fraction of fragments kept. */
+  uOccA: Uniform<Vector3>;
+  uOccB: Uniform<Vector3>;
+  uOcc: Uniform<Vector2>;
 }
 
 export function createNestUniforms(): NestUniforms {
@@ -74,5 +81,10 @@ export function createNestUniforms(): NestUniforms {
     uXDepth: new Uniform(160),
     uXOpacity: new Uniform(XRAY.opacity),
     uBu: new Uniform(4),
+    uTick: new Uniform(0),
+    uFresh: new Uniform(new Vector3(FRESH_WALL.ticks, FRESH_WALL.darken, FRESH_WALL.wet)),
+    uOccA: new Uniform(new Vector3()),
+    uOccB: new Uniform(new Vector3()),
+    uOcc: new Uniform(new Vector2(0, 0.25)),
   };
 }

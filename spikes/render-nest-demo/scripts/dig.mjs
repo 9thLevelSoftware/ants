@@ -7,6 +7,8 @@ export default async ({ page, shot, log }) => {
   const q = new URL(page.url()).searchParams.get('quality') ?? 'test';
   await page.evaluate(() => { window.__demo.setView('dig'); window.__demo.sync(); });
   await shot(`dig-0-before-${q}`);
+  // warm-up (JIT of the build path on fresh geometry; not reported)
+  await page.evaluate(() => window.__demo.dig(3, true, false));
   const burst = await page.evaluate(() => window.__demo.dig(50, false, false));
   await page.evaluate(() => window.__demo.sync());
   await shot(`dig-1-after-50-bites-${q}`);

@@ -20,7 +20,7 @@ function scene(mode: NestCutawayParams['mode']) {
   manager.build = { refine: false, ao: false };
   manager.setSource(src);
   manager.flush();
-  for (const r of manager.regions.values()) r.mesh!.updateMatrixWorld();
+  for (const m of manager.meshes()) m.updateMatrixWorld();
   const plane = computeCutPlane({ mode, planeY: -40, radius: 120, center: { x: 200, z: 200 } }, () => 0, BU, createCutPlane());
   const cap = new CapRaster();
   if (mode === 'slice') { cap.start(capFaces(plane, 0, BU)[0], cutKey(plane), 1, 512); cap.step(src, Infinity); }

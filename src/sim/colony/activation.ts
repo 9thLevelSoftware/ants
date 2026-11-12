@@ -11,10 +11,12 @@ import {
   FENV_RH_LO_PCT, FENV_RH_SPAN_PCT, NEWS_EXPIRY_GD, NEWS_MAX, RECRUIT_CONTACTS_MAX, RECRUIT_RADIUS_BU,
   SPONT_DEPART_RATE_S, SPONT_NEED_BASE, SPONT_ROUTE_MULT,
 } from '@/sim/balance';
+import { recordDelivery as recordSourceDelivery } from '@/sim/ecology';
 import { daysToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { accAdd, coreOf } from './core';
 import { chamberRh, isStorm, surfaceActivityOf } from './envAdapter';
 import { recruitAcceptance } from './needs';
+import { countDelivery } from './population';
 import { deposit, type FoodMove } from './stores';
 
 const WAIT_STATES = new Set(['forage.wait', 'tend.wait']);
@@ -157,13 +159,19 @@ export function injectReturn(sim: Sim, entranceId: number, success: boolean, sou
 
 /**
  * A forager unloads food it brought from a source into the pool (liquid to a receiver, solid to a pile; GDD 02
- * §5.3). Books the delivery, emits `delivery` and feeds the yield-per-forager estimate. Returns what was accepted.
+ * §5.3). Books the delivery, tallies it by food kind and source (colony and ecology), emits `delivery` and feeds
+ * the yield-per-forager estimate. `waitTicks` is how long the forager waited to unload (-1 = not measured).
+ * Returns what was accepted.
  */
-export function recordDelivery(sim: Sim, ant: Ant, sourceId: number, kind: string, c: number, p: number, toxin = 0): FoodMove {
+export function recordDelivery(
+  sim: Sim, ant: Ant, sourceId: number, kind: string, c: number, p: number, toxin = 0, waitTicks = -1,
+): FoodMove {
   const col = sim.stores.colonies.get(ant.colony);
   if (!col) return { c: 0, p: 0, toxin: 0 };
   const got = deposit(col, c, p, toxin, 'delivery');
   if (got.c + got.p > 0) {
+    countDelivery(sim, col, sourceId, kind, got.c, got.p, waitTicks);
+    recordSourceDelivery(sim, col.id, sourceId, got.c, got.p);
     if (ant.task === 'forage' || ant.task === 'scout' || ant.task === 'tend') accAdd(coreOf(col), 'yield.loads', got.c + got.p);
     sim.emit({ type: 'delivery', antId: ant.id, colonyId: col.id, sourceId, kind, c: got.c, p: got.p, toxin: got.toxin });
   }

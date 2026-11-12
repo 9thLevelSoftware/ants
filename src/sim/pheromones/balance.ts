@@ -37,12 +37,16 @@ export const PHERO_SHARED_COLONY = -1;
 export const PHERO_MAX_CELLS: Readonly<Record<PheroChannel, number>> = { trail: 40000, home: 60000, alarm: 16000 };
 export const PHERO_MAX_CHUNKS: Readonly<Record<PheroChannel, number>> = { trail: 192, home: 384, alarm: 96 };
 /**
- * Share of cells (chunks) removed, weakest first, when a cap is hit. A deposit is never refused: the newcomer takes
- * a freed slot and survives the next eviction if it is reinforced by then. Evicting a fixed share bounds how often
- * an eviction runs (at most once per 1/16 of the cell cap new cells, 1/8 of the chunk cap new chunks).
+ * Share of cells (chunks) removed, weakest first, when a cap is hit. Afterwards a NEW cell (chunk) is admitted
+ * once the deposits it received while waiting add up to more than the strongest one evicted (pending.ts; floors
+ * and counters decay with the layer). Repeated deposits add up, so a reinforced newcomer wins its slot quickly,
+ * while stray dabs cannot make a saturated layer thrash by evicting and recreating its newest chunks.
  */
 export const PHERO_EVICT_FRACTION = 1 / 16;
 export const PHERO_EVICT_CHUNK_FRACTION = 1 / 8;
+/** Capacity of the pending admission counters per layer: new cells, new chunks. */
+export const PHERO_PENDING_CELLS = 256;
+export const PHERO_PENDING_CHUNKS = 64;
 /** Resolution of the eviction histogram (log2 bins per octave of value). */
 export const PHERO_EVICT_BINS_PER_OCTAVE = 8;
 /**

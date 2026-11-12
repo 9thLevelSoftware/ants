@@ -113,8 +113,9 @@ describe('App. E7 measured on time, not on transitions (maritime, Naturalist, 20
       frost.push(winterFrost / winter);
     }
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    // E7 as written: the 5-seed result. The mean passes; see the review report for the per-seed spread
-    // (seed 1 measures about 0.39, above 0.35, which the transition-based E7 test in weather.test.ts cannot see).
+    // E7 as written, and every seed on its own (seed 1 once measured 0.39 summer heat with the chapter's .27 weight).
+    for (const f of heat) { expect(f).toBeGreaterThan(0.15); expect(f).toBeLessThan(0.35); }
+    for (const f of frost) { expect(f).toBeGreaterThan(0.15); expect(f).toBeLessThan(0.27); }
     expect(mean(heat)).toBeGreaterThan(0.15);
     expect(mean(heat)).toBeLessThan(0.35);
     expect(mean(frost)).toBeGreaterThan(0.15);

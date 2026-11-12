@@ -12,6 +12,20 @@ import { colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
 import { larvaRemainingNeed } from './brood';
 
+/**
+ * A caller-supplied amount as a safe non-negative number: NaN and negatives become 0. +Infinity is kept (it means
+ * "as much as fits / as there is" and is bounded by capacity or stock below). Callers pass computed amounts, and
+ * one NaN must never reach the stores, where it would poison every need, stage and diagnostic for good.
+ */
+function amountOf(x: number): number {
+  return x > 0 ? x : 0;
+}
+
+/** A toxin amount: also rejects +Infinity, since toxin is carried along, not bounded by space. */
+function toxinOf(x: number): number {
+  return x > 0 && x < Infinity ? x : 0;
+}
+
 /** Where deposited food comes from: a delivery, recycled brood, or a nurse's unused crop going back. */
 export type DepositSource = 'delivery' | 'recycled' | 'transit-return';
 /** What withdrawn food is for (ledger key): crops of nurses / carers / beggars, departure rations, upkeep. */
@@ -74,12 +88,14 @@ function poolClosed(col: Colony): boolean {
 export function deposit(col: Colony, c: number, p: number, toxin: number, source: DepositSource): FoodMove {
   if (!col.alive || poolClosed(col)) return { c: 0, p: 0, toxin: 0 };
   const s = col.stores;
-  const ac = Math.min(Math.max(0, c), poolSpace(col).c);
+  c = amountOf(c);
+  p = amountOf(p);
+  const ac = Math.min(c, poolSpace(col).c);
   s.c += ac;
-  const ap = Math.min(Math.max(0, p), poolSpace(col).p);
+  const ap = Math.min(p, poolSpace(col).p);
   s.p += ap;
-  const total = Math.max(0, c) + Math.max(0, p);
-  const at = total > 0 ? Math.max(0, toxin) * ((ac + ap) / total) : 0;
+  const total = c + p;
+  const at = total > 0 && total < Infinity ? toxinOf(toxin) * ((ac + ap) / total) : 0;
   s.toxin += at;
   if (source === 'delivery') {
     book(col, 'inDeliveryC', ac);
@@ -105,8 +121,8 @@ export function withdraw(col: Colony, c: number, p: number, purpose: WithdrawPur
   if (!col.alive) return { c: 0, p: 0, toxin: 0 };
   const s = col.stores;
   const before = s.c + s.p;
-  const tc = Math.min(Math.max(0, c), s.c);
-  const tp = Math.min(Math.max(0, p), s.p);
+  const tc = Math.min(amountOf(c), s.c);
+  const tp = Math.min(amountOf(p), s.p);
   s.c -= tc;
   s.p -= tp;
   if (s.c < LOAD_EPS) s.c = 0;
@@ -151,8 +167,8 @@ function bookCropFeed(col: Colony, c: number, p: number, to: 'larvae' | 'queen')
 export function feedFromCrop(sim: Sim, giver: Ant, broodId: number, c: number, p: number): FoodAmount {
   const col = sim.stores.colonies.get(giver.colony);
   if (!col) return { c: 0, p: 0 };
-  let wantC = Math.min(Math.max(0, c), giver.cropC);
-  let wantP = Math.min(Math.max(0, p), giver.cropP);
+  let wantC = Math.min(amountOf(c), giver.cropC);
+  let wantP = Math.min(amountOf(p), giver.cropP);
   let space: number;
   let receiverId = -1;
   const larva = broodId >= 0 ? sim.stores.brood.get(broodId) : undefined;

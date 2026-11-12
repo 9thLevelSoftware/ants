@@ -1,10 +1,13 @@
 // Draws every solid primitive (static world + dynamic + moved objects) as InstancedMeshes, one per
 // (shape geometry, material, diggable, level of detail). Instances carry rotation+translation in instanceMatrix,
 // size+rounding in `iSize` and a tint in instanceColor; the shader expands the shared parametric geometry.
-// Dynamic primitives are diffed every frame, so adds/removes/moves show in the very next frame.
+//
+// Two layers with their own meshes: the static world (prepared once per world in a spatial grid) and the dynamic
+// primitives (moved objects, toys, cars; a small set rebuilt whenever one of them changes, so adds, removes and
+// moves show in the very next frame). A dynamic change never touches the static meshes. Both layers draw only
+// what can be seen: nothing past the haze (`cullMm`), nothing smaller than about a pixel, detailed geometry near.
 import {
-  BufferGeometry, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshDepthMaterial, Quaternion, RGBADepthPacking, Sphere, Vector3,
-  Vector4, Uniform,
+  BufferGeometry, Group, InstancedBufferAttribute, InstancedMesh, MeshDepthMaterial, RGBADepthPacking, Sphere, Uniform, Vector3, Vector4,
 } from 'three';
 import type { Primitive } from '@/sim/types';
 import { MaterialLibrary } from '../materials/materialLibrary';
@@ -12,50 +15,41 @@ import { primMaterialDef } from '../materials/materialDefs';
 import { addPatch, BREACH_UNIFORM_MAX, primVertexPatch, type BreachList } from '../materials/surfacePatch';
 import { isDiggablePrim } from '../lighting/simAdapter';
 import { PRIM_DETAIL, roundedBoxData, roundedCylinderData, sphereData, toBufferGeometry } from './primGeometry';
-import { bucketKey, instanceShape, lodFor, primSignature, tintColor, type GeomKind, type InstanceShape, type Lod } from './primInstances';
-
-interface Entry {
-  prim: Primitive;
-  sig: string;
-  shape: InstanceShape;
-  matrix: Matrix4;
-  color: [number, number, number];
-  diggable: boolean;
-  lod: Lod;
-  dynamic: boolean;
-}
-
-interface Bucket {
-  key: string;
-  geom: GeomKind;
-  material: string;
-  diggable: boolean;
-  lod: Lod;
-  mesh: InstancedMesh;
-  size: InstancedBufferAttribute;
-  capacity: number;
-}
+import { PrimSet, type BatchDef, type PartitionView } from './primCells';
+import { PrimLayer } from './primLayer';
+import { primSignature, type GeomKind, type Lod } from './primInstances';
 
 /** Macro albedo variation on primitives. */
 const PRIM_MACRO = 0.08;
-/** Far-detail buckets cast shadows only if they hold a primitive at least this big (bounding radius, mm). */
-const FAR_SHADOW_MIN_RADIUS = 40;
+/**
+ * A primitive is not drawn once its distance exceeds its bounding radius times this: at 1080p and a 50 degree
+ * field of view it then covers less than about one pixel (1 / (1500 * tan 25 deg / 540) ~ 0.8 px).
+ */
+export const PRIM_SIZE_CULL_K = 1500;
+/** Spatial grid cell of the static set, in near-detail distances (cells near the camera hold few primitives). */
+const STATIC_CELL_IN_NEAR = 2;
+/** Re-partition when the cull distance changed by more than this fraction (haze easing between habitats). */
+const CULL_CHANGE_FRACTION = 0.05;
 
 export class PrimitiveRenderer {
   readonly group = new Group();
   readonly breaches: BreachList;
-  private entries = new Map<number, Entry>();
-  private buckets = new Map<string, Bucket>();
+  private readonly staticLayer: PrimLayer;
+  private readonly dynamicLayer: PrimLayer;
   private baseGeoms = new Map<string, BufferGeometry>();
   private depthMats = new Map<string, MeshDepthMaterial>();
-  private dirty = true;
+  private statics: readonly Primitive[] = [];
+  /** Current dynamic list (dynamic prims + moved static copies) and their signatures. */
+  private dynamicSigs = new Map<number, string>();
+  private movedIds = new Set<number>();
+  private staticDirty = true;
+  private dynamicDirty = true;
   private lastCam = new Vector3(1e12, 0, 0);
-  private dynamicIds = new Set<number>();
-  private overridden = new Set<number>();
-  private statics = new Map<number, Primitive>();
+  private lastCull = -1;
+  private view: PartitionView = { x: 0, y: 0, z: 0, nearMm: 0, cullMm: Infinity, sizeK: PRIM_SIZE_CULL_K };
   /** Within this distance (mm, from the bounding sphere) primitives use the detailed geometry. */
   nearMm: number;
-  /** Rebuilds so far (statistics / tests). */
+  /** Updates that re-partitioned anything (statistics / tests). */
   rebuilds = 0;
 
   constructor(private readonly lib: MaterialLibrary, nearMm: number) {
@@ -64,51 +58,56 @@ export class PrimitiveRenderer {
     const spheres: Vector4[] = [];
     for (let i = 0; i < BREACH_UNIFORM_MAX; i++) spheres.push(new Vector4(0, -1e9, 0, 0));
     this.breaches = { spheres: new Uniform(spheres), count: new Uniform(0) };
+    const factory = (def: BatchDef, lod: Lod, cap: number, name: string) => this.makeMesh(def, lod, cap, name);
+    this.staticLayer = new PrimLayer('world:prims:', factory, this.group);
+    this.dynamicLayer = new PrimLayer('world:prims:dyn:', factory, this.group);
   }
 
   /** Replaces the static primitive set (new world). */
   setStatic(prims: readonly Primitive[]): void {
-    for (const id of [...this.entries.keys()]) if (!this.dynamicIds.has(id)) this.entries.delete(id);
-    this.statics.clear();
-    this.overridden.clear();
-    for (const p of prims) { this.statics.set(p.id, p); this.put(p, false); }
-    this.dirty = true;
+    this.statics = prims;
+    this.staticLayer.setSet(new PrimSet(prims, isDiggablePrim, Math.max(1, this.nearMm * STATIC_CELL_IN_NEAR)));
+    this.movedIds.clear();
+    this.dynamicSigs.clear();
+    this.dynamicLayer.setSet(null);
+    this.staticDirty = this.dynamicDirty = true;
   }
 
-  private put(p: Primitive, dynamic: boolean): void {
-    const shape = instanceShape(p);
-    const m = new Matrix4().compose(
-      new Vector3(p.pos.x, p.pos.y, p.pos.z), new Quaternion(p.rot.x, p.rot.y, p.rot.z, p.rot.w), new Vector3(1, 1, 1),
-    );
-    this.entries.set(p.id, {
-      prim: p, sig: primSignature(p), shape, matrix: m, color: tintColor(p, [1, 1, 1]), diggable: isDiggablePrim(p), lod: 'far', dynamic,
-    });
+  /** Drops every primitive (world being replaced). */
+  clear(): void {
+    this.setStatic([]);
   }
 
   /**
    * Syncs dynamic primitives and moved static ones. Cheap when nothing changed (one signature per dynamic prim).
-   * `moved` maps static primitive id -> replacement (object moved).
+   * `moved` maps static primitive id -> replacement (object moved); the replacement is drawn in the dynamic layer
+   * and the original is hidden in the static one.
    */
   syncDynamic(dynamic: readonly Primitive[], moved: ReadonlyMap<number, Primitive>): void {
-    const seen = new Set<number>();
-    for (const p of dynamic) {
-      seen.add(p.id);
-      const e = this.entries.get(p.id);
-      if (!e || !e.dynamic || e.sig !== primSignature(p)) { this.put(p, true); this.dirty = true; }
+    const count = dynamic.length + moved.size;
+    let changed = count !== this.dynamicSigs.size;
+    if (!changed) {
+      for (const p of dynamic) if (this.dynamicSigs.get(p.id) !== primSignature(p)) { changed = true; break; }
     }
-    for (const id of this.dynamicIds) if (!seen.has(id)) { this.entries.delete(id); this.dirty = true; }
-    this.dynamicIds = seen;
-    // moved static primitives: apply new overrides, restore ones no longer moved
-    for (const [id, p] of moved) {
-      const e = this.entries.get(id);
-      if (!e || e.sig !== primSignature(p)) { this.put(p, false); this.dirty = true; }
+    if (!changed) {
+      for (const [id, p] of moved) if (!this.movedIds.has(id) || this.dynamicSigs.get(id) !== primSignature(p)) { changed = true; break; }
     }
-    for (const id of this.overridden) {
-      if (moved.has(id)) continue;
-      const orig = this.statics.get(id);
-      if (orig) { this.put(orig, false); this.dirty = true; }
+    if (!changed) return;
+    const list: Primitive[] = [...dynamic];
+    for (const p of moved.values()) list.push(p);
+    this.dynamicSigs.clear();
+    for (const p of list) this.dynamicSigs.set(p.id, primSignature(p));
+    this.dynamicLayer.setSet(new PrimSet(list, isDiggablePrim, Math.max(1, this.nearMm * STATIC_CELL_IN_NEAR)));
+    this.dynamicDirty = true;
+    // hide / show static originals only when the set of moved objects changed
+    const set = this.staticLayer.set;
+    const sameMoved = moved.size === this.movedIds.size && [...moved.keys()].every((id) => this.movedIds.has(id));
+    if (set && !sameMoved) {
+      set.hidden.fill(0);
+      for (const id of moved.keys()) { const i = set.indexOf(id); if (i >= 0) set.hidden[i] = 1; }
+      this.staticDirty = true;
     }
-    this.overridden = new Set(moved.keys());
+    this.movedIds = new Set(moved.keys());
   }
 
   /** Nearest breach spheres (diggable primitives discard inside them). */
@@ -121,17 +120,26 @@ export class PrimitiveRenderer {
     this.breaches.count.value = n;
   }
 
-  /** Re-partitions near/far when the camera moved a quarter of the near distance or the set changed. */
-  update(cam: Vector3): void {
-    if (!this.dirty && cam.distanceTo(this.lastCam) < this.nearMm * 0.25) return;
-    this.lastCam.copy(cam);
-    let lodChanged = this.dirty;
-    for (const e of this.entries.values()) {
-      const lod = lodFor(e.prim, e.shape.radius, cam.x, cam.y, cam.z, this.nearMm);
-      if (lod !== e.lod) { e.lod = lod; lodChanged = true; }
-    }
-    if (lodChanged) this.rebuild();
-    this.dirty = false;
+  /**
+   * Re-partitions what is drawn when the camera moved a quarter of the near distance, the cull distance changed,
+   * or a layer's content changed. `cullMm` = distance past which nothing is visible (haze), mm.
+   */
+  update(cam: Vector3, cullMm = Infinity): void {
+    const cull = Number.isFinite(cullMm) && cullMm > 0 ? cullMm : Infinity;
+    const moved = cam.distanceTo(this.lastCam) >= this.nearMm * 0.25;
+    const cullChanged = this.lastCull < 0 || Math.abs(cull - this.lastCull) > CULL_CHANGE_FRACTION * Math.min(cull, this.lastCull);
+    const doStatic = this.staticDirty || moved || cullChanged;
+    const doDynamic = this.dynamicDirty || moved || cullChanged;
+    if (!doStatic && !doDynamic) return;
+    if (moved || cullChanged) { this.lastCam.copy(cam); this.lastCull = cull; }
+    const v = this.view;
+    v.x = this.lastCam.x; v.y = this.lastCam.y; v.z = this.lastCam.z;
+    v.nearMm = this.nearMm;
+    v.cullMm = this.lastCull;
+    if (doStatic) this.staticLayer.partition(v);
+    if (doDynamic) this.dynamicLayer.partition(v);
+    this.staticDirty = this.dynamicDirty = false;
+    this.rebuilds++;
   }
 
   private baseGeometry(geom: GeomKind, lod: Lod): BufferGeometry {
@@ -157,97 +165,52 @@ export class PrimitiveRenderer {
     return m;
   }
 
-  private makeBucket(key: string, geom: GeomKind, material: string, diggable: boolean, lod: Lod, capacity: number): Bucket {
-    const base = this.baseGeometry(geom, lod);
+  private makeMesh(def: BatchDef, lod: Lod, capacity: number, name: string): { mesh: InstancedMesh; size: InstancedBufferAttribute } {
+    const base = this.baseGeometry(def.geom, lod);
     const g = new BufferGeometry();
-    for (const name of ['position', 'normal', 'aCorner']) g.setAttribute(name, base.getAttribute(name));
+    for (const attr of ['position', 'normal', 'aCorner']) g.setAttribute(attr, base.getAttribute(attr));
     g.setIndex(base.getIndex());
     const size = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
     g.setAttribute('iSize', size);
-    const family = geom === 'sphere' ? 'ellipsoid' : 'rounded';
-    const mat = this.lib.surfaceMaterialFor(primMaterialDef(material), { key: `prim-${family}${diggable ? '-dig' : ''}`, space: 'instance', prim: family, macro: PRIM_MACRO }, diggable ? this.breaches : undefined);
+    const family = def.geom === 'sphere' ? 'ellipsoid' : 'rounded';
+    const mat = this.lib.surfaceMaterialFor(
+      primMaterialDef(def.material),
+      { key: `prim-${family}${def.diggable ? '-dig' : ''}`, space: 'instance', prim: family, macro: PRIM_MACRO },
+      def.diggable ? this.breaches : undefined,
+    );
     const mesh = new InstancedMesh(g, mat, capacity);
-    mesh.name = `world:prims:${key}`;
+    mesh.name = name;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.customDepthMaterial = this.depthMaterial(family);
     mesh.boundingSphere = new Sphere();
     mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
-    this.group.add(mesh);
-    return { key, geom, material, diggable, lod, mesh, size, capacity };
+    return { mesh, size };
   }
 
-  private rebuild(): void {
-    this.rebuilds++;
-    const groups = new Map<string, Entry[]>();
-    for (const e of this.entries.values()) {
-      const k = bucketKey(e.shape.geom, e.prim.material, e.diggable, e.lod);
-      let list = groups.get(k);
-      if (!list) groups.set(k, (list = []));
-      list.push(e);
-    }
-    for (const [k, b] of this.buckets) {
-      if (!groups.has(k)) { b.mesh.count = 0; b.mesh.visible = false; }
-    }
-    const lo = new Vector3(), hi = new Vector3();
-    for (const [k, list] of groups) {
-      const first = list[0];
-      let b = this.buckets.get(k);
-      if (!b || b.capacity < list.length) {
-        if (b) { this.group.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.dispose(); }
-        let cap = 16;
-        while (cap < list.length) cap *= 2;
-        b = this.makeBucket(k, first.shape.geom, first.prim.material, first.diggable, first.lod, cap);
-        this.buckets.set(k, b);
-      }
-      const colors = b.mesh.instanceColor!.array as Float32Array;
-      const sizes = b.size.array as Float32Array;
-      lo.set(Infinity, Infinity, Infinity);
-      hi.set(-Infinity, -Infinity, -Infinity);
-      let maxR = 0;
-      list.forEach((e, i) => {
-        b!.mesh.setMatrixAt(i, e.matrix);
-        colors.set(e.color, i * 3);
-        sizes.set(e.shape.size, i * 4);
-        const p = e.prim.pos;
-        lo.min(tmpV.set(p.x, p.y, p.z));
-        hi.max(tmpV);
-        maxR = Math.max(maxR, e.shape.radius);
-      });
-      b.mesh.count = list.length;
-      b.mesh.visible = true;
-      // distant pebbles' shadows are sub-texel: skip them in the shadow pass
-      b.mesh.castShadow = b.lod === 'near' || maxR >= FAR_SHADOW_MIN_RADIUS;
-      b.mesh.instanceMatrix.needsUpdate = true;
-      b.mesh.instanceColor!.needsUpdate = true;
-      b.size.needsUpdate = true;
-      b.mesh.boundingSphere!.center.copy(lo).add(hi).multiplyScalar(0.5);
-      b.mesh.boundingSphere!.radius = lo.distanceTo(hi) * 0.5 + maxR;
-    }
-  }
-
-  /** Draw statistics. */
-  stats(): { prims: number; buckets: number; instancesNear: number; instancesFar: number } {
-    let near = 0, far = 0, buckets = 0;
-    for (const b of this.buckets.values()) {
-      if (!b.mesh.visible) continue;
-      buckets++;
-      if (b.lod === 'near') near += b.mesh.count; else far += b.mesh.count;
-    }
-    return { prims: this.entries.size, buckets, instancesNear: near, instancesFar: far };
+  /** Draw statistics (visible meshes and instances). */
+  stats(): { prims: number; buckets: number; instancesNear: number; instancesFar: number; instancesTiny: number; uploads: number } {
+    const a = this.staticLayer.stats(), b = this.dynamicLayer.stats();
+    const set = this.staticLayer.set;
+    let hidden = 0;
+    if (set) for (const id of this.movedIds) if (set.indexOf(id) >= 0) hidden++;
+    return {
+      prims: this.statics.length - hidden + this.dynamicSigs.size, buckets: a.meshes + b.meshes,
+      instancesNear: a.near + b.near, instancesFar: a.far + b.far, instancesTiny: a.tiny + b.tiny, uploads: this.staticLayer.uploads + this.dynamicLayer.uploads,
+    };
   }
 
   has(id: number): boolean {
-    return this.entries.has(id);
+    return this.dynamicSigs.has(id) || (this.staticLayer.set?.indexOf(id) ?? -1) >= 0;
   }
 
   dispose(): void {
-    for (const b of this.buckets.values()) { b.mesh.geometry.dispose(); b.mesh.dispose(); }
+    this.staticLayer.dispose();
+    this.dynamicLayer.dispose();
     for (const g of this.baseGeoms.values()) g.dispose();
     for (const m of this.depthMats.values()) m.dispose();
-    this.buckets.clear();
+    this.baseGeoms.clear();
+    this.depthMats.clear();
     this.group.clear();
   }
 }
-
-const tmpV = new Vector3();

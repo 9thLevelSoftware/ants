@@ -28,7 +28,8 @@ describe('ChunkMeshManager', () => {
     expect(s.chunks).toBeGreaterThan(8);
     expect(s.regions).toBeLessThan(s.chunks);
     expect(s.triangles).toBeGreaterThan(500);
-    expect(m.group.children.length).toBe(s.regions);
+    expect(m.group.children.length).toBe(s.draws);
+    expect(s.draws).toBe(s.regions); // one material: one draw per region
   });
 
   it('rebuilds dirty chunks nearest to the camera first, within the budget, and commits a batch together', () => {
@@ -38,14 +39,14 @@ describe('ChunkMeshManager', () => {
     // two separate digs: one near the camera, one far away
     kernel.carveSphere({ x: 300, y: -40, z: 300 }, 6, { force: true });
     kernel.carveSphere({ x: 40, y: -40, z: 40 }, 6, { force: true });
-    const before = m.revision;
+    const before = m.commits;
     const st = m.update(40, -40, 40, 0); // budget 0: exactly one chunk per frame
     expect(st.built).toBe(1);
     expect(st.committed).toBe(false); // the batch is not complete yet: nothing changes on screen
-    expect(m.revision).toBe(before);
+    expect(m.commits).toBe(before);
     let frames = 1;
     while (m.stats().pending > 0 && frames < 100) { m.update(40, -40, 40, 0); frames++; }
-    expect(m.revision).toBeGreaterThan(before);
+    expect(m.commits).toBeGreaterThan(before);
     // with a 0 ms budget a large batch is committed after BATCH_MAX_FRAMES at the latest
     expect(frames).toBeGreaterThanOrEqual(2);
   });
@@ -90,10 +91,10 @@ describe('ChunkMeshManager', () => {
     const s = m.stats();
     expect(s.chunks).toBeGreaterThan(2000);
     // one draw per region (single material): far fewer draws than chunks
-    expect(s.regions).toBeLessThan(s.chunks / 6);
-    for (const r of m.regions.values()) expect(r.mesh!.geometry.boundingSphere).not.toBeNull();
+    expect(s.draws).toBeLessThan(s.chunks / 6);
+    for (const mesh of m.meshes()) expect(mesh.geometry.boundingSphere).not.toBeNull();
     // initial meshing stays well under a millisecond per chunk (no refinement / AO here)
     expect(ms / s.chunks).toBeLessThan(2);
-    console.log(`NEST_MESH_SCALE chunks=${s.chunks} regions=${s.regions} tris=${s.triangles} flushMs=${ms.toFixed(0)} perChunkMs=${(ms / s.chunks).toFixed(3)}`);
+    console.log(`NEST_MESH_SCALE chunks=${s.chunks} regions=${s.regions} draws=${s.draws} tris=${s.triangles} flushMs=${ms.toFixed(0)} perChunkMs=${(ms / s.chunks).toFixed(3)}`);
   }, 120000);
 });

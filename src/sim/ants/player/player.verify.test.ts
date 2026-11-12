@@ -5,6 +5,7 @@ import type { Sim } from '@/sim/types';
 import { ports } from '../actions/ports';
 import { canDo } from '../actions/runner';
 import { capture, installFakes, makeAntSim, source, step, worker } from '../actions/testkit';
+import { promptView } from './prompt';
 import { promptCandidates } from './targeting';
 
 const saved = { ...ports };
@@ -50,6 +51,23 @@ describe('release rule 2 (GDD 01 §3.5: land, then re-run the whole table)', () 
     step(sim, 2);
     // nothing carried, no dig frontier, no source: rule 15 (dig is still wanted) must win over rule 16 (forage)
     expect(w.task).toBe('dig');
+  });
+});
+
+describe('share food (G) through the action command (GDD 01 App. B: the target is the prompt target)', () => {
+  it('the HUD offers "Share food" on the selected nestmate, and act(trophallaxis-give) without a target starts it', () => {
+    const { sim } = setup();
+    const a = worker(sim, 50, 50);
+    const b = worker(sim, 50.9, 50);
+    b.fwd = { x: -1, y: 0, z: 0 };
+    a.cropC = 1;
+    sim.enqueue({ type: 'possess', antId: a.id });
+    step(sim, 2);
+    const line = promptView(sim, a).extras.find((l) => l.input === 'share-food');
+    expect(line).toMatchObject({ actionId: 'trophallaxis-give', ok: true });
+    sim.enqueue({ type: 'action', actionId: 'trophallaxis-give', phase: 'start' });
+    step(sim, 1);
+    expect(a.action?.id).toBe('trophallaxis-give');
   });
 });
 

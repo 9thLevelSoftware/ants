@@ -235,7 +235,7 @@ describe('determinism', () => {
     expect(a).toBe(b);
     expect(a).not.toBe(c);
     expect(a.length).toBeGreaterThan(500);
-  });
+  }, 60000);
 
   it('the whole weather record is the same after the same steps', () => {
     const a = envSim({ seed: 3 }), b = envSim({ seed: 3 });
@@ -323,37 +323,25 @@ describe('season length scales every window by year fraction', () => {
   }, 60000);
 });
 
-describe('E7 statistics (maritime, Naturalist, 2000 GD on 5 seeds)', () => {
-  it('summer heat, summer storms, spring rain events, winter frost, no late heat, no daytime frost', () => {
+// The time fractions of E7 (summer heat, winter frost) are measured by stepping the clock in envCore.verify.test.ts:
+// booking a dwell to the season it ENDS in (all that transitions can see) misattributes spells that cross a boundary.
+describe('E7 statistics (maritime, Naturalist, 2000 GD on 5 seeds): events', () => {
+  it('summer storms, spring rain events, no late heat, no daytime frost', () => {
     const years = 2000 / 28;
-    const heatFrac: number[] = [], frostFrac: number[] = [];
     for (const seed of [1, 2, 3, 4, 5]) {
       const sim = envSim({ seed });
       const tr = runWeather(sim, 2000 * TICKS_PER_DAY);
-      let heat = 0, frost = 0, storm = 0, rain = 0;
+      let storm = 0, rain = 0;
       for (const t of tr) {
-        if (t.from === 'heat' && t.season === 'summer') heat += t.dwellH;
-        if (t.from === 'frost' && t.season === 'winter') frost += t.dwellH;
         if (t.to === 'storm' && t.season === 'summer') storm++;
         if (t.to === 'rain' && t.season === 'spring') rain++;
         if (t.to === 'frost') expect(t.hour < 5.1 || t.hour >= 16.9).toBe(true);
         if (t.from === 'heat' && t.season !== 'summer' && t.season !== 'spring') expect(t.sinceSeasonTick).toBeLessThanOrEqual(12 * 250 + 25);
       }
-      heatFrac.push(heat / (years * 7 * 24));
-      frostFrac.push(frost / (years * 7 * 24));
       expect(storm / years, `seed ${seed} summer storms`).toBeGreaterThan(0.5);
       expect(storm / years, `seed ${seed} summer storms`).toBeLessThan(2.0);
       expect(rain / years, `seed ${seed} spring rain events`).toBeGreaterThan(3);
       expect(rain / years, `seed ${seed} spring rain events`).toBeLessThan(7);
-    }
-    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    expect(mean(heatFrac)).toBeGreaterThan(0.15);
-    expect(mean(heatFrac)).toBeLessThan(0.35);
-    expect(mean(frostFrac)).toBeGreaterThan(0.15);
-    expect(mean(frostFrac)).toBeLessThan(0.27);
-    for (const f of [...heatFrac, ...frostFrac]) {
-      expect(f).toBeGreaterThan(0.12);
-      expect(f).toBeLessThan(0.4);
     }
   }, 120000);
 });

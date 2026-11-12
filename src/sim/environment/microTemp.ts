@@ -1,5 +1,5 @@
-// Temperature an entity feels where it stands (GDD 06 §2.5): underground cavity column (GDD 03 §9.1), surface micro temperature, plant and
-// object surfaces above ground, heated interiors. Allocation-free.
+// Temperature an entity feels where it stands (GDD 06 §2.5): underground the cavity column (GDD 03 §9.1), on the
+// surface the micro temperature, plant and object surfaces above ground, heated interiors. Allocation-free.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { MaterialId, Sim, WalkerMedium } from '@/sim/types';

@@ -99,7 +99,7 @@ describe('simulation adapter: change detection of deformation tiles', () => {
 });
 
 describe('WorldRenderer edge cases', () => {
-  it('survives a world without a sim, NaN dt and a camera outside the world', async () => {
+  it('survives a world without a sim and a camera outside the world', async () => {
     const wr = await makeRenderer();
     const w = world();
     await wr.setWorld(w, null);
@@ -113,6 +113,34 @@ describe('WorldRenderer edge cases', () => {
     expect(wr.uniforms.uWet.value).toBe(1);
     wr.setWetness(-1);
     expect(wr.uniforms.uWet.value).toBe(0);
+    wr.dispose();
+  });
+
+  it('a NaN or negative frame dt does not poison the eased lighting state', async () => {
+    const wr = await makeRenderer();
+    const w = world();
+    await wr.setWorld(w, null);
+    wr.update({ dt: Number.NaN, time: 0, sim: null, underground: true, env: { hour: 12 } });
+    wr.update({ dt: -1, time: 0, sim: null, env: { hour: 12 } });
+    wr.update({ dt: 0.016, time: 0, sim: null, env: { hour: 12 } });
+    expect(Number.isFinite(wr.lighting.exposureEV)).toBe(true);
+    expect(Number.isFinite(wr.lighting.fogDensity)).toBe(true);
+    expect(Number.isFinite(wr.uniforms.uUnder.value)).toBe(true);
+    wr.dispose();
+  });
+
+  it('an hour override (photo mode, demo flag) keeps the simulation weather', async () => {
+    const wr = await makeRenderer();
+    const w = world(), s = fakeSim(w, []);
+    (s.state as unknown as { env: unknown }).env = {
+      weather: { state: 'rain', cloud: 1, fogDensity: 0.3, precip: 0.8, wind2m: 2, windDir: { x: 0, y: 0, z: 1 } },
+    };
+    await wr.setWorld(w, s);
+    wr.update({ dt: 0, time: 0, sim: s, env: { hour: 9 } });
+    // BUG: with a sim AND an hour override, sampleEnvironment skips readEnvironment and never copies the sim's
+    // weather, so the frame is lit as 'clear' with cloud 0.1 while it rains
+    expect(wr.env.weather).toBe('rain');
+    expect(wr.env.cloud).toBe(1);
     wr.dispose();
   });
 });

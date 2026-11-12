@@ -6,7 +6,7 @@ import { rngFloat, rngGauss, type RngState } from '@/core/rng';
 import type { Sim, WeatherState } from '@/sim/types';
 import {
   ANOMALY_AR, ANOMALY_CLAMP_C, ANOMALY_SD_C, INITIAL_WEATHER_WEIGHTS, RAIN_HISTORY_HOURS, START_CONDITIONS, START_RAIN_EXTRA_MM,
-  START_REDRAW_MAX, WIND_OU_SD, type StartConditions,
+  START_NEW_MOON_JITTER, START_RAIN_AGO_MIN_H, START_RAIN_AGO_SPAN_H, START_REDRAW_MAX, WIND_OU_SD, type StartConditions,
 } from '@/sim/balance';
 import { calendarTick, TICKS_PER_HOUR } from '@/sim/time';
 import { moonPhaseOf } from './calendar';
@@ -75,7 +75,7 @@ export function applyStartHistory(sim: Sim, rng: RngState): void {
   if (c.moonless) {
     // new moon at the start, within a few hours of it
     const phase = moonPhaseOf(ct, 0);
-    s.env.calendar.moonPhase0 = (1 - phase + (rngFloat(rng) - 0.5) * 0.04 + 1) % 1;
+    s.env.calendar.moonPhase0 = (1 - phase + (rngFloat(rng) - 0.5) * 2 * START_NEW_MOON_JITTER + 1) % 1;
   }
   if (c.rainEndedHoursAgo && c.rainHours) {
     const ago = c.rainEndedHoursAgo[0] + rngFloat(rng) * (c.rainEndedHoursAgo[1] - c.rainEndedHoursAgo[0]);
@@ -85,6 +85,6 @@ export function applyStartHistory(sim: Sim, rng: RngState): void {
   }
   if (c.cumRain24hMm !== undefined) {
     w.history.cumRain24hMm = c.cumRain24hMm + rngFloat(rng) * START_RAIN_EXTRA_MM;
-    w.history.lastRainEndTick = s.tick - Math.round((1 + rngFloat(rng) * 8) * TICKS_PER_HOUR);
+    w.history.lastRainEndTick = s.tick - Math.round((START_RAIN_AGO_MIN_H + rngFloat(rng) * START_RAIN_AGO_SPAN_H) * TICKS_PER_HOUR);
   }
 }

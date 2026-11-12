@@ -1,17 +1,17 @@
 // Keeps the carve-grid meshes in step with the simulation: drains the grid's dirty chunks, rebuilds them nearest to
-// the camera first within a per-frame time budget, and packs chunks into region geometries (one draw per wall
-// material per region; three frustum-culls regions by their bounding spheres). Emptied chunks are dropped and
-// regions without chunks are freed.
+// the camera first within a per-frame time budget, and writes each chunk into its slot of a region buffer (one draw
+// per wall material per region; three frustum-culls regions by their bounding spheres; regionBuffer.ts). Emptied
+// chunks are dropped and region buffers without chunks are freed.
 //
 // Dirty chunks of one edit batch are committed together, so a bite that touches two chunks never shows a crack
 // between a rebuilt chunk and a stale neighbour. A batch that is still incomplete after BATCH_MAX_FRAMES is
 // committed as far as it got (continuous digging must not starve the display).
-import { Box3, BufferAttribute, BufferGeometry, Group, Mesh, Sphere, Vector3, type Material } from 'three';
+import { Box3, Group, type Material, type Mesh } from 'three';
 import type { NestSource } from '../simAdapter';
 import { CHUNK } from '../simAdapter';
 import { REGION_CHUNKS } from '../params';
 import { buildChunk, type BuildOptions, type BuiltChunk } from './chunkBuild';
-import { assembleRegion, regionKey } from './regionAssembly';
+import { RegionBuffer, regionBox, regionKey } from './regionBuffer';
 
 /** Materials the manager assigns: one wall material per substrate code, and the shadow depth material. */
 export interface WallMaterialSet {
@@ -22,9 +22,8 @@ export interface WallMaterialSet {
 export interface Region {
   key: number;
   chunks: Set<number>;
-  mesh: Mesh | null;
-  triangles: number;
-  vertices: number;
+  /** One buffer (one draw) per wall material code present in the region. */
+  buffers: Map<number, RegionBuffer>;
 }
 
 export interface MeshFrameStats {
@@ -45,7 +44,7 @@ export const COMMIT_DEFER_FRACTION = 0.6;
 export class ChunkMeshManager {
   readonly group = new Group();
   readonly regions = new Map<number, Region>();
-  /** Bumped whenever a region geometry changed (x-ray and picking caches compare it). */
+  /** Bumped whenever region meshes were added, removed or got a new geometry (x-ray mirrors compare it). */
   revision = 0;
   castShadow = false;
   build: BuildOptions = { refine: true, ao: true };
@@ -53,6 +52,8 @@ export class ChunkMeshManager {
   last: MeshFrameStats = { built: 0, ms: 0, commitMs: 0, pending: 0, committed: false };
   maxFrameMs = 0;
   totalBuilt = 0;
+  /** Number of batches committed (shown on screen). */
+  commits = 0;
 
   private src: NestSource | null = null;
   private chunks = new Map<number, BuiltChunk>();
@@ -72,6 +73,11 @@ export class ChunkMeshManager {
     if (!src) return;
     src.takeDirty();
     for (const k of src.meshKeys()) this.pending.add(k);
+  }
+
+  /** Queues chunk keys for rebuilding (e.g. from a `carve-chunks-dirty` event). */
+  markDirty(keys: readonly number[]): void {
+    for (const k of keys) { this.pending.add(k); this.staged.delete(k); }
   }
 
   /** Re-queues every chunk (after a load replaced the carve data, or a material change). */
@@ -132,15 +138,19 @@ export class ChunkMeshManager {
 
   setCastShadow(on: boolean): void {
     this.castShadow = on;
-    for (const r of this.regions.values()) if (r.mesh) r.mesh.castShadow = on;
+    for (const m of this.meshes()) m.castShadow = on;
   }
 
-  /** Triangles, vertices, chunks and regions currently displayed. */
-  stats(): { chunks: number; regions: number; triangles: number; vertices: number; pending: number; gpuBytes: number } {
-    let t = 0, v = 0;
-    for (const r of this.regions.values()) { t += r.triangles; v += r.vertices; }
-    // position 12 + normal 12 + sub 4 + nest 8 bytes per vertex, index 2 or 4 per corner (counted as 4)
-    return { chunks: this.chunks.size, regions: this.regions.size, triangles: t, vertices: v, pending: this.pendingCount, gpuBytes: v * 36 + t * 12 };
+  /** Triangles, vertices, chunks, regions and draws currently displayed. */
+  stats(): { chunks: number; regions: number; draws: number; triangles: number; vertices: number; pending: number; gpuBytes: number } {
+    let t = 0, v = 0, b = 0, d = 0;
+    for (const r of this.regions.values()) for (const buf of r.buffers.values()) { t += buf.triangles; v += buf.vertices; b += buf.bytes; d++; }
+    return { chunks: this.chunks.size, regions: this.regions.size, draws: d, triangles: t, vertices: v, pending: this.pendingCount, gpuBytes: b };
+  }
+
+  /** Every region mesh (x-ray mirrors, picking). */
+  *meshes(): IterableIterator<Mesh> {
+    for (const r of this.regions.values()) for (const buf of r.buffers.values()) yield buf.mesh;
   }
 
   /** Built data of a chunk (tests, picking). */
@@ -149,7 +159,7 @@ export class ChunkMeshManager {
   }
 
   clear(): void {
-    for (const r of this.regions.values()) this.dropMesh(r);
+    for (const r of this.regions.values()) for (const b of r.buffers.values()) this.dropBuffer(b);
     this.regions.clear();
     this.chunks.clear();
     this.pending.clear();
@@ -175,75 +185,60 @@ export class ChunkMeshManager {
   }
 
   private commit(): void {
-    const touched = new Set<number>();
     for (const [key, built] of this.staged) {
       this.src!.keyToChunk(key, this.c3);
       const rk = regionKey(this.c3.x, this.c3.y, this.c3.z, REGION_CHUNKS);
       let region = this.regions.get(rk);
+      const old = this.chunks.get(key);
+      if (!built && !old) continue;
+      if (!region) { region = { key: rk, chunks: new Set(), buffers: new Map() }; this.regions.set(rk, region); }
+      // materials the chunk no longer has
+      if (old) for (const g of old.groups) if (!built || !built.groups.some((n) => n.code === g.code)) this.removeFrom(region, g.code, key);
       if (built) {
         this.chunks.set(key, built);
-        if (!region) { region = { key: rk, chunks: new Set(), mesh: null, triangles: 0, vertices: 0 }; this.regions.set(rk, region); }
         region.chunks.add(key);
-        touched.add(rk);
-      } else if (this.chunks.delete(key) && region) {
+        for (const g of built.groups) {
+          const buf = this.bufferFor(region, g.code);
+          const gen = buf.generation;
+          buf.put(key, { positions: built.positions, normals: built.normals, sub: built.sub, nest: built.nest, vertexCount: built.vertexCount, indices: g.indices });
+          if (buf.generation !== gen) this.revision++;
+        }
+      } else {
+        this.chunks.delete(key);
         region.chunks.delete(key);
-        touched.add(rk);
       }
+      if (region.buffers.size === 0) this.regions.delete(rk);
     }
     this.staged.clear();
     this.batchFrames = 0;
-    for (const rk of touched) this.assemble(this.regions.get(rk)!);
-    if (touched.size) this.revision++;
+    this.commits++;
   }
 
-  private assemble(region: Region): void {
-    if (region.chunks.size === 0) {
-      this.dropMesh(region);
-      this.regions.delete(region.key);
-      return;
-    }
-    const list = [...region.chunks].sort((a, b) => a - b).map((k) => this.chunks.get(k)!);
-    const a = assembleRegion(list);
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(a.positions, 3));
-    g.setAttribute('normal', new BufferAttribute(a.normals, 3));
-    g.setAttribute('aSub', new BufferAttribute(a.sub, 1));
-    g.setAttribute('aNest', new BufferAttribute(a.nest, 2));
-    g.setIndex(new BufferAttribute(a.indices, 1));
-    const mats: Material[] = [];
-    a.groups.forEach((gr, i) => { g.addGroup(gr.start, gr.count, i); mats.push(this.materials.wall(gr.code)); });
-    this.regionBounds(region.key, g);
-    if (region.mesh) {
-      region.mesh.geometry.dispose();
-      region.mesh.geometry = g;
-      region.mesh.material = mats;
-    } else {
-      const m = new Mesh(g, mats);
-      m.name = `nest:region:${region.key}`;
-      m.matrixAutoUpdate = false;
-      m.customDepthMaterial = this.materials.depth;
-      m.receiveShadow = false;
-      region.mesh = m;
-      this.group.add(m);
-    }
-    region.mesh.castShadow = this.castShadow;
-    region.triangles = a.triangleCount;
-    region.vertices = a.vertexCount;
-  }
-
-  /** Bounding box / sphere of a region from its cube (conservative, O(1); a vertex scan cost ~1 ms per region). */
-  private regionBounds(key: number, g: BufferGeometry): void {
+  private bufferFor(region: Region, code: number): RegionBuffer {
+    let b = region.buffers.get(code);
+    if (b) return b;
     const size = REGION_CHUNKS * CHUNK * this.src!.voxel;
-    const rx = (key % 1024) - 512, ry = (Math.floor(key / 1024) % 1024) - 512, rz = Math.floor(key / 1048576) - 512;
-    const pad = this.src!.voxel; // refined midpoints may sit a fraction of a voxel outside the cells
-    g.boundingBox = new Box3(new Vector3(rx * size - pad, ry * size - pad, rz * size - pad), new Vector3((rx + 1) * size + pad, (ry + 1) * size + pad, (rz + 1) * size + pad));
-    g.boundingSphere = g.boundingBox.getBoundingSphere(new Sphere());
+    // refined midpoints may sit a fraction of a voxel outside the cells: pad the region box by one voxel
+    b = new RegionBuffer(this.materials.wall(code), this.materials.depth, regionBox(region.key, size, this.src!.voxel, new Box3()));
+    b.mesh.name = `nest:region:${region.key}:${code}`;
+    b.mesh.castShadow = this.castShadow;
+    region.buffers.set(code, b);
+    this.group.add(b.mesh);
+    this.revision++;
+    return b;
   }
 
-  private dropMesh(r: Region): void {
-    if (!r.mesh) return;
-    this.group.remove(r.mesh);
-    r.mesh.geometry.dispose();
-    r.mesh = null;
+  private removeFrom(region: Region, code: number, key: number): void {
+    const b = region.buffers.get(code);
+    if (!b) return;
+    const gen = b.generation;
+    b.remove(key);
+    if (b.generation !== gen) this.revision++;
+    if (b.empty) { this.dropBuffer(b); region.buffers.delete(code); this.revision++; }
+  }
+
+  private dropBuffer(b: RegionBuffer): void {
+    this.group.remove(b.mesh);
+    b.dispose();
   }
 }

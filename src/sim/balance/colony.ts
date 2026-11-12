@@ -321,6 +321,10 @@ export const LEAD_VALID_S = 120;
 export const NEWS_MAX = 5;
 export const NEWS_EXPIRY_GD = 0.5;
 
+// ---- population accounting (GDD 02 §13.1) ----
+/** Per-source intake tallies are dropped at the daily recount once the source is gone and unvisited this long, gd. */
+export const POP_SOURCE_FORGET_GD = 7;
+
 // ---- directives and markers (GDD 02 §12) ----
 export const GYNE_SHARE_RANGE: readonly [number, number] = [0.2, 0.6];
 /** Marker radius ranges, BU; kinds not listed keep their given radius. */
