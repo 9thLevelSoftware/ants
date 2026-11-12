@@ -45,15 +45,24 @@ function readImage(g: Ctx2D, img: CanvasImageSource | null, size: number, fill: 
   return d;
 }
 
-/** Nearest resample of procedural pixels to the layer size (they are small and tileable). */
+/**
+ * Bilinear, wrapping resample of tileable procedural pixels to the layer size. (Nearest upsampling doubled texels
+ * into hard-edged blocks that the macro camera showed as square pores: look-pass audit.)
+ */
 function resamplePixels(src: Uint8Array, srcSize: number, size: number): Uint8ClampedArray {
   const out = new Uint8ClampedArray(size * size * 4);
+  const k = srcSize / size;
   for (let y = 0; y < size; y++) {
-    const sy = Math.floor((y * srcSize) / size);
+    const fy = (y + 0.5) * k - 0.5, y0 = Math.floor(fy), ty = fy - y0;
+    const ya = ((y0 % srcSize) + srcSize) % srcSize, yb = (ya + 1) % srcSize;
     for (let x = 0; x < size; x++) {
-      const sx = Math.floor((x * srcSize) / size);
-      const s = (sy * srcSize + sx) * 4, d = (y * size + x) * 4;
-      out[d] = src[s]; out[d + 1] = src[s + 1]; out[d + 2] = src[s + 2]; out[d + 3] = src[s + 3];
+      const fx = (x + 0.5) * k - 0.5, x0 = Math.floor(fx), tx = fx - x0;
+      const xa = ((x0 % srcSize) + srcSize) % srcSize, xb = (xa + 1) % srcSize;
+      const a = (ya * srcSize + xa) * 4, b = (ya * srcSize + xb) * 4, c = (yb * srcSize + xa) * 4, e = (yb * srcSize + xb) * 4;
+      const d = (y * size + x) * 4;
+      for (let ch = 0; ch < 4; ch++) {
+        out[d + ch] = (src[a + ch] * (1 - tx) + src[b + ch] * tx) * (1 - ty) + (src[c + ch] * (1 - tx) + src[e + ch] * tx) * ty;
+      }
     }
   }
   return out;

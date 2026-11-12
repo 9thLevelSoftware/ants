@@ -181,12 +181,13 @@ export default async ({ page, shot, log }) => {
   await stopDig(); // a held dig repeats until the input is released
   let seals = 0;
   const side = { x: -H.z, y: 0, z: H.x };
-  for (let tries = 0; tries < 30 && (await phase()) === 'seal'; tries++) {
-    const p = (await summary()).possessed.pos;
-    if (depthBu(p) > 2.2) { // climb back up the shaft toward the mouth
-      await walkDir(3, { x: -H.x, y: 0, z: -H.z });
-      continue;
-    }
+  const ent = (await nest()).entrances[0];
+  const tanS = Math.tan((SHAFT_SLOPE_DEG * Math.PI) / 180);
+  // into the throat: up the ramp to where it is about 1.5 BU below the opening
+  const throat = { x: ent.pos.x + H.x * (1.5 / tanS) * bu, z: ent.pos.z + H.z * (1.5 / tanS) * bu };
+  const toOpening = async () => { const p = (await summary()).possessed.pos; return Math.hypot(p[0] - ent.pos.x, p[1] - ent.pos.y, p[2] - ent.pos.z) / bu; };
+  for (let tries = 0; tries < 12 && (await phase()) === 'seal'; tries++) {
+    if ((await toOpening()) > 2.6) { await steerTo(throat.x, throat.z, 0.4 * bu); await step(5); }
     // a pellet from the throat's side wall (bites give pellets once the cell is ready), then plug the throat
     await walkDir(1, tries % 2 ? side : { x: -side.x, y: 0, z: -side.z });
     await g(() => window.__game.act({ action: 'dig-bite' }));
@@ -195,10 +196,12 @@ export default async ({ page, shot, log }) => {
     await walkDir(1, { x: -H.x, y: 0, z: -H.z });
     await g(() => window.__game.act('seal-entrance'));
     await step(30);
+    await g(() => window.__game.act({ action: 'seal-entrance', phase: 'stop' }));
+    await step(5);
     seals++;
   }
   result.sealRefusals = await g(() => window.__game.events('action-failed', 12).map((e) => `${e.action}:${e.reason}`));
-  log('seal tries', seals, JSON.stringify(result.sealRefusals));
+  log('seal tries', seals, 'distance to the opening (BU)', (await toOpening()).toFixed(2), JSON.stringify(result.sealRefusals));
   const goDown = async () => {
     for (let i = 0; i < 40; i++) {
       if (depthBu((await summary()).possessed.pos) >= SHAFT_DEPTH_BU - 1) break;
@@ -206,11 +209,11 @@ export default async ({ page, shot, log }) => {
     }
   };
   if ((await phase()) === 'seal') {
-    standIn('seal', `seal-entrance did not close the throat after ${seals} tries; the ramp's mouth is filled by cheat.fillSphere`);
+    standIn('seal', `seal-entrance did not close the throat after ${seals} tries; the throat is filled by cheat.fillSphere`);
     await goDown();
     const c = Math.cos((SHAFT_SLOPE_DEG * Math.PI) / 180), sn = Math.sin((SHAFT_SLOPE_DEG * Math.PI) / 180);
-    for (const u of [0, 1, 2]) {
-      const p = { x: mouth.pos[0] + H.x * u * c * bu, y: mouth.pos[1] - u * sn * bu, z: mouth.pos[2] + H.z * u * c * bu };
+    for (const u of [-0.5, 0, 0.75, 1.5, 2.25]) {
+      const p = { x: ent.pos.x + H.x * u * c * bu, y: ent.pos.y - u * sn * bu, z: ent.pos.z + H.z * u * c * bu };
       await g((q) => window.__game.cheat.raw({ type: 'cheat.fillSphere', pos: q.p, r: q.r, loose: true }), { p, r: 1.8 * bu });
     }
     for (let i = 0; i < 20 && (await phase()) === 'seal'; i++) await step(20);
@@ -222,10 +225,13 @@ export default async ({ page, shot, log }) => {
   // --- 7. back down into the cell; the first clutch (lay-egg: a batch of 6 per action) -------------------------------
   await stopDig();
   await goDown();
-  for (let b = 0; b < 4; b++) {
+  const layBatch = async () => {
     await g(() => window.__game.act('lay-egg'));
     await step(50);
-  }
+    await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));
+    await step(5);
+  };
+  for (let b = 0; b < 4; b++) await layBatch();
   v = await view();
   result.clutch = v.clutch;
   log('clutch', JSON.stringify(v.clutch));
@@ -233,7 +239,7 @@ export default async ({ page, shot, log }) => {
     standIn('lay', 'lay-egg refused in the cell; the queen is moved into the registered founding chamber');
     const cell = (await nest()).chambers.find((c) => c.type === 'founding');
     await g((p) => window.__game.teleport('possessed', p), { x: cell.center.x, y: cell.center.y - cell.radii.y * 0.5, z: cell.center.z });
-    for (let b = 0; b < 4; b++) { await g(() => window.__game.act('lay-egg')); await step(50); }
+    for (let b = 0; b < 4; b++) await layBatch();
     v = await view();
   }
   expect(v.clutch && v.clutch.eggs >= 6, 'no eggs laid', v.clutch);

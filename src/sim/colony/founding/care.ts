@@ -167,9 +167,12 @@ export function careTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): CareRe
   const mu = foundingMu(op.siteQ, def.id as Parameters<typeof foundingMu>[1], sim.state.config.difficulty.params.foundingBroodMortalityMult,
     deepMoisture(sim, nest.origin.x, nest.origin.z));
   const rng = sim.stream('rng.opening');
+  const cell = nest.chambers.find((c) => c.type === 'founding') ?? nest.chambers[0];
   for (const b of list) {
     if (!b.alive) continue;
     b.lastTendedTick = sim.state.tick;
+    // laid in the cavity outside the registered cell (the shaft's end): she keeps the pile in her cell
+    if (b.chamberId < 0 && b.carriedBy === -1 && cell) { b.chamberId = cell.id; b.nestId = nest.id; }
     if (b.stage === 'pupa' && (b.flags & BroodFlag.READY) !== 0) {
       if (ecloseBrood(sim, b.id, q.id)) { res.eclosed++; bbSet(q, FB.eclosed, bbGet(q, FB.eclosed, 0) + 1); }
       continue;

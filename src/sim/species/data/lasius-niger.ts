@@ -1,16 +1,14 @@
-// Lasius niger, black garden ant: the reference species (GDD 07 §5.1). Minimal but complete definition so the
-// simulation can run; the species-data task refines and completes it. Units per field in src/sim/types/species.ts.
+// Lasius niger, black garden ant: the reference species (GDD 07 §5.1; dossier docs/research/bio-lasius-niger.md).
+// Units per field: src/sim/types/species.ts. [EST] marks a design estimate, [D] a dossier value.
+// Day numbers are on the default 28-day year, 0-based `d28` (00-index C1): GDD 07's 1-based `D` minus 1.
 
 import type { CasteDef, SpeciesDef } from '@/sim/types';
+import {
+  actions, APHID_TENDING_ACTIONS, GYNE_BASE_ACTIONS, MALE_ACTIONS, NO_UNLOCK, QUEEN_BASE_ACTIONS, WORKER_BASE_ACTIONS,
+} from './common';
 
-const WORKER_ACTIONS: CasteDef['actions'] = [
-  'move', 'let-go', 'grip', 'pick-up', 'put-down', 'drop', 'dig-bite', 'seal-entrance', 'unseal-entrance',
-  'feed-larva', 'trophallaxis-give', 'trophallaxis-receive', 'groom', 'antennate', 'sniff', 'lay-trail',
-  'harvest-liquid', 'harvest-solid', 'tend-aphid', 'carry-aphid', 'bite', 'bite-hold', 'spray-acid',
-  'release-alarm', 'drag', 'dodge', 'cull-aphid',
-];
-
-const NO_UNLOCK = { minWorkers: 0, minColonyAgeYears: 0 };
+// The formicine worker kit: base actions, acid, aphid tending (GDD 07 §5.1.1 "Actions").
+const WORKER_ACTIONS: CasteDef['actions'] = actions(WORKER_BASE_ACTIONS, ['spray-acid', ...APHID_TENDING_ACTIONS]);
 
 const CASTES: CasteDef[] = [
   {
@@ -23,35 +21,30 @@ const CASTES: CasteDef[] = [
   },
   {
     caste: 'queen', sizeClasses: [], lengthBu: { min: 2.0, mean: 2.1, max: 2.25 }, casteMassMg: 30,
-    cropMax: 1.0, carryOverride: 0, mandibleFactor: 0.6, macrocephalic: false, cruiseMult: 0.5, sprintBuS: 5,
+    cropMax: 1.0, carryOverride: 0, mandibleFactor: 0.27, macrocephalic: false, cruiseMult: 0.5, sprintBuS: 5,
     lifespanGd: { mean: 560, sd: 60 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
     fixedStats: { maxHp: 50, bite: 2.0, foundingMaxHp: 40 }, // GDD 05 §4.1
     upkeepOverride: { restC: 0.3, activeC: 0.3, p: 0.1 }, devMult: 1,
     // GDD 01 §7.3 'Who': drop (any carrier), harvest-liquid (adults that feed), unseal (the founding queen, as dig-bite),
     // trophallaxis-give (feeding the first brood's carers) - added by the Stage 1A gate
-    actions: ['dig-bite', 'seal-entrance', 'unseal-entrance', 'lay-egg', 'feed-larva', 'groom', 'pick-up', 'put-down',
-      'drop', 'spray-acid', 'bite', 'harvest-liquid', 'trophallaxis-give', 'trophallaxis-receive', 'sniff', 'antennate',
-      'move', 'grip', 'let-go'],
+    actions: actions(QUEEN_BASE_ACTIONS, ['spray-acid']),
     taskWeights: {}, unlock: NO_UNLOCK,
   },
   {
     caste: 'gyne', sizeClasses: [], lengthBu: { min: 2.0, mean: 2.1, max: 2.25 }, casteMassMg: 25,
-    cropMax: 3.0, carryOverride: 0, mandibleFactor: 0.6, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
+    cropMax: 3.0, carryOverride: 0, mandibleFactor: 0.27, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
     lifespanGd: { mean: 60, sd: 10 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
     fixedStats: { maxHp: 35, bite: 1.5, foundingMaxHp: null },
     upkeepOverride: { restC: 0.15, activeC: 0.15, p: 0 }, devMult: 1,
-    actions: ['fly', 'mate', 'dealate', 'groom', 'trophallaxis-receive', 'spray-acid', 'sniff', 'antennate', 'move', 'grip',
-      'let-go'], // sniff / antennate: all adults (GDD 01 §7.3), added by the Stage 1A gate
-    taskWeights: {}, unlock: NO_UNLOCK,
+    actions: actions(GYNE_BASE_ACTIONS, ['spray-acid']), taskWeights: {}, unlock: NO_UNLOCK,
   },
   {
     caste: 'male', sizeClasses: [], lengthBu: { min: 0.9, mean: 0.95, max: 1.05 }, casteMassMg: 0.8,
-    cropMax: 0.3, carryOverride: 0, mandibleFactor: 0.15, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
+    cropMax: 0.3, carryOverride: 0, mandibleFactor: 0.2, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
     lifespanGd: { mean: 30, sd: 5 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
     fixedStats: { maxHp: 6, bite: 0.2, foundingMaxHp: null },
     upkeepOverride: { restC: 0.06, activeC: 0.06, p: 0 }, devMult: 1, // GDD 07 caste table (ruling 10)
-    actions: ['fly', 'mate', 'groom', 'trophallaxis-receive', 'sniff', 'antennate', 'move', 'grip', 'let-go'], // sniff / antennate: all adults
-    taskWeights: {}, unlock: NO_UNLOCK,
+    actions: [...MALE_ACTIONS], taskWeights: {}, unlock: NO_UNLOCK,
   },
 ];
 
@@ -95,8 +88,8 @@ export const LASIUS_NIGER: SpeciesDef = {
   },
   diet: {
     foods: {
-      honeydew: { pref: 1.0, route: 'crop-c', tier: 'T2' }, sugar: { pref: 0.9, route: 'crop-c', tier: 'T1' },
-      nectar: { pref: 0.8, route: 'crop-c', tier: 'T2' }, fruit: { pref: 0.6, route: 'crop-cp', tier: 'T1' },
+      honeydew: { pref: 1.0, route: 'crop-c', tier: 'T1' }, sugar: { pref: 0.9, route: 'crop-c', tier: 'T1' },
+      nectar: { pref: 0.8, route: 'crop-c', tier: 'T1' }, fruit: { pref: 0.6, route: 'crop-cp', tier: 'T2' },
       crumb: { pref: 0.6, route: 'solid-cp', tier: 'T1' }, carrion: { pref: 0.7, route: 'solid-p', tier: 'T1' },
       prey: { pref: 0.8, route: 'solid-p', tier: 'T2' }, 'pet-food': { pref: 0.5, route: 'solid-p', tier: 'T2' },
       seed: { pref: 0.3, route: 'solid-p', tier: 'T2' }, bait: { pref: 0.7, route: 'crop-c', tier: 'T2' },
@@ -105,17 +98,20 @@ export const LASIUS_NIGER: SpeciesDef = {
     pTargetFrac: 0.3, pTargetFracNoLarvae: 0.05, sapPerCut: 0,
   },
   nestTemplate: {
-    nestMaterials: { loam: 1.0, humus: 1.1, sand: 1.4, clay: 0.5, gravel: 0.6, 'wood-decayed': 0.5, insulation: 0.5 },
+    // GDD 03 §2.1 digSpeed (owner; 00-index C6): loam 1.0, humus 1.3, sand 1.6, clay 0.45, gravel 0.35.
+    nestMaterials: { loam: 1.0, humus: 1.3, sand: 1.6, clay: 0.45, gravel: 0.35, 'wood-decayed': 0.5, insulation: 0.5 },
     coverBonus: ['stone', 'concrete', 'brick', 'tile', 'plastic', 'metal'],
     tunnelWidthBu: 2.0, shaftWidthBu: 2.5,
+    // W x H of GDD 03 §8.2's M size (S / M / L and the long axis are in src/sim/balance/nestTemplates.ts); depth bands
+    // from GDD 03 §8.2: royal 12-40, nursery 4-30, food 8-30, rest 10-60. Royal from the founding cell at 8 workers.
     chambers: [
-      // royal at 8 workers (GDD 03 `royalAt`, E-49); entrance growth rule below is refined by species-data (GDD 03 template).
-      { type: 'royal', widthBu: 8, heightBu: 2, depthBu: [15, 40], perUnit: 1, unitOf: 'fixed', minWorkers: 8 },
-      { type: 'nursery', widthBu: 10, heightBu: 2.25, depthBu: [6, 25], perUnit: 1 / 60, unitOf: 'brood', minWorkers: 8 },
-      { type: 'food', widthBu: 8, heightBu: 2, depthBu: [15, 40], perUnit: 1 / 300, unitOf: 'workers', minWorkers: 25 },
-      { type: 'rest', widthBu: 10, heightBu: 2.5, depthBu: [20, 60], perUnit: 1 / 150, unitOf: 'workers', minWorkers: 40 },
+      { type: 'royal', widthBu: 6, heightBu: 2.5, depthBu: [12, 40], perUnit: 1, unitOf: 'fixed', minWorkers: 8 },
+      { type: 'nursery', widthBu: 8, heightBu: 2.5, depthBu: [4, 30], perUnit: 1 / 60, unitOf: 'brood', minWorkers: 8 },
+      { type: 'food', widthBu: 8, heightBu: 2.5, depthBu: [8, 30], perUnit: 1 / 300, unitOf: 'workers', minWorkers: 25 },
+      { type: 'rest', widthBu: 8, heightBu: 2.5, depthBu: [10, 60], perUnit: 1 / 150, unitOf: 'workers', minWorkers: 40 },
     ],
-    entrances: { start: 1, perWorkers: 400, max: 4 }, maxDepthBu: 175, footprintRBu: 80, volumeCapBu3: 12000,
+    // Open-entrance cap = min(max, start + floor(N / perWorkers)): GDD 03 `maxEntrances` 3, 4 from 800 workers.
+    entrances: { start: 3, perWorkers: 800, max: 4 }, maxDepthBu: 175, footprintRBu: 80, volumeCapBu3: 12000,
     maxPathToEntranceBu: 120, mound: 'soft-mound', midden: 'surface-pile',
     broodClimate: [
       { stage: 'egg', tMin: 16, tOpt: [22, 27], tMax: 34, rh: [0.7, 0.9] },
@@ -142,10 +138,17 @@ export const LASIUS_NIGER: SpeciesDef = {
     mode: 'diapause-lapse', tColdStress: 2.0, wintBaseLoss: 0.06, wintMetBase: 0.35, wintQ10: 2.2,
     broodCarried: 'larva', heatedNestRule: true,
   },
-  directiveTasks: ['forage', 'nurse', 'dig', 'guard'], directiveExtras: [], taskSubtypes: ['tend:relay', 'tend:relocate-aphid'],
+  directiveTasks: ['forage', 'tend', 'nurse', 'dig', 'guard'], directiveExtras: [], taskSubtypes: ['tend:relay', 'tend:relocate-aphid'],
   appearance: {
     bodyColour: '#1e1814', gasterColour: '#1a1512', hairiness: 0.2, waistNodes: 1, rearWeapon: 'acidopore',
     spines: 0, headWidthRatio: { worker: 0.22, queen: 0.2 }, queenThoraxScale: 1.4, alateWingTint: '#d8d4cc',
   },
-  modules: { 'honeydew-ranching': { tendBonus: 0.3 } },
+  modules: {
+    // tendBonus predates this file. The rest are GDD 07 §6.1.2 module constants (herd entities: GDD 05 §1.4).
+    'honeydew-ranching': {
+      tendBonus: 0.3, relayRadiusBu: 3, relayReceiverMaxCrop: 0.5, waitPatrolRadiusBu: 3, waitTimeoutS: 300,
+      relocateRadiusBu: 100, relocatorsMax: 2, newHerdMin: 3, herdForageMarkerMult: 2.0, relocateAtFracOfK: 0.9,
+      relocateHostQuality: 0.3, shelterPellets: 20, rootHerdYield: 0.5,
+    },
+  },
 };

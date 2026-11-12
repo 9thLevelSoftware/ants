@@ -7,9 +7,8 @@
 import type { RngState } from '@/core/rng';
 import { rngFloat, rngInt } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';
-import { materialCode } from '@/sim/types';
 import type { GenContext } from '../../kit/context';
-import { editHeights } from '../../kit/terrainEdit';
+import { editHeights, paintGround } from '../../kit/terrainEdit';
 import { terrainAt } from '../../kit/surface';
 import { dcos, dsin } from '../../kit/dmath';
 import { ASPHALT, bollard, gullyGrate, kerbUnit, lampPost, manholeCover, parkedCar, treePitTree, wheelStop } from '../../catalog/outdoor/asphalt';
@@ -65,11 +64,8 @@ function treePits(ctx: GenContext): void {
     const b = treePitTree(ctx.rngFor('wg/structures/outdoor/treepits', i), envFor(ctx, groundLocal(ctx, cx, cz, yaw)));
     if (commit(ctx, b, { x: cx, z: cz, yaw, atGround: 'terrain', collide: true, category: 'trees' }) < 0) continue;
     st.keepOut.push(pit);
-    const g = ctx.world.ground, { cell, cells } = ctx.dims;
-    for (let k = Math.ceil(pit.z0 / cell - 0.5); k < Math.ceil(pit.z1 / cell - 0.5); k++) for (let j = Math.ceil(pit.x0 / cell - 0.5); j < Math.ceil(pit.x1 / cell - 0.5); j++) {
-      if (j < 0 || k < 0 || j >= cells || k >= cells) continue;
-      g.surface.data[k * cells + j] = materialCode('loam'); g.crustMm.data[k * cells + j] = 255; g.subsoil.data[k * cells + j] = materialCode('clay');
-    }
+    // the pit's soil (diggable: the sidewalk's concrete crust ends here)
+    paintGround(ctx, pit, { surface: 'loam', crustMm: 255, subsoil: 'clay' });
     placed.push(u);
     i++;
   }

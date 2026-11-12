@@ -4,9 +4,9 @@
 //
 // Scales follow the look spike (spike-look.md 2.7: soil 95, humus grit 150, joint sand 40, asphalt 260, bark trunk
 // 700, brick ~1000 mm per tile) and GDD 08 11.6: everyday textures must read "at the wrong size" (concrete grain =
-// boulders, rubber crumbs the size of an ant's head). Concrete and stone are procedural (cement paste with sand
-// grains and air voids; fine-grained rock): the gravel scan read as loose gravel at ant scale (look-pass audit) and
-// the concrete_paving scan shows block joints. Gravel ground uses the gravel scan at pea-gravel size.
+// boulders, rubber crumbs the size of an ant's head). Concrete is procedural (cement paste with sand grains and air
+// voids): the gravel scan read as loose gravel at ant scale (look-pass audit) and the concrete_paving scan shows block
+// joints. Stone uses the gravel scan at mineral-grain size, gravel ground the same scan at pea-gravel size.
 import { MATERIAL_IDS, type MaterialId } from '@/sim/types';
 
 export interface ProceduralLook {
@@ -79,10 +79,11 @@ export const MATERIAL_DEFS: Record<MaterialId, MaterialDef> = withIds({
   clay: { ...SOIL, tint: [0.92, 0.7, 0.55], scaleMm: 120, normalScale: 0.6, wetRough: 0.5 },
   gravel: { ...SOIL, texture: 'gravel_fine', scaleMm: 420, tint: [0.9, 0.89, 0.87], roughMin: 0.65, wetDarken: 0.7, wetRough: 0.3 },
   // cement paste with sand grains and air voids (GDD 08 11.6: aggregate and pores at ant scale, not noise)
-  concrete: { ...HARD, texture: null, procedural: { base: '#a29e95', alt: '#8f8b83', grain: 0.06, bump: 0.45, rough: 0.9, speckle: 0.45, pores: 0.35, size: 512 }, scaleMm: 90, tint: [0.95, 0.94, 0.92], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 6 },
+  concrete: { ...HARD, texture: null, procedural: { base: '#a29e95', alt: '#8f8b83', grain: 0.06, bump: 0.45, rough: 0.9, speckle: 0.45, pores: 0.2, size: 512 }, scaleMm: 90, tint: [0.95, 0.94, 0.92], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 6 },
   asphalt: { ...HARD, texture: 'asphalt', scaleMm: 260, tint: [0.85, 0.85, 0.85], roughness: 1, normalScale: 1.2, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
-  // fine-grained rock (flags, pebbles, walls): mineral grains and a few pores; the gravel scan stays for gravel ground
-  stone: { ...HARD, texture: null, procedural: { base: '#9d978c', alt: '#7f796f', grain: 0.1, bump: 0.4, rough: 0.85, speckle: 0.35, pores: 0.12, size: 512 }, scaleMm: 60, tint: [0.92, 0.9, 0.88], roughMin: 0.75, roughness: 1, normalScale: 0.8, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
+  // fine-grained rock (flags, pebbles, walls): the gravel scan shrunk to mineral-grain size (grains ~0.2 mm read as
+  // granite / sandstone at ant scale; at 70 mm per tile they read as loose gravel: look-pass audit)
+  stone: { ...HARD, texture: 'gravel_fine', scaleMm: 28, tint: [0.66, 0.64, 0.6], roughMin: 0.75, roughness: 1, normalScale: 0.45, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
   brick: { ...HARD, texture: 'brick', scaleMm: 1050, tint: [1, 1, 1], roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 0 },
   tile: { ...HARD, texture: 'tile_ceramic', scaleMm: 1200, tint: [0.85, 0.84, 0.8], roughness: 0.6, normalScale: 0.8, wetDarken: 0.95, wetRough: 0.08, dualScale: 0 },
   'wood-sound': { ...HARD, texture: 'wood_floor', scaleMm: 800, tint: [1, 1, 1], roughness: 0.9, normalScale: 1, wetDarken: 0.7, wetRough: 0.3, dualScale: 0, prim: { texture: 'wood_furniture', scaleMm: 450 } },
