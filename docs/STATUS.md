@@ -105,3 +105,6 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - 13:15 Gate int-1A-sim DONE. Launched Stage 1B wave A (sim): beh-forage, beh-nest, nest-fixes, architect (Opus).
 - Still running: int-1A-app (verify/fix), render-decor fix, worldgen-outdoor impl, worldgen-interior impl.
 - Next: when int-1A-app completes -> views + ui-hud. When nest-fixes completes -> founding. When render-decor completes -> render-integration. When worldgen-outdoor+interior complete -> worldgen-life. Then packaging. Then gate int-1B (first playable) + send source archive to the user.
+- 13:16 DONE: render-decor (orchestrator viewed lawn + forest screenshots: scale reads well; polish later: leaf surface detail, blade translucency).
+- Waiting on int-1A-app fix -> then launch views, ui-hud, render-integration. Running: beh-forage, beh-nest, nest-fixes, architect, worldgen-outdoor, worldgen-interior.
+- Polish list (for QA stage): leaf vein/normal detail, grass translucency; mound shape (nest-fixes); tunnel camera (views); title backdrop (render-integration).
