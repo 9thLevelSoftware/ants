@@ -120,3 +120,12 @@ If research contradicts a direction, keep the gameplay intent, fix the biology, 
 - Inside cavities: follow BFS distance fields (to entrance / to a chamber), walking on the walls.
 - On the surface: local steering (seek, wander, trail following, breadcrumb retrace) on the surface-walker; when the straight route is blocked by tall structures a coarse nav-grid path (16 BU cells) supplies waypoints; elevated places (table tops, counters, plant stems) are reached along authored **climb routes** attached to world objects.
 - Recruitment is information transfer: a successful forager meeting nestmates passes on the food source it knows. Recruits follow the pheromone trail visibly, with the planner as a hidden fallback when they lose it or get stuck. Homing uses breadcrumb retrace first, planner second.
+
+## K. Ratified scale and calendar decisions (BINDING; resolves questions raised by the research dossiers)
+
+- **No per-agent weights.** One simulated ant is one ant; the population shown to the player is the simulated population. The dossiers' "one agent represents N real ants" schemes are NOT used. Real colonies are larger than the game's; the codex says so honestly.
+- **Colony caps (simulated = displayed workers)**: *Lasius niger* 1500, *Camponotus pennsylvanicus* 1200, *Messor barbarus* 1500, *Atta texana* 1500. Total individually simulated ants across all colonies (player + rivals' fielded agents) stays under ~2500.
+- **Two clocks, one unit system.** Movement and actions run in game seconds (ant-scale real time). Development, metabolism, seasons and resource renewal run on the compressed calendar (1 game day stands for roughly 13 real days). Every economic number in the GDD and in code is already expressed in loads per game day or per game second — code applies no further conversion factor.
+- **Space is compressed to the map.** Real foraging ranges, trail lengths and nest footprints that exceed the world are scaled to fit (typical forage trip 300-900 BU, trunk trails up to ~1500 BU, nest footprint within ~150 BU of the first entrance unless satellite nests apply).
+- **Calendar anchor.** Game day 1 is the first day of spring. Spring = days 1-7, summer = 8-14, autumn = 15-21, winter = 22-28. A new game starts on the species' natural founding day (chapter 06 sets it: e.g. *Lasius niger* after a mid-summer nuptial flight).
+- **Brood raiding** of same-species incipient colonies stays in the design as a clearly labelled gameplay mechanic even where the literature for a given species is thin; the codex must not overstate the evidence.

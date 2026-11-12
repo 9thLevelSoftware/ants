@@ -80,3 +80,13 @@ src/
 - Save = `{ meta, state }`; static world is regenerated from `WorldParams` + seed on load (generator version recorded), dynamic world deltas live in state (carve chunks, consumed/moved resources, mounds, markers, pheromones).
 - IndexedDB (structured clone keeps typed arrays): autosave + 5 slots. Export/import: binary encoding + gzip (fflate) to a `.foundress` file, with copy/paste text fallback. All storage access is wrapped in try/catch and the game works without it.
 - Lineage and codex unlocks are stored separately from saves.
+
+## 8. Packaging constraints (from the stack spike — BINDING)
+
+- The game may be hosted inside a sandboxed iframe with an opaque origin and no CORS headers. In that situation `<script type="module">`, dynamic `import()`, `fetch()` of the game's own files, module workers and WebGL textures from plain image URLs all fail.
+- Therefore the **portable build** (`npm run build:portable`) is the shipping artefact: one classic (IIFE, deferred) script bundle, no code splitting, plus **asset pack** files — classic scripts that register base64 payloads in `window.__FOUNDRESS_ASSETS__[path]` — each under 15 MB, loaded by injecting `<script src>` tags. Workers, if used, are created from Blob URLs built from inlined source.
+- All runtime asset access goes through one `AssetLoader` (`src/render/app/assets.ts` for textures, shared with audio): it resolves from embedded packs when present and falls back to relative-URL fetch in dev and normal static hosting. No module may call `fetch`, `new Image().src = url`, `new Audio(url)` or `new Worker(url)` directly.
+- Persistent storage (IndexedDB / localStorage) may be unavailable or throw: every access is wrapped; the game must run without saves, and offers export/import as text when downloads are blocked.
+- Pointer lock, fullscreen and audio start only from a user gesture and may be refused: degrade silently.
+- Total shipped size must stay under 60 MB and under 250 files; every individual file under 18 MB.
+- `tsconfig`: `noUncheckedIndexedAccess` is OFF (numeric code indexes typed arrays constantly); `strict` stays on. Type errors do not fail Vite/Vitest — `npm run typecheck` is a separate mandatory check.
