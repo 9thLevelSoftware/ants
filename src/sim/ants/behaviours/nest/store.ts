@@ -14,7 +14,7 @@ import { poolSpace } from '@/sim/colony';
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, Job } from './board';
 import { carryTo } from './carry';
-import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
+import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, skipped, waitThink } from './fsm';
 import { chamberIn, entranceChamber, floorPoint, foodChamber, homeNest, onSurface, royalChamber } from './places';
 import { act, entity, travel } from './travel';
@@ -177,4 +177,5 @@ export const storeBehaviour: Behaviour = {
   enter: (sim, ant) => setState(sim, ant, ENTRY),
   update: (sim, ant) => think(sim, ant, ENTRY, step),
   exit: (sim, ant) => releaseAll(sim, ant),
+  delivering: carryingLoad,
 };

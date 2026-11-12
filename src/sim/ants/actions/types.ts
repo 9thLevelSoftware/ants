@@ -16,12 +16,20 @@ export type TickOutcome = 'continue' | 'done' | ActionFailReason;
 export interface ActionDef {
   id: ActionId;
   kind: ActionKind;
+  /**
+   * Who may use it when the species data does not list the primitive for the ant's caste (primitives newer than
+   * the species tables). Omitted: only the species data decides.
+   */
+  who?(sim: Sim, ant: Ant): boolean;
   /** Target kinds accepted ('none' = the ant itself). */
   targets: readonly TargetKind[];
   /** Picks a target when the caller gives none (AI shortcut, debug `act()` without target); null = none fits. */
   autoTarget?(sim: Sim, ant: Ant): TargetRef | null;
-  /** Preconditions beyond caste permission, target existence and reach; returns why not, or null. */
-  check(sim: Sim, ant: Ant, target: TargetRef): ActionFailReason | null;
+  /**
+   * Preconditions beyond caste permission, target existence and reach; returns why not, or null. `secondary` is the
+   * variant asked for (BeginOptions.secondary).
+   */
+  check(sim: Sim, ant: Ant, target: TargetRef, secondary?: boolean): ActionFailReason | null;
   /** Reach test; omitted = contact reach (REACH_L, cone) for entity targets, always true for 'none'. */
   reachable?(sim: Sim, ant: Ant, target: TargetRef): boolean;
   /** Base duration, game s at workRate 1 (timed), or the maximum running time for continuous (0 = unbounded). */

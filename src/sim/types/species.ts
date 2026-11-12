@@ -171,6 +171,11 @@ export interface NestTemplate {
   tunnelWidthBu: number;
   shaftWidthBu: number;
   chambers: ChamberTemplate[];
+  /**
+   * Open-entrance cap at N adult workers: `min(max, start + floor(N / perWorkers))`; `perWorkers` 0 means the count
+   * does not grow with N (the species' module plans the openings, e.g. windows) and the cap is `max` at every size.
+   * `entranceCapOf` in species/derive.ts is the one implementation.
+   */
   entrances: { start: number; perWorkers: number; max: number };
   maxDepthBu: number;
   footprintRBu: number;

@@ -3,7 +3,8 @@
 // function of the persisted state (the detection caches are dropped for every chunk a carve can affect), and the
 // dirty flags only let the system skip work whose result would be the same (all nests start dirty).
 
-import type { Sim } from '@/sim/types';
+import type { Mound, Sim } from '@/sim/types';
+import { MOUND_MASK_CARVE_REACH_BU } from '@/sim/balance/nest';
 import type { CarveChange } from './carve/grid';
 import { chunkKey, type VoxelBox } from './carve/keys';
 import { CORE_APRON, nestSampleBox } from './chambers/detect';
@@ -20,6 +21,11 @@ export interface NestRuntime {
   allDirty: boolean;
   /** Chamber core samples (packed keys) per carve chunk; dropped for chunks near a carve (detect.ts). */
   coreByChunk: Map<number, number[]>;
+  /**
+   * Wall samples per carve chunk (open, a non-open sample below, a non-open horizontal neighbour): i, j, k and
+   * the neighbour's direction index, in scan order (architect candidates.ts); dropped for chunks near a carve.
+   */
+  wallByChunk: Map<number, number[]>;
   /** Scratch arrays of the detection pass (reused). */
   passGrid: PassGrid;
   /** Per nest and chunk: the open-volume split of upkeep.ts nestOpenVolume. */
@@ -30,10 +36,15 @@ export interface NestRuntime {
   geom: Map<number, PlanCache>;
   /** cheat.setChamberClimate overrides (debug only, not saved). */
   climate: Map<number, { temp: number; rh: number }>;
-  /** Kept-clear masks of mound grids, valid for one tick and carve version (moundRelax.ts). */
-  moundMasks: Map<number, { tick: number; carve: number; mask: MoundMask }>;
+  /**
+   * Kept-clear masks of mound grids (moundRelax.ts), valid while the entrances on the grid and the breach list are
+   * unchanged (`sig`) and no carve near the ground surface touched the grid (dropped by the carve listener).
+   */
+  moundMasks: Map<number, { sig: string; mask: MoundMask }>;
   /** Nest owning the holes a dig bite's brush opens while it runs (ownership.ts withDigOwner), -1 none. */
   digOwner: number;
+  /** Entrances that closed without a plug this tick, reported at the end of the nest system (entrances.ts). */
+  closedPending: { nestId: number; entranceId: number }[];
 }
 
 /** Open samples of one chunk inside a nest's box: summed where deep under the terrain, listed near the surface. */
@@ -54,6 +65,7 @@ export function nestRuntime(sim: Sim): NestRuntime {
     dirtyNests: new Set(),
     allDirty: true,
     coreByChunk: new Map(),
+    wallByChunk: new Map(),
     passGrid: new PassGrid(),
     deepVolByNest: new Map(),
     breachSeen: sim.carve.breaches.length,
@@ -61,6 +73,7 @@ export function nestRuntime(sim: Sim): NestRuntime {
     climate: new Map(),
     moundMasks: new Map(),
     digOwner: -1,
+    closedPending: [],
   };
   sim.carve.addListener((c: CarveChange) => onCarve(sim, made, c.box));
   RUNTIMES.set(sim, made);
@@ -73,6 +86,8 @@ const DIRTY_PAD = 8;
 /** A carve or fill: drops the detection caches it can affect and marks the nests whose space it touches. */
 function onCarve(sim: Sim, rt: NestRuntime, box: VoxelBox): void {
   dropChunks(rt.coreByChunk, box, CORE_APRON);
+  dropChunks(rt.wallByChunk, box, 1);
+  dropMoundMasks(sim, rt, box);
   for (const m of rt.deepVolByNest.values()) dropChunks(m, box, 0);
   for (const nest of sim.stores.nests.list) {
     if (!nest.alive) continue;
@@ -80,6 +95,30 @@ function onCarve(sim: Sim, rt: NestRuntime, box: VoxelBox): void {
     if (b.i0 - DIRTY_PAD <= box.i1 && b.i1 + DIRTY_PAD >= box.i0 && b.j0 - DIRTY_PAD <= box.j1 && b.j1 + DIRTY_PAD >= box.j0
       && b.k0 - DIRTY_PAD <= box.k1 && b.k1 + DIRTY_PAD >= box.k0) rt.dirtyNests.add(nest.id);
   }
+}
+
+/**
+ * Drops the cached masks of mound grids a carve box can change: it overlaps the grid in x / z and reaches up to
+ * the ground near the grid's lowest base (the mask probes the cavity just under the ground, MOUND_HOLE_PROBE_DEPTH).
+ * Digging deep under a mound does not touch its mask.
+ */
+function dropMoundMasks(sim: Sim, rt: NestRuntime, box: VoxelBox): void {
+  if (rt.moundMasks.size === 0) return;
+  const v = sim.carve.voxel, reach = MOUND_MASK_CARVE_REACH_BU * sim.world.bu;
+  for (const id of [...rt.moundMasks.keys()]) {
+    const m = sim.state.worldDelta.mounds.find((x) => x.id === id);
+    if (!m) { rt.moundMasks.delete(id); continue; }
+    const half = ((m.n - 1) * m.cell) / 2;
+    if (box.i1 * v < m.centerX - half || box.i0 * v > m.centerX + half || box.k1 * v < m.centerZ - half || box.k0 * v > m.centerZ + half) continue;
+    if (box.j1 * v < lowestBase(m) - reach) continue;
+    rt.moundMasks.delete(id);
+  }
+}
+
+function lowestBase(m: Mound): number {
+  let low = Infinity;
+  for (let i = 0; i < m.base.length; i++) if (m.base[i] < low) low = m.base[i]; // NaN compares false
+  return low === Infinity ? -Infinity : low;
 }
 
 /** Deletes the entries of every chunk within `pad` samples of the box. */

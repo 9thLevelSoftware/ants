@@ -54,8 +54,8 @@ const ROWS: ValueRow[] = [
   ['§5.3.5', 'diet.foods.nectar.pref', 0.15], ['§5.3.5', 'diet.foods.bait.pref', 0.5], ['§5.3.5', 'diet.foods.dew.pref', 0.4],
   ['§5.3.5', 'diet.foods.honeydew', undefined],
   // nest (§5.3.6; GDD 03 §8.2)
-  ['§5.3.6', 'nestTemplate.nestMaterials', { sand: 1.4, loam: 1.0, gravel: 0.6, clay: 0.5, humus: 1.0 }], ['§5.3.6', 'nestTemplate.tunnelWidthBu', 2.5],
-  ['§5.3.6', 'nestTemplate.shaftWidthBu', 3.0], ['§5.3.6', 'nestTemplate.maxDepthBu', 285], ['§5.3.6', 'nestTemplate.mound', 'crater'],
+  ['§5.3.6', 'nestTemplate.nestMaterials', { sand: 1.4, loam: 1.0, gravel: 0.6, clay: 0.5, humus: 1.0 }], ['03 §8.2', 'nestTemplate.tunnelWidthBu', 2.0],
+  ['03 §8.2', 'nestTemplate.shaftWidthBu', 2.5], ['§5.3.6', 'nestTemplate.maxDepthBu', 285], ['§5.3.6', 'nestTemplate.mound', 'crater'],
   ['§5.3.6', 'nestTemplate.midden', 'entrance-midden'], ['03 §8.2', 'nestTemplate.footprintRBu', 150], ['03 §8.2', 'nestTemplate.volumeCapBu3', 14000],
   ['03 §8.2', 'nestTemplate.maxPathToEntranceBu', 200], ['§5.3.6', 'nestTemplate.entrances.perWorkers', 300], ['§5.3.6', 'nestTemplate.entrances.start', 1],
   ['03 §8.2', 'nestTemplate.chambers.nursery.depthBu', [15, 80]], ['03 §8.2', 'nestTemplate.chambers.granary.depthBu', [60, 200]],

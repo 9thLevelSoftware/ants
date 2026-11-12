@@ -5,11 +5,13 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_SWITCH_DIP_HALF_S, CAM_TO_COLONY_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig, copyPose, makePose, planTransition, type TransitionPlan,
+  CAM_SWITCH_DIP_HALF_S, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  copyPose, fitsAt, makePose, planTransition, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
 import { SLICE_REPEAT_HZ } from '@/input';
 import type { ViewId } from '../time/speedRules';
+import { isClaimed, releaseClaims } from './inputClaims';
 import { observerStartPose } from './startPose';
 
 export interface ViewWorld {
@@ -53,14 +55,22 @@ export interface CameraOptions {
 }
 
 const ZERO2 = { x: 0, y: 0 };
+const UP = { x: 0, y: 1, z: 0 };
+
+/** GDD 01 App. C `camera-state-changed`: the possession camera's environment state (null outside possession). */
+export interface CameraStateChange {
+  view: ViewId;
+  state: PossessionCamState | null;
+  previous: PossessionCamState | null;
+}
 
 /**
  * GDD 01 §2 hand-overs: into and out of the colony view the camera rises / descends over CAM_TO_COLONY_S (never a
  * dip); every other switch flies clamp(0.4 + d/300, 0.4, 0.9) s, or dip-fades beyond 150 BU; reduced motion
  * cross-fades 0.3 s.
  */
-export function handoverPlan(from: ViewId, to: ViewId, a: CameraPose, b: CameraPose, bu: number, reducedMotion: boolean, trace?: TraceFn): TransitionPlan {
-  if (!reducedMotion && trace && crossesSolid(a.pos, b.pos, trace)) return { kind: 'dip', duration: 2 * CAM_SWITCH_DIP_HALF_S };
+export function handoverPlan(from: ViewId, to: ViewId, a: CameraPose, b: CameraPose, bu: number, reducedMotion: boolean, trace?: TraceFn, clearanceMm = 0): TransitionPlan {
+  if (!reducedMotion && trace && crossesSolid(a.pos, b.pos, trace, 0.9 * clearanceMm)) return { kind: 'dip', duration: 2 * CAM_SWITCH_DIP_HALF_S };
   if (!reducedMotion && (from === 'colony' || to === 'colony')) return { kind: 'fly', duration: CAM_TO_COLONY_S };
   return planTransition(a, b, bu, reducedMotion);
 }
@@ -68,13 +78,14 @@ export function handoverPlan(from: ViewId, to: ViewId, a: CameraPose, b: CameraP
 /**
  * Views-task deviation (GDD 01 §2): a flight whose straight path would pass through solid - the colony camera above
  * the ground descending to an ant in the nest, an ant switch across a wall - dip-fades instead, so the camera is
- * never seen inside the soil.
+ * never seen inside the soil. The path is traced with (just under) the cameras' clearance radius, so a flight
+ * through a gap narrower than the camera's guaranteed clearance dips too (GDD 6.1 holds on every frame).
  */
-function crossesSolid(a: Vec3, b: Vec3, trace: TraceFn): boolean {
+function crossesSolid(a: Vec3, b: Vec3, trace: TraceFn, radius: number): boolean {
   const d = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }, l = Math.hypot(d.x, d.y, d.z);
   if (l < 1e-6) return false;
   d.x /= l; d.y /= l; d.z /= l;
-  return trace(a, d, l, 0) < l - 1e-3;
+  return trace(a, d, l, radius) < l - 1e-3;
 }
 
 /** The colony rotation from the mouse drag alone (degrees, like InputState.look), without the Q / E keys. */
@@ -101,6 +112,10 @@ export class ViewDirector {
   private subjectAirborne = false;
   private subjectFlying = false;
   private subjectLengthBu = 1;
+  /** Footstep tremor time left (real s), -1 none. */
+  private tremorT = -1;
+  private lastPossessionState: PossessionCamState | null = null;
+  private readonly stateListeners: ((e: CameraStateChange) => void)[] = [];
   /** Orbit requested by the debug API, added to the next rig update (degrees). */
   private nudgeYaw = 0;
   private nudgePitch = 0;
@@ -142,7 +157,9 @@ export class ViewDirector {
     if (view === 'photo') { this.photoOrigin = prev === 'photo' ? this.photoOrigin : prev; this.photo.enter(this.last); }
     if (view === 'possess') { this.third.snap(); this.stopFollowing(); }
     if (view === 'observer') {
-      if (subject) this.follow(subject);
+      // GDD 01 §2 "X: release; camera stays, becomes follow-orbit on the released ant": the orbit starts where the
+      // possession camera was
+      if (subject) this.follow(subject, prev === 'possess' ? this.last.pos : undefined);
       else { this.stopFollowing(); this.placeObserverAbove(this.last.look); }
     }
     if (view === 'colony') {
@@ -154,7 +171,8 @@ export class ViewDirector {
     // possess -> possess is a switch to another ant: it flies (or dips beyond CAM_SWITCH_FADE_DIST_BU) like any
     // other hand-over (GDD 01 §2); re-entering any other view it is already in is a cut
     const cut = instant || (prev === view && view !== 'possess');
-    const plan = cut ? { kind: 'fly' as const, duration: 0 } : handoverPlan(prev, view, from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion, this.world.trace);
+    const plan = cut ? { kind: 'fly' as const, duration: 0 }
+      : handoverPlan(prev, view, from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion, this.world.trace, this.minClearanceMm);
     // photo mode keeps the pose: no blend in or out
     this.transition.start(from, view === 'photo' || prev === 'photo' ? { kind: 'fly', duration: 0 } : plan);
   }
@@ -165,10 +183,27 @@ export class ViewDirector {
     this.observer.setPose(s.pos, s.look);
   }
 
-  follow(subject: ViewSubject): void {
+  /** Follow with the observer orbit; `from`: start the orbit at this camera position (hand-over keeps the camera). */
+  follow(subject: ViewSubject, from?: Vec3): void {
     this.setSubject(subject);
     this.following = true;
-    this.observer.setFollow(this.followTarget);
+    this.observer.setFollow(this.followTarget, from);
+  }
+
+  /** The smallest GDD 6.1 clearance of the play cameras (mm): transitions keep at least this. */
+  get minClearanceMm(): number {
+    return Math.min(this.third.clearanceMm, this.observer.clearanceMm);
+  }
+
+  /** Footstep tremor (GDD 01 §6.1): 0.05 L for 0.4 real s on the possession camera; none in reduced motion. */
+  tremor(): void {
+    if (!this.third.opts.reducedMotion) this.tremorT = CAM_TREMOR_S;
+  }
+
+  /** GDD 01 App. C `camera-state-changed`; returns the unsubscribe function. */
+  onCameraState(cb: (e: CameraStateChange) => void): () => void {
+    this.stateListeners.push(cb);
+    return () => { const i = this.stateListeners.indexOf(cb); if (i >= 0) this.stateListeners.splice(i, 1); };
   }
 
   unfollow(): void {
@@ -230,14 +265,16 @@ export class ViewDirector {
       const m = input ? input.axis2('obs-move') : ZERO2;
       const vertical = input ? (input.held('obs-up') ? 1 : 0) - (input.held('obs-down') ? 1 : 0) : 0;
       const o = this.observer.update(dt, { yawDeg: l.x, pitchDeg: l.y, zoomLog: zoom('obs-zoom'), move: m, vertical, fast: !!input && input.active('obs-fast') },
-        { trace: w.trace, groundHeight: w.groundHeight, followL: this.subjectLengthBu });
+        { trace: w.trace, groundHeight: w.groundHeight, followL: this.subjectLengthBu, field: w.field });
       f.pose = o; f.focus = o.focusDistance; f.observerMode = o.mode;
     } else if (this.view === 'colony') {
       // while the dig planner holds a ghost, Q / E and Shift+wheel belong to the ghost (GDD 01 App. F 16): the camera
       // keeps its drag rotation and R / F for the slice
+      // Shift+wheel claimed by a tool this frame (marker radius, ghost size): the slice keeps R / F only
       const cap = this.colonyCapture && !!input;
+      const keysOnly = cap || (!!input && isClaimed(input, 'shift-wheel'));
       const l = cap && input ? dragLook(input) : look('cv-rotate');
-      const steps = !input ? 0 : cap
+      const steps = !input ? 0 : keysOnly
         ? (input.codePressed('KeyR') ? 1 : 0) - (input.codePressed('KeyF') ? 1 : 0)
         : (input.pressedRepeat('cv-slice-up', SLICE_REPEAT_HZ) ? 1 : 0) - (input.pressedRepeat('cv-slice-down', SLICE_REPEAT_HZ) ? 1 : 0);
       const o = this.colony.update(dt, {
@@ -265,11 +302,42 @@ export class ViewDirector {
   /** One frame of the active rig (real dt) blended through any running transition. */
   update(dt: number, input: InputState | null): ViewFrame {
     const f = this.updateRig(dt, input);
-    const t = this.transition.update(dt, f.pose);
+    if (input) releaseClaims(input);
+    let t = this.transition.update(dt, f.pose);
+    if (this.transition.running && this.transition.kind === 'fly' && !fitsAt(this.world.trace, t.pose.pos, UP, 0.98 * this.minClearanceMm)) {
+      // the flight would graze solid (the destination moved since the path was checked): dip-fade from the last
+      // frame's pose instead, so no rendered frame has the camera inside the soil (GDD 6.1)
+      this.transition.start(this.last, { kind: 'dip', duration: 2 * CAM_SWITCH_DIP_HALF_S });
+      t = this.transition.update(0, f.pose);
+    }
     copyPose(this.last, t.pose);
+    this.applyTremor(dt);
     f.pose = this.last;
     f.dip = t.dip;
+    this.emitCameraState(f.possessionState);
     return f;
+  }
+
+  /** Decaying sine along the camera up, kept only where the sphere still fits. */
+  private applyTremor(dt: number): void {
+    if (this.tremorT < 0) return;
+    if (this.view !== 'possess' || this.third.opts.reducedMotion) { this.tremorT = -1; return; }
+    const age = CAM_TREMOR_S - this.tremorT;
+    const a = CAM_TREMOR_AMP_L * this.subjectLengthBu * this.world.bu * (this.tremorT / CAM_TREMOR_S) * Math.sin(2 * Math.PI * CAM_TREMOR_HZ * age);
+    const p = this.last.pos, u = this.last.up, q = { x: p.x + u.x * a, y: p.y + u.y * a, z: p.z + u.z * a };
+    if (fitsAt(this.world.trace, q, UP, this.third.clearanceMm)) {
+      p.x = q.x; p.y = q.y; p.z = q.z;
+      this.last.look.x += u.x * a; this.last.look.y += u.y * a; this.last.look.z += u.z * a;
+    }
+    this.tremorT -= dt;
+    if (this.tremorT <= 0) this.tremorT = -1;
+  }
+
+  private emitCameraState(state: PossessionCamState | null): void {
+    if (state === this.lastPossessionState) return;
+    const e: CameraStateChange = { view: this.view, state, previous: this.lastPossessionState };
+    this.lastPossessionState = state;
+    for (const cb of [...this.stateListeners]) cb(e);
   }
 
   /** Adds an orbit step (degrees) and a zoom step (natural log of the distance factor) to the next rig update. */

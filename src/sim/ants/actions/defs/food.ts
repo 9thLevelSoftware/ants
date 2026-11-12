@@ -153,13 +153,26 @@ function begAccepted(sim: Sim, beggar: Ant, donor: Ant): boolean {
   return cropOf(donor) > TROPH_ACCEPT_FRAC * donor.cropCap || beggar.caste === 'queen';
 }
 
-/** Takes up to `amount` from the colony pool into the beggar's crop, in pool proportion; returns it. */
+/** A forager (forage, scout, tend) begging in the nest takes its departure ration (GDD 02 §5.4.2: C only). */
+function departing(beggar: Ant): boolean {
+  return beggar.task === 'forage' || beggar.task === 'scout' || beggar.task === 'tend';
+}
+
+/**
+ * Takes up to `amount` from the colony pool into the beggar's crop, in pool proportion (a departure ration: C only,
+ * booked under the ledger's `ration` key, GDD 02 §5.2); returns it.
+ */
 function fromPool(sim: Sim, beggar: Ant, amount: number): number {
   const col = sim.stores.colonies.get(beggar.colony);
   if (!col || amount <= EPS) return 0;
+  if (departing(beggar)) {
+    const got = ports.withdrawFood(sim, col.id, amount, 0, 'ration', beggar);
+    beggar.cropC += got.c;
+    return got.c;
+  }
   const total = col.stores.c + col.stores.p;
   if (total <= EPS) return 0;
-  const got = ports.withdrawFood(sim, col.id, (amount * col.stores.c) / total, (amount * col.stores.p) / total);
+  const got = ports.withdrawFood(sim, col.id, (amount * col.stores.c) / total, (amount * col.stores.p) / total, 'transit', beggar);
   beggar.cropC += got.c;
   beggar.cropP += got.p;
   return got.c + got.p;

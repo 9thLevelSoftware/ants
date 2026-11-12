@@ -1,7 +1,7 @@
 // Loader validation (GDD 07 §3.16) and GDD 07 Appendix E check 1: all four species pass; negative controls fail
 // the right rule.
 import { describe, expect, it } from 'vitest';
-import type { SpeciesDef } from '@/sim/types';
+import type { SpeciesDef, SpeciesId } from '@/sim/types';
 import { SPECIES_IDS } from '@/sim/types';
 import { PLAYABLE_SPECIES, requireSpecies, listSpecies } from './index';
 import { assertValidSpecies, SpeciesValidationError, validateSpecies } from './validate';
@@ -34,7 +34,6 @@ describe('every species passes validation', () => {
 
   it('rule 1: the standard worker is 1.0 +- 0.1 BU (Lasius worker 1.0, Camponotus media 1.1, Messor media 1.05, Atta media 1.0)', () => {
     const std = (id: SpeciesId): number => requireSpecies(id).castes.find((c) => c.caste === 'worker' || c.caste === 'media')!.lengthBu.mean;
-    type SpeciesId = (typeof SPECIES_IDS)[number];
     expect([std('lasius-niger'), std('camponotus-pennsylvanicus'), std('messor-barbarus'), std('atta-texana')]).toEqual([1.0, 1.1, 1.05, 1.0]);
   });
 });

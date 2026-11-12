@@ -17,7 +17,7 @@ import {
 import { SPOIL_PILE_MAX } from '@/sim/balance/nest';
 import { secondsToTicks } from '@/sim/time';
 import { carryTo } from './carry';
-import { approach, endCycle, primitiveDone, recover, releaseAll, think } from './common';
+import { approach, endCycle, primitiveDone, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
 import { act, entity, travel } from './travel';
 
@@ -198,6 +198,7 @@ export const digBehaviour: Behaviour = {
     think(sim, ant, ENTRY, step);
   },
   exit: (sim, ant) => releaseAll(sim, ant),
+  delivering: carryingLoad,
 };
 
 /**

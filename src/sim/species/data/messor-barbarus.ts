@@ -152,8 +152,10 @@ export const MESSOR_BARBARUS: SpeciesDef = {
     // humus is damp: granary humidity penalty (§5.3.6).
     nestMaterials: { sand: 1.4, loam: 1.0, gravel: 0.6, clay: 0.5, humus: 1.0 },
     coverBonus: ['stone', 'concrete', 'brick', 'tile'], // cover weight only 0.5 (GDD 03 §8.2)
-    // GDD 07 §5.3.6: tunnels 2.5 BU (majors need >= 2.2), vertical shafts 3.0 BU.
-    tunnelWidthBu: 2.5, shaftWidthBu: 3.0,
+    // GDD 03 §8.2 (owner of nest templates, as for every other template value here): tunnelD 2.0 / royalD 2.5, which
+    // shafts use. GDD 07 §5.3.6 writes 2.5 / 3.0; its main-tunnel note (majors need >= 2.2 BU, 03 "main 2.5") is
+    // met by the main-trunk `widen` plans, which grow tunnels to royalD 2.5.
+    tunnelWidthBu: 2.0, shaftWidthBu: 2.5,
     // W x H of GDD 03 §8.2 (L in src/sim/balance/nestTemplates.ts). Depth bands follow GDD 03 (nursery 15-80, royal
     // 40-150; GDD 07 writes 20-80 and 80-150). Granary count comes from the granary block (target stock).
     chambers: [

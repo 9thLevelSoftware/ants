@@ -3,7 +3,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import { audibleAt, combineOcclusion, dbToGain, inverseDistanceGain, panFor, surfaceOcclusion, type FilterGain } from './mix';
 import { depthBelowGround, distBu, type Listener } from './listener';
-import { DISTANCE, LOS_OCCLUSION, OPEN_CUTOFF_HZ } from './tuning';
+import { AIR, DISTANCE, LOS_OCCLUSION, OPEN_CUTOFF_HZ } from './tuning';
 import type { SpaceClass } from './cueTable';
 
 export interface Spatial {
@@ -59,10 +59,15 @@ export function spatialize(l: Listener, space: SpaceClass, pos: Vec3 | null, bud
     if (l.solidBetween(l.pos, pos)) { _los.cutoffHz = LOS_OCCLUSION.cutoffHz; _los.gainDb = LOS_OCCLUSION.gainDb; }
   }
   combineOcclusion(_surf, _los, _sum);
-  out.cutoffHz = _sum.cutoffHz;
+  out.cutoffHz = space === 'giant' ? Math.min(_sum.cutoffHz, airCutoff(d)) : _sum.cutoffHz;
   out.occlusionDb = _sum.gainDb;
   out.gain = inverseDistanceGain(d, dc) * dbToGain(_sum.gainDb);
   return out;
+}
+
+/** Air absorption low-pass for a giant source `d` BU away. */
+export function airCutoff(d: number): number {
+  return d <= AIR.refBu ? OPEN_CUTOFF_HZ : Math.max(AIR.minHz, AIR.maxHz * Math.pow(AIR.refBu / d, AIR.exp));
 }
 
 export function newSpatial(): Spatial {

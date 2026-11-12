@@ -192,7 +192,9 @@ function finishTrip(sim: Sim, ant: Ant, fl: Flavour, c: number, p: number, store
   ant.bb[K.solid] = 0;
   logDecision(sim, ant, storesFull ? 'stores-full' : success ? 'item-collected' : 'timeout', src);
   if (storesFull && cropOf(ant) > TROPH_DONOR_MIN + UNLOAD_CROP_MARGIN) { startRest(sim, ant, fl, 'stores-full'); return; }
-  if (taskCycleDone(sim, ant) !== fl.task) return;
+  // a new task: the trip is over (out of the deliver phase, so deliver-first lets the runner switch, and the booking
+  // above is never repeated)
+  if (taskCycleDone(sim, ant) !== fl.task) { setPhase(sim, ant, fl.names, PHASE.wait); return; }
   if (ant.fatigue >= REST_ENTER) startRest(sim, ant, fl, 'fatigue');
   else if (fl.scout) startDepart(sim, ant, fl);
   else startWait(sim, ant, fl);
@@ -226,10 +228,16 @@ function findReceiver(sim: Sim, ant: Ant, fl: Flavour): void {
     return;
   }
   if (waited > UNLOAD_MAX_WAIT_S) { finishFromCrop(sim, ant, fl, true); return; }
-  // nobody near: walk to the food chamber, where stored food and its handlers are
+  // nobody near: walk to the food chamber, where stored food and its handlers are, and unload straight into it at
+  // half rate (GDD 02 §5.3, the `unload-crop` primitive)
   const nest = homeNest(sim, ant);
   const room = nest ? foodChamber(nest) : undefined;
-  if (room && waited > UNLOAD_SEARCH_S && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, FOOD_ROOM_ARRIVE_BU);
+  if (!room || waited <= UNLOAD_SEARCH_S) return;
+  if (ant.chamberId !== room.id) { if (!moving(ant)) goToChamber(sim, ant, room, FOOD_ROOM_ARRIVE_BU); return; }
+  if (!canDo(sim, ant, 'unload-crop', null).ok) return;
+  stop(sim, ant);
+  ant.bb[K.giveCrop] = cropOf(ant);
+  if (begin(sim, ant, 'unload-crop', null)) ant.bb[K.unload] = UNLOAD.give;
 }
 
 /** Starts handing the crop to any nestmate already in reach (the receiver need not be the one walked to). */
@@ -280,8 +288,8 @@ function giveStep(sim: Sim, ant: Ant, fl: Flavour): void {
     ant.bb[K.unload] = UNLOAD.find;
     return;
   }
-  // UNLOAD.give
-  if (ant.action?.id === 'trophallaxis-give') return;
+  // UNLOAD.give (to a receiver, or straight into the food chamber)
+  if (ant.action?.id === 'trophallaxis-give' || ant.action?.id === 'unload-crop') return;
   if (cropOf(ant) <= TROPH_DONOR_MIN + EPS) { finishFromCrop(sim, ant, fl, false); return; }
   const moved = (ant.bb[K.giveCrop] ?? cropOf(ant)) - cropOf(ant);
   if (moved <= EPS) {

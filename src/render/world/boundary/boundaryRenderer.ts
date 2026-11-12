@@ -5,7 +5,7 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, MeshStandardMaterial, Uniform, type Scene } from 'three';
 import type { WorldData } from '@/sim/types';
 import { buildBackdrop } from './backdrop';
-import { createEdgeHazeUniforms, patchEdgeHaze, type EdgeHazeUniforms } from './edgeHaze';
+import { applyEdgeHazeLight, createEdgeHazeUniforms, patchEdgeHaze, type EdgeHazeLight, type EdgeHazeUniforms } from './edgeHaze';
 import { buildSkirt } from './skirt';
 import { BACKDROP_FUZZ, BACKDROP_MIN_HAZE, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM } from './tuning';
 
@@ -80,9 +80,13 @@ export class BoundaryRenderer {
     this.st = { skirtTriangles: 0, backdropShapes: 0, backdropTriangles: 0, drawCalls: 0 };
   }
 
-  /** Hidden underground (the surface world is dimmed away there and nothing beyond the edge can be seen). */
-  update(frame: { underground?: boolean }): void {
+  /**
+   * Hidden underground (the surface world is dimmed away there and nothing beyond the edge can be seen). `light` is
+   * the world lighting: the edge haze fades toward its sky.
+   */
+  update(frame: { underground?: boolean }, light?: EdgeHazeLight): void {
     this.group.visible = !frame.underground;
+    if (light) applyEdgeHazeLight(this.uniforms, light);
   }
 
   stats(): BoundaryStats {

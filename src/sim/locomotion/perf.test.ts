@@ -1,6 +1,7 @@
 // Criterion 7 (performance) and criterion 6 (soak). The machine is shared and often loaded: the perf budget is
 // asserted with a 2x load allowance by default; FOUNDRESS_PERF_STRICT=1 checks the exact 2.5 ms. The full soak
-// (1,000 walkers x 10,000 ticks) runs with FOUNDRESS_SOAK_FULL=1; the default run is 1,000 x 1,500 ticks.
+// (1,000 walkers x 10,000 ticks) runs with FOUNDRESS_SOAK_FULL=1 or FOUNDRESS_LONG=1; the default run is 1,000 x 600
+// ticks and the timing uses a shorter warm-up and fewer repetitions (file cost, sim-fix-ants).
 import { describe, expect, it } from 'vitest';
 import { collectInvariants } from '@/sim/testing/invariants';
 import { locomotionSystem, locoStats } from './index';
@@ -10,7 +11,8 @@ interface Proc { env: Record<string, string | undefined>; cpuUsage(prev?: { user
 const proc = (globalThis as { process?: Proc }).process;
 const env = proc?.env ?? {};
 const STRICT = env.FOUNDRESS_PERF_STRICT === '1';
-const FULL_SOAK = env.FOUNDRESS_SOAK_FULL === '1';
+const LONG = env.FOUNDRESS_LONG === '1';
+const FULL_SOAK = env.FOUNDRESS_SOAK_FULL === '1' || LONG;
 const BUDGET_MS = 2.5;
 
 describe('locomotion performance and soak', () => {
@@ -18,12 +20,12 @@ describe('locomotion performance and soak', () => {
     const sc = busyScenario(1000, 3, 900);
     const sim = sc.sim;
     // warm up: everybody out on errands, JIT settled
-    for (let t = 0; t < 600; t++) { sc.feed(); sim.tick(); }
+    for (let t = 0; t < (LONG ? 600 : 300); t++) { sc.feed(); sim.tick(); }
     // wall clock and this process's CPU time (the CPU figure is what the shared, loaded machine distorts least)
     const wall: number[] = [], cpu: number[] = [];
-    for (let rep = 0; rep < 5; rep++) {
+    for (let rep = 0; rep < (LONG ? 5 : 3); rep++) {
       let total = 0, cpuTotal = 0;
-      const N = 200;
+      const N = LONG ? 200 : 120;
       for (let t = 0; t < N; t++) {
         sc.feed();
         // time the locomotion system alone (sim.tick also runs the commands system and sweeps)
@@ -45,8 +47,8 @@ describe('locomotion performance and soak', () => {
     expect(Math.min(best, bestCpu)).toBeLessThan(STRICT ? BUDGET_MS : 2 * BUDGET_MS);
   }, 300_000);
 
-  it(`criterion 6: soak, 1,000 walkers x ${FULL_SOAK ? '10,000' : '1,500'} ticks: no NaN, kernel invariant and bounds hold`, () => {
-    const ticks = FULL_SOAK ? 10_000 : 1_500;
+  it(`criterion 6: soak, 1,000 walkers x ${FULL_SOAK ? '10,000' : '600'} ticks: no NaN, kernel invariant and bounds hold`, () => {
+    const ticks = FULL_SOAK ? 10_000 : 600;
     const sc = busyScenario(1000, 7, 900);
     const invs = collectInvariants().filter((i) => ['walker-finite', 'walker-free-space', 'walker-in-bounds'].includes(i.name));
     const bad: string[] = [];

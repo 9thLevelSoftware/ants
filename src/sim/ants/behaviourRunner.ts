@@ -11,6 +11,8 @@
 import type { Ant, Behaviour, ColonySpeciesId, Sim, System, Task } from '@/sim/types';
 import { AntFlag, TASKS, taskIndex } from '@/sim/types';
 import { BEHAVIOUR_THINK_TICKS } from '@/sim/balance/actions';
+import { DELIVER_FIRST_EXEMPT_TASKS, DELIVER_FIRST_MAX_S } from '@/sim/balance/ants';
+import { secondsToTicks } from '@/sim/time';
 import { ports } from './actions/ports';
 import { reinferAfterLanding } from './player/release';
 
@@ -51,10 +53,42 @@ export function thinkNow(sim: Sim, ant: Ant): void {
   ant.thinkTick = sim.state.tick;
 }
 
-/** One think of one autonomous ant: switch behaviour if the task changed, then update. */
+/** bb key: tick a deliver-first hold began (-1 none). */
+const DELIVER_SINCE = 'run.dlv';
+
+/**
+ * Deliver first (GDD 02 §10.0): the task changed while the entered behaviour is still delivering what the ant
+ * carries. True = keep running the entered behaviour this think: while its delivery goes on, and for one more think
+ * right after it ended (the behaviour concludes it: events, booking, its next state); false = switch now.
+ */
+function holdForDelivery(sim: Sim, ant: Ant, entered: Task): boolean {
+  const b = behaviourFor(sim, ant, entered);
+  const since = ant.bb[DELIVER_SINCE] ?? -1;
+  const late = since >= 0 && sim.state.tick - since > secondsToTicks(DELIVER_FIRST_MAX_S);
+  const exempt = (DELIVER_FIRST_EXEMPT_TASKS as readonly string[]).includes(ant.task);
+  if (!late && !exempt && b.delivering?.(sim, ant)) {
+    if (since < 0) ant.bb[DELIVER_SINCE] = sim.state.tick;
+    return true;
+  }
+  ant.bb[DELIVER_SINCE] = -1;
+  return since >= 0 && !late && !exempt;
+}
+
+/** The task this ant is still working at while it finishes a delivery for it (deliver first), or null. */
+export function deliveringFor(ant: Ant): Task | null {
+  return (ant.bb[DELIVER_SINCE] ?? -1) >= 0 ? enteredTask(ant) : null;
+}
+
+/** One think of one autonomous ant: switch behaviour if the task changed (after a delivery in hand), then update. */
 export function runBehaviour(sim: Sim, ant: Ant): void {
   const tick = sim.state.tick;
   const entered = enteredTask(ant);
+  if (entered === ant.task && (ant.bb[DELIVER_SINCE] ?? -1) >= 0) ant.bb[DELIVER_SINCE] = -1; // changed back meanwhile
+  if (entered !== ant.task && entered !== null && holdForDelivery(sim, ant, entered)) {
+    behaviourFor(sim, ant, entered).update(sim, ant);
+    if (ant.thinkTick <= tick) ant.thinkTick = tick + BEHAVIOUR_THINK_TICKS;
+    return;
+  }
   if (entered !== ant.task) {
     if (entered !== null) behaviourFor(sim, ant, entered).exit(sim, ant);
     ant.bb['run.task'] = taskIndex(ant.task);

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FOUNDRESS demo: audio</title>
+  <style>
+    html, body { margin: 0; background: #15130f; color: #e8e2d4; font: 13px/1.4 system-ui, sans-serif; }
+    main { display: grid; grid-template-columns: 430px 1fr; gap: 12px; padding: 12px; }
+    h1 { font-size: 16px; margin: 0 0 6px; } h2 { font-size: 13px; margin: 10px 0 4px; color: #c9b98f; }
+    button { background: #2a261e; color: #e8e2d4; border: 1px solid #4a4334; border-radius: 4px; padding: 2px 6px; margin: 1px; font: 11px system-ui; cursor: pointer; }
+    button:hover { background: #3a3427; } button.on { background: #5a4b2a; }
+    select { background: #2a261e; color: #e8e2d4; border: 1px solid #4a4334; font: 11px system-ui; }
+    #status { padding: 4px 6px; background: #221f19; border-radius: 4px; margin-bottom: 6px; }
+    canvas { width: 100%; height: 160px; background: #0d0c0a; display: block; border-radius: 4px; }
+    pre { font: 11px/1.3 ui-monospace, monospace; white-space: pre-wrap; margin: 0; }
+    table { border-collapse: collapse; font: 11px/1.3 ui-monospace, monospace; width: 100%; }
+    td, th { border-bottom: 1px solid #2c2820; padding: 1px 4px; text-align: left; }
+    .bad { color: #ff8a6b; } .ok { color: #9fd38a; }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="controls"><h1>FOUNDRESS audio demo</h1><div id="status">Audio off: press "Start audio" (a user gesture is required).</div></section>
+    <section>
+      <canvas id="spectrum" width="900" height="160"></canvas>
+      <pre id="readout"></pre>
+      <h2>Offline analysis</h2>
+      <div id="results"></div>
+    </section>
+  </main>
+  <!-- relative URL on purpose: the built output must work from any sub-path -->
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

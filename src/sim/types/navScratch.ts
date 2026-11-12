@@ -96,4 +96,11 @@ export interface NavScratch {
   openX: number;
   openZ: number;
   open: number;
+  /**
+   * AI speed cache (sim-fix-ants: the speed factors - temperature, health, nest crowding - change slowly): the
+   * speed, mm/s, the tick it was computed and whether the walker carried something then (1/0). Additive.
+   */
+  spdV?: number;
+  spdTick?: number;
+  spdCarry?: number;
 }

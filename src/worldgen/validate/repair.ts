@@ -4,19 +4,21 @@
 // R5 rival sites moved to the farthest valid cells. R1 (open closed sockets) belongs to the micro-connection
 // module and arrives as a module repair.
 
-import { PrimFlag, SEASONS } from '@/sim/types';
+import { PrimFlag } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import type { RepairDef } from '../kit/registry';
 import type { ObjectTemplate } from '../kit/template';
 import { placeObject } from '../kit/template';
-import { addFoodAnchor, addMicro, addPreCarve } from '../kit/records';
 import { paintGround } from '../kit/terrainEdit';
 import { supportAt } from '../kit/surface';
 import { mapState } from '../maps/state';
 import { walkable } from '../maps/nav';
 import { cellAt, navDistances } from './graph';
-import { SUIT } from '../tuning/maps';
 import { REPAIR, VALID } from '../tuning/pipeline';
+import { carveChannel } from '../populate/channel';
+import { placeAnchor } from '../populate/food';
+import { finalizeFood } from '../populate/finalize';
+import { placeRivals } from '../populate/rivals';
 
 const centre = (ctx: GenContext, c: number) => ({ x: ((c % ctx.dims.navN) + 0.5) * ctx.dims.navCell, z: (Math.floor(c / ctx.dims.navN) + 0.5) * ctx.dims.navCell });
 
@@ -70,25 +72,31 @@ export function repairFoundingSites(ctx: GenContext): boolean {
   return near + far > 0;
 }
 
-/** R3: a carbohydrate (sugar) and a protein (carrion) anchor, plus a crumb, within 400 BU of the start. */
+/**
+ * R3: food near the start. The populate guarantees (finalizeFood) already add the cheapest natural food where the
+ * chapter's distances fall short; the repair adds a sugar patch, a protein crumb cluster and a starch crumb
+ * cluster within 400 BU of the start on top, then runs those guarantees again.
+ */
 export function repairFood(ctx: GenContext): boolean {
   const s = ctx.world.queenStart.pos;
   const d = navDistances(ctx, [cellAt(ctx, s.x, s.z)], { maxBu: REPAIR.r3RadiusBu });
   const cands: number[] = [];
-  for (let c = 0; c < d.length; c++) if (d[c] >= REPAIR.r3MinBu && d[c] <= REPAIR.r3RadiusBu) cands.push(c);
+  for (let c = 0; c < d.length; c++) if (d[c] >= REPAIR.r3MinBu && d[c] <= REPAIR.r3RadiusBu && ctx.layout.zones[ctx.layout.nav[c]].type !== 'interior') cands.push(c);
   if (cands.length === 0) return false;
-  const kinds = ['sugar', 'carrion', 'crumb'] as const;
-  kinds.forEach((kind, i) => {
-    const c = cands[Math.floor(((i + 0.5) * cands.length) / kinds.length)];
+  const before = ctx.world.placements.foodAnchors.length;
+  const variants = [['sugar-granules', 'sugar'], ['crumb-protein', 'crumb'], ['crumb-starch', 'crumb']] as const;
+  variants.forEach(([variant, kind], i) => {
+    const c = cands[Math.floor(((i + 0.5) * cands.length) / variants.length)];
     const p = centre(ctx, c);
-    addFoodAnchor(ctx, { kind, pos: { x: p.x, y: supportAt(ctx, p.x, p.z), z: p.z }, up: { x: 0, y: 1, z: 0 }, hostObjectId: -1, seasonMask: (1 << SEASONS.length) - 1, initialState: 'full' });
+    placeAnchor(ctx, variant, kind, { x: p.x, y: supportAt(ctx, p.x, p.z), z: p.z }, -1, 'full repair');
   });
-  return true;
+  finalizeFood(ctx);
+  return ctx.world.placements.foodAnchors.length > before;
 }
 
 /** R4: for each zone with walkable but unreachable cells, a carved channel and portal under the barrier. */
 export function repairConnect(ctx: GenContext): boolean {
-  const { navN, navCell, bu } = ctx.dims;
+  const { navN } = ctx.dims;
   const s = ctx.world.queenStart.pos;
   const cls = ctx.world.nav.cls.data;
   let changed = false;
@@ -109,43 +117,21 @@ export function repairConnect(ctx: GenContext): boolean {
       }
     }
     if (!best) break;
-    const pa = centre(ctx, best.a), pb = centre(ctx, best.b);
-    const depth = REPAIR.r4DepthBu * bu;
-    const ya = supportAt(ctx, pa.x, pa.z) - depth, yb = supportAt(ctx, pb.x, pb.z) - depth;
-    addPreCarve(ctx, { shape: 'capsule', a: { x: pa.x, y: ya, z: pa.z }, b: { x: pb.x, y: yb, z: pb.z }, r: REPAIR.r4RadiusBu * bu, natural: true, cavityId: -1 });
-    addMicro(ctx, {
-      kind: 'root-channel', posA: { x: pa.x, y: ya, z: pa.z }, posB: { x: pb.x, y: yb, z: pb.z }, gapMm: 2 * REPAIR.r4RadiusBu * bu,
-      minClearanceBu: 2 * REPAIR.r4RadiusBu, lengthBu: (best.len * navCell) / bu, useful: true, reason: 'repair R4',
-    });
+    if (!carveChannel(ctx, { a: best.a, b: best.b, kind: 'root-channel', reason: 'repair R4', radiusBu: REPAIR.r4RadiusBu, depthBu: REPAIR.r4DepthBu })) break;
     changed = true;
   }
   return changed;
 }
 
-/** R5: established rival sites too close to the start or each other move to the farthest valid cells. */
+/**
+ * R5: rival sites placed again against the current start with the full rules (spacing, start distance, edge),
+ * relaxing the top-suitability share down to every valid cell (populate/rivals.ts).
+ */
 export function repairRivals(ctx: GenContext): boolean {
-  const sites = ctx.world.placements.rivalSites.filter((r) => !r.incipient);
-  if (sites.length === 0) return false;
-  const s = ctx.world.queenStart.pos;
-  const d = navDistances(ctx, [cellAt(ctx, s.x, s.z)]);
-  const q = mapState(ctx).q[ctx.params.speciesId];
-  const order: number[] = [];
-  for (let c = 0; c < d.length; c++) if (d[c] < Infinity && q[c] >= SUIT.fair) order.push(c);
-  order.sort((a, b) => d[b] - d[a] || a - b);
-  const bu = ctx.dims.bu, spacing = VALID.rivalSpacingBu * bu;
-  const placed: { x: number; z: number }[] = [];
-  let k = 0;
-  for (const r of sites) {
-    while (k < order.length) {
-      const p = centre(ctx, order[k++]);
-      if (placed.every((o) => (o.x - p.x) ** 2 + (o.z - p.z) ** 2 >= spacing * spacing)) {
-        r.origin = { x: p.x, y: supportAt(ctx, p.x, p.z), z: p.z };
-        placed.push(p);
-        break;
-      }
-    }
-  }
-  return true;
+  const before = JSON.stringify(ctx.world.placements.rivalSites);
+  ctx.world.placements.rivalSites = [];
+  placeRivals(ctx);
+  return JSON.stringify(ctx.world.placements.rivalSites) !== before;
 }
 
 export const BUILTIN_REPAIRS: RepairDef[] = [

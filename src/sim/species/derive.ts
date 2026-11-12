@@ -37,6 +37,13 @@ export interface DerivedAntStats {
   cruiseMmS: number;
 }
 
+/** Open-entrance cap of a nest of `workers` adult workers (see `NestTemplate.entrances`); always finite, start..max. */
+export function entranceCapOf(def: SpeciesDef, workers: number): number {
+  const e = def.nestTemplate.entrances;
+  if (e.perWorkers <= 0) return e.max;
+  return Math.min(e.max, e.start + Math.floor(Math.max(0, workers) / e.perWorkers));
+}
+
 /** The caste's definition in a species, or undefined. */
 export function findCaste(def: SpeciesDef | undefined, caste: Caste): CasteDef | undefined {
   return def?.castes.find((c) => c.caste === caste);

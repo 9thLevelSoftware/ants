@@ -14,7 +14,7 @@ import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
 import { intakeTarget } from '../needs';
 import { queenOf } from '../queen';
-import { digDemand as nestDigDemand } from '@/sim/nest';
+import { digDemand as nestDigDemand, haulPelletLoad } from '@/sim/nest';
 
 const T = (t: Task): number => ti(t);
 
@@ -81,8 +81,11 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
   d[T('dig')] = digDemand(sim, col);
-  if (items) {
-    d[T('haul')] = Math.min(HAUL_MAX_FRAC * n, items.pellets / HAUL_PER_PELLET + items.waste / HAUL_PER_WASTE + items.corpses / HAUL_PER_CORPSE);
+  // pellets: the nest's lying in-nest pellets weighted by haul urgency (spoil nearing tamping age counts more)
+  const pellets = haulPelletLoad(sim, col.id);
+  if (items || pellets > 0) {
+    const w = items ? items.waste / HAUL_PER_WASTE + items.corpses / HAUL_PER_CORPSE : 0;
+    d[T('haul')] = Math.min(HAUL_MAX_FRAC * n, pellets / HAUL_PER_PELLET + w);
   }
   if (n >= DEFEND_MIN_WORKERS) {
     const m = threatMult(sim, col);

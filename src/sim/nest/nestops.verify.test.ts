@@ -1,6 +1,7 @@
 // Reviewer tests for nestops (GDD 03; task spec docs/design/tasks/nestops.md). Tests that pass are regression
 // tests; a failing test here demonstrates a defect for the fixer (see the comment above each).
 import { describe, expect, it } from 'vitest';
+import { PERF_STRICT, heavyLoad } from '@/sim/testing/perfLoad';
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, PlanSpec, Sim } from '@/sim/types';
 import { nestFieldId } from '@/sim/types';
@@ -231,7 +232,7 @@ describe('nestops review: plans', () => {
     expect(validatePlan(sim, spec).codes).toEqual(['overlaps-plan']);
   });
 
-  it('validatePlan stays fast enough for a live ghost (GDD 03 §7.3: <= 2 ms; load-tolerant x10)', () => {
+  it('validatePlan stays fast enough for a live ghost (GDD 03 §7.3: <= 2 ms; load-tolerant x10, strict with FOUNDRESS_PERF_STRICT=1)', () => {
     const { sim, nest, c, y } = tunnelNest();
     const spec = nurserySpec(nest.id, c, y);
     const ent: PlanSpec = { nestId: nest.id, kind: 'entrance', anchor: { pos: { x: c + 6 * BU, y: 0, z: c + 2 * BU }, normal: { x: 0, y: 1, z: 0 } }, surfacePoint: { x: c + 6 * BU, y: 0, z: c + 2 * BU }, priority: 'normal', confirmWarnings: true };
@@ -247,8 +248,9 @@ describe('nestops review: plans', () => {
       validatePlan(tunnelDeep.sim, entSpec);
       bestEnt = Math.min(bestEnt, performance.now() - t0);
     }
-    expect(best).toBeLessThan(20);
-    expect(bestEnt).toBeLessThan(20);
+    const limit = PERF_STRICT ? 2 : heavyLoad() ? 60 : 20;
+    expect(best).toBeLessThan(limit);
+    expect(bestEnt).toBeLessThan(limit);
   });
 });
 
@@ -409,7 +411,7 @@ describe('nestops review: pellets', () => {
 describe('nestops review: cost of bites near an entrance', () => {
   // Every carve near an entrance re-evaluates it (plugCount + throat BFS with field evaluations). Measured cost
   // of one bite in a shaft right under an open entrance vs. the same bite deep in the soil (load-tolerant).
-  it('a bite next to an open entrance costs < 10 ms (min of 5)', () => {
+  it('a bite next to an open entrance costs < 10 ms (min of 5; load-tolerant, strict with FOUNDRESS_PERF_STRICT=1)', () => {
     const sim = nestSim({ nest: 'small', systems: SYSTEMS });
     const e = sim.state.nests[0].entrances[0];
     let best = Infinity;
@@ -419,7 +421,7 @@ describe('nestops review: cost of bites near an entrance', () => {
       digBite(sim, ant, { x: ant.pos.x, y: ant.pos.y - ant.footOffset, z: ant.pos.z }, { x: Math.cos(n), y: 0, z: Math.sin(n) }, 0);
       best = Math.min(best, performance.now() - t0);
     }
-    expect(best).toBeLessThan(10);
+    expect(best).toBeLessThan(PERF_STRICT ? 10 : heavyLoad() ? 50 : 10);
   });
 });
 

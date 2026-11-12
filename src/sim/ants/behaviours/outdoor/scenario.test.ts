@@ -6,6 +6,7 @@
 // the empty spot (traffic there before the removal is measured too, so the check cannot pass vacuously).
 
 import { describe, expect, it } from 'vitest';
+import { enteredTask } from '@/sim/ants/behaviourRunner';
 import { PHERO_HALF_LIFE_S, TRAIL_DETECT } from '@/sim/balance';
 import { curfew } from '@/sim/colony';
 import { casteSpeeds } from '@/sim/locomotion';
@@ -69,7 +70,9 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
     while (curfew(sim, col)) run(sim, 50);
     const d0 = ev.kept.filter((e) => e.type === 'delivery').length;
     let foragerSum = 0, samples = 0;
-    run(sim, RATE_HOURS * HOUR, 50, () => { foragerSum += sim.state.ants.filter((a) => a.alive && a.task === 'forage').length; samples++; });
+    // a forager is an ant running the forage behaviour: since deliver first (sim-fix-ants), an ant reassigned on its
+    // way home still finishes and books its trip as a forager
+    run(sim, RATE_HOURS * HOUR, 50, () => { foragerSum += sim.state.ants.filter((a) => a.alive && enteredTask(a) === 'forage').length; samples++; });
     const foragers = foragerSum / Math.max(1, samples);
     const hourDeliveries = ev.kept.slice(0).filter((e) => e.type === 'delivery').slice(d0);
     const fromSugar = hourDeliveries.filter((e) => e.type === 'delivery' && e.sourceId === sugar.id).length;
@@ -83,7 +86,19 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
       `GDD 02 §10.2 cycle ${fastest.toFixed(0)}-${slowest.toFixed(0)} s -> ${lo.toFixed(1)}-${hi.toFixed(1)} trips in that window if every forager worked the sugar`);
     expect(fromSugar).toBeGreaterThan(0);
     expect(hourDeliveries.length).toBeGreaterThanOrEqual(Math.floor(lo * (1 - EDGE_TOLERANCE)));
-    expect(hourDeliveries.length).toBeLessThanOrEqual(Math.ceil(hi * (1 + EDGE_TOLERANCE)));
+    // upper bound per forager: no ant completes trips faster than the GDD's fastest cycle. (Since deliver first, an
+    // ant re-evaluated to another task while it walks home still books its trip, and the allocator moves ants in and
+    // out of `forage` between trips, so the average forage headcount understates the ants working the sugar; the
+    // count against `hi` is reported, the per-ant cycle is asserted.)
+    const byAnt = new Map<number, number[]>();
+    for (const e of hourDeliveries) {
+      const x = e as unknown as { antId: number; tick: number };
+      byAnt.set(x.antId, [...(byAnt.get(x.antId) ?? []), x.tick]);
+    }
+    let minCycleS = Infinity;
+    for (const ts of byAnt.values()) for (let i = 1; i < ts.length; i++) minCycleS = Math.min(minCycleS, (ts[i] - ts[i - 1]) / 10);
+    console.log(`deliveries vs hi ${hourDeliveries.length} / ${hi.toFixed(1)}; ants ${byAnt.size}; shortest cycle of one ant ${minCycleS.toFixed(0)} s`);
+    expect(minCycleS).toBeGreaterThanOrEqual(fastest * (1 - EDGE_TOLERANCE));
 
     // remove the sugar: forager traffic to its rim stops; no forager keeps going there. A spill is worked at its rim,
     // so the zone is the footprint plus 15 BU, and the traffic in it is measured before the removal as well. Scouts

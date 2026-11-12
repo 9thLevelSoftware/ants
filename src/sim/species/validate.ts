@@ -5,6 +5,7 @@
 // implies (finite numbers, ordered curves, unique castes, mix rows that sum to 1).
 
 import type { Curve, SpeciesDef } from '@/sim/types';
+import { DEFAULT_DAYS_PER_YEAR } from '@/sim/time';
 import {
   ACTION_IDS, ALARM_MODES, CASTES, CHAMBER_TYPES, CLIMATE_IDS, DIRECTIVE_EXTRAS, ECONOMY_MODULES, FOOD_KINDS,
   FOOD_ROUTES, FOUNDING_MODES, LARVA_FOODS, MIDDEN_STYLES, MOUND_STYLES, MATERIALS, SEASONS, SPECIES_IDS, SPECIES_TIERS,
@@ -19,8 +20,8 @@ export interface ValidationIssue {
   message: string;
 }
 
-/** Length of the default year in days (00-index C1). Species data always uses default-year day numbers. */
-export const DEFAULT_YEAR_DAYS = 28;
+/** Species data always uses default-year day numbers (00-index C1). */
+const DEFAULT_YEAR_DAYS = DEFAULT_DAYS_PER_YEAR;
 /** Tolerance of the standard-worker length (1.0 +- 0.1 BU) and of the devRate value at the reference temperature. */
 const STD_LENGTH_TOL = 0.1;
 const DEV_REF_TOL = 0.01;
@@ -92,6 +93,14 @@ function checkCastes(c: Collector, def: SpeciesDef): void {
     c.check(new Set(cd.actions).size === cd.actions.length, 'x.castes', `${p}.actions`, 'duplicate action');
     checkKeys(c, '3.16.5', `${p}.taskWeights`, cd.taskWeights, TASKS);
     for (const [t, w] of Object.entries(cd.taskWeights)) c.check(w >= 0 && w <= 1, 'x.castes', `${p}.taskWeights.${t}`, 'weight must be within 0..1');
+    // The brood and economy code multiplies by these: zero or negative values give zero-length stages or negative costs.
+    c.check(cd.devMult > 0, 'x.castes', `${p}.devMult`, 'development multiplier must be positive');
+    c.check(cd.cropMax === null || cd.cropMax >= 0, 'x.castes', `${p}.cropMax`, 'crop cap must not be negative');
+    c.check(cd.carryOverride === null || cd.carryOverride >= 0, 'x.castes', `${p}.carryOverride`, 'carry cap must not be negative');
+    if (cd.upkeepOverride) {
+      const u = cd.upkeepOverride;
+      c.check(u.restC >= 0 && u.activeC >= 0 && u.p >= 0, 'x.castes', `${p}.upkeepOverride`, 'upkeep must not be negative');
+    }
     if (cd.fixedStats) c.check(cd.fixedStats.maxHp > 0 && cd.fixedStats.bite >= 0, 'x.castes', `${p}.fixedStats`, 'needs maxHp > 0, bite >= 0');
   });
   for (const must of ['queen', 'gyne', 'male'] as const) c.check(seen.has(must), 'x.castes', 'castes', `missing caste ${must}`);
@@ -151,6 +160,7 @@ function checkOpening(c: Collector, def: SpeciesDef): void {
   c.check(o.clutchCap > 0 && o.R0 > 0, 'x.opening', 'opening', 'R0 and clutchCap must be positive');
   c.check(o.trophicFraction >= 0 && o.trophicFraction < 1, 'x.opening', 'opening.trophicFraction', 'must be within [0, 1)');
   c.check(isOneOf(CASTES, o.firstBroodClass.caste), '3.16.5', 'opening.firstBroodClass', 'not a canonical caste');
+  c.check(def.castes.some((x) => x.caste === o.firstBroodClass.caste), 'x.opening', 'opening.firstBroodClass', `species has no '${o.firstBroodClass.caste}' caste`);
   c.check(o.expectedFirstWorkers.min > 0 && o.expectedFirstWorkers.max >= o.expectedFirstWorkers.min, 'x.opening', 'opening.expectedFirstWorkers', 'needs 0 < min <= max');
   const d = o.startDoy;
   c.check(d.min >= 1 && d.max <= DEFAULT_YEAR_DAYS && d.min <= d.default && d.default <= d.max, '3.16.3', 'opening.startDoy', 'needs 1 <= min <= default <= max <= 28');
@@ -209,7 +219,7 @@ function checkNest(c: Collector, def: SpeciesDef): void {
     c.check(ch.depthBu[1] <= n.maxDepthBu, 'x.nest', `${p}.depthBu`, 'deeper than maxDepthBu');
     c.check(ch.perUnit > 0 && ch.minWorkers >= 0, 'x.nest', p, 'perUnit must be positive');
   });
-  c.check(n.entrances.start >= 1 && n.entrances.max >= n.entrances.start && n.entrances.perWorkers >= 0, 'x.nest', 'nestTemplate.entrances', 'needs 1 <= start <= max and perWorkers >= 0');
+  c.check(n.entrances.start >= 1 && n.entrances.max >= n.entrances.start && n.entrances.perWorkers >= 0, 'x.nest', 'nestTemplate.entrances', 'needs 1 <= start <= max and perWorkers >= 0 (0 = cap max at every size)');
   c.check(n.maxDepthBu > 0 && n.footprintRBu > 0 && n.volumeCapBu3 > 0 && n.maxPathToEntranceBu > 0, 'x.nest', 'nestTemplate', 'limits must be positive');
   c.check(isOneOf(MOUND_STYLES, n.mound) && isOneOf(MIDDEN_STYLES, n.midden), '3.16.5', 'nestTemplate', 'not a canonical mound or midden style');
   for (const b of n.broodClimate) {
@@ -232,6 +242,7 @@ function checkThermalSignalsCombat(c: Collector, def: SpeciesDef): void {
   const cb = def.combat;
   checkMembers(c, '3.16.5', 'combat.weapons', cb.weapons, WEAPONS);
   checkMembers(c, '3.16.5', 'combat.guardCastes', cb.guardCastes, CASTES);
+  cb.guardCastes.forEach((g, i) => c.check(def.castes.some((x) => x.caste === g), 'x.combat', `combat.guardCastes[${i}]`, `species has no '${g}' caste`));
   c.check(cb.weapons.includes('spray-acid') === (cb.acid !== null), 'x.combat', 'combat.acid', 'spray-acid needs an acid block and vice versa');
   c.check(cb.weapons.includes('sting') === (cb.sting !== null), 'x.combat', 'combat.sting', 'sting needs a sting block and vice versa');
   c.check(cb.aggression >= 0 && cb.aggression <= 1, 'x.combat', 'combat.aggression', 'must be within 0..1');

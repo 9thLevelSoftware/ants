@@ -73,10 +73,13 @@ describe('lifecycle edge cases', () => {
     expect(begin(sim, w, 'dig-bite', null, { repeat: true })).toBe(true);
     step(sim, 3);
     stopAction(sim, w);
-    const ev = capture(sim, ['action-completed', 'action-started'], () => step(sim, 30));
+    // only dig-bite events count: the ant is autonomous, and its behaviour puts the bitten pellet down afterwards
+    // (a put-down started and completed; sim-fix-ants item 7: that was why this test was red, not the runner)
+    const ev = capture(sim, ['action-completed', 'action-started'], () => step(sim, 30))
+      .filter((e) => (e as { action?: string }).action === 'dig-bite');
     expect(ev.filter((e) => e.type === 'action-completed')).toHaveLength(1);
     expect(ev.filter((e) => e.type === 'action-started')).toHaveLength(0);
-    expect(w.action).toBeNull();
+    expect(w.action?.id ?? null).not.toBe('dig-bite');
   });
 
   it('a dead ant cannot begin anything and canDo reports a reason', () => {

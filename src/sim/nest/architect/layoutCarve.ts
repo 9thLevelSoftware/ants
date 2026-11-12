@@ -18,20 +18,9 @@ import { planG, type PlanGeometry } from '../plans/geometry';
 import { completePlan, planById } from '../plans/plans';
 import { planCache } from '../plans/targets';
 
-/** Tight AABB of a plan volume (the yawed room's true extents, not its bounding cube), mm. */
+/** Tight AABB of a plan volume (the geometry's own bounds, tight since sim-fix-colony), mm. */
 export function tightBounds(g: PlanGeometry): { min: Vec3; max: Vec3 } {
-  const min = { x: Infinity, y: Infinity, z: Infinity }, max = { x: -Infinity, y: -Infinity, z: -Infinity };
-  const grow = (p: Vec3, rx: number, ry: number, rz: number) => {
-    min.x = Math.min(min.x, p.x - rx); min.y = Math.min(min.y, p.y - ry); min.z = Math.min(min.z, p.z - rz);
-    max.x = Math.max(max.x, p.x + rx); max.y = Math.max(max.y, p.y + ry); max.z = Math.max(max.z, p.z + rz);
-  };
-  for (const c of g.capsules) { grow(c.a, c.r, c.r, c.r); grow(c.b, c.r, c.r, c.r); }
-  const e = g.ellipsoid;
-  if (e) {
-    const hx = Math.hypot(e.aw.x * e.hw, e.al.x * e.hl), hz = Math.hypot(e.aw.z * e.hw, e.al.z * e.hl);
-    grow(e.c, hx, e.hh, hz);
-  }
-  return { min, max };
+  return { min: g.min, max: g.max };
 }
 
 /** The plan volume as a carve brush shape (openness 0.5 on the plan surface, full inside). */

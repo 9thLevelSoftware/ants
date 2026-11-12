@@ -21,6 +21,8 @@ export interface ValidationResult extends PlanValidation {
   resolved: ResolvedPlan | null;
   geometry: PlanGeometry | null;
   pillars: number;
+  /** Diggable target samples (open or diggable) and closed non-diggable ones of the volume (packed), for the plan cache. */
+  samples?: { targets: number[]; hard: number[] };
 }
 
 const TERMINAL = new Set(['complete', 'cancelled']);
@@ -96,14 +98,17 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
   let notOpen = 0, nonDig = 0;
   const target = new Set<number>();
   const cols = new Map<number, [number, number, number, number]>(); // column -> i, k, top j, bottom j
+  const diggable: number[] = [], hard: number[] = [];
   forPlanSamples(sim, geometry, (i, j, k) => {
     if (sampleInOpenAir(sim, i, j, k)) return; // nothing to dig (a shaft overshooting the surface)
-    target.add(packSample(i, j, k));
+    const key = packSample(i, j, k);
+    target.add(key);
     const col = packSample(i, 0, k), c = cols.get(col);
     if (!c) cols.set(col, [i, k, j, j]); else { c[2] = Math.max(c[2], j); c[3] = Math.min(c[3], j); }
-    if (sim.carve.sampleAt(i, j, k) >= OPEN_MIN) return;
+    if (sim.carve.sampleAt(i, j, k) >= OPEN_MIN) { diggable.push(key); return; }
     notOpen++;
-    if (!sampleDiggable(sim, species, i, j, k)) nonDig++;
+    if (sampleDiggable(sim, species, i, j, k)) diggable.push(key);
+    else { nonDig++; hard.push(key); }
   });
   if (inWater(sim, nest, geometry)) return fail('water', { resolved, geometry });
   if (notOpen > 0 && nonDig / notOpen > PLAN_NON_DIGGABLE_MAX) return fail('non-diggable', { resolved, geometry });
@@ -163,7 +168,7 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
         if (c >= 0 && !own.has(c) && foreignComponent(sim, nest, c)) soft('foreign-nest');
         else soft('too-close');
       }
-  return { ok: codes.length === 0, codes, warnings, targetVolume, resolved, geometry, pillars };
+  return { ok: codes.length === 0, codes, warnings, targetVolume, resolved, geometry, pillars, samples: { targets: diggable, hard } };
 }
 
 /** Soil roof above a column top thinner than ROOF_MIN with no non-diggable cover within COVER_SCAN? */

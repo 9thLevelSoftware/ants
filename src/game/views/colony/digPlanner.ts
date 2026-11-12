@@ -9,7 +9,8 @@ import { validatePlanImpl } from '@/sim/nest/plans/validate';
 import type { PlanGeometry } from '@/sim/nest/plans/geometry';
 import type { ChamberSize, ChamberType, Nest, PlanPriority, PlanSpec, PlanValidationCode, Sim, SpeciesId } from '@/sim/types';
 import type { ToolHost } from './markerTool';
-import { planReason } from './reasons';
+import { PendingCommands } from './pendingCommands';
+import { PLAN_REASON_TEXT, planReason } from './reasons';
 
 export type PlanTemplate = 'chamber' | 'tunnel' | 'shaft' | 'entrance';
 
@@ -47,8 +48,11 @@ export interface AnchorPick {
 }
 
 export interface ConfirmResult {
-  /** 'created': planDig sent and the plan exists; 'confirm-warnings': click again; 'refused': nothing created. */
-  outcome: 'created' | 'confirm-warnings' | 'refused' | 'none';
+  /**
+   * 'created': planDig sent and the plan exists; 'queued': sent in real time, the outcome follows after the next tick
+   * (DigPlanner.takeLateResult); 'confirm-warnings': click again; 'refused': nothing created.
+   */
+  outcome: 'created' | 'queued' | 'confirm-warnings' | 'refused' | 'none';
   planId: number;
   reason: string | null;
 }
@@ -68,6 +72,9 @@ export class DigPlanner {
   /** Tunnel: first click sets the start anchor, the hover is the end point. */
   tunnelStart: { pos: Vec3; normal: Vec3 } | null = null;
   preview: PlanPreview | null = null;
+  readonly pending = new PendingCommands();
+  /** Outcomes of plans sent in real time, once the sim has decided (taken by the colony controls). */
+  private late: ConfirmResult[] = [];
   /** Warnings were shown for this spec key; the next confirm sends it with confirmWarnings. */
   private warnedKey = '';
   private cacheKey = '';
@@ -106,6 +113,23 @@ export class DigPlanner {
     this.warnedKey = '';
   }
 
+  /** Resolves a plan sent in real time (once per frame). */
+  poll(sim: Sim): void {
+    this.pending.poll(sim);
+  }
+
+  /** The outcome of a queued plan, once known (then cleared). */
+  takeLateResult(): ConfirmResult | null {
+    return this.late.shift() ?? null;
+  }
+
+  /** New game: nothing queued, nothing to report. */
+  reset(): void {
+    this.cancel();
+    this.pending.clear();
+    this.late = [];
+  }
+
   /**
    * The ghost for the point under the cursor. A cut-face or surface point snaps to the nearest wall within
    * ANCHOR_PICK_SNAP_BU (field projection); an entrance takes the surface point itself. Cached per anchor voxel.
@@ -142,22 +166,28 @@ export class DigPlanner {
       this.cacheKey = '';
       return { outcome: 'none', planId: -1, reason: null };
     }
+    // one plan in flight at a time: its outcome (a tick away in real time) must not be confused with another's
+    if (this.pending.size > 0) return { outcome: 'queued', planId: -1, reason: null };
     if (p.validity === 'invalid') { h.toast(p.reason ?? 'This plan cannot be dug'); return { outcome: 'refused', planId: -1, reason: p.reason }; }
     const key = specKey(p.spec, h.sim.carve.voxel, 0);
     if (p.validity === 'warning' && this.warnedKey !== key) {
       this.warnedKey = key;
       return { outcome: 'confirm-warnings', planId: -1, reason: p.reason };
     }
-    const nest = h.sim.stores.nests.get(p.spec.nestId);
-    const before = nest ? nest.digPlans.length : 0;
-    const r = h.command({ type: 'planDig', ...p.spec, confirmWarnings: p.validity === 'warning' });
-    const created = nest && nest.digPlans.length > before ? nest.digPlans[nest.digPlans.length - 1] : null;
+    const spec = p.spec;
+    const res: ConfirmResult = { outcome: 'queued', planId: -1, reason: null };
+    this.pending.send(h, { type: 'planDig', ...spec, confirmWarnings: p.validity === 'warning' }, (o) => {
+      const nest = h.sim.stores.nests.get(spec.nestId);
+      const plan = o.refused ? null : nest?.digPlans.find((x) => x.id >= o.firstNewId && x.source === 'player') ?? null;
+      const words = o.refused ? PLAN_REASON_TEXT[o.refused as PlanValidationCode] ?? null : null;
+      const r: ConfirmResult = plan ? { outcome: 'created', planId: plan.id, reason: null }
+        : { outcome: 'refused', planId: -1, reason: words ?? p.reason ?? 'The plan was not accepted' };
+      if (o.late) this.late.push(r); else Object.assign(res, r);
+    });
     this.warnedKey = '';
     this.tunnelStart = null;
     this.cacheKey = '';
-    if (created) return { outcome: 'created', planId: created.id, reason: null };
-    if (!r.applied) return { outcome: 'created', planId: -1, reason: null }; // queued for the next tick (real time)
-    return { outcome: 'refused', planId: -1, reason: p.reason ?? 'The plan was not accepted' };
+    return res;
   }
 
   private anchorFor(sim: Sim, pick: AnchorPick): { pos: Vec3; normal: Vec3 } {

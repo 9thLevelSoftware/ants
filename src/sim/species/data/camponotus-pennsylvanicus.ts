@@ -161,7 +161,8 @@ export const CAMPONOTUS_PENNSYLVANICUS: SpeciesDef = {
       { type: 'food', widthBu: 5, heightBu: 2.5, depthBu: [2, 175], perUnit: 1 / 400, unitOf: 'workers', minWorkers: 25 },
       { type: 'rest', widthBu: 8, heightBu: 2.5, depthBu: [2, 175], perUnit: 1 / 200, unitOf: 'workers', minWorkers: 40 },
     ],
-    // One main entrance per nest site; further openings are windows planned by the wood module (max 6 per site).
+    // One main entrance per nest site; further openings are windows planned by the wood module, so the cap does not
+    // grow with N (perWorkers 0 = cap `max` 6 at every size, as GDD 03 §8.2 `maxEntrances`; windowsMaxPerSite 6).
     entrances: { start: 1, perWorkers: 0, max: 6 },
     maxDepthBu: 175, footprintRBu: 600, volumeCapBu3: 8000, maxPathToEntranceBu: 120,
     mound: 'none', midden: 'frass-pile',
@@ -241,6 +242,10 @@ export const CAMPONOTUS_PENNSYLVANICUS: SpeciesDef = {
       heatedBroodFrac: 0.8, heatedChamberMinC: 14, heatedWindowGd: 2,
       // caste mix ramp (5.2.2): years over which the target ramps after the large castes unlock
       casteRampYears: 1,
+      // activity (5.2.4, 5.2.7): a colony with stores >= satiationStoresGd GD of upkeep multiplies its surface
+      // activity by satiationActivityMult [D]; the species default forage group share is foragerShare of the
+      // workers, applied as forageDemandMult x the `forage` demand
+      satiationStoresGd: 10, satiationActivityMult: 0.7, foragerShare: 0.03, forageDemandMult: 0.15,
     },
   },
 };

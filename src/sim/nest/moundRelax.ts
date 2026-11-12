@@ -60,14 +60,25 @@ export function entrancesOnGrid(sim: Sim, m: Mound): Entrance[] {
   return out;
 }
 
-/** The mask of a pile now (cached per tick and carve version: it depends on entrances and the carve grid only). */
+/**
+ * The mask of a pile now. It depends on the pile's base, the entrances on its grid, the breach records and the
+ * cavity just under the ground: cached until one of those changes (signature of entrances and breaches here; near-
+ * surface carves over the grid drop it in the nest runtime's carve listener).
+ */
 export function moundMask(sim: Sim, m: Mound): MoundMask {
   const rt = nestRuntime(sim);
+  const sig = maskSignature(sim, m);
   const hit = rt.moundMasks.get(m.id);
-  if (hit && hit.tick === sim.state.tick && hit.carve === sim.carve.version) return hit.mask;
+  if (hit && hit.sig === sig) return hit.mask;
   const mask = buildMask(sim, m);
-  rt.moundMasks.set(m.id, { tick: sim.state.tick, carve: sim.carve.version, mask });
+  rt.moundMasks.set(m.id, { sig, mask });
   return mask;
+}
+
+function maskSignature(sim: Sim, m: Mound): string {
+  let sig = `${sim.carve.breaches.length}`;
+  for (const e of entrancesOnGrid(sim, m)) sig += `|${e.id}:${e.pos.x}:${e.pos.z}:${e.radius}`;
+  return sig;
 }
 
 function buildMask(sim: Sim, m: Mound): MoundMask {
@@ -201,8 +212,33 @@ const EX = new Float64Array(NS);
  * a transfer exceeded MOUND_TRANSFER_EPS (the pile is not settled yet) or kept-clear cells were emptied.
  */
 export function relaxPile(sim: Sim, m: Mound): boolean {
+  const moved = clearKeptCells(sim, m, moundMask(sim, m));
+  return relaxSweeps(sim, m, 0, Infinity).moved || moved;
+}
+
+/** Result of a run of relaxation sweeps. */
+export interface SweepRun {
+  /** A transfer exceeded MOUND_TRANSFER_EPS. */
+  moved: boolean;
+  /** The pile settled (a sweep moved no more than MOUND_TRANSFER_EPS) or MOUND_MAX_SWEEPS were reached. */
+  done: boolean;
+  /** Sweeps run. */
+  sweeps: number;
+  /** Work done: box cells visited + 8 x cells evaluated (the unit of MOUND_RELAX_WORK_PER_TICK). */
+  work: number;
+}
+
+/**
+ * Relaxation sweeps `first`, `first + 1`, ... of a batch (the sweep index picks the scan order), until the pile
+ * settles, MOUND_MAX_SWEEPS is reached, or `budget` work units are spent (at least one sweep runs). The sweep box
+ * is the pile's extent + MOUND_SWEEP_PAD at the start of the run, and the first sweep of a run evaluates every
+ * box cell: a run can resume where the last one stopped from the persisted heights and sweep index alone (a cell
+ * whose stencil did not change gives nothing, so evaluating it changes nothing), which is what lets the nest
+ * system spread a batch's relaxation over ticks (moundRelaxStep) deterministically and save/load-safely.
+ */
+export function relaxSweeps(sim: Sim, m: Mound, first: number, budget: number): SweepRun {
+  const out: SweepRun = { moved: false, done: true, sweeps: 0, work: 0 };
   const mask = moundMask(sim, m);
-  let moved = clearKeptCells(sim, m, mask);
   const n = m.n, h = m.h, base = m.base, ok = mask.ok, clear = mask.clear, cap = mask.cap;
   let x0 = n, x1 = -1, z0 = n, z1 = -1;
   for (let idx = 0; idx < n * n; idx++) {
@@ -210,7 +246,7 @@ export function relaxPile(sim: Sim, m: Mound): boolean {
     const ix = idx % n, iz = (idx - ix) / n;
     if (ix < x0) x0 = ix; if (ix > x1) x1 = ix; if (iz < z0) z0 = iz; if (iz > z1) z1 = iz;
   }
-  if (x1 < 0) return moved;
+  if (x1 < 0) return out;
   x0 = Math.max(0, x0 - MOUND_SWEEP_PAD); z0 = Math.max(0, z0 - MOUND_SWEEP_PAD);
   x1 = Math.min(n - 1, x1 + MOUND_SWEEP_PAD); z1 = Math.min(n - 1, z1 + MOUND_SWEEP_PAD);
   const tan = Math.tan((reposeDeg(m.material) * Math.PI) / 180) * m.cell;
@@ -227,18 +263,23 @@ export function relaxPile(sim: Sim, m: Mound): boolean {
       if (jx >= 0 && jz >= 0 && jx < n && jz < n) nxt[jz * n + jx] = 1;
     }
   };
-  for (let sweep = 0; sweep < MOUND_MAX_SWEEPS; sweep++) {
+  out.done = false;
+  for (let sweep = first; sweep < MOUND_MAX_SWEEPS; sweep++) {
+    if (out.sweeps > 0 && out.work >= budget) return finish(sim, m, out, lost);
     let maxT = 0, edge = false;
+    out.sweeps++;
     // alternate the scan over eight orders (x or z fastest, each forward or back): material moved into a cell
     // scanned later in the same sweep travels on, so a fixed order would stretch piles along it
     const fx = (sweep & 1) === 0, fz = (sweep & 2) === 0, zFast = (sweep & 4) !== 0;
     const na = zFast ? x1 - x0 : z1 - z0, nb = zFast ? z1 - z0 : x1 - x0;
+    out.work += (na + 1) * (nb + 1);
     for (let a = 0; a <= na; a++) {
       for (let b = 0; b <= nb; b++) {
         const u = zFast ? a : b, w = zFast ? b : a;
         const ix = fx ? x0 + u : x1 - u, iz = fz ? z0 + w : z1 - w;
         const i = iz * n + ix;
         if ((act[i] | nxt[i]) === 0 || h[i] <= 0 || ok[i] === 0 || clear[i] !== 0) continue;
+        out.work += NS;
         const top = base[i] + h[i];
         let maxE = 0, sumE = 0;
         for (let d = 0; d < NS; d++) {
@@ -283,12 +324,17 @@ export function relaxPile(sim: Sim, m: Mound): boolean {
       }
     }
     const t = act; act = nxt; nxt = t; nxt.fill(0);
-    if (maxT > eps) moved = true;
+    if (maxT > eps) out.moved = true;
     if (edge) { x0 = Math.max(0, x0 - 1); z0 = Math.max(0, z0 - 1); x1 = Math.min(n - 1, x1 + 1); z1 = Math.min(n - 1, z1 + 1); }
-    if (maxT <= eps) break;
+    if (maxT <= eps) { out.done = true; return finish(sim, m, out, lost); }
   }
+  out.done = true;
+  return finish(sim, m, out, lost);
+}
+
+function finish(sim: Sim, m: Mound, out: SweepRun, lost: number): SweepRun {
   if (lost > 0) m.volume -= (lost * m.cell * m.cell) / sim.world.bu ** 3;
-  return moved;
+  return out;
 }
 
 /**

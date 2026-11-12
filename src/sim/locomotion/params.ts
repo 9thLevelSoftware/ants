@@ -98,6 +98,8 @@ export const LOCO_TUNING = {
    */
   arriveBrakeS: 0.2,
   arriveTurnRadii: 2,
+  /** While pivoting toward a goal beside or behind it, the walker keeps this fraction of its capped speed. */
+  arrivePivotCreep: 0.15,
   /** A goal this far above the ground under it is "elevated" (reached by a climb route if one is near), BU. */
   elevatedBU: 3,
   /** Climb routes: goal / walker counted on a route within this distance of one of its nodes, BU. */
@@ -122,6 +124,24 @@ export const LOCO_TUNING = {
   retargetBU: 3,
   /** Shared point fields inside nests: at most this many registered (oldest removed first). */
   pointFieldMax: 48,
+  /**
+   * Inside the goal nest, a point goal within this field distance is walked to directly (a final seek): the shared
+   * point field is quantised (pointFieldCellBU) and seeded over pointFieldRadiusBU, so its bottom is not the goal
+   * and following it there stalls (sim-fix-ants item 1), BU.
+   */
+  pointSeekBU: 3,
+  /**
+   * A walker on its final leg that made no progress for this long while within the arrival radius of its
+   * destination has arrived (no stand-still until the 2.5 s stuck window), s.
+   */
+  arriveStallS: 0.6,
+  /**
+   * Upside down in a cavity (up.y below ceilingUpY) with the goal at least dropBelowBU lower and within dropAboveBU
+   * horizontally: the walker lets go and drops (GDD 01 `let-go`; it cannot walk off a ceiling toward a point below).
+   */
+  ceilingUpY: -0.5,
+  dropAboveBU: 2.5,
+  dropBelowBU: 1,
   /** Point fields quantise their goal to this cell, BU. */
   pointFieldCellBU: 2,
   /** Seed radius of a point field, BU. */
@@ -170,6 +190,8 @@ export const LOCO_TUNING = {
   avoidCostMult: 20,
   avoidSteerPadBU: 4,
   avoidSteerWeight: 1.5,
+  /** A trail sensor reading inside an avoid disc counts this much for autonomous ants (GDD 02 §12.2: x 0.1). */
+  avoidTrailWeight: 0.1,
 
   // ---- possessed ant (GDD 01 §4.1-4.2) ----
   latchTriggerDeg: 25,
@@ -219,14 +241,14 @@ export interface LocoParams {
   crumbSpacing: number; crumbTurnCos: number; crumbTurnMin: number; loopClose: number; shortcutN: number;
   shortcutLift: number; shortcutR: number; crumbReach: number; piNoise: number;
   wpReach: number; climbReach: number; fieldLook: number; entranceHandover: number; spread: number; elevated: number;
-  brakeS: number; arriveTurnRadii: number;
+  brakeS: number; arriveTurnRadii: number; pivotCreep: number;
   routeSnap: number; routeGoal: number; direct: number; planBudget: number; planExpandBudget: number; stuckExplosionTicks: number; stuckExplosionFrac: number; stuckExplosionMin: number; retargetS: number; retarget: number;
-  pointFieldMax: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
+  pointFieldMax: number; pointSeek: number; arriveStallS: number; ceilingUpY: number; dropAbove: number; dropBelow: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
   episodesMax: number; relocateSteps: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
   edgeMargin: number; edgeHard: number; edgeRepulse: number;
-  avoidCost: number; avoidPad: number; avoidW: number;
+  avoidCost: number; avoidPad: number; avoidW: number; avoidTrailW: number;
   latchTrigger: number; latchTriggerS: number; latchBreakCos: number; latchMaxS: number; latchLowMag: number;
   latchLowMagS: number; rescueS: number; rescueDisp: number; predictBlendS: number; predictSnap: number;
 }
@@ -252,9 +274,10 @@ export function locoParams(bu: number): LocoParams {
     shortcutR: T.shortcutRadiusBU * bu, crumbReach: T.crumbReachBU * bu, piNoise: T.piNoise,
     wpReach: T.waypointReachBU * bu, climbReach: T.climbReachBU * bu, fieldLook: T.fieldLookahead,
     entranceHandover: T.entranceHandoverBU * bu, spread: T.arrivalSpread, elevated: T.elevatedBU * bu,
-    brakeS: T.arriveBrakeS, arriveTurnRadii: T.arriveTurnRadii,
+    brakeS: T.arriveBrakeS, arriveTurnRadii: T.arriveTurnRadii, pivotCreep: T.arrivePivotCreep,
     routeSnap: T.routeSnapBU * bu, routeGoal: T.routeGoalBU * bu, direct: T.directBU * bu, planBudget: T.planBudget, planExpandBudget: T.planExpandBudget, stuckExplosionTicks: T.stuckExplosionS * 10, stuckExplosionFrac: T.stuckExplosionFrac, stuckExplosionMin: T.stuckExplosionMin,
     retargetS: T.retargetS, retarget: T.retargetBU * bu, pointFieldMax: T.pointFieldMax,
+    pointSeek: T.pointSeekBU * bu, arriveStallS: T.arriveStallS, ceilingUpY: T.ceilingUpY, dropAbove: T.dropAboveBU * bu, dropBelow: T.dropBelowBU * bu,
     pointFieldCell: T.pointFieldCellBU * bu, pointFieldR: T.pointFieldRadiusBU * bu, timeoutBase: T.timeoutBaseS,
     timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,
     stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
@@ -262,7 +285,7 @@ export function locoParams(bu: number): LocoParams {
     lodNear: T.lodNearBU * bu, lodFar: T.lodFarBU * bu, lodMid: T.lodMidEvery, lodFarEvery: T.lodFarEvery,
     lodSubstep: T.lodCoarseSubstepBU * bu, lodHardClear: T.lodHardClearBU * bu,
     edgeMargin: T.edgeMarginBU * bu, edgeHard: T.edgeHardBU * bu, edgeRepulse: T.edgeRepulse,
-    avoidCost: T.avoidCostMult, avoidPad: T.avoidSteerPadBU * bu, avoidW: T.avoidSteerWeight,
+    avoidCost: T.avoidCostMult, avoidPad: T.avoidSteerPadBU * bu, avoidW: T.avoidSteerWeight, avoidTrailW: T.avoidTrailWeight,
     latchTrigger: T.latchTriggerDeg * DEG, latchTriggerS: T.latchTriggerS, latchBreakCos: Math.cos(T.latchBreakDeg * DEG),
     latchMaxS: T.latchMaxS, latchLowMag: T.latchLowMag, latchLowMagS: T.latchLowMagS, rescueS: T.stuckRescueS,
     rescueDisp: T.rescueDispBU * bu, predictBlendS: T.predictBlendS, predictSnap: T.predictSnapBU * bu,

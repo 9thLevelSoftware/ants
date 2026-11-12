@@ -32,7 +32,7 @@ export const GRIT: Partial<Record<MaterialId, GritSpec>> = {
   asphalt: { density: 0.0025, sizeMm: [0.8, 2.6], flat: [0.45, 0.8], chipShare: 0.8, colors: ['#3a3a3a', '#5a5856', '#2a2a2a', '#7a7672'], rough: 0.75 },
   concrete: { density: 0.0012, sizeMm: [0.4, 1.4], flat: [0.5, 0.8], chipShare: 0.7, colors: ['#9a958c', '#7d786f', '#b4ada2'], rough: 0.85 },
   stone: { density: 0.0012, sizeMm: [0.4, 1.4], flat: [0.5, 0.8], chipShare: 0.7, colors: ['#9a958c', '#7d786f', '#b4ada2'], rough: 0.85 },
-  rubber: { density: 0.003, sizeMm: [1.2, 3.0], flat: [0.5, 0.8], chipShare: 0.9, colors: ['#7a2a22', '#2a2a2a', '#2f5a2e'], rough: 0.9 },
+  rubber: { density: 0.003, sizeMm: [0.8, 2.0], flat: [0.5, 0.8], chipShare: 0.9, colors: ['#6a2e27', '#2a2a2a', '#3a2c28'], rough: 0.9 },
   tile: { density: 0.0003, sizeMm: [0.3, 0.9], flat: [0.5, 0.8], chipShare: 0.5, colors: ['#d8cfbf', '#8c7a63', '#bfb4a3'], rough: 0.9 },
   'wood-sound': { density: 0.0003, sizeMm: [0.3, 0.9], flat: [0.5, 0.8], chipShare: 0.5, colors: ['#d8cfbf', '#8c7a63'], rough: 0.9 },
   mortar: { density: 0.002, sizeMm: [0.4, 1.4], flat: [0.5, 0.8], chipShare: 0.6, colors: ['#b8b0a2', '#9a9284'], rough: 0.9 },

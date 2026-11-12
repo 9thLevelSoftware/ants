@@ -70,6 +70,9 @@ describe('world slot with decor and boundary', () => {
     expect(st['boundary.skirtTriangles']).toBeGreaterThan(1000);
     expect(st['boundary.backdropShapes']).toBeGreaterThan(5);
     expect(world.decor.shared.world).toBe(world.world.uniforms); // one set of time / wind / camera / subject uniforms
+    // the boundary's edge haze fades toward the world lighting's sky (its own uniforms, independent of scene.fog)
+    expect(world.boundary.uniforms.uBdHorizon.value.equals(world.world.lighting.skyHorizon)).toBe(true);
+    expect(world.boundary.uniforms.uBdZenith.value.equals(world.world.lighting.skyZenith)).toBe(true);
     reg.setQuality(getPreset('test'));
     reg.update(frame(sim, camera));
     expect(reg.stats().world!['decor.blades']).toBe(0);

@@ -96,6 +96,8 @@ export const MICRO = {
   carveMinBu: 1,
   shortcutRatio: 1.4,
   shelterMinBu3: 64,
+  /** Asphalt cracks count toward the minimum only with this much slot (GDD 04 §6.2), BU. */
+  crackMinSlotBu: 300,
   usefulMin: { compact: 4, standard: 6, large: 8 } as Record<WorldSizeId, number>,
 };
 

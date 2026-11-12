@@ -8,6 +8,8 @@ import type { ChamberSize, ChamberType, PlanPriority } from '@/sim/types';
 import type { Game } from '../Game';
 import { colonyCancel, colonyClick, plannerActive } from './colony/colonyControl';
 import type { PlanTemplate } from './colony/digPlanner';
+import { possessTarget } from './observerControl';
+import type { PlanEdit } from './colony/edits';
 import type { ViewsState } from './viewsState';
 import type { ColonyTool } from './viewsState';
 
@@ -66,8 +68,7 @@ export function buildViewsDebug(game: Game) {
       at(x, y);
       const s = session();
       const pick = L.pick(s);
-      const top = pick?.hits.find((h) => h.kind === 'ant');
-      const id = top?.id ?? (L.state.selected?.kind === 'ant' ? L.state.selected.id : -1);
+      const id = possessTarget(pick?.hits ?? [], { ...L.state, hover: pick?.hits.find((h) => h.kind === 'ant') ?? null } as ViewsState, L.observerHost(s))?.id ?? -1;
       if (id < 0) return { ok: false, reason: 'no-ant' };
       game.possess(id);
       return { ok: s.possessedId === id, id, view: s.view };
@@ -115,6 +116,12 @@ export function buildViewsDebug(game: Game) {
       return api.state();
     },
     undo() { return L.tools.markers.undo(L.colonyHost(session())); },
+    /** GDD 03 §14.2 edits of the selection: a plan edit, a chamber's type, an entrance's seal / reopen. */
+    editPlan(edit: PlanEdit, planId?: number) { return L.editPlan(edit, planId); },
+    designateChamber(type: ChamberType, chamberId?: number) { return L.designateChamber(type, chamberId); },
+    toggleEntrance(entranceId?: number) { return L.toggleEntrance(entranceId); },
+    /** Footstep tremor on the possession camera (GDD 01 §6.1; the human-events task triggers it in play). */
+    tremor() { session().views.tremor(); game.requestRender(); return true; },
     /** Colony view camera: target (mm), distance (BU), pitch and yaw (deg); cutaway mode and slice depth (BU below 0). */
     colonyCamera(o: { x?: number; z?: number; distBu?: number; pitchDeg?: number; yawDeg?: number; cutaway?: CutawayMode; planeYBu?: number; radiusBu?: number }) {
       const s = session();

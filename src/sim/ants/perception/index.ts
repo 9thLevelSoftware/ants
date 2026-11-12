@@ -35,7 +35,7 @@ export function perceiveNow(sim: Sim, ant: Ant): void {
 }
 
 export const perceptionSystem: System = {
-  name: 'perception-outdoor',
+  name: 'perception',
   phase: 'perception',
   run(sim) {
     const slot = sim.state.tick % PERCEPTION_EVERY;

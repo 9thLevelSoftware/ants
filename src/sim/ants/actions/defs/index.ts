@@ -8,6 +8,7 @@ import { antennateDef, feedLarvaDef, groomDef, layEggDef, sniffDef } from './car
 import { biteDef, biteHoldDef, releaseAlarmDef, sprayAcidDef, tendAphidDef } from './combat';
 import { digBiteDef, sealEntranceDef, unsealEntranceDef } from './dig';
 import { harvestLiquidDef, harvestSolidDef, layTrailDef, trophGiveDef, trophReceiveDef } from './food';
+import { assistEclosionDef, cannibaliseDef, feedQueenDef, loadCropDef, unloadCropDef } from './nestCare';
 
 const LIST: readonly ActionDef[] = [
   move, letGo, grip, pickUp, putDown, drop, drag,
@@ -15,6 +16,7 @@ const LIST: readonly ActionDef[] = [
   layEggDef, feedLarvaDef, groomDef, antennateDef, sniffDef,
   harvestLiquidDef, harvestSolidDef, trophGiveDef, trophReceiveDef, layTrailDef,
   biteDef, biteHoldDef, sprayAcidDef, releaseAlarmDef, tendAphidDef,
+  loadCropDef, unloadCropDef, feedQueenDef, assistEclosionDef, cannibaliseDef,
 ];
 
 export const ACTION_DEFS: Partial<Record<ActionId, ActionDef>> = Object.fromEntries(LIST.map((d) => [d.id, d]));

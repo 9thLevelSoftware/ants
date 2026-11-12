@@ -8,19 +8,18 @@ import { larvaRemainingNeed, nextCannibalVictim, wantsFeed } from '@/sim/colony'
 import { FEED_LARVA_LOADS } from '@/sim/balance/actions';
 import { LARVA_GUT_CAP } from '@/sim/balance/colony';
 import {
-  BROOD_DROP_ARRIVE_BU, CARE_ARRIVE_BU, CROP_MIN_FEED, FEED_CHAIN_MAX, FEED_CHAIN_RADIUS_BU, GROOM_IDLE_S,
-  GROOM_JOB_CHECK_TICKS, LOAD_EMPTY_BACKOFF_S, LOAD_EMPTY_MIN, NURSE_LOAD, PRELOAD_BELOW, ROOM_ARRIVE_FRAC,
+  BROOD_DROP_ARRIVE_BU, CROP_MIN_FEED, FEED_CHAIN_MAX, FEED_CHAIN_RADIUS_BU, GROOM_IDLE_S,
+  GROOM_JOB_CHECK_TICKS, LOAD_EMPTY_BACKOFF_S, LOAD_EMPTY_MIN, PRELOAD_BELOW, ROOM_ARRIVE_FRAC,
   ROOM_WAIT_FRAC, TEND_NEAR_BU,
 } from '@/sim/balance/nestwork';
 import { NURSERY_JOBS } from '@/sim/types';
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, isCarryJob, Job, nextFeedNear, nextTendNear, selectJob, sortOf } from './board';
-import { CareOp, careEffects, careRunning, startCare } from './careActs';
-import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
-import { B, bbv, setState } from './fsm';
+import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think, carryingLoad } from './common';
+import { alignedThink, B, bbv, setState } from './fsm';
 import { chamberIn, foodChamber, homeNest, pileSlot } from './places';
 import { bestChamberId, groupOf } from './sorting';
-import { act, busy, entity, resetTravel, travel } from './travel';
+import { act, actResult, busy, entity, resetTravel, travel, tryAct } from './travel';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { perTick } from './perTick';
 
@@ -89,13 +88,19 @@ function select(sim: Sim, ant: Ant): void {
 }
 
 function load(sim: Sim, ant: Ant): void {
+  if (primitiveDone(ant)) { ant.bb[B.began] = 0; onLoaded(sim, ant, actResult(ant)); return; }
   const nest = homeNest(sim, ant);
   const room = nest ? foodChamber(sim, nest, ant.pos) : undefined;
   if (!room) { recover(sim, ant, ENTRY, 'job:feed'); return; }
   const inside = ant.chamberId === room.id;
   const st = inside ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z));
   if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
-  if (st === 'arrived') startCare(sim, ant, CareOp.loadNurse, -1, Math.max(0, NURSE_LOAD - crop(ant)));
+  if (st !== 'arrived') return;
+  // the `load-crop` primitive fills the crop to NURSE_LOAD with the nurse mix (GDD 02 §5.4.2)
+  const why = tryAct(sim, ant, 'load-crop', null);
+  if (why === 'crop-full') setState(sim, ant, 'nurse.feed');
+  else if (why === 'no-reserve') onLoaded(sim, ant, 0);
+  else if (why) recover(sim, ant, ENTRY, 'job:feed');
 }
 
 function onLoaded(sim: Sim, ant: Ant, got: number): void {
@@ -184,14 +189,13 @@ function carry(sim: Sim, ant: Ant): void {
 }
 
 /**
- * nurse.tend: groom one item of the pile with the `groom` primitive (it marks that item tended), then mark the rest
- * of the pile around her tended (every egg and pupa within TEND_PILE_RADIUS_BU, GDD 02 §10.4).
+ * nurse.tend: groom one item of the pile with the `groom` primitive, which tends the whole pile around that item
+ * (every egg and pupa within GROOM_PILE_RADIUS_BU, GDD 02 §10.4).
  */
 function tend(sim: Sim, ant: Ant): void {
   const b = jobBrood(sim, ant);
   if (primitiveDone(ant)) {
     ant.bb[B.began] = 0;
-    if (b && b.lastTendedTick >= ant.stateTick) careEffects.tendPileAround(sim, ant);
     endCycle(sim, ant, ENTRY);
     return;
   }
@@ -200,20 +204,22 @@ function tend(sim: Sim, ant: Ant): void {
   if (st === 'failed') recover(sim, ant, ENTRY, 'job:tend-pile', ant.nav.status === 'failed');
 }
 
+/** nurse.assist: the `assist-eclosion` primitive at the ready pupa (GDD 02 §2.9). */
 function assist(sim: Sim, ant: Ant): void {
+  if (primitiveDone(ant)) { ant.bb[B.began] = 0; roundDone(sim, ant); return; }
   const b = jobBrood(sim, ant);
   if (!b || b.stage !== 'pupa' || (b.flags & BroodFlag.READY) === 0 || b.carriedBy >= 0) { endCycle(sim, ant, ENTRY, 'job:assist-eclosion'); return; }
-  const st = approach(sim, ant, entity('brood', b.id, b.pos), CARE_ARRIVE_BU * sim.world.bu);
-  if (st === 'failed') { recover(sim, ant, ENTRY, 'job:assist-eclosion', ant.nav.status === 'failed'); return; }
-  if (st === 'arrived') startCare(sim, ant, CareOp.assist, b.id);
+  const st = reachAndAct(sim, ant, entity('brood', b.id, b.pos), 'assist-eclosion');
+  if (st === 'failed') recover(sim, ant, ENTRY, 'job:assist-eclosion', ant.nav.status === 'failed');
 }
 
+/** nurse.cannibalise: the `cannibalise` primitive on the chosen egg or larva (GDD 02 §5.7 S3). */
 function cannibalise(sim: Sim, ant: Ant): void {
+  if (primitiveDone(ant)) { ant.bb[B.began] = 0; roundDone(sim, ant); return; }
   const b = jobBrood(sim, ant);
   if (!b || b.carriedBy >= 0 || b.stage === 'pupa') { endCycle(sim, ant, ENTRY); return; }
-  const st = approach(sim, ant, entity('brood', b.id, b.pos), CARE_ARRIVE_BU * sim.world.bu);
-  if (st === 'failed') { recover(sim, ant, ENTRY, 'job:cannibalise', ant.nav.status === 'failed'); return; }
-  if (st === 'arrived') startCare(sim, ant, CareOp.cannibalise, b.id);
+  const st = reachAndAct(sim, ant, entity('brood', b.id, b.pos), 'cannibalise');
+  if (st === 'failed') recover(sim, ant, ENTRY, 'job:cannibalise', ant.nav.status === 'failed');
 }
 
 /** The chamber holding most of the colony's lying larvae this tick (where an idle nurse waits), -1 none. */
@@ -240,7 +246,7 @@ function groom(sim: Sim, ant: Ant): void {
   const age = sim.state.tick - ant.stateTick;
   if (primitiveDone(ant) || bbv(ant, B.began, 0) === 0) {
     if (age >= secondsToTicks(GROOM_IDLE_S)) { endCycle(sim, ant, ENTRY); return; }
-    if (bbv(ant, B.began, 0) === 0 && act(sim, ant, 'groom', null)) ant.thinkTick = sim.state.tick + GROOM_JOB_CHECK_TICKS;
+    if (bbv(ant, B.began, 0) === 0 && act(sim, ant, 'groom', null)) alignedThink(sim, ant, GROOM_JOB_CHECK_TICKS);
   }
 }
 
@@ -249,10 +255,10 @@ function groom(sim: Sim, ant: Ant): void {
  * victim in S3) ends it at once. Checked every GROOM_JOB_CHECK_TICKS while the groom primitive runs.
  */
 function groomInterrupted(sim: Sim, ant: Ant): boolean {
-  if (ant.state !== 'nurse.groom' || careRunning(ant)) return false;
+  if (ant.state !== 'nurse.groom') return false;
   const nest = homeNest(sim, ant);
   if (!nest || (!nextCannibalVictim(sim, ant.colony) && !selectJob(sim, ant, nest.id, bbv(ant, B.feedBlock) > sim.state.tick))) {
-    if (busy(ant)) ant.thinkTick = sim.state.tick + GROOM_JOB_CHECK_TICKS;
+    if (busy(ant)) alignedThink(sim, ant, GROOM_JOB_CHECK_TICKS);
     return false;
   }
   if (busy(ant)) { if (!interruptible(ant)) return false; cancel(sim, ant, null); }
@@ -273,17 +279,13 @@ function step(sim: Sim, ant: Ant): void {
   }
 }
 
-function onCare(sim: Sim, ant: Ant, result: number): void {
-  if (ant.state === 'nurse.load') onLoaded(sim, ant, result);
-  else roundDone(sim, ant);
-}
-
 export const nurseBehaviour: Behaviour = {
   task: 'nurse',
   enter: (sim, ant) => setState(sim, ant, ENTRY),
   update: (sim, ant) => {
     if (groomInterrupted(sim, ant)) return;
-    think(sim, ant, ENTRY, step, onCare);
+    think(sim, ant, ENTRY, step);
   },
   exit: (sim, ant) => releaseAll(sim, ant),
+  delivering: carryingLoad,
 };

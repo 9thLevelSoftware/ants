@@ -15,6 +15,8 @@ export const JOB_PRIORITY = {
    */
   moveHungryBonus: 1, moveHungryMax: 9.5,
 } as const;
+/** The nursery board is rebuilt this often, s (GDD 02 §10.4: every 2 s), on aligned windows of game time. */
+export const NURSERY_BOARD_PERIOD_S = 2;
 /** A job is claimed by one nurse; the claim lapses after this (GDD 02 §10.4 claim timeout). */
 export const JOB_CLAIM_TIMEOUT_S = 60;
 /** Score penalty per BU of straight distance to the job (GDD 02 §10.4 distance penalty). */
@@ -191,16 +193,9 @@ export const PASS_TRIES = 2;
 /** Approaches that start within this distance of the target, and passes, walk at this fraction of cruise (BU). */
 export const SHORT_HOP_BU = 3;
 export const SHORT_HOP_SPEED_MULT = 0.5;
-/** Walking upside down (up.y below this) within DROP_ABOVE_BU horizontally of a target below: let go and drop. */
-export const CEILING_UP_Y = -0.5;
-export const DROP_ABOVE_BU = 2.5;
-/** Within this distance of its target an approaching ant thinks every tick (its reach window is short), BU. */
-export const CLOSE_THINK_BU = 4.5;
 /** A walk still 'moving' whose ant has been slower than WALK_STALL_SPEED_BU (BU/s) for WALK_STALL_S, s, has stalled. */
 export const WALK_STALL_S = 0.8;
 export const WALK_STALL_SPEED_BU = 0.1;
-/** An ant standing still this long upside down on a ceiling, its walk's target lower down, lets go, s. */
-export const TRAVEL_STALL_S = 1.5;
 /** A stalled approach this close to its target counts as arrived (care acts need no contact reach), BU. */
 export const STALL_ACCEPT_BU = 1.2;
 

@@ -15,7 +15,6 @@ import { LAYER_IDS, LAYERS, type LayerId } from './layers';
 import type { AmbienceTarget } from './matrix';
 
 const AUDIBLE = 1e-3;
-const RELEASE_AFTER_SILENT_S = 8;
 
 interface Channel {
   id: LayerId;
@@ -28,7 +27,7 @@ type GrainKey = 'droplets' | 'heatTicks' | 'iceTicks' | 'nestTicks' | 'drips' | 
 const GRAIN_RECIPE: Record<Exclude<GrainKey, 'drips'>, keyof typeof RECIPES> = {
   droplets: 'droplet', heatTicks: 'heat-tick', iceTicks: 'ice-tick', nestTicks: 'nest-tick', crackle: 'crackle',
 };
-const GRAIN_GAIN_DB: Record<GrainKey, number> = { droplets: -20, heatTicks: -34, iceTicks: -30, nestTicks: -34, drips: -18, crackle: -18 };
+const GRAIN_GAIN_DB: Record<GrainKey, number> = { ...AMBIENCE.grainGainDb, crackle: AMBIENCE.crackleGainDb };
 
 export class AmbiencePlayer {
   private channels = new Map<LayerId, Channel>();
@@ -66,7 +65,7 @@ export class AmbiencePlayer {
       ch.gain.gain.setTargetAtTime(want, now, tau);
       if (want > AUDIBLE) ch.silentSince = Infinity;
       else if (ch.silentSince === Infinity) ch.silentSince = now;
-      else if (now - ch.silentSince > RELEASE_AFTER_SILENT_S) { this.close(ch, now); continue; }
+      else if (now - ch.silentSince > AMBIENCE.releaseAfterSilentS) { this.close(ch, now); continue; }
       if (ch.source.kind === 'file') ch.source.loop.pump(now + horizonS);
     }
     this.scheduleGrains(target, now, horizonS);
@@ -142,7 +141,7 @@ export class AmbiencePlayer {
     if (g.woodCreakEveryS > 0) {
       if (!Number.isFinite(this.nextCreak)) this.nextCreak = now + rng.range(AMBIENCE.woodCreakMinS, AMBIENCE.woodCreakMaxS) * 0.5;
       while (this.nextCreak < until) {
-        playShot({ kit: this.kit, bank: this.bank }, AMBIENT_ONESHOTS['wood-creak'], this.nextCreak, dbToGain(-12), this.under, { semis: 0, fileSemis: null, strength: 1, files: null });
+        playShot({ kit: this.kit, bank: this.bank }, AMBIENT_ONESHOTS['wood-creak'], this.nextCreak, dbToGain(AMBIENCE.woodCreakGainDb), this.under, { semis: 0, fileSemis: null, strength: 1, files: null });
         this.nextCreak += rng.range(AMBIENCE.woodCreakMinS, AMBIENCE.woodCreakMaxS);
       }
     } else this.nextCreak = Infinity;

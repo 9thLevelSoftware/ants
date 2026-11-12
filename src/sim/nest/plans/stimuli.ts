@@ -3,7 +3,7 @@
 
 import type { Sim } from '@/sim/types';
 import { HAUL_CLUTTER_WEIGHT, PLAN_PRIORITY_WEIGHT } from '@/sim/balance/nest';
-import { loosePellets } from '../pellets';
+import { loosePellets, pelletHaulUrgency } from '../pellets';
 import { offersSlots } from './frontier';
 import { noHaulers, planById } from './plans';
 
@@ -41,12 +41,28 @@ export function digDemand(sim: Sim, colonyId: number): number {
   return d;
 }
 
-/** Haul stimulus of a colony: spoil-pile pellets + HAUL_CLUTTER_WEIGHT x clutter pellets in its nests. */
+/**
+ * Haul stimulus of a colony (GDD 03 §7.7): spoil-pile pellets + HAUL_CLUTTER_WEIGHT x clutter pellets in its nests,
+ * each weighted by its haul urgency (pelletHaulUrgency: rising toward tamping age).
+ */
 export function haulStimulus(sim: Sim, colonyId: number): number {
   let s = 0;
   for (const nest of sim.stores.nests.list) {
     if (!nest.alive || nest.colony !== colonyId) continue;
-    for (const it of loosePellets(sim, nest.id)) s += it.spoilPlanId >= 0 ? 1 : HAUL_CLUTTER_WEIGHT;
+    for (const it of loosePellets(sim, nest.id)) s += (it.spoilPlanId >= 0 ? 1 : HAUL_CLUTTER_WEIGHT) * pelletHaulUrgency(sim, it);
+  }
+  return s;
+}
+
+/**
+ * Pellet load of a colony for the haul demand (GDD 02 §6.2 `loosePellets`): its lying in-nest pellets, each
+ * weighted by its haul urgency, so demand rises while spoil waits and haulers are allocated before it tamps.
+ */
+export function haulPelletLoad(sim: Sim, colonyId: number): number {
+  let s = 0;
+  for (const nest of sim.stores.nests.list) {
+    if (!nest.alive || nest.colony !== colonyId) continue;
+    for (const it of loosePellets(sim, nest.id)) s += pelletHaulUrgency(sim, it);
   }
   return s;
 }

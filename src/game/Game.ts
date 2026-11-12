@@ -37,8 +37,9 @@ import { UndergroundSwitch } from './undergroundSwitch';
 import { requestView, toggleColonyView, togglePhoto, type ViewSwitchHost } from './views/viewSwitch';
 import { ViewsLayer } from './views/viewsLayer';
 import { FoundingFlow, installFoundingDebug } from './flows/founding';
-import { registerScenicQueries, TitleHost, titleSceneWanted } from './title';
+import { registerScenicQueries, TitleHost, titleQualityCap, titleSceneWanted } from './title';
 import { edgeGlyphActive } from '@/render/world/boundary';
+import { createGameAudio, type AudioSystem } from '@/audio';
 
 export interface GameOptions {
   canvas: HTMLCanvasElement;
@@ -124,12 +125,20 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   readonly title: TitleHost;
   /** GDD 04 §14 edge glyph hook: the possessed ant presses outward against the map's hard limit (for the HUD). */
   atLocalityEdge = false;
+  /** The title's Low quality cap is on (GDD 08 §3.3; set by the TitleHost) and the preset 'auto' resolved to. */
+  private titleCapped = false;
+  private autoQuality: QualityId = 'medium';
+  /** The title backdrop may be (re)built on its own: after boot, unless ?title=0 / ?autostart=1. */
+  private titleArmed = false;
   readonly ready: Promise<void>;
   private resolveReady: () => void = () => {};
+  /** Sound (src/audio): starts on the first user gesture, never in test mode; silent no-op until then. */
+  readonly audio: AudioSystem;
 
   constructor(readonly opts: GameOptions) {
     this.realtime = !opts.testMode;
     this.assets = createBrowserAssetLoader();
+    this.audio = createGameAudio({ assets: this.assets, settings: this.settings, testMode: opts.testMode });
     this.ready = new Promise<void>((r) => { this.resolveReady = r; });
     this.settings.set({ graphics: { quality: opts.quality, overrides: {} } });
     registerScenicQueries();
@@ -137,6 +146,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.title = new TitleHost({
       registry: () => this.registry, app: () => this.app, camera: this.camera, canvas: opts.canvas, testMode: opts.testMode,
       reducedMotion: () => this.settings.get().camera.reducedMotion,
+      playerQuality: () => this.playerQuality(),
+      setQualityCap: (on) => { if (on !== this.titleCapped) { this.titleCapped = on; this.applyQuality(); } },
     });
   }
 
@@ -160,6 +171,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.app = createRenderApp(this.opts.canvas, { quality: this.presetFor(q === 'auto' ? 'test' : q), scene: this.scene, camera: this.camera });
     if (q === 'auto') {
       const pick = pickQuality(runStartupBenchmark(this.app.renderer));
+      this.autoQuality = pick.id;
       this.app.setQuality(this.presetFor(pick.id));
     }
     if (this.opts.testMode) this.app.setOnDemand(true);
@@ -175,7 +187,9 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
     await Promise.all([this.app.ready, assetsReady]);
-    if (this.mode === 'title' && typeof location !== 'undefined' && titleSceneWanted(location.search)) await this.title.enter();
+    const titleWanted = typeof location !== 'undefined' && titleSceneWanted(location.search);
+    if (this.mode === 'title' && titleWanted) await this.title.enter();
+    this.titleArmed = titleWanted;
     this.refreshUi();
     this.resolveReady();
   }
@@ -238,6 +252,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     session.driver.beforeTick = () => this.lodObserver.sample(sim, focus);
     session.driver.timer = () => performance.now();
     this.session = session;
+    this.audio.attachSim(sim);
     this.viewsLayer.reset();
     this.loading = null;
     this.mode = 'playing';
@@ -264,8 +279,11 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Leaves the running game (renderers drop their meshes); `toTitle` shows the title screen. */
   endGame(toTitle = true): void {
     this.loadToken++;
+    this.title.leave(); // a load from the title (save host adopt) ends the game without newGame's leave()
+    this.atLocalityEdge = false;
     if (this.session) {
       this.saves.quitting();
+      this.audio.detachSim();
       this.session.dispose();
       this.session = null;
     }
@@ -289,7 +307,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (!this.opts.testMode) this.time += dt;
     const s = this.session;
     if (s && (this.mode === 'playing' || this.mode === 'paused')) this.playFrame(s, dt);
-    else if (!s && this.mode === 'title' && !this.opts.testMode) this.title.frame(dt);
+    else if (!s && this.mode === 'title' && !this.opts.testMode) { if (this.titleArmed) this.title.ensure(); this.title.frame(dt); }
+    if (!s || (this.mode !== 'playing' && this.mode !== 'paused')) this.audio.idle(dt); // world sound fades outside play
     if (!this.opts.testMode && this.toasts.tick(dt)) this.refreshUi(); // test mode: toasts age in afterStep()
     this.uiAccum += dt;
     if (this.uiAccum >= 1 / UI_REFRESH_HZ) { this.uiAccum = 0; this.refreshUi(); }
@@ -315,6 +334,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       this.app.requestRender();
       this.dirty = false;
     }
+    this.audio.frame({
+      dt, sim: s.sim, camera: this.camera, focus: s.focus(), possessedId: s.possessedId, view: s.view, underground: this.lastFrame.underground,
+      paused: this.mode === 'paused' || s.driver.paused, hudHidden: this.hudHidden,
+    });
   }
 
   /** Reactions to sim events (views, toasts) and the epitaph check. */
@@ -365,8 +388,22 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Switches the quality preset at runtime (renderer, post chain and every sub-renderer). */
   setQuality(id: QualityId): void {
     this.settings.set({ graphics: { quality: id } });
+    this.applyQuality();
+    this.requestRender();
+  }
+
+  /** The player's preset ('auto' resolved at boot). */
+  private playerQuality(): QualityId {
+    const q = this.settings.get().graphics.quality;
+    return q === 'auto' ? this.autoQuality : q;
+  }
+
+  /** Applies the player's preset, capped at Low while the title backdrop is shown (GDD 08 §3.3). */
+  private applyQuality(): void {
+    if (!this.app) return;
+    const id = this.titleCapped ? titleQualityCap(this.playerQuality()) : this.playerQuality();
     this.app.setQuality(this.presetFor(id));
-    this.registry.setQuality(this.app.quality);
+    this.registry?.setQuality(this.app.quality);
     this.requestRender();
   }
 
@@ -400,7 +437,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   renderNow(settleS = 0): void {
     const s = this.session;
     if (s) this.renderScene(s, 0, this.realtime ? s.driver.clock.alpha : 1, settleS);
-    else if (this.mode === 'title') this.title.frame(0);
+    else if (this.mode === 'title') { if (this.titleArmed) this.title.ensure(); this.title.frame(0); }
     this.app.renderFrame(0);
     this.dirty = false;
     if (this.opts.testMode) waitForGpu(this.app);
@@ -570,10 +607,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       const c = next.camera;
       this.session.views.third.setOptions({ autoFollow: c.autoFollow, fovOffset: c.fovOffset, worldUpLock: c.worldUpLock, reducedMotion: c.reducedMotion });
     }
-    if (patch.graphics && next.graphics.quality !== 'auto') {
-      this.app.setQuality(this.presetFor(next.graphics.quality));
-      this.registry.setQuality(this.app.quality);
-    }
+    if (patch.graphics) this.applyQuality();
   }
 
   // ------------------------------------------------------------------ UI
@@ -606,6 +640,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   dispose(): void {
     this.title.leave();
     this.endGame(false);
+    this.audio.dispose();
     this.viewsLayer.dispose();
     this.registry?.dispose();
     this.dom?.detach();

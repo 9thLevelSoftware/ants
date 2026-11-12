@@ -43,10 +43,10 @@ function fail(reason: ActionFailReason, target: TargetRef | null = null): Valida
 }
 
 /** Validation in the order of GDD 01 §7.1: permission, target, busy, preconditions, reach, conditions. */
-function validate(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null): Validation {
+function validate(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null, secondary = false): Validation {
   if (!ant.alive) return fail('conditions');
-  if (!casteAllows(sim, ant, id)) return fail(speciesHasAction(sim, ant, id) ? 'caste' : 'species');
   const def = actionDef(id);
+  if (!casteAllows(sim, ant, id) && !def?.who?.(sim, ant)) return fail(speciesHasAction(sim, ant, id) || def?.who ? 'caste' : 'species');
   if (!def) return fail('conditions'); // a later tier's primitive (fly, sting, cut-leaf ...)
   const t = target ?? def.autoTarget?.(sim, ant) ?? (def.targets.includes('none') ? selfTarget(ant) : null);
   if (!t || !def.targets.includes(t.kind)) return fail('no-target', t);
@@ -55,7 +55,7 @@ function validate(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null): V
     if (!def.preempts || !running || !running.cancellable || lockedNow(ant, running)) return fail('blocked', t);
   }
   if (!placeOf(sim, ant, t, place)) return fail('no-target', t);
-  const r = def.check(sim, ant, t);
+  const r = def.check(sim, ant, t, secondary);
   if (r) return fail(r, t);
   const reachable = t.kind === 'none' || (def.reachable ? def.reachable(sim, ant, t) : inReach(sim, ant, place));
   if (!reachable) return fail('out-of-reach', t);
@@ -64,8 +64,8 @@ function validate(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null): V
 }
 
 /** Can this ant start the action on the target now? A null target lets the primitive pick its own. */
-export function canDo(sim: Sim, ant: Ant, action: ActionId, target: TargetRef | null): ActionCheck {
-  const v = validate(sim, ant, action, target);
+export function canDo(sim: Sim, ant: Ant, action: ActionId, target: TargetRef | null, opts: BeginOptions = {}): ActionCheck {
+  const v = validate(sim, ant, action, target, opts.secondary === true);
   return { ok: v.reason === null, reason: v.reason };
 }
 
@@ -76,7 +76,7 @@ export function resolveTarget(sim: Sim, ant: Ant, action: ActionId, target: Targ
 
 /** Starts an action primitive. On failure emits `action-failed` and returns false. */
 export function begin(sim: Sim, ant: Ant, action: ActionId, target: TargetRef | null, opts: BeginOptions = {}): boolean {
-  const v = validate(sim, ant, action, target);
+  const v = validate(sim, ant, action, target, opts.secondary === true);
   if (v.reason !== null || !v.def || !v.target) {
     sim.emit({ type: 'action-failed', antId: ant.id, action, reason: v.reason ?? 'conditions' });
     return false;
@@ -137,6 +137,7 @@ function start(sim: Sim, ant: Ant, def: ActionDef, t: TargetRef, opts: BeginOpti
   ant.bb['act.hp'] = ant.hp;
   ant.bb['act.moved'] = 0;
   ant.bb['act.result'] = 0;
+  ant.bb['act.fx'] = 0;
   ant.pose = Math.max(0, POSES.indexOf(def.pose));
   def.onBegin?.(sim, ant, target);
   sim.emit({ type: 'action-started', antId: ant.id, action: def.id, target });
@@ -180,7 +181,7 @@ function complete(sim: Sim, ant: Ant, def: ActionDef, result: number): void {
   if (!a.repeat || !def.repeatable || !ant.alive) return;
   // Repeat: re-validate (validating -> windup) and start on the next tick. Surface targets are re-aimed.
   const next = a.target.kind === 'surface' && def.autoTarget ? null : a.target;
-  const v = validate(sim, ant, a.id, next);
+  const v = validate(sim, ant, a.id, next, a.secondary);
   if (v.reason !== null || !v.def || !v.target) {
     sim.emit({ type: 'action-failed', antId: ant.id, action: a.id, reason: v.reason ?? 'conditions' });
     return;
@@ -211,6 +212,8 @@ export function interruptible(ant: Ant): boolean {
 function interruptReason(sim: Sim, ant: Ant, def: ActionDef): ActionFailReason | null {
   const a = ant.action;
   if (!a) return null;
+  // the effect is applied (recovery): a target it used up (an eclosed pupa, eaten brood) does not cancel the rest
+  if ((ant.bb['act.fx'] ?? 0) === 1) return null;
   if (!placeOf(sim, ant, a.target, place)) return 'no-target';
   if (lockedNow(ant, def)) return null;
   if (ant.medium === 'air' && def.id !== 'grip') return 'conditions';
@@ -240,6 +243,7 @@ export function stepAction(sim: Sim, ant: Ant): void {
     const r = def.effect ? def.effect(sim, ant, a.target) : 0;
     if (typeof r === 'string') return failRunning(sim, ant, def, r);
     ant.bb['act.result'] = r;
+    ant.bb['act.fx'] = 1;
     cue(sim, ant, def);
   }
   if (elapsed >= d) complete(sim, ant, def, ant.bb['act.result'] ?? 0);

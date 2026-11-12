@@ -6,7 +6,7 @@ import { tsAt } from '@/core/timeSeries';
 import type { Colony, Diagnostic, Sim, SpeciesDef } from '@/sim/types';
 import { ALLOCATION_GROUPS } from '@/sim/types';
 import {
-  BROOD_STALLED_GD, DIAG_MORTALITY_REF_LIFESPAN_GD, DIAG_QUEEN_CARE_FLOOR, DIAG_STORES_FULL_F, DIAG_TRAIL_LOST_REF_PER_GD,
+  BROOD_STALLED_GD, DIAG_MIDDEN_BLOCKED_F, DIAG_MORTALITY_REF_LIFESPAN_GD, DIAG_QUEEN_CARE_FLOOR, DIAG_STORES_FULL_F, DIAG_TRAIL_LOST_REF_PER_GD,
   DIAG_TRIP_REF_S, DIAG_WASTE_PER_CHAMBER, DIET_RANGE, DIET_SHIFT, QUEEN_FAT_CAP, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P,
   SIZE_FACTOR_MIN, SIZE_FACTOR_N0, SIZE_FACTOR_SPAN, TRAIL_IGNORE_P,
 } from '@/sim/balance';
@@ -23,17 +23,18 @@ import { GROUP_TASKS, knownCapacity } from './allocation';
 import { type FactorIn, pct, publishWithHysteresis, statusOf, weighFactors } from './diagFactors';
 import { colonyAlert, colonyClearAlert } from './alerts';
 import { clamp } from '@/core/math/scalar';
+import { isMiddenBlocked } from './midden';
+import { nestSpaceDiag } from './nestSpaceDiag';
 
 const SYSTEM = 'colony';
 
 /**
  * Factors of GDD 02 §14 that need data other modules do not provide yet; listed so the gap is explicit:
- * intake `activation` (departure counts at target, beh-forage), hygiene `midden-blocked` (midden reachability, nest).
+ * intake `activation` (departure counts at target, beh-forage).
  */
 export const PENDING_FACTORS: Readonly<Record<string, readonly string[]>> = {
   'diag-food-intake-c': ['activation'],
   'diag-food-intake-p': ['activation'],
-  'diag-hygiene': ['midden-blocked'],
 };
 
 /** Mean of n hourly samples of a series ending `skip` samples back (null when there are none). */
@@ -295,8 +296,13 @@ function hygieneDiag(sim: Sim, col: Colony): Diagnostic {
   const value = clamp(1 - waste / (DIAG_WASTE_PER_CHAMBER * chambers), 0, 1);
   const dH = col.alloc.demand[ti('haul')];
   const haulers = col.alloc.actual[ti('haul')];
-  const f: FactorIn[] = [{ cause: 'haulers', f: dH > 0 ? Math.min(1, haulers / dH) : 1, detail: `${haulers} of ${dH.toFixed(1)} haulers` }];
-  return publishWithHysteresis(sim, col, record('diag-hygiene', 'Nest hygiene', value, f, ['remedy.slider.dig']));
+  const blocked = isMiddenBlocked(col);
+  const f: FactorIn[] = [
+    { cause: 'haulers', f: dH > 0 ? Math.min(1, haulers / dH) : 1, detail: `${haulers} of ${dH.toFixed(1)} haulers` },
+    { cause: 'midden-blocked', f: blocked ? DIAG_MIDDEN_BLOCKED_F : 1, detail: blocked ? 'no way out to the midden' : 'midden reachable' },
+  ];
+  const remedies = blocked ? ['remedy.marker.entrance', 'remedy.slider.dig'] : ['remedy.slider.dig'];
+  return publishWithHysteresis(sim, col, record('diag-hygiene', 'Nest hygiene', blocked ? Math.min(value, DIAG_MIDDEN_BLOCKED_F) : value, f, remedies));
 }
 
 /** Evaluates and publishes all colony diagnostics of a colony (the player's). */
@@ -311,4 +317,5 @@ export function runColonyDiagnostics(sim: Sim, col: Colony, def: SpeciesDef): vo
   trailsDiag(sim, col);
   mortalityDiag(sim, col);
   hygieneDiag(sim, col);
+  nestSpaceDiag(sim, col);
 }

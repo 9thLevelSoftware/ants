@@ -75,8 +75,45 @@ describe('behaviour runner', () => {
     expect(a.state).toBe('haul');
   });
 
-  it('the module assembles behaviours from behaviours/outdoor and behaviours/nest (empty until those tasks land)', () => {
-    expect(Array.isArray(ants.behaviours)).toBe(true);
-    expect(ants.systems.map((s) => s.phase)).toEqual(['perception', 'behaviours', 'player-control', 'actions', 'lifecycle']);
+  it('the module assembles the behaviours of behaviours/outdoor and behaviours/nest, and their systems', () => {
+    const tasks = ants.behaviours.map((b) => b.task).sort();
+    expect(tasks).toEqual(['dig', 'forage', 'guard', 'haul', 'idle', 'nurse', 'queen-care', 'rest', 'scout', 'store', 'tend', 'flee'].sort());
+    const names = ants.systems.map((s) => s.name);
+    // one perception system: the real one (beh-forage's), the no-op placeholder is gone
+    expect(names.filter((n) => n === 'perception')).toHaveLength(1);
+    expect(ants.systems.find((s) => s.name === 'perception')!.run.toString()).not.toBe('() => {}');
+    expect(names).toEqual(expect.arrayContaining(['behaviours', 'actions', 'lifecycle']));
+  });
+
+  it('deliver first: a task change waits while the old behaviour delivers, then one concluding think, then the switch', () => {
+    const sim = makeAntSim();
+    restore = installFakes(sim).restore;
+    const log: string[] = [];
+    const haul = { ...recorder('haul', log), delivering: (_s: Sim, a: { carry: { kind: string } }) => a.carry.kind !== 'none' };
+    withBehaviours(sim, [haul, recorder('nurse', log)]);
+    const a = worker(sim, 50, 50, 'worker', 'haul');
+    step(sim, 1);
+    a.carry = { kind: 'item', id: 999 };
+    a.task = 'nurse';
+    step(sim, 3 * BEHAVIOUR_THINK_TICKS);
+    expect(log.filter((l) => l.startsWith('enter nurse'))).toHaveLength(0);
+    expect(log.filter((l) => l === `update haul ${a.id}`).length).toBeGreaterThanOrEqual(3);
+    a.carry = { kind: 'none', id: -1 };
+    const n = log.length;
+    step(sim, 2 * BEHAVIOUR_THINK_TICKS);
+    expect(log.slice(n)).toEqual([`update haul ${a.id}`, `exit haul ${a.id}`, `enter nurse ${a.id}`, `update nurse ${a.id}`]);
+  });
+
+  it('deliver first does not hold flee or fight', () => {
+    const sim = makeAntSim();
+    restore = installFakes(sim).restore;
+    const log: string[] = [];
+    const haul = { ...recorder('haul', log), delivering: () => true };
+    withBehaviours(sim, [haul, recorder('flee', log)]);
+    const a = worker(sim, 50, 50, 'worker', 'haul');
+    step(sim, 1);
+    a.task = 'flee';
+    step(sim, BEHAVIOUR_THINK_TICKS);
+    expect(log).toContain(`enter flee ${a.id}`);
   });
 });

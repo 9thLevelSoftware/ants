@@ -14,7 +14,7 @@ import { specialFactor } from './special';
 import { walkable } from './nav';
 import { SUIT } from '../tuning/maps';
 
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 type Archetype = Parameters<typeof paramsFor>[0];
 

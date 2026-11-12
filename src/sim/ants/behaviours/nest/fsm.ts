@@ -17,8 +17,6 @@ export const B = {
   goKind: 'bn.gk', goId: 'bn.gi',
   /** Nav failures in the stuck window and the window start tick. */
   stuck: 'bn.sk', stuckTick: 'bn.st',
-  /** Care act in progress (careActs.ts): op index, end tick, target id. */
-  actOp: 'bn.ao', actUntil: 'bn.au', actTarget: 'bn.at',
   /** An action primitive was started in this state (1) and has not been seen finished. */
   began: 'bn.bg',
   /** Phase of a multi-leg trip (carry out: 0 to the entrance, 1 to the drop point). */
@@ -36,7 +34,7 @@ export const B = {
   /** Entity the ant failed to reach, and the tick from which the skip runs. */
   skip: 'bn.sx', skipTick: 'bn.sxt',
   /** Tick from which a running walk has stood still (-1 not standing). */
-  stall: 'bn.sl', travelStall: 'bn.ts',
+  stall: 'bn.sl',
   /** Pass point of reachAndAct, mm. */
   passX: 'bn.qx', passY: 'bn.qy', passZ: 'bn.qz',
 } as const;
@@ -78,7 +76,6 @@ export function setState(sim: Sim, ant: Ant, state: string, reason?: ReasonCode)
   ant.bb[B.leg] = 0;
   ant.bb[B.near] = -1;
   ant.bb[B.stall] = -1;
-  ant.bb[B.travelStall] = -1;
   ant.thinkTick = sim.state.tick + 1; // carry on in the new state at once
 }
 
@@ -129,7 +126,20 @@ export function ownState(ant: Ant): boolean {
   return ant.state === 'idle' || ant.state === 'rest' || ant.state.startsWith(`${ant.task}.`) || ant.state.startsWith('queen.');
 }
 
-/** A waiting ant (nothing to do right now) thinks less often: WAIT_THINK_TICKS instead of the runner's default. */
+/**
+ * A waiting ant (nothing to do right now) thinks less often: at the next multiple of WAIT_THINK_TICKS. The waiting
+ * ants of a colony then think on the same ticks, so the per-tick job lists they read (haul and store jobs, the
+ * nursery claims) are computed once per WAIT_THINK_TICKS, not on every tick (sim-fix-ants item 2).
+ */
 export function waitThink(sim: Sim, ant: Ant): void {
-  ant.thinkTick = Math.max(ant.thinkTick, sim.state.tick + WAIT_THINK_TICKS);
+  ant.thinkTick = Math.max(ant.thinkTick, nextAligned(sim, WAIT_THINK_TICKS));
+}
+
+/** Sets the next think to the next multiple of `every` ticks (shared by all ants doing the same polling). */
+export function alignedThink(sim: Sim, ant: Ant, every: number): void {
+  ant.thinkTick = nextAligned(sim, every);
+}
+
+function nextAligned(sim: Sim, every: number): number {
+  return (Math.floor(sim.state.tick / every) + 1) * every;
 }

@@ -35,4 +35,5 @@ export * from './commandsCheat';
 export * from './events';
 export * from './services';
 export * from './moduleApi';
+export * from './nurseryBoard';
 export * from './state';

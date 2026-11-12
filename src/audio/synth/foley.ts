@@ -1,10 +1,15 @@
 // Ant-scale foley recipes (GDD 08 §13.5, §13.7) and fallbacks for file-based cues. Each comment states the recipe.
-import type { ShotRecipe, SynthKit } from './kit';
+import { bandMakeup, type ShotRecipe, type SynthKit } from './kit';
 
 /** Filtered noise burst: `kind` noise -> band-pass(f, q) -> AD envelope. Shared by most clicks and grains. */
 function burst(k: SynthKit, out: AudioNode, t: number, gain: number, f: number, q: number, a: number, d: number, kind: 'white' | 'pink' | 'brown' = 'white', type: BiquadFilterType = 'bandpass'): number {
-  k.chain(k.noise(kind, t, a + d + 0.05), k.filter(type, f, q), k.ad(t, gain, a, d), out);
+  k.chain(k.noise(kind, t, a + d + 0.05), k.filter(type, f, q), k.ad(t, gain * bandMakeup(type, f, q, k.ctx.sampleRate), a, d), out);
   return a + d + 0.05;
+}
+
+/** `n` random grain times within `span` s after t, peaks between minK and 1 of `peak`. */
+function grains(k: SynthKit, t: number, n: number, span: number, peak: number, minK: number): { t: number; peak: number }[] {
+  return Array.from({ length: n }, () => ({ t: t + k.rng.range(0, span), peak: peak * k.rng.range(minK, 1) }));
 }
 
 /** Short sine ping with exponential decay. */
@@ -19,7 +24,7 @@ export const FOLEY: Record<string, ShotRecipe> = {
   /** Pellet / frass drop: grain trickle, 40 ms noise burst 2-6 kHz with a few grain spikes. */
   'grain-trickle': (k, o, t, p) => {
     burst(k, o, t, p.gain * 0.6, 3500 * p.rate, 0.8, 0.002, 0.04);
-    for (let i = 0; i < 4; i++) burst(k, o, t + k.rng.range(0, 0.035), p.gain, k.rng.range(2000, 6000) * p.rate, 2, 0.0005, 0.004);
+    k.noiseGrains(o, 'white', 'bandpass', 4000 * p.rate, 1.2, grains(k, t, 4, 0.035, p.gain, 1), 0.0005, 0.004);
     return 0.09;
   },
   /** Mandible click: two 1.5 ms pulses at 6 kHz, 12 ms apart. */
@@ -50,10 +55,7 @@ export const FOLEY: Record<string, ShotRecipe> = {
     return 0.3;
   },
   /** Trophallaxis: three soft 1.2 kHz sine ticks with fast decay. */
-  'liquid-tick': (k, o, t, p) => {
-    for (let i = 0; i < 3; i++) ping(k, o, t + i * 0.09, p.gain * (1 - i * 0.2), 1200 * p.rate * (1 + 0.04 * i), 0.03);
-    return 0.3;
-  },
+  'liquid-tick': (k, o, t, p) => k.pingGrains(o, [0, 1, 2].map((i) => ({ t: t + i * 0.09, peak: p.gain * (1 - i * 0.2), hz: 1200 * p.rate * (1 + 0.04 * i) })), 0.03),
   /** Antennation: pink noise 80 ms band 4-9 kHz. */
   'antenna-brush': (k, o, t, p) => {
     k.chain(k.noise('pink', t, 0.1), k.filter('highpass', 4000, 0.7), k.filter('lowpass', 9000, 0.7), k.ahr(t, p.gain, 0.02, 0.03, 0.03), o);
@@ -82,10 +84,9 @@ export const FOLEY: Record<string, ShotRecipe> = {
     const res = k.filter('peaking', 400, 4);
     res.gain.value = 8;
     res.connect(o);
-    for (let i = 0; i < n; i++) {
-      ping(k, res, t + i * period, p.gain, k.rng.range(60, 120) * p.rate, 0.05);
-      burst(k, res, t + i * period, p.gain * 0.3, 900, 2, 0.0005, 0.01);
-    }
+    const at = Array.from({ length: n }, (_, i) => t + i * period);
+    k.pingGrains(res, at.map((x) => ({ t: x, peak: p.gain, hz: k.rng.range(60, 120) * p.rate })), 0.05);
+    k.noiseGrains(res, 'white', 'bandpass', 900, 2, at.map((x) => ({ t: x, peak: p.gain * 0.3 })), 0.0005, 0.01);
     return n * period + 0.1;
   },
   /** Stridulation rasp: comb-filtered (delay feedback) noise 6-9 kHz pulsed at 40-60 Hz for 0.4 s. */
@@ -104,7 +105,8 @@ export const FOLEY: Record<string, ShotRecipe> = {
   },
   /** Leaf cutting: granular tearing, 14 noise grains 2-6 kHz over 0.35 s. */
   'leaf-tear': (k, o, t, p) => {
-    for (let i = 0; i < 14; i++) burst(k, o, t + k.rng.range(0, 0.33), p.gain * k.rng.range(0.4, 1), k.rng.range(2000, 6000), 2.5, 0.001, 0.012);
+    k.noiseGrains(o, 'white', 'bandpass', 3000, 1.5, grains(k, t, 8, 0.33, p.gain, 0.4), 0.001, 0.012);
+    k.noiseGrains(o, 'white', 'bandpass', 5500, 2, grains(k, t, 6, 0.33, p.gain, 0.4), 0.001, 0.01);
     return 0.4;
   },
   /** Prey struggle: noise amplitude-modulated at 15 Hz, band 1.5 kHz, 0.5 s. */
@@ -149,8 +151,9 @@ export const FOLEY: Record<string, ShotRecipe> = {
   },
   /** Antlion sand flick: 25 noise grains 3-8 kHz over 0.25 s. */
   'sand-spray': (k, o, t, p) => {
-    for (let i = 0; i < 25; i++) burst(k, o, t + k.rng.range(0, 0.25) ** 1.5, p.gain * k.rng.range(0.3, 1), k.rng.range(3000, 8000), 3, 0.0005, 0.005);
-    return 0.3;
+    const g = grains(k, t, 25, 1, p.gain, 0.3);
+    for (const x of g) x.t = t + ((x.t - t) * 0.25) ** 1.5 * 4; // dense at first, thinning out
+    return k.noiseGrains(o, 'white', 'bandpass', 5000, 1, g, 0.0005, 0.005);
   },
   /** Flood gurgle: brown noise low-passed 500 Hz with 2-6 Hz bubble sines (500-900 Hz chirps). */
   'gurgle': (k, o, t, p) => {
@@ -172,9 +175,9 @@ export const FOLEY: Record<string, ShotRecipe> = {
   },
   /** Wood gnaw (manifest recipe): noise bursts at 8-25 Hz rate, 1-4 kHz band-pass, plus crackle impulses. */
   'wood-gnaw': (k, o, t, p) => {
-    const rate = k.rng.range(8, 25), n = Math.round(rate * 0.35);
-    for (let i = 0; i < n; i++) burst(k, o, t + i / rate, p.gain * k.rng.range(0.6, 1), k.rng.range(1000, 4000) * p.rate, 1.5, 0.002, 0.03);
-    for (let i = 0; i < 4; i++) burst(k, o, t + k.rng.range(0, 0.35), p.gain * 0.7, 6000, 4, 0.0003, 0.002);
+    const rate = k.rng.range(8, 25), n = Math.max(2, Math.round(rate * 0.35));
+    k.noiseGrains(o, 'white', 'bandpass', k.rng.range(1000, 4000) * p.rate, 1.2, Array.from({ length: n }, (_, i) => ({ t: t + i / rate, peak: p.gain * k.rng.range(0.6, 1) })), 0.002, 0.03);
+    k.noiseGrains(o, 'white', 'bandpass', 6000, 4, grains(k, t, 4, 0.35, p.gain * 0.7, 1), 0.0003, 0.002);
     return n / rate + 0.05;
   },
   /** Seal tamp: soft pat, pink noise low-passed 900 Hz, 50 ms. */
@@ -187,7 +190,7 @@ export const FOLEY: Record<string, ShotRecipe> = {
   /** Water trickle: 12 small drip pings 1.5-3 kHz over 0.8 s on a quiet noise bed. */
   'trickle': (k, o, t, p) => {
     k.chain(k.noise('pink', t, 0.9), k.filter('bandpass', 2000, 0.6), k.ahr(t, p.gain * 0.3, 0.1, 0.6, 0.2), o);
-    for (let i = 0; i < 12; i++) ping(k, o, t + k.rng.range(0, 0.8), p.gain * 0.5, k.rng.range(1500, 3000), 0.025);
+    k.pingGrains(o, grains(k, t, 12, 0.8, p.gain * 0.5, 1).map((g) => ({ ...g, hz: k.rng.range(1500, 3000) })), 0.025);
     return 0.9;
   },
   /** Garden tending: soft brush, pink noise 200 ms band 1-4 kHz. */
@@ -197,13 +200,10 @@ export const FOLEY: Record<string, ShotRecipe> = {
   },
   // ---- fallbacks for file-based cues -------------------------------------------------------------------------
   /** Dig fallback: 150 ms granular scrape, 25 grains 2-7 kHz. */
-  'soil-scrape': (k, o, t, p) => {
-    for (let i = 0; i < 25; i++) burst(k, o, t + k.rng.range(0, 0.15), p.gain * k.rng.range(0.3, 1), k.rng.range(2000, 7000) * p.rate, 2, 0.0005, 0.006);
-    return 0.2;
-  },
+  'soil-scrape': (k, o, t, p) => k.noiseGrains(o, 'white', 'bandpass', 4000 * p.rate, 0.9, grains(k, t, 25, 0.15, p.gain, 0.3), 0.0005, 0.006),
   /** Crunch fallback: 8 broadband cracks over 80 ms plus a 1 kHz body. */
   'crunch': (k, o, t, p) => {
-    for (let i = 0; i < 8; i++) burst(k, o, t + k.rng.range(0, 0.08), p.gain * k.rng.range(0.4, 1), k.rng.range(1500, 5000) * p.rate, 1, 0.0005, 0.01);
+    k.noiseGrains(o, 'white', 'bandpass', 3000 * p.rate, 0.7, grains(k, t, 8, 0.08, p.gain, 0.4), 0.0005, 0.01);
     burst(k, o, t, p.gain * 0.5, 1000 * p.rate, 1, 0.002, 0.04, 'pink');
     return 0.15;
   },
@@ -222,7 +222,9 @@ export const FOLEY: Record<string, ShotRecipe> = {
   },
   /** Cricket fallback: 4.5 kHz sine pulses, 3 trills of 4 pulses. */
   'chirp': (k, o, t, p) => {
-    for (let tr = 0; tr < 3; tr++) for (let i = 0; i < 4; i++) ping(k, o, t + tr * 0.25 + i * 0.022, p.gain, 4500 * p.rate, 0.012);
+    const g: { t: number; peak: number; hz: number }[] = [];
+    for (let tr = 0; tr < 3; tr++) for (let i = 0; i < 4; i++) g.push({ t: t + tr * 0.25 + i * 0.022, peak: p.gain, hz: 4500 * p.rate });
+    k.pingGrains(o, g, 0.012);
     return 0.8;
   },
   /** Wood creak fallback: sawtooth 90 Hz with slow pitch wobble through a 600 Hz band-pass, 0.8 s. */

@@ -25,6 +25,8 @@ export interface RuntimeOptions {
   bytes: AudioBytesSource | null;
   destination?: AudioNode;
   seed?: number;
+  /** Positional voice limit (default AUDIO_MAX_VOICES; the demo's CPU bench raises it to 32). */
+  maxVoices?: number;
 }
 
 export interface RuntimeFrame {
@@ -67,9 +69,9 @@ export class AudioRuntime {
     this.bank = new BufferBank(ctx, opts.bytes, (id) => BEDS.has(id));
     const env = { kit: this.kit, bank: this.bank };
     const l = () => this.listener;
-    this.cues = new CuePlayer(env, this.graph, this.log, l);
+    this.cues = new CuePlayer(env, this.graph, this.log, l, opts.maxVoices);
     this.ambience = new AmbiencePlayer(this.kit, this.bank, this.graph.buses.ambience);
-    this.giants = new GiantDirector(this.kit, this.bank, this.graph, this.cues, l);
+    this.giants = new GiantDirector(this.kit, this.bank, this.graph, this.cues, l, this.log);
     this.ui = new UiSounds(env, this.graph.buses.ui, this.log);
     this.musicRng = new AudioRng(seed * 7 + 3);
     this.director = new MusicDirector(this.musicRng);

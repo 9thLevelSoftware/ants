@@ -71,7 +71,7 @@ export class WorldSlot implements SubRenderer {
     this.world.update(w);
     if (this.hasWorld) {
       this.decor.update(w);
-      this.boundary.update(w);
+      this.boundary.update(w, this.world.lighting);
     }
     if (this.ctx.game.testMode) {
       // test mode draws single settled frames: rasterise every pending terrain-hole tile and every decor block now

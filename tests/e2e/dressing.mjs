@@ -3,10 +3,11 @@
 // switching with decor registered.
 //   node tools/harness/play.mjs --root . --query "test=1&quality=test" --script tests/e2e/dressing.mjs \
 //     --out test-output/dressing --script-timeout 2400000 --timeout 300000
-// Boots to the title (no autostart). Look shots at `medium` (post chain: DoF, bloom, grade effect) and the frost shot
-// at `low` (no-post path: the direct grading pass). Each shot is saved twice: with the UI and as a clean plate
-// (`-plate`, UI hidden) so the scene itself can be judged. Software GL: a medium frame takes several seconds here.
-// DRESSING_SKIP_LEAK=1 skips the two-game leak cycle (the slowest part).
+// Boots to the title (no autostart). The title renders at most at Low (GDD 08 §3.3 cap) whatever the player's preset.
+// Look shots at `medium` (post chain: DoF, bloom, grade effect) and the frost shot at `low` (no-post path: the direct
+// grading pass). Each shot is saved twice: with the UI and as a clean plate (`-plate`, every UI element hidden,
+// context prompts included) so the scene itself can be judged. Software GL: a medium frame takes several seconds here.
+// DRESSING_SKIP_LEAK=1 skips the leak cycle (the slowest part: three games at medium).
 const DAY = 6000; // ticks per game day
 const at = (day, hour) => day * DAY + Math.round((hour / 24) * DAY); // calendar tick (day 0 = spring day 1)
 
@@ -24,7 +25,8 @@ export default async ({ page, log, out: outDir }) => {
   };
   const plate = async (name) => {
     await shot(name);
-    const h = await page.addStyleTag({ content: '#ui{visibility:hidden !important}' });
+    // `#ui *` too: elements that set visibility themselves (the context prompts) would show through an inherited hidden
+    const h = await page.addStyleTag({ content: '#ui, #ui *{visibility:hidden !important}' });
     await shot(`${name}-plate`);
     await h.evaluate((el) => el.remove());
   };
@@ -43,36 +45,49 @@ export default async ({ page, log, out: outDir }) => {
     throw new Error('dressing: title backdrop never built');
   };
 
-  // 1. title backdrop
+  // 0. the no-post path keeps MSAA in the grade target: the default framebuffer never has it
+  const ctxAa = await g(() => document.getElementById('view').getContext('webgl2').getContextAttributes().antialias);
+  expect(ctxAa === false, 'default framebuffer was created with MSAA', ctxAa);
+
+  // 1. title backdrop: the player picks medium, the title stays capped at low
   await waitTitle();
-  await g(() => window.__game.quality('medium'));
+  const q = await g(() => window.__game.quality('medium'));
+  expect(q.quality === 'low' && !q.post, 'the title is not capped at the Low preset', q);
   await g(() => window.__game.renderFrame());
   const tw = await world();
   expect(tw['decor.blades'] > 100 && tw['decor.draped'] > 10, 'title backdrop has no grass / litter', tw);
   expect(tw['boundary.skirtTriangles'] > 0, 'title backdrop has no boundary skirt', tw);
   await plate('01-title');
-  result.title = { decorBlades: tw['decor.blades'], decorDraped: tw['decor.draped'], grade: tw['grade.saturation'] };
-  const base = await memory();
-  result.memoryTitle = [base];
-  log('title', JSON.stringify(result.title), 'memory', JSON.stringify(base));
+  result.title = { decorBlades: tw['decor.blades'], decorDraped: tw['decor.draped'], grade: tw['grade.saturation'], quality: q.quality };
+  const first = await memory();
+  result.memoryTitle = [first];
+  log('title', JSON.stringify(result.title), 'memory', JSON.stringify(first));
 
-  // 2. game starts and ends: GPU resource counts return to the title's. Geometries must match exactly; textures may
-  // grow on the first games while the shared material library and the asset loader fill their caches (image textures
-  // that finish loading during a game are uploaded on their first use), but must be steady by the third game.
-  const GAMES = 3;
+  // 2. game starts and ends (at medium; the title in between at low): GPU resource counts return to the title's
+  // EXACTLY (geometries, textures, programs). The first two games are a warm-up: they fill the caches that live for
+  // the whole session, so the baseline is the title after them and the next two games must leave no trace at all.
+  // Attributed with a GL-level texture trace (render-integration review): game 1 first uploads six 256² mip-mapped
+  // material textures (sRGB albedo + linear maps) and game 2 three 512² ones, all scene textures of the shared world
+  // material library first drawn then and kept by it; programs grow once by the game's material variants. Game 3 on:
+  // every texture created during a game is deleted again (the title's DirectGrade target and PMREM included).
+  const WARMUP = 2, MEASURED = 2;
   if (process.env.DRESSING_SKIP_LEAK !== '1') {
-    for (let i = 0; i < GAMES; i++) {
+    let base = null;
+    for (let i = 0; i < WARMUP + MEASURED; i++) {
       await g(() => window.__game.newGame({ seed: 2, archetype: 'woodland-edge', view: 'observer' }));
       const m = await memory();
-      log(`game ${i + 1} memory`, JSON.stringify(m));
+      log(`game ${i + 1} memory`, JSON.stringify(m), 'quality', (await g(() => window.__game.quality())).quality);
       await g(() => window.__game.endGame());
       await waitTitle();
       const back = await memory();
       result.memoryTitle.push(back);
       log(`title after game ${i + 1}`, JSON.stringify(back));
-      expect(back.geometries === base.geometries, 'GPU geometries did not return to the title baseline', { base, back });
-      if (i === GAMES - 1) expect(back.textures === result.memoryTitle[i].textures, 'GPU textures still growing after several games (leak)', result.memoryTitle);
+      if (i < WARMUP) { base = back; continue; }
+      for (const k of ['geometries', 'textures', 'programs']) {
+        expect(back[k] === base[k], `GPU ${k} did not return to the title baseline after game ${i + 1} (leak)`, result.memoryTitle);
+      }
     }
+    result.warmupGrowth = Object.fromEntries(['geometries', 'textures', 'programs'].map((k) => [k, base[k] - first[k]]));
   }
 
   // 3. lawn with grass and leaf litter, third person
@@ -81,6 +96,8 @@ export default async ({ page, log, out: outDir }) => {
   await g(() => window.__game.cheat.setWeather('clear'));
   const spot = await g(() => window.__game.query.lawnSpot());
   expect(spot && !spot.error, 'no lawn spot near a tree in this world', spot);
+  // at least half the full leaf-litter density at the spot (summer: >= 125 leaves per m²); lawnSpot prefers >= 3/4
+  expect(spot.litterShare >= 0.5, 'the lawn spot is at the thin end of the litter fringe', spot);
   await g(() => window.__game.possess('queen'));
   await g((p) => window.__game.teleport('possessed', { x: p.x, y: p.y + 2, z: p.z }), spot);
   await g(() => window.__game.step(10));

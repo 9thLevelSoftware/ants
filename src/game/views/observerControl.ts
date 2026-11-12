@@ -24,7 +24,7 @@ export function observerInput(input: InputState | null, hits: readonly PickHit[]
     st.selected = st.cycler.choose(hits, cursor.x, cursor.y, nowS);
   }
   if (input.pressed('possess-target')) {
-    const t = possessable(st.hover, h) ?? possessable(st.selected, h);
+    const t = possessTarget(hits, st, h);
     if (t) h.possess(t.id);
   }
   if (input.pressed('follow-toggle')) {
@@ -34,6 +34,16 @@ export function observerInput(input: InputState | null, hits: readonly PickHit[]
     else if (want) h.follow(want);
   }
   if (input.pressed('deselect')) st.selected = null;
+}
+
+/**
+ * E / click-hold (GDD 01 §3.2 "the selected or hovered ant"): the selection when it is under the cursor (click
+ * cycling chose it among overlapping ants), else the hovered ant, else the selection.
+ */
+export function possessTarget(hits: readonly PickHit[], st: ViewsState, h: ObserverHost): PickTarget | null {
+  const sel = possessable(st.selected, h);
+  if (sel && hits.some((x) => x.kind === sel.kind && x.id === sel.id)) return sel;
+  return possessable(st.hover, h) ?? sel;
 }
 
 function possessable(t: PickTarget | null, h: ObserverHost): PickTarget | null {

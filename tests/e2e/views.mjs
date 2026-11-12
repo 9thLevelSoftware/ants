@@ -22,6 +22,9 @@ export default async ({ page, shot, log, wait }) => {
   const ok = (name, data) => { out.checks[name] = data ?? 'ok'; log('OK', name, data === undefined ? '' : JSON.stringify(data)); };
 
   await g(() => window.__game.newGame({ seed: 5, testWorld: { features: 'all', nest: 'small', workers: 8 } }));
+  // the founding intro card would cover the subject in every shot (the manual test clock never advances it)
+  await g(() => window.__game.command({ type: 'openingSkipIntro' }));
+  await g(() => window.__game.step(1));
   const info = await g(() => {
     const gm = window.__game, w = gm.query.world(), n = gm.query.nest()[0];
     const q = gm.summary().possessed;
@@ -179,9 +182,26 @@ export default async ({ page, shot, log, wait }) => {
     return w.map((x) => gm.query.ant(x.id)).find((a) => a && a.id !== id);
   }, [hovered, workers]);
   const scr2 = await g((p) => window.__game.views.project(p), { x: other.pos.x + other.up.x * 0.3 * bu, y: other.pos.y + other.up.y * 0.3 * bu, z: other.pos.z + other.up.z * 0.3 * bu });
-  const r2 = await g(([x, y]) => window.__game.views.possessAt(x, y), [scr2.x, scr2.y]);
-  expect(r2.ok, 'click-hold possess', r2);
-  ok('possess-hold', r2.id);
+  // a real held left button (400 ms) through the browser's mouse events and the input layer (GDD 01 §3.2)
+  const box = await g(() => {
+    const c = [...document.querySelectorAll('canvas')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+    const r = c.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  });
+  // (test mode renders on demand, only in frames with input activity, and the input layer's hold pulse is not
+  // activity: a hand's 1 px jitter keeps every frame live, so the frame where the hold fires is processed)
+  const hx = box.x + scr2.x, hy = box.y + scr2.y;
+  await page.mouse.move(hx, hy);
+  await wait.frames(2);
+  await page.mouse.down();
+  const t0 = Date.now();
+  for (let i = 0; Date.now() - t0 < 900; i++) { await page.mouse.move(hx + (i % 2), hy); await page.waitForTimeout(30); }
+  await wait.frames(2);
+  await page.mouse.up();
+  await wait.frames(2);
+  s = await sum();
+  expect(s.view === 'possess' && s.possessed && s.possessed.id === other.id, 'a real click-hold possesses the ant under the cursor', { view: s.view, p: s.possessed?.id, want: other.id });
+  ok('possess-hold', other.id);
 
   // --- 7. Tab cycling (GDD 01 §3.2 / E20: nearest first from the current ant, list frozen within 2 s, wraps) ----------
   // The presses go through Game.cycle in one frame (views.cycle): six real key presses cannot fit in TAB_LIST_TTL_S

@@ -17,6 +17,7 @@ export class PositionalLoop {
   private readonly filter: BiquadFilterNode;
   private readonly pan: StereoPannerNode;
   private readonly out: GainNode;
+  private readonly tone: BiquadFilterNode;
   private nextPiece = 0;
   private lastTrace = -Infinity;
   private occl = { cutoffHz: 20000, db: 0 };
@@ -37,7 +38,10 @@ export class PositionalLoop {
     this.pan = ctx.createStereoPanner();
     this.out.gain.setValueAtTime(0, ctx.currentTime);
     this.out.gain.linearRampToValueAtTime(dbToGain(gainDb), ctx.currentTime + fadeInS);
-    let head: AudioNode = this.out;
+    this.tone = ctx.createBiquadFilter();
+    this.tone.type = 'lowpass';
+    this.tone.frequency.value = 20000;
+    let head: AudioNode = this.out.connect(this.tone);
     if (bandHz) {
       const hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter();
       hp.type = 'highpass'; hp.frequency.value = bandHz[0];
@@ -56,6 +60,12 @@ export class PositionalLoop {
     this.out.gain.cancelScheduledValues(now);
     this.out.gain.setValueAtTime(this.out.gain.value, now);
     this.out.gain.linearRampToValueAtTime(dbToGain(gainDb), now + fadeS);
+  }
+
+  /** Glide the loop's own tone filter (warning phase: distant engine low-passed at 400 Hz). */
+  setTone(cutoffHz: number, fadeS: number): void {
+    if (this.stopped) return;
+    this.tone.frequency.setTargetAtTime(cutoffHz, this.kit.ctx.currentTime, Math.max(1e-3, fadeS / 3));
   }
 
   setPos(p: Vec3): void { this.pos.x = p.x; this.pos.y = p.y; this.pos.z = p.z; }

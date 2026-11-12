@@ -12,6 +12,12 @@ export type EntranceKind = (typeof ENTRANCE_KINDS)[number];
 
 export const ENTRANCE_STATUSES = ['open', 'sealing', 'sealed', 'reopening'] as const;
 export type EntranceStatus = (typeof ENTRANCE_STATUSES)[number];
+/**
+ * Why an entrance closed without a plug (event `entrance-closed`, sim-fix-colony): a mound or heap pile covers the
+ * opening, loose soil (tamped spoil, collapse debris) fills the throat, or anything else filled it.
+ */
+export const ENTRANCE_CLOSE_CAUSES = ['mound-buried', 'soil-slumped', 'filled'] as const;
+export type EntranceCloseCause = (typeof ENTRANCE_CLOSE_CAUSES)[number];
 
 export const NEST_KINDS = ['main', 'satellite'] as const;
 export type NestKind = (typeof NEST_KINDS)[number];

@@ -67,7 +67,7 @@ describe('canonical identifier sets', () => {
     expect(T.MATERIALS).toContain('wood-decayed');
     expect(T.CREATURE_KINDS).toHaveLength(21);
     expect(T.DIAGNOSTIC_IDS).toHaveLength(62);
-    expect(T.ALERT_KINDS).toHaveLength(35);
+    expect(T.ALERT_KINDS).toHaveLength(37); // 35 of the registry + entrance-closed, midden-blocked (sim-fix-colony, additive)
     expect(T.MILESTONE_IDS).toHaveLength(59);
     expect(T.CODEX_IDS.slice(0, 57)).toContain('cx-interface-orders');
     for (const id of T.DIAGNOSTIC_IDS) expect(id).toMatch(/^diag-/);

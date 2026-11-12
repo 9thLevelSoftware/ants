@@ -11,6 +11,9 @@ export const ACTION_IDS = [
   'dodge', 'cull-aphid', // GDD 05
   'plant', // GDD 06 (Atta founding: plant the fungus pellet)
   'drum', 'cut-seed-head', 'process-leaf', // GDD 07
+  // GDD 02 §2.9, §5.3, §5.4.1, §5.7 care operations as primitives (sim-fix-ants): pool -> crop with the nurse /
+  // ration / departure mix, crop -> chamber pool at half rate, carer -> queen, cocoon opening, eating brood
+  'load-crop', 'unload-crop', 'feed-queen', 'assist-eclosion', 'cannibalise',
 ] as const;
 export type ActionId = (typeof ACTION_IDS)[number];
 

@@ -4,15 +4,14 @@
 // requests and change the world only through action primitives.
 
 import type { Ant, Behaviour, Sim } from '@/sim/types';
-import { AntFlag } from '@/sim/types';
 import { CROP_RETURN_FRACTION, CROP_RETURN_MIN } from '@/sim/balance/actions';
 import {
   HUNGER_RETURN_CROP, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS, TRIP_LOST_S, TRIP_TURN_S, UNLOAD_CROP_MARGIN,
 } from '@/sim/balance/foraging';
 import { processAntDeath } from '@/sim/ants/lifecycle';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { avoidMarkerNear, isOutdoorTask, perceiveNow } from '@/sim/ants/perception';
-import { requestTask, reserveCap } from '@/sim/colony';
+import { avoidMarkerNear, perceiveNow } from '@/sim/ants/perception';
+import { reserveCap } from '@/sim/colony';
 import { departFilter } from './choice';
 import { curfewNow, num, phaseOf, thinkIn } from './common';
 import { fleeCheck } from './flee';
@@ -137,6 +136,8 @@ export function makeBehaviour(fl: Flavour): Behaviour {
     },
     update(sim, ant) {
       thinkIn(sim, ant, THINK_TRAVEL_TICKS);
+      // the task was changed while this trip is not over (deliver first, the runner keeps this behaviour): home now
+      if (ant.task !== fl.task && ant.nestId < 0) ant.bb[K.recall] = 1;
       if (tripClock(sim, ant, fl)) return;
       if (fleeCheck(sim, ant, fl)) return;
       if (recallCheck(sim, ant, fl)) return;
@@ -146,13 +147,10 @@ export function makeBehaviour(fl: Flavour): Behaviour {
     exit(sim, ant) {
       dropAction(sim, ant);
       stopLaying(sim, ant);
-      // Deliver first (GDD 02 §6.5, §10.0): an autonomous ant that the allocator moves to an in-nest task while it
-      // is outside keeps this task until it is home, then re-evaluates there.
-      const possessed = (ant.flags & AntFlag.POSSESSED) !== 0;
-      if (ant.alive && !possessed && ant.nestId < 0 && !isOutdoorTask(ant.task) && ant.task !== 'fight') {
-        ant.bb[K.recall] = 1;
-        requestTask(sim, ant, fl.task, 'job:homing');
-      }
     },
+    // Deliver first (GDD 02 §6.5, §10.0): an ant whose task changes while it is outside, or laden in the nest, keeps
+    // this behaviour (the runner holds the switch) until it is home and has unloaded.
+    // (A forager resting with a full crop because the stores are full is not delivering: it may be reassigned.)
+    delivering: (_sim, ant) => ant.nestId < 0 || phaseOf(ant) === PHASE.return || phaseOf(ant) === PHASE.deliver,
   };
 }

@@ -7,7 +7,7 @@ import type { CarrionStage, FoodSource, FoodVariant } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
 import { spawnSource, worldBu, type EntityCtx } from '@/sim/entities';
 import {
-  ECOLOGY_TIER, LARGE_CARCASS_TYPES, REF_CARRY_MG, SPILL_SIZES, WINDFALL_FRUITS, WINDFALL_STAGES,
+  ECOLOGY_TIER, LARGE_CARCASS_TYPES, REF_CARRY_MG, SPILL_HALF_LIFE_GD, SPILL_SIZES, WINDFALL_FRUITS, WINDFALL_STAGES,
   type LargeCarcassType, type WindfallFruit,
 } from '@/sim/balance/ecology';
 import { odourFromRadiusBu, sourceDef, spillSlots } from './def';
@@ -70,7 +70,7 @@ export function createSource(ctx: EntityCtx, o: CreateSourceOptions): FoodSource
   }
   if (o.variant === 'large-carcass') applyCarcass(init, o.carcass ?? 'worm');
   if (o.variant === 'windfall') units = applyFruit(init, o.fruit ?? 'plum', o.units, mult);
-  if (o.variant === 'sugary-spill') units = applySpill(init, o.spillMm, o.units, mult, bu);
+  if (o.variant === 'sugary-spill') units = applySpill(init, o.spillMm, o.units, mult, bu, tier);
   const capacity = pool ? Math.max(init.poolCap ?? 0, units) : units;
   const s = spawnSource(ctx, { kind: d.kind, pos: o.pos, up: o.up, units, init: { ...init, capacity } });
   if (pool) s.pool = s.units;
@@ -101,9 +101,15 @@ function applyFruit(init: Partial<FoodSource>, fruit: WindfallFruit, units: numb
   return units ?? f.c * mult;
 }
 
-function applySpill(init: Partial<FoodSource>, mm: number | undefined, units: number | undefined, mult: number, bu: number): number {
+/**
+ * Sugary spill: size, slots, amount. Tier 2 spills (event-driven) evaporate: they start with the shade half-life
+ * (the hourly update sets sun / shade / indoors). A Tier 1 spill is the static one GDD 05 §0 allows: decayPerGd 0
+ * marks it static (no evaporation, no residue), as the T1 honeydew sites have no decay.
+ */
+function applySpill(init: Partial<FoodSource>, mm: number | undefined, units: number | undefined, mult: number, bu: number, tier: number): number {
   const size = SPILL_SIZES.find((z) => z.mm === mm) ?? SPILL_SIZES[1];
   init.slots = spillSlots(size.mm, bu);
+  init.decayPerGd = tier >= 2 ? halfLifeToDecay(SPILL_HALF_LIFE_GD.shade) : 0;
   return units ?? size.loads * mult;
 }
 

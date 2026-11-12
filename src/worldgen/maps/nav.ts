@@ -32,6 +32,10 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
   const baseY = new Float32Array(nn), shelterShare = new Float32Array(nn), noClimb = new Uint8Array(nn);
   const holes = w.terrainHoles?.data;
   const margin = NAV.edgeMarginBu * bu;
+  // imported bindings read once: under Vitest each read in the 16-sample loop below is a module getter call
+  const shelterBit = OVER_SHELTER, hotCode = HOT_CODE, blockedShare = NAV.blockedShare, costUnit = NAV.costUnit;
+  const { base: colBase, topAll, walkTop, noClimb: colNoClimb, over } = col;
+  const surfaceCodes = w.ground.surface.data;
   for (let k = 0; k < navN; k++) for (let i = 0; i < navN; i++) {
     const c = k * navN + i;
     let blocked = 0, total = 0, walk = 0, nWalk = 0, b = 0, hole = 0, shel = 0, hot = 0, slick = 0, maxTop = -Infinity;
@@ -40,12 +44,13 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
       if (ti >= cells || tk >= cells) continue;
       const j = tk * cells + ti;
       total++;
-      b += col.base[j];
-      if (col.topAll[j] > maxTop) maxTop = col.topAll[j];
-      if (Number.isNaN(col.walkTop[j])) blocked++; else { walk += col.walkTop[j]; nWalk++; slick += col.noClimb[j]; }
+      b += colBase[j];
+      if (topAll[j] > maxTop) maxTop = topAll[j];
+      const wt = walkTop[j];
+      if (wt !== wt) blocked++; else { walk += wt; nWalk++; slick += colNoClimb[j]; }
       if (holes && holes[j]) hole++;
-      if (col.over[j] & OVER_SHELTER) shel++;
-      hot += HOT_CODE[w.ground.surface.data[j]];
+      if (over[j] & shelterBit) shel++;
+      hot += hotCode[surfaceCodes[j]];
     }
     baseY[c] = total > 0 ? b / total : 0;
     shelterShare[c] = total > 0 ? shel / total : 0;
@@ -55,7 +60,7 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
     let cl: NavClass = 'open';
     if (cx < margin || cz < margin || cx > L - margin || cz > L - margin || (i + 1) * navCell > L + 1e-6 || (k + 1) * navCell > L + 1e-6) cl = 'edge';
     else if (hole * 2 >= total && hole > 0) cl = 'hole';
-    else if (blocked >= NAV.blockedShare * total || crossesCell(col.walkTop, cells, i * sub, k * sub, sub)) cl = 'blocked-solid';
+    else if (blocked >= blockedShare * total || crossesCell(walkTop, cells, i * sub, k * sub, sub)) cl = 'blocked-solid';
     cls[c] = CLS[cl];
     const zn = lay.zones[lay.nav[c]];
     let mult = SURFACE_COST[zn.type] ?? 1;
@@ -63,7 +68,7 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
     if (zn.type === 'garden-bed' && zn.mulched) mult = MULCH.cost;
     const centre = Math.min(cells - 1, k * sub + (sub >> 1)) * cells + Math.min(cells - 1, i * sub + (sub >> 1));
     mult = Math.max(mult, SURFACE_COST_MATERIAL[materialFromCode(w.ground.surface.data[centre])] ?? 1);
-    cost[c] = Math.min(254, Math.round(mult * NAV.costUnit));
+    cost[c] = Math.min(254, Math.round(mult * costUnit));
     let f = shel * 2 >= total ? NAV_CELL_FLAGS.SHELTER : NAV_CELL_FLAGS.EXPOSED;
     if (zn.type === 'interior') f |= NAV_CELL_FLAGS.INTERIOR;
     if (hot * 2 >= total) f |= NAV_CELL_FLAGS.HOT;

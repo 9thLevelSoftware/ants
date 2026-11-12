@@ -245,3 +245,19 @@ export const HOLD_ACTIONS: readonly ActionId[] = [
   'dig-bite', 'grip', 'harvest-liquid', 'bite-hold', 'drag', 'tend-aphid', 'trophallaxis-give',
   'trophallaxis-receive', 'unseal-entrance',
 ];
+
+// ---- care primitives (sim-fix-ants: load-crop, unload-crop, feed-queen, assist-eclosion, cannibalise) ----
+// Durations and amounts come from GDD 02 (§2.9 ECLOSE_ASSIST_S, §5.4.1 loads and feeds, §5.7 S3); the values live
+// in balance/nestwork.ts (LOAD_S, QUEEN_FEED_S, ASSIST_S, CANNIBALISE_S, NURSE_LOAD ...) and are used from there.
+/** A crop is loaded from the pool only while it holds at least this much C or P, loads (GDD 02 §5.4.1). */
+export const LOAD_POOL_MIN = 0.1;
+/** Unloading the crop straight into a food chamber runs at this fraction of TROPH_RATE (GDD 02 §5.3: half rate). */
+export const UNLOAD_DIRECT_RATE_MULT = 0.5;
+/** Grooming one item of a brood pile tends every item within this radius (GDD 02 §10.4 nurse.tend: 2 BU), BU. */
+export const GROOM_PILE_RADIUS_BU = 2;
+
+// ---- passive home marking (GDD 02 §8.2 HOME_DEPOSIT, balance/pheromone.ts HOME_DEPOSIT_PER_BU) ----
+/** Every colony ant outside marks the ground it walks: one home dab per this many BU walked (cells are 4 BU). */
+export const HOME_DAB_SPACING_BU = 2;
+/** At most this many home dabs per ant and tick (a long LOD step or a fall is not a smear). */
+export const HOME_MAX_DABS_PER_TICK = 4;

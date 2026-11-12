@@ -91,7 +91,7 @@ export function updateDepart(sim: Sim, ant: Ant, fl: Flavour): void {
  * Picks a heading among candidates around `base` (spread rad): unexplored cells score, avoid discs and blocked
  * nav cells exclude, a marker waypoint attracts, and on home-marked ground headings away from home score.
  */
-function bestHeading(sim: Sim, ant: Ant, from: Vec3, base: number, spread: number): number {
+export function bestHeading(sim: Sim, ant: Ant, from: Vec3, base: number, spread: number): number {
   const col = sim.stores.colonies.get(ant.colony);
   const rng = sim.stream('rng.behaviour');
   const leg = SCOUT_LEG_BU * sim.world.bu;

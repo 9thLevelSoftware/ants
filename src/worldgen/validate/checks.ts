@@ -1,18 +1,22 @@
 // Validation checks (GDD 04 §4.3). Checks about content that is not generated yet (no placer provides it) report
 // 'n/a' and count as passed. Counts scale with the size class (compact x0.75, large x1.25, rounded).
 
-import type { FoodKind, WorldgenCheck } from '@/sim/types';
+import type { RivalSpeciesId, WorldgenCheck } from '@/sim/types';
 import { HUMAN_EVENT_KINDS } from '@/sim/types';
 import { heightAt } from '@/sim/world/terrainSample';
 import { primEval } from '@/sim/world/primHash';
 import type { GenContext } from '../kit/context';
 import { primIndex } from '../kit/surface';
+import { primColumn, type ColumnHit } from '../kit/column';
 import { mapState } from '../maps/state';
 import { walkable } from '../maps/nav';
 import { cellAt, navDistances } from './graph';
 import { evaluateMicro, usefulInteriorAccess } from './micro';
 import { SUIT, SUITABILITY } from '../tuning/maps';
-import { LANE_ZONES, MICRO, SIZE_SCALE, VALID } from '../tuning/pipeline';
+import { checkStartRule } from '../maps/start';
+import { foodReport } from '../populate/finalize';
+import { INCIPIENT, RIVAL_SITE_PROFILES, SITE_FOOD, T1_HONEYDEW } from '../populate/tuning';
+import { LANE_ZONES, MICRO, PLACE, SIZE_SCALE, VALID } from '../tuning/pipeline';
 
 export type CheckStatus = 'pass' | 'fail' | 'n/a';
 export interface CheckResult {
@@ -31,8 +35,6 @@ function contentLimited(ctx: GenContext, good: number): boolean {
   return good === 0 && SUITABILITY[ctx.params.speciesId].woodNester && !ctx.provides.has('props');
 }
 
-const CARB_RENEWABLE: readonly FoodKind[] = ['honeydew', 'nectar', 'sugar', 'crumb', 'fruit'];
-const PROTEIN: readonly FoodKind[] = ['carrion', 'prey', 'pet-food'];
 
 const scaled = (ctx: GenContext, n: number) => Math.max(1, Math.round(n * SIZE_SCALE[ctx.params.sizeClass]));
 const ok = (id: WorldgenCheck, pass: boolean, detail: string): CheckResult => ({ id, status: pass ? 'pass' : 'fail', detail });
@@ -93,15 +95,19 @@ export function checkConnect(ctx: GenContext): CheckResult {
   return r;
 }
 
+/**
+ * v-food (GDD 04 §4.3) with the populate guarantees: >= 3 anchors within 600 BU path distance of the start, a
+ * renewable carbohydrate and a protein anchor within 900 BU, every good site near the start with >= 2
+ * carbohydrate sources within 400 BU (GDD 05 §1.3), and the registry C13 economy floors.
+ */
 export function checkFood(ctx: GenContext): CheckResult {
   if (!ctx.provides.has('food')) return na('v-food', 'no food placer yet');
-  const d = navDistances(ctx, [startCell(ctx)], { maxBu: VALID.foodKindRadiusBu });
-  const at = (p: { x: number; z: number }) => d[cellAt(ctx, p.x, p.z)];
-  const anchors = ctx.world.placements.foodAnchors;
-  const near = anchors.filter((a) => at(a.pos) <= VALID.foodRadiusBu).length;
-  const carb = anchors.some((a) => CARB_RENEWABLE.includes(a.kind) && at(a.pos) <= VALID.foodKindRadiusBu);
-  const prot = anchors.some((a) => PROTEIN.includes(a.kind) && at(a.pos) <= VALID.foodKindRadiusBu);
-  return ok('v-food', near >= VALID.foodMin && carb && prot, `near=${near} carb=${carb} protein=${prot}`);
+  const r = foodReport(ctx);
+  const floors = r.floors.every((f) => f.ok);
+  const pass = r.near >= VALID.foodMin && r.carb && r.protein && r.siteMin >= SITE_FOOD.carbMin && floors
+    && r.filmsNear >= Math.min(T1_HONEYDEW.nearMin, r.films);
+  return ok('v-food', pass, `near=${r.near} carb=${r.carb} protein=${r.protein} films=${r.filmsNear}/${r.films} siteCarbMin=${r.siteMin} `
+    + r.floors.map((f) => `${f.radiusBu}BU:${f.c.toFixed(0)}C/${f.p.toFixed(0)}P${f.ok ? '' : '!'}`).join(' '));
 }
 
 export function checkMicro(ctx: GenContext): CheckResult {
@@ -112,24 +118,35 @@ export function checkMicro(ctx: GenContext): CheckResult {
   return ok('v-micro', useful >= need && kitchen >= 1, `useful=${useful}/${need} interior=${kitchen}`);
 }
 
+/** v-rivals: established count (>= 1 if requested, never above), spacing, edge rule; incipients 300-800 BU. */
 export function checkRivals(ctx: GenContext): CheckResult {
   if (!ctx.provides.has('rivals')) return na('v-rivals', 'no rival placer yet');
   const { size: L, bu } = ctx.dims;
-  const est = ctx.world.placements.rivalSites.filter((r) => !r.incipient);
+  const sites = ctx.world.placements.rivalSites;
+  const est = sites.filter((r) => !r.incipient), inc = sites.filter((r) => r.incipient);
   const s = ctx.world.queenStart.pos;
+  const d = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2);
   let spaced = true;
   for (let i = 0; i < est.length; i++) {
-    const o = est[i].origin;
-    if (Math.sqrt((o.x - s.x) ** 2 + (o.z - s.z) ** 2) < VALID.startRivalMinBu * bu) spaced = false;
-    for (let j = i + 1; j < est.length; j++) {
-      const p = est[j].origin;
-      if (Math.sqrt((o.x - p.x) ** 2 + (o.z - p.z) ** 2) < VALID.rivalSpacingBu * bu) spaced = false;
-    }
+    if (d(est[i].origin, s) < VALID.startRivalMinBu * bu) spaced = false;
+    for (let j = i + 1; j < est.length; j++) if (d(est[i].origin, est[j].origin) < VALID.rivalSpacingBu * bu) spaced = false;
   }
-  const edgeOk = est.every((r) => Math.min(r.origin.x, r.origin.z, L - r.origin.x, L - r.origin.z) >= VALID.rivalEdgeMinBu * bu || r.species === 'formica-rufa');
-  const countOk = ctx.params.rivalCount >= 1 ? est.length >= 1 && est.length <= ctx.params.rivalCount : est.length === 0;
-  return ok('v-rivals', countOk && spaced && edgeOk,
-    `placed=${est.length}/${ctx.params.rivalCount} spaced=${spaced} edge=${edgeOk}`);
+  let incOk = true;
+  for (const r of inc) {
+    const ds = d(r.origin, s);
+    if (ds < INCIPIENT.minBu * bu || ds > INCIPIENT.maxBu * bu) incOk = false;
+    if (sites.some((o) => o !== r && d(o.origin, r.origin) < INCIPIENT.nestSpacingBu * bu)) incOk = false;
+  }
+  const edgeOk = est.every((r) => {
+    const e = Math.min(r.origin.x, r.origin.z, L - r.origin.x, L - r.origin.z);
+    const p = RIVAL_SITE_PROFILES[r.species as RivalSpeciesId];
+    return p?.edgeMaxBu !== undefined ? e <= p.edgeMaxBu * bu : e >= VALID.rivalEdgeMinBu * bu;
+  });
+  // incipient colonies are extra (GDD 05 §3.1): fewer than asked is noted by the placer, not a failure
+  const countOk = (ctx.params.rivalCount >= 1 ? est.length >= 1 && est.length <= ctx.params.rivalCount : est.length === 0)
+    && inc.length <= ctx.params.incipientCount;
+  return ok('v-rivals', countOk && spaced && edgeOk && incOk,
+    `placed=${est.length}/${ctx.params.rivalCount} incipient=${inc.length}/${ctx.params.incipientCount} spaced=${spaced} edge=${edgeOk} incipientOk=${incOk}`);
 }
 
 export function checkRest(ctx: GenContext): CheckResult {
@@ -138,18 +155,34 @@ export function checkRest(ctx: GenContext): CheckResult {
   return ok('v-rest', bad.length === 0, `violations=${bad.length}`);
 }
 
-/** Objects tagged 'prop' whose lowest point floats more than 1 mm above the surface below it. */
+/** Fractions of the lowest primitive's footprint sampled for support (3 x 3 grid). */
+const REST_SAMPLES = [0.2, 0.5, 0.8];
+
+/**
+ * Objects tagged 'prop' whose lowest primitive floats more than 1 mm above whatever is below it everywhere: the
+ * primitive's underside is probed on a 3 x 3 grid over its footprint, and the prop rests if any probe touches the
+ * terrain or another object (a stone lying across a paving joint rests on the slabs, not on the joint below its
+ * centre).
+ */
 export function restViolations(ctx: GenContext): number[] {
   const ix = primIndex(ctx);
   const out: number[] = [];
+  const col: ColumnHit = { hit: false, bottom: 0, top: 0 };
   for (const ob of ctx.world.objects) {
     if (!ob.tags.includes('prop')) continue;
-    let low = Infinity, lx = 0, lz = 0;
-    for (let i = ob.primStart; i < ob.primStart + ob.primCount; i++) {
-      const e = ix.entries[i];
-      if (e.minY < low) { low = e.minY; lx = (e.minX + e.maxX) / 2; lz = (e.minZ + e.maxZ) / 2; }
+    let low = -1;
+    for (let i = ob.primStart; i < ob.primStart + ob.primCount; i++) if (low < 0 || ix.entries[i].minY < ix.entries[low].minY) low = i;
+    if (low < 0) continue;
+    const e = ix.entries[low];
+    let rests = false;
+    for (const fz of REST_SAMPLES) for (const fx of REST_SAMPLES) {
+      if (rests) break;
+      const x = e.minX + (e.maxX - e.minX) * fx, z = e.minZ + (e.maxZ - e.minZ) * fz;
+      primColumn(e, x, z, col);
+      if (!col.hit) continue;
+      rests = col.bottom - heightAt(ctx.world.terrain, x, z) <= PLACE.floatTolMm || supported(ctx, ob.id, x, col.bottom, z);
     }
-    if (low - heightAt(ctx.world.terrain, lx, lz) > 1 && !supported(ctx, ob.id, lx, low, lz)) out.push(ob.id);
+    if (!rests) out.push(ob.id);
   }
   return out;
 }
@@ -158,7 +191,7 @@ function supported(ctx: GenContext, objectId: number, x: number, y: number, z: n
   const ix = primIndex(ctx);
   const hits: number[] = [];
   ix.query(x - 1, z - 1, x + 1, z + 1, hits);
-  return hits.some((i) => ix.entries[i].prim.objectId !== objectId && primEval(ix.entries[i], x, y - 1, z, null) <= 0);
+  return hits.some((i) => ix.entries[i].prim.objectId !== objectId && primEval(ix.entries[i], x, y - PLACE.floatTolMm, z, null) <= 0);
 }
 
 export function checkBudget(ctx: GenContext): CheckResult {
@@ -171,17 +204,16 @@ export function checkBudget(ctx: GenContext): CheckResult {
   return ok('v-budget', over.length === 0, `prims=${w.prims.length} chunks=${b.chunks.size} routes=${w.climbRoutes.length}${over.length ? ' over: ' + over.join(',') : ''}`);
 }
 
+/** v-start: GDD 04 §4.3 (flood, zone, rivals) and the start rule of directions §K (maps/start.ts). */
 export function checkStart(ctx: GenContext): CheckResult {
   const st = mapState(ctx);
   const s = ctx.world.queenStart.pos;
   const c = cellAt(ctx, s.x, s.z);
   const zone = ctx.layout.zones[ctx.layout.nav[c]].type;
   const flood = st.water.flood[c];
-  const bu = ctx.dims.bu;
-  const rivalOk = ctx.world.placements.rivalSites.filter((r) => !r.incipient)
-    .every((r) => Math.sqrt((r.origin.x - s.x) ** 2 + (r.origin.z - s.z) ** 2) >= VALID.startRivalMinBu * bu);
-  const pass = flood <= VALID.startFloodMax && zone !== 'asphalt' && zone !== 'interior' && rivalOk && walkable(ctx.world.nav.cls.data[c]);
-  return ok('v-start', pass, `zone=${zone} flood=${flood.toFixed(2)} rivals=${rivalOk}`);
+  const rule = checkStartRule(ctx);
+  const pass = flood <= VALID.startFloodMax && zone !== 'asphalt' && zone !== 'interior' && walkable(ctx.world.nav.cls.data[c]) && rule.ok;
+  return ok('v-start', pass, `flood=${flood.toFixed(2)} ${rule.detail}`);
 }
 
 /** Never fails: lists the human event kinds without an eligible zone in meta.disabledEvents. */

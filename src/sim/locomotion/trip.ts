@@ -9,14 +9,14 @@ import { AntFlag, nestFieldId } from '@/sim/types';
 import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
 import { followClimb as followClimbImp, followField as followFieldImp, followFlow as followFlowImp, followPath as followPathImp, followSeek as followSeekImp, type LegResult } from './legs';
 import { copy3 as copy3Imp, dist3 as dist3Imp, distXZ as distXZImp, noise01 as noise01Imp, set3 as set3Imp } from './mathx';
-import { chamberById as chamberByIdImp, chamberField as chamberFieldImp, entranceById as entranceByIdImp, exitField as exitFieldImp, isBelowGround as isBelowGroundImp, nearestOpenEntrance as nearestOpenEntranceImp, nestContaining as nestContainingImp, planField as planFieldImp, pointField as pointFieldImp } from './nests';
+import { chamberById as chamberByIdImp, chamberField as chamberFieldImp, ensureField as ensureFieldImp, entranceById as entranceByIdImp, isPointField as isPointFieldImp, exitField as exitFieldImp, isBelowGround as isBelowGroundImp, nearestOpenEntrance as nearestOpenEntranceImp, nestContaining as nestContainingImp, planField as planFieldImp, pointField as pointFieldImp } from './nests';
 import { nearestRouteNode as nearestRouteNodeImp } from './routes';
 import { avoidDiscs as avoidDiscsImp, avoidSig as avoidSigImp, nestEntrances as nestEntrancesImp, nestFlowKey as nestFlowKeyImp, takePlanBudget as takePlanBudgetImp, type LocoRuntime } from './runtime';
 import { NO_PROGRESS, type NavScratch } from './scratch';
 import { PASS_CLEAR_K } from './params';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, followFlow = followFlowImp, followPath = followPathImp, followSeek = followSeekImp, copy3 = copy3Imp, dist3 = dist3Imp, distXZ = distXZImp, noise01 = noise01Imp, set3 = set3Imp, chamberById = chamberByIdImp, chamberField = chamberFieldImp, entranceById = entranceByIdImp, exitField = exitFieldImp, isBelowGround = isBelowGroundImp, nearestOpenEntrance = nearestOpenEntranceImp, nestContaining = nestContainingImp, planField = planFieldImp, pointField = pointFieldImp, nearestRouteNode = nearestRouteNodeImp, avoidDiscs = avoidDiscsImp, avoidSig = avoidSigImp, nestEntrances = nestEntrancesImp, nestFlowKey = nestFlowKeyImp, takePlanBudget = takePlanBudgetImp;
+const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, followFlow = followFlowImp, followPath = followPathImp, followSeek = followSeekImp, copy3 = copy3Imp, dist3 = dist3Imp, distXZ = distXZImp, noise01 = noise01Imp, set3 = set3Imp, chamberById = chamberByIdImp, chamberField = chamberFieldImp, ensureField = ensureFieldImp, isPointField = isPointFieldImp, entranceById = entranceByIdImp, exitField = exitFieldImp, isBelowGround = isBelowGroundImp, nearestOpenEntrance = nearestOpenEntranceImp, nestContaining = nestContainingImp, planField = planFieldImp, pointField = pointFieldImp, nearestRouteNode = nearestRouteNodeImp, avoidDiscs = avoidDiscsImp, avoidSig = avoidSigImp, nestEntrances = nestEntrancesImp, nestFlowKey = nestFlowKeyImp, takePlanBudget = takePlanBudgetImp;
 
 const _d: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -235,6 +235,16 @@ function planCavityExit(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boo
   return true;
 }
 
+/**
+ * A point goal inside the walker's nest whose shared point field puts the walker within pointSeek of the field's
+ * bottom: the rest is walked directly (the field's bottom is a quantised cell, not the goal).
+ */
+export function nearPointGoal(sim: Sim, w: Walker, r: LocoRuntime, field: string): boolean {
+  if (!isPointField(field)) return false;
+  ensureField(sim, r, field);
+  return sim.nestNav.distanceAt(field, w.pos) <= r.P.pointSeek;
+}
+
 /** Chooses the next leg from where the walker is and where the goal lies. False = no route (request fails). */
 export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here: number): boolean {
   const P = r.P;
@@ -247,7 +257,9 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
   if (here < 0 && w.medium === 'cavity' && s.goalNest < 0) return planCavityExit(sim, w, s, r);
   if (here >= 0) {
     if (s.goalNest === here) {
-      setField(w, s, here, s.goalField || pointField(sim, r, s.goal), false);
+      const f = s.goalField || pointField(sim, r, s.goal);
+      if (nearPointGoal(sim, w, r, f)) { setSeek(w, s, s.goal); return true; }
+      setField(w, s, here, f, false);
       return true;
     }
     const ef = exitField(sim, here);

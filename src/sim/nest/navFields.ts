@@ -1,6 +1,6 @@
-// Nest-nav fields of one nest (GDD 03 §5.2): D_exit, D_seal and D_ch through services.registerNestTargets, plus
-// one D_plan per active plan seeded at its slots. registerNestTargets removes every field of the nest first, so
-// the plan fields are always re-added here. D_seal is re-seeded at the plug voxels themselves (GDD 03: "seeds:
+// Nest-nav fields of one nest (GDD 03 §5.2): D_exit, D_seal and D_ch (the set services.registerNestTargets
+// defines), plus one D_plan per active plan seeded at its slots, synced so unchanged fields are kept and update
+// incrementally. D_seal is re-seeded at the plug voxels themselves (GDD 03: "seeds:
 // plug voxels"), which reaches the nest side of a plug; seeding at the opening would only reach the mouth.
 //
 // The fields are derived caches: their seeds are a pure function of the persisted state, so a Sim built after a
@@ -9,10 +9,9 @@
 // call so the set is complete even before the first tick.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { CarveGrid, Nest, NestNav, Sim, SimState } from '@/sim/types';
+import type { CarveGrid, NavSeeds, Nest, NestFieldTarget, NestNav, Sim, SimState } from '@/sim/types';
 import { VoxelFlag, nestFieldId } from '@/sim/types';
-import { MAX_PLUG_SEEDS, THROAT_BU } from '@/sim/balance/nest';
-import { registerNestTargets } from '@/sim/services';
+import { ENTRANCE_SEED_PAD_BU, MAX_PLUG_SEEDS, THROAT_BU } from '@/sim/balance/nest';
 import { OPEN_MIN } from './carve/keys';
 import { FlagStore } from './flags';
 import { nestRuntime } from './runtime';
@@ -26,13 +25,41 @@ export function refreshNestFields(sim: Sim, nest: Nest): void {
   writeNestFields(sim.nestNav, sim.carve, nestRuntime(sim).flags, nest, sim.world.bu);
 }
 
-/** Every field of one nest from its record, the carve grid and the voxel flags. */
+/**
+ * Every field of one nest from its record, the carve grid and the voxel flags. The same set as
+ * services.registerNestTargets (exit / seal / chamber fields) with D_seal at the plug voxels and the D_plan fields,
+ * written as a sync: a field whose seeds did not change is kept (NestNav.setTarget keeps it), so it updates
+ * incrementally; fields of the nest that are no longer wanted are removed. The resulting set is a pure function of
+ * the record, as before.
+ */
 function writeNestFields(nav: NestNav, carve: CarveGrid, flags: FlagStore, nest: Nest, bu: number): void {
-  registerNestTargets(nav, nest, bu);
+  const wanted = new Map<string, NavSeeds>();
+  const exits: Vec3[] = [], seals: Vec3[] = [];
+  let exitR = 0, sealR = 0;
+  for (const e of nest.entrances) {
+    if (e.status === 'open') { exits.push(e.pos); exitR = Math.max(exitR, e.radius); }
+    else { seals.push(e.pos); sealR = Math.max(sealR, e.radius); }
+  }
+  const opening = (r: number) => r + ENTRANCE_SEED_PAD_BU * bu;
+  if (exits.length > 0) wanted.set(nestFieldId(nest.id, EXIT), { points: exits, radius: opening(exitR) });
   const plugs = plugPoints(carve, flags, nest, bu);
-  if (plugs.length > 0) nav.setTarget(nestFieldId(nest.id, { kind: 'seal', id: -1 }), { points: plugs, radius: 1.5 * carve.voxel });
-  for (const p of nest.digPlans) writePlanField(nav, carve, nest, p.id);
+  if (plugs.length > 0) wanted.set(nestFieldId(nest.id, SEAL), { points: plugs, radius: 1.5 * carve.voxel });
+  else if (seals.length > 0) wanted.set(nestFieldId(nest.id, SEAL), { points: seals, radius: opening(sealR) });
+  for (const c of nest.chambers) {
+    const r = Math.max(bu, Math.min(c.radii.x, c.radii.y, c.radii.z));
+    wanted.set(nestFieldId(nest.id, { kind: 'chamber', id: c.id }), { points: [c.center], radius: r });
+  }
+  for (const p of nest.digPlans) {
+    if (!planIsLive(p.status) || p.slots.length === 0) continue;
+    wanted.set(nestFieldId(nest.id, { kind: 'plan', id: p.id }), { points: p.slots.map((x) => x.pos), radius: carve.voxel });
+  }
+  const prefix = `nest:${nest.id}:`; // nestFieldId's form
+  for (const id of nav.targets()) if (id.startsWith(prefix) && !wanted.has(id)) nav.removeTarget(id);
+  for (const [id, seeds] of wanted) nav.setTarget(id, seeds);
 }
+
+const EXIT: NestFieldTarget = { kind: 'exit', id: -1 };
+const SEAL: NestFieldTarget = { kind: 'seal', id: -1 };
 
 const BUILT = new WeakSet<Sim>();
 

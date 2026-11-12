@@ -23,3 +23,11 @@ export const AGE_MID_MAX_GD = 12;
 /** Lifespan draw clamp as fractions of the mean (GDD 02: 33 GD clamped to [10, 85]). */
 export const LIFESPAN_MIN_FRAC = 0.3;
 export const LIFESPAN_MAX_FRAC = 2.6;
+
+/**
+ * Deliver first (GDD 02 §10.0): an ant whose task changed while it carries something keeps its old behaviour until the
+ * delivery is done, at most this long, game s (a stuck delivery then gives way; the new task puts the load down).
+ */
+export const DELIVER_FIRST_MAX_S = 600;
+/** Tasks that take over at once even from a delivery (GDD 02 §10.0: drop only on flee contact or death). */
+export const DELIVER_FIRST_EXEMPT_TASKS = ['flee', 'fight'] as const;

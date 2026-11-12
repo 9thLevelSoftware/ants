@@ -20,6 +20,13 @@ export interface Behaviour {
   enter(sim: Sim, ant: Ant): void;
   update(sim: Sim, ant: Ant): void;
   exit(sim: Sim, ant: Ant): void;
+  /**
+   * GDD 02 §10.0 "carried item and task change: deliver first": true while the ant is in the middle of a delivery
+   * this behaviour must finish (soil, food, waste, brood in the mandibles; a laden forager on its way home). While
+   * it is true the behaviour runner keeps running this behaviour after the task changed, and switches once it is
+   * false (or after DELIVER_FIRST_MAX_S). Omitted = never delivering. Additive (sim-fix-ants).
+   */
+  delivering?(sim: Sim, ant: Ant): boolean;
 }
 
 /** Result of canDo(): whether an action primitive may start now, and why not. */

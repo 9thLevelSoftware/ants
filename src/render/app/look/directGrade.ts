@@ -1,8 +1,14 @@
 // The colour grade on the path without post-processing (test / low presets). Renderer tone mapping only runs when
 // drawing to the screen, and the grade must act on linear HDR colour before it, so the scene is drawn into a HalfFloat
 // target (with MSAA samples when the preset asks for MSAA) and one full-screen triangle grades, tone maps (the
-// renderer's ACES and exposure through <tonemapping_fragment>) and converts to sRGB. The pass is skipped while the
-// grade is neutral, so a neutral frame costs exactly what it did before.
+// renderer's ACES and exposure through <tonemapping_fragment>) and converts to sRGB.
+//
+// The no-post path draws through this pass on EVERY frame, neutral grade or not, the way the post path always draws
+// through its composer: the lighting model's daytime grade is never neutral (saturation 1.04-1.05), so a skip would
+// only ever apply underground, and the default framebuffer is created without MSAA (the scene target carries the
+// preset's samples), so skipping would also drop the anti-aliasing. Cost against a plain MSAA draw to the screen:
+// colour samples are HalfFloat (8 bytes instead of 4), one resolve and one full-screen triangle; the default
+// framebuffer's own MSAA storage is no longer allocated, and switching MSAA needs no new WebGL context.
 import {
   BufferGeometry, Float32BufferAttribute, HalfFloatType, Mesh, OrthographicCamera, Scene, ShaderMaterial, UnsignedByteType, Vector2, Vector3, WebGLRenderTarget,
   type Camera, type Texture, type WebGLRenderer,
@@ -59,7 +65,7 @@ export class DirectGrade {
     this.quadScene.add(this.quad);
   }
 
-  /** True when the next frame needs the grading pass (the grade is not neutral). */
+  /** True when the grade differs from neutral (informational: the no-post path draws through the pass regardless). */
   get active(): boolean {
     return !isNeutralGrade(this.grade);
   }

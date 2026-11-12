@@ -5,9 +5,10 @@
 import type { Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import type { Sim } from '@/sim/types';
+import { claimInput } from '../inputClaims';
 import type { ScenePick } from '../picking/scenePick';
 import { TOOL_ORDER, type ColonyTool, type ViewsState } from '../viewsState';
-import { DigPlanner, playerNest } from './digPlanner';
+import { DigPlanner, playerNest, type ConfirmResult } from './digPlanner';
 import { MarkerTool, type MarkerToolKind, type ToolHost } from './markerTool';
 
 /** Double-click window on the same ant, real s. */
@@ -42,14 +43,16 @@ export function colonyKeys(input: InputState, st: ViewsState, tools: ColonyTools
   if (shift) {
     for (let i = 0; i < TOOL_ORDER.length; i++) if (input.codePressed(`Digit${i + 1}`)) selectTool(st, tools, TOOL_ORDER[i]);
   }
-  // Shift+wheel arrives as the slice actions; R / F themselves are slice keys
+  // Shift+wheel arrives as the slice actions; R / F themselves are slice keys. A tool that takes the wheel claims
+  // it, so the colony camera does not also move the slice this frame (inputClaims.ts).
   const wheelSteps = shift ? (input.pressed('cv-slice-up') && !input.codePressed('KeyR') ? 1 : 0) - (input.pressed('cv-slice-down') && !input.codePressed('KeyF') ? 1 : 0) : 0;
   if (plannerActive(st)) {
     const rot = (input.codePressed('KeyE') ? 1 : 0) - (input.codePressed('KeyQ') ? 1 : 0);
     if (rot) tools.planner.rotate(rot);
-    if (wheelSteps) tools.planner.resize(wheelSteps);
+    if (wheelSteps) { tools.planner.resize(wheelSteps); claimInput(input, 'shift-wheel'); }
   } else if (st.tool && wheelSteps) {
     tools.markers.setRadius(st.tool, tools.markers.radiusBu[st.tool] + wheelSteps * MARKER_RADIUS_STEP_BU);
+    claimInput(input, 'shift-wheel');
   }
   if (input.pressed('cv-delete')) deleteSelected(st, tools, h);
   if (input.codePressed('KeyZ') && (input.codeHeld('ControlLeft') || input.codeHeld('ControlRight') || input.codeHeld('MetaLeft'))) tools.markers.undo(h);
@@ -66,6 +69,25 @@ export function colonyCancel(st: ViewsState, tools: ColonyTools): boolean {
   return false;
 }
 
+/**
+ * Once per frame in every view: resolves tool commands the Game queued for the next tick (real time) and shows the
+ * outcome of a queued plan (a refusal keeps the tool open with its reason).
+ */
+export function colonyPoll(sim: Sim, st: ViewsState, tools: ColonyTools, h: ColonyHost): void {
+  tools.markers.poll(sim);
+  tools.planner.poll(sim);
+  for (let r = tools.planner.takeLateResult(); r; r = tools.planner.takeLateResult()) planOutcome(r, st, tools, h, true);
+}
+
+/** What the player sees after a confirm: created closes the tool and selects the plan; a refusal keeps the tool. */
+function planOutcome(r: ConfirmResult, st: ViewsState, tools: ColonyTools, h: ColonyHost, late: boolean): void {
+  if (r.outcome === 'none') return;
+  st.message = r.outcome === 'confirm-warnings' ? `${r.reason ?? 'Warning'}: click again to confirm`
+    : r.outcome === 'queued' ? 'Placing the plan...' : r.reason;
+  if (r.outcome === 'created') { st.selectedPlanId = r.planId; if (plannerActive(st)) selectTool(st, tools, null); }
+  if (r.outcome === 'refused' && late && r.reason) h.toast(r.reason);
+}
+
 /** Live ghost of the planner for the point under the cursor. */
 export function colonyHover(sim: Sim, pick: ScenePick | null, st: ViewsState, tools: ColonyTools): void {
   st.hover = pick?.hits[0] ?? null;
@@ -76,9 +98,7 @@ export function colonyHover(sim: Sim, pick: ScenePick | null, st: ViewsState, to
 export function colonyClick(sim: Sim, pick: ScenePick | null, st: ViewsState, tools: ColonyTools, h: ColonyHost, nowS: number, shift = false): void {
   st.message = null;
   if (plannerActive(st)) {
-    const r = tools.planner.confirm(h);
-    st.message = r.outcome === 'confirm-warnings' ? `${r.reason ?? 'Warning'}: click again to confirm` : r.reason;
-    if (r.outcome === 'created') { st.selectedPlanId = r.planId; selectTool(st, tools, null); }
+    planOutcome(tools.planner.confirm(h), st, tools, h, false);
     return;
   }
   const surface = pick?.surface?.point ?? null;

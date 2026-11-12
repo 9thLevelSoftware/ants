@@ -111,7 +111,9 @@ export function colonyDemand(sim: Sim, colonyId: number, task: Task): number {
 
 // Further colony API for behaviours, actions, UI and debug (see each file's header).
 export { taskCycleDone } from './allocation';
-export { recordDelivery, recordForagerReturn, shouldDepart, curfew, fEnv, isWaitingForager, injectReturn } from './activation';
+export {
+  recordDelivery, recordDeliveryCount, recordForagerReturn, shouldDepart, curfew, fEnv, isWaitingForager, injectReturn,
+} from './activation';
 export {
   ecloseBrood, feedUrgency, larvaHunger, larvaRemainingNeed, setBroodDiapause, tendBrood, tendBroodAt, wantsFeed,
 } from './brood';
@@ -134,6 +136,7 @@ export function killColonyBrood(sim: Sim, broodId: number, cause: BroodDeathCaus
 }
 export { setClimateOverride, type ClimateOverride } from './envAdapter';
 export { censusOf } from './census';
+export { isMiddenBlocked, reportMiddenBlocked } from './midden';
 
 /**
  * The mix of a nurse crop load of `load` loads (GDD 02 §5.4.2): P share P_req / (P_req + C_req); if the pool is

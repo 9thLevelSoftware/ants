@@ -12,12 +12,13 @@ import { retraceDesired as retraceDesiredImp, trailDesired as trailDesiredImp, w
 import { routeById as routeByIdImp } from './routes';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
-import { aiSpeed as aiSpeedImp } from './speed';
+import { aiSpeedCached as aiSpeedCachedImp } from './speed';
 import { checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp } from './stuck';
+import { walkerLetGo as walkerLetGoImp } from './walker';
 import { afterClimb as afterClimbImp, discsChanged as discsChangedImp, finalLeg as finalLegImp, finite3 as finite3Imp, followLeg as followLegImp, legFlow as legFlowImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, surfaceDist as surfaceDistImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeed = aiSpeedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
+const walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
 const MOVING_KINDS = new Set(['ant', 'creature', 'item', 'brood']);
@@ -66,7 +67,13 @@ function legTarget(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3
 }
 
 function stuckStep(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, res: LegResult, out: Vec3): boolean {
-  trackProgress(s, res.metric, res.advanced, sim.state.tick, r);
+  const tick = sim.state.tick;
+  trackProgress(s, res.metric, res.advanced, tick, r);
+  // the relocation target (a field lookahead or a flow step) is only needed when the ladder may climb a rung
+  if (tick - s.bestTick <= r.P.stuckWindowS * TICKS_PER_SECOND || tick < s.ladderUntil) {
+    ladderOverride(w, s, tick, out);
+    return true;
+  }
   const hasTarget = legTarget(sim, w, s, r, _target);
   const act = checkStuck(sim, w, s, r, id, hasTarget ? _target : w.nav.dest);
   if (act === 'fail') { fail(w, s, r); return false; }
@@ -106,28 +113,49 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   if (res.state === 'fail') { fail(w, s, r); return false; }
   // stuck within the arrival radius of the destination (the spread goal may be unreachable, e.g. inside a stone):
   // that is arrival, not a reason to climb the recovery ladder
-  if (tick - s.bestTick > r.P.stuckWindowS * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
-  if (finalLeg(w, s)) speedCap = arriveCap(w, s, r, res.metric, dt, out);
+  const last = finalLeg(w, s);
+  const window = last ? r.P.arriveStallS : r.P.stuckWindowS;
+  if (tick - s.bestTick > window * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
+  if (last && dropToGoal(sim, w, s, r)) return false;
+  if (last) speedCap = arriveCap(w, s, r, res.metric, dt, out, aiSpeedCached(sim, w, s, r.P));
   return stuckStep(sim, w, s, r, id, res, out);
+}
+
+/**
+ * Upside down on a cavity ceiling with the goal lower down and nearly below: let go and drop (GDD 01 `let-go`). A
+ * surface walker cannot walk off a ceiling toward a point across the cavity: the direction has no tangent part. The
+ * leg is planned again after the landing. True if the walker let go.
+ */
+function dropToGoal(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  const P = r.P;
+  if (w.medium !== 'cavity' || w.up.y >= P.ceilingUpY || s.goal.y > w.pos.y - P.dropBelow) return false;
+  if (Math.hypot(s.goal.x - w.pos.x, s.goal.z - w.pos.z) > P.dropAbove) return false;
+  walkerLetGo(sim.field, w, 0, sim.kernel.walker);
+  s.planTick = -1;
+  r.stats.drops++;
+  return true;
 }
 
 /**
  * Arrive behaviour on the last leg: never cover more than about half the distance left in one step, and pivot
  * toward a goal that lies beside or behind the walker when it is within a few turning radii.
  */
-function arriveCap(w: Walker, s: NavScratch, r: LocoRuntime, fieldMetric: number, dt: number, dir: Vec3): number {
+function arriveCap(w: Walker, s: NavScratch, r: LocoRuntime, fieldMetric: number, dt: number, dir: Vec3, cruise: number): number {
   const P = r.P;
   const left = w.nav.mode === 'seek' || !s.goalField || s.goalField.startsWith('loco:pt:')
     ? Math.max(0, surfaceDist(w, s.goal) - (1 - P.spread) * 0.5 * w.nav.arriveDist)
     : fieldMetric;
   let cap = left / Math.max(P.brakeS, 2 * dt);
-  const turnRadius = cap / P.aiTurn;
+  // the turning circle at the speed the walker will really have (the cap, or its cruise if lower): a cap derived
+  // from a long distance left would put every goal "within a few turning radii" and pivot far from the goal
+  const turnRadius = Math.min(cap, cruise) / P.aiTurn;
   if (left < P.arriveTurnRadii * Math.max(turnRadius, P.bu)) {
     const u = w.up, dn = dir.x * u.x + dir.y * u.y + dir.z * u.z;
     const tx = dir.x - u.x * dn, ty = dir.y - u.y * dn, tz = dir.z - u.z * dn, tl = Math.hypot(tx, ty, tz);
     if (tl > P.minSteer * Math.hypot(dir.x, dir.y, dir.z)) {
       const c = (tx * w.fwd.x + ty * w.fwd.y + tz * w.fwd.z) / tl;
-      cap *= c > 0 ? c : 0;
+      // pivot almost on the spot: a little forward creep keeps the walker from standing (it turns 24 deg a tick)
+      cap *= Math.max(c, P.pivotCreep);
     }
   }
   return cap;
@@ -189,7 +217,7 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
     default: go = false;
   }
   if (!go) { w.nav.desiredSpeed = 0; return 0; }
-  const v = Math.min(aiSpeed(sim, w, s, r.P), speedCap);
+  const v = Math.min(aiSpeedCached(sim, w, s, r.P), speedCap);
   w.nav.desiredSpeed = v;
   return v;
 }

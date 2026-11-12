@@ -2,6 +2,7 @@
 // small helpers. Pure data; every list is a plain array of canonical ActionIds (validate.ts rule 4).
 
 import type { ActionId, CasteDef } from '@/sim/types';
+import { DEFAULT_DAYS_PER_YEAR } from '@/sim/time';
 
 /** No unlock gate (the caste can be reared from the start). */
 export const NO_UNLOCK: CasteDef['unlock'] = { minWorkers: 0, minColonyAgeYears: 0 };
@@ -40,7 +41,7 @@ export function actions(list: readonly ActionId[], add: readonly ActionId[] = []
 }
 
 /** Default standard deviation of a queen's lifespan: 10 % of the mean (Lasius 560 / 60 in GDD 02). */
-export function queenLifespan(years: { min: number; max: number }, daysPerYear = 28): { mean: number; sd: number } {
+export function queenLifespan(years: { min: number; max: number }, daysPerYear = DEFAULT_DAYS_PER_YEAR): { mean: number; sd: number } {
   const mean = ((years.min + years.max) / 2) * daysPerYear;
   return { mean, sd: Math.round(mean * 0.1) };
 }

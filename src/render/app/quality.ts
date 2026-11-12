@@ -68,7 +68,7 @@ export interface QualityPreset {
   /** Device pixel ratio cap. */
   maxPixelRatio: number;
   dynamicResolution: DynResParams;
-  /** Default-framebuffer MSAA, used only when post is off (post uses SMAA; antialias is fixed at creation). */
+  /** MSAA of the scene target on the no-post path (post uses SMAA); switchable at runtime (look/directGrade.ts). */
   msaa: boolean;
   shadows: ShadowParams;
   post: PostParams;

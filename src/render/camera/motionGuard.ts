@@ -13,7 +13,7 @@ export class MotionGuard {
   private lastCam = vec3();
   private lastBase = vec3();
   private hasLast = false;
-  private tmp = vec3(); private dir = vec3(); private from = vec3(); private to = vec3();
+  private tmp = vec3(); private dir = vec3();
 
   reset(): void {
     this.hasLast = false;
@@ -44,18 +44,29 @@ export class MotionGuard {
   }
 
   private clear(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, r: number, trace: TraceFn): boolean {
-    if (fitsAt(trace, p, up, r)) return false;
-    const anchor = fitsAt(trace, goal, up, r) ? goal : base;
-    if (anchor === base && !fitsAt(trace, base, up, r)) { v3Copy(p, base); return true; }
-    v3Copy(this.to, p);
-    v3Copy(this.from, anchor);
-    let lo = 0, hi = 1; // fraction of the way from the anchor to p
-    for (let i = 0; i < 10; i++) {
-      const m = (lo + hi) / 2;
-      v3Lerp(this.tmp, this.from, this.to, m);
-      if (fitsAt(trace, this.tmp, up, r)) lo = m; else hi = m;
-    }
-    v3Lerp(p, this.from, this.to, lo);
-    return true;
+    return pullIntoClearance(p, goal, base, up, r, trace);
   }
+}
+
+const _t = vec3(), _from = vec3(), _to = vec3();
+
+/**
+ * GDD 6.1 clearance for any camera: if a sphere of `r` does not fit at `p`, moves `p` toward an anchor that fits -
+ * `goal` when it does, else `base` - by bisection, as close as possible to where it was. When neither fits, `p`
+ * becomes `base`. Returns true when `p` was moved.
+ */
+export function pullIntoClearance(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, r: number, trace: TraceFn): boolean {
+  if (fitsAt(trace, p, up, r)) return false;
+  const anchor = fitsAt(trace, goal, up, r) ? goal : base;
+  if (anchor === base && !fitsAt(trace, base, up, r)) { v3Copy(p, base); return true; }
+  v3Copy(_to, p);
+  v3Copy(_from, anchor);
+  let lo = 0, hi = 1; // fraction of the way from the anchor to p
+  for (let i = 0; i < 10; i++) {
+    const m = (lo + hi) / 2;
+    v3Lerp(_t, _from, _to, m);
+    if (fitsAt(trace, _t, up, r)) lo = m; else hi = m;
+  }
+  v3Lerp(p, _from, _to, lo);
+  return true;
 }

@@ -4,14 +4,15 @@
 // music duck (§13.2).
 import type { Vec3 } from '@/core/math/vec3';
 import type { HumanEventKind } from '@/sim/types/ids';
-import { BED_FILES, SFX } from './assetIds';
+import { BED_FILES, SFX, type AudioFileId } from './assetIds';
 import { GIANT_ONESHOTS, THUNDER, type CueSound } from './cueTable';
 import { gainToDb, inverseDistanceGain } from './mix';
 import type { Listener } from './listener';
 import { RECIPES } from './synth/recipes';
-import { DISTANCE, GIANT } from './tuning';
+import { DISTANCE, GIANT, GIANT_WARNING } from './tuning';
 import type { BufferBank } from './engine/buffers';
 import type { CuePlayer } from './engine/cuePlayer';
+import type { CueLog } from './engine/cueLog';
 import type { MixGraph } from './engine/graph';
 import { LoopPlayer } from './engine/loopPlayer';
 import { PositionalLoop, type SynthLoop } from './engine/positionalLoop';
@@ -22,30 +23,40 @@ interface Run {
   variant: string | null;
   pos: Vec3 | null;
   loop: PositionalLoop | null;
+  /** Synth id of the running loop's source (tells whether the main sound needs another source than the warning). */
+  loopSynth: string | null;
   nextRepeat: number;
   started: boolean;
   endsAt: number;
 }
 
 const TREMOR: CueSound = { ...GIANT_ONESHOTS.footsteps, files: [], synth: 'sub-tremor', mode: 'synth', gainDb: -6, note: 'warning tremor' };
-const TYRE: CueSound = { ...GIANT_ONESHOTS.car, files: [], synth: 'tyre-roll', mode: 'synth', gainDb: -10 };
+// The tyre roll shares the car's voice key (cue log 'giant.car') with cap 2: one pass plus its tyre layer (§13.6).
+const TYRE: CueSound = { ...GIANT_ONESHOTS.car, files: [], synth: 'tyre-roll', mode: 'synth', gainDb: GIANT.tyreGainDb, cap: 2 };
 const RUMBLE_SWELL: CueSound = { ...GIANT_ONESHOTS.footsteps, files: [], synth: 'low-rumble', mode: 'synth', gainDb: -10 };
 const SPLASH: CueSound = { ...GIANT_ONESHOTS.watering, synth: 'splat', mode: 'file', fileGainDb: 0 };
-const WARNING_DB = -18;
+
+/** File (if any) and synth fallback of a giant loop. */
+function loopSource(kind: HumanEventKind, variant: string | null): { file: AudioFileId | null; synthId: keyof typeof RECIPES } {
+  const reel = kind === 'mowing' && variant === 'reel';
+  const file = kind === 'mowing' ? (reel ? SFX.lawnmower_push_loop : SFX.lawnmower_loop) : kind === 'watering' ? BED_FILES.rain_light : null;
+  const synthId = kind === 'vacuum' ? 'vacuum' : kind === 'watering' ? 'hose-hiss' : reel ? 'reel-whirr' : 'engine';
+  return { file, synthId };
+}
 
 export class GiantDirector {
   private runs = new Map<number, Run>();
   private tremorUntil = 0;
 
   constructor(private readonly kit: SynthKit, private readonly bank: BufferBank, private readonly graph: MixGraph, private readonly cues: CuePlayer,
-    private readonly listener: () => Listener) {}
+    private readonly listener: () => Listener, private readonly log: CueLog) {}
 
   private get now(): number { return this.kit.ctx.currentTime; }
 
   private run(instId: number, kind: HumanEventKind): Run {
     let r = this.runs.get(instId);
     if (!r) {
-      r = { kind, variant: null, pos: null, loop: null, nextRepeat: Infinity, started: false, endsAt: Infinity };
+      r = { kind, variant: null, pos: null, loop: null, loopSynth: null, nextRepeat: Infinity, started: false, endsAt: Infinity };
       this.runs.set(instId, r);
     }
     return r;
@@ -69,10 +80,14 @@ export class GiantDirector {
         this.tremorUntil = Math.max(this.tremorUntil, this.now + t);
         break;
       case 'mowing': case 'vacuum': case 'watering':
-        if (!r.loop) r.loop = this.startLoop(r, WARNING_DB, Math.max(1, t));
+        if (!r.loop) {
+          r.loop = this.startLoop(r, GIANT_WARNING.gainDb, Math.max(1, t));
+          r.loop.setTone(GIANT_WARNING.lowpassHz, 0.01);
+        }
         break;
       case 'sweeping': this.shot(GIANT_ONESHOTS.sweeping, 'giant.sweeping', r.pos, undefined, -12); break;
-      case 'car': this.shot(TYRE, 'giant.car', r.pos, Math.max(2, t)); break;
+      // own key: the pass at human.start must not steal (cut off) the approach roll
+      case 'car': this.shot(TYRE, 'giant.car.approach', r.pos, Math.max(GIANT.tyreApproachMinS, t)); break;
       default: break;
     }
   }
@@ -85,9 +100,11 @@ export class GiantDirector {
     const now = this.now;
     switch (kind) {
       case 'mowing': case 'vacuum': case 'watering':
+        // the warning started before the variant was known (telegraph has none): a reel mower swaps the engine out
+        if (r.loop && r.loopSynth !== loopSource(kind, variant).synthId) { r.loop.stop(GIANT.loopSwapFadeS); r.loop = null; }
         if (!r.loop) r.loop = this.startLoop(r, 0, 1.5);
-        else r.loop.setLevel(0, 2);
-        if (kind === 'watering') r.nextRepeat = now + 0.5;
+        else { r.loop.setLevel(0, 2); r.loop.setTone(20000, 2); }
+        if (kind === 'watering') r.nextRepeat = now + GIANT.splashFirstS;
         break;
       case 'sweeping': case 'car': case 'children': r.nextRepeat = now; break;
       case 'food-drop': case 'spill': case 'bait-station': this.shot(GIANT_ONESHOTS[kind], `giant.${kind}`, r.pos); break;
@@ -121,17 +138,15 @@ export class GiantDirector {
 
   private startLoop(r: Run, gainDb: number, fadeInS: number): PositionalLoop {
     const pos = r.pos ?? this.offsetFromListener();
-    const reel = r.kind === 'mowing' && r.variant === 'reel';
-    const file = r.kind === 'mowing' ? (reel ? SFX.lawnmower_push_loop : SFX.lawnmower_loop) : r.kind === 'watering' ? BED_FILES.rain_light : null;
-    const synth: SynthLoop = {
-      recipe: RECIPES[r.kind === 'vacuum' ? 'vacuum' : r.kind === 'watering' ? 'hose-hiss' : reel ? 'reel-whirr' : 'engine'],
-      pieceS: 8, overlapS: 1.2, rate: 1,
-    };
+    const { file, synthId } = loopSource(r.kind, r.variant);
+    r.loopSynth = synthId;
+    const synth: SynthLoop = { recipe: RECIPES[synthId], pieceS: 8, overlapS: 1.2, rate: 1 };
     const buf = file ? this.bank.get(file) : null;
     if (file && !buf && !this.bank.isMissing(file)) void this.bank.load(file);
     const loop = buf ? new LoopPlayer(this.kit.ctx, buf, this.now, this.kit.rng.next(), 0.05) : null;
     const band: [number, number] | null = r.kind === 'watering' ? [1000, 6000] : null;
-    const base = r.kind === 'watering' ? -6 : -4;
+    const base = r.kind === 'watering' ? GIANT.hoseLoopDb : GIANT.engineLoopDb;
+    this.log.push({ t: this.now, cue: `giant.${r.kind}.loop`, bus: 'giants', gainDb: base + gainDb, source: loop ? `file:${file}` : `synth:${synthId}`, distBu: 0 });
     return new PositionalLoop(this.kit, this.graph.buses.giants, loop, loop ? null : synth, pos, 'giant', base + gainDb, fadeInS, band);
   }
 
@@ -156,7 +171,7 @@ export class GiantDirector {
           break;
         case 'car':
           this.shot(GIANT_ONESHOTS.car, 'giant.car', r.pos);
-          this.shot(TYRE, 'giant.car', r.pos, 6);
+          this.shot(TYRE, 'giant.car', r.pos, GIANT.tyreUnderPassS);
           r.nextRepeat = now + rng.range(GIANT.carRepeatMinS, GIANT.carRepeatMaxS);
           break;
         case 'children':
@@ -164,8 +179,8 @@ export class GiantDirector {
           r.nextRepeat = now + rng.range(GIANT.sandThumpMinS, GIANT.sandThumpMaxS);
           break;
         case 'watering':
-          this.shot(SPLASH, 'giant.watering', r.pos, undefined, -6);
-          r.nextRepeat = now + rng.range(0.6, 1.8);
+          this.shot(SPLASH, 'giant.watering', r.pos, undefined, GIANT.splashGainDb);
+          r.nextRepeat = now + rng.range(GIANT.splashRepeatMinS, GIANT.splashRepeatMaxS);
           break;
         default: r.nextRepeat = Infinity;
       }

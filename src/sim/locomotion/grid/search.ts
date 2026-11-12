@@ -54,13 +54,19 @@ export class GridSearch {
     this.seedMark = new Uint32Array(n);
   }
 
-  /** Extra factor of entering cell c from the avoid discs (1 = none). */
+  /**
+   * Extra factor of entering cell c from the avoid discs (1 = none). A cell counts when any part of its square
+   * overlaps a disc, not only its centre: a path through cells whose centres lie just outside would cut the rim
+   * (sim-fix-ants item 6).
+   */
   private discMult(c: number, discs: readonly CostDisc[] | null): number {
     if (!discs || discs.length === 0) return 1;
-    const g = this.g, x = ((c % g.w) + 0.5) * g.cell, z = (Math.floor(c / g.w) + 0.5) * g.cell;
+    const g = this.g, x0 = (c % g.w) * g.cell, z0 = Math.floor(c / g.w) * g.cell;
     let m = 1;
     for (let i = 0; i < discs.length; i++) {
-      const d = discs[i], dx = x - d.x, dz = z - d.z;
+      const d = discs[i];
+      const dx = d.x < x0 ? x0 - d.x : d.x > x0 + g.cell ? d.x - x0 - g.cell : 0;
+      const dz = d.z < z0 ? z0 - d.z : d.z > z0 + g.cell ? d.z - z0 - g.cell : 0;
       if (dx * dx + dz * dz <= d.r * d.r) m *= d.mult;
     }
     return m;

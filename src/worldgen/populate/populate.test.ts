@@ -1,0 +1,226 @@
+// The living layer on three generated standard worlds (woodland-edge, the default suburban-garden and
+// kitchen-door, seed 1; generated once per file). Task worldgen-life acceptance 2-6, GDD 04 App. E 6 / 7, the
+// GDD 05 §1.3 site-food rule and the registry C13 economy floors. The 20-seed sweeps are in
+// validate/sweep.test.ts (FOUNDRESS_LONG=1).
+import { describe, expect, it, vi } from 'vitest';
+import type { ArchetypeId } from '@/sim/types';
+import { SEASONS } from '@/sim/types';
+import { createKernel } from '@/sim/kernel';
+import { walkRoute } from '../place/outdoor/routeWalk';
+import { navDistances, cellAt } from '../validate/graph';
+import { walkable } from '../maps/nav';
+import { mapState } from '../maps/state';
+import { checkStartRule, goodNear } from '../maps/start';
+import { SUIT } from '../tuning/maps';
+import { VALID } from '../tuning/pipeline';
+import { generated, siteDistribution, walkToDigSite } from './testkit';
+import { accessOfAnchor, sourceVariant } from './economy';
+import { foodReport } from './finalize';
+import { HOST_BIT } from './hosts';
+import { ANT_PREDATORS, ECONOMY_FLOORS, INCIPIENT, PREDATOR_START_CLEAR_BU, START_RULE } from './tuning';
+
+vi.setConfig({ testTimeout: 180_000 });
+
+const WORLDS: readonly ArchetypeId[] = ['woodland-edge', 'suburban-garden', 'kitchen-door'];
+const all = () => WORLDS.map((a) => ({ a, ...generated(a, 1, 'standard', 'lasius-niger', true, () => performance.now()) }));
+const dist = (p: { x: number; z: number }, q: { x: number; z: number }) => Math.sqrt((p.x - q.x) ** 2 + (p.z - q.z) ** 2);
+
+describe('validation (acceptance 2)', () => {
+  it('every check passes within the attempt limit', () => {
+    for (const { a, report: r, ms } of all()) {
+      console.info(`[populate] ${a}#1 attempts=${r.attempts} repairs=[${r.repairs}] ${ms.toFixed(0)} ms\n  ${r.checks.map((c) => `${c.id}:${c.status} ${c.detail}`).join('\n  ')}`);
+      expect(r.checks.filter((c) => c.status === 'fail').map((c) => `${c.id}: ${c.detail}`)).toEqual([]);
+      for (const id of ['v-food', 'v-micro', 'v-rivals', 'v-start', 'v-found', 'v-connect'] as const) {
+        expect(r.checks.find((c) => c.id === id)?.status, `${a} ${id}`).toBe('pass');
+      }
+      expect(r.attempts).toBeLessThanOrEqual(8);
+    }
+  });
+});
+
+describe('food anchors (acceptance 5, GDD 04 §8.1, GDD 05 §0 / §1.3)', () => {
+  it('none is inside a solid and every one is reachable from the start (nav grid, portals, walkable climb routes)', () => {
+    for (const { a, ctx } of all()) {
+      const w = ctx.world;
+      const k = createKernel(w, { voxel: w.bu / 2, keys: [], chunks: [], breaches: [] }, { field: { hashCell: 32 * w.bu } });
+      const d = navDistances(ctx, [cellAt(ctx, w.queenStart.pos.x, w.queenStart.pos.z)]);
+      let climbs = 0;
+      for (const an of w.placements.foodAnchors) {
+        expect(k.field.sampleXYZ(an.pos.x, an.pos.y, an.pos.z), `${a} anchor ${an.id} ${an.initialState} inside a solid`).toBeGreaterThan(-0.5);
+        const acc = accessOfAnchor(ctx, an);
+        expect(acc, `${a} anchor ${an.id} has no access`).not.toBeNull();
+        expect(d[acc!.cell], `${a} anchor ${an.id} ${an.initialState} unreachable`).toBeLessThan(Infinity);
+        if (acc!.climbBu > 0) climbs++;
+      }
+      // climb routes to flowers and herds: an independent walker (the outdoor placer's, up and back) follows them
+      const routes = new Set<number>();
+      for (const an of w.placements.foodAnchors) {
+        const ob = w.objects.find((o) => o.id === an.hostObjectId);
+        if (ob && accessOfAnchor(ctx, an)!.climbBu > 0 && an.kind === 'nectar') for (const r of ob.routeIds) routes.add(r);
+      }
+      let ok = 0, tried = 0;
+      for (const id of [...routes].slice(0, 40)) {
+        const r = w.climbRoutes.find((x) => x.id === id)!;
+        tried++;
+        if (walkRoute(k, r.points, w.bu).up) ok++;
+      }
+      console.info(`[populate] ${a}: ${w.placements.foodAnchors.length} anchors, ${climbs} by climbing; flower routes walked ${ok}/${tried}`);
+      expect(ok).toBeGreaterThanOrEqual(tried - 1);
+    }
+  });
+
+  it('kinds by zone and season: flowers on nectar hosts, honeydew sites, crumbs, interior food, season masks', () => {
+    for (const { a, ctx } of all()) {
+      const w = ctx.world;
+      const fa = w.placements.foodAnchors;
+      const byObj = new Map(w.placements.plants.map((p) => [p.objectId, p]));
+      for (const an of fa.filter((x) => x.initialState.startsWith('flower'))) expect(byObj.get(an.hostObjectId)!.hostFlags & HOST_BIT.nectar).toBeTruthy();
+      const films = fa.filter((x) => x.initialState.startsWith('honeydew-film'));
+      expect(films.length, a).toBe(6); // 1 per 250 plots on a standard map (GDD 05 §0)
+      const d = navDistances(ctx, [cellAt(ctx, w.queenStart.pos.x, w.queenStart.pos.z)]);
+      expect(films.filter((f) => d[accessOfAnchor(ctx, f)!.cell] <= 600).length, a).toBeGreaterThanOrEqual(2);
+      for (const f of films) expect(byObj.get(f.hostObjectId)!.hostFlags & HOST_BIT.aphid).toBeTruthy();
+      const crumbs = fa.filter((x) => x.kind === 'crumb');
+      expect(crumbs.some((c) => c.initialState.startsWith('crumb-protein')), a).toBe(true);
+      expect(fa.filter((x) => x.kind === 'crumb' || x.kind === 'sugar').length).toBeLessThanOrEqual(60 + 24);
+      const elaio = fa.filter((x) => x.initialState.startsWith('elaiosome-seed'));
+      // elaiosome seeds: catalogue days 3-9 (spring and the first summer days), never autumn or winter
+      for (const e of elaio) expect(e.seasonMask).toBe((1 << SEASONS.indexOf('spring')) | (1 << SEASONS.indexOf('summer')));
+      for (const x of fa) expect(x.seasonMask, `${a} ${x.initialState}`).toBeGreaterThan(0);
+      if (a === 'kitchen-door') {
+        const interior = fa.filter((x) => ctx.layout.zones[ctx.layout.nav[cellAt(ctx, x.pos.x, x.pos.z)]].type === 'interior');
+        expect(interior.some((x) => x.kind === 'crumb'), 'interior crumbs').toBe(true);
+      }
+      // T1 sources come from flowers, films, crumbs and sugar; T2 kinds wait for their tier
+      const t1 = new Set(fa.map((x) => sourceVariant(x)).filter((v) => v));
+      expect([...t1].every((v) => ['flower', 'honeydew-film', 'crumb-starch', 'crumb-protein', 'sugar-granules', 'sugary-spill'].includes(v!)), [...t1].join()).toBe(true);
+      expect(t1.has('flower') && t1.has('honeydew-film')).toBe(true);
+    }
+  });
+
+  it('economy floors (registry C13) and food near the start (GDD 04 v-food, GDD 05 §1.3)', () => {
+    for (const { a, ctx } of all()) {
+      const r = foodReport(ctx);
+      console.info(`[economy] ${a}#1 summer day offer: ${r.floors.map((f) => `${f.radiusBu} BU ${f.c.toFixed(1)} C / ${f.p.toFixed(1)} P`).join(', ')}; near=${r.near} siteCarbMin=${r.siteMin}`);
+      r.floors.forEach((f, i) => {
+        expect(f.c, `${a} C within ${f.radiusBu}`).toBeGreaterThanOrEqual(ECONOMY_FLOORS[i].c);
+        expect(f.p, `${a} P within ${f.radiusBu}`).toBeGreaterThanOrEqual(ECONOMY_FLOORS[i].p);
+      });
+      expect(r.near).toBeGreaterThanOrEqual(3);
+      expect(r.carb && r.protein).toBe(true);
+      expect(r.siteMin).toBeGreaterThanOrEqual(2);
+    }
+  });
+});
+
+describe('plant hosts (deliverable 2)', () => {
+  it('aphid hosts within 20-90; usable host points are POIs of the plant whose routes a walker follows', () => {
+    for (const { a, ctx } of all()) {
+      const w = ctx.world;
+      const aphid = w.placements.plants.filter((p) => p.hostFlags & HOST_BIT.aphid).length;
+      expect(aphid, a).toBeGreaterThanOrEqual(20);
+      expect(aphid, a).toBeLessThanOrEqual(90 + w.placements.plants.filter((p) => p.hostClass === 'tree').length + 60);
+      const k = createKernel(w, { voxel: w.bu / 2, keys: [], chunks: [], breaches: [] }, { field: { hashCell: 32 * w.bu } });
+      let checked = 0;
+      for (const p of w.placements.plants.filter((x) => x.hostFlags !== 0).slice(0, 25)) {
+        const ob = w.objects.find((o) => o.id === p.objectId)!;
+        expect(p.hostPoiIds, `${a} plant ${p.objectId}`).toBeDefined();
+        for (const id of p.hostPoiIds!) expect(ob.poiIds).toContain(id);
+        if (p.hostPoiIds!.length > 0) {
+          const route = w.climbRoutes.find((r) => r.id === ob.routeIds[0])!;
+          expect(walkRoute(k, route.points, w.bu).up).toBe(true);
+          checked++;
+        }
+      }
+      expect(checked).toBeGreaterThan(5);
+    }
+  });
+});
+
+describe('creature territories (deliverable 3, GDD 04 §8.2)', () => {
+  it('prey with prey patches, aphids with herd sites, caps respected, ant predators clear of the start', () => {
+    for (const { a, ctx } of all()) {
+      const w = ctx.world, t = w.placements.territories;
+      const count = (k: string) => t.filter((x) => x.creatureKind === k).length;
+      expect(count('springtail')).toBe(w.placements.foodAnchors.filter((x) => x.kind === 'prey').length);
+      expect(count('aphid')).toBeGreaterThan(0);
+      expect(count('wolf-spider')).toBeLessThanOrEqual(4);
+      expect(count('jumping-spider')).toBeLessThanOrEqual(4);
+      expect(count('earthworm')).toBeLessThanOrEqual(30);
+      expect(count('antlion')).toBeLessThanOrEqual(6);
+      for (const x of t) {
+        expect(x.radiusMm).toBeGreaterThan(0);
+        if (ANT_PREDATORS.includes(x.creatureKind)) expect(dist(x.center, w.queenStart.pos), `${a} ${x.creatureKind}`).toBeGreaterThanOrEqual(PREDATOR_START_CLEAR_BU * w.bu + x.radiusMm - 1);
+      }
+    }
+  });
+});
+
+describe('rival sites (deliverable 4, acceptance 3, GDD 04 §12.5)', () => {
+  it('established rivals respect RIVAL_SPACING_BU / RIVAL_START_MIN_BU / the edge rule; incipients 300-800 BU', () => {
+    for (const { a, ctx } of all()) {
+      const w = ctx.world, bu = w.bu, s = w.queenStart.pos;
+      const est = w.placements.rivalSites.filter((r) => !r.incipient), inc = w.placements.rivalSites.filter((r) => r.incipient);
+      console.info(`[rivals] ${a}#1 ${w.placements.rivalSites.map((r) => `${r.species}${r.incipient ? ' (incipient)' : ''} ${(dist(r.origin, s) / bu).toFixed(0)} BU`).join(', ')}`);
+      expect(est.length).toBe(w.params.rivalCount);
+      expect(inc.length).toBe(w.params.incipientCount);
+      expect(est.filter((r) => r.species === 'formica-rufa').length).toBeLessThanOrEqual(1);
+      expect(est.some((r) => r.species === w.params.speciesId), 'a conspecific on naturalist').toBe(true);
+      for (let i = 0; i < est.length; i++) {
+        expect(dist(est[i].origin, s)).toBeGreaterThanOrEqual(VALID.startRivalMinBu * bu);
+        const e = Math.min(est[i].origin.x, est[i].origin.z, w.size - est[i].origin.x, w.size - est[i].origin.z);
+        if (est[i].species !== 'formica-rufa') expect(e).toBeGreaterThanOrEqual(VALID.rivalEdgeMinBu * bu);
+        for (let j = i + 1; j < est.length; j++) expect(dist(est[i].origin, est[j].origin)).toBeGreaterThanOrEqual(VALID.rivalSpacingBu * bu);
+        if (est[i].species !== w.params.speciesId) expect(w.maps.suitability[est[i].species], `${est[i].species} map`).toBeDefined();
+      }
+      for (const r of inc) {
+        expect(dist(r.origin, s)).toBeGreaterThanOrEqual(INCIPIENT.minBu * bu);
+        expect(dist(r.origin, s)).toBeLessThanOrEqual(INCIPIENT.maxBu * bu);
+        for (const o of w.placements.rivalSites) if (o !== r) expect(dist(o.origin, r.origin)).toBeGreaterThanOrEqual(INCIPIENT.nestSpacingBu * bu);
+      }
+    }
+  });
+});
+
+describe('queen start (deliverable 5, acceptance 3, directions §K)', () => {
+  it('outdoors on bare natural ground, fair or worse, >= 3 good sites by walking within 250 BU, a founding patch nearby', () => {
+    for (const { a, ctx } of all()) {
+      const w = ctx.world, s = w.queenStart.pos;
+      const c = cellAt(ctx, s.x, s.z);
+      const zone = ctx.layout.zones[ctx.layout.nav[c]];
+      const rule = checkStartRule(ctx);
+      console.info(`[start] ${a}#1 ${rule.detail}`);
+      expect(rule.ok, rule.detail).toBe(true);
+      expect(zone.built).toBeNull();
+      expect(['forest', 'lawn', 'garden-bed']).toContain(zone.type);
+      expect(walkable(w.nav.cls.data[c])).toBe(true);
+      expect(mapState(ctx).q[w.params.speciesId][c]).toBeLessThan(SUIT.good);
+      expect(goodNear(ctx, c).count).toBeGreaterThanOrEqual(START_RULE.goodMin);
+      expect(Math.hypot(w.queenStart.fwd.x, w.queenStart.fwd.z)).toBeCloseTo(1, 4);
+    }
+  });
+
+  it('a kernel walker gets from the start to a diggable founding site (the opening\'s first dig)', () => {
+    for (const { a, ctx } of all()) {
+      const r = walkToDigSite(ctx);
+      console.info(`[start] ${a}#1 walk to dig site: ${r.detail}`);
+      expect(r.reached, `${a}: ${r.detail}`).toBe(true);
+      expect(r.diggable, `${a}: ${r.detail}`).toBe(true);
+    }
+  });
+});
+
+describe('founding-site quality discriminates (directions §K ruling, measured on the final worlds)', () => {
+  it('excellent <= 10 %, good <= 25 %, some poor; open sunny mown lawn reads fair; sunny cover reads good or better', () => {
+    for (const { a, ctx } of all()) {
+      const d = siteDistribution(ctx);
+      const pct = (x: number) => (100 * x).toFixed(1);
+      console.info(`[sites] ${a}#1 ${d.total} diggable cells: excellent ${pct(d.excellent)} %, good ${pct(d.good)} %, fair ${pct(d.fair)} %, poor ${pct(d.poor)} %; open lawn fair ${d.lawnFair}/${d.lawn}; sunny cover good+ ${d.covGood}/${d.cov}`);
+      expect(d.excellent).toBeLessThanOrEqual(0.1);
+      expect(d.good).toBeLessThanOrEqual(0.25);
+      expect(d.poor).toBeGreaterThanOrEqual(0.05);
+      if (d.lawn > 50) expect(d.lawnFair / d.lawn).toBeGreaterThanOrEqual(0.9);
+      if (d.cov > 10) expect(d.covGood / d.cov).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+});

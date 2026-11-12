@@ -5,7 +5,7 @@
 import type { ActionId, Ant, Sim, TargetRef } from '@/sim/types';
 import { INJURED_HEALTH, INJURED_RECOVER_HEALTH, REST_ENTER, REST_EXIT } from '@/sim/balance';
 import {
-  CEILING_UP_Y, CLOSE_THINK_BU, DROP_ABOVE_BU, PASS_ARRIVE_BU, PASS_BEYOND_BU, PASS_TRIES, REACH_APPROACH_BU,
+  PASS_ARRIVE_BU, PASS_BEYOND_BU, PASS_TRIES, REACH_APPROACH_BU,
   REACH_NEAR_BU, REACH_STALL_S, ROOM_ARRIVE_FRAC, SHORT_HOP_BU, SHORT_HOP_SPEED_MULT, STALL_ACCEPT_BU, WALK_STALL_S,
   WALK_STALL_SPEED_BU,
 } from '@/sim/balance/nestwork';
@@ -13,9 +13,8 @@ import { secondsToTicks } from '@/sim/time';
 import { navStop, navTo } from '@/sim/locomotion';
 import { requestTask, taskCycleDone } from '@/sim/colony';
 import { releaseDigSite } from '@/sim/nest';
-import { canDo, cancel, interruptible } from '@/sim/ants/actions';
+import { canDo, cancel, interruptible, type BeginOptions } from '@/sim/ants/actions';
 import { B, clearJob, noteStuck, setState, skip, timedOut } from './fsm';
-import { cancelCare, careRunning, stepCare } from './careActs';
 import { deliverHeldBrood } from './deliver';
 import { chamberIn, dist, homeNest, restChamber } from './places';
 import { act, actEnded, busy, entity, resetTravel, travel } from './travel';
@@ -25,22 +24,20 @@ export type ReachStatus = 'moving' | 'started' | 'failed';
 
 /**
  * Walks up to the target and starts the primitive on it as soon as it can (reach and facing are the primitive's
- * own test, checked every think, and every tick close by). An approach that ends, or stalls, beside the target
- * without reach is followed by a pass: a walk to a point PASS_BEYOND_BU beyond the target on the line from the ant
- * through it, so the target comes into the ant's path ahead (the nest walker cannot make sub-voxel adjustments, so
- * short corrective steps do not work). After PASS_TRIES passes, or a refusal other than reach, 'failed'.
+ * own test, checked every think; locomotion makes the ant think at once when its walk arrives or fails). An
+ * approach that ends, or stalls, beside the target without reach is followed by a pass: a walk to a point
+ * PASS_BEYOND_BU beyond the target on the line from the ant through it, so the target comes into the ant's path
+ * ahead and it faces it. After PASS_TRIES passes, or a refusal other than reach, 'failed'.
  * Uses B.n of the current state (0 approach, k = pass k) and the pass point keys.
  */
-export function reachAndAct(sim: Sim, ant: Ant, t: TargetRef, action: ActionId, actTarget: TargetRef | null = t): ReachStatus {
-  const check = canDo(sim, ant, action, actTarget);
-  if (check.ok) return act(sim, ant, action, actTarget) ? 'started' : 'failed';
+export function reachAndAct(sim: Sim, ant: Ant, t: TargetRef, action: ActionId, actTarget: TargetRef | null = t, opts?: BeginOptions): ReachStatus {
+  const check = canDo(sim, ant, action, actTarget, opts);
+  if (check.ok) return act(sim, ant, action, actTarget, opts) ? 'started' : 'failed';
   if (check.reason !== 'out-of-reach') return 'failed';
   const bu = sim.world.bu;
   // close by but not getting there (other ants in the way, an awkward spot): give it up after REACH_STALL_S
   if (nearStalled(sim, ant, t, bu)) { skip(ant, t.id); return 'failed'; }
-  if (dropOntoTarget(sim, ant, t)) return 'moving';
   const d = dist(ant.pos, t.pos);
-  thinkCloseBy(sim, ant, d);
   const phase = ant.bb[B.n] ?? 0;
   let st: ReturnType<typeof travel>;
   // a short hop is walked slowly: at cruise the turning circle is wider than the hop and the ant circles the target
@@ -77,25 +74,6 @@ function startPass(sim: Sim, ant: Ant, t: TargetRef): boolean {
 const SHORT_HOP = { speedMult: SHORT_HOP_SPEED_MULT };
 
 /**
- * Walking upside down on a chamber ceiling right above the target: let go and drop onto the floor (GDD 01
- * `let-go`). True if the ant let go (the caller waits for the landing).
- */
-function dropOntoTarget(sim: Sim, ant: Ant, t: TargetRef): boolean {
-  const bu = sim.world.bu;
-  if (ant.up.y >= CEILING_UP_Y || ant.pos.y - t.pos.y <= bu) return false;
-  if (Math.hypot(t.pos.x - ant.pos.x, t.pos.z - ant.pos.z) >= DROP_ABOVE_BU * bu || !canDo(sim, ant, 'let-go', null).ok) return false;
-  act(sim, ant, 'let-go', null);
-  ant.bb[B.began] = 0;
-  resetTravel(ant);
-  return true;
-}
-
-/** Near the target the ant thinks every tick: the reach window of a walking ant may last only a tick or two. */
-function thinkCloseBy(sim: Sim, ant: Ant, distMm: number): void {
-  if (distMm <= CLOSE_THINK_BU * sim.world.bu) ant.thinkTick = sim.state.tick + 1;
-}
-
-/**
  * The walk is under way but the ant has stood still for WALK_STALL_S (the walker can hold a request it cannot
  * finish right beside its goal). Uses B.stall of the current state.
  */
@@ -117,25 +95,31 @@ function nearStalled(sim: Sim, ant: Ant, t: TargetRef, bu: number): boolean {
 }
 
 /**
- * travel() with the rules of reachAndAct: let go of a ceiling above the target, think every tick close by, and a
- * walk that stalls (WALK_STALL_S) within `acceptMm` of the target counts as arrived (default: REACH_NEAR_BU with
+ * travel() with the rule of reachAndAct: a walk that stalls (WALK_STALL_S) within `acceptMm` of the target counts
+ * as arrived (default: REACH_NEAR_BU with
  * `settle`, a drop spot being good anywhere close by; else STALL_ACCEPT_BU, a care act wanting the ant close).
  * Farther out the walker's own recovery is left to work (a fresh request would restart it). Within REACH_NEAR_BU
  * but not arrived after REACH_STALL_S: 'failed' (entity targets are skipped by this ant for a while) or, with
  * `settle`, 'arrived' where it stands.
  */
 export function approach(sim: Sim, ant: Ant, t: TargetRef, arriveMm: number, settle = false, acceptMm = -1): ReturnType<typeof travel> {
-  if (dropOntoTarget(sim, ant, t)) return 'moving';
   const st = travel(sim, ant, t, arriveMm);
   if (st !== 'moving') return st;
   const bu = sim.world.bu, d = dist(ant.pos, t.pos);
-  thinkCloseBy(sim, ant, d);
   const accept = acceptMm >= 0 ? acceptMm : (settle ? REACH_NEAR_BU : STALL_ACCEPT_BU) * bu;
   if (d <= Math.max(arriveMm, accept) && walkStalled(sim, ant)) { navStop(sim, ant); return 'arrived'; }
   if (!nearStalled(sim, ant, t, bu)) return st;
   if (settle) { navStop(sim, ant); return 'arrived'; }
   if (t.id >= 0) skip(ant, t.id);
   return 'failed';
+}
+
+/**
+ * Deliver first (GDD 02 §10.0, the runner's `delivering` hook): the ant holds a load of its task (soil pellet, waste,
+ * corpse, food item, brood); the behaviour finishes the delivery before the runner switches to a new task.
+ */
+export function carryingLoad(_sim: Sim, ant: Ant): boolean {
+  return ant.carry.kind !== 'none';
 }
 
 /** The primitive started by reachAndAct / act has ended. */
@@ -203,27 +187,21 @@ export function recover(sim: Sim, ant: Ant, entry: string, reason: 'timeout' | '
   setState(sim, ant, entry, reason);
 }
 
-/** Releases every claim of the ant (job, dig slot, care act) and stops walking. */
+/** Care primitives a released claim abandons (they only make sense for the job that started them). */
+const CARE_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>(['load-crop', 'feed-queen', 'assist-eclosion', 'cannibalise']);
+
+/** Releases every claim of the ant (job, dig slot, care primitive) and stops walking. */
 export function releaseAll(sim: Sim, ant: Ant): void {
   clearJob(ant);
-  cancelCare(ant);
+  if (ant.action && CARE_ACTIONS.has(ant.action.id) && interruptible(ant)) cancel(sim, ant, null);
   if ((ant.bb.planId ?? -1) >= 0) releaseDigSite(sim, ant);
   if (ant.nav.status === 'moving') navStop(sim, ant);
 }
 
-/** One think of an in-nest behaviour: rest, then a running care act, a running primitive, the state timeout, then `step`. */
-export function think(
-  sim: Sim, ant: Ant, entry: string, step: (sim: Sim, ant: Ant) => void,
-  onCare?: (sim: Sim, ant: Ant, result: number) => void,
-): void {
+/** One think of an in-nest behaviour: rest, then a running primitive, the state timeout, then `step`. */
+export function think(sim: Sim, ant: Ant, entry: string, step: (sim: Sim, ant: Ant) => void): void {
   if (restStep(sim, ant, entry)) return;
   const late = timedOut(sim, ant);
-  if (careRunning(ant)) {
-    const r = stepCare(sim, ant);
-    if (r === null) { if (late) recover(sim, ant, entry, 'timeout'); return; }
-    if (onCare) onCare(sim, ant, r);
-    return;
-  }
   if (busy(ant)) {
     if (late && interruptible(ant)) { cancel(sim, ant, null); recover(sim, ant, entry, 'timeout'); }
     return;

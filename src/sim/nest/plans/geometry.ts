@@ -30,7 +30,7 @@ export interface PlanGeometry {
   /** Pillar centres on the ellipsoid's mid plane, radius, mm. */
   pillars: Vec3[];
   pillarR: number;
-  /** AABB of the volume, mm. */
+  /** Tight AABB of the volume (see bounds()), mm. */
   min: Vec3;
   max: Vec3;
   /** Where chamber digging enters the room (neck end), mm. */
@@ -63,14 +63,20 @@ export function chamberDims(species: SpeciesId | string, type: ChamberType, size
   return nestTemplate(species).chambers[type]?.[size] ?? null;
 }
 
+/**
+ * Tight AABB of the plan volume: capsule end spheres, and the yawed ellipsoid's true extents (half extent along x
+ * = |(hw aw.x, hl al.x)|, along z likewise, hh up), not its bounding cube (which was about 4.75 times the volume
+ * of a room's box and made validation and the target cache scan that much more space). Pillars only subtract.
+ */
 function bounds(g: PlanGeometry): void {
   const min = { x: Infinity, y: Infinity, z: Infinity }, max = { x: -Infinity, y: -Infinity, z: -Infinity };
-  const grow = (p: Vec3, r: number) => {
-    min.x = Math.min(min.x, p.x - r); min.y = Math.min(min.y, p.y - r); min.z = Math.min(min.z, p.z - r);
-    max.x = Math.max(max.x, p.x + r); max.y = Math.max(max.y, p.y + r); max.z = Math.max(max.z, p.z + r);
+  const grow = (p: Vec3, rx: number, ry: number, rz: number) => {
+    min.x = Math.min(min.x, p.x - rx); min.y = Math.min(min.y, p.y - ry); min.z = Math.min(min.z, p.z - rz);
+    max.x = Math.max(max.x, p.x + rx); max.y = Math.max(max.y, p.y + ry); max.z = Math.max(max.z, p.z + rz);
   };
-  for (const c of g.capsules) { grow(c.a, c.r); grow(c.b, c.r); }
-  if (g.ellipsoid) grow(g.ellipsoid.c, Math.max(g.ellipsoid.hw, g.ellipsoid.hh, g.ellipsoid.hl));
+  for (const c of g.capsules) { grow(c.a, c.r, c.r, c.r); grow(c.b, c.r, c.r, c.r); }
+  const e = g.ellipsoid;
+  if (e) grow(e.c, Math.hypot(e.aw.x * e.hw, e.al.x * e.hl), e.hh, Math.hypot(e.aw.z * e.hw, e.al.z * e.hl));
   g.min = min; g.max = max;
 }
 

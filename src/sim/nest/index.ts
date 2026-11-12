@@ -36,11 +36,13 @@ import { nestFieldsSystem, nestSystem } from './system';
 export { nestFieldsSystem, nestSystem } from './system';
 export { registerNestFields } from './navFields';
 export { biteTicks, digSpeedAt, moistureAt, sMax, wallMin } from './substrate';
-export { clutterSpeedMult, chokedSpots } from './pellets';
+export { clutterSpeedMult, chokedSpots, pelletHaulUrgency } from './pellets';
+export { tampHeadroomSamples } from './tamp';
+export { internalDumpSite, type DumpSite } from './deadEnd';
 export { createFoundingNest, carveTemplateNest, nestStatsImpl as nestStats, type NestStats } from './lifecycle';
 export { chamberStats, nestBounds, voxelAt, wallSpots, type WallSpot } from './queries';
 export { planDigAim } from './plans/frontier';
-export { digDemand, digStimulus, haulStimulus, planNoHaulers } from './plans/stimuli';
+export { digDemand, digStimulus, haulPelletLoad, haulStimulus, planNoHaulers } from './plans/stimuli';
 export { progressOf, slotInReach, instantCarvePlan } from './plans/plans';
 export { rimHeight, moundVolume, dumpPoint } from './mounds';
 export { coveredEntrances } from './entrances';
@@ -93,7 +95,7 @@ export function createNestNav(kernel: Kernel): NestNav {
   };
 }
 
-import { architectSystem } from './architect'; export { architectSystem }; // nest architect (owner: architect)
+import { acceptArchitectPlan, architectSystem } from './architect'; export { architectSystem }; // nest architect (owner: architect)
 
 export const systems: readonly System[] = [nestFieldsSystem, nestSystem, architectSystem];
 
@@ -236,7 +238,10 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
   resumePlan: (sim, c) => {
     if (!resumePlanImpl(sim, c.planId)) reject(sim, c.type, 'unknown-plan');
   },
-  acceptPlan: () => {}, // owner: architect
+  // GDD 03 App. B / §7.8: a `proposed` architect plan becomes `queued` (suggest mode, T2; also accepted early in auto)
+  acceptPlan: (sim, c) => {
+    if (!acceptArchitectPlan(sim, c.planId)) reject(sim, c.type, 'not-a-proposal');
+  },
   designateChamber: (sim, c) => {
     if (designateChamber(sim, c.chamberId, c.chamberType, 'player')) return;
     sim.emit({ type: 'command-rejected', commandType: c.type, reason: 'type-not-allowed' });

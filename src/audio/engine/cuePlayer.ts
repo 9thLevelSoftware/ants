@@ -38,7 +38,7 @@ export interface PlayRequest {
 }
 
 export class CuePlayer {
-  readonly voices = new VoiceTable(AUDIO_MAX_VOICES);
+  readonly voices: VoiceTable;
   private live = new Map<number, LiveVoice>();
   readonly budget = new TraceBudget();
   private readonly sp: Spatial = newSpatial();
@@ -48,13 +48,17 @@ export class CuePlayer {
   /** Set by the owner when audio must stay silent (no context, muted world). */
   enabled = true;
 
-  constructor(private readonly env: ShotEnv, private readonly graph: MixGraph, private readonly log: CueLog, private readonly listener: () => Listener) {}
+  constructor(private readonly env: ShotEnv, private readonly graph: MixGraph, private readonly log: CueLog, private readonly listener: () => Listener,
+    maxVoices = AUDIO_MAX_VOICES) {
+    this.voices = new VoiceTable(maxVoices);
+  }
 
   private get ctx(): BaseAudioContext { return this.env.kit.ctx; }
 
   /** A simulation cue event. */
-  cue(cue: string, pos: Vec3 | null, strength: number, material: string | null = null): void {
+  cue(cue: string, pos: Vec3 | null, strengthIn: number, material: string | null = null): void {
     const now = this.ctx.currentTime;
+    const strength = finiteOr(strengthIn, 1); // a bad value from the sim must not reach an AudioParam (it throws)
     const r = resolveCue(cue, strength, material);
     if (!r) {
       if (this.log.firstUnknown(cue)) this.log.push({ t: now, cue, bus: '-', gainDb: -Infinity, source: 'unknown', distBu: 0 });
@@ -64,7 +68,8 @@ export class CuePlayer {
     if (s.silent) { this.log.push({ t: now, cue, bus: '-', gainDb: -Infinity, source: 'silent', distBu: 0 }); return; }
     const l = this.listener();
     if (s.plumeOnly && (!l.possessedPos || !pos || distBu(l.possessedPos, pos, l.bu) > ALARM_PLUME_BU)) return;
-    if (r.key === 'step' && !this.steps.note(now)) return; // the crowd texture takes over (update())
+    const own = !!(l.possessedPos && pos && distBu(l.possessedPos, pos, l.bu) <= POSSESSED_RADIUS_BU);
+    if (r.key === 'step' && !own && !this.steps.note(now)) return; // the crowd texture takes over (update())
     const semisOff = r.semis;
     let fileSemis: number | null = null, space = s.space;
     if (cue === 'raindrop-hit') {
@@ -87,8 +92,9 @@ export class CuePlayer {
       this.log.push({ t: now, cue: req.key, bus: s.bus, gainDb: -Infinity, source: 'culled', distBu: sp.distBu });
       return -1;
     }
-    const strengthK = 0.5 + 0.5 * Math.min(1, Math.max(0, req.strength));
-    const peak = dbToGain(s.gainDb + (req.gainDb ?? 0)) * strengthK;
+    const strength = finiteOr(req.strength, 1);
+    const strengthK = 0.5 + 0.5 * Math.min(1, Math.max(0, strength));
+    const peak = dbToGain(s.gainDb + finiteOr(req.gainDb ?? 0, 0)) * strengthK;
     const heard = peak * sp.gain;
     const priority = this.priorityOf(s, req.pos, sp.distBu, l);
     this.voices.admit(req.key, priority, heard, s.cap, now, this.adm);
@@ -99,9 +105,16 @@ export class CuePlayer {
     if (this.adm.steal >= 0) this.steal(this.adm.steal, now);
     const v = this.makeVoice(s.bus, sp, s.space !== 'flat', now);
     v.gain.gain.value = sp.gain;
-    const opts: ShotOptions = { semis: req.semis, fileSemis: req.fileSemis, strength: req.strength, files: req.files, durS: req.durS };
-    const t0 = now + Math.max(0, req.delayS ?? 0);
-    const res = playShot(this.env, s, t0, peak, v.gain, opts);
+    const durS = req.durS !== undefined && Number.isFinite(req.durS) ? Math.max(0, req.durS) : undefined;
+    const opts: ShotOptions = { semis: finiteOr(req.semis, 0), fileSemis: req.fileSemis === null ? null : finiteOr(req.fileSemis, 0), strength, files: req.files, durS };
+    const t0 = now + Math.max(0, finiteOr(req.delayS ?? 0, 0));
+    let res: ReturnType<typeof playShot>;
+    try {
+      res = playShot(this.env, s, t0, peak, v.gain, opts);
+    } catch (e) {
+      disconnectVoice(v); // do not leave a half-built voice connected to the bus
+      throw e;
+    }
     v.endTime = t0 + res.durationS + 0.05;
     v.id = this.voices.add(req.key, priority, heard, v.endTime);
     this.live.set(v.id, v);
@@ -152,7 +165,7 @@ export class CuePlayer {
     this.voices.purge(now);
     for (const [id, v] of this.live) {
       if (v.endTime > now) continue;
-      try { v.gain.disconnect(); v.pan?.disconnect(); } catch { /* ignore */ }
+      disconnectVoice(v);
       this.live.delete(id);
     }
     // crowd texture: footsteps beyond the single-voice rate become a soft granular patter
@@ -177,4 +190,12 @@ export class CuePlayer {
     for (const id of [...this.live.keys()]) this.steal(id, now);
     this.voices.clear();
   }
+}
+
+function finiteOr(v: number, fallback: number): number {
+  return Number.isFinite(v) ? v : fallback;
+}
+
+function disconnectVoice(v: LiveVoice): void {
+  try { v.gain.disconnect(); v.filter?.disconnect(); v.pan?.disconnect(); } catch { /* already disconnected */ }
 }

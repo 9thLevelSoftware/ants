@@ -11,6 +11,7 @@ import {
   SMELL_CREATURE_BU, SMELL_QUERY_MAX_BU,
 } from '@/sim/balance/foraging';
 import { footprintMm, isAvailable, odourRadiusMm } from '@/sim/ecology';
+import { queryAntsNear } from '@/sim/locomotion';
 import { PC, THREAT } from './keys';
 
 const DEG = Math.PI / 180;
@@ -65,8 +66,7 @@ function food(sim: Sim, ant: Ant): void {
 
 function contacts(sim: Sim, ant: Ant): void {
   const r = CONTACT_DIST_BU * sim.world.bu;
-  ids.length = 0;
-  sim.index.queryAnts(ant.pos, r, ids);
+  queryAntsNear(sim, ant.pos, r, ids); // the fine per-tick grid: in a crowded nest the index cells hold hundreds
   let mates = 0, aliens = 0;
   for (let i = 0; i < ids.length; i++) {
     if (ids[i] === ant.id) continue;

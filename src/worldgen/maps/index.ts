@@ -4,6 +4,7 @@
 
 import type { GenContext } from '../kit/context';
 import { rasterColumns } from './columns';
+import type { ColumnFn } from '../kit/column';
 import { buildNav } from './nav';
 import { buildShade } from './shade';
 import { buildWater } from './water';
@@ -12,8 +13,9 @@ import { computeSuitability, applyRivalFactor } from './suitability';
 import { specialFactor } from './special';
 import { setMapState, type MapState } from './state';
 
-export function deriveMaps(ctx: GenContext): MapState {
-  const col = rasterColumns(ctx);
+/** `column`: the column routine of the top-surface raster (default analytic; tests pass the legacy search). */
+export function deriveMaps(ctx: GenContext, column?: ColumnFn): MapState {
+  const col = rasterColumns(ctx, column);
   ctx.derived = col;
   const nav = buildNav(ctx, col);
   const shade = buildShade(ctx, col);

@@ -20,7 +20,7 @@ import { packSample, sampleI, sampleJ, sampleK } from '../voxelKey';
 import { expandSpheres, planG } from './geometry';
 import { draftPlan } from './resolve';
 import { antSlot, updateWindowAndSlots } from './frontier';
-import { planCache, planSpecies, remainingTargets, type PlanCache } from './targets';
+import { planCache, planSpecies, remainingTargets, seedPlanCache, type PlanCache } from './targets';
 import { validatePlanImpl } from './validate';
 
 const T = TICKS_PER_SECOND;
@@ -43,8 +43,11 @@ function setStatus(sim: Sim, plan: DigPlan, status: PlanStatus, reason: PlanBloc
   sim.emit({ type: 'plan-status-changed', planId: plan.id, status, blockedReason: reason });
 }
 
-/** Creates a plan after validation (source rules of GDD 03 §7.3); returns its id, -1 if rejected. */
-export function createPlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): number {
+/**
+ * Creates a plan after validation (source rules of GDD 03 §7.3); returns its id, -1 if rejected. `instant`: the
+ * caller carves it at once (whole-nest layouts), so no dig window or slots are laid out.
+ */
+export function createPlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource, instant = false): number {
   const v = validatePlanImpl(sim, spec, source);
   if (!v.ok || !v.resolved || !v.geometry) return -1;
   if (v.warnings.length > 0 && source === 'player' && !spec.confirmWarnings) return -1;
@@ -58,8 +61,8 @@ export function createPlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): nu
   plan.targetVolume = v.targetVolume;
   plan.createdTick = plan.statusTick = sim.state.tick;
   nest.digPlans.push(plan);
-  const cache = planCache(sim, nest, plan);
-  if (cache) updateWindowAndSlots(sim, nest, plan, cache, planIsLive(plan.status));
+  const cache = v.samples ? seedPlanCache(sim, plan, v.geometry, v.samples.targets, v.samples.hard) : planCache(sim, nest, plan);
+  if (cache && !instant) updateWindowAndSlots(sim, nest, plan, cache, planIsLive(plan.status));
   sim.emit({ type: 'plan-created', planId: plan.id, kind: plan.kind, priority: plan.priority });
   return plan.id;
 }

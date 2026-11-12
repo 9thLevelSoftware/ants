@@ -20,9 +20,9 @@ const WATCH_BUDGET_MS = 10;
 const SKIP_BUDGET_MS = 30;
 /** Camera orbit during the lapse, revolutions per real second (GDD 08 §7.10). */
 const ORBIT_REV_PER_S = 0.02;
-/** Camera at the start of the lapse: pitch up (deg) and pull back (factor) from the possession boom. */
-const LAPSE_CAMERA_PITCH_DEG = 20;
-const LAPSE_CAMERA_ZOOM = 1.8;
+/** Camera at the start of the lapse: round to the front of the queen (deg) and pull back (factor) a little. */
+const LAPSE_CAMERA_YAW_DEG = 150;
+const LAPSE_CAMERA_ZOOM = 1.3;
 /** UI refresh of the founding screens in real time, Hz. */
 const PUBLISH_HZ = 15;
 /** Synchronous skip in test mode: the most it will run (one tick per call, so it stops on the end tick). */
@@ -141,8 +141,8 @@ export class FoundingFlow implements FoundingActions {
     if (to === 'timelapse' && from !== null) {
       this.flags.skipping = false;
       this.runner.reset();
-      // the cell in view: a little further back and above the queen than the possession boom keeps her
-      this.session?.views.nudge(0, LAPSE_CAMERA_PITCH_DEG, Math.log(LAPSE_CAMERA_ZOOM));
+      // the brood in view: from in front of the queen, a little further back than the possession boom keeps her
+      this.session?.views.nudge(LAPSE_CAMERA_YAW_DEG, 0, Math.log(LAPSE_CAMERA_ZOOM));
     }
     if (from === 'timelapse' && to === 'handover') {
       this.flags.outcomeOpen = true;

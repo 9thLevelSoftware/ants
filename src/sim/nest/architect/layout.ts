@@ -78,7 +78,7 @@ export function layoutNest(sim: Sim, nestId: number, workers: number, opts: Layo
       let id = -1;
       choosePlacement(sim, nest, req, rng, (spec) => {
         architectRuntime(sim).probe?.(spec, req);
-        id = createPlanImpl(sim, spec, source);
+        id = createPlanImpl(sim, spec, source, true);
         return id >= 0;
       }, { maxCandidates: LAYOUT_CANDIDATES });
       if (id < 0) { failed.add(req.need); out.unplaced++; continue; }

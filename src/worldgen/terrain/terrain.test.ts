@@ -8,20 +8,35 @@ import type { WorldData } from '@/sim/types';
 import { REGION_STRATA, STRATA, SOFT_ZONES, TERRAIN, LEVELS } from '../tuning/terrain';
 import { NAV } from '../tuning/maps';
 import { VALID } from '../tuning/pipeline';
+import { ASPHALT } from '../catalog/outdoor/asphalt';
 
 // world generation takes ~1-2 s per world and the shared machine is often loaded
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 describe('ground layers agree with zones', () => {
   for (const a of T1_ARCHETYPES) {
     it(`${a}: surface material per zone; hard crust under asphalt and paving, none under lawn`, () => {
       const w = report(a, 2).world;
-      const g = w.ground, n = g.surface.nx;
+      const g = w.ground, n = g.surface.nx, cell = w.terrain.cell;
+      // tree pits in the sidewalk are loam squares by design (GDD 04 §5.5): diggable soil, not paving
+      const pits = w.objects.filter((o) => o.templateId === 'tree-pit').map((o) => o.pos);
+      const half = ASPHALT.treePit.side / 2;
+      const inPit = (j: number) => {
+        const x = ((j % n) + 0.5) * cell, z = (Math.floor(j / n) + 0.5) * cell;
+        return pits.some((p) => Math.abs(x - p.x) <= half && Math.abs(z - p.z) <= half);
+      };
+      let pitCells = 0;
       for (let j = 0; j < n * n; j += 3) {
         const z = w.zones[w.maps.zone.data[j]];
         const st = STRATA[z.type];
         const m = MATERIAL_IDS[g.surface.data[j]];
         const reg = REGION_STRATA[w.params.region];
+        if (z.type === 'pavement' && inPit(j)) {
+          pitCells++;
+          expect(m, 'tree pit').toBe('loam');
+          expect(digFactor('lasius-niger', m)).toBeGreaterThan(0);
+          continue;
+        }
         expect(m, `${z.type}`).toBe(reg && SOFT_ZONES.includes(z.type) ? reg.surface : st.surface);
         if (z.type === 'asphalt' || z.type === 'pavement') {
           expect(g.crustMm.data[j]).toBeGreaterThan(0);
@@ -29,7 +44,8 @@ describe('ground layers agree with zones', () => {
         }
         if (z.type === 'lawn') expect(digFactor('lasius-niger', m)).toBeGreaterThan(0);
       }
-    }, 60_000);
+      if (pits.length > 0) expect(pitCells).toBeGreaterThan(0);
+    });
   }
 });
 
@@ -56,7 +72,7 @@ describe('heightfield continuity and levels', () => {
       }
       // micro relief and worm casts are the only short-wavelength terms (<= cast height); no cliffs
       expect(maxNatural).toBeLessThanOrEqual(TERRAIN.wormCastHeight[1] + 0.5 * t.cell);
-    }, 60_000);
+    });
   }
 
   it('built levels: car park -125 next to a kerb, interior terrain at the slab underside, sand +10', () => {

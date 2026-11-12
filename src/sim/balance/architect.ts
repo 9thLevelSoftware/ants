@@ -24,6 +24,14 @@ export const BROOD_TARGET = 0.7;
 export const BROOD_RECENT_EGG_S = 300;
 export const BROOD_RECENT_EGG_WEIGHT = 0.5;
 
+/**
+ * diag-nest-space (GDD 03 App. D): `ok` while crowding <= CROWDING_TRIGGER, brood <= BROOD_TRIGGER and food <=
+ * FOOD_TRIGGER, `bad` when crowding or brood reaches this, `warn` otherwise.
+ */
+export const NEST_SPACE_BAD = 1.3;
+/** diag-nest-space factor value for "architect off" / "no diggers" while space is short. */
+export const NEST_SPACE_BLOCKER_F = 0.5;
+
 /** Food space: solid food loads / capacity of food + general chambers. */
 export const FOOD_TRIGGER = 0.8;
 export const FOOD_TARGET = 0.7;

@@ -129,6 +129,7 @@ export const ALERT_KINDS = [
   'winter-coming', 'alates-ready', 'flight-weather', 'milestone', 'save-failed', 'storage-unavailable', 'audio-blocked',
   'colony-starving', 'stores-full', // GDD 02
   'nest-collapse-risk', 'entrance-breached', // GDD 03
+  'entrance-closed', 'midden-blocked', // sim-fix-colony: entrance closed without a plug (GDD 03 §4.2); GDD 02 §10.8 flag
   'last-ants', // GDD 06 §13 (three or fewer ants left)
   'garden-failing', 'granary-spoiling', 'wood-drying', // GDD 07
 ] as const;

@@ -8,10 +8,11 @@ import type { Nest, NestMilestoneKind, Sim, System } from '@/sim/types';
 import {
   CHAMBER_DETECT_TICKS, ENTRANCE_CHECK_TICKS, MICRO_UPDATE_TICKS, OCCUPANCY_TICKS, PLAN_UPDATE_TICKS, ROYAL_CHECK_TICKS,
 } from '@/sim/balance/nest';
-import { checkEntrances, processNewBreaches } from './entrances';
+import { checkEntrances, flushClosedEntrances, processNewBreaches } from './entrances';
 import { flagNaturalPreCarves } from './naturalCavities';
 import { checkRoyal, detectNestChambers, updateMicroclimate, updateOccupancy } from './chambers/upkeep';
-import { moundBatches, tampDuePellets } from './pellets';
+import { moundBatches } from './moundBatch';
+import { tampDuePellets } from './tamp';
 import { dropOldPlans, updatePlan } from './plans/plans';
 import { ensureNestFields } from './navFields';
 import { takeNestDirty } from './runtime';
@@ -53,6 +54,7 @@ export function runNestSystem(sim: Sim): void {
   }
   tampDuePellets(sim);
   moundBatches(sim);
+  flushClosedEntrances(sim);
 }
 
 /** Carve ops, breaches / entrances, chamber detection, nav-field refresh, pellets and mounds (GDD 03). */

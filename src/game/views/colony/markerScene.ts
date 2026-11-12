@@ -61,7 +61,8 @@ export function ghostVolumes(g: PlanGeometry, color: string): NestGhost[] {
 export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
   const { sim } = p, bu = sim.world.bu;
   const lines: MarkerLineSet[] = [], labels: MarkerLabel[] = [], volumes: NestGhost[] = [];
-  const keyParts: (string | number)[] = [p.colony ? 1 : 0, sim.state.tick];
+  // the version holds what is drawn, not the tick: in most frames nothing changed and nothing is rebuilt
+  const keyParts: (string | number)[] = [p.colony ? 1 : 0];
   const height = (x: number, z: number) => sim.field.height(x, z);
   if (p.colony) {
     const col = sim.state.colonies[0]?.id ?? -1;
@@ -127,8 +128,10 @@ export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
     keyParts.push('h', t.kind, t.id, color);
   }
   const points: MarkerPointSet[] = [];
-  if (p.colony && p.cutaway === 'xray') xrayOverlay(sim, points, labels, keyParts);
-  return { version: keyParts.join('|'), lines, labels, volumes, points };
+  const xray = p.colony && p.cutaway === 'xray';
+  if (xray) xrayOverlay(sim, points, labels, keyParts);
+  // x-ray dots follow the ants: they alone change every tick
+  return { version: keyParts.join('|'), lines, labels, volumes, points, pointsVersion: xray ? `x${sim.state.tick}` : '' };
 }
 
 /** X-ray: the colony's ants and brood inside the soil as dots, and every chamber labelled with its type. */
@@ -141,7 +144,7 @@ function xrayOverlay(sim: Sim, points: MarkerPointSet[], labels: MarkerLabel[], 
   }
   for (const b of sim.state.brood) if (b.alive && b.carriedBy < 0 && sim.field.substrate(b.pos) < 0) brood.push(b.pos.x, b.pos.y, b.pos.z);
   points.push({ positions: brood, ...XRAY_DOTS.brood }, { positions: ants, ...XRAY_DOTS.ant }, { positions: queens, ...XRAY_DOTS.queen });
-  key.push('x', ants.length, queens.length, brood.length);
+  key.push('x');
   for (const n of sim.state.nests) {
     if (n.colony !== col) continue;
     for (const c of n.chambers) {

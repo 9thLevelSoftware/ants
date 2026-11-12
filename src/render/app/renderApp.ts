@@ -37,7 +37,7 @@ export interface RenderApp {
   readonly post: PostChain | null;
   readonly stats: FrameStats;
   readonly dynres: DynamicResolution;
-  /** A setting changed that only a new renderer can honour (antialias is a context-creation option). */
+  /** A setting changed that only a new renderer can honour. Always false now (MSAA moved into the grade target). */
   readonly needsRecreate: boolean;
   readonly contextLost: boolean;
   /** Resolves after the first rendered frame (and SMAA lookup images when SMAA is on). */
@@ -68,9 +68,10 @@ const SHADOW_TYPES = { basic: BasicShadowMap, pcf: PCFShadowMap, vsm: VSMShadowM
 
 export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOptions): RenderApp {
   let quality = options.quality;
-  const antialias = !quality.post.enabled && quality.msaa; // fixed for the lifetime of this renderer
+  // No MSAA on the default framebuffer, ever: the post chain uses SMAA, and the no-post path renders into the colour
+  // grade's target, which carries the preset's MSAA samples (render-integration; look/directGrade.ts).
   const renderer = new WebGLRenderer({
-    canvas, antialias, stencil: false, powerPreference: 'high-performance', logarithmicDepthBuffer: !!options.logarithmicDepth,
+    canvas, antialias: false, stencil: false, powerPreference: 'high-performance', logarithmicDepthBuffer: !!options.logarithmicDepth,
     preserveDrawingBuffer: !!options.preserveDrawingBuffer,
   });
   renderer.outputColorSpace = SRGBColorSpace;
@@ -78,10 +79,10 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
   let scene = options.scene ?? new Scene();
   let camera = options.camera ?? new PerspectiveCamera(60, 1, 0.1, 1000);
   let post: PostChain | null = null;
-  const direct = new DirectGrade(); // no-post colour grade (render-integration); skipped while the grade is neutral
+  const direct = new DirectGrade(); // no-post path: scene target (MSAA per preset) + colour grade + tone mapping
   const stats = new FrameStats();
   const dynres = new DynamicResolution(dynResConfig(quality.dynamicResolution.targetFps, quality.dynamicResolution.minScale, quality.dynamicResolution.maxScale));
-  let needsRecreate = false;
+  const needsRecreate = false; // MSAA lives in the grade target: no quality change needs a new context
   let lost = false;
   let dirty = true;
   let loop: FrameCallback | null = null;
@@ -117,7 +118,6 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     const d = quality.dynamicResolution;
     dynres.cfg = dynResConfig(d.targetFps, d.minScale, d.maxScale);
     dynres.reset(d.enabled ? Math.min(dynres.scale, d.maxScale) : 1);
-    needsRecreate = (!quality.post.enabled && quality.msaa) !== antialias;
     sizeKey = '';
   }
 
@@ -155,8 +155,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     const t0 = performance.now();
     renderer.info.reset();
     if (post) post.render(dt);
-    else if (direct.active) direct.render(renderer, scene, camera);
-    else renderer.render(scene, camera);
+    else direct.render(renderer, scene, camera);
     stats.record(t0, performance.now() - t0, renderer.info.render);
     dirty = false;
     if (stats.frames === 1) firstFrame();

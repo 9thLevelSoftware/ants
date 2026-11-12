@@ -39,6 +39,7 @@ export function createMound(sim: Sim, nest: Nest, entrance: Entrance | null, cx:
   const m: Mound = {
     id: sim.state.nextId++, nestId: nest.id, entranceId: entrance ? entrance.id : -1, centerX: cx, centerZ: cz, cell, n,
     base: new Float32Array(n * n), h: new Float32Array(n * n), material, volume: 0, absorbed: 0, lastBatchTick: sim.state.tick,
+    relaxSweep: -1, relaxFlags: 0,
   };
   const { x0, z0 } = moundOrigin(m);
   for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {

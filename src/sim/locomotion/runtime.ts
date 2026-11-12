@@ -5,6 +5,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, Walker } from '@/sim/types';
 import type { CostDisc } from './grid/search';
+import { HashGrid3 } from '@/core/spatial/hashGrid';
 import { isLocoNavGrid } from './grid/navGridImpl';
 import { locoParams, type LocoParams } from './params';
 
@@ -30,6 +31,10 @@ export interface LocoStats {
   edgeClamps: number;
   slips: number;
   rescues: number;
+  /** Autonomous walkers that let go of a cavity ceiling above their goal. */
+  drops: number;
+  /** Steps of standing walkers skipped (no request, already on the level set). */
+  standSkipped: number;
 }
 
 interface FlowSig {
@@ -70,6 +75,13 @@ export interface LocoRuntime {
   overrides: MovementOverride[];
   /** Carve grid version seen by the last locomotion tick (-1 = none yet). */
   carveVersion: number;
+  /**
+   * Ant positions at the start of this tick's locomotion, in cells of the separation radius: the separation query
+   * then visits a handful of ants, not the coarse entity-index cell (hundreds of ants in a crowded chamber).
+   */
+  sepGrid: HashGrid3 | null;
+  /** Tick the separation grid was filled (it is filled on its first use in a tick, from the positions then). */
+  sepTick: number;
 }
 
 const runtimes = new WeakMap<Sim, LocoRuntime>();
@@ -78,7 +90,7 @@ function zeroStats(): LocoStats {
   return {
     requests: 0, arrivals: 0, failures: 0, timeouts: 0, plans: 0, planDeferred: 0, planFailed: 0, stuckEpisodes: 0,
     replans: 0, sidesteps: 0, backoffs: 0, resnaps: 0, relocations: 0, stepped: 0, lodSkipped: 0, walkerFailed: 0,
-    surfaceChanged: 0, edgeClamps: 0, slips: 0, rescues: 0,
+    surfaceChanged: 0, edgeClamps: 0, slips: 0, rescues: 0, drops: 0, standSkipped: 0,
   };
 }
 
@@ -87,7 +99,7 @@ export function rt(sim: Sim): LocoRuntime {
   if (r) return r;
   const created: LocoRuntime = {
     P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, planExpand0: 0, observer: null,
-    pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1,
+    pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1, sepGrid: null, sepTick: -1,
   };
   runtimes.set(sim, created);
   return created;
@@ -185,4 +197,27 @@ export function setLocoObserver(sim: Sim, pos: Vec3 | null): void {
 /** Diagnostic counters of locomotion (copy). */
 export function locoStats(sim: Sim): LocoStats {
   return { ...rt(sim).stats };
+}
+
+/**
+ * Fine grid of alive ant positions (cells of the separation radius, 1.1 BU), filled on its first use in a tick:
+ * that is before locomotion moves anyone, so all users in a tick (perception, behaviours, separation) see the
+ * positions of the end of the previous tick, and a loaded game fills it from the same positions.
+ */
+export function antGrid(sim: Sim, r: LocoRuntime = rt(sim)): HashGrid3 {
+  const g = (r.sepGrid ??= new HashGrid3(r.P.sepR));
+  if (r.sepTick === sim.state.tick) return g;
+  r.sepTick = sim.state.tick;
+  g.clear();
+  const list = sim.stores.ants.list;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    if (a.alive) g.insert(a.id, a.pos.x, a.pos.y, a.pos.z);
+  }
+  return g;
+}
+
+/** Ids of ants within r (mm) of p, from the fine grid (contact-range queries; positions as of the tick start). */
+export function queryAntsNear(sim: Sim, p: { x: number; y: number; z: number }, r: number, out: number[]): number {
+  return antGrid(sim).queryRadius(p.x, p.y, p.z, r, out);
 }

@@ -122,9 +122,13 @@ export const SUITABILITY: Record<SpeciesId, SuitabilityProfile> = {
 };
 
 export const SUIT = {
-  /** Classes: good >= 0.6, fair >= 0.4 (GDD 04 §12.2). */
-  good: 0.6,
-  fair: 0.4,
+  /**
+   * Site words (directions §K ruling, replacing GDD 04 §12.2's good 0.6 / fair 0.4): calibrated by worldgen-life on
+   * final generated worlds to about 10 % excellent, 25 % good, 40 % fair, the rest poor of the diggable cells.
+   */
+  excellent: 0.93,
+  good: 0.86,
+  fair: 0.72,
   /** Founding band depths, BU (fDig samples). */
   bandBu: [2, 15] as [number, number],
   bandSamples: 4,
@@ -135,10 +139,18 @@ export const SUIT = {
   drySand: 0.4,
   woodDecayed: 1,
   woodSound: 0.4,
-  /** fCover levels. */
+  /**
+   * fCover levels (directions §K: missing cover is a low value, not a neutral one). `coverBeside` = the ground
+   * within `besideCells` terrain cells (4 BU each) of a ceiling (beside a stone, slab edge, log); litter counts from
+   * `litterMin` cover.
+   */
   coverCeiling: 1,
-  coverLitter: 0.6,
-  coverSward: 0.4,
+  coverBeside: 0.8,
+  besideCells: 1,
+  coverLitter: 0.5,
+  litterMin: 0.5,
+  coverSward: 0.15,
+  coverBare: 0.05,
   /** Ceiling within this height above the ground, and extending this far around, BU. */
   ceilingMaxBu: 3,
   ceilingAroundBu: 3,

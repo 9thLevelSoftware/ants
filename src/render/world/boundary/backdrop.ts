@@ -8,7 +8,7 @@ import { fbm3 } from '@/core/math/noise';
 import type { WorldData, ZoneType } from '@/sim/types';
 import { zoneTypeAt } from '../lighting/simAdapter';
 import { MeshBuilder } from './meshBuilder';
-import { makeSkirtHeight } from './skirt';
+import { makeSkirtHeight } from './skirtHeight';
 import { BACKDROP_BAND_MM, BACKDROP_DENSITY_PER_M, BACKDROP_HEX, BACKDROP_MARGIN_MM, BACKDROP_SIZE, FOLIAGE_LUMP, FOLIAGE_SHADE } from './tuning';
 
 export type EdgeTreatment = 'woods' | 'garden' | 'park' | 'road' | 'house';
@@ -86,19 +86,50 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
     return (ux: number, uy: number, uz: number) => 1 + FOLIAGE_LUMP * fbm3(ux * 1.7, uy * 1.7, uz * 1.7, sd, 3);
   };
 
+  /** Placement reach of a lumpy foliage mass of nominal radius `r`: its largest lump. */
+  const foliage = (r: number) => r * (1 + FOLIAGE_LUMP);
+  /**
+   * A foliage mass as a cluster of clumps (a core and a ring of smaller ones at random heights) so its silhouette is
+   * ragged rather than one balloon; it stays within the radii it was given (x (1 + FOLIAGE_LUMP)).
+   */
+  const clumps = (cx: number, cy: number, cz: number, rx: number, ry: number, rz: number, colour: string, seg: number) => {
+    mb.ellipsoid(cx, cy, cz, rx * 0.7, ry * 0.7, rz * 0.7, seg, Math.ceil(seg * 0.65), hex(colour, rng), lumpy(), FOLIAGE_SHADE);
+    const n = 4 + Math.floor(rngFloat(rng) * 3), a0 = rngFloat(rng) * Math.PI * 2;
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i / n) * Math.PI * 2 + rngRange(rng, -0.3, 0.3), k = rngRange(rng, 0.38, 0.52), dy = rngRange(rng, -0.35, 0.35);
+      mb.ellipsoid(cx + Math.cos(a) * rx * 0.45, cy + dy * ry, cz + Math.sin(a) * rz * 0.45, rx * k, ry * k, rz * k, 10, 6, hex(colour, rng), lumpy(), FOLIAGE_SHADE);
+    }
+    return 1 + n;
+  };
+  /** A trunk with root flare and taper, crowned by two or three overlapping lumpy masses reaching down to its crown base. */
   const tree = (r: EdgeRun, off: number) => {
     const d = rngRange(rng, B.trunkDiameter[0], B.trunkDiameter[1]), h = rngRange(rng, B.trunkHeight[0], B.trunkHeight[1]);
-    const cr = rngRange(rng, B.canopyRadius[0], B.canopyRadius[1]);
-    const p = place(r, rngRange(rng, r.u0, r.u1), off, cr);
-    mb.cylinder(p.x, p.y - 50, p.z, d / 2, p.y + h, 10, hex(BACKDROP_HEX.bark, rng));
-    mb.ellipsoid(p.x, p.y + h * 0.85, p.z, cr, cr * 0.7, cr, 14, 9, hex(BACKDROP_HEX.canopy, rng), lumpy(), FOLIAGE_SHADE);
+    const cr = rngRange(rng, B.canopyRadius[0], B.canopyRadius[1]), base = h * rngRange(rng, B.crownBase[0], B.crownBase[1]);
+    const p = place(r, rngRange(rng, r.u0, r.u1), off, foliage(cr));
+    const bark = hex(BACKDROP_HEX.bark, rng);
+    mb.cylinder(p.x, p.y - 50, p.z, (d / 2) * B.rootFlare, p.y + 300, 12, bark, d / 2);
+    mb.cylinder(p.x, p.y + 300, p.z, d / 2, p.y + h * 0.9, 12, bark, (d / 2) * B.trunkTaper);
+    const masses = 2 + Math.floor(rngFloat(rng) * 2), crownH = h - base;
+    for (let i = 0; i < masses; i++) {
+      // masses step down from the top, each a little off the trunk axis (within the reserved reach)
+      const t = masses === 1 ? 0 : i / (masses - 1), rr = cr * (1 - 0.3 * t), ry = Math.max(rr * 0.55, (crownH / masses) * 0.8);
+      const ox = rngRange(rng, -0.25, 0.25) * (cr - rr), oz = rngRange(rng, -0.25, 0.25) * (cr - rr);
+      const cy = p.y + h - ry - t * (crownH - 2 * ry);
+      shapes += clumps(p.x + ox, cy, p.z + oz, rr, ry, rr, BACKDROP_HEX.canopy, 14);
+    }
     shapes += 2;
   };
   const shrub = (r: EdgeRun, off: number) => {
     const rr = rngRange(rng, B.shrubRadius[0], B.shrubRadius[1]), kx = rngRange(rng, 0.9, 1.4), kz = rngRange(rng, 0.9, 1.4);
-    const p = place(r, rngRange(rng, r.u0, r.u1), off, rr * Math.max(kx, kz));
-    mb.ellipsoid(p.x, p.y + rr * 0.55, p.z, rr * kx, rr, rr * kz, 12, 8, hex(BACKDROP_HEX.shrub, rng), lumpy(), FOLIAGE_SHADE);
-    shapes++;
+    const p = place(r, rngRange(rng, r.u0, r.u1), off, foliage(rr * Math.max(kx, kz)));
+    shapes += clumps(p.x, p.y + rr * 0.55, p.z, rr * kx, rr, rr * kz, BACKDROP_HEX.shrub, 12);
+  };
+  /** A sapling or understorey stem: thin trunk, small crown well above ant height (woods). */
+  const sapling = (r: EdgeRun, off: number) => {
+    const h = rngRange(rng, B.saplingHeight[0], B.saplingHeight[1]), cr = rngRange(rng, B.saplingCrown[0], B.saplingCrown[1]);
+    const p = place(r, rngRange(rng, r.u0, r.u1), off, foliage(cr));
+    mb.cylinder(p.x, p.y - 20, p.z, rngRange(rng, 15, 40), p.y + h * 0.85, 6, hex(BACKDROP_HEX.bark, rng), 8);
+    shapes += 1 + clumps(p.x, p.y + h - cr * 0.8, p.z, cr, cr * 0.8, cr, BACKDROP_HEX.shrub, 10);
   };
   /** Yaw that lays a box's local X along the edge. */
   const alongYaw = (r: EdgeRun) => (r.side.out.x !== 0 ? Math.PI / 2 : 0);
@@ -130,7 +161,7 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
       const n = count(r, BACKDROP_DENSITY_PER_M.hedge), off = band('hedge');
       const hh = rngRange(rng, B.hedgeHeight[0], B.hedgeHeight[1]), hd = rngRange(rng, B.hedgeDepth[0], B.hedgeDepth[1]);
       for (let i = 0; i < n; i++) {
-        const p = place(r, r.u0 + ((i + 0.5) / n) * len, off, hd / 2);
+        const p = place(r, r.u0 + ((i + 0.5) / n) * len, off, foliage(hd / 2));
         const rx = (len / n) * 0.75, cx = r.side.out.x !== 0 ? hd / 2 : rx, cz = r.side.out.x !== 0 ? rx : hd / 2;
         mb.ellipsoid(p.x, p.y + hh * 0.5, p.z, cx, hh * 0.55, cz, 12, 8, hex(BACKDROP_HEX.hedge, rng, 0.08), lumpy(), FOLIAGE_SHADE);
         shapes++;
@@ -141,6 +172,7 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
     if (r.treatment === 'woods') {
       for (let i = 0, n = count(r, BACKDROP_DENSITY_PER_M.trees); i < n; i++) tree(r, band('trees'));
       for (let i = 0, n = count(r, BACKDROP_DENSITY_PER_M.shrubs); i < n; i++) shrub(r, band('shrubs'));
+      for (let i = 0, n = count(r, BACKDROP_DENSITY_PER_M.understorey); i < n; i++) sapling(r, band('understorey'));
       continue;
     }
     // garden: the neighbour's shrubs, a fence line farther out, a few trees

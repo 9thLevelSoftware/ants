@@ -139,6 +139,42 @@ export const CHOKE_LEN_BU = 1;
 /** Pellet item bulk per BU^3 (GDD 03 §1.3: bulk = 0.6 x volume). */
 export const PELLET_BULK_PER_BU3 = 0.6;
 
+// ---- spoil inside the nest: haul urgency, passages kept open, internal dump (sim-fix-colony) ----
+
+/**
+ * Haul urgency of a lying pellet in the nest: 1 when dropped, rising linearly to 1 + HAUL_URGENCY_GAIN at tamping
+ * age (PELLET_TAMP_S). Multiplies its weight in the haul demand and divides its haul cost (pelletHaulUrgency).
+ */
+export const HAUL_URGENCY_GAIN = 2;
+/**
+ * Tamping never leaves less open height than this above a raised floor sample, in body lengths of the species'
+ * largest worker (GDD 03 §5.1: a passage under 1.5 BU is a crack the species cannot walk). A floor sample with
+ * less headroom is not raised; the tamp spreads to the wider radii of TAMP_RADII_BU instead, and a pellet that
+ * finds no room stays lying (its haul urgency keeps rising) until the next try after TAMP_RETRY_S.
+ */
+export const TAMP_MIN_HEADROOM_BU = 1.5;
+/** Radii tried in turn for a tamp (GDD 03 §1.3: TAMP_RADIUS, then the fallback; then wider before giving up), BU. */
+export const TAMP_RADII_BU = [TAMP_RADIUS_BU, TAMP_RADIUS_FALLBACK_BU, 2.5, 4];
+/** A pellet that could not be tamped (no headroom left) is tried again this much later, game s. */
+export const TAMP_RETRY_S = 300;
+/**
+ * The passage check of a tamp (passage.ts) looks at the open space within this distance of the fill, BU: a fill
+ * that would split it (plainly, or as passages at least 1.5 BU across) is refused.
+ */
+export const TAMP_PASSAGE_MARGIN_BU = 3;
+/** When a round's whole floor fails the passage check, at most this many floor samples are tried one by one. */
+export const TAMP_PASSAGE_GREEDY_MAX = 24;
+/** Internal dump (GDD 03 §7.7): dead-end tunnel tips at least this far (path) from every chamber, BU. */
+export const INTERNAL_DUMP_MIN_CHAMBER_BU = 6;
+/** A tip's branch must run at least this long on one side of it (rejects loop ridges and dimples), BU. */
+export const INTERNAL_DUMP_BRANCH_BU = 2;
+/** Tips within this distance of an entrance opening are not used (the throat stays clear), BU. */
+export const INTERNAL_DUMP_ENTRANCE_BU = 6;
+/** Tips inside a live plan's volume grown by this are not used (digging fronts stay clear), BU. */
+export const INTERNAL_DUMP_PLAN_CLEAR_BU = 2;
+/** Most samples the tip search visits (a bound on its cost). */
+export const INTERNAL_DUMP_SEARCH_MAX = 400_000;
+
 // ---- mounds and heaps (GDD 03 §1.4) ----
 
 export const MOUND_CELL_BU = 0.5;
@@ -178,6 +214,14 @@ export const EXPEL_ENTRANCE_REACH_BU = 6;
 export const MOUND_MIN_H_BU = 0.05;
 /** Mound batches run every this many ticks per mound (staggered by id). */
 export const MOUND_BATCH_TICKS = 250;
+/**
+ * Relaxation work per tick over all mounds (box cells visited + 8 x cells evaluated, moundRelax.ts relaxSweeps): a
+ * batch's relaxation continues over the following ticks within this budget (at least one sweep per tick), so no
+ * tick pays a whole batch (about 0.5 ms of the nest system's share on the reference machine).
+ */
+export const MOUND_RELAX_WORK_PER_TICK = 30_000;
+/** A carve this close below a mound grid's lowest base (or higher) can change its kept-clear mask, BU. */
+export const MOUND_MASK_CARVE_REACH_BU = 2;
 /** Spoil heaps (no entrance): merge distance and cap per nest. */
 export const HEAP_MERGE_DIST_BU = 30;
 export const HEAP_CAP = 16;

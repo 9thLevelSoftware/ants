@@ -30,6 +30,16 @@ export function fillBrown(a: Float32Array, rng: AudioRng): void {
   }
 }
 
+/**
+ * Level compensation for band-limited noise: a narrow band keeps only part of white noise's power, so a burst's
+ * `gain` would otherwise mean very different peak levels per filter. Returns the amplitude factor (1..4).
+ */
+export function bandMakeup(type: BiquadFilterType, f: number, q: number, sampleRate = 48000): number {
+  const nyq = sampleRate / 2;
+  const bw = type === 'bandpass' ? f / Math.max(0.1, q) : type === 'lowpass' ? f : nyq;
+  return Math.min(4, Math.max(1, Math.sqrt(nyq / Math.max(1, bw)) * 0.7));
+}
+
 /** Per-context synthesis kit. */
 export class SynthKit {
   private noiseBufs = new Map<NoiseKind, AudioBuffer>();
@@ -106,6 +116,43 @@ export class SynthKit {
     p.setValueAtTime(peak, t + a + h);
     p.linearRampToValueAtTime(0, t + a + h + Math.max(1e-4, r));
     return g;
+  }
+
+  /**
+   * Cheap granular burst: ONE noise source through one filter into one gain that carries every grain's envelope
+   * (exponential attack and decay, so overlapping grains never jump). 3 nodes instead of 3 per grain.
+   */
+  noiseGrains(out: AudioNode, kind: NoiseKind, type: BiquadFilterType, f: number, q: number, grains: { t: number; peak: number }[], a: number, d: number): number {
+    grains.sort((x, y) => x.t - y.t);
+    const t0 = grains[0].t, end = grains[grains.length - 1].t + a + d + 0.02;
+    const g = this.gain(0);
+    const k = bandMakeup(type, f, q, this.ctx.sampleRate);
+    this.envelopes(g.gain, grains.map((x) => ({ t: x.t, peak: x.peak * k })), a, d);
+    this.chain(this.noise(kind, t0, end - t0), this.filter(type, f, q), g, out);
+    return end - t0;
+  }
+
+  /** Train of decaying sine pings on ONE oscillator (frequency set per ping). */
+  pingGrains(out: AudioNode, grains: { t: number; peak: number; hz: number }[], d: number, type: OscillatorType = 'sine'): number {
+    grains.sort((x, y) => x.t - y.t);
+    const t0 = grains[0].t, end = grains[grains.length - 1].t + d + 0.03;
+    const o = this.osc(type, grains[0].hz, t0, end - t0);
+    for (const gr of grains) o.frequency.setValueAtTime(gr.hz, gr.t);
+    const g = this.gain(0);
+    this.envelopes(g.gain, grains, 0.0008, d);
+    this.chain(o, g, out);
+    return end - t0;
+  }
+
+  private envelopes(p: AudioParam, grains: { t: number; peak: number }[], a: number, d: number): void {
+    p.setValueAtTime(0, grains[0].t);
+    let last = grains[0].t;
+    for (const gr of grains) {
+      const t = Math.max(gr.t, last + 1e-4);
+      p.setTargetAtTime(gr.peak, t, Math.max(1e-4, a / 3));
+      p.setTargetAtTime(0, t + a, Math.max(1e-4, d / 4));
+      last = t + a;
+    }
   }
 
   /** Connects nodes in series and returns the last one. */

@@ -46,8 +46,8 @@ describe('diagnostics (GDD 02 §14)', () => {
     const ids = sim.state.progression.diagnostics.map((d) => d.id).sort();
     expect(ids).toEqual([
       'diag-brood-growth', 'diag-egg-laying', 'diag-food-intake-c', 'diag-food-intake-p', 'diag-foraging-trails',
-      'diag-hygiene', 'diag-mortality', 'diag-queen-condition', 'diag-stores', 'diag-workforce',
-    ]);
+      'diag-hygiene', 'diag-mortality', 'diag-nest-space', 'diag-queen-condition', 'diag-stores', 'diag-workforce',
+    ]); // diag-nest-space (GDD 03 App. D) is published with them, for the colony's main nest (sim-fix-colony)
   });
 
   it('every remedy id follows the registry scheme', () => {

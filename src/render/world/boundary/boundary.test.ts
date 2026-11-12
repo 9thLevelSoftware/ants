@@ -2,13 +2,18 @@
 // terrain's clamped continuation, nothing of it lies inside the map, the backdrop follows the edge treatment and
 // stays outside, everything is deterministic, and the edge glyph hook fires only when pressing outward at the limit.
 import { describe, expect, it } from 'vitest';
-import { Mesh, Scene, ShaderLib } from 'three';
+import { Color, Mesh, Scene, ShaderLib, Vector3 } from 'three';
 import { terrainHeightAt } from '@/sim/entities/placement';
 import { makeTestWorld } from '@/sim/testing';
 import { buildTestWorld } from '../decor/testWorld';
+import { buildWorld } from '@/sim/testing/worldBuilder';
+import { defaultWorldParams } from '@/worldgen';
+import type { WorldData } from '@/sim/types';
 import {
-  BoundaryRenderer, buildBackdrop, buildSkirt, edgeGlyphActive, edgeRuns, makeSkirtHeight, outsideDistance, reflectInto,
+  BoundaryRenderer, buildBackdrop, buildSkirt, edgeGlyphActive, edgeRuns, makeSkirtHeight, outsideDistance, reflectInto, rowLevels,
+  skirtRows, terrainMaxInRect, terrainPlaneAt,
 } from './index';
+import { applyEdgeHazeLight, EDGE_FOG_FRAGMENT } from './edgeHaze';
 import { SKIRT_WIDTH_L } from './tuning';
 
 const decorWorld = buildTestWorld(); // lawn, forest, paving and car park quadrants
@@ -53,7 +58,7 @@ describe('skirt', () => {
     expect(maxX).toBeCloseTo(S + SKIRT_WIDTH_L * S);
     for (const v of sk.normals) expect(Number.isFinite(v)).toBe(true);
     for (let i = 1; i < sk.normals.length; i += 3) expect(sk.normals[i]!).toBeGreaterThan(0); // facing up
-    expect(sk.index.length / 3).toBeLessThan(40000);
+    expect(sk.index.length / 3).toBeLessThan(20000);
     const again = buildSkirt(w);
     expect(Array.from(again.positions)).toEqual(Array.from(sk.positions));
   });
@@ -69,6 +74,88 @@ describe('skirt', () => {
     expect(lawn[1]).toBeGreaterThan(lawn[0]!); // green dominant
     const sat = (c: number[]) => (Math.max(...c) - Math.min(...c)) / Math.max(...c);
     expect(sat(paving)).toBeLessThan(sat(lawn) / 2); // grey beside the paving
+  });
+});
+
+/** A bumpy world: 20 mm banks and dips every few cells right along all four edges (kerbs, roots, bed edges). */
+function bumpyWorld(): WorldData {
+  const bu = 4, size = 500 * bu;
+  const height = (x: number, z: number) => 20 * Math.sin(x / 37) * Math.cos(z / 23) + 8 * Math.sin((x + 2 * z) / 11);
+  return buildWorld({ params: { ...defaultWorldParams('lasius-niger', 5), sizeClass: 'compact' }, size, bu, height });
+}
+
+describe('skirt mesh against the terrain clamped beyond the edge', () => {
+  const worlds: [string, () => WorldData][] = [['bumpy edges', bumpyWorld], ['noise world', () => noiseWorld], ['decor world', () => decorWorld]];
+  for (const [name, make] of worlds) {
+    it(`${name}: the edge row is the terrain's edge and no point of any triangle lies under the terrain's continuation`, () => {
+      const w = make(), sk = buildSkirt(w), P = sk.positions, I = sk.index, S = w.size;
+      // every vertex on the map border sits exactly on the terrain
+      let onEdge = 0;
+      for (let v = 0; v < P.length / 3; v++) {
+        if (outsideDistance(P[v * 3]!, P[v * 3 + 2]!, S) > 0) continue;
+        onEdge++;
+        expect(Math.abs(P[v * 3 + 1]! - terrainPlaneAt(w.terrain, P[v * 3]!, P[v * 3 + 2]!))).toBeLessThan(1e-3);
+      }
+      expect(onEdge).toBeGreaterThanOrEqual(4 * (S / w.terrain.cell)); // a vertex on every grid line of every side
+      // sample each triangle on a barycentric lattice: the face is never under the clamped terrain (float tolerance)
+      let worst = -Infinity;
+      const B = 6;
+      for (let t = 0; t < I.length; t += 3) {
+        const a = I[t]! * 3, b = I[t + 1]! * 3, c = I[t + 2]! * 3;
+        for (let i = 0; i <= B; i++) for (let j = 0; i + j <= B; j++) {
+          const u = i / B, v = j / B, k = 1 - u - v;
+          const x = P[a]! * k + P[b]! * u + P[c]! * v, y = P[a + 1]! * k + P[b + 1]! * u + P[c + 1]! * v, z = P[a + 2]! * k + P[b + 2]! * u + P[c + 2]! * v;
+          worst = Math.max(worst, terrainPlaneAt(w.terrain, x, z) - y);
+        }
+      }
+      expect(worst, `terrain stands ${worst.toFixed(3)} mm above the skirt`).toBeLessThan(0.01);
+    });
+  }
+
+  it('rows: fine spacing at the edge, doubling by at most one level per row outward, capped per side', () => {
+    const rows = skirtRows(4, 8000), lv = rowLevels(rows, 16, 1000);
+    expect(rows[0]).toBe(0);
+    expect(rows[rows.length - 1]).toBe(8000);
+    expect(lv[0]).toBe(0);
+    expect(lv[1]).toBe(0);
+    for (let k = 1; k < lv.length; k++) expect(lv[k]! - lv[k - 1]!).toBeGreaterThanOrEqual(0);
+    for (let k = 1; k < lv.length; k++) expect(lv[k]! - lv[k - 1]!).toBeLessThanOrEqual(1);
+    expect(Math.max(...lv)).toBe(4); // 1000 cells / 2^4 = 62 segments >= 32
+  });
+
+  it('a standard 16 m map stays within its triangle budget (one draw call)', () => {
+    const w = makeTestWorld({ sizeBu: 4000, seed: 1 });
+    const tris = buildSkirt(w).index.length / 3;
+    expect(tris).toBeLessThan(60000);
+  });
+
+  it('terrainMaxInRect finds the peak of a bilinear cell between nodes along a border line', () => {
+    const w = bumpyWorld(), hf = w.terrain;
+    let brute = -Infinity;
+    for (let z = 100; z <= 900; z += 0.5) brute = Math.max(brute, terrainPlaneAt(hf, 0, z));
+    expect(terrainMaxInRect(hf, -300, -50, 100, 900)).toBeCloseTo(brute, 6);
+  });
+});
+
+describe('edge haze', () => {
+  it('does not depend on the scene fog (Haze off) and fades toward the sky colour', () => {
+    // the edge haze runs outside the USE_FOG block, so it survives scene.fog = null
+    const fogEnd = EDGE_FOG_FRAGMENT.lastIndexOf('#endif');
+    expect(EDGE_FOG_FRAGMENT.indexOf('bdEdgeHaze(vBdW)')).toBeGreaterThan(fogEnd);
+    expect(EDGE_FOG_FRAGMENT).toContain('bdSky(');
+    const b = new BoundaryRenderer();
+    b.init({ scene: new Scene() });
+    const light = {
+      skyHorizon: new Color(0.6, 0.65, 0.7), skyZenith: new Color(0.1, 0.2, 0.5), overcast: Number.NaN, sunDir: new Vector3(0, 1, 0), sunGlow: 2,
+      keyColor: new Color(1, 0.9, 0.8),
+    };
+    b.update({ underground: false }, light);
+    expect(b.uniforms.uBdZenith.value.b).toBeCloseTo(0.5);
+    expect(b.uniforms.uBdOvercast.value).toBe(0); // NaN never reaches the shader
+    expect(b.uniforms.uBdSunGlow.value.r).toBeCloseTo(2);
+    applyEdgeHazeLight(b.uniforms, { ...light, sunGlow: -1 });
+    expect(b.uniforms.uBdSunGlow.value.r).toBe(0);
+    b.dispose();
   });
 });
 

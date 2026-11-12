@@ -82,6 +82,15 @@ export function createNestNav(grid: CarveGrid, opts: NestNavOptions = {}): NestN
 
 const _hit = { slot: -1, idx: -1 };
 
+function sameSeeds(a: NavSeeds, b: NavSeeds): boolean {
+  if (a.radius !== b.radius || a.points.length !== b.points.length) return false;
+  for (let n = 0; n < a.points.length; n++) {
+    const p = a.points[n], q = b.points[n];
+    if (p.x !== q.x || p.y !== q.y || p.z !== q.z) return false;
+  }
+  return true;
+}
+
 class NestNavImpl implements NestNav {
   private readonly grid: CarveGrid;
   private readonly ch: NavChunks;
@@ -133,9 +142,11 @@ class NestNavImpl implements NestNav {
     for (const box of this.pending) {
       const bits = this.ch.refreshBox(box);
       if (bits === 0) continue;
-      this.comps.valid = false;
-      if (bits & PASS_LOST) anyLoss = true;
-      else this.log.push(box);
+      if (bits & PASS_LOST) { anyLoss = true; this.comps.valid = false; }
+      else {
+        this.log.push(box);
+        if (this.comps.valid) this.comps.addBox(this.ch, box.i0, box.j0, box.k0, box.i1, box.j1, box.k1);
+      }
     }
     this.pending = [];
     if (anyLoss) {
@@ -216,7 +227,14 @@ class NestNavImpl implements NestNav {
     }
   }
 
+  /**
+   * Defines a target. Re-setting a target with the same seeds keeps its field (built or not), so a nest that
+   * re-registers its fields after a change elsewhere keeps updating them incrementally instead of rebuilding
+   * every one from scratch on its next query (the field is a pure function of seeds and grid either way).
+   */
   setTarget(id: string, seeds: NavSeeds): void {
+    const have = this.fields.get(id);
+    if (have && sameSeeds(have.seeds, seeds)) return;
     this.fields.set(id, new DistanceField(seeds));
   }
 

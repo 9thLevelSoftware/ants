@@ -58,8 +58,9 @@ export function architectPressures(sim: Sim, nestId: number): Partial<Record<Arc
 }
 
 /**
- * T2 hook (`acceptPlan`, suggest mode): a `proposed` architect plan becomes `queued`. False when the plan is
- * unknown or not a proposal. Not wired: the nest index's `acceptPlan` handler is a no-op until T2.
+ * `acceptPlan` (GDD 03 App. B, §7.8, §14.2 "Architect proposals: accept"): a `proposed` architect plan becomes
+ * `queued` at once (in `suggest` mode, T2, proposals wait for this; in `auto` it skips the ARCH_PROPOSAL_S wait).
+ * False when the plan is unknown or not a proposal (the nest index's handler then rejects the command).
  */
 export function acceptArchitectPlan(sim: Sim, planId: number): boolean {
   const found = planById(sim, planId);

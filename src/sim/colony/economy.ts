@@ -21,6 +21,7 @@ import { dailyRecount } from './population';
 import { queenOf } from './queen';
 import { colonyAlert, colonyClearAlert } from './alerts';
 import { relaxExperience } from './allocation/assign';
+import { updateMiddenBlocked } from './midden';
 
 /** Moves the running cycle sums into the instantaneous rates and clears them. */
 function closeCycle(core: ColonyCoreState): void {
@@ -113,6 +114,7 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   col.stores.inCrops.p = accGet(core, 'inst.cropP');
   updateStarvation(sim, col, accGet(core, 'inst.starving'));
   updateTimers(sim, col, core);
+  updateMiddenBlocked(sim, col);
   updateYield(sim, col, core, dtGd);
   expireDirectives(sim, col);
   for (const m of sim.stores.markers.list) {

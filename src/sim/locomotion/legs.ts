@@ -6,13 +6,13 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, Walker } from '@/sim/types';
 import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
 import { dist3 as dist3Imp, distXZ as distXZImp, set3 as set3Imp } from './mathx';
-import { ensureField as ensureFieldImp, entranceById as entranceByIdImp } from './nests';
+import { ensureField as ensureFieldImp, entranceById as entranceByIdImp, isPointField as isPointFieldImp } from './nests';
 import type { LocoRuntime } from './runtime';
 import { routeById as routeByIdImp } from './routes';
 import type { NavScratch } from './scratch';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoNavGrid = isLocoNavGridImp, dist3 = dist3Imp, distXZ = distXZImp, set3 = set3Imp, entranceById = entranceByIdImp, ensureField = ensureFieldImp, routeById = routeByIdImp;
+const isLocoNavGrid = isLocoNavGridImp, dist3 = dist3Imp, distXZ = distXZImp, set3 = set3Imp, entranceById = entranceByIdImp, ensureField = ensureFieldImp, isPointField = isPointFieldImp, routeById = routeByIdImp;
 
 export type LegState = 'go' | 'done' | 'fail';
 
@@ -43,7 +43,13 @@ function toward3(out: Vec3, w: Walker, t: Vec3): void {
 
 export function followSeek(w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3): LegResult {
   const d = dist3(w.pos, s.seekTarget);
-  if (w.medium === 'surface' && s.legNest < 0) towardXZ(out, w, s.seekTarget); else toward3(out, w, s.seekTarget);
+  if (w.medium === 'surface' && s.legNest < 0) towardXZ(out, w, s.seekTarget);
+  else {
+    // in carved space the target lies on a surface and the walker's centre footOffset above its own: aim at the
+    // target lifted by footOffset, so a target on the same floor gives a tangent direction, not one into the floor
+    const t = s.seekTarget, u = w.up, k = w.footOffset;
+    set3(out, t.x + u.x * k - w.pos.x, t.y + u.y * k - w.pos.y, t.z + u.z * k - w.pos.z);
+  }
   // the final seek never ends by itself: only the trip's arrival test ends it (no replan loop at the goal)
   if (s.seekFinal === 1) return result('go', Math.max(0, d - w.footOffset));
   if (d <= r.P.wpReach * 0.5) return result('done', d);
@@ -103,7 +109,7 @@ export function followField(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, 
       } else set3(out, 0, 1, 0);
       return result('go', d);
     }
-  } else if (d <= near) return result('done', d);
+  } else if (d <= near || (s.goalNest >= 0 && isPointField(s.legField) && d <= r.P.pointSeek)) return result('done', d);
   toward3(out, w, _t);
   return result('go', d);
 }

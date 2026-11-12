@@ -43,6 +43,8 @@ export type ColonyEvent =
   | { type: 'route-learned'; antId: number; sourceId: number }
   | { type: 'task-changed'; antId: number; from: Task; to: Task; reason: string }
   | { type: 'stores-full'; colonyId: number }
+  /** GDD 02 §10.8 flag (sim-fix-colony): the colony's midden is unreachable (no open entrance, no midden chamber). */
+  | { type: 'midden-blocked'; colonyId: number; blocked: boolean }
   | { type: 'starvation-stage'; colonyId: number; stage: StarvationStage }
   | { type: 'cannibalism'; colonyId: number; broodId: number }
   | { type: 'corpse-removed'; antId: number; itemId: number; to: 'midden' | 'mound' }

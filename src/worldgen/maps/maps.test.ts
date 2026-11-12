@@ -1,53 +1,75 @@
 // Derived maps (GDD 04 §11-13): nav classes under the building, shade and shelter, moisture, flood and puddles,
 // nesting suitability (App. E 6, 25), and the building shell's door crack (App. E 4, 5).
 import { describe, expect, it, vi } from 'vitest';
-import { NAV_CELL_FLAGS, NAV_CLASSES } from '@/sim/types';
+import { NAV_CELL_FLAGS, NAV_CLASSES, type MicroConn, type WorldData } from '@/sim/types';
 import { generateWorldReport } from '../pipeline';
 import { createContext } from '../kit/context';
 import { paramsFor, report } from '../testing/fixtures';
 import { moistFactor } from './suitability';
 import { MICRO } from '../tuning/pipeline';
 import { LEVELS } from '../tuning/terrain';
-import { SUITABILITY, THETA, WATER } from '../tuning/maps';
+import { NAV, SUITABILITY, THETA, WATER } from '../tuning/maps';
+import { entryOf, primColumn } from '../kit/column';
 import { evaluateMicro, usefulInteriorAccess } from '../validate/micro';
 import { navDistances, cellAt } from '../validate/graph';
 
 // world generation takes ~1-2 s per world and the shared machine is often loaded
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 const CLS = (c: (typeof NAV_CLASSES)[number]) => NAV_CLASSES.indexOf(c);
 
 describe('nav grid around the building', () => {
   it('sealed house blocked, kitchen floor open at +150 with the interior flag, reachable through the door crack', () => {
     const r = report('kitchen-door', 4);
-    const w = r.world, nav = w.nav, n = nav.cls.nx;
+    const w = r.world, nav = w.nav, n = nav.cls.nx, cell = nav.cls.cell;
     const house = w.zones.filter((z) => z.type === 'interior');
     const sealed = house.find((z) => z.variant === 'sealed')!, kitchen = house.find((z) => z.variant === 'kitchen')!;
-    let blocked = 0, sealedCells = 0, openKitchen = 0;
+    let blocked = 0, sealedCells = 0, openKitchen = 0, onFloor = 0;
+    const raised: number[] = [];
     for (let c = 0; c < n * n; c++) {
-      const x = ((c % n) + 0.5) * nav.cls.cell, z = (Math.floor(c / n) + 0.5) * nav.cls.cell;
+      const x = ((c % n) + 0.5) * cell, z = (Math.floor(c / n) + 0.5) * cell;
       const zi = w.maps.zone.data[Math.floor(z / w.terrain.cell) * w.ground.surface.nx + Math.floor(x / w.terrain.cell)];
       if (nav.cls.data[c] === CLS('edge')) continue;
       if (zi === sealed.id) { sealedCells++; if (nav.cls.data[c] === CLS('blocked-solid')) blocked++; }
       if (zi === kitchen.id && (nav.cls.data[c] === CLS('open') || nav.cls.data[c] === CLS('step'))) {
         openKitchen++;
-        expect(nav.groundY![c]).toBeCloseTo(LEVELS.floorTop, 0);
+        // the walkable ground is the floor slab top, or higher where low furniture stands on it (mats, bowls,
+        // a bin base): never below the floor
+        expect(nav.groundY![c]).toBeGreaterThan(LEVELS.floorTop - 0.5);
+        if (Math.abs(nav.groundY![c] - LEVELS.floorTop) < 0.5) onFloor++; else raised.push(c);
         expect(nav.flags!.data[c] & NAV_CELL_FLAGS.INTERIOR).toBeTruthy();
         expect(w.maps.shade.data[c]).toBe(255);
       }
     }
     expect(blocked / sealedCells).toBeGreaterThan(0.95);
     expect(openKitchen).toBeGreaterThan(100);
+    expect(onFloor / openKitchen).toBeGreaterThan(0.8);
+    // every raised cell has an object standing on the floor whose top is above it somewhere in the cell
+    const entries = w.prims.map((p) => entryOf(p));
+    const col = { hit: false, bottom: 0, top: 0 };
+    for (const c of raised) {
+      const x0 = (c % n) * cell, z0 = Math.floor(c / n) * cell, step = w.terrain.cell;
+      let furniture = false;
+      for (const e of entries) {
+        if (e.maxX < x0 || e.minX > x0 + cell || e.maxZ < z0 || e.minZ > z0 + cell) continue;
+        for (let sz = step / 2; sz < cell && !furniture; sz += step) for (let sx = step / 2; sx < cell && !furniture; sx += step) {
+          primColumn(e, x0 + sx, z0 + sz, col);
+          if (col.hit && col.bottom <= LEVELS.floorTop + NAV.clearanceBu * w.bu && col.top > LEVELS.floorTop + 0.5) furniture = true;
+        }
+        if (furniture) break;
+      }
+      expect(furniture, `raised kitchen cell ${c % n},${Math.floor(c / n)} at ${nav.groundY![c].toFixed(1)} mm`).toBe(true);
+    }
     expect(r.checks.find((c) => c.id === 'v-connect')?.status).toBe('pass');
   });
 
-  it('E4/E5: the door crack is passable (>= 0.6 BU, Camponotus >= 5.4 mm) and the only non-climbing way in', () => {
+  it('E4/E5: the guaranteed way in (the door crack, or with the weather strip a pipe penetration) is passable and useful', () => {
     for (const sp of ['lasius-niger', 'camponotus-pennsylvanicus'] as const) {
-      const r = report('kitchen-door', 3, 'standard', sp);
-      const crack = r.world.micro.find((m) => m.kind === 'door-crack')!;
-      expect(crack).toBeDefined();
-      expect(crack.gapMm).toBeGreaterThanOrEqual(MICRO.gapMinBu * r.world.bu - 1e-9);
-      if (sp === 'camponotus-pennsylvanicus') expect(crack.gapMm).toBeGreaterThanOrEqual(5.4);
+      const w = report('kitchen-door', 3, 'standard', sp).world;
+      const way = guaranteedWayIn(w);
+      expect(way.minClearanceBu).toBeGreaterThanOrEqual(MICRO.gapMinBu - 1e-9);
+      // E5: Camponotus (9 mm BU): a door crack of >= 5.4 mm, or a pipe annulus of >= 0.6 BU
+      if (sp === 'camponotus-pennsylvanicus') expect(way.kind === 'door-crack' ? way.gapMm : way.minClearanceBu * w.bu).toBeGreaterThanOrEqual(5.4 - 1e-9);
     }
     const r = generateWorldReport(paramsFor('kitchen-door', 3));
     // usefulness needs the map state of a live context: rebuild one around the world
@@ -56,10 +78,23 @@ describe('nav grid around the building', () => {
     ctx.world = w;
     expect(evaluateMicro(ctx)).toBeGreaterThanOrEqual(1);
     expect(usefulInteriorAccess(ctx)).toBeGreaterThanOrEqual(1);
-    // the doorway under the leaf is itself the crack: useful as the only or a much shorter way in
-    expect(w.micro.find((m) => m.kind === 'door-crack')?.useful).toBe(true);
-  }, 60_000);
+    // the guaranteed way in is useful as the only or a much shorter way in
+    expect(guaranteedWayIn(w).useful).toBe(true);
+  });
 });
+
+/**
+ * The indoor-outdoor passage the design guarantees (GDD 04 §6.2): the door crack, or, when the weather-strip
+ * variant closes it (gap 0), the widest pipe penetration.
+ */
+function guaranteedWayIn(w: WorldData): MicroConn {
+  const door = w.micro.find((m) => m.kind === 'door-crack');
+  expect(door, 'door crack').toBeDefined();
+  if (door!.gapMm > 0) return door!;
+  const pipes = w.micro.filter((m) => m.kind === 'pipe-penetration').sort((x, y) => y.minClearanceBu - x.minClearanceBu || x.id - y.id);
+  expect(pipes.length, 'weather-stripped door: a pipe penetration').toBeGreaterThan(0);
+  return pipes[0];
+}
 
 describe('moisture, flood and puddles', () => {
   it('theta0 within its clamp, forest wetter than asphalt; puddles only on impermeable cells, capped at 30 mm', () => {
@@ -85,7 +120,7 @@ describe('moisture, flood and puddles', () => {
       return s / Math.max(1, n);
     };
     expect(mean(wood, 'forest')).toBeGreaterThan(mean(w, 'asphalt'));
-  }, 60_000);
+  });
 });
 
 describe('nesting suitability (GDD 04 §12)', () => {
@@ -136,7 +171,7 @@ describe('nesting suitability (GDD 04 §12)', () => {
       if (q[c] > q[best]) best = c;
     }
     expect(w.maps.shade.data[best] / 255).toBeLessThan(0.3);
-  }, 60_000);
+  });
 
   it('path distances: the start reaches its good sites; unreachable cells are Infinity', () => {
     const r = report('playground-park', 2);

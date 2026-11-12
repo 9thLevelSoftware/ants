@@ -3,7 +3,7 @@
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  ANTENNATE_AI_S, ANTENNATE_RANGE_L, ANTENNATE_S, EGG_COST_P, FEED_LARVA_LOADS, FEED_LARVA_S, FOUNDING_FEED_P_SHARE,
+  ANTENNATE_AI_S, ANTENNATE_RANGE_L, ANTENNATE_S, EGG_COST_P, GROOM_PILE_RADIUS_BU, FEED_LARVA_LOADS, FEED_LARVA_S, FOUNDING_FEED_P_SHARE,
   GROOM_BROOD_S, GROOM_OTHER_S, GROOM_REDUCTION, GROOM_SELF_S, LAY_COOLDOWN_S, LAY_EGG_S, OPEN_LAY_ACTION_S, OPEN_LAY_BATCH_EGGS,
   SNIFF_S,
 } from '@/sim/balance/actions';
@@ -130,8 +130,10 @@ export const groomDef: ActionDef = {
   effect(sim, ant, t) {
     if (t.kind === 'brood') {
       const b = sim.stores.brood.get(t.id);
-      if (b) b.lastTendedTick = sim.state.tick;
-      return 0;
+      if (!b) return 'no-target';
+      b.lastTendedTick = sim.state.tick;
+      // grooming one item of a pile tends the pile around it (GDD 02 §10.4 nurse.tend: every item within 2 BU)
+      return ports.tendBroodAt(sim, b.colony, b.pos, GROOM_PILE_RADIUS_BU * sim.world.bu);
     }
     const a = t.kind === 'none' ? ant : sim.stores.ants.get(t.id);
     if (!a) return 'no-target';

@@ -61,6 +61,18 @@ export function planCache(sim: Sim, nest: Nest, plan: DigPlan): PlanCache | null
   forPlanSamples(sim, geometry, (i, j, k) => {
     if (!sampleInOpenAir(sim, i, j, k)) (sampleDiggable(sim, species, i, j, k) ? targets : hard).push(packSample(i, j, k));
   });
+  return storePlanCache(sim, plan, geometry, targets, hard);
+}
+
+/**
+ * Stores the cache of a new plan from the target split its validation just computed (the same samples planCache
+ * would collect: same geometry, same world, same tick), saving a second scan of the plan volume.
+ */
+export function seedPlanCache(sim: Sim, plan: DigPlan, geometry: PlanGeometry, targets: number[], hard: number[]): PlanCache {
+  return storePlanCache(sim, plan, geometry, targets, hard);
+}
+
+function storePlanCache(sim: Sim, plan: DigPlan, geometry: PlanGeometry, targets: number[], hard: number[]): PlanCache {
   targets.sort((a, b) => a - b);
   const v = sim.carve.voxel;
   const sphereTargets = plan.spheres.map(() => [] as number[]);
@@ -80,7 +92,7 @@ export function planCache(sim: Sim, nest: Nest, plan: DigPlan): PlanCache | null
     }
   }
   const cache: PlanCache = { geometry, targets, sphereTargets, sphereNonDig };
-  rt.geom.set(plan.id, cache);
+  nestRuntime(sim).geom.set(plan.id, cache);
   return cache;
 }
 

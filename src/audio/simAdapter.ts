@@ -3,12 +3,11 @@
 // listener, time of day, weather, nest murmur density, chamber humidity, wood nests).
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim } from '@/sim/types';
-import { zoneAt } from '@/sim/world';
 import { calendarNow } from '@/sim/environment/calendar';
-import type { ZoneType } from '@/sim/types/ids';
-import { groupWeights, type AmbienceInput } from './ambience/matrix';
+import type { AmbienceInput } from './ambience/matrix';
 import type { Listener } from './listener';
 import { AMBIENCE, LOS_OCCLUSION } from './tuning';
+import { zoneGroupWeights } from './zoneBlend';
 
 export interface CameraLike {
   position: { x: number; y: number; z: number };
@@ -54,8 +53,31 @@ export function updateListener(sim: Sim, f: ListenerFrame, l: Listener): void {
   const depth = Math.max(0, (ground - l.pos.y) / bu);
   l.underground = f.underground || (!!ant && f.possessView && depth > 0.5);
   l.depthBu = l.underground ? depth : 0;
-  l.groundAt ??= (x, z) => sim.field.height(x, z);
-  l.solidBetween ??= (a, b) => solidBetween(sim, a, b);
+  // The listener outlives games (it lives as long as the AudioContext): bind the probes of THIS sim every frame.
+  const p = probesFor(sim);
+  l.groundAt = p.groundAt;
+  l.solidBetween = p.solidBetween;
+}
+
+/** Unbinds the listener from any sim (game ended), so the old world is not kept alive or read. */
+export function releaseListener(l: Listener): void {
+  l.groundAt = null;
+  l.solidBetween = null;
+  l.possessedPos = null;
+  l.underground = false;
+  l.depthBu = 0;
+}
+
+interface SimProbes { groundAt: (x: number, z: number) => number; solidBetween: (a: Vec3, b: Vec3) => boolean }
+// One closure pair per sim, made once; the WeakMap does not keep a finished sim alive.
+const PROBES = new WeakMap<Sim, SimProbes>();
+function probesFor(sim: Sim): SimProbes {
+  let p = PROBES.get(sim);
+  if (!p) {
+    p = { groundAt: (x, z) => sim.field.height(x, z), solidBetween: (a, b) => solidBetween(sim, a, b) };
+    PROBES.set(sim, p);
+  }
+  return p;
 }
 
 /** True when any interior sample of the segment a-b lies inside solid (f < 0). */
@@ -68,8 +90,6 @@ export function solidBetween(sim: Sim, a: Vec3, b: Vec3): boolean {
   return false;
 }
 
-const ZONES: ZoneType[] = new Array(9);
-const WEIGHTS = [1, 2, 1, 2, 4, 2, 1, 2, 1];
 const scratch: number[] = [];
 
 export function newAmbienceInput(): AmbienceInput {
@@ -82,10 +102,7 @@ export function newAmbienceInput(): AmbienceInput {
 
 /** Fills the ambience inputs (call a few times per second). */
 export function updateAmbienceInput(sim: Sim, l: Listener, voicesAllowed: boolean, possessedChamber: number, out: AmbienceInput): AmbienceInput {
-  const half = (AMBIENCE.zoneCrossfadeBu / 2) * l.bu;
-  let k = 0;
-  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) ZONES[k++] = zoneAt(sim.world, l.pos.x + dx * half, l.pos.z + dz * half);
-  groupWeights(ZONES, WEIGHTS, out.groups);
+  zoneGroupWeights(sim.world, l.pos.x, l.pos.z, AMBIENCE.zoneCrossfadeBu * l.bu, out.groups);
   const cal = calendarNow(sim);
   out.hour = cal.hour;
   out.sunrise = cal.sunrise;

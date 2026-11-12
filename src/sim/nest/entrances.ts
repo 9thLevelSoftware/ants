@@ -3,11 +3,13 @@
 // entrance lookup. Nav fields are refreshed whenever an entrance changes.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Entrance, EntranceStatus, Nest, Sim } from '@/sim/types';
+import type { Entrance, EntranceCloseCause, EntranceStatus, Nest, Sim } from '@/sim/types';
+import { raiseAlert } from '@/sim/progression';
+import { heightAt } from '@/sim/world/terrainSample';
 import { VoxelFlag } from '@/sim/types';
 import {
   ENTRANCE_MERGE_DIST_BU, ENTRANCE_MIN_HOLE_COLUMNS, ENTRANCE_RADIUS_MAX_BU, ENTRANCE_RADIUS_MIN_BU,
-  ENTRANCE_SCAN_BU, PLUG_AHEAD_BU, PLUG_ANT_CLEAR_BU, PLUG_RADIUS_BU, THROAT_BU, UNSEAL_RADIUS_BU,
+  ENTRANCE_SCAN_BU, MOUND_MIN_H_BU, PLUG_AHEAD_BU, PLUG_ANT_CLEAR_BU, PLUG_RADIUS_BU, THROAT_BU, UNSEAL_RADIUS_BU,
 } from '@/sim/balance/nest';
 import { OPEN_MIN, type VoxelBox } from './carve/keys';
 import { carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
@@ -267,13 +269,14 @@ export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
       queue.push(ni, nj, nk);
     }
   }
-  // the cavity ends inside the throat: open iff no carved sample of it is cut off from the mouth
-  let cutOff = false;
+  // the cavity ends inside the throat: open iff the mouth reaches carved space below the ground and no carved
+  // sample of it is cut off from the mouth (a throat filled solid, with no carved sample left, is closed)
+  let cutOff = false, reached = false;
   forThroatSamples(sim, e, (i, j, k) => {
-    if (cutOff || carve.sampleAt(i, j, k) < OPEN_MIN || seen.has(id(i, j, k))) return;
-    if (sim.field.substrateXYZ(i * v, j * v, k * v) < 0) cutOff = true;
+    if (cutOff || carve.sampleAt(i, j, k) < OPEN_MIN || sim.field.substrateXYZ(i * v, j * v, k * v) >= 0) return;
+    if (seen.has(id(i, j, k))) reached = true; else cutOff = true;
   });
-  return !cutOff;
+  return reached && !cutOff;
 }
 
 /** Re-evaluates an entrance's status (GDD 03 §4.2); emits and refreshes the nav fields on a change. */
@@ -297,6 +300,7 @@ export function setEntranceStatus(sim: Sim, nest: Nest, e: Entrance, next: Entra
   e.status = next;
   refreshNestFields(sim, nest);
   sim.emit({ type: 'entrance-state-changed', entranceId: e.id, status: next, prev });
+  if (next === 'sealed' && (prev === 'open' || prev === 'sealing') && plugCount(sim, e) === 0) entranceClosed(sim, nest, e);
   const f = nest.founding;
   if (f && f.state === 'ready' && next === 'sealed' && nest.entrances.every((x) => x.status === 'sealed')) {
     f.state = 'sealed';
@@ -305,6 +309,65 @@ export function setEntranceStatus(sim: Sim, nest: Nest, e: Entrance, next: Entra
   } else if (f && f.state === 'reopening' && next === 'open') {
     f.state = 'established';
     sim.emit({ type: 'founding-reopened', nestId: nest.id });
+  }
+}
+
+/**
+ * Why an unplugged throat closed (sim-fix-colony): a pile over the opening (the field's ground there stands above
+ * the terrain by more than MOUND_MIN_H), loose soil in the closed throat samples (tamped spoil, collapse debris,
+ * flagged LOOSE without PLUG), or any other fill.
+ */
+export function closeCause(sim: Sim, e: Entrance): EntranceCloseCause {
+  const pile = sim.field.height(e.pos.x, e.pos.z) - heightAt(sim.world.terrain, e.pos.x, e.pos.z);
+  if (pile > MOUND_MIN_H_BU * sim.world.bu) return 'mound-buried';
+  const flags = nestRuntime(sim).flags;
+  let loose = false;
+  forThroatSamples(sim, e, (i, j, k) => {
+    if (loose || sim.carve.sampleAt(i, j, k) >= OPEN_MIN) return;
+    const f = flags.get(i, j, k);
+    if ((f & VoxelFlag.LOOSE) !== 0 && (f & VoxelFlag.PLUG) === 0) loose = true;
+  });
+  return loose ? 'soil-slumped' : 'filled';
+}
+
+const CLOSE_TEXT: Record<EntranceCloseCause, string> = {
+  'mound-buried': 'soil piled over the opening',
+  'soil-slumped': 'loose soil filled the passage',
+  filled: 'the passage filled in',
+};
+
+/**
+ * An entrance closed without a plug: noted, and reported by the nest system at the end of its tick
+ * (flushClosedEntrances), once the operation that closed it has also written its voxel flags (fills flag their
+ * samples LOOSE after the brush).
+ */
+function entranceClosed(sim: Sim, nest: Nest, e: Entrance): void {
+  const pending = nestRuntime(sim).closedPending;
+  if (!pending.some((x) => x.entranceId === e.id)) pending.push({ nestId: nest.id, entranceId: e.id });
+}
+
+/** Reports the entrances that closed without a plug since the last call (see entranceClosed). */
+export function flushClosedEntrances(sim: Sim): void {
+  const rt = nestRuntime(sim);
+  if (rt.closedPending.length === 0) return;
+  const list = rt.closedPending;
+  rt.closedPending = [];
+  for (const { nestId, entranceId } of list) {
+    const nest = sim.stores.nests.get(nestId);
+    const e = nest?.entrances.find((x) => x.id === entranceId);
+    if (nest && e && e.status === 'sealed' && plugCount(sim, e) === 0) reportClosed(sim, nest, e);
+  }
+}
+
+/** Event `entrance-closed` with its cause, and an alert for the player's colony. */
+function reportClosed(sim: Sim, nest: Nest, e: Entrance): void {
+  const cause = closeCause(sim, e);
+  sim.emit({ type: 'entrance-closed', entranceId: e.id, nestId: nest.id, cause, pos: { ...e.pos } });
+  if (sim.stores.colonies.get(nest.colony)?.isPlayer) {
+    raiseAlert(sim, {
+      kind: 'entrance-closed', level: 'warning', subjectId: e.id, title: 'An entrance has closed', cause: CLOSE_TEXT[cause],
+      focus: { kind: 'entrance', id: e.id, pos: { ...e.pos } }, diagnosticId: null,
+    });
   }
 }
 

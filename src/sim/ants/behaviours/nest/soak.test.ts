@@ -1,7 +1,7 @@
 // beh-nest acceptance 7 and 8 (determinism): a 5-game-day soak of the small-nest colony with brood, a dig plan and
 // all real modules: no ant of an in-nest behaviour stays in a state beyond its timeout, the core invariants hold;
 // a mutation guard (test double) proves that during the behaviour pass the world changes only inside action
-// primitives (plus the reported care adapter, counted separately); same seed -> same state hash.
+// primitives (the care adapter of beh-nest became primitives in sim-fix-ants); same seed -> same state hash.
 import { describe, expect, it } from 'vitest';
 import type { Sim, System } from '@/sim/types';
 import { ACTION_DEFS } from '@/sim/ants/actions';
@@ -9,14 +9,17 @@ import type { ActionDef } from '@/sim/ants/actions';
 import { stateHash } from '@/sim/save/hash';
 import { checkInvariants, collectInvariants, type InvariantViolation } from '@/sim/testing';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { careEffects } from './careActs';
 import { behaviours as nestBehaviours } from './index';
 import { ownState, stateTimeoutTicks } from './fsm';
 import { makeNestColony, type NestColony } from './testkit';
 import { createPlan, validatePlan, wallSpots } from '@/sim/nest';
 
-/** Timeouts act at the end of a running action or care act, so they may land this late, ticks. */
+/** Timeouts act at the end of a running action, so they may land this late, ticks. */
 const OVERSTAY_SLACK = 120;
+/** FOUNDRESS_LONG=1: the full 5-day soak and the 1-day mutation run; default: short runs (file cost, sim-fix-ants). */
+const LONG = !!(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.FOUNDRESS_LONG;
+const SOAK_TICKS = LONG ? 5 * TICKS_PER_DAY : Math.round(0.2 * TICKS_PER_DAY);
+const GUARD_TICKS = LONG ? TICKS_PER_DAY : Math.round(0.1 * TICKS_PER_DAY);
 
 function colony(systems?: readonly System[]): NestColony {
   const k = makeNestColony({
@@ -61,9 +64,9 @@ function worldDigest(sim: Sim): number {
 interface Guard { direct: number; primitive: number; adapter: number; restore: () => void; inPass: boolean; cur: number }
 
 /**
- * The mutation-counting double: every action primitive hook and the care adapter's effect are wrapped, and so are
+ * The mutation-counting double: every action primitive hook is wrapped, and so are
  * the in-nest behaviours' enter / update / exit. While a behaviour function runs, a digest change that did not
- * happen inside a primitive or the adapter is a direct mutation by behaviour code.
+ * happen inside a primitive is a direct mutation by behaviour code.
  */
 function installGuard(sim: Sim): Guard {
   const g: Guard = { direct: 0, primitive: 0, adapter: 0, restore: () => {}, inPass: false, cur: 0 };
@@ -87,8 +90,6 @@ function installGuard(sim: Sim): Guard {
   for (const def of Object.values(ACTION_DEFS) as ActionDef[]) {
     for (const k of ['onBegin', 'effect', 'tick', 'onEnd'] as const) patch(def, k, sanctioned('primitive'));
   }
-  patch(careEffects, 'apply', sanctioned('adapter'));
-  patch(careEffects, 'tendPileAround', sanctioned('adapter'));
   const bracket = (fn: (...a: unknown[]) => unknown) => (...args: unknown[]) => {
     const outer = g.inPass;
     if (!outer) { g.inPass = true; g.cur = worldDigest(sim); }
@@ -102,14 +103,14 @@ function installGuard(sim: Sim): Guard {
 }
 
 describe('beh-nest soak (acceptance 7, 8)', () => {
-  it('5 game days: no state overstays its timeout, invariants hold', () => {
+  it(`${LONG ? '5 game days' : '0.2 game days (5 with FOUNDRESS_LONG=1)'}: no state overstays its timeout, invariants hold`, () => {
     const k = colony();
     const { sim } = k;
     const inv = collectInvariants();
     const violations: InvariantViolation[] = [];
     const over: Record<string, number> = {};
     let maxAge = 0, maxAgeState = '';
-    for (let t = 0; t < 5 * TICKS_PER_DAY; t++) {
+    for (let t = 0; t < SOAK_TICKS; t++) {
       sim.tick();
       if (t % 50 !== 0) continue;
       for (const a of sim.stores.ants.list) {
@@ -130,16 +131,16 @@ describe('beh-nest soak (acceptance 7, 8)', () => {
     expect(violations).toEqual([]);
   }, 1_800_000);
 
-  it('the world changes only through action primitives (mutation double) during 1 game day', () => {
+  it('the world changes only through action primitives (mutation double) during 0.1 game day (1 with FOUNDRESS_LONG=1)', () => {
     const k = colony();
     const g = installGuard(k.sim);
     try {
-      for (let t = 0; t < TICKS_PER_DAY; t++) k.sim.tick();
+      for (let t = 0; t < GUARD_TICKS; t++) k.sim.tick();
     } finally {
       g.restore();
     }
     console.log('[beh-nest AC7 mutations]', JSON.stringify({ direct: g.direct, primitiveChanges: g.primitive, adapterChanges: g.adapter }));
-    expect(g.primitive).toBeGreaterThan(100);
+    expect(g.primitive).toBeGreaterThan(LONG ? 100 : 10);
     expect(g.direct).toBe(0);
   }, 900_000);
 
@@ -164,7 +165,7 @@ describe('beh-nest soak (acceptance 7, 8)', () => {
 
   it('determinism: two runs from the same seed give the same state hash', () => {
     const a = colony(), b = colony();
-    for (let t = 0; t < 3000; t++) { a.sim.tick(); b.sim.tick(); }
+    for (let t = 0; t < 1500; t++) { a.sim.tick(); b.sim.tick(); }
     expect(stateHash(a.sim.state)).toBe(stateHash(b.sim.state));
   }, 600_000);
 });

@@ -1,12 +1,17 @@
 // Observer camera (GDD 01 6.6): free fly with world up, bounded and collision-checked, or an orbit that follows an
-// entity. Holds 2 s at the last position when the followed entity disappears, then returns to free fly.
-import { v3AddScaled, v3Copy, v3Distance, v3Normalize, v3Set, v3Sub, vec3, type Vec3 } from '@/core';
+// entity. Holds 2 s at the last position when the followed entity disappears, then returns to free fly. Every
+// frame keeps the GDD 6.1 clearance f >= 0.5 R, in the free fly and in the follow orbit (also in a queen's shaft).
+import { v3AddScaled, v3Copy, v3Distance, v3Length, v3Normalize, v3Set, v3Sub, vec3, type Vec3 } from '@/core';
+import { fitsAt, relaxOut } from './boomPath';
 import {
-  CAM_FAR_BU, CAM_OBSERVER_RADIUS_BU, CAM_PUSHOUT_TAU, OBS_ACCEL_TAU, OBS_BOUNDS_MARGIN_BU, OBS_FAST_MULT, OBS_FOLLOW_DIST_L, OBS_FOLLOW_LOSS_HOLD_S,
-  OBS_FOV_DEG, OBS_MAX_ALTITUDE_BU, OBS_PITCH_FOLLOW_DEG, OBS_PITCH_FREE_DEG, OBS_SPEED_BASE_BU, OBS_SPEED_CAP_BU, OBS_SPEED_PER_HEIGHT,
+  BOOM_CENTRE_FRACTION, CAM_FAR_BU, CAM_MIN_CLEARANCE_R, CAM_OBSERVER_RADIUS_BU, CAM_PUSHOUT_TAU, OBS_ACCEL_TAU, OBS_BOUNDS_MARGIN_BU, OBS_FAST_MULT,
+  OBS_FOLLOW_DIST_L, OBS_FOLLOW_LIFT_L, OBS_FOLLOW_LOSS_HOLD_S, OBS_FOV_DEG, OBS_MAX_ALTITUDE_BU, OBS_PITCH_FOLLOW_DEG, OBS_PITCH_FREE_DEG,
+  OBS_SPEED_BASE_BU, OBS_SPEED_CAP_BU, OBS_SPEED_PER_HEIGHT,
 } from './constants';
 import { clampN, DEG, smoothK } from './frameMath';
+import { pullIntoClearance } from './motionGuard';
 import { cameraNear } from './near';
+import type { FieldFn } from './sphereTrace';
 import { makePose, type CameraPose, type CameraTarget, type OrbitInput, type TraceFn } from './types';
 
 export interface ObserverOptions {
@@ -31,9 +36,23 @@ export interface ObserverEnv {
   groundHeight: (x: number, z: number) => number;
   /** Length of the followed entity in BU (default 1). */
   followL?: number;
+  /** The free-space field f(p), mm (optional: moves a follow centre that touches solid into the open). */
+  field?: FieldFn;
 }
 
 const DOWN: Vec3 = { x: 0, y: -1, z: 0 };
+const UP: Vec3 = { x: 0, y: 1, z: 0 };
+
+/** f(p) as the trace sees it (the largest sphere that fits, by bisection), capped at `cap` (mm). */
+function clearanceAt(trace: TraceFn, p: Vec3, cap: number): number {
+  if (fitsAt(trace, p, UP, cap)) return cap;
+  let lo = 0, hi = cap;
+  for (let i = 0; i < 10; i++) {
+    const m = (lo + hi) / 2;
+    if (fitsAt(trace, p, UP, m)) lo = m; else hi = m;
+  }
+  return lo;
+}
 
 export class ObserverRig {
   readonly opts: Required<ObserverOptions>;
@@ -47,13 +66,17 @@ export class ObserverRig {
   private holdT = -1;
   private followDistL = OBS_FOLLOW_DIST_L[1];
   private followDist = 0;
-  private tmp = vec3(); private fwd = vec3(); private step = vec3();
+  /** Camera position to start the next follow orbit from (a hand-over keeps the camera, GDD 01 §2), or null. */
+  private orbitFrom: Vec3 | null = null;
+  private tmp = vec3(); private fwd = vec3(); private step = vec3(); private next = vec3();
 
   constructor(opts: ObserverOptions) {
     this.opts = { fovOffset: 0, far: CAM_FAR_BU * opts.bu, ...opts };
   }
 
   get radiusMm(): number { return CAM_OBSERVER_RADIUS_BU * this.opts.bu; }
+  /** GDD 6.1: the camera centre always keeps f >= this (mm). */
+  get clearanceMm(): number { return CAM_MIN_CLEARANCE_R * this.radiusMm; }
 
   /** Place the free camera (e.g. from the previous view's pose). */
   setPose(pos: Vec3, look: Vec3): void {
@@ -65,12 +88,16 @@ export class ObserverRig {
     v3Set(this.vel, 0, 0, 0);
   }
 
-  /** Follow an entity (orbit around it) or pass null when it was removed. */
-  setFollow(target: CameraTarget | null): void {
+  /**
+   * Follow an entity (orbit around it) or pass null when it was removed. `from`: start the orbit where this camera
+   * is (yaw, pitch and distance from it, clamped to the follow ranges) instead of keeping the observer's own orbit.
+   */
+  setFollow(target: CameraTarget | null, from?: Vec3): void {
     if (target) {
       if (!this.follow) this.followDist = 0;
       this.follow = target;
       this.holdT = -1;
+      this.orbitFrom = from ? v3Copy(this.orbitFrom ?? vec3(), from) : null;
       return;
     }
     if (this.follow) { v3Copy(this.lastFollowPos, this.follow.pos); this.holdT = 0; }
@@ -127,19 +154,55 @@ export class ObserverRig {
     return v3Set(out, -Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
   }
 
-  /** Axis-separated moves so the camera slides along surfaces instead of sticking; never enters solid. */
+  /**
+   * Axis-separated moves so the camera slides along surfaces instead of sticking; never enters solid. A camera
+   * already closer than its radius to a surface (allowed: GDD 6.1 only asks for 0.5 R) may still move where that
+   * does not bring it closer, so it can always fly away.
+   */
   private moveWithCollision(dt: number, trace: TraceFn): void {
-    const r = this.radiusMm;
+    const r = this.radiusMm, minClear = 1.05 * this.clearanceMm;
     for (const axis of ['x', 'y', 'z'] as const) {
       const d = this.vel[axis] * dt;
       if (d === 0) continue;
       v3Set(this.step, 0, 0, 0);
       this.step[axis] = Math.sign(d);
       const free = trace(this.pos, this.step, Math.abs(d) + r * 0.1, r);
-      const moved = Math.min(Math.abs(d), Math.max(0, free - r * 0.05));
-      this.pos[axis] += Math.sign(d) * moved;
-      if (moved < Math.abs(d)) this.vel[axis] = 0;
+      if (free > 0) {
+        const moved = Math.min(Math.abs(d), Math.max(0, free - r * 0.05));
+        this.pos[axis] += Math.sign(d) * moved;
+        if (moved < Math.abs(d)) this.vel[axis] = 0;
+        continue;
+      }
+      v3AddScaled(this.next, this.pos, this.step, Math.abs(d));
+      const c0 = clearanceAt(trace, this.pos, r), c1 = clearanceAt(trace, this.next, r);
+      if (c1 >= minClear && c1 >= c0 - r / 128) v3Copy(this.pos, this.next);
+      else this.vel[axis] = 0;
     }
+  }
+
+  /**
+   * The orbit centre: OBS_FOLLOW_LIFT_L above the subject, but at most BOOM_CENTRE_FRACTION of the free gap above
+   * it (in a tunnel barely taller than the ant the middle of the gap is the free space), and in free space.
+   */
+  private followCentre(out: Vec3, t: CameraTarget, L: number, env: ObserverEnv): Vec3 {
+    const want = OBS_FOLLOW_LIFT_L * L;
+    const gap = env.trace(t.pos, t.up, 2 * want, 0);
+    v3AddScaled(out, t.pos, t.up, Math.max(0, Math.min(want, gap * BOOM_CENTRE_FRACTION)));
+    const c = 1.1 * this.clearanceMm;
+    if (env.field && !fitsAt(env.trace, out, t.up, c)) relaxOut(env.field, out, 1.2 * c, L);
+    return out;
+  }
+
+  /** Yaw, pitch and distance of the follow orbit that put the camera at `from` (clamped to the follow ranges). */
+  private aimFrom(from: Vec3, centre: Vec3, L: number): void {
+    v3Sub(this.step, centre, from);
+    const d = v3Length(this.step);
+    if (d < 1e-6) return;
+    v3Normalize(this.step, this.step);
+    this.yaw = Math.atan2(-this.step.x, -this.step.z);
+    this.pitch = clampN(Math.asin(clampN(this.step.y, -1, 1)), -OBS_PITCH_FOLLOW_DEG[1] * DEG, -OBS_PITCH_FOLLOW_DEG[0] * DEG);
+    this.followDistL = clampN(d / L, OBS_FOLLOW_DIST_L[0], OBS_FOLLOW_DIST_L[2]);
+    this.followDist = Math.min(d, this.followDistL * L);
   }
 
   private updateFollow(dt: number, input: ObserverInput, env: ObserverEnv): this['out'] {
@@ -157,21 +220,26 @@ export class ObserverRig {
     // the camera sits opposite the look direction, so elevation = -pitch
     this.pitch = clampN(this.pitch + input.pitchDeg * DEG, -OBS_PITCH_FOLLOW_DEG[1] * DEG, -OBS_PITCH_FOLLOW_DEG[0] * DEG);
     this.followDistL = clampN(this.followDistL * Math.exp(input.zoomLog), OBS_FOLLOW_DIST_L[0], OBS_FOLLOW_DIST_L[2]);
-    const centre = v3AddScaled(this.tmp, this.follow.pos, this.follow.up, 0.5 * L);
+    const centre = this.followCentre(this.tmp, this.follow, L, env);
+    if (this.orbitFrom) { this.aimFrom(this.orbitFrom, centre, L); this.orbitFrom = null; }
     // orbit direction: from the centre back towards the camera (opposite the look direction)
     this.lookDir(this.fwd);
     this.fwd.x = -this.fwd.x; this.fwd.y = -this.fwd.y; this.fwd.z = -this.fwd.z;
     const want = this.followDistL * L;
-    const free = env.trace(centre, this.fwd, want, r);
-    const allowed = Math.max(0, Math.min(want, free - r * 0.05));
+    // a centre closer than R to a wall (a narrow tunnel) traces with the clearance radius instead of returning 0
+    let rt = r, free = env.trace(centre, this.fwd, want, r);
+    if (free <= 0) { rt = 1.1 * this.clearanceMm; free = env.trace(centre, this.fwd, want, rt); }
+    const allowed = Math.max(0, Math.min(want, free - rt * 0.05));
     if (allowed < this.followDist || this.followDist === 0) this.followDist = allowed;
     else this.followDist += (allowed - this.followDist) * smoothK(dt, CAM_PUSHOUT_TAU);
     v3AddScaled(this.pos, centre, this.fwd, this.followDist);
+    // GDD 6.1 on every frame, whatever the trace did
+    pullIntoClearance(this.pos, centre, centre, UP, 1.05 * this.clearanceMm, env.trace);
     v3Copy(o.pos, this.pos);
     v3Copy(o.look, centre);
     v3Set(o.up, 0, 1, 0);
     o.fov = OBS_FOV_DEG + this.opts.fovOffset;
-    o.near = cameraNear(this.followDist, bu, r);
+    o.near = cameraNear(v3Distance(this.pos, centre), bu, r);
     o.far = this.opts.far;
     o.mode = 'follow';
     o.focusDistance = v3Distance(o.pos, centre);

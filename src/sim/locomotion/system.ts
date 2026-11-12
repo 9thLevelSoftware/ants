@@ -15,7 +15,7 @@ import { set3 as set3Imp } from './mathx';
 import { chamberAt as chamberAtImp, nearestOpenEntrance as nearestOpenEntranceImp } from './nests';
 import { MATERIAL_GRIP, LOCO_TUNING, tiltLimit as tiltLimitImp } from './params';
 import { possessedTick as possessedTickImp } from './possessed';
-import { ensureGrid as ensureGridImp, rt as rtImp, type LocoRuntime } from './runtime';
+import { antGrid as antGridImp, ensureGrid as ensureGridImp, rt as rtImp, type LocoRuntime } from './runtime';
 import { walkerId as walkerIdImp, type NavScratch } from './scratch';
 import { addAvoidRepulsion as addAvoidRepulsionImp, addEdgeRepulsion as addEdgeRepulsionImp, addFloorBias as addFloorBiasImp, addSeparation as addSeparationImp, turnToward as turnTowardImp } from './steer';
 import { walkerLetGo as walkerLetGoImp, walkerPlace as walkerPlaceImp, walkerSnapshot as walkerSnapshotImp, walkerStep as walkerStepImp, walkerSurfaceChanged as walkerSurfaceChangedImp, type WalkStatus } from './walker';
@@ -23,11 +23,13 @@ import { aiUpdate as aiUpdateImp, nestIdOf as nestIdOfImp } from './update';
 import { walkerNest as walkerNestImp } from './trip';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp;
+const antGrid = antGridImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp;
 
 const TICK_S = 0.1;
 /** Slope / grip checks run every this many ticks per walker (staggered). */
 const SLIP_EVERY = 4;
+/** A standing walker (no request) is stepped (re-attached) every this many ticks only (staggered). */
+const STAND_CHECK_EVERY = 16;
 const _desired: Vec3 = { x: 0, y: 0, z: 0 }, _obs: Vec3 = { x: 0, y: 0, z: 0 };
 const coarse = new WeakMap<WalkerParams, WalkerParams>();
 
@@ -156,16 +158,24 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
     st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker);
     if (st === 'landed' && w.nav.loco) w.nav.loco.planTick = -1;
   } else if (!w.nav.loco || w.nav.loco.req === 'none') {
-    st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker); // no request: stand (re-attach, fall)
+    // no request: stand. A walker already standing on its level set needs no step (carve changes, mounds and
+    // dynamic primitives re-attach walkers by surfaceCheck / notifySurfaceChanged); a check now and then remains.
+    if (w.speed === 0 && (tick + id) % STAND_CHECK_EVERY !== 0) { r.stats.standSkipped++; st = 'ok'; }
+    else st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker); // re-attach, fall
   } else {
     const s = w.nav.loco;
     let speed = aiUpdate(sim, w, s, r, id, dt, _desired);
+    // a walk that just ended (arrived or failed): the ant's behaviour thinks on the next tick, not on its cadence
+    // (callers need not think every tick near their goal to catch the end)
+    if (isAnt && s.req === 'none' && w.nav.status !== 'moving') wake(sim, w as Ant, tick);
     // the leg's direction is a raw offset (mm) or a unit vector: normalise it, so that the unitless steering terms
     // below carry their intended weight; no direction means stand (and turn nowhere)
     const ll = Math.hypot(_desired.x, _desired.y, _desired.z);
     if (ll > 1e-9 && Number.isFinite(ll)) {
       _desired.x /= ll; _desired.y /= ll; _desired.z /= ll;
-      if (k === 1 && isAnt && crowdingMatters(w, r)) addSeparation(sim, w, id, r, _desired);
+      // separation is a light preference: applied on every second tick (staggered by id), it halves the neighbour
+      // queries of crowded chambers and stays a function of state (a loaded game applies it on the same ticks)
+      if (k === 1 && isAnt && ((tick + id) & 1) === 0 && crowdingMatters(w, r)) addSeparation(sim, w, id, r, _desired);
       addFloorBias(w, _desired, r.P.floorW);
       if (w.medium === 'surface') {
         addEdgeRepulsion(sim, w, r, _desired);
@@ -186,6 +196,10 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
   slopeSlip(sim, w, id, r);
   if (isAnt) membership(sim, w as Ant, r);
   else if (w.medium !== 'air') (w as Creature).nestId = walkerNest(sim, w, nestIdOf(w));
+}
+
+function wake(sim: Sim, ant: Ant, tick: number): void {
+  if (ant.thinkTick > tick + 1) ant.thinkTick = tick + 1;
 }
 
 /** Micro-connections opened or closed in state (weather strip, debris) open or close their nav-grid portals. */
@@ -209,6 +223,7 @@ export const locomotionSystem: System = {
       for (let i = 0; i < creatures.length; i++) if (creatures[i].alive) surfaceCheck(sim, creatures[i], r);
     }
     const obs = observer(sim, r);
+    antGrid(sim, r); // separation reads the positions of the tick start
     for (let i = 0; i < ants.length; i++) if (ants[i].alive) stepWalker(sim, ants[i], true, r, obs);
     for (let i = 0; i < creatures.length; i++) if (creatures[i].alive) stepWalker(sim, creatures[i], false, r, obs);
     if (isLocoEntityIndex(sim.index)) sim.index.refreshWalkers(); else sim.index.refresh();

@@ -32,7 +32,7 @@ import { crumbAt } from './crumbs';
 
 export { locomotionSystem } from './system';
 export { possessedPose, stepPossessed } from './possessed';
-export { setLocoObserver, locoStats, registerMovementOverride, type LocoStats, type MovementOverride } from './runtime';
+export { setLocoObserver, locoStats, queryAntsNear, registerMovementOverride, type LocoStats, type MovementOverride } from './runtime';
 export { registerSpeedFactor, aiSpeed, playerSpeed, casteSpeeds, type SpeedFactor } from './speed';
 export { crumbAt, crumbCount, clearCrumbs } from './crumbs';
 export { LOCO_TUNING, locoParams, MATERIAL_GRIP } from './params';

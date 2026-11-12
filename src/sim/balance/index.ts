@@ -20,3 +20,10 @@ export * from './nestTemplates';
 export * from './pheromone';
 export * from './locomotion';
 export * from './founding';
+// Stage 1B modules (sim-fix-colony): foraging and in-nest behaviours, the nest architect.
+export * from './foraging';
+export * from './nestwork';
+export * from './architect';
+// Names defined in two files with equal values: the explicit re-exports below resolve the barrel's ambiguity.
+export { STUCK_MAX, STUCK_WINDOW_S } from './foraging';
+export { CORPSE_HAUL_RADIUS_BU } from './colony';

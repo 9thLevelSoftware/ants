@@ -79,12 +79,14 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     float wear = lk.y * (0.3 + 2.2 * vWrEdge);
     float rust = 0.0;
     ${rustScan ? `float rs = clamp((raw.r - raw.b) * 3.0, 0.0, 1.0);
-    det = mix(det, vec3(1.0), smoothstep(0.05, 0.3, rs)); // the scan's rust blotches are not paint detail
+    // the rust scan's blotches are no paint detail: clean finishes get a faint procedural mottle instead
+    det = vec3(mix(1.0, 0.93 + 0.14 * wrNoise(lp.xz * 0.7 + lp.y * 0.3), lk.w));
     rust = fin == ${F.rust} ? 1.0 : smoothstep(0.86, 0.98, rs * 0.62 + wear * 0.75 + 0.22 * wrNoise(lp.xz * 0.35 + lp.y * 0.2));` : `det *= 1.0 - 0.3 * smoothstep(0.4, 0.9, wear * wrNoise(lp.xz * 0.8 + lp.y));`}
     vec3 col = wrCol;
     float rough = lk.z > 0.0 ? lk.z : max(WR_ROUGHMIN, roughness * wrRg);
     float metal = 0.0;
-    if (fin == ${F.metal}) { metal = 1.0; rough *= mix(0.8, 1.25, wrNoise(lp.xz * 0.9 + lp.y * 0.4)); }
+    // bare metal: brushed / rolled grain (streaks along the longest local axis) in the roughness
+    if (fin == ${F.metal}) { metal = 1.0; vec3 g3 = hs.x > hs.y ? lp.yzx : lp; rough *= mix(0.88, 1.12, wrNoise(vec2(g3.x * 6.0 + g3.z * 6.0, g3.y * 0.3))); }
     else if (fin == ${F.clearcoat}) { wrCoat = 1.0; metal = 0.15; }
     else if (fin == ${F.carBody}) {
       // panel seams (doors, bonnet, boot) on the sides and top, a dark sill strip and shade inside the wheel arches
@@ -142,7 +144,7 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     c *= 1.0 + 0.16 * vein;
     c *= mix(1.0, 0.82, smoothstep(0.75, 1.0, av)); // darker margin
     ${'' /* clover-style chevron */}
-    if (lk.y > ${LEAF_STYLE.obovate - 0.5} && lk.y < ${LEAF_STYLE.obovate + 0.5}) c = mix(c, vec3(0.55, 0.62, 0.5), 0.45 * (1.0 - smoothstep(0.0, 0.06, abs(av - 0.45 - (1.0 - t) * 0.3))) * step(0.35, t));
+    if (lk.y > ${LEAF_STYLE.obovate - 0.5} && lk.y < ${LEAF_STYLE.obovate + 0.5}) c = mix(c, c * vec3(1.6, 1.55, 1.25), 0.5 * (1.0 - smoothstep(0.02, 0.16, abs(av - 0.45 - (1.0 - t) * 0.3))) * smoothstep(0.3, 0.45, t));
     wrAlb = c;
     // cupped blade (normal tilts up toward the margins) and raised midrib
     vec3 bump = vec3(0.0, 0.0, sign(v) * (0.35 * smoothstep(0.5, 1.0, av) - 0.25 * rib));
@@ -174,9 +176,12 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
         wrNw = normalize(ln + vec3(0.0, 0.0, 0.0));
       } else c *= 0.9 + 0.1 * smoothstep(0.0, 0.5, pp) ;
     } else if (fin == ${F.dandelion}) {
-      float strip = fract(a * 34.0 / 6.2832 + r * 2.0 + lk.w);
+      // ligules: many strap-shaped florets with toothed tips, deeper orange toward the centre, pollen specks
+      float strip = fract(a * 58.0 / 6.2832 + r * 3.0 * (0.5 + 0.5 * sin(r * 9.0)) + lk.w);
       if (r > 0.86 + 0.1 * abs(strip - 0.5) * 2.0 && ln.y > -0.5) discard;
-      c *= mix(0.72, 1.05, smoothstep(0.0, 0.7, r)) * (0.85 + 0.15 * smoothstep(0.1, 0.4, abs(strip - 0.5)));
+      c *= mix(0.62, 1.05, smoothstep(0.0, 0.75, r)) * (0.7 + 0.3 * smoothstep(0.08, 0.38, abs(strip - 0.5)));
+      c *= 1.0 - 0.25 * step(0.86, wrNoise(lp.xz * 2.4 + lk.w * 31.0)) * (1.0 - smoothstep(0.3, 0.6, r));
+      wrNw = normalize(ln + vec3(cos(a), 0.0, sin(a)) * 0.35 * (abs(strip - 0.5) - 0.25));
     } else if (fin == ${F.seedClock}) {
       float cell = wrCells(vec2(a * 9.0, (ln.y + 1.0) * 14.0));
       c = mix(vec3(0.95, 0.94, 0.9), vec3(0.45, 0.4, 0.33), smoothstep(0.32, 0.12, cell) * 0.6);

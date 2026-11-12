@@ -22,7 +22,7 @@ const ROWS: ValueRow[] = [
   ['§5.4.1', 'castes.gyne.fixedStats.maxHp', 208], ['§5.4.1', 'castes.gyne.upkeepOverride.restC', 0.2], ['§5.4.1', 'castes.gyne.sprintBuS', 9],
   ['§5.4.1', 'castes.male.lengthBu', { min: 1.7, mean: 1.9, max: 2.1 }], ['§5.4.1', 'castes.male.casteMassMg', 60],
   ['§5.4.1', 'castes.male.fixedStats', { maxHp: 46, bite: 2.3, foundingMaxHp: null }], ['§5.4.1', 'castes.male.upkeepOverride.restC', 0.15],
-  ['§2.5', 'castes.media.ageRateOutside', 3.0]
+  ['§2.5', 'castes.media.ageRateOutside', 3.0],
   // life history (§5.4.2)
   ['§5.4.2', 'life.stageGd', { egg: 0.85, larva: 1.65, pupa: 1.7 }], ['§5.4.2', 'life.devRefC', 25],
   ['§5.4.2', 'life.devRate', [[15, 0], [20, 0.5], [25, 1.0], [28, 1.4], [30, 1.2], [32, 0]]],

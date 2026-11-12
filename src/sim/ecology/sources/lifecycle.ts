@@ -79,7 +79,11 @@ function isBowlRefillHour(sim: Sim): boolean {
 }
 
 function decay(sim: Sim, s: FoodSource, dtGd: number): void {
-  if (s.variant === 'sugary-spill') s.decayPerGd = halfLifeToDecay(spillHalfLife(sim, s));
+  // An evaporating spill (event-driven, T2) carries a half-life from creation; a T1 static spill has none and
+  // keeps none: it is static like the T1 honeydew sites (GDD 05 §0 "one static indoor spill"), only drinking
+  // empties it.
+  const staticSpill = s.variant === 'sugary-spill' && s.decayPerGd === 0;
+  if (s.variant === 'sugary-spill' && !staticSpill) s.decayPerGd = halfLifeToDecay(spillHalfLife(sim, s));
   if (s.variant === 'windfall' && isDaytime(sim)) {
     setAmount(s, s.units * (1 - WINDFALL_WASP_DRAIN_PER_H * dtGd * HOURS_PER_DAY));
   }
@@ -89,7 +93,7 @@ function decay(sim: Sim, s: FoodSource, dtGd: number): void {
     if (s.units <= LIQUID_EMPTY_EPS) setAmount(s, 0);
     if (before > 0 && isEmpty(s)) markExhaustedForKnowers(sim, s);
   }
-  if (s.variant === 'sugary-spill' && s.units < SPILL_RESIDUE_FRACTION * s.capacity) toResidue(sim, s);
+  if (s.variant === 'sugary-spill' && !staticSpill && s.units < SPILL_RESIDUE_FRACTION * s.capacity) toResidue(sim, s);
 }
 
 /** GDD 05 §1.2: 0.15 gd in sun (surface >= 30 °C), 0.4 gd in shade, 1 gd indoors. */

@@ -1,12 +1,13 @@
 // beh-nest review fixes that the reviewer's own tests do not cover: a guard waits out the alarm cooldown in
-// `guard.alarm-raise` (no re-entry every tick), care acts leave the pose to primitives, a queen sent away by an
+// `guard.alarm-raise` (no re-entry every tick), loading the crop is a primitive with a pose, a queen sent away by an
 // emergency returns to the royal chamber once it is safe, a nurse carried away from brood delivers it first, and a
 // nurse stuck upside down above its target lets go.
 import { describe, expect, it } from 'vitest';
 import type { Ant } from '@/sim/types';
+import { POSES } from '@/sim/types';
 import { SYSTEMS } from '@/sim/systems';
 import { placeOnSurface } from '@/sim/locomotion';
-import { CareOp, startCare, stepCare } from './careActs';
+import { begin } from '@/sim/ants/actions';
 import { makeNestColony, run } from './testkit';
 
 const NO_ALLOC = SYSTEMS.filter((s) => s.name !== 'allocation' && s.name !== 'task-reeval');
@@ -37,15 +38,19 @@ describe('beh-nest review fixes', () => {
     expect(entries).toBeLessThanOrEqual(2);
   }, 120_000);
 
-  it('care acts leave the pose alone (only primitives set it)', () => {
+  it('loading the crop is an action primitive with its own pose (sim-fix-ants: care acts became primitives)', () => {
     const k = makeNestColony({ workers: 1, systems: NO_ALLOC });
     const a = worker(k);
-    a.pose = 3;
-    startCare(k.sim, a, CareOp.loadNurse, -1, 0.3);
-    expect(a.pose).toBe(3);
+    a.task = 'nurse';
+    expect(placeOnSurface(k.sim, a, k.food.center, { x: 0, y: -1, z: 0 })).toBe(true);
+    a.nestId = k.nest.id; a.chamberId = k.food.id;
+    a.thinkTick = 1e9; // no behaviour think in between
+    expect(begin(k.sim, a, 'load-crop', null)).toBe(true);
+    expect(a.pose).toBe(POSES.indexOf('drink'));
     run(k.sim, 80);
-    stepCare(k.sim, a);
-    expect(a.pose).toBe(3);
+    expect(a.action).toBeNull();
+    expect(a.pose).toBe(0);
+    expect(a.cropC + a.cropP).toBeGreaterThan(0.5);
   });
 
   it('a queen sent out of a flooded royal chamber goes back once it is dry', () => {

@@ -48,7 +48,8 @@ export function addFloorBias(w: Walker, out: Vec3, weight: number): void {
 /** Light separation from nearby ants (radius sepR), weight sepW at contact, at most sepMax neighbours. */
 export function addSeparation(sim: Sim, w: Walker, selfId: number, r: LocoRuntime, out: Vec3): void {
   const P = r.P, ids = r.ids;
-  sim.index.queryAnts(w.pos, P.sepR, ids);
+  if (r.sepGrid) r.sepGrid.queryRadius(w.pos.x, w.pos.y, w.pos.z, P.sepR, ids);
+  else sim.index.queryAnts(w.pos, P.sepR, ids);
   let n = 0;
   for (let i = 0; i < ids.length && n < P.sepMax; i++) {
     if (ids[i] === selfId) continue;

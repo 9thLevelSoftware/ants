@@ -1,8 +1,8 @@
 // Giant human sounds (GDD 08 §13.6), UI / alert tones (§13.8) and the granular ambience grains (§13.4).
-import type { ShotRecipe, SynthKit } from './kit';
+import { bandMakeup, type ShotRecipe, type SynthKit } from './kit';
 
 function burst(k: SynthKit, out: AudioNode, t: number, gain: number, f: number, q: number, a: number, d: number, kind: 'white' | 'pink' | 'brown' = 'white', type: BiquadFilterType = 'bandpass'): number {
-  k.chain(k.noise(kind, t, a + d + 0.05), k.filter(type, f, q), k.ad(t, gain, a, d), out);
+  k.chain(k.noise(kind, t, a + d + 0.05), k.filter(type, f, q), k.ad(t, gain * bandMakeup(type, f, q, k.ctx.sampleRate), a, d), out);
   return a + d + 0.05;
 }
 

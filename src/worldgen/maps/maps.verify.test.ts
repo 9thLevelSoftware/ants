@@ -10,8 +10,11 @@ import { addFoodAnchor } from '../kit/records';
 import { cellAt, navDistances } from '../validate/graph';
 import { evaluateMicro, usefulInteriorAccess } from '../validate/micro';
 import { SEASONS } from '@/sim/types';
+import { createKernel } from '@/sim/kernel';
+import { createNewGame, defaultGameConfig } from '@/sim/createGame';
+import { spherePasses } from '../testing/walker';
 
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 describe('derived maps see content placed after step 6', () => {
   // FAILS: specialFactor('messor-barbarus') counts seed anchors, but anchors are only placed in step 7 and the
@@ -84,14 +87,42 @@ describe('GDD 04 App. E checks at this level (regression)', () => {
     expect([w.nav.cls.nx, w.nav.cls.nz]).toEqual([250, 250]);
   });
 
-  it('E5: Camponotus kitchen-door door-crack gap >= 5.4 mm (0.6 BU)', () => {
+  // E5 reads: "the door-crack gap is >= 5.4 mm (0.6 BU) or the door is sealed and a pipe penetration with
+  // clearance >= 0.6 BU exists". The weather-strip variant (p 0.25) closes the crack (gap 0) and forces a pipe
+  // penetration (GDD 04 §6.2), so the check accepts either and then proves the passage physically: a 0.6 BU sphere
+  // travels through the field from one mouth to the other (pre-carves applied as at New Game).
+  it('E5: Camponotus kitchen-door: door crack >= 5.4 mm (0.6 BU), or a sealed door and a pipe penetration >= 0.6 BU', () => {
+    const minMm = 0.6 * 9;
+    let sealed = 0;
     for (const seed of [1, 2, 3, 4]) {
       const w = report('kitchen-door', seed, 'standard', 'camponotus-pennsylvanicus').world;
+      expect(w.bu).toBe(9);
       const door = w.micro.find((m) => m.kind === 'door-crack');
       expect(door, `seed ${seed}`).toBeDefined();
-      expect(door!.gapMm).toBeGreaterThanOrEqual(5.4);
-      expect(door!.minClearanceBu).toBeGreaterThanOrEqual(0.6);
+      let way = door!;
+      if (door!.gapMm >= minMm - 1e-9) expect(door!.minClearanceBu).toBeGreaterThanOrEqual(0.6 - 1e-9);
+      else {
+        // weather strip: closed for every species, and a pipe penetration wide enough for this one
+        sealed++;
+        expect(door!.gapMm, `seed ${seed}: a crack under 5.4 mm must be the sealed variant`).toBe(0);
+        expect(door!.useful).toBe(false);
+        const pipe = w.micro.filter((m) => m.kind === 'pipe-penetration' && m.minClearanceBu >= 0.6 - 1e-9).sort((x, y) => x.id - y.id)[0];
+        expect(pipe, `seed ${seed}: pipe penetration >= 0.6 BU`).toBeDefined();
+        expect(pipe.useful).toBe(true);
+        way = pipe;
+      }
+      const { state } = createNewGame({ ...defaultGameConfig('camponotus-pennsylvanicus', w.params.seed, 'naturalist'), world: w.params }, w);
+      const k = createKernel(w, state.worldDelta.carve);
+      // the passage runs past its pipe (up the wall to the hole): include the nearest pipe's top in the search box
+      const pipes = w.objects.filter((o) => o.templateId === 'service-pipe').map((o) => w.prims[o.primStart]);
+      const mid = { x: (way.posA.x + way.posB.x) / 2, z: (way.posA.z + way.posB.z) / 2 };
+      const near = way.kind === 'pipe-penetration' && pipes.length > 0
+        ? pipes.reduce((p, q) => (Math.hypot(p.pos.x - mid.x, p.pos.z - mid.z) <= Math.hypot(q.pos.x - mid.x, q.pos.z - mid.z) ? p : q)) : null;
+      const include = near ? [{ x: near.pos.x, y: near.pos.y + near.size.x + 2 * w.bu, z: near.pos.z }] : [];
+      expect(spherePasses(k, way.posA, way.posB, minMm / 2, { include }), `seed ${seed}: ${way.kind} passes a 0.6 BU sphere`).toBe(true);
     }
+    // seeds 1 and 4 roll the weather strip today: the sealed branch is exercised
+    expect(sealed).toBeGreaterThan(0);
   });
 
   it('E25 (first clause): Messor/mediterranean static Q is 0 on every interior and paving cell', () => {

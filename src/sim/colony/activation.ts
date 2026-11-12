@@ -7,7 +7,7 @@ import { rngChance } from '@/core/rng';
 import { clamp } from '@/core/math/scalar';
 import type { Ant, Colony, Sim } from '@/sim/types';
 import {
-  ACTIVATION_DEPART, CURFEW_ALARM_PH, CURFEW_FENV, ENC_GAIN, ENC_SCOUT_MULT, FENV_RH_BASE, FENV_RH_GAIN,
+  ACTIVATION_DEPART, CURFEW_ALARM_PH, CURFEW_FENV, ENC_GAIN, ENC_SCOUT_MULT, FENV_RH_BASE, FENV_RH_GAIN, FORAGE_WAIT_RADIUS_BU,
   FENV_RH_LO_PCT, FENV_RH_SPAN_PCT, NEWS_EXPIRY_GD, NEWS_MAX, RECRUIT_CONTACTS_MAX, RECRUIT_RADIUS_BU,
   SPONT_DEPART_RATE_S, SPONT_NEED_BASE, SPONT_ROUTE_MULT,
 } from '@/sim/balance';
@@ -123,11 +123,13 @@ function updateNews(sim: Sim, col: Colony, sourceId: number): void {
 
 /**
  * Antennal contacts of a returner at `pos` with up to RECRUIT_CONTACTS_MAX nearest waiting foragers within
- * RECRUIT_RADIUS_BU. A successful return adds activation and may pass on the source as a lead. Returns the ids
- * contacted.
+ * `radiusBu` (default RECRUIT_RADIUS_BU). A successful return adds activation and may pass on the source as a
+ * lead. Returns the ids contacted.
  */
-function contactWaiting(sim: Sim, col: Colony, pos: Vec3, fromId: number, success: boolean, scout: boolean, sourceId: number): number[] {
-  const r = RECRUIT_RADIUS_BU * sim.world.bu;
+function contactWaiting(
+  sim: Sim, col: Colony, pos: Vec3, fromId: number, success: boolean, scout: boolean, sourceId: number, radiusBu = RECRUIT_RADIUS_BU,
+): number[] {
+  const r = radiusBu * sim.world.bu;
   const near: { a: Ant; d: number }[] = [];
   for (const a of sim.stores.ants.list) {
     if (a.colony !== col.id || a.id === fromId || !isWaitingForager(a)) continue;
@@ -169,7 +171,11 @@ export function recordForagerReturn(sim: Sim, returner: Ant, success: boolean, s
   return contactWaiting(sim, col, returner.pos, returner.id, success, returner.task === 'scout', sourceId);
 }
 
-/** Debug `cheat.injectReturn`: a synthetic returner contact at an entrance. */
+/**
+ * Debug `cheat.injectReturn`: a synthetic returner contact at an entrance. It reaches waiting foragers within the
+ * wait radius of the entrance (FORAGE_WAIT_RADIUS_BU, GDD 02 §6.6), which covers the entrance chamber where they
+ * wait; a real returner contacts those within RECRUIT_RADIUS_BU of itself.
+ */
 export function injectReturn(sim: Sim, entranceId: number, success: boolean, sourceId: number): number[] {
   for (const n of sim.stores.nests.list) {
     if (!n.alive) continue;
@@ -181,7 +187,7 @@ export function injectReturn(sim: Sim, entranceId: number, success: boolean, sou
       col.counters.tripSuccesses++;
       if (sourceId >= 0) updateNews(sim, col, sourceId);
     }
-    return contactWaiting(sim, col, e.pos, -1, success, false, sourceId);
+    return contactWaiting(sim, col, e.pos, -1, success, false, sourceId, FORAGE_WAIT_RADIUS_BU);
   }
   return [];
 }
@@ -198,11 +204,23 @@ export function recordDelivery(
   const col = sim.stores.colonies.get(ant.colony);
   if (!col) return { c: 0, p: 0, toxin: 0 };
   const got = deposit(col, c, p, toxin, 'delivery');
-  if (got.c + got.p > 0) {
-    countDelivery(sim, col, sourceId, kind, got.c, got.p, waitTicks);
-    recordSourceDelivery(sim, col.id, sourceId, got.c, got.p);
-    if (ant.task === 'forage' || ant.task === 'scout' || ant.task === 'tend') accAdd(coreOf(col), 'yield.loads', got.c + got.p);
-    sim.emit({ type: 'delivery', antId: ant.id, colonyId: col.id, sourceId, kind, c: got.c, p: got.p, toxin: got.toxin });
-  }
+  recordDeliveryCount(sim, ant, sourceId, kind, got.c, got.p, got.toxin, waitTicks);
   return got;
+}
+
+/**
+ * The counting half of a delivery whose food already entered the pool another way (the action primitives book
+ * a trophallaxis unload or a solid put-down under `in.delivery` themselves): intake by food kind and source, the
+ * ecology source ledger, the yield-per-forager estimate (forage, scout and tend ants) and the `delivery` event.
+ * No deposit: calling it after the primitive does not count the food twice. Nothing happens for c + p <= 0.
+ */
+export function recordDeliveryCount(
+  sim: Sim, ant: Ant, sourceId: number, kind: string, c: number, p: number, toxin = 0, waitTicks = -1,
+): void {
+  const col = sim.stores.colonies.get(ant.colony);
+  if (!col || !(c + p > 0)) return;
+  countDelivery(sim, col, sourceId, kind, c, p, waitTicks);
+  recordSourceDelivery(sim, col.id, sourceId, c, p);
+  if (ant.task === 'forage' || ant.task === 'scout' || ant.task === 'tend') accAdd(coreOf(col), 'yield.loads', c + p);
+  sim.emit({ type: 'delivery', antId: ant.id, colonyId: col.id, sourceId, kind, c, p, toxin });
 }

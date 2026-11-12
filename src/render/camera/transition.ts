@@ -66,6 +66,11 @@ export class CameraTransition {
     return this.active;
   }
 
+  /** Kind of the running (or last) transition. */
+  get kind(): TransitionKind {
+    return this.plan.kind;
+  }
+
   start(from: CameraPose, plan: TransitionPlan): void {
     copyPose(this.from, from);
     this.plan = plan;

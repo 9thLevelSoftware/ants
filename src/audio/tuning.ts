@@ -3,8 +3,6 @@
 
 export const BUS_IDS = ['master', 'ambience', 'effects', 'giants', 'ui', 'music'] as const;
 export type BusId = (typeof BUS_IDS)[number];
-/** Buses that carry the game world (faded while the game is paused); `ui` keeps playing in menus. */
-export const WORLD_BUSES = ['ambience', 'effects', 'giants', 'music'] as const;
 
 /** §13.2 default bus gains, dB (multiplied by the player's slider, amplitude = slider²). */
 export const BUS_DEFAULT_DB: Record<BusId, number> = { master: 0, ambience: -10, effects: -4, giants: -3, ui: -14, music: -18 };
@@ -43,6 +41,10 @@ export const DISTANCE: Record<'foley' | 'creature' | 'giant', DistanceClass> = {
   creature: { refBu: 4, maxBu: 60, rolloff: 1.2 },
   giant: { refBu: 150, maxBu: 3000, rolloff: 0.8 },
 };
+/** Air absorption for giant sources: cutoff = max(minHz, maxHz·(refBu/d)^exp) beyond refBu ("low-passed by distance"). */
+export const AIR = { refBu: 150, maxHz: 18000, minHz: 700, exp: 1.2 };
+/** Warning phase of engine-like giant loops (mower: "low-passed 400 Hz at -18 dB", §13.6). */
+export const GIANT_WARNING = { gainDb: -18, lowpassHz: 400 };
 /** Weather impacts closer than this are non-positional (granular layer). */
 export const WEATHER_NEAR_BU = 20;
 
@@ -68,8 +70,10 @@ export const CROWD = { windowS: 0.5, singleVoiceMaxRate: 6, textureMaxRate: 80, 
 
 /** §13.4 ambience. */
 export const AMBIENCE = {
-  /** Zone crossfade width at borders. */
+  /** Zone crossfade width at borders (side of the square the habitat groups are averaged over). */
   zoneCrossfadeBu: 32,
+  /** At most this many zone samples per axis of that square (coarser than the zone raster beyond it). */
+  zoneBlendMaxSamples: 16,
   /** Time-of-day segment crossfade, game hours. */
   todCrossfadeH: 1,
   /** Underground depth bands (BU below local ground) and the crossfade half-width at each band edge. */
@@ -95,7 +99,14 @@ export const AMBIENCE = {
   woodCreakMinS: 20,
   woodCreakMaxS: 60,
   crackleMaxPerS: 6,
+  /** Colony size at which the wood-nest crackle reaches its full rate. */
+  crackleFullAnts: 500,
   crackleGainDb: -18,
+  woodCreakGainDb: -12,
+  /** Grain gains, dB (before the per-grain 0.4-1 random scale). */
+  grainGainDb: { droplets: -20, heatTicks: -34, iceTicks: -30, nestTicks: -34, drips: -18 },
+  /** A layer channel silent this long is released (its source stopped, its buffer may be evicted). */
+  releaseAfterSilentS: 8,
   playgroundLowpassHz: 900,
   interiorStreetLowpassHz: 800,
 };
@@ -117,6 +128,8 @@ export const GIANT = {
   tremorMinS: 0.6,
   tremorMaxS: 8,
   loopFadeOutS: 1.5,
+  /** Fade-out of a warning loop replaced by another source at the start (reel mower). */
+  loopSwapFadeS: 0.8,
   carRepeatMinS: 9,
   carRepeatMaxS: 18,
   broomRepeatMinS: 2.6,
@@ -126,6 +139,19 @@ export const GIANT = {
   /** Distance assumed for a giant event whose position is unknown. */
   unknownDistanceBu: 400,
   thunderDelayMaxS: 6,
+  /** Hose: splashes repeat every min-max s. */
+  splashRepeatMinS: 0.6,
+  splashRepeatMaxS: 1.8,
+  splashGainDb: -6,
+  /** First splash this long after the hose starts. */
+  splashFirstS: 0.5,
+  /** Base gains of the main giant loops: hose (watering) and engines (mower, vacuum). */
+  hoseLoopDb: -6,
+  engineLoopDb: -4,
+  /** Car: the synth tyre roll under the pass, and the approach roll during the warning (dB, s). */
+  tyreGainDb: -10,
+  tyreUnderPassS: 6,
+  tyreApproachMinS: 2,
 };
 
 /** §13.9 generative music. */

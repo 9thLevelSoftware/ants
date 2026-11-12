@@ -3,7 +3,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { ChamberType, Material } from './ids';
 import type {
-  ArchitectNeed, EntranceKind, EntranceStatus, NestMilestoneKind, PelletDumpTarget, PlanBlockedReason, PlanKind,
+  ArchitectNeed, EntranceCloseCause, EntranceKind, EntranceStatus, NestMilestoneKind, PelletDumpTarget, PlanBlockedReason, PlanKind,
   PlanPriority, PlanStatus, PlanValidationCode,
 } from './ids/nest';
 
@@ -16,6 +16,8 @@ export type NestEvent =
   | { type: 'mound-changed'; moundId: number; min: Vec3; max: Vec3 }
   | { type: 'entrance-opened'; entranceId: number; nestId: number; kind: EntranceKind }
   | { type: 'entrance-state-changed'; entranceId: number; status: EntranceStatus; prev: EntranceStatus }
+  /** An entrance became `sealed` without any plug voxel (sim-fix-colony): the UI tells the player why. */
+  | { type: 'entrance-closed'; entranceId: number; nestId: number; cause: EntranceCloseCause; pos: Vec3 }
   | { type: 'plan-created'; planId: number; kind: PlanKind; priority: PlanPriority }
   | { type: 'plan-rejected'; kind: PlanKind; codes: PlanValidationCode[]; warnings: PlanValidationCode[] }
   | { type: 'plan-status-changed'; planId: number; status: PlanStatus; blockedReason: PlanBlockedReason | null }

@@ -24,6 +24,7 @@ import { draftPlan, resolvePlan } from '../plans/resolve';
 import type { NeedRequest } from './needs';
 import { bandOf, coverWeight, type ScoreInputs } from './score';
 import { isBlacklisted } from './sites';
+import { nestRuntime } from '../runtime';
 
 export interface Candidate extends ScoreInputs {
   index: number;
@@ -67,6 +68,28 @@ function relatedPath(sim: Sim, nest: Nest, type: string, p: Vec3): number {
 const H4 = [1, 0, -1, 0, 0, 1, 0, -1];
 
 /**
+ * Wall samples of one carve chunk (open, a non-open sample below, a non-open horizontal neighbour; the first such
+ * neighbour in H4 order), as i, j, k, direction quadruples in the grid's scan order. Cached per chunk in the nest
+ * runtime and dropped for every chunk a carve can affect (the rule reads one sample around each sample).
+ */
+function chunkWalls(sim: Sim, key: number): number[] {
+  const rt = nestRuntime(sim);
+  const have = rt.wallByChunk.get(key);
+  if (have) return have;
+  const carve = sim.carve, out: number[] = [];
+  carve.forEachOpenSample(key, (i, j, k) => {
+    if (carve.sampleAt(i, j - 1, k) >= OPEN_MIN) return; // needs a floor below
+    for (let d = 0; d < 8; d += 2) {
+      if (carve.sampleAt(i + H4[d], j, k + H4[d + 1]) >= OPEN_MIN) continue;
+      out.push(i, j, k, d);
+      return;
+    }
+  });
+  rt.wallByChunk.set(key, out);
+  return out;
+}
+
+/**
  * Wall spots of the nest between two depths below the nest origin's ground (BU): open samples with a floor below
  * and a horizontal solid neighbour, in the nest's cavity (the nest module's wallSpots rule, GDD 03 §8.4 a), with
  * whole chunks outside the nest box or the depth range skipped. Fixed scan order (chunk key, sample index).
@@ -82,19 +105,16 @@ export function spotsInDepth(sim: Sim, nest: Nest, minDepthBu: number, maxDepthB
     return ci + CHUNK > b.i0 && ci <= b.i1 && cj + CHUNK > j0 && cj <= j1 && ck + CHUNK > b.k0 && ck <= b.k1;
   }).sort((a, c) => a - c);
   for (const key of keys) {
-    carve.forEachOpenSample(key, (i, j, k) => {
-      if (i < b.i0 || i > b.i1 || j < j0 || j > j1 || k < b.k0 || k > b.k1) return;
-      if (carve.sampleAt(i, j - 1, k) >= OPEN_MIN) return; // needs a floor below
-      for (let d = 0; d < 8; d += 2) {
-        if (carve.sampleAt(i + H4[d], j, k + H4[d + 1]) >= OPEN_MIN) continue;
-        const pos = { x: i * v, y: j * v, z: k * v };
-        const depthBu = (sim.field.height(pos.x, pos.z) - pos.y) / bu;
-        if (depthBu < minDepthBu || depthBu > maxDepthBu) return;
-        if (sim.field.substrateXYZ(pos.x, pos.y, pos.z) >= 0 || !comps.has(sim.nestNav.componentAt(pos))) return;
-        out.push({ pos, normal: { x: -H4[d], y: 0, z: -H4[d + 1] }, depthBu });
-        return;
-      }
-    });
+    const walls = chunkWalls(sim, key);
+    for (let q = 0; q < walls.length; q += 4) {
+      const i = walls[q], j = walls[q + 1], k = walls[q + 2], d = walls[q + 3];
+      if (i < b.i0 || i > b.i1 || j < j0 || j > j1 || k < b.k0 || k > b.k1) continue;
+      const pos = { x: i * v, y: j * v, z: k * v };
+      const depthBu = (sim.field.height(pos.x, pos.z) - pos.y) / bu;
+      if (depthBu < minDepthBu || depthBu > maxDepthBu) continue;
+      if (sim.field.substrateXYZ(pos.x, pos.y, pos.z) >= 0 || !comps.has(sim.nestNav.componentAt(pos))) continue;
+      out.push({ pos, normal: { x: -H4[d], y: 0, z: -H4[d + 1] }, depthBu });
+    }
   }
   return out;
 }

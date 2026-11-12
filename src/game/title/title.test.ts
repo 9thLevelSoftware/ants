@@ -4,14 +4,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PerspectiveCamera } from 'three';
 import type { FrameInfo, RenderRegistry } from '@/render';
-import type { RenderApp } from '@/render/app';
+import type { QualityId, RenderApp } from '@/render/app';
 import { makePose } from '@/render/camera';
 import { makeTestSim } from '@/sim/testing';
 import type { Sim } from '@/sim/types';
 import { buildTestWorld } from '@/render/world/decor/testWorld';
+import { LAWN_MIN_LITTER_SHARE, LAWN_MIN_TREE_DIST_MM, lawnLitterShare } from './scenicQueries';
 import {
-  driftOffsetBU, edgeView, lawnSpot, makeTitleSim, makeTitleWorld, TITLE_CAMERA, TITLE_LAYOUT, TitleHost, titlePose, titleSceneWanted,
-  titleSubject,
+  driftOffsetBU, edgeView, lawnSpot, makeTitleSim, makeTitleWorld, TITLE_CAMERA, TITLE_LAYOUT, TITLE_STILL_SETTLE_FRAMES, TitleHost, titlePose,
+  titleQualityCap, titleSceneWanted, titleSubject,
 } from './index';
 
 describe('title vignette', () => {
@@ -112,13 +113,79 @@ describe('TitleHost', () => {
   });
 });
 
+describe('TitleHost outside test mode: Low cap, still frames, re-entry', () => {
+  function host(opts: { player: QualityId; app: string; failBuild?: boolean }) {
+    const caps: boolean[] = [];
+    const registry = {
+      onGameStart: vi.fn(() => (opts.failBuild ? Promise.reject(new Error('boom')) : Promise.resolve())),
+      update: vi.fn(),
+    } as unknown as RenderRegistry & { update: ReturnType<typeof vi.fn>; onGameStart: ReturnType<typeof vi.fn> };
+    const app = {
+      quality: { id: opts.app }, renderer: { domElement: { height: 720 } }, setFocus: vi.fn(), setOnDemand: vi.fn(), requestRender: vi.fn(),
+    };
+    const canvas = { clientWidth: 1280, clientHeight: 720 };
+    const h = new TitleHost({
+      registry: () => registry, app: () => app as unknown as RenderApp, camera: new PerspectiveCamera(), canvas: canvas as HTMLCanvasElement,
+      testMode: false, reducedMotion: () => false, playerQuality: () => opts.player, setQualityCap: (on) => caps.push(on),
+    });
+    return { h, caps, registry, app, canvas };
+  }
+
+  it('caps the preset at Low while entered (test stays test) and lifts the cap on leave', async () => {
+    expect(['test', 'low', 'medium', 'high', 'ultra'].map((q) => titleQualityCap(q as QualityId))).toEqual(['test', 'low', 'low', 'low', 'low']);
+    const f = host({ player: 'high', app: 'low' });
+    await f.h.enter();
+    expect(f.caps).toEqual([true]);
+    f.h.leave();
+    expect(f.caps).toEqual([true, false]);
+  });
+
+  it("drifts when the player's preset is above Low although the capped app renders at Low", async () => {
+    const f = host({ player: 'high', app: 'low' });
+    await f.h.enter();
+    const a = f.h.frame(1 / 60)!.camera.position.clone();
+    for (let i = 0; i < 60; i++) f.h.frame(1 / 60);
+    expect(f.h.frame(1 / 60)!.camera.position.distanceTo(a)).toBeGreaterThan(0);
+  });
+
+  it('a settled still frame updates the renderers no more (and settles again when the canvas changes)', async () => {
+    const f = host({ player: 'low', app: 'low' });
+    await f.h.enter();
+    for (let i = 0; i < TITLE_STILL_SETTLE_FRAMES + 50; i++) expect(f.h.frame(1 / 60)).not.toBeNull();
+    expect(f.registry.update).toHaveBeenCalledTimes(TITLE_STILL_SETTLE_FRAMES);
+    for (const c of f.registry.update.mock.calls) expect((c[0] as FrameInfo).dt).toBe(0); // eased looks settle at once
+    f.canvas.clientWidth = 1920;
+    for (let i = 0; i < TITLE_STILL_SETTLE_FRAMES + 50; i++) f.h.frame(1 / 60);
+    expect(f.registry.update).toHaveBeenCalledTimes(2 * TITLE_STILL_SETTLE_FRAMES);
+  });
+
+  it('ensure() rebuilds a title that was left without a new one (failed load), once; a failed build is not retried', async () => {
+    const f = host({ player: 'medium', app: 'low' });
+    expect(f.h.ensure()).toBe(true);
+    await f.h.ready;
+    expect(f.h.ensure()).toBe(false);
+    expect(f.registry.onGameStart).toHaveBeenCalledTimes(1);
+    f.h.leave(); // e.g. the save host's adopt() -> endGame(false), then the load fails and the Game falls back to the title
+    expect(f.h.ensure()).toBe(true);
+    expect(f.registry.onGameStart).toHaveBeenCalledTimes(2);
+    const bad = host({ player: 'medium', app: 'low', failBuild: true });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    bad.h.ensure();
+    expect(await bad.h.ready).toBe(false);
+    expect(bad.h.ensure()).toBe(false);
+    expect(bad.registry.onGameStart).toHaveBeenCalledTimes(1);
+    err.mockRestore();
+  });
+});
+
 describe('scenic read-outs', () => {
   it('find a lawn spot within the leaf-litter fringe of a tree and a camera view across an outdoor edge', () => {
     const sim = makeTestSim({ world: buildTestWorld() });
     const spot = lawnSpot(sim)!;
     expect(spot).not.toBeNull();
-    expect(spot.treeDistMm).toBeGreaterThanOrEqual(600);
-    expect(spot.treeDistMm).toBeLessThanOrEqual(2500);
+    expect(spot.treeDistMm).toBeGreaterThanOrEqual(LAWN_MIN_TREE_DIST_MM);
+    expect(spot.litterShare).toBeGreaterThanOrEqual(LAWN_MIN_LITTER_SHARE); // half the full leaf density or more
+    expect(spot.litterShare).toBeCloseTo(lawnLitterShare(spot.treeDistMm), 2);
     const v = edgeView(sim)!;
     expect(v.zone).not.toBe('interior');
     const S = sim.world.size;

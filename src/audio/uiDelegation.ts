@@ -31,10 +31,11 @@ export interface DelegationTarget {
 /** Installs the listeners on `root` (the document or the UI root); returns an uninstall function. */
 export function installUiSounds(root: DelegationTarget, play: (id: UiSoundId) => void): () => void {
   let keyboard = false;
-  const control = (e: Event): Element | null => {
-    const t = e.target as Element | null;
-    return t && typeof t.closest === 'function' ? t.closest(CONTROL_SELECTOR) : null;
+  const controlOf = (t: EventTarget | null): Element | null => {
+    const el = t as Element | null;
+    return el && typeof el.closest === 'function' ? el.closest(CONTROL_SELECTOR) : null;
   };
+  const control = (e: Event): Element | null => controlOf(e.target);
   const onClick = (e: Event) => {
     const el = control(e);
     if (!el) return;
@@ -43,7 +44,9 @@ export function installUiSounds(root: DelegationTarget, play: (id: UiSoundId) =>
   };
   const onOver = (e: Event) => {
     const el = control(e);
-    if (el && soundForControl(el)) play('hover');
+    // pointerover bubbles from every child of a control: only entering the control from outside it counts
+    if (!el || controlOf((e as PointerEvent).relatedTarget) === el) return;
+    if (soundForControl(el)) play('hover');
   };
   const onKey = () => { keyboard = true; };
   const onPointer = () => { keyboard = false; };

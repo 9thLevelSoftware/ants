@@ -12,7 +12,8 @@ import { nestSim, placeWorker, playerNest, runTicks, setMoisture } from './nestT
 import { nestSystem } from './system';
 import { detectNestChambers } from './chambers/upkeep';
 import { nestRuntime, takeNestDirty } from './runtime';
-import { placePellet, spawnPellet, tampPellet } from './pellets';
+import { placePellet, spawnPellet } from './pellets';
+import { tampPellet } from './tamp';
 import { planById } from './plans/plans';
 import { OPEN_MIN } from './carve/keys';
 import { SPOIL_PILE_MAX, NO_HAULERS_S } from '@/sim/balance/nest';

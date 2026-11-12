@@ -16,12 +16,15 @@ const MINIM_ACTIONS: ActionId[] = [
   'hitchhike', 'bite', 'release-alarm', 'stridulate', 'dodge',
 ];
 // Media covers the small-media size class too (it also tends the fungus and processes leaves).
+// Small media feed the larvae (GDD 07 §5.4.2); `feed-larva` here means carrying staphylae from the garden, so the
+// action system adds the "only with fungus" precondition (GDD 01 §7), not the caste list.
 const MEDIA_ACTIONS = actions(ATTA_COMMON, [
-  'dig-bite', 'process-leaf', 'tend-fungus', 'cut-leaf', 'lay-trail', 'harvest-liquid', 'drag', 'stridulate',
+  'dig-bite', 'feed-larva', 'process-leaf', 'tend-fungus', 'cut-leaf', 'lay-trail', 'harvest-liquid', 'drag', 'stridulate',
 ]);
 const MAJOR_ACTIONS = actions(ATTA_COMMON, ['dig-bite', 'block-opening', 'drag', 'cut-leaf', 'stridulate']);
-// The founding queen plants the pellet and tends the garden; larvae are fed by minims, not by her.
-const QUEEN_ACTIONS = actions(QUEEN_BASE_ACTIONS, ['plant', 'tend-fungus'], ['feed-larva']);
+// The founding queen plants the pellet, tends the garden and rears the claustral first brood (GDD 01 §7 gives
+// `feed-larva` to the founding queen, from her reserves; for Atta the precondition is a garden that yields staphylae).
+const QUEEN_ACTIONS = actions(QUEEN_BASE_ACTIONS, ['plant', 'tend-fungus']);
 
 const CASTES: CasteDef[] = [
   {
@@ -31,7 +34,7 @@ const CASTES: CasteDef[] = [
     lifespanGd: { mean: 40, sd: 12 }, lifespanBySize: [], ageRateOutside: 3.0,
     ageRateDormant: 1, // not dormant in winter (winter mode `active`): dormancy never applies
     fixedStats: null, upkeepOverride: null, devMult: 0.83, actions: MINIM_ACTIONS,
-    taskWeights: { forage: 0, scout: 0, cut: 0, mill: 0, tend: 0, dig: 0.3 }, // minims stay in the nest [EST dig]
+    taskWeights: { forage: 0, scout: 0, cut: 0, mill: 0, tend: 0, dig: 0 }, // minims stay in the nest; no `dig-bite` (GDD 01 §7)
     unlock: NO_UNLOCK,
   },
   {
@@ -251,6 +254,8 @@ export const ATTA_TEXANA: SpeciesDef = {
       gardenLessLarvaHazard: 1.0, gardenLessReserveGd: 3, gardenLessDrawLoads: 0.1,
       // queen and eggs paid in FL (5.4.2); sap per cut is diet.sapPerCut
       queenUpkeepFl: 0.5, eggCostFl: 0.03,
+      // small-media devMult (5.4.2): the `media` caste row carries 1.0; individuals under 0.8 BU develop at this rate
+      smallMediaDevMult: 0.95,
       // units and loads (2.3): larval cost FL = 1.6 x m^0.8
       larvalCostFlPerM08: 1.6,
     },

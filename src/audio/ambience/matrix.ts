@@ -238,7 +238,7 @@ export function computeAmbience(inp: AmbienceInput, out: AmbienceTarget = newAmb
   }
   if (inp.woodNest && inp.underground) {
     g.woodCreakEveryS = (AMBIENCE.woodCreakMinS + AMBIENCE.woodCreakMaxS) / 2;
-    g.crackle = AMBIENCE.crackleMaxPerS * Math.min(1, Math.max(0, inp.colonyAnts / 500));
+    g.crackle = AMBIENCE.crackleMaxPerS * Math.min(1, Math.max(0, inp.colonyAnts / AMBIENCE.crackleFullAnts));
   }
   surfaceOcclusion(d, inp.underground, out.surface);
   out.playgroundSource = playgroundSource;

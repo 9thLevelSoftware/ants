@@ -94,6 +94,22 @@ function isAnt(w: Walker): w is Ant {
   return typeof (w as Ant).caste === 'string';
 }
 
+/** Ticks an AI walker's speed is reused before the factors are evaluated again (a new request re-evaluates). */
+const SPEED_REFRESH_TICKS = 10;
+
+/**
+ * AI walking speed for the current request, re-evaluated every SPEED_REFRESH_TICKS, on a new request and when the
+ * walker picks something up or puts it down (cached in the persisted scratch, so a loaded game reuses the same value).
+ */
+export function aiSpeedCached(sim: Sim, w: Walker, s: NavScratch, P: LocoParams): number {
+  const tick = sim.state.tick, carry = isAnt(w) && w.carry.kind !== 'none' ? 1 : 0;
+  const t0 = s.spdTick ?? -1;
+  if (s.spdV !== undefined && t0 >= s.reqTick && tick - t0 < SPEED_REFRESH_TICKS && s.spdCarry === carry) return s.spdV;
+  const v = aiSpeed(sim, w, s, P);
+  s.spdV = v; s.spdTick = tick; s.spdCarry = carry;
+  return v;
+}
+
 /** AI walking speed this tick, mm/s (GDD 02 §1.6). */
 export function aiSpeed(sim: Sim, w: Walker, s: NavScratch, P: LocoParams): number {
   if (s.speedKind === 'fixed') return Math.max(0, s.speedFixed);

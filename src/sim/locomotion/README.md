@@ -45,14 +45,26 @@ Behaviours never move walkers: they make a request and poll `nav.status` (`movin
    toward the goal (climbing the walls).
 
 Point goals are put on the walkable surface (a chamber centre drops to its floor, y = 0 under a mound rises to the
-mound). Arrival is measured from the surface point under the walker (its centre minus footOffset); the last leg
+mound). Inside the goal nest a point goal is followed on its shared point field only until the walker is within
+`pointSeekBU` (3 BU) of the field's bottom; the rest is a direct final seek aimed at the goal lifted by the foot
+offset (the point field is quantised to 2 BU cells and seeded over 1 BU, so its bottom is not the goal: following
+it there used to stall with status 'moving' and speed 0 - sim-fix-ants item 1). Arrival is measured from the surface point under the walker (its centre minus footOffset); the last leg
 (the final seek, or the goal field) brakes so a step never covers more than about half the distance left and
-pivots toward a goal beside or behind the walker, so any arrival radius works. A walker stuck within arriveDist of
-the destination counts as arrived. Arrival points are jittered within the arrival radius so crowds spread out.
+pivots toward a goal beside or behind the walker (keeping `arrivePivotCreep` of its speed; the turning circle is
+taken at the walker's real speed, so it pivots only near the goal), so any arrival radius works. A walker on its
+last leg that made no progress for `arriveStallS` (0.6 s) within arriveDist of the destination counts as arrived
+(other legs: the 2.5 s stuck window). A walker upside down in a cavity (up.y < -0.5) whose goal lies at least
+1 BU lower and within 2.5 BU horizontally lets go and drops (GDD 01 `let-go`); the leg is planned again on landing.
+When a request ends (arrived or failed) the ant thinks on the next tick, whatever its think cadence. Arrival points are jittered within the arrival radius so crowds spread out.
 
 A leg is re-planned when it ends, when the walker enters or leaves a nest, lands after a fall, the carve grid
 changed under it (flag persisted in its scratch), a moving target moved, or the colony's avoid markers changed.
 Moving targets are re-resolved every second, and every tick once the walker is close.
+
+Avoid markers (GDD 02 §12.2): an autonomous ant's planner prices every 16 BU cell whose square overlaps a disc
+(not only cells whose centre is inside) x 20, and string-pulling never cuts a disc; while a colony has avoid discs,
+trips home use A* instead of the cached entrance flow field. A trail sensor reading inside a disc counts x 0.1; a
+trail that goes on only inside a disc is not crossed as a gap: the walker turns out of the disc instead.
 
 Steering: the leg's direction is normalised first, then separation (in nests and near the goal), the prefer-floor
 bias (cavities), map-edge and avoid repulsion are added with their unitless weights.
@@ -65,6 +77,9 @@ without arriving is caught. No improvement of 0.5 BU in 2.5 s climbs one rung: r
 relocate (<= 2 per request, 6 BU toward the next waypoint / flow cell / field sample, event `ant-unstuck`), fail. Episodes per request are capped and every request has a timeout, so every walker ends `arrived` or `failed`.
 
 ## Level of detail
+
+A walker with no request that stood still last tick is not stepped (it is re-attached by the carve-change check,
+`notifySurfaceChanged`, and a staggered step every 16 ticks).
 
 Walkers on the surface far from the observer step every 2nd (> 160 BU) or 4th (> 420 BU) tick with a longer dt;
 `prevPos` is snapshotted every tick, so a skipped walker does not re-play its last step in the renderer. Trail

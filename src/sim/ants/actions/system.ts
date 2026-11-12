@@ -1,11 +1,13 @@
-// The per-tick action system: advances every running primitive, lays trail for ants with TRAIL_ON, regenerates
-// acid charges (GDD 01 App. A `ant.acid`, `acidRegenTick`).
+// The per-tick action system: advances every running primitive, lays trail for ants with TRAIL_ON, the passive
+// home marks of ants outside, regenerates acid charges (GDD 01 App. A `ant.acid`, `acidRegenTick`).
 
 import type { Ant, Sim, System } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  TRAIL_DAB, TRAIL_DAB_SPACING_BU, TRAIL_LADEN_CROP, TRAIL_MAX_DABS_PER_TICK, TRAIL_UNLADEN_FACTOR,
+  HOME_DAB_SPACING_BU, HOME_MAX_DABS_PER_TICK, TRAIL_DAB, TRAIL_DAB_SPACING_BU, TRAIL_LADEN_CROP, TRAIL_MAX_DABS_PER_TICK,
+  TRAIL_UNLADEN_FACTOR,
 } from '@/sim/balance/actions';
+import { HOME_DEPOSIT_PER_BU } from '@/sim/balance/pheromone';
 import { carriedItem } from './carry';
 import { acidRegenTicks } from './defs';
 import { ports } from './ports';
@@ -39,6 +41,26 @@ export function layTrail(sim: Sim, ant: Ant): void {
   ant.bb['act.trailDist'] = n === TRAIL_MAX_DABS_PER_TICK ? 0 : acc;
 }
 
+/**
+ * Passive home marking (GDD 02 §8.2 HOME_DEPOSIT): every colony ant walking on a surface outside the nest leaves
+ * HOME_DEPOSIT_PER_BU ph per BU walked on the colony's `home` channel, as a dab every HOME_DAB_SPACING_BU. The
+ * scouts' bias away from home-marked ground (GDD 02 §10.1) reads it.
+ */
+export function layHome(sim: Sim, ant: Ant): void {
+  if (ant.nestId >= 0 || ant.medium !== 'surface' || ant.colony < 0) return;
+  const bu = sim.world.bu;
+  const dx = ant.pos.x - ant.prevPos.x, dy = ant.pos.y - ant.prevPos.y, dz = ant.pos.z - ant.prevPos.z;
+  let acc = (ant.bb['act.homeDist'] ?? 0) + Math.sqrt(dx * dx + dy * dy + dz * dz) / bu;
+  if (acc < HOME_DAB_SPACING_BU) { ant.bb['act.homeDist'] = acc; return; }
+  let n = 0;
+  while (acc >= HOME_DAB_SPACING_BU && n < HOME_MAX_DABS_PER_TICK) {
+    ports.deposit(sim, ant.colony, 'home', ant.pos, HOME_DEPOSIT_PER_BU * HOME_DAB_SPACING_BU);
+    acc -= HOME_DAB_SPACING_BU;
+    n++;
+  }
+  ant.bb['act.homeDist'] = n === HOME_MAX_DABS_PER_TICK ? 0 : acc;
+}
+
 function regenAcid(sim: Sim, ant: Ant): void {
   if (ant.acidRegenTick <= 0 || sim.state.tick < ant.acidRegenTick) return;
   const colony = sim.stores.colonies.get(ant.colony);
@@ -57,6 +79,7 @@ export const actionSystem: System = {
       if (!ant.alive) continue;
       if (ant.action) stepAction(sim, ant);
       if (ant.flags & AntFlag.TRAIL_ON) layTrail(sim, ant);
+      if (ant.nestId < 0) layHome(sim, ant);
       if (ant.acidRegenTick > 0) regenAcid(sim, ant);
     }
   },

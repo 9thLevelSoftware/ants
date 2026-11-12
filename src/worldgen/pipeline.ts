@@ -11,6 +11,7 @@ import { buildLayout, zoneDefs } from './layout';
 import { buildHeightfield } from './terrain/heightfield';
 import { buildStrata } from './terrain/strata';
 import { deriveMaps } from './maps';
+import type { ColumnFn } from './kit/column';
 import { startPlacer } from './maps/start';
 import { shellPlacer } from './structures/shell';
 import { runChecks, type CheckResult } from './validate/checks';
@@ -28,6 +29,8 @@ export interface GenerateOptions {
   forceFail?: { check: WorldgenCheck; attempts: number };
   /** Content modules (default: those discovered in src/worldgen/{place,populate,catalog}). */
   modules?: readonly WorldgenModule[];
+  /** Test hook: the column routine of the derived maps (default the analytic one; the equivalence test passes primColumn). */
+  columns?: ColumnFn;
 }
 
 export interface WorldgenReport {
@@ -86,12 +89,17 @@ function runAttempt(params: WorldParams, dims: WorldDims, a: number, reg: Regist
     buildStrata(ctx, ctx.rng('wg/height/strata'));
   });
   for (const id of ['structures', 'props', 'plants'] as const) step(id, () => runPlacers(ctx, reg, id));
-  step('derived', () => deriveMaps(ctx));
+  step('derived', () => deriveMaps(ctx, opts.columns));
   let late = 0;
   for (const id of ['resources', 'rivals', 'cavities'] as const) step(id, () => { late += runPlacers(ctx, reg, id); });
   // Steps 7-9 can change anything the maps read (primitives, holes, water bodies, ground paint, height edits,
   // food anchors for fSpecial, rival sites for fRival, pre-carve cavities): any placer there means re-deriving.
-  if (late > 0) deriveMaps(ctx);
+  if (late > 0) {
+    // timed apart from the steps (no progress event: the GDD lists step 6 once)
+    const t0 = opts.now?.() ?? 0;
+    deriveMaps(ctx, opts.columns);
+    if (opts.now) timings.rederive = opts.now() - t0;
+  }
   step('start', () => runPlacers(ctx, reg, 'start'));
   let checks: CheckResult[] = [];
   step('validate', () => {
@@ -107,7 +115,7 @@ function runAttempt(params: WorldParams, dims: WorldDims, a: number, reg: Regist
 }
 
 /** Applies the repairs of every failed check to the attempt, re-derives and re-validates it. */
-function repairAttempt(best: Attempt, reg: Registry): string[] {
+function repairAttempt(best: Attempt, reg: Registry, column?: ColumnFn): string[] {
   const ctx = best.ctx;
   const applied: string[] = [];
   const failed = best.checks.filter((c) => c.status === 'fail').map((c) => c.id);
@@ -116,7 +124,7 @@ function repairAttempt(best: Attempt, reg: Registry): string[] {
     if (!failed.includes(r.check) || applied.includes(r.id)) continue;
     if (r.run(ctx)) {
       applied.push(r.id);
-      deriveMaps(ctx);
+      deriveMaps(ctx, column);
     }
   }
   if (applied.length > 0) {
@@ -149,7 +157,7 @@ export function generateWorldReport(params: WorldParams, opts: GenerateOptions =
     if (failed.every((c) => c.regenerate === false) && !(opts.forceFail && a < opts.forceFail.attempts)) { best = at; break; }
   }
   const chosen = best!;
-  if (chosen.checks.some((c) => c.status === 'fail')) repairs = repairAttempt(chosen, reg);
+  if (chosen.checks.some((c) => c.status === 'fail')) repairs = repairAttempt(chosen, reg, opts.columns);
   const w = chosen.ctx.world;
   w.meta.attempts = attempts;
   w.meta.repairs = repairs;

@@ -5,20 +5,19 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Behaviour, Brood, Chamber, Sim } from '@/sim/types';
 import { queenWantsFood, requestTask } from '@/sim/colony';
-import { QUEEN_RATION_BASE, QUEEN_TARGET_GUT_C } from '@/sim/balance/colony';
+import { QUEEN_TARGET_GUT_C } from '@/sim/balance/colony';
 import {
   BROOD_DROP_ARRIVE_BU, CARER_KEEP_RESERVE, EGG_COLLECT_BU, EGG_PILE_OFFSET, EGG_PILE_RADIUS_BU, QUEEN_ATTEND_BU,
-  QUEEN_FEED_ARRIVE_BU, QUEEN_FEED_LOADS, QUEEN_GROOM_EVERY_S, ROOM_ARRIVE_FRAC,
+  QUEEN_FEED_LOADS, QUEEN_GROOM_EVERY_S, ROOM_ARRIVE_FRAC,
 } from '@/sim/balance/nestwork';
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, Job, sortOf } from './board';
-import { CareOp, startCare } from './careActs';
-import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
+import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
 import { chamberIn, floorPoint, floorY, foodChamber, GOLDEN_ANGLE, homeNest, pileSlot } from './places';
 import { isFoundingQueen } from './queen';
 import { bestChamberId } from './sorting';
-import { act, entity, resetTravel, travel } from './travel';
+import { act, actResult, entity, resetTravel, travel, tryAct } from './travel';
 
 const ENTRY = 'queen-care.attend';
 /** bb: 1 = feeding the queen from the carer's own reserve (S2). */
@@ -94,15 +93,38 @@ function attend(sim: Sim, ant: Ant): void {
 }
 
 function load(sim: Sim, ant: Ant): void {
+  if (primitiveDone(ant)) { ant.bb[B.began] = 0; loaded(sim, ant, actResult(ant)); return; }
   const nest = homeNest(sim, ant);
   const room = nest ? foodChamber(sim, nest, ant.pos) : undefined;
   if (!room) { recover(sim, ant, ENTRY, 'job:load'); return; }
-  const st = ant.chamberId === room.id ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z));
+  const inside = ant.chamberId === room.id;
+  const st = inside ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z));
   if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
-  if (st === 'arrived') startCare(sim, ant, CareOp.loadRation, -1, Math.max(0, QUEEN_RATION_BASE - ant.cropC - ant.cropP));
+  if (st !== 'arrived') return;
+  // the `load-crop` primitive fills the crop to QUEEN_RATION_BASE with the queen's ration mix (GDD 02 §5.4.2)
+  const why = tryAct(sim, ant, 'load-crop', null);
+  if (why === 'crop-full') setState(sim, ant, 'queen-care.feed');
+  else if (why === 'no-reserve') loaded(sim, ant, 0);
+  else if (why) recover(sim, ant, ENTRY, 'job:load');
 }
 
+/** After loading: feed her; with nothing in the pool (S2) from the own reserve instead (GDD 02 §5.7). */
+function loaded(sim: Sim, ant: Ant, got: number): void {
+  if (got <= 1e-6 && ant.cropC + ant.cropP < QUEEN_FEED_LOADS) {
+    ant.bb[RESERVE] = ant.energy > CARER_KEEP_RESERVE ? 1 : 0;
+    if (ant.bb[RESERVE] === 0) { endCycle(sim, ant, ENTRY, 'hungry'); return; }
+  }
+  setState(sim, ant, 'queen-care.feed');
+}
+
+/** queen-care.feed: `feed-queen` (0.1 load per 4 s) until her gut target or an empty crop; S2: from the reserve. */
 function feed(sim: Sim, ant: Ant): void {
+  if (primitiveDone(ant)) {
+    ant.bb[B.began] = 0;
+    ant.bb[B.n] = 0;
+    resetTravel(ant);
+    if (actResult(ant) <= 1e-9) { endCycle(sim, ant, ENTRY); return; }
+  }
   const q = queenOf(sim, ant);
   if (!q) { endCycle(sim, ant, ENTRY); return; }
   const fromReserve = bbv(ant, RESERVE, 0) === 1;
@@ -112,11 +134,11 @@ function feed(sim: Sim, ant: Ant): void {
     endCycle(sim, ant, ENTRY);
     return;
   }
-  const st = approach(sim, ant, entity('ant', q.id, q.pos), QUEEN_FEED_ARRIVE_BU * sim.world.bu, true);
-  if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
-  if (st === 'arrived') startCare(sim, ant, fromReserve ? CareOp.feedQueenReserve : CareOp.feedQueen, q.id,
-    fromReserve ? Math.min(QUEEN_FEED_LOADS, ant.energy - CARER_KEEP_RESERVE) : QUEEN_FEED_LOADS);
+  const st = reachAndAct(sim, ant, entity('ant', q.id, q.pos), 'feed-queen', undefined, fromReserve ? RESERVE_FEED : undefined);
+  if (st === 'failed') recover(sim, ant, ENTRY, 'stuck', ant.nav.status === 'failed');
 }
+
+const RESERVE_FEED = { secondary: true } as const;
 
 function collectEggs(sim: Sim, ant: Ant): void {
   const b = sim.stores.brood.get(bbv(ant, B.jobId));
@@ -162,23 +184,10 @@ function step(sim: Sim, ant: Ant): void {
   }
 }
 
-function onCare(sim: Sim, ant: Ant, got: number): void {
-  if (ant.state === 'queen-care.load') {
-    if (got <= 1e-6 && ant.cropC + ant.cropP < QUEEN_FEED_LOADS) {
-      // nothing in the pool (S2): feed her from the own reserve instead (GDD 02 §5.7)
-      ant.bb[RESERVE] = ant.energy > CARER_KEEP_RESERVE ? 1 : 0;
-      if (ant.bb[RESERVE] === 0) { endCycle(sim, ant, ENTRY, 'hungry'); return; }
-    }
-    setState(sim, ant, 'queen-care.feed');
-    return;
-  }
-  // a feed of 0.1 was given; keep feeding (feed() ends the round when she is full or the crop is empty)
-  if (got <= 1e-9) endCycle(sim, ant, ENTRY);
-}
-
 export const queenCareBehaviour: Behaviour = {
   task: 'queen-care',
   enter: (sim, ant) => setState(sim, ant, ENTRY),
-  update: (sim, ant) => think(sim, ant, ENTRY, step, onCare),
+  update: (sim, ant) => think(sim, ant, ENTRY, step),
   exit: (sim, ant) => releaseAll(sim, ant),
+  delivering: carryingLoad,
 };

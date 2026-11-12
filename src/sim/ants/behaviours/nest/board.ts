@@ -1,13 +1,15 @@
-// The nursery job board (GDD 02 §10.4) and the claim registry of all in-nest jobs. Derived, never persisted: the
-// board is rebuilt from the current state the first time it is read in a tick, and claims are read back from the
-// claimants' ant.bb (B.jobKind / B.jobId / B.jobTick), so a loaded game sees exactly the same board.
+// The nursery job board (GDD 02 §10.4) and the claim registry of all in-nest jobs. The board is rebuilt every
+// NURSERY_BOARD_PERIOD_S (2 s), on the first read in each aligned window (tick / period), and kept in state
+// (SimState.nurseryBoards): a game loaded in mid-window uses the very board the uninterrupted run uses. It is also
+// rebuilt at once when a nest's chamber list changed. Claims are live: read back once per tick from the claimants'
+// ant.bb (B.jobKind / B.jobId / B.jobTick); jobs are checked against the live brood when they are chosen.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Brood, Colony, Nest, Sim, SpeciesDef } from '@/sim/types';
+import type { Ant, Brood, Colony, Nest, NurseryBoardState, NurseryJobState, Sim, SpeciesDef } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import {
-  EVACUATE_FLOOD, JOB_CLAIM_TIMEOUT_S, JOB_DIST_PENALTY_PER_BU, JOB_PRIORITY, SORT_MOVES_PER_NURSE, TEND_DUE_GD,
-  TEND_URGENT_GD,
+  EVACUATE_FLOOD, JOB_CLAIM_TIMEOUT_S, JOB_DIST_PENALTY_PER_BU, JOB_PRIORITY, NURSERY_BOARD_PERIOD_S, SORT_MOVES_PER_NURSE,
+  TEND_DUE_GD, TEND_URGENT_GD,
 } from '@/sim/balance/nestwork';
 import { ALARM_STRONG } from '@/sim/balance/pheromone';
 import { feedUrgency, wantsFeed } from '@/sim/colony';
@@ -43,17 +45,31 @@ export interface BoardJob {
 }
 
 interface Board {
-  tick: number;
   jobs: BoardJob[];
-  /** Entity id (brood or item) -> claiming ant id. */
+  /** Entity id (brood or item) -> claiming ant id (this tick's claims). */
   claims: Map<number, number>;
-  /** Chamber id -> brood space of carry jobs heading there. */
-  incoming: Map<number, number>;
   sort: Map<number, SortContext>;
   nurses: number;
 }
 
-const boards = new WeakMap<Sim, Map<number, Board>>();
+/** Live claims of one colony, read once per tick. */
+interface Live {
+  tick: number;
+  claims: Map<number, number>;
+  /** Chamber id -> brood space of carry jobs heading there. */
+  incoming: Map<number, number>;
+  nurses: number;
+  /** This tick's board (the stored board's view with the live claims). */
+  board: Board | null;
+}
+
+/** The runtime view of a stored board (rebuilt after a load from the stored data alone). */
+interface View { built: NurseryBoardState; jobs: BoardJob[]; sort: Map<number, SortContext> }
+
+const lives = new WeakMap<Sim, Map<number, Live>>();
+const views = new WeakMap<Sim, Map<number, View>>();
+const PERIOD = secondsToTicks(NURSERY_BOARD_PERIOD_S);
+const NOWHERE = { x: Infinity, y: Infinity, z: Infinity };
 
 /** Whether the ant's claim is still valid (fresh). */
 export function claimFresh(sim: Sim, ant: Ant): boolean {
@@ -67,8 +83,8 @@ export function claim(sim: Sim, ant: Ant, kind: JobKindId, id: number, dest = -1
   ant.bb[B.jobId] = id;
   ant.bb[B.jobTick] = sim.state.tick;
   ant.bb[B.jobDest] = dest;
-  const b = boards.get(sim)?.get(ant.colony);
-  if (b && b.tick === sim.state.tick) b.claims.set(id, ant.id);
+  const l = lives.get(sim)?.get(ant.colony);
+  if (l && l.tick === sim.state.tick) l.claims.set(id, ant.id);
 }
 
 function readClaims(sim: Sim, colonyId: number, claims: Map<number, number>, incoming: Map<number, number>): number {
@@ -138,23 +154,23 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
   return null;
 }
 
-function build(sim: Sim, col: Colony, def: SpeciesDef): Board {
-  const claims = new Map<number, number>(), incoming = new Map<number, number>();
-  const nurses = readClaims(sim, col.id, claims, incoming);
+/** Builds the colony's board from the current state (with this tick's live claims). */
+function build(sim: Sim, col: Colony, def: SpeciesDef, live: Live): NurseryBoardState {
+  const { claims, incoming, nurses } = live;
   const space = new Map<number, number>();
   for (const b of sim.stores.brood.list) {
     if (b.alive && b.colony === col.id && b.carriedBy < 0 && b.chamberId >= 0) space.set(b.chamberId, (space.get(b.chamberId) ?? 0) + broodSpace(b));
   }
-  const sort = new Map<number, SortContext>();
   const infos = new Map<number, NestInfo>();
+  const sort: NurseryBoardState['sort'] = [];
   for (const nid of col.nestIds) {
     const nest = sim.stores.nests.get(nid);
     if (!nest) continue;
     const ctx = sortContext(sim, nest, def, (id) => (space.get(id) ?? 0) + (incoming.get(id) ?? 0));
-    sort.set(nid, ctx);
+    sort.push({ nestId: nid, chamberIds: ctx.chambers.map((c) => c.id), scores: ctx.scores, best: ctx.best, markerId: ctx.marker ? ctx.marker.id : -1 });
     infos.set(nid, { ctx, alarmed: alarmedChambers(sim, col.id, nest), chamberIds: new Set(nest.chambers.map((c) => c.id)) });
   }
-  const jobs: BoardJob[] = [];
+  const jobs: NurseryJobState[] = [];
   let movesLeft = SORT_MOVES_PER_NURSE * Math.max(1, nurses);
   for (const b of sim.stores.brood.list) {
     if (!b.alive || b.colony !== col.id || b.carriedBy >= 0) continue;
@@ -164,23 +180,95 @@ function build(sim: Sim, col: Colony, def: SpeciesDef): Board {
     const j = jobFor(sim, col, def, nest, info, b, movesLeft);
     if (!j) continue;
     if (j.kind === Job.move && !j.feedAfter && !claims.has(b.id)) movesLeft--;
-    jobs.push(j);
+    jobs.push({ kind: j.kind, id: j.id, dest: j.dest, prio: j.prio, nestId: j.nestId, marker: j.marker ? 1 : 0, feedAfter: j.feedAfter ? 1 : 0 });
   }
-  return { tick: sim.state.tick, jobs, claims, incoming, sort, nurses };
+  return { colonyId: col.id, builtTick: sim.state.tick, jobs, sort };
 }
 
-/** The colony's board for this tick (rebuilt on the first read in a tick). */
+/** This tick's claims of a colony (read once per tick from the claimants' bb). */
+function liveOf(sim: Sim, colonyId: number): Live {
+  let m = lives.get(sim);
+  if (!m) { m = new Map(); lives.set(sim, m); }
+  let l = m.get(colonyId);
+  if (l && l.tick === sim.state.tick) return l;
+  const claims = new Map<number, number>(), incoming = new Map<number, number>();
+  const nurses = readClaims(sim, colonyId, claims, incoming);
+  l = { tick: sim.state.tick, claims, incoming, nurses, board: null };
+  m.set(colonyId, l);
+  return l;
+}
+
+/** The board must be rebuilt: a new 2 s window began, or a nest of the colony has other chambers now. */
+function stale(sim: Sim, col: Colony, st: NurseryBoardState): boolean {
+  if (Math.floor(st.builtTick / PERIOD) !== Math.floor(sim.state.tick / PERIOD)) return true;
+  let n = 0;
+  for (const nid of col.nestIds) {
+    const nest = sim.stores.nests.get(nid);
+    if (!nest) continue;
+    const s = st.sort[n++];
+    if (!s || s.nestId !== nid || s.chamberIds.length !== nest.chambers.length) return true;
+    for (let i = 0; i < nest.chambers.length; i++) if (nest.chambers[i].id !== s.chamberIds[i]) return true;
+  }
+  return n !== st.sort.length;
+}
+
+/** Runtime view of a stored board: jobs at the brood's live positions, sort contexts over the live chambers. */
+function viewOf(sim: Sim, st: NurseryBoardState): View {
+  let m = views.get(sim);
+  if (!m) { m = new Map(); views.set(sim, m); }
+  const hit = m.get(st.colonyId);
+  if (hit && hit.built === st) return hit;
+  const jobs: BoardJob[] = st.jobs.map((j) => ({
+    kind: j.kind as JobKindId, id: j.id, dest: j.dest, prio: j.prio, nestId: j.nestId, marker: j.marker === 1,
+    feedAfter: j.feedAfter === 1, pos: sim.stores.brood.get(j.id)?.pos ?? NOWHERE,
+  }));
+  const sort = new Map<number, SortContext>();
+  for (const s of st.sort) {
+    const nest = sim.stores.nests.get(s.nestId);
+    if (!nest) continue;
+    const chambers = s.chamberIds.map((id) => nest.chambers.find((c) => c.id === id)!);
+    sort.set(s.nestId, { chambers, scores: s.scores, best: s.best, marker: sim.stores.markers.get(s.markerId) ?? null });
+  }
+  const v = { built: st, jobs, sort };
+  m.set(st.colonyId, v);
+  return v;
+}
+
+/** The colony's board for this tick: the stored board (rebuilt when stale) with this tick's claims. */
 export function boardOf(sim: Sim, colonyId: number): Board | null {
-  let m = boards.get(sim);
-  if (!m) { m = new Map(); boards.set(sim, m); }
-  const cur = m.get(colonyId);
-  if (cur && cur.tick === sim.state.tick) return cur;
+  const live = liveOf(sim, colonyId);
+  if (live.board) return live.board;
   const col = sim.stores.colonies.get(colonyId);
   const def = col ? sim.getSpecies(col.species) : undefined;
   if (!col || !def) return null;
-  const b = build(sim, col, def);
-  m.set(colonyId, b);
+  const list = (sim.state.nurseryBoards ??= []);
+  let i = list.findIndex((b) => b.colonyId === colonyId);
+  if (i < 0 || stale(sim, col, list[i])) {
+    const st = build(sim, col, def, live);
+    if (i < 0) { list.push(st); i = list.length - 1; } else list[i] = st;
+  }
+  const v = viewOf(sim, list[i]);
+  live.board = { jobs: v.jobs, claims: live.claims, sort: v.sort, nurses: live.nurses };
+  return live.board;
+}
+
+/** A job of the stored board still stands for the live brood (it may have hatched, been moved or died since). */
+function jobLive(sim: Sim, j: BoardJob, def: SpeciesDef | undefined): Brood | null {
+  const b = sim.stores.brood.get(j.id);
+  if (!b || b.carriedBy >= 0) return null;
+  if (j.kind === Job.feed) return b.stage === 'larva' && (!def || wantsFeed(b, def)) ? b : null;
+  if (j.kind === Job.assist) return b.stage === 'pupa' && (b.flags & BroodFlag.READY) !== 0 ? b : null;
   return b;
+}
+
+/** A pile item tended since this window's board was built (by a nurse grooming the pile meanwhile). */
+function tendedSince(sim: Sim, b: Brood): boolean {
+  return b.lastTendedTick >= Math.floor(sim.state.tick / PERIOD) * PERIOD;
+}
+
+function defOf(sim: Sim, colonyId: number): SpeciesDef | undefined {
+  const col = sim.stores.colonies.get(colonyId);
+  return col ? sim.getSpecies(col.species) : undefined;
 }
 
 /** Who has claimed an entity (-1 nobody). */
@@ -206,12 +294,15 @@ export function sortOf(sim: Sim, colonyId: number, nestId: number): SortContext 
 export function selectJob(sim: Sim, ant: Ant, nestId: number, skipFeed: boolean): BoardJob | null {
   const board = boardOf(sim, ant.colony);
   if (!board) return null;
-  const bu = sim.world.bu;
+  const bu = sim.world.bu, def = defOf(sim, ant.colony);
   let best: BoardJob | null = null, bestS = -Infinity;
   for (const j of board.jobs) {
     if (j.nestId !== nestId || (skipFeed && j.kind === Job.feed)) continue;
     const c = board.claims.get(j.id);
     if ((c !== undefined && c !== ant.id) || skipped(sim, ant, j.id)) continue;
+    const b = jobLive(sim, j, def);
+    if (!b) continue;
+    j.pos = b.pos;
     const d = Math.hypot(j.pos.x - ant.pos.x, j.pos.y - ant.pos.y, j.pos.z - ant.pos.z) / bu;
     // a hungry larva to be carried out of a poor chamber is fetched from wherever the nurse is (no distance penalty:
     // the nurses feeding next to her would otherwise always be preferred to it)
@@ -225,15 +316,17 @@ export function selectJob(sim: Sim, ant: Ant, nestId: number, skipFeed: boolean)
 export function nextFeedNear(sim: Sim, ant: Ant, p: Vec3, radiusMm: number): Brood | null {
   const board = boardOf(sim, ant.colony);
   if (!board) return null;
+  const def = defOf(sim, ant.colony);
   let best: Brood | null = null, bestD = Infinity;
   for (const j of board.jobs) {
     if (j.kind !== Job.feed) continue;
     const c = board.claims.get(j.id);
     if (c !== undefined && c !== ant.id) continue;
-    const d = Math.hypot(j.pos.x - p.x, j.pos.y - p.y, j.pos.z - p.z);
+    const b = jobLive(sim, j, def);
+    if (!b) continue;
+    const d = Math.hypot(b.pos.x - p.x, b.pos.y - p.y, b.pos.z - p.z);
     if (d > radiusMm || d >= bestD) continue;
-    const b = sim.stores.brood.get(j.id);
-    if (b) { best = b; bestD = d; }
+    best = b; bestD = d;
   }
   return best;
 }
@@ -247,15 +340,16 @@ export function nextTendNear(sim: Sim, ant: Ant, p: Vec3, radiusMm: number): Bro
     if (j.kind !== Job.tend) continue;
     const c = board.claims.get(j.id);
     if (c !== undefined && c !== ant.id) continue;
-    const d = Math.hypot(j.pos.x - p.x, j.pos.y - p.y, j.pos.z - p.z);
+    const b = jobLive(sim, j, undefined);
+    if (!b || tendedSince(sim, b)) continue;
+    const d = Math.hypot(b.pos.x - p.x, b.pos.y - p.y, b.pos.z - p.z);
     if (d > radiusMm || d >= bestD) continue;
-    const b = sim.stores.brood.get(j.id);
-    if (b) { best = b; bestD = d; }
+    best = b; bestD = d;
   }
   return best;
 }
 
-/** Number of nurses counted on this tick's board. */
+/** Number of nurses counted this tick. */
 export function nurseCount(sim: Sim, colonyId: number): number {
-  return boardOf(sim, colonyId)?.nurses ?? 0;
+  return liveOf(sim, colonyId).nurses;
 }

@@ -8,7 +8,10 @@ import { behaviours as nestBehaviours } from './index';
 import { makeNestColony } from './testkit';
 
 const BUDGET_MS = 1.5;
-const SEGMENT = 600;
+/** FOUNDRESS_LONG=1: 600-tick warm-up and segments; default: 300 / 200 (file cost, sim-fix-ants). */
+const LONG = !!(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.FOUNDRESS_LONG;
+const SEGMENT = LONG ? 600 : 200;
+const WARM = LONG ? 600 : 300;
 
 describe('beh-nest performance (acceptance 8)', () => {
   it('800 in-nest ants: behaviour cost per tick under 1.5 ms (min of 3 segments)', () => {
@@ -28,7 +31,7 @@ describe('beh-nest performance (acceptance 8)', () => {
     }
     const segments: { behaviourMs: number; tickMs: number }[] = [];
     try {
-      for (let i = 0; i < SEGMENT; i++) sim.tick(); // warm-up: allocation spreads the tasks
+      for (let i = 0; i < WARM; i++) sim.tick(); // warm-up: allocation spreads the tasks
       for (let s = 0; s < 3; s++) {
         spent = 0;
         const t0 = performance.now();

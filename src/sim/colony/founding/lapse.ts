@@ -42,6 +42,25 @@ export function lapseCounters(sim: Sim, q: Ant | undefined): Record<string, numb
   return c;
 }
 
+/**
+ * Re-estimates the end tick from the development of the most advanced brood item so far (the real chamber
+ * temperature varies; the first guess used the temperature at the start). Keeps the progress bar honest.
+ */
+function reestimateEnd(sim: Sim, tl: TimelapseState): void {
+  const col = playerColonyOf(sim);
+  const def = speciesOf(sim);
+  const g = def.life.stageGd, total = g.egg + g.larva + g.pupa;
+  let best = 0;
+  for (const b of sim.stores.brood.list) {
+    if (!b.alive || (col && b.colony !== col.id)) continue;
+    const done = b.stage === 'egg' ? b.progress * g.egg : b.stage === 'larva' ? g.egg + b.progress * g.larva : g.egg + g.larva + b.progress * g.pupa;
+    if (done > best) best = done;
+  }
+  const frac = best / total, elapsed = sim.state.tick - tl.startTick;
+  if (frac < 0.05 || elapsed <= 0) return;
+  tl.endTick = tl.startTick + Math.round(elapsed / frac + FOUND_END_AFTER_ECLOSION_GD * TICKS_PER_DAY);
+}
+
 /** Starts the lapse: phase, records; from now on the queen's care is automatic. */
 export function beginLapse(sim: Sim, op: OpeningState, q: Ant, nest: Nest, skipped = false): void {
   const def = speciesOf(sim);
@@ -74,6 +93,7 @@ export function lapseTick(sim: Sim, op: OpeningState, q: Ant): 'end' | 'empty' |
     lapse.endTick = now + Math.round(FOUND_END_AFTER_ECLOSION_GD * TICKS_PER_DAY);
     tl.endTick = lapse.endTick;
   }
+  if (lapse.endTick < 0 && now % 100 === 0) reestimateEnd(sim, tl);
   const span = Math.max(1, tl.endTick - tl.startTick);
   const p = Math.min(lapse.endTick < 0 ? 0.999 : 1, Math.max(tl.progress, (now - tl.startTick) / span));
   const before = beatAt(tl.progress);

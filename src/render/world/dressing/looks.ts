@@ -93,10 +93,10 @@ function templateLook(o: LookObject, p: Primitive): PrimLook | null {
     case 'bottle-cap': return paint(pick(PALETTE.capPaint, id), 0.2);
     case 'bollard': case 'lamp-post': return colour(id % 2 ? PALETTE.blackPaint : PALETTE.greyPaint, 0.5, 0.25);
     case 'gully-grate': case 'manhole-cover': return m === 'metal' ? metal(PALETTE.castIron, 0.75, 0.35, 0.8) : null;
-    case 'linear-drain': return m === 'metal' ? metal(PALETTE.galvanised, 0.45, 0.1, 0.6) : null;
+    case 'linear-drain': return m === 'metal' ? metal(PALETTE.galvanised, 0.55, 0.1, 0.6) : null;
     case 'bench': case 'picnic-table': case 'swing-frame': return m === 'metal' ? colour(PALETTE.blackPaint, 0.45, 0.2) : null;
-    case 'litter-bin': return m === 'plastic' ? colour(PALETTE.greenPaint, 0.5, 0.1) : m === 'metal' ? metal(PALETTE.galvanised, 0.4, 0.1, 0.6) : null;
-    case 'slide': case 'spring-rider': return m === 'metal' ? metal(PALETTE.stainless, 0.12, 0, 0.15) : m === 'plastic' ? colour(pick(PALETTE.toyPlastic, id), 0.35) : null;
+    case 'litter-bin': return m === 'plastic' ? colour(PALETTE.greenPaint, 0.5, 0.1) : m === 'metal' ? metal(PALETTE.galvanised, 0.55, 0.1, 0.6) : null;
+    case 'slide': case 'spring-rider': return m === 'metal' ? metal(PALETTE.stainless, 0.2, 0, 0.15) : m === 'plastic' ? colour(pick(PALETTE.toyPlastic, id), 0.35) : null;
     case 'fridge': case 'washer': return m === 'metal' ? colour(PALETTE.enamel, 0.2, 0.02, 0.1) : colour(PALETTE.pipeBlack, 0.5);
     case 'cooker':
       if (m !== 'metal') return colour(PALETTE.pipeBlack, 0.5);

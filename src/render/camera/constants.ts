@@ -30,6 +30,11 @@ export const CAM_STATE_BLEND_S = 0.5;
 export const CAM_STATE_BLEND_S_REDUCED = 1.5;
 export const CAM_REDUCED_FOV_SPREAD_DEG = 6;
 
+/** Footstep tremor (GDD 01 6.1, the only camera shake): amplitude in L, duration real s, frequency Hz; none in reduced motion. */
+export const CAM_TREMOR_AMP_L = 0.05;
+export const CAM_TREMOR_S = 0.4;
+export const CAM_TREMOR_HZ = 14;
+
 /** Camera sphere radius: clamp(0.25 L, 0.1, 0.5) BU; observer 0.3 BU. A camera centre must keep f >= 0.5 radius. */
 export const CAM_RADIUS_L = 0.25;
 export const CAM_RADIUS_MIN_BU = 0.1;
@@ -152,6 +157,11 @@ export const OBS_PITCH_FOLLOW_DEG: [number, number] = [-10, 85];
 export const OBS_FOLLOW_DIST_L: [number, number, number] = [2, 6, 80]; // min, default, max
 export const OBS_FOV_DEG = 60;
 export const OBS_FOLLOW_LOSS_HOLD_S = 2;
+/**
+ * The follow orbit's centre sits this far above the subject along its up (L), but never past BOOM_CENTRE_FRACTION of
+ * the free gap above it (views-task review fix: in a queen-sized shaft 0.5 L above the queen is inside the soil).
+ */
+export const OBS_FOLLOW_LIFT_L = 0.5;
 
 /** Colony view (GDD 6.7). */
 export const CV_PITCH_DEG: [number, number, number] = [30, 55, 89];

@@ -13,6 +13,7 @@ import type { EnvironmentState } from './environment';
 import type { Item } from './item';
 import type { Marker } from './marker';
 import type { Nest } from './nest';
+import type { NurseryBoardState } from './nurseryBoard';
 import type { PheromoneState } from './pheromone';
 import type { PlantState } from './plant';
 import type { PlayerState } from './player';
@@ -53,4 +54,6 @@ export interface SimState {
   rivals: RivalsState;
   player: PlayerState;
   progression: ProgressionState;
+  /** Nursery job boards per colony (GDD 02 §10.4), created by the in-nest behaviours. Additive (sim-fix-ants). */
+  nurseryBoards?: NurseryBoardState[];
 }

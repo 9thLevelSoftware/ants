@@ -30,6 +30,6 @@ export { ATTA_TEXANA } from './data/atta-texana';
 export { RIVAL_SPECIES } from './rivals';
 export { assertValidSpecies, SpeciesValidationError, validateSpecies, type ValidationIssue } from './validate';
 export {
-  carryCapOf, cropCapOf, deriveAntStats, eggCostP, larvalCost, massAtLength, maxHpOfMass, minPassageBu, biteOfMass,
+  carryCapOf, cropCapOf, deriveAntStats, entranceCapOf, eggCostP, larvalCost, massAtLength, maxHpOfMass, minPassageBu, biteOfMass,
   upkeepActiveOf, upkeepOfCaste, upkeepRestOf, type DerivedAntStats,
 } from './derive';

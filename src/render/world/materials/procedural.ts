@@ -28,7 +28,11 @@ export function proceduralPixels(look: ProceduralLook, size: number, seed: numbe
   // brightness factor per pixel from scattered features (sand grains, pores), 1 = none
   const shade = new Float32Array(size * size).fill(1);
   if (look.weave) addWeave(h, size, look.weave);
-  if (look.speckle) scatter(h, shade, size, seed + 101, look.speckle, 1.2, 2.6, 'grain');
+  if (look.speckle) {
+    // sand grains, and a sparser scatter of coarse aggregate (concrete) or crystals (stone)
+    scatter(h, shade, size, seed + 101, look.speckle, 1.0, 2.4, 'grain');
+    scatter(h, shade, size, seed + 303, look.speckle * 0.25, 2.5, 5.0, 'grain');
+  }
   if (look.pores) scatter(h, shade, size, seed + 202, look.pores * 0.3, 0.7, 3.2, 'pore');
   const albedo = new Uint8Array(size * size * 4), normal = new Uint8Array(size * size * 4), rough = new Uint8Array(size * size * 4);
   const bump = look.bump * 6;
@@ -111,15 +115,21 @@ function scatter(h: Float32Array, shade: Float32Array, size: number, seed: numbe
     if (hash(cx, cy, seed) >= density) continue;
     const r = rMin + (rMax - rMin) * hash(cx, cy, seed + 1);
     const px = (cx + 0.2 + 0.6 * hash(cx, cy, seed + 2)) * step, py = (cy + 0.2 + 0.6 * hash(cx, cy, seed + 3)) * step;
-    const tone = kind === 'pore' ? 0.45 : hash(cx, cy, seed + 4) < 0.5 ? 0.72 : 1.28;
+    // irregular grains: each one its own tone, elongation and orientation (uniform discs read as polka dots)
+    const tone = kind === 'pore' ? 0.55 : 0.78 + 0.44 * hash(cx, cy, seed + 4);
+    const aspect = 0.55 + 0.45 * hash(cx, cy, seed + 5), ang = hash(cx, cy, seed + 6) * Math.PI;
+    const ca = Math.cos(ang), sa = Math.sin(ang);
     const R = Math.ceil(r + 1);
     for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-      const d = Math.hypot(dx + (Math.floor(px) - px), dy + (Math.floor(py) - py)) / r;
+      const ox = dx + (Math.floor(px) - px), oy = dy + (Math.floor(py) - py);
+      const u = (ox * ca + oy * sa) / r, v = (-ox * sa + oy * ca) / (r * aspect);
+      const lumpy = 1 + 0.25 * Math.sin(Math.atan2(v, u) * 3 + seed + cx * 1.7);
+      const d = Math.hypot(u, v) / lumpy;
       if (d >= 1) continue;
       const x = (((Math.floor(px) + dx) % size) + size) % size, y = (((Math.floor(py) + dy) % size) + size) % size;
-      const i = y * size + x, k = Math.sqrt(1 - d * d);
-      if (kind === 'pore') { h[i] -= 0.5 * k; shade[i] *= 1 - (1 - tone) * k; }
-      else { h[i] = Math.max(h[i], 0.55 + 0.4 * k); shade[i] *= 1 + (tone - 1) * Math.min(1, k * 1.5); }
+      const i = y * size + x, k = Math.sqrt(1 - d * d), edge = Math.min(1, (1 - d) * 3);
+      if (kind === 'pore') { h[i] -= 0.5 * k; shade[i] *= 1 - (1 - tone) * edge; }
+      else { h[i] = Math.max(h[i], 0.55 + 0.35 * k); shade[i] *= 1 + (tone - 1) * edge; }
     }
   }
 }

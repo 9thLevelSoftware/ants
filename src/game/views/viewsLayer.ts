@@ -8,11 +8,12 @@ import type { InputState } from '@/input';
 import type { HighlightRef, RenderRegistry } from '@/render';
 import { MarkerRenderer } from '@/render/fx/markers/MarkerRenderer';
 import type { NestGhost, NestPick } from '@/render/nest';
-import type { Command, Sim } from '@/sim/types';
+import type { ChamberType, Command, Sim } from '@/sim/types';
 import type { GameSession } from '../session';
 import type { GameMode } from '../time/speedRules';
-import { colonyCancel, colonyClick, colonyHover, colonyKeys, plannerActive, selectTool, type ColonyHost, type ColonyTools } from './colony/colonyControl';
+import { colonyCancel, colonyClick, colonyHover, colonyPoll, colonyKeys, plannerActive, selectTool, type ColonyHost, type ColonyTools } from './colony/colonyControl';
 import { DigPlanner } from './colony/digPlanner';
+import { ColonyEdits, type PlanEdit } from './colony/edits';
 import { buildMarkerScene } from './colony/markerScene';
 import { MarkerTool } from './colony/markerTool';
 import { observerInput, type ObserverHost } from './observerControl';
@@ -43,6 +44,8 @@ export class ViewsLayer {
   readonly cursor = new CursorTracker();
   readonly state = new ViewsState();
   readonly tools: ColonyTools = { markers: new MarkerTool(), planner: new DigPlanner() };
+  /** Plan, chamber and entrance edits of the selection (GDD 03 §14.2; the inspect card calls editSelection etc.). */
+  readonly edits = new ColonyEdits();
   /** Followed creature (the session follows ants itself), -1 none. */
   followCreatureId = -1;
   lastPick: ScenePick | null = null;
@@ -61,6 +64,29 @@ export class ViewsLayer {
   get inspectTarget(): PickTarget | null { return this.state.selected; }
   /** What is under the cursor, null none. */
   get hoverTarget(): PickTarget | null { return this.state.hover; }
+  /** The selected dig plan (colony view), -1 none. */
+  get selectedPlanId(): number { return this.state.selectedPlanId; }
+
+  /** GDD 03 §14.2 "Edit": priority, pause / resume or cancel of the selected plan (or `planId`). */
+  editPlan(edit: PlanEdit, planId = this.state.selectedPlanId): boolean {
+    const s = this.game.session;
+    if (!s || planId < 0) return false;
+    const ok = this.edits.plan(this.colonyHost(s), planId, edit);
+    if (ok && edit === 'cancel' && planId === this.state.selectedPlanId) this.state.selectedPlanId = -1;
+    return ok;
+  }
+
+  /** GDD 03 §14.2: the selected chamber (or `chamberId`) takes a new use. */
+  designateChamber(type: ChamberType, chamberId = this.state.selected?.kind === 'chamber' ? this.state.selected.id : -1): boolean {
+    const s = this.game.session;
+    return !!s && chamberId >= 0 && this.edits.designateChamber(this.colonyHost(s), chamberId, type);
+  }
+
+  /** GDD 03 §14.2: seal the selected entrance (or `entranceId`) when open, reopen it when sealed. */
+  toggleEntrance(entranceId = this.state.selected?.kind === 'entrance' ? this.state.selected.id : -1): 'seal' | 'reopen' | null {
+    const s = this.game.session;
+    return s && entranceId >= 0 ? this.edits.toggleEntrance(this.colonyHost(s), entranceId) : null;
+  }
 
   /** Set-up after the renderers exist (Game.boot). */
   attach(canvas: HTMLCanvasElement, scene: Scene, registry: RenderRegistry): void {
@@ -77,7 +103,9 @@ export class ViewsLayer {
     this.state.selectedPlanId = -1;
     this.state.message = null;
     selectTool(this.state, this.tools, null);
-    this.tools.markers.selectedId = -1;
+    this.tools.markers.reset();
+    this.tools.planner.reset();
+    this.edits.reset();
     this.followCreatureId = -1;
     this.pickKey = '';
     this.lastPick = null;
@@ -91,6 +119,8 @@ export class ViewsLayer {
   frame(s: GameSession, input: InputState | null, nowS: number): void {
     const view = s.view, st = this.state, entered = this.lastView !== view;
     this.lastView = view;
+    colonyPoll(s.sim, st, this.tools, this.colonyHost(s));
+    this.edits.poll(s.sim);
     s.views.colonyCapture = view === 'colony' && plannerActive(st);
     if (view === 'colony') {
       const rig = s.views.colony;

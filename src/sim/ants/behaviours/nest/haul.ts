@@ -11,7 +11,7 @@ import {
 import { secondsToTicks } from '@/sim/time';
 import { claim, freeFor, Job } from './board';
 import { carryTo } from './carry';
-import { endCycle, primitiveDone, reachAndAct, recover, releaseAll, think } from './common';
+import { endCycle, primitiveDone, reachAndAct, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, skipped, waitThink } from './fsm';
 import { dist, entranceChamber, homeNest, middenPoint, onSurface } from './places';
 import { entity, travel } from './travel';
@@ -158,4 +158,5 @@ export const haulBehaviour: Behaviour = {
   enter: (sim, ant) => setState(sim, ant, ENTRY),
   update: (sim, ant) => think(sim, ant, ENTRY, step),
   exit: (sim, ant) => releaseAll(sim, ant),
+  delivering: carryingLoad,
 };

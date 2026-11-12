@@ -18,8 +18,8 @@ import * as outdoorBehaviours from './behaviours/outdoor';
 import { lifecycleSystem, processAntDeath, toDeathCause } from './lifecycle';
 import * as player from './player';
 
-/** Contact, antennal and smell perception. Placeholder until beh-forage adds its system to behaviours/outdoor. */
-export const perceptionSystem: System = { name: 'perception', phase: 'perception', run: () => {} };
+/** Contact, antennal and smell perception (beh-forage's system, registered through behaviours/outdoor). */
+export { perceptionSystem } from './perception';
 
 export { behaviourSystem } from './behaviourRunner';
 /** Applies player intent and held actions to the possessed ant. */
@@ -29,7 +29,7 @@ export const actionSystem: System = actions.actionSystem;
 export { lifecycleSystem } from './lifecycle';
 
 export const systems: readonly System[] = [
-  perceptionSystem, behaviourSystem, playerControlSystem, actionSystem, lifecycleSystem,
+  behaviourSystem, playerControlSystem, actionSystem, lifecycleSystem,
   ...outdoorBehaviours.systems, ...nestBehaviours.systems,
 ];
 

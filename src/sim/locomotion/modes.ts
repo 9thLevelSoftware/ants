@@ -6,11 +6,13 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, PheroChannel, Sim, Walker } from '@/sim/types';
 import { retraceTarget as retraceTargetImp } from './crumbs';
 import { noiseGauss as noiseGaussImp, rotateTangent as rotateTangentImp, set3 as set3Imp } from './mathx';
-import type { LocoRuntime } from './runtime';
+import { avoidDiscs as avoidDiscsImp, type LocoRuntime } from './runtime';
+import type { CostDisc } from './grid/search';
+import { isAutonomousAnt as isAutonomousAntImp } from './trip';
 import type { NavScratch } from './scratch';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const retraceTarget = retraceTargetImp, noiseGauss = noiseGaussImp, rotateTangent = rotateTangentImp, set3 = set3Imp;
+const avoidDiscs = avoidDiscsImp, isAutonomousAnt = isAutonomousAntImp, retraceTarget = retraceTargetImp, noiseGauss = noiseGaussImp, rotateTangent = rotateTangentImp, set3 = set3Imp;
 
 const _l: Vec3 = { x: 0, y: 0, z: 0 }, _c: Vec3 = { x: 0, y: 0, z: 0 }, _rr: Vec3 = { x: 0, y: 0, z: 0 };
 const _h: Vec3 = { x: 0, y: 0, z: 0 };
@@ -31,6 +33,25 @@ export function wanderDesired(w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   }
 }
 
+/** Weight of a trail reading at p: `inside` within any avoid disc, else 1. */
+function avoidWeight(discs: readonly CostDisc[] | null, p: Vec3, inside: number): number {
+  if (!discs) return 1;
+  for (let i = 0; i < discs.length; i++) {
+    const d = discs[i], dx = p.x - d.x, dz = p.z - d.z;
+    if (dx * dx + dz * dz <= d.r * d.r) return inside;
+  }
+  return 1;
+}
+
+/** The first avoid disc containing p, or null. */
+function discAt(discs: readonly CostDisc[], p: Vec3): CostDisc | null {
+  for (let i = 0; i < discs.length; i++) {
+    const d = discs[i], dx = p.x - d.x, dz = p.z - d.z;
+    if (dx * dx + dz * dz <= d.r * d.r) return d;
+  }
+  return null;
+}
+
 /** Sensor point at reach along fwd rotated by angle a on the tangent plane. */
 function sensor(out: Vec3, w: Walker, a: number, reach: number): Vec3 {
   rotateTangent(_h, w.fwd, w.up, a);
@@ -46,10 +67,20 @@ function sensor(out: Vec3, w: Walker, a: number, reach: number): Vec3 {
 export function trailDesired(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, tick: number, dt: number,
   out: Vec3): number {
   const P = r.P, phero = sim.phero, ch = s.trailChannel as PheroChannel, col = s.trailColony;
-  const L = phero.sample(col, ch, sensor(_l, w, P.antAngle, P.antReach));
-  const C = phero.sample(col, ch, sensor(_c, w, 0, P.antReach));
-  const R = phero.sample(col, ch, sensor(_rr, w, -P.antAngle, P.antReach));
+  // GDD 02 §12.2: inside the colony's avoid discs an autonomous ant follows a trail at weight x 0.1
+  const discs = isAutonomousAnt(w) ? avoidDiscs(sim, r, (w as Ant).colony) : null;
+  const rawL = phero.sample(col, ch, sensor(_l, w, P.antAngle, P.antReach));
+  const rawC = phero.sample(col, ch, sensor(_c, w, 0, P.antReach));
+  const rawR = phero.sample(col, ch, sensor(_rr, w, -P.antAngle, P.antReach));
+  const L = rawL * avoidWeight(discs, _l, P.avoidTrailW), C = rawC * avoidWeight(discs, _c, P.avoidTrailW);
+  const R = rawR * avoidWeight(discs, _rr, P.avoidTrailW);
   const best = Math.max(L, C, R);
+  if (best < P.trailDetect && discs && Math.max(rawL, rawC, rawR) >= P.trailDetect) {
+    // the trail goes on, but into an avoid disc where it hardly counts: no gap crossing into the disc, the walker
+    // turns out of it by the shortest way instead (GDD 02 §12.2) and loses the trail unless it finds it outside
+    const d = discAt(discs, _c);
+    if (d) { set3(out, w.pos.x - d.x, 0, w.pos.z - d.z); return 0; }
+  }
   if (best < P.trailDetect) {
     // a gap: go on along the recent trail heading (the average of the last second, not the momentary zig-zag)
     // so short breaks are crossed; bends are taken while still on the trail

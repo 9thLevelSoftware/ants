@@ -11,7 +11,7 @@ import { buildLayout } from './layout';
 import { BUILT_SIZE, FRACTION_TOLERANCE } from './tuning/archetypes';
 import { area } from './layout/geom';
 
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 describe('seed edge cases', () => {
   it('seeds 0, 2^31 and 2^32 - 1 generate valid, repeatable and distinct worlds', () => {

@@ -4,17 +4,27 @@ import type { ZoneType } from '@/sim/types';
 
 /** Skirt width beyond each map edge as a fraction of the map side L (GDD 04 §14: 0.5 L). */
 export const SKIRT_WIDTH_L = 0.5;
-/** Skirt vertices along each edge (the skirt is low detail; the haze hides it within a few metres). */
-export const SKIRT_EDGE_SEGMENTS = 96;
-/** Rows outward from the edge: first row offset (BU), then each row this many times farther (geometric). */
-export const SKIRT_FIRST_ROW_BU = 0.5;
+/**
+ * Rows outward from the edge: the edge row itself, then the first row at this offset (BU), then each row this many
+ * times farther (geometric).
+ */
+export const SKIRT_FIRST_ROW_BU = 2;
 export const SKIRT_ROW_GROWTH = 1.6;
+/**
+ * Along the edge the rows next to the map use the terrain's own cell spacing, so the skirt's edge meets the terrain
+ * exactly (no ledge, no ridge between vertices). Farther out the spacing doubles from row to row while it stays
+ * below the row's offset x this factor, never coarser than SKIRT_MIN_SEGMENTS per side.
+ */
+export const SKIRT_FINE_ROWS = 2;
+export const SKIRT_STEP_PER_OFFSET = 1;
+export const SKIRT_MIN_SEGMENTS = 32;
 /** Extrapolated relief beyond the edge: amplitude grows by this many mm per mm outward, capped (mm). */
 export const SKIRT_RELIEF_SLOPE = 0.03;
 export const SKIRT_RELIEF_MAX_MM = 500;
 /** Feature size of the extrapolation noise as a fraction of L. */
 export const SKIRT_NOISE_SCALE_L = 0.06;
-/** The skirt is lifted this far (mm) above the clamped terrain plane at its outer rows so the two never fight. */
+/** The skirt is lifted above the clamped terrain plane by this many mm per mm outward, up to the max (mm). */
+export const SKIRT_LIFT_PER_MM = 0.01;
 export const SKIRT_LIFT_MAX_MM = 2;
 
 /**
@@ -48,19 +58,30 @@ export const SKIRT_FAR_MIX = 0.6;
  * map size: a neighbour's fence a couple of metres away, trees a few metres into the woods).
  */
 export const BACKDROP_BAND_MM = {
-  trees: [2000, 8000], roadTrees: [3000, 8000], gardenTrees: [3000, 8000], shrubs: [600, 2500], fence: [1600, 2000],
+  trees: [2000, 8000], roadTrees: [3000, 8000], gardenTrees: [3000, 8000], shrubs: [1200, 3500], understorey: [2500, 7000], fence: [1600, 2000],
   cars: [1200, 2200], hedge: [300, 500], facade: [200, 200],
 } as const satisfies Record<string, readonly [number, number]>;
-/** Every shape keeps at least this clearance (mm) from the map square (nothing hangs over the playable area). */
+/**
+ * Every shape keeps at least this clearance (mm) from the map square (nothing hangs over the playable area). Lumpy
+ * foliage counts with its largest lump (radius x (1 + FOLIAGE_LUMP)).
+ */
 export const BACKDROP_MARGIN_MM = 100;
 /** Shapes per metre of edge, per treatment (human-scale objects: sizes in mm, independent of BU). */
-export const BACKDROP_DENSITY_PER_M = { trees: 0.35, shrubs: 0.6, fence: 1 / 1.83, hedge: 0.9, cars: 0.18, facade: 0 } as const;
+export const BACKDROP_DENSITY_PER_M = { trees: 0.35, shrubs: 0.45, understorey: 0.5, fence: 1 / 1.83, hedge: 0.9, cars: 0.18, facade: 0 } as const;
 
 /** Sizes, mm (real-world objects at true scale, GDD 08 11.7: never shown whole from ant height). */
 export const BACKDROP_SIZE = {
   trunkDiameter: [220, 650] as const,
   trunkHeight: [6000, 12000] as const,
+  /** The trunk narrows to this fraction of its base diameter at the top; the root flare widens the base this much. */
+  trunkTaper: 0.55,
+  rootFlare: 1.6,
   canopyRadius: [1800, 3500] as const,
+  /** Lowest live branches (the crown's bottom) as a fraction of the tree's height. */
+  crownBase: [0.3, 0.55] as const,
+  /** Saplings and tall understorey stems in the woods: height, crown radius (mm). */
+  saplingHeight: [1500, 3500] as const,
+  saplingCrown: [400, 900] as const,
   shrubRadius: [350, 900] as const,
   hedgeHeight: [1200, 1700] as const,
   hedgeDepth: [700, 1000] as const,
@@ -72,7 +93,7 @@ export const BACKDROP_SIZE = {
 
 /** Silhouette colours (sRGB hex). The haze does most of the work; these keep them believable when close. */
 export const BACKDROP_HEX = {
-  bark: '#3e3328', canopy: '#3d5230', shrub: '#45592f', hedge: '#3b5129', fence: '#6b5845', car: ['#5a6670', '#7a2e2a', '#c9c6be', '#2b2d30'],
+  bark: '#2f2820', canopy: '#34482a', shrub: '#45592f', hedge: '#3b5129', fence: '#6b5845', car: ['#5a6670', '#7a2e2a', '#c9c6be', '#2b2d30'],
   facade: '#b3a28c', roof: '#5b4a42',
 } as const;
 

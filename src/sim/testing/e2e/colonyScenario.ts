@@ -126,9 +126,9 @@ function establishQueen(sim: Sim, q: Ant, royal: Chamber): void {
 
 // ---- scripted behaviours (stand-ins for beh-forage / beh-nest) ----
 
-/** Source the colony's foragers use: the first alive source (the scenario has one). */
+/** Source the colony's foragers use: the scenario's cheat-spawned spill (the world's own anchors are not it). */
 function scenarioSource(sim: Sim): FoodSource | undefined {
-  for (const s of sim.stores.sources.list) if (s.alive && s.units > 0) return s;
+  for (const s of sim.stores.sources.list) if (s.alive && s.units > 0 && s.variant === 'sugary-spill') return s;
   return undefined;
 }
 

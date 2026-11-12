@@ -267,6 +267,13 @@ export const HAUL_PER_WASTE = 6;
 export const HAUL_PER_CORPSE = 2;
 export const HAUL_MAX_FRAC = 0.2;
 export const CORPSE_HAUL_RADIUS_BU = 60;
+/**
+ * `midden-blocked` (GDD 02 §10.8, §14 diag-hygiene): a hauler that had to drop waste or soil at the internal dump
+ * reports it (reportMiddenBlocked); the flag holds this long after the last report, game s.
+ */
+export const MIDDEN_REPORT_HOLD_S = 120;
+/** diag-hygiene factor value while the midden is blocked (a strong limiting factor). */
+export const DIAG_MIDDEN_BLOCKED_F = 0.3;
 export const DEFEND_MIN_WORKERS = 40;
 export const GUARDS_PER_ENTRANCE = 1;
 export const THREAT_DEMAND_MULT = 3;
@@ -307,6 +314,12 @@ export const ENC_GAIN = 0.5;
 export const ENC_SCOUT_MULT = 1.5;
 export const RECRUIT_CONTACTS_MAX = 3;
 export const RECRUIT_RADIUS_BU = 6;
+/**
+ * Waiting foragers stay within this distance of an entrance (GDD 02 §6.6 `forage.wait`), BU. A synthetic returner
+ * (`cheat.injectReturn`) contacts waiting foragers within it of the entrance mouth, so it reaches the ones that
+ * wait in the entrance chamber below the opening.
+ */
+export const FORAGE_WAIT_RADIUS_BU = 10;
 export const ACTIVATION_DEPART = 1.0;
 export const SPONT_DEPART_RATE_S = 1 / 240;
 export const SPONT_NEED_BASE = 0.25;

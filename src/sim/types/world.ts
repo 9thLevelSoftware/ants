@@ -136,6 +136,11 @@ export interface PlantPlacement {
   /** HOST_FLAGS bits. */
   hostFlags: number;
   hostClass: 'herb' | 'shrub' | 'tree';
+  /**
+   * Additive (worldgen-life): the plant's usable host points (Poi ids: aphid-site, nectar-site, seed-site matching
+   * its flags) whose climb route a walker can follow (GDD 04 §8.3, §10). Absent = not evaluated.
+   */
+  hostPoiIds?: number[];
 }
 
 export interface CreatureTerritorySeed {
@@ -293,6 +298,13 @@ export interface Mound {
   /** Pellets absorbed. */
   absorbed: number;
   lastBatchTick: number;
+  /**
+   * Relaxation in progress (sim-fix-colony, additive): sweeps of the current batch's relaxation done so far, -1 (or
+   * absent) when settled. The nest system spreads a batch's relaxation over ticks within a work budget.
+   */
+  relaxSweep?: number;
+  /** Bits of the relaxation in progress: 1 = the batch changed the pile, 2 = a sweep moved material. */
+  relaxFlags?: number;
 }
 
 /** Runtime change of a static object (moved car, opened door, mown plant). */

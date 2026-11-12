@@ -44,9 +44,22 @@ export function takeProbability(sim: Sim, col: Colony, a: Ant, t: Task, def: Spe
   return (s * s) / (s * s + th * th);
 }
 
+/**
+ * Is the ant out of the nest on an outdoor task (forage or defend group)? Its trip is not finished: reassigning
+ * it there would strand it (a nest task far from home, a crop it never unloads), so it keeps its task until it
+ * is home (`nestId` set by locomotion) and its behaviour ends the cycle (GDD 02 §6.5: re-evaluation happens at the
+ * end of a task cycle).
+ */
+export function awayOnTrip(a: Ant): boolean {
+  if (a.nestId !== -1) return false;
+  const g = groupOf(a.task);
+  return g === 'forage' || g === 'defend';
+}
+
 /** May the allocator touch this ant at all? */
 export function reassignable(a: Ant): boolean {
-  return a.alive && isWorkerCaste(a.caste) && isAvailable(a) && a.carry.kind === 'none' && (a.flags & AntFlag.POSSESSED) === 0;
+  return a.alive && isWorkerCaste(a.caste) && isAvailable(a) && a.carry.kind === 'none' && (a.flags & AntFlag.POSSESSED) === 0
+    && !awayOnTrip(a);
 }
 
 function logDecision(a: Ant, reason: ReasonCode, detail: number, tick: number): void {

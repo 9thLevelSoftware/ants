@@ -41,13 +41,15 @@ export class MeshBuilder {
     }
   }
 
-  /** Vertical cylinder from y0 to y1 at (cx, cz), radius r, with a top cap. */
-  cylinder(cx: number, y0: number, cz: number, r: number, y1: number, segments: number, c: Color): void {
+  /** Vertical cylinder (or tapered frustum when `rTop` is given) from y0 to y1 at (cx, cz), with a top cap. */
+  cylinder(cx: number, y0: number, cz: number, r: number, y1: number, segments: number, c: Color, rTop = r): void {
     const base = this.vertexCount;
+    // side normal tilts outward-up by the taper
+    const slope = (r - rTop) / Math.max(1e-6, y1 - y0), nl = Math.hypot(1, slope);
     for (let i = 0; i <= segments; i++) {
       const a = (i / segments) * Math.PI * 2, x = Math.cos(a), z = Math.sin(a);
-      this.vertex(cx + x * r, y0, cz + z * r, x, 0, z, c);
-      this.vertex(cx + x * r, y1, cz + z * r, x, 0, z, c);
+      this.vertex(cx + x * r, y0, cz + z * r, x / nl, slope / nl, z / nl, c);
+      this.vertex(cx + x * rTop, y1, cz + z * rTop, x / nl, slope / nl, z / nl, c);
     }
     for (let i = 0; i < segments; i++) {
       const a = base + i * 2, b = a + 2;
@@ -57,7 +59,7 @@ export class MeshBuilder {
     const ring = this.vertexCount;
     for (let i = 0; i <= segments; i++) {
       const a = (i / segments) * Math.PI * 2;
-      this.vertex(cx + Math.cos(a) * r, y1, cz + Math.sin(a) * r, 0, 1, 0, c);
+      this.vertex(cx + Math.cos(a) * rTop, y1, cz + Math.sin(a) * rTop, 0, 1, 0, c);
     }
     for (let i = 0; i < segments; i++) this.index.push(top, ring + i + 1, ring + i);
   }
