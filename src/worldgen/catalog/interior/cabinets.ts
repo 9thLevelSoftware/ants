@@ -53,10 +53,11 @@ export function runTemplate(p: RunParams): TemplateBuilder {
   for (const s of p.slots) {
     if (!isCabinet(s.kind)) continue;
     const top = s.kind === 'sink' ? lv.counterTop - SINK.depth - 10 : lv.counterUnder;
-    b.box(f, s.a0, s.a1, lv.plinthTop, top, d.carcassBack, d.carcassFront, 'wood-sound', C);
+    const back = s.kind === 'sink' ? d.carcassBack + SINK.serviceVoid : d.carcassBack;
+    b.box(f, s.a0, s.a1, lv.plinthTop, top, back, d.carcassFront, 'wood-sound', C);
     b.box(f, s.a0 + W.doorGap / 2, s.a1 - W.doorGap / 2, lv.plinthTop, lv.counterUnder, d.carcassFront, d.doorsFront, 'wood-sound', C);
     const r = W.legDiam / 2, i = W.legInset;
-    for (const a of [s.a0 + i, s.a1 - i]) for (const n of [d.carcassBack + i, d.kickBack - r - 2]) {
+    for (const a of [s.a0 + i, s.a1 - i]) for (const n of [back + i, d.kickBack - r - 2]) {
       b.add(uprightCyl(f.x(a, n), p.floorY, f.z(a, n), r, W.plinth, 'plastic', C));
     }
     b.poi('shelter', f.p((s.a0 + s.a1) / 2, p.floorY + p.foot, (d.carcassBack + d.kickBack) / 2));
@@ -69,13 +70,15 @@ export function runTemplate(p: RunParams): TemplateBuilder {
   return b;
 }
 
-/** kick-space mouth -> kickboard -> plinth underside (inverted) -> door face beside its gap -> under the 20 mm
+/** Route sections of the kickboard sit on the floor (a floor-to-face corner the walker can take).
+ *  kick-space mouth -> kickboard -> plinth underside (inverted) -> door face beside its gap -> under the 20 mm
  *  overhang (inverted) -> counter front edge -> counter top. */
 function cabinetRoute(f: WallFrame, a: number, p: RunParams, d: ReturnType<typeof runDepths>, lv: ReturnType<typeof runLevels>): Vec3[] {
   const o = p.foot, e = 0.7 * o, y = p.floorY;
   return [
     f.p(a, y + o, d.kickFront + 40),
-    f.p(a, y + 20, d.kickFront + o),
+    f.p(a, y + o, d.kickFront + o),
+    f.p(a, y + 25, d.kickFront + o),
     f.p(a, lv.plinthTop - 15, d.kickFront + o),
     f.p(a, lv.plinthTop - o, d.kickFront + 20),
     f.p(a, lv.plinthTop - o, d.doorsFront - 5),

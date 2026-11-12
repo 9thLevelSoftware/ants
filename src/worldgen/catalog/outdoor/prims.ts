@@ -78,8 +78,17 @@ export function cy(c: Vec3, dia: number, h: number, material: MaterialId, flags:
   return s;
 }
 
-/** EL(W x H x D): ellipsoid with full extents, centre c. */
+/**
+ * Longest : shortest radius beyond which an ellipsoid becomes a fully rounded box: the field's ellipsoid distance is
+ * a bound that underestimates badly for flat shapes (a 25:1 leaf shows a phantom surface millimetres away that a
+ * walker would stick to), the rounded box is exact (src/core/math/sdf.ts).
+ */
+export const EL_MAX_RATIO = 3;
+
+/** EL(W x H x D): ellipsoid with full extents, centre c (a pill-shaped rounded box when flatter than 3:1). */
 export function el(c: Vec3, w: number, h: number, d: number, material: MaterialId, flags: number, rot?: Quat): PrimSpec {
+  const lo = Math.min(w, h, d), hi = Math.max(w, h, d);
+  if (hi > EL_MAX_RATIO * lo) return rb(c, w, h, d, lo / 2, material, flags, rot);
   const s: PrimSpec = { shape: 'ellipsoid', pos: c, size: v(w / 2, h / 2, d / 2), round: 0, material, flags };
   if (rot) s.rot = rot;
   return s;

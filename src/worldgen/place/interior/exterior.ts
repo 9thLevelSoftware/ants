@@ -19,7 +19,10 @@ export function addDownpipe(ctx: GenContext, room: Room): void {
   placeObject(ctx, b.template(c.x, c.z), { x: c.x, z: c.z, y: 0, snap: false, category: 'structures' });
 }
 
-/** Garden ground -> brick face -> under the sill nose (inverted) -> nose -> sill top (vantage). */
+/**
+ * Brick face just above the garden surface -> under the sill nose (inverted) -> nose -> sill top (vantage). The
+ * base node is on the wall itself: paving may leave a joint between the slabs and the wall.
+ */
 export function placeExteriorRoutes(ctx: GenContext): void {
   const st = interiorState(ctx);
   if (!st || !st.plan || st.plan.windowU === null || st.shell.glazing < 0) return;
@@ -29,8 +32,8 @@ export function placeExteriorRoutes(ctx: GenContext): void {
   const gx = f.x(u, -T - 40), gz = f.z(u, -T - 40);
   const g = supportAt(ctx, gx, gz, under - 100);
   const pts = [
-    f.p(u, g + o, -T - 40), f.p(u, g + 20, -T - o), f.p(u, under - 15, -T - o), f.p(u, under - o, -T - 20),
-    f.p(u, under - e, nose - e), f.p(u, (under + top) / 2, nose - o), f.p(u, top + e, nose - e), f.p(u, top + o, nose + 20),
+    f.p(u, g + 10, -T - o), f.p(u, g + 30, -T - o), f.p(u, under - 15, -T - o), f.p(u, under - o, -T - 20),
+    f.p(u, under - o, nose + 5), f.p(u, under - e, nose - e), f.p(u, (under + top) / 2, nose - o), f.p(u, top + e, nose - e), f.p(u, top + o, nose + 20),
     f.p(u, top + o, -T + 20),
   ];
   const obj = ctx.world.objects.find((ob) => ob.id === st.shell.glazing);

@@ -107,7 +107,8 @@ export function slide(rng: RngState, env: Env): Built {
   if (endY > 5) prims.push(rb(v(0, endY / 2, P / 2 + run + 60), L.chuteW, endY, 120, 4, 'metal', C));
   // routes
   const zb = -k - pr - foot;
-  const ladder = [v(-k, foot, zb - 3 * bu), v(-k, 2 * bu, zb), v(-k, y0 - 2 * bu, zb), v(-k, y0 - foot, -P / 2 + 2 * bu), v(-k, y0 - foot, -P / 2 + bu),
+  const g = env.ground ?? (() => 0);
+  const ladder = [v(-k, g(-k, zb - 3 * bu) + foot, zb - 3 * bu), v(-k, g(-k, zb) + 2 * bu, zb), v(-k, y0 - 2 * bu, zb), v(-k, y0 - foot, -P / 2 + 2 * bu), v(-k, y0 - foot, -P / 2 + bu),
     v(-k, y1 - L.platformT / 2, -P / 2 - foot), v(-k, y1 + foot, -P / 2 + 3 * bu), v(0, y1 + foot, 0)];
   const bed = (t: number) => add(add(start, scale(dir, t)), scale(up, L.chuteT / 2 + foot));
   const chute = [v(0, y1 + foot, 0), v(0, y1 + foot, P / 2 - 3 * bu), bed(4 * bu), bed(L.chuteLen / 2), bed(L.chuteLen - 3 * bu)];
@@ -171,7 +172,8 @@ export function bench(rng: RngState, env: Env): Built {
   for (const sx of [-1, 1]) prims.push(rb(v(sx * (B.len / 2 - lt / 2), lh / 2 - 50, 0), lt, lh + 100, ld, 4, 'metal', C | NB));
   const zr = -depth / 2 + sw / 2 + Math.floor(B.slats / 2) * (sw + gap);
   const x = B.len / 2 + foot;
-  const pts = [v(x + 3 * bu, foot, zr), v(x, 2 * bu, zr), v(x, B.seatY - 2 * bu, zr), v(B.len / 2 - 2 * bu, B.seatY + foot, zr), v(0, B.seatY + foot, zr)];
+  const g = env.ground ?? (() => 0);
+  const pts = [v(x + 3 * bu, g(x + 3 * bu, zr) + foot, zr), v(x, g(x, zr) + 2 * bu, zr), v(x, B.seatY - 2 * bu, zr), v(B.len / 2 - 2 * bu, B.seatY + foot, zr), v(0, B.seatY + foot, zr)];
   return {
     tpl: { id: 'bench', prims, tags: ['structure', 'furniture'], routes: [{ kind: 'leg-to-seat', points: densify(pts, 6 * bu) }], pois: [{ kind: 'food-spot', pos: v(0, B.seatY + foot, zr) }] },
     tilt: false,
@@ -184,14 +186,16 @@ export function litterBin(rng: RngState, env: Env): Built {
   const mat: MaterialId = chance(rng, B.metalP) ? 'metal' : 'plastic';
   const r = B.dia / 2, g = B.feetGap;
   const prims: PrimSpec[] = [];
+  // four feet at the rim (the route climbs the one on +X: its face is flush with the body)
   for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    prims.push(rb(v(r * 0.7 * dcos(a), g / 2, r * 0.7 * dsin(a)), 40, g, 40, 1, mat, C));
+    const a = (i * Math.PI) / 2;
+    prims.push(rb(v((r - 20) * dcos(a), g / 2, (r - 20) * dsin(a)), 40, g, 40, 1, mat, C));
   }
   const bodyTop = B.h - B.lid;
   prims.push(cy(v(0, (g + bodyTop) / 2, 0), B.dia, bodyTop - g, mat, C | S | NB, undefined, 6));
   prims.push(cy(v(0, bodyTop + B.lid / 2, 0), B.dia + 16, B.lid, mat, C, undefined, 4));
-  const pts = [v(r + foot + 3 * bu, foot, 0), v(r + foot, g + 2 * bu, 0), v(r + foot, bodyTop - 2 * bu, 0), v(r + 8 + foot, bodyTop + B.lid / 2, 0), v(r - 2 * bu, B.h + foot, 0), v(0, B.h + foot, 0)];
+  const gr = env.ground ?? (() => 0);
+  const pts = [v(r + foot + 3 * bu, gr(r + 3 * bu, 0) + foot, 0), v(r + foot, gr(r, 0) + 2 * bu, 0), v(r + foot, bodyTop - 2 * bu, 0), v(r + 8 + foot, bodyTop + B.lid / 2, 0), v(r - 2 * bu, B.h + foot, 0), v(0, B.h + foot, 0)];
   return {
     tpl: { id: 'litter-bin', prims, tags: ['structure', 'bin'], routes: [{ kind: 'bin-to-rim', points: densify(pts, 6 * bu) }], pois: [{ kind: 'bin-gap', pos: v(0, B.h + foot, 0) }] },
     tilt: false,

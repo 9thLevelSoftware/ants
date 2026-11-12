@@ -97,10 +97,14 @@ export interface RoomShellParams extends WallGeom {
   finish: number;
 }
 
-/** `floor-slab`: 250 thick concrete (-100..+150) under the slice, tile or vinyl finish over the room. */
+/**
+ * `floor-slab`: 250 thick concrete (-100..+150) with a tile or vinyl finish, under the room only. The walls stand
+ * on the ground beside it (their bases go down to -100), so the nav grid sees them from the terrain level and
+ * no wall opening near the floor (door reveal, pipe hole) reads as walkable floor.
+ */
 export function floorTemplate(p: RoomShellParams): TemplateBuilder {
   const b = new TemplateBuilder('floor-slab', ['structure', 'building', 'floor']);
-  b.box(p.f, p.k0, p.k1, p.base, p.floorY - p.finish, -p.T, p.depth + INTERIOR_WALL.thick, 'concrete', C);
+  b.box(p.f, p.u0, p.u1, p.base, p.floorY - p.finish, 0, p.depth, 'concrete', C);
   b.box(p.f, p.u0, p.u1, p.floorY - p.finish, p.floorY, 0, p.depth, p.floorMaterial, C);
   return b;
 }
@@ -184,11 +188,11 @@ export function glazingTemplate(p: GlazingParams): TemplateBuilder {
   return b;
 }
 
-export interface PipeParams extends WallGeom { u: number; diam: number; annulus: number }
+export interface PipeParams extends WallGeom { u: number; diam: number; annulus: number; axisY: number }
 
 /** Square hole for a pipe with its annulus (the clear gap is the annulus at the sides). */
 export function pipeOpening(p: PipeParams): Span2 {
-  const y = p.floorY + SERVICE_PIPE.axis, h = p.diam / 2 + p.annulus;
+  const y = p.axisY, h = p.diam / 2 + p.annulus;
   return { a0: p.u - h, a1: p.u + h, y0: y - h, y1: y + h };
 }
 
@@ -196,7 +200,7 @@ export function pipeOpening(p: PipeParams): Span2 {
 export function pipeTemplate(p: PipeParams): TemplateBuilder {
   const b = new TemplateBuilder('service-pipe', ['structure', 'building', 'pipe']);
   const r0 = -p.T - SERVICE_PIPE.outStub, r1 = SERVICE_PIPE.inStub;
-  const c = p.f.p(p.u, p.floorY + SERVICE_PIPE.axis, (r0 + r1) / 2);
+  const c = p.f.p(p.u, p.axisY, (r0 + r1) / 2);
   const axis = p.f.N.x !== 0 ? 'x' : 'z';
   b.add(lyingCyl(c, axis, p.diam / 2, r1 - r0, 'plastic', C));
   return b;

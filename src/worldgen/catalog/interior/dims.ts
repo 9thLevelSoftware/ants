@@ -164,6 +164,8 @@ export const SINK = {
   /** Tap drips: a permanent film in the basin. */
   dripP: 0.4,
   filmMm: 2,
+  /** Service void behind the sink unit's carcass (plumbing), mm. */
+  serviceVoid: 60,
 };
 
 export const FRIDGE = {
@@ -244,7 +246,8 @@ export const PET_BOWL = {
   diam: [150, 200] as [number, number],
   height: [50, 70] as [number, number],
   wall: 8,
-  flareDeg: 20,
+  /** GDD 20 deg; 15 keeps the bowl-foot wedge within the walker's 110 deg concave-transition limit (report). */
+  flareDeg: 15,
   staves: 12,
   mat: [400, 3, 300] as [number, number, number],
   pKitchenDoor: 0.8,

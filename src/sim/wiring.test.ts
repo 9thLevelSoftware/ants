@@ -35,7 +35,7 @@ describe('pheromone hooks', () => {
     { tempC: 22, seconds: 900 },
     { tempC: 32, seconds: 450 },
   ])('E11: trail on shaded concrete at $tempC C is 5.0 +- 0.1 after $seconds s', ({ tempC, seconds }) => {
-    const bu = 4, half = 30 * bu, c = 64 * bu;
+    const bu = 4, half = 20 * bu, c = 32 * bu; // off the world centre, where the queen starts
     const slab: Primitive = {
       id: 1, shape: 'box', pos: { x: c, y: 2 * bu, z: c }, rot: { x: 0, y: 0, z: 0, w: 1 }, size: { x: half, y: 2 * bu, z: half },
       round: 0, material: 'concrete', flags: 0, objectId: -1,

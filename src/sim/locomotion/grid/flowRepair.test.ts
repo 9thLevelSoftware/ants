@@ -3,7 +3,7 @@
 // rebuild bit for bit (determinism across save / load), and a local change must not cost a full rebuild.
 import { describe, expect, it } from 'vitest';
 import { rngFork, rngInt, rngRange } from '@/core/rng';
-import type { Primitive } from '@/sim/types';
+import type { MicroConn, Primitive } from '@/sim/types';
 import { PrimFlag } from '@/sim/types';
 import { createWorldField } from '@/sim/world/field';
 import { makeTestWorld } from '@/sim/testing/testWorld';
@@ -77,6 +77,53 @@ describe('nav grid flow-field repair', () => {
     const st = g.stats();
     expect(st.flowBuilds).toBe(builds);
     expect(st.flowRepairCells).toBeLessThan(0.1 * g.w * g.h);
+  });
+});
+
+describe('nav grid portal mouths follow blocking overlays (gate review)', () => {
+  const CELL = 16 * BU;
+  const centre = (i: number, k: number) => ({ x: (i + 0.5) * CELL, y: 0, z: (k + 0.5) * CELL });
+  // a door-gap portal from cell (8, 20) next to the seed to cell (30, 20); the overlays wall A in, then block A
+  const A = { i: 30, k: 20 };
+  const ring: [number, number][] = [];
+  for (let dk = -1; dk <= 1; dk++) for (let di = -1; di <= 1; di++) if (di !== 0 || dk !== 0) ring.push([A.i + di, A.k + dk]);
+
+  function portalWorld() {
+    const world = makeTestWorld({ sizeBu: 640 });
+    const a = centre(A.i, A.k), b = centre(8, 20);
+    const micro: MicroConn = {
+      id: 900, kind: 'door-gap' as MicroConn['kind'], posA: { x: a.x - 0.2 * CELL, y: 0, z: a.z }, posB: b,
+      gapMm: 3 * BU, minClearanceBu: 5, lengthBu: 4, useful: true, reason: 'test',
+    };
+    world.micro.push(micro);
+    return world;
+  }
+
+  it('re-links at once when an overlay blocks a mouth cell; links and field equal a grid built with the overlays', () => {
+    const seeds = [centre(5, 20)];
+    const world = portalWorld();
+    const g = createLocoNavGrid(world);
+    g.attachField(createWorldField(world, null), world.prims);
+    for (const [i, k] of ring) g.setCostMult(i, k, Infinity);
+    g.flowField('home', 's', seeds);
+    const a0 = g.portals[0].cellA;
+    expect(a0).toBe(A.k * g.w + A.i);
+    g.setCostMult(A.i, A.k, Infinity); // the mouth cell itself: the mouth snaps two cells away
+    expect(g.portals[0].cellA).not.toBe(a0);
+    expect(g.portals[0].cellA).toBeGreaterThanOrEqual(0);
+    const repaired = g.flowField('home', 's', seeds).slice();
+    expect(Array.from(repaired)).toEqual(Array.from(fullRebuild(g, 'm', seeds)));
+    // the same cells built in another order (overlays before the field, as a rebuilt cache could) link the same way
+    const world2 = portalWorld();
+    const g2 = createLocoNavGrid(world2);
+    for (const [i, k] of [...ring, [A.i, A.k] as [number, number]]) g2.setCostMult(i, k, Infinity);
+    g2.attachField(createWorldField(world2, null), world2.prims);
+    expect([g2.portals[0].cellA, g2.portals[0].cellB]).toEqual([g.portals[0].cellA, g.portals[0].cellB]);
+    expect(Array.from(g2.flowField('home', 's', seeds))).toEqual(Array.from(repaired));
+    // unblocking the mouth cell moves the mouth back and repairs exactly again
+    g.setCostMult(A.i, A.k, 1);
+    expect(g.portals[0].cellA).toBe(a0);
+    expect(Array.from(g.flowField('home', 's', seeds))).toEqual(Array.from(fullRebuild(g, 'n', seeds)));
   });
 });
 

@@ -101,6 +101,13 @@ export const PARTING = {
   eyeFarBU: 3.2,
   /** The segment continues this far beyond the subject, BU (so blades just behind the ant also part). */
   beyondBU: 1.5,
+  /**
+   * Eye / line-of-sight fade is a per-blade cut, not a per-pixel screen door (which read as a grainy veil over the
+   * near blades and stood still on screen while they moved): a blade is cut where the fade drops below its own
+   * threshold, drawn from this range by the blade's random, with a little per-pixel noise to soften the cut edge.
+   */
+  cutRange: [0.1, 0.9] as const,
+  cutNoise: 0.12,
 } as const;
 
 /** Wind sway (spike 2.8): radians of extra tip bend per m/s of wind at 2 m, clamped. */
@@ -206,8 +213,6 @@ export const DEW = {
   bladeShare: 0.45,
   perBlade: [1, 4] as const,
   radiusMm: [0.25, 1.1] as const,
-  /** A droplet is hidden where its blade's eye / line-of-sight fade is below this (the blade dithers out there). */
-  sightFadeMin: 0.5,
 } as const;
 
 export const WATER = {

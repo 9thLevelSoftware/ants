@@ -38,7 +38,8 @@ function cabinetSpans(slots: Slot[]): [number, number][] {
   return out;
 }
 
-function kickSections(rng: RngState, run: RunPlan, room: Room): { a0: number; a1: number; gap: number; passable: boolean }[] {
+/** Kickboard sections: route sections sit on the floor, one other section is guaranteed passable, the rest 2-6. */
+function kickSections(rng: RngState, run: RunPlan, room: Room, routeAs: number[]): { a0: number; a1: number; gap: number; passable: boolean }[] {
   const spans = cabinetSpans(run.slots);
   if (spans.length > 0 && run.kickA0 < spans[0][0] && Math.abs(spans[0][0] - run.slots[0].a0) < 1e-6) spans[0][0] = run.kickA0;
   const secs: { a0: number; a1: number; gap: number; passable: boolean }[] = [];
@@ -46,21 +47,23 @@ function kickSections(rng: RngState, run: RunPlan, room: Room): { a0: number; a1
     const k = Math.max(1, Math.round((a1 - a0) / BASE_UNIT.kickSection));
     for (let i = 0; i < k; i++) secs.push({ a0: a0 + ((a1 - a0) * i) / k, a1: a0 + ((a1 - a0) * (i + 1)) / k, gap: 0, passable: false });
   }
-  const sure = secs.length > 0 ? rngInt(rng, 0, secs.length - 1) : -1;
+  const onRoute = secs.map((s) => routeAs.some((a) => a >= s.a0 - 1 && a <= s.a1 + 1));
+  const free = secs.map((_, i) => i).filter((i) => !onRoute[i]);
+  const sure = free.length > 0 ? free[rngInt(rng, 0, free.length - 1)] : -1;
   const clear = MICRO.passClearK * room.bu;
   secs.forEach((s, i) => {
-    s.gap = i === sure ? clampGap(rng, BASE_UNIT.kickGap[0], BASE_UNIT.kickGap[1], MICRO.gapMinBu * room.bu) : rngRange(rng, BASE_UNIT.kickGap[0], BASE_UNIT.kickGap[1]);
+    s.gap = onRoute[i] ? 0 : i === sure ? clampGap(rng, BASE_UNIT.kickGap[0], BASE_UNIT.kickGap[1], MICRO.gapMinBu * room.bu) : rngRange(rng, BASE_UNIT.kickGap[0], BASE_UNIT.kickGap[1]);
     s.passable = s.gap >= clear;
   });
   return secs;
 }
 
-/** Route positions: a door edge beside a gap, about one per 1.2 m of run. */
-function routePositions(run: RunPlan): number[] {
+/** Route positions: a door edge beside a gap, about one per 1.2 m of run, clear of the L-run's corner. */
+function routePositions(run: RunPlan, minA: number): number[] {
   const cand: number[] = [];
   run.slots.forEach((s, i) => {
     if (!isCabinet(s.kind)) return;
-    cand.push(i === 0 ? s.a1 - 12 : s.a0 + 12);
+    for (const a of i === 0 ? [s.a1 - 12] : [s.a0 + 12, s.a1 - 12]) if (a >= minA) { cand.push(a); break; }
   });
   const out: number[] = [];
   for (const a of cand) if (out.length === 0 || a - out[out.length - 1] >= 1200) out.push(a);
@@ -84,8 +87,10 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
   const info: RunInfo = { counters: [], footprints: [], extCovered: [], endCovered: null };
   for (const run of [plan.main, plan.l]) {
     if (!run) continue;
-    const kick = kickSections(rng, run, room);
-    placeBuilder(ctx, runTemplate({ f: run.f, floorY: fy, slots: run.slots, counterGap: cw, counterDepth: cd, kick, routeAs: routePositions(run), foot }));
+    // the L-run's counter continues the main counter's front edge in the corner: no overhang to climb there
+    const routeAs = routePositions(run, run.name === 'main' && plan.l ? d.counterFront + 60 : 0);
+    const kick = kickSections(rng, run, room, routeAs);
+    placeBuilder(ctx, runTemplate({ f: run.f, floorY: fy, slots: run.slots, counterGap: cw, counterDepth: cd, kick, routeAs, foot }));
     const sink = run.slots.find((s) => s.kind === 'sink');
     const sinkA = sink ? (sink.a0 + sink.a1) / 2 : null;
     const segments = counterSegments(run);
@@ -115,10 +120,10 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
     }
     const end = Math.max(run.counterA1, run.slots[run.slots.length - 1].a1);
     info.footprints.push(run.f.rect(run.name === 'main' ? 0 : run.kickA0, end, 0, d.counterFront));
-    const free = segments.flatMap(([a0, a1]) => {
-      if (sinkA === null || sinkA < a0 || sinkA > a1) return [[a0, a1] as [number, number]];
-      return [[a0, sinkA - SINK.width / 2] as [number, number], [sinkA + SINK.width / 2, a1] as [number, number]];
-    });
+    // counter items keep off the sink and the tops of the climb routes
+    const cuts: [number, number][] = [...routeAs.map((a) => [a - 60, a + 60] as [number, number])];
+    if (sinkA !== null) cuts.push([sinkA - SINK.width / 2, sinkA + SINK.width / 2]);
+    const free = segments.flatMap(([a0, a1]) => minus(a0, a1, cuts));
     info.counters.push({ f: run.f, spans: free, n0: cw, n1: cw + cd, topY: lv.counterTop });
     if (run.name === 'main') info.extCovered.push(uSpan(plan, 0, end));
     else info.endCovered = [0, end];
@@ -130,6 +135,19 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
   if (fr.f === plan.main.f) info.extCovered.push(uSpan(plan, 0, fEnd + FRIDGE.sideGap));
   else info.endCovered = [0, Math.max(info.endCovered?.[1] ?? 0, fEnd + FRIDGE.sideGap)];
   return info;
+}
+
+/** [a0, a1] minus the cut intervals. */
+function minus(a0: number, a1: number, cuts: [number, number][]): [number, number][] {
+  const out: [number, number][] = [];
+  let x = a0;
+  for (const [c0, c1] of [...cuts].sort((p, q) => p[0] - q[0])) {
+    if (c1 <= x || c0 >= a1) continue;
+    if (c0 > x) out.push([x, c0]);
+    x = Math.max(x, c1);
+  }
+  if (a1 > x) out.push([x, a1]);
+  return out;
 }
 
 /** u interval of main-run coordinates [a0, a1]. */

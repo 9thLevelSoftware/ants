@@ -6,7 +6,8 @@
 import { rngChance, rngInt, rngRange, type RngState } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';
 import { HOST_FLAGS } from '@/sim/types';
-import { addPlant, addWaterBody, dcos, drad, dsin, placeObject, type GenContext, type ObjectTemplate } from '../../kit';
+import { addPlant, addWaterBody, dcos, drad, dsin, placeObject, removeObject, type GenContext, type ObjectTemplate } from '../../kit';
+import { interiorHumanAreas } from './lanes';
 import {
   bowlPairTemplate, breadBoardTemplate, chairTemplate, doormatTemplate, fruitBowlTemplate, houseplantTemplate,
   pedalBinTemplate, sugarBowlTemplate, tableTemplate,
@@ -46,6 +47,41 @@ export interface FurnitureInfo {
   footprints: Rect[];
 }
 
+interface WallSpot { x: number; z: number; N: { x: number; z: number }; doorDist: number; runSide: number }
+
+/**
+ * Spots `off` in front of every wall face of the room, 150 apart, at least `half` from the wall ends and never in
+ * front of the door; with the distance to the door's inner face and whether the spot is on the run's side of it.
+ */
+function wallSpots(room: Room, plan: KitchenPlan, off: number, half: number): WallSpot[] {
+  const f = room.ext, out: WallSpot[] = [];
+  const door = f.p(plan.door.u, 0, 0), jamb = BACK_DOOR.leafWidth / 2 + BACK_DOOR.jambWidth;
+  const neg = (a: { x: number; z: number }) => ({ x: -a.x, z: -a.z });
+  const add = (u: number, r: number, N: { x: number; z: number }) => {
+    const p = f.p(u, 0, r);
+    const runSide = Math.sign(u - plan.door.u) === -Math.sign(plan.sigma) ? 1 : 0;
+    out.push({ x: p.x, z: p.z, N, doorDist: Math.sqrt((p.x - door.x) ** 2 + (p.z - door.z) ** 2), runSide });
+  };
+  for (let u = room.u0 + half; u <= room.u1 - half; u += 150) {
+    if (Math.abs(u - plan.door.u) >= jamb + half) add(u, off, room.er);
+    add(u, room.depth - off, neg(room.er));
+  }
+  for (let r = half; r <= room.depth - half; r += 150) {
+    add(room.u0 + off, r, room.eu);
+    add(room.u1 - off, r, neg(room.eu));
+  }
+  return out;
+}
+
+/** Keeps a just-placed object only if every human node of the kitchen still has a walking lane from the door. */
+function keep(ctx: GenContext, id: number): number {
+  if (id < 0) return id;
+  const a = interiorHumanAreas(ctx.world);
+  if (a && a.unreachable.length === 0) return id;
+  removeObject(ctx, id);
+  return -1;
+}
+
 function place(ctx: GenContext, t: ObjectTemplate, x: number, z: number, y: number, yaw: number, cat: 'structures' | 'plants' = 'structures'): number {
   return placeObject(ctx, t, { x, z, y, yaw, snap: false, collide: true, category: cat });
 }
@@ -63,11 +99,44 @@ export function placeFurniture(ctx: GenContext, room: Room, plan: KitchenPlan, r
   const roomRect = f.rect(room.u0, room.u1, 0, room.depth);
   const door = f.p(plan.door.u, fy, 0);
   const doorRect: Rect = { x0: door.x, x1: door.x, z0: door.z, z1: door.z };
-  const jamb = BACK_DOOR.leafWidth / 2 + BACK_DOOR.jambWidth;
   // doormat inside the door
   const [, , md] = DOORMAT_INSIDE.size;
   const mat = f.p(plan.door.u, fy, DOORMAT_INSIDE.doorGap + md / 2);
   place(ctx, doormatTemplate(), mat.x, mat.z, fy, yawTo(room.er));
+  // pet bowls (kitchen-door p 0.8, elsewhere 0.5) against a wall within 1500 of the door, the far side from the
+  // run first; local -z (where the bowl climb routes start) faces the room
+  const bowlP = ctx.params.archetype === 'kitchen-door' ? PET_BOWL.pKitchenDoor : PET_BOWL.pOther;
+  if (rngChance(rng, bowlP)) {
+    const bp = bowlPairTemplate(rng, foot);
+    const mw = Math.max(PET_BOWL.mat[0], 2 * (bp.water.radius + 60)), hd = PET_BOWL.mat[2] / 2;
+    const spots = wallSpots(room, plan, 45 + hd, mw / 2 + 60)
+      .filter((p) => p.doorDist + mw / 2 <= PET_BOWL.doorMax)
+      .sort((p, q) => (p.runSide - q.runSide) || (p.doorDist - q.doorDist));
+    for (const p of spots) {
+      const yaw = yawTo({ x: -p.N.x, z: -p.N.z });
+      const id = keep(ctx, place(ctx, bp.template, p.x, p.z, fy, yaw));
+      if (id < 0) continue;
+      info.bowlsId = id;
+      info.footprints.push(footprint(p.x, p.z, mw / 2, hd, yaw));
+      // the template's water centre is local; rotate it like the object
+      const off = rot(bp.water.x, bp.water.z, yaw);
+      addWaterBody(ctx, { kind: 'bowl-water', vesselObjectId: id, pos: { x: p.x + off.x, y: fy + PET_BOWL.mat[1] + PET_BOWL.wall, z: p.z + off.z }, radius: bp.water.radius, levelMm: bp.water.levelMm, capMm: bp.water.capMm });
+      break;
+    }
+  }
+  // pedal bin: against a wall, nearest the run's door-side end (GDD "run end or by the door")
+  const binT = pedalBinTemplate(rng, foot);
+  const R = PEDAL_BIN.diam / 2 + 10;
+  const runEndU = plan.uc + plan.sigma * Math.max(...plan.main.slots.map((s) => s.a1));
+  const runEnd = f.p(runEndU, fy, 0);
+  const binSpots = wallSpots(room, plan, R + 40, R + 20)
+    .map((p) => ({ p, d: (p.x - runEnd.x) ** 2 + (p.z - runEnd.z) ** 2 }))
+    .sort((a, b) => a.d - b.d);
+  for (const { p } of binSpots) {
+    const id = keep(ctx, place(ctx, binT, p.x, p.z, fy, yawTo(p.N)));
+    if (id >= 0) { info.binId = id; info.footprints.push(footprint(p.x, p.z, R, R, 0)); break; }
+  }
+  if (info.binId < 0) ctx.notes.push('interior: no room for the pedal bin');
   // table: long axis along u, >= 700 from runs and appliances, >= 600 from walls, >= 1000 from the door
   const [tw, , td] = TABLE.top;
   const baseYaw = yawTo(room.er); // local +z into the room, local x (the long side) along u
@@ -79,54 +148,25 @@ export function placeFurniture(ctx: GenContext, room: Room, plan: KitchenPlan, r
     const inner = Math.min(fp.x0 - roomRect.x0, roomRect.x1 - fp.x1, fp.z0 - roomRect.z0, roomRect.z1 - fp.z1);
     if (inner < TABLE.wallMin || rectDist(fp, doorRect) < TABLE.doorMin) continue;
     if (runs.footprints.some((q) => rectDist(fp, q) < TABLE.counterMin)) continue;
-    const id = place(ctx, tableTemplate(foot), c.x, c.z, fy, yaw);
+    const id = keep(ctx, place(ctx, tableTemplate(foot), c.x, c.z, fy, yaw));
     if (id < 0) continue;
+    const chairs = placeChairs(ctx, rng, c, yaw, foot, fy);
+    if (chairs.length < CHAIR.count[0]) {
+      for (const ch of chairs) removeObject(ctx, ch.id);
+      removeObject(ctx, id);
+      continue;
+    }
     info.tableId = id;
-    info.footprints.push(fp);
-    placeChairs(ctx, rng, c, yaw, foot, fy, info);
+    info.footprints.push(fp, ...chairs.map((ch) => ch.fp));
   }
   if (info.tableId < 0) ctx.notes.push('interior: no room for the kitchen table');
-  // pet bowls (kitchen-door p 0.8, elsewhere 0.5) on the far side of the door from the run, against the wall
-  const sigma = plan.sigma;
-  const bowlP = ctx.params.archetype === 'kitchen-door' ? PET_BOWL.pKitchenDoor : PET_BOWL.pOther;
-  if (rngChance(rng, bowlP)) {
-    const bp = bowlPairTemplate(rng, foot);
-    const mw = Math.max(PET_BOWL.mat[0], 2 * (bp.water.radius + 60)), hd = PET_BOWL.mat[2] / 2;
-    for (let k = 0; k < 8 && info.bowlsId < 0; k++) {
-      const u = plan.door.u - sigma * (jamb + 120 + mw / 2 + k * 120 + rngRange(rng, 0, 60));
-      const c = f.p(u, fy, 45 + hd);
-      if (u - mw / 2 < room.u0 + 40 || u + mw / 2 > room.u1 - 40 || Math.abs(u - plan.door.u) > PET_BOWL.doorMax) continue;
-      // local -z (where the climb routes start) faces the room
-      const yaw = yawTo({ x: -room.er.x, z: -room.er.z });
-      const id = place(ctx, bp.template, c.x, c.z, fy, yaw);
-      if (id < 0) continue;
-      info.bowlsId = id;
-      info.footprints.push(footprint(c.x, c.z, mw / 2, hd, yaw));
-      // the template's water centre is local; rotate it like the object
-      const off = rot(bp.water.x, bp.water.z, yaw);
-      addWaterBody(ctx, { kind: 'bowl-water', vesselObjectId: id, pos: { x: c.x + off.x, y: fy + PET_BOWL.mat[1] + PET_BOWL.wall, z: c.z + off.z }, radius: bp.water.radius, levelMm: bp.water.levelMm, capMm: bp.water.capMm });
-    }
-  }
-  // pedal bin: at the run end next to the door, else by the door on the other side, else by the fridge
-  const binT = pedalBinTemplate(rng, foot);
-  const R = PEDAL_BIN.diam / 2 + 10;
-  const runEndU = plan.uc + sigma * Math.max(...plan.main.slots.map((s) => s.a1));
-  const cands = [runEndU + sigma * (R + 15), plan.door.u - sigma * (jamb + R + 40), plan.door.u + sigma * (jamb + R + 40)];
-  for (const u of cands) {
-    if (info.binId >= 0) break;
-    if (Math.abs(u - plan.door.u) < jamb + R) continue; // never in front of the door
-    const c = f.p(u, fy, R + 40);
-    const fp = footprint(c.x, c.z, R, R, 0);
-    if (Math.min(fp.x0 - roomRect.x0, roomRect.x1 - fp.x1, fp.z0 - roomRect.z0, roomRect.z1 - fp.z1) < 30) continue;
-    const id = place(ctx, binT, c.x, c.z, fy, yawTo(room.er));
-    if (id >= 0) { info.binId = id; info.footprints.push(fp); }
-  }
   placePlant(ctx, room, plan, rng, foot, info);
   placeCounterItems(ctx, runs, rng, foot);
   return info;
 }
 
-function placeChairs(ctx: GenContext, rng: RngState, c: Vec3, yaw: number, foot: number, fy: number, info: FurnitureInfo): void {
+/** Chairs around the table, each kept only if every human node still has a lane. */
+function placeChairs(ctx: GenContext, rng: RngState, c: Vec3, yaw: number, foot: number, fy: number): { id: number; fp: Rect }[] {
   const [tw, , td] = TABLE.top, hs = CHAIR.seat[2] / 2;
   // seat centre: its front edge sits pullOut beyond the table edge
   const off = (half: number) => half + CHAIR.pullOut + hs;
@@ -135,13 +175,14 @@ function placeChairs(ctx: GenContext, rng: RngState, c: Vec3, yaw: number, foot:
     [-off(tw / 2), 0, Math.PI / 2], [off(tw / 2), 0, -Math.PI / 2],
   ];
   const want = rngInt(rng, CHAIR.count[0], CHAIR.count[1]);
-  let n = 0;
+  const out: { id: number; fp: Rect }[] = [];
   for (const [lx, lz, face] of slots) {
-    if (n >= want) break;
+    if (out.length >= want) break;
     const w = rot(lx, lz, yaw);
-    const id = place(ctx, chairTemplate(rng, foot), c.x + w.x, c.z + w.z, fy, yaw + face);
-    if (id >= 0) { n++; info.footprints.push(footprint(c.x + w.x, c.z + w.z, hs, hs, yaw + face)); }
+    const id = keep(ctx, place(ctx, chairTemplate(rng, foot), c.x + w.x, c.z + w.z, fy, yaw + face));
+    if (id >= 0) out.push({ id, fp: footprint(c.x + w.x, c.z + w.z, hs, hs, yaw + face) });
   }
+  return out;
 }
 
 function placePlant(ctx: GenContext, room: Room, plan: KitchenPlan, rng: RngState, foot: number, info: FurnitureInfo): void {
@@ -155,14 +196,15 @@ function placePlant(ctx: GenContext, room: Room, plan: KitchenPlan, rng: RngStat
     const potR = HOUSEPLANT.potDiam[0] / 2; // larger pots hit the frame and fall back to the floor
     if ((nose - fr1) / 2 >= potR) {
       const c = f.p(plan.windowU + rngRange(rng, -250, 250), boardY, (fr1 + nose) / 2);
-      id = place(ctx, t, c.x, c.z, boardY, rngRange(rng, -Math.PI, Math.PI), 'plants');
+      // the climb route runs along the board (local -z along u), so its base stays on the board
+      id = place(ctx, t, c.x, c.z, boardY, yawTo(room.eu) + rngRange(rng, -0.2, 0.2), 'plants');
     }
   }
   if (id < 0) {
     // floor: the back-wall corner on the far side from the run
     const u = plan.sigma > 0 ? room.u1 - 200 : room.u0 + 200;
     const c = f.p(u, room.floorY, room.depth - 200);
-    id = place(ctx, t, c.x, c.z, room.floorY, rngRange(rng, -Math.PI, Math.PI), 'plants');
+    id = keep(ctx, place(ctx, t, c.x, c.z, room.floorY, yawTo({ x: -room.er.x, z: -room.er.z }) + rngRange(rng, -0.4, 0.4), 'plants'));
     if (id >= 0) info.footprints.push({ x0: c.x - 130, x1: c.x + 130, z0: c.z - 130, z1: c.z + 130 });
   }
   if (id >= 0) addPlant(ctx, { objectId: id, hostFlags: rngChance(rng, HOUSEPLANT.scaleP) ? 1 << HOST_FLAGS.indexOf('scale') : 0, hostClass: 'herb' });

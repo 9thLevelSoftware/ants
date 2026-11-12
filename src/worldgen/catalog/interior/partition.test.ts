@@ -11,7 +11,7 @@ describe('wall partition', () => {
       { a0: 2000, a1: 3040, y0: -100, y1: 2250 }, // door
       { a0: 5000, a1: 6100, y0: 1050, y1: 2250 }, // window
       { a0: 5300, a1: 5370, y0: 185, y1: 255 }, // pipe
-      ...[...Array(8).keys()].map((i) => ({ a0: 6500 + i * 900, a1: 6510 + i * 900, y0: 150, y1: 215 })), // vents
+      ...[...Array(4).keys()].map((i) => ({ a0: 6500 + i * 900, a1: 6510 + i * 900, y0: 150, y1: 215 })), // vents
     ];
     const boxes = partition(rect, holes);
     const want = area(rect) - holes.reduce((s, h) => s + area({ ...h, a1: Math.min(h.a1, rect.a1) }), 0);

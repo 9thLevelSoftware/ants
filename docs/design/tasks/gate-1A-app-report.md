@@ -108,9 +108,20 @@ surface wetness eases toward the weather's precipitation; daylight into tunnels 
 | The third-person camera sits within about 1 body length of the queen in the shaft; the fade dither then covers much of the view | screenshots 03 / 04 (tunnel and room shots) | views (GDD 01 6.4 tunnel boom tuning) |
 | Colour grade (frost desaturation, night / golden gain) not applied | `LightingState.saturation/gain` computed, unused | render/app look (1B) |
 | Software-GL frame cost: 3-8 s per 1280 x 720 frame at `test` (terrain fragment shader), so harness scripts must render few frames | `perf()` frameMs in section 3 | none needed for a GPU; scripts keep to settled single frames |
-| Tests in `src/render` failing outside this task: `world/decor/DecorRenderer.verify.test.ts` (2, reviewer tests waiting for the decor fixer), and the load-dependent `nest/mesh/chunkMeshManager*.test.ts` timing tests (pass when run alone) | `npx vitest run src/render` | render-decor; perf note |
-| Type errors in `src/ui/**` (Panel, Modal, screens, settings tabs, styles) | `npm run typecheck` | ui-shell work in progress in the same checkout (not touched here) |
+| Load-dependent timing tests `src/render/nest/mesh/chunkMeshManager*.test.ts` failed once in a parallel run (24 s for a 1-2 s test) and passed alone and in the final full run; `DecorRenderer.verify.test.ts` failed during the decor fixer's work and passed in the final full run | `npx vitest run src/render` on a loaded machine | perf note only |
+| Full suite at the end: 18 failures, all in `src/sim/testing` and `src/worldgen` (worldgen-outdoor / interior and the sim half working in the same checkout); none under `src/render`, `src/game`, `src/ui`, `src/input` | `npx vitest run` | other engineers' work in progress |
 
+
+### GDD Appendix E checks at this level
+
+- GDD 01 E1 (8x refused while possessing, `speed-refused` reason `possession`) and E2 / E17 / E21 / E22: covered by
+  the existing `smoke.mjs` and `flow.mjs`, which still pass on the real renderers.
+- GDD 01 E12 (tunnel camera): one frame of it is checked and recorded by `stage1a.mjs` (clearance f >= R/2 holds;
+  state `crevice` at 0.23 L instead of `tunnel` within 4 L — the shaft is steeper and narrower than the check's
+  2 BU walking tunnel). E13 / E14 (wall-to-ceiling camera path, up-vector timing) need the views task's scripted
+  paths. E3-E11, E15, E16, E18-E20, E23-E25 belong to the sim, input and views modules (unchanged here).
+- GDD 08 App. E is UI / HUD / alert / comfort checks (ui-shell, ui-hud, views) plus E25 storm flashes
+  (weather-effects); none is a render-integration check this task can cover.
 
 ## 6. Notes items and their outcome
 

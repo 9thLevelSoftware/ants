@@ -11,7 +11,7 @@ import { addPatch } from '../materials/surfacePatch';
 import { HOLE_MASK_GLSL } from '../terrain/holeMask';
 import { foliageLightsChunk } from '../decor/foliageLight';
 import type { DecorShared } from '../decor/shared';
-import { GRASS } from '../decor/tuning';
+import { GRASS, PARTING } from '../decor/tuning';
 import { BLADE_FRAG_GLSL, BLADE_GLSL } from './bladeShape';
 
 /** Blade mesh in parameter space: position.x across (-1..1), position.y along (0..1); rows x cols + tip. */
@@ -57,10 +57,13 @@ const FRAG_COMMON = /* glsl */ `
 ${GLSL_NOISE}
 varying float vBH; varying float vBS; varying float vBFade; varying vec3 vBInfo;
 ${BLADE_FRAG_GLSL}
-// discard: LOD fade, eye / line-of-sight fade (screen-door dither, keeps the opaque pipeline), roots in nest holes
+// discard (keeps the opaque pipeline): the LOD cross-fade as a screen door over the whole (small, far) blade; the
+// eye / line-of-sight fade as a per-blade cut with a slightly noisy edge (PARTING.cutRange)
 void grClip() {
-  float fade = min(vBFade, grFragFade());
-  if (fade < 0.999 && wrHash12(floor(gl_FragCoord.xy)) > fade) discard;
+  float h = wrHash12(floor(gl_FragCoord.xy));
+  if (vBFade < 0.999 && h > vBFade) discard;
+  float sight = grFragFade();
+  if (sight < 0.999 && grCutThreshold(vBInfo.z) + (h - 0.5) * ${PARTING.cutNoise.toFixed(3)} > sight) discard;
 }
 `;
 

@@ -7,7 +7,7 @@ import { rngChance, rngRange, type RngState } from '@/core/rng';
 import { addMicro, terrainAt, type GenContext } from '../../kit';
 import { WallFrame } from '../../catalog/interior/frame';
 import { skirtingTemplate, type SkirtingRun } from '../../catalog/interior/shell';
-import { BACK_DOOR, HOUSE_WALL, SERVICE_PIPE, SKIRTING, WEEP_VENT } from '../../catalog/interior/dims';
+import { BACK_DOOR, HOUSE_WALL, SKIRTING, WEEP_VENT } from '../../catalog/interior/dims';
 import { MICRO } from '../../tuning/pipeline';
 import { clampGap, type KitchenPlan } from './plan';
 import type { Room } from './room';
@@ -74,7 +74,7 @@ export function placeBuildingMicro(ctx: GenContext, room: Room, plan: KitchenPla
       useful: gap >= MICRO.gapMinBu * bu, reason: plan.door.sealed ? 'weather strip' : 'interior access',
     });
     for (const p of plan.pipes) {
-      const y = room.floorY + SERVICE_PIPE.axis, out = ground(p.u, -T - off);
+      const y = p.axisY, out = ground(p.u, -T - off);
       const climb = Math.max(0, y - p.diam / 2 - p.annulus - out);
       addMicro(ctx, {
         kind: 'pipe-penetration', posA: ext.p(p.u, out, -T - off), posB: ext.p(p.u, room.floorY, off),

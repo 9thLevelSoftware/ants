@@ -85,9 +85,10 @@ export function plantPot(rng: RngState, env: Env, forceSaucer?: boolean): Built 
     water.push({ kind: 'bowl-water', pos: v(0, y0, 0), radius: sr - SA.wall, levelMm: 0, capMm: 0.8 * (sh - y0) });
   }
   const gap = R(rng, P.footGap[0], P.footGap[1]);
+  // three feet at the rim, the first under stave 0 (azimuth 0) where the route climbs
   for (let k = 0; k < 3; k++) {
-    const a = (k * 2 * Math.PI) / 3 + 0.5;
-    prims.push(rb(v(0.6 * R0 * dcos(a), y0 + gap / 2, 0.6 * R0 * dsin(a)), 30, gap, 30, 2, mat, C));
+    const a = (k * 2 * Math.PI) / 3;
+    prims.push(rb(v((R0 - 15) * dcos(a), y0 + gap / 2, (R0 - 15) * dsin(a)), 30, gap, 30, 2, mat, C));
   }
   const bottom = y0 + gap;
   prims.push(cy(v(0, bottom + 5, 0), dia - 2 * wall + 4, 10, mat, C | S));
@@ -95,7 +96,7 @@ export function plantPot(rng: RngState, env: Env, forceSaucer?: boolean): Built 
   const fillTop = bottom + h - P.fillBelowRim;
   prims.push(cy(v(0, (bottom + 10 + fillTop) / 2, 0), dia - 2 * wall + 2, fillTop - bottom - 10, 'loam', C | D));
   if (!saucer) pts.push(v(R0 + foot + 2 * bu, foot, 0));
-  pts.push(v(R0 + foot, bottom + 2 * bu, 0), v(R0 + foot, bottom + h - 2 * bu, 0), v(R0 - wall / 2, bottom + h + foot, 0),
+  pts.push(v(R0 + foot, y0 + 1.5 * bu, 0), v(R0 + foot, bottom + h - 2 * bu, 0), v(R0 - wall / 2, bottom + h + foot, 0),
     v(R0 - wall - foot, bottom + h - 2 * bu, 0), v(R0 - wall - foot, fillTop + 1.5 * bu, 0), v(R0 - wall - 3 * bu, fillTop + foot, 0), v(0, fillTop + foot, 0));
   return {
     tpl: {
@@ -117,18 +118,23 @@ export function dryStoneWall(rng: RngState, env: Env, len: number, height?: numb
   const H = height ?? R(rng, W.h[0], W.h[1]), T = thick ?? R(rng, W.thick[0], W.thick[1]);
   const prims: PrimSpec[] = [];
   const gapMin = Math.max(W.gap[0], 0.6 * bu);
+  const rx = len * R(rng, -0.3, 0.3);
   let y = -40, course = 0;
   let crevice: LocalMicro | null = null;
   while (y < H - 40 && prims.length < 60) {
     const ch = Math.min(H - y, R(rng, W.course[0], W.course[1]));
     let x = -len / 2 + (course % 2 ? R(rng, 40, 120) : 0);
     while (x < len / 2 - 40) {
-      const sl = Math.min(len / 2 - x, R(rng, W.stone[0], W.stone[1]));
+      let sl = Math.min(len / 2 - x, R(rng, W.stone[0], W.stone[1]));
       const gap = gapMin <= W.gap[1] ? R(rng, gapMin, W.gap[1]) : W.gap[1];
+      // never leave the route column in a gap: stretch the stone over it
+      if (x <= rx + 40 && rx - 40 < x + sl + gap) sl = Math.min(len / 2 - x, Math.max(sl, rx - x + 60));
       const cx = x + sl / 2;
-      const isEl = chance(rng, 0.3);
-      const sh = ch * R(rng, 0.9, 1), sd = T * R(rng, 0.9, 1);
-      prims.push(isEl ? el(v(cx, y + sh / 2, 0), sl, sh, sd, 'stone', C | S) : rb(v(cx, y + sh / 2, 0), sl, sh, sd, Math.min(15, sh * 0.2), 'stone', C | S));
+      // the stones of the route column are flush boxes (a climbable face from the ground to the top)
+      const column = x <= rx + 40 && rx - 40 <= x + sl;
+      const isEl = !column && chance(rng, 0.3);
+      const sh = column ? ch : ch * R(rng, 0.9, 1), sd = column ? T : T * R(rng, 0.9, 1);
+      prims.push(isEl ? el(v(cx, y + sh / 2, 0), sl, sh, sd, 'stone', C | S) : rb(v(cx, y + sh / 2, 0), sl, sh, sd, column ? 2 : Math.min(15, sh * 0.2), 'stone', C | S));
       if (!crevice && course === 1 && x + sl + gap < len / 2 - 40 && x > -len / 2 + 200) {
         const gx = x + sl + gap / 2, gy = y + ch / 2;
         crevice = { kind: 'wall-crevice', a: v(gx, gy, -T / 2 - 2 * bu), b: v(gx, gy, T / 2 + 2 * bu), gapMm: gap, clearMm: Math.min(gap, ch * 0.5), lengthMm: T + 4 * bu };
@@ -140,8 +146,7 @@ export function dryStoneWall(rng: RngState, env: Env, len: number, height?: numb
   }
   // wall-face route on the +Z face up to the top course
   const top = y;
-  const rx = len * R(rng, -0.3, 0.3);
-  const pts = [v(rx, g(rx, T / 2 + 3 * bu) + foot, T / 2 + foot + 3 * bu), v(rx, g(rx, T / 2) + 2 * bu, T / 2 * 0.9 + foot), v(rx, top - 2 * bu, T / 2 * 0.9 + foot), v(rx, top + foot, T / 4), v(rx, top + foot, 0)];
+  const pts = [v(rx, g(rx, T / 2 + 3 * bu) + foot, T / 2 + foot + 3 * bu), v(rx, g(rx, T / 2) + 2 * bu, T / 2 + foot), v(rx, top - 2 * bu, T / 2 + foot), v(rx, top + foot, T / 2 - 3 * bu), v(rx, top + foot, 0)];
   return {
     tpl: {
       id: 'garden-wall', prims, tags: ['structure', 'wall'],
@@ -257,8 +262,8 @@ export function waterButt(env: Env): Built {
     cy(v(0, B.stand + B.h / 2, 0), B.dia, B.h, 'plastic', C | NB, undefined, 10),
     cy(v(r + B.tapLen / 2 - 5, tapY, 0), B.tapDia, B.tapLen, 'plastic', C, rollQ(Math.PI / 2)),
   ];
-  const sw = B.standW / 2;
-  const pts = [v(sw + foot + 3 * bu, foot, 0), v(sw + foot, 2 * bu, 0), v(sw + foot, B.stand - 2 * bu, 0), v(sw - 2 * bu, B.stand + foot, 0), v(r + foot, B.stand + 2 * bu, 0), v(r + foot, tapY - B.tapDia, 0), v(r + B.tapLen - 10, tapY - B.tapDia / 2 - foot, 0)];
+  const sw = B.standW / 2, g = env.ground ?? (() => 0);
+  const pts = [v(sw + foot + 3 * bu, g(sw + 3 * bu, 0) + foot, 0), v(sw + foot, g(sw, 0) + 2 * bu, 0), v(sw + foot, B.stand - 2 * bu, 0), v(sw - 2 * bu, B.stand + foot, 0), v(r + foot, B.stand + 2 * bu, 0), v(r + foot, tapY - B.tapDia, 0), v(r + B.tapLen - 10, tapY - B.tapDia / 2 - foot, 0)];
   return {
     tpl: {
       id: 'water-butt', prims, tags: ['structure', 'water'],
@@ -280,7 +285,8 @@ export function birdTable(rng: RngState, env: Env): Built {
     rb(v(0, B.h + B.topT / 2, 0), B.top, B.topT, B.top, 3, 'wood-sound', C),
   ];
   const z = p / 2 + foot;
-  const pts = [v(0, foot + 30, B.footW / 2 + foot + 3 * bu), v(0, 30 + foot, z + 2 * bu), v(0, 30 + 2 * bu, z), v(0, B.h - 2 * bu, z), v(0, B.h - foot, B.top / 2 - 3 * bu), v(0, B.h + B.topT / 2, B.top / 2 + foot), v(0, B.h + B.topT + foot, B.top / 2 - 3 * bu), v(0, B.h + B.topT + foot, 0)];
+  const g = env.ground ?? (() => 0), e = B.footW / 2;
+  const pts = [v(0, g(0, e + 3 * bu) + foot, e + foot + 3 * bu), v(0, g(0, e) + 2 * bu, e + foot), v(0, 30 + foot, e - 2 * bu), v(0, 30 + foot, z + 2 * bu), v(0, 30 + 2 * bu, z), v(0, B.h - 2 * bu, z), v(0, B.h - foot, B.top / 2 - 3 * bu), v(0, B.h + B.topT / 2, B.top / 2 + foot), v(0, B.h + B.topT + foot, B.top / 2 - 3 * bu), v(0, B.h + B.topT + foot, 0)];
   void rng;
   return {
     tpl: {

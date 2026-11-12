@@ -10,7 +10,7 @@ import { HOLE_MASK_GLSL } from '../terrain/holeMask';
 import { BLADE_STRIDE } from '../decor/instances';
 import type { DecorShared } from '../decor/shared';
 import { DEW } from '../decor/tuning';
-import { BLADE_GLSL, BLADE_SIGHT_GLSL, bladeFragFade, bladeVertex, type BladeView } from './bladeShape';
+import { BLADE_GLSL, BLADE_SIGHT_GLSL, bladeCutThreshold, bladeFragFade, bladeVertex, type BladeView } from './bladeShape';
 
 /** Droplet: the 12 blade floats + (h along the blade, s across, radius mm, rank). */
 export const DROP_STRIDE = 16;
@@ -35,12 +35,12 @@ export function placeDew(blades: Float32Array, seed: number): Float32Array {
 
 /**
  * CPU twin of the droplet visibility test in the dew vertex shader (record `o` of placeDew's output, without the
- * terrain-hole test): shown while the dew level covers its rank and its blade point is not faded out.
+ * terrain-hole test): shown while the dew level covers its rank and its blade is not cut away at that point.
  */
 export function dropletVisible(drops: Float32Array, o: number, view: BladeView, dew: number): boolean {
   if (drops[o + 15] >= dew) return false;
   const p = bladeVertex(drops, o, drops[o + 13], drops[o + 12], view);
-  return p.fade > 0.5 && bladeFragFade(p.x, p.y, p.z, view) > DEW.sightFadeMin;
+  return p.fade > 0.5 && bladeFragFade(p.x, p.y, p.z, view) > bladeCutThreshold(drops[o + 7]);
 }
 
 /** Low-poly droplet (20 triangles: drops are 0.2-1 mm), indexed so it can be a shared instancing base. */
@@ -65,8 +65,8 @@ export function createDewMaterial(shared: DecorShared): MeshStandardMaterial {
       .replace('#include <common>', `#include <common>\n${HOLE_MASK_GLSL}\n${BLADE_GLSL}\nuniform vec2 uGrEye;\n${BLADE_SIGHT_GLSL}\nattribute vec4 iDrop; uniform float uDew; varying float vDrop;`)
       .replace('#include <beginnormal_vertex>', `
 vec3 bP; vec3 bN; bladeShapeAt(iDrop.y, iDrop.x, bP, bN);
-// hidden with its blade: LOD fade, and the eye / line-of-sight fade at the droplet (see dropletVisible)
-bool dropOn = vBFade > 0.5 && iDrop.w < uDew && grSightFade(bP) > ${DEW.sightFadeMin.toFixed(2)} && wrHoleMask(iRoot.xz) < 0.5;
+// hidden with its blade: LOD fade, and the blade's eye / line-of-sight cut at the droplet (see dropletVisible)
+bool dropOn = vBFade > 0.5 && iDrop.w < uDew && grSightFade(bP) > grCutThreshold(iShape.w) && wrHoleMask(iRoot.xz) < 0.5;
 vDrop = dropOn ? 1.0 : 0.0;
 float dr = dropOn ? iDrop.z : 0.0;
 vec3 objectNormal = normal;`)

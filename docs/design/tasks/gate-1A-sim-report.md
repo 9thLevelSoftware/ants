@@ -143,7 +143,20 @@ Gate review fixes (after the independent review of this gate):
   links stale until the next `refreshArea` anywhere, and a rebuilt grid after a load would have linked differently.
   Tests: the reviewer's `grid/flowRepair.verify.test.ts` (both pass).
 - `src/sim/testing/e2e/stage1a.e2e.test.ts` (a) — the brood-development check sat inside `if (egg alive and still an
-  egg)` and could silently skip; the precondition is now asserted.
+  egg)` and could silently skip; the precondition is now asserted. Asserting it showed the check WAS being skipped:
+  the passive queen never tends, so every egg died `untended` (GDD 02 §2.5 hazard after UNTENDED_TICKS) about
+  1,600 ticks after laying, before the half-day window ended. Not a module defect: founding queen care is the
+  Stage 1B founding flow. The scenario now tends the batch each tick with `colony.tendBrood` (stand-in), and the
+  `devRate(T) / stageDu` match to 2 decimals is really checked.
+- `src/sim/testing/e2e/stage1a.verify.test.ts` (reviewer's check-25 test) — it failed in the final run although it
+  passed for the reviewer: the uncommitted world-generation work in progress changed the seed-1 world (the dig site
+  is now sand, not loam), and the test's dig driver livelocked: a ramp step that cannot be walked (nav `failed`) left
+  the queen re-biting the same open face (179 `no-target` failures, no pellets after the save). Two driver fixes, no
+  assertion changed: after a failed ramp step the shaft heading turns 60 degrees (persisted in `ant.bb`), and the
+  save is taken when the shaft is done instead of at a fixed tick 8,000 (on the new site the room was already
+  registered by then, failing "registered after the save"). It passes: carve keys, chamber voxel counts and
+  `stateHash` equal the uninterrupted run on a regenerated world. Both e2e files depend on the generated world, so a
+  world-generation change can move them again.
 - `src/sim/wiring.test.ts` — GDD 02 E11 through the installed decay modifier (section 6, phero).
 - `src/sim/locomotion/possessed.ts` — the per-frame predictor wrote `nav.loco` (section 6, loco spec deviations).
 - `src/sim/kernel.perf.test.ts`, `src/sim/testing/perfLoad.ts` (new), `src/sim/pheromones/caps.test.ts` — load
@@ -322,7 +335,9 @@ Gate review round:
 - `src/sim/balance/nest.ts`, `nest/plans/plans.ts`, `nest/plans/resolve.ts`, `nest/pellets.ts`, `nest/entrances.ts` — ARCH_BLACKLIST_S, PLAN_DEFAULT_LEN_BU, FRASS_MATERIALS to balance; ANT_LENGTH_HEAD commented.
 - `src/sim/locomotion/possessed.ts` + `possessed.test.ts` — predictor no longer creates nav.loco; test.
 - `src/sim/wiring.test.ts` — GDD 02 E11 (22 C / 900 s, 32 C / 450 s).
-- `src/sim/testing/e2e/stage1a.e2e.test.ts` — (a) asserts the brood-check precondition.
+- `src/sim/testing/e2e/stage1a.e2e.test.ts` — (a) asserts the brood-check precondition; tends the eggs (founding stand-in).
+- `src/sim/testing/e2e/stage1a.verify.test.ts` (reviewer's) — dig driver turns after a failed ramp step; save at shaft completion.
+- `src/sim/locomotion/grid/flowRepair.test.ts` — overlay re-link test (links and field equal a grid built with the overlays first).
 - `src/sim/testing/perfLoad.ts` (new), `src/sim/kernel.perf.test.ts`, `src/sim/pheromones/caps.test.ts` — load guard for BFS budget; AC7 timeout 600 s.
 
 First round:
@@ -416,3 +431,19 @@ index):
   passed; `src/sim/locomotion/grid/flowRepair.test.ts` 3 passed.
 - Soak: two 3-day runs with 60 workers, 0 violations each, identical final state (section 5).
 - Harness: not used; nothing visual changed in the simulation half.
+
+### 9b. Verification after the gate review
+
+- `npm run typecheck`: 0 errors in `src/sim`, `src/core`, `tools/sim`; the only error in the repository is
+  `src/worldgen/place/interior/scratch.test.ts` (imports `node:fs`; the world-generation engineer's uncommitted
+  work in progress).
+- `npx vitest run src/sim src/core src/worldgen` (load 10-16): 172 files, 1,282 tests, 1,259 passed, 23 failed. In
+  `src/sim`: the two e2e failures that led to the fixes above (both pass now), and `testing/layering.test.ts`, which
+  correctly flags the same worldgen `scratch.test.ts` importing `node:fs`. The other 20 are in `src/worldgen` (interior,
+  terrain ground layers, maps, kernel-from-world, pipeline, worldgen layering), all files being edited by the
+  world-generation engineers during this run; not touched here.
+- Rerun after the fixes: `npx vitest run src/sim/testing src/sim/locomotion src/sim/wiring.test.ts
+  src/sim/kernel.perf.test.ts src/sim/nest` — 38 files, 232 tests, 231 passed; the one failure is the layering check
+  above. The reviewer's `grid/flowRepair.verify.test.ts` passes (2/2) and fails again (1909 vs 144 mm) with the
+  mouth logging disabled, so the fix is what makes it pass. `testing/e2e/stage1a.verify.test.ts` and
+  `src/sim/integration.verify.test.ts` pass.

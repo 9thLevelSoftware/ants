@@ -21,7 +21,7 @@ export function tableTemplate(foot: number): ObjectTemplate {
   const o = foot, e = 0.7 * foot, under = h - tt, face = -lz - l;
   const x = -lx;
   const route: Vec3[] = [
-    { x, y: o, z: face - 40 }, { x, y: 20, z: face - o }, { x, y: under - 25, z: face - o },
+    { x, y: o, z: face - 40 }, { x, y: o, z: face - o }, { x, y: 25, z: face - o }, { x, y: under - 25, z: face - o },
     { x, y: under - o, z: face - 10 }, { x, y: under - o, z: -hz + 5 }, { x, y: under - e, z: -hz - e },
     { x, y: h - tt / 2, z: -hz - o }, { x, y: h + e, z: -hz - e }, { x, y: h + o, z: -hz + 20 }, { x: 0, y: h + o, z: 0 },
   ];
@@ -46,7 +46,7 @@ export function chairTemplate(rng: RngState, foot: number): ObjectTemplate {
   prims.push(spanBox(-rw / 2, rw / 2, CHAIR.backTop - rh, CHAIR.backTop, -k - rd / 2, -k + rd / 2, material, C, 2));
   const o = foot, e = 0.7 * foot, face = k + r;
   const route: Vec3[] = [
-    { x: k, y: o, z: face + 40 }, { x: k, y: 20, z: face + o }, { x: k, y: under - 20, z: face + o },
+    { x: k, y: o, z: face + 40 }, { x: k, y: o, z: face + o }, { x: k, y: 25, z: face + o }, { x: k, y: under - 20, z: face + o },
     { x: k, y: under - o, z: face + 5 }, { x: k, y: under - e, z: hz + e }, { x: k, y: under + st / 2, z: hz + o },
     { x: k, y: top + e, z: hz + e }, { x: k, y: top + o, z: hz - 20 }, { x: 0, y: top + o, z: 0 },
   ];
@@ -66,7 +66,7 @@ export function pedalBinTemplate(rng: RngState, foot: number): ObjectTemplate {
   ];
   const o = foot, e = 0.7 * foot, y = PEDAL_BIN.height;
   const route: Vec3[] = [
-    { x: -R - 40, y: o, z: 0 }, { x: -R - o, y: 20, z: 0 }, { x: -R - o, y: bodyTop - 15, z: 0 },
+    { x: -R - 40, y: o, z: 0 }, { x: -R - o, y: o, z: 0 }, { x: -R - o, y: 25, z: 0 }, { x: -R - o, y: bodyTop - 15, z: 0 },
     { x: -lidR - o, y: bodyTop + seam + 8, z: 0 }, { x: -lidR - o, y: y - 8, z: 0 }, { x: -lidR - e, y: y + e, z: 0 },
     { x: -lidR + 25, y: y + o, z: 0 },
   ];
@@ -77,22 +77,38 @@ export function pedalBinTemplate(rng: RngState, foot: number): ObjectTemplate {
   };
 }
 
-/** Points on the outer face, rim and inner face of the stave of a ring facing -z (stave index n/2). */
+/**
+ * Points on the outer face, rim and inner face of the stave of a ring facing -z (stave index n/2), with corner
+ * nodes where the outer face meets the support and the inner face meets the base, down to the inner floor (or
+ * to a level on the inner face, e.g. the water). Nodes sit `foot` off the surfaces.
+ */
 function staveRoute(s: RingSpec, foot: number, toLevelY: number | null): Vec3[] {
   const f = s.flare, cf = dcos(f), sf = dsin(f), w = s.wall, slant = s.height / cf;
   const rMid = s.rBottom - w / 2 + (s.height / 2) * (sf / cf), yc = ringCentreY(s);
+  /** Point at outward offset q from the stave's mid plane and t along it (radial distance, height). */
   const P = (q: number, t: number): Vec3 => ({ x: s.x, y: yc - q * sf + t * cf, z: s.z - (rMid + q * cf + t * sf) });
+  const at = (rad: number, y: number): Vec3 => ({ x: s.x, y, z: s.z - rad });
+  const rad = (v: Vec3) => s.z - v.z;
   const out = w / 2 + foot, e = 0.7 * foot;
+  // outer foot: the face meets the support (wedge of 90 - flare); node on the bisector, foot from both
+  const foot0 = P(w / 2, -slant / 2);
+  const half = (Math.PI / 2 - f) / 2, d0 = foot / dsin(half);
+  const bx = cf, by = 1 - sf, bl = Math.sqrt(bx * bx + by * by);
   const pts: Vec3[] = [
-    { x: s.x, y: s.y0 + foot, z: s.z - (s.rBottom + 30) },
-    P(out, -slant / 2 + 6), P(out, slant / 2 - 4), P(w / 2 + e, slant / 2 + e), P(0, slant / 2 + foot),
+    at(s.rBottom + 30, s.y0 + foot),
+    at(rad(foot0) + (bx / bl) * d0, foot0.y + (by / bl) * d0),
+    P(out, -slant / 2 + 10), P(out, slant / 2 - 4), P(w / 2 + e, slant / 2 + e), P(0, slant / 2 + foot),
     P(-w / 2 - e, slant / 2 + e), P(-out, slant / 2 - 4),
   ];
-  if (toLevelY === null) {
-    pts.push(P(-out, -slant / 2 + 14), { x: s.x, y: s.y0 + w + foot, z: s.z - 0.35 * s.rBottom });
-  } else {
-    pts.push(P(-out, (toLevelY - yc) / cf + ((-out) * sf) / cf));
-  }
+  const tAt = (y: number) => (y - yc - out * sf) / cf; // t on the inner offset line at height y
+  if (toLevelY !== null) { pts.push(P(-out, tAt(toLevelY))); return pts; }
+  const floorY = s.y0 + w;
+  pts.push(P(-out, tAt(floorY + 6)));
+  // inner foot: face meets the base top (110 deg); node on the bisector of the two normals
+  const ib = P(-w / 2, (floorY - yc - (w / 2) * sf) / cf);
+  const ih = (Math.PI / 2 + f) / 2, d1 = foot / dsin(ih), nx = -cf, ny = 1 + sf, nl = Math.sqrt(nx * nx + ny * ny);
+  pts.push(at(rad(ib) + (nx / nl) * d1, ib.y + (ny / nl) * d1));
+  pts.push(at(0.35 * s.rBottom, floorY + foot));
   return pts;
 }
 
@@ -140,8 +156,11 @@ export function houseplantTemplate(rng: RngState, foot: number, bu: number): Obj
   const spec: RingSpec = { n: HOUSEPLANT.staves, x: 0, y0: 0, z: 0, rBottom: rb, height: h, wall: w, flare, material: 'ceramic', flags: S };
   const soilY = h - 20;
   const prims: PrimSpec[] = [uprightCyl(0, 0, 0, rb - 2, w, 'ceramic', C), ...ring(spec)];
-  const soilR = rb - w + (soilY - 4) * (dsin(flare) / dcos(flare));
-  prims.push(uprightCyl(0, w, 0, soilR, soilY - w, 'loam', C | PrimFlag.DIGGABLE));
+  // soil in three tiers following the flared wall: each meets the wall at its top (no gap at the soil surface) and
+  // reaches less than a wall thickness into it at its bottom (one cylinder would poke out through the wall)
+  const tan = dsin(flare) / dcos(flare), tier = (soilY - w) / 3;
+  for (let i = 0; i < 3; i++) prims.push(uprightCyl(0, w + i * tier, 0, rb - w + (w + (i + 1) * tier) * tan - 0.5, tier, 'loam', C | PrimFlag.DIGGABLE));
+  const soilR = rb - w + soilY * tan - 0.5;
   const leafT = Math.max(0.8, 0.15 * bu);
   const n = rngInt(rng, HOUSEPLANT.stems[0], HOUSEPLANT.stems[1]);
   for (let i = 0; i < n; i++) {
@@ -155,8 +174,10 @@ export function houseplantTemplate(rng: RngState, foot: number, bu: number): Obj
     const tip = { x: dx * len, y: soilY + dy * len, z: dz * len };
     prims.push({ shape: 'ellipsoid', pos: { x: tip.x + dsin(yaw) * L * 0.4, y: tip.y, z: tip.z + dcos(yaw) * L * 0.4 }, rot: yawQ(yaw), size: { x: L * 0.22, y: leafT / 2, z: L / 2 }, material: 'plant', flags: C });
   }
-  const route = staveRoute(spec, foot, null).slice(0, 6);
-  route.push({ x: 0, y: soilY + foot, z: -0.6 * soilR });
+  // up the pot (local -z side faces the room when placed), over the rim, down to the soil
+  const route = staveRoute(spec, foot, null).slice(0, 8);
+  const inner = rb - w + (soilY - 2) * (dsin(flare) / dcos(flare));
+  route.push({ x: 0, y: soilY + 8, z: -(inner - foot) }, { x: 0, y: soilY + foot, z: -(inner - 1.7 * foot) }, { x: 0, y: soilY + foot, z: -0.6 * soilR });
   return {
     id: 'houseplant', tags: ['furniture', 'kitchen', 'plant'], prims,
     routes: [{ kind: 'pot-to-soil', points: route }],

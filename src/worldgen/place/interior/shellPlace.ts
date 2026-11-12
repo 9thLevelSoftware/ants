@@ -3,14 +3,15 @@
 
 import { rngChance, rngInt, rngRange, type RngState } from '@/core/rng';
 import type { MaterialId } from '@/sim/types';
-import { placeObject, type GenContext } from '../../kit';
+import { placeObject, terrainAt, type GenContext } from '../../kit';
+import { NAV } from '../../tuning/maps';
 import type { TemplateBuilder } from '../../catalog/interior/frame';
 import type { Span2 } from '../../catalog/interior/partition';
 import {
   ceilingTemplate, doorOpening, doorTemplate, facadeTemplate, floorTemplate, glazingOpening, glazingTemplate,
   pipeOpening, pipeTemplate, roomWallsTemplate, sealedTemplate, type RoomShellParams, type WallGeom,
 } from '../../catalog/interior/shell';
-import { AIR_BRICK, COUNTER, FLOOR, GLAZING, HOUSE_WALL, WEEP_VENT } from '../../catalog/interior/dims';
+import { AIR_BRICK, COUNTER, FLOOR, GLAZING, HOUSE_WALL, SERVICE_PIPE, WEEP_VENT } from '../../catalog/interior/dims';
 import { along } from '../../layout/geom';
 import { LEVELS } from '../../tuning/terrain';
 import { MICRO } from '../../tuning/pipeline';
@@ -94,7 +95,12 @@ export function placeShell(ctx: GenContext, room: Room, plan: KitchenPlan | null
       glazingId = placeBuilder(ctx, glazingTemplate(gp));
     }
     for (const p of plan.pipes) {
-      const pp = { ...g, u: p.u, diam: p.diam, annulus: p.annulus };
+      // the hole's bottom must sit more than NAV_OVER_MAX above the ground under the wall, or the nav grid
+      // would read the hole as walkable floor through the wall instead of the micro-connection it is
+      const ground = Math.max(LEVELS.slabUnderside, terrainAt(ctx, room.ext.x(p.u, -room.T - 1), room.ext.z(p.u, -room.T - 1)));
+      const half = p.diam / 2 + p.annulus;
+      p.axisY = Math.max(room.floorY + SERVICE_PIPE.axis, ground + (NAV.overMaxBu + 1) * room.bu + half);
+      const pp = { ...g, u: p.u, diam: p.diam, annulus: p.annulus, axisY: p.axisY };
       openings.push(pipeOpening(pp));
       placeBuilder(ctx, pipeTemplate(pp));
     }

@@ -21,6 +21,9 @@ beforeAll(() => {
   world = generateWorld(defaultGameConfig('lasius-niger', SEED).world);
 }, 180_000);
 
+/** Heading turn after an unwalkable ramp step, rad. */
+const RAMP_TURN = Math.PI / 3;
+
 /** ant.bb keys of the stateless dig driver (all of its state is persisted). */
 const K = { ph: 'rv.ph', k: 'rv.k', on: 'rv.on', fail: 'rv.fail', adv: 'rv.adv', cx: 'rv.cx', cy: 'rv.cy', cz: 'rv.cz', dx: 'rv.dx', dz: 'rv.dz' };
 
@@ -38,7 +41,18 @@ function digDriver(): System {
     run(sim) {
       const q = queenOf(sim), bb = q.bb, bu = sim.world.bu;
       if (bb[K.ph] === undefined) return;
-      if (bb[K.adv] === 1) { if (q.nav.status !== 'moving') bb[K.adv] = 0; return; }
+      if (bb[K.adv] === 1) {
+        if (q.nav.status === 'moving') return;
+        bb[K.adv] = 0;
+        // gate-review fix of the driver: a step down the ramp that cannot be walked (nav 'failed') left the queen
+        // re-biting the same open face forever (seen on the sand site of the current seed-1 world); turn the
+        // shaft heading by RAMP_TURN so the next bite meets a new face (persisted in bb like the rest)
+        if (q.nav.status === 'failed' && bb[K.ph] === 0) {
+          const c = Math.cos(RAMP_TURN), sn = Math.sin(RAMP_TURN), x = bb[K.dx], z = bb[K.dz];
+          bb[K.dx] = x * c - z * sn; bb[K.dz] = x * sn + z * c;
+        }
+        return;
+      }
       if (q.action) return;
       const dx = bb[K.dx], dz = bb[K.dz];
       if (bb[K.ph] === 0 && sim.field.height(q.pos.x, q.pos.z) - q.pos.y >= 5 * bu) {
@@ -90,8 +104,11 @@ describe('save / load while the founding queen digs (reviewer, GDD 03 App. E che
     a.events.on('chamber-registered', () => { chambers++; });
     a.events.on('pellet-expelled', () => { expelled++; });
 
+    // save when the shaft is done and the room begins (at most N ticks): the chamber then registers after the save
+    // on any world (with a fixed tick the room was already registered on the current seed-1 sand site)
     const N = 8000, M = 6000;
-    for (let t = 0; t < N; t++) a.tick();
+    for (let t = 0; t < N && q.bb[K.ph] !== 1; t++) a.tick();
+    expect(q.bb[K.ph]).toBe(1);
     const carved0 = a.state.worldDelta.carve.keys.length;
     expect(carved0).toBeGreaterThan(0);
     const saved = snapshot(a);

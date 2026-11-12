@@ -8,7 +8,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { ClimbRouteKind, MaterialId, PoiKind } from '@/sim/types';
 import type { PrimSpec } from '../../kit/template';
 import { dcos, dsin } from '../../kit/dmath';
-import { add, C, ca, chain, cy, D, dirYaw, el, NB, norm, pitchQ, rb, rollQ, S, scale, sub, v } from './prims';
+import { add, C, ca, chain, compose, cy, D, dirYaw, el, NB, norm, pitchQ, rb, rollQ, S, scale, sub, v } from './prims';
 import { arc, besideAxis, densify, dedupe } from './routes';
 import { growPlant, type PlantTemplate } from './plant';
 import type { Built, Env, LocalCavity, LocalMicro } from './types';
@@ -151,9 +151,15 @@ export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunk
     const g0 = g(sd.x * (D0 / 2 + 3 * bu), sd.z * (D0 / 2 + 3 * bu));
     pts.push(add(v(0, g0 + foot, 0), scale(sd, D0 / 2 + foot + 3 * bu)));
     pts.push(add(v(0, g(sd.x * D0 / 2, sd.z * D0 / 2) + 2 * bu, 0), scale(sd, D0 / 2 + foot)));
-    const by = br.axis[0].y;
-    const topY = by + br.dia / 2 + 3 * bu;
-    const seg = Math.min(T.segments - 1, Math.floor(by / segH));
+    // where the branch leaves the trunk: the first segment crosses the trunk surface
+    const a0 = br.axis[0], a1 = br.axis[1];
+    const hd = (p: Vec3) => Math.sqrt(p.x * p.x + p.z * p.z);
+    const segAt = (y: number) => Math.max(0, Math.min(T.segments - 1, Math.floor(y / segH)));
+    const rAt = (y: number) => dias[segAt(y)] / 2;
+    const tAt = (radial: number) => Math.max(0, Math.min(1, (radial - hd(a0)) / Math.max(1e-6, hd(a1) - hd(a0))));
+    const ts = tAt(rAt(a0.y)), junction = add(a0, scale(sub(a1, a0), ts));
+    const arcY = junction.y + br.dia / 2 + 3 * bu;
+    const seg = segAt(arcY);
     for (let s = 1; s <= seg; s++) {
       const yb = s * segH, r1 = dias[s - 1] / 2, r2 = dias[s] / 2;
       pts.push(add(v(0, yb - 2 * bu, 0), scale(sd, r1 + foot)));
@@ -161,13 +167,23 @@ export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunk
       pts.push(add(v(0, yb + 2 * bu, 0), scale(sd, r2 + foot)));
     }
     const rTop = dias[seg] / 2 + foot;
-    pts.push(add(v(0, topY, 0), scale(sd, rTop)));
+    pts.push(add(v(0, arcY, 0), scale(sd, rTop)));
     let da = br.yaw - ry;
     while (da > Math.PI) da -= TAU;
     while (da < -Math.PI) da += TAU;
-    pts.push(...arc(0, 0, topY, rTop, ry, ry + da, 3 * bu).slice(1));
-    const along = besideAxis(br.axis.slice(1), (i) => (br.dia * (1 - (0.4 * (i + 1)) / br.axis.length)) / 2, v(0, 1, 0), foot);
-    pts.push(...along);
+    pts.push(...arc(0, 0, arcY, rTop, ry, ry + da, 2 * bu).slice(1));
+    // along the branch top from just outside the trunk to the tip
+    const n = br.axis.length - 1;
+    const te = tAt(rAt(a0.y) + br.dia / 2 + 1.5 * bu);
+    for (let i = 0; i < n; i++) {
+      const p = br.axis[i], q = br.axis[i + 1], rr = (br.dia * (1 - (0.4 * i) / n)) / 2;
+      const len = Math.sqrt((q.x - p.x) ** 2 + (q.y - p.y) ** 2 + (q.z - p.z) ** 2);
+      const steps = Math.max(1, Math.ceil(len / (3 * bu)));
+      for (let k = i === 0 ? Math.ceil(te * steps) : 1; k <= steps; k++) {
+        const c = add(p, scale(sub(q, p), k / steps));
+        pts.push(...besideAxis([p, c, q], () => rr, v(0, 1, 0), foot).slice(1, 2));
+      }
+    }
     routes.push({ kind: 'trunk-to-branch', points: dedupe(densify(pts, 6 * bu)) });
     const mid = br.axis[Math.floor(br.axis.length / 2)];
     pois.push({ kind: 'aphid-site', pos: add(mid, v(0, br.dia / 2 + foot, 0)) });
@@ -235,27 +251,49 @@ export function log(rng: RngState, env: Env): Built {
     if (Math.abs(x - xs) < 200 + 4 * bu) continue;
     prims.push(rb(v(x, r + rr * dcos(phi), -rr * dsin(phi)), 200, t, 100, 3, 'bark', C | S, pitchQ(-phi)));
   }
-  const pts: Vec3[] = [v(xs, embed + foot, -(ro + 3 * bu))];
-  const n = Math.max(8, Math.ceil((Math.PI * ro) / (3 * bu)));
-  for (let i = 0; i <= n; i++) {
-    const a = -Math.PI / 2 + (Math.PI * i) / n;
-    const p = v(xs, r + ro * dcos(a), ro * dsin(a));
-    if (p.y >= embed + foot + bu) pts.push(p);
-  }
-  pts.push(v(xs, embed + foot, ro + 3 * bu));
   const cavities: LocalCavity[] = [];
   if (decayed && chance(rng, L.galleryP)) {
     const side = rngFloat(rng) < 0.5 ? -1 : 1;
     const mouth = v((side * len) / 2, r * 0.8, 0);
     cavities.push(woodGallery(rng, env, mouth, v(-side, 0, 0), len * 0.6, v(side, 0, 0)));
   }
+  // Lay the log along the ground: pitch it to the line through the ground at its two ends and sink it so that it
+  // is embedded `embed` where the ground is lowest relative to that line (it never floats over a dip).
+  const g = env.ground ?? (() => 0);
+  const g0 = g(-len / 2, 0), g1 = g(len / 2, 0), slope = (g1 - g0) / len;
+  let low = Infinity;
+  for (let i = 0; i <= 8; i++) { const x = -len / 2 + (len * i) / 8; low = Math.min(low, g(x, 0) - slope * x, g(x, -r * 0.7) - slope * x, g(x, r * 0.7) - slope * x); }
+  const pitch = slope - (slope * slope * slope) / 3; // atan for a gentle grade
+  const q = rollQ(pitch), lift = low - embed;
+  const P = (p: Vec3): Vec3 => { const c = dcos(pitch), sn = dsin(pitch); const y = p.y - r; return v(p.x * c - y * sn, r + lift + p.x * sn + y * c, p.z); };
+  for (const pr of prims) { pr.pos = P(pr.pos); pr.rot = compose(pr.rot ?? { x: 0, y: 0, z: 0, w: 1 }, q); }
+  for (const c of cavities) for (const op of c.carves) { op.a = P(op.a); if (op.shape === 'capsule') op.b = P(op.b); }
+  for (const c of cavities) for (const o of c.openings) o.pos = P(o.pos);
+  // log-over: the section at xs above the ground (including the bulge under the widest point), with ground nodes
+  // beside the contact lines (the wedge where a walker turns onto the log)
+  const arcPts: Vec3[] = [];
+  // fine sampling near the ground (the contact wedge must be a node), every 4th sample elsewhere
+  const n = 4 * Math.max(24, Math.ceil((2 * Math.PI * ro) / (2 * bu)));
+  for (let i = 0; i <= n; i++) {
+    const a = -Math.PI + (2 * Math.PI * i) / n;
+    const p = P(v(xs, r + ro * dcos(a), ro * dsin(a)));
+    const gp = g(p.x, p.z);
+    if (p.y >= gp + 0.25 * foot && (i % 4 === 0 || p.y < gp + 3 * bu)) arcPts.push(p);
+  }
+  const pts: Vec3[] = [];
+  if (arcPts.length >= 2) {
+    const a0 = arcPts[0], a1 = arcPts[arcPts.length - 1];
+    const z0 = a0.z - 3 * bu, z1 = a1.z + 3 * bu;
+    pts.push(v(a0.x, g(a0.x, z0) + foot, z0), ...arcPts, v(a1.x, g(a1.x, z1) + foot, z1));
+  }
+  const top = P(v(xs, d + foot, 0));
   return {
     tpl: {
       id: 'log', prims, tags: ['prop', 'wood'],
-      routes: [{ kind: 'log-over', points: densify(pts, 6 * bu) }],
-      pois: [{ kind: 'vantage', pos: v(xs, d + foot, 0) }, { kind: 'shelter', pos: v(xs, embed + foot, r * 0.9) }],
+      routes: pts.length ? [{ kind: 'log-over', points: densify(pts, 6 * bu) }] : [],
+      pois: [{ kind: 'vantage', pos: top }, { kind: 'shelter', pos: v(xs, g(xs, r * 1.1) + foot, r * 1.1) }],
     },
-    embed, cavities,
+    tilt: false, cavities,
   };
 }
 

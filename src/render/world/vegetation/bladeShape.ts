@@ -150,9 +150,14 @@ void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
 void bladeShape(out vec3 P, out vec3 N) { bladeShapeAt(position.x, position.y, P, N); }
 `;
 
+/** Fade below which a blade (random `rnd`) is cut away (PARTING.cutRange, before the per-pixel noise). */
+export function bladeCutThreshold(rnd: number): number {
+  return PARTING.cutRange[0] + (PARTING.cutRange[1] - PARTING.cutRange[0]) * rnd;
+}
+
 /**
  * Twin of bladeFragFade for any world point (blade fragments, and the dew droplets sitting on a blade, so a droplet
- * disappears with its blade). Needs uCamPos, uSubject, uGrPart, uGrPartP and uGrEye declared.
+ * disappears with its blade), and the blade's cut threshold. Needs uCamPos, uSubject, uGrPart, uGrPartP, uGrEye.
  */
 export const BLADE_SIGHT_GLSL = /* glsl */ `
 float grSightFade(vec3 w) {
@@ -164,6 +169,8 @@ float grSightFade(vec3 w) {
   }
   return fade;
 }
+// twin of bladeCutThreshold
+float grCutThreshold(float rnd) { return ${PARTING.cutRange[0].toFixed(3)} + ${(PARTING.cutRange[1] - PARTING.cutRange[0]).toFixed(3)} * rnd; }
 `;
 
 /** Fragment twin of bladeFragFade (uses the varying world position vBW). */

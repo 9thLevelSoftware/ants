@@ -107,7 +107,8 @@ export function patioChair(rng: RngState, env: Env): Built {
   const prims: PrimSpec[] = [rb(v(0, y1 - H.seatT / 2, 0), s, H.seatT, s, 3, mat, C | S)];
   for (const [x, z] of [[-k, -k], [k, -k], [-k, k], [k, k]]) prims.push(cy(v(x, y0 / 2, z), ld, y0 + 2, mat, C));
   prims.push(rb(v(0, (y1 + H.backY) / 2, -s / 2 + 10), s, H.backY - y1, 20, 3, mat, C));
-  const pts = [v(k, foot, k + ld / 2 + foot + 3 * bu), v(k, 2 * bu, k + ld / 2 + foot), v(k, y0 - 2 * bu, k + ld / 2 + foot), v(k, y0 - foot, k + ld / 2 + 2 * bu),
+  const g = env.ground ?? (() => 0);
+  const pts = [v(k, g(k, k + ld / 2 + 3 * bu) + foot, k + ld / 2 + foot + 3 * bu), v(k, g(k, k + ld / 2) + 2 * bu, k + ld / 2 + foot), v(k, y0 - 2 * bu, k + ld / 2 + foot), v(k, y0 - foot, k + ld / 2 + 2 * bu),
     v(k, y0 - foot, s / 2 - 2 * bu), v(k, y1 - H.seatT / 2, s / 2 + foot), v(k, y1 + foot, s / 2 - 2 * bu), v(0, y1 + foot, 0)];
   return { tpl: { id: 'patio-chair', prims, tags: ['structure', 'furniture'], routes: [{ kind: 'leg-to-seat', points: densify(pts, 5 * bu) }] }, tilt: false };
 }

@@ -23,7 +23,6 @@ function logsAndStumps(ctx: GenContext): void {
   const trees = ctx.world.objects.filter((o) => o.tags.includes('tree'));
   for (const zn of zonesOf(ctx, 'forest')) {
     const area = zoneAreaM2(ctx, zn.id);
-    const env = envFor(ctx);
     const L = OUTDOOR.logs, label = `wg/props/outdoor/logs/${zn.id}`;
     const pts = poissonDisk(ctx.rng(label), zoneRect(ctx, zn.id), L.spacing, (x, z) => zoneIdAt(ctx, x, z) === zn.id && edgeDistAt(ctx, x, z) > 800);
     const want = Math.max(L.min, Math.round(area * L.perM2));
@@ -34,7 +33,7 @@ function logsAndStumps(ctx: GenContext): void {
       // axis within 30 deg of the contour (perpendicular to the slope)
       const gx = terrainAt(ctx, x + 300, z) - terrainAt(ctx, x - 300, z), gz = terrainAt(ctx, x, z + 300) - terrainAt(ctx, x, z - 300);
       const yaw = (Math.abs(gx) + Math.abs(gz) > 1e-3 ? yawAlong(-gz, gx) : range(rng, 0, Math.PI)) + range(rng, -1, 1) * ((L.contourDeg * Math.PI) / 180);
-      if (commit(ctx, log(rng, env), { x, z, yaw, collide: true, category: 'props' }) >= 0) n++;
+      if (commit(ctx, log(rng, envFor(ctx, groundLocal(ctx, x, z, yaw))), { x, z, yaw, atGround: 'terrain', collide: true, category: 'props' }) >= 0) n++;
     }
     const S = OUTDOOR.stumps, sl = `wg/props/outdoor/stumps/${zn.id}`;
     const sp = poissonDisk(ctx.rng(sl), zoneRect(ctx, zn.id), S.spacing, (x, z) => zoneIdAt(ctx, x, z) === zn.id && trees.every((t) => (t.pos.x - x) ** 2 + (t.pos.z - z) ** 2 >= S.treeDist * S.treeDist));

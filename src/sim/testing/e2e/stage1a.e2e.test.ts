@@ -13,7 +13,7 @@ import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
 import { SYSTEMS } from '@/sim/systems';
 import { restore, snapshot, stateHash } from '@/sim/save';
-import { devRate, stageDu } from '@/sim/colony';
+import { devRate, stageDu, tendBrood } from '@/sim/colony';
 import { broodTempC } from '@/sim/colony/envAdapter';
 import { thermalReady } from '@/sim/environment';
 import { generateWorld } from '@/worldgen';
@@ -107,6 +107,9 @@ describe('(a) a new game on a generated world: founding dig, eggs, brood develop
     let expected = 0, tMin = Infinity, tMax = -Infinity;
     const ticks = Math.round(0.5 * TICKS_PER_DAY);
     for (t = 0; t < ticks; t++) {
+      // stand-in for the founding queen's brood care (founding, Stage 1B): the passive queen does not tend, and
+      // untended eggs die within hours (GDD 02 §2.5), which used to skip this check silently
+      for (const e of eggs) tendBrood(sim, e.id);
       const T = broodTempC(sim, egg);
       tMin = Math.min(tMin, T); tMax = Math.max(tMax, T);
       expected += devRate(def, T) / TICKS_PER_DAY / stageDu(def, 'egg', egg.destined);

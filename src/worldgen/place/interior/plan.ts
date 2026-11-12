@@ -25,7 +25,11 @@ export interface RunPlan {
 }
 
 export interface FridgePlan { f: WallFrame; a0: number; wallGap: number; feetGap: number }
-export interface PipePlan { u: number; diam: number; annulus: number; at: 'sink' | 'washer' }
+export interface PipePlan {
+  u: number; diam: number; annulus: number; at: 'sink' | 'washer';
+  /** Pipe axis, world mm (set by the shell placer: high enough that the hole never reads as walkable floor). */
+  axisY: number;
+}
 
 export interface DoorPlan {
   u: number;
@@ -93,7 +97,7 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
   const fridgeWall = rngRange(rng, FRIDGE.wallGap[0], FRIDGE.wallGap[1]);
   // main run slots (a from the corner)
   const start = fridgeOnEnd ? 0 : fridgeW;
-  const kinds = mainKinds(rng, room, mainUnits, uc, sigma, start, d.u);
+  const kinds = mainKinds(rng, room, mainUnits, uc, sigma, start, d.u, fridgeOnEnd && lUnits > 0);
   const slots: Slot[] = kinds.kinds.map((kind, i) => ({ kind, a0: start + i * W, a1: start + (i + 1) * W }));
   const counterA0 = fridgeOnEnd ? counterGap : start;
   const mainRun: RunPlan = { name: 'main', f: main, slots, counterA0, counterA1: start + mainUnits * W, kickA0: fridgeOnEnd ? 0 : start, kickA1: start + mainUnits * W };
@@ -119,7 +123,7 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
   const pipe = (at: PipePlan['at'], u: number) => {
     const diam = rngRange(rng, SERVICE_PIPE.diam[0], SERVICE_PIPE.diam[1]);
     const annulus = clampGap(rng, SERVICE_PIPE.annulus[0], SERVICE_PIPE.annulus[1], MICRO.gapMinBu * room.bu);
-    pipes.push({ u, diam, annulus, at });
+    pipes.push({ u, diam, annulus, at, axisY: room.floorY + SERVICE_PIPE.axis });
   };
   if (d.sealed || rngChance(rng, SERVICE_PIPE.sinkP)) pipe('sink', uOf((sink.a0 + sink.a1) / 2 + rngRange(rng, -120, 120)));
   const washer = slots.find((s) => s.kind === 'washer');
@@ -133,7 +137,7 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
 }
 
 /** Slot kinds of the main run: a sink where a window fits over it (p 0.7), a cooker away from it, a washer beside it. */
-function mainKinds(rng: RngState, room: Room, n: number, uc: number, sigma: number, start: number, doorU: number): { kinds: SlotKind[]; window: boolean } {
+function mainKinds(rng: RngState, room: Room, n: number, uc: number, sigma: number, start: number, doorU: number, cornerBlind: boolean): { kinds: SlotKind[]; window: boolean } {
   const W = BASE_UNIT.width;
   const centreU = (i: number) => uc + sigma * (start + (i + 0.5) * W);
   const half = GLAZING.openingWidth / 2;
@@ -150,14 +154,16 @@ function mainKinds(rng: RngState, room: Room, n: number, uc: number, sigma: numb
   const sink = pool[rngInt(rng, 0, pool.length - 1)];
   const kinds: SlotKind[] = new Array(n).fill('base');
   kinds[sink] = 'sink';
-  if (n >= 2) {
-    const far = [...Array(n).keys()].filter((i) => Math.abs(i - sink) >= 2);
-    const near = [...Array(n).keys()].filter((i) => i !== sink);
+  if (n >= 2 + (cornerBlind ? 1 : 0)) {
+    // with an L-run the corner unit is a blind cabinet (the L's kickboard runs in front of it)
+    const ok = (i: number) => i !== sink && !(cornerBlind && i === 0);
+    const far = [...Array(n).keys()].filter((i) => ok(i) && Math.abs(i - sink) >= 2);
+    const near = [...Array(n).keys()].filter(ok);
     const pc = far.length > 0 ? far : near;
     kinds[pc[rngInt(rng, 0, pc.length - 1)]] = 'cooker';
   }
   if (rngChance(rng, WASHER.p)) {
-    const side = [sink - 1, sink + 1].filter((i) => i >= 0 && i < n && kinds[i] === 'base');
+    const side = [sink - 1, sink + 1].filter((i) => i >= 0 && i < n && kinds[i] === 'base' && !(cornerBlind && i === 0));
     if (side.length > 0) kinds[side[rngInt(rng, 0, side.length - 1)]] = 'washer';
   }
   return { kinds, window: wantWindow };

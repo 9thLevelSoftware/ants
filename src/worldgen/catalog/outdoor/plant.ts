@@ -43,7 +43,7 @@ export interface PlantTemplate {
 
 export const PLANT_MAX_PRIMS = 24;
 /** Route side kept clear: leaves and branches avoid this many radians either side of it. */
-const CLEAR_SIDE = 1.05;
+const CLEAR_SIDE = 1.9;
 
 const R = (rng: RngState, r: readonly [number, number]) => r[0] + rngFloat(rng) * (r[1] - r[0]);
 const HOST_BITS = { aphid: 1, efn: 2, nectar: 4, elaiosome: 8, seed: 16, scale: 32 } as const;
@@ -101,7 +101,7 @@ export function growPlant(id: string, p: PlantTemplate, rng: RngState, env: Env,
   let mainTop: Vec3 = v(0, baseY, 0);
   let mainFlower: { c: Vec3; d: number; h: number } | null = null;
   for (let s = 0; s < nStems; s++) {
-    const dia = R(rng, p.stemDiamMm), len = R(rng, p.stemLenMm);
+    const dia = Math.max(R(rng, p.stemDiamMm), s === 0 ? 0.6 * bu : 0), len = R(rng, p.stemLenMm);
     const nSeg = Math.max(2, Math.min(segsPerStem, Math.ceil(len / p.segmentMm[0]), Math.max(2, Math.round(len / p.segmentMm[1]))));
     const lean = (R(rng, p.leanDeg) * Math.PI) / 180;
     // the main stem stands nearly upright; others lean away from the route side
@@ -151,10 +151,18 @@ export function growPlant(id: string, p: PlantTemplate, rng: RngState, env: Env,
   const r = (i: number) => Math.max(0.4, (mainDia * (1 - (0.35 * Math.max(0, i - 1)) / Math.max(1, mainAxis.length - 1))) / 2);
   const g = opt.groundY ?? 0;
   const climb = besideAxis(mainAxis.map((q, i) => (i === 0 ? v(q.x, Math.max(q.y, g + mainDia), q.z) : q)), r, side, foot);
-  const pts: Vec3[] = [add(v(0, g + foot, 0), scale(side, mainDia / 2 + foot + 2 * bu)), ...climb];
+  const under = mainFlower ? mainFlower.c.y - mainFlower.h / 2 - foot : Infinity;
+  const pts: Vec3[] = [add(v(0, g + foot, 0), scale(side, mainDia / 2 + foot + 2 * bu)), ...climb.filter((p) => p.y < under)];
   if (mainFlower) {
-    const f = mainFlower;
-    pts.push(add(add(f.c, v(0, -f.h * 0.1, 0)), scale(side, f.d / 2 + foot)));
+    // under the flower near its rim, round the rim (equator), onto the top near the rim, the top centre
+    const f = mainFlower, R = f.d / 2, hh = f.h / 2;
+    // up the stem to just below its junction with the flower
+    const top = climb[climb.length - 1];
+    const ty = Math.min(top.y, f.c.y - hh - 2 * foot);
+    if (ty > pts[pts.length - 1].y) pts.push(v(top.x, ty, top.z));
+    pts.push(add(add(f.c, v(0, -0.6 * hh - foot, 0)), scale(side, 0.8 * R)));
+    pts.push(add(f.c, scale(side, R + foot)));
+    pts.push(add(add(f.c, v(0, 0.8 * hh + foot, 0)), scale(side, 0.6 * R)));
     pts.push(add(f.c, v(0, f.h / 2 + foot, 0)));
     const nectar = p.hostP.nectar ?? 0;
     if (nectar > 0) pois.push({ kind: 'nectar-site', pos: add(f.c, v(0, f.h / 2 + foot, 0)) });

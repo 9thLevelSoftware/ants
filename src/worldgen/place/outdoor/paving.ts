@@ -21,6 +21,7 @@ import { yawAlong, zoneIdAt } from './zones';
 import { OUTDOOR } from './tuning';
 
 const P = OUTDOOR.pavement;
+const SOFT = new Set(['lawn', 'forest', 'garden-bed']);
 
 /** Joint width: real range clamped up to 0.6 BU when the range allows (GDD 04 §6.1). */
 export function clampGap(rng: RngState, lo: number, hi: number, bu: number): number {
@@ -77,13 +78,16 @@ function placeSlab(ctx: GenContext, s: SlabSpec, rng: RngState, zoneIds: readonl
   const env = envFor(ctx);
   for (const k of [1, 0.7, 0.45]) {
     const w = s.w * k;
-    if (!cornersIn(ctx, s.x, s.z, s.yaw, w / 2 - 2, s.d / 2 - 2, zoneIds, keepOut)) continue;
+    // a cut slab keeps its front edge (the overlap is with the course behind it)
+    const sh = ((1 - k) * s.w) / 2, x = s.x + sh * dcos(s.yaw), z = s.z - sh * dsin(s.yaw);
+    const shrink = 1.5 * ctx.dims.cell; // the zone raster is a staircase on diagonal paths
+    if (!cornersIn(ctx, x, z, s.yaw, Math.max(1, w / 2 - shrink), Math.max(1, s.d / 2 - shrink), zoneIds, keepOut)) continue;
     const crack = rngFloat(rng) < P.crackShare ? range(rng, PAVEMENT.crack.gap[0], PAVEMENT.crack.gap[1]) : 0;
     const b: Built = pavingSlab(rng, w, s.t, s.d, s.mat, crack);
     if (s.socket) Object.assign(b, slabSocket(env, rng, w, s.t, s.jd, s.jw, s.socket, s.d));
     const lip = rngFloat(rng) < P.lipShare ? P.lipMm : 0;
-    const h = terrainAt(ctx, s.x, s.z);
-    const id = commit(ctx, b, { x: s.x, z: s.z, yaw: s.yaw, embed: s.t - s.jd - lip, tilt: true, belowY: h + 1, collide: true, category: 'structures' });
+    const h = terrainAt(ctx, x, z);
+    const id = commit(ctx, b, { x, z, yaw: s.yaw, embed: s.t - s.jd - lip, tilt: true, belowY: h + 1, collide: true, category: 'structures' });
     if (id >= 0) return true;
   }
   return false;
@@ -113,7 +117,10 @@ function slabGrid(ctx: GenContext, rect: Rect, zoneId: number, label: string, si
   const expAt: number[] = [];
   if (expansion) for (let x = rect.x0 + range(rng, P.expansionEvery[0], P.expansionEvery[1]); x < rect.x1 - 1000; x += range(rng, P.expansionEvery[0], P.expansionEvery[1])) expAt.push(x);
   const expW = clampGap(rng, P.expansionGap[0], P.expansionGap[1], bu);
-  while (z + d <= rect.z1 + 1) {
+  while (z < rect.z1 - 100) {
+    // the last row is cut to the remaining depth
+    const dRow = Math.min(d, rect.z1 - z - sf.jw);
+    if (dRow < 100) break;
     const off = pattern === 'stack' ? 0 : pattern === 'stretcher' ? (row % 2) * (w0 / 2) : range(rng, 0, w0 * 0.8);
     let x = rect.x0 + sf.jw - off;
     let e = 0;
@@ -126,13 +133,15 @@ function slabGrid(ctx: GenContext, rect: Rect, zoneId: number, label: string, si
         if (row === 1 && rngFloat(rng) < P.expansionCrackP && takeCount(ctx, 'expansion', OUTDOOR.maxExpansionSlots)) socket = 'expansion';
         e++;
       } else if (rngFloat(rng) < P.underSlabShare && takeCount(ctx, 'under-slab', OUTDOOR.maxUnderSlab)) socket = 'under-slab';
-      const cx = x + w / 2, cz = z + d / 2;
-      if (x >= rect.x0 - 1 && x + w <= rect.x1 + 1) {
-        placeSlab(ctx, { x: cx, z: cz, yaw: 0, w, t, d, mat: sf.mat(), socket, jw: gap, jd: sf.jd }, ctx.rngFor(`wg/structures/outdoor/paving/${label}`, idx++), [zoneId], keepOut);
+      // slabs at the row ends are cut to the rect
+      const xa = Math.max(x, rect.x0 + sf.jw), xb = Math.min(x + w, rect.x1);
+      const cx = (xa + xb) / 2, cz = z + dRow / 2;
+      if (xb - xa >= 100) {
+        placeSlab(ctx, { x: cx, z: cz, yaw: 0, w: xb - xa, t, d: dRow, mat: sf.mat(), socket, jw: gap, jd: sf.jd }, ctx.rngFor(`wg/structures/outdoor/paving/${label}`, idx++), [zoneId], keepOut);
       }
       x += w + gap;
     }
-    z += d + sf.jw;
+    z += dRow + sf.jw;
     row++;
   }
 }
@@ -177,7 +186,10 @@ function pathCourses(ctx: GenContext, sh: BuiltShape, label: string): void {
       for (let u = unit / 2; u < total - unit / 2; u += unit + PAVEMENT.edgingKerb.joint) {
         const { p, tx, tz } = at(u);
         const o = side * (span / 2 + sf.jw + kw / 2);
-        commit(ctx, edgingKerb(), { x: p.x - tz * o, z: p.z + tx * o, yaw: yawAlong(tx, tz), collide: true, category: 'structures' });
+        const x = p.x - tz * o, z = p.z + tx * o, xi = p.x - tz * (o - side * kw), zi = p.z + tx * (o - side * kw);
+        // only where the path really is a path (it may run on into a sand pit or a rubber surface)
+        if (zoneIdAt(ctx, xi, zi) !== sh.zoneId || !SOFT.has(ctx.layout.zones[zoneIdAt(ctx, x, z)].type) && zoneIdAt(ctx, x, z) !== sh.zoneId) continue;
+        commit(ctx, edgingKerb(), { x, z, yaw: yawAlong(tx, tz), collide: true, category: 'structures' });
       }
     }
   }

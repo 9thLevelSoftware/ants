@@ -22,8 +22,8 @@ export const ASPHALT = {
   wheelStop: { size: [1650, 100, 150] as [number, number, number], gap: [0, 10] as [number, number], p: 0.5, rubberP: 0.5 },
   bollard: { dia: 150, h: 900, spacing: 1500, count: [0, 6] as [number, number], metalP: 0.5 },
   lamp: { baseDia: 200, baseH: 300, shaftDia: 150, top: 2400 },
-  gully: { frame: 450, frameW: 40, bar: 25, gap: [10, 30] as [number, number], barT: 30, potDepth: 600, potWall: 25, potStaves: 12,
-    waterBelow: 200, perM2: 1 / 50, kerbOffset: 380 },
+  gully: { frame: 450, frameW: 40, bar: 25, gap: [10, 30] as [number, number], barT: 30, potDepth: 520, potWall: 25, potStaves: 12,
+    waterBelow: 200, perM2: 1 / 50, kerbOffset: 440 },
   manhole: { dia: 600, t: 10, p: 0.4 },
   car: { body: [1800, 300, 4300] as [number, number, number], clearance: [150, 200] as [number, number], tyre: [630, 195] as [number, number],
     wheelInsetZ: 700, bodyVisualH: 900, share: [0.3, 0.7] as [number, number] },
@@ -174,8 +174,8 @@ export function parkedCar(rng: RngState, env: Env): Built {
   const tx = bw / 2 - tw / 2, tz = bl / 2 - K.wheelInsetZ;
   for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) prims.push(cy(v(sx * tx, td / 2, sz * tz), td, tw, 'rubber', C | NB, rollQ(Math.PI / 2), 30));
   prims.push(rb(v(0, c + bh + K.bodyVisualH / 2, 0), bw, K.bodyVisualH, bl * 0.9, 120, 'metal', VIS));
-  const ox = bw / 2 + foot;
-  const pts = [v(ox + 3 * bu, foot, tz), v(ox, 2 * bu + 20, tz), v(ox, td / 2, tz), v(ox, c + bh - 2 * bu, tz), v(bw / 2 - 2 * bu, c + bh + foot, tz)];
+  const ox = bw / 2 + foot, g = env.ground ?? (() => 0);
+  const pts = [v(ox + 3 * bu, g(ox + 3 * bu, tz) + foot, tz), v(ox, g(ox, tz) + 2 * bu + 20, tz), v(ox, td / 2, tz), v(ox, c + bh - 2 * bu, tz), v(bw / 2 - 2 * bu, c + bh + foot, tz)];
   return {
     tpl: { id: 'parked-car', prims, tags: ['structure', 'car'], routes: [{ kind: 'tyre-to-arch', points: densify(pts, 6 * bu) }], pois: [{ kind: 'shelter', pos: v(0, foot, 0) }] },
     tilt: false,

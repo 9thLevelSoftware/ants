@@ -1,22 +1,25 @@
 import { it } from 'vitest';
-import { appendFileSync, writeFileSync } from 'node:fs';
-import { defaultWorldParams, generateWorldReport } from '@/worldgen';
-const LOG = '/home/user/foundress/test-output/interior-progress.log';
-it('smoke', () => {
-  writeFileSync(LOG, '');
-  const log = (s: string) => appendFileSync(LOG, s + '\n');
-  for (const seed of [1, 2, 3]) {
-    const t0 = Date.now();
-    const r = generateWorldReport({ ...defaultWorldParams('lasius-niger', seed), archetype: 'kitchen-door' }, {
-      onProgress: (p) => log(`  ${p.attempt} ${p.step} ${Date.now() - t0}`),
-    });
-    const w = r.world;
-    const counts: Record<string, number> = {};
-    for (const o of w.objects) counts[o.templateId] = (counts[o.templateId] ?? 0) + 1;
-    log(`seed ${seed} ms ${Date.now() - t0} attempts ${r.attempts} repairs ${r.repairs} prims ${w.prims.length}`);
-    log(JSON.stringify(counts));
-    log(r.checks.map((c) => `${c.id}:${c.status}:${c.detail}`).join('\n'));
-    log('micro ' + w.micro.map((m) => `${m.kind}:${m.gapMm.toFixed(1)}:${m.useful}:${m.reason}`).join(' | '));
-    log(`routes ${w.climbRoutes.length} pois ${w.pois.length} notes ${r.notes.filter((n) => n.includes('interior'))}`);
+import { writeFileSync } from 'node:fs';
+import { walkerStep } from '@/sim/locomotion/walker';
+import { report } from '../../testing/fixtures';
+import { kernelFor, walkerAt } from './testkit';
+it('dbg', () => {
+  const out: string[] = [];
+  const w = report('kitchen-door', 1).world;
+  const k = kernelFor(w);
+  const objs = new Map(w.objects.map((o) => [o.id, o]));
+  const r = w.climbRoutes.find((x) => objs.get(x.objectId)?.templateId === 'houseplant')!;
+  const o = objs.get(r.objectId)!;
+  out.push('obj ' + JSON.stringify(o.pos) + JSON.stringify(o.rot));
+  out.push(JSON.stringify(r.points.slice(0, 7).map((p) => [p.x.toFixed(1), p.y.toFixed(1), p.z.toFixed(1)])));
+  const kin = walkerAt(k, r.points[0])!;
+  let i = 1;
+  for (let s = 0; s < 200 && i < 8; s++) {
+    const t = r.points[i];
+    const dx = t.x - kin.pos.x, dy = t.y - kin.pos.y, dz = t.z - kin.pos.z, l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (l < 3) { i++; out.push('reached ' + (i - 1)); continue; }
+    const st = walkerStep(k.field, kin, { x: dx / l, y: dy / l, z: dz / l }, 24, 0.1, k.walker);
+    if (s % 3 === 0) out.push(`${s} ${st} pos ${kin.pos.x.toFixed(2)},${kin.pos.y.toFixed(2)},${kin.pos.z.toFixed(2)} up ${kin.up.x.toFixed(2)},${kin.up.y.toFixed(2)},${kin.up.z.toFixed(2)} l ${l.toFixed(2)} prim ${w.objects.find((q) => q.id === k.field.primAt(kin.pos, 3)?.objectId)?.templateId} ${k.field.primAt(kin.pos, 3)?.material}`);
   }
-}, 600000);
+  writeFileSync('/home/user/foundress/test-output/dbg.txt', out.join('\n'));
+}, 300000);
