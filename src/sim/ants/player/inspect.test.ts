@@ -1,5 +1,7 @@
 // Inspect read-outs (GDD 01 §10): a plain-data card for every target kind.
 import { afterEach, describe, expect, it } from 'vitest';
+import type { Mound } from '@/sim/types';
+import { AntFlag, NAV_CELL_FLAGS } from '@/sim/types';
 import { spawnCreature } from '@/sim/entities';
 import { findNonPlain } from '@/sim/testing/plainData';
 import { fakeChamber, foodItem, installFakes, larva, makeAntSim, source, worker } from '../actions/testkit';
@@ -60,5 +62,52 @@ describe('inspect cards', () => {
 
     expect(findNonPlain(ent)).toEqual([]);
     expect(inspectTarget(sim, a, { kind: 'ant', id: -1, pos: p })).toBeNull();
+  });
+
+  it('ground cover and the founding queen\'s site block; brood ETA in game days; entrance mound size and pellets', () => {
+    const sim = makeAntSim();
+    restore = installFakes(sim).restore;
+    const bu = sim.world.bu;
+    const a = worker(sim, 50, 50);
+    const p = { x: 52 * bu, y: 0, z: 50 * bu };
+    const ground = (viewer = a) => inspectTarget(sim, viewer, { kind: 'surface', id: -1, pos: p })!;
+    expect(ground().senses.find((r) => r.key === 'cover')?.word).toBe('open');
+    const cell = 16 * bu;
+    const nx = Math.ceil(sim.world.size / cell);
+    const data = new Uint8Array(nx * nx);
+    data[Math.floor(p.z / cell) * nx + Math.floor(p.x / cell)] = NAV_CELL_FLAGS.SHELTER;
+    (sim.world.nav as { flags?: unknown }).flags = { cell, nx, nz: nx, data };
+    expect(ground().senses.find((r) => r.key === 'cover')?.word).toBe('under an object');
+    expect(ground().colony).toEqual([]); // a worker sees no site assessment
+
+    const q = sim.stores.ants.get(sim.state.colonies[0].queenId)!;
+    q.flags |= AntFlag.FOUNDING;
+    const o = sim.state.player.opening!;
+    o.siteFactors = [0.9, 0.6, 0.4, 0.1, 0.8, 1, 0.5];
+    o.siteQ = 0.62;
+    o.siteWord = 'good';
+    const site = ground(q).colony;
+    expect(site.find((r) => r.key === 'site-diggability')?.word).toBe('excellent');
+    expect(site.find((r) => r.key === 'site-cover')?.word).toBe('poor');
+    expect(site.find((r) => r.key === 'site-overall')).toMatchObject({ word: 'good', value: 0.62 });
+
+    const l = larva(sim, p);
+    l.progress = 0.5;
+    const eta = inspectTarget(sim, a, { kind: 'brood', id: l.id, pos: l.pos })!.colony.find((r) => r.key === 'eta')!;
+    expect(eta.unit).toBe('game days');
+    expect(eta.value).toBeGreaterThan(0);
+    l.progress = 0.75; // half the remaining stage -> half the ETA at the same temperature
+    const later = inspectTarget(sim, a, { kind: 'brood', id: l.id, pos: l.pos })!.colony.find((r) => r.key === 'eta')!;
+    expect(later.value!).toBeCloseTo(eta.value! / 2, 9);
+
+    const mound = { id: 77, nestId: sim.state.nests[0].id, entranceId: 4444, volume: 50, absorbed: 31 } as Mound;
+    sim.state.worldDelta.mounds.push(mound);
+    sim.state.nests[0].entrances.push({
+      id: 4444, kind: 'dug', status: 'open', pos: p, dir: { x: 0, y: 1, z: 0 }, radius: bu, moundId: 77, rimTarget: 0,
+      plugVoxelCount: 0, createdTick: 0, trafficIn: 0, trafficOut: 0,
+    });
+    const ent = inspectTarget(sim, a, { kind: 'entrance', id: 4444, pos: p })!;
+    expect(ent.senses.find((r) => r.key === 'mound')).toMatchObject({ word: 'medium', value: 50 });
+    expect(ent.colony.find((r) => r.key === 'pellets')?.value).toBe(31);
   });
 });

@@ -4,7 +4,8 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { ActionFailReason, Ant, Entrance, Sim, TargetRef } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  DIG_ADVANCE_L, DIG_BITE_DEPTH_BU, DIG_BITE_S, DIG_FLOOR_AHEAD_BU, DIG_MIN_SPEED, DIG_POWER, DIG_POWER_NANITIC,
+  DIG_ADVANCE_L, DIG_BITE_DEPTH_BU, DIG_BITE_S, DIG_FLOOR_AHEAD_BU, DIG_MIN_SPEED, DIG_PELLET_DROP_BEHIND_L, DIG_POWER,
+  DIG_POWER_NANITIC,
   DIG_SLOPE_DEFAULT_DEG, DIG_SLOPE_MAX_DEG, DIG_SLOPE_MIN_DEG, PELLET_BULK_PER_BU3, PLUG_DIG_FACTOR, SEAL_ENTRANCE_S,
   SEAL_THROAT_BU, UNSEAL_PELLET_VOLUME_BU3,
 } from '@/sim/balance/actions';
@@ -100,7 +101,7 @@ function digCheck(sim: Sim, ant: Ant, t: TargetRef): ActionFailReason | null {
 function dropPelletBehind(sim: Sim, ant: Ant): void {
   if (ant.carry.kind !== 'item') return;
   const f = feetPoint(ant, sp);
-  const d = 0.5 * antLengthMm(sim, ant);
+  const d = DIG_PELLET_DROP_BEHIND_L * antLengthMm(sim, ant);
   f.x -= ant.fwd.x * d; f.y -= ant.fwd.y * d; f.z -= ant.fwd.z * d;
   releaseCarried(sim, ant, f);
 }

@@ -1,7 +1,7 @@
 // Nest balance (GDD 03). Lengths in BU unless the name says MM, durations in game seconds (`_S`) or ticks
 // (`_TICKS`), volumes in BU^3. Species nest templates are in nestTemplates.ts (re-exported below).
 
-import type { ChamberType, MaterialId, PlanPriority, SpeciesId } from '@/sim/types';
+import type { ChamberSize, ChamberType, MaterialId, PlanPriority, SpeciesId } from '@/sim/types';
 
 /** Slot-seeking weight per plan priority (GDD 03 §7). */
 export const PLAN_PRIORITY_WEIGHT: Record<PlanPriority, number> = { low: 1, normal: 2, high: 4, urgent: 8 };
@@ -218,7 +218,7 @@ export const CHAMBER_CAPACITY: Record<ChamberType, { adults: number; brood: numb
   food: { adults: 0.2, brood: 0, food: 2.0, other: 0 },
   granary: { adults: 0.2, brood: 0, food: 2.0, other: 0 },
   fungus: { adults: 0.3, brood: 0.5, food: 0, other: 0 },
-  midden: { adults: 0, brood: 0, food: 0, other: 3 / 12 },
+  midden: { adults: 0, brood: 0, food: 0, other: 3 },
   rest: { adults: 1.0, brood: 0, food: 0, other: 0 },
   general: { adults: 0.6, brood: 0.5, food: 1.0, other: 0 },
 };
@@ -302,9 +302,40 @@ export const PILLAR_MAX = 4;
 /** Validation looks this far up for a non-diggable cover above the roof, BU. */
 export const COVER_SCAN_BU = 15;
 
+/**
+ * Brood placement preference curves (GDD 03 §9.3, Lasius [EST]): piecewise-linear [x, value] points for chamber
+ * temperature (°C) and relative humidity (0..1); values beyond the end points hold.
+ */
+export const BROOD_PREF: Record<'egg' | 'larva' | 'pupa', { temp: [number, number][]; rh: [number, number][] }> = {
+  egg: { temp: [[16, 0], [24, 1], [29, 1], [34, 0]], rh: [[0.5, 0], [0.85, 1]] },
+  larva: { temp: [[16, 0], [24, 1], [29, 1], [34, 0]], rh: [[0.5, 0], [0.85, 1]] },
+  pupa: { temp: [[18, 0], [26, 1], [31, 1], [36, 0]], rh: [[0.4, 0], [0.6, 1], [0.9, 1], [1.0, 0.8]] },
+};
+/** Chamber types that accept brood (GDD 03 §9.4). */
+export const BROOD_CHAMBER_TYPES: readonly ChamberType[] = ['nursery', 'royal', 'founding', 'general'];
+
+/** A chamber split keeps its id in the largest part when that part holds at least this share of it. */
+export const CHAMBER_SPLIT_KEEP = 0.2;
+/** chamber-changed is emitted when the volume changes by at least this fraction. */
+export const CHAMBER_CHANGE_FRACTION = 0.05;
+
 // ---- lifecycle ----
 
 /** Royal chamber designation of the founding cell from this many adult workers (GDD 03 §6.5; template). */
 export const ROYAL_CHECK_TICKS = 50;
 
 export * from './nestTemplates';
+
+/** Founding template per species (GDD 03 §13.1): shaft diameter and depth, cell W x H x L, BU. */
+export const FOUNDING_TEMPLATE: Record<SpeciesId, { shaftD: number; shaftDepth: number; cell: { w: number; h: number; l: number } }> = {
+  'lasius-niger': { shaftD: 2.5, shaftDepth: 10, cell: { w: 4, h: 2, l: 4.5 } },
+  'messor-barbarus': { shaftD: 2.5, shaftDepth: 25, cell: { w: 6, h: 2.5, l: 7 } },
+  'atta-texana': { shaftD: 2.5, shaftDepth: 35, cell: { w: 9, h: 3, l: 9 } },
+  'camponotus-pennsylvanicus': { shaftD: 2.5, shaftDepth: 6, cell: { w: 4, h: 2.5, l: 5 } },
+};
+
+/** Chambers of the pre-carved template nest (carveTemplateNest): type, size, anchor depth on the shaft, BU. */
+export const TEMPLATE_NEST_CHAMBERS: { type: ChamberType; size: ChamberSize; depthBu: number }[] = [
+  { type: 'nursery', size: 's', depthBu: 16 },
+  { type: 'food', size: 's', depthBu: 24 },
+];

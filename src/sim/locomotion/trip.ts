@@ -36,10 +36,16 @@ function isAutonomousAnt(w: Walker): boolean {
   return typeof a.caste === 'string' && ((a.flags ?? 0) & AntFlag.POSSESSED) === 0;
 }
 
-/** Goal point jittered within the spread fraction of the arrival radius (spreads arrival points, spike §5 item 12). */
-function spreadGoal(out: Vec3, dest: Vec3, arrive: number, id: number, tick: number, spread: number): void {
-  const a = noise01(id, tick, 17) * 2 * Math.PI, rr = Math.sqrt(noise01(id, tick, 29)) * spread * 0.5 * arrive;
-  set3(out, dest.x + Math.cos(a) * rr, dest.y, dest.z + Math.sin(a) * rr);
+/**
+ * Sets the steering goal: field goals as they are, point goals jittered within spread x arriveDist of the
+ * destination (deterministic per walker and request), so a crowd arriving at one place spreads out instead of
+ * piling up (spike-nest §5 item 12). tripArrived uses the remaining (1 - spread) x arriveDist around this goal, so an
+ * arrived walker is always within arriveDist of the destination.
+ */
+export function setGoal(s: NavScratch, dest: Vec3, arrive: number, id: number, spread: number): void {
+  if (s.goalNest >= 0 && s.goalField && !s.goalField.startsWith('loco:pt:')) { copy3(s.goal, dest); return; }
+  const a = noise01(id, s.reqTick, 17) * 2 * Math.PI, rr = Math.sqrt(noise01(id, s.reqTick, 29)) * spread * arrive;
+  set3(s.goal, dest.x + Math.cos(a) * rr, dest.y, dest.z + Math.sin(a) * rr);
 }
 
 /** Resolves where a target ref is now; false if it is gone. Also sets the goal nest / field for nest targets. */
@@ -191,27 +197,27 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
     const g = nearestRouteNode(sim.world, s.goal, P.routeGoal, 1);
     if (g) {
       const k = nearestRouteNode(sim.world, w.pos, P.routeSnap);
-      if (!far) { setSeek(w, s, s.goal); return true; }
+      if (walkerUp && !far) { setSeek(w, s, s.goal); return true; }
       if (k && k.route.id === g.route.id) { setClimb(w, s, g.route.id, k.idx, g.idx, true); return true; }
       if (!walkerUp) return planSurface(sim, w, s, r, g.route.points[0], -1);
     }
   }
   if (walkerUp && far) {
-    const k = nearestRouteNode(sim.world, w.pos, P.routeSnap, 1);
+    const k = nearestRouteNode(sim.world, w.pos, P.routeGoal, 1);
     if (k) { setClimb(w, s, k.route.id, k.idx, 0, false); return true; }
   }
   return planSurface(sim, w, s, r, s.goal, -1);
 }
 
 /** Whether the trip has arrived (goal field reached inside the goal nest, or within arriveDist of the goal). */
-export function tripArrived(sim: Sim, w: Walker, s: NavScratch, here: number): boolean {
+export function tripArrived(sim: Sim, w: Walker, s: NavScratch, here: number, spread: number): boolean {
   const nav = w.nav;
   if (s.goalNest >= 0 && s.goalField && !s.goalField.startsWith('loco:pt:')) {
     if (here !== s.goalNest) return false;
     const d = sim.nestNav.distanceAt(s.goalField, w.pos);
     return d <= Math.max(nav.arriveDist, 1.5 * sim.carve.voxel);
   }
-  return dist3(w.pos, nav.dest) <= nav.arriveDist;
+  return dist3(w.pos, s.goal) <= (1 - spread) * nav.arriveDist || dist3(w.pos, nav.dest) <= 0.25 * nav.arriveDist;
 }
 
 /** Follows the current leg; leg ends trigger an immediate re-plan (bounded per tick). */
@@ -248,9 +254,8 @@ export function startTrip(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, de
   if (!resolveTarget(sim, kind, id, dest, s, r, nav.dest)) return false;
   nav.destKind = kind; nav.destId = id; nav.arriveDist = arrive;
   nav.status = 'moving'; nav.stuckTicks = 0;
-  if (s.goalNest >= 0 && s.goalField && !s.goalField.startsWith('loco:pt:')) copy3(s.goal, nav.dest);
-  else spreadGoal(s.goal, nav.dest, arrive, wid, sim.state.tick, r.P.spread);
   s.req = 'goto'; s.reqTick = sim.state.tick; s.retargetTick = sim.state.tick;
+  setGoal(s, nav.dest, arrive, wid, r.P.spread);
   s.planTick = -1; s.ladder = 0; s.episodes = 0; s.relocations = 0; s.entranceId = -1;
   s.best = NO_PROGRESS; s.bestTick = sim.state.tick;
   resetLeg(w, s);

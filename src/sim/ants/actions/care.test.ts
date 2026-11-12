@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
+import { ports } from './ports';
 import { begin, cancel, canDo } from './runner';
 import { ahead, capture, foodItem, installFakes, larva, makeAntSim, source, step, worker } from './testkit';
 
@@ -89,6 +90,9 @@ describe('lay-egg', () => {
   it('opening batch (real colony): stops at the clutch cap; cancelled before the effect it lays nothing', () => {
     restore();
     const sim = makeAntSim();
+    const saved = ports.speedMult;
+    ports.speedMult = () => 1;
+    restore = () => { ports.speedMult = saved; };
     const q = sim.stores.ants.get(sim.state.colonies[0].queenId)!;
     q.flags |= AntFlag.POSSESSED | AntFlag.FOUNDING;
     sim.state.player.possessedAntId = q.id;

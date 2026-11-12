@@ -6,6 +6,7 @@ import { FLOOR_NORMAL_MIN, TROPH_DONOR_MIN } from '@/sim/balance/actions';
 import { carriedItem } from '../actions/carry';
 import { canDo } from '../actions/runner';
 import { isPossessed } from '../actions/workRate';
+import { carriersNeeded } from './inspect';
 import { selectedCandidate, type PromptCandidate } from './targeting';
 
 /** Input action ids of GDD 01 §5.2 the lines belong to; the UI maps them to glyphs of the active device. */
@@ -85,7 +86,16 @@ function lineText(sim: Sim, ant: Ant, id: ActionId, t: TargetRef | null, ok: boo
   }
   if (id === 'groom' && t?.kind === 'none') object = 'yourself';
   const text = object ? `${verb} ${object}` : verb;
-  return ok || !reason ? text : `${text} — ${REASONS[reason]}`;
+  if (ok || !reason) return text;
+  const needs = reason === 'too-heavy' ? carriersFor(sim, ant, t) : 0;
+  return needs > 1 ? `${text} — ${REASONS[reason]} (needs about ${needs})` : `${text} — ${REASONS[reason]}`;
+}
+
+/** Ants needed to carry the target item or source unit (GDD 01 §9.3 "too heavy (needs about 3)"); 0 if none. */
+function carriersFor(sim: Sim, ant: Ant, t: TargetRef | null): number {
+  if (t?.kind === 'item') { const it = sim.stores.items.get(t.id); return it ? carriersNeeded(it.bulk, ant.carryCap) : 0; }
+  if (t?.kind === 'source') { const s = sim.stores.sources.get(t.id); return s ? carriersNeeded(s.unitBulk, ant.carryCap) : 0; }
+  return 0;
 }
 
 function line(sim: Sim, ant: Ant, input: PromptInput, id: ActionId, t: TargetRef | null, known?: PromptCandidate): PromptLine {

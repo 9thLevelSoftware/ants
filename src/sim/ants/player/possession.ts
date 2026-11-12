@@ -81,7 +81,8 @@ export function releasePossessed(sim: Sim, reason: PossessionEndReason): Task | 
   settleActionOnRelease(sim, ant, inf.rule);
   if (inf.putDownFirst && ant.carry.kind === 'item' && !ant.action) begin(sim, ant, 'put-down', null);
   applyInference(sim, ant, inf);
-  ant.suspendedTask = null;
+  // Rule 2 re-runs the whole table after landing, rule 15 included: keep the suspended task until then.
+  if (!inf.reinfer) ant.suspendedTask = null;
   sim.emit({ type: 'possession-ended', antId: ant.id, reason, resumedTask: inf.task });
   publishReleased(sim, ant, inf.task, inf.rule);
   return inf.task;

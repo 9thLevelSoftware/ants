@@ -36,7 +36,7 @@ describe('prompt selection', () => {
     const a = possessed(sim);
     const crumb = foodItem(sim, at(sim, a, 0.5, 10), 0.2);
     const l = larva(sim, at(sim, a, 0.6, -10));
-    step(sim, 3); // the prompt switches from "self" after PROMPT_SWITCH_S
+    step(sim, 3); // the prompt switches from "self" after PROMPT_SWITCH_REAL_S
     const p = currentPrompt(sim, a);
     expect(p).toMatchObject({ actionId: 'pick-up', target: { kind: 'brood', id: l.id }, ok: true });
     expect(promptView(sim, a).primary?.text).toBe('Pick up larva');
@@ -51,9 +51,15 @@ describe('prompt selection', () => {
     const ai = worker(sim, 80, 80);
     expect(currentPrompt(sim, ai)).toBeNull();
     const q = sim.stores.ants.get(sim.state.colonies[0].queenId)!;
+    q.chamberId = 1; // in a chamber
     sim.enqueue({ type: 'possess', antId: q.id });
     step(sim, 1);
     expect(currentPrompt(sim, q)?.actionId).toBe('lay-egg');
+    // outside a chamber / the founding cell the queen's self prompt is "Groom yourself", not a greyed "Lay egg"
+    q.chamberId = -1;
+    q.nestId = -1;
+    expect(currentPrompt(sim, q)).toMatchObject({ actionId: 'groom', target: { kind: 'none' }, ok: true });
+    expect(promptView(sim, q).primary?.text).toBe('Groom yourself');
   });
 
   it('a disabled best action keeps its score and shows greyed with the reason', () => {
@@ -65,6 +71,16 @@ describe('prompt selection', () => {
     const v = promptView(sim, a);
     expect(v.primary).toMatchObject({ actionId: 'harvest-liquid', ok: false, reason: 'crop-full' });
     expect(v.primary?.text).toBe('Drink sugar — crop full');
+  });
+
+  it('a too-heavy item says how many ants it needs (GDD 01 §9.3)', () => {
+    const { sim } = setup();
+    const a = possessed(sim);
+    foodItem(sim, at(sim, a, 0.6, 0), 2.5 * a.carryCap);
+    step(sim, 3);
+    const v = promptView(sim, a);
+    expect(v.primary).toMatchObject({ actionId: 'pick-up', ok: false, reason: 'too-heavy' });
+    expect(v.primary?.text).toBe('Pick up crumb — too heavy (needs about 3)');
   });
 
   it('delivery receivers rank first: larva while carrying protein -> Feed; entrance throat while carrying a pellet -> Seal', () => {
@@ -108,6 +124,25 @@ describe('prompt selection', () => {
     expect(updatePromptSelection(sim, a)!.target.id).toBe(first);
     sim.state.tick++;
     expect(updatePromptSelection(sim, a)!.target.id).toBe(other.id);
+  });
+
+  it('the 200 ms switch delay is real time: at 4x a clearly better target needs 8 ticks to take over', () => {
+    const { sim } = setup();
+    const a = possessed(sim);
+    const e1 = larva(sim, at(sim, a, 0.6, 45));
+    sim.index.refresh();
+    step(sim, 3);
+    expect(updatePromptSelection(sim, a)!.target.id).toBe(e1.id);
+    sim.state.env.time.speed = 4;
+    const e2 = larva(sim, at(sim, a, 0.5, 0));
+    sim.index.refresh();
+    const picks: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      sim.state.tick++;
+      picks.push(updatePromptSelection(sim, a)!.target.id);
+    }
+    // first tick starts the challenge, 8 more ticks of 25 real ms each reach 200 ms
+    expect(picks.indexOf(e2.id)).toBe(8);
   });
 
   it('candidate order is deterministic (score, then kind, then id)', () => {

@@ -1,14 +1,45 @@
-// Nest module API. STUB written by F1b/F1c with final signatures. Owners: carve grid + nest nav = F2-kernel
-// (src/sim/nest/carve, nav; wired in by F-int through src/sim/kernel.ts); systems, entrances, chambers, plans,
-// pellets, mounds, voxel flags (WorldDelta.carveFlags) = nestops; architect = architect.
+// Nest module API (GDD 03). Owners: carve grid + nest nav = F2-kernel (src/sim/nest/carve, nav; wired by F-int
+// through src/sim/kernel.ts); excavation, pellets, mounds, entrances, chambers, dig plans, voxel flags
+// (WorldDelta.carveFlags) and the nest system = nestops (the files next to this one); architect = architect.
+// The action library decides WHEN an ant bites, drops or plugs; the functions here are WHAT happens.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type {
-  Ant, BroodStage, CarveGrid, Chamber, ChamberType, CommandHandlerMap, DesignatedBy, DigBiteResult,
-  Entrance, Kernel, NestNav, PelletDumpTarget, PlanSource, PlanSpec, PlanValidation, Sim, SiteReport, System,
+  Ant, BroodStage, CarveGrid, Chamber, ChamberType, CommandHandlerMap, DesignatedBy, DigBiteResult, Entrance,
+  Kernel, NestNav, PelletDumpTarget, PlanSource, PlanSpec, PlanValidation, Sim, SimInvariant, SiteReport,
+  SpeciesId, System,
 } from '@/sim/types';
-import { nestFieldId } from '@/sim/types';
+import { AntFlag, VoxelFlag, nestFieldId } from '@/sim/types';
 import { ARCHITECT_EVERY, ARCHITECT_OFFSET } from '@/sim/balance';
+import { DIG_MIN_SPEED } from '@/sim/balance/actions';
+import { PLAN_CLIP_BU, DIG_RAMP_RADIUS_BU } from '@/sim/balance/nest';
+import { digBiteImpl } from './bite';
+import { carveEllipsoid, carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
+import { chamberById, designateChamberImpl, findChamberAtImpl } from './chambers/registry';
+import { bestBroodChamberImpl } from './chambers/upkeep';
+import { nearestOpenEntrance, sealEntranceImpl, unsealEntranceImpl } from './entrances';
+import { dumpPelletImpl, isPellet, placePellet, spawnPellet } from './pellets';
+import { antSlot, claimSlot, releaseSlot } from './plans/frontier';
+import { planG } from './plans/geometry';
+import {
+  cancelPlanImpl, createEntrancePlan, createPlanImpl, instantCarvePlan, pausePlanImpl, resumePlanImpl,
+  setPlanPriorityImpl,
+} from './plans/plans';
+import { planCache } from './plans/targets';
+import { validatePlanImpl } from './plans/validate';
+import { nestRuntime } from './runtime';
+import { digPowerOf, digSpeedAt, speciesOf } from './substrate';
+import { nestSystem } from './system';
+
+export { nestSystem } from './system';
+export { biteTicks, digSpeedAt, moistureAt, sMax, wallMin } from './substrate';
+export { clutterSpeedMult, chokedSpots } from './pellets';
+export { createFoundingNest, carveTemplateNest, nestStatsImpl as nestStats, type NestStats } from './lifecycle';
+export { chamberStats, nestBounds, voxelAt, wallSpots, type WallSpot } from './queries';
+export { planDigAim } from './plans/frontier';
+export { progressOf, slotInReach, instantCarvePlan } from './plans/plans';
+export { rimHeight, moundVolume, dumpPoint } from './mounds';
+export { broodScore } from './chambers/upkeep';
 
 /** Carve grid over the persisted carve data: the kernel's grid (substrate and hole probes wired by createKernel). */
 export function createCarveGrid(kernel: Kernel): CarveGrid {
@@ -55,9 +86,6 @@ export function createNestNav(kernel: Kernel): NestNav {
   };
 }
 
-/** Carve ops, breaches/entrances, chamber detection, nav-field refresh, pellets and mounds. Stub: nestops. */
-export const nestSystem: System = { name: 'nest', phase: 'nest', run: () => {} };
-
 /** Nest architect: proposes plans from needs. Stub: architect. */
 export const architectSystem: System = {
   name: 'architect', phase: 'nest', every: ARCHITECT_EVERY, offset: ARCHITECT_OFFSET, run: () => {},
@@ -65,93 +93,111 @@ export const architectSystem: System = {
 
 export const systems: readonly System[] = [nestSystem, architectSystem];
 
-// ---- digging (owner: nestops) ----
+// ---- digging ----
 
-/** Whether `ant` may take a dig bite at p (material, plan / claim rules, founding rules). Stub: false. */
-export function canDigAt(_sim: Sim, _ant: Ant, _p: Vec3): boolean {
-  return false;
+/**
+ * May this digger take a bite at p? With an ant: its caste can dig, digSpeed x digPower >= DIG_MIN_SPEED, the
+ * kernel's predicate allows p (crusts, hard primitives), and an AI digger on a plan stays within its plan volume
+ * (+ the ramp radius). With a species id (GDD 03 deliverable `canDigAt(sim, species, p)`): the material rule only.
+ */
+export function canDigAt(sim: Sim, ant: Ant | SpeciesId, p: Vec3): boolean {
+  if (typeof ant === 'string') return digSpeedAt(sim, ant, p) > 0 && sim.kernel.canDigAt(p.x, p.y, p.z);
+  const power = digPowerOf(ant);
+  if (power <= 0 || digSpeedAt(sim, speciesOf(sim, ant), p) * power < DIG_MIN_SPEED) return false;
+  if (!sim.kernel.canDigAt(p.x, p.y, p.z)) return false;
+  if ((ant.flags & AntFlag.POSSESSED) !== 0) return true;
+  const ref = antSlot(sim, ant);
+  const g = ref ? planCache(sim, ref.nest, ref.plan)?.geometry : undefined;
+  return !g || planG(g, p.x, p.y, p.z) > -(PLAN_CLIP_BU + DIG_RAMP_RADIUS_BU) * sim.world.bu;
 }
 
 /**
  * One dig bite with the RAMP BRUSH (docs/research/spike-nest.md §5 item 5): a capsule whose floor starts at the
  * digger's feet `pos` and runs along the horizontal unit `heading` at `slopeDeg` below the horizontal (positive
- * = downwards). Creates a soil pellet. Stub: nothing dug, reason 'not-diggable'.
+ * = downwards). Creates a soil pellet (or expels the soil for a founding queen in `digging`). AI diggers get
+ * heading and slope from `planDigAim`.
  */
-export function digBite(_sim: Sim, _ant: Ant, _pos: Vec3, _heading: Vec3, _slopeDeg: number): DigBiteResult {
-  return { ok: false, reason: 'not-diggable', voxels: 0, pelletId: -1, material: null };
+export function digBite(sim: Sim, ant: Ant, pos: Vec3, heading: Vec3, slopeDeg: number): DigBiteResult {
+  return digBiteImpl(sim, ant, pos, heading, slopeDeg);
 }
 
-/** Drops a carried pellet (or frass, chaff ...) at p: mound, heap, plug, tamp ...; null if refused. Stub: null. */
-export function dumpPellet(_sim: Sim, _ant: Ant, _itemId: number, _p: Vec3): PelletDumpTarget | null {
-  return null;
+/**
+ * Drops a carried pellet (or frass) at p: lost in water ('water'); otherwise it lies there as clutter, on a
+ * spoil pile, or as a surface pellet that later settles into a mound (null: placed, no longer carried).
+ */
+export function dumpPellet(sim: Sim, ant: Ant, itemId: number, p: Vec3): PelletDumpTarget | null {
+  return dumpPelletImpl(sim, ant, itemId, p);
 }
 
-/** Adds one plug to an entrance (`seal-entrance` primitive); true when it became sealed. Stub: false. */
-export function sealEntrance(_sim: Sim, _entranceId: number, _antId: number): boolean {
-  return false;
+/** Adds one plug to an entrance (`seal-entrance` primitive); true when it became sealed. */
+export function sealEntrance(sim: Sim, entranceId: number, antId: number): boolean {
+  return sealEntranceImpl(sim, entranceId, antId);
 }
 
-/** Removes one plug from a sealed entrance (`unseal-entrance`); true when it is open again. Stub: false. */
-export function unsealEntrance(_sim: Sim, _entranceId: number, _antId: number): boolean {
-  return false;
+/** Removes one plug from a sealed entrance (`unseal-entrance`); true when it is open again. */
+export function unsealEntrance(sim: Sim, entranceId: number, antId: number): boolean {
+  return unsealEntranceImpl(sim, entranceId, antId);
 }
 
-/** Claims a free dig slot of an active plan for an ant (writes ant.bb.planId / slotIdx). Stub: none available. */
-export function claimDigSite(_sim: Sim, _ant: Ant): boolean {
-  return false;
+/** Claims a free dig slot of an active plan for an ant (writes ant.bb.planId / slotIdx). */
+export function claimDigSite(sim: Sim, ant: Ant): boolean {
+  return claimSlot(sim, ant);
 }
 
-/** Frees the ant's dig slot, if any. Stub: no-op. */
-export function releaseDigSite(_sim: Sim, _ant: Ant): void {}
-
-// ---- plans and chambers (owner: nestops; architect for proposals) ----
-
-/** Validates a dig plan request (GDD 03 `validatePlan`). Stub: rejected, 'anchor-not-in-nest'. */
-export function validatePlan(_sim: Sim, _spec: PlanSpec): PlanValidation {
-  return { ok: false, codes: ['anchor-not-in-nest'], warnings: [], targetVolume: 0 };
+/** Frees the ant's dig slot, if any. */
+export function releaseDigSite(sim: Sim, ant: Ant): void {
+  releaseSlot(sim, ant);
 }
 
-/** Creates a plan (after validation); returns the plan id, -1 if rejected. Stub: -1. */
-export function createPlan(_sim: Sim, _spec: PlanSpec, _source: PlanSource): number {
-  return -1;
+// ---- plans and chambers ----
+
+/** Validates a dig plan request (GDD 03 `validatePlan`, player rules). */
+export function validatePlan(sim: Sim, spec: PlanSpec, source: PlanSource = 'player'): PlanValidation {
+  const v = validatePlanImpl(sim, spec, source);
+  return { ok: v.ok, codes: v.codes, warnings: v.warnings, targetVolume: v.targetVolume };
 }
 
-/** Cancels a plan; false if unknown or already finished. Stub: false. */
-export function cancelPlan(_sim: Sim, _planId: number, _reason: string): boolean {
-  return false;
+/** Creates a plan (after validation); returns the plan id, -1 if rejected. */
+export function createPlan(sim: Sim, spec: PlanSpec, source: PlanSource): number {
+  return createPlanImpl(sim, spec, source);
 }
 
-/** Sets a chamber's type; false if not allowed (type-not-allowed rules). Stub: false. */
-export function designateChamber(_sim: Sim, _chamberId: number, _type: ChamberType, _by: DesignatedBy): boolean {
-  return false;
+/** Cancels a plan; false if unknown or already finished. */
+export function cancelPlan(sim: Sim, planId: number, reason: string): boolean {
+  return cancelPlanImpl(sim, planId, reason);
 }
 
-/** Founding site assessment at p (GDD 03 `siteAt`, GDD 06 §5.7). Stub: null. */
+/** Sets a chamber's type; false if not allowed (GDD 03 §6.5). */
+export function designateChamber(sim: Sim, chamberId: number, type: ChamberType, by: DesignatedBy): boolean {
+  return designateChamberImpl(sim, chamberId, type, by);
+}
+
+/** Founding site assessment at p (GDD 03 `siteAt`, GDD 06 §5.7). Not part of nestops: the founding / opening task. */
 export function siteAt(_sim: Sim, _p: Vec3): SiteReport | null {
   return null;
 }
 
-/** Chamber containing p, or null. Stub: null. */
-export function findChamberAt(_sim: Sim, _p: Vec3): Chamber | null {
-  return null;
+/** Chamber containing p, or null. */
+export function findChamberAt(sim: Sim, p: Vec3): Chamber | null {
+  return findChamberAtImpl(sim, p);
 }
 
-/** Best chamber id for a brood stage in a nest (microclimate ranking), -1 none. Stub: -1. */
-export function bestBroodChamber(_sim: Sim, _nestId: number, _stage: BroodStage): number {
-  return -1;
+/** Best chamber id for a brood stage in a nest (microclimate ranking, GDD 03 §9.4), -1 none. */
+export function bestBroodChamber(sim: Sim, nestId: number, stage: BroodStage): number {
+  return bestBroodChamberImpl(sim, nestId, stage);
 }
 
-/** Nearest open entrance of a nest to p, or null. Stub: null. */
-export function nearestEntrance(_sim: Sim, _nestId: number, _p: Vec3): Entrance | null {
-  return null;
+/** Nearest open entrance of a nest to p, or null. */
+export function nearestEntrance(sim: Sim, nestId: number, p: Vec3): Entrance | null {
+  return nearestOpenEntrance(sim, nestId, p);
 }
 
-/** Human or weather disturbance of the nest near center (loosens walls). Stub: no-op. */
+/** Human or weather disturbance of the nest near center (collapse checks, T2). Hook only: no effect in T1. */
 export function disturb(_sim: Sim, _center: Vec3, _radius: number, _cause: string): void {}
 
 // ---- commands owned by this module ----
 
-const noop = (): void => {};
+const reject = (sim: Sim, commandType: string, reason: string): void => sim.emit({ type: 'command-rejected', commandType, reason });
 
 export const commandHandlers: Partial<CommandHandlerMap> = {
   planDig: (sim, c) => {
@@ -162,12 +208,18 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
     }
   },
   cancelPlan: (sim, c) => {
-    cancelPlan(sim, c.planId, 'player');
+    if (!cancelPlan(sim, c.planId, 'player')) reject(sim, c.type, 'unknown-plan');
   },
-  setPlanPriority: noop, // owner: nestops
-  pausePlan: noop, // owner: nestops
-  resumePlan: noop, // owner: nestops
-  acceptPlan: noop, // owner: architect
+  setPlanPriority: (sim, c) => {
+    if (!setPlanPriorityImpl(sim, c.planId, c.priority)) reject(sim, c.type, 'unknown-plan');
+  },
+  pausePlan: (sim, c) => {
+    if (!pausePlanImpl(sim, c.planId)) reject(sim, c.type, 'unknown-plan');
+  },
+  resumePlan: (sim, c) => {
+    if (!resumePlanImpl(sim, c.planId)) reject(sim, c.type, 'unknown-plan');
+  },
+  acceptPlan: () => {}, // owner: architect
   designateChamber: (sim, c) => {
     if (designateChamber(sim, c.chamberId, c.chamberType, 'player')) return;
     sim.emit({ type: 'command-rejected', commandType: c.type, reason: 'type-not-allowed' });
@@ -180,18 +232,90 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
     const nest = sim.stores.nests.get(c.nestId);
     if (nest) nest.architect.needToggles[c.need] = c.enabled;
   },
-  sealEntrance: noop, // owner: nestops (creates a `seal` plan)
-  reopenEntrance: noop, // owner: nestops (creates a `reopen` plan)
+  sealEntrance: (sim, c) => {
+    if (createEntrancePlan(sim, c.entranceId, 'seal') < 0) reject(sim, c.type, 'no-target');
+  },
+  reopenEntrance: (sim, c) => {
+    if (createEntrancePlan(sim, c.entranceId, 'reopen') < 0) reject(sim, c.type, 'no-target');
+  },
   'cheat.carveSphere': (sim, c) => {
-    sim.carve.carveSphere(c.pos, c.r);
+    carveSphere(sim, c.pos, c.r, { force: true });
   },
   'cheat.carveEllipsoid': (sim, c) => {
-    sim.carve.carveEllipsoid(c.center, c.radii); // axis-aligned: yaw is ignored until the kernel supports it
+    // axis-aligned (the kernel's ellipsoid brush); a quarter-turn yaw swaps the horizontal radii
+    const q = Math.round((((c.yawDeg % 180) + 180) % 180) / 90) % 2 === 1;
+    carveEllipsoid(sim, c.center, q ? { x: c.radii.z, y: c.radii.y, z: c.radii.x } : c.radii, { force: true });
   },
   'cheat.fillSphere': (sim, c) => {
-    sim.carve.fillSphere(c.pos, c.r); // LOOSE voxel flags (WorldDelta.carveFlags): nestops
+    const box = sphereBox(sim, c.pos, c.r, 2);
+    const before = c.loose ? readBox(sim, box) : null;
+    fillSphere(sim, c.pos, c.r);
+    if (before) {
+      const flags = nestRuntime(sim).flags;
+      forChangedSamples(sim, box, before, (i, j, k, old, now) => { if (now < old) flags.add(i, j, k, VoxelFlag.LOOSE); });
+    }
   },
-  'cheat.instantPlan': noop, // owner: nestops
-  'cheat.spawnPellets': noop, // owner: nestops
-  'cheat.setChamberClimate': noop, // owner: nestops / env-core
+  'cheat.instantPlan': (sim, c) => {
+    instantCarvePlan(sim, c.planId);
+  },
+  'cheat.spawnPellets': (sim, c) => {
+    const nestId = sim.state.colonies[0]?.nestIds[0] ?? -1;
+    for (let n = 0; n < c.n; n++) {
+      const it = spawnPellet(sim, c.pos, c.volume, sim.field.materialAt(c.pos), nestId, sim.state.colonies[0]?.id ?? -1, -1);
+      placePellet(sim, it, c.pos);
+    }
+  },
+  'cheat.setChamberClimate': (sim, c) => {
+    const found = chamberById(sim, c.chamberId);
+    if (!found) { reject(sim, c.type, 'unknown-chamber'); return; }
+    nestRuntime(sim).climate.set(c.chamberId, { temp: c.tempC, rh: c.rh });
+    found.c.temp = c.tempC;
+    found.c.humidity = c.rh;
+  },
 };
+
+// ---- invariants (soak runs) ----
+
+const finite = (...xs: number[]): boolean => xs.every((x) => Number.isFinite(x));
+
+export const invariants: readonly SimInvariant[] = [
+  {
+    name: 'nest-records-finite',
+    check(sim, fail) {
+      for (const nest of sim.state.nests) {
+        if (!nest.alive) continue;
+        if (!finite(nest.volumeOpen) || nest.volumeOpen < 0) fail(`nest ${nest.id}: volumeOpen=${nest.volumeOpen}`);
+        for (const c of nest.chambers) {
+          if (!finite(c.volume, c.center.x, c.center.y, c.center.z, c.depthMm, c.capacity.adults, c.occupancy.adults)) {
+            fail(`nest ${nest.id} chamber ${c.id}: non-finite stats`);
+          }
+        }
+        for (const p of nest.digPlans) {
+          if (!finite(p.targetVolume, p.removedVolume) || p.removedVolume < 0 || p.removedVolume > p.targetVolume + 1e-6) {
+            fail(`nest ${nest.id} plan ${p.id}: removed ${p.removedVolume} of ${p.targetVolume}`);
+          }
+        }
+      }
+      for (const m of sim.state.worldDelta.mounds) if (!finite(m.volume) || m.volume < -1e-6) fail(`mound ${m.id}: volume=${m.volume}`);
+    },
+  },
+  {
+    name: 'pellets-valid',
+    check(sim, fail) {
+      for (const it of sim.state.items) {
+        if (it.alive && isPellet(it) && !(it.volume > 0 && Number.isFinite(it.volume))) fail(`pellet ${it.id}: volume=${it.volume}`);
+      }
+    },
+  },
+  {
+    name: 'nest-chambers-reach-exit',
+    check(sim, fail) {
+      for (const nest of sim.state.nests) {
+        if (!nest.alive || !nest.entrances.some((e) => e.status === 'open')) continue;
+        for (const c of nest.chambers) {
+          if (sim.nestNav.distance(nest.id, { kind: 'exit', id: -1 }, c.center) < 0) fail(`nest ${nest.id} chamber ${c.id}: no path to an open entrance (N1)`);
+        }
+      }
+    },
+  },
+];

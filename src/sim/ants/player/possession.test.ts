@@ -135,6 +135,18 @@ describe('player control', () => {
     expect(sim.state.player.possessedAntId).toBe(a.id); // input keeps it
   });
 
+  it('the AFK clock restarts when lastInputTick is reset (a load), although its count lives in the saved ant.bb', () => {
+    const { sim } = setup();
+    const a = worker(sim, 50, 50);
+    sim.enqueue({ type: 'possess', antId: a.id });
+    step(sim, 1000);
+    sim.state.player.lastInputTick = sim.state.tick; // what the load path does (App. A: not persisted)
+    step(sim, 1000);
+    expect(sim.state.player.possessedAntId).toBe(a.id);
+    step(sim, 210);
+    expect(sim.state.player.possessedAntId).toBe(-1);
+  });
+
   it('held inputs start and stop hold primitives; movement > 0.5 for > 0.15 s cancels a cancellable one', () => {
     const { sim, fake } = setup();
     const a = worker(sim, 50, 50);
@@ -228,6 +240,6 @@ describe('possession diagnostics (GDD 01 App. D)', () => {
     expect(seen[0]).toMatchObject({ id: 'diag-possessed-action', factors: [{ cause: 'caste' }] });
     sim.enqueue({ type: 'release', reason: 'player' });
     step(sim, 1);
-    expect(seen[1]).toMatchObject({ id: `diag-released-ant:${a.id}`, value: 16 });
+    expect(seen[1]).toMatchObject({ id: 'diag-released-ant', value: 16, focus: { kind: 'ant', id: a.id } });
   });
 });

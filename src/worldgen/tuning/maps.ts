@@ -147,6 +147,8 @@ export const SUIT = {
   seedRadiusBu: 300,
   seedEach: 0.5,
   leafRadiusBu: 600,
+  /** Leafy primitives within leafRadius that count as full leaf biomass (Atta, coarse T3 proxy). */
+  leafPrimsFull: 50,
   pavingClearBu: 100,
 };
 

@@ -33,7 +33,8 @@ export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPa
   const cen = censusOf(sim, col.id);
   refreshActual(sim, col);
   computeDemand(sim, col, cen);
-  computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0);
+  const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
+  computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0, workforce);
   col.alloc.lastTick = sim.state.tick;
   if (!surplusPass) return;
   for (const a of sim.stores.ants.list) if (a.colony === col.id && isWorkerCaste(a.caste)) surplusCheck(sim, col, a, def);

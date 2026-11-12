@@ -95,10 +95,13 @@ function windupTicks(def: ActionDef, d: number): number {
   return Math.round(d * (def.windupFrac ?? ACTION_WINDUP_FRAC));
 }
 
-/** Tick (1-based elapsed count) at which a timed primitive applies its effect: the end of active. */
+/**
+ * Tick (1-based elapsed count) at which a timed primitive applies its effect: the end of active. Rounded down so
+ * that a primitive of 2 ticks or more keeps at least one recovery tick (pick-up 5 ticks: effect at 4).
+ */
 function effectTick(def: ActionDef, d: number): number {
   const w = windupTicks(def, d);
-  const e = Math.round(d * ((def.windupFrac ?? ACTION_WINDUP_FRAC) + ACTION_ACTIVE_FRAC));
+  const e = Math.floor(d * ((def.windupFrac ?? ACTION_WINDUP_FRAC) + ACTION_ACTIVE_FRAC) + 1e-9);
   return Math.min(d, Math.max(w, 1, e));
 }
 

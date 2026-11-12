@@ -1,7 +1,7 @@
 // Uniforms shared by every world material (terrain, primitives, mounds) and offered to the other world renderers
 // (grass, decor, water, weather): update `.value` once per frame and every patched material sees it
 // (tech-stack 7: share one Uniform object between materials).
-import { Color, Uniform, Vector2, Vector3 } from 'three';
+import { Color, Uniform, Vector2, Vector3, Vector4 } from 'three';
 
 export interface WorldUniforms {
   /** Animation clock, seconds (frozen in deterministic screenshots). */
@@ -19,6 +19,10 @@ export interface WorldUniforms {
   uUnder: Uniform<number>;
   /** Linear haze colour (equals the fog colour) for materials that fade by hand. */
   uHaze: Uniform<Color>;
+  /** Forest leaf-shadow dapple on the key light (materials/dapple.ts): amount, sway clock s, light slope x, z. */
+  uDapple: Uniform<Vector4>;
+  /** Dapple fleck size, mm. */
+  uDappleMm: Uniform<number>;
 }
 
 export function createWorldUniforms(): WorldUniforms {
@@ -31,5 +35,7 @@ export function createWorldUniforms(): WorldUniforms {
     uSubject: new Uniform(new Vector3()),
     uUnder: new Uniform(0),
     uHaze: new Uniform(new Color(0.5, 0.55, 0.6)),
+    uDapple: new Uniform(new Vector4(0, 0, 0, 0)),
+    uDappleMm: new Uniform(112),
   };
 }

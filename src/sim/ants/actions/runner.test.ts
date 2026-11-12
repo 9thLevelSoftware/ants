@@ -30,8 +30,10 @@ describe('timed primitive lifecycle', () => {
       phases.push(ant.action?.phase ?? 'none');
       carried.push(ant.carry.kind === 'item');
     }
+    // 5 ticks: windup tick 1, active ticks 2-4 (effect at the end of tick 4), recovery tick 5 which ends the action
+    // (GDD 01 §7.1: the effect never lands on the last tick of a timed primitive of 2+ ticks)
     expect(phases).toEqual(['windup', 'active', 'active', 'active', 'none']);
-    expect(carried).toEqual([false, false, false, false, true]);
+    expect(carried).toEqual([false, false, false, true, true]);
   });
 
   it('an interrupted timed primitive leaves no partial effect', () => {

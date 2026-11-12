@@ -99,6 +99,11 @@ export class HoleMask {
     this.probe = probe;
   }
 
+  private dropped = new Set<number>();
+  private warnedFull = false;
+  /** Tiles that ever found the atlas full (statistics). */
+  droppedTotal = 0;
+
   /** Number of atlas slots in use. */
   get usedSlots(): number {
     return this.cfg.atlasSlots * this.cfg.atlasSlots - this.freeSlots.length;
@@ -130,6 +135,7 @@ export class HoleMask {
     this.freeSlots = [];
     for (let s = this.cfg.atlasSlots * this.cfg.atlasSlots - 1; s >= 0; s--) this.freeSlots.push(s);
     this.dirty.clear();
+    this.dropped.clear();
     this.texDirty = true;
   }
 
@@ -187,7 +193,7 @@ export class HoleMask {
     }
     if (slot < 0) {
       const s = this.freeSlots.pop();
-      if (s === undefined) return; // atlas full: this hole stays closed (logged by the caller's statistics)
+      if (s === undefined) { this.drop(k); return; } // atlas full: this hole stays closed until a slot frees up
       slot = s;
       this.tileSlot[k] = slot + 1;
       const per = this.cfg.atlasSlots;
@@ -206,6 +212,24 @@ export class HoleMask {
     this.indexData[k * 2 + 1] = 0;
     this.freeSlots.push(slot);
     this.texDirty = true;
+    // a freed slot can take a tile that found the atlas full earlier
+    for (const d of this.dropped) this.dirty.add(d);
+    this.dropped.clear();
+  }
+
+  /** A tile with an open hole found no free slot: counted, warned once, retried when a slot frees up. */
+  private drop(k: number): void {
+    if (!this.dropped.has(k)) this.droppedTotal++;
+    this.dropped.add(k);
+    if (!this.warnedFull) {
+      this.warnedFull = true;
+      console.warn(`[world] hole-mask atlas full (${this.usedSlots} tiles): some ground holes stay closed. Raise HOLE_MASK_ATLAS_SLOTS.`);
+    }
+  }
+
+  /** Tiles with an open hole that currently have no slot (the hole is not shown). */
+  get droppedTiles(): number {
+    return this.dropped.size;
   }
 
   /** CPU lookup of the mask (tests / debugging): true where the shader would discard. */

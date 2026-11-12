@@ -9,7 +9,7 @@ import { BroodFlag } from '@/sim/types';
 import {
   EGG_BUDGET_CAP, HEALTH_REGEN_RATE, LAYING_LARVAE_EXTRA, LAYING_LARVAE_PER_NURSE, LAYING_LARVAL_HUNGER_MAX, LAYING_P_MIN_DAYS,
   NO_WORKER_CLUTCH_MIN_RESERVE_P, PROJECTED_EGG_WEIGHT, QUEEN_FAT_CAP, QUEEN_LAY_MIN_HEALTH, QUEEN_P_UNPAID_HEALTH,
-  QUEEN_RATION_BASE, QUEEN_RATION_BASE_P, QUEEN_RATION_P_SHARE_WITHHELD, QUEEN_REFILL_MIN_GUT_C,
+  QUEEN_GUT_CAP, QUEEN_RATION_BASE, QUEEN_RATION_BASE_P, QUEEN_RATION_P_SHARE_WITHHELD, QUEEN_REFILL_MIN_GUT_C,
   QUEEN_RESERVE_REFILL, QUEEN_STARVE_GD, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P, WORKER_CAP_TAPER, LOAD_EPS,
 } from '@/sim/balance';
 import { EGG_COST_P } from '@/sim/balance/actions';
@@ -139,7 +139,7 @@ export function feedQueenFromReserve(sim: Sim, carer: Ant, amount: number): numb
   const col = sim.stores.colonies.get(carer.colony);
   const q = col ? queenOf(sim, col) : undefined;
   if (!q || !q.queen) return 0;
-  const room = Math.max(0, 1 - q.queen.gut.c - q.queen.gut.p);
+  const room = Math.max(0, QUEEN_GUT_CAP - q.queen.gut.c - q.queen.gut.p);
   const x = Math.min(Math.max(0, amount), carer.energy, room);
   carer.energy -= x;
   q.queen.gut.c += x;

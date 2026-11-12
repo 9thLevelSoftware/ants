@@ -3,7 +3,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Brood, ColonySpeciesId, Sim } from '@/sim/types';
-import { chamberTemp, relHumidity, surfaceActivity, surfaceTemp } from '@/sim/environment';
+import { chamberTemp, rainIntensityAt, relHumidity, surfaceActivity, surfaceTemp } from '@/sim/environment';
 import { currentDefaultYearDay } from '@/sim/time';
 import { chamberById } from './census';
 
@@ -17,6 +17,8 @@ export interface ClimateOverride {
   surfaceActivity?: () => number;
   /** Default-year fractional day d28 (0-based). */
   d28?: () => number;
+  /** Rain intensity 0..1 on the open surface. */
+  rain?: () => number;
 }
 
 const overrides = new WeakMap<Sim, ClimateOverride>();
@@ -69,6 +71,13 @@ export function d28Now(sim: Sim): number {
   const o = overrides.get(sim);
   if (o?.d28) return o.d28();
   return currentDefaultYearDay(sim.state);
+}
+
+/** Rain intensity 0..1 on the open surface (washes trails, GDD 02 §14 `washed`). */
+export function rainIntensityOf(sim: Sim): number {
+  const o = overrides.get(sim);
+  if (o?.rain) return o.rain();
+  return rainIntensityAt(sim);
 }
 
 export function isStorm(sim: Sim): boolean {

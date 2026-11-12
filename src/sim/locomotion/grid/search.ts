@@ -14,6 +14,11 @@ export interface CostDisc {
   mult: number;
 }
 
+/** Cost factor of a partly covered open cell: any obstacle in it costs (paths keep clear of wall ends). */
+function partialMult(f: number): number {
+  return f > 0 ? 1 + NAV_GRID_TUNING.partialCost * (0.3 + f) : 1;
+}
+
 const DX = [1, -1, 0, 0, 1, 1, -1, -1];
 const DZ = [0, 0, 1, -1, 1, -1, 1, -1];
 const SQRT2 = Math.SQRT2;
@@ -59,7 +64,7 @@ export class GridSearch {
       if (isBlocked(g, az * g.w + bx) || isBlocked(g, bz * g.w + ax)) return Infinity;
     }
     const len = g.cell * (diag ? SQRT2 : 1);
-    let c = len * 0.5 * (g.cost[a] * g.dyn[a] + g.cost[b] * g.dyn[b]);
+    let c = len * 0.5 * (g.cost[a] * g.dyn[a] * partialMult(g.partial[a]) + g.cost[b] * g.dyn[b] * partialMult(g.partial[b]));
     const dh = Math.abs(g.ground[b] - g.ground[a]);
     if (dh > NAV_GRID_TUNING.stepBU * g.bu) c += NAV_GRID_TUNING.climbCostPerBU * dh;
     return c * this.discMult(b, discs);
@@ -119,9 +124,9 @@ export class GridSearch {
     heap.clear();
     for (const s of seeds) { dist[s] = 0; heap.push(s, 0); }
     while (heap.size > 0) {
-      const key = heap.peekKey();
+      // (the first pop of a cell is its final distance; dist is Float32, so no key-vs-dist staleness test)
       const c = heap.pop();
-      if (this.done[c] === gen || key > dist[c]) continue;
+      if (this.done[c] === gen) continue;
       this.done[c] = gen;
       const cx = c % g.w, cz = (c - cx) / g.w;
       for (let k = 0; k < 8; k++) {

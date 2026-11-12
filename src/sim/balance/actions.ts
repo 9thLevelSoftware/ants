@@ -95,6 +95,8 @@ export const UNSEAL_PELLET_VOLUME_BU3 = 0.85;
 export const PELLET_BULK_PER_BU3 = 0.6;
 /** `seal-entrance` works within this distance of the opening, inside the throat, BU. */
 export const SEAL_THROAT_BU = 3;
+/** A carried pellet is dropped this far behind the feet when a dig bite starts, L. */
+export const DIG_PELLET_DROP_BEHIND_L = 0.5;
 
 /** Caste dig power (GDD 03 §1.2 table). Missing caste = cannot dig (`caste`). */
 export const DIG_POWER: Partial<Record<Caste, number>> = {
@@ -137,6 +139,8 @@ export const TRAIL_DAB = 0.25;
 export const TRAIL_DAB_SPACING_BU = 1.5;
 /** Player dab factor when carrying food or crop >= TRAIL_LADEN_CROP, otherwise TRAIL_UNLADEN_FACTOR. */
 export const TRAIL_LADEN_CROP = 0.5;
+/** At most this many dabs per tick (a teleport or a very fast tick cannot paint a long line at once). */
+export const TRAIL_MAX_DABS_PER_TICK = 4;
 export const TRAIL_UNLADEN_FACTOR = 0.6;
 /** Alarm puff of `release-alarm`, ph; cooldown game s. */
 export const ALARM_PUFF = 4;
@@ -144,6 +148,8 @@ export const RELEASE_ALARM_COOLDOWN_S = 5;
 
 // ---- combat shells (GDD 05 §4; effects owned by the combat task) ----
 
+/** One full bite cycle (strike plus rest): a `bite` starts again this long after the last began, game s (GDD 05). */
+export const BITE_CYCLE_S = 1.0;
 export const SPRAY_CONE_DEG = 60;
 export const SPRAY_RANGE_L = 1.5;
 /** Acid damage = SPRAY_DAMAGE_PER_MG23 x massMg^(2/3) (GDD 05 §4: 2.5 x m^(2/3)). */
@@ -180,12 +186,47 @@ export const RESUME_RETREAT_HEALTH_IN = 0.15;
 export const PROMPT_DIST_WEIGHT = 0.5;
 export const PROMPT_ANGLE_WEIGHT = 0.3;
 export const PROMPT_HYSTERESIS = 0.15;
-/** A new winner must lead this long before the prompt switches, game s (200 real ms at 1x). */
-export const PROMPT_SWITCH_S = 0.2;
+/** Prompt candidates: the index query around the mandibles is reach + this, BU (covers ant and brood radii; wider
+ *  items, sources and creatures widen it by their largest radius). */
+export const PROMPT_QUERY_PAD_BU = 1;
+/** A new winner must lead this long before the prompt switches, REAL s (PROMPT_SWITCH_MS 200; 2 ticks at 1x,
+ *  8 at 4x). Real s of one tick = 0.1 / speed. */
+export const PROMPT_SWITCH_REAL_S = 0.2;
 /** Class weights of the priority classes (GDD 01 §9.2). */
 export const PROMPT_CLASS_WEIGHT = {
   commitment: 10, receiver: 8, brood: 7, food: 6, livestock: 5, nestmate: 4, item: 3, structure: 2, self: 1,
 } as const;
+
+// ---- inspect read-outs (GDD 01 §10): word bands are upper cut-offs, one fewer than the words ----
+
+/** Scent counts as present above these strengths, ph. */
+export const INSPECT_TRAIL_PRESENT_PH = 0.3;
+export const INSPECT_HOME_PRESENT_PH = 0.1;
+export const INSPECT_ALARM_PRESENT_PH = 0.5;
+/** Diggability x dig power: very hard / hard / normal / easy. */
+export const INSPECT_DIG_BANDS = [0.3, 0.7, 1.2] as const;
+/** Soil moisture 0..1: dry / damp / wet / waterlogged. */
+export const INSPECT_MOISTURE_BANDS = [0.25, 0.5, 0.8] as const;
+/** Litter cover 0..1 from this up reads "partly covered" (overhead shelter reads "under an object"). */
+export const INSPECT_LITTER_COVER_MIN = 0.3;
+/** Depth of the estimated deep temperature, BU. */
+export const INSPECT_DEEP_TEMP_BU = 10;
+/** Site factor 0..1 and overall site score: poor / fair / good / excellent (founding queen's assessment). */
+export const INSPECT_SITE_BANDS = [0.25, 0.5, 0.75] as const;
+/** Taste: "sweet" when C > ratio x P, "protein-rich" when P > ratio x C, else "mixed". */
+export const INSPECT_TASTE_RATIO = 2;
+/** Food decay 0..1: fresh / drying / rotting. */
+export const INSPECT_DECAY_BANDS = [0.3, 0.7] as const;
+/** Rival ants within this radius of a food count as present, BU. */
+export const INSPECT_RIVAL_RADIUS_BU = 5;
+/** Health share: dying / injured / hurt / healthy. */
+export const INSPECT_HEALTH_BANDS = [0.15, 0.4, 0.8] as const;
+/** Brood hunger 0..1: fed / hungry / starving. */
+export const INSPECT_HUNGER_BANDS = [0.3, 0.7] as const;
+/** Chamber flood risk 0..1: low / some / high. */
+export const INSPECT_FLOOD_BANDS = [0.2, 0.6] as const;
+/** Mound volume, BU^3: small / medium / large. */
+export const INSPECT_MOUND_BANDS_BU3 = [20, 200] as const;
 
 // ---- behaviour runner ----
 

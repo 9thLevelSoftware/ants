@@ -86,8 +86,12 @@ export interface Census {
   callows: number;
   /** Workers per task (TASKS order). */
   byTask: Int16Array;
-  /** Workers available to allocation (GDD 02 §6.3 `A`), and those of them fit for outside work. */
+  /**
+   * Workers available to allocation (GDD 02 §6.3 `A`); those of them past the callow stage (dig group); and those
+   * also at health >= 0.4 (outside groups forage and defend).
+   */
   available: number;
+  availableAdult: number;
   availableOutside: number;
   injured: number;
   resting: number;
@@ -118,7 +122,7 @@ export interface Census {
 
 function emptyCensus(): Census {
   return {
-    workers: 0, callows: 0, byTask: new Int16Array(_TASK_COUNT), available: 0, availableOutside: 0, injured: 0,
+    workers: 0, callows: 0, byTask: new Int16Array(_TASK_COUNT), available: 0, availableAdult: 0, availableOutside: 0, injured: 0,
     resting: 0, eggs: 0, larvae: 0, pupae: 0, workerEggs: 0, workerLarvae: 0, workerPupae: 0, diapause: 0,
     readyPupae: 0, meanLarvalHunger: 0, gynes: 0, males: 0, young: 0, mid: 0, old: 0, inside: 0,
     outside: 0, nanitics: 0, minims: 0, controlled: 0,
@@ -167,7 +171,10 @@ function buildCensus(sim: Sim): Map<number, Census> {
     if (a.flags & _AntFlag.INJURED) c.injured++;
     if (isAvailable(a)) {
       c.available++;
-      if ((a.flags & (_AntFlag.INJURED | _AntFlag.CALLOW)) === 0) c.availableOutside++;
+      if ((a.flags & _AntFlag.CALLOW) === 0) {
+        c.availableAdult++;
+        if ((a.flags & _AntFlag.INJURED) === 0) c.availableOutside++;
+      }
     }
   }
   const hungerSum = new Map<number, number>();

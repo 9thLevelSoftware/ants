@@ -76,6 +76,8 @@ export function sampleHour(sim: Sim): void {
   push(sim, 'trails', accGet(coreOf(col), 'trails'));
   push(sim, 'starvation-stage', STARVATION_STAGES.indexOf(col.starvationStage));
   sim.state.progression.history.lastHourlyTick = sim.state.tick;
+  // Progression owns peakWorkers (GDD 06 §12.1); until it keeps it, this idempotent max keeps the epitaph right.
+  // Both writers take the max of the same census count, so the write stays harmless after progression lands.
   sim.state.progression.peakWorkers = Math.max(sim.state.progression.peakWorkers, cen.workers);
 }
 

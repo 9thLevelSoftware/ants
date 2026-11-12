@@ -349,5 +349,19 @@ export const DIAG_BROOD_REF_C = 28;
 /** Reference trip time of diag-food-intake distance factor, game s. */
 export const DIAG_TRIP_REF_S = 150;
 export const BROOD_STALLED_GD = 0.2;
+/** Colony-size factor of trail strength (GDD 02 §8.3, D8): clamp(MIN + (1 - MIN) x (N - N0) / SPAN, MIN, 1). */
+export const SIZE_FACTOR_MIN = 0.3;
+export const SIZE_FACTOR_N0 = 10;
+export const SIZE_FACTOR_SPAN = 65;
+/** Share of foraging bouts run as a trail ignorer (GDD 02 §8.4 TRAIL_IGNORE_P); diag-foraging-trails baseline. */
+export const TRAIL_IGNORE_P = 0.2;
+/** diag-foraging-trails `trail-lost`: factor = 1 / (1 + lost events per gd / this). Tuning value (not in GDD 02). */
+export const DIAG_TRAIL_LOST_REF_PER_GD = 4;
+/** diag-stores `capacity` factor while the pool is at capacity. Tuning value. */
+export const DIAG_STORES_FULL_F = 0.5;
+/** diag-mortality reference: natural turnover N / this lifespan, gd (GDD 02 §15 realised lifespan 26 gd). */
+export const DIAG_MORTALITY_REF_LIFESPAN_GD = 26;
+/** diag-hygiene: waste items per chamber at which the value reaches 0 (GDD 02 §11 brood score uses waste / 10). */
+export const DIAG_WASTE_PER_CHAMBER = 10;
 /** Stagger offset of the colony diagnostics system (never on the same tick as another >= 50-tick system). */
 export const COLONY_DIAGNOSTICS_OFFSET = 125;

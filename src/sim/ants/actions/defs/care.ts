@@ -29,7 +29,8 @@ function proteinShort(ant: Ant): boolean {
   return q.gut.p < EGG_COST_P && !(q.mode === 'founding' && q.reserveP >= EGG_COST_P);
 }
 
-function inLayingPlace(sim: Sim, ant: Ant): boolean {
+/** In a chamber or the founding cell (where `lay-egg` is allowed; also the queen's self prompt, GDD 01 §9.2). */
+export function inLayingPlace(sim: Sim, ant: Ant): boolean {
   return ant.chamberId >= 0 || ports.findChamberAt(sim, ant.pos) !== null || (ant.queen?.founding != null && ant.nestId >= 0);
 }
 

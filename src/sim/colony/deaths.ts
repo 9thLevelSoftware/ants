@@ -1,8 +1,9 @@
-// Adult deaths of every cause (including other modules' kills) are counted from `ant-died` events. The listener
-// is attached once per Sim (runtime only); it updates plain counters in state at event flush, deterministically.
+// Adult deaths of every cause (including other modules' kills) and lost trails are counted from events. The
+// listeners are attached once per Sim (runtime only); they update plain counters in state at event flush,
+// deterministically.
 
 import type { Sim } from '@/sim/types';
-import { coreOf } from './core';
+import { accAdd, coreOf } from './core';
 import { countAdultDeath } from './population';
 
 const watched = new WeakSet<Sim>();
@@ -17,5 +18,10 @@ export function watchColonyEvents(sim: Sim): void {
     const core = coreOf(col);
     core.deathsToday[ev.cause] = (core.deathsToday[ev.cause] ?? 0) + 1;
     countAdultDeath(col, ev.cause);
+  });
+  // Lost trails per day feed diag-foraging-trails (GDD 02 §14 `trail-lost`).
+  sim.events.on('trail-lost', (ev) => {
+    const col = sim.stores.colonies.get(ev.colonyId);
+    if (col) accAdd(coreOf(col), 'trailLost.today', 1);
   });
 }

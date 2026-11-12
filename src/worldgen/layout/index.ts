@@ -50,8 +50,10 @@ export function buildLayout(rng: RngState, params: WorldParams, dims: WorldDims,
   // 16 BU raster: built shapes at cell centres, then natural growth into the rest
   const nav = rasterBuilt(built, dims.navN, dims.navCell, L);
   const naturalIds = zones.filter((z) => !z.built).map((z) => z.id);
+  const pathZones = new Set(built.filter((b) => b.kind === 'path').map((b) => b.zoneId));
+  const passable = Uint8Array.from(nav, (v) => (pathZones.has(v) ? 1 : 0));
   growNatural(rng, {
-    raster: nav, n: dims.navN, cell: dims.navCell, noiseSeed: seed ^ 0x2e1,
+    raster: nav, n: dims.navN, cell: dims.navCell, noiseSeed: seed ^ 0x2e1, passable,
     zones: rolled.natural.map((nz, i) => ({ id: naturalIds[i], frac: nz.frac, seed: nz.rule.seed })),
   });
   const minCells = Math.max(1, Math.round(NATURAL_GROWTH.minIslandMm2 / (dims.navCell * dims.navCell)));

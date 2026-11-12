@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
+import { ACTION_ACTIVE_FRAC, ACTION_WINDUP_FRAC } from '@/sim/balance/actions';
 import { ports } from './ports';
 import { begin, canDo, cancel, stopAction } from './runner';
 import { ahead, capture, foodItem, installFakes, larva, makeAntSim, source, step, worker } from './testkit';
@@ -42,9 +43,11 @@ describe('lifecycle edge cases', () => {
     const w = worker(sim, 50, 50);
     const it = foodItem(sim, ahead(sim, w, 0.6), 0.5);
     expect(begin(sim, w, 'pick-up', { kind: 'item', id: it.id, pos: it.pos })).toBe(true);
-    const d = w.action!.durationTicks;
-    step(sim, d - 1);
+    // The effect lands at the end of active (20 % + 70 %, rounded down), not on the last tick: recovery follows.
+    const effectAt = Math.floor(w.action!.durationTicks * (ACTION_WINDUP_FRAC + ACTION_ACTIVE_FRAC) + 1e-9);
+    step(sim, effectAt - 1);
     expect(w.action).not.toBeNull();
+    expect(w.carry.kind).toBe('none');
     cancel(sim, w, null);
     step(sim, 5);
     expect(w.carry.kind).toBe('none');

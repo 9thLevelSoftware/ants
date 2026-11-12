@@ -4,6 +4,10 @@
 // within 5 %, and the stock changes (+1.39 C, +0.05 P) within 5 % of the day's need (interpretation in the report:
 // 5 % of a change of +0.05 loads would be below the brood model's own randomness). The §15 table holds the workforce
 // at 60, so ready pupae are not helped to eclose during the day (no callow upkeep or reserve refills).
+// The components are checked one by one too, so a match of the totals cannot come from offsetting errors:
+// worker upkeep, larval C and P, laying P (E25 egg range), and (separate test) the spoilage formula on the chapter's
+// start-of-day pile (P 1.0 above the stomach). The day's mean spoilage is lower than the chapter's static 0.33:
+// nurses carry about a load of P in their crops, so the pool's pile P sits near 0.15 for most of the day.
 
 import { describe, expect, it } from 'vitest';
 import type { Ant, Sim, System, Task } from '@/sim/types';
@@ -64,6 +68,8 @@ function runDay(seed: number): DayResult {
   const col = colonyOf(sim);
   sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: 30, p: 10 });
   sim.tick();
+  // §15 is a steady state: the realised-laying EMA starts at the chapter's 12 eggs/gd instead of 0.
+  col.core!.layingRate = 12;
   // Let the need EMAs see the colony for a moment, then measure one game day.
   const c0 = col.stores.c, p0 = col.stores.p;
   let sumC = 0, sumP = 0, n = 0, eggs = 0, up = 0, lc = 0, lp = 0, ln = 0, sp = 0, lay = 0;
@@ -100,6 +106,12 @@ describe('GDD 02 §15 worked example (AC3, E25)', () => {
     expect(Math.abs(mean('needP') - 12.9) / 12.9).toBeLessThan(0.05);
     expect(Math.abs(mean('dC') - 1.39)).toBeLessThan(0.05 * 10.71);
     expect(Math.abs(mean('dP') - 0.05)).toBeLessThan(0.05 * 12.9);
+    // Components (chapter: upkeep 6.42 C; larvae 3.67 + 0.32 C, 11.02 + 0.97 P; eggs 12 x 0.04 P; spoilage 0.33 P).
+    expect(Math.abs(mean('upkeep') - 6.42) / 6.42).toBeLessThan(0.05);
+    expect(Math.abs(mean('larvaC') - 3.99) / 3.99).toBeLessThan(0.05);
+    expect(Math.abs(mean('larvaP') - 11.99) / 11.99).toBeLessThan(0.05);
+    expect(mean('layP')).toBeGreaterThanOrEqual(8 * 0.04);
+    expect(mean('layP')).toBeLessThanOrEqual(16 * 0.04);
     for (const r of runs) {
       // E25 ranges per run.
       expect(r.eggs).toBeGreaterThanOrEqual(8);
@@ -107,5 +119,16 @@ describe('GDD 02 §15 worked example (AC3, E25)', () => {
       expect(Math.abs(r.dC)).toBeLessThan(3);
       expect(Math.abs(r.dP)).toBeLessThan(3);
     }
+  });
+
+  it('spoilage of the start-of-day stock: pile P 1.0 at 25 °C spoils at 1.0 x ln 2 / 3 x 2^0.5 = 0.327 P per gd', () => {
+    const sim = makeColonySim({ seed: 1, noAllocation: true });
+    const ch = addChamber(sim, 'general', { x: 100, y: -40, z: 100 }, 0);
+    addChamber(sim, 'food', { x: 140, y: -40, z: 100 }, 30);
+    addWorkers(sim, 60, { chamber: ch, task: 'idle', state: 'rest' });
+    sim.enqueue({ type: 'cheat.killQueen', colonyId: colonyOf(sim).id, cause: 'unknown' });
+    sim.enqueue({ type: 'cheat.setStores', colonyId: colonyOf(sim).id, c: 30, p: 10 });
+    for (let t = 0; t < 20; t++) sim.tick();
+    expect(Math.abs((colonyOf(sim).core!.acc['inst.spoilP'] ?? 0) - 0.327) / 0.327).toBeLessThan(0.05);
   });
 });

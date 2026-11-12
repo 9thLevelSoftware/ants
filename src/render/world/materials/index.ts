@@ -6,3 +6,4 @@ export * from './uniforms';
 export * from './textureArray';
 export { proceduralPixels, type PixelSet } from './procedural';
 export { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
+export { FOREST_DAPPLE, GLSL_DAPPLE, dappledLightsChunk } from './dapple';

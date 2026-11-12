@@ -71,7 +71,9 @@ export function followFlow(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, f
   if (!Number.isFinite(d)) return result('fail', 0);
   if (d <= g.cell * 0.5) return result('done', d);
   towardXZ(out, w, _t);
-  return result('go', d);
+  // continuous progress metric: cost left from the steering cell plus the way to it (the cell value alone is a step)
+  const tc = g.cellOf(_t.x, _t.z);
+  return result('go', (tc >= 0 ? flow[tc] : d) + distXZ(w.pos, _t));
 }
 
 /**
@@ -111,5 +113,9 @@ export function followClimb(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, 
   if (past(w.nav.pathIdx) || w.nav.pathIdx < 0 || w.nav.pathIdx >= pts.length) return result('done', 0, advanced);
   const t = pts[w.nav.pathIdx];
   toward3(out, w, t);
+  // approach the node horizontally too: a node straight above leaves no tangent direction on the ground, so the
+  // walker would keep a stale heading instead of walking into the object and climbing it
+  const h = Math.hypot(out.x, out.z);
+  if (h > 1e-3 * r.P.bu) { out.x += (out.x / h) * r.P.bu; out.z += (out.z / h) * r.P.bu; }
   return result('go', dist3(w.pos, t), advanced);
 }

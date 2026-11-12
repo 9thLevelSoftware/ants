@@ -1,5 +1,5 @@
 // Terrain LOD seams, hole mask rasterisation, terrain data tables and mound geometry (pure parts).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { heightAt } from '@/sim/world/terrainSample';
 import { materialCode, type Mound } from '@/sim/types';
 import { INNER_SHRINK, layoutClipmap, levelCountFor, morphedXZ, morphFactor } from './clipmap';
@@ -84,6 +84,27 @@ describe('hole mask', () => {
     hm.update(100);
     expect(hm.usedSlots).toBe(0);
     expect(hm.isOpen(1024, 1024)).toBe(false);
+  });
+  it('counts holes that find the atlas full, warns once, and opens them when a slot frees up', () => {
+    const hm = new HoleMask({ worldSize: 4000, texelMm: 1, tileTexels: 64, atlasSlots: 1 }); // one slot
+    const holes = new Set(['a', 'b']);
+    hm.setProbe((x, z) => Math.max(holes.has('a') ? 5 - Math.hypot(x - 300, z - 300) : -1, holes.has('b') ? 5 - Math.hypot(x - 1300, z - 1300) : -1));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    hm.markCircle(300, 300, 5);
+    hm.markCircle(1300, 1300, 5);
+    hm.update(100, 300, 300);
+    expect(hm.isOpen(300, 300)).toBe(true);
+    expect(hm.isOpen(1300, 1300)).toBe(false);
+    expect(hm.droppedTiles).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    holes.delete('a'); // the first hole closes: its slot goes to the waiting one
+    hm.markCircle(300, 300, 5);
+    hm.update(100);
+    hm.update(100);
+    expect(hm.isOpen(1300, 1300)).toBe(true);
+    expect(hm.droppedTiles).toBe(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
   it('respects the per-frame budget, nearest tiles first', () => {
     const hm = mk();

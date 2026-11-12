@@ -103,9 +103,12 @@ export const LOCO_TUNING = {
   stuckProgressBU: 0.5,
   sidestepS: 1.2,
   backoffS: 0.8,
-  /** Relocations allowed per request, then the request fails; stuck episodes allowed per request. */
+  /**
+   * Relocations allowed per request, then the request fails; stuck episodes allowed per request (the request
+   * timeout is the hard bound; this one ends hopeless requests earlier).
+   */
   relocateMax: 2,
-  episodesMax: 10,
+  episodesMax: 16,
   /** Relocation target: this many waypoints / field steps ahead. */
   relocateFieldSteps: 8,
 

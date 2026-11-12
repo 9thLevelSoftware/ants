@@ -184,5 +184,6 @@ export function reinferAfterLanding(sim: Sim, ant: Ant): boolean {
   if (ant.medium === 'air') return false;
   const inf = inferRelease(sim, ant);
   applyInference(sim, ant, { ...inf, reinfer: false });
+  ant.suspendedTask = null;
   return true;
 }

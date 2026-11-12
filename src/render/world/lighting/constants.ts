@@ -175,3 +175,10 @@ export const SHADOW_RADIUS_TEXELS = 2.5;
 export const ENV_REBAKE_DEG = 2;
 /** Minimum real time between two env re-bakes, s (PMREM is expensive under software GL). */
 export const ENV_REBAKE_MIN_S = 1.5;
+
+/**
+ * Star brightness while depth of field is on. Stars sit at infinity, far outside the macro lens' depth of field:
+ * a real macro photograph shows them as faint, soft blobs at most. Full-strength stars became large bright bokeh
+ * discs that read as falling snow (review of the High preset at night).
+ */
+export const STARS_DOF_GAIN = 0.08;

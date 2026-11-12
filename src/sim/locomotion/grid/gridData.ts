@@ -17,10 +17,15 @@ export const NAV_GRID_TUNING = {
   stepBU: 2,
   /** Climb cost per BU of height difference on a step edge (NAV_CLIMB_COST), in cell-cost units. */
   climbCostPerBU: 1.5,
-  /** A cell is blocked when at least this fraction of its samples is covered. */
+  /**
+   * A cell is blocked when at least this fraction of its samples is covered, or when a full row or column of
+   * samples is (a thin wall crossing the cell is a barrier although it covers little area).
+   */
   coverFraction: 0.5,
-  /** Samples per cell edge for the cover test. */
-  coverSamples: 3,
+  /** Samples per cell edge for the cover test (16 BU / 5: walls >= 3.2 BU thick always hit a sample column). */
+  coverSamples: 5,
+  /** Partly covered (still open) cells cost 1 + this x covered fraction: paths keep clear of obstacle ends. */
+  partialCost: 3,
   /** Sample heights above the ground for the "tall solid column" test, as fractions of overMax. */
   coverHeights: [0.025, 0.35, 0.7, 1] as readonly number[],
 } as const;
@@ -46,6 +51,8 @@ export interface GridData {
   cls: Uint8Array;
   /** 1 where tall primitives cover the cell (derived from the field). */
   covered: Uint8Array;
+  /** Covered fraction of the cell's samples, 0..1 (cells below the blocking rule still pay for it). */
+  partial: Float32Array;
   /** Static surface cost multiplier (>= 1). */
   cost: Float32Array;
   /** Runtime cost overlay (1 = none, Infinity = blocked). */
@@ -63,7 +70,7 @@ export function deriveFromWorld(world: WorldData): GridData {
   const bu = world.bu, cell = NAV_CELL_BU * bu, n = cellCount(world.size, cell);
   const N = n * n;
   const g: GridData = {
-    cell, w: n, h: n, size: world.size, bu, cls: new Uint8Array(N), covered: new Uint8Array(N),
+    cell, w: n, h: n, size: world.size, bu, cls: new Uint8Array(N), covered: new Uint8Array(N), partial: new Float32Array(N),
     cost: new Float32Array(N), dyn: new Float32Array(N).fill(1), ground: new Float32Array(N),
   };
   const margin = LOCO_TUNING.edgeMarginBU * bu;
@@ -113,6 +120,7 @@ export function deriveFromField(g: GridData, field: WorldField, prims: readonly 
     const c = k * g.w + i;
     g.ground[c] = field.height((i + 0.5) * g.cell, (k + 0.5) * g.cell);
     g.covered[c] = 0;
+    g.partial[c] = 0;
   }
   for (const p of prims) {
     if ((p.flags & PrimFlag.VISUAL_ONLY) !== 0 || !field.primBounds(p.id, _b)) continue;
@@ -134,11 +142,25 @@ export function deriveFromField(g: GridData, field: WorldField, prims: readonly 
     let hit = 0;
     for (let sz = 0; sz < S; sz++) for (let sx = 0; sx < S; sx++) {
       const x = (i + (sx + 0.5) / S) * g.cell, z = (k + (sz + 0.5) / S) * g.cell;
-      const gy = field.height(x, z);
-      if (columnCovered(field, x, gy, z, overMax, m === 2)) hit++;
+      const on = columnCovered(field, x, field.height(x, z), z, overMax, m === 2);
+      _cov[sz * S + sx] = on ? 1 : 0;
+      if (on) hit++;
     }
-    if (hit >= need) g.covered[c] = 1;
+    if (hit >= need || (hit >= S && crossesCell(S))) g.covered[c] = 1;
+    g.partial[c] = hit / (S * S);
   }
+}
+
+const _cov = new Uint8Array(NAV_GRID_TUNING.coverSamples * NAV_GRID_TUNING.coverSamples);
+
+/** A full row or column of covered samples: a barrier across the cell. */
+function crossesCell(S: number): boolean {
+  for (let a = 0; a < S; a++) {
+    let row = true, col = true;
+    for (let b = 0; b < S; b++) { if (!_cov[a * S + b]) row = false; if (!_cov[b * S + a]) col = false; }
+    if (row || col) return true;
+  }
+  return false;
 }
 
 function columnCovered(field: WorldField, x: number, gy: number, z: number, overMax: number, footOnly: boolean): boolean {

@@ -17,6 +17,8 @@ export interface NaturalInput {
   cell: number;
   zones: { id: number; frac: number; seed: NaturalZoneRule['seed'] }[];
   noiseSeed: number;
+  /** Built cells that growth may cross without claiming them (paths: a footpath does not cut a lawn in two). */
+  passable?: Uint8Array;
 }
 
 export const FREE = 255;
@@ -74,21 +76,31 @@ export function growNatural(rng: RngState, inp: NaturalInput): number[] {
   for (const c of free) stepCost[c] = 1 + NATURAL_GROWTH.costNoise * fbm2((c % n) * inv, Math.floor(c / n) * inv, inp.noiseSeed, 3);
   const seeds = seedCells(rng, inp, free);
   const claim = new Int16Array(n * n).fill(-1);
+  const pass = inp.passable;
   const grow = (zi: number[], seedsOf: (zi: number) => number[]) => {
     const heap = new MinHeap(4096);
+    const crossed = new Uint8Array(pass ? n * n : 0);
     for (const z of zi) for (const c of seedsOf(z)) heap.push(0, z, c);
     while (heap.size > 0) {
       const d = heap.topKey(), z = heap.topTie(), c = heap.topValue();
       heap.pop();
-      if (claim[c] >= 0 || counts[z] >= targets[z]) continue;
-      claim[c] = z;
-      counts[z]++;
+      if (counts[z] >= targets[z]) continue;
+      if (raster[c] === FREE) {
+        if (claim[c] >= 0) continue;
+        claim[c] = z;
+        counts[z]++;
+      } else {
+        // a passable built cell: crossed once per zone (bit per zone up to 8), never claimed
+        const bit = 1 << (z & 7);
+        if (crossed[c] & bit) continue;
+        crossed[c] |= bit;
+      }
       const ci = c % n, ck = Math.floor(c / n);
       for (const [dx, dz, w] of D8) {
         const i = ci + dx, k = ck + dz;
         if (i < 0 || k < 0 || i >= n || k >= n) continue;
         const j = k * n + i;
-        if (raster[j] === FREE && claim[j] < 0) heap.push(d + w * stepCost[j], z, j);
+        if (raster[j] === FREE ? claim[j] < 0 : pass !== undefined && pass[j] === 1) heap.push(d + w * (raster[j] === FREE ? stepCost[j] : 1), z, j);
       }
     }
   };

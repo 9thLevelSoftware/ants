@@ -45,13 +45,40 @@ export function fEnv(sim: Sim, col: Colony): number {
 
 /** Foraging curfew (GDD 02 §6.6, §12.1 stayIn): no departures. */
 export function curfew(sim: Sim, col: Colony): boolean {
-  if (col.directives.stayIn || isStorm(sim) || fEnv(sim, col) < CURFEW_FENV) return true;
+  return curfewWith(sim, col, fEnv(sim, col));
+}
+
+function curfewWith(sim: Sim, col: Colony, fEnvNow: number): boolean {
+  if (col.directives.stayIn || isStorm(sim) || fEnvNow < CURFEW_FENV) return true;
   for (const nid of col.nestIds) {
     const n = sim.stores.nests.get(nid);
     if (!n) continue;
     for (const e of n.entrances) if (sim.phero.sample(col.id, 'alarm', e.pos) > CURFEW_ALARM_PH) return true;
   }
   return false;
+}
+
+/**
+ * fEnv and curfew of a colony, computed once per tick for the per-ant hot paths (shouldDepart, contacts): both
+ * are environment and pheromone queries that do not depend on the ant. Runtime-only; values are recomputed on
+ * the first call of each tick, so results do not depend on whether the cache existed (save/load safe).
+ */
+interface ColonyGate { fEnv: number; curfew: boolean }
+const gateCache = new WeakMap<Sim, { tick: number; byColony: Map<number, ColonyGate> }>();
+
+function gateOf(sim: Sim, col: Colony): ColonyGate {
+  let c = gateCache.get(sim);
+  if (!c || c.tick !== sim.state.tick) {
+    c = { tick: sim.state.tick, byColony: new Map() };
+    gateCache.set(sim, c);
+  }
+  let g = c.byColony.get(col.id);
+  if (!g) {
+    const f = fEnv(sim, col);
+    g = { fEnv: f, curfew: curfewWith(sim, col, f) };
+    c.byColony.set(col.id, g);
+  }
+  return g;
 }
 
 function hasLiveRoute(sim: Sim, a: Ant): boolean {
@@ -65,12 +92,14 @@ function hasLiveRoute(sim: Sim, a: Ant): boolean {
  */
 export function shouldDepart(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spontaneous' | null {
   const col = sim.stores.colonies.get(a.colony);
-  if (!col || !isWaitingForager(a) || curfew(sim, col)) return null;
+  if (!col || !isWaitingForager(a)) return null;
+  const gate = gateOf(sim, col);
+  if (gate.curfew) return null;
   let reason: 'recruited' | 'spontaneous' | null = null;
   if (a.activation >= ACTIVATION_DEPART) reason = 'recruited';
   else {
     const need = Math.max(col.needs.needC, col.needs.needP);
-    const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * fEnv(sim, col) * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1);
+    const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * gate.fEnv * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1);
     if (rngChance(sim.stream('rng.colony'), rate * (dtTicks / TICKS_PER_SECOND))) reason = 'spontaneous';
   }
   if (reason) {
@@ -109,7 +138,7 @@ function contactWaiting(sim: Sim, col: Colony, pos: Vec3, fromId: number, succes
   near.sort((x, y) => x.d - y.d || x.a.id - y.a.id);
   const out: number[] = [];
   const src = sourceId >= 0 ? sim.stores.sources.get(sourceId) : undefined;
-  const gain = ENC_GAIN * (scout ? ENC_SCOUT_MULT : 1) * fEnv(sim, col);
+  const gain = ENC_GAIN * (scout ? ENC_SCOUT_MULT : 1) * gateOf(sim, col).fEnv;
   for (let i = 0; i < near.length && i < RECRUIT_CONTACTS_MAX; i++) {
     const a = near[i].a;
     out.push(a.id);

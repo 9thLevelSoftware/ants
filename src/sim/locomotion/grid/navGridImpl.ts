@@ -12,7 +12,7 @@ import { GridSearch, lineClear, type CostDisc } from './search';
 
 /** Smoothing: segments are tested this far above the ground, with this sweep radius (BU). */
 const SMOOTH_LIFT_BU = 1.5;
-const SMOOTH_RADIUS_BU = 0.5;
+const SMOOTH_RADIUS_BU = 1;
 /** Longest smoothed segment, in cells (bounds the field traces). */
 const SMOOTH_MAX_CELLS = 12;
 /** Nearest passable cell search radius when an endpoint is blocked, cells. */

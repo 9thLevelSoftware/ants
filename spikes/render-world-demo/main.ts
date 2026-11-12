@@ -7,6 +7,7 @@
  * URL flags: ?quality=test|low|medium|high|ultra (test=1 -> test)  &post=0|1  &hour=0..24  &weather=clear|overcast|...
  *            &view=<name> (see VIEWS)  &pos=x,y,z&look=x,y,z  &t=SECONDS (frozen clock, render on demand)
  *            &world=demo|generated  &seed=N  &scatter=N (pebbles over the map)  &wet=0..1  &under=1  &hud=0  &haze=0
+ *            &reduced=1 (reduced motion: the forest dapple stands still)
  * Globals:   window.__ready, window.__demo (setView, setCamera, setHour, setWeather, setQuality, render, stats,
  *            addPrim, removePrim, growMound, dig, setWet, setUnderground, views, dispose)
  */
@@ -33,6 +34,7 @@ const worldKind = qs.get('world') === 'generated' ? 'generated' : 'demo';
 let hour = qs.has('hour') ? Number(qs.get('hour')) : 13;
 let weather = (qs.get('weather') ?? 'clear') as WeatherState;
 let underground = qs.get('under') === '1';
+const reducedMotion = qs.get('reduced') === '1';
 const hudEl = document.getElementById('hud')!;
 const showHud = qs.get('hud') !== '0';
 
@@ -125,7 +127,7 @@ function placeCamera(v: View): void {
 }
 
 function frame(dt: number): void {
-  worldRenderer.update({ dt, time, sim, subject, underground, env: { hour, weather } });
+  worldRenderer.update({ dt, time, sim, subject, underground, env: { hour, weather }, reducedMotion });
   app.setFocus(camera.position.distanceTo(subject), undefined, true);
 }
 

@@ -45,5 +45,6 @@ vec3 wrWetAlbedo(vec3 c, float wet, float darken) {
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   return max(mix(vec3(l), c, 1.0 + 0.35 * wet), 0.0);
 }
-float wrWetRough(float r, float wet, float floorRough) { return mix(r, max(floorRough, r * 0.55), wet); }
+// GDD 08 11.4 rain look: roughness x 0.4, never below the material's wet floor (soil would turn into a mirror)
+float wrWetRough(float r, float wet, float floorRough) { return mix(r, max(floorRough, r * 0.4), wet); }
 `;

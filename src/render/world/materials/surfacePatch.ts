@@ -5,6 +5,7 @@
 //  - `breaches`: discard inside the nearest breach spheres (holes through diggable objects).
 // Mapping happens in primitive-local space for instances (moved objects keep their texture) or world space.
 import type { MeshStandardMaterial, Uniform, Vector4, WebGLProgramParametersWithUniforms } from 'three';
+import { dappledLightsChunk, GLSL_DAPPLE } from './dapple';
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
 import type { MaterialDef } from './materialDefs';
 import type { TextureSet } from './materialLibrary';
@@ -82,6 +83,8 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
     s.uniforms.uWrTint = { value: d.tint };
     s.uniforms.uWrNs = { value: d.normalScale };
     s.uniforms.uWet = o.uniforms.uWet;
+    s.uniforms.uWrDapple = o.uniforms.uDapple;
+    s.uniforms.uWrDappleMm = o.uniforms.uDappleMm;
     if (o.breaches) { s.uniforms.uWrBreach = o.breaches.spheres; s.uniforms.uWrBreachN = o.breaches.count; }
     if (o.extra) Object.assign(s.uniforms, o.extra.uniforms);
     const defs = [
@@ -127,6 +130,7 @@ ${GLSL_NOISE}
 ${GLSL_TRIPLANAR}
 ${GLSL_WET}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
+${GLSL_DAPPLE}
 #ifdef WR_LOCAL
 varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
 #endif
@@ -177,6 +181,7 @@ float roughnessFactor = wrWetRough(max(WR_ROUGHMIN, roughness * wrRg), wrWet, WR
 `)
       .replace('#include <normal_fragment_maps>', `
 normal = normalize((viewMatrix * vec4(wrNwWorld, 0.0)).xyz);
-`);
+`)
+      .replace('#include <lights_fragment_begin>', dappledLightsChunk());
   });
 }

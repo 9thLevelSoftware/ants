@@ -89,8 +89,11 @@ export function createSkyDome(uniforms: SkyUniforms, radius: number): Mesh {
   return mesh;
 }
 
-/** Copies a lighting state into the sky uniforms. */
-export function applySky(u: SkyUniforms, l: LightingState, moonDir: Vector3, moonIllum: number, sunColor: Color): void {
+/**
+ * Copies a lighting state into the sky uniforms. `starGain` scales the stars (lowered when depth of field is on:
+ * the dome sits at infinity, so every star becomes a full-size bokeh disc that reads as falling snow).
+ */
+export function applySky(u: SkyUniforms, l: LightingState, moonDir: Vector3, moonIllum: number, sunColor: Color, starGain = 1): void {
   u.zenith.value.copy(l.skyZenith);
   u.horizon.value.copy(l.skyHorizon);
   u.sunDir.value.copy(l.sunDir);
@@ -99,6 +102,6 @@ export function applySky(u: SkyUniforms, l: LightingState, moonDir: Vector3, moo
   u.sunDisc.value = l.sunDisc;
   u.sunGlow.value = l.sunGlow;
   u.overcast.value = l.overcast;
-  u.stars.value = l.stars;
+  u.stars.value = l.stars * starGain;
   u.moonDisc.value = l.moonlit ? MOON_DISC * moonIllum * (1 - l.overcast) : 0;
 }

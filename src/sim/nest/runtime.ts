@@ -6,7 +6,7 @@
 import type { Sim } from '@/sim/types';
 import type { CarveChange } from './carve/grid';
 import { FlagStore } from './flags';
-import type { PlanGeometry } from './plans/geometry';
+import type { PlanCache } from './plans/targets';
 
 export interface NestRuntime {
   flags: FlagStore;
@@ -16,8 +16,8 @@ export interface NestRuntime {
   allDirty: boolean;
   /** Breach records of the carve grid already turned into entrances (or found not to be one). */
   breachSeen: number;
-  /** Plan geometry by plan id (rebuilt from the plan record). */
-  geom: Map<number, PlanGeometry>;
+  /** Plan geometry and target voxels by plan id (rebuilt from the plan record). */
+  geom: Map<number, PlanCache>;
   /** cheat.setChamberClimate overrides (debug only, not saved). */
   climate: Map<number, { temp: number; rh: number }>;
 }

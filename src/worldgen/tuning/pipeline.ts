@@ -118,3 +118,20 @@ export const REPAIR = {
 export const SPECIES_BU_MM: Record<SpeciesId, number> = {
   'lasius-niger': 4, 'camponotus-pennsylvanicus': 9, 'messor-barbarus': 7, 'atta-texana': 7,
 };
+
+/**
+ * Zones (type or type/variant) where each human event kind has a lane or region (v-lanes, GDD 04 §15.2). Until the
+ * human lanes exist (T2), a kind is enabled when the map has at least one of its zones.
+ */
+export const LANE_ZONES: Record<string, readonly string[]> = {
+  footsteps: ['interior/kitchen', 'pavement', 'lawn', 'sand', 'rubber'],
+  mowing: ['lawn/mown'],
+  sweeping: ['pavement', 'interior/kitchen', 'asphalt/car-park'],
+  vacuum: ['interior/kitchen'],
+  'food-drop': ['interior/kitchen', 'pavement/patio', 'pavement/path', 'sand', 'rubber', 'asphalt/car-park'],
+  spill: ['interior/kitchen', 'pavement/patio', 'sand', 'rubber', 'asphalt/car-park'],
+  watering: ['lawn', 'garden-bed'],
+  car: ['asphalt/car-park', 'asphalt/driveway'],
+  children: ['sand', 'rubber', 'lawn/mown'],
+  'bait-station': ['interior/kitchen'],
+};

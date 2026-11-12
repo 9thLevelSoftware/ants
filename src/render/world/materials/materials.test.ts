@@ -52,3 +52,15 @@ describe('procedural textures', () => {
     expect(edge).toBeLessThanOrEqual(Math.max(inner, 6) + 2);
   });
 });
+
+describe('rain look (GDD 08 11.4)', () => {
+  it('porous surfaces darken x0.7 when soaked; non-porous ones only turn glossy', async () => {
+    const { MATERIAL_DEFS } = await import('./materialDefs');
+    for (const id of ['loam', 'sand', 'gravel', 'concrete', 'asphalt', 'stone', 'bark', 'rubber'] as const) expect(MATERIAL_DEFS[id].wetDarken).toBe(0.7);
+    for (const id of ['glass', 'tile', 'plastic', 'metal'] as const) expect(MATERIAL_DEFS[id].wetDarken).toBeGreaterThanOrEqual(0.9);
+  });
+  it('the wet roughness factor is x0.4 above the material floor', async () => {
+    const { GLSL_WET } = await import('./glsl');
+    expect(GLSL_WET).toContain('r * 0.4');
+  });
+});

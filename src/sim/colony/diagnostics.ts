@@ -6,14 +6,17 @@ import { tsAt } from '@/core/timeSeries';
 import type { Colony, Diagnostic, Sim, SpeciesDef } from '@/sim/types';
 import { ALLOCATION_GROUPS } from '@/sim/types';
 import {
-  BROOD_STALLED_GD, DIAG_QUEEN_CARE_FLOOR, DIAG_TRIP_REF_S, DIET_RANGE, DIET_SHIFT, QUEEN_FAT_CAP,
-  QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P,
+  BROOD_STALLED_GD, DIAG_MORTALITY_REF_LIFESPAN_GD, DIAG_QUEEN_CARE_FLOOR, DIAG_STORES_FULL_F, DIAG_TRAIL_LOST_REF_PER_GD,
+  DIAG_TRIP_REF_S, DIAG_WASTE_PER_CHAMBER, DIET_RANGE, DIET_SHIFT, QUEEN_FAT_CAP, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P,
+  SIZE_FACTOR_MIN, SIZE_FACTOR_N0, SIZE_FACTOR_SPAN, TRAIL_IGNORE_P,
 } from '@/sim/balance';
-import { daysToTicks, TICKS_PER_SECOND } from '@/sim/time';
+import { AntFlag } from '@/sim/types';
+import { daysToTicks, HOURS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { accGet, accSet, coreOf } from './core';
 import { censusOf, colonyChambers, itemCounts } from './census';
 import { referenceDevRate } from './brood';
-import { surfaceActivityOf } from './envAdapter';
+import { rainIntensityOf, surfaceActivityOf } from './envAdapter';
+import { meanUnloadWaitS, popOf } from './population';
 import { daysOfStock, needRates, targetDays } from './needs';
 import { queenOf } from './queen';
 import { GROUP_TASKS, knownCapacity } from './allocation';
@@ -23,12 +26,22 @@ import { clamp } from '@/core/math/scalar';
 
 const SYSTEM = 'colony';
 
-/** Mean of the last n hourly samples of a series (null when there are none). */
-function recentMean(sim: Sim, id: string, n: number): number | null {
+/**
+ * Factors of GDD 02 §14 that need data other modules do not provide yet; listed so the gap is explicit:
+ * intake `activation` (departure counts at target, beh-forage), hygiene `midden-blocked` (midden reachability, nest).
+ */
+export const PENDING_FACTORS: Readonly<Record<string, readonly string[]>> = {
+  'diag-food-intake-c': ['activation'],
+  'diag-food-intake-p': ['activation'],
+  'diag-hygiene': ['midden-blocked'],
+};
+
+/** Mean of n hourly samples of a series ending `skip` samples back (null when there are none). */
+function recentMean(sim: Sim, id: string, n: number, skip = 0): number | null {
   const ts = sim.state.progression.history.hourly[id];
-  if (!ts || ts.len === 0) return null;
+  if (!ts || ts.len <= skip) return null;
   let sum = 0, k = 0;
-  for (let i = 1; i <= n && i <= ts.len; i++) {
+  for (let i = 1 + skip; i <= n + skip && i <= ts.len; i++) {
     const v = tsAt(ts, -i);
     if (v !== undefined) { sum += v; k++; }
   }
@@ -39,13 +52,23 @@ function record(id: string, label: string, value: number, factors: FactorIn[], r
   return { id, system: SYSTEM, status: statusOf(statusRatio), label, value, factors: weighFactors(factors), remedies, focus: null };
 }
 
+/** Death causes that count as predation of foragers (intake factor `predation`). */
+const PREDATOR_CAUSES = ['predation', 'bird', 'antlion', 'parasitoid'] as const;
+
 function tripFactors(col: Colony): FactorIn[] {
   const c = col.counters;
   const out: FactorIn[] = [];
   if (c.trips > 0) {
     const meanS = c.tripTicks / c.trips / TICKS_PER_SECOND;
-    if (meanS > 0) out.push({ cause: 'distance', f: Math.min(1, DIAG_TRIP_REF_S / meanS), detail: `${Math.round(meanS)} s per trip` });
+    if (meanS > 0) {
+      out.push({ cause: 'distance', f: Math.min(1, DIAG_TRIP_REF_S / meanS), detail: `${Math.round(meanS)} s per trip` });
+      const wait = meanUnloadWaitS(col, TICKS_PER_SECOND);
+      out.push({ cause: 'unloading', f: 1 - Math.min(0.99, wait / meanS), detail: `${wait.toFixed(1)} s waiting to unload` });
+    }
     out.push({ cause: 'success', f: c.tripSuccesses / c.trips, detail: `${pct(c.tripSuccesses / c.trips)} of trips succeed` });
+    const byCause = popOf(col).deathsByCause;
+    const killed = PREDATOR_CAUSES.reduce((a, k) => a + (byCause[k] ?? 0), 0);
+    out.push({ cause: 'predation', f: 1 - Math.min(0.99, killed / c.trips), detail: `${killed} foragers taken by predators` });
   }
   return out;
 }
@@ -53,7 +76,7 @@ function tripFactors(col: Colony): FactorIn[] {
 function intakeDiag(sim: Sim, col: Colony, nutrient: 'c' | 'p'): Diagnostic {
   const rates = needRates(col);
   const need = nutrient === 'c' ? rates.c : rates.p;
-  const intake = recentMean(sim, nutrient === 'c' ? 'intake-c' : 'intake-p', 24);
+  const intake = recentMean(sim, nutrient === 'c' ? 'intake-c' : 'intake-p', HOURS_PER_DAY);
   const value = intake === null ? 1 : intake / need;
   const d = col.alloc.demand[ti('forage')];
   const actual = col.alloc.actual[ti('forage')];
@@ -79,11 +102,16 @@ function storesDiag(sim: Sim, col: Colony): Diagnostic {
   const rc = Math.min(1, days.c / t.c), rp = Math.min(1, days.p / t.p);
   const full = coreOf(col).fullSinceTick >= 0;
   const spoilP = accGet(coreOf(col), 'inst.spoilP');
+  // Upkeep growth: C use over the last game day against the day before (a growing colony eats its stock down).
+  const useNow = recentMean(sim, 'use-c', HOURS_PER_DAY);
+  const usePrev = recentMean(sim, 'use-c', HOURS_PER_DAY, HOURS_PER_DAY);
+  const upkeep = useNow !== null && usePrev !== null && useNow > 0 ? Math.min(1, usePrev / useNow) : 1;
   const f: FactorIn[] = [
     { cause: 'carbohydrate', f: rc, detail: `${days.c.toFixed(1)} of ${t.c} days`, diagId: 'diag-food-intake-c' },
     { cause: 'protein', f: rp, detail: `${days.p.toFixed(1)} of ${t.p} days`, diagId: 'diag-food-intake-p' },
-    { cause: 'capacity', f: full ? 0.5 : 1, detail: full ? 'stores full' : 'room left' },
+    { cause: 'capacity', f: full ? DIAG_STORES_FULL_F : 1, detail: full ? 'stores full' : 'room left' },
     { cause: 'spoilage', f: 1 - Math.min(0.99, spoilP / needRates(col).p), detail: `${spoilP.toFixed(2)} P spoiling per day` },
+    { cause: 'upkeep', f: upkeep, detail: upkeep < 1 ? 'the colony eats more each day' : 'steady upkeep' },
   ];
   return publishWithHysteresis(sim, col, record('diag-stores', 'Food stores', Math.min(rc, rp), f, ['remedy.dig.food', 'remedy.stock.low']));
 }
@@ -104,6 +132,7 @@ function broodDiag(sim: Sim, col: Colony, def: SpeciesDef): Diagnostic {
       { cause: 'carbohydrate', f: accGet(core, 'win.larvaC') / n, detail: 'larva-time with carbohydrate in the gut' },
       { cause: 'temperature', f: Math.min(1, accGet(core, 'win.larvaR') / n / r28), detail: 'development rate at the brood temperature' },
       { cause: 'nurses', f: dN > 0 ? Math.min(1, nurses / dN) : 1, detail: `${nurses} of ${dN.toFixed(1)} nurses` },
+      { cause: 'crowding', f: 1 - broodCrowding(sim, col), detail: 'brood chambers near capacity' },
       { cause: 'hygiene', f: Math.exp(-accGet(core, 'win.hygieneHaz') / n), detail: 'waste in brood chambers' },
       { cause: 'humidity', f: Math.exp(-accGet(core, 'win.humidityHaz') / n), detail: 'dry brood chambers' },
     );
@@ -116,6 +145,23 @@ function broodDiag(sim: Sim, col: Colony, def: SpeciesDef): Diagnostic {
     colonyAlert(sim, 'brood-stalled', 'warning', col.id, 'Brood growth has stalled', rec.factors[0]?.cause ?? '', rec.id);
   } else if (rec.status !== 'bad') colonyClearAlert(sim, 'brood-stalled', col.id);
   return rec;
+}
+
+/** Brood-weighted mean `crowd` of the colony's brood chambers (GDD 02 §11: clamp((items / cap - 0.8) / 0.2, 0, 1)). */
+function broodCrowding(sim: Sim, col: Colony): number {
+  const perChamber = new Map<number, number>();
+  for (const b of sim.stores.brood.list) {
+    if (b.alive && b.colony === col.id && b.chamberId >= 0) perChamber.set(b.chamberId, (perChamber.get(b.chamberId) ?? 0) + 1);
+  }
+  let sum = 0, n = 0;
+  for (const ch of colonyChambers(sim, col)) {
+    const items = perChamber.get(ch.id) ?? 0;
+    if (items === 0) continue;
+    const cap = Math.max(1e-6, ch.capacity.brood);
+    sum += items * clamp((items / cap - 0.8) / 0.2, 0, 1);
+    n += items;
+  }
+  return n > 0 ? sum / n : 0;
 }
 
 function layingDiag(sim: Sim, col: Colony): Diagnostic | null {
@@ -174,23 +220,50 @@ function workforceDiag(sim: Sim, col: Colony): Diagnostic {
   let sumD = 0;
   for (let i = 0; i < col.alloc.demand.length; i++) sumD += col.alloc.demand[i];
   const n = Math.max(1, cen.workers);
+  // Manual targets below the group's need (the 25 % floor keeps them above 0): the player's shares conflict.
+  let conflict = 1;
+  const short: { g: string; r: number }[] = [];
+  for (const g of ALLOCATION_GROUPS) {
+    let d = 0, t = 0, a = 0;
+    for (const task of GROUP_TASKS[g]) { d += col.alloc.demand[ti(task)]; t += col.alloc.target[ti(task)]; a += col.alloc.actual[ti(task)]; }
+    if (col.directives.allocation !== 'auto' && d > 0) conflict = Math.min(conflict, Math.min(1, t / d));
+    if (t > 0 && a < t) short.push({ g, r: a / t });
+  }
   const f: FactorIn[] = [
     { cause: 'too-few-adults', f: sumD > 0 ? Math.min(1, cen.available / sumD) : 1, detail: `${cen.available} available for ${sumD.toFixed(0)} needed` },
     { cause: 'callows', f: 1 - cen.callows / n, detail: `${cen.callows} callows` },
+    { cause: 'manual-conflict', f: conflict, detail: conflict < 1 ? 'slider shares leave a need short' : 'targets cover the needs' },
     { cause: 'fatigue', f: 1 - cen.resting / n, detail: `${cen.resting} resting` },
     { cause: 'injured', f: 1 - cen.injured / n, detail: `${cen.injured} injured` },
   ];
-  return publishWithHysteresis(sim, col, record('diag-workforce', 'Workforce', Math.min(1, worst), f, ['remedy.allocation.auto', 'remedy.slider.forage', 'remedy.slider.nurse']));
+  // Remedies: the sliders of the groups furthest below target (registry ids only, 00-index §B).
+  short.sort((x, y) => x.r - y.r || x.g.localeCompare(y.g));
+  const remedies = short.length > 0 ? short.map((x) => `remedy.slider.${x.g}`) : ['remedy.slider.forage', 'remedy.slider.nurse'];
+  return publishWithHysteresis(sim, col, record('diag-workforce', 'Workforce', Math.min(1, worst), f, remedies));
 }
 
 function trailsDiag(sim: Sim, col: Colony): Diagnostic {
   const n = censusOf(sim, col.id).workers;
-  const size = clamp(0.3 + (0.7 * (n - 10)) / 65, 0.3, 1);
+  const size = clamp(SIZE_FACTOR_MIN + ((1 - SIZE_FACTOR_MIN) * (n - SIZE_FACTOR_N0)) / SIZE_FACTOR_SPAN, SIZE_FACTOR_MIN, 1);
   const c = col.counters;
   const success = c.trips > 0 ? c.tripSuccesses / c.trips : 1;
+  const dayFrac = Math.max(1e-3, (sim.state.tick - col.ledger.dayStartTick) / daysToTicks(1));
+  const lostPerGd = accGet(coreOf(col), 'trailLost.today') / dayFrac;
+  const rain = rainIntensityOf(sim);
+  // Ignorers above the normal share (TRAIL_IGNORE_P of bouts) weaken recruitment.
+  let foragers = 0, ignorers = 0;
+  for (const a of sim.stores.ants.list) {
+    if (!a.alive || a.colony !== col.id || a.task !== 'forage') continue;
+    foragers++;
+    if (a.flags & AntFlag.TRAIL_IGNORER) ignorers++;
+  }
+  const ignoreShare = foragers > 0 ? ignorers / foragers : 0;
   const f: FactorIn[] = [
     { cause: 'colony-size', f: size, detail: `${n} workers` },
     { cause: 'success', f: success, detail: `${pct(success)} successful trips` },
+    { cause: 'trail-lost', f: 1 / (1 + lostPerGd / DIAG_TRAIL_LOST_REF_PER_GD), detail: `${lostPerGd.toFixed(1)} lost trails per day` },
+    { cause: 'washed', f: 1 - Math.min(0.99, rain), detail: rain > 0 ? 'rain washes the trails' : 'dry' },
+    { cause: 'ignorers', f: Math.min(1, (1 - ignoreShare) / (1 - TRAIL_IGNORE_P)), detail: `${ignorers} of ${foragers} foragers ignore trails` },
   ];
   return publishWithHysteresis(sim, col, record('diag-foraging-trails', 'Foraging trails', Math.min(size, success), f, ['remedy.possess.forage', 'remedy.marker.forage']));
 }
@@ -202,8 +275,8 @@ function mortalityDiag(sim: Sim, col: Colony): Diagnostic {
   let deaths = 0;
   for (const v of Object.values(core.deathsToday)) deaths += v;
   const ratePerGd = deaths / dayFrac;
-  // Reference: natural turnover N / 24 gd.
-  const expected = n / 24;
+  // Reference: natural turnover N / realised lifespan.
+  const expected = n / DIAG_MORTALITY_REF_LIFESPAN_GD;
   const value = ratePerGd > 0 ? Math.min(1, expected / ratePerGd) : 1;
   const factors = Object.entries(core.deathsToday).filter(([, v]) => v > 0).map(([cause, v]) => ({
     cause, weight: v / Math.max(1, deaths), detail: `${v} today`, diagId: null,
@@ -219,7 +292,7 @@ function hygieneDiag(sim: Sim, col: Colony): Diagnostic {
   const items = itemCounts(sim).byColony.get(col.id);
   const waste = items ? items.waste : 0;
   const chambers = Math.max(1, colonyChambers(sim, col).length);
-  const value = clamp(1 - waste / (10 * chambers), 0, 1);
+  const value = clamp(1 - waste / (DIAG_WASTE_PER_CHAMBER * chambers), 0, 1);
   const dH = col.alloc.demand[ti('haul')];
   const haulers = col.alloc.actual[ti('haul')];
   const f: FactorIn[] = [{ cause: 'haulers', f: dH > 0 ? Math.min(1, haulers / dH) : 1, detail: `${haulers} of ${dH.toFixed(1)} haulers` }];

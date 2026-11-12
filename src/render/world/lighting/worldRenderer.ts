@@ -4,6 +4,7 @@
 import { Group, Vector3 } from 'three';
 import type { QualityPreset } from '@/render/app';
 import type { Sim, WorldData } from '@/sim/types';
+import { FOREST_DAPPLE } from '../materials/dapple';
 import { MaterialLibrary } from '../materials/materialLibrary';
 import { createWorldUniforms, type WorldUniforms } from '../materials/uniforms';
 import { PrimitiveRenderer } from '../primitives/primitiveRenderer';
@@ -12,7 +13,7 @@ import { SkyEnvironment } from '../sky/skyEnvironment';
 import { MoundRenderer } from '../terrain/moundRenderer';
 import { TerrainRenderer } from '../terrain/terrainRenderer';
 import type { HoleProbe } from '../terrain/holeMask';
-import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, UNDERGROUND } from './constants';
+import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, STARS_DOF_GAIN, UNDERGROUND } from './constants';
 import { LightingRig } from './lightingRig';
 import {
   breachHoleProbe, breaches, carveView, createEnvSample, dynamicPrims, fieldHoleProbe, heightDeltaSignature, mounds,
@@ -58,6 +59,7 @@ export class WorldRenderer {
   private under = 0;
   private hazeVis = -1;
   private interior = -1;
+  private forest = -1;
   private lastExposure = NaN;
   private wet = 0;
   private moved = new Map<number, import('@/sim/types').Primitive>();
@@ -99,6 +101,7 @@ export class WorldRenderer {
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
     this.interior = -1;
+    this.forest = -1;
     this.world = world; // last: update() draws only a completely built world
     this.attachSim(sim);
   }
@@ -192,6 +195,8 @@ export class WorldRenderer {
     this.hazeVis = this.hazeVis < 0 || dt === 0 ? zoneVis : this.hazeVis + (zoneVis - this.hazeVis) * (1 - Math.exp(-dt / HAZE_EASE_S));
     const inside = zone === 'interior' ? 1 : 0;
     this.interior = this.interior < 0 || dt === 0 ? inside : this.interior + (inside - this.interior) * (1 - Math.exp(-dt / INTERIOR_LOOK.easeS));
+    const inForest = zone === 'forest' ? 1 : 0;
+    this.forest = this.forest < 0 || dt === 0 ? inForest : this.forest + (inForest - this.forest) * (1 - Math.exp(-dt / FOREST_DAPPLE.easeS));
     const camHeightBU = (this.camPos.y - this.terrain.height(this.camPos.x, this.camPos.z)) / bu;
     const q = this.ctx.quality;
     computeLighting({
@@ -201,7 +206,8 @@ export class WorldRenderer {
       under: this.under, hazeScale: q.fog.enabled ? q.fog.hazeScale : 0,
     }, this.lighting);
     this.rig.apply(this.lighting, this.ctx.scene, q.fog.enabled);
-    applySky(this.sky, this.lighting, this.env.moonDir, this.env.moonIllum, this.lighting.keyColor);
+    const dof = q.post.enabled && q.post.dof.enabled && q.post.dof.bokehScale > 0;
+    applySky(this.sky, this.lighting, this.env.moonDir, this.env.moonIllum, this.lighting.keyColor, dof ? STARS_DOF_GAIN : 1);
     this.skyMesh.position.copy(this.camPos);
     // real time for the throttle (the animation clock may be frozen); a settle frame (dt 0) bakes at once
     const nowS = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
@@ -220,6 +226,7 @@ export class WorldRenderer {
     u.uUnder.value = this.under;
     u.uHaze.value.copy(this.lighting.fogColor);
     u.uWindDir.value.set(this.env.windDir.x, this.env.windDir.z);
+    this.applyDapple(frame);
 
     // dynamic world
     this.terrain.update(this.camPos.x, this.camPos.z);
@@ -229,6 +236,15 @@ export class WorldRenderer {
     this.prims.setBreaches(breaches(sim), this.camPos);
     this.prims.update(this.camPos, this.primCullMm());
     this.mounds.sync(mounds(sim));
+  }
+
+  /** Forest leaf-shadow flecks on the sun (GDD 08 11.3): by day, fading with cloud cover; still in reduced motion. */
+  private applyDapple(frame: WorldFrame): void {
+    const l = this.lighting, d = this.uniforms.uDapple.value;
+    const amount = l.moonlit ? 0 : this.forest * FOREST_DAPPLE.depth * (1 - l.overcast) * (1 - this.under);
+    const k = l.keyDir, y = Math.max(0.05, k.y);
+    d.set(amount, frame.reducedMotion ? 0 : frame.time, k.x / y, k.z / y);
+    this.uniforms.uDappleMm.value = FOREST_DAPPLE.scaleBU * (this.world?.bu ?? 4);
   }
 
   /** Distance past which primitives are invisible: the haze (when on) or the preset's draw distance, mm. */
@@ -270,10 +286,10 @@ export class WorldRenderer {
   }
 
   /** Counters for budgets and tests. */
-  stats(): { terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; envBakes: number } {
+  stats(): { terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; holeTilesDropped: number; envBakes: number } {
     return {
       terrainLevels: this.terrain.levelCount, terrainTriangles: this.terrain.triangles, prims: this.prims.stats(), mounds: this.mounds?.count ?? 0,
-      holeSlots: this.terrain.holeMask?.usedSlots ?? 0, envBakes: this.skyEnv.bakes,
+      holeSlots: this.terrain.holeMask?.usedSlots ?? 0, holeTilesDropped: this.terrain.holeMask?.droppedTiles ?? 0, envBakes: this.skyEnv.bakes,
     };
   }
 

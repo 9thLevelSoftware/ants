@@ -19,10 +19,13 @@ export function publishActionFailure(sim: Sim, ant: Ant, action: ActionId, reaso
   });
 }
 
-/** A released ant went back to work: info line naming the task and the release rule that matched. */
+/**
+ * A released ant went back to work: info line naming the task and the release rule that matched. One fixed id
+ * (App. D): it describes the latest release only, and `focus` names the ant (no entry per ant ever released).
+ */
 export function publishReleased(sim: Sim, ant: Ant, task: Task, rule: number): void {
   ports.publishDiagnostic(sim, {
-    id: `diag-released-ant:${ant.id}`, system: 'ants', status: 'info', label: `Returned to work: ${task}`, value: rule,
+    id: 'diag-released-ant', system: 'ants', status: 'info', label: `Returned to work: ${task}`, value: rule,
     factors: [{ cause: `release-rule-${rule}`, weight: 1, detail: `rule ${rule}`, diagId: null }], remedies: [],
     sinceTick: sim.state.tick, focus: { kind: 'ant', id: ant.id, pos: { ...ant.pos } },
   });

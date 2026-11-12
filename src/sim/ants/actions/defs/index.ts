@@ -24,6 +24,7 @@ export function actionDef(id: ActionId): ActionDef | undefined {
 }
 
 export { setTrailFlag } from './food';
+export { inLayingPlace } from './care';
 export { digContact, digPower, entranceAtThroat } from './dig';
 export { floorAhead } from './carrying';
 export { acidRegenTicks } from './combat';

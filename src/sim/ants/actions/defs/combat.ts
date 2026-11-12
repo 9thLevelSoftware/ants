@@ -3,7 +3,7 @@
 
 import type { ActionFailReason, Ant, Sim, TargetRef } from '@/sim/types';
 import {
-  ALARM_PUFF, BITE_S, RELEASE_ALARM_COOLDOWN_S, RELEASE_ALARM_S, SPRAY_ALARM, SPRAY_CONE_DEG, SPRAY_COOLDOWN_S,
+  ALARM_PUFF, BITE_CYCLE_S, BITE_S, RELEASE_ALARM_COOLDOWN_S, RELEASE_ALARM_S, SPRAY_ALARM, SPRAY_CONE_DEG, SPRAY_COOLDOWN_S,
   SPRAY_DAMAGE_PER_MG23, SPRAY_RANGE_L, SPRAY_RELEASE_S, SPRAY_WINDUP_S, TEND_APHID_STROKE_S, ACID_REGEN_S,
 } from '@/sim/balance/actions';
 import { BITE_PER_MG23 } from '@/sim/balance';
@@ -34,8 +34,6 @@ export function biteDamage(sim: Sim, ant: Ant): number {
   return BITE_PER_MG23 * Math.pow(ant.massMg, 2 / 3) * (cd ? cd.mandibleFactor : 1);
 }
 
-/** One full bite cycle (strike plus rest), game s (GDD 05: 1.0 s for AI and player). */
-const BITE_CYCLE_S = 1.0;
 
 export const biteDef: ActionDef = {
   id: 'bite', kind: 'timed', targets: ['ant', 'creature'], preempts: true, cancellable: true, pose: 'bite',

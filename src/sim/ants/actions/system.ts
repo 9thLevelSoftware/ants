@@ -3,15 +3,14 @@
 
 import type { Ant, Sim, System } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
-import { TRAIL_DAB, TRAIL_DAB_SPACING_BU, TRAIL_LADEN_CROP, TRAIL_UNLADEN_FACTOR } from '@/sim/balance/actions';
+import {
+  TRAIL_DAB, TRAIL_DAB_SPACING_BU, TRAIL_LADEN_CROP, TRAIL_MAX_DABS_PER_TICK, TRAIL_UNLADEN_FACTOR,
+} from '@/sim/balance/actions';
 import { carriedItem } from './carry';
 import { acidRegenTicks } from './defs';
 import { ports } from './ports';
 import { stepAction } from './runner';
 import { isFoodItem } from './sourceKinds';
-
-/** Most dabs laid in one tick (a teleport must not paint a line of trail). */
-const MAX_DABS_PER_TICK = 4;
 
 /**
  * Trail dab factor: a behaviour may set `bb['act.trailFactor']` (GDD 02 §8.3 factors); otherwise the player rule
@@ -32,12 +31,12 @@ export function layTrail(sim: Sim, ant: Ant): void {
   const dist = Math.hypot(ant.pos.x - ant.prevPos.x, ant.pos.y - ant.prevPos.y, ant.pos.z - ant.prevPos.z) / bu;
   let acc = (ant.bb['act.trailDist'] ?? 0) + dist;
   let n = 0;
-  while (acc >= TRAIL_DAB_SPACING_BU && n < MAX_DABS_PER_TICK) {
+  while (acc >= TRAIL_DAB_SPACING_BU && n < TRAIL_MAX_DABS_PER_TICK) {
     ports.deposit(sim, ant.colony, 'trail', ant.pos, TRAIL_DAB * dabFactor(sim, ant));
     acc -= TRAIL_DAB_SPACING_BU;
     n++;
   }
-  ant.bb['act.trailDist'] = n === MAX_DABS_PER_TICK ? 0 : acc;
+  ant.bb['act.trailDist'] = n === TRAIL_MAX_DABS_PER_TICK ? 0 : acc;
 }
 
 function regenAcid(sim: Sim, ant: Ant): void {

@@ -81,9 +81,11 @@ export interface NavScratch {
   latchAngle: number;
   latchS: number;
   lowMagS: number;
-  /** Up vector at the start of the latch trigger window and the tick it was taken. */
+  /** Up vector at the start of the latch trigger window and its age, s. */
   upRef: Vec3;
-  upRefTick: number;
+  upRefAge: number;
+  /** Latched desired direction (tangent, parallel-transported with the ant's frame). */
+  latchDir: Vec3;
   /** Last intent direction (world), for the latch break test. */
   lastDir: Vec3;
   pivot: number;
@@ -106,7 +108,7 @@ export function newScratch(): NavScratch {
     replansThisTick: 0, replanTickMark: -1, speedKind: 'cruise', speedMult: 1, speedFixed: 0,
     planTick: -1, retargetTick: 0, best: NO_PROGRESS, bestTick: 0, anchor: v(), ladder: 0, ladderUntil: 0, side: 1, episodes: 0,
     relocations: 0, center: v(), radius: 0, trailColony: -1, trailChannel: '', trailDir: 0, trailLostS: 0, trailTurned: 0,
-    crumbIdx: -1, latch: 0, latchAngle: 0, latchS: 0, lowMagS: 0, upRef: v(0, 1, 0), upRefTick: -1, lastDir: v(),
+    crumbIdx: -1, latch: 0, latchAngle: 0, latchS: 0, lowMagS: 0, upRef: v(0, 1, 0), upRefAge: -1, latchDir: v(1, 0, 0), lastDir: v(),
     pivot: 0, rescueS: 0, rescueFrom: v(), piPos: v(), piValid: 0,
   };
 }

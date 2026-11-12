@@ -4,7 +4,7 @@ import { AntFlag, taskIndex } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { GROUP_TASKS } from './allocation';
-import { apportion } from './allocation/targets';
+import { apportion, computeTargets } from './allocation/targets';
 import { requestTask } from './index';
 
 function groupActual(sim: Sim, g: keyof typeof GROUP_TASKS): number {
@@ -79,5 +79,42 @@ describe('task allocation (GDD 02 §6, E13-E15, AC6)', () => {
   it('largest-remainder apportionment sums to the total', () => {
     expect(apportion(10, [1, 1, 1])).toEqual([4, 3, 3]);
     expect(apportion(5, [0, 0])).toEqual([0, 0]);
+  });
+
+  it('§6.3: outside targets are bounded by the healthy non-callow workforce; the freed workers stay with other groups', () => {
+    const { sim } = colony(1, () => 3);
+    const col = colonyOf(sim);
+    const d = col.alloc.demand;
+    d.fill(0);
+    d[taskIndex('forage')] = 20;
+    d[taskIndex('nurse')] = 8;
+    d[taskIndex('dig')] = 6;
+    // 30 available: 10 callows, 6 injured adults, 14 fit for outside work. Demand 34 > 30.
+    computeTargets(col, 30, false, { all: 30, adult: 20, outside: 14 });
+    const t = col.alloc.target;
+    expect(t[taskIndex('forage')]).toBe(14);
+    expect(t[taskIndex('nurse')]).toBe(8);
+    expect(t[taskIndex('dig')]).toBe(6); // the injured adults dig
+    // Everything targeted can be staffed: 8 nurse <= 10 callows + spare adults, dig + forage <= 20 adults.
+    expect(t[taskIndex('forage')] + t[taskIndex('dig')]).toBeLessThanOrEqual(20);
+    // Manual mode, all to forage: the forage group gets the 14 who can go, not 90 % of 30.
+    col.directives.allocation = { forage: 100, nurse: 0, dig: 0, defend: 0 };
+    computeTargets(col, 30, false, { all: 30, adult: 20, outside: 14 });
+    const forage = GROUP_TASKS.forage.reduce((a, k) => a + t[taskIndex(k)], 0);
+    expect(forage).toBe(14);
+    expect(t[taskIndex('nurse')]).toBeGreaterThanOrEqual(2); // floor ceil(0.25 x 8)
+  });
+
+  it('§6.3: with half the workers injured, the forage group is staffed to its (bounded) target', () => {
+    const { sim } = colony(40, (i) => 13 + (i % 5));
+    const ws = sim.state.ants.filter((a) => a.alive && a.caste === 'worker');
+    sim.enqueue({ type: 'setDirectives', allocation: { forage: 100, nurse: 0, dig: 0, defend: 0 } });
+    for (let tick = 0; tick < 1800; tick++) {
+      for (const a of ws.slice(0, 20)) { a.hp = Math.min(a.hp, 0.3 * a.maxHp); a.flags |= AntFlag.INJURED; }
+      sim.tick();
+    }
+    const target = groupTarget(sim, 'forage');
+    expect(target).toBeLessThanOrEqual(20);
+    expect(Math.abs(groupActual(sim, 'forage') - target)).toBeLessThanOrEqual(1);
   });
 });

@@ -4,11 +4,12 @@
 import type { ActionFailReason, ActionId, Ant, Sim, TargetRef } from '@/sim/types';
 import { TARGET_KINDS } from '@/sim/types';
 import {
-  PROMPT_ANGLE_WEIGHT, PROMPT_CLASS_WEIGHT, PROMPT_DIST_WEIGHT, PROMPT_HYSTERESIS, PROMPT_SWITCH_S, REACH_CONE_DEG,
+  PROMPT_ANGLE_WEIGHT, PROMPT_CLASS_WEIGHT, PROMPT_DIST_WEIGHT, PROMPT_HYSTERESIS, PROMPT_QUERY_PAD_BU, PROMPT_SWITCH_REAL_S,
+  REACH_CONE_DEG,
 } from '@/sim/balance/actions';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { carriedItem } from '../actions/carry';
-import { entranceAtThroat } from '../actions/defs';
+import { entranceAtThroat, inLayingPlace } from '../actions/defs';
 import {
   bearingDeg, contactDistance, findEntrance, inReach, mandiblePoint, placeOf, reachMm, selfTarget, type TargetPlace,
 } from '../actions/geometry';
@@ -86,7 +87,8 @@ function classify(sim: Sim, ant: Ant, t: TargetRef): Classified | null {
       return plugged ? { cls: 'structure', primary: 'unseal-entrance', secondary: null } : null;
     }
     case 'none': {
-      if (ant.caste === 'queen' && casteAllows(sim, ant, 'lay-egg') && ant.carry.kind === 'none') {
+      // Class 9: the queen in a chamber lays; carrying puts down; anything else grooms itself.
+      if (ant.caste === 'queen' && casteAllows(sim, ant, 'lay-egg') && ant.carry.kind === 'none' && inLayingPlace(sim, ant)) {
         return { cls: 'self', primary: 'lay-egg', secondary: 'groom' };
       }
       return { cls: 'self', primary: ant.carry.kind !== 'none' ? 'put-down' : 'groom', secondary: null };
@@ -100,19 +102,37 @@ const place: TargetPlace = { pos: { x: 0, y: 0, z: 0 }, radius: 0 };
 const mp = { x: 0, y: 0, z: 0 };
 const ids: number[] = [];
 
+/**
+ * Largest target radius among living entities of a kind, mm. The spatial index finds entities by their centre, so
+ * a wide target (a spill, carrion) whose edge is in reach is only found when the query is widened by its radius.
+ */
+function largestRadiusMm(sim: Sim, ant: Ant, kind: 'item' | 'source' | 'creature'): number {
+  const list = kind === 'item' ? sim.stores.items.list : kind === 'source' ? sim.stores.sources.list : sim.stores.creatures.list;
+  let max = 0;
+  for (const e of list) {
+    if (!e.alive) continue;
+    const p = placeOf(sim, ant, { kind, id: e.id, pos: e.pos }, place);
+    if (p && p.radius > max) max = p.radius;
+  }
+  return max;
+}
+
 function considered(sim: Sim, ant: Ant): TargetRef[] {
   const out: TargetRef[] = [];
   if (ant.action && COMMITMENTS.includes(ant.action.id)) out.push(ant.action.target);
   const m = mandiblePoint(sim, ant, mp);
-  const r = reachMm(sim, ant) + sim.world.bu;
+  const reach = reachMm(sim, ant);
+  // Brood and ants are never wider than PROMPT_QUERY_PAD_BU; the other kinds are widened by their largest radius.
+  const r = reach + PROMPT_QUERY_PAD_BU * sim.world.bu;
+  const wide = (kind: 'item' | 'source' | 'creature'): number => Math.max(r, reach + largestRadiusMm(sim, ant, kind));
   const add = (kind: TargetRef['kind'], list: number[]): void => {
     for (const id of list.slice().sort((a, b) => a - b)) if (!(kind === 'ant' && id === ant.id)) out.push({ kind, id, pos: { x: 0, y: 0, z: 0 } });
   };
   add('brood', sim.index.queryBrood(m, r, ids));
-  add('item', sim.index.queryItems(m, r, ids));
-  add('source', sim.index.querySources(m, r, ids));
+  add('item', sim.index.queryItems(m, wide('item'), ids));
+  add('source', sim.index.querySources(m, wide('source'), ids));
   add('ant', sim.index.queryAnts(m, r, ids));
-  add('creature', sim.index.queryCreatures(m, r, ids));
+  add('creature', sim.index.queryCreatures(m, wide('creature'), ids));
   const e = entranceAtThroat(sim, ant, () => true);
   if (e) out.push({ kind: 'entrance', id: e.id, pos: { ...e.pos } });
   out.push(selfTarget(ant));
@@ -149,6 +169,11 @@ function sameTarget(c: PromptCandidate, kind: number, id: number): boolean {
   return TARGET_KINDS.indexOf(c.target.kind) === kind && c.target.id === id;
 }
 
+/** Real seconds one tick stands for at the current run speed. */
+function realTickS(sim: Sim): number {
+  return 1 / TICKS_PER_SECOND / Math.max(1, sim.state.env.time.speed);
+}
+
 function setStored(ant: Ant, kKey: string, iKey: string, c: PromptCandidate | null): void {
   ant.bb[kKey] = c ? TARGET_KINDS.indexOf(c.target.kind) : -1;
   ant.bb[iKey] = c ? c.target.id : -1;
@@ -156,11 +181,11 @@ function setStored(ant: Ant, kKey: string, iKey: string, c: PromptCandidate | nu
 
 /**
  * Per-tick prompt selection with hysteresis (GDD 01 §9.1 rule 3): the current target gets +PROMPT_HYSTERESIS and
- * a new winner must lead for PROMPT_SWITCH_S before it takes over. State lives in ant.bb (deterministic).
+ * a new winner must lead for PROMPT_SWITCH_REAL_S real seconds before it takes over (the prompt is presentation,
+ * so the delay follows the run speed like the AFK clock). State lives in ant.bb (deterministic).
  */
 export function updatePromptSelection(sim: Sim, ant: Ant): PromptCandidate | null {
   const list = promptCandidates(sim, ant);
-  const tick = sim.state.tick;
   if (list.length === 0) {
     setStored(ant, CTL.promptKind, CTL.promptId, null);
     setStored(ant, CTL.challKind, CTL.challId, null);
@@ -175,14 +200,16 @@ export function updatePromptSelection(sim: Sim, ant: Ant): PromptCandidate | nul
     return best;
   }
   if (sameTarget(best, ant.bb[CTL.challKind] ?? -1, ant.bb[CTL.challId] ?? -1)) {
-    if (tick - (ant.bb[CTL.challSince] ?? tick) >= Math.round(PROMPT_SWITCH_S * TICKS_PER_SECOND)) {
+    const led = (ant.bb[CTL.challRealS] ?? 0) + realTickS(sim);
+    ant.bb[CTL.challRealS] = led;
+    if (led >= PROMPT_SWITCH_REAL_S - 1e-9) {
       setStored(ant, CTL.promptKind, CTL.promptId, best);
       setStored(ant, CTL.challKind, CTL.challId, null);
       return best;
     }
   } else {
     setStored(ant, CTL.challKind, CTL.challId, best);
-    ant.bb[CTL.challSince] = tick;
+    ant.bb[CTL.challRealS] = 0;
   }
   return cur;
 }

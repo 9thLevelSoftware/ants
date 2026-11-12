@@ -7,6 +7,7 @@
 //    wetness and a distance fade of the normal detail.
 import { MeshStandardMaterial, Uniform, Vector4, type DataArrayTexture } from 'three';
 import { GLSL_NOISE, GLSL_WET } from '../materials/glsl';
+import { dappledLightsChunk, GLSL_DAPPLE } from '../materials/dapple';
 import { addPatch } from '../materials/surfacePatch';
 import type { WorldUniforms } from '../materials/uniforms';
 import { CLIPMAP_GLSL } from './clipmap';
@@ -43,6 +44,7 @@ ${GLSL_NOISE}
 ${GLSL_WET}
 ${HOLE_MASK_GLSL}
 varying vec3 vWrW;
+${GLSL_DAPPLE}
 uniform highp sampler2DArray tWrAR; uniform highp sampler2DArray tWrNH;
 uniform sampler2D tWrMat; uniform sampler2D tWrHoles;
 uniform vec4 uWrMatGrid; uniform vec4 uWrHoleGrid; uniform vec4 uWrInner;
@@ -166,6 +168,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
       tWrAR: { value: shared.arrays.albedoRough }, tWrNH: { value: shared.arrays.normalHeight },
       uWrMatA: { value: shared.table.matA }, uWrMatB: { value: shared.table.matB }, uWrMatC: { value: shared.table.matC },
       uWet: shared.world.uWet,
+      uWrDapple: shared.world.uDapple, uWrDappleMm: shared.world.uDappleMm,
       ...shared.holeMask,
       ...level,
     });
@@ -182,7 +185,8 @@ vNormalWr = objectNormal;`)
       .replace('#include <common>', `#include <common>\n${FRAG_DECL}\nvarying vec3 vNormalWr;`)
       .replace('#include <map_fragment>', FRAG_MAIN)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(roughness * wrRg, wrWet, wrWR);')
-      .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(wrNw, 0.0)).xyz);');
+      .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(wrNw, 0.0)).xyz);')
+      .replace('#include <lights_fragment_begin>', dappledLightsChunk());
   });
   return { material: m, level };
 }

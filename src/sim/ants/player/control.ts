@@ -12,7 +12,8 @@ import { begin, cancel, canDo, interruptible, resolveTarget, stopAction } from '
 import { CTL } from './controlState';
 import { publishActionFailure } from './diagnostics';
 import { releasePossessed } from './possession';
-import { selectedCandidate, updatePromptSelection } from './targeting';
+import { promptView } from './prompt';
+import { updatePromptSelection } from './targeting';
 
 const TICK_S = 1 / TICKS_PER_SECOND;
 /** Primitives that keep running while the ant walks. */
@@ -43,14 +44,22 @@ function heldMask(i: PlayerIntent): number {
 export function noteInput(sim: Sim, ant: Ant): void {
   sim.state.player.lastInputTick = sim.state.tick;
   ant.bb[CTL.idleS] = 0;
+  ant.bb[CTL.idleFrom] = sim.state.tick;
 }
 
-/** AFK clock in real seconds: one tick is 0.1 game s = 0.1 / speed real s. Returns true when the ant was released. */
+/**
+ * AFK clock in real seconds: one tick is 0.1 game s = 0.1 / speed real s. Returns true when the ant was released.
+ * The clock restarts whenever player.lastInputTick moves away from the tick it was counted from, so the load path
+ * resetting lastInputTick (GDD 01 App. A: not persisted) also restarts the persisted clock.
+ */
 function afk(sim: Sim, ant: Ant, intent: PlayerIntent): boolean {
   if (hasInput(intent)) { noteInput(sim, ant); return false; }
   const time = sim.state.env.time;
   if (time.paused) return false;
-  const idle = (ant.bb[CTL.idleS] ?? 0) + TICK_S / Math.max(1, time.speed);
+  const since = sim.state.player.lastInputTick;
+  const counted = ant.bb[CTL.idleFrom] === since ? (ant.bb[CTL.idleS] ?? 0) : 0;
+  ant.bb[CTL.idleFrom] = since;
+  const idle = counted + TICK_S / Math.max(1, time.speed);
   ant.bb[CTL.idleS] = idle;
   if (idle < POSSESS_AFK_S) return false;
   releasePossessed(sim, 'afk');
@@ -80,16 +89,19 @@ function movementInterrupt(sim: Sim, ant: Ant, intent: PlayerIntent): void {
   cancel(sim, ant, null);
 }
 
+/** The target of the HUD line that offers this action (primary, secondary or an extra key line), null if none. */
+function promptTargetFor(sim: Sim, ant: Ant, id: ActionId): TargetRef | null {
+  const view = promptView(sim, ant);
+  for (const l of [view.primary, view.secondary, ...view.extras]) if (l && l.actionId === id && l.target) return l.target;
+  return null;
+}
+
 /**
- * Starts a primitive for the possessed ant: the given target, else the prompt's target when the prompt offers
- * this action, else the primitive's own choice. Hold-type primitives repeat until stopped.
+ * Starts a primitive for the possessed ant: the given target, else the target of the prompt line offering this
+ * action (GDD 01 App. B), else the primitive's own choice. Hold-type primitives repeat until stopped.
  */
 export function startPlayerAction(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null, secondary: boolean): boolean {
-  let t = target;
-  if (!t) {
-    const c = selectedCandidate(sim, ant);
-    if (c && (c.primary === id || c.secondary === id)) t = c.target;
-  }
+  let t = target ?? promptTargetFor(sim, ant, id);
   if (!t) t = resolveTarget(sim, ant, id, null);
   const repeat = actionDef(id)?.repeatable === true && HOLD_ACTIONS.includes(id);
   if (begin(sim, ant, id, t, { repeat, secondary })) return true;

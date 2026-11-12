@@ -41,4 +41,6 @@ export interface WorldFrame {
   /** What the camera looks at (possessed ant / followed entity), mm; centres the sun shadow. */
   subject?: Vec3Like | null;
   env?: EnvOverride | null;
+  /** Accessibility setting: no moving light patterns (the forest dapple stands still). */
+  reducedMotion?: boolean;
 }

@@ -75,6 +75,7 @@ function rollDay(sim: Sim, col: Colony, core: ColonyCoreState, day: number): voi
   c.intakeTodayC = 0; c.intakeTodayP = 0; c.useTodayC = 0; c.useTodayP = 0;
   core.departuresToday = 0;
   core.deathsToday = {};
+  accSet(core, 'trailLost.today', 0);
   const q = queenOf(sim, col);
   const doy = currentDayOfYear(sim.state);
   if (q?.queen && doy - 1 < q.queen.layingLog.length) q.queen.layingLog[doy - 1] = 0;
