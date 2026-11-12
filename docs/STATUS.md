@@ -86,3 +86,5 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Still running (Stage 1A): render-world fix, render-nest verify, worldgen-terrain impl, F3b impl, loco impl, nestops impl. Not started: ui-shell, save (after F3b).
 - 09:55 DONE: render-ants, render-world (orchestrator reviewed kerb + breach/mound screenshots: good). Launched render-decor.
 - Stage 1A remaining: render-nest (verify), worldgen-terrain (impl), F3b (impl), loco (impl), nestops (impl); then ui-shell + save after F3b; then gate int-1A.
+- 10:46 DONE: render-nest. Launched ui-shell + save (Sonnet impl / Opus verify). Running: render-decor impl, worldgen-terrain verify, F3b fix, loco fix, nestops fix.
+- When loco, nestops, worldgen-terrain, F3b are all done: generate docs/design/tasks/notes-1A.md (collect-notes.py with keys: phero colony-core actions sources-core env-core loco nestops worldgen-terrain render-world render-nest render-ants F3b-game F-int-foundation [+ ui-shell save render-decor if done]) and launch gate int-1A (Opus high, visual, verifyModel opus). Seam-light Stage 1B tasks can start alongside: worldgen-outdoor, worldgen-interior, packaging.
