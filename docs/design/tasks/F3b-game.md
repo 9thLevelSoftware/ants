@@ -4,6 +4,7 @@
 The application shell that turns the simulation, the render layer, input and UI into a running game: the `Game` object, the frame loop with time control, possession plumbing, the sub-renderer registry, the debug/test API that every later verification depends on, and the UI root. After this task `?test=1&autostart=1` shows a generated world at ant scale with the founding queen under third-person control (with simple debug rendering where the real renderers have not landed yet).
 
 ## Read first
+- `docs/design/tasks/notes-foundation.md` — the reports of the foundation tasks (what each left undone, what each needs from others, notes for the integrator). Act on every item that falls inside your scope and list in your report the ones you deliberately did not act on.
 - `docs/03-architecture.md` (all; §5 lists the required URL flags and the `window.__game` API, §8 the packaging rules), `docs/design/tdd/00-contracts-guidance.md` §8.
 - GDD 01 (`docs/design/gdd/01-modes-controls-camera.md`): sections 1-2 (application flow, views and hand-overs), section 4 (movement mapping), section 8 (time-speed rules). `docs/design/gdd/digests/01.md` gives the map.
 - `src/render/app/**`, `src/render/assets/**`, `src/input/**`, `src/render/camera/**` (task F3a — use them), `src/sim/sim.ts`, `src/sim/createGame.ts`, `src/sim/types/**`, `docs/design/tdd/02-kernel.md`.

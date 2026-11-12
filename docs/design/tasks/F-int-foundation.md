@@ -4,6 +4,7 @@
 Join the two halves of the foundation that were built in parallel: the contracts/skeleton (task F1b) and the kernel (task F2). After this task the simulation runs on the real world field, carve grid, nest navigation and walker, the contract types are final enough for ~40 module tasks to build on, and a headless soak runner exists.
 
 ## Read first
+- `docs/design/tasks/notes-foundation.md` — the reports of the foundation tasks (what each left undone, what each needs from others, notes for the integrator). Act on every item that falls inside your scope and list in your report the ones you deliberately did not act on.
 - `docs/design/tdd/00-contracts-guidance.md`, `docs/design/tdd/01-contracts-map.md` (F1b's map, including everything marked PROVISIONAL and its questions), `docs/design/tdd/02-kernel.md` (kernel API).
 - Task F1c has already synchronised the contracts with the design index; do not redo that.
 - `src/sim/**` as it stands (types, skeleton, stubs, kernel).
