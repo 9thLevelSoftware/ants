@@ -18,3 +18,8 @@ GDD 06 (codex entry list with ids, unlock triggers and two-sentence drafts; mile
 1. A test asserts every codex id in the design index has an entry with a non-empty title and a body within the length bounds, and that no entry contains banned patterns (first-person ant speech, jokes flagged by a small list, the words listed as avoided in GDD 08).
 2. A fact-check sample: for 25 entries chosen across species, each factual sentence is traceable to a dossier statement that is not marked unsupported (list the mapping in the report).
 3. The manual covers every screen and control and matches the actual default bindings (generated table compared in a test).
+
+## Addendum (integrator; this task starts early)
+- Text only: no engineer is waiting on this, and you wait on no one. The panels that display the codex and journal are a later task; deliver data modules with stable ids and a small pure lookup API (`getCodexEntry(id)`, `listCodexEntries(filter)`, journal/alert/hint text tables keyed by the ids in the design index).
+- `src/content/**` does not exist yet: create it. Alert, hint, prompt and refusal texts that already live in UI or game code (`src/ui/**`, `src/game/refusals.ts`, `src/game/toasts.ts` and similar) are owned by their engineers and are being edited now: do not edit those files. Instead review their current wording and put every proposed change in a table in your report (file, id, current text, proposed text, reason).
+- Write the manual from the GDD and from the bindings table as it stands in code. Mark every section that describes a feature not yet present in the code (check before you write) with an HTML comment `<!-- verify-at-release -->` on the line above its heading, so the release documentation pass can find and check it.
