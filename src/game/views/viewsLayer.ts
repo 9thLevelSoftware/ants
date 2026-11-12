@@ -119,7 +119,7 @@ export class ViewsLayer {
     this.markers?.update(buildMarkerScene({
       sim: s.sim, colony: view === 'colony', selectedMarkerId: this.tools.markers.selectedId, selectedPlanId: st.selectedPlanId,
       preview: view === 'colony' && plannerActive(st) ? this.tools.planner.preview : null, tunnelStart: this.tools.planner.tunnelStart?.pos ?? null,
-      hover: view === 'possess' ? null : st.hover, selected: st.selected,
+      hover: view === 'possess' ? null : st.hover, selected: st.selected, cutaway: view === 'colony' ? s.views.colony.cutaway.mode : 'off',
     }));
   }
 

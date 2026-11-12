@@ -123,6 +123,26 @@ describe('outdoor content: counts per zone (GDD 04 §5 densities)', () => {
     }
   });
 
+  it('play equipment keeps a fall zone: >= 1 m between the bounding boxes of slide, swing frame and spring rider', () => {
+    for (const { a, seed, r } of all()) {
+      if (a !== 'playground-park') continue;
+      const w = r.world;
+      const boxes = w.objects.filter((o) => ['slide', 'swing-frame', 'spring-rider'].includes(o.templateId)).map((o) => {
+        let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+        for (let i = o.primStart; i < o.primStart + o.primCount; i++) {
+          const p = w.prims[i], e = Math.max(p.size.x, p.size.y, p.size.z);
+          x0 = Math.min(x0, p.pos.x - e); x1 = Math.max(x1, p.pos.x + e); z0 = Math.min(z0, p.pos.z - e); z1 = Math.max(z1, p.pos.z + e);
+        }
+        return { id: o.templateId, x0, z0, x1, z1 };
+      });
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        const p = boxes[i], q = boxes[j];
+        const gap = Math.hypot(Math.max(0, p.x0 - q.x1, q.x0 - p.x1), Math.max(0, p.z0 - q.z1, q.z0 - p.z1));
+        expect(gap, `${a}#${seed} ${p.id}/${q.id}`).toBeGreaterThanOrEqual(1000);
+      }
+    }
+  });
+
   it('kitchen doors have their back step and outside doormat; a patio table has 2-4 chairs (GDD 04 §5.4)', () => {
     for (const { a, seed, r } of all()) {
       const w = r.world, tag = `${a}#${seed}`;

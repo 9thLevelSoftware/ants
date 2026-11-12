@@ -30,6 +30,7 @@ export default async ({ page, shot, log, wait }) => {
   const queenId = info.queen.id;
   const ent = nest.entrances[0].pos;
   const ch = (type) => nest.chambers.find((c) => c.type === type);
+  const food = ch('food');
   expect(info.queen && info.queen.caste === 'queen', 'the founding queen is possessed', info.queen);
 
   // GDD 6.1 on the shown frame: f(camera) >= 0.5 R
@@ -90,7 +91,6 @@ export default async ({ page, shot, log, wait }) => {
   // --- 4. in the queen-sized shaft (1 BU radius: the Stage 1A case) --------------------------------------------------
   if (run('tunnel')) {
   await teleport({ x: ent.x + 0.3 * bu, y: ent.y - 1.2 * bu, z: ent.z + 0.1 * bu });
-  const food = ch('food');
   let tunnel = null;
   for (let i = 0; i < 12 && !tunnel; i++) {
     w = await walk(3, { toward: food.center });
@@ -129,7 +129,7 @@ export default async ({ page, shot, log, wait }) => {
     ok('chamber', { ...t5, walk: w });
   }
 
-  if (only && !only.includes('observer')) return out;
+  if (run('observer')) {
   // --- 6. observer following an ant, hover highlight, possess by E and by the pick API -------------------------------
   const sx = info.start.x + 3 * bu, sz = info.start.z;
   await teleport({ x: sx, y: 1 * bu, z: sz });
@@ -202,6 +202,8 @@ export default async ({ page, shot, log, wait }) => {
     expect(after !== before, 'a real Tab key press possesses another ant', { before, after });
     ok('tab-order', { seen, keyPress: { before, after } });
   }
+  }
+  if (!run('colony')) return out;
 
   // --- 8. colony view: slice and x-ray cutaways --------------------------------------------------------------------
   await g(() => window.__game.camera.set('colony'));
@@ -234,17 +236,19 @@ export default async ({ page, shot, log, wait }) => {
   ok('forage-marker', markers.find((m) => m.kind === 'forage'));
 
   // --- 10. dig-plan ghost on a tunnel wall with validation feedback, then placed ----------------------------------------
-  // the nursery -> royal tunnel (testNest.ts geometry): rims 30 % inside each chamber at floor + 1 BU
-  const royal = ch('royal');
+  // the blind branch off the food -> nursery tunnel (testNest.ts geometry: rims 30 % inside each chamber at floor
+  // + 1 BU; the branch runs 7 BU east, 1 BU down, 1 BU south from the tunnel's middle): nearly level, so the slice
+  // just above its axis shows it as a long groove
   const rim = (c, toward) => {
     const dx = toward.x - c.center.x, dz = toward.z - c.center.z, l = Math.hypot(dx, dz) || 1;
     return { x: c.center.x + (dx / l) * c.radii.x * 0.7, y: c.center.y - c.radii.y + bu, z: c.center.z + (dz / l) * c.radii.z * 0.7 };
   };
-  const ta = rim(nursery, royal.center), tb = rim(royal, nursery.center);
-  const mid = { x: (ta.x + tb.x) / 2, y: (ta.y + tb.y) / 2, z: (ta.z + tb.z) / 2 };
-  const along = { x: tb.x - ta.x, z: tb.z - ta.z }, al = Math.hypot(along.x, along.z);
-  const side = { x: -along.z / al, z: along.x / al };
-  await g((o) => window.__game.views.colonyCamera(o), { x: mid.x, z: mid.z, distBu: 34, pitchDeg: 72, yawDeg: 20, cutaway: 'slice', planeYBu: mid.y / bu + 0.4, radiusBu: 40 });
+  const ta = rim(food, nursery.center), tb = rim(nursery, food.center);
+  const tm = { x: (ta.x + tb.x) / 2, y: (ta.y + tb.y) / 2, z: (ta.z + tb.z) / 2 };
+  const mid = { x: tm.x + 3.5 * bu, y: tm.y - 0.5 * bu, z: tm.z + 0.5 * bu };
+  const bl = Math.hypot(7, 1);
+  const side = { x: -1 / bl, z: 7 / bl };
+  await g((o) => window.__game.views.colonyCamera(o), { x: mid.x, z: mid.z, distBu: 26, pitchDeg: 70, yawDeg: 20, cutaway: 'slice', planeYBu: mid.y / bu + 0.3, radiusBu: 40 });
   await render();
   await g(() => window.__game.views.tool('dig'));
   await g(() => window.__game.views.planner({ template: 'chamber', chamberType: 'nursery', size: 's', yawDeg: 0 }));

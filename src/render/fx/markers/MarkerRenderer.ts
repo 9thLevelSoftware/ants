@@ -3,8 +3,8 @@
 // (drawn through soil and cut faces, like the x-ray); translucent plan volumes go to the nest renderer's ghost hook;
 // labels are screen-size sprites. Rebuilt only when the description's version changes.
 import {
-  BufferGeometry, CanvasTexture, Float32BufferAttribute, Group, LineBasicMaterial, LineDashedMaterial, LineSegments, Sprite, SpriteMaterial,
-  type Material, type Scene,
+  BufferGeometry, CanvasTexture, Float32BufferAttribute, Group, LineBasicMaterial, LineDashedMaterial, LineSegments, Points, PointsMaterial, Sprite,
+  SpriteMaterial, type Material, type Scene,
 } from 'three';
 import type { Vec3 } from '@/core';
 import type { NestGhost } from '@/render/nest';
@@ -27,6 +27,14 @@ export interface MarkerLabel {
   color: string;
 }
 
+/** Screen-size dots (x-ray: ants and brood seen through the soil, GDD 01 §6.7: >= 3 px). */
+export interface MarkerPointSet {
+  positions: number[];
+  color: string;
+  /** Dot diameter, px. */
+  sizePx: number;
+}
+
 export interface MarkerSceneDesc {
   /** Changes whenever anything below changed (the renderer rebuilds then). */
   version: string;
@@ -34,6 +42,7 @@ export interface MarkerSceneDesc {
   labels: MarkerLabel[];
   /** Translucent volumes (plan ghost fill), drawn by the nest renderer's ghost layer. */
   volumes: NestGhost[];
+  points?: MarkerPointSet[];
 }
 
 /** Draw order: above the nest's x-ray cast and ghosts (render-nest XRAY / GHOST_RENDER_ORDER ~1000-1011). */
@@ -56,7 +65,7 @@ export class MarkerRenderer {
   /** Number of line sets and labels currently drawn (tests, perf). */
   get counts(): { lines: number; labels: number } {
     let lines = 0, labels = 0;
-    for (const c of this.group.children) (c instanceof Sprite ? labels++ : lines++);
+    for (const c of this.group.children) if (c instanceof Sprite) labels++; else if (c instanceof LineSegments) lines++;
     return { lines, labels };
   }
 
@@ -83,6 +92,17 @@ export class MarkerRenderer {
       this.group.add(seg);
     }
     for (const l of desc.labels) this.group.add(this.label(l));
+    for (const p of desc.points ?? []) {
+      if (p.positions.length < 3) continue;
+      const g = new BufferGeometry();
+      g.setAttribute('position', new Float32BufferAttribute(p.positions, 3));
+      const m = new PointsMaterial({ color: p.color, size: p.sizePx, sizeAttenuation: false, transparent: true, depthTest: false, depthWrite: false });
+      const pts = new Points(g, m);
+      pts.renderOrder = MARKER_RENDER_ORDER;
+      pts.frustumCulled = false;
+      this.materials.push(m);
+      this.group.add(pts);
+    }
   }
 
   private label(l: MarkerLabel): Sprite {
@@ -130,7 +150,7 @@ export class MarkerRenderer {
   private clear(): void {
     for (const c of [...this.group.children]) {
       this.group.remove(c);
-      if (c instanceof LineSegments) c.geometry.dispose();
+      if (c instanceof LineSegments || c instanceof Points) c.geometry.dispose();
     }
     for (const m of this.materials) m.dispose();
     this.materials = [];

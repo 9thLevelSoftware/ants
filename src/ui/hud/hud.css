@@ -204,3 +204,6 @@ button.fd-more { cursor: pointer; }
 .fd-pp-id > * { flex: none; white-space: nowrap; }
 .fd-pp .fd-orders { white-space: nowrap; padding: 0 var(--s-2); }
 .fd-pp .fd-orders .ui-btn-label { white-space: nowrap; }
+/* a disabled quick button carries its reason in a tooltip wrapper: the wrapper must fill the grid cell */
+.fd-quick .ui-tip { display: flex; }
+.fd-quick .ui-tip > .ui-btn { width: 100%; }

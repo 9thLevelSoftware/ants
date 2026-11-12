@@ -2,8 +2,8 @@
 // with their radius, outlines of the nest's dig plans by status, the planner's ghost with its validity pattern and
 // reason text, and highlight rings. Pure (reads sim state; no three).
 import type { Vec3 } from '@/core';
-import type { MarkerLabel, MarkerLineSet, MarkerSceneDesc } from '@/render/fx/markers/MarkerRenderer';
-import { GHOST_FILL_OPACITY, GHOST_STYLE, HOVER_COLOR, MARKER_COLOR, PLAN_STYLE, SELECT_COLOR } from '@/render/fx/markers/palette';
+import type { MarkerLabel, MarkerLineSet, MarkerPointSet, MarkerSceneDesc } from '@/render/fx/markers/MarkerRenderer';
+import { CHAMBER_LABEL_COLOR, GHOST_FILL_OPACITY, GHOST_STYLE, HOVER_COLOR, MARKER_COLOR, PLAN_STYLE, SELECT_COLOR, XRAY_DOTS } from '@/render/fx/markers/palette';
 import { pushCapsule, pushEllipse, pushEllipsoid, pushGroundRing, pushHatch } from '@/render/fx/markers/shapes';
 import type { NestGhost } from '@/render/nest';
 import { planCache } from '@/sim/nest/plans/targets';
@@ -24,6 +24,8 @@ export interface MarkerSceneInput {
   tunnelStart: Vec3 | null;
   hover: PickTarget | null;
   selected: PickTarget | null;
+  /** Colony cutaway mode: x-ray adds ant / brood dots and chamber labels (GDD 01 §6.7). */
+  cutaway?: 'off' | 'slice' | 'xray';
 }
 
 /** Lift of surface rings above the ground, BU. */
@@ -124,7 +126,29 @@ export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
     lines.push({ positions: pos, color, style: color === HOVER_COLOR ? 'dashed' : 'solid', dash: bu });
     keyParts.push('h', t.kind, t.id, color);
   }
-  return { version: keyParts.join('|'), lines, labels, volumes };
+  const points: MarkerPointSet[] = [];
+  if (p.colony && p.cutaway === 'xray') xrayOverlay(sim, points, labels, keyParts);
+  return { version: keyParts.join('|'), lines, labels, volumes, points };
+}
+
+/** X-ray: the colony's ants and brood inside the soil as dots, and every chamber labelled with its type. */
+function xrayOverlay(sim: Sim, points: MarkerPointSet[], labels: MarkerLabel[], key: (string | number)[]): void {
+  const col = sim.state.colonies[0]?.id ?? -1;
+  const ants: number[] = [], queens: number[] = [], brood: number[] = [];
+  for (const a of sim.state.ants) {
+    if (!a.alive || a.colony !== col || sim.field.substrate(a.pos) >= 0) continue;
+    (a.caste === 'queen' ? queens : ants).push(a.pos.x, a.pos.y, a.pos.z);
+  }
+  for (const b of sim.state.brood) if (b.alive && b.carriedBy < 0 && sim.field.substrate(b.pos) < 0) brood.push(b.pos.x, b.pos.y, b.pos.z);
+  points.push({ positions: brood, ...XRAY_DOTS.brood }, { positions: ants, ...XRAY_DOTS.ant }, { positions: queens, ...XRAY_DOTS.queen });
+  key.push('x', ants.length, queens.length, brood.length);
+  for (const n of sim.state.nests) {
+    if (n.colony !== col) continue;
+    for (const c of n.chambers) {
+      labels.push({ pos: { x: c.center.x, y: c.center.y + c.radii.y, z: c.center.z }, text: c.type, color: CHAMBER_LABEL_COLOR });
+      key.push(c.id, c.type);
+    }
+  }
 }
 
 function chamberRadius(sim: Sim, id: number): number {

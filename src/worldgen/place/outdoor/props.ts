@@ -52,8 +52,8 @@ function mossHost(ctx: GenContext): (x: number, z: number) => boolean {
               // a lying log: discs along its axis
               const ax = quatRotateVec3({ x: 0, y: 0, z: 0 }, p.rot, { x: 0, y: p.size.y, z: 0 });
               const n = Math.max(1, Math.ceil(Math.abs(p.size.y) / Math.max(1, p.size.x)));
-              for (let k = -n; k <= n; k++) discs.push({ x: p.pos.x + (ax.x * k) / n, z: p.pos.z + (ax.z * k) / n, r2: sq(p.size.x) });
-            } else discs.push({ x: p.pos.x, z: p.pos.z, r2: sq(r) });
+              for (let k = -n; k <= n; k++) discs.push({ x: p.pos.x + (ax.x * k) / n, z: p.pos.z + (ax.z * k) / n, r2: sq(p.size.x + M.mossHostMarginMm) });
+            } else discs.push({ x: p.pos.x, z: p.pos.z, r2: sq(r + M.mossHostMarginMm) });
           }
         }
       }

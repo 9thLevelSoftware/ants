@@ -33,8 +33,9 @@ export const OUTDOOR = {
   logs: { perM2: 1 / 25, min: 1, spacing: 1500, contourDeg: 30 },
   stumps: { perM2: 1 / 40, treeDist: 2000, spacing: 1500 },
   forestProps: { branch: 0.15, twig: 4, stone: 1.2, pebble: 3, moss: 0.6, leaf: 2, herb: 1, herbShadeMax: 0.7,
-    /** Flat stones: share placed in canopy gaps, the gaps' shade limit; moss: band round a tree's foot (centre distance). */
-    stoneGapShare: 0.5, stoneGapShade: 0.6, mossTreeBandMm: 900 },
+    /** Flat stones: share placed in canopy gaps, the gaps' shade limit; moss: band round a tree's foot over its root
+     * flares (centre distance) and the margin round a log, stump or stone it grows on and against. */
+    stoneGapShare: 0.5, stoneGapShade: 0.6, mossTreeBandMm: 1600, mossHostMarginMm: 120 },
   lawn: { dandelionMown: 0.4, dandelionRough: 0.8, clover: 0.3, daisy: 0.5, stone: 0.1, ballP: 0.3, hoseP: 0.6, hoseNear: 2000,
     sprinklerP: 0.5, sprinklerJitter: 0.2, steppingP: 0.6, edgeP: 0.4, edgeSeg: 450 },
   beds: { mulch: 12, perennial: 2, shrub: 0.3, beanRowSpacing: 300, beanRowsMax: 3, shedArchetypes: { 'suburban-garden': 1, 'kitchen-door': 0.5 } as Record<string, number>,

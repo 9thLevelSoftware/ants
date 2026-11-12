@@ -43,6 +43,10 @@ describe('hand-over plans', () => {
     expect(fly.kind).toBe('fly');
     expect(fly.duration).toBeCloseTo(Math.min(CAM_SWITCH_MAX_S, Math.max(CAM_SWITCH_MIN_S, 0.4 + 60 / 300)));
     expect(handoverPlan('possess', 'colony', a, b, 4, true)).toEqual({ kind: 'crossfade', duration: CAM_REDUCED_CROSSFADE_S });
+    // a path through solid (camera in the nest, colony camera above the ground) dip-fades instead of flying
+    const ground = (o: { y: number }, d: { y: number }, max: number) => (d.y > 0 && o.y < 0 ? Math.min(max, -o.y / d.y) : max);
+    a.pos = { x: 0, y: -20, z: 0 }; b.pos = { x: 0, y: 400, z: 0 };
+    expect(handoverPlan('possess', 'colony', a, b, 4, false, ground).kind).toBe('dip');
   });
 });
 
