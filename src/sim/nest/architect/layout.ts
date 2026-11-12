@@ -84,13 +84,18 @@ export function abstractInputs(workers: number): NeedInputs {
 }
 
 /** Lays out the nest of a colony of `workers` adult workers (see the file comment). */
+export const LT: Record<string, number> = {};
+const cpuT = () => { const u = (globalThis as any).process.cpuUsage(); return (u.user + u.system) / 1000; };
+const acc = (k: string, t0: number) => { LT[k] = (LT[k] ?? 0) + cpuT() - t0; };
 export function layoutNest(sim: Sim, nestId: number, workers: number, opts: LayoutOptions = {}): LayoutResult {
   const nest = sim.stores.nests.get(nestId);
   if (!nest) throw new Error(`layoutNest: no nest ${nestId}`);
   const species = sim.stores.colonies.get(nest.colony)?.species ?? sim.species.id;
   const rng = opts.rng ?? rngFork(sim.state.config.world.seed, `architect-layout-${nestId}`);
   const source = opts.source ?? 'worldgen';
+  let t0 = cpuT();
   if (opts.founding !== false) carveTemplateNest(sim, nestId, { chambers: [], royal: workers >= nestTemplate(species).royalAt });
+  acc('template', t0);
   nest.volumeOpen = nestOpenVolume(sim, nest);
   const out: LayoutResult = { nest, planIds: [], steps: 0, unplaced: 0 };
   let p = Math.min(workers, LAYOUT_START_WORKERS), spoil = 0;
@@ -101,17 +106,24 @@ export function layoutNest(sim: Sim, nestId: number, workers: number, opts: Layo
     for (let n = 0; n < LAYOUT_PLANS_PER_STEP; n++) {
       const req = evaluateNeeds(nest, species, inputs, true).requests.find((r) => !failed.has(r.need));
       if (!req) break;
-      let id = -1;
+      let id = -1, tc = 0;
+      t0 = cpuT();
       choosePlacement(sim, nest, req, rng, (spec) => {
         architectRuntime(sim).probe?.(spec, req);
+        const t1 = cpuT();
         id = createPlanImpl(sim, spec, source);
+        tc += cpuT() - t1;
         return id >= 0;
       }, LAYOUT_CANDIDATES);
+      acc('place', t0); LT.create = (LT.create ?? 0) + tc; LT.place -= tc;
       if (id < 0) { failed.add(req.need); out.unplaced++; continue; }
       const plan = nest.digPlans.find((q) => q.id === id);
       if (plan) plan.need = req.need;
+      t0 = cpuT();
       spoil += carveAtOnce(sim, nest, id);
+      acc('carve', t0); t0 = cpuT();
       nest.volumeOpen = nestOpenVolume(sim, nest);
+      acc('volume', t0);
       out.planIds.push(id);
     }
     if (p >= workers) break;
