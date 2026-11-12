@@ -169,6 +169,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
       uWrMatA: { value: shared.table.matA }, uWrMatB: { value: shared.table.matB }, uWrMatC: { value: shared.table.matC },
       uWet: shared.world.uWet,
       uWrDapple: shared.world.uDapple, uWrDappleMm: shared.world.uDappleMm,
+      tWrCanopy: shared.world.tDappleMask, uWrCanopyInv: shared.world.uDappleMaskInv,
       ...shared.holeMask,
       ...level,
     });

@@ -6,23 +6,28 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim, TargetKind, Walker } from '@/sim/types';
 import { AntFlag, nestFieldId } from '@/sim/types';
-import { isLocoNavGrid } from './grid/navGridImpl';
-import { followClimb, followField, followFlow, followPath, followSeek, type LegResult } from './legs';
-import { copy3, dist3, distXZ, noise01, set3 } from './mathx';
-import {
-  chamberById, chamberField, entranceById, exitField, isBelowGround, nearestOpenEntrance, nestContaining, planField,
-  pointField,
-} from './nests';
-import { nearestRouteNode } from './routes';
-import { avoidDiscs, colonyEntrances, takePlanBudget, type LocoRuntime } from './runtime';
+import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
+import { followClimb as followClimbImp, followField as followFieldImp, followFlow as followFlowImp, followPath as followPathImp, followSeek as followSeekImp, type LegResult } from './legs';
+import { copy3 as copy3Imp, dist3 as dist3Imp, distXZ as distXZImp, noise01 as noise01Imp, set3 as set3Imp } from './mathx';
+import { chamberById as chamberByIdImp, chamberField as chamberFieldImp, entranceById as entranceByIdImp, exitField as exitFieldImp, isBelowGround as isBelowGroundImp, nearestOpenEntrance as nearestOpenEntranceImp, nestContaining as nestContainingImp, planField as planFieldImp, pointField as pointFieldImp } from './nests';
+import { nearestRouteNode as nearestRouteNodeImp } from './routes';
+import { avoidDiscs as avoidDiscsImp, colonyEntrances as colonyEntrancesImp, takePlanBudget as takePlanBudgetImp, type LocoRuntime } from './runtime';
 import { NO_PROGRESS, type NavScratch } from './scratch';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, followFlow = followFlowImp, followPath = followPathImp, followSeek = followSeekImp, copy3 = copy3Imp, dist3 = dist3Imp, distXZ = distXZImp, noise01 = noise01Imp, set3 = set3Imp, chamberById = chamberByIdImp, chamberField = chamberFieldImp, entranceById = entranceByIdImp, exitField = exitFieldImp, isBelowGround = isBelowGroundImp, nearestOpenEntrance = nearestOpenEntranceImp, nestContaining = nestContainingImp, planField = planFieldImp, pointField = pointFieldImp, nearestRouteNode = nearestRouteNodeImp, avoidDiscs = avoidDiscsImp, colonyEntrances = colonyEntrancesImp, takePlanBudget = takePlanBudgetImp;
 
 const _d: Vec3 = { x: 0, y: 0, z: 0 };
 
-/** Nest the walker is in now (-1 on the surface); walkers in the air keep their last value. */
+/**
+ * Nest the walker is in now (-1 on the surface). In a cavity it keeps its nest (walkers do not change nests
+ * underground; a walker cut off by a fill is still in its nest), else the nest whose open space contains it.
+ * Walkers in the air keep their last value.
+ */
 export function walkerNest(sim: Sim, w: Walker, prev: number): number {
   if (w.medium === 'air') return prev;
   if (w.medium !== 'cavity') return -1;
+  if (prev >= 0 && sim.stores.nests.get(prev)) return prev;
   return nestContaining(sim, w.pos, prev);
 }
 
@@ -144,6 +149,7 @@ function planSurface(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, t: Vec3
       resetLeg(w, s);
       w.nav.mode = 'path';
       s.flowKey = `colony:${flowColony}`;
+      s.flowColony = flowColony;
       return true;
     }
   }
@@ -164,6 +170,7 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
   s.planTick = sim.state.tick;
   s.legNest = here;
   s.best = NO_PROGRESS; s.bestTick = sim.state.tick; copy3(s.anchor, w.pos);
+  if (here < 0 && w.medium === 'cavity') return false; // underground in no known nest: nothing to plan with
   if (here >= 0) {
     if (s.goalNest === here) {
       setField(w, s, here, s.goalField || pointField(sim, r, s.goal), false);
@@ -214,6 +221,7 @@ export function tripArrived(sim: Sim, w: Walker, s: NavScratch, here: number, sp
   const nav = w.nav;
   if (s.goalNest >= 0 && s.goalField && !s.goalField.startsWith('loco:pt:')) {
     if (here !== s.goalNest) return false;
+    if (!sim.nestNav.hasTarget(s.goalField)) return false;
     const d = sim.nestNav.distanceAt(s.goalField, w.pos);
     return d <= Math.max(nav.arriveDist, 1.5 * sim.carve.voxel);
   }
@@ -227,8 +235,7 @@ export function followLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, ou
     case 'seek': return followSeek(w, s, r, out);
     case 'path': {
       if (s.flowKey) {
-        const colony = Number(s.flowKey.slice(7));
-        const f = colonyEntrances(sim, r, colony);
+        const f = colonyEntrances(sim, r, s.flowColony);
         const g = sim.navGrid;
         const flow = isLocoNavGrid(g) && f.seeds.length > 0 ? g.flowField(s.flowKey, f.sig, f.seeds) : null;
         return followFlow(sim, w, s, r, flow, out);

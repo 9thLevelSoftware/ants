@@ -10,7 +10,7 @@ import {
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { OPEN_MIN } from '../carve/keys';
 import { carveSphere } from '../carveOps';
-import { registerChamber, regionStats } from '../chambers/registry';
+import { registerPlannedChamber, regionStats } from '../chambers/registry';
 import { entranceById } from '../entrances';
 import { createMound, deposit, moundById, publishMound } from '../mounds';
 import { planIsLive, refreshPlanField } from '../navFields';
@@ -197,7 +197,9 @@ export function updatePlan(sim: Sim, nest: Nest, plan: DigPlan): void {
     plan.removedVolume = removed;
     sim.emit({ type: 'plan-progress', planId: plan.id, progress: progressOf(plan) });
   }
-  if (initial <= 0 || remaining <= (1 - PLAN_SNAP) * initial) { completePlan(sim, nest, plan, cache); return; }
+  // complete at PLAN_SNAP of the volume, or once every sphere is done (spheres are done at 90 %, GDD 03 §7.4)
+  const spheresDone = plan.spheres.every((s) => s.done || s.obstructed) && plan.spheres.some((s) => s.done);
+  if (initial <= 0 || remaining <= (1 - PLAN_SNAP) * initial || spheresDone) { completePlan(sim, nest, plan, cache); return; }
   const reason = blockReason(sim, nest, plan, cache);
   if (reason) {
     if (plan.status !== 'stalled' || plan.blockedReason !== reason) setStatus(sim, plan, 'stalled', reason);
@@ -266,7 +268,7 @@ export function completePlan(sim: Sim, nest: Nest, plan: DigPlan, cache: PlanCac
       const lw = dx * e.aw.x + dz * e.aw.z, ll = dx * e.al.x + dz * e.al.z;
       if ((lw / e.hw) ** 2 + (dy / e.hh) ** 2 + (ll / e.hl) ** 2 <= 1.0001) keys.push(packSample(i, j, k));
     }
-    if (keys.length > 0) registerChamber(sim, nest, plan.chamberType, plan.source === 'player' ? 'player' : 'auto', regionStats(sim, keys.sort((a, b) => a - b)));
+    if (keys.length > 0) registerPlannedChamber(sim, nest, plan.chamberType, plan.source === 'player' ? 'player' : 'auto', regionStats(sim, keys.sort((a, b) => a - b)));
   }
 }
 

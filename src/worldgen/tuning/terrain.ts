@@ -23,7 +23,9 @@ export const RELIEF: Partial<Record<ZoneType, Relief>> = {
 
 export const TERRAIN = {
   macroOctaves: 3,
-  microOctaves: 2,
+  /** Micro relief: one octave at this wavelength in terrain cells (>= the 3-cell minimum of GDD 04 §4.2). */
+  microOctaves: 1,
+  microWaveCells: 4,
   /** Map-wide tilt, grade 0..1 % (GDD 04 step 2). */
   tiltMax: 0.01,
   /** Natural cells within this distance of a built zone blend to its edge level (smoothstep), mm. */
@@ -54,6 +56,11 @@ export const LEVELS = {
   /** Kerb top next to asphalt (the blend target of natural ground beside a road). */
   kerbTop: 0,
   carParkSurface: -125,
+  /**
+   * The kerb step is a smooth ramp from the kerb top down to the road across the kerb's own width (the kerb
+   * primitive, 125 wide, covers it): no sharp heightfield kink a surface walker could stall in.
+   */
+  kerbRamp: 125,
   /** Asphalt fall toward the kerb gullies (1:80). */
   asphaltFall: 1 / 80,
   laneSurface: -125,

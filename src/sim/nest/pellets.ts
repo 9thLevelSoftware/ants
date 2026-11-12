@@ -123,7 +123,7 @@ export function tampDuePellets(sim: Sim): void {
   for (let n = 0; n < list.length; n++) {
     const it = list[n];
     if (!it.alive || !isPellet(it) || !it.inNest || it.carrierIds.length > 0 || it.reservedBy >= 0) continue;
-    if (now - it.droppedTick >= age) tampPellet(sim, it);
+    if (now + 1 - it.droppedTick >= age) tampPellet(sim, it); // ticks elapsed when this tick ends
   }
 }
 

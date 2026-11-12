@@ -131,7 +131,7 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
   for (const [i, k, top, bottom] of cols.values()) {
     if (n++ % 2 === 1) continue;
     const x = i * v, z = k * v;
-    if (!reachesSurface && roofBelowMin(sim, x, top * v, z, target, i, k)) { soft('undermines'); break; }
+    if (!reachesSurface && !nearAnchor(x, top * v, z) && roofBelowMin(sim, x, top * v, z, target, i, k)) { soft('undermines'); break; }
     for (let j = bottom - 1; j >= bottom - Math.ceil((FLOOR_MIN_BU * bu) / v); j--) {
       if (sim.carve.sampleAt(i, j, k) >= OPEN_MIN && !nearAnchor(x, j * v, z)) { soft('undermines'); break; }
     }

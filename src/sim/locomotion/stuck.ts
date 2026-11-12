@@ -9,10 +9,13 @@ import type { Vec3 } from '@/core/math/vec3';
 import { createLogger } from '@/core/log';
 import type { Ant, Sim, Walker } from '@/sim/types';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { walkerPlace, walkerSurfaceChanged } from './walker';
-import { dist3, normalizeInPlace, set3, tangentPart } from './mathx';
+import { walkerPlace as walkerPlaceImp, walkerSurfaceChanged as walkerSurfaceChangedImp } from './walker';
+import { dist3 as dist3Imp, normalizeInPlace as normalizeInPlaceImp, set3 as set3Imp, tangentPart as tangentPartImp } from './mathx';
 import type { LocoRuntime } from './runtime';
 import { NO_PROGRESS, type NavScratch } from './scratch';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const walkerPlace = walkerPlaceImp, walkerSurfaceChanged = walkerSurfaceChangedImp, dist3 = dist3Imp, normalizeInPlace = normalizeInPlaceImp, set3 = set3Imp, tangentPart = tangentPartImp;
 
 const log = createLogger('loco');
 const _t: Vec3 = { x: 0, y: 0, z: 0 }, _p: Vec3 = { x: 0, y: 0, z: 0 }, _from: Vec3 = { x: 0, y: 0, z: 0 };

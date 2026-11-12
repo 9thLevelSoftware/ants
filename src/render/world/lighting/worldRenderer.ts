@@ -1,7 +1,7 @@
 // WorldRenderer: the surface world sub-renderer (terrain, mounds, solid primitives, sky, sun/moon, ambient, haze,
 // shadows). `init(ctx)` once, `setWorld(world, sim?)` per game, `update(frame)` every frame, `dispose()`.
 // It reads simulation data only through simAdapter.ts and never writes it.
-import { Group, Vector3 } from 'three';
+import { ClampToEdgeWrapping, DataTexture, Group, LinearFilter, RedFormat, UnsignedByteType, Vector3 } from 'three';
 import type { QualityPreset } from '@/render/app';
 import type { Sim, WorldData } from '@/sim/types';
 import { FOREST_DAPPLE } from '../materials/dapple';
@@ -17,7 +17,7 @@ import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, STARS_DOF
 import { LightingRig } from './lightingRig';
 import {
   breachHoleProbe, breaches, carveView, createEnvSample, dynamicPrims, fieldHoleProbe, heightDeltaSignature, mounds,
-  movedStaticPrims, moonFromSun, objectMoves, readEnvironment, readWeather, staticPrims, sunFromCalendar, terrainSource, zoneTypeAt, type CarveView,
+  movedStaticPrims, moonFromSun, objectMoves, readEnvironment, readWeather, staticPrims, sunFromCalendar, terrainSource, zoneMask, zoneTypeAt, type CarveView,
   type EnvSample,
 } from './simAdapter';
 import { computeLighting, createLightingState, hazeVisBU, type LightingState } from './timeOfDay';
@@ -59,10 +59,10 @@ export class WorldRenderer {
   private under = 0;
   private hazeVis = -1;
   private interior = -1;
-  private forest = -1;
   private lastExposure = NaN;
   private wet = 0;
   private moved = new Map<number, import('@/sim/types').Primitive>();
+  private canopyTex: DataTexture | null = null;
   private camPos = new Vector3();
   private camDir = new Vector3();
   private subject = new Vector3();
@@ -95,15 +95,29 @@ export class WorldRenderer {
     this.prims.nearMm = PRIM_NEAR_BU[this.ctx.quality.id] * world.bu;
     await this.terrain.setSource(terrainSource(world, sim));
     if (gen !== this.worldGen) return; // a newer setWorld (or dispose) took over while the textures loaded
+    this.setCanopy(world);
     this.mounds = new MoundRenderer(this.library, this.terrain.holeMask!.uniforms);
     this.group.add(this.mounds.group);
     this.prims.setStatic(staticPrims(world));
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
     this.interior = -1;
-    this.forest = -1;
     this.world = world; // last: update() draws only a completely built world
     this.attachSim(sim);
+  }
+
+  /** Canopy mask for the forest dapple: the forest zones, linearly filtered for soft edges. */
+  private setCanopy(world: WorldData): void {
+    this.canopyTex?.dispose();
+    const m = zoneMask(world, 'forest');
+    const t = new DataTexture(m.data, m.nx, m.nz, RedFormat, UnsignedByteType);
+    t.magFilter = t.minFilter = LinearFilter;
+    t.wrapS = t.wrapT = ClampToEdgeWrapping;
+    t.unpackAlignment = 1;
+    t.needsUpdate = true;
+    this.canopyTex = t;
+    this.uniforms.tDappleMask.value = t;
+    this.uniforms.uDappleMaskInv.value.set(1 / (m.nx * m.cell), 1 / (m.nz * m.cell));
   }
 
   /** Takes the current world down (its terrain is about to be replaced): no drawing until the next world is ready. */
@@ -195,8 +209,6 @@ export class WorldRenderer {
     this.hazeVis = this.hazeVis < 0 || dt === 0 ? zoneVis : this.hazeVis + (zoneVis - this.hazeVis) * (1 - Math.exp(-dt / HAZE_EASE_S));
     const inside = zone === 'interior' ? 1 : 0;
     this.interior = this.interior < 0 || dt === 0 ? inside : this.interior + (inside - this.interior) * (1 - Math.exp(-dt / INTERIOR_LOOK.easeS));
-    const inForest = zone === 'forest' ? 1 : 0;
-    this.forest = this.forest < 0 || dt === 0 ? inForest : this.forest + (inForest - this.forest) * (1 - Math.exp(-dt / FOREST_DAPPLE.easeS));
     const camHeightBU = (this.camPos.y - this.terrain.height(this.camPos.x, this.camPos.z)) / bu;
     const q = this.ctx.quality;
     computeLighting({
@@ -238,10 +250,13 @@ export class WorldRenderer {
     this.mounds.sync(mounds(sim));
   }
 
-  /** Forest leaf-shadow flecks on the sun (GDD 08 11.3): by day, fading with cloud cover; still in reduced motion. */
+  /**
+   * Forest leaf-shadow flecks on the sun (GDD 08 11.3): by day, fading with cloud cover, still in reduced motion;
+   * where they fall is the canopy mask (forest zones) built in setWorld.
+   */
   private applyDapple(frame: WorldFrame): void {
     const l = this.lighting, d = this.uniforms.uDapple.value;
-    const amount = l.moonlit ? 0 : this.forest * FOREST_DAPPLE.depth * (1 - l.overcast) * (1 - this.under);
+    const amount = l.moonlit ? 0 : FOREST_DAPPLE.depth * (1 - l.overcast) * (1 - this.under);
     const k = l.keyDir, y = Math.max(0.05, k.y);
     d.set(amount, frame.reducedMotion ? 0 : frame.time, k.x / y, k.z / y);
     this.uniforms.uDappleMm.value = FOREST_DAPPLE.scaleBU * (this.world?.bu ?? 4);
@@ -308,6 +323,9 @@ export class WorldRenderer {
     this.skyMesh.geometry.dispose();
     (this.skyMesh.material as { dispose(): void }).dispose();
     this.library.dispose();
+    this.canopyTex?.dispose();
+    this.canopyTex = null;
+    this.uniforms.tDappleMask.value = null;
     this.world = null;
     this.sim = null;
   }

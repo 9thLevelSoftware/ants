@@ -11,7 +11,7 @@ import { deriveFromField, deriveFromWorld, isBlocked, type GridData } from './gr
 import { GridSearch, lineClear, type CostDisc } from './search';
 
 /** Smoothing: segments are tested this far above the ground, with this sweep radius (BU). */
-const SMOOTH_LIFT_BU = 1.5;
+const SMOOTH_LIFT_BU = 2.5;
 const SMOOTH_RADIUS_BU = 1;
 /** Longest smoothed segment, in cells (bounds the field traces). */
 const SMOOTH_MAX_CELLS = 12;
@@ -46,6 +46,8 @@ export interface LocoNavGrid extends NavGrid {
   cellOf(x: number, z: number): number;
   groundAt(c: number): number;
   isCellBlocked(c: number): boolean;
+  /** Straight segment over passable cells only (and outside the discs); no field test. */
+  gridVisible(a: Vec3, b: Vec3, discs?: readonly CostDisc[] | null): boolean;
   /** Straight segment passable (grid cells, discs) and, with a field, free of solids SMOOTH_LIFT above ground. */
   segmentWalkable(a: Vec3, b: Vec3, discs?: readonly CostDisc[] | null): boolean;
   findPathEx(from: Vec3, to: Vec3, out: Vec3[], opts?: FindPathOptions): boolean;
@@ -178,6 +180,10 @@ class NavGridImpl implements LocoNavGrid {
     return out;
   }
 
+  gridVisible(a: Vec3, b: Vec3, discs: readonly CostDisc[] | null = null): boolean {
+    return lineClear(this.data, a.x, a.z, b.x, b.z, discs);
+  }
+
   segmentWalkable(a: Vec3, b: Vec3, discs: readonly CostDisc[] | null = null): boolean {
     if (!lineClear(this.data, a.x, a.z, b.x, b.z, discs)) return false;
     const f = this.field;
@@ -199,13 +205,17 @@ class NavGridImpl implements LocoNavGrid {
     // waypoints: cell centres, string-pulled; the true goal last
     let prev: Vec3 = from;
     let i = 0;
-    while (i < _cells.length - 1) {
-      let j = Math.min(_cells.length - 1, i + SMOOTH_MAX_CELLS);
-      for (; j > i + 1; j--) {
-        const target = j === _cells.length - 1 ? to : this.centre(_cells[j], _t);
+    const last = _cells.length - 1;
+    while (i < last) {
+      // farthest cell in grid line of sight (cheap), then the field test from there back (few traces)
+      let j = i + 1;
+      while (j < Math.min(last, i + SMOOTH_MAX_CELLS) && this.gridVisible(prev, j + 1 === last ? to : this.centre(_cells[j + 1], _t), discs)) j++;
+      for (; j > i + 1; j -= 2) {
+        const target = j === last ? to : this.centre(_cells[j], _t);
         if (this.segmentWalkable(prev, target, discs)) break;
       }
-      if (j === _cells.length - 1) break;
+      if (j <= i) j = i + 1;
+      if (j === last) break;
       const wp = this.centre(_cells[j], { x: 0, y: 0, z: 0 });
       out.push(wp);
       prev = wp;

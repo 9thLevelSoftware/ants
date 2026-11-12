@@ -5,16 +5,19 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim, Walker } from '@/sim/types';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { isLocoNavGrid } from './grid/navGridImpl';
-import { followClimb, followField, type LegResult } from './legs';
-import { copy3, dist3, set3 } from './mathx';
-import { retraceDesired, trailDesired, wanderDesired } from './modes';
-import { routeById } from './routes';
+import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
+import { followClimb as followClimbImp, followField as followFieldImp, type LegResult } from './legs';
+import { copy3 as copy3Imp, dist3 as dist3Imp, set3 as set3Imp } from './mathx';
+import { retraceDesired as retraceDesiredImp, trailDesired as trailDesiredImp, wanderDesired as wanderDesiredImp } from './modes';
+import { routeById as routeByIdImp } from './routes';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
-import { aiSpeed } from './speed';
-import { checkStuck, ladderOverride, trackMovement, trackProgress } from './stuck';
-import { afterClimb, followLeg, planLeg, resolveTarget, setGoal, tripArrived, walkerNest } from './trip';
+import { aiSpeed as aiSpeedImp } from './speed';
+import { checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp } from './stuck';
+import { afterClimb as afterClimbImp, followLeg as followLegImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeed = aiSpeedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, followLeg = followLegImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
 const MOVING_KINDS = new Set(['ant', 'creature', 'item', 'brood']);

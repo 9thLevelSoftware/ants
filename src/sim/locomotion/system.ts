@@ -8,18 +8,21 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Creature, Sim, System, Walker, WalkerParams } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
-import { isLocoEntityIndex } from '@/sim/world/entityIndex';
-import { clearCrumbs, integrateHome, recordCrumb, resetHomeVec, startCrumbs } from './crumbs';
-import { set3 } from './mathx';
-import { chamberAt, nearestOpenEntrance } from './nests';
-import { MATERIAL_GRIP, LOCO_TUNING, tiltLimit } from './params';
-import { possessedTick } from './possessed';
-import { ensureGrid, rt, type DirtyBox, type LocoRuntime } from './runtime';
-import { scratchOf, walkerId } from './scratch';
-import { addAvoidRepulsion, addEdgeRepulsion, addFloorBias, addSeparation, turnToward } from './steer';
-import { walkerLetGo, walkerPlace, walkerSnapshot, walkerStep, walkerSurfaceChanged, type WalkStatus } from './walker';
-import { aiUpdate, nestIdOf } from './update';
-import { walkerNest } from './trip';
+import { isLocoEntityIndex as isLocoEntityIndexImp } from '@/sim/world/entityIndex';
+import { clearCrumbs as clearCrumbsImp, integrateHome as integrateHomeImp, recordCrumb as recordCrumbImp, resetHomeVec as resetHomeVecImp, startCrumbs as startCrumbsImp } from './crumbs';
+import { set3 as set3Imp } from './mathx';
+import { chamberAt as chamberAtImp, nearestOpenEntrance as nearestOpenEntranceImp } from './nests';
+import { MATERIAL_GRIP, LOCO_TUNING, tiltLimit as tiltLimitImp } from './params';
+import { possessedTick as possessedTickImp } from './possessed';
+import { ensureGrid as ensureGridImp, rt as rtImp, type LocoRuntime } from './runtime';
+import { scratchOf as scratchOfImp, walkerId as walkerIdImp, type NavScratch } from './scratch';
+import { addAvoidRepulsion as addAvoidRepulsionImp, addEdgeRepulsion as addEdgeRepulsionImp, addFloorBias as addFloorBiasImp, addSeparation as addSeparationImp, turnToward as turnTowardImp } from './steer';
+import { walkerLetGo as walkerLetGoImp, walkerPlace as walkerPlaceImp, walkerSnapshot as walkerSnapshotImp, walkerStep as walkerStepImp, walkerSurfaceChanged as walkerSurfaceChangedImp, type WalkStatus } from './walker';
+import { aiUpdate as aiUpdateImp, nestIdOf as nestIdOfImp } from './update';
+import { walkerNest as walkerNestImp } from './trip';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const isLocoEntityIndex = isLocoEntityIndexImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, scratchOf = scratchOfImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp;
 
 const TICK_S = 0.1;
 /** Slope / grip checks run every this many ticks per walker (staggered). */
@@ -51,20 +54,15 @@ function lodEvery(w: Walker, obs: Vec3 | null, r: LocoRuntime): number {
   return d2 < r.P.lodFar * r.P.lodFar ? r.P.lodMid : r.P.lodFarEvery;
 }
 
-/** Walkers inside a changed carve box re-attach (or fall) and replan. */
-function applyDirty(sim: Sim, r: LocoRuntime, boxes: readonly DirtyBox[], list: readonly Walker[]): void {
-  if (boxes.length === 0) return;
-  const m = r.P.bu;
-  for (let i = 0; i < list.length; i++) {
-    const w = list[i];
-    for (const b of boxes) {
-      if (w.pos.x < b.x0 - m || w.pos.x > b.x1 + m || w.pos.y < b.y0 - m || w.pos.y > b.y1 + m || w.pos.z < b.z0 - m || w.pos.z > b.z1 + m) continue;
-      if (w.medium !== 'air') walkerSurfaceChanged(sim.field, w, sim.kernel.walker);
-      scratchOf(w).planTick = -1;
-      r.stats.surfaceChanged++;
-      break;
-    }
-  }
+/** A walker flagged by a carve change near it re-attaches (or falls) and replans. */
+function applyDirty(sim: Sim, w: Walker, r: LocoRuntime): void {
+  const sc = scratchOf(w);
+  if (!sc.surfaceDirty) return;
+  sc.surfaceDirty = 0;
+  if (w.medium !== 'air') walkerSurfaceChanged(sim.field, w, sim.kernel.walker);
+  sc.planTick = -1;
+  sc.open = -1;
+  r.stats.surfaceChanged++;
 }
 
 /** Hard map limit (GDD 04 §14): positions are kept inside [8 BU, side - 8 BU]. */
@@ -113,13 +111,36 @@ function membership(sim: Sim, ant: Ant, r: LocoRuntime): void {
   if (ant.medium === 'surface') { recordCrumb(ant, r); integrateHome(ant, s, r, sim.state.tick); }
 }
 
+/**
+ * No hard primitive within lodHardClear of the walker. The result is reused while the walker stays within half that
+ * distance of where it was tested (then the clearance is still at least half of it, more than a coarse substep).
+ */
+function openGround(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  const dx = w.pos.x - s.openX, dz = w.pos.z - s.openZ, lim = 0.5 * r.P.lodHardClear;
+  if (s.open >= 0 && dx * dx + dz * dz < lim * lim) return s.open === 1;
+  s.openX = w.pos.x; s.openZ = w.pos.z;
+  s.open = sim.field.hardXYZ(w.pos.x, w.pos.y, w.pos.z) > r.P.lodHardClear ? 1 : 0;
+  return s.open === 1;
+}
+
+/** Separation is applied where ants bunch up: in nests and near the end of a trip (spike-nest §5 item 12). */
+function crowdingMatters(w: Walker, r: LocoRuntime): boolean {
+  if (w.medium === 'cavity') return true;
+  const d = w.nav.dest, near = r.P.sepNearGoal;
+  const dx = w.pos.x - d.x, dy = w.pos.y - d.y, dz = w.pos.z - d.z;
+  return dx * dx + dy * dy + dz * dz < near * near;
+}
+
 function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Vec3 | null): void {
   const id = walkerId(w), tick = sim.state.tick;
   const possessed = isAnt && ((w as Ant).flags & AntFlag.POSSESSED) !== 0 && sim.state.player.possessedAntId === id;
-  const k = possessed ? 1 : lodEvery(w, obs, r);
+  const lo = r.P.edgeHard, hi = sim.world.size - lo;
+  const outside = w.pos.x < lo || w.pos.x > hi || w.pos.z < lo || w.pos.z > hi;
+  const k = possessed || outside ? 1 : lodEvery(w, obs, r);
   if (k > 1 && (tick + id) % k !== 0) { r.stats.lodSkipped++; return; }
   const dt = k * TICK_S;
   walkerSnapshot(w);
+  applyDirty(sim, w, r);
   r.stats.stepped++;
   let st: WalkStatus;
   if (possessed) st = possessedTick(sim, w as Ant, TICK_S);
@@ -130,7 +151,7 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
     const s = scratchOf(w);
     const speed = aiUpdate(sim, w, s, r, id, dt, _desired);
     if (speed > 0) {
-      if (k === 1 && isAnt) addSeparation(sim, w, id, r, _desired);
+      if (k === 1 && isAnt && crowdingMatters(w, r)) addSeparation(sim, w, id, r, _desired);
       addFloorBias(w, _desired, r.P.floorW);
       if (w.medium === 'surface') {
         addEdgeRepulsion(sim, w, r, _desired);
@@ -140,7 +161,9 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
       if (dl > 1e-9) set3(w.nav.desiredDir, _desired.x / dl, _desired.y / dl, _desired.z / dl);
       turnToward(w, _desired, r.P.aiTurn * dt, r.P.minSteer);
     }
-    const open = k > 1 && w.up.y > 0.85 && sim.field.hardXYZ(w.pos.x, w.pos.y, w.pos.z) > r.P.lodHardClear;
+    // open ground (nearly level, no hard primitive within lodHardClear: no thin sheet to tunnel through) takes
+    // longer substeps; the kernel's guard still checks every step
+    const open = w.medium === 'surface' && w.up.y > 0.85 && openGround(sim, w, s, r);
     const params = open ? coarseParams(sim.kernel.walker, r.P.lodSubstep) : sim.kernel.walker;
     st = walkerStep(sim.field, w, null, speed, dt, params);
   }
@@ -158,11 +181,6 @@ export const locomotionSystem: System = {
     const r = rt(sim);
     ensureGrid(sim, r);
     const ants = sim.stores.ants.list, creatures = sim.stores.creatures.list;
-    if (r.dirty.length > 0) {
-      const boxes = r.dirty.splice(0, r.dirty.length);
-      applyDirty(sim, r, boxes, ants);
-      applyDirty(sim, r, boxes, creatures);
-    }
     const obs = observer(sim, r);
     for (let i = 0; i < ants.length; i++) if (ants[i].alive) stepWalker(sim, ants[i], true, r, obs);
     for (let i = 0; i < creatures.length; i++) if (creatures[i].alive) stepWalker(sim, creatures[i], false, r, obs);

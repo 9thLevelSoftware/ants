@@ -3,11 +3,12 @@
 // shared nest point fields and per-tick caches (avoid discs, entrance flow signatures).
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Sim } from '@/sim/types';
+import type { Sim, Walker } from '@/sim/types';
 import type { CarveChange } from '@/sim/nest/carve';
 import type { CostDisc } from './grid/search';
 import { isLocoNavGrid } from './grid/navGridImpl';
 import { locoParams, type LocoParams } from './params';
+import { scratchOf } from './scratch';
 
 /** Counters exposed for diagnostics (locoStats). Monotone over the sim's lifetime. */
 export interface LocoStats {
@@ -33,10 +34,6 @@ export interface LocoStats {
   rescues: number;
 }
 
-export interface DirtyBox {
-  x0: number; y0: number; z0: number; x1: number; y1: number; z1: number;
-}
-
 interface FlowSig {
   tick: number;
   sig: string;
@@ -51,8 +48,6 @@ export interface LocoRuntime {
   plans: number;
   /** LOD observer (camera focus); null = automatic (possessed ant, else the player's nest). */
   observer: Vec3 | null;
-  /** Carve changes since the last locomotion tick, mm. */
-  dirty: DirtyBox[];
   /** Registered shared point fields, oldest first. */
   pointFields: string[];
   /** Per-tick caches. */
@@ -79,16 +74,32 @@ export function rt(sim: Sim): LocoRuntime {
   let r = runtimes.get(sim);
   if (r) return r;
   const created: LocoRuntime = {
-    P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, observer: null, dirty: [],
+    P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, observer: null,
     pointFields: [], discTick: -1, discs: new Map(), flowSigs: new Map(), ids: [], gridReady: false,
   };
+  // walkers inside a changed carve box are flagged in their own (persisted) scratch, so the re-attachment and
+  // replan on their next step survive a save between the carve and that step
   const voxel = sim.carve.voxel;
   sim.carve.addListener((c: CarveChange) => {
-    const b = c.box;
-    created.dirty.push({ x0: b.i0 * voxel, y0: b.j0 * voxel, z0: b.k0 * voxel, x1: b.i1 * voxel, y1: b.j1 * voxel, z1: b.k1 * voxel });
+    const b = c.box, m = sim.world.bu;
+    markWalkers(sim, b.i0 * voxel - m, b.j0 * voxel - m, b.k0 * voxel - m, b.i1 * voxel + m, b.j1 * voxel + m, b.k1 * voxel + m);
   });
   runtimes.set(sim, created);
   return created;
+}
+
+/** Flags every walker inside the box (mm) for re-attachment and a replan on its next step. */
+export function markWalkers(sim: Sim, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
+  const mark = (list: readonly Walker[], alive: (i: number) => boolean) => {
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i].pos;
+      if (!alive(i) || p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1 || p.z < z0 || p.z > z1) continue;
+      scratchOf(list[i]).surfaceDirty = 1;
+    }
+  };
+  const ants = sim.stores.ants.list, cr = sim.stores.creatures.list;
+  mark(ants, (i) => ants[i].alive);
+  mark(cr, (i) => cr[i].alive);
 }
 
 /** Attaches the world field to the nav grid once (tall-object cover, mound ground). */

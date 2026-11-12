@@ -44,13 +44,15 @@ export function depthAbove(sim: Sim, p: Vec3): { depthMm: number; covered: boole
   return { depthMm: y - p.y, covered };
 }
 
-/** Soil above a ceiling sample up to the first free space (cavity or air), mm. */
+/** Soil above a ceiling sample up to the next free space (cavity or air), mm: first leave the own cavity. */
 function roofAbove(sim: Sim, x: number, y0: number, z: number): number {
   const f = sim.field, v = sim.carve.voxel, max = DEPTH_SCAN_MAX_BU * sim.world.bu;
-  let y = y0 + v;
+  let y = y0;
+  while (y - y0 < 4 * v && f.sampleXYZ(x, y, z) > 0) y += 0.25 * v;
+  const ceiling = y;
   while (y - y0 < max) {
     const s = f.sampleXYZ(x, y, z);
-    if (s > 0) return Math.max(0, y - y0 - v);
+    if (s > 0) return Math.max(0, y - ceiling);
     y += Math.max(0.25 * v, -s * 0.9);
   }
   return max;
@@ -156,7 +158,7 @@ export function chamberSamples(sim: Sim, c: Chamber): number[] {
  * (the others are removed, `merged`); unclaimed regions register as `general`; chambers without a region keep
  * their own voxels and are removed (`shrunk`) below half their type minimum.
  */
-export function applyDetection(sim: Sim, nest: Nest, regions: Region[]): void {
+export function applyDetection(sim: Sim, nest: Nest, regions: Region[], reserved: (r: Region) => boolean = () => false): void {
   const claims = new Map<number, Chamber[]>();
   const chambers = [...nest.chambers].sort((a, b) => a.id - b.id);
   const unmatched: Chamber[] = [];
@@ -178,7 +180,8 @@ export function applyDetection(sim: Sim, nest: Nest, regions: Region[]): void {
     const s = regionStats(sim, regions[r].keys, regions[r].core);
     const list = claims.get(r);
     if (!list) {
-      registerChamber(sim, nest, 'general', 'auto', s);
+      // a room an active chamber plan is digging registers when the plan completes (with its type)
+      if (!reserved(regions[r])) registerChamber(sim, nest, 'general', 'auto', s);
       continue;
     }
     list.sort((a, b) => b.voxelCount - a.voxelCount || a.id - b.id);
@@ -273,4 +276,19 @@ export function designateChamberImpl(sim: Sim, chamberId: number, type: ChamberT
   c.capacity = capacityOf(type, c.volume);
   sim.emit({ type: 'chamber-designated', chamberId: c.id, chamberType: type });
   return true;
+}
+
+/**
+ * Registration route 1 (GDD 03 §6.1, plan completion): the chamber already detected in the room (if any) takes the
+ * plan's type and the room's stats; otherwise a new chamber registers.
+ */
+export function registerPlannedChamber(sim: Sim, nest: Nest, type: ChamberType, by: DesignatedBy, s: RegionStats): Chamber {
+  const existing = chamberAtIn(sim, nest, s.center);
+  if (!existing) return registerChamber(sim, nest, type, by, s);
+  existing.type = type;
+  existing.designatedBy = by;
+  applyStats(existing, s);
+  refreshNestFields(sim, nest);
+  sim.emit({ type: 'chamber-designated', chamberId: existing.id, chamberType: type });
+  return existing;
 }

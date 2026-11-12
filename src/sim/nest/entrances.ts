@@ -171,32 +171,34 @@ function forThroatSamples(sim: Sim, e: Entrance, fn: (i: number, j: number, k: n
 }
 
 /**
- * Is there a 6-connected path of open samples from the mouth (samples at the surface) to the inner end of the
- * throat? 6-connectivity is exactly the kernel nav's connectivity (its edge and corner steps need the face
- * neighbours), so "no passage" means nest-nav cannot cross the throat. `eroded` additionally requires every
- * face neighbour of a path sample to be open (a passage that walkers fit through, GDD 03 `NAV_CLEAR`).
+ * Is there a 6-connected path of free samples (carved open, or open air above the ground) from the mouth to the
+ * inner end of the throat? 6-connectivity is exactly the kernel nav's connectivity (its edge and corner steps
+ * need the face neighbours), so "no passage" means nest-nav cannot cross the throat. When the whole cavity lies
+ * inside the throat sphere, reaching every carved sample of it counts as a passage. `eroded` additionally
+ * requires every face neighbour of a path sample to be free (a passage that walkers fit through, `NAV_CLEAR`).
  */
 export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
   const carve = sim.carve, v = carve.voxel, R = throatR(sim, e), inner = R - 2 * v;
+  const free = (i: number, j: number, k: number): boolean =>
+    carve.sampleAt(i, j, k) >= OPEN_MIN || sim.field.substrateXYZ(i * v, j * v, k * v) > 0;
   const ok = (i: number, j: number, k: number): boolean => {
-    if (carve.sampleAt(i, j, k) < OPEN_MIN) return false;
+    if (!free(i, j, k)) return false;
     if (!eroded) return true;
-    return carve.sampleAt(i + 1, j, k) >= OPEN_MIN && carve.sampleAt(i - 1, j, k) >= OPEN_MIN
-      && carve.sampleAt(i, j + 1, k) >= OPEN_MIN && carve.sampleAt(i, j - 1, k) >= OPEN_MIN
-      && carve.sampleAt(i, j, k + 1) >= OPEN_MIN && carve.sampleAt(i, j, k - 1) >= OPEN_MIN;
+    return free(i + 1, j, k) && free(i - 1, j, k) && free(i, j + 1, k) && free(i, j - 1, k) && free(i, j, k + 1) && free(i, j, k - 1);
   };
   const inSphere = (i: number, j: number, k: number) => (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 <= R * R;
   const seen = new Set<number>();
   const id = (i: number, j: number, k: number) => ((i & 1023) * 1024 + (j & 1023)) * 1024 + (k & 1023);
   const queue: number[] = [];
   forThroatSamples(sim, e, (i, j, k) => {
-    // the mouth: samples at or above the terrain surface level inside the opening
+    // the mouth: free samples at or above the terrain surface level inside the opening
     if (sim.field.substrateXYZ(i * v, j * v, k * v) < -0.5 * v) return;
     if (Math.hypot(i * v - e.pos.x, k * v - e.pos.z) > e.radius + v) return;
     if (!ok(i, j, k)) return;
     seen.add(id(i, j, k));
     queue.push(i, j, k);
   });
+  if (queue.length === 0) return false;
   const dirs = [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1];
   for (let q = 0; q < queue.length; q += 3) {
     const i = queue[q], j = queue[q + 1], k = queue[q + 2];
@@ -210,7 +212,13 @@ export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
       queue.push(ni, nj, nk);
     }
   }
-  return false;
+  // the cavity ends inside the throat: open iff no carved sample of it is cut off from the mouth
+  let cutOff = false;
+  forThroatSamples(sim, e, (i, j, k) => {
+    if (cutOff || carve.sampleAt(i, j, k) < OPEN_MIN || seen.has(id(i, j, k))) return;
+    if (sim.field.substrateXYZ(i * v, j * v, k * v) < 0) cutOff = true;
+  });
+  return !cutOff;
 }
 
 /** Re-evaluates an entrance's status (GDD 03 §4.2); emits and refreshes the nav fields on a change. */
@@ -300,7 +308,9 @@ export function sealEntranceImpl(sim: Sim, entranceId: number, antId: number): b
   fillSphere(sim, c, r);
   const flags = nestRuntime(sim).flags;
   forChangedSamples(sim, box, before, (i, j, k, old, now) => { if (now < old) flags.add(i, j, k, VoxelFlag.LOOSE | VoxelFlag.PLUG); });
+  const prev = e.status;
   evaluateEntrance(sim, nest, e);
+  if (e.status === prev && prev !== 'open') refreshNestFields(sim, nest); // new plug voxels seed D_seal
   return e.status === 'sealed';
 }
 

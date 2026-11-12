@@ -65,20 +65,23 @@ describe('WorldRenderer: forest dapple (GDD 08 11.3)', () => {
     expect(dappledLightsChunk()).toContain('wrDapple(vWrW)');
   });
 
-  it('dapples the sun in the forest by day, not at night, not on the lawn; reduced motion stops the sway', async () => {
+  it('dapples the sun by day only, on the forest floor only (canopy mask); reduced motion stops the sway', async () => {
     const wr = await makeRenderer();
     await wr.setWorld(world(2000, 'forest'), null);
     wr.update({ dt: 0, time: 3.2, env: { hour: 12 } });
     const d = wr.uniforms.uDapple.value;
+    const mask = () => (wr.uniforms.tDappleMask.value as unknown as { image: { data: Uint8Array } }).image.data;
     expect(d.x).toBeGreaterThan(0.5);
     expect(d.y).toBe(3.2);
+    expect(mask().every((v) => v === 255)).toBe(true);
+    expect(wr.uniforms.uDappleMaskInv.value.x).toBeCloseTo(1 / 2048, 9); // 32 cells of 64 mm
     wr.update({ dt: 0, time: 3.2, env: { hour: 12 }, reducedMotion: true });
     expect(d.y).toBe(0);
     wr.update({ dt: 0, time: 3.2, env: { hour: 0 } });
     expect(d.x).toBe(0);
     await wr.setWorld(world(2000, 'lawn'), null);
     wr.update({ dt: 0, time: 3.2, env: { hour: 12 } });
-    expect(d.x).toBe(0);
+    expect(mask().every((v) => v === 0)).toBe(true);
     wr.dispose();
   });
 
@@ -97,6 +100,7 @@ describe('WorldRenderer: forest dapple (GDD 08 11.3)', () => {
       const s = { ...shader, uniforms: {} as Record<string, unknown> };
       m.onBeforeCompile(s, null);
       expect(s.uniforms.uWrDapple).toBe(wr.uniforms.uDapple);
+      expect(s.uniforms.tWrCanopy).toBe(wr.uniforms.tDappleMask);
       expect(s.fragmentShader).toContain('wrDapple(vWrW)');
     }
     wr.dispose();

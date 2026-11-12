@@ -42,7 +42,8 @@ function pathNodes(rng: RngState, arch: ArchetypeId, plan: BuiltPlan, L: number,
     if (patio) return { kind: 'door', x: (patio.x0 + patio.x1) / 2, z: (patio.z0 + patio.z1) / 2 };
     return null;
   };
-  const play = plan.nodes.find((n) => n.kind === 'play');
+  // the last play node is the rubber surface (passable); the sand pit centre itself is not
+  const play = [...plan.nodes].reverse().find((n) => n.kind === 'play');
   const withBench = rngFloat(rng) < 0.5;
   switch (arch) {
     case 'suburban-garden': case 'kitchen-door': {
@@ -75,7 +76,8 @@ export function routePath(rng: RngState, arch: ArchetypeId, plan: BuiltPlan, L: 
   const cellOf = (p: Point2) => Math.min(n - 1, Math.max(0, Math.floor(p.z / g))) * n + Math.min(n - 1, Math.max(0, Math.floor(p.x / g)));
   const cells: number[] = [];
   for (let s = 0; s + 1 < nodes.length; s++) {
-    const leg = astar(cost, n, cellOf(nodes[s]), cellOf(nodes[s + 1]));
+    // a blocked leg (node boxed in by built zones) is routed again ignoring the blocks
+    const leg = astar(cost, n, cellOf(nodes[s]), cellOf(nodes[s + 1])) ?? astar(cost.map(Math.abs), n, cellOf(nodes[s]), cellOf(nodes[s + 1]));
     if (!leg) return null;
     if (cells.length > 0) leg.shift();
     cells.push(...leg);

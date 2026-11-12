@@ -91,10 +91,16 @@ export const DIG_RAMP_RADIUS_BU = 1.0;
 export const DIG_RAMP_MAX_LEN_BU = 2.5;
 /** Bisection steps fitting the ramp length to the nominal bite volume. */
 export const DIG_RAMP_FIT_STEPS = 14;
-/** Plan diggers: voxels must satisfy plan g > -PLAN_CLIP_BU (GDD 03 §1.2). */
-export const PLAN_CLIP_BU = 0.25;
+/**
+ * Plan diggers: samples must satisfy plan g > -PLAN_CLIP_BU. GDD 03 §1.2 says 0.25 BU; with samples 0.5 BU apart that
+ * opens a half-voxel shell around every planned room (+30 % for a 2.5 BU high chamber, against the GDD's own size
+ * checks 11, 17), so the clip is 0: only target samples (g > 0) open. Recorded deviation.
+ */
+export const PLAN_CLIP_BU = 0;
 /** Walkers within brush reach + this are re-projected after a carve or fill, BU. */
 export const SURFACE_REFRESH_PAD_BU = 2;
+/** Steepest ramp slope a plan digger is aimed at, degrees from the horizontal (up or down). */
+export const PLAN_AIM_MAX_DEG = 85;
 /** Dominant material: the face probe looks this far ahead of the ramp start, BU. */
 export const DIG_FACE_PROBE_BU = 3;
 

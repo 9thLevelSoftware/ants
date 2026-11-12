@@ -10,6 +10,12 @@ export default async ({ page, shot, log }) => {
   res.overcast = await demo(() => window.__demo.stats().lighting);
   await demo(() => window.__demo.setView('pavement'));
   await shot('pavement-overcast-wet');
+  // GDD 08 11.4: rain (wet look), storm = rain look 0.7 EV darker, heat (warmer haze; asphalt haze 250 BU), frost
+  for (const [w, wet, view] of [['rain', 1, 'pavement'], ['storm', 1, 'pavement'], ['heat', 0, 'asphalt'], ['frost', 0, 'lawn']]) {
+    await demo(([ww, wt, v]) => { window.__demo.setWeather(ww); window.__demo.setWet(wt); window.__demo.setView(v); }, [w, wet, view]);
+    await shot(`${view}-${w}`);
+    res[w] = await demo(() => window.__demo.stats().lighting);
+  }
   await demo(() => { window.__demo.setWeather('clear'); window.__demo.setWet(0); window.__demo.setView('breach'); });
   await demo(() => window.__demo.setUnderground(true));
   await shot('breach-underground-flag');

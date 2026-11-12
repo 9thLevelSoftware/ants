@@ -218,6 +218,15 @@ export function zoneTypeAt(world: WorldData, x: number, z: number): ZoneType {
   return world.zones.find((zd) => zd.id === id)?.type ?? world.zones[0]?.type ?? 'lawn';
 }
 
+/** A mask over the zone grid: 255 where the zone is of `type`, 0 elsewhere (row-major, z rows). */
+export function zoneMask(world: WorldData, type: ZoneType): { cell: number; nx: number; nz: number; data: Uint8Array } {
+  const m = world.maps.zone;
+  const ids = new Set(world.zones.filter((z) => z.type === type).map((z) => z.id));
+  const data = new Uint8Array(m.nx * m.nz);
+  for (let i = 0; i < data.length; i++) data[i] = ids.has(m.data[i]) ? 255 : 0;
+  return { cell: m.cell, nx: m.nx, nz: m.nz, data };
+}
+
 // ---------------------------------------------------------------------------------------------------- environment
 
 /** What the lighting needs from the environment, in render-friendly form. */

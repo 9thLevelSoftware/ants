@@ -123,8 +123,46 @@ export function growNatural(rng: RngState, inp: NaturalInput): number[] {
     }
     queue = next;
   }
+  rebalance(claim, free, n, counts, targets, raster);
   for (const c of free) raster[c] = inp.zones[Math.max(0, claim[c])].id;
   return counts;
+}
+
+/**
+ * Moves cells from zones above their target to adjacent zones below it, growing the short zone into the long
+ * one breadth-first from their shared boundary (boxed-in zones and leftover cells otherwise skew the shares).
+ */
+function rebalance(claim: Int16Array, free: number[], n: number, counts: number[], targets: number[], raster: Uint8Array): void {
+  for (let iter = 0; iter < 4 * counts.length; iter++) {
+    let best: [number, number, number] | null = null; // [short, long, amount]
+    for (let d = 0; d < counts.length; d++) {
+      if (counts[d] >= targets[d]) continue;
+      const adj = new Set<number>();
+      for (const c of free) if (claim[c] === d) for (const j of neighbours(c, n)) if (raster[j] === FREE && claim[j] !== d) adj.add(claim[j]);
+      for (const s of [...adj].sort((a, b) => a - b)) {
+        const amount = Math.min(targets[d] - counts[d], counts[s] - targets[s]);
+        if (amount > 0 && (!best || amount > best[2])) best = [d, s, amount];
+      }
+    }
+    if (!best) return;
+    const [d, s, amount] = best;
+    let queue = free.filter((c) => claim[c] === s && neighbours(c, n).some((j) => raster[j] === FREE && claim[j] === d));
+    let moved = 0;
+    while (queue.length > 0 && moved < amount) {
+      const next: number[] = [];
+      for (const c of queue) {
+        if (moved >= amount) break;
+        if (claim[c] !== s) continue;
+        claim[c] = d;
+        moved++;
+        for (const j of neighbours(c, n)) if (raster[j] === FREE && claim[j] === s) next.push(j);
+      }
+      queue = next;
+    }
+    counts[d] += moved;
+    counts[s] -= moved;
+    if (moved === 0) return;
+  }
 }
 
 function neighbours(c: number, n: number): number[] {

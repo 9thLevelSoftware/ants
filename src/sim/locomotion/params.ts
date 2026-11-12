@@ -32,6 +32,8 @@ export const LOCO_TUNING = {
   separationBU: 1.1,
   separationWeight: 0.5,
   separationMax: 6,
+  /** Separation applies in nests and within this distance of a trip's destination (crowding points), BU. */
+  separationNearGoalBU: 12,
   /** Prefer-floor bias inside cavities (spike-nest §5 item 4): weight of the tangent part of "down". */
   preferFloorWeight: 0.35,
   /** Wander: heading noise, deg per sqrt(s); pull back to the region centre beyond its radius. */
@@ -41,7 +43,11 @@ export const LOCO_TUNING = {
   trailNoiseDeg: 12,
 
   // ---- trail following (GDD 02 §7 antennae, §8.4) ----
-  antennaReachBU: 0.9,
+  /**
+   * Sensor reach, BU. GDD 02 §7 gives 0.9 BU antennae, but trail cells are 4 BU: at 0.9 BU the side sensors read
+   * almost the same blended value. 3 BU (the pheromone module's PHERO_STEER_REACH_BU) is a recorded deviation.
+   */
+  antennaReachBU: 3,
   antennaAngleDeg: 35,
   /** omega = gain x (L - R) / (L + R + 1), rad/s. */
   trailTurnGain: 2.5,
@@ -49,6 +55,16 @@ export const LOCO_TUNING = {
   trailDetect: 0.3,
   /** No sensor above detect for this long = trail lost (GDD 02 TRAIL_LOST_S). */
   trailLostS: 8,
+  /**
+   * Edge following: when the centre antenna reads less than a side one (the trail curves away), turn toward the
+   * stronger side at least this fast, rad/s; when the trail fades just after such an asymmetry (a bend, not a gap)
+   * keep turning that way for trailSearchS. Needed because a 4 BU cell field gives the GDD 02 formula only a weak
+   * difference across the 1 BU antenna baseline.
+   */
+  trailEdgeRate: 2.5,
+  trailSideFrac: 0.08,
+  trailSideMemoryS: 1,
+  trailSearchS: 0.7,
 
   // ---- breadcrumbs and retrace (GDD 02 §9.2) ----
   crumbSpacingBU: 6,
@@ -83,7 +99,7 @@ export const LOCO_TUNING = {
   /** Straight-line goals closer than this skip the nav-grid planner, BU. */
   directBU: 24,
   /** Planner calls (A*) per tick across all walkers; the rest seek directly and retry next tick. */
-  planBudget: 24,
+  planBudget: 12,
   /** Moving targets (entities) are re-resolved this often, s, or when they moved this far, BU. */
   retargetS: 1,
   retargetBU: 3,
@@ -118,7 +134,10 @@ export const LOCO_TUNING = {
   lodFarBU: 420,
   lodMidEvery: 2,
   lodFarEvery: 4,
-  /** Coarse LOD steps use this substep on open ground (no hard primitive within lodHardClearBU). */
+  /**
+   * On open ground (nearly level, no hard primitive within lodHardClearBU, so no thin sheet to tunnel through)
+   * walker steps use this substep instead of the kernel's 0.25 BU; the kernel's guard still checks every step.
+   */
   lodCoarseSubstepBU: 0.75,
   lodHardClearBU: 3,
 
@@ -171,8 +190,9 @@ export interface LocoParams {
   bu: number;
   hurryMult: number; gripSpeedMult: number; coldCrawl: number; callow: number; run: number; creature: number;
   aiTurn: number; playerTurn: number; pivotEnter: number; pivotExit: number; minSteer: number;
-  sepR: number; sepW: number; sepMax: number; floorW: number; wanderSigma: number; wanderPull: number; trailNoise: number;
+  sepR: number; sepW: number; sepMax: number; sepNearGoal: number; floorW: number; wanderSigma: number; wanderPull: number; trailNoise: number;
   antReach: number; antAngle: number; trailGain: number; trailDetect: number; trailLostS: number;
+  trailEdge: number; trailSideFrac: number; trailSideMem: number; trailSearchS: number;
   crumbSpacing: number; crumbTurnCos: number; crumbTurnMin: number; loopClose: number; shortcutN: number;
   shortcutLift: number; shortcutR: number; crumbReach: number; piNoise: number;
   wpReach: number; climbReach: number; fieldLook: number; entranceHandover: number; spread: number; elevated: number;
@@ -199,10 +219,11 @@ export function locoParams(bu: number): LocoParams {
     callow: T.callowSpeedMult, run: T.runSpeedBU * bu, creature: T.creatureSpeedBU * bu,
     aiTurn: T.aiTurnRateDeg * DEG, playerTurn: T.playerTurnRateDeg * DEG, pivotEnter: T.pivotEnterDeg * DEG,
     pivotExit: T.pivotExitDeg * DEG, minSteer: T.minSteer,
-    sepR: T.separationBU * bu, sepW: T.separationWeight, sepMax: T.separationMax, floorW: T.preferFloorWeight,
+    sepR: T.separationBU * bu, sepW: T.separationWeight, sepMax: T.separationMax, sepNearGoal: T.separationNearGoalBU * bu, floorW: T.preferFloorWeight,
     wanderSigma: T.wanderSigmaDeg * DEG, wanderPull: T.wanderPull, trailNoise: T.trailNoiseDeg * DEG,
     antReach: T.antennaReachBU * bu, antAngle: T.antennaAngleDeg * DEG, trailGain: T.trailTurnGain,
-    trailDetect: T.trailDetect, trailLostS: T.trailLostS,
+    trailDetect: T.trailDetect, trailLostS: T.trailLostS, trailEdge: T.trailEdgeRate, trailSideFrac: T.trailSideFrac,
+    trailSideMem: T.trailSideMemoryS, trailSearchS: T.trailSearchS,
     crumbSpacing: T.crumbSpacingBU * bu, crumbTurnCos: Math.cos(T.crumbTurnDeg * DEG), crumbTurnMin: T.crumbTurnMinBU * bu,
     loopClose: T.loopCloseBU * bu, shortcutN: T.shortcutLookahead, shortcutLift: T.shortcutLiftBU * bu,
     shortcutR: T.shortcutRadiusBU * bu, crumbReach: T.crumbReachBU * bu, piNoise: T.piNoise,

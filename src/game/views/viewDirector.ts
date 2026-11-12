@@ -49,6 +49,9 @@ export interface CameraOptions {
 }
 
 const ZERO2 = { x: 0, y: 0 };
+/** Run-out of the observer's follow-loss hold: steps of the rig's own dt cap, enough for its 2 s hold. */
+const HOLD_RUNOUT_DT = 0.25;
+const HOLD_RUNOUT_STEPS = 16;
 
 export class ViewDirector {
   readonly third: ThirdPersonRig;
@@ -65,6 +68,10 @@ export class ViewDirector {
   private subjectUnderground = false;
   private subjectAirborne = false;
   private subjectLengthBu = 1;
+  /** Orbit requested by the debug API, added to the next rig update (degrees). */
+  private nudgeYaw = 0;
+  private nudgePitch = 0;
+  private nudgeZoom = 0;
   private readonly frameOut: ViewFrame = {
     pose: makePose(), dip: 0, focus: 100, subjectOpacity: 1, possessionState: null, fade: null, cutaway: null, observerMode: null,
   };
@@ -92,6 +99,13 @@ export class ViewDirector {
   setView(view: ViewId, subject: ViewSubject | null, instant = false): void {
     const from = copyPose(makePose(), this.last);
     const prev = this.view;
+    if (prev === 'photo' && view !== 'photo') {
+      // leaving photo mode: the origin view's rig was untouched, so its pose and possession come back as they were
+      this.view = view;
+      if (subject) this.setSubject(subject);
+      this.transition.start(from, { kind: 'fly', duration: 0 });
+      return;
+    }
     if (view === 'photo') { this.photoOrigin = prev === 'photo' ? this.photoOrigin : prev; this.photo.enter(this.last); }
     if (view === 'possess') this.third.snap();
     if (view === 'observer') {
@@ -126,6 +140,28 @@ export class ViewDirector {
     this.following = false;
   }
 
+  /**
+   * Player-chosen free fly from above a point. The rig's follow-loss hold (2 s at the last position, meant for a
+   * followed entity that disappeared) is run out first so it cannot overwrite the new pose.
+   */
+  freeFlyAbove(p: Vec3): void {
+    this.stopFollowing();
+    this.placeObserverAbove(p);
+  }
+
+  /** Free-fly observer at an explicit pose (debug camera.setPose). */
+  freeFlyAt(pos: Vec3, look: Vec3): void {
+    this.stopFollowing();
+    this.observer.setPose(pos, look);
+  }
+
+  private stopFollowing(): void {
+    this.unfollow();
+    const env = { trace: this.world.trace, groundHeight: this.world.groundHeight };
+    const still = { yawDeg: 0, pitchDeg: 0, zoomLog: 0, move: ZERO2, vertical: 0, fast: false };
+    for (let i = 0; i < HOLD_RUNOUT_STEPS && this.observer.update(HOLD_RUNOUT_DT, still, env).mode === 'hold'; i++);
+  }
+
   /** Update the followed / possessed subject (each frame; the rigs keep a reference to the copy). */
   setSubject(s: ViewSubject): void {
     const t = this.followTarget;
@@ -144,8 +180,13 @@ export class ViewDirector {
 
   private updateRig(dt: number, input: InputState | null): ViewFrame {
     const f = this.frameOut, w = this.world;
-    const look = (axis: string) => (input ? input.look(axis) : ZERO2);
-    const zoom = (axis: string) => (input ? input.zoom(axis) : 0);
+    const ny = this.nudgeYaw, np = this.nudgePitch, nz = this.nudgeZoom;
+    this.nudgeYaw = 0; this.nudgePitch = 0; this.nudgeZoom = 0;
+    const look = (axis: string) => {
+      const l = input ? input.look(axis) : ZERO2;
+      return ny === 0 && np === 0 ? l : { x: l.x + ny, y: l.y + np };
+    };
+    const zoom = (axis: string) => (input ? input.zoom(axis) : 0) + nz;
     f.possessionState = null; f.fade = null; f.cutaway = null; f.observerMode = null; f.subjectOpacity = 1;
     if (this.view === 'possess') {
       const l = look('orbit');
@@ -192,6 +233,13 @@ export class ViewDirector {
     f.pose = this.last;
     f.dip = t.dip;
     return f;
+  }
+
+  /** Adds an orbit step (degrees) and a zoom step (natural log of the distance factor) to the next rig update. */
+  nudge(yawDeg: number, pitchDeg: number, zoomLog = 0): void {
+    this.nudgeYaw += yawDeg;
+    this.nudgePitch += pitchDeg;
+    this.nudgeZoom += zoomLog;
   }
 
   /** Runs the rig without input for `seconds` so smoothing has settled (deterministic screenshots). */

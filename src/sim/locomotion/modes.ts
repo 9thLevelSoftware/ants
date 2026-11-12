@@ -4,13 +4,19 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, PheroChannel, Sim, Walker } from '@/sim/types';
-import { retraceTarget } from './crumbs';
-import { noiseGauss, rotateTangent, set3 } from './mathx';
+import { retraceTarget as retraceTargetImp } from './crumbs';
+import { noiseGauss as noiseGaussImp, rotateTangent as rotateTangentImp, set3 as set3Imp } from './mathx';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
 
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const retraceTarget = retraceTargetImp, noiseGauss = noiseGaussImp, rotateTangent = rotateTangentImp, set3 = set3Imp;
+
 const _l: Vec3 = { x: 0, y: 0, z: 0 }, _c: Vec3 = { x: 0, y: 0, z: 0 }, _rr: Vec3 = { x: 0, y: 0, z: 0 };
 const _h: Vec3 = { x: 0, y: 0, z: 0 };
+/** Trail heading memory (EMA time constant, s) and the reversal limit (cos 100 deg). */
+const TRAIL_HEADING_TAU_S = 2;
+const TRAIL_NO_REVERSE_COS = Math.cos((100 * Math.PI) / 180);
 
 /** Wander: the heading drifts by gaussian noise; beyond the radius the walker is pulled back to the centre. */
 export function wanderDesired(w: Walker, s: NavScratch, r: LocoRuntime, id: number, tick: number, dt: number, out: Vec3): void {
@@ -44,16 +50,26 @@ export function trailDesired(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime,
   const C = phero.sample(col, ch, sensor(_c, w, 0, P.antReach));
   const R = phero.sample(col, ch, sensor(_rr, w, -P.antAngle, P.antReach));
   const best = Math.max(L, C, R);
+  s.trailSideAge += dt;
   if (best < P.trailDetect) {
-    // gap: keep the heading (no noise) so short breaks are crossed
-    set3(out, w.fwd.x, w.fwd.y, w.fwd.z);
+    // a gap: go on along the recent trail heading (the average of the last second, not the momentary zig-zag)
+    // so short breaks are crossed; bends are taken while still on the trail
+    if (s.lastDir.x * s.lastDir.x + s.lastDir.y * s.lastDir.y + s.lastDir.z * s.lastDir.z > 1e-6) set3(out, s.lastDir.x, s.lastDir.y, s.lastDir.z);
+    else set3(out, w.fwd.x, w.fwd.y, w.fwd.z);
     return 0;
   }
-  let omega = (P.trailGain * (L - R)) / (L + R + 1);
-  // a centre sensor weaker than both sides means the trail bends sharply: turn toward the stronger side harder
-  if (C < L && C < R) omega *= 2;
-  const turn = omega * dt + noiseGauss(id, tick, 11) * P.trailNoise * Math.sqrt(dt);
+  if (Math.abs(L - R) > P.trailSideFrac * best) { s.trailSide = L > R ? 1 : -1; s.trailSideAge = 0; }
+  else if (s.trailSideAge > P.trailSideMem) s.trailSide = 0;
+  // GDD 02 §8.4 steering law on the side antennae (the centre one only tells strength: steering on it makes
+  // walkers orbit cell peaks); applied as a heading offset of up to the antenna angle per tick, which the
+  // walker's turn-rate limit then smooths.
+  const turn = (P.antAngle * (L - R)) / (L + R + 1) + noiseGauss(id, tick, 11) * P.trailNoise * Math.sqrt(dt);
   rotateTangent(out, w.fwd, w.up, turn);
+  // no reversals while following: keep within 100 deg of the recent trail heading
+  const lx = s.lastDir.x, ly = s.lastDir.y, lz = s.lastDir.z, ll = Math.hypot(lx, ly, lz);
+  if (ll > 1e-6 && (out.x * lx + out.y * ly + out.z * lz) / ll < TRAIL_NO_REVERSE_COS) set3(out, w.fwd.x, w.fwd.y, w.fwd.z);
+  const k = Math.min(1, dt / TRAIL_HEADING_TAU_S);
+  s.lastDir.x += (w.fwd.x - lx) * k; s.lastDir.y += (w.fwd.y - ly) * k; s.lastDir.z += (w.fwd.z - lz) * k;
   const ant = w as Partial<Ant>;
   if (s.trailDir !== 0 && ant.mem) {
     const h = ant.mem.homeVec;

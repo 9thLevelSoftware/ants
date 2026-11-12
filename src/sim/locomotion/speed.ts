@@ -9,8 +9,11 @@ import { AntFlag } from '@/sim/types';
 import { HEALTH_FACTOR_BASE } from '@/sim/balance/actions';
 import { speedMult as speedMultImp } from '@/sim/environment/thermalResponse';
 import { getRivalSpecies, getSpecies } from '@/sim/species';
-import { locoParams, type LocoParams } from './params';
+import { locoParams as locoParamsImp, type LocoParams } from './params';
 import type { NavScratch } from './scratch';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const locoParams = locoParamsImp;
 
 const speedMult = speedMultImp;
 
@@ -36,7 +39,8 @@ function hookFactor(sim: Sim, w: Walker): number {
 }
 
 interface CasteSpeeds { cruise: number; sprint: number; load: number }
-const casteCache = new Map<string, CasteSpeeds>();
+/** world BU -> species -> caste (+ '!' for founding queens) -> speeds; nested maps so the hot path builds no strings. */
+const casteCache = new Map<number, Map<string, Map<string, CasteSpeeds>>>();
 
 /**
  * Cruise, sprint (mm/s, world) and loaded multiplier of a species' caste (cached; species data are static). The
@@ -44,8 +48,12 @@ const casteCache = new Map<string, CasteSpeeds>();
  * like a worker (00-index E-12: cruise 6, hurry 9.6 BU/s for Lasius), so `founding` reads the worker caste.
  */
 export function casteSpeeds(species: ColonySpeciesId, caste: string, worldBu: number, founding = false): CasteSpeeds {
-  const key = `${species}|${caste}|${worldBu}|${founding ? 1 : 0}`;
-  const hit = casteCache.get(key);
+  let byBu = casteCache.get(worldBu);
+  if (!byBu) { byBu = new Map(); casteCache.set(worldBu, byBu); }
+  let bySpecies = byBu.get(species);
+  if (!bySpecies) { bySpecies = new Map(); byBu.set(species, bySpecies); }
+  const key = founding && caste === 'queen' ? FOUNDING_KEY : caste;
+  const hit = bySpecies.get(key);
   if (hit) return hit;
   const def = getSpecies(species);
   let out: CasteSpeeds;
@@ -60,9 +68,11 @@ export function casteSpeeds(species: ColonySpeciesId, caste: string, worldBu: nu
     out = { cruise, sprint: 2 * cruise, load: 1 };
   }
   if (!(out.sprint > 0)) out.sprint = locoParams(worldBu).run;
-  casteCache.set(key, out);
+  bySpecies.set(key, out);
   return out;
 }
+
+const FOUNDING_KEY = 'queen!founding';
 
 function speciesOf(sim: Sim, ant: Ant): ColonySpeciesId {
   const c = sim.stores.colonies.get(ant.colony);

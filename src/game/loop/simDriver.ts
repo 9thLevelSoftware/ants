@@ -5,6 +5,9 @@ import type { Command, RunSpeed, Sim, SpeedLevel } from '@/sim/types';
 import { SpeedMeter, type SpeedReport } from './speedMeter';
 import { TickClock, type TickRunResult } from './tickClock';
 
+/** EMA weight of one tick in the tick-time average. */
+const TICK_MS_EMA = 0.02;
+
 export interface FrameOptions {
   /** The game does not let time pass (photo mode, pause menu, not playing). */
   frozen: boolean;
@@ -30,6 +33,10 @@ export class SimDriver {
   beforeTick: (() => void) | null = null;
   /** Ticks executed since creation (debug). */
   ticksRun = 0;
+  /** Millisecond clock for perf numbers (performance.now); null = no timing. */
+  timer: (() => number) | null = null;
+  /** Mean simulation time per tick, ms (EMA over about 50 ticks; NaN before the first timed tick). */
+  tickMs = NaN;
   private lastFrame: DriverFrame = { ran: 0, dropped: 0, budgetHit: false, alpha: 0, running: false, steppedDownTo: null };
 
   constructor(readonly sim: Sim) {}
@@ -51,7 +58,12 @@ export class SimDriver {
 
   private tickOnce = (): void => {
     this.beforeTick?.();
+    const t0 = this.timer ? this.timer() : 0;
     this.sim.tick();
+    if (this.timer) {
+      const ms = this.timer() - t0;
+      this.tickMs = Number.isNaN(this.tickMs) ? ms : this.tickMs + (ms - this.tickMs) * TICK_MS_EMA;
+    }
     this.ticksRun++;
   };
 

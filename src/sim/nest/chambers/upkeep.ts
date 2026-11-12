@@ -8,7 +8,9 @@ import { chamberHumidity, chamberTemp } from '@/sim/environment/chamber';
 import { nestComponents } from '../entrances';
 import { nestRuntime } from '../runtime';
 import { sampleI, sampleJ, sampleK } from '../voxelKey';
-import { detectRegions, nestSampleBox } from './detect';
+import { detectRegions, nestSampleBox, type Region } from './detect';
+import { planG } from '../plans/geometry';
+import { planCache } from '../plans/targets';
 import { applyDetection, chamberAtIn, designateChamberImpl } from './registry';
 
 /** Detection pass over one nest: regions connected to the nest's cavity, then the identity rules. */
@@ -20,7 +22,7 @@ export function detectNestChambers(sim: Sim, nest: Nest): void {
     const c = sim.nestNav.componentAt({ x: sampleI(s) * v, y: sampleJ(s) * v, z: sampleK(s) * v });
     return c >= 0 && comps.has(c);
   });
-  applyDetection(sim, nest, regions);
+  applyDetection(sim, nest, regions, (r) => insideLiveChamberPlan(sim, nest, r));
   nest.volumeOpen = nestOpenVolume(sim, nest);
 }
 
@@ -31,7 +33,9 @@ export function nestOpenVolume(sim: Sim, nest: Nest): number {
   for (const key of carve.data.keys) {
     carve.forEachOpenSample(key, (i, j, k, o) => {
       if (i < b.i0 || i > b.i1 || j < b.j0 || j > b.j1 || k < b.k0 || k > b.k1) return;
-      let solid = 0.5 - sim.field.substrateXYZ(i * v, j * v, k * v) / v;
+      const x = i * v, y = j * v, z = k * v;
+      // well below the surface the solid share is 1 (cheap test first)
+      let solid = y < sim.field.height(x, z) - 2 * v ? 1 : 0.5 - sim.field.substrateXYZ(x, y, z) / v;
       solid = solid < 0 ? 0 : solid > 1 ? 1 : solid;
       vol += Math.min(1, Math.max(0, o / 127.5 - 0.5)) * solid;
     });
@@ -113,4 +117,18 @@ export function checkRoyal(sim: Sim, nest: Nest): void {
   let workers = 0;
   for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && a.caste !== 'queen' && a.caste !== 'gyne' && a.caste !== 'male') workers++;
   if (workers >= nestTemplate(col.species).royalAt) designateChamberImpl(sim, cell.id, 'royal', 'auto');
+}
+
+/** Is most of the region inside the room of a chamber plan that is still being dug? */
+function insideLiveChamberPlan(sim: Sim, nest: Nest, r: Region): boolean {
+  const v = sim.carve.voxel;
+  for (const plan of nest.digPlans) {
+    if (plan.kind !== 'chamber' || plan.status === 'complete' || plan.status === 'cancelled') continue;
+    const g = planCache(sim, nest, plan)?.geometry;
+    if (!g) continue;
+    let inside = 0;
+    for (const key of r.keys) if (planG(g, sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) > -v) inside++;
+    if (inside * 2 >= r.keys.length) return true;
+  }
+  return false;
 }

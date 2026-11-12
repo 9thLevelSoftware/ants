@@ -46,7 +46,7 @@ export function buildHeightfield(ctx: GenContext, rng: RngState): void {
   let wsum = 0, wl = 0;
   for (const [id, n] of [...waveW.entries()].sort((a, b) => a[0] - b[0])) { wsum += n; wl += n * zoneWave[id]; }
   const macroInv = 1 / (wsum > 0 ? wl / wsum : 4000);
-  const microInv = 1 / (2 * 3 * cell); // 6 cells, 2 octaves -> finest wavelength 3 cells
+  const microInv = 1 / (TERRAIN.microWaveCells * cell);
   // tilt: grade up to 1 % toward a random direction
   let tx = 0, tz = 0;
   for (let t = 0; t < 16; t++) {
@@ -66,8 +66,15 @@ export function buildHeightfield(ctx: GenContext, rng: RngState): void {
   };
   const field = (a: Float32Array) =>
     a[fj] * (1 - fu) * (1 - fv) + a[fj + fi1] * fu * (1 - fv) + a[fj + fk1] * (1 - fu) * fv + a[fj + fi1 + fk1] * fu * fv;
+  // macro noise is smooth at the nav-cell scale (finest octave >= 0.75 m vs 16 BU cells): sampled at nav cell
+  // centres and interpolated with the same weights
+  const macroN = new Float32Array(nCells);
+  for (let c = 0; c < nCells; c++) {
+    const x = ((c % navN) + 0.5) * navCell, z = (Math.floor(c / navN) + 0.5) * navCell;
+    macroN[c] = fbm2(x * macroInv, z * macroInv, seed ^ 0x51ed, TERRAIN.macroOctaves);
+  }
   const smoothAt = (x: number, z: number) =>
-    grade * (tx * (x - L / 2) + tz * (z - L / 2)) + field(offs) + field(macroA) * fbm2(x * macroInv, z * macroInv, seed ^ 0x51ed, TERRAIN.macroOctaves);
+    grade * (tx * (x - L / 2) + tz * (z - L / 2)) + field(offs) + field(macroA) * field(macroN);
 
   // per-sample: natural height, built level and the blend
   const shapesByZone = new Map<number, BuiltShape[]>();
@@ -113,12 +120,12 @@ function addFeatures(ctx: GenContext, rng: RngState, isBuilt: Uint8Array): void 
   const { samples, cell, cells, size: L } = dims;
   const H = ctx.world.terrain.data;
   const zoneAt = (x: number, z: number) => lay.cells[Math.min(cells - 1, Math.max(0, Math.floor(z / cell))) * cells + Math.min(cells - 1, Math.max(0, Math.floor(x / cell)))];
-  const stamp = (cx: number, cz: number, r: number, dh: number, onlyZone: number) => {
+  const stamp = (cx: number, cz: number, r: number, dh: number) => {
     const i0 = Math.max(0, Math.floor((cx - r) / cell)), i1 = Math.min(samples - 1, Math.ceil((cx + r) / cell));
     const k0 = Math.max(0, Math.floor((cz - r) / cell)), k1 = Math.min(samples - 1, Math.ceil((cz + r) / cell));
     for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++) {
       const j = k * samples + i;
-      if (isBuilt[j] || zoneAt(i * cell, k * cell) !== onlyZone) continue;
+      if (isBuilt[j]) continue; // features straddling a zone border stay continuous; only built ground is exempt
       const dx = i * cell - cx, dz = k * cell - cz;
       H[j] += dh * bell((dx * dx + dz * dz) / (r * r));
     }
@@ -131,7 +138,7 @@ function addFeatures(ctx: GenContext, rng: RngState, isBuilt: Uint8Array): void 
         const d = TERRAIN.hollowDiam[0] + rngFloat(rng) * (TERRAIN.hollowDiam[1] - TERRAIN.hollowDiam[0]);
         const depth = TERRAIN.hollowDepth[0] + rngFloat(rng) * (TERRAIN.hollowDepth[1] - TERRAIN.hollowDepth[0]);
         if (zoneAt(x, z) !== zn.id) continue;
-        stamp(x, z, d / 2, -depth, zn.id);
+        stamp(x, z, d / 2, -depth);
         h++;
       }
     }
@@ -146,7 +153,7 @@ function addFeatures(ctx: GenContext, rng: RngState, isBuilt: Uint8Array): void 
         const d = TERRAIN.wormCastDiam[0] + rngFloat(rng) * (TERRAIN.wormCastDiam[1] - TERRAIN.wormCastDiam[0]);
         const h = TERRAIN.wormCastHeight[0] + rngFloat(rng) * (TERRAIN.wormCastHeight[1] - TERRAIN.wormCastHeight[0]);
         if (zoneAt(x, z) !== zn.id) continue;
-        stamp(x, z, d / 2, h, zn.id);
+        stamp(x, z, d / 2, h);
         c++;
       }
     }

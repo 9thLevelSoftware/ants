@@ -126,12 +126,31 @@ function placeOnce(rng: RngState, kinds: readonly BuiltKind[], L: number, wantFa
     const pd = sz(clampRule(B.patioDepth.f, L, B.patioDepth.lo, B.patioDepth.hi), B.patioDepth.lo, s);
     const side = plan.facadeSide ?? SIDES[rngInt(rng, 0, 3)];
     const door = plan.house?.door ?? null;
-    let best: Rect | null = null;
-    for (let t = 0; t < BUILT_SIZE.candidates && !best; t++) {
-      const c = door ? along(side, door.x, door.z) + (t === 0 ? 0 : range(rng, -pw / 4, pw / 4)) : range(rng, pw / 2, L - pw / 2);
-      const a0 = Math.max(0, Math.min(L - pw, c - pw / 2));
-      const rect = innerSlice(band(side, stripDepth + pd, L, a0, a0 + pw), side, stripDepth, stripDepth + pd, L);
-      if (free(rect) && (!door || (along(side, door.x, door.z) > a0 && along(side, door.x, door.z) < a0 + pw))) best = rect;
+    const tryPlace = (width: number): Rect | null => {
+      for (let t = 0; t < BUILT_SIZE.candidates; t++) {
+        let a0: number;
+        if (door) {
+          const da = along(side, door.x, door.z), m = Math.min(300, width / 4);
+          a0 = t === 0 ? da - width / 2 : range(rng, da - width + m, da - m);
+        } else a0 = range(rng, 0, L - width);
+        a0 = Math.max(0, Math.min(L - width, a0));
+        const rect = innerSlice(band(side, stripDepth + pd, L, a0, a0 + width), side, stripDepth, stripDepth + pd, L);
+        const da = door ? along(side, door.x, door.z) : 0;
+        if (free(rect) && (!door || (da > a0 && da < a0 + width))) return rect;
+      }
+      return null;
+    };
+    let best = tryPlace(pw) ?? tryPlace(Math.max(B.patioWidth.lo * 0.5, pw * 0.6));
+    if (!best) {
+      // the patio is mandatory where listed: an optional driveway in its way gives way
+      const dw = plan.rects.findIndex((r) => r.kind === 'driveway');
+      if (dw >= 0) {
+        const side2 = plan.rects[dw].side;
+        plan.rects.splice(dw, 1);
+        if (side2) usedSides.delete(side2);
+        plan.skipped.push('driveway');
+        best = tryPlace(pw);
+      }
     }
     if (best) plan.rects.push({ kind: 'patio', rect: best, side }); else plan.skipped.push('patio');
   }

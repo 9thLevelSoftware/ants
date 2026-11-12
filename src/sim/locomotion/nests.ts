@@ -98,13 +98,34 @@ export function planField(sim: Sim, nestId: number, planId: number): string {
 export function pointField(sim: Sim, r: LocoRuntime, p: Vec3): string {
   const q = r.P.pointFieldCell;
   const ix = Math.round(p.x / q), iy = Math.round(p.y / q), iz = Math.round(p.z / q);
-  const id = `loco:pt:${ix},${iy},${iz}`;
+  const id = `${POINT_PREFIX}${ix},${iy},${iz}`;
   if (sim.nestNav.hasTarget(id)) return id;
+  registerPointField(sim, r, id, ix, iy, iz);
+  return id;
+}
+
+const POINT_PREFIX = 'loco:pt:';
+
+export function isPointField(id: string): boolean {
+  return id.startsWith(POINT_PREFIX);
+}
+
+/**
+ * Makes sure a field a walker follows exists: point fields are derived caches named by their goal cell, so after a
+ * load (or eviction from the registry) they are registered again from the name. Other fields are the nest module's.
+ */
+export function ensureField(sim: Sim, r: LocoRuntime, id: string): void {
+  if (!id || sim.nestNav.hasTarget(id) || !isPointField(id)) return;
+  const [ix, iy, iz] = id.slice(POINT_PREFIX.length).split(',').map(Number);
+  if (Number.isFinite(ix) && Number.isFinite(iy) && Number.isFinite(iz)) registerPointField(sim, r, id, ix, iy, iz);
+}
+
+function registerPointField(sim: Sim, r: LocoRuntime, id: string, ix: number, iy: number, iz: number): void {
+  const q = r.P.pointFieldCell;
   sim.nestNav.setTarget(id, { points: [{ x: ix * q, y: iy * q, z: iz * q }], radius: r.P.pointFieldR });
   r.pointFields.push(id);
   while (r.pointFields.length > r.P.pointFieldMax) {
     const old = r.pointFields.shift();
     if (old) sim.nestNav.removeTarget(old);
   }
-  return id;
 }

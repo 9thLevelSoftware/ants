@@ -137,6 +137,9 @@ export function navFollowTrail(sim: Sim, w: Walker, colony: number, channel: Phe
   s.trailDir = dir === 'out' ? 1 : dir === 'in' ? -1 : 0;
   s.trailLostS = 0;
   s.trailTurned = 0;
+  s.trailSide = 0;
+  s.trailSideAge = 0;
+  copy3(s.lastDir, w.fwd);
   w.nav.mode = 'trail';
   w.nav.status = 'moving';
   return true;
@@ -229,7 +232,9 @@ export function notifySurfaceChanged(sim: Sim, min: Vec3, max: Vec3): void {
     if (!w.alive) return;
     if (w.pos.x < min.x - m || w.pos.x > max.x + m || w.pos.y < min.y - m || w.pos.y > max.y + m || w.pos.z < min.z - m || w.pos.z > max.z + m) return;
     if (w.medium !== 'air') walkerSurfaceChanged(sim.field, w, sim.kernel.walker);
-    scratchOf(w).planTick = -1;
+    const s = scratchOf(w);
+    s.planTick = -1;
+    s.open = -1;
   };
   for (const a of sim.stores.ants.list) touch(a);
   for (const c of sim.stores.creatures.list) touch(c);

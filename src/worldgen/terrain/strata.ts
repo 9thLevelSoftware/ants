@@ -34,12 +34,21 @@ export function buildStrata(ctx: GenContext, rng: RngState): void {
   });
   const inv = 1 / STRATA_JITTER.wavelength;
   const seed = (ctx.seed ^ 0x57a7) | 0;
+  // jitter noise (1 m wavelength) on a coarse lattice of `sub` cells, interpolated bilinearly
+  const { sub } = ctx.dims;
+  const gn = Math.ceil(cells / sub) + 1;
+  const jit = new Float32Array(gn * gn);
+  for (let k = 0; k < gn; k++) for (let i = 0; i < gn; i++) jit[k * gn + i] = fbm2(i * sub * cell * inv, k * sub * cell * inv, seed, 2);
   for (let k = 0; k < cells; k++) for (let i = 0; i < cells; i++) {
     const j = k * cells + i;
     const zid = lay.cells[j];
     const c = codes[zid];
     let crust = c.fixed >= 0 ? c.fixed : zoneCrust[zid];
-    if (c.jitter) crust *= 1 + STRATA_JITTER.amp * fbm2((i + 0.5) * cell * inv, (k + 0.5) * cell * inv, seed, 2);
+    if (c.jitter) {
+      const fx = (i + 0.5) / sub, fz = (k + 0.5) / sub, gi = Math.floor(fx), gk = Math.floor(fz), u = fx - gi, v = fz - gk, g = gk * gn + gi;
+      const n = jit[g] * (1 - u) * (1 - v) + jit[g + 1] * u * (1 - v) + jit[g + gn] * (1 - u) * v + jit[g + gn + 1] * u * v;
+      crust *= 1 + STRATA_JITTER.amp * n;
+    }
     g.surface.data[j] = c.surface;
     g.subsoil.data[j] = c.subsoil;
     g.crustMm.data[j] = Math.max(0, Math.min(255, Math.round(crust)));

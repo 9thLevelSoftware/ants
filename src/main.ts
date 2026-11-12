@@ -1,48 +1,53 @@
-// Minimal boot placeholder (replaced by the app shell task). Proves the page, the @/ alias and src/core load in
-// the browser: paints a seeded fbm noise preview on the full-window canvas, then sets window.__ready.
+// Entry point: mounts the UI, checks WebGL2, creates the Game, exposes window.__game, and with ?autostart=1
+// goes straight into a generated game. Sets window.__ready once the first real frame is rendered.
+import { FOUNDRESS_VERSION, createLogger } from '@/core';
+import { Game } from '@/game/Game';
+import { createDebugApi, type DebugApi } from '@/game/debug/debugApi';
+import { parseGameFlags } from '@/game/flags';
+import { mountUi } from '@/ui/App';
+import { installErrorTraps, webgl2Available } from '@/ui/boot';
+import { facade, setBootScreen, setSnapshot, showError } from '@/ui/store';
 
-import { FOUNDRESS_VERSION, createLogger, fbm2, rngFork, rngInt } from '@/core';
-
-const log = createLogger('boot');
-const PREVIEW_CELLS = 160; // noise preview resolution (scaled up to the window)
-const NOISE_SCALE = 1 / 24;
-
-function paintPreview(canvas: HTMLCanvasElement, seed: number): void {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  canvas.width = PREVIEW_CELLS;
-  canvas.height = Math.max(1, Math.round((PREVIEW_CELLS * window.innerHeight) / Math.max(1, window.innerWidth)));
-  const img = ctx.createImageData(canvas.width, canvas.height);
-  for (let y = 0; y < canvas.height; y++) {
-    for (let x = 0; x < canvas.width; x++) {
-      const n = fbm2(x * NOISE_SCALE, y * NOISE_SCALE, seed, 5) * 0.5 + 0.5; // [0, 1]
-      const o = (y * canvas.width + x) * 4;
-      img.data[o] = 60 + 110 * n; // warm soil tones
-      img.data[o + 1] = 42 + 80 * n;
-      img.data[o + 2] = 24 + 50 * n;
-      img.data[o + 3] = 255;
-    }
+declare global {
+  interface Window {
+    __ready?: boolean;
+    __game?: DebugApi;
+    /** Throws asynchronously (verification of the error overlay, tests/e2e/crash.mjs). */
+    __crash?: (message?: string) => void;
   }
-  ctx.putImageData(img, 0, 0);
 }
 
-function boot(): void {
+const log = createLogger('main');
+
+async function boot(): Promise<void> {
+  const uiRoot = document.getElementById('ui');
   const canvas = document.getElementById('view') as HTMLCanvasElement | null;
-  const ui = document.getElementById('ui');
-  const params = new URLSearchParams(location.search);
-  const seed = Number(params.get('seed') ?? rngInt(rngFork(1, 'boot'), 1, 9999));
-  if (canvas) {
-    canvas.style.imageRendering = 'pixelated';
-    paintPreview(canvas, seed);
+  if (!uiRoot || !canvas) throw new Error('index.html must provide #view and #ui');
+  mountUi(uiRoot);
+  let game: Game | null = null;
+  installErrorTraps(window, (text) => { if (game) game.showError(text); else showError(text); });
+  window.__crash = (message = 'FOUNDRESS deliberate test error') => { setTimeout(() => { throw new Error(message); }, 0); };
+  const flags = parseGameFlags(location.search);
+  log.info(`FOUNDRESS ${FOUNDRESS_VERSION}${flags.test ? ' (test mode)' : ''}`);
+  if (!webgl2Available()) {
+    setBootScreen('unsupported');
+    window.__ready = true;
+    return;
   }
-  if (ui) {
-    const title = document.createElement('div');
-    title.style.cssText = 'position:absolute;left:16px;top:12px;text-shadow:0 1px 3px #000';
-    title.textContent = `FOUNDRESS ${FOUNDRESS_VERSION} - core loaded (seed ${seed})`;
-    ui.appendChild(title);
-  }
-  log.info(`FOUNDRESS ${FOUNDRESS_VERSION}`);
-  (window as unknown as { __ready?: boolean }).__ready = true;
+  game = new Game({
+    canvas, testMode: flags.test, quality: flags.quality, post: flags.post, forceDebugRender: flags.forceDebugRender,
+    onSnapshot: setSnapshot,
+  });
+  window.__game = createDebugApi(game);
+  facade.value = game;
+  await game.boot();
+  if (flags.autostart) await game.newGame(flags.newGame);
+  else game.renderNow();
+  window.__ready = true;
 }
 
-boot();
+boot().catch((e: unknown) => {
+  const text = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
+  showError(text);
+  console.error('[main] boot failed', e);
+});

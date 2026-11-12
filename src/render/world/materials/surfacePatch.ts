@@ -85,6 +85,8 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
     s.uniforms.uWet = o.uniforms.uWet;
     s.uniforms.uWrDapple = o.uniforms.uDapple;
     s.uniforms.uWrDappleMm = o.uniforms.uDappleMm;
+    s.uniforms.tWrCanopy = o.uniforms.tDappleMask;
+    s.uniforms.uWrCanopyInv = o.uniforms.uDappleMaskInv;
     if (o.breaches) { s.uniforms.uWrBreach = o.breaches.spheres; s.uniforms.uWrBreachN = o.breaches.count; }
     if (o.extra) Object.assign(s.uniforms, o.extra.uniforms);
     const defs = [

@@ -5,8 +5,11 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim, Walker } from '@/sim/types';
-import { normalizeInPlace, rotateTangent, signedAngle, tangentPart } from './mathx';
-import { avoidDiscs, type LocoRuntime } from './runtime';
+import { normalizeInPlace as normalizeInPlaceImp, rotateTangent as rotateTangentImp, signedAngle as signedAngleImp, tangentPart as tangentPartImp } from './mathx';
+import { avoidDiscs as avoidDiscsImp, type LocoRuntime } from './runtime';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const normalizeInPlace = normalizeInPlaceImp, rotateTangent = rotateTangentImp, signedAngle = signedAngleImp, tangentPart = tangentPartImp, avoidDiscs = avoidDiscsImp;
 
 const _t: Vec3 = { x: 0, y: 0, z: 0 };
 const DOWN: Vec3 = { x: 0, y: -1, z: 0 };

@@ -8,10 +8,13 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
-import { isLocoNavGrid } from './grid/navGridImpl';
-import { noise01, set3 } from './mathx';
-import { avoidDiscs, type LocoRuntime } from './runtime';
+import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
+import { noise01 as noise01Imp, set3 as set3Imp } from './mathx';
+import { avoidDiscs as avoidDiscsImp, type LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const isLocoNavGrid = isLocoNavGridImp, noise01 = noise01Imp, set3 = set3Imp, avoidDiscs = avoidDiscsImp;
 
 const _a: Vec3 = { x: 0, y: 0, z: 0 }, _b: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -72,10 +75,10 @@ export function recordCrumb(ant: Ant, r: LocoRuntime): void {
   }
   if (!take) return;
   // loop erasure: back near an older crumb k -> drop everything after k
-  const lc2 = P.loopClose * P.loopClose;
+  const lc2 = P.loopClose * P.loopClose, c = m.crumbs;
   for (let k = 0; k < m.crumbLen - 1; k++) {
-    crumbAt(ant, k, _b);
-    if ((p.x - _b.x) ** 2 + (p.y - _b.y) ** 2 + (p.z - _b.z) ** 2 <= lc2) {
+    const ex = p.x - c[3 * k], ey = p.y - c[3 * k + 1], ez = p.z - c[3 * k + 2];
+    if (ex * ex + ey * ey + ez * ez <= lc2) {
       m.crumbLen = k + 1;
       m.crumbHead = m.crumbLen;
       return;
@@ -113,8 +116,8 @@ export function resetHomeVec(ant: Ant, s: NavScratch, entrance: Vec3 | null): vo
 function shortcutOk(sim: Sim, ant: Ant, r: LocoRuntime, from: Vec3, to: Vec3): boolean {
   const g = sim.navGrid;
   const discs = (ant.flags & AntFlag.POSSESSED) === 0 ? avoidDiscs(sim, r, ant.colony) : null;
-  if (isLocoNavGrid(g) && !g.segmentWalkable(from, to, discs)) return false;
-  // nothing above the surface in between (stones, walls): segment lifted along the two ends' normals
+  if (isLocoNavGrid(g) && !g.gridVisible(from, to, discs)) return false;
+  // nothing above the surface in between (stones, walls): one sweep, lifted along the start's normal
   const lift = r.P.shortcutLift;
   set3(_a, from.x + ant.up.x * lift, from.y + ant.up.y * lift, from.z + ant.up.z * lift);
   set3(_b, to.x, to.y + lift, to.z);
@@ -122,8 +125,6 @@ function shortcutOk(sim: Sim, ant: Ant, r: LocoRuntime, from: Vec3, to: Vec3): b
 }
 
 const _c: Vec3 = { x: 0, y: 0, z: 0 };
-/** Shortcuts are also re-tested every this many ticks between crumbs. */
-const SHORTCUT_EVERY = 10;
 
 /**
  * Retrace step: picks the current crumb target (with shortcuts) into out. Returns false when home is reached
@@ -132,7 +133,7 @@ const SHORTCUT_EVERY = 10;
 export function retraceTarget(sim: Sim, ant: Ant, s: NavScratch, r: LocoRuntime, out: Vec3): boolean {
   const n = ant.mem.crumbLen;
   if (n === 0) return false;
-  let check = (sim.state.tick + ant.id) % SHORTCUT_EVERY === 0;
+  let check = false;
   if (s.crumbIdx < 0 || s.crumbIdx >= n) { s.crumbIdx = n - 1; check = true; }
   while (s.crumbIdx >= 0 && crumbDist(ant, s.crumbIdx) <= r.P.crumbReach) { s.crumbIdx--; check = true; }
   if (s.crumbIdx < 0) return false;

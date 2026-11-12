@@ -1,0 +1,183 @@
+// window.__game (architecture §5): the verification surface every scripted check uses. Deterministic: step()
+// advances the sim synchronously without rendering; renderFrame() draws the current state once (with a settled
+// camera in test mode). Commands issued through it are applied at once while the sim is not ticking in real time.
+import type { Command, PlayerIntent, PossessRole, SpeedLevel, TargetRef } from '@/sim/types';
+import { ACTION_IDS } from '@/sim/types';
+import type { Vec3 } from '@/core';
+import { stateHash } from '@/sim/save/hash';
+import { cameraRelativeDir } from '../intent/cameraRelative';
+import type { Game } from '../Game';
+import { GameSession } from '../session';
+import type { NewGameOptions } from '../newGame/options';
+import { TEST_CAMERA_SETTLE_S } from '../config/loop';
+import type { ViewId } from '../time/speedRules';
+import { buildSummary } from './summary';
+import { buildQueries, plain } from './query';
+import { buildCheats } from './cheats';
+
+export interface IntentInput {
+  /** World-space direction (length 0..1). */
+  dir?: Vec3;
+  /** Camera-relative stick (x right, y forward), mapped like the keyboard. */
+  move?: { x: number; y: number };
+  hurry?: boolean;
+  grip?: boolean;
+  held?: string[];
+}
+
+function now(): number {
+  return performance.now();
+}
+
+export function createDebugApi(game: Game) {
+  const sessionOrThrow = () => {
+    if (!game.session) throw new Error('__game: no game running (call newGame first)');
+    return game.session;
+  };
+  const summary = () => plain(buildSummary({
+    mode: game.mode, session: game.session, manualClock: !game.realtime, autoPaused: game.autoPaused,
+    camera: { state: game.lastFrame.possessionState, observerMode: game.lastFrame.observerMode, pos: game.camera.position, underground: game.lastFrame.underground },
+    renderers: game.registry?.describe() ?? {},
+  }));
+
+  const api = {
+    ready: game.ready,
+    get testMode() { return game.opts.testMode; },
+    async newGame(opts: NewGameOptions = {}) {
+      await game.newGame(opts);
+      return summary();
+    },
+    endGame() { game.endGame(true); },
+    /** Advance n ticks synchronously (ignores pause and freezes); no rendering. */
+    step(n = 1) {
+      const s = sessionOrThrow();
+      const t0 = now();
+      const ran = s.driver.step(n);
+      game.afterStep(s);
+      return { ticks: ran, tick: s.sim.state.tick, ms: Math.round((now() - t0) * 100) / 100 };
+    },
+    /** Render the current state once; in test mode the camera rig is settled first. */
+    renderFrame(opts: { settle?: number } = {}) {
+      const t0 = now();
+      game.renderNow(opts.settle ?? (game.opts.testMode ? TEST_CAMERA_SETTLE_S : 0));
+      return { ms: Math.round((now() - t0) * 100) / 100 };
+    },
+    summary,
+    stateHash() { return stateHash(sessionOrThrow().sim.state); },
+    query: buildQueries(() => game.sim),
+    events(type?: string, limit = 50) {
+      const log = game.session?.events.log ?? [];
+      return plain(log.filter((e) => !type || e.type === type).slice(-limit).map((e) => ({ tick: e.tick, ...e.event })));
+    },
+    possess(target: number | string) {
+      const t = GameSession.parseTarget(target);
+      if (t === null) return { ok: false, reason: 'bad-target' };
+      game.possess(t as number | PossessRole);
+      const s = sessionOrThrow();
+      return { ok: s.possessedId !== -1, id: s.possessedId, pending: game.realtime };
+    },
+    release() { game.release(); return { id: game.session?.possessedId ?? -1 }; },
+    /** Sets the player intent directly (bypasses keyboard input until the next frame with input focus). */
+    setIntent(i: IntentInput = {}) {
+      const s = sessionOrThrow();
+      const ant = s.possessedAnt();
+      const intent: PlayerIntent = { dir: { x: 0, y: 0, z: 0 }, hurry: !!i.hurry, grip: !!i.grip, held: [], flight: null };
+      if (i.dir) intent.dir = { x: i.dir.x, y: i.dir.y, z: i.dir.z };
+      else if (i.move && ant) {
+        const b = game.cameraBasis();
+        cameraRelativeDir(intent.dir, i.move.x, i.move.y, b.fwd, b.up, ant.up);
+      }
+      intent.held = (i.held ?? []).filter((h): h is PlayerIntent['held'][number] => (ACTION_IDS as readonly string[]).includes(h));
+      game.setDebugIntent(intent);
+      return plain(intent);
+    },
+    /** Begin / stop an action primitive of the possessed ant: act('dig-bite'), act({action, phase, target}). */
+    act(a: string | { action: string; phase?: 'start' | 'stop'; target?: TargetRef; secondary?: boolean }, phase: 'start' | 'stop' = 'start') {
+      const o = typeof a === 'string' ? { action: a, phase } : a;
+      if (!(ACTION_IDS as readonly string[]).includes(o.action)) return { ok: false, reason: 'unknown-action' };
+      const cmd = { type: 'action', actionId: o.action, phase: o.phase ?? phase, secondary: !!o.secondary, ...(o.target ? { target: o.target } : {}) } as Command;
+      game.command(cmd);
+      return { ok: true };
+    },
+    teleport(target: number | 'possessed', pos: Vec3) {
+      const s = sessionOrThrow();
+      const id = target === 'possessed' ? s.possessedId : target;
+      game.command({ type: 'cheat.teleport', antId: id, pos });
+      return plain(s.sim.stores.ants.get(id)?.pos ?? null);
+    },
+    command(cmd: Command) {
+      const s = sessionOrThrow();
+      const before = s.events.log.length;
+      game.command(cmd);
+      const rejected = s.events.log.slice(before).filter((e) => e.type === 'command-rejected').map((e) => e.event);
+      return plain({ applied: !game.realtime, rejected });
+    },
+    setSpeed(level: SpeedLevel) { game.setSpeed(level); return summary(); },
+    /** Real-time ticking on/off (test mode starts with it off). */
+    realtime(on?: boolean) { if (on !== undefined) game.realtime = on; return game.realtime; },
+    camera: {
+      state: () => game.lastFrame.possessionState,
+      view: () => game.session?.view ?? null,
+      set: (view: ViewId) => { game.setView(view); return game.session?.view ?? null; },
+      pose: () => plain({ pos: game.camera.position, up: game.camera.up, fov: game.camera.fov, near: game.camera.near, far: game.camera.far, dir: game.camera.getWorldDirection(game.camera.position.clone()) }),
+      /** Orbit the active rig by these degrees (applied on the next camera update). */
+      orbit: (yawDeg: number, pitchDeg: number) => {
+        sessionOrThrow().views.nudge(yawDeg, pitchDeg);
+        game.renderNow(0);
+        return api.camera.pose();
+      },
+      /** Observer only: stop following and fly free from a pose above and behind the current focus. */
+      free: () => {
+        const s = sessionOrThrow();
+        if (s.view !== 'observer') return null;
+        const f = s.focus();
+        s.followId = -1;
+        s.views.freeFlyAbove(f);
+        game.renderNow(0);
+        return api.camera.pose();
+      },
+      /** Observer only: free fly at this pose (mm). */
+      setPose: (pos: Vec3, look: Vec3) => {
+        const s = sessionOrThrow();
+        if (s.view !== 'observer') return null;
+        s.followId = -1;
+        s.views.freeFlyAt(pos, look);
+        game.renderNow(0);
+        return api.camera.pose();
+      },
+      /** Multiply the active rig's distance by `factor` (applied on the next camera update). */
+      zoom: (factor: number) => {
+        sessionOrThrow().views.nudge(0, 0, Math.log(Math.max(1e-3, factor)));
+        game.renderNow(0);
+        return api.camera.pose();
+      },
+      clearance: () => {
+        const s = game.session;
+        if (!s) return null;
+        const p = game.camera.position;
+        return { f: s.sim.field.sampleXYZ(p.x, p.y, p.z), radius: s.views.third.radiusMm };
+      },
+    },
+    cheat: buildCheats(game),
+    ui: {
+      open: (screen: string) => { if (screen === 'pause') game.openPauseMenu(); return game.mode; },
+      close: () => { game.closePauseMenu(); return game.mode; },
+      screen: () => game.mode,
+      snapshot: () => plain(game.lastSnapshot),
+      hud: () => plain(game.lastSnapshot),
+    },
+    input: {
+      key: (code: string, state: 'down' | 'up' | 'tap' = 'tap') => {
+        if (state !== 'up') game.input.keyDown(code);
+        if (state !== 'down') game.input.keyUp(code);
+      },
+      blur: () => game.input.focusLost(),
+      summary: () => plain(game.input.debugSummary()),
+    },
+    perf() { return game.perf(); },
+    dispose() { game.dispose(); },
+  };
+  return api;
+}
+
+export type DebugApi = ReturnType<typeof createDebugApi>;

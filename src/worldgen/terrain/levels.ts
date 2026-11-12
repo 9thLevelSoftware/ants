@@ -51,13 +51,21 @@ export function builtLevel(lay: Layout, s: BuiltShape, x: number, z: number, smo
     }
     case 'car-park': {
       const d = r ? distFromEdge(r, innerEdge(s.side), x, z) : 0;
-      return LEVELS.carParkSurface + d * LEVELS.asphaltFall;
+      return kerbRamp(d, LEVELS.carParkSurface + d * LEVELS.asphaltFall);
     }
     case 'lane': {
       const d = r ? distFromEdge(r, innerEdge(s.side), x, z) : 0;
-      return LEVELS.laneSurface + Math.min(d, r ? Math.abs((r.x1 - r.x0) < (r.z1 - r.z0) ? r.x1 - r.x0 : r.z1 - r.z0) / 2 : 0) * LEVELS.asphaltFall;
+      const half = r ? Math.min(r.x1 - r.x0, r.z1 - r.z0) / 2 : 0;
+      return kerbRamp(d, LEVELS.laneSurface + Math.min(d, half) * LEVELS.asphaltFall);
     }
   }
+}
+
+/** Road level `road` at distance d from the kerb line, ramped smoothly up to the kerb top within the kerb width. */
+function kerbRamp(d: number, road: number): number {
+  if (d >= LEVELS.kerbRamp) return road;
+  const t = Math.max(0, d / LEVELS.kerbRamp), s = t * t * (3 - 2 * t);
+  return LEVELS.kerbTop + (road - LEVELS.kerbTop) * s;
 }
 
 /** Level natural ground blends to next to a built shape (kerb top beside roads, ground outside the house). */

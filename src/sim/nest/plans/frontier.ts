@@ -5,12 +5,12 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, DigPlan, DigSlot, Nest, Sim } from '@/sim/types';
 import { nestFieldId } from '@/sim/types';
 import {
-  PLAN_PRIORITY_WEIGHT, PLAN_SLOT_CAP, PLAN_WINDOW, SLOT_OUTSIDE_PENALTY, SLOT_SCORE_DIST_BU, SLOT_SPACING_BU,
+  DIG_RAMP_RADIUS_BU, PLAN_AIM_MAX_DEG, PLAN_PRIORITY_WEIGHT, PLAN_SLOT_CAP, PLAN_WINDOW, SLOT_OUTSIDE_PENALTY, SLOT_SCORE_DIST_BU, SLOT_SPACING_BU,
   SLOTS_PER_SPHERE, SPHERE_DONE, SPOIL_POINT_BU, SPOIL_RECOMPUTE_BU,
 } from '@/sim/balance/nest';
 import { OPEN_MIN } from '../carve/keys';
 import { refreshPlanField } from '../navFields';
-import { digPowerOf } from '../substrate';
+import { digPowerOf, headScaleOf } from '../substrate';
 import { packSample, sampleI, sampleJ, sampleK } from '../voxelKey';
 import { planCache, type PlanCache } from './targets';
 
@@ -109,8 +109,8 @@ function clearClaim(sim: Sim, antId: number, planId: number): void {
  */
 export function updateWindowAndSlots(sim: Sim, nest: Nest, plan: DigPlan, cache: PlanCache, withSlots: boolean): boolean {
   updateSpheres(sim, plan, cache);
-  const window = withSlots ? computeWindow(sim, plan, cache) : [];
-  const same = window.length === plan.window.length && window.every((s, n) => s === plan.window[n]);
+  const win = withSlots ? computeWindow(sim, plan, cache) : [];
+  const same = win.length === plan.window.length && win.every((s, n) => s === plan.window[n]);
   const cap = PLAN_SLOT_CAP[plan.kind] ?? 2;
   const old = new Map<number, DigSlot[]>();
   plan.slots.forEach((slot, k) => {
@@ -119,8 +119,8 @@ export function updateWindowAndSlots(sim: Sim, nest: Nest, plan: DigPlan, cache:
     old.get(s)!.push(slot);
   });
   const slots: DigSlot[] = [], taken: Vec3[] = [];
-  for (let w = 0; w < window.length && slots.length < cap; w++) {
-    const s = window[w], keep = old.get(s) ?? [];
+  for (let w = 0; w < win.length && slots.length < cap; w++) {
+    const s = win[w], keep = old.get(s) ?? [];
     const pos = same && keep.length === SLOTS_PER_SPHERE ? keep.map((x) => x.pos) : slotPositions(sim, sphereFrontier(sim, cache, s), taken, SLOTS_PER_SPHERE);
     for (let n = 0; n < SLOTS_PER_SPHERE && slots.length < cap; n++) {
       const prev = keep[n];
@@ -131,7 +131,7 @@ export function updateWindowAndSlots(sim: Sim, nest: Nest, plan: DigPlan, cache:
     old.delete(s);
   }
   for (const list of old.values()) for (const slot of list) if (slot.antId >= 0) clearClaim(sim, slot.antId, plan.id);
-  plan.window = window;
+  plan.window = win;
   plan.slots = slots;
   slots.forEach((slot, k) => {
     const a = slot.antId >= 0 ? sim.stores.ants.get(slot.antId) : undefined;
@@ -208,12 +208,19 @@ export function claimSlot(sim: Sim, ant: Ant): boolean {
     }
   }
   if (!best) return false;
+  // never hand out a slot whose sphere is finished or has no face left to bite (the window may lag behind)
+  const cache = planCache(sim, best.nest, best.plan);
+  const workable = (k: number): boolean => {
+    const s = slotSphere(best!.plan, k);
+    return s >= 0 && !best!.plan.spheres[s].done && (!cache || sphereFrontier(sim, cache, s).length > 0);
+  };
   let idx = -1, bestD = Infinity;
   best.plan.slots.forEach((s, k) => {
-    if (s.antId >= 0) return;
+    if (s.antId >= 0 || !workable(k)) return;
     const d = Math.hypot(s.pos.x - ant.pos.x, s.pos.y - ant.pos.y, s.pos.z - ant.pos.z);
     if (d < bestD) { bestD = d; idx = k; }
   });
+  if (idx < 0) return false;
   const slot = best.plan.slots[idx];
   slot.antId = ant.id;
   slot.sinceTick = sim.state.tick;
@@ -230,8 +237,10 @@ export function releaseSlot(sim: Sim, ant: Ant): void {
 }
 
 /**
- * Where a plan digger should bite (GDD 03 §7.5): the frontier sample of its slot's sphere nearest its feet. Writes
- * the horizontal heading into `heading` and returns the ramp slope (degrees below the horizontal), or null.
+ * Where a plan digger should bite (GDD 03 §7.5): the frontier sample of its slot's sphere nearest its feet. The
+ * heading (horizontal, into `heading`) and slope (degrees below the horizontal, returned) are chosen so the ramp
+ * capsule's AXIS passes through that sample: with the floor through the feet, (H, V) = Rot(-s) (t, R) in the
+ * vertical plane, so s = atan2(R, t) - atan2(V, H) with t = sqrt(H^2 + V^2 - R^2). Null without a target.
  */
 export function planDigAim(sim: Sim, ant: Ant, feet: Vec3, heading: Vec3): number | null {
   const ref = antSlot(sim, ant);
@@ -247,10 +256,15 @@ export function planDigAim(sim: Sim, ant: Ant, feet: Vec3, heading: Vec3): numbe
     if (d < bestD) { bestD = d; best = p; }
   }
   if (!best) return null;
-  const dx = best.x - feet.x, dz = best.z - feet.z, h = Math.hypot(dx, dz);
-  if (h < 1e-6) { heading.x = ant.fwd.x; heading.z = ant.fwd.z; } else { heading.x = dx / h; heading.z = dz / h; }
+  const dx = best.x - feet.x, dz = best.z - feet.z, H = Math.hypot(dx, dz), V = best.y - feet.y;
+  if (H < 1e-6) {
+    const fl = Math.hypot(ant.fwd.x, ant.fwd.z) || 1;
+    heading.x = ant.fwd.x / fl || 1; heading.z = ant.fwd.z / fl;
+  } else { heading.x = dx / H; heading.z = dz / H; }
   heading.y = 0;
-  const hl = Math.hypot(heading.x, heading.z) || 1;
-  heading.x /= hl; heading.z /= hl;
-  return (Math.atan2(feet.y - best.y, Math.max(h, 1e-6)) * 180) / Math.PI;
+  const R = DIG_RAMP_RADIUS_BU * headScaleOf(ant) * sim.world.bu;
+  const t = Math.sqrt(Math.max(0, H * H + V * V - R * R));
+  const deg = ((Math.atan2(R, t) - Math.atan2(V, H)) * 180) / Math.PI;
+  const wrapped = deg > 180 ? deg - 360 : deg < -180 ? deg + 360 : deg;
+  return Math.max(-PLAN_AIM_MAX_DEG, Math.min(PLAN_AIM_MAX_DEG, wrapped));
 }

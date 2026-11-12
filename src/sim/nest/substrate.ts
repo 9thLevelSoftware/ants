@@ -105,7 +105,9 @@ export function digSpeedAt(sim: Sim, species: SpeciesId, p: Vec3): number {
   const base = digFactor(species, material);
   if (base <= 0) return 0;
   const terrain = heightAt(sim.world.terrain, p.x, p.z);
-  const loose = p.y > terrain || (flagsAt(sim, p) & VoxelFlag.LOOSE) !== 0;
+  // mound piles (height overlays above the terrain, not inside a primitive) are always loose
+  const inPile = p.y > terrain && p.y <= sim.field.height(p.x, p.z) && sim.field.primAt(p, 0) === null;
+  const loose = inPile || (flagsAt(sim, p) & VoxelFlag.LOOSE) !== 0;
   if (loose) return Math.max(LOOSE_MIN_BASE, base) * LOOSE_DIG_SPEED;
   if (material === 'wood-sound') {
     return woodMoistureAt(sim, p) < WOOD_DRY_MOISTURE ? WOOD_SOUND_DRY_SPEED * (DIG_SPECIES_MULT[species]?.[material] ?? 0) : base;

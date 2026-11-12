@@ -4,12 +4,15 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, Walker } from '@/sim/types';
-import { isLocoNavGrid } from './grid/navGridImpl';
-import { dist3, distXZ, set3 } from './mathx';
-import { entranceById } from './nests';
+import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
+import { dist3 as dist3Imp, distXZ as distXZImp, set3 as set3Imp } from './mathx';
+import { ensureField as ensureFieldImp, entranceById as entranceByIdImp } from './nests';
 import type { LocoRuntime } from './runtime';
-import { routeById } from './routes';
+import { routeById as routeByIdImp } from './routes';
 import type { NavScratch } from './scratch';
+
+// Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const isLocoNavGrid = isLocoNavGridImp, dist3 = dist3Imp, distXZ = distXZImp, set3 = set3Imp, entranceById = entranceByIdImp, ensureField = ensureFieldImp, routeById = routeByIdImp;
 
 export type LegState = 'go' | 'done' | 'fail';
 
@@ -82,6 +85,7 @@ export function followFlow(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, f
  */
 export function followField(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, arrive: number, out: Vec3): LegResult {
   const nav = sim.nestNav;
+  ensureField(sim, r, s.legField);
   const d = nav.lookahead(s.legField, w.pos, r.P.fieldLook, _t);
   if (!Number.isFinite(d)) return result('fail', 0);
   const near = Math.max(arrive, 1.5 * sim.carve.voxel);
