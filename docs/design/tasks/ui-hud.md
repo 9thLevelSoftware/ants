@@ -30,3 +30,9 @@ The interface the player sees while playing: a minimal hideable HUD, the possess
 3. In the real game (`tests/e2e/hud.mjs`): possessing the queen shows the colony-orders prompt and opens Directives; moving a slider changes the simulation's directives (read back through `summary()`); pause and speed buttons work; the possessed-ant panel follows possession changes.
 4. The bridge costs under 0.5 ms per refresh with 1,500 ants (report), and the HUD causes no layout thrash (no forced reflow in the frame loop).
 5. Keyboard and gamepad navigation reach every control; focus visible; no console errors; works in the classic single-file build.
+
+## Addendum (integrator, after the Stage 1A application gate)
+- Seams that already exist: `Game.hover(ref)` / `Game.inspect(ref)` set highlight targets (the views task, running in parallel, drives them from picking and will expose the current inspect target through a getter on `src/game/views`). Until that lands, read the target from the game's existing fields and keep a `__game.ui.inspect(ref)` debug hook so the card can be driven from the end-to-end script.
+- Autonomous behaviours now exist (`src/sim/ants/behaviours/**`): the possessed-ant panel and inspect card should show the behaviour's reason code via the simulation's `inspect` read-out, not invent text.
+- In the running game, lay-egg/chamber registration for a freely dug founding nest is being fixed by another task; do not work around it in the UI.
+- The machine is shared and slow: iterate on the demo page (DOM only), and run the real-game script sparingly with `quality=test`.

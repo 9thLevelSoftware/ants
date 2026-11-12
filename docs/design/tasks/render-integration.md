@@ -24,3 +24,9 @@ Finish joining the visual layers in the running game: register the vegetation/de
 2. Screenshots, looked at and judged honestly: the title screen shows a live, attractive scene behind the menu; the lawn view has grass and litter with the subject visible; the map edge reads as distance, not as a void; frost and golden-hour grades are visible and tasteful.
 3. Runtime quality switching still works with decor registered; starting and ending a game twice leaks no GPU resources (renderer info counts return to baseline).
 4. The stage1a, smoke and determinism scripts still pass; the classic build passes the smoke script.
+
+## Addendum (integrator, after the Stage 1A application gate)
+- The gate recorded these as yours: colour grade from `LightingState.saturation/gain` (a scope decision, not implemented anywhere yet); GDD 01 §6.5 rule 3 occlusion dither for terrain, primitives and decor (ants and nest walls already have theirs); decor registration (the nest slot already patches every scene-lit standard material for the cutaway — reuse that path).
+- The views task (running in parallel) owns `src/render/camera/**` and the nest-wall dither underground; do not edit those. Share the camera-to-subject occluder data through `FrameInfo` (additive fields) rather than reaching into the rigs.
+- New-game placement currently can put the founding queen where nothing is diggable (seed 1 starts indoors in a plant pot); that is a worldgen/founding fix, not yours.
+- The machine is shared and slow (software GL): iterate with `quality=test`, one harness at a time.
