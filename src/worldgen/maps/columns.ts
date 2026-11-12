@@ -59,6 +59,8 @@ export function rasterColumns(ctx: GenContext): Columns {
   for (let pi = 0; pi < prims.length; pi++) if (solid(pi) && !ctx.groundPrims.has(prims[pi].id)) contactPass(pi);
   // 3. overheads, cover, wood, highest solid
   const ceilMax = SUIT.ceilingMaxBu * bu;
+  const overMaxMm = NAV.overMaxBu * bu, crawl = NAV.crawlGapBu * bu;
+  const tallLow = new Uint8Array(n);
   for (let pi = 0; pi < prims.length; pi++) {
     if (!solid(pi) || ctx.groundPrims.has(prims[pi].id)) continue;
     const m = prims[pi].material;
@@ -67,6 +69,7 @@ export function rasterColumns(ctx: GenContext): Columns {
       if (t > topAll[j]) topAll[j] = t;
       const onGround = b <= base[j] + clear;
       if (b > contact[j] && b < overMin[j]) overMin[j] = b;
+      if (b <= contact[j] + crawl && t - base[j] > overMaxMm) tallLow[j] = 1;
       if (ceiling && (onGround || b - contact[j] <= ceilMax)) {
         coverCeil[j] = 1;
         if (warm) over[j] |= OVER_WARM;
@@ -75,9 +78,8 @@ export function rasterColumns(ctx: GenContext): Columns {
     });
   }
   const walkTop = new Float32Array(n);
-  const overMaxMm = NAV.overMaxBu * bu;
   for (let j = 0; j < n; j++) {
-    walkTop[j] = contact[j] - base[j] > overMaxMm ? NaN : contact[j];
+    walkTop[j] = contact[j] - base[j] > overMaxMm || tallLow[j] ? NaN : contact[j];
     if (overMin[j] < Infinity && overMin[j] > contact[j]) over[j] |= OVER_SHELTER;
   }
   return { base, walkTop, topAll, coverCeil, over, wood };

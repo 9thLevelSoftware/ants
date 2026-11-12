@@ -22,6 +22,12 @@ export const NAV = {
   costUnit: 10,
   /** Clearance of the standard worker, BU (PASS_CLEAR_K = 0.45): lower gaps count as solid contact. */
   clearanceBu: 0.45,
+  /**
+   * A tall object whose underside is less than this above the walkable ground counts as standing on it for
+   * `blocked-solid` (decision): such a slot (the 3-10 mm gap under a closed door) is a micro-connection, reached
+   * through its portal, not open ground. Higher overheads (tables, car bodies) leave the ground open, BU.
+   */
+  crawlGapBu: 4,
 };
 
 /** Surface travel cost multiplier (GDD 04 §11), keyed by zone (and lawn variant). */

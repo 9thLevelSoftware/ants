@@ -1,6 +1,6 @@
 // Coarse 16 BU navigation grid (GDD 04 §11): class, cost, walkable ground height and flags per cell, from the
 // 4 BU column raster. `edge` outside the soft margin (and partial cells beyond L), `blocked-solid` where at least
-// half the cell is under tall objects, `hole` / `water-body` from terrain holes and static water, `step` where the
+// half the cell is under tall objects or they cut it with a full row or column, `hole` / `water-body` from terrain holes and static water, `step` where the
 // ground differs from a neighbour by more than 2 BU (edges pay the climb in validate/graph.ts).
 
 import { MATERIAL_IDS, NAV_CELL_FLAGS, NAV_CLASSES, materialFromCode, type NavClass } from '@/sim/types';
@@ -52,7 +52,7 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
     let cl: NavClass = 'open';
     if (cx < margin || cz < margin || cx > L - margin || cz > L - margin || (i + 1) * navCell > L + 1e-6 || (k + 1) * navCell > L + 1e-6) cl = 'edge';
     else if (hole * 2 >= total && hole > 0) cl = 'hole';
-    else if (blocked >= NAV.blockedShare * total) cl = 'blocked-solid';
+    else if (blocked >= NAV.blockedShare * total || crossesCell(col.walkTop, cells, i * sub, k * sub, sub)) cl = 'blocked-solid';
     cls[c] = CLS[cl];
     const zn = lay.zones[lay.nav[c]];
     let mult = SURFACE_COST[zn.type] ?? 1;
@@ -85,6 +85,23 @@ export function buildNav(ctx: GenContext, col: Columns): NavDerived {
   w.nav.groundY = groundY;
   w.nav.flags = { cell: navCell, nx: navN, nz: navN, data: flags };
   return { baseY, shelterShare };
+}
+
+/**
+ * A full row or column of blocked 4 BU samples across a nav cell: a thin barrier (a door leaf, a panel) that
+ * covers less than half the cell but still cuts it (the same rule as the runtime grid's crossesCell).
+ */
+function crossesCell(walkTop: Float32Array, cells: number, ti0: number, tk0: number, sub: number): boolean {
+  if (ti0 + sub > cells || tk0 + sub > cells) return false; // partial cells are `edge` anyway
+  for (let a = 0; a < sub; a++) {
+    let row = true, col = true;
+    for (let b = 0; b < sub && (row || col); b++) {
+      if (!Number.isNaN(walkTop[(tk0 + a) * cells + ti0 + b])) row = false;
+      if (!Number.isNaN(walkTop[(tk0 + b) * cells + ti0 + a])) col = false;
+    }
+    if (row || col) return true;
+  }
+  return false;
 }
 
 /** Calls fn for nav cells whose centre lies within r of (x, z). */

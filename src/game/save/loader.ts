@@ -15,6 +15,9 @@ export interface LoaderDeps {
   migrate?: MigrateFn;
   /** Static world for saved params. Return undefined to use the generator (default). Test worlds plug in here. */
   worldFor?: (params: WorldParams, meta: SaveMeta) => WorldData | undefined;
+  /** Save format window (default: the sim's SAVE_VERSION / MIN_SAVE_VERSION). Tests widen it to exercise migration. */
+  currentVersion?: number;
+  minVersion?: number;
   /** Phase callback for a loading screen ('Regenerating the locality'). */
   onPhase?: (phase: 'migrate' | 'world' | 'sim', progress: number) => void;
 }
@@ -30,11 +33,13 @@ export function restoreSave(meta: SaveMeta, rawState: unknown, deps: LoaderDeps 
   let state = rawState as SimState;
   const version = state.version;
   if (typeof version !== 'number' || !Number.isInteger(version)) return fail('corrupt', 'The saved colony data has no version.');
-  if (version > SAVE_VERSION) return fail('newer-version', 'This save is from a newer version of FOUNDRESS. Update the game to open it.');
-  if (version < MIN_SAVE_VERSION) return fail('too-old', 'This save is from a version of FOUNDRESS that can no longer be opened.');
+  const current = deps.currentVersion ?? SAVE_VERSION;
+  const min = deps.minVersion ?? MIN_SAVE_VERSION;
+  if (version > current) return fail('newer-version', 'This save is from a newer version of FOUNDRESS. Update the game to open it.');
+  if (version < min) return fail('too-old', 'This save is from a version of FOUNDRESS that can no longer be opened.');
 
   let migratedFrom: number | null = null;
-  if (version < SAVE_VERSION) {
+  if (version < current) {
     deps.onPhase?.('migrate', 0.1);
     try {
       state = (deps.migrate ?? migrateState)(state as unknown as Record<string, unknown>, version) as unknown as SimState;

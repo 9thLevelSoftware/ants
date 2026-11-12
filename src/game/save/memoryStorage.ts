@@ -9,11 +9,13 @@ export interface MemoryStorageOptions {
   quotaBytes?: number;
   /** Make open() resolve `unavailable` (simulates blocked IndexedDB, used behind the fallback in tests). */
   failOpen?: boolean;
+  /** Claim to survive a reload (tests that stand in for IndexedDB). Default false: this is the volatile fallback. */
+  persistent?: boolean;
 }
 
 export class MemoryStorage implements SaveStorage {
   readonly kind = 'memory' as const;
-  readonly persistent = false;
+  readonly persistent: boolean;
   private readonly data = new Map<StoreName, Map<string, unknown>>();
   private readonly sizes = new Map<string, number>();
   /** Make the next N write() calls fail with this status (tests). */
@@ -23,6 +25,7 @@ export class MemoryStorage implements SaveStorage {
   writes = 0;
 
   constructor(private readonly opts: MemoryStorageOptions = {}) {
+    this.persistent = opts.persistent === true;
     for (const s of STORE_NAMES) this.data.set(s, new Map());
   }
 

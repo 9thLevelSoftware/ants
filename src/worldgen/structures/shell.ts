@@ -88,7 +88,9 @@ export function placeBuildingShell(ctx: GenContext): void {
       { x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2, y: 0, snap: false, category: 'structures' });
   }
   const n = inwardNormal(s); // points into the map, i.e. out of the house into the garden
-  const off = 2 * bu;
+  // mouths one terrain cell beyond each wall face: the zone raster puts the face within half a cell of its true
+  // position, and a mouth closer than that can land on the wrong side of it
+  const off = Math.max(2 * bu, ctx.dims.cell);
   if (gap >= MICRO.gapMinBu * bu) {
     addMicro(ctx, {
       kind: 'door-crack',
