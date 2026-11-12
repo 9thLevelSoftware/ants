@@ -68,7 +68,7 @@ Game start view: the opening chapter puts the player in `possession` of the foun
 
 | From \ To | possession | observer | colony | photo |
 | --- | --- | --- | --- | --- |
-| **possession** | Tab / role key / roster: switch ant (old ant released, 3.5); camera fly `CAM_SWITCH` | X: release; camera stays, becomes follow-orbit on the released ant | M: soft release; camera rises over `CAM_TO_COLONY_S` | F2: freeze; camera pose kept |
+| **possession** | Tab / role key / roster: switch ant (old ant released, 3.5); camera fly (`CAM_SWITCH_MIN_S`..`CAM_SWITCH_MAX_S`) | X: release; camera stays, becomes follow-orbit on the released ant | M: soft release; camera rises over `CAM_TO_COLONY_S` | F2: freeze; camera pose kept |
 | **observer** | Click-hold / double-click / E / Tab / role key; camera fly | — | M: camera rises from current focus | F2 |
 | **colony** | M/Esc back (return ant) or double-click ant; camera descends `CAM_TO_COLONY_S` | M/Esc when no return ant | — | F2 |
 | **photo** | F2/Esc (back to origin) | F2/Esc | F2/Esc | — |
@@ -371,7 +371,7 @@ Queen only (after hand-over): the global `directives` action (I, 5.1) is shown a
 | Stick drift | Radial dead zone `STICK_DEADZONE` 0.15; trigger digital threshold 0.30. |
 | Last-used device switching | The device that produced the latest input above dead zone owns glyphs; switching has a 0.5 real s hysteresis to avoid flicker. |
 | Key auto-repeat | Ignored for press/toggle actions (`event.repeat`). |
-| Speed refused (8x while possessing) | Speed unchanged; toast "8× is available when you are not controlling an ant"; event `speed-refused`. |
+| Speed refused (8x while possessing) | Speed unchanged; toast "8× is available when you are not controlling an ant"; event `speed-refused {level: 8, reason: 'possession'}` (App C). |
 | Focus inside sandboxed iframe | No special casing beyond the above; downloads and clipboard may be refused (photo mode 6.9 handles it). |
 
 ---
@@ -579,6 +579,8 @@ Timing split: **timed** primitives (dig-bite, lay-egg, pick-up, tear, groom...) 
 | `block-opening` | T3 | CP major, MB major, AT major | Facing out in an opening narrower than 1.5 L | until moved | Opening counted as guarded (combat/rival chapter). | `pose.block` head plug | none |
 | `hitchhike` | T3 | AT minor | A nestmate carrying a `leaf-fragment` within reach | 1.0 to mount | Ant rides on the fragment; phorid defence (fungus/ecology chapter). `let-go` dismounts. | `pose.ride` | none |
 
+**Primitives defined in other chapters** (same lifecycle 7.1, same `ActionId` union; `00-index.md` B2): `dodge` (GDD 05 §4.8, T2: a tap of `hurry` shorter than 200 ms with a move direction, 3 L in 0.25 s; in hurry toggle mode the toggle needs a press ≥ 200 ms), `cull-aphid` (GDD 05 §1.4, T2: the `bite` input aimed at an aphid herd, 2 s), `drum`, `cut-seed-head`, `process-leaf` (GDD 07, T3) and `plant` (GDD 06 §5.15 / GDD 07, T3: the Atta founding fungus pellet).
+
 Caste `carryCap` defaults (GDD 07 owns; its tables win where they differ): LN worker 1.0, LN queen 0 for food (brood and pellets allowed during founding), CP minor 0.5 (GDD 07), media 1.0, major 2.0, MB minor 0.5, media 1.0, major 2.5, AT minor 0.2, small media 0.5, media 1.0, major 3.0. Item `bulk` is in the same unit.
 
 ---
@@ -774,7 +776,7 @@ Command `type` names are camelCase (consistency pass, `00-index.md` §D); the ea
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **Locomotion** (there is no separate locomotion chapter; consistency pass: the walker and player locomotion are this chapter's §4, AI speed multipliers GDD 02 §1.4, `tempFactor` = GDD 06 §2.6 `speedMult(Tb)`, grip and slope limits GDD 04 §3, nest walking and clearance GDD 03 §5) provides a pure surface-walker step usable by both the sim and the game-side predictor, ballistic falling and re-attachment, the `STUCK_RESCUE` relocation, and species cruise speeds (Lasius 6 BU/s at 22-28 °C) plus `tempFactor(T)` per species.
+1. **Locomotion** (there is no separate locomotion chapter; consistency pass: the walker and player locomotion are this chapter's §4, AI speed composition GDD 02 §1.6, species speeds GDD 07, `tempFactor` = GDD 06 §2.6 `speedMult(Tb)`, grip and slope limits GDD 04 §3, nest walking and clearance GDD 03 §5) provides a pure surface-walker step usable by both the sim and the game-side predictor, ballistic falling and re-attachment, the `STUCK_RESCUE` relocation, and species cruise speeds (Lasius 6 BU/s at 22-28 °C) plus `tempFactor(T)` per species.
 2. **Colony/allocation chapter** honours `ant.controlled` (never reassigns), exposes the allocation stimulus scale to which `RESUME_LOCALITY_BONUS` adds, chooses the brood chamber per stage, sets the queen's daily egg budget, and decides when an AI ant accepts a trophallaxis beg.
 3. **Nest chapter** owns dig rates per material (`DIG_BITE_S` factor table), carve sphere size, pellet clutter, entrance throat detection, plugs, mounds and the `fSubstrate < 0` underground test; it may tune the defaults here without renaming.
 4. **Economy (GDD 02 §1, §5)** owns crop capacity (1 load for the standard worker), upkeep and hurry cost; there are no per-agent weights (directions K) and all quantities shown to the player are per simulated ant.

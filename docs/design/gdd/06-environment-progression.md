@@ -25,7 +25,7 @@ All numbers in this chapter are NAMED balance constants. They live in `src/sim/b
 ### 0.2 Conventions
 
 - **Two clocks (from the Lasius dossier, section 0).** Kinematics, digging strokes, pheromone decay and fights run on the *fast clock*: game seconds equal real seconds at 1x. Development, lifespans, consumption per day, seasons run on the *slow clock*: game days (GD). One GD stands for 13.04 real days of biology (365 / 28). Each GD still plays as a full 24 h cycle for light, temperature and human activity. Rates are quoted "per GD" or "per game second" and say which.
-- Day-of-year (`doy`) is 1..28; fractional day `d = (doy - 1) + hour/24` is 0-based. The year starts at the spring equinox (mapping: `d = 0` is 20 March; `d = 7` is about 20 June; `d = 14` about 22 September; `d = 21` about 21 December).
+- Day-of-year (`doy`) is 1-based, 1..`DAYS_PER_YEAR` (1..28 in the default year); fractional day `d = (doy - 1) + hour/24` is 0-based. This is the one convention for every chapter (`00-index.md` C1): integer windows are written as default-year `doy` (inclusive), continuous breakpoints in default-year `d28 = d × 28 / DAYS_PER_YEAR`, and no chapter uses a 1-based fractional day. The year starts at the spring equinox (mapping: `d = 0` is 20 March; `d = 7` is about 20 June; `d = 14` about 22 September; `d = 21` about 21 December).
 - Temperatures in degrees C. Loads (C, P) as in directions section J. `N` = number of living adult worker-caste ants of the colony (simulated workers = displayed workers; directions K: no per-agent weights). Every colony-size threshold in this chapter is in `N` and reachable under the K caps (Lasius 1500, Camponotus 1200, Messor 1500, Atta 1500). Real colonies are larger; the codex says so (`SpeciesDef.wildColonySize`, GDD 07).
 - Determinism: every random draw in this chapter uses the named RNG streams `rng.weather`, `rng.opening`, `rng.winter`, `rng.repro`, `rng.events` (sub-streams of the state RNG, seeded from world seed + stream name) so that changing one subsystem does not reshuffle another.
 - **T1 degraded mode.** If weather/season systems are not yet built, `environment` provides constants: air 21 C, surface = air, soil 19 C, light 1.0 by day / 0.25 at night, weather `clear`, no seasons (calendar still advances). All consumers use the query interface of section 2.9, so T2 replaces the body only.
@@ -124,7 +124,7 @@ By default a new game starts on the species' natural founding day: the seed pick
 
 | Species | Climate (2.1) | Window `doy` | Default `doy` (season day) | Start hour | Forced start conditions |
 |---|---|---|---|---|---|
-| `lasius-niger` | `temperate-maritime` | 8..12 | 10 (Summer 3) | 14:00-16:00 | weather `clear` or `overcast`, no rain in prior 0.5 GD, wind2m < 4, air 18-26 C |
+| `lasius-niger` | `temperate-maritime` | 9..12 (inside the flight window 9-13, 11.2) | 10 (Summer 3) | 14:00-16:00 | weather `clear` or `overcast`, no rain in prior 0.5 GD, wind2m < 4, air 18-26 C |
 | `camponotus-pennsylvanicus` | `temperate-continental` | 2..9 | 5 (Spring 5) | 17:00-19:00 | weather `clear`/`overcast`, air >= 13 C, wind2m < 4 |
 | `messor-barbarus` | `mediterranean` | 15..19 | 17 (Autumn 3) | 14:00-16:00 | a rain event of >= 7 h ended 3.6-12 h before start (`lastRainEndTick`), topsoil `theta0 >= 0.45`, weather `clear`, wind2m < 3 |
 | `atta-texana` | `subtropical` | 2..8 | 5 (Spring 5) | 21:00-23:00 | cumulative rain in prior 1 GD >= 6.35 mm, `moonless`, weather `clear`, air 20-27 C |
@@ -133,7 +133,7 @@ Windows follow the research: Lasius flights fall at `gd` 9-12.5 [Lasius 12.2]; C
 
 ### 1.7 Custom season length [T3]
 
-`seasonLengthDays` in {5, 7 (default), 10} (directions K). All `doy`-based thresholds in this chapter are written for the standard 7-day season and are **scaled by `seasonLengthDays / 7`** (`doy_scaled = (doy - 1) * 7 / seasonLengthDays + 1` when comparing). Biological durations (development, lifespans, brood stages, upkeep) are in GD and are **not** scaled: longer seasons therefore give more brood cycles per season (easier), shorter ones fewer (harder). The moon period (`MOON_PERIOD_DAYS` 2.265 GD), weekdays (always 7 days; game day 1 of year 1 is weekday 0) and the 24 h day are unchanged.
+`seasonLengthDays` in {5, 7 (default), 10} (directions K). All `doy`-based thresholds in this chapter (and in every other chapter) are written for the standard 7-day season and are **scaled by `seasonLengthDays / 7`**: the current day is converted to the default year, `d28 = d × 7 / seasonLengthDays` and `doy28 = floor(d28) + 1`, and compared with the written numbers (a window `doy a..b` holds while `a − 1 <= d28 < b`; `00-index.md` C1; calendar helpers `defaultYearDay(tick, cfg)` = `d28` and `defaultYearDoy(tick, cfg)` = `doy28`, D7.1). Season-relative rules ("autumn day 6", "winter day 1") are written per season and use `dayOfSeason` scaled the same way; counts of days that mean "one season" or "one year" are written as `DAYS_PER_SEASON` / `DAYS_PER_YEAR`. Biological durations (development, lifespans, brood stages, upkeep) are in GD and are **not** scaled: longer seasons therefore give more brood cycles per season (easier), shorter ones fewer (harder). The moon period (`MOON_PERIOD_DAYS` 2.265 GD), weekdays (always 7 days; game day 1 of year 1 is weekday 0) and the 24 h day are unchanged.
 
 ---
 
@@ -225,11 +225,11 @@ Soil examples (maritime): January mean, 100 mm: about 5.0 C (+-1.2 diurnal), 400
 
 ### 2.5 Chamber, interior and micro temperature
 
-`chamberTemp(chamberId) = Tsoil(zmm of chamber centre, cover class above the chamber's entrance footprint)`; chambers in buildings or wood use the rules below. Nest chapter reads this each 250 ticks for brood development, humidity and diagnostics.
+`chamberTemp(chamberId)` returns the **GDD 03 §9.1 thermal-column temperature** at the chamber centre (owner of cavity temperature: GDD 03, which follows cover objects, mounds and materials through `r_therm`; second consistency pass). This chapter supplies its inputs, kept in `env.thermal` and refreshed every `ENV_FAST_EVERY`: `T_top` = `surfaceTemp`/`microTemp` of the topmost surface of the column (2.3), `T_dayMean` and `T_seasonMean` = EMAs of `T_top` with τ = 1 GD and τ = `DAYS_PER_SEASON` GD, kept per heightfield cell (4 BU) and per cover primitive, and `T_annual = Tann + SOIL_MEAN_OFFSET`. In T1 they are the constants of 0.2. `Tsoil` (2.4) remains the open-ground column, used for `soilTemp()`, site forecasts away from any cavity, the temperature overlay in solid ground and winter `Tmin`. Wood cavities and building interiors use the rules below. Nest chapter reads `chamberTemp` each 250 ticks for brood development, humidity and diagnostics.
 
 | Place | Temperature |
 |---|---|
-| Soil chamber / tunnel | `Tsoil` (above) |
+| Soil chamber / tunnel | GDD 03 §9.1 `T(p)` with the inputs above |
 | Wood cavity (carpenter nests) | `0.7 * Tsoil(z_equiv = 150 mm) + 0.3 * Tair` smoothed over 3 h; wood in a heated building uses `Tint` |
 | Building interior floors and walls (`interior` zone, heated) | `Tint = 0.25 * Tair + 0.75 * SET(season)`, `SET` = 20 (spring, autumn, winter), 23 (summer); unheated utility parts `0.6 * Tair + 8` |
 | Surface walking ant (micro) | `Tmicro = 0.6 * Tsurf[m][shaded] + 0.4 * Tair` |
@@ -293,7 +293,7 @@ At midday in a heat wave the asphalt route shows `Tmicro` about 45 C, `speedMult
 
 ### 2.9 Query interface (cross-chapter contract)
 
-`environment.query` (pure, read-only): `airTemp()`, `surfaceTemp(material, shaded)`, `microTemp(pos, material, shaded)`, `soilTemp(zmm, coverClass)`, `chamberTemp(id)`, `interiorTemp(zoneId)`, `light()`, `phase()`, `insolation()`, `weather()`, `windAt(pos)`, `moisture(cell, layer)`, `puddleDepthMm(cell)`, `rainRateMmH()`, `surfaceActivity(speciesId)`, `speedMult(speciesId, Tb)`, `forageGate(speciesId, Tair)`.
+`environment.query` (pure, read-only): `airTemp()`, `surfaceTemp(material, shaded)`, `microTemp(pos, material, shaded)`, `soilTemp(zmm, coverClass)`, `chamberTemp(id)` (GDD 03 §9.1 value), `thermalInputs(pos) → {T_top, T_dayMean, T_seasonMean, T_annual}` (for GDD 03 §9.1), `rainIntensityAt(pos)` (entrance inflow factor `I` of GDD 03 §11 by class, 3.3: drizzle 0.1, shower 0.4, downpour 0.7, storm 1.0; under an active GDD 04 sprinkler or hose 0.5; 0 indoors), `interiorTemp(zoneId)`, `light()`, `phase()`, `insolation()`, `weather()`, `windAt(pos)`, `moisture(cell, layer)`, `puddleDepthMm(cell)`, `rainRateMmH()`, `surfaceActivity(speciesId)`, `speedMult(speciesId, Tb)`, `forageGate(speciesId, Tair)`.
 
 ---
 
@@ -321,11 +321,11 @@ A semi-Markov process stepped at `ENV_HOURLY_EVERY`. State record: `{ state, sta
 | State | Entry condition | Behaviour | Exit |
 |---|---|---|---|
 | any | drawn by transition (below) and not blocked by guards | `Woff` target and effects of table 3.5 apply; `precip` follows a bell (peak at 35 % of dwell) for `rain`/`storm` | `tick >= dwellEndTick`: draw next state |
-| `heat` | `season == summer` (or climate allows in spring/autumn at weight x0.3), from `clear` only, `Tseason >= heatSeasonalMinC`, no `dryspell` blocking | ramps `Woff` over 8 h | dwell end, or `season` changed + 12 h (hard stop), or storm break |
-| `frost` | from `clear`/`overcast`, `hour` in `[SS, SR - 2]`, `Tseason <= frostSeasonalMaxC` | air frost; dew becomes rime | no earlier than `SR + 3 h`; at that check, in `winter` with prob `P_COLDSNAP_PERSIST = 0.55` (max 4 extensions) it persists another 24 h (`cold snap`) |
-| `storm` | from `rain`, `overcast`, `heat` | thunder, gusts, hail-free downpour | dwell end |
+| `heat` | from `clear` only; `Tseason >= heatSeasonalMinC` (climate, 2.1). Summer uses the table weight; in spring and autumn the `clear → heat` cell (0 in the table) is replaced by 0.3 × the summer `clear → heat` weight (= 0.08) before normalisation, so heat in a shoulder season happens only where the seasonal-mean guard admits it (in practice Mediterranean and subtropical late spring and early autumn; never in winter) | ramps `Woff` over 8 h | dwell end, or `season` changed + 12 h (hard stop), or storm break |
+| `frost` | from `clear`, `overcast` or `rain` (a rain front clearing to a frost night; the winter `rain → frost` weight), `hour` in `[SS, SR - 2]`, `Tseason <= frostSeasonalMaxC` | air frost; dew becomes rime | no earlier than `SR + 3 h`; at that check, in `winter` with prob `P_COLDSNAP_PERSIST = 0.55` (max 4 extensions) it persists another 24 h (`cold snap`) |
+| `storm` | from `clear`, `overcast`, `rain` or `heat` (the `clear → storm` weights of the table are convective storms building out of a clear afternoon) | thunder, gusts, hail-free downpour | dwell end |
 
-**Dwell (game hours):** `dwell = min + Exp(mean - min)`, capped at `3 * mean` (`heat` 96). Table `(min, mean)`:
+**Dwell (game hours):** `dwell = min + Exp(mean - min)`, capped at `3 * mean` for every state except `heat`, whose cap is 96 h (4 GD) in every season (second consistency pass; the season-change hard stop of the table above still applies). Table `(min, mean)`:
 
 | Season | clear | overcast | rain | storm | heat | frost |
 |---|---|---|---|---|---|---|
@@ -361,7 +361,7 @@ Intensity class (drawn at rain onset): drizzle dwell x1.5, shower x1.0, downpour
 | winter `storm` | .20 | .50 | .30 | - | 0 | 0 |
 | winter `frost` | .35 | .65 | 0 | 0 | 0 | - |
 
-(States that cannot occur in a season are not listed. If `heat` or `frost` is still current when a season changes, the next draw uses the spring row of that state; `heat` is hard-stopped 12 h after the season changes.) Rejected draws (guards of the table above) are redrawn up to 50 times; then the state stays `overcast`.
+(Rows are omitted where a state cannot be current in that season: summer `frost`, autumn and winter `heat`. A shoulder-season `heat` (autumn) and any `heat` or `frost` still current after a season change draw from the spring row of that state; `heat` is hard-stopped 12 h after the season changes.) Rejected draws (guards of the table above) are redrawn up to 50 times; then the state stays `overcast`.
 
 **Dry spell [T2].** At each summer start, `P_DRYSPELL = 0.5` (difficulty-scaled) that one dry spell of `3 GD` starts at a uniform time in the season: `rain` and `storm` weights x0.15, `heat` weight x1.5; `topsoil` moisture falls, flagging "drought" in diagnostics.
 
@@ -488,7 +488,7 @@ Render reads `cloud`, `insolation`, `light`, `fogDensity`, `precip`, `rainDropMm
 | Situation | Allowed speeds | Behaviour |
 |---|---|---|
 | Observer, Colony view, menus closed | pause, 1x, 2x, 4x, 8x | |
-| Possession of any ant | pause, 1x, 2x, 4x | **possession start forces 1x** (seed); the player may then raise to 2x or 4x. 8x is refused with a toast "Release the ant to run at 8x" (no silent change). Releasing does not restore the earlier speed |
+| Possession of any ant | pause, 1x, 2x, 4x | **possession start forces 1x** (seed); the player may then raise to 2x or 4x. 8x is refused with the GDD 01 §5.8 toast "8× is available when you are not controlling an ant" and event `speed-refused {reason: 'possession'}` (no silent change). Releasing does not restore the earlier speed |
 | Opening phases `search`..`lay` | pause, 1x, 2x | queen is possessed and in danger |
 | Nuptial flight possession | pause, 1x | |
 | Time-lapse playback | none (the lapse sets its own rate) | |
@@ -618,7 +618,7 @@ Reserve drains (loads): `FOUND_UPKEEP_PER_GD = 0.40` (0.30 C + 0.10 P, the direc
 | Active in phases | `search`, `dig` (only while the queen is above ground or in a shaft shallower than 3 BU) |
 | Kinds (J creature and human-event ids) | `rove-beetle` (any hour, fast, bite), `wolf-spider` (dusk, night), `jumping-spider` (day, on stones and walls), `bird` event (daytime; founding variant of GDD 05 §2.6: one swoop at the queen in open ground, telegraphed by the 3.0 s approach shadow, 1.2 s strike), `footsteps` (human event: shadow plus tremor with GDD 04 §15.3 lead times × `HUMAN_TELEGRAPH_MULT`, footprint 280 x 100 mm adult / 200 x 80 mm child), rival `worker` scout (if rivals enabled) |
 | Maximum simultaneous | 1 |
-| Maximum per founding (`OPEN_THREATS_MAX`) | Gentle 0, Naturalist 2, Harsh 4 |
+| Maximum per founding (`diff.openingThreatsMax`, section 14) | Gentle 0, Naturalist 2, Harsh 4 |
 | Minimum gap | `OPEN_THREAT_GAP_GD = 0.15` (1.5 real minutes) |
 | Spawn | at least 60 BU from the queen, approaching at 70 % of queen sprint |
 | Escape | queen hurries (Lasius founding queen: cruise 6 BU/s, hurry 9.6 BU/s, GDD 01 / directions K); a shaft deeper than 4 BU is refuge: beetle and spider give up after 8 s at the entrance. Under a stone or slab on the surface the beetle loses the queen at 3 BU |
@@ -695,9 +695,9 @@ with `Tdev = 3.90 * 11 / (Tchamber - 10)` GD (egg to worker; Lasius degree-day l
 | 0.80-0.95 | first cocoon opens, the queen helps the worker out; pale callow worker, darkening over about an hour (callow dawn) |
 | 0.95-1.00 | the final card: "Workers: N. Reserves: x %." then handover |
 
-**Reduced motion:** a 20 s crossfade of five stills (eggs, larvae, cocoons, callow worker, final card) with date captions, no camera motion. **Skip:** key `Space`/`Esc`/button; the engine continues the same simulation at maximum batch rate to the same end tick (identical outcome), then plays only the final card for 2 s.
+**Reduced motion:** a 20 s crossfade of five stills (eggs, larvae, cocoons, callow worker, final card) with date captions, no camera motion. **Skip:** GDD 01 `tl-skip` (hold Space 1 s, hold A 1 s, or the Skip button; Esc opens the menu); the engine continues the same simulation at maximum batch rate to the same end tick (identical outcome), then plays only the final card for 2 s.
 
-**Interrupt beats (T2).** Hazards (5.12) may fire during the lapse. If `interruptsUsed < diff.openingInterruptMax` (Gentle 0, Naturalist 2, Harsh 3) the lapse **drops to 1x, hands control of the queen back**, and shows a cue; the response window is `OPEN_INTERRUPT_WINDOW_S = 20` game seconds (extended while the queen is actively acting). Gentle resolves all hazards silently with the "responded" outcome halved in damage. Otherwise (or if the player chooses "Let it play") the default outcome applies.
+**Interrupt beats (T2).** Hazards (5.12) may fire during the lapse. If `interruptsUsed < diff.openingInterruptMax` (Gentle 0, Naturalist 2, Harsh 3) the lapse **drops to 1x, hands control of the queen back**, and shows a cue with the GDD 08 §7.10 buttons Step in / Let it play; the response window is `OPEN_INTERRUPT_WINDOW_S = 20` game seconds (extended while the queen is actively acting). Step in, or any queen action, is `timelapseRespond {response: 'step-in'}`. Gentle resolves all hazards silently with the "responded" outcome halved in damage. Otherwise (if the player chooses "Let it play", `response: 'let-it-play'`, or the window ends without a response) the default outcome applies and the lapse resumes.
 
 | Hazard | Cue | Player response | Success outcome | Default (no response) |
 |---|---|---|---|---|
@@ -820,13 +820,13 @@ Custom rule `winterMode` = `timelapse` (default) or `realtime` (play every winte
 
 | Step | When | What |
 |---|---|---|
-| Notice | `autumn` day 6, 12:00 (`doy 20`) | journal note and alert "Nights are turning cold. Stores cover {x} days of winter at the current rate" (`diag-overwinter-readiness`) |
-| Banner | winter day 1, 00:00 (`doy 22`) if mode requires the lapse | non-modal banner "Winter settles. The colony is withdrawing." with buttons `Begin` and `Delay one day` (max `OVERWINTER_DELAY_MAX_DAYS = 2` total); auto-slow rule `overwinter-prompt`. Foragers are recalled: every outdoor ant takes `return-to-nest` priority; the banner lasts at most 8 real seconds |
+| Notice | autumn day `DAYS_PER_SEASON − 1` (the day before the last day of autumn), 12:00 (default year: autumn day 6, `doy 20`) | journal note and alert "Nights are turning cold. Stores cover {x} days of winter at the current rate" (`diag-overwinter-readiness`) |
+| Banner | winter day 1, 00:00 (default `doy 22`; the first day with `season == winter` at any season length) if mode requires the lapse | non-modal banner "Winter settles. The colony is withdrawing." with buttons `Begin` and `Delay one day` (max `OVERWINTER_DELAY_MAX_DAYS = 2` total); auto-slow rule `overwinter-prompt`. Foragers are recalled: every outdoor ant takes `return-to-nest` priority; the banner lasts at most 8 real seconds |
 | Release | on `Begin` | the possessed ant is released; ants still outdoors beyond 120 BU of an entrance have a 50 % chance of dying (`cold`); ants within 120 BU shelter |
 | Lapse | immediately | aggregate model 6.3 computes the whole winter at once and **then** the presentation plays |
 | End | at `doy 1` 00:00 of the next year | speed paused, Winter Report overlay shown (6.5); closing it resumes 1x |
 
-### 6.3 Aggregate model (per game hour, 168 steps for a 7-day winter)
+### 6.3 Aggregate model (per game hour: `24 × DAYS_PER_SEASON` steps, 168 for the default 7-day winter)
 
 Inputs snapshotted at `Begin`: `N` (by caste), brood by stage, stores (C, P loads), queen status, per-chamber depth and capacity, entrance floodSafety, nest `Tmin` history. The weather state machine runs for real (same `rng.weather`) so `frost` nights, rain and storms in the report are the same as the HUD would have shown.
 
@@ -941,8 +941,8 @@ One-shot, recorded with the in-game date, tick and a short journal text (calm na
 | `ms-first-winter-survived` | First winter | first Winter Report with the colony alive | The colony has come through its first winter. The queen is alive. |
 | `ms-winter-3` | Third winter | third winter survived | A third winter survived. |
 | `ms-winter-10` | Tenth winter | tenth winter survived | Ten winters survived. |
-| `ms-year-1` | One year | `colonyAgeDays >= 28` | One year since the first egg. |
-| `ms-year-5` | Five years | `colonyAgeDays >= 140` | Five years since the first egg. |
+| `ms-year-1` | One year | `colonyAgeDays >= DAYS_PER_YEAR` (28 default) | One year since the first egg. |
+| `ms-year-5` | Five years | `colonyAgeDays >= 5 × DAYS_PER_YEAR` (140 default) | Five years since the first egg. |
 | `ms-first-alate` | Winged | first `gyne` or `male` eclosed | The first winged ants have emerged. They will wait in the nest for the right day. |
 | `ms-first-flight` | A nuptial flight | first `flight.launched` | The winged ants have left the nest in a single morning's rush. By evening most will have been eaten or lost. |
 | `ms-first-daughter` | A daughter | first daughter foundation recorded in the Lineage | A young queen has landed, shed her wings and begun to dig, somewhere beyond the colony's range. |
@@ -1089,14 +1089,14 @@ If the gate passes the colony enters `alateRearing = true` for the window. Hyste
 | Parameter | `lasius-niger` | `camponotus-pennsylvanicus` | `messor-barbarus` | `atta-texana` |
 |---|---|---|---|---|
 | `alateLayWindow` (`doy`) | spring 2-6 | spring 2-3 (0.7 GD window; sexuals from spring eggs [Camponotus 4]) | summer 8-13 | autumn-winter 15-28 (alate brood reared in the winter central cavity [Atta 4]) |
-| Egg-to-alate duration | 1.3 x worker duration (5.2 GD at 21 C) | 1.15 x major duration (about 5.6 GD) | 1.2 x worker | 1.3 x major duration (about 6.5 GD) |
-| Eclosion | spring `doy` 7-11 | about `doy` 11 (August); **alates overwinter in the nest** (males before females) | summer | winter-spring |
+| Egg-to-alate duration (copy; owners GDD 02 §2.2 for Lasius stage multipliers, GDD 07 `devMult` for T3; second consistency pass) | gyne: larva × 2.0, pupa × 1.1 (≈ 4.7 GD at 21 C); male: larva × 1.2 (≈ 4.0 GD) | gyne 1.3 / male 1.1 × the media duration | gyne 1.4 / male 1.1 × the media duration | gyne 1.4 / male 1.25 × the media duration |
+| Eclosion | `doy` 7-11 (last day of spring to early summer) | about `doy` 11 (August); **alates overwinter in the nest** (males before females) | summer | winter-spring |
 | `alateFlightWindow` (`doy`) | 9-13 (peak 10-11) | 1-9 of the next year (peak 4-6), individual, not synchronised | 15-20 (peak 17-19) | 2-8 |
 | Launch hour | 14:00-18:00 | 16:00-20:00 (time of day not found: `[E]`) | 13:00-17:00 | 21:00-03:00 |
 | Max alate fraction `REPRO_MAX_FRAC` of `N` (at investment 1.0) | 0.10 (research 5-8 %) | 0.12 (30-140 per year [Camponotus 12]) | 0.02 (8-25 alates) | 0.04 (20-60 alates per flight) |
 | Gyne share `REPRO_GYNE_SHARE` | 0.40 | 0.44 | 0.50 | 0.25 |
 | Cost multipliers (x `LARVA_COST_LOADS` = 1.6 loads) gyne / male | 12 / 2 | 8.0 / 1.3 × the media larval cost (= 12.8 / 2.1 loads; consistency pass adopts GDD 07 R4: the dossier's units were minor-relative) | 10 / 2 | 15 / 3 |
-| Alate upkeep per GD (C loads) gyne / male | 0.15 / 0.08 | 0.5 x queen / 0.2 | 0.15 / 0.08 | 0.2 / 0.1 |
+| Alate upkeep per GD (C loads) gyne / male (copy of the GDD 07 caste tables, which own adult upkeep; second consistency pass) | 0.15 / 0.06 | 0.15 / 0.10 | 0.15 / 0.08 | 0.2 / 0.15 |
 | Flight survival `p_air` / mating `p_mate` / site `p_found` | 0.60 / 0.90 / 0.70 | 0.65 / 0.90 / 0.70 | 0.55 / 0.866 / 0.70 | 0.50 / 0.90 / 0.70 |
 | Weather gate | see 11.5 | see 11.5 | see 11.5 | see 11.5 |
 
@@ -1171,7 +1171,7 @@ Stored per device in the profile store (`foundress.profile.v1`: IndexedDB store 
 
 | Collection | Content |
 |---|---|
-| `colonies[]` | `{ id, name, species, worldSeed, archetype, sizeId, generation, parentColonyId, parentFlightId, foundedDate, endedDate, endCause, peakWorkerEq, gameYears, winters, alatesReared, flights, daughtersFounded, rivalsDefeated, milestones[] (ids), difficultyHistory }` |
+| `colonies[]` | `{ id, name, species, worldSeed, archetype, sizeId, generation, parentColonyId, parentFlightId, foundedDate, endedDate, endCause, peakWorkers (simulated workers; was `peakWorkerEq`, directions K), gameYears, winters, alatesReared, flights, daughtersFounded, rivalsDefeated, milestones[] (ids), difficultyHistory }` |
 | `flights[]` | `FlightRecord` summary (11.6) with `motherColonyId` |
 | `daughters[]` | `{ id, motherColonyId, flightId, species, generation, seed (u32), archetypeHint, witnessed: bool, landingZone, doy, state: available / founded / lost }` |
 | `settings` | last difficulty and custom rules used per lineage |
@@ -1383,8 +1383,8 @@ Rules:
 
 | # | Note |
 |---|---|
-| D1 | One day-length curve for all climates (12 + 4 sin(2 pi d / 28)); no latitude. Sunrise and sunset therefore drift identically for Texas and Britain. Gameplay simplification. |
-| D2 | A day in the game is a full 24 h cycle although it stands for 13.04 real days of seasonal change; the weekday cycle (7-day, weekend 5, 6) is a separate abstraction that the ecology dossier handles with a "game week = 3 GD" rule for human cadences. The human-event chapter must use `isWeekend` only for school/park schedules and the 3-GD rule for cadence. |
+| D1 | One day-length curve for all climates (12 + 4 sin(2 pi d / DAYS_PER_YEAR)); no latitude. Sunrise and sunset therefore drift identically for Texas and Britain. Gameplay simplification. |
+| D2 | A day in the game is a full 24 h cycle although it stands for 13.04 real days of seasonal change; the weekday cycle (7 GD, weekend weekdays 5 and 6, directions K) is a separate abstraction and the only "week" in the game. The ecology dossier's weekly chores become per-GD frequencies (mowing and vacuum about 1 per 3 GD, GDD 04 §15.2 and V2); there is no 3-GD "game week". The human-event chapter reads `isWeekend` for weekend and school patterns and its own per-GD frequencies for cadence. |
 | D3 | Wild founding success is about 1 % (Lasius, estimate) and Atta about 2.5 %. The game models only the loss mechanisms the player can influence (site, exposure clock, hazards, reserves); first-brood success on a Good site is high. Naturalist is therefore far gentler than the field. Harsh is the closest compromise. |
 | D4 | Atta: the sourced "about 90 % of the first brood eaten" becomes 70 % trophic (`ATTA_TROPHIC_FRACTION_FIRST`) so that 8-14 minims result. |
 | D5 | The "must find shelter within 24 h" statement is an author assumption in the source (verification row 8); the clock is tuned to 0.83 GD in full sun. |
@@ -1399,7 +1399,7 @@ Rules:
 ---
 ## Appendix A. State required
 
-All plain data (JSON-like and typed arrays). `u8`, `i32`, `f32` are typed-array element types; derived caches are marked (derived) and are rebuilt on load.
+All plain data (JSON-like and typed arrays). `u8`, `i32`, `f32` are typed-array element types; derived caches are marked (derived) and are rebuilt on load. **Placement (frozen, `00-index.md` D1.1-D1.14; the short names below are this chapter's):** `calendar.tick` is root `state.tick`, the other `calendar.*` fields are `env.calendar`; `weather`, `thermal`, `moisture`, `winter` are `env.*`; `time` is `state.time`; `opening` is `player.opening`; `stage`, `milestones`, `journal`, `aims`, `history`, `deaths` are `progression.*`; `difficulty` is `config.difficulty {preset, params, custom}` plus `progression.difficultyHistory`; `repro` and `queens` are on the `Colony`.
 
 | Name | Type sketch | Purpose |
 |---|---|---|
@@ -1428,15 +1428,15 @@ All plain data (JSON-like and typed arrays). `u8`, `i32`, `f32` are typed-array 
 | `stage` | `{id, flags: {orphaned, declining, dormant}, lastEvalTick, popAtEval3GD: f32[3]}` | stages (7) |
 | `milestones` | `Record<id, {tick, doy, year}>` | one-shot record (8) |
 | `journal.entries` | `{id, tick, kind, title, text, refs: int[]}[]` (cap 4 000) | timeline (9.1) |
-| `journal.aims` | `{open: id[], done: id[]}` | current focus |
-| `history.daily` | `Float32Array[series * maxDays]` plus `count` | graphs (9.2) |
-| `history.hourly` | ring `Float32Array[series * 48]` | Why view trends |
+| `progression.aims` | `{id, state, openedTick, doneTick}[]` (GDD 08 record; replaces `journal.aims {open, done}`) | current focus |
+| `progression.history.daily` | `Float32Array[series * maxDays]` plus `count` | graphs (9.2) |
+| `progression.history.hourly` | ring `Float32Array[series * 168]` (168 h = 7 GD, fixed, independent of season length; 9.2, `00-index.md` D1.11) | Why view trends, graphs |
 | `deaths` | `{byCause: u32[cause * caste * role], bySeason: u32[...], recent: ring of 200 {tick, cause, caste, role, zone}}` | causes summary (9.3) |
 | `repro` (on the colony; `investment`, `gyneShare`, `policy` are the colony directives `alateInvestment`, `gyneShare`, `alatePolicy`, GDD 02 §12.1) | `{alateRearing: bool, targetAlates: int, shortfall: f32, lastLaunchTick, flights: FlightRecord[], active: {id, phase, possessedAntId, startTick, energy, matingProgress} or null}` | reproduction (11) |
 | `colony.queens` | `{antId, lifespanDays: f32 or null}[]` | queen death (13); age is derived from the ant's `bornTick` |
 | `colony.orphanedAt` | `int or null` | orphan rules |
 | `colony.livingAnts` | `int` (derived counter) | extinction test |
-| `difficulty` | `{preset, params: Record<string, number or boolean>, custom: CustomRules, history: {tick, preset}[]}` | (14) |
+| `config.difficulty` + `progression.difficultyHistory` | `{preset, params: Record<string, number or boolean>, custom: CustomRules}` + `{tick, preset}[]` | (14) |
 | `autosave.meta` | `{lastTick, lastRealMs, disabled: bool, slots}` | (15), lives in Game layer |
 | profile store `foundress.profile.v1` → `lineage` | `{colonies, flights, daughters, settings}` | (12), not in `SimState`; one profile store shared with GDD 08 |
 | profile store `foundress.profile.v1` → `codex` | `Record<id, {tick, doy, year, species, firstSeenIso}>` | (10), not in `SimState`; prompt learning lives in `player.promptLearned` (GDD 01) and hints in the profile `hints` (GDD 08), not here |
@@ -1534,7 +1534,7 @@ Each diagnostic publishes the shared record `{id, system, status, label, value, 
 | (merged into GDD 03 `diag-nest-climate`) | per chamber: `warn` if brood chamber outside `[Topt_lo - 4, Topt_hi + 4]`; `critical` if < 10 C or > 36 C | depth, cover above, season, recent cold snap or heat wave | `move-brood` marker to a warmer or cooler chamber, `dig` deeper, add cover or mound |
 | (merged into GDD 03 `diag-nest-flood`) | `warn` if forecast rain peak and any entrance catchment flux x chamber volume ratio > 0.1; `critical` while water in brood chamber | rainfall rate, catchment area per entrance, entrance elevation, soil saturation `theta1` | raise a mound or entrance (`entrance` marker), `move-brood` upward, dig drain chamber |
 | `diag-heat-exposure` | `warn` if > 10 % of foragers have `Tb >= stressC - 3`; `critical` if any `heat-stupor` mass | surface `Tmicro` on trails, shade availability, hour | forage at dawn/dusk, shaded route, `avoid` marker on hot paving |
-| `diag-overwinter-readiness` | autumn `doy >= 15`: `ok` if stores cover >= 1.5 x projected need; `warn` 1.0-1.5; `critical` < 1.0 | C stores, P stores, colony size, deepest chamber temperature, predicted frost nights | forage priority, honeydew tending, dig a deeper chamber, increase colony before winter |
+| `diag-overwinter-readiness` | `season == autumn` (default `doy` 15-21): `ok` if stores cover >= 1.5 x projected need; `warn` 1.0-1.5; `critical` < 1.0 | C stores, P stores, colony size, deepest chamber temperature, predicted frost nights | forage priority, honeydew tending, dig a deeper chamber, increase colony before winter |
 | `diag-founding-outcome` | during `lay`: forecast-based: `ok` expected reserve >= 0.25; `warn` 0.15-0.25; `critical` < 0.15 | site factors (dig, moisture, warmth, cover, flood, rival, exposure) as weights of `1 - s_i`, clutch size | lay fewer eggs, dig a bigger or deeper chamber, move to a better site before sealing |
 | `diag-reproduction-readiness` | `ok` if gates pass; otherwise `watch` listing the failing gates | gate list 11.1 with the numeric gap | feed the colony, wait, raise investment |
 | `diag-flight-day` | on eligible window days: `ok` if `p_launch >= 0.5` | temperature, wind, sky, recent rain, trend | wait for a warmer or calmer day |
@@ -1545,7 +1545,7 @@ Each diagnostic publishes the shared record `{id, system, status, label, value, 
 
 Each is scriptable through the debug API (`step`, `cheat.*`, `summary()`, `query.*`). "Tolerance" is absolute unless a percentage.
 
-1. **Tick and day.** Given a new game at tick 0, When `step(6000)`, Then `calendar.tick = 6000`, `dayIndex = 1`, and after `step(162000)` more (168 000 total) `year = 2`, `doy = 1`. `hour` at tick 250 = 1.0.
+1. **Tick and day.** Given a new game at tick 0, When `step(6000)`, Then `calendar.tick = 6000`, `dayIndex = 1`, and after `step(162000)` more (168 000 total, default 7-day seasons; `6000 × DAYS_PER_YEAR` in general) `year = 2`, `doy = 1`. `hour` at tick 250 = 1.0.
 2. **Day length.** Given standard calendar, When `d` = 7.0, 21.0, 10.5, Then `(SR, SS)` = (04:00, 20:00), (08:00, 16:00), (04:35, 19:25) with tolerance 0.02 h; at `d = 24.5` SR 07:25, SS 16:35.
 3. **Phases.** At `d = 10.5` (SR 4.586, SS 19.414): hour 3.0 is `night`, 4.0 `dawn`, 8.0 `morning`, 12.0 `midday`, 16.0 `afternoon`, 19.0 `dusk`, 21.0 `night`.
 4. **Air temperature.** Given `temperate-maritime`, weather `clear` settled, anomaly 0, `d = 10.5`, Then `Tair(14:30) = 27.5 +- 0.3` and `Tair(04:35) = 13.1 +- 0.3`; with `heat` settled `Tair(13:00) = 32.2 +- 0.5`.

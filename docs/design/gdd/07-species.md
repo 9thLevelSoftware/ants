@@ -93,7 +93,7 @@ Each ant gets a continuous `lengthBu` at eclosion, drawn from a triangular distr
 | `massMg` | `casteMassMg × (lengthBu / casteMeanBu)^3` | caste tables give `casteMassMg` at the mean |
 | `m` | `massMg / stdMassMg` | standard worker `m = 1` |
 | `maxHp` | `HP_PER_MG23 (10) × massMg^(2/3)` for worker castes; queens, gynes and males take the Ch 05 §4.1 table values (e.g. Lasius queen 50, gyne 35, male 6) | Ch 05 §4.1 rule (combat owner; consistency pass replaced the earlier `12 × massMg^0.5`); absolute, so species can fight each other |
-| `bite` (damage per strike, one strike per 1.0 s bite cycle) | `BITE_PER_MG23 (1.0) × massMg^(2/3) × mandibleFactor` | Ch 05 §4.1 head factors (combat owner): worker castes 1.0, majors 1.5, Atta major 2.0, minim 0.8, queen 0.27, gyne 0.27, male 0.2; Ch 05 §4.1's per-caste table is authoritative and the HP / bite columns of the 5.x.1 tables below are superseded by it |
+| `bite` (damage per strike; bite cycle per caste in Ch 05 §4.1, 1.0 s for workers) | `BITE_PER_MG23 (1.0) × massMg^(2/3) × mandibleFactor` | Ch 05 §4.1 head factors (combat owner): worker castes 1.0, majors 1.5, Atta major 2.0, minim 0.8, queen 0.27, gyne 0.27, male 0.2; the HP / bite columns of the 5.x.1 tables below are this formula applied to the listed masses (rounded) and equal Ch 05 §4.1's table for every worker caste (second consistency pass); queens, gynes and males of the T3 species keep the values in their 5.x.1 rows, which Ch 05 §4.1 adopts |
 | `cropCap` (loads) | `min(caste cropMax, m)` | |
 | `carryCap` (loads, item bulk) | `m^0.6` unless the caste table overrides | small ants carry relatively more; Ch 01 §7 uses `carryCap` |
 | `upkeepRest`, `upkeepActive` (C/GD) | `0.08 × m^0.75`, `0.20 × m^0.75` | directions J for the standard worker; queens, gynes and males have explicit values |
@@ -136,7 +136,7 @@ A `SpeciesDef` is static data (not part of `SimState`; saves store only `species
 | `buMm` | number | mm | length of the standard worker |
 | `stdMassMg` | number | mg | mass of the standard worker (`m = 1`) |
 | `available` | boolean | | shown in New Game (Ch 08); Lasius true at T1, others true at T3 |
-| `tier` | `'T1' \| 'T3'` | | |
+| `tier` | `'T1' \| 'T2' \| 'T3'` | | `00-index.md` D2.27 (Lasius T1 with T2 honeydew fields) |
 | `complexity` | 1..3 | | Ch 08 card |
 | `playstyleLine` | string | | one line for the species card |
 | `foundingSeason` | `Season` | | Ch 08 default start season |
@@ -310,9 +310,9 @@ Nutrient profiles of sources belong to Ch 05; the species only says which kinds 
 
 ### 3.16 Validation (loader rejects a def that fails)
 
-1. Every caste: `min ≤ mean ≤ max`; the standard worker's `mean = 1.0` BU (Lasius worker, Camponotus/Messor/Atta media).
+1. Every caste: `min ≤ mean ≤ max`; the standard worker's `mean` is 1.0 ± 0.1 BU (Lasius worker 1.0, Camponotus media 1.1, Messor media 1.05, Atta media 1.0; `buMm` is that worker's length rounded to whole mm, so the BU is the standard worker within rounding).
 2. `devRate` keys strictly increasing, value 1.0 at `devRefC` (± 0.01), zeros at both ends.
-3. `s` covers the whole year `[0, 28)` (a step at `d` 0 is allowed, e.g. spring resumption after winter).
+3. `s` covers the whole default year, `d28` in `[0, 28)` (`00-index.md` C1; species data always use default-year numbers and the calendar scales them; a step at `d28` 0 is allowed, e.g. spring resumption after winter).
 4. Every `ActionId` exists in Ch 01's primitive list or in Appendix A.0 additions.
 5. Every `FoodKind`, `Material`, `Task`, `Caste` is canonical (directions J) or listed in A.0.
 6. Module parameter block present for each listed module, absent otherwise.
@@ -339,7 +339,7 @@ Nutrient profiles of sources belong to Ch 05; the species only says which kinds 
 
 #### 5.1.1 Castes
 
-| Caste | Length BU (min / mean / max) | Mass mg | m | HP | Bite dps | Crop | Carry | Upkeep rest / active C/GD | Cruise / sprint BU/s | Lifespan GD | Passage BU |
+| Caste | Length BU (min / mean / max) | Mass mg | m | HP | Bite (dmg per strike) | Crop | Carry | Upkeep rest / active C/GD | Cruise / sprint BU/s | Lifespan GD | Passage BU |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `worker` | 0.9 / 1.0 / 1.15 | 1.0 | 1.0 | 10 | 1.0 | 1.0 | 1.0 | 0.08 / 0.20 | 6 / 12 | 33 if colony N < 100 at eclosion, 24 if N ≥ 250, linear between; sd 10 [D] | 0.45 |
 | `worker` (nanitic flag, first brood) | 0.8 / 0.85 / 0.9 | 0.6 | 0.6 | 7 | 0.7 | 0.6 | 0.74 | 0.054 / 0.136 | 6 / 12 | 24, sd 10 (Ch 02 `NANITIC_LIFESPAN_MEAN`) | 0.38 |
@@ -370,7 +370,7 @@ Actions — `worker`: `move`, `let-go`, `grip`, `pick-up`, `put-down`, `drop`, `
 
 | Parameter | Value |
 |---|---|
-| Natural window | after the July-August flights: Ch 06 start window `doy` 8-12, default Summer 3, afternoon |
+| Natural window | after the July-August flights: Ch 06 start window `doy` 9-12 (inside the flight window doy 9-13), default `doy` 10 = Summer 3, afternoon |
 | Site materials (suitability) | `loam` 1.0, `humus` 0.9, `sand` 0.8 (collapses, floods), `clay` 0.5 (slow), `gravel` 0.4; refused: wood, concrete, asphalt, stone, tile, brick |
 | Site bonuses (feed Ch 06 §5.7 site factors) | under a sun-warmed stone, slab, brick, tile or plastic sheet (cover and warmth); recent rain (soft soil); rival home-range scent (penalty) |
 | Shaft / chamber | founding shaft 2.5 BU wide (Ch 03 §13.1), `D_MIN` 8 BU in open soil / 5 BU under cover, target depth 10 BU (8-15) [D 2-6 cm]; founding cell 4 x 2 x 4.5 BU |
@@ -483,12 +483,12 @@ Actions — `worker`: `move`, `let-go`, `grip`, `pick-up`, `put-down`, `drop`, `
 
 #### 5.2.1 Castes
 
-| Caste | Length BU | Mass mg | m | HP | Bite dps | Crop | Carry | Upkeep rest / active | Cruise / sprint BU/s | Lifespan GD | Passage BU |
+| Caste | Length BU | Mass mg | m | HP | Bite (dmg per strike) | Crop | Carry | Upkeep rest / active | Cruise / sprint BU/s | Lifespan GD | Passage BU |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `minor` | 0.7 / 0.78 / 0.9 | 2.0 | 0.29 | 17 | 2.8 | 0.29 | 0.5 | 0.032 / 0.079 | 5 / 10 | 84, sd 30 | 0.35 |
-| `minor` (nanitic) | 0.55 / 0.65 / 0.8 | 1.2 | 0.17 | 13 | 2.2 | 0.17 | 0.35 | 0.021 / 0.053 | 5 / 10 | 40, sd 15 [EST] | 0.29 |
-| `media` | 1.0 / 1.1 / 1.25 | 7 | 1.0 | 32 | 5.3 | 1.0 | 1.0 | 0.08 / 0.20 | 5 / 10 | 84, sd 30 | 0.50 |
-| `major` (incl. rare super majors to 1.9) | 1.3 / 1.5 / 1.9 | 16 | 2.29 | 48 | 12.8 | 2.3 | 2.0 | 0.149 / 0.372 | 4.5 / 9 | 100, sd 35 | 0.78 |
+| `minor` | 0.7 / 0.78 / 0.9 | 2.0 | 0.29 | 16 | 1.6 | 0.29 | 0.5 | 0.032 / 0.079 | 5 / 10 | 84, sd 30 | 0.35 |
+| `minor` (nanitic) | 0.55 / 0.65 / 0.8 | 1.2 | 0.17 | 11 | 1.1 | 0.17 | 0.35 | 0.021 / 0.053 | 5 / 10 | 40, sd 15 [EST] | 0.29 |
+| `media` | 1.0 / 1.1 / 1.25 | 7 | 1.0 | 37 | 3.7 | 1.0 | 1.0 | 0.08 / 0.20 | 5 / 10 | 84, sd 30 | 0.50 |
+| `major` (incl. rare super majors to 1.9) | 1.3 / 1.5 / 1.9 | 16 | 2.29 | 63 | 9.5 | 2.3 | 2.0 | 0.149 / 0.372 | 4.5 / 9 | 100, sd 35 | 0.78 |
 | `queen` | 2.0 / 2.1 / 2.3 | 100 | 14.3 | 120 | 12 | 3.0 | 0 food; brood, egg clump | 0.30 C + 0.10 P + egg costs | 2.5 / 4 | 10-15 game years [D] | 0.95 |
 | `gyne` | 1.9 / 2.0 / 2.1 | 100 | 14.3 | 120 | 12 | 3.0 | 0 | 0.15 C | 5 / 9 | until flight (overwinters) | 0.90 |
 | `male` | 1.0 / 1.1 / 1.2 | 15 | 2.1 | 23 | 1.2 | 0.5 | 0 | 0.10 C | 5 / 9 | flight + 0.1 GD | 0.50 |
@@ -507,7 +507,7 @@ Actions — all workers: Lasius worker list with `dig-bite` in wood, plus `eject
 | Larval cost | nanitic 0.29 P + 0.10 C; minor 0.45 P + 0.15 C; media 1.2 P + 0.4 C; major 2.33 P + 0.78 C; gyne 10.1 P + 3.4 C; male 2.2 P + 0.72 C | 2.3 (gyne ≈ 8 × media, as dossier mass ratio) |
 | Laying | only inside `layWindows` d 0.5-3.0 (spring) and d 9.5-12.5 (late summer); `Q_MAX` 148, `sizeBase` 0.054, `sizeK` 500, i.e. `q(N)` = 8 + 140 (1 − e^(−N/500)) per GD in window; `fSeason` 1.0 inside windows; `fTempQ` 0 at ≤ 15 °C, 1 at 21-30 °C, 0 at ≥ 35 °C | [D] two windows; rate [EST] |
 | Brood fate by window | spring eggs → workers this summer and all sexual brood; late-summer eggs → larvae that overwinter (diapause) and eclose next June-July (d 6-10) | [D] |
-| `casteMixTarget` | colony age < 2 years: 100 % minor (nanitic in year 1); from age 2 years and N ≥ 60: media and majors unlock, target ramps linearly over 1 year to 50 / 38 / 12 (minor / media / major) | [D] media and majors only from the third season; mix [EST] |
+| `casteMixTarget` | colony age < 2 years: 100 % minor (nanitic in year 1); from age 2 years (= the start of colony year 3) and N ≥ 60: media and majors unlock, target ramps linearly over 1 year to 50 / 38 / 12 (minor / media / major) | [D] media and majors only from the third season; mix [EST] |
 | Species brood hazard | moisture rule for eggs and young larvae (6.2.4) | [D]/[EST] |
 | `queenLifespanYears` | 10-15 | [D] |
 
@@ -632,12 +632,12 @@ Actions — all workers: Lasius worker list with `dig-bite` in wood, plus `eject
 
 #### 5.3.1 Castes
 
-| Caste | Length BU | Mass mg | m | HP | Bite dps | Crop | Carry | Upkeep rest / active | Cruise / sprint | Lifespan GD | Passage BU |
+| Caste | Length BU | Mass mg | m | HP | Bite (dmg per strike) | Crop | Carry | Upkeep rest / active | Cruise / sprint | Lifespan GD | Passage BU |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `minor` | 0.55 / 0.7 / 0.85 | 2.0 | 0.29 | 17 | 2.8 | 0.29 | 0.5 | 0.032 / 0.079 | 5 / 10 | 12, sd 3 | 0.32 |
-| `minor` (nanitic) | 0.5 / 0.6 / 0.7 | 1.3 | 0.19 | 14 | 2.3 | 0.19 | 0.37 | 0.023 / 0.058 | 5 / 10 | 6, sd 2 ("a few months" [D]) | 0.27 |
-| `media` | 0.85 / 1.05 / 1.3 | 7 | 1.0 | 32 | 5.3 | 1.0 | 1.0 | 0.08 / 0.20 | 5 / 10 | 16, sd 4 | 0.47 |
-| `major` (macrocephalic) | 1.3 / 1.55 / 1.85 | 22 | 3.14 | 56 | 15.0 | 2.0 | 2.5 | 0.189 / 0.472 | 5 / 10 | 20, sd 5 | 0.80 |
+| `minor` | 0.55 / 0.7 / 0.85 | 2.0 | 0.29 | 16 | 1.6 | 0.29 | 0.5 | 0.032 / 0.079 | 5 / 10 | 12, sd 3 | 0.32 |
+| `minor` (nanitic) | 0.5 / 0.6 / 0.7 | 1.3 | 0.19 | 12 | 1.2 | 0.19 | 0.37 | 0.023 / 0.058 | 5 / 10 | 6, sd 2 ("a few months" [D]) | 0.27 |
+| `media` | 0.85 / 1.05 / 1.3 | 7 | 1.0 | 37 | 3.7 | 1.0 | 1.0 | 0.08 / 0.20 | 5 / 10 | 16, sd 4 | 0.47 |
+| `major` (macrocephalic) | 1.3 / 1.55 / 1.85 | 22 | 3.14 | 79 | 11.8 | 2.0 | 2.5 | 0.189 / 0.472 | 5 / 10 | 20, sd 5 | 0.80 |
 | `queen` | 2.0 / 2.3 / 2.6 | 80 | 11.4 | 107 | 10.7 | 3.0 | brood during founding | 0.30 C + 0.10 P + egg costs | 2.5 / 4 | 6-12 game years | 1.0 |
 | `gyne` | 2.0 / 2.3 / 2.6 | 80 | 11.4 | 107 | 10.7 | 3.0 | 0 | 0.15 C | 5 / 9 | until flight or expiry (Ch 06) | 1.0 |
 | `male` | 1.2 / 1.3 / 1.45 | 10 | 1.45 | 19 | 0.95 | 0.5 | 0 | 0.08 C | 5 / 9 | flight + 0.1 GD | 0.59 |
@@ -778,12 +778,12 @@ Actions — minor: Lasius worker list minus `spray-acid`, plus `sting`, `gnaw-ra
 
 #### 5.4.1 Castes
 
-| Caste / size class | Length BU | Mass mg | m | HP | Bite dps | Crop | Carry | Upkeep rest / active | Cruise / sprint | Lifespan GD | Passage BU |
+| Caste / size class | Length BU | Mass mg | m | HP | Bite (dmg per strike) | Crop | Carry | Upkeep rest / active | Cruise / sprint | Lifespan GD | Passage BU |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `minor` (minim) | 0.3 / 0.35 / 0.45 | 0.3 | 0.06 | 6.6 | 1.1 | 0.06 | 0.2 | 0.010 / 0.024 | 4.8 / 8 | 40, sd 12 | 0.16 |
-| `media`, size class `small-media` (< 0.8 BU) | 0.6 / 0.7 / 0.8 | 1.7 | 0.34 | 15.6 | 2.6 | 0.34 | 0.5 | 0.036 / 0.089 | 6 / 10 | 40, sd 12 | 0.32 |
-| `media` (≥ 0.8 BU) | 0.8 / 1.0 / 1.3 | 5 | 1.0 | 27 | 4.5 | 1.0 | 1.0 | 0.08 / 0.20 | 6 / 10 | 40, sd 12 | 0.45 |
-| `major` | 1.6 / 1.8 / 1.9 | 30 | 6.0 | 66 | 21.9 | 2.5 | 3.0 | 0.31 / 0.77 | 5.4 / 9 | 50, sd 15 | 0.93 |
+| `minor` (minim) | 0.3 / 0.35 / 0.45 | 0.3 | 0.06 | 4.5 | 0.36 | 0.06 | 0.2 | 0.010 / 0.024 | 4.8 / 8 | 40, sd 12 | 0.16 |
+| `media`, size class `small-media` (< 0.8 BU) | 0.6 / 0.7 / 0.8 | 1.7 | 0.34 | 14 | 1.4 | 0.34 | 0.5 | 0.036 / 0.089 | 6 / 10 | 40, sd 12 | 0.32 |
+| `media` (≥ 0.8 BU) | 0.8 / 1.0 / 1.3 | 5 | 1.0 | 29 | 2.9 | 1.0 | 1.0 | 0.08 / 0.20 | 6 / 10 | 40, sd 12 | 0.45 |
+| `major` | 1.6 / 1.8 / 1.9 | 30 | 6.0 | 97 | 19.3 | 2.5 | 3.0 | 0.31 / 0.77 | 5.4 / 9 | 50, sd 15 | 0.93 |
 | `queen` | 2.4 / 2.6 / 2.7 | 300 | 60 | 208 | 20.8 | 3.0 | founding: pellet, eggs | 0.5 FL + 0.03 FL per egg | 2.4 / 4 | 10-15 game years [D] | 1.2 |
 | `gyne` | 2.4 / 2.6 / 2.7 | 300 | 60 | 208 | 20.8 | 3.0 | 0 | 0.2 C (sap/nectar) or 0.2 FL | 6 / 9 | until flight or expiry (Ch 06) | 1.2 |
 | `male` | 1.7 / 1.9 / 2.1 | 60 | 12 | 46 | 2.3 | 0.5 | 0 | 0.15 C | 6 / 9 | flight + 0.1 GD | 0.86 |
@@ -866,7 +866,7 @@ Adults' C comes from sap and liquids (colony C store); brood and queen eat only 
 | Light preference (Ch 06) | night 1.0, dawn 0.7, morning 0.6, midday 0.5, afternoon 0.6, dusk 1.0; with the 28 °C gate this yields night-only foraging in summer and day foraging in cool seasons [D] |
 | Weather | no foraging during rain or below the gate; overcast × 0.6 (Ch 06 `fW`) |
 | Signals | trail half-life 3,600 s at 25 °C (very potent pheromone [D]); trunk trails on (unused half-life 5 GD; ghost after 10 GD; fade 10 GD; physical clearing 4 BU ribbon by majors); mass recruitment (from 20 workers; group 10-60); stridulation while cutting recruits within 6 BU (Ch 01) |
-| Combat | `bite`, `bite-hold`; majors 21.9 dps (≈ 800 mN bites [D]); alarm mode `pheromone` (mandibular) radius 12 BU; guards: majors on trails and entrances; minims `hitchhike` against phorids |
+| Combat | `bite`, `bite-hold`; majors 19.3 per strike (Ch 05 §4.1; ≈ 800 mN bites [D]); alarm mode `pheromone` (mandibular) radius 12 BU; guards: majors on trails and entrances; minims `hitchhike` against phorids |
 | Winter (Ch 06 §6.1) | `active`: no time-lapse, winter is played; foraging on warm days through the normal gate; gardens follow 6.4 rules (cooler chambers grow slower); laying × 0.5 (`fSeason`) |
 
 #### 5.4.8 Possession by caste
@@ -898,7 +898,7 @@ Adults' C comes from sap and liquids (colony C store); brood and queen eat only 
 | Id | Status rule | Factors | Remedies |
 |---|---|---|---|
 | `diag-at-chain` | warn if any stage of the processing chain runs > 30 % below the upstream stage for 0.5 GD; shows the narrowest stage | too few cutters (heat, phorids, distance); leaf cache spoiling (too few processors); too few planters; waste not removed | raise `cut` or `garden` sliders; move foraging closer; add waste haulers |
-| `diag-at-garden` | per garden 6.4.11 | | |
+| `diag-garden` (the former `diag-at-garden`, merged; `00-index.md` D6.6) | per garden 6.4.11 | | |
 | `diag-at-substrate` | warn if any plant was rejected in the last 3 GD | toxic or protein-rich leaves | raise `leafSelectivity`; `avoid` marker on the plant |
 | `diag-at-phorid` | warn if phorid losses > 2 % of foragers per GD | daytime foraging; few hitchhikers | toggle `hitchhikerEscort`; forage at night |
 
@@ -1134,7 +1134,7 @@ Each seed item has `hardness` 0..1 (plant species, Ch 05), `elaiosome` flag, `bu
 
 #### 6.3.3 Granary state (per `granary` chamber)
 
-`GranaryState { chamberId, capacityLoads, humidity (0..1, from Ch 06/03 chamber climate), cohorts: SeedCohort[] }`; `SeedCohort { class, hardnessBand (0.0-0.3 / 0.3-0.6 / 0.6-1.0), degermed: boolean, loads, u (seed moisture 0..1), g (germination clock 0..1), wetGd (time with u > 0.75) }`. New seeds merge into the matching cohort with load-weighted averages of `u` and `g`. `capacityLoads = GRANARY_LOADS_PER_BU3 (2.0) × chamber open volume` (a 16 × 6 × 16 BU chamber holds about 1,600 loads).
+`GranaryState { chamberId, capacityLoads, humidity (0..1, from Ch 06/03 chamber climate), cohorts: SeedCohort[] }`; `SeedCohort { class, hardnessBand (0.0-0.3 / 0.3-0.6 / 0.6-1.0), degermed: boolean, loads, u (seed moisture 0..1), g (germination clock 0..1), wetGd (time with u > 0.75) }`. New seeds merge into the matching cohort with load-weighted averages of `u` and `g`. `capacityLoads = GRANARY_LOADS_PER_BU3 (2.0, = GDD 03 §6.4 granary capacity) × chamber open volume` (a 16 × 6 × 16 BU ellipsoidal chamber, π/6 × 1,536 ≈ 804 BU³ open, holds about 1,600 loads).
 
 #### 6.3.4 Seed cohort states
 
@@ -1152,7 +1152,7 @@ Granary care (task `store`, subtype `granary-care`): workers needed = `ceil(load
 
 #### 6.3.5 Granary count (architect)
 
-`targetStock = GRANARY_TARGET_GD (25) × daily seed consumption`; the architect keeps `ceil(targetStock / 1,600)` granaries (min 1 from N ≥ 30), placed at 60-200 BU depth at the drainage optimum: it prefers chambers whose predicted humidity is ≤ 0.45 (sandy/loamy, above the soil-moisture layer of Ch 06 §3.9; deeper is cooler but damper).
+`targetStock = GRANARY_TARGET_GD (36) × daily seed consumption` (= the 30-GD alate gate of §5.3 / 0.85 fill, so a colony that keeps its granaries full passes the gate; second consistency pass, was 25); the architect keeps `ceil(targetStock / 1,600)` granaries (1,600 loads = one template-L granary, 16 × 6 × 16 BU, at `GRANARY_LOADS_PER_BU3` 2.0 = GDD 03 §6.4) (min 1 from N ≥ 30), placed at 60-200 BU depth at the drainage optimum: it prefers chambers whose predicted humidity is ≤ 0.45 (sandy/loamy, above the soil-moisture layer of Ch 06 §3.9; deeper is cooler but damper).
 
 #### 6.3.6 Milling into seed paste ("ant bread")
 

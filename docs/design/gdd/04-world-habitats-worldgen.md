@@ -33,7 +33,7 @@ Not owned here (read from other chapters): air, surface and soil temperature, so
 | Feature | Tier |
 |---|---|
 | All five T1 archetypes, all zone types, pipeline, object catalogue, micro-connections, pre-existing cavities, decor, climb routes, nav grid, boundary, Lasius suitability map, persistence, determinism | T1 |
-| Baseline food anchors for the Lasius loop (crumbs incl. `crumb-protein`, sugar, dead insects, nectar flowers; honeydew anchor sites are placed but the herds that make them productive are T2, GDD 05 §0) | T1 |
+| Baseline food anchors for the Lasius loop (crumbs incl. `crumb-protein`, a GDD 05 variant of the J food kind `crumb`, sugar, dead insects, nectar flowers; honeydew anchor sites are placed but the herds that make them productive are T2, GDD 05 §0) | T1 |
 | Seasonal decor (leaf fall, petals), creature territories, rival sites, full resource placement, water bodies' drinking and drowning, human activity (all events), reactive humans, door-open state | T2 |
 | Regions other than `temperate-eu`, archetype `field-margin`, suitability for the three other species, leaf-blower variant, oil slickness, window-sill gap, wall sockets as nest sites | T3 |
 
@@ -144,11 +144,11 @@ Region override: `mediterranean` forest/lawn/bed top 300 mm = `loam` flagged `dr
 
 | Constant | Lasius | Camponotus | Messor | Atta | Note |
 |---|---|---|---|---|---|
-| `DIG_FLOOR_BU` (bedrock depth) | 200 | 150 | 300 | 500 | Lasius max shaft 175 BU; Messor 285 BU; Atta depth cap 400-500 BU (dossiers 5, 12) |
+| `DIG_FLOOR_BU` (bedrock depth) | 200 | 150 | 300 | 500 | always below the nest template `maxDepth` (GDD 03 §7, GDD 07: Lasius 175, Messor 285, Atta 450 BU; Camponotus nests in wood) so the depth cap, not bedrock, limits digging |
 
 ### 2.4 Static per-cell data supplied to chapter 06 [T1 data, T2 consumers]
 
-On the 16 BU nav grid: `texture` (`sand`/`loam`/`clay`/`humus`, top layer), `permeable` (asphalt 0, concrete and tile 0, sand-jointed paving 0.05, rubber 0.05, soils 1), `veg` (lawn, garden-bed, forest), `litter` (0..1), `shadeMean` (mean of the shade samples 08:00-18:00), `puddleCapMm` (13.3), `catchArea` (13.4), `exposed` (no overhead cover at ground level), initial `theta0/theta1` (`ZONE_THETA0` below; `theta1 = theta0 + 0.1`), `interior` flag.
+On the 16 BU nav grid: `texture` (`sand`/`loam`/`clay`/`humus`, top layer), `permeable` (asphalt 0, concrete and tile 0, sand-jointed paving 0.05, rubber 0.05, soils 1), `veg` (lawn, garden-bed, forest), `litter` (0..1), `shadeMean` (mean of the shade samples 08:00-18:00), `puddleCapMm` (13.4), `catchArea` (13.4), `exposed` (no overhead cover at ground level), initial `theta0/theta1` (`ZONE_THETA0` below; `theta1 = theta0 + 0.1`), `interior` flag.
 
 | Zone | `ZONE_THETA0` start | Modifiers (added, then clamp 0.02-0.95) |
 |---|---|---|
@@ -653,7 +653,7 @@ For sun positions at 06, 08, 10, 12, 14, 16, 18 h (azimuth from chapter 06's sol
 
 ### 12.5 Rival sites [T2] and start pose [T1]
 
-Rival count: `gentle` 2, `naturalist` 3, `harsh` 4, or the custom value (0-4). Species are drawn from the region roster (ecology section 3; the rival chapter owns the roster and maps each rival species to the nearest of the four suitability profiles with its own moisture window: e.g. a damp-lawn Myrmica-type uses the Lasius profile with ideal 0.45-0.75; a pavement Tetramorium-type uses the Lasius profile with `fCover` doubled under slabs; a large mound-building Formica-type is allowed only in `forest` and placed ≤ 400 BU from a map edge). Placement in order of roster weight: choose uniformly among the top 20 % suitability cells for that species that are ≥ `RIVAL_SPACING_BU = 600` from other rivals, ≥ `RIVAL_START_MIN_BU = 800` from the start, ≥ 200 BU from the edge (Formica-type excepted). Incipient same-species colonies (brood-raid targets, directions K; count owned by GDD 05 §5: `gentle` 1, `naturalist` 2, `harsh` 3; they do not count toward the 0-4 rival setting) are placed 300-800 BU from the start and ≥ `NEST_SITE_SPACING` 150 BU from any other nest (GDD 03 §15).
+Rival count: `gentle` 2, `naturalist` 3, `harsh` 4, or the custom value (0-4). Rival colonies are abstract (GDD 05 §3): established and incipient rivals together field at most GDD 05 `RIVAL_AGENT_BUDGET` = min(900, 2500 − playerAnts − 50) real agents, which keeps every map under directions K's 2500 simulated ants; this chapter only places their sites. Species are drawn from the region roster (GDD 05 §3 region rosters with the GDD 05 rival species ids, e.g. `myrmica-rubra`, `tetramorium-immigrans`, `formica-rufa`; the rival chapter owns the roster and maps each rival species to the nearest of the four suitability profiles with its own moisture window: e.g. a damp-lawn Myrmica-type uses the Lasius profile with ideal 0.45-0.75; a pavement Tetramorium-type uses the Lasius profile with `fCover` doubled under slabs; a large mound-building Formica-type is allowed only in `forest` and placed ≤ 400 BU from a map edge). Placement in order of roster weight: choose uniformly among the top 20 % suitability cells for that species that are ≥ `RIVAL_SPACING_BU = 600` from other rivals, ≥ `RIVAL_START_MIN_BU = 800` from the start, ≥ 200 BU from the edge (Formica-type excepted). Incipient same-species colonies (brood-raid targets, directions K; count owned by GDD 05 §5: `gentle` 1, `naturalist` 2, `harsh` 3; they do not count toward the 0-4 rival setting) are placed 300-800 BU from the start and ≥ `NEST_SITE_SPACING` 150 BU from any other nest (GDD 03 §15).
 
 Start pose (dealate queen on the surface): maximise `0.5 × (good sites within 250 BU, capped 4)/4 + 0.3 × shelter + 0.2 × (1 − exposure)` over outdoor, non-asphalt cells with flood risk ≤ 0.3, not itself a `good` cell (the player chooses), ≥ 300 BU from the map edge. The opening chapter may override pose and time; the generator guarantees the validation conditions for this pose.
 
@@ -666,7 +666,7 @@ Start pose (dealate queen on the surface): maximise `0.5 × (good sites within 2
 | Body (new ids) | Where | Geometry | Behaviour |
 |---|---|---|---|
 | `puddle` | `puddleCapMm > 0` cells (13.4) | flat surface at `groundY + puddleMm` clipped by terrain | depth and hazard: chapter 06 section 3.10 |
-| `bowl-water` | pet water bowl, sink film, saucers, toy bucket after rain | water plane inside a vessel built from primitives; level 0..`VESSEL_FILL_MAX` | refilled by `food-drop` `pet-feed` (15.5); saucers and buckets fill from rain and watering, evaporate per chapter 06 |
+| `bowl-water` | pet water bowl, sink film, saucers, toy bucket after rain | water plane inside a vessel built from primitives; level 0..`VESSEL_FILL_MAX` = 0.8 × the vessel's inner depth | refilled by `food-drop` `pet-feed` (15.5); saucers and buckets fill from rain and watering, evaporate per chapter 06 |
 | `gully-water` | gully pots | plane 200 mm below the grate | permanent; rises to 50 mm below the grate during `storm` |
 | `wet-patch` | water-butt overflow, outside tap, sink rim, fridge drip tray (p 0.2) | moisture source | `theta0` +0.3 within 500 mm (static modifier) |
 
@@ -829,7 +829,7 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | Id | Direction or dossier statement | Decision here | Reason |
 |---|---|---|---|
 | V1 | Ecology 6.3 calls climbable steel "slippery"; painted line "slightly slick" | Smooth dry metal, glass and ceramic keep grip 0.7-0.75 (climbable); slipperiness comes from wetness, grease, wax and loose sand | ant adhesive pads hold on smooth clean surfaces; keepers need fluon to stop them. Gameplay intent (some surfaces are hard) is kept via wet, greasy and waxy states |
-| V2 | Ecology 7.1 dossier weekly cadences under a "game week = 3 GD" rule | Frequencies kept (mowing 1 per 3 GD, vacuum 1 per 3 GD), but weekends follow chapter 06's 7-day week | one calendar for all chapters |
+| V2 | Ecology 7.1 dossier weekly cadences (the dossier's "game week = 3 GD" rule) | Frequencies kept as per-GD rates (mowing 1 per 3 GD, vacuum 1 per 3 GD); the only week is chapter 06's 7-GD weekday cycle (directions K), which decides weekends; no 3-GD week exists in code | one calendar for all chapters |
 | V3 | Ecology 7.1: real sprinkler run 15-30 min = 0.01-0.02 GD | sprinkler 30 s (0.05 GD), mowing ≤ 240 s, vacuum ≤ 180 s, play sessions 40-90 s, at physical motion speeds | the dossier allows stretching for readability; human motion must be real-speed at ant scale (two-clock model) |
 | V4 | Directions E: grass blades visual only | kept, plus a sim-side `sward` layer (cover, travel cost, bird visibility, mowable height) | ants in turf live in a sheltered layer; the effect must exist without colliding blades |
 | V5 | Real ants survive submersion for long periods | afloat ants drift and take the shared drowning rule (GDD 03 §11: 50 s grace, then 1 % max hp per s) | gameplay hazard, scaled gently and identical on the surface and in the nest |

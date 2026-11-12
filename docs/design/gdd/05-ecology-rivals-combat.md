@@ -17,6 +17,7 @@ Research: `research/ecology-habitats.md` (final, verified), `research/bio-lasius
 | **health** | Every ant and creature stores `hp` and `maxHp` in damage points (contracts guidance); `health` in this chapter means the fraction `hp / maxHp` (0..1; GDD 06 applies environment damage as fractions of `maxHp`). Combat: `hp -= dmg`. |
 | **plot** | 100 × 100 BU of map (10^4 BU²); a standard 4000 BU map has 1600 plots. Placement densities are per plot so entity counts do not depend on species. |
 | **RNG** | Streams `rng.ecology`, `rng.creatures`, `rng.rivals`, `rng.combat` (sub-streams of the state RNG, as GDD 06). |
+| **Day numbers** | Every "day n" / "days a-b" in this chapter is a default 28-day-year `doy` (1-based; day 1 = first day of spring, day 22 = first day of winter). Code compares them on the default-year day `doy28` / `d28` of `00-index.md` C1, so they scale with the configured season length (5, 7 or 10 days, directions K); "day 28" means the last day of the year and "day 21" the last day of autumn at any length. Durations in gd (renewal, decay, stage clocks) are not scaled. |
 
 Tier map: T1 = the static food needed by the T1 colony loop (flowers, crumbs, sugar, insect carcasses, solo carry and solo drag; cooperative drag is T2 as in GDD 01 and GDD 02 §11, consistency pass). **T1 protein (consistency pass, economy budget in `00-index.md` §C):** because live prey patches are T2, T1 drops `insect-small` and `insect-medium` carcasses at `T1_CARRION_MULT` = 4 × the base rates of 1.3 and places `crumb-protein` clusters (0.2 C / 0.6 P per crumb) with the T1 crumb rule (cap 60 clusters, 30 % of consumed clusters re-placed daily at 12:00), so that a T1 Lasius colony can grow past about 300 workers. **T1 honeydew (traceability G10):** aphid herds, tending and herd predators are T2 (§1.4); T1 instead places `T1_HONEYDEW_SITES` = 1 per 250 plots (6 on a Standard map, at least 2 within 600 BU of the start) static `honeydew-film` sites under host stems carrying the `aphid` host flag (GDD 04 §8), each drawn with a still, non-simulated aphid cluster decal. A static site has pool cap 0.5 load and refills at 1.0 C load per gd, has no herd entity, no decay and (T1 having no weather) no rain emptying; it adds at most about 6 C/gd map-wide, within the T1 carbohydrate band of `00-index.md` §C13. Its first delivery counts for `ms-first-honeydew` / `cx-honeydew` (GDD 06 §8, §10). At T2 the static sites are not placed; herd-fed films replace them. Everything else here is T2 (food ecology, creatures, rivals, combat, brood raids) unless tagged T3 (other species' rosters and specials, scale insects, phorid flies, myrmecophile rove beetles).
 
@@ -146,7 +147,7 @@ A herd is an abstract population on a host-plant segment (stem capsule chain or 
 
 **Moving aphids (T2):** `carry-aphid` (GDD 01) removes 1 aphid; `put-down` on a host-plant surface within 2 BU adds it to that plant's herd or founds a herd (A = 1) if the plant is unoccupied, day ≤ 17 and not mown. An aphid not placed within 300 s dies and becomes a `food-piece` (bulk 0.15, 0.02 C, 0.08 P). AI relocation: when A ≥ 0.9 K_eff and an unoccupied host lies within 150 BU inside the colony's claimed cells, tenders relocate 1 aphid per tender per 300 s, max 10 % of A per gd (biology: *L. niger* carries willow-aphid nymphs between plants, Lasius dossier 6).
 
-**Culling (T2):** `bite` on a herd takes 1 aphid as prey (2 s) → `food-piece` as above. AI tenders cull only when the colony's protein-deficit flag is set (colony chapter) and A ≥ 0.6 K_eff, up to 5 % A per gd. Naturalist note: honeydew is an incomplete diet and *Lasius* also preys on aphids (dossier 6, Offenberg 2001 as cited); the rule keeps culling rare.
+**Culling (T2):** primitive `cull-aphid` (the `bite` input aimed at a herd; action id `cull-aphid`, `00-index.md` B2) takes 1 aphid as prey (2 s) → `food-piece` as above. AI tenders cull only when the colony's protein-deficit flag is set (colony chapter) and A ≥ 0.6 K_eff, up to 5 % A per gd. Naturalist note: honeydew is an incomplete diet and *Lasius* also preys on aphids (dossier 6, Offenberg 2001 as cited); the rule keeps culling rare.
 
 **Disturbances:** mowing (human chapter) on a `lawn` host: A × 0.2, K_eff × 0.3 recovering linearly over 3 gd. Downpour or storm hour: A × 0.95. Host plant destroyed: herd removed, `herd-collapsed`.
 
@@ -371,7 +372,7 @@ Every 250 ticks (dt = 1/24 gd), active season only:
 | Virtual harvest | `max(0, min(cap, demand) − real deliveries of the last hour)`, drawn from real nodes inside its claimed cells, nearest first, split by diet; herds in claimed cells receive virtual tendedness `min(0.7, N/300)` and lose pool accordingly |
 | Store caps | `C_s ≤ 10 U`, `P_s ≤ 0.2 N + 20` |
 | Aggression | `agg = base × season (spring 1.2, summer 1.0, autumn 0.8) × (1.3 if C_s < U) × diff.rivalAggMult`, clamped 0..1 |
-| Winter (time-lapse) | `N × (1 − 0.08 − 0.10 × [C_s < 0.35 U])`; stores −5 % of summer upkeep × 7; B frozen |
+| Winter (time-lapse) | `N × (1 − 0.08 − 0.10 × [C_s < 0.35 U])`; stores −5 % of summer upkeep × `DAYS_PER_SEASON` (the winter's length in gd; 7 by default); B frozen |
 
 Strength for decisions: `S = N × CP × (0.5 + 0.5 agg)`; player colony `S = workers × CP_species × 0.75`.
 
@@ -488,15 +489,16 @@ Guidance formula for new species: `maxHp ≈ 10 m^(2/3)`, `bite ≈ m^(2/3) × h
 |---|---|---|---|---|---|---|---|
 | LN `worker` | 1.0 | 10 | 1.0 | 1.0 | 3.0 | 0 | spray |
 | LN nanitic (`worker`, scale 0.85) | 0.6 | 7 | 0.7 | 1.0 | 2.1 | 0 | spray |
-| LN `queen` founding | 20 | 40 | 2.0 | 1.2 | 8 | 0.2 | spray |
-| LN `queen` established | 33 | 50 | 2.0 | 1.4 | 9 | 0.3 | spray |
+| LN `queen` founding | 22 | 40 | 2.0 | 1.2 | 8 | 0.2 | spray |
+| LN `queen` established | 30 | 50 | 2.0 | 1.4 | 9 | 0.3 | spray |
 | LN `gyne` | 25 | 35 | 1.5 | 1.2 | 6 | 0.2 | spray |
 | LN `male` | 0.8 | 6 | 0.2 | 1.0 | 1.0 | 0 | none |
+| CP and MB nanitic `minor` (T3) | 1.2 / 1.3 | 11 / 12 | 1.1 / 1.2 | 1.0 | 3.4 / 3.6 | 0 | as the species |
 | CP `minor` / `media` / `major` (T3) | 2 / 7 / 16 | 16 / 37 / 63 | 1.6 / 3.7 / 9.5 | 1.0 / 1.0 / 1.2 | 4.8 / 11 / 19 | 0 / 0 / 0.1 | spray |
-| MB `minor` / `media` / `major` (T3) | 2 / 7 / 20 | 16 / 37 / 74 | 1.6 / 3.7 / 11 | 1.0 / 1.0 / 1.4 | 4.8 / 11 / 22 | 0.1 | sting (venom 0.8) |
-| AT `minor` / `media` / `major` (T3) | 0.9 / 5.3 / 40 | 9 / 30 / 117 | 0.7 / 3.0 / 23 | 1.0 / 1.0 / 1.4 | 2.8 / 9 / 35 | 0 / 0 / 0.25 | none (major bite) |
+| MB `minor` / `media` / `major` (T3) | 2 / 7 / 22 | 16 / 37 / 79 | 1.6 / 3.7 / 11.8 | 1.0 / 1.0 / 1.4 | 4.8 / 11 / 24 | 0.1 | sting (venom 0.8) |
+| AT `minor` (minim) / `media` `small-media` / `media` / `major` (T3) | 0.3 / 1.7 / 5 / 30 | 4.5 / 14 / 29 / 97 | 0.36 / 1.4 / 2.9 / 19.3 | 1.0 / 1.0 / 1.0 / 1.4 | 1.3 / 4.3 / 8.8 / 29 | 0 / 0 / 0 / 0.25 | none (major bite) |
 
-Bite cycle = `bite` strike 0.5 s (GDD 01) + cooldown; AI and player share it.
+Bite cycle = `bite` strike 0.5 s (GDD 01) + cooldown; AI and player share it. Masses are GDD 07's (species owner); worker-caste values are the guidance formula applied to them and equal the GDD 07 caste tables; T3 queens, gynes and males use the GDD 07 caste-table values (second consistency pass).
 
 ### 4.2 Bite, hit and damage
 
@@ -554,7 +556,7 @@ Each ant's `alarmLevel` decays with half-life 10 s. An ant whose `alarmLevel ≥
 | Injury roll | at fight end, survivors that lost ≥ 0.3 health in the fight roll: leg loss p 0.3 (speed ×0.85, climb ×0.75; cumulative cap ×0.7), antenna loss p 0.15 (perception ×0.6, trail-following noise ×2), gaster wound p 0.1 (special disabled) |
 | Recovery | health +0.25 per gd in the nest with crop C > 0; +0.1 per gd elsewhere; injuries are permanent |
 | Consequences | injured workers' remaining mean lifespan ×0.7; allocation bias toward `forage`/`guard` +0.2 (colony chapter) |
-| Death | corpse item: bulk = mass/2 mg (LN worker 0.5), P = 0.4 × mass mg (LN worker 0.4 P), species, colony; `necroCueTick` = death + 60 s (necrophoresis cue for nestmates, colony chapter); enemy corpses are protein for foragers; decay as 1.6 |
+| Death | corpse item: bulk = massMg / `REF_CARRY_MG` (2 mg per bulk unit; LN worker 1.0 mg → bulk 0.5), P = 0.4 × massMg loads (LN worker 0.4 P), species, colony; `necroCueTick` = death + 60 s (necrophoresis cue for nestmates, colony chapter); enemy corpses are protein for foragers; decay as 1.6 |
 | Possessed ant | death → GDD 01 3.7 |
 
 ### 4.8 What the possessed ant can do
@@ -620,7 +622,7 @@ Preset values; custom rules (GDD 08) override the matching rows.
 
 ---
 
-## 6. Ecosystem invariants (28-day year) and the threat director
+## 6. Ecosystem invariants (day numbers of the default 28-day year, scaled per §0) and the threat director
 
 **Threat director.** Major threats against the player colony: bird events, raids on the player nest, centipede nest invasions, *Formica* predatory raids, rival digging into the founding chamber. At most one active; a new one may start only `THREAT_MIN_QUIET_GD` after the last ended; a blocked raid is deferred to the next hourly check, a blocked bird or centipede event is cancelled.
 
@@ -629,7 +631,7 @@ Preset values; custom rules (GDD 08) override the matching rows.
 | I1 | Conservation and non-negativity | nutrients enter only from sources and cheats; all amounts, counts, densities ≥ 0 | any negative or NaN fails |
 | I2 | Prey never vanish | patch immigration `0.05 K` per gd | patch count ≥ 0.05 K by the end of any active day |
 | I3 | Herds recover each year | eggs + migrants (`MIGRANT_P`) | occupied host fraction ≥ 0.35 during days 7-14 |
-| I4 | Aphid predators track aphids | arrival ∝ A; caps per aphids | ladybirds ≤ 1 per 300 aphids + 1 |
+| I4 | Aphid predators track aphids | arrival ∝ A; caps per aphids | ladybirds ≤ min(8, floor(aphids on map / 300)) (cap of §2.2) |
 | I5 | Ant predators bounded | resident caps | per-kind count ≤ cap × setting; total creatures ≤ 260 |
 | I6 | Rivals bounded | K_eff, store caps, founding rule | 0 < established ≤ setting (when setting > 0, after the first flight window); N ≤ K_max × rivalKMult |
 | I7 | Agent budget | `RIVAL_AGENT_BUDGET` | player + rival ants ≤ 2500 at every tick |
@@ -638,7 +640,7 @@ Preset values; custom rules (GDD 08) override the matching rows.
 | I10 | Determinism | named RNG streams; no wall-clock | identical state hash for identical seed + commands |
 | I11 | Quiet share (seed pillar 6, brief §5) | Measured over daytime game hours (day phase not `night`) in any trailing window of `QUIET_WINDOW_GD` = 3 GD, excluding hours in colony stage `founding` or season `winter`. An hour is *quiet* when no major threat (above) is active at any time in it and no player-colony alert of level `warning` or `critical` is active for 25 % of the hour or more. Quiet hours / counted hours ≥ `QUIET_SHARE_MIN` (Naturalist 0.60; Gentle 0.75; Harsh 0.40). Mechanism: the threat director keeps the trailing share; while it is below `QUIET_SHARE_MIN + 0.05`, a new major threat is handled as if `THREAT_MIN_QUIET_GD` had not elapsed (raid deferred, bird or centipede event cancelled). Colony-caused warnings (food, crowding, heat) are never suppressed; if the soak fails, tune `THREAT_MIN_QUIET_GD`, raid cooldowns and human-event frequency (GDD 04 §15), not alert thresholds | soak check E25: share ≥ target in every window of every seed |
 
-Expected naturalist bands for a 28-day soak (balance targets, not hard asserts): map aphids at peak (days 8-11) 1500-9000; carrion drops 20-60 per active gd; rival N stays within 0.5-1.6 × N0 when the player does not interfere.
+Expected naturalist bands for a one-year soak (`DAYS_PER_YEAR` gd, 28 at default length) (balance targets, not hard asserts): map aphids at peak (days 8-11) 1500-9000; carrion drops 20-60 per active gd; rival N stays within 0.5-1.6 × N0 when the player does not interfere.
 
 ---
 
@@ -689,7 +691,7 @@ Expected naturalist bands for a 28-day soak (balance targets, not hard asserts):
 | `danger` | `Float32Array(w*h)` | player colony danger grid |
 | `threatDirector` | `{activeKind \| null, activeSinceTick, lastEndTick}` | pacing |
 | Ant combat fields (on ants) | `{health, maxHp (species data), injuries: bitflags, acid, acidRegenTick, specialCdTick, biteCdTick, dodgeCdTick, dodgeUntilTick, lock: {targetId, targetType, slot} \| null, heldBy: number[], pinned, seizedBy, escape, paralysedUntilTick, stuckSinceTick, alarmLevel, disorientedUntilTick, fightDamage, recentHitters: {id, tick}[]}` | combat state |
-| Colony fields | `toxinPool`, `stance` | bait, stance |
+| Colony fields | `stores.toxin` ("toxin pool" in the text; `00-index.md` D1.17), `directives.stance` | bait, stance |
 
 ## Appendix B — Commands
 
@@ -753,7 +755,7 @@ Alert triggers owned here (kinds from GDD 08): `predator-near` (an ant predator 
 | `diag-threats` | deaths per cause last gd | per predator kind, birds, antlion pits, drowning, toxin; danger hotspots | avoid markers, keep foragers in groups, reroute trails, block entrances |
 | `diag-rivals` | per rival: relation, R, contested cells, last raid, raid risk (R ≥ 2 and knows nest) | territory overlap, rival strength growth, our losses | stance, defend rally at entrances, raid an orphaned/weak rival, expand territory elsewhere |
 | `diag-combat-losses` | workers lost in fights last gd; injured share | outnumbered fights, fights outside territory, few guards | stance `cautious`, rally `defend` |
-| `diag-toxin` | `toxinPool`, deaths per gd | bait station id and distance | avoid marker on the station |
+| `diag-toxin` | `stores.toxin`, deaths per gd | bait station id and distance | avoid marker on the station |
 
 Inspect cards: creature (kind, state word and reason, e.g. "stalking: lone ant nearby"), herd, source (amount, stage, quality, slots in use), rival nest (species, estimated N band: tens / hundreds / thousands, relation).
 
@@ -774,7 +776,7 @@ Inspect cards: creature (kind, state word and reason, e.g. "stalking: lone ant n
 13. **Struggle.** Given a possessed LN worker seized by a `rove-beetle` (hold 1.5/s) at full health, when the player provides 4 struggle inputs per second, then it is freed after 3.7 s ± 0.2 s with health 0.15 ± 0.03 (grab 3 + 5.6 hold damage); with 2 nestmates biting the beetle, the beetle releases the worker as soon as both have hit (secretion, then flee).
 14. **Antlion pit.** Given an AI worker placed on an antlion pit slope, then its upslope speed is ×0.4 and the antlion flicks every 0.8 s; once grabbed with no help it dies (drag 1.5/s, AI struggle 2 inputs/s) within 6.7 s ± 0.3 s; nestmates who witnessed it mark the pit as known and no nestmate path enters `radius + 1 L` afterwards.
 15. **Bird event.** Given 20 exposed player workers within 25 BU of the mound by day and Predators Normal, when `cheat.triggerBird {variant: 'thrush'}` fires, then `bird-approach` precedes `bird-landed` by 3.0 s, pecks occur every 1.5 s, kills ≤ 12, and workers under overhead cover are never targeted.
-16. **Bait toxicity.** Given a player colony with `toxinPool` 0 and 2.0 loads of bait delivered at once, when 1 gd elapses, then 3 or 4 adult worker deaths have cause `poison`, `toxinPool` = 1.10 ± 0.02, and `diag-toxin` names the station.
+16. **Bait toxicity.** Given a player colony with `stores.toxin` 0 and 2.0 loads of bait delivered at once, when 1 gd elapses, then 3 or 4 adult worker deaths have cause `poison`, `toxinPool` = 1.10 ± 0.02, and `diag-toxin` names the station.
 17. **Territory decay and claim.** Given a cell with player marks 100 and no deposits or rain, when 2 gd elapse, then marks = 50 ± 0.5; a cell with rival 30 and player 25 is contested (ratio < 1.5), with rival 40 and player 25 it is claimed by the rival.
 18. **Escalation to war and truce.** Given two established colonies with N ≥ 50 in summer and `cheat.setRelation {E: 31}`, then within one hourly update the state is `war`; given no further contact, then the state becomes `truce` when E < 15 (about 1.05 gd later) and `tension` or `skirmish` 1 gd after that.
 19. **Orphan decline and destruction.** Given a rival with N = 100, B = 0, ample stores and `cheat.killQueen`, then births stop, N = 83.5 ± 1 after 1 gd (hourly steps of 0.18/24), and `rival-destroyed` fires when N < 5; its territory cells drop below `CLAIM_MIN` within 2 gd once no deposits remain.
@@ -787,8 +789,8 @@ Inspect cards: creature (kind, state word and reason, e.g. "stalking: lone ant n
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **GDD 01 (controls, primitives):** adds primitive `dodge` (tap `hurry` < 200 ms + direction; gamepad LS-click tap) and a cull variant of `bite` on herds; `harvest-liquid` multiplies its rate by the source's `drinkRateMult`; `bite` cycle is 1.0 s for AI and player; struggle inputs are the inputs listed in 2.4; `spray-acid`, `release-alarm`, `drag`, `tear`, `tend-aphid`, `carry-aphid` values are taken as GDD 01 states them.
-2. **Colony / economy chapter:** stores hold `toxinPool`; deliveries carry `toxin` and `water`; the protein-deficit flag exists; corpses with `necroCueTick` are hauled to the midden; injured-worker allocation bias; `θ_fight` thresholds per task are part of the response-threshold model; queen death and orphaning follow GDD 06.
+1. **GDD 01 (controls, primitives):** adds primitive `dodge` (tap `hurry` < 200 ms + direction; gamepad LS-click tap) and `cull-aphid` (the `bite` input on a herd); `harvest-liquid` multiplies its rate by the source's `drinkRateMult`; `bite` cycle is 1.0 s for AI and player; struggle inputs are the inputs listed in 2.4; `spray-acid`, `release-alarm`, `drag`, `tear`, `tend-aphid`, `carry-aphid` values are taken as GDD 01 states them.
+2. **Colony / economy chapter:** stores hold the toxin pool as `stores.toxin` (GDD 02 §5); deliveries carry `toxin` and `water`; the protein-deficit flag exists; corpses with `necroCueTick` are hauled to the midden; injured-worker allocation bias; `θ_fight` thresholds per task are part of the response-threshold model; queen death and orphaning follow GDD 06.
 3. **Foraging chapter:** uses `quality`, `odour radius`, `slots`, the exhausted/unreachable flags, the danger-grid cost multiplier and scouting bias away from own claimed territory cells; recruitment to carcasses uses the item recruitment odour.
 4. **Pheromone (GDD 02 §8):** `alarm` channel with a half-life of 15 s at 22 °C (GDD 02 owns) and deposit strengths as listed; optional per-colony layers for rival `trail`/`home` used only for display; the territory grid here is separate from the player's `home` channel.
 5. **Locomotion / nav:** walkers expose a collision radius so that a 0.25 BU-radius thief tunnel blocks non-fugax ants; antlion pit slopes report "loose sand" with a downslope slip; liquid interiors of spills are non-walkable; nav grid supports cost multipliers per 16 BU cell.

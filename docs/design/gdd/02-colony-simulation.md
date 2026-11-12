@@ -25,7 +25,7 @@ Tier tags: **[T1]** core, **[T2]** full sandbox, **[T3]** breadth. A row without
 | Cooperative transport (AI rules) | `src/sim/ants/behaviours/transport.ts` | T2 (solo carry T1) |
 | Colony statistics and colony diagnostics | `src/sim/progression/colonyStats.ts`, `colonyDiagnostics.ts` | stats T1, diagnostics T2 |
 
-Not owned here (consumed through their interfaces): surface walker, cruise/sprint speed and load factor (locomotion); `Tb`, `speedMult(Tb)`, heat/cold load, chill coma, `forageGate`, `surfaceActivity`, rain washing of pheromones (chapter 06); carve grid, chambers and their climate, dig plans, pellet caches, mound, midden site, flooding (nest chapter); food sources, aphid herds, prey (ecology chapter); fights (combat chapter); alates, nuptial flight, queen death and orphaning, overwinter aggregate, opening script and time-lapse (chapter 06); possession and action primitives (chapter 01).
+Not owned here (consumed through their interfaces): surface walker (GDD 01 §4, grip and slopes GDD 04 §3, nest walking GDD 03 §5), species cruise/sprint speeds and `loadSpeedMult` (GDD 07 caste tables; Lasius = directions K and GDD 01 `LOAD_SPEED_MULT`) — there is no separate locomotion chapter (`00-index.md` A2), and the AI speed composition is this chapter's §1.6; `Tb`, `speedMult(Tb)`, heat/cold load, chill coma, `forageGate`, `surfaceActivity`, rain washing of pheromones (chapter 06); carve grid, chambers and their climate, dig plans, pellet caches, mound, midden site, flooding (nest chapter); food sources, aphid herds, prey (ecology chapter); fights (combat chapter); alates, nuptial flight, queen death and orphaning, overwinter aggregate, opening script and time-lapse (chapter 06); possession and action primitives (chapter 01).
 
 ### 0.2 Conventions
 
@@ -171,7 +171,7 @@ Starvation timeline of an isolated worker (no food): crop C empties first, then 
 
 ### 1.6 Speed
 
-AI speed = `CRUISE (S, 6 BU/s, locomotion)` × `speedMult(Tb)` (chapter 06) × load factor (locomotion) × health factor (1.5) × `CALLOW_SPEED 0.6` if callow × `ROUTE_SYNERGY 1.10` when walking a learned route that also carries trail ≥ `TRAIL_DETECT`. Run (flee, alarm approach) = `RUN_SPEED 12 BU/s` × the same factors. Queen established: × `QUEEN_SPEED 0.5`.
+AI speed = `CRUISE (S, 6 BU/s for Lasius, directions K; species value GDD 07)` × `speedMult(Tb)` (chapter 06) × load factor (species `loadSpeedMult` when carrying, Lasius 0.85) × health factor (1.5) × `CALLOW_SPEED 0.6` if callow × `ROUTE_SYNERGY 1.10` when walking a learned route that also carries trail ≥ `TRAIL_DETECT`. Run (flee, alarm approach) = `RUN_SPEED 12 BU/s` (= the caste's `sprintBuS`, GDD 07) × the same factors. Queen established: × `QUEEN_SPEED 0.5`.
 
 ### 1.7 Fatigue and rest
 
@@ -193,7 +193,7 @@ Result: an active ant rests about 2.5 min per 15 min of work (~15 % of time), pl
 |---|---|---|
 | `id`, `colonyId` | int | |
 | `stage` | `egg` / `larva` / `pupa` | canonical |
-| `destined` | `worker` / `gyne` / `male` | set at laying (2.6) |
+| `destined` | `worker` / `gyne` / `male` at laying (2.6); polymorphic species (T3): a `worker` larva is re-destined to `minor` / `media` / `major` with `destinedLengthBu` at larva start (GDD 07 §2.6), so the type is a `Caste` other than `queen` | set at laying (2.6) |
 | `flags` | `nanitic`, `minim`, `diapause`, `firstBrood`, `ready` (pupa awaiting eclosion help) | |
 | `progress` | float DU | development in current stage |
 | `gut` | `{C, P}` loads | larva only; cap `LARVA_GUT_CAP` |
@@ -222,7 +222,7 @@ Formula: `r = (T − 10)/11` for 10 < T ≤ 30; 1.818 for 30-32; linear to 0 at 
 | `pupa` | `PUPA_DU` 1.9 | 1.90 gd | 1.39 gd | none (cocoon) | `S_PUPA` 0.95 |
 | Egg to adult | 3.9 | 3.9 gd | 2.86 gd | | 0.727 (dossier: ~0.7 well cared) |
 
-Base mortality is applied as a hazard per DU of progress: `h_stage = −ln(S_stage) / stage_DU` (egg 0.0753, larva 0.271, pupa 0.0270 per DU), so base survival is temperature independent. Extra hazards (2.5) are per gd.
+Base mortality is applied as a hazard per DU of progress: `h_stage = −ln(S_stage) / stage_DU` (egg 0.0753, larva 0.271, pupa 0.0270 per DU), so base survival is temperature independent; a brood death from this base hazard records cause `base`. Extra hazards (2.5) are per gd.
 
 Multipliers by destined caste and flag:
 
@@ -380,6 +380,7 @@ The colony holds `stores = {C, P, toxin}` in loads: the abstract social stomach 
 | Capacity | `pileC + pileP ≤ pileCap`, where `pileC = max(0, C − (2 + 0.8 N))`, `pileP = max(0, P − 0.15 N)` | |
 | `P_SPOIL_HALF_LIFE` | 3 gd at 20 C, × `2^((20 − T)/10)` | applies to `pileP` only (prey does not keep) |
 | `C_SPOIL_HALF_LIFE` | 10 gd at 20 C, same T rule | applies to `pileC` only |
+| `SPOIL_OVERFLOW_MULT` / `SPOIL_SUBMERGED_MULT` | 1.5 / 2.0 | spoilage rate multipliers (half-life ÷ the factor): loads above the food capacity lying in general space or tunnels (GDD 03 §10) × 1.5; food items or piles under water (GDD 03 §11) × 2.0; they multiply |
 | Spoiled food | every 0.5 load spoiled spawns one `spoiled-food` waste item in that chamber | |
 
 `daysC = C / needRateC`, `daysP = P / needRateP` (5.5). Display: "Carbohydrate 31 / 50 (2.8 days)".
@@ -642,7 +643,7 @@ Equilibrium check: one returning forager per 150 s on a trail lays 2.67 dabs × 
 | Event (GDD 04 §15 supplies the footprint) | Effect on cells in the footprint |
 |---|---|
 | all human events | the `trail` / `home` multipliers of GDD 04 §15.4 (owner; e.g. footsteps × 0.3 / × 0.7, mowing × 0.5 / × 0.8, broom × 0.3 / × 0.6, wipe × 0.05 / × 0.3, vacuum × 0 / × 0); `alarm` takes the `trail` multiplier |
-| `watering` | GDD 04 §15.4 multipliers during the event, then treated as `rain` of the matching class (chapter 06) |
+| `watering` | GDD 04 §15.4 multipliers during the event, then washed as `rain` of the class matching the local GDD 04 rate (GDD 06 §3.3, §3.7: < 3 mm/h drizzle, 3-12 shower, ≥ 12 downpour; sprinkler 15, hose 40 and can 80 mm/h therefore wash as downpour, `WASH_K` 0.040, inside the wetted area only) |
 
 ---
 
@@ -890,6 +891,8 @@ The player issues colony orders "through the queen": possessing or selecting her
 | (architect) | — | not a directive: the nest architect mode is set with GDD 03 `setAutoExpand {nestId, mode}` (consistency pass) |
 | `stockTarget` (new) [T2] | `low` / `normal` / `high` | `targetDays` × 0.5 / 1 / 2 (5.5) — raises forage demand while stocks are below target (prepare for winter) |
 | `stayIn` (new) [T2] | boolean | foraging curfew (6.6): no departures; ants outside return; scouts included. Auto-clears after 1 gd. |
+| `taskShares` [T3] | per group, in-group sub-shares of the species' `directiveTasks` (GDD 07 §3.14), sum 100 within the group | splits a group's 6.3 target among its tasks; the four group sliders stay the only allocation targets |
+| Owned elsewhere (same command, read by this chapter) | `sealInCold` (GDD 03 §4.2), `stance` (GDD 05 §4.9), `casteEmphasis` and species extras `granaryHygiene`, `leafSelectivity`, `satelliteAuto`, `hideFrass`, `hitchhikerEscort`, `externalHeap` (GDD 07), `gyneShare`, `alatePolicy` (GDD 06 §11.3) | the full key list is `00-index.md` D2.16; `stayInUntil` is the derived expiry of `stayIn` |
 
 ### 12.2 Marker semantics (placement validity is the UI/nest chapters')
 
@@ -897,7 +900,7 @@ The player issues colony orders "through the queen": possessing or selecting her
 |---|---|---|
 | `forage` (centre, radius 10-80 BU, default 30) | 50 % of departing scouts take it as first waypoint; known sources inside score × 1.5; foragers with no lead, route or news go to the marker and run `forage.search` (30 s) | max 4 active; persistent until removed |
 | `avoid` (centre, radius 10-80 BU) | autonomous ants (not `controlled`) never plan through it (planner cost × 20; impassable if an alternative ≤ 3 × length exists); steering repulsion within radius + 4 BU; trail inside followed at weight × 0.1; sources inside score 0; ants inside at placement leave by the shortest exit; inside the nest: chamber gets sort score 0 (brood moved out) and no rest/storage | max 8; an ant whose only way home crosses it may cross |
-| `rally` [T2] (point, radius 8-32 BU, default 15; `mode` `defend` or `attack`, GDD 05 §3.7) | defend group plus up to `RALLY_MAX_FRACTION` 25 % of idle/forage-waiting non-callow workers go there, hold within 8 BU, engage non-nestmates within the radius; they lay trail on the way (recruitment). Mode `attack` follows GDD 05 §3.7 (raid on a known entrance within 30 BU) | 1 active; expires after 1 gd |
+| `rally` [T2] (point, radius 8-32 BU, default 15; `mode` `defend` or `attack`, GDD 05 §4.9) | defend group plus up to `RALLY_MAX_FRACTION` 25 % of idle/forage-waiting non-callow workers go there, hold within 8 BU, engage non-nestmates within the radius; they lay trail on the way (recruitment). Mode `attack` follows GDD 05 §3.7 (raid on a known entrance within 30 BU) | 1 active; expires after 1 gd |
 | `move-brood` (source chamber → target chamber) | all brood in the source gets `move` jobs (priority 4) to the target; sorting for those items locked to the target for `MOVE_BROOD_LOCK_GD` 1 gd | target must be brood-capable; if target becomes invalid, lock ends |
 | `move-queen` (target chamber) | queen → `queen.relocate` with escort; eggs follow via queen-care | target must be reachable with ≥ 2 BU clearance |
 | `dig`, `entrance` | nest chapter (dig plans) | |

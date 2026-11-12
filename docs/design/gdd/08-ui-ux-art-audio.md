@@ -269,7 +269,7 @@ Layout: full-screen; centre-left a field plate (a still render or line sketch of
 | Terrain and cavity meshes | 15 |
 | Textures, shaders, audio beds | 10 |
 
-Failure handling: when validation fails and the generator retries, the label reads "Regenerating locality (attempt 2 of 5)" and the bar returns to the start of "Zone layout". If generation ultimately fails: message "This locality could not be completed." with buttons Try another seed (increments seed by 1) and Back. WebGL2 unavailable or context lost during load: "Your browser could not start 3D graphics." with a Try again button and a Settings > Graphics > Low shortcut. Cancel aborts generation and returns to `new-game` with all fields preserved.
+Failure handling: when validation fails and the generator retries, the label reads "Regenerating locality (attempt {n} of {max})", max = GDD 04 `WORLDGEN_MAX_ATTEMPTS` 8 (e.g. "attempt 2 of 8") and the bar returns to the start of "Zone layout". If generation ultimately fails: message "This locality could not be completed." with buttons Try another seed (increments seed by 1) and Back. WebGL2 unavailable or context lost during load: "Your browser could not start 3D graphics." with a Try again button and a Settings > Graphics > Low shortcut. Cancel aborts generation and returns to `new-game` with all fields preserved.
 
 ### 3.7 New Game setup (`new-game`, T1; parts T2/T3)
 
@@ -324,6 +324,8 @@ Panel title: "Colony orders" (screen id stays `directives`). Hovering or focusin
 | Workforce | LinkedSliderGroup with 4 groups: Forage (`scout`, `forage`, `tend`, `cut`), Nurse (`nurse`, `queen-care`, `store`, `garden`, `mill`), Dig (`dig`, `haul`), Defend (`guard`, `patrol`). A species' `directiveTasks` (GDD 07 §3.14) appear as sub-share sliders inside their group (`setDirectives.taskShares`). `raid` (GDD 05) is never allocated by sliders. Each slider 0-100 % in steps of 5; sum fixed at 100 %. "Auto" toggle per colony (default on) lets the colony set targets from need; touching any slider turns Auto off. | Per group: target % (thumb), actual % (a thin tick under the track, from per-task headcounts), headcount. |
 | Brood production | Segmented: Workers only / Balanced / Raise alates = `setDirectives.alateInvestment` 0 / 0.5 / 1.0 (GDD 06 §11.3; a fine slider 0-100 % under "More"), plus `alatePolicy` (auto-release / ask / hold) and, T3, `gyneShare`. Disabled with reason until the colony qualifies ("Alates need a mature colony in the right season"). Polymorphic species (T3): `casteEmphasis` slider −1..+1 (GDD 07 §2.6). | Current brood by destined caste. |
 | Diet emphasis | Slider C <-> P (-100..+100, default 0 = colony decides). Auto toggle. | Current stores and 1-game-day intake of C and P; protein demand from larvae. |
+| Stores and safety (T2) | Stock target Low / Normal / High (`setDirectives.stockTarget`, GDD 02 §12.1); "Keep foragers in" toggle (`stayIn`, auto-clears after 1 game day, GDD 02 §6.6); Stance Cautious / Defensive / Aggressive (`stance`, default Defensive, GDD 05 §4.9). | Days of C and P in store vs target; time left on the curfew; current relation states with neighbours. |
+| Species (T3) | The species' extra directives (`granaryHygiene`, `leafSelectivity`, `satelliteAuto`, `hideFrass`, `hitchhikerEscort`, `externalHeap`; GDD 07) as sliders or toggles. | Module state (granary, garden, satellites). |
 | Nest | Nest architect: Auto / Suggest (T2) / Off (default Auto), sent as GDD 03 `setAutoExpand {nestId, mode}`. Seal entrances in cold weather (T2, GDD 03 §4.2 winter auto-seal): On / Off, sent as `setDirectives.sealInCold`. | Number of open architect plans. |
 
 LinkedSliderGroup rule: when one slider moves by d, the unlocked others change in proportion to their current values so the sum stays 100 %; a slider can be locked (padlock IconButton) to exclude it; if all others are locked the moved slider cannot change. Each committed change (pointer up, or 300 ms after the last key step) sends one `setDirectives` command; directives apply at the next tick even while paused.
@@ -338,7 +340,7 @@ Layout at 1280 x 720:
 
 | Region | Box (dp) | Content |
 |---|---|---|
-| Marker palette | 360, 16, 560, 48 | 7 tool buttons in this order: `dig`, `forage`, `avoid`, `rally`, `entrance`, `move-brood`, `move-queen`, then Select (pointer). Shift+1..7 select tools. Each shows its icon, name on hover, and a count `3/8` of active markers versus the cap. |
+| Marker palette | 360, 16, 560, 48 | 7 tool buttons in this order: `dig`, `forage`, `avoid`, `rally`, `entrance`, `move-brood`, `move-queen`, then Select (pointer); Camponotus (T3) adds an eighth tool `satellite` (GDD 07, `MARKER_CAP.satellite` 1) after `move-queen`. Shift+1..7 (Shift+8 for `satellite`) select tools. Each shows its icon, name on hover, and a count `3/8` of active markers versus the cap. |
 | Overlay toggles | 16, 120, 48, 5 x 48 | Scent, Temperature, Moisture, Threats, Dig plans. |
 | Cutaway control | 1216, 160, 48, 400 (moves to x 816 when a drawer is open) | Vertical slider from Surface (0) to the deepest carved point of the player's nests + 4 BU, step 1 BU; mode switch Off / Slice / X-ray (GDD 01 `cv-cutaway-mode`, G). R / F (GDD 01 `cv-slice-up` / `-down`) and, as secondary bindings, PageUp/PageDown or [ and ] move it. |
 | Tool options | 360, 72, 560, 40 (appears under the palette) | Context options of the active tool (below). |
@@ -353,7 +355,7 @@ Tools:
 | Tool | Placement | Options | Cancel / edit |
 |---|---|---|---|
 | `forage`, `avoid` | Click on any surface point; drag to set radius (10-80 BU, default 30; GDD 02 §12.2). | Radius; priority (normal / high) for forage. | Select tool + Delete; Ctrl+Z undoes the last placement or removal (stack of 10). |
-| `rally` | Click surface or cavity point; radius 8-32 BU (default 15). | Mode: "Defend" / "Attack" (GDD 05 §3.7 `params.mode` `defend` / `attack`). | Same. |
+| `rally` | Click surface or cavity point; radius 8-32 BU (default 15). | Mode: "Defend" / "Attack" (GDD 05 §4.9 `params.mode` `defend` / `attack`). | Same. |
 | `entrance` | Click a surface point above an existing tunnel or chamber within 12 BU; shows a ghost shaft from surface to the nearest cavity; red ghost with reason if invalid ("Concrete cannot be dug", "Too far from the nest"). | — | Same. |
 | `move-brood`, `move-queen` | Click a registered chamber in cutaway. Invalid targets show the reason ("Flooded", "Not connected"). | — | Same; only one active marker of each. |
 | `dig` (dig planner) | 1 choose a template: Chamber (type: `nursery`, `food`, `rest`, `general`, `midden`, plus `granary` / `fungus` when the species has the module), Tunnel, Shaft (to surface), Entrance. 2 hover an existing cavity wall in cutaway: a ghost of the template appears anchored on the wall with its outward normal. 3 Q/E rotate the ghost about the wall normal in 15° steps (in this tool Q/E do not rotate the camera); wheel+Shift changes size (Small / Medium / Large = GDD 03 sizes `s` / `m` / `l`, read from the species template: Lasius long axis 8 / 12 / 16 BU); Tunnel: click start, click end, ghost follows a straight or 1-bend path. 4 click to place. | Template, size, priority (normal / high). | Plans are listed in the dig-plans overlay legend with status; select + Delete cancels (`cancelPlan`). |
@@ -372,7 +374,7 @@ Dig plan states shown in the UI (data from `Nest.digPlans[].status`):
 | paused | Dashed grey outline, pause glyph | Player pauses the plan (`pausePlan`) | `resumePlan` -> queued |
 | cancelled | Outline fades out | `cancelPlan` | Removed from overlay |
 
-Marker caps are owned by the markers chapter; the UI reads them from balance (`MARKER_CAP[kind]`) and shows `n/cap`; at cap, placement shows "Limit reached (8). Remove a marker first."
+Marker caps are owned by the markers chapter; the UI reads them from balance (`MARKER_CAP[kind]`) and shows `n/cap`; at cap, placement shows "Limit reached ({cap}). Remove a marker first." (e.g. 8 for `dig`, GDD 02 §12.2)
 
 ### 4.4 Colony health — the "why" view (`colony-health`, key Y, T2)
 
@@ -565,7 +567,7 @@ Kinds are canonical ids added by this chapter; the trigger conditions and hyster
 | `heat-danger` | warning | "Surface too hot to cross" / "asphalt 52 °C" | area | environment |
 | `possessed-danger` | critical | "Overheating" / "find shade — body 39 °C" (or "drowning", "pinned") | possessed ant | possession |
 | `possessed-died` | warning | "Worker 0412 died" / cause; camera returns to observer | corpse | possession |
-| `winter-coming` | notice | "Winter approaches" / "stores cover 6 of 7 days" | food chamber | environment |
+| `winter-coming` | notice | "Winter approaches" / "stores cover {x} of {winterDays} days" (`winterDays` = `DAYS_PER_SEASON`; e.g. "6 of 7 days" at the default length) | food chamber | environment |
 | `alates-ready` | notice | "Winged queens and males are ready" / count | nest | reproduction |
 | `flight-weather` | notice | "Flying weather" / "warm, light wind" | entrance | reproduction |
 | `milestone` | info | "<milestone title>" / date | varies | progression |
@@ -595,7 +597,7 @@ Centred 1120 x 640 dp (max 92 % of viewport), `--e-2`, vertical tab rail 200 dp 
 |---|---|
 | Aims | "Current focus": up to 3 open aims (9.2), each with a one-line hint and an "Open codex" link; below, completed aims with dates. |
 | Milestones | Horizontal timeline, one tick per game day, season bands shaded by season (with season glyphs, not colour alone); milestone pins with title; click a pin -> detail card with date, short description, optional thumbnail (captured automatically at the moment, 256 x 144 JPEG data URL, stored in the save; `MILESTONE_THUMBS_MAX = 40`). |
-| Graphs | Chart page with a series picker: population by caste (stacked area), brood by stage (stacked area), stores C and P (lines), intake C and P per game day (lines), deaths by cause (stacked bars per day), nest volume (line), nest temperature vs surface (lines). Ranges: last 3 days / last 28 days (year) / all. |
+| Graphs | Chart page with a series picker: population by caste (stacked area), brood by stage (stacked area), stores C and P (lines), intake C and P per game day (lines), deaths by cause (stacked bars per day), nest volume (line), nest temperature vs surface (lines). Ranges: last 3 days / last year (`DAYS_PER_YEAR` days, 28 by default) / all. |
 | Event log | Rolling list of the last `EVENT_LOG_MAX = 200` entries (alerts of every level, milestones, possessions, deaths of named-role ants such as the queen); each row: time, level shape, text, `jump-to`. |
 
 Graph rules: x axis in game days with season bands; y axis with units; series colours from the Okabe-Ito set (10.1) plus distinct dash patterns per series; hovering shows a vertical cursor and a value table; keyboard: arrow keys move the cursor by one sample. Data from the progression chapter's statistics time series (assumed hourly samples for the last 7 game days, daily samples for all time).
@@ -685,7 +687,7 @@ Tree of colonies (TreeView, root at left). Node card (240 x 72 dp): species icon
 ### 7.8 Epitaph (`epitaph`, T2)
 
 Entry: the sim reports no living ants of the player's colony (game over). The view fades to the last camera position held for 3 real s, then the epitaph page fades in (`--m-slow`).
-Layout: full screen, centred column 720 dp. Heading (`--t-display`): binomial in italic. Lines: "<Archetype>, seed 4F7A-21C9"; "Founded Summer · Day 1 · Year 1 — ended Winter · Day 4 · Year 3"; a population-over-life chart (720 x 160, stacked area by caste, season bands); key figures row (peak population, ants reared, food gathered C and P, chambers dug, daughters founded); milestones list with dates; "How it ended": the final cause chain from the progression chapter, rendered as 2-4 indented lines (e.g. "The queen died, aged 2 years 31 days — wolf spider, royal chamber. / No eggs followed. / The last workers died of cold in winter."). Buttons: Lineage, New colony, Title. The record is added to the lineage automatically; the last autosave is kept so the player can still load an earlier state.
+Layout: full screen, centred column 720 dp. Heading (`--t-display`): binomial in italic. Lines: "<Archetype>, seed 4F7A-21C9"; "Founded Summer · Day 3 · Year 1 — ended Winter · Day 4 · Year 3" (Lasius natural founding day, GDD 06 §1.6); a population-over-life chart (720 x 160, stacked area by caste, season bands); key figures row (peak population, ants reared, food gathered C and P, chambers dug, daughters founded); milestones list with dates; "How it ended": the final cause chain from the progression chapter, rendered as 2-4 indented lines (e.g. "The queen died, aged 2 years 31 days — wolf spider, royal chamber. / No eggs followed. / The last workers died of cold in winter."). Buttons: Lineage, New colony, Title. The record is added to the lineage automatically; the last autosave is kept so the player can still load an earlier state.
 Queen death alone does not show the epitaph; it raises `queen-died` and the pulse shows "Orphaned".
 
 ### 7.9 Photo mode (`photo`, key F2, T2)
@@ -711,19 +713,19 @@ Controls panel: 280 dp wide on the left, collapsible with Tab; hidden automatica
 
 ### 7.10 Time-lapse overlays (`timelapse-founding`, `timelapse-winter`, T2)
 
-Both read `PlayerState.timelapse` (`{ kind, startTick, endTick, progress 0..1, stage, counters, interrupt }`, written by GDD 06's opening and overwinter systems) and send `skipTimelapse` / `timelapseRespond {interruptId, response: 'step-in'}` commands. Camera: a slow orbit (0.02 rev per real s) around the founding chamber or the main overwintering chamber in X-ray cutaway; with reduced motion the camera is static and the view crossfades between stills every 3 real s.
+Both read `PlayerState.timelapse` (`{ kind, startTick, endTick, progress 0..1, stage, counters, interrupt }`, written by GDD 06's opening and overwinter systems) and send `skipTimelapse` / `timelapseRespond {interruptId, response: 'step-in' | 'let-it-play'}` commands. Camera: a slow orbit (0.02 rev per real s) around the founding chamber or the main overwintering chamber in X-ray cutaway; with reduced motion the camera is static and the view crossfades between stills every 3 real s.
 
 | Element | Founding | Winter |
 |---|---|---|
 | Caption (top centre, `--t-h2`) | "First brood" | "Overwintering" |
 | Date line | advancing date | advancing date |
-| Stage bar (centre bottom, 640 x 56) | egg -> larva -> pupa -> worker segments with counts under each icon | 7 day segments with temperature per day |
+| Stage bar (centre bottom, 640 x 56) | egg -> larva -> pupa -> worker segments with counts under each icon | one segment per winter day (`DAYS_PER_SEASON`, 7 by default) with temperature per day |
 | Gauge (left) | Queen's reserves % (draining) | Stores C and P (draining) |
 | Losses (right) | eggs eaten by the queen, brood lost | workers lost by cause (cold, starvation), brood lost |
-| Controls | Skip (hold Enter or A for 600 ms; or click), Step in (only when the sim flags an interruption) | Skip, Step in |
-| Outcome card (end) | "First workers: 4. Queen's reserves: 38 %." + Continue | "Winter survived. Lost 12 workers (cold 8, starvation 4). Stores used: 9.4 C, 1.1 P." + Continue |
+| Controls | Skip (GDD 01 `tl-skip`: hold Space 1 s, hold A 1 s, or the Skip button), Step in / Let it play (only during an interrupt beat) | Skip (the winter is computed at `Begin`, GDD 06 §6.2, so it has no interrupt beats) |
+| Outcome card (end) | "First workers: 11. Queen's reserves: 38 %." + Continue | "Winter survived. Lost 12 workers (cold 8, starvation 4). Stores used: 9.4 C, 1.1 P." + Continue |
 
-Step in: appears for `TIMELAPSE_INTERRUPT_REAL_S = 10` real s when the sim raises an interruption (damp spell, intruder); choosing it pauses the time-lapse and returns to normal play at 1x with a HUD chip "Resume time-lapse". If ignored, the time-lapse continues and the sim resolves the interruption itself. Skipping must yield the same outcome as watching (the UI never computes outcomes). Target real durations: founding `TIMELAPSE_FOUNDING_REAL_S = 75`, winter `TIMELAPSE_WINTER_REAL_S = 45`; how the sim fills that time (ticking or analytic resolution) belongs to the founding and environment chapters.
+Interrupt beats (founding only; mechanics GDD 06 §5.11): when the sim raises an interruption (damp spell, intruder) the lapse drops to 1x and the overlay shows Step in and Let it play for `TIMELAPSE_INTERRUPT_REAL_S` = GDD 06 `OPEN_INTERRUPT_WINDOW_S` 20 (game s at 1x = real s). Step in (`timelapseRespond {response: 'step-in'}`; acting with the queen counts the same) hides the overlay and leaves normal play at 1x with a HUD chip "Resume time-lapse"; Let it play (`response: 'let-it-play'`), or no response by the end of the window, applies GDD 06's default outcome and the lapse resumes. Skipping must yield the same outcome as watching (the UI never computes outcomes). Target real durations: founding `TIMELAPSE_FOUNDING_REAL_S = 75`, winter `TIMELAPSE_WINTER_REAL_S = 45`; how the sim fills that time (ticking or analytic resolution) belongs to the founding and environment chapters.
 
 ---
 
@@ -1231,19 +1233,19 @@ All checks run through `tools/harness/play.mjs` with `?test=1&seed=7&quality=low
 
 ## Appendix F — Cross-chapter assumptions
 
-1. Progression chapter provides `Diagnostic` records (contracts shape, statuses `ok|warn|bad`), the ids listed in 4.4, cause references between diagnostics for chaining, entity refs for "Show", remedy ids mappable to UI controls; statistics time series hourly for 7 days and daily for all time; milestones; event log; final cause chain on game over.
+1. Progression chapter provides `Diagnostic` records (contracts shape, statuses `ok|info|warn|bad`, 4.4; `00-index.md` D3.10), the ids listed in 4.4, cause references between diagnostics for chaining, entity refs for "Show", remedy ids mappable to UI controls; statistics time series hourly for 7 days and daily for all time; milestones; event log; final cause chain on game over.
 2. The sim raises and clears alerts with game-time hysteresis and sets `kind`, `level`, `subjectId`, `title`, `cause`, `focus`, `diagnosticId`; trigger thresholds for each alert kind in 6.5 are defined by the owner chapter named there.
-3. Colony chapter defines allocation as four groups (forage, nurse, dig, defend) mapping to the canonical tasks as in 4.2, "auto" allocation, production modes, diet emphasis -100..+100, and accepts `setDirectives` while paused. If it uses different groups, the Directives layout follows its groups with the same control rules.
-4. Markers chapter defines marker caps (`MARKER_CAP[kind]`), radius ranges compatible with 8-64 BU, and validity reasons; nest chapter defines dig templates (chamber, tunnel, shaft, entrance; sizes 8 / 12 / 16 BU), wall anchoring, `status` values compatible with 4.3 (proposed, queued, active, stalled, complete) and `blockedReason` strings.
+3. Colony chapter (GDD 02 §12.1) defines allocation as four groups (forage, nurse, dig, defend) mapping to the canonical tasks as in 4.2 (`raid` is never slider-allocated), "auto" allocation, diet emphasis -100..+100, species in-group sub-shares (`taskShares`), and accepts `setDirectives` while paused; alate investment, gyne share and alate policy are directive keys owned by GDD 06 §11.3 (there are no "production modes").
+4. Markers chapter (GDD 02 §12.2) defines marker caps (`MARKER_CAP[kind]`), radius ranges (forage / avoid 10-80 BU, default 30; rally 8-32 BU, default 15; 4.3), and validity reasons; nest chapter defines dig templates (chamber, tunnel, shaft, entrance; sizes 8 / 12 / 16 BU), wall anchoring, `status` values of 4.3 (proposed, queued, active, stalled, paused, complete, cancelled; GDD 03 §7.8) and `blockedReason` strings.
 5. Founding chapter (GDD 06 §5) provides site assessment values (seven factors), readiness (shaft depth + chamber volume), seal and lay steps, reserves 0..1, nanitic outcome, and interruption events; the time-lapse is driven by the sim with `player.timelapse` as described in Appendix A.
 6. Environment chapter provides sun elevation, surface temperature per point, soil moisture, cavity humidity, weather states, human-event warnings with a warning phase and an area, and the winter time-lapse data.
 7. Possession chapter provides action availability per frame (for prompts) with priorities, crop capacity, acid reserve, heat stress, and possessed-ant death handling.
 8. Ecology chapter provides creature kinds for comfort mode, territories for the threat overlay, and cue emission for creature actions.
 9. Worldgen chapter: archetype ids `woodland-edge`, `suburban-garden`, `playground-park`, `car-park-verge`, `kitchen-door`; world size ids `compact`, `standard`, `large`; uint32 seeds; staged progress reporting matching 3.6; a cheap zone-layout-only entry point for the locality preview; up to 8 generation attempts (GDD 04 `WORLDGEN_MAX_ATTEMPTS`).
 10. Species data provides `available`, `foundingSeason`, plate/turntable model, complexity rating, founding style word, and per-species cue choices (drum vs stridulate).
-11. Persistence chapter stores saves in IndexedDB with `auto` (2 generations) + 5 slots, provides the binary export with a magic header, version and checksum, and accepts `FOUNDRESS1:` + base64 text.
+11. Persistence chapter stores saves in IndexedDB with `auto` (ring of 3 labelled generations, 7.6) + `quick` + 5 slots (`slot-1`..`slot-5`), provides the binary export with a magic header, version and checksum, and accepts `FOUNDRESS1:` + base64 text.
 12. Rendering supports clip-plane cutaway with cross-section caps, X-ray mode, overlay passes driven by sim fields, creature render variants for comfort mode, and a photo camera with sphere-traced collision.
-13. Custom rule "season length" is honoured by the calendar (`DAYS_PER_SEASON` becomes a game-config value rather than a constant); if not, the option is hidden.
+13. Custom rule "season length" (5 / 7 / 10) is honoured by the calendar (`DAYS_PER_SEASON` is read from `config.rules.seasonLengthDays`, directions K; `00-index.md` D1.2). Every UI element that shows a season or a year (winter stage bar, graph ranges, day counts) takes its length from the calendar, never a literal 7 or 28.
 
 ---
 

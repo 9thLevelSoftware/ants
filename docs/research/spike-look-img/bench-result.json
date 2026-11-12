@@ -1,0 +1,211 @@
+{
+ "stages": {
+  "low": {
+   "quality": "low",
+   "variant": "midday",
+   "size": [
+    640,
+    360
+   ],
+   "calls": 56,
+   "tris": 161000,
+   "grass": 2500,
+   "ms": {
+    "full": 308.7,
+    "noAA": 309.7,
+    "postMinimal": 306.2,
+    "noGrass": 294.9,
+    "noTerrain": 243.6,
+    "noSmallProps": 264.1,
+    "noHardscape": 242.8,
+    "noBackground": 276.4,
+    "noPostDirect": 300.6
+   }
+  },
+  "medium": {
+   "quality": "medium",
+   "variant": "midday",
+   "size": [
+    960,
+    540
+   ],
+   "calls": 104,
+   "tris": 501295,
+   "grass": 6000,
+   "ms": {
+    "full": 1065.4,
+    "noDof": 944.7,
+    "noBloom": 995.2,
+    "noAA": 1007.3,
+    "postMinimal": 859,
+    "noShadowPass": 979.6,
+    "noGrass": 1050.6,
+    "noTerrain": 824.1,
+    "noSmallProps": 842.7,
+    "noHardscape": 904.8,
+    "noBackground": 1009.1,
+    "noPostDirect": 886.9
+   }
+  },
+  "high": {
+   "quality": "high",
+   "variant": "midday",
+   "size": [
+    1280,
+    720
+   ],
+   "calls": 115,
+   "tris": 965745,
+   "grass": 12000,
+   "ms": {
+    "full": 2285.6,
+    "noDof": 2061.4,
+    "noBloom": 2339.7,
+    "noAA": 2192.1,
+    "postMinimal": 1901,
+    "noShadowPass": 2118.6,
+    "noGrass": 2253.1,
+    "noTerrain": 1878.5,
+    "noSmallProps": 1706.4,
+    "noHardscape": 1833.4,
+    "noBackground": 2221.5,
+    "noPostDirect": 1979.4
+   }
+  },
+  "ultra": {
+   "quality": "ultra",
+   "variant": "midday",
+   "size": [
+    1280,
+    720
+   ],
+   "calls": 123,
+   "tris": 1767543,
+   "grass": 20000,
+   "ms": {
+    "full": 4554.3,
+    "noDof": 3801.2,
+    "noBloom": 4271.6,
+    "noAA": 4179,
+    "postMinimal": 3424.1,
+    "noShadowPass": 3726.3,
+    "noGrass": 3641.5,
+    "noTerrain": 3029.4,
+    "noSmallProps": 2894.3,
+    "noHardscape": 3647.3,
+    "noBackground": 4206.5,
+    "noPostDirect": 3506.2
+   }
+  }
+ },
+ "variants": {
+  "low": {
+   "golden": 346,
+   "overcast": 306,
+   "night": 294,
+   "underground": 225
+  },
+  "medium": {
+   "golden": 1067,
+   "overcast": 1084,
+   "night": 1038,
+   "underground": 616
+  },
+  "high": {
+   "golden": 2602,
+   "overcast": 2543,
+   "night": 2441,
+   "underground": 1233
+  },
+  "ultra": {
+   "golden": 4336,
+   "overcast": 4210,
+   "night": 4364,
+   "underground": 1447
+  }
+ },
+ "underground": {
+  "low": {
+   "quality": "low",
+   "variant": "underground",
+   "size": [
+    640,
+    360
+   ],
+   "calls": 8,
+   "tris": 61878,
+   "grass": 2500,
+   "ms": {
+    "full": 235.1,
+    "noAA": 233.5,
+    "postMinimal": 213.8,
+    "noNestWalls": 33,
+    "noMotes": 222.3,
+    "noPostDirect": 206
+   }
+  },
+  "medium": {
+   "quality": "medium",
+   "variant": "underground",
+   "size": [
+    960,
+    540
+   ],
+   "calls": 27,
+   "tris": 82953,
+   "grass": 6000,
+   "ms": {
+    "full": 588.5,
+    "noDof": 502.4,
+    "noBloom": 551.6,
+    "noAA": 582.2,
+    "postMinimal": 453.9,
+    "noNestWalls": 235.4,
+    "noMotes": 636.4,
+    "noPostDirect": 462.6
+   }
+  },
+  "high": {
+   "quality": "high",
+   "variant": "underground",
+   "size": [
+    1280,
+    720
+   ],
+   "calls": 33,
+   "tris": 120961,
+   "grass": 12000,
+   "ms": {
+    "full": 1196.3,
+    "noDof": 951.4,
+    "noBloom": 1190.7,
+    "noAA": 1129.8,
+    "postMinimal": 797.2,
+    "noNestWalls": 559.5,
+    "noMotes": 1225.2,
+    "noPostDirect": 833.9
+   }
+  },
+  "ultra": {
+   "quality": "ultra",
+   "variant": "underground",
+   "size": [
+    1280,
+    720
+   ],
+   "calls": 35,
+   "tris": 203663,
+   "grass": 20000,
+   "ms": {
+    "full": 1423.5,
+    "noDof": 982.4,
+    "noBloom": 1290.1,
+    "noAA": 1165.9,
+    "postMinimal": 791.9,
+    "noNestWalls": 754.1,
+    "noMotes": 1312,
+    "noPostDirect": 749.3
+   }
+  }
+ }
+}

@@ -32,8 +32,8 @@ API (`window.__spike`): `setVariant(name)`, `setQuality(name)` (async: resolves 
 | `high-night.png` | Moonlight (blue, desaturated, Purkinje-ish grade), faint stars, warm garden lamps turned into big bokeh discs by the DoF. |
 | `high-underground.png` | Scent-lit nest chamber: dark warm ambient, a warm pool of light and fresnel glow around the controlled ant, drifting scent motes concentrated along the tunnel, cool daylight leaking down the tunnel mouth and dying off with depth. |
 | `quality-{low,medium,high,ultra}-midday.png`, `quality-*-underground.png` | Same frame at each preset (low: no DoF/bloom/shadows, half resolution). |
-| `grass-parting-on.png` / `grass-parting-off.png` | Camera turned into the lawn: with parting the blades on the line of sight bend away and dither out; without it the view is a wall of out-of-focus blades. |
-| `wind-t2_0.png` / `wind-t3_2.png` | Wide golden-hour view of the lawn edge at two clock times: vertex-shader sway (travelling gusts + flutter). |
+| `grass-parting-on.png` / `grass-parting-off.png` | Camera pulled back 210 mm into the lawn, looking at the ant: with parting (`setGrassParting(true)`) the blades on the line of sight bend away and dither out, the clover and the soil patch stay visible; without it the frame is a wall of out-of-focus blades. |
+| `wind-t2.png` / `wind-t3_2.png` | Wide golden-hour view of the lawn edge at clock times 2.0 s and 3.2 s: vertex-shader sway (travelling gusts + flutter). Measured difference between the two PNGs: mean 1.4/255 per channel, 19,038 pixels changed by more than 16/255 (static scene otherwise byte-identical), i.e. only the blades moved. |
 
 ## 2. The recipe
 
@@ -229,9 +229,77 @@ See `quality.ts`. Everything that scales cost is in the preset:
 | Grass | 2,500 x 4 rows flat | 6,000 x 5 folded | 12,000 x 7 | 20,000 x 9 |
 | Pebbles / leaves / droplets | 300 / 14 / 120 | 700 / 26 / 250 | 1,400 / 45 / 450 | 2,600 / 70 / 700 |
 | Terrain grid | 160^2, planar, 1 layer | 240^2, planar, 2 layers | 320^2, planar, 2 layers, dual scale | 420^2, triplanar, 2 layers, dual scale |
+| Hardscape (flags, kerb, road) | triplanar, single scale | triplanar, single scale | triplanar, dual scale | triplanar, dual scale |
 | Anisotropy / nest cell | 1 / 1.2 mm | 4 / 1.0 mm | 8 / 0.8 mm | 16 / 0.6 mm |
 
-BENCH_TABLES
+Measured with `spikes/look/bench.mjs` (1280x720 viewport, SwiftShader on 4 CPU cores, sync frames ending in a 1-pixel `readPixels`, median of 4 individually timed frames after 1 warm-up frame per configuration, all configurations interleaved in 2 rounds, minimum kept). Absolute numbers are software rendering (a real GPU is 50-200x faster); use the **ratios**. Stage cost = full frame minus the frame with that stage removed (delta method), so the parts do not sum exactly to the total (overlap, overdraw, noise +-15 %).
+
+#### Midday frame, per preset
+
+| | low | medium | high | ultra |
+|---|---|---|---|---|
+| Render size (px) | 640x360 | 960x540 | 1280x720 | 1280x720 |
+| Draw calls / triangles (all passes) | 56 / 161k | 104 / 501k | 115 / 966k | 123 / 1768k |
+| **Full frame (ms)** | **309** | **1065** | **2286** | **4554** |
+| Relative to High | 14 % | 47 % | 100 % | 199 % |
+| DoF | - | 121 (11 %) | 224 (10 %) | 753 (17 %) |
+| Bloom | - | 70 (7 %) | -54 (-2 %) | 283 (6 %) |
+| AA (FXAA / SMAA) | -1 (-0 %) | 58 (5 %) | 94 (4 %) | 375 (8 %) |
+| Whole post chain beyond tone map/grade/vignette | 2 (1 %) | 206 (19 %) | 385 (17 %) | 1130 (25 %) |
+| Shadow map pass | - | 86 (8 %) | 167 (7 %) | 828 (18 %) |
+| Grass (main + shadow) | 14 (4 %) | 15 (1 %) | 32 (1 %) | 913 (20 %) |
+| Terrain (graded grid + far ring) | 65 (21 %) | 241 (23 %) | 407 (18 %) | 1525 (33 %) |
+| Small props (pebbles, leaves, twig, clover, dandelion, drops) | 45 (14 %) | 223 (21 %) | 579 (25 %) | 1660 (36 %) |
+| Hardscape (flags, joints, kerb, road) | 66 (21 %) | 161 (15 %) | 452 (20 %) | 907 (20 %) |
+| Background (trunks, hedge, shrubs, wall) | 32 (10 %) | 56 (5 %) | 64 (3 %) | 348 (8 %) |
+| No composer at all (direct render + ACES) | 301 | 887 | 1979 | 3506 |
+
+#### Full frame per variant (ms)
+
+| | low | medium | high | ultra |
+|---|---|---|---|---|
+| midday | 309 | 1065 | 2286 | 4554 |
+| golden | 346 | 1067 | 2602 | 4336 |
+| overcast | 306 | 1084 | 2543 | 4210 |
+| night | 294 | 1038 | 2441 | 4364 |
+| underground | 225 | 616 | 1233 | 1447 |
+
+#### Underground frame, per preset
+
+| | low | medium | high | ultra |
+|---|---|---|---|---|
+| Draw calls / triangles | 8 / 62k | 27 / 83k | 33 / 121k | 35 / 204k |
+| **Full frame (ms)** | **235** | **588** | **1196** | **1424** |
+| Nest walls (triplanar soil, day-depth) | 202 (86 %) | 353 (60 %) | 637 (53 %) | 669 (47 %) |
+| Scent motes | 13 (5 %) | -48 (-8 %) | -29 (-2 %) | 112 (8 %) |
+| DoF | - | 86 (15 %) | 245 (20 %) | 441 (31 %) |
+| Bloom | - | 37 (6 %) | 6 (0 %) | 133 (9 %) |
+| AA | 2 (1 %) | 6 (1 %) | 66 (6 %) | 258 (18 %) |
+
+Raw numbers: `docs/research/spike-look-img/bench-result.json`. Negative deltas (High bloom, Medium/High motes) are noise.
+On Ultra the stage deltas add up to more than the frame because removing an object removes it from both the main and the
+4096 shadow pass, and the Ultra run was noisier.
+
+What the numbers say
+* **Preset ladder**: Low ~ 1/7, Medium ~ 1/2, Ultra ~ 2x the High frame. The resolution scale is the biggest single
+  lever (Low and Medium differ mainly by pixels), then the post chain and the shadow-map size.
+* **Fragment cost of the surfaces dominates**, not triangles: terrain + hardscape + small props are 55-65 % of every
+  surface frame. The triplanar / dual-scale samplers (9-18 texture fetches per pixel per layer) are the expensive part;
+  in production use planar mapping wherever the normal is near-vertical, triplanar only on steep faces (branch on the
+  normal), and drop dual scale beyond High.
+* **Small props** (1,400-2,600 instanced grit pebbles with a triplanar material, dense hero stones, leaf cards) are
+  21-36 %: give grit an LOD (impostor dots or a texture-only "grit layer" in the terrain beyond ~150 mm) and a planar
+  material.
+* **Post chain** (DoF + bloom + SMAA/FXAA) is 17-25 % of the frame; DoF is the largest part (10-17 %), SMAA 4-8 %,
+  bloom <= 7 %. Rendering without the composer at all only saves 13-23 %, so the look is not "expensive post" - keep it.
+* **Shadow pass** 7-8 % at 1024/2048, 18 % at 4096 (more casters in a bigger frustum).
+* **Grass** is cheap up to High (1-4 %) because the 250 mm chunks are frustum-culled in both passes and most of the
+  lawn is off-screen in a macro frame; Ultra's 20,000 blades x 9 rows (37 tris) plus the 4096 shadow map cost 20 %.
+  The real risk is a camera looking across a lawn: budget by the blades in the frustum (wrapping tiles, section 5).
+* **Underground** frames are half the cost of surface frames; the nest walls (full-screen triplanar soil) are 47-86 %,
+  the motes ~5 %.
+* Per variant the cost is within +-15 % (golden hour slightly higher: long low-sun shadows cover more of the frame).
+
 
 ## 4. Problems encountered (and fixes)
 
@@ -258,8 +326,33 @@ BENCH_TABLES
    mesh for the few hero stones near the subject; small grit stays low-poly and is capped at 1.8 mm.
 10. **three sorts opaque objects by program/material before depth**, so large expensive surfaces are not drawn
     front-to-back; overdraw of the triplanar materials is a measurable cost in software GL (see the stage table).
-11. SwiftShader timings are noisy (+-15 %, occasional 2x outliers on a single configuration); the stage bench interleaves
-    configurations and keeps the minimum of 2 rounds.
+11. SwiftShader timings are noisy: the same High frame measured 2.4 s in one run and 4.8-5.0 s in another an hour later
+    (nothing else running), and single configurations showed 2x outliers. The stage bench therefore times every frame
+    separately (median of n) and interleaves all configurations in 2 rounds keeping the minimum; still treat stage deltas
+    under ~5 % as noise.
+12. **The DoF effect caches camera near/far** in its CoC material at construction. Switching to the underground variant
+    (near 0.5 mm) and rebuilding the composer there, then returning to the surface (near 1 mm), silently moved the focus
+    plane to ~100 mm (ant blurred away). Fix: `dof.cocMaterial.adoptCameraSettings(camera)` after every near/far change.
+13. Random dressing placement must not depend on instance counts (quality presets): the leaves first used one RNG stream
+    for both atlases, so a different count on Ultra dropped a leaf in front of the lens. One seeded stream per prop set.
+14. Hardscape was first built once with dual-scale triplanar for all presets and cost ~40 % of the Low frame (fragment
+    bound); it is now rebuilt per preset (dual scale only on High/Ultra).
+
+### Known weaknesses of the spike images (self-critique)
+
+* The stand-in ant is a smooth glossy toy (ellipsoids, no hairs, no sculpted sclerites); the production model from
+  `spikes/ants` must replace it before judging the subject read.
+* Background shrubs/hedge are lumpy icospheres: they work only because they are always far, hazy and at maximum blur.
+  Real foliage bokeh (bright sky holes through leaves) would sell the garden much more - consider a few camera-facing
+  "foliage bokeh" cards per biome.
+* Golden hour: the low sun sits behind the hedge line from this camera, so there is no sun disc/flare in frame; the
+  back-light, translucency and haze carry the mood instead.
+* Night: the garden lamps bloom to a pale yellow rather than a rich amber (ACES + the night desaturation); a per-emitter
+  "keep hue" treatment or a hue-preserving tone map (AgX/Neutral) is worth testing.
+* Clover leaflets are simple procedural cards with a painted chevron; at 20-80 mm above the ant they are mostly bokeh, which
+  hides it.
+* Grit/pebbles are better after the fracture planes, but small instanced grit still reads slightly "beady" up close.
+* Only one hero framing was art-directed; other camera angles were checked with the debug views but not polished.
 
 ## 5. Recommendations for production
 

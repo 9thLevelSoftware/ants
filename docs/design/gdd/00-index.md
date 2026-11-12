@@ -1,6 +1,6 @@
 # FOUNDRESS GDD — 00 Index, registry and consistency record
 
-Status: consistency pass over the eight GDD chapters (01-08), done against `docs/00-original-brief.md`, `docs/01-design-seed.md`, `docs/02-design-directions.md` (sections J and K binding), `docs/03-architecture.md` and `docs/design/tdd/00-contracts-guidance.md`. The chapters were edited in place so that they agree; this file records the whole design at a glance, the canonical identifiers, the shared balance constants, every decision that changes a contract, the decision log and the residual risks.
+Status: consistency pass over the eight GDD chapters (01-08), followed by a second pass on the residual conflicts reported by the regenerated digests (E11, D7), done against `docs/00-original-brief.md`, `docs/01-design-seed.md`, `docs/02-design-directions.md` (sections J and K binding), `docs/03-architecture.md` and `docs/design/tdd/00-contracts-guidance.md`. The chapters were edited in place so that they agree; this file records the whole design at a glance, the canonical identifiers, the shared balance constants, every decision that changes a contract, the decision log and the residual risks.
 
 Contents: A. Overview · A2. Ownership map · B. Canonical identifier registry · C. Master balance constants and economy budget · D. Contract-affecting decisions · E. Decision log · F. Residual risks.
 
@@ -40,12 +40,12 @@ Conventions used below: "GDD nn §x" is a chapter section; "J"/"K" are direction
 
 | Topic (as referenced in chapters) | Owner after the consistency pass |
 |---|---|
-| Locomotion / surface walker / player movement | GDD 01 §4 (player), GDD 02 §1.4 (AI speed multipliers), GDD 06 §2.6 (`speedMult(Tb)` = GDD 01 `tempFactor`), GDD 04 §3 (grip, slopes), GDD 03 §5 (nest walking, clearance, squeeze) |
+| Locomotion / surface walker / player movement | GDD 01 §4 (player), GDD 02 §1.6 (AI speed composition), GDD 07 caste tables (species cruise, sprint, `loadSpeedMult`), GDD 06 §2.6 (`speedMult(Tb)` = GDD 01 `tempFactor`), GDD 04 §3 (grip, slopes), GDD 03 §5 (nest walking, clearance, squeeze) |
 | Economy, nutrition, stores, upkeep, crop | GDD 02 §1, §4-5 |
 | Foraging, recruitment, behaviour state machines, "behaviour chapter" | GDD 02 §6-10 |
 | Pheromone chapter | GDD 02 §8 (field, decay, deposits); GDD 06 §3.7 (rain wash); GDD 04 §15.4 (human-event multipliers) |
 | Brood chapter | GDD 02 §2 |
-| Markers / directives chapter | GDD 02 §12 (semantics, caps), GDD 03 §7 (dig and entrance), GDD 05 §3.7 (rally modes) |
+| Markers / directives chapter | GDD 02 §12 (semantics, caps), GDD 03 §7 (dig and entrance), GDD 05 §4.9 (stance, rally modes) |
 | Opening / founding chapter | GDD 06 §5 (script, reserve pool, clutch, time-lapse, outcome); GDD 03 §13 (dig geometry, readiness, sealing) |
 | Reproduction chapter | GDD 06 §11-12 |
 | Alerts / progression / diagnostics scheme | GDD 06 (ids, milestones, journal, codex), GDD 08 §6 (alert catalogue and presentation) |
@@ -158,7 +158,8 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `TICKS_PER_HOUR` / `TICKS_PER_DAY` | 250 / 6000 | ticks | 06 | all |
 | `DAYS_PER_SEASON` | 7 default; custom 5 / 7 / 10; read from `config.rules.seasonLengthDays` | GD | 06 (K) | 02, 03, 04, 05, 07, 08 |
 | `DAYS_PER_YEAR` | 4 × `DAYS_PER_SEASON` (28 default) | GD | 06 | 02, 05, 07 |
-| doy windows in any chapter | default-year numbers, scaled per 06 §1.7 | doy | 06 (K) | 02, 03, 04, 05, 07 |
+| Day numbering (one convention, second pass) | `doy` = integer day of year, **1-based**, 1..`DAYS_PER_YEAR` (doy 1 = first day of spring, K); `d = (doy − 1) + hour/24`, fractional, **0-based**, in [0, `DAYS_PER_YEAR`); `dayOfSeason` 1-based; `dayIndex` 0-based since game start (`weekday = dayIndex mod 7`). No chapter uses a 1-based fractional day (GDD 02's former `D = doy + hour/24` is gone) | — | 06 §0.2, §1.2 | all |
+| Default-year conversion | `d28 = d × 28 / DAYS_PER_YEAR` (= `yearFrac × 28`), `doy28 = floor(d28) + 1`. Every day number written in a chapter or in species data is a default 28-day-year number: an integer window "doy a-b" (inclusive) holds while `a − 1 ≤ d28 < b`; continuous breakpoints are written in `d28`; counts meaning "one season" / "one year" are `DAYS_PER_SEASON` / `DAYS_PER_YEAR`; season-relative rules use `dayOfSeason` | — | 06 §1.7 (K) | 02, 03, 04, 05, 07, 08 |
 | `WEEK_DAYS` | 7 (day 1 of year 1 = weekday 0; weekdays 5-6 weekend) | GD | 06 (K) | 04 |
 | `REAL_DAYS_PER_GD` | 13.04 | real days | 06 | 02, 07 (biology conversion only) |
 | `MOON_PERIOD_DAYS` | 2.265 | GD | 06 | 07 (Atta flights) |
@@ -166,7 +167,7 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `SIM_FRAME_BUDGET_MS` / `MAX_TICKS_PER_FRAME` / `MAX_CATCHUP_TICKS` | 10 / 16 / 20 | ms / ticks | 06 §4.3 | 01 |
 | `SKIP_MAX_GD` (= GDD 01 `SKIP_MAX_GAME_H` 24, GDD 08 `NEXT_EVENT_MAX_GAME_H` 24) | 1.0 | GD | 06 §4.6 | 01, 08 |
 | `AUTOSAVE_INTERVAL_REAL_S` | 300 (setting 2/5/10 min/off) | real s | 06 §15 | 08 |
-| Natural start (Lasius / Camponotus / Messor / Atta) | doy 8-12 (default 10) / 2-9 (5) / 15-19 (17) / 2-8 (5) | doy | 06 §1.6 | 07, 08 |
+| Natural start (Lasius / Camponotus / Messor / Atta) | doy 9-12 (default 10) / 2-9 (5) / 15-19 (17) / 2-8 (5) | doy | 06 §1.6 | 07, 08 |
 | `TIMELAPSE_TARGET_S` (= 08 `TIMELAPSE_FOUNDING_REAL_S`) / `OVERWINTER_TARGET_S` (= 08 `TIMELAPSE_WINTER_REAL_S`) | 75 / 45 | real s | 06 | 08 |
 
 ### C2. Scale, world, budgets
@@ -189,8 +190,8 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | Name | Value | Unit | Owner | Users |
 |---|---|---|---|---|
 | `CRUISE` (Lasius) | 6 at optimal Tb | BU/s | K / 02 | 01, 03, 05, 07 |
-| `PLAYER_HURRY_MULT` | 1.6 (Lasius 9.6 BU/s; C burn × 2) | × | 01 | 02 |
-| `RUN_SPEED` (alarm, flee) | 12 | BU/s | K / 02 | 01, 05 |
+| `PLAYER_HURRY_MULT` | 1.6 (Lasius 9.6 BU/s; C burn × 2); hurry is never above the caste's `sprintBuS` and is not sprint | × | 01 | 02, 07 |
+| `RUN_SPEED` (alarm, flee) = Lasius worker `sprintBuS` | 12 | BU/s | K / 02 / 07 | 01, 05 |
 | Founding (dealate) queen | cruise 6, hurry 9.6; established queen `QUEEN_SPEED` 0.5 × cruise (3), sprint 5 | BU/s | 02 / 07 | 06 |
 | `LOAD_SPEED_MULT` / `loadSpeedMult` | Lasius 0.85 for any carried item incl. pellets (CP 0.85, MB 0.75, AT 0.65) | × | 01 / 07 | 03 |
 | `speedMult(Tb)` (= GDD 01 `tempFactor`) | 5:0, 10:0.25, 15:0.55, 20:0.9, 22-28:1.0, 30:1.1, 35:0.9, 40:0 (shifted by `thermalShiftC`) | × | 06 §2.6 | 01, 02, 07 |
@@ -206,6 +207,7 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `MET_REST` / `MET_LIGHT` / `MET_ACTIVE` | 0.08 / 0.12 / 0.20 at 25 °C × `fMet(T)` | C/gd per worker | J / 02 | 05, 06, 07 |
 | Queen upkeep | 0.30 C + 0.10 P (founding: `FOUND_UPKEEP_PER_GD` 0.40 from `R`) | loads/gd | J / 02 / 06 | 07 |
 | `EGG_COST_P` | 0.04 | P | J / 01 / 02 | 06, 07 |
+| `EGG_CLUMP_MAX` (= `OPEN_LAY_BATCH_EGGS`) | 6 | eggs per carried clump | 01 | 06 |
 | `LARVA_P_REQ` + `LARVA_C_REQ` (= `LARVA_COST_LOADS` 1.6) | 1.2 P + 0.4 C | loads per larva | J / 02 | 06, 07 |
 | `CROP_CAP_STD` / `CARRY_CAP_STD` | 1.0 / 1.0 | load / bulk | 02 | 01, 05, 07 |
 | `harvest-liquid` rate (= 02 `DRINK_RATE`) | 0.05 (× source `drinkRateMult`) | load/s | 01 | 02, 05 |
@@ -214,12 +216,12 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `NURSE_FEED_CAPACITY` | 4.5 | loads/gd | 02 | — |
 | `APHID_DROPLET` / `TEND_SOLICIT_RATE` | 0.15 load per 6 s `tend-aphid` cycle = 0.025 load/s | load | 01 / 05 | 02, 07 |
 | `HONEYDEW_PER_APHID` | 0.10 (untended × 0.5) | C/aphid/gd | 05 | 07 |
-| `CROP_RETURN_FRACTION` (AI forager turns home) | 0.8 | of crop | 02 | — |
-| `RESUME_CROP_FRACTION` (release inference) | 0.5 | of crop | 01 | — |
+| `CROP_RETURN_FRACTION` (forager turns home; also GDD 01 release rule 7) | 0.8 (or crop ≥ 0.1 load with the source empty) | of crop | 02 | 01 |
 | `RESUME_LOCALITY_BONUS` | 0.25 | stimulus | 01 | 02 |
 | Stock targets `STOCK_TARGET_C` / `_P` | 3 / 1.5 (× 0.5 / 1 / 2 by `stockTarget`) | GD of need | 02 | 06 (gate-stores) |
 | Social stomach | `2 + 0.8 N` C, `0.15 N` P | loads | 02 | — |
-| Chamber capacity | food 2.0, granary 3.0 (seed), general 1.0 loads per BU³; nursery 1.5 brood per BU³ | per BU³ | 03 §6.4 | 02, 07 |
+| Chamber capacity | food 2.0, granary 2.0 (seed; = GDD 07 `GRANARY_LOADS_PER_BU3`), general 1.0 loads per BU³; nursery 1.5 brood per BU³ | per BU³ | 03 §6.4 | 02, 07 |
+| `SPOIL_OVERFLOW_MULT` / `SPOIL_SUBMERGED_MULT` | 1.5 / 2.0 (spoilage rate ×; overflow piles outside food capacity / under water) | × | 02 §5.1 | 03 |
 | `TEAR_S` | 4.0 × hardness per piece | game s | 01 | 02, 05 |
 | `COOP_MAX_ANTS` / `DRAG_SPEED_MULT` / `SOLO_DRAG_MAX` | 12 / 0.4 / 2 × carryCap; motion needs Σ carryCap ≥ 0.5 bulk | — | 01 | 02, 05 |
 | Nutrient composition | per variant (GDD 05 §1.2) | C, P per unit | 05 | 02 (defaults per kind) |
@@ -249,7 +251,7 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `FOUND_CLUTCH_MAX_EGGS` / `OPEN_LAY_BATCH_EGGS` / `OPEN_LAY_ACTION_S` | LN 48, CP 16, MB 20, AT 40 / 6 / 4 | eggs / s | 06 | 01, 02, 07 |
 | `FOUND_AI_CLUTCH` | 24 | eggs | 02 (new) | 06 |
 | `D_MIN` (open / cover), `V_MIN`, `W_MIN` | LN 8 / 5 BU, 10 BU³, 3.5 BU; MB 20 / 15, 15; AT 30 / 25, 25; CP 3, 10 | BU | 03 §13.1 | 06 (`FOUND_SHAFT_MIN_BU`, `FOUND_CHAMBER_MIN_VOXELS`), 07, 08 |
-| `DIG_BITE_S` | 1.0 × material / (digPower × workRate); founding queen digPower 0.77 (≈ 1.3 s in loam) | game s | 03 | 01, 02, 06 |
+| `DIG_BITE_S` | 1.0 / (`digSpeed`(material, moisture) × digPower × workRate); founding queen digPower 0.77 (≈ 1.3 s in loam); `digSpeed` loam 1.0, humus 1.3, sand 1.6, clay 0.45, gravel 0.35 (GDD 03 §2.1, copied verbatim in GDD 04 §3) | game s | 03 | 01, 02, 04, 06 |
 | `seal-entrance` | 2.0 s, `PLUG_RADIUS` 1.2 BU, ~3 per throat (≈ `OPEN_SEAL_HOLD_S` 6 s) | — | 01 / 03 | 06 |
 | Outcome (Q 0.7, clutch 24, 19.5 °C) | 11.5 nanitics (8-15), first worker at 4.52 GD, reserves ≈ 0.4 | — | 06 §5.12 | 02, 07 |
 
@@ -267,6 +269,7 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | Name | Value | Unit | Owner | Users |
 |---|---|---|---|---|
 | Lasius worker / nanitic / founding queen / established queen / gyne / male | HP 10 / 7 / 40 / 50 / 35 / 6; bite 1.0 / 0.7 / 2.0 / 2.0 / 1.5 / 0.2 | HP | 05 | 07 |
+| T3 worker castes (CP, MB, AT) | `maxHp` = 10 m^(2/3), bite = m^(2/3) × headFactor on GDD 07 masses, e.g. CP media 37 / 3.7, MB major 79 / 11.8, AT major 97 / 19.3; GDD 05 §4.1 table = GDD 07 caste tables; T3 queens, gynes, males: GDD 07 values | HP | 05 (formula) / 07 (masses) | — |
 | `ACID_MAX` / regen / `SPRAY_COOLDOWN_S` | 5 / 1 per 120 s / 3 | charges / s | 01 / 05 | 07 |
 | Outnumbering `M(n)` | min(2.0, 1 + 0.25(n − 1)) over 2 s | × | 05 | — |
 | `RETREAT_HEALTH` | 0.35 outside, 0.15 in nest | of maxHp | 05 | 02 |
@@ -284,6 +287,9 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `MARKER_CAP` | dig 8, forage 4, avoid 8, rally 1, entrance 2, move-brood 1, move-queen 1, satellite 1 | markers | 02 §12.2 | 07, 08 |
 | Marker radius | forage / avoid 10-80 (30); rally 8-32 (15) | BU | 02 | 05, 08 |
 | `NEST_SITE_SPACING` | 150 (any two nest origins incl. incipients) | BU | 03 | 04, 05 |
+| Entrance inflow intensity `I` (GDD 06 `rainIntensityAt`) | drizzle 0.1, shower 0.4, downpour 0.7, storm 1.0, sprinkler or hose 0.5, indoors 0 | — | 06 / 03 §11 | 04 |
+| Cavity temperature | GDD 03 §9.1 thermal column, the only model (`chamberTemp`); inputs `T_top`, EMAs τ 1 GD / `DAYS_PER_SEASON`, `T_annual = Tann + 1.0 °C` from GDD 06 §2.5 | °C | 03 / 06 | 02, 07 |
+| Messor granary | template S/M/L 10×4×12 / 13×5×14 / 16×6×16 BU; one L granary ≈ 1,600 loads; `GRANARY_TARGET_GD` 36 (≥ the 30-GD alate gate) | — | 07 | 03 |
 
 ### C10. World, human activity, rivals (owners GDD 04, GDD 05)
 
@@ -310,6 +316,8 @@ Every constant lives in `src/sim/balance/*.ts` or species data (seed §3). "User
 | `A*` | round(alateInvestment × REPRO_MAX_FRAC × N × alateCapMult); LN N 700, investment 0.5 → 35 alates, 336 loads | alates | 06 | 02 |
 | `REPRO_STORE_DAYS_C` / `_P` | 3 / 1.5 (stop at half) | GD of need | 06 | 02 |
 | Flight windows | LN doy 9-13; CP 1-9 (next year); MB 15-20; AT 2-8 | doy | 06 | 05 (rival foundations), 07 |
+| Alate upkeep gyne / male (C/GD) | LN 0.15 / 0.06, CP 0.15 / 0.10, MB 0.15 / 0.08, AT 0.2 / 0.15 | loads | 07 (caste tables) | 06 §11.2 |
+| Egg-to-alate duration | LN gyne larva × 2.0, pupa × 1.1 (≈ 4.7 GD at 21 °C), male larva × 1.2 (≈ 4.0 GD); T3 `devMult` gyne 1.3 / 1.4 / 1.4, male 1.1 / 1.1 / 1.25 (CP / MB / AT) | — | 02 §2.2 / 07 | 06 |
 | `ALATE_EXPIRE_GD` / `EXTINCTION_GRACE_GD` / `QUEEN_STARVE_GD` | 3 / 0.05 / 3 | GD | 06 | 07 |
 | History rings | hourly 168 samples, daily unbounded | samples | 06 / 02 | 08 |
 
@@ -473,6 +481,18 @@ Each row changes a name, type, owner, payload or unit relative to at least one c
 | D6.10 | hint learning stored "in the save" (06) | profile `hints` + `progression.hintsMirror` (08); context-prompt learning `player.promptLearned` (01) |
 | D6.11 | (none; gaps G3, G4) | settings `gameplay.milestoneNotices: 'full' \| 'quiet' \| 'off'` (08 App A, UI only); `AimId` union gains `aim-second-entrance`, `aim-cross-zone`, `aim-herd`, `aim-alates`, `aim-flight`; `CodexId` gains `cx-interface-orders` |
 
+
+### D7. Second pass
+
+Kept to the unavoidable minimum: every other second-pass resolution changes design text and numbers only (E11). Old form -> final form.
+
+| # | What | Old form (chapter) | Final form |
+|---|---|---|---|
+| D7.1 | Calendar helper for default-year day numbers | chapters compared raw `doy` (06 §1.7 formula `doy_scaled`; 02 used a 1-based fractional `D`) | `calendar.ts` adds `defaultYearDay(tick, cfg) → d28` (0-based float, `d × 28 / DAYS_PER_YEAR`) and `defaultYearDoy(tick, cfg) → doy28` (`floor(d28) + 1`); every day-number rule and species window is compared through them (C1) |
+| D7.2 | Environment query for cavity temperature and inflow | `chamberTemp(id) = Tsoil(...)` (06 §2.5) while GDD 03 §9.1 asked for `T_top`, `T_dayMean`, `T_seasonMean`, `T_annual` and a rain intensity that 06 did not expose | `environment.query.thermalInputs(pos) → {T_top, T_dayMean, T_seasonMean, T_annual}` and `rainIntensityAt(pos) → I` added; `env.thermal` gains the two EMA arrays (per 4 BU heightfield cell and per cover primitive); `chamberTemp(id)` returns the GDD 03 §9.1 value |
+| D7.3 | Brood destined caste | `destined: 'worker' \| 'gyne' \| 'male'` (02 §2.1) | `destined: Exclude<Caste, 'queen'>` (polymorphic `worker` larvae are re-destined to `minor` / `media` / `major` at larva start, GDD 07 §2.6; plus GDD 07 `destinedLengthBu`) |
+| D7.4 | Lineage colony record field | `colonies[].peakWorkerEq` (06 §12.1) | `colonies[].peakWorkers` (simulated workers; K forbids `W_eq`) |
+
 ---
 
 ## E. Decision log (conflicts resolved by editing the chapters)
@@ -530,7 +550,7 @@ Rule applied throughout: the chapter that owns the topic wins; gameplay intent c
 | E-30 | Alate store gate 14 GD vs stock target 3 GD | 06 vs 02 | `REPRO_STORE_DAYS_C/P` 3 / 1.5 (stop at half) | 14 GD was unreachable (economy budget C13) |
 | E-31 | `harvest-liquid` 0.05 vs `DRINK_RATE` 0.03 load/s | 01, 05 vs 02 | 0.05 | primitive owner; GDD 01 E7 |
 | E-32 | Tend solicit 0.02 vs 0.025 load/s | 02 vs 05, 07 | 0.025 (0.15 per 6 s) | ecology owner of droplets |
-| E-33 | `CROP_RETURN_FRACTION` 0.5 vs 0.8 | 01 vs 02 | Two constants: 01 `RESUME_CROP_FRACTION` 0.5 (release rule), 02 `CROP_RETURN_FRACTION` 0.8 (AI) | different decisions shared one name |
+| E-33 | `CROP_RETURN_FRACTION` 0.5 vs 0.8 | 01 vs 02 | Two constants: 01 `RESUME_CROP_FRACTION` 0.5 (release rule), 02 `CROP_RETURN_FRACTION` 0.8 (AI) — **superseded by E-115** (one threshold) | different decisions shared one name |
 | E-34 | `RESUME_LOCALITY_BONUS` 0.3 vs 0.25 | 02 vs 01 | 0.25 | owner 01 |
 | E-35 | `dig-bite` default 3 s vs 1 s | 02 vs 01, 03 | 1.0 s × factors (03) | dig owner |
 | E-36 | Brood capacity 1.5 per BU² floor; piles 0.4 / 0.2 loads per BU² vs 03 capacities per BU³ | 02 vs 03 | 03 chamber capacities | chamber owner |
@@ -639,21 +659,77 @@ Rule applied throughout: the chapter that owns the topic wins; gameplay intent c
 | E-109 | G10: T1 Lasius has no honeydew at all | 05, 07, 02 | `T1_HONEYDEW_SITES` static `honeydew-film` sites (1 per 250 plots, refill 1.0 C/gd, not placed at T2); herds stay T2; `ms-first-honeydew` / `cx-honeydew` satisfiable by a T1 find | brief §3; small addition inside the C13 T1 band |
 | E-110 | G11: "people's homes" breadth | 04 | Kitchen-and-utility slice declared the launch representation by design; T3 stretch second room variant `pantry` or `conservatory` | brief §2, §6 |
 
-Total conflicts resolved: **99** (E-1 … E-99), touching all eight chapters; plus 11 traceability gap closures (E-100 … E-110).
+### E11. Second consistency pass (residual conflicts from the regenerated digests)
+
+| # | Conflict | Chapters | Decision | Why |
+|---|---|---|---|---|
+| E-111 | Photo mode bound to O in GDD 01 §1.3, §2, §5.5 but F2 in §5.1/§6.9; O is also `overlay-cycle` | 01 | F2 everywhere (enter and exit), Ph exit F2/Esc; O stays `overlay-cycle` (P, O, C) | E-92 binding; 01 owns input |
+| E-112 | Global (`G`) keys H, − =, Enter collide with `ph-guides`, `ph-exposure`, `ph-capture` in photo mode | 01 | In `Ph` only `menu`, `photo-mode`, `pointer-lock-toggle` of the G actions are live (01 §5.7) | sim frozen, HUD hidden in photo mode |
+| E-113 | GDD 08 colony view binds F to focus selection (01: F = `cv-slice-down`); dig-planner Q/E and Shift+Wheel override `cv-rotate` / slice although 01 App F 16 reserves them | 01, 08 | 08 F-focus removed; the dig-planner override is a declared exception in 01 App F 16 | 01 owns colony-view keys; 08 owns the tool |
+| E-114 | GDD 08 §5 gamepad column contradicts GDD 01 §5 for 13 actions; alert-feed hold View collides with `colony-view`; hint dismiss hold Y collides with `inspect` hold (sniff); 08 §9.1 still dismisses hints with Backspace (`possess-last`) | 01, 08 | 08 gamepad column = 01; alert feed LB+View; hint dismiss Shift+H / RB+View everywhere in 08 | 01 owns every input id and default binding |
+| E-115 | Crop thresholds: `RESUME_CROP_FRACTION` 0.5 (01 release) and `CROP_RETURN_FRACTION` 0.8 (02 AI) for the same "go home with the crop" decision | 01, 02 | One threshold `CROP_RETURN_FRACTION` 0.8 (02); 01 release rule 7 mirrors 02 `forage.collect` (≥ 0.8, or ≥ 0.1 with the source empty); `RESUME_CROP_FRACTION` removed (supersedes E-33) | "same primitives and rules as the AI" (seed pillar 1) |
+| E-116 | GDD 01 App A table still in seconds and booleans with a patch note below it | 01 | Table rewritten in the frozen forms (flag bits, ticks, absolute-tick cooldowns, speed 1/2/4/8); lay cooldown stated as possessed-queen only | D2.8, D2.10, D2.11; two readers, one form |
+| E-117 | `EGG_CLUMP_MAX` 5 vs opening batch `OPEN_LAY_BATCH_EGGS` 6 | 01, 06 | `EGG_CLUMP_MAX` 6: one laid batch is one carried clump | removes a split clump with no design reason |
+| E-118 | `dig-bite` duration "1.0 × material factor" (01) vs `1.0 / (digSpeed × digPower × workRate)` (03); C6 formula without `digSpeed` | 01, 03, index | 03 formula in 01 and C6 | dig owner 03 |
+| E-119 | Atta "minim" and "small media" used like caste ids | 01, 07 | minim = J caste `minor`; small media = `media` + size class `small-media` (01 §0) | J caste list |
+| E-120 | GDD 07 §2.7: sprint is the player's hurry (Lasius 12); K: hurry ≈ 9.6, 12 = alarm running | 07, 01 | sprint = alarm/flee run (`RUN_SPEED`); hurry = cruise × 1.6, never above sprint | K speeds |
+| E-121 | Dig-rate table `DIG_REL` (04 §3: humus 1.2, clay 0.4, gravel 0.25, wood-decayed 0.6) vs `digSpeed` (03 §2.1: 1.3, 0.45, 0.35, × LN 0.5) | 03, 04 | `DIG_REL` withdrawn; 04 column = verbatim copy of 03 `digSpeed` (and wood rows); `fDig` uses `digSpeed × speciesMult` | 03 owns dig rates (E-55 completed) |
+| E-122 | `DIG_FLOOR_BU` notes ("Atta depth cap 400-500") vs nest `maxDepth` | 03, 04, 07 | Bedrock always below template `maxDepth` LN 175, MB 285, AT 450 | nest owner 03 / species 07 |
+| E-123 | 1-based fractional `D` (02) vs 0-based `d` (06); `fSeason` and `DIAPAUSE_DOY` not scaled with season length; "Summer day 9/10" in a 7-day season | 02, 06, index | One convention in C1 (1-based integer `doy`, 0-based `d`, default-year `d28`/`doy28`); 02 `fSeason` rewritten on `d28` (0.3 to 1, ramp 1-4, 1.0 to 14, 0.6 to 17, 0.2 to 20, 0 to 28); diapause on `doy28`; examples "doy 9 = Summer · Day 2", "doy 10 = Summer · Day 3" | K calendar-window bullet; owner 06 (D7.1) |
+| E-124 | GDD 06 hard-codes notice doy 20, banner doy 22, 168 winter steps, readiness doy ≥ 15, `ms-year-1/5` at 28/140, `L(d)` over 28 | 06 | Season-relative rules (autumn day `DAYS_PER_SEASON − 1`, winter day 1), `24 × DAYS_PER_SEASON` steps, `season == autumn`, `DAYS_PER_YEAR` and `5 × DAYS_PER_YEAR`, `L` over `DAYS_PER_YEAR`; §1.7 states the conversion for all chapters | K: nothing hard-codes 7 or 28 |
+| E-125 | GDD 05 day numbers (herd cycle, host decline, flowers, migrants) without a scaling rule; winter rival stores "× 7" | 05 | §0 day-number rule (default-year, scaled via C1); "× `DAYS_PER_SEASON`"; soak = one year | K |
+| E-126 | GDD 08 "7 day segments", "last 28 days", "6 of 7 days", App F 13 conditional | 08 | Segments = `DAYS_PER_SEASON`, graph range = last year, alert text parameterised; App F 13 binding | K |
+| E-127 | GDD 07 validation `[0, 28)` and standard-worker mean exactly 1.0 BU while CP media 1.1 / MB media 1.05 | 07 | Validation on `d28`; standard worker 1.0 ± 0.1 BU | otherwise the loader rejects its own data |
+| E-128 | "Game week = 3 GD" for human cadence (06 D2) vs K's 7-GD week | 04, 06 | Only the 7-GD weekday cycle is a week; chores are per-GD frequencies (mowing, vacuum 1 per 3 GD) | K week bullet |
+| E-129 | `thresholds` Float32[17] in GDD 02 §1.1 | 02 | `Float32Array(TASK_COUNT = 18)` | E-87 |
+| E-130 | GDD 02 §1.1 and App A field names (`colonyId`, `health`, `crop {C,P}`, `reserve`, `scale`, `stateT`, `speciesId`, `stores {C,P}`, `gut {C,P}`) vs D2 | 02 | Tables written in the frozen D2 forms; prose keeps the readable words with a mapping note | D2.1-D2.15 |
+| E-131 | GDD 02 cross-references to "10.6" (job board) and "10.2 F3" (does not exist) | 02 | 10.4 job board; 10.2 `forage.search` spiral | internal |
+| E-132 | Founding hand-over: 06 "keeps her reserves" vs 02 split into `reserve`/`reserveP` above `QUEEN_FAT_CAP` 3.0; banner hint `p-possess-worker` | 02, 06 | 06 §5.13 states the split and that the cap limits only refilling; hint `hint-cycle` | E-21; D3.7 |
+| E-133 | `aim-alates` opens only inside the lay window yet shows "Out of season" outside it | 06 | Opens at stage `mature` in any season; "Out of season" hint outside the window | internal |
+| E-134 | Directive keys `taskShares`, `sealInCold`, `stance`, `casteEmphasis`, species extras, `gyneShare`, `alatePolicy` only in App A/B of 02; 08 Directives has no controls for `stockTarget`, `stayIn`, `stance`, species extras; 08 App F 3 "production modes" | 02, 08 | 02 §12.1 lists every key with its owner; 08 §4.2 adds "Stores and safety" (T2) and "Species" (T3) rows; App F 3 rewritten | D2.16 single `setDirectives` |
+| E-135 | Stance and rally modes cited as GDD 05 §3.7 (escalation) instead of §4.9 | 02, 08, index | §4.9 | section numbering |
+| E-136 | Weather §3.2: storm entry "from rain, overcast, heat" vs `clear → storm` weights; frost entry "from clear/overcast" vs winter `rain → frost` .05; shoulder heat "× 0.3" vs 0 weights; heat dwell cap "3 × mean (heat 96)" vs 3 × 54 | 06 | Storm may start from `clear` (convective); frost from `rain`; spring/autumn `clear → heat` = 0.3 × summer weight (0.08) behind the `heatSeasonalMinC` guard; heat dwell cap 96 h in every season; MC-tuned tables unchanged | keeps the 300-year calibration (closes risk F7) |
+| E-137 | Two cavity temperature models (06 `chamberTemp = Tsoil`, 03 §9.1 thermal column) and 03 inputs (EMAs, `T_annual`) that 06 did not expose | 03, 06 | 03 §9.1 is the only cavity model; 06 supplies `thermalInputs` (EMA τ 1 GD and `DAYS_PER_SEASON`; `T_annual = Tann + 1.0`); `Tsoil` for open ground only | 03 owns nest microclimate; D7.2 |
+| E-138 | Entrance inflow intensity: 03 "drizzle 0.1, rain 0.4, storm 1.0, sprinkler 0.5" vs 06's three rain classes | 03, 06 | `rainIntensityAt`: drizzle 0.1, shower 0.4, downpour 0.7, storm 1.0, sprinkler/hose 0.5 | one mapping (D7.2) |
+| E-139 | Watering washes "as rain of the matching class" with no class rule | 02, 04, 06 | < 3 mm/h drizzle, 3-12 shower, ≥ 12 downpour (sprinkler, hose, can wash as downpour inside the wetted area) | definition gap |
+| E-140 | GDD 03 App F: Environment, Opening and Difficulty all "06"; locomotion and markers owners unnamed; garbled catchment text; `MARKER_CAP.dig` "should equal" | 03 | Owners named (GDD 06 owns all three; locomotion per A2; markers GDD 02 §12.2); catchment × `CRUST_RUNOFF` text; `MARKER_CAP.dig` = `PLAN_CAP_PLAYER` = 8 (also in 08's limit text) | A2 |
+| E-141 | Generic pile: chaff midden 8-20 BU from an entrance would merge into the soil mound (`HEAP_MERGE_DIST` 30) | 03, 07, 02 | Merging only between piles of the same material; item piles count to `HEAP_CAP`, mounds do not | keeps GDD 07 middens and GDD 02's midden |
+| E-142 | GDD 03 cites overflow spoilage × 1.5 and submerged × 2 to the economy chapter, which did not define them | 02, 03 | `SPOIL_OVERFLOW_MULT` 1.5, `SPOIL_SUBMERGED_MULT` 2.0 in 02 §5.1 | economy owner |
+| E-143 | Atta fungus chambers: 03 D6 "12-24 BU", depth 30-300, climate 24-28 °C / RH ≥ 0.9 vs 07 25-35 BU, 40-400 BU, 21-25 °C / RH ≥ 0.8 (and 06 Topt 21-25) | 03, 07 | 07 values in 03 (deviation text, depth band, ranking curve) | 07 owns T3 templates and the fungus module (E-51) |
+| E-144 | Granary: 03 capacity 3.0 seed loads/BU³ vs 07 2.0 and "1,600 per 16 × 6 × 16"; 03 template 16 × 3.5 × 16 vs 07 4-6 BU high; architect target 25 GD below the 30-GD alate gate | 03, 07, index | 2.0 everywhere; template 10×4×12 / 13×5×14 / 16×6×16; `GRANARY_TARGET_GD` 36 | 07 module owner; gate must be reachable |
+| E-145 | GDD 07 HP and bite columns do not match its own formula (superseded note) and GDD 05 §4.1 masses differ from 07's (LN queen 20/33, MB major 20, AT 0.9/5.3/40) | 05, 07 | 07 worker-caste columns = formula on 07 masses = 05 table; 05 masses = 07; nanitic and small-media rows added; T3 reproductives keep 07 values; column "Bite (dmg per strike)" | 05 owns combat formula, 07 owns masses (closes risk F9) |
+| E-146 | Alate upkeep LN male 0.08 / CP 0.5×queen, 0.2 / AT 0.2, 0.1 (06) vs 0.06 / 0.15, 0.10 / 0.2, 0.15 (07) | 06, 07 | 07 values copied into 06 §11.2 | 07 caste tables own adult upkeep |
+| E-147 | Egg-to-alate durations 1.3 × worker (06) vs 02 stage multipliers and 07 `devMult` | 02, 06, 07 | 02 multipliers (Lasius) and 07 `devMult` (T3) copied into 06 §11.2 | brood owner 02, species 07 |
+| E-148 | Time-lapse interrupt: 06 drops to 1x and hands control back for 20 game s; 08 shows Step in for 10 real s and keeps the lapse running; winter shows Step in although it is pre-computed; three skip bindings (06 Space/Esc, 08 hold Enter 600 ms, 01 hold Space 1 s) | 01, 06, 08 | One flow: drop to 1x, Step in / Let it play for `OPEN_INTERRUPT_WINDOW_S` 20 (= `TIMELAPSE_INTERRUPT_REAL_S`); no interrupts in winter; skip = 01 `tl-skip` | 06 owns mechanics, 08 presentation, 01 keys |
+| E-149 | GDD 08 App F: statuses ok/warn/bad, radii 8-64, plan statuses without paused/cancelled, `auto` 2 generations; loading text "attempt 2 of 5"; epitaph "Founded Summer · Day 1"; first-workers example 4 | 08 | ok/info/warn/bad; 10-80 / 8-32; seven statuses; 3 generations + `quick`; "attempt n of 8"; Summer · Day 3; 11 | D3.10, E-67, E-84, E-58, 06 §1.6 |
+| E-150 | Camponotus `satellite` marker has a cap but no tool in the palette | 08 | Eighth tool `satellite` (Shift+8) | marker kinds B1 |
+| E-151 | Stale ids: `diag-at-garden` (07), `toxinPool` (05), `peakWorkerEq` (06), cull as `bite` (05 §1.4) vs `cull-aphid` (App B); 01 catalogue silent on `dodge`, `cull-aphid`, `drum`, `cut-seed-head`, `process-leaf`, `plant` | 01, 05, 06, 07 | `diag-garden`, `stores.toxin`, `peakWorkers` (D7.4), `cull-aphid`; 01 §7.3 lists the other chapters' primitives and the `dodge` input | D6.6, D1.17, K, B2 |
+| E-152 | Corpse bulk "mass/2 mg"; ladybird cap "1 per 300, max 8" vs I4 "1 per 300 + 1" | 05 | bulk = massMg / `REF_CARRY_MG`; I4 = min(8, floor(A / 300)) | units; internal |
+| E-153 | GDD 04: `crumb-protein` called a food kind; rival agents not budgeted; puddle cap cited to 13.3; `VESSEL_FILL_MAX` undefined | 04 | variant of `crumb`; rivals and incipients inside `RIVAL_AGENT_BUDGET` (K 2500); §13.4; 0.8 × inner depth | J; K; internal |
+| E-154 | Locomotion: 02 names a "locomotion" owner for cruise and load factor; A2/01/03 cite 02 §1.4 (energy) for AI speed | 01, 02, 03, index | AI speed composition 02 §1.6; species speeds and `loadSpeedMult` GDD 07; walker 01 §4 / 04 §3 / 03 §5 | A2 (closes the digest note) |
+| E-155 | GDD 06 App A in pre-D1 placement (`calendar`, `weather`, `opening`, `journal.aims {open, done}`, root `difficulty`, hourly ring 48) | 06 | Placement note (D1.1-D1.14); `progression.aims` record; `config.difficulty` + `progression.difficultyHistory`; ring 168 | D1.10-D1.12, E-85 |
+| E-156 | Opening threat cap named `OPEN_THREATS_MAX` (5.6) and `openingThreatsMax` (§14) | 06 | `diff.openingThreatsMax` | one name |
+| E-157 | 8x refusal toast differs (01 vs 06); `speed-refused` reason unspecified in 01 §5.8 | 01, 06 | 01 text in both; `speed-refused {level: 8, reason: 'possession'}` | 01 owns the rule's UI line |
+| E-158 | Lasius start window doy 8-12 begins before the flight window 9-13; "Eclosion spring doy 7-11" (8-11 are summer) | 06, 07, index | Start window doy 9-12 (default 10 unchanged); eclosion "doy 7-11 (last day of spring to early summer)" | K: start after the flight |
+| E-159 | Camponotus large castes "from age 2 years" vs "colony year 3"; `SpeciesDef.tier` still `'T1' | 'T3'` | 07 | Same moment stated as both; tier `'T1' | 'T2' | 'T3'` | D2.27 |
+| E-160 | Brood cause `base` listed without a rule; brood `destined` cannot hold polymorphic castes that GDD 07 sets at larva start | 02, 07 | `base` = death from the base per-DU hazard; `destined` widened (D7.3) | GDD 07 §2.6 needs it |
+| E-161 | GDD 03 App F says GDD 01 check 6 expects 8-10 BU³ (01 says 5-10) | 03 | 5-10 BU³ (03's 7-10 lies inside); open risk closed | one acceptance range |
+
+Total conflicts resolved: **99** (E-1 … E-99), touching all eight chapters; plus 11 traceability gap closures (E-100 … E-110); plus **51** second-pass resolutions (E-111 … E-161), four of them contract-affecting (D7).
 
 ---
 
 ## F. Residual risks (not resolvable by editing)
 
-1. **Contracts written in parallel from the digests.** The digests predate these edits; every row of §D must be applied to `src/sim/types`. The digests themselves were not regenerated.
+1. **Contracts written in parallel from the digests.** Every row of §D (including D7) must be applied to `src/sim/types`. The digests were regenerated after the first pass and predate the second pass (E11); where a digest and a chapter differ, the chapter wins.
 2. **Re-calibration after value changes.** GDD 02's worked example (§15) and check E25 used `DRINK_RATE` 0.03 and the old founding reserves; with 0.05 load/s trips are about 13 s shorter (intake +5-8 %), still inside E25's tolerances but unverified. GDD 06's founding calibration table (§5.12) was made with its own rules and stands; GDD 02's former check E8 numbers are replaced, not re-run.
 3. **New stage thresholds** (LN 700, CP 500, MB 700, AT 150/1000) and the stores gate (3 / 1.5 GD) are design choices that the headless growth runs (GDD 07 `growthTargets`) must confirm.
 4. **T1 protein boost** (`T1_CARRION_MULT` 4, T1 `crumb-protein`) is sized from the budget in C13, not from a simulation; T1 balance runs must check that a T1 colony grows past 300 and does not explode.
 5. **Rival abstract K_max above the player caps** (Tetramorium 1800, flavus 2000, Linepithema 3000). Allowed because rivals are abstract and fielded agents stay inside the 2500 budget, but the "N band" in inspect cards must never show a figure the sim does not have.
 6. **Two site-quality scores.** GDD 04's static suitability `Q` (worldgen validation, eight factors, own weights) and GDD 06's live `siteQ` (seven factors, geometric mean) share factor definitions but not weights or thresholds; the overlay and the read-out may disagree at the margin.
-7. **Internal inconsistencies left inside GDD 06 §3.2** (storm entry states, spring/autumn heat rule vs table, heat dwell cap) need a weather-only pass with the statistics check E7.
+7. **Weather machine re-check.** The GDD 06 §3.2 inconsistencies were resolved without touching the tuned tables (E-136); the shoulder-season heat rule adds a small amount of Mediterranean and subtropical spring/autumn heat that the 300-year Monte Carlo (maritime) did not include. Re-run the statistics check E7 for the four climates.
 8. **Atta compression.** Footprint 150 BU (K) with up to 40 entrances and fungus chambers to 30 BU makes a crowded mature Atta nest; T3 profiling needed (GDD 03 risk on mound grids and per-chamber fields stands).
-9. **Combat values for T3 species** in GDD 07 §5.2-5.4 tables are superseded by GDD 05 §4.1 but not rewritten row by row; the species data files must take them from 05.
+9. **Combat values for T3 species** are now one set (E-145); the T3 queen, gyne and male rows of GDD 07 are hand-set values, not the formula, and need a balance check in T3 combat soaks.
 10. **Messor and Atta calendar choice (R3)** keeps Messor on the dossier's day numbers by coincidence of fit; if research is redone on exact dates the windows may shift by about 1 GD.
 11. **Role possession ranking.** `possess {role, nearPos}` (D4.7) is deterministic, but "suitable" (task match, not in combat, not carrying brood) is defined only loosely in GDD 01 §3.2 and GDD 08 §4.5; the possession implementer must pin the ranking down in a test.
 12. **Codex additions** (`cx-species-*`, `cx-antennation`, `cx-nursing`, `cx-springtail`, `cx-material-*`, `cx-habitat-*`, `cx-interface-*`) have ids and triggers but no written notes yet.
@@ -663,3 +739,8 @@ Total conflicts resolved: **99** (E-1 … E-99), touching all eight chapters; pl
 16. **Quiet share I11** (`QUIET_SHARE_MIN`, GDD 05 §6) is a target set by design, not measured; the 28-GD soaks (GDD 05 E25) must confirm it with human-event frequency at Normal, and colony-caused warnings may make it hard to meet in poorly run colonies (the test uses the AI-only colony).
 17. **`playground_distant` asset** as delivered (4.2 kHz low-pass, audible children's voices) does not pass the GDD 08 §13.7 intelligibility check; it needs reprocessing or replacement, and until then the Distant voices option stays hidden.
 18. **T1 static honeydew sites** (E-109) slightly raise T1 carbohydrate supply; the T1 balance runs of risk 4 must include them.
+19. **Messor mating loss may be counted twice** (GDD 06 §11.2 `p_mate` 0.866 and §5.15 `hybridFail` 13.4 % appear to encode the same loss); needs the dossier source before T3, not an editing decision.
+20. **Atta module sizing** (up to about 38 crater mounds, 24 fungus chambers, a 300 GU alate gate inside the 150 BU footprint) is unverified for render, pile and garden budgets (GDD 07 risks); T3 profiling.
+21. **New numbers chosen by the second pass without simulation:** downpour inflow intensity 0.7, watering wash class thresholds, `GRANARY_TARGET_GD` 36, `EGG_CLUMP_MAX` 6, the Lasius start window 9-12; to be confirmed by the T1/T2 balance runs.
+22. **Season-length scaling of day-number rules** (C1 `d28`) compresses windows at 5-day seasons to whole-day granularity of about 0.7 GD; GDD 05 herd and GDD 04 schedule tests should include a 5-day and a 10-day run.
+

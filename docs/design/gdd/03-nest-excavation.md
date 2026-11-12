@@ -48,7 +48,7 @@ Implemented by modules: `nestops` (entrances, chambers, plans, pellets, mound, n
 | D3 | LN can dig `wood-decayed` (speed 0.5); directions D said wood is carpenter-only. | Research: *L. niger* nests under stones, rotten wood and roots [R]. Sound wood stays CP-only. |
 | D4 | Nest volume per adult is about 2 BU³ (real field mounds imply about 6). | Performance (voxel count) and digging workload; the colony cap is already a compression (K). |
 | D5 | The T1/T2 mound is a pellet crater/cone, not the built soil dome of real mound nests (real mature mounds ~65-68 BU across, 52-68 BU tall [R, corrected]). The mound grid is sized to reach that diameter. Chambers inside mounds are T3. | Scope. |
-| D6 | AT fungus chambers 12-24 BU wide instead of ~43 BU (30 cm); CP chambers 5-12 BU [R] instead of the seed's generic 8-16. | Map and footprint compression; species data. |
+| D6 | AT fungus chambers up to 30-35 BU wide (GDD 07 §5.4.6 sizes: founding 10, early 12-18, mature 25-35 BU; template L 30 × 12 × 30) instead of ~43 BU (30 cm); CP chambers 5-12 BU [R] instead of the seed's generic 8-16. | Map and footprint compression; species data. |
 
 ---
 
@@ -109,7 +109,7 @@ Caste dig values (`SpeciesDef.dig`):
 
 ### 1.4 Mounds and spoil heaps
 
-A **mound** is a pile heightfield attached to an entrance; a **spoil heap** is the same structure without an entrance (pellets dropped far from any entrance, frass under a window). The same pile structure, with its `material` set to the dumped item kind, is the generic **pile** that GDD 07 uses for frass piles, chaff middens and Atta waste heaps and that GDD 02 uses for the surface midden (waste and corpses); one pile record per site, merged by `HEAP_MERGE_DIST` (consistency pass).
+A **mound** is a pile heightfield attached to an entrance; a **spoil heap** is the same structure without an entrance (pellets dropped far from any entrance, frass under a window). The same pile structure, with its `material` set to the dumped item kind, is the generic **pile** that GDD 07 uses for frass piles, chaff middens and Atta waste heaps and that GDD 02 uses for the surface midden (waste and corpses); one pile record per site, merged by `HEAP_MERGE_DIST` (consistency pass). Merging and "joins the mound" (below) apply only between piles of the same `material`: a Messor chaff midden 8-20 BU from an entrance (GDD 07) or a surface midden 15-40 BU out (GDD 02 §10.8) stays a separate pile beside that entrance's soil mound; item-kind piles (chaff, frass, waste, garden-waste) count toward `HEAP_CAP` and entrance mounds do not (second consistency pass).
 
 | Item | Rule |
 | --- | --- |
@@ -310,7 +310,7 @@ Adults count in space units = (caste body length in BU)² (worker 1.0, nanitic 0
 | `royal` | 10 | 0.3 | 2.0 | 0 | queen |
 | `nursery` | 12 | 0.3 | 1.5 | 0 | |
 | `food` | 8 | 0.2 | 0 | 2.0 | |
-| `granary` | 30 | 0.2 | 0 | 3.0 (seed loads) | |
+| `granary` | 30 | 0.2 | 0 | 2.0 (seed loads; = GDD 07 `GRANARY_LOADS_PER_BU3`) | |
 | `fungus` | 40 | 0.3 | 0.5 | 0 | garden ≤ 70 % of volume |
 | `midden` | 12 | 0 | 0 | 0 | 3 waste items |
 | `rest` | 12 | 1.0 | 0 | 0 | |
@@ -452,7 +452,7 @@ Blocked reasons (new ids) with detection and remedy text:
 | `cap` | Nest volume cap reached | "The nest has reached its maximum size" |
 
 **Cancellation**: already-open voxels stay; spoil piles stay and are hauled; diggers drop nothing and go to `seek-slot`. A partly dug chamber that meets 6.2 registers as `general`. An architect plan cancelled by the player blacklists its site (8 BU radius) for `ARCH_BLACKLIST_S` 1,200 game s. The architect itself withdraws its own plan only while progress < 25 % and its need has disappeared. Priority can be changed at any time; geometry cannot be edited (cancel and re-place).
-**Caps**: `PLAN_CAP_PLAYER` 8 non-terminal player plans per nest (markers chapter's `MARKER_CAP.dig` should equal it).
+**Caps**: `PLAN_CAP_PLAYER` 8 non-terminal player plans per nest (GDD 02 §12.2 `MARKER_CAP.dig` is defined as equal to it: 8).
 
 ---
 
@@ -473,8 +473,8 @@ Blocked reasons (new ids) with detection and remedy text:
 | `maxEntrances` | 3 (4 from 800 workers) | 6 [R] | 40 [R] | 6 windows per nest |
 | `volumeCap` | 12,000 | 14,000 | 30,000 | 8,000 |
 | `royalAt` | 8 workers | 10 | 20 | 8 |
-| Chamber W x H x L (S / M / L) | general, nursery, rest: 6x2.5x8 / 8x2.5x12 / 10x3x16; food: 6x2x8 / 8x2.5x10 / –; royal: 6x2.5x8 | brood 8x2.5x10 / 10x3x12 / 12x3x14; granary 10x3x12 / 13x3x14 / 16x3.5x16 | fungus 12x6x12 / 18x9x18 / 30x12x30 (GDD 07 §5.4.6 owns: founding 10 BU, early 12-18 BU, mature 25-35 BU wide; consistency pass); midden 10x4x12 | 5x2.5x9 / 8x2.5x14 / 12x3x20 (long axis along the grain) |
-| Depth bands (BU below surface or cover) | founding 6-15; royal 12-40; nursery 4-30; food 8-30; rest 10-60; general 5-60; winter rest (T2) 30-80 | nursery 15-80; royal 40-150; granary 60-200 [R]; rest 20-150 | fungus 30-300; midden 100-400; royal 150-400 | ≥ 2 inside wood |
+| Chamber W x H x L (S / M / L) | general, nursery, rest: 6x2.5x8 / 8x2.5x12 / 10x3x16; food: 6x2x8 / 8x2.5x10 / –; royal: 6x2.5x8 | brood 8x2.5x10 / 10x3x12 / 12x3x14; granary 10x4x12 / 13x5x14 / 16x6x16 (GDD 07 §5.3: 10-16 × 4-6 BU) | fungus 12x6x12 / 18x9x18 / 30x12x30 (GDD 07 §5.4.6 owns: founding 10 BU, early 12-18 BU, mature 25-35 BU wide; consistency pass); midden 10x4x12 | 5x2.5x9 / 8x2.5x14 / 12x3x20 (long axis along the grain) |
+| Depth bands (BU below surface or cover) | founding 6-15; royal 12-40; nursery 4-30; food 8-30; rest 10-60; general 5-60; winter rest (T2) 30-80 | nursery 15-80; royal 40-150; granary 60-200 [R]; rest 20-150 | fungus 40-400 (GDD 07 §5.4.6); midden 100-400; royal 150-400 | ≥ 2 inside wood |
 | Required types by adult workers (`missing-type`) | ≥ 8: nursery S; ≥ 25: food S; ≥ 40: rest M; ≥ 150: second nursery M | ≥ 10: nursery; ≥ 30: granary | ≥ 10: second fungus | ≥ 8: nursery |
 | Cover weight (8.4) | 1.5 (nursery 2.5: sun-warmed stones and slabs [R]) | 0.5 | 0 | 0 |
 
@@ -555,8 +555,10 @@ T(p) = T_annual + (T_seasonMean − T_annual)·e^(−d_eff/`D_A`) + (T_dayMean �
 | `D_D` | 80 mm | damping depth of the daily wave [EST, typical soils 80-120 mm] |
 | `D_S` | 250 mm | weather spells |
 | `D_A` | 1,500 mm | seasonal wave |
-| T_dayMean / T_seasonMean | EMA of T_top with τ = 1 game day / one season (`seasonLengthDays`, default 7 game days) (kept by the environment per terrain cell or primitive) | |
-| T_annual | climate constant (environment chapter) | |
+| T_dayMean / T_seasonMean | EMA of T_top with τ = 1 game day / one season (`DAYS_PER_SEASON` = `config.rules.seasonLengthDays`, default 7 game days) (kept by the environment in `env.thermal` per 4 BU heightfield cell and per cover primitive; GDD 06 §2.5 `thermalInputs`) | |
+| T_annual | climate `Tann` + `SOIL_MEAN_OFFSET` 1.0 °C (GDD 06 §2.1, §2.4) | |
+
+This is the one cavity-temperature model: GDD 06 `chamberTemp(id)` returns it (GDD 06 §2.5); GDD 06 `Tsoil` is used only for open ground away from cavities.
 
 Depth is physical (mm), so a 30 BU LN chamber (120 mm) and a 30 BU MB chamber (210 mm) are damped differently, as in reality. A chamber 3 BU under a sun-warmed 50 mm stone has d_eff = 50 × 0.35 + 12 = 29.5 mm: most of the daily warmth reaches it, which is why LN favours stones and slabs [R]. Interior wall voids use the indoor air temperature. In T1 (no weather) the environment supplies constant values and chambers simply differ by depth and cover.
 
@@ -583,7 +585,7 @@ Each curve is 1 inside [lo, hi] and falls linearly to 0 at the outer points.
 | Royal | 20-28 °C (12, 34) | ≥ 0.8 (0.5) |
 | Food | 8-20 °C (0, 30) | 0.5-0.9 (0.3, 1.0) |
 | Granary (MB, T3) | 10-25 °C (0, 35) | ≤ 0.7 (0.9) |
-| Fungus (AT, T3) | 24-28 °C (18, 32) | ≥ 0.9 (0.75) |
+| Fungus (AT, T3) | 21-25 °C (15, 30) | ≥ 0.8 (0.5) (ranking curve; garden growth uses GDD 07 §6.4 `fT` / `fRH`, owner, with the same optimum) |
 | Rest, general | 1 (depth only) | 1 |
 
 ### 9.4 Brood placement ranking (nest publishes, colony chapter executes)
@@ -601,7 +603,7 @@ Every game hour, for each brood stage and nest: chamber score = g_T × g_H × [t
 | In-nest walking speed | × (1 − 0.5·clamp((ρ_local − 0.85)/0.65, 0, 1)), ρ_local of the chamber or tunnel space the ant is in (0.5 at ρ ≥ 1.5) |
 | Resting recovery (fatigue, colony chapter) | × (1 − 0.4·clamp(ρ − 1, 0, 1)) |
 | Brood care | When ρ_b > 1, overflow brood is placed in lower-scoring chambers (9.4); nurse feeding efficiency × (1 − 0.3·clamp(ρ_b − 1, 0, 1)) |
-| Food handling | Food loads above food capacity lie in general space and tunnels (clutter-like, spoil × 1.5 in the economy chapter) |
+| Food handling | Food loads above food capacity lie in general space and tunnels (clutter-like; spoilage × `SPOIL_OVERFLOW_MULT` 1.5, GDD 02 §5.1) |
 | Alerts | `nest-crowded` (GDD 08) when any chamber ρ ≥ 1.4 for 1 game hour |
 
 ---
@@ -614,7 +616,7 @@ Per nest: water volume W (BU³). Every `FLOOD_STEP_S` 1 game s:
 
 W += (Q_in − Q_out)·1 s, clamped to [0, open volume].
 
-Q_in = Σ over entrances of `Q_BASE` (1.2 BU³/s) × I × c × f_cover × f_rim × f_state, where I = rain intensity at the entrance (environment: drizzle 0.1, rain 0.4, storm 1.0, sprinkler 0.5; 0 indoors), c = catchment = clamp(1 + (h_ring − h_ent)/2 BU, 0.25, 4) with h_ring = mean base terrain height (without mound) on a ring of 8 BU (× 1.5 if crusted, 2.2), f_cover = `COVER_FACTOR` 0.15 if a solid lies above the opening within 20 BU, else 1, f_rim from 4.3, f_state = 1 open, 0.5 sealing, 0.1 sealed.
+Q_in = Σ over entrances of `Q_BASE` (1.2 BU³/s) × I × c × f_cover × f_rim × f_state, where I = rain intensity at the entrance (GDD 06 `rainIntensityAt`, by rain class: drizzle 0.1, shower 0.4, downpour 0.7, storm 1.0, sprinkler or hose 0.5; 0 indoors), c = catchment = clamp(1 + (h_ring − h_ent)/2 BU, 0.25, 4) with h_ring = mean base terrain height (without mound) on a ring of 8 BU; c × `CRUST_RUNOFF` 1.5 when the ring is ≥ 50 % crusted (2.2), f_cover = `COVER_FACTOR` 0.15 if a solid lies above the opening within 20 BU, else 1, f_rim from 4.3, f_state = 1 open, 0.5 sealing, 0.1 sealed.
 
 Q_out = K_DRAIN(material) × A_wet × (1 − 0.7·m), A_wet = 0.25 BU² × count of flooded voxels with a non-open neighbour; K_DRAIN is the area-weighted mean of the flooded walls' materials.
 
@@ -630,7 +632,7 @@ Spill height H*(v) = minimax path height from any entrance opening to v over ope
 | Brood in a flooded voxel | Development paused; dies after `BROOD_DROWN_S` 75 game s continuous submersion (event `brood-drowned`). Carried brood is not submerged. |
 | Nurses | Evacuate brood from chambers flooded or predicted to flood within 1 BU (9.4 emergency). |
 | Queen | Moves to the highest dry chamber (escorted by `queen-care`). |
-| Solid food items | Spoilage × 2 while submerged (economy chapter). |
+| Solid food items | Spoilage × `SPOIL_SUBMERGED_MULT` 2.0 while submerged (GDD 02 §5.1). |
 | Pellets | Stay; tamping clock continues. |
 | Digging | Plans with flooded slots stall `flooded`. |
 | Everything flooded | Ants gather at the highest non-flooded voxels, including the throat and the mound surface. |
@@ -885,23 +887,23 @@ Setup unless stated: `?test=1&seed=1&quality=low&autostart=1`, LN, flat loam tes
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **GDD 01 (actions)**: `dig-bite`, `seal-entrance`, `unseal-entrance`, `pick-up`, `put-down` run through the shared lifecycle; this chapter owns their effects and timing factors. `workRate` already includes temperature and health; `caste.digPower` is the species/caste multiplier for digging. GDD 01 check 6 expects 8-10 BU³ from 9-10 bites; with face-levelling targeting the expected range is 7-10 BU³ (see risks). GDD 01 check 3 (pellet within 6 BU of the entrance after 120 s) holds because surface pellets stay items for 300 game s.
-2. **Locomotion**: applies clutter, squeeze and crowding speed multipliers given here; handles walker medium `water`; carrying a pellet costs the species `loadSpeedMult` (Lasius × 0.85); follows nest fields as in 5.2; never lets ants inside refilled voxels (collapse/plug code moves them first).
+1. **GDD 01 (actions)**: `dig-bite`, `seal-entrance`, `unseal-entrance`, `pick-up`, `put-down` run through the shared lifecycle; this chapter owns their effects and timing factors. `workRate` already includes temperature and health; `caste.digPower` is the species/caste multiplier for digging. GDD 01 check 6 expects 5-10 BU³ from 9-11 bites (overlapping spheres); with face-levelling targeting the expected range here is 7-10 BU³, inside it (see risks). GDD 01 check 3 (pellet within 6 BU of the entrance after 120 s) holds because surface pellets stay items for 300 game s.
+2. **Locomotion** (no separate chapter: GDD 01 §4 player, GDD 02 §1.6 AI speeds, this chapter §5 nest walking; `00-index.md` A2): applies clutter, squeeze and crowding speed multipliers given here; handles walker medium `water`; carrying a pellet costs the species `loadSpeedMult` (Lasius × 0.85); follows nest fields as in 5.2; never lets ants inside refilled voxels (collapse/plug code moves them first).
 3. **Colony chapter (02)**: task allocation consumes the dig and haul stimuli (7.7) and the Dig share (dig + haul); nurses execute translocation jobs from 9.4 and evacuation; the colony chooses the brood chamber per stage using the ranking published here; brood development reads chamber temperature and humidity; economy reports solid food loads in the nest and applies flood and overflow spoilage; queen moves on `move-queen`.
 4. **World generation (04)**: provides soil profiles with crusts, buried obstacles, natural cavities with openings, wood primitives with moisture and grain (T3), rival nest sites per GDD 04 §12.4 (established ≥ 600 BU apart, incipients ≥ 150 BU from any nest) and nothing else carved there; validation that every founding-eligible zone has diggable ground at least D_MIN deep.
-5. **Environment (06)**: provides per-location T_top by material and shade, the EMAs T_dayMean and T_seasonMean, T_annual, indoor T and RH, air RH, soil surface moisture and m_deep, rain intensity per location (including sprinklers), winter dormancy flag; triggers winter sealing; schedules human disturbances calling `nest.disturb`.
-6. **Opening chapter (06)**: owns the queen reserve model, laying, the time-lapse, and the reopen trigger; uses `siteAt` and the readiness bar; founding day per species.
+5. **Environment (GDD 06 §2-3, §6)**: provides per-location T_top by material and shade, the EMAs T_dayMean and T_seasonMean, T_annual (GDD 06 §2.5 `thermalInputs`; τ of the seasonal EMA = `DAYS_PER_SEASON`), indoor T and RH, air RH, soil surface moisture and m_deep, rain intensity per location (GDD 06 `rainIntensityAt`, including sprinklers), winter dormancy flag; triggers winter sealing; schedules human disturbances calling `nest.disturb`.
+6. **Opening (GDD 06 §5; the same chapter as item 5, which owns environment, opening, progression and difficulty)**: owns the queen reserve model (single pool `FOUND_R0`, `FOUND_DIG_COST_PER_BITE` 0.02), laying, the time-lapse, and the reopen trigger; uses `siteAt` and the readiness bar; founding day per species.
 7. **Ecology, rivals, combat (05)**: rivals provide abstract populations for nest growth; react to `foreign-cavity-contact`; combat may seal entrances under raid; birds may target mounds (mound visibility is the mound volume).
 8. **Species chapter (07)**: owns `SpeciesDef.nestTemplate` and `SpeciesDef.dig` values for CP, MB, AT and the economy modules (wood moisture, granary germination, fungus garden) that read chamber climate; may refine the T3 columns here without renaming.
 9. **UI (08)**: plan status names and colours match 7.8 (`paused` and `cancelled` added); chamber S/M/L sizes must be read from the species template (LN 8 / 12 / 16 BU long axis, not fixed widths); reason strings come from 14.2; Directives "Seal entrances in cold weather" maps to 4.2.
 10. **Progression**: aggregates the diagnostics of Appendix D, turns `nest-milestone` and plan/chamber events into journal milestones, and uses drowning and collapse causes in the epitaph.
-11. **Difficulty (06/T3)**: Gentle disables collapse; Harsh halves the collapse warning; custom toggle `collapse` exists.
+11. **Difficulty (GDD 06 §14; presets T3)**: Gentle disables collapse; Harsh halves the collapse warning; custom toggle `collapse` exists.
 12. **Render-nest**: remeshes dirty chunks, discards fragments in breach spheres, draws mounds from the heightfield, water surfaces at level L, plan ghosts from the plan geometry, crumbs from `pellet-*` events.
-13. **Markers chapter**: `MARKER_CAP.dig` = 8 and the `entrance` marker creates an `entrance` plan via `planDig`.
+13. **Markers (GDD 02 §12.2)**: `MARKER_CAP.dig` = `PLAN_CAP_PLAYER` = 8 and the `entrance` marker creates an `entrance` plan via `planDig`.
 
 ## Open risks
 
-- GDD 01 acceptance check 6 assumes about 0.9 BU³ per consecutive bite; face-levelling targeting gives 0.75-0.9 at a fixed face, so that check may need a 7-10 BU³ range.
+- GDD 01 acceptance check 6 accepts 5-10 BU³ for 10 ± 1 bites; face-levelling targeting gives 0.75-0.9 BU³ per bite at a fixed face (7-10 BU³), inside that range (resolved in the second consistency pass).
 - Voxel discretisation (0.5 BU) makes width-based tests (d_sup, clearance) sensitive to alignment; the thresholds here were chosen with half-voxel slack, but scripted tests should carve with the cheat ellipsoid and allow ± 10 % volume.
 - Bite and haul throughput depends on walk speed, which directions K fixes at 6 BU/s cruise (12 BU/s is the alarm maximum); dig-plan completion times scale with it, so tests bound times generously and balance runs should check that the second LN chamber completes within about 2 game days of the first workers.
 - The flood spill-height model ignores trapped air and soil seepage from below; deep nests in waterlogged hollows will be safer than reality.
