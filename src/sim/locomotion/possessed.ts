@@ -137,6 +137,9 @@ function copyLatch(dst: NavScratch, src: NavScratch): void {
   copy3(dst.latchDir, src.latchDir); copy3(dst.upRef, src.upRef); dst.upRefAge = src.upRefAge; copy3(dst.lastDir, src.lastDir);
 }
 
+/** Latch state of a walker that has no locomotion scratch yet (never written). */
+const FRESH_SCRATCH: NavScratch = newScratch();
+
 /** Per-frame movement prediction of the possessed ant (see the header). Does not change sim state. */
 export function integratePossessedFrame(sim: Sim, ant: Ant, dtSeconds: number): void {
   if (!(dtSeconds > 0) || !Number.isFinite(dtSeconds)) return;
@@ -153,7 +156,8 @@ export function integratePossessedFrame(sim: Sim, ant: Ant, dtSeconds: number): 
     const ex = had ? p.pose.pos.x - ant.pos.x : 0, ey = had ? p.pose.pos.y - ant.pos.y : 0, ez = had ? p.pose.pos.z - ant.pos.z : 0;
     if (Math.hypot(ex, ey, ez) > r.P.predictSnap) set3(p.offset, 0, 0, 0); else set3(p.offset, ex, ey, ez);
     copyKin(p.kin, ant);
-    copyLatch(p.s, scratchOf(ant));
+    // read-only: scratchOf would create nav.loco, a state write from the per-frame (render-side) predictor
+    copyLatch(p.s, ant.nav.loco ?? FRESH_SCRATCH);
     p.tick = sim.state.tick;
   }
   stepPossessed(sim, ant, p.kin, p.s, sim.state.player.intent, dtSeconds, r);

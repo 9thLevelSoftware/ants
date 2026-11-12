@@ -74,5 +74,6 @@ describe('pheromone caps and eviction', () => {
     expect(f.validate()).toEqual([]);
     // Reported in the task report: the samples.
     (globalThis as { __pheroMemorySamples?: unknown }).__pheroMemorySamples = samples;
-  }, 120000);
+    // a functional check, not a budget: ~80 s alone, ~180 s with the whole suite on a loaded 4-core machine
+  }, 600_000);
 });

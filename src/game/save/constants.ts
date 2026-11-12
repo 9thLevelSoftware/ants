@@ -49,3 +49,10 @@ export const SETTINGS_STORAGE_KEY = 'foundress.settings.v1';
 export const PROFILE_STORAGE_KEY = 'foundress.profile.v1';
 /** Settings are written this long after the last change (ms); also flushed on pagehide. */
 export const SETTINGS_WRITE_DEBOUNCE_MS = 250;
+/** The profile is written this long after the last change (ms); also flushed on pagehide. */
+export const PROFILE_WRITE_DEBOUNCE_MS = 300;
+/** Opening IndexedDB may hang (private mode, blocked upgrade): give up after this many ms and use the fallback. */
+export const IDB_OPEN_TIMEOUT_MS = 6000;
+/** Real-time pump of the autosave driver (ms between frames) and the largest step one frame may report (s). */
+export const AUTOSAVE_PUMP_MS = 500;
+export const AUTOSAVE_PUMP_MAX_DT_S = 2;

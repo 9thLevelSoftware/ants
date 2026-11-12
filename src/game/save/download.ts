@@ -2,9 +2,22 @@
 // allow-downloads, `?nodownload=1`, no user gesture), so they report a boolean and the caller shows the text form.
 // DOM only: not used by the pure parts of the save layer.
 
-/** Triggers a file download. Returns false when it threw or the environment is known to block downloads. */
+/**
+ * A page inside an iframe may be sandboxed without `allow-downloads`, and the browser then swallows `a.click()`
+ * silently: nothing throws, nothing is saved. Scripts cannot read the sandbox flags, so a framed page is treated as
+ * "downloads may be blocked" and gets the text form (GDD 08 §7.6). A cross-origin parent makes `window.top` throw.
+ */
+export function maybeFramed(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
+/** Triggers a file download. Returns false when it threw or the environment is known or likely to block downloads. */
 export function downloadBytes(bytes: Uint8Array, filename: string, opts: { noDownload?: boolean } = {}): boolean {
-  if (opts.noDownload) return false;
+  if (opts.noDownload || maybeFramed()) return false;
   try {
     if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') return false;
     const blob = new Blob([bytes as BlobPart], { type: 'application/octet-stream' });

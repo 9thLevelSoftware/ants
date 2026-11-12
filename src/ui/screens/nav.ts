@@ -25,6 +25,8 @@ export function initialNav(): NavState {
 const ALLOWED: Record<string, readonly OverlayId[]> = {
   title: ['new-game', 'save-load', 'settings', 'credits', 'lineage', 'codex'],
   paused: ['save-load', 'settings', 'codex'],
+  // GDD 08 3.1: epitaph -> title | lineage | new-game; the setup opens over the card, Back returns to it
+  epitaph: ['new-game'],
 };
 
 export function allowedOverlays(screen: UiScreen): readonly OverlayId[] {

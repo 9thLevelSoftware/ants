@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { groupNext, trapIndex } from './groupNav';
-import { pushBack, handleBack, hasBackHandler, backDepth } from './escapeStack';
+import { pushBack, handleBack, hasBackHandler, backDepth, layerAboveScreen, BACK_LEVEL } from './escapeStack';
 import { sliderFraction, sliderFromFraction, sliderKey, snapToStep } from './sliderLogic';
 import { pickSpatial } from './spatialNav';
 import { stageIndex } from './stages';
@@ -187,5 +187,22 @@ describe('back stack levels', () => {
     handleBack();
     expect(log).toEqual(['capture', 'popover', 'dialog']);
     offs[1]();
+  });
+});
+
+describe('layers above a book screen own the keys (Q / E tab hotkeys step aside)', () => {
+  it('a dialog, popover or capture counts, a screen alone does not', () => {
+    expect(layerAboveScreen()).toBe(false);
+    const screen = pushBack(() => {}, BACK_LEVEL.screen);
+    expect(layerAboveScreen()).toBe(false);
+    const dialog = pushBack(() => {}, BACK_LEVEL.dialog);
+    expect(layerAboveScreen()).toBe(true);
+    const popover = pushBack(() => {}, BACK_LEVEL.popover);
+    dialog();
+    expect(layerAboveScreen()).toBe(true); // the popover is still open
+    popover();
+    expect(layerAboveScreen()).toBe(false);
+    screen();
+    expect(backDepth()).toBe(0);
   });
 });

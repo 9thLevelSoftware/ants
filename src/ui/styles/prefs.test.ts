@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { createPrefsStore, defaultPrefs, mergePrefs, PREFS_STORAGE_KEY, sanitizePrefs, type StorageLike } from './prefs';
+import { defaultSettings, SettingsStore, type SettingsPatch } from '@/game/settings/settings';
+import { createPrefsStore, defaultPrefs, mergePrefs, prefsFromSettings, sanitizePrefs, settingsPatchFromPrefs, type PrefsPatch, type SettingsSource } from './prefs';
 import { tokensCss } from './tokens';
 
-function fakeStorage(initial: Record<string, string> = {}, failWrites = false): StorageLike & { data: Record<string, string> } {
-  const data = { ...initial };
-  return {
-    data,
-    getItem: (k) => (k in data ? data[k] : null),
-    setItem: (k, v) => { if (failWrites) throw new Error('quota'); data[k] = v; },
+/** A game's settings as the facade exposes them: the real SettingsStore (it validates), plus a settable notice. */
+function fakeGame(notice = ''): SettingsSource & { store: SettingsStore; notice: string; writes: SettingsPatch[] } {
+  const store = new SettingsStore(defaultSettings());
+  const g = {
+    store, notice, writes: [] as SettingsPatch[],
+    getSettings: () => store.get(),
+    setSettings: (p: SettingsPatch) => { g.writes.push(p); store.set(p); },
+    settingsNotice: () => g.notice,
   };
+  return g;
 }
 
 describe('UI preferences', () => {
@@ -41,34 +45,91 @@ describe('UI preferences', () => {
     expect(mergePrefs(m, { accessibility: { uiScale: 9 } }).accessibility.uiScale).toBe(1.5);
   });
 
-  it('persists to storage and reloads', () => {
-    const st = fakeStorage();
-    const a = createPrefsStore(st);
-    a.set({ accessibility: { uiScale: 0.8, highContrast: true } });
-    expect(JSON.parse(st.data[PREFS_STORAGE_KEY]).accessibility.uiScale).toBe(0.8);
-    const b = createPrefsStore(st);
-    expect(b.prefs.value.accessibility.uiScale).toBe(0.8);
-    expect(b.prefs.value.accessibility.highContrast).toBe(true);
-    expect(b.persistent.value).toBe(true);
+  it('reads the game settings in the units the components use (percent -> factor, minimap word -> boolean, ui bus)', () => {
+    const g = fakeGame();
+    g.store.set({ accessibility: { uiScale: 150, textScale: 115 }, gameplay: { autosaveMin: 10, minimap: 'always' }, audio: { ui: 0.25 } });
+    const s = createPrefsStore(g);
+    expect(s.prefs.value.accessibility.uiScale).toBe(1.5);
+    expect(s.prefs.value.accessibility.textScale).toBe(1.15);
+    expect(s.prefs.value.gameplay.autosaveMinutes).toBe(10);
+    expect(s.prefs.value.gameplay.minimap).toBe(true);
+    expect(s.prefs.value.audio.interface).toBe(0.25);
   });
 
-  it('works without storage and flags it (Settings shows "cannot be stored")', () => {
+  it('writes land in the game settings (foundress.settings.v1 object), in the game units: the one store', () => {
+    const g = fakeGame();
+    const s = createPrefsStore(g);
+    s.set({ accessibility: { uiScale: 1.5, textScale: 1.3, comfortMitesCentipedes: true, soundCueIndicators: true, spiderComfort: 'abstract' } });
+    s.set({ gameplay: { autosaveMinutes: 2, minimap: true }, audio: { interface: 0.4, giants: 0.1 } });
+    const t = g.store.get();
+    expect(t.accessibility).toMatchObject({ uiScale: 150, textScale: 130, comfortMites: true, comfortCentipedes: true, soundCues: true, spiderComfort: 'abstract' });
+    expect(t.gameplay).toMatchObject({ autosaveMin: 2, minimap: 'always' });
+    expect(t.audio).toMatchObject({ ui: 0.4, giants: 0.1 });
+    // and nothing the patch did not name was touched
+    expect(t.accessibility.font).toBe('standard');
+    expect(t.audio.master).toBe(1);
+    expect(s.prefs.value.accessibility.uiScale).toBe(1.5);
+  });
+
+  it('every row survives the round trip view -> settings -> view', () => {
+    const wanted: PrefsPatch = {
+      accessibility: { uiScale: 0.8, textScale: 1.15, font: 'hyperlegible', highContrast: true, reducedMotion: 'on', spiderComfort: 'marker', comfortMitesCentipedes: true, overlayPalette: 'pattern-only', soundCueIndicators: true, flashReduction: false },
+      audio: { ambience: 0.1, effects: 0.2, giants: 0.3, interface: 0.4, music: 0.5, musicMode: 'frequent', muteWhenHidden: false, mono: true },
+      gameplay: { autosaveMinutes: 0, prompts: 'never', hints: false, minimap: true, focusLine: 'always', milestoneNotices: 'quiet' },
+    };
+    const g = fakeGame();
+    const s = createPrefsStore(g);
+    s.set(wanted);
+    expect(s.prefs.value).toEqual(mergePrefs(defaultPrefs(), wanted));
+    expect(prefsFromSettings(g.store.get())).toEqual(s.prefs.value);
+    // an empty patch writes nothing
+    expect(settingsPatchFromPrefs({})).toEqual({});
+  });
+
+  it('follows changes the game makes by itself (loaded from storage, debug hook) on refresh', () => {
+    const g = fakeGame();
+    const s = createPrefsStore(g);
+    expect(s.prefs.value.accessibility.uiScale).toBe(1);
+    g.store.set({ accessibility: { uiScale: 150 } });
+    expect(s.prefs.value.accessibility.uiScale).toBe(1); // not until the shell re-reads
+    s.refresh();
+    expect(s.prefs.value.accessibility.uiScale).toBe(1.5);
+    const before = s.prefs.value;
+    s.refresh();
+    expect(s.prefs.value).toBe(before); // unchanged settings keep the same object (no re-render)
+  });
+
+  it('shows the game storage notice: not persistent while the game says settings cannot be stored', () => {
+    const g = fakeGame('Settings cannot be stored in this browser context');
+    const s = createPrefsStore(g);
+    expect(s.persistent.value).toBe(false);
+    expect(s.notice.value).toContain('cannot be stored');
+    s.set({ audio: { mono: true } });
+    expect(s.prefs.value.audio.mono).toBe(true); // still applied for the session
+    g.notice = '';
+    s.refresh();
+    expect(s.persistent.value).toBe(true);
+    expect(s.notice.value).toBe('');
+  });
+
+  it('works before a game exists (boot screens) and flags it; attaching adopts the game values', () => {
     const none = createPrefsStore(null);
     expect(none.persistent.value).toBe(false);
     none.set({ audio: { mono: true } });
     expect(none.prefs.value.audio.mono).toBe(true);
-    const broken = createPrefsStore(fakeStorage({}, true));
-    expect(broken.persistent.value).toBe(true);
-    broken.set({ audio: { mono: true } });
-    expect(broken.persistent.value).toBe(false);
-    expect(broken.prefs.value.audio.mono).toBe(true);
+    const g = fakeGame();
+    none.attach(g);
+    expect(none.prefs.value.audio.mono).toBe(false);
+    expect(none.persistent.value).toBe(true);
   });
 
-  it('survives corrupt stored JSON', () => {
-    const st = fakeStorage({ [PREFS_STORAGE_KEY]: '{not json' });
-    const s = createPrefsStore(st);
-    expect(s.prefs.value).toEqual(defaultPrefs());
-    expect(s.persistent.value).toBe(false);
+  it('a game that throws on read or write leaves the view as it was', () => {
+    const g = fakeGame();
+    const s = createPrefsStore(g);
+    g.getSettings = () => { throw new Error('boom'); };
+    g.setSettings = () => { throw new Error('boom'); };
+    expect(s.set({ audio: { mono: true } }).audio.mono).toBe(false);
+    expect(() => s.refresh()).not.toThrow();
   });
 });
 

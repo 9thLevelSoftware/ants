@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { getPreset } from '@/render/app';
 import { blockContext } from './blockContext';
 import { clipmapParams, drapeHeight, drapeLayout } from './drape';
-import { drapedResolve, drapedVertex, hugSurface } from './drapedShape';
+import { drapedResolve, drapedVertex, hugSurface, resolveRoot } from './drapedShape';
 import { GroundView } from './ground';
 import { DRAPED_STRIDE } from './instances';
 import { placeDraped } from './placement';
@@ -56,7 +56,7 @@ function measure(bx: number, bz: number, cam: { x: number; z: number }, grid: re
 }
 
 describe('draped decor hugs the ground', () => {
-  it('forest leaves near the camera (LOD 0 cards) lie within the hug band', () => {
+  it('forest leaves near the camera (LOD 0 cards) lie within the hug band', { timeout: 60000 }, () => {
     const r = measure(2, 0, { x: 2500, z: 500 }, DRAPE.lodGrid[0]);
     expect(r.n).toBeGreaterThan(10000);
     expect(r.resolved).toBeGreaterThan(r.n * 0.9);
@@ -72,5 +72,18 @@ describe('draped decor hugs the ground', () => {
     expect(r.depthWorst).toBeLessThan(0.01);
     expect(r.maxAbove).toBeLessThanOrEqual((DRAPE.liftBU + DRAPE.curlBU) * BU + 1e-6);
     expect(r.maxBelow).toBeLessThan(1e-6);
+  });
+
+  it('the per-pixel resolve converges where the ground along the ray rises faster than the ray falls', () => {
+    // ray slope -0.06 (an ant-height camera looking up a bank), ground slope +0.22 along the ray, plus a bump: the
+    // old fixed-point step (t -= phi / rayY) multiplied the error by (1 - 0.28 / 0.06) = -3.7 each step
+    for (const f0 of [-0.6, -0.2, 0.15, 0.6]) {
+      const phi = (t: number) => f0 - 0.28 * t + 0.05 * Math.sin(t / 3);
+      const r = resolveRoot(phi, -0.06);
+      expect(r.residual).toBeLessThan(1e-3);
+    }
+    // a ray that never meets the surface: the closest evaluated point, never above the surface
+    const r = resolveRoot((t) => -0.2 - 0.001 * t * t, 0.08);
+    expect(r.residual).toBeLessThanOrEqual(0.2 + 1e-9);
   });
 });

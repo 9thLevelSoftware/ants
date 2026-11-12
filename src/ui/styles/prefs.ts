@@ -1,8 +1,10 @@
-// Presentation preferences the UI owns: accessibility (UI scale, text size, font, contrast, reduced motion, comfort
-// options), the audio mix beyond master, and the gameplay rows that have no home in GameSettings yet. Persisted in
-// localStorage `foundress.ui.v1` (try/catch; the session keeps working without storage). When the settings task
-// brings these into `foundress.settings.v1` it can read/replace this store through getPrefs()/replacePrefs().
+// The UI's view of the player's settings (GDD 08 7.4, App. A): accessibility (UI scale, text size, font, contrast,
+// reduced motion, comfort options), the audio buses and the gameplay rows. There is ONE settings object, the game's
+// `GameSettings` (stored under `foundress.settings.v1`); this file owns no storage. `uiPrefs` is a view of it in the
+// units the components use (scale as a factor, booleans for the on/off rows), read and written through the
+// facade's getSettings / setSettings, so the game's consumers (autosave, audio, comfort options) see every change.
 import { signal, type Signal } from '@preact/signals';
+import type { GameSettings, SettingsPatch } from '@/game/settings/model';
 import { SCALE } from './tokens';
 import { snapUiScale } from './scale';
 
@@ -63,13 +65,15 @@ export function defaultPrefs(): UiPrefs {
 
 export type PrefsPatch = { [K in keyof UiPrefs]?: Partial<UiPrefs[K]> };
 
-export const PREFS_STORAGE_KEY = 'foundress.ui.v1';
-
-/** The slice of Storage the store needs (tests pass a fake; null = no storage at all). */
-export interface StorageLike {
-  getItem(k: string): string | null;
-  setItem(k: string, v: string): void;
+/** The slice of the GameFacade the store needs (the real game, the demo's mock, or a test double). */
+export interface SettingsSource {
+  getSettings(): GameSettings;
+  setSettings(patch: SettingsPatch): void;
+  /** '' when settings are stored fine; else the Settings header notice (storage unavailable, write failed). */
+  settingsNotice?(): string;
 }
+
+export const NO_STORAGE_NOTICE = 'Settings cannot be stored in this browser context. They last until you close the page.';
 
 function pickEnum<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
   return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
@@ -77,7 +81,7 @@ function pickEnum<T extends string>(v: unknown, allowed: readonly T[], fallback:
 const num = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback);
 const bool = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback);
 
-/** Validates untyped stored JSON against the defaults; anything malformed falls back per field. Never throws. */
+/** Validates untyped data against the defaults; anything malformed falls back per field. Never throws. */
 export function sanitizePrefs(raw: unknown): UiPrefs {
   const d = defaultPrefs();
   if (!raw || typeof raw !== 'object') return d;
@@ -122,49 +126,120 @@ export function mergePrefs(base: UiPrefs, patch: PrefsPatch): UiPrefs {
   });
 }
 
+
+/** GameSettings -> the view the components use. Malformed values (a hostile or newer settings object) are repaired. */
+export function prefsFromSettings(s: GameSettings): UiPrefs {
+  const a = s.accessibility, au = s.audio, g = s.gameplay;
+  return sanitizePrefs({
+    accessibility: {
+      uiScale: a.uiScale / 100, textScale: a.textScale / 100, font: a.font, highContrast: a.highContrast, reducedMotion: a.reducedMotion,
+      spiderComfort: a.spiderComfort, comfortMitesCentipedes: a.comfortMites || a.comfortCentipedes, overlayPalette: a.overlayPalette,
+      soundCueIndicators: a.soundCues, flashReduction: a.flashReduction,
+    },
+    audio: { ambience: au.ambience, effects: au.effects, giants: au.giants, interface: au.ui, music: au.music, musicMode: au.musicMode, muteWhenHidden: au.muteWhenHidden, mono: au.mono },
+    gameplay: { autosaveMinutes: g.autosaveMin, prompts: g.prompts, hints: g.hints, minimap: g.minimap === 'always', focusLine: g.focusLine, milestoneNotices: g.milestoneNotices },
+  });
+}
+
+/** A view patch (already validated) -> the GameSettings patch that carries it; only the named rows are touched. */
+export function settingsPatchFromPrefs(p: PrefsPatch): SettingsPatch {
+  const out: SettingsPatch = {};
+  const a = p.accessibility;
+  if (a) {
+    const acc: NonNullable<SettingsPatch['accessibility']> = {};
+    if (a.uiScale !== undefined) acc.uiScale = Math.round(snapUiScale(a.uiScale) * 100);
+    if (a.textScale !== undefined) acc.textScale = Math.round(a.textScale * 100);
+    if (a.font !== undefined) acc.font = a.font;
+    if (a.highContrast !== undefined) acc.highContrast = a.highContrast;
+    if (a.reducedMotion !== undefined) acc.reducedMotion = a.reducedMotion;
+    if (a.spiderComfort !== undefined) acc.spiderComfort = a.spiderComfort;
+    if (a.comfortMitesCentipedes !== undefined) { acc.comfortMites = a.comfortMitesCentipedes; acc.comfortCentipedes = a.comfortMitesCentipedes; }
+    if (a.overlayPalette !== undefined) acc.overlayPalette = a.overlayPalette;
+    if (a.soundCueIndicators !== undefined) acc.soundCues = a.soundCueIndicators;
+    if (a.flashReduction !== undefined) acc.flashReduction = a.flashReduction;
+    out.accessibility = acc;
+  }
+  const au = p.audio;
+  if (au) {
+    const audio: NonNullable<SettingsPatch['audio']> = {};
+    if (au.ambience !== undefined) audio.ambience = au.ambience;
+    if (au.effects !== undefined) audio.effects = au.effects;
+    if (au.giants !== undefined) audio.giants = au.giants;
+    if (au.interface !== undefined) audio.ui = au.interface;
+    if (au.music !== undefined) audio.music = au.music;
+    if (au.musicMode !== undefined) audio.musicMode = au.musicMode;
+    if (au.muteWhenHidden !== undefined) audio.muteWhenHidden = au.muteWhenHidden;
+    if (au.mono !== undefined) audio.mono = au.mono;
+    out.audio = audio;
+  }
+  const g = p.gameplay;
+  if (g) {
+    const gameplay: NonNullable<SettingsPatch['gameplay']> = {};
+    if (g.autosaveMinutes !== undefined) gameplay.autosaveMin = g.autosaveMinutes;
+    if (g.prompts !== undefined) gameplay.prompts = g.prompts;
+    if (g.hints !== undefined) gameplay.hints = g.hints;
+    if (g.minimap !== undefined) gameplay.minimap = g.minimap ? 'always' : 'never';
+    if (g.focusLine !== undefined) gameplay.focusLine = g.focusLine;
+    if (g.milestoneNotices !== undefined) gameplay.milestoneNotices = g.milestoneNotices;
+    out.gameplay = gameplay;
+  }
+  return out;
+}
+
 export interface PrefsStore {
   prefs: Signal<UiPrefs>;
-  /** False once a write failed or storage is absent: Settings shows "cannot be stored in this browser context". */
+  /** False when settings cannot be stored (no source, storage missing, last write failed): Settings says so. */
   persistent: Signal<boolean>;
+  /** The notice text for the Settings header, '' when everything is stored. */
+  notice: Signal<string>;
+  /** Applies a patch to the settings (through the source) and updates the view. Returns the new view. */
   set(patch: PrefsPatch): UiPrefs;
-  replace(p: UiPrefs): void;
+  /** Points the store at the game's settings (null = none yet: the view is kept in memory and not stored). */
+  attach(source: SettingsSource | null): void;
+  /** Re-reads the source, because the game may change settings by itself (loaded from storage, a debug hook). */
+  refresh(): void;
 }
 
-function defaultStorage(): StorageLike | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage;
-  } catch {
-    return null; // accessing localStorage itself can throw in sandboxed frames
-  }
-}
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-export function createPrefsStore(storage: StorageLike | null = defaultStorage()): PrefsStore {
-  let initial = defaultPrefs();
-  let persistent = storage !== null;
-  if (storage) {
+export function createPrefsStore(initial: SettingsSource | null = null): PrefsStore {
+  let source: SettingsSource | null = null;
+  const prefs = signal<UiPrefs>(defaultPrefs());
+  const persistent = signal(false);
+  const notice = signal(NO_STORAGE_NOTICE);
+
+  const refresh = () => {
+    if (!source) { persistent.value = false; notice.value = NO_STORAGE_NOTICE; return; }
+    let next: UiPrefs;
     try {
-      const text = storage.getItem(PREFS_STORAGE_KEY);
-      if (text) initial = sanitizePrefs(JSON.parse(text));
+      next = prefsFromSettings(source.getSettings());
     } catch {
-      persistent = false;
+      return; // a game that cannot answer keeps the last view
     }
-  }
-  const prefs = signal<UiPrefs>(initial);
-  const persistentSig = signal<boolean>(persistent);
-  const write = () => {
-    if (!storage) return;
-    try {
-      storage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs.value));
-    } catch {
-      persistentSig.value = false;
-    }
+    if (!sameJson(next, prefs.value)) prefs.value = next;
+    const text = source.settingsNotice?.() ?? '';
+    if (notice.value !== text) notice.value = text;
+    if (persistent.value !== (text === '')) persistent.value = text === '';
   };
-  return {
-    prefs, persistent: persistentSig,
-    set(patch) { prefs.value = mergePrefs(prefs.value, patch); write(); return prefs.value; },
-    replace(p) { prefs.value = sanitizePrefs(p); write(); },
+
+  const store: PrefsStore = {
+    prefs, persistent, notice, refresh,
+    attach(next) { source = next; refresh(); },
+    set(patch) {
+      const merged = mergePrefs(prefs.value, patch);
+      if (!source) { prefs.value = merged; return merged; }
+      try {
+        source.setSettings(settingsPatchFromPrefs(patch));
+      } catch {
+        // the view below is re-read from the game, so a refused write simply leaves the old value
+      }
+      refresh();
+      return prefs.value;
+    },
   };
+  store.attach(initial);
+  return store;
 }
 
-/** The store the shell uses (tests make their own with createPrefsStore). */
+/** The store the shell uses; styles/index.ts attaches it to the game's facade (tests make their own). */
 export const uiPrefs = createPrefsStore();

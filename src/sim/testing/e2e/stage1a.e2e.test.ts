@@ -106,18 +106,17 @@ describe('(a) a new game on a generated world: founding dig, eggs, brood develop
     const p0 = egg.progress;
     let expected = 0, tMin = Infinity, tMax = -Infinity;
     const ticks = Math.round(0.5 * TICKS_PER_DAY);
-    for (t = 0; t < ticks && egg.alive && egg.stage === 'egg'; t++) {
+    for (t = 0; t < ticks; t++) {
       const T = broodTempC(sim, egg);
       tMin = Math.min(tMin, T); tMax = Math.max(tMax, T);
       expected += devRate(def, T) / TICKS_PER_DAY / stageDu(def, 'egg', egg.destined);
       sim.tick();
     }
-    const alive = sim.state.brood.filter((b) => b.alive);
-    expect(alive.length).toBeGreaterThan(0);
-    if (egg.alive && egg.stage === 'egg') {
-      expect(egg.progress - p0).toBeGreaterThan(0);
-      expect(egg.progress - p0).toBeCloseTo(expected, 2);
-    }
+    // the egg stage lasts days: half a day later the egg must still be an egg (else the check below means nothing)
+    expect(egg.alive).toBe(true);
+    expect(egg.stage).toBe('egg');
+    expect(egg.progress - p0).toBeGreaterThan(0);
+    expect(egg.progress - p0).toBeCloseTo(expected, 2);
     // the temperature the brood felt came from the environment's cavity column, not a constant
     expect(Number.isFinite(tMin) && Number.isFinite(tMax)).toBe(true);
     expectNoViolations(sim);

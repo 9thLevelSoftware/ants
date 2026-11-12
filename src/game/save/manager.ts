@@ -6,87 +6,29 @@
 // to save (IndexedDB serialises inside put(), the memory back end copies), so the saved state is the one at that
 // tick boundary even though the write finishes later. See docs in storage.ts.
 import { createLogger } from '@/core/log';
-import type { Sim, SimState } from '@/sim/types';
+import type { SimState } from '@/sim/types';
 import { AUTO_RING_SIZE, THUMB_CACHE_MAX_AGE_S } from './constants';
-import { blockReason, type BlockContext } from './blocks';
+import { blockReason } from './blocks';
 import { bytesToText, exportFileName, packContainer, parseBytes, parseText, type ParsedSave } from './container';
 import { copyText, downloadBytes } from './download';
 import { IndexedDbStorage } from './indexedDbStorage';
 import { restoreSave, type LoaderDeps } from './loader';
+import type { ExportOptions, ExportValue, SaveHost, SaveManagerOptions, SaveOptions } from './managerTypes';
+import { deleteOps, MESSAGES, messageFor, stubMeta } from './managerSupport';
 import { isCheckpointLabel } from './autosavePolicy';
 import { buildMeta, isValidMeta } from './meta';
 import { MemoryStorage } from './memoryStorage';
 import {
   ALL_KEYS, AUTO_KEYS, autoGenerations, chooseAutoKey, isAutoKey, isManualTarget, nextGeneration, oldestDroppable, slotOfKey, titleOfKey,
 } from './slots';
-import type { SaveStorage, StorageFailure, WriteOp } from './storage';
+import type { SaveStorage, WriteOp } from './storage';
 import type {
   AutosaveLabel, SaveCode, SaveEvent, SaveListing, SaveMeta, SaveOutcome, SaveRecord, SaveStatus,
 } from './types';
 
 const log = createLogger('save');
 
-/** What the manager needs from the running game (src/game/save/gameHost.ts adapts Game to this). */
-export interface SaveHost {
-  /** The running sim, null outside a game. */
-  getSim(): Sim | null;
-  /** Game mode and view, for the "may we save now" rules. */
-  context(): BlockContext;
-  /** A 160x90 JPEG data URL of the current view, or null (test mode, refused). May throw. */
-  thumbnail?(): string | null;
-  /** Replaces the running game with a loaded sim. */
-  adopt(sim: Sim, meta: SaveMeta): void;
-  /** Shows the loading state before the (blocking) world rebuild; resolve after the browser could paint. */
-  loadingBegin?(): Promise<void> | void;
-  /** The load failed: leave the loading state. (On success `adopt` replaces it.) */
-  loadingEnd?(): void;
-}
-
-export interface SaveManagerOptions {
-  host: SaveHost;
-  /** Primary back end (default IndexedDB). */
-  storage?: SaveStorage;
-  /** Back end used when the primary is unavailable (default in-memory). */
-  fallback?: () => SaveStorage;
-  loader?: LoaderDeps;
-  /** Wall clock in ms (default Date.now). */
-  now?: () => number;
-  /** `?nodownload=1`: never try a file download, always offer the text form. */
-  noDownload?: boolean;
-}
-
-export interface SaveOptions {
-  /** Written by the game, not the player: goes to the `auto` ring (or `opening-start`). */
-  autosave?: boolean;
-  label?: AutosaveLabel | string;
-  /** Overrides the thumbnail (null = none). Default: captured (manual) or the cached one (autosave). */
-  thumbnail?: string | null;
-}
-
-export interface ExportValue {
-  method: 'download' | 'text' | 'bytes';
-  filename: string;
-  sizeBytes: number;
-  /** `FOUNDRESS1:` text (always set for method `text`). */
-  text?: string;
-  bytes?: Uint8Array;
-  /** The clipboard copy worked (text method with copy requested). */
-  copied?: boolean;
-}
-
-export interface ExportOptions {
-  /** `auto`: try a download, fall back to text. `text`: only text. `bytes`: only return bytes (no side effects). */
-  method?: 'auto' | 'text' | 'bytes';
-  /** Try the clipboard after producing text. */
-  copy?: boolean;
-}
-
-const MESSAGES: Record<string, string> = {
-  unavailable: 'Saving to this browser is not available here. Use Export to keep your colony.',
-  quota: 'The browser storage is full. Delete an old save or export your colony.',
-  busy: 'Another save or load is still running.',
-  'not-found': 'There is no save in that slot.',
-};
+export type { SaveHost, SaveManagerOptions, SaveOptions, ExportValue, ExportOptions };
 
 export class SaveManager {
   private storage: SaveStorage;
@@ -325,8 +267,9 @@ export class SaveManager {
             : 'Saved.', { value: { ...stored, thumbnail: thumb }, volatile });
         }
         if (w.status === 'quota' && relieved < AUTO_RING_SIZE) {
-          // Drop the oldest autosave generation (never the one being replaced, never a pinned `final`) and retry.
-          const victim = oldestDroppable(this.cache, key);
+          // Drop the oldest unpinned autosave generation and retry. For an autosave that is the very cell being
+          // replaced (it frees the space before the new generation goes in); the retry then picks that empty cell.
+          const victim = oldestDroppable(this.cache);
           if (victim) {
             relieved++;
             const d = await this.storage.write(deleteOps(victim.key));
@@ -403,9 +346,14 @@ export class SaveManager {
       if (slot === 'quick' && opts.fallbackToAuto !== false && !this.cache.has('quick') && !this.damaged.has('quick')) {
         keys = generations();
       }
-      if (keys.length === 0 && !this.damaged.has(slot)) return this.loadResult(slot, 'not-found', MESSAGES['not-found']);
+      // A damaged cell is not in the cache (and the list shows it as damaged): with nothing valid left the answer is
+      // "damaged", not "empty". Its record is not salvaged: the metadata failing its check is the integrity failure.
+      const damagedCells = (slot === 'auto' ? AUTO_KEYS : [slot]).filter((k) => this.damaged.has(k));
+      if (keys.length === 0) {
+        return damagedCells.length > 0 ? this.loadResult(slot, 'corrupt', MESSAGES.corrupt) : this.loadResult(slot, 'not-found', MESSAGES['not-found']);
+      }
       let sawDamaged = false;
-      for (const key of keys.length > 0 ? keys : [slot]) {
+      for (const key of keys) {
         const got = await this.storage.get('saves', key);
         if (!got.ok) return this.loadResult(slot, got.status, messageFor(got.status, got.message));
         const rec = got.value as Partial<SaveRecord> | undefined;
@@ -416,8 +364,8 @@ export class SaveManager {
         if (a.code === 'corrupt') { this.markDamaged(key); sawDamaged = true; continue; }
         return this.loadResult(slot, a.code, a.message); // version / world problems are not "damage": do not try older ones
       }
-      return sawDamaged || this.damaged.has(slot)
-        ? this.loadResult(slot, 'corrupt', 'This save is damaged and cannot be loaded.')
+      return sawDamaged || damagedCells.length > 0
+        ? this.loadResult(slot, 'corrupt', MESSAGES.corrupt)
         : this.loadResult(slot, 'not-found', MESSAGES['not-found']);
     } catch (e) {
       return this.loadResult(slot, 'failed', e instanceof Error ? e.message : String(e));
@@ -532,7 +480,7 @@ export class SaveManager {
     const r = restoreSave(meta, state, this.loaderDeps);
     if (!r.ok) { this.host.loadingEnd?.(); return r; }
     try {
-      this.host.adopt(r.sim, meta);
+      await this.host.adopt(r.sim, meta);
     } catch (e) {
       this.host.loadingEnd?.();
       return { ok: false, code: 'failed', message: `The game could not start from this save: ${e instanceof Error ? e.message : String(e)}` };
@@ -556,8 +504,10 @@ export class SaveManager {
     const ok = code === 'ok';
     const unavailable = !ok && code === 'unavailable';
     const volatile = extra.volatile === true;
-    if (ok || code !== 'blocked') this.setLast(volatile ? 'unavailable' : code, message);
-    if (!(autosave && code === 'blocked')) this.emit({ type: 'save-result', slot, key, ok, code, message, autosave, label });
+    // An autosave that could not even start (blocked, or another save running) is the game's business, not news.
+    const notAttempted = autosave && (code === 'blocked' || code === 'busy');
+    if (ok || (code !== 'blocked' && !notAttempted)) this.setLast(volatile ? 'unavailable' : code, message);
+    if (!notAttempted) this.emit({ type: 'save-result', slot, key, ok, code, message, autosave, label });
     return {
       ok, status: ok ? (volatile ? 'unavailable' : 'ok') : unavailable ? 'unavailable' : 'failed', code, message,
       ...(volatile ? { volatile: true } : {}), value: extra.value,
@@ -575,24 +525,4 @@ export class SaveManager {
     this.emit({ type: 'export-result', method, ok, code, message });
     return { ok, status: ok ? 'ok' : code === 'unavailable' ? 'unavailable' : 'failed', code, message, value };
   }
-}
-
-function deleteOps(key: string): WriteOp[] {
-  return [
-    { op: 'delete', store: 'saves', key },
-    { op: 'delete', store: 'meta', key },
-    { op: 'delete', store: 'thumbs', key },
-  ];
-}
-
-function messageFor(status: StorageFailure | SaveCode, raw: string): string {
-  return MESSAGES[status] ?? raw;
-}
-
-function stubMeta(key: string): SaveMeta {
-  return {
-    key, slot: slotOfKey(key) ?? 'quick', generation: 0, label: '', pinned: false, species: 'lasius-niger', archetype: '', seed: 0,
-    seedCode: '', sizeClass: '', difficulty: '', stage: '', tick: 0, dateLabel: '', colonyDay: 0, population: 0, playTimeS: 0,
-    savedAtIso: '', savedAtMs: 0, saveVersion: 0, generatorVersion: 0, worldFingerprint: 0, appVersion: '', thumbnail: null,
-  };
 }

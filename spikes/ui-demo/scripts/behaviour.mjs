@@ -157,12 +157,14 @@ export default async ({ page, log, url }) => {
   await sel.focus();
   await press('Enter');
   await page.waitForSelector('.ui-select-list');
+  await page.waitForFunction("document.activeElement?.getAttribute('role') === 'listbox'"); // focus lands a frame after the list mounts
   await press('n');
   check('select: type-ahead moves the highlight', (await q('.ui-select-opt.is-active').innerText()).startsWith('Never'));
   await press('Enter');
   check('select: Enter chooses and closes', (await sel.innerText()).includes('Never') && (await q('.ui-select-list').count()) === 0);
   await press('Enter');
   await page.waitForSelector('.ui-select-list');
+  await page.waitForFunction("document.activeElement?.getAttribute('role') === 'listbox'");
   await press('Escape');
   check('select: Esc closes only the list, not the screen', (await q('.ui-select-list').count()) === 0 && (await q('.ui-book').count()) === 1);
 
@@ -232,6 +234,10 @@ export default async ({ page, log, url }) => {
   await q('[data-testid=import-go]').click();
   check('import: bad text is explained inline and nothing is sent', (await q('.ui-text-error').innerText()).includes('FOUNDRESS1:') && !(await calls()).some((x) => x.startsWith('import')));
   await q('[data-testid=import-text]').fill(exportText);
+  await q('[data-testid=import-go]').click();
+  check('import: nothing is stored until a target is chosen', (await q('.ui-text-error').innerText()).includes('where to store') && !(await calls()).some((x) => x.startsWith('import')));
+  await q('[aria-label="Store the imported colony in"]').click();
+  await q('.ui-select-opt').filter({ hasText: 'Slot 4' }).click();
   await q('[data-testid=import-go]').click();
   await page.waitForTimeout(150);
   check('import: pasted text goes to the game', (await calls()).some((x) => x.startsWith('import text:')));

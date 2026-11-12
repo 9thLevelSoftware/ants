@@ -18,8 +18,8 @@ export interface BladeView {
 }
 
 /** LOD: fraction of blades kept at distance d (mm) from the camera, before the quality factor. */
-export function grassLodKeep(d: number, bu: number): number {
-  const d0 = GRASS.lodFullBU * bu;
+export function grassLodKeep(d: number): number {
+  const d0 = GRASS.lodFullMm;
   return d <= d0 ? 1 : Math.pow(d0 / d, GRASS.lodPow);
 }
 
@@ -48,7 +48,7 @@ export function bladeVertex(b: Float32Array, o: number, s: number, h: number, v:
   const H = b[o + 4], yaw = b[o + 6], rnd = b[o + 7], a = b[o + 8], k = b[o + 9];
   let W = b[o + 5];
   const dCam = Math.hypot(rx - v.cam.x, rz - v.cam.z);
-  const keep = v.density * grassLodKeep(dCam, v.bu);
+  const keep = v.density * grassLodKeep(dCam);
   if (rank >= keep) return { x: rx, y: ry, z: rz, fade: 0 };
   W *= Math.min(GRASS.lodMaxWiden, Math.pow(Math.max(keep, 1e-3), -GRASS.lodWidenPow));
   const fx = Math.sin(yaw), fz = Math.cos(yaw), sx = Math.cos(yaw), sz = -Math.sin(yaw);
@@ -150,17 +150,26 @@ void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
 void bladeShape(out vec3 P, out vec3 N) { bladeShapeAt(position.x, position.y, P, N); }
 `;
 
+/**
+ * Twin of bladeFragFade for any world point (blade fragments, and the dew droplets sitting on a blade, so a droplet
+ * disappears with its blade). Needs uCamPos, uSubject, uGrPart, uGrPartP and uGrEye declared.
+ */
+export const BLADE_SIGHT_GLSL = /* glsl */ `
+float grSightFade(vec3 w) {
+  float fade = smoothstep(uGrEye.x, uGrEye.y, length(w - uCamPos));
+  if (uGrPart > 0.5) {
+    vec3 E = uSubject + normalize(uSubject - uCamPos + vec3(1e-5)) * uGrPartP.w;
+    vec3 ab = E - uCamPos; float t = clamp(dot(w - uCamPos, ab) / max(dot(ab, ab), 1e-9), 0.0, 1.0);
+    fade = min(fade, smoothstep(uGrPartP.z * 0.85, uGrPartP.z, length(w - uCamPos - ab * t)));
+  }
+  return fade;
+}
+`;
+
 /** Fragment twin of bladeFragFade (uses the varying world position vBW). */
 export const BLADE_FRAG_GLSL = /* glsl */ `
 uniform vec3 uCamPos; uniform vec3 uSubject; uniform float uGrPart; uniform vec4 uGrPartP; uniform vec2 uGrEye;
 varying vec3 vBW;
-float grFragFade() {
-  float fade = smoothstep(uGrEye.x, uGrEye.y, length(vBW - uCamPos));
-  if (uGrPart > 0.5) {
-    vec3 E = uSubject + normalize(uSubject - uCamPos + vec3(1e-5)) * uGrPartP.w;
-    vec3 ab = E - uCamPos; float t = clamp(dot(vBW - uCamPos, ab) / max(dot(ab, ab), 1e-9), 0.0, 1.0);
-    fade = min(fade, smoothstep(uGrPartP.z * 0.85, uGrPartP.z, length(vBW - uCamPos - ab * t)));
-  }
-  return fade;
-}
+${BLADE_SIGHT_GLSL}
+float grFragFade() { return grSightFade(vBW); }
 `;

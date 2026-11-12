@@ -1,18 +1,28 @@
 // The shell's stylesheet and the document-level settings that go with it: tokens, bundled fonts, base, components
 // and screens CSS as one injected <style>, plus UI scale, layout mode, contrast, font and motion applied to <html>.
-import { effect } from '@preact/signals';
+import { effect, untracked } from '@preact/signals';
+import { facade, snapshot } from '../store';
 import baseCss from './base.css?inline';
 import componentsCss from './components.css?inline';
 import screensCss from './screens.css?inline';
 import { fontFaceCss } from './fonts';
 import { applyScale, computeScale, type ScaleResult } from './scale';
 import type { MotionChoice, UiPrefs } from './prefs';
-import { uiPrefs } from './prefs';
+import { uiPrefs, type SettingsSource } from './prefs';
 import { tokensCss } from './tokens';
 
-export { uiPrefs, defaultPrefs, createPrefsStore, type UiPrefs } from './prefs';
+export { uiPrefs, defaultPrefs, createPrefsStore, type UiPrefs, type SettingsSource } from './prefs';
 export { computeScale, type ScaleResult, type LayoutMode } from './scale';
 export { contrastReport } from './contrast';
+
+// The preferences are a view of the game's settings: follow the facade, and re-read on every snapshot refresh (a few
+// times per second) because the game changes settings on its own too (loaded from storage, the debug hooks).
+let attached: SettingsSource | null = null;
+effect(() => {
+  const f = facade.value;
+  void snapshot.value;
+  untracked(() => { if (f !== attached) { attached = f; uiPrefs.attach(f); } else uiPrefs.refresh(); });
+});
 
 export const STYLE_ELEMENT_ID = 'foundress-ui-styles';
 

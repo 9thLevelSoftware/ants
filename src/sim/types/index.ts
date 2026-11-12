@@ -26,6 +26,7 @@ export * from './diagnostics';
 export * from './progression';
 export * from './ecology';
 export * from './world';
+export * from './decor';
 export * from './config';
 export * from './species';
 export * from './rivalSpecies';

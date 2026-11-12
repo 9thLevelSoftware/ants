@@ -2,11 +2,13 @@
 // staged progress bar, the current stage and a rotating field note (every 8 s). On a failed generation: "This
 // locality could not be completed." with Try another seed and Back. Cancel returns to New Game with every field kept.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import type { SpeciesId } from '@/sim/types';
 import type { UiLoading } from '../api';
 import { Button, ProgressBar, stageIndex, useFocusScope } from '../components';
 import { facade } from '../store';
 import { UI_BALANCE } from '../styles/tokens';
 import { lastRequest } from './newgame/form';
+import { loadingContext, markGenerating } from './loadFlow';
 import { formatSeedCode, nextSeedText } from './newgame/seed';
 import { speciesCard } from './newgame/species';
 import { AntPlate } from './plates/AntPlate';
@@ -36,10 +38,14 @@ const ARCHETYPE_WORDS: Record<string, string> = {
 export function Loading({ loading, inert }: { loading: UiLoading | null; inert?: boolean }) {
   const f = facade.value;
   const root = useRef<HTMLDivElement>(null);
-  const req = lastRequest.value;
-  const species = speciesCard(req?.species ?? 'lasius-niger');
-  const [note, setNote] = useState(0);
   const l = loading ?? { phase: '', progress: 0, attempt: 1, maxAttempts: UI_BALANCE.worldgenMaxAttempts, error: null };
+  const ctx = loadingContext.value;
+  const isLoad = (l.kind ?? ctx.kind) === 'load';
+  // generation shows the New Game request; reading a save shows that save (never the previous New Game request)
+  const req = isLoad ? null : lastRequest.value;
+  const save = isLoad ? ctx.info : null;
+  const species = speciesCard((req?.species ?? save?.species ?? 'lasius-niger') as SpeciesId);
+  const [note, setNote] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setNote((n) => (n + 1) % FIELD_NOTES.length), UI_BALANCE.loadingNoteS * 1000);
     return () => clearInterval(t);
@@ -48,13 +54,14 @@ export function Loading({ loading, inert }: { loading: UiLoading | null; inert?:
 
   const stage = stageIndex(l.progress, UI_BALANCE.loadingStageWeights);
   const regenerating = l.attempt > 1;
-  const label = regenerating ? `Regenerating locality (attempt ${l.attempt} of ${l.maxAttempts})` : l.phase || LOADING_STAGES[stage];
+  const label = isLoad ? l.phase || 'Reading the colony' : regenerating ? `Regenerating locality (attempt ${l.attempt} of ${l.maxAttempts})` : l.phase || LOADING_STAGES[stage];
   const pct = Math.round(l.progress * 100);
   const tryAnother = () => {
     if (!f || !req) return;
     const seedText = nextSeedText(req.seedText ?? formatSeedCode(Number(req.seed ?? 0)));
     const next = { ...req, seedText, seed: parseInt(seedText.replace('-', ''), 16) >>> 0 };
     lastRequest.value = next;
+    markGenerating();
     void f.newGame(next);
   };
 
@@ -62,7 +69,15 @@ export function Loading({ loading, inert }: { loading: UiLoading | null; inert?:
     <div ref={root} class="ui-screen ui-loading" inert={inert} data-screen="loading">
       <div class="ui-loading-plate"><AntPlate species={species.id} framed caption={`${species.binomial}, worker, seen from above`} /></div>
       <div class="ui-loading-col">
-        <h1 class="ui-h1">{l.error ? 'This locality could not be completed.' : 'Preparing the locality'}</h1>
+        <h1 class="ui-h1">{l.error ? (isLoad ? 'That colony could not be loaded.' : 'This locality could not be completed.') : isLoad ? 'Loading your colony' : 'Preparing the locality'}</h1>
+        {save && (
+          <dl class="ui-summary" data-testid="loading-save-summary">
+            <div><dt>Species</dt><dd>{species.binomial}</dd></div>
+            <div><dt>Locality</dt><dd>{save.archetype ? ARCHETYPE_WORDS[save.archetype] ?? save.archetype : 'Unknown'}</dd></div>
+            {save.seedCode && <div><dt>Seed</dt><dd class="ui-mono">{save.seedCode}</dd></div>}
+            <div><dt>Saved</dt><dd>{save.dateLabel ?? `Day ${save.colonyDay}`}</dd></div>
+          </dl>
+        )}
         {req && (
           <dl class="ui-summary">
             <div><dt>Locality</dt><dd>{req.archetype ? ARCHETYPE_WORDS[req.archetype] ?? req.archetype : 'Random'}</dd></div>
@@ -75,8 +90,8 @@ export function Loading({ loading, inert }: { loading: UiLoading | null; inert?:
           <>
             <p class="ui-notice is-warn" role="alert">{l.error}</p>
             <div class="ui-inline">
-              <Button variant="primary" onClick={tryAnother} disabled={!req} data-testid="loading-another">Try another seed</Button>
-              <Button onClick={() => f?.quitToTitle()} data-testid="loading-back">Back</Button>
+              {!isLoad && <Button variant="primary" onClick={tryAnother} disabled={!req} data-testid="loading-another">Try another seed</Button>}
+              <Button variant={isLoad ? 'primary' : undefined} onClick={() => f?.quitToTitle()} data-testid="loading-back">Back</Button>
             </div>
           </>
         ) : (

@@ -64,8 +64,8 @@ export function nextGeneration(metas: ReadonlyMap<string, SaveMeta>): number {
   return g + 1;
 }
 
-/** The oldest ring generation that is not `except` and not pinned (quota relief), or null. */
-export function oldestDroppable(metas: ReadonlyMap<string, SaveMeta>, except: string | null): SaveMeta | null {
-  const list = autoGenerations(metas).filter((m) => !m.pinned && m.key !== except);
+/** The oldest unpinned ring generation (quota relief), or null. */
+export function oldestDroppable(metas: ReadonlyMap<string, SaveMeta>): SaveMeta | null {
+  const list = autoGenerations(metas).filter((m) => !m.pinned);
   return list.length > 0 ? list[list.length - 1] : null;
 }

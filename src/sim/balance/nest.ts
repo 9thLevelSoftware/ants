@@ -256,6 +256,10 @@ export const ENTRANCE_FLARE_LEN_BU = 2;
 export const SHAFT_MAX_TILT_DEG = 15;
 /** Length ranges, BU. */
 export const TUNNEL_LEN_BU: [number, number] = [2, 40];
+/** Length of a tunnel or shaft plan given without a length or end point, BU. */
+export const PLAN_DEFAULT_LEN_BU = 10;
+/** Substrate materials whose excavated spoil is frass (wood and insulation), not soil pellets. */
+export const FRASS_MATERIALS: readonly string[] = ['wood-sound', 'wood-decayed', 'insulation'];
 export const SHAFT_LEN_BU: [number, number] = [4, 60];
 /** Expansion (GDD 03 §7.4): axis sphere spacing and radius pad; chamber lattice step, shrink and radius, BU. */
 export const SPHERE_STEP_TUNNEL_BU = 0.75;
@@ -298,6 +302,8 @@ export const STALL_DEBOUNCE_S = 10;
 export const NO_HAULERS_S = 30;
 /** Architect proposals become queued after this in auto mode, game s. */
 export const ARCH_PROPOSAL_S = 30;
+/** A site whose architect plan the player cancelled is not proposed again for this long, game s. */
+export const ARCH_BLACKLIST_S = 1200;
 /** Terminal plans are dropped after this, game s (1 game day). */
 export const PLAN_DROP_S = 600;
 export const PLAN_CAP_PLAYER = 8;

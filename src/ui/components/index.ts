@@ -23,5 +23,5 @@ export { ScrollArea, type ScrollAreaProps } from './ScrollArea';
 export { TextField, TextArea, type TextFieldProps, type TextAreaProps } from './TextField';
 export { Field, FieldContext, useFieldA11y, type FieldProps } from './Field';
 export { trendOf, trendIcon, TREND_WORDS, type Trend } from './logic/trend';
-export { pushBack, handleBack, hasBackHandler } from './logic/escapeStack';
+export { pushBack, handleBack, hasBackHandler, layerAboveScreen } from './logic/escapeStack';
 export { focusableIn, focusInitial, trapTabKey, useFocusScope } from './focus';

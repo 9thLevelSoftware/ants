@@ -72,9 +72,9 @@ function Sketch({ b }: { b: Build }) {
       {[1, -1].map((s) => <path key={s} d={`M${cx + s * 3} ${headY - b.hh + 1} q${s * 4} -${b.mand} ${s * b.mand * 0.55} -${b.mand + 1}`} />)}
       {/* head */}
       <ellipse cx={cx} cy={headY} rx={b.hw} ry={b.hh} />
-      <circle cx={cx - b.hw + 2} cy={headY - 2} r="2.1" />
-      <circle cx={cx + b.hw - 2} cy={headY - 2} r="2.1" />
-      <path d={`M${cx - b.hw * 0.5} ${headY + 3} q${b.hw * 0.5} 4 ${b.hw} 0`} stroke-width="0.7" />
+      {/* compound eyes: narrow ovals set on the side of the head outline (no face: no pupils, no mouth) */}
+      <ellipse cx={cx - b.hw + 1.2} cy={headY - 1.5} rx="1.5" ry="2.9" transform={`rotate(-12 ${cx - b.hw + 1.2} ${headY - 1.5})`} />
+      <ellipse cx={cx + b.hw - 1.2} cy={headY - 1.5} rx="1.5" ry="2.9" transform={`rotate(12 ${cx + b.hw - 1.2} ${headY - 1.5})`} />
       {/* thorax: pronotum, mesonotum, propodeum */}
       <ellipse cx={cx} cy={thTop + b.thorax * 0.17} rx="6.6" ry={b.thorax * 0.2} />
       <ellipse cx={cx} cy={thTop + b.thorax * 0.5} rx="5.6" ry={b.thorax * 0.17} />

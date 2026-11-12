@@ -72,3 +72,17 @@ describe('mode transitions', () => {
     expect(onModeChange(n, 'title', 'epitaph').stack).toEqual([]);
   });
 });
+
+describe('epitaph to the setup screen (GDD 08 3.1: epitaph -> new-game)', () => {
+  it('the New Game setup may open over the epitaph card, and only that', () => {
+    expect(allowedOverlays('epitaph')).toEqual(['new-game']);
+    const n = openOverlay(initialNav(), 'new-game');
+    expect(activeOverlay('epitaph', n)).toBe('new-game');
+    expect(activeOverlay('epitaph', openOverlay(initialNav(), 'settings'))).toBeNull();
+    expect(activeOverlay('epitaph', closeTop(n))).toBeNull(); // Back returns to the card
+  });
+  it('starting the generation drops the overlay', () => {
+    const n = openOverlay(initialNav(), 'new-game');
+    expect(onModeChange(n, 'epitaph', 'loading').stack).toEqual([]);
+  });
+});

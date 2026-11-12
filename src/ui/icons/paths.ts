@@ -101,7 +101,7 @@ export const ICON_PATHS: Record<string, string> = {
   'task-mill': circle(12, 12, 7.5) + circle(12, 12, 2.2) + line('M12 4.5v5.3M12 14.2v5.3M4.5 12h5.3M14.2 12h5.3'),
   // --- markers
   'marker-dig': line('M4 20l8-8M10.5 4.5l9 9M9 7l8 8M14 3l7 7') + line('M3 21h6'),
-  'marker-forage': circle(12, 12, 7.5) + line('M9 12c1.5 2 4.5 2 6 0M9.5 9.5h.1M14.5 9.5h.1'),
+  'marker-forage': circle(12, 12, 8) + line('M12 7.5c3 1.6 3 7.4 0 9-3-1.6-3-7.4 0-9zM12 10v6'), // a ring with a seed
   'marker-avoid': circle(12, 12, 8) + line('M6.4 6.4l11.2 11.2'),
   'marker-rally': line('M7 21V4M7 5h11l-2.5 3.5L18 12H7'),
   'marker-entrance': line('M4 20h16M7 20v-6a5 5 0 0 1 10 0v6') + line('M12 9V3.5M9.5 6L12 3.5 14.5 6'),

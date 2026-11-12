@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { Box3, MeshBasicMaterial, Vector3, type BufferAttribute } from 'three';
+import { NEST_ATTR } from '../params';
 import { RegionBuffer, type ChunkPart } from './regionBuffer';
 
 function part(tris: number, x0 = 0): ChunkPart {
   const nv = tris * 3;
   const positions = new Float32Array(nv * 3).map((_, i) => x0 + i);
   return {
-    positions, normals: new Float32Array(nv * 3), sub: new Float32Array(nv).fill(-5), nest: new Float32Array(nv * 2), vertexCount: nv,
+    positions, normals: new Float32Array(nv * 3), sub: new Float32Array(nv).fill(-5), nest: new Float32Array(nv * NEST_ATTR), vertexCount: nv,
     indices: Uint32Array.from({ length: nv }, (_, i) => i),
   };
 }

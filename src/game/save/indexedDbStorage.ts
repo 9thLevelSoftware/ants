@@ -3,14 +3,11 @@
 //
 // Every access to `indexedDB` is wrapped: in a sandboxed iframe or a private window the global itself may throw,
 // open() may error or never answer, and any transaction may abort with QuotaExceededError. None of that escapes.
-import { IDB_NAME, IDB_VERSION } from './constants';
+import { IDB_NAME, IDB_OPEN_TIMEOUT_MS, IDB_VERSION } from './constants';
 import { deepCopy } from './deepCopy';
 import {
   classifyError, failure, okVoid, STORE_NAMES, type SaveStorage, type StorageResult, type StoreName, type WriteOp,
 } from './storage';
-
-/** open() that has not answered after this long counts as unavailable (blocked upgrade, stuck profile). */
-const OPEN_TIMEOUT_MS = 6000;
 
 export interface IndexedDbStorageOptions {
   /** Factory override (tests, forced failure); default: globalThis.indexedDB read inside try/catch. */
@@ -50,7 +47,7 @@ export class IndexedDbStorage implements SaveStorage {
     return new Promise((resolve) => {
       let settled = false;
       const done = (r: StorageResult<undefined>) => { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } };
-      const timer = setTimeout(() => done(failure('unavailable', 'Opening the browser storage timed out.')), OPEN_TIMEOUT_MS);
+      const timer = setTimeout(() => done(failure('unavailable', 'Opening the browser storage timed out.')), IDB_OPEN_TIMEOUT_MS);
       try {
         const factory = (this.opts.factory ?? defaultFactory)();
         if (!factory) return done(failure('unavailable', 'This browser context has no IndexedDB.'));

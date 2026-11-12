@@ -1,7 +1,8 @@
 // Adapter between the save layer and the Game orchestrator. The save layer needs six things from the game: the
 // running sim, the mode/view, a thumbnail, "replace the running game with this sim", and two loading-state hooks.
-// Game.ts has no public "start from a loaded sim" yet, so `adopt` uses its (private) startPlaying through a typed
-// cast: when Game gets a public `adoptSim(sim)`, only this file changes (reported to the integrator).
+// Game.ts has no public "start from a loaded sim" yet, so `adopt` mirrors the tail of Game.newGame (build the
+// renderers' world, then the private startPlaying) through a typed cast: when Game gets a public `adoptSim(sim)`,
+// only this file changes (reported to the integrator).
 import type { Sim, SimState } from '@/sim/types';
 import { TEST_CAMERA_SETTLE_S } from '../config/loop';
 import type { Game } from '../Game';
@@ -11,6 +12,8 @@ import type { SaveMeta } from './types';
 
 interface GameInternals {
   startPlaying(sim: Sim, possessQueen: boolean): void;
+  /** Bumped by every newGame / endGame: a changed value means a newer request owns the renderers. */
+  loadToken: number;
 }
 
 /** Lets the browser paint (a macrotask), skipped on the manual test clock. */
@@ -29,6 +32,8 @@ export interface GameHostOptions {
 
 export class GameHost implements DriverHost {
   private priorMode: Game['mode'] = 'title';
+  /** The loading panel this host put up; loadingEnd leaves a newer game's panel alone. */
+  private ownLoading: Game['loading'] = null;
 
   constructor(private readonly game: Game, private readonly opts: GameHostOptions = {}) {}
 
@@ -55,7 +60,8 @@ export class GameHost implements DriverHost {
   async loadingBegin(): Promise<void> {
     const g = this.game;
     this.priorMode = g.mode;
-    g.loading = { phase: 'Rebuilding the locality', progress: 0.3, attempt: 1, maxAttempts: 1, error: null };
+    this.ownLoading = { phase: 'Rebuilding the locality', progress: 0.3, attempt: 1, maxAttempts: 1, error: null };
+    g.loading = this.ownLoading;
     g.mode = 'loading';
     g.refreshUi();
     await nextPaint(g.opts.testMode);
@@ -63,16 +69,33 @@ export class GameHost implements DriverHost {
 
   loadingEnd(): void {
     const g = this.game;
+    const own = this.ownLoading;
+    this.ownLoading = null;
+    // Another game took over (its own loading panel, or already playing): leave it alone.
+    if (own === null || g.mode !== 'loading' || (g.loading !== null && g.loading !== own)) return;
     g.loading = null;
-    g.mode = this.priorMode === 'loading' ? 'title' : this.priorMode;
+    // A failed adopt has already ended the old game: with no session left the title is the only place to go.
+    g.mode = this.priorMode === 'loading' || !g.session ? 'title' : this.priorMode;
     g.refreshUi();
   }
 
-  adopt(sim: Sim, _meta: SaveMeta): void {
+  /** Replaces the running game with `sim`: same order as Game.newGame (renderers build the world, then play starts). */
+  async adopt(sim: Sim, _meta: SaveMeta): Promise<void> {
     const g = this.game;
+    const internals = g as unknown as GameInternals;
     const replace = () => g.endGame(false);
     if (this.opts.withoutQuitSave) this.opts.withoutQuitSave(replace); else replace();
-    (g as unknown as GameInternals).startPlaying(sim, false);
+    const token = internals.loadToken;
+    if (this.ownLoading && g.mode === 'loading') g.loading = this.ownLoading; // endGame cleared the panel
+    try {
+      // endGame dropped every mesh: the renderers must build the loaded world before the first frame of play
+      await g.registry.onGameStart(sim);
+    } catch (e) {
+      g.registry.onGameEnd();
+      throw e;
+    }
+    if (internals.loadToken !== token) throw new Error('The load was superseded by a newer game.');
+    internals.startPlaying(sim, false);
     const s = g.session;
     if (s) resumeView(g, s, sim.state);
     this.applyLoadSpeed(sim.state);

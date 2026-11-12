@@ -1,7 +1,7 @@
-// Local adapter around locomotion's per-frame predictor for the possessed ant (GDD 01 §3.4). Isolated here so a
-// rename in src/sim/locomotion touches one file. Returns null before the predictor has run for the current ant.
+// Local adapter around locomotion's per-frame predictor for the possessed ant (GDD 01 §3.4), through the
+// locomotion index (its public API). Isolated here so a rename in src/sim/locomotion touches one file. Returns null before the predictor has run for the current ant.
 import type { Sim } from '@/sim/types';
-import { possessedPose as locoPossessedPose } from '@/sim/locomotion/possessed';
+import { possessedPose as locoPossessedPose } from '@/sim/locomotion';
 
 export interface PredictedPose {
   pos: { x: number; y: number; z: number };

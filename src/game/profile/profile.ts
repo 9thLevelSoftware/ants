@@ -4,7 +4,7 @@
 // earlier write cannot erase progress, and a hint never moves backwards.
 import { createLogger } from '@/core/log';
 import type { CodexUnlock, DaughterRecord, DeviceProfile, FlightRecord, HintId, LineageColonyRecord } from '@/sim/types';
-import { PROFILE_STORAGE_KEY } from '../save/constants';
+import { PROFILE_STORAGE_KEY, PROFILE_WRITE_DEBOUNCE_MS } from '../save/constants';
 import type { LocalKv } from '../save/localKv';
 import type { SaveStorage } from '../save/storage';
 import { cleanCodex, cleanColony, cleanDaughter, cleanFlight, mergeHint, mergeProfiles, sanitizeProfile, trimLineage } from './merge';
@@ -61,7 +61,7 @@ export class ProfileStore {
     this.nowIso = opts.nowIso ?? (() => new Date().toISOString());
     this.setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
-    this.debounceMs = opts.debounceMs ?? 300;
+    this.debounceMs = opts.debounceMs ?? PROFILE_WRITE_DEBOUNCE_MS;
   }
 
   // ------------------------------------------------------------------ reading
@@ -198,13 +198,28 @@ export class ProfileStore {
     if (parts.includes('codex')) next.codex = {};
     if (parts.includes('lineage')) next.lineage = emptyProfile().lineage;
     this.data = trimLineage(next);
-    this.resetting = true;
+    for (const p of parts) this.pendingResets.set(p, ++this.resetCounter);
     for (const p of parts) this.emit(p);
     this.scheduleWrite();
   }
 
-  /** True after reset() until the next write: the write must replace the stored profile, not merge into it. */
-  private resetting = false;
+  /**
+   * Parts reset in memory whose reset is not yet in the stored profile. Until a write succeeds, the stored copy of
+   * such a part must not be merged back in (it holds exactly what the player erased). The value is a counter, so a
+   * write only retires the resets it actually contained: a reset made while that write was running stays pending.
+   */
+  private readonly pendingResets = new Map<ProfilePart, number>();
+  private resetCounter = 0;
+
+  /** Merges a stored copy into memory, except for the parts with a pending reset. */
+  private mergeStored(raw: unknown): void {
+    const before = this.data;
+    const merged = mergeProfiles(before, sanitizeProfile(raw));
+    for (const part of this.pendingResets.keys()) (merged as unknown as Record<string, unknown>)[part] = before[part];
+    if (JSON.stringify(merged) === JSON.stringify(before)) return;
+    this.data = merged;
+    this.emit('hints'); this.emit('codex'); this.emit('lineage');
+  }
 
   private changed(part: ProfilePart): void {
     this.emit(part);
@@ -217,9 +232,7 @@ export class ProfileStore {
     const stored = await this.readStored();
     if (stored.kind === 'found') {
       this.st.loaded = 'ok';
-      const sanitized = sanitizeProfile(stored.profile);
-      const next = mergeProfiles(this.data, sanitized);
-      if (JSON.stringify(next) !== JSON.stringify(this.data)) { this.data = next; this.emit('hints'); this.emit('codex'); this.emit('lineage'); }
+      this.mergeStored(stored.profile);
     } else this.st.loaded = stored.kind === 'damaged' ? 'damaged' : 'none';
     return this.status();
   }
@@ -274,14 +287,9 @@ export class ProfileStore {
   private async writeOnce(): Promise<void> {
     this.dirty = false;
     try {
-      if (!this.resetting) {
-        const stored = await this.readStored();
-        if (stored.kind === 'found') {
-          const next = mergeProfiles(this.data, sanitizeProfile(stored.profile));
-          if (JSON.stringify(next) !== JSON.stringify(this.data)) { this.data = next; this.emit('hints'); this.emit('codex'); this.emit('lineage'); }
-        }
-      }
-      this.resetting = false;
+      const stored = await this.readStored();
+      if (stored.kind === 'found') this.mergeStored(stored.profile); // after the await: sees a reset made meanwhile
+      const resetsInThisWrite = new Map(this.pendingResets);
       const env: Envelope = { v: PROFILE_SCHEMA_VERSION, profile: this.data };
       let ok = false;
       if (this.storage && this.viaStorage) {
@@ -293,6 +301,7 @@ export class ProfileStore {
         ok = this.kv.set(PROFILE_STORAGE_KEY, JSON.stringify(env));
         if (ok && !this.viaStorage) { this.st.backend = 'localstorage'; this.st.persistent = true; }
       }
+      if (ok) for (const [part, n] of resetsInThisWrite) if (this.pendingResets.get(part) === n) this.pendingResets.delete(part);
       this.st.writeFailed = !ok && (this.st.persistent || this.kv?.available === true || this.storage?.persistent === true);
       this.st.message = ok || !this.st.writeFailed ? '' : 'Progress could not be stored in this browser; it is kept until you close the page.';
     } catch (e) {

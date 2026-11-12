@@ -91,6 +91,19 @@ export class MockFacade implements GameFacade {
     return { ok: true, status: 'ok' };
   }
   getSettings(): GameSettings { return this.store.get(); }
+  /** Like the game's settings persistence: a notice when the browser gives no usable localStorage (e.g. a sandboxed frame). */
+  settingsNotice(): string {
+    let usable = this.opts.storage !== false;
+    if (usable) {
+      try {
+        localStorage.setItem('foundress.probe', '1');
+        localStorage.removeItem('foundress.probe');
+      } catch {
+        usable = false;
+      }
+    }
+    return usable ? '' : 'Settings cannot be stored in this browser context. They last until you close the page.';
+  }
   setSettings(patch: SettingsPatch): void { this.log(`setSettings ${JSON.stringify(patch)}`); this.store.set(patch); }
   getBindings(): BindingSet { return this.bindings; }
   setBindings(b: BindingSet): void { this.log('setBindings'); this.bindings = b; }

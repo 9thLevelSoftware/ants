@@ -21,6 +21,9 @@ const INSTALL = async (opts) => {
   return { save: p.manager.status(), profile: p.profile.status(), settings: p.settings.status() };
 };
 
+/** What the world renderers hold right now (a loaded game must end up with what the original had). */
+const RENDER_COUNTS = () => { const w = window.__game.perf().renderers; return { terrain: w.world.terrainTriangles, nestChunks: w.nest.chunks }; };
+
 const TRACK_REJECTIONS = () => {
   window.__rejections = [];
   window.addEventListener('unhandledrejection', (e) => { window.__rejections.push(String(e.reason && e.reason.stack || e.reason)); });
@@ -63,6 +66,8 @@ export default async ({ page, log, wait, shot, url, context, out }) => {
     const hash0 = await ev(() => window.__game.stateHash());
     const sum0 = await ev(() => window.__game.summary());
     log('state at save', { tick: sum0.tick, hash: hash0, pop: sum0.colony?.N });
+    await ev(() => window.__game.renderFrame());
+    const builtBefore = await ev(RENDER_COUNTS);
 
     // --- save to a slot and the quick slot, list them
     r = await ev(() => window.__game.saves.save('slot-1'));
@@ -96,6 +101,12 @@ export default async ({ page, log, wait, shot, url, context, out }) => {
     expect(sumL.tick === sum0.tick && sumL.mode === 'playing' && sumL.view === sum0.view, 'A: summary after load', { tick: sumL.tick, mode: sumL.mode, view: sumL.view, was: sum0.view });
     result.reloadLoad = { hash: hashLoaded, tick: sumL.tick, view: sumL.view };
     await ev(() => window.__game.renderFrame());
+    // A loaded game must be drawn: the renderers build its world (regression: adopt() once skipped onGameStart, which
+    // left only sky, HUD and the possessed ant on screen while the state hash was right).
+    const built = await ev(RENDER_COUNTS);
+    expect(built.terrain > 0 && built.terrain === builtBefore.terrain && built.nestChunks === builtBefore.nestChunks,
+      'A: after reload + load the world renderers have built the same terrain and nest meshes as the original game', { built, builtBefore });
+    result.afterLoadRenderers = built;
     await shot('after-load');
     // the loaded game keeps running deterministically: 40 more ticks give the same hash as continuing the original did
     await ev(() => window.__game.step(40));

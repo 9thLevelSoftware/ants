@@ -5,9 +5,16 @@ import type { AutosaveLabel } from './types';
 
 /** Labels that are checkpoints around an event: they ignore the minimum gap and the lapse/flight blocks. */
 export const CHECKPOINT_LABELS: readonly AutosaveLabel[] = [
-  'pre-timelapse', 'opening-sealed', 'opening-complete', 'pre-winter', 'post-winter', 'pre-flight', 'final', 'quit',
+  'pre-timelapse', 'opening-sealed', 'opening-complete', 'pre-winter', 'post-winter', 'pre-flight', 'final',
 ];
 
+/**
+ * Labels written at a moment the player chooses, so they cannot wait for the 5 s gap, but which are NOT tied to the
+ * start of a lapse or flight: they obey every block (a save inside a lapse is impossible, GDD 06 §6 / §15 rule 3).
+ */
+const GAP_EXEMPT_LABELS: readonly AutosaveLabel[] = [...CHECKPOINT_LABELS, 'quit'];
+
+/** Exempt from the lapse / flight / intro blocks (see blocks.ts). */
 export function isCheckpointLabel(label: string): boolean {
   return label === 'opening-start' || (CHECKPOINT_LABELS as readonly string[]).includes(label);
 }
@@ -45,6 +52,8 @@ export class AutosavePolicy {
   private lastSavedTick = -1;
   private retryAtClockS = -1;
   private failures = 0;
+  /** Timer values before the last allowed attempt (restored by noteNotAttempted). */
+  private beforeAttempt: { lastAttemptClockS: number; playedS: number; retryAtClockS: number } | null = null;
 
   constructor(opts: { intervalS?: number; enabled?: boolean } = {}) {
     if (opts.intervalS !== undefined) this.intervalS = opts.intervalS;
@@ -99,15 +108,30 @@ export class AutosavePolicy {
     if (!this.enabled || this.disabled) return false;
     if (ctx.block) return false;
     if (ctx.tick === this.lastSavedTick) return false;
-    if (!CHECKPOINT_LABELS.includes(label) && this.clockS - this.lastAttemptClockS < AUTOSAVE_MIN_GAP_S) return false;
+    if (!GAP_EXEMPT_LABELS.includes(label) && this.clockS - this.lastAttemptClockS < AUTOSAVE_MIN_GAP_S) return false;
     this.markAttempt();
     return true;
   }
 
   private markAttempt(): void {
+    this.beforeAttempt = { lastAttemptClockS: this.lastAttemptClockS, playedS: this.playedS, retryAtClockS: this.retryAtClockS };
     this.lastAttemptClockS = this.clockS;
     this.playedS = 0;
     this.retryAtClockS = -1;
+  }
+
+  /**
+   * The write the policy just allowed did not start (a manual save was running, or the manager refused it as
+   * blocked): the timers go back to where they were, so a due interval autosave stays due (GDD 06 §15) instead of
+   * waiting a whole new interval.
+   */
+  noteNotAttempted(): void {
+    const b = this.beforeAttempt;
+    if (!b) return;
+    this.beforeAttempt = null;
+    this.lastAttemptClockS = b.lastAttemptClockS;
+    this.playedS = b.playedS;
+    this.retryAtClockS = b.retryAtClockS;
   }
 
   /** Reports the write outcome. First failure schedules one retry; a second in a row disables autosave. */

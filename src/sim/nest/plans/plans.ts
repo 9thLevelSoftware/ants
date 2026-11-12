@@ -4,7 +4,7 @@
 
 import type { DigPlan, Nest, PlanBlockedReason, PlanPriority, PlanSource, PlanSpec, PlanStatus, Sim } from '@/sim/types';
 import {
-  ARCH_PROPOSAL_S, BULKING, NO_HAULERS_S, PLAN_CLIP_BU, PLAN_DROP_S, PLAN_SNAP, PLAN_SNAP_MIN_OPEN,
+  ARCH_BLACKLIST_S, ARCH_PROPOSAL_S, BULKING, NO_HAULERS_S, PLAN_CLIP_BU, PLAN_DROP_S, PLAN_SNAP, PLAN_SNAP_MIN_OPEN,
   SLOT_HOLD_S, SLOT_REACH_BU, SLOT_TIMEOUT_S, SPOIL_PILE_MAX, STALL_DEBOUNCE_S, V_BITE_NOMINAL, nestTemplate,
 } from '@/sim/balance/nest';
 import { TICKS_PER_SECOND } from '@/sim/time';
@@ -107,7 +107,7 @@ export function cancelPlanImpl(sim: Sim, planId: number, reason: string): boolea
   setStatus(sim, plan, 'cancelled', null);
   refreshPlanField(sim, nest, plan.id);
   if (reason === 'player' && plan.source === 'architect') {
-    nest.architect.blacklist.push({ pos: { ...plan.anchor.pos }, untilTick: sim.state.tick + 1200 * T });
+    nest.architect.blacklist.push({ pos: { ...plan.anchor.pos }, untilTick: sim.state.tick + ARCH_BLACKLIST_S * T });
   }
   return true;
 }

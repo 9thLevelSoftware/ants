@@ -9,6 +9,7 @@ import { zlibSync } from 'fflate';
 import type { ArchetypeId, SpeciesId, WorldData, WorldSizeId } from '@/sim/types';
 import { MATERIAL_IDS } from '@/sim/types';
 import { defaultWorldParams, generateWorldReport } from '@/worldgen';
+import { entryOf, primColumn, type ColumnHit } from '@/worldgen/kit/column';
 
 type Fs = { mkdirSync(p: string, o: { recursive: boolean }): void; writeFileSync(p: string, d: Uint8Array | string): void };
 
@@ -124,6 +125,60 @@ function maps(world: WorldData): Record<string, { w: number; data: Uint8Array }>
   return out;
 }
 
+// ---- objects layer (worldgen-outdoor): primitive footprints by material, shaded by height; micro-connection
+// mouths magenta, climb-route nodes yellow, cavities cyan, water bodies blue. Full map or a zoomed crop.
+const OBJ_RGB: Record<string, [number, number, number]> = {
+  bark: [95, 70, 50], 'wood-sound': [170, 125, 80], 'wood-decayed': [120, 90, 60], stone: [150, 150, 145], concrete: [205, 205, 198],
+  brick: [170, 80, 60], metal: [120, 140, 160], plastic: [60, 140, 210], rubber: [40, 40, 45], plant: [60, 160, 50], leaf: [150, 120, 40],
+  ceramic: [220, 130, 90], loam: [110, 80, 50], fabric: [150, 60, 120], paper: [245, 245, 235], plaster: [240, 235, 225], tile: [235, 225, 200], glass: [180, 220, 230],
+};
+
+function objectsLayer(world: WorldData, x0: number, z0: number, span: number, px: number): { w: number; data: Uint8Array } {
+  const data = new Uint8Array(px * px * 3);
+  const mm = span / px, zc = world.maps.zone;
+  const zoneType = world.zones.map((z) => z.type);
+  for (let k = 0; k < px; k++) for (let i = 0; i < px; i++) {
+    const x = x0 + (i + 0.5) * mm, z = z0 + (k + 0.5) * mm;
+    const zi = Math.floor(z / zc.cell) * zc.nx + Math.floor(x / zc.cell);
+    const c = ZONE_RGB[zoneType[zc.data[zi] ?? 0]] ?? [255, 0, 255];
+    data.set(ramp(0.55, c, [255, 255, 255]), (k * px + i) * 3);
+  }
+  const col: ColumnHit = { hit: false, bottom: 0, top: 0 };
+  const order = world.prims.map((p, i) => i).filter((i) => (world.prims[i].flags & 64) === 0);
+  const entries = order.map((i) => entryOf(world.prims[i]));
+  const idx = order.map((_, j) => j).sort((a, b) => entries[a].maxY - entries[b].maxY);
+  for (const j of idx) {
+    const e = entries[j], p = world.prims[order[j]];
+    const i0 = Math.max(0, Math.floor((e.minX - x0) / mm)), i1 = Math.min(px - 1, Math.floor((e.maxX - x0) / mm));
+    const k0 = Math.max(0, Math.floor((e.minZ - z0) / mm)), k1 = Math.min(px - 1, Math.floor((e.maxZ - z0) / mm));
+    if (i1 < i0 || k1 < k0) continue;
+    const base = OBJ_RGB[p.material] ?? [200, 0, 200];
+    for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++) {
+      primColumn(e, x0 + (i + 0.5) * mm, z0 + (k + 0.5) * mm, col);
+      if (!col.hit) continue;
+      const h = Math.max(0, Math.min(1, (col.top + 200) / 2600));
+      data.set(base.map((v) => Math.min(255, Math.round(v * (0.65 + 0.55 * h)))) as [number, number, number], (k * px + i) * 3);
+    }
+  }
+  const dot = (x: number, z: number, r: number, rgb: [number, number, number]) => {
+    const ci = Math.floor((x - x0) / mm), ck = Math.floor((z - z0) / mm);
+    for (let dk = -r; dk <= r; dk++) for (let di = -r; di <= r; di++) {
+      const a = ci + di, b = ck + dk;
+      if (a >= 0 && b >= 0 && a < px && b < px) data.set(rgb, (b * px + a) * 3);
+    }
+  };
+  const rd = Math.max(1, Math.round(px / 500));
+  for (const r of world.climbRoutes) for (const q of r.points) dot(q.x, q.z, 0, [250, 220, 0]);
+  for (const c of world.cavities) for (let x = c.min.x; x <= c.max.x; x += mm) { dot(x, c.min.z, 0, [0, 220, 230]); dot(x, c.max.z, 0, [0, 220, 230]); }
+  for (const c of world.cavities) for (let z = c.min.z; z <= c.max.z; z += mm) { dot(c.min.x, z, 0, [0, 220, 230]); dot(c.max.x, z, 0, [0, 220, 230]); }
+  for (const w of world.waterBodies) dot(w.pos.x, w.pos.z, rd + 1, [30, 80, 230]);
+  for (const m of world.micro) { dot(m.posA.x, m.posA.z, rd + 1, [240, 0, 220]); dot(m.posB.x, m.posB.z, rd, [160, 0, 160]); }
+  return { w: px, data };
+}
+
+/** Zoom crops centred on the first instance of characteristic templates. */
+const ZOOM_TEMPLATES = ['paving-slab', 'kerb', 'gully-grate', 'slide', 'sand-edging', 'stepping-stone', 'standing-tree', 'log', 'fence', 'garden-wall', 'patio-table', 'parked-car', 'bench'];
+
 function arg(args: string[], k: string, d: string): string {
   const i = args.indexOf(k);
   return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : d;
@@ -145,7 +200,16 @@ export default async function main(args: string[]): Promise<void> {
     const dir = `${outDir}/${a}-${species}-${size}-s${seed}`;
     fs.mkdirSync(dir, { recursive: true });
     const files: string[] = [];
-    for (const [name, img] of Object.entries(maps(r.world))) {
+    const all = maps(r.world);
+    all.objects = objectsLayer(r.world, 0, 0, r.world.size, 1000);
+    const zoomMm = Number(arg(args, '--zoom', '4000'));
+    for (const tid of ZOOM_TEMPLATES) {
+      const o = r.world.objects.find((ob) => ob.templateId === tid);
+      if (!o) continue;
+      const x0 = Math.max(0, Math.min(r.world.size - zoomMm, o.pos.x - zoomMm / 2)), z0 = Math.max(0, Math.min(r.world.size - zoomMm, o.pos.z - zoomMm / 2));
+      all[`zoom-${tid}`] = objectsLayer(r.world, x0, z0, zoomMm, 800);
+    }
+    for (const [name, img] of Object.entries(all)) {
       const f = `${dir}/${name}.png`;
       fs.writeFileSync(f, png(img.w, img.w, img.data));
       files.push(f);

@@ -1,9 +1,10 @@
 // Tabs (GDD 08 2.7): horizontal for drawers, vertical rail for book screens. Roving tabindex, arrow keys move and
 // activate, Home / End jump. `useTabHotkeys` adds the Q / E (LB / RB) switching that applies "when no text field
-// has focus" inside book screens and drawers.
+// has focus" inside book screens and drawers, and not while a dialog or popover is open above them.
 import { useEffect, useRef } from 'preact/hooks';
 import { Icon } from '../icons';
 import { cx } from './cx';
+import { layerAboveScreen } from './logic/escapeStack';
 import { groupNext, type Orientation } from './logic/groupNav';
 
 export interface TabDef<T extends string> {
@@ -75,7 +76,8 @@ export function useTabHotkeys<T extends string>(tabs: readonly TabDef<T>[], valu
   latest.current = { tabs, value, onChange };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.altKey || e.metaKey || textFieldFocused()) return;
+      // a dialog, an open Select or a key capture above the book owns the keys (focus trap, type-ahead)
+      if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || textFieldFocused() || layerAboveScreen()) return;
       const dir = e.code === 'KeyQ' ? -1 : e.code === 'KeyE' ? 1 : 0;
       if (!dir) return;
       const { tabs: ts, value: v, onChange: change } = latest.current;

@@ -10,7 +10,7 @@ import { HOLE_MASK_GLSL } from '../terrain/holeMask';
 import { BLADE_STRIDE } from '../decor/instances';
 import type { DecorShared } from '../decor/shared';
 import { DEW } from '../decor/tuning';
-import { BLADE_GLSL } from './bladeShape';
+import { BLADE_GLSL, BLADE_SIGHT_GLSL, bladeFragFade, bladeVertex, type BladeView } from './bladeShape';
 
 /** Droplet: the 12 blade floats + (h along the blade, s across, radius mm, rank). */
 export const DROP_STRIDE = 16;
@@ -33,6 +33,16 @@ export function placeDew(blades: Float32Array, seed: number): Float32Array {
   return Float32Array.from(out);
 }
 
+/**
+ * CPU twin of the droplet visibility test in the dew vertex shader (record `o` of placeDew's output, without the
+ * terrain-hole test): shown while the dew level covers its rank and its blade point is not faded out.
+ */
+export function dropletVisible(drops: Float32Array, o: number, view: BladeView, dew: number): boolean {
+  if (drops[o + 15] >= dew) return false;
+  const p = bladeVertex(drops, o, drops[o + 13], drops[o + 12], view);
+  return p.fade > 0.5 && bladeFragFade(p.x, p.y, p.z, view) > DEW.sightFadeMin;
+}
+
 /** Low-poly droplet (20 triangles: drops are 0.2-1 mm), indexed so it can be a shared instancing base. */
 export function dropletGeometry(): BufferGeometry {
   const g = new IcosahedronGeometry(1, 0);
@@ -48,14 +58,15 @@ export function createDewMaterial(shared: DecorShared): MeshStandardMaterial {
   addPatch(m, 'decor-dew', (s) => {
     Object.assign(s.uniforms, {
       uTime: w.uTime, uCamPos: w.uCamPos, uSubject: w.uSubject, uWindDir: d.uWindDir, uHaze: w.uHaze,
-      uGrWind: d.uGrWind, uGrPart: d.uGrPart, uGrLod: d.uGrLod, uGrPartP: d.uGrPartP, uDew: d.uDew,
+      uGrWind: d.uGrWind, uGrPart: d.uGrPart, uGrLod: d.uGrLod, uGrPartP: d.uGrPartP, uGrEye: d.uGrEye, uDew: d.uDew,
       tHoleIdx: h.tHoleIdx, tHoleAtlas: h.tHoleAtlas, uHoleP: h.uHoleP,
     });
     s.vertexShader = s.vertexShader
-      .replace('#include <common>', `#include <common>\n${HOLE_MASK_GLSL}\n${BLADE_GLSL}\nattribute vec4 iDrop; uniform float uDew; varying float vDrop;`)
+      .replace('#include <common>', `#include <common>\n${HOLE_MASK_GLSL}\n${BLADE_GLSL}\nuniform vec2 uGrEye;\n${BLADE_SIGHT_GLSL}\nattribute vec4 iDrop; uniform float uDew; varying float vDrop;`)
       .replace('#include <beginnormal_vertex>', `
 vec3 bP; vec3 bN; bladeShapeAt(iDrop.y, iDrop.x, bP, bN);
-bool dropOn = vBFade > 0.5 && iDrop.w < uDew && wrHoleMask(iRoot.xz) < 0.5;
+// hidden with its blade: LOD fade, and the eye / line-of-sight fade at the droplet (see dropletVisible)
+bool dropOn = vBFade > 0.5 && iDrop.w < uDew && grSightFade(bP) > ${DEW.sightFadeMin.toFixed(2)} && wrHoleMask(iRoot.xz) < 0.5;
 vDrop = dropOn ? 1.0 : 0.0;
 float dr = dropOn ? iDrop.z : 0.0;
 vec3 objectNormal = normal;`)

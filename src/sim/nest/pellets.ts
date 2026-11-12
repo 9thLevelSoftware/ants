@@ -6,7 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Item, MaterialId, Mound, Nest, PelletDumpTarget, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import {
-  BULKING, CHOKE_COUNT, CHOKE_LEN_BU, CLUTTER_RADIUS_BU, CLUTTER_SLOW_MIN, CLUTTER_SLOW_PER, HEAP_CAP,
+  BULKING, CHOKE_COUNT, FRASS_MATERIALS, CHOKE_LEN_BU, CLUTTER_RADIUS_BU, CLUTTER_SLOW_MIN, CLUTTER_SLOW_PER, HEAP_CAP,
   HEAP_MERGE_DIST_BU, MAX_LOOSE_PELLETS_PER_NEST, MOUND_BATCH_TICKS, MOUND_CELL_BU, MOUND_GRID_N, PELLET_BULK_PER_BU3, PELLET_SETTLE_S,
   PELLET_TAMP_S, SPOIL_JOIN_BU, TAMP_RADIUS_BU, TAMP_RADIUS_FALLBACK_BU, TAMP_SPHERE_BU, TAMP_ROUNDS,
 } from '@/sim/balance/nest';
@@ -18,7 +18,6 @@ import { findChamberAtImpl } from './chambers/registry';
 import { createMound, deposit, dumpPoint, moundById, moundContains, publishMound, relax } from './mounds';
 import { nestRuntime } from './runtime';
 
-const FRASS_MATERIALS: readonly string[] = ['wood-sound', 'wood-decayed', 'insulation'];
 
 export function isPellet(it: Item): boolean {
   return it.kind === 'soil-pellet' || it.kind === 'frass';

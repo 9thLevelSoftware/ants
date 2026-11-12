@@ -98,16 +98,53 @@ vec4 drapedBias(vec4 clip, vec3 viewPos, float order) {
 }
 `;
 
-/** Fixed-point steps of the per-pixel resolve and the largest step along the ray, mm. */
-export const RESOLVE_STEPS = 4;
-export const RESOLVE_MAX_STEP_MM = 8;
+/** Per-pixel resolve: residual evaluations along the view ray, and the largest unbracketed step, mm. */
+export const RESOLVE_STEPS = 8;
+export const RESOLVE_MAX_STEP_MM = 12;
+/** Smallest |ray slope| used for the first (vertical-residual) step, so a grazing ray does not leap. */
+const RESOLVE_MIN_RY = 0.03;
+
+/**
+ * Root of phi(t) (height of the ray point above the hugging surface, t = mm along the ray from the card point) near
+ * t = 0, by a safeguarded secant: the first step assumes flat ground (t = -phi / ray slope); then secant steps,
+ * and false position (Illinois) once a sign change brackets the root. The plain fixed-point step used before
+ * diverged when the ground along the ray rose faster than the ray fell (an ant looking up a bank). Returns the
+ * evaluated t with the smallest |phi| (t = 0, the card point, is one of them), and that |phi|. Twin of dcResolve.
+ */
+export function resolveRoot(phi: (t: number) => number, rayY: number): { t: number; residual: number } {
+  const ry = Math.abs(rayY) < RESOLVE_MIN_RY ? (rayY < 0 ? -RESOLVE_MIN_RY : RESOLVE_MIN_RY) : rayY;
+  let t0 = 0, f0 = phi(0);
+  let bt = t0, bf = f0;
+  let t1 = Math.min(RESOLVE_MAX_STEP_MM, Math.max(-RESOLVE_MAX_STEP_MM, -f0 / ry)), f1 = phi(t1);
+  if (Math.abs(f1) < Math.abs(bf)) { bt = t1; bf = f1; }
+  let side = 0; // Illinois: -1 when the last bracketed step kept t0 (keeping it again halves f0)
+  for (let i = 2; i < RESOLVE_STEPS; i++) {
+    let t2: number;
+    if (f0 * f1 < 0) t2 = t1 - (f1 * (t1 - t0)) / (f1 - f0);
+    else {
+      const den = f1 - f0;
+      const step = Math.abs(den) > 1e-6 ? -(f1 * (t1 - t0)) / den : -f1 / ry;
+      t2 = t1 + Math.min(RESOLVE_MAX_STEP_MM, Math.max(-RESOLVE_MAX_STEP_MM, step));
+    }
+    const f2 = phi(t2);
+    if (Math.abs(f2) < Math.abs(bf)) { bt = t2; bf = f2; }
+    if (f0 * f1 < 0) {
+      // keep the bracket: replace the end with the same sign as f2; halve the other end's value if kept twice
+      if (f2 * f1 < 0) { t0 = t1; f0 = f1; t1 = t2; f1 = f2; side = 0; }
+      else { t1 = t2; f1 = f2; if (side === -1) f0 *= 0.5; side = -1; }
+    } else { t0 = t1; f0 = f1; t1 = t2; f1 = f2; }
+  }
+  return { t: bt, residual: Math.abs(bf) };
+}
 
 /**
  * Fragment stage: decal-style resolve. The pixel's view ray is followed from the card point to the hugging surface
  * (ground + lift, where "ground" is the higher of the drawn terrain and the walker's bilinear surface), the item is
  * shaded at that point (card coordinates recomputed there) and that point's depth is written. Whatever the card
  * tessellation, colour and depth then lie exactly on the surface ants stand on: an ant on a leaf is in front of it, a
- * nearer bump of ground hides it. Beyond uDcFix.x mm the interpolated card (with the vertex bias) is used as is.
+ * nearer bump of ground hides it. Where the ray never reaches the hugging surface (it passes above the coarser drawn
+ * terrain but just below the walker's surface) the best evaluated point is used: below the walker surface, so an
+ * ant is still in front. Beyond uDcFix.x mm the interpolated card (with the vertex bias) is used as is.
  * Needs DRAPE_GLSL; uniforms uDcFix, uDcBias, uDcBu, uCamPos; varyings vDcC (centre x, z, yaw, fixed y),
  * vDcS (card length, width, curl), vDcW, vDcUv.
  */
@@ -119,16 +156,34 @@ vec2 dcUvOf(vec2 xz) {
   return vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / (vDcS.xy * 0.5);
 }
 float dcLift(vec2 uv) { return (${DRAPE.liftBU.toFixed(4)} + vDcS.z * ${DRAPE.curlBU.toFixed(4)} * min(1.0, dot(uv, uv))) * uDcBu; }
-// false when the resolved point lies outside the item's card
+float dcPhi(vec3 r, float t) { vec3 q = vDcW + r * t; return q.y - (dcSurf(q.xz) + dcLift(dcUvOf(q.xz))); }
+// false when the resolved point lies outside the item's card (twin of resolveRoot + drapedResolve)
 bool dcResolve(out vec2 uv, out vec3 wp) {
   wp = vDcW; uv = vDcUv;
   if (length(vDcW - uCamPos) > uDcFix.x) return true;
   vec3 r = normalize(vDcW - uCamPos);
-  float ry = abs(r.y) < 0.03 ? (r.y < 0.0 ? -0.03 : 0.03) : r.y;
-  for (int i = 0; i < ${RESOLVE_STEPS}; i++) {
-    float dy = wp.y - (dcSurf(wp.xz) + dcLift(dcUvOf(wp.xz)));
-    wp += r * clamp(-dy / ry, -${RESOLVE_MAX_STEP_MM.toFixed(1)}, ${RESOLVE_MAX_STEP_MM.toFixed(1)});
+  float ry = abs(r.y) < ${RESOLVE_MIN_RY.toFixed(3)} ? (r.y < 0.0 ? -${RESOLVE_MIN_RY.toFixed(3)} : ${RESOLVE_MIN_RY.toFixed(3)}) : r.y;
+  const float MS = ${RESOLVE_MAX_STEP_MM.toFixed(1)};
+  float t0 = 0.0, f0 = dcPhi(r, 0.0), bt = 0.0, bf = f0;
+  float t1 = clamp(-f0 / ry, -MS, MS), f1 = dcPhi(r, t1);
+  if (abs(f1) < abs(bf)) { bt = t1; bf = f1; }
+  float side = 0.0;
+  for (int i = 2; i < ${RESOLVE_STEPS}; i++) {
+    bool br = f0 * f1 < 0.0;
+    float t2;
+    if (br) t2 = t1 - f1 * (t1 - t0) / (f1 - f0);
+    else {
+      float den = f1 - f0;
+      t2 = t1 + clamp(abs(den) > 1e-6 ? -f1 * (t1 - t0) / den : -f1 / ry, -MS, MS);
+    }
+    float f2 = dcPhi(r, t2);
+    if (abs(f2) < abs(bf)) { bt = t2; bf = f2; }
+    if (br) {
+      if (f2 * f1 < 0.0) { t0 = t1; f0 = f1; t1 = t2; f1 = f2; side = 0.0; }
+      else { t1 = t2; f1 = f2; if (side < 0.0) f0 *= 0.5; side = -1.0; }
+    } else { t0 = t1; f0 = f1; t1 = t2; f1 = f2; }
   }
+  wp = vDcW + r * bt;
   uv = dcUvOf(wp.xz);
   return max(abs(uv.x), abs(uv.y)) <= 1.0;
 }
@@ -148,25 +203,32 @@ export function hugSurface(src: HSrc, layout: ClipmapLayout, x: number, z: numbe
   return fixedY > NO_FIXED_Y * 0.5 ? fixedY : Math.max(drapeHeight(src, layout, x, z), sampleHeight(src, x, z));
 }
 
+/** Card coordinates (u, v in -1..1 on the card) of the world point (x, z) for record `o`. */
+export function cardUv(rec: Float32Array, o: number, x: number, z: number, freshShare: number): [number, number] {
+  const [L, W] = cardSize(rec[o + 8], rec[o + 4], rec[o + 5], rec[o + 10] < freshShare);
+  const c = Math.cos(rec[o + 2]), s = Math.sin(rec[o + 2]), dx = x - rec[o], dz = z - rec[o + 1];
+  return [(c * dx + s * dz) / (L * 0.5), (-s * dx + c * dz) / (W * 0.5)];
+}
+
+/** Height of (x, y, z) above the surface record `o` hugs there (ground + its lift at that card point), mm. */
+export function hugResidual(rec: Float32Array, o: number, x: number, y: number, z: number, freshShare: number, bu: number,
+  src: HSrc, layout: ClipmapLayout): number {
+  const [u, v] = cardUv(rec, o, x, z, freshShare);
+  return y - (hugSurface(src, layout, x, z, rec[o + 7]) + drapeLift(rec[o + 6], u, v, bu));
+}
+
 /**
  * CPU twin of dcResolve for record `o`: follows the ray from `cam` through the card point `p` onto the hugging
- * surface. Returns the resolved point, its card coordinates and whether it lies on the item.
+ * surface. Returns the resolved point, its card coordinates, whether it lies on the item, and the residual left (mm:
+ * the ray point's height above the hugging surface; non-zero only where the ray never meets it).
  */
 export function drapedResolve(rec: Float32Array, o: number, cam: { x: number; y: number; z: number }, p: { x: number; y: number; z: number },
-  freshShare: number, bu: number, src: HSrc, layout: ClipmapLayout): { x: number; y: number; z: number; u: number; v: number; inside: boolean } {
-  const kind = rec[o + 8], [L, W] = cardSize(kind, rec[o + 4], rec[o + 5], rec[o + 10] < freshShare);
-  const cx = rec[o], cz = rec[o + 1], c = Math.cos(rec[o + 2]), s = Math.sin(rec[o + 2]), fy = rec[o + 7], curl = rec[o + 6];
-  const uvOf = (x: number, z: number) => { const dx = x - cx, dz = z - cz; return [(c * dx + s * dz) / (L * 0.5), (-s * dx + c * dz) / (W * 0.5)]; };
-  let rx = p.x - cam.x, ryv = p.y - cam.y, rz = p.z - cam.z;
-  const l = Math.hypot(rx, ryv, rz); rx /= l; ryv /= l; rz /= l;
-  const ry = Math.abs(ryv) < 0.03 ? (ryv < 0 ? -0.03 : 0.03) : ryv;
-  let x = p.x, y = p.y, z = p.z;
-  for (let i = 0; i < RESOLVE_STEPS; i++) {
-    const [u, v] = uvOf(x, z);
-    const dy = y - (hugSurface(src, layout, x, z, fy) + drapeLift(curl, u, v, bu));
-    const t = Math.min(RESOLVE_MAX_STEP_MM, Math.max(-RESOLVE_MAX_STEP_MM, -dy / ry));
-    x += rx * t; y += ryv * t; z += rz * t;
-  }
-  const [u, v] = uvOf(x, z);
-  return { x, y, z, u, v, inside: Math.max(Math.abs(u), Math.abs(v)) <= 1 };
+  freshShare: number, bu: number, src: HSrc, layout: ClipmapLayout): { x: number; y: number; z: number; u: number; v: number; inside: boolean; residual: number } {
+  let rx = p.x - cam.x, ry = p.y - cam.y, rz = p.z - cam.z;
+  const l = Math.hypot(rx, ry, rz); rx /= l; ry /= l; rz /= l;
+  const phi = (t: number) => hugResidual(rec, o, p.x + rx * t, p.y + ry * t, p.z + rz * t, freshShare, bu, src, layout);
+  const { t, residual } = resolveRoot(phi, ry);
+  const x = p.x + rx * t, y = p.y + ry * t, z = p.z + rz * t;
+  const [u, v] = cardUv(rec, o, x, z, freshShare);
+  return { x, y, z, u, v, inside: Math.max(Math.abs(u), Math.abs(v)) <= 1, residual };
 }

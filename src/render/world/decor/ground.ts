@@ -2,7 +2,7 @@
 // Heights include the sim's deformation tiles; maps are sampled per cell; the zone-edge distance is computed once.
 import type { ByteMap, MaterialId, Sim, WorldData, WorldObject, ZoneType, ZoneVariant } from '@/sim/types';
 import { materialFromCode } from '@/sim/types';
-import { terrainSource, type TerrainSource } from '../lighting/simAdapter';
+import { HEIGHT_DELTA_TILE, HEIGHT_DELTA_UNIT_MM, terrainSource, type TerrainSource } from '../lighting/simAdapter';
 import { sampleHeight } from '../terrain/terrainData';
 import { PrimColumns } from './primColumns';
 
@@ -47,6 +47,22 @@ export class GroundView {
   /** Re-reads the deformation tiles of a simulation. */
   refreshHeights(sim: Sim | null): void {
     this.src.heights.set(terrainSource(this.world, sim).heights);
+  }
+
+  /** Re-applies one deformation tile (null = removed) over the static heights of its grid points. */
+  applyHeightTile(tileIndex: number, data: Int16Array | null): void {
+    const hf = this.world.terrain, h = this.src.heights, T = HEIGHT_DELTA_TILE, tilesX = Math.ceil(hf.nx / T);
+    const tx = tileIndex % tilesX, tz = Math.floor(tileIndex / tilesX);
+    for (let j = 0; j < T; j++) {
+      const iz = tz * T + j;
+      if (iz >= hf.nz) break;
+      for (let i = 0; i < T; i++) {
+        const ix = tx * T + i;
+        if (ix >= hf.nx) break;
+        const k = iz * hf.nx + ix;
+        h[k] = hf.data[k] + (data ? (data[j * T + i] ?? 0) * HEIGHT_DELTA_UNIT_MM : 0);
+      }
+    }
   }
 
   height(x: number, z: number): number {

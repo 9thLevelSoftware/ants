@@ -5,6 +5,7 @@
 import type { Sim, WaterBody, WorldData } from '@/sim/types';
 import type { GroundView } from '../decor/ground';
 import { WATER } from '../decor/tuning';
+import { HASH_SEED, hashNum } from '../lighting/signature';
 
 export interface WaterDisc {
   kind: 'disc';
@@ -100,11 +101,24 @@ export function collectWater(ground: GroundView, sim: Sim | null, inputs: WaterI
   return out;
 }
 
-/** Change signature of the inputs that move water (cheap; rebuild only when it changes). */
-export function waterSignature(world: WorldData, sim: Sim | null, inputs: WaterInputs): string {
+/** Change signature of the body levels and the inputs (allocation-free, cheap enough for every frame). */
+export function waterLevelSignature(world: WorldData, sim: Sim | null, inputs: WaterInputs): number {
   const lv = (sim?.state.worldDelta as { waterLevels?: Float32Array } | undefined)?.waterLevels;
-  const moist = (sim?.state.env as { moisture?: { puddle: Uint8Array } } | undefined)?.moisture;
-  let h = 0;
-  if (moist) for (let i = 0; i < moist.puddle.length; i++) h = (Math.imul(h, 31) + moist.puddle[i]) | 0;
-  return `${world.waterBodies.length}|${lv ? Array.from(lv).join(',') : ''}|${h}|${inputs.bodyLevelScale}|${inputs.puddleMm}`;
+  let h = hashNum(hashNum(HASH_SEED, world.waterBodies.length), inputs.bodyLevelScale);
+  h = hashNum(h, inputs.puddleMm ?? Number.NaN);
+  if (lv) for (let i = 0; i < lv.length; i++) h = hashNum(h, lv[i]);
+  return h;
+}
+
+/** The simulation's puddle store (0.05 mm units per moisture cell), or null. */
+export function puddleStore(sim: Sim | null): Uint8Array | null {
+  return (sim?.state.env as { moisture?: { puddle: Uint8Array } } | undefined)?.moisture?.puddle ?? null;
+}
+
+/** Change signature of the puddle store (one pass over the grid: throttled by the caller). */
+export function puddleSignature(puddle: Uint8Array | null): number {
+  if (!puddle) return 0;
+  let h = HASH_SEED ^ puddle.length;
+  for (let i = 0; i < puddle.length; i++) h = Math.imul(h ^ puddle[i], 0x01000193);
+  return h;
 }

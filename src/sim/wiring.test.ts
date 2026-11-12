@@ -1,7 +1,8 @@
 // Runtime hooks installed by createSim (src/sim/wiring.ts): the pheromone decay modifier and free-space test
 // (GDD 02 §8.2), and the nest clutter speed factor for walkers in cavities.
 import { describe, expect, it } from 'vitest';
-import { ensureThermal } from '@/sim/environment';
+import type { Primitive } from '@/sim/types';
+import { ensureThermal, surfaceTemp } from '@/sim/environment';
 import { pheromoneSystem } from '@/sim/pheromones';
 import { makeTestSim } from '@/sim/testing/testWorld';
 import { aiSpeed } from '@/sim/locomotion';
@@ -25,6 +26,36 @@ describe('pheromone hooks', () => {
     // base 900 s half-life: 300 s alone leaves 0.79; sheltered x1.5 half-life keeps more, sunlit porous x0.5 less
     expect(u).toBeGreaterThan(s);
     expect(u / 20).toBeGreaterThan(0.79 * 0.9);
+  });
+
+  // GDD 02 App. E check 11 through the installed decay modifier: 10 ph of trail on shaded, dry concrete halves in
+  // 900 s at 22 C and in 450 s at 32 C. The surface temperature is pinned by writing the lagged surface state and
+  // running only the pheromone system (no environment system to move it, no weather to wash the trail).
+  it.each([
+    { tempC: 22, seconds: 900 },
+    { tempC: 32, seconds: 450 },
+  ])('E11: trail on shaded concrete at $tempC C is 5.0 +- 0.1 after $seconds s', ({ tempC, seconds }) => {
+    const bu = 4, half = 30 * bu, c = 64 * bu;
+    const slab: Primitive = {
+      id: 1, shape: 'box', pos: { x: c, y: 2 * bu, z: c }, rot: { x: 0, y: 0, z: 0, w: 1 }, size: { x: half, y: 2 * bu, z: half },
+      round: 0, material: 'concrete', flags: 0, objectId: -1,
+    };
+    const sim = makeTestSim({ prims: [slab], systems: [pheromoneSystem] });
+    expect(sim.world.bu).toBe(bu);
+    ensureThermal(sim);
+    sim.state.env.thermal.tsurf.fill(tempC);
+    expect(surfaceTemp(sim, c, c)).toBe(tempC);
+    const col = sim.state.colonies[0].id;
+    const at = { x: c, y: 4 * bu + 0.5 * bu, z: c };
+    expect(sim.field.materialAt({ x: c, y: 3 * bu, z: c })).toBe('concrete');
+    sim.phero.deposit(col, 'trail', at, 10);
+    const v0 = sim.phero.sample(col, 'trail', at);
+    expect(v0).toBeGreaterThan(0);
+    for (let t = 0; t < seconds * 10; t++) sim.tick();
+    const v1 = sim.phero.sample(col, 'trail', at);
+    // the deposit may spread over neighbouring cells, so check the ratio scaled to a 10 ph cell
+    expect((10 * v1) / v0).toBeGreaterThan(4.9);
+    expect((10 * v1) / v0).toBeLessThan(5.1);
   });
 
   it('alarm diffuses only into free cells (none into the solid ground below the surface)', () => {

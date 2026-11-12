@@ -18,7 +18,7 @@ describe('UI facade mapping (src/ui/api.ts shapes)', () => {
     const infos = await listSlotInfos(r.manager);
     expect(infos.map((i) => [i.slot, i.kind])).toEqual([['auto-1', 'auto'], ['quick', 'quick'], ['slot-2', 'manual']]);
     const auto = infos[0];
-    expect(auto).toMatchObject({ label: 'Auto-save', trigger: 'Season change', species: 'lasius-niger', workers: 6, thumbnail: 'data:image/jpeg;base64,/9j/', damaged: false, generation: 1 });
+    expect(auto).toMatchObject({ label: 'Auto-save', trigger: 'Season change', species: 'lasius-niger', workers: 6, population: 6, thumbnail: 'data:image/jpeg;base64,/9j/', damaged: false, generation: 1 });
     expect(auto.seedCode).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/);
     expect(auto.version).toBeTruthy();
     expect(toSlotInfo((await r.manager.list()).value![1]).trigger).toBeUndefined();

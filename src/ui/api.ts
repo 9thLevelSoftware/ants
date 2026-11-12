@@ -22,6 +22,11 @@ export interface UiLoading {
   maxAttempts: number;
   /** Set when generation or loading failed; the screen shows it with Back. */
   error: string | null;
+  /**
+   * ui-shell: whether this is world generation or loading a save (the wording and summary differ). Absent = the UI
+   * infers it from the call it made itself (newGame vs load / import).
+   */
+  kind?: 'generate' | 'load';
 }
 
 export interface UiTime {
@@ -232,6 +237,8 @@ export interface GameFacade {
   exportSave?(slot: string): Promise<ExportResult>;
   /** Import `.foundress` bytes or the `FOUNDRESS1:` text into `target` (a slot id, or 'now' = load without storing). */
   importSave?(data: Uint8Array | string, target: string): Promise<SaveResult>;
+  /** '' when settings are stored; else the Settings header notice ("Settings cannot be stored in this browser context"). */
+  settingsNotice?(): string;
   /** Forget which onboarding hints were learned (Settings > Gameplay). */
   resetHints?(): void;
   /** True when the lineage store has records (the Title shows Lineage only then). */

@@ -5,6 +5,7 @@ import { FOUNDRESS_VERSION } from '@/core/version';
 import { BookPage, Button, EmptyState, ProgressBar, useFocusScope } from '../components';
 import { facade, snapshot } from '../store';
 import type { UiSnapshot } from '../api';
+import { openOverlay, updateNav } from './nav';
 
 export function BootGate() {
   return (
@@ -68,7 +69,7 @@ export function EpitaphCard({ e, inert }: { e: UiSnapshot['epitaph']; inert?: bo
         <h1 class="ui-h1">The colony has died</h1>
         {e && <p>{e.ageDays} days old · peak {e.peakWorkers} workers · {e.cause}</p>}
         <div class="ui-inline">
-          <Button variant="primary" onClick={() => { void f?.newGame({}); }} data-testid="epitaph-new">New colony</Button>
+          <Button variant="primary" onClick={() => updateNav((n) => openOverlay(n, 'new-game'))} data-testid="epitaph-new">New colony</Button>
           <Button onClick={() => f?.quitToTitle()} data-testid="epitaph-title">Title</Button>
         </div>
       </div>

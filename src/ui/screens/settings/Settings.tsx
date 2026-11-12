@@ -19,7 +19,7 @@ const TABS: TabDef<SettingsTabId>[] = [
 
 export function Settings({ tab, onTab, onClose }: { tab: SettingsTabId; onTab: (t: SettingsTabId) => void; onClose: () => void }) {
   const [blocked, setBlocked] = useState<string[] | null>(null);
-  const persistent = uiPrefs.persistent.value;
+  const notice = uiPrefs.notice.value;
   const tryClose = () => {
     const missing = unboundRequired(readBindings());
     if (missing.length) { setBlocked(missing.map((id) => { const d = actionDef(id); return d ? actionLabel(d) : id; })); updateNav((n) => ({ ...n, settingsTab: 'controls' })); return; }
@@ -30,7 +30,7 @@ export function Settings({ tab, onTab, onClose }: { tab: SettingsTabId; onTab: (
       title="Settings" tabs={TABS} tab={tab} onTab={(t) => { onTab(t); updateNav((n) => ({ ...n, settingsTab: t })); }} onClose={tryClose}
       railFooter={<Button variant="ghost" icon="back" onClick={tryClose} block data-testid="settings-back">Back</Button>} idPrefix="settings"
     >
-      {!persistent && <p class="ui-notice is-warn" role="status">Settings cannot be stored in this browser context. They last until you close the page.</p>}
+      {notice && <p class="ui-notice is-warn" role="status" data-testid="settings-notice">{notice}</p>}
       <ScrollArea label={`${TABS.find((t) => t.id === tab)?.label ?? ''} settings`} class="ui-page-scroll">
         {tab === 'graphics' && <GraphicsTab />}
         {tab === 'audio' && <AudioTab />}

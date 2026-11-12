@@ -1,6 +1,7 @@
 // Tile and block grid of the decor (pure). A tile (64 BU) is the unit of deterministic placement; a block
-// (BLOCK_TILES x BLOCK_TILES tiles) is the unit of streaming and drawing. Keys are integers so they hash cheaply.
-import { BLOCK_TILES, DECOR_TILE_BU } from './tuning';
+// (blockTiles(bu) x blockTiles(bu) tiles, about BLOCK_TARGET_MM) is the unit of streaming and drawing. Keys are
+// integers so they hash cheaply.
+import { BLOCK_TARGET_MM, DECOR_TILE_BU } from './tuning';
 
 export interface BlockRef {
   key: number;
@@ -11,6 +12,8 @@ export interface BlockRef {
   z0: number;
   x1: number;
   z1: number;
+  /** Tiles per block edge. */
+  tiles: number;
 }
 
 /** Block keys pack (bx, bz) with bx, bz in [0, 65535]. */
@@ -21,13 +24,26 @@ export function tileMm(bu: number): number {
   return DECOR_TILE_BU * bu;
 }
 
+/** Tiles per block edge for a body unit: the block edge stays near BLOCK_TARGET_MM whatever the species. */
+export function blockTiles(bu: number): number {
+  return Math.max(1, Math.round(BLOCK_TARGET_MM / (DECOR_TILE_BU * bu)));
+}
+
 export function blockMm(bu: number): number {
-  return DECOR_TILE_BU * BLOCK_TILES * bu;
+  return DECOR_TILE_BU * blockTiles(bu) * bu;
 }
 
 export function blockRef(bx: number, bz: number, bu: number): BlockRef {
   const s = blockMm(bu);
-  return { key: blockKey(bx, bz), bx, bz, x0: bx * s, z0: bz * s, x1: (bx + 1) * s, z1: (bz + 1) * s };
+  return { key: blockKey(bx, bz), bx, bz, x0: bx * s, z0: bz * s, x1: (bx + 1) * s, z1: (bz + 1) * s, tiles: blockTiles(bu) };
+}
+
+/** Keys of the blocks whose rectangle overlaps the XZ rectangle r (inside a world of edge worldSize). */
+export function blockKeysOverlapping(r: { x0: number; z0: number; x1: number; z1: number }, worldSize: number, bu: number, out: Set<number>): void {
+  const s = blockMm(bu), max = Math.max(0, Math.ceil(worldSize / s) - 1);
+  const b0x = Math.max(0, Math.floor(r.x0 / s)), b1x = Math.min(max, Math.floor(r.x1 / s));
+  const b0z = Math.max(0, Math.floor(r.z0 / s)), b1z = Math.min(max, Math.floor(r.z1 / s));
+  for (let bz = b0z; bz <= b1z; bz++) for (let bx = b0x; bx <= b1x; bx++) out.add(blockKey(bx, bz));
 }
 
 /** Distance in XZ from a point to the nearest point of a rectangle, mm (0 inside). */
@@ -58,6 +74,7 @@ export function blocksAround(x: number, z: number, radius: number, worldSize: nu
 /** Tile indices covered by a block. */
 export function tilesOfBlock(b: BlockRef): { tx: number; tz: number }[] {
   const out: { tx: number; tz: number }[] = [];
-  for (let j = 0; j < BLOCK_TILES; j++) for (let i = 0; i < BLOCK_TILES; i++) out.push({ tx: b.bx * BLOCK_TILES + i, tz: b.bz * BLOCK_TILES + j });
+  const n = b.tiles;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ tx: b.bx * n + i, tz: b.bz * n + j });
   return out;
 }

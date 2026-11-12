@@ -1,5 +1,5 @@
 // UI shell demo (task ui-shell). Every screen and every component state with a mock facade, selected by URL flags:
-//   ?screen=title|title-empty|new-game|loading|loading-regen|loading-error|pause|settings|save-load|credits|codex|
+//   ?screen=title|title-empty|new-game|loading|loading-regen|loading-error|loading-load|loading-load-error|pause|settings|save-load|credits|codex|
 //           lineage|boot|unsupported|error|epitaph|too-small|components
 //   &tab=graphics|audio|controls|accessibility|gameplay   (settings)   &tab=save|load|transfer   (save-load)
 //   &section=buttons|inputs|structure|feedback|icons   &modal=confirm|dialog|export|drawer   (components)
@@ -10,6 +10,7 @@ import { render } from 'preact';
 import { defaultBindings } from '@/input';
 import { facade, setSnapshot } from '@/ui/store';
 import { emptySnapshot } from '@/ui/api';
+import { loadingContext } from '@/ui/screens/loadFlow';
 import { ScreenRouter, nav, initialNav, lastRequest, newGameForm, defaultForm } from '@/ui/screens';
 import { installStyles, uiPrefs } from '@/ui/styles';
 import { setCurrentBindings } from '@/ui/components';
@@ -36,17 +37,6 @@ async function main(): Promise<void> {
   const screen = q.get('screen') ?? 'title';
   document.body.dataset.bg = q.get('bg') ?? 'scene';
 
-  // preferences from flags (in memory for this page load, so runs never leak into each other)
-  uiPrefs.set({
-    accessibility: {
-      ...(uiScaleFlag() !== null ? { uiScale: uiScaleFlag() as number } : {}),
-      ...(num('text') !== null ? { textScale: (num('text') as number) / 100 } : {}),
-      reducedMotion: q.get('reducedMotion') === '1' ? 'on' : 'off',
-      highContrast: q.get('contrast') === 'high',
-      font: q.get('font') === 'hyperlegible' ? 'hyperlegible' : 'standard',
-    },
-  });
-
   const mock = new MockFacade({
     saves: (q.get('saves') ?? (screen === 'title-empty' ? 'none' : 'some')) as 'none' | 'some',
     storage: q.get('storage') !== 'off',
@@ -54,6 +44,17 @@ async function main(): Promise<void> {
   });
   if (q.get('quality')) mock.setSettings({ graphics: { quality: q.get('quality') as never, overrides: {} } });
   facade.value = mock;
+  // preferences from flags, written to the mock's settings like the Settings screen does (in memory for this page load)
+  const scaleFlag = uiScaleFlag();
+  uiPrefs.set({
+    accessibility: {
+      ...(scaleFlag !== null ? { uiScale: scaleFlag } : {}),
+      ...(num('text') !== null ? { textScale: (num('text') as number) / 100 } : {}),
+      reducedMotion: q.get('reducedMotion') === '1' ? 'on' : 'off',
+      highContrast: q.get('contrast') === 'high',
+      font: q.get('font') === 'hyperlegible' ? 'hyperlegible' : 'standard',
+    },
+  });
   setCurrentBindings(defaultBindings());
   window.__uiDemo = { facade: mock, nav };
 
@@ -74,6 +75,16 @@ async function main(): Promise<void> {
     case 'codex': case 'lineage': snap = demoSnapshot('title'); stack = { ...stack, stack: [screen] }; break;
     case 'loading': snap = demoSnapshot('loading', { loading: { phase: 'Heightfield', progress: 0.27, attempt: 1, maxAttempts: 8, error: null } }); break;
     case 'loading-regen': snap = demoSnapshot('loading', { loading: { phase: 'Zone layout', progress: 0.03, attempt: 2, maxAttempts: 8, error: null } }); break;
+    case 'loading-load':
+    case 'loading-load-error': {
+      // reading a save: the screen shows that save, not the last New Game request
+      const info = (await mock.listSaves()).find((x) => x.slot === 'slot-3') ?? null;
+      loadingContext.value = { kind: 'load', info };
+      snap = demoSnapshot('loading', { loading: screen === 'loading-load'
+        ? { phase: 'Terrain and cavity meshes', progress: 0.8, attempt: 1, maxAttempts: 8, error: null }
+        : { phase: 'Reading the colony', progress: 0.3, attempt: 1, maxAttempts: 8, error: 'This save was made by a newer version of the game (0.9.0).' } });
+      break;
+    }
     case 'loading-error': snap = demoSnapshot('loading', { loading: { phase: 'Validation', progress: 0.5, attempt: 8, maxAttempts: 8, error: 'Validation failed: no connected path from the nest site to food (attempt 8 of 8).' } }); break;
     case 'pause': snap = demoSnapshot('paused', playing); break;
     case 'settings': snap = demoSnapshot(q.get('from') === 'pause' ? 'paused' : 'title', playing); stack = { ...stack, stack: ['settings'], settingsTab: (tab as never) ?? 'graphics' }; break;

@@ -11,6 +11,7 @@ import type {
   CavityKind, ClimbRouteKind, MicroKind, PoiKind, WaterBodyKind, ZoneVariant,
 } from './ids/world';
 import type { ByteMap, CarveData, GroundLayers, HeightField, Primitive } from './geom';
+import type { WorldDecor } from './decor';
 import type { WorldParams } from './config';
 
 export interface ZoneDef {
@@ -71,6 +72,11 @@ export interface MicroConn {
   /** Passes the usefulness test (shortcut or shelter). */
   useful: boolean;
   reason: string;
+  /**
+   * Additive (worldgen-outdoor): interior points of the passage centreline from posA to posB when it bends (a kerb
+   * gap dips under the kerb and rises to the verge), mm. Absent = the straight segment posA -> posB.
+   */
+  path?: Vec3[];
 }
 
 /** Pre-existing cavity written to the carve grid at world creation (GDD 04 §7, GDD 03 §3). */
@@ -262,6 +268,8 @@ export interface WorldData {
   meta: WorldMeta;
   /** Additive (worldgen-terrain): edge treatment of each map side, for the boundary skirt. */
   edges?: MapEdge[];
+  /** Additive (worldgen-outdoor): visual-only decor descriptors for the renderer (GDD 04 §9). */
+  decor?: WorldDecor;
 }
 
 /** Mound heightfield around an entrance (GDD 03 §1.5). */

@@ -7,7 +7,9 @@
 // leaks, frame statistics with 60 workers, and two high-quality beauty shots. Every screenshot must be looked at.
 // STAGE1A_SKIP_HIGH=1 skips the (slow) high-quality part while iterating.
 
-const NOON = 2 * 6000 + 3000; // calendar tick: day 3, 12:00 (1 game day = 6000 ticks)
+const DAY = 6000; // ticks per game day
+const START = 2 * DAY + (7 / 24) * DAY; // calendar tick: day 3, 07:00 (the first digging then happens in daylight)
+const NOON = 2 * DAY + DAY / 2;
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -25,12 +27,12 @@ export default async ({ page, shot, log }) => {
   result.renderers = s0.renderers;
   const q0 = await g(() => window.__game.quality());
   expect(q0.quality === 'test', 'expected the test preset', q0);
-  await g((t) => window.__game.cheat.setTime(t), NOON);
-  const tick0 = (await summary()).tick;
+  await g((t) => window.__game.cheat.setTime(t), START);
+  const tick0 = (await summary()).tick - (START - NOON); // the tick at which it was (virtually) noon of day 3
   // noon of the coming day (digging takes game hours): surface shots in daylight
   const toNoon = async () => {
     const t = (await summary()).tick;
-    await g((c) => window.__game.cheat.setTime(c), NOON + Math.ceil((t - tick0) / 6000) * 6000);
+    await g((c) => window.__game.cheat.setTime(c), NOON + Math.ceil((t - tick0) / DAY) * DAY);
   };
 
   // --- 2. the founding queen possessed, upright, walking -----------------------------------------------------------
@@ -69,14 +71,32 @@ export default async ({ page, shot, log }) => {
   }, { slope: slopeDeg, n: ticks });
   const walk = async (ticks, move = { x: 0, y: 1 }) => { await g((m) => window.__game.setIntent({ move: m }), move); await step(ticks); await g(() => window.__game.setIntent({})); };
   const depthBu = (p) => (site.pos[1] - p[1]) / bu;
+  // observer pose `back` BU behind the dig site and `up` BU above it, looking at the site
+  const entrancePose = (up, back) => {
+    const f = site.fwd, h = Math.hypot(f[0], f[2]) || 1;
+    return { a: { x: site.pos[0] - (f[0] / h) * back * bu, y: site.pos[1] + up * bu, z: site.pos[2] - (f[2] / h) * back * bu }, l: { x: site.pos[0], y: site.pos[1], z: site.pos[2] } };
+  };
   for (let i = 0; i < 100; i++) {
     await dig(55, 60);
     await walk(2);
+    if (i === 30) { // the fresh entrance from the surface, before the first surface pellets settle onto it
+      await g(() => window.__game.release());
+      await g(({ a, l }) => window.__game.camera.setPose(a, l), entrancePose(14, 22));
+      await render(0.5);
+      await timed('entranceFresh', () => shot('02a-entrance-fresh'));
+      expect((await summary()).camera.underground === false, 'the entrance view should be above ground');
+      await g(() => window.__game.possess('queen'));
+    }
     if (i === 60) { // well inside the shaft: the tunnel interior
       await render();
       await timed('tunnel', () => shot('03-inside-tunnel'));
       const c = await g(() => window.__game.camera.clearance());
       expect(c.f >= c.radius * 0.5, 'camera inside solid in the tunnel', c);
+      // GDD 01 E12 (one frame of it): the possession camera state and the camera-ant distance in body lengths
+      const t = await summary();
+      const L = t.possessed.lengthBu * bu, cp = t.camera.pos, ap = t.possessed.pos;
+      result.tunnelCamera = { state: t.camera.state, distL: Math.hypot(cp[0] - ap[0], cp[1] - ap[1], cp[2] - ap[2]) / L, clearance: c };
+      log('tunnel camera', JSON.stringify(result.tunnelCamera));
     }
   }
   s = await summary();
@@ -105,7 +125,8 @@ export default async ({ page, shot, log }) => {
   expect((result.items['soil-pellet'] ?? 0) > 10, 'digging made no pellets', result.items);
   const moundVol = (list) => list.reduce((v, m) => v + m.volume, 0);
   const mounds0 = await g(() => window.__game.query.mounds());
-  const rim = { x: site.pos[0] - (site.fwd[0] / (Math.hypot(site.fwd[0], site.fwd[2]) || 1)) * 5 * bu, y: site.pos[1], z: site.pos[2] - (site.fwd[2] / (Math.hypot(site.fwd[0], site.fwd[2]) || 1)) * 5 * bu };
+  const fh = Math.hypot(site.fwd[0], site.fwd[2]) || 1, side = { x: -site.fwd[2] / fh, z: site.fwd[0] / fh };
+  const rim = { x: site.pos[0] + side.x * 6 * bu, y: site.pos[1], z: site.pos[2] + side.z * 6 * bu }; // beside the entrance
   for (let k = 0; k < 4; k++) await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnPellets', pos: p, n: 25, volume: 0.85 }), rim);
   await step(3500);
   const mounds1 = await g(() => window.__game.query.mounds());
@@ -121,23 +142,40 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.act('lay-egg'));
   await step(300);
   s = await summary();
-  result.egg = { before: brood0, after: s.brood, fail: await g(() => window.__game.events('action-failed', 3).map((e) => `${e.action}:${e.reason}`)) };
+  result.egg = { before: brood0, laid: s.brood, fail: await g(() => window.__game.events('action-failed', 3).map((e) => `${e.action}:${e.reason}`)) };
+  if (s.brood === brood0) {
+    // lay-egg needs a registered chamber or the founding cell (nestops chamber detection / the 1B founding flow):
+    // eggs are cheat-spawned at the queen instead, so the brood renderer is still exercised in the dug room
+    const col = await g(() => window.__game.query.colony()?.id ?? -1);
+    await g((c) => window.__game.cheat.raw({ type: 'cheat.spawnBrood', colonyId: c, stage: 'egg', n: 6, chamberId: -1, progress: 0, destined: null }), col);
+    s = await summary();
+  }
+  result.egg.after = s.brood;
   log('egg', JSON.stringify(result.egg));
+  expect(s.brood > brood0, 'no eggs', result.egg);
 
-  // inside the chamber with the queen (and eggs when laid)
+  // inside the dug room with the queen and the eggs
+  await g(() => window.__game.camera.zoom(1.6));
   await render();
   await timed('chamber', () => shot('04-chamber-queen'));
   const c4 = await g(() => window.__game.camera.clearance());
   expect(c4.f >= c4.radius * 0.5, 'camera inside solid in the chamber', c4);
   expect((await summary()).camera.underground === true, 'the chamber view is not marked underground');
+  // colony view from the possessed queen underground: the cutaway slice opens the ground over the nest
+  result.colonyView = await g(() => window.__game.camera.set('colony'));
+  if (result.colonyView === 'colony') {
+    await g(() => window.__game.camera.zoom(0.3));
+    await render(1);
+    await timed('colony', () => shot('07-colony-view'));
+    await g(() => window.__game.camera.set('possess'));
+    await step(1);
+  }
 
   // --- 7. the entrance and its mound, from the surface (observer) ---------------------------------------------------
   await g(() => window.__game.release());
   await toNoon();
-  const up = 14 * bu, back = 22 * bu, f = site.fwd, h = Math.hypot(f[0], f[2]) || 1;
-  const at = { x: site.pos[0] - (f[0] / h) * back, y: site.pos[1] + up, z: site.pos[2] - (f[2] / h) * back };
-  const look = { x: site.pos[0], y: site.pos[1], z: site.pos[2] };
-  await g(({ a, l }) => window.__game.camera.setPose(a, l), { a: at, l: look });
+  const f = site.fwd, h = Math.hypot(f[0], f[2]) || 1;
+  await g(({ a, l }) => window.__game.camera.setPose(a, l), entrancePose(14, 22));
   await render(0.5);
   await timed('entrance', () => shot('02-entrance-mound'));
   s = await summary();
@@ -169,13 +207,6 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.camera.zoom(1));
   await render(0.5);
   await timed('observer', () => shot('06-observer-surroundings'));
-  const colony = await g(() => window.__game.camera.set('colony'));
-  result.colonyView = colony;
-  if (colony === 'colony') {
-    await render(1);
-    await timed('colony', () => shot('07-colony-view'));
-    await g(() => window.__game.camera.set('observer'));
-  }
 
   // --- 10. runtime quality switches without errors or leaks --------------------------------------------------------
   const mem = async () => (await g(() => window.__game.perf())).memory;
@@ -196,7 +227,7 @@ export default async ({ page, shot, log }) => {
   if (!process.env.STAGE1A_SKIP_HIGH) {
     await toNoon();
     await g(() => window.__game.quality('high'));
-    await g(({ a, l }) => window.__game.camera.setPose(a, l), { a: { x: at.x, y: site.pos[1] + 5 * bu, z: at.z }, l: look });
+    await g(({ a, l }) => window.__game.camera.setPose(a, l), entrancePose(5, 22));
     await render(0.5);
     await timed('highSurface', () => shot('08-high-surface'));
     await g(() => window.__game.possess('queen'));

@@ -30,6 +30,12 @@ All on a GENERATED world (seed 1, standard size, Lasius niger), headless and det
   snapshot at 3,000 -> restore -> 3,000 more ticks equals the uninterrupted 6,000-tick run (GDD 03 App. E check 25's
   save / load clause, with real modules and scripted behaviours). Making this pass found and fixed three real
   determinism defects (section 3: chamber creep, stale chamber fields, mound changes not reaching the nav grid).
+  Correction after the gate review: this scenario only forages (nothing is dug across the save point) and restores
+  onto the same `WorldData` object, so on its own it does not cover check 25's carving clause. The reviewer's
+  `src/sim/testing/e2e/stage1a.verify.test.ts` does: the founding queen digs with dig-bite for 8,000 ticks, the
+  game is snapshotted, restored onto a freshly generated world, and 6,000 more ticks (more than 10 pellets
+  expelled, the room registered as a chamber after the save) give the same carve keys, chamber voxel counts and
+  `stateHash` as the uninterrupted run. It passes and is the check-25 regression test.
 - **Soak** (`node tools/sim/run-ts.mjs tools/sim/soak.ts --days 3 --workers 60 --colony`): 3 game days (18,000 ticks),
   60 workers, 20 brood, sugar source, scripted foraging and brood care: **0 invariant violations** in 182 checks
   (9 invariants, section 5), per-system timing table in section 5.
@@ -125,12 +131,30 @@ real answers), `nest/nestops.verify.test.ts` (`it.fails` D_seal check is a plain
 AC2 (removes the environment modifier explicitly to test the base half-life). `createGame.test.ts` got
 load-tolerant timeouts (each test generates a world).
 
+Gate review fixes (after the independent review of this gate):
+- `src/sim/locomotion/grid/navGridImpl.ts` — [major] an incremental flow-field repair did not equal a full rebuild
+  when a micro-portal's mouth moved. Cause: `deriveFromField` re-links every portal (a mouth snaps to the nearest
+  passable cell within 2 cells), but the change log held only cells whose own data changed, and `flowRepair` marks
+  just their one-cell ring plus the portal ends found through the NEW links; a mouth moved two cells, so neither the
+  old edge's far end nor the new mouth was repaired (1,909 mm instead of 144 mm at the new mouth in the reviewer's
+  repro). Fix: `refreshArea` records every portal's mouth cells before the re-derivation and logs the old and new
+  mouth cells (both ends) of every portal that moved. `setCostMult` now also re-links (and logs moved mouths) when
+  a cell's blocking changes, so the links depend only on the current cells: before, a blocking overlay left the
+  links stale until the next `refreshArea` anywhere, and a rebuilt grid after a load would have linked differently.
+  Tests: the reviewer's `grid/flowRepair.verify.test.ts` (both pass).
+- `src/sim/testing/e2e/stage1a.e2e.test.ts` (a) — the brood-development check sat inside `if (egg alive and still an
+  egg)` and could silently skip; the precondition is now asserted.
+- `src/sim/wiring.test.ts` — GDD 02 E11 through the installed decay modifier (section 6, phero).
+- `src/sim/locomotion/possessed.ts` — the per-frame predictor wrote `nav.loco` (section 6, loco spec deviations).
+- `src/sim/kernel.perf.test.ts`, `src/sim/testing/perfLoad.ts` (new), `src/sim/pheromones/caps.test.ts` — load
+  tolerance (section 4).
+
 ## 4. Defects / gaps left (with reproduction)
 
-- **Nest chamber detection cost** — about 0.3 ms per tick average in the soak but single passes up to tens of ms
-  (soak `nest` max 271 ms under load); nestops' own report has the details. Repro: soak table below.
-- **Locomotion first-tick spike** — `locomotion` max 1.1 s in the soak: the first tick attaches the world field to
-  the 250 x 250 nav grid and builds the first flow field. Repro: soak, max column. Suggest attaching at createSim.
+- **Nest chamber detection cost** — 0.13 ms per tick on average in the soak but single passes up to 60-270 ms
+  under load (detection over the whole nest box); nestops' own report has the details. Repro: soak table, `nest` max.
+- **Locomotion first-tick cost** — the first locomotion tick attaches the world field to the 250 x 250 nav grid
+  and builds the first flow field (tens of ms; 91 ms max in the best soak run). Suggest attaching at createSim.
 - **Flow repair near seeds** — a mound batch next to the entrance resets most of the entrance flow tree (cost
   close to a full build). Repro: `test-output` probe `probe-flow.ts` style: setCostMult next to the seed cell.
 - **Brood in the soak** dies or piles up as pupae: the scripted care feeds and tends but nobody carries brood or
@@ -140,16 +164,52 @@ load-tolerant timeouts (each test generates a world).
 - Per-source hourly update stagger, sources-core's T2 data items, env-core's 3 h wood-cavity smoothing and live
   shade (findings 8b/c/f), nestops' 10 s stall debounce and bite ordering (need contract fields): left to their
   owners; see section 6.
-- Perf tests under load: `kernel.perf.test.ts` BFS (166 ms vs 120 in the parallel suite), `pheromones/perf.verify`
-  (7.9 ms vs 6) and `pheromones/caps.test.ts` AC7 (timed out at 120 s in the parallel suite) fail only in the full
-  parallel run at load 18-20 and pass when run alone (checked).
+- Perf tests under load: `kernel.perf.test.ts` BFS (166 ms vs 120 in the parallel suite, and 1,051 ms in the
+  reviewer's run at load 11-17) and `pheromones/perf.verify` (7.9 ms vs 6) fail only in the full parallel run and
+  pass when run alone (checked). After the gate review the BFS budget is skipped (reported with a warning) when the
+  1-minute load average exceeds 2 per core (`src/sim/testing/perfLoad.ts heavyLoad`; `FOUNDRESS_PERF_STRICT=1`
+  always asserts). `pheromones/caps.test.ts` AC7 is a functional check, not a budget: its timeout is now 600 s
+  (80 s alone, 178 s in the reviewer's parallel run).
 
 ## 5. Performance (soak, 3 game days, 60 workers, seed 1)
 
-`node tools/sim/run-ts.mjs tools/sim/soak.ts --days 3 --workers 60 --colony --seed 1` — see the table appended in
-section 9 (filled from the final runs). Invariants: walker-finite, walker-free-space, non-negative,
-state-encodes, walker-in-bounds, walker-stuck-explosion (new: more than 25 % of >= 8 moving walkers without
-progress for 120 s), nest-records-finite, pellets-valid, nest-chambers-reach-exit.
+`node tools/sim/run-ts.mjs tools/sim/soak.ts --days 3 --workers 60 --colony --seed 1`, run twice back to back
+(load average about 15): **0 violations in 182 checks both times**, identical final state (61 ants, stores
+C 89.98 / P 7.30, 459 sources, 14 carve chunks). Wall time per tick, checks excluded: **0.51 ms** (best run) and
+0.65 ms; run 9.2 s for 18,000 ticks; outside the systems (index refresh, sweep, event flush) 0.045 ms per tick.
+World generation plus new game: about 5 s.
+
+Per system, best run (us per tick averaged over all 18,000 ticks; max = worst single call, ms):
+
+| system | phase | calls | mean us/call | us/tick | max ms |
+|---|---|---|---|---|---|
+| locomotion | locomotion | 18000 | 150.3 | 150.3 | 91.5 |
+| nest | nest | 18000 | 133.6 | 133.6 | 61.6 |
+| economy | colony-economy | 18000 | 31.8 | 31.8 | 68.2 |
+| actions | actions | 18000 | 29.9 | 29.9 | 60.2 |
+| behaviours (scripted) | behaviours | 18000 | 21.6 | 21.6 | 20.4 |
+| brood | brood | 18000 | 16.7 | 16.7 | 25.3 |
+| ant-thermal | environment | 18000 | 16.3 | 16.3 | 10.8 |
+| calendar | environment | 18000 | 13.6 | 13.6 | 20.7 |
+| pheromones (with the env hook) | pheromones | 18000 | 13.2 | 13.2 | 8.8 |
+| task-reeval | colony-allocation | 1800 | 70.2 | 7.0 | 50.2 |
+| weather | environment | 720 | 165.7 | 6.6 | 8.6 |
+| queen | queen | 18000 | 6.2 | 6.2 | 6.3 |
+| colony-diagnostics | colony-economy | 72 | 871.2 | 3.5 | 13.3 |
+| sources | ecology | 72 | 728.9 | 2.9 | 8.8 |
+| allocation | colony-allocation | 180 | 257.7 | 2.6 | 4.3 |
+| e2e-care (scripted) | behaviours | 18000 | 2.5 | 2.5 | 4.6 |
+| lifecycle | lifecycle | 18000 | 1.0 | 1.0 | 8.1 |
+| colony-stats | colony-economy | 72 | 208.0 | 0.8 | 5.0 |
+| all others (19 systems, mostly Stage 2 stubs) | | | | < 0.7 each | < 4.1 |
+
+Max columns include JIT warm-up and machine-load stalls (the second run's maxima reach 330 ms for systems that
+cost tens of us on average). An earlier run before the flow-repair, mound-notification and spawn fixes, at load
+about 20, measured 1.46 ms per tick with locomotion at 654 us/tick and a 1.1 s first-tick spike.
+
+Invariants: walker-finite, walker-free-space, non-negative, state-encodes (core); walker-in-bounds and
+walker-stuck-explosion (new: more than 25 % of at least 8 moving walkers without progress for 120 game s fails)
+from locomotion; nest-records-finite, pellets-valid, nest-chambers-reach-exit from nest.
 
 ## 6. Every notes item and its outcome
 
@@ -160,7 +220,10 @@ later task, N = no action needed, W = worldgen, see section 7.)
 environmentWeather). Install hooks — R (`wiring.ts`). Weather wash, human wipe, combat alarm, behaviour trail
 laying, scent view — O (weather-effects, human-events, combat, beh-forage, scent-fx). loco steering via sense — N
 (loco uses it). Decay staggering — N (phero did it). layer.ts 432 lines — O (phero). Pending counters vs rain — O.
-GDD E11 at 32 C in the game — R (hook installed; the decay modifier is tested in `wiring.test.ts`).
+GDD E11 at 32 C in the game — R (hook installed). Gate review: the earlier `wiring.test.ts` only compared sheltered
+and sunlit-porous trail; E11 itself is now tested there through the installed decay modifier (10 ph on a shaded,
+dry concrete slab, surface temperature pinned by writing the lagged surface state and running only the pheromone
+system: 5.0 +- 0.1 after 900 s at 22 C and after 450 s at 32 C). E11's `vacuum` clause needs human-events (Stage 2).
 
 **colony-core**: digDemand API — R (nest `digDemand`). chamberTemp / humidity — N (env-core real, nest upkeep
 writes Chamber.temp/humidity). beh-nest / beh-forage / founding / overwinter APIs — O. progression stubs — O.
@@ -206,17 +269,105 @@ plan fields / nestops wiring — R; 02-kernel.md overlays doc — O (doc owner);
 **F2-kernel**: wiring items — N (done by F-int). Perf note on Vitest getters — kept (wiring.ts closures are not hot
 loops).
 
-notes-truncated-findings.md: loco (all six) — section 3; nestops (three) — section 3; actions (one) — R;
-worldgen-terrain (three minors) — section 7; render-* items — app half.
+notes-truncated-findings.md: loco has seven findings and nestops three; the gate report originally accounted for
+five and two of them. All of them:
+- loco [major] non-finite destinations — N (already rejected, section 3).
+- loco [major] flow fields rebuilt synchronously / A* budget a count — R (section 3; the gate review's portal-mouth
+  case is fixed below, "Gate review fixes").
+- loco [minor] grid groundY ignores primitive tops — R (loco).
+- loco [minor] dead tunables and magic numbers outside balance — partly R: the nav-grid planner constants
+  (`SMOOTH_LIFT_BU`, `SMOOTH_RADIUS_BU`, `SMOOTH_MAX_CELLS`, `SNAP_RADIUS`, `FLOW_CACHE`, `FLOW_CLEARANCE_BU`,
+  `PORTAL_REACH_BU`, `MOUTH_SNAP_CELLS`) are now fields of `NAV_GRID_TUNING`, which `src/sim/balance/locomotion.ts`
+  re-exports with `LOCO_TUNING` and `MATERIAL_GRIP`. O (loco): the inline values in stuck.ts (maxD 6 BU, 0.3),
+  modes.ts (TRAIL_HEADING_TAU_S, 100 deg, 0.7 / 0.3), legs.ts (0.5 / 0.4 / 2 BU), nests.ts (1.2, -0.25 BU),
+  system.ts (SLIP_EVERY, TICK_S duplicating sim/time), update.ts MAX_LEG_SWITCHES, and the never-read params
+  trailGain / trailEdge / trailSearchS. The dead persisted scratch fields (replansThisTick, replanTickMark,
+  trailSide) are part of the `NavScratch` contract now and contracts may not drop fields: O (contracts owner, at the
+  next save-format version bump).
+- loco [minor] contract layering — R (section 3).
+- loco [minor] entityIndex never wired — R (section 3).
+- loco [minor] small spec deviations — (4) R: `integratePossessed` no longer creates `nav.loco` from the per-frame
+  predictor (it reads a fresh scratch when the ant has none; test in `locomotion/possessed.test.ts`). (1) edge latch
+  rule (per-frame > 30 deg and LATCH_MAX_S only, no "camera up within 10 deg"), (2) GDD 02 §9.2's retrace stuck
+  rule replaced by the generic ladder, (3) `nav.stuckTicks` holding the request age — O (loco; (2) matters when
+  beh-forage adds retrace). (5) test count and (6) best-of-5 perf wording in loco's report — N (report history).
+- nestops [minor] validation order — N (already in GDD order).
+- nestops [minor] unused balance constants and inline magic numbers — partly R: the architect blacklist
+  (`ARCH_BLACKLIST_S` = 1200 s), the default plan length (`PLAN_DEFAULT_LEN_BU`) and `FRASS_MATERIALS` moved to
+  `balance/nest.ts`; `MAX_PLUG_SEEDS` was already there. N: `ANT_LENGTH_HEAD` (half a body length) is geometry, not
+  a tunable (commented). O (nestops / Stage 1B users): the defined-but-unread constants MOUND_SUPPORT_BU,
+  TAMP_RADIUS_BU, MOUND_MIN_H_BU, PLAN_PROGRESS_EVENT_TICKS, RIM_FULL_BU, RIM_MIN_FACTOR, TUNNEL_ADULT_CAPACITY,
+  LN_EXTRA_ENTRANCE_WORKERS (kept: they name GDD 03 rules whose consumers are Stage 1B behaviours); the second
+  nest-template source (`nestTemplates.ts` next to `SpeciesDef.nestTemplate`) — O (species-data keeps them in sync).
+- nestops [minor] dig-bite timing without moisture / LOOSE / crust — R (section 3).
+- actions (one) — R. worldgen-terrain (three minors) — section 7. render-* items — app half.
 
 ## 7. World generation
 
-The world-generation engineer's review fixes were uncommitted and changing during this gate
-(`git diff --stat src/worldgen`: 20 files, last edits about an hour before this report). Per the timing note no
-worldgen file was edited here. Observations: `dlog(Infinity)` is already guarded in the working copy; the
-generated world has no food anchors (worldgen-life); world generation takes about 5 s per standard world under
-load (1 s idle per the worldgen report), which makes every test that generates a world slow. Worldgen test results
-from the final run are in section 9.
+The world-generation engineer's review fixes were uncommitted and changing when this gate started (20 files);
+they were committed as `3cb5914 worldgen-terrain complete` during the gate. Per the timing note no worldgen file
+was edited here. Observations: `dlog(Infinity)` is guarded in the committed code; the generated world has no food
+anchors yet (worldgen-life, Stage 1B), so new games start without sources; one standard world takes about 5 s to
+generate on this loaded machine (1 s idle per the worldgen report), which is why every test that generates a
+world needs a load-tolerant timeout. The worldgen-terrain review findings listed in notes-1A.md ("left unfixed")
+are the worldgen engineer's; their test status in the final full run is in section 9. The founding scenario walked
+the seed-1 queen 20 BU to loam and dug without meeting the bank F3b reported.
+
+## 7b. Files touched (one line each)
+
+Gate review round:
+- `src/sim/locomotion/grid/navGridImpl.ts` — log moved portal mouths in refreshArea; re-link on blocking overlays; planner constants from NAV_GRID_TUNING.
+- `src/sim/locomotion/grid/gridData.ts` — planner constants and mouthSnapCells added to NAV_GRID_TUNING.
+- `src/sim/balance/locomotion.ts` — re-exports NAV_GRID_TUNING.
+- `src/sim/balance/nest.ts`, `nest/plans/plans.ts`, `nest/plans/resolve.ts`, `nest/pellets.ts`, `nest/entrances.ts` — ARCH_BLACKLIST_S, PLAN_DEFAULT_LEN_BU, FRASS_MATERIALS to balance; ANT_LENGTH_HEAD commented.
+- `src/sim/locomotion/possessed.ts` + `possessed.test.ts` — predictor no longer creates nav.loco; test.
+- `src/sim/wiring.test.ts` — GDD 02 E11 (22 C / 900 s, 32 C / 450 s).
+- `src/sim/testing/e2e/stage1a.e2e.test.ts` — (a) asserts the brood-check precondition.
+- `src/sim/testing/perfLoad.ts` (new), `src/sim/kernel.perf.test.ts`, `src/sim/pheromones/caps.test.ts` — load guard for BFS budget; AC7 timeout 600 s.
+
+First round:
+
+- `src/sim/services.ts` — loco entity index; nest's registerNestFields; seed pad constant from balance.
+- `src/sim/sim.ts` — installs the runtime hooks; sanitises non-finite intents.
+- `src/sim/wiring.ts` (new) — pheromone decay / free-space hooks, nest clutter speed factor.
+- `src/sim/createGame.ts` — winter start refused before world generation.
+- `src/sim/balance/index.ts`, `pheromone.ts` (new, moved), `locomotion.ts` (new), `actions.ts`, `ecology.ts`,
+  `nest.ts`, `colony.ts` — re-exports; duplicates single-sourced; ENTRANCE_SEED_PAD_BU, CHEAT_SPAWN_LIFT_BU,
+  PHERO_POROUS_MATERIALS / PHERO_SUNLIT_SHADE_MAX.
+- `src/sim/pheromones/balance.ts` — re-exports balance/pheromone.ts.
+- `src/sim/locomotion/grid/search.ts`, `navGridImpl.ts`, `gridData.ts` — exact incremental flow-field repair.
+- `src/sim/locomotion/runtime.ts`, `params.ts` — expansion budget for A*; stuck-explosion parameters.
+- `src/sim/locomotion/index.ts` — walker-stuck-explosion invariant.
+- `src/sim/locomotion/scratch.ts`, `src/sim/types/navScratch.ts` (new), `types/walker.ts`, `types/index.ts` —
+  NavScratch shape in the contracts.
+- `src/sim/types/eventsColony.ts`, `src/sim/entities/brood.ts` — brood-died carries colonyId.
+- `src/sim/world/index.ts` (shadeAt from the map), `primHash.ts` (non-finite guard), `field.ts` (allocation-free
+  overlay material).
+- `src/sim/nest/index.ts`, `plans/stimuli.ts` (digDemand), `chambers/registry.ts` (idempotent detection, field
+  re-seeding), `mounds.ts` (notifySurfaceChanged).
+- `src/sim/colony/index.ts` (spawn placement, killColonyBrood, devRate / stageDu export), `envAdapter.ts`
+  (microTemp), `allocation/demand.ts` (nest digDemand).
+- `src/sim/ants/index.ts` (cheat.kill brood through colony), `actions/defs/dig.ts`, `actions/ports.ts`,
+  `actions/testkit.ts` — nest dig speed.
+- `src/sim/species/data/lasius-niger.ts` — missing caste actions.
+- `src/sim/locomotion/walkerParams.ts`, `nest/nav/params.ts`, `nest/carve/params.ts` — stale TODO comments.
+- `tools/sim/soak.ts` — timing fix, `--colony` / `--brood`, per-system table on stderr.
+- Tests: `src/sim/wiring.test.ts` (new), `locomotion/grid/flowRepair.test.ts` (new),
+  `testing/e2e/{colonyScenario,foundingScript}.ts` + `stage1a.e2e.test.ts` (new), `testing/testNest.ts`,
+  `testing/testWorld.test.ts`, `testing/stubs.test.ts`, `nest/nestops.verify.test.ts`, `ants/actions/dig.test.ts`,
+  `ants/actions/care.test.ts`, `pheromones/decay.test.ts`, `services.verify.test.ts`, `createGame.test.ts`.
+
+Contract changes (all additive): new `src/sim/types/navScratch.ts` (NavScratch, LocoRequest, LocoSpeedKind, moved
+from locomotion and re-exported there; `types/walker.ts` imports it from the contracts); `types/index.ts` exports
+them; `brood-died` event gains optional `colonyId`.
+
+Grep check for acceptance 5 (no production path uses a test double or stub where a real module exists):
+`grep -rln "testing/doubles\|testing/e2e\|colony/testkit\|actions/testkit\|locomotion/testkit\|nestTestKit\|sources/testkit\|referenceWorld\|from '@/sim/testing'" src tools --include=*.ts --include=*.tsx | grep -v "\.test\.ts$"`
+-> only the kits themselves, `tools/sim/soak.ts` (the scripted scenario, `--colony` only) and the game's
+test-mode `newGame({testWorld})` path (`src/game/newGame/{options,startSession}.ts`: makeTestWorld / makeTestSim on
+the real kernel, a debug feature). `grep -rn "Stub" src/sim/*/index.ts` lists only Stage 1B / 2 owners (founding,
+overwinter-repro, combat, plants, creatures, human-events, weather-effects, architect, progression, rivals) and
+`nest.siteAt` (founding). createServices builds the real index, nav grid, pheromone field and kernel services.
 
 ## 8. What Stage 1B tasks must know
 
@@ -251,4 +402,17 @@ index):
 
 ## 9. Final verification
 
-(filled in below after the final runs)
+- `npm run typecheck`: **0 errors** in the whole repository (final run).
+- Full `npx vitest run` (one run at the end, load average 12-17): 262 files, 1,924 tests, **1,913 passed, 11
+  failed**. In my paths only two, both perf/time budgets under parallel load that pass when run alone right
+  after: `pheromones/caps.test.ts` AC7 (timed out at 120 s in the parallel run; alone 80 s, pass) and
+  `pheromones/stagger.test.ts` (median 1.08 ms vs 1 ms; alone pass). Earlier parallel runs showed the same for
+  `kernel.perf.test.ts` BFS and `pheromones/perf.verify.test.ts`; both pass alone. All worldgen tests passed.
+  The other 9 failures are the app half's work in progress, not caused here: `src/render/debug/debugRenderers
+  .test.ts` and `.verify.test.ts` (8; they expect every slot to fall back to the debug renderer, while the app
+  engineer is registering the real renderers — `src/render/slots/` is new and uncommitted) and
+  `src/render/nest/mesh/chunkMeshManager.test.ts` "handles thousands of chunks" (a timing case).
+- Scenario tests: `npx vitest run src/sim/testing/e2e` — 4 passed (about 25 s); `src/sim/wiring.test.ts` 3
+  passed; `src/sim/locomotion/grid/flowRepair.test.ts` 3 passed.
+- Soak: two 3-day runs with 60 workers, 0 violations each, identical final state (section 5).
+- Harness: not used; nothing visual changed in the simulation half.

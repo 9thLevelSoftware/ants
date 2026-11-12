@@ -4,13 +4,12 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { ChamberSize, DigPlan, Nest, PlanGeom, PlanSpec, Sim, SurfaceRef } from '@/sim/types';
 import {
-  ENTRANCE_PLAN_MAX_BU, SHAFT_LEN_BU, SHAFT_MAX_TILT_DEG, TUNNEL_LEN_BU, nestTemplate,
+  ENTRANCE_PLAN_MAX_BU, PLAN_DEFAULT_LEN_BU, SHAFT_LEN_BU, SHAFT_MAX_TILT_DEG, TUNNEL_LEN_BU, nestTemplate,
 } from '@/sim/balance/nest';
 import { OPEN_MIN } from '../carve/keys';
 import { nestComponents } from '../entrances';
 import { planSpecies } from './targets';
 
-const DEFAULT_LEN_BU = 10;
 
 export interface ResolvedPlan {
   anchor: SurfaceRef;
@@ -51,7 +50,7 @@ export function resolvePlan(sim: Sim, nest: Nest, spec: PlanSpec): ResolvedPlan 
       if (spec.end) geom.end = { ...spec.end };
       else {
         const d = intoWall(n, spec.yawDeg);
-        const len = clamp(spec.length ?? DEFAULT_LEN_BU, TUNNEL_LEN_BU) * bu;
+        const len = clamp(spec.length ?? PLAN_DEFAULT_LEN_BU, TUNNEL_LEN_BU) * bu;
         geom.end = { x: a.x + d.x * len, y: a.y, z: a.z + d.z * len };
       }
       if (spec.bend) geom.bend = { ...spec.bend };
@@ -70,7 +69,7 @@ export function resolvePlan(sim: Sim, nest: Nest, spec: PlanSpec): ResolvedPlan 
           dir = { x: dir.x * s, y: Math.sign(dir.y || -1) * Math.sqrt(1 - maxH * maxH), z: dir.z * s };
         }
       } else dir = { x: 0, y: n.y < -0.5 ? 1 : -1, z: 0 };
-      const len = clamp(spec.length ?? (spec.end ? Math.hypot(spec.end.x - a.x, spec.end.y - a.y, spec.end.z - a.z) / bu : DEFAULT_LEN_BU), SHAFT_LEN_BU) * bu;
+      const len = clamp(spec.length ?? (spec.end ? Math.hypot(spec.end.x - a.x, spec.end.y - a.y, spec.end.z - a.z) / bu : PLAN_DEFAULT_LEN_BU), SHAFT_LEN_BU) * bu;
       geom.end = { x: a.x + dir.x * len, y: a.y + dir.y * len, z: a.z + dir.z * len };
       geom.length = len / bu;
       return { anchor, geom, size: null };

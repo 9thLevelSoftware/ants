@@ -11,7 +11,7 @@ import type { GroundView } from './ground';
 import { BLADE_RANK, BLADE_STRIDE, DRAPED_RANK, DRAPED_STRIDE, hashFloats } from './instances';
 import { placeDraped } from './placement';
 import { mossGeometry } from './mossMaterial';
-import { placePrimMoss } from './primMoss';
+import { MOSS_PATCH_INDICES, placePrimMoss } from './primMoss';
 import type { BlockRef } from './tiles';
 
 export interface BaseGeometry {
@@ -137,6 +137,19 @@ export class DecorBlock {
     setBase(m.geometry, base);
     m.geometry.instanceCount = count;
     m.visible = count > 0;
+  }
+
+  /** Draws the first `count` baked moss patches (they are sorted by rank). */
+  setMoss(count: number): void {
+    const m = this.mossMesh;
+    if (!m) return;
+    m.geometry.setDrawRange(0, count * MOSS_PATCH_INDICES);
+    m.visible = count > 0;
+  }
+
+  get mossDrawn(): number {
+    const m = this.mossMesh;
+    return m?.visible ? Math.min(this.mossPatches, Math.round(m.geometry.drawRange.count / MOSS_PATCH_INDICES)) : 0;
   }
 
   setDew(count: number): void {

@@ -45,6 +45,21 @@ export const NAV_GRID_TUNING = {
   flowQuantPerMm: 4,
   /** Changed cells kept in the flow-field repair log (a field older than the log is rebuilt in full). */
   flowLogMaxCells: 8192,
+  /** A micro-portal mouth attaches to the nearest passable cell within this many cells of the mouth. */
+  mouthSnapCells: 2,
+  /** Path smoothing: segments are tested this far above the ground, with this sweep radius, BU. */
+  smoothLiftBU: 2.5,
+  smoothRadiusBU: 1,
+  /** Longest smoothed segment, cells (bounds the field traces). */
+  smoothMaxCells: 12,
+  /** Nearest passable cell search radius when a path endpoint is blocked, cells. */
+  snapRadiusCells: 6,
+  /** Flow fields kept (least recently used dropped; one per nest that walkers head home to). */
+  flowCacheFields: 24,
+  /** Flow fields use micro-portals passable by the standard worker (GDD 04 §6.1 PASS_CLEAR_K x 1), BU. */
+  flowClearanceBU: 0.45,
+  /** Down a flow field: a walker this close (horizontally) to a portal's entry mouth heads for the exit mouth, BU. */
+  portalReachBU: 2,
 } as const;
 
 /** A micro-connection as a nav edge between the passable cells at its two mouths (GDD 04 §11). */
@@ -150,7 +165,7 @@ export function linkPortals(g: GridData): void {
   });
 }
 
-const MOUTH_SNAP_CELLS = 2;
+const MOUTH_SNAP_CELLS = NAV_GRID_TUNING.mouthSnapCells;
 
 function mouthCell(g: GridData, m: Vec3, other: Vec3): number {
   const dx = m.x - other.x, dz = m.z - other.z, l = Math.hypot(dx, dz);

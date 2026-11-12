@@ -8,6 +8,7 @@ import { Button, Field, RadioCards, ScrollArea, SegmentedControl, Stepper, TextF
 import { facade } from '../../store';
 import { updateNav } from '../nav';
 import { AntPlate } from '../plates/AntPlate';
+import { markGenerating } from '../loadFlow';
 import { applyPreset, buildRequest, isCustom, lastRequest, LOCALITY_ARCHETYPES, newGameForm, setRule, type NewGameForm } from './form';
 import { randomSeedText, resolveSeed, SEED_MAX_CHARS } from './seed';
 import { suitability, zoneChips } from './locality';
@@ -190,6 +191,7 @@ export function NewGame({ onClose }: { onClose: () => void }) {
     if (!f) return;
     const req = buildRequest(newGameForm.value);
     lastRequest.value = req;
+    markGenerating();
     updateNav((n) => ({ ...n, afterLoadingCancel: 'new-game' }));
     void f.newGame(req);
   };

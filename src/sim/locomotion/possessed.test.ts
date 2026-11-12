@@ -143,6 +143,18 @@ describe('possessed ant movement', () => {
     expect(maxErr).toBeLessThan(0.15 * BU);
   });
 
+  it('per-frame prediction of an ant without locomotion scratch does not create it (no state write)', () => {
+    const sim = locoSim({ sizeBu: 256 });
+    const ant = possess(sim, v3(100 * BU, 0, 128 * BU), v3(1, 0, 0));
+    delete ant.nav.loco; // as after a possession before the first locomotion tick
+    sim.setPlayerIntent(intent(v3(1, 0, 0)));
+    const before = JSON.stringify(ant);
+    for (let f = 0; f < 6; f++) integratePossessed(sim, ant, 1 / 60);
+    expect(ant.nav.loco).toBeUndefined();
+    expect(JSON.stringify(ant)).toBe(before);
+    expect(possessedPose(sim)).not.toBeNull();
+  });
+
   it('edge latch: a desired direction that would point back up after an edge is frozen in the ant frame', () => {
     const sim = locoSim({ sizeBu: 128, prims: [block(1, 90, 64, 10, 30, 15)] });
     const topY = 29 * BU;

@@ -2,12 +2,23 @@
 // Sources: GDD 04 §9 (decor layers: zones, sizes, densities, seasons), §13 (water), GDD 06 §3.8 (dew),
 // GDD 08 §11 (palette and look), spike-look.md §2.8 (grass technique, parting, counts per preset).
 // Units: mm unless the name says BU; densities per m² of host zone at High quality (GDD 04 §9 "nominal at High").
+//
+// Distances that decide how much decor is drawn (streaming radius, LOD and full-density distances, the block size)
+// are physical (mm), not BU: blades and leaves have physical sizes and densities, so at a given distance in mm they
+// look the same on screen whatever the species, and a radius in BU would make the cost of a view grow with BU²
+// (Camponotus, BU 9, would draw 5x the decor of Lasius). The values were tuned at DECOR_REF_BU (Lasius). Distances
+// tied to the ant itself (parting, eye fade, lift above the ground) stay in BU.
 import type { QualityId } from '@/render/app';
 
 /** Placement tile edge (GDD 04 §9: positions come from hash(seed, layer, tile 64 BU)). */
 export const DECOR_TILE_BU = 64;
-/** Streaming / draw unit: BLOCK_TILES x BLOCK_TILES tiles share one draw call per layer. */
-export const BLOCK_TILES = 4;
+/** Body unit the physical decor distances were tuned at (Lasius niger), mm. */
+export const DECOR_REF_BU = 4;
+/**
+ * Streaming / draw unit: a block of n x n tiles shares one draw call per layer; n is chosen per BU so a block stays
+ * close to this edge (4 tiles at BU 4, 2 at BU 7 and 9).
+ */
+export const BLOCK_TARGET_MM = 1024;
 
 /**
  * Quality factor on all decor densities (GDD 04 §9: High x1, Medium x0.5, Low x0.25, test 0). Multiplied by the
@@ -15,12 +26,20 @@ export const BLOCK_TILES = 4;
  */
 export const DECOR_QUALITY_FACTOR: Record<QualityId, number> = { test: 0, low: 0.25, medium: 0.5, high: 1, ultra: 1.25 };
 
-/** Streaming radius per preset, BU (instances fade out before it). */
-export const DECOR_RADIUS_BU: Record<QualityId, number> = { test: 0, low: 250, medium: 400, high: 600, ultra: 800 };
+/** Streaming radius per preset, mm (instances fade out before it); also capped by the preset's draw distance. */
+export const DECOR_RADIUS_MM: Record<QualityId, number> = { test: 0, low: 1000, medium: 1600, high: 2400, ultra: 3200 };
 /** Blocks farther than radius x this are disposed (hysteresis so a block does not flicker in and out). */
 export const DECOR_DISPOSE_K = 1.25;
 /** Time budget for block generation per frame, ms (at least one block is always generated). */
 export const DECOR_BUDGET_MS = 3;
+/** Sward heights, dynamic primitives and object moves are compared every this many frames (heights every frame). */
+export const DECOR_WATCH_FRAMES = 15;
+/**
+ * A world change rebuilds the blocks within this distance of the changed rectangle, mm: ground (heights, sward)
+ * only moves the blades of a tuft that fan out of their block (GRASS_TUFT.radiusMm); a primitive also decides
+ * where the corners of a resting leaf or wrapper lie (half a card, up to about 110 mm).
+ */
+export const DECOR_CHANGE_MARGIN_MM = { ground: 16, prims: 200 } as const;
 
 // ------------------------------------------------------------------------------------------------- grass
 
@@ -36,8 +55,8 @@ export const GRASS = {
   mownDefaultMm: 50,
   /** Spread of a mown blade's length around the sward height (x). */
   mownLenK: [0.7, 1.2] as const,
-  /** Full density within this distance of the camera, BU; beyond, kept fraction (D0 / d)^LOD_POW. */
-  lodFullBU: 70,
+  /** Full density within this distance of the camera, mm; beyond, kept fraction (D0 / d)^LOD_POW. */
+  lodFullMm: 280,
   lodPow: 1.25,
   /** Far blades widen to keep coverage: width x min(maxWiden, keep^-widenPow). */
   lodWidenPow: 0.5,
@@ -45,8 +64,8 @@ export const GRASS = {
   /** Rows per blade at each preset (spike 2.8: 4 flat / 5 / 7 / 9 folded); far blocks use half. */
   rows: { test: 3, low: 4, medium: 5, high: 7, ultra: 9 } as Record<QualityId, number>,
   folded: { test: false, low: false, medium: true, high: true, ultra: true } as Record<QualityId, boolean>,
-  /** Blocks nearer than this (BU, nearest point) use the full row count and cast shadows. */
-  nearBlockBU: 120,
+  /** Blocks nearer than this (mm, nearest point) use the full row count and cast shadows. */
+  nearBlockMm: 480,
   /** Roots sink this far below the ground so blade bases never float, mm. */
   rootSinkMm: 1,
   /** Atlas strips of the straightened CC0 grass atlas (spike 2.8). */
@@ -107,11 +126,16 @@ export const DRAPE = {
   viewBiasDepthUnits: 6,
   /** Grid quads (along length x across) of the shared draped card per block LOD. */
   lodGrid: [[10, 6], [5, 3], [2, 1]] as const,
-  /** Block LOD switch distances (nearest point of the block), BU. */
-  lodBU: [80, 220] as const,
-  /** Full instance density within this distance, BU; beyond, kept fraction (D0/d)^pow. */
-  lodFullBU: 120,
+  /** Block LOD switch distances (nearest point of the block), mm. */
+  lodMm: [320, 880] as const,
+  /** Full instance density within this distance, mm; beyond, kept fraction (D0/d)^pow. */
+  lodFullMm: 480,
   lodPow: 1.2,
+  /**
+   * Pixels of items nearer than this (mm) are resolved onto the hugging surface per pixel (drapedShape
+   * dcResolve); beyond it the card with its vertex depth bias is drawn as is.
+   */
+  resolveMm: 600,
 } as const;
 
 /** GDD 04 §9 decor-leaf. Seasonal forest density per m²: index = season (spring, summer, autumn, winter). */
@@ -176,12 +200,14 @@ export const DECOR_OBJECTS = {
 
 /** Dew droplets on blades (GDD 06 §3.8: droplet size 0.2-2 mm; dewLevel 0..1). */
 export const DEW = {
-  /** Only blocks nearer than this (nearest point) get droplets, BU. */
-  radiusBU: 60,
+  /** Only blocks nearer than this (nearest point) get droplets, mm. */
+  blockRadiusMm: 240,
   /** Share of blades with droplets at dewLevel 1, and droplets per such blade. */
   bladeShare: 0.45,
   perBlade: [1, 4] as const,
   radiusMm: [0.25, 1.1] as const,
+  /** A droplet is hidden where its blade's eye / line-of-sight fade is below this (the blade dithers out there). */
+  sightFadeMin: 0.5,
 } as const;
 
 export const WATER = {

@@ -2,12 +2,13 @@
 // loading, pause, epitaph, unsupported); the book screens that open over the title or the pause menu come from the
 // small navigation stack in nav.ts. The HUD is not drawn here (a later task): while `playing` this renders only the
 // error overlay when there is one. Installing the stylesheet, scale, key handling and gamepad navigation happens once.
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { facade, snapshot } from '../store';
 import { installEnvironment } from '../styles';
 import { computeScale } from '../styles/scale';
 import { uiPrefs } from '../styles/prefs';
 import { Credits } from './credits/Credits';
+import { startBindingSync } from './gameSync';
 import { startGamepadNav } from './gamepadNav';
 import { Loading } from './Loading';
 import { installMenuKeys } from './menuKeys';
@@ -59,11 +60,20 @@ export function ScreenRouter() {
   const base = baseScreen(snap.screen);
   const prev = useRef(snap.screen);
   const prefs = uiPrefs.prefs.value;
-  const scale = computeScale({ viewportW: window.innerWidth, viewportH: window.innerHeight, uiScale: prefs.accessibility.uiScale, textScale: prefs.accessibility.textScale });
+  // the "Window too small" notice follows the window, so the size is state that the resize handler updates
+  const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const onResize = () => setViewport((v) => (v.w === window.innerWidth && v.h === window.innerHeight ? v : { w: window.innerWidth, h: window.innerHeight }));
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const scale = computeScale({ viewportW: viewport.w, viewportH: viewport.h, uiScale: prefs.accessibility.uiScale, textScale: prefs.accessibility.textScale });
 
   useEffect(() => installEnvironment(window, blurWanted), []);
   useEffect(() => installMenuKeys(window), []);
   useEffect(() => startGamepadNav(), []);
+  useEffect(() => startBindingSync(), []);
   useEffect(() => {
     if (prev.current !== snap.screen) {
       updateNav((n) => onModeChange(n, prev.current, snap.screen));
@@ -80,7 +90,7 @@ export function ScreenRouter() {
         {base === 'title' && <Title {...inertIf(!!overlay)} />}
         {base === 'loading' && <Loading loading={snap.loading} />}
         {base === 'pause' && <Pause {...inertIf(!!overlay)} />}
-        {base === 'epitaph' && <EpitaphCard e={snap.epitaph} />}
+        {base === 'epitaph' && <EpitaphCard e={snap.epitaph} inert={!!overlay} />}
         {overlay && renderOverlay(overlay)}
         {scale.layout === 'too-small' && <TooSmall />}
       </div>

@@ -11,12 +11,14 @@ import type { Game } from '../Game';
 import { ProfileStore } from '../profile/profile';
 import { attachSettingsPersistence, type SettingsPersistence } from '../settings/persist';
 import type { GameSettings } from '../settings/model';
+import { AUTOSAVE_PUMP_MAX_DT_S, AUTOSAVE_PUMP_MS } from './constants';
 import { AutosaveDriver } from './autosaveDriver';
 import { AutosavePolicy } from './autosavePolicy';
 import { buildSavesDebug, type SavesDebug } from './debug';
 import { exportSlotBytes, importInto, listSlotInfos, toSaveResult } from './facade';
 import { GameHost, type GameHostOptions } from './gameHost';
 import { createLocalKv, type LocalKv } from './localKv';
+import { attachProfileEvents } from './profileEvents';
 import type { LoaderDeps } from './loader';
 import { SaveManager } from './manager';
 import type { SaveStorage } from './storage';
@@ -37,7 +39,7 @@ export interface InstallOptions extends GameHostOptions {
   /** Search string to read the flags from (default location.search). */
   search?: string;
   loader?: LoaderDeps;
-  /** Pump period in ms (default 500); 0 = no timer (a test drives `driver.frame`). */
+  /** Pump period in ms (default AUTOSAVE_PUMP_MS); 0 = no timer (a test drives `driver.frame`). */
   pumpMs?: number;
   /** Expose `window.__persistence` and `window.__game.saves` (default: in test mode). */
   expose?: boolean;
@@ -89,7 +91,8 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
   const manager = new SaveManager({
     host, storage: opts.storage, fallback: opts.fallback, loader: opts.loader, noDownload: opts.noDownload ?? flags.get('nodownload') === '1',
   });
-  driver = new AutosaveDriver(manager, policy, host);
+  let profile!: ProfileStore;
+  driver = new AutosaveDriver(manager, policy, host, (sim) => (profile ? attachProfileEvents(sim, profile) : []));
   // ---- notices (before init: the storage-unavailable notice is raised by it)
   const unsubEvents = manager.on((e) => {
     if (e.type === 'storage-unavailable' || e.type === 'autosave-disabled') game.toast(e.message);
@@ -99,7 +102,7 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
   await manager.init();
 
   // ---- profile (shares the storage the manager ended up with)
-  const profile = new ProfileStore({ storage: manager.currentStorage(), kv });
+  profile = new ProfileStore({ storage: manager.currentStorage(), kv });
   await profile.load();
 
   // ---- the hooks Game already calls
@@ -126,7 +129,7 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
   let last = performance.now();
   const pump = () => {
     const now = performance.now();
-    const dt = Math.min(2, Math.max(0, (now - last) / 1000));
+    const dt = Math.min(AUTOSAVE_PUMP_MAX_DT_S, Math.max(0, (now - last) / 1000));
     last = now;
     try {
       const sim = game.sim;
@@ -140,7 +143,7 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
       log.warn('autosave pump failed', e);
     }
   };
-  const pumpMs = opts.pumpMs ?? 500;
+  const pumpMs = opts.pumpMs ?? AUTOSAVE_PUMP_MS;
   const timer = pumpMs > 0 ? setInterval(pump, pumpMs) : null;
   const onHide = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;

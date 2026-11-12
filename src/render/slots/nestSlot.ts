@@ -89,21 +89,25 @@ export class NestSlot implements SubRenderer {
   }
 
   /**
-   * The cutaway hides the surface above the slice and darkens it outside R_cut. World materials can be created
-   * lazily (mounds, new primitive buckets), so the world group is checked each cutaway frame; each material once.
+   * The cutaway hides the surface above the slice and darkens it outside R_cut: terrain, primitives, mounds, ants
+   * and items (scene-lit standard / physical materials). Materials can be created lazily (mounds, new primitive
+   * buckets, ant variants), so the scene is checked each cutaway frame; each material is patched once.
    */
   private patchSurface(): void {
-    const group = this.world?.world.group;
-    if (!group) return;
-    group.traverse((o: Object3D) => {
-      const mats = (o as Mesh).material;
-      if (!mats) return;
+    this.patchTree(this.ctx.scene);
+  }
+
+  private patchTree(o: Object3D): void {
+    if (o === this.nest.group) return; // the nest's own materials cut themselves
+    const mats = (o as Mesh).material;
+    if (mats) {
       for (const m of Array.isArray(mats) ? mats : [mats]) {
         if (this.patched.has(m) || !(m as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial) continue;
         this.patched.add(m);
         this.nest.patchSurfaceMaterial(m);
       }
-    });
+    }
+    for (const c of o.children) this.patchTree(c);
   }
 
   setQuality(q: QualityPreset): void {

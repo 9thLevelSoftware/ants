@@ -11,7 +11,7 @@ URL flags
 
 | Flag | Values |
 |---|---|
-| `screen` | `boot`, `title`, `title-empty` (no saves), `new-game`, `loading`, `loading-regen`, `loading-error`, `pause`, `settings`, `save-load`, `credits`, `codex`, `lineage`, `unsupported`, `error`, `epitaph`, `too-small`, `components` |
+| `screen` | `boot`, `title`, `title-empty` (no saves), `new-game`, `loading`, `loading-regen`, `loading-error`, `loading-load`, `loading-load-error` (reading a save), `pause`, `settings`, `save-load`, `credits`, `codex`, `lineage`, `unsupported`, `error`, `epitaph`, `too-small`, `components` |
 | `tab` | settings: `graphics` `audio` `controls` `accessibility` `gameplay`; save-load: `save` `load` `transfer` |
 | `section`, `modal` | `components`: `buttons` `inputs` `structure` `feedback` `icons`; `modal=confirm|dialog|export|drawer` |
 | `scale` | UI scale in percent (`80`..`150`) or as a factor (`0.8`..`1.5`) |
@@ -28,6 +28,8 @@ Scripts (all run through the harness; each throws when a check fails)
 | `scripts/shots.mjs` | Screenshots of the screens at the sizes and scales in `UI_SIZES`, `UI_SCALES`, `UI_SCREENS`, `UI_EXTRA`, `UI_PREFIX`. |
 | `scripts/keyboard.mjs` | Tab / Shift+Tab / arrow-key reachability and visible focus ring on every screen (`UI_PRINT=1` prints the order). |
 | `scripts/behaviour.mjs` | 64 checks: keyboard interaction of the components, focus trap and restore, Esc layering, transitions, rebinding with conflicts, save / load / export / import, scale, reduced motion, contrast mode, fonts, no remote requests. |
+| `scripts/review.verify.mjs` | The reviewer's 8 browser checks (focus on Continue with late saves, Q/E under dialogs, file import, overwrite confirm, epitaph flow, too-small on resize, Esc in key capture). |
+| `scripts/fixes.mjs` | Regression checks for the review fixes: one settings object (UI <-> game), import staging and confirm, loading screen for a save. |
 | `scripts/iframe.mjs` | The classic build inside `<iframe sandbox="allow-scripts">` (opaque origin, no storage). |
 | `scripts/real.mjs` | The shell mounted on the real `Game` (`game.html`): title, new colony, playing, pause, settings, resume. |
 

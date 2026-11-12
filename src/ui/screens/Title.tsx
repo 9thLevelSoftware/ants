@@ -6,6 +6,7 @@ import { FOUNDRESS_VERSION } from '@/core/version';
 import type { SaveSlotInfo } from '../api';
 import { Button, useFocusScope } from '../components';
 import { facade } from '../store';
+import { loadSlot } from './loadFlow';
 import { updateNav, type OverlayId } from './nav';
 import { continueLine, newestSave } from './saves/describe';
 
@@ -21,6 +22,16 @@ export function Title({ inert }: { inert?: boolean }) {
   useFocusScope(root, { trap: true, initial: '.ui-menuitem:not([disabled])' });
   const storageOk = f?.storageAvailable?.() !== false;
   const latest = storageOk && saves ? newestSave(saves) : null;
+  // The save list arrives after the first frame (IndexedDB), when focus has already gone to "New colony". GDD 08 3.3:
+  // focus starts on Continue when it is enabled, so move it there once, unless the player has already started to act.
+  const acted = useRef(false);
+  useEffect(() => {
+    if (!latest || acted.current) return;
+    const cont = root.current?.querySelector<HTMLElement>('[data-testid=menu-continue]');
+    const at = document.activeElement;
+    const stillOnInitial = !at || at === document.body || at === root.current?.querySelector('[data-testid=menu-new]'); // gamepad moves focus without keys
+    if (cont && stillOnInitial && !(cont as HTMLButtonElement).disabled) cont.focus({ preventScroll: true });
+  }, [latest?.slot]);
   const open = (id: OverlayId, extra: { saveTab?: 'load' } = {}) => updateNav((n) => ({ ...n, stack: [...n.stack, id], ...(extra.saveTab ? { saveTab: extra.saveTab } : {}) }));
   const lineage = f?.hasLineage?.() === true;
 
@@ -34,14 +45,14 @@ export function Title({ inert }: { inert?: boolean }) {
   };
 
   return (
-    <div ref={root} class="ui-screen ui-title" inert={inert} data-screen="title">
+    <div ref={root} class="ui-screen ui-title" inert={inert} data-screen="title" onKeyDownCapture={() => { acted.current = true; }} onPointerDownCapture={() => { acted.current = true; }}>
       <div class="ui-title-col">
         <h1 class="ui-wordmark">FOUNDRESS</h1>
         <p class="ui-subtitle">A naturalistic ant colony sandbox</p>
         <nav aria-label="Main menu" onKeyDown={onMenuKey}>
           <ul class="ui-menu">
             <li>
-              <Button variant="ghost" block class="ui-menuitem" disabled={!latest} onClick={() => { if (latest) void f?.load(latest.slot); }} data-testid="menu-continue">
+              <Button variant="ghost" block class="ui-menuitem" disabled={!latest} onClick={() => { if (latest && f) void loadSlot(f, latest.slot, latest); }} data-testid="menu-continue">
                 <span class="ui-menu-main">Continue</span>
                 {latest && <span class="ui-menu-sub">{continueLine(latest)}</span>}
               </Button>

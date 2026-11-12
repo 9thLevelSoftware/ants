@@ -42,6 +42,12 @@ export function handleBack(): boolean {
   return true;
 }
 
+/** True when a layer above a book screen is open (a dialog, a popover, a key capture): keys belong to that layer. */
+export function layerAboveScreen(): boolean {
+  const top = stack[stack.length - 1];
+  return !!top && top.level > BACK_LEVEL.screen;
+}
+
 export function backDepth(): number {
   return stack.length;
 }

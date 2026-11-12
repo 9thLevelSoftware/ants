@@ -88,8 +88,8 @@ describe('grass at ant height', () => {
   });
 
   it('density LOD keeps everything near the camera and thins with distance', () => {
-    expect(grassLodKeep(100, BU)).toBe(1);
-    expect(grassLodKeep(2000, BU)).toBeLessThan(0.15);
-    expect(grassLodKeep(1000, BU)).toBeGreaterThan(grassLodKeep(2000, BU));
+    expect(grassLodKeep(100)).toBe(1);
+    expect(grassLodKeep(2000)).toBeLessThan(0.15);
+    expect(grassLodKeep(1000)).toBeGreaterThan(grassLodKeep(2000));
   });
 });

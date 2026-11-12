@@ -1,14 +1,15 @@
 // Types shared by the save layer. Plain data; the UI reads these through the GameFacade and the debug surface.
-import type { SaveSlotId } from '@/sim/types/ids/progression';
+import type { AutosaveLabel as RegistryAutosaveLabel, SaveSlotId } from '@/sim/types/ids/progression';
 import type { SpeciesId } from '@/sim/types';
 
 /** Logical slot a caller names: `auto` is the ring, `quick`, `slot-1`..`slot-5`, hidden `opening-start`. */
 export type SlotId = SaveSlotId;
 
-/** Why an autosave was written; shown on the card of an `auto` generation (00-index B6 + `interval`). */
-export type AutosaveLabel =
-  | 'interval' | 'season' | 'pre-timelapse' | 'opening-sealed' | 'opening-complete' | 'pre-winter' | 'post-winter'
-  | 'pre-flight' | 'final' | 'quit' | 'hidden';
+/**
+ * Why an autosave was written; shown on the card of an `auto` generation: the registry's labels (B6) plus the three
+ * the game layer adds (`interval` is in the 00-index text, `quit` and `hidden` are written when the game is left).
+ */
+export type AutosaveLabel = RegistryAutosaveLabel | 'interval' | 'quit' | 'hidden';
 
 /**
  * Outcome words of the save layer. `ok` is success; every other value is a failure the UI can word:

@@ -7,6 +7,7 @@ import type { SaveResult, SaveSlotInfo } from '../../api';
 import { Button, ConfirmDialog, EmptyState, Field, IconButton, ScrollArea, Select, TextArea, BookScreen, type TabDef } from '../../components';
 import { facade, snapshot } from '../../store';
 import { UI_BALANCE } from '../../styles/tokens';
+import { importInto, loadSlot } from '../loadFlow';
 import { updateNav, type SaveTabId } from '../nav';
 import { slotTitle, SLOT_IDS, isAutoSlot } from './describe';
 import { ExportModal } from './ExportModal';
@@ -73,7 +74,7 @@ export function SaveLoad({ tab, onTab, onClose }: { tab: SaveTabId; onTab: (t: S
   const doLoad = async (slot: string) => {
     if (!f) return;
     setBusy(true);
-    const r = await f.load(slot);
+    const r = await loadSlot(f, slot, infoOf(slot));
     setBusy(false);
     if (!r.ok) report(r, '');
   };
@@ -145,7 +146,7 @@ export function SaveLoad({ tab, onTab, onClose }: { tab: SaveTabId; onTab: (t: S
             ? <EmptyState icon="save" title="No saved colonies yet">Saves appear here once you have saved or an autosave has run.</EmptyState>
             : slotList('load')
         )}
-        {active === 'transfer' && <TransferTab saves={saves ?? []} onExport={doExport} onExportText={exportAsText} setMessage={setMessage} refresh={refresh} />}
+        {active === 'transfer' && <TransferTab saves={saves ?? []} unsaved={unsaved} onExport={doExport} onExportText={exportAsText} setMessage={setMessage} refresh={refresh} />}
       </ScrollArea>
       <p class={`ui-status-line${message?.bad ? ' is-bad' : ''}`} role="status" aria-live="polite" data-testid="saves-message">{message?.text ?? ''}</p>
       {dialog?.kind === 'overwrite' && (
@@ -171,8 +172,13 @@ export function SaveLoad({ tab, onTab, onClose }: { tab: SaveTabId; onTab: (t: S
   );
 }
 
+/** What the player has chosen to import: a file's bytes or pasted text, kept until they pick where it goes. */
+type Staged = { data: Uint8Array | string; label: string };
+
 function TransferTab(p: {
   saves: SaveSlotInfo[];
+  /** Playing with progress since the last save: loading over it needs a confirmation. */
+  unsaved: boolean;
   onExport: (slot: string) => Promise<void>;
   onExportText: (slot: string) => Promise<void>;
   setMessage: (m: { text: string; bad: boolean } | null) => void;
@@ -181,29 +187,52 @@ function TransferTab(p: {
   const f = facade.value;
   const occupied = p.saves.map((s) => s.slot);
   const [exportSlot, setExportSlot] = useState<string>(occupied[0] ?? 'slot-1');
+  const [staged, setStaged] = useState<Staged | null>(null);
   const [pasted, setPasted] = useState('');
-  const [target, setTarget] = useState<string>('slot-1');
+  // Nothing is stored until the player picks a target: the choice starts empty (GDD 08 7.6)
+  const [target, setTarget] = useState<string>('');
   const [error, setError] = useState('');
+  const [confirm, setConfirm] = useState<{ data: Uint8Array | string; target: string } | null>(null);
   const exportOptions = occupied.length ? occupied.map((s) => ({ value: s, label: slotTitle(s) })) : [{ value: 'slot-1', label: 'No saved colonies', disabled: true }];
-  const targets = [...SLOT_IDS.filter((s) => s !== 'quick').map((s) => ({ value: s as string, label: slotTitle(s) })), { value: 'quick', label: 'Quick save' }, { value: 'now', label: 'Load now (do not store)' }];
+  const targets = [
+    { value: '', label: 'Choose where to store it', disabled: true },
+    ...SLOT_IDS.filter((s) => s !== 'quick').map((s) => ({ value: s as string, label: slotTitle(s) })),
+    { value: 'quick', label: 'Quick save' },
+    { value: 'now', label: 'Load now (do not store)' },
+  ];
 
-  const importBytes = async (data: Uint8Array | string) => {
+  const run = async (data: Uint8Array | string, to: string) => {
     setError('');
-    const r = await f?.importSave?.(data, target);
+    const r = await importInto(f as NonNullable<typeof f>, data, to);
     if (!r) { setError('Importing is not available yet.'); return; }
     if (!r.ok) { setError(r.message ?? 'That file could not be imported.'); return; }
-    p.setMessage({ text: target === 'now' ? 'Colony loaded.' : `Imported into ${slotTitle(target)}.`, bad: false });
+    p.setMessage({ text: to === 'now' ? 'Colony loaded.' : `Imported into ${slotTitle(to)}.`, bad: false });
+    setStaged(null);
+    setPasted('');
     p.refresh();
   };
   const onFile = async (e: Event) => {
-    const file = (e.currentTarget as HTMLInputElement).files?.[0];
-    if (file) await importBytes(new Uint8Array(await file.arrayBuffer()));
-    (e.currentTarget as HTMLInputElement).value = '';
+    const input = e.currentTarget as HTMLInputElement; // read before the await: the event is gone afterwards
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    setError('');
+    setPasted('');
+    setStaged({ data: new Uint8Array(await file.arrayBuffer()), label: `${file.name} (${sizeKb(file.size)} KB)` });
   };
-  const onPaste = async () => {
-    const c = checkImportText(pasted);
-    if (!c.ok) { setError(c.error); return; }
-    await importBytes(c.text);
+  const onImport = () => {
+    if (!f) return;
+    let data: Uint8Array | string;
+    if (staged) data = staged.data;
+    else {
+      const c = checkImportText(pasted);
+      if (!c.ok) { setError(c.error); return; }
+      data = c.text;
+    }
+    if (!target) { setError('Choose where to store the colony first.'); return; }
+    // replacing a stored colony, or the running one, is always confirmed (GDD 08 7.6)
+    if (occupied.includes(target) || (target === 'now' && p.unsaved)) setConfirm({ data, target });
+    else void run(data, target);
   };
 
   return (
@@ -221,17 +250,30 @@ function TransferTab(p: {
       </section>
       <section class="ui-section" aria-labelledby="import-h">
         <h2 id="import-h" class="ui-section-title">Import</h2>
-        <Field label="Store in" layout="stack"><Select options={targets} value={target} onChange={setTarget} /></Field>
         <Field label="From a file" layout="stack">
           <label class="ui-filebtn">
             <input type="file" accept=".foundress" class="ui-file" onChange={onFile} data-testid="import-file" aria-label="Choose a .foundress file" />
           </label>
+          {staged && <p class="ui-field-help" role="status" data-testid="import-staged">Ready to import: {staged.label}</p>}
         </Field>
         <Field label="Or paste text" layout="stack">
-          <TextArea value={pasted} onInput={setPasted} mono rows={5} placeholder="FOUNDRESS1:..." aria-label="Pasted colony text" error={error || undefined} data-testid="import-text" />
-          <Button icon="import" onClick={() => void onPaste()} disabled={!f?.importSave} disabledReason="Importing is not available yet" data-testid="import-go">Import text</Button>
+          <TextArea value={pasted} onInput={(v) => { setPasted(v); setStaged(null); setError(''); }} mono rows={5} placeholder="FOUNDRESS1:..." aria-label="Pasted colony text" error={error || undefined} data-testid="import-text" />
+        </Field>
+        <Field label="Store in" layout="stack">
+          <div class="ui-inline">
+            <Select options={targets} value={target} onChange={(v) => { setTarget(v); setError(''); }} aria-label="Store the imported colony in" />
+            <Button icon="import" onClick={onImport} disabled={!f?.importSave} disabledReason="Importing is not available yet" data-testid="import-go">Import</Button>
+          </div>
         </Field>
       </section>
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.target === 'now' ? 'Load this colony?' : 'Overwrite this save?'}
+          message={confirm.target === 'now' ? 'Progress since your last save will be lost.' : `${slotTitle(confirm.target)} already holds a colony. Importing here replaces it.`}
+          confirmLabel={confirm.target === 'now' ? 'Load' : 'Overwrite'} danger={confirm.target !== 'now'}
+          onCancel={() => setConfirm(null)} onConfirm={() => { const c = confirm; setConfirm(null); void run(c.data, c.target); }}
+        />
+      )}
     </div>
   );
 }

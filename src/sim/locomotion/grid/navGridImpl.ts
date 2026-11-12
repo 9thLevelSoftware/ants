@@ -7,22 +7,14 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { NavClass, NavGrid, Primitive, WorldData } from '@/sim/types';
 import { NAV_CLASSES } from '@/sim/types';
 import type { WorldField } from '@/sim/world/field';
-import { deriveFromField, deriveFromWorld, isBlocked, NAV_GRID_TUNING, type GridData, type Portal } from './gridData';
+import { deriveFromField, deriveFromWorld, isBlocked, linkPortals, NAV_GRID_TUNING, type GridData, type Portal } from './gridData';
 import { GridSearch, lineClear, type CostDisc } from './search';
 
-/** Smoothing: segments are tested this far above the ground, with this sweep radius (BU). */
-const SMOOTH_LIFT_BU = 2.5;
-const SMOOTH_RADIUS_BU = 1;
-/** Longest smoothed segment, in cells (bounds the field traces). */
-const SMOOTH_MAX_CELLS = 12;
-/** Nearest passable cell search radius when an endpoint is blocked, cells. */
-const SNAP_RADIUS = 6;
-/** Flow fields kept (least recently used dropped; one per nest that walkers head home to). */
-const FLOW_CACHE = 24;
-/** Flow fields use micro-portals passable by the standard worker (GDD 04 §6.1 PASS_CLEAR_K x 1), BU. */
-const FLOW_CLEARANCE_BU = 0.45;
-/** Down a flow field: a walker this close (horizontally) to a portal's entry mouth heads for the exit mouth, BU. */
-const PORTAL_REACH_BU = 2;
+// planner tunables (GDD 04 §11), in NAV_GRID_TUNING (re-exported from src/sim/balance)
+const {
+  smoothLiftBU: SMOOTH_LIFT_BU, smoothRadiusBU: SMOOTH_RADIUS_BU, smoothMaxCells: SMOOTH_MAX_CELLS, snapRadiusCells: SNAP_RADIUS,
+  flowCacheFields: FLOW_CACHE, flowClearanceBU: FLOW_CLEARANCE_BU, portalReachBU: PORTAL_REACH_BU,
+} = NAV_GRID_TUNING;
 
 export interface FindPathOptions {
   /** Cost discs (avoid markers). */
@@ -123,6 +115,8 @@ class NavGridImpl implements LocoNavGrid {
   private readonly changes: ChangeEntry[] = [];
   private fullVersion = 0;
   private logCells = 0;
+  /** Scratch: each portal's mouth cells [cellA, cellB] before a re-link. */
+  private readonly mouths: Int32Array;
 
   constructor(world: WorldData) {
     this.data = deriveFromWorld(world);
@@ -130,6 +124,7 @@ class NavGridImpl implements LocoNavGrid {
     this.w = this.data.w;
     this.h = this.data.h;
     this.search = new GridSearch(this.data);
+    this.mouths = new Int32Array(2 * this.data.portals.length);
   }
 
   get hasField(): boolean {
@@ -186,8 +181,31 @@ class NavGridImpl implements LocoNavGrid {
     const c = this.cell, cl = (v: number, n: number) => Math.min(n - 1, Math.max(0, Math.floor(v / c)));
     const ia = cl(x0, this.w), ib = cl(x1, this.w), ka = cl(z0, this.h), kb = cl(z1, this.h);
     const before = this.snapshotArea(ia - 1, ib + 1, ka - 1, kb + 1);
-    deriveFromField(this.data, this.field, prims, x0, z0, x1, z1);
-    this.bump(this.changedCells(before, ia, ib, ka, kb));
+    this.saveMouths();
+    deriveFromField(this.data, this.field, prims, x0, z0, x1, z1); // re-links the portals too
+    const dirty = this.changedCells(before, ia, ib, ka, kb);
+    this.addMovedMouths(dirty);
+    this.bump(dirty);
+  }
+
+  /** Remembers every portal's mouth cells (before a re-link). */
+  private saveMouths(): void {
+    const ps = this.data.portals, m = this.mouths;
+    for (let i = 0; i < ps.length; i++) { m[2 * i] = ps[i].cellA; m[2 * i + 1] = ps[i].cellB; }
+  }
+
+  /**
+   * After a re-link: a portal mouth snaps up to MOUTH_SNAP_CELLS away when its cell's blocking changes, which can
+   * be outside the changed cells' one-cell ring that flowRepair invalidates. Logs the old and new mouth cells of
+   * every portal that moved, so the removed edge and the new edge are both repaired.
+   */
+  private addMovedMouths(out: number[]): void {
+    const ps = this.data.portals, m = this.mouths;
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i], a0 = m[2 * i], b0 = m[2 * i + 1];
+      if (p.cellA === a0 && p.cellB === b0) continue;
+      for (const c of [a0, b0, p.cellA, p.cellB]) if (c >= 0 && !out.includes(c)) out.push(c);
+    }
   }
 
   /** Copy of the cost-relevant cell data in a clamped box (flow-repair change detection). */
@@ -266,7 +284,18 @@ class NavGridImpl implements LocoNavGrid {
     if (ix < 0 || iz < 0 || ix >= this.w || iz >= this.h) return;
     const m = Number.isNaN(mult) ? 1 : Math.max(1, mult);
     const c = iz * this.w + ix;
-    if (this.data.dyn[c] !== m) { this.data.dyn[c] = m; this.bump([c]); }
+    if (this.data.dyn[c] === m) return;
+    const wasBlocked = isBlocked(this.data, c);
+    this.data.dyn[c] = m;
+    const dirty = [c];
+    // mouths follow blocking: re-link now, so the links depend only on the current cells (a rebuilt grid after a
+    // load links the same way) and not on when the next refreshArea happens to run
+    if (isBlocked(this.data, c) !== wasBlocked) {
+      this.saveMouths();
+      linkPortals(this.data);
+      this.addMovedMouths(dirty);
+    }
+    this.bump(dirty);
   }
 
   findPath(from: Vec3, to: Vec3, out: Vec3[]): boolean {

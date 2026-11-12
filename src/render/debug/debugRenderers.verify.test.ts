@@ -11,7 +11,7 @@ import { RenderRegistry, type FrameInfo, type RenderContext } from '../index';
 function setup(sim: Sim) {
   const scene = new Scene();
   const camera = new PerspectiveCamera();
-  const reg = new RenderRegistry();
+  const reg = new RenderRegistry({ forceDebug: true }); // real renderers are registered since int-1A: test the fallback set
   const ctx = { renderer: {} as RenderContext['renderer'], scene, camera, quality: getPreset('test'), assets: null, game: { requestRender: () => {}, testMode: true } };
   reg.init(ctx);
   reg.onGameStart(sim);

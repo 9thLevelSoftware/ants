@@ -255,6 +255,7 @@ export function setEntranceStatus(sim: Sim, nest: Nest, e: Entrance, next: Entra
 
 // ---- plugs ----
 
+/** The head is half a body length ahead of the body centre (geometry, not a tunable). */
 const ANT_LENGTH_HEAD = 0.5;
 
 /** Head point of an ant (body centre + half a body length forward), mm. */

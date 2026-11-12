@@ -1,11 +1,15 @@
 // Water surfaces as one mesh: discs for bodies (bowls, gullies, static puddles) and flat sheets over wet puddle
-// cells. Rebuilt only when the water signature changes (levels, puddle store, inputs).
+// cells. Rebuilt only when the water changes: body levels and inputs are compared every frame, the puddle store
+// (a whole moisture grid) every DECOR_WATCH_FRAMES frames or when its array is replaced.
 import { BufferAttribute, BufferGeometry, Group, Mesh, Sphere, Vector3 } from 'three';
 import type { Sim } from '@/sim/types';
 import type { GroundView } from '../decor/ground';
 import type { DecorShared } from '../decor/shared';
 import { createWaterMaterial } from './waterMaterial';
-import { collectWater, waterSignature, type WaterInputs, type WaterSurface } from './waterSurfaces';
+import { DECOR_WATCH_FRAMES } from '../decor/tuning';
+import {
+  collectWater, puddleSignature, puddleStore, waterLevelSignature, type WaterInputs, type WaterSurface,
+} from './waterSurfaces';
 
 const DISC_SEGMENTS = 48;
 
@@ -47,7 +51,10 @@ export class WaterRenderer {
   readonly group = new Group();
   private mesh: Mesh | null = null;
   private readonly material;
-  private sig = '';
+  private levelSig = Number.NaN;
+  private puddleSig = Number.NaN;
+  private puddleRef: Uint8Array | null = null;
+  private frame = 0;
   surfaces: WaterSurface[] = [];
 
   constructor(shared: DecorShared) {
@@ -56,9 +63,12 @@ export class WaterRenderer {
   }
 
   update(ground: GroundView, sim: Sim | null, inputs: WaterInputs): void {
-    const sig = waterSignature(ground.world, sim, inputs);
-    if (sig === this.sig) return;
-    this.sig = sig;
+    const ls = waterLevelSignature(ground.world, sim, inputs), store = puddleStore(sim);
+    let ps = this.puddleSig;
+    if (store !== this.puddleRef || this.frame++ % DECOR_WATCH_FRAMES === 0) { ps = puddleSignature(store); this.puddleRef = store; }
+    if (ls === this.levelSig && ps === this.puddleSig) return;
+    this.levelSig = ls;
+    this.puddleSig = ps;
     this.surfaces = collectWater(ground, sim, inputs);
     this.clear();
     const g = buildWaterGeometry(this.surfaces);
@@ -72,7 +82,9 @@ export class WaterRenderer {
 
   /** Forget the current surfaces (new world). */
   reset(): void {
-    this.sig = '';
+    this.levelSig = this.puddleSig = Number.NaN;
+    this.puddleRef = null;
+    this.frame = 0;
     this.surfaces = [];
     this.clear();
   }

@@ -16,6 +16,7 @@ export function toSlotInfo(l: SaveListing): SaveSlotInfo {
   const kind: SaveSlotInfo['kind'] = isAutoKey(l.key) ? 'auto' : l.key === 'quick' ? 'quick' : 'manual';
   return {
     slot: l.key, label: l.title, savedAt: l.meta.savedAtIso, colonyDay: l.meta.colonyDay, workers: l.meta.population,
+    population: l.meta.population,
     kind, trigger: l.label ? AUTOSAVE_LABELS_TEXT[l.label] ?? l.label : undefined, species: l.meta.species, archetype: l.meta.archetype,
     seedCode: l.meta.seedCode, dateLabel: l.meta.dateLabel, playTimeS: l.meta.playTimeS, version: l.meta.appVersion,
     thumbnail: l.meta.thumbnail, damaged: l.damaged, generation: l.generation, pinned: l.pinned,
