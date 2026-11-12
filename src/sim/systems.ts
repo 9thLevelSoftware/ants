@@ -1,52 +1,94 @@
-// The ordered system list (docs/03-architecture.md §3 tick order). The only shared registration point:
-// modules export their systems; this list changes only by adding entries. Events are flushed by sim.tick()
-// after the last system, and dead entities are swept just before that flush.
+// Composition root of the simulation modules (rulings 9, 13). Every module's index.ts exports `systems`,
+// optionally `behaviours`, and `commandHandlers`; this file lists the modules ONCE in a fixed order and derives:
+//   SYSTEMS     - all systems sorted by tick-order phase (SYSTEM_PHASES), stable by module then array order;
+//   BEHAVIOURS  - all behaviours, looked up through createBehaviourTable (species-specific first);
+//   SIM_MODULES - read by commands.ts to merge the command handlers.
+// Module owners never edit this file: they add entries to their own module's arrays.
 
-import type { System } from '@/sim/types';
-import { commandsSystem } from '@/sim/commands';
-import { calendarSystem, environmentEffectsSystem, humanEventsSystem, weatherSystem } from '@/sim/environment';
-import { creatureDirectorSystem, creatureSystem, plantsSystem, sourcesSystem } from '@/sim/ecology';
-import {
-  allocationSystem, broodSystem, colonyStatsSystem, economySystem, foundingSystem, overwinterSystem, queenSystem,
-  reproductionSystem,
-} from '@/sim/colony';
-import { actionSystem, behaviourSystem, lifecycleSystem, perceptionSystem, playerControlSystem } from '@/sim/ants';
-import { locomotionSystem } from '@/sim/locomotion';
-import { combatSystem } from '@/sim/combat';
-import { architectSystem, nestSystem } from '@/sim/nest';
-import { pheromoneSystem } from '@/sim/pheromones';
-import { rivalsSystem } from '@/sim/rivals';
-import { diagnosticsSystem, progressionSystem } from '@/sim/progression';
+import type { Behaviour, BehaviourTable, ColonySpeciesId, CommandHandlerMap, System, Task } from '@/sim/types';
+import { SYSTEM_PHASES } from '@/sim/types';
+import * as world from '@/sim/world';
+import * as environment from '@/sim/environment';
+import * as ecology from '@/sim/ecology';
+import * as colony from '@/sim/colony';
+import * as ants from '@/sim/ants';
+import * as locomotion from '@/sim/locomotion';
+import * as combat from '@/sim/combat';
+import * as nest from '@/sim/nest';
+import * as pheromones from '@/sim/pheromones';
+import * as rivals from '@/sim/rivals';
+import * as progression from '@/sim/progression';
+import { SPECIES_MODULES } from '@/sim/species/modules';
 
-export const SYSTEMS: readonly System[] = [
-  commandsSystem, //            commands                                   (F1b)
-  calendarSystem, //            environment: time                          (env-core)
-  weatherSystem, //             environment: weather                       (env-core)
-  humanEventsSystem, //         environment: human events                  (human-events)
-  environmentEffectsSystem, //  environment: moisture, puddles, washing     (weather-effects)
-  sourcesSystem, //             ecology: sources                           (sources-core)
-  plantsSystem, //              ecology: plants, herds                     (ecology-plants)
-  allocationSystem, //          colony allocation                          (colony-core)
-  queenSystem, //               queen / eggs                               (colony-core)
-  foundingSystem, //            queen / founding sequence                  (founding)
-  broodSystem, //               brood                                      (colony-core)
-  perceptionSystem, //          perception                                 (beh-forage)
-  behaviourSystem, //           ant behaviours                             (beh-forage, beh-nest)
-  playerControlSystem, //       player control                             (actions)
-  actionSystem, //              action primitives complete                 (actions)
-  creatureDirectorSystem, //    creature AI: spawning within caps          (creatures)
-  creatureSystem, //            creature AI                                (creatures)
-  locomotionSystem, //          locomotion                                 (loco)
-  combatSystem, //              combat                                     (combat)
-  nestSystem, //                nest: carve ops, chambers, nav fields      (nestops)
-  architectSystem, //           nest: architect                            (architect)
-  pheromoneSystem, //           pheromones                                 (phero)
-  economySystem, //             colony economy                             (colony-core)
-  colonyStatsSystem, //         colony stats                               (colony-core)
-  overwinterSystem, //          colony: overwintering                      (overwinter-repro)
-  reproductionSystem, //        colony: alates, flights, succession         (overwinter-repro)
-  rivalsSystem, //              rivals                                     (rivals)
-  progressionSystem, //         progression: milestones, journal, stage    (progression)
-  diagnosticsSystem, //         progression: diagnostics, alerts           (progression)
-  lifecycleSystem, //           lifecycle: deaths, spawns                  (actions)
+/** What a module index contributes. */
+export interface SimModule {
+  systems: readonly System[];
+  behaviours?: readonly Behaviour[];
+  commandHandlers: Partial<CommandHandlerMap>;
+}
+
+/** Module keys, in merge order. */
+export type SimModuleKey =
+  | 'world' | 'environment' | 'ecology' | 'colony' | 'ants' | 'locomotion' | 'combat' | 'nest' | 'pheromones'
+  | 'rivals' | 'progression' | (typeof SPECIES_MODULES)[number]['key'];
+
+export const SIM_MODULES: readonly { key: SimModuleKey; mod: SimModule }[] = [
+  { key: 'world', mod: world },
+  { key: 'environment', mod: environment },
+  { key: 'ecology', mod: ecology },
+  { key: 'colony', mod: colony },
+  { key: 'ants', mod: ants },
+  { key: 'locomotion', mod: locomotion },
+  { key: 'combat', mod: combat },
+  { key: 'nest', mod: nest },
+  { key: 'pheromones', mod: pheromones },
+  { key: 'rivals', mod: rivals },
+  { key: 'progression', mod: progression },
+  ...SPECIES_MODULES,
 ];
+
+/** First system of every tick: applies the commands queued since the previous tick. */
+export const commandsSystem: System = { name: 'commands', phase: 'commands', run: (sim) => sim.applyPendingCommands() };
+
+/** Systems of the given modules in tick order. Systems without a phase are rejected (listed in `unphased`). */
+export function assembleSystems(modules: readonly { mod: SimModule }[]): { systems: System[]; unphased: string[] } {
+  const all: System[] = [commandsSystem];
+  for (const m of modules) all.push(...m.mod.systems);
+  const unphased = all.filter((s) => s.phase === undefined).map((s) => s.name);
+  const rank = (s: System): number => SYSTEM_PHASES.indexOf(s.phase ?? 'lifecycle');
+  const systems = all
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i)
+    .map((x) => x.s);
+  return { systems, unphased };
+}
+
+export const SYSTEMS: readonly System[] = assembleSystems(SIM_MODULES).systems;
+
+export const BEHAVIOURS: readonly Behaviour[] = SIM_MODULES.flatMap((m) => m.mod.behaviours ?? []);
+
+/** Behaviour lookup: a behaviour listing the colony's species wins over the generic one for the same task. */
+export function createBehaviourTable(list: readonly Behaviour[]): BehaviourTable {
+  const generic = new Map<Task, Behaviour>();
+  const specific = new Map<string, Behaviour>();
+  for (const b of list) {
+    if (!b.species) generic.set(b.task, b);
+    else for (const sp of b.species) specific.set(`${b.task}|${sp}`, b);
+  }
+  return {
+    get: (task: Task, species: ColonySpeciesId) => specific.get(`${task}|${species}`) ?? generic.get(task),
+  };
+}
+
+/** Behaviours claimed twice for the same task and species (the completeness test asserts none). */
+export function duplicateBehaviours(list: readonly Behaviour[]): string[] {
+  const seen = new Set<string>();
+  const dup: string[] = [];
+  for (const b of list) {
+    for (const k of b.species ? b.species.map((sp) => `${b.task}|${sp}`) : [`${b.task}|*`]) {
+      if (seen.has(k)) dup.push(k);
+      seen.add(k);
+    }
+  }
+  return dup;
+}

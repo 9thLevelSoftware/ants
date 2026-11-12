@@ -4,14 +4,14 @@
 
 import { rngFork } from '@/core/rng';
 import type {
-  CalendarDerived, DayPhase, EnvironmentState, GameConfig, OpeningState, PlayerState, ProgressionState, SimState,
-  SpeciesId, WorldData, WorldDelta,
+  DifficultyId, EnvironmentState, GameConfig, OpeningState, PlayerState, ProgressionState, SeasonLengthDays,
+  SimState, SpeciesId, ThermalStateData, WorldData, WorldDelta,
 } from '@/sim/types';
 import { idleIntent, MATERIAL_IDS, SEASONS, SITE_FACTORS, ZONE_TYPES } from '@/sim/types';
 import {
-  CARRION_VARIANTS, CARVE_VOXEL_BU, DANGER_CELL_BU, DAY_LENGTH_AMP_H, DAY_LENGTH_MEAN_H, DEFAULT_START_HOUR,
-  DEGRADED_AIR_C, MIDDAY_HALF_H, PHERO_CELL_BU, PHERO_CHUNK_CELLS, RAIN_HISTORY_HOURS, TERR_CELL_BU,
-  TERR_COLONY_SLOTS, TWILIGHT_HALF_H,
+  CARRION_VARIANTS, CARVE_VOXEL_BU, DEFAULT_SEASON_LENGTH_DAYS, DEFAULT_START_HOUR, DEGRADED_AIR_C,
+  DIFFICULTY_PARAMS, PHERO_CELL_BU, PHERO_CHUNK_CELLS, RAIN_HISTORY_HOURS, resolveRules, TERR_CELL_BU, TERRAIN_CELL_BU,
+  TERR_COLONY_SLOTS,
 } from '@/sim/balance';
 import { createColony, createNest, spawnAnt, type EntityCtx } from '@/sim/entities';
 import { initEcology } from '@/sim/ecology';
@@ -21,51 +21,31 @@ import { createWorldField } from '@/sim/world';
 import { SAVE_VERSION } from '@/sim/save/version';
 import { createStores } from '@/sim/services';
 import { requireSpecies } from '@/sim/species';
-import {
-  calendarTickAt, dayOf, dayOfSeason, dayOfYear, DEFAULT_SEASON_LENGTH, hourOf, seasonOf, weekdayOf, yearFraction,
-  yearOf,
-} from '@/sim/time';
+import { calendarTickAt } from '@/sim/time';
+import { clonePlain } from '@/sim/entities';
 import { defaultWorldParams, generateWorld } from '@/worldgen';
 
-/** Config for a new game of `species` with default rules and the species' natural founding day. */
-export function defaultGameConfig(species: SpeciesId = 'lasius-niger', seed = 1): GameConfig {
+/**
+ * Config for a new game of `species` on a difficulty preset, with the species' natural founding day. The species
+ * writes its start day for the default year (`startDoy`); it is converted to the given season length.
+ */
+export function defaultGameConfig(
+  species: SpeciesId = 'lasius-niger', seed = 1, preset: DifficultyId = 'naturalist',
+  seasonLengthDays: SeasonLengthDays = DEFAULT_SEASON_LENGTH_DAYS as SeasonLengthDays,
+): GameConfig {
   const def = requireSpecies(species);
-  const doy = def.opening.startDoy.default; // written for the default 28-day year
-  const seasonIdx = Math.floor((doy - 1) / DEFAULT_SEASON_LENGTH);
+  const doy = def.opening.startDoy.default; // default-year day of year
+  const refLen = DEFAULT_SEASON_LENGTH_DAYS;
+  const seasonIdx = Math.floor((doy - 1) / refLen);
+  const dayInSeason = ((doy - 1) % refLen) + 1;
+  const scaledDay = Math.max(1, Math.min(seasonLengthDays, Math.round(1 + ((dayInSeason - 1) * seasonLengthDays) / refLen)));
   return {
-    species, difficulty: 'naturalist',
-    rules: {
-      predators: 'normal', rivals: 3, humanActivity: 'normal', weatherSeverity: 'normal',
-      seasonLengthDays: DEFAULT_SEASON_LENGTH, winterMode: 'timelapse', foundingAssist: false,
-      queenSenescence: true, extinctionEndsGame: true, collapse: true,
-    },
-    startSeason: SEASONS[seasonIdx], startDayOfSeason: ((doy - 1) % DEFAULT_SEASON_LENGTH) + 1,
+    species,
+    difficulty: { preset, params: clonePlain(DIFFICULTY_PARAMS[preset]), custom: {} },
+    rules: resolveRules(preset, {}, seasonLengthDays),
+    startSeason: SEASONS[seasonIdx], startDayOfSeason: scaledDay,
     startHour: def.opening.startHours[0] ?? DEFAULT_START_HOUR,
-    world: defaultWorldParams(species, seed), cheats: false,
-  };
-}
-
-/** Day phase from the hour and today's sunrise/sunset (placeholder until env-core owns the light model). */
-function phaseOf(hour: number, sunrise: number, sunset: number): DayPhase {
-  if (hour < sunrise - TWILIGHT_HALF_H || hour >= sunset + TWILIGHT_HALF_H) return 'night';
-  if (hour < sunrise + TWILIGHT_HALF_H) return 'dawn';
-  if (hour >= sunset - TWILIGHT_HALF_H) return 'dusk';
-  const mid = (sunrise + sunset) / 2;
-  if (hour < mid - MIDDAY_HALF_H) return 'morning';
-  return hour < mid + MIDDAY_HALF_H ? 'midday' : 'afternoon';
-}
-
-/** Calendar values for a calendar tick (env-core's calendar system keeps them current at runtime). */
-export function deriveCalendar(calTick: number, seasonLen: number): CalendarDerived {
-  const yf = yearFraction(calTick, seasonLen);
-  const dayLength = DAY_LENGTH_MEAN_H + DAY_LENGTH_AMP_H * Math.sin(2 * Math.PI * yf);
-  const sunrise = 12 - dayLength / 2, sunset = 12 + dayLength / 2;
-  const hour = hourOf(calTick);
-  return {
-    dayIndex: dayOf(calTick), year: yearOf(calTick, seasonLen), doy: dayOfYear(calTick, seasonLen),
-    season: seasonOf(calTick, seasonLen), dayOfSeason: dayOfSeason(calTick, seasonLen), hour, yearFrac: yf,
-    sunrise, sunset, dayLength, phase: phaseOf(hour, sunrise, sunset),
-    daylight: hour >= sunrise && hour < sunset ? 1 : 0, moonIllum: 0, weekday: weekdayOf(calTick),
+    world: defaultWorldParams(species, seed, preset), cheats: false,
   };
 }
 
@@ -80,13 +60,22 @@ export function startCalendarTick(config: GameConfig): number {
   return calendarTickAt(config.startSeason, day, config.startHour, len);
 }
 
+/** Thermal state; the D7.2 EMA arrays are sized here and allocated by env-core (ruling 3). */
+function initialThermal(world: WorldData): ThermalStateData {
+  const cellMm = TERRAIN_CELL_BU * world.bu;
+  const n = Math.max(1, Math.ceil(world.size / cellMm));
+  return {
+    tsurf: new Float32Array(MATERIAL_IDS.length * 2).fill(DEGRADED_AIR_C), wsoil: DEGRADED_AIR_C, heatAccl: 0,
+    emaCellMm: cellMm, emaCellNx: n, emaCellNz: n, emaCell: new Float32Array(0),
+    emaCoverPrimIds: [], emaCover: new Float32Array(0),
+  };
+}
+
 function initialEnvironment(config: GameConfig, world: WorldData): EnvironmentState {
-  const len = config.rules.seasonLengthDays;
-  const startOffsetTicks = startCalendarTick(config);
   const m = world.maps.moisture;
   return {
     climateId: requireSpecies(config.species).climate,
-    calendar: { startOffsetTicks, foundingTick: -1, moonPhase0: 0, derived: deriveCalendar(startOffsetTicks, len) },
+    calendar: { startTick: startCalendarTick(config), foundingTick: -1, moonPhase0: 0 },
     weather: {
       state: 'clear', intensityClass: null, startTick: 0, dwellEndTick: -1, peakPrecip: 0, precip: 0, rainRateMmH: 0,
       cloud: 0, wOff: 0, wind2m: 0, windDir: { x: 1, y: 0, z: 0 }, gustUntilTick: -1, fogDensity: 0,
@@ -97,10 +86,13 @@ function initialEnvironment(config: GameConfig, world: WorldData): EnvironmentSt
       },
       dew: { tonight: false, level: 0 },
     },
-    thermal: { tsurf: new Float32Array(MATERIAL_IDS.length * 2).fill(DEGRADED_AIR_C), wsoil: DEGRADED_AIR_C, heatAccl: 0 },
+    thermal: initialThermal(world),
     moisture: { cell: m.cell, nx: m.nx, nz: m.nz, theta0: m.data.slice(), theta1: m.data.slice(), puddle: new Uint8Array(m.nx * m.nz) },
     human: { dayIndex: -1, scheduled: [], active: [], reactive: { interiorVisits: [0, 0], counterTrailTicks: 0, baitRefreshes: 0 }, ambient: { doorOpen: false, lightsOn: false } },
-    time: { speed: 1, requested: 1, paused: false, autoSlow: 'slow', cooldowns: {}, skipUntilTick: -1, commandSeq: 0 },
+    time: {
+      speed: 1, requested: 1, paused: false, autoSlow: config.difficulty.params.autoSlowDefault, cooldowns: {},
+      skipUntil: -1, commandSeq: 0,
+    },
     winter: { phase: 'none', delaysUsed: 0, lastYearResolved: 0, winterActive: false, report: null },
   };
 }
@@ -109,8 +101,9 @@ function initialWorldDelta(world: WorldData): WorldDelta {
   const nav = world.nav.cls;
   return {
     carve: { voxel: CARVE_VOXEL_BU * world.bu, keys: [], chunks: [], breaches: [] },
-    dynamicPrims: [], mounds: [], objectStates: [], consumedAnchors: [], naturalOwners: {}, heightDeltas: [],
-    grassHeightMm: new Uint8Array(nav.nx * nav.nz),
+    carveFlags: { keys: [], chunks: [] },
+    dynPrims: [], mounds: [], objectStates: [], consumedAnchors: [], naturalOwners: {}, heightDeltas: [],
+    grassHeightMm: new Uint16Array(nav.nx * nav.nz),
     microState: world.micro.map((m) => ({ id: m.id, discovered: false, discoveredTick: -1, open: true })),
     waterLevels: Float32Array.from(world.waterBodies.map((w) => w.levelMm)),
     wood: [],
@@ -137,9 +130,10 @@ function initialPlayer(config: GameConfig): PlayerState {
 function initialProgression(): ProgressionState {
   return {
     stage: { id: 'founding', flags: { orphaned: false, declining: false, dormant: false }, lastEvalTick: -1, popAtEval: [0, 0, 0] },
-    milestones: {}, journal: [], aims: [], stats: { hourly: {}, daily: {}, lastHourlyTick: -1, lastDailyTick: -1 },
+    milestones: {}, journal: { entries: [] }, aims: [],
+    history: { hourly: {}, daily: {}, lastHourlyTick: -1, lastDailyTick: -1 },
     deaths: { byCause: {}, bySeason: SEASONS.map(() => 0), recent: [] }, codexSeen: {}, hintsMirror: {}, alerts: [],
-    diagnostics: [], eventLog: [], milestoneThumbs: [],
+    diagnostics: [], eventLog: [], milestoneThumbs: [], difficultyHistory: [],
     lineage: { colonyRecordId: '', generation: 1, parentColonyId: '', parentFlightId: '', name: '' },
     peakWorkers: 0, rivalsDefeated: 0, finalCauses: [], gameOver: false,
   };
@@ -165,8 +159,7 @@ export function initialState(config: GameConfig, world: WorldData): SimState {
           kind: t.creatureKind, center: { ...t.center }, radius: t.radiusMm, occupantId: -1, vacantUntilTick: -1,
         })),
       },
-      bird: null, lastBirdTick: {}, carrionAcc: new Float32Array(CARRION_VARIANTS * ZONE_TYPES.length),
-      danger: { cell: DANGER_CELL_BU * bu, w: gridN(DANGER_CELL_BU), h: gridN(DANGER_CELL_BU), data: new Float32Array(0) },
+      birdEvent: null, lastBirdTick: {}, carrionAcc: new Float32Array(CARRION_VARIANTS * ZONE_TYPES.length),
     },
     rivals: {
       relations: [],
@@ -174,7 +167,7 @@ export function initialState(config: GameConfig, world: WorldData): SimState {
         cell: TERR_CELL_BU * bu, w: gridN(TERR_CELL_BU), h: gridN(TERR_CELL_BU), slots: TERR_COLONY_SLOTS,
         marks: new Float32Array(0), slotColony: new Array<number>(TERR_COLONY_SLOTS).fill(-1),
       },
-      threat: { activeKind: null, activeSinceTick: -1, lastEndTick: -1 },
+      threatDirector: { activeKind: null, activeSinceTick: -1, lastEndTick: -1 },
     },
     player: initialPlayer(config), progression: initialProgression(),
   };
@@ -205,7 +198,7 @@ export function createNewGame(config: GameConfig, world?: WorldData): { state: S
   // for a site (her colony's nest is colony.nestIds[0]).
   const queen = spawnAnt(ctx, { colony: colony.id, caste: 'queen', pos: start.pos, fwd: start.fwd, founding: true });
   colony.queenId = queen.id;
-  colony.queens.push({ antId: queen.id, ageDays: 0, lifespanDays: -1 });
+  colony.queens.push({ antId: queen.id, lifespanDays: null }); // senescence draw: overwinter-repro
 
   initEcology(ctx, w);
   initRivals(ctx, w);

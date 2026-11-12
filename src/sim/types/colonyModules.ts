@@ -8,8 +8,8 @@ import type { GardenState, NestSiteRole, NestSiteState, SeedClass, SeedCohortSta
 export interface HoneydewModule {
   /** Herd ids claimed by the colony. */
   herdClaims: number[];
-  /** Honeydew yield history, loads per game day. */
-  yield7: TimeSeries;
+  /** Honeydew yield per game day over the last season (capacity = this game's season length). */
+  yieldHistory: TimeSeries;
 }
 
 /** One Camponotus nest site in wood (GDD 07 §6.2). */

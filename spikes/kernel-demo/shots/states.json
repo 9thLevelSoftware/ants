@@ -247,7 +247,7 @@
   "minFoverFoot": 0.9976940073748786,
   "air": 0,
   "cavity": 60,
-  "usPerAntTick": 12.058823530142213
+  "usPerAntTick": 8.52941176543633
  },
  "05-ai-tunnel-3p": {
   "pos": [
@@ -323,11 +323,11 @@
   "minFoverFoot": 0.9976940073748786,
   "air": 0,
   "cavity": 60,
-  "usPerAntTick": 12.058823530142213
+  "usPerAntTick": 8.52941176543633
  },
  "stats": {
-  "buildMs": 46.79999999888241,
-  "meshAllMs": 47.29999999888241,
+  "buildMs": 310.90000000037253,
+  "meshAllMs": 49.399999998509884,
   "carveChunks": 42,
   "meshedChunks": 38,
   "tris": 12228,

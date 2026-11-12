@@ -26,19 +26,22 @@ export type NestEvent =
   | { type: 'chamber-changed'; chamberId: number; chamberType: ChamberType; volume: number; reason: string }
   | { type: 'chamber-removed'; chamberId: number; reason: string }
   | { type: 'chamber-designated'; chamberId: number; chamberType: ChamberType }
-  /** reason: 'unknown-type' | 'cheats-disabled' | 'handler-error' | module-specific codes; detail: error text. */
-  | { type: 'command-rejected'; command: string; reason: string; detail?: string }
+  /**
+   * Shared refusal of any command (D4.20). reason: 'unknown-type' | 'cheats-disabled' | 'unhandled' |
+   * 'handler-error' | module-specific codes; detail: error text (optional).
+   */
+  | { type: 'command-rejected'; commandType: string; reason: string; detail?: string }
   | { type: 'natural-cavity-joined'; cavityId: number; nestId: number }
   | { type: 'foreign-cavity-contact'; cavityId: number; nestId: number; otherColony: number }
-  | { type: 'founding-readiness'; nestId: number; readiness: number; depth: number; volume: number }
+  /** D5.10: readiness 0..1 and its parts 0..1. */
+  | { type: 'founding-readiness'; nestId: number; readiness: number; parts: { depth: number; volume: number } }
   | { type: 'founding-ready'; nestId: number }
-  | { type: 'founding-sealed'; nestId: number }
+  | { type: 'founding-sealed'; nestId: number; entranceId: number }
   | { type: 'founding-reopened'; nestId: number }
   | { type: 'flood-started'; nestId: number; water: number; level: number; chambers: number[] }
   | { type: 'flood-level'; nestId: number; water: number; level: number; chambers: number[] }
   | { type: 'flood-ended'; nestId: number }
   | { type: 'ant-submerged'; id: number; pos: Vec3 }
-  | { type: 'ant-drowned'; id: number; pos: Vec3 }
   | { type: 'brood-drowned'; id: number; pos: Vec3 }
   | { type: 'collapse-warning'; nestId: number; center: Vec3; radius: number; volume: number }
   | { type: 'collapse'; nestId: number; center: Vec3; radius: number; volume: number; breach: boolean }

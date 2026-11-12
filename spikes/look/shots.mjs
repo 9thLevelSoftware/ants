@@ -20,7 +20,7 @@ export default async ({ page, shot, log, query }) => {
   }
   if (only) return out;
   // 2. grass parting / fading around the line of sight: camera turned into the lawn
-  await S(() => { const s = window.__spike; s.setVariant('midday'); s.setCamera(-0.55, 0.28, 22, 4); });
+  await S(() => { const s = window.__spike; s.setVariant('midday'); s.setCamera(1.45, 0.1, 210, 8); }); // camera inside the lawn, looking at the ant
   for (const on of [true, false]) {
     await S((on) => { window.__spike.setGrassParting(on); window.__spike.renderSync(); window.__spike.renderSync(); }, on);
     await shot(`grass-parting-${on ? 'on' : 'off'}`);

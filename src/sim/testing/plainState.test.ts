@@ -15,7 +15,7 @@ describe('SimState is plain data', () => {
     sim.enqueue({ type: 'cheat.spawnBrood', colonyId: col.id, stage: 'egg', n: 3, chamberId: -1, progress: 0, destined: null });
     sim.enqueue({ type: 'cheat.spawnFood', kind: 'sugar', variant: 'sugar-granules', pos: { x: 10, y: 0, z: 10 }, units: 5, stage: null });
     sim.enqueue({ type: 'cheat.spawnCreature', kind: 'springtail', variant: null, pos: { x: 20, y: 0, z: 20 }, state: null });
-    sim.enqueue({ type: 'placeMarker', kind: 'forage', pos: { x: 30, y: 0, z: 30 }, radius: 40, mode: null, chamberType: null, chamberIds: [] });
+    sim.enqueue({ type: 'placeMarker', kind: 'forage', pos: { x: 30, y: 0, z: 30 }, radius: 40 });
     for (let i = 0; i < 50; i++) sim.tick();
     expect(sim.stores.ants.count).toBe(6);
     expect(findNonPlain(sim.state)).toEqual([]);

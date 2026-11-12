@@ -181,6 +181,8 @@ function applyVariant(v: Variant) {
     camera.near = 1;
   }
   camera.updateProjectionMatrix();
+  // the DoF CoC shader caches camera near/far at construction: re-sync after changing them (else focus is wrong)
+  if (post.dof) post.dof.cocMaterial.adoptCameraSettings(camera);
   post.renderPass.mainScene = variantScene();
   (post.composer as unknown as { passes: { mainScene?: Scene }[] }).passes.forEach((p) => { if ('mainScene' in p) p.mainScene = variantScene(); });
   // sun

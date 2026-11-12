@@ -47,9 +47,9 @@ export interface SimState {
   nests: Nest[];
   markers: Marker[];
   phero: PheromoneState;
-  /** Herds, prey patches, hazards, creature director, bird event, danger grid. Additive (GDD 05). */
+  /** Herds, prey patches, hazards, creature director, bird event, carrion accumulators (D1.15). */
   ecology: EcologyState;
-  /** Rival relations, territory grid, threat director. Additive (GDD 05). */
+  /** Rival relations, territory grid, threat director (D1.16). Rival populations are Colony.rival. */
   rivals: RivalsState;
   player: PlayerState;
   progression: ProgressionState;

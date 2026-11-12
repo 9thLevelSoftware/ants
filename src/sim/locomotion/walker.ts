@@ -193,7 +193,8 @@ function steer(w: WalkerKin, d: Vec3, P: WalkerParams): void {
 
 /**
  * Advances the walker for dt seconds at `speed` mm/s. On a surface: the heading turns to the tangent part of
- * desiredDir (null = keep the transported heading) and the walker moves in substeps. In the air: ballistic fall.
+ * desiredDir (null = keep the transported heading) and the walker moves speed * dt (at most maxStepDist) in
+ * substeps. In the air: ballistic fall.
  * Updates pos/up/fwd/vel/speed/gait/medium (not prev*). See WalkStatus.
  */
 export function walkerStep(field: WorldField, w: WalkerKin, desiredDir: Vec3 | null, speed: number, dt: number,
@@ -230,6 +231,7 @@ function surfaceStep(field: WorldField, w: WalkerKin, desiredDir: Vec3 | null, s
   }
   if (desiredDir) steer(w, desiredDir, P);
   let remaining = Number.isFinite(speed) && speed > 0 ? speed * dt : 0;
+  if (remaining > P.maxStepDist) remaining = P.maxStepDist; // bogus speed * dt must not stall the tick
   let moved = 0;
   let status: WalkStatus = 'ok';
   const pos = w.pos;

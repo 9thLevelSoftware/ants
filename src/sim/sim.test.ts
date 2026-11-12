@@ -99,16 +99,16 @@ describe('sim skeleton', () => {
       name: 'test-emitter',
       run(sim) {
         duringTick = true;
-        for (const v of ['a', 'b', 'c']) sim.emit({ type: 'ambient.cue', kind: v });
+        for (const v of ['a', 'b', 'c']) sim.emit({ type: 'cue', cue: `ambient.${v}`, pos: null, strength: 1 });
         expect(seen).toEqual([]);
         duringTick = false;
       },
     };
     const sim = makeTestSim({ systems: [emitter] });
     const ticksAtDelivery: number[] = [];
-    sim.events.on('ambient.cue', (e) => {
+    sim.events.on('cue', (e) => {
       expect(duringTick).toBe(false);
-      seen.push(e.kind);
+      seen.push(e.cue.slice('ambient.'.length));
       ticksAtDelivery.push(sim.state.tick);
     });
     sim.tick();
@@ -130,7 +130,7 @@ describe('sim skeleton', () => {
     const sim = makeTestSim({ config: { cheats: false } });
     const col = sim.state.colonies[0];
     const rejected: string[] = [];
-    sim.events.on('command-rejected', (e) => rejected.push(e.command));
+    sim.events.on('command-rejected', (e) => rejected.push(e.commandType));
     sim.enqueue({ type: 'cheat.addFood', colonyId: col.id, c: 2, p: 1, toxin: 0 });
     sim.tick();
     expect(col.stores.c).toBe(0);

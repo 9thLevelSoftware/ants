@@ -7,19 +7,21 @@
 import { EventBus } from '@/core/events';
 import { rngFork, type RngState } from '@/core/rng';
 import type {
-  Command, PlayerIntent, RngStreamName, Sim, SimEvent, SimEventMap, SimState, System, WorldData,
+  Behaviour, Command, PlayerIntent, RngStreamName, Sim, SimEvent, SimEventMap, SimState, System, WorldData,
 } from '@/sim/types';
 import { applyCommand } from '@/sim/commands';
 import { clonePlain } from '@/sim/entities';
 import { integratePossessed as integratePossessedAnt } from '@/sim/locomotion';
 import { getSpecies, requireSpecies } from '@/sim/species';
 import { createServices } from '@/sim/services';
-import { SYSTEMS } from '@/sim/systems';
+import { BEHAVIOURS, createBehaviourTable, SYSTEMS } from '@/sim/systems';
 import { generateWorld } from '@/worldgen';
 
 export interface CreateSimOptions {
   /** Replaces the default system list (module tests run only the systems they need). */
   systems?: readonly System[];
+  /** Replaces the default behaviour list (module tests). */
+  behaviours?: readonly Behaviour[];
 }
 
 /** True if system `s` runs on tick `t`. */
@@ -53,6 +55,7 @@ export function createSim(state: SimState, world?: WorldData, opts: CreateSimOpt
     getSpecies,
     events,
     systems,
+    behaviours: createBehaviourTable(opts.behaviours ?? BEHAVIOURS),
     tick() {
       svc.index.refresh(); // refreshed again after the commands system if any command was applied
       const t = state.tick;

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FOUNDRESS demo: world renderer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+    canvas { display: block; width: 100vw; height: 100vh; outline: none; touch-action: none; }
+    #hud { position: fixed; left: 8px; top: 6px; font: 11px/1.35 ui-monospace, monospace; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; pointer-events: none; white-space: pre; }
+  </style>
+</head>
+<body>
+  <div id="hud"></div>
+  <!-- relative URL on purpose: the built output must work from any sub-path -->
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

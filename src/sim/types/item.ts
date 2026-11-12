@@ -26,10 +26,8 @@ export interface Item {
   lengthMm: number;
   /** Tear/mill hardness multiplier (1 = normal). */
   hardness: number;
-  /** Primary carrier, -1 none. */
-  carriedBy: number;
-  /** All carriers of a cooperative transport (includes carriedBy). */
-  carriers: number[];
+  /** Ants carrying it; empty when lying, [id] for one carrier, more for cooperative transport (D2.19). */
+  carrierIds: number[];
   nestId: number;
   chamberId: number;
   /** Decay 0..1 (spoilage, rot). */

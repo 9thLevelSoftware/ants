@@ -18,13 +18,14 @@ const CASTES: CasteDef[] = [
     lengthBu: { min: 0.9, mean: 1.0, max: 1.15 }, casteMassMg: 1.0, cropMax: 1.0, carryOverride: null,
     mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 12,
     lifespanGd: { mean: 33, sd: 10 }, lifespanBySize: [[100, 33], [250, 24]],
-    ageRateOutside: 3.0, ageRateDormant: 0.15, upkeepOverride: null, devMult: 1,
+    ageRateOutside: 3.0, ageRateDormant: 0.15, fixedStats: null, upkeepOverride: null, devMult: 1,
     actions: WORKER_ACTIONS, taskWeights: { garden: 0, cut: 0, mill: 0 }, unlock: NO_UNLOCK,
   },
   {
     caste: 'queen', sizeClasses: [], lengthBu: { min: 2.0, mean: 2.1, max: 2.25 }, casteMassMg: 30,
     cropMax: 1.0, carryOverride: 0, mandibleFactor: 0.6, macrocephalic: false, cruiseMult: 0.5, sprintBuS: 5,
     lifespanGd: { mean: 560, sd: 60 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
+    fixedStats: { maxHp: 50, bite: 2.0, foundingMaxHp: 40 }, // GDD 05 §4.1
     upkeepOverride: { restC: 0.3, activeC: 0.3, p: 0.1 }, devMult: 1,
     actions: ['dig-bite', 'seal-entrance', 'lay-egg', 'feed-larva', 'groom', 'pick-up', 'put-down', 'spray-acid',
       'bite', 'trophallaxis-receive', 'sniff', 'antennate', 'move', 'grip', 'let-go'],
@@ -34,6 +35,7 @@ const CASTES: CasteDef[] = [
     caste: 'gyne', sizeClasses: [], lengthBu: { min: 2.0, mean: 2.1, max: 2.25 }, casteMassMg: 25,
     cropMax: 3.0, carryOverride: 0, mandibleFactor: 0.6, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
     lifespanGd: { mean: 60, sd: 10 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
+    fixedStats: { maxHp: 35, bite: 1.5, foundingMaxHp: null },
     upkeepOverride: { restC: 0.15, activeC: 0.15, p: 0 }, devMult: 1,
     actions: ['fly', 'mate', 'dealate', 'groom', 'trophallaxis-receive', 'spray-acid', 'move', 'grip', 'let-go'],
     taskWeights: {}, unlock: NO_UNLOCK,
@@ -42,7 +44,8 @@ const CASTES: CasteDef[] = [
     caste: 'male', sizeClasses: [], lengthBu: { min: 0.9, mean: 0.95, max: 1.05 }, casteMassMg: 0.8,
     cropMax: 0.3, carryOverride: 0, mandibleFactor: 0.15, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
     lifespanGd: { mean: 30, sd: 5 }, lifespanBySize: [], ageRateOutside: 1, ageRateDormant: 0.15,
-    upkeepOverride: { restC: 0.06, activeC: 0.06, p: 0 }, devMult: 1,
+    fixedStats: { maxHp: 6, bite: 0.2, foundingMaxHp: null },
+    upkeepOverride: { restC: 0.06, activeC: 0.06, p: 0 }, devMult: 1, // GDD 07 caste table (ruling 10)
     actions: ['fly', 'mate', 'groom', 'trophallaxis-receive', 'move', 'grip', 'let-go'],
     taskWeights: {}, unlock: NO_UNLOCK,
   },
@@ -67,22 +70,21 @@ export const LASIUS_NIGER: SpeciesDef = {
   opening: {
     mode: 'claustral', siteMaterials: { loam: 1.0, humus: 0.9, sand: 0.8, clay: 0.5, gravel: 0.4 },
     siteHard: ['no-hard-surface'], siteBonuses: ['under-cover', 'recent-rain', 'rival-scent-penalty'],
-    shaftDepthBu: { min: 8, target: 10, max: 15 }, chamberWidthBu: 3, seal: true, r0: 56, clutchCap: 48,
+    dMinOpenBu: 8, dMinCoverBu: 5, vMinBu3: 10, wMinBu: 3.5, shaftTargetBu: 10, seal: true, R0: 56, clutchCap: 48,
     trophicFraction: 0, firstBroodClass: { caste: 'worker', nanitic: true }, expectedFirstWorkers: { min: 8, max: 16 },
     special: [], startDoy: { min: 8, max: 12, default: 10 }, startHours: [14, 16],
   },
   scale: {
-    simCapWorkers: 1500,
-    realEstimate: [[0, 0], [300, 300], [611, 1500], [961, 3500], [1172, 5500], [1275, 7000], [1393, 10000], [1480, 16700]],
+    simCapWorkers: 1500, wildColonySize: { typical: [5000, 10000], max: 17000 },
+    growThreshold: 75, matureThreshold: 700,
     growthTargets: [[1, 12, 25], [2, 200, 320], [3, 500, 750], [4, 850, 1050], [5, 1100, 1300]],
   },
   reproduction: {
     matureAgeYears: 2, alateLayWindow: [2, 6], reproMaxFrac: 0.1, reproGyneShare: 0.4,
     sexualCostMult: { gyne: 12, male: 2 }, alateFlightWindow: [9, 13], flightPeak: [10, 11], launchHours: [14, 18],
     flightGate: { minAirC: 13, maxWindMs: 6.3, noRain: true }, synchrony: 'regional', alatesOverwinter: false,
-    // maleUpkeepC 0.08 is GDD 06 §11; GDD 07's caste table gives 0.06 (castes.male.upkeepOverride). Open question
-    // in docs/design/tdd/01-contracts-map.md (e) 10, for species-data to settle.
-    pAir: 0.6, pMate: 0.9, pFound: 0.7, gyneUpkeepC: 0.15, maleUpkeepC: 0.08,
+    // maleUpkeepC: species data wins (ruling 10): 0.06 C/GD as castes.male.upkeepOverride (GDD 07), not GDD 06's 0.08.
+    pAir: 0.6, pMate: 0.9, pFound: 0.7, gyneUpkeepC: 0.15, maleUpkeepC: 0.06,
   },
   diet: {
     foods: {
@@ -100,7 +102,8 @@ export const LASIUS_NIGER: SpeciesDef = {
     coverBonus: ['stone', 'concrete', 'brick', 'tile', 'plastic', 'metal'],
     tunnelWidthBu: 2.0, shaftWidthBu: 2.5,
     chambers: [
-      { type: 'royal', widthBu: 8, heightBu: 2, depthBu: [15, 40], perUnit: 1, unitOf: 'fixed', minWorkers: 30 },
+      // royal at 8 workers (GDD 03 `royalAt`, E-49); entrance growth rule below is refined by species-data (GDD 03 template).
+      { type: 'royal', widthBu: 8, heightBu: 2, depthBu: [15, 40], perUnit: 1, unitOf: 'fixed', minWorkers: 8 },
       { type: 'nursery', widthBu: 10, heightBu: 2.25, depthBu: [6, 25], perUnit: 1 / 60, unitOf: 'brood', minWorkers: 8 },
       { type: 'food', widthBu: 8, heightBu: 2, depthBu: [15, 40], perUnit: 1 / 300, unitOf: 'workers', minWorkers: 25 },
       { type: 'rest', widthBu: 10, heightBu: 2.5, depthBu: [20, 60], perUnit: 1 / 150, unitOf: 'workers', minWorkers: 40 },

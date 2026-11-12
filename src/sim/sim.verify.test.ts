@@ -27,10 +27,10 @@ function scripted(sim: Sim): void {
     { type: 'cheat.spawnCreature', kind: 'springtail', variant: null, pos: { x: q.x - 20, y: q.y, z: q.z }, state: null },
   ]);
   at(10, [
-    { type: 'placeMarker', kind: 'forage', pos: { x: q.x + 30, y: q.y, z: q.z }, radius: 40, mode: null, chamberType: null, chamberIds: [] },
+    { type: 'placeMarker', kind: 'forage', pos: { x: q.x + 30, y: q.y, z: q.z }, radius: 40 },
     { type: 'possess', antId: col.queenId, via: 'command' },
     { type: 'setTrail', on: true },
-    { type: 'setDirectives', colonyId: col.id, patch: { stayIn: true, allocation: { forage: 0.4, nurse: 0.3, dig: 0.2, defend: 0.1 } } },
+    { type: 'setDirectives', colonyId: col.id, stayIn: true, allocation: { forage: 40, nurse: 30, dig: 20, defend: 10 } },
     { type: 'cheat.carveSphere', pos: { x: q.x, y: q.y - 8, z: q.z }, r: 4 },
   ]);
   at(40, [
@@ -93,7 +93,7 @@ describe('F1b verify: command robustness', () => {
 
   it('possessing an ant while running at 8x drops the speed (GDD 08: 8x disabled while possessing, drop to 1x)', () => {
     const sim = makeTestSim();
-    sim.enqueue({ type: 'setSpeed', level: 8 });
+    sim.enqueue({ type: 'setSpeed', speed: 8 });
     sim.tick();
     expect(sim.state.env.time.speed).toBe(8);
     sim.enqueue({ type: 'possess', antId: sim.state.colonies[0].queenId, via: 'command' });

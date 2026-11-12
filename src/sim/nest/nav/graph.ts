@@ -51,6 +51,10 @@ export const chunkCode = (ox: number, oy: number, oz: number): number => (ox + 1
 
 export type BlockedFn = (x: number, y: number, z: number) => boolean;
 
+/** Bits returned by passability refreshes: some sample became passable / became impassable. */
+export const PASS_GAINED = 1;
+export const PASS_LOST = 2;
+
 /** Slots for carve chunks: passability masks and chunk-neighbour links. Derived, rebuildable. */
 export class NavChunks {
   readonly grid: CarveGrid;
@@ -111,24 +115,27 @@ export class NavChunks {
     return slot;
   }
 
-  /** Recomputes passability of local samples [l0, l1] in a slot. Returns true if any value changed. */
-  fillPass(slot: number, li0: number, lj0: number, lk0: number, li1: number, lj1: number, lk1: number): boolean {
+  /** Recomputes passability of local samples [l0, l1] in a slot. Returns PASS_GAINED | PASS_LOST bits. */
+  fillPass(slot: number, li0: number, lj0: number, lk0: number, li1: number, lj1: number, lk1: number): number {
     const v = this.grid.voxel, m = this.pass[slot];
     const arr = this.grid.chunk(keyCx(this.keys[slot]), keyCy(this.keys[slot]), keyCz(this.keys[slot]));
     const bi = this.bi[slot], bj = this.bj[slot], bk = this.bk[slot];
-    let changed = false;
+    let bits = 0;
     for (let k = lk0; k <= lk1; k++) for (let j = lj0; j <= lj1; j++) for (let i = li0; i <= li1; i++) {
       const idx = i | (j << 4) | (k << 8);
       let p = 0;
       if (arr !== undefined && arr[idx] >= OPEN_MIN) p = this.isBlocked && this.isBlocked((bi + i) * v, (bj + j) * v, (bk + k) * v) ? 0 : 1;
-      if (m[idx] !== p) { m[idx] = p; changed = true; }
+      if (m[idx] !== p) { m[idx] = p; bits |= p === 1 ? PASS_GAINED : PASS_LOST; }
     }
-    return changed;
+    return bits;
   }
 
-  /** Refreshes passability inside a box of samples (creating slots for new chunks). Returns true if anything changed. */
-  refreshBox(b: VoxelBox): boolean {
-    let changed = false;
+  /**
+   * Refreshes passability inside a box of samples (creating slots for new chunks). Returns PASS_GAINED |
+   * PASS_LOST bits (0: nothing changed).
+   */
+  refreshBox(b: VoxelBox): number {
+    let bits = 0;
     for (let cz = b.k0 >> 4; cz <= b.k1 >> 4; cz++)
       for (let cy = b.j0 >> 4; cy <= b.j1 >> 4; cy++)
         for (let cx = b.i0 >> 4; cx <= b.i1 >> 4; cx++) {
@@ -136,13 +143,13 @@ export class NavChunks {
           const existed = this.slotOf.has(key);
           const slot = this.ensureSlot(key);
           if (slot < 0) continue;
-          if (!existed) { changed = true; continue; }
+          if (!existed) { bits |= PASS_GAINED; continue; } // a new slot only adds passable samples
           const i0 = Math.max(0, b.i0 - cx * 16), i1 = Math.min(15, b.i1 - cx * 16);
           const j0 = Math.max(0, b.j0 - cy * 16), j1 = Math.min(15, b.j1 - cy * 16);
           const k0 = Math.max(0, b.k0 - cz * 16), k1 = Math.min(15, b.k1 - cz * 16);
-          if (this.fillPass(slot, i0, j0, k0, i1, j1, k1)) changed = true;
+          bits |= this.fillPass(slot, i0, j0, k0, i1, j1, k1);
         }
-    return changed;
+    return bits;
   }
 
   /** Slot of the chunk holding global sample (i, j, k), or -1. */

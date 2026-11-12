@@ -1,14 +1,15 @@
-// Runtime world queries. STUB written by F1b: field.ts / primHash.ts come from F2-kernel, zone and map queries
-// from worldgen-terrain, navGrid.ts from loco. Each owner replaces the body of its function here.
+// Runtime world queries. STUB written by F1b/F1c: field.ts / primHash.ts come from F2-kernel (wired in by the
+// wiring task), zone and map queries from worldgen-terrain, navGrid.ts from loco. Each owner replaces the body of
+// its function here.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { CarveGrid, NavGrid, Sim, WorldData, WorldField, ZoneType } from '@/sim/types';
+import type { CarveGrid, CommandHandlerMap, NavGrid, Sim, System, WorldData, WorldField, ZoneType } from '@/sim/types';
 import { createPlaceholderField, createPlaceholderNavGrid } from '@/sim/testing/placeholders';
 
 /** Zone reported where the map has no zone. */
 const FALLBACK_ZONE: ZoneType = 'lawn';
 
-/** The world field f(p) over static world + carve grid. Stub: terrain-only placeholder (F2-kernel replaces). */
+/** The world field f(p) over static world + carve grid. Stub: terrain-only placeholder (wiring task replaces). */
 export function createWorldField(world: WorldData, _carve: CarveGrid): WorldField {
   return createPlaceholderField(world);
 }
@@ -30,3 +31,12 @@ export function zoneAt(world: WorldData, x: number, z: number): ZoneType {
 export function shadeAt(_sim: Sim, _p: Vec3, _sunDir: Vec3): number {
   return 0;
 }
+
+/** World systems (micro-connection discovery, terrain deformation). None yet: worldgen-life / loco add them. */
+export const systems: readonly System[] = [];
+
+export const commandHandlers: Partial<CommandHandlerMap> = {
+  'cheat.revealMicro': (sim) => {
+    for (const m of sim.state.worldDelta.microState) { m.discovered = true; m.discoveredTick = sim.state.tick; }
+  },
+};

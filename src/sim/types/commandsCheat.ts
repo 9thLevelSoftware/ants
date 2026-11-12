@@ -2,7 +2,7 @@
 // Unused optional values use -1 / null; positions are mm.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { BroodStage, Caste, CreatureKind, FoodKind, HumanEventKind, Task, WeatherState } from './ids';
+import type { BroodCaste, BroodStage, Caste, CreatureKind, FoodKind, HumanEventKind, Task, WeatherState } from './ids';
 import type { CreatureVariant, FoodVariant, RelationState } from './ids/ecology';
 import type { FoundingDigState } from './ids/nest';
 import type { RainClass } from './ids/progression';
@@ -14,7 +14,7 @@ export type CheatCommand =
   | { type: 'cheat.addFood'; colonyId: number; c: number; p: number; toxin: number }
   | { type: 'cheat.setStores'; colonyId: number; c: number; p: number }
   | { type: 'cheat.spawnAnts'; colonyId: number; n: number; caste: Caste; ageGd: number; task: Task | null; pos: Vec3 | null }
-  | { type: 'cheat.spawnBrood'; colonyId: number; stage: BroodStage; n: number; chamberId: number; progress: number; destined: Caste | null }
+  | { type: 'cheat.spawnBrood'; colonyId: number; stage: BroodStage; n: number; chamberId: number; progress: number; destined: BroodCaste | null }
   | { type: 'cheat.setChamberClimate'; chamberId: number; tempC: number; rh: number }
   | { type: 'cheat.setQueen'; colonyId: number; values: Record<string, number> }
   | { type: 'cheat.injectReturn'; entranceId: number; success: boolean; sourceId: number }

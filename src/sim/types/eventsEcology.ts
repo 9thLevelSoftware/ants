@@ -10,7 +10,11 @@ import type { GardenState } from './ids/species';
 
 export type EcologyEvent =
   | { type: 'food-source-spawned'; sourceId: number; kind: FoodKind; variant: FoodVariant | null; pos: Vec3 }
-  | { type: 'food-source-discovered'; sourceId: number; colonyId: number }
+  /** D5.1 (replaces GDD 02 `source-discovered`). */
+  | {
+    type: 'food-source-discovered'; sourceId: number; kind: FoodKind; variant: FoodVariant | null; pos: Vec3;
+    colonyId: number; byAntId: number;
+  }
   | { type: 'food-source-exhausted'; sourceId: number; colonyId: number }
   | { type: 'food-source-removed'; sourceId: number; cause: string }
   | { type: 'carrion-stage-changed'; sourceId: number; itemId: number; stage: CarrionStage }
@@ -25,7 +29,6 @@ export type EcologyEvent =
   | { type: 'aphid-culled'; fromHerd: number; antId: number }
   | { type: 'prey-subdued'; creatureId: number; kind: CreatureKind; antIds: number[] }
   | { type: 'prey-escaped'; creatureId: number; kind: CreatureKind; antIds: number[] }
-  | { type: 'carcass-butchered'; itemId: number; carriers: number[]; bulk: number }
   | { type: 'creature-spawned'; id: number; kind: CreatureKind; variant: CreatureVariant | null }
   | { type: 'creature-despawned'; id: number; kind: CreatureKind; cause: string }
   | { type: 'creature-died'; id: number; kind: CreatureKind; cause: string }

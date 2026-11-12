@@ -9,6 +9,10 @@ export const CARVE_TUNING = {
   breachDedupeFraction: 0.4,
   /** Brushes whose centre is deeper than r + this (BU) below the substrate surface skip breach checks. */
   breachCheckMarginBU: 2,
-  /** At most this many breach records are added by a single brush. */
-  maxBreachRecordsPerBrush: 4,
+  /** At most this many breach records are added by a single brush (a long tunnel breaking out along its length). */
+  maxBreachRecordsPerBrush: 12,
+  /** Breach records of one brush are kept at least this fraction of their radius apart. */
+  breachSpacingFraction: 0.8,
+  /** Ellipsoid brushes record breach spheres of this fraction of their smallest radius (stays inside the shape). */
+  ellipsoidCoreFraction: 0.8,
 } as const;

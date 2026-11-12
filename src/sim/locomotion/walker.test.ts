@@ -205,6 +205,18 @@ describe('surface walker', () => {
     expect(Number.isFinite(w.pos.x + w.pos.y + w.pos.z + w.fwd.x + w.up.y)).toBe(true);
   });
 
+  it('caps the distance of one call (a bogus speed * dt moves at most maxStepDist)', () => {
+    const { k } = scene();
+    const w = walker(k, v(160, 20, 160), v(0, 0, 1));
+    const start = v(w.pos.x, w.pos.y, w.pos.z);
+    const st = walkerStep(k.field, w, null, 1e9, 0.1);
+    expect(st === 'ok' || st === 'blocked').toBe(true);
+    const moved = Math.hypot(w.pos.x - start.x, w.pos.y - start.y, w.pos.z - start.z);
+    expect(moved).toBeGreaterThan(0.5 * k.walker.maxStepDist);
+    expect(moved).toBeLessThanOrEqual(1.01 * k.walker.maxStepDist);
+    onLevelSet(k, w);
+  });
+
   it('soak: 200 walkers x 5,000 random steps keep f >= 0.3 footOffset and never NaN', () => {
     const { k, scene: s } = scene();
     const rng = rngSeed(2024);

@@ -1,3 +1,6 @@
+// FROZEN after task F1c: additive changes only (new optional fields, new union members appended, new helpers).
+// Renames and removals need the orchestrator.
+//
 // Barrel for the shared simulation contracts. Import from '@/sim/types'.
 
 export * from './ids';
@@ -24,6 +27,7 @@ export * from './ecology';
 export * from './world';
 export * from './config';
 export * from './species';
+export * from './rivalSpecies';
 export * from './commands';
 export * from './commandsCheat';
 export * from './events';

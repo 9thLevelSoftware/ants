@@ -196,6 +196,32 @@ describe('world field', () => {
     expect(n).toBe(surfacePts.length * 40);
   });
 
+  it('project finds a small cavity (a 2 BU tunnel tip) from deep solid exactly 2 BU from its level set, any direction', () => {
+    // deep in soil the field saturates (gradient 0): only the probe rays can find the tip, a small target
+    const grid = createCarveGrid(emptyCarve(BU));
+    const tip = v(100, -60, 100);
+    grid.carveCapsule(tip, v(160, -60, 100), BU);
+    const F = createWorldField(makeFlatWorld(), grid);
+    const foot = 0.15 * BU, out = v(0, 0, 0), g = v(0, 0, 0);
+    let n = 0;
+    for (let k = 0; k < 300; k++) {
+      // directions over the hemisphere facing away from the tunnel (nearest level-set point = straight back)
+      const b = (k + 0.5) / 300, a = k * 2.399963;
+      const s = Math.sqrt(1 - b * b);
+      const d = v(-b, Math.cos(a) * s, Math.sin(a) * s);
+      let rho = 0; // level-set radius along d
+      while (F.sampleXYZ(tip.x + d.x * rho, tip.y + d.y * rho, tip.z + d.z * rho) > foot) rho += 0.01;
+      const R = rho + 2 * BU;
+      const p = v(tip.x + d.x * R, tip.y + d.y * R, tip.z + d.z * R);
+      expect(F.gradient(p, g)).toBeLessThan(0); // in solid ...
+      expect(len(g)).toBeLessThan(0.1); // ... where the gradient vanishes
+      expect(F.project(p, foot, out), `dir ${JSON.stringify(d)}`).toBe(true);
+      expect(Math.abs(F.sample(out) - foot)).toBeLessThan(0.02 * BU);
+      n++;
+    }
+    expect(n).toBe(300);
+  });
+
   it('sphereTrace never overshoots into solid', () => {
     const w = makeFlatWorld({ prims: SHAPES.map((s) => s.prim) });
     const grid = createCarveGrid(emptyCarve(BU));

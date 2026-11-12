@@ -10,7 +10,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import { sdCapsuleSegment as sdCapsuleSegmentImp, sdEllipsoid as sdEllipsoidImp, sdSphere as sdSphereImp } from '@/core/math/sdf';
 import { CHUNK3, OPEN_FRACTION as OPEN_FRACTIONImp, OPEN_MIN as OPEN_MINImp, chunkKey, emptyBox, meshChunksForBox, type VoxelBox } from './keys';
 import { CARVE_TUNING } from './params';
-import { pruneBreaches, recordBreach } from './breaches';
+import { holeCandidates, pruneBreaches, recordBreach } from './breaches';
 import type { CarveStore } from './grid';
 
 // Hot imports re-bound as local consts: under Vitest (vite-node) an imported binding is read through a getter
@@ -34,7 +34,11 @@ export interface BrushResult {
   volume: number;
   /** 0..1: share of the samples the brush wanted to open that canDig refused. */
   blockedFraction: number;
-  /** The carve connected carved space to open air (an opened solid sample has an open-air face neighbour). */
+  /**
+   * The carve connected carved space to open air: with the grid's hole probe (kernel), it turned sample columns
+   * into terrain holes as the field's isHoleAt sees them; without one, an opened solid sample has an open-air
+   * face neighbour.
+   */
   breach: boolean;
   /** Chunk keys whose mesh must be rebuilt (sorted); also added to the grid's dirty set. */
   dirty: number[];
@@ -109,15 +113,13 @@ export function ellipsoidShape(c: Vec3, radii: Vec3): BrushShape {
       return sdEllipsoid(_p, rx, ry, rz);
     },
     core(x, y, z, out) {
-      // a sphere of 0.8 rmin around the closest point of the shrunken box stays inside the ellipsoid
+      // a sphere of a fraction of rmin around the closest point of the shrunken box stays inside the ellipsoid
       const clampAxis = (d: number, ra: number) => Math.max(-(ra - rmin), Math.min(ra - rmin, d));
       out.x = cx + clampAxis(x - cx, rx); out.y = cy + clampAxis(y - cy, ry); out.z = cz + clampAxis(z - cz, rz);
-      return rmin * 0.8;
+      return rmin * CARVE_TUNING.ellipsoidCoreFraction;
     },
   };
 }
-
-const MAX_BREACH_RECORDS = 16;
 
 /** Applies a brush to the grid. See BrushOptions / BrushResult. */
 export function applyBrush(grid: CarveStore, shape: BrushShape, mode: 'carve' | 'fill', opts: BrushOptions = {}): BrushResult {
@@ -136,6 +138,11 @@ export function applyBrush(grid: CarveStore, shape: BrushShape, mode: 'carve' | 
   const box = emptyBox();
   let wanted = 0, blocked = 0, changed = 0, opened = 0, closed = 0, volume = 0, breach = false;
   const breachCentres: number[] = [];
+  // field-based breach detection: columns this brush may turn into terrain holes, with their state before
+  const hole = wantBreach && nearSurface ? grid.hole : null;
+  const holeCols: number[] = [];
+  if (hole !== null) holeCandidates(grid, shape, hole, i0, i1, j0, j1, k0, k1, holeCols);
+  const voxelRule = wantBreach && nearSurface && hole === null;
 
   for (let k = k0; k <= k1; k++) {
     const z = k * v;
@@ -173,8 +180,7 @@ export function applyBrush(grid: CarveStore, shape: BrushShape, mode: 'carve' | 
           volume += (OPEN_FRACTION[nv] - OPEN_FRACTION[old]) * solid;
           if (old < OPEN_MIN && nv >= OPEN_MIN) {
             opened++;
-            if (wantBreach && nearSurface && sub <= 0 && breachCentres.length < MAX_BREACH_RECORDS * 3
-              && touchesAir(probe!, x, y, z, v)) {
+            if (voxelRule && sub <= 0 && touchesAir(probe!, x, y, z, v)) {
               breach = true;
               addBreachCentre(shape, x, y, z, breachCentres);
             }
@@ -191,6 +197,15 @@ export function applyBrush(grid: CarveStore, shape: BrushShape, mode: 'carve' | 
     }
   }
 
+  if (hole !== null && changed > 0) {
+    for (let n = 0; n < holeCols.length; n += 3) {
+      if (holeCols[n + 2] === 1) continue; // already a hole before this brush
+      const x = holeCols[n] * v, z = holeCols[n + 1] * v;
+      if (!hole.isHole(x, z)) continue;
+      breach = true;
+      addBreachCentre(shape, x, hole.probeY(x, z), z, breachCentres);
+    }
+  }
   if (mode === 'fill' && changed > 0) {
     volume += clearResiduals(grid, box, nearSurface ? probe : null);
     dropEmptyChunks(grid, box);
@@ -218,14 +233,20 @@ function touchesAir(probe: (x: number, y: number, z: number) => number, x: numbe
     || probe(x, y, z + v) > 0 || probe(x, y, z - v) > 0 || probe(x, y - v, z) > 0;
 }
 
-/** Keeps breach record centres of one brush at least 0.8 r apart (flat array x, y, z, r). */
+/**
+ * Adds the brush's inscribed sphere near (x, y, z) to the record list of one brush (flat array x, y, z, r),
+ * keeping records breachSpacingFraction * r apart and at most maxBreachRecordsPerBrush of them.
+ */
 function addBreachCentre(shape: BrushShape, x: number, y: number, z: number, out: number[]): void {
+  const T = CARVE_TUNING;
+  if (out.length >= T.maxBreachRecordsPerBrush * 4) return;
   const r = shape.core(x, y, z, _q);
+  const min = T.breachSpacingFraction * r;
   for (let n = 0; n < out.length; n += 4) {
     const dx = out[n] - _q.x, dy = out[n + 1] - _q.y, dz = out[n + 2] - _q.z;
-    if (dx * dx + dy * dy + dz * dz < 0.64 * r * r) return;
+    if (dx * dx + dy * dy + dz * dz < min * min) return;
   }
-  if (out.length < MAX_BREACH_RECORDS * 4) out.push(_q.x, _q.y, _q.z, r);
+  out.push(_q.x, _q.y, _q.z, r);
 }
 
 /**

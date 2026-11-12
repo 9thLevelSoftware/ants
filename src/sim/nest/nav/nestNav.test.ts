@@ -155,6 +155,62 @@ describe('nest nav', () => {
     expect(nav.distanceAt('c', entrance)).toBe(Infinity);
   });
 
+  it('fallback seeds (target point in solid) follow carving exactly: none -> fallback -> a closer fallback', () => {
+    const grid = createCarveGrid(emptyCarve(BU));
+    grid.carveCapsule(v(0, -20, 20), v(100, -20, 20), BU);
+    const seedP = v(31, -20, 31); // in solid, no sample within 1 mm, nothing open within the 4^3 search block
+    const nav = createNestNav(grid);
+    nav.setTarget('t', { points: [seedP], radius: 1 });
+    expect(nav.distanceAt('t', v(30, -20, 20))).toBe(Infinity); // no seed at all yet
+    const check = () => {
+      const fresh = createNestNav(grid);
+      fresh.setTarget('t', { points: [seedP], radius: 1 });
+      return compareAll(grid, nav, fresh, 't');
+    };
+    // a spur ending 1.5 voxels from the point: its tip becomes the fallback seed (incremental: a new 0 seed)
+    grid.carveCapsule(v(30, -20, 20), v(30, -20, 28), 1.5);
+    const updates0 = nav.stats().updates, rebuilds0 = nav.stats().rebuilds;
+    expect(nav.distanceAt('t', v(30, -20, 20))).toBe(8); // 4 face steps to the spur tip at z = 28
+    expect(nav.stats().updates).toBe(updates0 + 1);
+    expect(check()).toBeGreaterThan(100);
+    // a single sample opened next to the point, still outside its radius: the fallback moves (full rebuild)
+    grid.carveSphere(v(30, -20, 30), 0.6);
+    expect(nav.distanceAt('t', v(30, -20, 30))).toBe(0);
+    expect(nav.stats().rebuilds).toBe(rebuilds0 + 1);
+    check();
+  });
+
+  it('invalidateBox re-evaluates hard-group blocking (a hard primitive placed, moved, removed)', () => {
+    const grid = createCarveGrid(emptyCarve(BU));
+    grid.carveCapsule(v(0, -20, 20), v(100, -20, 20), BU);
+    let wallX = -1; // a 5 mm thick blocking wall across the tunnel at x = wallX (-1: none)
+    const isBlocked = (x: number) => wallX >= 0 && Math.abs(x - wallX) < 2.5;
+    const nav = createNestNav(grid, { isBlocked });
+    nav.setTarget('w', { points: [v(0, -20, 20)], radius: 3 });
+    const wallBox = (x: number) => ({ i0: Math.floor((x - 3) / V), i1: Math.ceil((x + 3) / V), j0: -14, j1: -6, k0: 6, k1: 14 });
+    const check = () => {
+      const fresh = createNestNav(grid, { isBlocked });
+      fresh.setTarget('w', { points: [v(0, -20, 20)], radius: 3 });
+      compareAll(grid, nav, fresh, 'w');
+      expect(nav.componentAt(v(0, -20, 20))).toBe(fresh.componentAt(v(0, -20, 20)));
+    };
+    const far = v(80, -20, 20), mid = v(60, -20, 20);
+    expect(nav.distanceAt('w', far)).toBeLessThan(Infinity);
+    wallX = 50; nav.invalidateBox(wallBox(50));
+    expect(nav.distanceAt('w', far)).toBe(Infinity);
+    check();
+    wallX = 70; nav.invalidateBox(wallBox(50)); nav.invalidateBox(wallBox(70));
+    expect(nav.distanceAt('w', mid)).toBeLessThan(Infinity);
+    expect(nav.distanceAt('w', far)).toBe(Infinity);
+    check();
+    const rebuilds = nav.stats().rebuilds, updates = nav.stats().updates;
+    wallX = -1; nav.invalidateBox(wallBox(70));
+    expect(nav.distanceAt('w', far)).toBeLessThan(Infinity);
+    expect(nav.stats().rebuilds).toBe(rebuilds); // only gains: applied incrementally
+    expect(nav.stats().updates).toBe(updates + 1);
+    check();
+  });
+
   it('a distance across a straight tunnel is close to the Euclidean length', () => {
     const grid = createCarveGrid(emptyCarve(BU));
     grid.carveCapsule(v(0, -20, 20), v(120, -20, 20), BU);

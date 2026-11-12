@@ -1,15 +1,17 @@
 // NestNav service: named BFS distance fields over the open voxels of the carve grid (to entrances, to a
 // chamber, to a dig front ...), connected-component queries, lazy building, change tracking and LRU eviction.
 //
-// Changes arrive from the carve grid's listener and are only RECORDED; they are applied the next time a query
-// touches a field (or on flush()): carves update each built field incrementally and exactly, fills (anything
-// that closed a voxel) mark every field for a full rebuild. The result is a pure function of the grid, so
-// lazy processing does not affect determinism.
+// Changes arrive from the carve grid's listener (and from invalidateBox when the hard group changed) and are only
+// RECORDED; they are applied the next time a query touches a field (or on flush()): passability is refreshed
+// for the recorded boxes; where samples only became passable, each built field is updated incrementally and
+// exactly; where any sample became impassable (fills, a hard primitive moved in), every field is freed for a full
+// rebuild. The result is a pure function of the grid and the blocking predicate, so lazy processing does not
+// affect determinism.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { CarveChange, CarveGrid } from '@/sim/nest/carve/grid';
 import type { VoxelBox } from '@/sim/nest/carve/keys';
-import { NavChunks, makeNeighbourhood, scanNeighbours as scanNeighboursImp, stepAllowed as stepAllowedImp, type BlockedFn } from './graph';
+import { NavChunks, PASS_LOST, makeNeighbourhood, scanNeighbours as scanNeighboursImp, stepAllowed as stepAllowedImp, type BlockedFn } from './graph';
 import { DistanceField, NAV_INF, type NavSeeds } from './distanceField';
 import { Components } from './components';
 import { NAV_TUNING } from './params';
@@ -62,6 +64,11 @@ export interface NestNav {
   build(id: string): number;
   /** Apply pending carve/fill changes to all built fields now. */
   flush(): void;
+  /**
+   * Re-evaluate passability (isBlocked) for the samples in the box on the next query: call it after the hard
+   * group changed there (a hard primitive added, moved or removed). Inclusive sample indices.
+   */
+  invalidateBox(box: VoxelBox): void;
   /** Recompute everything from the grid (after load). */
   rebuildAll(): void;
   stats(): NavStats;
@@ -86,8 +93,8 @@ class NestNavImpl implements NestNav {
   /** Change log of carve boxes since the oldest built field's `applied` mark. */
   private log: VoxelBox[] = [];
   private logBase = 0;
-  /** Recorded grid changes whose passability has not been refreshed yet. */
-  private pending: { box: VoxelBox; fill: boolean }[] = [];
+  /** Recorded changes (carve/fill boxes, invalidated boxes) whose passability has not been refreshed yet. */
+  private pending: VoxelBox[] = [];
   private clock = 0;
   private counters = { rebuilds: 0, updates: 0, evictions: 0 };
   private readonly nh = makeNeighbourhood();
@@ -108,21 +115,30 @@ class NestNavImpl implements NestNav {
 
   private onChange(c: CarveChange): void {
     if (c.opened === 0 && c.closed === 0) return; // no sample crossed the iso: the graph is unchanged
-    this.pending.push({ box: { ...c.box }, fill: c.closed > 0 });
+    this.pending.push({ ...c.box });
   }
 
-  /** Refreshes passability for recorded changes; carves join the log, fills free every field (full rebuild). */
+  invalidateBox(box: VoxelBox): void {
+    if (box.i1 < box.i0 || box.j1 < box.j0 || box.k1 < box.k0) return;
+    this.pending.push({ ...box });
+  }
+
+  /**
+   * Refreshes passability for recorded changes. Boxes that only gained passable samples join the log (applied
+   * incrementally); any loss frees every field (full rebuild on next use).
+   */
   private sync(): void {
     if (this.pending.length === 0) return;
-    let anyFill = false;
-    for (const p of this.pending) {
-      if (!this.ch.refreshBox(p.box)) continue;
+    let anyLoss = false;
+    for (const box of this.pending) {
+      const bits = this.ch.refreshBox(box);
+      if (bits === 0) continue;
       this.comps.valid = false;
-      if (p.fill) anyFill = true;
-      else this.log.push(p.box);
+      if (bits & PASS_LOST) anyLoss = true;
+      else this.log.push(box);
     }
     this.pending = [];
-    if (anyFill) {
+    if (anyLoss) {
       for (const f of this.fields.values()) f.free();
       this.log = [];
       this.logBase = 0;
@@ -146,16 +162,21 @@ class NestNavImpl implements NestNav {
     if (!f.built) {
       this.buildField(f);
     } else if (f.applied < this.logEnd()) {
-      f.update(this.ch, this.log.slice(f.applied - this.logBase));
-      f.applied = this.logEnd();
-      this.counters.updates++;
-      this.trimLog();
+      if (f.update(this.ch, this.log.slice(f.applied - this.logBase), this.nearestFn) < 0) {
+        this.buildField(f); // a fallback seed moved: not expressible as an incremental decrease
+      } else {
+        f.applied = this.logEnd();
+        this.counters.updates++;
+        this.trimLog();
+      }
     }
     return f;
   }
 
+  private readonly nearestFn = (p: Vec3, out: { slot: number; idx: number }): boolean => this.nearestSample(p, out);
+
   private buildField(f: DistanceField): number {
-    const n = f.rebuild(this.ch, (p, out) => this.nearestSample(p, out));
+    const n = f.rebuild(this.ch, this.nearestFn);
     f.applied = this.logEnd();
     this.counters.rebuilds++;
     this.evict(f);

@@ -1,5 +1,5 @@
 // Ecology and rival-colony world state not held in an entity array (GDD 05 App. A).
-// Lives in SimState.ecology and SimState.rivals (additive root fields, see contracts map).
+// Lives in SimState.ecology and SimState.rivals (D1.15, D1.16). The player's danger grid is Colony.danger.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { CreatureKind } from './ids';
@@ -54,7 +54,7 @@ export interface BirdEvent {
   carves: number;
 }
 
-/** 2D grid over the world in TERR_CELL cells (GDD 05 §3.5 territory, danger grid). */
+/** 2D grid over the world in TERR_CELL cells (GDD 05 §3.5 territory). */
 export interface CellGrid {
   /** Cell edge, mm. */
   cell: number;
@@ -77,13 +77,11 @@ export interface EcologyState {
   hazards: Hazard[];
   director: CreatureDirector;
   /** Active bird event, null none. */
-  bird: BirdEvent | null;
+  birdEvent: BirdEvent | null;
   /** Last bird event per colony id. */
   lastBirdTick: Record<string, number>;
   /** Carrion drop accumulators (variant x zone), GDD 05 §1.6. */
   carrionAcc: Float32Array;
-  /** Player colony's danger grid (GDD 05 §2.5), length w * h; empty until the creatures module allocates it. */
-  danger: CellGrid & { data: Float32Array };
 }
 
 export interface RivalRelation {
@@ -108,5 +106,5 @@ export interface ThreatDirector {
 export interface RivalsState {
   relations: RivalRelation[];
   territory: TerritoryGrid;
-  threat: ThreatDirector;
+  threatDirector: ThreatDirector;
 }

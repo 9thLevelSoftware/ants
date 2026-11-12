@@ -201,7 +201,7 @@ export interface Ant extends Walker {
   energy: number;
   /** Fatigue 0..1 (rest at REST_ENTER). */
   fatigue: number;
-  /** Body length, BU (continuous, drawn at eclosion; GDD 07 §2.3). */
+  /** Body length in WORLD BU (continuous, drawn at eclosion; GDD 07 §2.3). Equals species BU for the player's species. */
   lengthBu: number;
   /** Body mass, mg. */
   massMg: number;

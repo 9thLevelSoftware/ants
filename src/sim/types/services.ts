@@ -2,9 +2,10 @@
 // rebuilds them. Implementations: src/sim/world (field), src/sim/nest (carve grid, nest nav), src/sim/world
 // navGrid (locomotion task), src/sim/pheromones. Until those land, src/sim/testing/placeholders provides safe no-ops.
 //
-// CarveGrid is the kernel's own interface (src/sim/nest/carve existed when the contracts were written).
-// PROVISIONAL (kernel): WorldField and NestNav were written from the guidance before src/sim/world/field.ts and
-// src/sim/nest/nav existed; the integration pass reconciles them.
+// CarveGrid is the kernel's own interface (src/sim/nest/carve), re-exported: the kernel is the source of truth.
+// WorldField and NestNav below are the interfaces the modules program against; reconciling them with the kernel's
+// exports (src/sim/world/field.ts, src/sim/nest/nav) is the WIRING TASK's responsibility (ruling 1). Until then
+// src/sim/testing/placeholders provides safe implementations.
 
 import type { EventBus } from '@/core/events';
 import type { RngState } from '@/core/rng';
@@ -13,17 +14,18 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant } from './ant';
 import type { Brood } from './brood';
 import type { Colony } from './colony';
-import type { Command } from './commands';
+import type { Command, CommandOf, CommandType } from './commands';
 import type { Creature } from './creature';
 import type { SimEvent, SimEventMap } from './events';
 import type { MaterialId } from './geom';
-import type { ColonySpeciesId, PheroChannel, SpeciesId } from './ids';
+import type { ColonySpeciesId, PheroChannel, SpeciesId, Task } from './ids';
 import type { NestFieldKind } from './ids/nest';
 import type { NavClass } from './ids/world';
 import type { RngStreamName } from './ids/progression';
 import type { PlayerIntent } from './intent';
 import type { Item } from './item';
 import type { Marker } from './marker';
+import type { Behaviour } from './moduleApi';
 import type { Nest } from './nest';
 import type { Herd, PlantState } from './plant';
 import type { FoodSource } from './source';
@@ -32,7 +34,10 @@ import type { SimState } from './state';
 import type { WorldData } from './world';
 import type { CarveGrid } from '@/sim/nest/carve';
 
-/** The solid/free field f(p): mm, POSITIVE in free space (docs/01-design-seed.md §3). PROVISIONAL (kernel). */
+/**
+ * The solid/free field f(p): mm, POSITIVE in free space (docs/01-design-seed.md §3). Reconciled with the kernel's
+ * src/sim/world/field.ts by the wiring task (ruling 1).
+ */
 export interface WorldField {
   /** Terrain surface height at (x, z), mm (heightfield + mounds + deltas). */
   height(x: number, z: number): number;
@@ -70,7 +75,7 @@ export interface NestFieldTarget {
   id: number;
 }
 
-/** BFS distance fields over open voxels per nest. PROVISIONAL (kernel). */
+/** BFS distance fields over open voxels per nest. Reconciled with the kernel's src/sim/nest/nav by the wiring task. */
 export interface NestNav {
   /** Path distance from p to the target, mm; -1 if unreachable or unknown. */
   distance(nestId: number, target: NestFieldTarget, p: Vec3): number;
@@ -110,6 +115,26 @@ export interface PheromoneField {
   scaleRegion(channel: PheroChannel, center: Vec3, radius: number, factor: number): void;
   /** Removes all layers of a colony. */
   clearColony(colony: number): void;
+
+  // ---- Optional extensions (phero task; the real field implements all of them, test fakes may not) ----
+  /** Raw value of the cell containing p, ph (no blend). */
+  sampleCell?(colony: number, channel: PheroChannel, p: Vec3): number;
+  /** Strongest cell (>= minValue) whose centre lies within radius of p: centre into out, returns its value (0 = none). */
+  strongestNear?(colony: number, channel: PheroChannel, p: Vec3, radius: number, out: Vec3, minValue?: number): number;
+  /** Advances decay (and alarm diffusion) by dtSeconds of game time over active cells only. */
+  step?(dtSeconds: number): void;
+  /** Multiplies every cell for which isExposed(centre) is true (rain); returns the number of cells changed. */
+  washExposed?(factors: number | PheroChannelFactors, isExposed: PheroCellTest): number;
+  /** Multiplies the cells whose centres lie in the region (human events); returns the number of cells changed. */
+  wipeRegion?(region: PheroRegion, factors: number | PheroChannelFactors, opts?: PheroWipeOptions): number;
+  /** Read-only iteration over a layer's active cells (scent view, debugging); returns the number visited. */
+  forEachActiveCell?(colony: number, channel: PheroChannel, fn: PheroCellVisitor): number;
+  /** Active cells of one layer (or of all layers when colony is omitted). */
+  activeCellCount?(colony?: number, channel?: PheroChannel): number;
+  /** Counter that changes whenever the layer's cells change (renderers skip unchanged layers). */
+  layerVersion?(colony: number, channel: PheroChannel): number;
+  /** Installs runtime hooks (decay modifier, free-space test). */
+  setHooks?(hooks: PheroHooks): void;
 }
 
 /** Spatial hash over entities, refreshed once per tick (and on demand). */
@@ -135,12 +160,36 @@ export interface SimStores {
   herds: Store<Herd>;
 }
 
+/**
+ * Tick-order slots (docs/03-architecture.md §3). systems.ts collects every module's `systems` array and sorts by
+ * phase (stable: module order, then array order), so a module adds a system without editing a shared file.
+ */
+export const SYSTEM_PHASES = [
+  'commands', 'environment', 'ecology', 'colony-allocation', 'queen', 'brood', 'perception', 'behaviours',
+  'player-control', 'actions', 'creatures', 'locomotion', 'combat', 'nest', 'pheromones', 'colony-economy', 'rivals',
+  'progression', 'lifecycle',
+] as const;
+export type SystemPhase = (typeof SYSTEM_PHASES)[number];
+
 /** A simulation system. Runs every `every` ticks (default 1) when (tick + offset) % every === 0. */
 export interface System {
   name: string;
+  /** Tick-order slot; required for systems exported by modules (ad-hoc test systems may omit it). */
+  phase?: SystemPhase;
   every?: number;
   offset?: number;
   run(sim: Sim): void;
+}
+
+/** Handler of one command type. Handlers must not throw for bad input (emit `command-rejected` instead). */
+export type CommandHandler<K extends CommandType> = (sim: Sim, cmd: CommandOf<K>) => void;
+/** One handler per command type (ruling 9: each module exports a `Partial<CommandHandlerMap>`). */
+export type CommandHandlerMap = { [K in CommandType]: CommandHandler<K> };
+
+/** Behaviour lookup assembled from the modules' `behaviours` arrays (ruling 13). */
+export interface BehaviourTable {
+  /** Species-specific behaviour for the task if one exists, else the generic one; undefined when none. */
+  get(task: Task, species: ColonySpeciesId): Behaviour | undefined;
 }
 
 export interface Sim {
@@ -153,6 +202,8 @@ export interface Sim {
   phero: PheromoneField;
   index: EntityIndex;
   stores: SimStores;
+  /** Behaviour state machines by task (assembled in systems.ts). */
+  behaviours: BehaviourTable;
   /** Player's species. */
   species: SpeciesDef;
   getSpecies(id: ColonySpeciesId): SpeciesDef | undefined;

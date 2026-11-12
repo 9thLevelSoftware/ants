@@ -13,7 +13,7 @@
 
 import type { Breach, CarveData } from '@/sim/types/geom';
 import type { Vec3 } from '@/core/math/vec3';
-import { CHUNK, CHUNK3, OPEN_FRACTION as OPEN_FRACTIONImp, OPEN_MIN as OPEN_MINImp, chunkKey as chunkKeyImp, keyCx, keyCy, keyCz, type VoxelBox } from './keys';
+import { CHUNK, CHUNK3, OPEN_FRACTION as OPEN_FRACTIONImp, OPEN_MIN as OPEN_MINImp, chunkKey as chunkKeyImp, keyCx, keyCy, keyCz, meshChunksForBox, type VoxelBox } from './keys';
 import { CARVE_TUNING } from './params';
 import {
   applyBrush, capsuleShape, ellipsoidShape, sphereShape, type BrushOptions, type BrushResult,
@@ -37,6 +37,17 @@ export type CarveListener = (change: CarveChange) => void;
 
 /** Substrate distance probe (mm, > 0 in open air, carve grid ignored); supplied by the world field. */
 export type SubstrateProbe = (x: number, y: number, z: number) => number;
+
+/**
+ * The world field's terrain hole test, used for breach detection when set (the kernel wires WorldField.isHoleAt).
+ * `isHole(x, z)` must depend on the carve grid only through the openness at (x, probeY(x, z), z).
+ */
+export interface HoleProbe {
+  /** Height (mm) where column (x, z) is tested: just below the terrain surface. */
+  probeY(x: number, z: number): number;
+  /** Is the terrain at column (x, z) open (carved space reaches the air)? */
+  isHole(x: number, z: number): boolean;
+}
 
 export interface CarveGrid {
   /** The persisted state this grid edits in place. */
@@ -70,6 +81,11 @@ export interface CarveGrid {
   takeDirty(): number[];
   /** Number of dirty chunk keys pending. */
   dirtyCount(): number;
+  /**
+   * Marks the meshes that read stored samples inside the box dirty without changing data (their discard
+   * attribute changed, e.g. a diggable primitive moved). Inclusive sample indices.
+   */
+  markDirty(box: VoxelBox): void;
   /** Every key that may carry a mesh: stored chunks and their -x/-y/-z neighbours (sorted). */
   meshKeys(): number[];
   /** Openness volume of the whole grid, mm^3 (sum of open fractions; includes brush parts in open air). */
@@ -79,6 +95,12 @@ export interface CarveGrid {
   /** Breach records (same array as data.breaches). */
   readonly breaches: Breach[];
   setSubstrateProbe(probe: SubstrateProbe | null): void;
+  /**
+   * With a hole probe, a carve reports a breach exactly when it opens new terrain-hole columns as the field sees
+   * them; without one, by the voxel rule (an opened solid sample with an open-air face neighbour). Needs the
+   * substrate probe too (it limits the work to brushes near the surface).
+   */
+  setHoleProbe(probe: HoleProbe | null): void;
   addListener(fn: CarveListener): void;
   removeListener(fn: CarveListener): void;
 }
@@ -101,6 +123,8 @@ export class CarveStore implements CarveGrid {
   readonly dirty = new Set<number>();
   /** @internal */
   substrate: SubstrateProbe | null = null;
+  /** @internal */
+  hole: HoleProbe | null = null;
   /** @internal running sum of OPEN_FRACTION over all stored samples */
   openFractionSum = 0;
   private listeners: CarveListener[] = [];
@@ -274,6 +298,18 @@ export class CarveStore implements CarveGrid {
     return this.dirty.size;
   }
 
+  markDirty(box: VoxelBox): void {
+    for (const key of this.data.keys) {
+      const bi = keyCx(key) * CHUNK, bj = keyCy(key) * CHUNK, bk = keyCz(key) * CHUNK;
+      const part: VoxelBox = {
+        i0: Math.max(box.i0, bi), j0: Math.max(box.j0, bj), k0: Math.max(box.k0, bk),
+        i1: Math.min(box.i1, bi + CHUNK - 1), j1: Math.min(box.j1, bj + CHUNK - 1), k1: Math.min(box.k1, bk + CHUNK - 1),
+      };
+      if (part.i1 < part.i0 || part.j1 < part.j0 || part.k1 < part.k0) continue;
+      for (const k of meshChunksForBox(part)) this.dirty.add(k);
+    }
+  }
+
   meshKeys(): number[] {
     const set = new Set<number>();
     for (const key of this.data.keys) {
@@ -302,6 +338,10 @@ export class CarveStore implements CarveGrid {
 
   setSubstrateProbe(probe: SubstrateProbe | null): void {
     this.substrate = probe;
+  }
+
+  setHoleProbe(probe: HoleProbe | null): void {
+    this.hole = probe;
   }
 
   addListener(fn: CarveListener): void {

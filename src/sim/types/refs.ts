@@ -41,6 +41,12 @@ export interface CarryRef {
   id: number;
 }
 
+/** A pair of nutrient amounts, loads (all nutrient fields are lowercase c / p, D2.15). */
+export interface Nutrients {
+  c: number;
+  p: number;
+}
+
 /** A fresh empty target slot (allocates). */
 export function noTarget(): TargetRef {
   return { kind: 'none', id: -1, pos: { x: 0, y: 0, z: 0 } };

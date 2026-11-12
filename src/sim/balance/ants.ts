@@ -14,6 +14,12 @@ export const SPAWN_TB_C = 21;
 export const DEFAULT_LIFESPAN_GD = 30;
 /** Arrival radius of a fresh nav state, BU. */
 export const DEFAULT_ARRIVE_BU = 0.5;
+/** Fat-body reserve cap by age band, C loads (GDD 02 §1.4 RESERVE_CAP); Ant.energy starts at its band's cap. */
+export const RESERVE_CAP_BY_BAND = { callow: 0.4, young: 0.6, mid: 0.45, old: 0.25 } as const;
+/** Age bands by physiological age (GDD 02 §1.3): callow below CALLOW_GD, young below 6 GD, mid below 12 GD. */
+export const CALLOW_GD = 0.3;
+export const AGE_YOUNG_MAX_GD = 6;
+export const AGE_MID_MAX_GD = 12;
 /** Lifespan draw clamp as fractions of the mean (GDD 02: 33 GD clamped to [10, 85]). */
 export const LIFESPAN_MIN_FRAC = 0.3;
 export const LIFESPAN_MAX_FRAC = 2.6;

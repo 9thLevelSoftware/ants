@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
 import { generateWorld } from '@/worldgen';
-import { calendarTick, currentSeason, currentDayOfYear } from '@/sim/time';
+import { calendarTick, currentDayOfSeason, currentSeason, currentDayOfYear } from '@/sim/time';
 import { AntFlag } from '@/sim/types';
 
 describe('createNewGame', () => {
@@ -56,7 +56,7 @@ describe('createNewGame start calendar', () => {
     const cfg = { ...base, startDayOfSeason: 9, rules: { ...base.rules, seasonLengthDays: 5 as const } };
     const { state } = createNewGame(cfg);
     expect(currentSeason(state)).toBe(base.startSeason);
-    expect(state.env.calendar.derived.dayOfSeason).toBe(5);
+    expect(currentDayOfSeason(state)).toBe(5);
   });
 
   it('refuses a winter start (directions §K)', () => {

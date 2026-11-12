@@ -35,6 +35,12 @@ export interface CasteDef {
   lifespanBySize: Curve;
   ageRateOutside: number;
   ageRateDormant: number;
+  /**
+   * Fixed combat stats from the GDD 05 §4.1 table (queens, gynes, males; D2.26); null = the mass formula
+   * (maxHp = HP_PER_MG23 x mg^(2/3), bite = BITE_PER_MG23 x mg^(2/3) x mandibleFactor). `foundingMaxHp` is the
+   * founding queen's value (Lasius 40 vs 50 established), null = maxHp.
+   */
+  fixedStats: { maxHp: number; bite: number; foundingMaxHp: number | null } | null;
   /** Explicit upkeep for queens/gynes/males, loads per GD; null = mass formula. */
   upkeepOverride: { restC: number; activeC: number; p: number } | null;
   /** Stage duration multiplier. */
@@ -78,11 +84,19 @@ export interface FoundingDef {
   /** Hard refusal / bonus rules (ids interpreted by the opening module). */
   siteHard: string[];
   siteBonuses: string[];
-  shaftDepthBu: { min: number; target: number; max: number };
-  chamberWidthBu: number;
+  /**
+   * Founding readiness geometry (GDD 03 §13.1 `D_MIN`, `V_MIN`, `W_MIN`; D2.28): minimum founding-cell depth in
+   * open ground / under cover, BU; minimum cell volume, BU^3; minimum cell width, BU; shaft depth the AI aims for, BU.
+   */
+  dMinOpenBu: number;
+  dMinCoverBu: number;
+  vMinBu3: number;
+  wMinBu: number;
+  shaftTargetBu: number;
   seal: boolean;
-  /** Founding reserves, loads (FOUND_R0). */
-  r0: number;
+  /** Founding reserves, single C+P pool, loads (`FOUND_R0`). */
+  R0: number;
+  /** Most eggs of the founding clutch (`FOUND_CLUTCH_MAX_EGGS`). */
   clutchCap: number;
   trophicFraction: number;
   firstBroodClass: { caste: Caste; nanitic: boolean };
@@ -93,10 +107,14 @@ export interface FoundingDef {
   startHours: [number, number];
 }
 
+/** Colony size data. Every threshold is in SIMULATED workers N (ruling 4; no per-agent weights). */
 export interface ScaleDef {
   simCapWorkers: number;
-  /** [N_sim, N_real] display mapping (presentation only). */
-  realEstimate: Curve;
+  /** Real colony sizes, used ONLY by codex text (D2.25): typical range and maximum, real workers. */
+  wildColonySize: { typical: [number, number]; max: number };
+  /** Stage thresholds `growThreshold` / `matureThreshold` (GDD 06 §7, x difficulty matureGateMult), workers. */
+  growThreshold: number;
+  matureThreshold: number;
   /** [yearEnd, minN, maxN] headless balance targets. */
   growthTargets: [number, number, number][];
 }

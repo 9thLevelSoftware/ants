@@ -2,9 +2,9 @@
 // and the Lineage record shapes (GDD 06 §7-13, GDD 08 App. A, GDD 02 §13).
 
 import type { TimeSeries } from '@/core/timeSeries';
-import type { Caste, SpeciesId, ZoneType } from './ids';
+import type { Caste, DifficultyId, SpeciesId, ZoneType } from './ids';
 import type { DeathCause } from './ids/ants';
-import type { AimId, AimState, HintState, JournalKind, StageId } from './ids/progression';
+import type { AimId, AimState, HintId, HintState, JournalKind, StageId } from './ids/progression';
 import type { ArchetypeId, WorldSizeId } from './ids/world';
 import type { DaughterState } from './ids/species';
 import type { ActiveAlert, Diagnostic, EventLogEntry } from './diagnostics';
@@ -42,15 +42,20 @@ export interface AimRecord {
 }
 
 /**
- * Statistics history: series id -> ring buffer (core TimeSeries). `hourly` keeps the last 7 game days
- * (HOURLY_HISTORY_CAP); `daily` keeps DAILY_HISTORY_CAP days. Series ids follow GDD 02 §13
- * ('workers', 'stores-c', 'intake-p', ...). Series are created lazily by the stats system.
+ * Statistics history (D1.11): `hourly` keeps the last HOURLY_HISTORY_CAP (168) samples per series in a ring;
+ * `daily` is unbounded (one number per game day). Keys are HistorySeriesId, or `<id>:<member>` for multi-valued
+ * series. Series are created lazily by the stats system.
  */
-export interface StatsHistory {
+export interface HistoryState {
   hourly: Record<string, TimeSeries>;
-  daily: Record<string, TimeSeries>;
+  daily: Record<string, number[]>;
   lastHourlyTick: number;
   lastDailyTick: number;
+}
+
+/** Journal (D1.10). Aims are a separate record list (`ProgressionState.aims`). */
+export interface JournalState {
+  entries: JournalEntry[];
 }
 
 export interface DeathRecord {
@@ -86,9 +91,9 @@ export interface ProgressionState {
   stage: StageState;
   /** Milestone id -> when reached. */
   milestones: Record<string, DateStamp>;
-  journal: JournalEntry[];
+  journal: JournalState;
   aims: AimRecord[];
-  stats: StatsHistory;
+  history: HistoryState;
   deaths: DeathStats;
   /** Codex entry id -> tick first observed in this game (device unlocks live outside saves). */
   codexSeen: Record<string, number>;
@@ -100,8 +105,10 @@ export interface ProgressionState {
   eventLog: EventLogEntry[];
   /** UI-supplied milestone thumbnails (storeThumbnail command), at most MILESTONE_THUMBS_MAX. */
   milestoneThumbs: { milestoneId: string; dataUrl: string }[];
+  /** Difficulty preset changes during this game (D1.12). */
+  difficultyHistory: { tick: number; preset: DifficultyId }[];
   lineage: LineageLink;
-  /** Peak adult worker count of the player colony. */
+  /** Peak adult worker count of the player colony (simulated workers). */
   peakWorkers: number;
   /** Rivals destroyed by the player. */
   rivalsDefeated: number;
@@ -157,7 +164,8 @@ export interface LineageColonyRecord {
   foundedDate: DateStamp;
   endedDate: DateStamp | null;
   endCause: string;
-  peakWorkerEq: number;
+  /** Peak simulated workers (no per-agent weights, ruling 4). */
+  peakWorkers: number;
   gameYears: number;
   winters: number;
   alatesReared: number;
@@ -168,8 +176,31 @@ export interface LineageColonyRecord {
   difficultyHistory: { tick: number; preset: string }[];
 }
 
+/** Lineage block of the device profile (D1.19). */
 export interface LineageStore {
   colonies: LineageColonyRecord[];
   flights: FlightRecord[];
   daughters: DaughterRecord[];
+  /** Lineage view preferences (sort order, filters ...), plain values only. */
+  settings: Record<string, string | number | boolean>;
+}
+
+/** Device-level codex unlock (D1.19). `firstSeenIso` is wall-clock text written by the game layer. */
+export interface CodexUnlock {
+  tick: number;
+  doy: number;
+  year: number;
+  species: SpeciesId;
+  firstSeenIso: string;
+}
+
+/**
+ * Device profile `foundress.profile.v1` (IndexedDB `profile`, localStorage fallback; D1.19). NOT part of SimState:
+ * the game layer stores it; the sim sees hints through `progression.hintsMirror`.
+ */
+export interface DeviceProfile {
+  hints: Partial<Record<HintId, { uses: number; state: HintState }>>;
+  /** Codex id (CodexId) -> first unlock. */
+  codex: Record<string, CodexUnlock>;
+  lineage: LineageStore;
 }

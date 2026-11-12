@@ -1,12 +1,13 @@
 // Environment state (GDD 06 App. A; human activity from GDD 04 App. A `SimState.human`).
-// Derived values are a cache refreshed by the calendar/weather systems; the tick counter is the truth.
+// The tick counter is the truth: derived calendar values (CalendarDerived) are a runtime cache, never persisted
+// (D1.1). The season length is `config.rules.seasonLengthDays`.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { HumanEventKind, Season, SpeedLevel, WeatherState } from './ids';
-import type { AutoSlowMode, ClimateId, DayPhase, RainClass, WinterPhase } from './ids/progression';
+import type { HumanEventKind, Season, WeatherState } from './ids';
+import type { AutoSlowMode, ClimateId, DayPhase, RainClass, RunSpeed, WinterPhase } from './ids/progression';
 import type { HumanCueKind, HumanVariant } from './ids/world';
 
-/** Calendar values derived from the tick (cache; recomputed by the calendar system). */
+/** Calendar values derived from the calendar tick. Runtime cache only (environment `calendarNow`), not in SimState. */
 export interface CalendarDerived {
   /** 0-based game day since day 1 of spring, year 1. */
   dayIndex: number;
@@ -33,14 +34,14 @@ export interface CalendarDerived {
   weekday: number;
 }
 
+/** Persisted calendar anchors (GDD 06 §1; D1.1). Calendar tick = state.tick + startTick. */
 export interface CalendarState {
-  /** Calendar ticks elapsed before tick 0 of this game (start day and hour offset), ticks. */
-  startOffsetTicks: number;
+  /** Calendar tick at which this game started (start day and hour), ticks since 00:00 of spring day 1, year 1. */
+  startTick: number;
   /** Tick the first egg was laid, -1 not yet. */
   foundingTick: number;
   /** Moon phase at calendar tick 0, 0..1. */
   moonPhase0: number;
-  derived: CalendarDerived;
 }
 
 export interface WeatherHistory {
@@ -54,6 +55,15 @@ export interface WeatherHistory {
   /** °C */
   tmaxToday: number;
   tmaxYesterday: number;
+}
+
+/** The next weather state, drawn when the current one begins (telegraphing; GDD 06 §3.2). Added by env-core. */
+export interface WeatherForecast {
+  state: WeatherState;
+  /** Rain class of the next rain onset, null for other states. */
+  intensityClass: RainClass | null;
+  /** Tick (state.tick) at which the current state is due to end. */
+  startTick: number;
 }
 
 export interface WeatherStateData {
@@ -78,6 +88,12 @@ export interface WeatherStateData {
   /** AR(1) temperature anomaly, °C. */
   anomalyPrev: number;
   anomalyCur: number;
+  /** Ornstein-Uhlenbeck wind noise, m/s (additive, env-core; absent in older saves = 0). */
+  windOu?: number;
+  /** Lagged diurnal-amplitude multiplier `dm` (additive, env-core; absent = target of the current state). */
+  dmCur?: number;
+  /** Next state hint; null/absent until drawn. */
+  forecast?: WeatherForecast | null;
   history: WeatherHistory;
   dew: { tonight: boolean; level: number };
 }
@@ -87,8 +103,41 @@ export interface ThermalStateData {
   tsurf: Float32Array;
   /** Soil temperature EMA, °C. */
   wsoil: number;
+  /**
+   * D7.2 EMAs of `tsurf` (same layout, plus the extra lawn surface): time constants 1 game day and one season.
+   * They feed GDD 03 §9.1 (`T_dayMean`, `T_seasonMean`). Created by env-core on its first update (additive).
+   */
+  tsurfDay?: Float32Array;
+  tsurfSeason?: Float32Array;
   /** Heat acclimation offset, °C. */
   heatAccl: number;
+  /**
+   * D7.2 (GDD 03 §9.1, GDD 06 §2.5): EMAs of the column-top temperature `T_top`, kept per 4 BU heightfield cell
+   * and per cover primitive. Each array interleaves [T_dayMean (τ 1 GD), T_seasonMean (τ DAYS_PER_SEASON GD)], °C.
+   * Lazily allocated (ruling 3): length 0 until env-core fills it; readers then use the T1 constants (GDD 06 §0.2).
+   */
+  /** Cell edge of the EMA grid, mm (the 4 BU heightfield cell, TERRAIN_CELL_BU), and its size in cells. */
+  emaCellMm: number;
+  emaCellNx: number;
+  emaCellNz: number;
+  /** Per heightfield cell: index 2 * (iz * emaCellNx + ix) (+1 for the season mean), °C. */
+  emaCell: Float32Array;
+  /** World primitive id of each cover-primitive slot (stones, slabs, boards over soil), slot order of emaCover. */
+  emaCoverPrimIds: number[];
+  /** Per cover primitive: index 2 * slot (+1 for the season mean), °C. */
+  emaCover: Float32Array;
+}
+
+/** Inputs of the GDD 03 §9.1 thermal column at a ground position (environment `thermalInputs`, D7.2), °C. */
+export interface ThermalInputs {
+  /** Temperature of the topmost surface of the column (surface / micro temperature by material and shade). */
+  T_top: number;
+  /** EMA of T_top, τ 1 game day. */
+  T_dayMean: number;
+  /** EMA of T_top, τ one season (DAYS_PER_SEASON game days). */
+  T_seasonMean: number;
+  /** Climate annual mean + SOIL_MEAN_OFFSET_C. */
+  T_annual: number;
 }
 
 /** Soil moisture grids (16 BU cells, GDD 06 §3.9). */
@@ -144,16 +193,21 @@ export interface HumanState {
   ambient: { doorOpen: boolean; lightsOn: boolean };
 }
 
-/** Time controls persisted with the game (GDD 06 §4, GDD 01 `state.time`). */
+/**
+ * Time controls persisted with the game (GDD 06 §4; D1.7). Written by sim commands (`setSpeed`, `togglePause`,
+ * `setAutoSlow`), read by the game loop. Pause is a flag: `setSpeed {speed: 0}` sets `paused` and keeps `speed`.
+ */
 export interface TimeControlState {
-  speed: SpeedLevel;
-  requested: SpeedLevel;
+  /** Running speed (x real time). */
+  speed: RunSpeed;
+  /** Speed the player asked for (the effective speed may be lower: possession, opening, budget). */
+  requested: RunSpeed;
   paused: boolean;
   autoSlow: AutoSlowMode;
-  /** Auto-slow cooldown end tick per trigger. */
+  /** Auto-slow cooldown end tick per alert kind (D6.8). */
   cooldowns: Record<string, number>;
-  /** Skip-to-event target tick, -1 none. */
-  skipUntilTick: number;
+  /** Skip-to-next-event target tick, -1 none. */
+  skipUntil: number;
   /** Count of commands applied (also while paused). */
   commandSeq: number;
 }

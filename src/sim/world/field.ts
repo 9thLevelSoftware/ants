@@ -41,6 +41,12 @@ export const FIELD_TUNING = {
   projSlackBU: 0.05,
   /** project(): search radius of the fallback probe used where the gradient vanishes (saturated cavity). */
   probeDistBU: 3,
+  /**
+   * Probe directions: the normalised points of the cube surface with coordinates in {-1, -c, 0, c, 1} (98 rays).
+   * c = 0.4 leaves no direction more than 14.5 degrees from a ray, so a standard tunnel (level-set radius
+   * ~0.85 BU) is hit from up to ~2.5 BU away from its level set. sqrt-only construction: bit-identical everywhere.
+   */
+  probeDirCoord: 0.4,
   /** sphereTrace(): step = safety * distance, minimum step, iteration cap. */
   traceSafety: 0.9,
   traceMinStepBU: 0.005,
@@ -108,7 +114,7 @@ export interface WorldField {
   normal(p: Vec3, out: Vec3): number;
   /**
    * Moves p onto the level set f = offset (Newton along the gradient, step-clamped; where the gradient
-   * vanishes, a 14-direction sphere-trace probe finds the nearest crossing first). Writes the result into out
+   * vanishes, a 98-ray sphere-trace probe finds the nearest crossing first). Writes the result into out
    * and the unit normal into outNormal. Returns false (out unchanged) if it did not converge.
    */
   project(p: Vec3, offset: number, out: Vec3, outNormal?: Vec3 | null): boolean;
@@ -137,10 +143,22 @@ export interface WorldField {
   isUnderground(p: Vec3): boolean;
   /** True if the terrain at (x, z) is opened by carved space or a terrain hole (renderers: hole mask). */
   isHoleAt(x: number, z: number): boolean;
-  /** Dynamic primitives (mounds, moved objects). Walkers nearby should call walkerSurfaceChanged. */
+  /**
+   * Dynamic primitives (mounds, moved objects). Walkers nearby should call walkerSurfaceChanged. Prefer the
+   * kernel's wrappers, which also refresh nest-nav passability and mesh discard attributes.
+   */
   addPrim(p: Primitive): void;
   removePrim(id: number): boolean;
   updatePrim(p: Primitive): void;
+  /** World AABB (mm) and group of a registered primitive into out; false if the id is not in the field. */
+  primBounds(id: number, out: PrimBounds): boolean;
+}
+
+/** Bounds of a primitive as registered in the field. */
+export interface PrimBounds {
+  minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number;
+  /** In the diggable (soil) group. */
+  diggable: boolean;
 }
 
 export function createWorldField(world: KernelWorldInput, carve: CarveGrid | null, opts: FieldOptions = {}): WorldField {
@@ -149,10 +167,18 @@ export function createWorldField(world: KernelWorldInput, carve: CarveGrid | nul
 
 const FAR = 1e6;
 const zero = (): Vec3 => ({ x: 0, y: 0, z: 0 });
+/** project()'s probe rays (see FIELD_TUNING.probeDirCoord), flat x, y, z; the six axes first (-Y leading). */
 const PROBE_DIRS: number[] = (() => {
+  const c = FIELD_TUNING.probeDirCoord;
   const d: number[] = [0, -1, 0, 0, 1, 0, 1, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, -1];
-  const s = 1 / Math.sqrt(3);
-  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) d.push(x * s, y * s, z * s);
+  const coords = [-1, -c, 0, c, 1];
+  for (const x of coords) for (const y of coords) for (const z of coords) {
+    const m = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
+    const axis = (x !== 0 ? 1 : 0) + (y !== 0 ? 1 : 0) + (z !== 0 ? 1 : 0) === 1;
+    if (m !== 1 || axis) continue; // interior points, and the axes already listed
+    const l = Math.sqrt(x * x + y * y + z * z);
+    d.push(x / l, y / l, z / l);
+  }
   return d;
 })();
 
@@ -410,7 +436,7 @@ class FieldImpl implements WorldField {
     return false;
   }
 
-  /** Sphere-traces 14 directions from q for the nearest point where f crosses offset; moves q there. */
+  /** Sphere-traces the probe directions from q for the nearest point where f crosses offset; moves q there. */
   private probeNearest(q: Vec3, offset: number, v: number): boolean {
     const P = this.params, pq = this.pq;
     let best = Infinity, bx = 0, by = 0, bz = 0;
@@ -518,6 +544,14 @@ class FieldImpl implements WorldField {
   }
   updatePrim(p: Primitive): void {
     this.addPrim(p);
+  }
+  primBounds(id: number, out: PrimBounds): boolean {
+    const e = this.hash.get(id);
+    if (!e) return false;
+    out.minX = e.minX; out.minY = e.minY; out.minZ = e.minZ;
+    out.maxX = e.maxX; out.maxY = e.maxY; out.maxZ = e.maxZ;
+    out.diggable = e.diggable;
+    return true;
   }
 }
 

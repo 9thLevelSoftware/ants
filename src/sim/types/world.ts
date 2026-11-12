@@ -257,11 +257,23 @@ export interface ObjectStateChange {
   tick: number;
 }
 
+/**
+ * Per-voxel flags (VoxelFlag LOOSE / NATURAL / PLUG) beside the carve grid (ruling 2). Same chunk keys as
+ * `WorldDelta.carve`, but a key appears here only when its chunk has a non-zero flag; one Uint8Array(4096) per key
+ * in the carve grid's voxel order. Owned and maintained by the nest module; the kernel never reads it.
+ */
+export interface CarveFlagsData {
+  keys: number[];
+  chunks: Uint8Array[];
+}
+
 export interface WorldDelta {
-  /** Sparse carve grid (copy-on-write chunks; pre-existing chunks are flagged NATURAL). */
+  /** Sparse carve grid (copy-on-write chunks). Encoding owned by the kernel (src/sim/nest/carve). */
   carve: CarveData;
+  /** Voxel flags parallel to the carve chunks (nest module). */
+  carveFlags: CarveFlagsData;
   /** Dynamic primitives (cars, toys, bait stations, moved objects); flag DYNAMIC; ids from SimState.nextId. */
-  dynamicPrims: Primitive[];
+  dynPrims: Primitive[];
   mounds: Mound[];
   objectStates: ObjectStateChange[];
   /** Food anchors used up (FoodAnchor ids). */
@@ -270,8 +282,8 @@ export interface WorldDelta {
   naturalOwners: Record<string, number>;
   /** Sparse terrain deformation tiles (32x32 cells, 1/16 mm units). */
   heightDeltas: { tileIndex: number; data: Int16Array }[];
-  /** Grass height per nav cell, mm (sward layer, GDD 04 V4). */
-  grassHeightMm: Uint8Array;
+  /** Grass height per nav cell, mm (sward layer, GDD 04 V4; up to 300 mm, hence 16 bits, E-59). */
+  grassHeightMm: Uint16Array;
   /** Micro-connection discovery state. */
   microState: { id: number; discovered: boolean; discoveredTick: number; open: boolean }[];
   /** Current water level per water body (WorldData.waterBodies order), mm. */

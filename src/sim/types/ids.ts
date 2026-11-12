@@ -22,6 +22,10 @@ export type ColonySpeciesId = SpeciesId | RivalSpeciesId;
 
 export const CASTES = ['queen', 'gyne', 'male', 'worker', 'minor', 'media', 'major'] as const;
 export type Caste = (typeof CASTES)[number];
+/** Castes a brood item can be destined to (D7.3): all but `queen` (polymorphic `worker` larvae are re-destined to
+ * `minor` / `media` / `major` at larva start, GDD 07 §2.6). A queen is never reared as such: gynes become queens. */
+export type BroodCaste = Exclude<Caste, 'queen'>;
+export const BROOD_CASTES = ['gyne', 'male', 'worker', 'minor', 'media', 'major'] as const satisfies readonly BroodCaste[];
 
 export const BROOD_STAGES = ['egg', 'larva', 'pupa'] as const;
 export type BroodStage = (typeof BROOD_STAGES)[number];

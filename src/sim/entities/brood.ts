@@ -1,14 +1,14 @@
 // Brood creation and removal.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Brood, BroodDeathCause, BroodStage, Caste } from '@/sim/types';
+import type { Brood, BroodCaste, BroodDeathCause, BroodStage } from '@/sim/types';
 import { allocId, type EntityCtx } from './context';
 import { applyInit, copyV } from './util';
 
 export interface SpawnBroodOptions {
   colony: number;
   stage: BroodStage;
-  destined: Caste;
+  destined: BroodCaste;
   pos: Vec3;
   nestId?: number;
   chamberId?: number;

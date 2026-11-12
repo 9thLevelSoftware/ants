@@ -7,6 +7,8 @@ export * from './memory';
 export * from './colony';
 export * from './combat';
 export * from './environment';
+export * from './thermalInputs';
 export * from './nest';
 export * from './progression';
 export * from './cadence';
+export * from './difficulty';

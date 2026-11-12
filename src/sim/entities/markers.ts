@@ -11,17 +11,20 @@ export interface PlaceMarkerOptions {
   pos: Vec3;
   /** mm */
   radius: number;
+  targetChamberId?: number;
+  sourceChamberId?: number;
   params?: Partial<MarkerParams>;
   /** Tick it expires, -1 never. */
   expiresTick?: number;
 }
 
 export function placeMarker(ctx: EntityCtx, o: PlaceMarkerOptions): Marker {
-  const params: MarkerParams = { mode: null, chamberType: null, targetChamberId: -1, sourceChamberId: -1, planId: -1 };
+  const params: MarkerParams = { mode: null, priority: null, chamberType: null, planId: -1 };
   applyInit(params, o.params);
   const m: Marker = {
     id: allocId(ctx.state), alive: true, kind: o.kind, pos: copyV(o.pos), radius: o.radius, colony: o.colony,
-    params, placedTick: ctx.state.tick, expiresTick: o.expiresTick ?? -1,
+    targetChamberId: o.targetChamberId ?? -1, sourceChamberId: o.sourceChamberId ?? -1,
+    expiresTick: o.expiresTick ?? -1, params, placedTick: ctx.state.tick,
   };
   ctx.stores.markers.add(m);
   ctx.emit({ type: 'entity-created', entity: 'marker', id: m.id });

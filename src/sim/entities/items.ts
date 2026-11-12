@@ -16,7 +16,7 @@ export function spawnItem(ctx: EntityCtx, o: SpawnItemOptions): Item {
   const t = ctx.state.tick;
   const it: Item = {
     id: allocId(ctx.state), alive: true, kind: o.kind, pos: copyV(o.pos), c: 0, p: 0, toxin: 0, water: 0,
-    count: 1, bulk: 1, massMg: 0, lengthMm: 0, hardness: 1, carriedBy: -1, carriers: [], nestId: -1,
+    count: 1, bulk: 1, massMg: 0, lengthMm: 0, hardness: 1, carrierIds: [], nestId: -1,
     chamberId: -1, decay: 0, foodKind: null, variant: null, wasteKind: null, stage: null, stageClock: 0,
     volume: 0, material: null, droppedTick: t, inNest: false, spoilPlanId: -1, reservedBy: -1,
     necroCueTick: -1, species: null, colony: -1, unreachableBy: 0, aliveUntilTick: -1, createdTick: t,
@@ -31,7 +31,7 @@ export function spawnItem(ctx: EntityCtx, o: SpawnItemOptions): Item {
 export function removeItem(ctx: EntityCtx, id: number, cause: string): boolean {
   const it = ctx.stores.items.get(id);
   if (!it) return false;
-  for (const antId of it.carriers.length > 0 ? it.carriers : [it.carriedBy]) {
+  for (const antId of it.carrierIds) {
     const ant = ctx.stores.ants.get(antId);
     if (ant && ant.carry.kind === 'item' && ant.carry.id === id) ant.carry = { kind: 'none', id: -1 };
   }

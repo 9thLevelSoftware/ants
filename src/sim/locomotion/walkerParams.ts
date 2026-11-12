@@ -7,6 +7,11 @@ export const WALKER_TUNING = {
   footOffsetBU: 0.15,
   /** Longest substep: half a voxel, below 2 x foot offset (no tunnelling through thin sheets). */
   maxSubstepBU: 0.25,
+  /**
+   * Longest distance one walkerStep call travels (bounds the substep loop against bogus speed * dt). Legit
+   * calls stay far below it: a sprint of 25 BU/s over a 0.25 s frame hitch is 6.25 BU.
+   */
+  maxStepDistBU: 8,
   /** Newton projection per substep. */
   projIters: 6,
   projTolBU: 0.001,
@@ -47,7 +52,7 @@ export const WALKER_TUNING = {
 } as const;
 
 export interface WalkerParams {
-  footOffset: number; maxSubstep: number; projIters: number; projTol: number; acceptTol: number; projSlack: number;
+  footOffset: number; maxSubstep: number; maxStepDist: number; projIters: number; projTol: number; acceptTol: number; projSlack: number;
   chordFactor: number; chordSlack: number; midMinFoot: number; maxTurnCos: number; substepRetries: number;
   reprojTol: number; reattachMax: number; minSteer: number; gravity: number; drag: number; fallRadiusFoot: number;
   letGoPush: number; maxFallBelow: number; placeTrace: number; stride: number; minClearanceFoot: number;
@@ -61,7 +66,7 @@ export function walkerParamsForBU(bu: number): WalkerParams {
   if (hit) return hit;
   const T = WALKER_TUNING;
   const p: WalkerParams = {
-    footOffset: T.footOffsetBU * bu, maxSubstep: T.maxSubstepBU * bu, projIters: T.projIters, projTol: T.projTolBU * bu,
+    footOffset: T.footOffsetBU * bu, maxSubstep: T.maxSubstepBU * bu, maxStepDist: T.maxStepDistBU * bu, projIters: T.projIters, projTol: T.projTolBU * bu,
     acceptTol: T.acceptTolBU * bu, projSlack: T.projSlackBU * bu, chordFactor: T.chordFactor, chordSlack: T.chordSlackBU * bu,
     midMinFoot: T.midMinFoot, maxTurnCos: T.maxTurnCos, substepRetries: T.substepRetries, reprojTol: T.reprojTolBU * bu,
     reattachMax: T.reattachMaxBU * bu, minSteer: T.minSteer, gravity: T.gravity, drag: T.drag, fallRadiusFoot: T.fallRadiusFoot,

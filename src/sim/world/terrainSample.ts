@@ -6,7 +6,7 @@
 // the edge heights are extended (the slope across the clamped axis is 0 there).
 // ByteMap: cell (ix, iz) covers [ix * cell, (ix + 1) * cell) x [iz * cell, (iz + 1) * cell); out of range clamps.
 
-import type { ByteMap, HeightField } from '@/sim/types/geom';
+import type { ByteMap, GroundLayers, HeightField } from '@/sim/types/geom';
 
 /** Scratch result of heightSlope. */
 export interface HeightSlope {
@@ -53,6 +53,30 @@ export function byteAt(map: ByteMap, x: number, z: number): number {
   ix = ix < 0 ? 0 : ix >= map.nx ? map.nx - 1 : ix;
   iz = iz < 0 ? 0 : iz >= map.nz ? map.nz - 1 : iz;
   return map.data[iz * map.nx + ix];
+}
+
+/**
+ * True if an undiggable ground layer lies within `reach` (mm, in depth) of `depth` in any ground cell touched by
+ * the square [x - spread, x + spread] x [z - spread, z + spread]. Depth is mm below the terrain surface (< 0 in
+ * the air). Layers per cell: the crust [0, crustMm) of the surface material, the subsoil below it.
+ * `digOk[code]` is 1 for diggable material codes. Checks the square's 4 corners, so every touched cell is seen
+ * when the map cells are at least 2 * spread wide. reach = spread = 0 is the plain layer test at one point.
+ */
+export function hardLayerNear(g: GroundLayers, digOk: Uint8Array, x: number, z: number, depth: number, reach: number, spread: number): boolean {
+  const lo = depth - reach, hi = depth + reach;
+  if (hi < 0) return false; // the whole reach lies above the ground
+  // usual case: the square lies inside one cell of maps sharing their cell size -> one corner says it all
+  const cell = g.crustMm.cell;
+  const one = g.surface.cell === cell && g.subsoil.cell === cell
+    && Math.floor((x - spread) / cell) === Math.floor((x + spread) / cell)
+    && Math.floor((z - spread) / cell) === Math.floor((z + spread) / cell);
+  for (let n = 0, corners = one ? 1 : 4; n < corners; n++) {
+    const px = n & 1 ? x + spread : x - spread, pz = n & 2 ? z + spread : z - spread;
+    const crust = byteAt(g.crustMm, px, pz);
+    if (crust > 0 && lo < crust && digOk[byteAt(g.surface, px, pz)] === 0) return true;
+    if (hi >= crust && digOk[byteAt(g.subsoil, px, pz)] === 0) return true;
+  }
+  return false;
 }
 
 function holeCell(map: ByteMap, ix: number, iz: number): boolean {

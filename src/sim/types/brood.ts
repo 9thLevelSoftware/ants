@@ -1,7 +1,7 @@
 // Brood entity: egg, larva, pupa (GDD 02 §2, GDD 07 A.2). Physically carried and fed.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { BroodStage, Caste } from './ids';
+import type { BroodCaste, BroodStage } from './ids';
 
 /** Bit flags in `Brood.flags`. */
 export const BroodFlag = {
@@ -20,8 +20,8 @@ export interface Brood {
   alive: boolean;
   colony: number;
   stage: BroodStage;
-  /** Caste this brood will become. */
-  destined: Caste;
+  /** Caste this brood will become (never `queen`, D7.3). */
+  destined: BroodCaste;
   /** BroodFlag bits. */
   flags: number;
   /** Progress through the current stage, 0..1. */

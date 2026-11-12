@@ -1,0 +1,304 @@
+/**
+ * Draws every ant (instanced, vertex-animated, LOD by projected size), the items they carry, and loose brood/items.
+ * Reads the simulation only through SimReader (simAdapter.ts) and never writes it.
+ *
+ * Per frame: sample + interpolate each live ant, advance its render state (gait by distance walked, smoothed up,
+ * blended pose), cull against the frustum, stage its instance data, pick LODs under the caps (the possessed ant is
+ * always drawn at LOD0), then copy the staged data into the batches and upload only the used ranges.
+ */
+import { Frustum, Group, Matrix4, Sphere, type PerspectiveCamera } from 'three';
+import type { QualityPreset } from '@/render/app/quality';
+import type { AntFrameInfo, AntRenderContext, AntRenderStats, PickTarget } from './frame';
+import { SimReader, newAntSample, type AntSimSource, type BroodView, type ItemView } from './simAdapter';
+import { AntStateTable, smoothFactors, stepAntState, trackOffscreen, type SmoothFactors } from './antState';
+import { footTarget } from './gait';
+import { copyPose, poseTarget, withAlarm, withCarry, NEUTRAL_POSE, type PoseTarget } from './poses';
+import { selectLods, type SelectResult } from './select';
+import { GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
+import { createSharedUniforms, type SharedAntUniforms } from './shader/materials';
+import { VariantStore } from './variantStore';
+import { ItemCatalog } from './items/catalog';
+import { LooseItemRenderer, type LooseInstance } from './items/looseRenderer';
+import { speciesMorphs } from './morph/catalog';
+import type { InstanceBatch } from './batches';
+
+/** Floats staged per ant: matrix 16 + aGait, aPose, aTint, aAct, aExtra (4 each). */
+const STRIDE = 36;
+const DEBUG_LOD_TINT: [number, number, number][] = [[12, 1, 1], [1, 10, 1.5], [1.5, 3, 16], [14, 12, 1]];
+
+export class AntRenderer {
+  readonly group = new Group();
+  private ctx!: AntRenderContext;
+  private reader: SimReader | null = null;
+  private shared: SharedAntUniforms = createSharedUniforms();
+  private store!: VariantStore;
+  private catalog!: ItemCatalog;
+  private loose!: LooseItemRenderer;
+  private states = new AntStateTable();
+  private settings!: AntLodSettings;
+  private stamp = 0;
+  private sample = newAntSample();
+  private pose: PoseTarget = { ...NEUTRAL_POSE };
+  private kSmooth: SmoothFactors = { up: 0, pose: 0 };
+  // staging (grown on demand)
+  private cap = 0;
+  private stage = new Float32Array(0);
+  private dist = new Float32Array(0); private px = new Float32Array(0);
+  private forced = new Uint8Array(0); private lod = new Int8Array(0); private order = new Int32Array(0);
+  private vIdx = new Int32Array(0); private stagedId = new Int32Array(0); private stagedCount = 0; private carryKey: (string | null)[] = []; private carrySize = new Float32Array(0);
+  private sel: SelectResult = { counts: [0, 0, 0, 0], dropped: 0, sorted: false };
+  private frustum = new Frustum(); private pm = new Matrix4(); private sph = new Sphere();
+  private carriedBrood = new Map<number, BroodView>(); private carriedItems = new Map<number, ItemView>();
+  private looseList: LooseInstance[] = []; private loosePool: LooseInstance[] = [];
+  private hover: PickTarget | null = null; private inspect: PickTarget | null = null;
+  /** Debug: tint each ant by its LOD (red 0, green 1, blue 2, yellow 3). */
+  debugLodTint = false;
+  /** Debug: force every ant to one LOD (null = automatic). */
+  forceLod: number | null = null;
+  stats: AntRenderStats = { ants: 0, visible: [0, 0, 0, 0], culled: 0, dropped: 0, wings: 0, carried: 0, looseItems: 0, drawCalls: 0, triangles: 0, cpuMs: 0, sampleMs: 0, uploadMs: 0, variants: 0, buildMs: 0 };
+
+  init(ctx: AntRenderContext): void {
+    this.ctx = ctx;
+    this.group.name = 'ants';
+    ctx.scene.add(this.group);
+    this.applyQuality(ctx.quality);
+    this.store = new VariantStore(this.group, this.shared, (sp) => this.reader?.speciesInfo(sp).appearance ?? null, { physicalLod0: this.settings.physicalLod0, shadows: this.settings.shadows });
+    this.catalog = new ItemCatalog({
+      variant: (sp, c, sc) => this.store.variant(sp, c, sc),
+      cocoons: (sp) => speciesMorphs(sp).morphs.cocoons,
+      buMm: (sp) => this.reader?.speciesInfo(sp).buMm ?? 4,
+    });
+    this.loose = new LooseItemRenderer(this.group, this.shared, (k) => this.catalog.get(k), this.settings.shadows);
+  }
+
+  setSim(sim: AntSimSource | null): void {
+    this.reader = sim ? new SimReader(sim) : null;
+  }
+
+  setQuality(q: QualityPreset): void {
+    this.applyQuality(q);
+    this.store.setOptions({ physicalLod0: this.settings.physicalLod0, shadows: this.settings.shadows });
+    this.loose.shadows = this.settings.shadows;
+  }
+
+  /** Overrides LOD thresholds / caps (debug, benchmarks). */
+  setLod(o: Partial<AntLodSettings>): AntLodSettings { Object.assign(this.settings, o); return this.settings; }
+  get lodSettings(): Readonly<AntLodSettings> { return this.settings; }
+
+  setHover(t: PickTarget | null): void { this.hover = t; }
+  setInspect(t: PickTarget | null): void { this.inspect = t; }
+
+  /** Builds the variants of a species ahead of use (avoids a hitch on first sight). */
+  prebuild(species: string, castes: { caste: string; sizeClass?: string | null }[]): void {
+    for (const c of castes) this.store.index(species, c.caste, c.sizeClass ?? null);
+  }
+
+  private applyQuality(q: QualityPreset): void {
+    this.settings = lodSettingsFor(q.id, q.density.crowdLod, q.shadows.enabled);
+  }
+
+  private highlightOf(kind: PickTarget['kind'], id: number, possessed: boolean): number {
+    if (possessed && kind === 'ant') return HIGHLIGHT.possessed;
+    if (this.hover && this.hover.kind === kind && this.hover.id === id) return -HIGHLIGHT.hovered;
+    if (this.inspect && this.inspect.kind === kind && this.inspect.id === id) return -HIGHLIGHT.inspected;
+    return 0;
+  }
+
+  update(frame: AntFrameInfo): void {
+    const t0 = performance.now();
+    if (frame.sim !== undefined && (frame.sim === null ? this.reader !== null : this.reader?.sim !== frame.sim)) this.setSim(frame.sim);
+    const reader = this.reader;
+    const camera: PerspectiveCamera = frame.camera ?? this.ctx.camera;
+    this.store.forEachBatch((b) => b.reset());
+    this.stamp++;
+    this.shared.uTime.value = frame.time;
+    if (!reader) { this.store.forEachBatch((b) => b.commit()); this.loose.update([], camera, 1, 1, 0); return; }
+    reader.beginFrame();
+    camera.updateMatrixWorld();
+    this.pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.pm);
+    const viewportH = frame.viewportHeightPx ?? this.ctx.renderer?.domElement.height ?? 720;
+    const pxPerMm = viewportH / (2 * Math.tan((camera.fov * Math.PI) / 360));
+    const camPos = camera.position;
+    const dt = Math.max(0, frame.dt);
+    this.collectCarried(reader);
+    smoothFactors(dt, this.kSmooth);
+
+    // ---- pass 1: sample, step render state, cull, stage
+    const ants = reader.ants;
+    this.ensureCap(ants.length);
+    let n = 0, culled = 0;
+    const smp = this.sample;
+    for (const a of ants) {
+      if (!a.alive) continue;
+      reader.readAnt(a, frame.alpha, smp);
+      const st = this.states.get(smp.id, this.stamp);
+      if (st.vi < 0 || st.vSpecies !== smp.species || st.vCaste !== smp.caste || st.vSize !== smp.sizeClass) {
+        st.vi = this.store.index(smp.species, smp.caste, smp.sizeClass); st.vSpecies = smp.species; st.vCaste = smp.caste; st.vSize = smp.sizeClass;
+      }
+      const vi = st.vi;
+      const v = this.store.entries[vi]!.variant;
+      const scale = smp.lengthMm / v.morph.bodyLength;
+      // cull first (generous sphere incl. a carried item); off-screen ants only keep their position current
+      const L = smp.lengthMm;
+      this.sph.center.set(smp.pos.x + smp.up.x * L * 0.1, smp.pos.y + smp.up.y * L * 0.1, smp.pos.z + smp.up.z * L * 0.1);
+      this.sph.radius = L * (v.wings ? 1.3 : 0.9) + (smp.carryKind !== 'none' ? L : 0);
+      if (!smp.possessed && !this.frustum.intersectsSphere(this.sph)) { trackOffscreen(st, smp); culled++; continue; }
+      // carried thing and its carry pose
+      let ck: string | null = null, cs = 0;
+      if (smp.carryKind === 'brood') {
+        const b = this.carriedBrood.get(smp.carryId);
+        if (b) { const r = this.catalog.brood(b, reader.speciesOfColony(b.colony), true); ck = r.key; cs = r.sizeMm; }
+      } else if (smp.carryKind === 'item') {
+        const it = this.carriedItems.get(smp.carryId);
+        if (it) { const r = this.catalog.item(it, it.species ?? smp.species); ck = r.key; cs = r.sizeMm; }
+      }
+      const target = this.pose;
+      if (ck) { const c = this.catalog.get(ck).carry; withCarry(poseTarget(smp.poseId), c.raise, c.gape, target); }
+      else copyPose(poseTarget(smp.poseId), target);
+      withAlarm(target, smp.alarm);
+      stepAntState(st, smp, target, v.rig.gait[0] * scale, dt, this.kSmooth);
+      const d = Math.max(1e-3, camPos.distanceTo(this.sph.center));
+      this.dist[n] = d; this.px[n] = (L / d) * pxPerMm; this.forced[n] = smp.possessed ? 1 : 0;
+      this.vIdx[n] = vi; this.stagedId[n] = smp.id; this.carryKey[n] = ck; this.carrySize[n] = cs;
+      this.stageAnt(n, st, scale, L);
+      n++;
+    }
+    this.states.sweep(this.stamp);
+    this.stagedCount = n;
+
+    // ---- pass 2: LOD + caps, then write batches
+    const t1 = performance.now();
+    const s = this.settings;
+    selectLods(n, this.dist, this.px, this.forced, s, this.lod, this.order, this.sel);
+    let wings = 0, carried = 0;
+    for (let i = 0; i < n; i++) {
+      let lod = this.lod[i]!;
+      if (lod < 0) continue;
+      if (this.forceLod !== null && !this.forced[i]) lod = this.forceLod;
+      const e = this.store.entries[this.vIdx[i]!]!;
+      const b = e.lods[lod]!;
+      const j = this.writeStaged(b, i);
+      if (this.debugLodTint) { const t = DEBUG_LOD_TINT[lod]!; b.a.aTint[j * 4] *= t[0]; b.a.aTint[j * 4 + 1] *= t[1]; b.a.aTint[j * 4 + 2] *= t[2]; }
+      if (lod < 2 && e.wings) { e.wings.copyFrom(b, j); wings++; }
+      const ck = this.carryKey[i];
+      if (ck && lod < 2) {
+        const def = this.catalog.get(ck);
+        const ib = this.store.itemBatch(e, def, lod === 0);
+        const k = ib.copyFrom(b, j);
+        ib.a.aExtra[k * 4] = this.carrySize[i]! / def.nominalMm;
+        carried++;
+      }
+    }
+    this.store.forEachBatch((b) => b.commit());
+    const t2 = performance.now();
+
+    // ---- loose brood and items
+    this.loose.update(this.looseList, camera, viewportH, s.itemMinPx, s.maxItems);
+
+    let calls = 0, tris = 0;
+    this.store.forEachBatch((b) => { if (b.n > 0) { calls++; tris += b.n * b.tris; } });
+    this.stats = {
+      ants: n + culled, visible: [...this.sel.counts], culled, dropped: this.sel.dropped, wings, carried,
+      looseItems: this.loose.drawn, drawCalls: calls + this.loose.drawCalls, triangles: tris + this.loose.triangles,
+      cpuMs: performance.now() - t0, sampleMs: t1 - t0, uploadMs: t2 - t1, variants: this.store.entries.length, buildMs: this.store.buildMs,
+    };
+  }
+
+  /** Splits brood/items into carried (attached to the carrier's head) and loose (drawn where they lie). */
+  private collectCarried(reader: SimReader): void {
+    this.carriedBrood.clear(); this.carriedItems.clear();
+    for (const l of this.looseList) this.loosePool.push(l);
+    this.looseList.length = 0;
+    const push = (key: string, x: number, y: number, z: number, sizeMm: number, id: number, hi: number, pile: boolean) => {
+      const o = this.loosePool.pop() ?? { key, x, y, z, sizeMm, id, highlight: hi, pile };
+      o.key = key; o.x = x; o.y = y; o.z = z; o.sizeMm = sizeMm; o.id = id; o.highlight = hi; o.pile = pile;
+      this.looseList.push(o);
+    };
+    for (const b of reader.brood) {
+      if (!b.alive) continue;
+      if (b.carriedBy >= 0) { this.carriedBrood.set(b.id, b); continue; }
+      const r = this.catalog.brood(b, reader.speciesOfColony(b.colony), false);
+      push(r.key, b.pos.x, b.pos.y, b.pos.z, r.sizeMm, b.id, this.highlightOf('brood', b.id, false), true);
+    }
+    for (const it of reader.items) {
+      if (!it.alive) continue;
+      if (reader.itemCarrier(it) >= 0) { this.carriedItems.set(it.id, it); continue; }
+      const sp = it.species ?? reader.speciesOfColony(it.colony);
+      const r = this.catalog.item(it, sp);
+      push(r.key, it.pos.x, it.pos.y, it.pos.z, r.sizeMm, it.id, this.highlightOf('item', it.id, false), it.kind === 'soil-pellet' || it.kind === 'seed');
+    }
+  }
+
+  private ensureCap(n: number): void {
+    if (n <= this.cap) return;
+    const c = Math.max(64, 1 << Math.ceil(Math.log2(n)));
+    this.cap = c;
+    this.stage = new Float32Array(c * STRIDE);
+    this.dist = new Float32Array(c); this.px = new Float32Array(c); this.forced = new Uint8Array(c);
+    this.lod = new Int8Array(c); this.order = new Int32Array(c); this.vIdx = new Int32Array(c); this.stagedId = new Int32Array(c);
+    this.carrySize = new Float32Array(c); this.carryKey = new Array<string | null>(c).fill(null);
+  }
+
+  /** Writes ant n's instance data (matrix + 5 vec4) into the staging buffer. */
+  private stageAnt(n: number, st: ReturnType<AntStateTable['get']>, scale: number, L: number): void {
+    const smp = this.sample; const o = n * STRIDE; const S = this.stage;
+    const u = st.up, f = st.fwd;
+    // body frame: X = left = up x fwd, Y = up, Z = fwd
+    const lx = u.y * f.z - u.z * f.y, ly = u.z * f.x - u.x * f.z, lz = u.x * f.y - u.y * f.x;
+    S[o] = lx * scale; S[o + 1] = ly * scale; S[o + 2] = lz * scale; S[o + 3] = 0;
+    S[o + 4] = u.x * scale; S[o + 5] = u.y * scale; S[o + 6] = u.z * scale; S[o + 7] = 0;
+    S[o + 8] = f.x * scale; S[o + 9] = f.y * scale; S[o + 10] = f.z * scale; S[o + 11] = 0;
+    S[o + 12] = smp.pos.x; S[o + 13] = smp.pos.y; S[o + 14] = smp.pos.z; S[o + 15] = 1;
+    const p = st.pose;
+    const moving = smp.speed / (GAIT.cruiseBodyLengthsPerS * L);
+    const idle = moving < 0.03 && smp.poseId === 'walk' ? 1 : 0;
+    S[o + 16] = st.gait.phase; S[o + 17] = moving; S[o + 18] = st.gait.yawPerCycle; S[o + 19] = st.seed;
+    S[o + 20] = p.raise; S[o + 21] = p.gaster; S[o + 22] = smp.crop; S[o + 23] = p.gape;
+    S[o + 24] = st.tint[0]; S[o + 25] = st.tint[1]; S[o + 26] = st.tint[2]; S[o + 27] = idle;
+    S[o + 28] = st.gait.share; S[o + 29] = p.pitch; S[o + 30] = p.groom; S[o + 31] = p.chew;
+    S[o + 32] = Math.max(p.spread, smp.airborne ? 0.8 : 0); S[o + 33] = this.highlightOf('ant', smp.id, smp.possessed); S[o + 34] = smp.callow; S[o + 35] = p.antenna;
+  }
+
+  private writeStaged(b: InstanceBatch, i: number): number {
+    const j = b.next(); const o = i * STRIDE; const S = this.stage;
+    b.m.set(S.subarray(o, o + 16), j * 16);
+    b.a.aGait.set(S.subarray(o + 16, o + 20), j * 4);
+    b.a.aPose.set(S.subarray(o + 20, o + 24), j * 4);
+    b.a.aTint.set(S.subarray(o + 24, o + 28), j * 4);
+    b.a.aAct.set(S.subarray(o + 28, o + 32), j * 4);
+    b.a.aExtra.set(S.subarray(o + 32, o + 36), j * 4);
+    return j;
+  }
+
+  /**
+   * Debug / verification: world positions of the six feet (tarsus tips, before IK) of a drawn ant, from the same
+   * phase and matrix the shader received this frame. Used by the demo's foot-sliding measurement.
+   */
+  debugFeet(id: number): { x: number; y: number; z: number; stance: boolean }[] | null {
+    const st = this.states.peek(id);
+    if (!st) return null;
+    let i = -1;
+    for (let k = 0; k < this.stagedCount; k++) if (this.stagedId[k] === id) { i = k; break; }
+    if (i < 0) return null;
+    const rig = this.store.entries[this.vIdx[i]!]!.variant.rig; const S = this.stage; const o = i * STRIDE;
+    const out: { x: number; y: number; z: number; stance: boolean }[] = [];
+    const ft = { x: 0, y: 0, z: 0, stance: false };
+    for (let leg = 0; leg < 6; leg++) {
+      footTarget(rig, leg, st.gait, S[o + 17]!, ft);
+      out.push({
+        x: S[o]! * ft.x + S[o + 4]! * ft.y + S[o + 8]! * ft.z + S[o + 12]!,
+        y: S[o + 1]! * ft.x + S[o + 5]! * ft.y + S[o + 9]! * ft.z + S[o + 13]!,
+        z: S[o + 2]! * ft.x + S[o + 6]! * ft.y + S[o + 10]! * ft.z + S[o + 14]!,
+        stance: ft.stance,
+      });
+    }
+    return out;
+  }
+
+  dispose(): void {
+    this.store?.dispose();
+    this.loose?.dispose();
+    this.group.removeFromParent();
+    this.reader = null;
+  }
+}

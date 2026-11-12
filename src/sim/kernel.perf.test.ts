@@ -111,7 +111,33 @@ describe('kernel performance', () => {
       for (let i = 0; i < 200000; i++) acc += k.field.gradientXYZ(420 + (i % 100) * 0.03, slabBottom - 6.9, 470, g);
       return ((now() - t0) * 1e6) / 200000;
     }).toFixed(1);
+    // project() where the gradient vanishes runs the 98-ray probe: a chamber centre, deep solid next to a tunnel
+    const s = makeSceneWorld(7), out = v(0, 0, 0);
+    const probeUs = (p: Vec3) => bestOf(3, () => {
+      const t0 = now();
+      for (let i = 0; i < 200; i++) if (k.field.project(p, k.walker.footOffset, out)) acc += out.y;
+      return ((now() - t0) * 1000) / 200;
+    });
+    results.projectProbeChamberUs = +probeUs(s.nest.chambers[1].c).toFixed(1);
+    results.projectProbeSolidUs = +probeUs(v(316, -52 + 2.85 * BU, 316)).toFixed(1);
     expect(Number.isFinite(acc)).toBe(true);
+  }, LONG);
+
+  it('brush cost (default dig predicate; near the surface incl. field-based breach detection)', () => {
+    const brushUs = (y: number, r: number) => {
+      const kk = createKernel(makeSceneWorld(7).world, emptyCarve(BU));
+      let n = 0;
+      return bestOf(3, () => {
+        const t0 = now();
+        for (let i = 0; i < 60; i++, n++) kk.carveSphere(v(60 + (n % 40) * 13, y, 60 + Math.floor(n / 40) * 13), r);
+        return ((now() - t0) * 1000) / 60;
+      });
+    };
+    results.carveDeepR1Us = +brushUs(-40, BU).toFixed(1);
+    results.carveDeepR3Us = +brushUs(-40, 3 * BU).toFixed(1);
+    results.carveSurfaceR1Us = +brushUs(0, BU).toFixed(1);
+    results.carveSurfaceR3Us = +brushUs(0, 3 * BU).toFixed(1);
+    expect(results.carveSurfaceR3Us as number).toBeLessThan(2000);
   }, LONG);
 
   it('meshing a busy chunk takes < 3 ms', () => {

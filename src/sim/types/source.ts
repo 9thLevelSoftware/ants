@@ -1,4 +1,5 @@
-// Persistent food sources on surfaces (contracts guidance §6, GDD 05 §1, App. A `ecology.sources`).
+// Persistent food sources on surfaces (contracts guidance §6, GDD 05 §1, App. A `ecology.sources`; D2.21).
+// GDD 05's optional fields (pool?, stage? ...) use -1 / null here: persisted objects never miss keys.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { FoodKind } from './ids';
@@ -21,7 +22,7 @@ export interface FoodSource {
   /** World food anchor it came from (WorldData.placements.foodAnchors index), -1 if spawned at runtime. */
   anchorId: number;
   /** Units remaining (solid pieces or liquid loads). */
-  amount: number;
+  units: number;
   /** Maximum units. */
   capacity: number;
   /** Bulk of one unit, loads of carry capacity. */

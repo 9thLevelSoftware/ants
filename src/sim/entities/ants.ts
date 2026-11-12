@@ -3,17 +3,17 @@
 import type { Vec3 } from '@/core/math/vec3';
 import { rngFloat, rngGauss } from '@/core/rng';
 import { clamp } from '@/core/math/scalar';
-import type { Ant, Caste, CasteDef, DeathCause, QueenState, Task } from '@/sim/types';
-import { AntFlag, TASKS } from '@/sim/types';
+import type { AgeBand, Ant, Caste, CasteDef, DeathCause, QueenState, Task } from '@/sim/types';
+import { AntFlag, TASK_COUNT, TASKS } from '@/sim/types';
 import {
-  DEFAULT_ARRIVE_BU, DEFAULT_LIFESPAN_GD, FALLBACK_BU_MM, FECUNDITY_MAX, FECUNDITY_MEAN, FECUNDITY_MIN,
-  FECUNDITY_SD, FOOT_OFFSET_BU, LAYING_LOG_DAYS, LIFESPAN_MAX_FRAC, LIFESPAN_MIN_FRAC, QUEEN_RESERVE_C_START,
-  QUEEN_RESERVE_P_START, SPAWN_TB_C, THETA_BASE, THETA_NEVER, WALKER_RADIUS_PER_LENGTH,
+  AGE_MID_MAX_GD, AGE_YOUNG_MAX_GD, CALLOW_GD, DEFAULT_ARRIVE_BU, DEFAULT_LIFESPAN_GD, FECUNDITY_MAX,
+  FECUNDITY_MEAN, FECUNDITY_MIN, FECUNDITY_SD, FOOT_OFFSET_BU, LIFESPAN_MAX_FRAC, LIFESPAN_MIN_FRAC,
+  RESERVE_CAP_BY_BAND, SPAWN_TB_C, THETA_BASE, THETA_NEVER, WALKER_RADIUS_PER_LENGTH,
 } from '@/sim/balance';
 import { getSpecies } from '@/sim/species';
-import { TICKS_PER_DAY } from '@/sim/time';
-import { casteDef, deriveAntStats } from './antStats';
-import { allocId, type EntityCtx } from './context';
+import { daysPerYear } from '@/sim/time';
+import { casteDef, getAntStats } from './antStats';
+import { allocId, worldBu, type EntityCtx } from './context';
 import { newAntMemory, newWalker } from './walker';
 import { copyV, v3 } from './util';
 
@@ -25,7 +25,7 @@ export interface SpawnAntOptions {
   up?: Vec3;
   fwd?: Vec3;
   task?: Task;
-  /** Body length, BU; drawn from the caste's triangular distribution when omitted. */
+  /** Body length in the species' own BU; drawn from the caste's triangular distribution when omitted. */
   lengthBu?: number;
   /** Physiological age at spawn, game days (0 = just eclosed). */
   ageGd?: number;
@@ -64,14 +64,24 @@ function drawLifespanGd(ctx: EntityCtx, cd: CasteDef | undefined, colonySize: nu
   return clamp(rngGauss(ctx.state.rng, mean, cd.lifespanGd.sd), mean * LIFESPAN_MIN_FRAC, mean * LIFESPAN_MAX_FRAC);
 }
 
-function newQueenState(ctx: EntityCtx, founding: boolean, r0: number): QueenState {
+/** Age band of a physiological age (GDD 02 §1.3). */
+export function ageBandOf(physioAgeGd: number): AgeBand {
+  if (physioAgeGd < CALLOW_GD) return 'callow';
+  if (physioAgeGd < AGE_YOUNG_MAX_GD) return 'young';
+  return physioAgeGd < AGE_MID_MAX_GD ? 'mid' : 'old';
+}
+
+/**
+ * Queen extras. A founding queen holds everything in the single reserve pool R0 (GDD 06 model, E-19); `reserve`
+ * and `reserveP` start empty and are filled by the hand-over split (E-21).
+ */
+function newQueenState(ctx: EntityCtx, founding: boolean, R0: number): QueenState {
   const rng = ctx.state.rng;
   return {
-    mode: founding ? 'founding' : 'established', gutC: 0, gutP: 0,
-    reserveC: QUEEN_RESERVE_C_START, reserveP: QUEEN_RESERVE_P_START,
+    mode: founding ? 'founding' : 'established', gut: { c: 0, p: 0 }, reserve: 0, reserveP: 0,
     fecundity: clamp(rngGauss(rng, FECUNDITY_MEAN, FECUNDITY_SD), FECUNDITY_MIN, FECUNDITY_MAX),
-    eggBudget: 0, layingLog: new Int16Array(LAYING_LOG_DAYS), clutchLaid: 0, ageDays: 0, lifespanDays: -1,
-    founding: founding ? { reserveLoads: r0, r0, desiccation: 0, wings: true, eggsLaid: 0 } : null, // dealation is an opening phase
+    eggBudget: 0, layingLog: new Int16Array(daysPerYear(ctx.state.config)), clutchLaid: 0,
+    founding: founding ? { reserveLoads: R0, R0, desiccation: 0, wings: true, eggsLaid: 0 } : null, // dealation is an opening phase
   };
 }
 
@@ -80,21 +90,23 @@ export function spawnAnt(ctx: EntityCtx, o: SpawnAntOptions): Ant {
   const colony = ctx.stores.colonies.get(o.colony);
   const def = colony ? getSpecies(colony.species) : undefined;
   const cd = casteDef(def, o.caste);
-  const bu = def?.buMm ?? FALLBACK_BU_MM;
+  const bu = worldBu(ctx);
   const rng = state.rng;
-  const lengthBu = o.lengthBu ?? (cd ? triangular(cd.lengthBu.min, cd.lengthBu.mean, cd.lengthBu.max, rngFloat(rng)) : 1);
-  const stats = deriveAntStats(def, o.caste, lengthBu);
+  const founding = o.founding === true;
+  const ownLength = o.lengthBu ?? (cd ? triangular(cd.lengthBu.min, cd.lengthBu.mean, cd.lengthBu.max, rngFloat(rng)) : undefined);
+  const stats = colony ? getAntStats(ctx, colony.species, o.caste, ownLength, founding) : getAntStats(ctx, state.config.species, o.caste, ownLength, founding);
+  const lengthBu = stats.lengthBu;
   const lifespanGd = drawLifespanGd(ctx, cd, colony ? colony.livingAnts : 0);
+  const ageGd = o.ageGd ?? 0;
   const up = o.up ?? v3(0, 1, 0);
   const fwd = o.fwd ?? v3(1, 0, 0);
   const foot = FOOT_OFFSET_BU * bu;
   const pos = { x: o.pos.x + up.x * foot, y: o.pos.y + up.y * foot, z: o.pos.z + up.z * foot };
-  const thresholds = new Float32Array(TASKS.length);
-  for (let i = 0; i < TASKS.length; i++) {
+  const thresholds = new Float32Array(TASK_COUNT);
+  for (let i = 0; i < TASK_COUNT; i++) {
     const w = cd?.taskWeights[TASKS[i]];
     thresholds[i] = w === 0 ? THETA_NEVER : THETA_BASE;
   }
-  const founding = o.founding === true;
   let flags = o.flags ?? 0;
   if (founding) flags |= AntFlag.FOUNDING;
   if (o.caste === 'gyne' || o.caste === 'male') flags |= AntFlag.WINGED;
@@ -102,17 +114,16 @@ export function spawnAnt(ctx: EntityCtx, o: SpawnAntOptions): Ant {
   const ant: Ant = {
     ...walker,
     id: allocId(state), alive: true, colony: o.colony, caste: o.caste,
-    bornTick: state.tick, lifespanTicks: Math.round(lifespanGd * TICKS_PER_DAY),
-    physioAgeTicks: Math.round((o.ageGd ?? 0) * TICKS_PER_DAY),
+    bornTick: state.tick, lifespanGd, physioAgeGd: ageGd,
     hp: stats.maxHp, maxHp: stats.maxHp, cropC: 0, cropP: 0, cropCap: stats.cropCap, carryCap: stats.carryCap,
-    energy: 1, fatigue: 0, lengthBu, massMg: stats.massMg, sizeClass: null,
+    energy: RESERVE_CAP_BY_BAND[ageBandOf(ageGd)], fatigue: 0, lengthBu, massMg: stats.massMg, sizeClass: null,
     carry: { kind: 'none', id: -1 }, task: o.task ?? 'idle', taskTick: state.tick, suspendedTask: null,
     state: 'idle', stateTick: state.tick, target: { kind: 'none', id: -1, pos: copyV(pos) }, action: null,
     mem: newAntMemory(), nestId: o.nestId ?? -1, chamberId: o.chamberId ?? -1, combat: null, flags, pose: 0,
     thinkTick: state.tick, bb: {}, thresholds, activation: 0, tb: SPAWN_TB_C, heatLoad: 0, coldLoad: 0,
-    thermalState: 'normal', acid: def?.combat.acid?.max ?? 0, injuries: 0,
-    alarmLevel: 0, dirt: 0, cd: { bite: 0, special: 0, dodge: 0, acidRegen: 0, lay: 0, alarm: 0 },
-    queen: o.caste === 'queen' ? newQueenState(ctx, founding, def ? def.opening.r0 : 0) : null,
+    thermalState: 'normal', acid: def?.combat.acid?.max ?? 0, acidRegenTick: 0, layCooldownUntilTick: 0, injuries: 0,
+    alarmLevel: 0, dirt: 0,
+    queen: o.caste === 'queen' ? newQueenState(ctx, founding, def ? def.opening.R0 : 0) : null,
     alate: o.caste === 'gyne' || o.caste === 'male' ? { state: 'callow-alate', flightPhase: null, flightEnergy: 1, mating: 0 } : null,
   };
   ctx.stores.ants.add(ant);
@@ -132,8 +143,7 @@ export function killAnt(ctx: EntityCtx, id: number, cause: DeathCause): boolean 
   if (ant.carry.kind === 'item') {
     const it = ctx.stores.items.get(ant.carry.id);
     if (it) {
-      it.carriedBy = -1;
-      it.carriers = it.carriers.filter((c) => c !== id);
+      it.carrierIds = it.carrierIds.filter((c) => c !== id);
       it.pos = copyV(ant.pos);
     }
   } else if (ant.carry.kind === 'brood') {

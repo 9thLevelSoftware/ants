@@ -27,7 +27,7 @@ function placeMatrix(x: number, y: number, z: number, yaw: number, n: Vector3, s
 
 // ------------------------------------------------------------------------------------------------ leaves
 export function buildLeaves(tex: TextureSet, count: number, seed = 5) {
-  const rnd = mulberry32(seed);
+  void mulberry32;
   const group = new Group(); group.name = 'leaves';
   const mats: MeshStandardMaterial[] = [];
   const tops: { p: Vector3; n: Vector3; r: number }[] = [];
@@ -36,6 +36,7 @@ export function buildLeaves(tex: TextureSet, count: number, seed = 5) {
     { name: 'leaf_atlas_oak_dry', cols: 4, rows: 4, aspect: 0.62, share: 0.6, len: [95, 140], curl: [0.03, 0.1] },
   ];
   for (const set of sets) {
+    const rnd = mulberry32(seed + (set.name === 'leaf_atlas_maple' ? 0 : 1000)); // stable placement whatever the count
     const t = tex.mats[set.name]!;
     const n = Math.max(2, Math.round(count * set.share));
     const g = new PlaneGeometry(1, 1, 12, 6); g.rotateX(-Math.PI / 2);
@@ -50,7 +51,7 @@ export function buildLeaves(tex: TextureSet, count: number, seed = 5) {
         let tries = 0;
         do {
           const r = 60 + 1500 * Math.pow(rnd(), 1.6), a = rnd() * Math.PI * 2; x = Math.cos(a) * r; z = Math.sin(a) * r * 1.2 - 200; tries++;
-        } while (tries < 20 && (z < kerbZ0() + 10 && x > LAYOUT.slabX0 - 10 || (grassDensity(x, z) > 0.6 && rnd() < 0.7) || Math.hypot(x, z) < 45));
+        } while (tries < 20 && (z < kerbZ0() + 10 && x > LAYOUT.slabX0 - 10 || (grassDensity(x, z) > 0.6 && rnd() < 0.7) || Math.hypot(x, z) < 70 || (z > -60 && Math.hypot(x, z) < 220)));
       }
       const L = set.len[0] + rnd() * (set.len[1] - set.len[0]);
       const slab = onSlab(x, z);

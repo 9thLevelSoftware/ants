@@ -2,7 +2,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { HumanEventKind, Season, SpeedLevel, WeatherState, ZoneType } from './ids';
-import type { AutoSlowTrigger, DayPhase, RainClass } from './ids/progression';
+import type { AlertKind, AlertLevel, DayPhase, RainClass } from './ids/progression';
 import type { HumanCueKind, HumanVariant, MicroKind, WorldgenCheck } from './ids/world';
 
 export type WorldEvent =
@@ -26,8 +26,7 @@ export type WorldEvent =
   | { type: 'human.impact'; instId: number; kind: HumanEventKind; contact: string; footprint: Vec3; radiusMm: number }
   | { type: 'human.casualties'; instId: number; killed: number; displaced: number; itemsRemoved: number }
   | { type: 'human.bait-placed'; id: number; pos: Vec3 }
-  | { type: 'human.bait-removed'; id: number; pos: Vec3 }
-  | { type: 'sound.cue'; kind: string; pos: Vec3; gain: number };
+  | { type: 'human.bait-removed'; id: number; pos: Vec3 };
 
 export type TimeWeatherEvent =
   | { type: 'time.hour'; hour: number }
@@ -35,9 +34,11 @@ export type TimeWeatherEvent =
   | { type: 'time.day'; dayIndex: number; doy: number; weekday: number; isWeekend: boolean }
   | { type: 'time.season'; season: Season; year: number }
   | { type: 'time.year'; year: number }
+  /** Running speed or pause changed (`to` 0 = paused). reason: 'command' | 'possession' | 'opening' | 'auto-slow'. */
   | { type: 'time.speed-changed'; from: SpeedLevel; to: SpeedLevel; reason: string }
   | { type: 'time.speed-limited'; requested: SpeedLevel; effective: number; droppedTicks: number }
-  | { type: 'time.auto-slow'; trigger: AutoSlowTrigger; action: string }
+  /** Auto-slow fired for an alert (D6.8: keyed on alert kind and level). */
+  | { type: 'time.auto-slow'; alertKind: AlertKind; level: AlertLevel; action: 'slow' | 'pause' }
   | { type: 'weather.changed'; from: WeatherState; to: WeatherState; intensityClass: RainClass | null; reason: string }
   | { type: 'weather.gust'; windMs: number }
   | { type: 'weather.thunder'; delayS: number; intensity: number }
