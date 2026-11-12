@@ -69,3 +69,5 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - 07:21 Stage 1B specs written (beh-forage, beh-nest, architect, worldgen-outdoor/interior/life, render-decor, founding, views, ui-hud, packaging). Consistency pass 2 running (residual conflicts list: docs/design/gdd/digests/residual-conflicts.md).
 - wf-build.js preamble now states GDD precedence (seed > directions J/K > 00-index > owning chapter) and tells implementers to cover Appendix E checks.
 - Still to write: Stage 2 and Stage 3 specs; integration-gate task specs (int-1A, int-1B).
+- 07:46 consistency pass 2 done (51 more resolutions; 4 late contract items D7.1-D7.4 folded into F-int spec). All four spikes complete; look-dev screenshots reviewed (macro look + underground scent-lit look both good).
+- 07:51 ALL task specs written: Stage 1A, 1B, 2, 3 (docs/design/tasks/*.md, 57 files). Remaining orchestrator work: launch waves per module map, integration gates, QA playtests, packaging/delivery.
