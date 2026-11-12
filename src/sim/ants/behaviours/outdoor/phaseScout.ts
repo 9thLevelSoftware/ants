@@ -7,7 +7,8 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Marker, ReasonCode, Sim } from '@/sim/types';
 import { HOME_EXPLORED } from '@/sim/balance';
 import {
-  INVESTIGATE_S, SCOUT_CANDIDATES, SCOUT_DEPART_BU, SCOUT_LEG_BU,
+  INVESTIGATE_S, LEG_ARRIVE_BU, SCOUT_CANDIDATES, SCOUT_DEPART_BU, SCOUT_DEPART_DONE_FRAC, SCOUT_DEPART_MAX_S, SCOUT_EDGE_BU,
+  SCOUT_LEG_BU, SCOUT_MARKER_ARRIVE_FRAC,
   SCOUT_FAN_RAD, SCOUT_RAY_LEGS, SCOUT_MARKER_SHARE, SCOUT_MAX_RANGE_BU, SCOUT_MAX_S, SCOUT_TURN_SIGMA_DEG_S,
   SCOUT_W_AVOID, SCOUT_W_HOME, SCOUT_W_MARKER, SCOUT_W_NOISE, SCOUT_W_STRAIGHT, SCOUT_W_UNEXPLORED,
 } from '@/sim/balance/foraging';
@@ -43,6 +44,7 @@ export function startDepart(sim: Sim, ant: Ant, fl: Flavour, reason?: ReasonCode
   stopLaying(sim, ant);
   const rng = sim.stream('rng.behaviour');
   ant.bb[K.trip0] = sim.state.tick;
+  ant.bb[K.wentOut] = ant.nestId >= 0 ? 0 : 1;
   ant.bb[K.success] = 0;
   ant.bb[K.src] = -1;
   ant.bb[K.recall] = 0;
@@ -67,14 +69,14 @@ export function startDepart(sim: Sim, ant: Ant, fl: Flavour, reason?: ReasonCode
 
 function departNav(sim: Sim, ant: Ant): void {
   tmp.x = ant.bb[K.dx]; tmp.y = ant.bb[K.dy]; tmp.z = ant.bb[K.dz];
-  goTo(sim, ant, tmp, 2);
+  goTo(sim, ant, tmp, LEG_ARRIVE_BU);
 }
 
 export function updateDepart(sim: Sim, ant: Ant, fl: Flavour): void {
   if (rationStep(sim, ant)) return;
   if ((ant.bb[K.ration] ?? 2) === 2 && !moving(ant) && ant.nestId >= 0 && ant.nav.status !== 'failed') departNav(sim, ant);
-  const out = ant.nestId < 0 && distFromHome(sim, ant, ant.pos) >= 0.8 * SCOUT_DEPART_BU * sim.world.bu;
-  if (out || (ant.nestId < 0 && !moving(ant)) || phaseS(sim, ant) > SCOUT_MAX_S / 5) {
+  const out = ant.nestId < 0 && distFromHome(sim, ant, ant.pos) >= SCOUT_DEPART_DONE_FRAC * SCOUT_DEPART_BU * sim.world.bu;
+  if (out || (ant.nestId < 0 && !moving(ant)) || phaseS(sim, ant) > SCOUT_DEPART_MAX_S) {
     if (ant.nestId >= 0) { startReturn(sim, ant, fl, false, 'stuck'); return; }
     ant.bb[K.explore0] = sim.state.tick;
     setPhase(sim, ant, fl.names, PHASE.explore);
@@ -97,7 +99,7 @@ function bestHeading(sim: Sim, ant: Ant, from: Vec3, base: number, spread: numbe
   const nest = homeNest(sim, ant);
   const e = nest ? mainEntrance(nest) : undefined;
   const marked = homeHere(ant) > HOME_EXPLORED;
-  const edge = 8 * sim.world.bu, size = sim.world.size;
+  const edge = SCOUT_EDGE_BU * sim.world.bu, size = sim.world.size;
   let best = base, bestScore = -Infinity;
   for (let k = 0; k < SCOUT_CANDIDATES; k++) {
     // the walk's own turn first, then a fan around it (the correlated walk stays the default)
@@ -127,14 +129,14 @@ function nextLeg(sim: Sim, ant: Ant): void {
   const m = sim.stores.markers.get(ant.bb[K.marker] ?? -1);
   if (m && m.alive && distXZ(ant.pos, m.pos) > m.radius) {
     // the marker is this scout's first waypoint
-    if (goTo(sim, ant, m.pos, m.radius / sim.world.bu * 0.5)) return;
+    if (goTo(sim, ant, m.pos, (m.radius / sim.world.bu) * SCOUT_MARKER_ARRIVE_FRAC)) return;
   } else if (m) ant.bb[K.marker] = -1;
   let h = bestHeading(sim, ant, ant.pos, (ant.bb[K.heading] ?? 0) + rngGauss(sim.stream('rng.behaviour'), 0, sigma), sigma);
   for (let tries = 0; tries < 4; tries++) {
     tmp.x = ant.pos.x + Math.cos(h) * SCOUT_LEG_BU * sim.world.bu;
     tmp.z = ant.pos.z + Math.sin(h) * SCOUT_LEG_BU * sim.world.bu;
     tmp.y = sim.field.height(tmp.x, tmp.z);
-    if (goTo(sim, ant, tmp, 2)) break;
+    if (goTo(sim, ant, tmp, LEG_ARRIVE_BU)) break;
     h += Math.PI / 2;
   }
   ant.bb[K.heading] = h;

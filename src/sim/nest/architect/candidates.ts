@@ -11,7 +11,8 @@ import type { Nest, NestFieldTarget, PlanSpec, Sim, SpeciesId } from '@/sim/type
 import { NECK_LEN_BU, TUNNEL_LEN_BU, digFactor, nestTemplate } from '@/sim/balance/nest';
 import {
   ARCH_BAND_SLACK_BU, ARCH_CANDIDATES, ARCH_COMPOSITE_BELOW, ARCH_COMPOSITE_CANDIDATES, ARCH_COVER_CANDIDATES,
-  ARCH_YAW_JITTER_DEG, CONNECTOR_BAND_INSET_BU, CONNECTOR_LATERAL_BU, CONNECTOR_MAX_SLOPE_DEG, CONNECTOR_MIN_LEN_BU,
+  ARCH_SPOT_RELIEF_BU, ARCH_YAW_JITTER_DEG, CONNECTOR_BAND_INSET_BU, CONNECTOR_LATERAL_BU, CONNECTOR_MAX_SLOPE_DEG,
+  CONNECTOR_MIN_LEN_BU, COVER_DIRECT_REACH_W, COVER_SCAN_MAX_STEPS, COVER_SCAN_STEP_BU, COVER_UNDERSIDE_GAP_BU,
 } from '@/sim/balance/architect';
 import { CHUNK, OPEN_MIN, keyCx, keyCy, keyCz } from '../carve/keys';
 import { nestSampleBox } from '../chambers/detect';
@@ -72,7 +73,8 @@ const H4 = [1, 0, -1, 0, 0, 1, 0, -1];
  */
 export function spotsInDepth(sim: Sim, nest: Nest, minDepthBu: number, maxDepthBu: number): WallSpot[] {
   const carve = sim.carve, v = carve.voxel, bu = sim.world.bu, b = nestSampleBox(sim, nest);
-  const g0 = sim.field.height(nest.origin.x, nest.origin.z), slackJ = 8; // terrain relief inside the footprint
+  // chunks are pre-filtered by depth below the origin's ground, widened by the terrain relief of the footprint
+  const g0 = sim.field.height(nest.origin.x, nest.origin.z), slackJ = Math.ceil((ARCH_SPOT_RELIEF_BU * bu) / v);
   const j0 = Math.max(b.j0, Math.floor((g0 - maxDepthBu * bu) / v) - slackJ), j1 = Math.min(b.j1, Math.ceil((g0 - minDepthBu * bu) / v) + slackJ);
   const comps = nestComponents(sim, nest), out: WallSpot[] = [];
   const keys = carve.data.keys.filter((key) => {
@@ -188,8 +190,9 @@ function coverPoints(sim: Sim, nest: Nest, species: string, band: [number, numbe
     if (Math.hypot(p.pos.x - nest.origin.x, p.pos.z - nest.origin.z) > (t.footprintR - ARCH_BAND_SLACK_BU * 2) * bu) continue;
     let y = p.pos.y;
     if (sim.field.hardXYZ(p.pos.x, y, p.pos.z) > 0) continue;
-    for (let n = 0; n < 4096 && sim.field.hardXYZ(p.pos.x, y, p.pos.z) <= 0; n++) y -= 0.25 * bu;
-    const below = { x: p.pos.x, y: y - halfH - 0.5 * bu, z: p.pos.z };
+    // down through the primitive to its underside, then the room's half height and a gap below it
+    for (let n = 0; n < COVER_SCAN_MAX_STEPS && sim.field.hardXYZ(p.pos.x, y, p.pos.z) <= 0; n++) y -= COVER_SCAN_STEP_BU * bu;
+    const below = { x: p.pos.x, y: y - halfH - COVER_UNDERSIDE_GAP_BU * bu, z: p.pos.z };
     const depth = (sim.field.height(below.x, below.z) - below.y) / bu;
     if (depth < band[0] - ARCH_BAND_SLACK_BU || depth > band[1] + ARCH_BAND_SLACK_BU) continue;
     if (sim.field.substrateXYZ(below.x, below.y, below.z) > 0) continue; // the underside is in the open air
@@ -227,9 +230,10 @@ export function placementCandidates(sim: Sim, nest: Nest, req: NeedRequest, rng:
       if (c) out.push(c);
     }
   }
-  if (coverWeight(species, req.type) > 0) {
-    const dims = nestTemplate(species).chambers[req.type]?.[req.size];
-    const halfH = ((dims?.h ?? 2.5) / 2) * bu, reach = (NECK_LEN_BU + (dims?.w ?? 6) * 0.45) * bu;
+  const dims = nestTemplate(species).chambers[req.type]?.[req.size];
+  if (dims && coverWeight(species, req.type) > 0) {
+    // a direct chamber from the nearest wall spot reaches about its neck plus most of its width
+    const halfH = (dims.h / 2) * bu, reach = (NECK_LEN_BU + dims.w * COVER_DIRECT_REACH_W) * bu;
     for (const p of coverPoints(sim, nest, species, band, halfH)) {
       let best: WallSpot | null = null, bestD = Infinity;
       for (const s of spotsAll()) {

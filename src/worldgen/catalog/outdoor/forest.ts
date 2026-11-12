@@ -8,7 +8,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { MaterialId } from '@/sim/types';
 import type { PrimSpec } from '../../kit/template';
 import { dcos, dsin } from '../../kit/dmath';
-import { add, C, ca, chain, compose, cy, D, dirYaw, el, NB, pitchQ, rb, rollQ, S, scale, sub, v } from './prims';
+import { add, C, ca, chain, compose, cy, D, datan2, dirYaw, el, NB, pitchQ, rb, rollQ, S, scale, sub, v } from './prims';
 import { densify } from './routes';
 import { growPlant, type PlantTemplate } from './plant';
 import type { Built, Env, LocalCavity } from './types';
@@ -25,6 +25,8 @@ export const FOREST = {
     /** Root channels (GDD 04 §6.2): arches per tree, probability, gap under the arch (BU) and buried galleries. */
     rootChannels: 2, rootChannelP: 0.6, archGapBu: [1.2, 3], galleryDiaBu: [1.2, 2.5], galleryLenBu: [80, 150],
     galleryDepthBu: [5, 30], shaftBu: 3,
+    /** Roots keep this far (BU, beyond their radius) out of each branch's climb corridor at the trunk foot. */
+    corridorClearBu: 6,
   },
   log: { dia: [150, 400], len: [1000, 2500], embedK: [0.1, 0.2], decayedP: 0.6, barkSlabs: [0, 3], barkGapBu: [1, 3], galleryP: 0.7 },
   stump: { dia: [300, 800], h: [150, 500], roots: [4, 5], decayedP: 0.7, galleryP: 0.7 },
@@ -100,32 +102,50 @@ export function log(rng: RngState, env: Env): Built {
   for (const pr of prims) { pr.pos = P(pr.pos); pr.rot = compose(pr.rot ?? { x: 0, y: 0, z: 0, w: 1 }, q); }
   for (const c of cavities) for (const op of c.carves) { op.a = P(op.a); if (op.shape === 'capsule') op.b = P(op.b); }
   for (const c of cavities) for (const o of c.openings) o.pos = P(o.pos);
-  // log-over: the section at xs above the ground (including the bulge under the widest point), with ground nodes
-  // beside the contact lines (the wedge where a walker turns onto the log)
-  const arcPts: Vec3[] = [];
-  // fine sampling near the ground (the contact wedge must be a node), every 4th sample elsewhere
-  const n = 4 * Math.max(24, Math.ceil((2 * Math.PI * ro) / (2 * bu)));
-  for (let i = 0; i <= n; i++) {
-    const a = -Math.PI + (2 * Math.PI * i) / n;
-    const p = P(v(xs, r + ro * dcos(a), ro * dsin(a)));
-    const gp = g(p.x, p.z);
-    if (p.y >= gp + 0.25 * foot && (i % 4 === 0 || p.y < gp + 3 * bu)) arcPts.push(p);
-  }
-  const pts: Vec3[] = [];
-  if (arcPts.length >= 2) {
-    const a0 = arcPts[0], a1 = arcPts[arcPts.length - 1];
+  // log-over: the section at xs above the ground, with ground nodes beside the contact lines (the wedge where a
+  // walker turns onto the log). The section's outline is the union of the log's circle and the two litter berms:
+  // nodes on that outline, a foot offset out, ordered by their angle round the log's axis.
+  const pts = sectionRoute([{ z: 0, y: r, r: ro }, ...[-1, 1].map((sz) => ({ z: sz * (zcb + rbm * 0.35), y: embed - rbm * 0.25, r: rbm + foot }))],
+    { z: 0, y: r }, 2 * bu, (z, y) => { const p = P(v(xs, y, z)); return p.y >= g(p.x, p.z) + 0.25 * foot; });
+  const sec = pts.map((q) => P(v(xs, q.y, q.z)));
+  if (sec.length >= 2) {
+    const a0 = sec[0], a1 = sec[sec.length - 1];
     const z0 = a0.z - 3 * bu, z1 = a1.z + 3 * bu;
-    pts.push(v(a0.x, g(a0.x, z0) + foot, z0), ...arcPts, v(a1.x, g(a1.x, z1) + foot, z1));
+    sec.unshift(v(a0.x, g(a0.x, z0) + foot, z0));
+    sec.push(v(a1.x, g(a1.x, z1) + foot, z1));
   }
   const top = P(v(xs, d + foot, 0));
   return {
     tpl: {
       id: 'log', prims, tags: ['prop', 'wood'],
-      routes: pts.length ? [{ kind: 'log-over', points: densify(pts, 6 * bu) }] : [],
+      routes: sec.length >= 2 ? [{ kind: 'log-over', points: densify(sec, 6 * bu) }] : [],
       pois: [{ kind: 'vantage', pos: top }, { kind: 'shelter', pos: v(xs, g(xs, r * 1.1) + foot, r * 1.1) }],
     },
     tilt: false, cavities,
   };
+}
+
+/**
+ * Points on the outline of a union of circles in a (z, y) section, every `step` along each circle, that lie on no
+ * other circle's inside and pass `keep` (above the ground), ordered by angle round `c` from -Z over the top to +Z.
+ */
+function sectionRoute(circles: { z: number; y: number; r: number }[], c: { z: number; y: number }, step: number, keep: (z: number, y: number) => boolean): { z: number; y: number }[] {
+  const out: { z: number; y: number; a: number }[] = [];
+  circles.forEach((k, i) => {
+    const n = Math.max(24, Math.ceil((2 * Math.PI * k.r) / step));
+    for (let j = 0; j < n; j++) {
+      const a = (2 * Math.PI * j) / n;
+      const z = k.z + k.r * dcos(a), y = k.y + k.r * dsin(a);
+      if (circles.some((o, m) => m !== i && (z - o.z) * (z - o.z) + (y - o.y) * (y - o.y) < o.r * o.r * 0.999)) continue;
+      if (!keep(z, y)) continue;
+      // angle from -Z (0) over the top (pi / 2) to +Z (pi), below the axis beyond those
+      out.push({ z, y, a: datan2(y - c.y, -(z - c.z)) });
+    }
+  });
+  // below the axis on -Z the angle is negative, on +Z beyond pi: put them at the two ends
+  for (const p of out) if (p.a < -Math.PI / 2) p.a += 2 * Math.PI;
+  out.sort((p, q) => p.a - q.a || p.z - q.z);
+  return out;
 }
 
 export function stump(rng: RngState, env: Env): Built {

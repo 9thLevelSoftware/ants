@@ -72,6 +72,11 @@ export function avoidMarkerNear(ant: Ant): number { return num(ant, PC.avoidMark
 export function threatCode(ant: Ant): ThreatCode { return num(ant, PC.threat, THREAT.none) as ThreatCode; }
 export function threatX(ant: Ant): number { return num(ant, PC.threatX, 0); }
 export function threatZ(ant: Ant): number { return num(ant, PC.threatZ, 0); }
+/** Approach direction of a human-event threat (unit x, z), or null when the cue gives none. */
+export function threatApproach(ant: Ant): { x: number; z: number } | null {
+  const x = num(ant, PC.threatDx, 0), z = num(ant, PC.threatDz, 0);
+  return x === 0 && z === 0 ? null : { x, z };
+}
 export function nearestEntranceId(ant: Ant): number { return num(ant, PC.entrance, -1); }
 export function nearestEntranceDist(ant: Ant): number { return num(ant, PC.entranceD, 0); }
 

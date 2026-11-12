@@ -6,7 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Item, MaterialId, Mound, Nest, PelletDumpTarget, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import {
-  BULKING, CHOKE_COUNT, FRASS_MATERIALS, CHOKE_LEN_BU, CLUTTER_RADIUS_BU, CLUTTER_SLOW_MIN, CLUTTER_SLOW_PER, HEAP_CAP,
+  BULKING, CHOKE_COUNT, EXPEL_ENTRANCE_REACH_BU, FRASS_MATERIALS, CHOKE_LEN_BU, CLUTTER_RADIUS_BU, CLUTTER_SLOW_MIN, CLUTTER_SLOW_PER, HEAP_CAP,
   HEAP_MERGE_DIST_BU, MAX_LOOSE_PELLETS_PER_NEST, MOUND_BATCH_TICKS, MOUND_CELL_BU, MOUND_GRID_N, PELLET_BULK_PER_BU3, PELLET_SETTLE_S,
   PELLET_TAMP_S, SPOIL_JOIN_BU, TAMP_RADIUS_BU, TAMP_RADIUS_FALLBACK_BU, TAMP_SPHERE_BU, TAMP_ROUNDS,
 } from '@/sim/balance/nest';
@@ -312,14 +312,52 @@ function entranceWithoutMoundFor(sim: Sim, nest: Nest, p: Vec3): Entrance | null
 // ---- founding expulsion (GDD 03 §13.2 `digging`) ----
 
 /**
- * Deposits a bite's volume x BULKING on the founding mound at a random dump-ring cell of the nest's first
- * entrance (or around the nest origin before there is one); emits `pellet-expelled`. No item is created.
+ * The entrance whose mound takes the founding soil of a bite at `from`: the nest's entrance nearest the bite
+ * (horizontally; ties: record order) when within its radius + EXPEL_ENTRANCE_REACH, else the entrance whose
+ * throat is in the bite's nav component (a long ramp), else null (a fresh pit whose hole has no record yet).
+ */
+function expelEntrance(sim: Sim, nest: Nest, from: Vec3): Entrance | null {
+  const bu = sim.world.bu, reach = EXPEL_ENTRANCE_REACH_BU * bu;
+  let best: Entrance | null = null, bestD = Infinity;
+  for (const e of nest.entrances) {
+    const d = Math.hypot(e.pos.x - from.x, e.pos.z - from.z) - e.radius;
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  if (best && bestD <= reach) return best;
+  const c = nest.entrances.length > 0 ? sim.nestNav.componentAt(from) : -1;
+  if (c < 0) return null;
+  for (const e of nest.entrances) {
+    if (sim.nestNav.componentAt({ x: e.pos.x - e.dir.x * bu, y: e.pos.y - e.dir.y * bu, z: e.pos.z - e.dir.z * bu }) === c) return e;
+  }
+  return null;
+}
+
+/** The nest's entrance-less soil pile centred nearest (cx, cz) within EXPEL_ENTRANCE_REACH, or undefined. */
+function freePileNear(sim: Sim, nest: Nest, cx: number, cz: number): Mound | undefined {
+  let best: Mound | undefined, bestD = EXPEL_ENTRANCE_REACH_BU * sim.world.bu;
+  for (const id of nest.moundIds) {
+    const m = moundById(sim, id);
+    if (!m || m.material === 'frass' || m.entranceId >= 0) continue;
+    const d = Math.hypot(m.centerX - cx, m.centerZ - cz);
+    if (d <= bestD) { bestD = d; best = m; }
+  }
+  return best;
+}
+
+/**
+ * Deposits a bite's volume x BULKING on the founding mound of the pit being dug (GDD 03 §13.2): at a random
+ * dump-ring cell of the entrance that pit opens through, or around the pit before its hole has an entrance
+ * record (that pile is linked to the entrance when it registers); emits `pellet-expelled`. No item is created.
  */
 export function expelVolume(sim: Sim, nest: Nest, volume: number, material: MaterialId, antId: number, from: Vec3): void {
-  const e = nest.entrances[0] ?? null;
+  const e = expelEntrance(sim, nest, from);
+  const cx = e ? e.pos.x : from.x, cz = e ? e.pos.z : from.z;
   let m = e && e.moundId >= 0 ? moundById(sim, e.moundId) : undefined;
-  if (!m) m = nest.moundIds.map((id) => moundById(sim, id)).find((x) => x && x.material !== 'frass' && (e ? x.entranceId === e.id || x.entranceId < 0 : true));
-  if (!m) m = createMound(sim, nest, e, e ? e.pos.x : nest.origin.x, e ? e.pos.z : nest.origin.z, material);
+  if (!m) {
+    m = freePileNear(sim, nest, cx, cz);
+    if (m && e) { m.entranceId = e.id; e.moundId = m.id; } // the pit's early soil, now around its entrance
+  }
+  if (!m) m = createMound(sim, nest, e, cx, cz, material);
   const ring: Entrance = e ?? {
     id: -1, kind: 'dug', status: 'open', pos: { x: m.centerX, y: nest.origin.y, z: m.centerZ }, dir: { x: 0, y: 1, z: 0 },
     radius: sim.world.bu, moundId: m.id, rimTarget: 0, plugVoxelCount: 0, createdTick: 0, trafficIn: 0, trafficOut: 0,

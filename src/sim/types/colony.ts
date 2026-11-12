@@ -218,6 +218,16 @@ export interface Colony {
    * colony module on its first update, so it is absent only on a colony that has never been simulated.
    */
   core?: ColonyCoreState;
+  /** Outdoor-behaviour bookkeeping (GDD 02 §8.4, App. C). Additive (beh-forage): created on first use. */
+  forage?: ColonyForageState;
+}
+
+/** Colony-level memory of the outdoor behaviours' trail observers (owner: src/sim/ants/behaviours/outdoor/monitor.ts). */
+export interface ColonyForageState {
+  /** Recent trail losses inside the trail-lost window (GDD 02 §8.4): source of the lost trail (-1 none) and tick. */
+  trailLost: { sourceId: number; tick: number }[];
+  /** Sources whose `trail-established` event was emitted (once per colony and source). */
+  trailsUp: number[];
 }
 
 /**

@@ -19,7 +19,7 @@ export const LAWN = {
   clover: { patch: [150, 400], leaves: [2, 3], petiole: [30, 80], leaflet: [10, 25], heads: [2, 6], headStalk: [60, 120] },
   stepping: { dia: [300, 450], square: 450, thick: 40, topAbove: 5, roundP: 0.5, concreteP: 0.5, spacing: [600, 700], count: [3, 8] },
   ball: { dia: [65, 220] },
-  hose: { dia: [15, 20], coil: [500, 1000], segs: [12, 30] },
+  hose: { dia: [15, 20], coil: [500, 1000], segs: [12, 30], turns: 2, chordMm: 180 },
   sprinkler: { body: [150, 40, 80] },
   lawnEdge: { thick: 3, depth: 100, metalP: 0.5 },
   stone: [40, 120] as [number, number],
@@ -121,13 +121,15 @@ export function lostBall(rng: RngState): Built {
   return { tpl: { id: 'lost-ball', prims: [el(v(0, d / 2, 0), d, d, d, mat, C | S)], tags: ['prop'] }, embed: Math.min(3, d * 0.03) };
 }
 
-/** Garden hose coiled flat: a spiral of 12-30 capsules, loops a few mm apart. */
+/** Garden hose coiled flat: a two-turn spiral of 12-30 capsules (chords <= 180 mm where 30 allow), loops a few mm apart. */
 export function gardenHose(rng: RngState): Built {
   const H = LAWN.hose;
   const dia = R(rng, H.dia[0], H.dia[1]), coil = R(rng, H.coil[0], H.coil[1]);
-  const segs = rngInt(rng, H.segs[0], H.segs[1]);
-  const turns = 2 + (segs > 22 ? 1 : 0);
-  const pitch = dia + 4;
+  const turns = H.turns, pitch = dia + 4;
+  // as many capsules as keep the chords short (a coil, not a polygon), within the catalogue's 12-30
+  let length = 0;
+  for (let i = 0; i < 64; i++) length += (TAU * turns / 64) * (coil / 2 - ((i + 0.5) / 64) * turns * pitch);
+  const segs = Math.max(H.segs[0], Math.min(H.segs[1], Math.ceil(length / H.chordMm)));
   const pts = [];
   for (let i = 0; i <= segs; i++) {
     const t = i / segs, a = t * turns * TAU, r = coil / 2 - t * turns * pitch;

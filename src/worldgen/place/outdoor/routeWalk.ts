@@ -7,6 +7,9 @@ import type { Kernel } from '@/sim/kernel';
 import type { MicroConn, WorldData } from '@/sim/types';
 import { createWalkerKin, walkerPlace, walkerStep } from '@/sim/locomotion/walker';
 
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
+
 export interface RouteWalkResult {
   /** Reached the last waypoint. */
   up: boolean;
@@ -92,7 +95,7 @@ export function passageMinField(k: Kernel, m: MicroConn, stepMm: number): number
   let min = Infinity;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
-    const l = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2);
+    const l = Math.sqrt(sq(b.x - a.x) + sq(b.y - a.y) + sq(b.z - a.z));
     const n = Math.max(1, Math.ceil(l / stepMm));
     for (let s = 0; s <= n; s++) {
       const t = s / n;

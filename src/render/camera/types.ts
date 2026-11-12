@@ -60,10 +60,16 @@ export interface FadeOutput {
   target: number;
   /** Strength 0..1 of the occlusion cutaway: dither terrain/carve/primitive fragments inside the capsule. */
   occlusion: number;
-  /** Capsule from the camera to the target, for occlusion dithering (radius in mm). */
+  /**
+   * Occlusion shape, for the dithering: a cone from capsuleA (the camera) to capsuleB (a point short of the
+   * target's thorax) with radius capsuleRadius (mm) at B, narrowing to coneStart x that at A. Only fragments
+   * between A and B are dithered (views-task deviation from GDD 01 6.5 rule 3's capsule; see fade.ts).
+   */
   capsuleA: Vec3;
   capsuleB: Vec3;
   capsuleRadius: number;
+  /** Cone radius at the camera as a fraction of capsuleRadius (1 = a cylinder); undefined reads as 1. */
+  coneStart?: number;
 }
 
 export type PossessionCamState = 'open' | 'chamber' | 'tunnel' | 'crevice' | 'falling' | 'flight';

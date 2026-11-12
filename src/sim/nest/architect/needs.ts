@@ -2,13 +2,13 @@
 // missing-type). Pure functions of NeedInputs and the nest record, so the same code serves the running colony
 // (inputs read from the state) and a whole-nest layout from abstract numbers (layout.ts).
 
-import type { ArchitectNeed, ChamberSize, ChamberType, Nest, PlanPriority, Sim } from '@/sim/types';
+import type { ArchitectNeed, ChamberSize, ChamberType, Nest, PlanPriority, Sim, SpeciesId } from '@/sim/types';
 import { CHAMBER_SIZES } from '@/sim/types';
 import { BROOD_SPACE, nestTemplate } from '@/sim/balance/nest';
 import {
   BROOD_HIGH, BROOD_RECENT_EGG_S, BROOD_RECENT_EGG_WEIGHT, BROOD_TARGET, BROOD_TRIGGER, BROOD_URGENT,
   CROWDING_GENERAL_BELOW, CROWDING_HIGH, CROWDING_TARGET, CROWDING_TRIGGER, CROWDING_URGENT, FOOD_LOOSE_ITEMS,
-  FOOD_LOOSE_S, FOOD_STORE_TYPES, FOOD_TARGET, FOOD_TRIGGER, REQUIRED_TYPES, ROYAL_PLAN_SIZE,
+  FOOD_CHAMBER_TYPE, FOOD_LOOSE_S, FOOD_STORE_TYPES, FOOD_TARGET, FOOD_TRIGGER, REQUIRED_TYPES, ROYAL_PLAN_SIZE,
 } from '@/sim/balance/architect';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { chamberAtIn } from '../chambers/registry';
@@ -27,6 +27,7 @@ export interface NeedInputs {
   foodLoads: number;
   /** Food items lying outside storage chambers for FOOD_LOOSE_S or longer. */
   looseFoodItems: number;
+  /** A living queen lives in this nest (inside it, or outside and this is the colony's main nest). */
   queenAlive: boolean;
   /** Ants able to dig (dig power > 0). */
   diggers: number;
@@ -66,8 +67,9 @@ export function liveInputs(sim: Sim, nest: Nest): NeedInputs {
   const out: NeedInputs = { workers: 0, adultUnits: 0, broodUnits: 0, foodLoads: 0, looseFoodItems: 0, queenAlive: false, diggers: 0 };
   for (const a of sim.stores.ants.list) {
     if (!a.alive || a.colony !== nest.colony) continue;
-    if (a.caste === 'queen') { out.queenAlive = true; continue; }
     if (!belongs(sim, nest, a.nestId)) continue;
+    // GDD 03 §6.3: a royal plan only for a queen without one, so only the nest she lives in asks for it
+    if (a.caste === 'queen') { out.queenAlive = true; continue; }
     out.adultUnits += a.lengthBu * a.lengthBu;
     if (isAdultWorker(a.caste)) out.workers++;
     if (digPowerOf(a) > 0) out.diggers++;
@@ -153,7 +155,7 @@ export function evaluateNeeds(nest: Nest, species: string, inputs: NeedInputs, p
   const rhoF = ratio(inputs.foodLoads, cap.food);
   pressures['food-space'] = rhoF;
   if (rhoF > FOOD_TRIGGER || inputs.looseFoodItems >= FOOD_LOOSE_ITEMS) {
-    const type: ChamberType = species === 'messor-barbarus' ? 'granary' : 'food';
+    const type = FOOD_CHAMBER_TYPE[species as SpeciesId] ?? 'food';
     const size = sizeFor(species, type, inputs.foodLoads, cap.food, FOOD_TARGET, (c) => c.food);
     if (size) requests.push({ need: 'food-space', priority: 'normal', type, size, pressure: Math.max(rhoF, inputs.looseFoodItems / FOOD_LOOSE_ITEMS) });
   }

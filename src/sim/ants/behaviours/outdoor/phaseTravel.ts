@@ -5,7 +5,7 @@ import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
   ALT_SOURCE_BU, ARRIVE_SOURCE_BU, EXIT_CLEAR_BU, FOLLOW_MIN_PH, OUTBOUND_BASE_S, OUTBOUND_MAX_S, OUTBOUND_PER_BU_S,
-  QUEUE_DIST_BU, QUEUE_NO_TRAIL_S, QUEUE_S, RETURN_LOST_S, RETURN_STAGE_S, SEARCH_ARRIVE_BU, SEARCH_S, SEARCH_STEP_RAD, TRAIL_FOLLOW_MAX_S,
+  QUEUE_DIST_BU, QUEUE_NO_TRAIL_S, QUEUE_S, RETURN_LOST_S, RETURN_REPLAN_S, RETURN_STAGE_S, ROUTE_WP_ARRIVE_BU, SEARCH_ARRIVE_BU, SEARCH_S, SEARCH_STEP_RAD, TRAIL_FOLLOW_MAX_S,
 } from '@/sim/balance/foraging';
 import { footprintMm } from '@/sim/ecology';
 import { navFollowTrail } from '@/sim/locomotion';
@@ -13,7 +13,7 @@ import { processAntDeath } from '@/sim/ants/lifecycle';
 import { avoidMarkerNear, smelledSource, touchedSource, trailHere } from '@/sim/ants/perception';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { chooseNear, leadValid, markDepleted, usableFor } from './choice';
-import { distFromHome, homeNest, mainEntrance, noteFailure, phaseS } from './common';
+import { distFromHome, homeNest, logDecision, mainEntrance, noteFailure, phaseS } from './common';
 import type { Flavour } from './flavours';
 import { HOME, K, NAV } from './keys';
 import { noteTrailLost } from './monitor';
@@ -22,6 +22,7 @@ import { arrived, destOf, distXZ, failed, goTo, moving, stop } from './nav';
 import { tryHarvest } from './phaseCollect';
 import { learnedRoute, waypoint } from './routes';
 import { startOutboundDabs, stopLaying } from './trail';
+import { checkCourse, startCourse } from './trailCourse';
 import {
   homePlanner, resumeOutboundNav, startApproach, startCollect, startDeliver, startOutbound, startReturn, startSearch,
 } from './transitions';
@@ -72,7 +73,10 @@ function exitedNest(sim: Sim, ant: Ant): boolean {
   return !e || distXZ(ant.pos, e.pos) >= EXIT_CLEAR_BU * sim.world.bu;
 }
 
-/** Leaving the nest toward a source with a lead or news: pick up its trail unless this bout ignores trails. */
+/**
+ * Leaving the nest toward a source with a lead or news: pick up a trail unless this bout ignores trails. Whether it
+ * is the source's own trail shows on the way (trailCourse.ts); outbound dabs start once a stretch was on course.
+ */
 function maybeFollowTrail(sim: Sim, ant: Ant): boolean {
   if ((ant.flags & AntFlag.TRAIL_IGNORER) !== 0 || trailHere(ant) < FOLLOW_MIN_PH) return false;
   if (avoidMarkerNear(ant) >= 0) return false;
@@ -80,8 +84,26 @@ function maybeFollowTrail(sim: Sim, ant: Ant): boolean {
   ant.bb[K.nav] = NAV.trail;
   ant.bb[K.nav0] = sim.state.tick;
   ant.bb[K.onTrail] = 1;
-  startOutboundDabs(sim, ant);
+  startCourse(ant);
   return true;
+}
+
+/** Judges the followed trail's course; false when the ant left it (another source's trail). */
+function keepTrail(sim: Sim, ant: Ant): boolean {
+  switch (checkCourse(sim, ant, destOf(ant, tmp))) {
+    case 'on':
+      if ((ant.flags & AntFlag.TRAIL_ON) === 0) startOutboundDabs(sim, ant);
+      return true;
+    case 'drift':
+      stopLaying(sim, ant);
+      return true;
+    case 'off':
+      logDecision(sim, ant, 'job:other-trail', ant.bb[K.src] ?? -1);
+      toPlanner(sim, ant);
+      return false;
+    default:
+      return true;
+  }
 }
 
 function toPlanner(sim: Sim, ant: Ant): void {
@@ -118,7 +140,8 @@ export function updateOutbound(sim: Sim, ant: Ant, fl: Flavour): void {
         toPlanner(sim, ant);
         return;
       }
-      if (navS > TRAIL_FOLLOW_MAX_S || avoidMarkerNear(ant) >= 0) toPlanner(sim, ant);
+      if (navS > TRAIL_FOLLOW_MAX_S || avoidMarkerNear(ant) >= 0) { toPlanner(sim, ant); return; }
+      keepTrail(sim, ant);
       return;
     case NAV.route: {
       if (moving(ant)) return;
@@ -126,7 +149,7 @@ export function updateOutbound(sim: Sim, ant: Ant, fl: Flavour): void {
       const i = (ant.bb[K.wp] ?? 1) + 1;
       if (!r || i >= r.n || avoidMarkerNear(ant) >= 0) { toPlanner(sim, ant); return; }
       ant.bb[K.wp] = i;
-      goTo(sim, ant, waypoint(r, i, tmp), 2);
+      goTo(sim, ant, waypoint(r, i, tmp), ROUTE_WP_ARRIVE_BU);
       return;
     }
     case NAV.approach:
@@ -214,7 +237,7 @@ export function updateReturn(sim: Sim, ant: Ant, fl: Flavour): void {
   const t = phaseS(sim, ant);
   if (t > RETURN_LOST_S) { processAntDeath(sim, ant.id, 'lost'); return; }
   if (mode !== HOME.planner && (t > RETURN_STAGE_S || avoidMarkerNear(ant) >= 0)) { homePlanner(sim, ant); return; }
-  if (t > 2 * RETURN_STAGE_S && failed(ant)) { homePlanner(sim, ant); return; }
+  if (t > RETURN_REPLAN_S && failed(ant)) { homePlanner(sim, ant); return; }
   if (moving(ant)) return;
   if (failed(ant)) {
     noteFailure(sim, ant);
@@ -226,7 +249,7 @@ export function updateReturn(sim: Sim, ant: Ant, fl: Flavour): void {
     const i = (ant.bb[K.wp] ?? 0) - 1;
     if (!r || i < 0) { homePlanner(sim, ant); return; }
     ant.bb[K.wp] = i;
-    goTo(sim, ant, waypoint(r, i, tmp), 2);
+    goTo(sim, ant, waypoint(r, i, tmp), ROUTE_WP_ARRIVE_BU);
     return;
   }
   // crumbs reached the entrance (crumb 0), or the planner leg ended outside: go in

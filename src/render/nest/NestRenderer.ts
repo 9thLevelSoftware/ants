@@ -170,8 +170,9 @@ export class NestRenderer {
   }
 
   /**
-   * Occlusion cutaway (GDD 01 6.5 rule 3): nest walls inside the capsule from `a` (camera) to `b` (possessed ant) are
-   * dithered so only `keep` of their fragments remain; radius 0 turns it off.
+   * Occlusion cutaway (GDD 01 6.5 rule 3): nest walls strictly between `a` (camera) and `b` (the cone end short of the
+   * possessed ant), inside a cone of `radius` at b narrowing to OCCLUSION_CONE_START x radius at a (views task: a
+   * cone, not the GDD's capsule), are dithered so only `keep` of their fragments remain; radius 0 turns it off.
    */
   setOcclusionCapsule(a: Vec3, b: Vec3, radius: number, keep = 0.25): void {
     this.uniforms.uOccA.value.set(a.x, a.y, a.z);

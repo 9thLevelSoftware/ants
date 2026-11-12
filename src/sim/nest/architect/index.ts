@@ -1,31 +1,49 @@
-// Nest architect (GDD 03 §8): watches each established nest's needs every ARCH_PERIOD_S (60 game s) and proposes
-// validated dig plans (source `architect`, status `proposed`; the nest module queues them after ARCH_PROPOSAL_S in
-// `auto` mode). Tier 1: modes `auto` / `off` (the `setAutoExpand` command, handled by the nest index), needs
-// crowding, brood-space, food-space, missing-type. Tier 2 hooks: `suggest` mode (proposals wait for
-// `acceptArchitectPlan`), per-need toggles (`ArchitectState.needToggles`, honoured), winter-depth / flood-safety /
-// entrance-access needs (not evaluated: needCache stays 0).
+// Nest architect (GDD 03 §8): watches each established nest's needs every ARCH_PERIOD_S (60 game s, nests
+// staggered) and proposes validated dig plans (source `architect`, status `proposed`; the nest module queues them
+// after ARCH_PROPOSAL_S in `auto` mode; in `off` the architect queues proposals still waiting itself). Tier 1:
+// modes `auto` / `off` (the `setAutoExpand` command, handled by the nest index), needs crowding, brood-space,
+// food-space, missing-type. Tier 2 hooks: `suggest` mode (proposals wait for `acceptArchitectPlan`), per-need
+// toggles (`ArchitectState.needToggles`, honoured), winter-depth / flood-safety / entrance-access needs (not
+// evaluated: needCache stays 0).
 
-import type { ArchitectNeed, Sim, System } from '@/sim/types';
+import type { ArchitectNeed, Nest, Sim, System } from '@/sim/types';
 import { ARCHITECT_EVERY, ARCHITECT_OFFSET } from '@/sim/balance/cadence';
+import { ARCH_NESTS_PER_SLOT, ARCH_SLOT_TICKS } from '@/sim/balance/architect';
 import { planById } from '../plans/plans';
-import { evaluateNest } from './evaluate';
+import { evaluateNest, queueProposal } from './evaluate';
 import { evaluateNeeds, liveInputs } from './needs';
 
-export { evaluateNest, nestEstablished, concurrentLimit, proposeFor } from './evaluate';
+export { evaluateNest, nestEstablished, concurrentLimit, proposeFor, volumeRoom } from './evaluate';
 export { evaluateNeeds, liveInputs, missingType, type NeedInputs, type NeedRequest, type NeedEvaluation } from './needs';
-export { choosePlacement, type Placement } from './place';
+export { choosePlacement, type Placement, type PlacementOptions } from './place';
 export { layoutNest, abstractInputs, type LayoutOptions, type LayoutResult } from './layout';
 export { isBlacklisted, recordSiteFailure } from './sites';
 export { architectRuntime, type ArchitectRuntime } from './runtime';
 export { nestCapacity, type NestCapacity } from './capacity';
 
-/** Runs the architect over every alive nest (GDD 03 §8.3 cadence). */
+/** First tick a never-evaluated nest is due (the architect's original cadence slot). */
+const FIRST_EVAL_TICK = ARCHITECT_EVERY - ARCHITECT_OFFSET;
+
+/** Tick from which the nest's next evaluation is due: ARCHITECT_EVERY after its last one. */
+export function architectDueTick(nest: Nest): number {
+  const last = nest.architect.lastEvalTick;
+  return last < 0 ? FIRST_EVAL_TICK : last + ARCHITECT_EVERY;
+}
+
+/**
+ * GDD 03 §8.3: every nest is evaluated every ARCH_PERIOD_S, staggered. The system runs every ARCH_SLOT_TICKS
+ * and evaluates at most ARCH_NESTS_PER_SLOT due nests (most overdue first, ties: store order), so nests that
+ * fall due together are spread over consecutive slots and keep that spacing afterwards.
+ */
 export function runArchitect(sim: Sim): void {
-  for (const nest of sim.stores.nests.list) if (nest.alive) evaluateNest(sim, nest);
+  const now = sim.state.tick;
+  const due = sim.stores.nests.list.filter((n) => n.alive && architectDueTick(n) <= now);
+  due.sort((a, b) => architectDueTick(a) - architectDueTick(b));
+  for (const nest of due.slice(0, ARCH_NESTS_PER_SLOT)) evaluateNest(sim, nest);
 }
 
 export const architectSystem: System = {
-  name: 'architect', phase: 'nest', every: ARCHITECT_EVERY, offset: ARCHITECT_OFFSET, run: runArchitect,
+  name: 'architect', phase: 'nest', every: ARCH_SLOT_TICKS, offset: ARCHITECT_OFFSET % ARCH_SLOT_TICKS, run: runArchitect,
 };
 
 /**
@@ -45,9 +63,5 @@ export function architectPressures(sim: Sim, nestId: number): Partial<Record<Arc
  */
 export function acceptArchitectPlan(sim: Sim, planId: number): boolean {
   const found = planById(sim, planId);
-  if (!found || found.plan.status !== 'proposed') return false;
-  found.plan.status = 'queued';
-  found.plan.statusTick = sim.state.tick;
-  sim.emit({ type: 'plan-status-changed', planId, status: 'queued', blockedReason: null });
-  return true;
+  return !!found && found.plan.source === 'architect' && queueProposal(sim, found.plan);
 }

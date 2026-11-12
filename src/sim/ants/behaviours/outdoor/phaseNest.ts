@@ -2,21 +2,22 @@
 // departure ration (§1.4) and unloading (§5.3 forage.deliver / scout.report), which ends the trip: delivery
 // statistics, recruitment contacts (colony.recordForagerReturn), route learning and the task re-evaluation.
 
-import type { Ant, Marker, Sim } from '@/sim/types';
+import type { Ant, Marker, ReasonCode, Sim } from '@/sim/types';
 import { AntFlag, FOOD_KINDS } from '@/sim/types';
 import { REST_ENTER, REST_EXIT } from '@/sim/balance';
 import { CROP_RETURN_MIN, TROPH_DONOR_MIN } from '@/sim/balance/actions';
 import {
-  DELIVER_MAX_S, DEPART_RATION_C, RATION_MAX_S, RATION_POOL_MIN_C, RATION_SEARCH_BU, RECEIVER_ARRIVE_L,
-  RECEIVER_SEARCH_BU, RECEIVER_SEARCH_WIDE_BU, RECEIVER_STORE_BONUS_BU, RECEIVER_TRY_S, REST_MAX_S, SUCCESS_CROP,
-  THINK_WAIT_TICKS, UNLOAD_MAX_WAIT_S, UNLOAD_SEARCH_S, WAIT_REEVAL_S,
+  DELIVER_MAX_S, DEPART_RATION_C, FOOD_ROOM_ARRIVE_BU, GIVE_REACH_L, RATION_MAX_S, RATION_POOL_MIN_C, RATION_SEARCH_BU,
+  RECEIVER_ARRIVE_L, RECEIVER_SEARCH_BU, RECEIVER_SEARCH_WIDE_BU, RECEIVER_STORE_BONUS_BU, RECEIVER_TRY_S, REST_MAX_S,
+  SUCCESS_CROP, THINK_WAIT_TICKS, UNLOAD_CROP_MARGIN, UNLOAD_MAX_WAIT_S, UNLOAD_RETRY_S, UNLOAD_SEARCH_S,
+  WAIT_REEVAL_S, WAIT_SPREAD_BU,
 } from '@/sim/balance/foraging';
 import { begin, canDo, stopAction } from '@/sim/ants/actions';
 import { recordForagerReturn, shouldDepart, taskCycleDone } from '@/sim/colony';
 import { navToTarget } from '@/sim/locomotion';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { bookDelivery } from './adapters';
-import { chooseSource } from './choice';
+import { chooseSource, departFilter } from './choice';
 import { entranceChamber, foodChamber, homeNest, logDecision, phaseS, setPhase, thinkIn } from './common';
 import type { Flavour } from './flavours';
 import { K, PHASE, UNLOAD } from './keys';
@@ -49,11 +50,11 @@ export function updateWait(sim: Sim, ant: Ant, fl: Flavour): void {
   if (ant.fatigue >= REST_ENTER) { startRest(sim, ant, fl, 'fatigue'); return; }
   const nest = homeNest(sim, ant);
   const room = nest ? entranceChamber(nest) : undefined;
-  if (room && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, 2);
+  if (room && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, WAIT_SPREAD_BU);
   forgetStaleRoutes(sim, ant);
   const why = shouldDepart(sim, ant, THINK_WAIT_TICKS);
   if (why) {
-    const src = chooseSource(sim, ant, fl.accept);
+    const src = chooseSource(sim, ant, departFilter(sim, ant, fl));
     const s = src >= 0 ? sim.stores.sources.get(src) : undefined;
     if (s) { startOutbound(sim, ant, fl, s.id, s.pos, -1, why, s.id); return; }
     const m = forageMarker(sim, ant);
@@ -74,7 +75,7 @@ export function updateRest(sim: Sim, ant: Ant, fl: Flavour): void {
   if (ant.nestId < 0) { startReturn(sim, ant, fl, ant.cropC + ant.cropP >= SUCCESS_CROP, 'fatigue'); return; }
   if (moving(ant)) stop(sim, ant);
   if (ant.fatigue > REST_EXIT && phaseS(sim, ant) < REST_MAX_S) return;
-  if (ant.carry.kind === 'item' || ant.cropC + ant.cropP > TROPH_DONOR_MIN + 0.05) { startDeliver(sim, ant, fl); return; }
+  if (ant.carry.kind === 'item' || ant.cropC + ant.cropP > TROPH_DONOR_MIN + UNLOAD_CROP_MARGIN) { startDeliver(sim, ant, fl); return; }
   if (fl.scout) startDepart(sim, ant, fl, 'fatigue');
   else startWait(sim, ant, fl, 'fatigue');
 }
@@ -186,14 +187,27 @@ function finishTrip(sim: Sim, ant: Ant, fl: Flavour, c: number, p: number, store
   if (success && loads > EPS) commitRoute(sim, ant);
   ant.mem.trips++;
   ant.bb[K.trip0] = -1;
+  ant.bb[K.wentOut] = 0;
   ant.bb[K.success] = 0;
   ant.bb[K.solid] = 0;
   logDecision(sim, ant, storesFull ? 'stores-full' : success ? 'item-collected' : 'timeout', src);
-  if (storesFull && cropOf(ant) > TROPH_DONOR_MIN + 0.05) { startRest(sim, ant, fl, 'stores-full'); return; }
+  if (storesFull && cropOf(ant) > TROPH_DONOR_MIN + UNLOAD_CROP_MARGIN) { startRest(sim, ant, fl, 'stores-full'); return; }
   if (taskCycleDone(sim, ant) !== fl.task) return;
   if (ant.fatigue >= REST_ENTER) startRest(sim, ant, fl, 'fatigue');
   else if (fl.scout) startDepart(sim, ant, fl);
   else startWait(sim, ant, fl);
+}
+
+/**
+ * A trip that ended before the ant ever left the nest (a timeout while taking the ration or at a blocked exit): it
+ * is not a return, so no statistics, recruitment contact or experience; the ant simply starts its cycle again.
+ */
+export function abandonTrip(sim: Sim, ant: Ant, fl: Flavour, reason: ReasonCode): void {
+  ant.bb[K.trip0] = -1;
+  ant.bb[K.success] = 0;
+  logDecision(sim, ant, reason, ant.bb[K.src] ?? -1);
+  if (fl.scout) startDepart(sim, ant, fl, reason);
+  else startWait(sim, ant, fl, reason);
 }
 
 function finishFromCrop(sim: Sim, ant: Ant, fl: Flavour, storesFull: boolean): void {
@@ -215,13 +229,13 @@ function findReceiver(sim: Sim, ant: Ant, fl: Flavour): void {
   // nobody near: walk to the food chamber, where stored food and its handlers are
   const nest = homeNest(sim, ant);
   const room = nest ? foodChamber(nest) : undefined;
-  if (room && waited > UNLOAD_SEARCH_S && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, 1.5);
+  if (room && waited > UNLOAD_SEARCH_S && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, FOOD_ROOM_ARRIVE_BU);
 }
 
 /** Starts handing the crop to any nestmate already in reach (the receiver need not be the one walked to). */
 function giveToAnyInReach(sim: Sim, ant: Ant): boolean {
   ids.length = 0;
-  sim.index.queryAnts(ant.pos, 2 * ant.lengthBu * sim.world.bu, ids);
+  sim.index.queryAnts(ant.pos, GIVE_REACH_L * ant.lengthBu * sim.world.bu, ids);
   for (const id of ids) {
     if (id === ant.id) continue;
     const o = sim.stores.ants.get(id);
@@ -274,7 +288,7 @@ function giveStep(sim: Sim, ant: Ant, fl: Flavour): void {
     // the pool took nothing: stores are full (GDD 02 §5.3); wait for room, then rest holding the crop
     if ((ant.bb[K.full0] ?? -1) < 0) ant.bb[K.full0] = sim.state.tick;
     if (sinceS(sim, ant.bb[K.full0]!) > UNLOAD_MAX_WAIT_S) { finishFromCrop(sim, ant, fl, true); return; }
-    thinkIn(sim, ant, 2 * TICKS_PER_SECOND);
+    thinkIn(sim, ant, UNLOAD_RETRY_S * TICKS_PER_SECOND);
   }
   ant.bb[K.unload] = UNLOAD.find;
 }
@@ -298,7 +312,7 @@ export function updateDeliver(sim: Sim, ant: Ant, fl: Flavour): void {
   if (ant.nestId < 0) { if (!moving(ant)) homePlanner(sim, ant); return; }
   if (phaseS(sim, ant) > DELIVER_MAX_S && !ant.action) {
     if (ant.carry.kind === 'item') { ant.bb[K.unload] = UNLOAD.put; putStep(sim, ant, fl); return; }
-    finishFromCrop(sim, ant, fl, cropOf(ant) > TROPH_DONOR_MIN + 0.05);
+    finishFromCrop(sim, ant, fl, cropOf(ant) > TROPH_DONOR_MIN + UNLOAD_CROP_MARGIN);
     return;
   }
   const step = ant.bb[K.unload] ?? UNLOAD.toChamber;
@@ -311,7 +325,7 @@ export function updateDeliver(sim: Sim, ant: Ant, fl: Flavour): void {
       ant.bb[K.unload] = solid ? UNLOAD.put : UNLOAD.find;
       return;
     }
-    if (!moving(ant)) goToChamber(sim, ant, room, 1.5);
+    if (!moving(ant)) goToChamber(sim, ant, room, FOOD_ROOM_ARRIVE_BU);
     return;
   }
   if (step === UNLOAD.put) { putStep(sim, ant, fl); return; }

@@ -3,6 +3,7 @@
 
 import type { FoodSource, Task } from '@/sim/types';
 import type { StateNames } from './common';
+import { TEND_SITE_RANGE_BU } from '@/sim/balance/foraging';
 import { PHASE } from './keys';
 
 export interface Flavour {
@@ -12,6 +13,8 @@ export interface Flavour {
   readonly scout: boolean;
   /** Sources this task works (undefined = any food source). */
   readonly accept?: (s: FoodSource) => boolean;
+  /** Departures choose only sources within this straight-line distance of the entrance, BU (undefined = any). */
+  readonly rangeBu?: number;
 }
 
 const shared = { [PHASE.rest]: 'rest', [PHASE.fleeRun]: 'flee.run', [PHASE.fleeFreeze]: 'flee.freeze' };
@@ -51,6 +54,7 @@ export const TEND: Flavour = {
   task: 'tend',
   scout: false,
   accept: (s) => s.kind === 'honeydew',
+  rangeBu: TEND_SITE_RANGE_BU,
   names: {
     ...shared,
     [PHASE.wait]: 'tend.wait', [PHASE.outbound]: 'tend.outbound', [PHASE.search]: 'tend.outbound',

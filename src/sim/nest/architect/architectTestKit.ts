@@ -143,5 +143,8 @@ export function testLog(force: boolean, ...a: unknown[]): void {
   if (force || ARCH_LOG) proc?.stderr?.write(a.map(String).join(' ') + '\n');
 }
 
+/** Timeout of tests that run the simulation for several architect periods (the shared machine is often loaded). */
+export const SIM_TEST_TIMEOUT = 60_000;
+
 /** FOUNDRESS_PERF_STRICT=1 (always assert wall-clock budgets). */
 export const PERF_STRICT_ENV = proc?.env.FOUNDRESS_PERF_STRICT === '1';

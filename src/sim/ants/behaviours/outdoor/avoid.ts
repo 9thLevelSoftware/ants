@@ -7,7 +7,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Marker, Sim } from '@/sim/types';
-import { AVOID_DETOURS_MAX, AVOID_EXIT_PAD_BU } from '@/sim/balance/foraging';
+import { AVOID_DETOURS_MAX, AVOID_EXIT_PAD_BU, LEG_ARRIVE_BU } from '@/sim/balance/foraging';
 import { K } from './keys';
 import { goTo, moving } from './nav';
 
@@ -67,7 +67,7 @@ export function avoidLeg(sim: Sim, ant: Ant, goal: { x: number; z: number }): 'l
   tmp.y = sim.field.height(tmp.x, tmp.z);
   ant.bb[K.avoidExit] = m.id;
   ant.bb[K.avoidDone] = (ant.bb[K.avoidDone] ?? 0) + 1;
-  goTo(sim, ant, tmp, 2);
+  goTo(sim, ant, tmp, LEG_ARRIVE_BU);
   return 'leg';
 }
 

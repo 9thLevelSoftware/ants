@@ -4,8 +4,10 @@
 // (or re-types the room that general detection already found there).
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Chamber, Nest, Sim } from '@/sim/types';
-import { THROAT_BU } from '@/sim/balance/nest';
+import type { Chamber, Entrance, Nest, Sim } from '@/sim/types';
+import {
+  DEPTH_SCAN_MAX_BU, FOUNDING_CELL_STATES, FOUNDING_DEEP_MARGIN_BU, FOUNDING_MAX_OPENINGS, FOUNDING_ROOF_MIN_BU, THROAT_BU,
+} from '@/sim/balance/nest';
 import { OPEN_FRACTION, OPEN_MIN } from '../carve/keys';
 import { packSample, sampleI, sampleJ, sampleK } from '../voxelKey';
 import { nestSampleBox } from './detect';
@@ -13,13 +15,6 @@ import { capacityOf, chamberAtIn, depthAbove, regionStats, registerChamber, roof
 
 /** Founding geometry of a species (GDD 03 §13.1; SpeciesDef.founding), BU / BU^3. */
 interface FoundingGeometry { dMinOpen: number; dMinCover: number; vMin: number; wMin: number }
-
-/** Soil roof the founding cell needs unless it is covered, BU (GDD 03 §13.1 "roof ok"). */
-const READY_ROOF_MIN_BU = 2;
-/** Deep voxels: depth >= D_MIN - this, BU (GDD 03 §13.1 V_deep). */
-const DEEP_MARGIN_BU = 2;
-/** At most this many entrances (GDD 03 §13.1 "openings <= 2"). */
-const MAX_OPENINGS = 2;
 
 export interface FoundingReadiness {
   /** R of GDD 03 §13.1, 0..1. */
@@ -34,6 +29,7 @@ export interface FoundingReadiness {
   widthOk: boolean;
   roofOk: boolean;
   covered: boolean;
+  /** Entrances whose throat opens into the founding cavity (not every entrance of the nest record). */
   openings: number;
   /** Deep open samples (packed keys, ascending): the cell region. */
   deepKeys: number[];
@@ -47,37 +43,67 @@ function geometryOf(sim: Sim, nest: Nest): FoundingGeometry | null {
   return f ? { dMinOpen: f.dMinOpenBu, dMinCover: f.dMinCoverBu, vMin: f.vMinBu3, wMin: f.wMinBu } : null;
 }
 
-/** Seeds of the nest's cavity: entrance throats, the founding cavity seed, chamber centres (fixed order). */
-function seedsOf(sim: Sim, nest: Nest): Vec3[] {
+/** Throat seed points of an entrance: from the opening inward along -dir to THROAT_BU, every 0.5 BU. */
+function throatSeeds(sim: Sim, e: Entrance): Vec3[] {
   const bu = sim.world.bu, out: Vec3[] = [];
-  for (const e of nest.entrances) {
-    for (let d = 0; d <= THROAT_BU; d += 0.5) out.push({ x: e.pos.x - e.dir.x * d * bu, y: e.pos.y - e.dir.y * d * bu, z: e.pos.z - e.dir.z * d * bu });
-  }
+  for (let d = 0; d <= THROAT_BU; d += 0.5) out.push({ x: e.pos.x - e.dir.x * d * bu, y: e.pos.y - e.dir.y * d * bu, z: e.pos.z - e.dir.z * d * bu });
+  return out;
+}
+
+/** Seed points of the nest's cavity in fixed order: entrance throats, the founding cavity seed, chamber centres. */
+function seedsOf(sim: Sim, nest: Nest): Vec3[] {
+  const out: Vec3[] = [];
+  for (const e of nest.entrances) out.push(...throatSeeds(sim, e));
   if (nest.founding) out.push(nest.founding.cavitySeed);
   for (const c of nest.chambers) out.push(c.center);
   return out;
 }
 
+type SampleBox = ReturnType<typeof nestSampleBox>;
+
+/** Open sample keys in the 3 x 3 x 3 neighbourhood of a point (inside the box), in fixed order. */
+function startKeys(sim: Sim, p: Vec3, b: SampleBox): number[] {
+  const carve = sim.carve, v = carve.voxel, out: number[] = [];
+  const ci = Math.round(p.x / v), cj = Math.round(p.y / v), ck = Math.round(p.z / v);
+  for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const i = ci + di, j = cj + dj, k = ck + dk;
+    if (i < b.i0 || i > b.i1 || j < b.j0 || j > b.j1 || k < b.k0 || k > b.k1) continue;
+    if (carve.sampleAt(i, j, k) >= OPEN_MIN) out.push(packSample(i, j, k));
+  }
+  return out;
+}
+
+/** The nest's cavity split into 26-connected components (inside its sample box), with each sample's component. */
+interface CavityParts { parts: number[][]; partOf: Map<number, number> }
+
+function cavityParts(sim: Sim, nest: Nest, b: SampleBox): CavityParts {
+  const carve = sim.carve;
+  const partOf = new Map<number, number>(), parts: number[][] = [];
+  for (const p of seedsOf(sim, nest)) {
+    for (const start of startKeys(sim, p, b)) {
+      if (partOf.has(start)) continue;
+      const id = parts.length, list = [start];
+      partOf.set(start, id);
+      for (let q = 0; q < list.length; q++) {
+        const i = sampleI(list[q]), j = sampleJ(list[q]), k = sampleK(list[q]);
+        for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const ni = i + di, nj = j + dj, nk = k + dk;
+          if (ni < b.i0 || ni > b.i1 || nj < b.j0 || nj > b.j1 || nk < b.k0 || nk > b.k1) continue;
+          const key = packSample(ni, nj, nk);
+          if (partOf.has(key) || carve.sampleAt(ni, nj, nk) < OPEN_MIN) continue;
+          partOf.set(key, id);
+          list.push(key);
+        }
+      }
+      parts.push(list.sort((x, y) => x - y));
+    }
+  }
+  return { parts, partOf };
+}
+
 /** Open samples of the nest's cavity (26-connected from its seeds, inside its sample box), ascending keys. */
 export function cavitySamples(sim: Sim, nest: Nest): number[] {
-  const carve = sim.carve, v = carve.voxel, b = nestSampleBox(sim, nest);
-  const seen = new Set<number>(), list: number[] = [];
-  const push = (i: number, j: number, k: number): void => {
-    if (i < b.i0 || i > b.i1 || j < b.j0 || j > b.j1 || k < b.k0 || k > b.k1) return;
-    const key = packSample(i, j, k);
-    if (seen.has(key) || carve.sampleAt(i, j, k) < OPEN_MIN) return;
-    seen.add(key);
-    list.push(key);
-  };
-  for (const p of seedsOf(sim, nest)) {
-    const ci = Math.round(p.x / v), cj = Math.round(p.y / v), ck = Math.round(p.z / v);
-    for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) push(ci + di, cj + dj, ck + dk);
-  }
-  for (let q = 0; q < list.length; q++) {
-    const i = sampleI(list[q]), j = sampleJ(list[q]), k = sampleK(list[q]);
-    for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) push(i + di, j + dj, k + dk);
-  }
-  return list.sort((a, b) => a - b);
+  return cavityParts(sim, nest, nestSampleBox(sim, nest)).parts.flat().sort((a, b) => a - b);
 }
 
 /** In-layer disk offsets (voxels) with 0 < d <= R. */
@@ -90,12 +116,42 @@ function disk(R: number): number[] {
   return out;
 }
 
-/** Founding readiness of a nest's cavity (GDD 03 §13.1), or null without founding geometry for its species. */
+/**
+ * Founding readiness of a nest's cavity (GDD 03 §13.1), or null without founding geometry for its species. The
+ * founding cavity is the connected part of the nest's cavity that scores best (ready first, then R): trial pits
+ * the queen dug and left elsewhere in her footprint (§13.4) are separate parts, and only the entrances whose
+ * throat opens into the founding cavity count as its openings.
+ */
 export function foundingReadiness(sim: Sim, nest: Nest): FoundingReadiness | null {
   const g = geometryOf(sim, nest);
   if (!g) return null;
+  const b = nestSampleBox(sim, nest);
+  const { parts, partOf } = cavityParts(sim, nest, b);
+  const openings = new Array<number>(parts.length).fill(0);
+  for (const e of nest.entrances) {
+    const touched = new Set<number>();
+    for (const p of throatSeeds(sim, e)) for (const key of startKeys(sim, p, b)) touched.add(partOf.get(key)!);
+    for (const id of touched) openings[id]++;
+  }
+  let best: FoundingReadiness | null = null;
+  for (let id = 0; id < parts.length; id++) {
+    const r = measure(sim, g, parts[id], openings[id]);
+    if (!best || (r.ready && !best.ready) || (r.ready === best.ready && r.readiness > best.readiness)) best = r;
+  }
+  return best ?? measure(sim, g, [], 0);
+}
+
+/** Soil roof over the open column through (x, y, z): from the top of that open run to the next free space, mm. */
+function roofOver(sim: Sim, x: number, y0: number, z: number): number {
+  const step = 0.25 * sim.carve.voxel, top = Math.min(y0 + DEPTH_SCAN_MAX_BU * sim.world.bu, sim.field.height(x, z));
+  let y = y0;
+  while (y < top && sim.field.sampleXYZ(x, y, z) > 0) y += step;
+  return y >= top ? 0 : roofAbove(sim, x, y, z); // the column is open to the surface (under the shaft)
+}
+
+/** Readiness of one connected cavity (ascending sample keys) with `openings` entrances into it. */
+function measure(sim: Sim, g: FoundingGeometry, all: readonly number[], openings: number): FoundingReadiness {
   const carve = sim.carve, v = carve.voxel, bu = sim.world.bu;
-  const all = cavitySamples(sim, nest);
   const depthOf = (key: number) => sim.field.height(sampleI(key) * v, sampleK(key) * v) - sampleJ(key) * v;
   let dMax = 0;
   for (const key of all) {
@@ -118,32 +174,35 @@ export function foundingReadiness(sim: Sim, nest: Nest): FoundingReadiness | nul
   }
   const covered = widest ? depthAbove(sim, widest).covered : false;
   const dMin = covered ? g.dMinCover : g.dMinOpen;
-  const deepKeys: number[] = [];
-  let vDeep = 0, widthOk = false;
+  const deepKeys: number[] = [], wideDeep: number[] = [];
+  let vDeep = 0;
   for (const key of all) {
-    if (depthOf(key) < (dMin - DEEP_MARGIN_BU) * bu || sim.field.substrateXYZ(sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) >= 0) continue;
+    if (depthOf(key) < (dMin - FOUNDING_DEEP_MARGIN_BU) * bu || sim.field.substrateXYZ(sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) >= 0) continue;
     deepKeys.push(key);
     vDeep += OPEN_FRACTION[carve.sampleAt(sampleI(key), sampleJ(key), sampleK(key))];
-    if (!widthOk && wide(key)) widthOk = true;
+    if (wide(key)) wideDeep.push(key);
   }
   vDeep *= (v / bu) ** 3;
-  const roofOk = covered || (widest !== null && roofAbove(sim, widest.x, widest.y, widest.z) >= READY_ROOF_MIN_BU * bu);
-  const openings = nest.entrances.length;
+  const widthOk = wideDeep.length > 0;
+  // the cell's roof: soil above the cavity over some wide deep sample (not under the shaft, whose column is open)
+  const roofMin = FOUNDING_ROOF_MIN_BU * bu;
+  const roofOk = covered || wideDeep.some((key) => roofOver(sim, sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) >= roofMin);
   const dBu = dMax / bu;
   const readiness = 0.4 * Math.min(1, dBu / dMin) + 0.6 * Math.min(1, vDeep / g.vMin) * (widthOk ? 1 : 0.8);
-  const ready = dBu >= dMin && vDeep >= g.vMin && widthOk && roofOk && openings <= MAX_OPENINGS;
+  const ready = dBu >= dMin && vDeep >= g.vMin && widthOk && roofOk && openings <= FOUNDING_MAX_OPENINGS;
   return { readiness, ready, dMaxBu: dBu, dMinBu: dMin, vDeepBu3: vDeep, widthOk, roofOk, covered, openings, deepKeys, widest };
 }
 
 /**
- * The founding cell rule (GDD 03 §6.1 route 2, §13.2 `ready`): while the nest is founding and has no founding or
- * royal chamber, measures readiness (kept in nest.founding.readiness) and, once the geometry is ready, makes the
+ * The founding cell rule (GDD 03 §6.1 route 2, §13.2 `ready`): while the nest is founding (FOUNDING_CELL_STATES:
+ * never once sealed or established) and has no founding or royal chamber, measures readiness (kept in nest.founding.readiness) and, once the geometry is ready, makes the
  * room at the widest deep sample a `founding` chamber: the auto-registered chamber already there is re-typed,
  * else the deep samples register as the cell. Returns the founding chamber, or null.
  */
 export function applyFoundingCell(sim: Sim, nest: Nest): Chamber | null {
   const f = nest.founding;
-  if (!f || nest.chambers.some((c) => c.type === 'founding' || c.type === 'royal')) return null;
+  if (!f || !FOUNDING_CELL_STATES.includes(f.state)) return null;
+  if (nest.chambers.some((c) => c.type === 'founding' || c.type === 'royal')) return null;
   const r = foundingReadiness(sim, nest);
   if (!r) return null;
   f.readiness = r.readiness;

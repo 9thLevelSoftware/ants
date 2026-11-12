@@ -1,0 +1,202 @@
+// The dig planner (GDD 03 §14.2, GDD 08 §4.3): choose a template (chamber of a type, tunnel, shaft, entrance) and a
+// size, hover a nest wall in the cutaway to anchor a ghost on it, rotate it (15° steps), see the nest module's own
+// validation live, and confirm (a second click confirms a plan with warnings) or cancel. Placing sends `planDig`;
+// the plan is then the simulation's. The ghost is built from the same geometry as the plan (validatePlanImpl).
+import type { Vec3 } from '@/core';
+import { PLANNABLE_TYPES } from '@/sim/balance/nestTemplates';
+import { PLAN_DEFAULT_LEN_BU, SHAFT_LEN_BU } from '@/sim/balance/nest';
+import { validatePlanImpl } from '@/sim/nest/plans/validate';
+import type { PlanGeometry } from '@/sim/nest/plans/geometry';
+import type { ChamberSize, ChamberType, Nest, PlanPriority, PlanSpec, PlanValidationCode, Sim, SpeciesId } from '@/sim/types';
+import type { ToolHost } from './markerTool';
+import { planReason } from './reasons';
+
+export type PlanTemplate = 'chamber' | 'tunnel' | 'shaft' | 'entrance';
+
+/** GDD 03 §14.2: the pick snaps to the nearest wall within this distance (BU). */
+export const ANCHOR_PICK_SNAP_BU = 2;
+/** Q / E rotate the ghost by this much (degrees). */
+export const GHOST_YAW_STEP_DEG = 15;
+/** Shaft length step for Shift+wheel (BU). */
+export const SHAFT_STEP_BU = 2;
+export const CHAMBER_SIZES: readonly ChamberSize[] = ['s', 'm', 'l'];
+
+export type GhostValidity = 'valid' | 'warning' | 'invalid';
+
+/** The ghost under the cursor: the request, the nest module's verdict, and the geometry to draw. */
+export interface PlanPreview {
+  spec: PlanSpec;
+  validity: GhostValidity;
+  codes: PlanValidationCode[];
+  warnings: PlanValidationCode[];
+  /** Words for the first refusal / warning, null when valid. */
+  reason: string | null;
+  targetVolume: number;
+  geometry: PlanGeometry | null;
+  /** Wall point and outward normal the ghost hangs on. */
+  anchor: { pos: Vec3; normal: Vec3 };
+  /** Validation time, ms (GDD: <= 2 ms per pointer move). */
+  ms: number;
+}
+
+/** A surface point under the cursor with its outward normal (from the scene pick). */
+export interface AnchorPick {
+  point: Vec3;
+  normal: Vec3;
+  kind: 'cap' | 'wall' | 'surface';
+}
+
+export interface ConfirmResult {
+  /** 'created': planDig sent and the plan exists; 'confirm-warnings': click again; 'refused': nothing created. */
+  outcome: 'created' | 'confirm-warnings' | 'refused' | 'none';
+  planId: number;
+  reason: string | null;
+}
+
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : 0);
+
+export class DigPlanner {
+  template: PlanTemplate = 'chamber';
+  chamberType: ChamberType = 'general';
+  size: ChamberSize = 'm';
+  /** Ghost yaw relative to "straight into the wall", degrees. */
+  yawDeg = 0;
+  shaftLengthBu = PLAN_DEFAULT_LEN_BU;
+  /** Shaft direction: down (default) or up toward the surface. */
+  shaftUp = false;
+  priority: PlanPriority = 'normal';
+  /** Tunnel: first click sets the start anchor, the hover is the end point. */
+  tunnelStart: { pos: Vec3; normal: Vec3 } | null = null;
+  preview: PlanPreview | null = null;
+  /** Warnings were shown for this spec key; the next confirm sends it with confirmWarnings. */
+  private warnedKey = '';
+  private cacheKey = '';
+
+  setTemplate(t: PlanTemplate): void {
+    this.template = t;
+    this.tunnelStart = null;
+    this.preview = null;
+    this.warnedKey = '';
+  }
+
+  /** Chamber types the species may plan (GDD 03 §6.3). */
+  static chamberTypes(sim: Sim): readonly ChamberType[] {
+    return PLANNABLE_TYPES[sim.species.id as SpeciesId] ?? ['general'];
+  }
+
+  rotate(steps: number): void {
+    this.yawDeg = (((this.yawDeg + steps * GHOST_YAW_STEP_DEG) % 360) + 360) % 360;
+    this.cacheKey = '';
+  }
+
+  /** Shift+wheel: chamber size S / M / L, or shaft length. */
+  resize(steps: number): void {
+    if (this.template === 'shaft') {
+      this.shaftLengthBu = Math.max(SHAFT_LEN_BU[0], Math.min(SHAFT_LEN_BU[1], this.shaftLengthBu + steps * SHAFT_STEP_BU));
+    } else {
+      const i = CHAMBER_SIZES.indexOf(this.size);
+      this.size = CHAMBER_SIZES[Math.max(0, Math.min(CHAMBER_SIZES.length - 1, i + steps))];
+    }
+    this.cacheKey = '';
+  }
+
+  cancel(): void {
+    this.tunnelStart = null;
+    this.preview = null;
+    this.warnedKey = '';
+  }
+
+  /**
+   * The ghost for the point under the cursor. A cut-face or surface point snaps to the nearest wall within
+   * ANCHOR_PICK_SNAP_BU (field projection); an entrance takes the surface point itself. Cached per anchor voxel.
+   */
+  hover(sim: Sim, pick: AnchorPick | null): PlanPreview | null {
+    const nest = playerNest(sim);
+    if (!nest || !pick) { this.preview = null; return null; }
+    const anchor = this.anchorFor(sim, pick);
+    const spec = this.specFor(sim, nest, anchor, pick.point);
+    const key = specKey(spec, sim.carve.voxel, sim.state.tick);
+    if (key === this.cacheKey && this.preview) return this.preview;
+    const t0 = now();
+    const v = validatePlanImpl(sim, spec, 'player');
+    const ms = now() - t0;
+    const validity: GhostValidity = !v.ok ? 'invalid' : v.warnings.length > 0 ? 'warning' : 'valid';
+    this.preview = {
+      spec, validity, codes: [...v.codes], warnings: [...v.warnings], reason: planReason(v.codes, v.warnings), targetVolume: v.targetVolume,
+      geometry: v.geometry, anchor: { pos: { ...anchor.pos }, normal: { ...anchor.normal } }, ms,
+    };
+    this.cacheKey = key;
+    return this.preview;
+  }
+
+  /**
+   * Click: tunnel start (first click), or place the previewed plan. Refused plans create nothing and keep the
+   * reason; warnings need a second click on the same ghost.
+   */
+  confirm(h: ToolHost): ConfirmResult {
+    const p = this.preview;
+    if (!p) return { outcome: 'none', planId: -1, reason: null };
+    if (this.template === 'tunnel' && !this.tunnelStart) {
+      if (p.codes.includes('anchor-not-in-nest')) return { outcome: 'refused', planId: -1, reason: p.reason };
+      this.tunnelStart = { pos: { ...p.anchor.pos }, normal: { ...p.anchor.normal } };
+      this.cacheKey = '';
+      return { outcome: 'none', planId: -1, reason: null };
+    }
+    if (p.validity === 'invalid') { h.toast(p.reason ?? 'This plan cannot be dug'); return { outcome: 'refused', planId: -1, reason: p.reason }; }
+    const key = specKey(p.spec, h.sim.carve.voxel, 0);
+    if (p.validity === 'warning' && this.warnedKey !== key) {
+      this.warnedKey = key;
+      return { outcome: 'confirm-warnings', planId: -1, reason: p.reason };
+    }
+    const nest = h.sim.stores.nests.get(p.spec.nestId);
+    const before = nest ? nest.digPlans.length : 0;
+    const r = h.command({ type: 'planDig', ...p.spec, confirmWarnings: p.validity === 'warning' });
+    const created = nest && nest.digPlans.length > before ? nest.digPlans[nest.digPlans.length - 1] : null;
+    this.warnedKey = '';
+    this.tunnelStart = null;
+    this.cacheKey = '';
+    if (created) return { outcome: 'created', planId: created.id, reason: null };
+    if (!r.applied) return { outcome: 'created', planId: -1, reason: null }; // queued for the next tick (real time)
+    return { outcome: 'refused', planId: -1, reason: p.reason ?? 'The plan was not accepted' };
+  }
+
+  private anchorFor(sim: Sim, pick: AnchorPick): { pos: Vec3; normal: Vec3 } {
+    if (this.template === 'entrance' || pick.kind === 'wall') return { pos: { ...pick.point }, normal: { ...pick.normal } };
+    const out = { x: 0, y: 0, z: 0 }, n = { x: 0, y: 1, z: 0 };
+    const ok = sim.field.project(pick.point, 0, out, n);
+    if (ok && Math.hypot(out.x - pick.point.x, out.y - pick.point.y, out.z - pick.point.z) <= ANCHOR_PICK_SNAP_BU * sim.world.bu && sim.field.substrate(out) < 0) {
+      return { pos: out, normal: n };
+    }
+    return { pos: { ...pick.point }, normal: { ...pick.normal } }; // no wall near: validation says why
+  }
+
+  private specFor(sim: Sim, nest: Nest, anchor: { pos: Vec3; normal: Vec3 }, cursor: Vec3): PlanSpec {
+    const base = { nestId: nest.id, priority: this.priority, confirmWarnings: false };
+    switch (this.template) {
+      case 'chamber':
+        return { ...base, kind: 'chamber', chamberType: this.chamberType, size: this.size, anchor, yawDeg: this.yawDeg };
+      case 'tunnel':
+        if (!this.tunnelStart) return { ...base, kind: 'tunnel', anchor, yawDeg: this.yawDeg, length: PLAN_DEFAULT_LEN_BU };
+        return { ...base, kind: 'tunnel', anchor: this.tunnelStart, end: { ...cursor } };
+      case 'shaft': {
+        const dy = (this.shaftUp ? 1 : -1) * this.shaftLengthBu * sim.world.bu;
+        return { ...base, kind: 'shaft', anchor, length: this.shaftLengthBu, end: { x: anchor.pos.x, y: anchor.pos.y + dy, z: anchor.pos.z } };
+      }
+      case 'entrance':
+        return { ...base, kind: 'entrance', anchor, surfacePoint: { ...cursor } };
+    }
+  }
+}
+
+/** The player colony's main nest, or null. */
+export function playerNest(sim: Sim): Nest | null {
+  const col = sim.state.colonies[0];
+  const id = col?.nestIds[0];
+  return id === undefined ? null : sim.stores.nests.get(id) ?? null;
+}
+
+/** Cache key of a request: anchor and end at voxel resolution plus every parameter (and the tick: digging moves on). */
+function specKey(s: PlanSpec, voxel: number, tick: number): string {
+  const q = (p?: Vec3) => (p ? `${Math.round(p.x / voxel)},${Math.round(p.y / voxel)},${Math.round(p.z / voxel)}` : '-');
+  return [s.kind, s.chamberType ?? '', s.size ?? '', s.yawDeg ?? '', s.length ?? '', q(s.anchor.pos), q(s.end), q(s.surfacePoint), s.priority, tick].join('|');
+}

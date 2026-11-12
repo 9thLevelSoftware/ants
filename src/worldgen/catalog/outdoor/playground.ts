@@ -25,7 +25,7 @@ export const PLAYGROUND = {
   swing: { legDia: 76, leanDeg: 15, height: 2200, span: 2400, seat: [450, 30, 170] as [number, number, number], seatY: 400, chainDia: 8, p: 0.7 },
   rider: { plate: [400, 10, 400] as [number, number, number], springDia: 150, springH: 300, body: [700, 400, 250] as [number, number, number], bodyY: 500, p: 0.5 },
   bench: { len: 1800, slat: [30, 90] as [number, number], slats: 3, gap: [10, 15] as [number, number], seatY: 450, leg: [60, 450] as [number, number] },
-  bin: { dia: 400, h: 800, lid: 20, feetGap: 5, metalP: 0.5 },
+  bin: { dia: 400, h: 800, lid: 20, feetGap: 5, footEmbed: 5, metalP: 0.5 },
   picnic: { len: 1800, topW: 750, topY: 720, slats: 5, gap: 10, slatT: 30, benchW: 250, benchY: 450, benchOff: 550 },
 };
 
@@ -145,8 +145,18 @@ export function swingFrame(rng: RngState, env: Env): Built {
     prims.push(rb(v(x, W.seatY, 0), sw, st, sd, 4, 'rubber', C | S));
     for (const cx of [x - sw / 2 + 20, x + sw / 2 - 20]) prims.push(cyAB(v(cx, W.seatY + st / 2, 0), v(cx, H - W.legDia / 2, 0), W.chainDia, 'metal', C));
   }
-  void rng; void env;
-  return { tpl: { id: 'swing-frame', prims, tags: ['structure', 'play'] }, tilt: false };
+  // sleeve gaps (p 0.5 per post) where the legs enter the ground, on the outer side of each foot
+  const cavities: LocalCavity[] = [], micro: LocalMicro[] = [];
+  const tg = 200 / (H + 200);
+  for (const x of [-half, half]) for (const sz of [-1, 1]) {
+    if (!chance(rng, PLAYGROUND.sleeve.p)) continue;
+    const zg = sz * (spread + 200 * (spread / H)) * (1 - tg);
+    const s = sleeveGap(rng, env, x, zg, W.legDia / 2 / dcos(lean), sz > 0 ? Math.PI / 2 : -Math.PI / 2);
+    s.micro.cavity = cavities.length;
+    cavities.push(s.cav);
+    micro.push(s.micro);
+  }
+  return { tpl: { id: 'swing-frame', prims, tags: ['structure', 'play'] }, tilt: false, cavities, micro };
 }
 
 export function springRider(_rng: RngState): Built {
@@ -186,16 +196,19 @@ export function litterBin(rng: RngState, env: Env): Built {
   const B = PLAYGROUND.bin, { bu, foot } = env;
   const mat: MaterialId = chance(rng, B.metalP) ? 'metal' : 'plastic';
   const r = B.dia / 2, g = B.feetGap;
+  const gr = env.ground ?? (() => 0);
   const prims: PrimSpec[] = [];
-  // four feet at the rim (the route climbs the one on +X: its face is flush with the body)
+  // four feet at the rim, each down into its own ground (the bin stands upright on a slope); the route climbs the
+  // one on +X: its face is flush with the body
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2, wide = i === 0 ? 120 : 40;
-    prims.push(rb(v((r - 20) * dcos(a), g / 2, (r - 20) * dsin(a)), 40, g, wide, 1, mat, C));
+    const fx = (r - 20) * dcos(a), fz = (r - 20) * dsin(a), bottom = Math.min(0, gr(fx, fz)) - B.footEmbed;
+    prims.push(rb(v(fx, (bottom + g) / 2, fz), 40, g - bottom, wide, 1, mat, C));
   }
   const bodyTop = B.h - B.lid;
-  prims.push(cy(v(0, (g + bodyTop) / 2, 0), B.dia, bodyTop - g, mat, C | S | NB, undefined, 6));
+  // sharp-edged body: a rounded top edge under the lid would leave a notch round the rim that no walker gets out of
+  prims.push(cy(v(0, (g + bodyTop) / 2, 0), B.dia, bodyTop - g, mat, C | S | NB));
   prims.push(cy(v(0, bodyTop + B.lid / 2, 0), B.dia + 16, B.lid, mat, C, undefined, 4));
-  const gr = env.ground ?? (() => 0);
   const pts = [v(r + foot + 3 * bu, gr(r + 3 * bu, 0) + foot, 0), v(r + foot, gr(r, 0) + 2 * bu, 0), v(r + foot, bodyTop - 2 * bu, 0), v(r + 8 + foot, bodyTop + B.lid / 2, 0), v(r - 2 * bu, B.h + foot, 0), v(0, B.h + foot, 0)];
   return {
     tpl: { id: 'litter-bin', prims, tags: ['structure', 'bin'], routes: [{ kind: 'bin-to-rim', points: densify(pts, 6 * bu) }], pois: [{ kind: 'bin-gap', pos: v(0, B.h + foot, 0) }] },

@@ -11,10 +11,11 @@ import { patioChair, patioTable, planter, PAVEMENT } from '../../catalog/outdoor
 import { inward, inwardNormal } from '../../layout/geom';
 import type { Rect } from '../../layout/types';
 import { NAV } from '../../tuning/maps';
-import { commit, envFor, range } from './commit';
+import { commit, envFor, localToWorld, range } from './commit';
 import { datan2, edgeDistAt, footprintIn, pointInZone, yawAlong, zonesOf } from './zones';
 import { dcos as dc, dsin as ds } from '../../kit/dmath';
 import { OUTDOOR } from './tuning';
+import { wallSection } from './edges';
 
 const B = OUTDOOR.beds;
 
@@ -114,7 +115,8 @@ function potsAndPlanters(ctx: GenContext): void {
         p = edge === 0 ? { x: r.x0 + e, z: r.z0 + u * (r.z1 - r.z0) } : edge === 1 ? { x: r.x1 - e, z: r.z0 + u * (r.z1 - r.z0) } : edge === 2 ? { x: r.x0 + u * (r.x1 - r.x0), z: r.z0 + e } : { x: r.x0 + u * (r.x1 - r.x0), z: r.z1 - e };
       } else if (beds.length) p = pointInZone(ctx, pr, beds[rngInt(pr, 0, beds.length - 1)].id, (x, z) => edgeDistAt(ctx, x, z) < 300);
       if (!p) continue;
-      if (commit(ctx, b, { x: p.x, z: p.z, yaw: range(pr, 0, 2 * Math.PI), collide: true, category: 'props' }) >= 0) break;
+      const onPatio = i % 2 === 0 && patios.length > 0;
+      if (commit(ctx, b, { x: p.x, z: p.z, yaw: range(pr, 0, 2 * Math.PI), collide: true, category: 'props', ...(onPatio ? { atGround: 'support' as const } : {}) }) >= 0) break;
     }
   }
   if (patios.length) {
@@ -123,7 +125,12 @@ function potsAndPlanters(ctx: GenContext): void {
     const np = rngInt(rng, B.planters[0], Math.min(B.planters[1], 3));
     for (let i = 0; i < np; i++) {
       const [cx, cz, sx, sz] = corners[(i * 3 + rngInt(rng, 0, 3)) % 4];
-      commit(ctx, planter(ctx.rngFor('wg/structures/outdoor/planters', i), env), { x: cx + sx * 550, z: cz + sz * 550, yaw: 0, collide: true, category: 'props' });
+      const pl = planter(ctx.rngFor('wg/structures/outdoor/planters', i), env);
+      // flat on the slab tops, nudged inwards when a wall would stand over a joint
+      for (let t = 0; t < OUTDOOR.pavement.planterTries; t++) {
+        const e = OUTDOOR.pavement.planterInset + t * OUTDOOR.pavement.planterNudge;
+        if (commit(ctx, pl, { x: cx + sx * e, z: cz + sz * e, yaw: 0, atGround: 'support', collide: true, category: 'props' }) >= 0) break;
+      }
     }
   }
 }
@@ -139,18 +146,52 @@ function patioFurniture(ctx: GenContext): void {
   for (let t = 0; t < 16; t++) {
     const x = range(rng, r.x0 + 900, r.x1 - 900), z = range(rng, r.z0 + 900, r.z1 - 900);
     if (door && Math.abs(x - door.x) + Math.abs(z - door.z) < 1500) continue;
-    if (commit(ctx, tb, { x, z, yaw: range(rng, 0, Math.PI), collide: true, category: 'structures' }) < 0) continue;
+    const yaw = range(rng, 0, Math.PI);
+    // flat on the slab tops: a fitted rest would sink a leg into a joint
+    if (commit(ctx, tb, { x, z, yaw, atGround: 'support', collide: true, category: 'structures' }) < 0) continue;
+    const top = tb.tpl.prims[0];
+    const round = top.shape === 'cylinder';
     const nc = rngInt(rng, OUTDOOR.pavement.chairs[0], OUTDOOR.pavement.chairs[1]);
-    const a0 = range(rng, 0, 2 * Math.PI);
-    for (let c = 0; c < nc; c++) {
-      const a = a0 + (c * 2 * Math.PI) / nc, d = PAVEMENT.table.topDia[1] / 2 + 330;
-      const cx = x + d * dc(a), cz = z + d * ds(a);
+    const seats = chairSeats(round ? { r: top.size.x } : { hx: top.size.x, hz: top.size.z }, range(rng, 0, 2 * Math.PI), PAVEMENT.chair.seat / 2 + OUTDOOR.pavement.chairClearMm);
+    let placed = 0;
+    for (let c = 0; c < seats.length && placed < nc; c++) {
+      const p = localToWorld(x, z, yaw, seats[c].x, seats[c].z);
       // chair back (-Z) away from the table: local +Z points to the table centre
-      const yaw = datan2(x - cx, z - cz);
-      commit(ctx, patioChair(ctx.rngFor('wg/structures/outdoor/chairs', c), env), { x: cx, z: cz, yaw, collide: true, category: 'structures' });
+      const cy = datan2(x - p.x, z - p.z);
+      if (commit(ctx, patioChair(ctx.rngFor('wg/structures/outdoor/chairs', c), env), { x: p.x, z: p.z, yaw: cy, atGround: 'support', collide: true, category: 'structures' }) >= 0) placed++;
     }
     return;
   }
+}
+
+/**
+ * Chair centres around a table top in the table's frame, the seat's front edge `off` beyond the top's edge, in an
+ * order that spreads the first few round the table: a round top gets 12 positions from angle a0, a rectangular one
+ * the middle of each side and two more along each long side.
+ */
+export function chairSeats(top: { r: number } | { hx: number; hz: number }, a0: number, off: number): { x: number; z: number }[] {
+  const n = OUTDOOR.pavement.chairCandidates;
+  if ('r' in top) {
+    const order = spreadOrder(n);
+    return order.map((k) => { const a = a0 + (k * 2 * Math.PI) / n; return { x: (top.r + off) * dc(a), z: (top.r + off) * ds(a) }; });
+  }
+  const { hx, hz } = top;
+  const long = hx >= hz ? 'x' : 'z', along = Math.max(hx, hz) / 2;
+  const sides = [{ x: hx + off, z: 0 }, { x: -hx - off, z: 0 }, { x: 0, z: hz + off }, { x: 0, z: -hz - off }];
+  const extra = long === 'x'
+    ? [{ x: -along, z: hz + off }, { x: along, z: -hz - off }, { x: along, z: hz + off }, { x: -along, z: -hz - off }]
+    : [{ x: hx + off, z: -along }, { x: -hx - off, z: along }, { x: hx + off, z: along }, { x: -hx - off, z: -along }];
+  return [sides[0], sides[1], sides[2], sides[3], ...extra];
+}
+
+/** 0 .. n-1 ordered so that every prefix is spread round a circle (halving strides). */
+function spreadOrder(n: number): number[] {
+  const out: number[] = [], seen = new Set<number>();
+  for (let stride = n; stride >= 1; stride = Math.floor(stride / 2)) {
+    for (let k = 0; k < n; k += stride) if (!seen.has(k)) { seen.add(k); out.push(k); }
+    if (stride === 1) break;
+  }
+  return out;
 }
 
 function birdTableIn(ctx: GenContext): void {
@@ -160,17 +201,25 @@ function birdTableIn(ctx: GenContext): void {
   spot(ctx, 'wg/structures/outdoor/birdtable/spot', 250, 250, (x, z) => commit(ctx, b, { x, z, yaw: 0, atGround: 'terrain', collide: true, category: 'structures' }) >= 0, false);
 }
 
-/** Lawn edging along the 4 BU raster boundary between a lawn and a bed, in straight runs cut into segments. */
+/**
+ * Lawn/bed boundaries (GDD 04 §5.2-5.3): per pair, lawn edging (p 0.4) or else a low dry-stone garden wall
+ * (p OUTDOOR.beds.bedWallP) along the boundary's straight runs on the 16 BU raster, cut into segments.
+ */
 function lawnEdges(ctx: GenContext): void {
   const lawns = zonesOf(ctx, 'lawn'), beds = zonesOf(ctx, 'garden-bed');
   if (!lawns.length || !beds.length) return;
   const rng = ctx.rng('wg/structures/outdoor/lawnedge');
   const { navN: n, navCell: c } = ctx.dims;
   const z = ctx.layout.nav;
-  const seg = OUTDOOR.lawn.edgeSeg;
-  let idx = 0;
+  let idx = 0, widx = 0;
   for (const lz of lawns) for (const bz of beds) {
-    if (rngFloat(rng) >= OUTDOOR.lawn.edgeP) continue;
+    const edging = rngFloat(rng) < OUTDOOR.lawn.edgeP;
+    const wall = !edging && rngFloat(rng) < B.bedWallP;
+    if (!edging && !wall) continue;
+    const W = BEDS.wall;
+    const thick = W.thick[0] + rngFloat(rng) * (W.thick[1] - W.thick[0]), height = B.bedWallH[0] + rngFloat(rng) * (B.bedWallH[1] - B.bedWallH[0]);
+    const seg = edging ? OUTDOOR.lawn.edgeSeg : OUTDOOR.edges.wallSection;
+    let wallVoid = false;
     // vertical boundaries (between i and i+1) as runs along k, horizontal ones along i
     for (const vert of [true, false]) {
       for (let a = 0; a < n - 1; a++) {
@@ -180,11 +229,19 @@ function lawnEdges(ctx: GenContext): void {
           if (on && run < 0) run = b;
           if (!on && run >= 0) {
             const from = run * c, to = b * c, fixed = (a + 1) * c;
+            if (wall && to - from < B.bedWallMinRun) { run = -1; continue; }
             const m = Math.max(1, Math.round((to - from) / seg)), sl = (to - from) / m;
             for (let s = 0; s < m; s++) {
               const u = from + sl * (s + 0.5);
               const x = vert ? fixed : u, zz = vert ? u : fixed;
-              commit(ctx, lawnEdge(ctx.rngFor('wg/structures/outdoor/lawnedge', idx++), sl - 4), { x, z: zz, yaw: vert ? Math.PI / 2 : 0, tilt: true, collide: true, category: 'structures' });
+              if (edging) {
+                commit(ctx, lawnEdge(ctx.rngFor('wg/structures/outdoor/lawnedge', idx++), sl - 4), { x, z: zz, yaw: vert ? Math.PI / 2 : 0, tilt: true, collide: true, category: 'structures' });
+              } else {
+                // one inner void per wall
+                const at = vert ? { x, z: zz, dx: 0, dz: 1, nx: 1, nz: 0 } : { x, z: zz, dx: 1, dz: 0, nx: 0, nz: 1 };
+                const r = wallSection(ctx, ctx.rngFor('wg/structures/outdoor/bedwall', widx++), at, sl, thick, height, !wallVoid);
+                if (r?.crevice) wallVoid = true;
+              }
             }
             run = -1;
           }

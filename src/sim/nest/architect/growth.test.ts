@@ -11,6 +11,8 @@ import { architectRuntime } from './runtime';
 
 const LN = nestTemplate('lasius-niger');
 const FINAL_WORKERS = 300;
+/** Open volume per adult worker accepted at FINAL_WORKERS (GDD 03 D4: about 2 BU^3), BU^3. */
+const D4_PER_ADULT: [number, number] = [1.5, 3];
 
 const log = (...a: unknown[]) => testLog(false, ...a);
 
@@ -31,11 +33,14 @@ describe('architect growth to 300 workers (acceptance 2, 3)', () => {
     expect(r.chambersByType.royal).toBe(1);
     for (const q of REQUIRED_TYPES['lasius-niger']) expect(r.chambersByType[q.type] ?? 0).toBeGreaterThanOrEqual(q.count);
     expect(r.chambersByType.founding ?? 0).toBe(0);
-    // growth reference (GDD 03 §8.6): at 25-40 workers food S and rest M exist; 300 workers ~ 2 BU^3 per adult (D4)
+    // growth reference (GDD 03 §8.6): at 25-40 workers food S and rest M exist. Volume: recorded contradiction
+    // inside GDD 03 - deviation D4 says about 2 BU^3 per adult, the §8.6 tester table says ~350 BU^3 at 25-40
+    // workers and ~1,000 at 150 (6-9 per adult; it meets D4 only at 1,500). D4 is the chapter's design rule
+    // (the needs' capacities produce it); §8.6 is a reference, so the test holds D4: 300 workers, 1.5-3 per adult.
     expect(g.at40?.types.food ?? 0).toBeGreaterThanOrEqual(1);
     expect(g.at40?.types.nursery ?? 0).toBeGreaterThanOrEqual(1);
-    expect(r.volume).toBeGreaterThan(1.5 * FINAL_WORKERS);
-    expect(r.volume).toBeLessThan(6 * FINAL_WORKERS);
+    expect(r.volume).toBeGreaterThan(D4_PER_ADULT[0] * FINAL_WORKERS);
+    expect(r.volume).toBeLessThan(D4_PER_ADULT[1] * FINAL_WORKERS);
     // depth bands (+- the candidate slack of GDD 03 §8.4), footprint radius, entrances
     expect(r.outOfBand).toEqual([]);
     expect(r.footprintBu).toBeLessThanOrEqual(LN.footprintR);

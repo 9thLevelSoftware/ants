@@ -13,9 +13,20 @@ import { arc, besideAxis, densify, dedupe } from './routes';
 import { FOREST } from './forest';
 import type { Built, Env, LocalCavity, LocalMicro } from './types';
 
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
+
 const R = (rng: RngState, lo: number, hi: number) => lo + rngFloat(rng) * (hi - lo);
 const chance = (rng: RngState, p: number) => rngFloat(rng) < p;
 const TAU = 2 * Math.PI;
+
+/** Signed smallest angle a - b, in (-pi, pi]. */
+function angleDiff(a: number, b: number): number {
+  let d = (a - b) % TAU;
+  if (d > Math.PI) d -= TAU;
+  if (d <= -Math.PI) d += TAU;
+  return d;
+}
 
 /** The trunk -> branch route and the heart-rot / root-channel sockets of a standing tree. */
 export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunkDia?: [number, number]; height?: number; branches?: [number, number]; rootLen?: [number, number] } = {}): Built {
@@ -31,7 +42,8 @@ export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunk
   for (let a = 0; a < 8; a++) gMin = Math.min(gMin, g((D0 / 2) * dcos((a * TAU) / 8), (D0 / 2) * dsin((a * TAU) / 8)));
   const dias: number[] = [];
   for (let s = 0; s < T.segments; s++) {
-    const d = D0 * T.taper ** s;
+    // repeated multiplication, not **: stored sizes may not depend on an approximated pow (DET-4)
+    const d = s === 0 ? D0 : dias[s - 1] * T.taper;
     dias.push(d);
     const y0 = s === 0 ? gMin - 100 : s * segH, y1 = (s + 1) * segH;
     const mat: MaterialId = s === 0 && heartRot ? 'wood-decayed' : 'bark';
@@ -69,10 +81,18 @@ export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunk
   const micro: LocalMicro[] = [];
   let channels = 0;
   const rootYaws: number[] = [];
+  // the climb corridor of each branch: up the trunk just beside the branch (the arc to it is short and meets no
+  // other branch); roots keep out of it, so the route's ground start and first metre are clear
+  const corridors = branches.map((b) => b.yaw + (b.dia / 2 + 4 * bu) / (0.4 * D0));
   for (let k = 0; k < nR; k++) {
-    const yaw = rootYaw0 + (k * TAU) / nR + R(rng, -0.25, 0.25);
-    rootYaws.push(yaw);
+    let yaw = rootYaw0 + (k * TAU) / nR + R(rng, -0.25, 0.25);
     const rd = Math.min(0.6 * D0, Math.max(T.rootDia[0], Math.min(T.rootDia[1], D0 * R(rng, T.rootDiaK[0], T.rootDiaK[1]))));
+    const half = (rd / 2 + T.corridorClearBu * bu) / (D0 / 2);
+    for (const c of corridors) {
+      const d = angleDiff(yaw, c);
+      if (Math.abs(d) < half) yaw = c + (d >= 0 ? half : -half);
+    }
+    rootYaws.push(yaw);
     const rl = R(rng, ...(opts.rootLen ?? (T.rootLen as [number, number])));
     const d = dirYaw(yaw);
     const start = add(v(0, 0.12 * D0 + g(0, 0), 0), scale(d, D0 * 0.2));
@@ -124,9 +144,7 @@ export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunk
   for (const br of branches) {
     // climb the trunk just beside the branch (the arc to it is short and meets no other branch), on the side
     // farther from the roots
-    const dl = (br.dia / 2 + 4 * bu) / (0.4 * D0);
-    const rootGap = (a: number) => Math.min(...rootYaws.map((r) => { let d = Math.abs(a - r) % TAU; if (d > Math.PI) d = TAU - d; return d; }));
-    const ry = rootGap(br.yaw + dl) >= rootGap(br.yaw - dl) ? br.yaw + dl : br.yaw - dl;
+    const ry = corridors[branches.indexOf(br)];
     const sd = dirYaw(ry);
     const pts: Vec3[] = [];
     const g0 = g(sd.x * (D0 / 2 + 3 * bu), sd.z * (D0 / 2 + 3 * bu));
@@ -165,7 +183,7 @@ export function standingTree(rng: RngState, env: Env, opts: { id?: string; trunk
     const te = tAt(rAt(a0.y) + br.dia / 2 + 1.5 * bu);
     for (let i = 0; i < n; i++) {
       const p = br.axis[i], q = br.axis[i + 1], rr = (br.dia * (1 - (0.4 * i) / n)) / 2;
-      const len = Math.sqrt((q.x - p.x) ** 2 + (q.y - p.y) ** 2 + (q.z - p.z) ** 2);
+      const len = Math.sqrt(sq(q.x - p.x) + sq(q.y - p.y) + sq(q.z - p.z));
       const steps = Math.max(1, Math.ceil(len / (3 * bu)));
       for (let k = i === 0 ? Math.ceil(te * steps) : 1; k <= steps; k++) {
         const c = add(p, scale(sub(q, p), k / steps));

@@ -11,8 +11,8 @@ import { DUMP_RING_BU, DUMP_RING_RIM_BU, MOUND_CELL_BU, MOUND_GRID_N, MOUND_LINK
 import { moundOverlay } from '@/sim/services';
 import { heightAt } from '@/sim/world/terrainSample';
 import { refreshWalkers } from './carveOps';
-import { clearKeptCells, moundMask, moundOrigin, nearestUsable, relaxPile, usableCell } from './moundRelax';
-import { markNestDirty } from './runtime';
+import { clearKeptCells, entrancesOnGrid, moundMask, moundOrigin, nearestUsable, relaxPile, usableCell } from './moundRelax';
+import { markNestDirty, nestRuntime } from './runtime';
 
 export function moundById(sim: Sim, id: number): Mound | undefined {
   return sim.state.worldDelta.mounds.find((m) => m.id === id);
@@ -66,6 +66,18 @@ export function linkMoundToEntrance(sim: Sim, nest: Nest, e: Entrance): void {
     e.moundId = m.id;
     if (clearKeptCells(sim, m, moundMask(sim, m))) publishMound(sim, m);
     return;
+  }
+}
+
+/**
+ * An entrance appeared, widened or moved: every pile whose grid it touches gives up the cells its kept-clear disc
+ * (and the hole columns around it) now covers at once, not at the pile's next batch (GDD 03 §1.4: held at h = 0).
+ */
+export function clearPilesAround(sim: Sim, e: Entrance): void {
+  nestRuntime(sim).moundMasks.clear();
+  for (const m of sim.state.worldDelta.mounds) {
+    if (!entrancesOnGrid(sim, m).includes(e)) continue;
+    if (clearKeptCells(sim, m, moundMask(sim, m))) publishMound(sim, m);
   }
 }
 

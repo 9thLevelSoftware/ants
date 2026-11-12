@@ -16,7 +16,9 @@ export const STATE_PARAMS: Record<PossessionCamState, StateParams> = {
   open: { framing: 'orbit', dist: [5, 1.5, 18], pitch: [20, -5, 80], fov: 60 },
   chamber: { framing: 'orbit', dist: [4, 1.5, 8], pitch: [35, 0, 80], fov: 65 },
   tunnel: { framing: 'boom', dist: [2.5, 1.5, 4], pitch: [0, 0, 0], fov: 72 },
-  crevice: { framing: 'boom', dist: [1.2, 1.2, 1.2], pitch: [0, 0, 0], fov: 80 },
+  // GDD: 1.2 L fixed. Retuned (views task, deviation): 1.8 L default, zoomable 1.2-2.5 L, so a queen in her own
+  // 1 BU shaft is seen whole instead of filling the frame; the path boom keeps it inside the shaft.
+  crevice: { framing: 'boom', dist: [1.8, 1.2, 2.5], pitch: [0, 0, 0], fov: 80 },
   falling: { framing: 'chase', dist: [5, 5, 5], pitch: [15, 15, 15], fov: 60 },
   flight: { framing: 'chase', dist: [6, 3, 15], pitch: [10, 10, 10], fov: 70 },
 };

@@ -10,9 +10,13 @@ import { terrainAt } from '../../kit/surface';
 import { bench, litterBin, picnicTable, PLAYGROUND, sandEdging, slide, springRider, swingFrame, toyBucket, toySpade } from '../../catalog/outdoor/playground';
 import type { Built, LocalCavity, LocalMicro } from '../../catalog/outdoor/types';
 import type { Point2, Rect } from '../../layout/types';
-import { commit, envFor, localToWorld, outdoorState, range, registerSockets, takeCount } from './commit';
+import { commit, envFor, groundLocal, localToWorld, outdoorState, range, registerSockets, takeCount } from './commit';
 import { footprintIn, pointInZone, yawAlong, zoneIdAt, zonesOf } from './zones';
 import { OUTDOOR } from './tuning';
+import { dsin } from '../../kit/dmath';
+
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
 
 const G = OUTDOOR.playground;
 
@@ -47,28 +51,44 @@ function edgeSand(ctx: GenContext, r: Rect, idx: number): void {
   }
 }
 
-/** Play equipment at random free spots inside the rubber rect. */
+/**
+ * Play equipment at random free spots inside the rubber rect, each footprint (axis-aligned: yaws are multiples of
+ * 90 deg) at least OUTDOOR.playground.equipmentClearMm from the others (a fall zone between pieces).
+ */
 function equipment(ctx: GenContext, r: Rect, zoneId: number): void {
   const rng = ctx.rng('wg/structures/outdoor/equipment');
   const env = envFor(ctx);
-  const items: { make: () => Built; p: number; hx: number; hz: number }[] = [
-    { make: () => slide(ctx.rngFor('wg/structures/outdoor/equipment', 0), env), p: 1, hx: 400, hz: 1600 },
-    { make: () => swingFrame(ctx.rngFor('wg/structures/outdoor/equipment', 1), env), p: G.swingP, hx: 1350, hz: 700 },
-    { make: () => springRider(ctx.rngFor('wg/structures/outdoor/equipment', 2)), p: G.riderP, hx: 400, hz: 400 },
+  // footprint half extents and the footprint centre's offset along local Z (the slide's origin is its platform:
+  // its chute runs toward +Z)
+  const F = G.footprints;
+  const items: { make: () => Built; p: number; f: { hx: number; hz: number; cz: number } }[] = [
+    { make: () => slide(ctx.rngFor('wg/structures/outdoor/equipment', 0), env), p: 1, f: F.slide },
+    { make: () => swingFrame(ctx.rngFor('wg/structures/outdoor/equipment', 1), env), p: G.swingP, f: F.swing },
+    { make: () => springRider(ctx.rngFor('wg/structures/outdoor/equipment', 2)), p: G.riderP, f: F.rider },
   ];
+  const placed: Rect[] = [];
+  const clear = G.equipmentClearMm;
   for (const it of items) {
     if (rngFloat(rng) >= it.p) continue;
     const b = it.make();
-    for (let t = 0; t < 24; t++) {
+    for (let t = 0; t < G.equipmentTries; t++) {
       const yaw = (rngInt(rng, 0, 3) * Math.PI) / 2;
       const x = range(rng, r.x0, r.x1), z = range(rng, r.z0, r.z1);
-      // the slide's local origin is its platform centre; its chute runs toward +Z
-      const cz = it.hz === 1600 ? 1000 : 0;
-      const c = localToWorld(x, z, yaw, 0, cz);
-      if (!footprintIn(ctx, c.x, c.z, yaw, it.hx, it.hz, [zoneId])) continue;
-      if (commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' }) >= 0) break;
+      const c = localToWorld(x, z, yaw, 0, it.f.cz);
+      if (!footprintIn(ctx, c.x, c.z, yaw, it.f.hx, it.f.hz, [zoneId])) continue;
+      const turned = Math.abs(dsin(yaw)) > 0.5;
+      const hx = turned ? it.f.hz : it.f.hx, hz = turned ? it.f.hx : it.f.hz;
+      const fp: Rect = { x0: c.x - hx, z0: c.z - hz, x1: c.x + hx, z1: c.z + hz };
+      if (placed.some((q) => rectGap(q, fp) < clear)) continue;
+      if (commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' }) >= 0) { placed.push(fp); break; }
     }
   }
+}
+
+/** Gap between two axis-aligned rects (0 when they touch or overlap). */
+function rectGap(a: Rect, b: Rect): number {
+  const dx = Math.max(0, a.x0 - b.x1, b.x0 - a.x1), dz = Math.max(0, a.z0 - b.z1, b.z0 - a.z1);
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
 /** Mat seams along the rubber edge where it meets lawn: slot through the mat into the gravel base. */
@@ -100,7 +120,7 @@ function matSeams(ctx: GenContext, r: Rect): void {
 function pathPoint(line: Point2[], u: number): { p: Point2; tx: number; tz: number } {
   let acc = 0;
   for (let i = 1; i < line.length; i++) {
-    const a = line[i - 1], b = line[i], l = Math.sqrt((b.x - a.x) ** 2 + (b.z - a.z) ** 2);
+    const a = line[i - 1], b = line[i], l = Math.sqrt(sq(b.x - a.x) + sq(b.z - a.z));
     if (acc + l >= u || i === line.length - 1) {
       const t = l > 0 ? Math.min(1, (u - acc) / l) : 0;
       return { p: { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t }, tx: (b.x - a.x) / (l || 1), tz: (b.z - a.z) / (l || 1) };
@@ -121,10 +141,10 @@ function benches(ctx: GenContext): void {
   for (let i = 0, t = 0; i < n && t < 30; t++) {
     const sh = paths[rngInt(rng, 0, paths.length - 1)];
     let total = 0;
-    for (let k = 1; k < sh.line!.length; k++) total += Math.sqrt((sh.line![k].x - sh.line![k - 1].x) ** 2 + (sh.line![k].z - sh.line![k - 1].z) ** 2);
+    for (let k = 1; k < sh.line!.length; k++) total += Math.sqrt(sq(sh.line![k].x - sh.line![k - 1].x) + sq(sh.line![k].z - sh.line![k - 1].z));
     const { p, tx, tz } = pathPoint(sh.line!, range(rng, 0.15, 0.85) * total);
     const side = rngFloat(rng) < 0.5 ? -1 : 1;
-    const off = sh.width / 2 + G.benchOffset + 250;
+    const off = sh.width / 2 + G.benchOffset + G.benchHalfDepth;
     const x = p.x - tz * off * side, z = p.z + tx * off * side;
     const yaw = yawAlong(tx, tz);
     if (!footprintIn(ctx, x, z, yaw, 950, 250, natural)) continue;
@@ -132,9 +152,12 @@ function benches(ctx: GenContext): void {
     i++;
     const nb = rngInt(rng, G.binsPerBench[0], G.binsPerBench[1]);
     for (let b = 0; b < nb; b++) {
-      const s = b === 0 ? 1 : -1, u = 900 + 450;
+      const s = b === 0 ? 1 : -1, u = G.binOffset;
       const bx = x + tx * u * s, bz = z + tz * u * s;
-      if (footprintIn(ctx, bx, bz, 0, 220, 220, natural)) commit(ctx, litterBin(ctx.rngFor('wg/structures/outdoor/bins', i * 4 + b), env), { x: bx, z: bz, yaw: 0, tilt: false, collide: true, category: 'structures' });
+      if (footprintIn(ctx, bx, bz, 0, 220, 220, natural)) {
+        const bin = litterBin(ctx.rngFor('wg/structures/outdoor/bins', i * 4 + b), envFor(ctx, groundLocal(ctx, bx, bz, 0)));
+        commit(ctx, bin, { x: bx, z: bz, yaw: 0, atGround: 'terrain', collide: true, category: 'structures' });
+      }
     }
   }
 }

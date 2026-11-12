@@ -4,10 +4,10 @@
 // on, no colony aggregate.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Sim } from '@/sim/types';
+import type { Ant, HumanCue, Sim } from '@/sim/types';
 import { ALARM_ALERT } from '@/sim/balance';
 import {
-  ANTENNA_ANGLE_DEG, ANTENNA_REACH_BU, AVOID_LOOKAHEAD_BU, CONTACT_DIST_BU, CONTACT_HALF_ANGLE_DEG, HUMAN_CUE_FEEL_MULT,
+  ALARM_THREAT_OFFSET_BU, ANTENNA_ANGLE_DEG, ANTENNA_REACH_BU, AVOID_LOOKAHEAD_BU, CONTACT_DIST_BU, CONTACT_HALF_ANGLE_DEG, HUMAN_CUE_FEEL_MULT,
   SMELL_CREATURE_BU, SMELL_QUERY_MAX_BU,
 } from '@/sim/balance/foraging';
 import { footprintMm, isAvailable, odourRadiusMm } from '@/sim/ecology';
@@ -119,10 +119,29 @@ function markers(sim: Sim, ant: Ant): void {
   ant.bb[PC.avoidMarker] = avoid;
 }
 
-function setThreat(ant: Ant, code: number, x: number, z: number): void {
+function setThreat(ant: Ant, code: number, x: number, z: number, dx = 0, dz = 0): void {
   ant.bb[PC.threat] = code;
   ant.bb[PC.threatX] = x;
   ant.bb[PC.threatZ] = z;
+  ant.bb[PC.threatDx] = dx;
+  ant.bb[PC.threatDz] = dz;
+}
+
+/**
+ * The way a human pass comes (GDD 02 §10.12 "perpendicular to the approach"): footfalls, strokes and strips move
+ * along a lane, so the run's cue nearest in time at another spot gives the direction (earlier spot -> later spot).
+ * Unit (x, z), or 0, 0 when the run has no second spot.
+ */
+function approachOf(cues: readonly HumanCue[], c: HumanCue): { x: number; z: number } {
+  let other: HumanCue | undefined;
+  for (const o of cues) {
+    if (o === c || Math.hypot(c.origin.x - o.origin.x, c.origin.z - o.origin.z) < 1e-3) continue;
+    if (!other || Math.abs(o.impactTick - c.impactTick) < Math.abs(other.impactTick - c.impactTick)) other = o;
+  }
+  if (!other) return { x: 0, z: 0 };
+  const [a, b] = other.impactTick <= c.impactTick ? [other, c] : [c, other];
+  const dx = b.origin.x - a.origin.x, dz = b.origin.z - a.origin.z, l = Math.hypot(dx, dz);
+  return { x: dx / l, z: dz / l };
 }
 
 /** Danger in order of urgency: a looming human event, a predator in smell range, alarm pheromone. */
@@ -132,7 +151,11 @@ function threats(sim: Sim, ant: Ant): void {
     for (const c of run.cues) {
       if ((c.kind !== 'tremor' && c.kind !== 'shadow') || now > c.impactTick || now < c.startTick) continue;
       const d = Math.hypot(ant.pos.x - c.origin.x, ant.pos.z - c.origin.z);
-      if (d <= c.radiusMm * HUMAN_CUE_FEEL_MULT) { setThreat(ant, THREAT.human, c.origin.x, c.origin.z); return; }
+      if (d <= c.radiusMm * HUMAN_CUE_FEEL_MULT) {
+        const a = approachOf(run.cues, c);
+        setThreat(ant, THREAT.human, c.origin.x, c.origin.z, a.x, a.z);
+        return;
+      }
     }
   }
   if (ant.nestId < 0) {
@@ -147,7 +170,7 @@ function threats(sim: Sim, ant: Ant): void {
   if (alarm >= ALARM_ALERT) {
     // the danger lies up the alarm gradient
     const s = sim.phero.sense(ant.colony, 'alarm', ant.pos, ant.fwd, ant.up, dir);
-    const k = s > 0 ? sim.world.bu * 4 : 0;
+    const k = s > 0 ? ALARM_THREAT_OFFSET_BU * sim.world.bu : 0;
     setThreat(ant, THREAT.alarm, ant.pos.x + dir.x * k, ant.pos.z + dir.z * k);
     return;
   }

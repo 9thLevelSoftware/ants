@@ -3,7 +3,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Chamber, FoodSource, Sim } from '@/sim/types';
-import { HARVEST_REACH_PAD_BU } from '@/sim/balance/foraging';
+import { HARVEST_REACH_PAD_BU, SOURCE_ARRIVE_L } from '@/sim/balance/foraging';
 import { footprintMm } from '@/sim/ecology';
 import { navStop, navTo, navToTarget, type NavOptions } from '@/sim/locomotion';
 import { K } from './keys';
@@ -34,7 +34,7 @@ export function atSource(sim: Sim, ant: Ant, s: FoodSource): boolean {
 
 /** Walk to the source's footprint edge, facing it. */
 export function goToSource(sim: Sim, ant: Ant, s: FoodSource): boolean {
-  const arrive = footprintMm(s, sim.world.bu) + 0.3 * ant.lengthBu * sim.world.bu;
+  const arrive = footprintMm(s, sim.world.bu) + SOURCE_ARRIVE_L * ant.lengthBu * sim.world.bu;
   return navToTarget(sim, ant, { kind: 'source', id: s.id, pos: s.pos }, arrive);
 }
 

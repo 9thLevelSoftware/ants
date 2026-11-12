@@ -127,13 +127,22 @@ const validateOnly = (sim: Sim): AcceptPlacement => (spec) => {
   return v.ok && v.targetVolume > 0;
 };
 
+export interface PlacementOptions {
+  /** Wall-spot candidates drawn (default ARCH_CANDIDATES). */
+  maxCandidates?: number;
+  /** Candidates whose analytic volume exceeds this are skipped (room left under the volume cap), BU^3. */
+  maxVolumeBu3?: number;
+}
+
 /** The best placement for a need that `accept` takes (default: the best valid one), or null. */
-export function choosePlacement(sim: Sim, nest: Nest, req: NeedRequest, rng: RngState, accept: AcceptPlacement = validateOnly(sim), maxCandidates?: number): Placement | null {
+export function choosePlacement(sim: Sim, nest: Nest, req: NeedRequest, rng: RngState, accept: AcceptPlacement = validateOnly(sim), opts: PlacementOptions = {}): Placement | null {
   const species = sim.stores.colonies.get(nest.colony)?.species ?? sim.species.id;
   const t = nestTemplate(species), band = bandOf(species, req.type);
   const scored: Scored[] = [];
-  for (const c of placementCandidates(sim, nest, req, rng, maxCandidates)) {
+  const maxVolume = opts.maxVolumeBu3 ?? Infinity;
+  for (const c of placementCandidates(sim, nest, req, rng, opts.maxCandidates)) {
     if (c.entrancePathBu > t.maxPathToEntrance) continue; // GDD 03 §5.3 N3 (no entrance plans in T1)
+    if (c.volumeBu3 > maxVolume) continue; // GDD 03 §8.3: nothing above volumeCap
     const s = partialScore(sim, nest, species, c);
     if (!c.connector && (s.depthBu < band[0] - ARCH_BAND_SLACK_BU || s.depthBu > band[1] + ARCH_BAND_SLACK_BU)) continue;
     const score = s.partial + SCORE_W.digCost * digCost(sim, species, c.centre, c.volumeBu3) - (c.connector ? CONNECTOR_PENALTY : 0);

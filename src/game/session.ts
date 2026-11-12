@@ -56,6 +56,7 @@ export class GameSession {
       bu: sim.world.bu, worldSize: sim.world.size,
       trace: (o, d, max, r) => sim.field.sphereTrace(o, d, max, r),
       groundHeight: (x, z) => sim.field.height(x, z),
+      field: (x, y, z) => sim.field.sampleXYZ(x, y, z),
     }, cam);
     this.events.attach(sim);
     this.views.placeObserverAbove(sim.world.queenStart.pos);

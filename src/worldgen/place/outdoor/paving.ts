@@ -11,7 +11,7 @@ import type { RngState } from '@/core/rng';
 import { rngFloat, rngInt } from '@/core/rng';
 import type { MaterialId } from '@/sim/types';
 import type { GenContext } from '../../kit/context';
-import { terrainAt } from '../../kit/surface';
+import { primIndex, terrainAt } from '../../kit/surface';
 import { dcos, dsin } from '../../kit/dmath';
 import { backStep, doormatOutside, edgingKerb, linearDrain, pavingSlab, PAVEMENT } from '../../catalog/outdoor/pavement';
 import type { Built, Env, LocalCavity, LocalMicro } from '../../catalog/outdoor/types';
@@ -21,6 +21,9 @@ import { inRect } from '../../layout/geom';
 import { commit, envFor, outdoorState, range, takeCount } from './commit';
 import { yawAlong, zoneIdAt } from './zones';
 import { OUTDOOR } from './tuning';
+
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
 
 const P = OUTDOOR.pavement;
 const SOFT = new Set(['lawn', 'forest', 'garden-bed']);
@@ -208,7 +211,7 @@ function pathCourses(ctx: GenContext, sh: BuiltShape, label: string): void {
 }
 
 function dist(a: Point2, b: Point2): number {
-  return Math.sqrt((b.x - a.x) ** 2 + (b.z - a.z) ** 2);
+  return Math.sqrt(sq(b.x - a.x) + sq(b.z - a.z));
 }
 
 /** Point and unit tangent at arc length u along a polyline. */
@@ -223,6 +226,22 @@ function walker(line: Point2[]): (u: number) => { p: Point2; tx: number; tz: num
   };
 }
 
+/**
+ * How far the door's parts (the sill nose) reach out from the wall face along the door normal: the back step and
+ * the doormat start beyond them. 0 when the door object is not there (another module may build it later).
+ */
+function doorReach(ctx: GenContext, d: { x: number; z: number; nx: number; nz: number }): number {
+  const door = ctx.world.objects.find((o) => o.templateId === 'back-door');
+  if (!door) return 0;
+  const ix = primIndex(ctx);
+  let reach = 0;
+  for (let i = door.primStart; i < door.primStart + door.primCount; i++) {
+    const e = ix.entries[i];
+    for (const x of [e.minX, e.maxX]) for (const z of [e.minZ, e.maxZ]) reach = Math.max(reach, (x - d.x) * d.nx + (z - d.z) * d.nz);
+  }
+  return reach;
+}
+
 /** Back step, outside doormat and (p 0.5) the linear drain along the house wall beside the door. */
 function doorThings(ctx: GenContext): void {
   const house = ctx.layout.house;
@@ -231,12 +250,14 @@ function doorThings(ctx: GenContext): void {
   const env = envFor(ctx);
   const yaw = yawAlong(-d.nz, d.nx); // local X along the wall, local +Z out into the garden
   if (!ctx.world.objects.some((o) => o.templateId === 'back-step')) {
-    const sx = d.x + d.nx * 152, sz = d.z + d.nz * 152;
+    // against the sill nose (a slot below 0.6 BU: no unregistered passage)
+    const off = doorReach(ctx, d) + P.stepClearMm + PAVEMENT.backStep.size[2] / 2;
+    const sx = d.x + d.nx * off, sz = d.z + d.nz * off;
     commit(ctx, backStep(rng), { x: sx, z: sz, yaw, atGround: 'terrain', collide: true, category: 'structures' });
   }
   if (rngFloat(rng) < P.drainP) {
-    const alongWall = (rngFloat(rng) < 0.5 ? -1 : 1) * (d.width / 2 + 700);
-    const off = 70;
+    const alongWall = (rngFloat(rng) < 0.5 ? -1 : 1) * (d.width / 2 + P.drainFromDoorMm);
+    const off = P.drainOffWallMm;
     const cx = d.x + d.nx * off + -d.nz * alongWall, cz = d.z + d.nz * off + d.nx * alongWall;
     // axis-aligned yaw (terrain hole); the drain runs along the wall
     const ay = Math.abs(d.nx) > 0.5 ? Math.PI / 2 : 0;
@@ -245,16 +266,21 @@ function doorThings(ctx: GenContext): void {
   }
 }
 
-/** Doormat on the paving in front of the step (after the slabs). */
+/** Doormat on the paving in front of the step (after the slabs), resting flat on the slab tops. */
 export function placeDoormat(ctx: GenContext): void {
   const d = ctx.layout.house?.door;
   if (!d) return;
   const rng = ctx.rng('wg/structures/outdoor/doormat');
   const env = envFor(ctx);
   const yaw = yawAlong(-d.nz, d.nx);
-  for (let t = 0; t < 4; t++) {
-    const off = 300 + PAVEMENT.doormat.size[2] / 2 + 30 + t * 40;
-    if (commit(ctx, doormatOutside(rng, env), { x: d.x + d.nx * off, z: d.z + d.nz * off, yaw, collide: true, category: 'props' }) >= 0) return;
+  const step = ctx.world.objects.some((o) => o.templateId === 'back-step') ? PAVEMENT.backStep.size[2] + P.stepClearMm : 0;
+  const mat = doormatOutside(rng, env);
+  const base = doorReach(ctx, d) + step + PAVEMENT.doormat.size[2] / 2 + P.doormatClearMm;
+  // further out and sideways in small steps until the mat's feet stand on slab tops (not over a joint)
+  for (let t = 0; t < P.doormatTries; t++) {
+    const off = base + Math.floor(t / 3) * P.doormatStepMm, side = ((t % 3) - 1) * P.doormatStepMm;
+    const x = d.x + d.nx * off - d.nz * side, z = d.z + d.nz * off + d.nx * side;
+    if (commit(ctx, mat, { x, z, yaw, atGround: 'support', collide: true, category: 'props' }) >= 0) return;
   }
 }
 

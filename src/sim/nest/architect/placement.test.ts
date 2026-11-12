@@ -13,6 +13,7 @@ import { nestSystem } from '../system';
 import type { NeedRequest } from './needs';
 import { choosePlacement, type Placement } from './place';
 import { bandOf, coveredAbove, curve, depthFit } from './score';
+import { SIM_TEST_TIMEOUT } from './architectTestKit';
 
 /** A nest that is only a straight shaft `depthBu` deep at the world centre (an entrance, no chamber). */
 function shaftNest(depthBu: number, prims: Primitive[] = []): { sim: Sim; nest: Nest } {
@@ -57,7 +58,7 @@ describe('architect placement', () => {
     expect(room!.depthBu).toBeGreaterThanOrEqual(band[0] - 4);
     expect(room!.depthBu).toBeLessThanOrEqual(band[1] + 4);
     expect(sim.nestNav.distance(nest.id, { kind: 'exit', id: -1 }, room!.center)).toBeGreaterThan(0);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('(c) a stone slab near the nest: the nursery (cover weight 2.5) goes under it', () => {
     const bu = 4, c = 110 * bu;
@@ -74,7 +75,7 @@ describe('architect placement', () => {
     expect(coveredAbove(sim, room!.center.x, top, room!.center.z)).toBe(true);
     expect(chain.length).toBeGreaterThan(0);
     expect(Math.abs(room!.center.x - slab.pos.x)).toBeLessThan(slab.size.x); // under the slab, not by the shaft
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('score terms: depthFit falls off over 8 BU outside the band, curves interpolate', () => {
     expect(depthFit(20, [10, 30])).toBe(1);

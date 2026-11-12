@@ -4,6 +4,7 @@
 // (playground) and road continuations are render impostors beyond the map. Panels stop where the line meets
 // built ground (the house, asphalt, a path: a gate).
 
+import type { RngState } from '@/core/rng';
 import { rngFloat } from '@/core/rng';
 import type { MapEdge } from '@/sim/types';
 import type { GenContext } from '../../kit/context';
@@ -11,16 +12,24 @@ import { terrainAt } from '../../kit/surface';
 import { fenceSection, dryStoneWall, BEDS } from '../../catalog/outdoor/beds';
 import { inwardNormal } from '../../layout/geom';
 import { NAV } from '../../tuning/maps';
-import { commit, envFor } from './commit';
+import { commit, envFor, outdoorState, range } from './commit';
 import { yawAlong, zoneIdAt } from './zones';
 import { OUTDOOR } from './tuning';
 
 const NATURAL = new Set(['forest', 'lawn', 'garden-bed']);
 
-interface Line { side: MapEdge['side']; inset: number; x0: number; z0: number; dx: number; dz: number; len: number; nx: number; nz: number }
+interface Line {
+  side: MapEdge['side']; inset: number; x0: number; z0: number; dx: number; dz: number; len: number; nx: number; nz: number;
+  /** The line starts / ends at a fenced corner (the perpendicular fence line runs through that point). */
+  cornerStart: boolean; cornerEnd: boolean;
+}
 
-/** The line `inset` mm inside side s, between the fenced neighbours' lines (or the map corners). */
-function edgeLine(ctx: GenContext, s: MapEdge['side'], inset: number, fenced: Set<string>): Line {
+/**
+ * The line `inset` mm inside side s, between the fenced neighbours' lines; towards an unfenced side it stops half a
+ * post short of the map edge (the end post stays inside the world). The four lines run round the map in one
+ * direction, so at a fenced corner one line ends and the next one starts.
+ */
+function edgeLine(ctx: GenContext, s: MapEdge['side'], inset: number, fenced: Set<string>, endPad = 0): Line {
   const L = ctx.dims.size;
   const n = inwardNormal(s);
   const dx = n.z, dz = -n.x; // run direction (local +X when local +Z = inward)
@@ -29,9 +38,10 @@ function edgeLine(ctx: GenContext, s: MapEdge['side'], inset: number, fenced: Se
   const sz = s === 'z0' ? inset : s === 'z1' ? L - inset : dz > 0 ? 0 : L;
   // trim at perpendicular fenced sides
   const before = sideAt(sx - dx, sz - dz, L), after = sideAt(sx + dx * L, sz + dz * L, L);
-  const t0 = before && fenced.has(before) ? inset : 0;
-  const t1 = after && fenced.has(after) ? L - inset : L;
-  return { side: s, inset, x0: sx + dx * t0, z0: sz + dz * t0, dx, dz, len: t1 - t0, nx: n.x, nz: n.z };
+  const cornerStart = !!before && fenced.has(before), cornerEnd = !!after && fenced.has(after);
+  const t0 = cornerStart ? inset : endPad;
+  const t1 = cornerEnd ? L - inset : L - endPad;
+  return { side: s, inset, x0: sx + dx * t0, z0: sz + dz * t0, dx, dz, len: t1 - t0, nx: n.x, nz: n.z, cornerStart, cornerEnd };
 }
 
 /** Which perpendicular side a point just beyond a line end lies on. */
@@ -47,61 +57,105 @@ function naturalAt(ctx: GenContext, x: number, z: number): boolean {
   return NATURAL.has(ctx.layout.zones[zoneIdAt(ctx, x, z)].type);
 }
 
+/** Post size at a fenced corner: both lines through it draw it from the same stream. */
+function cornerPost(ctx: GenContext, x: number, z: number): number {
+  const F = BEDS.fence;
+  return range(ctx.rng(`wg/structures/outdoor/fence/corner/${Math.round(x)},${Math.round(z)}`), F.postSq[0], F.postSq[1]);
+}
+
 function placeFenceLine(ctx: GenContext, ln: Line, idx: number): void {
   const F = BEDS.fence;
   const rngLine = ctx.rng(`wg/structures/outdoor/fence/${ln.side}`);
   const yaw = yawAlong(ln.dx, ln.dz);
   const n = Math.ceil(ln.len / F.panelW);
+  const at = (u: number) => ({ x: ln.x0 + ln.dx * u, z: ln.z0 + ln.dz * u });
   const sections: { t: number; w: number; panel: boolean }[] = [];
   for (let k = 0; k < n; k++) {
     const t = k * F.panelW, w = Math.min(F.panelW, ln.len - t);
-    const at = (u: number) => ({ x: ln.x0 + ln.dx * u, z: ln.z0 + ln.dz * u });
     const p0 = at(t), pm = at(t + w / 2), p1 = at(t + w);
     const panel = w > 300 && naturalAt(ctx, p0.x, p0.z) && naturalAt(ctx, pm.x, pm.z) && naturalAt(ctx, p1.x, p1.z);
     sections.push({ t, w, panel });
   }
+  // the post sizes of the whole line first (n + 1 posts), so that every panel ends at its next post's face
+  const rngPosts = ctx.rng(`wg/structures/outdoor/fence/${ln.side}/posts`);
+  const posts = Array.from({ length: n + 1 }, () => range(rngPosts, F.postSq[0], F.postSq[1]));
+  if (ln.cornerStart) posts[0] = cornerPost(ctx, ln.x0, ln.z0);
+  const end = at(ln.len);
+  if (ln.cornerEnd) posts[n] = cornerPost(ctx, end.x, end.z);
   const panels = sections.map((s, i) => (s.panel ? i : -1)).filter((i) => i >= 0);
   const gaps = new Set<number>();
   for (const i of panels) if (rngFloat(rngLine) < F.gapP) gaps.add(i);
   if (gaps.size === 0 && panels.length > 0 && OUTDOOR.edges.gapGuarantee) gaps.add(panels[Math.floor(panels.length / 2)]);
+  let gapsPlaced = 0, owedGap = false;
+  const groundAt = (x: number, z: number) => envFor(ctx, (lx, lz) => terrainAt(ctx, x + lx * ln.dx + lz * ln.nx, z + lx * ln.dz + lz * ln.nz) - terrainAt(ctx, x, z));
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i];
-    const x = ln.x0 + ln.dx * s.t, z = ln.z0 + ln.dz * s.t;
+    const { x, z } = at(s.t);
     if (!s.panel && !naturalAt(ctx, x, z)) continue;
+    const gap = s.panel && (gaps.has(i) || owedGap);
     const rng = ctx.rngFor(`wg/structures/outdoor/fence/${idx}`, i);
-    const env = envFor(ctx, (lx, lz) => terrainAt(ctx, x + lx * ln.dx + lz * ln.nx, z + lx * ln.dz + lz * ln.nz) - terrainAt(ctx, x, z));
     // no rail route on the end sections: at a corner the perpendicular line's board stands against the post
-    const b = fenceSection(rng, env, { panel: s.panel, gap: gaps.has(i), route: s.panel && i > 0 && i < sections.length - 1, width: s.w });
-    commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' });
+    const b = fenceSection(rng, groundAt(x, z), {
+      panel: s.panel, gap, route: s.panel && i > 0 && i < sections.length - 1, width: s.w,
+      postSq: posts[i], nextPostSq: posts[i + 1], post: !(i === 0 && ln.cornerStart),
+    });
+    if (b.tpl.prims.length === 0) continue;
+    const id = commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' });
+    if (gap) { if (id >= 0) { gapsPlaced++; owedGap = false; } else owedGap = true; }
   }
+  // a guaranteed gap whose section was refused moves to the next panel; past the last panel it is lost (reported
+  // by validation as a closed fence line)
+  if (OUTDOOR.edges.gapGuarantee && panels.length > 0 && gapsPlaced === 0) owedGapLost(ctx, ln);
   // closing post at the line end
-  const xe = ln.x0 + ln.dx * ln.len, ze = ln.z0 + ln.dz * ln.len;
-  if (naturalAt(ctx, xe, ze)) {
-    const env = envFor(ctx, (lx, lz) => terrainAt(ctx, xe + lx * ln.dx + lz * ln.nx, ze + lx * ln.dz + lz * ln.nz) - terrainAt(ctx, xe, ze));
-    commit(ctx, fenceSection(ctx.rngFor(`wg/structures/outdoor/fence/${idx}`, 9999), env, { panel: false, gap: false, route: false }), { x: xe, z: ze, yaw, atGround: 'terrain', collide: true, category: 'structures' });
+  if (naturalAt(ctx, end.x, end.z)) {
+    commit(ctx, fenceSection(ctx.rngFor(`wg/structures/outdoor/fence/${idx}`, 9999), groundAt(end.x, end.z), { panel: false, gap: false, route: false, postSq: posts[n] }),
+      { x: end.x, z: end.z, yaw, atGround: 'terrain', collide: true, category: 'structures' });
   }
 }
 
+/** Counter of fence lines that ended up without any fence gap (tests read it). */
+function owedGapLost(ctx: GenContext, ln: Line): void {
+  const st = outdoorState(ctx);
+  st.counts[`fence-line-no-gap/${ln.side}`] = 1;
+}
+
+/**
+ * One dry-stone wall section of length `len` centred at (x, z) along the unit direction (dx, dz) (inward normal
+ * (nx, nz)), standing on the lowest ground under its footprint; null (nothing placed) when part of the footprint
+ * is not natural ground. Returns the object id (-1 refused) and whether its crevice (with the inner void) is in.
+ */
+export function wallSection(ctx: GenContext, rng: RngState, at: { x: number; z: number; dx: number; dz: number; nx: number; nz: number }, len: number, thick: number, height: number, crevice: boolean): { id: number; crevice: boolean } | null {
+  const { x, z, dx, dz, nx, nz } = at;
+  let y = Infinity;
+  for (let u = -len / 2; u <= len / 2; u += len / 8) {
+    for (const w of [-thick / 2, 0, thick / 2]) {
+      const px = x + dx * u + nx * w, pz = z + dz * u + nz * w;
+      if (!naturalAt(ctx, px, pz)) return null;
+      y = Math.min(y, terrainAt(ctx, px, pz));
+    }
+  }
+  const env = envFor(ctx, (lx, lz) => terrainAt(ctx, x + lx * dx + lz * nx, z + lx * dz + lz * nz) - y);
+  const b = dryStoneWall(rng, env, len - OUTDOOR.edges.wallJoint, height, thick, crevice);
+  const id = commit(ctx, b, { x, z, y, yaw: yawAlong(dx, dz), snap: false, collide: true, category: 'structures' });
+  const withCrevice = id >= 0 && crevice && ctx.world.micro.some((m) => m.kind === 'wall-crevice' && outdoorState(ctx).extras.get(id)?.micro.includes(m.id));
+  return { id, crevice: withCrevice };
+}
+
 function placeWallLine(ctx: GenContext, ln: Line, idx: number, thick: number, height: number): void {
-  const SEC = 2000;
-  const yaw = yawAlong(ln.dx, ln.dz);
+  const SEC = OUTDOOR.edges.wallSection;
   const n = Math.floor(ln.len / SEC);
   const off = (ln.len - n * SEC) / 2;
+  const rng = ctx.rng(`wg/structures/outdoor/wall/${ln.side}/crevices`);
+  // inner voids behind a share of the sections (each costs carve chunks), at least one per wall
+  const voids = Array.from({ length: n }, () => rngFloat(rng) < OUTDOOR.edges.wallVoidP);
+  let placedVoid = false;
   for (let k = 0; k < n; k++) {
     const t = off + (k + 0.5) * SEC;
-    const x = ln.x0 + ln.dx * t, z = ln.z0 + ln.dz * t;
-    let ok = true, y = Infinity;
-    for (let u = -SEC / 2; u <= SEC / 2; u += SEC / 8) {
-      for (const w of [-thick / 2, 0, thick / 2]) {
-        const px = x + ln.dx * u + ln.nx * w, pz = z + ln.dz * u + ln.nz * w;
-        if (!naturalAt(ctx, px, pz)) ok = false;
-        y = Math.min(y, terrainAt(ctx, px, pz));
-      }
-    }
-    if (!ok) continue;
-    const env = envFor(ctx, (lx, lz) => terrainAt(ctx, x + lx * ln.dx + lz * ln.nx, z + lx * ln.dz + lz * ln.nz) - y);
-    const b = dryStoneWall(ctx.rngFor(`wg/structures/outdoor/wall/${idx}`, k), env, SEC - 20, height, thick);
-    commit(ctx, b, { x, z, y, yaw, snap: false, collide: true, category: 'structures' });
+    // the guaranteed void moves on along the wall until a section takes it
+    const crevice = voids[k] || (!placedVoid && k >= Math.floor(n / 2));
+    const at = { x: ln.x0 + ln.dx * t, z: ln.z0 + ln.dz * t, dx: ln.dx, dz: ln.dz, nx: ln.nx, nz: ln.nz };
+    const r = wallSection(ctx, ctx.rngFor(`wg/structures/outdoor/wall/${idx}`, k), at, SEC, thick, height, crevice);
+    if (r?.crevice) placedVoid = true;
   }
 }
 
@@ -111,7 +165,7 @@ export function placeEdges(ctx: GenContext): void {
   const fenced = new Set(edges.filter((e) => e.kind === 'fence').map((e) => e.side));
   const fenceInset = (NAV.edgeMarginBu + OUTDOOR.edges.fenceInsetCells * 16) * bu;
   edges.forEach((e, idx) => {
-    if (e.kind === 'fence') placeFenceLine(ctx, edgeLine(ctx, e.side, fenceInset, fenced), idx);
+    if (e.kind === 'fence') placeFenceLine(ctx, edgeLine(ctx, e.side, fenceInset, fenced, BEDS.fence.postSq[1] / 2), idx);
     if (e.kind === 'dry-stone-wall') {
       const rng = ctx.rng(`wg/structures/outdoor/wall/${e.side}`);
       const W = BEDS.wall;

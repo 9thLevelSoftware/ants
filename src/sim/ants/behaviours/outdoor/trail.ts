@@ -7,6 +7,7 @@ import { clamp } from '@/core/math/scalar';
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { SIZE_FACTOR_MIN, SIZE_FACTOR_N0, SIZE_FACTOR_SPAN } from '@/sim/balance';
+import { CROP_RETURN_FRACTION } from '@/sim/balance/actions';
 import {
   OUTBOUND_DAB_FACTOR, SCOUT_DAB_MULT, TRAIL_DAB_NEED_BASE, TRAIL_LAY_NEED_BASE, TRAIL_LAY_P_FORAGER,
 } from '@/sim/balance/foraging';
@@ -46,17 +47,25 @@ export function stopLaying(sim: Sim, ant: Ant): void {
   ant.bb[FACTOR_KEY] = 0;
 }
 
+/** GDD 02 §8.3 "who lays": a forager with a crop >= CROP_RETURN_FRACTION of capacity or a solid food item. */
+export function ladenForTrail(ant: Ant): boolean {
+  return ant.carry.kind === 'item' || ant.cropC + ant.cropP >= CROP_RETURN_FRACTION * ant.cropCap;
+}
+
 /**
- * Return-trip decision for a successful forager or a scout with a find: lay with probability
+ * Return-trip decision (GDD 02 §8.3) for a laden forager or a scout with a find: lay with probability
  * 0.84 x clamp(0.4 + need, 0.4, 1) at a dab of q x (0.5 + need) x sizeFactor(N) (x 1.2 for scouts); never after a
- * long wait in a full queue (crowding feedback). Returns whether it lays.
+ * long wait in a full queue (crowding feedback), and never to a source the colony would not go to (q = 0: exhausted,
+ * gone, out of season or under an avoid marker). Returns whether it lays.
  */
 export function decideReturnTrail(sim: Sim, ant: Ant, sourceId: number, scout: boolean, queuedLong: boolean): boolean {
   if (queuedLong || sourceId < 0) return false;
+  if (!scout && !ladenForTrail(ant)) return false;
+  const q = sourceQuality(sim, ant.colony, sourceId);
+  if (q <= 0) return false;
   const need = sourceNeed(sim, ant, sourceId);
   const p = TRAIL_LAY_P_FORAGER * clamp(TRAIL_LAY_NEED_BASE + need, TRAIL_LAY_NEED_BASE, 1);
   if (!rngChance(sim.stream('rng.behaviour'), p)) return false;
-  const q = Math.max(sourceQuality(sim, ant.colony, sourceId), sim.stores.sources.get(sourceId)?.quality ?? 0);
   const n = censusOf(sim, ant.colony).workers;
   const factor = q * (TRAIL_DAB_NEED_BASE + need) * sizeFactor(n) * (scout ? SCOUT_DAB_MULT : 1);
   if (factor <= 0) return false;

@@ -50,7 +50,7 @@ export interface NestUniforms {
   /** Simulation tick now, and the fresh-wall look: x duration (ticks), y albedo factor, z extra wetness. */
   uTick: Uniform<number>;
   uFresh: Uniform<Vector3>;
-  /** Occlusion capsule (camera -> possessed ant): ends, x radius (0 = off), y fraction of fragments kept. */
+  /** Occlusion cone (camera -> short of the possessed ant, see glsl.ts): ends, x end radius (0 = off), y fraction kept. */
   uOccA: Uniform<Vector3>;
   uOccB: Uniform<Vector3>;
   uOcc: Uniform<Vector2>;

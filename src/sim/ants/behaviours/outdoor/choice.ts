@@ -5,13 +5,14 @@
 import type { Ant, FoodSource, Sim } from '@/sim/types';
 import { LEAD_VALID_S } from '@/sim/balance';
 import {
-  CHOICE_COLLECT_S, CHOICE_MIN_TRIP_S, DEPLETED_GD, FORAGE_MARKER_SCORE_MULT,
+  CHOICE_COLLECT_S, CHOICE_CROWD_MIN, CHOICE_MIN_TRIP_S, DEPLETED_GD, FORAGE_MARKER_SCORE_MULT,
 } from '@/sim/balance/foraging';
 import { sourceWeight } from '@/sim/colony';
 import { harvestForm, slotUsers, sourceQuality } from '@/sim/ecology';
 import { casteSpeeds } from '@/sim/locomotion';
 import { daysToTicks, secondsToTicks } from '@/sim/time';
 import { distFromHome } from './common';
+import type { Flavour } from './flavours';
 
 /** Nutrients one trip brings from the source, loads (a crop, one unit, or one torn piece). */
 export function tripNutrients(sim: Sim, ant: Ant, s: FoodSource): { c: number; p: number } {
@@ -28,13 +29,23 @@ export function isDepletedFor(sim: Sim, ant: Ant, sourceId: number): boolean {
 }
 
 /**
- * The ant found the source empty: a depleted entry for DEPLETED_GD; found empty twice in a row, its route slot
- * for that source is cleared as well. Returns true on the second find.
+ * Whether the ant's last visit to the source found it empty: an entry for the source is still in the depleted list,
+ * active or expired (expired entries stay until a successful harvest clears them or a newer entry evicts them).
+ */
+function lastVisitEmpty(ant: Ant, sourceId: number): boolean {
+  for (const d of ant.mem.depleted) if (d.sourceId === sourceId) return true;
+  return false;
+}
+
+/**
+ * The ant found the source empty: a depleted entry for DEPLETED_GD. Found empty on two visits in a row (the second
+ * necessarily after the first entry expired, since an active entry keeps the ant away), its route slot for that
+ * source is cleared as well. Returns true on the second find.
  */
 export function markDepleted(sim: Sim, ant: Ant, sourceId: number): boolean {
   if (sourceId < 0) return false;
   const now = sim.state.tick;
-  const twice = isDepletedFor(sim, ant, sourceId);
+  const twice = lastVisitEmpty(ant, sourceId);
   if (twice) {
     for (const r of ant.mem.routes) if (r.sourceId === sourceId) { r.sourceId = -1; r.n = 0; r.visits = 0; }
   }
@@ -48,6 +59,12 @@ export function markDepleted(sim: Sim, ant: Ant, sourceId: number): boolean {
   list[slot] = { sourceId, untilTick: now + daysToTicks(DEPLETED_GD) };
   if (ant.mem.lead.sourceId === sourceId) ant.mem.lead = { sourceId: -1, pos: { x: 0, y: 0, z: 0 }, tick: -1 };
   return twice;
+}
+
+/** The ant took food from the source: its last visit was not empty, so "twice in a row" starts again. */
+export function clearDepleted(ant: Ant, sourceId: number): void {
+  const list = ant.mem.depleted;
+  for (let i = 0; i < list.length; i++) if (list[i].sourceId === sourceId) list[i] = { sourceId: -1, untilTick: -1 };
 }
 
 /** Whether the lead is still valid (GDD 02 §6.7 LEAD_VALID_S). */
@@ -72,7 +89,7 @@ export function sourceScore(sim: Sim, ant: Ant, s: FoodSource): number {
   const n = tripNutrients(sim, ant, s);
   const w = sourceWeight(col, n.c, n.p);
   const slots = Math.max(1, s.slots);
-  const crowd = Math.max(0.05, 1 - slotUsers(sim, s).length / slots);
+  const crowd = Math.max(CHOICE_CROWD_MIN, 1 - slotUsers(sim, s).length / slots);
   const speed = Math.max(1e-3, casteSpeeds(col.species, ant.caste, sim.world.bu).cruise);
   const trip = Math.max(CHOICE_MIN_TRIP_S, (2 * distFromHome(sim, ant, s.pos)) / speed + CHOICE_COLLECT_S);
   const marker = inForageMarker(sim, ant, s) ? FORAGE_MARKER_SCORE_MULT : 1;
@@ -111,6 +128,14 @@ export function chooseSource(sim: Sim, ant: Ant, accept?: (s: FoodSource) => boo
     if (u > bestU || (u === bestU && u > 0 && id < best)) { best = id; bestU = u; }
   }
   return best;
+}
+
+/** The flavour's source filter for a departing ant: its kinds, within its range of the entrance. */
+export function departFilter(sim: Sim, ant: Ant, fl: Flavour): ((s: FoodSource) => boolean) | undefined {
+  const range = fl.rangeBu;
+  if (range === undefined) return fl.accept;
+  const maxMm = range * sim.world.bu;
+  return (s) => (!fl.accept || fl.accept(s)) && distFromHome(sim, ant, s.pos) <= maxMm;
 }
 
 /** Best known source within radiusMm of a point (queue fallback, GDD 02 §10.2: next-best within 100 BU). */

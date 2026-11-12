@@ -11,6 +11,12 @@ export const CAM_LOOKAHEAD_MAX_L = 1.5;
 /** Look-ahead in tunnel states, along the velocity (BU). */
 export const CAM_TUNNEL_LOOKAHEAD_BU = 3;
 export const CAM_PUSHOUT_TAU = 0.4;
+/**
+ * Fastest camera motion relative to the pivot, L per real s (views task): no frame-to-frame jumps. GDD 6.2 makes
+ * pull-in immediate; here it is immediate only where clearance needs it (the f >= 0.5 R guard), otherwise it takes
+ * a few frames at this speed.
+ */
+export const CAM_MAX_REL_SPEED_L = 20;
 export const CAM_AUTOFOLLOW_DELAY_S = 1.5;
 export const CAM_AUTOFOLLOW_TAU = { gentle: 1.2, strong: 0.6 } as const;
 export const CAM_AUTOFOLLOW_MAX_DEG_S = 60;
@@ -27,6 +33,12 @@ export const CAM_RADIUS_L = 0.25;
 export const CAM_RADIUS_MIN_BU = 0.1;
 export const CAM_RADIUS_MAX_BU = 0.5;
 export const CAM_OBSERVER_RADIUS_BU = 0.3;
+/**
+ * Collision sphere cap, BU (views task, deviation note for GDD 6.1): the carve field's cavity distance saturates at
+ * 0.5 BU, so a sphere of the full 0.5 BU (queens, majors) never fits inside a tunnel. Traces use at most this radius;
+ * the clearance guarantee (f >= 0.5 x the GDD radius) is unchanged.
+ */
+export const CAM_RADIUS_FIELD_CAP_BU = 0.35;
 /** The guaranteed clearance of a camera centre, as a fraction of its radius (GDD 6.1). */
 export const CAM_MIN_CLEARANCE_R = 0.5;
 
@@ -58,6 +70,44 @@ export const BOOM_LOOK_YAW_DEG = 70;
 export const BOOM_LOOK_PITCH_DEG = 35;
 export const BOOM_SPRING_TAU = 0.8;
 export const BOOM_SPRING_DELAY_S = 1.0;
+/**
+ * Views-task retune on the real nest (deviation note for GDD 01 6.4): the boom's collision is checked along the
+ * breadcrumb path every BOOM_CHECK_STEP_L (not by one straight trace from the pivot, which cuts every bend), the
+ * camera sphere must keep BOOM_CLEAR_R x R there (above the 0.5 R guarantee), and the 0.35 L raise never goes past
+ * BOOM_CENTRE_FRACTION of the free gap above the floor (a queen-sized tunnel is barely taller than the queen).
+ */
+export const BOOM_CHECK_STEP_L = 0.25;
+export const BOOM_CLEAR_R = 0.75;
+export const BOOM_CENTRE_FRACTION = 0.5;
+/** Around a bend the boom comes in to keep the ant in sight, but not closer than this (L). */
+export const BOOM_MIN_SIGHT_L = 1.2;
+
+/**
+ * Path assist (views task): an orbit (open / chamber) pulled in below PATH_ASSIST_ON of its wanted distance, e.g. by
+ * a chamber ceiling barely higher than a queen, blends over PATH_ASSIST_BLEND_S toward the boom path behind the ant
+ * (her own route: known free space); it hands back above PATH_ASSIST_OFF.
+ */
+export const PATH_ASSIST_ON = 0.4;
+export const PATH_ASSIST_OFF = 0.7;
+export const PATH_ASSIST_BLEND_S = 0.4;
+
+/**
+ * Pinch fallback (spike-nest 5.10): when the camera is squeezed closer than PINCH_DIST_L to the pivot for
+ * PINCH_HOLD_S it moves over the ant (along its up, at most PINCH_HEIGHT_L), looking down with the heading at the
+ * top of the screen; it leaves once the boom / orbit would allow PINCH_EXIT_L for PINCH_HOLD_S. Blend PINCH_BLEND_S.
+ */
+export const PINCH_DIST_L = 0.35;
+export const PINCH_EXIT_L = 0.7;
+export const PINCH_HOLD_S = 0.5;
+export const PINCH_HEIGHT_L = 1.5;
+export const PINCH_BLEND_S = 0.3;
+
+/**
+ * Ceiling comfort (spike-nest 5.9, an option): with the ant upside down the view's up blends toward world up,
+ * from none at ant-up y = COMFORT_UP_Y_START to full at COMFORT_UP_Y_FULL; orbit and collision stay in the ant's frame.
+ */
+export const COMFORT_UP_Y_START = -0.3;
+export const COMFORT_UP_Y_FULL = -0.7;
 
 /** Fade rules (GDD 6.5). */
 export const FADE_FULL_L = 1.0;
@@ -68,6 +118,15 @@ export const OCCLUSION_TRIGGER_S = 0.15;
 export const OCCLUSION_RELEASE_S = 0.3;
 export const OCCLUSION_CAPSULE_L = 0.8;
 export const OTHERS_CAPSULE_L = 0.6;
+/**
+ * Occlusion cutaway shape (views-task deviation from GDD 01 6.5 rule 3, decided on the real nest): a cone from the
+ * camera (radius OCCLUSION_CONE_START x the end radius) to a point OCCLUSION_CONE_END_L short of the thorax (radius
+ * OCCLUSION_CONE_RADIUS_L), not a 0.8 L capsule. Only walls really between the camera and the ant are dithered; the
+ * floor under the ant and the tunnel walls around the camera stay solid, so underground the sky never shows.
+ */
+export const OCCLUSION_CONE_RADIUS_L = 0.35;
+export const OCCLUSION_CONE_END_L = 0.5;
+export const OCCLUSION_CONE_START = 0.35;
 
 /** View transitions (GDD 01 section 2). */
 export const CAM_SWITCH_MIN_S = 0.4;

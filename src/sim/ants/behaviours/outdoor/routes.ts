@@ -11,7 +11,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, RouteMemory, Sim } from '@/sim/types';
 import { ROUTE_WAYPOINTS_MAX } from '@/sim/balance';
 import {
-  ROUTE_FIX_VISITS, ROUTE_FORGET_GD, ROUTE_MATCH_DIST_BU, ROUTE_MATCH_FRACTION, ROUTE_SIMPLIFY_TOL_BU,
+  ROUTE_FIX_VISITS, ROUTE_FORGET_GD, ROUTE_MATCH_DIST_BU, ROUTE_MATCH_FRACTION, ROUTE_SIMPLIFY_GROWTH, ROUTE_SIMPLIFY_TOL_BU,
 } from '@/sim/balance/foraging';
 import { crumbAt, crumbCount } from '@/sim/locomotion';
 import { daysToTicks } from '@/sim/time';
@@ -63,7 +63,7 @@ export function outboundWaypoints(sim: Sim, ant: Ant, out: Float32Array): number
     simplify(tol);
     count = keep.reduce((m, k) => m + (k ? 1 : 0), 0);
     if (count <= cap) break;
-    tol *= 1.5;
+    tol *= ROUTE_SIMPLIFY_GROWTH;
   }
   let w = 0;
   for (let i = 0; i < pts.length; i++) {

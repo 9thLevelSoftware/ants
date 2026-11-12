@@ -25,6 +25,9 @@ export const PC = {
   threat: 'pc.threat',
   threatX: 'pc.tx',
   threatZ: 'pc.tz',
+  /** Human event: unit direction (x, z) the pass approaches along, from its earlier cue to this one; 0, 0 unknown. */
+  threatDx: 'pc.tdx',
+  threatDz: 'pc.tdz',
   /** Nearest open entrance of the ant's colony, -1 none; and its distance, mm. */
   entrance: 'pc.ent',
   entranceD: 'pc.entD',

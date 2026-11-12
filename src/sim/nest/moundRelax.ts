@@ -107,9 +107,10 @@ function buildMask(sim: Sim, m: Mound): MoundMask {
 const CLEAR_DISC = 1, CLEAR_HOLE = 2;
 
 /**
- * Inner-wall cap of every cell within MOUND_CAP_REACH of the pit: ground + distance to the pit x tan(repose), the
- * distance measured to the kept-clear circle of each entrance (exact, so the wall is round) and to the open hole
- * columns on the pit's edge (irregular trenches).
+ * Inner-wall cap of every cell within MOUND_CAP_REACH of the pit: ground at the pit's edge + distance to it x
+ * tan(repose), measured to the nearest point of each entrance's kept-clear circle (exact, so the wall is round,
+ * and on sloped ground it stands at repose uphill and downhill alike) and to the open hole columns on the pit's
+ * edge (irregular trenches).
  */
 function pitCap(sim: Sim, m: Mound, clear: Uint8Array): Float32Array {
   const n = m.n, cap = new Float32Array(n * n).fill(Infinity);
@@ -118,13 +119,16 @@ function pitCap(sim: Sim, m: Mound, clear: Uint8Array): Float32Array {
   const ground = (i: number): number => (Number.isNaN(m.base[i]) ? heightAt(sim.world.terrain, x0 + (i % n) * m.cell, z0 + Math.floor(i / n) * m.cell) : m.base[i]);
   for (const e of entrancesOnGrid(sim, m)) {
     const rc = clearRadius(sim, m, e), rr = rc + reach * m.cell;
-    const g = heightAt(sim.world.terrain, e.pos.x, e.pos.z);
     const i0 = Math.max(0, Math.floor((e.pos.x - rr - x0) / m.cell)), i1 = Math.min(n - 1, Math.ceil((e.pos.x + rr - x0) / m.cell));
     const k0 = Math.max(0, Math.floor((e.pos.z - rr - z0) / m.cell)), k1 = Math.min(n - 1, Math.ceil((e.pos.z + rr - z0) / m.cell));
     for (let iz = k0; iz <= k1; iz++) for (let ix = i0; ix <= i1; ix++) {
       const i = iz * n + ix;
       if (clear[i] !== 0) continue;
-      const c = g + Math.max(0, Math.hypot(x0 + ix * m.cell - e.pos.x, z0 + iz * m.cell - e.pos.z) - rc) * tan;
+      // measured from the ground at the nearest point of the kept-clear circle, so on a slope the wall rises at
+      // the angle of repose from the pit edge on every side (not from the ground height at the entrance centre)
+      const dx = x0 + ix * m.cell - e.pos.x, dz = z0 + iz * m.cell - e.pos.z, d = Math.hypot(dx, dz);
+      const f = d > 0 ? rc / d : 0;
+      const c = heightAt(sim.world.terrain, e.pos.x + dx * f, e.pos.z + dz * f) + Math.max(0, d - rc) * tan;
       if (c < cap[i]) cap[i] = c;
     }
   }

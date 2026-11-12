@@ -57,7 +57,7 @@ export function forageScenario(o: ScenarioOptions = {}): Scenario {
   const systems = o.pinned || o.holdStores || o.holdNeeds
     ? fixtureSystems(o.pinned ? pinned : null, o.holdStores ?? null, o.holdNeeds ?? null) : undefined;
   // early summer, from the morning: a long run stays in the foraging season
-  const config = { startSeason: 'summer' as const, startDayOfSeason: 1, startHour: o.startHour ?? 7 };
+  const config = { startSeason: 'summer' as const, startDayOfSeason: 1, startHour: o.startHour ?? MORNING_HOUR };
   const sim = makeTestSim({ sizeBu: o.sizeBu ?? 800, nest: 'small', workers: o.workers ?? 40, seed: o.seed ?? 1, systems, config });
   const col = sim.state.colonies[0];
   const nest = sim.stores.nests.get(col.nestIds[0])!;
@@ -142,6 +142,9 @@ export function countEvents(sim: Sim, keep: readonly string[] = []): { n: Record
   }
   return out;
 }
+
+/** Default start hour of the scenarios (morning). */
+const MORNING_HOUR = 7;
 
 const OUTDOOR = new Set(['scout', 'forage', 'tend', 'flee']);
 

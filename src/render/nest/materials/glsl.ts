@@ -1,6 +1,7 @@
 // GLSL of the nest materials. Names are prefixed `nest` / `wr` (shared world snippets) to stay clear of three's
 // chunks (three already #defines PI: never declare it again, tech-stack 7).
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from '@/render/world/materials';
+import { OCCLUSION_CONE_START } from '@/render/camera/constants';
 import { NEST_LIGHT } from '../params';
 
 /** Cheap 3D value noise (world mm in, 0..1 out): soil grain and strata (from the nest spike). */
@@ -16,6 +17,7 @@ float nestN3(vec3 x) {
 /** Shared uniform declarations and the cutaway test (hidden = on the plane's normal side within the radius). */
 export const GLSL_NEST_COMMON = /* glsl */ `
 #define NEST_MAXO ${NEST_LIGHT.maxOpenings}
+#define NEST_OCC_CONE ${OCCLUSION_CONE_START.toFixed(4)}
 uniform float uSkin; uniform float uHoleLip;
 uniform vec4 uSky[NEST_MAXO]; uniform int uSkyN; uniform float uSkyLen; uniform vec3 uSkyCol;
 uniform vec3 uAmb; uniform vec2 uAmbNear; uniform vec2 uAmbDeep;
@@ -101,11 +103,13 @@ void main() {
     if (s > sky) { sky = s; skyDir = normalize(d + vec3(0.0, 0.01, 0.0)); }
     near = max(near, exp(-dist / uAmbNear.y));
   }
-  // occlusion cutaway (GDD 01 6.5 rule 3): walls inside the camera-to-ant capsule are dithered to uOcc.y
+  // occlusion cutaway (GDD 01 6.5 rule 3, views-task cone): walls strictly between the camera (uOccA) and the cone
+  // end short of the possessed ant (uOccB), inside a cone of radius uOcc.x at B narrowing toward the camera, are
+  // dithered to uOcc.y. Floors under the ant and walls around the camera are outside it (no sky through the soil).
   if (uOcc.x > 0.0) {
     vec3 ab = uOccB - uOccA;
-    float t = clamp(dot(vNestW - uOccA, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
-    if (length(vNestW - (uOccA + ab * t)) < uOcc.x) {
+    float t = dot(vNestW - uOccA, ab) / max(dot(ab, ab), 1e-6);
+    if (t > 0.0 && t < 1.0 && length(vNestW - (uOccA + ab * t)) < uOcc.x * mix(NEST_OCC_CONE, 1.0, t)) {
       vec2 c = mod(floor(gl_FragCoord.xy), 4.0);
       float bayer = mod(c.x * 4.0 + c.y * 9.0 + c.x * c.y * 3.0, 16.0) / 16.0; // ordered 4x4 pattern
       if (bayer >= uOcc.y) discard;

@@ -7,7 +7,7 @@ import { CROP_RETURN_FRACTION, CROP_RETURN_MIN } from '@/sim/balance/actions';
 import { COLLECT_MAX_S, SUCCESS_CROP } from '@/sim/balance/foraging';
 import { begin, canDo } from '@/sim/ants/actions';
 import { discoverSource, harvestForm } from '@/sim/ecology';
-import { markDepleted } from './choice';
+import { clearDepleted, markDepleted } from './choice';
 import { logDecision, phaseOf, phaseS } from './common';
 import type { Flavour } from './flavours';
 import { K, PHASE } from './keys';
@@ -70,7 +70,9 @@ export function tryHarvest(sim: Sim, ant: Ant, fl: Flavour, fromQueue: boolean):
   if (phaseOf(ant) !== PHASE.collect) startCollect(sim, ant, fl, src);
   discoverSource(sim, ant.colony, s.id, ant.id);
   ant.mem.knownSourceId = s.id;
-  return begin(sim, ant, prim, t);
+  const began = begin(sim, ant, prim, t);
+  if (began) clearDepleted(ant, s.id);
+  return began;
 }
 
 /** Nothing (more) to take: home with what the crop holds, else remember the source as empty. */

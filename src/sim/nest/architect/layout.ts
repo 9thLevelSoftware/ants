@@ -6,19 +6,15 @@
 import type { RngState } from '@/core/rng';
 import { rngFork } from '@/core/rng';
 import type { Nest, PlanSource, Sim } from '@/sim/types';
-import { BULKING, PLAN_CLIP_BU, nestTemplate } from '@/sim/balance/nest';
-import { removeItem } from '@/sim/entities';
+import { BULKING, nestTemplate } from '@/sim/balance/nest';
 import {
   LAYOUT_BROOD_PER_WORKER, LAYOUT_CANDIDATES, LAYOUT_GROWTH, LAYOUT_PLANS_PER_STEP, LAYOUT_START_WORKERS,
 } from '@/sim/balance/architect';
 import { nestOpenVolume } from '../chambers/upkeep';
 import { carveTemplateNest } from '../lifecycle';
-import { carveSphere } from '../carveOps';
 import { createMound, deposit, moundById, publishMound } from '../mounds';
-import { isPellet } from '../pellets';
-import { planG } from '../plans/geometry';
-import { completePlan, createPlanImpl, planById } from '../plans/plans';
-import { planCache } from '../plans/targets';
+import { createPlanImpl } from '../plans/plans';
+import { carvePlanAtOnce } from './layoutCarve';
 import { evaluateNeeds, type NeedInputs } from './needs';
 import { choosePlacement } from './place';
 import { architectRuntime } from './runtime';
@@ -42,30 +38,6 @@ export interface LayoutResult {
   unplaced: number;
 }
 
-/**
- * Carves one plan at once like the nest module's instantCarvePlan (every sphere clipped to the plan volume with
- * the dig predicate, then completion: snap, chamber registration), but the spoil is only counted: the completion
- * pellets are taken out of the nest and everything goes onto the mound once, at the end of the layout (one mound
- * relaxation instead of one per plan). Returns the removed volume, BU^3.
- */
-function carveAtOnce(sim: Sim, nest: Nest, planId: number): number {
-  const found = planById(sim, planId);
-  const cache = found ? planCache(sim, nest, found.plan) : null;
-  if (!found || !cache) return 0;
-  const bu = sim.world.bu, g = cache.geometry, clip = PLAN_CLIP_BU * bu;
-  const canDig = (x: number, y: number, z: number) => planG(g, x, y, z) > -clip && sim.kernel.canDigAt(x, y, z);
-  let removed = 0;
-  for (const sp of found.plan.spheres) removed += carveSphere(sim, sp.c, sp.r, { canDig }).volume;
-  completePlan(sim, nest, found.plan, cache);
-  let vol = removed / bu ** 3;
-  for (const it of sim.stores.items.list) {
-    if (!it.alive || !isPellet(it) || it.nestId !== nest.id || it.carrierIds.length > 0) continue;
-    vol += it.volume;
-    removeItem(sim, it.id, 'layout');
-  }
-  return vol;
-}
-
 /** Puts the layout's spoil (BU^3, x BULKING) on the mound of the nest's first entrance (GDD 03 §15). */
 function depositSpoil(sim: Sim, nest: Nest, volBu3: number): void {
   const e = nest.entrances[0], bu = sim.world.bu;
@@ -87,6 +59,8 @@ export function abstractInputs(workers: number): NeedInputs {
 export function layoutNest(sim: Sim, nestId: number, workers: number, opts: LayoutOptions = {}): LayoutResult {
   const nest = sim.stores.nests.get(nestId);
   if (!nest) throw new Error(`layoutNest: no nest ${nestId}`);
+  // a computed count that is NaN would never reach the target (the loop would not end)
+  if (!Number.isFinite(workers) || workers < 0) throw new RangeError(`layoutNest: workers must be a finite count >= 0, got ${workers}`);
   const species = sim.stores.colonies.get(nest.colony)?.species ?? sim.species.id;
   const rng = opts.rng ?? rngFork(sim.state.config.world.seed, `architect-layout-${nestId}`);
   const source = opts.source ?? 'worldgen';
@@ -106,11 +80,11 @@ export function layoutNest(sim: Sim, nestId: number, workers: number, opts: Layo
         architectRuntime(sim).probe?.(spec, req);
         id = createPlanImpl(sim, spec, source);
         return id >= 0;
-      }, LAYOUT_CANDIDATES);
+      }, { maxCandidates: LAYOUT_CANDIDATES });
       if (id < 0) { failed.add(req.need); out.unplaced++; continue; }
       const plan = nest.digPlans.find((q) => q.id === id);
       if (plan) plan.need = req.need;
-      spoil += carveAtOnce(sim, nest, id);
+      spoil += carvePlanAtOnce(sim, nest, id);
       nest.volumeOpen = nestOpenVolume(sim, nest);
       out.planIds.push(id);
     }

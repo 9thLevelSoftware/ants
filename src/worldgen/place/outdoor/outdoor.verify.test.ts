@@ -34,8 +34,10 @@ function fenceHoles(w: WorldData): string[] {
   for (const [key, us] of lines) {
     us.sort((a, b) => a - b);
     const c = Number(key.slice(1));
-    // closing posts of perpendicular lines that ran on to the map edge are not a line of their own
-    if (c < 1 || c > L - 1) continue;
+    // closing posts of perpendicular lines that ran on to the map edge are not a line of their own (they stand half
+    // a post inside the edge since the fix of the edge-straddling end posts)
+    const P = BEDS.fence.postSq[1];
+    if (c < P || c > L - P) continue;
     for (let i = 1; i < us.length; i++) {
       const missing = Math.round((us[i] - us[i - 1]) / W) - 1;
       for (let m = 0; m < missing; m++) {
@@ -49,9 +51,17 @@ function fenceHoles(w: WorldData): string[] {
 }
 
 describe('map-edge fence lines (GDD 04 §4.2 step 1g, §5.3 fence: posts every 1830)', () => {
-  for (const [a, seed] of [['suburban-garden', 1], ['kitchen-door', 1]] as [ArchetypeId, number][]) {
+  for (const [a, seed] of [['suburban-garden', 1], ['kitchen-door', 1], ['suburban-garden', 2], ['suburban-garden', 3], ['kitchen-door', 2]] as [ArchetypeId, number][]) {
     it(`${a}#${seed}: no fence section is missing on natural ground`, () => {
       expect(fenceHoles(report(a, seed).world)).toEqual([]);
+    });
+  }
+  for (const [a, seed] of [['suburban-garden', 1], ['kitchen-door', 1], ['suburban-garden', 2]] as [ArchetypeId, number][]) {
+    it(`${a}#${seed}: every fenced side has at least one fence gap (GDD 04 §6.2: p 0.4 per panel, >= 1 per line)`, () => {
+      const w = report(a, seed).world, L = w.size;
+      const sideOf = (x: number, z: number) => [['x0', x], ['x1', L - x], ['z0', z], ['z1', L - z]].sort((p, q) => (p[1] as number) - (q[1] as number))[0][0];
+      const withGap = new Set(w.micro.filter((m) => m.kind === 'fence-gap').map((m) => sideOf(m.posA.x, m.posA.z)));
+      for (const e of w.edges ?? []) if (e.kind === 'fence') expect(withGap.has(e.side), e.side).toBe(true);
     });
   }
 });

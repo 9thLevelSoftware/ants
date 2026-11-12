@@ -35,6 +35,7 @@ import { buildSnapshot } from './uiBridge';
 import { loadingPhases, type LoadingPhase } from './newGame/loading';
 import { UndergroundSwitch } from './undergroundSwitch';
 import { requestView, toggleColonyView, togglePhoto, type ViewSwitchHost } from './views/viewSwitch';
+import { ViewsLayer } from './views/viewsLayer';
 
 export interface GameOptions {
   canvas: HTMLCanvasElement;
@@ -112,6 +113,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Hover / inspect highlights (the views task sets them from picking; the debug API for now). */
   hover: HighlightRef | null = null;
   inspect: HighlightRef | null = null;
+  /** Picking, hover / inspect, colony tools and markers (src/game/views); `viewsLayer.inspectTarget` for the HUD. */
+  readonly viewsLayer = new ViewsLayer(this);
   readonly ready: Promise<void>;
   private resolveReady: () => void = () => {};
 
@@ -152,6 +155,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       renderer: this.app.renderer, scene: this.scene, camera: this.camera, quality: this.app.quality, assets: this.assets,
       game: { requestRender: () => this.requestRender(), testMode: this.opts.testMode }, setExposure: (ev) => this.app.setExposure(ev),
     });
+    this.viewsLayer.attach(this.opts.canvas, this.scene, this.registry);
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
     await Promise.all([this.app.ready, assetsReady]);
@@ -216,6 +220,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     session.driver.beforeTick = () => this.lodObserver.sample(sim, focus);
     session.driver.timer = () => performance.now();
     this.session = session;
+    this.viewsLayer.reset();
     this.loading = null;
     this.mode = 'playing';
     this.epitaph = null;
@@ -238,6 +243,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       this.session = null;
     }
     this.registry?.onGameEnd(); // also after a cancelled load whose world the renderers already built
+    this.viewsLayer.reset();
     this.loading = null;
     if (toTitle) this.mode = 'title';
     this.input.contexts.setBase('UI');
@@ -303,9 +309,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   /** Camera + renderers for the current state. `settleS` > 0 first settles the camera rig (test screenshots). */
   renderScene(s: GameSession, dt: number, alpha: number, settleS: number): FrameInfo {
+    const live = this.mode === 'playing' && settleS === 0 ? this.input : null;
+    this.viewsLayer.frame(s, live, this.nowS);
     const subject = s.currentSubject(alpha);
     if (subject) s.views.setSubject(subject);
-    const live = this.mode === 'playing' && settleS === 0 ? this.input : null;
     const vf = settleS > 0 ? s.views.settle(settleS, TEST_CAMERA_SETTLE_DT) : s.views.update(dt, live);
     const canvas = this.opts.canvas;
     applyPose(this.camera, vf.pose, canvas.clientWidth / Math.max(1, canvas.clientHeight));
@@ -448,6 +455,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   menuPressed(): void {
     const s = this.session;
+    if (this.viewsLayer.consumeEscape(s)) return; // Esc cancels the colony tool / ghost first
     if (s?.view === 'colony') { this.toggleColonyView(); return; }
     this.openPauseMenu();
   }
@@ -564,6 +572,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   dispose(): void {
     this.endGame(false);
+    this.viewsLayer.dispose();
     this.registry?.dispose();
     this.dom?.detach();
     this.app?.dispose();

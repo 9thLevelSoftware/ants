@@ -22,7 +22,10 @@ export const BEDS = {
   board: { thick: 25, decayedP: 0.4, decayedH: 50, aboveSoil: 20 },
   pot: { dia: [100, 400], hK: [0.8, 1.1], wall: [8, 12], staves: [10, 16], fillBelowRim: 20, footGap: [3, 8], saucerP: 0.5, ceramicP: 0.5 },
   saucer: { extra: 40, h: [20, 30], staves: 12, wall: 6 },
-  wall: { h: [200, 600], thick: [300, 450], stone: [100, 300], gap: [5, 30], course: [100, 200] },
+  wall: { h: [200, 600], thick: [300, 450], stone: [100, 300], gap: [5, 30], course: [100, 200], embed: 40, maxStones: 60,
+    courseOffset: [40, 120], routeColumn: 40, roundStoneP: 0.3, creviceEnd: 200,
+    /** Inner void under the footing stones: radius (BU, capped by the wall's half thickness less voidWall mm), half height, depth of its centre. */
+    voidRBu: [3, 6], voidHBu: 1.2, voidDepthBu: 2, voidWall: 40 },
   fence: { postSq: [75, 100], postH: 1800, postEmbed: 300, panelW: 1830, panelT: 20, boardH: 150, boardT: 22, boardEmbed: 30,
     postDecayedP: 0.3, postFootH: 300, boardConcreteP: 0.5, gapP: 0.4, gapMm: [10, 50], gapLen: [200, 900] },
   shed: { w: 1800, h: 2000, d: 1200, floor: 18, wall: 18, bearerGap: [30, 150], bearerDecayedP: 0.5, roofOver: 60 },
@@ -110,39 +113,57 @@ export function plantPot(rng: RngState, env: Env, forceSaucer?: boolean): Built 
 
 /**
  * Dry-stone wall section of length `len` along local X (outer face at -Z): stacked stones with gaps 5-30, the
- * `wall-crevice` micro-connection through one gap, a `wall-face` route base -> top on the +Z face.
+ * `wall-crevice` micro-connection, a `wall-face` route base -> top on the +Z face. The crevice is a gap of the ground
+ * course: from the +Z face to the wall's core, then down into the inner void, a lens in the soil under the footing
+ * stones (`under-stone`, GDD 04 §6.2 "wall face <-> inner voids (nest)", §7); `withCrevice` false leaves it out (the
+ * gaps stay, unregistered: a wall needs one useful crevice, and every void costs carve chunks).
  */
-export function dryStoneWall(rng: RngState, env: Env, len: number, height?: number, thick?: number): Built {
+export function dryStoneWall(rng: RngState, env: Env, len: number, height?: number, thick?: number, withCrevice = true): Built {
   const W = BEDS.wall, { bu, foot } = env;
   const g = env.ground ?? (() => 0);
   const H = height ?? R(rng, W.h[0], W.h[1]), T = thick ?? R(rng, W.thick[0], W.thick[1]);
   const prims: PrimSpec[] = [];
   const gapMin = Math.max(W.gap[0], 0.6 * bu);
   const rx = len * R(rng, -0.3, 0.3);
-  let y = -40, course = 0;
-  let crevice: LocalMicro | null = null;
-  while (y < H - 40 && prims.length < 60) {
+  let y = -W.embed, course = 0;
+  let crevice: { x: number; gap: number; ch: number } | null = null;
+  while (y < H - W.embed && prims.length < W.maxStones) {
     const ch = Math.min(H - y, R(rng, W.course[0], W.course[1]));
-    let x = -len / 2 + (course % 2 ? R(rng, 40, 120) : 0);
-    while (x < len / 2 - 40) {
+    let x = -len / 2 + (course % 2 ? R(rng, W.courseOffset[0], W.courseOffset[1]) : 0);
+    while (x < len / 2 - W.embed) {
       let sl = Math.min(len / 2 - x, R(rng, W.stone[0], W.stone[1]));
       const gap = gapMin <= W.gap[1] ? R(rng, gapMin, W.gap[1]) : W.gap[1];
       // never leave the route column in a gap: stretch the stone over it
-      if (x <= rx + 40 && rx - 40 < x + sl + gap) sl = Math.min(len / 2 - x, Math.max(sl, rx - x + 60));
+      if (x <= rx + W.routeColumn && rx - W.routeColumn < x + sl + gap) sl = Math.min(len / 2 - x, Math.max(sl, rx - x + 1.5 * W.routeColumn));
       const cx = x + sl / 2;
       // the stones of the route column are flush boxes (a climbable face from the ground to the top)
-      const column = x <= rx + 40 && rx - 40 <= x + sl;
-      const isEl = !column && chance(rng, 0.3);
+      const column = x <= rx + W.routeColumn && rx - W.routeColumn <= x + sl;
+      const isEl = !column && chance(rng, W.roundStoneP);
       const sh = column ? ch : ch * R(rng, 0.9, 1), sd = column ? T : T * R(rng, 0.9, 1);
       prims.push(isEl ? el(v(cx, y + sh / 2, 0), sl, sh, sd, 'stone', C | S) : rb(v(cx, y + sh / 2, 0), sl, sh, sd, column ? 2 : Math.min(15, sh * 0.2), 'stone', C | S));
-      if (!crevice && course === 1 && x + sl + gap < len / 2 - 40 && x > -len / 2 + 200) {
-        const gx = x + sl + gap / 2, gy = y + ch / 2;
-        crevice = { kind: 'wall-crevice', a: v(gx, gy, -T / 2 - 2 * bu), b: v(gx, gy, T / 2 + 2 * bu), gapMm: gap, clearMm: Math.min(gap, ch * 0.5), lengthMm: T + 4 * bu };
-      }
+      // the crevice: a ground-course gap away from the section ends and the route column
+      const gx = x + sl + gap / 2;
+      if (!crevice && course === 0 && gx < len / 2 - W.creviceEnd && gx > -len / 2 + W.creviceEnd && Math.abs(gx - rx) > 2 * W.routeColumn) crevice = { x: gx, gap, ch };
       x += sl + gap;
     }
     y += ch;
     course++;
+  }
+  const micro: LocalMicro[] = [];
+  const cavities: NonNullable<Built['cavities']> = [];
+  if (crevice && withCrevice) {
+    const { x: gx, gap } = crevice;
+    const g0 = g(gx, 0);
+    const rr = Math.min(T / 2 - W.voidWall, W.voidRBu[1] * bu), ry = W.voidHBu * bu;
+    const lens = v(gx, g0 - W.voidDepthBu * bu, 0);
+    const rc = Math.max(gap / 2, 0.75 * bu);
+    cavities.push({
+      kind: 'under-stone',
+      carves: [{ shape: 'capsule', a: v(gx, g0 + 0.3 * rc, 0), b: lens, r: rc }, { shape: 'ellipsoid', a: lens, b: v(Math.max(rr, W.voidRBu[0] * bu), ry, Math.max(rr, W.voidRBu[0] * bu)), r: 0 }],
+      openings: [{ pos: v(gx, g0, 0), normal: v(0, 1, 0), radius: gap / 2 }],
+    });
+    const yG = g(gx, T / 2) + Math.min(gap, crevice.ch) / 2;
+    micro.push({ kind: 'wall-crevice', a: v(gx, yG, T / 2 + 2 * bu), path: [v(gx, g0 + 0.5 * gap, 0)], b: lens, gapMm: gap, clearMm: Math.min(gap, 2 * rc), cavity: 0 });
   }
   // wall-face route on the +Z face up to the top course
   const top = y;
@@ -153,30 +174,47 @@ export function dryStoneWall(rng: RngState, env: Env, len: number, height?: numb
       routes: [{ kind: 'wall-face', points: densify(pts, 6 * bu) }],
       pois: [{ kind: 'vantage', pos: v(rx, top + foot, 0) }],
     },
-    tilt: false, micro: crevice ? [crevice] : [],
+    tilt: false, micro, cavities,
   };
+}
+
+export interface FenceSectionOptions {
+  panel: boolean;
+  gap: boolean;
+  route: boolean;
+  /** Distance to the next post (default `panelW`). */
+  width?: number;
+  /** Square size of the post at x = 0 (default: drawn from `postSq`). */
+  postSq?: number;
+  /** Square size of the next post at x = width: the panel and board stop at its face (default: the largest). */
+  nextPostSq?: number;
+  /** false: the post at x = 0 belongs to another line (a fenced corner); only the panel is built. */
+  post?: boolean;
 }
 
 /**
  * One fence section along local X: the post at x = 0 and the panel + gravel board to the next post at
- * x = panelW (garden side +Z). With `gap`, a stretch of the board stands `gapMm` clear of the ground (fence-gap).
+ * x = width (garden side +Z). The placer draws the post sizes of a whole line first, so each panel ends exactly at
+ * the next post's face. With `gap`, a stretch of the board stands `gapMm` clear of the ground (fence-gap).
  * The fence-rail route climbs the post on the garden side and runs along the panel top to the next post.
  */
-export function fenceSection(rng: RngState, env: Env, opt: { panel: boolean; gap: boolean; route: boolean; width?: number }): Built {
+export function fenceSection(rng: RngState, env: Env, opt: FenceSectionOptions): Built {
   const F = BEDS.fence, { bu, foot } = env;
   const g = env.ground ?? (() => 0);
-  const ps = R(rng, F.postSq[0], F.postSq[1]);
+  const ps = opt.postSq ?? R(rng, F.postSq[0], F.postSq[1]);
+  const psNext = opt.nextPostSq ?? F.postSq[1];
   const W = opt.width ?? F.panelW;
   const prims: PrimSpec[] = [];
   const gMin = Math.min(g(0, 0), g(-ps / 2, 0), g(ps / 2, 0));
   const foot0 = gMin - F.postEmbed;
-  if (chance(rng, F.postDecayedP)) {
+  const decayed = chance(rng, F.postDecayedP);
+  if (opt.post === false) { /* the corner post is the other line's */ } else if (decayed) {
     prims.push(rb(v(0, (foot0 + F.postFootH) / 2, 0), ps, F.postFootH - foot0, ps, 3, 'wood-decayed', C | D | NB));
     prims.push(rb(v(0, (F.postFootH + F.postH) / 2, 0), ps, F.postH - F.postFootH, ps, 3, 'wood-sound', C | NB));
   } else prims.push(rb(v(0, (foot0 + F.postH) / 2, 0), ps, F.postH - foot0, ps, 3, 'wood-sound', C | NB));
   const micro: LocalMicro[] = [];
   if (opt.panel) {
-    const x0 = ps / 2, x1 = W - ps / 2, mid = (x0 + x1) / 2;
+    const x0 = ps / 2, x1 = W - psNext / 2, mid = (x0 + x1) / 2;
     const boardMat: MaterialId = chance(rng, F.boardConcreteP) ? 'concrete' : 'wood-sound';
     let gMax = -Infinity, gLow = Infinity;
     for (let i = 0; i <= 8; i++) { const gx = g(x0 + ((x1 - x0) * i) / 8, 0); gMax = Math.max(gMax, gx); gLow = Math.min(gLow, gx); }
@@ -196,13 +234,13 @@ export function fenceSection(rng: RngState, env: Env, opt: { panel: boolean; gap
     prims.push(rb(v(mid, (bTop + F.postH) / 2, 0), x1 - x0, F.postH - bTop, F.panelT, 2, 'wood-sound', C | S | NB));
   }
   const routes: Built['tpl']['routes'] = [];
-  if (opt.route && opt.panel) {
+  if (opt.route && opt.panel && opt.post !== false) {
     const z = ps / 2 + foot;
-    const pts = [v(0, g(0, z + 3 * bu) + foot, z + 3 * bu), v(0, g(0, ps / 2) + 2 * bu, z), v(0, F.postH - 2 * bu, z), v(0, F.postH + foot, ps / 4), v(ps / 2, F.postH + foot, 0), v(W - ps / 2, F.postH + foot, 0)];
+    const pts = [v(0, g(0, z + 3 * bu) + foot, z + 3 * bu), v(0, g(0, ps / 2) + 2 * bu, z), v(0, F.postH - 2 * bu, z), v(0, F.postH + foot, ps / 4), v(ps / 2, F.postH + foot, 0), v(W - psNext / 2, F.postH + foot, 0)];
     routes.push({ kind: 'fence-rail', points: densify(pts, 6 * bu) });
   }
   return {
-    tpl: { id: 'fence', prims, tags: ['structure', 'fence'], routes, pois: opt.route ? [{ kind: 'vantage', pos: v(0, F.postH + foot, 0) }] : [] },
+    tpl: { id: 'fence', prims, tags: ['structure', 'fence'], routes, pois: routes.length ? [{ kind: 'vantage', pos: v(0, F.postH + foot, 0) }] : [] },
     tilt: false, micro,
   };
 }

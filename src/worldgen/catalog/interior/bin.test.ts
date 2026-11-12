@@ -3,13 +3,22 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '@/core/math/vec3';
 import { rngFork } from '@/core/rng';
-import type { Primitive, SpeciesId } from '@/sim/types';
+import { materialCode, type ByteMap, type Primitive, type SpeciesId } from '@/sim/types';
+import { createKernel } from '@/sim/kernel';
 import { walkerParamsForBU } from '@/sim/locomotion/walkerParams';
-import { buildWorld } from '@/sim/testing/worldBuilder';
-import { defaultWorldParams, speciesBuMm } from '../../params';
-import { follow, kernelFor, walkerAt } from '../../place/interior/testkit';
+import { speciesBuMm } from '../../params';
+import { follow, walkerAt } from '../../place/interior/testkit';
 import { PLACE } from '../../tuning/pipeline';
 import { pedalBinTemplate } from './furniture';
+
+/** A kernel on a flat loam floor at y = 0 carrying the given primitives (no generated world needed). */
+function flatKernel(bu: number, prims: Primitive[]) {
+  const size = 128 * bu, cell = 2 * bu, n = Math.ceil(size / cell);
+  const map = (v: number): ByteMap => ({ cell, nx: n, nz: n, data: new Uint8Array(n * n).fill(v) });
+  const terrain = { cell, nx: n + 1, nz: n + 1, data: new Float32Array((n + 1) * (n + 1)) };
+  const ground = { surface: map(materialCode('loam')), crustMm: map(0), subsoil: map(materialCode('loam')) };
+  return createKernel({ size, bu, terrain, ground, prims }, { voxel: bu / 2, keys: [], chunks: [], breaches: [] });
+}
 
 /** Template prims and route at (c, 0, c), the route resampled like the kit's addClimbRoute. */
 function binWorld(species: SpeciesId, seed: number, side: 1 | -1) {
@@ -27,9 +36,7 @@ function binWorld(species: SpeciesId, seed: number, side: 1 | -1) {
     const a = raw[i - 1], b = raw[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / (PLACE.routeNodeBu * bu)));
     for (let k = 1; k <= n; k++) pts.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n, z: a.z + ((b.z - a.z) * k) / n });
   }
-  const size = 128 * bu;
-  const w = buildWorld({ params: { ...defaultWorldParams(species, seed), sizeClass: 'compact' }, size, bu, height: () => 0, prims, objects: [], climbRoutes: [] });
-  return { w, pts };
+  return { k: flatKernel(bu, prims), pts };
 }
 
 describe('pedal-bin climb route on its own', () => {
@@ -37,8 +44,7 @@ describe('pedal-bin climb route on its own', () => {
     it(`${species}: there and back for 60 seam/material draws on both sides`, () => {
       const failed: string[] = [];
       for (let seed = 1; seed <= 60; seed++) for (const side of [1, -1] as const) {
-        const { w, pts } = binWorld(species, seed, side);
-        const k = kernelFor(w);
+        const { k, pts } = binWorld(species, seed, side);
         const kin = walkerAt(k, pts[0]);
         if (!kin) { failed.push(`seed ${seed} side ${side}: no base`); continue; }
         const up = follow(k, kin, pts.map((p) => ({ p })));

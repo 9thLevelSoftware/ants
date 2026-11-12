@@ -14,8 +14,11 @@ import { runTables, type OutTable } from './tables';
 import { footprintIn, pointInZone, zonesOf } from './zones';
 import { OUTDOOR } from './tuning';
 
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
+
 function underCanopy(ctx: GenContext, x: number, z: number): boolean {
-  return ctx.canopies.some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < c.r * c.r && 1 - c.transmittance >= OUTDOOR.forestProps.herbShadeMax);
+  return ctx.canopies.some((c) => sq(c.x - x) + sq(c.z - z) < c.r * c.r && 1 - c.transmittance >= OUTDOOR.forestProps.herbShadeMax);
 }
 
 function beanRows(ctx: GenContext): void {

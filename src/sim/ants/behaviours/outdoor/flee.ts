@@ -9,8 +9,10 @@
 
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
-import { FLEE_CLEAR_S, FLEE_FREEZE_S, FLEE_LEG_BU, FLEE_MAX_CYCLES, FLEE_RUN_S, SUCCESS_CROP } from '@/sim/balance/foraging';
-import { THREAT, threatCode, threatX, threatZ } from '@/sim/ants/perception';
+import {
+  FLEE_CLEAR_S, FLEE_FREEZE_S, FLEE_LEG_BU, FLEE_MAX_CYCLES, FLEE_RUN_S, LEG_ARRIVE_BU, SUCCESS_CROP,
+} from '@/sim/balance/foraging';
+import { THREAT, threatApproach, threatCode, threatX, threatZ } from '@/sim/ants/perception';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { logDecision, num, phaseOf, phaseS, setPhase } from './common';
 import type { Flavour } from './flavours';
@@ -38,14 +40,25 @@ function inFlee(ant: Ant): boolean {
   return p === PHASE.fleeRun || p === PHASE.fleeFreeze;
 }
 
+/**
+ * Run leg: away from the threat point; from a human pass whose approach is known, perpendicular to it (GDD 02
+ * §10.12), to the side of the pass's line the ant is already on.
+ */
 function run(sim: Sim, ant: Ant, fl: Flavour, from: { x: number; z: number }): void {
   let dx = ant.pos.x - from.x, dz = ant.pos.z - from.z;
+  const a = threatCode(ant) === THREAT.human ? threatApproach(ant) : null;
+  if (a) {
+    // the normal of the approach line on the ant's side (either side when it stands on the line)
+    const side = a.x * dz - a.z * dx >= 0 ? 1 : -1;
+    dx = -a.z * side;
+    dz = a.x * side;
+  }
   const l = Math.hypot(dx, dz);
   if (l < 1e-6) { dx = ant.fwd.x; dz = ant.fwd.z; } else { dx /= l; dz /= l; }
   const leg = FLEE_LEG_BU * sim.world.bu;
   const x = ant.pos.x + dx * leg, z = ant.pos.z + dz * leg;
   setPhase(sim, ant, fl.names, PHASE.fleeRun);
-  goTo(sim, ant, { x, y: sim.field.height(x, z), z }, 2, { speed: 'run' });
+  goTo(sim, ant, { x, y: sim.field.height(x, z), z }, LEG_ARRIVE_BU, { speed: 'run' });
 }
 
 /**

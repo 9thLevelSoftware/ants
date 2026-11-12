@@ -66,4 +66,25 @@ describe('flee', () => {
     expect(ran).toBe(true);
     expect(d1).toBeGreaterThan(d0);
   }, 120000);
+
+  it('a footstep pass approaching along a lane: the ant runs across the lane, not along it (§10.12)', () => {
+    const { sim, ant } = outbound();
+    const bu = sim.world.bu;
+    // a pass walking along +x; the ant stands 6 BU to the +z side of the lane, the next footfall 10 BU ahead of it
+    const z = ant.pos.z - 6 * bu;
+    const now = sim.state.tick;
+    const fall = (dx: number, k: number) => ({
+      kind: 'shadow' as const, origin: { x: ant.pos.x + dx * bu, y: 0, z }, radiusMm: 30 * bu, intensity: 1,
+      startTick: now - 10 + k, impactTick: now + 20 + 10 * k,
+    });
+    sim.state.env.human.active.push({ instId: 98, progressS: 0, nextImpactTick: now + 20, cues: [fall(-30, 0), fall(-10, 1)] });
+    const p0 = { ...ant.pos };
+    let ran = false;
+    for (let t = 0; t < 40; t++) { sim.tick(); if (ant.state === 'flee.run') ran = true; }
+    const dx = (ant.pos.x - p0.x) / bu, dz = (ant.pos.z - p0.z) / bu;
+    console.log(`human pass along +x: fled ${ran}, moved dx ${dx.toFixed(1)} BU, dz ${dz.toFixed(1)} BU`);
+    expect(ran).toBe(true);
+    expect(dz).toBeGreaterThan(3); // away from the lane, on its own side
+    expect(Math.abs(dx)).toBeLessThan(dz);
+  }, 120000);
 });

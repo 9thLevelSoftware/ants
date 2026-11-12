@@ -38,6 +38,21 @@ export interface UiTime {
   minute: number;
   /** "Spring · Day 3 · 07:40" */
   label: string;
+  /** ui-hud: weather word, surface air temperature and day / night for the time cluster (GDD 08 3.4). Absent = unknown. */
+  weather?: UiWeather;
+  /** ui-hud: season length in game days (never a literal 7: GDD 08 App. F 13). */
+  seasonLength?: number;
+}
+
+export interface UiWeather {
+  /** WeatherState id ('clear', 'overcast', 'rain', 'storm', 'heat', 'frost'). */
+  state: string;
+  /** "Clear", "Rain" ... */
+  word: string;
+  /** Surface air temperature, whole degrees C. */
+  tempC: number;
+  /** Sun glyph (true) or moon glyph. */
+  isDay: boolean;
 }
 
 export interface UiSpeed {
@@ -64,6 +79,22 @@ export interface UiColony {
   adults: number;
   brood: { egg: number; larva: number; pupa: number };
   stores: { c: number; p: number };
+  /** ui-hud: queen state word source ('founding' | 'established' | 'orphan-dead' | 'absent'). */
+  queenMode?: string;
+  /** ui-hud: workers by allocation group (headcount of the tasks in the group) and the unassigned rest. */
+  groups?: { forage: number; nurse: number; dig: number; defend: number; idle: number };
+  /** ui-hud: stores 3 game hours ago (null while the history is shorter); the UI turns it into a trend arrow. */
+  past?: { c: number | null; p: number | null };
+  /** ui-hud: hourly samples of the last 3 game days, oldest first (sparklines in the expanded pulse). */
+  spark?: { c: number[]; p: number[] };
+  /** ui-hud: today's intake and days of stock left, per nutrient. */
+  intake?: { c: number; p: number };
+  stockDays?: { c: number; p: number };
+  /** ui-hud: the founding queen's reserves 0..1 (before the first egg the pulse shows this alone); null once established. */
+  queenReserves?: number | null;
+  /** ui-hud: the overall status pip and the worst diagnostic line ("Why?" link target), if any. */
+  status?: 'ok' | 'warn' | 'bad';
+  worst?: { id: string; label: string; status: 'ok' | 'warn' | 'bad' } | null;
 }
 
 export interface UiPossessed {
@@ -79,12 +110,41 @@ export interface UiPossessed {
   trailOn: boolean;
   action: string | null;
   underground: boolean;
+  /** ui-hud additions (all optional). */
+  isQueen?: boolean;
+  /** "Worker 0412". */
+  name?: string;
+  ageDays?: number;
+  /** Behaviour state word ("returning home"), from the simulation's reason / state, not invented by the UI. */
+  stateWord?: string;
+  /** The reason code word of the behaviour's last decision (simulation's `inspect` read-out): "crop full", "hungry"; null none. */
+  reason?: string | null;
+  /** Founding queen: reserves 0..1 replace the crop meter. */
+  reserves?: number | null;
+  /** Formicine acid reserve (charges); null when the caste has none. */
+  acid?: { charges: number; max: number } | null;
+  /** Body heat stress (thermometer glyph). */
+  heatStress?: boolean;
+  /** Direction to the nearest own entrance relative to where the ant faces (deg, 0 = ahead, clockwise) and distance in BU; null underground / none. */
+  home?: { angleDeg: number; distBu: number } | null;
+  /** The queen after hand-over: the Colony orders button shows. */
+  colonyOrders?: boolean;
 }
 
 export interface UiPrompt {
   primary: string | null;
   secondary: string | null;
   extras: string[];
+  /** ui-hud: the same lines with the input they belong to (the UI draws the CURRENT binding as the key cap). */
+  lines?: UiPromptLine[];
+}
+
+export interface UiPromptLine {
+  slot: 'primary' | 'secondary' | 'extra';
+  /** PromptInput of src/sim/ants/player/prompt.ts: 'interact' | 'interact-hold' | 'dig' | 'share-food' | 'foot' | 'inspect' | 'directives'. */
+  input: string;
+  text: string;
+  ok: boolean;
 }
 
 export interface UiAlert {
@@ -92,6 +152,14 @@ export interface UiAlert {
   kind: string;
   level: string;
   title: string;
+  /** ui-hud additions (all optional): the cause line, repeat count, de-duplication subject, click-through targets. */
+  cause?: string;
+  count?: number;
+  subjectId?: number;
+  diagnosticId?: string | null;
+  focus?: { kind: string; id: number; pos: Vec3 } | null;
+  acknowledged?: boolean;
+  raisedTick?: number;
 }
 
 export interface UiToast {
@@ -123,6 +191,129 @@ export interface UiSnapshot {
    * menu's "Saved 3 min ago" line and the 60 s unsaved-progress warning (GDD 08 3.5). Absent = unknown.
    */
   lastSave?: { agoS: number; kind: 'auto' | 'quick' | 'manual'; timeLabel?: string } | null;
+  /** ui-hud: the colony orders (Directives) state; null outside a game. */
+  directives?: UiDirectives | null;
+  /** ui-hud: the roster page requested by the open Roster panel (null while it is closed). */
+  roster?: UiRoster | null;
+  /** ui-hud: plain-data read-outs of the hovered / selected target (null = no card). */
+  inspect?: UiInspect | null;
+}
+
+/** Allocation groups, in panel order. */
+export type UiGroupId = 'forage' | 'nurse' | 'dig' | 'defend';
+
+export interface UiDirectives {
+  /** 'auto': the colony sets its own targets; the shares then show what it is doing. */
+  allocationMode: 'auto' | 'manual';
+  /** Group shares, percent summing to 100 (manual: the ordered ones; auto: the current targets). */
+  shares: Record<UiGroupId, number>;
+  /** Per group: workers needed (sum of demand), target and actual headcount (GDD 02 6.3 "need, target, actual"). */
+  need: Record<UiGroupId, number>;
+  target: Record<UiGroupId, number>;
+  actual: Record<UiGroupId, number>;
+  workers: number;
+  queenAlive: boolean;
+  /** 'auto' or -100 (carbohydrate) .. +100 (protein). */
+  diet: 'auto' | number;
+  alateInvestment: number;
+  alatePolicy: string;
+  /** Alates can be raised now (a mature colony in the right season); otherwise the reason line. */
+  alates: { ok: boolean; reason: string | null };
+  stockTarget: string;
+  /** Foraging curfew on, and the game hours left before it clears. */
+  stayIn: boolean;
+  stayInHoursLeft: number;
+  sealInCold: boolean;
+  stance: string;
+  /** Nest architect mode of the main nest: 'auto' | 'suggest' | 'off'; null when there is no nest. */
+  architect: string | null;
+  nestId: number;
+  openPlans: number;
+  /** Stores, today's intake and days of stock (Diet emphasis readouts). */
+  stores: { c: number; p: number };
+  intake: { c: number; p: number };
+  stockDays: { c: number; p: number };
+  /** Larval protein demand note: larvae count and the colony's current P need rate per game day. */
+  larvae: number;
+  needRateP: number;
+  /** Brood by destined caste ('worker' | 'gyne' | 'male' ...), count. */
+  broodByCaste: Record<string, number>;
+  /** Species extra directives the species lists (T3; the ids). */
+  extras: string[];
+}
+
+/** A request of the open Roster panel; the bridge answers with `UiSnapshot.roster`. */
+export interface UiRosterQuery {
+  caste: 'all' | 'worker' | 'queen' | 'gyne' | 'male';
+  group: 'all' | UiGroupId | 'idle';
+  where: 'all' | 'nest' | 'outside';
+  search: string;
+  sort: 'id' | 'age' | 'task' | 'where' | 'health' | 'crop' | 'carrying';
+  dir: 'asc' | 'desc';
+  /** First visible row and the number of rows wanted (the virtualised window plus overscan). */
+  offset: number;
+  limit: number;
+  /** Bumped by the "Re-sort" chip: the bridge re-sorts only when this or the query changes. */
+  resort: number;
+}
+
+export interface UiRosterRow {
+  id: number;
+  caste: string;
+  /** "Worker 0412". */
+  name: string;
+  ageDays: number;
+  task: string;
+  /** Chamber type + id, or the zone outside ("Lawn"). */
+  where: string;
+  health: number;
+  cropC: number;
+  cropP: number;
+  carrying: string;
+  possessed: boolean;
+}
+
+export interface UiRoster {
+  /** Rows of the requested window, in the frozen order. */
+  rows: UiRosterRow[];
+  offset: number;
+  /** Ants matching the filters, and in the whole colony. */
+  total: number;
+  all: number;
+  /** Counts by role for the group headers and the quick-possess buttons. */
+  roles: { forager: number; digger: number; nurse: number; queen: number };
+  /** Counts by caste. */
+  byCaste: Record<string, number>;
+  /** Counts by task group (and idle). */
+  byGroup: Record<string, number>;
+  /** The visible order no longer matches the current values: the "Re-sort" chip shows. */
+  stale: boolean;
+  brood: { egg: number; larva: number; pupa: number; byCaste: Record<string, number> };
+}
+
+export interface UiInspectRow {
+  key: string;
+  word: string;
+  value: number | null;
+  unit: string;
+}
+
+/** Read-outs of the simulation's `inspect` (GDD 01 section 10) for the target the player points at. */
+export interface UiInspect {
+  kind: string;
+  /** Plain target kind of the request ('ant' | 'brood' | 'item' | 'source' | 'creature' | 'chamber' | 'entrance'). */
+  targetKind: string;
+  targetId: number;
+  title: string;
+  /** "Worker 0412" for ants, the kind word otherwise. */
+  header: string;
+  senses: UiInspectRow[];
+  colony: UiInspectRow[];
+  /** Buttons the card offers. */
+  canPossess: boolean;
+  canFollow: boolean;
+  /** The queen's card: the Colony orders button. */
+  colonyOrders: boolean;
 }
 
 export function emptySnapshot(screen: UiScreen = 'boot'): UiSnapshot {
@@ -243,4 +434,9 @@ export interface GameFacade {
   resetHints?(): void;
   /** True when the lineage store has records (the Title shows Lineage only then). */
   hasLineage?(): boolean;
+  // ui-hud additions (optional: the HUD degrades without them; the Game already has `command` and `refreshUi`)
+  /** Send any sim command (acknowledgeAlert, setAutoExpand, ...). */
+  command?(cmd: import('@/sim/types').Command): unknown;
+  /** Rebuild and publish the snapshot now (after the UI changed what the bridge should report). */
+  refreshUi?(): void;
 }

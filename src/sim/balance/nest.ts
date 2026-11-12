@@ -1,7 +1,7 @@
 // Nest balance (GDD 03). Lengths in BU unless the name says MM, durations in game seconds (`_S`) or ticks
 // (`_TICKS`), volumes in BU^3. Species nest templates are in nestTemplates.ts (re-exported below).
 
-import type { ChamberSize, ChamberType, MaterialId, PlanPriority, SpeciesId } from '@/sim/types';
+import type { ChamberSize, ChamberType, FoundingDigState, MaterialId, PlanPriority, SpeciesId } from '@/sim/types';
 
 /** Slot-seeking weight per plan priority (GDD 03 §7). */
 export const PLAN_PRIORITY_WEIGHT: Record<PlanPriority, number> = { low: 1, normal: 2, high: 4, urgent: 8 };
@@ -168,6 +168,12 @@ export const MOUND_BREACH_PROBE_BU = 2;
 export const MOUND_HOLE_PROBE_DEPTH_BU = 0.1;
 /** A new entrance takes over an entrance-less pile of its nest centred within its radius + this, BU. */
 export const MOUND_LINK_BU = 2;
+/**
+ * Founding expulsion (GDD 03 §13.2) goes to the mound of the nest's entrance nearest the bite when that entrance
+ * is within its radius + this horizontally or connected to the bite's cavity; otherwise to a pile around the pit
+ * being dug (no entrance record yet). Equal to the §13.4 distance at which a queen's bite is a new site, BU.
+ */
+export const EXPEL_ENTRANCE_REACH_BU = 6;
 /** The pile is solid where h > this, BU (field and volume). */
 export const MOUND_MIN_H_BU = 0.05;
 /** Mound batches run every this many ticks per mound (staggered by id). */
@@ -363,6 +369,18 @@ export const CHAMBER_CHANGE_FRACTION = 0.05;
 export const ROYAL_CHECK_TICKS = 50;
 
 export * from './nestTemplates';
+
+// ---- founding readiness (GDD 03 §13.1; species values in SpeciesDef.opening) ----
+
+/** Soil roof the founding cell needs unless its column is covered, BU ("roof ok"). */
+export const FOUNDING_ROOF_MIN_BU = 2;
+/** V_deep counts open volume at depth >= D_MIN - this, BU. */
+export const FOUNDING_DEEP_MARGIN_BU = 2;
+/** At most this many openings of the founding cavity ("openings <= 2"). */
+export const FOUNDING_MAX_OPENINGS = 2;
+/** Founding states in which the founding cell rule may register the cell (GDD 03 §13.2; `site-search` while no
+ *  founding module moves a digging queen to `digging`). */
+export const FOUNDING_CELL_STATES: readonly FoundingDigState[] = ['site-search', 'digging', 'ready'];
 
 /** Founding template per species (GDD 03 §13.1): shaft diameter and depth, cell W x H x L, BU. */
 export const FOUNDING_TEMPLATE: Record<SpeciesId, { shaftD: number; shaftDepth: number; cell: { w: number; h: number; l: number } }> = {

@@ -20,6 +20,9 @@ import { commit, envFor, groundLocal, outdoorState, range, registerSockets, take
 import { datan2, yawAlong, zoneAreaM2, zoneIdAt, zoneRect as zoneRectOf, zonesOf } from './zones';
 import { OUTDOOR } from './tuning';
 
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
+
 const A = OUTDOOR.asphalt;
 const typeAt = (ctx: GenContext, x: number, z: number) => ctx.layout.zones[zoneIdAt(ctx, x, z)].type;
 
@@ -35,7 +38,7 @@ function puddleBasins(ctx: GenContext): void {
     if (a.x1 - a.x0 < d + 1200 || a.z1 - a.z0 < d + 1200) continue;
     const cx = range(rng, a.x0 + r + 600, a.x1 - r - 600), cz = range(rng, a.z0 + r + 600, a.z1 - r - 600);
     editHeights(ctx, { x0: cx - r, z0: cz - r, x1: cx + r, z1: cz + r }, (x, z, old) => {
-      const q = ((x - cx) ** 2 + (z - cz) ** 2) / (r * r);
+      const q = (sq(x - cx) + sq(z - cz)) / (r * r);
       return q < 1 ? old - depth * (1 - q) * (1 - q) : old;
     });
   }
@@ -78,7 +81,7 @@ function kerbLine(ctx: GenContext, kl: KerbLine, li: number): void {
   const rng = ctx.rng(`wg/structures/outdoor/kerb/${li}`);
   const dx = -kl.nz, dz = kl.nx; // local +X along the line, local +Z toward the verge (-n)
   const sx = Math.sign((kl.x1 - kl.x0) * dx + (kl.z1 - kl.z0) * dz) || 1;
-  const len = Math.sqrt((kl.x1 - kl.x0) ** 2 + (kl.z1 - kl.z0) ** 2);
+  const len = Math.sqrt(sq(kl.x1 - kl.x0) + sq(kl.z1 - kl.z0));
   const x0 = sx > 0 ? kl.x0 : kl.x1, z0 = sx > 0 ? kl.z0 : kl.z1;
   const yaw = yawAlong(dx, dz);
   const units: { t: number; l: number }[] = [];
@@ -90,7 +93,9 @@ function kerbLine(ctx: GenContext, kl: KerbLine, li: number): void {
   }
   const gaps = new Set<number>();
   for (let i = 1; i < units.length - 1; i++) if (rngFloat(rng) < K.gapP) gaps.add(i);
+  // >= 1 kerb gap per kerb line (GDD 04 §6.2): the middle unit, or the longer one of a short line
   if (gaps.size === 0 && units.length > 2) gaps.add(Math.floor(units.length / 2));
+  else if (gaps.size === 0 && units.length > 0) gaps.add(units.length === 2 && units[1].l > units[0].l ? 1 : 0);
   for (let i = 0; i < units.length; i++) {
     const u = units[i], c = u.t + u.l / 2;
     const x = x0 + dx * c, z = z0 + dz * c;
@@ -105,7 +110,24 @@ function kerbLine(ctx: GenContext, kl: KerbLine, li: number): void {
   }
 }
 
-/** Gully grates next to the kerb lines, spread over the lines by length. */
+/**
+ * Up to n positions along [0, len] at the lowest heights (sampled every `step`), each at least len / (2n) from the
+ * others and from the ends: the low points of a gutter line.
+ */
+export function lowPoints(len: number, n: number, step: number, height: (t: number) => number): number[] {
+  const margin = len / (2 * n);
+  const samples: { t: number; h: number }[] = [];
+  for (let t = margin; t <= len - margin + 1e-6; t += step) samples.push({ t, h: height(t) });
+  samples.sort((a, b) => a.h - b.h || a.t - b.t);
+  const out: number[] = [];
+  for (const s of samples) {
+    if (out.length >= n) break;
+    if (out.every((t) => Math.abs(t - s.t) >= 2 * margin)) out.push(s.t);
+  }
+  return out.sort((a, b) => a - b);
+}
+
+/** Gully grates next to the kerb lines, spread over the lines by length, at the gutter's low points. */
 function gullies(ctx: GenContext): void {
   const G = ASPHALT.gully;
   const rng = ctx.rng('wg/structures/outdoor/gully');
@@ -119,17 +141,19 @@ function gullies(ctx: GenContext): void {
     for (const k of lines) {
       const len = lineLen(k);
       const n = Math.max(1, Math.round((want * len) / Math.max(1, total)));
-      for (let i = 0; i < n && placed < want; i++) {
-        const t = ((i + 0.5) / n) * len + range(rng, -300, 300);
-        const ux = (k.x1 - k.x0) / len, uz = (k.z1 - k.z0) / len;
-        const x = k.x0 + ux * t + k.nx * G.kerbOffset, z = k.z0 + uz * t + k.nz * G.kerbOffset;
+      const ux = (k.x1 - k.x0) / len, uz = (k.z1 - k.z0) / len;
+      const at = (t: number) => ({ x: k.x0 + ux * t + k.nx * G.kerbOffset, z: k.z0 + uz * t + k.nz * G.kerbOffset });
+      // at the low points of the gutter (GDD 04 §5.5): the lowest free spots along the line, len / n apart
+      for (const t of lowPoints(len, n, A.gullySampleMm, (t) => { const p = at(t); return terrainAt(ctx, p.x, p.z); })) {
+        if (placed >= want) break;
+        const { x, z } = at(t + range(rng, -A.gullyJitterMm, A.gullyJitterMm));
         if (![-1, 1].every((a) => [-1, 1].every((c) => zoneIdAt(ctx, x + (a * G.frame) / 2, z + (c * G.frame) / 2) === zn.id))) continue;
         if (commit(ctx, gullyGrate(ctx.rngFor('wg/structures/outdoor/gully', idx++), env), { x, z, y: terrainAt(ctx, x, z), snap: false, yaw: 0, collide: true, category: 'structures' }) >= 0) placed++;
       }
     }
   }
 }
-const lineLen = (k: KerbLine) => Math.sqrt((k.x1 - k.x0) ** 2 + (k.z1 - k.z0) ** 2);
+const lineLen = (k: KerbLine) => Math.sqrt(sq(k.x1 - k.x0) + sq(k.z1 - k.z0));
 
 export function placeAsphaltBefore(ctx: GenContext): void {
   puddleBasins(ctx);
@@ -156,7 +180,10 @@ function bays(ctx: GenContext): void {
     // head of the bay = its inner end (against the sidewalk)
     const hx = cx + n.x * (half - 600), hz = cz + n.z * (half - 600);
     if (rngFloat(r) < A.wheelStopP) commit(ctx, wheelStop(r), { x: hx, z: hz, yaw: stopYaw, collide: true, category: 'structures' });
-    if (rngFloat(r) < share) commit(ctx, parkedCar(r, env), { x: cx, z: cz, yaw: carYaw + range(r, -0.04, 0.04), tilt: true, collide: true, category: 'structures' });
+    if (rngFloat(r) < share) {
+      const yaw = carYaw + range(r, -0.04, 0.04);
+      commit(ctx, parkedCar(r, envFor(ctx, groundLocal(ctx, cx, cz, yaw))), { x: cx, z: cz, yaw, atGround: 'terrain', collide: true, category: 'structures' });
+    }
     // side line between this bay and the next (and the first one's outer line)
     const lines: number[][] = [];
     if (Math.abs(n.x) > 0) { lines.push([b.x0, b.z1, b.x1, b.z1]); if (i === 0) lines.push([b.x0, b.z0, b.x1, b.z0]); }
@@ -212,20 +239,20 @@ function streetFurniture(ctx: GenContext, rng: RngState): void {
   const env = envFor(ctx);
   const kl = ctx.layout.kerbs.find((k) => typeAt(ctx, (k.x0 + k.x1) / 2 - k.nx * 300, (k.z0 + k.z1) / 2 - k.nz * 300) === 'pavement') ?? ctx.layout.kerbs[0];
   if (kl) {
-    const len = Math.sqrt((kl.x1 - kl.x0) ** 2 + (kl.z1 - kl.z0) ** 2), ux = (kl.x1 - kl.x0) / len, uz = (kl.z1 - kl.z0) / len;
+    const len = Math.sqrt(sq(kl.x1 - kl.x0) + sq(kl.z1 - kl.z0)), ux = (kl.x1 - kl.x0) / len, uz = (kl.z1 - kl.z0) / len;
     const behind = (t: number, d: number) => ({ x: kl.x0 + ux * t - kl.nx * d, z: kl.z0 + uz * t - kl.nz * d });
     if (ctx.layout.carPark) {
       for (let t = 0; t < 6; t++) {
-        const p = behind(range(rng, 0.3, 0.7) * len, 450);
+        const p = behind(range(rng, A.lampAlong[0], A.lampAlong[1]) * len, A.lampBehindMm);
         if (commit(ctx, lampPost(env), { x: p.x, z: p.z, yaw: 0, tilt: false, embed: 0, collide: true, category: 'structures' }) >= 0) break;
       }
     }
     const nb = rngInt(rng, A.bollards[0], A.bollards[1]);
-    const t0 = range(rng, 800, 3000);
+    const t0 = range(rng, A.bollardStart[0], A.bollardStart[1]);
     for (let i = 0; i < nb; i++) {
       const t = t0 + i * A.bollardSpacing;
       if (t > len - 500) break;
-      const p = behind(t, 300);
+      const p = behind(t, A.bollardBehindMm);
       commit(ctx, bollard(ctx.rngFor('wg/structures/outdoor/bollard', i), env), { x: p.x, z: p.z, yaw: 0, tilt: false, embed: 0, collide: true, category: 'structures' });
     }
   }

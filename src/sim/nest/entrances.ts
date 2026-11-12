@@ -11,7 +11,7 @@ import {
 } from '@/sim/balance/nest';
 import { OPEN_MIN, type VoxelBox } from './carve/keys';
 import { carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
-import { linkMoundToEntrance } from './mounds';
+import { clearPilesAround, linkMoundToEntrance } from './mounds';
 import { refreshNestFields } from './navFields';
 import { nestRuntime } from './runtime';
 
@@ -163,7 +163,7 @@ function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly num
       if (radius > e.radius) {
         e.radius = radius;
         if (join === 'same') { e.pos = pos; e.dir = terrainNormal(sim, pos.x, pos.z); }
-        nestRuntime(sim).moundMasks.clear(); // the kept-clear disc changed
+        clearPilesAround(sim, e); // the kept-clear disc grew or moved
         refreshNestFields(sim, nest);
       }
       return;
@@ -176,8 +176,8 @@ function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly num
     moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0,
   };
   nest.entrances.push(e);
-  nestRuntime(sim).moundMasks.clear(); // a new kept-clear disc
   linkMoundToEntrance(sim, nest, e);
+  clearPilesAround(sim, e); // a new kept-clear disc
   refreshNestFields(sim, nest);
   sim.emit({ type: 'entrance-opened', entranceId: e.id, nestId: nest.id, kind: e.kind });
   sim.emit({ type: 'breach', nestId: nest.id, entranceId: e.id, pos: { ...pos }, radius });

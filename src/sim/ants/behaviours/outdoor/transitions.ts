@@ -6,7 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, ReasonCode, Sim } from '@/sim/types';
 import { AntFlag, FOOD_KINDS } from '@/sim/types';
 import { TRAIL_IGNORE_P } from '@/sim/balance';
-import { SEARCH_RADIUS_BU } from '@/sim/balance/foraging';
+import { OUTBOUND_ARRIVE_BU, ROUTE_WP_ARRIVE_BU, SEARCH_RADIUS_BU, WAIT_SPREAD_BU } from '@/sim/balance/foraging';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { crumbCount, navRetrace } from '@/sim/locomotion';
 import { entranceChamber, homeNest, logDecision, setPhase } from './common';
@@ -14,6 +14,7 @@ import type { Flavour } from './flavours';
 import { HOME, K, NAV, PHASE, UNLOAD } from './keys';
 import { goTo, goToChamber, goToSource, setDest, stop } from './nav';
 import { resetAvoid } from './avoid';
+import { abandonTrip } from './phaseNest';
 import { learnedRoute, prepareRoute, waypoint } from './routes';
 import { decideReturnTrail, stopLaying } from './trail';
 
@@ -29,7 +30,7 @@ export function startWait(sim: Sim, ant: Ant, fl: Flavour, reason?: ReasonCode):
   setPhase(sim, ant, fl.names, PHASE.wait, reason);
   const nest = homeNest(sim, ant);
   const room = nest ? entranceChamber(nest) : undefined;
-  if (room && ant.chamberId !== room.id) goToChamber(sim, ant, room, 2);
+  if (room && ant.chamberId !== room.id) goToChamber(sim, ant, room, WAIT_SPREAD_BU);
   else stop(sim, ant);
 }
 
@@ -44,6 +45,7 @@ function newBout(sim: Sim, ant: Ant): void {
   if (rngChance(sim.stream('rng.behaviour'), TRAIL_IGNORE_P)) ant.flags |= AntFlag.TRAIL_IGNORER;
   else ant.flags &= ~AntFlag.TRAIL_IGNORER;
   ant.bb[K.trip0] = sim.state.tick;
+  ant.bb[K.wentOut] = ant.nestId >= 0 ? 0 : 1;
   ant.bb[K.success] = 0;
   ant.bb[K.queuedLong] = 0;
   ant.bb[K.queue0] = -1;
@@ -85,7 +87,7 @@ export function resumeOutboundNav(sim: Sim, ant: Ant): void {
   if (mode === NAV.route) {
     const r = learnedRoute(ant, srcId);
     const i = ant.bb[K.wp] ?? 1;
-    if (r && i < r.n) { goTo(sim, ant, waypoint(r, i, tmp), 2); return; }
+    if (r && i < r.n) { goTo(sim, ant, waypoint(r, i, tmp), ROUTE_WP_ARRIVE_BU); return; }
     ant.bb[K.nav] = NAV.plan;
   }
   if (mode === NAV.approach) {
@@ -94,7 +96,7 @@ export function resumeOutboundNav(sim: Sim, ant: Ant): void {
     ant.bb[K.nav] = NAV.plan;
   }
   tmp.x = ant.bb[K.dx] ?? ant.pos.x; tmp.y = ant.bb[K.dy] ?? ant.pos.y; tmp.z = ant.bb[K.dz] ?? ant.pos.z;
-  goTo(sim, ant, tmp, 1);
+  goTo(sim, ant, tmp, OUTBOUND_ARRIVE_BU);
 }
 
 /** Approach a source the ant can smell or sees ahead (final leg of any outbound mode). */
@@ -156,6 +158,7 @@ export function startReturn(sim: Sim, ant: Ant, fl: Flavour, success: boolean, r
     decideReturnTrail(sim, ant, src, fl.scout, (ant.bb[K.queuedLong] ?? 0) === 1);
   }
   resetAvoid(ant);
+  if (ant.nestId >= 0 && (ant.bb[K.wentOut] ?? 0) !== 1) { abandonTrip(sim, ant, fl, reason); return; }
   setPhase(sim, ant, fl.names, PHASE.return, reason, detail >= 0 ? detail : src);
   if (ant.nestId >= 0) { startDeliver(sim, ant, fl); return; }
   const route = learnedRoute(ant, src);
@@ -163,7 +166,7 @@ export function startReturn(sim: Sim, ant: Ant, fl: Flavour, success: boolean, r
     ant.bb[K.home] = HOME.route;
     ant.bb[K.wp] = route.n - 2;
     route.lastUsed = sim.state.tick;
-    goTo(sim, ant, waypoint(route, route.n - 2, tmp), 2);
+    goTo(sim, ant, waypoint(route, route.n - 2, tmp), ROUTE_WP_ARRIVE_BU);
   } else if (crumbCount(ant) > 0 && navRetrace(sim, ant)) {
     ant.bb[K.home] = HOME.crumbs;
   } else {
@@ -176,7 +179,7 @@ export function homePlanner(sim: Sim, ant: Ant): void {
   ant.bb[K.home] = HOME.planner;
   const nest = homeNest(sim, ant);
   const room = nest ? entranceChamber(nest) : undefined;
-  if (room) goToChamber(sim, ant, room, 2);
+  if (room) goToChamber(sim, ant, room, WAIT_SPREAD_BU);
 }
 
 /** Inside: unload (liquid to a receiver, solid to a food chamber pile; GDD 02 §5.3). */

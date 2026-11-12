@@ -26,6 +26,8 @@ export const ASPHALT = {
     waterBelow: 200, perM2: 1 / 50, kerbOffset: 440 },
   manhole: { dia: 600, t: 10, p: 0.4 },
   car: { body: [1800, 300, 4300] as [number, number, number], clearance: [150, 200] as [number, number], tyre: [630, 195] as [number, number],
+    /** Tyres sink this far (the flattened contact patch: the sidewall meets the ground along a chord, not a point). */
+    tyreSinkMm: 15,
     wheelInsetZ: 700, bodyVisualH: 900, share: [0.3, 0.7] as [number, number] },
   can: { dia: 66, h: 115, perM2: 0.03, lyingP: 0.6 },
   cap: { dia: 30, h: 6, perM2: 0.05 },
@@ -171,16 +173,21 @@ export function parkedCar(rng: RngState, env: Env): Built {
   const K = ASPHALT.car, { bu, foot } = env;
   const [bw, bh, bl] = K.body, [td, tw] = K.tyre;
   const c = R(rng, K.clearance[0], K.clearance[1]);
-  const prims: PrimSpec[] = [rb(v(0, c + bh / 2, 0), bw, bh, bl, 40, 'metal', C | S)];
+  const g = env.ground ?? (() => 0);
   const tx = bw / 2 - tw / 2, tz = bl / 2 - K.wheelInsetZ;
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) prims.push(cy(v(sx * tx, td / 2, sz * tz), td, tw, 'rubber', C | NB, rollQ(Math.PI / 2), 8));
-  prims.push(rb(v(0, c + bh + K.bodyVisualH / 2, 0), bw, K.bodyVisualH, bl * 0.9, 120, 'metal', VIS));
-  const ox = bw / 2 + foot, g = env.ground ?? (() => 0);
-  const pts = [v(ox + 3 * bu, g(ox + 3 * bu, tz) + foot, tz), v(ox, g(ox, tz) + 2 * bu + 20, tz), v(ox, td / 2, tz), v(ox, c + bh - 2 * bu, tz), v(bw / 2 - 2 * bu, c + bh + foot, tz)];
+  const wheels = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({ x: sx * tx, z: sz * tz, g: g(sx * tx, sz * tz) }));
+  // the body stays upright over the ground under its wheels (each tyre on its own ground: the suspension takes the
+  // 1:60 fall of the bay); an upright box is also the cheap case of the column rasteriser
+  const gBody = wheels.reduce((sum, w) => sum + w.g, 0) / wheels.length;
+  const prims: PrimSpec[] = [rb(v(0, gBody + c + bh / 2, 0), bw, bh, bl, 40, 'metal', C | S)];
+  for (const w of wheels) prims.push(cy(v(w.x, w.g + td / 2 - K.tyreSinkMm, w.z), td, tw, 'rubber', C | NB, rollQ(Math.PI / 2), 8));
+  prims.push(rb(v(0, gBody + c + bh + K.bodyVisualH / 2, 0), bw, K.bodyVisualH, bl * 0.9, 120, 'metal', VIS));
+  const ox = bw / 2 + foot;
+  const gw = wheels[3].g;
+  const pts = [v(ox + 3 * bu, g(ox + 3 * bu, tz) + foot, tz), v(ox, g(ox, tz) + 2 * bu + 20, tz), v(ox, gw + td / 2, tz), v(ox, gBody + c + bh - 2 * bu, tz), v(bw / 2 - 2 * bu, gBody + c + bh + foot, tz)];
   return {
-    tpl: { id: 'parked-car', prims, tags: ['structure', 'car'], routes: [{ kind: 'tyre-to-arch', points: densify(pts, 6 * bu) }], pois: [{ kind: 'shelter', pos: v(0, foot, 0) }] },
-    // tyres sink 15 mm (the flattened contact patch: the sidewall meets the ground along a chord, not a point)
-    tilt: false, embed: 15,
+    tpl: { id: 'parked-car', prims, tags: ['structure', 'car'], routes: [{ kind: 'tyre-to-arch', points: densify(pts, 6 * bu) }], pois: [{ kind: 'shelter', pos: v(0, g(0, 0) + foot, 0) }] },
+    tilt: false,
   };
 }
 

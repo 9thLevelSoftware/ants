@@ -17,6 +17,7 @@ import { buildSummary } from './summary';
 import { buildQueries, plain } from './query';
 import { buildCheats } from './cheats';
 import { possessResult } from './possessResult';
+import { buildViewsDebug } from '../views/debug';
 
 export interface IntentInput {
   /** World-space direction (length 0..1). */
@@ -165,6 +166,8 @@ export function createDebugApi(game: Game) {
       },
     },
     cheat: buildCheats(game),
+    /** Picking and view tools (src/game/views/debug.ts). */
+    views: buildViewsDebug(game),
     ui: {
       /** Screens that exist so far: 'pause' (the menu). Anything else is refused (not silently ignored). */
       open: (screen: string) => {

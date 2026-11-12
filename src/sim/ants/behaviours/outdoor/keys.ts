@@ -19,8 +19,11 @@ export const K = {
   wp: 'fo.wp',
   /** Homing mode (HOME). */
   home: 'fo.home',
-  /** Tick the ant left the nest (-1 inside). */
+  /** Tick the bout began (-1 no trip under way). */
   trip0: 'fo.trip0',
+  /** Trip clock: tick the ant was first seen outside on this trip (-1 inside); 1 once it has been outside this trip. */
+  out0: 'fo.out0',
+  wentOut: 'fo.went',
   /** 1 when the trip's load counts as successful. */
   success: 'fo.ok',
   /** Food kind index (FOOD_KINDS) of the load. */
@@ -70,6 +73,8 @@ export const K = {
   avoidDone: 'fo.avd',
   /** 1 when this trip responds to a trail (outbound dab). */
   onTrail: 'fo.tr',
+  /** Trail course check: start of the current stretch (x, z mm) and off-course stretches in a row (-1 = none on course yet). */
+  courseX: 'fo.tcx', courseZ: 'fo.tcz', offCourse: 'fo.tcoff',
 } as const;
 
 /** Behaviour phases of the outdoor engine. Values are persisted; append only. */

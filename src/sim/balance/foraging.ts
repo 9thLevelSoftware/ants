@@ -10,8 +10,11 @@ export const CONTACT_HALF_ANGLE_DEG = 60;
 /** Antennal chemoreception: sample points ahead of the head at +-ANTENNA_ANGLE_DEG. */
 export const ANTENNA_REACH_BU = 0.9;
 export const ANTENNA_ANGLE_DEG = 35;
-/** Volatile smell: food radius is the source's own odour radius (SMELL_RANGE_FOOD x odourStrength, GDD 05 data). */
-export const SMELL_CORPSE_BU = 3;
+/**
+ * Volatile smell: food radius is the source's own odour radius (SMELL_RANGE_FOOD x odourStrength, GDD 05 data);
+ * creatures (predators, Tier 2). Corpse smell (3 BU) serves corpse hauling, an in-nest task (beh-nest), and is not
+ * part of the outdoor percept.
+ */
 export const SMELL_CREATURE_BU = 6;
 /** Perception cadence, ticks (0.5 s, GDD 02 §7 smell update); staggered by ant id. */
 export const PERCEPTION_EVERY = 5;
@@ -19,6 +22,8 @@ export const PERCEPTION_EVERY = 5;
 export const SMELL_QUERY_MAX_BU = 100;
 /** Human-event cues (tremor, shadow) are felt within the cue radius times this, and only before impact. */
 export const HUMAN_CUE_FEEL_MULT = 1.5;
+/** Alarm: the danger is taken to lie this far up the alarm gradient (flee runs from that point), BU. */
+export const ALARM_THREAT_OFFSET_BU = 4;
 
 // ---- think cadence, ticks ----
 /** Behaviour think interval while travelling / working outside. */
@@ -36,8 +41,12 @@ export const RATION_MAX_S = 6;
 /** Hungry return (GDD 02 §1.4): crop C below this and reserve below the fraction of its cap. */
 export const HUNGER_RETURN_CROP = 0.05;
 export const HUNGER_RETURN_RESERVE_FRAC = 0.5;
-/** Waiting foragers stand within this of the entrance chamber centre, BU. */
+/** Arrival radius at the entrance chamber centre (waiting foragers, homing by the planner), BU. */
 export const WAIT_SPREAD_BU = 2;
+/** Arrival radius at the food chamber (solid unloading, receiver search), BU. */
+export const FOOD_ROOM_ARRIVE_BU = 1.5;
+/** Arrival radius of point legs: scout legs, avoid detours, flee runs, BU. */
+export const LEG_ARRIVE_BU = 2;
 /** A waiting forager re-evaluates its task after this long without departing, s (and restarts its wait). */
 export const WAIT_REEVAL_S = 300;
 /** Rest phase timeout, s (fatigue 0.9 -> 0.2 takes 105 s at FATIGUE_RECOVER). */
@@ -50,6 +59,8 @@ export const FORAGE_MARKER_SCORE_MULT = 1.5;
 export const CHOICE_COLLECT_S = 20;
 /** Lowest trip time of the estimate, s (a source next to the entrance is not infinitely attractive). */
 export const CHOICE_MIN_TRIP_S = 10;
+/** Floor of the crowding factor fCrowd (a full source still scores a little). */
+export const CHOICE_CROWD_MIN = 0.05;
 
 // ---- outbound (GDD 02 §8.4, §10.2) ----
 /** Leaving the entrance: distance after which trail following may start, BU. */
@@ -60,12 +71,27 @@ export const FOLLOW_MIN_PH = 0.5;
 export const ARRIVE_SOURCE_BU = 4;
 /** Learned-route waypoint arrival radius, BU. */
 export const ROUTE_WP_ARRIVE_BU = 2;
+/** Arrival radius at a planner destination (source position, lead position, marker), BU. */
+export const OUTBOUND_ARRIVE_BU = 1;
+/** Walking to a source: arrive this many body lengths beyond its footprint edge. */
+export const SOURCE_ARRIVE_L = 0.3;
 /** Outbound state timeout: base + per BU of straight-line distance, s; never above OUTBOUND_MAX_S. */
 export const OUTBOUND_BASE_S = 60;
 export const OUTBOUND_PER_BU_S = 0.75;
 export const OUTBOUND_MAX_S = 600;
 /** Trail following without smelling the source for this long falls back to the planner, s. */
 export const TRAIL_FOLLOW_MAX_S = 150;
+/**
+ * A recruit follows its own source's trail (GDD 02 §6.7), but a colony's trails are not labelled per source and meet
+ * at the entrance: every TRAIL_COURSE_SEG_BU walked on a trail is one stretch; a stretch more than
+ * TRAIL_COURSE_MAX_DEG off the bearing to the trip's destination is off course, and TRAIL_OFF_COURSE_SEGS such
+ * stretches in a row mean the trail leads elsewhere (the ant leaves it for the planner). Within TRAIL_COURSE_NEAR_BU
+ * of the destination the check is off (smell and the arrival rules take over there).
+ */
+export const TRAIL_COURSE_SEG_BU = 8;
+export const TRAIL_COURSE_MAX_DEG = 50;
+export const TRAIL_OFF_COURSE_SEGS = 2;
+export const TRAIL_COURSE_NEAR_BU = 20;
 /** Outbound trail followers lay at this fraction of a dab (GDD 02 §8.3). */
 export const OUTBOUND_DAB_FACTOR = 0.3;
 /** Trail-lost event: this many ants losing the same trail within the window (GDD 02 §8.4). */
@@ -92,18 +118,34 @@ export const HARVEST_REACH_PAD_BU = 1;
 export const SUCCESS_CROP = 0.5;
 
 // ---- return and delivery (GDD 02 §5.3, §9.2, §10.2) ----
-/** Return state timeout before the planner takes over, s; and the hard limit after which the ant is recalled again. */
+/** Return state timeout before the planner takes over, s; and when a failed planner leg forces a fresh plan, s. */
 export const RETURN_STAGE_S = 400;
+export const RETURN_REPLAN_S = 2 * RETURN_STAGE_S;
 /**
  * Hard bound of a return: an ant still not home after this long is lost (death cause `lost`, "exposure after being
  * separated", GDD 06 §9.3). It never happened in the test scenarios; it guarantees that no ant wanders for ever.
  */
 export const RETURN_LOST_S = 1200;
+/**
+ * Trip clock (time outside since leaving the nest, flee and queue detours included): after TRIP_TURN_S an ant still
+ * heading away from home turns home (reason `timeout`); after TRIP_LOST_S it is lost (death cause `lost`). These
+ * bound a whole trip, whatever chain of per-state timeouts, alternative sources and flees it went through.
+ */
+export const TRIP_TURN_S = 900;
+export const TRIP_LOST_S = TRIP_TURN_S + RETURN_LOST_S;
 /** Receiver search radius (RECEIVER_SEARCH) and the time before walking to a food chamber (UNLOAD_SEARCH_S), s. */
 export const RECEIVER_SEARCH_BU = 8;
 export const UNLOAD_SEARCH_S = 15;
-/** Stores full: wait this long for room, then rest holding the crop (UNLOAD_MAX_WAIT), s. */
+/** Stores full: wait this long for room, then rest holding the crop (UNLOAD_MAX_WAIT), s; retry every UNLOAD_RETRY_S. */
 export const UNLOAD_MAX_WAIT_S = 60;
+export const UNLOAD_RETRY_S = 2;
+/**
+ * Crop margin above a floor (CROP_RETURN_MIN to start a delivery, TROPH_DONOR_MIN to keep unloading or rest holding
+ * food), loads: below floor + margin the remainder is the ant's own and not worth an unload.
+ */
+export const UNLOAD_CROP_MARGIN = 0.05;
+/** A forager hands its crop to any nestmate within this many body lengths. */
+export const GIVE_REACH_L = 2;
 /** Deliver state timeout, s (search + wait + walking inside). */
 export const DELIVER_MAX_S = 120;
 /** Arrival radius at a receiver ant, body lengths; give up on an unreachable receiver after RECEIVER_TRY_S. */
@@ -126,11 +168,20 @@ export const ROUTE_MATCH_DIST_BU = 6;
 export const ROUTE_MATCH_FRACTION = 0.7;
 export const ROUTE_FIX_VISITS = 3;
 export const ROUTE_FORGET_GD = 2;
+/** Too many waypoints after simplification: the tolerance grows by this factor until they fit. */
+export const ROUTE_SIMPLIFY_GROWTH = 1.5;
 /** Depleted memory: one empty find blocks the source this long (GDD 02 §9.3: 1 gd). */
 export const DEPLETED_GD = 1;
 
 // ---- scout (GDD 02 §10.1) ----
 export const SCOUT_DEPART_BU = 10;
+/** Depart ends at this fraction of SCOUT_DEPART_BU from the entrance, or after SCOUT_DEPART_MAX_S. */
+export const SCOUT_DEPART_DONE_FRAC = 0.8;
+export const SCOUT_DEPART_MAX_S = 60;
+/** Scout legs keep this far from the map edge, BU. */
+export const SCOUT_EDGE_BU = 8;
+/** A scout walking to a forage marker arrives within this fraction of its radius. */
+export const SCOUT_MARKER_ARRIVE_FRAC = 0.5;
 export const SCOUT_MAX_S = 300;
 export const SCOUT_MAX_RANGE_BU = 700;
 /** Correlated random walk: heading noise per s (sigma), deg; leg length, BU; candidate headings per leg. */
@@ -152,8 +203,6 @@ export const SCOUT_W_AVOID = 4;
 export const SCOUT_MARKER_SHARE = 0.5;
 /** Investigate: no progress toward the odour for this long -> explore again, s. */
 export const INVESTIGATE_S = 30;
-/** Report state timeout, s. */
-export const REPORT_MAX_S = 60;
 /** Explored bitmap cell edge, BU (the coarse nav cell, seed §3). */
 export const EXPLORED_CELL_BU = 16;
 

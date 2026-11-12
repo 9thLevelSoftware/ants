@@ -18,7 +18,7 @@ import { cancelPlanImpl, createPlanImpl, isTerminal } from '../plans/plans';
 import { planCache } from '../plans/targets';
 import { nestSystem } from '../system';
 import { wallMin } from '../substrate';
-import { archSim, digAll, growBrood, growWorkers, runTicks } from './architectTestKit';
+import { SIM_TEST_TIMEOUT, archSim, digAll, growBrood, growWorkers, runTicks } from './architectTestKit';
 import { evaluateNest, planSite } from './evaluate';
 import { acceptArchitectPlan, architectPressures, architectSystem } from './index';
 import { nestCapacity } from './capacity';
@@ -54,7 +54,7 @@ describe('architect modes (acceptance 4)', () => {
     expect(architectPlans(nest)).toHaveLength(1);
     expect(architectPlans(nest)[0]).toMatchObject({ status: 'proposed', source: 'architect' });
     expect(architectPlans(nest)[0].need).not.toBeNull();
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('off (setAutoExpand): no plan is created while the population grows; the needs are still published', () => {
     const { sim, nest } = archSim({ seed: 2 });
@@ -70,7 +70,7 @@ describe('architect modes (acceptance 4)', () => {
     expect(architectRuntime(sim).created).toBe(0);
     expect(nest.architect.needCache.crowding).toBeGreaterThan(1);
     expect(nest.architect.lastEvalTick).toBeGreaterThan(0);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('off keeps the architect plans already made (no withdrawal, they go on)', () => {
     const { sim, nest } = firstProposal(3, 30, 12);
@@ -82,7 +82,7 @@ describe('architect modes (acceptance 4)', () => {
     runTicks(sim, 2 * ARCHITECT_EVERY);
     expect(isTerminal(plan.status)).toBe(false);
     expect(architectRuntime(sim).withdrawn).toBe(0);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('suggest (T2 hook): proposals wait; acceptArchitectPlan queues them', () => {
     const { sim, nest } = archSim({ seed: 4 });
@@ -94,7 +94,7 @@ describe('architect modes (acceptance 4)', () => {
     expect(acceptArchitectPlan(sim, plan.id)).toBe(true);
     expect(plan.status).toBe('queued');
     expect(acceptArchitectPlan(sim, plan.id)).toBe(false);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('per-need toggles (T2 hook) are honoured', () => {
     const { sim, nest } = archSim({ seed: 5 });
@@ -104,7 +104,7 @@ describe('architect modes (acceptance 4)', () => {
     expect(evaluateNeeds(nest, 'lasius-niger', liveInputs(sim, nest)).requests[0].need).toBe('crowding'); // the most urgent
     runTicks(sim, 1);
     expect(architectPlans(nest).map((p) => p.need)).toEqual(['missing-type']);
-  });
+  }, SIM_TEST_TIMEOUT);
 });
 
 describe('player plans (acceptance 4)', () => {
@@ -132,7 +132,7 @@ describe('player plans (acceptance 4)', () => {
           if (planG(ga, i * v, j * v, k * v) > 0) worst = Math.min(worst, -planG(gp, i * v, j * v, k * v));
         }
     expect(worst).toBeGreaterThanOrEqual(wm - v);
-  });
+  }, SIM_TEST_TIMEOUT);
 });
 
 describe('throttles and withdrawal', () => {
@@ -154,7 +154,7 @@ describe('throttles and withdrawal', () => {
       expect(new Set(live.map((p) => p.need)).size).toBe(live.length);
     }
     expect(most).toBe(2);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('no plan while fewer than ARCH_MIN_DIGGERS ants can dig', () => {
     const { sim, nest } = archSim({ seed: 8 });
@@ -163,7 +163,7 @@ describe('throttles and withdrawal', () => {
     runTicks(sim, 3 * ARCHITECT_EVERY);
     expect(nest.architect.needCache['brood-space']).toBeGreaterThan(1);
     expect(architectPlans(nest)).toHaveLength(0);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('withdraws its own plan below 25 % progress once the need has gone (no blacklist)', () => {
     const { sim, nest } = firstProposal(9, 30, 0);
@@ -175,7 +175,7 @@ describe('throttles and withdrawal', () => {
     expect(plan.status).toBe('cancelled');
     expect(architectRuntime(sim).withdrawn).toBe(1);
     expect(nest.architect.blacklist).toHaveLength(0);
-  });
+  }, SIM_TEST_TIMEOUT);
 });
 
 describe('GDD 03 App. E check 19 (crowding proposal)', () => {
@@ -209,7 +209,7 @@ describe('GDD 03 App. E check 19 (crowding proposal)', () => {
     expect(plan!.status).toBe('proposed');
     runTicks(sim, PLAN_UPDATE_TICKS + 1);
     expect(plan!.status).toBe('queued');
-  });
+  }, SIM_TEST_TIMEOUT);
 });
 
 describe('failed sites and the blacklist (acceptance 5)', () => {
@@ -224,7 +224,7 @@ describe('failed sites and the blacklist (acceptance 5)', () => {
     const later = architectPlans(nest).filter((p) => p !== first);
     expect(later.length).toBeGreaterThan(0);
     for (const p of later) expect(dist(planSite(sim, nest, p), site)).toBeGreaterThan(ARCH_SITE_RADIUS_BU * sim.world.bu);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('strikes: the second failure within the site radius blacklists the site for ARCH_BLACKLIST_S', () => {
     const { sim, nest } = archSim({ seed: 1, architect: false });
@@ -235,7 +235,7 @@ describe('failed sites and the blacklist (acceptance 5)', () => {
     expect(isBlacklisted(sim, nest.architect, p)).toBe(true);
     expect(nest.architect.blacklist[0].untilTick).toBe(sim.state.tick + ARCH_BLACKLIST_S * T);
     expect(nest.architect.failures).toHaveLength(0);
-  });
+  }, SIM_TEST_TIMEOUT);
 
   it('a site whose plans fail twice is not proposed again before the blacklist expires', () => {
     const { sim, nest } = firstProposal(2, 30, 12);

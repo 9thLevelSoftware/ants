@@ -33,12 +33,12 @@ function world(a: ArchetypeId, seed: number): { r: WorldgenReport; ms: number } 
 }
 const all = () => T1_ARCHETYPES.flatMap((a) => Array.from({ length: SEEDS }, (_, i) => ({ a, seed: i + 1, ...world(a, i + 1) })));
 /**
- * A kernel over the world without its huge primitives (house walls, floor slabs: no outdoor route or passage
- * touches them, and their 3D hash cells would take hundreds of MB per world).
+ * A kernel over the whole world (house façade, floor slabs and tall trunks included). Its field hashes primitives in
+ * 32 BU cells instead of 8 (the game's): the same field values near surfaces, without the hundreds of MB the house
+ * walls and floor slabs take in 8 BU cells.
  */
 function kernel(w: WorldData, carved: boolean): Kernel {
-  const small = w.prims.filter((p) => Math.max(p.size.x, p.size.y, p.size.z) <= 1500);
-  const k = createKernel({ ...w, prims: small }, { voxel: w.bu / 2, keys: [], chunks: [], breaches: [] });
+  const k = createKernel(w, { voxel: w.bu / 2, keys: [], chunks: [], breaches: [] }, { field: { hashCell: 32 * w.bu } });
   if (carved) applyPreCarves(k, w);
   return k;
 }
@@ -122,6 +122,19 @@ describe('outdoor content: counts per zone (GDD 04 §5 densities)', () => {
       if (a === 'suburban-garden' || a === 'kitchen-door') expect(count(w, 'dandelion') + count(w, 'daisy'), tag).toBeGreaterThan(0);
     }
   });
+
+  it('kitchen doors have their back step and outside doormat; a patio table has 2-4 chairs (GDD 04 §5.4)', () => {
+    for (const { a, seed, r } of all()) {
+      const w = r.world, tag = `${a}#${seed}`;
+      if (a === 'kitchen-door') {
+        expect(count(w, 'back-step'), `${tag} back step`).toBe(1);
+        expect(count(w, 'doormat-outside'), `${tag} doormat`).toBe(1);
+      }
+      const tables = count(w, 'patio-table'), chairs = count(w, 'patio-chair');
+      if (tables > 0) expect(chairs, `${tag} chairs`).toBeGreaterThanOrEqual(2 * tables);
+      expect(chairs, `${tag} chairs`).toBeLessThanOrEqual(4 * Math.max(1, tables));
+    }
+  });
 });
 
 describe('outdoor content: solids rest and do not interpenetrate', () => {
@@ -135,18 +148,15 @@ describe('outdoor content: solids rest and do not interpenetrate', () => {
 });
 
 describe('climb routes (GDD 04 §10)', () => {
-  it('a kernel walker steered waypoint to waypoint reaches the point of interest and comes back (>= 200 routes)', () => {
+  it('a kernel walker steered waypoint to waypoint reaches the point of interest and comes back (every outdoor route)', () => {
     let tried = 0, ok = 0;
     const fails: string[] = [];
     for (const { a, seed, r } of all()) {
       const w = r.world, k = kernel(w, false);
       const byId = new Map(w.objects.map((o) => [o.id, o]));
-      let plants = 0;
       for (const route of w.climbRoutes) {
         const ob = byId.get(route.objectId);
         if (!ob || !OUTDOOR_TEMPLATES.has(ob.templateId)) continue;
-        // all structure routes; every 4th plant route (plants are the bulk and alike)
-        if (route.kind === 'stem' && plants++ % 4 !== 0) continue;
         const res = walkRoute(k, route.points, w.bu);
         tried++;
         // the route ends at (or next to) the object's POI
@@ -155,7 +165,8 @@ describe('climb routes (GDD 04 §10)', () => {
     }
     console.info(`[routes] ${ok}/${tried} followed${fails.length ? '; failed: ' + fails.join(', ') : ''}`);
     expect(tried).toBeGreaterThanOrEqual(200);
-    expect(ok / tried).toBeGreaterThanOrEqual(0.97);
+    // residue: a few plant stems whose snapped route changes face on a 2-5 mm stem (see the report)
+    expect(tried - ok, fails.join(', ')).toBeLessThanOrEqual(Math.floor(0.005 * tried));
   });
 
   it('routes end at a point of interest of their object where the template defines one', () => {
@@ -207,13 +218,12 @@ describe('micro-connections (GDD 04 §6)', () => {
         tally[m.kind][1]++;
         // a drain grille leads into the void of a terrain hole (gully pot, drain channel): shelter (GDD 04 §6.2)
         const holeVoid = m.kind === 'drain-grille' && !!w.terrainHoles && w.terrainHoles.data[Math.floor(m.posB.z / w.terrainHoles.cell) * w.terrainHoles.nx + Math.floor(m.posB.x / w.terrainHoles.cell)] !== 0;
-        // wall crevices count once per wall (GDD 04 §6.2): the wall needs one useful crevice, not each one
         if (m.useful || holeVoid) tally[m.kind][0]++;
-        else if (m.kind !== 'wall-crevice') notUseful.push(`${a}#${seed} ${m.kind} (${m.reason})`);
+        else notUseful.push(`${a}#${seed} ${m.kind} (${m.reason})`);
       }
     }
     console.info('[micro] useful/total per kind ' + JSON.stringify(tally));
-    expect(notUseful.length).toBeLessThanOrEqual(Math.ceil(0.03 * Object.values(tally).reduce((s, v) => s + v[1], 0)));
+    expect(notUseful).toEqual([]);
   });
 });
 

@@ -6,9 +6,14 @@
 import type { Ant, Behaviour, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { CROP_RETURN_FRACTION, CROP_RETURN_MIN } from '@/sim/balance/actions';
-import { HUNGER_RETURN_CROP, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS } from '@/sim/balance/foraging';
+import {
+  HUNGER_RETURN_CROP, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS, TRIP_LOST_S, TRIP_TURN_S, UNLOAD_CROP_MARGIN,
+} from '@/sim/balance/foraging';
+import { processAntDeath } from '@/sim/ants/lifecycle';
+import { TICKS_PER_SECOND } from '@/sim/time';
 import { avoidMarkerNear, isOutdoorTask, perceiveNow } from '@/sim/ants/perception';
 import { requestTask, reserveCap } from '@/sim/colony';
+import { departFilter } from './choice';
 import { curfewNow, num, phaseOf, thinkIn } from './common';
 import { fleeCheck } from './flee';
 import type { Flavour } from './flavours';
@@ -28,6 +33,27 @@ function awayFromHome(p: number): boolean {
 
 function laden(ant: Ant): boolean {
   return ant.carry.kind === 'item' || ant.cropC + ant.cropP >= CROP_RETURN_FRACTION * ant.cropCap;
+}
+
+/**
+ * The trip clock (time outside on this trip): starts when the ant is first seen outside, stops at home. Past
+ * TRIP_TURN_S an ant still heading away turns home; past TRIP_LOST_S it is lost. True when the think is over.
+ */
+function tripClock(sim: Sim, ant: Ant, fl: Flavour): boolean {
+  if (ant.nestId >= 0) { ant.bb[K.out0] = -1; return false; }
+  const t0 = num(ant, K.out0, -1);
+  if (t0 < 0) {
+    ant.bb[K.out0] = sim.state.tick;
+    ant.bb[K.wentOut] = 1;
+    return false;
+  }
+  const s = (sim.state.tick - t0) / TICKS_PER_SECOND;
+  if (s > TRIP_LOST_S) { processAntDeath(sim, ant.id, 'lost'); return true; }
+  if (s > TRIP_TURN_S && awayFromHome(phaseOf(ant))) {
+    startReturn(sim, ant, fl, ant.cropC + ant.cropP >= SUCCESS_CROP, 'timeout');
+    return true;
+  }
+  return false;
 }
 
 /** Environmental recall (curfew: storm, stayIn, too hot / cold / dark, alarm at the entrance) and hunger. */
@@ -62,7 +88,7 @@ function situate(sim: Sim, ant: Ant, fl: Flavour): void {
   const crop = ant.cropC + ant.cropP;
   if (num(ant, K.recall, 0) === 1 && ant.nestId < 0) { startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'surplus'); return; }
   if (ant.nestId >= 0) {
-    if (ant.carry.kind === 'item' || crop >= CROP_RETURN_MIN + 0.05) { startDeliver(sim, ant, fl); return; }
+    if (ant.carry.kind === 'item' || crop >= CROP_RETURN_MIN + UNLOAD_CROP_MARGIN) { startDeliver(sim, ant, fl); return; }
     if (fl.scout) startDepart(sim, ant, fl);
     else startWait(sim, ant, fl);
     return;
@@ -70,7 +96,8 @@ function situate(sim: Sim, ant: Ant, fl: Flavour): void {
   if (laden(ant)) { startReturn(sim, ant, fl, true, 'job:home'); return; }
   const src = ant.mem.knownSourceId;
   const s = src >= 0 ? sim.stores.sources.get(src) : undefined;
-  if (!fl.scout && s && (!fl.accept || fl.accept(s))) { startOutbound(sim, ant, fl, s.id, s.pos, -1, 'job:resume', s.id); return; }
+  const accept = departFilter(sim, ant, fl);
+  if (!fl.scout && s && (!accept || accept(s))) { startOutbound(sim, ant, fl, s.id, s.pos, -1, 'job:resume', s.id); return; }
   if (fl.scout) { startDepart(sim, ant, fl); return; }
   startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'job:home');
 }
@@ -110,6 +137,7 @@ export function makeBehaviour(fl: Flavour): Behaviour {
     },
     update(sim, ant) {
       thinkIn(sim, ant, THINK_TRAVEL_TICKS);
+      if (tripClock(sim, ant, fl)) return;
       if (fleeCheck(sim, ant, fl)) return;
       if (recallCheck(sim, ant, fl)) return;
       if (avoidCheck(sim, ant, fl)) return;

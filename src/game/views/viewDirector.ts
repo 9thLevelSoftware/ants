@@ -5,8 +5,8 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig, copyPose, makePose, planTransition,
-  type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type PossessionCamState, type TraceFn,
+  CAM_TO_COLONY_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig, copyPose, makePose, planTransition, type TransitionPlan,
+  type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
 import { SLICE_REPEAT_HZ } from '@/input';
 import type { ViewId } from '../time/speedRules';
@@ -17,6 +17,8 @@ export interface ViewWorld {
   worldSize: number;
   trace: TraceFn;
   groundHeight: (x: number, z: number) => number;
+  /** The free-space field f(p), mm (optional: lets the tunnel boom relax its path off ledges). */
+  field?: FieldFn;
 }
 
 /** What the active view looks at this frame (possessed / followed ant), or null. */
@@ -25,6 +27,8 @@ export interface ViewSubject extends CameraTarget {
   lengthBu: number;
   underground: boolean;
   airborne: boolean;
+  /** Alate in flight (T2 hook: the session sets it once flight exists). */
+  flying?: boolean;
 }
 
 export interface ViewFrame {
@@ -50,6 +54,22 @@ export interface CameraOptions {
 
 const ZERO2 = { x: 0, y: 0 };
 
+/**
+ * GDD 01 §2 hand-overs: into and out of the colony view the camera rises / descends over CAM_TO_COLONY_S (never a
+ * dip); every other switch flies clamp(0.4 + d/300, 0.4, 0.9) s, or dip-fades beyond 150 BU; reduced motion
+ * cross-fades 0.3 s.
+ */
+export function handoverPlan(from: ViewId, to: ViewId, a: CameraPose, b: CameraPose, bu: number, reducedMotion: boolean): TransitionPlan {
+  if (!reducedMotion && (from === 'colony' || to === 'colony')) return { kind: 'fly', duration: CAM_TO_COLONY_S };
+  return planTransition(a, b, bu, reducedMotion);
+}
+
+/** The colony rotation from the mouse drag alone (degrees, like InputState.look), without the Q / E keys. */
+function dragLook(input: InputState): { x: number; y: number } {
+  const d = input.dragPx('cv-rotate'), k = input.settings.orbitSensDrag * input.settings.mouseSensitivity;
+  return { x: d.x * k, y: -d.y * k };
+}
+
 export class ViewDirector {
   readonly third: ThirdPersonRig;
   readonly observer: ObserverRig;
@@ -59,11 +79,14 @@ export class ViewDirector {
   view: ViewId = 'observer';
   /** The view photo mode returns to. */
   photoOrigin: ViewId = 'observer';
+  /** The colony view's planner holds a ghost: Q / E and Shift+wheel are not the camera's (set by the views layer). */
+  colonyCapture = false;
   private readonly last: CameraPose = makePose();
   private readonly followTarget: CameraTarget = { pos: vec3(), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) };
   private following = false;
   private subjectUnderground = false;
   private subjectAirborne = false;
+  private subjectFlying = false;
   private subjectLengthBu = 1;
   /** Orbit requested by the debug API, added to the next rig update (degrees). */
   private nudgeYaw = 0;
@@ -118,7 +141,7 @@ export class ViewDirector {
     // possess -> possess is a switch to another ant: it flies (or dips beyond CAM_SWITCH_FADE_DIST_BU) like any
     // other hand-over (GDD 01 §2); re-entering any other view it is already in is a cut
     const cut = instant || (prev === view && view !== 'possess');
-    const plan = cut ? { kind: 'fly' as const, duration: 0 } : planTransition(from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion);
+    const plan = cut ? { kind: 'fly' as const, duration: 0 } : handoverPlan(prev, view, from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion);
     // photo mode keeps the pose: no blend in or out
     this.transition.start(from, view === 'photo' || prev === 'photo' ? { kind: 'fly', duration: 0 } : plan);
   }
@@ -166,6 +189,7 @@ export class ViewDirector {
     if (this.third.opts.bodyL !== s.lengthBu) this.third.setOptions({ bodyL: s.lengthBu });
     this.subjectUnderground = s.underground;
     this.subjectAirborne = s.airborne;
+    this.subjectFlying = !!s.flying;
     this.subjectLengthBu = s.lengthBu;
   }
 
@@ -186,7 +210,7 @@ export class ViewDirector {
     if (this.view === 'possess') {
       const l = look('orbit');
       const o = this.third.update(dt, this.followTarget, { yawDeg: l.x, pitchDeg: l.y, zoomLog: zoom('zoom'), recentre: !!input && input.pressed('recentre') },
-        { trace: w.trace, underground: this.subjectUnderground, airborne: this.subjectAirborne });
+        { trace: w.trace, field: w.field, underground: this.subjectUnderground, airborne: this.subjectAirborne, flying: this.subjectFlying });
       f.pose = o; f.focus = o.focusDistance; f.subjectOpacity = o.fade.target; f.possessionState = o.state; f.fade = o.fade;
     } else if (this.view === 'observer') {
       const l = look('obs-look');
@@ -196,8 +220,13 @@ export class ViewDirector {
         { trace: w.trace, groundHeight: w.groundHeight, followL: this.subjectLengthBu });
       f.pose = o; f.focus = o.focusDistance; f.observerMode = o.mode;
     } else if (this.view === 'colony') {
-      const l = look('cv-rotate');
-      const steps = input ? (input.pressedRepeat('cv-slice-up', SLICE_REPEAT_HZ) ? 1 : 0) - (input.pressedRepeat('cv-slice-down', SLICE_REPEAT_HZ) ? 1 : 0) : 0;
+      // while the dig planner holds a ghost, Q / E and Shift+wheel belong to the ghost (GDD 01 App. F 16): the camera
+      // keeps its drag rotation and R / F for the slice
+      const cap = this.colonyCapture && !!input;
+      const l = cap && input ? dragLook(input) : look('cv-rotate');
+      const steps = !input ? 0 : cap
+        ? (input.codePressed('KeyR') ? 1 : 0) - (input.codePressed('KeyF') ? 1 : 0)
+        : (input.pressedRepeat('cv-slice-up', SLICE_REPEAT_HZ) ? 1 : 0) - (input.pressedRepeat('cv-slice-down', SLICE_REPEAT_HZ) ? 1 : 0);
       const o = this.colony.update(dt, {
         yawDeg: l.x, pitchDeg: l.y, zoomLog: zoom('cv-zoom'), pan: input ? input.axis2('cv-pan') : ZERO2,
         panPx: input ? input.dragPx('cv-pan') : undefined, sliceSteps: steps, sliceFast: !!input && input.codeHeld('ShiftLeft'),

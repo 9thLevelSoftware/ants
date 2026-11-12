@@ -18,6 +18,49 @@ import { runTables, type OutTable } from './tables';
 import { edgeDistAt, footprintIn, pointInZone, yawAlong, zoneAreaM2, zoneIdAt, zoneRect, zonesOf } from './zones';
 import { OUTDOOR } from './tuning';
 import { dcos as dc, dsin as ds } from '../../kit/dmath';
+import { quatRotateVec3 } from '@/core/math/quat';
+
+/** x * x (not **: DET-4). */
+const sq = (x: number): number => x * x;
+
+/** Canopy shade at (x, z): 1 - the product of the transmittances of the canopy discs over it. */
+function canopyShade(ctx: GenContext, x: number, z: number): number {
+  let t = 1;
+  for (const c of ctx.canopies) if (sq(c.x - x) + sq(c.z - z) < c.r * c.r) t *= c.transmittance;
+  return 1 - t;
+}
+
+/**
+ * Where moss grows (GDD 04 §5.1 "on logs, stones, tree bases"): over a log, stump or flat stone, or within a band
+ * round a tree's foot. The hosts are collected on the first call (after the logs, stumps and flat stones).
+ */
+function mossHost(ctx: GenContext): (x: number, z: number) => boolean {
+  let discs: { x: number; z: number; r2: number }[] | null = null;
+  const M = OUTDOOR.forestProps;
+  return (x, z) => {
+    if (!discs) {
+      discs = [];
+      for (const o of ctx.world.objects) {
+        if (o.tags.includes('tree')) discs.push({ x: o.pos.x, z: o.pos.z, r2: sq(M.mossTreeBandMm) });
+        else if (['log', 'stump', 'flat-stone'].includes(o.templateId)) {
+          // the object's primitives as discs over their horizontal extent
+          for (let i = o.primStart; i < o.primStart + o.primCount; i++) {
+            const p = ctx.world.prims[i];
+            if (p.material === 'humus') continue;
+            const r = Math.max(p.size.x, p.shape === 'box' || p.shape === 'ellipsoid' ? p.size.z : p.size.x);
+            if (p.shape === 'cylinder' || p.shape === 'capsule') {
+              // a lying log: discs along its axis
+              const ax = quatRotateVec3({ x: 0, y: 0, z: 0 }, p.rot, { x: 0, y: p.size.y, z: 0 });
+              const n = Math.max(1, Math.ceil(Math.abs(p.size.y) / Math.max(1, p.size.x)));
+              for (let k = -n; k <= n; k++) discs.push({ x: p.pos.x + (ax.x * k) / n, z: p.pos.z + (ax.z * k) / n, r2: sq(p.size.x) });
+            } else discs.push({ x: p.pos.x, z: p.pos.z, r2: sq(r) });
+          }
+        }
+      }
+    }
+    return discs.some((d) => sq(d.x - x) + sq(d.z - z) < d.r2);
+  };
+}
 
 function logsAndStumps(ctx: GenContext): void {
   const trees = ctx.world.objects.filter((o) => o.tags.includes('tree'));
@@ -36,7 +79,7 @@ function logsAndStumps(ctx: GenContext): void {
       if (commit(ctx, log(rng, envFor(ctx, groundLocal(ctx, x, z, yaw))), { x, z, yaw, atGround: 'terrain', collide: true, category: 'props' }) >= 0) n++;
     }
     const S = OUTDOOR.stumps, sl = `wg/props/outdoor/stumps/${zn.id}`;
-    const sp = poissonDisk(ctx.rng(sl), zoneRect(ctx, zn.id), S.spacing, (x, z) => zoneIdAt(ctx, x, z) === zn.id && trees.every((t) => (t.pos.x - x) ** 2 + (t.pos.z - z) ** 2 >= S.treeDist * S.treeDist));
+    const sp = poissonDisk(ctx.rng(sl), zoneRect(ctx, zn.id), S.spacing, (x, z) => zoneIdAt(ctx, x, z) === zn.id && trees.every((t) => sq(t.pos.x - x) + sq(t.pos.z - z) >= S.treeDist * S.treeDist));
     const ws = Math.round(area * S.perM2);
     let m = 0;
     for (let i = 0; i < sp.length && m < ws; i++) {
@@ -117,8 +160,11 @@ export function placeProps(ctx: GenContext): void {
   const walks = ids('pavement', ['sidewalk', 'path']), asphalt = ids('asphalt');
   const tables: OutTable[] = [
     { id: 'fallen-branch', category: 'props', zones: forest, densityPerM2: F.branch, spacingMm: 400, make: (r) => fallenBranch(r, env) },
-    { id: 'flat-stone', category: 'props', zones: forest, densityPerM2: F.stone, spacingMm: 120, make: (r) => flatStone(r, env) },
-    { id: 'moss-cushion', category: 'props', zones: forest, densityPerM2: F.moss, spacingMm: 150, make: (r) => mossCushion(r) },
+    // half the flat stones in the canopy gaps (shade < 0.6), half anywhere (GDD 04 §5.1)
+    { id: 'flat-stone', category: 'props', zones: forest, densityPerM2: F.stone * (1 - F.stoneGapShare), spacingMm: 120, make: (r) => flatStone(r, env) },
+    { id: 'flat-stone-gap', category: 'props', zones: forest, densityPerM2: F.stone * F.stoneGapShare, spacingMm: 120, eligible: (x, z) => canopyShade(ctx, x, z) < F.stoneGapShade, make: (r) => flatStone(r, env) },
+    // moss on logs, stones and tree bases (it rests on the host's top)
+    { id: 'moss-cushion', category: 'props', zones: forest, densityPerM2: F.moss, spacingMm: 150, eligible: mossHost(ctx), make: (r) => mossCushion(r) },
     { id: 'curled-leaf', category: 'props', zones: forest, densityPerM2: F.leaf, spacingMm: 90, make: (r) => curledLeaf(r, env) },
     { id: 'twig', category: 'props', zones: forest, densityPerM2: F.twig, spacingMm: 60, make: (r) => twig(r) },
     { id: 'pebble', category: 'props', zones: forest, densityPerM2: F.pebble, spacingMm: 30, make: (r) => pebble(r) },

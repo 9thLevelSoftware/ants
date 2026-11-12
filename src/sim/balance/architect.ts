@@ -30,6 +30,10 @@ export const FOOD_TARGET = 0.7;
 /** ... or this many food items lying outside storage chambers for at least FOOD_LOOSE_S. */
 export const FOOD_LOOSE_ITEMS = 10;
 export const FOOD_LOOSE_S = 150;
+/** Chamber a food-space need asks for, per species (GDD 03 §8.3: food; MB seeds: granary). */
+export const FOOD_CHAMBER_TYPE: Record<SpeciesId, ChamberType> = {
+  'lasius-niger': 'food', 'messor-barbarus': 'granary', 'atta-texana': 'food', 'camponotus-pennsylvanicus': 'food',
+};
 /** Chamber types that store solid food (GDD 03 §8.3 food-space capacity). */
 export const FOOD_STORE_TYPES: readonly ChamberType[] = ['food', 'general'];
 
@@ -63,6 +67,13 @@ export const REQUIRED_TYPES: Record<SpeciesId, readonly TypeRequirement[]> = {
 export const ROYAL_PLAN_SIZE: ChamberSize = 's';
 
 // ---- throttles (GDD 03 §8.3) ----
+
+/**
+ * Staggered evaluation: the architect system runs every ARCH_SLOT_TICKS (ticks; a divisor of ARCHITECT_EVERY,
+ * >= 50 so it keeps its own tick among the periodic systems) and evaluates at most this many due nests per run.
+ */
+export const ARCH_SLOT_TICKS = 50;
+export const ARCH_NESTS_PER_SLOT = 1;
 
 /** Concurrent non-terminal architect plans: 1 below 50 workers, 2 below 500, 3 above. */
 export const CONCURRENT_PLANS: readonly { below: number; plans: number }[] = [
@@ -99,6 +110,9 @@ export const ARCH_COMPOSITE_CANDIDATES = 16;
 export const ARCH_COVER_CANDIDATES = 8;
 /** Wall spots qualify within the depth band +- this, BU. */
 export const ARCH_BAND_SLACK_BU = 4;
+/** Terrain relief allowed inside the footprint when chunks are pre-filtered by depth (spots are then tested
+ * against their own column's ground), BU. */
+export const ARCH_SPOT_RELIEF_BU = 4;
 /** A planned room keeps WALL_MIN / FLOOR_MIN to all other cavities except within this of its anchor, BU. */
 export const ROOM_ANCHOR_EXEMPT_BU = 1.5;
 /** Chamber yaw jitter around the wall normal, degrees (U(-J, J)). */
@@ -135,6 +149,14 @@ export const CONNECTOR_LATERAL_BU = 12;
 export const CONNECTOR_BAND_INSET_BU = 3;
 /** Connectors shorter than this are not proposed, BU. */
 export const CONNECTOR_MIN_LEN_BU = 4;
+/** Cover sites: the underside of a cover is found stepping down this much at most this many times; the room's
+ * ceiling stays this far below it, BU. */
+export const COVER_SCAN_STEP_BU = 0.25;
+export const COVER_SCAN_MAX_STEPS = 4096;
+export const COVER_UNDERSIDE_GAP_BU = 0.5;
+/** A cover site within NECK_LEN + this x the room width of its nearest wall spot is left to direct chambers
+ * (no connector toward it). */
+export const COVER_DIRECT_REACH_W = 0.45;
 
 /** Preference curves (GDD 03 §9.3, LN [EST]) for chamber types other than brood (brood uses BROOD_PREF): [x, value]. */
 export const TYPE_CLIMATE_PREF: Partial<Record<ChamberType, { temp: [number, number][]; rh: [number, number][] }>> = {

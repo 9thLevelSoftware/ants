@@ -1,7 +1,8 @@
 // UI root (composition root of src/ui): routes on the snapshot's screen and draws the HUD while playing. Later
 // tasks replace the boot placeholders screen by screen; keep this file to routing.
 import { render } from 'preact';
-import { BOOT_CSS, Epitaph, ErrorOverlay, Hud, Loading, PauseMenu, Title, Unsupported } from './boot';
+import { BOOT_CSS, Epitaph, ErrorOverlay, Loading, PauseMenu, Title, Unsupported } from './boot';
+import { HudRoot } from './hud';
 import { snapshot } from './store';
 
 export function App() {
@@ -11,7 +12,7 @@ export function App() {
       {s.screen === 'unsupported' && <Unsupported />}
       {s.screen === 'title' && <Title />}
       {s.screen === 'loading' && <Loading loading={s.loading} />}
-      {(s.screen === 'playing' || s.screen === 'paused') && <Hud snap={s} />}
+      <HudRoot />
       {s.screen === 'paused' && <PauseMenu />}
       {s.screen === 'epitaph' && <Epitaph e={s.epitaph} />}
       {s.error && <ErrorOverlay text={s.error} />}
