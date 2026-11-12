@@ -20,6 +20,8 @@ Conventions used in this chapter:
 - Time: "game h" = game hour (25 real s at 1x), "game min" = 1/60 game h, "real s" = wall-clock seconds. Alert cooldowns are given in both where both apply.
 - All named constants below live in `src/ui/tokens.ts` (design tokens), `src/ui/balance.ts` (UI behaviour constants), `src/audio/balance.ts` and `src/render/look.ts`. They are presentation constants and may live outside `src/sim/balance` because they never affect simulation results.
 
+**Performance contract (binding; brief §7-8, seed §1).** Target hardware is an integrated-GPU laptop at 1920 x 1080: the game holds 60 fps at the Medium preset there. Quality presets Low / Medium / High / Ultra plus Auto (auto-detection T3) and dynamic resolution (target 60 or 30 fps) are the levers (7.4). The measurable gate is `diag-perf` (Appendix D): frame time p95 <= 18 ms is `ok` (warn <= 33 ms). The simulation's share is `SIM_FRAME_BUDGET_MS` 10 real ms per rendered frame (GDD 06 §4.3; when it cannot keep up, GDD 06 §4.4 steps the speed down rather than exceed it), and the agent ceiling is under 2500 live ants of all colonies (directions K: 1500 player workers, fielded rival agents inside the remainder). Chapter budgets that must fit inside this contract: GDD 02 Appendix F item 10 (colony systems per tick), GDD 03 §16 (carve, remesh and nest fields), GDD 04 §4.1 (generation time and world memory). Profiling runs use the reference machine class at Medium with a mature colony (1200+ workers) in a Standard locality.
+
 ---
 
 ## 1. Information hierarchy
@@ -29,7 +31,7 @@ Conventions used in this chapter:
 | A. Always visible (max 6 elements, each hideable individually, all hidden with H) | 1 Time cluster (date, season glyph, clock, weather glyph, speed control). 2 Colony pulse (workers, brood, C and P stores with trend arrows, overall status pip). 3 Alerts feed (max 3 cards). 4 Context prompts near the possessed ant. 5 Possessed-ant panel (only while possessing). 6 Focus line (current aim; default on for the first 2 game days, then off). | HUD regions (3.4) | Settings > Interface > per-element: Always / When relevant / Never. "When relevant" rules are in 3.4. |
 | B. Diegetic | Carried item in mandibles; crop fullness as translucent abdomen swelling; founding queen's abdomen thins with reserves; brood restlessness; trail brightness in scent view; giant shadows before footfalls. | World | Not hideable (they are the world). |
 | C. Peek | Inspect cards: ant, brood, chamber, food source, creature, marker, dig plan. | Hover (observer/colony views) or T (antennate) while possessing; card anchored beside the target. | Card auto-hides 0.4 real s after hover ends; pin with click. |
-| D. On demand | Panels: Directives (B), Markers (colony view), Colony health (Y), Roster (L), Nest overview (U), Journal (J), Codex (K), Settings, Save/Load. Overlays (V, O). Minimap. | Drawers and book screens | One key each, Esc closes. |
+| D. On demand | Panels: Directives (I; also "Colony orders" on the queen, 4.2), Markers (colony view), Colony health (Y), Roster (L), Nest overview (U), Journal (J), Codex (K), Settings, Save/Load. Overlays (V, O). Minimap. | Drawers and book screens | One key each, Esc closes. |
 | E. Codex | Field notes, plates, glossary, controls manual. | Codex book | Unlocks on observation. |
 
 Rule: if a number can be read off an ant or a chamber, it does not appear in layer A.
@@ -228,7 +230,7 @@ Regions at 1280 x 720 (x, y, w, h in dp; margins 16 dp):
 
 | Region | Box | Content | Visible ("When relevant" rule) |
 |---|---|---|---|
-| Time cluster | 16, 16, 304, 56 | Line 1: season glyph + `Spring · Day 3 · Year 1`; line 2: clock `14:20`, sun/moon glyph, weather glyph + word, surface air temperature `21 °C`. Right part: speed control (5.1). Autosave indicator (14 dp save glyph) at the right edge while a save is in progress. | Always. |
+| Time cluster | 16, 16, 304, 56 | Line 1: season glyph + `Spring · Day 3 · Year 1` (`Day n` is the day of the season, GDD 06 `dayOfSeason`, 1..season length); line 2: clock `14:20`, sun/moon glyph, weather glyph + word, surface air temperature `21 °C`. Right part: speed control (5.1). Autosave indicator (14 dp save glyph) at the right edge while a save is in progress. | Always. |
 | Focus line (T2) | 16, 76, 304, 24 | Current top aim, e.g. "Aim: find a sheltered place to dig". Click opens Journal > Aims. | During the first 2 game days of a new colony, then only when a new aim opens (shown 30 real s). |
 | Colony pulse | 928, 16, 336, 56 collapsed; 336 x 208 expanded | Collapsed: overall status shape, `Workers 34`, `Brood 12 · 20 · 8` (egg · larva · pupa glyphs), `C 7.4 ↑`, `P 1.2 ↓`. Expanded (hover or keyboard focus): workers by task group with 4 mini bars (forage, nurse, dig, defend), queen state (`laying`, `founding`, `absent`), stores with 3-game-day sparklines, intake per game day, worst diagnostic line with "Why?" link. | Always (from first egg; before that it shows the queen's reserves only). |
 | Alerts feed | 928, 84, 336, up to 208 | Up to 3 AlertCards (64 dp each, 8 dp gap); "+n more" chip opens the Journal event log. | When there is at least one card. |
@@ -240,12 +242,14 @@ Regions at 1280 x 720 (x, y, w, h in dp; margins 16 dp):
 
 Trend arrows: computed by the UI from the stores time series: delta over the last 3 game h relative to the current value; `trend-flat` if |delta| < 2 %, `trend-up`/`trend-down` if 2-10 %, `-strong` variants beyond 10 %. Constant `TREND_WINDOW_GAME_H = 3`, `TREND_FLAT_PCT = 2`, `TREND_STRONG_PCT = 10`.
 
-H hides all layer-A elements (critical edge pips remain). Hiding persists until H again; it is not saved.
+H hides all layer-A elements (critical edge pips remain). Hiding persists until H again; it is not saved. With the HUD hidden (H, photo mode excepted, or GDD 01 §6.6 ambient watch) only `critical` alerts show, as a single pinned card plus the edge pip; `notice` and `warning` alerts, milestone toasts and codex toasts go to the journal log only (their sounds follow `milestoneNotices`, 7.4). This keeps quiet observation quiet (seed pillar 6).
+
+Milestone and codex notices follow the setting `milestoneNotices` (7.4): `full` (default: the `info` toast of 7.3 and 6.5 plus the milestone motif of 13.8), `quiet` (no toast; a 14 dp book glyph at the right edge of the time cluster for 30 real s and the motif at -12 dB), `off` (no toast, no dot, no motif). The journal always records every milestone and codex unlock, whatever the setting.
 
 ### 3.5 Pause menu (`pause`, T1)
 
 Opened with Esc (gamepad Start). P is the speed pause (5.1) and does not open this menu.
-Layout: modal backdrop `--e-3`; centred card 360 x auto at y 160; title "Paused" (`--t-h1`), current date line, then rows: Resume, Save, Load, Settings, Journal, Codex, Controls (opens Settings > Controls), Return to title. Bottom: last-saved line "Saved 3 min ago (autosave)".
+Layout: modal backdrop `--e-3`; centred card 360 x auto at y 160; title "Paused" (`--t-h1`), current date line, then rows: Resume, Watch the colony (T3: closes the menu, restores the previous speed and starts GDD 01 §6.6 ambient watch), Save, Load, Settings, Journal, Codex, Controls (opens Settings > Controls), Return to title. Bottom: last-saved line "Saved 3 min ago (autosave)".
 Rules: the simulation does not tick while open. Return to title asks to confirm when the last save is older than `UNSAVED_WARN_REAL_S = 60` real s ("Leave without saving? Progress since 14:20 will be lost." Save and leave / Leave / Cancel). Resume restores the speed in effect before opening. Focus starts on Resume.
 
 ### 3.6 Loading (`loading`, T1)
@@ -273,11 +277,11 @@ BookScreen layout, 1120 x 640 centred; three columns.
 
 | Column | Box (dp) | Content |
 |---|---|---|
-| Species | 80, 64, 360, 560 | Species cards stacked (each 360 x 128). Card: plate (turntable render, 0.1 rev/s, still with reduced motion), common name (`--t-h2`), binomial (italic), playstyle line, founding style, castes (icons), complexity (1-3 filled dots; Lasius 1, Messor 2, Camponotus 2, Atta 3). Only species with `SpeciesDef.available` are shown (T1: Lasius only; others appear in T3). |
+| Species | 80, 64, 360, 560 | Species cards stacked (each 360 x 128). Card: plate (turntable render, 0.1 rev/s, still with reduced motion), common name (`--t-h2`), binomial (italic), playstyle line, founding style, castes (icons), complexity (1-3 filled dots; Lasius 1, Messor 2, Camponotus 2, Atta 3). Species with `SpeciesDef.available` are selectable (T1: Lasius only). Species not yet released (GDD 07 §1 build and release order: Camponotus, then Messor, then Atta) are shown as greyed cards below the available ones with the label "Not yet available", not focusable and not selectable; a build may hide them entirely with the flag `showUnreleasedSpecies` (default on). |
 | Locality | 456, 64, 360, 560 | Archetype list (radio cards 360 x 56): Woodland Edge, Suburban Garden, Playground Park, Car Park Verge, Kitchen Door, Random. Each shows zone chips (`forest`, `lawn`, ...) and a nesting-suitability word for the selected species (Good / Fair / Poor). Below: Size segmented (Compact 3000 / Standard 4000 / Large 5000 BU, default Standard), Seed field + Randomise button, Starting season segmented. T2: a 160 x 160 locality preview (zone layout only, recomputed 300 ms after the last change). |
 | Rules | 832, 64, 360, 560 | Difficulty cards: Gentle / Naturalist (default) / Harsh, each with a two-line description. "Custom rules" expander (T3, see table). Hints toggle (default on). Big primary button "Begin" at the bottom (360 x 48). |
 
-Season rules: options Spring, Summer, Autumn; Winter is shown disabled with tooltip "Queens do not found in frost." Default per species from `SpeciesDef.foundingSeason` (Lasius: Summer, after the July-August flights; Camponotus: Spring; Messor: Autumn; Atta: Spring).
+Season rules: options Natural (default: the species' natural founding day of GDD 06 §1.6, e.g. Lasius Summer 3 afternoon), Spring, Summer, Autumn (custom rule `startSeason`: the game starts on day 3 of that season, GDD 06 §1.6); Winter is shown disabled with tooltip "Queens do not found in frost." The Natural option's label shows the season from `SpeciesDef.foundingSeason` (Lasius: Summer, after the July-August flights; Camponotus: Spring; Messor: Autumn; Atta: Spring).
 
 Seed: the field accepts any text up to 32 characters. An 8-hex-digit code (`4F7A21C9`, displayed `4F7A-21C9`, case-insensitive, hyphen optional) is used directly as a uint32; any other text is hashed with 32-bit FNV-1a. The resolved code is always displayed under the field. Randomise draws from `crypto.getRandomValues` (UI layer, outside the sim).
 
@@ -288,9 +292,10 @@ Custom rules (T3); the preset cards set these values, editing any value switches
 | Predators | Off / Few / Normal / Many | Few | Normal | Many |
 | Rival colonies | 0-4 | 2 | 3 | 4 |
 | Human activity | Off / Low / Normal / High | Low | Normal | High |
-| Weather severity | Mild / Normal / Severe | Mild | Normal | Severe |
+| Weather severity | None / Mild / Normal / Severe (GDD 06 §14.1) | Mild | Normal | Severe |
 | Season length (game days) | 5 / 7 / 10 | 7 | 7 | 7 |
 | Founding leniency | Lenient / Normal / Strict | Lenient | Normal | Strict |
+| Nest collapse | On / Off (GDD 03 §12) | Off | On | On |
 
 The semantics of these rules belong to the environment, ecology and progression chapters; this chapter only presents them. Difficulty can be changed mid-game from Settings > Gameplay (all rules except season length and rival count, which are fixed at generation).
 
@@ -308,16 +313,18 @@ Specified in 7.7 (Lineage), 7.8 (Epitaph) and 3.3 (Credits).
 
 Right-docked, x 864, y 16, w 400, h 688 dp (compact: full width). Header 48 dp: title, status chip where relevant, close button. Opening a drawer hides the HUD right column (pulse and alerts move into a 40 dp strip at the top of the drawer showing the pulse one-liner and an alert count badge). Only one drawer at a time; opening another replaces it (`--m-standard` slide, fade in reduced motion). Drawers do not pause. Esc closes the drawer before anything else.
 
-### 4.2 Directives (`directives`, key B, T1)
+### 4.2 Directives (`directives`, key I, T1)
 
-Available in any view; the queen is the diegetic anchor, but the panel is reachable without possessing her (pillar 3: the player's leverage must not require a walk).
+Available in any view (I). The queen is the entry point, not a requirement: while she is possessed after hand-over the possessed-ant panel shows "Colony orders (I)" and a context line offers the same (5.2; GDD 01 §2), and her inspect card has a "Colony orders" button (GDD 01 §10); the panel is equally reachable without possessing her (pillar 3: the player's leverage must not require a walk). Opening it from the queen keeps her possessed and changes nothing until a control is moved.
+
+Panel title: "Colony orders" (screen id stays `directives`). Hovering or focusing the title's info glyph shows a rich Tooltip (2.7) "Ants have no commander. These orders stand for many local decisions; read why in the codex." with a link that opens codex entry `cx-interface-orders` (GDD 06 §10; GDD 02 §0.3 D10).
 
 | Section | Controls | Data shown |
 |---|---|---|
-| Workforce | LinkedSliderGroup with 4 groups: Forage (`scout`, `forage`, `tend`, `cut`), Nurse (`nurse`, `queen-care`, `store`, `garden`, `mill`), Dig (`dig`, `haul`), Defend (`guard`, `patrol`). Each slider 0-100 % in steps of 5; sum fixed at 100 %. "Auto" toggle per colony (default on) lets the colony set targets from need; touching any slider turns Auto off. | Per group: target % (thumb), actual % (a thin tick under the track, from per-task headcounts), headcount. |
-| Brood production | Segmented: Workers only / Balanced / Raise alates. Disabled with reason until the colony qualifies ("Alates need a mature colony in the right season"). Polymorphic species (T3): caste ratio slider minor-media-major. | Current brood by destined caste. |
+| Workforce | LinkedSliderGroup with 4 groups: Forage (`scout`, `forage`, `tend`, `cut`), Nurse (`nurse`, `queen-care`, `store`, `garden`, `mill`), Dig (`dig`, `haul`), Defend (`guard`, `patrol`). A species' `directiveTasks` (GDD 07 §3.14) appear as sub-share sliders inside their group (`setDirectives.taskShares`). `raid` (GDD 05) is never allocated by sliders. Each slider 0-100 % in steps of 5; sum fixed at 100 %. "Auto" toggle per colony (default on) lets the colony set targets from need; touching any slider turns Auto off. | Per group: target % (thumb), actual % (a thin tick under the track, from per-task headcounts), headcount. |
+| Brood production | Segmented: Workers only / Balanced / Raise alates = `setDirectives.alateInvestment` 0 / 0.5 / 1.0 (GDD 06 §11.3; a fine slider 0-100 % under "More"), plus `alatePolicy` (auto-release / ask / hold) and, T3, `gyneShare`. Disabled with reason until the colony qualifies ("Alates need a mature colony in the right season"). Polymorphic species (T3): `casteEmphasis` slider −1..+1 (GDD 07 §2.6). | Current brood by destined caste. |
 | Diet emphasis | Slider C <-> P (-100..+100, default 0 = colony decides). Auto toggle. | Current stores and 1-game-day intake of C and P; protein demand from larvae. |
-| Nest | Nest architect: Auto / Off (default Auto). Seal entrances in cold weather: Auto / Off (if the nest chapter provides it). | Number of open architect plans. |
+| Nest | Nest architect: Auto / Suggest (T2) / Off (default Auto), sent as GDD 03 `setAutoExpand {nestId, mode}`. Seal entrances in cold weather (T2, GDD 03 §4.2 winter auto-seal): On / Off, sent as `setDirectives.sealInCold`. | Number of open architect plans. |
 
 LinkedSliderGroup rule: when one slider moves by d, the unlocked others change in proportion to their current values so the sum stays 100 %; a slider can be locked (padlock IconButton) to exclude it; if all others are locked the moved slider cannot change. Each committed change (pointer up, or 300 ms after the last key step) sends one `setDirectives` command; directives apply at the next tick even while paused.
 
@@ -333,11 +340,11 @@ Layout at 1280 x 720:
 |---|---|---|
 | Marker palette | 360, 16, 560, 48 | 7 tool buttons in this order: `dig`, `forage`, `avoid`, `rally`, `entrance`, `move-brood`, `move-queen`, then Select (pointer). Shift+1..7 select tools. Each shows its icon, name on hover, and a count `3/8` of active markers versus the cap. |
 | Overlay toggles | 16, 120, 48, 5 x 48 | Scent, Temperature, Moisture, Threats, Dig plans. |
-| Cutaway control | 1216, 160, 48, 400 (moves to x 816 when a drawer is open) | Vertical slider from Surface (0) to the deepest carved point of the player's nests + 4 BU, step 1 BU; mode switch Slice / X-ray. PageUp/PageDown or [ and ] move it. |
+| Cutaway control | 1216, 160, 48, 400 (moves to x 816 when a drawer is open) | Vertical slider from Surface (0) to the deepest carved point of the player's nests + 4 BU, step 1 BU; mode switch Off / Slice / X-ray (GDD 01 `cv-cutaway-mode`, G). R / F (GDD 01 `cv-slice-up` / `-down`) and, as secondary bindings, PageUp/PageDown or [ and ] move it. |
 | Tool options | 360, 72, 560, 40 (appears under the palette) | Context options of the active tool (below). |
 | HUD | Time cluster and pulse remain; possessed-ant panel hidden. | |
 
-Camera in colony view: WASD pan (speed proportional to height), Q/E rotate 45° steps with 240 ms ease, wheel zoom from 30 BU to 600 BU above ground, middle-drag orbit, F focus selection, Home recentres on the nest's main entrance.
+Camera in colony view (GDD 01 §6.7 owns the rig): WASD pan (speed proportional to height), Q/E rotate (90°/s while held), wheel zoom from 30 BU to 1500 BU (default 200), middle-drag orbit, F focus selection, Home recentres on the nest's main entrance.
 
 Cutaway: **Slice** clips terrain, primitives and cavity meshes above a horizontal plane at depth d below the local ground surface; cavity walls cut by the plane get a cross-section cap in `#3A2A1E`, and the cut edge shows a 0.25 BU line in `--c-text-3`. **X-ray** renders the ground translucent (alpha 0.15, depth-faded) and all cavities as solid lit volumes, so the whole nest reads at once. Ants, brood and items inside cavities are drawn in both modes.
 
@@ -345,11 +352,11 @@ Tools:
 
 | Tool | Placement | Options | Cancel / edit |
 |---|---|---|---|
-| `forage`, `avoid` | Click on any surface point; drag to set radius (8-64 BU, default 24). | Radius; priority (normal / high) for forage. | Select tool + Delete; Ctrl+Z undoes the last placement or removal (stack of 10). |
-| `rally` | Click surface or cavity point; radius 8-32 BU. | "Defend" vs "Gather" if the combat chapter distinguishes them. | Same. |
+| `forage`, `avoid` | Click on any surface point; drag to set radius (10-80 BU, default 30; GDD 02 §12.2). | Radius; priority (normal / high) for forage. | Select tool + Delete; Ctrl+Z undoes the last placement or removal (stack of 10). |
+| `rally` | Click surface or cavity point; radius 8-32 BU (default 15). | Mode: "Defend" / "Attack" (GDD 05 §3.7 `params.mode` `defend` / `attack`). | Same. |
 | `entrance` | Click a surface point above an existing tunnel or chamber within 12 BU; shows a ghost shaft from surface to the nearest cavity; red ghost with reason if invalid ("Concrete cannot be dug", "Too far from the nest"). | — | Same. |
 | `move-brood`, `move-queen` | Click a registered chamber in cutaway. Invalid targets show the reason ("Flooded", "Not connected"). | — | Same; only one active marker of each. |
-| `dig` (dig planner) | 1 choose a template: Chamber (type: `nursery`, `food`, `rest`, `general`, `midden`, plus `granary` / `fungus` when the species has the module), Tunnel, Shaft (to surface), Entrance. 2 hover an existing cavity wall in cutaway: a ghost of the template appears anchored on the wall with its outward normal. 3 Q/E rotate the ghost about the wall normal in 15° steps (in this tool Q/E do not rotate the camera); wheel+Shift changes size (Small / Medium / Large, chamber widths 8 / 12 / 16 BU); Tunnel: click start, click end, ghost follows a straight or 1-bend path. 4 click to place. | Template, size, priority (normal / high). | Plans are listed in the dig-plans overlay legend with status; select + Delete cancels (`cancelPlan`). |
+| `dig` (dig planner) | 1 choose a template: Chamber (type: `nursery`, `food`, `rest`, `general`, `midden`, plus `granary` / `fungus` when the species has the module), Tunnel, Shaft (to surface), Entrance. 2 hover an existing cavity wall in cutaway: a ghost of the template appears anchored on the wall with its outward normal. 3 Q/E rotate the ghost about the wall normal in 15° steps (in this tool Q/E do not rotate the camera); wheel+Shift changes size (Small / Medium / Large = GDD 03 sizes `s` / `m` / `l`, read from the species template: Lasius long axis 8 / 12 / 16 BU); Tunnel: click start, click end, ghost follows a straight or 1-bend path. 4 click to place. | Template, size, priority (normal / high). | Plans are listed in the dig-plans overlay legend with status; select + Delete cancels (`cancelPlan`). |
 
 Ghost validity colours use pattern as well as colour: valid = dashed `#F0E442` outline, invalid = cross-hatched `#D55E00` with reason text; reasons come from the nest chapter (`blockedReason`).
 
@@ -362,12 +369,14 @@ Dig plan states shown in the UI (data from `Nest.digPlans[].status`):
 | active | Solid `#F0E442` outline, carved fraction filled | Diggers working | All spheres done -> complete; blocked -> stalled |
 | stalled | Cross-hatched `#D55E00`, "!" glyph, reason line | Nest chapter sets `blockedReason` | Reason clears -> active |
 | complete | Brief 2 real s outline fade | Done | Removed from overlay |
+| paused | Dashed grey outline, pause glyph | Player pauses the plan (`pausePlan`) | `resumePlan` -> queued |
+| cancelled | Outline fades out | `cancelPlan` | Removed from overlay |
 
 Marker caps are owned by the markers chapter; the UI reads them from balance (`MARKER_CAP[kind]`) and shows `n/cap`; at cap, placement shows "Limit reached (8). Remove a marker first."
 
 ### 4.4 Colony health — the "why" view (`colony-health`, key Y, T2)
 
-Purpose: readable causality (pillar 4). Data: the sim's `Diagnostic` records `{ id, system, status: 'ok'|'warn'|'bad', label, value, factors: {cause, weight, detail}[], remedies, sinceTick }`.
+Purpose: readable causality (pillar 4). Data: the sim's `Diagnostic` records `{ id, system, status: 'ok'|'info'|'warn'|'bad', label, value, factors: {cause, weight, detail}[], remedies, sinceTick }`.
 
 Drawer layout: header with overall status (worst of all). List of diagnostic rows (56 dp each), sorted bad -> warn -> ok, then by `sinceTick` (newest first). Row: status shape + word, label ("Brood growth"), value with unit ("0.6 of normal rate"), 3-game-day sparkline, "since Day 4, 09:00", chevron.
 
@@ -376,11 +385,11 @@ Expanded row (cause chain):
 | Element | Rule |
 |---|---|
 | Factors | Ranked by weight; each shows a horizontal bar (width = weight, 0-100 %, label "60 %"), the cause text, and a detail line. Max 5 factors shown, rest under "Other (8 %)". |
-| Chain | A factor whose `cause` refers to another diagnostic (e.g. "protein intake" -> `food-intake-p`) gets a nested sub-list, indented 16 dp. Depth limit 3; cycles are cut at the first repeat. |
+| Chain | A factor whose `cause` refers to another diagnostic (e.g. "protein intake" -> `diag-food-intake-p`) gets a nested sub-list, indented 16 dp. Depth limit 3; cycles are cut at the first repeat. |
 | Show | `jump-to` IconButton per factor with entity refs: the camera moves (`--m-scene`) to the entity or area, and the entities pulse with a 1 Hz outline for 4 real s (static outline with reduced motion). In possession view the jump switches to observer first. |
 | Remedies | Each remedy renders as a link button. A remedy that maps to a UI control opens it with the suggested control highlighted (2 dp accent outline for 4 real s), e.g. "Raise Nurse to 30 %" opens Directives with the Nurse slider highlighted. Remedies never apply changes silently. |
 
-Diagnostic subjects expected (ids owned by the progression chapter; listed here so the UI has a layout for each): `food-intake-c`, `food-intake-p`, `stores`, `brood-growth`, `egg-laying`, `queen-condition`, `nest-space`, `nest-climate`, `dig-progress`, `workforce`, `foraging-trails`, `defence`, `overwinter-readiness`, plus the presentation diagnostics of Appendix D.
+Diagnostic subjects expected (every id carries the `diag-` prefix, GDD 06 scheme; the full registry is `00-index.md` §B): `diag-food-intake-c`, `diag-food-intake-p`, `diag-stores`, `diag-brood-growth`, `diag-egg-laying`, `diag-queen-condition`, `diag-nest-space`, `diag-nest-climate`, `diag-dig-progress`, `diag-workforce`, `diag-foraging-trails`, `diag-defence`, `diag-overwinter-readiness`, plus the presentation diagnostics of Appendix D. Statuses are `ok` ("Good"), `info` ("Note", never alerts), `warn` ("Strained") and `bad` ("Failing").
 
 Wording of factors (pattern): `<cause in plain words> — <measured detail with unit>`. Example: "Nursery too cold — 14 °C, best 24-27 °C"; "Few nurses — 3 of 12 wanted".
 
@@ -443,6 +452,7 @@ Box 16, 592, 304, 112 dp.
 | Crop | stacked meter C and P against crop capacity, labels "C 0.6 · P 0.1" (loads) |
 | Carrying | item icon + word ("soil pellet", "seed", "larva") or "—" |
 | Species extra | formicines: acid reserve meter; founding queen: Reserves meter replaces Crop |
+| Colony orders | queen after hand-over only: a ghost Button "Colony orders (I)" (KeyCap from the current binding) at the right of the Identity row; click or I opens Directives (4.2) without releasing her |
 | Home | a 16 dp compass arrow toward the nearest own entrance (surface only) with distance in BU |
 
 ### 5.3 Context prompts (T1; teaching mode T2)
@@ -470,7 +480,7 @@ Directions A bindings are kept. Additions made by this chapter:
 | Let go / drop | Space | B |
 | Release to observer | X | View (Back) |
 | Cycle ant | Tab / Shift+Tab | RB / LB |
-| Possess a forager / a digger / a nurse / the queen (quick keys, directions A) | Shift+1 / Shift+2 / Shift+3 / Shift+4 (possession and observer layers; in colony view Shift+1..7 are marker tools) | via Roster |
+| Possess a forager / a digger / a nurse / the queen (quick keys, directions A) | 5 / 6 / 7 / 8 (GDD 01 §5.1; Shift+1..7 are the colony-view marker tools) | via Roster |
 | Focus the alert feed | ` (backquote) | hold View 0.5 s |
 | Colony view | M | D-pad up |
 | Scent view | V | Right stick click |
@@ -479,11 +489,11 @@ Directions A bindings are kept. Additions made by this chapter:
 | Hide HUD | H | — |
 | Quick save / quick load | F5 / F9 | — |
 | Menu | Esc | Start |
-| Directives / Colony health / Roster / Nest overview | B / Y / L / U | via pause menu "Colony" submenu |
+| Directives / Colony health / Roster / Nest overview | I / Y / L / U (B is GDD 01 `cycle-target`) | via pause menu "Colony" submenu |
 | Journal / Codex | J / K | via pause menu |
 | Photo mode | F2 | via pause menu |
 | Remind me of controls | ? (Shift+/) | via pause menu "Controls" |
-| Dismiss teaching hint | Backspace | hold Y 0.8 s |
+| Dismiss teaching hint | Shift+H (Backspace is GDD 01 `possess-last`) | hold Y 0.8 s |
 | Marker tools (colony view) | Shift+1..7 | — |
 | Cutaway depth (colony view) | [ / ] and PageUp / PageDown | — |
 
@@ -521,11 +531,13 @@ The simulation owns raising and clearing (deterministic, game-time hysteresis pe
 | `ALERT_RATE_MAX` / window | 4 toasts per 30 real s | Excess toasts go to the log with the "+n" chip incremented. Critical alerts are exempt. |
 | `ALERT_RESOLVED_REAL_S` | 4 | On clear, the card shows "Resolved" (ok shape) for 4 s, then leaves. |
 | Snooze | 1 game day per kind | Session only (not saved). Snoozed kinds still log. Critical alerts cannot be snoozed. |
-| HUD hidden | — | Sounds still play; critical alerts show an edge pip. |
+| HUD hidden | — | Only `critical` alerts show (one pinned card and an edge pip, 3.4); `critical` sounds still play; lower levels go to the log silently. |
 
 ### 6.4 Wording patterns
 
 Title: `<Subject> <state>` in sentence case, present tense, no exclamation marks, no second person. Cause line: `<main cause> — <number with unit>` or `<where>`. Numbers always carry units.
+
+Conflict wording (all player-facing text: alerts, inspect cards, journal, milestones, codex titles, epitaph; brief §1). Conflict between colonies is described as an ecological contest, never as a human institution. Rival relation states display as: `peace` "Neutral", `tension` "Wary", `skirmish` "Clashing", `war` "Territorial dispute", `truce` "Lull" (the ids, GDD 05 §3.7, are unchanged). Use "overcome" or "driven off", never "defeated" or "conquered"; "opponent" or "rival workers", never "enemy" or "soldiers" (except the caste term "major"); "boundary dispute" or "contest", never "war", "battle", "army", "victory" or "truce". Ids and code may keep their names; the rule governs display strings only.
 
 ### 6.5 Alert catalogue (presentation contract)
 
@@ -560,6 +572,14 @@ Kinds are canonical ids added by this chapter; the trigger conditions and hyster
 | `save-failed` | warning | "Save failed" / "storage refused; use Export" | none | UI (12) |
 | `storage-unavailable` | notice | "Saving unavailable here" / "export to keep this colony" | none | UI (12) |
 | `audio-blocked` | info | "Sound is off" / "click anywhere to enable" | none | UI (14) |
+| `colony-starving` | critical | "The colony is starving" / "stores empty; brood being eaten" | food chamber | colony economy (GDD 02 §5.7, S3) |
+| `stores-full` | notice | "Stores are full" / "foragers are resting with full crops" | food chamber | colony economy (GDD 02) |
+| `nest-collapse-risk` | warning | "Ceiling may collapse" / "dry sand, wide room" | chamber | nest (GDD 03 §12) |
+| `entrance-breached` | notice | "A new opening" / "a tunnel broke through to the surface" | entrance | nest (GDD 03 §4) |
+| `last-ants` | critical | "Only {n} ants remain" / cause | colony | progression (GDD 06 §13.4) |
+| `garden-failing` | warning (critical when the last garden dies) | "Fungus garden failing" / state and cause | chamber | species module (GDD 07 §6.4) |
+| `granary-spoiling` | warning | "Seeds are sprouting or rotting" / humidity | granary | species module (GDD 07 §6.3) |
+| `wood-drying` | warning | "The nest wood is drying" / moisture % | nest site | species module (GDD 07 §6.2) |
 
 ---
 
@@ -586,7 +606,7 @@ Layout: rail with categories: Species, Castes and anatomy, Behaviours, Creatures
 
 Entry page: plate (512 x 288 dp: a generated render of the subject in a neutral studio setting, or a line drawing for behaviours), title (`--t-h2`), binomial if any, "Observed: Spring · Day 2 · Year 1" (or "Not yet observed"), Field note (2-4 sentences of real biology), Source line (`--t-caption`, citation as in the research dossiers), "In this colony" (1-2 sentences on the game rule), Related entries, and "Controls" (current bindings for related verbs, Interface entries only).
 Locked entries show the title and a silhouette plate with "Not yet observed"; category headers show "12 / 30 observed".
-Unlocks are triggered by sim `observe` events (Appendix C) and stored both in the save's progression state and in the profile (so entries stay unlocked across games). A new unlock shows a 4 real s `info` toast "Codex: Trophallaxis" with a book glyph; it does not pause.
+Unlocks are triggered by the sim's `codex.unlocked` events (GDD 06 §10; Appendix C) and stored both in the save's progression state (`progression.codexSeen`) and in the profile (so entries stay unlocked across games). A new unlock shows a 4 real s `info` toast "Codex: Trophallaxis" with a book glyph; it does not pause.
 Comfort mode applies to plates (spider entries use the chosen comfort rendering).
 
 ### 7.4 Settings (`settings`, T1 with T3 items)
@@ -602,11 +622,11 @@ BookScreen with tabs. Every change applies immediately and persists to `localSto
 | | Haze | On / Off (On) | T1 |
 | | Shadows | Off / Low / High (preset) | T1 |
 | | Grass and litter density | 25-100 % (preset) | T1 |
-| | Field of view (possession) | 50-90° (65) | T1 |
+| | Field of view offset (possession) | GDD 01 `fovOffset` −10..+20° added to the per-state FOV (0) | T1 |
 | | Fullscreen | button; shows "Not allowed here" when refused | T1 |
 | Audio | Master, Ambience, Effects, Giant sounds, Interface, Music | 0-100 % (100, 80, 90, 90, 60, 50) | T2 |
 | | Music | Off / Sparse / Frequent (Sparse) | T3 |
-| | Distant voices (playground bed) | On / Off (On) | T2 |
+| | Distant voices (playground bed) | On / Off (Off). Off plays the voice-less synth murmur (13.7); On is opt-in and plays `playground_distant` only if that file passed the intelligibility check of 13.7, otherwise the option is hidden | T2 |
 | | Mute when the tab is hidden | On / Off (On) | T2 |
 | | Mono | On / Off (Off) | T3 |
 | | Status line | "Sound running" / "Sound blocked by the browser — click to enable" | T2 |
@@ -637,6 +657,7 @@ BookScreen with tabs. Every change applies immediately and persists to `localSto
 | | Autosave interval | 2 / 5 / 10 real min / Off (5) | T1 |
 | | Minimap | Never / Always (Never) | T2 |
 | | Focus line | Auto / Always / Never (Auto) | T2 |
+| | Milestone notices (`milestoneNotices`) | Full / Quiet / Off (Full); 3.4. The journal always records | T2 |
 
 ### 7.5 Keyboard rebinding (`KeybindRow`, T1)
 
@@ -644,7 +665,7 @@ Each action row: action name, primary binding, secondary binding, reset. Click a
 
 ### 7.6 Save/Load (`save-load`, T1)
 
-Tabs: Save (only in play), Load, Import/Export. Slots: `auto` (autosave; keeps the newest and the previous generation) and `slot-1`..`slot-5`. Quick save (F5) writes a new generation into `auto`; quick load (F9) loads the newest `auto` generation (confirm if unsaved > 60 real s).
+Tabs: Save (only in play), Load, Import/Export. Slots: `auto` (autosave ring of 3 generations, each labelled with its trigger, GDD 06 §15), `quick` and `slot-1`..`slot-5`. Quick save (F5) writes `quick`; quick load (F9) loads `quick` (or the newest `auto` generation if `quick` is empty) (confirm if unsaved > 60 real s).
 
 Slot card (880 x 96 dp): thumbnail 160 x 90 (captured from the renderer at save time, JPEG q0.7 data URL), slot name, species binomial, archetype + seed code, `Summer · Day 5 · Year 2`, population, real date-time saved, play time, version. Empty slot card: "Empty".
 Actions: Save here (overwrite confirm), Load (confirm if unsaved progress > 60 real s), Delete (danger, confirm), Export.
@@ -690,7 +711,7 @@ Controls panel: 280 dp wide on the left, collapsible with Tab; hidden automatica
 
 ### 7.10 Time-lapse overlays (`timelapse-founding`, `timelapse-winter`, T2)
 
-Both read `PlayerState.timelapse` (assumed: `{ kind, startTick, endTick, progress 0..1, stage, counters, interrupt }`) and send `skipTimelapse` / step-in commands. Camera: a slow orbit (0.02 rev per real s) around the founding chamber or the main overwintering chamber in X-ray cutaway; with reduced motion the camera is static and the view crossfades between stills every 3 real s.
+Both read `PlayerState.timelapse` (`{ kind, startTick, endTick, progress 0..1, stage, counters, interrupt }`, written by GDD 06's opening and overwinter systems) and send `skipTimelapse` / `timelapseRespond {interruptId, response: 'step-in'}` commands. Camera: a slow orbit (0.02 rev per real s) around the founding chamber or the main overwintering chamber in X-ray cutaway; with reduced motion the camera is static and the view crossfades between stills every 3 real s.
 
 | Element | Founding | Winter |
 |---|---|---|
@@ -736,7 +757,7 @@ Times are targets for a first-time player at 1x.
 
 | # | Hint id | Trigger | Prompt (KeyCap from current binding) | Completes when | Aim opened / closed |
 |---|---|---|---|---|---|
-| 0 | — | Game start | Intro card, 6 real s, centred, no input needed: "*Lasius niger* · Suburban Garden · Summer, Day 1". Fades on any input. | — | opens `aim-find-site` |
+| 0 | — | Game start | Intro card, 6 real s, centred, no input needed: "*Lasius niger* · Suburban Garden · Summer · Day 3" (the natural founding day, GDD 06 §5.3). Fades on any input. | — | opens `aim-find-site` |
 | 1 | `hint-move` | 2 real s without movement | `[W A S D] Walk` | 3 real s of cumulative movement | — |
 | 2 | `hint-look` | `hint-move` learned and no camera drag for 5 real s | `[Drag] Look around` | 2 drags | — |
 | 3 | `hint-antennate` | 10 real s after start, on diggable ground | `[T] Antennate the ground` | 2 uses (a site assessment card appears each time) | — |
@@ -745,7 +766,7 @@ Times are targets for a first-time player at 1x.
 | 6 | `hint-seal` | Readiness 100 % and queen inside the chamber | `[E] Seal the entrance` | Entrance sealed | closes `aim-seal`, opens `aim-first-clutch` |
 | 7 | `hint-lay` | Sealed | `[E] Lay eggs` | First clutch laid (1 use) | — |
 | 8 | `hint-timelapse` | First clutch complete | Time-lapse begins; Skip control visible | Time-lapse ends | closes `aim-first-clutch`; at end closes `aim-first-workers` |
-| 9 | `hint-cycle` | First nanitic exists | `[Tab] Next ant` | 2 uses | opens `aim-reopen`, `aim-first-food` |
+| 9 | `hint-cycle` | First nanitic exists | `[Tab] Next ant` | 2 uses | opens `aim-nest-open`, `aim-first-food` |
 | 10 | `hint-observer` | `hint-cycle` learned | `[X] Watch the colony` | 1 use | — |
 | 11 | `hint-pickup` | Possessed worker within reach of a carriable item | `[E] Pick up <item>` | 3 uses | — |
 | 12 | `hint-trail` | Possessed worker outside carrying food | `[R] Lay a trail home` | 2 uses | — |
@@ -755,7 +776,7 @@ Times are targets for a first-time player at 1x.
 | 16 | `hint-speed` | 30 real s with no alert active and not possessing | `[1-4] Change speed` | 2 speed changes | — |
 | 17 | `hint-scent` | First trail exists | `[V] Scent view` | 1 use | — |
 | 18 | `hint-why` | First diagnostic turns `warn` | `[Y] Why?` chip attached to the pulse's worst line | 1 use | — |
-| 19 | `hint-directives` | 3 game days after first workers | `[B] Colony priorities` | 1 use | — |
+| 19 | `hint-directives` | First possession of the queen after hand-over (GDD 01 §2); fallback 3 game days after first workers if she has not been possessed | `[I] Colony orders` (attached to the possessed-ant panel's "Colony orders (I)" button when the queen is possessed; otherwise a chip by the time cluster) | Directives opened once (1 use) | — |
 
 Aims (journal "Current focus", max 3 open, oldest first):
 
@@ -766,21 +787,21 @@ Aims (journal "Current focus", max 3 open, oldest first):
 | `aim-seal` | Close the nest against the outside | Entrance sealed |
 | `aim-first-clutch` | Lay the first eggs | First clutch laid |
 | `aim-first-workers` | Raise the first workers | First nanitic ecloses |
-| `aim-reopen` | Open the nest again | An entrance is reopened |
+| `aim-nest-open` | Open the nest again | An entrance is reopened |
 | `aim-first-food` | Bring food home | First delivery |
 | `aim-first-trail` | Where does the food lie, and can others follow? | Milestone "first trail" |
-| `aim-protein` | The larvae need protein. Where can it be found? | First P delivery (opens when larvae > 0 and P stores < 0.5) |
+| `aim-first-protein` | The larvae need protein. Where can it be found? | First P delivery (opens when larvae > 0 and P stores < 0.5) |
 | `aim-second-chamber` | Make room for a growing brood | Chamber count >= 2 |
 
-Species variants (T3): Camponotus replaces `aim-find-site` with `aim-find-wood` ("Where is the wood soft and damp?"); Atta adds `aim-plant-garden` ("Plant the fungus brought from the mother nest") before `aim-first-clutch`; Messor replaces `aim-find-site` text with "Where is the ground open, dry and deep?". New aims follow the same table format in the species chapters.
+After hand-over GDD 06 §5.13 opens its own aims (`aim-first-food`, `aim-second-chamber`, `aim-first-protein`, `aim-first-trail`, `aim-stores-winter`, `aim-midden`, the species aims `aim-nest-open`, `aim-garden`, `aim-satellite`, `aim-trunk-trail`, and the continuing aims for growing and mature colonies `aim-second-entrance`, `aim-cross-zone`, `aim-herd`, `aim-alates`, `aim-flight`; at most 3 are shown at once, oldest first, the rest wait); the union of both tables is the aim id set (`00-index.md` §B). Species variants (T3): Camponotus replaces `aim-find-site` with `aim-find-wood` ("Where is the wood soft and damp?"); Atta adds `aim-plant-garden` ("Plant the fungus brought from the mother nest") before `aim-first-clutch`; Messor replaces `aim-find-site` text with "Where is the ground open, dry and deep?". New aims follow the same table format in the species chapters.
 
 ### 9.3 Site assessment card (T1 data, T2 presentation)
 
-Shown for 6 real s (or while T is held) beside the queen: rows Diggability, Moisture, Warmth and cover, Flood risk, Rival scent, Exposure, each as a 5-step dotted scale with a word (e.g. "Moisture ●●●○○ damp"), plus an overall word (Poor / Fair / Good / Excellent). Values from the founding chapter's site evaluation.
+Shown for 6 real s (or while T is held) beside the queen: rows Diggability, Moisture, Warmth, Cover, Flood safety, Rival scent, Exposure (the seven factors of GDD 06 §5.7), each as a 5-step dotted scale with a word (e.g. "Moisture ●●●○○ damp"), plus an overall word (Poor / Fair / Good / Excellent). Values from the founding chapter's site evaluation.
 
 ### 9.4 Codex as teacher (T2 entries)
 
-Each entry unlocks on observation and adds a toast. Minimum T2 set and triggers: `species-lasius-niger` (game start), `founding-claustral` (seal), `brood-egg`, `brood-larva`, `brood-pupa` (first of each), `callow-worker` (first eclosion), `behaviour-antennation` (first T), `behaviour-trophallaxis` (first observed or performed), `behaviour-trail-laying` (first trail), `behaviour-route-memory` (first breadcrumb retrace of possessed ant), `behaviour-necrophoresis` (first corpse to midden), `behaviour-nursing`, `food-honeydew`, `creature-aphid`, `creature-springtail`, `material-loam`, `habitat-<zone>` (first entry into each zone type), `weather-rain`, `human-footsteps`, `interface-why`, `interface-markers`, `interface-time`. Interface entries are always unlocked and form the manual.
+Each entry unlocks on observation and adds a toast. Codex ids are GDD 06 §10's `cx-*` ids (consistency pass). Minimum T2 set and triggers: `cx-species-lasius-niger` (game start), `cx-claustral-founding` (seal), `cx-brood-stages` (first pupa; one entry covers egg, larva and pupa), `cx-callow` (first eclosion), `cx-antennation` (first T), `cx-trophallaxis` (first observed or performed), `cx-trail-pheromone` (first trail), `cx-route-memory` (first breadcrumb retrace of possessed ant), `cx-necrophoresis` (first corpse to midden), `cx-nursing` (first larva fed), `cx-honeydew`, `cx-aphid-tending`, `cx-springtail`, `cx-material-loam`, `cx-habitat-<zone>` (first entry into each zone type), `cx-raindrops` (first rain hit), `cx-footfall` (first footsteps survived), `cx-interface-why`, `cx-interface-markers`, `cx-interface-time`, `cx-interface-orders` (first `setDirectives` or marker, or the Directives title tooltip link, 4.2: "Orders without a commander", GDD 06 §10). Interface entries are always unlocked and form the manual, except `cx-interface-orders`, which unlocks on first use so that its toast arrives when the player first gives an order.
 
 ---
 
@@ -811,7 +832,7 @@ Alternative palettes (Settings > Accessibility): High contrast (all channels whi
 | Creature | kind (comfort-mode name for spiders), state word ("hunting"), threat level, codex link | T2 |
 | Marker / dig plan | kind, radius or template, status, reason, remove | T1 |
 
-Cards are 280 dp wide, placed beside the target's screen projection on the side with more room, never covering the target.
+Cards are 280 dp wide, placed beside the target's screen projection on the side with more room, never covering the target. Foreign ants and rival colonies show their relation with the display words of 6.4 ("Neighbouring colony 2 · Wary"; ids `peace`, `tension`, `skirmish`, `war`, `truce` are never shown), and every card, codex page and journal line follows the conflict wording rule of 6.4.
 
 ---
 
@@ -891,7 +912,22 @@ Dim and warm, "scent-lit". There is no physical light underground; the game uses
 
 ### 11.8 Never in the game
 
-Faces with expressions, pupils or eyebrows on any creature; humans or human body parts other than footwear soles; speech, text bubbles, emoji-like icons; cartoon outlines, cel shading, saturated "power-up" colours, glowing collectibles, floating numbers; health hearts, coins, XP; blood-red gore (haemolymph is colourless to pale yellow; corpses do not splatter; dead bodies stay intact and are carried); brand names or logos; full-screen white flashes; anything recognisable from another game's art, UI layout, logos or music (seed section 0).
+Faces with expressions, pupils or eyebrows on any creature; humans or human body parts other than footwear soles; speech, text bubbles, emoji-like icons; cartoon outlines, cel shading, saturated "power-up" colours, glowing collectibles, floating numbers; health hearts, coins, XP; blood-red gore (haemolymph is colourless to pale yellow; corpses do not splatter; dead bodies stay intact and are carried); brand names or logos; full-screen white flashes; anything recognisable from another game's art, UI layout, logos or music (seed section 0). Recorded beds must contain no discernible speech: human activity is heard only as unintelligible distant texture (13.7 checklist), and any voice-bearing recording is opt-in (Distant voices, off by default).
+
+### 11.9 Animation (T1 ants; T2 creatures, brood and alates)
+
+Ants and creatures are animated procedurally (seed §4; architecture: ants instanced with vertex-shader animation). There are no authored skeletal clips, no keyframed animation files and no motion capture.
+
+| Rule | Specification |
+|---|---|
+| Body | One procedurally built, anatomically plausible mesh per species × caste × size class (GDD 07 §3.15 `appearance`), drawn instanced. Legs, antennae, mandibles, gaster and (alates) wings are animated in the vertex shader. |
+| Per-instance attributes | Written by the render layer each frame from the sim snapshot: gait phase, speed, pose id, carried item kind, colour (including callow darkening, 11.6), plus heading and surface normal. The gait phase advances with distance walked (tripod gait: two alternating leg triplets), so feet do not slide at any speed or time scale; antenna sweep rate follows the behaviour state (fast while searching or antennating, slow at rest). |
+| Pose ids | The `pose.*` ids of GDD 01 §7.3 (`pose.walk`, `pose.hurry`, `pose.grip`, `pose.fall`, ...) are blend targets: the shader blends from the current pose to the requested one over 80-150 ms, and gait is layered on top. An unknown pose id falls back to `pose.walk` (logged once in dev). |
+| Creatures | Same method: procedural meshes and vertex-shader gaits (spiders 8 legs, alternating tetrapods; caterpillars and earthworms peristaltic waves; aphids mostly still with slow leg and cornicle motion). Spider comfort variants (12) swap mesh and gait, never the sim. |
+| Brood, items | Larvae show a slow peristaltic flex and a begging head-lift when hungry; pupae and eggs are static; carried items are attached to the mandible socket of the carrier's pose. |
+| Level of detail | Beyond about 60 BU from the camera, leg and antenna motion reduce to a two-frame shimmer; beyond about 250 BU ants are impostors without limb motion. Thresholds scale with the quality preset (Low halves them). |
+| Reduced motion | No camera bob or sway; ants keep their real gaits (they are information), but idle antenna flicks and larval begging motion are damped to half amplitude; wing flutter of alates in the nest is shown as a still pose. |
+| Determinism | Animation is presentation only: render never writes sim state, and nothing in the sim reads animation phase. A test run with `quality=low` and the same seed produces the same sim results whatever is drawn. |
 
 ---
 
@@ -952,7 +988,7 @@ Habitat groups: Woodland (`forest`), Open green (`lawn`, `garden-bed`), Hard gro
 | Woodland | `birdsong_day` 0.8 + synth leaf rustle | `birdsong_day` 0.6 + `wind_leaves` 0.5 + leaf rustle | `birdsong_day` 0.3 + `crickets_night` 0.3 | `crickets_night` 0.7 + synth low wind |
 | Open green | `birdsong_day` 0.7 | `birdsong_day` 0.5 + `wind_leaves` 0.4 + `street_suburban` 0.2 | `crickets_night` 0.4 + `street_suburban` 0.2 | `crickets_night` 0.8 |
 | Hard ground | `traffic_distant` 0.4 + `birdsong_day` 0.3 | `street_suburban` 0.6 + `traffic_distant` 0.5 | `traffic_distant` 0.5 | `traffic_distant` 0.3 + `crickets_night` 0.3 |
-| Play ground | `birdsong_day` 0.5 | `playground_distant` 0.5 (only during the children human-event windows; replaced by a synth murmur if Distant voices is off) + `birdsong_day` 0.3 + `wind_leaves` 0.3 | `street_suburban` 0.3 | `crickets_night` 0.6 |
+| Play ground | `birdsong_day` 0.5 | synth distant murmur 0.5 by default, or `playground_distant` 0.5 low-passed at 900 Hz when Distant voices is on (only during the children human-event windows; never any discernible speech, 13.7) + `birdsong_day` 0.3 + `wind_leaves` 0.3 | `street_suburban` 0.3 | `crickets_night` 0.6 |
 | Interior | `room_fridge_hum` 0.6 | `room_fridge_hum` 0.5 + muffled `street_suburban` 0.2 (low-pass 800 Hz) | `room_fridge_hum` 0.6 | `room_fridge_hum` 0.7 (house quiet) |
 
 Numbers are linear layer gains within the ambience bus. Time-of-day segments crossfade over 1 game h.
@@ -1021,7 +1057,7 @@ The sim emits `{ type: 'cue', cue: CueId, pos, strength }` (contracts). Cue ids 
 | `vacuum` | rising motor whine | synth: band-passed noise roar + motor tone 120-180 Hz with slow pitch drift | synth |
 | `car` | tyre rumble approach | `car_pass_01/02` low-passed by distance; synth tyre roll (brown noise with 8-20 Hz texture) under | file + synth |
 | `watering` | hiss of a hose | `rain_light` used as spray, band-passed 1-6 kHz, positional; `wet_splat` impacts | file |
-| `children` | — | `playground_distant` (or synth murmur when Distant voices is off); sand thumps for play nearby (synth) | file / synth |
+| `children` | — | synth distant murmur (default), or `playground_distant` low-passed at 900 Hz when Distant voices is on (opt-in, 7.4; file must pass the 13.7 intelligibility check); sand thumps for play nearby (synth) | synth / file |
 | `food-drop` | — | `crunch_*` pitched -12 + synth thud | file + synth |
 | `spill` | — | `wet_splat_02` pitched -10 + synth slow glug | file + synth |
 | `bait-station` | — | synth plastic clack (two filtered clicks 800 Hz / 1.2 kHz) | synth |
@@ -1032,6 +1068,8 @@ The sim emits `{ type: 'cue', cue: CueId, pos, strength }` (contracts). Cue ids 
 From the asset manifest's gap list plus this chapter's needs: wood gnaw, leaf rustle grains, single-fly buzz, underground tone (fallback for `underground_rumble`: brown noise below 120 Hz with 0.05 Hz modulation), giant footstep sub layer, all ant-scale clicks and ticks (step, pick-up, drop, bite, antennate, trophallaxis), acid hiss, drumming, stridulation rasp layer, leaf tearing, nest murmur, flood gurgle, collapse slide, vacuum, tyre roll, thunder, plastic clack, ice ticks, heat ticks, voice-less distant murmur, all alert tones and the journal page turn. Every file-based cue also has a synth fallback used when its file is missing. Synth voices are built from Web Audio nodes (oscillators, noise buffers generated once at start, biquad filters, gain envelopes); no AudioWorklet is required (it may be refused in sandboxed frames).
 
 Acquired files (from `public/assets/manifest.json`): ambience `birdsong_day`, `crickets_night`, `rain_light`, `rain_heavy`, `wind_leaves`, `street_suburban`, `traffic_distant`, `playground_distant`, `room_fridge_hum`, `underground_rumble`; SFX `soil_dig_01`, `soil_scrape_01/02`, `gravel_grit_01-03`, `wood_creak_01-03`, `wood_rasp_01/02`, `crunch_01-03`, `water_drip_01/02`, `wet_splat_01/02`, `thud_giant_step_01/02`, `lawnmower_loop`, `lawnmower_push_loop`, `car_pass_01/02`, `broom_sweep_01/02`, `insect_wing_buzz_01/02`, `cricket_chirp_01/02`, `stridulation_grasshopper_01`, `ui_click_01-03`, `ui_hover_01`, `ui_switch_01`. Several are provenance tier B (archive.org, uploader-asserted CC0); the manifest marks them; the audio code must not depend on any single file existing.
+
+Asset acquisition checklist (every acquired audio file, recorded in `assets-src/MANIFEST.md`): licence and provenance tier; loudness normalised; loop seam checked; **no discernible speech** (11.8). For any bed recorded near people (`playground_distant`, `street_suburban`, `traffic_distant`) the check is a listen-through by two reviewers after the runtime chain (low-pass 900 Hz, at the gain used in play): no word, name or phrase may be recognisable, and the result reads as an unintelligible texture of distant activity. The current `playground_distant` excerpt (low-passed at 4.2 kHz in the manifest) contains audible children's voices and does not pass as delivered; until it is reprocessed or replaced and re-checked, the Distant voices option is hidden and only the synth murmur plays. The synth distant murmur is band-limited noise (200-900 Hz) with slow amplitude swells (0.3-1.5 Hz) and sparse soft transients, never formant-shaped.
 
 ### 13.8 UI and alert sounds
 
@@ -1067,7 +1105,7 @@ Sparse, quiet, never continuous. Synthesised soft voices (FM bell-marimba, bowed
 | Downloads refused | Text export modal (7.6); photo capture fallback (7.9). |
 | Storage refused | 7.6 and settings session-only notice. |
 | Font load fails | System fallbacks; no layout breakage (all containers tolerate +10 % text width). |
-| Very many alerts (e.g. war) | Throttle (6.3); critical cards are capped at 3 pinned, oldest critical collapses into "+n". |
+| Very many alerts (e.g. a territorial dispute) | Throttle (6.3); critical cards are capped at 3 pinned, oldest critical collapses into "+n". |
 | 2500-ant roster | Virtualised list; updates <= 2 Hz; sorting done off the hot path (every update, not every frame). |
 | Unknown cue or alert kind from sim | Cue ignored silently (logged once in dev); alert displayed with sim-provided strings. |
 
@@ -1087,14 +1125,14 @@ Simulation state (persisted in saves; owners noted; this chapter only reads unle
 | `progression.milestoneThumbs` | `{ milestoneId, dataUrl }[]` max 40 | Journal thumbnails (UI-owned data stored via a `storeThumbnail` command, not affecting sim results). |
 | `player.timelapse` | `{ kind: 'founding'|'winter', startTick, endTick, progress, stage, counters: Record<string, number>, interrupt: { id, kind }|null } | null` | Time-lapse overlay data (owner: founding/environment). |
 | `progression.diagnostics` | `Diagnostic[]` (contracts shape) | Colony health view. |
-| `progression.stats` | time series (hourly 7 days, daily all) | Graphs, sparklines, trend arrows, epitaph chart. |
+| `progression.history` (was `progression.stats`; GDD 06 §9.2 record with GDD 02 §13.2 series ids) | time series (hourly ring of 168 = 7 days, daily all) | Graphs, sparklines, trend arrows, epitaph chart. |
 
 Profile and settings (outside saves):
 
 | Name | Store | Type sketch | Purpose |
 |---|---|---|---|
-| `foundress.settings.v1` | localStorage | `Settings { graphics, audio, controls { keyboard: Record<ActionId, [Binding, Binding|null]>, gamepad, sensitivity, invertY, mouseLook, holdToggle: Record<ActionId,'hold'|'toggle'>, holdMs, deadZone }, accessibility { uiScale, textScale, font, highContrast, reducedMotion, horizon, shake, spiderComfort, comfortAlso, overlayPalette, soundCues, flashReduction }, gameplay { prompts, hints, autoSlowCritical, autoSlowWarning, autosaveMin, minimap, focusLine } }` | All settings. |
-| `foundress.profile.v1` | IndexedDB `profile` store (localStorage fallback) | `{ hints: Record<HintId, {uses, state}>, codex: Record<CodexId, string /* ISO date first seen */>, lineage: LineageRecord[] }` | Cross-game progress. |
+| `foundress.settings.v1` | localStorage | `Settings { graphics, audio, controls { keyboard: Record<ActionId, [Binding, Binding|null]>, gamepad, sensitivity, invertY, mouseLook, holdToggle: Record<ActionId,'hold'|'toggle'>, holdMs, deadZone }, accessibility { uiScale, textScale, font, highContrast, reducedMotion, horizon, shake, spiderComfort, comfortAlso, overlayPalette, soundCues, flashReduction }, gameplay { prompts, hints, autoSlowCritical, autoSlowWarning, autosaveMin, minimap, focusLine, milestoneNotices: 'full'|'quiet'|'off' } }` | All settings. |
+| `foundress.profile.v1` | IndexedDB `profile` store (localStorage fallback) | `{ hints: Record<HintId, {uses, state}>, codex: Record<CodexId, {tick, doy, year, species, firstSeenIso}>, lineage: {colonies, flights, daughters, settings} }` (codex and lineage record shapes are GDD 06 §10 and §12; one profile store, consistency pass) | Cross-game progress. |
 | Save `meta` | IndexedDB `saves` | `{ slot, generation, species, archetype, seedCode, dateLabel, population, savedAtIso, playTimeS, version, generatorVersion, thumbnail }` | Slot cards. |
 
 Runtime UI state (never persisted): `UiSnapshot` (refreshed 4 times per real second: time, weather, speed, pulse numbers, possessed-ant fields, prompts, alerts, diagnostics summary), open screen stack, focus stack, toast queue with real-time cooldown table, snoozes, roster sort state, overlay selection, cutaway depth/mode, photo camera state, audio voices and status.
@@ -1105,22 +1143,23 @@ Simulation commands (names follow the contracts guidance; payloads sketched):
 
 | Command | Payload | From |
 |---|---|---|
-| `possess` | `{ antId }` or `{ role: 'forager'|'digger'|'nurse'|'queen' }` | Roster, quick keys, observer click, Tab |
-| `release` | — | X, possession end |
-| `action` | `{ actionId, target }` | possession input |
-| `setDirectives` | `{ allocation?: {forage, nurse, dig, defend} | 'auto', production?, casteRatio?, diet?: number | 'auto', architect?: 'auto'|'off' }` | Directives |
-| `placeMarker` / `removeMarker` | `{ kind: MarkerKind, pos, radius, params }` / `{ markerId }` | Marker tool |
-| `planDig` / `cancelPlan` | `{ nestId, template, chamberType?, anchor: {pos, normal}, rotation, size, priority }` / `{ planId }` | Dig planner |
+| `possess` | `{ antId }` or `{ role: 'forager'|'digger'|'nurse'|'queen', nearPos }` (`nearPos` = camera target; GDD 01) | Roster, quick keys, observer click, Tab |
+| `release` | `{ reason: 'player' \| 'afk' \| 'colony-view' \| 'timelapse' }` (GDD 01) | X, possession end |
+| `action` | `{ actionId, target?, secondary?, phase: 'start' \| 'stop' }` (GDD 01) | possession input |
+| `setDirectives` | GDD 02 App B payload: `{ allocation?, taskShares?, diet?, alateInvestment?, gyneShare?, alatePolicy?, stockTarget?, stayIn?, sealInCold?, stance?, casteEmphasis?, …species extras }` (the former `production` / `casteRatio` / `architect` fields are replaced by `alateInvestment` / `casteEmphasis` / `setAutoExpand`) | Directives |
+| `placeMarker` / `removeMarker` | `{ kind: MarkerKind, pos, radius, chamberIds?, params? }` (rally: `params.mode`) / `{ markerId }` | Marker tool |
+| `planDig` / `cancelPlan` / `pausePlan` / `resumePlan` | GDD 03 App B payload: `{ nestId, kind, chamberType?, size?, anchor: {pos, normal}, end?, bend?, length?, yawDeg?, surfacePoint?, priority, confirmWarnings }` / `{ planId }` | Dig planner |
 | `designateChamber` | `{ chamberId, type: ChamberType }` | Nest overview |
-| `setAutoExpand` | `{ on }` | Directives |
+| `setAutoExpand` | `{ nestId, mode: 'auto' \| 'suggest' \| 'off' }` (GDD 03) | Directives |
 | founding steps | `{ step: 'seal'|'lay'|... }` via `action` | Onboarding flow |
 | `skipTimelapse` | — | Time-lapse overlay |
-| `timelapseStepIn` (new) | `{ interruptId }` | Time-lapse overlay |
+| `timelapseRespond` (was `timelapseStepIn`; shared with GDD 06) | `{ interruptId, response: 'step-in' \| 'let-it-play' }` | Time-lapse overlay |
 | `acknowledgeAlert` (new) | `{ alertId }` | Alert card |
 | `storeThumbnail` (new) | `{ milestoneId, dataUrl }` | Journal (presentation data only) |
-| `setDifficulty` (new) | `{ preset | rules }` | Settings > Gameplay |
+| `setDifficulty` (GDD 06) | `{ preset?, custom? }` | Settings > Gameplay |
+| `setSpeed` / `togglePause` / `skipToNextEvent` | GDD 01 / GDD 06 App B (sim commands; `state.time` is persisted) | Time controls |
 
-Game / UI intents (handled by `Game`, not the sim): `setSpeed(0|1|2|4|8)`, `nextEvent()`, `openScreen(id)`, `closeScreen()`, `setView('possess'|'observer'|'colony'|'photo')`, `setOverlay(id|null)`, `setCutaway({depthBU, mode})`, `cameraJumpTo(TargetRef)`, `save(slot)`, `load(slot, generation?)`, `exportSave(slot) -> bytes|text`, `importSave(bytes|text)`, `deleteSave(slot)`, `capturePhoto(scale)`, `setSetting(path, value)`, `rebind(action, slotIndex, binding)`, `resetHints()`, `foundDaughter(lineageId)`, `newGame(config)`, `audioEnable()`.
+Game / UI intents (handled by `Game`, not the sim): `openScreen(id)`, `closeScreen()`, `setView('possess'|'observer'|'colony'|'photo')`, `setOverlay(id|null)`, `setCutaway({depthBU, mode})`, `cameraJumpTo(TargetRef)`, `save(slot)`, `load(slot, generation?)`, `exportSave(slot) -> bytes|text`, `importSave(bytes|text)`, `deleteSave(slot)`, `capturePhoto(scale)`, `setSetting(path, value)`, `rebind(action, slotIndex, binding)`, `resetHints()`, `foundDaughter(lineageId)`, `newGame(config)`, `audioEnable()`.
 
 Debug API additions (`window.__game.ui`): `open(id)`, `close()`, `screen()` (current stack), `focus()` (focused element id), `hud()` (region boxes in dp and visible flags), `alerts()` (visible cards, log), `prompts()`, `hints()`, `settings.get/set`, `audio.status()`, `audio.cueLog()` (last 50 cues played with bus and gain), `look()` (active look parameters: DOF, haze, exposure, comfort variants), `contrastReport()` (computed token contrasts).
 
@@ -1130,32 +1169,32 @@ Consumed from the simulation event bus:
 
 | Event | Used for |
 |---|---|
-| `alert` `{ op: 'raise'|'update'|'clear', alert: ActiveAlert }` | Feed, sounds, auto-slow, log |
-| `milestone` `{ id, tick, title }` | Journal, toast, milestone motif, thumbnail capture |
+| `alert` `{ op: 'raise'|'update'|'clear', alert: ActiveAlert }` (emitted by the progression alert system) | Feed, sounds, auto-slow, log |
+| `milestone.reached` `{ id, tick, title }` (GDD 06; was assumed `milestone`) | Journal, toast, milestone motif, thumbnail capture |
 | `cue` `{ cue: CueId, pos, strength }` | Audio (13.5-13.6) and small visual effects |
-| `observe` `{ codexId }` (new) | Codex unlocks and toasts |
+| `codex.unlocked` `{ id }` (GDD 06; was assumed `observe`) | Codex unlocks and toasts |
 | `hint-trigger` `{ hintId }` (new; for triggers that depend on sim facts, e.g. first trail, food delivered) | Onboarding |
-| `aim` `{ aimId, op: 'open'|'done' }` (new) | Journal, focus line |
-| `possession` `{ antId | -1, reason }` | HUD, camera, prompts |
-| `ant-died` `{ id, cause }` (possessed or queen) | Camera, alerts |
-| `human-event` `{ kind, phase: 'warning'|'start'|'end', area }` | Giant sounds, threat overlay countdown, edge pips |
-| `weather` `{ from, to }` | Ambience modifiers, look |
-| `timelapse` `{ op: 'start'|'progress'|'interrupt'|'end', data }` | Time-lapse overlays |
-| `game-over` `{ cause chain }` | Epitaph |
-| `chunk-dirty`, `breach` | Cutaway caps (render) |
+| `aim.opened` / `aim.completed` `{ id }` (GDD 06; was assumed `aim`) | Journal, focus line |
+| `possession-started` / `possession-ended` (GDD 01; was assumed `possession`) | HUD, camera, prompts |
+| `ant-died` `{ antId, colonyId, caste, cause, pos, task }` (possessed or queen) | Camera, alerts |
+| `human.telegraph` / `human.start` / `human.end` (GDD 04; was assumed `human-event`) | Giant sounds, threat overlay countdown, edge pips |
+| `weather.changed` `{ from, to, intensityClass }` (GDD 06; was assumed `weather`) | Ambience modifiers, look |
+| `opening.timelapse` and `overwinter.*` (GDD 06; was assumed `timelapse`) | Time-lapse overlays |
+| `colony.extinct` `{ cause, causeChain }` and `epitaph.ready` (GDD 06; was assumed `game-over`) | Epitaph |
+| `carve-chunks-dirty`, `breach` (GDD 03; was `chunk-dirty`) | Cutaway caps (render) |
 
 Emitted by the UI/game layer (not sim; for analytics-free local logging, the debug API and the journal): `ui-screen` `{ id, op }`, `hint-shown` / `hint-learned` / `hint-dismissed` `{ hintId }`, `save-result` `{ slot, ok, error? }`, `export-result` `{ method: 'download'|'text', ok }`, `audio-status` `{ status: 'off'|'running'|'blocked'|'unsupported' }`, `photo-captured` `{ width, height, method }`, `settings-changed` `{ path }`.
 
 ## Appendix D — Diagnostics
 
-This chapter renders every subsystem's diagnostics (4.4) and publishes four presentation diagnostics of its own (shown in Colony health under "System", collapsed by default):
+This chapter renders every subsystem's diagnostics (4.4) and publishes four presentation diagnostics of its own (`diag-storage` also absorbs GDD 06's former `diag-autosave`) (shown in Colony health under "System", collapsed by default):
 
 | Id | Status rule | Limiting factors (weights from measured shares) | Remedies |
 |---|---|---|---|
-| `perf` | ok if frame time p95 <= 18 ms; warn <= 33 ms; bad above | GPU fill (dynamic-resolution scale at minimum), post-processing cost, instance counts (ants/grass), simulation time per frame | "Lower quality preset", "Reduce grass density", "Turn off depth of field", "Lower speed (simulation cost rises at 8x)" |
-| `audio` | ok when running or when switched off by the player (detail line says which); warn when blocked by the browser or when more than 5 files failed to decode | browser gesture policy, decode failures (n files missing, synth fallbacks in use) | "Click to enable sound", "Check the tab is not muted" |
-| `storage` | ok if IndexedDB available and last save succeeded; warn if last save failed; bad if unavailable | quota, private-mode refusal, sandbox | "Export the colony", "Free space in the browser" |
-| `input` | ok; warn if a bound key was never delivered by the host after being pressed in rebinding test | host swallowing keys, gamepad without standard mapping | "Rebind the action", "Use the menu entry" |
+| `diag-perf` | ok if frame time p95 <= 18 ms; warn <= 33 ms; bad above | GPU fill (dynamic-resolution scale at minimum), post-processing cost, instance counts (ants/grass), simulation time per frame | "Lower quality preset", "Reduce grass density", "Turn off depth of field", "Lower speed (simulation cost rises at 8x)" |
+| `diag-audio` | ok when running or when switched off by the player (detail line says which); warn when blocked by the browser or when more than 5 files failed to decode | browser gesture policy, decode failures (n files missing, synth fallbacks in use) | "Click to enable sound", "Check the tab is not muted" |
+| `diag-storage` | ok if IndexedDB available and last save succeeded; warn if last save failed; bad if unavailable | quota, private-mode refusal, sandbox | "Export the colony", "Free space in the browser" |
+| `diag-input` | ok; warn if a bound key was never delivered by the host after being pressed in rebinding test | host swallowing keys, gamepad without standard mapping | "Rebind the action", "Use the menu entry" |
 
 ## Appendix E — Acceptance checks
 
@@ -1171,7 +1210,7 @@ All checks run through `tools/harness/play.mjs` with `?test=1&seed=7&quality=low
 8. Given the pause menu is opened at tick T, when 5 real s pass, then the tick is still T; when Resume is chosen, then the speed equals the speed before opening.
 9. Given a fresh profile and a new Lasius game, when no input is given for 2.5 real s after the intro card ends, then the `hint-move` prompt is visible; when movement intent is applied for 3 real s cumulative, then the prompt is gone and `hints()['hint-move'].state === 'learned'`; when a second new game is started, then `hint-move` never appears within 30 real s.
 10. Given `resetHints()`, when a new game starts, then `hint-move` appears again under the condition of check 9.
-11. Given an active `brood-stalled` alert linked to diagnostic `brood-growth` with focus chamber id C, when the card is clicked, then `ui.screen()` contains `colony-health` with `brood-growth` expanded, and the camera target equals chamber C's centre within 1 BU after `--m-scene` (800 ms) + 100 ms.
+11. Given an active `brood-stalled` alert linked to diagnostic `diag-brood-growth` with focus chamber id C, when the card is clicked, then `ui.screen()` contains `colony-health` with `diag-brood-growth` expanded, and the camera target equals chamber C's centre within 1 BU after `--m-scene` (800 ms) + 100 ms.
 12. Given the founding time-lapse started for seed 7, when `skipTimelapse` is sent, then within 1 real s the overlay shows the outcome card, and the number of first workers equals the number obtained by running the same seed without skipping (compare `summary()` population by caste).
 13. Given `?nodownload=1`, when Export is chosen for a slot, then the text-export modal opens with content starting `FOUNDRESS1:`; when that text is pasted into Import and "Load now" is chosen, then `summary()` after load equals `summary()` at export time (same tick, population, stores).
 14. Given IndexedDB is made to throw on open, when a game is played for 6 real minutes with autosave at 5 minutes, then no exception reaches the console, one `storage-unavailable` notice was raised, Save buttons are disabled and Export works.
@@ -1183,9 +1222,12 @@ All checks run through `tools/harness/play.mjs` with `?test=1&seed=7&quality=low
 20. Given the Title screen with no saves and no lineage, when it opens, then initial focus is on New colony (Continue is disabled and not focusable, Lineage is hidden); when Tab is pressed 5 times, then focus visits Load, Codex, Settings, Credits and returns to New colony.
 21. Given keyboard rebinding of Dig to D, when confirmed, then a conflict message names "Move right"; choosing Swap results in Dig = D and Move right = F, persisted in `foundress.settings.v1` after reload.
 22. Given photo mode entered at tick T at speed 4x, when 10 real s pass and a PNG is captured at 1x, then the tick is still T, the capture is 1280 x 720 pixels, and on exit the speed is 4x and the camera pose equals the pre-entry pose.
-23. Given the player colony reduced to 0 living ants via `cheat`, when 3 real s pass after the `game-over` event, then `ui.screen()` is `epitaph`, the page shows the cause chain lines from the event, and the lineage store contains a record for this colony with fate "Ended".
+23. Given the player colony reduced to 0 living ants via `cheat`, when 3 real s pass after the `colony.extinct` event, then `ui.screen()` is `epitaph`, the page shows the cause chain lines from the event, and the lineage store contains a record for this colony with fate "Ended".
 24. Given a roster of 2500 ants (cheat spawn), when the Roster drawer is open for 10 real s, then the DOM row count stays <= 60, the list updates at most 2 times per real second, and frame time p95 rises by no more than 2 ms compared with the drawer closed.
 25. Given storm weather with flash reduction on, when 20 real s of storm are rendered, then no frame-to-frame exposure increase exceeds +0.5 EV and no more than 5 brightening events occur.
+26. Given a Lasius game after hand-over (opening phase `done`) with the queen possessed, when `ui.prompts()` and `ui.hud()` are read, then a prompt "Colony orders" bound to `directives` and the possessed-ant panel button "Colony orders (I)" are present; when I is pressed, then `ui.screen()` contains `directives`, the queen is still possessed (`possessedAntId` unchanged), the speed is unchanged, and the player colony's `directives` record (GDD 02 App A `colonies[]`) and `alloc.target` deep-equal their values before the key press; it changes only after a slider is moved and committed. Given a worker possessed instead, the "Colony orders" prompt is absent and I still opens `directives`.
+27. Given `milestoneNotices` = `off` and the HUD hidden with H, when a milestone fires and a `warning` alert is raised, then no toast is shown and no milestone motif or warning sound plays, the journal milestone list and event log contain both entries, and a subsequently raised `critical` alert shows one pinned card and plays its sound.
+28. Given default audio settings and an active `children` human event in a Play ground zone, when `audio.cueLog()` is read, then the playground bed source is the synth murmur, not `playground_distant`; the Distant voices row in Settings > Audio is hidden while the asset manifest marks `playground_distant` as not having passed the intelligibility check (13.7).
 
 ## Appendix F — Cross-chapter assumptions
 
@@ -1193,11 +1235,11 @@ All checks run through `tools/harness/play.mjs` with `?test=1&seed=7&quality=low
 2. The sim raises and clears alerts with game-time hysteresis and sets `kind`, `level`, `subjectId`, `title`, `cause`, `focus`, `diagnosticId`; trigger thresholds for each alert kind in 6.5 are defined by the owner chapter named there.
 3. Colony chapter defines allocation as four groups (forage, nurse, dig, defend) mapping to the canonical tasks as in 4.2, "auto" allocation, production modes, diet emphasis -100..+100, and accepts `setDirectives` while paused. If it uses different groups, the Directives layout follows its groups with the same control rules.
 4. Markers chapter defines marker caps (`MARKER_CAP[kind]`), radius ranges compatible with 8-64 BU, and validity reasons; nest chapter defines dig templates (chamber, tunnel, shaft, entrance; sizes 8 / 12 / 16 BU), wall anchoring, `status` values compatible with 4.3 (proposed, queued, active, stalled, complete) and `blockedReason` strings.
-5. Founding chapter provides site assessment values (six factors), readiness (shaft depth + chamber volume), seal and lay steps, reserves 0..1, nanitic outcome, and interruption events; the time-lapse is driven by the sim with `player.timelapse` as described in Appendix A.
+5. Founding chapter (GDD 06 §5) provides site assessment values (seven factors), readiness (shaft depth + chamber volume), seal and lay steps, reserves 0..1, nanitic outcome, and interruption events; the time-lapse is driven by the sim with `player.timelapse` as described in Appendix A.
 6. Environment chapter provides sun elevation, surface temperature per point, soil moisture, cavity humidity, weather states, human-event warnings with a warning phase and an area, and the winter time-lapse data.
 7. Possession chapter provides action availability per frame (for prompts) with priorities, crop capacity, acid reserve, heat stress, and possessed-ant death handling.
 8. Ecology chapter provides creature kinds for comfort mode, territories for the threat overlay, and cue emission for creature actions.
-9. Worldgen chapter: archetype ids `woodland-edge`, `suburban-garden`, `playground-park`, `car-park-verge`, `kitchen-door`; world size ids `compact`, `standard`, `large`; uint32 seeds; staged progress reporting matching 3.6; a cheap zone-layout-only entry point for the locality preview; up to 5 generation attempts.
+9. Worldgen chapter: archetype ids `woodland-edge`, `suburban-garden`, `playground-park`, `car-park-verge`, `kitchen-door`; world size ids `compact`, `standard`, `large`; uint32 seeds; staged progress reporting matching 3.6; a cheap zone-layout-only entry point for the locality preview; up to 8 generation attempts (GDD 04 `WORLDGEN_MAX_ATTEMPTS`).
 10. Species data provides `available`, `foundingSeason`, plate/turntable model, complexity rating, founding style word, and per-species cue choices (drum vs stridulate).
 11. Persistence chapter stores saves in IndexedDB with `auto` (2 generations) + 5 slots, provides the binary export with a magic header, version and checksum, and accepts `FOUNDRESS1:` + base64 text.
 12. Rendering supports clip-plane cutaway with cross-section caps, X-ray mode, overlay passes driven by sim fields, creature render variants for comfort mode, and a photo camera with sphere-traced collision.
@@ -1212,11 +1254,12 @@ All checks run through `tools/harness/play.mjs` with `?test=1&seed=7&quality=low
 - Overlay ids: `scent`, `temperature`, `moisture`, `threats`, `dig-plans`. Overlay palettes: `okabe-ito`, `high-contrast`, `pattern-only`.
 - Spider comfort levels: `off`, `softened`, `abstract`, `marker`.
 - Quality presets: `auto`, `low`, `medium`, `high`, `ultra`.
+- Settings `milestoneNotices` (`full`, `quiet`, `off`; 3.4, 7.4) and build flag `showUnreleasedSpecies` (3.7). Codex entry `cx-interface-orders` (owned by GDD 06 §10; tooltip link 4.2).
 - Hint ids (9.2), aim ids (9.2 including `aim-find-wood`, `aim-plant-garden`), codex entry ids and categories (9.4, 7.3).
 - Cue ids (13.5) and audio bus ids (`master`, `ambience`, `effects`, `giants`, `ui`, `music`); audio status values `off`, `running`, `blocked`, `unsupported`.
 - Save slot ids `auto`, `slot-1`..`slot-5`; export text prefix `FOUNDRESS1:`.
 - Archetype ids and world size ids (Appendix F 9) if not already defined by the worldgen chapter.
-- Commands `timelapseStepIn`, `acknowledgeAlert`, `storeThumbnail`, `setDifficulty`; events `observe`, `hint-trigger`, `aim`.
+- Commands `acknowledgeAlert`, `storeThumbnail` (`timelapseStepIn` became the shared `timelapseRespond`; `setDifficulty` is GDD 06's); event `hint-trigger` (`observe` and `aim` became GDD 06's `codex.unlocked` and `aim.opened` / `aim.completed`).
 
 ### Deviation notes
 

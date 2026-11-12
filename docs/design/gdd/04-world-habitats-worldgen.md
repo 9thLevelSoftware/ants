@@ -33,7 +33,7 @@ Not owned here (read from other chapters): air, surface and soil temperature, so
 | Feature | Tier |
 |---|---|
 | All five T1 archetypes, all zone types, pipeline, object catalogue, micro-connections, pre-existing cavities, decor, climb routes, nav grid, boundary, Lasius suitability map, persistence, determinism | T1 |
-| Baseline food anchors for the Lasius loop (crumbs, sugar, dead insects, honeydew anchors) | T1 |
+| Baseline food anchors for the Lasius loop (crumbs incl. `crumb-protein`, sugar, dead insects, nectar flowers; honeydew anchor sites are placed but the herds that make them productive are T2, GDD 05 §0) | T1 |
 | Seasonal decor (leaf fall, petals), creature territories, rival sites, full resource placement, water bodies' drinking and drowning, human activity (all events), reactive humans, door-open state | T2 |
 | Regions other than `temperate-eu`, archetype `field-margin`, suitability for the three other species, leaf-blower variant, oil slickness, window-sill gap, wall sockets as nest sites | T3 |
 
@@ -78,6 +78,8 @@ Built zones have physical size rules (1.4); natural zones share the remaining ar
 | `field-margin` | T3 | `lawn` `rough` (0.60-0.75), `garden-bed` variant `fallow` (0.20-0.30), `asphalt` `lane` (built) | `forest` hedge-scrub (0.5; 0.10-0.20) | dry-stone wall, gravel-edged lane, seeding grasses, bare sunny patches, few people | 2 / 1 / 3 / 1 |
 
 Random archetype selection (New Game "random") uses the species-fit numbers as weights (0 excluded).
+
+**"People's homes" at launch (brief §2, §6; scope decision).** The enterable kitchen-and-utility slice of the `interior` zone (1.4; in `kitchen-door` always, in `suburban-garden` at p 0.35) is, by design, the launch representation of people's homes: one room at true scale with its thresholds, cavities, appliances, plumbing and routines (5.7, 6.2, 15), behind a sealed house façade. A whole enterable house is out of scope, because at ant scale one room is already 3-6 m of terrain (750-1500 BU for Lasius) and a second room would add a second interior nav and microclimate set rather than new play. **T3 stretch:** a second interior room variant, chosen per seed in place of the kitchen slice, either a `pantry` (shelving, dry-goods sacks and jars, a stored-food crumb economy, cool still air) or a `conservatory` (glazing, potted houseplants with `scale` and `aphid` host flags, warm humid air, watering events); same slice size rules, same `interior` zone type, new template ids only. No other part of the house becomes enterable.
 
 ### 1.4 Built-zone size rules
 
@@ -156,7 +158,7 @@ On the 16 BU nav grid: `texture` (`sand`/`loam`/`clay`/`humus`, top layer), `per
 
 ## 3. Surface properties per material [T1 grip, dig, sound; T2 heat, wetness]
 
-Surface temperature coefficients (sun gain `G`, night loss, lag `tau`) are owned by chapter 06 section 2.3 and are not repeated here; this table maps world surfaces onto those materials and supplies the other properties. `grip` scales the walker's adhesion: maximum sustained surface tilt is 180° (ceilings) at grip ≥ 0.8, 120° at 0.5-0.8, 45° below 0.5 (`slippery`). Wet surfaces multiply grip by `WET_GRIP_MULT = 0.6`, greasy (hob, oil) by `GREASE_GRIP_MULT = 0.4`; rime and dew multipliers are chapter 06's. `DIG_REL` is a proposal for the nest chapter (1.0 = loam).
+Surface temperature coefficients (sun gain `G`, night loss, lag `tau`) are owned by chapter 06 section 2.3 and are not repeated here; this table maps world surfaces onto those materials and supplies the other properties. `grip` scales the walker's adhesion: maximum sustained surface tilt is 180° (ceilings) at grip ≥ 0.8, 120° at 0.5-0.8, 45° below 0.5 (`slippery`). Wet surfaces multiply grip by `WET_GRIP_MULT = 0.6`, greasy (hob, oil) by `GREASE_GRIP_MULT = 0.4`; rime and dew multipliers are chapter 06's. `DIG_REL` was a proposal for the nest chapter (1.0 = loam); the consistency pass adopts GDD 03 §2.1 `digSpeed` as the only dig-rate table (loam 1.0, humus 1.3, sand 1.6, clay 0.45, gravel 0.35, `wood-decayed` 1.0, `wood-sound` 0.4); the `DIG_REL` column below is used only inside `fDig` (12.1) and must equal GDD 03's values.
 
 | Material (J) | grip dry | Wetness behaviour | `DIG_REL` | Footstep sound class (new ids) | Notes |
 |---|---|---|---|---|---|
@@ -501,7 +503,7 @@ Ecology owns amounts, renewal and nutrient profiles; worldgen places anchors (`F
 
 | Zone | Anchor | Food kind (J) | Placement rule | Density / count | Tier |
 |---|---|---|---|---|---|
-| forest | aphid colony on tree branch or herb | `honeydew` | per tree branch site p 0.35; per `herb-plant` p 0.15 | | T1 (≥ 1 per map near start, else R3) |
+| forest | aphid colony on tree branch or herb | `honeydew` | per tree branch site p 0.35; per `herb-plant` p 0.15 | | placement T1 (≥ 1 per map near start, else R3); herd simulation T2 (GDD 05) |
 | forest | EFN plant | `nectar` | herb with EFN flag | 0.05/m² | T2 |
 | forest | dead-insect spawn area | `carrion` | whole zone; ecology rate 1-3 per GD per 100 m² | area | T1 |
 | forest, lawn, beds | springtail patch (prey) | `prey` | humid litter, moss, mulch, thatch (theta0 ≥ 0.35) | forest 0.3/m², lawn and beds 0.1/m² | T2 |
@@ -651,7 +653,7 @@ For sun positions at 06, 08, 10, 12, 14, 16, 18 h (azimuth from chapter 06's sol
 
 ### 12.5 Rival sites [T2] and start pose [T1]
 
-Rival count: `gentle` 2, `naturalist` 3, `harsh` 4, or the custom value (0-4). Species are drawn from the region roster (ecology section 3; the rival chapter owns the roster and maps each rival species to the nearest of the four suitability profiles with its own moisture window: e.g. a damp-lawn Myrmica-type uses the Lasius profile with ideal 0.45-0.75; a pavement Tetramorium-type uses the Lasius profile with `fCover` doubled under slabs; a large mound-building Formica-type is allowed only in `forest` and placed ≤ 400 BU from a map edge). Placement in order of roster weight: choose uniformly among the top 20 % suitability cells for that species that are ≥ `RIVAL_SPACING_BU = 600` from other rivals, ≥ `RIVAL_START_MIN_BU = 800` from the start, ≥ 200 BU from the edge (Formica-type excepted). Up to 2 incipient same-species colonies (brood-raid targets, directions K) may be placed 300-800 BU from the start (`naturalist` 1, `harsh` 2, `gentle` 0).
+Rival count: `gentle` 2, `naturalist` 3, `harsh` 4, or the custom value (0-4). Species are drawn from the region roster (ecology section 3; the rival chapter owns the roster and maps each rival species to the nearest of the four suitability profiles with its own moisture window: e.g. a damp-lawn Myrmica-type uses the Lasius profile with ideal 0.45-0.75; a pavement Tetramorium-type uses the Lasius profile with `fCover` doubled under slabs; a large mound-building Formica-type is allowed only in `forest` and placed ≤ 400 BU from a map edge). Placement in order of roster weight: choose uniformly among the top 20 % suitability cells for that species that are ≥ `RIVAL_SPACING_BU = 600` from other rivals, ≥ `RIVAL_START_MIN_BU = 800` from the start, ≥ 200 BU from the edge (Formica-type excepted). Incipient same-species colonies (brood-raid targets, directions K; count owned by GDD 05 §5: `gentle` 1, `naturalist` 2, `harsh` 3; they do not count toward the 0-4 rival setting) are placed 300-800 BU from the start and ≥ `NEST_SITE_SPACING` 150 BU from any other nest (GDD 03 §15).
 
 Start pose (dealate queen on the surface): maximise `0.5 × (good sites within 250 BU, capped 4)/4 + 0.3 × shelter + 0.2 × (1 − exposure)` over outdoor, non-asphalt cells with flood risk ≤ 0.3, not itself a `good` cell (the player chooses), ≥ 300 BU from the map edge. The opening chapter may override pose and time; the generator guarantees the validation conditions for this pose.
 
@@ -674,7 +676,7 @@ A `terrainHole` bitmask on heightfield cells removes the terrain term from the f
 
 ### 13.3 Ants and water
 
-Depth in BU = water depth mm / `BU_mm`. Below 0.25 BU: wet film (grip ×0.6, speed ×0.8). At 0.25 BU or more the ant is afloat: it drifts at `WATER_DRIFT_BU_S = 0.5` toward the nearest edge; it climbs out at an edge whose wall slope ≤ 70° and grip ≥ 0.5 (wet multiplier applied); drowning damage follows chapter 06 (0.03 health/s at ≥ 0.5 BU). Glazed bowls when wet (grip 0.7 × 0.6 = 0.42) cannot be climbed out of above 45° slope (bowl walls are about 70°): an ant that falls into a water bowl escapes only by reaching a floating item (a possessed ant may swim to one, chapter 06) or when the bowl is emptied or refilled (`pet-feed` replaces the water, and anything afloat is tipped out onto the mat with p 0.5). Items dropped in water float (`food`, `leaf`, `paper`) or sink (others). Water edges are drinking spots (`water-spot`) where the species defines a water need.
+Depth in BU = water depth mm / `BU_mm`. Below 0.25 BU: wet film (grip ×0.6, speed ×0.8). At 0.25 BU or more the ant is afloat: it drifts at `WATER_DRIFT_BU_S = 0.5` toward the nearest edge; it climbs out at an edge whose wall slope ≤ 70° and grip ≥ 0.5 (wet multiplier applied); drowning damage follows the single water rule of GDD 03 §11 (consistency pass): in water ≥ 0.5 BU deep, `SUBMERGE_GRACE_S` 50 s, then 1 % of max hp per s (death at 150 s). Glazed bowls when wet (grip 0.7 × 0.6 = 0.42) cannot be climbed out of above 45° slope (bowl walls are about 70°): an ant that falls into a water bowl escapes only by reaching a floating item (a possessed ant may swim to one, chapter 06) or when the bowl is emptied or refilled (`pet-feed` replaces the water, and anything afloat is tipped out onto the mat with p 0.5). Items dropped in water float (`food`, `leaf`, `paper`) or sink (others). Water edges are drinking spots (`water-spot`) where the species defines a water need.
 
 ### 13.4 Catchment, flood risk, puddle basins
 
@@ -711,8 +713,9 @@ Humans appear only as giant indirect agents at ant scale: shoes, wheels, tyres, 
 ### 15.1 Schedule model
 
 - At 00:00 each GD the scheduler (`rng.events` sub-stream `human`) draws the day's events: for each enabled kind and eligible zone, count = `floor(f) + (u < frac(f) ? 1 : 0)` with `f = baseFreq × seasonFactor × dayFactor × freqMult`. Start times are drawn from the kind's windows (uniform within a window, weights per window). The list is stored in state and drives the threat-overlay forecast (chapter 08).
-- `isWeekend` comes from chapter 06 (`weekday = dayIndex mod 7`, 5 and 6 weekend). School holidays: the whole summer season uses weekend patterns for `children`.
+- `isWeekend` comes from chapter 06 (`weekday = dayIndex mod 7`; game day 1 of year 1 is weekday 0; 5 and 6 are the weekend; the week is always 7 days whatever the season length, directions K). School holidays: the whole summer season uses weekend patterns for `children`.
 - Gates are checked again at the start time (weather, season, presence of the target); a failed gate cancels the instance (`human.cancelled`).
+- `doy` windows in this section (mowing 3-19, watering 1-16, door-open 8-14, petals 2-6, leaf fall and windfall 15-21) are default 28-day-year numbers; code stores them as year fractions and scales them with the configured season length (GDD 06 §1.7, directions K).
 - Same-kind spacing ≥ 0.5 game hour; ≤ `HUMAN_MAX_CONCURRENT = 3` events at once (later ones delayed 10-30 s).
 - Quiet hours 22:00-06:00: only `car` (rate ×0.1) and one interior `footsteps` pass (p 0.3).
 - `HUMAN_GRACE_GD = 0.25`: no lethal effect within 200 BU of the founding queen during the first 0.25 GD of a new game.
@@ -765,7 +768,7 @@ Crush probability at impact for an ant inside the contact area (`CRUSH_P`, Natur
 
 Survivors are stunned 3 s and drop what they carry.
 
-| Kind | Effects on ants | On items and resources | On pheromone (multiplier on cell values in the area: trail / home) | On terrain and objects |
+| Kind | Effects on ants | On items and resources | On pheromone (multiplier on cell values in the area: trail / home; the `alarm` channel takes the trail value; GDD 02 §8.5 applies these) | On terrain and objects |
 |---|---|---|---|---|
 | `footsteps` | `CRUSH_P` per footfall | items ≤ 2 BU: 50 % removed, 50 % scattered 1-3 BU | 0.3 / 0.7 | bare sand, loam, humus: footprint depression 3 mm (sand 5 mm); nest entrances inside on sand or loam blocked with p 0.5 (top 1.5 BU of the shaft refilled) |
 | `mowing` | anything above the cut height (35 mm) in the stripe: p 0.9; wheel tracks `CRUSH_P`; others tumbled 2-6 BU with p 0.3 | lawn herbs trimmed to 35 mm (their aphid, nectar and seed anchors above the cut removed; regrowth 2 GD); clippings: `leaf` anchors in the stripe for 0.5 GD (Atta) | 0.5 / 0.8 | `grassHeightMm` = 35 in the stripe; sward cover 0.2 for 1 GD; birds attracted (creature chapter: bird chance ×2 for 0.2 GD) |
@@ -829,7 +832,7 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | V2 | Ecology 7.1 dossier weekly cadences under a "game week = 3 GD" rule | Frequencies kept (mowing 1 per 3 GD, vacuum 1 per 3 GD), but weekends follow chapter 06's 7-day week | one calendar for all chapters |
 | V3 | Ecology 7.1: real sprinkler run 15-30 min = 0.01-0.02 GD | sprinkler 30 s (0.05 GD), mowing ≤ 240 s, vacuum ≤ 180 s, play sessions 40-90 s, at physical motion speeds | the dossier allows stretching for readability; human motion must be real-speed at ant scale (two-clock model) |
 | V4 | Directions E: grass blades visual only | kept, plus a sim-side `sward` layer (cover, travel cost, bird visibility, mowable height) | ants in turf live in a sheltered layer; the effect must exist without colliding blades |
-| V5 | Real ants survive submersion for long periods | afloat ants drift and take chapter 06's drowning damage | gameplay hazard, scaled gently (0.03 health/s) |
+| V5 | Real ants survive submersion for long periods | afloat ants drift and take the shared drowning rule (GDD 03 §11: 50 s grace, then 1 % max hp per s) | gameplay hazard, scaled gently and identical on the surface and in the nest |
 | V6 | Directions D lists "wall voids" as cavities in the carve grid | cavity walls are free space between two primitive leaves, not carve voxels; terrain holes for gullies | memory: a 2.4 m wall cavity would cost thousands of chunks |
 | V7 | Directions J lists `children` as a human event; ch08 offers distant voices as an audio option | no voices in the sim; children are footfalls, digging and dropped food | no human characters |
 
@@ -850,11 +853,11 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | `WorldStatic.pois` | `{ id, kind, pos, objectId }[]` | POIs |
 | `WorldStatic.micro` | `MicroConn { id, kind, mouths: [cell, cell], posA, posB, gapMm, minClearanceBU, lengthBU, useful: bool, reason }[]` | micro-connections |
 | `WorldStatic.nav` | `class Uint8, cost Uint8, groundY Float32, flags Uint8` per nav cell + edge lists for routes and portals | coarse nav |
-| `WorldStatic.maps` | `shade Uint8[7 × cells]`, `catchArea Float32`, `puddleCapMm Uint8`, `floodRisk Uint8`, `exposure Uint8`, `suitability Record<speciesId, Uint8Array>`, `access Record<speciesId, Uint8Array>`, per-cell static data of 2.4 | derived maps |
+| `WorldStatic.maps` | `shade Uint8[7 × cells]` (0..255 = shade fraction 0..1; `shadeAt` returns 0..1), `catchArea Float32`, `puddleCapMm Uint8`, `floodRisk Uint8` (0..255 = 0..1), `exposure Uint8`, `suitability Record<speciesId, Uint8Array>`, `access Record<speciesId, Uint8Array>`, per-cell static data of 2.4 | derived maps |
 | `WorldStatic.lanes` | `{ id, nodeA, nodeB, polyline: Float32Array, weight }[]`, `humanNodes` | human paths |
 | `WorldStatic.waterBodies` | `{ id, kind, vesselObjectId?, levelMm, capMm }[]` | static water |
 | `SimState.world.heightDeltas` | sparse tiles `Map-free: { tileIndex: int, data: Int16Array }[]` | footprints, craters (saved) |
-| `SimState.world.grassHeightMm` | `Uint8Array` (nav cells) | mowing (saved) |
+| `SimState.world.grassHeightMm` (contract: `worldDelta.grassHeightMm`) | `Uint16Array` (nav cells, mm; rough lawn reaches 300 mm, consistency pass) | mowing (saved) |
 | `SimState.world.dynPrims` | `{ id, templateId, transform, state }[]` | cars, toys, bait, door (saved) |
 | `SimState.world.microState` | `{ id, discovered: bool, discoveredTick, open: bool }[]` | discovery (saved) |
 | `SimState.world.waterLevels` | `Float32Array` per water body | bowls, saucers (saved) |
@@ -869,7 +872,7 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | `world.generate` | `WorldParams` | T1 | New Game; runs the pipeline with progress |
 | `world.preview` | `WorldParams` | T1 | zone raster + thumbnail only (New Game setup screen) |
 | `world.inspectPoint` | `{ pos }` | T1 | returns zone, material, strata at 2-15 BU, suitability factors, micro-connection within 8 BU (UI inspect; the queen's site assessment uses chapter 06's command) |
-| `rules.setHumanActivity` | `off|low|normal|high` | T2 | from the pause menu (custom rules) |
+| (removed) | — | — | the human-activity custom rule is changed with GDD 06 `setDifficulty { custom: { humanActivity: 'off'|'low'|'normal'|'high' } }` (consistency pass) |
 | debug `cheat.humanEvent` | `{ kind, variant?, at?: pos, startInS?: number }` | T2 | schedule immediately |
 | debug `cheat.setGrass` | `{ heightMm, region? }` | T2 | |
 | debug `cheat.setWater` | `{ bodyId, levelMm }` | T2 | |
@@ -885,7 +888,7 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | `worldgen.retry` | `{ attempt, failedChecks[] }` | loading screen, log |
 | `worldgen.complete` | `{ fingerprint, attempts, repairs[] }` | game, debug |
 | `world.micro-discovered` | `{ microId, kind, antId, pos }` | journal milestone, codex, alerts (notice) |
-| `world.zone-first-entry` | `{ zoneType, antId }` | codex `habitat-<zone>` (chapter 08) |
+| `world.zone-first-entry` | `{ zoneType, antId }` | codex `cx-habitat-<zone>` (GDD 06 §10 id scheme) |
 | `world.terrain-deformed` | `{ cells: bbox, cause }` | terrain renderer, nav re-derive |
 | `world.cave-in` | `{ centre, radiusBU, cause }` | nest system (collapse), audio `collapse` |
 | `world.dynprim-changed` | `{ id, templateId, change: add|move|remove }` | renderer, nav |
@@ -896,7 +899,7 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | `human.impact` | `{ instId, kind, contact, footprint (oriented rect or disc), tick }` | renderer (shoe, tyre, broom visual), ants (crush), items, pheromones |
 | `human.casualties` | `{ instId, killed, displaced, itemsRemoved }` | diagnostics, journal (when ≥ 5 killed) |
 | `human.bait-placed` / `human.bait-removed` | `{ id, pos }` | codex (bait), alerts (warning), diagnostics |
-| `sound.cue` | `{ kind, pos, gain }` | audio (giants bus) |
+| `cue` (shared cue event; was `sound.cue`) | `{ cue: 'giant.<kind>', pos, strength }` | audio (giants bus) |
 
 ## Appendix D — Diagnostics ("why" view)
 
@@ -908,6 +911,8 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 | `diag-connections` | k discovered of n known | — | "scouts explore unmarked ground" |
 | `diag-bait` | none / present | days present, colony visits to bait | "avoid marker at the station", "forage elsewhere" |
 | `diag-exposure` (possessed ant) | sheltered / exposed | sky view, cover, human lanes nearby | "keep under cover", "grip during tremor" |
+
+Status words above are the `label` text; the record's `status` uses the shared enum (`00-index.md` §D): good/quiet/open/none/sheltered = `ok`; fair/disturbed/costly/present = `warn`; poor/dangerous/blocked = `bad`; exposed = `warn`; `diag-connections` is `info`.
 
 ## Appendix E — Acceptance checks
 
@@ -939,7 +944,7 @@ Load: regenerate `WorldStatic`, compare fingerprints. Mismatch (different genera
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **Chapter 06 (environment)** owns surface temperature (`G`, lag), soil moisture, puddle depth and drowning damage, rain and dew, entrance inflow and weekdays (`isWeekend`, 7-day week); it reads this chapter's static per-cell data (2.4), `shadeAt`, `catchArea`, `puddleCapMm`; sprinklers and hoses add local `rainRateMmH` as this chapter specifies.
+1. **Chapter 06 (environment)** owns surface temperature (`G`, lag), soil moisture, puddle depth (drowning damage is the shared GDD 03 §11 rule), rain and dew, entrance inflow and weekdays (`isWeekend`, 7-day week); it reads this chapter's static per-cell data (2.4), `shadeAt`, `catchArea`, `puddleCapMm`; sprinklers and hoses add local `rainRateMmH` as this chapter specifies.
 2. **Chapter 06 (opening)** shows the live site assessment by re-evaluating the factors of 12.1 at a point; its founding outcome model may weight them differently, but uses the same factor definitions so the overlay and the assessment agree.
 3. **Nest chapter** owns dig rates (proposal `DIG_REL`, section 3), sand collapse, carve-op masking by material (non-diggable primitives and terrain layers never open), cave-ins from `world.cave-in`, flood inside tunnels, wood moisture over time, and per-chunk copy-on-write saving of carve chunks with a `preexisting` flag.
 4. **Locomotion chapter** owns the walker: foot offset small enough (≤ 0.15 BU) that gaps ≥ 0.6 BU are enterable; uses `grip` and the slope limits of section 3; implements clearance checks with `PASS_CLEAR_K`; follows climb routes; implements afloat drift and climbing out of water (13.3).

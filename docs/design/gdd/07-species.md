@@ -50,6 +50,8 @@ All named constants in this chapter live in species data files or `src/sim/balan
 | `messor-barbarus` | *Messor barbarus*, harvester ant | 7 mm | keep (only candidate with major/media/minor and seed milling); *Pogonomyrmex barbatus* is a data donor for task allocation, not playable | **Confirmed**; *Messor structor* is the in-genus fallback if a temperate fit is ever needed | `mediterranean` | T3 | 2 |
 | `atta-texana` | *Atta texana*, Texas leafcutter ant | 7 mm | keep (fits sandy/loamy temperate-edge localities; strongest polymorphism) | **Confirmed**; *Acromyrmex* noted as a later small-colony variant | `subtropical` | T3 | 3 |
 
+**Build and release order (decision; brief §3 open item).** 1. `lasius-niger` (T1, the reference colony; complexity 1). 2. `camponotus-pennsylvanicus` (complexity 2; adds the `wood-nesting` module). 3. `messor-barbarus` (complexity 2; adds `granary`). 4. `atta-texana` (complexity 3; adds `fungus-garden`, the largest module and the most castes). Each release adds exactly one economy module (3.14) on top of the shared colony loop, so each can ship and be balanced on its own. Data-only variants that reuse an existing module (*C. herculeanus*, *M. structor*, *Acromyrmex*) come after the four. Camponotus goes first among the T3 species because it reuses the Lasius formicine kit (acid, trophallaxis, aphid tending) and the interior and wood objects GDD 04 already places; Messor precedes Atta because its granary module is a subset of the seed and storage rules Atta's garden also needs. The order is a production decision and adjustable: `SpeciesDef.available` gates each species independently, and unreleased species appear as "Not yet available" cards (GDD 08 §3.7).
+
 ### 1.1 How the four differ to play
 
 | Axis | Lasius niger | Camponotus pennsylvanicus | Messor barbarus | Atta texana |
@@ -74,13 +76,13 @@ All named constants in this chapter live in species data files or `src/sim/balan
 
 This chapter uses Ch 06's calendar: `d = (date − 20 March) / 13.04 real days`. Reference points: 1 Apr d 0.9; 1 May 3.2; 1 Jun 5.6; 1 Jul 7.9; 17 Jul 9.1; 1 Aug 10.3; 1 Sep 12.7; 1 Oct 15.0; 1 Nov 17.3; 1 Dec 19.6; 1 Jan 22.0; 1 Feb 24.4; 1 Mar 26.5. Seasons are `spring` d 0-7, `summer` 7-14, `autumn` 14-21, `winter` 21-28.
 
-**Calendar note.** The Lasius and Camponotus dossiers counted game days from 20 March (same as Ch 06); the Messor and Atta dossiers counted from 1 March, so the same date carries a day number about 1.45 higher than on the equinox calendar (Messor flights Sep-Nov are d 12.7-19.6; Atta flights Apr-Jun are d 0.9-7.9). Ch 06's windows for these two species use the dossiers' numbers; the species data repeat Ch 06 and the difference is open risk R3 (Appendix F.1).
+**Calendar note.** The Lasius and Camponotus dossiers counted game days from 20 March (same as Ch 06); the Messor and Atta dossiers counted from 1 March, so the same date carries a day number about 1.45 higher than on the equinox calendar (Messor flights Sep-Nov are d 12.7-19.6; Atta flights Apr-Jun are d 0.9-7.9). Resolved by the consistency pass (risk R3): Messor keeps Ch 06's `doy` 15-19 / 15-20 (on the equinox calendar that is late September to mid November, peak October, matching the dossier); Atta's start and flight windows move to `doy` 2-8 (April-June on the equinox calendar). Day-of-year numbers in this chapter are default 28-day-year values; code stores them as year fractions scaled by the configured season length (directions K, Ch 06 §1.7).
 
-### 2.2 The economy is sim-native; `w` is presentational
+### 2.2 The economy is sim-native; there are no per-agent weights
 
-- Every rate in this chapter (upkeep, eggs, carried loads, yields) is per **simulated** entity. A simulated worker eats, carries and dies as one ant whatever the colony size.
-- Each species defines a **display mapping** `realEstimate(N_sim)` (section 3.5). The representation weight `w = realEstimate(N) / N` is used only for: the "estimated colony size" readout, journal and epitaph numbers, Ch 06's worker-equivalent `W_eq` thresholds, mound/heap visual volume, and ambient crowd density on trails (render).
-- **Deviation.** The dossiers propose multiplying flows by `w`. That makes a possessed ant's crop and load change as the colony grows and requires world resources to be scaled with it. Because `w` cancels out of every ratio that matters (intake : consumption, larvae : nurses), using sim-native units gives the same dynamics with stable per-ant numbers. World resource sizes (Ch 05) are therefore stated in sim loads.
+- Every rate in this chapter (upkeep, eggs, carried loads, yields) is per **simulated** entity. A simulated worker eats, carries and dies as one ant whatever the colony size, and the population shown to the player is the simulated population (directions K).
+- The dossiers' "one agent represents N real ants" scheme (`w`, `W_eq`, `realEstimate`) is **not used** for any flow, threshold or display (consistency pass). Colony-size thresholds (Ch 06 stages, milestones, alate gates) are in simulated workers. Each species carries `wildColonySize` (a typical and a maximum real colony size) used only by the codex to say honestly that wild colonies are larger than the game's.
+- **Deviation.** The dossiers propose multiplying flows by `w`. That makes a possessed ant's crop and load change as the colony grows and requires world resources to be scaled with it; sim-native units give the same dynamics with stable per-ant numbers. World resource sizes (Ch 05) are therefore stated in sim loads.
 
 ### 2.3 Body size and derived stats
 
@@ -90,8 +92,8 @@ Each ant gets a continuous `lengthBu` at eclosion, drawn from a triangular distr
 |---|---|---|
 | `massMg` | `casteMassMg × (lengthBu / casteMeanBu)^3` | caste tables give `casteMassMg` at the mean |
 | `m` | `massMg / stdMassMg` | standard worker `m = 1` |
-| `maxHp` | `HP_PER_SQRT_MG (12) × massMg^0.5`; males × 0.5 | absolute, so species can fight each other (Ch 05 combat applies) |
-| `biteDps` | `BITE_PER_SQRT_MG (2) × massMg^0.5 × mandibleFactor` | mandibleFactor: worker castes 1.0, macrocephalic majors 1.6, Atta major 2.0, queen 0.6, gyne 0.6, male 0.15 |
+| `maxHp` | `HP_PER_MG23 (10) × massMg^(2/3)` for worker castes; queens, gynes and males take the Ch 05 §4.1 table values (e.g. Lasius queen 50, gyne 35, male 6) | Ch 05 §4.1 rule (combat owner; consistency pass replaced the earlier `12 × massMg^0.5`); absolute, so species can fight each other |
+| `bite` (damage per strike, one strike per 1.0 s bite cycle) | `BITE_PER_MG23 (1.0) × massMg^(2/3) × mandibleFactor` | Ch 05 §4.1 head factors (combat owner): worker castes 1.0, majors 1.5, Atta major 2.0, minim 0.8, queen 0.27, gyne 0.27, male 0.2; Ch 05 §4.1's per-caste table is authoritative and the HP / bite columns of the 5.x.1 tables below are superseded by it |
 | `cropCap` (loads) | `min(caste cropMax, m)` | |
 | `carryCap` (loads, item bulk) | `m^0.6` unless the caste table overrides | small ants carry relatively more; Ch 01 §7 uses `carryCap` |
 | `upkeepRest`, `upkeepActive` (C/GD) | `0.08 × m^0.75`, `0.20 × m^0.75` | directions J for the standard worker; queens, gynes and males have explicit values |
@@ -187,8 +189,8 @@ A `SpeciesDef` is static data (not part of `SimState`; saves store only `species
 | `siteMaterials` | `Partial<Record<Material, number>>` | 0..1 | suitability; 0 = refused |
 | `siteHard` | rules | | hard refusal conditions (section 5.x) |
 | `siteBonuses` | rules | | cover, moisture, softness, distance to rivals |
-| `shaftDepthBu` | `{min, target, max}` | BU | Ch 06 founding progress |
-| `chamberWidthBu` | number | BU | |
+| `dMinOpenBu`, `dMinCoverBu`, `vMinBu3`, `wMinBu` | number | BU, BU³ | founding readiness = Ch 03 §13.1 `D_MIN` (open / covered), `V_MIN`, `W_MIN` (consistency pass; replaces `shaftDepthBu` / `chamberWidthBu`) |
+| `shaftTargetBu` | number | BU | AI and template target depth (Ch 03 template shaft) |
 | `seal` | boolean | | Ch 01 `seal-entrance` |
 | `R0` | number | loads | Ch 06 `FOUND_R0` |
 | `clutchCap` | number | eggs | Ch 06 `FOUND_CLUTCH_MAX_EGGS` |
@@ -202,7 +204,7 @@ A `SpeciesDef` is static data (not part of `SimState`; saves store only `species
 | Field | Type | Unit | Meaning |
 |---|---|---|---|
 | `simCapWorkers` | number | ants | adult worker cap (Ch 02 stops laying worker eggs at the cap; × the performance chapter's `popCapScale`) |
-| `realEstimate` | `[N_sim, N_real][]` | ants | piecewise-linear display mapping (2.2) |
+| `wildColonySize` | `{typical: [min, max], max}` | real ants | codex text only (2.2); replaces the former `realEstimate` display mapping |
 | `growthTargets` | `[yearEnd, minN, maxN][]` | ants | headless balance targets (Appendix E) |
 
 ### 3.6 Reproduction (`reproduction`) — the gate, investment control, alate states and flight rolls are Ch 06 §11; this block holds the species values of Ch 06 §11.2
@@ -211,7 +213,7 @@ A `SpeciesDef` is static data (not part of `SimState`; saves store only `species
 |---|---|---|---|
 | `matureAgeYears` | number | game years | Ch 06 `gate-age` |
 | `alateLayWindow` | `[doy0, doy1]` | doy | Ch 06 §11.2 |
-| `REPRO_MAX_FRAC` | number | of `N_sim` | alates at investment 1.0 |
+| `REPRO_MAX_FRAC` | number | of `N` (simulated workers) | alates at investment 1.0 |
 | `REPRO_GYNE_SHARE` | number | 0..1 | |
 | `sexualCostMult` | `{gyne, male}` | × 1.6 loads | larval cost multipliers |
 | `alateFlightWindow` | `[doy0, doy1]`, peak | doy | |
@@ -298,7 +300,7 @@ Nutrient profiles of sources belong to Ch 05; the species only says which kinds 
 | Field | Meaning |
 |---|---|
 | `economyModules` | module ids (3.1); each module reads its own species parameter block (`honeydew`, `wood`, `granary`, `fungus`) |
-| `directiveTasks` | tasks shown as allocation sliders (Ch 02/08) |
+| `directiveTasks` | tasks shown as **sub-shares inside the four group sliders** of Ch 02 §6.1 / Ch 08 §4.2 (consistency pass): e.g. Atta `cut` inside Forage, `garden` inside Nurse; Messor `mill` and `store` (granary care) inside Nurse; `tend` inside Forage. A sub-share replaces the in-group split by demand (Ch 02 §6.3) and is sent as `setDirectives.taskShares`. "Raise the `x` slider" in this chapter means this sub-share |
 | `directiveExtras` | species sliders/toggles (`casteEmphasis`, `granaryHygiene`, `leafSelectivity`, `satelliteAuto`, `hideFrass`, `hitchhikerEscort`) |
 | `taskSubtypes` | subtypes this species uses (Appendix A.0) |
 
@@ -314,7 +316,7 @@ Nutrient profiles of sources belong to Ch 05; the species only says which kinds 
 4. Every `ActionId` exists in Ch 01's primitive list or in Appendix A.0 additions.
 5. Every `FoodKind`, `Material`, `Task`, `Caste` is canonical (directions J) or listed in A.0.
 6. Module parameter block present for each listed module, absent otherwise.
-7. `simCapWorkers ≤ 1500`; `realEstimate` monotonic.
+7. `simCapWorkers ≤ 1500`; `wildColonySize.max ≥ simCapWorkers`.
 
 ---
 
@@ -339,11 +341,11 @@ Nutrient profiles of sources belong to Ch 05; the species only says which kinds 
 
 | Caste | Length BU (min / mean / max) | Mass mg | m | HP | Bite dps | Crop | Carry | Upkeep rest / active C/GD | Cruise / sprint BU/s | Lifespan GD | Passage BU |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `worker` | 0.9 / 1.0 / 1.15 | 1.0 | 1.0 | 12 | 2.0 | 1.0 | 1.0 | 0.08 / 0.20 | 6 / 12 | 33 if colony N < 100 at eclosion, 24 if N ≥ 250, linear between; sd 10 [D] | 0.45 |
-| `worker` (nanitic flag, first brood) | 0.8 / 0.85 / 0.9 | 0.6 | 0.6 | 9.3 | 1.5 | 0.6 | 0.74 | 0.054 / 0.136 | 6 / 12 | 24, sd 10 (Ch 02 `NANITIC_LIFESPAN_MEAN`) | 0.38 |
-| `queen` | 2.0 / 2.1 / 2.25 | 30 (founding 22) | 30 | 66 | 6.6 | 1.0 (gut, Ch 02) | 0 food; brood and pellets during founding | 0.30 C + 0.10 P + egg costs (J) | 3 / 5 | 15-25 game years | 0.95 |
-| `gyne` | 2.0 / 2.1 / 2.25 | 25 | 25 | 60 | 6.0 | 3.0 | 0 | 0.15 C | 6 / 10 | until flight | 0.95 |
-| `male` | 0.9 / 0.95 / 1.05 | 0.8 | 0.8 | 5.4 | 0.3 | 0.3 | 0 | 0.06 C | 6 / 10 | flight + 0.1 GD | 0.43 |
+| `worker` | 0.9 / 1.0 / 1.15 | 1.0 | 1.0 | 10 | 1.0 | 1.0 | 1.0 | 0.08 / 0.20 | 6 / 12 | 33 if colony N < 100 at eclosion, 24 if N ≥ 250, linear between; sd 10 [D] | 0.45 |
+| `worker` (nanitic flag, first brood) | 0.8 / 0.85 / 0.9 | 0.6 | 0.6 | 7 | 0.7 | 0.6 | 0.74 | 0.054 / 0.136 | 6 / 12 | 24, sd 10 (Ch 02 `NANITIC_LIFESPAN_MEAN`) | 0.38 |
+| `queen` | 2.0 / 2.1 / 2.25 | 30 (founding 22) | 30 | 50 (founding 40; Ch 05) | 2.0 | 1.0 (gut, Ch 02) | 0 food; brood and pellets during founding | 0.30 C + 0.10 P + egg costs (J) | established 3 / 5; founding (dealate on the surface) 6 / 9.6 (Ch 01 hurry) | 15-25 game years | 0.95 |
+| `gyne` | 2.0 / 2.1 / 2.25 | 25 | 25 | 35 | 1.5 | 3.0 | 0 | 0.15 C | 6 / 10 | until flight | 0.95 |
+| `male` | 0.9 / 0.95 / 1.05 | 0.8 | 0.8 | 6 | 0.2 | 0.3 | 0 | 0.06 C | 6 / 10 | flight + 0.1 GD | 0.43 |
 
 `ageRateOutside` 3.0, `ageRateDormant` 0.15 (2.5); nanitics are more efficient nurses [D] (Ch 02 work rate). `loadSpeedMult` 0.85. The worker and nanitic rows repeat Ch 02 §1 values for completeness; Ch 02 is authoritative for them.
 
@@ -354,9 +356,9 @@ Actions — `worker`: `move`, `let-go`, `grip`, `pick-up`, `put-down`, `drop`, `
 | Parameter | Value | Basis |
 |---|---|---|
 | `stageGd` egg / larva / pupa at `devRefC` 21 °C | 1.4 / 0.6 / 1.9 (sum 3.9; preoviposition 0.08 at founding only) | [D] S6 medians 18/8/25 d |
-| `devRate` | ≤10: 0; 15: 0.45; 20: 0.91; 21: 1.0; 25: 1.36; 30: 1.82; 32: 1.85; 35: 1.4; 38: 0 | [D] 575 degree-days above 10 °C; upper end [EST] |
-| Stage multipliers | first brood (nanitic): larva × 0.85; gyne: larva × 2.0, pupa × 1.1; male: larva × 1.2 (Ch 02 §2) | |
-| Larval cost | worker 1.2 P + 0.4 C (J); nanitic 0.72 P + 0.24 C (Ch 02 × 0.6); gyne and male per Ch 06 §11.2: 12 × and 2 × 1.6 loads (gyne 14.4 P + 4.8 C, male 2.4 P + 0.8 C; the mass rule of 2.3 gives 15.7 P for a 25 mg gyne, so Ch 06's value is consistent) | J, Ch 02, Ch 06 |
+| `devRate` | Ch 02 §2.2 `r(T)` (authoritative): ≤10: 0; 15: 0.455; 20: 0.909; 21: 1.0; 25: 1.364; 30: 1.818; 32: 1.818; 34: 0.909; 36: 0 | [D] 575 degree-days above 10 °C; upper end [EST] |
+| Stage multipliers | first brood (nanitic): none (the founding time-lapse is the fast track, Ch 06 §5.12); gyne: larva × 2.0, pupa × 1.1; male: larva × 1.2 (Ch 02 §2) | |
+| Larval cost | worker 1.2 P + 0.4 C (J); nanitic (first brood) 1.6 loads drawn from the founding pool `R` (Ch 06 §5.12 `LARVA_COST_LOADS`; consistency pass); gyne and male per Ch 06 §11.2: 12 × and 2 × 1.6 loads (gyne 14.4 P + 4.8 C, male 2.4 P + 0.8 C; the mass rule of 2.3 gives 15.7 P for a 25 mg gyne, so Ch 06's value is consistent) | J, Ch 02, Ch 06 |
 | `Q_MAX`, `sizeBase`, `sizeK` | 100, 0.30, 300: `q(N)` 34 at 18, 50 at 100, 74 at 300, 97 at 900 | [D] |
 | `fSeason(D)` | Ch 02 §3.2: D 1-2: 0.3; 0.3 → 1.0 over D 2-5; 1.0 D 5-15; 0.6 D 15-18; 0.2 D 18-21; 0 D 21-29 | [D] (temperature, not photoperiod, drives laying) |
 | `fTempQ` | Ch 02 §3.2: 0 at ≤ 14 °C, 1 at 20-30 °C, 0.5 at 34 °C, 0 at ≥ 36 °C | |
@@ -371,9 +373,9 @@ Actions — `worker`: `move`, `let-go`, `grip`, `pick-up`, `put-down`, `drop`, `
 | Natural window | after the July-August flights: Ch 06 start window `doy` 8-12, default Summer 3, afternoon |
 | Site materials (suitability) | `loam` 1.0, `humus` 0.9, `sand` 0.8 (collapses, floods), `clay` 0.5 (slow), `gravel` 0.4; refused: wood, concrete, asphalt, stone, tile, brick |
 | Site bonuses (feed Ch 06 §5.7 site factors) | under a sun-warmed stone, slab, brick, tile or plastic sheet (cover and warmth); recent rain (soft soil); rival home-range scent (penalty) |
-| Shaft / chamber | founding shaft 1.5 BU wide (Ch 06 §5.8), target depth 10 BU (8-15) [D 2-6 cm]; founding cell about 3 BU wide |
+| Shaft / chamber | founding shaft 2.5 BU wide (Ch 03 §13.1), `D_MIN` 8 BU in open soil / 5 BU under cover, target depth 10 BU (8-15) [D 2-6 cm]; founding cell 4 x 2 x 4.5 BU |
 | Reserves / clutch cap / first workers | Ch 06: `FOUND_R0` 56 loads; clutch cap 48 eggs; 8-16 nanitic workers at scale 0.85 (about 46 % of eggs) |
-| First-brood duration | about 3.8 GD at 21 °C (egg 1.4, larva 0.51, pupa 1.9); cooler autumn cells push it later, possibly past winter (biologically normal) |
+| First-brood duration | 3.9 GD at 21 °C (egg 1.4, larva 0.6, pupa 1.9; 4.52 GD at 19.5 °C, Ch 06 §5.12); cooler autumn cells push it later, possibly past winter (biologically normal) |
 | Co-founding (pleometrosis) | **T3 (stretch).** If another founding queen is within 20 BU when digging starts, the player may join; the colony's clutch cap rises by 50 %; after the first worker ecloses the queen with the lower egg count dies (fight) [D: 18-25 % of incipient colonies co-found; the more fecund queen wins] |
 
 #### 5.1.4 Scale, growth and alates
@@ -381,21 +383,21 @@ Actions — `worker`: `move`, `let-go`, `grip`, `pick-up`, `put-down`, `drop`, `
 | Parameter | Value |
 |---|---|
 | `simCapWorkers` | 1,500 |
-| `realEstimate` | 1:1 to 300; 611 → 1,500; 961 → 3,500; 1,172 → 5,500; 1,275 → 7,000; 1,393 → 10,000; 1,480 → 16,700 [D formula] |
+| `wildColonySize` (codex only) | typical 5,000-10,000, up to about 17,000 workers [D] |
 | Growth targets (sim workers at end of colony year) | y1 12-25; y2 200-320; y3 500-750; y4 850-1,050; y5 1,100-1,300 |
 | Trail recruitment unlock | 75 workers [D] (below that: solitary foraging with route memory only) |
-| Reproduction (Ch 06 §11.2) | `matureAgeYears` 2; stage `mature` (about N_sim 700 = `W_eq` 1,900); `alateLayWindow` doy 2-6; `REPRO_MAX_FRAC` 0.10 (research 5-8 %); `REPRO_GYNE_SHARE` 0.40; flight window doy 9-13, peak 10-11, launch 14:00-18:00; gates air ≥ 13 °C, wind < 6.3 m/s [D] |
+| Reproduction (Ch 06 §11.2) | `matureAgeYears` 2; stage `mature` at 700 simulated workers (Ch 06 §7); `alateLayWindow` doy 2-6; `REPRO_MAX_FRAC` 0.10 (research 5-8 %); `REPRO_GYNE_SHARE` 0.40; flight window doy 9-13, peak 10-11, launch 14:00-18:00; gates air ≥ 13 °C, wind < 6.3 m/s [D] |
 | Unflown alates | evicted and eaten 3 GD after the window (Ch 06 `ALATE_EXPIRE_GD`) |
 
 #### 5.1.5 Diet
 
 | Food kind | Pref | Route | Tier |
 |---|---|---|---|
-| `honeydew` | 1.0 | crop-c | T2 |
+| `honeydew` | 1.0 | crop-c | T1 static `honeydew-film` sites (Ch 05 §0); herds and tending T2 |
 | `sugar` | 0.9 | crop-c | T1 |
-| `nectar` | 0.8 | crop-c | T2 |
-| `fruit` | 0.6 | crop-cp | T1 |
-| `crumb` | 0.6 | solid-cp | T1 |
+| `nectar` | 0.8 | crop-c | T1 (static flowers; dynamic in T2, Ch 05) |
+| `fruit` | 0.6 | crop-cp | T2 |
+| `crumb` | 0.6 | solid-cp | T1 (incl. `crumb-protein`, Ch 05 §0) |
 | `carrion` | 0.7 | solid-p | T1 |
 | `prey` | 0.8 | solid-p | T2 |
 | `pet-food` | 0.5 | solid-p | T2 |
@@ -405,16 +407,18 @@ Actions — `worker`: `move`, `let-go`, `grip`, `pick-up`, `put-down`, `drop`, `
 
 `pTargetFrac` 0.30 when larvae are present, 0.05 without.
 
+**Honeydew by tier (brief §3).** The brief's aphid-honeydew ecology arrives in full at T2: aphid herds (Ch 05 §1.4), `tend-aphid`, `carry-aphid`, herd guarding and relocation (§6.1). The T1 reference colony runs on flowers, sugar, crumbs (including `crumb-protein`) and carcasses, plus a few static `honeydew-film` sites that Ch 05 §0 places under aphid-host stems so that a T1 Lasius forager can already find and drink honeydew. The first honeydew delivery from such a site satisfies `ms-first-honeydew` and so the `cx-honeydew` codex trigger (Ch 06 §8, §10) where those systems run; aphid tending (`cx-aphid-tending`, `ms-first-aphid-herd`) waits for T2. No tier change.
+
 #### 5.1.6 Nest template
 
 | Element | Value |
 |---|---|
-| `nestMaterials` (dig speed ×) | loam 1.0, humus 1.1, sand 1.4 (collapse risk, Ch 03), clay 0.5, gravel 0.6 |
+| `nestMaterials` (dig speed ×) | Ch 03 §2.1 `digSpeed` (owner): loam 1.0, humus 1.3, sand 1.6 (collapse risk), clay 0.45, gravel 0.35 |
 | Cover bonus | stone, concrete slab, brick, tile, plastic, metal plates: nest directly beneath preferred |
 | Tunnels / shafts | 2.0 BU / 2.5 BU |
-| Chambers (flat) | `royal` 8 BU wide × 2 BU high at 15-40 BU depth (1, from the founding cell once N ≥ 30); `nursery` 8-12 × 2.0-2.5 BU at 6-25 BU (1 per 60 brood; shallow under cover for warmth); `food` 8 × 2 BU at 15-40 BU (1 per 300 workers); `rest` 10 × 2.5 BU at 20-60 BU (1 per 150 workers); winter cluster `rest` ≥ 50 BU deep (1 when N ≥ 100) |
+| Chambers | Ch 03 §8.2 owns the Lasius template (consistency pass): S/M/L 6 x 2.5 x 8 / 8 x 2.5 x 12 / 10 x 3 x 16 BU; royal from the founding cell at `royalAt` 8 adult workers; depth bands founding 6-15, royal 12-40, nursery 4-30, food 8-30, rest 10-60, winter rest 30-80 BU; chambers are added on need (crowding, brood space, food space, missing type) |
 | Max depth | 175 BU |
-| Entrances | 1 + 1 per 400 workers, max 4 |
+| Entrances | Ch 03 `maxEntrances`: 3 (4 from 800 workers) |
 | Mound / midden | `soft-mound` of pellets (~65 BU across at maturity [D]); midden `surface-pile` ≥ 15 BU from entrances |
 | Brood climate | eggs and larvae 22-27 °C, RH 0.7-0.9; pupae 25-30 °C, RH 0.5-0.7 (nurses move pupae to warmer, drier upper chambers by day) [EST] |
 
@@ -527,11 +531,11 @@ Actions — all workers: Lasius worker list with `dig-bite` in wood, plus `eject
 | Parameter | Value |
 |---|---|
 | `simCapWorkers` | 1,200 |
-| `realEstimate` | 1:1 to 300; then 1 sim : 3 real (1,200 → 3,000) [D] |
+| `wildColonySize` (codex only) | typical 2,000-3,000, up to about 15,000 workers including satellites [D] |
 | Growth targets | y1 6-12; y2 40-80; y3 200-320 (first media and majors); y4 450-600; y5 800-1,000; y6 1,050-1,200 |
-| Foragers | only 2-3 % of workers outside at a time [D]: Ch 02 forage allocation default 3 %, slider range 1-12 % |
+| Foragers | only 2-3 % of workers outside at a time [D]: species default Forage group share 3 % of the auto targets (`forage` demand × 0.15), player slider 1-12 % recommended range |
 | Reproduction (Ch 06 §11.2) | `matureAgeYears` 4 (difficulty: Gentle 3, Harsh 6) [D 3.5-4 y and later]; `alateLayWindow` doy 2-3 (spring eggs give the sexuals [D]); `REPRO_MAX_FRAC` 0.12; `REPRO_GYNE_SHARE` 0.44 (queenless colonies: worker-laid males, gyne share 0.18 [D]); alates eclose about doy 11, **overwinter in the nest** (satellites preferred, 6.2.6) and fly the next spring, doy 1-9 (peak 4-6), launch 16:00-20:00 [EST], singly, not as a mass flight [D] |
-| Sexual larval cost | by the 2.3 mass rule gyne 10.1 P + 3.4 C (≈ 8 × a media), male 2.2 P + 0.7 C. Ch 06 §11.2 lists multipliers 28 / 4.6 × 1.6 loads; the dossier's 28 and 4.6 are relative to a *minor* (= 1 NU) and a media costs 3.5 NU, so the consistent multipliers are 8.0 / 1.3 × the media larval cost (risk R4) |
+| Sexual larval cost | 8.0 / 1.3 × the media larval cost (gyne 12.8 loads, male 2.1 loads; ≈ the 2.3 mass rule's 10.1 P + 3.4 C and 2.2 P + 0.7 C). Adopted in Ch 06 §11.2 by the consistency pass (risk R4 closed): the dossier's 28 and 4.6 are relative to a *minor* (= 1 NU) and a media costs 3.5 NU |
 | Heated buildings | heated nests break diapause (Ch 06 §6.1 heated-nest rule); alates there make sporadic winter flights to windows and die [D] |
 
 #### 5.2.5 Diet
@@ -675,9 +679,9 @@ Actions — minor: Lasius worker list minus `spray-acid`, plus `sting`, `gnaw-ra
 | Parameter | Value |
 |---|---|
 | `simCapWorkers` | 1,500 |
-| `realEstimate` | 1:1 to 300; linear to 1,500 → 12,000 [D mature 8,000-12,000] |
+| `wildColonySize` (codex only) | typical 8,000-12,000 workers [D] |
 | Growth targets | y1 (first spring onward) 15-40; y2 150-300; y3 500-900; y4+ 900-1,500 |
-| Reproduction (Ch 06 §11.2) | `matureAgeYears` 3 [EST]; `alateLayWindow` doy 8-13; `REPRO_MAX_FRAC` 0.02; `REPRO_GYNE_SHARE` 0.50; flight window doy 15-20 (peak 17-19), launch 13:00-17:00 [D afternoon, weak]; flight 0.15-0.6 GD after a rain of ≥ 7 h, regionally synchronised [D]. On the equinox calendar the research window Sep-Nov is d 12.7-19.6 (doy 13-20); see risk R3 |
+| Reproduction (Ch 06 §11.2) | `matureAgeYears` 3 [EST]; `alateLayWindow` doy 8-13; `REPRO_MAX_FRAC` 0.02; `REPRO_GYNE_SHARE` 0.50; flight window doy 15-20 (peak 17-19), launch 13:00-17:00 [D afternoon, weak]; flight 0.15-0.6 GD after a rain of ≥ 7 h, regionally synchronised [D]. On the equinox calendar doy 15-20 is late September to mid November, peak October, which matches the research (risk R3 closed: kept) |
 | Extra gate (this module) | granary stock ≥ 30 GD of consumption at the start of the lay window (stores gate of Ch 06 reads granary + paste for this species) |
 
 #### 5.3.5 Diet
@@ -807,7 +811,7 @@ Actions — minim: `move`, `grip`, `pick-up`, `put-down`, `drop`, `feed-larva` (
 
 | Parameter | Value |
 |---|---|
-| Natural window | after > 6.35 mm of rain on a clear moonless night, April-June [D]; Ch 06 start window `doy` 3-10, night (see risk R3) |
+| Natural window | after > 6.35 mm of rain on a clear moonless night, April-June [D]; Ch 06 start window `doy` 2-8 (April-June on the equinox calendar; risk R3 closed), night |
 | Site | `sand` 1.0, `loam` 1.0; `humus` 0.5; `clay` 0.2; refused: non-diggable, soil moisture ≥ 0.8 (standing water) |
 | Shaft / chamber | 25-35 BU shaft (Ch 06), target 35 [D 20-30 cm]; chamber 10 BU wide (slightly above the ~6 cm = 8.6 BU of the research so the founding garden has room for 2 GU: 6.4.1) |
 | Fungus pellet (Ch 06 §5.15) | carried in the infrabuccal pocket, `pelletHealth` 1.0 decaying 0.05 per GD while chamber humidity < 0.6 or temperature outside 18-30 °C; planted with the founding action `plant` (hold 4 s); the planted pellet becomes a garden of `G` 0.3 GU (6.4.1); the queen fertilises it at `GARDEN_FERT_COST` 0.25 loads per GD from reserves; eggs are blocked until the garden is established; pellet death = founding failure, cause `garden-lost` |
@@ -820,9 +824,9 @@ Actions — minim: `move`, `grip`, `pick-up`, `put-down`, `drop`, `feed-larva` (
 | Parameter | Value |
 |---|---|
 | `simCapWorkers` | 1,500 |
-| `realEstimate` | (100, 100), (300, 3,000), (800, 100,000), (1,500, 2,000,000), interpolated in log space [D: up to 2 million] |
+| `wildColonySize` (codex only) | typical 100,000-1,000,000, up to about 2,000,000 workers [D] |
 | Growth targets | y1 100-300; y2 400-800; y3 1,000-1,500 |
-| Reproduction (Ch 06 §11.2) | `matureAgeYears` 3 [EST]; `alateLayWindow` doy 15-28, alate brood reared in the `central` fungus chamber through winter [D]; `REPRO_MAX_FRAC` 0.04; `REPRO_GYNE_SHARE` 0.25; flight window doy 3-10, launch 21:00-03:00, after ≥ 6.35 mm rain, `moonless`, regionally synchronised [D]. Research Apr-Jun is d 0.9-7.9 on the equinox calendar (risk R3) |
+| Reproduction (Ch 06 §11.2) | `matureAgeYears` 3 [EST]; `alateLayWindow` doy 15-28, alate brood reared in the `central` fungus chamber through winter [D]; `REPRO_MAX_FRAC` 0.04; `REPRO_GYNE_SHARE` 0.25; flight window doy 2-8 (Apr-Jun on the equinox calendar; risk R3 closed), launch 21:00-03:00, after ≥ 6.35 mm rain, `moonless`, regionally synchronised [D] |
 | Extra gate (this module) | total garden ≥ 300 GU at the start of the lay window (the Ch 06 stores gate reads garden yield cover for this species) |
 
 #### 5.4.5 Diet
@@ -849,7 +853,7 @@ Adults' C comes from sap and liquids (colony C store); brood and queen eat only 
 | Tunnels / shafts | 2.5 BU / 3.0 BU (queen 2.6 BU long needs ≥ 1.2 BU passage) |
 | Chambers | `fungus`: founding 10 BU; early 12-18 BU; mature 25-35 BU wide × 10-14 BU high; at 40-400 BU depth, deeper as the colony grows (cooler in summer); max 24; the deepest is flagged `central` (winter domicile, alate rearing) [D]. `midden` (detritus): 1 per 3 fungus chambers, ≥ 25 BU tunnel distance from any fungus chamber and below them; or an external refuse heap ≥ 40 BU from all entrances (toggle `externalHeap`, default off for *A. texana* [D: detritus cavities inside]) |
 | Max depth | 450 BU (**Deviation:** real 4.6-7.6 m compressed ~2:1, dossier) |
-| Footprint | 600-900 BU across at maturity (compressed ~3.5-4:1) |
+| Footprint | within 150 BU of the first entrance (Ch 03 `footprintR` 150; directions K, consistency pass; real 15-24 m compressed ~20:1) |
 | Entrances | 1 at founding; `min(40, 1 + floor(N / 40))`; each gets a `crater` mound |
 | Vents | **T3 (stretch):** architect digs a vent shaft per 4 fungus chambers (6.4.7 air index) |
 | Brood climate | brood lives inside the garden; fungus chamber optimum 21-25 °C, RH ≥ 0.8 |
@@ -1327,11 +1331,11 @@ Media: cut and carry; choose fragment size (longer cut, bigger load, slower and 
 | Size classes | `nanitic` (flag on `worker`/`minor`), `small-media` (Atta `media` < 0.8 BU) |
 | Seed classes | `S`, `M`, `L` |
 | Action primitives (beyond Ch 01 §7 list) | `drum`, `cut-seed-head`, `process-leaf` (Atta pellet planting uses Ch 06's founding action `plant`) |
-| Item kinds | `frass` (Ch 01 uses it), `chaff`, `seed`, `seed-paste`, `leaf-fragment`, `leaf-pulp`, `staphylae` (all named in Ch 01), `fungus-piece`, `garden-waste`, `aphid` (carried aphid) |
+| Item kinds | `frass` (Ch 01 uses it), `chaff`, `seed`, `seed-paste`, `leaf-fragment`, `leaf-pulp`, `staphylae` (all named in Ch 01), `fungus-piece`, `garden-waste`; a carried aphid is Ch 05's `live-aphid` (not a new kind) |
 | Task subtypes | `tend`: `relay`, `relocate-aphid`; `nurse`: `shuttle`; `haul`: `frass`, `garden-waste`; `store`: `granary-care`; `garden`: `process`, `plant`, `tend-fungus`, `weed`; `guard`: `hitchhike` |
 | Marker kind | `satellite` |
-| Entrance kind | `window` (others are `main`) |
-| Nest-site roles / states | `parent`, `satellite`; `candidate`, `founding`, `active`, `isolated`, `abandoned` |
+| Entrance kind | `window` (already in Ch 03's entrance kinds `dug`, `natural`, `accidental`, `window`; not new) |
+| Nest-site roles / states | `parent` (= Ch 03 nest kind `main`), `satellite` (= Ch 03 nest kind `satellite`); states `candidate`, `founding`, `active`, `isolated`, `abandoned` |
 | Wood placements | `buried-log`, `log-on-soil`, `stump`, `standing-dead`, `living-tree-wound`, `firewood`, `fence-post`, `structural-dry`, `structural-leak`, `window-sill`, `door-frame-ext` |
 | Herd kinds (module tag) | `aphid`, `scale`, `root` (T3 stretch) |
 | Seed cohort states | `stored`, `damp`, `germinating`, `sprouted`, `rotting`, `rotten`, `milled` |
@@ -1339,7 +1343,7 @@ Media: cut and carry; choose fragment size (longer cut, bigger load, slower and 
 | Chamber flag | `central` (Atta), `unstable` (wood) |
 | Ant flags | `NANITIC`, `REFUSE`, `HITCHHIKING` |
 | Directive extras | `casteEmphasis`, `granaryHygiene`, `leafSelectivity`, `satelliteAuto`, `hideFrass`, `hitchhikerEscort`, `externalHeap` |
-| Diagnostics | `diag-ln-protein`, `diag-ln-recruitment`, `diag-ln-nursery-warmth`, `diag-herds`, `diag-cp-parent-moisture`, `diag-cp-satellites`, `diag-cp-growth`, `diag-cp-frass`, `diag-wood`, `diag-mb-milling`, `diag-mb-animal-protein`, `diag-mb-heat`, `diag-mb-patrol`, `diag-granary`, `diag-at-chain`, `diag-at-garden`, `diag-at-substrate`, `diag-at-phorid`, `diag-garden` |
+| Diagnostics | `diag-ln-protein`, `diag-ln-recruitment`, `diag-ln-nursery-warmth`, `diag-herds`, `diag-cp-parent-moisture`, `diag-cp-satellites`, `diag-cp-growth`, `diag-cp-frass`, `diag-wood`, `diag-mb-milling`, `diag-mb-animal-protein`, `diag-mb-heat`, `diag-mb-patrol`, `diag-granary`, `diag-at-chain`, `diag-at-substrate`, `diag-at-phorid`, `diag-garden` (the former duplicate `diag-at-garden` is dropped) |
 | Events | Appendix C |
 
 ### A.1 Static data (not in `SimState`)
@@ -1395,7 +1399,7 @@ All persisted values are plain numbers, arrays and records (seed rule); duration
 | `placeMarker` `avoid` on a fungus chamber | | quarantine (6.4.4) |
 | `placeMarker` `avoid` / `forage` on a herd or plant | | herd allocation × 0 / × 2; Atta plant rejection by the player |
 | `designateChamber` (Ch 03) | types `granary`, `fungus`, `midden` | as normal; `fungus` requires the species module |
-| `act` (Ch 01) | new ids `drum`, `cut-seed-head`, `process-leaf` | possession actions |
+| `action` (Ch 01) | new ids `drum`, `cut-seed-head`, `process-leaf` | possession actions |
 | Debug (`__game.cheat.*`, test builds) | `setWood(primId, {mc, decay})`, `setChamberClimate(chamberId, {T, rh})`, `spawnHerd(plantId, aphids, K)`, `setHerd(id, {aphids, K, phase})`, `addSeeds(granaryId, {class, hardness, loads, u, g})`, `setGarden(chamberId, {G, h, i, c, W})`, `supplySubstrate(chamberId, {lu per GD, q, p, t, plantId})`, `infectGarden(chamberId, i)`, `setColonyAge(years)`, `spawnBrood({stage, caste, chamberId, count})`, `freezeGrowth(herdId)` | scripted tests (Appendix E) |
 | Debug queries (`__game.query.*`) | `species()`, `herds()`, `woodSites()`, `granaries()`, `gardens()`, `chain()`, `diagnostics(system)` | read-only JSON |
 
@@ -1407,7 +1411,7 @@ All persisted values are plain numbers, arrays and records (seed rule); duration
 |---|---|---|
 | `herd-claimed` / `herd-lost` | `herdId, colony, cause` | journal, alerts, audio |
 | `honeydew-relay` | `fromAnt, toAnt, loads` | render cue, codex unlock |
-| `aphid-moved` | `herdFrom, herdTo, ant` | journal (first), codex |
+| `aphid-moved` (Ch 05 payload) | `fromHerd, toHerd, antId` | journal (first), codex |
 | `frass-ejected` | `siteId, pos` | particles, audio `sfx.frass-eject` |
 | `frass-pile-grew` | `pileId, units` | render, human-event scheduler |
 | `wood-moisture-alert` | `siteId, mc, status` | alerts |
@@ -1426,7 +1430,7 @@ All persisted values are plain numbers, arrays and records (seed rule); duration
 | `leaf-cache-spoiled` | `chamberId, loads` | diagnostics |
 | `hitchhiker-mounted` / `phorid-strike` | `ant, carrier` | codex, audio |
 | `caste-unlocked` | `colony, caste` | journal milestone (Camponotus year-3 giants, Messor majors, Atta majors) |
-| `cue` (generic) | `cueId` ∈ `cue.frass-fall`, `cue.drum`, `cue.stridulate`, `cue.leaf-sway`, `cue.mill`, `cue.garden-tend` | render/audio |
+| `cue` (shared cue event `{cue, pos, strength}`) | `cue` ∈ `frass-drop`, `drum`, `stridulate`, `leaf-cut`, `seed-crack`, `garden-tend` (Ch 08 §13.5 cue ids) | render/audio |
 
 ---
 
@@ -1489,9 +1493,9 @@ Each diagnostic follows the contract `Diagnostic { id, system, status, label, va
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **Ch 06 (calendar):** `d = 0` is 20 March (adopted). Ch 06's start windows for Messor (doy 15-19) and Atta (doy 3-10) appear to use the dossiers' 1-March day numbers; on the equinox calendar the research windows are Messor d 12.7-19.6 and Atta d 0.9-7.9 (see risk R3). This chapter repeats Ch 06's windows in the species data and flags the shift as risk R3.
+1. **Ch 06 (calendar):** `d = 0` is 20 March (adopted). Messor windows stay at Ch 06's `doy` 15-19 / 15-20; Atta windows are `doy` 2-8 (consistency pass, risk R3 closed).
 2. **Ch 06 (thermal, light, climate):** owns `SpeciesDef.thermal`, `lightPref` and `ClimateDef`; the values repeated here are copied from Ch 06 §1.5, §2.1, §2.6 and must stay identical.
-3. **Ch 06 (opening, overwinter, reproduction):** owns the founding model, reserve drains, clutch caps, the Atta pellet rules, winter modes and the aggregate winter model, the reproduction gate, alate costs, windows and flight rolls; the species values in this chapter repeat Ch 06 §5.5, §5.15, §6.1-6.3 and §11.2 and must stay identical (except where risks R3-R5 propose corrections). Ch 06's `W_eq` thresholds use `realEstimate` as gates only; no flow is multiplied by `w`.
+3. **Ch 06 (opening, overwinter, reproduction):** owns the founding model, reserve drains, clutch caps, the Atta pellet rules, winter modes and the aggregate winter model, the reproduction gate, alate costs, windows and flight rolls; the species values in this chapter repeat Ch 06 §5.5, §5.15, §6.1-6.3 and §11.2 and must stay identical (except where risks R3-R5 propose corrections). Ch 06's thresholds are in simulated workers (no `W_eq`, no `realEstimate`; consistency pass).
 4. **Ch 02 (colony):** implements brood development with the `devRate` tables, feeding, starvation and cannibalism; task allocation with `taskWeights`, subtypes and sliders from `directiveTasks`; caste destiny (2.6); collective nutrition using `pTargetFrac`; the egg-laying accumulator; the Gordon-style interaction-rate activation with the Messor patrol gate and summer-lull floor; refuse-worker network exclusion; per-species `ageRateOutside` / `ageRateDormant`; worker and nanitic brood and lifespan values for Lasius (Ch 02 §1-3 are authoritative; this chapter repeats them).
 5. **Ch 01 (actions):** its action primitive list is the source of truth; this chapter adds `drum`, `cut-seed-head`, `process-leaf`, overrides `carryCap` defaults (CP minor 0.5 instead of 0.8), sets `MILL_S` semantics (12 × (1 + 4 × hardness) s per load) and lets media mill and gnaw radicles in addition to the castes Ch 01 lists.
 6. **Ch 03 (nest):** provides material dig factors for soil (this chapter supplies wood factors), a pile/mound primitive API for frass piles, chaff middens and waste heaps, chamber climate (temperature from Ch 06, humidity from soil moisture), an entrance `kind` field (`window`), chamber flags (`central`, `unstable`), collapse rules for unstable wood, and architect hooks to accept per-species templates and module proposals (satellites, granaries, fungus/midden chambers, windows).
@@ -1505,11 +1509,11 @@ Each diagnostic follows the contract `Diagnostic { id, system, status, label, va
 
 | Id | Risk | Proposal |
 |---|---|---|
-| R1 | The dossiers scale flows by `w`; this chapter (2.2) keeps flows sim-native and uses `w` for display and gates only. If Ch 02 or Ch 06 multiply any flow by `w`, numbers diverge. | Confirm sim-native everywhere; `W_eq` only for thresholds and display. |
+| R1 | (closed) Per-agent weights removed everywhere (directions K); thresholds and display use simulated workers. | — |
 | R2 | Several species values are copies of Ch 02 (Lasius brood, lifespans, laying), Ch 05 (herds) and Ch 06 (thermal, opening, winter, reproduction). Copies drift. | Species data files import those constants by name instead of re-typing them. |
-| R3 | Ch 06 start and flight windows for Messor (`doy` 15-20) and Atta (`doy` 3-10) look like the dossiers' 1-March numbering. On Ch 06's own equinox calendar the research months are Messor Sep-Nov = `doy` 13-20 and Atta Apr-Jun = `doy` 1-8. | Shift both windows by about −1.5 GD, or accept as a stylisation and note it in the codex. |
-| R4 | Ch 06 §11.2 Camponotus sexual cost 28 / 4.6 × 1.6 loads treats the dossier's minor-relative nitrogen units as media-relative; the gyne would cost about 3.5 × too much. | Use 8.0 / 1.3 × the media larval cost (5.2.4). |
-| R5 | Lasius sexual larval cost differs between Ch 02 (gyne × 6 = 7.2 P + 2.4 C) and Ch 06 (gyne 12 × 1.6 = 14.4 P + 4.8 C). | This chapter follows Ch 06 (consistent with the mass rule of 2.3). |
+| R3 | (closed by the consistency pass) Messor windows kept (doy 15-20 = late September to mid November on the equinox calendar); Atta start and flight windows moved to doy 2-8 in Ch 06 §1.6 and §11.2. | — |
+| R4 | (closed) Ch 06 §11.2 now uses 8.0 / 1.3 × the media larval cost for Camponotus sexuals. | — |
+| R5 | (closed) Ch 02 §2.3 now uses Ch 06's gyne × 12 and male × 2 (of 1.6 loads). | — |
 | R6 | Three T3 economy modules are each large (wood, granary, fungus); together with polymorphism they are the riskiest T3 work. | Build order: granary (fewest new systems), then wood, then fungus; T3 (stretch) items may be cut. |
 | R7 | Many species numbers are estimates (Messor development times, Atta load sizes and garden yields, Camponotus lifespans and caste masses). | Treat all [EST] values as balance placeholders for the headless growth-target runs (3.5 `growthTargets`). |
 

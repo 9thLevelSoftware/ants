@@ -14,9 +14,15 @@ Verdict: **yes.** One merged geometry per variant and LOD, one material per vari
 shader from 112 bytes of per-instance data. 2000 animated ants with carried items cost 8-12 draw calls and ~1 ms of
 CPU per frame for LOD bucketing; the anatomy holds up in a 3 mm-wide close-up (toothed mandibles, faceted compound eyes,
 elbowed 12-segment antennae, coxa/femur/tibia/5 tarsomeres + claws, petiole scale, banded gaster with setae).
-Feet are planted exactly while walking straight (measured drift 2e-14 mm over 25 stances).
+Feet stay planted while walking straight: `__spike.footSlide()` runs a CPU replica of the shader's foot-target formula
+through the walker sim and measures 2e-14 mm drift of a stance foot over 25 stances; the gait frames confirm it visually
+(the foot stays on the same soil spot while the camera-followed body advances). Turning still slides (section 8).
 
-__BENCH_SUMMARY__
+Cost summary (headless SwiftShader, 1280x720, post off, MSAA off, shadows on; relative numbers only):
+the ground plane alone costs 139 ms/frame; **2000 ants with automatic LOD add ~240 ms** (381 ms total, 367k triangles,
+8-12 draw calls) seen from a low camera, **~100 ms** from an overview (all 2000 at LOD3, 208k triangles); 4000 ants add
+~255 ms / ~200 ms. Forcing everything to LOD0 costs 1.3 s per 250 ants: the LOD system is what makes crowds affordable.
+Building all 7 variants x 4 LODs takes 67 ms on the CPU.
 
 ## 1. Files
 
@@ -30,6 +36,26 @@ __BENCH_SUMMARY__
 | `crowd.ts` | `AntRenderer` (instanced batches per variant x LOD, CPU frustum cull + LOD bucketing, wings, carried items) + throw-away walker sim |
 | `main.ts` | scene, lighting, soil shader, post chain, scenes `hero lineup scale items poses lod crowd`, `window.__spike` API |
 | `shots.mjs`, `bench.mjs` | harness scripts that produced the screenshots and the numbers in this document |
+
+### Scripted API (`window.__spike`, `window.__ready`)
+
+`window.__ready` becomes true after the first rendered frame (and the SMAA LUTs when MSAA is off). Time only advances
+through `step()` (default; `?live=1` animates in real time), so screenshots are deterministic.
+
+```ts
+setScene(name: 'hero' | 'lineup' | 'scale' | 'items' | 'poses' | 'lod' | 'crowd', opts?: { variant?: PresetName; n?: number; seed?: number }): Info
+setCamera(c: 'three-quarter' | 'side' | 'top' | 'front' | { target?: [x, y, z]; dist?: number; az?: deg; el?: deg; fov?: deg; pos?: [x, y, z]; follow?: antIndex | -1 }): { pos; target }
+setCount(n: number): Info                                   // crowd scene: grow/shrink the colony
+setPose(i: number | 'all', p: { raise?; gaster?; swell?; gape?; item?: ItemKind | null; speed?: mmPerS; idle?; heading? }): number
+setAnt(i: number, partialAntState): boolean                // e.g. { phase: 0.18 }, { forceLod: 2 }
+step(seconds: number, dt = 1 / 60): { t; phase }           // advance the walker sim + shader clock, then render once
+render(): Info;  info(): Info                              // Info: lod buckets, triangles, draw calls, variant/item tri counts
+setPost({ dof?: boolean; focus?: mm; range?: mm });  setLod({ nearPx?; midPx?; farPx?; maxNear?; debugTint?; force?: 0..3 | null })
+bench(n = 8, warm = 2): { ms; cpuMs; info }               // synchronous frames ending in readPixels
+footSlide(seconds = 1, leg = 0, speedMmPerS = 24): { maxDriftMm; stances; strideMm }
+dispose(): void                                             // also window.__dispose
+```
+URL flags: `?scene= &variant= &n= &post=0|1 &msaa=0|1 &shadows=0|1 &live=1`.
 
 ## 2. Geometry recipe
 
@@ -87,7 +113,21 @@ whole body. Per-piece smooth normals are computed by the builder so parts do not
 | 2 | 9-22 px | 4-5 radial sections, femur/tibia/tarsus 3-sided capless tubes, no mandibles or petiole stalk |
 | 3 | < 9 px | head/mesosoma/gaster bipyramids, 2-sided ribbon femur + tibia, no antennae; still animated by the same shader |
 
-__TRIS_TABLE__
+Triangles (and vertices) per variant, measured from the index buffers:
+
+| Variant | LOD0 | LOD1 | LOD2 | LOD3 | wings (LOD0/1 only) | vertices LOD0/1/2/3 |
+|---|---|---|---|---|---|---|
+| Lasius niger worker (4.0 mm) | 5518 | 804 | 298 | 104 | - | 3153 / 466 / 219 / 82 |
+| Lasius niger queen, dealate (8.6 mm) | 5803 | 900 | 298 | 104 | - | 3377 / 522 / 219 / 82 |
+| Lasius niger gyne, winged (8.6 mm) | 5707 | 804 | 298 | 104 | 288 | 3321 / 466 / 219 / 82 |
+| Lasius niger male (4.2 mm) | 5688 | 832 | 298 | 104 | 288 | 3189 / 480 / 219 / 82 |
+| generic major (9.0 mm) | 5356 | 808 | 318 | 104 | - | 3112 / 475 / 234 / 82 |
+| generic media (6.5 mm) | 5375 | 808 | 318 | 104 | - | 3124 / 475 / 234 / 82 |
+| generic minim (3.2 mm) | 5307 | 808 | 318 | 104 | - | 3020 / 475 / 234 / 82 |
+
+LOD0 budget split (worker, approx.): legs ~2200 (tarsomeres and claws are most of it), gaster ~950 (bands + membranes),
+mesosoma ~560, head ~420, antennae ~600, eyes ~250, mandibles ~170, petiole ~120, setae ~210. Further cuts if needed:
+tarsus radial 4 -> 3, funiculus 2 -> 1 ring per segment, which brings LOD0 to ~4000.
 
 ## 3. Shader and attribute design
 
@@ -158,7 +198,20 @@ data; because they run the same `antDeform()` they follow the head/body exactly,
 
 ## 4. Presets (`params.ts`)
 
-__PRESET_TABLE__
+All proportions are fractions of body length (head height = fraction of head width).
+
+| Preset | body mm | head L / W, tilt, notch | mesosoma L (profile) | gaster L / W (bands) | petiole | mandible L (teeth) | eye | ocelli | antenna scape / funiculus (segments) | legs length x thickness | spines | wings |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `worker` Lasius niger | 4.0 | .235 / .225, .42, .12 | .33 (worker) | .35 / .255 (5) | 1, scale | .36 HL (7) | .24 HL | no | .95 / 1.25 HL (11) | 1.0 x 1.0 | - | none |
+| `queen` L. niger dealate | 8.6 | .17 / .175, .36, .06 | .355 (alate) | .47 / .30 (5), fullness .2 | 1, scale | .33 (7) | .27 | yes | .85 / 1.2 (11) | .72 x 1.25 | - | stubs |
+| `gyne` L. niger virgin queen | 8.6 | as queen | as queen | as queen | as queen | as queen | .27 | yes | as queen | as queen | - | full, forewing 1.08 BL |
+| `male` L. niger | 4.2 | .15 / .165, .5, 0 | .37 (male) | .37 / .19 (6) | 1, scale (low) | .22 (2) | .42 | yes | .75 / 2.0 (12) | 1.05 x 0.8 | - | full, 1.02 BL |
+| `major` generic polymorphic | 9.0 | .33 / .36, .33, .5 | .27 (worker) | .27 / .21 (4) | 2, node | .36 (4) | .13 | no | .6 / .8 (10) | .78 x 1.15 | propodeal .03 | none |
+| `media` | 6.5 | .27 / .27, .38, .25 | .30 | .30 / .22 (4) | 2, node | .36 (5) | .17 | no | .75 / .95 (10) | .9 x 1.05 | propodeal .03 | none |
+| `minim` | 3.2 | .22 / .20, .42, 0 | .33 | .33 / .23 (4) | 2, node | .34 (6) | .20 | no | .95 / 1.2 (10) | 1.08 x .95 | propodeal .022 | none |
+
+Gait: worker stride 0.5 BL per cycle, lift 0.065 BL, duty 0.55; queens 0.36 / 0.045 / 0.6 (shorter legs, slower);
+generic polymorphic 0.42 / 0.055 / 0.55 (minim 0.5). Cruise speed in the spike sim = 6 BL/s (Lasius 23.5-26 mm/s).
 
 Colours are linear-converted sRGB hex: Lasius workers dark brown-black with paler tarsi and reddish-brown mandibles
 (BWARS: "greyish brown to dark brownish black"), queens brownish black and glossier, males black with paler legs; the
@@ -171,7 +224,19 @@ body length) for Messor/Atta/Camponotus and also exercise 2-node petioles and sp
 Item-local frame: mm, +Z away from the carrier, origin = the point held between the mandibles. Carry pose per item
 (head raise, gape, extra pitch): `carriedGeometry()` bakes the item at the variant's grip point, tagged `PART.ITEM`.
 
-__ITEM_TABLE__
+| Item | Size (mm) | Tris | Build | Carry (pitch, gape, head raise) |
+|---|---|---|---|---|
+| `eggs` | clump ~0.9, eggs 0.52 x 0.34 | 1200 | 16 jittered non-overlapping ellipsoids, cream, glossy (0.18) | 0.2, 0.25, 0.6 |
+| `larva` | 2.4 long | 1224 | C-curved (crook-neck) loft along an arc, 13 segment bulges, darker midgut tint, small head capsule with brown mandible tips | -0.2, 0.3, 0.85 (hangs below the head) |
+| `cocoon` | 3.5 x 1.4 | 608 | spindle loft, silk colour noise + slight radial jitter, matt (0.82), **black meconium spot at the posterior pole** | 0.05, 0.45, 1.0 (held by the anterior end) |
+| `pupa` (naked, exarate) | ~3.9 | 804 | `bakePupa()`: the worker LOD1 mesh re-posed on the CPU with the shader's segment frames: legs folded flat under the body, 1.7x plumper limbs, antennae folded down and back, head tucked, gaster curled, cream with pigmented eyes | 0.3 down, 0.4, 1.0 |
+| `crumb` | ~1.4 | 252 | noise-displaced ellipsoid, golden crust to pale crumb colour, matt | 0.1, 0.6, 0.7 |
+| `pellet` | ~0.85 | 168 | lumpy dark moist soil with pale mineral grains | 0, 0.4, 0.4 |
+| `seed` | 1.4 x 0.85 + elaiosome | 352 | glossy brown seed with a ridge and a pale fatty **elaiosome** (myrmecochory: Lasius carries such seeds by it) | 0.15, 0.35, 0.6 |
+| `leaf` | 2.2 x 2.6 | 204 | two-sided curled sheet with an irregular bitten outline, midrib and lateral vein colours; carried upright | 0, 0.2, 0.6 |
+| `droplet` (honeydew) | 0.9 | 252 | transparent amber sphere (opacity 0.62, clearcoat 1, roughness 0.04). Biology note: Lasius normally carries honeydew in the crop (use `swell`); a droplet between the mandibles is a readable gameplay cue | 0, 0.35, 0.5 |
+
+Ground items in the spike are plain meshes with a standard material; carried items are instanced through the ant shader.
 
 ## 6. LOD and shadow strategy
 
@@ -188,7 +253,60 @@ __ITEM_TABLE__
 
 ## 7. Costs
 
-__COSTS__
+Method: `spikes/ants/bench.mjs` (harness `--script`), page flags `post=0&msaa=0`, 1280x720, scene `crowd`
+(density fixed: ants spread over a disc of radius 6.5*sqrt(n) mm), 2 warm-up + 5 measured frames rendered synchronously,
+each ending in a 1-pixel `readPixels`. `cpu ms` = per-frame culling + LOD bucketing + buffer fill (the walker sim step is
+excluded). Two cameras: **low** (target 60 mm in, 150 mm away, 20 deg elevation, 40 deg fov; most ants culled or small)
+and **overview** (whole disc in view, 60 deg elevation). Software rendering, 4 cores, +/-15 % noise: compare rows, do not
+read them as real-GPU frame times.
+
+A. Automatic LOD (thresholds 48 / 22 / 9 px, max 160 at LOD0)
+
+| camera | ants | shadows on: ms/frame | shadows off: ms/frame | cpu ms | visible at LOD0 / 1 / 2 / 3 | culled | triangles submitted (main pass) |
+|---|---|---|---|---|---|---|---|
+| low | 0 (ground only) | 139 | 97 | 0.1 | - | - | 0 |
+| low | 250 | 201 | 154 | 0.6 | 0 / 72 / 176 / 0 | 2 | 110,588 |
+| low | 500 | 280 | 254 | 0.4 | 4 / 124 / 311 / 0 | 61 | 215,726 |
+| low | 1000 | 325 | 246 | 0.3 | 5 / 124 / 500 / 0 | 371 | 278,450 |
+| low | 2000 | 381 | 298 | 0.7-1.2 | 5 / 143 / 694 / 124 | 1034 | 367,310 |
+| low | 4000 | 393 | 315 | 1.2 | 3 / 128 / 710 / 665 | 2494 | 405,966 |
+| overview | 0 | 159 | 101 | 0.1 | - | - | 0 |
+| overview | 250 | 180 | 140 | 0.3 | 0 / 0 / 250 / 0 | 0 | 74,500 |
+| overview | 500 | 201 | 154 | 0.5 | 0 / 0 / 251 / 249 | 0 | 100,694 |
+| overview | 1000 | 229 | 145 | 0.7 | 0 / 0 / 0 / 1000 | 0 | 104,000 |
+| overview | 2000 | 260 | 197 | 1.0 | 0 / 0 / 0 / 2000 | 0 | 208,000 |
+| overview | 4000 | 356 | 280 | 3.0 | 0 / 0 / 0 / 4000 | 0 | 416,000 |
+
+B. Forced single LOD (shadows on; with forced LOD0 every ant also renders into the shadow map), from the first run with
+the earlier 70 px threshold (does not matter for forced rows)
+
+| camera | ants | forced LOD | ms/frame | visible | triangles submitted |
+|---|---|---|---|---|---|
+| low | 250 | LOD0 | 1322 | 248 | 1,382,308 |
+| low | 500 | LOD0 | 2251 | 439 | 2,440,626 |
+| low | 1000 | LOD0 | 2996 | 629 | 3,496,146 |
+| low | 500 / 1000 / 2000 / 4000 | LOD1 | 358 / 467 / 582 / 836 | 439 / 629 / 966 / 1506 | 371k / 531k / 811k / 1.28M |
+| low | 1000 / 2000 / 4000 | LOD2 | 257 / 317 / 437 | 629 / 966 / 1506 | 187k / 288k / 449k |
+| low | 1000 / 2000 / 4000 | LOD3 | 188 / 212 / 239 | 629 / 966 / 1506 | 65k / 100k / 157k |
+| overview | 250 / 500 | LOD0 | 1331 / 2332 | 250 / 500 | 1.39M / 2.78M |
+| overview | 500 / 1000 / 2000 / 4000 | LOD1 | 373 / 612 / 941 / 1704 | all | 423k / 846k / 1.69M / 3.38M |
+| overview | 1000 / 2000 / 4000 | LOD2 | 289 / 728 / 704 | all | 298k / 596k / 1.19M |
+| overview | 1000 / 2000 / 4000 | LOD3 | 210 / 258 / 339 | all | 104k / 208k / 416k |
+
+Reading the numbers
+* Cost is vertex-bound and roughly linear in submitted triangles: in software GL ~0.9 ms per 1000 LOD0 triangles incl.
+  the shadow pass, ~0.45-0.5 ms per 1000 LOD1-3 triangles. LOD0 is ~13x LOD1 and ~53x LOD3 per ant, hence the hard cap
+  of 160 near ants.
+* With automatic LOD the ant cost grows sub-linearly with colony size (more ants are culled or tiny): 250 -> 4000 ants
+  adds only 192 ms from the low camera.
+* Shadows cost 40-85 ms here. The ground-only row already shows +42 ms: that is PCF sampling in the full-screen ground
+  shader (the ground does not cast). Only LOD0 ants and near carried items cast, so the ants themselves add little.
+* CPU: bucketing 2000 ants (sort by distance, matrix compose, 4 x 112 bytes writes) is ~1 ms; 4000 is ~3 ms in the
+  overview (every ant visible). Production: skip the sort when nobody qualifies for LOD0, write SoA buffers directly
+  from sim arrays, and update LOD2/3 batches at half rate.
+* Real-GPU expectation (not measurable here): ~400k triangles of simple vertex work is a small fraction of an integrated
+  GPU's budget; the vertex shader is ~150 ALU ops for leg vertices, ~40 for rigid parts.
+* Memory: 52 bytes/vertex -> worker LOD0 164 KB, all 4 LODs ~205 KB per variant; 112 bytes per instance per batch.
 
 ## 8. Problems found and how they were solved (read before porting)
 
@@ -209,6 +327,10 @@ __COSTS__
   down (looked like a third pair of front legs), a separate clypeus ellipsoid (looked like a nose), mandible hinge under the
   head (looked like fangs). All fixed by looking at colour-coded close-ups (temporarily set `mandible`/`tarsi` colours).
 * **Pupa**: baking the folded pupa needs the same segment-local leg frames as the shader; pupal limbs are made 1.7x plumper.
+  The antennae are still thin adult antennae folded along the body; a production pupa should get its own thicker
+  antenna sheaths and a hand-tuned fold (it is one static mesh, so authoring cost is small).
+* **Mandibles** still pick up a lavender clearcoat reflection of the sky at grazing angles; per-part sheen/roughness
+  overrides exist (`vAntMat`), a per-part clearcoat gain would be the next knob.
 * **Known limitations (not fixed in the spike)**:
   * Feet slide while **turning** (stance targets are fixed in the body frame and rotate with the heading). Fix in
     production: add yaw-since-touchdown compensation (stance foot rotated by `-turnRate * timeSinceTouchdown` about the
@@ -244,7 +366,7 @@ export interface AntMorphology {                       // = spike AntParams
 export const PART: { readonly BODY: 0; readonly HEAD: 1; readonly MANDIBLE: 2; readonly SCAPE: 3; readonly FUNICULUS: 4; readonly LEG: 5; readonly GASTER: 6; readonly WING: 7; readonly ITEM: 8; readonly PETIOLE: 9 };
 export interface AntRig { /* uniforms, see section 3 */ strideMm: number; grip: Vec3; /* ... */ }
 export interface AntVariant { id: number; morphology: AntMorphology; rig: AntRig; lods: BufferGeometry[]; wings: BufferGeometry | null; tris: number[] }
-export function buildAntVariant(m: AntMorphology, id: number): AntVariant;        // ~10-20 ms each, cache per species/caste
+export function buildAntVariant(m: AntMorphology, id: number): AntVariant;        // ~10 ms each (7 variants x 4 LODs: 67 ms), cache per species/caste
 export function bakeStaticPose(v: AntVariant, pose: 'pupa' | 'corpse' | 'callow'): BufferGeometry;
 
 // src/render/ants/items.ts
@@ -286,4 +408,24 @@ its feet stay planted at any speed. `pose.*` and `carried` come from sim state (
 
 ## 10. Screenshots (`docs/research/spike-ants-img/`, all looked at)
 
-__SHOTS__
+Produced by `spikes/ants/shots.mjs` at 1280x720, post chain on (composer MSAA 4x, bloom, ACES, vignette; depth of field
+on the close-ups), shadows on.
+
+| File | Shows |
+|---|---|
+| `01-worker-three-quarter.png` | worker three-quarter close-up (DoF) |
+| `02-worker-side.png` | worker side profile |
+| `03-worker-top.png` | worker top view |
+| `04-worker-head.png` | head close-up: toothed mandibles, faceted compound eye, elbowed antennae, palps, setae |
+| `05-queen-vs-worker.png` | dealate queen (8.6 mm) next to a worker (4 mm) |
+| `06-gyne-winged.png`, `06b-gyne-top.png` | winged virgin queen, wings folded over the gaster with venation and pterostigma |
+| `07-male.png` | male: big eyes, small head, slender gaster, wings |
+| `08-gait-1.png`, `08-gait-2.png`, `08-gait-3.png`, `08-gait-strip.png` | mid-stride gait, three frames 1/6 cycle apart (camera follows; tripods swap, planted feet stay on the same soil spot) |
+| `09-carry-cocoon.png` | worker carrying a cocoon (head raised, mandibles on the anterior pole) |
+| `10-items-and-carriers.png`, `10b-eggs-larva-cocoon.png`, `10c-pupa-crumb-pellet.png`, `10d-seed-leaf-droplet.png` | every brood/item model on the ground and carried |
+| `11-poses.png`, `11b-spray-and-replete.png` | walking, carrying, alarm (gaster raised), spraying (gaster curled forward, body raised), replete (swollen gaster with pale membranes), idle grooming |
+| `12-castes-lineup.png` | polymorphism and castes in profile: minim, worker, media, major / male, queen, gyne |
+| `13-crowd-2000.png` | 2000 ants walking (near ants LOD0 with shadows, items carried) |
+| `13b-crowd-2000-overview.png` | all 2000 in view (LOD3 dots) |
+| `14-far-lod-tinted.png` | the crowd tinted by LOD: red LOD0, green LOD1, blue LOD2, yellow LOD3 |
+| `15-lod-ladder.png`, `15b-lod-ladder-mid-distance.png` | LOD0..3 side by side close up, and at the ~40 px distance where they are used |

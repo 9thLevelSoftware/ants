@@ -49,6 +49,7 @@ Not owned here (consumed through their interfaces): surface walker, cruise/sprin
 | D7 | Colony-wide stimuli | Allocation reads colony aggregates of cues that ants sense locally (brood hunger, frontier, deficit). This is an explicit abstraction. | Performance; legibility. |
 | D8 | 75-worker recruitment threshold | Implemented as a smooth colony-size factor on trail deposition, not a hard switch. | Avoids a gamey step; matches "emerges at about 75". |
 | D9 | Brood cannibalism under starvation | Common in ants; not measured for *L. niger*. Used as the starvation buffer. | Labelled in the codex as general ant biology. |
+| D10 | Directives and markers ("orders through the queen") | Real colonies have no commander: a queen issues no orders and work is regulated by local encounters and chemical cues, differently in each species (Gordon 2007, [S3]). The Directives panel and markers are a deliberate gameplay abstraction of that regulation. They never move an ant directly: sliders set allocation targets (6.3) and markers add local stimuli and plans, and every ant still takes or leaves a task through its own response threshold (6.4), age band and local cues. The abstraction is said in play by codex entry `cx-interface-orders` (GDD 06 §10) and the Directives panel tooltip (GDD 08 §4.2). | Brief §3 (queen orders are an intentional abstraction over decentralised coordination); seed §1. |
 
 ### 0.4 New canonical identifiers added by this chapter
 
@@ -66,12 +67,12 @@ All canonical ids of directions J are used unchanged. Additions (kebab-case):
 | Nursery jobs | `rescue`, `evacuate`, `assist-eclosion`, `feed`, `move`, `tend-pile`, `groom` |
 | Starvation stages | `fed`, `lean`, `rationing`, `brood-sacrifice`, `adult-starvation` |
 | Brood death causes | `starvation`, `cannibalised`, `untended`, `temperature`, `humidity`, `hygiene`, `exposure`, `flooding`, `eclosion-failed`, `predation`, `base` |
-| Adult death causes used | `old-age`, `starvation`, `heat`, `cold`, `drowning`, `predation`, `combat`, `crushed`, `poison`, `exposure`, `disease` (reconcile with chapter 06's list; same strings where they overlap) |
-| Item kinds | `food-item`, `pellet`, `waste`, `corpse`, `brood` |
+| Adult death causes used | the canonical list of `00-index.md` §B (GDD 06 §9.3 extended by GDD 05): this chapter uses `old-age`, `starvation`, `heat`, `cold`, `drowning`, `predation`, `combat`, `crushed`, `poison`, `disease`, `lost`. (The earlier adult cause `exposure` is folded into `cold`/`heat`/`lost`; `exposure` remains a brood cause.) |
+| Item kinds | `food-piece`, `soil-pellet`, `waste`, `corpse` (canonical item kinds of `00-index.md` §B; brood is never an item, it is carried as its own entity) |
 | Waste kinds | `meconium`, `cocoon`, `spoiled-food`, `brood-corpse` |
 | Reason codes | listed in section 7 |
-| Directive values | `production`: `workers-only`, `balanced`, `raise-alates`; `stockTarget`: `low`, `normal`, `high`; `stayIn` (boolean); `allocation`: `auto` |
-| Diagnostics | `mortality`, `hygiene` (in addition to chapter 08's expected ids) |
+| Directive values | `alateInvestment` 0..1 (GDD 06 §11.3; the UI presets Workers only / Balanced / Raise alates send 0 / 0.5 / 1.0); `stockTarget`: `low`, `normal`, `high`; `stayIn` (boolean); `allocation`: `auto` |
+| Diagnostics | `diag-mortality`, `diag-hygiene` (in addition to chapter 08's expected ids; every diagnostic id carries the `diag-` prefix, GDD 06 scheme) |
 | Alert kinds | `colony-starving`, `stores-full` |
 | Remedy ids | `remedy.slider.<group>`, `remedy.diet.<carbohydrate|protein>`, `remedy.marker.<kind>`, `remedy.dig.<chamberType>`, `remedy.possess.<task>`, `remedy.stock.<level>` |
 | Time series | listed in 13.2 |
@@ -226,10 +227,10 @@ Multipliers by destined caste and flag:
 | Case | DU multiplier | Food multiplier | Adult result |
 |---|---|---|---|
 | worker | 1.0 | 1.0 | worker, scale drawn (1.2) |
-| `firstBrood` (founding queen alone) | larva × 0.85 | × `FIRST_BROOD_FOOD_MULT` 0.60 (0.72 P + 0.24 C) | `nanitic`, scale 0.85 |
+| `firstBrood` (founding queen alone) | 1.0 (the time-lapse is the fast track) | 1.0, drawn from the founding pool `R` as `LARVA_COST_LOADS` 1.6 (GDD 06 §5.12) | `nanitic`, scale 0.85 |
 | `minim` (early pupation, 2.6) | — | — | scale 0.90 |
-| `gyne` [T2] | larva × 2.0, pupa × 1.1 | × 6.0 (7.2 P + 2.4 C) | gyne (reproduction chapter) |
-| `male` [T2] | larva × 1.2 | × 1.4 | male |
+| `gyne` [T2] | larva × 2.0, pupa × 1.1 | × 12 (14.4 P + 4.8 C; GDD 06 §11.2 owns) | gyne (reproduction chapter) |
+| `male` [T2] | larva × 1.2 | × 2 (2.4 P + 0.8 C; GDD 06 §11.2) | male |
 
 ### 2.4 Larval feeding and hunger
 
@@ -262,27 +263,20 @@ Each brood death emits `brood-died {cause}` and spawns a waste item (`brood-corp
 
 ### 2.6 Destined caste, early pupation [T1 worker; T2 alates]
 
-- Every egg laid by a mated queen is `worker` unless the reproduction gate (owned by chapter 06) is open and the production directive allows alates; then the queen lays `gyne` and `male` eggs at the fractions given by chapter 06 (default spring days 2-6). Eggs laid while the colony has never had an adult worker are `firstBrood`.
+- Every egg laid by a mated queen is `worker` unless the reproduction gate (owned by chapter 06) is open and the `alateInvestment` directive is above 0; then the queen lays `gyne` and `male` eggs at the fractions given by chapter 06 (default spring days 2-6). Eggs laid while the colony has never had an adult worker are `firstBrood`. (`alateInvestment`, GDD 06 §11.3, replaces the earlier `production` directive.)
 - **Minims** [T1]: a larva with `progress ≥ 0.8 × LARVA_DU` whose colony has protein need `needP ≥ 0.8` continuously for `MINIM_TRIGGER_GD` 0.25 pupates immediately with flag `minim`. Underfed larvae become small workers; the colony saves protein.
 
 ### 2.7 First brood and the founding fast-track [T1]
 
-The opening (chapter 06) runs the normal simulation; the time-lapse fast-forwards the same sim (`step` at high rate). There is no separate biology. The fast-track is:
+The opening (chapter 06) runs the normal simulation; the time-lapse fast-forwards the same sim (`step` at high rate). There is no separate biology. **The founding model is owned by GDD 06 §5.5-5.12** (consistency pass); this section only states how the colony systems behave inside it:
 
-1. **Founding queen as nurse.** While the colony has no adult worker, the queen runs `queen.found-care` (10.14): she feeds larvae from her `reserve` (C) and `reserveP` (P) at 0.1 load per feed, tends piles and helps eclosion. In the time-lapse she does this automatically.
-2. **Nanitic shortcut.** `firstBrood` larvae need 60 % of the food and 85 % of the larval time; they become nanitics (scale 0.85, crop cap 0.72, nurse feed capacity +10 %).
-3. **Triage.** The queen keeps only the larvae her reserves can finish. Every 60 s: `supportable = floor((reserveP − QUEEN_P_FLOOR 1.0 − 0.04 × eggsStillToLay) / (0.72 × (1 − meanFedFraction)))`; while `larvae > supportable + 2`, she eats the least-developed larva (cause `cannibalised`, 50 % of its `fed` returns to her reserves).
-4. **Founding clutch.** She lays at `FOUNDING_LAY_RATE` 30 eggs per gd until `FOUNDING_CLUTCH` = `round(40 × fecundity)` eggs, then stops until the first nanitic ecloses (chapter 01's player `lay-egg` uses the same budget).
+1. **Founding pool.** Until the first worker eats, the queen's single founding pool `R` (GDD 06 `FOUND_R0`, Lasius 56 loads, C and P at 1:1) replaces colony stores, `gut`, `reserve` and `reserveP`. Queen upkeep `FOUND_UPKEEP_PER_GD` 0.40 (0.30 C + 0.10 P, no claustral discount), eggs 0.04 each and larval draw `LARVA_COST_LOADS` 1.6 per larva (drawn progressively over the larval stage) all come from `R`.
+2. **Founding queen as nurse.** While the colony has no adult worker, the queen runs `queen.found-care` (10.14): she feeds larvae from `R`, tends piles and helps eclosion. In the time-lapse she does this automatically.
+3. **First brood.** `firstBrood` larvae develop at normal rates and become nanitics (scale 0.85, crop cap 0.72, nurse feed capacity +10 %).
+4. **Cannibalism.** GDD 06 §5.12 step 3 (below `0.10 R0` the queen eats the youngest larva with p 0.25 per 0.05 GD, returning 0.6 of its invested loads) replaces the earlier triage rule.
+5. **Founding clutch.** Laid by the player (or automatically) in batches of `OPEN_LAY_BATCH_EGGS` 6 during the opening phase `lay`, capped by `FOUND_CLUTCH_MAX_EGGS` (Lasius 48) and `maxEggsByVolume` (GDD 06 §5.10). AI founding queens (rival, Lineage) lay `FOUND_AI_CLUTCH` 24 eggs.
 
-Founding queen reserves at the seal (defaults; chapter 06 may scale them by site quality and difficulty):
-
-| Constant | Value | Covers |
-|---|---|---|
-| `QUEEN_RESERVE_P_START` | 17 P | 40 eggs (1.6 P) + ~20 nanitic larvae (14.4 P) + claustral P upkeep + floor |
-| `QUEEN_RESERVE_C_START` | 7 C | larvae C (4.6) + claustral upkeep (~0.7) + margin |
-| `QUEEN_CLAUSTRAL_MET_MULT` | 0.5 | queen upkeep while sealed |
-
-Expected outcome at a constant 21 C: first nanitic about 3.8-4.0 gd after the first egg; 16-20 nanitics (dossier median 18); reserves meter (`0.3 × C/C0 + 0.7 × P/P0`) ends near 10-15 %. Colder sites take longer (5.4 gd at 18 C) and spend more C, so poor sites yield fewer nanitics through triage.
+Expected outcome (GDD 06 §5.12 calibration, chamber 19.5 C, `Q` 0.7, clutch 24): first worker 4.52 GD after the first egg (3.9 GD at 21 C), 8-15 nanitics (mean 11.5), reserves at first worker about 0.4. At hand-over the remaining `R` is split equally into the queen's `reserve` (C) and `reserveP` (P); `QUEEN_FAT_CAP` limits only later refilling.
 
 ### 2.8 Diapause and winter [T2]
 
@@ -326,13 +320,13 @@ fSize(N)  = 0.30 + 0.70 × (1 − exp(−N / 300))
 
 Mechanics: `eggBudget += potential × dt_gd` each slow tick (cap 3). The AI queen lays (primitive `lay-egg`, 6 s, chapter 01) whenever `eggBudget ≥ 1` **and** `gut.P ≥ EGG_COST_P` 0.04; each egg costs 0.04 P from the gut and 1 budget. Player-issued `lay-egg` draws on the same budget. Protein therefore physically limits laying. The AI queen is **not** subject to chapter 01's player cooldown `LAY_COOLDOWN_S`: at 6 s per egg she can lay at most 100 eggs per gd, which is `Q_MAX`; with the cooldown applied to her the ceiling would be 37.5 eggs/gd and the growth curve would fail.
 
-Founding mode: budget accrues at `FOUNDING_LAY_RATE` 30/gd (no season, size or cap factors) until `FOUNDING_CLUTCH`; eggs paid from `reserveP`.
+Founding mode: laying follows GDD 06 §5.10 (batches during the opening phase `lay`, eggs paid from the founding pool `R`); see 2.7.
 
 ### 3.3 Queen nutrition
 
 | Item | Value |
 |---|---|
-| Upkeep (J) | `QUEEN_UPKEEP_C` 0.30 C + `QUEEN_UPKEEP_P` 0.10 P per gd × `fMet(Tb)` (× 0.5 claustral) |
+| Upkeep (J) | `QUEEN_UPKEEP_C` 0.30 C + `QUEEN_UPKEEP_P` 0.10 P per gd × `fMet(Tb)` (during founding: GDD 06 `FOUND_UPKEEP_PER_GD` 0.40 from `R`, no claustral discount) |
 | Payment | from `gut`; if gut C empty → `reserve` (cap `QUEEN_FAT_CAP` 3.0 C); if gut P empty → P upkeep unpaid → `health −0.05` per gd |
 | Reserve refill | `0.3 C` per gd from gut when gut C > 0.5 |
 | Retinue target | `gut.C ≥ 0.3` and `gut.P ≥ 0.4` (10 eggs' worth) |
@@ -348,24 +342,24 @@ Founding mode: budget accrues at `FOUNDING_LAY_RATE` 30/gd (no season, size or c
 
 ## 4. Food sources as the colony sees them [T1 minimal set; T2 full set]
 
-Nutrient content per load of collected food (defaults this chapter balances against; ecology may override per source):
+Nutrient content per load of collected food (defaults this chapter balances against; GDD 05 §1.2 per-variant values override them and are authoritative for sources):
 
 | Food kind | Form | C per load | P per load | Notes |
 |---|---|---|---|---|
-| `honeydew` | liquid | 1.00 | 0.02 | trace amino acids [T2] |
+| `honeydew` | liquid | 1.00 | 0.02 | trace amino acids [T1: static `honeydew-film` sites, GDD 05 §0; herds T2] |
 | `nectar` | liquid | 1.00 | 0.00 | [T1 placeholder sugar source] |
-| `sugar` | liquid if wet, else solid granule | 1.00 | 0.00 | [T2] |
+| `sugar` | liquid if wet, else solid granule | 1.00 | 0.00 | [T1: granules and one static spill, GDD 05 §0] |
 | `fruit` | liquid (pulp drunk) | 0.80 | 0.02 | [T2] |
 | `carrion` | solid pieces | 0.10 | 0.90 | [T1 placeholder protein source; small dead insects] |
 | `prey` | solid (after kill) | 0.10 | 0.90 | [T2] |
-| `crumb` | solid | 0.70 | 0.15 | [T2] |
+| `crumb` | solid | 0.70 | 0.15 | [T1: `crumb-starch` and `crumb-protein` (0.2 C / 0.6 P), GDD 05 §0; other variants T2] |
 | `pet-food` | solid | 0.30 | 0.60 | [T2] |
 | `seed` | solid (elaiosome eaten, seed to midden) | 0.30 | 0.50 | [T2] |
 | `bait` | liquid/gel | 1.00 | 0.00 | + toxin (5.4.4) [T2] |
 | `dew` | liquid | 0 | 0 | drunk opportunistically; no nutrient; *Lasius* has no water need in T1-T2 |
 | `leaf` | — | — | — | not food for *Lasius* |
 
-Source attributes read by this chapter: `id`, `kind`, `pos`, `form`, `amount` (loads), `quality q` (0.5-1.5; sugar concentration or prey freshness), `feedSlots` (simultaneous feeders; default 8 per feeding point), `harvestRate` (liquid load per s per ant, default `DRINK_RATE` 0.03), `itemBulk` (lm), `odourStrength` (0.5-2), `renewal`.
+Source attributes read by this chapter: `id`, `kind`, `pos`, `form`, `amount` (loads), `quality q` (0.5-1.5; sugar concentration or prey freshness), `feedSlots` (simultaneous feeders; default 8 per feeding point), `harvestRate` (liquid load per s per ant, default `DRINK_RATE` 0.05 = GDD 01 `harvest-liquid`, × the source's `drinkRateMult`, GDD 05), `itemBulk` (lm), `odourStrength` (0.5-2), `renewal`.
 
 ---
 
@@ -380,8 +374,7 @@ The colony holds `stores = {C, P, toxin}` in loads: the abstract social stomach 
 | `STOMACH_C_PER_ADULT` | 0.8 C | liquid C held in nest workers' crops |
 | `STOMACH_C_BASE` | 2 C | |
 | `STOMACH_P_PER_ADULT` | 0.15 P | processed protein in crops |
-| `PILE_LOADS_PER_BU2_FOOD` | 0.4 loads per BU² of `food` chamber floor | solid piles |
-| `PILE_LOADS_PER_BU2_OTHER` | 0.2 per BU² of `general` / `founding` floor | used when no food chamber has room |
+| Pile capacity | `Chamber.capacity.food` from GDD 03 §6.4 (food 2.0 loads per BU³, general 1.0, founding as listed there) | solid piles; this chapter defines no separate per-floor constant (consistency pass) |
 | Capacity | `pileC + pileP ≤ pileCap`, where `pileC = max(0, C − (2 + 0.8 N))`, `pileP = max(0, P − 0.15 N)` | |
 | `P_SPOIL_HALF_LIFE` | 3 gd at 20 C, × `2^((20 − T)/10)` | applies to `pileP` only (prey does not keep) |
 | `C_SPOIL_HALF_LIFE` | 10 gd at 20 C, same T rule | applies to `pileC` only |
@@ -420,7 +413,7 @@ Invariant (tested): `ΔC_pool = in − out` per tick to 1e-9, and `pool + Σ cro
 | Nurse → larva | nurse | larva gut space ≥ 0.1 | `feed-larva`: 0.1 load, 4 s | larva gut += 0.1 in crop proportion |
 | Pool → queen-carer | carer | as nurse | up to `QUEEN_RATION` 0.4 | mix 5.4.2 |
 | Carer → queen | carer | queen gut space ≥ 0.1 | 0.1 load per 4 s feed | queen gut |
-| Founding queen → larva | queen | `reserve`, `reserveP` | 0.1 load per 4 s feed, mix 0.75 P / 0.25 C | larva gut |
+| Founding queen → larva | queen | founding pool `R` (GDD 06 §5.5; after hand-over `reserve`, `reserveP`) | 0.1 load per 4 s feed, mix 0.75 P / 0.25 C | larva gut |
 | Outside: laden ↔ hungry nestmate [T2] | hungry ant (crop C < 0.05, reserve < 30 %) begs a returning laden forager on contact | donor crop ≥ 0.3 | 0.1 load | keeps far tenders and guards alive |
 | Possessed ant gives | player (G) | target nestmate in reach | 0.1 load/s (chapter 01) | in nest: amount enters pool; outside: target crop |
 | Possessed ant begs | player (G) | outside AI donor: crop > 0.3 cap; in-nest AI donor: pool `daysC ≥ 0.5` (or beggar is hungry: own crop C < 0.05) — refines chapter 01 | 0.1 load/s, max 0.5 load from pool | |
@@ -527,7 +520,7 @@ Excess after floors/caps → `idle`. The panel shows per group: need (`ΣD`), ta
 
 ### 6.4 Response thresholds and age polyethism
 
-Stimulus for task `t`: `s_t = clamp((target_t − actual_t) / max(target_t, 1), 0, 1)` + local cues (`+0.3` for `nurse` if a feed job is within 6 BU; `+RESUME_LOCALITY_BONUS` 0.3 per chapter 01 for released ants). Probability of taking `t` at a re-evaluation: `P_t = s_t² / (s_t² + θ_t²)`, `θ_t = THETA_BASE 0.4 × ageMult[band][t] × exp_t`.
+Stimulus for task `t`: `s_t = clamp((target_t − actual_t) / max(target_t, 1), 0, 1)` + local cues (`+0.3` for `nurse` if a feed job is within 6 BU; `+RESUME_LOCALITY_BONUS` 0.25 (chapter 01 owns the value) for released ants). Probability of taking `t` at a re-evaluation: `P_t = s_t² / (s_t² + θ_t²)`, `θ_t = THETA_BASE 0.4 × ageMult[band][t] × exp_t`.
 
 `ageMult` (lower = more willing):
 
@@ -566,7 +559,7 @@ Ants with task `forage` (and `tend`) wait in the entrance chamber (`forage.wait`
 | `ACTIVATION_DEPART` | 1.0 | depart when `activation ≥ 1`; reset to 0 |
 | `SPONT_DEPART_RATE` | 1/240 per s × `(0.25 + max(needC, needP))` | baseline hazard; × 2 for an ant holding a learned route to a live source |
 | `fEnv` | `surfaceActivity` (chapter 06) × `(0.7 + 0.3 × clamp((RH − 40)/40, 0, 1))` | multiplies gain and spontaneous rate; humidity term from *Pogonomyrmex* (analogy) |
-| Curfew | `fEnv < 0.05`, `storm`, directive `stay-in`, or alarm at the entrance > `ALARM_STRONG` | no departures |
+| Curfew | `fEnv < 0.05`, `storm`, directive `stayIn`, or alarm at the entrance > `ALARM_STRONG` | no departures |
 
 Unsuccessful returners contact too but add 0. The loop is excitable: with one successful return per 17 s and 3 waiting ants, steady `activation` ≈ `0.058 × 0.5 × 57.7 = 1.7` (departures follow returns within ~25 s); at half that return rate it stays at ~0.84 and departures fall to the spontaneous rate (mean wait ~330 s at moderate need).
 
@@ -644,12 +637,10 @@ Equilibrium check: one returning forager per 150 s on a trail lays 2.67 dabs × 
 
 ### 8.5 Sweeping and other disturbances
 
-| Event (human-events chapter supplies the footprint) | Effect on cells in the footprint |
+| Event (GDD 04 §15 supplies the footprint) | Effect on cells in the footprint |
 |---|---|
-| `sweeping`, `vacuum`, wiping/mopping | `trail`, `home`, `alarm` set to 0 |
-| `footsteps` | `trail` × 0.3, `home` × 0.7 |
-| `mowing` | `trail` × 0.8 |
-| `watering` | treated as `rain` of the matching class (chapter 06) for its duration |
+| all human events | the `trail` / `home` multipliers of GDD 04 §15.4 (owner; e.g. footsteps × 0.3 / × 0.7, mowing × 0.5 / × 0.8, broom × 0.3 / × 0.6, wipe × 0.05 / × 0.3, vacuum × 0 / × 0); `alarm` takes the `trail` multiplier |
+| `watering` | GDD 04 §15.4 multipliers during the event, then treated as `rain` of the matching class (chapter 06) |
 
 ---
 
@@ -723,7 +714,7 @@ Universal failure handling:
 | `forage.outbound` | departs with lead/route/news | learned route: walk waypoints; else trail following (8.4); ignorer or no trail: planner to source pos; ration taken | contact/smell of source → `collect`; arrived (≤ 4 BU from source pos) but nothing → `search`; trail lost → 8.4 rules |
 | `forage.search` | expected source not found | expanding spiral, radius to 10 BU, 30 s | found → `collect`; else mark `depleted`, → `return` (unsuccessful) |
 | `forage.queue` | all `feedSlots` occupied | wait ≤ 4 BU from source up to 20 s | slot free → `collect`; timeout → next-best known source within 100 BU (`outbound`) else `return` |
-| `forage.collect` | at source | liquid: `harvest-liquid` at `harvestRate` (0.03 load/s; a full crop in ~33 s); solid ≤ `carryCap`: `pick-up` 3 s; solid > `carryCap`: section 11; prey: combat first | crop ≥ `CROP_RETURN_FRACTION` 0.8 or source empty with crop ≥ 0.1 → `return` (successful if ≥ 0.5 load); item lifted → `return` |
+| `forage.collect` | at source | liquid: `harvest-liquid` at `harvestRate` (0.05 load/s; a full crop in 20 s); solid ≤ `carryCap`: `pick-up` 3 s; solid > `carryCap`: section 11; prey: combat first | crop ≥ `CROP_RETURN_FRACTION` 0.8 or source empty with crop ≥ 0.1 → `return` (successful if ≥ 0.5 load); item lifted → `return` |
 | `forage.return` | | homing: learned route → breadcrumbs with shortcuts → planner; trail laying per 8.3; walks loaded (locomotion factor) | enter nest → `deliver` |
 | `forage.deliver` | inside | liquid → receiver (5.3); solid → food chamber pile; during unloading, recruit contacts with waiting foragers (only if successful) | done → route learning update (9.3), `exp` update → `wait` or re-evaluate; stores full after 60 s → `rest` with crop (unsuccessful) |
 
@@ -734,7 +725,7 @@ Timings for a source 150 BU away (path 180 BU each way at 6 BU/s): walk 60 s rou
 | State | Entry | Behaviour | Exit |
 |---|---|---|---|
 | `tend.outbound` | assigned to herd (`target`) | as forage outbound | at herd plant → `solicit` |
-| `tend.solicit` | | `tend-aphid`: antennate aphids; crop fills at `min(TEND_SOLICIT_RATE 0.02 load/s, herdYield / tendersPresent)` (ecology yield) | crop ≥ 0.8 → `return`; if herd guard roster < `TEND_GUARD_FRACTION 0.3` of tenders → `guard-herd` |
+| `tend.solicit` | | `tend-aphid`: antennate aphids; crop fills at `min(TEND_SOLICIT_RATE 0.025 load/s, herdYield / tendersPresent)` (one `APHID_DROPLET` 0.15 load per 6 s `tend-aphid` cycle, GDD 01/05) | crop ≥ 0.8 → `return`; if herd guard roster < `TEND_GUARD_FRACTION 0.3` of tenders → `guard-herd` |
 | `tend.guard-herd` | | stay on plant ≤ `TEND_GUARD_SHIFT` 0.25 gd; patrol aphids; drink own upkeep from honeydew; attack aphid predators (`ladybird`, `ladybird-larva`, `lacewing-larva`) on contact via combat; alarm release | shift over → `solicit` then `return` |
 | `tend.return` / `tend.deliver` | | as forage (trail laying applies) | → `tend.wait` (as `forage.wait`) |
 | Failure | herd gone / plant mowed | | `source-depleted` → re-evaluate |
@@ -772,7 +763,7 @@ Every `BROOD_SORT_PERIOD` 60 s (staggered per colony) each brood group (eggs+you
 
 `score(ch, stage) = r(T_ch)/1.818 × hum(stage, RH_ch) × (1 − crowd) × (1 − 0.8 × floodRisk) × (1 − min(1, waste/10)) + 0.1 [nursery] + 0.1 [royal, eggs only] − 0.002 × BFS distance to the royal chamber`
 
-`hum`: eggs and larvae 1.0 at RH 70-95 %, 0.6 at ≤ 50 %, linear between, 0.5 above 98 %; pupae 1.0 at 50-85 %, 0.7 above 95 %. `crowd = clamp(((items + incoming)/cap − 0.8)/0.2, 0, 1)`, `cap = BROOD_PER_BU2 1.5 × floor area`. Chambers marked `avoid` score 0.
+`hum`: eggs and larvae 1.0 at RH 70-95 %, 0.6 at ≤ 50 %, linear between, 0.5 above 98 %; pupae 1.0 at 50-85 %, 0.7 above 95 %. `crowd = clamp(((items + incoming)/cap − 0.8)/0.2, 0, 1)`, `cap = Chamber.capacity.brood` (GDD 03 §6.4, e.g. nursery 1.5 brood per BU³ of volume). Chambers marked `avoid` score 0.
 
 If `best > current × 1.15 + 0.05`, up to `4 × nursesAvailable` items of that group get `move` jobs to `best`. Temperature changes through the day (shallow chambers under a sun-warmed stone heat by day) therefore produce morning up-moves and evening down-moves. `move-brood` markers override (12.3). Chapter 01's "brood chamber the colony chapter selects for that stage" = current `best` for that stage.
 
@@ -805,7 +796,7 @@ Unloading delay (mean `forage.deliver` wait) is published as a diagnostic factor
 |---|---|---|---|
 | `dig.claim` | assigned | claim a frontier sphere of an active plan (nest chapter API) | claimed → `travel`; none → re-evaluate |
 | `dig.travel` | | BFS walk to the frontier | arrived → `bite` |
-| `dig.bite` | | `dig-bite` (duration nest chapter, default 3 s) → holds pellet | → `stow` |
+| `dig.bite` | | `dig-bite` (duration GDD 03 §1.2: `DIG_BITE_S` 1.0 s × material and caste factors) → holds pellet | → `stow` |
 | `dig.stow` | holding pellet | if a pellet cache within 6 BU behind the frontier has room and haulers > 0: drop there; else carry out (as `haul.carry`) | → `travel` (next sphere) |
 | Failure | plan cancelled, collapse, frontier unreachable | | put pellet in nearest cache or carry out; → re-evaluate |
 
@@ -877,7 +868,7 @@ Item bulk `b` in lm; each ant's `carryCap` (1.2). Primitive physics (chapter 01)
 | Recruit | An ant finding an item it cannot move (or only drags below 0.3 BU/s) grips it for 10 s, then returns home laying trail (dab × 1.5) and recruits as a successful forager with the item as `lead` (gain × 1.0) |
 | Helpers | arriving foragers with that lead grip the item (max `min(12, 2 + ceil(2b))` grip points) |
 | Alignment | each carrier pulls toward its home direction (route/crumbs/PI, σ 20°); resultant direction drives motion; a carrier whose pull is > 90° from the resultant for 3 s releases and regrips (5 s) |
-| Cutting | `b > COOP_CUT_BULK` 6 lm, or no progress for `COOP_GIVE_UP_S` 120 s: ants cut 1 lm pieces (`CUT_TIME_S` 20 s each; *Lasius* commonly dismembers large prey on site) and carry them singly |
+| Cutting | `b > COOP_CUT_BULK` 6 lm, or the GDD 05 §1.5 stall rule (< 1 BU progress in 30 s with ≥ 0.5 b pulling), or the GDD 05 butcher decision: ants tear 1 lm pieces (`TEAR_S` 4.0 s × hardness each, GDD 01; *Lasius* commonly dismembers large prey on site) and carry them singly. GDD 05 owns item physics, helper slots and the butcher rule; this chapter owns the AI behaviour |
 | Abandonment | no helpers within 300 s and no progress → item left; source stays known |
 | Delivery | item reaching the entrance: if `b` > entrance passable size (nest chapter), cut at the entrance |
 
@@ -885,14 +876,16 @@ Item bulk `b` in lm; each ant's `carryCap` (1.2). Primitive physics (chapter 01)
 
 ## 12. Colony directives and markers
 
+The player issues colony orders "through the queen": possessing or selecting her is the diegetic entry point to the Directives drawer (GDD 01 §2, §10; GDD 08 §4.2, §5.2), although the drawer is reachable from any view. This is a gameplay abstraction (D10): directives and markers change targets and local stimuli, and the ants still allocate themselves by response thresholds (6.4); the queen's own behaviour is unaffected by being the entry point.
+
 ### 12.1 Directives (`setDirectives`, applied next tick, also while paused) [T1 unless tagged]
 
 | Directive | Values | What it changes in the simulation |
 |---|---|---|
 | `allocation` | `'auto'` or `{forage, nurse, dig, defend}` shares (sum 100) | 6.3 targets (auto vs manual with floors and caps). Nothing else. |
 | `diet` | `'auto'` or −100..+100 (−100 carbohydrate, +100 protein) | shifts desired P share `sP'` by `0.4 × diet/100`, which changes forager source choice weights and recruit acceptance (5.5). Does not change larval or queen requirements. |
-| `production` [T2] | `workers-only` / `balanced` / `raise-alates` | whether, when chapter 06's reproduction gate is open, eggs may be `gyne`/`male` and at what fraction (chapter 06 numbers); `workers-only` keeps all eggs `worker` |
-| `architect` | `'auto'` / `'off'` | nest chapter (automatic dig plans) |
+| `alateInvestment` [T2] | 0..1 (default 0.5) | replaces the earlier `production` directive: GDD 06 §11.3 target `A*`; 0 keeps all eggs `worker` (UI presets Workers only / Balanced / Raise alates = 0 / 0.5 / 1.0). `gyneShare` (T3) and `alatePolicy` are set the same way |
+| (architect) | — | not a directive: the nest architect mode is set with GDD 03 `setAutoExpand {nestId, mode}` (consistency pass) |
 | `stockTarget` (new) [T2] | `low` / `normal` / `high` | `targetDays` × 0.5 / 1 / 2 (5.5) — raises forage demand while stocks are below target (prepare for winter) |
 | `stayIn` (new) [T2] | boolean | foraging curfew (6.6): no departures; ants outside return; scouts included. Auto-clears after 1 gd. |
 
@@ -902,12 +895,14 @@ Item bulk `b` in lm; each ant's `carryCap` (1.2). Primitive physics (chapter 01)
 |---|---|---|
 | `forage` (centre, radius 10-80 BU, default 30) | 50 % of departing scouts take it as first waypoint; known sources inside score × 1.5; foragers with no lead, route or news go to the marker and run `forage.search` (30 s) | max 4 active; persistent until removed |
 | `avoid` (centre, radius 10-80 BU) | autonomous ants (not `controlled`) never plan through it (planner cost × 20; impassable if an alternative ≤ 3 × length exists); steering repulsion within radius + 4 BU; trail inside followed at weight × 0.1; sources inside score 0; ants inside at placement leave by the shortest exit; inside the nest: chamber gets sort score 0 (brood moved out) and no rest/storage | max 8; an ant whose only way home crosses it may cross |
-| `rally` [T2] (point) | defend group plus up to `RALLY_MAX_FRACTION` 25 % of idle/forage-waiting non-callow workers go there, hold within 8 BU, engage non-nestmates within 15 BU; they lay trail on the way (recruitment) | 1 active; expires after 1 gd |
+| `rally` [T2] (point, radius 8-32 BU, default 15; `mode` `defend` or `attack`, GDD 05 §3.7) | defend group plus up to `RALLY_MAX_FRACTION` 25 % of idle/forage-waiting non-callow workers go there, hold within 8 BU, engage non-nestmates within the radius; they lay trail on the way (recruitment). Mode `attack` follows GDD 05 §3.7 (raid on a known entrance within 30 BU) | 1 active; expires after 1 gd |
 | `move-brood` (source chamber → target chamber) | all brood in the source gets `move` jobs (priority 4) to the target; sorting for those items locked to the target for `MOVE_BROOD_LOCK_GD` 1 gd | target must be brood-capable; if target becomes invalid, lock ends |
 | `move-queen` (target chamber) | queen → `queen.relocate` with escort; eggs follow via queen-care | target must be reachable with ≥ 2 BU clearance |
 | `dig`, `entrance` | nest chapter (dig plans) | |
 
 Marker responses are logged as reason `marker:<kind>`.
+
+`MARKER_CAP` (this chapter owns marker caps; GDD 08 reads them): `dig` 8 (= GDD 03 `PLAN_CAP_PLAYER`, non-terminal player plans per nest), `forage` 4, `avoid` 8, `rally` 1, `entrance` 2, `move-brood` 1, `move-queen` 1, `satellite` 1 (GDD 07, Camponotus). Radius ranges: `forage`/`avoid` 10-80 BU (default 30), `rally` 8-32 BU (default 15).
 
 ---
 
@@ -915,7 +910,7 @@ Marker responses are logged as reason `marker:<kind>`.
 
 ### 13.1 Counters (maintained incrementally, verified each gd by full recount)
 
-Adults by caste; workers by task, by group, by age band, inside/outside, `controlled`; nanitics, minims, callows; brood by stage × destined caste; diapause larvae; cumulative eggs laid, hatched, pupated, eclosed; deaths by cause (`old-age`, `starvation`, `heat`, `cold`, `drowning`, `predation`, `combat`, `crushed`, `poison`, `exposure`, `disease` [T2]); brood deaths by cause (2.5 ids plus `cannibalised`); stores and ledgers (5.2); forager trips started, successful, unsuccessful, mean trip time, mean unload wait; deliveries by food kind; known sources; active trails (connected cells ≥ 1 ph per colony, counted every 60 s).
+Adults by caste; workers by task, by group, by age band, inside/outside, `controlled`; nanitics, minims, callows; brood by stage × destined caste; diapause larvae; cumulative eggs laid, hatched, pupated, eclosed; deaths by cause (canonical list, `00-index.md` §B); brood deaths by cause (2.5 ids plus `cannibalised`); stores and ledgers (5.2); forager trips started, successful, unsuccessful, mean trip time, mean unload wait; deliveries by food kind; known sources; active trails (connected cells ≥ 1 ph per colony, counted every 60 s).
 
 ### 13.2 Time series (for journal graphs and the epitaph)
 
@@ -929,25 +924,25 @@ Adults by caste; workers by task, by group, by age band, inside/outside, `contro
 
 ## 14. Diagnostics [T2; values computed from T1]
 
-Records follow chapter 08's shape `{ id, system, status: 'ok'|'warn'|'bad', label, value, factors: {cause, weight, detail}[], remedies, sinceTick }`. Evaluated every 250 ticks.
+Diagnostic ids carry the `diag-` prefix (GDD 06 owns the id scheme; consistency pass). Records follow chapter 08's shape `{ id, system, status: 'ok'|'warn'|'bad', label, value, factors: {cause, weight, detail}[], remedies, sinceTick }`. Evaluated every 250 ticks.
 
 **Factor weights.** For a rate `R = R_ref × Π f_i` (each `f_i` in (0, 1]), `weight_i = ln f_i / Σ_j ln f_j` over factors with `f < 0.98` (shares sum to 1). Status from `R/R_ref`: ok ≥ 0.75, warn 0.40-0.75, bad < 0.40; changes need to persist 0.1 gd (hysteresis).
 
 | Diagnostic id | Value | Factors (`cause`: `f_i`) | Remedies |
 |---|---|---|---|
-| `food-intake-c` | C intake / `needRateC` (1 gd) | `foragers`: actual/`D_forage`; `activation`: departures / (departures at target); `weather`: mean `surfaceActivity`; `distance`: 150 s / mean trip time; `sources`: min(1, known C capacity / C need); `unloading`: 1 − mean unload wait / trip time; `success`: trip success rate; `predation`: 1 − forager deaths / trips | raise Forage slider; place `forage` marker; possess a forager and lay a trail; dig a new entrance closer (`entrance` marker); add store workers (Nurse slider) |
-| `food-intake-p` | P intake / `needRateP` | same with P sources; `diet`: if diet directive < 0 | diet toward protein; `forage` marker near prey/carrion |
-| `stores` | days of C and P vs target | `capacity` (pool at cap: "stores full"), `spoilage` share, `upkeep` growth | dig a `food` chamber; reduce stock target |
-| `brood-growth` | mean larval development rate / r(28 C) | `protein`: fraction of larva-time with gut P > 0; `carbohydrate`: fraction with C > 0; `temperature`: mean r(T)/r(28); `nurses`: min(1, nurses / `D_nurse`); `crowding`: 1 − mean crowd; `hygiene`, `humidity` (from hazard rates, survival) | raise Nurse slider; dig a shallower or covered nursery (`dig`); `move-brood` to the warmer chamber; haul waste |
-| `egg-laying` | actual / potential at `fSeason = fTempQ = fCap = 1` | `season`, `temperature`, `queen-health`, `cap`, `protein-supply` (residual: actual / potential after other factors), `queen-care` (retinue actual / target) | more protein (as above); raise Nurse (queen-care) |
-| `queen-condition` | queen health and gut | `gut-C`, `gut-P`, `reserve`, `retinue`, `heat`, `injury` | Nurse slider; `move-queen` to a safer chamber |
-| `workforce` | per group: actual / target | `too-few-adults` (A < ΣD), `callows` share, `manual-conflict` (manual target < floor need), `fatigue` share resting, `injured` | auto allocation; adjust sliders |
-| `foraging-trails` | active trails, recruitment success | `trail-lost` events/gd, `washed` (rain), `colony-size` (sizeFactor), `ignorers` | lay trail as possessed forager; shelter routes (forage marker under cover) |
-| `defence` [T2] | threats vs defenders | owned jointly with combat/rivals | rally marker; Defend slider |
-| `mortality` (new) | deaths per gd / N | by cause shares | per cause (shade, avoid markers, food) |
-| `hygiene` (new) | waste items in chambers, midden reachable | `haulers`, `midden-blocked` | Dig slider (haul) |
+| `diag-food-intake-c` | C intake / `needRateC` (1 gd) | `foragers`: actual/`D_forage`; `activation`: departures / (departures at target); `weather`: mean `surfaceActivity`; `distance`: 150 s / mean trip time; `sources`: min(1, known C capacity / C need); `unloading`: 1 − mean unload wait / trip time; `success`: trip success rate; `predation`: 1 − forager deaths / trips | raise Forage slider; place `forage` marker; possess a forager and lay a trail; dig a new entrance closer (`entrance` marker); add store workers (Nurse slider) |
+| `diag-food-intake-p` | P intake / `needRateP` | same with P sources; `diet`: if diet directive < 0 | diet toward protein; `forage` marker near prey/carrion |
+| `diag-stores` | days of C and P vs target | `capacity` (pool at cap: "stores full"), `spoilage` share, `upkeep` growth | dig a `food` chamber; reduce stock target |
+| `diag-brood-growth` | mean larval development rate / r(28 C) | `protein`: fraction of larva-time with gut P > 0; `carbohydrate`: fraction with C > 0; `temperature`: mean r(T)/r(28); `nurses`: min(1, nurses / `D_nurse`); `crowding`: 1 − mean crowd; `hygiene`, `humidity` (from hazard rates, survival) | raise Nurse slider; dig a shallower or covered nursery (`dig`); `move-brood` to the warmer chamber; haul waste |
+| `diag-egg-laying` | actual / potential at `fSeason = fTempQ = fCap = 1` | `season`, `temperature`, `queen-health`, `cap`, `protein-supply` (residual: actual / potential after other factors), `queen-care` (retinue actual / target) | more protein (as above); raise Nurse (queen-care) |
+| `diag-queen-condition` | queen health and gut | `gut-C`, `gut-P`, `reserve`, `retinue`, `heat`, `injury` | Nurse slider; `move-queen` to a safer chamber |
+| `diag-workforce` | per group: actual / target | `too-few-adults` (A < ΣD), `callows` share, `manual-conflict` (manual target < floor need), `fatigue` share resting, `injured` | auto allocation; adjust sliders |
+| `diag-foraging-trails` | active trails, recruitment success | `trail-lost` events/gd, `washed` (rain), `colony-size` (sizeFactor), `ignorers` | lay trail as possessed forager; shelter routes (forage marker under cover) |
+| `diag-defence` [T2] | threats vs defenders | owned jointly with combat/rivals | rally marker; Defend slider |
+| `diag-mortality` (new) | deaths per gd / N | by cause shares | per cause (shade, avoid markers, food) |
+| `diag-hygiene` (new) | waste items in chambers, midden reachable | `haulers`, `midden-blocked` | Dig slider (haul) |
 
-Alerts raised by this chapter (kinds from chapter 08 plus additions): `food-c-low` (S1 by C, warning), `food-p-low` (S1 by P with larvae > 0, warning), `brood-stalled` (`brood-growth` bad for 0.2 gd), `trail-lost` (8.4), `source-found` (first successful return from a new source), `colony-starving` (new, S3, critical), `stores-full` (new, pool at cap for 0.25 gd, notice), `queen-died` (raised on chapter 06's queen-death event).
+Alerts raised by this chapter (kinds from chapter 08 plus additions): `food-c-low` (S1 by C, warning), `food-p-low` (S1 by P with larvae > 0, warning), `brood-stalled` (`diag-brood-growth` bad for 0.2 gd), `trail-lost` (8.4), `source-found` (first successful return from a new source), `colony-starving` (new, S3, critical), `stores-full` (new, pool at cap for 0.25 gd, notice), `queen-died` (raised on chapter 06's queen-death event).
 
 ---
 
@@ -993,9 +988,9 @@ Daily budget (loads per gd):
 Checks:
 
 - **Demand indices.** `daysC` = 30/10.71 = 2.8 (target 3; `needC` 0.07); `daysP` = 10/12.90 = 0.78 (target 1.5; `needP` 0.48). Protein is the tighter nutrient, so 7 of 11 foragers chose carrion (`wP` > `wC`), and carrion trails are laid at `0.5 + 0.48` ≈ 1.0 strength against 0.57 on the honeydew trail.
-- **Forage demand.** `intakeTarget` = 10.71 + 12.90 + (32.1 − 30)/2 + (19.4 − 10)/2 = 29.4 loads/gd; `yieldPerForager` = (4 × 2.5 × 1.02 + 7 × 2.0 × 1.0)/11 = 2.2 → `D_forage` = 13.4: the colony is 2 foragers short and is recruiting them from the idle reserve. `food-intake-p` reads ok (intake/need 1.0) while `stores` reads warn (P at 0.78 of 1.5 target days); its chained cause is `food-intake-p`, whose largest factor below 1 is `foragers` (11/13).
+- **Forage demand.** `intakeTarget` = 10.71 + 12.90 + (32.1 − 30)/2 + (19.4 − 10)/2 = 29.4 loads/gd; `yieldPerForager` = (4 × 2.5 × 1.02 + 7 × 2.0 × 1.0)/11 = 2.2 → `D_forage` = 13.4: the colony is 2 foragers short and is recruiting them from the idle reserve. `diag-food-intake-p` reads ok (intake/need 1.0) while `diag-stores` reads warn (P at 0.78 of 1.5 target days); its chained cause is `diag-food-intake-p`, whose largest factor below 1 is `foragers` (11/13).
 - **Nurse demand.** Larval demand 15.98 loads/gd / 4.5 = 3.55 + 12/25 + 13/15 = 4.9 → 5 nurses. Feeds: 15.98 / 0.1 = 160 feeds per gd (about one feed every 3.75 s colony-wide).
-- **Queen.** Ration 0.30 C + 0.58 P = 0.88 loads → 9 feeds. Laying 28 % of potential; `egg-laying` diagnostic: bad, `protein-supply` weight 1.0, remedy "more protein".
+- **Queen.** Ration 0.30 C + 0.58 P = 0.88 loads → 9 feeds. Laying 28 % of potential; `diag-egg-laying` diagnostic: bad, `protein-supply` weight 1.0, remedy "more protein".
 - **Activation.** About 26 successful returns per 450 s of active surface time (one per 17 s), 3 ants waiting: `activation` ≈ 1.7 → departures follow returns (6.6).
 - **Growth.** Eclosions 9.18 × 0.95 = 8.7/gd; deaths ≈ 60 / 26 gd realised lifespan = 2.3/gd; net +6.4 workers/gd (+11 %/gd), in line with the dossier's ~18 → ~290 workers over the second year when food allows, slowing as sources get farther and `fSize` saturates. At N ≈ 1300 the queen's maximum (~100 eggs/gd × 0.73 survival) roughly equals deaths, so mature colonies plateau at 1200-1500 under good conditions; `WORKER_CAP` 1500 is a hard ceiling.
 
@@ -1005,11 +1000,11 @@ Checks:
 
 | Name | Type sketch | Purpose |
 |---|---|---|
-| `colonies[]` | `{ id, speciesId, queenId, entranceIds[], stores:{C,P,toxin,inCrops}, ledger:{in:{delivery,recycled}, out:{workers,queen,larvae,spoiled,ration}, transit}, needs:{rateC,rateP,needC,needP,sP}, starvationStage, starvationSince, directives:{allocation, diet, production, architect, stockTarget, stayIn, stayInUntil}, alloc:{demand:Float32Array(17), target:Int16Array(17), actual:Int16Array(17), lastTick}, yieldPerForager, news:[{sourceId,pos,tick}×5], knownSourceIds:int[], exploredBits:Uint8Array, jobBoard (derived), counters, series }` | colony economy, allocation, knowledge |
-| `ants[]` | fields of 1.1 (plain data; `thresholds` Float32Array(17), one per canonical task, unused entries for Lasius = 1e9; `crumbs` Float32Array(96×3) + head/len; `routes` 2 × `{sourceId, wp:Float32Array(96), n, visits, lastUsed}`; `decisions` 5 × `{tick, code:int, detail:int}`) | individual agents |
+| `colonies[]` | `{ id, speciesId, queenId, entranceIds[], stores:{C,P,toxin,inCrops}, ledger:{in:{delivery,recycled}, out:{workers,queen,larvae,spoiled,ration}, transit}, needs:{rateC,rateP,needC,needP,sP}, starvationStage, starvationSince, directives:{allocation, taskShares, diet, alateInvestment, gyneShare, alatePolicy, stockTarget, stayIn, stayInUntil, sealInCold, stance, casteEmphasis, …species extras}, alloc:{demand:Float32Array(TASK_COUNT), target:Int16Array(TASK_COUNT), actual:Int16Array(TASK_COUNT), lastTick} (TASK_COUNT = 18: the 17 J tasks plus GDD 05 `raid`), yieldPerForager, news:[{sourceId,pos,tick}×5], knownSourceIds:int[], exploredBits:Uint8Array, jobBoard (derived), counters }` (the time series of 13.2 live in `progression.history`, GDD 06 §9.2; consistency pass) | colony economy, allocation, knowledge |
+| `ants[]` | fields of 1.1 (plain data; `thresholds` Float32Array(TASK_COUNT = 18), one per canonical task (J order, then `raid`), unused entries for Lasius = 1e9; `crumbs` Float32Array(96×3) + head/len; `routes` 2 × `{sourceId, wp:Float32Array(96), n, visits, lastUsed}`; `decisions` 5 × `{tick, code:int, detail:int}`) | individual agents |
 | `queen extras` | `{ mode, gut:{C,P}, reserve, reserveP, fecundity, eggBudget, layingLog:Int16Array(28), clutchLaid }` on the queen ant | laying and nutrition |
 | `brood[]` | fields of 2.1 | brood entities |
-| `items[]` (shared with ecology/nest) | `{ id, kind:'food'|'pellet'|'waste'|'corpse'|'brood', wasteKind?, foodKind?, C, P, bulk, pos, chamberId, carrierIds[], diedTick? }` | carried and stored things |
+| `items[]` (shared with ecology/nest) | `{ id, kind:'food-piece'|'soil-pellet'|'waste'|'corpse'|… (canonical item kinds), wasteKind?, foodKind?, c, p, bulk, pos, chamberId, carrierIds[], diedTick? }` | carried and stored things (brood is not an item) |
 | `markers[]` (shared) | `{ id, kind, pos, radius, targetChamberId?, sourceChamberId?, expiresTick? }` | colony-wide marker state |
 | `phero` | `{ chunks: { key -> { trail: Record<colonyId, Float32Array(4096)>, home: Record<colonyId, Float32Array(4096)>, alarm: Float32Array(4096), lastDecayTick } } }` | pheromone field |
 | `colonyRng` | stream states | determinism |
@@ -1019,9 +1014,9 @@ Checks:
 
 | Command | Payload | Effect |
 |---|---|---|
-| `setDirectives` | `{ allocation?: 'auto' | {forage, nurse, dig, defend}, diet?: 'auto' | number, production?, architect?, stockTarget?, stayIn? }` | 12.1 |
-| `placeMarker` / `removeMarker` | `{ kind, pos, radius?, chamberIds? }` / `{ id }` | 12.2 |
-| `possess`, `release`, `setIntent`, `act` | chapter 01 | possessed ant uses the same rules (trophallaxis 5.4, trail 8.3, recruitment 6.6, lay-egg budget 3.2) |
+| `setDirectives` | `{ allocation?: 'auto' | {forage, nurse, dig, defend}, taskShares?: Partial<Record<Task, number>>, diet?: 'auto' | number, alateInvestment?: number, gyneShare?: number, alatePolicy?: 'auto-release'|'ask'|'hold', stockTarget?, stayIn?, sealInCold?: boolean, stance?: 'cautious'|'defensive'|'aggressive', casteEmphasis?: number, …species extras (GDD 07) }` | 12.1; also GDD 05 §4.9, GDD 06 §11.3, GDD 07 App B |
+| `placeMarker` / `removeMarker` | `{ kind, pos, radius?, chamberIds?, params? }` (`params.mode` for `rally`) / `{ markerId }` | 12.2 |
+| `possess`, `release`, `setIntent`, `action` | chapter 01 | possessed ant uses the same rules (trophallaxis 5.4, trail 8.3, recruitment 6.6, lay-egg budget 3.2) |
 | Debug `cheat.addFood` | `{ C?, P?, toxin? }` to pool | tests |
 | Debug `cheat.spawnAnts` | `{ n, age?, task?, pos? }` | tests |
 | Debug `cheat.spawnBrood` | `{ stage, n, chamberId, progress?, destined? }` | tests |
@@ -1034,8 +1029,8 @@ Checks:
 
 | Event | Payload | Consumers |
 |---|---|---|
-| `ant-eclosed` | `{antId, colonyId, nanitic, minim}` | render, journal (`aim-first-workers`), codex `callow-worker` |
-| `ant-died` | `{antId, cause, pos, task}` | render (corpse), journal, stats, alerts |
+| `ant-eclosed` (also for alates; replaces GDD 06 `alate.eclosed`) | `{antId, colonyId, caste, nanitic, minim}` | render, journal (`aim-first-workers`), codex `cx-callow` |
+| `ant-died` | `{antId, colonyId, caste, cause, pos, task}` | render (corpse), journal, stats, alerts |
 | `egg-laid` | `{broodId, queenId, destined}` | render, audio `sfx.egg-lay` |
 | `brood-stage` | `{broodId, from, to}` | render, codex |
 | `brood-died` | `{broodId, stage, cause}` | stats, diagnostics |
@@ -1045,22 +1040,22 @@ Checks:
 | `delivery` | `{antId, sourceId, kind, C, P}` | stats, journal (first trail milestone input) |
 | `recruit` | `{fromId, toId, sourceId}` | render (antennation), scent view |
 | `forager-departed` | `{antId, reason:'recruited'|'spontaneous'}` | stats |
-| `source-discovered` | `{sourceId, byAntId}` | alert `source-found`, journal |
-| `trail-established` | `{colonyId, sourceId, lengthBU}` (first time a connected trail ≥ 1 ph links entrance and source) | milestone `first food trail` |
+| `food-source-discovered` (GDD 05 owns; was `source-discovered`) | `{sourceId, kind, variant, pos, colonyId, byAntId}` | alert `source-found`, journal |
+| `trail-established` | `{colonyId, sourceId, lengthBU}` (first time a connected trail ≥ 1 ph links entrance and source) | GDD 06 milestone `ms-first-trail` (fires on its own follower rule) |
 | `trail-lost` | `{colonyId, sourceId, pos}` | alert |
-| `route-learned` | `{antId, sourceId}` | codex `behaviour-route-memory` |
+| `route-learned` | `{antId, sourceId}` | codex `cx-route-memory` |
 | `task-changed` | `{antId, from, to, reason}` (sampled: only for inspected/possessed ants and 1 in 20 others) | inspector |
 | `stores-full`, `starvation-stage` | `{colonyId, stage}` | alerts |
 | `cannibalism` | `{colonyId, broodId}` | journal (sober wording), diagnostics |
-| `corpse-removed`, `waste-dumped` | `{antId, itemId, to:'midden'|'mound'}` | codex `behaviour-necrophoresis` |
-| `alarm-raised` | `{pos, by}` | audio, scent view |
-| `coop-transport` | `{itemId, carriers, phase:'start'|'cut'|'delivered'|'abandoned'}` | render, codex |
+| `corpse-removed`, `waste-dumped` | `{antId, itemId, to:'midden'|'mound'}` | codex `cx-necrophoresis` |
+| `alarm-raised` (GDD 05 payload) | `{colonyId, pos, strength, source}` | audio, scent view |
+| `coop-transport` (single event; replaces GDD 05 `coop-transport-*` and `carcass-butchered`) | `{itemId, carriers, bulk, phase:'start'|'stalled'|'cut'|'delivered'|'abandoned'}` | render, codex, diagnostics |
 | `marker-response` | `{markerId, antsResponding}` | UI feedback |
-| `diagnostic-changed` | `{id, status, top cause}` | UI, alerts |
+| `diagnostic-changed` (replaces GDD 06 `diag.changed`) | `{id, status, topCause}` | UI, alerts |
 
 ## Appendix D — Diagnostics (summary)
 
-Published ids: `food-intake-c`, `food-intake-p`, `stores`, `brood-growth`, `egg-laying`, `queen-condition`, `workforce`, `foraging-trails`, `defence` (joint), `mortality`, `hygiene`. Each: status `ok|warn|bad` from the value/reference ratio (14), factor list with `ln`-share weights, remedy ids mapped to UI controls (`remedy.slider.<group>`, `remedy.diet.<dir>`, `remedy.marker.<kind>`, `remedy.dig.<chamberType>`, `remedy.possess.<task>`), `sinceTick`. If the progression chapter prefixes diagnostic ids with `diag-`, these ids take the prefix unchanged otherwise.
+Published ids: `diag-food-intake-c`, `diag-food-intake-p`, `diag-stores`, `diag-brood-growth`, `diag-egg-laying`, `diag-queen-condition` (also carries GDD 06's orphaned rule; GDD 06 `diag-queen-status` is merged into it), `diag-workforce`, `diag-foraging-trails`, `diag-defence` (joint), `diag-mortality`, `diag-hygiene`. Each: status `ok|warn|bad` from the value/reference ratio (14), factor list with `ln`-share weights, remedy ids mapped to UI controls (`remedy.slider.<group>`, `remedy.diet.<carbohydrate|protein>`, `remedy.marker.<kind>`, `remedy.dig.<chamberType>`, `remedy.possess.<task>`, `remedy.stock.<level>`), `sinceTick`.
 
 ## Appendix E — Acceptance checks (debug API: `step`, `query`, `cheat`)
 
@@ -1071,10 +1066,10 @@ Published ids: `food-intake-c`, `food-intake-p`, `stores`, `brood-growth`, `egg-
 5. **Given** a colony of 10 workers with full reserves forced to `rest` in a 25 C nest, no brood, queen removed, pool C 10, P 0, **when** 1 gd passes, **then** pool C = 10 − 0.80 ± 0.01.
 6. **Given** N = 300 (spawned), summer day 10, royal chamber 25 C, queen gut P held ≥ 0.5 by cheat, **when** 1 gd passes, **then** eggs laid = 74 ± 3.
 7. **Given** the same queen with gut P = 0 and no queen-carers, **when** 0.5 gd passes, **then** 0 eggs are laid and `egg-laying` lists `protein-supply` as top factor.
-8. **Given** a founding queen alone, sealed, nest at 21 C, default reserves, **when** the founding runs unattended, **then** the first nanitic ecloses 3.7-4.3 gd after the first egg and the clutch yields 14-22 nanitics (over seeds 1-20 the mean is 16-20).
+8. **Given** a founding queen alone, sealed, `R0` 56, `Q` 0.7, clutch 24, nest at a constant 19.5 C, **when** the founding runs unattended, **then** the first nanitic ecloses 4.52 ± 0.1 gd after the first egg (3.9 ± 0.1 gd at 21 C) and over 200 seeds the mean is 11.5 ± 1.5 nanitics (p10 8, p90 15), as GDD 06 E18-E19.
 9. **Given** a colony with pool C = P = 0, `stayIn` renewed every gd, 20 eggs, 10 larvae, 10 pupae, an established queen and 20 workers (5 per age band, crops empty, reserves full), **when** stepping until extinction, **then** no larva is cannibalised while any egg remains, the first adult `starvation` death is an `old`-band worker, no pupa dies of `starvation`, and the queen is the last adult to die.
 10. **Given** an old worker on the surface in an enclosure with no nest access, empty crop, full reserve (0.25 C), 25 C, kept walking, **when** stepping, **then** reserve hits 0 at 1.25 ± 0.02 gd and it dies of `starvation` at 3.25 ± 0.05 gd.
-11. **Given** a trail cell of 10 ph on `concrete`, shaded, dry, 22 C, **when** 900 s pass, **then** the value is 5.0 ± 0.1; at 32 C after 450 s it is 5.0 ± 0.1; a `sweeping` footprint over it sets it to 0 on the next decay step.
+11. **Given** a trail cell of 10 ph on `concrete`, shaded, dry, 22 C, **when** 900 s pass, **then** the value is 5.0 ± 0.1; at 32 C after 450 s it is 5.0 ± 0.1; a `vacuum` footprint over it sets it to 0 on the next decay step (GDD 04 §15.4).
 12. **Given** 6 ants in `forage.wait`, `needP` 0.5, `surfaceActivity` 1, RH 80 %, same seed in two runs, **when** run A passes 60 s with no returns and run B runs `cheat.injectReturn` (successful) every 10 s for 60 s, **then** run B has ≥ 4 departures and at least 3 × as many departures as run A (run A expected ≈ 1.0).
 13. **Given** auto allocation, N = 100, 20 larvae at 25 C and no other demand changes, **when** 180 s pass, **then** the `nurse` target equals the 6.2 formula (± 1) and actual nurses are within ± 1 of it.
 14. **Given** manual allocation `{forage 50, nurse 20, dig 20, defend 10}` and A = 100 with forage demand 5, **when** 300 s pass, **then** forage-group actual ≥ 40 and nurse-group actual ≥ `ceil(0.25 × D_nurse)`.

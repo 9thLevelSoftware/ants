@@ -32,7 +32,7 @@ All balance constants named here live in `src/sim/balance/player.ts` (sim-side: 
 | `load` | Title or pause menu | Autosave + 5 slots (date, species, colony day, workers, thumbnail), Import file, Paste text (fallback), Delete slot (confirm). | Pick slot -> `loading`. Back -> previous. |
 | `lineage` (T2) | Title | Lineage tree; "Found as this daughter queen" on any unfounded daughter. | Found -> `new-game` prefilled (species locked, new seed). Back. |
 | `settings` | Title or pause menu | Tabs: Graphics, Audio, Controls (section 5.6), Camera (section 6.8), Gameplay (prompts, auto-slow, pause-on-blur), Accessibility (T3). | Back -> previous screen. Changes apply live and persist. |
-| `codex` (T3) | Title / Journal | Field journal entries unlocked so far (shared across saves). | Back. |
+| `codex` (T2 shell, T3 breadth; GDD 08 §7.3) | Title / Journal | Field journal entries unlocked so far (shared across saves). | Back. |
 | `loading` | New game / load / lineage found | Progress bar with phase names from worldgen (zone layout, heightfield, structures, props, plants, resources, rivals, cavities, validation) and attempt counter "attempt 2 of 8". Cancel button. | Success -> `playing`. Cancel -> previous screen. Generation failed `GEN_MAX_ATTEMPTS` times -> error panel "This seed would not produce a viable locality" with Try another seed / Back. Load failed (corrupt, version too new) -> error panel naming the cause, Back. |
 | `playing` | Loading complete | The game (section 2). Pause menu overlay: Resume, Save, Load, Settings, Controls, Journal (T2), Quit to title (confirm if last save older than `QUIT_CONFIRM_UNSAVED_S`). | Quit -> `title`. Colony extinct -> `epitaph`. |
 | `epitaph` | No living ant of the player colony (seed section 1) | T1: minimal card "The colony has died", colony age, peak population, cause line; buttons New game / Title. T2: full history graph, causes, lineage entries, "Found as a daughter queen". | Buttons as listed. |
@@ -82,6 +82,8 @@ Game start view: the opening chapter puts the player in `possession` of the foun
 
 Reduced motion (T3): all camera transitions become cross-fades of 0.3 s.
 
+**The queen as the doorway to colony orders (T1; brief §1-3, directions A).** Possessing the queen after hand-over (opening phase `done`, GDD 06 §5.13) adds a standing context line "I  Colony orders" (9.2) that opens the Directives drawer (GDD 08 §4.2) with the global `directives` action; selecting her in Observer or Colony view shows a "Colony orders" button on her inspect card (§10). Neither changes any state: opening Directives while possessing the queen keeps her possessed (the drawer does not pause and does not release), and `colony-view` (M) from queen possession is the normal soft release (3.6), so she continues under AI and M returns to her (GDD 08 §14). The queen is the entry point, not a requirement: `directives` (I) works in every view and with any ant possessed (pillar 3). During the opening (before hand-over) the line is not shown, because the founding queen has no workers to direct.
+
 ---
 
 ## 3. Possession rules
@@ -95,7 +97,7 @@ Reduced motion (T3): all camera transitions become cross-fades of 0.3 s.
 | Rival-colony ants, creatures | No | Observer can follow and inspect them. |
 | Any ant during `photo` or `timelapse` | No | Command rejected with reason `view`. |
 
-The possessed ant always keeps its colony agent identity, weight `w`, age, physiology and mortality. Possession changes control, never biology: hunger, ageing, damage and death apply unchanged.
+The possessed ant always keeps its colony identity, age, physiology and mortality (one simulated ant is one ant; there are no per-agent weights, directions K). Possession changes control, never biology: hunger, ageing, damage and death apply unchanged.
 
 ### 3.2 Ways to possess
 
@@ -141,7 +143,7 @@ On any release of a living ant (X, switching to another ant, AFK, colony view, t
 | 4 | Caste `gyne` / `male` not in flight | Return into the nest, `rest`. |
 | 5 | Carrying brood | `nurse`: deliver to the brood chamber the colony chapter selects for that stage. |
 | 6 | Carrying a solid food item | `forage` (return leg): deliver to food store / larvae. The source it came from is registered in its route memory as a discovered source. |
-| 7 | Crop ≥ `CROP_RETURN_FRACTION` of capacity, outside the nest | `forage` (return leg), then distributes by trophallaxis. Inside: `store`. |
+| 7 | Crop ≥ `RESUME_CROP_FRACTION` of capacity, outside the nest | `forage` (return leg), then distributes by trophallaxis. Inside: `store`. |
 | 8 | Carrying a soil pellet | `haul` to the mound of the nearest open entrance. In a sealed founding cell: put it into the plug (seal) instead. |
 | 9 | Carrying corpse, waste, chaff, frass | `haul` to the midden (Camponotus: nearest window, `eject-frass`). |
 | 10 | Carrying an aphid (T2) | `tend`: place on the nearest host plant within `RESUME_APHID_RADIUS`; else put down. |
@@ -179,7 +181,7 @@ Entering `colony` or `timelapse` from `possession` performs a normal release (3.
 | `POSSESS_AFK_S` | 120 | real s of running sim without input |
 | `POSSESS_DEATH_HOLD_S` | 3 | real s |
 | `RESUME_COMBAT_WINDOW_S` | 3 | game s |
-| `CROP_RETURN_FRACTION` | 0.5 | of crop capacity |
+| `RESUME_CROP_FRACTION` | 0.5 | of crop capacity (release inference only; the AI forager's own turn-back threshold is GDD 02 `CROP_RETURN_FRACTION` 0.8) |
 | `RESUME_APHID_RADIUS` | 100 | BU |
 | `RESUME_LOCALITY_BONUS` | 0.25 | added to the allocation stimulus score (allocation chapter's scale 0-1) |
 | `PLAYER_TEMP_FLOOR` | gentle 0.6 / naturalist 0.5 / harsh 0.3 | multiplier floor |
@@ -222,7 +224,7 @@ At `tempFactor = 0` (too cold or too hot for the species) the possessed ant craw
 
 ### 4.4 Flight (alates, T2)
 
-Applies after `fly` (7.3). Steering follows the camera direction (the alate turns toward camera forward at 120 °/s); W = flap (thrust), S = brake/hover, A/D = bank, Space hold = climb, Shift hold = descend; E "Land" when a surface is within 6 L ahead. Flight energy, speed and the dispersal edge belong to the reproduction chapter (assumed `FLIGHT_SPEED` ~40 BU/s, compressed from ~1 m/s for control).
+Applies after `fly` (7.3). Steering follows the camera direction (the alate turns toward camera forward at 120 °/s); W = flap (thrust), S = brake/hover, A/D = bank, Space hold = climb, Shift hold = descend; E "Land" when a surface is within 6 L ahead. Flight energy, speed and the dispersal edge belong to GDD 06 §11.6 (ascend 40 BU/s, forward 80 BU/s, `flightEnergy` 1/90 per s).
 
 ---
 
@@ -252,14 +254,18 @@ Bindings use `KeyboardEvent.code` (physical key), displayed through `navigator.k
 | `quick-save` / `quick-load` | Quick save / load (confirm on load) | F5 / F9 | — (menu) | G | press | T1 |
 | `colony-view` | Enter/leave colony view | M | View (8) hold 500 ms | P, O, C | toggle | T1 |
 | `scent-view` | Scent overlay | V | Dpad left (P), Dpad up (O) | P, O, C | toggle | T2 |
-| `photo-mode` | Enter/leave photo mode | O | LS+RS click together | P, O, C, Ph | toggle | T2 |
+| `photo-mode` | Enter/leave photo mode | F2 | LS+RS click together | P, O, C, Ph | toggle | T2 |
+| `overlay-cycle` | Cycle overlays (temperature → moisture → threats → dig plans → off; GDD 08 §10) | O | — | P, O, C | press | T2 |
+| `directives` | Directives drawer (GDD 08 §4.2) | I | — (menu) | G | toggle | T1 |
+| `nest-overview` | Nest overview drawer (GDD 08 §4.6) | U | — (menu) | G | toggle | T1 |
+| `codex` | Codex book (GDD 08 §7.3) | K | — (menu) | G | toggle | T2 |
 | `journal` | Journal panel | J | — (menu) | G | toggle | T2 |
 | `why-view` | Colony health "why" panel | Y | — (menu) | G | toggle | T2 |
 | `roster` | Roster panel | L | — (menu) | G | toggle | T1 |
 | `controls-reminder` | Show all controls for the current context | ? (Shift+Slash) | Start hold 1 s | G | press | T1 |
 | `alert-jump` | Move observer camera to newest alert | Enter | LB+RB | G | press | T2 |
 | `skip-ahead` | Run until next notable event (8) | N | LB+LS click | O, C | press | T2 |
-| `pointer-lock-toggle` | Switch mouse look Drag/Locked | K | — | P, O, Ph | toggle | T1 |
+| `pointer-lock-toggle` | Switch mouse look Drag/Locked | F8 | — | P, O, Ph | toggle | T1 |
 | `possess-next` / `possess-prev` | Cycle nearby ants | Tab / Shift+Tab | RB / LB tap | P, O | press | T1 |
 | `possess-last` | Back to previous ant | Backspace | — | P, O | press | T1 |
 | `possess-forager` / `-digger` / `-nurse` / `-queen` | Role quick keys | 5 / 6 / 7 / 8 | LB+X / LB+A / LB+B / LB+Y | P, O, C | press | T1 |
@@ -284,6 +290,8 @@ Bindings use `KeyboardEvent.code` (physical key), displayed through `navigator.k
 | `foot` | Tap: let go (wall/ceiling) or drop item (floor); hold: grip | Space | B | tap/hold | T1 |
 | `release` | Release to observer | X | View tap | press | T1 |
 | Flight set (T2) | Flap / brake / bank / climb / descend / land | W / S / A,D / Space / Shift / E | RT / LT / LS x / A hold / B hold / X | — | T2 |
+
+Queen only (after hand-over): the global `directives` action (I, 5.1) is shown as the context line "I  Colony orders" and the possessed-ant panel reads "Colony orders (I)" (GDD 08 §5.2); pressing it opens Directives without releasing her (§2).
 
 ### 5.3 Observer
 
@@ -445,6 +453,8 @@ The player's zoom is remembered per state. FOV setting `fovOffset` (−10°..+20
 | Picking | Click selects ant, creature, food source, item, chamber (when underground), entrance | Same |
 | Follow target loss | Followed entity removed: hold 2 real s at last position, then free fly | |
 
+**Ambient watch (T3, optional; seed pillar 6, brief §5).** An unattended observation mode for quiet periods, started from the pause menu row "Watch the colony" (GDD 08 §3.5) or in Observer with the rebindable action `obs-ambient` (no default key). It hides the HUD as H does (GDD 08 §3.4: only `critical` alerts show), enters Observer follow and picks a target among living colony ants doing `forage`/`scout`, `dig`/`haul` or `nurse`, rotating through the three groups and preferring ants in view of something happening (carrying, recruiting, tending brood). It retargets every `AMBIENT_RETARGET_REAL_S` 20-40 real s (uniform, drawn on the UI side, never from a sim stream) with the normal `CAM_SWITCH` transition (a cross-fade in reduced motion), and immediately when the target dies, enters a nest the camera cannot follow, or no longer does a watched task. Follow distance 4-10 L, slow orbit 6 °/s, depth of field on the target. Speed is not changed (the player may leave 2x or 4x on). Any key, click, stick or wheel input exits to plain Observer at the current pose; a `critical` alert also exits (and auto-slow applies). Nothing is possessed and no sim state changes; the mode is a camera and HUD state of the game layer.
+
 ### 6.7 Colony view camera and cutaway (T1)
 
 | Item | Value |
@@ -489,11 +499,10 @@ The player's zoom is remembered per state. FOV setting `fovOffset` (−10°..+20
 | Item | Rule |
 | --- | --- |
 | Time | Sim frozen (no ticks) regardless of prior speed; ambient animation (grass sway, particles) frozen too. On exit, prior speed/pause state restored. |
-| Camera | Free fly from the current camera pose, speed 0.5..50 BU/s; collision with `f`; limited to `PHOTO_RADIUS` 120 BU from the entry point (soft wall). |
-| Lens | Focal/FOV 15°..90°; focus distance 0.5..500 BU (autofocus on click); aperture 8 steps (f/1.4 .. f/22 equivalent blur scale); exposure ±2 EV; roll ±45°. |
+| Camera and lens | Owned by GDD 08 §7.9 (consistency pass): `PHOTO_SPEED_BU_S` 4 (Shift ×5, Ctrl ×0.2), collision 0.3 BU from any surface, `PHOTO_MAX_RADIUS_BU` 400 from the entry point; focal length 24-200 mm equivalent; focus 0.5-200 BU; aperture f/1.4-f/22; exposure ±3 EV; roll ±45°. |
 | Extras | Guides (thirds, centre), filters (none, monochrome, warm field-note), hide possessed-ant highlight. HUD always hidden. |
-| Capture | Render at current resolution (×2 when the GPU budget allows) to PNG, filename `foundress-<seed>-d<day>-<hh><mm>.png`. If download is refused (sandbox without `allow-downloads`), show the image in an overlay with "Copy" (Clipboard API, if permitted) and the instruction "Right-click the image to save". |
-| Exit | O / Esc / B: back to the origin view and pose. |
+| Capture | Render at current resolution (×2 when the GPU budget allows) to PNG, filename `foundress-<seed>-y<year>-<season>-d<day>-<hhmm>.png` (GDD 08 §7.9). If download is refused (sandbox without `allow-downloads`), show the image in an overlay with "Copy" (Clipboard API, if permitted) and the instruction "Right-click the image to save". |
+| Exit | F2 / Esc / B: back to the origin view and pose. |
 
 ---
 
@@ -541,7 +550,7 @@ Timing split: **timed** primitives (dig-bite, lay-egg, pick-up, tear, groom...) 
 | `dig-bite` | T1 | LN worker, founding queen; CP all workers (wood); MB minor/media/major; AT small media/media/major; queen founding | Facing a diggable surface (material diggable for the species) within reach; no item, or carrying a pellet (auto-dropped behind first) | `DIG_BITE_S` 1.0 × material factor (owner: nest chapter) | Carve sphere radius `DIG_BITE_RADIUS` 0.6 BU centred 0.4 BU into the face (≈ 0.9 BU³); spawns one `soil-pellet` (wood: `frass`) in the mandibles. Repeats while held. Auto-advance: if the face has receded beyond reach but lies within 1.5 L straight ahead, the ant steps forward into reach before the next bite (AI and player alike). | `pose.dig` head-down rasp | `sfx.dig.<material>` |
 | `seal-entrance` | T1 | LN worker, founding queen; species with plugging | Carrying `soil-pellet`; inside an entrance throat within 3 BU of its surface opening | 2.0 | Adds a plug sphere (radius 1.2 BU) of loose soil at the throat (reverse carve, flag `plug`). Entrance state `sealed` once the throat cross-section is closed (typically 3 pellets). Pellet consumed. | `pose.tamp` head pressing | `sfx.seal-pat` |
 | `unseal-entrance` | T1 | as `dig-bite` | Facing a plug | `dig-bite` × `PLUG_DIG_FACTOR` 0.5 | Removes plug voxels; pellets yielded as `dig-bite`. Entrance `open` when passable. | `pose.dig` | `sfx.dig.loam` |
-| `lay-egg` | T1 | `queen` (dealate, mated) | In a chamber or the founding cell; protein/reserve ≥ `EGG_COST_P` 0.04 P; queen's daily egg budget (colony chapter) not exhausted; cooldown `LAY_COOLDOWN_S` 10 elapsed | 6.0, non-cancellable after windup | Spawns an `egg` at the gaster tip on the floor; deducts 0.04 P (from reserves during claustral founding). Player laying shares the AI budget; it only changes timing. | `pose.lay` gaster curled under | `sfx.egg-lay` (very soft) |
+| `lay-egg` | T1 | `queen` (dealate, mated) | In a chamber or the founding cell; protein/reserve ≥ `EGG_COST_P` 0.04 P; queen's daily egg budget (colony chapter) not exhausted; cooldown `LAY_COOLDOWN_S` 10 elapsed | 6.0, non-cancellable after windup | Spawns an `egg` at the gaster tip on the floor; deducts 0.04 P (from the founding pool `R` during claustral founding, GDD 06 §5.5). Player laying shares the AI budget; it only changes timing. **Opening exception (GDD 06 §5.10):** while the opening phase is `lay`, one `lay-egg` lays a batch of `OPEN_LAY_BATCH_EGGS` 6 eggs over 4 s (no cooldown; capped by the clutch limits); the AI queen is never subject to `LAY_COOLDOWN_S` (GDD 02 §3.2). | `pose.lay` gaster curled under | `sfx.egg-lay` (very soft) |
 | `feed-larva` | T1 | worker castes; founding queen (from reserves); AT: only with fungus | Target larva within reach; crop has P or C > 0, or carrying a solid protein item; AT: carrying `staphylae` | 4.0 | Transfers up to `FEED_LARVA_LOADS` 0.1 load (crop, mixed C/P in crop proportion) or 0.1 P from the solid item; larva hunger reduced (brood chapter). | `pose.feed` head-to-larva | `sfx.feed` |
 | `trophallaxis-give` | T1 | worker castes, nanitic; MB/AT per species data | Target nestmate adult within reach, facing; own crop > `TROPH_DONOR_MIN` 0.05 load; receiver not full | until done, max 10 | Rate `TROPH_RATE` 0.1 load/game s from donor crop to receiver crop, nutrients in donor proportion; stops when donor ≤ 0.05, receiver full, or either moves. | `pose.troph-give` mandibles open, head raised | `sfx.trophallaxis` |
 | `trophallaxis-receive` (beg) | T1 | all adults incl. queen, males | Target nestmate with crop > 0.05 within reach | until done, max 10 | Same transfer, initiated by the receiver; the target is an AI ant, which accepts if its crop > 0.3 of capacity or the beggar is the queen/larva-feeder (colony chapter may refine). Player as target: always offered as prompt "Share food" on the next G. | `pose.troph-beg` antennal drumming | `sfx.trophallaxis` |
@@ -571,7 +580,7 @@ Timing split: **timed** primitives (dig-bite, lay-egg, pick-up, tear, groom...) 
 | `block-opening` | T3 | CP major, MB major, AT major | Facing out in an opening narrower than 1.5 L | until moved | Opening counted as guarded (combat/rival chapter). | `pose.block` head plug | none |
 | `hitchhike` | T3 | AT minor | A nestmate carrying a `leaf-fragment` within reach | 1.0 to mount | Ant rides on the fragment; phorid defence (fungus/ecology chapter). `let-go` dismounts. | `pose.ride` | none |
 
-Caste `carryCap` defaults (species chapter owns): LN worker 1.0, LN queen 0 for food (brood and pellets allowed during founding), CP minor 0.8, media 1.0, major 2.0, MB minor 0.5, media 1.0, major 2.5, AT minor 0.2, small media 0.5, media 1.0, major 3.0. Item `bulk` is in the same unit.
+Caste `carryCap` defaults (GDD 07 owns; its tables win where they differ): LN worker 1.0, LN queen 0 for food (brood and pellets allowed during founding), CP minor 0.5 (GDD 07), media 1.0, major 2.0, MB minor 0.5, media 1.0, major 2.5, AT minor 0.2, small media 0.5, media 1.0, major 3.0. Item `bulk` is in the same unit.
 
 ---
 
@@ -587,11 +596,13 @@ Speed levels `SPEED_LEVELS = [0, 1, 2, 4, 8]` (0 = paused).
 | `photo` (T2) | Frozen | Store and freeze | Restore on exit. |
 | `timelapse` (T2) | Scripted | Store | Restore on exit; returning to possession applies the possession rule. |
 | Pause menu, Settings (in game), Load screen | Paused | Store | Restore on close. |
-| Panels (journal, why view, roster, codex) | Unchanged | — | Setting `pauseWhenPanelOpen` (default off). |
+| Drawers (directives, why view, roster, nest overview) | Unchanged | — | Setting `pauseWhenPanelOpen` (default off). |
+| Book screens (journal, codex, settings, save/load; GDD 08 §7.1) | Paused | Store | Restore on close. |
 | Major alert (T2) | — | Setting `autoSlow`: off / slow to 1x (default) / pause | Severity scale from the alerts chapter. |
-| `skip-ahead` (T2, not in possession) | Runs the sim headless at max rate (render every `SKIP_RENDER_EVERY` 30 ticks) until a notable event or `SKIP_MAX_GAME_H` 2 game hours, then pauses at 1x | — | Any input aborts. |
+| `skip-ahead` (T2, not in possession) | Runs the sim headless at max rate (render every `SKIP_RENDER_EVERY` 30 ticks) until a notable event or `SKIP_MAX_GAME_H` 24 game hours (1 GD, GDD 06 `SKIP_MAX_GD`), then returns to 1x | — | Any input aborts. |
 | Window hidden | No ticks | — | No catch-up. |
-| Frame budget | At most `MAX_TICKS_PER_FRAME` 8 ticks per frame; if the sim cannot keep up, the HUD shows the effective rate ("8× (running at 5.6×)"). | | |
+| Frame budget | At most `MAX_TICKS_PER_FRAME` 16 ticks per frame and `SIM_FRAME_BUDGET_MS` 10 (GDD 06 §4.3-4.4 owns the loop and the step-down rule); if the sim cannot keep up, the HUD shows the effective rate ("8× (running at 5.6×)"). | | |
+| Opening phases `search`..`lay` (GDD 06 §5.1) | Pause, 1x, 2x only | — | The founding time-lapse sets its own rate. |
 
 Commands issued while paused (markers, directives, possess, release, inspect) are applied immediately at the current tick index without advancing time and are logged with that index, so determinism is kept. Camera orbit, inspect cards and panels work while paused; the possessed ant does not move while paused.
 
@@ -621,7 +632,7 @@ Commands issued while paused (markers, directives, possess, release, inspect) ar
 | 8 Structure | 2 | plug, entrance, opening | "Block opening" | — |
 | 9 Self / ground | 1 | nothing else in reach | Queen in a chamber: "Lay egg"; carrying: "Put down <item>"; else "Groom yourself" | Queen: "Groom yourself" |
 
-Independent of E, up to two further lines show other keys valid for the same target: F ("Dig", "Cut leaf", "Chew wood", "Tear off a piece"), G ("Share food"/"Beg food"), Space ("Let go"/"Drop <item>"), T ("Inspect").
+Independent of E, up to two further lines show other keys valid for the same target: F ("Dig", "Cut leaf", "Chew wood", "Tear off a piece"), G ("Share food"/"Beg food"), Space ("Let go"/"Drop <item>"), T ("Inspect"). When the possessed ant is the queen after hand-over, one of the two lines is always "I  Colony orders" (target-independent; §2); it compacts with the other prompts under `promptsMode` but is never removed by `compact`.
 
 ### 9.3 Text patterns and states
 
@@ -645,12 +656,12 @@ Opened by `inspect` (tap T) in possession for the current target, or by clicking
 | --- | --- | --- |
 | Ground / surface | Material (`loam` etc.) and diggability ("easy", bite time ×); moisture (dry/damp/wet/waterlogged, %); temperature °C at surface and estimated at 10 BU depth; cover (open / partly covered / under an object); scent present: trail strength and colony (ours/foreign), home marks (ours/foreign/none), alarm. | Queen in founding: site assessment (diggability, moisture, warmth/cover, flood risk, rival scent, exposure, overall poor/fair/good/excellent) per the opening chapter. |
 | Food source / item | Kind (food kind id in words), taste ("sweet", "protein-rich", "mixed"), amount left (loads), state (fresh/drying/rotting), carry: "one ant" / "needs about n" / "too large: tear pieces". Bait (T2): "sweet; faint unfamiliar odour". | Ants of ours currently using it; rival ants present; known to the colony (yes/no). |
-| Ant (ours) | Nestmate odour; caste; age class (callow/young/mature/old) and age in game days; health %; crop C/P (loads); carrying. | Task, behaviour state, target, reason; last 5 decisions with winning reason (T2); possessed flag. |
+| Ant (ours) | Nestmate odour; caste; age class (callow/young/mature/old) and age in game days; health %; crop C/P (loads); carrying. | Task, behaviour state, target, reason; last 5 decisions with winning reason (T2); possessed flag. Queen (after hand-over): a "Colony orders" button that opens Directives (GDD 08 §4.2) without possessing her (§2). |
 | Ant (foreign) | "Stranger"; species; size relative to us (×L); behaviour visible (foraging, fighting, carrying). | Colony label (e.g., "Neighbouring colony 2"), hostility (T2). |
 | Brood | Stage; hunger (fed/hungry/starving); temperature and humidity felt vs. preferred. | Progress % of stage, ETA in game days at current conditions, destined caste if known (worker / sexual, T2). |
 | Creature (T2) | Kind; activity (feeding, hunting, resting, fleeing); size (×L); danger (harmless / dangerous to a lone ant / dangerous to many). | Food value if dead (loads, C/P), herd size and honeydew output for aphids. |
 | Chamber (Colony/Observer, or possession inside it) | Temperature °C, humidity %, depth (BU), crowding feel (roomy/crowded). | Type, volume (BU³), capacity vs occupancy (ants, brood, food loads), connections (entrances, tunnels), flood risk, issues with "why" links (T2). |
-| Entrance | Open / plugged / sealed; traffic per game minute; mound size. | Mound pellets; linked chambers. |
+| Entrance | Open / plugged / sealed; traffic per game hour; mound size. | Mound pellets; linked chambers. |
 
 ---
 
@@ -691,17 +702,21 @@ Opened by `inspect` (tap T) in possession for the current target, or by clicking
 | Game-side input | bindings, active device, held set, autoPaused | Input | bindings in localStorage |
 | Settings | camera/controls/prompts/gameplay settings above | Presentation | localStorage |
 
+Contract forms fixed by the consistency pass (`00-index.md` §D): `ant.controlled` is the `POSSESSED` bit of `ant.flags` and `ant.trailOn` the `TRAIL_ON` bit (no separate booleans); `ant.action` is `{ id, phase, startTick, durationTicks, target, repeat, reason }` (ticks, not seconds); `ant.acidRegenT` and `ant.layCooldownT` become `acidRegenTick` and `layCooldownUntilTick` (absolute ticks); `state.time` is the GDD 06 record `{ speed, paused, requested, autoSlow, cooldowns, skipUntil, commandSeq }`.
+
 ## Appendix B — Commands
+
+Command `type` names are camelCase (consistency pass, `00-index.md` §D); the earlier kebab-case names are listed in brackets.
 
 | Command | Payload | From | Notes |
 | --- | --- | --- | --- |
-| `possess` | `{ antId }` | UI, input, debug | Rejected reasons in 3.3. |
+| `possess` | `{ antId } \| { role: 'forager' \| 'digger' \| 'nurse' \| 'queen', nearPos: Vec3 }` | UI, input, debug | Rejected reasons in 3.3. A `role` is resolved by the sim with the quick-key rule of 3.2, nearest to `nearPos` (the camera target, filled by the game). |
 | `release` | `{ reason: 'player' \| 'afk' \| 'colony-view' \| 'timelapse' }` | UI, input, game | |
-| `set-intent` | `PlayerIntent` | Game each frame (logged on change) | Via `sim.setPlayerIntent`. |
-| `act` | `{ action: actionId; target?: EntityRef \| SurfaceRef; secondary?: boolean; phase: 'start' \| 'stop' }` | Input, debug `__game.act()` | `stop` ends hold-type actions. Target is the prompt's target; the sim re-validates. |
-| `set-trail` | `{ on: boolean }` | Input | |
-| `set-speed` | `{ level: 0\|1\|2\|4\|8 }` | Input, UI | Clamped by view rules. |
-| `skip-ahead` (T2) | `{}` | Input | Game-level loop, not a sim command. |
+| `setIntent` [`set-intent`] | `PlayerIntent` | Game each frame (logged on change) | Applied through `sim.setPlayerIntent`; logged as a command only for deterministic replay. |
+| `action` [`act`] | `{ actionId; target?: EntityRef \| SurfaceRef; secondary?: boolean; phase: 'start' \| 'stop' }` | Input, debug `__game.act()` | `stop` ends hold-type actions. Target is the prompt's target; the sim re-validates. |
+| `setTrail` [`set-trail`] | `{ on: boolean }` | Input | |
+| `setSpeed` [`set-speed`] | `{ speed: 0\|1\|2\|4\|8 }` | Input, UI | Clamped by view rules (8) and GDD 06 §4.2; 0 = pause. |
+| `skipToNextEvent` [`skip-ahead`] (T2) | `{}` | Input | Executed by the game loop (GDD 06 §4.6); not a tick command. |
 | Game-level (not sim) | `view.set`, `camera.recentre`, `camera.setPose`, `photo.capture`, `bindings.set`, `bindings.reset`, `settings.set` | UI | |
 
 ## Appendix C — Events
@@ -721,18 +736,18 @@ Opened by `inspect` (tap T) in possession for the current target, or by clicking
 
 ## Appendix D — Diagnostics ("why" view)
 
-| Subject | Status | Limiting factors (weighted) | Remedies |
+| Subject (id; ids fixed by the consistency pass) | Status | Limiting factors (weighted) | Remedies |
 | --- | --- | --- | --- |
-| Possessed ant movement | "Moving at 55 % of normal" | cold (tempFactor'), injury (healthFactor), load, grip held, uphill on loose sand | "Wait for warmth / move into sun", "Put down the load", "Release grip" |
-| Possessed ant action | "Can't dig here" (last failure reason) | the failure code with its explanation | "Find soil: loam, sand, clay", "Put down your pellet first" |
-| Possession availability | "No foragers right now" | task counts | "Possess any worker (Tab)", "Raise foraging in Directives" |
-| Input | "Mouse look unavailable", "Controller layout unrecognised", "Bindings could not be saved" | environment cause | "Drag with the right button", "Check bindings", "Settings are kept for this session only" |
-| Time speed | "Running at 5.6× (requested 8×)" | sim cost per tick, ant count | "Lower quality preset" (perf chapter) |
-| Released ant | "Returned to work: hauling soil" | rule number in 3.5 that matched | — |
+| Possessed ant movement (`diag-possessed-movement`) | "Moving at 55 % of normal" | cold (tempFactor'), injury (healthFactor), load, grip held, uphill on loose sand | "Wait for warmth / move into sun", "Put down the load", "Release grip" |
+| Possessed ant action (`diag-possessed-action`) | "Can't dig here" (last failure reason) | the failure code with its explanation | "Find soil: loam, sand, clay", "Put down your pellet first" |
+| Possession availability (`diag-possession-availability`) | "No foragers right now" | task counts | "Possess any worker (Tab)", "Raise foraging in Directives" |
+| Input (merged into GDD 08 `diag-input`) | "Mouse look unavailable", "Controller layout unrecognised", "Bindings could not be saved" | environment cause | "Drag with the right button", "Check bindings", "Settings are kept for this session only" |
+| Time speed (merged into GDD 08 `diag-perf`) | "Running at 5.6× (requested 8×)" | sim cost per tick, ant count | "Lower quality preset" (perf chapter) |
+| Released ant (`diag-released-ant`, info) | "Returned to work: hauling soil" | rule number in 3.5 that matched | — |
 
 ## Appendix E — Acceptance checks (debug API, `?test=1&seed=1&quality=low&autostart=1`)
 
-1. **Given** a new game with the founding queen possessed at speed 1x, **when** `__game.command({type:'set-speed', level:8})`, **then** `summary().time.speed` is 1 and a `speed-refused` event with reason `possession` was emitted.
+1. **Given** a new game with the founding queen possessed at speed 1x, **when** `__game.command({type:'setSpeed', speed:8})`, **then** `summary().time.speed` is 1 and a `speed-refused` event with reason `possession` was emitted.
 2. **Given** Observer at 8x, **when** `__game.possess('forager')` and `step(1)`, **then** `summary().possessed.id` is that ant, `controlled` is true and speed is 1.
 3. **Given** a possessed worker carrying a `soil-pellet` 20 BU below the surface in a nest with one open entrance, **when** `release()` and `step(1)`, **then** its task is `haul`; **and after** `step(1200)` (120 game s) the pellet item lies within 6 BU horizontally of that entrance at the surface.
 4. **Given** a possessed worker 100 BU outside the nest with crop 0.8 C, **when** released, **then** within 1 tick its task is `forage` (return leg) and within 3000 ticks its crop is ≤ 0.05 and the colony's in-nest C stock (social stomach + stores) rose by ≥ 0.7 load.
@@ -760,15 +775,15 @@ Opened by `inspect` (tap T) in possession for the current target, or by clicking
 
 ## Appendix F — Cross-chapter assumptions
 
-1. **Locomotion chapter** provides a pure surface-walker step usable by both the sim and the game-side predictor, ballistic falling and re-attachment, the `STUCK_RESCUE` relocation, and species cruise speeds (Lasius 6 BU/s at 22-28 °C) plus `tempFactor(T)` per species.
+1. **Locomotion** (there is no separate locomotion chapter; consistency pass: the walker and player locomotion are this chapter's §4, AI speed multipliers GDD 02 §1.4, `tempFactor` = GDD 06 §2.6 `speedMult(Tb)`, grip and slope limits GDD 04 §3, nest walking and clearance GDD 03 §5) provides a pure surface-walker step usable by both the sim and the game-side predictor, ballistic falling and re-attachment, the `STUCK_RESCUE` relocation, and species cruise speeds (Lasius 6 BU/s at 22-28 °C) plus `tempFactor(T)` per species.
 2. **Colony/allocation chapter** honours `ant.controlled` (never reassigns), exposes the allocation stimulus scale to which `RESUME_LOCALITY_BONUS` adds, chooses the brood chamber per stage, sets the queen's daily egg budget, and decides when an AI ant accepts a trophallaxis beg.
 3. **Nest chapter** owns dig rates per material (`DIG_BITE_S` factor table), carve sphere size, pellet clutter, entrance throat detection, plugs, mounds and the `fSubstrate < 0` underground test; it may tune the defaults here without renaming.
-4. **Economy chapter** owns crop capacity (1 load for the standard worker), upkeep, hurry cost, and the meaning of `w`; possession never changes `w`, and all quantities shown to the player are per sim agent.
+4. **Economy (GDD 02 §1, §5)** owns crop capacity (1 load for the standard worker), upkeep and hurry cost; there are no per-agent weights (directions K) and all quantities shown to the player are per simulated ant.
 5. **Pheromone chapter** defines the deposit scale for `TRAIL_DEPOSIT_PLAYER` and `ALARM_PUFF`.
 6. **Ecology chapter** defines source amounts, aphid droplet buffers, hardness, item `bulk`; T1 worldgen places at least basic food sources (crumbs, sugar, carrion) so T1 foraging verbs have targets.
 7. **Combat chapter** owns damage, pair locks, fight/flee thresholds and the outcome of `bite`, `bite-hold`, `spray-acid`, `sting`, `release-alarm`.
 8. **Opening chapter** owns the founding script (founding-queen autonomy, site assessment via `sniff`/`antennate` on ground, first-brood time-lapse with drop-out beats) and starts the game in possession of the queen.
-9. **Reproduction chapter** owns flight permission, flight physics constants (`FLIGHT_SPEED` ~40 BU/s assumed), mating, dispersal off-map and dealation.
+9. **Reproduction (GDD 06 §11)** owns flight permission, flight physics constants (ascend 40 BU/s, forward 80 BU/s), mating, dispersal off-map and dealation.
 10. **Environment chapter** supplies temperatures for `tempFactor`, overwintering time-lapse entry/exit, and heat damage.
 11. **Directives/markers chapter** owns marker tools inside the colony view; this chapter only supplies the camera, cutaway, confirm/cancel/delete inputs.
 12. **Render chapter** implements the depth strategy for near/far ratios here, dithered fades, cutaway capping, grass parting, exposure adaptation, and reports "region ready" for transitions.

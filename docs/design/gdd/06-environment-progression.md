@@ -26,7 +26,7 @@ All numbers in this chapter are NAMED balance constants. They live in `src/sim/b
 
 - **Two clocks (from the Lasius dossier, section 0).** Kinematics, digging strokes, pheromone decay and fights run on the *fast clock*: game seconds equal real seconds at 1x. Development, lifespans, consumption per day, seasons run on the *slow clock*: game days (GD). One GD stands for 13.04 real days of biology (365 / 28). Each GD still plays as a full 24 h cycle for light, temperature and human activity. Rates are quoted "per GD" or "per game second" and say which.
 - Day-of-year (`doy`) is 1..28; fractional day `d = (doy - 1) + hour/24` is 0-based. The year starts at the spring equinox (mapping: `d = 0` is 20 March; `d = 7` is about 20 June; `d = 14` about 22 September; `d = 21` about 21 December).
-- Temperatures in degrees C. Loads (C, P) as in directions section J. `W_eq` = worker-equivalents = sum of `w` (represented real workers per simulated worker) over living adult worker-caste ants (Lasius dossier 12.1: `N_sim = N_real` up to 300; above that `N_sim = 300 + 1200 (1 - exp(-(N_real - 300)/4000))`, cap 1500).
+- Temperatures in degrees C. Loads (C, P) as in directions section J. `N` = number of living adult worker-caste ants of the colony (simulated workers = displayed workers; directions K: no per-agent weights). Every colony-size threshold in this chapter is in `N` and reachable under the K caps (Lasius 1500, Camponotus 1200, Messor 1500, Atta 1500). Real colonies are larger; the codex says so (`SpeciesDef.wildColonySize`, GDD 07).
 - Determinism: every random draw in this chapter uses the named RNG streams `rng.weather`, `rng.opening`, `rng.winter`, `rng.repro`, `rng.events` (sub-streams of the state RNG, seeded from world seed + stream name) so that changing one subsystem does not reshuffle another.
 - **T1 degraded mode.** If weather/season systems are not yet built, `environment` provides constants: air 21 C, surface = air, soil 19 C, light 1.0 by day / 0.25 at night, weather `clear`, no seasons (calendar still advances). All consumers use the query interface of section 2.9, so T2 replaces the body only.
 
@@ -46,7 +46,7 @@ Listed in full in the structured return; headline additions: climates `temperate
 | `TICKS_PER_HOUR` | 250 | 1 game hour = 25 s at 1x |
 | `HOURS_PER_DAY` | 24 | |
 | `TICKS_PER_DAY` | 6000 | 1 GD = 600 s at 1x |
-| `DAYS_PER_SEASON` | 7 (custom 4 / 7 / 10 / 14) | section 1.7 |
+| `DAYS_PER_SEASON` | 7 (custom 5 / 7 / 10, directions K; read from `config.rules.seasonLengthDays`, never hard-coded) | section 1.7 |
 | `SEASONS_PER_YEAR` | 4 | `spring, summer, autumn, winter` |
 | `DAYS_PER_YEAR` | `4 * DAYS_PER_SEASON` = 28 | |
 | `REAL_DAYS_PER_GD` | 13.04 | biology conversion only |
@@ -71,7 +71,7 @@ Environment sub-schedules (ticks): `ENV_FAST_EVERY = 25` (air/surface/Tb tables,
 | `yearFrac` | `d / DAYS_PER_YEAR` |
 | `colonyAgeDays` | `(tick - foundingTick) / 6000` (`foundingTick` = tick of first egg of the first clutch) |
 
-HUD string: `Summer 3 - 15:20 - Year 1` (season name, `dayOfSeason`, 24 h clock, year). Journal date string: `Summer 3, Year 1`. The calendar never wraps or overflows: `tick` is a safe integer (2^53 ticks = 4.5e8 years).
+HUD and journal date strings follow GDD 08 (`Summer · Day 3 · Year 1`, with `Day n` = `dayOfSeason`, plus the 24 h clock in the HUD). The calendar never wraps or overflows: `tick` is a safe integer (2^53 ticks = 4.5e8 years).
 
 ### 1.3 Day length, sunrise, sunset, phases
 
@@ -120,20 +120,20 @@ Sources: Lasius active by day with summer night activity [dossier 7, MEM]; carpe
 
 ### 1.6 Starting dates and start conditions per species [T1 Lasius; T3 others]
 
-The New Game setup offers "starting season" restricted to the species window. The seed picks the exact day inside the window. A Lineage daughter (section 12) starts at the same `doy` as her flight.
+By default a new game starts on the species' natural founding day: the seed picks the exact day inside the window below. Custom rule `startSeason` (directions K: spring, summer or autumn, never winter) overrides it: the game then starts on `dayOfSeason` 3 of that season at the species start hour and the forced start conditions are rolled for that day. A Lineage daughter (section 12) starts at the same `doy` as her flight.
 
 | Species | Climate (2.1) | Window `doy` | Default `doy` (season day) | Start hour | Forced start conditions |
 |---|---|---|---|---|---|
 | `lasius-niger` | `temperate-maritime` | 8..12 | 10 (Summer 3) | 14:00-16:00 | weather `clear` or `overcast`, no rain in prior 0.5 GD, wind2m < 4, air 18-26 C |
 | `camponotus-pennsylvanicus` | `temperate-continental` | 2..9 | 5 (Spring 5) | 17:00-19:00 | weather `clear`/`overcast`, air >= 13 C, wind2m < 4 |
 | `messor-barbarus` | `mediterranean` | 15..19 | 17 (Autumn 3) | 14:00-16:00 | a rain event of >= 7 h ended 3.6-12 h before start (`lastRainEndTick`), topsoil `theta0 >= 0.45`, weather `clear`, wind2m < 3 |
-| `atta-texana` | `subtropical` | 3..10 | 6 (Spring 6) | 21:00-23:00 | cumulative rain in prior 1 GD >= 6.35 mm, `moonless`, weather `clear`, air 20-27 C |
+| `atta-texana` | `subtropical` | 2..8 | 5 (Spring 5) | 21:00-23:00 | cumulative rain in prior 1 GD >= 6.35 mm, `moonless`, weather `clear`, air 20-27 C |
 
-Windows follow the research: Lasius flights fall at `gd` 9-12.5 [Lasius 12.2]; Camponotus flights `gd` 1-9, peak 4-6 [Camponotus 12]; Messor flights `gd` 15-19.7 after a rain front [Messor 12.2]; Atta flights `gd` 3-10 after more than 6.35 mm of rain, on clear moonless nights [Atta 12.2]. The environment is pre-rolled at setup so the forced conditions hold: weather history (`lastRainEndTick`, `cumRain24h`), soil moisture and moon phase are initialised to satisfy them; temperature then follows the normal model.
+Windows follow the research: Lasius flights fall at `gd` 9-12.5 [Lasius 12.2]; Camponotus flights `gd` 1-9, peak 4-6 [Camponotus 12]; Messor flights `gd` 15-19.7 after a rain front [Messor 12.2]; Atta flights April-June after more than 6.35 mm of rain, on clear moonless nights [Atta 12.2]; the Atta dossier counted from 1 March, so on this equinox calendar April-June is `doy` 1-8 and the window is `doy` 2-8 (consistency pass, GDD 07 risk R3; Messor's `doy` 15-19 already places its flights between late September and mid November, peak October, and is kept). The environment is pre-rolled at setup so the forced conditions hold: weather history (`lastRainEndTick`, `cumRain24h`), soil moisture and moon phase are initialised to satisfy them; temperature then follows the normal model.
 
 ### 1.7 Custom season length [T3]
 
-`seasonLengthDays` in {4, 7 (default), 10, 14}. All `doy`-based thresholds in this chapter are written for the standard 7-day season and are **scaled by `seasonLengthDays / 7`** (`doy_scaled = (doy - 1) * 7 / seasonLengthDays + 1` when comparing). Biological durations (development, lifespans, brood stages, upkeep) are in GD and are **not** scaled: longer seasons therefore give more brood cycles per season (easier), shorter ones fewer (harder). The 28-day moon period, weekdays and the 24 h day are unchanged.
+`seasonLengthDays` in {5, 7 (default), 10} (directions K). All `doy`-based thresholds in this chapter are written for the standard 7-day season and are **scaled by `seasonLengthDays / 7`** (`doy_scaled = (doy - 1) * 7 / seasonLengthDays + 1` when comparing). Biological durations (development, lifespans, brood stages, upkeep) are in GD and are **not** scaled: longer seasons therefore give more brood cycles per season (easier), shorter ones fewer (harder). The moon period (`MOON_PERIOD_DAYS` 2.265 GD), weekdays (always 7 days; game day 1 of year 1 is weekday 0) and the 24 h day are unchanged.
 
 ---
 
@@ -407,7 +407,7 @@ Applied by the pheromone system each 10 ticks to cells flagged `exposed` (no ove
 
 | Channel | Rain / storm effect | Wind | Notes |
 |---|---|---|---|
-| `trail` | extra removal rate `lambda = WASH_K[class]`: drizzle 0.002 s^-1 (half-life 6 min), shower 0.010 (69 s), downpour 0.040 (17 s), storm 0.120 (6 s) | decay x (1 + windGround / 3) | pheromone chapter's baseline half-life (15 game minutes at 22 C) still applies |
+| `trail` | extra removal rate `lambda = WASH_K[class]`: drizzle 0.002 s^-1 (half-life 6 min), shower 0.010 (69 s), downpour 0.040 (17 s), storm 0.120 (6 s) | decay x (1 + windGround / 3) | GDD 02 §8 baseline half-life (`trail` 900 game s at 22 C) still applies |
 | `home` (cuticular hydrocarbons, half-life 2 GD) | decay x (1 + 2 * precipNorm) during rain, `precipNorm` = 0.05 drizzle, 0.3 shower, 0.8 downpour, 1.0 storm | none | non-volatile, washed more slowly [Lasius dossier 12.2] |
 | `alarm` | unchanged by rain | x (1 + windGround / 3) | |
 
@@ -448,7 +448,7 @@ Sanity: a 2.5 mm shower on loam (permeable 1) adds 2.5 / 12 = 0.21 to `theta0`; 
 | Item | Rule |
 |---|---|
 | Puddle store | per cell with `puddleCapMm > 0` (paved low points, sand hollows, tyre ruts, gully mouths): `puddle += runoff * PUDDLE_FILL (0.5)`, `puddle -= (E0 + PUDDLE_DRAIN 0.4 mm/h) * dt_h`, clamped `0..puddleCapMm` |
-| Puddle hazard | depth in BU `= puddleMm / BU_mm`. Depth >= 0.5 BU: nav cost x5 (AI avoids); an ant inside takes drowning damage 0.03 health/s unless carried item is a float-able leaf/twig; at >= 1.0 BU impassable except to a possessed ant swimming |
+| Puddle hazard | depth in BU `= puddleMm / BU_mm`. Depth >= 0.5 BU: nav cost x5 (AI avoids); an ant inside takes the shared drowning damage of GDD 03 §11 (50 s grace, then 1 % max hp per s; consistency pass) unless the carried item is a float-able leaf/twig; at >= 1.0 BU impassable except to a possessed ant swimming |
 | Surface wetness | `surfaceWet` 0..1 rises with `rainRateMmH`, falls with evaporation; wet surfaces show specular and friction x0.9 |
 | Entrance inflow | each nest entrance `e` with catchment area `A_e` (BU^2, from worldgen flow accumulation plus mound ring): `Q_e [BU^3/s] = (rainRateMmH / 3600) * A_e * runoffCoeff / BU_mm * difficulty.floodInflowMult`; `runoffCoeff`: asphalt 0.9, concrete 0.9, rubber 0.9, sand 0.15, loam 0.3, lawn 0.2, forest 0.1, interior 0. Sprinkler and hose events (human chapter) add to `rainRateMmH` locally |
 | Seepage | cells with `theta1 >= 0.92` seep into adjacent chambers at `SEEPAGE_RATE = 0.002` BU^3 per second per BU^2 of wall |
@@ -466,7 +466,7 @@ Render reads `cloud`, `insolation`, `light`, `fogDensity`, `precip`, `rainDropMm
 
 ### 3.13 Diagnostics published (see Appendix D)
 
-`diag-surface-activity`, `diag-nest-climate`, `diag-flood-risk`, `diag-heat-exposure`.
+`diag-surface-activity`, `diag-heat-exposure`; this chapter's chamber-climate and flood-risk rules feed GDD 03's `diag-nest-climate` and `diag-nest-flood` (merged by the consistency pass).
 
 ---
 ## 4. Time controls [T1; auto-slow and skip-to-event T2]
@@ -532,25 +532,27 @@ each animation frame (real dt, clamped to 0.1 s):
 
 Setting `autoSlow` in {`off`, `slow` (drop to 1x), `pause`}. Default: `slow` (Naturalist), `pause` (Gentle), `slow` (Harsh). Triggers (each with a 0.25 GD cooldown per kind, never while paused):
 
-| Trigger id | Fires when |
-|---|---|
-| `queen-attacked` | queen health falls by >= 0.15 within 5 s |
-| `entrance-breach` | hostile creature or rival worker crosses an entrance with >= 3 ants |
-| `rival-raid` | a rival raid party (combat chapter) reaches within 200 BU of an entrance |
-| `flood-brood` | water enters a chamber holding brood |
-| `footfall-warning` | human `footsteps` warning active within 120 BU of a trail or entrance |
-| `possessed-low` | possessed ant health < 0.3 |
-| `storm-onset` | weather becomes `storm` while >= 5 % of the colony is outside |
-| `heat-stupor-mass` | >= 10 % of foragers in `heat-stupor` |
-| `flight-launch` | alates launch (section 11) |
-| `overwinter-prompt` | winter banner (section 6) |
-| `queen-low` | queen reserves or crop < 15 % (queenright colony) |
+Auto-slow is driven by alerts (GDD 08 §5.1, §6.1): the `autoSlow` setting applies to `critical` alerts and `autoSlowWarning` to `warning` alerts. The trigger ids below are therefore the alert kinds of GDD 08 §6.5 that this chapter (or the named owner) raises with these conditions (consistency pass):
+
+| Former trigger id | Alert kind (level) | Fires when |
+|---|---|---|
+| `queen-attacked` | `queen-in-danger` (critical) | queen health falls by >= 0.15 within 5 s |
+| `entrance-breach` | `nest-attacked` (critical) | hostile creature or rival worker crosses an entrance with >= 3 ants |
+| `rival-raid` | `raid-seen` (warning) | a rival raid party (GDD 05) reaches within 200 BU of an entrance |
+| `flood-brood` | `nest-flooding` (critical) | water enters a chamber holding brood |
+| `footfall-warning` | `human-event-warning` (warning) | human `footsteps` warning active within 120 BU of a trail or entrance |
+| `possessed-low` | `possessed-danger` (critical) | possessed ant health < 0.3 |
+| `storm-onset` | `weather-change` (warning when it is a `storm`) | weather becomes `storm` while >= 5 % of the colony is outside |
+| `heat-stupor-mass` | `heat-danger` (warning) | >= 10 % of foragers in `heat-stupor` |
+| `flight-launch` | `flight-weather` (notice; auto-slow regardless of level) | alates launch (section 11) |
+| `overwinter-prompt` | `winter-coming` (notice; auto-slow regardless of level) | winter banner (section 6) |
+| `queen-low` | `queen-reserves-low` (warning) | queen reserves or crop < 15 % (queenright colony) |
 
 Action `slow`: speed set to 1x, alert shown (alerts chapter), speed control flashes once. Action `pause`: pause plus alert and "Resume" button. `autoSlow` never raises speed.
 
 ### 4.6 Skip to next event [T2]
 
-Button and key (`.`): runs at 8x until the next qualifying event, then sets 1x. Qualifying events: `dawn`, `dusk`, `weather.changed`, any alert of severity >= warning, milestone, `flight.eligible`, colony-stage change, `season` change, overwinter banner. Limits: refused while possessing; refused while a `danger` alert is active; at most `SKIP_MAX_GD = 1.0` game day per press; if no event occurs within that span it stops anyway with a toast "Quiet day". Used for waiting through quiet stretches without being the only way to wait.
+Button and key `N` (GDD 01 `skip-ahead`): runs at 8x until the next qualifying event, then sets 1x. Qualifying events: `dawn`, `dusk`, `weather.changed`, any alert of severity >= warning, milestone, `flight.eligible`, colony-stage change, `season` change, overwinter banner. Limits: refused while possessing; refused while a `critical` alert is active; at most `SKIP_MAX_GD = 1.0` game day per press; if no event occurs within that span it stops anyway with a toast "Quiet day". Used for waiting through quiet stretches without being the only way to wait.
 
 ### 4.7 Pause semantics
 
@@ -571,7 +573,7 @@ A new game (not a load, not a Lineage daughter's later play) starts the script. 
 | `search` | dealation done | free exploration; `desiccationLoad` rising; sniff available; threats may appear (5.6); queen may dig anywhere diggable | first dig bite on a diggable material -> `dig`; `desiccationLoad >= 1` or queen health 0 -> `failed` |
 | `dig` | first bite | shaft + chamber excavation (5.8); two readiness bars (depth, volume); she may abandon and walk away (then phase returns to `search`, exposure resumes, the old shaft stays and may be re-used) | both bars >= 1 and queen inside the chamber -> `seal` |
 | `seal` | readiness met | prompt "Hold E to close the entrance"; hold `OPEN_SEAL_HOLD_S = 6` s at the shaft (5.9); Atta replaces this with planting (5.15) | entrance state `sealed` -> `lay` |
-| `lay` | sealed | `lay` action in batches (5.10); forecast panel; reserves fall slowly | player confirms "Tend the brood" (or auto at 1 GD idle, or clutch full) with >= 1 batch laid -> `timelapse` |
+| `lay` | sealed | `lay-egg` action in batches (5.10); forecast panel; reserves fall slowly | player confirms "Tend the brood" (or automatically when the clutch is full, or 1.5 GD after sealing with the automatic batch of 5.10) with >= 1 batch laid -> `timelapse` |
 | `timelapse` | confirmation | accelerated founding simulation with presentation (5.11); possible interrupt beats | first worker eclosion + `FOUND_END_AFTER_ECLOSION_GD = 0.4` -> `handover`; queen dead or no brood left -> `failed` |
 | `handover` | lapse ends | normal speed restored (paused for first 1 s), workers appear, journal and first aims (5.13), autosave `opening-complete` | first movement input or 10 s -> `done` |
 | `done` | after handover | normal play | - |
@@ -614,12 +616,12 @@ Reserve drains (loads): `FOUND_UPKEEP_PER_GD = 0.40` (0.30 C + 0.10 P, the direc
 | Rule | Value |
 |---|---|
 | Active in phases | `search`, `dig` (only while the queen is above ground or in a shaft shallower than 3 BU) |
-| Kinds (J creature and human-event ids) | `rove-beetle` (any hour, fast, bite), `wolf-spider` (dusk, night), `jumping-spider` (day, on stones and walls), `bird` event (daytime, a 1.2 s strike at open ground), `footsteps` (human event: shadow plus tremor, `humanWarningLeadS` seconds before impact, footprint 200 x 80 mm), rival `worker` scout (if rivals enabled) |
+| Kinds (J creature and human-event ids) | `rove-beetle` (any hour, fast, bite), `wolf-spider` (dusk, night), `jumping-spider` (day, on stones and walls), `bird` event (daytime; founding variant of GDD 05 §2.6: one swoop at the queen in open ground, telegraphed by the 3.0 s approach shadow, 1.2 s strike), `footsteps` (human event: shadow plus tremor with GDD 04 §15.3 lead times × `HUMAN_TELEGRAPH_MULT`, footprint 280 x 100 mm adult / 200 x 80 mm child), rival `worker` scout (if rivals enabled) |
 | Maximum simultaneous | 1 |
 | Maximum per founding (`OPEN_THREATS_MAX`) | Gentle 0, Naturalist 2, Harsh 4 |
 | Minimum gap | `OPEN_THREAT_GAP_GD = 0.15` (1.5 real minutes) |
 | Spawn | at least 60 BU from the queen, approaching at 70 % of queen sprint |
-| Escape | queen sprints (10-12 BU/s for Lasius); a shaft deeper than 4 BU is refuge: beetle and spider give up after 8 s at the entrance. Under a stone or slab on the surface the beetle loses the queen at 3 BU |
+| Escape | queen hurries (Lasius founding queen: cruise 6 BU/s, hurry 9.6 BU/s, GDD 01 / directions K); a shaft deeper than 4 BU is refuge: beetle and spider give up after 8 s at the entrance. Under a stone or slab on the surface the beetle loses the queen at 3 BU |
 | Rain / downpour during `search` | counted as weather, not a threat; the queen shelters (cover) or accepts 0.05 health per hit |
 
 ### 5.7 Site assessment read-out (antennating the ground)
@@ -649,24 +651,24 @@ Overall word: `Q < 0.30` Poor, `0.30-0.55` Fair, `0.55-0.75` Good, `>= 0.75` Exc
 
 ### 5.8 Digging requirements [T1]
 
-The queen uses the standard dig action (nest chapter; bite carves a sphere of radius `0.6 BU` and yields a pellet). During founding `autoHaul = true`: she kicks pellets up and out between bites, modelled as `QUEEN_BITE_S = 3.0 + 0.15 * depthBU` game seconds per bite (so deeper work is slower); pellets merge into the entrance mound. A founding **shaft** is 1.5 BU in diameter. The two readiness bars:
+The queen uses the standard dig action. **Dig geometry, bite timing and readiness are owned by GDD 03 §13 (consistency pass):** the founding queen's bite takes `DIG_BITE_S` 1.0 s × material factor / `digPower` 0.77 (≈ 1.3 s in loam); during founding `autoHaul = true` (GDD 03 automatic expulsion: pellets merge into the entrance mound); the founding shaft is 2.5 BU in diameter (`royalD`). The two readiness bars are GDD 03's depth term and volume term:
 
-| Species | `FOUND_SHAFT_MIN_BU` (depth below the entrance rim) | recommended | `FOUND_CHAMBER_MIN_VOXELS` (0.125 BU^3 each) | Chamber note |
+| Species | `FOUND_SHAFT_MIN_BU` = GDD 03 `D_MIN` (open soil / under cover) | recommended | `FOUND_CHAMBER_MIN_VOXELS` = GDD 03 `V_MIN` / 0.125 BU^3 | Chamber note |
 |---|---|---|---|---|
-| `lasius-niger` | 6 | 8-15 (32-60 mm) | 60 (7.5 BU^3) | 2-3 BU wide, 1-1.5 BU tall; 3-6 cm deep in open soil, 2-5 cm below a stone [Lasius 5] |
-| `camponotus-pennsylvanicus` | 3 (cavity under bark or in wood) | 3-6 | 50 | chewed in moist decayed wood; sound wood costs x2.5 [Camponotus 12] |
-| `messor-barbarus` | 15 | 15-30 (10-20 cm) | 120 | soft bare sunny soil [Messor 3] |
-| `atta-texana` | 25 | 35 (about 25 cm, range 20-30 cm) | 300 | chamber about 6 cm across; entrance crater 5-8 cm [Atta 3] |
+| `lasius-niger` | 8 / 5 | 8-15 (32-60 mm) | 80 (10 BU^3), cell width >= 3.5 BU | 2-3 BU wide, 1-1.5 BU tall; 3-6 cm deep in open soil, 2-5 cm below a stone [Lasius 5] |
+| `camponotus-pennsylvanicus` | 3 (into wood or a cavity under bark) | 3-6 | 80 (10 BU^3) | chewed in moist decayed wood; sound wood costs x2.5 [Camponotus 12] |
+| `messor-barbarus` | 20 / 15 | 20-30 (14-21 cm) | 120 (15 BU^3) | soft bare sunny soil [Messor 3] |
+| `atta-texana` | 30 / 25 | 35 (about 25 cm, range 20-30 cm) | 200 (25 BU^3) | chamber about 6 cm across; entrance crater 5-8 cm [Atta 3] |
 
-Chamber capacity limits the clutch: `maxEggsByVolume = floor(chamberVolumeBU3 / 0.25)`. Typical Lasius dig: 25-40 bites, 1.5-3 minutes of play. Bars: depth `= min(1, shaftDepth / min)`, volume `= min(1, voxels / minVoxels)`; seal is enabled at both 1.0. Digging further is allowed (a larger chamber permits a larger clutch). Unreachable cases: if the chosen spot turns out to hit a non-diggable layer at depth (stone, buried slab), the dig action refuses with "Hard ground" and the read-out shows `diggability` 0; the queen must move. Worldgen guarantees no such trap within the minimum depth at the landing area's candidate sites.
+Chamber capacity limits the clutch: `maxEggsByVolume = floor(chamberVolumeBU3 / 0.25)`. Typical Lasius dig: about 80 bites, 2-3 minutes of play (GDD 03 §13.2). Bars: depth `= min(1, shaftDepth / min)`, volume `= min(1, voxels / minVoxels)`; seal is enabled when GDD 03 reports `ready` (both bars 1.0, width, roof and openings tests passed). Digging further is allowed (a larger chamber permits a larger clutch). Unreachable cases: if the chosen spot turns out to hit a non-diggable layer at depth (stone, buried slab), the dig action refuses with "Hard ground" and the read-out shows `diggability` 0; the queen must move. Worldgen guarantees no such trap within the minimum depth at the landing area's candidate sites.
 
 ### 5.9 Sealing [T1]
 
-Prompt `E` at the shaft below `entrance + 2 BU`: hold 6 s (`OPEN_SEAL_HOLD_S`); consumes 4 pellets from the mound or shaft automatically; sets `entrance.sealed = true` (the nest chapter treats the entrance as closed: no ant or creature passes, BFS entrance field cut), chamber humidity target +0.15, intruder hazard x0.4, `desiccationLoad` starts recovering. Releasing early cancels progress. She can reopen it later (hold `E`) at the cost of re-sealing. Species: Lasius, Camponotus (frass plug of chewed wood fibre), Messor (soil plug) use this; Atta plants the fungus first (5.15).
+Prompt `E` at the shaft below `entrance + 2 BU`: holding repeats GDD 01 `seal-entrance` (2.0 s each, `PLUG_RADIUS` 1.2 BU, about 3 actions and 3 pellets for a 2.5 BU throat, GDD 03 §4) for about `OPEN_SEAL_HOLD_S` 6 s until the entrance `status` is `sealed` (GDD 03: no ant or creature passes, BFS entrance field cut), chamber humidity target +0.15, intruder hazard x0.4, `desiccationLoad` starts recovering. Releasing early cancels progress. She can reopen it later (hold `E`) at the cost of re-sealing. Species: Lasius, Camponotus (frass plug of chewed wood fibre), Messor (soil plug) use this; Atta plants the fungus first (5.15).
 
 ### 5.10 First clutch [T1]
 
-Action `lay` (key `E` in the chamber with `entrance.sealed`): lays `OPEN_LAY_BATCH_EGGS = 6` eggs in a pile over `OPEN_LAY_ACTION_S = 4` s; repeatable. Limits: `FOUND_CLUTCH_MAX_EGGS` (Lasius 48, Camponotus 16, Messor 20, Atta 40), `maxEggsByVolume` (5.8), and eggs already laid. The first `lay` sets `foundingTick` and stage `founding`. A **forecast panel** (hidden on Harsh) shows after each batch, computed from the model of 5.12 for the current clutch `N`, chamber temperature and `Q`:
+Action `lay-egg` (GDD 01 primitive; key `E` in the chamber with the entrance `sealed`): in the opening phase `lay` it lays `OPEN_LAY_BATCH_EGGS = 6` eggs in a pile over `OPEN_LAY_ACTION_S = 4` s; repeatable. Limits: `FOUND_CLUTCH_MAX_EGGS` (Lasius 48, Camponotus 16, Messor 20, Atta 40), `maxEggsByVolume` (5.8), and eggs already laid. The first `lay` sets `foundingTick` and stage `founding`. A **forecast panel** (hidden on Harsh) shows after each batch, computed from the model of 5.12 for the current clutch `N`, chamber temperature and `Q`:
 
 | Shown | Value |
 |---|---|
@@ -706,7 +708,7 @@ with `Tdev = 3.90 * 11 / (Tchamber - 10)` GD (egg to worker; Lasius degree-day l
 
 ### 5.12 Founding model and outcome computation [T1]
 
-Brood agents (`egg`, `larva`, `pupa`) advance by degree-days using the chamber temperature: `devRate(T) = max(0, T - 10) / 11` reference-days per GD (Lasius law; other species use the brood chapter's `SpeciesDef` rates, assumption F3). Reference stage durations at 21 C: pre-oviposition 0.08, egg 1.4, larva 0.6, pupa 1.9 GD (total 3.98) [Lasius 12.2, from Schlappi et al.: 1 + 18 + 8 + 25 days = 52 d]. Per tick:
+Brood agents (`egg`, `larva`, `pupa`) advance by degree-days using the chamber temperature: `devRate(T) = max(0, T - 10) / 11` reference-days per GD up to 30 C, with GDD 02 §2.2's plateau and fall to 0 at 36 C above that (Lasius law; other species use the brood chapter's `SpeciesDef` rates, assumption F3). Reference stage durations at 21 C: pre-oviposition 0.08, egg 1.4, larva 0.6, pupa 1.9 GD (total 3.98) [Lasius 12.2, from Schlappi et al.: 1 + 18 + 8 + 25 days = 52 d]. Per tick:
 
 1. **Reserves:** `R -= upkeep*dt`; each larva draws `LARVA_COST_LOADS * (devRate dt / larvaRefDuration)`.
 2. **Mortality of brood items:** hazard `mu` per GD, `mu = min(0.60, max(0.06, 0.42 * (1.1 - Q)) * muSpecies * diff.foundingBroodMortalityMult)`; `muSpecies`: Lasius 1.0, Camponotus 0.55, Messor 1.0, Atta 0.9. Moisture adds `x (1 + 2 * max(0, 0.3 - moisture)/0.3)`.
@@ -742,6 +744,13 @@ On entering `handover`: (a) the surviving first workers (`N_w` nanitics plus any
 | `aim-garden` (Atta) | handover | Is the garden taking hold? | `ms-first-leaf` |
 | `aim-satellite` (Camponotus) | 40 or more workers | Is there a drier, warmer corner for the larger brood? | `ms-satellite-nest` |
 | `aim-trunk-trail` (Messor) | handover | Which way do the seeds lie? | `ms-first-seed` |
+| `aim-second-entrance` | 25 or more workers (`ms-workers-25`) | Is one way in and out enough for this many workers? | `ms-second-entrance` |
+| `aim-cross-zone` | stage `growing` | What lies past the edge of the home ground? | `ms-zone-crossed` |
+| `aim-herd` (Lasius) [T2 herds] | stage `growing` and an `aphid-herd` source discovered by the colony | Can the aphids on that stem be kept, and guarded? | `ms-first-aphid-herd` |
+| `aim-alates` | stage `mature` and `doy` inside the species' `alateLayWindow` (11.1 `gate-season`) | Is the colony ready to raise winged queens and males? | `ms-first-alate` |
+| `aim-flight` | `ms-first-alate` | Will the weather give the winged ants their day? | `ms-first-flight` |
+
+Open-aim rules (all rows): an aim whose completing milestone has already fired is never opened; at most 3 aims are shown, oldest first, and further eligible aims wait in order until a slot frees; growing and mature colonies therefore keep receiving questions after the founding aims are done (brief §5, continuing goals). `aim-alates` stays open across seasons until `ms-first-alate`; outside the window it is shown with the journal hint "Out of season" taken from the 11.1 gate text. No aim ever gates play or carries a reward.
 
 ### 5.14 Failure and retry rules
 
@@ -769,24 +778,26 @@ Retries: `diff.openingRetries` (Gentle 3, Naturalist 1, Harsh 0) "Undo founding:
 
 **Messor winter inside the lapse.** The first-brood lapse is allowed to reach winter. At winter start it applies the aggregate winter step (section 6) to the queen and brood only (brood arrested below 14 C, queen upkeep x0.4, larval overwinter survival 0.85, cold hazard as in section 6.3) and the playback shows a caption "Winter" for 8 s; the lapse then continues in spring until the first eclosion. Playback is capped at 120 s.
 
-**Atta fungus (replaces sealing before laying).** After the dig readiness, the queen carries a `fungus pellet` in the infrabuccal pocket (state `pelletHealth = 1.0`; it decays 0.05 per GD while chamber humidity < 0.6 or `Tchamber` outside 18-30, and the colony cannot start if it reaches 0). Action `plant` (hold `E` 4 s) places the pellet on the chamber floor; the queen then fertilises it automatically (cost 0.25 loads per GD, `GARDEN_FERT_COST`). `garden.biomass` grows at the rate of the Atta economy (0.17 per GD sustained). **Eggs are blocked until `garden.established` (biomass >= 0.5 of the planting size, typically 0.6-0.8 GD after planting)**, then she may seal and lay. A fraction `ATTA_TROPHIC_FRACTION_FIRST = 0.7` of the first clutch is eaten by the queen or fed to the garden (a design reduction of the sourced "about 90 %" so that 8-14 minims result; deviation D4). Failure: pellet dies (`pelletHealth <= 0`) -> `failed`, cause `garden-lost`. The Escovopsis prevalence at founding is 6.6 % [Atta 3]: a 6.6 % chance (x`diff.predatorDensityMult`) that the garden suffers an `outbreak` hazard counted as `fungus`.
+**Atta fungus (replaces sealing before laying).** After the dig readiness, the queen carries a `fungus pellet` in the infrabuccal pocket (state `pelletHealth = 1.0`; it decays 0.05 per GD while chamber humidity < 0.6 or `Tchamber` outside 18-30, and the colony cannot start if it reaches 0). Action `plant` (a founding-only primitive added to GDD 01's list; hold `E` 4 s) places the pellet on the chamber floor; the queen then fertilises it automatically (cost 0.25 loads per GD, `GARDEN_FERT_COST`). `garden.biomass` grows at the rate of the Atta economy (0.17 per GD sustained). **Eggs are blocked until `garden.established` (biomass >= 0.5 of the planting size, typically 0.6-0.8 GD after planting)**, then she may seal and lay. A fraction `ATTA_TROPHIC_FRACTION_FIRST = 0.7` of the first clutch is eaten by the queen or fed to the garden (a design reduction of the sourced "about 90 %" so that 8-14 minims result; deviation D4). Failure: pellet dies (`pelletHealth <= 0`) -> `failed`, cause `garden-lost`. The Escovopsis prevalence at founding is 6.6 % [Atta 3]: a 6.6 % chance (x`diff.predatorDensityMult`) that the garden suffers an `outbreak` hazard counted as `fungus`.
 
 **Camponotus wood moisture.** `woodM` is read from the wood primitive (nest chapter). The brood clock uses the full-survival moisture of 15 % and linear drop to 0 at 8 % (research: nest wood about 15 % or higher [Camponotus 12]; the linear slope is an estimate). Drying during the lapse (dry spell, no rain) lowers `woodM`; the `fungus` hazard applies above 30 % (mould).
 
 ### 5.16 Onboarding prompts in the opening (diegetic first, per genre-ux 2.1) [T2]
 
-Contextual glyph prompts near the queen; each appears only when its verb is available and not yet learned, hides after 3 uses (per verb, stored in the save), never blocks input; "Remind me of controls" re-shows them.
+Contextual glyph prompts near the queen; each appears only when its verb is available and not yet learned, hides after 3 uses (GDD 08 hint lifecycle; stored in the profile and mirrored into the save), never blocks input; "Remind me of controls" re-shows them.
 
-| Prompt id | Shown when | Content |
-|---|---|---|
-| `p-move` | first 5 s of `search` | move and camera glyphs |
-| `p-sniff` | `search`, queen stopped over soil, 4 s | `T` antennae glyph and a faint scent haze at the best site within 200 BU (Gentle: always; Naturalist: after 30 s; Harsh: never) |
-| `p-dig` | read-out shows `diggability > 0` | `F` hold |
-| `p-reserves` | dealation end | reserve meter pulses once |
-| `p-seal` | readiness met | `E` hold at the shaft |
-| `p-lay` | sealed | `E` in the chamber, forecast panel |
-| `p-rest` | clutch >= 1 batch | "Tend the brood" key |
-| `p-possess-worker` | handover | `Tab` |
+Prompt ids are GDD 08's hint ids (consistency pass; GDD 08 §9.2 owns timing and learning, this table only states the opening triggers):
+
+| Hint id (GDD 08) | Former id here | Shown when | Content |
+|---|---|---|---|
+| `hint-move` | `p-move` | first 5 s of `search` | move and camera glyphs |
+| `hint-antennate` | `p-sniff` | `search`, queen stopped over soil, 4 s | `T` antennae glyph and a faint scent haze at the best site within 200 BU (Gentle: always; Naturalist: after 30 s; Harsh: never) |
+| `hint-dig` | `p-dig` | read-out shows `diggability > 0` | `F` hold |
+| `hint-reserves` (new) | `p-reserves` | dealation end | reserve meter pulses once |
+| `hint-seal` | `p-seal` | readiness met | `E` hold at the shaft |
+| `hint-lay` | `p-lay` | sealed | `E` in the chamber, forecast panel |
+| `hint-timelapse` | `p-rest` | clutch >= 1 batch | "Tend the brood" key |
+| `hint-cycle` | `p-possess-worker` | handover | `Tab` |
 
 Usability criterion (from genre-ux 2.1): a first-time tester can dig a chamber and lay eggs without reading text beyond glyph labels; test on the headless build with the checks of Appendix E and on a few humans.
 
@@ -817,7 +828,7 @@ Custom rule `winterMode` = `timelapse` (default) or `realtime` (play every winte
 
 ### 6.3 Aggregate model (per game hour, 168 steps for a 7-day winter)
 
-Inputs snapshotted at `Begin`: `W_eq` (by caste), brood by stage, stores (C, P loads), queen status, per-chamber depth and capacity, entrance floodSafety, nest `Tmin` history. The weather state machine runs for real (same `rng.weather`) so `frost` nights, rain and storms in the report are the same as the HUD would have shown.
+Inputs snapshotted at `Begin`: `N` (by caste), brood by stage, stores (C, P loads), queen status, per-chamber depth and capacity, entrance floodSafety, nest `Tmin` history. The weather state machine runs for real (same `rng.weather`) so `frost` nights, rain and storms in the report are the same as the HUD would have shown.
 
 Per game day `g`:
 
@@ -825,7 +836,7 @@ Per game day `g`:
 |---|---|
 | Cluster temperature `Tcl` | mean `chamberTemp` of the chambers where >= 20 % of workers cluster (deepest chambers with capacity, or heated chambers) |
 | Metabolic factor | `fMet = WINT_MET_BASE * WINT_Q10^((Tcl - 6)/10)`; Lasius `WINT_MET_BASE = 0.35`, `WINT_Q10 = 2.2` (the dossier's 5 % of summer is too low for upkeep that includes cluster heat; deviation D6) |
-| Consumption (C) | `need_g = (W_eq * 0.08 + 0.30 + 0.02 * larvae) * fMet` loads (0.08 C/GD per resting worker and 0.30 C/GD queen from directions J; dormant larvae 0.02) |
+| Consumption (C) | `need_g = (N * 0.08 + 0.30 + 0.02 * larvae) * fMet` loads (0.08 C/GD per resting worker and 0.30 C/GD queen from directions J; dormant larvae 0.02) |
 | Consumption (P) | `(0.10 + 0.01 * larvae) * fMet` loads (queen 0.10 P/GD) |
 | Starvation | if C stores reach 0 on day `g_s`: brood `0.25` per GD (eaten), then workers `0.12` per GD; if P reaches 0: larvae die at `0.06` per GD |
 | Cold stress | per GD: workers `0.008 * max(0, T_COLD_STRESS - Tmin_g)` where `T_COLD_STRESS = 2.0` C (Lasius; Camponotus 0, Messor 4); `Tmin_g` = minimum `Tcl` that day; capped 0.6 total |
@@ -857,7 +868,7 @@ A field-journal card, always shown, closable:
 
 ### 6.6 Failure handling
 
-If `W_eq` is 0 after the aggregate step the lapse ends with the Epitaph (cause = leading loss cause). A save made inside the lapse is impossible (autosave blocks); autosaves `pre-winter` (before banner) and `post-winter` (after report) bracket it (section 15).
+If `N` is 0 after the aggregate step the lapse ends with the Epitaph (cause = leading loss cause). A save made inside the lapse is impossible (autosave blocks); autosaves `pre-winter` (before banner) and `post-winter` (after report) bracket it (section 15).
 
 ---
 ## 7. Colony stages [T2; descriptive, never gating]
@@ -867,24 +878,24 @@ Stages describe the colony; they do not lock content. They drive HUD wording, wh
 | Stage id | Meaning | Entry criteria | Leaves when |
 |---|---|---|---|
 | `founding` | the queen alone with brood | game start (first clutch laid sets `foundingTick`) | first adult worker eclosed |
-| `first-workers` | a handful of nanitics, one chamber, solitary foraging | >= 1 adult worker | `W_eq >= growThreshold` |
-| `growing` | trails, several chambers, brood in every stage | `W_eq >= growThreshold` | `W_eq >= matureThreshold` and `colonyAge >= matureAgeYears` |
-| `mature` | large, stable, able to rear alates | both mature criteria | `W_eq < 0.7 * matureThreshold` (hysteresis) returns to `growing` |
+| `first-workers` | a handful of nanitics, one chamber, solitary foraging | >= 1 adult worker | `N >= growThreshold` |
+| `growing` | trails, several chambers, brood in every stage | `N >= growThreshold` | `N >= matureThreshold` and `colonyAge >= matureAgeYears` |
+| `mature` | large, stable, able to rear alates | both mature criteria | `N < 0.7 * matureThreshold` (hysteresis) returns to `growing` |
 
-| Species | `growThreshold` (`W_eq`) | `matureThreshold` (`W_eq`) | `matureAgeYears` (game years) | Basis |
+| Species | `growThreshold` (`N`, simulated workers) | `matureThreshold` (`N`) | `matureAgeYears` (game years) | Basis (thresholds restated in simulated workers by the consistency pass, directions K; GDD 07 growth targets reach them at about the stated age) |
 |---|---|---|---|---|
-| `lasius-niger` | 75 | 1 900 (`N_sim` 700) | 2 | cooperative foraging at about 75 workers; alate gate 12.2 |
-| `camponotus-pennsylvanicus` | 50 | 1 000 | 4 (Gentle 3, Harsh 6) | first alates about year 4 [Camponotus 4, 12] |
-| `messor-barbarus` | 50 | 4 000 | 3 | 3-5 years to maturity [Messor 4] |
-| `atta-texana` | 300 | 300 000 | 3 | years 1-2 at 500-100 000, alates from year 3-4 [Atta 4, 12.1] |
+| `lasius-niger` | 75 | 700 | 2 | cooperative foraging at about 75 workers; alate gate 12.2 |
+| `camponotus-pennsylvanicus` | 50 | 500 | 4 (Gentle 3, Harsh 6) | first alates about year 4 [Camponotus 4, 12] |
+| `messor-barbarus` | 50 | 700 | 3 | 3-5 years to maturity [Messor 4] |
+| `atta-texana` | 150 | 1 000 | 3 | years 1-2 at 500-100 000, alates from year 3-4 [Atta 4, 12.1] |
 
-Modifiers (flags, not stages): `orphaned` (queenless, 13.2), `declining` (`W_eq` fell >= 20 % over the last 3 GD outside winter), `dormant` (overwintering). Difficulty scales both thresholds by `diff.matureGateMult` (Gentle 0.8, Naturalist 1.0, Harsh 1.2). Stage changes emit `stage.changed` and a journal entry; regressing from `mature` to `growing` writes a note, not a failure.
+Modifiers (flags, not stages): `orphaned` (queenless, 13.2), `declining` (`N` fell >= 20 % over the last 3 GD outside winter), `dormant` (overwintering). Difficulty scales both thresholds by `diff.matureGateMult` (Gentle 0.8, Naturalist 1.0, Harsh 1.2). Stage changes emit `stage.changed` and a journal entry; regressing from `mature` to `growing` writes a note, not a failure.
 
 ---
 
 ## 8. Milestones [T2]
 
-One-shot, recorded with the in-game date, tick and a short journal text (calm naturalist voice, no score, no rewards besides a plate and a line in the Lineage). Triggers are evaluated by the progression system from events or state in the milestone pass of the tick (after the economy). Text tokens: `{n}`, `{depth_mm}`, `{zone}`, `{species}`, `{doy_date}`. Species column: all unless named.
+One-shot, recorded with the in-game date, tick and a short journal text (calm naturalist voice, no score, no rewards besides a plate and a line in the Lineage). Triggers are evaluated by the progression system from events or state in the milestone pass of the tick (after the economy). Text tokens: `{n}`, `{depth_mm}`, `{zone}`, `{zone_from}`, `{zone_to}`, `{species}`, `{doy_date}`. Species column: all unless named.
 
 | Id | Title | Trigger condition | Journal text |
 |---|---|---|---|
@@ -904,19 +915,23 @@ One-shot, recorded with the in-game date, tick and a short journal text (calm na
 | `ms-nursery` | A nursery | a `nursery`-type chamber holds brood | Brood has been gathered in one chamber, the warmest the nest has. |
 | `ms-first-midden` | The refuse heap | first `midden` chamber or surface heap holds waste | The dead and the discarded now lie in one place, away from the brood. |
 | `ms-second-entrance` | A second way out | a second entrance exists | A second entrance opens to the surface. The nest is harder to block now. |
+| `ms-depth-50` | Fifty body lengths down | GDD 03 `nest-milestone` `depth-50` (deepest open voxel ≥ 50 BU) | The deepest gallery now lies fifty body lengths below the surface, where the soil barely feels the day. |
+| `ms-depth-100` | A hundred down | GDD 03 `depth-100` | The nest reaches a hundred body lengths into the ground. |
+| `ms-chambers-10` | Ten chambers | GDD 03 `chambers-10` | Ten chambers now open off the galleries. |
+| `ms-volume-1000` | A larger nest | GDD 03 `volume-1000` (open volume ≥ 1 000 BU^3) | The nest has grown to a thousand cubic body lengths of tunnels and rooms. |
 | `ms-first-aphid-herd` | Herding aphids | a `tend` herd attended >= 0.5 GD | Workers stand among a cluster of aphids, stroking them with their antennae for droplets. |
 | `ms-first-possession` | Seen from within | player possesses an ant for >= 30 s | For the first time the colony has been seen from the height of a worker. |
 | `ms-first-trophallaxis` | Mouth to mouth | possessed ant completes a trophallaxis transfer | Food has passed from crop to mouth. The same act carries nutrients, and anything toxic, through the whole colony. |
 | `ms-zone-crossed` | Across the boundary | a worker first enters a zone type other than the nest zone | A forager has crossed from {zone_from} onto {zone_to}. The ground underfoot has changed. |
 | `ms-micro-connection` | A narrow way | first passage through a micro-connection (crack, joint, gap, pipe) | A crack too narrow for a larger animal has opened a route. A single body length of passage can join two worlds. |
-| `ms-workers-25` | Twenty-five workers | `W_eq >= 25` | Twenty-five workers now share the work. |
-| `ms-workers-100` | A hundred workers | `W_eq >= 100` | The colony has passed a hundred workers. Individual ants matter less, and the trails more. |
-| `ms-workers-500` | Five hundred | `W_eq >= 500` | The colony has passed five hundred workers. |
-| `ms-workers-1000` | A thousand | `W_eq >= 1000` | The colony has passed a thousand workers. |
+| `ms-workers-25` | Twenty-five workers | `N >= 25` | Twenty-five workers now share the work. |
+| `ms-workers-100` | A hundred workers | `N >= 100` | The colony has passed a hundred workers. Individual ants matter less, and the trails more. |
+| `ms-workers-500` | Five hundred | `N >= 500` | The colony has passed five hundred workers. |
+| `ms-workers-1000` | A thousand | `N >= 1000` | The colony has passed a thousand workers. |
 | `ms-stage-growing` | A growing colony | stage becomes `growing` | The colony has passed its first fragile weeks. It now holds more brood than the queen could ever tend alone. |
 | `ms-stage-mature` | A mature colony | stage becomes `mature` | The colony is large enough to spare labour for the next generation. |
 | `ms-first-rain` | The first rain | a `shower` or `downpour` while >= 1 ant is outside and exposed trail cells exist | Rain has fallen on open ground and the trails across it are gone. Those under leaves and stones remain. |
-| `ms-first-flood-rescue` | Brood carried uphill | brood moved out of a chamber that water entered | Water entered a chamber. The workers carried the brood to higher ground before it rose. |
+| `ms-first-flood-rescue` | Brood carried uphill | brood moved out of a chamber that water entered (also GDD 03 `nest-milestone` `survived-flood`) | Water entered a chamber. The workers carried the brood to higher ground before it rose. |
 | `ms-first-heat-wave` | Heat | a `heat` spell ends with the colony alive | A spell of heat has passed. The pavement was too hot to cross at midday; the colony worked at dawn and dusk. |
 | `ms-first-frost` | Frost | first `frost` night | The first frost has settled on the grass. Underground, the colony is above freezing. |
 | `ms-first-storm` | A storm | a `storm` ends with the colony alive | A thunderstorm has passed overhead. Every forager was recalled; the nest held. |
@@ -963,31 +978,31 @@ Limits: 4 000 timeline entries (older `season`/`weather` entries are merged into
 
 ### 9.2 History series
 
-Sampled once per GD at local midnight into `history.daily` (never discarded; 2 800 samples cover 100 game years) and once per game hour into `history.hourly` (ring of 48 h, used by the Why view for "last 2 days" trends).
+Sampled once per GD at local midnight into `history.daily` (never discarded; 2 800 samples cover 100 game years) and once per game hour into `history.hourly` (ring of 168 h = 7 GD, as GDD 02 §13.2 and GDD 08 §7.2 need). Series ids are GDD 02 §13.2's (consistency pass); the former ids of this chapter map as listed in the second column.
 
-| Series id | Unit | Notes |
-|---|---|---|
-| `pop.workers` | `W_eq` by caste (stacked) | |
-| `pop.brood` | counts by stage | |
-| `pop.alates` | gynes, males | |
-| `stores.c`, `stores.p` | loads | winter shading |
-| `flow.in.c`, `flow.in.p` | loads per GD | returned food by kind (stack: honeydew, nectar, prey, carrion, seed, human food, other) |
-| `flow.births`, `flow.deaths` | per GD | |
-| `climate.air` | C (min, max), soil at brood chamber (mean) | with the weather state band |
-| `nest.volume`, `nest.chambers` | BU^3, count | |
-| `range.max` | BU | farthest trail point from an entrance |
-| `deaths.byCause` | per GD by cause id | |
-| `queen.reserves` | 0..1 (founding), queen age | |
+| Series id (canonical) | Former id here | Unit | Notes |
+|---|---|---|---|
+| `workers` (+ `workers-by-caste`, `workers-by-group`) | `pop.workers` | `N` by caste (stacked) | |
+| `eggs`, `larvae`, `pupae` | `pop.brood` | counts by stage | |
+| `alates` | `pop.alates` | gynes, males | new id |
+| `stores-c`, `stores-p` | `stores.c`, `stores.p` | loads | winter shading |
+| `intake-c`, `intake-p` (+ `intake-by-kind`) | `flow.in.c`, `flow.in.p` | loads per GD | returned food by kind (stack: honeydew, nectar, prey, carrion, seed, human food, other) |
+| `eclosions`, `deaths` | `flow.births`, `flow.deaths` | per GD | |
+| `air-temp` (min, max), `nursery-temp` | `climate.air` | C | with the weather state band |
+| `nest-volume`, `nest-chambers` | `nest.volume`, `nest.chambers` | BU^3, count | new ids |
+| `range-max` | `range.max` | BU | farthest trail point from an entrance; new id |
+| `deaths-by-cause` | `deaths.byCause` | per GD by cause id | new id |
+| `queen-reserves` | `queen.reserves` | 0..1 (founding), queen age | new id |
 
 ### 9.3 Causes of death
 
-Death causes (ids): `old-age`, `starvation`, `desiccation`, `heat`, `cold`, `drowning`, `flood`, `crushed`, `predation`, `combat`, `disease`, `poison` (bait, spray), `fell`, `exhaustion` (queen reserves), `lost` (exposure after being separated), `unknown`. Every ant death records `{tick, cause, caste, role (task at death), zone, season, underground: bool}`; deaths are aggregated, not stored per ant beyond the cause counters and a ring of the last 200 (for the Why view). The summary shows the top 5 causes overall, by caste, by role (foragers vs nurses), by season, surface vs underground. The Epitaph (13.5) reuses it.
+Death causes (ids; canonical list, extended by GDD 05 and the consistency pass): `old-age`, `starvation`, `desiccation`, `heat`, `cold`, `drowning` (any water, including nest floods; the earlier separate `flood` is merged into it), `crushed`, `predation`, `bird`, `antlion`, `parasitoid`, `combat`, `disease`, `poison` (bait, spray), `fell`, `exhaustion` (queen reserves), `lost` (exposure after being separated), `dispersed` (left the map), `unknown`. Every ant death records `{tick, cause, caste, role (task at death), zone, season, underground: bool}`; deaths are aggregated, not stored per ant beyond the cause counters and a ring of the last 200 (for the Why view). The summary shows the top 5 causes overall, by caste, by role (foragers vs nurses), by season, surface vs underground. The Epitaph (13.5) reuses it.
 
 ---
 
 ## 10. Codex [T2 mechanism; entries per species T3]
 
-The codex is a field-journal reference unlocked by first observation ("watch trophallaxis once and the plate fills in"). Each entry: id, title, unlock trigger, a two-sentence naturalist note grounded in the research, species tag (LN = *Lasius niger*, CP = *Camponotus pennsylvanicus*, MB = *Messor barbarus*, AT = *Atta texana*, ALL). Unlocks are stored per device (not per save), each with the first-seen game date. Unlocking emits `codex.unlocked` and a quiet journal marker; it never opens a panel. Notes are written for the player in the naturalist voice; the dossier source of each fact is kept in `docs/research` only, not shown in play.
+The codex is a field-journal reference unlocked by first observation ("watch trophallaxis once and the plate fills in"). Each entry: id, title, unlock trigger, a two-sentence naturalist note grounded in the research, species tag (LN = *Lasius niger*, CP = *Camponotus pennsylvanicus*, MB = *Messor barbarus*, AT = *Atta texana*, ALL). Unlocks are stored per device in the profile store (`foundress.profile.v1`, GDD 08 §7.3; not per save), each with the first-seen game date, and mirrored per game in `progression.codexSeen`. Unlocking emits `codex.unlocked` and a quiet journal marker; it never opens a panel. Notes are written for the player in the naturalist voice; the dossier source of each fact is kept in `docs/research` only, not shown in play.
 
 | Id | Title | Unlock trigger | Note | Tag |
 |---|---|---|---|---|
@@ -1044,11 +1059,12 @@ The codex is a field-journal reference unlocked by first observation ("watch tro
 | `cx-antlion` | The pit | first antlion pit seen | An average antlion larva digs a pit about 75 mm wide and 50 mm deep in dry loose sand under shelter. It flicks sand at escapees. | ALL |
 | `cx-ant-spiders` | Ant-eating spiders | first `ant-spider` seen | *Zodarion* spiders specialise in ants, up to 5 mm long; they bite and retreat while the ant is paralysed. | ALL |
 | `cx-phorid-flies` | Flies over the trail | a phorid attack | Phorid flies hover over trails and strike the thorax; the larva consumes the head over weeks. Ants freeze or hide, and foraging falls. | CP AT |
-| `cx-formica` | The big neighbour | first Formica-type rival seen | *Formica rufa* group colonies hold 100 000 to 400 000 workers, spray formic acid and fight spring territorial wars. | LN CP |
-| `cx-pavement-wars` | Wars on the slabs | first *Tetramorium*-type rival seen | *Tetramorium immigrans* nests under pavement; colonies range from a few thousand to over 10 000 workers and fight over shared joints. | LN |
+| `cx-formica` | The big neighbour | first Formica-type rival seen | *Formica rufa* group colonies hold 100 000 to 400 000 workers, spray formic acid and hold their territories in spring boundary contests. | LN CP |
+| `cx-pavement-wars` | Boundary disputes on the slabs | first *Tetramorium*-type rival seen | *Tetramorium immigrans* nests under pavement; colonies range from a few thousand to over 10 000 workers and contest shared joints in mass encounters at their boundaries. | LN |
 | `cx-fungal-threads` | Fungus in the nest | first `disease` death | Entomopathogenic fungi thrive in damp nests. Ants control them by grooming, and by moving away from infected areas. | ALL |
+| `cx-interface-orders` | Orders without a commander | first `setDirectives` or `placeMarker` command (or opening it from the Directives tooltip link, GDD 08 §4.2) | No queen gives orders: a colony coordinates its work through each ant's local encounters and chemical cues, and how it does so differs from species to species (Gordon 2007, "Control without hierarchy"). The Directives panel and markers are a simplification for play; the ants still decide one by one whether to take up the work (GDD 02 §0.3 D10). | ALL |
 
-Rows: 56. Codex trigger resolution never blocks play; a trigger fires the first time the underlying sim event is seen by the *player's* view (observed, not merely occurring); the debug API has `cheat.unlockCodex(id)`.
+Rows: 57 (56 plus `cx-interface-orders`, Interface category, added to close traceability gap G2; unlike the other `cx-interface-*` entries it unlocks on use rather than being always unlocked), plus the entries GDD 08 §9.4 needs that the table above does not yet hold (ids fixed by the consistency pass, text to be written in the same voice): `cx-species-lasius-niger` (game start; one `cx-species-<id>` per species), `cx-antennation` (first antennation), `cx-nursing` (first larva fed), `cx-springtail` (first springtail seen), `cx-material-loam` (first dig in loam; one `cx-material-<id>` per diggable material), `cx-habitat-<zone>` (first entry into each zone type), `cx-interface-why`, `cx-interface-markers`, `cx-interface-time` (always unlocked; the manual). All codex ids use the `cx-` prefix. Codex trigger resolution never blocks play; a trigger fires the first time the underlying sim event is seen by the *player's* view (observed, not merely occurring); the debug API has `cheat.unlockCodex(id)`.
 
 ---
 ## 11. Reproduction [T2 for `lasius-niger`; other species T3]
@@ -1059,14 +1075,14 @@ Evaluated at each local midnight inside the species' `alateLayWindow`. All must 
 
 | Gate id | Condition (Lasius) | Diagnostic text if failed |
 |---|---|---|
-| `gate-stage` | stage `mature` (7) | "Colony too small: {W_eq} of {matureThreshold} workers" |
+| `gate-stage` | stage `mature` (7) | "Colony too small: {N} of {matureThreshold} workers" |
 | `gate-age` | `colonyAge >= 2` game years (`matureAgeYears`) | "Colony too young" |
 | `gate-queen` | queen alive and queenright | "No queen" |
-| `gate-stores` | C stores and P stores each cover >= `REPRO_STORE_DAYS = 14` GD of colony consumption | "Stores cover only {x} days" |
+| `gate-stores` | C stores cover >= `REPRO_STORE_DAYS_C = 3` GD and P stores >= `REPRO_STORE_DAYS_P = 1.5` GD of colony need (GDD 02 `daysC`, `daysP`; equal to the normal stock targets, which the colony can actually reach) | "Stores cover only {x} days" |
 | `gate-season` | `doy` inside `alateLayWindow` | "Out of season" |
 | `gate-player` | `alateInvestment > 0` | "Alate production is off" |
 
-If the gate passes the colony enters `alateRearing = true` for the window. Hysteresis: if stores fall below 8 GD cover during rearing, new sexual eggs stop (those already laid continue).
+If the gate passes the colony enters `alateRearing = true` for the window. Hysteresis: if stores fall below half of those covers during rearing, new sexual eggs stop (those already laid continue).
 
 ### 11.2 Species parameters
 
@@ -1075,22 +1091,22 @@ If the gate passes the colony enters `alateRearing = true` for the window. Hyste
 | `alateLayWindow` (`doy`) | spring 2-6 | spring 2-3 (0.7 GD window; sexuals from spring eggs [Camponotus 4]) | summer 8-13 | autumn-winter 15-28 (alate brood reared in the winter central cavity [Atta 4]) |
 | Egg-to-alate duration | 1.3 x worker duration (5.2 GD at 21 C) | 1.15 x major duration (about 5.6 GD) | 1.2 x worker | 1.3 x major duration (about 6.5 GD) |
 | Eclosion | spring `doy` 7-11 | about `doy` 11 (August); **alates overwinter in the nest** (males before females) | summer | winter-spring |
-| `alateFlightWindow` (`doy`) | 9-13 (peak 10-11) | 1-9 of the next year (peak 4-6), individual, not synchronised | 15-20 (peak 17-19) | 3-10 |
+| `alateFlightWindow` (`doy`) | 9-13 (peak 10-11) | 1-9 of the next year (peak 4-6), individual, not synchronised | 15-20 (peak 17-19) | 2-8 |
 | Launch hour | 14:00-18:00 | 16:00-20:00 (time of day not found: `[E]`) | 13:00-17:00 | 21:00-03:00 |
-| Max alate fraction `REPRO_MAX_FRAC` of `N_sim` (at investment 1.0) | 0.10 (research 5-8 %) | 0.12 (30-140 per year [Camponotus 12]) | 0.02 (8-25 sim alates) | 0.04 (20-60 sim alates per flight, each about 100 real) |
+| Max alate fraction `REPRO_MAX_FRAC` of `N` (at investment 1.0) | 0.10 (research 5-8 %) | 0.12 (30-140 per year [Camponotus 12]) | 0.02 (8-25 alates) | 0.04 (20-60 alates per flight) |
 | Gyne share `REPRO_GYNE_SHARE` | 0.40 | 0.44 | 0.50 | 0.25 |
-| Cost multipliers (x `LARVA_COST_LOADS` = 1.6 loads) gyne / male | 12 / 2 | 28 / 4.6 (nitrogen units of the dossier) | 10 / 2 | 15 / 3 |
+| Cost multipliers (x `LARVA_COST_LOADS` = 1.6 loads) gyne / male | 12 / 2 | 8.0 / 1.3 × the media larval cost (= 12.8 / 2.1 loads; consistency pass adopts GDD 07 R4: the dossier's units were minor-relative) | 10 / 2 | 15 / 3 |
 | Alate upkeep per GD (C loads) gyne / male | 0.15 / 0.08 | 0.5 x queen / 0.2 | 0.15 / 0.08 | 0.2 / 0.1 |
 | Flight survival `p_air` / mating `p_mate` / site `p_found` | 0.60 / 0.90 / 0.70 | 0.65 / 0.90 / 0.70 | 0.55 / 0.866 / 0.70 | 0.50 / 0.90 / 0.70 |
 | Weather gate | see 11.5 | see 11.5 | see 11.5 | see 11.5 |
 
-Cost example (Lasius): gyne 19.2 loads (14.4 P, 4.8 C), male 3.2 loads. Colony `N_sim = 696` (`W_eq` 1 900), investment 0.5: target `A* = round(0.5 * 0.10 * 696) = 35` alates, 14 gynes and 21 males, total `14 * 19.2 + 21 * 3.2 = 336` loads. The Directives panel shows this preview, with "about N GD of the colony's protein income" (computed from the last 5 GD of `flow.in.p`).
+Cost example (Lasius): gyne 19.2 loads (14.4 P, 4.8 C), male 3.2 loads. Colony `N = 700`, investment 0.5: target `A* = round(0.5 * 0.10 * 700) = 35` alates, 14 gynes and 21 males, total `14 * 19.2 + 21 * 3.2 = 336` loads. The Directives panel shows this preview, with "about N GD of the colony's protein income" (computed from the last 5 GD of `flow.in.p`).
 
 ### 11.3 Player control of investment [T2]
 
 | Control | Range | Effect |
 |---|---|---|
-| `alateInvestment` | 0 % to 100 % (default 50 %, Auto) | the target `A* = round(investment * REPRO_MAX_FRAC * N_sim * diff.alateCapMult)`; the queen's first `A*` eggs in the lay window become `sexual` destined (sexes by `REPRO_GYNE_SHARE`, or the `gyneShare` slider below) |
+| `alateInvestment` (sent with `setDirectives`, GDD 02 §12.1) | 0 % to 100 % (default 50 %, Auto) | the target `A* = round(investment * REPRO_MAX_FRAC * N * diff.alateCapMult)`; the queen's first `A*` eggs in the lay window become `sexual` destined (sexes by `REPRO_GYNE_SHARE`, or the `gyneShare` slider below) |
 | `gyneShare` [T3] | 20 %-60 % | changes the sex mix of `A*`; more gynes cost more |
 | `alatePolicy` | `auto-release` (default), `ask`, `hold` | what happens on an eligible flight day (11.5) |
 
@@ -1141,7 +1157,7 @@ Humidity is not a trigger (research correction: humidity is not shown to be one 
 | End | landing at a chosen point (diggable material required for `p_found` bonus: +0.15), or `Land now` (Esc), which resolves the rest by the aggregate model with `p_mate x 0.5`; total real duration <= 120 s |
 | Observer / not possessed | 30-40 s cinematic of the swarm leaving, predators gathering (bird and spider feast [ecology 7.2]); reduced-motion: 6 stills crossfaded |
 
-**Aggregate resolution for every other gyne** (and for a skipped flight): launched `n_g`, males `n_m`. `p_air = base * (wind2m > 3 ? 0.85 : 1) * (1 - 0.1 * birdDensity) / diff.flightLossMult`; `p_mate = species p_mate * clamp(n_m / n_g, 0.3, 1)`; `p_found` as the table; daughters `~ Binomial(n_g, p_air * p_mate * p_found)`. Messor: `hybridFail` for 13.4 % of gynes (cannot make workers). Males die `Poisson`-fast after the flight (`cause: lifespan`, not an `old-age` stat).
+**Aggregate resolution for every other gyne** (and for a skipped flight): launched `n_g`, males `n_m`. `p_air = base * (wind2m > 3 ? 0.85 : 1) * (1 - 0.1 * birdDensity) / diff.flightLossMult`; `p_mate = species p_mate * clamp(n_m / n_g, 0.3, 1)`; `p_found` as the table; daughters `~ Binomial(n_g, p_air * p_mate * p_found)`. Messor: `hybridFail` for 13.4 % of gynes (cannot make workers). Males die `Poisson`-fast after the flight (cause `old-age`, booked under role `male` so it does not distort worker old-age statistics).
 
 **What is recorded** (`FlightRecord`): tick, date, weather (state, `Tair`, `wind2m`), `nGynes`, `nMales`, `nLaunched`, `nMated`, `flightDeaths` by cause, `nLanded`, `nFounded`, landing zone counts, possessed record (gyne id, outcome, seconds flown, mated with), `daughters[]` ids. It becomes a journal entry (`flight`), milestones (`ms-first-flight`, `ms-first-daughter`, `ms-flight-flown`) and a Lineage flight (12).
 
@@ -1151,7 +1167,7 @@ Humidity is not a trigger (research correction: humidity is not shown to be one 
 
 ### 12.1 Persistent store
 
-Stored per device in its own IndexedDB store `lineage` (separate from saves, with the codex), written on events, never part of a save slot; exported by the Lineage screen as `lineage.json`.
+Stored per device in the profile store (`foundress.profile.v1`: IndexedDB store `profile`, localStorage fallback; GDD 08 §7.7) under `lineage` (separate from saves, beside the codex unlocks), written on events, never part of a save slot; exported by the Lineage screen as `lineage.json`.
 
 | Collection | Content |
 |---|---|
@@ -1191,7 +1207,7 @@ From Title -> Lineage: pick an `available` daughter. The setup shows species (fi
 | `exhaustion` | founding reserves exhausted (5.12) |
 | `predation`, `combat` | killed by creature or rival (queens are protected by guards, combat chapter) |
 | `crushed` | human event while on the surface or in a collapsed shallow chamber |
-| `drowning`, `flood` | water in her chamber while no ant moves her |
+| `drowning` | water in her chamber while no ant moves her |
 | `disease` | fungal outbreak in the nest (winter model or event) |
 | `poison` | bait or spray reaching the nest |
 | `cold`, `heat` | thermal model, chamber outside survivable range |
@@ -1216,9 +1232,9 @@ On the death of the last queen: `colony.orphaned = true`, `orphanedAt = tick`, a
 | Eggs | no new fertilised eggs; eggs, larvae and pupae present continue to develop and eclose normally (workers, and any destined alates) |
 | Alates | existing alates may fly (policy applies); `alateRearing` ends |
 | Workers | tasks continue; allocation sliders and markers remain; the Production panel is disabled; the queen-care task (`queen-care`) stops |
-| Worker-laid males [T3] | after `ORPHAN_LAY_DELAY_GD = 2` GD, each 100 `W_eq` lay `1` haploid male egg per GD (`male` alates only; carpenter ant queenless colonies produce mostly males [Camponotus 4]); capped at 20 % of the previous brood volume |
+| Worker-laid males [T3] | after `ORPHAN_LAY_DELAY_GD = 2` GD, each 100 workers lay `1` haploid male egg per GD (`male` alates only; carpenter ant queenless colonies produce mostly males [Camponotus 4]); capped at 20 % of the previous brood volume |
 | Decline | worker lifespan unchanged except `diff.orphanDeclineMult` on mortality; no replacement: the population falls with the lifespan law (Lasius means 33 GD for small, 24 GD for large colonies, [Lasius verification row 1]); expected extinction about 2-3 mean lifespans after the last brood (about 60-100 GD, 2-3.5 game years) |
-| Diagnostics | `diag-queen-status`: "Orphaned for {n} GD. {k} workers remain; last brood emerges by day {x}. Remedy: release the alates; found daughter colonies" |
+| Diagnostics | `diag-queen-condition` (GDD 02; GDD 06's `diag-queen-status` is merged into it): "Orphaned for {n} GD. {k} workers remain; last brood emerges by day {x}. Remedy: release the alates; found daughter colonies" |
 | No rescue | no queen replacement in the base game (monogyne species). `[T3 idea]`: adopting a returning mated gyne is not biological for these species and is not provided |
 
 ### 13.4 Game over conditions
@@ -1230,7 +1246,7 @@ On the death of the last queen: `colony.orphaned = true`, `orphanedAt = tick`, a
 | Player retires the colony (Pause menu "End this colony", confirm) | Epitaph with cause `retired` |
 | Custom rule `extinctionEndsGame = false` [T3] | the empty nest remains in Observer; time runs; no Epitaph until the player retires |
 
-The "last three ants" state (`livingAnts <= 3`) raises a `danger` alert and triggers auto-slow. A final autosave `final` is written at extinction and kept until a new game starts, so the Epitaph can offer "Load the last autosave" (the one before the fatal run).
+The "last three ants" state (`livingAnts <= 3`) raises the `last-ants` alert (critical; added to GDD 08 §6.5) and so triggers auto-slow. A final autosave `final` is written at extinction and kept until a new game starts, so the Epitaph can offer "Load the last autosave" (the one before the fatal run).
 
 ### 13.5 Epitaph screen contents
 
@@ -1241,9 +1257,9 @@ A calm field-journal page; no score, no rating.
 | Title | colony name, species, locality archetype and seed string (copyable), difficulty history |
 | Life | founded `{date}`, ended `{date}`, span in game years and real play time, generation, parent colony |
 | How it ended | primary cause of the last ant's death and the chain of causes (e.g. "Queen died of old age in Year 9; last worker died of starvation 214 days later"), from the Why diagnostic snapshots at `queen.died` and at extinction |
-| History graph | `pop.workers` stacked by caste, `pop.brood`, `stores.c/p`, season bands, milestone ticks as marks, queen death mark |
+| History graph | `workers` stacked by caste, `eggs`/`larvae`/`pupae`, `stores-c`/`stores-p`, season bands, milestone ticks as marks, queen death mark |
 | Causes of death | the 9.3 summary (top 5, by caste, role, season) |
-| Figures | peak workers, total ants born, total food returned (C, P), farthest trail, chambers and nest volume at peak, winters survived, alates reared and flown, daughters founded, rivals defeated, human events survived |
+| Figures | peak workers, total ants born, total food returned (C, P), farthest trail, chambers and nest volume at peak, winters survived, alates reared and flown, daughters founded, rival colonies overcome (display wording per GDD 08 §6.4), human events survived |
 | Last entries | the final 10 journal entries |
 | Lineage | daughters available (cards), "Continue as a daughter queen"; codex entries unlocked this game |
 | Actions | `Found again in this locality` (same world seed, attempt + 1), `Found a daughter`, `Load the last autosave`, `New game`, `Title`, `Copy record as text` |
@@ -1284,15 +1300,14 @@ If the final snapshot or Why records are missing (corrupt save), the Epitaph fal
 | `heatToleranceOffsetC` (2.7) | +2 | 0 | -1 |
 | **Threats, rivals, humans** | | | |
 | `predatorDensityMult` | 0.4 | 1.0 | 1.6 |
-| `rivalCount` | 1 | 3 (2-4) | 4 (3-5) |
-| `rivalAggressionMult` | 0.6 | 1.0 | 1.5 |
-| `rivalRaidIntervalMult` | 1.5 | 1.0 | 0.6 |
-| `humanActivityMult` | 0.5 | 1.0 | 1.5 |
-| `humanWarningLeadS` | 5 | 3 | 2 |
-| `baitStationsPerSeason` | 0 | 0.5 | 1 |
-| `pesticideEventsPerSeason` | 0 | 0.5 | 1 |
+| `rivalCount` (GDD 05 §5) | 2 | 3 | 4 |
+| `rivalAggMult` (GDD 05 §5) | 0.7 | 1.0 | 1.2 |
+| `raidCooldownGd` (GDD 05 §5) | 4 | 2 | 1 |
+| `HUMAN_FREQ_MULT` (GDD 04 §15.7) | 0.5 | 1.0 | 1.5 |
+| `HUMAN_TELEGRAPH_MULT` (GDD 04 §15.7; footsteps lead 4.5 / 3.0 / 2.25 s) | 1.5 | 1.0 | 0.75 |
+| `BAIT_ENABLED` (GDD 04 §15.6-15.7; reactive bait stations, no separate pesticide event) | false | interior | interior + garden |
 | **Food** | | | |
-| `foodAbundanceMult` | 1.3 | 1.0 | 0.8 |
+| `foodAbundanceMult` (GDD 05 §5) | 1.3 | 1.0 | 0.75 |
 | `honeydewYieldMult` | 1.2 | 1.0 | 0.85 |
 | **Colony** | | | |
 | `broodSurvivalMult` | 1.15 | 1.0 | 0.85 |
@@ -1303,7 +1318,7 @@ If the final snapshot or Why records are missing (corrupt save), the Epitaph fal
 | `winterLossMult` (6.3) | 0.5 | 1.0 | 1.5 |
 | `winterQueenDeathP` | 0 | 0.03 | 0.06 |
 | `orphanDeclineMult` (13.3) | 0.7 | 1.0 | 1.3 |
-| `possessedHealthMult` | 1.3 | 1.0 | 0.85 |
+| `damageTakenMult` (possessed ant; GDD 05 §5) | 0.75 | 1.0 | 1.0 |
 | **Progression** | | | |
 | `matureGateMult` (7) | 0.8 | 1.0 | 1.2 |
 | `alateCapMult` (11.3) | 1.2 | 1.0 | 0.9 |
@@ -1313,7 +1328,7 @@ If the final snapshot or Why records are missing (corrupt save), the Epitaph fal
 | `autoSlow` default (4.5) | pause | slow | slow |
 | `alertLeadWarnings` | strong | normal | minimal |
 
-Compatibility: tuning of the combat, creature, human-event and rival parameters is **owned by their chapters**; the values above are the preset knobs those chapters must expose (assumption F8).
+Compatibility: tuning of the combat, creature, human-event and rival parameters is **owned by their chapters**; where this table names a parameter of GDD 04 or GDD 05 the value is copied from that chapter (consistency pass) and the owner's value wins on any later change.
 
 ### 14.1 Custom rules
 
@@ -1321,14 +1336,17 @@ Compatibility: tuning of the combat, creature, human-event and rival parameters 
 
 | Toggle | Options | Mapping |
 |---|---|---|
-| `predators` | off / on with density 0-2 | `predatorDensityMult` (off = 0 and no creature spawns, also removes founding threats and flight hazards) |
-| `rivals` | off / on, count 0-5, aggression 0.5-2 | `rivalCount`, `rivalAggressionMult` |
-| `humanActivity` | off / low / normal / high | `humanActivityMult` 0 / 0.5 / 1.0 / 1.5 |
+| `predators` | off / few / normal / many (GDD 05, GDD 08) | `predatorDensityMult` 0 / 0.4 / 1.0 / 1.6 (off = no creature spawns, also removes founding threats and flight hazards) |
+| `rivals` | count 0-4 (fixed at generation) | `rivalCount`; aggression follows the preset |
+| `humanActivity` | off / low / normal / high | `HUMAN_FREQ_MULT` 0 / 0.5 / 1.0 / 1.5 (GDD 04 §15.7) |
 | `weatherSeverity` | none / mild / normal / severe | `none`: only `clear` and `overcast` (no rain, storm, heat, frost; temperature curve unchanged); mild 0.6, normal 1.0, severe 1.4 applied to `rainFreqMult`, `stormFreqMult`, `heatWaveFreqMult`, `frostFreqMult`, `rainHitMult`, `floodInflowMult`, `heatOffsetMult` |
-| `seasonLengthDays` | 4 / 7 / 10 / 14 | 1.7 |
+| `seasonLengthDays` | 5 / 7 / 10 (fixed at generation) | 1.7 |
+| `startSeason` | natural (default) / spring / summer / autumn (never winter; fixed at generation) | 1.6 |
+| `foundingLeniency` | lenient / normal / strict | the Founding parameter group of the gentle / naturalist / harsh column |
 | `winterMode` | timelapse / realtime | 6.1 |
 | `foundingAssist` | on / off | 5.7, 5.16 |
 | `queenSenescence` | on / off | 13.2 |
+| `collapse` | on / off | GDD 03 §12 (off = no collapse; gentle default off) |
 | `extinctionEndsGame` | on / off | 13.4 |
 
 Changing a toggle mid-game that removes a threat applies immediately (existing creatures despawn over 1 GD); adding threats spawns them at the normal rate.
@@ -1341,16 +1359,11 @@ Format and storage are in architecture section 7 (IndexedDB, 5 manual slots, exp
 
 | Slot | Trigger | Notes |
 |---|---|---|
-| `auto-1..auto-3` (ring) | every `AUTOSAVE_INTERVAL_REAL_S = 300` real seconds of unpaused, visible play; also on `season` change | oldest slot overwritten |
-| `opening-start` | entry to opening `search` | kept until the first winter report |
-| `opening-sealed` | entrance sealed | kept until `opening-complete` |
-| `opening-complete` | hand-over | |
-| `pre-winter` | before the winter banner | kept until `post-winter` |
-| `post-winter` | winter report closed | |
-| `pre-flight` | flight launched (before possession) | kept until the next flight |
-| `final` | colony extinct | kept until a new game starts |
-| `quick` | `F5` (load `F9`) | |
-| manual 1-5 | player | |
+| `auto` (ring of 3 generations; GDD 08 shows it as one slot with generations) | every `AUTOSAVE_INTERVAL_REAL_S = 300` real seconds of unpaused, visible play (setting 2 / 5 / 10 min / off, GDD 08); also on `season` change and before a time-lapse | oldest generation overwritten |
+| `opening-start` (hidden checkpoint for `openingUndo`) | entry to opening `search` | kept until the first winter report |
+| `auto` generation labelled `opening-sealed`, `opening-complete`, `pre-winter`, `post-winter`, `pre-flight`, `final` | the named event (entrance sealed, hand-over, before the winter banner, winter report closed, flight launched, colony extinct) | written into the `auto` ring with the label shown on the slot card; `final` is pinned until a new game starts |
+| `quick` | `F5` (load `F9`) | one slot |
+| `slot-1`..`slot-5` | player | manual (GDD 08 §7.6) |
 | on exit | `pagehide` and `visibilitychange` to hidden: one best-effort write into the ring | may fail silently |
 
 Rules:
@@ -1358,7 +1371,7 @@ Rules:
 2. Minimum gap 5 real seconds between any two autosaves; skipped when `tick` equals the last saved tick.
 3. Never during: time-lapse playback (opening, winter), the possessed flight (a `pre-flight` save precedes it), an interrupt beat, the intro card, photo mode.
 4. A save made while the player is paused is allowed and identical.
-5. Meta stored with each save: tick, date string, species, stage, `W_eq`, difficulty, play time, thumbnail 160x90 (omitted in test mode), generator version.
+5. Meta stored with each save: tick, date string, species, stage, population `N`, difficulty, play time, thumbnail 160x90 (omitted in test mode), generator version.
 6. Load picks the newest valid slot; a failed integrity check marks the slot "damaged" and offers the next.
 7. Failure: a storage error (quota, blocked, private mode) retries once after 30 s; if it fails again autosave is disabled for the session with a persistent, non-modal notice and an "Export save" button (file download with copy/paste fallback if downloads are blocked); the game continues.
 8. Test mode (`?test=1`): autosave off unless `?autosave=1`; the debug API can force `save(slot)`.
@@ -1394,7 +1407,7 @@ All plain data (JSON-like and typed arrays). `u8`, `i32`, `f32` are typed-array 
 | `calendar.startTick` | `int` | tick at game start (start `doy` and hour) |
 | `calendar.foundingTick` | `int` or `null` | first egg; colony age |
 | `calendar.moonPhase0` | `f32` | moon phase offset from seed |
-| `calendar.seasonLengthDays` | `4 / 7 / 10 / 14` | custom rule (1.7) |
+| `calendar.seasonLengthDays` | `5 / 7 / 10` | custom rule (1.7); stored as `config.rules.seasonLengthDays` (consistency pass) |
 | `calendar.derived` (derived) | `{dayIndex, year, doy, season, dayOfSeason, hour, d, SR, SS, L, phase, daylight, moonIllum}` | cached per tick |
 | `env.climateId` | string | species climate (2.1) |
 | `weather` | `{state, intensityClass, startTick, dwellEndTick, peakPrecip, precip, rainRateMmH, cloud, wOff, wind2m, windDir, gustUntilTick, fogDensity, lightningNext}` | state machine (3.2-3.4) |
@@ -1408,8 +1421,8 @@ All plain data (JSON-like and typed arrays). `u8`, `i32`, `f32` are typed-array 
 | `moisture.puddle` | `Uint8Array[cells]` (0.05 mm units) | puddle store (3.10) |
 | `moisture.static` (derived) | per-cell `{tex, permeable, shade, veg, puddleCapMm, runoffCoeff}` | from worldgen |
 | `ant.Tb`, `ant.heatLoad`, `ant.coldLoad`, `ant.thermalState` | `f32, f32, f32, u8` on every ant (additive optional fields of the ant record) | thermal model (2.6, 2.7) |
-| `queen.founding` | `{reserveLoads: f32, R0: f32, desiccation: f32, health: f32, wings: bool, eggsLaid: int}` | opening (5.5) |
-| `time` | `{speed: 0/1/2/4/8, requested, autoSlow: 'off'/'slow'/'pause', cooldowns: Record<string,int>, skipUntil: object or null, commandSeq: int}` | time control (4) |
+| `queen.founding` | `{reserveLoads: f32, R0: f32, desiccation: f32, wings: bool, eggsLaid: int}` | opening (5.5); queen health is the ant's `hp / maxHp` (no separate field) |
+| `time` | `{speed: 1/2/4/8, paused: bool, requested, autoSlow: 'off'/'slow'/'pause', cooldowns: Record<string,int>, skipUntil: object or null, commandSeq: int}` | time control (4); `setSpeed {speed: 0}` sets `paused` |
 | `opening` | `{phase, attempt, retriesUsed, startDoy, siteFactors: f32[7], siteQ: f32, entranceId, chamberId, shaftDepthBU: f32, chamberVoxels: int, sealed: bool, layBatches: int, threatsUsed: int, lastThreatTick: int, interruptsUsed: int, hazardLog: object[], lapse: {startTick, endTick, skipped: bool, outcome}, garden: {pelletHealth, planted, established, biomass} (Atta), woodMoisture: f32 (Camponotus), done: bool}` | opening script (5) |
 | `winter` | `{phase: 'none/notice/banner/lapse/report', delaysUsed: int, snapshot: object, report: object or null, winterActive: bool, lastYearResolved: int}` | overwintering (6) |
 | `stage` | `{id, flags: {orphaned, declining, dormant}, lastEvalTick, popAtEval3GD: f32[3]}` | stages (7) |
@@ -1419,49 +1432,45 @@ All plain data (JSON-like and typed arrays). `u8`, `i32`, `f32` are typed-array 
 | `history.daily` | `Float32Array[series * maxDays]` plus `count` | graphs (9.2) |
 | `history.hourly` | ring `Float32Array[series * 48]` | Why view trends |
 | `deaths` | `{byCause: u32[cause * caste * role], bySeason: u32[...], recent: ring of 200 {tick, cause, caste, role, zone}}` | causes summary (9.3) |
-| `repro` | `{investment: f32, gyneShare: f32, policy, alateRearing: bool, targetAlates: int, shortfall: f32, lastLaunchTick, flights: FlightRecord[], active: {id, phase, possessedAntId, startTick, energy, matingProgress} or null}` | reproduction (11) |
-| `colony.queens` | `{antId, ageDays: f32, lifespanDays: f32 or null}[]` | queen death (13) |
+| `repro` (on the colony; `investment`, `gyneShare`, `policy` are the colony directives `alateInvestment`, `gyneShare`, `alatePolicy`, GDD 02 §12.1) | `{alateRearing: bool, targetAlates: int, shortfall: f32, lastLaunchTick, flights: FlightRecord[], active: {id, phase, possessedAntId, startTick, energy, matingProgress} or null}` | reproduction (11) |
+| `colony.queens` | `{antId, lifespanDays: f32 or null}[]` | queen death (13); age is derived from the ant's `bornTick` |
 | `colony.orphanedAt` | `int or null` | orphan rules |
 | `colony.livingAnts` | `int` (derived counter) | extinction test |
 | `difficulty` | `{preset, params: Record<string, number or boolean>, custom: CustomRules, history: {tick, preset}[]}` | (14) |
 | `autosave.meta` | `{lastTick, lastRealMs, disabled: bool, slots}` | (15), lives in Game layer |
-| device store `lineage` | `{colonies, flights, daughters, settings}` | (12), not in `SimState` |
-| device store `codex` | `{unlocked: Record<id, {tick, doy, year, species}>, promptsLearned: Record<verb, count>}` | (10), not in `SimState` |
+| profile store `foundress.profile.v1` → `lineage` | `{colonies, flights, daughters, settings}` | (12), not in `SimState`; one profile store shared with GDD 08 |
+| profile store `foundress.profile.v1` → `codex` | `Record<id, {tick, doy, year, species, firstSeenIso}>` | (10), not in `SimState`; prompt learning lives in `player.promptLearned` (GDD 01) and hints in the profile `hints` (GDD 08), not here |
 
 ## Appendix B. Commands
 
-`Command` objects queued for the next tick (or applied by `applyPendingCommands` while paused). Every command is validated and may be refused with a typed reason (`refused: 'not-possessing' | 'invalid-phase' | 'limit' | ...`) that the UI shows.
+`Command` objects queued for the next tick (or applied by `applyPendingCommands` while paused). Every command is validated and may be refused with a typed reason (`refused: 'not-possessing' | 'invalid-phase' | 'limit' | ...`) that the UI shows. Command `type` names are camelCase (consistency pass, `00-index.md` §D); the former names are given in brackets.
 
 | Command | Payload | Effect |
 |---|---|---|
-| `SetSpeed` | `{speed: 0/1/2/4/8}` | 4.2 rules; 8 refused when possessing, speeds above 2 refused in opening phases |
-| `TogglePause` | `{}` | pause or resume |
-| `SetAutoSlow` | `{mode: 'off'/'slow'/'pause'}` | 4.5 |
-| `SkipToNextEvent` | `{}` | 4.6 |
-| `OpeningSkipIntro` | `{}` | leave `intro-card` |
-| `OpeningSniff` | `{point}` | force a site read-out (also `act('antennate')`) |
-| `OpeningSeal` | `{entranceId}` | complete sealing (the hold interaction produces this) |
-| `OpeningPlantFungus` | `{}` | Atta planting |
-| `QueenLayBatch` | `{}` | `lay` action: 6 eggs (5.10) |
-| `OpeningBeginTimelapse` | `{}` | confirm "Tend the brood" |
-| `OpeningTimelapseSkip` | `{}` | skip playback (same outcome) |
-| `OpeningInterruptRespond` | `{hazardId, action}` or `{hazardId, letItPlay: true}` | interrupt beat (5.11) |
-| `OpeningUndo` | `{}` | restore checkpoint `opening-start` (5.14) |
-| `OverwinterChoice` | `{choice: 'begin'/'delay'}` | winter banner (6.2) |
-| `OverwinterSkip` | `{}` | skip presentation |
-| `SetAlateInvestment` | `{value: 0..1}` | 11.3 |
-| `SetGyneShare` | `{value: 0.2..0.6}` | T3 |
-| `SetAlatePolicy` | `{policy: 'auto-release'/'ask'/'hold'}` | |
-| `FlightRelease` | `{}` | answer an `ask` prompt (`Release`) |
-| `FlightPossess` | `{gyneId}` | take a gyne into the possessed flight |
-| `FlightControl` | `{move, ascend, descend}` | flight intent (via `setPlayerIntent`) |
-| `FlightLand` | `{point}` | land now |
-| `LineageFoundDaughter` | `{daughterId, archetype?, sizeId, difficultyPreset, customRules}` | start a new game (12.3); handled by `Game` |
-| `RetireColony` | `{}` | 13.4 |
-| `FoundAgain` | `{}` | same world seed, new attempt |
-| `SetDifficulty` | `{preset?, custom?}` | 14, mid-game |
-| `SaveGame` / `LoadGame` / `QuickSave` / `QuickLoad` | `{slot}` | handled by `Game`/save manager |
-| `ExportSave` / `ImportSave` / `ExportLineage` | `{}` / `{data}` | files with copy/paste fallback |
+| `setSpeed` [`SetSpeed`] | `{speed: 0/1/2/4/8}` | 4.2 rules; 8 refused when possessing, speeds above 2 refused in opening phases; 0 = pause |
+| `togglePause` [`TogglePause`] | `{}` | pause or resume |
+| `setAutoSlow` [`SetAutoSlow`] | `{mode: 'off'/'slow'/'pause'}` | 4.5 |
+| `skipToNextEvent` [`SkipToNextEvent`] | `{}` | 4.6 (executed by the game loop) |
+| `openingSkipIntro` [`OpeningSkipIntro`] | `{}` | leave `intro-card` |
+| `action {actionId: 'sniff'}` [`OpeningSniff`] | `{target: point}` | force a site read-out (GDD 01 primitive) |
+| `action {actionId: 'seal-entrance'}` [`OpeningSeal`] | `{target: entranceId}` | sealing (the hold interaction repeats it) |
+| `action {actionId: 'plant'}` [`OpeningPlantFungus`] | `{}` | Atta planting |
+| `action {actionId: 'lay-egg'}` [`QueenLayBatch`] | `{}` | in the opening phase `lay`: a batch of 6 eggs (5.10) |
+| `openingBeginTimelapse` [`OpeningBeginTimelapse`] | `{}` | confirm "Tend the brood" |
+| `skipTimelapse` [`OpeningTimelapseSkip`, `OverwinterSkip`] | `{}` | skip playback of whichever time-lapse runs (same outcome) |
+| `timelapseRespond` [`OpeningInterruptRespond`; GDD 08 `timelapseStepIn`] | `{interruptId, response: 'step-in' \| 'let-it-play'}` | interrupt beat (5.11) |
+| `openingUndo` [`OpeningUndo`] | `{}` | restore checkpoint `opening-start` (5.14) |
+| `overwinterChoice` [`OverwinterChoice`] | `{choice: 'begin'/'delay'}` | winter banner (6.2) |
+| `setDirectives {alateInvestment}` [`SetAlateInvestment`] | `{alateInvestment: 0..1}` | 11.3 |
+| `setDirectives {gyneShare}` [`SetGyneShare`] | `{gyneShare: 0.2..0.6}` | T3 |
+| `setDirectives {alatePolicy}` [`SetAlatePolicy`] | `{alatePolicy: 'auto-release'/'ask'/'hold'}` | |
+| `flightRelease` [`FlightRelease`] | `{}` | answer an `ask` prompt (`Release`) |
+| `flightPossess` [`FlightPossess`] | `{gyneId}` | take a gyne into the possessed flight |
+| (intent) [`FlightControl`] | `PlayerIntent.flight` via `sim.setPlayerIntent` | flight steering (GDD 01 Appendix A) |
+| `flightLand` [`FlightLand`] | `{point}` | land now |
+| `retireColony` [`RetireColony`] | `{}` | 13.4 |
+| `setDifficulty` [`SetDifficulty`] | `{preset?, custom?}` | 14, mid-game |
+| Game-level, not sim commands | `foundDaughter(daughterId, {archetype?, sizeId, difficultyPreset, customRules})` [`LineageFoundDaughter`], `foundAgain()` [`FoundAgain`], `save/load/quickSave/quickLoad(slot)`, `exportSave/importSave(data)/exportLineage()` | handled by `Game` (GDD 08 Appendix B) |
 | Debug (`cheat.*`) | `setTime(tick)`, `setWeather(state, intensityClass)`, `setWind(ms)`, `setAnomaly(c)`, `noLag(bool)`, `completeFounding(workers)`, `addWorkers(n)`, `setQueenAge(days)`, `forceFlight()`, `unlockCodex(id)`, `triggerWinter()`, `killQueen(cause)`, `killAll()`, `setStores(c, p)` | acceptance tests, not in release UI |
 
 ## Appendix C. Events
@@ -1487,8 +1496,8 @@ Typed union, queued during a tick and dispatched after it. Payload sketches only
 | `env.heat-stupor`, `env.cold-coma` | `{antId}` | render, journal, alerts |
 | `opening.phase` | `{from, to}` | UI, camera, audio |
 | `opening.site-assessed` | `{point, factors, Q, word}` | UI read-out |
-| `opening.readiness` | `{depth, volume}` | UI bars |
-| `opening.sealed` | `{entranceId}` | render, milestones |
+| (merged) GDD 03 `founding-readiness` `{nestId, readiness, parts: {depth, volume}}` (was `opening.readiness`) | | UI bars |
+| (merged) GDD 03 `founding-sealed` / `entrance-state-changed` (was `opening.sealed`) | `{nestId, entranceId}` | render, milestones |
 | `opening.egg-batch` | `{eggs, total, forecast}` | UI, render |
 | `opening.timelapse` | `{kind: 'start'/'progress'/'beat'/'interrupt'/'end', p, spanGD, hazard?}` | render, UI |
 | `opening.handover` | `{workers, reserves, Q}` | UI, journal, autosave |
@@ -1496,12 +1505,12 @@ Typed union, queued during a tick and dispatched after it. Payload sketches only
 | `queen.egg-eaten`, `queen.hazard` | `{...}` | render, codex |
 | `overwinter.notice`, `overwinter.banner`, `overwinter.begin`, `overwinter.beat`, `overwinter.end` | `{...}` | UI, render |
 | `overwinter.report` | `{report}` | UI, journal |
-| `milestone.reached` | `{id, tick}` | journal, UI toast, Lineage |
+| `milestone.reached` | `{id, tick, title}` | journal, UI toast (GDD 08's `milestone`), Lineage |
 | `journal.entry` | `{entryId}` | UI |
 | `aim.opened`, `aim.completed` | `{id}` | UI |
 | `stage.changed` | `{from, to}` | UI, journal |
-| `codex.unlocked` | `{id}` | UI, codex store |
-| `alate.eclosed` | `{antId, caste}` | render, journal |
+| `codex.unlocked` | `{id}` | UI, codex store (replaces GDD 08's assumed `observe`) |
+| (merged) `ant-eclosed` with `caste` `gyne`/`male` (GDD 02 App C; was `alate.eclosed`) | `{antId, colonyId, caste}` | render, journal |
 | `flight.eligible` | `{p, factors}` | UI, diagnostics, codex |
 | `flight.launched` | `{id, nGynes, nMales, weather}` | render, audio, autosave |
 | `flight.possessed-start`, `flight.possessed-end` | `{gyneId, outcome}` | camera, UI |
@@ -1509,28 +1518,28 @@ Typed union, queued during a tick and dispatched after it. Payload sketches only
 | `lineage.daughter-added` | `{daughterId}` | Lineage store, UI |
 | `queen.died` | `{queenId, cause}` | UI, alerts, journal |
 | `colony.orphaned` | `{}` | UI, alerts, diagnostics |
-| `colony.extinct` | `{cause}` | UI, Lineage, autosave |
+| `colony.extinct` | `{cause, causeChain: string[]}` | UI (GDD 08 Epitaph; replaces GDD 08's assumed `game-over`), Lineage, autosave |
 | `epitaph.ready` | `{snapshotId}` | UI |
-| `diag.changed` | `{diagId, status}` | alerts (via diagnostics) |
+| `diagnostic-changed` (shared with GDD 02; was `diag.changed`) | `{id, status, topCause}` | alerts (via diagnostics) |
 | `autosave.done`, `autosave.failed` | `{slot / reason}` | HUD icon |
-| `ambient.cue` | `{kind: 'dawn-chorus' ...}` | audio (derived from `time.phase` and weather) |
+| `cue` (shared cue event; was `ambient.cue`) | `{cue: 'ambient.dawn-chorus' ..., pos: null, strength}` | audio (derived from `time.phase` and weather) |
 
 ## Appendix D. Diagnostics (the "why" view)
 
-Each diagnostic publishes `{id, status: ok/watch/warn/critical, headline, factors: [{id, label, weight, detail}], remedies: [text + action]}`; weights sum to 1; recomputed every 250 ticks and on events; alerts fire on status changes (rate-limited by alerts chapter).
+Each diagnostic publishes the shared record `{id, system, status, label, value, factors: [{cause, weight, detail}], remedies: string[] (remedy ids), sinceTick}` (consistency pass; the former `headline` is `label`, factor `id` is `cause`); status words map `ok`→`ok`, `watch`→`info`, `warn`→`warn`, `critical`→`bad`; weights sum to 1; recomputed every 250 ticks and on events; alerts fire on status changes (rate-limited by alerts chapter).
 
 | Id | Status rules | Limiting factors (weights computed from magnitudes) | Remedies |
 |---|---|---|---|
 | `diag-surface-activity` | `ok` if `surfaceActivity >= 0.7`; `watch` 0.4-0.7; `warn` 0.1-0.4; `critical` < 0.1 for > 1 GD in a foraging season | temperature gate (cold or hot), light preference, weather (`fW`), heat-stressed trail share | wait (state the expected change: "dusk in 6 h"), route through shade, change species-appropriate hours; none if weather |
-| `diag-nest-climate` | per chamber: `warn` if brood chamber outside `[Topt_lo - 4, Topt_hi + 4]`; `critical` if < 10 C or > 36 C | depth, cover above, season, recent cold snap or heat wave | `move-brood` marker to a warmer or cooler chamber, `dig` deeper, add cover or mound |
-| `diag-flood-risk` | `warn` if forecast rain peak and any entrance catchment flux x chamber volume ratio > 0.1; `critical` while water in brood chamber | rainfall rate, catchment area per entrance, entrance elevation, soil saturation `theta1` | raise a mound or entrance (`entrance` marker), `move-brood` upward, dig drain chamber |
+| (merged into GDD 03 `diag-nest-climate`) | per chamber: `warn` if brood chamber outside `[Topt_lo - 4, Topt_hi + 4]`; `critical` if < 10 C or > 36 C | depth, cover above, season, recent cold snap or heat wave | `move-brood` marker to a warmer or cooler chamber, `dig` deeper, add cover or mound |
+| (merged into GDD 03 `diag-nest-flood`) | `warn` if forecast rain peak and any entrance catchment flux x chamber volume ratio > 0.1; `critical` while water in brood chamber | rainfall rate, catchment area per entrance, entrance elevation, soil saturation `theta1` | raise a mound or entrance (`entrance` marker), `move-brood` upward, dig drain chamber |
 | `diag-heat-exposure` | `warn` if > 10 % of foragers have `Tb >= stressC - 3`; `critical` if any `heat-stupor` mass | surface `Tmicro` on trails, shade availability, hour | forage at dawn/dusk, shaded route, `avoid` marker on hot paving |
 | `diag-overwinter-readiness` | autumn `doy >= 15`: `ok` if stores cover >= 1.5 x projected need; `warn` 1.0-1.5; `critical` < 1.0 | C stores, P stores, colony size, deepest chamber temperature, predicted frost nights | forage priority, honeydew tending, dig a deeper chamber, increase colony before winter |
 | `diag-founding-outcome` | during `lay`: forecast-based: `ok` expected reserve >= 0.25; `warn` 0.15-0.25; `critical` < 0.15 | site factors (dig, moisture, warmth, cover, flood, rival, exposure) as weights of `1 - s_i`, clutch size | lay fewer eggs, dig a bigger or deeper chamber, move to a better site before sealing |
 | `diag-reproduction-readiness` | `ok` if gates pass; otherwise `watch` listing the failing gates | gate list 11.1 with the numeric gap | feed the colony, wait, raise investment |
 | `diag-flight-day` | on eligible window days: `ok` if `p_launch >= 0.5` | temperature, wind, sky, recent rain, trend | wait for a warmer or calmer day |
-| `diag-queen-status` | `ok` queenright; `warn` queen reserve or crop < 30 %; `critical` orphaned | queen crop, stores, age vs lifespan | feed priority, protect, release alates if orphaned |
-| `diag-autosave` | `warn` after a write failure | storage error kind | export the save |
+| (merged into GDD 02 `diag-queen-condition`) | `ok` queenright; `warn` queen reserve or crop < 30 %; `critical` orphaned | queen crop, stores, age vs lifespan | feed priority, protect, release alates if orphaned |
+| (merged into GDD 08 `diag-storage`) | `warn` after a write failure | storage error kind | export the save |
 
 ## Appendix E. Acceptance checks
 
@@ -1547,20 +1556,20 @@ Each is scriptable through the debug API (`step`, `cheat.*`, `summary()`, `query
 9. **Speed curve.** `speedMult(Lasius, 15) = 0.55`, `(10) = 0.25`, `(40) = 0`, `(25) = 1.0`; Messor at `Tb 26` = 0.9; Atta at `Tb 24` = 1.0; `forageGate(Atta, 29) = 0`.
 10. **Rain washing.** Given a `shower` (`rainRate 5`), an exposed trail cell with value 1.0 and baseline decay disabled, Then after 69 +- 3 s the value is `0.5 +- 0.05`; a covered cell is unchanged; during `downpour` the same cell halves in 17 +- 1 s.
 11. **Soil moisture.** Given loam, `theta0 = 0.30`, `clear`, 2.5 mm of drizzle added, Then `theta0 = 0.51 +- 0.03` immediately and below 0.30 after `28 +- 8` game hours of `clear` weather at noon-like evaporation.
-12. **Speed rules.** Given 4x and the player possesses an ant, Then speed becomes 1x; `SetSpeed 8` is refused with `not-allowed-while-possessing`; `SetSpeed 4` is accepted.
+12. **Speed rules.** Given 4x and the player possesses an ant, Then speed becomes 1x; `setSpeed 8` is refused with `not-allowed-while-possessing` (the event `speed-refused` carries reason `possession`, GDD 01 E1); `setSpeed 4` is accepted.
 13. **Cannot keep up.** Given requested 8x and an injected tick cost of 30 ms with a 10 ms budget, Then within 3 +- 1 real seconds the requested speed becomes 4x, event `time.speed-limited` is emitted, and game results at equal tick counts are identical to an unbudgeted run (hash of `summary()` equal).
 14. **Orders while paused.** Given pause, When a `dig` marker command is enqueued, Then `calendar.tick` is unchanged and the marker exists after `applyPendingCommands()`.
 15. **Opening shelter clock.** Given a Lasius opening, queen standing in open sun on bare soil (cover 0.1) at 22 C, Then `desiccation` reaches 1 at `5 000 +- 100` ticks (0.83 GD) and she dies with cause `desiccation`; under a stone (cover 1.0) she is alive at 14 000 ticks and dead at `15 000 +- 300` ticks.
 16. **Site quality.** Given factors (dig 1, moist 0.9, warm 0.9, cover 1, flood 0.8, rival 1, exposure 0.7) Then `Q = 0.91 +- 0.01` ("Excellent"); (1, 0.8, 0.7, 0.35, 0.7, 1, 0.5) gives `0.70 +- 0.01` ("Good"); (0.4, 0.3, 0.6, 0.1, 0.6, 1, 0.5) gives `0.37 +- 0.01` ("Fair").
-17. **Dig readiness.** Given Lasius with shaft depth 5.9 BU and 80 chamber voxels, When `OpeningSeal` is sent, Then it is refused (`readiness`); with 6.0 BU and 60 voxels it is accepted.
+17. **Dig readiness.** Given Lasius in open soil with a 2.5 BU shaft 7.9 BU deep and a 4 x 2 x 4.5 cell, When `action seal-entrance` is sent, Then it is refused (`readiness`); with the shaft 8.0 BU deep (GDD 03 `D_MIN`) it is accepted; under a stone 5.0 BU suffices (GDD 03 E8).
 18. **Founding outcome.** Given `Q = 0.7`, chamber 19.5 C constant, `R0 = 56`, clutch 24, 200 seeds, Then mean workers `11.5 +- 1.5`, p10 8, p90 15, queen deaths 0; clutch 48 gives queen deaths between 50 % and 80 %; `Q = 0.9`, clutch 48 gives more than 90 %.
 19. **Lapse timing and skip.** Given the same state, Then first eclosion occurs `4.52 +- 0.1` GD after the first egg at constant 19.5 C; skipping the lapse yields identical `tick`, worker count, reserves and RNG state as full playback.
 20. **Overwinter.** Given 18 workers, 20 larvae, stores C 10 / P 4, nest minimum 4 C, Naturalist, Then after the aggregate step workers are between 15 and 18 (base loss about 6 %), stores C fall by `5.2 +- 1.5` loads, and a report exists with population, stores, climate and top 3 causes. With C stores 0 at `Begin`, workers fall by at least 50 %. With nest `Tmean >= 14` the colony is `winterActive` and no banner appears.
-21. **Milestones.** Given `cheat.addWorkers`, `ms-workers-100` fires exactly once when `W_eq` first reaches 100 and its journal entry carries the in-game date; `ms-first-worker` fires at the first eclosion only; reloading a save does not refire any.
-22. **Alate gate and cost.** Given a Lasius colony with `W_eq` 1 800, age 2.1 years, stores 20 GD, spring `doy 3`, investment 0.5: `gate-stage` fails. With `W_eq` 2 000 all gates pass and `A* = 35` (14 gynes, 21 males), total cost `336 +- 2` loads; with stores of 10 GD `gate-stores` fails.
+21. **Milestones.** Given `cheat.addWorkers`, `ms-workers-100` fires exactly once when `N` first reaches 100 and its journal entry carries the in-game date; `ms-first-worker` fires at the first eclosion only; reloading a save does not refire any.
+22. **Alate gate and cost.** Given a Lasius colony with `N` 650, age 2.1 years, stores at 4 GD C and 2 GD P, spring `doy 3`, investment 0.5: `gate-stage` fails. With `N` 700 all gates pass and `A* = 35` (14 gynes, 21 males), total cost `336 +- 2` loads; with C stores of 2 GD `gate-stores` fails.
 23. **Flight eligibility.** Given Lasius, `doy 10`, `clear`, `Tair 24`, `wind2m 1.0`, rain 3 GD ago: `p_launch = 0.78 +- 0.02`. With `wind2m 7` or rain or `Tair 12`: 0. Over 1 000 seeded days with the first set, flights launch on `78 +- 3 %`.
 24. **Queen death and extinction.** Given a queenright colony with brood and 40 workers, When `killQueen('predation')`, Then `colony.orphaned`, no new eggs after the next tick, existing larvae still pupate and eclose, `ms-queen-lost` is journaled; When `killAll()`, Then `colony.extinct` fires within 0.05 GD +- 5 ticks and `epitaph.ready` follows with the cause chain.
-25. **Lineage and autosave.** Given a recorded flight with 20 gynes, Then 1 to 12 daughters are stored; founding one yields world seed `hash32(motherWorldSeed, flightId, index)` identical on repetition and generation 2, and the opening starts at `dealation`. Given 300 s of unpaused play, Then one ring autosave exists; during the time-lapse no autosave is written; `pre-winter` exists before the banner.
+25. **Lineage and autosave.** Given a recorded flight with 20 gynes, Then 1 to 12 daughters are stored; founding one yields world seed `hash32(motherWorldSeed, flightId, index)` identical on repetition and generation 2, and the opening starts at `dealation`. Given 300 s of unpaused play, Then one `auto` generation exists; during the time-lapse no autosave is written; `pre-winter` exists before the banner.
 
 ## Appendix F. Cross-chapter assumptions
 
@@ -1568,13 +1577,13 @@ Each is scriptable through the debug API (`step`, `cheat.*`, `summary()`, `query
 2. **Worldgen:** supplies per-cell texture, `permeable`, `veg`, `puddleCapMm`, `runoffCoeff`, `world.hydro.floodRisk(x, z)` (0..1), flow-accumulation catchment per entrance footprint, `world.shadeAt(p, sunDir)`, `foundingLandingPoint` with at least 3 candidate sites of `Fair` quality within 300 BU, human-activity `footTraffic` map, `openSky`, micro-connection flags, and the climate id per species.
 3. **Brood chapter:** brood development uses degree-days with the Lasius law `max(0, T - 10) / 11` per GD (21 C anchor: egg 1.4, larva 0.6, pupa 1.9 GD) and per-species rates from `SpeciesDef`; brood heat mortality above 36 C; larva draw `LARVA_COST_LOADS = 1.6` (1.2 P + 0.4 C) as in directions J; destined castes and demotion (11.3) are applied by the brood chapter's pupation checkpoint.
 4. **Ants chapter:** ant records carry additive fields `Tb`, `heatLoad`, `coldLoad`, `thermalState`; speed uses `speedMult(Tb)`; tasks `flee`/`rest` respond to `shadeSeekC`; ant death emits cause ids of 9.3; `gyne` and `male` castes have states of 11.4.
-5. **Colony/economy chapter:** `W_eq` and `N_sim` per Lasius dossier 12.1; consumption and egg laying use the dossier laws (`q(N)`, season factor); the founding pool `R` is a single 1:1 pool (C and P) that stands in for colony stores until the first worker eats; stores are available in `colony.stores.{c,p}`; worker lifespan 33 GD (< 100 workers) to 24 GD (>= 250 workers) with the species table; `queen-care` and allocation exist.
+5. **Colony/economy chapter (GDD 02):** `N` = simulated workers (no weights); consumption and egg laying use the dossier laws (`q(N)`, season factor); the founding pool `R` is a single 1:1 pool (C and P) that stands in for colony stores until the first worker eats; stores are available in `colony.stores.{c,p}`; worker lifespan 33 GD (< 100 workers) to 24 GD (>= 250 workers) with the species table; `queen-care` and allocation exist.
 6. **Foraging chapter:** reads `surfaceActivity(species)`, `forageGate`, `heatStress`; the first-trail milestone (3 distinct followers) uses the trail follow counter; autonomous trail recruitment unlock at 75 workers is that chapter's rule and does not contradict `ms-first-trail` (a possessed or solitary worker can lay a followed trail earlier).
 7. **Pheromone chapter:** applies the wash and wind multipliers of 3.7 and `home` decay multipliers each 10 ticks to cells flagged `exposed`; supplies the `exposed` flag from cover.
-8. **Combat/creatures/rivals/human chapters:** expose the preset knobs of section 14 (`predatorDensityMult`, `rivalCount`, `rivalAggressionMult`, `rivalRaidIntervalMult`, `humanActivityMult`, `humanWarningLeadS`, bait and pesticide events); the founding director (5.6) calls their spawn APIs with the creature kinds listed; human events use `isWeekend` and `hour` from the calendar; sprinkler/hose events add local `rainRateMmH`.
-9. **Possession/camera chapter:** possession start forces 1x (calls `SetSpeed`), the founding queen cannot be released (X), the possessed flight uses the flight state of 11.6, the photo mode freezes time through the same pause flag.
+8. **Combat/creatures/rivals/human chapters (GDD 04, GDD 05):** own the preset knobs of section 14 (`predatorDensityMult`, `rivalCount`, `rivalAggMult`, `raidCooldownGd`, `HUMAN_FREQ_MULT`, `HUMAN_TELEGRAPH_MULT`, `BAIT_ENABLED`); the founding director (5.6) calls their spawn APIs with the creature kinds listed; human events use `isWeekend` and `hour` from the calendar; sprinkler/hose events add local `rainRateMmH`.
+9. **Possession/camera chapter:** possession start forces 1x (calls `setSpeed`), the founding queen cannot be released (X), the possessed flight uses the flight state of 11.6, the photo mode freezes time through the same pause flag.
 10. **Alerts/diagnostics chapter:** owns the alert tray, severity ranking and cooldown; this chapter supplies the trigger ids of 4.5 and the diagnostics of Appendix D.
-11. **UI/Game layer:** owns the time loop of 4.3, the Winter Report, Epitaph, Lineage, journal and codex panels, the intro card, autosave scheduling (15), IndexedDB stores for `lineage` and `codex`, and applies `applyPendingCommands()` while paused.
+11. **UI/Game layer:** owns the time loop of 4.3, the Winter Report, Epitaph, Lineage, journal and codex panels, the intro card, autosave scheduling (15), the profile store `foundress.profile.v1` (holding `lineage`, `codex` and `hints`), and applies `applyPendingCommands()` while paused.
 12. **Species chapters:** provide `SpeciesDef.climate`, `.thermal`, `.opening`, `.winter`, `.reproduction` as tabulated here; Camponotus wood model, Messor granary and seed economy, Atta garden economy (growth 0.17 per GD sustained) are theirs; the polymorphic caste ids `minor`, `media`, `major`; Messor lineage tint and mating rule (11.6) use their data.
 13. **Rendering/audio:** consume `light`, `cloud`, `fogDensity`, `precip`, `rainDropMm`, `wind2m`, `lightningFlash` per 3.11 and the events of Appendix C; they must honour reduced-motion and photosensitivity rules (no flashes above 2 per second).
 14. **Save chapter:** persists everything in Appendix A (except device stores), keeps `weather`, `moisture` grids and `opening` in `SimState`, regenerates derived caches; versions generator and balance tables.

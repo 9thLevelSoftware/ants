@@ -21,7 +21,7 @@ Turn the kernel's raw carve grid into nests: dig bites and soil pellets, mounds,
 ## Deliverables
 1. Substrate rules from GDD 03: diggability and bite duration per material and species, stability flags; `canDigAt(sim, species, p)`.
 2. `digBite(sim, ant, point)`: carve with the species' bite radius respecting `canDigAt`, return carved volume and failure reason, create pellet items from the volume ledger (per GDD 03), mark dirty chunks.
-3. Pellets: carrying, dropping, clutter in tunnels, dumping near an entrance; mounds as dynamic primitives that grow with dumped volume in the shape GDD 03 specifies and are registered with the world field (walkable, renderable).
+3. Pellets: carrying, dropping, clutter in tunnels, dumping near an entrance; mounds exactly as GDD 03 specifies — heightfield patches stored in `WorldDelta.mounds` that grow and relax with dumped volume, registered with the world field as height overlays (the kernel provides the overlay hook) so they are walkable and renderable. Per-voxel flags (`LOOSE` / `NATURAL` / `PLUG`) live in `WorldDelta.carveFlags`, a sparse structure parallel to the carve chunks that this module owns and maintains.
 4. Entrances: registered when a carve breaches the surface (from kernel breach data), throat radius, sealing and unsealing (plug by fill, reopen by carve), several entrances per nest, entrance lookup for navigation.
 5. Chamber detection and registry: analyse carved space (throttled, incremental where possible) to tell chambers from tunnels; volume, floor area, depth, cover; designation of types by the player or by rule; capacities per GDD 03; a `flooded` flag hook.
 6. Dig plans: templates (tunnel, shaft, chamber by type and size, new entrance) anchored on existing space, validated (diggable, spacing, not undermining), expanded into ordered carve spheres; frontier claiming API for diggers; progress, priority, cancel, blocked-reason reporting.
@@ -33,7 +33,7 @@ Turn the kernel's raw carve grid into nests: dig bites and soil pellets, mounds,
 2. Bite volume, pellet yield and bite duration match GDD 03's numbers for loam, sand, clay and a non-diggable crust (bite refused with the right reason).
 3. On a synthetic nest (three chambers joined by tunnels) chamber detection finds exactly three chambers with volumes within 15 % and stable ids across re-detection after unrelated digging.
 4. A shaft dug upward to the surface registers an entrance; sealing makes nest-nav report the outside unreachable; unsealing restores it.
-5. Dumping N pellets grows a mound whose volume matches the dumped volume within 10 %, and a walker can walk over it (world field updated).
+5. Dumping N pellets grows a mound whose volume matches the dumped volume (times the bulking factor) within 10 %, and a walker can walk over it (height overlay updated).
 6. A chamber plan anchored on a tunnel wall expands to spheres, diggers claiming the frontier never get the same sphere twice, and completing all spheres yields a detected chamber of the planned type and size.
 7. Plans in non-diggable material or too close to existing space are rejected with a reason.
 8. Nest state round-trips through core `encode`/`decode`; determinism holds.

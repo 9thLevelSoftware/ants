@@ -43,7 +43,7 @@ Implemented by modules: `nestops` (entrances, chambers, plans, pellets, mound, n
 
 | # | Deviation | Reason |
 | --- | --- | --- |
-| D1 | Individual bites are fast: a founding cell takes about 2-3 game minutes instead of hours. | Kinematic clock (directions K). At colony scale, nest growth per game day (13 real days) stays in the real order of magnitude. Codex must say so. |
+| D1 | Individual bites are fast: a founding cell takes about 2-3 minutes of game seconds (2-3 real minutes at 1x) instead of hours. | Kinematic clock (directions K). At colony scale, nest growth per game day (13 real days) stays in the real order of magnitude. Codex must say so. |
 | D2 | Tunnels are round, 2 BU across; real *L. niger* galleries are flatter (about 3 BU wide x 1.5 BU tall [R: CT data, width ~12 mm, height 5.5-5.9 mm]). | Camera and walker clearance. Chambers stay flat (height 2-3 BU). |
 | D3 | LN can dig `wood-decayed` (speed 0.5); directions D said wood is carpenter-only. | Research: *L. niger* nests under stones, rotten wood and roots [R]. Sound wood stays CP-only. |
 | D4 | Nest volume per adult is about 2 BU³ (real field mounds imply about 6). | Performance (voxel count) and digging workload; the colony cap is already a compression (K). |
@@ -97,19 +97,19 @@ Caste dig values (`SpeciesDef.dig`):
 
 | Rule | Value / behaviour |
 | --- | --- |
-| Carry | One pellet in the mandibles. Item bulk = 0.6 × volume (nominal 0.5, within every digging caste's `carryCap`). Carrying speed multiplier is owned by locomotion (assumed 0.9). |
+| Carry | One pellet in the mandibles. Item bulk = 0.6 × volume (nominal 0.5, within every digging caste's `carryCap`). Carrying speed multiplier: the species `loadSpeedMult` (GDD 01 `LOAD_SPEED_MULT` 0.85 for Lasius, GDD 07 per species) applies to pellets like any carried item. |
 | Dropped in a cavity | Becomes **clutter** unless dropped within 1 BU of an active plan's spoil point (then it joins that **spoil pile**). |
 | Dropped outside (terrain, mound or primitive top) | **Surface pellet**: stays a visible item until its age ≥ `PELLET_SETTLE_S` 300 game s, then merges into a mound at the next mound batch (every 250 ticks, 1.4). |
 | Dropped in water | Removed (event `pellet-dumped`, `into: 'water'`). |
 | Clutter slow-down | Locomotion multiplies in-cavity speed by max(`CLUTTER_SLOW_MIN` 0.6, 1 − `CLUTTER_SLOW_PER` 0.08 × n), n = loose pellets within 1.5 BU of the ant. |
-| Choked tunnel | ≥ `CHOKE_COUNT` 6 pellets within any 1 BU length of tunnel -> `choked` flag on that spot (diagnostic `nest-traffic`). Never impassable. |
+| Choked tunnel | ≥ `CHOKE_COUNT` 6 pellets within any 1 BU length of tunnel -> `choked` flag on that spot (diagnostic `diag-nest-traffic`). Never impassable. |
 | Tamping | A clutter or spoil-pile pellet untouched for `PELLET_TAMP_S` 1,200 game s (2 game days) is removed and its volume is pressed into the floor: open voxels within 1.0 BU (1.5 BU if not enough) that have a non-open voxel directly below lose openness evenly until the pellet volume is used; they get `LOOSE`. Floors rise; unhauled spoil slowly narrows tunnels. |
 | Cap | `MAX_LOOSE_PELLETS_PER_NEST` 400; above it the oldest clutter pellet tamps immediately. |
 | Conservation | Σ removed by bites = Σ pellet volumes + Σ mound deposits / `BULKING` + Σ tamped + Σ pellets lost in water (± float error). Plugs and collapses are exempt (they are packing, not transport). |
 
 ### 1.4 Mounds and spoil heaps
 
-A **mound** is a pile heightfield attached to an entrance; a **spoil heap** is the same structure without an entrance (pellets dropped far from any entrance, frass under a window).
+A **mound** is a pile heightfield attached to an entrance; a **spoil heap** is the same structure without an entrance (pellets dropped far from any entrance, frass under a window). The same pile structure, with its `material` set to the dumped item kind, is the generic **pile** that GDD 07 uses for frass piles, chaff middens and Atta waste heaps and that GDD 02 uses for the surface midden (waste and corpses); one pile record per site, merged by `HEAP_MERGE_DIST` (consistency pass).
 
 | Item | Rule |
 | --- | --- |
@@ -166,18 +166,21 @@ Buried stones and roots (world-generation primitives below the surface) are not 
 
 World generation writes natural cavities into the carve grid (flag `NATURAL`) and records each as `NaturalCavity { id, kind, bbox, openings[{pos, normal, radius}], ownerNestId }`.
 
-| Kind (new ids) | Typical size (LN BU) [R: ecology dossier] | Note |
+Kind ids are GDD 04 §7's cavity ids (worldgen writes them; consistency pass) plus `abandoned-burrow`; the former ids of this chapter are given in brackets.
+
+| Kind | Typical size (LN BU) [R: ecology dossier] | Note |
 | --- | --- | --- |
-| `paving-joint` | gap 0.75-2.5 wide between slab primitives, sand fill 0.5-1 below the slab top | A road and a nest site. |
-| `under-slab` | void 0.5-2 tall, 2-10 wide in the bedding sand under slab edges | Covered, warm: architect favours it. |
-| `stone-gap` | 0.5-1.5 gap under stone edges | Classic LN founding site. |
+| `under-slab` [`under-slab`, `paving-joint`] | void 0.5-2 tall, 2-10 wide in the bedding sand under slab edges, opening into a joint (the joint itself, 0.75-2.5 wide, is a GDD 04 `paving-joint` micro-connection) | Covered, warm: architect favours it. A road and a nest site. |
+| `under-stone` [`stone-gap`] | 0.5-1.5 gap under stone edges | Classic LN founding site. |
 | `kerb-void` | 0-2.5 gap behind a kerb | |
-| `asphalt-crack` | 0.25-6 wide down to the sub-base | Narrow ones are below navigation clearance. |
-| `root-channel` | tube 1-3 diameter, 10-60 long through soil | |
-| `log-hollow` | 2-10 cavity in decayed wood | CP founding (T3). |
-| `wall-void` | 5-25 wide inside wall primitives, partly filled with `insulation` | Interior zone. |
-| `pipe-gap` | annulus 0.5-4 around pipes through walls | |
+| `crack-slot` [`asphalt-crack`] | 0.25-6 wide down to the sub-base | Narrow ones are below navigation clearance. |
+| `root-gallery` [`root-channel`] | tube 1-3 diameter, 10-60 long through soil | |
+| `log-gallery` [`log-hollow`] | 2-10 cavity in decayed wood | CP founding (T3). |
+| `pipe-tube` [`pipe-gap`] | annulus 0.5-4 around pipes through walls and slabs | |
+| `subfloor-void`, `compost-void`, `worm-burrow` (T2), `rival-nest` (T2) | GDD 04 §7 | |
 | `abandoned-burrow` | created at runtime by an abandoned founding dig (13.4) | |
+
+Wall voids are **not** carve-grid cavities (directions K, GDD 04 V6): the space inside a wall is free space between the two wall-leaf primitives, reached by the surface walker; `insulation` there is a primitive material that a carpenter ant may carve (carve chunks are created inside diggable primitives as for logs).
 
 Gaps between primitives that are not inside substrate (door undercuts) are surface routes, not carve-grid cavities.
 
@@ -220,7 +223,7 @@ Sealing uses: founding (13, T1); player command `sealEntrance` (an AI worker per
 - A nest may have up to `template.maxEntrances` open entrances (LN 3, 4 from 800 workers). Player entrance plans beyond that are refused `too-large`; natural and accidental openings are not capped (architect may propose a `seal` plan for surplus ones, T2).
 - Haulers use the nearest open entrance by path (`D_exit`), so each entrance grows its own mound.
 - **Rims** protect against rain (section 11): rim factor = max(`RIM_MIN_FACTOR` 0.1, 1 − rim / `RIM_FULL` 3 BU). When an entrance has `rimTarget` > rim, haulers drop pellets in the inner ring r_ent + 0.5 .. 1.5 BU instead of the normal ring (7.7), building a crater rim.
-- Traffic: ants crossing the opening plane, counted per game minute (UI). Congestion (T2): ≥ 6 ants within 4 BU of the opening moving at < 30 % cruise speed for 30 game s.
+- Traffic: ants crossing the opening plane, counted per game hour (UI; 1 game hour = 25 game s). Congestion (T2): ≥ 6 ants within 4 BU of the opening moving at < 30 % cruise speed for 30 game s.
 
 ---
 
@@ -464,13 +467,13 @@ Blocked reasons (new ids) with detection and remedy text:
 | Field | LN (T1) | MB (T3) | AT (T3) | CP (T3) |
 | --- | --- | --- | --- | --- |
 | `tunnelD` / `royalD` | 2.0 / 2.5 | 2.0 (main 2.5: majors need ≥ 2.2 [R]) / 2.5 | 2.5 / 3.0 | 2.0 / 2.5 |
-| `footprintR` | 80 | 150 | 400 (real 15-24 m compressed [R]) | parent + up to 4 satellites within 600 BU [R] |
+| `footprintR` | 80 | 150 | 150 (directions K: nest footprint within ~150 BU of the first entrance; real 15-24 m compressed further [R]) | parent + up to 4 satellites within 600 BU [R] |
 | `maxDepth` | 175 (typical ≤ 75 [R]) | 285 [R] | 450 [R] | wood only, any; soil brood chambers ≤ 10 |
 | `maxPathToEntrance` | 120 | 200 | 300 | 120 |
 | `maxEntrances` | 3 (4 from 800 workers) | 6 [R] | 40 [R] | 6 windows per nest |
 | `volumeCap` | 12,000 | 14,000 | 30,000 | 8,000 |
 | `royalAt` | 8 workers | 10 | 20 | 8 |
-| Chamber W x H x L (S / M / L) | general, nursery, rest: 6x2.5x8 / 8x2.5x12 / 10x3x16; food: 6x2x8 / 8x2.5x10 / –; royal: 6x2.5x8 | brood 8x2.5x10 / 10x3x12 / 12x3x14; granary 10x3x12 / 13x3x14 / 16x3.5x16 | fungus 12x6x12 / 18x9x18 / 24x12x24; midden 10x4x12 | 5x2.5x9 / 8x2.5x14 / 12x3x20 (long axis along the grain) |
+| Chamber W x H x L (S / M / L) | general, nursery, rest: 6x2.5x8 / 8x2.5x12 / 10x3x16; food: 6x2x8 / 8x2.5x10 / –; royal: 6x2.5x8 | brood 8x2.5x10 / 10x3x12 / 12x3x14; granary 10x3x12 / 13x3x14 / 16x3.5x16 | fungus 12x6x12 / 18x9x18 / 30x12x30 (GDD 07 §5.4.6 owns: founding 10 BU, early 12-18 BU, mature 25-35 BU wide; consistency pass); midden 10x4x12 | 5x2.5x9 / 8x2.5x14 / 12x3x20 (long axis along the grain) |
 | Depth bands (BU below surface or cover) | founding 6-15; royal 12-40; nursery 4-30; food 8-30; rest 10-60; general 5-60; winter rest (T2) 30-80 | nursery 15-80; royal 40-150; granary 60-200 [R]; rest 20-150 | fungus 30-300; midden 100-400; royal 150-400 | ≥ 2 inside wood |
 | Required types by adult workers (`missing-type`) | ≥ 8: nursery S; ≥ 25: food S; ≥ 40: rest M; ≥ 150: second nursery M | ≥ 10: nursery; ≥ 30: granary | ≥ 10: second fungus | ≥ 8: nursery |
 | Cover weight (8.4) | 1.5 (nursery 2.5: sun-warmed stones and slabs [R]) | 0.5 | 0 | 0 |
@@ -485,7 +488,7 @@ Chamber volumes (ellipsoid π/6·W·H·L): 6x2.5x8 = 62.8; 8x2.5x12 = 125.7; 10x
 | `brood-space` | ρ_b = (0.25·eggs + larvae + pupae + 0.5 × eggs laid in the last 0.5 game day) / brood capacity of nursery, royal, founding, general | ρ_b > 0.8 | `normal`; ≥ 1.0 `high`; ≥ 1.3 `urgent` | `nursery` | T1 |
 | `food-space` | Solid food loads in the nest (economy) / capacity of food + general; or ≥ 10 food items outside storage chambers for 150 game s | > 0.8 | `normal` | `food` (MB seeds: `granary`) | T1 |
 | `missing-type` | Template requirement not met | — | `normal` | that type | T1 |
-| `winter-depth` | In autumn (days 15-21): resting capacity of chambers with centroid depth ≥ `FROST_SAFE_MM` (LN 120 mm) vs 0.6 × adult space units | < 1.0 | `high` | `rest` in the winter band | T2 |
+| `winter-depth` | In autumn (default-year doy 15-21, scaled by the configured season length per GDD 06 §1.7): resting capacity of chambers with centroid depth ≥ `FROST_SAFE_MM` (LN 120 mm) vs 0.6 × adult space units | < 1.0 | `high` | `rest` in the winter band | T2 |
 | `flood-safety` | Reference storm (11.4) predicts ≥ 25 % flooding of a `royal`, `nursery` or `founding` chamber | yes | `urgent` while raining, else `high` | Step 1: set `rimTarget` = `RIM_FULL` on the worst entrance (free; changes dumping). Step 2 if still predicted flooded with that rim: `nursery` placed above the predicted level | T2 |
 | `entrance-access` | Mean path from chambers to entrances > `maxPathToEntrance`, entrance congestion (4.3), or the forage centroid (foraging chapter) > 120 BU from every entrance; and below `maxEntrances` | yes | `low` | `entrance` toward the cause, 20-40 BU from existing entrances, preferring cover | T2 |
 
@@ -552,7 +555,7 @@ T(p) = T_annual + (T_seasonMean − T_annual)·e^(−d_eff/`D_A`) + (T_dayMean �
 | `D_D` | 80 mm | damping depth of the daily wave [EST, typical soils 80-120 mm] |
 | `D_S` | 250 mm | weather spells |
 | `D_A` | 1,500 mm | seasonal wave |
-| T_dayMean / T_seasonMean | EMA of T_top with τ = 1 game day / 7 game days (kept by the environment per terrain cell or primitive) | |
+| T_dayMean / T_seasonMean | EMA of T_top with τ = 1 game day / one season (`seasonLengthDays`, default 7 game days) (kept by the environment per terrain cell or primitive) | |
 | T_annual | climate constant (environment chapter) | |
 
 Depth is physical (mm), so a 30 BU LN chamber (120 mm) and a 30 BU MB chamber (210 mm) are damped differently, as in reality. A chamber 3 BU under a sun-warmed 50 mm stone has d_eff = 50 × 0.35 + 12 = 29.5 mm: most of the daily warmth reaches it, which is why LN favours stones and slabs [R]. Interior wall voids use the indoor air temperature. In T1 (no weather) the environment supplies constant values and chambers simply differ by depth and cover.
@@ -635,7 +638,7 @@ Spill height H*(v) = minimax path height from any entrance opening to v over ope
 
 ### 11.4 Reference storm (prediction for the architect, validation and UI)
 
-Integrate 11.1 with I = 1.0 for 75 game s (3 game hours) from W = 0 at current moisture; report the predicted peak level and the chambers that would flood. Published as flood risk on chambers (nest overview) and as `nest-flood` diagnostics.
+Integrate 11.1 with I = 1.0 for 75 game s (3 game hours) from W = 0 at current moisture; report the predicted peak level and the chambers that would flood. Published as flood risk on chambers (nest overview) and as `diag-nest-flood` diagnostics.
 
 ---
 
@@ -651,7 +654,7 @@ Simple and fair: only wide soil ceilings in unstable conditions fall, always aft
 | At expiry | Re-evaluate U; if still non-empty: set openness 0 and `LOOSE` for U plus every open voxel above U in the same column up to the ceiling (a slump heap in the middle of the room), at most `COLLAPSE_MAX_VOLUME` 64 BU³ per event (largest component first). |
 | Thin roof | If the roof above the largest U component is ≤ `ROOF_BREACH` 1.5 BU, also open a 1 BU-radius hole to the surface there: entrance kind `accidental`. |
 | Contents | Ants, brood and items inside refilled voxels move to the nearest open voxel (BFS). Ants: stunned 3 game s, −10 % max hp. Brood: unharmed. Pellets: absorbed into the debris. |
-| Afterwards | Chambers re-detected (may shrink or split); fields recomputed; plans whose volume was hit become `invalidated`. Player remedies (diagnostic `nest-stability`): evacuate, dig smaller rooms in dry sand, nest under stones, wait for damp weather. |
+| Afterwards | Chambers re-detected (may shrink or split); fields recomputed; plans whose volume was hit become `invalidated`. Player remedies (diagnostic `diag-nest-stability`): evacuate, dig smaller rooms in dry sand, nest under stones, wait for damp weather. |
 
 ---
 
@@ -683,13 +686,13 @@ R = 0.4·min(1, d_max/D_MIN) + 0.6·min(1, V_deep/V_MIN) × (width ok ? 1 : 0.8)
 
 AI queens (rivals, daughters, released player queen) dig the template as a plan with source `founding`, priority `urgent`, expulsion on, then perform 3 `seal-entrance` actions.
 
-Workload (LN template, loam): shaft 49 BU³ + cell 18.9 BU³ ≈ 68 BU³ ≈ 80 bites of 1.3 s ≈ 105 game s of biting, about 2-3 game minutes with movement (D1).
+Workload (LN template, loam): shaft 49 BU³ + cell 18.9 BU³ ≈ 68 BU³ ≈ 80 bites of 1.3 s ≈ 105 game s of biting, about 120-180 game s with movement (D1).
 
 ### 13.3 Costs and failures
 
 | Case | Rule |
 | --- | --- |
-| Reserves | Each queen bite costs `QUEEN_DIG_RESERVE` 0.0004 of full reserves (≈ 3 % for the whole founding dig; opening chapter owns the reserve model) |
+| Reserves | Each queen bite costs GDD 06 `FOUND_DIG_COST_PER_BITE` 0.02 loads of the founding pool `R` (≈ 0.04 % of `R0` 56; ≈ 3 % for the whole founding dig; GDD 06 owns the reserve model) |
 | Non-diggable | `not-diggable` prompt ("concrete cannot be dug") |
 | Hidden stone | Bites remove nothing there; she must move |
 | Rain while digging (T2) | Flooding applies; sites under cover are safer (site assessment shows it) |
@@ -742,7 +745,7 @@ Reason text (code -> words): `anchor-not-in-nest` "Start from a tunnel or chambe
 | World generation | For each rival site (chapters 04/05), with the worldgen RNG stream: run the founding template at the site, then replay architect growth steps for the rival's starting population (needs 8.3 from abstract numbers), carving each accepted plan instantly (`instantCarve`) with the rival species template and the same validation. Mounds receive removed volume × BULKING at their entrances with relaxation. Chambers, queen and brood are real and can be invaded. |
 | Runtime growth | Once per game day per rival colony (staggered): compute needs from abstract population; at most one plan. If no player-colony ant and no camera focus is within `RIVAL_VISIBLE_DIST` 40 BU of the plan volume: instant carve. Otherwise carve progressively at `RIVAL_CARVE_RATE` 0.5 BU³/s as system bites on the frontier, removed volume going straight to the mound. |
 | Contact | Rival plans refuse `foreign-nest`; contact with player cavities emits `foreign-cavity-contact`. |
-| Spacing | Assumes world generation keeps nest origins ≥ `NEST_SITE_SPACING` 150 BU apart. |
+| Spacing | World generation (GDD 04 §12.4) keeps established rival nests ≥ `RIVAL_SPACING_BU` 600 BU apart and ≥ 800 BU from the start; incipient rival foundations and any other nest origin stay ≥ `NEST_SITE_SPACING` 150 BU from every other nest. |
 
 ---
 
@@ -761,7 +764,7 @@ Reason text (code -> words): `anchor-not-in-nest` "Start from a tunnel or chambe
 - Material: `insulation`.
 - Item kinds (confirming GDD 01's assumption): `soil-pellet`, `frass`.
 - Carve voxel flags: `LOOSE`, `NATURAL`, `PLUG`.
-- Natural cavity kinds: `paving-joint`, `under-slab`, `stone-gap`, `kerb-void`, `asphalt-crack`, `root-channel`, `log-hollow`, `wall-void`, `pipe-gap`, `abandoned-burrow`.
+- Natural cavity kinds: GDD 04 §7 cavity ids plus `abandoned-burrow` (consistency pass; the former `paving-joint`, `stone-gap`, `asphalt-crack`, `root-channel`, `log-hollow`, `wall-void`, `pipe-gap` are mapped in §3).
 - Entrance kinds: `dug`, `natural`, `accidental`, `window`. Entrance status: `open`, `sealing`, `sealed`, `reopening`.
 - Nest kinds: `main`, `satellite`.
 - Plan kinds: `tunnel`, `shaft`, `chamber`, `entrance`, `seal`, `reopen`, `widen`, `backfill`. Plan status: `proposed`, `queued`, `active`, `stalled`, `paused`, `complete`, `cancelled`. Plan sources: `player`, `architect`, `founding`, `worldgen`, `rival`. Priorities: `low`, `normal`, `high`, `urgent`. Chamber sizes: `s`, `m`, `l`.
@@ -770,7 +773,7 @@ Reason text (code -> words): `anchor-not-in-nest` "Start from a tunnel or chambe
 - Architect modes: `auto`, `suggest`, `off`. Needs: `crowding`, `brood-space`, `food-space`, `missing-type`, `winter-depth`, `flood-safety`, `entrance-access`.
 - Founding dig states: `site-search`, `digging`, `ready`, `sealed`, `reopening`, `established`.
 - Behaviour states: digger `seek-slot`, `go-to-slot`, `bite`, `deposit`, `carry-out`, `interrupted`; hauler `seek-pellet`, `go-pickup`, `carry-out`, `internal-dump`.
-- Diagnostics (in addition to `dig-progress`, `nest-space`, `nest-climate` listed by GDD 08): `nest-flood`, `nest-stability`, `nest-traffic`.
+- Diagnostics (in addition to `diag-dig-progress`, `diag-nest-space`, `diag-nest-climate` listed by GDD 08): `diag-nest-flood`, `diag-nest-stability`, `diag-nest-traffic`.
 - Alerts (in addition to GDD 08's `nest-crowded`, `nest-flooding`, `dig-stalled`): `nest-collapse-risk`, `entrance-breached`.
 - Commands, events and cues: see Appendices B and C.
 
@@ -830,23 +833,25 @@ Reason text (code -> words): `anchor-not-in-nest` "Start from a tunnel or chambe
 | `natural-cavity-joined` / `foreign-cavity-contact` | `{ cavityId, nestId, otherColony? }` | journal, rivals |
 | `founding-readiness` (≤ 1 per game s) / `founding-ready` / `founding-sealed` / `founding-reopened` | `{ nestId, readiness, parts }` | readiness bar, onboarding hints, opening chapter |
 | `flood-started` / `flood-level` (≤ 1 per 5 game s) / `flood-ended` | `{ nestId, W, level, chambers[] }` | alerts `nest-flooding`, render water surfaces, audio trickle |
-| `ant-submerged` / `ant-drowned` / `brood-drowned` | `{ id, pos }` | UI, journal cause chain, epitaph causes |
+| `ant-submerged` / `brood-drowned` | `{ id, pos }` | UI, journal cause chain, epitaph causes (an ant that drowns emits the shared `ant-died` with cause `drowning`; `ant-drowned` is not a separate event) |
 | `collapse-warning` / `collapse` | `{ nestId, region, volume, breach? }` | alert `nest-collapse-risk`, particles, audio rumble |
 | `nest-milestone` | `{ kind: 'depth-50'|'depth-100'|'chambers-10'|'volume-1000'|'survived-flood', value }` | journal |
 | `cue` | `dig-bite.<material>`, `pellet-drop`, `seal-tamp`, `collapse-rumble`, `water-trickle`, `mound-slump` with pos and strength | audio, fx |
 
 ## Appendix D — Diagnostics ("why" view)
 
-Each record `{ id, system: 'nest', status, label, value, factors[{cause, weight, detail}], remedies[], sinceTick }`; weights are normalised shares of the shortfall.
+Each record `{ id, system: 'nest', status, label, value, factors[{cause, weight, detail}], remedies[], sinceTick }`; weights are normalised shares of the shortfall. Ids carry the `diag-` prefix (GDD 06 scheme).
 
 | Id | Status rule | Factors (weight = share of lost rate or excess) | Remedies |
 | --- | --- | --- | --- |
-| `dig-progress` (per plan, worst shown) | ok: rate ≥ 70 % of slot potential; warn: < 70 % or `no-haulers`; bad: `stalled` | diggers short (1 − assigned/slots); haul bottleneck (share of digger time spent carrying out); hard substrate (1 − min(1, digSpeed)); temperature (1 − workRate); clutter on the route (1 − clutter multiplier); flooding; obstruction | Raise Dig share; lower other plans; move the plan to softer soil; wait for warmth; clear clutter (haulers) |
-| `nest-space` | ok: ρ ≤ 0.85 and ρ_b ≤ 0.8 and food ≤ 0.8; warn: any above; bad: ρ ≥ 1.3 or ρ_b ≥ 1.3 | adult crowding; brood space; food space; architect off; no diggers | Plan a rest chamber / nursery / food chamber; switch the architect on; raise Dig share |
-| `nest-climate` | ok: best brood chamber score ≥ 0.8; warn ≥ 0.5; bad < 0.5 | too cold, too hot, too dry, too humid (each = 1 − its curve value, normalised); no chamber under cover; nursery too shallow/deep | Dig a nursery under a stone or slab; deeper rooms for summer heat; avoid entrance-adjacent nurseries (drying) |
-| `nest-flood` (T2) | ok: no brood/royal chamber in the reference prediction; warn: predicted; bad: currently flooding | exposed entrance (c, f_cover); low rim; crusted ground run-off; slow-draining clay; low brood chamber | Raise the rim (automatic with architect); new entrance under cover; nursery higher up |
-| `nest-stability` (T2) | warn: any collapse warning or ceilings within 90 % of S_max; bad: collapse in the last game day | dry sand; saturated sand; wide room; disturbance | Evacuate brood; smaller rooms; nest under stones; wait for damp weather |
-| `nest-traffic` | warn: choked spots, > 100 clutter pellets, or congested entrance | clutter pellets; squeeze tunnels; entrance congestion | More haulers; widen (T2); new entrance (T2) |
+| `diag-dig-progress` (per plan, worst shown) | ok: rate ≥ 70 % of slot potential; warn: < 70 % or `no-haulers`; bad: `stalled` | diggers short (1 − assigned/slots); haul bottleneck (share of digger time spent carrying out); hard substrate (1 − min(1, digSpeed)); temperature (1 − workRate); clutter on the route (1 − clutter multiplier); flooding; obstruction | Raise Dig share; lower other plans; move the plan to softer soil; wait for warmth; clear clutter (haulers) |
+| `diag-nest-space` | ok: ρ ≤ 0.85 and ρ_b ≤ 0.8 and food ≤ 0.8; warn: any above; bad: ρ ≥ 1.3 or ρ_b ≥ 1.3 | adult crowding; brood space; food space; architect off; no diggers | Plan a rest chamber / nursery / food chamber; switch the architect on; raise Dig share |
+| `diag-nest-climate` | ok: best brood chamber score ≥ 0.8; warn ≥ 0.5; bad < 0.5 | too cold, too hot, too dry, too humid (each = 1 − its curve value, normalised); no chamber under cover; nursery too shallow/deep | Dig a nursery under a stone or slab; deeper rooms for summer heat; avoid entrance-adjacent nurseries (drying) |
+| `diag-nest-flood` (T2) | ok: no brood/royal chamber in the reference prediction; warn: predicted; bad: currently flooding | exposed entrance (c, f_cover); low rim; crusted ground run-off; slow-draining clay; low brood chamber | Raise the rim (automatic with architect); new entrance under cover; nursery higher up |
+| `diag-nest-stability` (T2) | warn: any collapse warning or ceilings within 90 % of S_max; bad: collapse in the last game day | dry sand; saturated sand; wide room; disturbance | Evacuate brood; smaller rooms; nest under stones; wait for damp weather |
+| `diag-nest-traffic` | warn: choked spots, > 100 clutter pellets, or congested entrance | clutter pellets; squeeze tunnels; entrance congestion | More haulers; widen (T2); new entrance (T2) |
+
+Merged by the consistency pass: GDD 06's `diag-nest-climate` per-chamber rule (warn outside `[Topt_lo − 4, Topt_hi + 4]`, bad below 10 °C or above 36 °C in a brood chamber) is an additional status rule of `diag-nest-climate` here (worst of both), and GDD 06's `diag-flood-risk` is folded into `diag-nest-flood` (its forecast-rain factor becomes the factor "rain forecast"). Statuses are `ok | info | warn | bad` (`00-index.md` §D).
 
 ## Appendix E — Acceptance checks
 
@@ -866,7 +871,7 @@ Setup unless stated: `?test=1&seed=1&quality=low&autostart=1`, LN, flat loam tes
 12. **Given** the same plan in sand, **then** it is refused `unstable` at moisture 0.05 (S_max 2.5) and accepted at moisture 0.5 (S_max 8, W 8).
 13. **Given** a chamber plan whose wall would lie 1.5 BU from another chamber in loam, **then** an architect-sourced plan is refused `too-close` and a player plan is accepted only with `confirmWarnings: true` and carries the warning `too-close`.
 14. **Given** a valid 10 BU `tunnel` plan from a wall at depth 15 BU and 2 diggers plus 2 haulers assigned by cheat, **then** status is `active` within 300 ticks and `complete` within 6,000 ticks, ≥ 97 % of target voxels are open, and no voxel with g < −0.25 BU changed openness because of plan bites.
-15. **Given** a queued plan and Dig share 0, **then** within 150 ticks status is `stalled` with `blockedReason` `no-diggers`, and diagnostic `dig-progress` is `bad` with a remedy mentioning the Dig share.
+15. **Given** a queued plan and Dig share 0, **then** within 150 ticks status is `stalled` with `blockedReason` `no-diggers`, and diagnostic `diag-dig-progress` is `bad` with a remedy mentioning the Dig share.
 16. **Given** an active chamber plan at ≥ 40 % progress, **when** `cancelPlan`, **then** status is `cancelled`, all its slots are free, and during the next 1,000 ticks no voxel inside its volume changes openness.
 17. **Given** `cheat.carveEllipsoid` of 8 x 2.5 x 12 BU connected to the nest by a 2 BU tunnel, **then** within 60 ticks a chamber of type `general` with volume 126 ± 12 BU³ is registered.
 18. **Given** a nursery of volume 100 BU³ holding 40 eggs and 20 larvae, **then** its brood capacity is 150 and its brood occupancy is 30 (ρ_b = 0.2).
@@ -881,9 +886,9 @@ Setup unless stated: `?test=1&seed=1&quality=low&autostart=1`, LN, flat loam tes
 ## Appendix F — Cross-chapter assumptions
 
 1. **GDD 01 (actions)**: `dig-bite`, `seal-entrance`, `unseal-entrance`, `pick-up`, `put-down` run through the shared lifecycle; this chapter owns their effects and timing factors. `workRate` already includes temperature and health; `caste.digPower` is the species/caste multiplier for digging. GDD 01 check 6 expects 8-10 BU³ from 9-10 bites; with face-levelling targeting the expected range is 7-10 BU³ (see risks). GDD 01 check 3 (pellet within 6 BU of the entrance after 120 s) holds because surface pellets stay items for 300 game s.
-2. **Locomotion**: applies clutter, squeeze and crowding speed multipliers given here; handles walker medium `water`; carrying a pellet costs about 10 % speed; follows nest fields as in 5.2; never lets ants inside refilled voxels (collapse/plug code moves them first).
+2. **Locomotion**: applies clutter, squeeze and crowding speed multipliers given here; handles walker medium `water`; carrying a pellet costs the species `loadSpeedMult` (Lasius × 0.85); follows nest fields as in 5.2; never lets ants inside refilled voxels (collapse/plug code moves them first).
 3. **Colony chapter (02)**: task allocation consumes the dig and haul stimuli (7.7) and the Dig share (dig + haul); nurses execute translocation jobs from 9.4 and evacuation; the colony chooses the brood chamber per stage using the ranking published here; brood development reads chamber temperature and humidity; economy reports solid food loads in the nest and applies flood and overflow spoilage; queen moves on `move-queen`.
-4. **World generation (04)**: provides soil profiles with crusts, buried obstacles, natural cavities with openings, wood primitives with moisture and grain (T3), rival nest sites with origins ≥ 150 BU apart and nothing else carved there; validation that every founding-eligible zone has diggable ground at least D_MIN deep.
+4. **World generation (04)**: provides soil profiles with crusts, buried obstacles, natural cavities with openings, wood primitives with moisture and grain (T3), rival nest sites per GDD 04 §12.4 (established ≥ 600 BU apart, incipients ≥ 150 BU from any nest) and nothing else carved there; validation that every founding-eligible zone has diggable ground at least D_MIN deep.
 5. **Environment (06)**: provides per-location T_top by material and shade, the EMAs T_dayMean and T_seasonMean, T_annual, indoor T and RH, air RH, soil surface moisture and m_deep, rain intensity per location (including sprinklers), winter dormancy flag; triggers winter sealing; schedules human disturbances calling `nest.disturb`.
 6. **Opening chapter (06)**: owns the queen reserve model, laying, the time-lapse, and the reopen trigger; uses `siteAt` and the readiness bar; founding day per species.
 7. **Ecology, rivals, combat (05)**: rivals provide abstract populations for nest growth; react to `foreign-cavity-contact`; combat may seal entrances under raid; birds may target mounds (mound visibility is the mound volume).
@@ -898,7 +903,7 @@ Setup unless stated: `?test=1&seed=1&quality=low&autostart=1`, LN, flat loam tes
 
 - GDD 01 acceptance check 6 assumes about 0.9 BU³ per consecutive bite; face-levelling targeting gives 0.75-0.9 at a fixed face, so that check may need a 7-10 BU³ range.
 - Voxel discretisation (0.5 BU) makes width-based tests (d_sup, clearance) sensitive to alignment; the thresholds here were chosen with half-voxel slack, but scripted tests should carve with the cheat ellipsoid and allow ± 10 % volume.
-- Bite and haul throughput depends on walk speed, which the dossier puts at 6 BU/s cruise and the seed at ~12 BU/s; dig-plan completion times scale accordingly, so tests bound times generously and balance runs should check that the second LN chamber completes within about 2 game days of the first workers.
+- Bite and haul throughput depends on walk speed, which directions K fixes at 6 BU/s cruise (12 BU/s is the alarm maximum); dig-plan completion times scale with it, so tests bound times generously and balance runs should check that the second LN chamber completes within about 2 game days of the first workers.
 - The flood spill-height model ignores trapped air and soil seepage from below; deep nests in waterlogged hollows will be safer than reality.
 - Microclimate damping depths and brood preference curves are estimates; LN-specific thermal data were not found in the research.
 - Mound relaxation and 64 KB-per-mound grids are fine for a few dozen mounds, but AT (up to 40 entrances) may need a coarser grid (1 BU cells) in T3.
