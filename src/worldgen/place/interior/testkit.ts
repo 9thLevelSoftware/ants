@@ -8,6 +8,7 @@ import { createWalkerKin, walkerPlace, walkerStep, type WalkerKin } from '@/sim/
 import type { MicroConn, WorldData } from '@/sim/types';
 import { portals, cellAt, navDistances } from '../../validate/graph';
 import { walkable } from '../../maps/nav';
+import { MICRO } from '../../tuning/pipeline';
 
 export function kernelFor(w: WorldData): Kernel {
   return createKernel(w, { voxel: w.bu / 2, keys: [], chunks: [], breaches: [] });
@@ -32,7 +33,8 @@ export function follow(k: Kernel, kin: WalkerKin, pts: readonly Waypoint[], spee
   let i = 0, steps = 0, best = Infinity, since = 0, minUpY = kin.up.y;
   while (i < pts.length && steps < maxSteps) {
     const w = pts[i], arrive = w.arrive ?? 0.75 * bu;
-    const dx = w.p.x - kin.pos.x, dy = w.flat ? 0 : w.p.y - kin.pos.y, dz = w.p.z - kin.pos.z;
+    // flat waypoints steer level while the walker stands on level ground, in 3D while it climbs a face
+    const dx = w.p.x - kin.pos.x, dy = w.flat && kin.up.y > 0.7 ? 0 : w.p.y - kin.pos.y, dz = w.p.z - kin.pos.z;
     const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
     if (l < arrive) { i++; best = Infinity; since = 0; continue; }
     if (l < best - 0.1 * bu) { best = l; since = 0; } else if (++since > stallSteps) break;
@@ -59,7 +61,7 @@ export function navPathWithPortals(w: WorldData, from: number, to: number): NavS
   const ctx = navCtx(w);
   const d = navDistances(ctx, [to]);
   if (!(d[from] < Infinity)) return null;
-  const ports = portals(ctx);
+  const ports = portals(ctx).filter((p) => p.clearanceBu >= MICRO.passClearK); // as the distance search
   const n = w.nav.cls.nx, cls = w.nav.cls.data;
   const out: NavStep[] = [{ cell: from, viaMicro: -1 }];
   let c = from;

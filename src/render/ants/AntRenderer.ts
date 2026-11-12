@@ -6,7 +6,7 @@
  * blended pose), cull against the frustum, stage its instance data, pick LODs under the caps (the possessed ant is
  * always drawn at LOD0), then copy the staged data into the batches and upload only the used ranges.
  */
-import { Frustum, Group, Matrix4, Sphere, type PerspectiveCamera } from 'three';
+import { Color, Frustum, Group, Matrix4, Sphere, type PerspectiveCamera } from 'three';
 import type { QualityPreset } from '@/render/app/quality';
 import type { AntFrameInfo, AntRenderContext, AntRenderStats, PickTarget } from './frame';
 import {
@@ -16,7 +16,7 @@ import { AntStateTable, smoothFactors, stepAntState, trackOffscreen, type Smooth
 import { footTarget } from './gait';
 import { copyPose, poseTarget, withAlarm, withCarry, NEUTRAL_POSE, type PoseTarget } from './poses';
 import { selectLods, type SelectResult } from './select';
-import { GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
+import { CAMERA_CAPSULE, GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
 import { createSharedUniforms, type SharedAntUniforms } from './shader/materials';
 import { VariantStore } from './variantStore';
 import { ItemCatalog, type ItemRef } from './items/catalog';
@@ -26,6 +26,9 @@ import type { InstanceBatch } from './batches';
 
 /** Floats staged per ant: matrix 16 + aGait, aPose, aTint, aAct, aExtra, aFootA, aFootB (4 each; batches.ts ATTRS order). */
 const STRIDE = 44;
+// Linear highlight colours at 0 EV, parsed once (Color.set(hex) parses and colour-manages a string).
+const HI_WARM_BASE = new Color(HIGHLIGHT.warm).multiplyScalar(HIGHLIGHT.warmGain);
+const HI_COOL_BASE = new Color(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain);
 const DEBUG_LOD_TINT: [number, number, number][] = [[12, 1, 1], [1, 10, 1.5], [1.5, 3, 16], [14, 12, 1]];
 
 export class AntRenderer {
@@ -56,6 +59,8 @@ export class AntRenderer {
   private ref: ItemRef = { key: '', sizeMm: 0 };
   private looseList: LooseInstance[] = []; private loosePool: LooseInstance[] = [];
   private hover: PickTarget | null = null; private inspect: PickTarget | null = null;
+  /** Exposure the highlight colours were last compensated for (createSharedUniforms builds them at 0 EV). */
+  private highlightEV = 0;
   /** Debug: tint each ant by its LOD (red 0, green 1, blue 2, yellow 3). */
   debugLodTint = false;
   /** Debug: force every ant to one LOD (null = automatic). */
@@ -96,9 +101,12 @@ export class AntRenderer {
    * EV, which turned the possessed ant pale): pass the current exposure (EV) to keep it the same on screen.
    */
   setHighlightExposure(ev: number): void {
-    const k = Math.pow(2, -(Number.isFinite(ev) ? ev : 0));
-    this.shared.uHiWarm.value.set(HIGHLIGHT.warm).multiplyScalar(HIGHLIGHT.warmGain * k);
-    this.shared.uHiCool.value.set(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain * k);
+    const e = Number.isFinite(ev) ? ev : 0;
+    if (e === this.highlightEV) return; // called every frame; the colours change only with the exposure
+    this.highlightEV = e;
+    const k = Math.pow(2, -e);
+    this.shared.uHiWarm.value.copy(HI_WARM_BASE).multiplyScalar(k);
+    this.shared.uHiCool.value.copy(HI_COOL_BASE).multiplyScalar(k);
   }
 
   setHover(t: PickTarget | null): void { this.hover = t; }
@@ -149,6 +157,7 @@ export class AntRenderer {
     let n = 0, culled = 0;
     const smp = this.sample;
     const predicted = frame.possessedPose ?? null, possessedId = reader.possessedId;
+    this.shared.uCapR.value = 0; // set below when the possessed ant is drawn
     for (const a of ants) {
       if (!reader.isLive(a)) continue;
       reader.readAnt(a, frame.alpha, smp, predicted && a.id === possessedId ? predicted : null);
@@ -167,6 +176,11 @@ export class AntRenderer {
       this.sph.center.set(smp.pos.x + smp.up.x * L * 0.1, smp.pos.y + smp.up.y * L * 0.1, smp.pos.z + smp.up.z * L * 0.1);
       this.sph.radius = L * (v.wings ? 1.3 : 0.9) + (smp.carryKind !== 'none' ? L : 0);
       if (!smp.possessed && !this.frustum.intersectsSphere(this.sph)) { trackOffscreen(st, smp); culled++; continue; }
+      if (smp.possessed) { // GDD 01 6.5 rule 2: the capsule from the camera to the possessed ant's thorax
+        this.shared.uCapA.value.copy(camPos);
+        this.shared.uCapB.value.copy(this.sph.center);
+        this.shared.uCapR.value = CAMERA_CAPSULE.radiusL * L;
+      }
       // carried thing and its carry pose
       let ck: string | null = null, cs = 0;
       if (smp.carryKind === 'brood') {

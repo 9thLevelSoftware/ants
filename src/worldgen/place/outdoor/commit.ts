@@ -21,6 +21,8 @@ import type { Rect } from '../../layout/types';
 import { WALKER_TUNING } from '@/sim/locomotion/walkerParams';
 import { SUITABILITY } from '../../tuning/maps';
 import { OUTDOOR } from './tuning';
+import { objectOverlaps } from './overlap';
+import { PLACE } from '../../tuning/pipeline';
 
 export interface OutdoorState {
   /** Rects that slab grids must leave free (tree pits). */
@@ -92,6 +94,12 @@ export function commit(ctx: GenContext, b: Built, o: CommitOptions): number {
   const id = placeObject(ctx, b.tpl, opts);
   if (id < 0) return -1;
   const obj = ctx.world.objects[ctx.world.objects.length - 1];
+  // the kit's collision lattice is coarse: check again densely and undo an overlapping placement
+  if (opts.collide && objectOverlaps(ctx, obj.primStart, obj.primCount, id, PLACE.overlapTolMm, o.ignoreObjects)) {
+    removeObject(ctx, id);
+    if (o.category) ctx.budget.used[o.category]--;
+    return -1;
+  }
   outdoorState(ctx).objects.add(id);
   const T = (p: Vec3): Vec3 => {
     const r = quatRotateVec3({ x: 0, y: 0, z: 0 }, obj.rot, p);

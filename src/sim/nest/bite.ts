@@ -14,6 +14,7 @@ import {
 import { DIG_BITE_DEPTH_BU, DIG_MIN_SPEED } from '@/sim/balance/actions';
 import { OPEN_FRACTION, OPEN_MIN } from './carve/keys';
 import { carveCapsule, forChangedSamples, readBox } from './carveOps';
+import { digNestFor, withDigOwner } from './ownership';
 import { expelVolume, spawnPellet } from './pellets';
 import { antSlot } from './plans/frontier';
 import { planG } from './plans/geometry';
@@ -37,12 +38,6 @@ export function rampOf(feet: Vec3, heading: Vec3, slopeDeg: number, r: number): 
   // floor through the feet: the axis is r above the floor line, perpendicular to it in the vertical plane
   const n = { x: hx * sn, y: cs, z: hz * sn };
   return { a: { x: feet.x + n.x * r, y: feet.y + n.y * r, z: feet.z + n.z * r }, d, r };
-}
-
-/** The nest a digger's soil belongs to: the one it is in, else its colony's first nest. */
-function diggerNestId(sim: Sim, ant: Ant): number {
-  if (sim.stores.nests.has(ant.nestId)) return ant.nestId;
-  return sim.stores.colonies.get(ant.colony)?.nestIds[0] ?? -1;
 }
 
 /** Dig predicate of this digger: the kernel's (crusts, hard primitives), clipped to its plan unless possessed. */
@@ -154,7 +149,9 @@ export function digBiteImpl(sim: Sim, ant: Ant, feet: Vec3, heading: Vec3, slope
   };
   const flagged = !flags.noneIn(box.i0, box.j0, box.k0, box.i1, box.j1, box.k1);
   const before = flagged ? readBox(sim, box) : null;
-  const res = carveCapsule(sim, ramp.a, b, ramp.r, { canDig });
+  // the nest this soil belongs to, decided before the brush so a hole it opens becomes that nest's entrance
+  const nest = digNestFor(sim, ant, hit);
+  const res = withDigOwner(sim, nest ? nest.id : -1, () => carveCapsule(sim, ramp.a, b, ramp.r, { canDig }));
   if (before) {
     forChangedSamples(sim, box, before, (i, j, k, _old, now) => {
       if (now >= OPEN_MIN) flags.clear(i, j, k, VoxelFlag.LOOSE | VoxelFlag.PLUG | VoxelFlag.NATURAL);
@@ -166,7 +163,6 @@ export function digBiteImpl(sim: Sim, ant: Ant, feet: Vec3, heading: Vec3, slope
   const ref = antSlot(sim, ant);
   if (ref) notePlanBite(sim, ref.plan.id);
   sim.emit({ type: 'cue', cue: `dig-bite.${material}`, pos: { x: hit.x, y: hit.y, z: hit.z }, strength: removed });
-  const nest = sim.stores.nests.get(diggerNestId(sim, ant));
   if (nest && nest.founding?.state === 'digging' && ant.caste === 'queen' && (ant.flags & AntFlag.FOUNDING) !== 0) {
     expelVolume(sim, nest, removed, material, ant.id, hit);
     return { ok: true, reason: null, voxels: res.opened, pelletId: -1, material };

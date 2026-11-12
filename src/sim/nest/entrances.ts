@@ -80,59 +80,114 @@ export function processNewBreaches(sim: Sim): void {
   rt.breachSeen = list.length;
 }
 
+const colKey = (i: number, k: number): number => (i + 32768) * 65536 + (k + 32768);
+
+/**
+ * The hole patch (8-connected open terrain columns, as i, k pairs) through column (i, k), at most `limit`
+ * columns from it; its columns are added to `seen`. Empty when (i, k) is not a hole column or already seen.
+ */
+function holePatch(sim: Sim, i: number, k: number, limit: number, seen: Set<number>): number[] {
+  const v = sim.carve.voxel;
+  if (seen.has(colKey(i, k)) || !sim.field.isHoleAt(i * v, k * v)) return [];
+  const cols: number[] = [i, k];
+  seen.add(colKey(i, k));
+  for (let q = 0; q < cols.length; q += 2) {
+    const ci = cols[q], ck = cols[q + 1];
+    for (let dk = -1; dk <= 1; dk++) for (let di = -1; di <= 1; di++) {
+      const ni = ci + di, nk = ck + dk;
+      if (Math.abs(ni - i) > limit || Math.abs(nk - k) > limit || seen.has(colKey(ni, nk))) continue;
+      if (!sim.field.isHoleAt(ni * v, nk * v)) continue;
+      seen.add(colKey(ni, nk));
+      cols.push(ni, nk);
+    }
+  }
+  return cols;
+}
+
 /** Hole patches (8-connected open terrain columns) touching the box's x/z range become or widen entrances. */
 export function registerHoles(sim: Sim, box: VoxelBox): void {
   const v = sim.carve.voxel, bu = sim.world.bu;
   const seen = new Set<number>();
-  const key = (i: number, k: number) => (i + 32768) * 65536 + (k + 32768);
   const limit = Math.ceil((ENTRANCE_SCAN_BU * bu) / v);
   for (let k = box.k0; k <= box.k1; k++) for (let i = box.i0; i <= box.i1; i++) {
-    if (seen.has(key(i, k)) || !sim.field.isHoleAt(i * v, k * v)) continue;
-    // flood fill the patch, at most `limit` columns from its first column
-    const cols: number[] = [i, k];
-    seen.add(key(i, k));
-    for (let q = 0; q < cols.length; q += 2) {
-      const ci = cols[q], ck = cols[q + 1];
-      for (let dk = -1; dk <= 1; dk++) for (let di = -1; di <= 1; di++) {
-        const ni = ci + di, nk = ck + dk;
-        if (Math.abs(ni - i) > limit || Math.abs(nk - k) > limit || seen.has(key(ni, nk))) continue;
-        if (!sim.field.isHoleAt(ni * v, nk * v)) continue;
-        seen.add(key(ni, nk));
-        cols.push(ni, nk);
-      }
-    }
+    const cols = holePatch(sim, i, k, limit, seen);
     const n = cols.length / 2;
     if (n < ENTRANCE_MIN_HOLE_COLUMNS) continue; // a pinhole of the smooth union, not a passage
     let sx = 0, sz = 0;
     for (let q = 0; q < cols.length; q += 2) { sx += cols[q] * v; sz += cols[q + 1] * v; }
     const cx = sx / n, cz = sz / n;
     const radius = Math.min(ENTRANCE_RADIUS_MAX_BU * bu, Math.max(ENTRANCE_RADIUS_MIN_BU * bu, Math.sqrt((n * v * v) / Math.PI)));
-    registerOpening(sim, { x: cx, y: sim.field.height(cx, cz), z: cz }, radius);
+    registerOpening(sim, { x: cx, y: sim.field.height(cx, cz), z: cz }, radius, cols);
   }
 }
 
-/** One hole patch: widens a nearby entrance, or registers a new `dug` entrance of the nest it opens. */
-function registerOpening(sim: Sim, pos: Vec3, radius: number): void {
-  const bu = sim.world.bu, merge = ENTRANCE_MERGE_DIST_BU * bu;
+/**
+ * Does the patch (i, k pairs) belong to entrance e? GDD 03 §4.1: breach voxels within ENTRANCE_MERGE_DIST of an
+ * existing opening belong to it. The opening is the hole patch through e's centre (a ramp shaft's opening is
+ * longer than the entrance disc), or the disc when that column is closed. 'same': the patch is that very hole.
+ */
+function patchJoins(sim: Sim, e: Entrance, cols: readonly number[]): 'same' | 'near' | null {
+  const v = sim.carve.voxel, bu = sim.world.bu, merge = ENTRANCE_MERGE_DIST_BU * bu;
+  const limit = Math.ceil((ENTRANCE_SCAN_BU * bu) / v);
+  let near = false;
+  for (let q = 0; q < cols.length && !near; q += 2) {
+    near = Math.hypot(cols[q] * v - e.pos.x, cols[q + 1] * v - e.pos.z) <= e.radius + merge + limit * v;
+  }
+  if (!near) return null;
+  const ci = Math.round(e.pos.x / v), ck = Math.round(e.pos.z / v);
+  for (let q = 0; q < cols.length; q += 2) if (cols[q] === ci && cols[q + 1] === ck) return 'same';
+  const own = holePatch(sim, ci, ck, limit, new Set());
+  const opening = own.length > 0 ? own : [ci, ck];
+  const reach = own.length > 0 ? merge : e.radius + merge;
+  for (let q = 0; q < cols.length; q += 2) {
+    for (let p = 0; p < opening.length; p += 2) {
+      if (Math.hypot((cols[q] - opening[p]) * v, (cols[q + 1] - opening[p + 1]) * v) <= reach) return 'near';
+    }
+  }
+  return null;
+}
+
+/**
+ * One hole patch: widens the entrance it belongs to (when it is the entrance's own hole, the opening moves to its
+ * centroid: GDD 03 §4.1 `pos` = centroid of the breach columns; a ramp shaft's hole grows along the ramp), or registers a new `dug`
+ * entrance of the nest whose cavity it opens; a hole that nest-nav cannot link to any cavity yet (a fresh pit dug
+ * from the surface) belongs to the nest of the bite that opened it (ownership.ts).
+ */
+function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly number[]): void {
+  const bu = sim.world.bu;
   for (const nest of sim.stores.nests.list) {
     if (!nest.alive) continue;
     for (const e of nest.entrances) {
-      if (Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z) > e.radius + merge) continue;
-      if (radius > e.radius) { e.radius = radius; refreshNestFields(sim, nest); }
+      const join = patchJoins(sim, e, cols);
+      if (!join) continue;
+      if (radius > e.radius) {
+        e.radius = radius;
+        if (join === 'same') { e.pos = pos; e.dir = terrainNormal(sim, pos.x, pos.z); }
+        nestRuntime(sim).moundMasks.clear(); // the kept-clear disc changed
+        refreshNestFields(sim, nest);
+      }
       return;
     }
   }
-  const nest = nestOfCavityPoint(sim, { x: pos.x, y: pos.y - bu, z: pos.z });
+  const nest = nestOfCavityPoint(sim, { x: pos.x, y: pos.y - bu, z: pos.z }) ?? digOwnerNest(sim);
   if (!nest) return;
   const e: Entrance = {
     id: sim.state.nextId++, kind: 'dug', status: 'open', pos, dir: terrainNormal(sim, pos.x, pos.z), radius,
     moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0,
   };
   nest.entrances.push(e);
+  nestRuntime(sim).moundMasks.clear(); // a new kept-clear disc
   linkMoundToEntrance(sim, nest, e);
   refreshNestFields(sim, nest);
   sim.emit({ type: 'entrance-opened', entranceId: e.id, nestId: nest.id, kind: e.kind });
   sim.emit({ type: 'breach', nestId: nest.id, entranceId: e.id, pos: { ...pos }, radius });
+}
+
+/** The nest whose dig bite is running now (ownership.ts withDigOwner), or null. */
+function digOwnerNest(sim: Sim): Nest | null {
+  const id = nestRuntime(sim).digOwner;
+  const n = id >= 0 ? sim.stores.nests.get(id) : undefined;
+  return n && n.alive ? n : null;
 }
 
 function terrainNormal(sim: Sim, x: number, z: number): Vec3 {
@@ -355,6 +410,19 @@ export function nearestOpenEntrance(sim: Sim, nestId: number, p: Vec3): Entrance
     if (d < bestD) { bestD = d; best = e; }
   }
   return best;
+}
+
+/**
+ * Entrances whose throat closed without a plug (fill, tamping, collapse or anything else covering it): the state
+ * machine reports them `sealed` with plugVoxelCount 0, and this query lists them for the UI and the soak.
+ */
+export function coveredEntrances(sim: Sim): { nestId: number; entrance: Entrance }[] {
+  const out: { nestId: number; entrance: Entrance }[] = [];
+  for (const nest of sim.stores.nests.list) {
+    if (!nest.alive) continue;
+    for (const e of nest.entrances) if (e.status === 'sealed' && e.plugVoxelCount === 0) out.push({ nestId: nest.id, entrance: e });
+  }
+  return out;
 }
 
 /** Periodic re-check of every entrance (fills, tamping and collapses elsewhere can close a throat). */

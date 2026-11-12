@@ -70,7 +70,8 @@ function placeFenceLine(ctx: GenContext, ln: Line, idx: number): void {
     if (!s.panel && !naturalAt(ctx, x, z)) continue;
     const rng = ctx.rngFor(`wg/structures/outdoor/fence/${idx}`, i);
     const env = envFor(ctx, (lx, lz) => terrainAt(ctx, x + lx * ln.dx + lz * ln.nx, z + lx * ln.dz + lz * ln.nz) - terrainAt(ctx, x, z));
-    const b = fenceSection(rng, env, { panel: s.panel, gap: gaps.has(i), route: s.panel, width: s.w });
+    // no rail route on the end sections: at a corner the perpendicular line's board stands against the post
+    const b = fenceSection(rng, env, { panel: s.panel, gap: gaps.has(i), route: s.panel && i > 0 && i < sections.length - 1, width: s.w });
     commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' });
   }
   // closing post at the line end

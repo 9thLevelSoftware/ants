@@ -16,7 +16,7 @@ const TAU = 2 * Math.PI;
 
 export const LAWN = {
   dandelion: { rosette: [150, 250], leaves: [5, 9], leafW: [20, 40] },
-  clover: { patch: [150, 400], leaves: [2, 4], petiole: [30, 80], leaflet: [10, 25], heads: [2, 6], headStalk: [60, 120] },
+  clover: { patch: [150, 400], leaves: [2, 3], petiole: [30, 80], leaflet: [10, 25], heads: [2, 6], headStalk: [60, 120] },
   stepping: { dia: [300, 450], square: 450, thick: 40, topAbove: 5, roundP: 0.5, concreteP: 0.5, spacing: [600, 700], count: [3, 8] },
   ball: { dia: [65, 220] },
   hose: { dia: [15, 20], coil: [500, 1000], segs: [12, 30] },
@@ -80,7 +80,7 @@ export function cloverPatch(rng: RngState, env: Env): Built {
     }
   }
   // extra flower heads on stalks (one head carries the route, grown by growPlant)
-  const nh = Math.min(3, rngInt(rng, K.heads[0], K.heads[1]) - 1);
+  const nh = Math.min(2, rngInt(rng, K.heads[0], K.heads[1]) - 1);
   for (let i = 0; i < nh; i++) {
     const a = R(rng, 0, TAU), rr = R(rng, 0.1, 0.4) * patch, h = R(rng, K.headStalk[0], K.headStalk[1]);
     const b = scale(dirYaw(a), rr);

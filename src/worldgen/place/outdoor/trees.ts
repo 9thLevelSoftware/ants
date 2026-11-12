@@ -9,7 +9,11 @@ import { poissonDisk } from '../../kit/poisson';
 import { terrainAt } from '../../kit/surface';
 import { standingTree } from '../../catalog/outdoor/forest';
 import { fruitTree } from '../../catalog/outdoor/beds';
-import { commit, envFor, groundLocal, range } from './commit';
+import { commit, dropObject, envFor, groundLocal, range } from './commit';
+import { primIndex } from '../../kit/surface';
+import { entryOf } from '../../kit/column';
+import { primEval } from '@/sim/world/primHash';
+import type { Primitive } from '@/sim/types';
 import { edgeDistAt, footprintIn, pointInZone, zoneAreaM2, zoneIdAt, zoneRect, zonesOf } from './zones';
 import { OUTDOOR } from './tuning';
 import type { Built } from '../../catalog/outdoor/types';
@@ -25,7 +29,18 @@ function slopeOk(ctx: GenContext, x: number, z: number): boolean {
 /** Places a tree built at (x, z) with the ground sampled under its frame. */
 function tree(ctx: GenContext, make: (env: ReturnType<typeof envFor>) => Built, x: number, z: number, yaw: number): boolean {
   const b = make(envFor(ctx, groundLocal(ctx, x, z, yaw)));
-  return commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'trees' }) >= 0;
+  const id = commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'trees' });
+  if (id < 0) return false;
+  // trunk and branches keep a few BU clear of other objects (a branch brushing a fence panel would merge
+  // with it in the field and lead its climb route astray)
+  const ob = ctx.world.objects[ctx.world.objects.length - 1];
+  const high = ctx.world.prims.slice(ob.primStart, ob.primStart + ob.primCount).filter((p) => p.pos.y - ob.pos.y > T.clearFromY);
+  if (high.some((p) => !axisClear(ctx, p, T.clearBu * ctx.dims.bu, id))) {
+    dropObject(ctx, id);
+    ctx.canopies.pop();
+    return false;
+  }
+  return true;
 }
 
 function forestTrees(ctx: GenContext): void {
@@ -70,6 +85,26 @@ function fruitTrees(ctx: GenContext): void {
     const r = ctx.rngFor('wg/structures/outdoor/fruittrees', t);
     if (tree(ctx, (e) => fruitTree(r, e), p.x, p.z, rngFloat(r) * 2 * Math.PI)) i++;
   }
+}
+
+const _hits: number[] = [];
+/** True if no primitive of another object comes within `clear` mm of a capsule or cylinder's surface (axis sampled). */
+function axisClear(ctx: GenContext, p: Primitive, clear: number, self: number): boolean {
+  const e = entryOf(p), r = p.size.x, half = p.size.y;
+  const ax = { x: e.m01, y: e.m11, z: e.m21 }; // local +Y in world space
+  const n = Math.max(2, Math.ceil((2 * half) / Math.max(1, r)));
+  const ix = primIndex(ctx);
+  for (let s = 0; s <= n; s++) {
+    const t = -half + (2 * half * s) / n;
+    const x = p.pos.x + ax.x * t, y = p.pos.y + ax.y * t, z = p.pos.z + ax.z * t, reach = r + clear;
+    ix.query(x - reach, z - reach, x + reach, z + reach, _hits);
+    for (const h of _hits) {
+      const o = ix.entries[h];
+      if (o.prim.objectId === self || o.maxY < y - reach || o.minY > y + reach) continue;
+      if (primEval(o, x, y, z, null) < reach) return false;
+    }
+  }
+  return true;
 }
 
 export function placeTrees(ctx: GenContext): void {

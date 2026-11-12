@@ -89,7 +89,8 @@ function matSeams(ctx: GenContext, r: Rect): void {
     const top = { x: x - e.ox * rc * 1.5, y: y + 0.3 * rc, z: z - e.oz * rc * 1.5 };
     const depth = range(rng, G.matSeamDepthBu[0], G.matSeamDepthBu[1]) * bu;
     const bot = { x: top.x, y: y - depth, z: top.z };
-    const cav: LocalCavity = { kind: 'crack-slot', carves: [{ shape: 'capsule', a: top, b: bot, r: rc }], openings: [{ pos: top, normal: { x: 0, y: 1, z: 0 }, radius: rc }] };
+    // the slot ends in a small void in the gravel base (shelter under the mat)
+    const cav: LocalCavity = { kind: 'crack-slot', carves: [{ shape: 'capsule', a: top, b: bot, r: rc }, { shape: 'ellipsoid', a: { x: bot.x, y: bot.y - 1.5 * bu, z: bot.z }, b: { x: 2.5 * bu, y: 1.5 * bu, z: 2.5 * bu }, r: 0 }], openings: [{ pos: top, normal: { x: 0, y: 1, z: 0 }, radius: rc }] };
     const micro: LocalMicro = { kind: 'mat-seam', a: { ...top, y: y + 2 * bu }, b: { ...bot, y: bot.y + rc }, gapMm: range(rng, 2, 5), clearMm: 2 * rc, cavity: 0 };
     registerSockets(ctx, { cavities: [cav], micro: [micro] }, (p) => p, -1);
     outdoorState(ctx).decals.push({ kind: 'seam', pts: [top.x - e.dx * 150, top.z - e.dz * 150, top.x + e.dx * 150, top.z + e.dz * 150], widthMm: 4, palette: 'rubber-seam' });
@@ -133,7 +134,7 @@ function benches(ctx: GenContext): void {
     for (let b = 0; b < nb; b++) {
       const s = b === 0 ? 1 : -1, u = 900 + 450;
       const bx = x + tx * u * s, bz = z + tz * u * s;
-      if (footprintIn(ctx, bx, bz, 0, 220, 220, natural)) commit(ctx, litterBin(ctx.rngFor('wg/structures/outdoor/bins', i * 4 + b), env), { x: bx, z: bz, yaw: 0, atGround: 'terrain', collide: true, category: 'structures' });
+      if (footprintIn(ctx, bx, bz, 0, 220, 220, natural)) commit(ctx, litterBin(ctx.rngFor('wg/structures/outdoor/bins', i * 4 + b), env), { x: bx, z: bz, yaw: 0, tilt: false, collide: true, category: 'structures' });
     }
   }
 }

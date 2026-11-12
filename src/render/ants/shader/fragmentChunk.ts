@@ -4,9 +4,11 @@ export const ANT_FRAG_PARS = /* glsl */ `
 varying vec3 vAntMat;
 varying vec3 vRest;
 varying float vAntHi;
+varying float vCapIn;
 uniform float uFacet;
 uniform vec3 uHiWarm;
 uniform float uSubjectOpacity;
+uniform float uCapOpacity;
 uniform vec3 uHiCool;
 float antHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 vec3 antHash3(vec3 p) { return vec3(antHash(p), antHash(p + 19.19), antHash(p + 47.47)); }
@@ -38,10 +40,14 @@ export const ANT_NORMAL = /* glsl */ `#include <normal_fragment_maps>
   }`;
 
 export const ANT_EMISSIVE = /* glsl */ `#include <emissivemap_fragment>
-  // the possessed ant (the only positive highlight) fades with the third-person camera: ordered 4x4 dither
-  if (vAntHi > 0.0 && uSubjectOpacity < 1.0) {
-    vec2 dc = mod(floor(gl_FragCoord.xy), 4.0);
-    if (mod(dc.x * 4.0 + dc.y * 9.0 + dc.x * dc.y * 3.0, 16.0) / 16.0 >= uSubjectOpacity) discard;
+  // the possessed ant (the only positive highlight) fades with the third-person camera (GDD 01 6.5 rule 1), and
+  // other ants inside the camera-to-ant capsule are dithered to uCapOpacity (rule 2): ordered 4x4 dither
+  {
+    float keep = vAntHi > 0.0 ? uSubjectOpacity : (vCapIn > 0.5 ? uCapOpacity : 1.0);
+    if (keep < 1.0) {
+      vec2 dc = mod(floor(gl_FragCoord.xy), 4.0);
+      if (mod(dc.x * 4.0 + dc.y * 9.0 + dc.x * dc.y * 3.0, 16.0) / 16.0 >= keep) discard;
+    }
   }
   {
     float hiA = abs(vAntHi);

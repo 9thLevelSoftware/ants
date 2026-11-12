@@ -23,7 +23,7 @@ export const PLAYGROUND = {
     chuteW: 450, chuteT: 10, sideH: 100, chuteLen: 2400, chuteDeg: 32, inset: 80 },
   sleeve: { p: 0.5, gap: [2, 5] as [number, number], depthBu: [20, 60] as [number, number] },
   swing: { legDia: 76, leanDeg: 15, height: 2200, span: 2400, seat: [450, 30, 170] as [number, number, number], seatY: 400, chainDia: 8, p: 0.7 },
-  rider: { plate: [400, 10, 400] as [number, number, number], gap: [2, 4] as [number, number], springDia: 150, springH: 300, body: [700, 400, 250] as [number, number, number], bodyY: 500, p: 0.5 },
+  rider: { plate: [400, 10, 400] as [number, number, number], springDia: 150, springH: 300, body: [700, 400, 250] as [number, number, number], bodyY: 500, p: 0.5 },
   bench: { len: 1800, slat: [30, 90] as [number, number], slats: 3, gap: [10, 15] as [number, number], seatY: 450, leg: [60, 450] as [number, number] },
   bin: { dia: 400, h: 800, lid: 20, feetGap: 5, metalP: 0.5 },
   picnic: { len: 1800, topW: 750, topY: 720, slats: 5, gap: 10, slatT: 30, benchW: 250, benchY: 450, benchOff: 550 },
@@ -71,7 +71,7 @@ function sleeveGap(rng: RngState, env: Env, px: number, pz: number, postR: numbe
   const c = add(v(px, 0, pz), scale(d, postR + r));
   const top = add(c, v(0, 0.3 * r, 0)), bot = add(c, v(0, -depth, 0));
   return {
-    cav: { kind: 'crack-slot', carves: [{ shape: 'capsule', a: top, b: bot, r }], openings: [{ pos: top, normal: v(0, 1, 0), radius: r }] },
+    cav: { kind: 'crack-slot', carves: [{ shape: 'capsule', a: top, b: bot, r }, { shape: 'ellipsoid', a: add(bot, v(0, -1.5 * bu, 0)), b: v(2.5 * bu, 1.5 * bu, 2.5 * bu), r: 0 }], openings: [{ pos: top, normal: v(0, 1, 0), radius: r }] },
     micro: { kind: 'sleeve-gap', a: add(c, v(0, 2 * bu, 0)), b: add(bot, v(0, r, 0)), gapMm: real, clearMm: 2 * r, lengthMm: depth + 2 * bu, cavity: 0 },
   };
 }
@@ -149,12 +149,13 @@ export function swingFrame(rng: RngState, env: Env): Built {
   return { tpl: { id: 'swing-frame', prims, tags: ['structure', 'play'] }, tilt: false };
 }
 
-export function springRider(rng: RngState): Built {
+export function springRider(_rng: RngState): Built {
   const K = PLAYGROUND.rider;
   const [pw, pt, pd] = K.plate, [bw, bh, bd] = K.body;
-  const gap = R(rng, K.gap[0], K.gap[1]);
+  // the base plate is bolted flush to the mat: a sub-BU slot under it would be a crack no ant uses but a point
+  // walker can wedge into
+  const gap = 0;
   const prims: PrimSpec[] = [];
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) prims.push(rb(v((x * pw) / 2.6, gap / 2, (z * pd) / 2.6), 30, gap, 30, 1, 'metal', C));
   prims.push(rb(v(0, gap + pt / 2, 0), pw, pt, pd, 2, 'metal', C | S));
   prims.push(cy(v(0, gap + pt + K.springH / 2, 0), K.springDia, K.springH, 'metal', C));
   prims.push(el(v(0, K.bodyY, 0), bw, bh, bd, 'plastic', C | S));
@@ -188,8 +189,8 @@ export function litterBin(rng: RngState, env: Env): Built {
   const prims: PrimSpec[] = [];
   // four feet at the rim (the route climbs the one on +X: its face is flush with the body)
   for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2;
-    prims.push(rb(v((r - 20) * dcos(a), g / 2, (r - 20) * dsin(a)), 40, g, 40, 1, mat, C));
+    const a = (i * Math.PI) / 2, wide = i === 0 ? 120 : 40;
+    prims.push(rb(v((r - 20) * dcos(a), g / 2, (r - 20) * dsin(a)), 40, g, wide, 1, mat, C));
   }
   const bodyTop = B.h - B.lid;
   prims.push(cy(v(0, (g + bodyTop) / 2, 0), B.dia, bodyTop - g, mat, C | S | NB, undefined, 6));

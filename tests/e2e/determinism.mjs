@@ -21,7 +21,7 @@ const SCRIPT = async () => {
 };
 
 export default async ({ page, log }) => {
-  const run = () => page.evaluate(SCRIPT);
+  const run = (render = false) => page.evaluate(SCRIPT, render);
   const first = await run();
   log('autostarted run:', JSON.stringify(first));
 
@@ -39,8 +39,13 @@ export default async ({ page, log }) => {
   const other = await run();
   log('seed 2:', JSON.stringify(other));
 
+  await page.evaluate(() => window.__game.newGame({ seed: 1 }));
+  const rendered = await run(true);
+  log('same seed with frames drawn between the steps:', JSON.stringify(rendered));
+
   if (first[0] !== 500) throw new Error(`expected tick 500, got ${first[0]}`);
   if (first[1] !== second[1] || first[1] !== third[1]) throw new Error(`state hashes differ: ${first[1]} ${second[1]} ${third[1]}`);
+  if (rendered[1] !== first[1]) throw new Error(`drawing frames between the steps changed the state hash: ${rendered[1]} vs ${first[1]}`);
   if (other[1] === first[1]) throw new Error('a different seed gave the same state hash');
   return { hash: first[1], seed2: other[1] };
 };

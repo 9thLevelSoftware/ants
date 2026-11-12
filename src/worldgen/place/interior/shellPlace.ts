@@ -11,7 +11,7 @@ import {
   ceilingTemplate, doorOpening, doorTemplate, facadeTemplate, floorTemplate, glazingOpening, glazingTemplate,
   pipeOpening, pipeTemplate, roomWallsTemplate, sealedTemplate, type RoomShellParams, type WallGeom,
 } from '../../catalog/interior/shell';
-import { AIR_BRICK, COUNTER, FLOOR, GLAZING, HOUSE_WALL, SERVICE_PIPE, WEEP_VENT } from '../../catalog/interior/dims';
+import { AIR_BRICK, BACK_DOOR, COUNTER, FLOOR, GLAZING, HOUSE_WALL, SERVICE_PIPE, WEEP_VENT } from '../../catalog/interior/dims';
 import { along } from '../../layout/geom';
 import { LEVELS } from '../../tuning/terrain';
 import { MICRO } from '../../tuning/pipeline';
@@ -82,7 +82,7 @@ export function placeShell(ctx: GenContext, room: Room, plan: KitchenPlan | null
     placeBuilder(ctx, floorTemplate(sh), true);
     placeBuilder(ctx, roomWallsTemplate(sh));
     placeBuilder(ctx, ceilingTemplate(sh));
-    const sillMaterial: MaterialId = rngChance(rng, 0.7) ? 'stone' : 'metal';
+    const sillMaterial: MaterialId = rngChance(rng, BACK_DOOR.sillStoneP) ? 'stone' : 'metal';
     const dp = { ...g, u: plan.door.u, gap: plan.door.gap, sillMaterial, decayedFoot: plan.door.decayedFoot };
     openings.push(doorOpening(dp));
     doorId = placeBuilder(ctx, doorTemplate(dp));

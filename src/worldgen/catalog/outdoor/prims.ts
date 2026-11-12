@@ -139,3 +139,17 @@ export function ringOuter(n: number, i: number, c: Vec3, r: number, y: number, o
   const d = dirYaw((2 * Math.PI * i) / n);
   return v(c.x + d.x * (r + off), y, c.z + d.z * (r + off));
 }
+
+/** Deterministic atan2 (polynomial, |error| < 1e-5 rad). */
+export function datan2(y: number, x: number): number {
+  if (x === 0 && y === 0) return 0;
+  const ax = Math.abs(x), ay = Math.abs(y);
+  const a = Math.min(ax, ay) / Math.max(ax, ay), s = a * a;
+  let r = ((((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s) * a + a);
+  // refine with one Newton step on tan(r) = a using polynomial sin/cos
+  r -= (dsin(r) - a * dcos(r)) / (dcos(r) + a * dsin(r));
+  if (ay > ax) r = Math.PI / 2 - r;
+  if (x < 0) r = Math.PI - r;
+  return y < 0 ? -r : r;
+}
+

@@ -4,6 +4,7 @@ import type { Sim, TargetRef } from '@/sim/types';
 import { queryLedger } from '@/sim/colony/summary';
 import { inspectTarget, promptView } from '@/sim/ants/player';
 import { stateHash } from '@/sim/save/hash';
+import { digSpeedAt } from '@/sim/nest';
 
 export type QueryFn = (sim: Sim, ...args: unknown[]) => unknown;
 
@@ -45,6 +46,15 @@ export function buildQueries(getSim: () => Sim | null) {
     time: withSim((sim) => sim.state.env.time),
     voxel: withSim((sim) => ({ openVolumeMm3: sim.carve.openVolume(), chunks: sim.state.worldDelta.carve.keys.length, bu: sim.world.bu })),
     field: withSim((sim, x: number, y: number, z: number) => ({ f: sim.field.sampleXYZ(x, y, z), substrate: sim.field.substrate({ x, y, z }), height: sim.field.height(x, z) })),
+    /**
+     * Diggability at a point (inside the solid): material, the player colony's species dig speed (0 = too hard),
+     * and the material of a primitive within `primPad` mm (stems, stones: scripts choose dig sites clear of them).
+     */
+    dig: withSim((sim, x: number, y: number, z: number, primPad?: number) => {
+      const p = { x, y, z };
+      const prim = sim.field.primAt(p, Number(primPad ?? 0));
+      return { material: sim.field.materialAt(p), speed: digSpeedAt(sim, sim.species.id, p), substrate: sim.field.substrate(p), prim: prim ? prim.material : null };
+    }),
     world: withSim((sim) => ({
       size: sim.world.size, bu: sim.world.bu, prims: sim.world.prims.length, objects: sim.world.objects.length,
       queenStart: sim.world.queenStart, generatorVersion: sim.world.generatorVersion, fingerprint: sim.world.meta?.fingerprint ?? null,

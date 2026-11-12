@@ -1,0 +1,188 @@
+// Tunables of the in-nest behaviours (beh-nest): nursing, queen care, storing, digging, hauling, idle / rest,
+// guarding and the established queen (GDD 02 §10.0, §10.4-10.11, §10.14; GDD 03 §7.5-7.7). Times are game
+// seconds, distances BU, food loads.
+
+// ---- nursery job board (GDD 02 §10.4) ----
+/** Job priorities; feed = FEED_BASE + FEED_URGENCY x urgency; tend = TEND + TEND_URGENT when untended long. */
+export const JOB_PRIORITY = {
+  rescue: 10, evacuate: 9, assistEclosion: 6, feedBase: 5, feedUrgency: 3, move: 3, moveMarker: 4, tend: 2,
+  tendUrgent: 4, groom: 1,
+} as const;
+/** A job is claimed by one nurse; the claim lapses after this (GDD 02 §10.4 claim timeout). */
+export const JOB_CLAIM_TIMEOUT_S = 60;
+/** Score penalty per BU of straight distance to the job (GDD 02 §10.4 distance penalty). */
+export const JOB_DIST_PENALTY_PER_BU = 0.05;
+/** Egg / pupa piles get a tend job once untended this long, gd (well inside UNTENDED_GD 0.25). */
+export const TEND_DUE_GD = 0.12;
+/** Tend job priority rises by tendUrgent once untended this long, gd. */
+export const TEND_URGENT_GD = 0.15;
+/** A tend round grooms the brood within this radius of the nurse, BU (GDD 02 §10.4: 2 BU). */
+export const TEND_PILE_RADIUS_BU = 2;
+/** A nurse ending a round grooms a pile due for tending within this distance first, BU. */
+export const TEND_NEAR_BU = 3;
+/** Nurse crop load, loads (NURSE_LOAD), and the time to load it from the pool, s (GDD 02 §10.4 timed actions). */
+export const NURSE_LOAD = 0.6;
+export const LOAD_S = 6;
+/** A nurse goes to load when her crop is below this, loads. */
+export const CROP_MIN_FEED = 0.1;
+/** A nurse without a job loads ahead of the next request while larvae are about and her crop is below this. */
+export const PRELOAD_BELOW = 0.4;
+/** Feeds chained to other requesting larvae within this radius, BU, up to this many per round. */
+export const FEED_CHAIN_RADIUS_BU = 6;
+export const FEED_CHAIN_MAX = 6;
+/** Pool too empty to load: feed jobs are skipped by this nurse for this long, s (S2 rationing). */
+export const LOAD_EMPTY_BACKOFF_S = 30;
+/** Below this the pool counts as empty for loading, loads. */
+export const LOAD_EMPTY_MIN = 0.02;
+/** Eclosion help and cannibalism, s (GDD 02 §2.9 ECLOSE_ASSIST_S, §10.4). */
+export const ASSIST_S = 10;
+export const CANNIBALISE_S = 6;
+/** Idle nurse: groom self, s of standing before the next select. */
+export const GROOM_IDLE_S = 8;
+
+// ---- brood sorting by microclimate (GDD 02 §10.4.1) ----
+/** r(T) at its plateau (30-32 C), the normaliser of the temperature term. */
+export const SORT_R_MAX = 1.818;
+/** Move when best > current x SORT_TRIGGER_MULT + SORT_TRIGGER_ADD. */
+export const SORT_TRIGGER_MULT = 1.15;
+export const SORT_TRIGGER_ADD = 0.05;
+/** At most this many move jobs per available nurse are offered at a time. */
+export const SORT_MOVES_PER_NURSE = 4;
+/** Crowding: (items + incoming) / cap above CROWD_START reaches 1 at CROWD_START + CROWD_SPAN. */
+export const SORT_CROWD_START = 0.8;
+export const SORT_CROWD_SPAN = 0.2;
+export const SORT_FLOOD_WEIGHT = 0.8;
+/** Waste items in the chamber at which the hygiene term reaches 0. */
+export const SORT_WASTE_FULL = 10;
+export const SORT_NURSERY_BONUS = 0.1;
+export const SORT_ROYAL_EGG_BONUS = 0.1;
+/** Score penalty per BU of nest-path distance to the royal chamber. */
+export const SORT_ROYAL_DIST_PER_BU = 0.002;
+/** Larvae below this progress sort with the eggs ("eggs + young larvae"). */
+export const SORT_YOUNG_LARVA_PROGRESS = 0.5;
+/** Humidity curves [RH, factor] (GDD 02 §10.4.1 `hum`); pupae below 50 % are not specified: 0.7 at 30 % (decision). */
+export const SORT_HUM_EGG_LARVA: readonly [number, number][] = [[0.5, 0.6], [0.7, 1], [0.95, 1], [0.98, 0.5]];
+export const SORT_HUM_PUPA: readonly [number, number][] = [[0.3, 0.7], [0.5, 1], [0.85, 1], [0.95, 0.7]];
+/** Flooded fraction or alarm (ph) from which a chamber is evacuated (GDD 02 §10.4 `evacuate`). */
+export const EVACUATE_FLOOD = 0.25;
+/** move-brood marker lock, gd (MOVE_BROOD_LOCK_GD). */
+export const MOVE_BROOD_LOCK_GD = 1;
+/** Brood is put down within this fraction of the target chamber's horizontal radii from its centre. */
+export const PILE_SPREAD = 0.45;
+/** Items of a pile lie within this radius of the pile point, BU. */
+export const PILE_RADIUS_BU = 1.5;
+/** Things lying farther than this from the nearest surface float in a cavity and cannot be reached, BU. */
+export const REACHABLE_ABOVE_BU = 0.5;
+/** A tend round grooms the pile for this long, s (GDD 02 §10.4 `nurse.tend` 5 s). */
+export const TEND_S = 5;
+
+// ---- queen care (GDD 02 §10.5) and the established queen (§10.14) ----
+export const QUEEN_ATTEND_BU = 3;
+export const QUEEN_RATION = 0.4;
+export const QUEEN_FEED_LOADS = 0.1;
+export const QUEEN_FEED_S = 4;
+/**
+ * In starvation S2 a carer feeds the queen from its own fat reserve (GDD 02 §5.7) while it holds more than this, C
+ * (decision: without a floor the carers starve before the old workers, against GDD 02 App. E 9).
+ */
+export const CARER_KEEP_RESERVE = 0.25;
+/** Eggs within this distance of the queen are collected, BU. */
+export const EGG_COLLECT_BU = 2;
+/** Carers groom the queen every this many s while attending (cosmetic). */
+export const QUEEN_GROOM_EVERY_S = 30;
+/** The queen walks home when farther than this from her chamber centre, BU. */
+export const QUEEN_HOME_SLACK_BU = 3;
+/** Fraction of chamber radius from the centre the queen sits at; the egg pile is on the other side. */
+export const QUEEN_SEAT_OFFSET = 0.5;
+export const EGG_PILE_OFFSET = 0.6;
+
+// ---- store (GDD 02 §10.6) ----
+export const STORE_DISPERSE_S = 15;
+/** Solid food lying within this distance of an entrance (outside a food chamber) is shifted in, BU. */
+export const DROP_ZONE_BU = 8;
+/** A forager within this distance giving trophallaxis to the store ant puts her in `receive`, BU (RECEIVER_SEARCH). */
+export const RECEIVER_SEARCH_BU = 8;
+
+// ---- dig and haul (GDD 02 §10.7-10.8, GDD 03 §7.5-7.7) ----
+/** No free slot: retry claiming after this, s; give the task back after this many tries. */
+export const DIG_RETRY_S = 10;
+export const DIG_CLAIM_TRIES = 3;
+/** Failed bites at a slot before it is given up. */
+export const DIG_BITE_FAILS_MAX = 4;
+/** Arrival radius at a dig slot, BU (inside SLOT_REACH_BU 1.5). */
+export const SLOT_ARRIVE_BU = 0.6;
+/** A digger farther than this from its slot walks back to it before biting, BU (inside SLOT_REACH_BU 1.5). */
+export const SLOT_HOLD_BU = 1.4;
+/** Turning toward the face before a bite: walk toward a point this far along the aim, at most this long, s. */
+export const DIG_TURN_BU = 1.5;
+export const DIG_TURN_S = 1;
+/** Stow on the spoil pile only when it holds fewer pellets (GDD 03 SPOIL_PILE_MAX). */
+export const SPOIL_STOW_MAX = 6;
+/** Haul job priorities (GDD 02 §10.8) and the extra cost of clutter pellets (GDD 03 §7.7). */
+export const HAUL_PRIORITY = { corpse: 3, waste: 2, pellet: 1 } as const;
+export const HAUL_CLUTTER_COST = 1.4;
+/** Corpses are hauled once dead this long, s, and only within this distance of an entrance, BU. */
+export const CORPSE_DETECT_S = 60;
+export const CORPSE_HAUL_RADIUS_BU = 60;
+/** Default surface midden: this far from the main entrance, downhill (GDD 02 §10.8: 15-40 BU). */
+export const MIDDEN_DIST_BU = 18;
+export const MIDDEN_DIRECTIONS = 16;
+/** Waste / corpses lying within this distance of the midden point are at the midden, BU. */
+export const MIDDEN_RADIUS_BU = 6;
+/** Arrival radius at a drop point (dump point, spoil point, midden), BU. */
+export const DROP_ARRIVE_BU = 0.6;
+/** No haul job: wait this long, s, then give the task back (GDD 03 seek-pellet 10 s). */
+export const HAUL_IDLE_S = 10;
+
+// ---- idle, rest, guard (GDD 02 §10.9, §10.11) ----
+/** Idle ants wander within this fraction of their chamber's horizontal radius. */
+export const IDLE_WANDER_FRAC = 0.6;
+/** Wander speed factor of idle ants ("wander slowly"). */
+export const IDLE_SPEED_MULT = 0.5;
+export const GUARD_RIM_BU = 3;
+export const GUARD_SHIFT_S = 300;
+/** Contact distance for guard antennation, BU (CONTACT_DIST) and the predator watch radius, BU. */
+export const GUARD_CONTACT_BU = 1.2;
+export const GUARD_CREATURE_BU = 6;
+
+// ---- reaching a target (walking up to it before a primitive) ----
+/** Arrival radii of successive approaches to a target, BU: each time the primitive still cannot reach, closer. */
+export const APPROACH_BU: readonly number[] = [0.8, 0.35, 0.15];
+/** A target farther than this from straight ahead is first stepped back from, to this distance (deg, BU). */
+export const BACK_OFF_CONE_DEG = 45;
+export const BACK_OFF_BU = 1.1;
+/** Walking upside down (up.y below this) within DROP_ABOVE_BU horizontally of a target below: let go and drop. */
+export const CEILING_UP_Y = -0.5;
+export const DROP_ABOVE_BU = 2.5;
+
+// ---- common failure handling (GDD 02 §10.0) ----
+/** Within this distance of a target that stays out of reach for REACH_STALL_S, the job is given up and the
+ * target passed over by that ant for REACH_SKIP_S (BU, s). */
+export const REACH_NEAR_BU = 1.8;
+export const REACH_STALL_S = 20;
+export const REACH_SKIP_S = 30;
+/** Stuck rule: this many nav failures within STUCK_WINDOW_S drop the task to idle. */
+export const STUCK_MAX = 3;
+export const STUCK_WINDOW_S = 60;
+/** Per-state timeouts, s: no ant stays longer in a state (a timeout releases claims and restarts the task). */
+export const STATE_TIMEOUT_S: Readonly<Record<string, number>> = {
+  'idle': 60, 'rest': 600,
+  'nurse.select': 30, 'nurse.load': 90, 'nurse.feed': 120, 'nurse.tend': 90, 'nurse.carry': 150, 'nurse.assist': 60,
+  'nurse.cannibalise': 60, 'nurse.groom': 30,
+  'queen-care.attend': 120, 'queen-care.load': 120, 'queen-care.feed': 90, 'queen-care.collect-eggs': 150,
+  'queen-care.escort': 300,
+  'store.post': 120, 'store.receive': 30, 'store.disperse': 40, 'store.shift': 150, 'store.clean': 240,
+  'dig.claim': 40, 'dig.travel': 90, 'dig.bite': 60, 'dig.stow': 240,
+  'haul.claim': 40, 'haul.travel': 120, 'haul.pick': 30, 'haul.carry': 240, 'haul.return': 150,
+  'guard.post': 360, 'guard.alarm-raise': 20,
+  'queen.reside': 300, 'queen.relocate': 600,
+};
+/** Waiting ants (no job, standing post) think every this many ticks (the runner's default is 5). */
+export const WAIT_THINK_TICKS = 10;
+/** Timeout of a state missing from the table, s. */
+export const STATE_TIMEOUT_DEFAULT_S = 120;
+
+/** Ambient trophallaxis (visual only, GDD 02 §5.4.1): one per this many idle-ant game minutes. */
+export const AMBIENT_TROPH_IDLE_MIN = 20;
+/** Idle ants re-stamp their state (and re-pick a wander spot) this often, s. */
+export const IDLE_CYCLE_S = 30;

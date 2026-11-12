@@ -7,6 +7,9 @@ import type { ZoneType, ZoneVariant } from '@/sim/types';
 import type { GenContext } from '../../kit/context';
 import type { LayoutZone, Rect } from '../../layout/types';
 import { dcos, dsin } from '../../kit/dmath';
+import { datan2 } from '../../catalog/outdoor/prims';
+
+export { datan2 };
 
 export function zonesOf(ctx: GenContext, type: ZoneType, variants?: readonly ZoneVariant[]): LayoutZone[] {
   return ctx.layout.zones.filter((z) => z.type === type && (!variants || variants.includes(z.variant)));
@@ -105,19 +108,6 @@ export function footprintIn(ctx: GenContext, x: number, z: number, yaw: number, 
     if (!zoneIds.includes(zoneIdAt(ctx, x + lx * c + lz * s, z - lx * s + lz * c))) return false;
   }
   return true;
-}
-
-/** Deterministic atan2 (polynomial, |error| < 1e-5 rad). */
-export function datan2(y: number, x: number): number {
-  if (x === 0 && y === 0) return 0;
-  const ax = Math.abs(x), ay = Math.abs(y);
-  const a = Math.min(ax, ay) / Math.max(ax, ay), s = a * a;
-  let r = ((((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s) * a + a);
-  // refine with one Newton step on tan(r) = a using polynomial sin/cos
-  r -= (dsin(r) - a * dcos(r)) / (dcos(r) + a * dsin(r));
-  if (ay > ax) r = Math.PI / 2 - r;
-  if (x < 0) r = Math.PI - r;
-  return y < 0 ? -r : r;
 }
 
 /** Kit yaw (yawQ(a) turns +X toward -Z) that points local +X along the world direction (dx, dz). */

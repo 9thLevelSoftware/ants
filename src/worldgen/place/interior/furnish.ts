@@ -3,7 +3,7 @@
 // a houseplant on the window board or the floor, and counter items. Positions vary with the seed; every object
 // is placed with the collision test, so nothing interpenetrates.
 
-import { rngChance, rngInt, rngRange, type RngState } from '@/core/rng';
+import { rngChance, rngFork, rngInt, rngRange, type RngState } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';
 import { HOST_FLAGS } from '@/sim/types';
 import { addPlant, addWaterBody, dcos, drad, dsin, placeObject, removeObject, type GenContext, type ObjectTemplate } from '../../kit';
@@ -13,11 +13,12 @@ import {
   pedalBinTemplate, sugarBowlTemplate, tableTemplate,
 } from '../../catalog/interior/furniture';
 import {
-  BACK_DOOR, BREAD_BOARD, CHAIR, COUNTER, DOORMAT_INSIDE, FRUIT_BOWL, GLAZING, HOUSEPLANT, PEDAL_BIN, PET_BOWL, SUGAR_BOWL, TABLE,
+  BACK_DOOR, BREAD_BOARD, CHAIR, COUNTER, DOORMAT_INSIDE, FRUIT_BOWL, FURNISH, GLAZING, HOUSEPLANT, PEDAL_BIN, PET_BOWL, SUGAR_BOWL, TABLE,
 } from '../../catalog/interior/dims';
 import type { KitchenPlan } from './plan';
 import type { Room } from './room';
 import type { RunInfo } from './runPlace';
+import { penetratesWorld, routesFree } from './solid';
 
 type Rect = { x0: number; x1: number; z0: number; z1: number };
 
@@ -50,7 +51,7 @@ export interface FurnitureInfo {
 interface WallSpot { x: number; z: number; N: { x: number; z: number }; doorDist: number; runSide: number }
 
 /**
- * Spots `off` in front of every wall face of the room, 150 apart, at least `half` from the wall ends and never in
+ * Spots `off` in front of every wall face of the room, FURNISH.wallSpotSpacing apart, at least `half` from the wall ends and never in
  * front of the door; with the distance to the door's inner face and whether the spot is on the run's side of it.
  */
 function wallSpots(room: Room, plan: KitchenPlan, off: number, half: number): WallSpot[] {
@@ -62,15 +63,24 @@ function wallSpots(room: Room, plan: KitchenPlan, off: number, half: number): Wa
     const runSide = Math.sign(u - plan.door.u) === -Math.sign(plan.sigma) ? 1 : 0;
     out.push({ x: p.x, z: p.z, N, doorDist: Math.sqrt((p.x - door.x) ** 2 + (p.z - door.z) ** 2), runSide });
   };
-  for (let u = room.u0 + half; u <= room.u1 - half; u += 150) {
+  for (let u = room.u0 + half; u <= room.u1 - half; u += FURNISH.wallSpotSpacing) {
     if (Math.abs(u - plan.door.u) >= jamb + half) add(u, off, room.er);
     add(u, room.depth - off, neg(room.er));
   }
-  for (let r = half; r <= room.depth - half; r += 150) {
+  for (let r = half; r <= room.depth - half; r += FURNISH.wallSpotSpacing) {
     add(room.u0 + off, r, room.eu);
     add(room.u1 - off, r, neg(room.eu));
   }
   return out;
+}
+
+/** The local x side (+1 / -1) whose point `dist` from the spot lies deeper inside the room. */
+function roomSide(room: Rect, p: { x: number; z: number }, xDir: { x: number; z: number }, dist: number): 1 | -1 {
+  const depth = (s: number) => {
+    const x = p.x + s * xDir.x * dist, z = p.z + s * xDir.z * dist;
+    return Math.min(x - room.x0, room.x1 - x, z - room.z0, room.z1 - z);
+  };
+  return depth(1) > depth(-1) ? 1 : -1;
 }
 
 /** Keeps a just-placed object only if every human node of the kitchen still has a walking lane from the door. */
@@ -82,8 +92,15 @@ function keep(ctx: GenContext, id: number): number {
   return -1;
 }
 
+/**
+ * Places with the kit's collision test, then rejects the object if the dense overlap test finds a penetration or
+ * one of its climb routes runs through a solid (a wall or a neighbour).
+ */
 function place(ctx: GenContext, t: ObjectTemplate, x: number, z: number, y: number, yaw: number, cat: 'structures' | 'plants' = 'structures'): number {
-  return placeObject(ctx, t, { x, z, y, yaw, snap: false, collide: true, category: cat });
+  const id = placeObject(ctx, t, { x, z, y, yaw, snap: false, collide: true, category: cat });
+  if (id < 0 || (!penetratesWorld(ctx, id) && routesFree(ctx, id))) return id;
+  removeObject(ctx, id);
+  return -1;
 }
 
 /** Footprint (world AABB) of a local rect after yaw. */
@@ -125,7 +142,9 @@ export function placeFurniture(ctx: GenContext, room: Room, plan: KitchenPlan, r
     }
   }
   // pedal bin: against a wall, nearest the run's door-side end (GDD "run end or by the door")
-  const binT = pedalBinTemplate(rng, foot);
+  // one bin (material, seam) for both route sides; the side facing the room is chosen per spot
+  const binSeed = rngInt(rng, 0, 0x7fffffff);
+  const binT = (side: 1 | -1) => pedalBinTemplate(rngFork(binSeed, 'pedal-bin'), foot, side);
   const R = PEDAL_BIN.diam / 2 + 10;
   const runEndU = plan.uc + plan.sigma * Math.max(...plan.main.slots.map((s) => s.a1));
   const runEnd = f.p(runEndU, fy, 0);
@@ -133,14 +152,15 @@ export function placeFurniture(ctx: GenContext, room: Room, plan: KitchenPlan, r
     .map((p) => ({ p, d: (p.x - runEnd.x) ** 2 + (p.z - runEnd.z) ** 2 }))
     .sort((a, b) => a.d - b.d);
   for (const { p } of binSpots) {
-    const id = keep(ctx, place(ctx, binT, p.x, p.z, fy, yawTo(p.N)));
+    const yaw = yawTo(p.N), side = roomSide(roomRect, p, rot(1, 0, yaw), R + PEDAL_BIN.routeBase);
+    const id = keep(ctx, place(ctx, binT(side), p.x, p.z, fy, yaw));
     if (id >= 0) { info.binId = id; info.footprints.push(footprint(p.x, p.z, R, R, 0)); break; }
   }
   if (info.binId < 0) ctx.notes.push('interior: no room for the pedal bin');
   // table: long axis along u, >= 700 from runs and appliances, >= 600 from walls, >= 1000 from the door
   const [tw, , td] = TABLE.top;
   const baseYaw = yawTo(room.er); // local +z into the room, local x (the long side) along u
-  for (let tries = 0; tries < 60 && info.tableId < 0; tries++) {
+  for (let tries = 0; tries < TABLE.placeTries && info.tableId < 0; tries++) {
     const yaw = baseYaw + drad(rngRange(rng, -TABLE.yawJitterDeg, TABLE.yawJitterDeg)) + (rngChance(rng, 0.5) ? Math.PI : 0);
     const u = rngRange(rng, room.u0, room.u1), r = rngRange(rng, 0, room.depth);
     const c = f.p(u, fy, r);
@@ -195,17 +215,18 @@ function placePlant(ctx: GenContext, room: Room, plan: KitchenPlan, rng: RngStat
     const fr1 = -room.T + GLAZING.frameInset + GLAZING.frameDepth, nose = GLAZING.innerBoardNose;
     const potR = HOUSEPLANT.potDiam[0] / 2; // larger pots hit the frame and fall back to the floor
     if ((nose - fr1) / 2 >= potR) {
-      const c = f.p(plan.windowU + rngRange(rng, -250, 250), boardY, (fr1 + nose) / 2);
+      const c = f.p(plan.windowU + rngRange(rng, -HOUSEPLANT.boardJitter, HOUSEPLANT.boardJitter), boardY, (fr1 + nose) / 2);
       // the climb route runs along the board (local -z along u), so its base stays on the board
-      id = place(ctx, t, c.x, c.z, boardY, yawTo(room.eu) + rngRange(rng, -0.2, 0.2), 'plants');
+      id = place(ctx, t, c.x, c.z, boardY, yawTo(room.eu) + rngRange(rng, -HOUSEPLANT.boardYawJitter, HOUSEPLANT.boardYawJitter), 'plants');
     }
   }
   if (id < 0) {
     // floor: the back-wall corner on the far side from the run
-    const u = plan.sigma > 0 ? room.u1 - 200 : room.u0 + 200;
-    const c = f.p(u, room.floorY, room.depth - 200);
-    id = keep(ctx, place(ctx, t, c.x, c.z, room.floorY, yawTo({ x: -room.er.x, z: -room.er.z }) + rngRange(rng, -0.4, 0.4), 'plants'));
-    if (id >= 0) info.footprints.push({ x0: c.x - 130, x1: c.x + 130, z0: c.z - 130, z1: c.z + 130 });
+    const u = plan.sigma > 0 ? room.u1 - HOUSEPLANT.cornerOff : room.u0 + HOUSEPLANT.cornerOff;
+    const c = f.p(u, room.floorY, room.depth - HOUSEPLANT.cornerOff);
+    id = keep(ctx, place(ctx, t, c.x, c.z, room.floorY, yawTo({ x: -room.er.x, z: -room.er.z }) + rngRange(rng, -HOUSEPLANT.floorYawJitter, HOUSEPLANT.floorYawJitter), 'plants'));
+    const h = HOUSEPLANT.potDiam[1] / 2 + 5;
+    if (id >= 0) info.footprints.push({ x0: c.x - h, x1: c.x + h, z0: c.z - h, z1: c.z + h });
   }
   if (id >= 0) addPlant(ctx, { objectId: id, hostFlags: rngChance(rng, HOUSEPLANT.scaleP) ? 1 << HOST_FLAGS.indexOf('scale') : 0, hostClass: 'herb' });
 }
@@ -220,14 +241,14 @@ function placeCounterItems(ctx: GenContext, runs: RunInfo, rng: RngState, foot: 
   for (const it of items) {
     if (!rngChance(rng, it.p)) continue;
     const t = it.make();
-    for (let tries = 0; tries < 12; tries++) {
+    for (let tries = 0; tries < FURNISH.counterTries; tries++) {
       const ci = rngInt(rng, 0, runs.counters.length - 1), cu = runs.counters[ci];
       const spans = cu.spans.filter(([a0, a1]) => a1 - a0 > 2 * it.half);
       if (spans.length === 0) continue;
       const [a0, a1] = spans[rngInt(rng, 0, spans.length - 1)];
-      const a = rngRange(rng, a0 + it.half, a1 - it.half), n = cu.n0 + 0.5 * (cu.n1 - cu.n0) + rngRange(rng, -40, 60);
+      const a = rngRange(rng, a0 + it.half, a1 - it.half), n = cu.n0 + 0.5 * (cu.n1 - cu.n0) + rngRange(rng, FURNISH.counterNOffset[0], FURNISH.counterNOffset[1]);
       const c = cu.f.p(a, cu.topY, n);
-      if (place(ctx, t, c.x, c.z, cu.topY, yawTo(cu.f.N) + rngRange(rng, -0.3, 0.3)) >= 0) break;
+      if (place(ctx, t, c.x, c.z, cu.topY, yawTo(cu.f.N) + rngRange(rng, -FURNISH.counterYawJitter, FURNISH.counterYawJitter)) >= 0) break;
     }
   }
 }

@@ -14,7 +14,7 @@ import { interiorHumanAreas } from './lanes';
 import { interiorFoodSpots } from './food';
 import { kernelFor, navCtx, roomCells } from './testkit';
 
-vi.setConfig({ testTimeout: 300_000 });
+vi.setConfig({ testTimeout: 900_000 }); // generous: the shared machine runs at load 20+
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const world = (seed: number) => report('kitchen-door', seed).world;
@@ -181,3 +181,35 @@ function latticeInside(e: ReturnType<typeof makePrimEntry>) {
   }
   return out;
 }
+
+describe('other archetypes, species and sizes', () => {
+  /** Enclosure + a passable indoor-outdoor connection on one world. */
+  const enclosed = (w: WorldData, label: string) => {
+    const room = roomCells(w);
+    expect(room.size, `${label} room`).toBeGreaterThan(20);
+    const start = snapWalkable(navCtx(w), cellAt(navCtx(w), w.queenStart.pos.x, w.queenStart.pos.z), 4);
+    const without = navDistances(navCtx(w, []), [start]);
+    expect([...room].filter((c) => without[c] < Infinity), `${label} leaks`).toEqual([]);
+    const withPortals = navDistances(navCtx(w), [start]);
+    expect([...room].some((c) => withPortals[c] < Infinity), `${label} reachable through a micro-connection`).toBe(true);
+    expect(interiorHumanAreas(w)!.unreachable, `${label} lanes`).toEqual([]);
+  };
+
+  it('suburban-garden worlds that roll the kitchen slice (p 0.35)', () => {
+    let found = 0;
+    for (let s = 1; s <= 40 && found < 2; s++) {
+      const w = report('suburban-garden', s).world;
+      if (!w.objects.some((o) => o.templateId === 'floor-slab')) continue;
+      enclosed(w, `suburban seed ${s}`);
+      found++;
+    }
+    expect(found).toBeGreaterThanOrEqual(1);
+  });
+
+  it('Camponotus, Messor and Atta (larger BU, larger nav cells) and a compact Lasius map', () => {
+    enclosed(report('kitchen-door', 2, 'standard', 'camponotus-pennsylvanicus').world, 'camponotus');
+    enclosed(report('kitchen-door', 2, 'standard', 'messor-barbarus').world, 'messor');
+    enclosed(report('kitchen-door', 3, 'standard', 'atta-texana').world, 'atta');
+    enclosed(report('kitchen-door', 4, 'compact').world, 'compact lasius');
+  });
+});

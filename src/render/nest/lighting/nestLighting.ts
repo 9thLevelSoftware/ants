@@ -7,6 +7,9 @@ import { CAVITY_SKIN_BU, HOLE_LIP_BU, CUTAWAY, NEST_LIGHT, XRAY } from '../param
 import type { NestSource, Opening } from '../simAdapter';
 
 const tmp = new Color();
+// Linear base colours of the artificial light, parsed once (Color.set(hex) parses and colour-manages a string).
+const AMBIENT_BASE = new Color(NEST_LIGHT.ambientHex).multiplyScalar(NEST_LIGHT.ambientLevel);
+const LANTERN_BASE = new Color(NEST_LIGHT.lanternHex).multiplyScalar(NEST_LIGHT.lanternLevel);
 
 export class NestLighting {
   /** Linear daylight radiance at the surface (0 at night), set by the caller (world lighting) or the default. */
@@ -15,6 +18,10 @@ export class NestLighting {
   private openings: Opening[] = [];
   private order: number[] = [];
   private openingCount = 0;
+  private artificialGain = 1;
+  /** Squared camera distance per opening (reused; the sort comparator below is created once). */
+  private dist2: number[] = [];
+  private readonly byDistance = (a: number, b: number): number => this.dist2[a] - this.dist2[b];
 
   constructor(private readonly u: NestUniforms) {}
 
@@ -25,10 +32,10 @@ export class NestLighting {
     u.uSkin.value = CAVITY_SKIN_BU * bu;
     u.uHoleLip.value = HOLE_LIP_BU * bu;
     u.uSkyLen.value = NEST_LIGHT.skyFalloffBU * bu;
-    u.uAmb.value.set(NEST_LIGHT.ambientHex).multiplyScalar(NEST_LIGHT.ambientLevel);
+    u.uAmb.value.copy(AMBIENT_BASE).multiplyScalar(this.artificialGain);
     u.uAmbNear.value.set(NEST_LIGHT.ambientNearBoost, NEST_LIGHT.ambientNearBU * bu);
     u.uAmbDeep.value.set(NEST_LIGHT.ambientDeepFactor, NEST_LIGHT.ambientDeepBU * bu);
-    u.uLanternCol.value.set(NEST_LIGHT.lanternHex).multiplyScalar(NEST_LIGHT.lanternLevel);
+    u.uLanternCol.value.copy(LANTERN_BASE).multiplyScalar(this.artificialGain);
     u.uLanternR.value = NEST_LIGHT.lanternRadiusBU * bu;
     u.uLanternWrap.value = NEST_LIGHT.lanternWrap;
     u.uCutFill.value.set(CUTAWAY.fillHex).multiplyScalar(CUTAWAY.fillLevel);
@@ -43,8 +50,10 @@ export class NestLighting {
    */
   setArtificialGain(g: number): void {
     const k = Number.isFinite(g) ? Math.max(0, g) : 1;
-    this.u.uAmb.value.set(NEST_LIGHT.ambientHex).multiplyScalar(NEST_LIGHT.ambientLevel * k);
-    this.u.uLanternCol.value.set(NEST_LIGHT.lanternHex).multiplyScalar(NEST_LIGHT.lanternLevel * k);
+    if (k === this.artificialGain) return; // called every frame; the gain changes only with the exposure
+    this.artificialGain = k;
+    this.u.uAmb.value.copy(AMBIENT_BASE).multiplyScalar(k);
+    this.u.uLanternCol.value.copy(LANTERN_BASE).multiplyScalar(k);
   }
 
   /** Daylight as linear RGB radiance (e.g. the world's sky ambient + sun at the surface); 0 = night. */
@@ -62,9 +71,12 @@ export class NestLighting {
     // the nearest openings to the camera
     const n = this.openingCount;
     this.order.length = 0;
-    for (let i = 0; i < n; i++) this.order.push(i);
-    const d2 = (o: Opening) => (o.x - cam.x) ** 2 + (o.y - cam.y) ** 2 + (o.z - cam.z) ** 2;
-    this.order.sort((a, b) => d2(this.openings[a]) - d2(this.openings[b]));
+    for (let i = 0; i < n; i++) {
+      const o = this.openings[i];
+      this.dist2[i] = (o.x - cam.x) ** 2 + (o.y - cam.y) ** 2 + (o.z - cam.z) ** 2;
+      this.order.push(i);
+    }
+    this.order.sort(this.byDistance);
     const m = Math.min(n, NEST_LIGHT.maxOpenings);
     for (let i = 0; i < m; i++) {
       const o = this.openings[this.order[i]];

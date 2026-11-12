@@ -2,12 +2,14 @@
 // bond) and sidewalks (with expansion gaps), slab courses along footpaths (or block pavers on short paths), joints
 // of real width clamped to the 0.6 BU minimum, 6 % cracked slabs, under-slab lenses off a joint (paving-joint),
 // sealant-cracked expansion gaps (expansion-gap), edging kerbs along paths, the back step, outside doormat and the
-// linear drain at the house wall. Slab tops sit `joint depth` (3-5 mm) above the terrain, which becomes the joint
-// sand; the bedding (sand) and sub-base (gravel) are painted into the ground layers.
+// linear drain at the house wall. Slab tops sit `joint depth` (3-5 mm) above the terrain, which is the joint
+// floor. The ground layers stay the terrain's (concrete surface over a hard crust and gravel, GDD 04 §2.3): the
+// paving is undiggable from above, ants reach the under-slab and expansion cavities through the joints, whose
+// pre-carves are forced at New Game.
 
 import type { RngState } from '@/core/rng';
 import { rngFloat, rngInt } from '@/core/rng';
-import { materialCode, type MaterialId } from '@/sim/types';
+import type { MaterialId } from '@/sim/types';
 import type { GenContext } from '../../kit/context';
 import { terrainAt } from '../../kit/surface';
 import { dcos, dsin } from '../../kit/dmath';
@@ -40,25 +42,21 @@ function surfaceFor(rng: RngState, bu: number): Surface {
   return { jw, jd, mat: () => (stone ? 'stone' : 'concrete') };
 }
 
-/** Bedding sand over gravel under paving: the terrain surface is the joint sand. */
-function paintBedding(ctx: GenContext, accept: (j: number) => boolean, crust: number): void {
-  const g = ctx.world.ground, n = g.surface.data.length;
-  const sand = materialCode('sand'), gravel = materialCode('gravel'), c = Math.min(255, Math.round(crust));
-  for (let j = 0; j < n; j++) if (accept(j)) { g.surface.data[j] = sand; g.crustMm.data[j] = c; g.subsoil.data[j] = gravel; }
-}
-
 /** Socket of one slab: an under-slab lens off its +X joint, or a sealant-cracked expansion gap on its +X side. */
 function slabSocket(env: Env, rng: RngState, w: number, t: number, jd: number, jw: number, kind: 'under-slab' | 'expansion', d: number): { cavities: LocalCavity[]; micro: LocalMicro[] } {
   const bu = env.bu;
   const ground = t - jd, jx = w / 2 + jw / 2;
   if (kind === 'under-slab') {
     const rr = Math.min(P.lensMaxRBu * bu, (Math.min(w, d) / 2) * range(rng, P.underSlabFoot[0], P.underSlabFoot[1]));
-    const ry = Math.max(0.6 * bu, (range(rng, P.underSlabLens[0], P.underSlabLens[1]) * bu) / 2);
-    const rc = Math.max(jw / 2, 0.5 * bu);
-    const lens = v(w / 2 - rr * 0.9, -0.6 * ry, 0);
+    // the lens hangs just under the slab (its top 0.1 ry above the underside, inside the hard slab: the slab
+    // is its ceiling); the channel down the joint is wider than the joint below the slab
+    const ry = Math.max(0.8 * bu, (range(rng, P.underSlabLens[0], P.underSlabLens[1]) * bu) / 2);
+    const rc = Math.max(jw / 2, 0.75 * bu);
+    const cy = -0.9 * ry, mid = cy - 0.05 * ry;
+    const lens = v(w / 2 - rr * 0.6, mid, 0);
     return {
-      cavities: [{ kind: 'under-slab', carves: [{ shape: 'capsule', a: v(jx, ground + 0.3 * rc, 0), b: v(jx, -0.6 * ry, 0), r: rc }, { shape: 'ellipsoid', a: lens, b: v(rr, ry, rr), r: 0 }], openings: [{ pos: v(jx, ground, 0), normal: v(0, 1, 0), radius: jw / 2 }] }],
-      micro: [{ kind: 'paving-joint', a: v(jx, t + 2 * bu, 0), path: [v(jx, ground, 0), v(jx, -0.6 * ry, 0)], b: lens, gapMm: jw, clearMm: jw, cavity: 0 }],
+      cavities: [{ kind: 'under-slab', carves: [{ shape: 'capsule', a: v(jx, ground + 0.3 * rc, 0), b: v(jx, cy, 0), r: rc }, { shape: 'ellipsoid', a: v(w / 2 - rr * 0.6, cy, 0), b: v(rr, ry, rr), r: 0 }], openings: [{ pos: v(jx, ground, 0), normal: v(0, 1, 0), radius: jw / 2 }] }],
+      micro: [{ kind: 'paving-joint', a: v(jx, t + 2 * bu, 0), path: [v(jx, ground, 0), v(jx, mid, 0), v(w / 2 - Math.min(rr * 0.5, 2 * bu), mid, 0)], b: lens, gapMm: jw, clearMm: jw, cavity: 0 }],
     };
   }
   // expansion gap: shaft to the gravel sub-base and a short gallery along the gap line
@@ -71,7 +69,11 @@ function slabSocket(env: Env, rng: RngState, w: number, t: number, jd: number, j
   };
 }
 
-interface SlabSpec { x: number; z: number; yaw: number; w: number; t: number; d: number; mat: MaterialId; socket?: 'under-slab' | 'expansion'; jw: number; jd: number }
+interface SlabSpec {
+  x: number; z: number; yaw: number; w: number; t: number; d: number; mat: MaterialId; socket?: 'under-slab' | 'expansion'; jw: number; jd: number;
+  /** The socket's joint is on the +Z side (between slabs of one path course) instead of +X. */
+  sideZ?: boolean;
+}
 
 /** One slab, cut shorter (along local X) when it collides (curves, obstacles). */
 function placeSlab(ctx: GenContext, s: SlabSpec, rng: RngState, zoneIds: readonly number[], keepOut: Rect[]): boolean {
@@ -84,7 +86,17 @@ function placeSlab(ctx: GenContext, s: SlabSpec, rng: RngState, zoneIds: readonl
     if (!cornersIn(ctx, x, z, s.yaw, Math.max(1, w / 2 - shrink), Math.max(1, s.d / 2 - shrink), zoneIds, keepOut)) continue;
     const crack = rngFloat(rng) < P.crackShare ? range(rng, PAVEMENT.crack.gap[0], PAVEMENT.crack.gap[1]) : 0;
     const b: Built = pavingSlab(rng, w, s.t, s.d, s.mat, crack);
-    if (s.socket) Object.assign(b, slabSocket(env, rng, w, s.t, s.jd, s.jw, s.socket, s.d));
+    if (s.socket) {
+      if (!s.sideZ) Object.assign(b, slabSocket(env, rng, w, s.t, s.jd, s.jw, s.socket, s.d));
+      else {
+        // the same socket built for the +X side of a slab with w and d swapped, mirrored onto +Z (x <-> z)
+        const sk = slabSocket(env, rng, s.d, s.t, s.jd, s.jw, s.socket, w);
+        const sw = (p: { x: number; y: number; z: number }) => ({ x: p.z, y: p.y, z: p.x });
+        for (const c of sk.cavities) { for (const op of c.carves) { op.a = sw(op.a); if (op.shape === 'capsule') op.b = sw(op.b); } for (const o of c.openings) o.pos = sw(o.pos); }
+        for (const m of sk.micro) { m.a = sw(m.a); m.b = sw(m.b); m.path = m.path?.map(sw); }
+        Object.assign(b, sk);
+      }
+    }
     const lip = rngFloat(rng) < P.lipShare ? P.lipMm : 0;
     const h = terrainAt(ctx, x, z);
     const id = commit(ctx, b, { x, z, yaw: s.yaw, embed: s.t - s.jd - lip, tilt: true, belowY: h + 1, collide: true, category: 'structures' });
@@ -110,7 +122,6 @@ function slabGrid(ctx: GenContext, rect: Rect, zoneId: number, label: string, si
   const sf = surfaceFor(rng, bu);
   const keepOut = outdoorState(ctx).keepOut;
   const [w0, t, d] = sizes[rngInt(rng, 0, sizes.length - 1)];
-  paintBedding(ctx, (j) => ctx.layout.cells[j] === zoneId, t - sf.jd + P.bedding);
   let z = rect.z0 + sf.jw;
   let row = 0, idx = 0;
   // expansion gaps: wider joints every 3-6 m along X
@@ -163,7 +174,6 @@ function pathCourses(ctx: GenContext, sh: BuiltShape, label: string): void {
   const along = sd0, across = sw0;
   const m = Math.max(1, Math.floor((sh.width + sf.jw) / (across + sf.jw)));
   const span = m * across + (m - 1) * sf.jw;
-  paintBedding(ctx, (j) => ctx.layout.cells[j] === sh.zoneId, t - sf.jd + P.bedding);
   const at = walker(line);
   let idx = 0, course = 0;
   for (let u = along / 2 + sf.jw; u < total - along / 2; u += along + sf.jw, course++) {
@@ -175,8 +185,10 @@ function pathCourses(ctx: GenContext, sh: BuiltShape, label: string): void {
       const o = -span / 2 + across / 2 + k * (across + sf.jw) - shift;
       if (Math.abs(o) > span / 2) continue;
       const cx = p.x + nx * o, cz = p.z + nz * o;
-      const socket = !pavers && rngFloat(rng) < P.underSlabShare && takeCount(ctx, 'under-slab', OUTDOOR.maxUnderSlab) ? 'under-slab' as const : undefined;
-      placeSlab(ctx, { x: cx, z: cz, yaw, w: along, t, d: across, mat: pavers ? 'concrete' : sf.mat(), socket, jw: sf.jw, jd: sf.jd },
+      // path courses bend: only the joint between two slabs of one course (+Z side) has a guaranteed width
+      const lateral = k < m - 1 && !shift;
+      const socket = !pavers && lateral && rngFloat(rng) < P.underSlabShare && takeCount(ctx, 'under-slab', OUTDOOR.maxUnderSlab) ? 'under-slab' as const : undefined;
+      placeSlab(ctx, { x: cx, z: cz, yaw, w: along, t, d: across, mat: pavers ? 'concrete' : sf.mat(), socket, sideZ: true, jw: sf.jw, jd: sf.jd },
         ctx.rngFor(`wg/structures/outdoor/path/${label}`, idx++), [sh.zoneId], keepOut);
     }
   }

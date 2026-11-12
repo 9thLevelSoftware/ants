@@ -97,7 +97,11 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
   const fridgeWall = rngRange(rng, FRIDGE.wallGap[0], FRIDGE.wallGap[1]);
   // main run slots (a from the corner)
   const start = fridgeOnEnd ? 0 : fridgeW;
-  const kinds = mainKinds(rng, room, mainUnits, uc, sigma, start, d.u, fridgeOnEnd && lUnits > 0);
+  // with an L-run, its counter reaches over the main run up to the counter front (601-625 > one unit): a cooker
+  // or washer there (fronts at 615/620) would stand inside the L counter
+  const cornerBlind = fridgeOnEnd && lUnits > 0;
+  const applianceMinA = cornerBlind ? counterGap + counterDepth + BASE_UNIT.cornerApplianceClear : 0;
+  const kinds = mainKinds(rng, room, mainUnits, uc, sigma, start, d.u, cornerBlind, applianceMinA);
   const slots: Slot[] = kinds.kinds.map((kind, i) => ({ kind, a0: start + i * W, a1: start + (i + 1) * W }));
   const counterA0 = fridgeOnEnd ? counterGap : start;
   const mainRun: RunPlan = { name: 'main', f: main, slots, counterA0, counterA1: start + mainUnits * W, kickA0: fridgeOnEnd ? 0 : start, kickA1: start + mainUnits * W };
@@ -109,8 +113,10 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
     const ls: Slot[] = [];
     for (let i = 0; i < lUnits; i++) ls.push({ kind: 'base', a0: l0 + i * W, a1: l0 + (i + 1) * W });
     if (lUnits > 0) {
-      const doorsFront = cFront - COUNTER.overhang;
-      lRun = { name: 'l', f: endWall, slots: ls, counterA0: cFront, counterA1: l0 + lUnits * W, kickA0: doorsFront - BASE_UNIT.kickSetback - BASE_UNIT.kickThick, kickA1: l0 + lUnits * W };
+      // the L kickboard runs in front of the blind corner unit and butts against the main kickboard's front
+      // face (the main board covers the corner square; starting at its back face would cross it)
+      const mainKickFront = cFront - COUNTER.overhang - BASE_UNIT.kickSetback;
+      lRun = { name: 'l', f: endWall, slots: ls, counterA0: cFront, counterA1: l0 + lUnits * W, kickA0: mainKickFront, kickA1: l0 + lUnits * W };
     }
     fridge = { f: endWall, a0: l0 + lUnits * W + FRIDGE.sideGap, wallGap: fridgeWall, feetGap };
   } else {
@@ -125,7 +131,7 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
     const annulus = clampGap(rng, SERVICE_PIPE.annulus[0], SERVICE_PIPE.annulus[1], MICRO.gapMinBu * room.bu);
     pipes.push({ u, diam, annulus, at, axisY: room.floorY + SERVICE_PIPE.axis });
   };
-  if (d.sealed || rngChance(rng, SERVICE_PIPE.sinkP)) pipe('sink', uOf((sink.a0 + sink.a1) / 2 + rngRange(rng, -120, 120)));
+  if (d.sealed || rngChance(rng, SERVICE_PIPE.sinkP)) pipe('sink', uOf((sink.a0 + sink.a1) / 2 + rngRange(rng, -SERVICE_PIPE.sinkJitter, SERVICE_PIPE.sinkJitter)));
   const washer = slots.find((s) => s.kind === 'washer');
   if (washer && rngChance(rng, SERVICE_PIPE.washerP)) {
     const toSink = sink.a0 > washer.a0 ? 1 : -1;
@@ -137,7 +143,9 @@ export function planKitchen(room: Room, rng: RngState): KitchenPlan {
 }
 
 /** Slot kinds of the main run: a sink where a window fits over it (p 0.7), a cooker away from it, a washer beside it. */
-function mainKinds(rng: RngState, room: Room, n: number, uc: number, sigma: number, start: number, doorU: number, cornerBlind: boolean): { kinds: SlotKind[]; window: boolean } {
+function mainKinds(
+  rng: RngState, room: Room, n: number, uc: number, sigma: number, start: number, doorU: number, cornerBlind: boolean, applianceMinA: number,
+): { kinds: SlotKind[]; window: boolean } {
   const W = BASE_UNIT.width;
   const centreU = (i: number) => uc + sigma * (start + (i + 0.5) * W);
   const half = GLAZING.openingWidth / 2;
@@ -154,16 +162,17 @@ function mainKinds(rng: RngState, room: Room, n: number, uc: number, sigma: numb
   const sink = pool[rngInt(rng, 0, pool.length - 1)];
   const kinds: SlotKind[] = new Array(n).fill('base');
   kinds[sink] = 'sink';
+  const applianceOk = (i: number) => start + i * W >= applianceMinA;
   if (n >= 2 + (cornerBlind ? 1 : 0)) {
     // with an L-run the corner unit is a blind cabinet (the L's kickboard runs in front of it)
-    const ok = (i: number) => i !== sink && !(cornerBlind && i === 0);
+    const ok = (i: number) => i !== sink && !(cornerBlind && i === 0) && applianceOk(i);
     const far = [...Array(n).keys()].filter((i) => ok(i) && Math.abs(i - sink) >= 2);
     const near = [...Array(n).keys()].filter(ok);
     const pc = far.length > 0 ? far : near;
-    kinds[pc[rngInt(rng, 0, pc.length - 1)]] = 'cooker';
+    if (pc.length > 0) kinds[pc[rngInt(rng, 0, pc.length - 1)]] = 'cooker';
   }
   if (rngChance(rng, WASHER.p)) {
-    const side = [sink - 1, sink + 1].filter((i) => i >= 0 && i < n && kinds[i] === 'base' && !(cornerBlind && i === 0));
+    const side = [sink - 1, sink + 1].filter((i) => i >= 0 && i < n && kinds[i] === 'base' && !(cornerBlind && i === 0) && applianceOk(i));
     if (side.length > 0) kinds[side[rngInt(rng, 0, side.length - 1)]] = 'washer';
   }
   return { kinds, window: wantWindow };

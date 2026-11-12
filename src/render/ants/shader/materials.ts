@@ -12,13 +12,15 @@ import type { AntRig, V4 } from '../geometry/rig';
 import type { V3 } from '../geometry/meshBuilder';
 import { ANT_COLOR_VERTEX, ANT_VERT_PARS } from './vertexChunk';
 import { ANT_EMISSIVE, ANT_FRAG_PARS, ANT_NORMAL, ANT_ROUGHNESS, ANT_SHEEN, WING_COLOR, WING_FRAG_PARS } from './fragmentChunk';
-import { CUTICLE, HIGHLIGHT } from '../tuning';
+import { CAMERA_CAPSULE, CUTICLE, HIGHLIGHT, WING_LOOK } from '../tuning';
 
 /** Uniforms shared by every ant material (one object each, so updating .value once updates all). */
 export interface SharedAntUniforms {
   uTime: Uniform<number>; uHiWarm: Uniform<Color>; uHiCool: Uniform<Color>;
   /** Opacity of the possessed ant (third-person camera fade, GDD 01 6.5), drawn as an ordered dither; 1 = solid. */
   uSubjectOpacity: Uniform<number>;
+  /** Camera-to-possessed-ant capsule (GDD 01 6.5 rule 2): ends (world mm), radius mm (0 = off), opacity of ants inside. */
+  uCapA: Uniform<Vector3>; uCapB: Uniform<Vector3>; uCapR: Uniform<number>; uCapOpacity: Uniform<number>;
 }
 
 export function createSharedUniforms(): SharedAntUniforms {
@@ -27,6 +29,7 @@ export function createSharedUniforms(): SharedAntUniforms {
     uHiWarm: new Uniform(new Color(HIGHLIGHT.warm).multiplyScalar(HIGHLIGHT.warmGain)),
     uHiCool: new Uniform(new Color(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain)),
     uSubjectOpacity: new Uniform(1),
+    uCapA: new Uniform(new Vector3()), uCapB: new Uniform(new Vector3()), uCapR: new Uniform(0), uCapOpacity: new Uniform(CAMERA_CAPSULE.opacity),
   };
 }
 
@@ -86,7 +89,7 @@ export function makeAntMaterial(rig: AntRig, shared: SharedAntUniforms, o: AntMa
 /** Wing material: hyaline membrane with procedural venation and pterostigma, thin-film iridescence. */
 export function makeWingMaterial(rig: AntRig, shared: SharedAntUniforms, membraneHex: string, veinHex: string): Material {
   const mat = new MeshPhysicalMaterial({
-    vertexColors: false, color: new Color(membraneHex), roughness: 0.25, metalness: 0, transparent: true, opacity: 1, depthWrite: false,
+    vertexColors: false, color: new Color(membraneHex).multiplyScalar(WING_LOOK.membraneScatter), roughness: 0.25, metalness: 0, transparent: true, opacity: 1, depthWrite: false,
     side: DoubleSide, iridescence: 0.7, iridescenceIOR: 1.35, iridescenceThicknessRange: [250, 520],
   });
   const u = { ...rigUniforms(rig, shared), uVein: { value: new Color(veinHex) } };

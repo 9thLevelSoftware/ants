@@ -1,5 +1,6 @@
 // Exterior parts placed after the outdoor paving (props step): the window-sill climb route from the garden
-// surface (GDD 04 §10 `wall-face`, with a vantage POI on the outside sill), and the downpipe.
+// surface (GDD 04 §10 `wall-face`, with a vantage POI on the outside sill) and the outside mouths of the
+// micro-connections; and the downpipe (structures step).
 
 import { addClimbRoute, addPoi, placeObject, supportAt, terrainAt, type GenContext } from '../../kit';
 import { walkerParamsForBU } from '@/sim/locomotion/walkerParams';
@@ -8,6 +9,7 @@ import { COUNTER, DOWNPIPE, GLAZING } from '../../catalog/interior/dims';
 import type { Room } from './room';
 import { wallGeom } from './shellPlace';
 import { interiorState } from './state';
+import { settleOutsideMouths } from './micro';
 
 export function addDownpipe(ctx: GenContext, room: Room): void {
   if (!room.slice) return;
@@ -17,6 +19,13 @@ export function addDownpipe(ctx: GenContext, room: Room): void {
   const b = downpipeTemplate(g, u, terrainAt(ctx, x, z));
   const c = b.centre();
   placeObject(ctx, b.template(c.x, c.z), { x: c.x, z: c.z, y: 0, snap: false, category: 'structures' });
+}
+
+/** Props step: outside mouths of the building's micro-connections onto the final garden surface, then the routes. */
+export function placeExterior(ctx: GenContext): void {
+  const st = interiorState(ctx);
+  if (st) settleOutsideMouths(ctx, st.outsideMouths);
+  placeExteriorRoutes(ctx);
 }
 
 /**

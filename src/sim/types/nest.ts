@@ -143,6 +143,11 @@ export interface ArchitectState {
   blacklist: { pos: Vec3; untilTick: number }[];
   /** Last evaluated pressure per need (0.. ; > 1 means urgent). */
   needCache: Record<ArchitectNeed, number>;
+  /**
+   * Failed architect sites not yet blacklisted (additive, architect): anchor, failures counted there, and the tick
+   * after which they are forgotten. Missing = none.
+   */
+  failures?: { pos: Vec3; count: number; untilTick: number }[];
 }
 
 export interface FloodState {

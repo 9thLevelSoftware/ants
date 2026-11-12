@@ -7,12 +7,11 @@ export const OUTDOOR = {
   precarveShare: 0.55,
   /** Cavities of one kind per map (chunk thrift; GDD rules would allow more), see the report. */
   maxUnderSlab: 6,
-  maxUnderStone: 40,
   maxCracks: 6,
   maxMatSeams: 4,
   maxExpansionSlots: 3,
 
-  trees: { spacing: 2500, edgeMin: 600, perM2: 1 / 30, min: 1, maxPerZone: 6, slopeMax: 0.36, parkCount: [1, 3] as [number, number], fruitCount: [0, 2] as [number, number] },
+  trees: { clearBu: 3, clearFromY: 300, spacing: 2500, edgeMin: 600, perM2: 1 / 30, min: 1, maxPerZone: 6, slopeMax: 0.36, parkCount: [1, 3] as [number, number], fruitCount: [0, 2] as [number, number] },
   logs: { perM2: 1 / 25, min: 1, spacing: 1500, contourDeg: 30 },
   stumps: { perM2: 1 / 40, treeDist: 2000, spacing: 1500 },
   forestProps: { branch: 0.15, twig: 4, stone: 1.2, pebble: 3, moss: 0.6, leaf: 2, herb: 1, herbShadeMax: 0.7 },

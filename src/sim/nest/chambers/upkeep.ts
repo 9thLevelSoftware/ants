@@ -11,11 +11,15 @@ import { CHUNK, keyCx, keyCy, keyCz, type VoxelBox } from '../carve/keys';
 import { heightAt } from '@/sim/world/terrainSample';
 import { sampleI, sampleJ, sampleK } from '../voxelKey';
 import { detectRegions, nestSampleBox, type Region } from './detect';
+import { applyFoundingCell } from './foundingCell';
 import { planG } from '../plans/geometry';
 import { planCache } from '../plans/targets';
 import { applyDetection, chamberAtIn, designateChamberImpl, refreshChamberMarch } from './registry';
 
-/** Detection pass over one nest: regions connected to the nest's cavity, then the identity rules. */
+/**
+ * Detection pass over one nest: regions connected to the nest's cavity, then the identity rules, then (while the
+ * nest is founding) the founding cell rule.
+ */
 export function detectNestChambers(sim: Sim, nest: Nest): void {
   const v = sim.carve.voxel;
   const comps = nestComponents(sim, nest);
@@ -26,6 +30,7 @@ export function detectNestChambers(sim: Sim, nest: Nest): void {
     return c >= 0 && comps.has(c);
   });
   applyDetection(sim, nest, regions, (r) => insideLiveChamberPlan(sim, nest, r));
+  applyFoundingCell(sim, nest);
   nest.volumeOpen = nestOpenVolume(sim, nest);
 }
 

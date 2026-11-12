@@ -258,17 +258,22 @@ export function waterButt(env: Env): Built {
   const r = B.dia / 2;
   const tapY = B.stand + 80;
   const prims: PrimSpec[] = [
-    rb(v(0, B.stand / 2, 0), B.standW, B.stand, B.standW, 6, 'plastic', C | S),
+    rb(v(0, B.stand / 2, 0), B.standW, B.stand, B.standW, 1, 'plastic', C | S),
     cy(v(0, B.stand + B.h / 2, 0), B.dia, B.h, 'plastic', C | NB, undefined, 10),
     cy(v(r + B.tapLen / 2 - 5, tapY, 0), B.tapDia, B.tapLen, 'plastic', C, rollQ(Math.PI / 2)),
   ];
-  const sw = B.standW / 2, g = env.ground ?? (() => 0);
-  const pts = [v(sw + foot + 3 * bu, g(sw + 3 * bu, 0) + foot, 0), v(sw + foot, g(sw, 0) + 2 * bu, 0), v(sw + foot, B.stand - 2 * bu, 0), v(sw - 2 * bu, B.stand + foot, 0), v(r + foot, B.stand + 2 * bu, 0), v(r + foot, tapY - B.tapDia, 0), v(r + B.tapLen - 10, tapY - B.tapDia / 2 - foot, 0)];
+  const sw = B.standW / 2, g = env.ground ?? (() => 0), zo = B.tapDia / 2 + 3 * bu;
+  // up the stand, under the butt's overhanging bottom to its rim, round the rim, up the side to the tap
+  const pts = [v(sw + foot + 3 * bu, g(sw + 3 * bu, 0) + foot, 0), v(sw + foot, g(sw, 0) + 2 * bu, 0), v(sw + foot, B.stand - 2 * bu, 0), v(sw + 2 * bu, B.stand - foot, 0),
+    v(r - 2 * bu, B.stand - foot, 0), v(r + foot * 0.7, B.stand - foot * 0.7, 0), v(r + foot, B.stand + 2 * bu, 0),
+    // up the side beside the tap (not through it), then onto the tap's top at its root and along it
+    v(r + foot, B.stand + 4 * bu, 0), v(Math.sqrt(r * r - zo * zo) + foot, B.stand + 8 * bu, zo), v(Math.sqrt(r * r - zo * zo) + foot, tapY + B.tapDia / 2 + 2 * bu, zo),
+    v(r + 2 * bu, tapY + B.tapDia / 2 + foot, 0), v(r + B.tapLen - 15, tapY + B.tapDia / 2 + foot, 0)];
   return {
     tpl: {
       id: 'water-butt', prims, tags: ['structure', 'water'],
       routes: [{ kind: 'side-to-tap', points: densify(pts, 6 * bu) }],
-      pois: [{ kind: 'water-spot', pos: v(r + B.tapLen - 10, tapY - B.tapDia / 2 - foot, 0) }, { kind: 'shelter', pos: v(0, foot, 0) }],
+      pois: [{ kind: 'water-spot', pos: v(r + B.tapLen - 15, tapY + B.tapDia / 2 + foot, 0) }, { kind: 'shelter', pos: v(0, foot, 0) }],
     },
     tilt: false,
     water: [{ kind: 'wet-patch', pos: v(0, 0, 0), radius: r, levelMm: 0, capMm: 0 }],

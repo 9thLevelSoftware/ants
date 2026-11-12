@@ -73,7 +73,7 @@ function waterButtAtFacade(ctx: GenContext): void {
     const a = range(rng, 0.1 * L, 0.9 * L);
     const x = side === 'x0' ? d : side === 'x1' ? L - d : a, z = side === 'z0' ? d : side === 'z1' ? L - d : a;
     if (!footprintIn(ctx, x, z, 0, 350, 350, ids)) continue;
-    if (commit(ctx, b, { x, z, yaw, atGround: 'terrain', collide: true, category: 'structures' }) >= 0) return;
+    if (commit(ctx, b, { x, z, yaw, tilt: false, collide: true, category: 'structures' }) >= 0) return;
   }
 }
 

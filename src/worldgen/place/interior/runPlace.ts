@@ -3,13 +3,13 @@
 
 import { rngInt, rngRange, rngChance, type RngState } from '@/core/rng';
 import type { MaterialId } from '@/sim/types';
-import { addMicro, addWaterBody, type GenContext } from '../../kit';
+import { addMicro, type GenContext } from '../../kit';
 import type { WallFrame } from '../../catalog/interior/frame';
 import {
-  cookerTemplate, counterTemplate, fridgeTemplate, isCabinet, runDepths, runLevels, runTemplate, sinkRect, sinkTemplate,
+  cookerTemplate, counterTemplate, fridgeTemplate, isCabinet, runDepths, runLevels, runTemplate, sinkTemplate,
   washerTemplate, type Slot,
 } from '../../catalog/interior/cabinets';
-import { BASE_UNIT, COOKER, FRIDGE, SINK, WASHER } from '../../catalog/interior/dims';
+import { BASE_UNIT, COOKER, COUNTER, FRIDGE, SINK, WASHER } from '../../catalog/interior/dims';
 import { MICRO } from '../../tuning/pipeline';
 import { clampGap, type KitchenPlan, type RunPlan } from './plan';
 import type { Room } from './room';
@@ -63,10 +63,10 @@ function routePositions(run: RunPlan, minA: number): number[] {
   const cand: number[] = [];
   run.slots.forEach((s, i) => {
     if (!isCabinet(s.kind)) return;
-    for (const a of i === 0 ? [s.a1 - 12] : [s.a0 + 12, s.a1 - 12]) if (a >= minA) { cand.push(a); break; }
+    for (const a of i === 0 ? [s.a1 - BASE_UNIT.routeEdge] : [s.a0 + BASE_UNIT.routeEdge, s.a1 - BASE_UNIT.routeEdge]) if (a >= minA) { cand.push(a); break; }
   });
   const out: number[] = [];
-  for (const a of cand) if (out.length === 0 || a - out[out.length - 1] >= 1200) out.push(a);
+  for (const a of cand) if (out.length === 0 || a - out[out.length - 1] >= BASE_UNIT.routeSpacing) out.push(a);
   return out;
 }
 
@@ -82,13 +82,13 @@ function counterSegments(run: RunPlan): [number, number][] {
 
 export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: RngState, foot: number): RunInfo {
   const cw = plan.counterGap, cd = plan.counterDepth, fy = room.floorY;
-  const material: MaterialId = rngChance(rng, 0.6) ? 'plastic' : 'stone';
+  const material: MaterialId = rngChance(rng, COUNTER.laminateP) ? 'plastic' : 'stone';
   const d = runDepths(cw, cd), lv = runLevels(fy);
   const info: RunInfo = { counters: [], footprints: [], extCovered: [], endCovered: null };
   for (const run of [plan.main, plan.l]) {
     if (!run) continue;
     // the L-run's counter continues the main counter's front edge in the corner: no overhang to climb there
-    const routeAs = routePositions(run, run.name === 'main' && plan.l ? d.counterFront + 60 : 0);
+    const routeAs = routePositions(run, run.name === 'main' && plan.l ? d.counterFront + BASE_UNIT.lCornerRouteClear : 0);
     const kick = kickSections(rng, run, room, routeAs);
     placeBuilder(ctx, runTemplate({ f: run.f, floorY: fy, slots: run.slots, counterGap: cw, counterDepth: cd, kick, routeAs, foot }));
     const sink = run.slots.find((s) => s.kind === 'sink');
@@ -96,14 +96,9 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
     const segments = counterSegments(run);
     const cp = { f: run.f, floorY: fy, counterGap: cw, counterDepth: cd, segments, sinkA, material, foot };
     placeBuilder(ctx, counterTemplate(cp));
-    if (sinkA !== null) {
-      const sid = placeBuilder(ctx, sinkTemplate({ ...cp, sinkA }));
-      if (rngChance(rng, SINK.dripP)) {
-        const r = sinkRect(cp, sinkA);
-        const c = run.f.p(sinkA, lv.counterTop - SINK.depth + SINK.wall, (r.n0 + r.n1) / 2);
-        addWaterBody(ctx, { kind: 'bowl-water', vesselObjectId: sid, pos: c, radius: SINK.frontBack / 2 - SINK.wall, levelMm: SINK.filmMm, capMm: 0.8 * SINK.depth });
-      }
-    }
+    // The dripping-tap film (GDD 13.1 bowl-water, p 0.4) is not registered as a water body: the nav grid marks
+    // water bodies by footprint only and would block the kick-space floor under the sink (reported).
+    if (sinkA !== null) placeBuilder(ctx, sinkTemplate({ ...cp, sinkA }));
     for (const s of run.slots) {
       const ap = { f: run.f, floorY: fy, a0: s.a0, wallGap: 0, foot };
       if (s.kind === 'cooker') placeBuilder(ctx, cookerTemplate({ ...ap, wallGap: COOKER.wallGap, feetGap: rngRange(rng, COOKER.feetGap[0], COOKER.feetGap[1]) }));
@@ -112,7 +107,8 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
     // the guaranteed passable kick-space section is the run's `kick-space` micro-connection (free space under the board)
     const sure = kick.find((k) => k.passable && k.gap >= MICRO.gapMinBu * room.bu - 1e-9);
     if (sure) {
-      const a = (sure.a0 + sure.a1) / 2, off = Math.max(2 * room.bu, ctx.dims.cell);
+      const off = Math.max(2 * room.bu, ctx.dims.cell);
+      const a = clearOfLegs(sure.a0, sure.a1, legAs(run.slots), BASE_UNIT.legDiam / 2 + 2 * room.bu);
       addMicro(ctx, {
         kind: 'kick-space', posA: run.f.p(a, fy, d.kickFront + off), posB: run.f.p(a, fy, d.kickBack - off),
         gapMm: sure.gap, minClearanceBu: sure.gap / room.bu, lengthBu: (BASE_UNIT.kickThick + 2 * off) / room.bu, useful: true, reason: 'shelter',
@@ -121,7 +117,7 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
     const end = Math.max(run.counterA1, run.slots[run.slots.length - 1].a1);
     info.footprints.push(run.f.rect(run.name === 'main' ? 0 : run.kickA0, end, 0, d.counterFront));
     // counter items keep off the sink and the tops of the climb routes
-    const cuts: [number, number][] = [...routeAs.map((a) => [a - 60, a + 60] as [number, number])];
+    const cuts: [number, number][] = [...routeAs.map((a) => [a - BASE_UNIT.routeTopClear, a + BASE_UNIT.routeTopClear] as [number, number])];
     if (sinkA !== null) cuts.push([sinkA - SINK.width / 2, sinkA + SINK.width / 2]);
     const free = segments.flatMap(([a0, a1]) => minus(a0, a1, cuts));
     info.counters.push({ f: run.f, spans: free, n0: cw, n1: cw + cd, topY: lv.counterTop });
@@ -132,9 +128,26 @@ export function placeRuns(ctx: GenContext, room: Room, plan: KitchenPlan, rng: R
   placeBuilder(ctx, fridgeTemplate({ f: fr.f, floorY: fy, a0: fr.a0, wallGap: fr.wallGap, feetGap: fr.feetGap, foot }));
   const fEnd = fr.a0 + FRIDGE.width;
   info.footprints.push(fr.f.rect(fr.a0, fEnd, 0, fr.wallGap + FRIDGE.depth));
-  if (fr.f === plan.main.f) info.extCovered.push(uSpan(plan, 0, fEnd + FRIDGE.sideGap));
-  else info.endCovered = [0, Math.max(info.endCovered?.[1] ?? 0, fEnd + FRIDGE.sideGap)];
+  if (fr.f === plan.main.f) {
+    info.extCovered.push(uSpan(plan, 0, fEnd + FRIDGE.sideGap));
+    // the fridge stands in the corner, sideGap from the end wall: the end-wall skirting stops behind its side
+    info.endCovered = [0, fr.wallGap + FRIDGE.depth + FRIDGE.sideGap];
+  } else info.endCovered = [0, Math.max(info.endCovered?.[1] ?? 0, fEnd + FRIDGE.sideGap)];
   return info;
+}
+
+/** a positions of the plinth legs of a run (two per cabinet slot, front and back). */
+function legAs(slots: Slot[]): number[] {
+  return slots.filter((s) => isCabinet(s.kind)).flatMap((s) => [s.a0 + BASE_UNIT.legInset, s.a1 - BASE_UNIT.legInset]);
+}
+
+/** The position in [a0, a1] nearest its middle that keeps `clear` from every leg (the kick-space mouth behind
+ *  the kickboard must be free floor, not inside a leg); the middle if none does. */
+function clearOfLegs(a0: number, a1: number, legs: number[], clear: number): number {
+  const mid = (a0 + a1) / 2;
+  const ok = (a: number) => a >= a0 + clear && a <= a1 - clear && legs.every((l) => Math.abs(a - l) >= clear);
+  const cand = [mid, ...legs.flatMap((l) => [l - clear, l + clear])].filter(ok).sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid));
+  return cand.length > 0 ? cand[0] : mid;
 }
 
 /** [a0, a1] minus the cut intervals. */

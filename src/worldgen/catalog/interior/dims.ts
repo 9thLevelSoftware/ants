@@ -60,6 +60,8 @@ export const BACK_DOOR = {
   sillWidth: 1000,
   /** Sill nose beyond the garden face, mm. */
   sillNose: 30,
+  /** Threshold sill material: stone with this probability, else metal. */
+  sillStoneP: 0.7,
   /** Real gap under the leaf, mm (door-crack 3-10). */
   gap: [3, 10] as [number, number],
   /** Weather strip variant: the gap is closed and a pipe penetration is forced. */
@@ -143,6 +145,15 @@ export const BASE_UNIT = {
   lFrontClear: 700,
   /** Gap between the run's last unit and the door jamb, mm. */
   doorClear: 150,
+  /** Cabinet-to-counter climb routes: about one per this run length, mm, at a door edge this far from the gap. */
+  routeSpacing: 1200,
+  routeEdge: 12,
+  /** Counter items keep this far (along the run) from the top of a climb route, mm. */
+  routeTopClear: 60,
+  /** Main-run climb routes start this far beyond the L counter front (no overhang in the corner), mm. */
+  lCornerRouteClear: 60,
+  /** With an L-run, cookers and washers stand at least this far past the L counter's far edge, mm. */
+  cornerApplianceClear: 2,
 };
 
 /** `countertop` (floor-relative heights). */
@@ -152,6 +163,8 @@ export const COUNTER = {
   top: 910,
   overhang: 20,
   wallGap: [1, 5] as [number, number],
+  /** Laminate (plastic) top with this probability, else stone (GDD laminate p 0.6). */
+  laminateP: 0.6,
 };
 
 /** `sink`: basin under the window, 5 RB (bottom + 4 walls), drain, optional water film. */
@@ -207,6 +220,8 @@ export const SERVICE_PIPE = {
   washerP: 0.5,
   /** Behind-washer pipe: distance from the washer side next to the sink, mm. */
   washerEdge: 100,
+  /** Under-sink pipe: offset from the sink centre along the run, up to +- mm. */
+  sinkJitter: 120,
 };
 
 export const TABLE = {
@@ -220,9 +235,13 @@ export const TABLE = {
   wallMin: 600,
   doorMin: 1000,
   yawJitterDeg: 6,
+  /** Random positions tried for the table before giving up. */
+  placeTries: 60,
 };
 
 export const CHAIR = {
+  /** Wooden with this probability, else metal. */
+  woodP: 0.7,
   seat: [420, 20, 420] as [number, number, number],
   seatTop: 450,
   legDiam: 25,
@@ -240,6 +259,12 @@ export const PEDAL_BIN = {
   lidHeight: 30,
   seam: [1, 2] as [number, number],
   pedal: [120, 15, 40] as [number, number, number],
+  /** The climb route starts on the floor this far beside the body, mm. */
+  routeBase: 40,
+  /** Lid hinge bridging the seam on the climb side: width, depth into the body, overlap above/below the seam, mm. */
+  hinge: [30, 6, 10] as [number, number, number],
+  /** Plastic with this probability, else metal. */
+  plasticP: 0.5,
 };
 
 export const PET_BOWL = {
@@ -249,6 +274,8 @@ export const PET_BOWL = {
   /** GDD 20 deg; 15 keeps the bowl-foot wedge within the walker's 110 deg concave-transition limit (report). */
   flareDeg: 15,
   staves: 12,
+  /** Glazed ceramic with this probability, else metal. */
+  ceramicP: 0.7,
   mat: [400, 3, 300] as [number, number, number],
   pKitchenDoor: 0.8,
   pOther: 0.5,
@@ -263,6 +290,15 @@ export const DOORMAT_INSIDE = { size: [600, 15, 400] as [number, number, number]
 export const HOUSEPLANT = {
   p: 0.5,
   potDiam: [150, 250] as [number, number],
+  /** Pot height as a share of its diameter, and the pot wall flare, degrees. */
+  heightK: 0.85,
+  flareDeg: 8,
+  /** On the window board: offset from the window centre along the wall, up to +- mm; yaw jitter, rad. */
+  boardJitter: 250,
+  boardYawJitter: 0.2,
+  /** On the floor: distance of the pot centre from the back-wall corner's two walls, mm; yaw jitter, rad. */
+  cornerOff: 200,
+  floorYawJitter: 0.4,
   potWall: 10,
   staves: 12,
   scaleP: 0.3,
@@ -272,6 +308,19 @@ export const HOUSEPLANT = {
   leaf: [60, 120] as [number, number],
 };
 
-export const FRUIT_BOWL = { p: 0.7, diam: 250, height: 80, wall: 6, staves: 14, fruit: [3, 6] as [number, number], fruitDiam: [60, 80] as [number, number] };
+export const FRUIT_BOWL = { p: 0.7, diam: 250, height: 80, wall: 6, staves: 14, flareDeg: 25, fruit: [3, 6] as [number, number], fruitDiam: [60, 80] as [number, number] };
 export const BREAD_BOARD = { p: 0.6, size: [400, 20, 250] as [number, number, number] };
 export const SUGAR_BOWL = { p: 0.5, diam: 100, height: 80, wall: 5, staves: 10, lid: [104, 12] as [number, number] };
+
+/** Placement of the free-standing furniture and the counter items. */
+export const FURNISH = {
+  /** Spacing of candidate spots along the wall faces, mm. */
+  wallSpotSpacing: 150,
+  /** Counter items: positions tried per item, offset across the counter from its middle (mm), yaw jitter (rad). */
+  counterTries: 12,
+  counterNOffset: [-40, 60] as [number, number],
+  counterYawJitter: 0.3,
+  /** Dense overlap test of placed furniture: allowed penetration (mm) and lattice divisions per axis. */
+  overlapTolMm: 0.5,
+  overlapLattice: 8,
+};

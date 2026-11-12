@@ -11,7 +11,7 @@ import {
 import { createBrowserAssetLoader, type AssetLoader } from '@/render/assets';
 import { applyPose } from '@/render/camera';
 import { RenderRegistry, type FrameInfo, type HighlightRef } from '@/render';
-import { setLocoObserver } from '@/sim/locomotion';
+import { LodObserverFeed } from './lodObserver';
 import type { Command, DirectivesPatch, MarkerKind, PlayerIntent, PossessRole, Sim, SpeedLevel } from '@/sim/types';
 import { WORLDGEN_MAX_ATTEMPTS } from '@/worldgen/tuning/pipeline';
 import { calendarTick, dayOf, TICKS_PER_DAY } from '@/sim/time';
@@ -107,8 +107,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   private loadToken = 0;
   private readonly undergroundSw = new UndergroundSwitch();
   /** LOD observer last given to locomotion (it is re-sent only when the focus moved). */
-  private readonly observerAt = { x: Number.NaN, y: 0, z: 0 };
-  private readonly focusBuf = { x: 0, y: 0, z: 0 };
+  /** Locomotion's LOD observer, fed from the camera focus before every tick (lodObserver.ts). */
+  private readonly lodObserver = new LodObserverFeed();
   /** Hover / inspect highlights (the views task sets them from picking; the debug API for now). */
   hover: HighlightRef | null = null;
   inspect: HighlightRef | null = null;
@@ -211,7 +211,9 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   private startPlaying(sim: Sim, possessQueen: boolean): void {
     const session = new GameSession(sim, this.settings.get().camera);
-    this.observerAt.x = Number.NaN;
+    this.lodObserver.reset();
+    const focus = (out: Vec3) => session.focus(out);
+    session.driver.beforeTick = () => this.lodObserver.sample(sim, focus);
     session.driver.timer = () => performance.now();
     this.session = session;
     this.loading = null;
@@ -317,17 +319,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion,
     };
     this.registry.update(frame);
-    this.updateLodObserver(s);
     this.lastFrame = { underground, possessionState: vf.possessionState, observerMode: vf.observerMode };
     return frame;
-  }
-
-  /** Locomotion's level-of-detail observer follows the camera focus (re-sent when it moved more than 1 BU). */
-  private updateLodObserver(s: GameSession): void {
-    const f = s.focus(this.focusBuf), o = this.observerAt;
-    if (Math.hypot(f.x - o.x, f.y - o.y, f.z - o.z) <= s.sim.world.bu) return; // NaN (first frame) never returns
-    o.x = f.x; o.y = f.y; o.z = f.z;
-    setLocoObserver(s.sim, f);
   }
 
   /** Switches the quality preset at runtime (renderer, post chain and every sub-renderer). */

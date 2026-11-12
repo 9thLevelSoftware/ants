@@ -150,7 +150,8 @@ export function gullyGrate(rng: RngState, env: Env): Built {
   const potTop = -G.barT, potBot = -G.potDepth;
   prims.push(...ring(G.potStaves, v(0, potBot, 0), potR, G.potWall, potTop - potBot, 'concrete', C | S));
   prims.push(cy(v(0, potBot - 15, 0), 2 * potR, 30, 'concrete', C));
-  const gx = -open / 2 + g2 / 2;
+  // the passage through a central gap (the hole raster may leave a sliver of ground under the outermost gaps)
+  const gx = -open / 2 + g2 / 2 + Math.floor(n / 2) * (G.bar + g2);
   return {
     tpl: { id: 'gully-grate', prims, tags: ['structure', 'drain'], pois: [{ kind: 'shelter', pos: v(gx, potTop - env.foot, 0) }] },
     tilt: false,
@@ -172,13 +173,14 @@ export function parkedCar(rng: RngState, env: Env): Built {
   const c = R(rng, K.clearance[0], K.clearance[1]);
   const prims: PrimSpec[] = [rb(v(0, c + bh / 2, 0), bw, bh, bl, 40, 'metal', C | S)];
   const tx = bw / 2 - tw / 2, tz = bl / 2 - K.wheelInsetZ;
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) prims.push(cy(v(sx * tx, td / 2, sz * tz), td, tw, 'rubber', C | NB, rollQ(Math.PI / 2), 30));
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) prims.push(cy(v(sx * tx, td / 2, sz * tz), td, tw, 'rubber', C | NB, rollQ(Math.PI / 2), 8));
   prims.push(rb(v(0, c + bh + K.bodyVisualH / 2, 0), bw, K.bodyVisualH, bl * 0.9, 120, 'metal', VIS));
   const ox = bw / 2 + foot, g = env.ground ?? (() => 0);
   const pts = [v(ox + 3 * bu, g(ox + 3 * bu, tz) + foot, tz), v(ox, g(ox, tz) + 2 * bu + 20, tz), v(ox, td / 2, tz), v(ox, c + bh - 2 * bu, tz), v(bw / 2 - 2 * bu, c + bh + foot, tz)];
   return {
     tpl: { id: 'parked-car', prims, tags: ['structure', 'car'], routes: [{ kind: 'tyre-to-arch', points: densify(pts, 6 * bu) }], pois: [{ kind: 'shelter', pos: v(0, foot, 0) }] },
-    tilt: false,
+    // tyres sink 15 mm (the flattened contact patch: the sidewall meets the ground along a chord, not a point)
+    tilt: false, embed: 15,
   };
 }
 

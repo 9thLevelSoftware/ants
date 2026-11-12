@@ -150,8 +150,24 @@ export const MOUND_TRANSFER_EPS_BU = 0.001;
 export const MOUND_MAX_SWEEPS = 64;
 /** Relaxation sweeps the deposit box expanded by this many cells. */
 export const MOUND_SWEEP_PAD = 16;
-/** Kept-clear hole around the entrance: r_ent + this, BU. */
+/**
+ * Kept-clear hole around the entrance: r_ent + this, BU. The mound mask adds one cell diagonal so the bilinear
+ * height overlay is exactly 0 inside r_ent + this (moundRelax.ts).
+ */
 export const MOUND_CLEAR_PAD_BU = 0.25;
+/**
+ * Pile cells within this distance of an entrance's kept-clear disc are also kept clear where the nest cavity
+ * reaches the ground surface below them (a ramp shaft's open trench, a widened throat), BU.
+ */
+export const MOUND_HOLE_PROBE_BU = 8;
+/** The crater's inner-wall cap (moundRelax.ts) is evaluated this far from the pit's edge, BU. */
+export const MOUND_CAP_REACH_BU = 16;
+/** Hole columns are also probed within a breach record's radius + this, BU (pits without an entrance record). */
+export const MOUND_BREACH_PROBE_BU = 2;
+/** That test probes the field this far below the cell's base (the kernel's hole probe depth), BU. */
+export const MOUND_HOLE_PROBE_DEPTH_BU = 0.1;
+/** A new entrance takes over an entrance-less pile of its nest centred within its radius + this, BU. */
+export const MOUND_LINK_BU = 2;
 /** The pile is solid where h > this, BU (field and volume). */
 export const MOUND_MIN_H_BU = 0.05;
 /** Mound batches run every this many ticks per mound (staggered by id). */
@@ -176,8 +192,8 @@ export const ENTRANCE_RADIUS_MIN_BU = 0.75;
 export const ENTRANCE_RADIUS_MAX_BU = 3;
 /** A hole patch registers as an entrance only from this many open sample columns (pinholes do not). */
 export const ENTRANCE_MIN_HOLE_COLUMNS = 3;
-/** The hole patch around a breach is searched within this radius, BU. */
-export const ENTRANCE_SCAN_BU = 4;
+/** The hole patch around a breach is searched within this radius, BU (a ramp shaft's trench is a few BU long). */
+export const ENTRANCE_SCAN_BU = 8;
 /** Throat: open voxels within this path distance of the opening, BU. */
 export const THROAT_BU = 3;
 /** Extra seed radius of the exit / seal nav fields around an entrance opening, BU (opening samples sit just below the surface). */

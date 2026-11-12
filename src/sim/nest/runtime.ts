@@ -9,6 +9,7 @@ import { chunkKey, type VoxelBox } from './carve/keys';
 import { CORE_APRON, nestSampleBox } from './chambers/detect';
 import { PassGrid } from './chambers/tiles';
 import { FlagStore } from './flags';
+import type { MoundMask } from './moundRelax';
 import type { PlanCache } from './plans/targets';
 
 export interface NestRuntime {
@@ -29,6 +30,10 @@ export interface NestRuntime {
   geom: Map<number, PlanCache>;
   /** cheat.setChamberClimate overrides (debug only, not saved). */
   climate: Map<number, { temp: number; rh: number }>;
+  /** Kept-clear masks of mound grids, valid for one tick and carve version (moundRelax.ts). */
+  moundMasks: Map<number, { tick: number; carve: number; mask: MoundMask }>;
+  /** Nest owning the holes a dig bite's brush opens while it runs (ownership.ts withDigOwner), -1 none. */
+  digOwner: number;
 }
 
 /** Open samples of one chunk inside a nest's box: summed where deep under the terrain, listed near the surface. */
@@ -54,6 +59,8 @@ export function nestRuntime(sim: Sim): NestRuntime {
     breachSeen: sim.carve.breaches.length,
     geom: new Map(),
     climate: new Map(),
+    moundMasks: new Map(),
+    digOwner: -1,
   };
   sim.carve.addListener((c: CarveChange) => onCarve(sim, made, c.box));
   RUNTIMES.set(sim, made);

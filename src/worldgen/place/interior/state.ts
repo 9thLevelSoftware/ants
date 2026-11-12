@@ -1,11 +1,12 @@
 // Per-attempt state handed from the structures placer to the later exterior placer (same GenContext).
 
 import type { GenContext } from '../../kit';
+import type { OutsideMouth } from './micro';
 import type { KitchenPlan } from './plan';
 import type { Room } from './room';
 import type { ShellIds } from './shellPlace';
 
-export interface InteriorState { room: Room; plan: KitchenPlan | null; shell: ShellIds }
+export interface InteriorState { room: Room; plan: KitchenPlan | null; shell: ShellIds; outsideMouths: OutsideMouth[] }
 
 const states = new WeakMap<GenContext, InteriorState>();
 

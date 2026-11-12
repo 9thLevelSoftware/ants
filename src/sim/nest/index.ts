@@ -19,6 +19,7 @@ import { carveEllipsoid, carveSphere, fillSphere, forChangedSamples, readBox, sp
 import { chamberById, designateChamberImpl, findChamberAtImpl } from './chambers/registry';
 import { bestBroodChamberImpl } from './chambers/upkeep';
 import { nearestOpenEntrance, sealEntranceImpl, unsealEntranceImpl } from './entrances';
+import { pileOverOpenings } from './moundRelax';
 import { dumpPelletImpl, isPellet, placePellet, spawnPellet } from './pellets';
 import { antSlot, claimSlot, releaseSlot } from './plans/frontier';
 import { planG } from './plans/geometry';
@@ -42,6 +43,8 @@ export { planDigAim } from './plans/frontier';
 export { digDemand, digStimulus, haulStimulus, planNoHaulers } from './plans/stimuli';
 export { progressOf, slotInReach, instantCarvePlan } from './plans/plans';
 export { rimHeight, moundVolume, dumpPoint } from './mounds';
+export { coveredEntrances } from './entrances';
+export { foundingReadiness, type FoundingReadiness } from './chambers/foundingCell';
 export { broodScore } from './chambers/upkeep';
 
 /** Carve grid over the persisted carve data: the kernel's grid (substrate and hole probes wired by createKernel). */
@@ -90,10 +93,7 @@ export function createNestNav(kernel: Kernel): NestNav {
   };
 }
 
-/** Nest architect: proposes plans from needs. Stub: architect. */
-export const architectSystem: System = {
-  name: 'architect', phase: 'nest', every: ARCHITECT_EVERY, offset: ARCHITECT_OFFSET, run: () => {},
-};
+import { architectSystem } from './architect'; export { architectSystem }; // nest architect (owner: architect)
 
 export const systems: readonly System[] = [nestFieldsSystem, nestSystem, architectSystem];
 
@@ -321,6 +321,15 @@ export const invariants: readonly SimInvariant[] = [
     check(sim, fail) {
       for (const it of sim.state.items) {
         if (it.alive && isPellet(it) && !(it.volume > 0 && Number.isFinite(it.volume))) fail(`pellet ${it.id}: volume=${it.volume}`);
+      }
+    },
+  },
+  {
+    name: 'mounds-keep-openings-clear',
+    check(sim, fail) {
+      for (const m of sim.state.worldDelta.mounds) {
+        const bad = pileOverOpenings(sim, m);
+        if (bad.length > 0) fail(`mound ${m.id}: pile inside the kept-clear radius of entrance ${bad[0][0]} (${bad.length} points)`);
       }
     },
   },

@@ -56,6 +56,10 @@ uniform vec3 uCallow;
 varying vec3 vAntMat;   // x roughness override (<0: none), y sheen gain, z 1 = compound eye
 varying vec3 vRest;     // rest-frame position (eye facets, cuticle micro-variation)
 varying float vAntHi;   // highlight (+ possessed, - hovered)
+varying float vCapIn;   // 1: an ant other than the possessed one inside the camera-to-ant capsule (GDD 01 6.5 rule 2)
+uniform vec3 uCapA;     // capsule: camera position (world, mm)
+uniform vec3 uCapB;     // capsule: the possessed ant's thorax (world, mm)
+uniform float uCapR;    // capsule radius, mm (0 = off)
 
 mat3 antRotAxis(vec3 k, float a) {
   float c = cos(a), s = sin(a), t = 1.0 - c;
@@ -211,6 +215,13 @@ export const ANT_COLOR_VERTEX = /* glsl */ `#include <color_vertex>
   if (aRig.x < 7.5 || aRig.x > 8.5) vColor.rgb *= aTint.rgb;
 #endif
   vAntHi = aExtra.y;
+  vCapIn = 0.0;
+  if (uCapR > 0.0 && aExtra.y <= 0.0) {
+    vec3 antO = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vec3 ab = uCapB - uCapA;
+    float h = clamp(dot(antO - uCapA, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    if (length(antO - uCapA - ab * h) < uCapR) vCapIn = 1.0;
+  }
   vAntMat = vec3(-1.0, 1.0, 0.0);
   if (aRig.x > 2.5 && aRig.x < 5.5) vAntMat.y = ${CUTICLE.hairRimSheen.toFixed(3)};
   if (aRig.x > 0.5 && aRig.x < 1.5 && aRig.w > 0.5) vAntMat = aRig.w > 1.5 ? vec3(0.08, 0.0, 0.0) : vec3(0.22, 0.15, 1.0);

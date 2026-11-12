@@ -156,7 +156,7 @@ function bays(ctx: GenContext): void {
     // head of the bay = its inner end (against the sidewalk)
     const hx = cx + n.x * (half - 600), hz = cz + n.z * (half - 600);
     if (rngFloat(r) < A.wheelStopP) commit(ctx, wheelStop(r), { x: hx, z: hz, yaw: stopYaw, collide: true, category: 'structures' });
-    if (rngFloat(r) < share) commit(ctx, parkedCar(r, env), { x: cx, z: cz, yaw: carYaw + range(r, -0.04, 0.04), atGround: 'terrain', collide: true, category: 'structures' });
+    if (rngFloat(r) < share) commit(ctx, parkedCar(r, env), { x: cx, z: cz, yaw: carYaw + range(r, -0.04, 0.04), tilt: true, collide: true, category: 'structures' });
     // side line between this bay and the next (and the first one's outer line)
     const lines: number[][] = [];
     if (Math.abs(n.x) > 0) { lines.push([b.x0, b.z1, b.x1, b.z1]); if (i === 0) lines.push([b.x0, b.z0, b.x1, b.z0]); }
@@ -197,7 +197,7 @@ function cracks(ctx: GenContext): void {
       const gal = P3.map((p) => ({ x: p.x, y: p.y - depth, z: p.z }));
       const carves: LocalCavity['carves'] = [{ shape: 'capsule', a: { ...P3[0], y: P3[0].y + 0.3 * rc }, b: gal[0], r: rc }];
       for (let s = 1; s < gal.length; s++) carves.push({ shape: 'capsule', a: gal[s - 1], b: gal[s], r: rc });
-      const micro: LocalMicro = { kind: 'asphalt-crack', a: { ...P3[0], y: P3[0].y + 2 * bu }, path: [gal[0]], b: gal[gal.length - 1], gapMm: real, clearMm: 2 * rc, cavity: 0 };
+      const micro: LocalMicro = { kind: 'asphalt-crack', a: { ...P3[0], y: P3[0].y + 2 * bu }, path: gal.slice(0, -1), b: gal[gal.length - 1], gapMm: real, clearMm: 2 * rc, cavity: 0 };
       registerSockets(ctx, { cavities: [{ kind: 'crack-slot', carves, openings: [{ pos: P3[0], normal: { x: 0, y: 1, z: 0 }, radius: rc }] }], micro: [micro] }, (p) => p, -1);
     }
   }

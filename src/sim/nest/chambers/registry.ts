@@ -45,7 +45,7 @@ export function depthAbove(sim: Sim, p: Vec3): { depthMm: number; covered: boole
 }
 
 /** Soil above a ceiling sample up to the next free space (cavity or air), mm: first leave the own cavity. */
-function roofAbove(sim: Sim, x: number, y0: number, z: number): number {
+export function roofAbove(sim: Sim, x: number, y0: number, z: number): number {
   const f = sim.field, v = sim.carve.voxel, max = DEPTH_SCAN_MAX_BU * sim.world.bu;
   let y = y0;
   while (y - y0 < 4 * v && f.sampleXYZ(x, y, z) > 0) y += 0.25 * v;

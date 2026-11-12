@@ -8,43 +8,59 @@ Evidence: `tests/e2e/stage1a.mjs` (harness, `test` quality, 1280 x 720), output 
 --script tests/e2e/stage1a.mjs --out test-output/stage1a --script-timeout 1600000` (about 10 minutes on this
 machine; `STAGE1A_SKIP_HIGH=1` skips the two high-quality shots).
 
+## 0. Acceptance status (revised after the independent review)
+
+| # | Criterion | Status | Why |
+|---|---|---|---|
+| 1 | typecheck clean; tests under `src/render`, `src/game`, `src/ui`, `src/input` green | met (load note) | No type errors in these paths. Only load-dependent timing tests fail, and only under load: `nest/mesh/chunkMeshManager*.test.ts` and `world/primitives/primCells.test.ts` (render-nest / render-world tests, not code changed here); they pass when the machine is quieter |
+| 2 | `stage1a.mjs` passes, screenshots show world, ants, entrance + mound, tunnel and chamber interior | **not met** as written | The script passes (`ok: true`, no console errors), but only with stand-ins, which it lists in `result.standIns` and logs as `STAND-IN` lines. Final run (seed 2): the widened end is not registered as a chamber; `lay-egg` is refused (`budget`) so eggs are cheat-spawned; the mound grows from `cheat.spawnPellets`. Earlier runs on other trees also needed: entrance not registered, workers not moving on their own (behaviours have landed since: 11 of 60 moved in 100 ticks), start teleport. `STAGE1A_STRICT=1` runs the gate as written and fails on the first stand-in. The possession-camera tunnel shot (`03`) is unusable (camera 0.24 L in `crevice`, full-frame occlusion dither, section 5); the tunnel interior is shown from a free observer camera in the dug shaft (`03b`) instead. Owners: nestops / founding (chamber, egg), beh-nest (hauling), views (tunnel camera) |
+| 3 | smoke and determinism pass; classic build passes smoke from a sub-path | met | `determinism.mjs` now also draws frames between steps and requires the same hash |
+| 4 | runtime quality switches without errors or leaks | met | scripted in `stage1a.mjs` step 11 |
+| 5 | every notes item accounted for | met | section 6 (the review's three missing or misattributed items are added) |
+
 ## 1. What the player can do now (Stage 1A)
 
-- Start a new game on a generated world (seed 1: lawn soil next to a gravel patio), the founding queen possessed
-  in third person, walking with camera-relative movement on the real terrain.
-- Dig with the action primitive (`dig-bite`, ramp brush aimed by a point target): a sloped shaft through the
-  ground into the soil and a widened end at the bottom. The terrain opens visibly (field hole mask), the nest
-  renderer meshes the cavity live, the camera follows the queen underground and the view switches to the
-  underground look (exposure / fog) from the camera position.
-- Every bite makes a soil pellet (items drawn by the ant renderer); surface pellets settle into a spoil heap
-  that the world renderer draws as a mound.
-- Cheat-spawned workers (60) appear on the surface, drawn with the real ant model and LOD.
+- Start a new game on a generated world (the script autostarts seed 1, whose founding site is now indoors in a
+  plant pot with no soil to dig within 30 BU, so it moves on to seed 2: loam beside a gravel path; seed 1 changed
+  three times during this review as worldgen landed), the
+  founding queen possessed in third person, walking with camera-relative movement on the real terrain and leaves.
+- Dig with the action primitive (`dig-bite`, ramp brush aimed by a point target): a sloped shaft 6 BU deep in about
+  30 bites and a widened room at its end. The terrain opens visibly (field hole mask), the nest renderer meshes the
+  cavity live, the camera follows the queen underground and the view switches to the underground look from the
+  camera position. The sim registers an entrance for this dig (final run, seed 2); the room is registered as a
+  chamber on some worlds only.
+- Every bite makes a soil pellet (items drawn by the ant renderer); surface pellets settle into a spoil heap that
+  the world renderer draws as a mound.
+- Workers (60, cheat-spawned) appear on the surface, drawn with the real ant model and LOD; any of them can be
+  possessed and walked.
 - Time controls (1x, 2x, 8x outside possession, pause), observer view (free fly and follow orbit), colony view
   with the cutaway slice over the nest, runtime quality switch (`__game.quality('test' | 'low' | 'high' ...)`).
 
-Not yet possible in the running game (simulation side, Stage 1B or the sim half): workers do not move (no
-behaviours yet), the founding chamber is not registered as a chamber, so `lay-egg` is refused
-(`not-allowed-here`) and eggs are cheat-spawned in the script; no entrance record is created for the shaft;
-hauling pellets out of the tunnel (the script uses `cheat.spawnPellets` beside the entrance to stand in for it).
+Not yet possible in the running game, so the script stands in for it and says so (`STAND-IN` log lines,
+`result.standIns`): `lay-egg` is refused by the colony's laying budget (`budget`, HUD "no strength left today")
+until the founding flow runs, so six eggs are cheat-spawned; the widened end is registered as a chamber on some
+worlds and not on others (it was on the seed-1 world of mid-review, not on seed 2 now); pellets inside the tunnel
+are not hauled out into the mound by the player-dug nest, so `cheat.spawnPellets` grows the mound. Workers do move
+on their own now (beh-forage / beh-nest landed during this review).
 
 ## 2. Screenshots (`test-output/stage1a/`, all looked at)
 
-Final run: `ok: true`, no console errors, about 9.5 minutes (`test-output/int1a/final.out`). Earlier iterations of the
-same script are in `test-output/int1a/s1a*`, `s1b`.
+Final run after the review: `ok: true`, no console errors, about 23 minutes at load 20+ (`test-output/int1a-fix/final.out`).
+Iterations of this review round are in `test-output/int1a-fix/` (s1: an earlier seed-1 world that is gone now).
 
 | File | Judgement |
 |---|---|
-| `01-surface-third-person.png` (07:00) | Good. Real terrain textures (patio gravel, lawn soil), haze, the real queen model behind-above, upright on the ground, prompt chip. The winged queen still reads greyish from directly behind because the sky reflects on the folded wings; acceptable. |
-| `02a-entrance-fresh.png` (14:52) | Good. The shaft mouth is a clean black hole in the terrain (field hole mask), a second shallow pit from the first bite next to it, no seams or sky slivers at the rim. |
-| `03-inside-tunnel.png` (night) | Poor. The camera is in the `crevice` state 0.23 body lengths from the queen in the steep shaft, so the occlusion dither of the walls fills most of the frame; walls are lit warm-orange by the sense light. The renderer is correct, the camera placement is not useful (views task, section 5). |
-| `04-chamber-queen.png` | Fair. Underground look (exposure, warm sense light), the widened end of the shaft, the queen dithered by the camera fade in the foreground; the six eggs are behind her in this run (visible in the earlier run `test-output/int1a/s1b/04-chamber-queen.png`). |
-| `07-colony-view.png` | Fair. Colony view from the possessed queen underground: the slice cap opens the ground over the dug room, the queen and the pellets inside it; the cap is small at this camera distance and colour-close to the soil. |
-| `02-entrance-mound.png` (12:00) | Fair. Spoil heap (cheat-dumped pellets) beside the entrance and the small first heap at the mouth; the mouth is partly buried by that first heap (section 5); heaps are square pyramids (nestops relaxation). |
-| `05-workers.png` | Good. 60 cheat-spawned workers with the real model and LOD, standing on lawn, heap and patio; none sunk or floating. They do not move (no behaviours yet). |
-| `06-observer-surroundings.png` | Good. Free observer high above: zone boundary lawn / patio, haze, the heap and the workers as specks. |
-| `08-high-surface.png` | Good. High preset after a runtime switch: depth of field, bloom, PCF shadows, the gravel at macro scale, the workers and the heaps. |
-| `09-high-underground.png` | Fair. High preset underground: exposure honoured on the post path, DoF blur, the queen dithered by the fade; mostly tunnel wall because of the close camera. |
-
+| `01-surface-third-person.png` (07:00) | Good. Seed 2 (seed 1 now starts indoors in a plant pot, see section 5): the queen on fine gravel at macro scale, upright, dark glossy body with clear wings (the milky veil is gone), loam and plant stems behind, prompt chip. |
+| `02a-entrance-fresh.png` | Good. The fresh shaft mouth is a clean dark hole at the loam edge, no seams or sky slivers at the rim. |
+| `03-inside-tunnel.png` | **Bad**: possession camera in `crevice` 0.24 L behind the queen; crevice forces the occlusion cutaway (GDD 01 6.5 rule 4) and its 0.8 L capsule is wider than the 1 BU shaft, so every wall around the camera is dithered and the sky dome shows through (section 5). Renderer and look are otherwise correct (03b). |
+| `03b-shaft-interior-observer.png` | Good. Free observer camera in the dug shaft looking down: real nest renderer, wall texture, warm underground look, the pellets left in the tunnel by the digging queen. |
+| `04-chamber-queen.png` | Fair. The widened end from behind the queen (dithered by the camera fade), underground look; the room is small and the eggs are under the queen. |
+| `07-colony-view.png` | Good. Colony view with the cutaway slice: the shaft and room open from above, the queen, the pellets and the eggs inside. |
+| `02-entrance-mound.png` (12:00) | Good. The entrance hole, the small first spoil heap at the mouth and the large heap from the stand-in pellets beside it; heaps are square-based pyramids (nestops relaxation, section 5). |
+| `05-workers.png` | Good. 60 workers with the real model (LOD), standing on the gravel and the heap, none sunk or floating; some are already walking off on their own. |
+| `06-observer-surroundings.png` | Good. Free observer above: path, loam, heap, entrance, workers, a plant, haze. |
+| `08-high-surface.png` | Good. High preset after a runtime switch: depth of field, gravel at macro scale, the heap, workers. |
+| `09-high-underground.png` | Fair. High preset underground: exposure honoured on the post path, DoF, the queen strongly dithered by the close camera. |
 
 ## 3. Performance at `test` quality (60 workers, 1280 x 720, SwiftShader on a loaded 4-core machine)
 
@@ -59,10 +75,16 @@ same script are in `test-output/int1a/s1a*`, `s1b`.
 | Nest re-mesh, worst frame | 9.3 ms (test preset budget 4 ms; the kernel's one-chunk marching cubes, known) |
 | Frame time | 3.9 s per 1280 x 720 frame in SwiftShader (terrain fragment shader); not representative of a GPU |
 
+Re-measured after the review (final run, seed 2, load average 20+, behaviours now running): 24 draw calls,
+146,988 triangles (terrain 32,256, nest 62,648 in 32 regions, ants + items 15,080), simulation 2.04 ms per tick,
+render CPU 35.8 ms, nest worst re-mesh frame 10.1 ms, 11.2 s per SwiftShader frame. Load on the shared machine
+makes every timing here an upper bound; the earlier (quieter) minimums above stand as the better estimate.
+
 Quality switches (scripted, test -> low -> high -> test -> low -> test, a frame rendered after each): no errors;
-`perf().memory` geometries 22 -> 17 and textures 16 -> 18 after returning to `test` (world rebuilt for the preset),
-unchanged over the second test <-> low cycle; shader programs 25 -> 42, also unchanged over the second cycle
-(three keeps one program per material variant it has seen; bounded, not a leak).
+`perf().memory` geometries 58 -> 52 and textures 40 -> 42 after returning to `test` (world rebuilt for the preset),
+unchanged over the second test <-> low cycle; shader programs 45 -> 79 after the first cycle (high adds the
+physical / post variants), then unchanged over the second cycle (three keeps one program per material variant it
+has seen; bounded, not a leak). The earlier run: geometries 22 -> 17, textures 16 -> 18, programs 25 -> 42.
 
 
 ## 4. Defects fixed (file — cause)
@@ -87,6 +109,12 @@ unchanged over the second test <-> low cycle; shader programs 25 -> 42, also unc
 | RegionBuffer test with the wrong attribute stride (truncated finding) | `src/render/nest/mesh/regionBuffer.test.ts` | `nest: nv * 2` instead of `NEST_ATTR`. |
 | Debug renderer tests assumed no real renderer | `src/render/debug/debugRenderers*.test.ts` | They now build the registry with `forceDebug` (the `?render=debug` path they test). Assertions unchanged. |
 | `possessedPose` imported from a locomotion internal file (F3b need) | `src/game/sim/possessedPose.ts` | Locomotion's index exports it; imported from `@/sim/locomotion`. |
+| *Review:* `stage1a.mjs` failed on the current tree (chamber check against the total nest volume, which includes worldgen's natural cavities; fixed 100-bite loop with a 3 BU depth check) | `tests/e2e/stage1a.mjs`, `src/game/debug/query.ts` | Volumes are now deltas from a baseline taken before digging. The dig site is chosen, not stumbled on: seed 1 now has plant prims (leaf rosettes, stems) all around the queen, and bites into them fail `not-diggable` while the queen climbs them. New read-out `__game.query.dig(x, y, z, primPad)` (material, species dig speed, primitive within the pad) lets the script pick the nearest site to the nest origin whose ramp is diggable soil with no primitive over or in it. The shaft is dug until it is `SHAFT_DEPTH_BU` deep or fails after `SHAFT_MAX_BITES` with the depth, dug volume and the last refusals. Stand-ins are explicit (`result.standIns`, `STAGE1A_STRICT=1`); a possessed worker must walk |
+| *Review:* possessed founding queen mid-grey / milky | `src/render/ants/shader/materials.ts`, `ants/tuning.ts` (`WING_LOOK`) | Measured, not guessed: with the wing membrane made fully transparent, the gaster under the wings went from RGB 154 to 15 and the bare body from 39 to 10, so the folded wings were nearly all of the paleness. The membrane was lit as a diffuse surface with its light tint at full albedo; a hyaline wing scatters little. The membrane albedo is now the tint x 0.12 (veins unchanged), so the specular and thin-film terms carry the glassy look; the gaster under the wings now reads 77 (dark, glossy) instead of 154. Test `ants/lookFixes.test.ts` |
+| *Review:* per-frame hex parsing in `NestLighting.setArtificialGain` and `AntRenderer.setHighlightExposure` | `nest/lighting/nestLighting.ts`, `ants/AntRenderer.ts` | Base linear colours parsed once at module load and multiplied; both return early when the gain / EV did not change. The nest's opening sort also reuses one comparator and a distance array instead of two closures per frame. Tests `ants/lookFixes.test.ts`, `nest/lighting/nestLighting.test.ts` (spy on `Color.setStyle`) |
+| *Review:* LOD observer fed from the render path | `src/game/Game.ts`, new `src/game/lodObserver.ts` | See section 6 (loco item). Test `game/lodObserver.test.ts`; `tests/e2e/determinism.mjs` fifth run |
+| *Review:* GDD 01 6.5 rule 2 missing (other ants in the camera capsule) | `ants/AntRenderer.ts`, `ants/shader/*`, `ants/tuning.ts` | See section 6 (F3a item). |
+| *Review:* no test for newGame cancellation / endGame during a load | new `tests/e2e/newGameCancel.mjs` | Two newGames in one task (the first is cancelled), a newGame superseded while the renderers build the world ("Preparing the view"; the ant renderer then draws the newest sim's cheat-spawned workers), endGame during that phase (title, no late start), and a normal game afterwards. Passes |
 
 New wiring that is not a defect fix: LOD observer (`setLocoObserver`) follows the camera focus (re-sent when it
 moves more than 1 BU); `mound-changed` events invalidate mounds; `carve-chunks-dirty` events mark nest chunks;
@@ -99,16 +127,19 @@ surface wetness eases toward the weather's precipitation; daylight into tunnels 
 
 | Defect / gap | Reproduction | Owner |
 |---|---|---|
-| A dug shaft gets no entrance record and no chamber is registered for the widened end; `lay-egg` is refused `not-allowed-here` | `stage1a.mjs` log lines `chamber {..."chambers":0,"entrances":0}` and `egg {... "fail":["lay-egg:not-allowed-here"]}` | nestops (entrance from breach, chamber detection) / founding (1B) |
+| `lay-egg` refused by the colony's laying budget (`budget`) in a registered chamber; before the latest sim changes it was `not-allowed-here` with no chamber or entrance registered (registration needs the cavity in the nest's nav component: chamber, entrance, origin, founding cell or plan anchor) | `stage1a.mjs` log lines `room {...}` and `STAND-IN egg` | founding (1B) / colony-core; nestops for registration of a dig away from the nest origin |
+| The founding start of a seed changes as worldgen lands: seed 1 was mid-review surrounded by plant prims (bites into them fail `not-diggable`, the walking queen climbs them; the old blind "walk forward and dig" never got underground, review finding 1), and is now indoors in a plant pot with no diggable soil within 30 BU (`query.dig` reports concrete everywhere). The script picks a dig site with `__game.query.dig` and moves to the next seed when the start has none (a teleport fallback is a recorded stand-in) | `test-output/int1a-fix/map3.mjs` (seed 1 founding site) | F-int / worldgen (new-game placement of the founding queen should guarantee diggable soil nearby) |
+| Possession camera in the shaft (`03`): `crevice` at 0.24 L; GDD 01 6.5 rule 4 forces the occlusion cutaway in crevice, and its capsule (0.8 L, about 7 mm for the queen) is wider than the shaft (1 BU radius, 4 mm), so every nest wall around the camera is dithered to 25 %. Behind the walls nothing but the sky dome is drawn (exposed +1.7 EV underground), so the frame is a bright dithered void. A correct occluder test would only dither walls between the camera and the ant within the ant's silhouette (a cone, not a capsule); the GDD rule itself needs a decision for underground crevices | `stage1a.mjs` screenshot 03, `tunnelCamera` in the result | views (camera distance / rule 4 underground) + render-nest (occluder test) |
 | The first surface pellets settle into a heap ON the entrance: the hole is buried (the field overlay closes it; the renderer shows what the field says). Screenshot 02 vs 02a | `stage1a.mjs` 02a (fresh, hole visible) then 02 (after settling) | nestops (spoil placement must keep the throat open / treat it as an entrance mound) |
 | Mounds and heaps are square pyramids (4-neighbour relaxation) | screenshots 02, 05, 08 | nestops (mound relaxation, e.g. 8-neighbour or radial) |
 | Founding-state commands are stubs (`cheat.setFoundingState` is a no-op), so the queen's founding dig never expels onto a mound | `__game.cheat.raw({type:'cheat.setFoundingState', ...})` has no effect | founding (1B) |
-| Cheat-spawned workers do not move (no behaviours in Stage 1A) | `stage1a.mjs` `workers {"spawned":60,"moved":0}` | beh-forage / beh-nest (1B) |
-| The scripted dig depth varies between runs of the same script (11.4, 11.1, 10.8, 9.5, 5.7 BU over five runs today) | run `stage1a.mjs` twice and compare the `shaft` log line | Most likely other engineers' simulation changes landing between my runs (the determinism script itself passes with identical hashes); recheck when the tree is quiet |
-| The third-person camera sits within about 1 body length of the queen in the shaft; the fade dither then covers much of the view | screenshots 03 / 04 (tunnel and room shots) | views (GDD 01 6.4 tunnel boom tuning) |
-| Colour grade (frost desaturation, night / golden gain) not applied | `LightingState.saturation/gain` computed, unused | render/app look (1B) |
+| Cheat-spawned workers do not move on their own (no behaviours in Stage 1A); the script walks one by possession | `stage1a.mjs` `workers {"spawned":60,"movedOnTheirOwn":0,...}` | beh-forage / beh-nest (1B) |
+| The scripted dig varied between runs while the world changed under it (the old flow; now the shaft is dug to a fixed depth or the script fails with the refusals) | `stage1a.mjs` `shaft` log line | none for the app; worldgen is still landing |
+| The possession camera in the shaft sits about 0.23 L from the queen (state `tunnel` or `crevice`), so the queen is dithered and the frame is mostly wall (GDD 01 E12 wants `tunnel` within 4 L). Cause, read from `thirdPersonRig.ts`: the shaft is sized for the queen (ramp radius 1 BU = 4 mm), the camera sphere is CAM_RADIUS = 2 mm, the pivot is lifted 0.5 L, and the boom is traced from that pivot with the full radius, so the trace hits the shaft wall almost at once and the pull-in is immediate. Not changed here: it is the views task's tunnel-boom tuning (e.g. a smaller radius or lower pivot in `tunnel` / `crevice`) | screenshot 03; `tunnelCamera` in the result | views (1B) |
+| Colour grade (frost desaturation, night / golden gain) not applied | `LightingState.saturation/gain` computed, unused | scope decision (look work, render-integration 1B) |
+| GDD 01 6.5 rule 3 for terrain and primitives (occlusion dither) | only nest walls are dithered | views (1B) |
 | Software-GL frame cost: 3-8 s per 1280 x 720 frame at `test` (terrain fragment shader), so harness scripts must render few frames | `perf()` frameMs in section 3 | none needed for a GPU; scripts keep to settled single frames |
-| Load-dependent timing tests `src/render/nest/mesh/chunkMeshManager*.test.ts` failed once in a parallel run (24 s for a 1-2 s test) and passed alone and in the final full run; `DecorRenderer.verify.test.ts` failed during the decor fixer's work and passed in the final full run | `npx vitest run src/render` on a loaded machine | perf note only |
+| Load-dependent timing tests fail under load and pass on a quieter machine: `src/render/nest/mesh/chunkMeshManager*.test.ts` (incl. the review's `verify` test, 13.3 ms against 8) and `src/render/world/primitives/primCells.test.ts` (3.6 ms against 2 at load 14) | `npx vitest run src/render` at load average 10+ | perf note only (render-nest / render-world tests) |
 | Full suite at the end: 18 failures, all in `src/sim/testing` and `src/worldgen` (worldgen-outdoor / interior and the sim half working in the same checkout); none under `src/render`, `src/game`, `src/ui`, `src/input` | `npx vitest run` | other engineers' work in progress |
 
 
@@ -117,8 +148,9 @@ surface wetness eases toward the weather's precipitation; daylight into tunnels 
 - GDD 01 E1 (8x refused while possessing, `speed-refused` reason `possession`) and E2 / E17 / E21 / E22: covered by
   the existing `smoke.mjs` and `flow.mjs`, which still pass on the real renderers.
 - GDD 01 E12 (tunnel camera): one frame of it is checked and recorded by `stage1a.mjs` (clearance f >= R/2 holds;
-  state `crevice` at 0.23 L instead of `tunnel` within 4 L — the shaft is steeper and narrower than the check's
-  2 BU walking tunnel). E13 / E14 (wall-to-ceiling camera path, up-vector timing) need the views task's scripted
+  state `tunnel` (earlier runs `crevice`) but at 0.23 L instead of within 4 L: **not met**, views (section 5)).
+- GDD 01 6.5 rules 1-2 (possessed-ant fade, other ants in the camera capsule): implemented in the ant renderer;
+  rule 2's CPU side is unit-tested (`ants/lookFixes.test.ts`), its shader compiles without errors in the harness. E13 / E14 (wall-to-ceiling camera path, up-vector timing) need the views task's scripted
   paths. E3-E11, E15, E16, E18-E20, E23-E25 belong to the sim, input and views modules (unchanged here).
 - GDD 08 App. E is UI / HUD / alert / comfort checks (ui-shell, ui-hud, views) plus E25 storm flashes
   (weather-effects); none is a render-integration check this task can cover.
@@ -133,14 +165,15 @@ Legend: **done** (fixed or wired in this task), **decision** (resolved by a reco
 | Register WorldRenderer; ctx.setExposure; frame.subject; onMoundChanged on `mound-changed`; setWetness from weather | **done** (`slots/worldSlot.ts`; wetness eases toward `min(1, 2 x precip)`, constants in `slots/params.ts`) |
 | A re-export `src/render/world/index.ts` | **decision**: not needed, the slot imports `../world/lighting` |
 | env-core real `sunDirection` | **sim**: the adapter already uses a real answer automatically |
-| Grade effect for `LightingState.saturation` / `gain`; the macro DoF curve | **left** (render/app look work, Stage 1B "decor/look"); saturation and gain are computed but not applied |
+| Grade effect for `LightingState.saturation` / `gain`; the macro DoF curve | **left, scope decision**: this task owns `src/render/**` incl. `src/render/app`, so no other owner is blocking it; a colour grade is look work (a new post effect plus a matching no-post path for `test` / `low`) rather than integration, and was kept out of this gate. Saturation and gain are computed but not applied; recommended for render-integration (1B) |
 | Nest skin discard at or below the hole margin | **done** (unchanged constants; the nest still imports HOLE_PROBE_DEPTH_BU / HOLE_MARGIN_BU) |
 | One owner for underground exposure / fog | **decision**: the world renderer (its `UNDERGROUND` constants) owns exposure and fog; `NEST_LOOK.exposureEV` is only the calibration point of the nest's artificial-light gain |
 | Mounds not in the world field | **sim** (resolved by F-int height overlays) |
 | `WorldDelta.heightDeltas` tile layout unconfirmed | **left** (worldgen / weather-effects; nobody writes deltas yet) |
 | Pass `reducedMotion` in WorldFrame | **done** (from the camera setting `reducedMotion`) |
 | Dapple for grass / decor / water renderers | **left** (render-decor; DecorRenderer is not registered in a slot yet) |
-| F9 colour grade not on screen | **left** (same as the grade hook) |
+| F9 colour grade not on screen | **left, scope decision** (same as the grade hook above) |
+| Truncated: stars turn into large bokeh discs at night (High) | **done before this task** (render-world fix, commit deb0bda): `STARS_DOF_GAIN` in `render/world/lighting/constants.ts` dims the stars on the post path so DoF and bloom keep them faint; not re-shot in this gate (no High night shot) |
 | Lightning, heat shimmer, storm exposure checks | **left** (weather-effects, Tier 2) |
 
 ### render-nest (notes-1A)
@@ -202,6 +235,7 @@ Legend: **done** (fixed or wired in this task), **decision** (resolved by a reco
 | Asset packs | **left** (packaging, 1B) |
 | `configureSunShadow` on quality change | **done** (world LightingRig.setQuality calls it; quality switch scripted) |
 | Fade / occlusion values not used | **done** for the possessed ant and nest walls; terrain / primitive dithering left (views 1B) |
+| GDD 01 6.5 rule 2: other ants inside the camera-to-ant capsule (radius 0.6 L) dithered to 40 % | **done** (review finding): `AntRenderer` sets the capsule from the camera to the possessed ant's thorax (`CAMERA_CAPSULE` in `ants/tuning.ts`); the ant vertex shader tests each instance origin against it and the fragment shader dithers those ants (and their carried items) to 40 %; shadows unaffected. Test `ants/lookFixes.test.ts`. Creatures follow when a creature renderer exists |
 | Exposure honoured on the post path | **verified**: the high-quality underground screenshot is exposed like the test one (ToneMappingEffect reads `toneMappingExposure`) |
 | Depth strategy (log depth / reversed) | **left** (no artefacts seen at 0.1 mm near plane in the shots) |
 | Photo keys / scent pad conflicts | **left** (design owner) |
@@ -209,7 +243,7 @@ Legend: **done** (fixed or wired in this task), **decision** (resolved by a reco
 ### F-int-foundation and other sim reports (items that concern the app)
 | Item | Outcome |
 |---|---|
-| loco: `setLocoObserver(sim, cameraFocus)` each frame | **done** (re-sent when the focus moves > 1 BU; determinism script unchanged) |
+| loco: `setLocoObserver(sim, cameraFocus)` each frame | **done, revised after the review**: sampled before every tick (`SimDriver.beforeTick`, `game/lodObserver.ts`), not in the render path, re-sent when the focus moved > 1 BU and always on a session's first tick (also after a load). `determinism.mjs` now draws frames between steps and requires the same hash. **Open design risk** for loco / architecture: the focus is camera state, neither a command nor SimState, so a replay from seed + commands matches only if the camera focus was the same at each tick (no effect in 1A: no walker moves far from the queen). Fix needs a sim-side `setObserver` command or `state.player.observer` |
 | loco: `integratePossessed` each frame and draw / camera from `possessedPose` | **done** |
 | env-core: call `ensureThermal(sim)` at game start | **left / sim**: it writes sim state; belongs in `createNewGame` (sim half) |
 | actions: send action start / stop, read `promptView` for the HUD, re-possess after colony view | **done** (F3b; colony view round trip used in the stage1a script) |
@@ -242,6 +276,12 @@ Legend: **done** (fixed or wired in this task), **decision** (resolved by a reco
 - **Packaging.** The classic build passes the smoke script from `/games/foundress/v1/` (textures load by relative
   URL); asset packs and the worldgen worker build are still to do.
 - **Debug API additions.** `__game.quality(id?)`, `__game.highlight(hover?, inspect?)`, `__game.query.mounds()`,
-  `__game.query.items()`, `perf().memory`. Test-mode `renderFrame()` now blocks until the GPU finished (1-pixel
+  `__game.query.items()`, `__game.query.dig(x, y, z, primPad?)` (material, dig speed, primitive nearby: pick dig
+  sites in scripts), `perf().memory`.
+- **Stage 1A gate script.** `tests/e2e/stage1a.mjs` lists every place where it stands in for a missing sim feature
+  (`STAND-IN` log lines, `result.standIns`). Founding, beh-nest and beh-forage should run it with
+  `STAGE1A_STRICT=1` when they land: it then fails on the first stand-in still needed.
+- **LOD observer.** Locomotion's observer is the camera focus sampled before each tick (`game/lodObserver.ts`).
+  For replays from seed + commands it must become a command or SimState (loco / architecture decision). Test-mode `renderFrame()` now blocks until the GPU finished (1-pixel
   read-back), which keeps software-GL screenshots from timing out.
 

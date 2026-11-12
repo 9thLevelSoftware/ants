@@ -34,7 +34,7 @@ export function tableTemplate(foot: number): ObjectTemplate {
 
 /** `chair`: seat 420 x 20 x 420 at 450, legs 25, rear legs rising to 900 with a back rail; faces +z. */
 export function chairTemplate(rng: RngState, foot: number): ObjectTemplate {
-  const material: MaterialId = rngChance(rng, 0.7) ? 'wood-sound' : 'metal';
+  const material: MaterialId = rngChance(rng, CHAIR.woodP) ? 'wood-sound' : 'metal';
   const [sw, st, sd] = CHAIR.seat, top = CHAIR.seatTop, under = top - st, hx = sw / 2, hz = sd / 2;
   const r = CHAIR.legDiam / 2, k = hx - CHAIR.legInset;
   const prims: PrimSpec[] = [spanBox(-hx, hx, under, top, -hz, hz, material, S, 2)];
@@ -53,9 +53,13 @@ export function chairTemplate(rng: RngState, foot: number): ObjectTemplate {
   return { id: 'chair', tags: ['furniture', 'kitchen', 'rest-floor', 'chair'], prims, routes: [{ kind: 'leg-to-seat', points: route }] };
 }
 
-/** `pedal-bin`: body, lid over a 1-2 mm seam, pedal at +z; route base -> side -> seam -> lid; bin-gap POI. */
-export function pedalBinTemplate(rng: RngState, foot: number): ObjectTemplate {
-  const material: MaterialId = rngChance(rng, 0.5) ? 'plastic' : 'metal';
+/**
+ * `pedal-bin`: body, lid over a 1-2 mm seam, pedal at +z, lid hinge; route base -> side -> hinge over the seam -> lid;
+ * bin-gap POI on the open seam beside the hinge. The route climbs the side at local `side` * x (the placer picks the
+ * side facing the room).
+ */
+export function pedalBinTemplate(rng: RngState, foot: number, side: 1 | -1 = -1): ObjectTemplate {
+  const material: MaterialId = rngChance(rng, PEDAL_BIN.plasticP) ? 'plastic' : 'metal';
   const R = PEDAL_BIN.diam / 2, seam = rngRange(rng, PEDAL_BIN.seam[0], PEDAL_BIN.seam[1]);
   const bodyTop = PEDAL_BIN.height - PEDAL_BIN.lidHeight - seam, lidR = R + 2;
   const [pw, ph, pd] = PEDAL_BIN.pedal;
@@ -64,16 +68,21 @@ export function pedalBinTemplate(rng: RngState, foot: number): ObjectTemplate {
     uprightCyl(0, bodyTop + seam, 0, lidR, PEDAL_BIN.lidHeight, material, C, 3),
     spanBox(-pw / 2, pw / 2, 0, ph, R - 10, R + pd, material, C, 2),
   ];
-  const o = foot, e = 0.7 * foot, y = PEDAL_BIN.height;
+  const o = foot, e = 0.7 * foot, y = PEDAL_BIN.height, s = -side;
+  const at = (x: number, py: number): Vec3 => ({ x: s * x, y: py, z: 0 });
+  // lid hinge on the route side, flush with the body: it bridges the seam where the route crosses it (a walker
+  // whose foot offset is under half the seam would turn into the 1-2 mm slit and stall there)
+  const [hw, hd, hover] = PEDAL_BIN.hinge, hx0 = s * -R, hx1 = s * (-R + hd);
+  prims.push(spanBox(Math.min(hx0, hx1), Math.max(hx0, hx1), bodyTop - hover, bodyTop + seam + hover, -hw / 2, hw / 2, material, C, 0));
   const route: Vec3[] = [
-    { x: -R - 40, y: o, z: 0 }, { x: -R - o, y: o, z: 0 }, { x: -R - o, y: 25, z: 0 }, { x: -R - o, y: bodyTop - 15, z: 0 },
-    { x: -lidR - o, y: bodyTop + seam + 8, z: 0 }, { x: -lidR - o, y: y - 8, z: 0 }, { x: -lidR - e, y: y + e, z: 0 },
-    { x: -lidR + 25, y: y + o, z: 0 },
+    at(-R - PEDAL_BIN.routeBase, o), at(-R - o, o), at(-R - o, 25), at(-R - o, bodyTop - 15),
+    at(-lidR - o, bodyTop + seam + 8), at(-lidR - o, y - 8), at(-lidR - e, y + e), at(-lidR + 25, y + o),
   ];
   return {
     id: 'pedal-bin', tags: ['furniture', 'kitchen', 'rest-floor', 'bin'], prims,
     routes: [{ kind: 'bin-to-rim', points: route }],
-    pois: [{ kind: 'bin-gap', pos: { x: -R - o, y: bodyTop + seam / 2, z: 0 } }],
+    // on the open seam a quarter turn from the hinge, towards the pedal (the room side when placed)
+    pois: [{ kind: 'bin-gap', pos: { x: 0, y: bodyTop + seam / 2, z: R + o } }],
   };
 }
 
@@ -116,11 +125,11 @@ export interface BowlPairInfo { template: ObjectTemplate; water: { x: number; z:
 
 /** `pet-bowl-pair`: two glazed (or metal) flared bowls on a rubber mat; one holds water. */
 export function bowlPairTemplate(rng: RngState, foot: number): BowlPairInfo {
-  const material: MaterialId = rngChance(rng, 0.7) ? 'ceramic' : 'metal';
+  const material: MaterialId = rngChance(rng, PET_BOWL.ceramicP) ? 'ceramic' : 'metal';
   const d = rngRange(rng, PET_BOWL.diam[0], PET_BOWL.diam[1]), h = rngRange(rng, PET_BOWL.height[0], PET_BOWL.height[1]);
   const flare = drad(PET_BOWL.flareDeg), rTop = d / 2, rb = rTop - h * (dsin(flare) / dcos(flare));
   const [mw0, mt, md] = PET_BOWL.mat, mw = Math.max(mw0, 4 * rTop + 40);
-  const prims: PrimSpec[] = [spanBox(-mw / 2, mw / 2, 0, mt, -md / 2, md / 2, 'rubber', C, 1)];
+  const prims: PrimSpec[] = [spanBox(-mw / 2, mw / 2, 0, mt, -md / 2, md / 2, 'rubber', C, 0)];
   const waterLeft = rngChance(rng, 0.5);
   const routes: ObjectTemplate['routes'] = [];
   const pois: ObjectTemplate['pois'] = [];
@@ -146,12 +155,13 @@ export function bowlPairTemplate(rng: RngState, foot: number): BowlPairInfo {
 
 export function doormatTemplate(): ObjectTemplate {
   const [w, t, d] = DOORMAT_INSIDE.size;
-  return { id: 'doormat-inside', tags: ['furniture', 'kitchen', 'rest-floor', 'mat'], prims: [spanBox(-w / 2, w / 2, 0, t, -d / 2, d / 2, 'fabric', S, 2)] };
+  // square edges: a rounded bottom edge would leave a groove along the floor that walkers stall in
+  return { id: 'doormat-inside', tags: ['furniture', 'kitchen', 'rest-floor', 'mat'], prims: [spanBox(-w / 2, w / 2, 0, t, -d / 2, d / 2, 'fabric', S, 0)] };
 }
 
 /** `houseplant`: glazed pot with soil 20 below the rim and a few leafy stems; route pot -> rim -> soil. */
 export function houseplantTemplate(rng: RngState, foot: number, bu: number): ObjectTemplate {
-  const D = rngRange(rng, HOUSEPLANT.potDiam[0], HOUSEPLANT.potDiam[1]), h = 0.85 * D, flare = drad(8);
+  const D = rngRange(rng, HOUSEPLANT.potDiam[0], HOUSEPLANT.potDiam[1]), h = HOUSEPLANT.heightK * D, flare = drad(HOUSEPLANT.flareDeg);
   const rTop = D / 2, rb = rTop - h * (dsin(flare) / dcos(flare)), w = HOUSEPLANT.potWall;
   const spec: RingSpec = { n: HOUSEPLANT.staves, x: 0, y0: 0, z: 0, rBottom: rb, height: h, wall: w, flare, material: 'ceramic', flags: S };
   const soilY = h - 20;
@@ -187,7 +197,7 @@ export function houseplantTemplate(rng: RngState, foot: number, bu: number): Obj
 
 /** `fruit-bowl`: flared ceramic bowl with 3-6 fruit; fruit anchor POI on the top fruit. */
 export function fruitBowlTemplate(rng: RngState, foot: number): ObjectTemplate {
-  const B = FRUIT_BOWL, flare = drad(25), rTop = B.diam / 2, rb = rTop - B.height * (dsin(flare) / dcos(flare));
+  const B = FRUIT_BOWL, flare = drad(B.flareDeg), rTop = B.diam / 2, rb = rTop - B.height * (dsin(flare) / dcos(flare));
   const spec: RingSpec = { n: B.staves, x: 0, y0: 0, z: 0, rBottom: rb, height: B.height, wall: B.wall, flare, material: 'ceramic', flags: S };
   const prims: PrimSpec[] = [uprightCyl(0, 0, 0, rb - 2, B.wall, 'ceramic', C), ...ring(spec)];
   const n = rngInt(rng, B.fruit[0], B.fruit[1]);

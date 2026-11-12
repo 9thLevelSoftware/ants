@@ -40,21 +40,24 @@ export function walkRoute(k: Kernel, pts: readonly Vec3[], bu: number, o: RouteW
   const drop = { x: first.x, y: first.y + 3 * bu, z: first.z };
   if (!walkerPlace(k.field, kin, drop, { dir: { x: 0, y: -1, z: 0 }, heading: h }, k.walker)) return { up: false, back: false, stuckAt: 0, steps: 0 };
   let steps = 0;
-  const dir: Vec3 = { x: 0, y: 0, z: 0 };
+  const dir: Vec3 = { x: 0, y: 0, z: 0 }, nrm: Vec3 = { x: 0, y: 1, z: 0 };
   const go = (order: readonly Vec3[]): number => {
     for (let i = 1; i < order.length; i++) {
       const t = order[i];
+      // the surface normal at the waypoint: it counts as reached only from the same face (a thin rim is not
+      // passed by touching it from below)
+      k.field.normal(t, nrm);
       let n = 0;
       for (;;) {
         const dx = t.x - kin.pos.x, dy = t.y - kin.pos.y, dz = t.z - kin.pos.z, l = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (l < tol) break;
+        if (l < tol && kin.up.x * nrm.x + kin.up.y * nrm.y + kin.up.z * nrm.z > 0.5) break;
         if (++n > maxSteps) return i;
         // steer straight at the waypoint (the walker keeps its heading when the target lies along the surface
         // normal); except on level ground below a target that is up a wall: walk into the wall first, which turns
         // the walker onto it
         const u = kin.up, dn = (dx * u.x + dy * u.y + dz * u.z) / l;
         let tx = dx / l, ty = dy / l, tz = dz / l;
-        if (o.steer !== 'raw' && u.y > 0.7 && dn * dn > 1 - 0.25 * 0.25) {
+        if (o.steer === 'tangent' && u.y > 0.7 && dn * dn > 1 - 0.25 * 0.25) {
           tx -= dn * u.x; ty -= dn * u.y; tz -= dn * u.z;
           const tl = Math.sqrt(tx * tx + ty * ty + tz * tz);
           if (tl > 1e-4) { tx /= tl; ty /= tl; tz /= tl; } else { tx = kin.fwd.x; ty = kin.fwd.y; tz = kin.fwd.z; }
