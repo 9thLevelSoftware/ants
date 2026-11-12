@@ -152,8 +152,11 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     // ---- stem: fine lengthwise hairs and (style 1) darker nodes
     float a = atan(lp.z, lp.x);
     float hair = wrNoise(vec2(a * 9.0, lp.y * 0.4));
-    vec3 c = wrCol * (0.9 + 0.2 * hair);
-    if (lk.y > 0.5) c *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.6, abs(fract(lp.y / 18.0 + lk.w) - 0.5) * 18.0));
+    float streak = wrNoise(vec2(a * 14.0, lp.y * 0.05));
+    vec3 c = wrCol * (0.75 + 0.2 * hair + 0.2 * streak);
+    // nodes: a darker, slightly swollen ring every 18 mm (style 1), fine pale hairs catching the light
+    if (lk.y > 0.5) c *= 1.0 - 0.4 * (1.0 - smoothstep(0.0, 0.9, abs(fract(lp.y / 18.0 + lk.w) - 0.5) * 18.0));
+    c = mix(c, vec3(0.8, 0.85, 0.7), 0.25 * step(0.82, wrNoise(vec2(a * 40.0, lp.y * 3.0))));
     wrAlb = c; wrRoughO = 0.55; wrMetal = 0.0; wrTransl = lk.z * 0.6;
   } else if (fin <= ${F.umbel}) {
     // ---- flower heads on a flattened ellipsoid: top = florets / petals, underside = green bracts

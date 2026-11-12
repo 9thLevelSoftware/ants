@@ -29,7 +29,7 @@ export function proceduralPixels(look: ProceduralLook, size: number, seed: numbe
   const shade = new Float32Array(size * size).fill(1);
   if (look.weave) addWeave(h, size, look.weave);
   if (look.speckle) scatter(h, shade, size, seed + 101, look.speckle, 1.2, 2.6, 'grain');
-  if (look.pores) scatter(h, shade, size, seed + 202, look.pores * 0.35, 0.8, 2.2, 'pore');
+  if (look.pores) scatter(h, shade, size, seed + 202, look.pores * 0.3, 0.7, 3.2, 'pore');
   const albedo = new Uint8Array(size * size * 4), normal = new Uint8Array(size * size * 4), rough = new Uint8Array(size * size * 4);
   const bump = look.bump * 6;
   for (let y = 0; y < size; y++) {

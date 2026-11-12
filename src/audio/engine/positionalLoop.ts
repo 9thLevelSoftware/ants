@@ -25,7 +25,7 @@ export class PositionalLoop {
   readonly pos: Vec3;
 
   constructor(private readonly kit: SynthKit, bus: AudioNode, private readonly loop: LoopPlayer | null, private readonly synth: SynthLoop | null,
-    pos: Vec3, private readonly space: SpaceClass, gainDb: number, fadeInS: number) {
+    pos: Vec3, private readonly space: SpaceClass, gainDb: number, fadeInS: number, bandHz: [number, number] | null = null) {
     const ctx = kit.ctx;
     this.pos = { ...pos };
     this.out = ctx.createGain();
@@ -37,9 +37,25 @@ export class PositionalLoop {
     this.pan = ctx.createStereoPanner();
     this.out.gain.setValueAtTime(0, ctx.currentTime);
     this.out.gain.linearRampToValueAtTime(dbToGain(gainDb), ctx.currentTime + fadeInS);
-    this.out.connect(this.gain).connect(this.filter).connect(this.pan).connect(bus);
+    let head: AudioNode = this.out;
+    if (bandHz) {
+      const hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = bandHz[0];
+      lp.type = 'lowpass'; lp.frequency.value = bandHz[1];
+      head = head.connect(hp).connect(lp);
+    }
+    head.connect(this.gain).connect(this.filter).connect(this.pan).connect(bus);
     if (loop) loop.output.connect(this.out);
     this.nextPiece = ctx.currentTime;
+  }
+
+  /** Glide the loop's own level (warning phase -> main phase). */
+  setLevel(gainDb: number, fadeS: number): void {
+    if (this.stopped) return;
+    const now = this.kit.ctx.currentTime;
+    this.out.gain.cancelScheduledValues(now);
+    this.out.gain.setValueAtTime(this.out.gain.value, now);
+    this.out.gain.linearRampToValueAtTime(dbToGain(gainDb), now + fadeS);
   }
 
   setPos(p: Vec3): void { this.pos.x = p.x; this.pos.y = p.y; this.pos.z = p.z; }

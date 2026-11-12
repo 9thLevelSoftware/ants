@@ -33,12 +33,14 @@ export interface PlayRequest {
   durS?: number;
   /** Extra gain, dB. */
   gainDb?: number;
+  /** Start this long after now, s (thunder after lightning). */
+  delayS?: number;
 }
 
 export class CuePlayer {
   readonly voices = new VoiceTable(AUDIO_MAX_VOICES);
   private live = new Map<number, LiveVoice>();
-  private readonly budget = new TraceBudget();
+  readonly budget = new TraceBudget();
   private readonly sp: Spatial = newSpatial();
   private readonly adm: Admission = { ok: false, steal: -1 };
   private readonly steps = new CrowdMeter(CROWD.windowS, CROWD.singleVoiceMaxRate);
@@ -98,8 +100,9 @@ export class CuePlayer {
     const v = this.makeVoice(s.bus, sp, s.space !== 'flat', now);
     v.gain.gain.value = sp.gain;
     const opts: ShotOptions = { semis: req.semis, fileSemis: req.fileSemis, strength: req.strength, files: req.files, durS: req.durS };
-    const res = playShot(this.env, s, now, peak, v.gain, opts);
-    v.endTime = now + res.durationS + 0.05;
+    const t0 = now + Math.max(0, req.delayS ?? 0);
+    const res = playShot(this.env, s, t0, peak, v.gain, opts);
+    v.endTime = t0 + res.durationS + 0.05;
     v.id = this.voices.add(req.key, priority, heard, v.endTime);
     this.live.set(v.id, v);
     const src = [res.usedFile ? `file:${res.usedFile}` : '', res.usedSynth && s.synth ? `synth:${s.synth}` : ''].filter(Boolean).join('+');
