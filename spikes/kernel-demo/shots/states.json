@@ -1,0 +1,350 @@
+{
+ "01-surface-entrance-3p": {
+  "pos": [
+   237.0972,
+   -0.4878,
+   241.7962
+  ],
+  "up": [
+   0.0549,
+   0.998,
+   -0.0328
+  ],
+  "fwd": [
+   0.8433,
+   -0.0288,
+   0.5366
+  ],
+  "upVis": [
+   0.0549,
+   0.998,
+   -0.0328
+  ],
+  "medium": "surface",
+  "status": "ok",
+  "f": 0.6003,
+  "foot": 0.6,
+  "simTime": 0.9,
+  "autopilot": null,
+  "camera": {
+   "dist": 25.95,
+   "fov": 50,
+   "near": 1,
+   "tunnel": 0
+  }
+ },
+ "01b-entrance-looking-down-free": {
+  "pos": [
+   237.0972,
+   -0.4878,
+   241.7962
+  ],
+  "up": [
+   0.0549,
+   0.998,
+   -0.0328
+  ],
+  "fwd": [
+   0.8433,
+   -0.0288,
+   0.5366
+  ],
+  "upVis": [
+   0.0549,
+   0.998,
+   -0.0328
+  ],
+  "medium": "surface",
+  "status": "ok",
+  "f": 0.6003,
+  "foot": 0.6,
+  "simTime": 0.9,
+  "autopilot": null,
+  "camera": {
+   "dist": 25.95,
+   "fov": 50,
+   "near": 1,
+   "tunnel": 0
+  }
+ },
+ "navTo": {
+  "dist": 78.56089068191721
+ },
+ "02-tunnel-3p": {
+  "pos": [
+   279.036,
+   -32.6499,
+   271.1083
+  ],
+  "up": [
+   0.512,
+   0.1185,
+   -0.8508
+  ],
+  "fwd": [
+   0.8019,
+   -0.421,
+   0.4239
+  ],
+  "upVis": [
+   0.5757,
+   0.2105,
+   -0.7901
+  ],
+  "medium": "cavity",
+  "status": "ok",
+  "f": 0.6,
+  "foot": 0.6,
+  "simTime": 2.667,
+  "autopilot": "C1",
+  "camera": {
+   "dist": 7.35,
+   "fov": 78.6,
+   "near": 0.758,
+   "tunnel": 0.95
+  }
+ },
+ "03-chamber-ceiling-3p": {
+  "pos": [
+   316.6757,
+   -30.8438,
+   283.0982
+  ],
+  "up": [
+   -0.0772,
+   -0.9959,
+   -0.0463
+  ],
+  "fwd": [
+   -0.9878,
+   0.0701,
+   0.139
+  ],
+  "upVis": [
+   -0.0772,
+   -0.9959,
+   -0.0463
+  ],
+  "medium": "cavity",
+  "status": "ok",
+  "f": 0.6,
+  "foot": 0.6,
+  "simTime": 4.533,
+  "autopilot": null,
+  "camera": {
+   "dist": 12.76,
+   "fov": 68.4,
+   "near": 0.656,
+   "tunnel": 0.61
+  }
+ },
+ "03b-chamber-ceiling-observer": {
+  "pos": [
+   316.6757,
+   -30.8438,
+   283.0982
+  ],
+  "up": [
+   -0.0772,
+   -0.9959,
+   -0.0463
+  ],
+  "fwd": [
+   -0.9878,
+   0.0701,
+   0.139
+  ],
+  "upVis": [
+   -0.0772,
+   -0.9959,
+   -0.0463
+  ],
+  "medium": "cavity",
+  "status": "ok",
+  "f": 0.6,
+  "foot": 0.6,
+  "simTime": 4.533,
+  "autopilot": null,
+  "camera": {
+   "dist": 12.76,
+   "fov": 68.4,
+   "near": 0.656,
+   "tunnel": 0.61
+  }
+ },
+ "04-stem-climb-3p": {
+  "pos": [
+   152.7752,
+   35.7249,
+   401.384
+  ],
+  "up": [
+   0.8949,
+   0,
+   0.4463
+  ],
+  "fwd": [
+   -0.0178,
+   0.9992,
+   0.0358
+  ],
+  "upVis": [
+   0.8949,
+   0,
+   0.4463
+  ],
+  "medium": "surface",
+  "status": "ok",
+  "f": 0.6012,
+  "foot": 0.6,
+  "simTime": 6.633,
+  "autopilot": null,
+  "camera": {
+   "dist": 25.05,
+   "fov": 50.7,
+   "near": 1,
+   "tunnel": 0
+  }
+ },
+ "04b-stem-climb-side": {
+  "pos": [
+   152.7752,
+   35.7249,
+   401.384
+  ],
+  "up": [
+   0.8949,
+   0,
+   0.4463
+  ],
+  "fwd": [
+   -0.0178,
+   0.9992,
+   0.0358
+  ],
+  "upVis": [
+   0.8949,
+   0,
+   0.4463
+  ],
+  "medium": "surface",
+  "status": "ok",
+  "f": 0.6012,
+  "foot": 0.6,
+  "simTime": 6.633,
+  "autopilot": null,
+  "camera": {
+   "dist": 25.05,
+   "fov": 50.7,
+   "near": 1,
+   "tunnel": 0
+  }
+ },
+ "spawned": 60,
+ "ai": {
+  "n": 60,
+  "trips": 46,
+  "minFoverFoot": 0.9976940073748786,
+  "air": 0,
+  "cavity": 60,
+  "usPerAntTick": 12.058823530142213
+ },
+ "05-ai-tunnel-3p": {
+  "pos": [
+   307.0041,
+   -68.2526,
+   332.9949
+  ],
+  "up": [
+   -0.4556,
+   0.6902,
+   0.5622
+  ],
+  "fwd": [
+   -0.8152,
+   -0.0698,
+   -0.575
+  ],
+  "upVis": [
+   -0.4556,
+   0.6902,
+   0.5622
+  ],
+  "medium": "cavity",
+  "status": "ok",
+  "f": 0.6,
+  "foot": 0.6,
+  "simTime": 15.133,
+  "autopilot": null,
+  "camera": {
+   "dist": 6.45,
+   "fov": 80,
+   "near": 0.744,
+   "tunnel": 1
+  }
+ },
+ "05b-ai-chamber-observer": {
+  "pos": [
+   307.0041,
+   -68.2526,
+   332.9949
+  ],
+  "up": [
+   -0.4556,
+   0.6902,
+   0.5622
+  ],
+  "fwd": [
+   -0.8152,
+   -0.0698,
+   -0.575
+  ],
+  "upVis": [
+   -0.4556,
+   0.6902,
+   0.5622
+  ],
+  "medium": "cavity",
+  "status": "ok",
+  "f": 0.6,
+  "foot": 0.6,
+  "simTime": 15.133,
+  "autopilot": null,
+  "camera": {
+   "dist": 6.45,
+   "fov": 80,
+   "near": 0.744,
+   "tunnel": 1
+  }
+ },
+ "aiAfter": {
+  "n": 60,
+  "trips": 46,
+  "minFoverFoot": 0.9976940073748786,
+  "air": 0,
+  "cavity": 60,
+  "usPerAntTick": 12.058823530142213
+ },
+ "stats": {
+  "buildMs": 46.79999999888241,
+  "meshAllMs": 47.29999999888241,
+  "carveChunks": 42,
+  "meshedChunks": 38,
+  "tris": 12228,
+  "breaches": 7,
+  "openVolumeMm3": 47877,
+  "nav": {
+   "fields": 5,
+   "builtFields": 3,
+   "slots": 42,
+   "bytes": 989952,
+   "rebuilds": 3,
+   "updates": 0,
+   "evictions": 0
+  },
+  "renderer": {
+   "calls": 39,
+   "triangles": 138204
+  }
+ }
+}

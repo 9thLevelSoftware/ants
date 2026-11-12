@@ -17,6 +17,8 @@ export const MATERIAL_IDS = [
   'loam', 'humus', 'sand', 'clay', 'gravel', 'concrete', 'asphalt', 'stone', 'brick', 'tile',
   'wood-sound', 'wood-decayed', 'bark', 'plant', 'leaf', 'metal', 'plastic', 'rubber', 'glass',
   'fabric', 'ceramic', 'paper', 'food', 'water', 'plaster',
+  'insulation', // GDD 03 (wall insulation, diggable by Lasius at 0.5) — appended by F1b, codes are stable
+  'mortar', // GDD 06 (crumbling joint mortar) — appended by F1c, codes are stable
 ] as const;
 export type MaterialId = (typeof MATERIAL_IDS)[number];
 

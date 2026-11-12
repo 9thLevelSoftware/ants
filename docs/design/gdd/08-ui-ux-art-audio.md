@@ -344,7 +344,7 @@ Layout at 1280 x 720:
 | Tool options | 360, 72, 560, 40 (appears under the palette) | Context options of the active tool (below). |
 | HUD | Time cluster and pulse remain; possessed-ant panel hidden. | |
 
-Camera in colony view (GDD 01 §6.7 owns the rig): WASD pan (speed proportional to height), Q/E rotate (90°/s while held), wheel zoom from 30 BU to 1500 BU (default 200), middle-drag orbit, F focus selection, Home recentres on the nest's main entrance.
+Camera in colony view (GDD 01 §6.7 owns the rig): WASD pan (speed proportional to height), Q/E rotate (90°/s while held), wheel zoom from 30 BU to 1500 BU (default 200), middle-drag orbit, Home recentres on the nest's main entrance.
 
 Cutaway: **Slice** clips terrain, primitives and cavity meshes above a horizontal plane at depth d below the local ground surface; cavity walls cut by the plane get a cross-section cap in `#3A2A1E`, and the cut edge shows a 0.25 BU line in `--c-text-3`. **X-ray** renders the ground translucent (alpha 0.15, depth-faded) and all cavities as solid lit volumes, so the whole nest reads at once. Ants, brood and items inside cavities are drawn in both modes.
 
@@ -469,31 +469,31 @@ Directions A bindings are kept. Additions made by this chapter:
 |---|---|---|
 | Move | WASD | Left stick |
 | Orbit camera | Mouse drag | Right stick |
-| Zoom | Wheel | LT/RT in observer; in possession: hold LB (> 250 ms) + right stick vertical (a tap of LB is still previous ant) |
+| Zoom | Wheel | LB (held > 250 ms) + right stick vertical in possession and observer (a tap of LB is still previous ant); RT in / LT out in colony view |
 | Interact | E | A |
-| Dig (hold) | F | LT (hold) |
-| Toggle trail laying | R | Left stick click |
+| Dig (hold) | F | X (hold) |
+| Toggle trail laying | R | D-pad up |
 | Bite | Left click / Q | RT |
-| Special (spray etc.) | Right click / C | D-pad down |
-| Antennate / inspect | T | X |
-| Share food | G | Y |
+| Special (spray etc.) | Right click / C | LT |
+| Antennate / inspect | T | Y |
+| Share food | G | D-pad down |
 | Let go / drop | Space | B |
-| Release to observer | X | View (Back) |
+| Release to observer | X | View (Back) tap |
 | Cycle ant | Tab / Shift+Tab | RB / LB |
-| Possess a forager / a digger / a nurse / the queen (quick keys, directions A) | 5 / 6 / 7 / 8 (GDD 01 §5.1; Shift+1..7 are the colony-view marker tools) | via Roster |
-| Focus the alert feed | ` (backquote) | hold View 0.5 s |
-| Colony view | M | D-pad up |
-| Scent view | V | Right stick click |
+| Possess a forager / a digger / a nurse / the queen (quick keys, directions A) | 5 / 6 / 7 / 8 (GDD 01 §5.1; Shift+1..7 are the colony-view marker tools) | LB+X / LB+A / LB+B / LB+Y |
+| Focus the alert feed | ` (backquote) | LB+View |
+| Colony view | M | View hold 0.5 s |
+| Scent view | V | D-pad left (possession), D-pad up (observer) |
 | Overlay cycle (temperature -> moisture -> threats -> dig plans -> off) | O | — (colony-view buttons) |
-| Pause / speeds / next event | P / 1-4 / N | D-pad left/right |
-| Hide HUD | H | — |
+| Pause / speeds / next event | P / 1-4 / N | LB+D-pad up / LB+D-pad right, left (step) / LB+left stick click |
+| Hide HUD | H | LB+D-pad down |
 | Quick save / quick load | F5 / F9 | — |
 | Menu | Esc | Start |
 | Directives / Colony health / Roster / Nest overview | I / Y / L / U (B is GDD 01 `cycle-target`) | via pause menu "Colony" submenu |
 | Journal / Codex | J / K | via pause menu |
-| Photo mode | F2 | via pause menu |
+| Photo mode | F2 | LS+RS click together |
 | Remind me of controls | ? (Shift+/) | via pause menu "Controls" |
-| Dismiss teaching hint | Shift+H (Backspace is GDD 01 `possess-last`) | hold Y 0.8 s |
+| Dismiss teaching hint | Shift+H (Backspace is GDD 01 `possess-last`) | RB+View |
 | Marker tools (colony view) | Shift+1..7 | — |
 | Cutaway depth (colony view) | [ / ] and PageUp / PageDown | — |
 
@@ -516,7 +516,7 @@ Browser-reserved keys (F5, F9, F2, Tab, Backspace) call `preventDefault` only wh
 
 AlertCard 336 x 64 dp: status shape (left, 20 dp), title line (`--t-small` 600, max 48 characters), cause line (`--t-caption`, max 72 characters), right side: count badge ("x3") and `jump-to` button. Click anywhere on the card: opens Colony health with the linked diagnostic expanded (if `diagnosticId` is set) AND moves the camera to the alert's focus (entity or position) using the same rules as 4.4 Show. Right-click (or gamepad X while the card is focused): context menu with Acknowledge, Snooze this kind for 1 game day, Open in journal. Acknowledging a critical alert unpins it (it stays in the log).
 
-Keyboard: the backquote key (`` ` ``, rebindable) moves focus into the feed (arrow keys move between cards, Enter opens, Shift+Enter opens the context menu, Esc returns focus to the game); gamepad: hold View 0.5 s does the same. Alt+number and Ctrl+number are never used (browsers reserve them for tab switching).
+Keyboard: the backquote key (`` ` ``, rebindable) moves focus into the feed (arrow keys move between cards, Enter opens, Shift+Enter opens the context menu, Esc returns focus to the game); gamepad: LB+View does the same (View hold is GDD 01 `colony-view`). Alt+number and Ctrl+number are never used (browsers reserve them for tab switching).
 
 ### 6.3 Throttling
 
@@ -749,7 +749,7 @@ Rules: every screen has a defined initial focus (listed per screen); focus is re
 
 Teach by doing, in the order the queen's body needs the verbs. One teaching prompt at a time. Prompts never block, never pause, never take focus. Aims are naturalist questions in the journal. The codex explains; it never interrupts.
 
-Hint lifecycle: `pending` -> (trigger true for `HINT_DELAY_REAL_S`) -> `shown` -> learned (completion condition met `HINT_LEARN_USES` times, default 3 unless stated) or dismissed (Backspace / hold Y / Settings > Hints off) -> never shown again. Hint state is stored in the profile (`foundress.profile.v1.hints`) so it persists across colonies and is mirrored into the save. "Reset hints" clears it. A shown hint that is not completed within `HINT_IDLE_REAL_S = 60` fades to compact form; after another 120 real s without completion it returns to full form once. While a critical alert is active, teaching prompts are suppressed. At most `HINT_MAX_PER_MINUTE = 2` new teaching prompts per real minute.
+Hint lifecycle: `pending` -> (trigger true for `HINT_DELAY_REAL_S`) -> `shown` -> learned (completion condition met `HINT_LEARN_USES` times, default 3 unless stated) or dismissed (Shift+H / gamepad RB+View / Settings > Hints off; Backspace is GDD 01 `possess-last`) -> never shown again. Hint state is stored in the profile (`foundress.profile.v1.hints`) so it persists across colonies and is mirrored into the save. "Reset hints" clears it. A shown hint that is not completed within `HINT_IDLE_REAL_S = 60` fades to compact form; after another 120 real s without completion it returns to full form once. While a critical alert is active, teaching prompts are suppressed. At most `HINT_MAX_PER_MINUTE = 2` new teaching prompts per real minute.
 
 ### 9.2 First 15 minutes (Lasius niger; claustral founding)
 

@@ -74,3 +74,19 @@ describe('scalar', () => {
     expect(sign0(Number.NaN)).toBe(0);
   });
 });
+
+describe('degenerate ranges (F1a-fixes)', () => {
+  it('smoothstep with e0 === e1 is a step at the edge', () => {
+    expect(smoothstep(2, 2, 1.999)).toBe(0);
+    expect(smoothstep(2, 2, 2)).toBe(1);
+    expect(smoothstep(2, 2, 100)).toBe(1);
+    expect(smoothstep(2, 2, -Infinity)).toBe(0);
+  });
+
+  it('invLerp is 0 and remap is outLo for every x when the input range is degenerate', () => {
+    for (const x of [-5, 3, 3.0001, 1e9]) {
+      expect(invLerp(3, 3, x)).toBe(0);
+      expect(remap(x, 3, 3, 10, 20)).toBe(10);
+    }
+  });
+});

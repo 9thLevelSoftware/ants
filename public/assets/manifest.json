@@ -1,0 +1,1770 @@
+{
+ "root": "public/",
+ "generated_by": "tools/assets/build_manifest.py",
+ "total_bytes": 19913385,
+ "budget_bytes": 25000000,
+ "notes": "Paths are relative to the site root (public/). All assets CC0 / public-domain; see assets-src/MANIFEST.md for sources. Normal maps are OpenGL (+Y up). Audio loop=true means the file is built to wrap seamlessly (tail crossfaded into head).",
+ "materials": {
+  "soil_garden": {
+   "title": "Farm Soil - Garden soil / loam",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/soil_garden/albedo.jpg",
+    "normal": "assets/textures/soil_garden/normal.jpg",
+    "rough": "assets/textures/soil_garden/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "humus_forest": {
+   "title": "Forest Ground 04 - Forest floor humus with grit",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/humus_forest/albedo.jpg",
+    "normal": "assets/textures/humus_forest/normal.jpg",
+    "rough": "assets/textures/humus_forest/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "leaf_litter": {
+   "title": "Leaves Forest Ground - Forest leaf-litter ground",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/leaf_litter/albedo.jpg",
+    "normal": "assets/textures/leaf_litter/normal.jpg",
+    "rough": "assets/textures/leaf_litter/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "sand_playground": {
+   "title": "Playground Sand - Playground / sandbox sand",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/sand_playground/albedo.jpg",
+    "normal": "assets/textures/sand_playground/normal.jpg",
+    "rough": "assets/textures/sand_playground/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "gravel_fine": {
+   "title": "Gravel Floor 02 - Fine grey gravel",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/gravel_fine/albedo.jpg",
+    "normal": "assets/textures/gravel_fine/normal.jpg",
+    "rough": "assets/textures/gravel_fine/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "moss": {
+   "title": "Moss 001 - Moss carpet",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/moss/albedo.jpg",
+    "normal": "assets/textures/moss/normal.jpg",
+    "rough": "assets/textures/moss/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "bark_oak": {
+   "title": "Bark Brown 01 - Tree bark (deep-furrowed, oak-like)",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/bark_oak/albedo.jpg",
+    "normal": "assets/textures/bark_oak/normal.jpg",
+    "rough": "assets/textures/bark_oak/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "bark_pine": {
+   "title": "Pine Bark - Tree bark (plated pine bark)",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/bark_pine/albedo.jpg",
+    "normal": "assets/textures/bark_pine/normal.jpg",
+    "rough": "assets/textures/bark_pine/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "wood_decayed": {
+   "title": "Rough Wood - Weathered cracked decayed timber",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/wood_decayed/albedo.jpg",
+    "normal": "assets/textures/wood_decayed/normal.jpg",
+    "rough": "assets/textures/wood_decayed/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "wood_mossy": {
+   "title": "Moss Wood - Moss-covered rotting planks",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/wood_mossy/albedo.jpg",
+    "normal": "assets/textures/wood_mossy/normal.jpg",
+    "rough": "assets/textures/wood_mossy/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "wood_floor": {
+   "title": "Wood Floor Worn - Worn wooden floor planks",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/wood_floor/albedo.jpg",
+    "normal": "assets/textures/wood_floor/normal.jpg",
+    "rough": "assets/textures/wood_floor/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "wood_furniture": {
+   "title": "Kitchen Wood - Kitchen / furniture wood",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/wood_furniture/albedo.jpg",
+    "normal": "assets/textures/wood_furniture/normal.jpg",
+    "rough": "assets/textures/wood_furniture/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "concrete_paving": {
+   "title": "Concrete Pavement - Concrete paving slabs with joints",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/concrete_paving/albedo.jpg",
+    "normal": "assets/textures/concrete_paving/normal.jpg",
+    "rough": "assets/textures/concrete_paving/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "paver_interlock": {
+   "title": "Concrete Pavers - Interlocking concrete pavers",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/paver_interlock/albedo.jpg",
+    "normal": "assets/textures/paver_interlock/normal.jpg",
+    "rough": "assets/textures/paver_interlock/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "asphalt": {
+   "title": "Asphalt 02 - Cracked asphalt",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/asphalt/albedo.jpg",
+    "normal": "assets/textures/asphalt/normal.jpg",
+    "rough": "assets/textures/asphalt/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "brick": {
+   "title": "Red Brick - Red brick wall",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/brick/albedo.jpg",
+    "normal": "assets/textures/brick/normal.jpg",
+    "rough": "assets/textures/brick/rough.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "plaster_wall": {
+   "title": "Painted Plaster Wall - Painted plaster wall",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/plaster_wall/albedo.jpg",
+    "normal": "assets/textures/plaster_wall/normal.jpg",
+    "rough": "assets/textures/plaster_wall/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "tile_ceramic": {
+   "title": "Tiles 133 B - White ceramic kitchen tiles (dirty)",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/tile_ceramic/albedo.jpg",
+    "normal": "assets/textures/tile_ceramic/normal.jpg",
+    "rough": "assets/textures/tile_ceramic/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "rubber_playground": {
+   "title": "Rubberized Track - Rubberised playground / track surface",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/rubber_playground/albedo.jpg",
+    "normal": "assets/textures/rubber_playground/normal.jpg",
+    "rough": "assets/textures/rubber_playground/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "rubber_black": {
+   "title": "Rubber 001 - Black rubber (tyre / gym mat)",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/rubber_black/albedo.jpg",
+    "normal": "assets/textures/rubber_black/normal.jpg",
+    "rough": "assets/textures/rubber_black/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "metal_painted": {
+   "title": "Painted Metal 014 - Painted metal, flaking paint over rust",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/metal_painted/albedo.jpg",
+    "normal": "assets/textures/metal_painted/normal.jpg",
+    "rough": "assets/textures/metal_painted/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "metal_galvanised": {
+   "title": "Corrugated Iron 02 - Galvanised corrugated steel",
+   "atlas": false,
+   "maps": {
+    "albedo": "assets/textures/metal_galvanised/albedo.jpg",
+    "normal": "assets/textures/metal_galvanised/normal.jpg",
+    "rough": "assets/textures/metal_galvanised/rough.jpg"
+   },
+   "size": [
+    512,
+    512
+   ]
+  },
+  "leaf_atlas_maple": {
+   "title": "Leaf Set 028 - Fallen autumn leaves atlas (with opacity)",
+   "atlas": true,
+   "maps": {
+    "albedo": "assets/textures/leaf_atlas_maple/albedo.jpg",
+    "normal": "assets/textures/leaf_atlas_maple/normal.jpg",
+    "rough": "assets/textures/leaf_atlas_maple/rough.jpg",
+    "opacity": "assets/textures/leaf_atlas_maple/opacity.jpg"
+   },
+   "size": [
+    1024,
+    512
+   ]
+  },
+  "leaf_atlas_oak_dry": {
+   "title": "Leaf Set 030 - Dry fallen leaves atlas (with opacity)",
+   "atlas": true,
+   "maps": {
+    "albedo": "assets/textures/leaf_atlas_oak_dry/albedo.jpg",
+    "normal": "assets/textures/leaf_atlas_oak_dry/normal.jpg",
+    "rough": "assets/textures/leaf_atlas_oak_dry/rough.jpg",
+    "opacity": "assets/textures/leaf_atlas_oak_dry/opacity.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "grass_blades_atlas": {
+   "title": "Foliage 008 - Grass-blade atlas (with opacity)",
+   "atlas": true,
+   "maps": {
+    "albedo": "assets/textures/grass_blades_atlas/albedo.jpg",
+    "normal": "assets/textures/grass_blades_atlas/normal.jpg",
+    "rough": "assets/textures/grass_blades_atlas/rough.jpg",
+    "opacity": "assets/textures/grass_blades_atlas/opacity.jpg"
+   },
+   "size": [
+    1024,
+    1024
+   ]
+  }
+ },
+ "assets": [
+  {
+   "id": "tex/soil_garden/albedo",
+   "path": "assets/textures/soil_garden/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "soil_garden",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 166256,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/soil_garden/normal",
+   "path": "assets/textures/soil_garden/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "soil_garden",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 731264,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/soil_garden/rough",
+   "path": "assets/textures/soil_garden/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "soil_garden",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 28952,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/humus_forest/albedo",
+   "path": "assets/textures/humus_forest/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "humus_forest",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 343821,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/humus_forest/normal",
+   "path": "assets/textures/humus_forest/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "humus_forest",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 583269,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/humus_forest/rough",
+   "path": "assets/textures/humus_forest/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "humus_forest",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 144249,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/leaf_litter/albedo",
+   "path": "assets/textures/leaf_litter/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "leaf_litter",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 338716,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/leaf_litter/normal",
+   "path": "assets/textures/leaf_litter/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "leaf_litter",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 635088,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/leaf_litter/rough",
+   "path": "assets/textures/leaf_litter/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "leaf_litter",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 99543,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/sand_playground/albedo",
+   "path": "assets/textures/sand_playground/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "sand_playground",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 231530,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/sand_playground/normal",
+   "path": "assets/textures/sand_playground/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "sand_playground",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 556799,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/sand_playground/rough",
+   "path": "assets/textures/sand_playground/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "sand_playground",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 17094,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/gravel_fine/albedo",
+   "path": "assets/textures/gravel_fine/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "gravel_fine",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 429921,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/gravel_fine/normal",
+   "path": "assets/textures/gravel_fine/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "gravel_fine",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 736148,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/gravel_fine/rough",
+   "path": "assets/textures/gravel_fine/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "gravel_fine",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 169006,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/moss/albedo",
+   "path": "assets/textures/moss/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "moss",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 436636,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/moss/normal",
+   "path": "assets/textures/moss/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "moss",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 1011369,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/moss/rough",
+   "path": "assets/textures/moss/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "moss",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 276755,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/bark_oak/albedo",
+   "path": "assets/textures/bark_oak/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "bark_oak",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 327267,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/bark_oak/normal",
+   "path": "assets/textures/bark_oak/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "bark_oak",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 629705,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/bark_oak/rough",
+   "path": "assets/textures/bark_oak/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "bark_oak",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 75166,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/bark_pine/albedo",
+   "path": "assets/textures/bark_pine/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "bark_pine",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 200659,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/bark_pine/normal",
+   "path": "assets/textures/bark_pine/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "bark_pine",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 489278,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/bark_pine/rough",
+   "path": "assets/textures/bark_pine/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "bark_pine",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 95949,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_decayed/albedo",
+   "path": "assets/textures/wood_decayed/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "wood_decayed",
+   "width": 512,
+   "height": 512,
+   "bytes": 57974,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_decayed/normal",
+   "path": "assets/textures/wood_decayed/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "wood_decayed",
+   "width": 512,
+   "height": 512,
+   "bytes": 74358,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_decayed/rough",
+   "path": "assets/textures/wood_decayed/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "wood_decayed",
+   "width": 512,
+   "height": 512,
+   "bytes": 19385,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_mossy/albedo",
+   "path": "assets/textures/wood_mossy/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "wood_mossy",
+   "width": 512,
+   "height": 512,
+   "bytes": 73852,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_mossy/normal",
+   "path": "assets/textures/wood_mossy/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "wood_mossy",
+   "width": 512,
+   "height": 512,
+   "bytes": 112802,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_mossy/rough",
+   "path": "assets/textures/wood_mossy/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "wood_mossy",
+   "width": 512,
+   "height": 512,
+   "bytes": 27923,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_floor/albedo",
+   "path": "assets/textures/wood_floor/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "wood_floor",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 120187,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_floor/normal",
+   "path": "assets/textures/wood_floor/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "wood_floor",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 159869,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_floor/rough",
+   "path": "assets/textures/wood_floor/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "wood_floor",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 28647,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_furniture/albedo",
+   "path": "assets/textures/wood_furniture/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "wood_furniture",
+   "width": 512,
+   "height": 512,
+   "bytes": 59229,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_furniture/normal",
+   "path": "assets/textures/wood_furniture/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "wood_furniture",
+   "width": 512,
+   "height": 512,
+   "bytes": 27401,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/wood_furniture/rough",
+   "path": "assets/textures/wood_furniture/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "wood_furniture",
+   "width": 512,
+   "height": 512,
+   "bytes": 64439,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/concrete_paving/albedo",
+   "path": "assets/textures/concrete_paving/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "concrete_paving",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 235619,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/concrete_paving/normal",
+   "path": "assets/textures/concrete_paving/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "concrete_paving",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 465812,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/concrete_paving/rough",
+   "path": "assets/textures/concrete_paving/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "concrete_paving",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 63230,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/paver_interlock/albedo",
+   "path": "assets/textures/paver_interlock/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "paver_interlock",
+   "width": 512,
+   "height": 512,
+   "bytes": 43491,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/paver_interlock/normal",
+   "path": "assets/textures/paver_interlock/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "paver_interlock",
+   "width": 512,
+   "height": 512,
+   "bytes": 67135,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/paver_interlock/rough",
+   "path": "assets/textures/paver_interlock/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "paver_interlock",
+   "width": 512,
+   "height": 512,
+   "bytes": 11063,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/asphalt/albedo",
+   "path": "assets/textures/asphalt/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "asphalt",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 391773,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/asphalt/normal",
+   "path": "assets/textures/asphalt/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "asphalt",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 604359,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/asphalt/rough",
+   "path": "assets/textures/asphalt/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "asphalt",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 274029,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/brick/albedo",
+   "path": "assets/textures/brick/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "brick",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 161283,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/brick/normal",
+   "path": "assets/textures/brick/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "brick",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 397436,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/brick/rough",
+   "path": "assets/textures/brick/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "brick",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 25093,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/plaster_wall/albedo",
+   "path": "assets/textures/plaster_wall/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "plaster_wall",
+   "width": 512,
+   "height": 512,
+   "bytes": 23568,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/plaster_wall/normal",
+   "path": "assets/textures/plaster_wall/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "plaster_wall",
+   "width": 512,
+   "height": 512,
+   "bytes": 37811,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/plaster_wall/rough",
+   "path": "assets/textures/plaster_wall/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "plaster_wall",
+   "width": 512,
+   "height": 512,
+   "bytes": 3461,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/tile_ceramic/albedo",
+   "path": "assets/textures/tile_ceramic/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "tile_ceramic",
+   "width": 512,
+   "height": 512,
+   "bytes": 33987,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/tile_ceramic/normal",
+   "path": "assets/textures/tile_ceramic/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "tile_ceramic",
+   "width": 512,
+   "height": 512,
+   "bytes": 59161,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/tile_ceramic/rough",
+   "path": "assets/textures/tile_ceramic/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "tile_ceramic",
+   "width": 512,
+   "height": 512,
+   "bytes": 50536,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/rubber_playground/albedo",
+   "path": "assets/textures/rubber_playground/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "rubber_playground",
+   "width": 512,
+   "height": 512,
+   "bytes": 23022,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/rubber_playground/normal",
+   "path": "assets/textures/rubber_playground/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "rubber_playground",
+   "width": 512,
+   "height": 512,
+   "bytes": 60556,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/rubber_playground/rough",
+   "path": "assets/textures/rubber_playground/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "rubber_playground",
+   "width": 512,
+   "height": 512,
+   "bytes": 1193,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/rubber_black/albedo",
+   "path": "assets/textures/rubber_black/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "rubber_black",
+   "width": 512,
+   "height": 512,
+   "bytes": 73035,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/rubber_black/normal",
+   "path": "assets/textures/rubber_black/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "rubber_black",
+   "width": 512,
+   "height": 512,
+   "bytes": 78375,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/rubber_black/rough",
+   "path": "assets/textures/rubber_black/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "rubber_black",
+   "width": 512,
+   "height": 512,
+   "bytes": 41674,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/metal_painted/albedo",
+   "path": "assets/textures/metal_painted/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "metal_painted",
+   "width": 512,
+   "height": 512,
+   "bytes": 74677,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/metal_painted/normal",
+   "path": "assets/textures/metal_painted/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "metal_painted",
+   "width": 512,
+   "height": 512,
+   "bytes": 92213,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/metal_painted/rough",
+   "path": "assets/textures/metal_painted/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "metal_painted",
+   "width": 512,
+   "height": 512,
+   "bytes": 75140,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/metal_galvanised/albedo",
+   "path": "assets/textures/metal_galvanised/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "metal_galvanised",
+   "width": 512,
+   "height": 512,
+   "bytes": 24061,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/metal_galvanised/normal",
+   "path": "assets/textures/metal_galvanised/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "metal_galvanised",
+   "width": 512,
+   "height": 512,
+   "bytes": 50378,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/metal_galvanised/rough",
+   "path": "assets/textures/metal_galvanised/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "metal_galvanised",
+   "width": 512,
+   "height": 512,
+   "bytes": 37225,
+   "license": "CC0-1.0",
+   "atlas": false
+  },
+  {
+   "id": "tex/leaf_atlas_maple/albedo",
+   "path": "assets/textures/leaf_atlas_maple/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "leaf_atlas_maple",
+   "width": 1024,
+   "height": 512,
+   "bytes": 61754,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_maple/normal",
+   "path": "assets/textures/leaf_atlas_maple/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "leaf_atlas_maple",
+   "width": 1024,
+   "height": 512,
+   "bytes": 78659,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_maple/rough",
+   "path": "assets/textures/leaf_atlas_maple/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "leaf_atlas_maple",
+   "width": 1024,
+   "height": 512,
+   "bytes": 20167,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_maple/opacity",
+   "path": "assets/textures/leaf_atlas_maple/opacity.jpg",
+   "kind": "texture",
+   "map": "opacity",
+   "material": "leaf_atlas_maple",
+   "width": 1024,
+   "height": 512,
+   "bytes": 38942,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_oak_dry/albedo",
+   "path": "assets/textures/leaf_atlas_oak_dry/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "leaf_atlas_oak_dry",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 70537,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_oak_dry/normal",
+   "path": "assets/textures/leaf_atlas_oak_dry/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "leaf_atlas_oak_dry",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 91556,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_oak_dry/rough",
+   "path": "assets/textures/leaf_atlas_oak_dry/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "leaf_atlas_oak_dry",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 60243,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/leaf_atlas_oak_dry/opacity",
+   "path": "assets/textures/leaf_atlas_oak_dry/opacity.jpg",
+   "kind": "texture",
+   "map": "opacity",
+   "material": "leaf_atlas_oak_dry",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 69101,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/grass_blades_atlas/albedo",
+   "path": "assets/textures/grass_blades_atlas/albedo.jpg",
+   "kind": "texture",
+   "map": "albedo",
+   "material": "grass_blades_atlas",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 40224,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/grass_blades_atlas/normal",
+   "path": "assets/textures/grass_blades_atlas/normal.jpg",
+   "kind": "texture",
+   "map": "normal",
+   "material": "grass_blades_atlas",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 52078,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/grass_blades_atlas/rough",
+   "path": "assets/textures/grass_blades_atlas/rough.jpg",
+   "kind": "texture",
+   "map": "rough",
+   "material": "grass_blades_atlas",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 16856,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "tex/grass_blades_atlas/opacity",
+   "path": "assets/textures/grass_blades_atlas/opacity.jpg",
+   "kind": "texture",
+   "map": "opacity",
+   "material": "grass_blades_atlas",
+   "width": 1024,
+   "height": 1024,
+   "bytes": 40049,
+   "license": "CC0-1.0",
+   "atlas": true
+  },
+  {
+   "id": "audio/ambience/birdsong_day",
+   "path": "assets/audio/ambience/birdsong_day.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 45.04,
+   "loop": true,
+   "bytes": 540734,
+   "license": "CC0-1.0",
+   "note": "daytime garden/park birdsong bed; two recordings layered"
+  },
+  {
+   "id": "audio/ambience/crickets_night",
+   "path": "assets/audio/ambience/crickets_night.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 45.04,
+   "loop": true,
+   "bytes": 540734,
+   "license": "CC0-1.0",
+   "note": "night crickets/insects (dense, steady); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/ambience/rain_light",
+   "path": "assets/audio/ambience/rain_light.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 45.04,
+   "loop": true,
+   "bytes": 540734,
+   "license": "CC0-1.0",
+   "note": "light steady rain"
+  },
+  {
+   "id": "audio/ambience/rain_heavy",
+   "path": "assets/audio/ambience/rain_heavy.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 42.03,
+   "loop": true,
+   "bytes": 504685,
+   "license": "CC0-1.0",
+   "note": "steady heavy rain; recorded from a legacy studio library (somewhat band-limited); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/ambience/wind_leaves",
+   "path": "assets/audio/ambience/wind_leaves.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 45.04,
+   "loop": true,
+   "bytes": 540734,
+   "license": "CC0-1.0",
+   "note": "park wind with gusts; rustle content is modest - no dedicated leaf-rustle bed found"
+  },
+  {
+   "id": "audio/ambience/street_suburban",
+   "path": "assets/audio/ambience/street_suburban.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 29.05,
+   "loop": true,
+   "bytes": 348891,
+   "license": "CC0-1.0",
+   "note": "suburban street/neighbourhood ambience; loop is 29 s (source only 32 s); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/ambience/traffic_distant",
+   "path": "assets/audio/ambience/traffic_distant.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 45.04,
+   "loop": true,
+   "bytes": 540734,
+   "license": "CC0-1.0",
+   "note": "distant city traffic wash (low rumble character); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/ambience/playground_distant",
+   "path": "assets/audio/ambience/playground_distant.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 45.04,
+   "loop": true,
+   "bytes": 540734,
+   "license": "CC0-1.0",
+   "note": "school playground children; low-passed to read as distant; contains children's voices (non-verbal shouting/play); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/ambience/room_fridge_hum",
+   "path": "assets/audio/ambience/room_fridge_hum.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 30.04,
+   "loop": true,
+   "bytes": 360803,
+   "license": "CC0-1.0",
+   "note": "quiet indoor tone/fridge hum; built from a 9.2 s author loop repeated 4x then cross-faded"
+  },
+  {
+   "id": "audio/ambience/underground_rumble",
+   "path": "assets/audio/ambience/underground_rumble.mp3",
+   "kind": "audio",
+   "category": "ambience",
+   "seconds": 40.05,
+   "loop": true,
+   "bytes": 480862,
+   "license": "CC0-1.0",
+   "note": "deep low rumble, low-passed at 320 Hz; very low frequency content - needs subwoofer/headphones to be felt; source is an engine-rumble effect, not a real earth recording"
+  },
+  {
+   "id": "audio/sfx/soil_scrape_01",
+   "path": "assets/audio/sfx/soil_scrape_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.2,
+   "loop": false,
+   "bytes": 14733,
+   "license": "CC0-1.0",
+   "note": "shovel scraping dirt (human scale; pitch/gain to be tuned in game); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/soil_scrape_02",
+   "path": "assets/audio/sfx/soil_scrape_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.44,
+   "loop": false,
+   "bytes": 17554,
+   "license": "CC0-1.0",
+   "note": "shovel in soil (human scale); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/gravel_grit_01",
+   "path": "assets/audio/sfx/gravel_grit_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.73,
+   "loop": false,
+   "bytes": 9090,
+   "license": "CC0-1.0",
+   "note": "single step on gravel"
+  },
+  {
+   "id": "audio/sfx/gravel_grit_02",
+   "path": "assets/audio/sfx/gravel_grit_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.94,
+   "loop": false,
+   "bytes": 11598,
+   "license": "CC0-1.0",
+   "note": "grit ticks from sliding steps on gravel; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/gravel_grit_03",
+   "path": "assets/audio/sfx/gravel_grit_03.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.94,
+   "loop": false,
+   "bytes": 11598,
+   "license": "CC0-1.0",
+   "note": "grit ticks from sliding steps on gravel; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/wood_creak_01",
+   "path": "assets/audio/sfx/wood_creak_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.23,
+   "loop": false,
+   "bytes": 15046,
+   "license": "CC0-1.0",
+   "note": "light wood creak; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/wood_creak_02",
+   "path": "assets/audio/sfx/wood_creak_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 2.25,
+   "loop": false,
+   "bytes": 27271,
+   "license": "CC0-1.0",
+   "note": "creaky wood; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/wood_creak_03",
+   "path": "assets/audio/sfx/wood_creak_03.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 4.05,
+   "loop": false,
+   "bytes": 48901,
+   "license": "CC0-1.0",
+   "note": "tree creak"
+  },
+  {
+   "id": "audio/sfx/wood_rasp_01",
+   "path": "assets/audio/sfx/wood_rasp_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.33,
+   "loop": false,
+   "bytes": 16300,
+   "license": "CC0-1.0",
+   "note": "STAND-IN for wood gnaw: scrape/rasp on a wood surface (no CC0 gnawing recording found); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/wood_rasp_02",
+   "path": "assets/audio/sfx/wood_rasp_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.18,
+   "loop": false,
+   "bytes": 14419,
+   "license": "CC0-1.0",
+   "note": "STAND-IN for wood gnaw: scrape on wood, +25% speed/pitch for a finer, ant-scale rasp; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/crunch_01",
+   "path": "assets/audio/sfx/crunch_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.91,
+   "loop": false,
+   "bytes": 11284,
+   "license": "CC0-1.0",
+   "note": "crunch (eating-crunch sample; usable as brittle crunch)"
+  },
+  {
+   "id": "audio/sfx/crunch_02",
+   "path": "assets/audio/sfx/crunch_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.76,
+   "loop": false,
+   "bytes": 9404,
+   "license": "CC0-1.0",
+   "note": "crunch"
+  },
+  {
+   "id": "audio/sfx/crunch_03",
+   "path": "assets/audio/sfx/crunch_03.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.04,
+   "loop": false,
+   "bytes": 12852,
+   "license": "CC0-1.0",
+   "note": "crackle/crunch, dry brittle material; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/water_drip_01",
+   "path": "assets/audio/sfx/water_drip_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.94,
+   "loop": false,
+   "bytes": 11598,
+   "license": "CC0-1.0",
+   "note": "water drip"
+  },
+  {
+   "id": "audio/sfx/water_drip_02",
+   "path": "assets/audio/sfx/water_drip_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.94,
+   "loop": false,
+   "bytes": 11598,
+   "license": "CC0-1.0",
+   "note": "water drip"
+  },
+  {
+   "id": "audio/sfx/wet_splat_01",
+   "path": "assets/audio/sfx/wet_splat_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.29,
+   "loop": false,
+   "bytes": 3761,
+   "license": "CC0-1.0",
+   "note": "wet splat/squish"
+  },
+  {
+   "id": "audio/sfx/wet_splat_02",
+   "path": "assets/audio/sfx/wet_splat_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.6,
+   "loop": false,
+   "bytes": 7523,
+   "license": "CC0-1.0",
+   "note": "slimy wet splat"
+  },
+  {
+   "id": "audio/sfx/thud_giant_step_01",
+   "path": "assets/audio/sfx/thud_giant_step_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.65,
+   "loop": false,
+   "bytes": 20062,
+   "license": "CC0-1.0",
+   "note": "heavy thud (sandbag drop on wood floor), low-passed 700 Hz + bass shelf for giant-footstep weight; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/thud_giant_step_02",
+   "path": "assets/audio/sfx/thud_giant_step_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.65,
+   "loop": false,
+   "bytes": 20062,
+   "license": "CC0-1.0",
+   "note": "heavy thud (hollow wooden surface), low-passed; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/lawnmower_loop",
+   "path": "assets/audio/sfx/lawnmower_loop.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 20.04,
+   "loop": true,
+   "bytes": 240744,
+   "license": "CC0-1.0",
+   "note": "engine mower idle/run, seamless loop; source is 'go cart or lawnmower idling'; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/lawnmower_push_loop",
+   "path": "assets/audio/sfx/lawnmower_push_loop.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 20.04,
+   "loop": true,
+   "bytes": 240744,
+   "license": "CC0-1.0",
+   "note": "manual push reel mower, seamless loop; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/car_pass_01",
+   "path": "assets/audio/sfx/car_pass_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 9.04,
+   "loop": false,
+   "bytes": 108773,
+   "license": "CC0-1.0",
+   "note": "car drive-by (old car recording); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/car_pass_02",
+   "path": "assets/audio/sfx/car_pass_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 10.03,
+   "loop": false,
+   "bytes": 120685,
+   "license": "CC0-1.0",
+   "note": "car passing in low gear; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/broom_sweep_01",
+   "path": "assets/audio/sfx/broom_sweep_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 3.03,
+   "loop": false,
+   "bytes": 36675,
+   "license": "CC0-1.0",
+   "note": "push broom on dirty floor; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/broom_sweep_02",
+   "path": "assets/audio/sfx/broom_sweep_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 3.03,
+   "loop": false,
+   "bytes": 36675,
+   "license": "CC0-1.0",
+   "note": "push broom on dirty floor (second excerpt); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/insect_wing_buzz_01",
+   "path": "assets/audio/sfx/insect_wing_buzz_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.65,
+   "loop": false,
+   "bytes": 20062,
+   "license": "CC0-1.0",
+   "note": "insect/flying buzz (source titled 'Buzzing Sound'; identity of the buzzer unverified by ear); provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/insect_wing_buzz_02",
+   "path": "assets/audio/sfx/insect_wing_buzz_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.65,
+   "loop": false,
+   "bytes": 20062,
+   "license": "CC0-1.0",
+   "note": "bee swarm buzz excerpt; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/cricket_chirp_01",
+   "path": "assets/audio/sfx/cricket_chirp_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.84,
+   "loop": false,
+   "bytes": 10344,
+   "license": "CC0-1.0",
+   "note": "short cricket chirp excerpt; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/cricket_chirp_02",
+   "path": "assets/audio/sfx/cricket_chirp_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.84,
+   "loop": false,
+   "bytes": 10344,
+   "license": "CC0-1.0",
+   "note": "short cricket chirp excerpt; provenance: archive.org uploader-asserted CC0 on a legacy studio library"
+  },
+  {
+   "id": "audio/sfx/stridulation_grasshopper_01",
+   "path": "assets/audio/sfx/stridulation_grasshopper_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 1.88,
+   "loop": false,
+   "bytes": 22883,
+   "license": "CC0-1.0",
+   "note": "grasshopper stridulation"
+  },
+  {
+   "id": "audio/sfx/ui_click_01",
+   "path": "assets/audio/sfx/ui_click_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.13,
+   "loop": false,
+   "bytes": 1880,
+   "license": "CC0-1.0",
+   "note": "soft UI click"
+  },
+  {
+   "id": "audio/sfx/ui_click_02",
+   "path": "assets/audio/sfx/ui_click_02.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.13,
+   "loop": false,
+   "bytes": 1880,
+   "license": "CC0-1.0",
+   "note": "soft UI click"
+  },
+  {
+   "id": "audio/sfx/ui_click_03",
+   "path": "assets/audio/sfx/ui_click_03.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.08,
+   "loop": false,
+   "bytes": 1253,
+   "license": "CC0-1.0",
+   "note": "soft UI click"
+  },
+  {
+   "id": "audio/sfx/ui_hover_01",
+   "path": "assets/audio/sfx/ui_hover_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.13,
+   "loop": false,
+   "bytes": 1880,
+   "license": "CC0-1.0",
+   "note": "UI hover"
+  },
+  {
+   "id": "audio/sfx/ui_switch_01",
+   "path": "assets/audio/sfx/ui_switch_01.mp3",
+   "kind": "audio",
+   "category": "sfx",
+   "seconds": 0.24,
+   "loop": false,
+   "bytes": 3134,
+   "license": "CC0-1.0",
+   "note": "UI toggle/switch"
+  }
+ ]
+}

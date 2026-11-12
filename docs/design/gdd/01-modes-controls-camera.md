@@ -54,10 +54,10 @@ Exactly one view is active. Panels (journal, roster, why view, directives) are o
 
 | View id | Entry condition | Behaviour | Exit conditions |
 | --- | --- | --- | --- |
-| `possession` (T1) | A successful `possess` command | Player drives one ant (section 3); possession camera (6.2-6.5). | `release` -> `observer` (following the released ant). Ant dies -> `observer` after `POSSESS_DEATH_HOLD_S`. M -> `colony`. O -> `photo`. Time-lapse starts -> `timelapse`. AFK timeout -> `observer`. |
-| `observer` (T1) | Game start after loading when no ant is possessed; release; death; Esc from colony view when there is no return ant | Free fly or follow camera; click to inspect; possess by click-hold, double-click, E, Tab, role keys. | Possess -> `possession`. M -> `colony`. O -> `photo`. Time-lapse -> `timelapse`. |
-| `colony` (T1) | M from `possession` or `observer` | Strategic camera + underground cutaway (6.7); directives panel and marker tools (directives chapter); overlays. If entered from possession the ant is soft-released (3.6). | M or Esc -> back to the view it came from (`possession` re-possesses the return ant if alive, else `observer`). Double-click an ant -> `possession` of that ant. O -> `photo`. |
-| `photo` (T2) | O from any of the three views | Sim frozen; free camera; HUD hidden (6.9). | O or Esc -> the view it came from, same camera pose and possession. |
+| `possession` (T1) | A successful `possess` command | Player drives one ant (section 3); possession camera (6.2-6.5). | `release` -> `observer` (following the released ant). Ant dies -> `observer` after `POSSESS_DEATH_HOLD_S`. M -> `colony`. F2 -> `photo`. Time-lapse starts -> `timelapse`. AFK timeout -> `observer`. |
+| `observer` (T1) | Game start after loading when no ant is possessed; release; death; Esc from colony view when there is no return ant | Free fly or follow camera; click to inspect; possess by click-hold, double-click, E, Tab, role keys. | Possess -> `possession`. M -> `colony`. F2 -> `photo`. Time-lapse -> `timelapse`. |
+| `colony` (T1) | M from `possession` or `observer` | Strategic camera + underground cutaway (6.7); directives panel and marker tools (directives chapter); overlays. If entered from possession the ant is soft-released (3.6). | M or Esc -> back to the view it came from (`possession` re-possesses the return ant if alive, else `observer`). Double-click an ant -> `possession` of that ant. F2 -> `photo`. |
+| `photo` (T2) | F2 (`photo-mode`) from any of the three views | Sim frozen; free camera; HUD hidden (6.9). | F2 or Esc -> the view it came from, same camera pose and possession. |
 | `timelapse` (T2) | Opening chapter (first brood) or environment chapter (overwintering) starts a time-lapse | Scripted camera; input limited to skip (hold), pause, drop-out when offered; possession suspended. | Ends or skipped -> previous view; if it was `possession` and the ant lives, re-possess it. Drop-out -> `possession` of the ant named by the drop-out beat. |
 
 Game start view: the opening chapter puts the player in `possession` of the founding queen. A loaded save resumes `possession` of the saved `possessedAntId` if that ant is alive, else `observer` at the saved camera pose.
@@ -68,10 +68,10 @@ Game start view: the opening chapter puts the player in `possession` of the foun
 
 | From \ To | possession | observer | colony | photo |
 | --- | --- | --- | --- | --- |
-| **possession** | Tab / role key / roster: switch ant (old ant released, 3.5); camera fly `CAM_SWITCH` | X: release; camera stays, becomes follow-orbit on the released ant | M: soft release; camera rises over `CAM_TO_COLONY_S` | O: freeze; camera pose kept |
-| **observer** | Click-hold / double-click / E / Tab / role key; camera fly | — | M: camera rises from current focus | O |
-| **colony** | M/Esc back (return ant) or double-click ant; camera descends `CAM_TO_COLONY_S` | M/Esc when no return ant | — | O |
-| **photo** | O/Esc (back to origin) | O/Esc | O/Esc | — |
+| **possession** | Tab / role key / roster: switch ant (old ant released, 3.5); camera fly `CAM_SWITCH` | X: release; camera stays, becomes follow-orbit on the released ant | M: soft release; camera rises over `CAM_TO_COLONY_S` | F2: freeze; camera pose kept |
+| **observer** | Click-hold / double-click / E / Tab / role key; camera fly | — | M: camera rises from current focus | F2 |
+| **colony** | M/Esc back (return ant) or double-click ant; camera descends `CAM_TO_COLONY_S` | M/Esc when no return ant | — | F2 |
+| **photo** | F2/Esc (back to origin) | F2/Esc | F2/Esc | — |
 
 | Transition constant | Value | Unit |
 | --- | --- | --- |
@@ -326,7 +326,7 @@ Queen only (after hand-over): the global `directives` action (I, 5.1) is shown a
 
 | Context | Action id: KBM / Gamepad |
 | --- | --- |
-| Ph | `ph-move` WASD / LS; `ph-up` Space / RT; `ph-down` C / LT; `ph-look` RMB drag or mouse (Locked), arrows / RS; `ph-focal` Wheel / LB+RS vertical; `ph-focus` LMB click on a point (autofocus there), Shift+Wheel / A (focus at centre); `ph-aperture` [ ] / Dpad up/down; `ph-exposure` − = / LB+Dpad up/down; `ph-roll` , . / Dpad left/right; `ph-guides` H / Y; `ph-capture` Enter / X; exit O or Esc / B. |
+| Ph | `ph-move` WASD / LS; `ph-up` Space / RT; `ph-down` C / LT; `ph-look` RMB drag or mouse (Locked), arrows / RS; `ph-focal` Wheel / LB+RS vertical; `ph-focus` LMB click on a point (autofocus there), Shift+Wheel / A (focus at centre); `ph-aperture` [ ] / Dpad up/down; `ph-exposure` − = / LB+Dpad up/down; `ph-roll` , . / Dpad left/right; `ph-guides` H / Y; `ph-capture` Enter / X; exit F2 or Esc / B (O is `overlay-cycle` in P/O/C and unbound in Ph). |
 | TL | `tl-skip` hold Space 1 s, or Skip button / hold A 1 s; `tl-dropout` E / X (only while offered); `menu` Esc / Start. |
 | UI | Arrows/Tab navigate, Enter/Space confirm, Esc back / Dpad or LS navigate, A confirm, B back, LB/RB switch tabs. Mouse works everywhere. |
 

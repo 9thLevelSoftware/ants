@@ -14,6 +14,8 @@ Draw the surface world at ant scale from `WorldData`: chunked terrain with real 
 `src/render/world/{terrain,sky,lighting,primitives,materials}/**` and a demo page `spikes/render-world-demo/**`.
 
 ## Boundaries
+- The simulation contracts in `src/sim/types` are being synchronised with the design index during this hour and a few field names may still change. Read ALL simulation data through one adapter file in your folder (`simAdapter.ts`) so a rename costs a single edit, and do not import anything from `src/sim` except types and the functions your spec names.
+- Real world generation does not exist yet (the placeholder generator makes bare terrain). Build a hand-made demo world inside your demo page that exercises every surface material in the ground layers, level steps (a kerb), and a variety of solid primitives and materials (a paving slab field with joints, a wall, a table leg, stones, a log, a plant stem), so the renderer is proven before the generator lands; it must also render whatever `generateWorld` returns.
 - Nest spike finding (`docs/research/spike-nest.md` section 5, item 7): a uniform list of breach spheres does not scale. Use a 2D hole-mask texture over the terrain, rasterised locally from the field when carving breaches the surface (the kernel exposes breaches and the cavity field); keep the uniform list only as a fallback for the `test` preset if simpler.
 - Grass, draped decor, water, weather effects, creatures, ants and the carve-grid meshes are other tasks. Leave a clean API for them (shared material library, shared uniforms for wetness, time and wind, the breach list).
 - You read simulation data; you never write it.

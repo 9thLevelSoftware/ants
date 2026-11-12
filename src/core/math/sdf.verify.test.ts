@@ -72,19 +72,17 @@ describe('sdEllipsoid vs exact distance (review)', () => {
     }
   });
 
-  // FINDING (minor): sdf.ts documents "deeper INSIDE it can OVERESTIMATE the depth by up to about 2x (3:1)".
-  // For radii (3, 1, 2) (ratio 3:1) the overestimate reaches 2.6x, e.g. p = (0.344, 0.011, -0.0036):
-  // approx -2.56 vs exact -0.98. `it.fails` keeps the suite green; it turns red once the doc/bound is fixed.
-  it.fails('documented inside bound (<= ~2x for 3:1) holds', () => {
+  // Regression (fixed): the unclamped formula overestimated the depth 2.6x at p = (0.344, 0.011, -0.0036) for
+  // radii (3, 1, 2); the interior is now capped at -minRadius, so the documented bound holds.
+  it('documented inside bound (<= ~2x for 3:1) holds', () => {
     const p = vec3(0.3444353062659502, 0.010978004895150661, -0.003586225211620331);
     const approx = sdEllipsoid(p, 3, 1, 2);
     const exact = exactEllipsoid(p.x, p.y, p.z, 3, 1, 2);
     expect(approx / exact).toBeLessThanOrEqual(2.1);
   });
 
-  // FINDING (minor): the value is discontinuous at the centre. sdEllipsoid(0) = -min(r) = -1, but just off the
-  // centre along z it is ~-rz = -2 (and ~-rx = -3 along x): the limit depends on the approach direction.
-  it.fails('is continuous at the centre', () => {
+  // Regression (fixed): the value used to depend on the direction of approach to the centre.
+  it('is continuous at the centre', () => {
     const atCentre = sdEllipsoid(vec3(0, 0, 0), 3, 1, 2);
     const nearCentre = sdEllipsoid(vec3(0, 0, 1e-6), 3, 1, 2);
     expect(Math.abs(atCentre - nearCentre)).toBeLessThan(0.01);

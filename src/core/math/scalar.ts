@@ -14,19 +14,23 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-/** Inverse of lerp: where x lies between a and b (unclamped). Returns 0 when a === b. */
+/** Inverse of lerp: where x lies between a and b (unclamped). Degenerate range (a === b): always 0, for every x. */
 export function invLerp(a: number, b: number, x: number): number {
   const d = b - a;
   return d === 0 ? 0 : (x - a) / d;
 }
 
-/** Maps x from [inLo, inHi] to [outLo, outHi] (unclamped). */
+/** Maps x from [inLo, inHi] to [outLo, outHi] (unclamped). Degenerate input range (inLo === inHi): always outLo. */
 export function remap(x: number, inLo: number, inHi: number, outLo: number, outHi: number): number {
   return outLo + (outHi - outLo) * invLerp(inLo, inHi, x);
 }
 
-/** Hermite smoothstep: 0 at e0, 1 at e1, clamped outside. Works with e0 > e1 (reversed ramp). */
+/**
+ * Hermite smoothstep: 0 at e0, 1 at e1, clamped outside. Works with e0 > e1 (reversed ramp).
+ * Degenerate edges (e0 === e1) make it a step at the edge: 0 for x < e0, 1 for x >= e0.
+ */
 export function smoothstep(e0: number, e1: number, x: number): number {
+  if (e0 === e1) return x >= e0 ? 1 : 0;
   const t = clamp01(invLerp(e0, e1, x));
   return t * t * (3 - 2 * t);
 }

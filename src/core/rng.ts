@@ -30,8 +30,11 @@ export function hashString(str: string): number {
 }
 
 /**
- * New generator state from a numeric seed. Any finite number works: integers up to 2^53 are used in full
- * (low and high 32-bit words), fractions are truncated. Equal seeds give equal streams.
+ * New generator state from a numeric seed. Any finite number works: fractions are truncated, non-finite values
+ * act as 0. Both 32-bit words of the (truncated) integer are mixed, so distinct safe integers (|seed| <= 2^53)
+ * give distinct states in practice (pinned by tests on structured seed families; a 64-bit input cannot be
+ * proven collision-free by construction through a mixing function, but none exist among tested seeds).
+ * Seeds in [0, 2^32) are unchanged from earlier versions. Equal seeds give equal streams.
  */
 export function rngSeed(seed: number): RngState {
   const s: RngState = [0, 0, 0, 0];
@@ -44,10 +47,17 @@ export function rngReseed(s: RngState, seed: number): RngState {
   const t = Math.trunc(Number.isFinite(seed) ? seed : 0);
   const lo = t >>> 0;
   const hi = Math.floor(t / TWO_POW_32) >>> 0;
-  let x = (lo ^ Math.imul(hi, 0x9e3779b9)) | 0;
+  // The low word alone drives the base stream (so every seed below 2^32 keeps its historical sequence)...
+  let x = lo | 0;
   for (let i = 0; i < 4; i++) {
     x = (x + 0x9e3779b9) | 0;
     s[i] = splitmix32(x);
+  }
+  // ...and a non-zero high word is whitened separately and folded into every state word. xor-ing hi straight
+  // into lo (the earlier scheme) made (lo, hi) pairs collide, e.g. 2^32 + k and a smaller seed.
+  if (hi !== 0) {
+    const h = splitmix32(hi ^ 0x632be5ab);
+    for (let i = 0; i < 4; i++) s[i] = splitmix32((s[i] + Math.imul(h, 2 * i + 1)) | 0);
   }
   if ((s[0] | s[1] | s[2] | s[3]) === 0) s[0] = 1; // the all-zero state is a fixed point
   return s;
@@ -95,9 +105,28 @@ export function rngFloat(s: RngState): number {
   return rngNext(s) * U32_TO_UNIT;
 }
 
-/** Uniform float in [lo, hi). */
+/** Largest double strictly below the finite number x. */
+function nextDown(x: number): number {
+  const buf = new Float64Array(1);
+  const bits = new BigInt64Array(buf.buffer);
+  if (x === 0) return -Number.MIN_VALUE;
+  buf[0] = x;
+  bits[0] += x > 0 ? -1n : 1n;
+  return buf[0];
+}
+
+/**
+ * Uniform float in [lo, hi): never returns hi (floating-point rounding could otherwise reach it), so
+ * `arr[Math.floor(rngRange(s, 0, arr.length))]` is always in range. lo === hi returns lo (still consumes one
+ * draw). Requires finite lo <= hi; ranges wider than the double range (hi - lo overflows) are handled.
+ */
 export function rngRange(s: RngState, lo: number, hi: number): number {
-  return lo + (hi - lo) * rngFloat(s);
+  const f = rngFloat(s);
+  if (!(hi > lo)) return lo;
+  const span = hi - lo;
+  const r = Number.isFinite(span) ? lo + span * f : lo * (1 - f) + hi * f;
+  if (r >= hi) return nextDown(hi);
+  return r < lo ? lo : r;
 }
 
 /**

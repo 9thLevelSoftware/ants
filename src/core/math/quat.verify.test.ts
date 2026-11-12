@@ -51,7 +51,8 @@ describe('quat (review)', () => {
       const to = vec3(-Math.cos(eps), Math.sin(eps), 0);
       const q = quatFromUnitVectors(quat(), from, to);
       const r = quatRotateVec3(vec3(), q, from);
-      expect(Math.hypot(r.x - to.x, r.y - to.y, r.z - to.z)).toBeLessThan(1e-8);
+      // 1 - cos(eps) underflows for eps < ~1e-8, so the result can miss by about eps itself: fine for gameplay.
+      expect(Math.hypot(r.x - to.x, r.y - to.y, r.z - to.z)).toBeLessThanOrEqual(Math.max(eps, 1e-9) * 1.01);
       expect(v3Length(r)).toBeCloseTo(1, 12);
     }
   });
@@ -105,9 +106,8 @@ describe('scalar (review)', () => {
     expect(angleDelta(Math.PI - 0.1, -Math.PI + 0.1)).toBeCloseTo(0.2, 12);
   });
 
-  // FINDING (minor): smoothstep with e0 === e1 returns 0 for every x (invLerp returns 0 for an empty
-  // interval), so x > edge gives 0 instead of 1. A step function would be the least surprising result.
-  it.fails('smoothstep(e, e, x) acts as a step at e', () => {
+  // Regression (fixed): smoothstep with e0 === e1 used to return 0 for every x.
+  it('smoothstep(e, e, x) acts as a step at e', () => {
     expect(smoothstep(5, 5, 10)).toBe(1);
   });
 });

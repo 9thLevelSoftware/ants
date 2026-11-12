@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { quat, quatFromAxisAngle } from './quat';
-import { sdCappedCylinder, sdCapsule, sdCapsuleSegment, sdEllipsoid, sdRoundBox, sdSphere, sdfToLocal, sdfToWorld } from './sdf';
+import { sdCappedCylinder, sdCapsule, sdCapsuleSegment, sdEllipsoid, sdEllipsoidExact, sdRoundBox, sdSphere, sdfToLocal, sdfToWorld } from './sdf';
 import { type Vec3, v3Distance, v3EqualsApprox, v3Normalize, vec3 } from './vec3';
 
 // Brute-force reference: every primitive here is convex and contains the origin of its local space, so its
@@ -282,6 +282,103 @@ describe('sdf transforms', () => {
       const brute = bruteDistance(world, p);
       expect(Math.abs(sd)).toBeLessThanOrEqual(brute + 1e-9);
       expect(brute - Math.abs(sd)).toBeLessThanOrEqual(0.03 * c.extent);
+    }
+  });
+});
+
+describe('sdEllipsoid interior and sdEllipsoidExact (F1a-fixes)', () => {
+  const shapes: [number, number, number][] = [
+    [1, 1, 1], [1.5, 1, 1], [2, 1, 1.5], [3, 1, 2], [1, 4, 1.2], [1.3, 1.1, 6], [6, 1, 1],
+  ];
+  // Brute-force closest distance to the surface from a dense sampling of the surface.
+  function brute(p: { x: number; y: number; z: number }, [rx, ry, rz]: [number, number, number]): number {
+    let best = Infinity;
+    const nu = 240, nv = 240;
+    for (let i = 0; i <= nu; i++) {
+      const th = (Math.PI * i) / nu;
+      for (let j = 0; j < nv; j++) {
+        const ph = (2 * Math.PI * j) / nv;
+        const dx = p.x - rx * Math.sin(th) * Math.cos(ph);
+        const dy = p.y - ry * Math.cos(th);
+        const dz = p.z - rz * Math.sin(th) * Math.sin(ph);
+        best = Math.min(best, dx * dx + dy * dy + dz * dz);
+      }
+    }
+    return Math.sqrt(best);
+  }
+
+  it('signs are right everywhere for both versions, including the centre and symmetry planes', () => {
+    const rnd = lcg(77);
+    for (const r of shapes) {
+      const pts = [vec3(0, 0, 0), vec3(r[0] * 0.5, 0, 0), vec3(0, r[1] * 0.5, 0), vec3(0, 0, r[2] * 0.5), vec3(r[0] * 2, 0, 0)];
+      for (let i = 0; i < 1500; i++) pts.push(vec3((rnd() * 2 - 1) * r[0] * 1.5, (rnd() * 2 - 1) * r[1] * 1.5, (rnd() * 2 - 1) * r[2] * 1.5));
+      for (const p of pts) {
+        const inside = (p.x / r[0]) ** 2 + (p.y / r[1]) ** 2 + (p.z / r[2]) ** 2 < 1;
+        const a = sdEllipsoid(p, ...r), e = sdEllipsoidExact(p, ...r);
+        expect(Number.isFinite(a) && Number.isFinite(e)).toBe(true);
+        expect(a < 0).toBe(inside);
+        expect(e < 0).toBe(inside);
+      }
+    }
+  });
+
+  it('is finite, negative and continuous through the centre, from every direction', () => {
+    for (const r of shapes) {
+      const minR = Math.min(...r);
+      expect(sdEllipsoid(vec3(0, 0, 0), ...r)).toBe(-minR);
+      for (const d of fibonacciDirs(60)) {
+        for (const eps of [1e-9, 1e-6, 1e-3]) {
+          const v = sdEllipsoid(vec3(d.x * eps, d.y * eps, d.z * eps), ...r);
+          expect(v).toBeLessThan(0);
+          expect(Math.abs(v + minR)).toBeLessThanOrEqual(10 * eps);
+        }
+      }
+    }
+  });
+
+  it('interior overestimate stays within the documented factors', () => {
+    const rnd = lcg(5);
+    const limits: [number, number][] = [[1.5, 1.3], [3, 1.7], [6, 2.2]]; // [aspect, max factor] (doc: 1.2 / 1.55 / 2.0)
+    for (const [a, limit] of limits) {
+      const r: [number, number, number] = [a, 1, 1.2];
+      for (let i = 0; i < 1500; i++) {
+        const p = vec3((rnd() * 2 - 1) * a, rnd() * 2 - 1, (rnd() * 2 - 1) * 1.2);
+        if ((p.x / a) ** 2 + p.y ** 2 + (p.z / 1.2) ** 2 >= 1) continue;
+        const e = -sdEllipsoidExact(p, ...r);
+        if (e < 1e-6) continue;
+        const ratio = -sdEllipsoid(p, ...r) / e;
+        expect(ratio).toBeLessThanOrEqual(limit);
+        expect(ratio).toBeGreaterThanOrEqual(1 - 1e-9);
+      }
+    }
+  });
+
+  it('sdEllipsoidExact is within 1 % of brute force (inside and outside, all aspect ratios)', () => {
+    const rnd = lcg(123);
+    for (const r of shapes) {
+      const extent = Math.max(...r);
+      for (let i = 0; i < 40; i++) {
+        const p = vec3((rnd() * 2 - 1) * r[0] * 1.6, (rnd() * 2 - 1) * r[1] * 1.6, (rnd() * 2 - 1) * r[2] * 1.6);
+        const b = brute(p, r), e = Math.abs(sdEllipsoidExact(p, ...r));
+        // brute force overestimates by at most the sampling spacing (~0.03 * extent)
+        expect(e).toBeLessThanOrEqual(b + 1e-9);
+        expect(e).toBeGreaterThanOrEqual(b - 0.03 * extent);
+        if (b > 0.2 * extent) expect(Math.abs(e / b - 1)).toBeLessThanOrEqual(0.01);
+      }
+      // centre and on-axis values are known exactly
+      expect(sdEllipsoidExact(vec3(0, 0, 0), ...r)).toBeCloseTo(-Math.min(...r), 9);
+      expect(sdEllipsoidExact(vec3(r[0] * 2, 0, 0), ...r)).toBeCloseTo(r[0], 9);
+    }
+  });
+
+  it('sdEllipsoidExact equals the Euclidean distance on spheres and is 1-Lipschitz', () => {
+    expect(sdEllipsoidExact(vec3(0, 5, 0), 2, 2, 2)).toBeCloseTo(3, 9);
+    expect(sdEllipsoidExact(vec3(0.5, 0, 0.5), 2, 2, 2)).toBeCloseTo(-(2 - Math.hypot(0.5, 0.5)), 9);
+    const rnd = lcg(9);
+    for (let i = 0; i < 500; i++) {
+      const a = vec3((rnd() * 2 - 1) * 5, (rnd() * 2 - 1) * 3, (rnd() * 2 - 1) * 4);
+      const b = vec3(a.x + (rnd() - 0.5) * 0.1, a.y + (rnd() - 0.5) * 0.1, a.z + (rnd() - 0.5) * 0.1);
+      expect(Math.abs(sdEllipsoidExact(a, 3, 1, 2) - sdEllipsoidExact(b, 3, 1, 2))).toBeLessThanOrEqual(v3Distance(a, b) * 1.001);
     }
   });
 });

@@ -38,15 +38,13 @@ describe('rng (review)', () => {
     }
   });
 
-  // FINDING (minor): rngRange documents [lo, hi) but returns hi when |lo| is large relative to (hi - lo),
-  // because lo + (hi - lo) * (1 - 2^-32) rounds up to hi.
-  it.fails('rngRange never returns hi (large offset, small span)', () => {
+  // Regression (fixed): lo + (hi - lo) * (1 - 2^-32) used to round up to hi when |lo| >> hi - lo.
+  it('rngRange never returns hi (large offset, small span)', () => {
     expect(rngRange(stateProducing(0xffffffff), 1e9, 1e9 + 1)).toBeLessThan(1e9 + 1);
   });
 
-  // FINDING (minor): the header says "integers up to 2^53 are used in full", but the seed is folded into one
-  // 32-bit word before seeding, so distinct seeds collide, e.g. 2^32 and 0x9e3779b9. (Only 2^32 streams exist.)
-  it.fails('distinct integer seeds give distinct streams (2^32 vs 0x9e3779b9)', () => {
+  // Regression (fixed): the seed used to be folded into one 32-bit word, so 2^32 and 0x9e3779b9 collided.
+  it('distinct integer seeds give distinct streams (2^32 vs 0x9e3779b9)', () => {
     expect(rngSeed(2 ** 32)).not.toEqual(rngSeed(0x9e3779b9));
   });
 

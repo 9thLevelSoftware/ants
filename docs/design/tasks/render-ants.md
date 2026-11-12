@@ -13,6 +13,7 @@ Draw every ant in the simulation — up to a couple of thousand — as an anatom
 `src/render/ants/**` and a demo page `spikes/render-ants-demo/**`.
 
 ## Boundaries
+- The simulation contracts in `src/sim/types` are being synchronised with the design index during this hour and a few field names may still change. Read ALL simulation data through one adapter file in your folder (`simAdapter.ts`) so a rename costs a single edit, and do not import anything from `src/sim` except types and the functions your spec names.
 - Creatures (spiders, aphids, …) are a later task; design the animation attribute scheme so it can be reused for them.
 - You read simulation state and interpolate; you never write it.
 

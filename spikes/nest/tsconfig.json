@@ -1,0 +1,9 @@
+{
+  // Spike-local config: identical to the root config except noUncheckedIndexedAccess is OFF,
+  // as docs/03-architecture.md section 8 requires for production (typed-array heavy code).
+  // Typecheck with: npx tsc --noEmit -p spikes/nest/tsconfig.json
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "noUncheckedIndexedAccess": false, "types": ["vite/client"] },
+  "include": ["./**/*.ts"],
+  "exclude": []
+}
