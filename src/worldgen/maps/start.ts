@@ -283,7 +283,7 @@ export function placeStartPose(ctx: GenContext): void {
 }
 
 /** Full rule check of the current start (validation v-start / v-found). */
-export function checkStartRule(ctx: GenContext): { ok: boolean; detail: string } {
+export function checkStartRule(ctx: GenContext): { ok: boolean; detail: string; good: number; onlyContentShort: boolean } {
   const c = cellOfStart(ctx);
   const st = mapState(ctx);
   const q = st.q[ctx.params.speciesId];
@@ -296,8 +296,10 @@ export function checkStartRule(ctx: GenContext): { ok: boolean; detail: string }
   const dry = st.water.flood[c] <= VALID.startFloodMax;
   const ground = Math.abs(s.y - terrainAt(ctx, s.x, s.z)) <= 1 && clearOfPrims(ctx, s.x, s.y, s.z, 1 * ctx.dims.bu);
   const v = verify(ctx, c, digPatchMap(ctx));
-  const ok = natural && notGood && hazard && edge && dry && ground && v.good >= START_RULE.goodMin && v.digWalkBu <= START_RULE.digWalkBu;
-  return { ok, detail: `zone=${zone.type} q=${q[c].toFixed(2)} good=${v.good} dig=${Number.isFinite(v.digWalkBu) ? v.digWalkBu.toFixed(0) : 'none'}BU ground=${ground} hazardFree=${hazard} edge=${edge} flood=${st.water.flood[c].toFixed(2)}` };
+  // place rules; what remains (good sites, a diggable patch nearby) depends on the content the map carries
+  const place = natural && notGood && hazard && edge && dry && ground;
+  const ok = place && v.good >= START_RULE.goodMin && v.digWalkBu <= START_RULE.digWalkBu;
+  return { ok, good: v.good, onlyContentShort: place && !ok, detail: `zone=${zone.type} q=${q[c].toFixed(2)} good=${v.good} dig=${Number.isFinite(v.digWalkBu) ? v.digWalkBu.toFixed(0) : 'none'}BU ground=${ground} hazardFree=${hazard} edge=${edge} flood=${st.water.flood[c].toFixed(2)}` };
 }
 
 export const startPlacer: PlacerDef = { id: 'default/start-pose', step: 'start', order: -100, run: placeStartPose };

@@ -3,7 +3,7 @@
 // exist a click acknowledges the card. Right-click, the context-menu key or Shift+Enter open Acknowledge, Snooze and
 // Open in journal. The backquote key (hotkeys.ts) moves focus into the feed; arrows move between cards.
 import { useRef, useState } from 'preact/hooks';
-import { ALERT_LEVEL_STATUS, ALERT_WORDS } from '../components';
+import { ALERT_LEVEL_STATUS, ALERT_WORDS, useAutoFocusRef } from '../components';
 import { Icon } from '../icons';
 import { facade, snapshot } from '../store';
 import { alertFeed, feedView, refreshFeed } from './alerts/store';
@@ -25,6 +25,7 @@ function acknowledge(card: FeedCard): void {
 
 function CardMenu({ card, onClose }: { card: FeedCard; onClose: () => void }) {
   const tick = snapshot.value.time?.tick ?? 0;
+  const first = useAutoFocusRef<HTMLButtonElement>(true); // no autofocus attribute: refused in a cross-origin frame
   const items: { label: string; run: () => void; hidden?: boolean }[] = [
     { label: 'Acknowledge', run: () => acknowledge(card) },
     { label: 'Snooze this kind for 1 game day', run: () => { alertFeed.snooze(card.kind, tick); refreshFeed(); }, hidden: card.level === 'critical' },
@@ -33,7 +34,7 @@ function CardMenu({ card, onClose }: { card: FeedCard; onClose: () => void }) {
   return (
     <div class="fd-alert-menu ui-surface" role="menu" aria-label="Alert actions" onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       {items.filter((i) => !i.hidden).map((i, n) => (
-        <button key={i.label} type="button" role="menuitem" class="fd-menu-item" autofocus={n === 0} onClick={() => { i.run(); onClose(); }}>{i.label}</button>
+        <button key={i.label} ref={n === 0 ? first : undefined} type="button" role="menuitem" class="fd-menu-item" onClick={() => { i.run(); onClose(); }}>{i.label}</button>
       ))}
     </div>
   );

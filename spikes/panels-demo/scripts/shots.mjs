@@ -22,6 +22,7 @@ const SCENES = {
   'overlays-scent': 'scene=overlays&overlay=scent&view=colony',
   'overlays-temp': 'scene=overlays&overlay=temperature,scent&view=colony',
   'overlays-dig': 'scene=overlays&overlay=dig-plans&view=colony&bg=nest',
+  'overlays-inspect': 'scene=overlays&overlay=scent&view=observer&inspect=1',
 };
 export default async ({ page, shot, log, wait, url }) => {
   const sizes = (process.env.PN_SIZES ?? '1280x720').split(',').map((s) => s.split('x').map(Number));

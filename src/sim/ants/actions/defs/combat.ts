@@ -1,12 +1,14 @@
-// Lifecycle shells of bite, bite-hold, spray-acid, release-alarm and tend-aphid (GDD 01 §7.3). Reach, cooldowns,
-// charges and events live here; damage, locks and droplets are delegated to their Tier 2 owners (combat, ecology).
+// Lifecycle shells of bite, bite-hold, spray-acid, sting, dodge, release-alarm and tend-aphid (GDD 01 §7.3). Reach,
+// cooldowns, charges and events live here; damage, locks, the bite/special permissions, the dodge displacement and
+// droplets are delegated to their owners (combat, ecology) through the ports. Combat no longer patches this table.
 
 import type { ActionFailReason, Ant, Sim, TargetRef } from '@/sim/types';
 import {
-  ALARM_PUFF, BITE_CYCLE_S, BITE_S, RELEASE_ALARM_COOLDOWN_S, RELEASE_ALARM_S, SPRAY_ALARM, SPRAY_CONE_DEG, SPRAY_COOLDOWN_S,
-  SPRAY_DAMAGE_PER_MG23, SPRAY_RANGE_L, SPRAY_RELEASE_S, SPRAY_WINDUP_S, TEND_APHID_STROKE_S, ACID_REGEN_S,
+  ALARM_PUFF, BITE_CYCLE_S, SPRAY_DAMAGE_PER_MG23, BITE_S, RELEASE_ALARM_COOLDOWN_S, RELEASE_ALARM_S, SPRAY_ALARM, SPRAY_CONE_DEG, SPRAY_COOLDOWN_S,
+  SPRAY_RANGE_L, SPRAY_RELEASE_S, SPRAY_WINDUP_S, TEND_APHID_STROKE_S, ACID_REGEN_S,
 } from '@/sim/balance/actions';
 import { BITE_PER_MG23 } from '@/sim/balance';
+import { STING_S, STING_WINDUP_S } from '@/sim/balance/combat';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { antLengthMm, inReach, placeOf } from '../geometry';
 import { ports } from '../ports';
@@ -35,13 +37,40 @@ export function biteDamage(sim: Sim, ant: Ant): number {
 }
 
 
+/** Bite cycle of the ant's caste, s (GDD 05 §4.1: shared by the AI and the player); BITE_CYCLE_S without one. */
+function biteCycleS(sim: Sim, ant: Ant): number {
+  const s = ports.combatStats(sim, ant)?.biteCycleS;
+  return s !== undefined && s > 0 ? s : BITE_CYCLE_S;
+}
+
 export const biteDef: ActionDef = {
   id: 'bite', kind: 'timed', targets: ['ant', 'creature'], preempts: true, cancellable: true, pose: 'bite',
-  cue: 'bite',
-  check: (sim, ant, t) => hostileCheck(sim, ant, t) ?? (onCooldown(sim, ant, 'cd.bite') ? 'cooldown' : null),
+  // no fixed cue: combat emits `bite` with the target's hardness as its strength (audio crunch on hard prey only)
+  cue: null,
+  check: (sim, ant, t) => hostileCheck(sim, ant, t) ?? (onCooldown(sim, ant, 'cd.bite') ? 'cooldown' : null)
+    ?? (ports.combatMayBite(sim, ant, t.kind, t.id) ? null : 'blocked'), // stunned, or pinned and not facing it
   durationS: () => BITE_S,
-  onBegin: (sim, ant) => { ant.bb['cd.bite'] = sim.state.tick + BITE_CYCLE_S * TICKS_PER_SECOND; },
-  effect: (sim, ant, t) => ports.applyDamage(sim, t.kind, t.id, biteDamage(sim, ant), 'combat'),
+  onBegin: (sim, ant) => { ant.bb['cd.bite'] = sim.state.tick + Math.max(1, Math.round(biteCycleS(sim, ant) * TICKS_PER_SECOND)); },
+  // combat resolves the bite with the attacker named: hit chance, M(n), armour, events, the hardness cue
+  effect: (sim, ant, t) => ports.applyDamage(sim, t.kind, t.id, biteDamage(sim, ant), 'combat', ant.id),
+};
+
+/** `sting` (myrmicines; GDD 05 §4.4): contact, venom and repellent are combat's. */
+export const stingDef: ActionDef = {
+  id: 'sting', kind: 'timed', targets: ['ant', 'creature'], preempts: true, cancellable: true, pose: 'sting', cue: null,
+  windupFrac: STING_WINDUP_S / STING_S,
+  check: (sim, ant, t) => ports.combatStingRefusal(sim, ant, t),
+  reachable: (sim, ant, t) => ports.combatStingContact(sim, ant, t),
+  durationS: () => STING_S,
+  effect: (sim, ant, t) => ports.combatStingHit(sim, ant, t.kind === 'creature' ? 'creature' : 'ant', t.id),
+};
+
+/** `dodge` (GDD 05 §4.8): instant here; combat's movement override then carries the 3 L displacement. */
+export const dodgeDef: ActionDef = {
+  id: 'dodge', kind: 'instant', targets: ['none'], cancellable: false, preempts: true, pose: 'hurry', cue: null,
+  check: (sim, ant) => ports.combatDodgeRefusal(sim, ant),
+  durationS: () => 0,
+  effect: (sim, ant) => (ports.combatStartDodge(sim, ant) ? 1 : 'blocked'),
 };
 
 export const biteHoldDef: ActionDef = {
@@ -86,7 +115,8 @@ function sprayTargets(sim: Sim, ant: Ant): TargetRef[] {
 export const sprayAcidDef: ActionDef = {
   id: 'spray-acid', kind: 'timed', targets: ['none'], preempts: true, cancellable: true, pose: 'spray',
   cue: 'acid-spray', windupFrac: SPRAY_WINDUP_S / (SPRAY_WINDUP_S + SPRAY_RELEASE_S),
-  check: (sim, ant) => (ant.acid < 1 ? 'no-reserve' : onCooldown(sim, ant, 'cd.spray') ? 'cooldown' : null),
+  check: (sim, ant) => (ports.combatSprayDisabled(ant) ? 'conditions' // gaster wound: the special does not work
+    : ant.acid < 1 ? 'no-reserve' : onCooldown(sim, ant, 'cd.spray') ? 'cooldown' : null),
   durationS: () => SPRAY_WINDUP_S + SPRAY_RELEASE_S,
   effect(sim, ant) {
     if (ant.acid < 1) return 'no-reserve';
@@ -99,7 +129,7 @@ export const sprayAcidDef: ActionDef = {
     const std = (colony ? sim.getSpecies(colony.species)?.stdMassMg : undefined) ?? 1;
     const dmg = SPRAY_DAMAGE_PER_MG23 * Math.pow(ant.massMg / std, 2 / 3);
     const hits = sprayTargets(sim, ant);
-    for (const h of hits) ports.applyDamage(sim, h.kind, h.id, dmg, 'combat');
+    for (const h of hits) ports.applyDamage(sim, h.kind, h.id, dmg, 'combat', ant.id);
     return hits.length;
   },
 };

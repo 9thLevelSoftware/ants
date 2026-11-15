@@ -123,6 +123,48 @@ export default async ({ page, shot, log, wait }) => {
   expect(result.fonts.allFaces >= 8, 'bundled @font-face rules are missing', result.fonts);
   expect(loadedFamilies.has('Inter Variable') || loadedFamilies.has('Source Serif 4 Variable'), 'no bundled UI font reached the loaded state', result.fonts);
 
+  // ---- short first play (gate 1B): New colony with real clicks, generation in the Blob-URL worker, the intro card
+  // closed by a key, the queen walks, pause -> save -> return to title -> continue gives the same state
+  if (!process.env.PORTABLE_NO_PLAY) {
+    const click = async (id) => { await target.click(`[data-testid="${id}"]`, { timeout: 60000 }); await wait.frames(2); };
+    await click('menu-new');
+    await target.waitForSelector('[data-testid="seed-field"]', { timeout: 60000 });
+    await target.fill('[data-testid="seed-field"]', '00000002');
+    const t0 = Date.now();
+    await click('begin');
+    await target.waitForFunction(() => window.__game.summary().mode === 'playing', null, { timeout: 600000, polling: 250 });
+    result.play = { generateS: Math.round((Date.now() - t0) / 100) / 10, worker: await g(() => window.__game.assets.backendFor('workers/worldgen.js')) };
+    expect(await g(() => window.__founding?.view()?.phase) === 'intro-card', 'the new colony did not start on the intro card');
+    await target.click('#view');
+    await page.keyboard.press('KeyW');
+    await g(() => window.__game.step(90));
+    expect(await g(() => window.__founding?.view()?.phase) === 'search', 'a key did not close the intro card');
+    const p0 = (await g(() => window.__game.summary())).possessed.pos;
+    await g(() => { window.__game.setIntent({ move: { x: 0, y: 1 } }); window.__game.step(30); window.__game.setIntent({}); });
+    const p1 = (await g(() => window.__game.summary())).possessed.pos;
+    expect(Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) > 5, 'the queen did not walk', { p0, p1 });
+    await g(() => window.__game.renderFrame());
+    result.playShot = await shot('play');
+    await page.keyboard.press('Escape');
+    await wait.frames(4);
+    await click('pause-save');
+    await click('save-slot-1');
+    await wait(1500);
+    const hash = await g(() => window.__game.stateHash());
+    await target.keyboard?.press?.('Escape');
+    await page.keyboard.press('Escape');
+    await wait.frames(3);
+    await click('pause-title');
+    await wait(500);
+    if (await target.$('[data-testid="confirm-ok"]')) await click('confirm-ok');
+    await target.waitForSelector('[data-testid="menu-continue"]:not([disabled])', { timeout: 120000 });
+    await click('menu-continue');
+    await target.waitForFunction(() => window.__game.summary().mode === 'playing', null, { timeout: 600000, polling: 250 });
+    result.play.sameState = (await g(() => window.__game.stateHash())) === hash;
+    result.play.storage = await g(() => window.__game.saves?.status?.().save ?? null);
+    expect(result.play.sameState, 'the continued game differs from the saved one', result.play);
+  }
+
   log(JSON.stringify(result));
   return result;
 };

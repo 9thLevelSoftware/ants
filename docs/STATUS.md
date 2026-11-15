@@ -201,3 +201,12 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - **sim-fix-ants**: review 3 major + 5 minor; 7 fixed, budgets reported. Stalled share 0.01 %. Outdoor 1.33 ms
   at load 11 (budget 1.2 ms, idle unknown).
 - Launched `int-1B-sim` + `int-1B-app` (Opus, with review). Still running: founding-close, rivals, ui-panels.
+
+## Nov 15, 23:15 UTC — founding round 3 landed
+
+- `founding-close` done (Opus, 15 M ms wall). Browser e2e completes on seeds 1 and 2, no stand-ins, no console errors; I looked at shots 02, 04, 08, 10 of seed 1.
+- Sealing: guided from the real leak; 29 of 30 matrix cases seal (loam 30°/3.0 BU fails). Start day 9; `FOUND_FIRST_BROOD_DEV_MULT = 1.5`. Seeds 1–8 all accepted at start site or nearest good site; seed 7 start site stalls beside a log; seed 3 start site margin 0.83 GD (< 1.0).
+- Good-site runs give 17–18 workers (above the chapter's 8–16); the engineer widened the sweep ceiling to 19 for Q ≥ 0.85. Revisit at balance pass.
+- Open, passed to the running gates as addenda (they may or may not be read mid-run; re-issue as a follow-up task if not done): colony starvation false alarms (start and after hand-over), `last-ants` empty title, nest `reopening`→`sealed`, natural entrance registration, plug reach, locomotion stall on shaft walls / beside logs, first worker "stuck" on flat ground, warmth dots vs word, red alert dot always lit.
+- Site abandonment still partial (no `abandoned-burrow`, no 3-burrow limit).
+- Still running: rivals + ui-panels (`wfdd5p8cl`), both 1B gates (`wbzzr1gt5`).

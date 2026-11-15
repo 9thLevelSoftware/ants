@@ -37,15 +37,17 @@ export function engage(sim: Sim, antId: number, targetKind: TargetKind, targetId
 /**
  * Applies damage points to an ant or creature (armour, possessed-ant multiplier, death with `cause`); returns the
  * damage actually dealt. `attackerId` (additive, optional) names the hitter for outnumbering and alarms. When the
- * action library's `bite` or `spray-acid` shell calls without it, the bite / spray is resolved here in full: hit
- * chance, M(n), events (the raw `dmg` of the shell is then replaced by the rules' value).
+ * hitter is executing the action library's `bite` or `spray-acid` (named, or found by its action when unnamed),
+ * the bite / spray is resolved here in full: hit chance, M(n), events (the shell's raw `dmg` is replaced).
  */
 export function applyDamage(sim: Sim, targetKind: TargetKind, targetId: number, dmg: number, cause: DeathCause, attackerId?: number): number {
   ensureInstalled(sim);
   const b = bodyOf(sim, targetKind, targetId);
   if (!b) return 0;
-  if (attackerId === undefined && cause === 'combat') {
-    const a = executingAttacker(sim, targetKind, targetId, b.kind === 'ant' ? b.ant.pos : b.c.pos);
+  if (cause === 'combat') {
+    // the library's bite / spray shells name their attacker (int-1B-sim); older callers are found by their action
+    const named = attackerId !== undefined ? sim.stores.ants.get(attackerId) : undefined;
+    const a = named ?? (attackerId === undefined ? executingAttacker(sim, targetKind, targetId, b.kind === 'ant' ? b.ant.pos : b.c.pos) : undefined);
     if (a?.action?.id === 'bite') return resolveBite(sim, a, b.kind, targetId, false);
     if (a?.action?.id === 'spray-acid') return sprayHit(sim, a, b.kind, targetId);
   }
@@ -81,7 +83,7 @@ export { computePinned, frontHolder, holdersOf, isHelpless, isPinned, slotsFor }
 export { biteHitChance, mayBite, outnumberMult, resolveBite } from './hits';
 export { sprayDamage, sprayDisabled, sprayHit } from './acid';
 export { dodgeDef, dodgeRefusal, setDodgeDirection, startDodge } from './dodge';
-export { stingDamage, stingDef, stingHit } from './sting';
+export { inContact as stingContact, stingDamage, stingDef, stingHit, stingRefusal } from './sting';
 export { alarmBurst } from './alarm';
 export { hasInjury, injure, rollInjuries } from './injuries';
 export { activeRally } from './rally';

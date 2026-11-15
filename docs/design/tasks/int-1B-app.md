@@ -79,3 +79,14 @@ Seen in `test-output/views-fix2/12-high-colony-slice.png` and `04-possess-tunnel
 - Gate report: `docs/design/tasks/gate-1B-app-report.md` with the firstplay screenshot list, each
   described after looking at it; portable build + `verify:portable` result; what a player would hit in
   the first ten minutes that is still wrong, most serious first.
+
+## Addendum — arrived after launch (Nov 15, 23:15): founding round 3 landed
+
+`tests/e2e/founding.mjs` now completes on seeds 1 and 2 with no stand-ins (shots: `test-output/fnd-close/seed1`, `seed2`). Build firstplay on it. `window.__founding` gained `opening()` and `sites(x, z, rBu, minQ)`. Start day is Summer 2.
+
+Seen by the integrator in those shots, for you or ui-panels:
+- Site read-out: Warmth shows 0 of 5 dots beside the word "Mild" (shot 02). Dots and word must come from the same value.
+- The red alert dot in the top-right HUD card is lit in every shot, including with no alert.
+- "+2 more" chip sits under the read-out with nothing to expand at game start (the lean-stage food warnings; the sim gate removes their cause).
+- Outcome card (shot 08): the queen is a black silhouette; the underground fill does not reach her at that camera distance.
+- Shot 10 (first worker outside): ground is bare to the horizon with heavy streaking at grazing angles; check anisotropic filtering on the ground material at standard quality and whether the ground cover is being culled.

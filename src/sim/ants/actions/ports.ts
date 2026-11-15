@@ -49,6 +49,15 @@ export const ports = {
   ecloseBrood: late(() => colony.ecloseBrood),
   cannibaliseBrood: late(() => colony.cannibaliseBrood),
   tendBroodAt: late(() => colony.tendBroodAt),
+  // combat (combat task): the rules behind the bite / spray / dodge / sting shells (GDD 05 §4)
+  combatMayBite: late(() => combat.mayBite),
+  combatStats: late(() => combat.combatStats),
+  combatSprayDisabled: late(() => combat.sprayDisabled),
+  combatDodgeRefusal: late(() => combat.dodgeRefusal),
+  combatStartDodge: late(() => combat.startDodge),
+  combatStingRefusal: late(() => combat.stingRefusal),
+  combatStingContact: late(() => combat.stingContact),
+  combatStingHit: late(() => combat.stingHit),
   // ecology (sources-core): harvesting. takeFromSource puts the food into the crop (liquids, `amount` = game s of
   // drinking) or an item into the mandibles (pick: whole units; tear: one piece).
   takeFromSource: late(() => ecology.takeFromSource),

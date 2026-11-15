@@ -150,6 +150,7 @@ export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.architect.auto': 'Turn the nest architect on',
   'remedy.diet.protein': 'Shift the diet toward protein',
   'remedy.dig.food': 'Plan a food chamber',
+  'remedy.dig.general': 'Plan more chambers',
   'remedy.dig.nursery': 'Plan a nursery',
   'remedy.dig.rest': 'Plan a resting chamber',
   'remedy.marker.avoid': 'Mark an area to avoid',
@@ -157,6 +158,7 @@ export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.marker.forage': 'Mark a place to forage',
   'remedy.marker.move-brood': 'Move the brood',
   'remedy.marker.move-queen': 'Move the queen',
+  'remedy.marker.rally': 'Place a rally marker',
   'remedy.possess.forage': 'Take control of a forager',
   'remedy.possess.tend': 'Take control of a worker tending the herd',
   'remedy.possessed.find-soil': 'Find soil to dig in',
@@ -167,7 +169,41 @@ export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.slider.forage': 'Raise the Forage share',
   'remedy.slider.nurse': 'Raise the Nurse share',
   'remedy.slider.tend': 'Raise the Forage share (it holds the tenders)',
+  'remedy.stance.cautious': 'Set the stance to cautious',
   'remedy.stock.low': 'Lower the stock target',
+};
+
+/**
+ * How a diagnostic's main value reads in Colony health (GDD 08 §4.4 "value with unit"). The sim publishes a different
+ * quantity per diagnostic, so each id names its own unit; an id not listed shows its number with no unit rather than
+ * a wrong one. kind: ratio = a plain factor ("0.6 of normal"), percent = value x 100 ("63 % full"), count = a tally of
+ * things, none = the value carries no meaning for the player (it is not shown).
+ */
+export interface DiagValueSpec {
+  kind: 'ratio' | 'percent' | 'count' | 'none';
+  unit: string;
+}
+export const DIAG_VALUE_WORD: Readonly<Record<string, DiagValueSpec>> = {
+  'diag-food-intake-c': { kind: 'ratio', unit: 'of need' },
+  'diag-food-intake-p': { kind: 'ratio', unit: 'of need' },
+  'diag-stores': { kind: 'percent', unit: 'of the stock target' },
+  'diag-brood-growth': { kind: 'ratio', unit: 'of normal' },
+  'diag-egg-laying': { kind: 'ratio', unit: 'of normal' },
+  'diag-queen-condition': { kind: 'percent', unit: 'condition' },
+  'diag-workforce': { kind: 'percent', unit: 'of the need staffed' },
+  'diag-foraging-trails': { kind: 'percent', unit: 'working' },
+  'diag-mortality': { kind: 'percent', unit: 'of ants lost per game day' },
+  'diag-hygiene': { kind: 'percent', unit: 'clean' },
+  'diag-nest-space': { kind: 'percent', unit: 'full' },
+  'diag-dig-progress': { kind: 'percent', unit: 'of full speed' },
+  'diag-nest-climate': { kind: 'percent', unit: 'of ideal' },
+  'diag-rivals': { kind: 'count', unit: 'raid risks' },
+  'diag-combat-losses': { kind: 'count', unit: 'workers lost today' },
+  'diag-herds': { kind: 'count', unit: 'honeydew yield today' },
+  'diag-released-ant': { kind: 'none', unit: '' },
+  'diag-possessed-action': { kind: 'none', unit: '' },
+  'diag-possessed-movement': { kind: 'none', unit: '' },
+  'diag-possession-availability': { kind: 'none', unit: '' },
 };
 
 /** Why a founding failed, as the failure card words it (GDD 06 §5.14). Plain statements; no personification of the cold or the ground. */

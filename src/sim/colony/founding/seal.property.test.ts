@@ -6,7 +6,8 @@
 // The full matrix (pitch 30-85 deg x width 1.5 / 2.1 / 3.0 BU x loam / sand) runs with FOUNDRESS_LONG=1.
 import { describe, expect, it } from 'vitest';
 import type { MaterialId } from '@/sim/types';
-import { SEAL_MAX_PLUGS } from '@/sim/balance/founding';
+import { OPEN_AUTO_SEAL_GD, SEAL_MAX_PLUGS } from '@/sim/balance/founding';
+import { TICKS_PER_DAY } from '@/sim/time';
 import { cavityEntrances } from './dig';
 import { throatLeak } from './leak';
 import { cellReachesAir } from './sealPlan';
@@ -85,4 +86,24 @@ describe.skipIf(!LONG)('sealing: the whole matrix (FOUNDRESS_LONG=1)', () => {
     (globalThis as { process?: { stderr: { write(s: string): void } } }).process?.stderr.write(`[seal matrix]\n${rows.join('\n')}\n`);
     expect(bad).toEqual([]);
   }, 1_800_000);
+});
+
+describe('the passive player (task founding-close §1: the auto-seal uses the same code path)', () => {
+  it(`with no input for ${OPEN_AUTO_SEAL_GD} GD in phase seal, the queen seals by herself with seal-entrance`, () => {
+    const c = throatCase({ pitchDeg: 55, widthBu: 2.1, soil: 'loam' });
+    const sim = c.sim;
+    pinTemperature(sim, 22);
+    const q = queen(sim);
+    sim.enqueue({ type: 'possess', antId: q.id });
+    sim.tick();
+    // the first plug lands only after the idle time (the plug's voxels carry the PLUG flag: seal-entrance's own)
+    let sealedTick = -1;
+    sim.events.on('entrance-state-changed', (e) => { if (e.status === 'sealed' && sealedTick < 0) sealedTick = sim.state.tick; });
+    const t0 = sim.state.tick;
+    stepUntil(sim, () => phase(sim) !== 'seal', OPEN_AUTO_SEAL_GD * TICKS_PER_DAY + SEAL_TICKS_MAX);
+    expect(phase(sim)).toBe('lay');
+    expect(sealedTick - t0).toBeGreaterThanOrEqual(OPEN_AUTO_SEAL_GD * TICKS_PER_DAY - 20);
+    expect(cavityEntrances(sim, nestOf(sim)).reduce((n, e) => n + e.plugVoxelCount, 0)).toBeGreaterThan(0);
+    expect(cellReachesAir(sim, nestOf(sim))).toBe(false);
+  }, 60_000);
 });

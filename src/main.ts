@@ -1,9 +1,10 @@
-// Entry point: mounts the UI, checks WebGL2, creates the Game, exposes window.__game, and with ?autostart=1
+// Entry point: mounts the UI, checks WebGL2, creates the Game, installs persistence, exposes window.__game, and with ?autostart=1
 // goes straight into a generated game. Sets window.__ready once the first real frame is rendered.
 import { FOUNDRESS_VERSION, createLogger } from '@/core';
 import { Game } from '@/game/Game';
 import { createDebugApi, type DebugApi } from '@/game/debug/debugApi';
 import { parseGameFlags } from '@/game/flags';
+import { installPersistence } from '@/game/save';
 import { mountUi } from '@/ui/App';
 import { installErrorTraps, webgl2Available } from '@/ui/boot';
 import { facade, setBootScreen, setSnapshot, showError } from '@/ui/store';
@@ -42,10 +43,13 @@ async function boot(): Promise<void> {
   window.__game = createDebugApi(game);
   facade.value = game;
   await game.boot();
+  // saves, settings and bindings: never blocks boot, and the game plays on without storage (architecture §8)
+  const persistence = installPersistence(game).catch((e: unknown) => { console.warn('[main] persistence unavailable', e); return null; });
   if (flags.autostart) {
     const r = await game.newGame();
     if (!r.ok && !r.cancelled) console.error('[main] autostart: new game failed:', r.error); // the error panel shows
   } else game.renderNow();
+  if (flags.test) await persistence; // scripts may use __game.saves as soon as __ready is set
   window.__ready = true;
 }
 

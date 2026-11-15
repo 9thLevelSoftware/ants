@@ -13,7 +13,8 @@
 //          --self-test    negative test: inject each forbidden pattern into a copy of the output and require stage 1
 //                         to fail for every one (no browser)
 //          --skip-iframe  stage 2 only
-//          --strict       do not tolerate the known defects of other modules listed in KNOWN_ISSUES
+//          --no-build     verify the folder as it is (default: rebuild first when it is missing or older than src/)
+//          --lenient      tolerate the known defects of other modules listed in KNOWN_ISSUES (strict is the default)
 // Exit code 0 = all passed, 1 = any failure.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -32,14 +33,11 @@ const outRoot = path.join(ROOT, 'test-output/portable');
 const MOUNT = '/games/foundress/v1/';
 const QUERY = 'test=1&autostart=1&seed=1';
 
-// Known defects of OTHER modules that the harness would count as console errors. Each entry is narrow and is listed in
-// the task report; `--strict` removes them (the verification then fails until the owner fixes the cause).
-const KNOWN_ISSUES = [
-  // src/ui/boot/Title.tsx and PauseMenu.tsx render <button autofocus>; Chromium refuses that in a cross-origin
-  // (sandboxed) subframe and logs this as an error. Harmless, but the UI should focus with a ref + focus() instead.
-  { match: 'Blocked autofocusing on a <button> element in a cross-origin subframe', owner: 'ui-shell (src/ui/boot/Title.tsx, components/Button.tsx)' },
-];
-const ignoreArgs = () => (flag('strict') ? [] : KNOWN_ISSUES.flatMap((k) => ['--ignore', k.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')]));
+// Known defects of OTHER modules that the harness would count as console errors. Each entry must be narrow and listed
+// in the task report. Strict by default (gate 1B: the autofocus error is fixed, the list is empty); `--lenient`
+// tolerates the entries while an owner fixes a new one.
+const KNOWN_ISSUES = [];
+const ignoreArgs = () => (!flag('lenient') ? [] : KNOWN_ISSUES.flatMap((k) => ['--ignore', k.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')]));
 
 const say = (...m) => console.log(...m);
 const failures = [];
@@ -136,14 +134,29 @@ function selfTest() {
   stage('negative test: every injected forbidden pattern is caught', allFailed && clean.findings.length === 0);
 }
 
+/** Newest modification time under src/, index.html and public/assets (a build older than this is stale). */
+function newestSourceMs() {
+  let newest = 0;
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p); else newest = Math.max(newest, fs.statSync(p).mtimeMs);
+    }
+  };
+  for (const d of ['src', 'public/assets']) if (fs.existsSync(path.join(ROOT, d))) walk(path.join(ROOT, d));
+  newest = Math.max(newest, fs.statSync(path.join(ROOT, 'index.html')).mtimeMs);
+  return newest;
+}
+
 const copyDir = (from, to) => fs.cpSync(from, to, { recursive: true });
 const edit = (d, rel, fn) => { const f = path.join(d, rel); fs.writeFileSync(f, fn(fs.readFileSync(f, 'utf8'))); };
 const editJs = (d, fn) => edit(d, listFiles(d).find((f) => /^foundress\..*\.js$/.test(f)), fn);
 const editPack = (d, fn) => edit(d, listFiles(d).find((f) => f.startsWith('packs/')), fn);
 
 async function main() {
-  if (!fs.existsSync(path.join(dist, 'index.html'))) {
-    say(`${dist} is missing: running build:portable first`);
+  const stale = fs.existsSync(path.join(dist, 'index.html')) && newestSourceMs() > fs.statSync(path.join(dist, 'index.html')).mtimeMs;
+  if (!flag('no-build') && (!fs.existsSync(path.join(dist, 'index.html')) || stale)) {
+    say(`${dist} is ${stale ? 'older than the sources' : 'missing'}: running build:portable first`);
     const b = spawnSync(process.execPath, [path.join(ROOT, 'tools/build/portable.mjs')], { cwd: ROOT, stdio: 'inherit' });
     if (b.status !== 0) { console.error('build:portable failed'); process.exit(1); }
   }

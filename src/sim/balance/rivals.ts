@@ -66,6 +66,18 @@ export const GUARD_RELIEF_GD = 0.25;
 export const DEFEND_IDLE_S = 30;
 /** Defenders look for intruders this far from an entrance on the surface, BU. */
 export const DEFEND_SURFACE_BU = 20;
+/** Defenders look for intruders this far inside the nest, BU; at a reinforcement call this far around the call, BU. */
+export const DEFEND_NEST_BU = 40;
+export const REINFORCE_SEARCH_BU = 20;
+/** Reinforcements walk to the call point until this close, BU, and count as arrived at this tolerance, BU. */
+export const REINFORCE_ARRIVE_BU = 4;
+export const REINFORCE_GO_BU = 3;
+/** Escorts keep this close to the hiding queen, BU (goPoint arrival tolerance). */
+export const ESCORT_ARRIVE_BU = 1.5;
+/** A queen keeps hiding this long after the last hostile was near, s. */
+export const QUEEN_HIDE_S = 60;
+/** Agents prune their recognition marks once per this many ticks. */
+export const MARK_PRUNE_TICKS = 300;
 /** War agents hold at a front cell this long before choosing another, s. */
 export const WAR_HOLD_S: readonly [number, number] = [60, 120];
 /** An agent cut off from home (no nav) for this long is absorbed in place, s (keeps the budget honest). */
@@ -119,6 +131,11 @@ export const WINTER_STORE_SHARE = 0.05;
 export const S_AGG_BASE = 0.5;
 export const S_AGG_SLOPE = 0.5;
 export const PLAYER_S_FACTOR = 0.75;
+/** Virtual tendedness of the herds in a rival's claimed cells: min(VTEND_MAX, N / VTEND_N) (GDD 05 §3.2). */
+export const VTEND_MAX = 0.7;
+export const VTEND_N = 300;
+/** Virtual harvest from real nodes: a node is drawn for a nutrient only if it is at least this share of its value. */
+export const DRAW_NUTRIENT_MIN_SHARE = 0.25;
 /** Start values of an established rival: brood per N0, stores as multiples of upkeep / of the P cap. */
 export const START_BROOD_PER_N = 0.2;
 export const START_C_U = 5;
@@ -166,6 +183,13 @@ export const SITE_DIG_MIN = 0.3;
 export const ENTRANCE_SEARCH_BU: readonly number[] = [4, 6, 9, 12, 16, 24];
 /** A brood item stolen from a nest of another species is food for the thief: P loads per item. */
 export const RAIDED_BROOD_FOOD_P = 0.3;
+/** Aftermath: display brood of a destroyed colony not of the player's species becomes food pieces of this bulk. */
+export const AFTERMATH_BROOD_BULK = 0.3;
+/** Entrances 1 + [N >= each of these] (GDD 05 §3.4): carved at setup from N0 and when N first crosses one. */
+export const ENTRANCE_N_STEPS: readonly number[] = [300, 800];
+/** An extra entrance starts at a chamber and opens this far away on free ground, BU; and this far from other entrances, BU. */
+export const EXTRA_ENTRANCE_BU: readonly number[] = [10, 14, 18];
+export const EXTRA_ENTRANCE_SPACING_BU = 8;
 
 // ---- territory (GDD 05 §3.5) ----
 
@@ -191,6 +215,10 @@ export const AWARE_L = 3;
 export const DISPLAY_S: readonly [number, number] = [1, 3];
 export const WITHDRAW_TURN_DEG: readonly [number, number] = [120, 180];
 export const WITHDRAW_WALK_L = 5;
+/** The withdrawal walk lasts at most this, s. */
+export const WITHDRAW_MAX_S = 4;
+/** A death counts for the colony of the last hitter within this, s (inter-colony death escalation). */
+export const KILL_CREDIT_S = 3;
 /** Escalation gains for one ant pair at most once per this, s. */
 export const RECOGNITION_PAIR_S = 60;
 /** A fight entry of the same agent counts again after this, s. */
@@ -237,6 +265,8 @@ export const PREDATORY_RATIO = 0.5;
 export const RAID_ENGAGE_L = 3;
 export const RAID_LOOT_REACH_BU = 1.2;
 export const RAID_LOOT_SEARCH_BU = 30;
+/** Outside the target nest raiders look for loot within this many of their own body lengths. */
+export const RAID_LOOT_SEARCH_OUT_L = 6;
 /** Raid parties gather at the target entrance (this close, BU) until this share is there or this long has passed, s. */
 export const RAID_GATHER_BU = 8;
 export const RAID_GATHER_SHARE = 0.7;
@@ -302,3 +332,5 @@ export const RIVAL_LEVERS: Readonly<Record<DifficultyId, RivalLevers>> = {
 
 /** `diag-rivals`: R at or above this with a known nest in war is "raid risk". */
 export const DIAG_RAID_RISK_R = RAID_RATIO;
+/** `diag-rivals` factor weight added for a rival with raid risk (contested cells and R add the rest). */
+export const DIAG_RAID_RISK_WEIGHT = 50;

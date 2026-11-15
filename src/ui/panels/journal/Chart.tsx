@@ -14,7 +14,8 @@ const BAND_H = 18;
 
 export interface ChartProps {
   model: ChartModel;
-  startTick: number;
+  /** Days per season: day labels count the day of the season, like the date lines. */
+  seasonLength: number;
 }
 
 /** Steps (in days) an x axis may use: 1, 2, 3, 6, 12 hours, then whole days. */
@@ -30,14 +31,14 @@ function xTicks(x0: number, x1: number): { ticks: number[]; step: number } {
 }
 
 /** "Day 12" for a day tick; "06:00" (with the day at midnight and at the first tick) for an hour tick. */
-function tickText(j: { startTick: number }, t: number, step: number, first: boolean): string {
+function tickText(j: { seasonLength: number }, t: number, step: number, first: boolean): string {
   if (step >= 1) return dayLabel(j, t);
   const hours = Math.round((t % 1) * 24) % 24;
   const clock = `${String(hours).padStart(2, '0')}:00`;
   return hours === 0 || first ? `${dayLabel(j, t)} ${clock}` : clock;
 }
 
-export function Chart({ model, startTick }: ChartProps) {
+export function Chart({ model, seasonLength }: ChartProps) {
   const [cursor, setCursor] = useState<number>(-1);
   const ref = useRef<SVGSVGElement>(null);
   const m = model;
@@ -47,7 +48,7 @@ export function Chart({ model, startTick }: ChartProps) {
   if (m.empty) {
     return <p class="pn-empty" data-testid="chart-empty">There are no readings for this graph yet. The colony is sampled once every game hour.</p>;
   }
-  const labelJ = { startTick };
+  const labelJ = { seasonLength };
   const cur = cursor >= 0 ? cursorAt(m, m.xs[Math.min(cursor, m.xs.length - 1)]) : null;
   const onMove = (e: MouseEvent): void => {
     const r = ref.current?.getBoundingClientRect();

@@ -100,3 +100,15 @@ export function useBackLayer(onClose: () => void, level: number, enabled = true)
   ref.current = onClose;
   useLayoutEffect(() => (enabled ? pushBack(() => ref.current(), level) : undefined), [enabled, level]);
 }
+
+/**
+ * Focus an element once after mount, without the `autofocus` attribute: Chromium blocks that attribute inside a
+ * cross-origin frame and logs a console error (the portable build's sandboxed iframe). Returns the ref to attach.
+ */
+export function useAutoFocusRef<T extends HTMLElement>(on: boolean | undefined) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (on) ref.current?.focus({ preventScroll: true });
+  }, [on]);
+  return ref;
+}

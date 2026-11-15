@@ -119,7 +119,7 @@ export const QUALITY_PRESETS: Record<QualityId, QualityPreset> = {
     msaa: true,
     shadows: { enabled: true, mapSize: 1024, distanceBU: 60, type: 'pcf' },
     post: POST_OFF,
-    density: { grass: 0.4, litter: 0.4, decor: 0.5, crowdLod: 0.5 },
+    density: { grass: 0.25, litter: 0.25, decor: 0.5, crowdLod: 0.5 }, // grass / litter: GDD 04 §9 x0.25 at Low
     anisotropy: 2, drawDistanceBU: 2000, fog: { enabled: true, hazeScale: 0.85 },
     renderOnDemand: false, maxTextureSize: 1024,
   },
@@ -129,7 +129,7 @@ export const QUALITY_PRESETS: Record<QualityId, QualityPreset> = {
     msaa: false,
     shadows: { enabled: true, mapSize: 2048, distanceBU: 90, type: 'pcf' },
     post: post({ dof: { bokehScale: 2.0, resolutionScale: 0.5 }, bloom: { levels: 5 }, smaa: { preset: 'medium' } }),
-    density: { grass: 0.7, litter: 0.7, decor: 0.75, crowdLod: 0.75 },
+    density: { grass: 0.5, litter: 0.5, decor: 0.75, crowdLod: 0.75 }, // grass / litter: GDD 04 §9 x0.5 at Medium
     anisotropy: 4, drawDistanceBU: 3500, fog: { enabled: true, hazeScale: 1 },
     renderOnDemand: false, maxTextureSize: 2048,
   },

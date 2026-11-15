@@ -10,15 +10,15 @@ import { faceToward, mayAttack, startFight } from '@/sim/combat';
 import { requestTask } from '@/sim/colony';
 import { switchTask } from '@/sim/colony/allocation';
 import {
-  DIG_IDLE_S, RAID_GATHER_BU, RAID_ENGAGE_L, RAID_LOOT_REACH_BU, RAID_LOOT_SEARCH_BU,
+  DIG_IDLE_S, RAID_GATHER_BU, RAID_ENGAGE_L, RAID_LOOT_REACH_BU, RAID_LOOT_SEARCH_BU, RAID_LOOT_SEARCH_OUT_L,
 } from '@/sim/balance/rivals';
 import { secondsToTicks } from '@/sim/time';
-import { absorbAgent, setJob } from './agents';
-import { lenMm } from './encounter';
+import { absorbAgent, setJob } from '../agents';
+import { lenMm } from '../encounter';
 import { hostileNear } from './jobs';
 import { d2, d3, goTarget, halt, loiter } from './move';
-import { chambersOf, homeNest } from './setup';
-import { BB, JOB, rmod } from './state';
+import { chambersOf, homeNest } from '../setup';
+import { BB, JOB, rmod } from '../state';
 
 const ids: number[] = [];
 
@@ -65,7 +65,7 @@ export function raidJob(sim: Sim, ant: Ant): void {
     if (foe && foe.colony === r.target) { startFight(sim, ant, { kind: 'ant', id: foe.id }, foe.pos, 'threat'); return; }
   }
   // loot within reach: pick it up
-  const loot = lootNear(sim, ant, r.target, ant.nestId === nest.id ? RAID_LOOT_SEARCH_BU * sim.world.bu : 6 * L, broodRaid);
+  const loot = lootNear(sim, ant, r.target, ant.nestId === nest.id ? RAID_LOOT_SEARCH_BU * sim.world.bu : RAID_LOOT_SEARCH_OUT_L * L, broodRaid);
   if (loot) {
     const t = { kind: 'brood' as const, id: loot.id, pos: loot.pos };
     if (d3(loot.pos, ant.pos) <= 2 * RAID_LOOT_REACH_BU * sim.world.bu + ant.radius) {

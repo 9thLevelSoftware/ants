@@ -144,11 +144,14 @@ export function sealTick(sim: Sim, op: OpeningState, nest: Nest): boolean {
   if (f.state === 'ready' || (f.state === 'sealed' && op.phase === 'seal')) {
     const mine = cavityEntrances(sim, nest);
     // sealed with the queen inside (a plug between her and the cell is no seal of her cell)
-    const done = mine.length > 0 && mine.every((e) => throatClosed(sim, e)) && queenSealedIn(sim, nest);
+    // no registered opening at all (a shaft closed under a crust, or one that broke into a natural cavity whose
+    // openings the nest module has not registered): nothing the nest module counts as open, so sealed, as it sees it
+    const closed = mine.every((e) => throatClosed(sim, e));
+    const done = closed && queenSealedIn(sim, nest);
     if (done && f.state === 'ready') {
       f.state = 'sealed';
       f.sealedTick = sim.state.tick;
-      sim.emit({ type: 'founding-sealed', nestId: nest.id, entranceId: mine[0].id });
+      sim.emit({ type: 'founding-sealed', nestId: nest.id, entranceId: mine[0]?.id ?? -1 });
     } else if (!done && f.state === 'sealed') {
       f.state = 'ready'; // the nest flipped the record while she is shut out (or a throat is open again)
     }

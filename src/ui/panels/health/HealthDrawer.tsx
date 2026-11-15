@@ -1,6 +1,7 @@
 // Colony health, the "why" view (GDD 08 4.4, screen id `colony-health`, key Y): a right-docked drawer with the overall
 // status, one row per diagnostic (shape + word, label, value, sparkline, since) sorted worst first, and under the open
 // row its cause chain: weighted factors with bars, nested explanations, "Show" and the remedies as link buttons.
+import { useEffect, useRef } from 'preact/hooks';
 import { Icon } from '../../icons';
 import { DrawerShell } from '../../hud/DrawerShell';
 import { closePanel } from '../../hud/state';
@@ -57,7 +58,7 @@ function Row({ d, rows, open }: { d: UiDiagnostic; rows: readonly UiDiagnostic[]
         <span class={`pn-shape is-${kind}`}><Icon name={`status-${kind}`} size={20} decorative /></span>
         <span class="pn-diag-text">
           <span class="pn-diag-label">{d.label}</span>
-          <span class="pn-diag-meta"><b>{statusWord(d.status)}</b> · {valueWord(d)} · since {d.sinceLabel}</span>
+          <span class="pn-diag-meta"><b>{statusWord(d.status)}</b> · {valueWord(d) && `${valueWord(d)} · `}since {d.sinceLabel}</span>
         </span>
         <DiagSpark values={d.history} label={d.label} tone={d.status} />
         <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} decorative />
@@ -83,13 +84,30 @@ function Row({ d, rows, open }: { d: UiDiagnostic; rows: readonly UiDiagnostic[]
   );
 }
 
+/**
+ * Brings the expanded row into view when it changes (an alert's click-through expands a row that is below the fold of a
+ * list of a dozen rows) and, when the drawer opened that way, puts the keyboard focus on it.
+ */
+function useScrollToExpanded(expanded: string | null, ready: boolean): void {
+  const fresh = useRef(true);
+  useEffect(() => {
+    if (!expanded || !ready) return;
+    const row = document.querySelector<HTMLElement>(`.pn-health [data-diag="${CSS.escape(expanded)}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: 'start', inline: 'nearest' });
+    if (fresh.current) row.querySelector<HTMLElement>('.pn-diag-head')?.focus({ preventScroll: true });
+    fresh.current = false;
+  }, [expanded, ready]);
+}
+
 export function HealthDrawer() {
   const h = healthSlice.value;
   const expanded = healthExpanded.value;
   const rows = h ? rankRows(h.rows) : [];
   const overall = h ? overallOf(rows) : 'ok';
+  useScrollToExpanded(expanded, rows.some((r) => r.id === expanded));
   return (
-    <DrawerShell title="Colony health" onClose={() => closePanel('health')} class="fd-drawer pn-drawer pn-health" initial=".pn-diag-head">
+    <DrawerShell title="Colony health" onClose={() => closePanel('health')} class="fd-drawer pn-drawer pn-health" initial={expanded ? `[data-diag="${CSS.escape(expanded)}"] .pn-diag-head` : '.pn-diag-head'}>
       {!h ? (
         <p class="pn-empty">No colony to read.</p>
       ) : (

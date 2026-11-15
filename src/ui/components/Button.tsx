@@ -4,6 +4,7 @@
 import type { ComponentChildren } from 'preact';
 import { Icon } from '../icons';
 import { cx } from './cx';
+import { useAutoFocusRef } from './focus';
 import { Tooltip } from './Tooltip';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -35,8 +36,10 @@ export function Button(p: ButtonProps) {
   const reason = p.disabled ? p.disabledReason : undefined;
   const hardDisabled = !!p.disabled && !reason;
   const blocked = !!p.disabled || !!p.busy;
+  const ref = useAutoFocusRef<HTMLButtonElement>(p.autoFocus);
   const button = (
     <button
+      ref={ref}
       type={p.type ?? 'button'}
       id={p.id}
       class={cx('ui-btn', `ui-btn--${p.variant ?? 'secondary'}`, p.block && 'is-block', p.busy && 'is-busy', p.forceState && `is-${p.forceState}`, p.class)}
@@ -46,7 +49,6 @@ export function Button(p: ButtonProps) {
       aria-label={p['aria-label']}
       aria-haspopup={p['aria-haspopup']}
       data-testid={p['data-testid']}
-      autofocus={p.autoFocus}
       onClick={(e: MouseEvent) => { if (!blocked) p.onClick?.(e); else e.preventDefault(); }}
     >
       {p.busy ? <span class="ui-spinner" aria-hidden="true" /> : p.icon ? <Icon name={p.icon} size={20} decorative /> : null}

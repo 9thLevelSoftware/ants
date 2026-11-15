@@ -41,6 +41,12 @@ export const RATION_MAX_S = 6;
 /** Hungry return (GDD 02 §1.4): crop C below this and reserve below the fraction of its cap. */
 export const HUNGER_RETURN_CROP = 0.05;
 export const HUNGER_RETURN_RESERVE_FRAC = 0.5;
+/**
+ * The hungry return (GDD 02 §1.4) is a trip home to refuel: it applies only while the colony pool holds at least
+ * this much C, loads. With an empty pool (the first workers after the founding) going home cannot feed the ant and
+ * would end every trip at the entrance, so the colony could never find food (int-1B-sim ruling).
+ */
+export const HUNGER_RETURN_POOL_MIN_C = 0.1;
 /** Arrival radius at the entrance chamber centre (waiting foragers, homing by the planner), BU. */
 export const WAIT_SPREAD_BU = 2;
 /** Arrival radius at the food chamber (solid unloading, receiver search), BU. */

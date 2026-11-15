@@ -3,21 +3,22 @@
 // stays as an abandoned, explorable cavity), first workers of incipients, and new foundations in the flight window.
 
 import { rngChance, rngRange } from '@/core/rng';
-import type { Colony, Sim } from '@/sim/types';
-import { destroyColony } from '@/sim/entities';
+import type { Colony, Nest, Sim } from '@/sim/types';
+import { destroyColony, spawnItem } from '@/sim/entities';
 import { processAntDeath } from '@/sim/ants';
 import { getSpecies } from '@/sim/species';
 import {
-  AFTERMATH_DIE_GD, DESTROYED_N, FOUNDATION_HOUR, FOUNDATION_P, FOUNDATION_P_EMPTY, FOUNDATION_SITE_MIN_BU,
-  INCIPIENT_BROOD,
+  AFTERMATH_BROOD_BULK, AFTERMATH_DIE_GD, DESTROYED_N, RAIDED_BROOD_FOOD_P, FOUNDATION_HOUR, FOUNDATION_P, FOUNDATION_P_EMPTY, FOUNDATION_SITE_MIN_BU,
+  INCIPIENT_BROOD, INCIPIENT_MAX,
 } from '@/sim/balance/rivals';
 import { currentDefaultYearDoy, currentHour, TICKS_PER_DAY } from '@/sim/time';
 import { agentsOf, setJob } from './agents';
+import { capRoom } from './fielding';
 import { dropRelationsOf } from './relations';
 import { endRaid } from './raids';
-import { addRivalColony, homeNest } from './setup';
+import { addRivalColony, displayBrood, homeNest, removeBroodQuietly } from './setup';
 import { BB, colExt, JOB, rivalColonies, rmod, type RivalColony } from './state';
-import { d2 } from './move';
+import { d2 } from './behaviours/move';
 
 /** Every pass: dead queens leave the record; the last one orphans the colony (events). */
 export function watchQueens(sim: Sim): void {
@@ -58,6 +59,16 @@ export function firstWorkers(sim: Sim): void {
   }
 }
 
+/**
+ * Hourly: an incipient colony whose workers pass INCIPIENT_MAX leaves the founding phase ("then the normal model",
+ * GDD 05 §3.8): normal field cap, war raids, and it counts as established for the rival setting.
+ */
+export function graduateIncipients(sim: Sim): void {
+  for (const col of rivalColonies(sim)) {
+    if (col.rival.incipient && colExt(sim.state, col.id).firstWorkersTick < 0 && col.rival.n > INCIPIENT_MAX) col.rival.incipient = false;
+  }
+}
+
 /** Hourly: the destruction rule and its aftermath. */
 export function checkDestruction(sim: Sim): void {
   for (const col of rivalColonies(sim)) {
@@ -86,11 +97,28 @@ export function destroy(sim: Sim, col: RivalColony): void {
   for (const q of col.queens) if (sim.stores.ants.get(q.antId)) processAntDeath(sim, q.antId, 'starvation');
   col.queens = [];
   col.queenId = -1;
+  if (nest) leaveBrood(sim, col, nest);
   r0(col);
   if (nest && !rmod(sim.state).abandonedNests.includes(nest.id)) rmod(sim.state).abandonedNests.push(nest.id);
   dropRelationsOf(sim.state, col.id);
   sim.emit({ type: 'rival-destroyed', colonyId: col.id, species: col.species, pos });
   destroyColony(sim, col.id, 'destroyed');
+}
+
+/**
+ * Aftermath of the display brood (GDD 05 §3.9, "food or adoptable"): brood of the player's species stays as brood
+ * (whoever of the player carries it adopts it, watchTheft); any other brood becomes a food piece (prey, P) where it lay.
+ */
+function leaveBrood(sim: Sim, col: RivalColony, nest: Nest): void {
+  const adoptable = col.species === sim.state.config.species;
+  for (const b of displayBrood(sim, col, nest)) {
+    if (adoptable) continue;
+    spawnItem(sim, {
+      kind: 'food-piece', pos: b.pos,
+      init: { p: RAIDED_BROOD_FOOD_P, bulk: AFTERMATH_BROOD_BULK, foodKind: 'prey', nestId: b.nestId, chamberId: b.chamberId, inNest: b.nestId >= 0 },
+    });
+    removeBroodQuietly(sim, b, 'aftermath');
+  }
 }
 
 function r0(col: RivalColony): void {
@@ -124,7 +152,7 @@ export function newFoundations(sim: Sim): void {
   const p = have === 0 ? FOUNDATION_P_EMPTY : FOUNDATION_P;
   if (!rngChance(sim.stream('rng.rivals'), p)) return;
   const site = vacantSite(sim);
-  if (site) addRivalColony(sim, { species: sim.state.config.species, origin: site, incipient: true });
+  if (site && capRoom(sim) >= 1) addRivalColony(sim, { species: sim.state.config.species, origin: site, incipient: true });
 }
 
 function vacantSite(sim: Sim): { x: number; y: number; z: number } | null {

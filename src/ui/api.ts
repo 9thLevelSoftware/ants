@@ -651,6 +651,11 @@ export interface GameFacade {
   resetHints?(): void;
   /** True when the lineage store has records (the Title shows Lineage only then). */
   hasLineage?(): boolean;
+  /**
+   * Codex entries unlocked on this device in earlier games (the profile's `codex` block, `profile.get().codex`), so the
+   * Codex keeps them open across games (GDD 08 7.3). Absent: only the entries of the running game are open.
+   */
+  codexUnlocks?(): Record<string, import('@/sim/types').CodexUnlock>;
   // ui-hud additions (optional: the HUD degrades without them; the Game already has `command` and `refreshUi`)
   /** Send any sim command (acknowledgeAlert, setAutoExpand, ...). */
   command?(cmd: import('@/sim/types').Command): unknown;

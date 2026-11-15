@@ -7,6 +7,8 @@ export interface BlockContext {
   mode: string;
   /** Camera/view id; photo mode blocks autosave. */
   view: string;
+  /** Camera position and a point it looks at, mm (recorded in the save meta, restored on load). */
+  camera?: { pos: { x: number; y: number; z: number }; look: { x: number; y: number; z: number } };
 }
 
 /**

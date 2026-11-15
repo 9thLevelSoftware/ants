@@ -5,7 +5,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim, TargetRef } from '@/sim/types';
 import { navStop, navTo, navToTarget, navWander } from '@/sim/locomotion';
 import { AGENT_ARRIVE_BU } from '@/sim/balance/rivals';
-import { BB } from './state';
+import { BB } from '../state';
 
 export type LegStatus = 'moving' | 'arrived' | 'failed';
 

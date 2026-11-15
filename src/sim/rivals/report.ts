@@ -4,7 +4,7 @@
 
 import type { Sim } from '@/sim/types';
 import {
-  ALERT_CLEAR_S, DIAG_RAID_RISK_R, NEST_ATTACKED_ANTS, RAID_PARTY_SEEN_BU, RAID_SEEN_AGENTS, RAID_SEEN_BU,
+  ALERT_CLEAR_S, DIAG_RAID_RISK_R, DIAG_RAID_RISK_WEIGHT, NEST_ATTACKED_ANTS, RAID_PARTY_SEEN_BU, RAID_SEEN_AGENTS, RAID_SEEN_BU,
 } from '@/sim/balance/rivals';
 import { clearAlert, publishDiagnostic, raiseAlert } from '@/sim/progression';
 import { secondsToTicks } from '@/sim/time';
@@ -13,7 +13,7 @@ import { knowsNest, strengthOf } from './raids';
 import { findRelation } from './relations';
 import { homeNest } from './setup';
 import { BB, playerColonyOf, relExt, rivalColonies, rmod } from './state';
-import { d3 } from './move';
+import { d3 } from './behaviours/move';
 
 const ids: number[] = [];
 
@@ -94,7 +94,7 @@ export function publishRivalDiagnostic(sim: Sim): void {
     if (state === 'skirmish' || state === 'war') conflict++;
     const last = r.rival.lastRaidTick >= 0 ? `last raid at tick ${r.rival.lastRaidTick}` : 'no raid yet';
     rows.push({
-      cause: `rival-${r.id}`, w: contested + (raidRisk ? 50 : 0) + R,
+      cause: `rival-${r.id}`, w: contested + (raidRisk ? DIAG_RAID_RISK_WEIGHT : 0) + R,
       detail: `${r.species}: ${state}, strength ratio ${R.toFixed(2)}, ${contested} contested cells, ${last}${raidRisk ? ', raid risk' : ''}`,
     });
   }

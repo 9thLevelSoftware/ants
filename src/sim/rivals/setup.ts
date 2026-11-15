@@ -12,7 +12,7 @@ import { spawnAnt, spawnBrood } from '@/sim/entities';
 import { carveTemplateNest, createPlan, instantCarvePlan } from '@/sim/nest';
 import { walkerPlace } from '@/sim/locomotion/walker';
 import {
-  AGENT_THINK_TICKS, BROOD_DISPLAY_MAX, ENTRANCE_SEARCH_BU, SITE_CLEAR_BU, SITE_DIG_MIN, BROOD_DISPLAY_PER, DISPLAY_LARVA_SHARE, DISPLAY_PROGRESS, DISPLAY_PUPA_SHARE,
+  AGENT_THINK_TICKS, BROOD_DISPLAY_MAX, ENTRANCE_N_STEPS, ENTRANCE_SEARCH_BU, EXTRA_ENTRANCE_BU, EXTRA_ENTRANCE_SPACING_BU, SITE_CLEAR_BU, SITE_DIG_MIN, BROOD_DISPLAY_PER, DISPLAY_LARVA_SHARE, DISPLAY_PROGRESS, DISPLAY_PUPA_SHARE,
   NEST_GENERAL_DEPTHS_BU, NEST_GENERAL_PER_N0, NEST_NURSERY_DEPTH_BU,
 } from '@/sim/balance/rivals';
 import { createRivalColony } from './init';
@@ -53,15 +53,68 @@ function carveNest(sim: Sim, col: RivalColony, nest: Nest): void {
     { type: 'nursery' as const, size: 'm' as const, depthBu: NEST_NURSERY_DEPTH_BU },
     ...NEST_GENERAL_DEPTHS_BU.slice(0, generals).map((d) => ({ type: 'general' as const, size: 's' as const, depthBu: d })),
   ];
-  const species = col.species;
-  const swap = !getSpecies(species);
-  if (swap) col.species = p.templateSpecies;
-  try {
+  asTemplateSpecies(col, () => {
     carveTemplateNest(sim, nest.id, { chambers, royal: true });
     if (nest.entrances.length === 0) openEntrance(sim, nest);
+  });
+}
+
+/** Runs a nest-module call with a rival-only species swapped for its profile's playable template species. */
+function asTemplateSpecies<T>(col: RivalColony, fn: () => T): T {
+  const species = col.species;
+  if (!getSpecies(species)) col.species = rivalProfile(species).templateSpecies;
+  try {
+    return fn();
   } finally {
     col.species = species;
   }
+}
+
+/** Entrances a rival nest has for N workers: 1 + [N >= 300] + [N >= 800] (GDD 05 §3.4). */
+export function entranceTierOf(n: number): number {
+  return 1 + ENTRANCE_N_STEPS.filter((s) => n >= s).length;
+}
+
+/**
+ * One more entrance: a tunnel from a chamber (shallowest first) up to free ground 10-18 BU away, at least
+ * EXTRA_ENTRANCE_SPACING_BU from the other entrances (a nest-module plan, carved at once). False when none fits.
+ */
+export function addEntrance(sim: Sim, col: RivalColony, nest: Nest): boolean {
+  const bu = sim.world.bu, before = nest.entrances.length;
+  const anchors = [...nest.chambers].sort((a, b) => b.center.y - a.center.y || a.id - b.id);
+  return asTemplateSpecies(col, () => {
+    for (const ch of anchors) {
+      for (const r of EXTRA_ENTRANCE_BU) {
+        for (let k = 0; k < 8; k++) {
+          const a = ((k + 0.5) / 8) * Math.PI * 2;
+          const x = ch.center.x + Math.cos(a) * r * bu, z = ch.center.z + Math.sin(a) * r * bu;
+          const g = { x, y: sim.field.height(x, z), z };
+          if (sim.navGrid.blocked(x, z) || sim.field.primAt(g, 2 * bu)) continue;
+          if (nest.entrances.some((e) => Math.hypot(e.pos.x - x, e.pos.z - z) < EXTRA_ENTRANCE_SPACING_BU * bu)) continue;
+          const id = createPlan(sim, {
+            nestId: nest.id, kind: 'entrance', anchor: { pos: { ...ch.center }, normal: { x: 0, y: 1, z: 0 } }, surfacePoint: g,
+            priority: 'normal', confirmWarnings: true,
+          }, 'worldgen');
+          if (id < 0) continue;
+          instantCarvePlan(sim, id);
+          if (nest.entrances.length > before) return true;
+        }
+      }
+    }
+    return false;
+  });
+}
+
+/** Carves entrances up to the tier of the colony's N (setup and hourly; each tier once, even if none fits). */
+export function growEntrances(sim: Sim, col: RivalColony): void {
+  const ext = colExt(sim.state, col.id);
+  const nest = homeNest(sim, col);
+  if (!ext.setupDone || !nest || ext.destroyedTick >= 0) return;
+  const want = entranceTierOf(col.rival.n);
+  const have = ext.entranceTier ?? 1;
+  if (want <= have) return;
+  for (let t = have; t < want; t++) addEntrance(sim, col, nest);
+  ext.entranceTier = want;
 }
 
 /** Open, diggable ground for the shaft: the site itself, else the nearest such point around it (a site under a stone). */
@@ -179,7 +232,9 @@ export function setupRivalNest(sim: Sim, col: RivalColony, announce = false): vo
   if (!nest) return;
   nest.origin = diggableSite(sim, nest.origin, rivalProfile(col.species).templateSpecies);
   carveNest(sim, col, nest);
-  nest.architect.mode = 'off'; // rival nests never auto-expand (GDD 05 §3.4)
+  nest.architect.mode = 'off'; // rival nests never auto-expand (GDD 05 §3.4) beyond the entrance rule
+  ext.entranceTier = 1;
+  growEntrances(sim, col);
   const { royal } = chambersOf(nest);
   if (!royal) return;
   const queens = col.rival.incipient ? 1 : rivalProfile(col.species).queens;

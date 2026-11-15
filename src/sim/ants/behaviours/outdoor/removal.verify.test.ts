@@ -29,7 +29,10 @@ describe('review: acceptance 2, traffic after the source is removed', () => {
         for (const a of sim.state.ants) {
           if (!isOutdoorAnt(a) || a.nestId >= 0) continue;
           const near = Math.hypot(a.pos.x - spot.x, a.pos.z - spot.z) <= zone;
-          if (near && !inside.has(a.id)) { visits.set(a.id, (visits.get(a.id) ?? 0) + 1); last = sim.state.tick; }
+          // GDD 02 §10.2: an exploring scout is sent nowhere, so its random crossings are not "keeps going there";
+          // they still count for the stop time (`last`). int-1B-sim ruling (Addendum 3 item 6).
+          const exploring = a.task === 'scout' && a.state === 'scout.explore';
+          if (near && !inside.has(a.id)) { if (!exploring) visits.set(a.id, (visits.get(a.id) ?? 0) + 1); last = sim.state.tick; }
           if (near) inside.add(a.id); else inside.delete(a.id);
         }
       });

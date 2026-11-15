@@ -7,6 +7,8 @@ import { publishDiagnostic, recordMilestone, unlockCodex } from '@/sim/progressi
 import type { Sim } from '@/sim/types';
 import { SnapshotBuilder, type SnapshotSource } from '../../uiBridge';
 import { hudRequests } from '../requests';
+import { installPanelsBridge } from './bridge';
+import { unlockLabel } from './dates';
 import { codexOf, dateOf, healthOf, journalOf, markerCountsOf, nestOf, sinceOf } from './index';
 
 function src(sim: Sim | null): SnapshotSource {
@@ -119,6 +121,24 @@ describe('codex and marker slices', () => {
     const sim = makeTestSim({ nest: 'small', workers: 2 });
     expect(dateOf(sim, 0)).toMatch(/^[A-Z][a-z]+ · Day \d+ · Year \d+$/);
     expect(sinceOf(sim, 250)).toMatch(/, \d\d:\d\d$/);
+  });
+});
+
+describe('device codex unlocks (GDD 08 7.3)', () => {
+  it('a real profile store unlocked in an earlier game shows through the facade method, dated like the journal', async () => {
+    const { ProfileStore } = await import('@/game/profile/profile');
+    const store = new ProfileStore({ storage: null, kv: null, nowIso: () => '2026-01-01T00:00:00.000Z' });
+    store.unlockCodex('cx-honeydew', { tick: 10, doy: 9, year: 2, species: 'lasius-niger' });
+    store.unlockCodex('cx-callow', { tick: 20, doy: 1, year: 1, species: 'lasius-niger' });
+    const bridge = installPanelsBridge({ codexUnlocks: () => store.get().codex });
+    expect(bridge.codexDevice?.()).toEqual({ 'cx-honeydew': { label: 'Summer · Day 2 · Year 2' }, 'cx-callow': { label: 'Spring · Day 1 · Year 1' } });
+  });
+  it('a game without the facade method has no device unlocks', () => {
+    expect(installPanelsBridge({}).codexDevice?.()).toEqual({});
+  });
+  it('the label follows the running game\'s season length', () => {
+    expect(unlockLabel({ doy: 11, year: 1 }, 10)).toBe('Summer · Day 1 · Year 1');
+    expect(unlockLabel({ doy: 28, year: 3 })).toBe('Winter · Day 7 · Year 3');
   });
 });
 

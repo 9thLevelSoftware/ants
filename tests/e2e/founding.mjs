@@ -49,6 +49,17 @@ export default async ({ page, shot, log }) => {
     result.beats.push(name);
     if (testId) expect(await visible(testId), `beat ${name}: ${testId} not on screen`);
   };
+  /** The same view once more at quality=high (post, shadows), then back to the run's quality. */
+  const highShot = async (name) => {
+    const before = (await g(() => window.__game.quality())).quality;
+    await g(() => window.__game.quality('high'));
+    await render(0.5);
+    await frames();
+    await shot(`${name}-high`);
+    result.beats.push(`${name}-high`);
+    await g((q) => window.__game.quality(q), before);
+    await render(0.2);
+  };
   const bu = (await g(() => window.__game.query.world())).bu;
   const nest = async () => (await g(() => window.__game.query.nest()))[0];
 
@@ -97,7 +108,15 @@ export default async ({ page, shot, log }) => {
   }, { o, slope: SHAFT_SLOPE_DEG, fromBu, toBu, stepBu });
   s = await summary();
   const start = { x: s.possessed.pos[0], y: s.possessed.pos[1], z: s.possessed.pos[2] };
-  const site = await findSite(start, 2, SITE_MAX_R_BU, 1);
+  // a good site by the static suitability map (what the site overlay shows a player), nearest first, where the shaft
+  // and the cell can be dug; else the nearest diggable ground
+  let site = null;
+  const good = await g(({ x, z }) => window.__founding.sites(x, z, 220, 0.8), { x: start.x, z: start.z });
+  for (const c of good.slice(0, 12)) {
+    site = await findSite({ x: c.x, y: 0, z: c.z }, 0, 4, 1);
+    if (site) { site.mapQ = c.q; break; }
+  }
+  if (!site) site = await findSite(start, 2, SITE_MAX_R_BU, 1);
   expect(site, `no diggable founding site within ${SITE_MAX_R_BU} BU of the start`, start);
   const H = site.h;
   const steerTo = async (gx, gz, tol) => {
@@ -115,7 +134,7 @@ export default async ({ page, shot, log }) => {
   expect(await steerTo(site.x - H.x * 1.5 * bu, site.z - H.z * 1.5 * bu, 0.8 * bu), 'the queen did not reach the site', site);
   await walkDir(2, H);
   await step(5);
-  result.site = { rBu: site.rBu };
+  result.site = { rBu: site.rBu, mapQ: site.mapQ ?? null, distBu: Math.hypot(site.x - start.x, site.z - start.z) / bu };
 
   // --- 3. the site read-out: she antennates the ground (T) ---------------------------------------------------------
   await g(() => window.__game.act('sniff'));
@@ -207,49 +226,30 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.possess('queen'));
   await step(2);
 
-  // --- 6. sealing: E at the shaft (held seal-entrance; the founding rule puts soil in her mandibles) ----------------
+  // --- 6. sealing: E (seal-entrance) once, from wherever she is in the shaft. The founding rule walks her to the
+  // throat by her own movement input and plugs the actual leak with the real seal-entrance, repeating until sealed.
   const queenAction = () => g(() => { const gm = window.__game; const a = gm.query.ant(gm.summary().possessed?.id); return a ? a.action : null; });
   const stopDig = async () => { await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' })); await step(20); };
   await stopDig(); // a held dig repeats until the input is released
-  let seals = 0;
-  const ent = (await nest()).entrances[0];
-  const tanS = Math.tan((SHAFT_SLOPE_DEG * Math.PI) / 180);
-  // into the throat: up the ramp to where it is about 1.5 BU below the opening
-  const throat = { x: ent.pos.x + H.x * (1.5 / tanS) * bu, z: ent.pos.z + H.z * (1.5 / tanS) * bu };
-  const toOpening = async () => { const p = (await summary()).possessed.pos; return Math.hypot(p[0] - ent.pos.x, p[1] - ent.pos.y, p[2] - ent.pos.z) / bu; };
-  for (let tries = 0; tries < 12 && (await phase()) === 'seal'; tries++) {
-    if ((await toOpening()) > 2.6) { await steerTo(throat.x, throat.z, 0.4 * bu); await step(5); }
-    const carrying = async () => (await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry?.kind; })) === 'item';
-    if (!(await carrying())) {
-      // no soil in her mandibles (the wall beside the plug is left alone): a bite of the shaft wall lower down
-      await walkDir(4, H);
-      await step(5);
-      if (!(await carrying())) await dig(0, 30, { x: -H.z, y: 0, z: H.x });
-      await steerTo(throat.x, throat.z, 0.4 * bu);
-      await step(5);
-    }
-    for (let w = 0; w < 20 && (await queenAction()); w++) await step(5); // the bite or plug under way ends first
-    if (tries < 3 || tries > 9) log('before seal: action', JSON.stringify(await queenAction()), 'carry', JSON.stringify(await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry; })));
-    const sq = await lastSeq();
-    const r = await g(() => window.__game.act('seal-entrance'));
-    await step(30);
-    await g(() => window.__game.act({ action: 'seal-entrance', phase: 'stop' }));
-    await step(5);
-    if (tries < 3) log('seal', JSON.stringify(r), JSON.stringify(await g((q) => window.__game.events(undefined, 60, q).filter((e) => !/creature|entity|food-source/.test(e.type)).map((e) => e.type + (e.reason ? ':' + e.reason : '')), sq)));
-    seals++;
+  const sealSeq = await lastSeq();
+  const pressed = await g(() => window.__game.act('seal-entrance'));
+  log('E pressed', JSON.stringify(pressed));
+  let sealTicks = 0;
+  for (; sealTicks < 3000 && (await phase()) === 'seal'; sealTicks += 50) {
+    await step(50);
+    if (sealTicks % 500 === 0) log('sealing', sealTicks, JSON.stringify((await view()).seal));
   }
-  result.sealRefusals = await g(() => window.__game.events('action-failed', 12).map((e) => `${e.action}:${e.reason}`));
-  log('seal tries', seals, 'distance to the opening (BU)', (await toOpening()).toFixed(2), JSON.stringify(result.sealRefusals));
+  const sealEvents = await g((q) => window.__game.events(undefined, 400, q).filter((e) => /seal|entrance-state|founding-sealed/.test(e.type + (e.action ?? ''))).map((e) => e.type + (e.action ? ':' + e.action : '') + (e.reason ? ':' + e.reason : '') + (e.status ? ':' + e.status : '')), sealSeq);
+  result.sealEvents = sealEvents;
+  expect(await phase() === 'lay', 'not sealed', { phase: await phase(), seal: (await view()).seal, entrances: (await nest()).entrances.map((e) => e.status) });
+  result.seal = { ticks: sealTicks, plugs: sealEvents.filter((e) => e === 'action-completed:seal-entrance').length, entrances: (await nest()).entrances.map((e) => e.status) };
+  log('sealed', JSON.stringify(result.seal));
   const goDown = async () => {
     for (let i = 0; i < 40; i++) {
       if (depthBu((await summary()).possessed.pos) >= SHAFT_DEPTH_BU - 1) break;
       await walkDir(3, H);
     }
   };
-  for (let i = 0; i < 5 && (await phase()) === 'seal'; i++) await step(20);
-  expect(await phase() === 'lay', 'not sealed', { phase: await phase(), entrances: (await nest()).entrances });
-  result.seal = { seals, entrances: (await nest()).entrances.map((e) => e.status) };
-  log('sealed', JSON.stringify(result.seal));
 
   // --- 7. back down into the cell; the first clutch (lay-egg: a batch of 6 per action) -------------------------------
   await stopDig();
@@ -260,7 +260,8 @@ export default async ({ page, shot, log }) => {
     await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));
     await step(5);
   };
-  for (let b = 0; b < 4; b++) await layBatch();
+  // a clutch of about 24 (GDD 06 §5.12: the good-site calibration clutch): batches of 6
+  for (let b = 0; b < 6 && ((await view()).clutch?.eggs ?? 0) < 24; b++) await layBatch();
   v = await view();
   result.clutch = v.clutch;
   log('clutch', JSON.stringify(v.clutch));
@@ -278,6 +279,7 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.camera.orbit(160, 15)); // round to the front of the queen: the eggs under her head
   await g(() => window.__game.camera.zoom(1.3));
   await beat('04-sealed-chamber-eggs', 'founding-clutch');
+  await highShot('04-sealed-chamber-eggs');
 
   // --- 8. "Tend the brood": the time-lapse, watched in steps, then skipped ----------------------------------------
   await click('founding-tend');
@@ -310,7 +312,7 @@ export default async ({ page, shot, log }) => {
   await click('founding-skip');
   await step(1);
   v = await view();
-  expect(v.phase === 'handover' || v.phase === 'done', 'skip did not end the lapse', v.phase);
+  expect(v.phase === 'handover' || v.phase === 'done', 'skip did not end the lapse', { phase: v.phase, cause: v.failCause, opening: await g(() => { const o = window.__founding.opening(); return o && { hazards: o.hazardLog, lapse: o.lapse }; }) });
   result.outcome = v.outcome;
   result.handoverHash = await hashAt();
   log('outcome', JSON.stringify(v.outcome));
@@ -342,6 +344,7 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.release());
   await g(({ a, l }) => window.__game.camera.setPose(a, l), await clearPose(e0.pos, 8, 14));
   await beat('09-handover-entrance');
+  await highShot('09-handover-entrance');
   await g(() => window.__founding.takeWorker());
   await step(2);
   s = await summary();

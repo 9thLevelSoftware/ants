@@ -92,12 +92,14 @@ export function demoJournal(): UiJournal {
     'workers-by-caste:worker': hourly(18, 6, 22), 'workers-by-caste:queen': hourly(1, 0, 0), 'workers-by-caste:male': hourly(0, 0, 0),
     eggs: hourly(10, 3, 4, 1), larvae: hourly(16, 4, 8, 2), pupae: hourly(5, 2, 6, 3), 'stores-c': hourly(6, 1.4, 1.4), 'stores-p': hourly(2, 0.5, -1.1, 1),
     'intake-c': hourly(3, 1, 0.5), 'intake-p': hourly(0.8, 0.25, -0.4, 2), 'nest-volume': hourly(120, 8, 90), 'nursery-temp': hourly(21, 3, 2), 'air-temp': hourly(19, 6, 3, 0.5),
+    'intake-by-kind:honeydew': hourly(2, 0.8, 0.4), 'intake-by-kind:prey': hourly(0.6, 0.3, -0.2, 2), 'intake-by-kind:nectar': hourly(0.8, 0.4, 0.1, 1),
   };
   void castes;
   const ds: Record<string, number[]> = {
     'workers-by-caste:worker': daily(DAYS, 6, 2, 30), 'workers-by-caste:queen': daily(DAYS, 1, 0, 0), eggs: daily(DAYS, 8, 3, 6), larvae: daily(DAYS, 10, 3, 9), pupae: daily(DAYS, 3, 2, 6),
     'stores-c': daily(DAYS, 4, 1, 3), 'stores-p': daily(DAYS, 2, 0.4, -1), 'intake-c': daily(DAYS, 2, 0.8, 1.5), 'intake-p': daily(DAYS, 0.6, 0.2, -0.2), 'nest-volume': daily(DAYS, 60, 6, 130),
     'nursery-temp': daily(DAYS, 21, 2, 1), 'air-temp': daily(DAYS, 19, 4, 1),
+    'intake-by-kind:honeydew': daily(DAYS, 1.6, 0.6, 0.8), 'intake-by-kind:prey': daily(DAYS, 0.5, 0.2, -0.1), 'intake-by-kind:nectar': daily(DAYS, 0.7, 0.3, 0.1),
     'deaths-by-cause:old-age': [0, 0, 0, 1, 0, 0, 2, 1, 0, 1, 0], 'deaths-by-cause:predation': [0, 0, 0, 0, 0, 1, 0, 2, 1, 0, 1], 'deaths-by-cause:cold': [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1],
   };
   return {

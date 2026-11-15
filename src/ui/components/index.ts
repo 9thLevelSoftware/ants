@@ -24,4 +24,4 @@ export { TextField, TextArea, type TextFieldProps, type TextAreaProps } from './
 export { Field, FieldContext, useFieldA11y, type FieldProps } from './Field';
 export { trendOf, trendIcon, TREND_WORDS, type Trend } from './logic/trend';
 export { pushBack, handleBack, hasBackHandler, layerAboveScreen } from './logic/escapeStack';
-export { focusableIn, focusInitial, trapTabKey, useFocusScope } from './focus';
+export { focusableIn, focusInitial, trapTabKey, useAutoFocusRef, useFocusScope } from './focus';

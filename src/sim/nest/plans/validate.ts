@@ -14,7 +14,7 @@ import { moistureAt, sMax, wallMin } from '../substrate';
 import { packSample } from '../voxelKey';
 import { buildGeometry, planG, type PlanGeometry } from './geometry';
 import { draftPlan, nearestNestOpen, resolvePlan, type ResolvedPlan } from './resolve';
-import { forPlanSamples, planCache, planSpecies, sampleDiggable, sampleInOpenAir } from './targets';
+import { forPlanSamples, planCache, planSpecies, sampleAboveGround, sampleDiggable, sampleInOpenAir } from './targets';
 
 export interface ValidationResult extends PlanValidation {
   /** Resolved record parts and geometry when the request could be built. */
@@ -106,8 +106,13 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
     const col = packSample(i, 0, k), c = cols.get(col);
     if (!c) cols.set(col, [i, k, j, j]); else { c[2] = Math.max(c[2], j); c[3] = Math.min(c[3], j); }
     if (sim.carve.sampleAt(i, j, k) >= OPEN_MIN) { diggable.push(key); return; }
+    const canDig = sampleDiggable(sim, species, i, j, k);
+    // a hard surface object (leaf, stone, kerb) above the ground that a shaft's overshoot pokes into is not the
+    // nest's substrate: nothing to dig there (it stays a hard sample, never a target), so it does not count toward
+    // the non-diggable share. An entrance may open under cover (int-1B-sim: the founding reopen under a leaf).
+    if (!canDig && sampleAboveGround(sim, i, j, k)) { hard.push(key); return; }
     notOpen++;
-    if (sampleDiggable(sim, species, i, j, k)) diggable.push(key);
+    if (canDig) diggable.push(key);
     else { nonDig++; hard.push(key); }
   });
   if (inWater(sim, nest, geometry)) return fail('water', { resolved, geometry });

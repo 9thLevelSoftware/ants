@@ -167,8 +167,13 @@ function outcome(sim: Sim): { ok: boolean; gd: number; workers: number; q: numbe
 }
 
 const range = requireSpecies('lasius-niger').opening.expectedFirstWorkers;
+/**
+ * The chapter's range for the cheat's 24-egg clutch: 8-16 (GDD 06 §5.12 "typical", Q 0.55-0.8); an excellent site
+ * (Q >= 0.85) may give up to the clutch-24 row's p90 at Q 0.9, 19.
+ */
+const maxFor = (q: number) => (q >= 0.85 ? 19 : range.max);
 const fmt = (o: ReturnType<typeof outcome>) => `${o.ok ? 'ok' : `FAIL(${o.phase})`} lapse ${o.gd.toFixed(2)} GD, ${o.workers} workers, margin ${o.margin.toFixed(2)} GD (Q ${o.q.toFixed(2)})`;
-const accepted = (o: ReturnType<typeof outcome>) => o.ok && o.workers >= range.min && o.workers <= range.max && o.margin >= 1.0;
+const accepted = (o: ReturnType<typeof outcome>) => o.ok && o.workers >= range.min && o.workers <= maxFor(o.q) && o.margin >= 1.0;
 
 describe.skipIf(!LONG)('founding outcome in the real environment (default start date, GDD 06 §5.11 / §5.15)', () => {
   it('generated worlds 1-8, default start: hand-over in the chapter range with >= 1 GD before autumn', () => {
@@ -187,7 +192,7 @@ describe.skipIf(!LONG)('founding outcome in the real environment (default start 
       log(rows[rows.length - 1]);
       worlds.clear(); // one generated world in memory at a time
     }
-    log(`accepted (start or nearest good site): ${good} of ${seeds.length}; range ${range.min}-${range.max}`);
+    log(`accepted (start or nearest good site): ${good} of ${seeds.length}; range ${range.min}-${range.max} (to 19 at Q >= 0.85)`);
     expect(good).toBe(seeds.length);
   }, 3_600_000);
 });

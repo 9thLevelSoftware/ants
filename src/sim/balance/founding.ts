@@ -206,7 +206,7 @@ export const FOUND_HAZARD_EVERY_GD = 0.05;
  * of development), so the worker count of GDD 06 §5.12 / E18 is unchanged and only the span shortens. Measured as
  * the least value giving every generated world 1-8 a hand-over at least 1 GD before autumn (see the report).
  */
-export const FOUND_FIRST_BROOD_DEV_MULT = 1.4;
+export const FOUND_FIRST_BROOD_DEV_MULT = 1.5;
 
 // ---- automatic queen care in the claustral cell (GDD 02 §2.7 `queen.found-care`, GDD 06 §5.11) ----
 

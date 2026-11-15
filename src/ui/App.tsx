@@ -1,31 +1,22 @@
-// UI root (composition root of src/ui): routes on the snapshot's screen and draws the HUD while playing. Later
-// tasks replace the boot placeholders screen by screen; keep this file to routing.
+// UI root (composition root of src/ui): the shell's screen router (title, new colony, loading, pause, settings,
+// save/load, codex, credits, epitaph, errors), the HUD while playing and the opening sequence's overlay. Keep this
+// file to composition; each part decides for itself when it shows.
 import { render } from 'preact';
-import { BOOT_CSS, Epitaph, ErrorOverlay, Loading, PauseMenu, Title, Unsupported } from './boot';
 import { HudRoot } from './hud';
 import { FoundingOverlay } from './screens/founding';
-import { snapshot } from './store';
+import { ScreenRouter } from './screens';
 
 export function App() {
-  const s = snapshot.value;
   return (
     <>
-      {s.screen === 'unsupported' && <Unsupported />}
-      {s.screen === 'title' && <Title />}
-      {s.screen === 'loading' && <Loading loading={s.loading} />}
       <HudRoot />
       <FoundingOverlay />
-      {s.screen === 'paused' && <PauseMenu />}
-      {s.screen === 'epitaph' && <Epitaph e={s.epitaph} />}
-      {s.error && <ErrorOverlay text={s.error} />}
+      <ScreenRouter />
     </>
   );
 }
 
-/** Mounts the UI on #ui (with the placeholder stylesheet). */
+/** Mounts the UI on #ui (the router installs the design system's stylesheet, UI scale and key handling itself). */
 export function mountUi(root: HTMLElement): void {
-  const style = document.createElement('style');
-  style.textContent = BOOT_CSS;
-  document.head.appendChild(style);
   render(<App />, root);
 }

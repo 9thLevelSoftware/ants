@@ -4,6 +4,7 @@
 
 import type { Behaviour } from '@/sim/types';
 import { THINK_TRAVEL_TICKS } from '@/sim/balance/foraging';
+import { FIGHT_EXIT_FLEE_HEALTH } from '@/sim/balance/combat';
 import { perceiveNow } from '@/sim/ants/perception';
 import { requestTask } from '@/sim/colony';
 import { phaseOf, thinkIn } from './common';
@@ -29,7 +30,8 @@ export const fleeBehaviour: Behaviour = {
   },
   update(sim, ant) {
     thinkIn(sim, ant, THINK_TRAVEL_TICKS);
-    if (ant.nestId >= 0) { requestTask(sim, ant, 'idle', 'threat'); return; }
+    // GDD 02 §10.13 'flee then rest': a badly hurt ant rests in the nest, others go back to the allocator
+    if (ant.nestId >= 0) { requestTask(sim, ant, ant.hp < FIGHT_EXIT_FLEE_HEALTH * ant.maxHp ? 'rest' : 'idle', 'threat'); return; }
     if (fleeCheck(sim, ant, FLEE)) return;
     if (phaseOf(ant) !== PHASE.return) { startReturn(sim, ant, FLEE, false, 'threat'); return; }
     updateReturn(sim, ant, FLEE);

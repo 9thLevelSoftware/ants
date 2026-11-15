@@ -226,10 +226,6 @@ async function setQuality(id: QualityId): Promise<ReturnType<typeof stats>> {
   qualityId = id;
   const p = presetFor(id);
   app.setQuality(p);
-  // Workaround (root cause in src/render/app, reported): postprocessing's EffectComposer sets renderer.autoClear =
-  // false and nothing restores it when a switch to a preset without post (Low) disposes the chain, so the direct
-  // path drew every new frame over the old colour and depth (near objects of the previous view stayed on screen).
-  if (!app.post) app.renderer.autoClear = true;
   if (app.needsRecreate) {
     ants.dispose(); decor.dispose(); worldRenderer.dispose(); app.dispose();
     canvas.remove();

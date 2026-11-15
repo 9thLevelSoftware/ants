@@ -4,9 +4,9 @@
 // screenshots at 1280x720 and 1920x1080 and UI scale 80 / 150 %.
 //   node tools/harness/play.mjs --root . --query "test=1&autostart=1&seed=1&quality=test" --script tests/e2e/hud.mjs \
 //        --out test-output/hud/real --script-timeout 900000
-// Stand-ins (logged as STAND-IN and listed in result.standIns): the founding flow is not finished, so the hand-over
-// (opening.done) is written directly; the alert system is not publishing yet, so alerts are pushed into
-// progression.alerts. HUD_STRICT=1 fails on any stand-in. HUD_SHOTS=0 skips screenshots.
+// The hand-over is the real one (cheat.completeFounding runs the opening's remaining steps) and alerts are raised
+// through progression's publisher (cheat.raiseAlert). A stand-in (logged as STAND-IN, listed in result.standIns) is
+// left only for a hand-over that does not arrive; HUD_STRICT=1 fails on it. HUD_SHOTS=0 skips screenshots.
 const SHOTS = process.env.HUD_SHOTS !== '0';
 
 export default async ({ page, shot, log, wait }) => {
@@ -52,11 +52,17 @@ export default async ({ page, shot, log, wait }) => {
   let p = (await summary()).possessed;
   expect(p && p.caste === 'queen', 'the autostart game should possess the queen', p && p.caste);
   const queenId = p.id;
-  let opening = await sim((sm) => sm.state.player.opening && !sm.state.player.opening.done);
+  // the real hand-over: the founding cheat runs the remaining opening steps automatically; step until the colony is
+  // handed over (the queen's Colony orders open then), skipping the brood time-lapse
+  const handedOver = () => sim((sm) => { const op = sm.state.player.opening; return !op || op.done || op.phase === 'handover' || op.phase === 'done'; });
+  let opening = !(await handedOver());
   if (opening) {
     await g(() => window.__game.cheat.completeFounding?.(10));
-    await g(() => window.__game.step(1));
-    opening = await sim((sm) => sm.state.player.opening && !sm.state.player.opening.done);
+    for (let i = 0; i < 120 && !(await handedOver()); i++) {
+      await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
+    }
+    opening = !(await handedOver());
+    result.checks.handover = await sim((sm) => ({ phase: sm.state.player.opening?.phase ?? null, tick: sm.state.tick }));
   }
   if (opening) {
     standIn('hand-over', 'cheat.completeFounding does not finish the opening yet; opening.done is written directly');
@@ -227,17 +233,21 @@ export default async ({ page, shot, log, wait }) => {
   await wait(600);
 
   // --- 6. alerts stacking -------------------------------------------------------------------------------------------------
-  standIn('alerts', 'the alert system does not publish yet; alerts are pushed into progression.alerts');
-  await sim((sm) => {
-    const mk = (id, kind, level, title, cause, count = 1) => ({ id, kind, level, subjectId: id, title, cause, focus: null, diagnosticId: null, raisedTick: sm.state.tick + id, updatedTick: sm.state.tick, count, acknowledged: false });
-    sm.state.progression.alerts.push(
-      mk(9001, 'food-p-low', 'warning', 'Protein short for the larvae', '18 larvae, 0.3 P stored', 3),
-      mk(9002, 'source-found', 'notice', 'New food found', 'honeydew, 140 BU north-east'),
-      mk(9003, 'nest-crowded', 'notice', 'Nest crowded', 'general chamber at 140 % capacity'),
-      mk(9004, 'weather-change', 'notice', 'Rain coming', 'within 2 game hours'),
-      mk(9005, 'trail-lost', 'notice', 'Trail broken', 'rain washed out the trail to the aphids'),
-    );
+  // alerts raised through progression's publisher (dedupe, cap, alert events), as the colony modules do
+  const raised = await g(() => {
+    const c = window.__game.cheat;
+    const ids = [
+      c.raiseAlert({ kind: 'food-p-low', level: 'warning', title: 'Protein short for the larvae', cause: '18 larvae, 0.3 P stored', subjectId: 9001 }),
+      c.raiseAlert({ kind: 'source-found', level: 'notice', title: 'New food found', cause: 'honeydew, 140 BU north-east', subjectId: 9002 }),
+      c.raiseAlert({ kind: 'nest-crowded', level: 'notice', title: 'Nest crowded', cause: 'general chamber at 140 % capacity', subjectId: 9003 }),
+      c.raiseAlert({ kind: 'weather-change', level: 'notice', title: 'Rain coming', cause: 'within 2 game hours', subjectId: 9004 }),
+      c.raiseAlert({ kind: 'trail-lost', level: 'notice', title: 'Trail broken', cause: 'rain washed out the trail to the aphids', subjectId: 9005 }),
+    ];
+    return ids;
   });
+  expect(raised.every((id) => id >= 0), 'progression refused a raised alert', raised);
+  // only these five on the feed: clear whatever the colony raised on its own meanwhile
+  await sim((sm) => { for (const a of [...sm.state.progression.alerts]) if (a.subjectId < 9001 || a.subjectId > 9005) window.__game.cheat.clearAlert(a.kind, a.subjectId); });
   await refresh();
   await wait.frames(3);
   const feed = await g(() => window.__hud.alerts());
@@ -246,9 +256,9 @@ export default async ({ page, shot, log, wait }) => {
   await pic('08-alerts-1280', { draw: false }); // alerts age in real time (notices leave after 12 s): shoot at once, the scene is already drawn
   result.checks.alerts = { cards: feed.cards.map((c) => c.kind), more: feed.more, toasts: feed.toasts.length };
   // HUD hidden (H): only critical alerts show, as one pinned card (GDD 08 3.4)
-  await sim((sm) => {
-    const mk = (id, kind, title) => ({ id, kind, level: 'critical', subjectId: id, title, cause: 'test', focus: null, diagnosticId: null, raisedTick: sm.state.tick + id, updatedTick: sm.state.tick, count: 1, acknowledged: false });
-    sm.state.progression.alerts.push(mk(9101, 'queen-in-danger', 'Queen in danger'), mk(9102, 'nest-flooding', 'Nest flooding'));
+  await g(() => {
+    window.__game.cheat.raiseAlert({ kind: 'queen-in-danger', level: 'critical', title: 'Queen in danger', cause: 'test', subjectId: 9101 });
+    window.__game.cheat.raiseAlert({ kind: 'nest-flooding', level: 'critical', title: 'Nest flooding', cause: 'test', subjectId: 9102 });
   });
   await g(() => window.__hud.game.toggleHud());
   await refresh();
@@ -257,7 +267,7 @@ export default async ({ page, shot, log, wait }) => {
   expect(hiddenFeed.cards.length === 1 && hiddenFeed.cards[0].level === 'critical', 'a hidden HUD should show one pinned critical card', hiddenFeed.cards.map((c) => `${c.kind}:${c.level}`));
   await g(() => window.__hud.game.toggleHud());
   result.checks.hiddenCriticals = { cards: hiddenFeed.cards.length, more: hiddenFeed.more };
-  await sim((sm) => { sm.state.progression.alerts.length = 0; });
+  await sim((sm) => { for (const a of [...sm.state.progression.alerts]) window.__game.cheat.clearAlert(a.kind, a.subjectId); });
   await refresh();
 
   // --- 7. no forced reflow from the HUD in the frame loop --------------------------------------------------------

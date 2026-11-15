@@ -271,6 +271,8 @@ class FieldImpl implements WorldField {
   private readonly holesNear: Uint8Array | null;
   private readonly terrainMin: number;
   private overlays: HeightOverlay[] = [];
+  /** Runtime counter of geometry edits (primitives, height overlays): caches keyed on the field compare it. */
+  geomVersion = 0;
   // scratch (never escapes)
   private readonly hs: HeightSlope = { h: 0, gx: 0, gz: 0 };
   private readonly g2: Grad2 = { d: 0, gx: 0, gz: 0 };
@@ -583,10 +585,12 @@ class FieldImpl implements WorldField {
   }
 
   addPrim(p: Primitive): void {
+    this.geomVersion++;
     if ((p.flags & PrimFlag.VISUAL_ONLY) !== 0) { this.hash.remove(p.id); return; }
     this.hash.add(makePrimEntry(p, this.isDiggablePrim(p)));
   }
   removePrim(id: number): boolean {
+    this.geomVersion++;
     return this.hash.remove(id) !== undefined;
   }
   updatePrim(p: Primitive): void {
@@ -595,13 +599,21 @@ class FieldImpl implements WorldField {
   setHeightOverlay(o: HeightOverlay): void {
     if (!(o.nx >= 2 && o.nz >= 2 && o.cell > 0 && o.h.length === o.nx * o.nz)) throw new Error(`height overlay ${o.id}: bad grid`);
     const i = this.overlays.findIndex((e) => e.id === o.id);
-    if (i >= 0) this.overlays[i] = o; else this.overlays.push(o);
+    if (i >= 0) this.overlays[i] = o;
+    else {
+      // kept in id order: overlapping piles are summed in list order, and a restored game registers them in state
+      // order, so a publish-history order would make heights differ in the last bits after a load (int-1B-sim)
+      this.overlays.push(o);
+      this.overlays.sort((a, b) => a.id - b.id);
+    }
+    this.geomVersion++;
     this.updateMinHeight();
   }
   removeHeightOverlay(id: number): boolean {
     const i = this.overlays.findIndex((e) => e.id === id);
     if (i < 0) return false;
     this.overlays.splice(i, 1);
+    this.geomVersion++;
     this.updateMinHeight();
     return true;
   }

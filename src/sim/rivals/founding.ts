@@ -9,7 +9,7 @@ import type { Ant, Colony, Sim } from '@/sim/types';
 import { DIG_MC_REF, DIG_P, DIG_PARTY, RIVAL_LEVERS } from '@/sim/balance/rivals';
 import { protectedQueen } from '@/sim/combat';
 import { endMajorThreat, requestMajorThreat } from '@/sim/ecology';
-import { quietShare, quietTracker } from '@/sim/ecology/creatures';
+import { quietShare } from '@/sim/ecology/creatures';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { spawnAnt } from '@/sim/entities';
 import { AntFlag } from '@/sim/types';
@@ -57,35 +57,35 @@ export function foundingThreatHour(sim: Sim, dtGd: number, force = false): boole
 }
 
 /**
- * The threat director's slot for the dig-in. Adapter: the director refuses every major threat while no daytime
- * hour has been counted for the quiet share (I11 excludes the founding stage), which would make this founding-stage
- * threat impossible; with nothing counted yet only "one at a time" and THREAT_MIN_QUIET_GD apply (reported seam).
+ * Pacing of the dig-in through the threat director: 'slot' when it granted the major-threat slot, 'founding' when
+ * it refuses only because no daytime hour has been counted yet (the founding stage, which I11 excludes: the
+ * director then refuses every major threat, which would make this founding-stage threat impossible), null when
+ * refused. In the 'founding' case the director's own rules are read, not written: no other threat is active and
+ * its minimum quiet time has passed; the dig-in holds no slot (none can start while nothing is counted). Seam
+ * reported: the director should own a founding-stage rule.
  */
-function startMajorThreat(sim: Sim, kind: string): boolean {
-  if (requestMajorThreat(sim, kind)) return true;
-  if (quietShare(sim) !== null) return false;
+function threatPacing(sim: Sim, kind: string): 'slot' | 'founding' | null {
+  if (requestMajorThreat(sim, kind)) return 'slot';
+  if (quietShare(sim) !== null) return null;
   const td = sim.state.rivals.threatDirector;
-  if (td.activeKind !== null) return false;
+  if (td.activeKind !== null) return null;
   const minGd = sim.state.config.difficulty.params.threatMinQuietGd;
-  if (td.lastEndTick >= 0 && sim.state.tick - td.lastEndTick < minGd * TICKS_PER_DAY) return false;
-  td.activeKind = kind;
-  td.activeSinceTick = sim.state.tick;
-  const q = quietTracker(sim);
-  q.threats++;
-  q.curThreat = 1;
-  return true;
+  if (td.lastEndTick >= 0 && sim.state.tick - td.lastEndTick < minGd * TICKS_PER_DAY) return null;
+  return 'founding';
 }
 
 /** 3-6 workers of the rival break into the founding chamber next to the queen. */
 export function digIn(sim: Sim, rival: RivalColony): boolean {
   const f = sealedFoundress(sim);
   if (!f) return false;
-  if (!startMajorThreat(sim, THREAT_KIND)) return false;
+  const pacing = threatPacing(sim, THREAT_KIND);
+  if (!pacing) return false;
+  const majorThreat = pacing === 'slot';
   const m = rmod(sim.state);
   const n = Math.min(Math.floor(rival.rival.n), rngInt(sim.stream('rng.rivals'), DIG_PARTY[0], DIG_PARTY[1]));
   const r = {
     id: m.nextRaidId++, attacker: rival.id, target: f.col.id, kind: 'dig' as const, targetNestId: f.queen.nestId, toSend: 0,
-    partyIds: [] as number[], startSize: 0, startTick: sim.state.tick, loot: 0, gathered: true, ending: false, majorThreat: true,
+    partyIds: [] as number[], startSize: 0, startTick: sim.state.tick, loot: 0, gathered: true, ending: false, majorThreat,
   };
   const bu = sim.world.bu;
   for (let i = 0; i < n; i++) {
@@ -100,7 +100,7 @@ export function digIn(sim: Sim, rival: RivalColony): boolean {
     r.partyIds.push(ant.id);
   }
   r.startSize = r.partyIds.length;
-  if (r.startSize === 0) { endMajorThreat(sim, THREAT_KIND); return false; }
+  if (r.startSize === 0) { if (majorThreat) endMajorThreat(sim, THREAT_KIND); return false; }
   m.raids.push(r);
   sim.emit({ type: 'rival-raid-started', attacker: rival.id, target: f.col.id, partySize: r.startSize });
   return true;

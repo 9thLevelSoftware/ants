@@ -1,7 +1,7 @@
 // Overlay catalogue: exclusivity rules, the O cycle, legends with distinct patterns in every palette (GDD 08 App. E check
 // 19), scales that match the chapter (task ui-panels).
 import { describe, expect, it } from 'vitest';
-import { applyOverlay, cycleOverlay, EXCLUSIVE_OVERLAYS, inkFor, isActive, legendFor, OVERLAY_IDS, PATTERN_IDS, type OverlaySet } from './catalogue';
+import { applyOverlay, cycleOverlay, EXCLUSIVE_OVERLAYS, inkFor, isActive, legendFor, OVERLAY_IDS, PATTERN_IDS, shownLegends, type OverlaySet } from './catalogue';
 
 const off: OverlaySet = { scent: false, other: null };
 
@@ -65,5 +65,17 @@ describe('legends', () => {
     const L = legendFor('dig-plans');
     expect(L.entries.map((e) => e.id)).toEqual(['proposed', 'queued', 'active', 'stalled', 'paused']);
     expect(L.entries.find((e) => e.id === 'stalled')?.pattern).toBe('cross-hatch');
+  });
+});
+
+describe('legends shown', () => {
+  it('the dig-plans legend is on while the dig tool is active, whatever else is switched on', () => {
+    expect(shownLegends({ scent: false, other: null }, true)).toEqual(['dig-plans']);
+    expect(shownLegends({ scent: true, other: 'temperature' }, true)).toEqual(['scent', 'temperature', 'dig-plans']);
+    expect(shownLegends({ scent: false, other: 'dig-plans' }, true)).toEqual(['dig-plans']);
+  });
+  it('without the dig tool only what is switched on shows', () => {
+    expect(shownLegends({ scent: false, other: null }, false)).toEqual([]);
+    expect(shownLegends({ scent: true, other: 'moisture' }, false)).toEqual(['scent', 'moisture']);
   });
 });

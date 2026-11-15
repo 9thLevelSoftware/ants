@@ -12,6 +12,7 @@ import { BoundaryRenderer } from '../world/boundary';
 import { DecorRenderer, type DecorFrame } from '../world/decor';
 import { UNDERGROUND, WorldRenderer } from '../world/lighting';
 import { WET_EASE_S, WET_PER_PRECIP } from './params';
+import { easeEV, occlusionAt, shadeEV, type OcclusionGrid } from './shadeAdapt';
 
 export class WorldSlot implements SubRenderer {
   readonly name = 'world';
@@ -28,13 +29,18 @@ export class WorldSlot implements SubRenderer {
   private under = 0;
   private readonly gradeNow = neutralGrade();
   private readonly gradeGoal = neutralGrade();
+  /** Exposure the world lighting asked for (EV) and the local deep-shade term added on top (shadeAdapt.ts). */
+  private baseEV = 0;
+  private shadeNow = 0;
+  private appliedEV = Number.NaN;
   private readonly wf: DecorFrame = {
     dt: 0, time: 0, sim: null, underground: false, subject: null, reducedMotion: false, occlusion: null,
   };
 
   async init(ctx: RenderContext): Promise<void> {
     this.ctx = ctx;
-    await this.world.init(ctx);
+    // the world meters the sky; the slot owns the final exposure so it can add the local deep-shade term
+    await this.world.init({ ...ctx, setExposure: (ev: number) => { this.baseEV = ev; } });
     this.boundary.init(ctx);
     await this.decor.init(ctx, this.world); // shares the world's uniforms, environment sample and hole mask
   }
@@ -79,6 +85,36 @@ export class WorldSlot implements SubRenderer {
       if (this.hasWorld) this.decor.flush();
     }
     this.applyGrade(frame.dt, !this.hasWorld);
+    this.applyExposure(frame);
+  }
+
+  /** World exposure plus the deep-shade adaptation at the subject (above ground only). */
+  private applyExposure(frame: FrameInfo): void {
+    let target = 0;
+    const p = frame.subject;
+    if (this.hasWorld && p && !frame.underground) {
+      const ground = this.world.terrain.height(p.x, p.z);
+      target = shadeEV(occlusionAt(this.occlusionGrid(), p.x, p.z), p.y - ground);
+    }
+    this.shadeNow = easeEV(this.shadeNow, target, frame.dt);
+    const ev = this.baseEV + this.shadeNow;
+    if (Math.abs(ev - this.appliedEV) < 0.01) return;
+    this.appliedEV = ev;
+    if (this.ctx.setExposure) this.ctx.setExposure(ev);
+    else this.ctx.renderer.toneMappingExposure = Math.pow(2, ev);
+  }
+
+  private occlusionGrid(): OcclusionGrid | null {
+    const tex = this.world.uniforms?.tSkyOcc.value as { image?: { data?: ArrayLike<number>; width?: number; height?: number } } | null;
+    const img = tex?.image;
+    if (!img?.data || !img.width || !img.height) return null;
+    const inv = this.world.uniforms.uSkyOccInv.value;
+    return { data: img.data, width: img.width, height: img.height, invX: inv.x, invZ: inv.y };
+  }
+
+  /** Deep-shade exposure currently added (EV; tests, debug). */
+  get shadeEV(): number {
+    return this.shadeNow;
   }
 
   /** Colour grade from the lighting state (GDD 08 11.2 / 11.4), faded to neutral underground and without a world. */
@@ -126,6 +162,7 @@ export class WorldSlot implements SubRenderer {
     out['boundary.skirtTriangles'] = b.skirtTriangles;
     out['boundary.backdropShapes'] = b.backdropShapes;
     out['boundary.backdropTriangles'] = b.backdropTriangles;
+    out['shade.ev'] = this.shadeNow;
     out['grade.saturation'] = this.gradeNow.saturation;
     out['grade.gainR'] = this.gradeNow.gain[0];
     out['grade.gainB'] = this.gradeNow.gain[2];

@@ -1,8 +1,7 @@
 // The `dodge` primitive (GDD 05 §4.8, new in T2): 3 L in 0.25 s in the input direction (backward when none);
 // cooldown 1.5 s; not while seized, pinned, paralysed or carrying more than 0.5 carryCap; bites against the ant hit
 // at x0.5 for those 0.25 s. A held ant moves under the lock rule (§4.3): the dodge is refused while its holders
-// immobilise it (speed factor 0) and shortened by the factor otherwise (the holders may then lose their grip). The action library has no `dodge` shell, so combat registers its definition into the
-// library's table on first use (installActionAdapters; reported). The displacement is a movement override.
+// immobilise it (speed factor 0) and shortened by the factor otherwise (the holders may then lose their grip). The action library's `dodge` shell calls dodgeRefusal / startDodge. The displacement is a movement override.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { ActionFailReason, Ant, Sim } from '@/sim/types';
@@ -10,11 +9,7 @@ import { DODGE_COOLDOWN_S, DODGE_DIST_L, DODGE_MAX_LOAD, DODGE_S } from '@/sim/b
 import { INPUT_DEADZONE } from '@/sim/balance/actions';
 import type { ActionDef } from '@/sim/ants/actions/types';
 import { placeOnSurface } from '@/sim/locomotion';
-import { dep } from './late';
 import { heldSpeedFactor } from './grapple';
-import { stingDef } from './sting';
-import { sprayDisabled } from './acid';
-import { combatStats } from './stats';
 import { antLenMm, CB, ensureCombat, isParalysed, isPossessed, isSeized, ticksOf } from './state';
 
 /** Why the ant cannot dodge now, or null. */
@@ -99,35 +94,8 @@ export const dodgeDef: ActionDef = {
   effect: (sim, ant) => (startDodge(sim, ant) ? 1 : 'blocked'),
 };
 
-let installed = false;
-
-/** Cooldown key of the library's `bite` shell (absolute tick of the next allowed start). */
-const BITE_CD = 'cd.bite';
-
 /**
- * Adapters in the action library's table, once (reported as needs): registers `dodge` and `sting`, which the
- * library lacks; replaces the `bite` entry by a copy without its fixed-strength cue (combat emits the `bite` cue
- * itself with the target's hardness as strength, src/audio/README.md; misses at 0) whose cooldown is the caste's
- * bite cycle (§4.1: founding queen 1.2 s, established queen 1.4 s ...; "AI and player share it"; the shell's own
- * is a fixed 1.0 s); and refuses `spray-acid` to an ant whose gaster wound disabled the special (§4.7), so no
- * charge is spent and no spray is announced.
+ * Formerly patched the action library's table (dodge, sting, a bite copy, a spray check). The library now has native
+ * shells that ask combat through its ports (int-1B-sim), so nothing is installed; kept as a no-op for callers.
  */
-export function installActionAdapters(): void {
-  if (installed) return;
-  installed = true;
-  const defs = dep().actionDefs;
-  if (!defs.dodge) defs.dodge = dodgeDef;
-  if (!defs.sting) defs.sting = stingDef;
-  const bite = defs.bite;
-  if (bite && bite.cue === 'bite') {
-    defs.bite = {
-      ...bite, cue: null,
-      onBegin: (sim, ant) => { ant.bb[BITE_CD] = sim.state.tick + Math.max(1, ticksOf(combatStats(sim, ant).biteCycleS)); },
-    };
-  }
-  const spray = defs['spray-acid'];
-  if (spray) {
-    const check = spray.check;
-    defs['spray-acid'] = { ...spray, check: (sim, ant, t, sec) => (sprayDisabled(ant) ? 'conditions' : check(sim, ant, t, sec)) };
-  }
-}
+export function installActionAdapters(): void {}

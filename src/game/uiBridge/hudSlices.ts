@@ -6,6 +6,8 @@ import type { Ant, Colony, Sim, Task } from '@/sim/types';
 import { AntFlag, REASON_CODES } from '@/sim/types';
 import { promptView } from '@/sim/ants/player';
 import { daysOfStock } from '@/sim/colony';
+import { activeAlerts, queenHandedOver } from '@/sim/progression';
+import { alertText } from '@/content/text';
 import { GROUP_TASKS } from '@/sim/colony/allocation';
 import { airTemp, calendarNow } from '@/sim/environment';
 import { currentDayOfSeason, currentHour, currentSeason, currentYear, seasonLength } from '@/sim/time';
@@ -134,7 +136,6 @@ function homeOf(sim: Sim, a: Ant): { angleDeg: number; distBu: number } | null {
 export function possessedOf(sim: Sim, underground: boolean): UiPossessed | null {
   const a = sim.stores.ants.get(sim.state.player.possessedAntId);
   if (!a) return null;
-  const opening = sim.state.player.opening;
   const isQueen = a.caste === 'queen';
   const fr = a.queen?.founding;
   const acidMax = sim.getSpecies(sim.stores.colonies.get(a.colony)?.species ?? sim.species.id)?.combat.acid?.max ?? 0;
@@ -149,7 +150,7 @@ export function possessedOf(sim: Sim, underground: boolean): UiPossessed | null 
     acid: acidMax > 0 ? { charges: Math.floor(a.acid), max: acidMax } : null,
     heatStress: a.heatLoad >= HEAT_STRESS_LOAD || a.thermalState === 'heat-stupor',
     home: underground ? null : homeOf(sim, a),
-    colonyOrders: isQueen && (opening === null || opening.done),
+    colonyOrders: isQueen && queenHandedOver(sim),
   };
 }
 
@@ -168,10 +169,24 @@ export function promptOf(sim: Sim): UiPrompt | null {
   }
 }
 
+/**
+ * The alert feed from progression's active alerts (critical first, newest first). An alert the sim raised without
+ * wording (title '' and `tokens`) is worded here from the content tables, so no card is ever empty.
+ */
 export function alertsOf(sim: Sim): UiAlert[] {
-  return sim.state.progression.alerts.map((a) => ({
+  const opening = !queenHandedOver(sim);
+  // Adapter (reported to the simulation half): progression raises the critical `last-ants` for the lone founding
+  // queen of a claustral founding, which is the expected state, not news. Not shown until the hand-over.
+  return activeAlerts(sim).filter((a) => !(opening && a.kind === 'last-ants')).map((a) => {
+    const words = a.title ? null : alertText(a.kind, a.tokens ?? {});
+    return { ...alertCard(a), title: words ? words.title : a.title, cause: words && !a.cause ? words.cause : a.cause };
+  });
+}
+
+function alertCard(a: ReturnType<typeof activeAlerts>[number]): UiAlert {
+  return {
     id: a.id, kind: a.kind, level: a.level, title: a.title, cause: a.cause, count: a.count, subjectId: a.subjectId,
     diagnosticId: a.diagnosticId, focus: a.focus ? { kind: a.focus.kind, id: a.focus.id, pos: { x: a.focus.pos.x, y: a.focus.pos.y, z: a.focus.pos.z } } : null,
     acknowledged: a.acknowledged, raisedTick: a.raisedTick,
-  }));
+  };
 }

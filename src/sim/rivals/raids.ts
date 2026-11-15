@@ -20,8 +20,8 @@ import { addEscalation, findRelation } from './relations';
 import { homeNest, placeOnFloor } from './setup';
 import { spawnAnt } from '@/sim/entities';
 import { BB, colExt, isRival, JOB, playerColonyOf, rivalColonies, rmod, slotBit, type RivalColony } from './state';
-import { d2 } from './move';
-import { antCounts, rivalAgentBudget } from './fielding';
+import { d2 } from './behaviours/move';
+import { antCounts, capRoom, rivalAgentBudget } from './fielding';
 
 const THREAT_KIND = 'raid';
 
@@ -43,8 +43,12 @@ export function workerCount(sim: Sim, col: Colony): number {
   return col.rival ? col.rival.n : workersOf(sim, col).length;
 }
 
+/**
+ * Incipient for brood raiding (GDD 05 §3.8): N <= INCIPIENT_MAX workers, rivals and the player alike. The rival's
+ * `incipient` flag is the founding phase (field cap 6, not established); it is cleared once N passes the bound.
+ */
 export function isIncipient(sim: Sim, col: Colony): boolean {
-  return col.rival ? col.rival.incipient || col.rival.n <= INCIPIENT_MAX : workersOf(sim, col).length <= INCIPIENT_MAX;
+  return workerCount(sim, col) <= INCIPIENT_MAX;
 }
 
 /** Does colony `a` know where colony `b`'s nest is? */
@@ -64,10 +68,15 @@ function raidOnPlayer(sim: Sim): RaidRecord | undefined {
   return rmod(sim.state).raids.find((r) => r.target === pid && r.kind !== 'dig');
 }
 
-/** Starts a raid record; rival parties are fielded by the fielding pass, player parties are taken here. */
+/**
+ * Starts a raid record; rival parties are fielded by the fielding pass, player parties are taken here. Null (no
+ * record, no event, no escalation) when the party would be empty.
+ */
 export function startRaid(sim: Sim, attacker: Colony, target: Colony, kind: RaidRecord['kind'], party: number, majorThreat: boolean): RaidRecord | null {
   const nest = homeNest(sim, target);
   if (!nest || party <= 0) return null;
+  const players = attacker.rival ? [] : pickPlayerParty(sim, attacker, kind, party);
+  if (!attacker.rival && players.length === 0) return null;
   const m = rmod(sim.state);
   const r: RaidRecord = {
     id: m.nextRaidId++, attacker: attacker.id, target: target.id, kind, targetNestId: nest.id, toSend: attacker.rival ? party : 0,
@@ -75,20 +84,32 @@ export function startRaid(sim: Sim, attacker: Colony, target: Colony, kind: Raid
   };
   m.raids.push(r);
   if (attacker.rival) attacker.rival.raid = { targetColony: target.id, partyIds: r.partyIds, startTick: r.startTick, startSize: party };
-  else sendPlayerParty(sim, attacker, r, party);
+  else sendPlayerParty(sim, attacker, r, players);
   if (kind !== 'dig') addEscalation(sim, attacker.id, target.id, E_GAIN.raid);
   sim.emit({ type: 'rival-raid-started', attacker: attacker.id, target: target.id, partySize: attacker.rival ? party : r.partyIds.length });
   return r;
 }
 
-/** Player party: foragers and guards first (then any free worker for brood raids), switched to task `raid`. */
-function sendPlayerParty(sim: Sim, col: Colony, r: RaidRecord, party: number): void {
+const isFront = (a: Ant): boolean => a.task === 'forage' || a.task === 'guard' || a.task === 'scout' || a.task === 'patrol';
+
+/**
+ * Player workers free to go: foragers and guards first (then any free worker for brood raids; war raids take
+ * foragers and guards only), not carrying, fighting, fleeing or already raiding.
+ */
+function pickPlayerParty(sim: Sim, col: Colony, kind: RaidRecord['kind'], size: number): Ant[] {
   const pool = workersOf(sim, col).filter((a) => a.carry.kind === 'none' && a.task !== 'fight' && a.task !== 'flee' && a.task !== 'raid');
-  const front = (a: Ant): number => (a.task === 'forage' || a.task === 'guard' || a.task === 'scout' || a.task === 'patrol' ? 0 : 1);
-  pool.sort((x, y) => front(x) - front(y) || x.id - y.id);
+  const rank = (a: Ant): number => (isFront(a) ? 0 : 1);
+  pool.sort((x, y) => rank(x) - rank(y) || x.id - y.id);
+  const out: Ant[] = [];
   for (const a of pool) {
-    if (r.partyIds.length >= party) break;
-    if (r.kind === 'raid' && front(a) > 0) break; // war raids take foragers and guards only
+    if (out.length >= size || (kind === 'raid' && !isFront(a))) break;
+    out.push(a);
+  }
+  return out;
+}
+
+function sendPlayerParty(sim: Sim, col: Colony, r: RaidRecord, party: Ant[]): void {
+  for (const a of party) {
     switchTask(sim, col, a, 'raid', 'marker:rally');
     a.bb[BB.raid] = r.id;
     setJob(sim, a, r.kind === 'brood' ? JOB.brood : JOB.raid);
@@ -154,16 +175,20 @@ export function launchBroodRaids(sim: Sim): void {
       if (def === att || def.species !== att.species || !isIncipient(sim, def) || !knowsNest(sim, att, def)) continue;
       if (att.isPlayer && !playerMayBroodRaid(sim, att, def)) continue;
       if (def.isPlayer && (!lever?.incipientRaidsPlayer || workersOf(sim, def).length === 0 || raidOnPlayer(sim))) continue;
-      const ext = colExt(sim.state, def.id);
-      if (ext.broodRaidedTick >= 0 && sim.state.tick - ext.broodRaidedTick < BROOD_RAID_COOLDOWN_GD * TICKS_PER_DAY) continue;
+      if (raidedRecently(sim, att)) continue; // "A was not raided in the last 1 gd" (GDD 05 §3.8)
       if (strengthOf(sim, att) < BROOD_RAID_RATIO * strengthOf(sim, def)) continue;
       const party = Math.round(BROOD_RAID_SHARE * workerCount(sim, att));
       if (def.isPlayer && !requestMajorThreat(sim, THREAT_KIND)) continue;
-      const r = startRaid(sim, att, def, 'brood', party, def.isPlayer);
-      if (r) { ext.broodRaidedTick = sim.state.tick; break; }
+      if (startRaid(sim, att, def, 'brood', party, def.isPlayer)) break;
       if (def.isPlayer) endMajorThreat(sim, THREAT_KIND);
     }
   }
+}
+
+/** Was the colony itself brood-raided less than BROOD_RAID_COOLDOWN_GD ago (watchTheft stamps the victim)? */
+function raidedRecently(sim: Sim, col: Colony): boolean {
+  const t = colExt(sim.state, col.id).broodRaidedTick;
+  return t >= 0 && sim.state.tick - t < BROOD_RAID_COOLDOWN_GD * TICKS_PER_DAY;
 }
 
 /** The player's AI brood-raids only with stance aggressive or a rally `attack` marker at the victim's nest. */
@@ -174,22 +199,26 @@ function playerMayBroodRaid(sim: Sim, player: Colony, def: Colony): boolean {
   return !!m && m.params.mode === 'attack' && !!nest && nest.entrances.some((e) => d2(e.pos, m.pos) <= RALLY_ATTACK_BU * sim.world.bu);
 }
 
-/** Every fielding pass: a rally `attack` marker within 30 BU of a known foreign entrance launches the player raid. */
+/**
+ * Every fielding pass: a rally `attack` marker within 30 BU of a known foreign entrance launches the player raid.
+ * One raid per marker (placing a new marker sends the next party); while no worker is free to go nothing starts.
+ */
 export function playerRallyRaid(sim: Sim): void {
   const player = playerColonyOf(sim);
   if (!player || activeRaidOf(sim, player.id)) return;
   const m = activeRally(sim, player.id);
-  if (!m || m.params.mode !== 'attack') return;
+  const mod = rmod(sim.state);
+  if (!m || m.params.mode !== 'attack' || mod.rallyRaidMarker === m.id) return;
   for (const def of rivalColonies(sim)) {
     const nest = homeNest(sim, def);
     if (!nest || !knowsNest(sim, player, def)) continue;
     if (!nest.entrances.some((e) => d2(e.pos, m.pos) <= RALLY_ATTACK_BU * sim.world.bu)) continue;
-    const fronts = workersOf(sim, player).filter((a) => a.task === 'forage' || a.task === 'guard' || a.task === 'scout' || a.task === 'patrol');
+    const fronts = workersOf(sim, player).filter(isFront).length;
     const brood = isIncipient(sim, player) && isIncipient(sim, def) && def.species === player.species;
     const party = brood
       ? Math.round(BROOD_RAID_SHARE * workersOf(sim, player).length)
-      : Math.min(PLAYER_RAID_MAX, Math.max(1, Math.round(PLAYER_RAID_SHARE * fronts.length)));
-    startRaid(sim, player, def, brood ? 'brood' : 'raid', party, false);
+      : Math.min(PLAYER_RAID_MAX, Math.max(1, Math.round(PLAYER_RAID_SHARE * fronts)));
+    if (startRaid(sim, player, def, brood ? 'brood' : 'raid', party, false)) mod.rallyRaidMarker = m.id;
     return;
   }
 }
@@ -274,6 +303,7 @@ function joinPlayer(sim: Sim, player: Colony, n: number): void {
   const nest = homeNest(sim, player);
   const e = nest?.entrances[0];
   if (!e) return;
+  n = Math.min(n, capRoom(sim)); // player ants are never removed by the cap: no room, no joiners
   for (let i = 0; i < n; i++) {
     const p = { x: e.pos.x + (i - n / 2) * sim.world.bu, y: e.pos.y + sim.world.bu, z: e.pos.z + 2 * sim.world.bu };
     const a = spawnAnt(sim, { colony: player.id, caste: 'worker', pos: p, ageGd: 5, task: 'idle' });

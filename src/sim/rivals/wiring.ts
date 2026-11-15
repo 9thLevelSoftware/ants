@@ -1,7 +1,7 @@
 // Binds the heavy half of the rivals module (see late.ts) and exports the `raid` behaviour. Imported by the one
 // registration line in src/sim/ants/behaviours/outdoor/index.ts, which every Sim loads through the systems list.
 
-import { raidBehaviour } from './behaviour';
+import { raidBehaviour } from './behaviours/behaviour';
 import { rivalCheats } from './cheats';
 import { rivalsHourly } from './hourly';
 import { provideRivals } from './late';

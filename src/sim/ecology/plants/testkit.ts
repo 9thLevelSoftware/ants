@@ -3,7 +3,7 @@
 // optional small nest with workers, clock and weather helpers, and a stand-alone herd for unit tests.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { ClimbRoute, GameConfig, Herd, PlantState, Poi, Primitive, Sim, System, WorldData, WorldObject } from '@/sim/types';
+import type { ClimbRoute, GameConfig, Herd, SeasonLengthDays, PlantState, Poi, Primitive, Sim, System, WorldData, WorldObject } from '@/sim/types';
 import { PrimFlag } from '@/sim/types';
 import { defaultWorldParams } from '@/worldgen';
 import { buildWorld, makeTestSim } from '@/sim/testing';
@@ -81,7 +81,7 @@ export interface PlantSimOptions {
   seed?: number;
   /** Systems (default: the game's). */
   systems?: readonly System[];
-  seasonLengthDays?: 5 | 7 | 10;
+  seasonLengthDays?: SeasonLengthDays;
 }
 
 /** A test sim (cheats on) on a herb world; plant states for every herb (createNewGame makes them from placements). */
@@ -97,7 +97,7 @@ export function plantSim(o: PlantSimOptions = {}): { sim: Sim; plants: PlantStat
 }
 
 /** Calendar part of a config with another season length (the start day scaled as the game does). */
-function seasonConfig(seed: number, len: 5 | 7 | 10): Partial<GameConfig> {
+function seasonConfig(seed: number, len: SeasonLengthDays): Partial<GameConfig> {
   const c = defaultGameConfig('lasius-niger', seed, 'naturalist', len);
   return { rules: c.rules, startSeason: c.startSeason, startDayOfSeason: c.startDayOfSeason, startHour: c.startHour };
 }

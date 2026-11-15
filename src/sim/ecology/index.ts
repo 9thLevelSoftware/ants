@@ -10,7 +10,7 @@ import {
   createSource, defaultVariant, discoverSource as discoverSourceImpl, freeSlotsOf, initSources,
   nearestSource as nearestSourceImpl, sourceDef, sourcesSystem, takeFromSource, type SourceFilter,
 } from './sources';
-import { herdTendingSystem, initPlants, plantCommandHandlers, plantsSystem, tendDemandSystem } from './plants';
+import { herdTendingSystem, initPlants, plantCommandHandlers, plantsSystem } from './plants';
 
 // Source-related API (owner: sources-core). The full API lives in ./sources (re-exported below).
 export * from './sources';
@@ -27,7 +27,8 @@ export {
 } from './creatures';
 
 export const systems: readonly System[] = [
-  sourcesSystem, plantsSystem, herdTendingSystem, tendDemandSystem, creatureDirectorSystem, creatureSystem,
+  // tendDemandSystem (the TEND_DEMAND_ADAPTER stop-gap) is no longer listed: colony allocation computes `tend`
+  sourcesSystem, plantsSystem, herdTendingSystem, creatureDirectorSystem, creatureSystem,
 ];
 
 // ---- food sources (owner: sources-core) ----

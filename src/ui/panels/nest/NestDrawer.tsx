@@ -11,7 +11,7 @@ import type { UiNest } from '../../api';
 import { nestSlice } from '../wiring/slices';
 import { nestSelection, panelsBridge } from '../wiring/state';
 import { NestDiagram, OccupancyKey } from './Diagram';
-import { chamberRows, chamberShort, chamberWord, layoutSchematic, loadParts, type ChamberRow } from './model';
+import { chamberRows, chamberShort, chamberWord, designationOptions, layoutSchematic, loadParts, mainLoadKey, type ChamberRow } from './model';
 
 const COMFORT_WORD = { within: 'In range', outside: 'Outside range', none: '' } as const;
 const SHAPE_ICON = { bad: 'status-bad', warn: 'status-warn', watch: 'status-watch' } as const;
@@ -35,7 +35,7 @@ function mainLoad(n: UiNest, row: ChamberRow): { text: string; key: string } {
   const c = n.chambers.find((x) => x.id === row.id);
   const parts = c ? loadParts(c.occupancy, c.capacity) : [];
   if (parts.length === 0) return { text: '—', key: '' };
-  const main = parts.find((p) => p.key === (row.type === 'food' || row.type === 'granary' ? 'food' : row.type === 'nursery' || row.type === 'royal' || row.type === 'founding' || row.type === 'fungus' ? 'brood' : 'ants')) ?? parts[0];
+  const main = parts.find((p) => p.key === mainLoadKey(row.type)) ?? parts[0];
   return { text: `${Math.round(main.n)} / ${Math.round(main.cap)}`, key: main.key };
 }
 
@@ -116,15 +116,16 @@ export function NestDrawer() {
             <section class="pn-chamber-detail" aria-label={`Chamber ${sel.id}`} data-testid="nest-detail">
               <h3 class="pn-h3">{chamberWord(sel.type)} {sel.id}</h3>
               <p class="pn-muted pn-small">{selRow.load}. Designated by {sel.designatedBy === 'player' ? 'you' : 'the colony'}.</p>
+              {/* the Select sits in a div, not a label: a click on an option would bubble to the label and reopen the list */}
               {selRow.options.length > 0 ? (
-                <label class="pn-field">
+                <div class="pn-field">
                   <span>Use as</span>
                   <Select
                     aria-label={`Use of chamber ${sel.id}`} value={sel.type}
-                    options={[...new Set([sel.type, ...selRow.options])].map((t) => ({ value: t, label: chamberWord(t), disabled: !selRow.options.includes(t) && t !== sel.type }))}
+                    options={designationOptions(sel.type, selRow.options)}
                     onChange={(t: string) => { if (t !== sel.type) bridge?.designateChamber(sel.id, t); }}
                   />
-                </label>
+                </div>
               ) : <p class="pn-muted pn-small">This chamber cannot be given another use now.</p>}
             </section>
           )}

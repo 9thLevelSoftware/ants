@@ -6,7 +6,7 @@
 import type { Ant, Behaviour, Sim } from '@/sim/types';
 import { CROP_RETURN_FRACTION, CROP_RETURN_MIN } from '@/sim/balance/actions';
 import {
-  HUNGER_RETURN_CROP, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS, TRIP_LOST_S, TRIP_TURN_S, UNLOAD_CROP_MARGIN,
+  HUNGER_RETURN_CROP, HUNGER_RETURN_POOL_MIN_C, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS, TRIP_LOST_S, TRIP_TURN_S, UNLOAD_CROP_MARGIN,
 } from '@/sim/balance/foraging';
 import { processAntDeath } from '@/sim/ants/lifecycle';
 import { TICKS_PER_SECOND } from '@/sim/time';
@@ -62,7 +62,8 @@ function recallCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
   const crop = ant.cropC + ant.cropP;
   if (num(ant, K.recall, 0) === 1) { startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'surplus'); return true; }
   if (col && curfewNow(sim, col)) { startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'curfew'); return true; }
-  if (ant.cropC < HUNGER_RETURN_CROP && ant.energy < HUNGER_RETURN_RESERVE_FRAC * reserveCap(ant) && phaseOf(ant) !== PHASE.collect) {
+  if (ant.cropC < HUNGER_RETURN_CROP && ant.energy < HUNGER_RETURN_RESERVE_FRAC * reserveCap(ant) && phaseOf(ant) !== PHASE.collect
+    && (col?.stores.c ?? 0) >= HUNGER_RETURN_POOL_MIN_C) {
     startReturn(sim, ant, fl, crop >= SUCCESS_CROP, 'hungry');
     return true;
   }

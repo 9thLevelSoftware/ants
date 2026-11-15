@@ -13,3 +13,9 @@ export const OCCLUSION_KEEP = 0.25;
  * (three's Lambert divides by PI; the walls' (1 - d/R)^2 falloff is narrower than the light's window, hence < 1).
  */
 export const SENSE_LIGHT_SCALE = 0.5;
+/**
+ * Local exposure in deep shade (shadeAdapt.ts): k = share of the light the sky occlusion removes at full occlusion,
+ * maxEV = the most the exposure opens, liftMm = height above the ground over which the effect fades out (an ant on a
+ * car roof is in the open), easeS = adaptation time constant (real seconds).
+ */
+export const SHADE_ADAPT = { k: 0.8, maxEV: 1.6, liftMm: 40, easeS: 0.8 } as const;

@@ -16,6 +16,13 @@ function fakeGame(opts: { onGameStart?: () => Promise<void> } = {}) {
     },
     endGame: () => { calls.push('endGame'); fake.loadToken++; fake.session = null; fake.loading = null; fake.registry.onGameEnd(); },
     startPlaying: () => { calls.push('startPlaying'); fake.mode = 'playing'; fake.session = null; },
+    // mirrors Game.adoptSim: the renderers build the world, a superseded load throws, then play starts
+    adoptSim: async () => {
+      const token = fake.loadToken;
+      try { await fake.registry.onGameStart(); } catch (e) { fake.registry.onGameEnd(); throw e; }
+      if (fake.loadToken !== token) throw new Error('The load was superseded by a newer game.');
+      fake.startPlaying();
+    },
     setSpeed: () => {}, renderNow: () => {}, refreshUi: () => {}, viewChanged: () => {},
   };
   return { fake, calls, host: new GameHost(fake as unknown as Game) };

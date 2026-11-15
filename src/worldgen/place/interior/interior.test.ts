@@ -16,7 +16,10 @@ import { kernelFor, navCtx, roomCells } from './testkit';
 
 vi.setConfig({ testTimeout: 900_000 }); // generous: the shared machine runs at load 20+
 
-const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+// 10 seeds take about 8 minutes on the shared machine: the full sweep runs with FOUNDRESS_LONG=1, the default run
+// keeps three seeds of every check (int-1B-sim suite diet)
+const LONG = !!(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.FOUNDRESS_LONG;
+const SEEDS = LONG ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3];
 const world = (seed: number) => report('kitchen-door', seed).world;
 const INDOOR_OUTDOOR = new Set(['door-crack', 'pipe-penetration']);
 const objs = (w: WorldData, id: string) => w.objects.filter((o) => o.templateId === id);
@@ -115,7 +118,7 @@ describe('kitchen-door interior over 10 seeds', () => {
 
   it('varies the layout with the seed and is deterministic', () => {
     const pos = new Set(SEEDS.map((s) => { const t = objs(world(s), 'kitchen-table')[0]; return `${Math.round(t.pos.x / 100)},${Math.round(t.pos.z / 100)}`; }));
-    expect(pos.size).toBeGreaterThan(5);
+    expect(pos.size).toBeGreaterThan(LONG ? 5 : 1); // 10 seeds: > 5 distinct table spots; 3 seeds: not all alike
     const again = generateWorldReport({ ...defaultWorldParams('lasius-niger', 3), archetype: 'kitchen-door' }).world;
     expect(again.meta.fingerprint).toBe(world(3).meta.fingerprint);
   });
@@ -123,7 +126,7 @@ describe('kitchen-door interior over 10 seeds', () => {
 
 describe('Camponotus kitchen-door (GDD 04 App. E 5)', () => {
   it('door crack >= 5.4 mm, or the door is sealed and a pipe penetration with clearance >= 0.6 BU exists', () => {
-    for (const s of [1, 2, 3, 4, 5]) {
+    for (const s of LONG ? [1, 2, 3, 4, 5] : [1]) {
       const w = report('kitchen-door', s, 'standard', 'camponotus-pennsylvanicus').world;
       expect(w.bu).toBe(9);
       const door = w.micro.find((m) => m.kind === 'door-crack')!;

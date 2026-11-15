@@ -51,17 +51,21 @@ export function hourlyMarks(sim: Sim, dtGd: number, activity: (colonyId: number)
     const s = slotOf(sim.state, col.id), nest = homeNest(sim, col);
     if (s < 0 || !nest) continue;
     const r = coreRadiusBu(col.rival.n) * sim.world.bu;
-    for (const e of nest.entrances) addDisc(t, s, e.pos.x, e.pos.z, r, add * a);
+    addCore(t, s, nest.entrances.map((e) => e.pos), r, add * a);
   }
 }
 
-function addDisc(t: TerritoryGrid, slot: number, x: number, z: number, r: number, v: number): void {
-  const c0x = Math.max(0, Math.floor((x - r) / t.cell)), c1x = Math.min(t.w - 1, Math.floor((x + r) / t.cell));
-  const c0z = Math.max(0, Math.floor((z - r) / t.cell)), c1z = Math.min(t.h - 1, Math.floor((z + r) / t.cell));
+/** Adds v once to every cell within r of any of the points (the union of the entrance discs: no double count). */
+function addCore(t: TerritoryGrid, slot: number, pts: readonly { x: number; z: number }[], r: number, v: number): void {
+  if (pts.length === 0) return;
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+  const c0x = Math.max(0, Math.floor((x0 - r) / t.cell)), c1x = Math.min(t.w - 1, Math.floor((x1 + r) / t.cell));
+  const c0z = Math.max(0, Math.floor((z0 - r) / t.cell)), c1z = Math.min(t.h - 1, Math.floor((z1 + r) / t.cell));
   for (let cz = c0z; cz <= c1z; cz++) {
     for (let cx = c0x; cx <= c1x; cx++) {
-      const dx = (cx + 0.5) * t.cell - x, dz = (cz + 0.5) * t.cell - z;
-      if (dx * dx + dz * dz <= r * r) t.marks[(cz * t.w + cx) * t.slots + slot] += v;
+      const x = (cx + 0.5) * t.cell, z = (cz + 0.5) * t.cell;
+      if (pts.some((p) => (x - p.x) * (x - p.x) + (z - p.z) * (z - p.z) <= r * r)) t.marks[(cz * t.w + cx) * t.slots + slot] += v;
     }
   }
 }

@@ -2,8 +2,9 @@
 // out in lanes so labels do not overlap, and the wording of pins and event log lines from the content tables.
 import { ALERT_TEXT, aimText, alertText, journalEntryText, SEASON_WORD } from '@/content/text';
 import { getCodexEntry } from '@/content/codex';
+import { TICKS_PER_DAY } from '@/sim/time';
 import type { UiEventLogLine, UiJournal, UiJournalEntry } from '../../api';
-import { calDay, dayLabel, seasonBands, type SeasonBand } from './charts';
+import { calDay, dateParts, dayLabel, seasonBands, type SeasonBand } from './charts';
 
 export interface Pin {
   id: number;
@@ -22,11 +23,8 @@ export interface Pin {
 
 /** Date line of a tick: "Summer · Day 3 · Year 1". */
 export function dateLine(j: Pick<UiJournal, 'startTick' | 'seasonLength'>, tick: number): string {
-  const d = Math.floor(calDay(j, tick));
-  const year = Math.floor(d / (j.seasonLength * 4)) + 1;
-  const inYear = d - (year - 1) * j.seasonLength * 4;
-  const season = Math.min(3, Math.floor(inYear / j.seasonLength));
-  return `${SEASON_WORD[season]} · Day ${inYear - season * j.seasonLength + 1} · Year ${year}`;
+  const { year, season, day } = dateParts(j.seasonLength, calDay(j, tick));
+  return `${SEASON_WORD[season]} · Day ${day} · Year ${year}`;
 }
 
 /** Wording of a journal entry; a key without wording shows its id so the gap is visible. */
@@ -66,12 +64,12 @@ export interface TimelineAxis {
   bands: SeasonBand[];
 }
 
-/** One tick per game day; a label every `labelEvery` days. */
-export function timelineAxis(j: UiJournal, labelEvery = 5): TimelineAxis {
-  const d0 = Math.floor(j.startTick / 6000);
+/** One tick per game day; a label on the first day of the game and of each season (the date the pin cards use). */
+export function timelineAxis(j: UiJournal): TimelineAxis {
+  const d0 = Math.floor(j.startTick / TICKS_PER_DAY);
   const d1 = Math.floor(calDay(j, j.nowTick)) + 1;
   const days: TimelineAxis['days'] = [];
-  for (let d = d0; d < d1; d++) days.push({ day: d, label: dayLabel(j, d), major: (d - d0) % labelEvery === 0 });
+  for (let d = d0; d < d1; d++) days.push({ day: d, label: dayLabel(j, d), major: d === d0 || dateParts(j.seasonLength, d).day === 1 });
   return { d0, d1, days, bands: seasonBands(d0, d1, j.seasonLength) };
 }
 
@@ -112,7 +110,7 @@ export const AIM_CODEX: Readonly<Record<string, string>> = {
 /** "Summer · Day 3 · 14:20": date and clock of a tick (event log rows). */
 export function timeLine(j: Pick<UiJournal, 'startTick' | 'seasonLength'>, tick: number): string {
   const cal = tick + j.startTick;
-  const h = ((cal % 6000) / 6000) * 24;
+  const h = ((cal % TICKS_PER_DAY) / TICKS_PER_DAY) * 24;
   const hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
   return `${dateLine(j, tick)} · ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }

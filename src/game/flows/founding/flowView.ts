@@ -39,6 +39,13 @@ const AIM_TEXT: Record<string, string> = {
   'aim-nest-open': 'Can the workers reach the surface?',
   'aim-garden': 'Is the garden taking hold?',
   'aim-trunk-trail': 'Which way do the seeds lie?',
+  'aim-first-protein': 'What will the larvae need that sugar cannot give?',
+  'aim-first-trail': 'Does a route last once it has been walked?',
+  'aim-stores-winter': 'Will the stores last the winter?',
+  'aim-midden': 'Where do the dead go?',
+  'aim-satellite': 'Is there a drier, warmer corner for the larger brood?',
+  'aim-second-entrance': 'Is one way in and out enough for this many workers?',
+  'aim-cross-zone': 'What lies past the edge of the home ground?',
 };
 
 export interface FlowFlags {
@@ -70,7 +77,12 @@ function prompts(v: FoundingView): FoundingUi['prompts'] {
       return out;
     }
     case 'dig': return [{ action: 'dig', text: 'Dig' }];
-    case 'seal': return [{ action: 'interact', text: 'Seal the entrance' }];
+    case 'seal':
+      // E seals from anywhere in the shaft: the queen climbs to the throat and plugs it (the stand is where she goes)
+      if (v.seal?.state === 'walking') return [{ action: 'interact', text: 'Climbing to the throat to seal it' }];
+      if (v.seal?.state === 'plugging') return [{ action: 'interact', text: 'Sealing the entrance' }];
+      if (v.seal?.state === 'stuck') return [{ action: 'move', text: 'Move up the shaft, then seal' }, { action: 'interact', text: 'Seal the entrance' }];
+      return [{ action: 'interact', text: 'Seal the entrance' }];
     case 'lay': return v.clutch && v.clutch.batches > 0
       ? [{ action: 'interact', text: 'Lay eggs' }, { action: 'tend', text: 'Tend the brood' }]
       : [{ action: 'interact', text: 'Lay eggs' }];
@@ -117,7 +129,8 @@ export function buildFoundingUi(sim: Sim, flags: FlowFlags): FoundingUi | null {
     lapse,
     outcome: flags.outcomeOpen && v.outcome ? v.outcome : null,
     handover: flags.handoverOpen && !flags.outcomeOpen && (v.phase === 'handover' || v.phase === 'done')
-      ? { aims: sim.state.progression.aims.filter((a) => a.state === 'open').slice(0, 3).map((a) => AIM_TEXT[a.id] ?? a.id) }
+      // an aim without words here is left out (never its raw id on the banner)
+      ? { aims: sim.state.progression.aims.filter((a) => a.state === 'open' && AIM_TEXT[a.id]).slice(0, 3).map((a) => AIM_TEXT[a.id]) }
       : null,
     failure: failed ? { cause: v.failCause ?? 'unknown', text: FAIL_TEXT[v.failCause ?? ''] ?? 'The founding did not succeed.', retriesLeft: v.retriesLeft } : null,
   };

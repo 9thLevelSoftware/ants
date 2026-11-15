@@ -15,14 +15,14 @@ export function GraphsTab({ j }: { j: UiJournal }) {
   return (
     <div class="pn-graphs" data-testid="journal-graphs">
       <div class="pn-graph-controls">
-        <label class="pn-field is-inline">
+        <div class="pn-field is-inline">
           <span>Graph</span>
           <Select aria-label="Graph" value={chartId} options={CHARTS.map((c) => ({ value: c.id, label: c.label }))} onChange={setChartId} />
-        </label>
+        </div>
         <SegmentedControl aria-label="Range" fill={false} value={range} onChange={(v: RangeId) => setRange(v)} options={RANGES.map((r) => ({ value: r.id, label: r.label }))} />
       </div>
       <h2 class="pn-h2">{def.label}</h2>
-      <Chart model={model} startTick={j.startTick} />
+      <Chart model={model} seasonLength={j.seasonLength} />
     </div>
   );
 }

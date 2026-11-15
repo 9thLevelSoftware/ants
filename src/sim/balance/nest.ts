@@ -432,8 +432,9 @@ export const FOUNDING_ROOF_MIN_BU = 2;
 export const FOUNDING_DEEP_MARGIN_BU = 2;
 /** At most this many openings of the founding cavity ("openings <= 2"). */
 export const FOUNDING_MAX_OPENINGS = 2;
-/** Founding states in which the founding cell rule may register the cell (GDD 03 §13.2; `site-search` while no
- *  founding module moves a digging queen to `digging`). */
+/** Founding states in which the founding cell rule may register the cell (GDD 03 §13.2). `site-search` stays: the
+ *  founding module sets `digging` on the first bite only once the opening has left the intro card, and the nest
+ *  tests (and a queen digging during the intro card) dig in `site-search` (int-1B-sim: kept, see the gate report). */
 export const FOUNDING_CELL_STATES: readonly FoundingDigState[] = ['site-search', 'digging', 'ready'];
 
 /** Founding template per species (GDD 03 §13.1): shaft diameter and depth, cell W x H x L, BU. */

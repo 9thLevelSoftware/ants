@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
 import { DIG_P } from '@/sim/balance/rivals';
+import { quietTracker } from '@/sim/ecology/creatures';
 import { foundingDigChance, foundingThreatHour } from './founding';
 import { claimAt } from './territory';
 import { chamberFloor, placeOnFloor } from './setup';
@@ -41,7 +42,10 @@ describe('the founding queen and rival territory', () => {
     const diggers = sim.state.ants.filter((a) => a.alive && a.colony === rival.id && a.bb['rv.job'] === JOB.dig);
     expect(diggers.length).toBeGreaterThanOrEqual(3);
     expect(diggers.length).toBeLessThanOrEqual(6);
-    expect(sim.state.rivals.threatDirector.activeKind).toBe('rival-dig');
+    // founding stage (no daytime hour counted): the director refuses every major threat; the dig-in reads its
+    // rules but holds no slot and writes none of the director's state
+    expect(sim.state.rivals.threatDirector.activeKind).toBeNull();
+    expect(rmod(sim.state).raids.find((r) => r.kind === 'dig')?.majorThreat).toBe(false);
     for (let t = 0; t < 400; t++) sim.tick();
     sim.events.flush();
     expect(ev.some((e) => e.type === 'rival-raid-started')).toBe(true);
@@ -49,6 +53,14 @@ describe('the founding queen and rival territory', () => {
     expect(onQueen.length).toBeGreaterThan(0); // one real fight in the chamber
     // only one dig-in at a time
     expect(rmod(sim.state).raids.filter((r) => r.kind === 'dig').length).toBeLessThanOrEqual(1);
+  }, 60_000);
+
+  it('once the director counts hours, the dig-in takes its major-threat slot through requestMajorThreat', () => {
+    const sim = sealed(60);
+    quietTracker(sim).hours.fill(1); // a quiet past
+    expect(foundingThreatHour(sim, 1 / 24, true)).toBe(true);
+    expect(sim.state.rivals.threatDirector.activeKind).toBe('rival-dig');
+    expect(rmod(sim.state).raids.find((r) => r.kind === 'dig')?.majorThreat).toBe(true);
   }, 60_000);
 
   it('harsh raises the chance by 1.5; gentle never threatens her', () => {

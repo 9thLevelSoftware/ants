@@ -1,16 +1,16 @@
 // Injuries and recovery (GDD 05 §4.7). At the end of a fight, a survivor that lost >= 0.3 health in it rolls leg
 // loss (p 0.3: speed x0.85 per leg, floor x0.7), antenna loss (p 0.15) and a gaster wound (p 0.1: special
 // disabled); injured workers' remaining lifespan is cut to x0.7. Injuries are permanent.
-// Recovery: the colony's physiology already regenerates every ant at HEALTH_REGEN_RATE per gd; combat tops this
-// up to the GDD 05 in-nest rate (0.25 per gd with crop C > 0). The outside rate (0.1) is lower than the colony's
-// base, which combat cannot take back (reported).
+// Recovery: the colony's physiology regenerates workers at the GDD 05 §4.7 rates (HEALTH_REGEN_IN_NEST 0.25 per gd
+// in the nest with crop C > 0, HEALTH_REGEN_ELSEWHERE 0.1 elsewhere; int-1B-sim). The top-up below adds only what
+// RECOVERY_IN_NEST_PER_GD exceeds the colony's in-nest rate by (0 while the two agree).
 
 import type { Ant, Injury, Sim } from '@/sim/types';
 import { INJURIES } from '@/sim/types';
 import {
   INJURY_HEALTH_LOST, INJURY_LIFESPAN_MULT, INJURY_P, RECOVERY_EVERY_TICKS, RECOVERY_IN_NEST_PER_GD,
 } from '@/sim/balance/combat';
-import { HEALTH_REGEN_RATE } from '@/sim/balance/colony';
+import { HEALTH_REGEN_IN_NEST } from '@/sim/balance/colony';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { fightHealthLost } from './fightRecord';
 import { roll } from './grapple';
@@ -45,7 +45,7 @@ export function rollInjuries(sim: Sim, ant: Ant): Injury[] {
 export function recoveryTopUp(sim: Sim, ant: Ant): void {
   if (!ant.alive || ant.hp >= ant.maxHp || ant.nestId < 0 || ant.cropC <= 0) return;
   if (sim.stores.nests.get(ant.nestId)?.colony !== ant.colony) return;
-  const extra = RECOVERY_IN_NEST_PER_GD - HEALTH_REGEN_RATE;
+  const extra = RECOVERY_IN_NEST_PER_GD - HEALTH_REGEN_IN_NEST;
   if (extra <= 0) return;
   ant.hp = Math.min(ant.maxHp, ant.hp + extra * ant.maxHp * (RECOVERY_EVERY_TICKS / TICKS_PER_DAY));
 }

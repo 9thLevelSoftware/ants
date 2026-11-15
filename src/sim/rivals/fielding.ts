@@ -13,7 +13,7 @@ import { rivalProfile } from '@/sim/species/rivals/profiles';
 import { secondsToTicks } from '@/sim/time';
 import { absorbAgent, agentsOf, countedJob, spawnAgent } from './agents';
 import { activityOf, clockOf, type Clock } from './env';
-import { goHome, queenHiding } from './jobs';
+import { goHome, queenHiding } from './behaviours/jobs';
 import { warOf, worstRelation } from './relations';
 import { homeNest } from './setup';
 import { colExt, JOB, priorityOf, rivalColonies, rmod, type JobCode, type RivalColony } from './state';
@@ -80,24 +80,35 @@ export function fieldTargets(sim: Sim, col: RivalColony, clock: Clock): number[]
   return want;
 }
 
-/** Share of a budget by priority: within a priority proportional to the targets (floor). */
+/**
+ * Share of a budget by priority. Within a priority each target gets its proportional share (floor); the slots
+ * lost to rounding go to the largest fractions of the same priority (ties: colony, then job order) before a lower
+ * priority sees any.
+ */
 export function allocateBudget(targets: number[][], budget: number): number[][] {
   const out = targets.map(() => new Array<number>(JOB_SLOTS).fill(0));
-  let left = budget;
-  for (let prio = 0; prio <= 4; prio++) {
+  let left = Math.max(0, Math.floor(budget));
+  for (let prio = 0; prio <= 4 && left > 0; prio++) {
     const jobs = FIELD_JOBS.filter((j) => priorityOf(j) === prio);
     let want = 0;
     for (const t of targets) for (const j of jobs) want += t[j];
     if (want <= 0) continue;
-    const f = want <= left ? 1 : left / want;
+    const give = Math.min(left, want);
+    const f = give / want;
+    const rest: { c: number; j: number; frac: number }[] = [];
+    let given = 0;
     for (let c = 0; c < targets.length; c++) {
       for (const j of jobs) {
-        const g = Math.floor(targets[c][j] * f);
+        const exact = targets[c][j] * f;
+        const g = Math.floor(exact);
         out[c][j] = g;
-        left -= g;
+        given += g;
+        if (exact - g > 1e-9) rest.push({ c, j, frac: exact - g });
       }
     }
-    if (left <= 0) break;
+    rest.sort((x, y) => y.frac - x.frac);
+    for (let i = 0; i < rest.length && given < give; i++, given++) out[rest[i].c][rest[i].j]++;
+    left -= given;
   }
   return out;
 }
@@ -173,8 +184,19 @@ function noteRaider(sim: Sim, raidId: number, antId: number): void {
 }
 
 /**
- * Hard cap (every tick, after every spawning system of the tick): while player + rival ants exceed 2500, or the
- * agents exceed the budget, the lowest-priority agents are absorbed at once (player ants are never removed).
+ * Room under the 2500 cap for ants the cap cannot take back (player workers, rival queens): the cap minus every
+ * living ant that is not a fielded agent (enforceCap absorbs agents to make room).
+ */
+export function capRoom(sim: Sim): number {
+  let agents = 0;
+  for (const c of rivalColonies(sim)) agents += agentsOf(sim, c).length;
+  return Math.max(0, ANT_TOTAL_CAP - (antCounts(sim).total - agents));
+}
+
+/**
+ * Hard cap (end of the per-tick and of the hourly pass): while player + rival ants exceed 2500, or the agents exceed
+ * the budget, the lowest-priority agents are absorbed at once. Player ants and rival queens are never removed, so
+ * the other spawners keep them within capRoom; I7 then holds whenever player ants + rival queens <= 2500.
  */
 export function enforceCap(sim: Sim): void {
   const counts = antCounts(sim);

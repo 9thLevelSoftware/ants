@@ -13,7 +13,9 @@ export interface StateParams {
 }
 
 export const STATE_PARAMS: Record<PossessionCamState, StateParams> = {
-  open: { framing: 'orbit', dist: [5, 1.5, 18], pitch: [20, -5, 80], fov: 60 },
+  // GDD: 5 L at 20°. Retuned (gate 1B, inside the GDD ranges): 3.5 L at 12° so the ant reads large in the lower
+  // middle of the frame with the ground filling the foreground (the look-pass reference framing).
+  open: { framing: 'orbit', dist: [3.5, 1.5, 18], pitch: [12, -5, 80], fov: 60 },
   chamber: { framing: 'orbit', dist: [4, 1.5, 8], pitch: [35, 0, 80], fov: 65 },
   tunnel: { framing: 'boom', dist: [2.5, 1.5, 4], pitch: [0, 0, 0], fov: 72 },
   // GDD: 1.2 L fixed. Retuned (views task, deviation): 1.8 L default, zoomable 1.2-2.5 L, so a queen in her own
@@ -22,6 +24,12 @@ export const STATE_PARAMS: Record<PossessionCamState, StateParams> = {
   falling: { framing: 'chase', dist: [5, 5, 5], pitch: [15, 15, 15], fov: 60 },
   flight: { framing: 'chase', dist: [6, 3, 15], pitch: [10, 10, 10], fov: 70 },
 };
+
+/**
+ * Open state: the camera aims this far (L, along the camera up) above the pivot, so the ant sits in the lower middle
+ * of the frame instead of its centre (gate 1B framing; blended with the state).
+ */
+export const OPEN_AIM_LIFT_L = 0.45;
 
 /** Absolute distance cap in the open state (BU). */
 export const OPEN_DIST_CAP_BU = 60;

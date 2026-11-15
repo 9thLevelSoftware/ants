@@ -12,6 +12,7 @@ import { undoRefusal } from './commands';
 import { lapseCounters } from './lapse';
 import { readoutActive } from './readout';
 import { factorWord, toptOf } from './siteScore';
+import { sealGuideView } from './sealGuide';
 
 export interface FoundingView {
   phase: OpeningPhase;
@@ -38,6 +39,11 @@ export interface FoundingView {
   timelapse: { progress: number; stage: string; counters: Record<string, number>; skipped: boolean; startTick: number; endTick: number } | null;
   outcome: { workers: number; reserves: number } | null;
   failCause: FoundingFailCause | null;
+  /**
+   * Sealing (phase `seal`): what the guide is doing after an E press (walking to the throat, plugging, or stuck),
+   * the stand it walks her to (mm; the prompt's "where to stand"), and the plugs placed so far.
+   */
+  seal: { state: 'idle' | 'walking' | 'plugging' | 'stuck'; stand: { x: number; y: number; z: number } | null; plugs: number } | null;
 }
 
 export function foundingView(sim: Sim): FoundingView | null {
@@ -106,6 +112,7 @@ export function foundingView(sim: Sim): FoundingView | null {
     site, readiness, sealed: op.sealed, clutch,
     sealedGd: sealedTick >= 0 ? (sim.state.tick - sealedTick) / TICKS_PER_DAY : 0,
     timelapse, outcome, failCause: failCauseOf(op),
+    seal: op.phase === 'seal' ? sealGuideView(sim, q) : null,
   };
 }
 

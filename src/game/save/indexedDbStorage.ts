@@ -47,24 +47,32 @@ export class IndexedDbStorage implements SaveStorage {
     return new Promise((resolve) => {
       let settled = false;
       const done = (r: StorageResult<undefined>) => { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } };
-      const timer = setTimeout(() => done(failure('unavailable', 'Opening the browser storage timed out.')), IDB_OPEN_TIMEOUT_MS);
+      let req: IDBOpenDBRequest | null = null;
+      // A long main-thread task (world generation on the main thread) can delay the success event past the timer:
+      // when the timer runs, a request that is already done has succeeded, whichever callback the browser runs first.
+      const timer = setTimeout(() => {
+        if (req && req.readyState === 'done' && !req.error && req.result) { adopt(req.result); return; }
+        done(failure('unavailable', 'Opening the browser storage timed out.'));
+      }, IDB_OPEN_TIMEOUT_MS);
+      const adopt = (db: IDBDatabase) => {
+        if (settled) return;
+        db.onversionchange = () => { db.close(); if (this.db === db) this.db = null; };
+        db.onclose = () => { if (this.db === db) this.db = null; };
+        this.db = db;
+        done(okVoid);
+      };
       try {
         const factory = (this.opts.factory ?? defaultFactory)();
         if (!factory) return done(failure('unavailable', 'This browser context has no IndexedDB.'));
-        const req = factory.open(this.opts.name ?? IDB_NAME, IDB_VERSION);
-        req.onupgradeneeded = () => {
-          const db = req.result;
+        req = factory.open(this.opts.name ?? IDB_NAME, IDB_VERSION);
+        const r = req;
+        r.onupgradeneeded = () => {
+          const db = r.result;
           for (const s of STORE_NAMES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
         };
-        req.onblocked = () => done(failure('unavailable', 'Browser storage is blocked by another tab.'));
-        req.onerror = () => { const c = classifyError(req.error); done(failure(c.status === 'quota' ? 'quota' : 'unavailable', c.message)); };
-        req.onsuccess = () => {
-          const db = req.result;
-          db.onversionchange = () => { db.close(); if (this.db === db) this.db = null; };
-          db.onclose = () => { if (this.db === db) this.db = null; };
-          this.db = db;
-          done(okVoid);
-        };
+        r.onblocked = () => done(failure('unavailable', 'Browser storage is blocked by another tab.'));
+        r.onerror = () => { const c = classifyError(r.error); done(failure(c.status === 'quota' ? 'quota' : 'unavailable', c.message)); };
+        r.onsuccess = () => adopt(r.result);
       } catch (e) {
         const c = classifyError(e);
         done(failure('unavailable', c.message));

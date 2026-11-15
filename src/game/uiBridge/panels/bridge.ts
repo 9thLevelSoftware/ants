@@ -1,13 +1,14 @@
 // The panels' seam to the running Game (task ui-panels), built only from what Game already exposes: the views layer
 // (tool state, designate / seal edits), the session (camera rigs, view switching), `hover` / `inspect` highlights and
 // `command`. Everything is optional, so any facade (the demo page's mock) degrades to "nothing", never to an error.
-import type { ChamberType } from '@/sim/types';
+import type { ChamberType, CodexUnlock } from '@/sim/types';
 import { MARKER_RADIUS_RANGE_BU } from '@/sim/balance/colony';
 import type { UiFocus } from '@/ui/api';
 import type { ColonyToolId, PanelsBridge, PlanTemplateId, UiToolState } from '@/ui/panels/wiring/bridgeTypes';
 import { selectTool } from '../../views/colony/colonyControl';
 import { DigPlanner } from '../../views/colony/digPlanner';
 import type { ViewsLayer } from '../../views/viewsLayer';
+import { unlockLabel } from './dates';
 import { playerNestOf } from './nestSlice';
 
 interface RigLike {
@@ -19,7 +20,7 @@ interface RigLike {
 interface GameLike {
   viewsLayer?: ViewsLayer;
   session?: {
-    sim: { world: { bu: number }; field: { height(x: number, z: number): number }; species: { id: string } };
+    sim: { state: { config: { rules: { seasonLengthDays: number } } }; world: { bu: number }; field: { height(x: number, z: number): number }; species: { id: string } };
     views: { colony: RigLike; freeFlyAt(pos: { x: number; y: number; z: number }, look: { x: number; y: number; z: number }): void };
     followId: number;
     view: string;
@@ -30,11 +31,14 @@ interface GameLike {
   requestRender?(): void;
   refreshUi?(): void;
   viewChanged?(): void;
-  profile?: { data?: { codex?: Record<string, { firstSeenIso?: string }> } };
+  /** Optional facade method attached by the persistence layer: the profile's codex block. */
+  codexUnlocks?(): Record<string, CodexUnlock>;
 }
 
 /** How long a "Show" target stays outlined (GDD 08 4.4: 1 Hz pulse for 4 real s). */
 export const SHOW_OUTLINE_S = 4;
+/** How long a jump into the colony view keeps re-applying its cutaway plane, ms (the views layer sets its own on the first frame). */
+const HOLD_CUTAWAY_MS = 1000;
 /** Colony-view distance for a chamber jump, BU. */
 const JUMP_DISTANCE_BU = 40;
 /** Observer distance behind and above a surface target, BU. */
@@ -72,8 +76,31 @@ export function installPanelsBridge(game: unknown): PanelsBridge {
     };
   };
 
-  const toColony = (): void => {
-    if (g.session && g.session.view !== 'colony') g.setView?.('colony');
+  /** True when this call switched the game into the colony view (the views layer then sets its entry slice on the next frame). */
+  const toColony = (): boolean => {
+    if (!g.session || g.session.view === 'colony') return false;
+    g.setView?.('colony');
+    return true;
+  };
+
+  /**
+   * Cuts the colony view open at `planeY`. A view that was just entered gets its slice from the views layer on its first
+   * frame (2 BU above the ant the camera rose from, which is on the surface), after this call: the plane is then set
+   * again for the length of the view blend, so the chamber we jumped to is the one that is cut open.
+   */
+  let holdTimer = 0;
+  const cutAt = (rig: RigLike, planeY: number, justEntered: boolean): void => {
+    const set = (): void => { rig.cutaway.mode = 'slice'; rig.cutaway.planeY = Math.max(rig.cutaway.minPlaneY, Math.min(0, planeY)); };
+    set();
+    if (!justEntered || typeof requestAnimationFrame === 'undefined') return;
+    const until = performance.now() + HOLD_CUTAWAY_MS;
+    cancelAnimationFrame(holdTimer);
+    const again = (): void => {
+      set();
+      g.requestRender?.();
+      if (performance.now() < until && g.session?.view === 'colony') holdTimer = requestAnimationFrame(again);
+    };
+    holdTimer = requestAnimationFrame(again);
   };
 
   const outline = (kind: string, id: number): void => {
@@ -111,12 +138,11 @@ export function installPanelsBridge(game: unknown): PanelsBridge {
       const s = g.session;
       const c = s ? playerNestOf(s.sim as never)?.chambers.find((x) => x.id === id) : undefined;
       if (!s || !c) return;
-      toColony();
+      const entered = toColony();
       const bu = s.sim.world.bu, r = s.views.colony;
       r.target.x = c.center.x; r.target.z = c.center.z; r.target.y = s.sim.field.height(c.center.x, c.center.z);
       r.distance = JUMP_DISTANCE_BU * bu;
-      r.cutaway.mode = 'slice';
-      r.cutaway.planeY = Math.max(r.cutaway.minPlaneY, Math.min(0, c.center.y + 1 * bu));
+      cutAt(r, c.center.y + 1 * bu, entered);
       g.requestRender?.();
     },
     jumpTo(focus: UiFocus) {
@@ -125,12 +151,11 @@ export function installPanelsBridge(game: unknown): PanelsBridge {
       const bu = s.sim.world.bu;
       const underground = focus.pos.y < s.sim.field.height(focus.pos.x, focus.pos.z) - 1.5 * bu;
       if (underground || focus.kind === 'chamber' || focus.kind === 'plan') {
-        toColony();
+        const entered = toColony();
         const r = s.views.colony;
         r.target.x = focus.pos.x; r.target.z = focus.pos.z; r.target.y = s.sim.field.height(focus.pos.x, focus.pos.z);
         r.distance = JUMP_DISTANCE_BU * bu;
-        r.cutaway.mode = 'slice';
-        r.cutaway.planeY = Math.max(r.cutaway.minPlaneY, Math.min(0, focus.pos.y + 1 * bu));
+        cutAt(r, focus.pos.y + 1 * bu, entered);
       } else {
         g.setView?.('observer'); // in possession the jump switches to the observer first
         const p = focus.pos;
@@ -143,8 +168,9 @@ export function installPanelsBridge(game: unknown): PanelsBridge {
     toggleEntrance(entranceId) { return layer()?.toggleEntrance(entranceId) ?? null; },
     codexDevice() {
       const out: Record<string, { label: string }> = {};
-      const c = g.profile?.data?.codex ?? {};
-      for (const id of Object.keys(c)) out[id] = { label: c[id].firstSeenIso ?? '' };
+      const unlocks = g.codexUnlocks?.() ?? {};
+      const len = g.session?.sim.state.config.rules.seasonLengthDays;
+      for (const id of Object.keys(unlocks)) out[id] = { label: unlockLabel(unlocks[id], len) };
       return out;
     },
   };

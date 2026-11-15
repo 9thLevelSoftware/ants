@@ -16,7 +16,9 @@ export interface CostRow {
   systems: Record<string, number>;
 }
 
-const clock = (): number => (globalThis as unknown as { performance: { now(): number } }).performance.now();
+/** Wall clock in ms. Injected by the calling test: simulation code may not read clocks (layering rule). */
+export type Clock = () => number;
+let clock: Clock = () => 0;
 
 /** Wraps the systems so that each one's run time is added to `acc`. */
 function timed(list: readonly System[], acc: Record<string, number>): System[] {
@@ -31,7 +33,8 @@ function timed(list: readonly System[], acc: Record<string, number>): System[] {
 }
 
 /** Builds the colony, warms up `warm` ticks, then measures `segments` x `ticks` ticks. */
-export function measureCost(workers: number, o: { warm?: number; ticks?: number; segments?: number; seed?: number } = {}): CostRow {
+export function measureCost(workers: number, o: { warm?: number; ticks?: number; segments?: number; seed?: number; clock: Clock }): CostRow {
+  clock = o.clock;
   const acc: Record<string, number> = {};
   const k = makeNestColony({
     workers, seed: o.seed ?? 2, systems: timed(SYSTEMS, acc), stores: { c: 4 * workers, p: 2 * workers },

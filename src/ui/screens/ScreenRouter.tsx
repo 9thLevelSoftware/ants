@@ -83,7 +83,7 @@ export function ScreenRouter() {
   }, [snap.screen]);
 
   return (
-    <div class="ui-root" data-testid="ui-root">
+    <div class="ui-root ui-screens" data-testid="ui-root">
       {/* an error overlay makes everything below it inert (focus and Tab stay on the overlay) */}
       <div class="ui-layers" {...inertIf(!!snap.error)}>
         {base === 'boot' && <BootGate />}

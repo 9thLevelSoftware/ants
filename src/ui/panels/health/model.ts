@@ -1,16 +1,16 @@
 // Colony health, pure part (GDD 08 4.4): ranking, the weighted factor lines with their nested cause chains (depth 3,
 // cycles cut at the first repeat, at most 5 factors and an "Other" line), value words and the mapping of remedy ids to
 // the controls they open. No DOM here; the component only draws what this returns.
-import { FACTOR_CAUSE_WORD, REMEDY_WORD, STATUS_WORD } from '@/content/text/words';
+import { DIAG_VALUE_WORD, FACTOR_CAUSE_WORD, REMEDY_WORD, STATUS_WORD } from '@/content/text/words';
 import type { StatusKind } from '../../components/StatusChip';
 import type { UiDiagFactor, UiDiagnostic, UiDiagStatus } from '../../api';
 import { HEALTH_CHAIN_DEPTH, HEALTH_FACTORS_MAX, HEALTH_FACTOR_MIN_WEIGHT } from '../balance';
 
 const RANK: Record<UiDiagStatus, number> = { bad: 0, warn: 1, info: 2, ok: 3 };
 
-/** Status chip kind of a diagnostic status (info is "Note", drawn with the watch shape). */
+/** Status chip kind of a diagnostic status. GDD 08 2.6: a diagnostic note shares the circle outline of "Good"; the word tells them apart. */
 export function statusKind(s: UiDiagStatus): StatusKind {
-  return s === 'info' ? 'watch' : s;
+  return s === 'info' ? 'ok' : s;
 }
 
 export function statusWord(s: UiDiagStatus): string {
@@ -86,18 +86,36 @@ function factorLine(f: UiDiagFactor, rows: readonly UiDiagnostic[], depth: numbe
   return { cause: f.cause, label: causeWord(f.cause), pct: Math.round(f.weight * 100), detail: f.detail, diag: target, cut, chain };
 }
 
-/** The main value in words ("0.6 of normal"): most diagnostics publish a ratio of the normal rate. */
+/** Diagnostic id without a per-subject suffix (`diag-dig-progress:42` -> `diag-dig-progress`). */
+export function baseDiagId(id: string): string {
+  const k = id.indexOf(':');
+  return k < 0 ? id : id.slice(0, k);
+}
+
+const oneDecimalBelow10 = (n: number): string => (Math.abs(n) < 10 ? n.toFixed(1) : String(Math.round(n)));
+
+/**
+ * The main value in words with its unit (GDD 08 4.4). The sim publishes a different quantity per diagnostic (a ratio of
+ * need, a share of capacity, a death rate, a tally), so the unit comes from the content table per id; an id the table
+ * does not know shows its bare number. '' when the value means nothing to the player (it is then left out).
+ */
 export function valueWord(d: UiDiagnostic): string {
   const v = d.value;
   if (!Number.isFinite(v)) return 'no reading';
-  const r = Math.round(v * 10) / 10;
-  return `${r.toFixed(r < 10 ? 1 : 0)} of normal`;
+  const spec = DIAG_VALUE_WORD[baseDiagId(d.id)];
+  if (!spec) return oneDecimalBelow10(v);
+  switch (spec.kind) {
+    case 'none': return '';
+    case 'ratio': return `${oneDecimalBelow10(v)} ${spec.unit}`;
+    case 'percent': return `${oneDecimalBelow10(v * 100)} % ${spec.unit}`;
+    case 'count': return `${Math.round(v)} ${spec.unit}`;
+  }
 }
 
 /** What opening a remedy does. Remedies never apply anything: they open the control concerned. */
 export type RemedyAction =
-  | { kind: 'directives'; group: 'forage' | 'nurse' | 'dig' | 'defend' | null; control: 'workforce' | 'diet' | 'stock' | 'architect' }
-  | { kind: 'tool'; tool: 'forage' | 'avoid' | 'entrance' | 'move-brood' | 'move-queen' }
+  | { kind: 'directives'; group: 'forage' | 'nurse' | 'dig' | 'defend' | null; control: 'workforce' | 'diet' | 'stock' | 'stance' | 'architect' }
+  | { kind: 'tool'; tool: 'forage' | 'avoid' | 'rally' | 'entrance' | 'move-brood' | 'move-queen' | 'dig' }
   | { kind: 'plan'; chamberType: 'food' | 'nursery' | 'rest' }
   | { kind: 'possess'; role: 'forager' | 'digger' | 'nurse' }
   | { kind: 'advice' };
@@ -115,15 +133,18 @@ const REMEDY_ACTION: Readonly<Record<string, RemedyAction>> = {
   'remedy.slider.dig': { kind: 'directives', group: 'dig', control: 'workforce' },
   'remedy.diet.protein': { kind: 'directives', group: null, control: 'diet' },
   'remedy.stock.low': { kind: 'directives', group: null, control: 'stock' },
+  'remedy.stance.cautious': { kind: 'directives', group: null, control: 'stance' },
   'remedy.architect.auto': { kind: 'directives', group: null, control: 'architect' },
   'remedy.marker.forage': { kind: 'tool', tool: 'forage' },
   'remedy.marker.avoid': { kind: 'tool', tool: 'avoid' },
+  'remedy.marker.rally': { kind: 'tool', tool: 'rally' },
   'remedy.marker.entrance': { kind: 'tool', tool: 'entrance' },
   'remedy.marker.move-brood': { kind: 'tool', tool: 'move-brood' },
   'remedy.marker.move-queen': { kind: 'tool', tool: 'move-queen' },
   'remedy.dig.food': { kind: 'plan', chamberType: 'food' },
   'remedy.dig.nursery': { kind: 'plan', chamberType: 'nursery' },
   'remedy.dig.rest': { kind: 'plan', chamberType: 'rest' },
+  'remedy.dig.general': { kind: 'tool', tool: 'dig' },
   'remedy.possess.forage': { kind: 'possess', role: 'forager' },
   'remedy.possess.tend': { kind: 'possess', role: 'forager' },
 };
@@ -139,12 +160,14 @@ export function remedySelector(a: Extract<RemedyAction, { kind: 'directives' }>)
   switch (a.control) {
     case 'workforce': return a.group ? `[data-group="${a.group}"]` : '[data-testid="dir-workforce"]';
     case 'diet': return '[data-testid="dir-diet"]';
-    case 'stock': return '[data-testid="dir-safety"]';
+    case 'stock':
+    case 'stance': return '[data-testid="dir-safety"]';
     case 'architect': return '[data-testid="dir-nest"]';
   }
 }
 
 /** Accessible name of a row: "Brood growth, Failing, 0.6 of normal, since Summer Day 4, 09:00". */
 export function rowName(d: UiDiagnostic): string {
-  return `${d.label}, ${statusWord(d.status)}, ${valueWord(d)}, since ${d.sinceLabel}`;
+  const value = valueWord(d);
+  return `${d.label}, ${statusWord(d.status)}, ${value ? `${value}, ` : ''}since ${d.sinceLabel}`;
 }

@@ -15,6 +15,7 @@ import { TEST_CAMERA_SETTLE_S } from '../config/loop';
 import type { ViewId } from '../time/speedRules';
 import { buildSummary } from './summary';
 import { buildQueries, plain } from './query';
+import { registerGateQueries } from './gateQueries';
 import { buildCheats } from './cheats';
 import { possessResult } from './possessResult';
 import { buildViewsDebug } from '../views/debug';
@@ -36,7 +37,12 @@ function now(): number {
   return performance.now();
 }
 
+/** The HUD's test hook (src/ui/hud/debugHook.ts); the game does not import the UI, so it is read off window. */
+type HudHook = { hud?: () => unknown; alerts?: () => unknown; prompts?: () => unknown; inspect?: (ref: unknown) => unknown };
+const hudHook = (): HudHook | null => (typeof window !== 'undefined' ? ((window as unknown as { __hud?: HudHook }).__hud ?? null) : null);
+
 export function createDebugApi(game: Game) {
+  registerGateQueries();
   const sessionOrThrow = () => {
     if (!game.session) throw new Error('__game: no game running (call newGame first)');
     return game.session;
@@ -178,8 +184,16 @@ export function createDebugApi(game: Game) {
       close: () => { game.closePauseMenu(); return game.mode; },
       screen: () => game.mode,
       snapshot: () => plain(game.lastSnapshot),
-      hud: () => plain(game.lastSnapshot),
+      /** The HUD's own read-outs when the HUD is mounted (window.__hud, ?test=1): region boxes, alerts, prompts. */
+      hud: () => plain(hudHook()?.hud?.() ?? game.lastSnapshot),
+      alerts: () => plain(hudHook()?.alerts?.() ?? null),
+      prompts: () => plain(hudHook()?.prompts?.() ?? null),
+      inspect: (ref: unknown) => plain(hudHook()?.inspect?.(ref) ?? null),
+      /** GDD 08 App. B: the audio status and recent cues (src/audio). */
+      audio: { status: () => game.audio.status(), cueLog: () => plain(game.audio.cueLog()) },
     },
+    /** Which back end the asset loader would use for a path ('embedded' in the portable build). */
+    assets: { backendFor: (path: string) => game.assets.backendFor(path) },
     input: {
       key: (code: string, state: 'down' | 'up' | 'tap' = 'tap') => {
         if (state !== 'up') game.input.keyDown(code);

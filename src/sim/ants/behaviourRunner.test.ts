@@ -2,6 +2,7 @@
 // assembly of the behaviour table from behaviours/{outdoor,nest}.
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Behaviour, Sim } from '@/sim/types';
+import { TASKS } from '@/sim/types';
 import { createBehaviourTable } from '@/sim/systems';
 import { BEHAVIOUR_THINK_TICKS } from '@/sim/balance/actions';
 import { installFakes, makeAntSim, step, worker } from './actions/testkit';
@@ -76,8 +77,11 @@ describe('behaviour runner', () => {
   });
 
   it('the module assembles the behaviours of behaviours/outdoor and behaviours/nest, and their systems', () => {
-    const tasks = ants.behaviours.map((b) => b.task).sort();
-    expect(tasks).toEqual(['dig', 'forage', 'guard', 'haul', 'idle', 'nurse', 'queen-care', 'rest', 'scout', 'store', 'tend', 'flee'].sort());
+    // at least the Stage 1B set; other modules register more (combat: fight, patrol; rivals: raid; ecology-plants a
+    // second, species-specific `tend`), so this is a subset check plus "every entry is a real task"
+    const tasks = [...new Set(ants.behaviours.map((b) => b.task))];
+    expect(tasks).toEqual(expect.arrayContaining(['dig', 'fight', 'forage', 'guard', 'haul', 'idle', 'nurse', 'patrol', 'queen-care', 'rest', 'scout', 'store', 'tend', 'flee']));
+    for (const t of tasks) expect(TASKS as readonly string[]).toContain(t);
     const names = ants.systems.map((s) => s.name);
     // one perception system: the real one (beh-forage's), the no-op placeholder is gone
     expect(names.filter((n) => n === 'perception')).toHaveLength(1);

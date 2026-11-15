@@ -9,6 +9,7 @@ import { facade, snapshot } from '../../store';
 import { startToolState } from '../markers/toolState';
 import { installPanelsDebug } from './debug';
 import { installPanelsStyles } from './styles';
+import { padToolsFocus, startToolsPad } from './toolsPad';
 import { healthExpanded, journalTab, openBook, panelsBridge } from './state';
 
 /** Click-through of an alert or the pulse's "Why?" to Colony health, and the jump of the camera (GDD 08 6.2). */
@@ -32,6 +33,7 @@ export function installPanels(): () => void {
     panelsBridge.value = f ? installPanelsBridge(f) : null;
   }));
   stops.push(startToolState());
+  stops.push(startToolsPad(), effect(() => { document.documentElement.classList.toggle('pn-pad-focus', padToolsFocus.value); }));
   registerHudHooks({
     openHealth: openHealthAt,
     jumpTo: (focus) => panelsBridge.peek()?.jumpTo(focus),

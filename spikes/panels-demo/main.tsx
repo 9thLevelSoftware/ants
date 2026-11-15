@@ -7,7 +7,7 @@
 //   codex:    &entry=<cx id>   &seen=none|some   &search=<text>   &comfort=ring (spider comfort on)
 //   markers:  &tool=dig|forage|avoid|rally|entrance|move-brood|move-queen   &template=tunnel
 //   overlays: &overlay=scent,temperature,moisture,threats,dig-plans   &palette=okabe-ito|high-contrast|pattern-only   &view=colony|observer|possess
-//   &reducedMotion=1   &contrast=high
+//   &inspect=1 (the inspect card pinned, to see it beside the overlay controls and legends)   &reducedMotion=1   &contrast=high
 // Sets window.__ready when the first frame and the fonts are in. window.__panels is the debug surface (panels/wiring/debug.ts);
 // window.__panelsDemo gives scripts the facade, the bridge calls and the open scene.
 import { render } from 'preact';
@@ -19,6 +19,7 @@ import type { OverlayId } from '@/ui/overlays/catalogue';
 import { codexSelection, healthExpanded, journalTab, nestSelection, openBook, panelsBridge } from '@/ui/panels/wiring/state';
 import { facade, setSnapshot, snapshot } from '@/ui/store';
 import { uiPrefs } from '@/ui/styles';
+import { pinInspect } from '@/ui/panels/inspect/inspectState';
 import { demoSnapshot } from '../hud-demo/mock';
 import { demoCodex, demoHealth, demoJournal, demoMarkers, demoNest } from './data';
 import { MockPanelsBridge, PanelsMockFacade } from './mock';
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
   if (q.get('template')) bridge.state.planner.template = q.get('template') as 'tunnel';
   for (const o of (q.get('overlay') ?? '').split(',').filter(Boolean)) setOverlay(o as OverlayId, true);
   void overlays;
+  if (q.get('inspect') === '1') pinInspect({ kind: 'ant', id: 1 });
   if (scene === 'health') { healthExpanded.value = q.get('expand') ?? 'diag-brood-growth'; openPanel('health'); }
   if (scene === 'nest') { nestSelection.value = num('select') ?? -1; openPanel('nest'); }
   if (scene === 'journal') { journalTab.value = (q.get('tab') as 'aims') ?? 'aims'; openBook.value = 'journal'; }

@@ -2,8 +2,9 @@
 // (last 3 days from the hourly ring, the last year or everything from the daily series), series alignment, stacking,
 // season bands for the x axis, and the cursor's value table. Series ids are the history ids of the progression module.
 import { SEASON_WORD } from '@/content/text/words';
+import { TICKS_PER_DAY } from '@/sim/time';
 import type { UiJournal } from '../../api';
-import { CHART_Y_TICKS } from '../balance';
+import { CHART_RANGE_3D_DAYS, CHART_Y_TICKS } from '../balance';
 import { niceScale, nearestIndex, type NiceScale } from './scales';
 
 export type RangeId = '3d' | 'year' | 'all';
@@ -47,11 +48,11 @@ export const CHARTS: readonly ChartDef[] = [
   { id: 'brood', label: 'Brood by stage', kind: 'stacked-area', unit: 'brood', series: [{ id: 'eggs', label: 'Eggs' }, { id: 'larvae', label: 'Larvae' }, { id: 'pupae', label: 'Pupae' }] },
   { id: 'stores', label: 'Stores', kind: 'line', unit: 'loads', series: [{ id: 'stores-c', label: 'Carbohydrate', mark: 'C' }, { id: 'stores-p', label: 'Protein', mark: 'P' }] },
   { id: 'intake', label: 'Intake per game day', kind: 'line', unit: 'loads per day', series: [{ id: 'intake-c', label: 'Carbohydrate', mark: 'C' }, { id: 'intake-p', label: 'Protein', mark: 'P' }] },
+  { id: 'intake-source', label: 'Intake by source', kind: 'stacked-area', unit: 'loads per day', prefix: { id: 'intake-by-kind:', label: KIND_LABEL } },
   { id: 'deaths', label: 'Deaths by cause', kind: 'stacked-bars', unit: 'ants per day', dailyOnly: true, prefix: { id: 'deaths-by-cause:', label: CAUSE_LABEL } },
   { id: 'nest-volume', label: 'Nest volume', kind: 'line', unit: 'BU³', series: [{ id: 'nest-volume', label: 'Open volume' }] },
   { id: 'nest-temp', label: 'Nest and surface temperature', kind: 'line', unit: '°C', fromZero: false, series: [{ id: 'nursery-temp', label: 'Nursery' }, { id: 'air-temp', label: 'Surface air' }] },
 ];
-export { KIND_LABEL };
 
 export interface ChartSeries {
   id: string;
@@ -92,16 +93,23 @@ export interface ChartModel {
   startDay: number;
 }
 
-const TICKS_PER_DAY = 6000;
-
 /** Calendar day (fractional) of a tick. */
 export function calDay(j: Pick<UiJournal, 'startTick'>, tick: number): number {
   return (tick + j.startTick) / TICKS_PER_DAY;
 }
 
-/** "Day 12": game days counted from the first day of the game. */
-export function dayLabel(j: Pick<UiJournal, 'startTick'>, calendarDay: number): string {
-  return `Day ${Math.floor(calendarDay) - Math.floor(j.startTick / TICKS_PER_DAY) + 1}`;
+/** Year, season (0..3) and day of the season (1-based) of a whole calendar day; the season length comes from the game config. */
+export function dateParts(seasonLength: number, calendarDay: number): { year: number; season: number; day: number } {
+  const d = Math.floor(calendarDay);
+  const year = Math.floor(d / (seasonLength * 4)) + 1;
+  const inYear = d - (year - 1) * seasonLength * 4;
+  const season = Math.min(3, Math.floor(inYear / seasonLength));
+  return { year, season, day: inYear - season * seasonLength + 1 };
+}
+
+/** "Day 3": the day of the season, the same count the date lines use ("Summer · Day 3 · Year 1"). */
+export function dayLabel(j: Pick<UiJournal, 'seasonLength'>, calendarDay: number): string {
+  return `Day ${dateParts(j.seasonLength, calendarDay).day}`;
 }
 
 /** Season bands between two calendar days (the season length comes from the game config, never a literal 7). */
@@ -145,8 +153,8 @@ export function windowOf(j: UiJournal, ids: readonly string[], range: RangeId, d
   const dailyLen = Math.max(0, ...ids.map((id) => (j.daily[id] ?? []).length));
   const useDaily = dailyOnly || (range !== '3d' && dailyLen >= 2);
   if (useDaily) {
-    const cap = range === 'year' || range === '3d' ? Math.max(1, j.seasonLength * 4) : Number.MAX_SAFE_INTEGER;
-    const n = Math.min(dailyLen, range === '3d' && !dailyOnly ? 3 : cap);
+    const cap = range === '3d' ? CHART_RANGE_3D_DAYS : range === 'year' ? Math.max(1, j.seasonLength * 4) : Number.MAX_SAFE_INTEGER;
+    const n = Math.min(dailyLen, cap);
     const end = j.dailyEndDay + 0.5;
     return { xs: Array.from({ length: n }, (_, i) => end - (n - 1 - i)), scale: 'daily', cols: ids.map((id) => tail(j.daily[id], n)) };
   }

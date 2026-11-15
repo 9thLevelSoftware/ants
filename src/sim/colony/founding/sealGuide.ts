@@ -61,8 +61,6 @@ export function listenForSealPresses(sim: Sim): void {
 
 /** Starts (or restarts) a sealing request; `auto` for the passive player and the cheat. */
 export function requestSeal(sim: Sim, q: Ant, auto: boolean): void {
-  // the guide moves and acts for the queen the way the player does: she must be possessed (she is, in the game)
-  if (!possessed(sim, q)) sim.enqueue({ type: 'possess', antId: q.id });
   bbSet(q, SG.state, IDLE);
   bbSet(q, SG.auto, auto ? 1 : 0);
   bbSet(q, SG.plugs, 0);

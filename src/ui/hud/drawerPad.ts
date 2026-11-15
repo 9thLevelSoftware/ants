@@ -2,11 +2,12 @@
 // control in that direction (sliders get the arrow first, as in the shell's navigation). The shell's own poller (screens/
 // gamepadNav.ts) does A (activate) and B (back) whenever the screen router is mounted and only knows book and pause
 // layers for movement, so this adds the drawer; without the router (the HUD demo) it also does A and B itself.
+import { PAD as INPUT_PAD } from '@/input/defaults';
 import { focusableIn } from '../components/focus';
 import { handleBack } from '../components/logic/escapeStack';
 import { pickSpatial, type Dir } from '../components/logic/spatialNav';
 
-const PAD = { A: 0, B: 1, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const PAD = { A: INPUT_PAD.A, B: INPUT_PAD.B, UP: INPUT_PAD.DUP, DOWN: INPUT_PAD.DDOWN, LEFT: INPUT_PAD.DLEFT, RIGHT: INPUT_PAD.DRIGHT };
 const STICK = 0.6;
 const REPEAT_MS = 260;
 const KEYS: Record<Dir, string> = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
@@ -51,6 +52,11 @@ export function startDrawerPad(getLayer: () => HTMLElement | null): () => void {
     if (!shell) {
       if (edge(PAD.A)) (document.activeElement as HTMLElement | null)?.click();
       if (edge(PAD.B)) handleBack();
+      // a book screen over the HUD (Journal, Codex): LB / RB switch its tabs, as the shell's navigation does
+      if (layer.matches('.ui-book')) {
+        if (edge(INPUT_PAD.LB)) window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyQ', key: 'Q', bubbles: true, cancelable: true }));
+        if (edge(INPUT_PAD.RB)) window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', key: 'E', bubbles: true, cancelable: true }));
+      }
     }
     const ax = pad.axes[0] ?? 0, ay = pad.axes[1] ?? 0;
     if (now - lastStick > REPEAT_MS && Math.max(Math.abs(ax), Math.abs(ay)) > STICK) {

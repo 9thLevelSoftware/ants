@@ -17,6 +17,7 @@ import { requestSeal } from './sealGuide';
 const STEP = 'fd.autoStep';
 /** The cheat possessed the queen for the seal (and releases her after it). */
 const AUTO_POSSESSED = 'fd.autoPossessed';
+const AUTO_LAY_MOVED = 'fd.autoLayMoved';
 
 /** Clutch aimed for to end with about `workers` first workers at a fair site (survival AUTO_CLUTCH_SURVIVAL). */
 export function autoClutchFor(sim: Sim, workers: number): number {
@@ -99,7 +100,13 @@ export function autoTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       return;
     case 'lay': {
       if (bbGet(q, AUTO_POSSESSED, 0) === 1) { sim.enqueue({ type: 'release', reason: 'player' }); bbSet(q, AUTO_POSSESSED, 0); }
-      if (q.chamberId < 0) { sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: cellFloor(sim, nest) }); return; }
+      // into the cell once (where the walker settles may not read as inside the chamber: she lays there anyway,
+      // and her care keeps the pile in the cell)
+      if (q.chamberId < 0 && bbGet(q, AUTO_LAY_MOVED, 0) === 0) {
+        sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: cellFloor(sim, nest) });
+        bbSet(q, AUTO_LAY_MOVED, 1);
+        return;
+      }
       const limit = clutchLimit(sim, q, nest);
       while (eggsLaid(q) < limit && layEgg(sim, q, 'worker') >= 0) { /* lay the whole clutch at once */ }
       return;

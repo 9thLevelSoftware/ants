@@ -6,7 +6,8 @@ import type { Sim } from '@/sim/types';
 import type { UiDiagnostic, UiHealth } from '@/ui/api';
 import { sinceOf } from './dates';
 
-/** The history series that stands for a diagnostic (its sparkline); a diagnostic with none shows no sparkline. */
+/** The history series that stands for a diagnostic (its sparkline); a diagnostic with none shows no sparkline
+ * (diag-nest-space has none: its value is a load against capacity and no recorded series is that load). */
 export const DIAG_HISTORY: Readonly<Record<string, string>> = {
   'diag-food-intake-c': 'intake-c',
   'diag-food-intake-p': 'intake-p',
@@ -14,7 +15,6 @@ export const DIAG_HISTORY: Readonly<Record<string, string>> = {
   'diag-brood-growth': 'larvae',
   'diag-egg-laying': 'eggs-laid',
   'diag-queen-condition': 'queen-reserves',
-  'diag-nest-space': 'nest-volume',
   'diag-nest-climate': 'nursery-temp',
   'diag-workforce': 'workers',
   'diag-foraging-trails': 'trip-success',

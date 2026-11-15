@@ -35,6 +35,8 @@ export interface RivalColonyExt {
   broodRaidedTick: number;
   /** Tick it was destroyed, -1 alive. */
   destroyedTick: number;
+  /** Entrance tier reached (1 + [N >= 300] + [N >= 800], GDD 05 §3.4); absent before setup. */
+  entranceTier?: number;
 }
 
 /** Per colony pair (a < b): escalation bookkeeping for war fronts and truce (GDD 05 §3.7). */
@@ -95,4 +97,6 @@ export interface RivalsModuleState {
   raidSeenTick: number;
   nestAttackedOn: number;
   nestAttackedTick: number;
+  /** Id of the rally `attack` marker that launched the player's last raid (one raid per marker), absent none. */
+  rallyRaidMarker?: number;
 }

@@ -5,20 +5,21 @@
 
 import type { Sim } from '@/sim/types';
 import { HOURLY_EVERY } from '@/sim/balance';
-import { E_PER_CONTESTED_CELL, FORAGE_FRINGE_BU, RIVAL_LEVERS, TRUCE_E_CAP, WAR_CLAIM_CHANGE_CELLS } from '@/sim/balance/rivals';
+import { DRAW_NUTRIENT_MIN_SHARE, E_PER_CONTESTED_CELL, FORAGE_FRINGE_BU, RIVAL_LEVERS, TRUCE_E_CAP, WAR_CLAIM_CHANGE_CELLS } from '@/sim/balance/rivals';
 import { rivalProfile } from '@/sim/species/rivals/profiles';
 import { amountOf, setAmount } from '@/sim/ecology/sources/def';
 import { isRaining } from '@/sim/environment';
 import { currentYear, seasonLength, TICKS_PER_DAY } from '@/sim/time';
 import { activityOf, clockOf, type Clock } from './env';
+import { enforceCap } from './fielding';
 import { foundingThreatHour } from './founding';
 import { coreRadiusBu } from './init';
-import { checkDestruction, firstWorkers, newFoundations } from './lifecycle';
-import { abstractStep, applyWinter } from './model';
+import { checkDestruction, firstWorkers, graduateIncipients, newFoundations } from './lifecycle';
+import { abstractStep, applyWinter, virtualTendOf } from './model';
 import { addEscalation, claimStaleSince, ensureRelation, escalationDecay, nextState } from './relations';
 import { launchBroodRaids, launchRaids, workerCount } from './raids';
 import { publishRivalDiagnostic } from './report';
-import { homeNest, syncDisplayBrood } from './setup';
+import { growEntrances, homeNest, syncDisplayBrood } from './setup';
 import { colExt, relExt, rivalColonies, slotOf, type RivalColony } from './state';
 import { claimAt, hourlyMarks, scanTerritory } from './territory';
 
@@ -32,10 +33,13 @@ function raining(sim: Sim): boolean {
  * Draws the virtual harvest from real nodes inside the colony's claimed cells, nearest first (GDD 05 §3.2). What
  * the map cannot give is unsimulated food (prey, root aphids, honeydew outside the modelled herds): the model is
  * not limited by it, but real nodes in the territory are depleted first, so rivals compete with the player.
+ * Split by diet: a node is drawn only for a nutrient it really supplies (at least DRAW_NUTRIENT_MIN_SHARE of its
+ * value) and only as far as the colony still needs that nutrient. Subterranean species (root aphids, thief ants)
+ * draw nothing from the surface.
  */
-function drawRealNodes(sim: Sim, col: RivalColony, c: number, p: number): void {
+export function drawRealNodes(sim: Sim, col: RivalColony, c: number, p: number): void {
   const nest = homeNest(sim, col);
-  if (!nest || c + p <= 0) return;
+  if (!nest || c + p <= 0 || rivalProfile(col.species).subterranean) return;
   const r = (coreRadiusBu(col.rival.n) + FORAGE_FRINGE_BU) * sim.world.bu;
   sim.index.querySources(nest.origin, r, ids);
   const list = ids.map((id) => sim.stores.sources.get(id)).filter((s) => !!s && s.alive && claimAt(sim, s.pos).owner === col.id);
@@ -43,14 +47,21 @@ function drawRealNodes(sim: Sim, col: RivalColony, c: number, p: number): void {
   let needC = c, needP = p;
   for (const s of list) {
     if (!s || (needC <= 1e-6 && needP <= 1e-6)) break;
-    const perUnit = s.c + s.p;
-    if (perUnit <= 0) continue;
-    const units = Math.min(amountOf(s), (needC + needP) / perUnit);
+    const units = Math.min(amountOf(s), unitsWanted(s.c, s.p, needC, needP));
     if (units <= 0) continue;
     setAmount(s, amountOf(s) - units);
     needC = Math.max(0, needC - units * s.c);
     needP = Math.max(0, needP - units * s.p);
   }
+}
+
+/** Units of a node (c, p per unit) that cover the needs it can supply (the larger of the two), 0 when none. */
+export function unitsWanted(c: number, p: number, needC: number, needP: number): number {
+  const total = c + p;
+  if (total <= 0) return 0;
+  const forC = needC > 1e-6 && c >= DRAW_NUTRIENT_MIN_SHARE * total ? needC / c : 0;
+  const forP = needP > 1e-6 && p >= DRAW_NUTRIENT_MIN_SHARE * total ? needP / p : 0;
+  return Math.max(forC, forP);
 }
 
 function modelHour(sim: Sim, col: RivalColony, clock: Clock, a: number, dtGd: number): void {
@@ -59,6 +70,7 @@ function modelHour(sim: Sim, col: RivalColony, clock: Clock, a: number, dtGd: nu
   const queens = col.queens.length;
   if (ext.firstWorkersTick >= 0) return; // a founding queen on her reserves with 12 brood: nothing moves yet
   if (clock.season === 'winter') {
+    r.virtualTend = 0;
     const year = currentYear(sim.state);
     if (ext.winterYear !== year) { ext.winterYear = year; applyWinter(r, queens, seasonLength(sim.state)); }
     return;
@@ -71,6 +83,7 @@ function modelHour(sim: Sim, col: RivalColony, clock: Clock, a: number, dtGd: nu
     dayOfSeason: clock.dayOfSeason, activity: a, kMult: d.params.rivalKMult, growthMult: lev.rivalGrowthMult,
     aggMult: d.params.rivalAggMult, realC: ext.hourC, realP: ext.hourP,
   }, dtGd);
+  r.virtualTend = virtualTendOf(r.n, p.subterranean);
   ext.lastHourC = ext.hourC; ext.lastHourP = ext.hourP;
   ext.hourC = 0; ext.hourP = 0;
   drawRealNodes(sim, col, res.harvestC, res.harvestP);
@@ -126,7 +139,9 @@ export function rivalsHourly(sim: Sim): void {
     if (!colExt(sim.state, c.id).setupDone) continue;
     modelHour(sim, c, clock, act.get(c.id) ?? 0, dtGd);
     syncDisplayBrood(sim, c);
+    growEntrances(sim, c);
   }
+  graduateIncipients(sim);
   relationsHour(sim, dtGd, scan.claimed, clock.season === 'winter');
   launchRaids(sim, (c) => act.get(c.id) ?? 0);
   launchBroodRaids(sim);
@@ -134,4 +149,5 @@ export function rivalsHourly(sim: Sim): void {
   newFoundations(sim);
   foundingThreatHour(sim, dtGd);
   publishRivalDiagnostic(sim);
+  enforceCap(sim); // diggers and new agents of this pass; the per-tick cap ran before this system
 }

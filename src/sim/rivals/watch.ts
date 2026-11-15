@@ -5,21 +5,20 @@
 
 import type { Ant, Sim } from '@/sim/types';
 import {
-  ABSORB_RADIUS_BU, E_GAIN, FIGHT_COUNT_S, GUARD_MIN_N, KNOWS_NEST_BU, KNOWS_NEST_INCIPIENT_L, REINFORCE_JOIN_L, REINFORCE_LAPSE_S,
+  ABSORB_RADIUS_BU, E_GAIN, FIGHT_COUNT_S, GUARD_MIN_N, KILL_CREDIT_S, KNOWS_NEST_BU, KNOWS_NEST_INCIPIENT_L, REINFORCE_JOIN_L, REINFORCE_LAPSE_S,
   REINFORCE_MAX, REINFORCE_RADIUS_BU,
 } from '@/sim/balance/rivals';
 import { fightTarget, startFight } from '@/sim/combat';
 import { secondsToTicks } from '@/sim/time';
 import { absorbAgent, isAgent, setJob } from './agents';
 import { switchTask } from '@/sim/colony/allocation';
-import { noteDiscovery } from './encounter';
+import { noteDiscovery, pairOnce } from './encounter';
 import { addEscalation } from './relations';
 import { displayTarget, homeNest } from './setup';
 import { BB, colExt, isRival, JOB, rivalColonies, rmod, slotBit } from './state';
-import { d2, d3 } from './move';
+import { d2, d3 } from './behaviours/move';
 
 const DEATH_SEEN = 'rv.dd';
-const HIT_WINDOW_TICKS = 30;
 const ids: number[] = [];
 
 /** Every tick: ants that died this tick (still in the list until the sweep). */
@@ -46,7 +45,7 @@ function killerColony(sim: Sim, a: Ant): number {
   if (!hs || hs.length === 0) return -1;
   let best: { id: number; tick: number } | null = null;
   for (const h of hs) if (!best || h.tick > best.tick) best = h;
-  if (!best || sim.state.tick - best.tick > HIT_WINDOW_TICKS) return -1;
+  if (!best || sim.state.tick - best.tick > secondsToTicks(KILL_CREDIT_S)) return -1;
   const k = sim.stores.ants.get(best.id);
   return k ? k.colony : -1;
 }
@@ -88,7 +87,7 @@ export function watchFights(sim: Sim): void {
       const last = a.bb[BB.fightTick];
       if (last !== undefined && now - last < secondsToTicks(FIGHT_COUNT_S)) continue;
       a.bb[BB.fightTick] = now;
-      if (!isAgent(foe) || a.id < foe.id) {
+      if (pairOnce(sim, a, foe, true, secondsToTicks(FIGHT_COUNT_S))) {
         addEscalation(sim, a.colony, foe.colony, E_GAIN.fight);
         sim.emit({ type: 'rival-encounter', a: a.colony, b: foe.colony, pos: { ...a.pos }, outcome: 'fight' });
       }
@@ -158,11 +157,13 @@ export function watchNests(sim: Sim): void {
     const bit = slotBit(sim.state, owner.id);
     if (bit === 0) continue;
     for (const e of nest.entrances) {
-      const r = incipient ? KNOWS_NEST_INCIPIENT_L * bu + e.radius : KNOWS_NEST_BU * bu;
-      sim.index.queryAnts(e.pos, r, ids);
+      sim.index.queryAnts(e.pos, KNOWS_NEST_BU * bu + e.radius, ids);
       for (const id of ids) {
         const a = sim.stores.ants.get(id);
-        if (!a || !a.alive || a.colony === owner.id || a.nestId >= 0 || d3(a.pos, e.pos) > r) continue;
+        if (!a || !a.alive || a.colony === owner.id || a.nestId >= 0) continue;
+        // incipient nests are small: the scout must come within 3 of its own body lengths of the entrance
+        const r = incipient ? KNOWS_NEST_INCIPIENT_L * a.lengthBu * bu + e.radius : KNOWS_NEST_BU * bu;
+        if (d3(a.pos, e.pos) > r) continue;
         const col = sim.stores.colonies.get(a.colony);
         if (!col) continue;
         if (col.rival) col.rival.knowsNest |= bit;

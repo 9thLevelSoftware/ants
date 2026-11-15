@@ -3,15 +3,15 @@
 // raidJobs.ts); combat moves them into `fight` / `flee` and back (resume task `raid`, the job stays in bb).
 
 import type { Ant, Behaviour, Sim } from '@/sim/types';
-import { AGENT_THINK_TICKS } from '@/sim/balance/rivals';
-import { absorbAgent } from './agents';
-import { encounterStep, pruneMarks } from './encounter';
+import { AGENT_THINK_TICKS, MARK_PRUNE_TICKS } from '@/sim/balance/rivals';
+import { absorbAgent } from '../agents';
+import { encounterStep, pruneMarks } from '../encounter';
 import {
   defendJob, emerged, forageJob, guardJob, patrolJob, queenJob, returnJob, wanderJob, warJob,
 } from './jobs';
 import { halt } from './move';
 import { digJob, finishPlayerRaider, playerReturn, raidJob } from './raidJobs';
-import { BB, JOB, jobOf, type RivalColony } from './state';
+import { BB, JOB, jobOf, type RivalColony } from '../state';
 
 function busy(sim: Sim, ant: Ant): boolean {
   const c = ant.combat;
@@ -25,7 +25,7 @@ function rivalUpdate(sim: Sim, ant: Ant, col: RivalColony): void {
   if (ant.action) return; // a primitive in progress (pick-up) finishes first
   if (job !== JOB.ret && job !== JOB.defend && job !== JOB.escort && job !== JOB.dig && !emerged(sim, ant)) return;
   if (job !== JOB.ret && job !== JOB.dig && encounterStep(sim, ant, col)) return;
-  if ((ant.id + sim.state.tick) % 300 < AGENT_THINK_TICKS) pruneMarks(sim, ant);
+  if ((ant.id + sim.state.tick) % MARK_PRUNE_TICKS < AGENT_THINK_TICKS) pruneMarks(sim, ant);
   switch (job) {
     case JOB.forage: case JOB.emerge: forageJob(sim, ant, col); return;
     case JOB.patrol: patrolJob(sim, ant, col); return;

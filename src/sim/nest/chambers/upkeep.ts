@@ -41,8 +41,14 @@ export function detectNestChambers(sim: Sim, nest: Nest): void {
  */
 export function nestOpenVolume(sim: Sim, nest: Nest): number {
   const b = nestSampleBox(sim, nest), carve = sim.carve, v = carve.voxel, rt = nestRuntime(sim);
+  // the cached chunk volumes are clipped to the box they were computed with: a nest whose box changed (it grew)
+  // starts a new cache, or an uninterrupted run would keep stale clips that a restored game recomputes
+  // (int-1B-sim: volumeOpen drifted apart after a save / restore)
+  const boxSig = `${b.i0},${b.j0},${b.k0},${b.i1},${b.j1},${b.k1}`;
   let cache = rt.deepVolByNest.get(nest.id);
-  if (!cache) { cache = new Map(); rt.deepVolByNest.set(nest.id, cache); }
+  if (!cache || rt.deepVolBox.get(nest.id) !== boxSig) {
+    cache = new Map(); rt.deepVolByNest.set(nest.id, cache); rt.deepVolBox.set(nest.id, boxSig);
+  }
   const keys = carve.data.keys.filter((key) => {
     const ci = keyCx(key) * CHUNK, cj = keyCy(key) * CHUNK, ck = keyCz(key) * CHUNK;
     return ci + CHUNK > b.i0 && ci <= b.i1 && cj + CHUNK > b.j0 && cj <= b.j1 && ck + CHUNK > b.k0 && ck <= b.k1;

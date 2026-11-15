@@ -359,6 +359,12 @@ export interface WorldDelta {
   waterLevels: Float32Array;
   /** Dynamic wood state per wood primitive (GDD 07 §6.2.1 / App. A.4). */
   wood: WoodState[];
+  /**
+   * Tick of the last carve-grid change (any brush or fill), ticks; absent = none since the game began. Written by
+   * a carve listener the services install; locomotion re-attaches walkers after a change. Persisted so a restored
+   * save makes the same check on its first tick as the uninterrupted run (int-1B-sim).
+   */
+  carveChangedTick?: number;
 }
 
 /**

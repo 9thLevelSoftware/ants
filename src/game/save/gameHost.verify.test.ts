@@ -18,6 +18,8 @@ describe('review: GameHost.adopt', () => {
       registry: { onGameStart: () => { calls.push('onGameStart'); return Promise.resolve(); }, onGameEnd: () => calls.push('onGameEnd') },
       endGame: () => { calls.push('endGame'); fake.registry.onGameEnd(); },
       startPlaying: () => { calls.push('startPlaying'); },
+      // Game.adoptSim (gate 1B: the public replacement for the private startPlaying cast)
+      adoptSim: async () => { await fake.registry.onGameStart(); fake.startPlaying(); },
       setSpeed: () => {}, renderNow: () => {}, refreshUi: () => {}, viewChanged: () => {},
     };
     new GameHost(fake as unknown as Game).adopt(sim, {} as never);

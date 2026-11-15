@@ -4,7 +4,7 @@
 // on, no colony aggregate.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, HumanCue, Sim } from '@/sim/types';
+import type { Ant, FoodSource, HumanCue, Sim } from '@/sim/types';
 import { ALARM_ALERT } from '@/sim/balance';
 import {
   ALARM_THREAT_OFFSET_BU, ANTENNA_ANGLE_DEG, ANTENNA_REACH_BU, AVOID_LOOKAHEAD_BU, CONTACT_DIST_BU, CONTACT_HALF_ANGLE_DEG, HUMAN_CUE_FEEL_MULT,
@@ -27,6 +27,14 @@ const ids: number[] = [];
 const probe: Vec3 = { x: 0, y: 0, z: 0 };
 const dir: Vec3 = { x: 0, y: 0, z: 0 };
 
+/** Height of a source above the ground below it, mm; runtime cache per source object (sources do not move). */
+const lifts = new WeakMap<FoodSource, number>();
+function liftOf(sim: Sim, s: FoodSource): number {
+  let h = lifts.get(s);
+  if (h === undefined) { h = Math.max(0, s.pos.y - sim.field.height(s.pos.x, s.pos.z)); lifts.set(s, h); }
+  return h;
+}
+
 /** Largest odour radius of any available source this tick, mm (runtime cache; the query never looks farther). */
 const odourCache = new WeakMap<Sim, { tick: number; r: number }>();
 function maxOdourNow(sim: Sim): number {
@@ -34,7 +42,12 @@ function maxOdourNow(sim: Sim): number {
   if (!c || c.tick !== sim.state.tick) {
     const bu = sim.world.bu;
     let r = CONTACT_DIST_BU * bu;
-    for (const s of sim.stores.sources.list) if (s.alive) r = Math.max(r, odourRadiusMm(s, bu), footprintMm(s, bu) + CONTACT_DIST_BU * bu);
+    for (const s of sim.stores.sources.list) {
+      if (!s.alive) continue;
+      // a raised source is smelled in plan view from the ground below it: the query must reach up to it
+      const lift = liftOf(sim, s);
+      r = Math.max(r, odourRadiusMm(s, bu) + lift, footprintMm(s, bu) + CONTACT_DIST_BU * bu);
+    }
     c = { tick: sim.state.tick, r: Math.min(r, SMELL_QUERY_MAX_BU * bu) };
     odourCache.set(sim, c);
   }
@@ -55,8 +68,12 @@ function food(sim: Sim, ant: Ant): void {
     const edge = d - footprintMm(s, bu);
     if (edge <= reach && edge < touchD) { touch = s.id; touchD = edge; }
     const r = odourRadiusMm(s, bu);
-    if (d > r) continue;
-    const strength = 1 - d / Math.max(r, 1e-6);
+    // A source raised above the ground (a flower head on its stem, a crumb on a bench) scents the column below
+    // it: an ant at any height between the ground and the source smells it by its horizontal distance (GDD 05
+    // §1.2 odour radius, read in plan view; int-1B-sim ruling). Without this no ground ant ever smelled a flower.
+    const dOdour = dy > 0 && ant.pos.y >= s.pos.y - liftOf(sim, s) - reach ? Math.sqrt(dx * dx + dz * dz) : d;
+    if (dOdour > r) continue;
+    const strength = 1 - dOdour / Math.max(r, 1e-6);
     if (strength > best || (strength === best && smell >= 0 && s.id < smell)) { best = strength; smell = s.id; smellD = d; }
   }
   ant.bb[PC.touch] = touch;

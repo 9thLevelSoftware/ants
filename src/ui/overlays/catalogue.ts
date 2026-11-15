@@ -157,3 +157,12 @@ export function cycleOverlay(s: OverlaySet): OverlaySet {
 export function isActive(s: OverlaySet, id: OverlayId): boolean {
   return id === 'scent' ? s.scent : s.other === id;
 }
+
+/**
+ * The overlays whose legend is on screen: the ones switched on, plus the dig-plans legend while the dig tool is active in
+ * the colony view (GDD 08 10.1: "always on in colony view while the dig tool is active"), so plan status and the reason a
+ * plan is blocked can be read without pressing O four times.
+ */
+export function shownLegends(s: OverlaySet, digToolActive: boolean): OverlayId[] {
+  return OVERLAY_IDS.filter((id) => isActive(s, id) || (id === 'dig-plans' && digToolActive));
+}

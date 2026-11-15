@@ -8,6 +8,7 @@ import type { CostDisc } from './grid/search';
 import { HashGrid3 } from '@/core/spatial/hashGrid';
 import { isLocoNavGrid } from './grid/navGridImpl';
 import { locoParams, type LocoParams } from './params';
+import { homeEntranceStatus } from './nests';
 
 /** Counters exposed for diagnostics (locoStats). Monotone over the sim's lifetime. */
 export interface LocoStats {
@@ -82,6 +83,11 @@ export interface LocoRuntime {
   sepGrid: HashGrid3 | null;
   /** Tick the separation grid was filled (it is filled on its first use in a tick, from the positions then). */
   sepTick: number;
+  /**
+   * Id of the possessed ant when a movement override (pin, seizure, dodge) moved it in the last locomotion pass,
+   * else -1. Read by the per-frame predictor, which must not run the overrides itself (they write state).
+   */
+  possessedOverriddenId: number;
 }
 
 const runtimes = new WeakMap<Sim, LocoRuntime>();
@@ -99,7 +105,7 @@ export function rt(sim: Sim): LocoRuntime {
   if (r) return r;
   const created: LocoRuntime = {
     P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, planExpand0: 0, observer: null,
-    pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1, sepGrid: null, sepTick: -1,
+    pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1, sepGrid: null, sepTick: -1, possessedOverriddenId: -1,
   };
   runtimes.set(sim, created);
   return created;
@@ -166,8 +172,9 @@ export function nestEntrances(sim: Sim, r: LocoRuntime, nestId: number): FlowSig
   let sig = '';
   const n = sim.stores.nests.get(nestId);
   if (n && n.alive) {
+    const usable = homeEntranceStatus(n);
     for (const e of n.entrances) {
-      if (e.status !== 'open') continue;
+      if (e.status !== usable) continue;
       seeds.push(e.pos);
       sig += `${e.id}:${Math.round(e.pos.x)},${Math.round(e.pos.z)};`;
     }

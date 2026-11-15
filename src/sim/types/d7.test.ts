@@ -1,4 +1,5 @@
 // 00-index §D7 (second pass): default-year day numbers, thermal inputs, brood destined caste.
+import { requireSpecies } from '@/sim/species';
 import { describe, expect, it } from 'vitest';
 import type { Brood, BroodCaste, ThermalInputs } from '@/sim/types';
 import { BROOD_CASTES, CASTES } from '@/sim/types';
@@ -111,10 +112,12 @@ describe('calendarNow cache (runtime only)', () => {
 
   it('sees a season-length change within the same tick', () => {
     const sim = makeTestSim();
-    expect(environment.calendarNow(sim).season).toBe('summer'); // Lasius starts on doy 10 = Summer Day 3
+    // Lasius starts on its species startDoy (9 = Summer Day 2 since founding-close; was 10)
+    const doy = requireSpecies('lasius-niger').opening.startDoy.default;
+    expect(environment.calendarNow(sim).season).toBe('summer');
     sim.state.config.rules = { ...sim.state.config.rules, seasonLengthDays: 10 };
-    // the same calendar tick (day index 9) now falls in a 10-day spring
+    // the same calendar tick (day index doy - 1) now falls in a 10-day spring
     expect(environment.calendarNow(sim).season).toBe('spring');
-    expect(environment.calendarNow(sim).dayOfSeason).toBe(10);
+    expect(environment.calendarNow(sim).dayOfSeason).toBe(doy);
   });
 });

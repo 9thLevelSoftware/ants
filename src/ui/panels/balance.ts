@@ -19,6 +19,8 @@ export const NEST_FLOODED_MIN = 0.02;
 
 /** Journal graphs: ticks of the value axis, the cursor step and the colour-blind-safe series order (Okabe-Ito, GDD 08 10.1). */
 export const CHART_Y_TICKS = 4;
+/** The "3 days" range of a daily-only chart (deaths): this many daily bars; hourly charts show 72 hourly samples. */
+export const CHART_RANGE_3D_DAYS = 3;
 export const OKABE_ITO = ['#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2', '#D55E00', '#CC79A7', '#F2EFE6'] as const;
 /** Dash patterns that give each series a second, non-colour identity (GDD 08 7.2). */
 export const CHART_DASHES = ['', '6 3', '2 3', '8 3 2 3', '1 3', '10 4', '4 2 1 2', '3 1'] as const;

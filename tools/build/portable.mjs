@@ -47,9 +47,11 @@ import { formatBytes, mkdirp, sha8 } from './util.mjs';
 
 const log = (...a) => console.log(...a);
 
+/** A build failure: thrown so main()'s finally removes the temporary folder before the process exits. */
+class BuildFailure extends Error {}
+
 function fail(title, body) {
-  console.error(`\nbuild:portable FAILED: ${title}\n${body}`);
-  process.exit(1);
+  throw new BuildFailure(`${title}\n${body}`);
 }
 
 async function main() {
@@ -109,4 +111,7 @@ async function main() {
   }
 }
 
-main().catch((e) => fail('unexpected error', e?.stack ?? String(e)));
+main().catch((e) => {
+  console.error(`\nbuild:portable FAILED: ${e instanceof BuildFailure ? e.message : `unexpected error\n${e?.stack ?? String(e)}`}`);
+  process.exit(1);
+});

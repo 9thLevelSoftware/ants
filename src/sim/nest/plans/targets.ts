@@ -40,6 +40,12 @@ export function sampleInOpenAir(sim: Sim, i: number, j: number, k: number): bool
   return sim.field.substrateXYZ(i * v, j * v, k * v) > 0;
 }
 
+/** Is the sample above the ground surface (terrain plus mound overlays)? Then a solid there is a surface object. */
+export function sampleAboveGround(sim: Sim, i: number, j: number, k: number): boolean {
+  const v = sim.carve.voxel;
+  return j * v > sim.field.height(i * v, k * v);
+}
+
 /** Calls fn for every sample with g > 0 (fixed order: z, y, x ascending). */
 export function forPlanSamples(sim: Sim, g: PlanGeometry, fn: (i: number, j: number, k: number) => void): void {
   const v = sim.carve.voxel;

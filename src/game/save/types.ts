@@ -63,6 +63,10 @@ export interface SaveMeta {
   appVersion: string;
   /** JPEG data URL (160 x 90) or null (test mode, capture refused). */
   thumbnail: string | null;
+  /** View the player was in when saving ('possess' | 'observer' | 'colony'); missing in older saves. */
+  view?: string;
+  /** Observer camera at save time (position and look-at point, mm); missing in older saves. */
+  camera?: { pos: { x: number; y: number; z: number }; look: { x: number; y: number; z: number } };
 }
 
 /** What a stored save record holds (the `saves` object store value). */

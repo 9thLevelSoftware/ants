@@ -9,6 +9,7 @@ import { Select } from '../../components/Select';
 import { cx } from '../../components/cx';
 import { markersSlice } from '../wiring/slices';
 import { panelsBridge } from '../wiring/state';
+import { padToolsFocus } from '../wiring/toolsPad';
 import { chamberWord } from '../nest/model';
 import type { ColonyToolId } from '../wiring/bridgeTypes';
 import { atCap, countText, optionsFor, paletteTools, POINTER_HINT, TOOL_INFO, type ToolOption } from './model';
@@ -51,9 +52,9 @@ function Option({ o }: { o: ToolOption }) {
       );
     case 'chamber-type':
       return (
-        <label class="pn-opt"><span>Type</span>
+        <div class="pn-opt"><span>Type</span>
           <Select aria-label="Chamber type" value={o.value} options={o.types.map((t) => ({ value: t, label: chamberWord(t) }))} onChange={(v: string) => { bridge?.setPlanner({ chamberType: v }); after(); }} />
-        </label>
+        </div>
       );
     case 'size':
       return (
@@ -103,6 +104,7 @@ export function MarkerPalette() {
           {active && atCap(counts[active]) && ` Limit reached (${counts[active].cap}). Remove a marker first.`}
         </p>
         {ts?.message && <p class="pn-tool-msg" role="status">{ts.message}</p>}
+        {padToolsFocus.value && <p class="pn-tool-hint" data-testid="pad-legend">Controller: D-pad moves, A chooses, B or View leaves. Y opens Colony health, X Nest overview, left stick click the Journal, right stick click the Codex.</p>}
       </div>
     </>
   );

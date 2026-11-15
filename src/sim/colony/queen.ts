@@ -135,8 +135,15 @@ export function layEgg(sim: Sim, q: Ant, destined: BroodCaste = 'worker'): numbe
 /**
  * S2 rationing (GDD 02 §5.7): a queen-carer feeds the queen from her own fat reserve. Returns the C moved.
  */
+/** GDD 02 §5.7: carers feed the queen from their own reserve only from starvation stage S2 (rationing) to S4. */
+export function queenReserveFeedAllowed(col: Colony | undefined): boolean {
+  const s = col?.starvationStage;
+  return s === 'rationing' || s === 'brood-sacrifice' || s === 'adult-starvation';
+}
+
 export function feedQueenFromReserve(sim: Sim, carer: Ant, amount: number): number {
   const col = sim.stores.colonies.get(carer.colony);
+  if (!queenReserveFeedAllowed(col)) return 0; // every caller is gated here, not only the ants-side primitive
   const q = col ? queenOf(sim, col) : undefined;
   if (!q || !q.queen) return 0;
   const room = Math.max(0, QUEEN_GUT_CAP - q.queen.gut.c - q.queen.gut.p);

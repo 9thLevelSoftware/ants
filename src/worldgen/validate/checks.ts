@@ -219,8 +219,14 @@ export function checkStart(ctx: GenContext): CheckResult {
   const zone = ctx.layout.zones[ctx.layout.nav[c]].type;
   const flood = st.water.flood[c];
   const rule = checkStartRule(ctx);
-  const pass = flood <= VALID.startFloodMax && zone !== 'asphalt' && zone !== 'interior' && walkable(ctx.world.nav.cls.data[c]) && rule.ok;
-  return ok('v-start', pass, `flood=${flood.toFixed(2)} ${rule.detail}`);
+  const base = flood <= VALID.startFloodMax && zone !== 'asphalt' && zone !== 'interior' && walkable(ctx.world.nav.cls.data[c]);
+  const pass = base && rule.ok;
+  const r = ok('v-start', pass, `flood=${flood.toFixed(2)} ${rule.detail}`);
+  // as checkFound / checkConnect: a wood nester on a map without catalogue content cannot gain good sites by
+  // regenerating; only the content-bound parts (good sites, a wood patch to nest in) are short, so go to the
+  // repairs instead (R2 decayed logs)
+  if (!pass && base && rule.onlyContentShort && contentLimited(ctx, rule.good)) r.regenerate = false;
+  return r;
 }
 
 /** Never fails: lists the human event kinds without an eligible zone in meta.disabledEvents. */

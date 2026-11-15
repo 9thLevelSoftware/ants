@@ -64,7 +64,7 @@ export function planAssets({ manifestPath = path.join(PUBLIC_ASSETS, 'manifest.j
   const leftOut = [];
   const shipped = [];
   for (const a of manifest.assets) {
-    const ship = a.kind === 'audio' ? INCLUDE_ALL_AUDIO : a.kind === 'texture' && shippedMaterials.includes(a.material);
+    const ship = a.kind === 'audio' ? INCLUDE_ALL_AUDIO || referenced(a.id) : a.kind === 'texture' && shippedMaterials.includes(a.material);
     (ship ? shipped : leftOut).push(a);
   }
 

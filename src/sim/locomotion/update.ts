@@ -114,8 +114,8 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   // stuck within the arrival radius of the destination (the spread goal may be unreachable, e.g. inside a stone):
   // that is arrival, not a reason to climb the recovery ladder
   const last = finalLeg(w, s);
-  const window = last ? r.P.arriveStallS : r.P.stuckWindowS;
-  if (tick - s.bestTick > window * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
+  const stallWindowS = last ? r.P.arriveStallS : r.P.stuckWindowS;
+  if (tick - s.bestTick > stallWindowS * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
   if ((last && dropToGoal(sim, w, s, r)) || letGoPinned(sim, w, s, r)) return false;
   if (last) speedCap = arriveCap(w, s, r, res.metric, dt, out, aiSpeedCached(sim, w, s, r.P));
   return stuckStep(sim, w, s, r, id, res, out);

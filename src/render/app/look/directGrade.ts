@@ -97,11 +97,16 @@ export class DirectGrade {
       this.target.texture.name = 'look:direct-grade';
     } else if (this.target.width !== w || this.target.height !== h) this.target.setSize(w, h);
     const prev = renderer.getRenderTarget();
+    // The post chain's EffectComposer turns autoClear off; this pass must clear its target or the previous frame's
+    // colour and depth survive under the new one (ghosting after a High -> Low switch).
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = true;
     renderer.setRenderTarget(this.target);
     renderer.render(scene, camera);
     renderer.setRenderTarget(prev);
     this.material.uniforms.tScene!.value = this.target.texture;
     renderer.render(this.quadScene, this.quadCamera);
+    renderer.autoClear = autoClear;
   }
 
   /** Frees the scene target (it is rebuilt on the next graded frame). */

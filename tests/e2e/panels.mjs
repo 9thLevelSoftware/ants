@@ -5,7 +5,10 @@
 // 1920x1080 and at UI scale 150 %.
 //   node tools/harness/play.mjs --root . --query "test=1&quality=test&autostart=1&seed=2" --script tests/e2e/panels.mjs \
 //        --out test-output/panels --script-timeout 900000
-// PANELS_SHOTS=0 skips screenshots; PANELS_FROM=alert|nest|journal|codex|markers|keys|sizes starts at that section (while iterating). Stand-ins (logged as STAND-IN, listed in result.standIns): the alert of check 11 is
+// PANELS_SHOTS=0 skips screenshots; PANELS_FROM=<section> starts at that section and PANELS_ONLY=<a,b,...> runs just those
+// (sections: health alert nest journal codex markers hudfix keys tools sizes). A full run is long on a loaded machine
+// (software GL): run it as two halves when the machine is busy, e.g. PANELS_ONLY=health,alert,nest,journal,codex and then
+// PANELS_ONLY=markers,hudfix,keys,tools,sizes (each half builds its own game). Stand-ins (logged as STAND-IN, listed in result.standIns): the alert of check 11 is
 // written into progression.alerts (no module raises an alert that has both a diagnostic and a chamber focus yet).
 // PANELS_STRICT=1 fails on any stand-in.
 const SHOTS = process.env.PANELS_SHOTS !== '0';
@@ -14,7 +17,9 @@ export default async ({ page, shot, log, wait }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
   const expect = (cond, msg, data) => { if (!cond) throw new Error(`panels: ${msg} ${data === undefined ? '' : JSON.stringify(data)}`); };
   const result = { checks: {}, standIns: [], shots: [] };
-  const ok = (name, data) => { result.checks[name] = data ?? 'ok'; log('OK', name, data === undefined ? '' : JSON.stringify(data)); };
+  const t0 = Date.now();
+  const ok = (name, data) => { result.checks[name] = data ?? 'ok'; log('OK', `${((Date.now() - t0) / 1000).toFixed(0)}s`, name, data === undefined ? '' : JSON.stringify(data)); };
+  const lap = (what) => log('..', `${((Date.now() - t0) / 1000).toFixed(0)}s`, what);
   const standIn = (feature, detail) => {
     result.standIns.push({ feature, detail });
     log('STAND-IN', feature, '-', detail);
@@ -34,8 +39,9 @@ export default async ({ page, shot, log, wait }) => {
     await wait.frames(2);
     result.shots.push(await shot(name));
   };
-  const ORDER = ['health', 'alert', 'nest', 'journal', 'codex', 'markers', 'keys', 'sizes'];
-  const run = (name) => ORDER.indexOf(name) >= ORDER.indexOf(process.env.PANELS_FROM ?? 'health');
+  const ORDER = ['health', 'alert', 'nest', 'journal', 'codex', 'markers', 'hudfix', 'keys', 'tools', 'sizes'];
+  const only = process.env.PANELS_ONLY ? process.env.PANELS_ONLY.split(',') : null;
+  const run = (name) => (only ? only.includes(name) : ORDER.indexOf(name) >= ORDER.indexOf(process.env.PANELS_FROM ?? 'health'));
   let sc;
   const closeAll = async () => { await g(() => window.__panels.close()); await wait.frames(2); };
 
@@ -79,6 +85,12 @@ export default async ({ page, shot, log, wait }) => {
     await wait.frames(3);
     const chain = await g(() => [...document.querySelectorAll('[data-diag="diag-stores"] [data-testid="health-chain"]')].map((c) => c.textContent));
     expect(chain.some((t) => /Because/.test(t) && /Protein intake/.test(t)), 'the stores row nests the protein intake diagnostic as a cause', chain);
+    // the value of a row is worded with its own unit: a death rate is not "x of normal" (review finding)
+    const metas = await g(() => Object.fromEntries([...document.querySelectorAll('[data-testid="health-row"]')].map((r) => [r.dataset.diag, r.querySelector('.pn-diag-meta')?.textContent ?? ''])));
+    for (const [id, meta] of Object.entries(metas)) {
+      if (/^diag-(mortality|nest-space|hygiene|stores|workforce)/.test(id)) expect(!/of normal/.test(meta), `${id} is not worded as a ratio of normal`, meta);
+      expect(!/NaN|Infinity/.test(meta), `${id} prints no NaN`, meta);
+    }
     await pic('01-health-1280');
     // the protein row's own factors, with the shortage's measured cause
     await g(() => window.__panels.expand('diag-food-intake-p'));
@@ -125,9 +137,23 @@ export default async ({ page, shot, log, wait }) => {
     await wait(900); // --m-scene
     const cam = await g(() => { const s = window.__hud.game.session; const t = s.views.colony.target; return { view: s.view, x: t.x, z: t.z, bu: s.sim.world.bu }; });
     const dist = Math.hypot(cam.x - target.center.x, cam.z - target.center.z) / cam.bu;
-    expect(cam.view === 'colony' && dist <= 1, 'the camera target is the chamber centre within 1 BU', { cam, dist });
+    expect(cam.view === 'colony' && dist <= 1, 'the camera target is the chamber centre within 1 BU (horizontally)', { cam, dist });
+    // the colony rig keeps its target on the ground above what it looks at; the depth is the cutaway plane, which must cut the chamber open
+    const cut = await g(() => { const c = window.__hud.game.session.views.colony.cutaway; return { mode: c.mode, planeY: c.planeY, min: c.minPlaneY }; });
+    const rel = (cut.planeY - target.center.y) / cam.bu;
+    expect(cut.mode === 'slice' && (rel >= -0.01 && rel <= 3 || cut.planeY <= cut.min + 1e-6), 'the cutaway plane is at the chamber (it cuts the chamber open)', { cut, rel });
+    // the expanded row is in view, not below the fold of the list
+    const vis = await g(() => {
+      const row = document.querySelector('[data-diag="diag-nest-space"]');
+      const body = document.querySelector('.pn-health .ui-drawer-body');
+      if (!row || !body) return null;
+      const a = row.getBoundingClientRect(), b = body.getBoundingClientRect();
+      return { rowTop: a.top, bodyTop: b.top, bodyBottom: b.bottom, focused: document.activeElement === row.querySelector('.pn-diag-head') };
+    });
+    expect(vis && vis.rowTop >= vis.bodyTop - 2 && vis.rowTop < vis.bodyBottom - 40, 'the expanded diagnostic is scrolled into view', vis);
+    expect(vis.focused, 'and holds the keyboard focus', vis);
     await pic('05-alert-through-1280');
-    ok('alertClickThrough', { view: cam.view, distBu: +dist.toFixed(3) });
+    ok('alertClickThrough', { view: cam.view, distBu: +dist.toFixed(3), planeRelBu: +rel.toFixed(2), visible: true });
     await closeAll();
     await sim((sm) => { sm.state.progression.alerts = sm.state.progression.alerts.filter((a) => a.id !== 900); });
     await g(() => window.__hud.game.setView('observer'));
@@ -156,6 +182,7 @@ export default async ({ page, shot, log, wait }) => {
     expect(options.includes('Resting chamber') && !options.includes('Granary'), 'only valid designations are listed', options);
     await q('.ui-select-list [role="option"]:has-text("Resting chamber")').click();
     await wait.frames(3);
+    expect(await count('.ui-select-list') === 0, 'the list closes after a choice (a click must not reopen it through a label)');
     await step(2);
     const typeNow = await g((id) => window.__game.query.nest()[0].chambers.find((c) => c.id === id).type, food.id);
     expect(typeNow === 'rest', 'designating from Nest overview changed the simulation', typeNow);
@@ -170,8 +197,11 @@ export default async ({ page, shot, log, wait }) => {
   }
   // --- 4. Journal: a fired milestone, the timeline, graphs, the log; opening pauses --------------------------------------
   if (run('journal')) {
+    lap('journal: spawn');
     await g(() => window.__game.cheat.spawnAnts(30, 'worker', 'forage'));
+    lap('journal: step');
     await step(400);
+    lap('journal: stepped');
     const ms = await sim((sm) => Object.keys(sm.state.progression.milestones));
     expect(ms.includes('ms-workers-25'), 'ms-workers-25 fired', ms);
     const speedBefore = await g(() => window.__game.summary().time);
@@ -197,6 +227,15 @@ export default async ({ page, shot, log, wait }) => {
     await wait.frames(3);
     const chart = await g(() => ({ empty: !!document.querySelector('[data-testid="chart-empty"]'), chart: document.querySelector('[data-testid="chart"]')?.dataset.chart }));
     log('graph', JSON.stringify(chart));
+    await q('[data-testid="journal-graphs"] .ui-select-btn').click();
+    await wait.frames(3);
+    const graphOptions = await g(() => [...document.querySelectorAll('.ui-select-list [role="option"]')].map((o) => o.textContent.trim()));
+    expect(graphOptions.includes('Intake by source') && graphOptions.includes('Deaths by cause'), 'the graph picker offers intake by source and deaths by cause', graphOptions);
+    await q('.ui-select-list [role="option"]:has-text("Intake by source")').click();
+    await wait.frames(3);
+    const shown = await g(() => ({ chart: document.querySelector('[data-testid="chart"]')?.dataset.chart ?? null, empty: !!document.querySelector('[data-testid="chart-empty"]') }));
+    expect(shown.chart === 'intake-source' || shown.empty, 'the intake by source chart (or its empty note) is drawn', shown);
+    expect(await count('.ui-select-list') === 0, 'the picker closes after a choice');
     await pic('10-journal-graphs-1280');
     await q('[role="tab"]:has-text("Event log")').click();
     await wait.frames(3);
@@ -288,35 +327,137 @@ export default async ({ page, shot, log, wait }) => {
     ok('markers+overlays', { counts: counts.length, legend });
 
   }
-  // --- 7. keyboard reach: Tab visits every control of each drawer --------------------------------------------------------
+  // --- 6b. HUD layout fix: the inspect card keeps clear of the opening's queen meters ----------------------------------------
+  if (run('hudfix')) {
+    await g(() => window.__hud.game.setView('observer'));
+    await step(1);
+    const antId = await g(() => window.__game.query.nest()[0] && window.__hud.game.session.sim.state.ants.find((a) => a.alive && a.caste === 'worker').id);
+    await g((id) => window.__hud.inspect({ kind: 'ant', id }), antId);
+    await refresh();
+    await wait.frames(3);
+    const boxes = await g(() => {
+      const r = (sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+      return { ins: r('.fd-ins'), queen: r('.fo-queen') };
+    });
+    const hit = boxes.ins && boxes.queen && boxes.ins.x < boxes.queen.x + boxes.queen.w && boxes.queen.x < boxes.ins.x + boxes.ins.w && boxes.ins.y < boxes.queen.y + boxes.queen.h && boxes.queen.y < boxes.ins.y + boxes.ins.h;
+    log('hudfix', JSON.stringify(boxes));
+    expect(boxes.ins, 'the inspect card is drawn');
+    expect(!hit, 'the inspect card does not overlap the queen meters', boxes);
+    await pic('17-inspect-clear-of-meters-1280');
+    await g(() => window.__hud.inspect(null));
+    ok('hudfix', boxes);
+  }
+  // --- 7. keyboard reach: Tab visits EVERY control of each drawer --------------------------------------------------------
   if (run('keys')) {
     await g(() => window.__hud.game.setView('observer'));
     for (const [key, drawer] of [['KeyY', 'health'], ['KeyU', 'nest']]) {
       await page.keyboard.press(key);
       await wait.frames(4);
       await refresh();
+      await wait.frames(4);
+      expect(await g(() => !!document.activeElement?.closest('.fd-drawer')), `the ${drawer} drawer takes the focus when it opens`);
+      // the controls the drawer offers (visible, enabled, not removed from the tab order), then a Tab walk that marks each one it lands on
       const reach = await g(() => {
         const d = document.querySelector('.fd-drawer');
-        const all = [...d.querySelectorAll('button, [role="slider"], input, [role="combobox"], select, [tabindex]')].filter((e) => !e.disabled && e.getAttribute('tabindex') !== '-1' && e.getClientRects().length > 0);
-        return { n: all.length, rows: d.querySelectorAll('[data-testid="health-row"]').length, text: d.textContent.slice(0, 80) };
+        const all = [...d.querySelectorAll('button, [role="slider"], input, select, [tabindex]')].filter((e) => !e.disabled && e.getAttribute('tabindex') !== '-1' && e.getClientRects().length > 0);
+        window.__tabSeen = new Set();
+        window.__tabAll = all;
+        return { n: all.length };
       });
-      const seen = new Set();
-      const where = () => g(() => { const a = document.activeElement; return a ? `${a.closest('.fd-drawer') ? 'IN' : 'OUT'} ${a.tagName}.${String(a.className).slice(0, 24)}` : 'none'; });
-      const trace = [await where()];
-      for (let i = 0; i < reach.n + 3; i++) {
+      expect(reach.n >= 3, `the ${drawer} drawer has controls to reach`, reach);
+      const trail = [];
+      // start on the first control (the drawer's initial focus may be a later one: the close button comes first in the order),
+      // then Tab until focus leaves the drawer (headless Chromium does not wrap into the page chrome and back)
+      await g(() => { const f = window.__tabAll[0]; f.focus(); window.__tabSeen.add(f); });
+      for (let i = 0; i < reach.n + 2; i++) {
         await page.keyboard.press('Tab');
-        const id = await g(() => { const a = document.activeElement; return a && a.closest('.fd-drawer') ? `${a.tagName}.${a.className}.${a.textContent.slice(0, 24)}.${[...a.parentNode.children].indexOf(a)}` : null; });
-        trace.push(await where());
-        if (id) seen.add(id);
+        const t = await g(() => { const a = document.activeElement; window.__tabSeen.add(a); return `${a?.tagName}.${String(a?.className).slice(0, 18)}${a?.closest('.fd-drawer') ? '' : ' (outside)'}`; });
+        trail.push(t);
+        if (/outside/.test(t)) break;
       }
-      expect(seen.size >= Math.min(reach.n, 3), `Tab moves through the ${drawer} drawer`, { reach, seen: seen.size, trace });
-      result.checks[`tab-${drawer}`] = { controls: reach.n, visited: seen.size };
+      const missed = await g(() => window.__tabAll.filter((e) => !window.__tabSeen.has(e) && document.activeElement !== e).map((e) => `${e.tagName}.${String(e.className).slice(0, 30)}.${e.textContent.slice(0, 20)}`));
+      expect(missed.length === 0, `Tab reaches every control of the ${drawer} drawer in order`, { reach, missed, trail });
+      result.checks[`tab-${drawer}`] = { controls: reach.n, missed: missed.length };
       await page.keyboard.press('Escape');
       await wait.frames(3);
       await closeAll();
     }
     expect((await g(() => window.__hud.game.input.suspended)) === false, 'game keys resume after the panels close');
 
+  }
+  // --- 7b. the colony view's tool UI: Tab reaches every palette and overlay control; the pad reaches them too ----------------
+  if (run('tools')) {
+    await g(() => window.__hud.game.setView('colony'));
+    await step(1);
+    await refresh();
+    await wait.frames(3);
+    // keyboard: the tool UI is in the tab order of the colony view
+    const toolsAll = await g(() => {
+      const els = [...document.querySelectorAll('.pn-panel button, .pn-panel [role="slider"], .ov-controls button')].filter((e) => !e.disabled && e.getAttribute('tabindex') !== '-1' && e.getClientRects().length > 0);
+      window.__tabSeen = new Set(); window.__tabAll = els;
+      return els.length;
+    });
+    const toolDom = await g(() => ({ ov: [...document.querySelectorAll('.ov-controls')].map((e) => `${e.className}|${e.getClientRects().length}|${e.querySelectorAll('button').length}`), view: window.__hud.game.session.view }));
+    expect(toolsAll >= 12, 'the palette (8) and the overlay buttons (5) are focusable', { toolsAll, toolDom });
+    for (let i = 0; i < toolsAll + 30 && (await g(() => window.__tabAll.some((e) => !window.__tabSeen.has(e)))); i++) {
+      await page.keyboard.press('Tab');
+      await g(() => window.__tabSeen.add(document.activeElement));
+    }
+    const notReached = await g(() => window.__tabAll.filter((e) => !window.__tabSeen.has(e)).map((e) => e.dataset.tool ?? e.dataset.overlay ?? e.getAttribute('role')));
+    expect(notReached.length === 0, 'Tab reaches every palette and overlay control of the colony view', notReached);
+    await g(() => document.activeElement?.blur());
+    // the pad: a fake standard pad (the page polls navigator.getGamepads); a tap of View moves the focus onto the tool UI
+    await g(() => {
+      const pad = { connected: true, id: 'e2e standard pad', index: 0, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })), timestamp: 0 };
+      window.__fakePad = pad;
+      navigator.getGamepads = () => [pad];
+      window.dispatchEvent(new Event('gamepadconnected'));
+    });
+    const press = async (i, frames = 2) => { await g((b) => { window.__fakePad.buttons[b].pressed = true; }, i); await wait.frames(frames); await g((b) => { window.__fakePad.buttons[b].pressed = false; }, i); await wait.frames(frames); };
+    const where = () => g(() => { const a = document.activeElement; return { tool: a?.dataset?.tool ?? null, overlay: a?.dataset?.overlay ?? null, inTools: !!a?.closest('.pn-panel, .ov-controls'), suspended: window.__hud.game.input.suspended, ring: document.documentElement.classList.contains('pn-pad-focus') }; });
+    for (let i = 0; i < 4 && !(await where()).ring; i++) await press(8, 1); // View, a tap (retried: a slow frame can make a tap look like a hold)
+    let w = await where();
+    expect(w.inTools && w.suspended && w.ring, 'a tap of View puts the pad focus on the tool UI and parks the game bindings', w);
+    expect(await count('[data-testid="pad-legend"]') === 1, 'the button legend is shown');
+    // D-pad left walks along the palette (Select, the active tool, is its last button); A chooses the focused tool in the views layer
+    const first = w.tool;
+    await press(14);
+    w = await where();
+    expect(w.tool && w.tool !== first, 'D-pad left moves to the previous tool', { first, w });
+    await press(0); // A
+    expect(await g(() => window.__hud.game.viewsLayer.state.tool) === w.tool, 'A chooses the focused tool', w);
+    // the overlay buttons: left from the palette, then A toggles one
+    let reached = null;
+    for (const dir of [14, 14, 14, 14, 14, 14, 14, 14, 14, 13, 13, 13]) {
+      await press(dir);
+      w = await where();
+      if (w.overlay) { reached = w.overlay; break; }
+    }
+    if (!reached) for (const dir of [13, 13, 13, 15]) { await press(dir); w = await where(); if (w.overlay) { reached = w.overlay; break; } }
+    expect(reached, 'the D-pad reaches an overlay button', w);
+    const before = await g(() => JSON.stringify(window.__panels.overlays()));
+    await press(0);
+    expect(await g(() => JSON.stringify(window.__panels.overlays())) !== before, 'A toggles the overlay', { reached, before });
+    await press(0); // and back
+    // Y opens Colony health from the tool UI, X Nest overview (focus moves into the drawer, the game bindings stay parked there)
+    await press(3);
+    await wait.frames(3);
+    sc = await screens();
+    expect(sc.screens.includes('colony-health'), 'Y opens Colony health from the tool UI', sc);
+    await closeAll();
+    // B gives the focus back to the game
+    await g(() => document.querySelector('.pn-tool')?.focus());
+    // View again: enter once more (on a loaded machine a slow frame can turn a tap into a hold, so try again), then B leaves
+    for (let i = 0; i < 4 && !(await where()).ring; i++) await press(8, 1);
+    expect((await where()).ring, 'a second tap of View enters the tool UI again');
+    await press(1); // B
+    w = await where();
+    expect(!w.inTools && !w.suspended && !w.ring, 'B leaves the tool UI and gives the game its bindings back', w);
+    await g(() => { navigator.getGamepads = () => []; });
+    await pic('18-pad-tools-1280');
+    await q('[data-testid="marker-palette"] [data-tool="select"]').click();
+    await g(() => window.__hud.game.setView('observer'));
+    ok('tools', { tabbed: toolsAll, overlay: reached });
   }
   // --- 8. other sizes: 1920x1080 and UI scale 150 % ------------------------------------------------------------------------
   if (run('sizes')) {

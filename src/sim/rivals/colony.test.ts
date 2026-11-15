@@ -9,7 +9,7 @@ import { TICKS_PER_HOUR, TICKS_PER_SECOND, calendarTickAt } from '@/sim/time';
 import { absorbAgent, spawnAgent } from './agents';
 import { isHostile, relationOf, rivalsSystem, rivalsTickSystem, rivalSummary } from './index';
 import { destroy } from './lifecycle';
-import { displayTarget, homeNest, placeOnFloor, setupRivalNest } from './setup';
+import { displayTarget, entranceTierOf, homeNest, placeOnFloor, setupRivalNest } from './setup';
 import { encounterStep } from './encounter';
 import { colExt, JOB, rmod, slotBit } from './state';
 import { player, record, rivalSim, rivalsOf } from './testkit';
@@ -21,7 +21,7 @@ describe('real nests (GDD 05 §3.4)', () => {
     const [m, inc] = rivalsOf(sim);
     const nest = homeNest(sim, m)!;
     expect(nest.chambers.map((c) => c.type)).toEqual(['royal', 'nursery', 'general']);
-    expect(nest.entrances.length).toBe(1);
+    expect(nest.entrances.length).toBe(entranceTierOf(300)); // 1 + [N0 >= 300] + [N0 >= 800] = 2
     expect(nest.architect.mode).toBe('off');
     expect(m.queens.length).toBe(3);
     for (const q of m.queens) expect(sim.stores.ants.get(q.antId)?.nestId).toBe(nest.id);
@@ -31,6 +31,7 @@ describe('real nests (GDD 05 §3.4)', () => {
     // the incipient: the founding cell only, one queen with founding stats, 12 abstract brood
     const inest = homeNest(sim, inc)!;
     expect(inest.chambers.map((c) => c.type)).toEqual(['royal']);
+    expect(inest.entrances.length).toBe(1);
     expect(inc.queens.length).toBe(1);
     expect(inc.rival.b).toBe(12);
     expect(inc.rival.n).toBe(0);
@@ -47,8 +48,10 @@ describe('fielding (GDD 05 §3.3)', () => {
     const counts: number[] = [];
     for (let t = 0; t < 20 * TICKS_PER_SECOND; t++) { sim.tick(); counts.push(r.rival.fieldedIds.length); }
     const max = counts[counts.length - 1];
+    const entrances = homeNest(sim, r)!.entrances.length; // Tetramorium N0 600: 2
+    expect(entrances).toBe(2);
     expect(max).toBeGreaterThan(0);
-    expect(max).toBeLessThanOrEqual(Math.ceil(20 / EMERGE_EVERY_S) + 1);
+    expect(max).toBeLessThanOrEqual(Math.ceil((20 * entrances) / EMERGE_EVERY_S) + 1);
     // absorption: the load arrives in the stores and in this hour's deliveries, N is unchanged
     const a = sim.stores.ants.get(r.rival.fieldedIds[0])!;
     a.bb['rv.lc'] = 0.5; a.bb['rv.lp'] = 0.25;

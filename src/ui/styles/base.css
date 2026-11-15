@@ -46,6 +46,8 @@
   content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1; backdrop-filter: blur(6px);
 }
 .ui-layers { display: contents; }
+/* the shell's screens (pause, books, dialogs) sit above the in-game HUD (.fd-root, z-index 10) */
+.ui-screens { z-index: 20; }
 .ui-chip-scrim { background: var(--c-scrim); border-radius: var(--r-s); padding: var(--s-2) var(--s-4); }
 
 /* Focus ring: 2 dp ring offset 2 dp, with a dark halo inside and outside it (GDD 08 2.7). */

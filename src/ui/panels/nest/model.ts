@@ -25,24 +25,33 @@ export const chamberShort = (type: string): string => CHAMBER_SHORT[type] ?? typ
 const BROOD_TYPES = new Set(['founding', 'royal', 'nursery']);
 
 export interface LoadPart {
-  /** 'ants' | 'brood' | 'food' */
-  key: 'ants' | 'brood' | 'food';
+  /** 'ants' | 'brood' | 'food' | 'waste' (a midden's `other` load) */
+  key: 'ants' | 'brood' | 'food' | 'waste';
   n: number;
   cap: number;
 }
 
-/** The parts of a chamber's load that have a capacity ("14 / 30 ants"); `other` has no place in the table. */
+/** The parts of a chamber's load that have a capacity ("14 / 30 ants"). `other` is the waste a midden holds. */
 export function loadParts(occ: UiChamberLoad, cap: UiChamberLoad): LoadPart[] {
   const parts: LoadPart[] = [];
   if (cap.adults > 0) parts.push({ key: 'ants', n: occ.adults, cap: cap.adults });
   if (cap.brood > 0) parts.push({ key: 'brood', n: occ.brood, cap: cap.brood });
   if (cap.food > 0) parts.push({ key: 'food', n: occ.food, cap: cap.food });
+  if (cap.other > 0) parts.push({ key: 'waste', n: occ.other, cap: cap.other });
   return parts;
+}
+
+/** The load a chamber type is mostly for: a midden holds waste, stores food, nurseries and the fungus garden brood, the rest ants. */
+export function mainLoadKey(type: string): LoadPart['key'] {
+  if (type === 'midden') return 'waste';
+  if (type === 'food' || type === 'granary') return 'food';
+  if (type === 'nursery' || type === 'royal' || type === 'founding' || type === 'fungus') return 'brood';
+  return 'ants';
 }
 
 /** The fullest relevant load as a ratio of capacity (0 when the chamber has no capacity). A type's main use decides: brood chambers by brood, stores by food. */
 export function occupancyRatio(c: Pick<UiChamber, 'type' | 'occupancy' | 'capacity'>): number {
-  const main = c.type === 'food' || c.type === 'granary' ? 'food' : c.type === 'nursery' || c.type === 'royal' || c.type === 'founding' || c.type === 'fungus' ? 'brood' : 'ants';
+  const main = mainLoadKey(c.type);
   const parts = loadParts(c.occupancy, c.capacity);
   const mainPart = parts.find((p) => p.key === main);
   const used = mainPart ?? parts.reduce<LoadPart | null>((a, p) => (!a || p.n / p.cap > a.n / a.cap ? p : a), null);
@@ -109,6 +118,16 @@ export function chamberRows(n: UiNest): ChamberRow[] {
       options: c.allowed,
     };
   }).sort((a, b) => a.id - b.id);
+}
+
+/**
+ * The "Use as" choices of a chamber: the types the sim accepts, in the sim's fixed order (the list does not reshuffle after
+ * a choice); the current type stays visible, disabled, when it is not one of them (a sealed founding chamber).
+ */
+export function designationOptions(current: string, allowed: readonly string[]): { value: string; label: string; disabled?: boolean }[] {
+  const out: { value: string; label: string; disabled?: boolean }[] = allowed.map((t) => ({ value: t, label: chamberWord(t) }));
+  if (!allowed.includes(current)) out.push({ value: current, label: chamberWord(current), disabled: true });
+  return out;
 }
 
 // ---- schematic -------------------------------------------------------------------------------------------------

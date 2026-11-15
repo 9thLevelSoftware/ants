@@ -7,7 +7,7 @@ import {
   AGG_HUNGRY, AGG_SEASON, BIRTH_COST_C, BIRTH_COST_P, BIRTH_N_MIN, DEATH_BASE, DEATH_ORPHAN, DEATH_STARVE,
   DEMAND_C_PER_BIRTH, DEMAND_C_PER_U, DEMAND_P_PER_BIRTH, HARVEST_PER_N, K_CLAIM_CLAMP, MATURATION_GD, ORPHAN_AGG_MULT,
   PLAYER_S_FACTOR, S_AGG_BASE, S_AGG_SLOPE, SEASON_FACTOR, SPRING_FROM_DAY, STORE_C_CAP_U, STORE_P_BASE, STORE_P_PER_N,
-  UPKEEP_PER_N, UPKEEP_PER_QUEEN, WINTER_LOSS, WINTER_LOSS_POOR, WINTER_POOR_U, WINTER_STORE_SHARE,
+  UPKEEP_PER_N, UPKEEP_PER_QUEEN, VTEND_MAX, VTEND_N, WINTER_LOSS, WINTER_LOSS_POOR, WINTER_POOR_U, WINTER_STORE_SHARE,
 } from '@/sim/balance/rivals';
 import type { RivalModelProfile } from '@/sim/species/rivals/profiles';
 
@@ -136,6 +136,11 @@ export function abstractStep(m: AbstractNumbers, env: ModelEnv, dtGd: number): H
   m.pS = Math.min(m.pS, caps.p);
   m.agg = aggressionOf(env.profile.aggression, env.season, m.cS, u1, env.aggMult, env.orphaned);
   return { births, matured, deaths, harvestC, harvestP, upkeepC, starving, kEff };
+}
+
+/** Virtual tendedness of the herds in the claimed cells: min(0.7, N / 300) (0 for subterranean species). */
+export function virtualTendOf(n: number, subterranean: boolean): number {
+  return subterranean ? 0 : Math.min(VTEND_MAX, Math.max(0, n) / VTEND_N);
 }
 
 /**

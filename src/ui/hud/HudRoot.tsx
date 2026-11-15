@@ -17,6 +17,7 @@ import { Roster } from '../panels/roster/Roster';
 import { HealthDrawer } from '../panels/health/HealthDrawer';
 import { NestDrawer } from '../panels/nest/NestDrawer';
 import { installPanels } from '../panels/wiring/install';
+import { openBook } from '../panels/wiring/state';
 import { PanelsLayer } from '../panels/wiring/PanelsLayer';
 import { AlertsFeed } from './AlertsFeed';
 import { startFeed } from './alerts/store';
@@ -71,7 +72,8 @@ function useHudWiring(): void {
     return () => { stops.forEach((s) => s()); cancelAnimationFrame(raf); hudRequests.roster = null; hudRequests.directivesOpen = false; };
   }, []);
   // gamepad movement inside the open drawer (polls only while one is open)
-  useEffect(() => effect(() => (openDrawer.value ? startDrawerPad(() => document.querySelector<HTMLElement>('.fd-drawer')) : undefined)), []);
+  // (a book screen over the HUD - Journal, Codex - takes the same movement: D-pad between controls, A, B)
+  useEffect(() => effect(() => (openDrawer.value || openBook.value ? startDrawerPad(() => document.querySelector<HTMLElement>('.fd-drawer, .ui-book')) : undefined)), []);
   // keys belong to the drawer, the alerts feed or the pulse while focus is inside it (the game's Tab cycles ants, its arrows orbit the camera)
   useEffect(() => {
     const inside = (t: EventTarget | null): boolean => !!(t as Element | null)?.closest?.(ENTERED_SELECTOR);

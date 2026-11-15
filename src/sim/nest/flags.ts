@@ -8,6 +8,8 @@ import { CHUNK3, chunkKey } from './carve/keys';
 export class FlagStore {
   private readonly index = new Map<number, number>();
 
+  /** Runtime counter of flag edits (add / clear): caches keyed on the flags compare it. */
+  version = 0;
   constructor(readonly data: CarveFlagsData) {
     this.rebuild();
   }
@@ -33,6 +35,7 @@ export class FlagStore {
 
   /** ORs bits into sample (i, j, k). */
   add(i: number, j: number, k: number, bits: number): void {
+    this.version++;
     if (bits === 0) return;
     const key = chunkKey(i >> 4, j >> 4, k >> 4);
     let n = this.index.get(key);
@@ -47,6 +50,7 @@ export class FlagStore {
 
   /** Clears bits of sample (i, j, k); drops the chunk once it holds no flag. */
   clear(i: number, j: number, k: number, bits: number): void {
+    this.version++;
     const key = chunkKey(i >> 4, j >> 4, k >> 4);
     const n = this.index.get(key);
     if (n === undefined) return;

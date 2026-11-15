@@ -15,6 +15,9 @@ export interface MetaContext {
   nowMs: number;
   worldFingerprint: number;
   thumbnail: string | null;
+  /** The view at save time (restored on load). */
+  view?: string;
+  camera?: SaveMeta['camera'];
 }
 
 const hex4 = (n: number) => (n & 0xffff).toString(16).toUpperCase().padStart(4, '0');
@@ -70,6 +73,8 @@ export function buildMeta(state: SimState, ctx: MetaContext): SaveMeta {
     worldFingerprint: ctx.worldFingerprint >>> 0,
     appVersion: FOUNDRESS_VERSION,
     thumbnail: ctx.thumbnail,
+    ...(ctx.view ? { view: ctx.view } : {}),
+    ...(ctx.camera ? { camera: ctx.camera } : {}),
   };
 }
 

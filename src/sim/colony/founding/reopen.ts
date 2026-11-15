@@ -200,10 +200,13 @@ export function reopenTick(sim: Sim): number {
   if (mine.length === 0 || mine.some((e) => e.status === 'open') || sealingOnPurpose(sim, nest)) return -1;
   const early = since <= REOPEN_MAX_GD * TICKS_PER_DAY;
   for (const e of mine) {
+    // a passage exists and only the rim of the old plug is left: the rim goes first (the workers dug the way
+    // through; the rim keeps the nest's status at `sealing`), and a plan only for what the unplugging leaves
+    if (e.status === 'sealing' && e.plugVoxelCount > 0) unplugRemnants(sim, e);
+    if (e.status === 'open') return -1;
     const remnant = e.status === 'sealing' && e.plugVoxelCount > 0;
     const id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
     if (id >= 0) return id;
-    if (remnant) unplugRemnants(sim, e);
   }
   return -1;
 }

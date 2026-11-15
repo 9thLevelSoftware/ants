@@ -3,7 +3,8 @@
 // walker, micro-connections passable (field clearance after the pre-carves) and useful, decor descriptors, water
 // bodies, cavity budget, determinism and generation time.
 //
-// Seeds per archetype: 2 by default, 10 with FOUNDRESS_WORLDGEN_FULL=1 (acceptance sweep).
+// Seeds per archetype: 1 by default, 2 with FOUNDRESS_LONG=1, 10 with FOUNDRESS_WORLDGEN_FULL=1 (acceptance sweep).
+// (int-1B-sim suite diet: 2 seeds x 5 archetypes took about 80 s by default)
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeId, WorldData } from '@/sim/types';
 import { createKernel, type Kernel } from '@/sim/kernel';
@@ -19,7 +20,8 @@ import { entryOf } from '../../kit/column';
 
 vi.setConfig({ testTimeout: 600_000 });
 
-const SEEDS = FULL ? 10 : 2;
+const LONG = !!(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.FOUNDRESS_LONG;
+const SEEDS = FULL ? 10 : LONG ? 2 : 1;
 
 const cache = new Map<string, { r: WorldgenReport; ms: number }>();
 function world(a: ArchetypeId, seed: number): { r: WorldgenReport; ms: number } {

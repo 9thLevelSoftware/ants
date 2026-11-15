@@ -129,6 +129,23 @@ export default async ({ page, log, wait, context, url }) => {
   await wait.frames(2);
   await page.keyboard.press('KeyE');
   await wait.frames(2);
+  // gamepad in a book over the HUD: RB / LB switch tabs, the D-pad moves focus, B closes
+  await goto('scene=journal&tab=aims');
+  await g(() => { window.__fakePad = { buttons: Array.from({ length: 17 }, () => ({ pressed: false })), axes: [0, 0, 0, 0], connected: true, id: 'test pad', index: 0, mapping: 'standard' }; navigator.getGamepads = () => [window.__fakePad]; });
+  const pressPad = async (i) => { await g((k) => { window.__fakePad.buttons[k].pressed = true; }, i); await wait(120); await g((k) => { window.__fakePad.buttons[k].pressed = false; }, i); await wait(120); };
+  await pressPad(5);
+  expect(await g(() => window.__panels.journalTab()) === 'milestones', 'RB switches to the next tab');
+  await pressPad(4);
+  expect(await g(() => window.__panels.journalTab()) === 'aims', 'LB switches back');
+  await pressPad(13);
+  const padA = await active();
+  expect(padA !== null, 'the D-pad put the focus on a control of the book', padA);
+  await pressPad(1);
+  await wait.frames(3);
+  expect(await g(() => window.__panels.screen().book) === null, 'B closes the book');
+  await g(() => { delete window.__fakePad; });
+  await goto('scene=journal&tab=aims');
+  await page.keyboard.press('KeyE'); await wait.frames(2); await page.keyboard.press('KeyE'); await wait.frames(3);
   seen = await tabAll('.ui-book');
   const bookTotal = await focusables('.ui-book');
   expect(seen.length >= bookTotal - 2, 'Tab reaches every control of the Graphs tab', { seen: seen.length, total: bookTotal });

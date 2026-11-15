@@ -20,7 +20,7 @@ export const CARRION_VARIANTS = 4;
 export const PROGRESSION_POLL_EVERY = 10;
 export const PROGRESSION_POLL_OFFSET = 7;
 /** Hourly statistics of the progression series (GDD 06 §9.2; one game hour), staggered from colony stats (105). */
-export const PROGRESSION_STATS_OFFSET = 130;
+export const PROGRESSION_STATS_OFFSET = 131; // 130 collided with environment-effects (every 50, offset 30); int-1B-sim
 
 /** Stage thresholds of GDD 06 §7 that species data does not hold: Camponotus `matureAgeYears` per preset. */
 export const STAGE_MATURE_AGE_BY_PRESET: Partial<Record<string, Partial<Record<string, number>>>> = {

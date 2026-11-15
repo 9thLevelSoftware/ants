@@ -3,7 +3,9 @@
 import { describe, expect, it } from 'vitest';
 import { REMEDY_WORD } from '@/content/text/words';
 import type { UiDiagnostic } from '../../api';
-import { factorTree, findDiag, overallOf, rankRows, remedyLink, remedySelector, rowName, valueWord } from './model';
+import { DIAG_VALUE_WORD } from '@/content/text/words';
+import { DIAGNOSTIC_IDS } from '@/sim/types';
+import { factorTree, statusKind, findDiag, overallOf, rankRows, remedyLink, remedySelector, rowName, valueWord } from './model';
 
 function diag(id: string, status: UiDiagnostic['status'], o: Partial<UiDiagnostic> = {}): UiDiagnostic {
   return { id, system: 'colony', status, label: id, value: 0.6, sinceTick: 0, sinceLabel: 'Summer Day 4, 09:00', factors: [], remedies: [], focus: null, history: [], historyId: null, ...o };
@@ -29,10 +31,29 @@ describe('ranking', () => {
     const n = rowName(diag('diag-brood-growth', 'bad', { label: 'Brood growth' }));
     expect(n).toBe('Brood growth, Failing, 0.6 of normal, since Summer Day 4, 09:00');
   });
-  it('values are worded as a ratio of normal and never print NaN', () => {
-    expect(valueWord(diag('a', 'ok', { value: 1 }))).toBe('1.0 of normal');
-    expect(valueWord(diag('a', 'ok', { value: 12.4 }))).toBe('12 of normal');
+  it('values carry the unit of their own diagnostic and never print NaN', () => {
+    expect(valueWord(diag('diag-brood-growth', 'ok', { value: 1 }))).toBe('1.0 of normal');
+    expect(valueWord(diag('diag-food-intake-p', 'ok', { value: 12.4 }))).toBe('12 of need');
+    expect(valueWord(diag('diag-nest-space', 'ok', { value: 0.1 }))).toBe('10 % full');
+    expect(valueWord(diag('diag-mortality', 'ok', { value: 0.004 }))).toBe('0.4 % of ants lost per game day');
+    expect(valueWord(diag('diag-combat-losses', 'warn', { value: 3 }))).toBe('3 workers lost today');
+    expect(valueWord(diag('diag-dig-progress:42', 'ok', { value: 0.5 }))).toBe('50 % of full speed');
+    expect(valueWord(diag('diag-released-ant', 'info', { value: 3 }))).toBe('');
+    expect(valueWord(diag('a', 'ok', { value: 0.6 }))).toBe('0.6');
     expect(valueWord(diag('a', 'ok', { value: Number.NaN }))).toBe('no reading');
+  });
+  it('a value that means nothing to the player is left out of the row name', () => {
+    expect(rowName(diag('diag-released-ant', 'info', { label: 'Returned to work: idle', value: 3 }))).toBe('Returned to work: idle, Note, since Summer Day 4, 09:00');
+  });
+});
+
+describe('status shapes and value table', () => {
+  it('a diagnostic note shares the circle outline of Good (GDD 08 2.6)', () => {
+    expect(statusKind('info')).toBe('ok');
+    expect(statusKind('warn')).toBe('warn');
+  });
+  it('every id of the value table is a real diagnostic id', () => {
+    for (const id of Object.keys(DIAG_VALUE_WORD)) expect(DIAGNOSTIC_IDS as readonly string[], id).toContain(id);
   });
 });
 

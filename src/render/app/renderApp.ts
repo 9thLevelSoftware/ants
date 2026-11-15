@@ -112,6 +112,7 @@ export function createRenderApp(canvas: HTMLCanvasElement, options: RenderAppOpt
     } else if (post) {
       post.dispose();
       post = null;
+      renderer.autoClear = true; // the EffectComposer switched it off; the direct path needs cleared targets
     }
     direct.setMsaa(!quality.post.enabled && quality.msaa);
     if (quality.post.enabled) direct.releaseTarget(); // the post chain grades; free the direct path's target

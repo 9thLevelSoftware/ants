@@ -158,3 +158,34 @@ describe('season bands', () => {
     expect(seasonBands(5, 3, 7)).toEqual([]);
   });
 });
+
+describe('intake by source', () => {
+  const chart = CHARTS.find((c) => c.id === 'intake-source')!;
+  it('stacks one band per food kind found in the data, named in words, and leaves out kinds that never arrived', () => {
+    const j = journal({ hourly: { 'intake-by-kind:honeydew': [1, 2, 3], 'intake-by-kind:pet-food': [0, 0, 0], 'intake-by-kind:prey': [2, 2, 2] } });
+    const m = buildChart(chart, j, '3d');
+    expect(m.series.map((s) => s.label)).toEqual(['Honeydew', 'Prey']);
+    expect(m.series[1].top).toEqual([3, 4, 5]);
+    expect(m.def.kind).toBe('stacked-area');
+  });
+  it('the daily scale serves the year range', () => {
+    const j = journal({ daily: { 'intake-by-kind:seed': ramp(10) } });
+    expect(buildChart(chart, j, 'year').series.map((s) => s.id)).toEqual(['intake-by-kind:seed']);
+  });
+});
+
+describe('day labels agree with the date lines', () => {
+  it('count the day of the season, as "Summer · Day 3 · Year 1" does', async () => {
+    const { dateLine, timelineAxis } = await import('./timeline');
+    const j = journal({ startTick: 6000 * 9, nowTick: 6000 * 12, seasonLength: 7 });
+    // calendar day 9 is the 3rd day of summer, whichever way the game started
+    expect(dateLine(j, 0)).toBe('Summer · Day 3 · Year 1');
+    expect(dayLabel(j, 9)).toBe('Day 3');
+    const axis = timelineAxis(j);
+    expect(axis.days[0].label).toBe('Day 3');
+    expect(axis.days[0].major).toBe(true);
+    // the next labelled tick is the first day of autumn (calendar day 14), not "every 5 days"
+    const j2 = journal({ startTick: 6000 * 9, nowTick: 6000 * 8, seasonLength: 7 });
+    expect(timelineAxis(j2).days.filter((d) => d.major).map((d) => d.label)).toEqual(['Day 3', 'Day 1']);
+  });
+});

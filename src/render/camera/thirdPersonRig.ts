@@ -17,7 +17,7 @@ import { creviceForcesCutaway, OcclusionTracker, writeFade } from './fade';
 import { comfortWeight, leanUp, PinchFallback } from './pinch';
 import { clampN, DEG, rotateAboutAxis, signedAngle, slerpUnit, smoothK, tangentDir, transport, wrapPi } from './frameMath';
 import { classify, probeSurroundings, StateHold } from './envState';
-import { FALLING_UP_TAU, OPEN_DIST_CAP_BU, STATE_PARAMS, type Framing } from './possessionStates';
+import { FALLING_UP_TAU, OPEN_AIM_LIFT_L, OPEN_DIST_CAP_BU, STATE_PARAMS, type Framing } from './possessionStates';
 import { cameraNear } from './near';
 import { makePose, type CameraPose, type CameraTarget, type FadeOutput, type OrbitInput, type PossessionCamState, type TraceFn } from './types';
 
@@ -324,6 +324,8 @@ export class ThirdPersonRig {
 
     // --- pose
     v3Copy(o.look, this.pivot);
+    const openW = (state === 'open' ? e : 0) + (this.prevState === 'open' && state !== 'open' ? 1 - e : 0);
+    if (openW > 0) v3AddScaled(o.look, o.look, u, OPEN_AIM_LIFT_L * L * openW);
     if (v3Distance(o.look, o.pos) < 1e-6) v3AddScaled(o.look, o.pos, t.fwd, L);
     if (this.opts.ceilingComfort && sp.framing !== 'chase') leanUp(o.up, o.pos, o.look, comfortWeight(u.y) * (1 - this.pinch.weight));
     o.fov = this.stateFov(this.prevState) + (this.stateFov(state) - this.stateFov(this.prevState)) * e;

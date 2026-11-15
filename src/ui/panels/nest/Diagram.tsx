@@ -13,14 +13,14 @@ function SvgIcon({ name, x, y, size }: { name: string; x: number; y: number; siz
   return <g transform={`translate(${x - size / 2} ${y - size / 2}) scale(${k})`} fill="none" stroke="currentColor" stroke-width={1.5 / k > 3 ? 3 : 1.5} stroke-linecap="round" stroke-linejoin="round" dangerouslySetInnerHTML={{ __html: ICON_PATHS[name] ?? '' }} />;
 }
 
-/** Pattern definitions of the four shading steps (density of dots), shared by the diagram and its key. */
-export function OccupancyDefs() {
+/** Pattern definitions of the shading steps (density of dots); `prefix` keeps the ids of the diagram and of each key swatch unique. */
+export function OccupancyDefs({ prefix }: { prefix: string }) {
   return (
     <defs>
       {[1, 2, 3].map((s) => {
         const gap = [0, 9, 6, 4][s];
         return (
-          <pattern key={s} id={`pn-occ-${s}`} width={gap} height={gap} patternUnits="userSpaceOnUse">
+          <pattern key={s} id={`${prefix}-${s}`} width={gap} height={gap} patternUnits="userSpaceOnUse">
             <circle cx={gap / 2} cy={gap / 2} r={s === 3 ? 1.5 : 1.1} fill="currentColor" />
           </pattern>
         );
@@ -35,8 +35,8 @@ export function OccupancyKey() {
       {Array.from({ length: NEST_OCCUPANCY_STEPS }, (_, s) => (
         <li key={s}>
           <svg width="28" height="16" viewBox="0 0 28 16" aria-hidden="true">
-            <OccupancyDefs />
-            <rect x="1" y="1" width="26" height="14" rx="5" fill={s === 0 ? 'none' : `url(#pn-occ-${s})`} stroke="currentColor" stroke-width="1.2" />
+            <OccupancyDefs prefix={`pn-occ-key${s}`} />
+            <rect x="1" y="1" width="26" height="14" rx="5" fill={s === 0 ? 'none' : `url(#pn-occ-key${s}-${s})`} stroke="currentColor" stroke-width="1.2" />
           </svg>
           <span>{STEP_WORD[s]}</span>
         </li>
@@ -55,7 +55,7 @@ export interface DiagramProps {
 export function NestDiagram({ layout: L, selected, onPick, label }: DiagramProps) {
   return (
     <svg class="pn-diagram" viewBox={`0 0 ${L.w} ${L.h}`} role="img" aria-label={label} data-testid="nest-diagram" data-chambers={L.chambers.length}>
-      <OccupancyDefs />
+      <OccupancyDefs prefix="pn-occ" />
       <rect x="0" y="0" width={L.w} height={L.ground} class="pn-sky" />
       <rect x="0" y={L.ground} width={L.w} height={L.h - L.ground} class="pn-soil" />
       <line x1="0" y1={L.ground} x2={L.w} y2={L.ground} class="pn-ground" />

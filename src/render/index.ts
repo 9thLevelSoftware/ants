@@ -10,7 +10,7 @@ import type { GradeParams } from '@/render/app/look';
 import type { AssetLoader } from '@/render/assets';
 import type { CutawayParams, FadeOutput } from '@/render/camera';
 import { DEBUG_RENDERERS } from './debug';
-import { AntsSlot, NestSlot, WorldSlot } from './slots';
+import { AntsSlot, FxSlot, NestSlot, WorldSlot } from './slots';
 
 export type RendererSlot = 'world' | 'nest' | 'ants' | 'creatures' | 'fx';
 /** Update and init order. `world` first: it owns the lights, sky and fog. */
@@ -118,6 +118,7 @@ export function registerRenderer(slot: RendererSlot, factory: SubRendererFactory
 registerRenderer('world', () => new WorldSlot());
 registerRenderer('nest', () => new NestSlot());
 registerRenderer('ants', () => new AntsSlot());
+registerRenderer('fx', () => new FxSlot());
 
 export interface RegistryEntry {
   slot: RendererSlot;

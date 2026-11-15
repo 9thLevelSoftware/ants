@@ -1,20 +1,12 @@
 // Adapter between the save layer and the Game orchestrator. The save layer needs six things from the game: the
-// running sim, the mode/view, a thumbnail, "replace the running game with this sim", and two loading-state hooks.
-// Game.ts has no public "start from a loaded sim" yet, so `adopt` mirrors the tail of Game.newGame (build the
-// renderers' world, then the private startPlaying) through a typed cast: when Game gets a public `adoptSim(sim)`,
-// only this file changes (reported to the integrator).
+// running sim, the mode/view, a thumbnail, "replace the running game with this sim" (Game.adoptSim), and two
+// loading-state hooks.
 import type { Sim, SimState } from '@/sim/types';
 import { TEST_CAMERA_SETTLE_S } from '../config/loop';
 import type { Game } from '../Game';
 import type { DriverHost } from './autosaveDriver';
 import { captureCanvasThumbnail } from './thumbnail';
 import type { SaveMeta } from './types';
-
-interface GameInternals {
-  startPlaying(sim: Sim, possessQueen: boolean): void;
-  /** Bumped by every newGame / endGame: a changed value means a newer request owns the renderers. */
-  loadToken: number;
-}
 
 /** Lets the browser paint (a macrotask), skipped on the manual test clock. */
 function nextPaint(test: boolean): Promise<void> {
@@ -42,7 +34,10 @@ export class GameHost implements DriverHost {
   }
 
   context() {
-    return { mode: this.game.mode, view: this.game.view };
+    const c = this.game.camera;
+    const d = c.getWorldDirection(c.up.clone());
+    const pos = { x: c.position.x, y: c.position.y, z: c.position.z };
+    return { mode: this.game.mode, view: this.game.view, camera: { pos, look: { x: pos.x + d.x * 100, y: pos.y + d.y * 100, z: pos.z + d.z * 100 } } };
   }
 
   visible(): boolean {
@@ -60,7 +55,7 @@ export class GameHost implements DriverHost {
   async loadingBegin(): Promise<void> {
     const g = this.game;
     this.priorMode = g.mode;
-    this.ownLoading = { phase: 'Rebuilding the locality', progress: 0.3, attempt: 1, maxAttempts: 1, error: null };
+    this.ownLoading = { phase: 'Rebuilding the locality', progress: 0.3, attempt: 1, maxAttempts: 1, error: null, kind: 'load' };
     g.loading = this.ownLoading;
     g.mode = 'loading';
     g.refreshUi();
@@ -76,28 +71,20 @@ export class GameHost implements DriverHost {
     g.loading = null;
     // A failed adopt has already ended the old game: with no session left the title is the only place to go.
     g.mode = this.priorMode === 'loading' || !g.session ? 'title' : this.priorMode;
+    if (g.mode === 'title' && !g.session) void g.title?.enter(); // the backdrop comes back with the title
     g.refreshUi();
   }
 
   /** Replaces the running game with `sim`: same order as Game.newGame (renderers build the world, then play starts). */
-  async adopt(sim: Sim, _meta: SaveMeta): Promise<void> {
+  async adopt(sim: Sim, meta: SaveMeta): Promise<void> {
     const g = this.game;
-    const internals = g as unknown as GameInternals;
     const replace = () => g.endGame(false);
     if (this.opts.withoutQuitSave) this.opts.withoutQuitSave(replace); else replace();
-    const token = internals.loadToken;
     if (this.ownLoading && g.mode === 'loading') g.loading = this.ownLoading; // endGame cleared the panel
-    try {
-      // endGame dropped every mesh: the renderers must build the loaded world before the first frame of play
-      await g.registry.onGameStart(sim);
-    } catch (e) {
-      g.registry.onGameEnd();
-      throw e;
-    }
-    if (internals.loadToken !== token) throw new Error('The load was superseded by a newer game.');
-    internals.startPlaying(sim, false);
+    // endGame dropped every mesh: the renderers build the loaded world before the first frame of play
+    await g.adoptSim(sim);
     const s = g.session;
-    if (s) resumeView(g, s, sim.state);
+    if (s) resumeView(g, s, sim.state, meta);
     this.applyLoadSpeed(sim.state);
     this.opts.onAdopted?.(sim);
     g.renderNow(g.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
@@ -113,12 +100,19 @@ export class GameHost implements DriverHost {
   }
 }
 
-/** A loaded save resumes possession of the saved ant if it is alive, else the observer (GDD 01 §1.3). */
-function resumeView(g: Game, s: NonNullable<Game['session']>, state: SimState): void {
+/**
+ * A loaded save resumes possession of the saved ant if it is alive, else the observer (GDD 01 §1.3); a save made in
+ * the colony view reopens it (the view is recorded in the save meta).
+ */
+function resumeView(g: Game, s: NonNullable<Game['session']>, state: SimState, meta: Pick<SaveMeta, 'view' | 'camera'>): void {
   const id = state.player.possessedAntId;
   if (id >= 0 && s.sim.stores.ants.get(id)) {
     s.followId = id;
     s.setView('possess', true);
     g.viewChanged();
+  } else if (meta.view === 'colony') {
+    g.setView('colony');
+  } else if (meta.camera && s.view === 'observer') {
+    s.views.freeFlyAt(meta.camera.pos, meta.camera.look); // the observer comes back where the player left it
   }
 }

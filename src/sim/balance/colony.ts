@@ -76,7 +76,12 @@ export const RESERVE_REFILL_RATE = 0.3;
 export const RESERVE_REFILL_MIN_DAYS_C = 0.5;
 /** Health (0..1) lost per gd while starving (crop C and reserve empty, no pool). */
 export const STARVE_HEALTH_RATE = 0.5;
+/** GDD 02 §1.4 base regeneration, health per gd; workers use the GDD 05 §4.7 split below, the queen this base. */
 export const HEALTH_REGEN_RATE = 0.2;
+/** GDD 05 §4.7 recovery: health per gd for a worker in the nest with crop C > 0 (int-1B-sim; was 0.2 everywhere). */
+export const HEALTH_REGEN_IN_NEST = 0.25;
+/** GDD 05 §4.7 recovery: health per gd anywhere else (outside, or in the nest with an empty crop). */
+export const HEALTH_REGEN_ELSEWHERE = 0.1;
 export const HEALTH_REGEN_MAX_FATIGUE = 0.8;
 /** Heat or cold load below which health regenerates. */
 export const HEALTH_REGEN_MAX_THERMAL_LOAD = 0.05;

@@ -77,7 +77,10 @@ describe('cross-module stub API', () => {
     expect(ecology.harvest(sim, q, -1, 1)).toEqual({ c: 0, p: 0 });
     expect(ecology.nearestSource(sim, q.colony, p, 100)).toBe(-1);
     expect(ecology.discoverSource(sim, q.colony, -1, q.id)).toBe(false);
-    expect(combat.applyDamage(sim, 'ant', q.id, 5, 'combat')).toBe(0);
+    // combat is real (combat task): the queen's armour absorbs part of the hit; the damage dealt is returned
+    const dealt = combat.applyDamage(sim, 'ant', q.id, 5, 'combat');
+    expect(dealt).toBeGreaterThan(0);
+    expect(dealt).toBeLessThanOrEqual(5);
     expect(combat.beginGrapple(sim, q.id, 'ant', q.id)).toBe(false);
     expect(() => combat.releaseGrapple(sim, q.id)).not.toThrow();
     expect(environment.airTemp(sim, p)).toBeGreaterThan(0);
@@ -97,14 +100,14 @@ describe('cross-module stub API', () => {
     expect(ants.currentPrompt(sim, q)).toBeNull();
     expect(ants.inspect(sim, q.id)?.caste).toBe('queen');
     expect(ants.inspect(sim, -1)).toBeNull();
-    // still stubs: combat (above) and progression (Stage 2)
+    // progression is real (progression task): a first milestone records, a codex entry unlocks, an alert gets an id
     expect(() => progression.publishDiagnostic(sim, {
       id: 'diag-stores', system: 'colony', status: 'ok', label: '', value: 0, factors: [], remedies: [], sinceTick: 0, focus: null,
     })).not.toThrow();
-    expect(progression.recordMilestone(sim, 'ms-first-eggs')).toBe(false);
-    expect(progression.unlockCodex(sim, 'cx-honeydew')).toBe(false);
-    expect(progression.raiseAlert(sim, {
+    expect(typeof progression.recordMilestone(sim, 'ms-first-eggs')).toBe('boolean');
+    expect(typeof progression.unlockCodex(sim, 'cx-honeydew')).toBe('boolean');
+    expect(Number.isInteger(progression.raiseAlert(sim, {
       kind: 'food-c-low', level: 'warning', subjectId: -1, title: '', cause: '', focus: null, diagnosticId: null,
-    })).toBe(-1);
+    }))).toBe(true);
   });
 });

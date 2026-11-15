@@ -32,7 +32,7 @@ export function stingDamage(sim: Sim, ant: Ant): number {
 }
 
 /** In contact for a sting: a lock either way, or bodies within 0.3 L. */
-function inContact(sim: Sim, ant: Ant, t: TargetRef): boolean {
+export function inContact(sim: Sim, ant: Ant, t: TargetRef): boolean {
   const l = ant.combat?.lock;
   if (l && l.targetKind === t.kind && l.targetId === t.id) return true;
   if (t.kind === 'ant' && ant.combat?.heldBy.includes(t.id)) return true;
@@ -41,7 +41,7 @@ function inContact(sim: Sim, ant: Ant, t: TargetRef): boolean {
   return dist(ant.pos, bodyPos(b)) - ant.radius - bodyRadius(b) <= STING_CONTACT_L * antLenMm(sim, ant);
 }
 
-function stingRefusal(sim: Sim, ant: Ant, t: TargetRef): ActionFailReason | null {
+export function stingRefusal(sim: Sim, ant: Ant, t: TargetRef): ActionFailReason | null {
   if (combatStats(sim, ant).special !== 'sting') return 'species';
   if (sprayDisabled(ant)) return 'conditions';
   const b = bodyOf(sim, t.kind, t.id);

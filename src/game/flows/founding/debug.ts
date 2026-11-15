@@ -22,5 +22,23 @@ export function installFoundingDebug(flow: FoundingFlow, host: FoundingHost): vo
     takeWorker: () => flow.takeWorker(),
     retry: () => flow.retry(),
     acceptFailure: () => flow.acceptFailure(),
+    /** The opening record itself (hazard log, failure outcome) for scripts that report why a run ended. */
+    opening: () => { const s = host.session; return s ? plain(s.sim.state.player.opening) : null; },
+    /**
+     * Static suitability map cells of the played species within `rBu` of (x, z), nearest first, at or above `minQ`
+     * (0..1): where a scripted player heads for a good site (the same map the site overlay shows).
+     */
+    sites: (x: number, z: number, rBu: number, minQ: number) => {
+      const s = host.session;
+      if (!s) return [];
+      const m = s.sim.world.maps.suitability[s.sim.species.id as keyof typeof s.sim.world.maps.suitability];
+      if (!m) return [];
+      const bu = s.sim.world.bu, out: { x: number; z: number; q: number; d: number }[] = [];
+      for (let iz = 0; iz < m.nz; iz++) for (let ix = 0; ix < m.nx; ix++) {
+        const cx = (ix + 0.5) * m.cell, cz = (iz + 0.5) * m.cell, q = m.data[iz * m.nx + ix] / 255, d = Math.hypot(cx - x, cz - z);
+        if (q >= minQ && d <= rBu * bu) out.push({ x: cx, z: cz, q, d });
+      }
+      return out.sort((a, b) => a.d - b.d);
+    },
   };
 }

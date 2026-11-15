@@ -114,3 +114,21 @@ rival nests pre-carve (rivals).
   record pass/fail per folder in the gate report, and re-run a failing file alone before believing it.
 - Gate report: `docs/design/tasks/gate-1B-sim-report.md` — per item of Addendum 3: fixed / not fixed /
   not a defect, with evidence; the folder-by-folder suite table; budgets measured; open risks.
+
+## Addendum 5 — arrived after launch (Nov 15, 23:15): founding round 3 landed
+
+Founding round 3 (`founding-close`) is in the tree. Do these after everything above; the reviewer should check them.
+
+What changed under you:
+- `startDoy.default` is 9 (Summer 2). `FOUND_FIRST_BROOD_DEV_MULT = 1.5` speeds eggs and pupae of the claustral brood only.
+- New helper `foundingInProgress(sim, colonyId)` in `src/sim/colony/founding/access.ts`.
+- Sealing is guided from the real leak (`leak.ts`, `plugPredict.ts`, `sealPlan.ts`, `sealGuide.ts`); the queen is possessed while the guide plugs.
+- `generated.long.test.ts` must run one seed per process (`FOUNDRESS_SEEDS=n`).
+
+Requests from founding to the owners you integrate (all seen in the browser run, shots in `test-output/fnd-close/seed1`):
+1. **Colony false alarms.** `src/sim/colony/starvation.ts`: no `food-c-low` / `food-p-low` and no `colony-starving` while `foundingInProgress` holds. After the hand-over, "The colony is starving · brood is being sacrificed" shows with zero brood and ten fresh workers (shot 10). Give the new colony a grace period (the first workers have not foraged yet: GDD 06 hand-over) and never say brood is sacrificed when there is no brood.
+2. **Progression.** `src/sim/progression/deaths.ts` raises `last-ants` with an empty title, and raises it during the opening when the queen is alone by design. Fill title and cause from `alertText`; do not raise it while `foundingInProgress`.
+3. **Nest.** `src/sim/nest/entrances.ts`: add `reopening` → `sealed` when the passage closes again; register a `natural` entrance when a founding cavity breaks into a world cavity (generated seed 3).
+4. **Seal plug reach.** Let `seal-entrance` aim at a given point or base its reach on the hole patch, so the loam 30°/3.0 BU throat seals (1 of 30 in the founding matrix fails). Also: a press from deep in the cell is refused `no-target` once before the guide walks her; make the action defer to the guide instead of refusing.
+5. **Locomotion.** A possessed walker with constant input sometimes does not move on steep shaft walls or beside a log (generated seed 7 start site: the seal never completes). Shot 10 also shows the first possessed worker as "Scout · scouting · stuck" on open flat ground.
+6. Whole-suite tests that assume a game starting on day of year 10: find and update.

@@ -5,7 +5,7 @@ import { RELATION_STATES } from '@/sim/types';
 import { endMajorThreat, requestMajorThreat } from '@/sim/ecology';
 import { rivalAgentBudget, antCounts } from './fielding';
 import { rivalProfile } from '@/sim/species/rivals/profiles';
-import { RAID_PARTY_SHARE } from '@/sim/balance/rivals';
+import { BROOD_RAID_SHARE, PLAYER_RAID_SHARE, RAID_PARTY_SHARE } from '@/sim/balance/rivals';
 import { ensureRelation } from './relations';
 import { activeRaidOf, isIncipient, startRaid, workerCount } from './raids';
 import { isRival } from './state';
@@ -47,8 +47,8 @@ export function triggerRaid(sim: Sim, attacker: number, target: number, force: b
   const p = rivalProfile(att.species);
   const n = workerCount(sim, att);
   const party = att.rival
-    ? Math.floor(Math.min(p.fieldCap.war, Math.max(1, brood ? 0.6 * n : RAID_PARTY_SHARE * n), rivalAgentBudget(antCounts(sim).player)))
-    : Math.max(1, Math.round((brood ? 0.6 : 0.3) * n));
+    ? Math.floor(Math.min(p.fieldCap.war, Math.max(1, brood ? BROOD_RAID_SHARE * n : RAID_PARTY_SHARE * n), rivalAgentBudget(antCounts(sim).player)))
+    : Math.max(1, Math.round((brood ? BROOD_RAID_SHARE : PLAYER_RAID_SHARE) * n));
   const r = startRaid(sim, att, def, brood ? 'brood' : 'raid', party, major);
   if (!r && major) endMajorThreat(sim, 'raid');
   return !!r;

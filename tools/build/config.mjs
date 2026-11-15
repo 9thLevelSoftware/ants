@@ -50,16 +50,17 @@ export const REFERENCE_SCAN_DIRS = ['render', 'ui', 'game', 'input', 'audio'];
 export const REFERENCE_SCAN_FILES = ['main.ts'];
 
 /**
- * Audio: the audio engine is a later task and no source file names an audio id yet, so a reference scan would drop
- * everything. All manifest audio ships (6 MB); revisit when src/audio exists.
+ * Audio: shipped by the same reference scan as textures (src/audio/assetIds.ts names every file it plays as a quoted
+ * manifest id; gate 1B). Set to true to ship every manifest audio file regardless.
  */
-export const INCLUDE_ALL_AUDIO = true;
+export const INCLUDE_ALL_AUDIO = false;
 
 /** Third-party code and fonts that end up in the bundle, for the licence section of CREDITS.md. */
 export const SOFTWARE_LICENCES = [
   { name: 'three', file: 'three/LICENSE', licence: 'MIT' },
   { name: 'preact', file: 'preact/LICENSE', licence: 'MIT' },
   { name: '@preact/signals', file: '@preact/signals/LICENSE', licence: 'MIT' },
+  { name: '@preact/signals-core', file: '@preact/signals-core/LICENSE', licence: 'MIT' },
   { name: 'fflate', file: 'fflate/LICENSE', licence: 'MIT' },
   { name: 'postprocessing', file: 'postprocessing/LICENSE.md', licence: 'Zlib' },
   { name: 'Inter (fontsource)', file: '@fontsource-variable/inter/LICENSE', licence: 'SIL OFL 1.1' },

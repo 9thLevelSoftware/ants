@@ -152,7 +152,8 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
   const dt = k * TICK_S;
   r.stats.stepped++;
   let st: WalkStatus;
-  if (r.overrides.length > 0 && overridden(sim, w, dt, r)) st = 'ok';
+  if (possessed) r.possessedOverriddenId = -1;
+  if (r.overrides.length > 0 && overridden(sim, w, dt, r)) { st = 'ok'; if (possessed) r.possessedOverriddenId = id; }
   else if (possessed) st = possessedTick(sim, w as Ant, TICK_S);
   else if (w.medium === 'air') {
     st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker);
@@ -217,11 +218,14 @@ export const locomotionSystem: System = {
     ensureGrid(sim, r);
     syncPortals(sim);
     const ants = sim.stores.ants.list, creatures = sim.stores.creatures.list;
-    if (sim.carve.version !== r.carveVersion) {
-      r.carveVersion = sim.carve.version;
+    // a carve since the previous locomotion pass (last tick after this phase, or this tick before it). Read from
+    // state (worldDelta.carveChangedTick) so a restored save re-checks exactly when the original run did.
+    const changed = sim.state.worldDelta.carveChangedTick ?? -1;
+    if (changed >= sim.state.tick - 1 || (r.carveVersion >= 0 && sim.carve.version !== r.carveVersion)) {
       for (let i = 0; i < ants.length; i++) if (ants[i].alive) surfaceCheck(sim, ants[i], r);
       for (let i = 0; i < creatures.length; i++) if (creatures[i].alive) surfaceCheck(sim, creatures[i], r);
     }
+    r.carveVersion = sim.carve.version;
     const obs = observer(sim, r);
     antGrid(sim, r); // separation reads the positions of the tick start
     for (let i = 0; i < ants.length; i++) if (ants[i].alive) stepWalker(sim, ants[i], true, r, obs);

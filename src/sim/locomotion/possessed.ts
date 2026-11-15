@@ -160,7 +160,8 @@ export function integratePossessedFrame(sim: Sim, ant: Ant, dtSeconds: number): 
     copyLatch(p.s, ant.nav.loco ?? FRESH_SCRATCH);
     p.tick = sim.state.tick;
   }
-  stepPossessed(sim, ant, p.kin, p.s, sim.state.player.intent, dtSeconds, r);
+  // a pinned / seized / dodging ant moves only under its override, which runs in the tick: hold the tick pose
+  if (r.possessedOverriddenId !== ant.id) stepPossessed(sim, ant, p.kin, p.s, sim.state.player.intent, dtSeconds, r);
   const k = Math.max(0, 1 - dtSeconds / r.P.predictBlendS);
   p.offset.x *= k; p.offset.y *= k; p.offset.z *= k;
   set3(p.pose.pos, p.kin.pos.x + p.offset.x, p.kin.pos.y + p.offset.y, p.kin.pos.z + p.offset.z);

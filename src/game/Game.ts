@@ -8,7 +8,7 @@ import {
   applyOverrides, createRenderApp, getPreset, pickQuality, runStartupBenchmark, type QualityId, type QualityPreset, type QualitySetting,
   type RenderApp,
 } from '@/render/app';
-import { createBrowserAssetLoader, type AssetLoader } from '@/render/assets';
+import { createBrowserAssetLoader, loadWorkerSource, type AssetLoader } from '@/render/assets';
 import { applyPose } from '@/render/camera';
 import { RenderRegistry, type FrameInfo, type HighlightRef } from '@/render';
 import { LodObserverFeed } from './lodObserver';
@@ -22,7 +22,7 @@ import { handleGlobalInput, handlePhotoInput, type GlobalControls } from './glob
 import { applyIntent } from './intent/applyIntent';
 import { newPossessionInputResult } from './intent/possessionInput';
 import { gamePerf } from './debug/perf';
-import { generate, wake } from './newGame/startSession';
+import { generateAsync, wake } from './newGame/startSession';
 import { SaveHooks } from './saveHooks';
 import { Toasts } from './toasts';
 import { resolveNewGame, type NewGameOptions } from './newGame/options';
@@ -32,7 +32,7 @@ import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
-import { loadingPhases, type LoadingPhase } from './newGame/loading';
+import { generationPhase, loadingPhases, type LoadingPhase } from './newGame/loading';
 import { UndergroundSwitch } from './undergroundSwitch';
 import { requestView, toggleColonyView, togglePhoto, type ViewSwitchHost } from './views/viewSwitch';
 import { ViewsLayer } from './views/viewsLayer';
@@ -212,7 +212,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const phases = loadingPhases();
     let attempt = 1;
     const show = async (p: LoadingPhase) => {
-      this.loading = { phase: p.label, progress: p.progress, attempt, maxAttempts: WORLDGEN_MAX_ATTEMPTS, error: null };
+      this.loading = { phase: p.label, progress: p.progress, attempt, maxAttempts: WORLDGEN_MAX_ATTEMPTS, error: null, kind: 'generate' };
       this.mode = 'loading';
       this.input.contexts.setBase('UI');
       this.refreshUi();
@@ -225,7 +225,17 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       await show(phases.generate);
       if (this.opts.testMode && opts.failGenerationForTest) throw new Error(opts.failGenerationForTest);
       const resolved = resolveNewGame(opts);
-      const created = generate(resolved);
+      const created = await generateAsync(resolved, {
+        workerSource: await this.workerSource(),
+        onProgress: (p) => {
+          if (token !== this.loadToken) return;
+          const g = generationPhase(p);
+          attempt = g.attempt;
+          this.loading = { phase: g.label, progress: g.progress, attempt, maxAttempts: WORLDGEN_MAX_ATTEMPTS, error: null, kind: 'generate' };
+          this.refreshUi();
+        },
+      });
+      if (token !== this.loadToken) throw new Cancelled();
       attempt = created?.world.meta.attempts ?? 1;
       await show(phases.simulate);
       const sim = wake(resolved, created);
@@ -243,6 +253,13 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       this.refreshUi();
       return { ok: false, error };
     }
+  }
+
+  private workerSrc: Promise<string | null> | null = null;
+  /** The worldgen worker's source when this build ships it (portable build), else null; read once. */
+  private workerSource(): Promise<string | null> {
+    this.workerSrc ??= loadWorkerSource(this.assets).catch(() => null);
+    return this.workerSrc;
   }
 
   private startPlaying(sim: Sim, possessQueen: boolean): void {
@@ -266,6 +283,22 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.founding.attach(session);
     this.syncContexts();
     this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
+  }
+
+  /**
+   * Starts playing a sim built elsewhere (a loaded save, src/game/save/gameHost.ts): the renderers build its world
+   * first, as in newGame. Throws when a newer newGame / endGame superseded it meanwhile.
+   */
+  async adoptSim(sim: Sim): Promise<void> {
+    const token = this.loadToken;
+    try {
+      await this.registry.onGameStart(sim);
+    } catch (e) {
+      this.registry.onGameEnd();
+      throw e;
+    }
+    if (token !== this.loadToken) throw new Error('The load was superseded by a newer game.');
+    this.startPlaying(sim, false);
   }
 
   /** Founding retry (src/game/flows/founding): continue in a restored simulation of the same world. */
@@ -370,7 +403,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const canvas = this.opts.canvas;
     applyPose(this.camera, vf.pose, canvas.clientWidth / Math.max(1, canvas.clientHeight));
     const underground = this.undergroundSw.update(s.sim.field.substrate(this.camera.position), s.sim.world.bu, settleS > 0);
-    this.app.setFocus(vf.focus, undefined, settleS > 0 || dt === 0);
+    // reduced motion: focus changes are instant (GDD 08 §12)
+    this.app.setFocus(vf.focus, undefined, settleS > 0 || dt === 0 || this.settings.get().camera.reducedMotion);
     const pred = s.possessedId >= 0 && s.view === 'possess' && subject ? subject : null;
     const frame: FrameInfo = {
       dt, time: this.time, alpha, sim: s.sim, view: s.view, underground, camera: this.camera,
@@ -431,7 +465,14 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   }
 
   /** Frame time, simulation time per tick, draw calls, triangles and ant count (architecture §5 perf()). */
-  perf() { return gamePerf(this.app, this.registry, this.session); }
+  perf() {
+    const p = gamePerf(this.app, this.registry, this.session, this.uiCost);
+    this.uiCost.maxMs = 0;
+    return p;
+  }
+
+  /** Cost of the UI snapshot builds (perf()). */
+  private readonly uiCost = { lastMs: 0, maxMs: 0 };
 
   /** Synchronous render of the current state (debug API, after loading). */
   renderNow(settleS = 0): void {
@@ -589,8 +630,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   placeMarker(kind: MarkerKind, pos: Vec3, radius?: number): void { this.command({ type: 'placeMarker', kind, pos, radius }); }
   removeMarker(markerId: number): void { this.command({ type: 'removeMarker', markerId }); }
 
-  quickSave(): void { void this.save('quick').then((r) => { if (!r.ok) this.toast(r.message ?? 'Saving is not available yet'); }); }
-  quickLoad(): void { void this.load('quick').then((r) => { if (!r.ok) this.toast(r.message ?? 'Loading is not available yet'); }); }
+  quickSave(): void { void this.save('quick').then((r) => { if (!r.ok) this.toast(r.message ?? 'Saving is not available here'); }); }
+  quickLoad(): void { void this.load('quick').then((r) => { if (!r.ok) this.toast(r.message ?? 'Loading is not available here'); }); }
 
   save(slot: string): Promise<SaveResult> { return this.saves.save(slot); }
   load(slot: string): Promise<SaveResult> { return this.saves.load(slot); }
@@ -627,12 +668,15 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
 
   refreshUi(): void {
     const s = this.session;
+    const t0 = performance.now();
     const snap = buildSnapshot({
       sim: s?.sim ?? null, mode: this.mode, view: s?.view ?? 'observer', loading: this.loading,
       speed: s ? s.driver.speedReport() : null, manualClock: !this.realtime, toasts: this.toasts.list, hudHidden: this.hudHidden,
       error: this.error, underground: this.lastFrame.underground, epitaph: this.epitaph, observerPrompt: s?.observerPrompt ?? null,
     }, this.uiRev);
     this.uiRev = snap.rev;
+    this.uiCost.lastMs = performance.now() - t0;
+    this.uiCost.maxMs = Math.max(this.uiCost.maxMs, this.uiCost.lastMs);
     this.lastSnapshot = snap;
     this.opts.onSnapshot(snap);
   }

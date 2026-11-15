@@ -123,6 +123,8 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
     hasLineage: () => profile.get().lineage.colonies.length > 0,
     getBindings: () => game.settings.get().bindings,
     setBindings: (b: GameSettings['bindings']) => game.setSettings({ bindings: b }),
+    /** Settings > header notice when settings cannot be stored (ui-shell). */
+    settingsNotice: () => settings.status().notice,
   });
 
   // ---- real-time pump: interval autosave clock, play time, new-game detection

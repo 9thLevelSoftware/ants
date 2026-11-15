@@ -15,6 +15,7 @@ import { surfaceActivityOf } from '../envAdapter';
 import { intakeTarget } from '../needs';
 import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, haulPelletLoad } from '@/sim/nest';
+import { herdTendDemand } from '@/sim/ecology/plants/demand';
 
 const T = (t: Task): number => ti(t);
 
@@ -80,6 +81,8 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
     const shortfall = intake > 0 ? Math.min(1, Math.max(0, 1 - known.loads / intake)) : 0;
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
+  // GDD 02 §6.2: Σ tenderSlots over the colony's workable herds (the plants module owns the herd rules)
+  d[T('tend')] = herdTendDemand(sim, col.id);
   d[T('dig')] = digDemand(sim, col);
   // pellets: the nest's lying in-nest pellets weighted by haul urgency (spoil nearing tamping age counts more)
   const pellets = haulPelletLoad(sim, col.id);

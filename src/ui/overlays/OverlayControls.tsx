@@ -4,16 +4,18 @@
 import { Icon } from '../icons';
 import { cx } from '../components/cx';
 import { currentBindings, hintLabel } from '../components/KeyHint';
+import { toolState } from '../panels/markers/toolState';
 import { markersSlice } from '../panels/wiring/slices';
-import { isActive, OVERLAY_ACTION, OVERLAY_IDS, OVERLAY_WORD, type OverlayId } from './catalogue';
+import { isActive, OVERLAY_ACTION, OVERLAY_IDS, OVERLAY_WORD, shownLegends, type OverlayId } from './catalogue';
 import { LegendCard } from './Legend';
 import { overlays, toggleOverlay } from './state';
 
-/** `panel`: the buttons are part of the colony view's tool UI and take Tab; elsewhere they are HUD chips (keys V and O). */
+/** `panel`: the buttons are part of the colony view's tool UI and take Tab (an explicit tabindex: the HUD marked them -1 while they were chips in the observer view and that mark would stay); elsewhere they are HUD chips (keys V and O). */
 export function OverlayControls({ showButtons = true, panel = false }: { showButtons?: boolean; panel?: boolean }) {
   const s = overlays.value;
   const m = markersSlice.value;
-  const active = OVERLAY_IDS.filter((id) => isActive(s, id));
+  // the dig tool belongs to the colony view's palette; the overlay buttons keep showing only what the player switched on
+  const active = shownLegends(s, panel && toolState.value?.tool === 'dig');
   const bindings = currentBindings.value;
   return (
     <>
@@ -24,7 +26,7 @@ export function OverlayControls({ showButtons = true, panel = false }: { showBut
             const key = hintLabel(bindings, OVERLAY_ACTION[id]);
             return (
               <button
-                key={id} type="button" class={cx('ov-btn', on && 'is-on')} data-overlay={id} aria-pressed={on ? 'true' : 'false'}
+                key={id} type="button" class={cx('ov-btn', on && 'is-on')} tabIndex={panel ? 0 : undefined} data-overlay={id} aria-pressed={on ? 'true' : 'false'}
                 aria-label={`${OVERLAY_WORD[id]} overlay${key ? `, key ${key}` : ''}`} title={`${OVERLAY_WORD[id]}${key ? ` (${key})` : ''}`} onMouseDown={panel ? (e: MouseEvent) => e.preventDefault() : undefined} onClick={() => toggleOverlay(id)}
               >
                 <Icon name={id === 'scent' ? 'overlay-scent' : `overlay-${id}`} size={22} decorative />

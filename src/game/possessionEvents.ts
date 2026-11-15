@@ -9,12 +9,17 @@ export type GameReaction =
   | { kind: 'possessed-died'; antId: number }
   | { kind: 'toast'; text: string };
 
+/** Player words for the sim's possession refusal reasons (codex-content wording table). */
+const POSSESS_REJECTED: Record<string, string> = {
+  dead: 'That ant is dead', 'not-colony': 'That ant belongs to another colony', view: 'Not available in this view',
+};
+
 /** Player-facing texts for refusals (GDD 01 §5.8, GDD 06 §4.2). */
 export const TOASTS = {
-  speedPossession: '8× is available when you are not controlling an ant',
-  speedOpening: 'The queen is in danger: time runs at most at 2× now',
-  possessRejected: (reason: string) => `Cannot take that ant (${reason})`,
-  steppedDown: (from: number, to: number) => `Simulation could not keep pace at ${from}×; running at ${to}×`,
+  speedPossession: '8x is available only while observing',
+  speedOpening: 'The queen is in danger: time is limited to 2x',
+  possessRejected: (reason: string) => POSSESS_REJECTED[reason] ?? 'That ant cannot be taken',
+  steppedDown: (from: number, to: number) => `The game could not keep up at ${from}x and now runs at ${to}x`,
   noRole: (role: string) => `No ant is ${role === 'forager' ? 'foraging' : role === 'digger' ? 'digging' : role === 'nurse' ? 'nursing' : 'available'} now`,
   autoPaused: 'Paused while the window is in the background',
   padConnected: 'Controller connected',

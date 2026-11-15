@@ -15,6 +15,7 @@ import { createEntityIndexImpl } from '@/sim/world/entityIndex';
 import { createCarveGrid, createNestNav, registerNestFields } from '@/sim/nest';
 import { createPheromoneField } from '@/sim/pheromones';
 import { createKernel } from '@/sim/kernel';
+import { CarveStore } from '@/sim/nest/carve/grid';
 
 export interface Services {
   stores: SimStores;
@@ -101,6 +102,7 @@ export function createServices(state: SimState, world: WorldData): Services {
   const kernel = createSimKernel(state, world);
   const field = createWorldField(kernel);
   const carve = createCarveGrid(kernel);
+  if (carve instanceof CarveStore) carve.addListener(() => { state.worldDelta.carveChangedTick = state.tick; });
   const nestNav = createNestNav(kernel);
   // the nest module's full field set (exit / seal / chambers via registerNestTargets, plug-seeded D_seal, D_plan)
   registerNestFields(nestNav, carve, state, world.bu);

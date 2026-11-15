@@ -15,20 +15,20 @@ every rival species, the four playable species included as conspecific rivals).
 | `late.ts`, `wiring.ts` | the heavy half bound late (combat imports this index; see "Import cycles") and the `raid` behaviour export |
 | `state.ts` | module state (`state.rivals.module`), per-colony / per-pair records, territory slots, agent bb keys and jobs |
 | `init.ts` | New Game: one abstract colony per world rival site, its nest record, slot and core marks |
-| `setup.ts` | first rivals tick: nest carved by the nest module's template layout, queens, display brood (min(24, ceil(B/10))) |
-| `model.ts` | the abstract model (pure): births, maturation, deaths, harvest, upkeep, caps, aggression, winter, strength |
+| `setup.ts` | first rivals tick: nest carved by the nest module's template layout, entrances 1 + [N >= 300] + [N >= 800] (one more when N first crosses a step), queens, display brood (min(24, ceil(B/10))) |
+| `model.ts` | the abstract model (pure): births, maturation, deaths, harvest, upkeep, caps, aggression, winter, strength, virtual tendedness |
 | `env.ts` | season, day phase and the activity factor a |
 | `territory.ts`, `claims.ts` | deposits (1 per ant-second on the surface), core deposit, decay, rain halving, hourly scan, claims |
 | `relations.ts` | relation records, escalation gains (/ warThresholdMult), the state table (peace .. truce) |
-| `hourly.ts` | the hourly update: marks, scan, model (+ virtual harvest drawn from real nodes), relations, raids, destruction, foundations, founding threat, diagnostic |
+| `hourly.ts` | the hourly update: marks, scan, model (+ virtual harvest drawn from real nodes, split by diet; none for subterranean species), entrances, incipients growing up, relations, raids, destruction, foundations, founding threat, diagnostic, the ant cap |
 | `tick.ts` | per tick: setup, deaths, deposits, fielding pass and observers, the hard ant cap |
-| `fielding.ts` | targets per job, the global budget by priority, emergence, recall, `enforceCap` (<= 2500 every tick) |
+| `fielding.ts` | targets per job, the global budget by priority (rounding remainder kept within the priority), emergence, recall, `enforceCap` (<= 2500 after the tick and the hourly pass), `capRoom` for ants the cap cannot remove |
 | `agents.ts` | spawn and absorb agents (absorption = removal without a death, load delivered, brood adopted) |
-| `behaviour.ts`, `jobs.ts`, `raidJobs.ts`, `move.ts` | the `raid` task behaviour: rival jobs (forage, patrol, war, guard, defend, escort, return, queen, wander) and raiders (rival and player) |
-| `encounter.ts` | recognition (+1 E per ant pair per 60 s), discovery, the ritual display and withdrawal |
+| `behaviours/` (`behaviour.ts`, `jobs.ts`, `raidJobs.ts`, `move.ts`) | the `raid` task behaviour: rival jobs (forage, patrol, war, guard, defend, escort, return, queen, wander) and raiders (rival and player) |
+| `encounter.ts` | recognition (+1 E per ant pair per 60 s, counted by whichever agent notices first: `pairOnce`), discovery, the ritual display and withdrawal |
 | `watch.ts` | deaths (+3 E, N - 1), fight entries (+2 E, `rival-encounter` fight, reinforcements), stolen brood, nest knowledge, reclaiming agents |
-| `raids.ts` | raid launches (war, R >= 2, nest known, cooldown, threat director), player rally raids, brood raids, end rules |
-| `lifecycle.ts` | queens lost -> orphaned, destruction and aftermath, incipient first workers, new foundations |
+| `raids.ts` | raid launches (war, R >= 2, nest known, cooldown, threat director), player rally raids (one per marker, none without a free worker), brood raids (attacker not raided in the last 1 gd), end rules |
+| `lifecycle.ts` | queens lost -> orphaned, destruction and aftermath (display brood -> food pieces, or adoptable brood of the player's species), incipient first workers and growing up (N > 60), new foundations |
 | `founding.ts` | the sealed founding queen inside rival territory: dig-in roll and the diggers |
 | `report.ts` | alerts `raid-seen`, `nest-attacked` (ants) and the `diag-rivals` diagnostic |
 | `cheats.ts` | `cheat.setRival`, `cheat.setRelation`, `cheat.triggerRaid` |
@@ -52,7 +52,11 @@ player workers switched to task `raid` (jobs `raid` / `brood`), handed back to t
   `templateSpecies` (the colony's species is swapped for the synchronous `carveTemplateNest` call).
 - Entities: no "despawn" helper; `absorbAgent` marks the ant dead without `ant-died` (`life.noBody` set).
 - Threat director: refuses every major threat while no daytime hour is counted (founding stage); `founding.ts`
-  takes the slot directly in that case.
+  then reads the director's rules (one at a time, minimum quiet time) and digs in without a slot, writing none of
+  the director's state. The director should own a founding-stage rule.
+- Plants: `RivalAbstract.virtualTend` = min(0.7, N / 300) is set hourly; the plants module should use it as the
+  tendedness floor (and pool drain) of herds in the rival's claimed cells. Herd materialisation is not done.
+- Foraging: the aftermath food pieces lie in the abandoned nest; player foragers must be able to find items there.
 - Game debug API: `query.rivals` can return `rivalSummary(sim)`; `query.territory(pos)` can use `claimAt`.
 
 ## Import cycles

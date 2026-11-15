@@ -8,6 +8,7 @@ import { AUTOSAVE_DEFER_MAX_S, AUTOSAVE_MIN_GAP_S } from './constants';
 import { downloadBytes, maybeFramed } from './download';
 import { attachProfileEvents } from './profileEvents';
 import { makeRig } from './testkit';
+import { emptyCombat } from '@/sim/combat/state';
 
 const settle = () => new Promise((r) => setTimeout(r, 5));
 const noTimers = { setTimer: () => 1, clearTimer: () => {} };
@@ -27,7 +28,7 @@ function fight(rig: ReturnType<typeof makeRig>, on: boolean): void {
   const state = rig.host.sim!.state;
   const ant = state.ants.find((a) => a.alive)!;
   state.player.possessedAntId = ant.id;
-  ant.combat = on ? ({} as never) : null;
+  ant.combat = on ? emptyCombat() : null; // a well-formed fight state: the combat systems read it on the next tick
 }
 
 describe('named autosave triggers and combat (GDD 08 §7.6)', () => {

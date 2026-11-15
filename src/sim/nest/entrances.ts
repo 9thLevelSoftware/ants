@@ -14,6 +14,7 @@ import {
 import { OPEN_MIN, type VoxelBox } from './carve/keys';
 import { carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { clearPilesAround, linkMoundToEntrance } from './mounds';
+import { moundOrigin } from './moundRelax';
 import { refreshNestFields } from './navFields';
 import { nestRuntime } from './runtime';
 
@@ -279,8 +280,47 @@ export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
   return reached && !cutOff;
 }
 
+const memos = new WeakMap<Sim, Map<number, string>>();
+function entranceMemo(sim: Sim): Map<number, string> {
+  let m = memos.get(sim);
+  if (!m) { m = new Map(); memos.set(sim, m); }
+  return m;
+}
+
+function evalSignature(sim: Sim, e: Entrance): string {
+  const fv = (sim.field as { geomVersion?: number }).geomVersion ?? sim.state.tick;
+  return `${sim.carve.version}|${nestRuntime(sim).flags.version}|${fv}|${pileNear(sim, e)}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}`;
+}
+
+/**
+ * Fingerprint of the mound heights over the throat (mound relaxation edits the pile grids in place, which the
+ * field reads directly, so no version counter sees it): a weighted sum of the grid cells within the throat radius.
+ */
+function pileNear(sim: Sim, e: Entrance): number {
+  const R = throatR(sim, e);
+  let f = 0;
+  for (const m of sim.state.worldDelta.mounds) {
+    const { x0, z0 } = moundOrigin(m);
+    const i0 = Math.max(0, Math.floor((e.pos.x - R - x0) / m.cell)), i1 = Math.min(m.n - 1, Math.ceil((e.pos.x + R - x0) / m.cell));
+    const k0 = Math.max(0, Math.floor((e.pos.z - R - z0) / m.cell)), k1 = Math.min(m.n - 1, Math.ceil((e.pos.z + R - z0) / m.cell));
+    for (let iz = k0; iz <= k1; iz++) for (let ix = i0; ix <= i1; ix++) {
+      const idx = iz * m.n + ix;
+      f += m.h[idx] * (1 + ((idx * 2654435761) % 1013));
+    }
+  }
+  return f;
+}
+
 /** Re-evaluates an entrance's status (GDD 03 §4.2); emits and refreshes the nav fields on a change. */
 export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
+  // the status is a function of the carve grid, the voxel flags, the field's geometry and the entrance record:
+  // when none of them changed since this entrance's last evaluation, neither can the result (int-1B-sim: the
+  // throat BFS every ENTRANCE_CHECK_TICKS was ~40 % of a small colony's tick). Runtime-only memo, so a restored
+  // game evaluates once more and gets the same answer.
+  const sig = evalSignature(sim, e);
+  const memo = entranceMemo(sim);
+  if (memo.get(e.id) === sig) return;
+  memo.set(e.id, sig);
   const plug = plugCount(sim, e);
   const pass = throatPassage(sim, e, false);
   const prev = e.status;

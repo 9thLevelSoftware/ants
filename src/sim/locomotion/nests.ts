@@ -2,7 +2,7 @@
 // membership, and shared "point fields" for goals inside a nest that no registered field covers.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Chamber, Entrance, Nest, Sim } from '@/sim/types';
+import type { Chamber, Entrance, EntranceStatus, Nest, Sim } from '@/sim/types';
 import { nestFieldId } from '@/sim/types';
 import type { LocoRuntime } from './runtime';
 
@@ -45,12 +45,25 @@ export function nearestOpenEntrance(sim: Sim, nestId: number, p: Vec3): Entrance
   const n = nestById(sim, nestId);
   if (!n) return null;
   let best: Entrance | null = null, bd = Infinity;
+  const usable = homeEntranceStatus(n);
   for (const e of n.entrances) {
-    if (e.status !== 'open') continue;
+    if (e.status !== usable) continue;
     const d = (e.pos.x - p.x) ** 2 + (e.pos.y - p.y) ** 2 + (e.pos.z - p.z) ** 2;
     if (d < bd) { bd = d; best = e; }
   }
   return best;
+}
+
+/**
+ * Which entrances a walker heads for to get into its nest: the `open` ones; when the nest has none, the ones with a
+ * passage that is still narrower than NAV_CLEAR (`reopening`) or holds plug remnants (`sealing`). Walkers that left
+ * through such a throat (the first workers while the plug is dug open) must be able to come back the same way
+ * (int-1B-sim: on woodland-edge #3 every worker ended outside at a `reopening` entrance with no way home).
+ */
+export function homeEntranceStatus(n: Nest): EntranceStatus {
+  if (n.entrances.some((e) => e.status === 'open')) return 'open';
+  if (n.entrances.some((e) => e.status === 'reopening')) return 'reopening';
+  return n.entrances.some((e) => e.status === 'sealing') ? 'sealing' : 'open';
 }
 
 export function entranceById(sim: Sim, id: number): { nest: Nest; entrance: Entrance } | null {

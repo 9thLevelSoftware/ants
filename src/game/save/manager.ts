@@ -247,6 +247,7 @@ export class SaveManager {
         const meta = buildMeta(sim.state, {
           key, generation: isAutoKey(key) ? nextGeneration(this.cache) : 0, label, pinned: label === 'final',
           playTimeS: this.playTimeS, nowMs: this.now(), worldFingerprint: sim.world.meta.fingerprint, thumbnail: this.thumbnailFor(opts, autosave),
+          view: this.host.context().view, camera: this.host.context().camera,
         });
         const thumb = meta.thumbnail;
         const stored: SaveMeta = { ...meta, thumbnail: null };
@@ -396,7 +397,7 @@ export class SaveManager {
     if (!sim) return this.exportDone('text', 'blocked', 'There is no game to export.');
     const meta = buildMeta(sim.state, {
       key: 'quick', generation: 0, label: 'export', pinned: false, playTimeS: this.playTimeS, nowMs: this.now(),
-      worldFingerprint: sim.world.meta.fingerprint, thumbnail: this.captureThumbnail(),
+      worldFingerprint: sim.world.meta.fingerprint, thumbnail: this.captureThumbnail(), view: this.host.context().view, camera: this.host.context().camera,
     });
     return this.finishExport(meta, sim.state, opts);
   }

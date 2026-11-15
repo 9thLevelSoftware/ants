@@ -543,10 +543,10 @@ export const RELAY_TRY_S = 10;
 /** A chosen receiver stays chosen while within RELAY_KEEP_MULT x RELAY_RADIUS_BU of the herd. */
 export const RELAY_KEEP_MULT = 2;
 /**
- * Local adapter: the colony allocation does not compute the `tend` demand yet (GDD 02 §6.2); while this is on the
- * plants module adds Σ tenders wanted of the colony's known herds right after each allocation pass (reported).
+ * Local adapter, now off: the colony allocation computes the `tend` demand itself (colony/allocation/demand.ts calls
+ * herdTendDemand, int-1B-sim). While on, the plants module added Σ tenders wanted right after each allocation pass.
  */
-export const TEND_DEMAND_ADAPTER = true;
+export const TEND_DEMAND_ADAPTER = false;
 
 // ---- nectar (GDD 05 §1.2 flower / extrafloral-nectary rows; the refill itself is sources-core's) ----
 

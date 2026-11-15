@@ -7,7 +7,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim } from '@/sim/types';
 import { RECOGNITION_L } from '@/sim/balance/combat';
 import {
-  AGENT_THINK_FAST_TICKS, AWARE_L, DISPLAY_S, E_GAIN, RECOGNITION_PAIR_S, WITHDRAW_TURN_DEG, WITHDRAW_WALK_L,
+  AGENT_THINK_FAST_TICKS, AWARE_L, DISPLAY_S, E_GAIN, RECOGNITION_PAIR_S, WITHDRAW_MAX_S, WITHDRAW_TURN_DEG, WITHDRAW_WALK_L,
 } from '@/sim/balance/rivals';
 import { faceToward } from '@/sim/combat';
 import { navStop, navTo } from '@/sim/locomotion';
@@ -18,6 +18,23 @@ import { BB, colExt, slotBit, type RivalColony } from './state';
 
 const ids: number[] = [];
 const WITHDRAW_UNTIL = 'rv.wd';
+/** Prefixes of per-partner marks: escalation counted for the pair (recognition / fight) at this tick. */
+const PAIR_RECOGNITION = 'rve.';
+const PAIR_FIGHT = 'rvf.';
+
+/**
+ * True once per ant pair per window (whichever side notices first counts; the mark is set on both when the
+ * partner is an agent too, so the pair is never counted twice nor lost when one side is not looking).
+ */
+export function pairOnce(sim: Sim, ant: Ant, other: Ant, fight: boolean, windowTicks: number): boolean {
+  const now = sim.state.tick;
+  const pre = fight ? PAIR_FIGHT : PAIR_RECOGNITION;
+  const last = ant.bb[pre + other.id];
+  if (last !== undefined && now - last < windowTicks) return false;
+  ant.bb[pre + other.id] = now;
+  if (isAgent(other)) other.bb[pre + ant.id] = now;
+  return true;
+}
 
 /** Body length of an ant, mm. */
 export function lenMm(sim: Sim, ant: Ant): number {
@@ -43,7 +60,7 @@ function withdraw(sim: Sim, ant: Ant, other: Ant | undefined): void {
   const r = WITHDRAW_WALK_L * lenMm(sim, ant);
   const x = ant.pos.x + Math.cos(a) * r, z = ant.pos.z + Math.sin(a) * r;
   navTo(sim, ant, { x, y: sim.field.height(x, z), z }, 0.5 * lenMm(sim, ant));
-  ant.bb[WITHDRAW_UNTIL] = sim.state.tick + secondsToTicks(4);
+  ant.bb[WITHDRAW_UNTIL] = sim.state.tick + secondsToTicks(WITHDRAW_MAX_S);
   ant.bb[BB.go] = 0;
   sim.emit({ type: 'rival-encounter', a: ant.colony, b: other ? other.colony : -1, pos: { ...ant.pos }, outcome: 'withdraw' });
 }
@@ -82,8 +99,7 @@ export function encounterStep(sim: Sim, ant: Ant, col: RivalColony): boolean {
     const last = ant.bb[key];
     if (last !== undefined && now - last < pairTicks) continue;
     ant.bb[key] = now;
-    // a pair of agents counts once (the lower id); a player ant is counted from the agent's side
-    if (!isAgent(o) || ant.id < o.id) addEscalation(sim, ant.colony, o.colony, E_GAIN.recognition);
+    if (pairOnce(sim, ant, o, false, pairTicks)) addEscalation(sim, ant.colony, o.colony, E_GAIN.recognition);
     noteDiscovery(sim, o.colony, ant.colony, ant.pos);
     noteDiscovery(sim, ant.colony, o.colony, o.pos);
     if (o.task === 'fight' || ant.task === 'fight') continue;
@@ -100,8 +116,10 @@ export function encounterStep(sim: Sim, ant: Ant, col: RivalColony): boolean {
   return false;
 }
 
-/** Drops recognition marks older than the pair window (keeps bb small). */
+/** Drops recognition and pair marks older than the pair window (keeps bb small). */
 export function pruneMarks(sim: Sim, ant: Ant): void {
   const old = sim.state.tick - secondsToTicks(RECOGNITION_PAIR_S);
-  for (const k of Object.keys(ant.bb)) if (k.startsWith(BB.seen) && ant.bb[k] < old) delete ant.bb[k];
+  for (const k of Object.keys(ant.bb)) {
+    if ((k.startsWith(BB.seen) || k.startsWith(PAIR_RECOGNITION) || k.startsWith(PAIR_FIGHT)) && ant.bb[k] < old) delete ant.bb[k];
+  }
 }

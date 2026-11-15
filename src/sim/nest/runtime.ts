@@ -30,6 +30,8 @@ export interface NestRuntime {
   passGrid: PassGrid;
   /** Per nest and chunk: the open-volume split of upkeep.ts nestOpenVolume. */
   deepVolByNest: Map<number, Map<number, ChunkVolume>>;
+  /** The nest sample box each deepVolByNest cache was computed with (a changed box drops the cache). */
+  deepVolBox: Map<number, string>;
   /** Breach records of the carve grid already turned into entrances (or found not to be one). */
   breachSeen: number;
   /** Plan geometry and target voxels by plan id (rebuilt from the plan record). */
@@ -73,6 +75,7 @@ export function nestRuntime(sim: Sim): NestRuntime {
     wallByChunk: new Map(),
     passGrid: new PassGrid(),
     deepVolByNest: new Map(),
+    deepVolBox: new Map(),
     breachSeen: sim.carve.breaches.length,
     geom: new Map(),
     climate: new Map(),

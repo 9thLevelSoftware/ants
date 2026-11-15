@@ -6,7 +6,8 @@
 import { rngInt, rngRange } from '@/core/rng';
 import type { Ant, Sim } from '@/sim/types';
 import {
-  ABSORB_RADIUS_BU, AGENT_THINK_TICKS, DEFEND_IDLE_S, DEFEND_SURFACE_BU, EMERGE_WALK_L, FORAGE_DWELL_S,
+  ABSORB_RADIUS_BU, AGENT_THINK_TICKS, DEFEND_IDLE_S, DEFEND_NEST_BU, DEFEND_SURFACE_BU, ESCORT_ARRIVE_BU, QUEEN_HIDE_S,
+  REINFORCE_ARRIVE_BU, REINFORCE_GO_BU, REINFORCE_SEARCH_BU, EMERGE_WALK_L, FORAGE_DWELL_S,
   FORAGE_FRINGE_BU, FORAGE_NODE_SEARCH_BU, FORAGE_RANGE_BU, FORAGE_TAKE_UNITS, FORAGE_TIMEOUT_S, GUARD_RADIUS_L,
   GUARD_RELIEF_GD, LOST_ABSORB_S, PATROL_LOITER_S, PATROL_TOP_CELLS, QUEEN_HIDE_BU, RAID_ENGAGE_L, WAR_HOLD_S,
 } from '@/sim/balance/rivals';
@@ -14,14 +15,14 @@ import { harvest, nearestSource } from '@/sim/ecology';
 import { mayAttack, startFight } from '@/sim/combat';
 import { processAntDeath } from '@/sim/ants';
 import { secondsToTicks, TICKS_PER_DAY } from '@/sim/time';
-import { absorbAgent, setJob } from './agents';
-import { coreRadiusBu } from './init';
-import { lenMm } from './encounter';
+import { absorbAgent, setJob } from '../agents';
+import { coreRadiusBu } from '../init';
+import { lenMm } from '../encounter';
 import { d2, d3, goPoint, goTarget, groundPoint, halt, loiter, setTarget, targetOf } from './move';
-import { warOf } from './relations';
-import { chambersOf, homeNest } from './setup';
-import { BB, JOB, type RivalColony } from './state';
-import { cellCentre } from './territory';
+import { warOf } from '../relations';
+import { chambersOf, homeNest } from '../setup';
+import { BB, JOB, type RivalColony } from '../state';
+import { cellCentre } from '../territory';
 
 const ids: number[] = [];
 const QUEEN_HIDE_UNTIL = 'rv.hide';
@@ -181,15 +182,15 @@ export function defendJob(sim: Sim, ant: Ant, col: RivalColony, escort: boolean)
   if (escort) {
     const q = sim.stores.ants.get(col.queenId);
     if (q) foe = hostileNear(sim, ant, q.pos, QUEEN_HIDE_BU * bu);
-    if (!foe && q) { setTarget(ant, q.pos); if (goPoint(sim, ant, 1.5) !== 'moving') halt(sim, ant); }
+    if (!foe && q) { setTarget(ant, q.pos); if (goPoint(sim, ant, ESCORT_ARRIVE_BU) !== 'moving') halt(sim, ant); }
   } else {
-    foe = hostileNear(sim, ant, ant.pos, 40 * bu, nest.id);
+    foe = hostileNear(sim, ant, ant.pos, DEFEND_NEST_BU * bu, nest.id);
     for (const e of nest.entrances) if (!foe) foe = hostileNear(sim, ant, e.pos, DEFEND_SURFACE_BU * bu);
     const rx = ant.bb['rv.rx'];
     if (!foe && rx !== undefined) {
       const p = { x: rx, y: ant.bb['rv.ry'] ?? 0, z: ant.bb['rv.rz'] ?? 0 };
-      foe = hostileNear(sim, ant, p, 20 * bu);
-      if (!foe && d3(ant.pos, p) > 4 * bu) { setTarget(ant, p); goPoint(sim, ant, 3); return; }
+      foe = hostileNear(sim, ant, p, REINFORCE_SEARCH_BU * bu);
+      if (!foe && d3(ant.pos, p) > REINFORCE_ARRIVE_BU * bu) { setTarget(ant, p); goPoint(sim, ant, REINFORCE_GO_BU); return; }
     }
   }
   if (foe) {
@@ -208,7 +209,7 @@ export function queenJob(sim: Sim, q: Ant, col: RivalColony): void {
   const nest = homeNest(sim, col);
   if (!nest) return;
   const threat = hostileNear(sim, q, q.pos, QUEEN_HIDE_BU * sim.world.bu);
-  if (threat) q.bb[QUEEN_HIDE_UNTIL] = sim.state.tick + secondsToTicks(60);
+  if (threat) q.bb[QUEEN_HIDE_UNTIL] = sim.state.tick + secondsToTicks(QUEEN_HIDE_S);
   const hiding = (q.bb[QUEEN_HIDE_UNTIL] ?? 0) > sim.state.tick;
   const { royal, deepest } = chambersOf(nest);
   const ch = hiding ? deepest : royal;
