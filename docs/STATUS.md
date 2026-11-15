@@ -210,3 +210,11 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Open, passed to the running gates as addenda (they may or may not be read mid-run; re-issue as a follow-up task if not done): colony starvation false alarms (start and after hand-over), `last-ants` empty title, nest `reopening`→`sealed`, natural entrance registration, plug reach, locomotion stall on shaft walls / beside logs, first worker "stuck" on flat ground, warmth dots vs word, red alert dot always lit.
 - Site abandonment still partial (no `abandoned-burrow`, no 3-burrow limit).
 - Still running: rivals + ui-panels (`wfdd5p8cl`), both 1B gates (`wbzzr1gt5`).
+
+## Nov 15, 23:50 UTC — rivals + ui-panels landed; Stage 2 pair launched
+
+- `rivals` (Opus): 12 of 12 review findings fixed. Not done: thief ants (needs nest narrow-tunnel carve op), herd materialisation / `virtualTend` read by plants, Formica/Flavus mounds, corpse-carrying raiders, App. E 21/22 sweeps on generated worlds (integrator's `tools/sim` runs). Combat `mayAttack` still does not consult `rivals.isHostile` (sim gate or Stage 2 gate).
+- `ui-panels` (Sonnet impl, Opus review): Colony health, Nest overview, Journal, Codex, marker palette, overlay controls + legends, alert click-through, gamepad route in colony view. I looked at health/nest/journal/dig-tool shots: good. Open: `codexUnlocks` hook in `src/game/save/install.ts` (one line), default pad bindings for the books, founding meters persist in the e2e test world (not in a real game after hand-over), `src/content/text/controls.test.ts` red (manual table vs input labels), "Protein intake: Good at 0.0 of need" sim diagnostic rule.
+- Launched `wlu1imvyi` (wf_dc13b542-044): `render-creatures` + `scent-fx` (both Opus, visual). Told not to edit `src/render/slots/**`, `src/render/app/**`, `src/game/**` (app gate is in there); they report registration lines.
+- Still running: both 1B gates (`wbzzr1gt5`).
+- Stage 2 gate must wire: creatures renderer slot, fx slot + overlay host, `codexUnlocks`, `mayAttack`↔`isHostile`, `virtualTend`, `ECOLOGY_TIER` 2, rival-discovered progression listener, debug `query.rivals`/`query.territory`.
