@@ -22,3 +22,10 @@ GDD 05 (`docs/design/gdd/05-ecology-rivals-combat.md`): the creature catalogue (
 3. Comfort mode screenshot contains no spider-like shape.
 4. 300 creatures cost no more than the per-instance figure established for ants (report).
 5. Works in `test` and `high` quality and in the classic single-file build.
+
+## Integrator addendum (Nov 15, 23:45)
+- The creature simulation is in `src/sim/ecology/creatures/**` (families, FSM states, the bird event, the threat director); plant herds are in `src/sim/ecology/plants/**` (herd size, host plant, `ECOLOGY_TIER` is still 1 in the real game, so build a test scene that spawns creatures and herds directly). Read their state shapes; do not edit them.
+- Renderers plug in as registry slots (`src/render/slots/**`, see `antsSlot.ts` and `fxSlot.ts`). The first-playable app gate is editing `src/render/slots/**`, `src/render/app/**` and `src/game/**` right now: **do not edit those**. Deliver a `CreaturesRenderer` implementing `SubRenderer` plus a ready-to-paste slot file in your own folder, prove it in your demo page and in a harness run that registers it at run time (through `window.__game` in test mode if a hook exists; otherwise the demo page only), and report the one registration line.
+- Comfort mode: the setting already exists in the settings store (`src/game/settings` — find the arachnophobia / comfort key); read it, do not add a second one.
+- Machine rules: 4 cores shared with other engineers. Never run the whole vitest suite; run your folder. One headless browser at a time; close it when done. Use the global Playwright (never npm-install it).
+- Evidence under `test-output/creatures-render/`. Look at every screenshot you cite.

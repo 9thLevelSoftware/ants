@@ -24,3 +24,12 @@ UI controls and legends for overlays are the `ui-panels` task; you draw in the 3
 2. Screenshots, looked at and judged honestly: a foraging trail visible as a ribbon from nest to food including up a wall; home-range marking; an alarm puff; temperature and moisture overlays with legible ramps; dig debris; underground motes around a brood pile. Overlays must inform without hiding the world.
 3. Scent view with 100,000 active cells stays within the per-frame budget (report CPU ms and draw calls).
 4. Works in `high` quality and in the classic single-file build.
+
+## Integrator addendum (Nov 15, 23:45)
+- The UI side exists: `src/ui/overlays/**` (catalogue of overlay ids, legends, controls, `registerOverlayHost({ setOverlay(id, on) })` in `src/ui/overlays/state.ts`). Your drawer implements that host interface for exactly the ids in `src/ui/overlays/catalogue.ts`; use the same colour ramps as the legends (take the values from the catalogue; if the legend and the GDD disagree, the GDD wins and you report it).
+- Marker and plan ghosts are already drawn by `src/render/fx/markers/**` (views task): the dig-plans overlay only needs to switch that layer's visibility; do not redraw it.
+- The `fx` registry slot is `src/render/slots/fxSlot.ts` (draws nothing today). The first-playable app gate is editing `src/render/slots/**`, `src/render/app/**` and `src/game/**` right now: **do not edit those**. Deliver an `FxRenderer` implementing `SubRenderer` in your folder with a ready-to-paste replacement for the slot and the host registration, prove it in your demo page (real `Sim` from `createNewGame` on the test world, real pheromone grids, real foraging trail laid by ants), and report the exact lines to add.
+- Pheromone read API: `src/sim/pheromones/**` (find the read-only iteration functions; no writes). Environment: `src/sim/environment/**` queries. Danger grid: creatures' danger module under `src/sim/ecology/creatures/**`.
+- Particles: emit from simulation events (dig bite, pellet drop, acid spray from combat, footfall dust on dry loose soil); pooled, capped, deterministic sim untouched (render-only randomness is fine).
+- Machine rules: 4 cores shared with other engineers. Never run the whole vitest suite; run your folder. One headless browser at a time; close it when done. Use the global Playwright (never npm-install it).
+- Evidence under `test-output/scent-fx/`. Look at every screenshot you cite.
