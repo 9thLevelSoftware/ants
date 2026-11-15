@@ -9,7 +9,7 @@ import { FEED_LARVA_LOADS } from '@/sim/balance/actions';
 import { LARVA_GUT_CAP } from '@/sim/balance/colony';
 import {
   BROOD_DROP_ARRIVE_BU, CROP_MIN_FEED, FEED_CHAIN_MAX, FEED_CHAIN_RADIUS_BU, GROOM_IDLE_S,
-  GROOM_JOB_CHECK_TICKS, LOAD_EMPTY_BACKOFF_S, LOAD_EMPTY_MIN, PRELOAD_BELOW, ROOM_ARRIVE_FRAC,
+  GROOM_JOB_CHECK_TICKS, LOAD_EMPTY_BACKOFF_S, LOAD_EMPTY_MIN, NURSE_LOAD, PRELOAD_BELOW, ROOM_ARRIVE_FRAC,
   ROOM_WAIT_FRAC, TEND_NEAR_BU,
 } from '@/sim/balance/nestwork';
 import { NURSERY_JOBS } from '@/sim/types';
@@ -32,6 +32,18 @@ const pile = { x: 0, y: 0, z: 0 };
 
 function crop(ant: Ant): number {
   return ant.cropC + ant.cropP;
+}
+
+/**
+ * The crop thresholds are set for a full NURSE_LOAD; a small worker whose crop holds less (load-crop never fills
+ * beyond cropCap) uses them in proportion, so she neither stops feeding early nor reloads a crop that is full.
+ */
+function cropScale(ant: Ant): number {
+  return Math.min(1, ant.cropCap / NURSE_LOAD);
+}
+
+function feedMin(ant: Ant): number {
+  return CROP_MIN_FEED * cropScale(ant);
 }
 
 function def(sim: Sim, ant: Ant): SpeciesDef {
@@ -74,14 +86,14 @@ function select(sim: Sim, ant: Ant): void {
     // nothing to do now: with larvae in the nest, load the crop ahead of the next feed request (a request is
     // then served at once instead of after a trip to the food chamber), else groom
     const larvae = sim.stores.brood.list.some((b) => b.alive && b.colony === ant.colony && b.stage === 'larva');
-    if (larvae && crop(ant) < PRELOAD_BELOW && bbv(ant, B.feedBlock) <= sim.state.tick) { setState(sim, ant, 'nurse.load', 'job:feed'); return; }
+    if (larvae && crop(ant) < PRELOAD_BELOW * cropScale(ant) && bbv(ant, B.feedBlock) <= sim.state.tick) { setState(sim, ant, 'nurse.load', 'job:feed'); return; }
     setState(sim, ant, 'nurse.groom', 'job:groom');
     return;
   }
   claim(sim, ant, job.kind, job.id, job.dest);
   ant.bb[FEED_AFTER] = job.feedAfter ? 1 : 0;
   const reason = job.marker ? 'marker:move-brood' : `job:${(NURSERY_JOBS as readonly string[])[job.kind] ?? 'nurse'}` as const;
-  if (job.kind === Job.feed) setState(sim, ant, crop(ant) < CROP_MIN_FEED ? 'nurse.load' : 'nurse.feed', reason);
+  if (job.kind === Job.feed) setState(sim, ant, crop(ant) < feedMin(ant) ? 'nurse.load' : 'nurse.feed', reason);
   else if (isCarryJob(job.kind)) setState(sim, ant, 'nurse.carry', reason);
   else if (job.kind === Job.assist) setState(sim, ant, 'nurse.assist', reason);
   else setState(sim, ant, 'nurse.tend', reason);
@@ -96,7 +108,7 @@ function load(sim: Sim, ant: Ant): void {
   const st = inside ? 'arrived' : travel(sim, ant, entity('chamber', room.id, room.center), ROOM_ARRIVE_FRAC * Math.min(room.radii.x, room.radii.z));
   if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
   if (st !== 'arrived') return;
-  // the `load-crop` primitive fills the crop to NURSE_LOAD with the nurse mix (GDD 02 §5.4.2)
+  // the `load-crop` primitive fills the crop to NURSE_LOAD (at most her crop capacity) with the nurse mix (GDD 02 §5.4.2)
   const why = tryAct(sim, ant, 'load-crop', null);
   if (why === 'crop-full') setState(sim, ant, 'nurse.feed');
   else if (why === 'no-reserve') onLoaded(sim, ant, 0);
@@ -104,7 +116,7 @@ function load(sim: Sim, ant: Ant): void {
 }
 
 function onLoaded(sim: Sim, ant: Ant, got: number): void {
-  if (got < LOAD_EMPTY_MIN || crop(ant) < CROP_MIN_FEED) {
+  if (got < LOAD_EMPTY_MIN || crop(ant) < feedMin(ant)) {
     ant.bb[B.feedBlock] = sim.state.tick + secondsToTicks(LOAD_EMPTY_BACKOFF_S);
     endCycle(sim, ant, ENTRY);
     return;
@@ -119,7 +131,7 @@ function feed(sim: Sim, ant: Ant): void {
     ant.bb[B.began] = 0;
     ant.bb[B.n] = 0;
     resetTravel(ant);
-    if (crop(ant) < CROP_MIN_FEED || ant.bb[B.chain] >= FEED_CHAIN_MAX) { roundDone(sim, ant); return; }
+    if (crop(ant) < feedMin(ant) || ant.bb[B.chain] >= FEED_CHAIN_MAX) { roundDone(sim, ant); return; }
     // the same larva again while its gut has room for another feed (GDD 02 §5.4.1 "gut space >= 0.1"), else the
     // next requesting larva within FEED_CHAIN_RADIUS_BU
     const again = b && b.stage === 'larva' && b.carriedBy < 0 && LARVA_GUT_CAP - b.gutC - b.gutP >= FEED_LARVA_LOADS
@@ -133,7 +145,7 @@ function feed(sim: Sim, ant: Ant): void {
     // on with the next feed in this same think (no idle tick between chained feeds)
   }
   if (!b || b.stage !== 'larva' || b.carriedBy >= 0) { endCycle(sim, ant, ENTRY, 'job:feed'); return; }
-  if (crop(ant) < CROP_MIN_FEED) { setState(sim, ant, 'nurse.load'); return; }
+  if (crop(ant) < feedMin(ant)) { setState(sim, ant, 'nurse.load'); return; }
   const st = reachAndAct(sim, ant, entity('brood', b.id, b.pos), 'feed-larva');
   if (st === 'failed') recover(sim, ant, ENTRY, 'job:feed', ant.nav.status === 'failed');
 }
@@ -171,7 +183,7 @@ function carry(sim: Sim, ant: Ant): void {
     sim.emit({ type: 'brood-moved', broodId: b.id, fromChamber: bbv(ant, 'bn.from'), toChamber: b.chamberId, reason: 'sort' });
     ant.bb[PICKED] = 0;
     // a hungry larva carried to a better chamber is fed there at once if the crop allows
-    if (bbv(ant, FEED_AFTER, 0) === 1 && b.stage === 'larva' && wantsFeed(b, def(sim, ant)) && crop(ant) >= CROP_MIN_FEED) {
+    if (bbv(ant, FEED_AFTER, 0) === 1 && b.stage === 'larva' && wantsFeed(b, def(sim, ant)) && crop(ant) >= feedMin(ant)) {
       ant.bb[FEED_AFTER] = 0;
       claim(sim, ant, Job.feed, b.id);
       setState(sim, ant, 'nurse.feed', 'job:feed');

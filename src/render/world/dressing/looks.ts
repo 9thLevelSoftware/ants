@@ -42,6 +42,8 @@ const colour = (c: Rgb, rough: number, wear = 0, detail = 0.35): PrimLook => ({ 
 const metal = (c: Rgb, rough: number, wear = 0, detail = 0.25): PrimLook => ({ color: c, look: [FINISH.metal, wear, rough, detail] });
 const paint = (c: Rgb, wear = 0.06): PrimLook => ({ color: c, look: [FINISH.clearcoat, wear, 0.32, 0.12] });
 const glass = (c: Rgb = PALETTE.darkGlass): PrimLook => ({ color: c, look: [FINISH.glass, 0, 0.04, 0.1] });
+const moulded = (c: Rgb, rough: number, wear = 0.05, detail = 0.3): PrimLook => ({ color: c, look: [FINISH.moulded, wear, rough, detail] });
+const appliance = (c: Rgb): PrimLook => ({ color: c, look: [FINISH.appliance, 0.02, 0.2, 0.1] });
 const organic = (finish: number, c: Rgb, style: number, transl: number, seed: number): PrimLook => ({ color: c, look: [finish, style, transl, seed] });
 
 /** Thin in its local Y compared to the other two axes (leaves, lids, mats). */
@@ -95,19 +97,20 @@ function templateLook(o: LookObject, p: Primitive): PrimLook | null {
     case 'gully-grate': case 'manhole-cover': return m === 'metal' ? metal(PALETTE.castIron, 0.75, 0.35, 0.8) : null;
     case 'linear-drain': return m === 'metal' ? metal(PALETTE.galvanised, 0.55, 0.1, 0.6) : null;
     case 'bench': case 'picnic-table': case 'swing-frame': return m === 'metal' ? colour(PALETTE.blackPaint, 0.45, 0.2) : null;
-    case 'litter-bin': return m === 'plastic' ? colour(PALETTE.greenPaint, 0.5, 0.1) : m === 'metal' ? metal(PALETTE.galvanised, 0.55, 0.1, 0.6) : null;
+    case 'litter-bin': return m === 'plastic' ? moulded(PALETTE.greenPaint, 0.5, 0.1) : m === 'metal' ? metal(PALETTE.galvanised, 0.55, 0.1, 0.6) : null;
     case 'slide': case 'spring-rider': return m === 'metal' ? metal(PALETTE.stainless, 0.2, 0, 0.15) : m === 'plastic' ? colour(pick(PALETTE.toyPlastic, id), 0.35) : null;
-    case 'fridge': case 'washer': return m === 'metal' ? colour(PALETTE.enamel, 0.2, 0.02, 0.1) : colour(PALETTE.pipeBlack, 0.5);
+    case 'fridge': case 'washer': case 'washing-machine': return m === 'metal' ? (box ? appliance(PALETTE.enamel) : colour(PALETTE.enamel, 0.2, 0.02, 0.1)) : colour(PALETTE.pipeBlack, 0.5);
     case 'cooker':
       if (m !== 'metal') return colour(PALETTE.pipeBlack, 0.5);
-      return p.flags & PrimFlag.SLIPPERY ? glass(PALETTE.hobGlass) : colour(PALETTE.enamel, 0.22, 0.03, 0.1);
+      return p.flags & PrimFlag.SLIPPERY ? glass(PALETTE.hobGlass) : box ? appliance(PALETTE.enamel) : colour(PALETTE.enamel, 0.22, 0.03, 0.1);
     case 'sink': return m === 'metal' ? metal(PALETTE.stainless, 0.22, 0, 0.3) : null;
     case 'chair': return m === 'metal' ? (box ? colour(pick(PALETTE.chairPaint, id), 0.4, 0.05) : metal(PALETTE.chrome, 0.1, 0, 0.1)) : null;
-    case 'pedal-bin': return m === 'metal' ? metal(PALETTE.stainless, 0.28, 0, 0.4) : m === 'plastic' ? colour(pick(PALETTE.binLid, id), 0.35) : null;
+    case 'pedal-bin': return m === 'metal' ? metal(PALETTE.stainless, 0.28, 0, 0.4) : m === 'plastic' ? moulded(pick(PALETTE.binLid, id), 0.35) : null;
     case 'pet-bowl-pair': return m === 'metal' ? metal(PALETTE.stainless, 0.12, 0, 0.15) : m === 'rubber' ? colour(pick(PALETTE.mat, id), 0.8, 0, 0.8) : null;
-    case 'toy-bucket': case 'toy-spade': case 'lost-ball': return m === 'plastic' || m === 'rubber' ? colour(pick(PALETTE.toyPlastic, id, p.id % 2), 0.32, 0.05, 0.2) : null;
-    case 'plant-pot': case 'houseplant': return m === 'plastic' ? colour(pick(PALETTE.potPlastic, id), 0.5, 0.05) : null;
-    case 'water-butt': case 'compost-bin': return m === 'plastic' ? colour(PALETTE.butGreen, 0.55, 0.05) : null;
+    case 'toy-bucket': return m === 'plastic' ? moulded(pick(PALETTE.toyPlastic, id, p.id % 2), 0.32, 0.05, 0.2) : null;
+    case 'toy-spade': case 'lost-ball': return m === 'plastic' || m === 'rubber' ? colour(pick(PALETTE.toyPlastic, id, p.id % 2), 0.32, 0.05, 0.2) : null;
+    case 'plant-pot': case 'houseplant': return m === 'plastic' ? moulded(pick(PALETTE.potPlastic, id), 0.5, 0.05) : null;
+    case 'water-butt': case 'compost-bin': return m === 'plastic' ? moulded(PALETTE.butGreen, 0.55, 0.05) : null;
     case 'downpipe': return m === 'plastic' ? colour(PALETTE.pipeBlack, 0.35) : null;
     case 'service-pipe': return m === 'plastic' ? colour(PALETTE.pipeGrey, 0.4) : null;
     case 'countertop': return m === 'plastic' ? colour(PALETTE.laminate, 0.3, 0, 0.5) : null;

@@ -5,11 +5,10 @@
 export { foundingSystem, runFounding } from './system';
 export { foundingCommandHandlers } from './commands';
 export { foundingView, foundingBites, foundingPhaseAgeGd, type FoundingView } from './view';
-export { assessSite, coverAt, footTrafficAt, deepMoisture, type SiteReading } from './siteAssess';
-export {
-  coverFactor, diggabilityFactor, exposureFactor, factorWord, floodSafetyFactor, moistureFactor, rivalScentFactor,
-  siteProfile, siteQuality, siteWordOf, warmthFactor, type CoverKind,
-} from './siteScore';
+export { assessSite, coverLevelAt, footTrafficAt, deepMoisture, topsoilMoisture, type SiteReading } from './siteAssess';
+export { factorWord, mapFactorsOf, siteProfile, siteQuality, siteWordOf, toptOf } from './siteScore';
+/** The static map's moisture window factor (the read-out's moisture bar). */
+export { moistFactor as moistureFactor } from '@/worldgen/maps/suitability';
 export {
   colonyBaseHazardPerGd, devTimeGd, forecast, forecastReserves, foundingMu, modelStats, runModel,
   type Forecast, type ModelParams, type ModelRun, type ModelStats,

@@ -4,13 +4,14 @@
 // are other tasks'), replacing the dead from the nest. Measures counts against caps, quiet share, predation.
 // Test support only (not used by the game).
 
-import type { Ant, CreatureKind, Sim, System } from '@/sim/types';
+import type { Ant, CreatureKind, DifficultyId, Sim, System } from '@/sim/types';
+import { DIFFICULTY_PARAMS } from '@/sim/balance/difficulty';
 import { rngFork, rngFloat, rngRange } from '@/core/rng';
 import { makeTestSim } from '@/sim/testing';
 import { spawnBrood } from '@/sim/entities';
 import { locomotionSystem, navStop, navWander, placeOnSurface } from '@/sim/locomotion';
-import { CREATURE_AGENT_CAP } from '@/sim/balance/creatures';
-import { TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
+import { ANTLION_REBUILD_S, CREATURE_AGENT_CAP, FEED_S } from '@/sim/balance/creatures';
+import { SECONDS_PER_DAY, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { creatureDirectorSystem, creatureSystem, capOf, quietTracker } from './index';
 import { conditions } from './conditions';
 import { addHerd, installFakeCombat, setClock } from './testkit';
@@ -36,7 +37,31 @@ export interface SoakResult {
   hits: number;
   /** Strike hits per predator kind. */
   hitsByKind: Record<string, number>;
+  /** Predation / antlion / bird deaths attributed to the killer's kind (last predator that struck the ant). */
+  killsByKind: Record<string, number>;
+  /** Highest kills of one kind in one game day, and the chapter bound for it (see predationBoundPerGd). */
+  maxKillsPerGdByKind: Record<string, number>;
+  boundPerGdByKind: Record<string, number>;
+  /** Most kills in one bird event (<= BIRD_MAX_KILLS x setting). */
+  maxBirdKills: number;
+  /** Forager-days outside (mean foragers out x days): predation per 100 forager-days is reported. */
+  foragerDays: number;
+  /** Hours of predator-near warnings among the counted hours (part of I11's loud hours). */
+  alertHours: number;
+  /** Lowest prey-patch count / K at the end of an active (not winter) day (I2: >= 0.05), null none checked. */
+  minPatchShare: number | null;
   insideSolid: number;
+}
+
+/**
+ * Chapter bound of ant kills per game day for one predator kind (GDD 05 §2.2b): every kill is followed by its
+ * feeding time (FEED_S; antlion also its 300 s rebuild), so the kind's live cap x the seconds it is active per day /
+ * (feed + rebuild) bounds it. Centipedes and rove beetles are out only at night or dusk (half a day, generous).
+ */
+export function predationBoundPerGd(kind: CreatureKind, cap: number): number {
+  const feed = (FEED_S[kind] ?? 60) + (kind === 'antlion' ? ANTLION_REBUILD_S : 0);
+  const activeShare = kind === 'centipede' || kind === 'rove-beetle' ? 0.5 : 1;
+  return Math.ceil(cap * (SECONDS_PER_DAY * activeShare) / feed);
 }
 
 const FORAGERS_DAY = 60;
@@ -108,15 +133,17 @@ function forageDriver(d: Driver): System {
   };
 }
 
-/** Runs the soak for `days` game days (wall time is measured by the caller). */
-export function runSoak(days: number, seed: number): SoakResult {
-  const { restore } = installFakeCombat();
+/** Runs the soak for `days` game days on a difficulty preset (wall time is measured by the caller). */
+export function runSoak(days: number, seed: number, preset: DifficultyId = 'naturalist'): SoakResult {
+  const { restore } = installFakeCombat({ realAlerts: true });
   try {
     const d: Driver = { foragers: [], rng: rngFork(seed, 'soak-foragers') };
     const sim = makeTestSim({
       seed, sizeBu: 400, terrain: 'noise', prims: 14, features: ['stone', 'wall'], nest: 'small', workers: 300,
       systems: [forageDriver(d), creatureDirectorSystem, creatureSystem, locomotionSystem],
     });
+    sim.state.config.difficulty.preset = preset;
+    sim.state.config.difficulty.params = { ...DIFFICULTY_PARAMS[preset] };
     return soakOn(sim, days);
   } finally {
     restore();
@@ -138,7 +165,22 @@ function soakOn(sim: Sim, days: number): SoakResult {
   }
   const r: SoakResult = {
     days, ticks: 0, maxCount: {}, capViolations: [], maxTotal: 0, deaths: {}, deathsPerGd: [], minWindowShare: null,
-    windows: 0, threats: 0, birdEvents: 0, invasions: 0, telegraphs: 0, strikes: 0, hits: 0, hitsByKind: {}, insideSolid: 0,
+    windows: 0, threats: 0, birdEvents: 0, invasions: 0, telegraphs: 0, strikes: 0, hits: 0, hitsByKind: {}, killsByKind: {},
+    maxKillsPerGdByKind: {}, boundPerGdByKind: {}, maxBirdKills: 0, foragerDays: 0, alertHours: 0, minPatchShare: null,
+    insideSolid: 0,
+  };
+  const lastStriker = new Map<number, string>();
+  const dayKills: Record<string, number>[] = [];
+  let surfaceSamples = 0, surfaceSum = 0;
+  const pendingDeaths: { antId: number; cause: string; day: number }[] = [];
+  const attribute = () => {
+    for (const d of pendingDeaths) {
+      const k = d.cause === 'predation' ? lastStriker.get(d.antId) ?? 'unknown' : d.cause;
+      r.killsByKind[k] = (r.killsByKind[k] ?? 0) + 1;
+      const dk = (dayKills[d.day] ??= {});
+      dk[k] = (dk[k] ?? 0) + 1;
+    }
+    pendingDeaths.length = 0;
   };
   const dayDeaths: number[] = [];
   sim.events.on('ant-died', (ev) => {
@@ -146,9 +188,12 @@ function soakOn(sim: Sim, days: number): SoakResult {
       r.deaths[ev.cause] = (r.deaths[ev.cause] ?? 0) + 1;
       const day = Math.floor(sim.state.tick / TICKS_PER_DAY);
       dayDeaths[day] = (dayDeaths[day] ?? 0) + 1;
+      // the killing strike's event follows the death in the same flush: attribute after the tick
+      pendingDeaths.push({ antId: ev.antId, cause: ev.cause, day });
     }
   });
   sim.events.on('bird-landed', () => { r.birdEvents++; });
+  sim.events.on('bird-left', (ev) => { r.maxBirdKills = Math.max(r.maxBirdKills, ev.kills); });
   sim.events.on('predator-telegraph', () => { r.telegraphs++; });
   sim.events.on('predator-strike', (ev) => {
     r.strikes++;
@@ -156,12 +201,18 @@ function soakOn(sim: Sim, days: number): SoakResult {
     r.hits++;
     const k = sim.stores.creatures.get(ev.creatureId)?.kind ?? 'gone';
     r.hitsByKind[k] = (r.hitsByKind[k] ?? 0) + 1;
+    lastStriker.set(ev.targetId, k);
   });
   const codes: number[] = [];
   let lastTotal = 0;
+  let hourAlert = 0;
   const end = Math.round(days * TICKS_PER_DAY);
   for (let t = 0; t < end; t++) {
     sim.tick();
+    if (pendingDeaths.length > 0) attribute();
+    if (sim.state.tick % TICKS_PER_DAY === TICKS_PER_DAY - 1 && !conditions(sim).winter) {
+      for (const p of sim.state.ecology.preyPatches) if (p.k > 0) r.minPatchShare = Math.min(r.minPatchShare ?? 1, p.count / p.k);
+    }
     if (sim.state.rivals.threatDirector.activeKind === 'centipede-invasion' && t % TICKS_PER_HOUR === 0) r.invasions++;
     if (t % 50 === 49) {
       let total = 0;
@@ -180,11 +231,20 @@ function soakOn(sim: Sim, days: number): SoakResult {
       r.maxTotal = Math.max(r.maxTotal, total);
       if (total > CREATURE_AGENT_CAP) r.capViolations.push(`total ${total}`);
     }
-    if (t % 200 === 0) for (const c of sim.stores.creatures.list) if (c.alive && sim.field.sample(c.pos) < -0.5) r.insideSolid++;
+    if (t % 200 === 0) {
+      for (const c of sim.stores.creatures.list) if (c.alive && sim.field.sample(c.pos) < -0.5) r.insideSolid++;
+      let out = 0;
+      for (const a of sim.stores.ants.list) if (a.alive && a.task === 'forage') out++; // the driver's ants outside
+      surfaceSum += out; surfaceSamples++;
+    }
     const q = quietTracker(sim);
+    if (q.curSamples > 0 && t % 10 === 0 && sim.state.progression.alerts.some((a) => a.kind === 'predator-near')) hourAlert = 1;
     if (q.total !== lastTotal) {
       lastTotal = q.total;
-      codes.push(q.hours[(q.head - 1 + q.hours.length) % q.hours.length]);
+      const code = q.hours[(q.head - 1 + q.hours.length) % q.hours.length];
+      codes.push(code);
+      if (code >= 0 && hourAlert) r.alertHours++;
+      hourAlert = 0;
     }
   }
   // every trailing 3-GD window (72 clock hours) of counted hours
@@ -198,5 +258,12 @@ function soakOn(sim: Sim, days: number): SoakResult {
   r.threats = quietTracker(sim).threats;
   r.ticks = end;
   r.deathsPerGd = Array.from({ length: Math.ceil(days) }, (_, i) => dayDeaths[i] ?? 0);
+  for (const dk of dayKills) for (const [k, n] of Object.entries(dk ?? {})) r.maxKillsPerGdByKind[k] = Math.max(r.maxKillsPerGdByKind[k] ?? 0, n);
+  for (const k of Object.keys(r.maxKillsPerGdByKind)) {
+    if (k === 'bird' || k === 'unknown') continue;
+    const kind = k === 'antlion' ? 'antlion' : (k as CreatureKind);
+    r.boundPerGdByKind[k] = predationBoundPerGd(kind, Math.max(r.maxCount[k] ?? 0, capOf(sim, kind)));
+  }
+  r.foragerDays = surfaceSamples > 0 ? (surfaceSum / surfaceSamples) * days : 0;
   return r;
 }

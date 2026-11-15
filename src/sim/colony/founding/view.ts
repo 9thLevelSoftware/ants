@@ -11,7 +11,7 @@ import { failCauseOf } from './failure';
 import { undoRefusal } from './commands';
 import { lapseCounters } from './lapse';
 import { readoutActive } from './readout';
-import { factorWord, siteProfile } from './siteScore';
+import { factorWord, toptOf } from './siteScore';
 
 export interface FoundingView {
   phase: OpeningPhase;
@@ -48,7 +48,7 @@ export function foundingView(sim: Sim): FoundingView | null {
   const nest = foundingNest(sim);
   const f = q?.queen?.founding ?? null;
   const def = speciesOf(sim);
-  const prof = siteProfile(def.id as SpeciesId);
+  const topt = toptOf(def.id as SpeciesId);
   const rawOf = (id: string): number | undefined => {
     const key = id === 'moisture' ? FB.siteTheta : id === 'warmth' ? FB.siteTempC : null;
     const v = key && q ? q.bb[key] : undefined;
@@ -57,7 +57,7 @@ export function foundingView(sim: Sim): FoundingView | null {
   const showSite = op.siteFactors.length === SITE_FACTORS.length && (op.siteWord !== null || op.siteQ > 0);
   const site = showSite ? {
     active: op.phase === 'search' ? (q ? readoutActive(sim, q) : false) : op.phase === 'dig',
-    factors: SITE_FACTORS.map((id, i) => ({ id, value: op.siteFactors[i] ?? 0, word: factorWord(id, op.siteFactors[i] ?? 0, rawOf(id), prof.toptC) })),
+    factors: SITE_FACTORS.map((id, i) => ({ id, value: op.siteFactors[i] ?? 0, word: factorWord(id, op.siteFactors[i] ?? 0, rawOf(id), topt) })),
     q: op.siteQ, word: op.siteWord,
   } : null;
   let readiness: FoundingView['readiness'] = null;

@@ -33,7 +33,7 @@ export function proceduralPixels(look: ProceduralLook, size: number, seed: numbe
     scatter(h, shade, size, seed + 101, look.speckle, 1.0, 2.4, 'grain');
     scatter(h, shade, size, seed + 303, look.speckle * 0.25, 2.5, 5.0, 'grain');
   }
-  if (look.pores) scatter(h, shade, size, seed + 202, look.pores * 0.3, 0.7, 3.2, 'pore');
+  if (look.pores) scatter(h, shade, size, seed + 202, look.pores * 0.3, 0.6, 2.2, 'pore');
   const albedo = new Uint8Array(size * size * 4), normal = new Uint8Array(size * size * 4), rough = new Uint8Array(size * size * 4);
   const bump = look.bump * 6;
   for (let y = 0; y < size; y++) {
@@ -116,7 +116,8 @@ function scatter(h: Float32Array, shade: Float32Array, size: number, seed: numbe
     const r = rMin + (rMax - rMin) * hash(cx, cy, seed + 1);
     const px = (cx + 0.2 + 0.6 * hash(cx, cy, seed + 2)) * step, py = (cy + 0.2 + 0.6 * hash(cx, cy, seed + 3)) * step;
     // irregular grains: each one its own tone, elongation and orientation (uniform discs read as polka dots)
-    const tone = kind === 'pore' ? 0.55 : 0.78 + 0.44 * hash(cx, cy, seed + 4);
+    // pores are shallow, soft-edged pits (dark holes with a lit rim read as hammered metal: look-pass)
+    const tone = kind === 'pore' ? 0.74 : 0.8 + 0.36 * hash(cx, cy, seed + 4);
     const aspect = 0.55 + 0.45 * hash(cx, cy, seed + 5), ang = hash(cx, cy, seed + 6) * Math.PI;
     const ca = Math.cos(ang), sa = Math.sin(ang);
     const R = Math.ceil(r + 1);
@@ -128,7 +129,7 @@ function scatter(h: Float32Array, shade: Float32Array, size: number, seed: numbe
       if (d >= 1) continue;
       const x = (((Math.floor(px) + dx) % size) + size) % size, y = (((Math.floor(py) + dy) % size) + size) % size;
       const i = y * size + x, k = Math.sqrt(1 - d * d), edge = Math.min(1, (1 - d) * 3);
-      if (kind === 'pore') { h[i] -= 0.5 * k; shade[i] *= 1 - (1 - tone) * edge; }
+      if (kind === 'pore') { h[i] -= 0.28 * k; shade[i] *= 1 - (1 - tone) * edge; }
       else { h[i] = Math.max(h[i], 0.55 + 0.35 * k); shade[i] *= 1 + (tone - 1) * edge; }
     }
   }

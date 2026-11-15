@@ -25,7 +25,7 @@ const MARK = '<!-- verify-at-release -->';
 
 /** Every screen id of the design (GDD 01 §1.1, GDD 08 §3.1; registry B2). */
 const SCREEN_IDS = [
-  'boot', 'title', 'new-game', 'load', 'lineage', 'settings', 'codex', 'loading', 'credits', 'hud', 'pause',
+  'boot', 'unsupported', 'title', 'new-game', 'load', 'lineage', 'settings', 'codex', 'loading', 'credits', 'hud', 'pause',
   'directives', 'markers', 'colony-health', 'roster', 'nest', 'journal', 'save-load', 'photo', 'timelapse-founding',
   'timelapse-winter', 'epitaph',
 ];

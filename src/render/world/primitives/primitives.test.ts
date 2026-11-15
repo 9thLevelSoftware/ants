@@ -138,7 +138,7 @@ describe('PrimitiveRenderer dynamics (headless)', () => {
     const meshes = r.group.children.filter((c): c is InstanceType<typeof IM> => c instanceof IM && c.visible && c.count > 0);
     const metal = meshes.find((m) => m.name.includes('|metal|'))!, stone = meshes.find((m) => m.name.includes('|stone|'))!;
     const look = (m: InstanceType<typeof IM>) => Array.from((m.geometry.getAttribute('iLook').array as Float32Array).slice(0, 4));
-    expect(look(metal)[0]).toBe(FINISH.colour); // white enamel, not the rust scan
+    expect(look(metal)[0]).toBe(FINISH.appliance); // white enamel, not the rust scan
     expect(look(stone)).toEqual([0, 0, 0, 0]); // natural
     const c = Array.from((metal.instanceColor!.array as Float32Array).slice(0, 3));
     for (let k = 0; k < 3; k++) expect(Math.abs(c[k] - PALETTE.enamel[k])).toBeLessThan(PALETTE.enamel[k] * 0.07);

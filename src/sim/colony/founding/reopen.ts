@@ -1,16 +1,31 @@
 // The first workers reopen the plug (GDD 06 §5.13 (b), GDD 03 §13.2 `reopening`: "nanitics dig it"). The nest's
-// own `reopen` plan cannot be dug yet (its slot is placed straight below the opening along the vertical surface
-// normal, inside the soil beside a sloped throat, and seal/reopen plans carry no dig targets for the diggers'
-// aim), so the founding module asks the nest for an ordinary `entrance` plan instead: from the plug's inner face
-// (the open throat just below the plug, connected to the cell) up to the old opening. The workers' own dig
-// behaviour claims it, bites through the loose plug and the entrance opens again (event `founding-reopened`).
-// The plan uses the nest module's public createPlan with source `founding`; nothing is scripted on the workers.
+// own `reopen` plan cannot be dug yet (no behaviour runs `unseal-entrance` for it, and its slot is placed straight
+// below the opening along the vertical surface normal, inside the soil beside a sloped throat), so the founding
+// module asks the nest for ordinary dig plans instead (public createPlan, source `founding`); the workers' own dig
+// behaviour claims them and bites through the loose plug. Nothing is scripted on the workers.
+//
+// One plan is not always enough: a 2 BU shaft through a plug laid into a 2.5 BU throat leaves a rim of plug voxels,
+// and the nest keeps an entrance with plug voxels left in its throat `sealing` (GDD 03 §4.2), which no forager uses
+// as an exit. So after the hand-over `reopenTick` keeps one founding plan at a time going: the passage first, then
+// a short plan through each plug remnant, until the entrance is `open` (see reopenTick for how long it watches).
+// Plug samples the fill left above the ground surface cannot be dug at all (`clearGhosts`, a local adapter).
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Entrance, Nest, Sim } from '@/sim/types';
-import { REOPEN_FACE_INSIDE_BU, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_PLAN_PRIORITY } from '@/sim/balance/founding';
-import { createPlan } from '@/sim/nest';
+import type { DigPlan, Entrance, Nest, Sim } from '@/sim/types';
+import { VoxelFlag } from '@/sim/types';
+import { THROAT_BU } from '@/sim/balance/nest';
+import {
+  REOPEN_CHECK_TICKS, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
+  REOPEN_GHOST_BITES, REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD, REOPEN_REMNANT_REACH_BU,
+} from '@/sim/balance/founding';
+import { cancelPlan, createPlan, unsealEntrance, voxelAt } from '@/sim/nest';
+import { TICKS_PER_DAY } from '@/sim/time';
+import { foundingNest, openingOf } from './access';
 import { cavityEntrances } from './dig';
+
+/** Carve-grid iso level (design seed §4: openness 0 solid .. 255 open, iso 127.5): above it a sample is open. */
+const CARVE_ISO = 127.5;
+const UP = { x: 0, y: 1, z: 0 };
 
 /** The cell the opening was founded in (its centre is in the cavity's nav component). */
 function cellCentre(nest: Nest): Vec3 | null {
@@ -19,23 +34,23 @@ function cellCentre(nest: Nest): Vec3 | null {
 }
 
 /**
- * The plug's inner face: the open point nearest to the opening (within REOPEN_FACE_SEARCH_BU) that lies in the
- * cell's cavity, carved space well inside the soil (not the open air above the plug), or null when none does.
+ * The open point nearest to `from` (within `radius`, at or below `from` when `belowOnly`) that lies in the cell's
+ * cavity: carved space well inside the soil (not the open air above the plug), connected to the cell.
  */
-export function plugInnerFace(sim: Sim, nest: Nest, e: Entrance): Vec3 | null {
+function cavityPointNear(sim: Sim, nest: Nest, from: Vec3, radius: number, belowOnly: boolean): Vec3 | null {
   const centre = cellCentre(nest);
   if (!centre) return null;
   const comp = sim.nestNav.componentAt(centre);
   if (comp < 0) return null;
-  const bu = sim.world.bu, r = REOPEN_FACE_SEARCH_BU * bu, step = REOPEN_FACE_STEP_BU * bu, inside = REOPEN_FACE_INSIDE_BU * bu;
+  const bu = sim.world.bu, step = REOPEN_FACE_STEP_BU * bu, inside = REOPEN_FACE_INSIDE_BU * bu;
   const p = { x: 0, y: 0, z: 0 };
   let best: Vec3 | null = null, bestD = Infinity;
-  for (let dy = -r; dy <= 0; dy += step) {
-    for (let dz = -r; dz <= r; dz += step) {
-      for (let dx = -r; dx <= r; dx += step) {
+  for (let dy = -radius; dy <= (belowOnly ? 0 : radius); dy += step) {
+    for (let dz = -radius; dz <= radius; dz += step) {
+      for (let dx = -radius; dx <= radius; dx += step) {
         const d = Math.hypot(dx, dy, dz);
-        if (d > r || d >= bestD) continue;
-        p.x = e.pos.x + dx; p.y = e.pos.y + dy; p.z = e.pos.z + dz;
+        if (d > radius || d >= bestD) continue;
+        p.x = from.x + dx; p.y = from.y + dy; p.z = from.z + dz;
         if (sim.field.sample(p) <= 0 || sim.field.substrate(p) > -inside || sim.nestNav.componentAt(p) !== comp) continue;
         best = { x: p.x, y: p.y, z: p.z };
         bestD = d;
@@ -45,21 +60,144 @@ export function plugInnerFace(sim: Sim, nest: Nest, e: Entrance): Vec3 | null {
   return best;
 }
 
+/** The plug's inner face: the cavity point nearest to the opening (within REOPEN_FACE_SEARCH_BU, not above it). */
+export function plugInnerFace(sim: Sim, nest: Nest, e: Entrance): Vec3 | null {
+  return cavityPointNear(sim, nest, e.pos, REOPEN_FACE_SEARCH_BU * sim.world.bu, true);
+}
+
 /**
- * Asks the nest for the reopening dig of every plugged entrance of the founding cavity; returns the plan ids
- * created (an entrance whose inner face cannot be found, or whose plan the nest refuses, is reported by the
- * `opening.reopen-refused` diagnostic event).
+ * Closed plug voxels left in the throat of e (the nest's throat sphere), nearest to the opening first. `soil`: the
+ * ones inside the ground, which a dig can remove; `ghost`: carve samples at or above the ground surface (the plug
+ * fill reached them), already free space in the field, so no dig bite finds anything there, yet the nest still
+ * counts them as plug (nest defect, see the founding report).
+ */
+export function plugRemnants(sim: Sim, e: Entrance, which: 'soil' | 'ghost' | 'all' = 'all'): Vec3[] {
+  const v = sim.carve.voxel, R = e.radius + THROAT_BU * sim.world.bu;
+  const out: Vec3[] = [];
+  const p = { x: 0, y: 0, z: 0 };
+  const i0 = Math.floor((e.pos.x - R) / v), i1 = Math.ceil((e.pos.x + R) / v);
+  const j0 = Math.floor((e.pos.y - R) / v), j1 = Math.ceil((e.pos.y + R) / v);
+  const k0 = Math.floor((e.pos.z - R) / v), k1 = Math.ceil((e.pos.z + R) / v);
+  for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    p.x = i * v; p.y = j * v; p.z = k * v;
+    if ((p.x - e.pos.x) ** 2 + (p.y - e.pos.y) ** 2 + (p.z - e.pos.z) ** 2 > R * R) continue;
+    const s = voxelAt(sim, p);
+    if ((s.flags & VoxelFlag.PLUG) === 0 || s.open >= CARVE_ISO) continue;
+    const ghost = sim.field.substrate(p) >= 0;
+    if (which === 'all' || (which === 'ghost') === ghost) out.push({ x: p.x, y: p.y, z: p.z });
+  }
+  const d = (q: Vec3) => (q.x - e.pos.x) ** 2 + (q.y - e.pos.y) ** 2 + (q.z - e.pos.z) ** 2;
+  return out.sort((a, b) => d(a) - d(b));
+}
+
+/** A founding shaft plan from the cavity point `from` to `to` (extended REOPEN_PAST_BU beyond it); plan id or -1. */
+function shaftPlan(sim: Sim, nest: Nest, from: Vec3, to: Vec3): number {
+  const bu = sim.world.bu;
+  const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z, len = Math.hypot(dx, dy, dz);
+  const k = len > 1e-6 ? (REOPEN_PAST_BU * bu) / len : 0;
+  const end = { x: to.x + dx * k, y: to.y + dy * k, z: to.z + dz * k };
+  return createPlan(sim, {
+    nestId: nest.id, kind: 'shaft', anchor: { pos: from, normal: UP }, end, priority: REOPEN_PLAN_PRIORITY, confirmWarnings: true,
+  }, 'founding');
+}
+
+/** The dig through the plug of one entrance: the passage from the inner face up to the opening; plan id or -1. */
+function passagePlan(sim: Sim, nest: Nest, e: Entrance): number {
+  const face = plugInnerFace(sim, nest, e);
+  return face ? shaftPlan(sim, nest, face, e.pos) : -1;
+}
+
+/** A short dig through the plug remnant nearest the opening that a plan can reach from the cavity; plan id or -1. */
+function remnantPlan(sim: Sim, nest: Nest, e: Entrance): number {
+  const reach = REOPEN_REMNANT_REACH_BU * sim.world.bu;
+  for (const r of plugRemnants(sim, e, 'soil')) {
+    const from = cavityPointNear(sim, nest, r, reach, false);
+    if (!from) continue;
+    const id = shaftPlan(sim, nest, from, r);
+    if (id >= 0) return id;
+  }
+  return -1;
+}
+
+/** Plugged entrances of the founding cavity (not yet `open`). */
+function pluggedEntrances(sim: Sim, nest: Nest): Entrance[] {
+  return cavityEntrances(sim, nest).filter((e) => e.status !== 'open');
+}
+
+/**
+ * Asks the nest for the reopening dig of every plugged entrance of the founding cavity (at hand-over); returns the
+ * plan ids created.
  */
 export function requestReopen(sim: Sim, nest: Nest): number[] {
   const ids: number[] = [];
-  for (const e of cavityEntrances(sim, nest)) {
-    if (e.status !== 'sealed' && e.status !== 'sealing' && e.status !== 'reopening') continue;
-    const face = plugInnerFace(sim, nest, e);
-    const id = face ? createPlan(sim, {
-      nestId: nest.id, kind: 'shaft', anchor: { pos: face, normal: { x: 0, y: 1, z: 0 } }, end: { ...e.pos },
-      priority: REOPEN_PLAN_PRIORITY, confirmWarnings: true,
-    }, 'founding') : -1;
+  for (const e of pluggedEntrances(sim, nest)) {
+    const id = passagePlan(sim, nest, e);
     if (id >= 0) ids.push(id);
   }
   return ids;
+}
+
+/**
+ * Local adapter for the nest defect above: the ghost plug samples are cleared with the nest's own unplugging
+ * function (`unsealEntrance`, the `unseal-entrance` effect: it opens only plug voxels), at most
+ * REOPEN_GHOST_BITES times. Ghosts lie in free space, so the walkable world does not change; only the nest's
+ * plug count does. Called only when no remnant is left inside the soil. True when some were cleared.
+ */
+function clearGhosts(sim: Sim, e: Entrance): boolean {
+  let cleared = false;
+  for (let n = 0; n < REOPEN_GHOST_BITES && plugRemnants(sim, e, 'ghost').length > 0; n++) {
+    unsealEntrance(sim, e.id, -1);
+    cleared = true;
+  }
+  return cleared;
+}
+
+const live = (p: DigPlan) => p.status !== 'complete' && p.status !== 'cancelled';
+
+function livePlan(nest: Nest, test: (source: string, kind: string) => boolean): boolean {
+  return nest.digPlans.some((p) => live(p) && test(p.source, p.kind));
+}
+
+/** Cancels founding plans that have been live longer than REOPEN_PLAN_STALL_GD (nobody could dig them). */
+function cancelStalled(sim: Sim, nest: Nest): void {
+  const limit = REOPEN_PLAN_STALL_GD * TICKS_PER_DAY;
+  for (const p of nest.digPlans) {
+    if (p.source === 'founding' && live(p) && sim.state.tick - p.createdTick > limit) cancelPlan(sim, p.id, 'stalled');
+  }
+}
+
+/** Somebody is closing an entrance on purpose: a `seal` plan, or an ant of the colony tamping a plug now. */
+function sealingOnPurpose(sim: Sim, nest: Nest): boolean {
+  if (livePlan(nest, (_s, kind) => kind === 'seal')) return true;
+  for (const a of sim.stores.ants.list) if (a.alive && a.colony === nest.colony && a.action?.id === 'seal-entrance') return true;
+  return false;
+}
+
+/**
+ * After the hand-over, while every entrance of the founding cavity is closed: whenever no founding plan is left,
+ * asks for the next one. A throat with a passage but plug voxels left in it (`sealing`: the rim of the old plug,
+ * or loose soil later tamped onto stale plug voxels) gets a plan through the remnant nearest the opening, at any
+ * time; a throat with no passage gets the passage plan for REOPEN_MAX_GD after the hand-over (later a closed nest
+ * is the colony's own business, e.g. sealing for winter). Nothing is done while the colony seals on purpose.
+ * Runs every REOPEN_CHECK_TICKS; returns the plan created, or -1.
+ */
+export function reopenTick(sim: Sim): number {
+  const op = openingOf(sim);
+  if (!op || (op.phase !== 'handover' && op.phase !== 'done') || !op.lapse || op.lapse.endTick < 0) return -1;
+  const since = sim.state.tick - op.lapse.endTick;
+  if (since <= 0 || since % REOPEN_CHECK_TICKS !== 0) return -1;
+  const nest = foundingNest(sim);
+  if (!nest) return -1;
+  cancelStalled(sim, nest);
+  if (livePlan(nest, (source) => source === 'founding')) return -1;
+  const mine = cavityEntrances(sim, nest);
+  if (mine.length === 0 || mine.some((e) => e.status === 'open') || sealingOnPurpose(sim, nest)) return -1;
+  const early = since <= REOPEN_MAX_GD * TICKS_PER_DAY;
+  for (const e of mine) {
+    const remnant = e.status === 'sealing' && e.plugVoxelCount > 0;
+    const id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
+    if (id >= 0) return id;
+    if (remnant && plugRemnants(sim, e, 'soil').length === 0) clearGhosts(sim, e);
+  }
+  return -1;
 }

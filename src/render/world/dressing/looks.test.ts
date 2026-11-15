@@ -46,6 +46,15 @@ describe('man-made looks', () => {
     expect(primLook(prim('glass'), obj('window')).look[0]).toBe(FINISH.glass);
   });
 
+  it('moulded plastics carry moulding ribs; white goods get a ventilated plinth; no finish is rust', () => {
+    for (const t of ['water-butt', 'compost-bin', 'plant-pot', 'litter-bin', 'toy-bucket', 'pedal-bin']) {
+      expect(primLook(prim('plastic', 'cylinder'), obj(t)).look[0], t).toBe(FINISH.moulded);
+    }
+    expect(primLook(prim('metal', 'box'), obj('fridge')).look[0]).toBe(FINISH.appliance);
+    expect(primLook(prim('metal', 'box'), obj('cooker')).look[0]).toBe(FINISH.appliance);
+    expect(primLook(prim('metal', 'cylinder'), obj('fridge')).look[0]).toBe(FINISH.colour); // handles, feet
+  });
+
   it('toys are bright plastics, hoses green rubber, tyres black', () => {
     const toy = primLook(prim('plastic'), obj('toy-bucket', 5));
     expect(PALETTE.toyPlastic).toContainEqual(toy.color);

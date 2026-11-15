@@ -48,20 +48,34 @@ export const INTERIOR_VARIANT: Record<string, FoodVariant> = {
 export const ANCHOR_SURFACE_TOL_MM = 0.25;
 
 /**
- * Economy floors (registry C13, Lasius summer): what the Tier 1 food set offers over one game day within a path
- * radius of the start (stock + one day of renewal + expected carrion drops). N 50 at 300 BU: T1 "2 flowers, sugar
- * and crumbs (~15 C), boosted carcasses and crumb-protein (~5-15 P)"; N 300 at 900 BU: "45-60 C and 25-40 P".
+ * Economy floors (registry C13, Lasius summer, loads per game day): the renewable daily supply of the Tier 1 food
+ * set within a path radius of the start (pool refill + the T1 crumb re-placement + expected carrion drops; no
+ * one-time stock). N 50 at 300 BU: T1 "2 flowers, sugar and crumbs (~15 C), boosted carcasses and crumb-protein
+ * (~5-15 P)"; N 300 at 900 BU: "45-60 C and 25-40 P".
  */
 export const ECONOMY_FLOORS: readonly { colony: number; radiusBu: number; c: number; p: number }[] = [
   { colony: 50, radiusBu: 300, c: 15, p: 5 },
   { colony: 300, radiusBu: 900, c: 45, p: 25 },
 ];
 
-/** GDD 05 §1.3 validation: every good-or-better site has >= 2 carbohydrate sources within 400 BU. */
-export const SITE_FOOD = { radiusBu: 400, carbMin: 2, mapShareMin: 0.75 };
+/**
+ * GDD 05 §1.3 validation: every good-or-better site has >= 2 carbohydrate sources within 400 BU (enforced for the
+ * sites near the start; topped up with flowers and measured map-wide, see finalize.ts).
+ */
+export const SITE_FOOD = { radiusBu: 400, carbMin: 2 };
 
 /** Top-up of food near the start when a floor is missed: flowers first, then crumb clusters, BU. */
-export const TOP_UP = { minBu: 60, maxBu: 280, tries: 40 };
+export const TOP_UP = { minBu: 60, maxBu: 280, tries: 40, siteCrumbMax: 6 };
+
+/**
+ * Zones a guarantee top-up may put a ground variant in: where the T1 crumb rows of GDD 05 §1.3 place clusters
+ * (crumb-protein goes where the starch clusters are, §1.2), outdoors only (the start is outdoors). Never forest or
+ * garden beds: there the design places no crumbs.
+ */
+export function topUpZones(v: FoodVariant): readonly ZoneType[] {
+  if (v !== 'crumb-starch' && v !== 'crumb-protein') return [];
+  return (Object.keys(NODE_DENSITY.crumb.perPlot) as ZoneType[]).filter((z) => z !== 'interior' && (NODE_DENSITY.crumb.perPlot[z] ?? 0) > 0);
+}
 
 // ---- creature territories (GDD 04 §8.2, GDD 05 §2.2) ----
 
@@ -134,8 +148,6 @@ export const INCIPIENT = { minBu: 300, maxBu: 800, preferMinBu: 550, nestSpacing
 export const INCIPIENT_FALLBACK_ZONES: readonly ZoneType[] = ['forest', 'lawn', 'garden-bed'];
 /** At most one Formica-type colony (GDD 05 §3.1). */
 export const SINGLE_ROSTER: readonly RivalSpeciesId[] = ['formica-rufa'];
-/** Pre-carve chunks a rival nest template may need (GDD 04 App. F 7: <= 30 per nest), reserved in the budget. */
-export const RIVAL_NEST_CHUNKS = 30;
 
 // ---- micro-connection guarantee (GDD 04 §6.3 steps 3-4) ----
 

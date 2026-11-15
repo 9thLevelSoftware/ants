@@ -36,6 +36,11 @@ export interface LightingState {
   exposureEV: number;
   saturation: number;
   gain: [number, number, number];
+  /**
+   * Camera-side fill underground (GDD 08 11.5 "sense light" on the ants; the nest walls light themselves): intensity
+   * of a soft warm light from the camera toward the subject, 0 on the surface.
+   */
+  fillIntensity: number;
 }
 
 export interface LightingInput {
@@ -68,7 +73,7 @@ export function createLightingState(): LightingState {
     keyDir: new Vector3(0, 1, 0), keyColor: new Color(1, 1, 1), keyIntensity: SUN_INTENSITY, moonlit: false, penumbra: 1,
     hemiSky: new Color(), hemiGround: new Color(), hemiIntensity: 0.5, envIntensity: ENV_INTENSITY,
     skyZenith: new Color(), skyHorizon: new Color(), skyGround: new Color(), sunGlow: 0, sunDisc: 0, stars: 0, overcast: 0,
-    sunDir: new Vector3(0, 1, 0), fogColor: new Color(), fogDensity: 0, exposureEV: 0, saturation: 1, gain: [1, 1, 1],
+    sunDir: new Vector3(0, 1, 0), fogColor: new Color(), fogDensity: 0, exposureEV: 0, saturation: 1, gain: [1, 1, 1], fillIntensity: 0,
   };
 }
 
@@ -202,6 +207,7 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
     out.fogDensity = lerp(out.fogDensity, ugDensity, u);
     out.exposureEV = lerp(out.exposureEV, UNDERGROUND.exposureEV, u);
   }
+  out.fillIntensity = u * UNDERGROUND.fillRel;
   return out;
 }
 

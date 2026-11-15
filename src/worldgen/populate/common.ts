@@ -6,7 +6,7 @@ import type { RngState } from '@/core/rng';
 import { rngFloat, rngInt } from '@/core/rng';
 import type { ClimbRoute, FoodKind, FoodVariant, Poi, WorldObject, ZoneType } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
-import { PLOT_BU, SOURCE_CATALOGUE } from '@/sim/balance';
+import { ECOLOGY_TIER, PLOT_BU, SOURCE_CATALOGUE, type SourceDef } from '@/sim/balance';
 import { createKernel, type Kernel } from '@/sim/kernel';
 import { walkRouteUp } from './routeCheck';
 import type { GenContext } from '../kit/context';
@@ -132,11 +132,28 @@ export function seasonMaskOf(days: [number, number] | null, allYear = false): nu
   return m;
 }
 
+/** Catalogue row with the tier's overrides (GDD 05 §0 T1 rules). */
+export function defAt(v: FoodVariant, tier: number = ECOLOGY_TIER): SourceDef {
+  const d = SOURCE_CATALOGUE[v];
+  return tier === 1 && d.t1 ? { ...d, ...d.t1 } : d;
+}
+
+/**
+ * Season bits of an anchor of a variant at the ecology tier. Kinds people leave behind (crumbs, sugar, pet food,
+ * water) lie there all year; a tier override that clears the window (T1 flowers, GDD 05 §1.2 "T1: always") opens
+ * the anchor all year too, since the source system ANDs this mask before reading the window.
+ */
+export function anchorSeasonMask(variant: FoodVariant | null, kind: FoodKind): number {
+  const all = kind === 'crumb' || kind === 'sugar' || kind === 'pet-food' || kind === 'dew';
+  if (!variant) return seasonMaskOf(null, all);
+  const window = defAt(variant).window;
+  const tierAlways = window === null && SOURCE_CATALOGUE[variant].window !== null;
+  return seasonMaskOf(window, all || tierAlways);
+}
+
 /** Records a food anchor of a catalogue variant (the variant is the first word of initialState). */
 export function addAnchor(ctx: GenContext, variant: FoodVariant | null, kind: FoodKind, pos: Vec3, hostObjectId = -1, extra = 'full', seasonMask?: number): number {
-  const def = variant ? SOURCE_CATALOGUE[variant] : null;
-  const all = kind === 'crumb' || kind === 'sugar' || kind === 'pet-food' || kind === 'dew';
-  const mask = seasonMask ?? seasonMaskOf(def?.window ?? null, all);
+  const mask = seasonMask ?? anchorSeasonMask(variant, kind);
   return addFoodAnchor(ctx, { kind, pos, up: UP, hostObjectId, seasonMask: mask, initialState: variant ? `${variant} ${extra}` : extra });
 }
 

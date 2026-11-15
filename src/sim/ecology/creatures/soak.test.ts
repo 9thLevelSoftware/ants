@@ -2,17 +2,24 @@
 // FOUNDRESS_LONG=1: the 28-game-day run (a whole default year from summer day 3), results in test-output/.
 
 import { describe, expect, it } from 'vitest';
+import { BIRD_MAX_KILLS } from '@/sim/balance/creatures';
 import { runSoak, type SoakResult } from './soakScene';
 
-/** Analytic upper bound of predation deaths per gd: every ant predator kills at most once per feed (>= 60-120 s). */
-const MAX_PREDATION_PER_GD = 3 * 5 + 4 * 5 + 3 * 5 + 3 * 5 + 2 * 10 + 6 * 10 + 12 * 1.6;
-
-function check(r: SoakResult): void {
+/**
+ * Caps (I5), nobody in a solid, predation within the chapter's bounds: per kind and game day at most the kills its
+ * feeding times allow (predationBoundPerGd), every predation death attributable to a striking predator, at most
+ * BIRD_MAX_KILLS per bird event; the quiet share (I11, with the real predator-near warnings) >= the preset's
+ * QUIET_SHARE_MIN; every prey patch >= 0.05 K at the end of each active day (I2).
+ */
+function check(r: SoakResult, quietMin = 0.6): void {
   expect(r.capViolations).toEqual([]);
   expect(r.maxTotal).toBeLessThanOrEqual(260);
   expect(r.insideSolid).toBe(0);
-  for (const d of r.deathsPerGd) expect(d).toBeLessThanOrEqual(MAX_PREDATION_PER_GD);
-  if (r.minWindowShare !== null) expect(r.minWindowShare).toBeGreaterThanOrEqual(0.6);
+  expect(r.killsByKind.unknown ?? 0).toBe(0);
+  for (const [k, n] of Object.entries(r.maxKillsPerGdByKind)) if (r.boundPerGdByKind[k] !== undefined) expect(n, k).toBeLessThanOrEqual(r.boundPerGdByKind[k]);
+  expect(r.maxBirdKills).toBeLessThanOrEqual(BIRD_MAX_KILLS);
+  if (r.minWindowShare !== null) expect(r.minWindowShare).toBeGreaterThanOrEqual(quietMin);
+  if (r.minPatchShare !== null) expect(r.minPatchShare).toBeGreaterThanOrEqual(0.05);
 }
 
 declare const process: { env: Record<string, string | undefined> } | undefined;
@@ -47,6 +54,15 @@ describe('creature soak', () => {
       check(r);
       expect(r.windows).toBeGreaterThan(0);
       expect(r.threats).toBeGreaterThan(0);
+    }, 3_600_000);
+
+    it.each([['gentle', 0.75], ['harsh', 0.4]] as const)('28 game days, %s, seed 1: quiet share >= %s in every window', async (preset, min) => {
+      const t0 = performance.now();
+      const r = runSoak(28, 1, preset);
+      await save(`creatures-soak-28d-${preset}`, { ...r, wallMs: performance.now() - t0 });
+      check(r, min);
+      expect(r.windows).toBeGreaterThan(0);
+      if (preset === 'harsh') expect(r.threats).toBeGreaterThan(0);
     }, 3_600_000);
   });
 });

@@ -27,13 +27,15 @@ declare global {
   interface Window { __ready?: boolean; __gallery?: unknown }
 }
 
-type LightId = 'midday' | 'golden' | 'overcast' | 'night';
+type LightId = 'midday' | 'golden' | 'overcast' | 'night' | 'underground';
 /** Lighting variants of the reference frames (spike-look 2.3): hour, weather, cloud, wetness. */
 const LIGHTS: Record<LightId, { hour: number; weather: EnvOverride['weather']; cloud: number; wet: number }> = {
   midday: { hour: 12.6, weather: 'clear', cloud: 0.1, wet: 0 },
   golden: { hour: 18.6, weather: 'clear', cloud: 0.15, wet: 0 }, // about 8 degrees of sun (sunset 19.2 at yearFrac 0.4)
   overcast: { hour: 12.2, weather: 'overcast', cloud: 0.95, wet: 1 },
   night: { hour: 23.5, weather: 'clear', cloud: 0.1, wet: 0.15 },
+  // the ants' light in the nest (camera-side sense fill, dim warm ambient); the gallery draws no nest walls
+  underground: { hour: 12.6, weather: 'clear', cloud: 0.1, wet: 0 },
 };
 
 const qs = new URLSearchParams(location.search);
@@ -163,7 +165,15 @@ function aim(dx: number, dz: number, c: typeof cam): void {
   const cam = c;
   const yaw = Math.atan2(dz, dx) + cam.yawOff;
   const fx = Math.cos(yaw), fz = Math.sin(yaw);
-  const d = cam.distBU * bu;
+  let d = cam.distBU * bu;
+  // like the possession camera: a boom from above the ant that stops short of solids (a bin wall behind the start
+  // pose put the camera inside the bin)
+  if (sim) {
+    const o = { x: subject.x, y: subject.y + 0.5 * bu, z: subject.z };
+    const dir = { x: -fx * Math.cos(cam.pitch), y: Math.sin(cam.pitch), z: -fz * Math.cos(cam.pitch) };
+    const hit = sim.field.sphereTrace(o, dir, d, 0.4 * bu);
+    if (hit < d) d = Math.max(1.5 * bu, hit - 0.3 * bu);
+  }
   camera.position.set(subject.x - fx * Math.cos(cam.pitch) * d, subject.y + Math.sin(cam.pitch) * d + 0.5 * bu, subject.z - fz * Math.cos(cam.pitch) * d);
   camera.lookAt(subject.x + dx * cam.aheadBU * bu, subject.y + cam.upBU * bu, subject.z + dz * cam.aheadBU * bu);
   camera.updateMatrixWorld();
@@ -181,10 +191,11 @@ function render(): void {
   const l = LIGHTS[light];
   worldRenderer.setWetness(l.wet);
   const env = envNow();
-  worldRenderer.update({ dt: 0, time: frozenT, sim, subject, env });
+  const under = light === 'underground';
+  worldRenderer.update({ dt: 0, time: frozenT, sim, subject, env, underground: under });
   decor.update({ dt: 0, time: frozenT, sim, subject, env, dew: light === 'overcast' ? 0.6 : 0, windMs: 1.5, still: false });
   decor.flush();
-  ants.update({ dt: 0, time: frozenT, alpha: 1, sim, camera, viewportHeightPx: app.renderer.domElement.height, underground: false, possessedPose: null });
+  ants.update({ dt: 0, time: frozenT, alpha: 1, sim, camera, viewportHeightPx: app.renderer.domElement.height, underground: under, possessedPose: null });
   app.setFocus(camera.position.distanceTo(subject), undefined, true);
   app.renderFrame(0);
   const gl = app.renderer.getContext();

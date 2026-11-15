@@ -61,8 +61,9 @@ export const GRASS = {
   /** Far blades widen to keep coverage: width x min(maxWiden, keep^-widenPow). */
   lodWidenPow: 0.5,
   lodMaxWiden: 3.5,
-  /** Rows per blade at each preset (spike 2.8: 4 flat / 5 / 7 / 9 folded); far blocks use half. */
-  rows: { test: 3, low: 4, medium: 5, high: 7, ultra: 9 } as Record<QualityId, number>,
+  /** Rows per blade at each preset (spike 2.8 had 4 / 5 / 7 / 9; look-pass: the bend of a blade 15 mm from the
+   *  lens showed its polygon kinks at 7, so High uses 10); far blocks use half. */
+  rows: { test: 3, low: 4, medium: 6, high: 10, ultra: 12 } as Record<QualityId, number>,
   folded: { test: false, low: false, medium: true, high: true, ultra: true } as Record<QualityId, boolean>,
   /** Blocks nearer than this (mm, nearest point) use the full row count and cast shadows. */
   nearBlockMm: 480,
@@ -238,10 +239,13 @@ export const WATER = {
 export const LEAF_PALETTE = {
   /** Share of fresh-coloured (maple atlas) leaves per season; the rest are dry oak-type leaves. */
   freshShare: [0.12, 0.1, 0.65, 0.05] as const,
-  /** Tint of dry litter per season (old leaves darken and grey over winter). */
-  dryTint: [[0.78, 0.72, 0.64], [0.86, 0.8, 0.7], [1.0, 0.92, 0.82], [0.58, 0.52, 0.46]] as const,
+  /**
+   * Tint of dry litter per season (old leaves darken and grey over winter). The oak atlas is a pale peach scan:
+   * outside autumn it is pulled toward weathered brown (look-pass: summer litter read as salmon-pink sheets).
+   */
+  dryTint: [[0.52, 0.47, 0.38], [0.56, 0.5, 0.39], [0.92, 0.8, 0.66], [0.46, 0.41, 0.36]] as const,
   /** Tint of fresh leaves per season. */
   freshTint: [[0.9, 0.95, 0.8], [0.85, 0.95, 0.75], [1.05, 1.0, 0.95], [0.7, 0.65, 0.6]] as const,
   /** Saturation per season (1 = atlas). */
-  saturation: [0.85, 0.9, 0.95, 0.7] as const,
+  saturation: [0.68, 0.7, 0.95, 0.6] as const,
 } as const;

@@ -11,7 +11,7 @@ import { ZONE_TYPES } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import { addTerritory } from '../kit/records';
 import { mapState } from '../maps/state';
-import { navCentre, roundRandom, shuffled, zoneCells } from './common';
+import { navCentre, objectById, roundRandom, shuffled, zoneCells } from './common';
 import {
   ANT_PREDATORS, ANT_SPIDER, ANTLION, APHID_PREDATORS, BIRD, JUMPING_SPIDER, PREDATOR_START_CLEAR_BU, PREY_PATCH,
   SHELTER_FAUNA, TERRITORY_ZONE_RULES,
@@ -48,6 +48,9 @@ function byArea(ctx: GenContext, rng: RngState): void {
 }
 
 /** Prey with the prey patches; aphids with the herd sites; aphid predators per 4 herd sites. */
+/** Bins whose crumbs draw fruit flies (GDD 04 §8.2: bins, fruit bowl, windfalls). */
+const FLY_BINS = new Set(['litter-bin', 'pedal-bin']);
+
 function withAnchors(ctx: GenContext, rng: RngState): void {
   const bu = ctx.dims.bu;
   let herds = 0;
@@ -63,7 +66,7 @@ function withAnchors(ctx: GenContext, rng: RngState): void {
         const kind = APHID_PREDATORS.kinds[rngInt(rng, 0, APHID_PREDATORS.kinds.length - 1)];
         put(ctx, kind, a.pos.x, a.pos.z, APHID_PREDATORS.radiusMm, ['forest', 'lawn', 'garden-bed'], 1);
       }
-    } else if (a.kind === 'fruit' || (a.kind === 'crumb' && a.hostObjectId >= 0)) {
+    } else if (a.kind === 'fruit' || (a.kind === 'crumb' && FLY_BINS.has(objectById(ctx, a.hostObjectId)?.templateId ?? ''))) {
       put(ctx, 'fruit-fly', a.pos.x, a.pos.z, 20 * bu, ['garden-bed', 'lawn', 'interior', 'pavement'], 1);
     }
   }

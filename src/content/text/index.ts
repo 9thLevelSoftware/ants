@@ -21,6 +21,8 @@ export { MILESTONE_TEXT } from './milestones';
 export type { MilestoneText } from './milestones';
 export * from './words';
 export * from './journal';
+export { journalEntryText } from './journalText';
+export type { JournalWording } from './journalText';
 export {
   CONTROLS_TABLE_END, CONTROLS_TABLE_START, buildControlsReference, controlsMarkdown, describeBinding, groupOf,
 } from './controls';

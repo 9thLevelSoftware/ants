@@ -13,12 +13,19 @@ const F = FINISH;
 /** Vertex declarations + main (after the primitive vertex expansion; `normal` = unit direction attribute). */
 export const LOOK_VERT_DECL = /* glsl */ `
 attribute vec4 iLook;
-varying vec4 vWrLook; varying vec4 vWrSize; varying float vWrEdge;
+varying vec4 vWrLook; varying vec4 vWrSize; varying float vWrEdge; varying float vWrDressed;
+uniform vec3 uWrCam; uniform float uWrFlowerMm;
 `;
 export const LOOK_VERT_MAIN = /* glsl */ `
 vWrLook = iLook; vWrSize = iSize;
 // 0 on flat faces, ~0.3 on 45 degree rounded edges, ~0.42 at corners (edge wear, rims)
 vWrEdge = 1.0 - max(max(abs(normal.x), abs(normal.y)), abs(normal.z));
+// flower heads within the dressing radius are drawn as cores under their parts (flowerDressing.ts)
+#ifdef USE_INSTANCING
+vWrDressed = step(distance((modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz, uWrCam), uWrFlowerMm);
+#else
+vWrDressed = 0.0;
+#endif
 `;
 
 /** Leaf outline: half width (0..1 of the box width) at t = 0 base .. 1 tip, per style. */
@@ -46,7 +53,7 @@ bool wrLeafCut(vec3 lp, vec4 sz, vec4 lk) {
 
 /** Fragment declarations (needs GLSL_NOISE). */
 export const LOOK_FRAG_DECL = /* glsl */ `
-varying vec4 vWrLook; varying vec4 vWrSize; varying float vWrEdge;
+varying vec4 vWrLook; varying vec4 vWrSize; varying float vWrEdge; varying float vWrDressed;
 ${LEAF_OUTLINE_GLSL}
 float wrLuma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // the texture as detail around its own mean colour (the instance colour gives the hue)
@@ -73,7 +80,7 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
   vec3 raw = wrAlb;
   if (fin == ${F.natural}) {
     wrAlb *= wrCol;
-  } else if (fin <= ${F.tyre} || fin == ${F.glass} || fin == ${F.carBody}) {
+  } else if (fin <= ${F.tyre} || fin == ${F.glass} || fin == ${F.carBody} || fin == ${F.moulded} || fin == ${F.appliance}) {
     // ---- re-coloured man-made surfaces
     vec3 det = wrDetail(raw, lk.w);
     float wear = lk.y * (0.3 + 2.2 * vWrEdge);
@@ -99,6 +106,27 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
       if (q.y < -0.55) { col = mix(col, vec3(0.02), 0.85); wrCoat = 0.2; }
       float arch = max(1.0 - smoothstep(0.18, 0.24, length(vec2(abs(q.z) - 0.68, q.y + 1.0))), 0.0);
       col *= 1.0 - 0.9 * arch;
+    }
+    else if (fin == ${F.moulded}) {
+      // moulding ribs every few cm round the sides (a groove and a raised band), lighter sun-faded top
+      if (abs(ln.y) < 0.6) {
+        float period = clamp(hs.y * 0.22, 12.0, 60.0);
+        float ph = fract(lp.y / period);
+        float groove = 1.0 - smoothstep(0.0, 0.06, abs(ph - 0.5));
+        col *= 1.0 - 0.28 * groove;
+        wrNw = normalize(ln + vec3(0.0, 0.35 * cos(ph * 6.2832), 0.0) * smoothstep(0.3, 0.5, abs(ph - 0.5) + groove * 0.5));
+      } else if (ln.y > 0.6) col = mix(col, vec3(dot(col, vec3(0.33))) * 1.15, 0.25);
+    }
+    else if (fin == ${F.appliance}) {
+      // ventilated plinth along the bottom of the sides; a dark door gap a quarter of the way up
+      vec3 q = lp / max(hs, vec3(1e-3));
+      if (abs(ln.y) < 0.6) {
+        if (q.y < -0.88) {
+          float u = (abs(ln.x) > abs(ln.z) ? lp.z : lp.x) / 4.0;
+          float slot = step(0.5, fract(u)) * step(-0.97, q.y) * step(q.y, -0.91);
+          col = mix(vec3(0.03), vec3(0.008), slot); rough = 0.6; det = vec3(1.0);
+        } else col *= 1.0 - 0.8 * (1.0 - smoothstep(0.0, 0.004, abs(q.y - 0.25)));
+      }
     }
     else if (fin == ${F.glass}) { wrCoat = 1.0; rough = mix(lk.z, 0.18, smoothstep(0.55, 0.9, wrNoise(lp.xz * 0.05 + lp.y * 0.04))); }
     else if (fin == ${F.cabin}) {
@@ -132,43 +160,81 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     wrMetal = metal * (1.0 - rust);
     wrCoat *= 1.0 - rust;
   } else if (fin == ${F.leaf}) {
-    // ---- leaf blade: silhouette, midrib, veins, cupped edges, back-lit translucency
+    // ---- leaf blade: silhouette, midrib, veins, cupped (vertex bend) edges, back-lit translucency
     if (wrLeafCut(lp, vWrSize, lk)) discard;
     float t = lp.x / max(hs.x, 1e-3) * 0.5 + 0.5;
     float v = lp.z / max(hs.z, 1e-3);
     float hw = max(wrLeafHalfWidth(t, lk.y, lk.w), 0.05);
     float av = abs(v) / hw;
-    float rib = 1.0 - smoothstep(0.0, 0.07, abs(v));
-    float g = fract((t - av * 0.35) * 9.0 + lk.w * 3.0);
-    float vein = (1.0 - smoothstep(0.0, 0.07, min(g, 1.0 - g))) * smoothstep(0.08, 0.25, av) * (1.0 - smoothstep(0.85, 1.0, av));
-    vec3 c = wrCol * (0.75 + 0.25 * wrNoise(lp.xz * 0.6 + lk.w * 9.0));
-    c = mix(c, c * vec3(1.35, 1.3, 1.0), rib * 0.8);
-    c *= 1.0 + 0.16 * vein;
-    c *= mix(1.0, 0.82, smoothstep(0.75, 1.0, av)); // darker margin
+    bool top = ln.y > 0.0;
+    float rib = 1.0 - smoothstep(0.0, 0.06, abs(v));
+    // secondary veins run from the midrib toward the tip and the margin; a finer net between them
+    float g = fract((t - av * 0.42) * 8.0 + lk.w * 3.0);
+    float vein = (1.0 - smoothstep(0.0, 0.06, min(g, 1.0 - g))) * smoothstep(0.06, 0.2, av) * (1.0 - smoothstep(0.8, 0.98, av));
+    vec2 nq = vec2(t * hs.x, v * hs.z) * 0.9;
+    float net = 1.0 - smoothstep(0.03, 0.12, abs(wrNoise(nq) - 0.5));
+    vec3 c = wrCol * (0.82 + 0.3 * wrFbm(lp.xz * 0.12 + lk.w * 9.0));
+    c = mix(c, c * vec3(1.45, 1.4, 1.05), rib * 0.75);
+    c *= 1.0 + 0.32 * vein + 0.1 * net;
+    c *= mix(1.0, 0.85, smoothstep(0.8, 1.0, av)); // darker margin
+    c = mix(c, c * vec3(1.25, 1.15, 0.6), 0.35 * smoothstep(0.75, 1.0, t) * lk.z); // yellowing tip on living leaves
+    // a few blemishes: pale feeding scars and dark spots
+    float bl = wrNoise(lp.xz * 0.35 + lk.w * 23.0);
+    c *= 1.0 - 0.35 * smoothstep(0.86, 0.9, bl);
+    if (!top) c = mix(c, c * vec3(1.15, 1.2, 1.05), 0.6); // paler, matte underside
     ${'' /* clover-style chevron */}
     if (lk.y > ${LEAF_STYLE.obovate - 0.5} && lk.y < ${LEAF_STYLE.obovate + 0.5}) c = mix(c, c * vec3(1.6, 1.55, 1.25), 0.5 * (1.0 - smoothstep(0.02, 0.16, abs(av - 0.45 - (1.0 - t) * 0.3))) * smoothstep(0.3, 0.45, t));
     wrAlb = c;
-    // cupped blade (normal tilts up toward the margins) and raised midrib
-    vec3 bump = vec3(0.0, 0.0, sign(v) * (0.35 * smoothstep(0.5, 1.0, av) - 0.25 * rib));
+    // raised midrib, sunken veins
+    vec3 bump = vec3(0.0, 0.0, sign(v) * (-0.25 * rib) ) + vec3(0.0, 0.0, 0.12 * vein * sign(v));
     if (abs(ln.y) > 0.5) wrNw = normalize(ln + bump * sign(ln.y));
-    wrRoughO = 0.5; wrMetal = 0.0; wrTransl = lk.z;
+    wrRoughO = top ? 0.62 : 0.75; wrMetal = 0.0; wrTransl = lk.z;
   } else if (fin == ${F.stem}) {
-    // ---- stem: fine lengthwise hairs and (style 1) darker nodes
+    // ---- stem: smooth, waxy and slightly translucent; fine lengthwise ridges (vascular bundles) in the shading and
+    // the tone; style 1 = herbaceous stem with nodes and fine hairs that catch the light at the silhouette
     float a = atan(lp.z, lp.x);
-    float hair = wrNoise(vec2(a * 9.0, lp.y * 0.4));
-    float streak = wrNoise(vec2(a * 14.0, lp.y * 0.05));
-    vec3 c = wrCol * (0.75 + 0.2 * hair + 0.2 * streak);
-    // nodes: a darker, slightly swollen ring every 18 mm (style 1), fine pale hairs catching the light
-    if (lk.y > 0.5) c *= 1.0 - 0.4 * (1.0 - smoothstep(0.0, 0.9, abs(fract(lp.y / 18.0 + lk.w) - 0.5) * 18.0));
-    c = mix(c, vec3(0.8, 0.85, 0.7), 0.25 * step(0.82, wrNoise(vec2(a * 40.0, lp.y * 3.0))));
-    wrAlb = c; wrRoughO = 0.55; wrMetal = 0.0; wrTransl = lk.z * 0.6;
+    float wob = wrNoise(vec2(a * 2.0 + lk.w * 13.0, lp.y * 0.04));
+    float ridge = cos(a * 16.0 + 2.0 * wob);
+    float streak = wrNoise(vec2(a * 5.0 + lk.w * 7.0, lp.y * 0.02));
+    vec3 c = wrCol * (0.8 + 0.06 * ridge + 0.22 * streak);
+    vec3 tang = normalize(vec3(-sin(a), 0.0, cos(a)));
+    if (abs(ln.y) < 0.9) wrNw = normalize(ln + tang * 0.12 * sin(a * 16.0 + 2.0 * wob));
+    float hairy = step(0.5, lk.y);
+    if (hairy > 0.5) {
+      // nodes: a darker, purplish band every 18 mm
+      float node = 1.0 - smoothstep(0.0, 1.2, abs(fract(lp.y / 18.0 + lk.w) - 0.5) * 18.0);
+      c = mix(c, c * vec3(0.75, 0.62, 0.62), node * 0.6);
+    }
+    // silhouette fuzz: pale hairs (style 1) or a waxy bloom (style 0) brighten the grazing edge
+    vec3 nv = normalize((viewMatrix * vec4(wrRot * wrNw, 0.0)).xyz);
+    float rim = pow(1.0 - abs(dot(nv, normalize(vViewPosition))), 3.0);
+    c += rim * mix(vec3(0.05, 0.06, 0.04), vec3(0.22, 0.24, 0.18), hairy);
+    wrAlb = c; wrRoughO = mix(0.38, 0.55, hairy); wrMetal = 0.0; wrTransl = lk.z * 0.6;
   } else if (fin <= ${F.umbel}) {
     // ---- flower heads on a flattened ellipsoid: top = florets / petals, underside = green bracts
     float r = length(lp.xz) / max(hs.x, 1e-3);
     float a = atan(lp.z, lp.x);
     vec3 c = wrCol;
     bool under = ln.y < -0.25;
-    if (fin == ${F.daisy}) {
+    if (vWrDressed > 0.5) {
+      // near the camera the parts (flowerDressing.ts) carry the petals: the ellipsoid is the solid core under them
+      float cell = wrCells(lp.xz * 1.1 + lk.w * 5.0);
+      float pit = smoothstep(0.15, 0.45, cell);
+      if (fin == ${F.daisy}) c = r < 0.4 ? mix(vec3(0.95, 0.55, 0.02), vec3(0.7, 0.36, 0.02), pit) : wrCol * 0.8;
+      else if (fin == ${F.dandelion}) c = wrCol * mix(0.75, 0.5, pit) * vec3(1.0, 0.85, 0.6);
+      else if (fin == ${F.seedClock}) {
+        // only the small receptacle shows inside the sphere of parachutes
+        if (r > 0.3) discard;
+        c = mix(vec3(0.22, 0.16, 0.1), vec3(0.42, 0.36, 0.28), pit);
+      }
+      else if (fin == ${F.cloverHead}) c = mix(wrCol * 0.7, vec3(0.45, 0.3, 0.3), pit);
+      else c = mix(vec3(0.2, 0.3, 0.1), wrCol * 0.6, pit);
+      // seen from below, a real head is a small green cup under its petals: the wide flat underside of the
+      // collision ellipsoid is not drawn there (the parts' undersides show instead)
+      if (under && r > 0.5) discard;
+      if (under) c = vec3(0.1, 0.17, 0.04);
+      wrAlb = c; wrRoughO = 0.7; wrMetal = 0.0; wrTransl = 0.2;
+    } else if (fin == ${F.daisy}) {
       float pp = abs(fract(a * 21.0 / 6.2832 + lk.w) - 0.5) * 2.0;
       if (!under && r > 0.5 && pp > 0.82 - 0.25 * smoothstep(0.6, 1.0, r)) discard;
       if (r > 0.94 - 0.18 * pp * pp && ln.y > -0.6) discard;
@@ -199,8 +265,10 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
       if (cell > 0.36 && r > 0.55) discard;
       c *= mix(1.0, 0.55, smoothstep(0.2, 0.4, cell));
     }
-    if (under) c = vec3(0.12, 0.2, 0.05);
-    wrAlb = c; wrRoughO = 0.6; wrMetal = 0.0; wrTransl = under ? 0.3 : lk.z;
+    if (vWrDressed < 0.5) {
+      if (under) c = vec3(0.12, 0.2, 0.05);
+      wrAlb = c; wrRoughO = 0.6; wrMetal = 0.0; wrTransl = under ? 0.3 : lk.z;
+    }
   } else if (fin == ${F.cutWood}) {
     // ---- bark cylinder whose flat ends show the cut: growth rings, radial checks, bark rim
     if (abs(ln.y) > 0.8) {

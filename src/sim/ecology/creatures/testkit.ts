@@ -23,9 +23,10 @@ export interface CombatLog {
 /**
  * Reference combat for tests (the combat module is a parallel task): hp -= dmg x (1 - armour) (creature armour
  * from creatureArmour; ants 0), an ant at hp <= 0 dies with the cause; releaseGrapple clears the holder's lock.
- * Returns the log and a restore function.
+ * Alerts are dropped unless `realAlerts` (then progression's alert engine stores them). Returns the log and a
+ * restore function.
  */
-export function installFakeCombat(): { log: CombatLog; restore: () => void } {
+export function installFakeCombat(o: { realAlerts?: boolean } = {}): { log: CombatLog; restore: () => void } {
   const saved = { ...ports };
   const log: CombatLog = { damage: [], released: [], alarms: 0 };
   ports.applyDamage = (sim, kind, id, dmg, cause) => {
@@ -53,7 +54,10 @@ export function installFakeCombat(): { log: CombatLog; restore: () => void } {
     log.released.push(holderId);
   };
   ports.raiseAlarm = () => { log.alarms++; };
-  ports.raiseAlert = () => -1;
+  if (!o.realAlerts) {
+    ports.raiseAlert = () => -1;
+    ports.clearAlert = () => {};
+  }
   return { log, restore: () => Object.assign(ports, saved) };
 }
 

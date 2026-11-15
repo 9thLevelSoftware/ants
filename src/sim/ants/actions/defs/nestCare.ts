@@ -1,18 +1,22 @@
 // Care primitives of the nest economy (GDD 02 §2.9, §5.3, §5.4.1-5.4.2, §5.7), usable by the AI and the possessed ant:
-//   load-crop        pool -> crop at a food chamber: nurse mix, queen ration or departure ration (by task)
+//   load-crop        pool -> crop at a food chamber or touching a store ant: nurse mix, queen ration or departure
+//                    ration (by task), at LOAD_RATE up to the load's cap and the ant's own crop capacity
 //   unload-crop      crop -> pool, straight into a food chamber at half the trophallaxis rate (no receiver)
-//   feed-queen       carer crop (or, secondary, the carer's own reserve in S2) -> queen gut, one feed
+//   feed-queen       carer crop (or, secondary, the carer's own reserve from starvation S2 on) -> queen gut, one feed
 //   assist-eclosion  open the cocoon of a ready pupa: the adult ecloses
 //   cannibalise      eat an egg or a larva (starvation S3 only); the colony recycles it
 // The effects are the colony module's (through ports). GDD 01 §7.3 gives no pose rows for these: each uses the
 // closest existing pose (recorded in the sim-fix-ants report).
 
-import type { Ant, Chamber, Sim } from '@/sim/types';
+import type { Ant, Chamber, Colony, Sim } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { LOAD_POOL_MIN, TROPH_DONOR_MIN, TROPH_RATE, UNLOAD_DIRECT_RATE_MULT } from '@/sim/balance/actions';
 import { QUEEN_GUT_CAP, QUEEN_RATION_BASE } from '@/sim/balance/colony';
 import { DEPART_RATION_C } from '@/sim/balance/foraging';
-import { ASSIST_S, CANNIBALISE_S, CARER_KEEP_RESERVE, LOAD_S, NURSE_LOAD, QUEEN_FEED_LOADS, QUEEN_FEED_S } from '@/sim/balance/nestwork';
+import {
+  ASSIST_S, CANNIBALISE_S, CARER_KEEP_RESERVE, LOAD_RATE, LOAD_S, NURSE_LOAD, QUEEN_FEED_LOADS, QUEEN_FEED_S,
+} from '@/sim/balance/nestwork';
+import { inReach, placeOf, type TargetPlace } from '../geometry';
 import { ports } from '../ports';
 import type { ActionDef } from '../types';
 
@@ -57,24 +61,58 @@ function loadKind(ant: Ant): LoadKind {
 
 const LOAD_CAP: Record<LoadKind, number> = { nurse: NURSE_LOAD, ration: QUEEN_RATION_BASE, depart: DEPART_RATION_C };
 
+/** The crop a load fills up to: the load's own cap, never more than the ant's crop holds (small workers). */
+function loadCap(ant: Ant, k: LoadKind): number {
+  return Math.min(LOAD_CAP[k], ant.cropCap);
+}
+
+/** What the pool can give this load: the departure ration is C only. */
+function poolFor(col: Colony, k: LoadKind): number {
+  return k === 'depart' ? col.stores.c : col.stores.c + col.stores.p;
+}
+
+/** Loads this ant would take now (crop room up to the cap, limited by the pool). */
+function loadWanted(sim: Sim, ant: Ant): number {
+  const col = sim.stores.colonies.get(ant.colony);
+  if (!col) return 0;
+  const k = loadKind(ant);
+  return Math.max(0, Math.min(loadCap(ant, k) - cropOf(ant), poolFor(col, k)));
+}
+
+const near: number[] = [];
+const storePlace: TargetPlace = { pos: { x: 0, y: 0, z: 0 }, radius: 0 };
+
+/** A nestmate on the `store` task within mandible reach, in the nest (GDD 02 §5.4.1 "or touching a store ant"). */
+function touchingStoreAnt(sim: Sim, ant: Ant): boolean {
+  if (ant.nestId < 0) return false;
+  near.length = 0;
+  sim.index.queryAnts(ant.pos, 2 * ant.lengthBu * sim.world.bu, near);
+  for (const id of near) {
+    const o = sim.stores.ants.get(id);
+    if (!o || o.id === ant.id || !o.alive || o.colony !== ant.colony || o.task !== 'store' || o.nestId !== ant.nestId) continue;
+    if (placeOf(sim, ant, { kind: 'ant', id: o.id, pos: o.pos }, storePlace) && inReach(sim, ant, storePlace)) return true;
+  }
+  return false;
+}
+
 export const loadCropDef: ActionDef = {
   id: 'load-crop', kind: 'timed', targets: ['none'], cancellable: true, pose: 'drink', cue: 'trophallaxis',
   who: (_sim, ant) => isWorker(ant),
   check(sim, ant) {
-    if (!foodPlace(sim, ant)) return 'not-allowed-here';
+    if (!foodPlace(sim, ant) && !touchingStoreAnt(sim, ant)) return 'not-allowed-here';
     const col = sim.stores.colonies.get(ant.colony);
     if (!col) return 'no-target';
-    if (cropOf(ant) >= LOAD_CAP[loadKind(ant)] - EPS) return 'crop-full';
     const k = loadKind(ant);
-    const enough = k === 'depart' ? col.stores.c >= LOAD_POOL_MIN : col.stores.c + col.stores.p >= LOAD_POOL_MIN;
-    return enough ? null : 'no-reserve';
+    if (cropOf(ant) >= loadCap(ant, k) - EPS) return 'crop-full';
+    return poolFor(col, k) >= LOAD_POOL_MIN ? null : 'no-reserve';
   },
-  durationS: () => LOAD_S,
+  // 0.1 load/s (GDD 02 §5.4.1): a full nurse load takes LOAD_S, a top-up or a departure ration less
+  durationS: (sim, ant) => Math.min(LOAD_S, loadWanted(sim, ant) / LOAD_RATE),
   // The crop is filled up to the load's cap with its mix; the pool books it as `transit` (nurse, carer) or as the
   // departure ration (`ration`, C only).
   effect(sim, ant) {
     const k = loadKind(ant);
-    const want = Math.max(0, LOAD_CAP[k] - cropOf(ant));
+    const want = Math.max(0, loadCap(ant, k) - cropOf(ant));
     const mix = k === 'nurse' ? ports.nurseLoadMix(sim, ant.colony, want)
       : k === 'ration' ? ports.queenRationMix(sim, ant.colony, want) : { c: want, p: 0 };
     const got = ports.withdrawFood(sim, ant.colony, Math.max(0, mix.c), Math.max(0, mix.p), k === 'depart' ? 'ration' : 'transit', ant);
@@ -107,6 +145,15 @@ export const unloadCropDef: ActionDef = {
   },
 };
 
+/**
+ * The worker -> queen reserve transfer is a starvation measure (GDD 02 §5.7 S2 `rationing`, §10.5 `queen-care.load`):
+ * allowed from S2 on (S3 and S4 keep the S2 rules), never in a fed or lean colony.
+ */
+export function reserveFeedAllowed(col: Colony | undefined): boolean {
+  const s = col?.starvationStage;
+  return s === 'rationing' || s === 'brood-sacrifice' || s === 'adult-starvation';
+}
+
 /** The colony's queen when the target is her. */
 function queenTarget(sim: Sim, ant: Ant, id: number): Ant | null {
   const q = sim.stores.ants.get(id);
@@ -116,19 +163,26 @@ function queenTarget(sim: Sim, ant: Ant, id: number): Ant | null {
 export const feedQueenDef: ActionDef = {
   id: 'feed-queen', kind: 'timed', targets: ['ant'], cancellable: true, pose: 'troph-give', cue: 'trophallaxis',
   who: (_sim, ant) => isWorker(ant),
-  // secondary (`opts.secondary`): from the carer's own fat reserve, which the colony allows in starvation S2
+  // secondary (`opts.secondary`): from the carer's own fat reserve, which the colony allows from starvation S2 on
   check(sim, ant, t, secondary) {
     const q = queenTarget(sim, ant, t.id);
     if (!q || q.id === ant.id) return 'no-target';
     if (QUEEN_GUT_CAP - q.queen!.gut.c - q.queen!.gut.p <= EPS) return 'crop-full';
-    if (secondary) return ant.energy > CARER_KEEP_RESERVE + EPS ? null : 'no-reserve';
+    if (secondary) {
+      if (!reserveFeedAllowed(sim.stores.colonies.get(ant.colony))) return 'conditions';
+      return ant.energy > CARER_KEEP_RESERVE + EPS ? null : 'no-reserve';
+    }
     return cropOf(ant) > EPS ? null : 'crop-empty';
   },
   durationS: () => QUEEN_FEED_S,
   effect(sim, ant, t) {
     const q = queenTarget(sim, ant, t.id);
     if (!q) return 'no-target';
-    if (ant.action?.secondary) return ports.feedQueenFromReserve(sim, ant, Math.min(QUEEN_FEED_LOADS, ant.energy - CARER_KEEP_RESERVE));
+    if (ant.action?.secondary) {
+      // the stage may have eased during the feed: then nothing is taken from the carer's body
+      if (!reserveFeedAllowed(sim.stores.colonies.get(ant.colony))) return 'conditions';
+      return ports.feedQueenFromReserve(sim, ant, Math.min(QUEEN_FEED_LOADS, ant.energy - CARER_KEEP_RESERVE));
+    }
     const crop = cropOf(ant);
     if (crop <= EPS) return 'crop-empty';
     const n = Math.min(QUEEN_FEED_LOADS, crop);

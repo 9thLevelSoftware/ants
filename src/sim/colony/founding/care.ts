@@ -158,10 +158,11 @@ export function careTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): CareRe
   if (sim.state.tick - bbGet(q, FB.careTick, -1e9) < FOUND_CARE_EVERY_TICKS) return res;
   bbSet(q, FB.careTick, sim.state.tick);
   f.reserveLoads -= upkeep(sim);
-  // The queen feeds this brood from her pool, so the colony's empty stores are no protein shortage: no early
-  // (minim) pupation of the first brood (GDD 02 §2.6 applies to established colonies; §2.7 first brood).
+  // The queen feeds this brood from her pool, which replaces the colony's stores until the first worker eats
+  // (GDD 02 §2.7 point 1): the empty stores are no shortage, so neither the early (minim) pupation clock (§2.6) nor
+  // the starvation clocks (§5.7: brood sacrifice and its "colony is starving" alarm) run in the claustral cell.
   const core = col.core;
-  if (core) core.minimSinceTick = -1;
+  if (core) { core.minimSinceTick = -1; core.cZeroSinceTick = -1; core.pZeroSinceTick = -1; }
   const list = colonyBrood(sim, col.id);
   const def = speciesOf(sim);
   const mu = foundingMu(op.siteQ, def.id as Parameters<typeof foundingMu>[1], sim.state.config.difficulty.params.foundingBroodMortalityMult,

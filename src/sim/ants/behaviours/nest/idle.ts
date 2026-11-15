@@ -8,7 +8,8 @@ import { rngChance } from '@/core/rng';
 import { navWander } from '@/sim/locomotion';
 import { requestTask } from '@/sim/colony';
 import {
-  AMBIENT_TROPH_IDLE_MIN, AMBIENT_TROPH_RADIUS_BU, IDLE_CYCLE_S, IDLE_SPEED_MULT, IDLE_WANDER_FRAC, ROOM_WAIT_FRAC,
+  AMBIENT_TROPH_IDLE_MIN, AMBIENT_TROPH_RADIUS_BU, IDLE_CYCLE_S, IDLE_RECENTRE_FRAC, IDLE_SPEED_MULT, IDLE_WANDER_FRAC,
+  ROOM_WAIT_FRAC,
   WAIT_THINK_TICKS,
 } from '@/sim/balance/nestwork';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
@@ -16,7 +17,7 @@ import { needsRest, recover, releaseAll, think } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
 import { homeNest, restChamber } from './places';
 import { queenEnter, queenUpdate } from './queen';
-import { act, entity, travel } from './travel';
+import { act, entity, resetTravel, travel } from './travel';
 
 const scratch: number[] = [];
 
@@ -47,6 +48,15 @@ function idleStep(sim: Sim, ant: Ant): void {
       recover(sim, ant, 'idle', 'stuck', true);
     }
     return;
+  }
+  // B.n: 0 = start a wander, 1 = wandering, 2 = the wander failed (locomotion could not move the walker, e.g. on a
+  // fin of wall): walk back toward the centre on a planned path first
+  if (bbv(ant, B.n, 0) === 1 && ant.nav.status === 'failed') { ant.bb[B.n] = 2; resetTravel(ant); }
+  if (bbv(ant, B.n, 0) === 2) {
+    const st = travel(sim, ant, entity('chamber', room.id, room.center), IDLE_RECENTRE_FRAC * Math.min(room.radii.x, room.radii.z));
+    if (st === 'failed') { recover(sim, ant, 'idle', 'stuck', true); return; }
+    if (st !== 'arrived') return;
+    ant.bb[B.n] = 0;
   }
   if (bbv(ant, B.n, 0) === 0) {
     navWander(sim, ant, room.center, IDLE_WANDER_FRAC * Math.min(room.radii.x, room.radii.z), { speedMult: IDLE_SPEED_MULT });

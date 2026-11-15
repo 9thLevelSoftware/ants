@@ -7,12 +7,12 @@ import type { Sim, Walker } from '@/sim/types';
 import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
 import { dist3 as dist3Imp, distXZ as distXZImp, set3 as set3Imp } from './mathx';
 import { ensureField as ensureFieldImp, entranceById as entranceByIdImp, isPointField as isPointFieldImp } from './nests';
-import type { LocoRuntime } from './runtime';
+import { avoidDiscs as avoidDiscsImp, type LocoRuntime } from './runtime';
 import { routeById as routeByIdImp } from './routes';
 import type { NavScratch } from './scratch';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const isLocoNavGrid = isLocoNavGridImp, dist3 = dist3Imp, distXZ = distXZImp, set3 = set3Imp, entranceById = entranceByIdImp, ensureField = ensureFieldImp, isPointField = isPointFieldImp, routeById = routeByIdImp;
+const avoidDiscs = avoidDiscsImp, isLocoNavGrid = isLocoNavGridImp, dist3 = dist3Imp, distXZ = distXZImp, set3 = set3Imp, entranceById = entranceByIdImp, ensureField = ensureFieldImp, isPointField = isPointFieldImp, routeById = routeByIdImp;
 
 export type LegState = 'go' | 'done' | 'fail';
 
@@ -81,9 +81,15 @@ export function followPath(w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3):
 export function followFlow(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, flow: Float32Array | null, out: Vec3): LegResult {
   const g = sim.navGrid;
   if (!flow || !isLocoNavGrid(g)) return result('done', 0);
-  const d = g.flowNext(flow, w.pos, 2, _t);
+  let d = g.flowNext(flow, w.pos, 2, _t);
   if (!Number.isFinite(d)) return result('fail', 0);
   if (d <= g.cell * 0.5) return result('done', d);
+  // the disc-weighted field (trip.ts avoidFlowKey): its cells keep clear of the discs, but a line two cells ahead
+  // can cut the corner of a cell that touches one; then steer to the next cell only
+  if (s.flowKey.endsWith('|avoid')) {
+    const discs = avoidDiscs(sim, r, sim.stores.nests.get(s.flowNest)?.colony ?? -1);
+    if (discs.length > 0 && !g.gridVisible(w.pos, _t, discs)) d = g.flowNext(flow, w.pos, 1, _t);
+  }
   towardXZ(out, w, _t);
   // continuous progress metric: cost left from the steering cell plus the way to it (the cell value alone is a step)
   const tc = g.cellOf(_t.x, _t.z);

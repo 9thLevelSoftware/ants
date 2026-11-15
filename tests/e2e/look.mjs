@@ -13,10 +13,34 @@
 //                             quality only; "none" to skip)
 //   LOOK_SWATCH=row,cell      swatch frames to shoot by id prefix (default all: material rows + finish close-ups)
 //   LOOK_BENCH=3              also time each frame: minimum of n synchronous renders (ms; noisy on a shared machine)
+//   LOOK_PAIRS=<dir>          after shooting, write before|after pairs (ImageMagick `convert`) for every shot that has
+//                             a twin named <BEFORE_TAG>-<same suffix>.png in <dir> (LOOK_BEFORE_TAG, default before)
+//                             into <out>/pairs/
 // Result: per shot { file, frame, note, onGround, feetGapMm, drawCalls, triangles } and per archetype the load time.
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 const ARCH = ['woodland-edge', 'suburban-garden', 'playground-park', 'car-park-verge', 'kitchen-door', 'swatch'];
 
-export default async ({ page, shot, log }) => {
+/** before | after side by side, labelled (ImageMagick). Returns the pair files written. */
+function writePairs(shots, tag, beforeDir, beforeTag, outDir) {
+  const dir = join(outDir, 'pairs');
+  mkdirSync(dir, { recursive: true });
+  const done = [];
+  for (const s of shots) {
+    const suffix = s.file.slice(tag.length + 1);
+    const b = join(beforeDir, `${beforeTag}-${suffix}.png`), a = join(outDir, `${s.file}.png`);
+    if (!existsSync(b) || !existsSync(a)) continue;
+    const out = join(dir, `pair-${suffix}.png`);
+    const side = (f, label) => ['(', f, '-resize', '960x540', '-gravity', 'north', '-background', 'black', '-splice', '0x24', '-fill', 'white', '-pointsize', '18', '-annotate', '+0+2', label, ')'];
+    execFileSync('convert', [...side(b, beforeTag), ...side(a, tag), '+append', out]);
+    done.push(out);
+  }
+  return done;
+}
+
+export default async ({ page, shot, log, out }) => {
   const env = process.env;
   const tag = env.LOOK_TAG ?? 'after';
   const archs = (env.LOOK_ARCH ?? ARCH.join(',')).split(',').filter(Boolean);
@@ -59,5 +83,7 @@ export default async ({ page, shot, log }) => {
     }
   }
   await call('dispose');
-  return { tag, loads, shots };
+  const pairs = env.LOOK_PAIRS ? writePairs(shots, tag, env.LOOK_PAIRS, env.LOOK_BEFORE_TAG ?? 'before', out) : [];
+  if (env.LOOK_PAIRS) log(`pairs: ${pairs.length} written to ${join(out, 'pairs')}`);
+  return { tag, loads, shots, pairs: pairs.length };
 };

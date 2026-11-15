@@ -8,6 +8,7 @@ import type { MeshStandardMaterial, Uniform, Vector4, WebGLProgramParametersWith
 import { dappledLightsChunk, GLSL_DAPPLE } from './dapple';
 import { foliageLightsChunk } from '../decor/foliageLight';
 import { LOOK_FRAG_DECL, LOOK_VERT_DECL, LOOK_VERT_MAIN, lookFragMain } from '../dressing/finishGlsl';
+import { FINISH } from '../dressing/finishes';
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
 import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms } from './occlusion';
 import type { MaterialDef } from './materialDefs';
@@ -65,27 +66,48 @@ export function addPatch(mat: { onBeforeCompile: MeshStandardMaterial['onBeforeC
 /**
  * Vertex expansion of the primitive geometry. Attributes: `normal` = unit direction, `aCorner` = point on the
  * normalised inner box/cylinder; per instance `iSize` = (size.xyz, round). Shared with the shadow depth material.
+ * `leafCurl`: leaf-finish instances (iLook.x == FINISH.leaf; the caller declares `iLook`) are cupped across and
+ * droop at the tip, a render-only bend of at most LEAF_BEND of the leaf's half extents (collision stays flat).
  */
-export function primVertexPatch(s: WebGLProgramParametersWithUniforms, mode: 'rounded' | 'ellipsoid'): void {
+export function primVertexPatch(s: WebGLProgramParametersWithUniforms, mode: 'rounded' | 'ellipsoid', leafCurl = false): void {
+  const pos = mode === 'ellipsoid' ? 'normal * iSize.xyz' : 'aCorner * max(iSize.xyz - vec3(iSize.w), vec3(0.0)) + normal * iSize.w';
   s.vertexShader = s.vertexShader
     .replace('#include <common>', `#include <common>
 attribute vec3 aCorner;
-attribute vec4 iSize;`)
-    .replace('#include <beginnormal_vertex>', mode === 'ellipsoid'
+attribute vec4 iSize;
+${leafCurl ? LEAF_BEND_GLSL : ''}`)
+    .replace('#include <beginnormal_vertex>', `${mode === 'ellipsoid'
       ? 'vec3 objectNormal = normalize(normal / max(iSize.xyz, vec3(1e-4)));'
-      : 'vec3 objectNormal = normal;')
-    .replace('#include <begin_vertex>', mode === 'ellipsoid'
-      ? 'vec3 transformed = normal * iSize.xyz;'
-      : 'vec3 transformed = aCorner * max(iSize.xyz - vec3(iSize.w), vec3(0.0)) + normal * iSize.w;');
+      : 'vec3 objectNormal = normal;'}
+${leafCurl ? `objectNormal = wrLeafBendNormal(${pos}, objectNormal);` : ''}`)
+    .replace('#include <begin_vertex>', `vec3 transformed = ${pos};
+${leafCurl ? 'transformed.y += wrLeafBend(transformed);' : ''}`);
 }
+
+/** Leaf bend: cup across the blade (edges up) and droop toward the tip (+x), fractions of the half extents. */
+export const LEAF_BEND = { cup: 0.12, droop: 0.06 } as const;
+const LEAF_BEND_GLSL = /* glsl */ `
+bool wrIsLeaf() { return abs(iLook.x - ${FINISH.leaf}.0) < 0.5; }
+float wrLeafBend(vec3 p) {
+  if (!wrIsLeaf()) return 0.0;
+  float v = p.z / max(iSize.z, 1e-3), t = max(0.0, p.x / max(iSize.x, 1e-3));
+  return ${LEAF_BEND.cup.toFixed(3)} * iSize.z * v * v - ${LEAF_BEND.droop.toFixed(3)} * iSize.x * t * t;
+}
+vec3 wrLeafBendNormal(vec3 p, vec3 n) {
+  if (!wrIsLeaf()) return n;
+  float v = p.z / max(iSize.z, 1e-3), t = max(0.0, p.x / max(iSize.x, 1e-3));
+  float dydz = 2.0 * ${LEAF_BEND.cup.toFixed(3)} * v, dydx = -2.0 * ${LEAF_BEND.droop.toFixed(3)} * t;
+  return normalize(n + vec3(-dydx, 0.0, -dydz) * n.y);
+}
+`;
 
 export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOptions): void {
   const d = o.def;
   const looks = !!(o.looks && o.prim);
   const rustScan = d.texture === 'metal_painted';
-  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|v3`;
+  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|v4`;
   addPatch(mat, key, (s) => {
-    if (o.prim) primVertexPatch(s, o.prim);
+    if (o.prim) primVertexPatch(s, o.prim, looks);
     s.uniforms.tWrA = { value: o.set.albedo };
     s.uniforms.tWrN = { value: o.set.normal };
     s.uniforms.tWrR = { value: o.set.rough };
@@ -99,6 +121,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
     s.uniforms.uWrCanopyInv = o.uniforms.uDappleMaskInv;
     if (o.breaches) { s.uniforms.uWrBreach = o.breaches.spheres; s.uniforms.uWrBreachN = o.breaches.count; }
     Object.assign(s.uniforms, occlusionUniforms(o.uniforms));
+    if (looks) Object.assign(s.uniforms, { uWrCam: o.uniforms.uCamPos, uWrFlowerMm: o.uniforms.uFlowerMm });
     if (o.extra) Object.assign(s.uniforms, o.extra.uniforms);
     const defs = [
       o.space === 'instance' ? '#define WR_LOCAL' : '',

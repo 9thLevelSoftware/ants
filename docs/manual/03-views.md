@@ -71,6 +71,7 @@ Each screen of the game has an identifier. This table lists all of them.
 | Screen | Id | What it is |
 | --- | --- | --- |
 | Boot gate | `boot` | A dark page that waits for a click or key, then goes to the title. |
+| Unsupported browser | `unsupported` | A plain page that says the game needs WebGL 2 and what to try (see [Troubleshooting](08-troubleshooting.md)). |
 | Title | `title` | The main menu. |
 | New colony | `new-game` | Species, locality, rules. |
 | Loading | `loading` | Generation progress. |

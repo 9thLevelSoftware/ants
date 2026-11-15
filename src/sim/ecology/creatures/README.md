@@ -17,6 +17,7 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 | `aphidPredators.ts`, `preyFauna.ts`, `neutral.ts`, `bird.ts` | the other families and the bird event |
 | `prey.ts` | remains (carcass item / tear source), transport rule, subduing |
 | `queries.ts` | `threatsNear`, `preyNear`, `knownHazardsNear`, `creatureArmour`, `creaturePull` |
+| `alerts.ts` | `predator-near` (warning; cleared 30 s after its condition ended or when the creature is gone) and `nest-attacked` (critical; cleared 30 s after the last invader left) |
 | `danger.ts`, `threat.ts` | danger grid (nav cost overlay), threat director + quiet share |
 | `hooks.ts`, `lifecycle.ts` | lazily installed locomotion hooks (movement override, speed factor) and event listeners |
 | `ports.ts` | every external function called for an effect (tests swap them) |
@@ -38,6 +39,10 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 - any prey: `subdued` (SUBDUED). HIDDEN creatures are not drawn and not interactive.
 
 A strike in progress: `bb.strikeAt` (tick), `bb.tgt` (ant id), `bb.aimX/Y/Z`; `predator-telegraph` carries them.
+Stunned ants (ladybird reflex bleeding 2 s, caterpillar regurgitation 2 s, hairy caterpillar 3 s): their lock breaks,
+`ant.bb['cr.stunUntil']` holds the end tick and `combat.biteCdTick` is pushed back to it (CombatState has no stun field).
+Bird variants: a sparrow eats up to 10 crumb units at landing; a woodpecker calls `nest.disturb(sim, entrance, 3 BU,
+'woodpecker')` every 5 s (up to 6) - the carve itself is the nest module's hook.
 The bird event is `state.ecology.birdEvent` (`phase` approach / landed / leaving, `pos`, `peckAim`), not an agent.
 
 ## Seams for other modules (report these when integrating)
@@ -50,7 +55,10 @@ The bird event is `state.ecology.birdEvent` (`phase` approach / landed / leaving
 - player control: `addStruggleInput(sim, antId)` per struggle input (bites, specials and > 90 degree turns are also
   read from the recorded intent).
 - behaviours: `threatsNear` (state word, telegraphed strikes, repel zones of secretions, the bird), `preyNear`,
-  `knownHazardsNear` (avoid pit radius + 1 L), `dangerAt`; the danger grid also prices nav-grid cells.
+  `knownHazardsNear` (avoid pit radius + 1 L), `dangerAt` (avoid markers count as 3); the danger grid also prices
+  nav-grid cells. Seized ants (`combat.seizedBy`) and paralysed ants are moved by this module's movement override;
+  behaviours should not act for them. Stunned ants (`bb['cr.stunUntil']`) should not bite.
 - rivals: `requestMajorThreat(sim, kind)` / `endMajorThreat(sim, kind)` for raids (one major threat at a time, I11).
+- nest: `disturb(sim, center, radius, cause)` with cause 'woodpecker' should carve the 3 BU sphere (GDD 05 §2.6).
 - locomotion: flight is not simulated (ladybirds and fruit flies appear / hop; see the report); springtail jumps and
   antlion flicks are re-placements through `placeOnSurface` / the movement override.

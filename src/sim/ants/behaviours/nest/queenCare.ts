@@ -1,9 +1,11 @@
 // `queen-care` (GDD 02 §10.5): attendants stay by the queen and groom her, load a ration (mix §5.4.2) and feed it
-// to her until her gut reaches the retinue target, feed her from their own reserve in starvation S2 (§5.7),
-// collect the eggs she lays and carry them to the best egg pile (§10.4.1), and escort her when she relocates.
+// to her until her gut reaches the retinue target, feed her from their own reserve from starvation S2 on when the
+// pool cannot fill a feed (§5.7), collect the eggs she lays and carry them to the best egg pile (§10.4.1), and
+// escort her when she relocates.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Behaviour, Brood, Chamber, Sim } from '@/sim/types';
+import { reserveFeedAllowed } from '@/sim/ants/actions';
 import { queenWantsFood, requestTask } from '@/sim/colony';
 import { QUEEN_TARGET_GUT_C } from '@/sim/balance/colony';
 import {
@@ -32,9 +34,10 @@ function queenOf(sim: Sim, ant: Ant): Ant | undefined {
   return q && q.alive && q.queen && !isFoundingQueen(q) ? q : undefined;
 }
 
-function poolEmpty(sim: Sim, ant: Ant): boolean {
+/** Starvation S2 or later (GDD 02 §5.7) and the pool cannot fill one feed: carers give from their own reserve. */
+function reserveTime(sim: Sim, ant: Ant): boolean {
   const col = sim.stores.colonies.get(ant.colony);
-  return !col || col.stores.c + col.stores.p < QUEEN_FEED_LOADS;
+  return reserveFeedAllowed(col) && col!.stores.c + col!.stores.p < QUEEN_FEED_LOADS;
 }
 
 /**
@@ -72,7 +75,7 @@ function attend(sim: Sim, ant: Ant): void {
   if (q.state === 'queen.relocate') { setState(sim, ant, 'queen-care.escort', 'marker:move-queen'); return; }
   const egg = eggNearQueen(sim, ant, q);
   if (egg) { claim(sim, ant, Job.collectEggs, egg.id); setState(sim, ant, 'queen-care.collect-eggs', 'job:collect-eggs'); return; }
-  const reserve = poolEmpty(sim, ant) && ant.cropC + ant.cropP < QUEEN_FEED_LOADS;
+  const reserve = reserveTime(sim, ant) && ant.cropC + ant.cropP < QUEEN_FEED_LOADS;
   if ((reserve ? q.queen!.gut.c < QUEEN_TARGET_GUT_C : queenWantsFood(q)) && ant.carry.kind === 'none') {
     ant.bb[RESERVE] = reserve && ant.energy > CARER_KEEP_RESERVE ? 1 : 0;
     if (reserve && ant.energy <= CARER_KEEP_RESERVE) { endCycle(sim, ant, ENTRY, 'hungry'); return; }
@@ -111,7 +114,8 @@ function load(sim: Sim, ant: Ant): void {
 /** After loading: feed her; with nothing in the pool (S2) from the own reserve instead (GDD 02 §5.7). */
 function loaded(sim: Sim, ant: Ant, got: number): void {
   if (got <= 1e-6 && ant.cropC + ant.cropP < QUEEN_FEED_LOADS) {
-    ant.bb[RESERVE] = ant.energy > CARER_KEEP_RESERVE ? 1 : 0;
+    const allowed = reserveFeedAllowed(sim.stores.colonies.get(ant.colony));
+    ant.bb[RESERVE] = allowed && ant.energy > CARER_KEEP_RESERVE ? 1 : 0;
     if (ant.bb[RESERVE] === 0) { endCycle(sim, ant, ENTRY, 'hungry'); return; }
   }
   setState(sim, ant, 'queen-care.feed');

@@ -99,6 +99,22 @@ describe('founding flow: the time-lapse (GDD 06 §5.11)', () => {
     for (let i = 0; i < 120; i++) session.driver.step(1);
     expect(sim.state.player.opening!.phase).toBe('done');
     expect(sim.state.player.timelapse).toBeNull();
-    expect(allowedSpeeds({ mode: 'playing', view: 'observer', possessed: false, openingPhase: null, timelapse: false })).toEqual([0, 1, 2, 4, 8]);
+    // the speed context as the UI bridge builds it from the running sim (not a hand-written one)
+    const ctxOf = (view: 'possess' | 'observer') => {
+      const op = sim.state.player.opening;
+      return {
+        mode: 'playing' as const, view, possessed: sim.state.player.possessedAntId !== -1,
+        openingPhase: op && !op.done ? op.phase : null, timelapse: sim.state.player.timelapse !== null,
+      };
+    };
+    expect(allowedSpeeds(ctxOf('possess'))).toEqual([0, 1, 2, 4]); // 8x is never offered while possessing
+    session.driver.enqueue({ type: 'release', reason: 'player' });
+    session.driver.step(1);
+    expect(sim.state.player.possessedAntId).toBe(-1);
+    expect(allowedSpeeds(ctxOf('observer'))).toEqual([0, 1, 2, 4, 8]);
+    // and the simulation itself accepts 8x now (it enforces the opening and possession limits on its own)
+    session.driver.enqueue({ type: 'setSpeed', speed: 8 });
+    session.driver.step(1);
+    expect(sim.state.env.time.speed).toBe(8);
   }, 120_000);
 });

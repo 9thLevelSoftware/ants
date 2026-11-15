@@ -128,7 +128,7 @@ export const HABITAT_ENTRIES: readonly CodexEntry[] = [
   },
   {
     id: 'cx-habitat-asphalt',
-    title: 'Asphalt',
+    title: 'Asphalt surfaces',
     category: 'habitats',
     species: ['ALL'],
     body:

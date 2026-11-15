@@ -14,10 +14,13 @@ import { checkStartRule, goodNear } from '../maps/start';
 import { SUIT } from '../tuning/maps';
 import { VALID } from '../tuning/pipeline';
 import { generated, siteDistribution, walkToDigSite } from './testkit';
-import { accessOfAnchor, sourceVariant } from './economy';
-import { foodReport } from './finalize';
+import { ECOLOGY_TIER } from '@/sim/balance';
+import { accessOfAnchor, dayOffer, sourceVariant, sustainedOffer } from './economy';
+import { foodReport, siteFoodShare } from './finalize';
+import { honeydewFilmFeet, placeFilm, removeFilm } from './food';
+import { anchorSeasonMask, startDistances } from './common';
 import { HOST_BIT } from './hosts';
-import { ANT_PREDATORS, ECONOMY_FLOORS, INCIPIENT, PREDATOR_START_CLEAR_BU, START_RULE } from './tuning';
+import { ANT_PREDATORS, CRUMB_SPOT, ECONOMY_FLOORS, INCIPIENT, PREDATOR_START_CLEAR_BU, START_RULE, topUpZones } from './tuning';
 
 vi.setConfig({ testTimeout: 180_000 });
 
@@ -119,7 +122,8 @@ describe('plant hosts (deliverable 2)', () => {
       const w = ctx.world;
       const aphid = w.placements.plants.filter((p) => p.hostFlags & HOST_BIT.aphid).length;
       expect(aphid, a).toBeGreaterThanOrEqual(20);
-      expect(aphid, a).toBeLessThanOrEqual(90 + w.placements.plants.filter((p) => p.hostClass === 'tree').length + 60);
+      // promotions and film hosts stop at the cap; only tree branch colonies (p 0.35 per branch) come on top
+      expect(aphid, a).toBeLessThanOrEqual(90 + w.placements.plants.filter((p) => p.hostClass === 'tree').length);
       const k = createKernel(w, { voxel: w.bu / 2, keys: [], chunks: [], breaches: [] }, { field: { hashCell: 32 * w.bu } });
       let checked = 0;
       for (const p of w.placements.plants.filter((x) => x.hostFlags !== 0).slice(0, 25)) {
@@ -211,16 +215,139 @@ describe('queen start (deliverable 5, acceptance 3, directions §K)', () => {
 });
 
 describe('founding-site quality discriminates (directions §K ruling, measured on the final worlds)', () => {
-  it('excellent <= 10 %, good <= 25 %, some poor; open sunny mown lawn reads fair; sunny cover reads good or better', () => {
+  // Only the caps on excellent and good are binding (directions §K ruling, worldgen-life addendum 3); the other
+  // shares are printed. The scoring itself is being unified with the live read-out by the founding task.
+  it('excellent <= 10 %, good <= 25 % of the diggable cells', () => {
     for (const { a, ctx } of all()) {
       const d = siteDistribution(ctx);
       const pct = (x: number) => (100 * x).toFixed(1);
       console.info(`[sites] ${a}#1 ${d.total} diggable cells: excellent ${pct(d.excellent)} %, good ${pct(d.good)} %, fair ${pct(d.fair)} %, poor ${pct(d.poor)} %; open lawn fair ${d.lawnFair}/${d.lawn}; sunny cover good+ ${d.covGood}/${d.cov}`);
       expect(d.excellent).toBeLessThanOrEqual(0.1);
       expect(d.good).toBeLessThanOrEqual(0.25);
-      expect(d.poor).toBeGreaterThanOrEqual(0.05);
-      if (d.lawn > 50) expect(d.lawnFair / d.lawn).toBeGreaterThanOrEqual(0.9);
-      if (d.cov > 10) expect(d.covGood / d.cov).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+});
+
+// ---- review fixes (worldgen-life review): flows-only economy, zone rules of top-ups, T1 flower season, crumb
+// spot hosts, the film host flag, the start-rule check, map-wide site food ----
+
+describe('review fixes', () => {
+  it('the floors are checked against the renewable daily supply; it never exceeds stock + one day of renewal', () => {
+    for (const { a, ctx } of all()) {
+      const d = startDistances(ctx);
+      for (const f of ECONOMY_FLOORS) {
+        const flow = sustainedOffer(ctx, d, f.radiusBu), stock = dayOffer(ctx, d, f.radiusBu);
+        expect(flow.c, `${a} ${f.radiusBu}`).toBeLessThanOrEqual(stock.c + 1e-9);
+        // sugar granules have no renewal at Tier 1: they add nothing to the daily supply
+        expect(flow.byVariant['sugar-granules']?.c ?? 0).toBe(0);
+        const r = foodReport(ctx).floors.find((x) => x.radiusBu === f.radiusBu)!;
+        expect(r.c).toBeCloseTo(flow.c, 9);
+        expect(r.p).toBeCloseTo(flow.p, 9);
+      }
+    }
+  });
+
+  it('guarantee top-ups lie only in zones where the catalogue places that food (no crumbs in forest or beds)', () => {
+    for (const { a, ctx } of all()) {
+      for (const an of ctx.world.placements.foodAnchors) {
+        if (!/top-up/.test(an.initialState) || an.kind !== 'crumb') continue;
+        const zone = ctx.layout.zones[ctx.layout.nav[cellAt(ctx, an.pos.x, an.pos.z)]].type;
+        expect(topUpZones(sourceVariant(an)!), `${a} ${an.initialState} in ${zone}`).toContain(zone);
+      }
+      expect(topUpZones('crumb-starch')).not.toContain('forest');
+      expect(topUpZones('crumb-starch')).not.toContain('garden-bed');
+    }
+  });
+
+  it('Tier 1 flowers are open all year (GDD 05 §1.2 "T1: always"): their anchors carry the winter bit', () => {
+    const winter = 1 << SEASONS.indexOf('winter');
+    expect(anchorSeasonMask('flower', 'nectar') & winter).toBe(ECOLOGY_TIER === 1 ? winter : 0);
+    expect(anchorSeasonMask('elaiosome-seed', 'seed') & winter).toBe(0);
+    for (const { ctx } of all()) {
+      for (const f of ctx.world.placements.foodAnchors.filter((x) => x.initialState.startsWith('flower'))) {
+        expect(f.seasonMask).toBe(anchorSeasonMask('flower', 'nectar'));
+      }
+    }
+  });
+
+  it('crumbs by benches, tables and bins name their object; bin crumbs draw fruit flies', () => {
+    const SPOTS = new Set(['bench', 'patio-table', 'picnic-table', 'litter-bin']);
+    let spotCrumbs = 0, binCrumbs = 0;
+    for (const { a, ctx } of all()) {
+      const w = ctx.world;
+      const byId = new Map(w.objects.map((o) => [o.id, o]));
+      for (const an of w.placements.foodAnchors.filter((x) => x.kind === 'crumb' && x.hostObjectId >= 0)) {
+        const ob = byId.get(an.hostObjectId)!;
+        if (SPOTS.has(ob.templateId)) { spotCrumbs++; expect(dist(an.pos, ob.pos), `${a} crumb ${an.id}`).toBeLessThanOrEqual(CRUMB_SPOT.radiusMm + 1); }
+        if (ob.templateId === 'litter-bin' || ob.templateId === 'pedal-bin') {
+          binCrumbs++;
+          const fly = w.placements.territories.some((t) => t.creatureKind === 'fruit-fly' && dist(t.center, an.pos) < 1e-6);
+          expect(fly, `${a} bin crumb ${an.id}`).toBe(true);
+        }
+      }
+      // no fruit flies on crumbs of other objects (counters, tables): GDD 04 §8.2 lists bins, fruit and windfalls
+      for (const t of w.placements.territories.filter((x) => x.creatureKind === 'fruit-fly')) {
+        const src = w.placements.foodAnchors.find((x) => dist(x.pos, t.center) < 1e-6);
+        if (!src) continue; // its anchor was pruned as unreachable from the final start
+        const host = byId.get(src.hostObjectId)?.templateId ?? '';
+        expect(src.kind === 'fruit' || host === 'litter-bin' || host === 'pedal-bin', `${a} fly on ${src.initialState} @${host}`).toBe(true);
+      }
+    }
+    expect(spotCrumbs).toBeGreaterThan(0);
+    expect(binCrumbs).toBeGreaterThan(0);
+  });
+
+  it('a film turned down after placing leaves no host flag; removing a film demotes a plant it promoted', () => {
+    const { ctx } = all()[0];
+    const w = ctx.world;
+    const foot = honeydewFilmFeet(ctx).find((f) => !f.host && !(f.p.hostFlags & HOST_BIT.aphid));
+    expect(foot).toBeDefined();
+    const flags = foot!.p.hostFlags, n = w.placements.foodAnchors.length, pois = foot!.p.hostPoiIds;
+    try {
+      expect(placeFilm(ctx, foot!, () => false)).toBe(false);
+      expect(foot!.p.hostFlags).toBe(flags);
+      expect(w.placements.foodAnchors.length).toBe(n);
+      if (placeFilm(ctx, foot!)) {
+        expect(foot!.p.hostFlags & HOST_BIT.aphid).toBeTruthy();
+        removeFilm(ctx, w.placements.foodAnchors[w.placements.foodAnchors.length - 1]);
+        expect(foot!.p.hostFlags).toBe(flags);
+        expect(foot!.host).toBe(false);
+      }
+      expect(w.placements.foodAnchors.length).toBe(n);
+    } finally {
+      foot!.p.hostFlags = flags;
+      foot!.p.hostPoiIds = pois;
+      foot!.host = false;
+      w.placements.foodAnchors.length = n;
+    }
+  });
+
+  it('the start-rule check re-checks the map edge and keeps predator territories radius + 40 BU away', () => {
+    const { ctx } = all()[1];
+    const w = ctx.world, s = { ...w.queenStart.pos }, bu = w.bu;
+    expect(checkStartRule(ctx).ok).toBe(true);
+    try {
+      w.queenStart.pos = { ...s, x: (VALID.startEdgeMinBu - 20) * bu };
+      expect(checkStartRule(ctx).detail).toContain('edge=false');
+    } finally { w.queenStart.pos = s; }
+    const r = 200 * bu;
+    w.placements.territories.push({ creatureKind: 'wolf-spider', center: { x: s.x + r + (START_RULE.hazardClearBu - 10) * bu, y: 0, z: s.z }, radiusMm: r, zoneMask: 0xff, cap: 1 });
+    try {
+      expect(checkStartRule(ctx).detail).toContain('hazardFree=false');
+    } finally { w.placements.territories.pop(); }
+    expect(checkStartRule(ctx).ok).toBe(true);
+  });
+
+  it('GDD 05 §1.3 site food is measured map-wide; flowers opened for poorly fed sites sit on nectar hosts within the cap', () => {
+    for (const { a, ctx } of all()) {
+      const r = siteFoodShare(ctx);
+      console.info(`[site food] ${a}#1 good sites ${r.sites}, share with >= 2 carbohydrate sources within 400 BU ${(100 * r.share).toFixed(0)} %`);
+      expect(r.carcassZones).toBe(true);
+      expect(r.share).toBeGreaterThan(0);
+      const fa = ctx.world.placements.foodAnchors;
+      expect(fa.filter((x) => x.initialState.startsWith('flower')).length).toBeLessThanOrEqual(150);
+      const byObj = new Map(ctx.world.placements.plants.map((p) => [p.objectId, p]));
+      for (const f of fa.filter((x) => /site-food/.test(x.initialState))) expect(byObj.get(f.hostObjectId)!.hostFlags & HOST_BIT.nectar).toBeTruthy();
     }
   });
 });

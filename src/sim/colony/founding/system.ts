@@ -16,6 +16,7 @@ import { broodLost, causeOfQueenDeath, failOpening } from './failure';
 import { closeAim, handover, openAim } from './handover';
 import { beginLapse, lapseTick } from './lapse';
 import { assessDigSite, readoutTick } from './readout';
+import { reopenTick } from './reopen';
 
 /** The phase now (a function call, so TypeScript does not narrow it across the transitions below). */
 function phaseOf(op: OpeningState): OpeningPhase {
@@ -140,6 +141,7 @@ function step(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
 
 export function runFounding(sim: Sim): void {
   const op = openingOf(sim);
+  if (op && (op.phase === 'handover' || op.phase === 'done')) reopenTick(sim);
   if (!op || op.done || op.phase === 'failed' || op.phase === 'intro-card') return;
   if (op.phase === 'handover') { handoverTick(sim, op); return; }
   const q = foundingQueen(sim);

@@ -6,6 +6,7 @@ export {
   availableActions, begin, cancel, canDo, interruptible, resolveTarget, stepAction, stopAction, type BeginOptions,
 } from './runner';
 export { ACTION_DEFS, actionDef, digContact, digPower, entranceAtThroat, floorAhead, setTrailFlag } from './defs';
+export { reserveFeedAllowed } from './defs/nestCare';
 export { broodCarriedBy, carriedBrood, carriedItem, handsFree, releaseCarried } from './carry';
 export {
   antLengthMm, bearingDeg, contactDistance, entityTarget, findEntrance, inReach, mandiblePoint, placeOf, reachMm,

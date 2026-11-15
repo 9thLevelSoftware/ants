@@ -8,7 +8,8 @@ import { BroodFlag, POSES } from '@/sim/types';
 import { SYSTEMS } from '@/sim/systems';
 import { placeOnSurface } from '@/sim/locomotion';
 import { LARVA_P_REQ, LARVA_C_REQ } from '@/sim/balance/colony';
-import { NURSE_LOAD, QUEEN_FEED_LOADS } from '@/sim/balance/nestwork';
+import { LOAD_RATE, NURSE_LOAD, QUEEN_FEED_LOADS } from '@/sim/balance/nestwork';
+import { DEPART_RATION_C } from '@/sim/balance/foraging';
 import { makeNestColony, run, type NestColony } from '@/sim/ants/behaviours/nest/testkit';
 import { begin, canDo } from './runner';
 import { workRate } from './workRate';
@@ -97,10 +98,51 @@ describe('load-crop (GDD 02 §5.4.1-5.4.2)', () => {
     const col = sim.state.colonies[0];
     const r0 = col.ledger.outRationC;
     expect(begin(sim, w, 'load-crop', null)).toBe(true);
-    expectTimed(sim, w, LOAD_S);
-    expect(w.cropC).toBeGreaterThan(0);
+    // 0.1 load/s (GDD 02 §5.4.1): the 0.1 C ration takes 1 s, not the 6 s of a full nurse load
+    expectTimed(sim, w, DEPART_RATION_C / LOAD_RATE);
+    expect(w.cropC).toBeCloseTo(DEPART_RATION_C, 9);
     expect(w.cropP).toBe(0);
     expect(col.ledger.outRationC - r0).toBeCloseTo(w.cropC, 9);
+  });
+
+  it('a top-up takes the time of the amount loaded (0.1 load/s), never more than LOAD_S', () => {
+    const k = colony({ stores: { c: 40, p: 20 } });
+    const { sim, w } = k;
+    w.task = 'nurse';
+    stand(k, w, k.food);
+    w.cropC = 0.3; w.cropP = 0.15;
+    expect(begin(sim, w, 'load-crop', null)).toBe(true);
+    expectTimed(sim, w, (NURSE_LOAD - 0.45) / LOAD_RATE);
+    expect(crop(w)).toBeCloseTo(NURSE_LOAD, 6);
+  });
+
+  it('a small worker is filled to her own crop capacity, in the time of that amount', () => {
+    const k = colony({ stores: { c: 40, p: 20 } });
+    const { sim, w } = k;
+    w.task = 'nurse';
+    w.cropCap = 0.25;
+    stand(k, w, k.food);
+    expect(begin(sim, w, 'load-crop', null)).toBe(true);
+    expectTimed(sim, w, 0.25 / LOAD_RATE);
+    expect(crop(w)).toBeCloseTo(0.25, 9);
+    expect(canDo(sim, w, 'load-crop', null).reason).toBe('crop-full');
+  });
+
+  it('touching a store ant counts as a place to load, outside a food chamber (GDD 02 §5.4.1)', () => {
+    const k = colony({ workers: 2, stores: { c: 40, p: 20 } });
+    const { sim, w } = k;
+    const store = sim.stores.ants.list.find((a) => a.caste === 'worker' && a.id !== w.id)!;
+    w.task = 'nurse';
+    store.task = 'idle';
+    stand(k, store, k.nursery);
+    besideFacing(k, w, k.nursery, store.pos, 1.0);
+    sim.tick(); // the spatial index sees the new positions
+    expect(canDo(sim, w, 'load-crop', null).reason).toBe('not-allowed-here');
+    store.task = 'store';
+    expect(canDo(sim, w, 'load-crop', null).ok).toBe(true);
+    expect(begin(sim, w, 'load-crop', null)).toBe(true);
+    for (let i = 0; i < 200 && w.action; i++) sim.tick();
+    expect(crop(w)).toBeCloseTo(NURSE_LOAD, 6);
   });
 
   it('the possessed ant loads its crop through the `action` command', () => {
@@ -137,11 +179,17 @@ describe('feed-queen (GDD 02 §5.4.1 carer -> queen, §5.7 S2)', () => {
   });
 
   it('secondary: from the own reserve of the carer, refused at the reserve floor', () => {
-    const k = colony();
+    // an empty pool keeps the colony in S2 while the feed runs (the economy re-evaluates the stage)
+    const k = colony({ stores: { c: 0, p: 0 } });
     const { sim, w, queen } = k;
     besideFacing(k, w, k.royal, queen.pos, 1.2);
     const t = { kind: 'ant' as const, id: queen.id, pos: queen.pos };
     queen.queen!.gut.c = 0; queen.queen!.gut.p = 0;
+    w.energy = 0.6;
+    // a starvation measure: refused in a fed colony, allowed from S2 `rationing` on (GDD 02 §5.7)
+    const col = sim.state.colonies[0];
+    expect(canDo(sim, w, 'feed-queen', t, { secondary: true }).reason).toBe('conditions');
+    col.starvationStage = 'rationing';
     w.energy = 0.2;
     expect(canDo(sim, w, 'feed-queen', t, { secondary: true }).reason).toBe('no-reserve');
     w.energy = 0.6;

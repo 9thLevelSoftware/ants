@@ -180,12 +180,13 @@ function planSurface(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, t: Vec3
   // climb a stone beside the hole if need be, straight to it
   const atEntrance = flowNest >= 0 && loco !== null && d <= loco.cell;
   if (d < r.P.direct && (!loco || atEntrance || loco.segmentWalkable(w.pos, t, discs))) { setSeek(w, s, t); return true; }
-  if (loco && flowNest >= 0 && (!discs || discs.length === 0)) {
+  if (loco && flowNest >= 0) {
     const f = nestEntrances(sim, r, flowNest);
     if (f.seeds.length > 0) {
       resetLeg(w, s);
       w.nav.mode = 'path';
-      s.flowKey = nestFlowKey(flowNest);
+      // with avoid markers: the colony's disc-weighted variant of the field (shared by all its homeward trips)
+      s.flowKey = discs && discs.length > 0 ? avoidFlowKey(flowNest) : nestFlowKey(flowNest);
       s.flowNest = flowNest;
       return true;
     }
@@ -350,12 +351,24 @@ export function followLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, ou
   }
 }
 
-/** Distance array of the flow-field leg (the leg's nest entrances), or null. */
+/** Flow-field key of a nest's entrances weighted by its colony's avoid discs (GDD 02 §12.2). */
+function avoidFlowKey(nestId: number): string {
+  return `${nestFlowKey(nestId)}|avoid`;
+}
+
+/**
+ * Distance array of the flow-field leg (the leg's nest entrances), or null. The avoid variant weighs the discs of
+ * the nest's colony (a trip home goes to one's own nest); its signature includes theirs, so a moved, added or removed
+ * marker rebuilds it (the walker also re-plans: discsChanged).
+ */
 export function legFlow(sim: Sim, s: NavScratch, r: LocoRuntime): Float32Array | null {
   const g = sim.navGrid;
   if (!s.flowKey || !isLocoNavGrid(g)) return null;
   const f = nestEntrances(sim, r, s.flowNest);
-  return f.seeds.length > 0 ? g.flowField(s.flowKey, f.sig, f.seeds) : null;
+  if (f.seeds.length === 0) return null;
+  if (s.flowKey !== avoidFlowKey(s.flowNest)) return g.flowField(s.flowKey, f.sig, f.seeds);
+  const colony = sim.stores.nests.get(s.flowNest)?.colony ?? -1;
+  return g.flowField(s.flowKey, `${f.sig}|a${avoidSig(sim, r, colony)}`, f.seeds, avoidDiscs(sim, r, colony));
 }
 
 /** After a climb leg: seek the goal or re-plan. */

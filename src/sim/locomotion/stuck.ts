@@ -4,18 +4,20 @@
 //   6 fail.
 // Progress resets the rung. Episodes and relocations per request are capped, and every request has a timeout,
 // so no walker can loop forever: it arrives or reports `failed`.
+// A wander has no goal to replan toward or relocate along: it has its own short ladder (wanderStuck): pivot on the
+// spot, then fail.
 
 import type { Vec3 } from '@/core/math/vec3';
 import { createLogger } from '@/core/log';
 import type { Ant, Sim, Walker } from '@/sim/types';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { walkerPlace as walkerPlaceImp, walkerSurfaceChanged as walkerSurfaceChangedImp } from './walker';
-import { dist3 as dist3Imp, normalizeInPlace as normalizeInPlaceImp, set3 as set3Imp, tangentPart as tangentPartImp } from './mathx';
+import { dist3 as dist3Imp, normalizeInPlace as normalizeInPlaceImp, rotateTangent as rotateTangentImp, set3 as set3Imp, tangentPart as tangentPartImp } from './mathx';
 import type { LocoRuntime } from './runtime';
 import { NO_PROGRESS, type NavScratch } from './scratch';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const walkerPlace = walkerPlaceImp, walkerSurfaceChanged = walkerSurfaceChangedImp, dist3 = dist3Imp, normalizeInPlace = normalizeInPlaceImp, set3 = set3Imp, tangentPart = tangentPartImp;
+const walkerPlace = walkerPlaceImp, walkerSurfaceChanged = walkerSurfaceChangedImp, dist3 = dist3Imp, normalizeInPlace = normalizeInPlaceImp, rotateTangent = rotateTangentImp, set3 = set3Imp, tangentPart = tangentPartImp;
 
 const log = createLogger('loco');
 const _t: Vec3 = { x: 0, y: 0, z: 0 }, _p: Vec3 = { x: 0, y: 0, z: 0 }, _from: Vec3 = { x: 0, y: 0, z: 0 };
@@ -81,6 +83,40 @@ export function checkStuck(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, i
     }
     default: return target ? 'fail' : 'none';
   }
+}
+
+export type WanderStuck = 'go' | 'pivot' | 'fail';
+
+/**
+ * The wander's ladder (call after trackMovement). Stalled for wanderStallS: a new episode starts a pivot of
+ * wanderPivotS (the side alternates per episode). A pivot that ends without the walker having moved, or more than
+ * wanderStallMax episodes in one request, fails the wander. 'pivot': the caller steers with pivotDesired.
+ */
+export function wanderStuck(w: Walker, s: NavScratch, r: LocoRuntime, tick: number): WanderStuck {
+  const P = r.P;
+  if (s.ladder === 1 && tick < s.ladderUntil) return 'pivot';
+  if (tick - s.bestTick <= P.wanderStallS * TICKS_PER_SECOND) return 'go';
+  // stalled: still on the pivot rung means the pivot freed nothing (any movement resets the rung)
+  if (s.ladder >= 1) return 'fail';
+  s.episodes++;
+  r.stats.stuckEpisodes++;
+  if (s.episodes > P.wanderStallMax) return 'fail';
+  s.ladder = 1;
+  s.side = -s.side;
+  s.bestTick = tick;
+  s.ladderUntil = tick + Math.round(P.wanderPivotS * TICKS_PER_SECOND);
+  set3(s.anchor, w.pos.x, w.pos.y, w.pos.z);
+  w.nav.stuckTicks = tick - s.reqTick;
+  r.stats.sidesteps++;
+  return 'pivot';
+}
+
+/**
+ * Pivot direction: a quarter turn from the heading on the tangent plane, so the heading sweeps round on the spot
+ * (about 24 deg a tick) and the walker steps off in the first direction it can take.
+ */
+export function pivotDesired(w: Walker, s: NavScratch, out: Vec3): void {
+  rotateTangent(out, w.fwd, w.up, s.side * Math.PI * 0.5);
 }
 
 function negUp(w: Walker): Vec3 {

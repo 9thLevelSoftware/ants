@@ -8,7 +8,7 @@
 import type { RngState } from '@/core/rng';
 import { rngFloat, rngInt } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';
-import type { FoodKind, FoodVariant, PlantPlacement, ZoneType } from '@/sim/types';
+import type { FoodAnchor, FoodKind, FoodVariant, PlantPlacement, ZoneType } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import { supportAt } from '../kit/surface';
 import { dcos, dsin } from '../kit/dmath';
@@ -89,8 +89,20 @@ export function honeydewFilmFeet(ctx: GenContext): FilmFoot[] {
   return filmFeet.get(ctx) ?? [];
 }
 
-/** Places a film under a plant's stem, making the plant an aphid host; true if placed. */
-export function placeFilm(ctx: GenContext, f: FilmFoot): boolean {
+/** Plants that became aphid hosts only because a film was placed under them (undone when the film goes). */
+const filmPromoted = new WeakMap<GenContext, Set<number>>();
+
+function aphidHostCount(ctx: GenContext): number {
+  return ctx.world.placements.plants.filter((p) => p.hostFlags & HOST_BIT.aphid).length;
+}
+
+/**
+ * Places a film under a plant's stem; `accept` may still turn the placed anchor down (it is then removed). Only
+ * an accepted film makes a plant an aphid host, and only while the map is below its aphid-host cap (GDD 05 §1.3
+ * 20-90). True if placed.
+ */
+export function placeFilm(ctx: GenContext, f: FilmFoot, accept?: (a: FoodAnchor) => boolean): boolean {
+  if (!f.host && aphidHostCount(ctx) >= scaledCap(ctx, NODE_DENSITY.aphidHost.cap)) return false;
   if (placeAnchor(ctx, 'honeydew-film', 'honeydew', f.foot, f.p.objectId) < 0) {
     // a trunk or a wide stem base fills its nav cell: the drip falls on the nearest open ground beside it
     const c = snapWalkable(ctx, cellAt(ctx, f.foot.x, f.foot.z), 1);
@@ -99,13 +111,30 @@ export function placeFilm(ctx: GenContext, f: FilmFoot): boolean {
     const near = snapWalkable(ctx, cellAt(ctx, x, z), 0) === cellAt(ctx, x, z) ? { x, z } : q;
     if (placeAnchor(ctx, 'honeydew-film', 'honeydew', { x: near.x, y: supportAt(ctx, near.x, near.z, f.foot.y + ctx.dims.bu), z: near.z }, f.p.objectId) < 0) return false;
   }
+  const anchors = ctx.world.placements.foodAnchors;
+  if (accept && !accept(anchors[anchors.length - 1])) { anchors.pop(); return false; }
   if (!(f.p.hostFlags & HOST_BIT.aphid)) {
     f.p.hostFlags |= HOST_BIT.aphid;
     f.p.hostPoiIds = undefined;
     usableHostPois(ctx, f.p);
     f.host = true;
+    let set = filmPromoted.get(ctx);
+    if (!set) { set = new Set(); filmPromoted.set(ctx, set); }
+    set.add(f.p.objectId);
   }
   return true;
+}
+
+/** Removes a film anchor; a plant that was an aphid host only for this film loses the flag again. */
+export function removeFilm(ctx: GenContext, film: FoodAnchor): void {
+  ctx.world.placements.foodAnchors = ctx.world.placements.foodAnchors.filter((x) => x !== film);
+  const set = filmPromoted.get(ctx);
+  if (!set?.has(film.hostObjectId)) return;
+  set.delete(film.hostObjectId);
+  const p = ctx.world.placements.plants.find((x) => x.objectId === film.hostObjectId);
+  const foot = honeydewFilmFeet(ctx).find((x) => x.p.objectId === film.hostObjectId);
+  if (p) { p.hostFlags &= ~HOST_BIT.aphid; p.hostPoiIds = undefined; usableHostPois(ctx, p); }
+  if (foot) foot.host = false;
 }
 
 /** Aphid herd sites (T2) on every aphid host, and the T1 static honeydew films under some of their stems. */
@@ -195,7 +224,7 @@ function crumbsAndSugar(ctx: GenContext): void {
     for (let i = 0, tries = 0; i < n && tries < 12; tries++) {
       const a = rngFloat(rng) * 6.283185307179586, r = CRUMB_SPOT.radiusMm * Math.sqrt(rngFloat(rng));
       const x = ob.pos.x + r * dcos(a), z = ob.pos.z + r * dsin(a);
-      if (crumb({ x, y: supportAt(ctx, x, z, ob.pos.y + 1), z })) i++;
+      if (crumb({ x, y: supportAt(ctx, x, z, ob.pos.y + 1), z }, ob.id)) i++;
     }
   }
   // interior food on its points of interest

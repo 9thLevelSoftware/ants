@@ -45,7 +45,7 @@ export const BEHAVIOUR_ENTRIES: readonly CodexEntry[] = [
       'the larvae by the same exchange, and food flows from worker to worker through the whole colony. It is the ' +
       'social bond of the colony. Nutrients are spread by it, and so are toxins.',
     inGame:
-      'While you control an ant, G shares the contents of your crop with a nestmate. The same act feeds brood and ' +
+      'While you control an ant, {key:share-food} shares the contents of your crop with a nestmate. The same act feeds brood and ' +
       'the queen when the colony does it by itself.',
     related: ['cx-honeydew', 'cx-protein-larvae'],
   },
@@ -185,7 +185,7 @@ export const BEHAVIOUR_ENTRIES: readonly CodexEntry[] = [
       'the ground before she digs has not been measured in the research used for this game; the game lets her sweep ' +
       'the ground with her antennae and reports what she finds.',
     inGame:
-      'T, or holding it for an antennal sweep, reads the ground, an object or another ant and shows an inspect card. ' +
+      '{key:inspect}, or holding it for an antennal sweep, reads the ground, an object or another ant and shows an inspect card. ' +
       'In the opening, a sweep reads the site for diggability, moisture, warmth and cover.',
     related: ['cx-aphid-tending', 'cx-nestmate-recognition'],
   },
@@ -200,7 +200,7 @@ export const BEHAVIOUR_ENTRIES: readonly CodexEntry[] = [
       'ant larvae need protein to grow: the amount of nitrogen they receive limits their size. Leafcutter larvae are ' +
       'fed only fungus, and prefer its swollen tips, the staphylae, to the thread itself.',
     inGame:
-      'Feeding a larva with E passes it a share of your crop. Workers on nursing duty do the same for every larva ' +
+      'Feeding a larva with {key:interact} passes it a share of your crop. Workers on nursing duty do the same for every larva ' +
       'that is hungry.',
     related: ['cx-protein-larvae', 'cx-brood-stages', 'cx-polyethism'],
   },

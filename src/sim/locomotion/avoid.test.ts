@@ -3,8 +3,8 @@
 // centre was, so paths grazed the rim; and trail sensors inside a disc read at full strength.
 import { describe, expect, it } from 'vitest';
 import type { Marker, Sim } from '@/sim/types';
-import { navFollowTrail, navTo } from './index';
-import { locoSim, runUntilDone, v3 } from './testkit';
+import { locoStats, navFollowTrail, navTo, navToTarget } from './index';
+import { locoSim, playerNest, runUntilDone, v3 } from './testkit';
 
 function avoidMarker(sim: Sim, id: number, x: number, z: number, r: number, colony: number): Marker {
   const m: Marker = {
@@ -40,6 +40,30 @@ describe('avoid markers in planning and trail following (GDD 02 §12.2)', () => 
       worst.push(minD / bu);
     }
     expect(Math.min(...worst), JSON.stringify(worst.map((x) => +x.toFixed(2)))).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a trip home past a disc follows the disc-weighted entrance flow field (no A* per trip) and never enters it', () => {
+    const sim = locoSim({ nest: 'small', workers: 3, sizeBu: 400 });
+    const bu = sim.world.bu;
+    const nest = playerNest(sim), e = nest.entrances[0], room = nest.chambers[0];
+    const ants = sim.state.ants.filter((a) => a.caste === 'worker');
+    const r = 15 * bu, mx = e.pos.x + 60 * bu, mz = e.pos.z;
+    avoidMarker(sim, 9300, mx, mz, r, ants[0].colony);
+    ants.forEach((a, i) => sim.enqueue({ type: 'cheat.teleport', antId: a.id, pos: v3(e.pos.x + 120 * bu, 0, e.pos.z + (i - 1) * 3 * bu) }));
+    sim.tick();
+    const plans0 = locoStats(sim).plans;
+    for (const a of ants) expect(navToTarget(sim, a, { kind: 'chamber', id: room.id, pos: room.center }, 2 * bu, { speed: 6 * bu })).toBe(true);
+    let minD = Infinity, onAvoidFlow = 0;
+    runUntilDone(sim, ants, 6000, () => {
+      for (const a of ants) {
+        if (a.nestId < 0) minD = Math.min(minD, Math.hypot(a.pos.x - mx, a.pos.z - mz) - r);
+        if (a.nav.loco?.flowKey.endsWith('|avoid')) onAvoidFlow++;
+      }
+    });
+    for (const a of ants) expect(a.nav.status).toBe('arrived');
+    expect(onAvoidFlow).toBeGreaterThan(0);
+    expect(locoStats(sim).plans - plans0).toBe(0);
+    expect(minD / bu).toBeGreaterThanOrEqual(0);
   });
 
   it('a trail running into a disc is followed there at x 0.1 (GDD 02 §12.2): the follower leaves it at the rim', () => {

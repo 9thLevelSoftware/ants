@@ -27,4 +27,4 @@ export const worldgen: WorldgenModule = {
 };
 
 export { foodReport } from './finalize';
-export { dayOffer, sourceVariant } from './economy';
+export { dayOffer, sustainedOffer, sourceVariant } from './economy';

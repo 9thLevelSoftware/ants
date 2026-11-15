@@ -13,12 +13,12 @@ import { routeById as routeByIdImp } from './routes';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
 import { aiSpeedCached as aiSpeedCachedImp } from './speed';
-import { checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp } from './stuck';
+import { checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, pivotDesired as pivotDesiredImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp, wanderStuck as wanderStuckImp } from './stuck';
 import { walkerLetGo as walkerLetGoImp } from './walker';
 import { afterClimb as afterClimbImp, discsChanged as discsChangedImp, finalLeg as finalLegImp, finite3 as finite3Imp, followLeg as followLegImp, legFlow as legFlowImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, surfaceDist as surfaceDistImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
+const walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, pivotDesired = pivotDesiredImp, wanderStuck = wanderStuckImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
 const MOVING_KINDS = new Set(['ant', 'creature', 'item', 'brood']);
@@ -116,9 +116,25 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   const last = finalLeg(w, s);
   const window = last ? r.P.arriveStallS : r.P.stuckWindowS;
   if (tick - s.bestTick > window * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
-  if (last && dropToGoal(sim, w, s, r)) return false;
+  if ((last && dropToGoal(sim, w, s, r)) || letGoPinned(sim, w, s, r)) return false;
   if (last) speedCap = arriveCap(w, s, r, res.metric, dt, out, aiSpeedCached(sim, w, s, r.P));
   return stuckStep(sim, w, s, r, id, res, out);
+}
+
+/**
+ * Pinned on a wall, fin or overhang of a cavity: standing, no progress for pinnedS. Let go and drop to the floor
+ * below; the request goes on from there (a trip plans its leg again after the landing). True if the walker let go.
+ */
+function letGoPinned(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  const P = r.P, tick = sim.state.tick;
+  if (w.medium !== 'cavity' || w.speed > 0 || w.up.y >= P.pinnedUpY) return false;
+  if (tick - Math.max(s.bestTick, s.reqTick) <= P.pinnedS * TICKS_PER_SECOND) return false;
+  walkerLetGo(sim.field, w, 0, sim.kernel.walker);
+  s.planTick = -1;
+  s.bestTick = tick;
+  s.ladder = 0;
+  r.stats.drops++;
+  return true;
 }
 
 /**
@@ -166,6 +182,7 @@ function fieldUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: num
   const res = followField(sim, w, s, r, w.nav.arriveDist, out);
   if (res.state === 'done') { arrive(w, s, r); return false; }
   if (res.state === 'fail') { fail(w, s, r); return false; }
+  if (letGoPinned(sim, w, s, r)) return false;
   return stuckStep(sim, w, s, r, id, res, out);
 }
 
@@ -187,13 +204,17 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
     case 'goto': go = tripUpdate(sim, w, s, r, id, dt, out); break;
     case 'field': go = fieldUpdate(sim, w, s, r, id, out); break;
     case 'climb': go = climbUpdate(sim, w, s, r, id, out); break;
-    case 'wander':
-      wanderDesired(w, s, r, id, tick, dt, out);
+    case 'wander': {
       trackMovement(w, s, tick, r);
-      checkStuck(sim, w, s, r, id, null);
-      ladderOverride(w, s, tick, out);
+      if (letGoPinned(sim, w, s, r)) break;
+      const st = wanderStuck(w, s, r, tick);
+      // a failed wander also drops its mode: callers that re-issue "while not wandering" do so at once
+      if (st === 'fail') { fail(w, s, r); w.nav.mode = 'none'; break; }
+      if (st === 'pivot') pivotDesired(w, s, out);
+      else wanderDesired(w, s, r, id, tick, dt, out);
       go = true;
       break;
+    }
     case 'trail': {
       const v = trailDesired(sim, w, s, r, id, tick, dt, out);
       s.trailLostS = v > 0 ? 0 : s.trailLostS + dt;

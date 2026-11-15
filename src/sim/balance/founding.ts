@@ -56,58 +56,17 @@ export const SITE_KEEP_RADIUS_BU = 8;
 export const SITE_REFRESH_S = 0.5;
 /** Moving slower than this counts as standing still, BU/s. */
 export const SITE_STILL_SPEED_BU_S = 0.2;
-/** Depth of the substrate and moisture samples, BU. */
-export const SITE_SAMPLE_DEPTH_BU = 8;
-/** Cover: a solid roof found within this height above the ground, BU. */
-export const SITE_ROOF_MAX_BU = 3;
 /**
- * Cover factor values: solid roof, dense litter / moss, grass canopy, bare ground. GDD 06 §5.7 gives 1.0 / 0.6 / 0.35 /
- * 0.1; directions §K (binding, after the world-generation review) asks for missing cover to be a LOW value so that
- * open lawn reads fair: litter 0.5 and grass 0.15, calibrated with SITE_WORD_Q on generated worlds (founding report).
+ * Site quality itself (factors, weights, word thresholds) is the static suitability map's: one scoring function
+ * and one threshold table (directions §K), src/worldgen/maps/suitability.ts with SUIT / SUITABILITY in
+ * src/worldgen/tuning/maps.ts. The values below only word the read-out's raw readings.
  */
-export const SITE_COVER = { roof: 1.0, litter: 0.5, grass: 0.15, bare: 0.1 } as const;
-/** Litter map value from which the ground counts as densely littered. */
-export const SITE_LITTER_MIN = 0.5;
-/**
- * Cover probes, BU: the upward trace starts this far above the ground; a primitive within BESIDE_R of a point this
- * high above the ground (and rising above HIGHER_THAN) counts as "beside a stone".
- */
-export const SITE_COVER_PROBE = { startBu: 0.25, besideR: 1.0, higherThanBu: 0.5 } as const;
-/** Read-out words of the raw soil moisture (theta at the sample depth): Dry below the first, ... Waterlogged from the last. */
+/** The live ceiling probe: an upward trace from this far above the ground; the roof primitive is looked up within this radius, BU. */
+export const SITE_CEILING_PROBE = { startBu: 0.25, primRadiusBu: 0.5 } as const;
+/** Read-out words of the raw soil moisture (theta): Dry below the first, ... Waterlogged from the last. */
 export const SITE_MOISTURE_WORD_THETA = [0.15, 0.3, 0.65, 0.9] as const;
 /** Warmth words by the cell temperature: Cold below Topt_lo - COLD, Cool below Topt_lo, Mild in the band, Warm up to Topt_hi + HOT. */
 export const SITE_WARMTH_WORD_C = { cold: 6, hot: 4 } as const;
-/** Sand diggability: 0.8 x clamp(0.4 + theta / 0.5, 0.4, 1) (dry sand collapses). */
-export const SITE_SAND = { mult: 0.8, base: 0.4, per: 0.5, min: 0.4 } as const;
-/** Rival scent: 1 - clamp(home scent / RIVAL_FULL_PH). */
-export const SITE_RIVAL_FULL_PH = 0.5;
-/** Exposure: 1 - clamp(FOOT x footTraffic + SKY x openSky). */
-export const SITE_EXPOSURE = { foot: 0.6, sky: 0.4 } as const;
-/** Warmth: 1 inside [Topt_lo, Topt_hi], linear to 0 this many C beyond. */
-export const SITE_WARMTH_FALLOFF_C = 10;
-/** A factor below this counts as this in the geometric mean (one terrible factor drags the whole). */
-export const SITE_FACTOR_FLOOR = 0.05;
-/**
- * Overall word thresholds: Q below FAIR is poor, below GOOD fair, below EXCELLENT good. GDD 06 §5.7 says 0.30 / 0.55 /
- * 0.75; directions §K's distribution targets (excellent <= ~10 % of diggable ground, good <= ~25 %, fair ~40 %, poor
- * the rest; open mown lawn fair) need these on generated worlds (3 seeds, 643k diggable samples: 23 / 39 / 27 / 9 %).
- */
-export const SITE_WORD_Q = { fair: 0.68, good: 0.74, excellent: 0.89 } as const;
-
-/** Moisture trapezoid (0 at lo0, 1 from lo1 to hi1, 0 at hi0) and the optimal chamber temperature band, C. */
-export interface SiteProfile {
-  moist: { lo0: number; lo1: number; hi1: number; hi0: number };
-  toptC: [number, number];
-  /** Weights in SITE_FACTORS order: diggability, moisture, warmth, cover, floodSafety, rivalScent, exposure. */
-  weights: [number, number, number, number, number, number, number];
-}
-
-export const SITE_PROFILES: Record<SpeciesId, SiteProfile> = {
-  'lasius-niger': { moist: { lo0: 0.1, lo1: 0.35, hi1: 0.65, hi0: 0.95 }, toptC: [20, 26], weights: [0.2, 0.2, 0.2, 0.15, 0.15, 0.05, 0.05] },
-  'camponotus-pennsylvanicus': { moist: { lo0: 0.08, lo1: 0.15, hi1: 0.3, hi0: 0.5 }, toptC: [22, 28], weights: [0.2, 0.3, 0.15, 0.15, 0.05, 0.05, 0.1] },
-  'messor-barbarus': { moist: { lo0: 0.1, lo1: 0.2, hi1: 0.5, hi0: 0.95 }, toptC: [22, 28], weights: [0.2, 0.15, 0.25, 0.05, 0.2, 0.05, 0.1] },
-  'atta-texana': { moist: { lo0: 0.1, lo1: 0.4, hi1: 0.7, hi0: 0.95 }, toptC: [21, 25], weights: [0.15, 0.2, 0.2, 0.05, 0.25, 0.1, 0.05] },
-};
 
 // ---- digging, readiness, sealing (GDD 06 §5.8-§5.9, GDD 03 §13) ----
 
@@ -213,6 +172,19 @@ export const REOPEN_FACE_STEP_BU = 0.5;
 /** ... at least this far inside the soil (substrate distance), BU: carved space, not the air above the plug. */
 export const REOPEN_FACE_INSIDE_BU = 0.75;
 export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
+/**
+ * After the hand-over a new founding plan is asked for (when none is left) every REOPEN_CHECK_TICKS ticks: the
+ * passage through a closed throat for REOPEN_MAX_GD, plans through plug remnants (each reached from a cavity point
+ * within REOPEN_REMNANT_REACH_BU and dug REOPEN_PAST_BU beyond the remnant) for as long as they are left.
+ */
+export const REOPEN_CHECK_TICKS = 50;
+export const REOPEN_MAX_GD = 2;
+export const REOPEN_REMNANT_REACH_BU = 2.5;
+export const REOPEN_PAST_BU = 0.5;
+/** A founding reopening plan still live after this long is cancelled (nobody could dig it), GD. */
+export const REOPEN_PLAN_STALL_GD = 0.2;
+/** At most this many unplugging calls clear the plug samples left above the ground surface, per check. */
+export const REOPEN_GHOST_BITES = 24;
 /** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */
 export const BROOD_LOST_RELAY_MIN = 0.35;
 /** ... else `failed` with cause `no-workers` after this long, GD. */
@@ -222,3 +194,5 @@ export const BROOD_LOST_FAIL_GD = 1;
 
 /** Egg-to-worker survival the automatic clutch assumes (GDD 06 §5.12: about 46 % of eggs at a typical site). */
 export const AUTO_CLUTCH_SURVIVAL = 0.45;
+/** The cheat's plug: a loose fill of this radius this far down each throat of the cell, BU. */
+export const AUTO_SEAL_FILL = { depthBu: 1.5, rBu: 1.6 } as const;

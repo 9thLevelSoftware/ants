@@ -35,6 +35,10 @@ export const FINISH = {
   glass: 16,
   /** Car body: clear-coated paint with panel seams, a dark sill and wheel-arch shadows. */
   carBody: 17,
+  /** Moulded plastic (water butts, compost bins, pots, bins): horizontal moulding ribs, a sun-bleached top. */
+  moulded: 18,
+  /** White goods: enamel with a ventilated plinth at the bottom and a door gap line. */
+  appliance: 19,
 } as const;
 
 export type FinishId = keyof typeof FINISH;

@@ -11,7 +11,7 @@ import type { Creature, Sim } from '@/sim/types';
 import { despawnCreature } from '@/sim/entities';
 import { rngRange } from '@/core/rng';
 import {
-  CATERPILLAR_FEED_S, CATERPILLAR_REGURGITATE_S, CATERPILLAR_SILK_P, CATERPILLAR_SILK_S, CATERPILLAR_THRASH_P,
+  CATERPILLAR_FEED_S, CATERPILLAR_HAIRY_REPEL_S, CATERPILLAR_REGURGITATE_L, CATERPILLAR_REGURGITATE_S, CATERPILLAR_REGURGITATE_STUN_S, CATERPILLAR_SILK_P, CATERPILLAR_SILK_S, CATERPILLAR_THRASH_P,
   CREATURE_STATS, FLY_LARVA_LIFE_GD, FLY_LARVA_WRIGGLE_P, FRUIT_FLY_CATCH_P, FRUIT_FLY_FEED_S, FRUIT_FLY_FLY_S,
   FRUIT_FLY_HOP_MM, FRUIT_FLY_MIN_C, MAGGOT_P_PER_GD_PER_5, MITE_EVADE, PREY_CONTACT_L, PREY_VANISH_S,
   SPRINGTAIL_ESCAPE_LITTER, SPRINGTAIL_ESCAPE_OPEN, SPRINGTAIL_JUMP_MM,
@@ -19,7 +19,7 @@ import {
 import { SECONDS_PER_DAY, TICKS_PER_DAY } from '@/sim/time';
 import { zoneAt } from '@/sim/world';
 import {
-  CreatureFlag, between, chance, cue, dist, holderIds, rng, setState, stop, ticks, timerDone, walkTo, wander,
+  CreatureFlag, antLen, between, chance, cue, dist, holderIds, rng, setState, stop, stunAnt, ticks, timerDone, walkTo, wander,
 } from './common';
 import { ports } from './ports';
 import type { KindBehaviour } from './kinds';
@@ -110,14 +110,30 @@ function onFoliage(sim: Sim, c: Creature): boolean {
   return c.pos.y - sim.field.height(c.pos.x, c.pos.z) > 2 * sim.world.bu || c.up.y < 0.7;
 }
 
+/** Every 10 s after the first bite: ants within 1 L that bit it in that time are stunned 2 s (and let go). */
+function regurgitate(sim: Sim, c: Creature): void {
+  c.bb.regurgAt = sim.state.tick + ticks(CATERPILLAR_REGURGITATE_S);
+  cue(sim, 'prey-struggle', c.pos, 0.8);
+  sim.index.queryAnts(c.pos, c.radius + 2 * sim.world.bu, _ids);
+  _ids.sort((a, b) => a - b);
+  for (const id of _ids) {
+    const a = sim.stores.ants.get(id);
+    const bit = c.bb[`bit.${id}`];
+    const biter = bit !== undefined && sim.state.tick - bit <= ticks(CATERPILLAR_REGURGITATE_S);
+    if (a && biter && dist(a.pos, c.pos) <= c.radius + CATERPILLAR_REGURGITATE_L * antLen(sim, a)) stunAnt(sim, a, CATERPILLAR_REGURGITATE_STUN_S);
+  }
+}
+
 export const caterpillar: KindBehaviour = {
   evades(sim, c) {
     return c.state === 'silk';
   },
   onHit(sim, c, antId) {
-    if ((c.flags & CreatureFlag.HAIRY) !== 0 && antId >= 0) { ports.releaseGrapple(sim, antId); return; }
+    const biter = sim.stores.ants.get(antId);
+    if ((c.flags & CreatureFlag.HAIRY) !== 0) { if (biter) stunAnt(sim, biter, CATERPILLAR_HAIRY_REPEL_S); return; }
     if (!c.bb.bitten) {
       c.bb.bitten = 1;
+      c.bb.regurgAt = sim.state.tick + ticks(CATERPILLAR_REGURGITATE_S);
       if (onFoliage(sim, c) && chance(sim, CATERPILLAR_SILK_P)) {
         holderIds(sim, c, c.radius + 4 * sim.world.bu, _ids);
         for (const id of _ids) ports.releaseGrapple(sim, id);
@@ -135,9 +151,9 @@ export const caterpillar: KindBehaviour = {
     }
     shakeHolders(sim, c, CATERPILLAR_THRASH_P, true);
     // held: it thrashes where it is (combat moves locked targets)
+    if (c.bb.bitten && sim.state.tick >= (c.bb.regurgAt ?? 0)) regurgitate(sim, c);
     if ((sim.state.tick + c.id) % 10 === 0) c.bb.held = holderIds(sim, c, c.radius + 4 * sim.world.bu, _ids).length;
     if ((c.bb.held ?? 0) > 0) { stop(sim, c); return; }
-    if (c.bb.bitten && (sim.state.tick - c.stateTick) % ticks(CATERPILLAR_REGURGITATE_S) === 0) cue(sim, 'prey-struggle', c.pos, 0.8);
     if (c.state === 'crawl') {
       if (c.nav.status !== 'moving') setState(sim, c, 'feed', between(sim, CATERPILLAR_FEED_S));
       return;

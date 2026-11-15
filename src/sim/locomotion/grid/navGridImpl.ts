@@ -73,9 +73,11 @@ export interface LocoNavGrid extends NavGrid {
   findPathEx(from: Vec3, to: Vec3, out: Vec3[], opts?: FindPathOptions): boolean;
   /**
    * Cost-to-seed field (multi-source Dijkstra from the seed points' cells), cached under `key` and rebuilt when
-   * `sig` or the grid version changes. Returns the distance array (Infinity = unreachable).
+   * `sig` or the grid version changes. Returns the distance array (Infinity = unreachable). With avoid `discs` the
+   * cells inside them cost their multiplier (as in A*); `sig` must then also identify the discs, and such a field is
+   * always rebuilt in full on a grid change (the incremental repair knows no discs).
    */
-  flowField(key: string, sig: string, seeds: readonly Vec3[]): Float32Array;
+  flowField(key: string, sig: string, seeds: readonly Vec3[], discs?: readonly CostDisc[] | null): Float32Array;
   /**
    * Next cell down a flow field from p after up to `steps` steps (cell centre into out; a micro-portal's mouth when
    * the way down leads through one); returns dist at p.
@@ -397,7 +399,8 @@ class NavGridImpl implements LocoNavGrid {
     out.push({ x: end.x, y: end.y, z: end.z });
   }
 
-  flowField(key: string, sig: string, seeds: readonly Vec3[]): Float32Array {
+  flowField(key: string, sig: string, seeds: readonly Vec3[], discs: readonly CostDisc[] | null = null): Float32Array {
+    const weighted = discs !== null && discs.length > 0;
     this.clock++;
     let e = this.flows.find((f) => f.key === key);
     if (e && e.sig === sig && e.version === this.version) { e.used = this.clock; return e.dist; }
@@ -408,7 +411,7 @@ class NavGridImpl implements LocoNavGrid {
     }
     // same seeds and a change log reaching back to the field's version: repair only what the changes touched
     // (GDD 04 §11 incremental re-derivation); the result equals a full rebuild exactly (search.ts flowRepair)
-    if (e && e.sig === sig && sameCells(e.seedCells, cells)) {
+    if (e && !weighted && e.sig === sig && sameCells(e.seedCells, cells)) {
       const dirty = this.changedSince(e.version);
       if (dirty !== null) {
         this.counters.flowRepairCells += this.search.flowRepair(e.dist, e.parent, cells, dirty, FLOW_CLEARANCE_BU);
@@ -427,7 +430,7 @@ class NavGridImpl implements LocoNavGrid {
       e = { key, sig, version: -1, dist: new Float32Array(n), parent: new Int32Array(n), seedCells: [], used: this.clock };
       this.flows.push(e);
     }
-    this.search.dijkstra(cells, e.dist, FLOW_CLEARANCE_BU, e.parent);
+    this.search.dijkstra(cells, e.dist, FLOW_CLEARANCE_BU, e.parent, weighted ? discs : null);
     e.sig = sig; e.version = this.version; e.used = this.clock; e.seedCells = cells;
     this.counters.flowBuilds++;
     return e.dist;

@@ -6,6 +6,7 @@ import type { Sim } from '@/sim/types';
 import { RESPAWN_DELAY_GD, THREAT_CENTIPEDE } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { endMajorThreat } from './threat';
+import { clearCreatureAlerts } from './alerts';
 
 export function onCreatureGone(sim: Sim, id: number, died: boolean): void {
   const terr = sim.state.ecology.director.territories;
@@ -18,6 +19,7 @@ export function onCreatureGone(sim: Sim, id: number, died: boolean): void {
   for (const a of sim.stores.ants.list) {
     if (a.combat && a.combat.seizedBy === id) { a.combat.seizedBy = -1; a.combat.escape = 0; }
   }
+  clearCreatureAlerts(sim, id);
   reconcileInvasion(sim);
 }
 

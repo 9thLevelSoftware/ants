@@ -135,6 +135,12 @@ export const UNDERGROUND = {
   surfaceDim: 0.08,
   /** Easing time constant of the surface <-> underground switch, s. */
   easeS: 0.35,
+  /**
+   * Camera-side fill on the ants underground (the sense light's share that reaches the subject from the viewer's
+   * side): without it the founding queen read as a black silhouette from the camera (look-pass addendum).
+   */
+  fillHex: '#FFB775',
+  fillRel: 0.4,
 } as const;
 
 /**
@@ -168,6 +174,12 @@ export const INTERIOR_LOOK = {
 export const SHADOW_AHEAD = 0.55;
 /** Shadow camera distance from its target, in half-widths. */
 export const SHADOW_LIGHT_DIST = 8;
+/**
+ * Shadow depth bias and normal bias in shadow-map texels (converted to mm per preset). Small enough that a 1 mm
+ * grain or an ant's body casts a contact shadow; the normal bias keeps flat ground free of acne.
+ */
+export const SHADOW_BIAS_TEXELS = 0.35;
+export const SHADOW_NORMAL_BIAS_TEXELS = 0.6;
 /** Shadow softness (texels of PCF radius) per quality and its scaling by weather penumbra. */
 export const SHADOW_RADIUS_TEXELS = 2.5;
 

@@ -17,10 +17,10 @@ import { digFactor } from '@/sim/balance';
 import { materialFromCode } from '@/sim/types';
 import { mapState, type MapState } from './state';
 import { walkable } from './nav';
-import { navDistances } from '../validate/graph';
+import { forEachWithin, navDistances } from '../validate/graph';
 import { SUIT, SUITABILITY } from '../tuning/maps';
 import { START, VALID } from '../tuning/pipeline';
-import { ANT_PREDATORS, INCIPIENT, START_RULE } from '../populate/tuning';
+import { ANT_PREDATORS, INCIPIENT, START_RULE, TOP_UP, topUpZones } from '../populate/tuning';
 
 const NATURAL = new Set(['forest', 'lawn', 'garden-bed']);
 /** The opening's dig-site search keeps this far from primitives (src/sim/testing/e2e findDigSite), BU. */
@@ -113,7 +113,7 @@ function hazardFree(ctx: GenContext, x: number, z: number, withRivals: boolean):
       for (let i = Math.max(0, i0 - r); i <= Math.min(holes.nx - 1, i0 + r); i++) if (holes.data[k * holes.nx + i]) return false;
   }
   for (const t of w.placements.territories) {
-    if (ANT_PREDATORS.includes(t.creatureKind) && (t.center.x - x) ** 2 + (t.center.z - z) ** 2 < t.radiusMm ** 2) return false;
+    if (ANT_PREDATORS.includes(t.creatureKind) && (t.center.x - x) ** 2 + (t.center.z - z) ** 2 < (t.radiusMm + clear) ** 2) return false;
   }
   if (withRivals) {
     for (const r of w.placements.rivalSites) {
@@ -139,8 +139,14 @@ function standPoint(ctx: GenContext, c: number): { x: number; y: number; z: numb
   return null;
 }
 
+/** The map-edge rule of the start (VALID.startEdgeMinBu), for a point. */
+function clearOfEdge(ctx: GenContext, x: number, z: number): boolean {
+  const edge = VALID.startEdgeMinBu * ctx.dims.bu, L = ctx.dims.size;
+  return x >= edge && z >= edge && x <= L - edge && z <= L - edge;
+}
+
 function candidates(ctx: GenContext, withRivals: boolean): Cand[] {
-  const { navN, navCell, size: L, bu } = ctx.dims;
+  const { navN, navCell, bu } = ctx.dims;
   const st = mapState(ctx);
   const w = ctx.world, lay = ctx.layout;
   const q = st.q[ctx.params.speciesId];
@@ -150,12 +156,12 @@ function candidates(ctx: GenContext, withRivals: boolean): Cand[] {
     sat[(k + 1) * (navN + 1) + i + 1] = (q[k * navN + i] >= SUIT.good ? 1 : 0) + sat[k * (navN + 1) + i + 1] + sat[(k + 1) * (navN + 1) + i] - sat[k * (navN + 1) + i];
   }
   const r = Math.max(1, Math.round((VALID.startRadiusBu * bu) / navCell));
-  const edge = VALID.startEdgeMinBu * bu;
   const out: Cand[] = [];
   for (let c = 0; c < navN * navN; c++) {
     const i = c % navN, k = Math.floor(c / navN);
     const x = (i + 0.5) * navCell, z = (k + 0.5) * navCell;
-    if (x < edge || z < edge || x > L - edge || z > L - edge) continue;
+    // the whole cell clears the edge rule, so the stand point inside it does too
+    if (!clearOfEdge(ctx, x - navCell / 2, z - navCell / 2) || !clearOfEdge(ctx, x + navCell / 2, z + navCell / 2)) continue;
     if (!walkable(w.nav.cls.data[c]) || q[c] >= SUIT.good) continue;
     const zone = lay.zones[lay.nav[c]];
     if (zone.built || !NATURAL.has(zone.type)) continue;
@@ -216,7 +222,25 @@ function setStart(ctx: GenContext, v: StartVerdict, c: number): void {
 
 const provisional = new WeakMap<GenContext, number>();
 
-/** Picks the start; keeps `prefer` when it still passes. Returns false (and notes why) if no cell passes. */
+/**
+ * Whether the Tier 1 food set can feed a young colony at cell c (registry C13 floor at 300 BU): its protein comes
+ * from carrion and crumb-protein clusters, and carrion alone falls short of the floor, so the colony needs ground
+ * where the catalogue places crumbs (lawn, paving, sand...) within the top-up reach. A preference among valid
+ * starts, not part of the rule: a deep-forest start would otherwise fail the food check and regenerate the world.
+ */
+function feedable(ctx: GenContext, c: number): boolean {
+  const lay = ctx.layout, cls = ctx.world.nav.cls.data, zones = topUpZones('crumb-starch');
+  let ok = false;
+  forEachWithin(ctx, c, { maxBu: TOP_UP.maxBu }, (j, d) => {
+    if (!ok && d >= TOP_UP.minBu && walkable(cls[j]) && zones.includes(lay.zones[lay.nav[j]].type)) ok = true;
+  });
+  return ok;
+}
+
+/**
+ * Picks the start; keeps `prefer` when it still passes. Among the candidates (best score first) the first valid
+ * one that is feedable wins, else the first valid one. Returns false (and notes why) if no cell passes.
+ */
 function pick(ctx: GenContext, withRivals: boolean, prefer: number): boolean {
   const patches = digPatchMap(ctx);
   const list = candidates(ctx, withRivals);
@@ -224,11 +248,17 @@ function pick(ctx: GenContext, withRivals: boolean, prefer: number): boolean {
     const v = verify(ctx, prefer, patches);
     if (v.ok) { setStart(ctx, v, prefer); return true; }
   }
-  let bestC = -1, best: StartVerdict | null = null;
+  let bestC = -1, best: StartVerdict | null = null, validC = -1, valid: StartVerdict | null = null;
   for (const cand of list.slice(0, START_RULE.candidates)) {
     const v = verify(ctx, cand.c, patches);
-    if (v.ok) { setStart(ctx, v, cand.c); return true; }
+    if (v.ok && feedable(ctx, cand.c)) { setStart(ctx, v, cand.c); return true; }
+    if (v.ok && !valid) { valid = v; validC = cand.c; }
     if (!best || v.good > best.good || (v.good === best.good && v.digWalkBu < best.digWalkBu)) { best = v; bestC = cand.c; }
+  }
+  if (valid) {
+    ctx.notes.push('start: no valid start has crumb ground within reach; the food guarantees may fail');
+    setStart(ctx, valid, validC);
+    return true;
   }
   ctx.notes.push(`start: no cell passes the start rule (${list.length} candidates)`);
   if (best) setStart(ctx, best, bestC);
@@ -262,10 +292,12 @@ export function checkStartRule(ctx: GenContext): { ok: boolean; detail: string }
   const natural = !zone.built && NATURAL.has(zone.type);
   const notGood = q[c] < SUIT.good;
   const hazard = hazardFree(ctx, s.x, s.z, true);
+  const edge = clearOfEdge(ctx, s.x, s.z);
+  const dry = st.water.flood[c] <= VALID.startFloodMax;
   const ground = Math.abs(s.y - terrainAt(ctx, s.x, s.z)) <= 1 && clearOfPrims(ctx, s.x, s.y, s.z, 1 * ctx.dims.bu);
   const v = verify(ctx, c, digPatchMap(ctx));
-  const ok = natural && notGood && hazard && ground && v.good >= START_RULE.goodMin && v.digWalkBu <= START_RULE.digWalkBu;
-  return { ok, detail: `zone=${zone.type} q=${q[c].toFixed(2)} good=${v.good} dig=${Number.isFinite(v.digWalkBu) ? v.digWalkBu.toFixed(0) : 'none'}BU ground=${ground} hazardFree=${hazard}` };
+  const ok = natural && notGood && hazard && edge && dry && ground && v.good >= START_RULE.goodMin && v.digWalkBu <= START_RULE.digWalkBu;
+  return { ok, detail: `zone=${zone.type} q=${q[c].toFixed(2)} good=${v.good} dig=${Number.isFinite(v.digWalkBu) ? v.digWalkBu.toFixed(0) : 'none'}BU ground=${ground} hazardFree=${hazard} edge=${edge} flood=${st.water.flood[c].toFixed(2)}` };
 }
 
 export const startPlacer: PlacerDef = { id: 'default/start-pose', step: 'start', order: -100, run: placeStartPose };

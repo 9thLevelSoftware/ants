@@ -7,7 +7,7 @@
 import type { Ant, Nest, OpeningState, Sim, SpeciesId } from '@/sim/types';
 import { FOUNDING_TEMPLATE } from '@/sim/balance/nest';
 import { OPEN_LAY_BATCH_EGGS } from '@/sim/balance/actions';
-import { AUTO_CLUTCH_SURVIVAL } from '@/sim/balance/founding';
+import { AUTO_CLUTCH_SURVIVAL, AUTO_SEAL_FILL } from '@/sim/balance/founding';
 import { layEgg } from '../queen';
 import { FB, bbGet, bbSet, setPhase, speciesOf } from './access';
 import { clutchLimit, eggsLaid } from './clutch';
@@ -78,8 +78,9 @@ export function autoTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       const bu = sim.world.bu;
       for (const e of cavityEntrances(sim, nest)) {
         if (e.status === 'sealed') continue;
-        const p = { x: e.pos.x - e.dir.x * 1.5 * bu, y: e.pos.y - e.dir.y * 1.5 * bu, z: e.pos.z - e.dir.z * 1.5 * bu };
-        sim.enqueue({ type: 'cheat.fillSphere', pos: p, r: 1.6 * bu, loose: true });
+        const d = AUTO_SEAL_FILL.depthBu * bu;
+        const p = { x: e.pos.x - e.dir.x * d, y: e.pos.y - e.dir.y * d, z: e.pos.z - e.dir.z * d };
+        sim.enqueue({ type: 'cheat.fillSphere', pos: p, r: AUTO_SEAL_FILL.rBu * bu, loose: true });
       }
       bbSet(q, STEP, 3);
       return;

@@ -111,7 +111,11 @@ export function navStop(_sim: Sim, w: Walker): void {
   w.nav.path = null;
 }
 
-/** Random walk around a centre within a radius (mm; 0 = unbounded). Never arrives; stop it with another request. */
+/**
+ * Random walk around a centre within a radius (mm; 0 = unbounded). Never arrives; stop it with another request. A
+ * walker that cannot move pivots on the spot; if that frees nothing the wander ends with status 'failed' and mode
+ * 'none' (stuck.ts wanderStuck).
+ */
 export function navWander(sim: Sim, w: Walker, center: Vec3, radius: number, opts?: NavOptions): boolean {
   const { s } = begin(sim, w, opts, Infinity);
   if (!finite3(center)) return rejected(w, s);

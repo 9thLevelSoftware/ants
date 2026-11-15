@@ -11,6 +11,7 @@ import { applyOcclusion, CONTACT_RADIUS_BU } from '../materials/occlusion';
 import { PrimitiveRenderer } from '../primitives/primitiveRenderer';
 import { lookTable } from '../dressing/looks';
 import { GroundGrit } from '../dressing/groundGrit';
+import { FlowerDressing } from '../dressing/flowerDressing';
 import { applySky, createSkyDome, createSkyUniforms, type SkyUniforms } from '../sky/skyDome';
 import { SkyEnvironment } from '../sky/skyEnvironment';
 import { MoundRenderer } from '../terrain/moundRenderer';
@@ -49,6 +50,8 @@ export class WorldRenderer {
   rig!: LightingRig;
   /** Loose grains with volume on the ground near the camera focus (dressing/groundGrit.ts). */
   grit!: GroundGrit;
+  /** Flower heads built from petals and florets near the camera (dressing/flowerDressing.ts). */
+  flowers!: FlowerDressing;
   readonly lighting: LightingState = createLightingState();
   readonly env: EnvSample = createEnvSample();
   private ctx!: WorldRenderContext;
@@ -84,10 +87,11 @@ export class WorldRenderer {
     this.prims = new PrimitiveRenderer(this.library, PRIM_NEAR_BU[ctx.quality.id] * 4);
     this.rig = new LightingRig(ctx.quality, 4);
     this.grit = new GroundGrit(this.uniforms, ctx.quality);
+    this.flowers = new FlowerDressing(this.uniforms, ctx.quality);
     this.sky = createSkyUniforms();
     this.skyMesh = createSkyDome(this.sky, SKY_RADIUS);
     this.skyEnv = new SkyEnvironment(ctx.renderer, this.sky);
-    this.group.add(this.skyMesh, this.rig.group, this.terrain.group, this.prims.group, this.grit.group);
+    this.group.add(this.skyMesh, this.rig.group, this.terrain.group, this.prims.group, this.grit.group, this.flowers.group);
     ctx.scene.add(this.group);
     await this.library.ready();
   }
@@ -108,8 +112,10 @@ export class WorldRenderer {
     this.mounds = new MoundRenderer(this.library, this.terrain.holeMask!.uniforms);
     this.group.add(this.mounds.group);
     this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
-    this.prims.setLooks(lookTable(world.objects));
+    const looks = lookTable(world.objects);
+    this.prims.setLooks(looks);
     this.prims.setStatic(staticPrims(world));
+    this.flowers.setPrims(staticPrims(world), looks, world.bu);
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
     this.interior = -1;
@@ -148,6 +154,7 @@ export class WorldRenderer {
     if (this.mounds) { this.group.remove(this.mounds.group); this.mounds.dispose(); }
     this.prims.clear();
     this.grit.setSource(null);
+    this.flowers.setPrims(null, null);
     this.moved.clear();
     this.movesSig = Number.NaN;
   }
@@ -201,6 +208,7 @@ export class WorldRenderer {
     this.terrain.setQuality(q);
     this.library.setAnisotropy(q.anisotropy);
     this.grit.setQuality(q);
+    this.flowers.setQuality(q);
     if (this.world) {
       this.rig.setQuality(q, this.world.bu);
       this.prims.nearMm = PRIM_NEAR_BU[q.id] * this.world.bu;
@@ -275,6 +283,7 @@ export class WorldRenderer {
       this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
     }
     this.grit.update(this.subject.x, this.subject.z, this.under);
+    this.flowers.update(this.camPos, this.under);
     const moves = objectMoves(sim), movesSig = objectMovesSignature(moves);
     if (movesSig !== this.movesSig) { this.movesSig = movesSig; movedStaticPrims(this.world, moves, this.moved); }
     this.prims.syncDynamic(dynamicPrims(sim), this.moved);
@@ -340,9 +349,13 @@ export class WorldRenderer {
   }
 
   /** Counters for budgets and tests. */
-  stats(): { terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; holeTilesDropped: number; envBakes: number; gritGrains: number; gritTriangles: number } {
+  stats(): {
+    terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; holeTilesDropped: number; envBakes: number;
+    gritGrains: number; gritTriangles: number; flowerHeads: number; flowerParts: number; flowerTriangles: number;
+  } {
     return {
       gritGrains: this.grit.count, gritTriangles: this.grit.triangles,
+      flowerHeads: this.flowers.headCount, flowerParts: this.flowers.partCount, flowerTriangles: this.flowers.triangles,
       terrainLevels: this.terrain.levelCount, terrainTriangles: this.terrain.triangles, prims: this.prims.stats(), mounds: this.mounds?.count ?? 0,
       holeSlots: this.terrain.holeMask?.usedSlots ?? 0, holeTilesDropped: this.terrain.holeMask?.droppedTiles ?? 0, envBakes: this.skyEnv.bakes,
     };
@@ -358,6 +371,7 @@ export class WorldRenderer {
     this.terrain.dispose();
     this.prims.dispose();
     this.grit.dispose();
+    this.flowers.dispose();
     this.mounds?.dispose();
     this.rig.dispose();
     this.skyEnv.dispose();

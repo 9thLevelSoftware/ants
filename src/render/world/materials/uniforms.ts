@@ -32,6 +32,8 @@ export interface WorldUniforms {
   uOcc: Uniform<Vector4>;
   /** Contact darkening under the subject ant: ground point (xyz, mm) and radius (w, mm; 0 = off). */
   uContact: Uniform<Vector4>;
+  /** Flower heads nearer the camera than this (mm) are dressed with parts (dressing/flowerDressing.ts); 0 = none. */
+  uFlowerMm: Uniform<number>;
 }
 
 export function createWorldUniforms(): WorldUniforms {
@@ -52,5 +54,6 @@ export function createWorldUniforms(): WorldUniforms {
     uOccB: new Uniform(new Vector3()),
     uOcc: new Uniform(new Vector4(0, 1, 1, 0.35)),
     uContact: new Uniform(new Vector4(0, 0, 0, 0)),
+    uFlowerMm: new Uniform(0),
   };
 }

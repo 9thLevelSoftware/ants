@@ -166,17 +166,19 @@ export class GridSearch {
    * every shortest distance is then exact and unique, and the same field built in one go or repaired
    * incrementally (flowRepair) is bit-identical, which keeps runs deterministic across save / load.
    */
-  dijkstra(seeds: readonly number[], dist: Float32Array, clearanceBu = 0, parent: Int32Array | null = null): void {
+  dijkstra(seeds: readonly number[], dist: Float32Array, clearanceBu = 0, parent: Int32Array | null = null,
+    discs: readonly CostDisc[] | null = null): void {
     const heap = this.heap;
     dist.fill(Infinity);
     if (parent) parent.fill(-1);
     heap.clear();
     for (const s of seeds) { dist[s] = 0; heap.push(s, 0); }
-    this.flowRun(dist, parent, clearanceBu, this.nextGen());
+    this.flowRun(dist, parent, clearanceBu, this.nextGen(), discs);
   }
 
   /** The Dijkstra loop over the heap's current contents (shared by the full build and the repair). */
-  private flowRun(dist: Float32Array, parent: Int32Array | null, clearanceBu: number, gen: number): void {
+  private flowRun(dist: Float32Array, parent: Int32Array | null, clearanceBu: number, gen: number,
+    discs: readonly CostDisc[] | null = null): void {
     const g = this.g, heap = this.heap, q = NAV_GRID_TUNING.flowQuantPerMm, iq = 1 / q;
     while (heap.size > 0) {
       // the first pop of a cell is its final distance (integer keys, no key-vs-dist staleness test needed)
@@ -188,8 +190,10 @@ export class GridSearch {
         const nx = cx + DX[k], nz = cz + DZ[k];
         if (nx < 0 || nz < 0 || nx >= g.w || nz >= g.h) continue;
         const nb = nz * g.w + nx;
-        // costs are symmetric except the destination cell's blocked test: walk "backwards" from the seeds
-        const ec = this.edgeCost(nb, c, k >= 4, null);
+        // costs are symmetric except the destination cell's blocked test: walk "backwards" from the seeds, the
+        // walker going nb -> c. Avoid discs weigh the cell LEFT (nb), unlike A* (the cell entered): the walker
+        // descends dist[] to its lowest neighbour, so a cell inside a disc must itself hold the high cost
+        const ec = this.edgeCost(nb, c, k >= 4, null) * this.discMult(nb, discs);
         if (ec === Infinity || isBlocked(g, nb)) continue;
         const nd = dist[c] + Math.max(1, Math.round(ec * q)) * iq;
         if (nd < dist[nb]) { dist[nb] = nd; if (parent) parent[nb] = c; heap.push(nb, nd); }
@@ -198,7 +202,7 @@ export class GridSearch {
       if (ps) for (const pi of ps) {
         const nb = this.portalOther(g.portals[pi], c, clearanceBu);
         if (nb < 0) continue;
-        const nd = dist[c] + Math.max(1, Math.round(g.portals[pi].cost * q)) * iq;
+        const nd = dist[c] + Math.max(1, Math.round(g.portals[pi].cost * this.discMult(nb, discs) * q)) * iq;
         if (nd < dist[nb]) { dist[nb] = nd; if (parent) parent[nb] = c; heap.push(nb, nd); }
       }
     }

@@ -34,7 +34,10 @@ export interface CodexEntry {
   binomial?: string;
   /** The field note: 60-140 words, naturalist voice, hedged where the research is thin. */
   body: string;
-  /** "In this colony" line: what the game abstracts or simplifies (GDD 08 §7.3). */
+  /**
+   * "In this colony" line: what the game abstracts or simplifies (GDD 08 §7.3). A key is written `{key:action-id}`
+   * and resolved from the player's bindings (`codexInGameLine`); `getCodexEntry` resolves it with the defaults.
+   */
   inGame?: string;
   /** Related entry ids (shown as links). */
   related?: readonly string[];

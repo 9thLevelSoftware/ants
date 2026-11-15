@@ -51,6 +51,10 @@ export interface CreatureDirector {
   lastHourlyTick?: number;
   /** Additive (creatures): 1 when it rained at the last director run (rain-event start detection). */
   wasRaining?: number;
+  /** Additive (creatures): nest id with an active `nest-attacked` alert from an invader, -1 none. */
+  nestAttackedNest?: number;
+  /** Additive (creatures): tick that alert clears (30 s after the last invader left), -1 not pending. */
+  nestAttackedUntil?: number;
 }
 
 export interface BirdEvent {

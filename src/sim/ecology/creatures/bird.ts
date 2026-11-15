@@ -9,11 +9,12 @@ import type { Ant, BirdEvent, CreatureVariant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { rngInt } from '@/core/rng';
 import { zoneAt } from '@/sim/world';
+import { retireSource } from '@/sim/ecology/sources';
 import {
   BIRD_ALATE_P_PER_S, BIRD_ALATE_RADIUS_BU, BIRD_APPROACH_S, BIRD_DAY_MARGIN_H, BIRD_DURATION_S, BIRD_GAP_GD,
   BIRD_HEAD_COCK_S, BIRD_KILL_P, BIRD_KILL_RADIUS_MM, BIRD_LEAVE_S, BIRD_MAX_KILLS, BIRD_MIN_EXPOSED, BIRD_MIN_WORKERS,
   BIRD_PECK_EVERY_S, BIRD_RATE, BIRD_TARGET_RADIUS_BU, EXPOSED_COVER_BU, LETHAL_DAMAGE, REF_BU_MM, STRIKE_ALARM,
-  THREAT_BIRD,
+  THREAT_BIRD, BIRD_CRUMBS_MAX, WOODPECKER_CARVE_BU, WOODPECKER_CARVE_EVERY_S, WOODPECKER_CARVES_MAX,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { between, chance, cue, dist, onSurface, rng, ticks } from './common';
@@ -144,9 +145,10 @@ export function birdTick(sim: Sim): void {
     ev.phase = 'landed';
     ev.endTick = now + ticks(between(sim, BIRD_DURATION_S));
     ev.nextPeckTick = now + ticks(BIRD_PECK_EVERY_S);
-    ev.nextCarveTick = now + ticks(5);
+    ev.nextCarveTick = now + ticks(WOODPECKER_CARVE_EVERY_S);
     sim.emit({ type: 'bird-landed', variant: ev.variant, pos: { ...ev.pos } });
     cue(sim, 'bird-strike', ev.pos, 1);
+    if (ev.variant === 'sparrow') eatCrumbs(sim, ev.pos);
     if (colonyId >= 0) ports.raiseAlarm(sim, colonyId, ev.pos, STRIKE_ALARM);
     return;
   }
@@ -159,8 +161,44 @@ export function birdTick(sim: Sim): void {
   const peck = ev.nextPeckTick ?? now;
   if (now === peck - ticks(BIRD_HEAD_COCK_S)) chooseTarget(sim, ev);
   if (now >= peck) { doPeck(sim, ev); ev.nextPeckTick = now + ticks(BIRD_PECK_EVERY_S); }
-  if (ev.variant === 'woodpecker' && now >= (ev.nextCarveTick ?? now) && ev.carves < 6) { ev.carves++; ev.nextCarveTick = now + ticks(5); }
+  if (ev.variant === 'woodpecker' && now >= (ev.nextCarveTick ?? now) && ev.carves < WOODPECKER_CARVES_MAX) woodpeckerCarve(sim, ev);
   alatesAtRisk(sim, ev);
+}
+
+/** Sparrow / pigeon: removes up to BIRD_CRUMBS_MAX crumb units within the target radius, nearest first. */
+export function eatCrumbs(sim: Sim, pos: Vec3): number {
+  const r = BIRD_TARGET_RADIUS_BU * REF_BU_MM;
+  const crumbs = sim.stores.sources.list
+    .filter((s) => s.alive && s.kind === 'crumb' && dist(s.pos, pos) <= r)
+    .sort((a, b) => dist(a.pos, pos) - dist(b.pos, pos) || a.id - b.id);
+  let left = BIRD_CRUMBS_MAX;
+  for (const s of crumbs) {
+    if (left <= 0) break;
+    const take = Math.min(left, Math.floor(s.units));
+    if (take <= 0) continue;
+    left -= take;
+    // whole crumb units; keep pool equal to units where it is used (as sources/def.ts setAmount does)
+    s.units -= take;
+    if (s.pool >= 0) s.pool = s.units;
+    if (s.units < 1) retireSource(sim, s, 'bird');
+  }
+  return BIRD_CRUMBS_MAX - left;
+}
+
+/**
+ * Woodpecker: every 5 s a 3 BU carve into the mound / entrance throat nearest the bird (up to 6). The carve itself
+ * is the nest module's (nest.disturb is the T2 hook, a no-op until the nest module fills it: see the report).
+ */
+function woodpeckerCarve(sim: Sim, ev: BirdEvent): void {
+  ev.carves++;
+  ev.nextCarveTick = sim.state.tick + ticks(WOODPECKER_CARVE_EVERY_S);
+  let at: Vec3 = ev.pos, best = Infinity;
+  for (const n of sim.stores.nests.list) {
+    if (!n.alive || n.colony !== (ev.colonyId ?? -1)) continue;
+    for (const e of n.entrances) { const d = dist(e.pos, ev.pos); if (d < best) { best = d; at = e.pos; } }
+  }
+  ports.disturbNest(sim, { ...at }, WOODPECKER_CARVE_BU * sim.world.bu, 'woodpecker');
+  cue(sim, 'bird-strike', at, 0.6);
 }
 
 function chooseTarget(sim: Sim, ev: BirdEvent): void {

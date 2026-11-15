@@ -11,7 +11,10 @@ import { MATERIAL_ENTRIES } from './entries/materials';
 import { WEATHER_ENTRIES } from './entries/weather';
 import { HUMAN_ENTRIES } from './entries/human';
 import { INTERFACE_ENTRIES } from './entries/interface';
-import { citationOf } from './provenance';
+import { citationOf } from './citations';
+import { resolveKeyTokens } from './keys';
+import { defaultBindings } from '@/input/bindings';
+import type { BindingSet } from '@/input/bindings';
 import { CODEX_CATEGORY_IDS, CODEX_CATEGORY_TITLES, CODEX_SPECIES_TAGS } from './types';
 import type { CodexCategory, CodexEntry, CodexEntryView, CodexFilter } from './types';
 
@@ -26,12 +29,21 @@ export const ALL_CODEX_ENTRIES: readonly CodexEntry[] = [
   ...HABITAT_ENTRIES, ...MATERIAL_ENTRIES, ...WEATHER_ENTRIES, ...HUMAN_ENTRIES, ...INTERFACE_ENTRIES,
 ];
 
-const VIEWS: readonly CodexEntryView[] = ALL_CODEX_ENTRIES.map((e) => ({ ...e, source: citationOf(e.id) }));
+// The views carry the in-game line with the default keys filled in; `codexInGameLine` re-resolves it for rebound keys.
+const VIEWS: readonly CodexEntryView[] = ALL_CODEX_ENTRIES.map((e) => ({
+  ...e, ...(e.inGame ? { inGame: resolveKeyTokens(e.inGame) } : {}), source: citationOf(e.id),
+}));
 const BY_ID: ReadonlyMap<string, CodexEntryView> = new Map(VIEWS.map((e) => [e.id, e]));
 
 /** The entry with this id, or undefined for an id that is not in the codex. */
 export function getCodexEntry(id: string): CodexEntryView | undefined {
   return BY_ID.get(id);
+}
+
+/** The "in the game" line of an entry with the keys of `set` (the player's bindings); undefined when there is none. */
+export function codexInGameLine(id: string, set: BindingSet = defaultBindings()): string | undefined {
+  const raw = ALL_CODEX_ENTRIES.find((e) => e.id === id)?.inGame;
+  return raw === undefined ? undefined : resolveKeyTokens(raw, set);
 }
 
 /** True if the id has an entry. */

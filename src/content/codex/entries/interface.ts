@@ -49,7 +49,7 @@ export const INTERFACE_ENTRIES: readonly CodexEntry[] = [
       'draws a ghost of a chamber, tunnel or shaft on the wall of the nest. A valid ghost is drawn with a dashed ' +
       'outline, and an invalid one is cross-hatched, with the reason written beside it. Each kind of marker has ' +
       'a limit.',
-    inGame: 'Markers are placed in colony view. Select one and press Delete to cancel it.',
+    inGame: 'Markers are placed in colony view. Select one and press {key:cv-delete} to cancel it.',
     related: ['cx-interface-orders', 'cx-material-loam'],
     alwaysUnlocked: true,
     controlActions: ['colony-view', 'cv-confirm', 'cv-delete', 'cv-slice-up', 'cv-slice-down'],

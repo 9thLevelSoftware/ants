@@ -14,7 +14,7 @@ import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
 import { chamberHumidity } from '@/sim/environment';
 import { pointTempC } from '../envAdapter';
 import { FB, bbGet, bbSet, depthBelowGround, foundingNest, speciesOf } from './access';
-import { coverAt } from './siteAssess';
+import { coverLevelAt } from './siteAssess';
 import { queenDies } from './failure';
 
 const DT_GD = 1 / TICKS_PER_DAY;
@@ -43,9 +43,11 @@ export function desiccationBase(sim: Sim, q: Ant): number {
     }
     if (depth > DESICC_SHAFT_REFUGE_BU * bu) return DESICC_SHAFT_PER_GD;
   }
-  // "in shade or under cover (cover score >= 0.6)": a roof or dense litter (GDD 06 §5.5)
-  const cover = coverAt(sim, q.pos.x, q.pos.z);
-  if (cover === 'roof' || cover === 'litter' || shadeMean(sim, q.pos.x, q.pos.z) >= DESICC_SHADE_MIN) return DESICC_SHADE_PER_GD;
+  // "in shade or under cover (cover score >= 0.6)": under or beside a roof, or in dense litter (GDD 06 §5.5; the
+  // site score lowered litter to 0.5 for site quality, directions §K, but litter still shades the queen)
+  const cover = coverLevelAt(sim, q.pos.x, q.pos.z).level;
+  if (cover !== 'bare' && cover !== 'sward') return DESICC_SHADE_PER_GD;
+  if (shadeMean(sim, q.pos.x, q.pos.z) >= DESICC_SHADE_MIN) return DESICC_SHADE_PER_GD;
   return DESICC_OPEN_PER_GD;
 }
 

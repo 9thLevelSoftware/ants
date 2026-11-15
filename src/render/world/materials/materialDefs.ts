@@ -79,7 +79,7 @@ export const MATERIAL_DEFS: Record<MaterialId, MaterialDef> = withIds({
   clay: { ...SOIL, tint: [0.92, 0.7, 0.55], scaleMm: 120, normalScale: 0.6, wetRough: 0.5 },
   gravel: { ...SOIL, texture: 'gravel_fine', scaleMm: 420, tint: [0.9, 0.89, 0.87], roughMin: 0.65, wetDarken: 0.7, wetRough: 0.3 },
   // cement paste with sand grains and air voids (GDD 08 11.6: aggregate and pores at ant scale, not noise)
-  concrete: { ...HARD, texture: null, procedural: { base: '#a29e95', alt: '#8c887f', grain: 0.04, bump: 0.55, rough: 0.9, speckle: 0.75, pores: 0.04, size: 512 }, scaleMm: 90, tint: [0.95, 0.94, 0.92], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 6 },
+  concrete: { ...HARD, texture: null, procedural: { base: '#948f86', alt: '#7f7b73', grain: 0.04, bump: 0.38, rough: 0.9, speckle: 0.8, pores: 0.025, size: 512 }, scaleMm: 90, tint: [0.92, 0.91, 0.89], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 6 },
   asphalt: { ...HARD, texture: 'asphalt', scaleMm: 260, tint: [0.85, 0.85, 0.85], roughness: 1, normalScale: 1.2, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
   // fine-grained rock (flags, pebbles, walls): the gravel scan shrunk to mineral-grain size (grains ~0.2 mm read as
   // granite / sandstone at ant scale; at 70 mm per tile they read as loose gravel: look-pass audit)

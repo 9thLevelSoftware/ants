@@ -20,7 +20,8 @@ import { observerInput, type ObserverHost } from './observerControl';
 import { highlightRefOf, type PickTarget } from './picking/entityPick';
 import { scenePick, type ScenePick } from './picking/scenePick';
 import { CursorTracker } from './pointer';
-import type { ViewSubject } from './viewDirector';
+import { tremorStruck } from './tremorCue';
+import type { CameraStateChange, ViewSubject } from './viewDirector';
 import { ViewsState, type ColonyTool } from './viewsState';
 
 /** What the views layer asks of the Game (Game satisfies it structurally). */
@@ -56,6 +57,11 @@ export class ViewsLayer {
   private appliedInspect: HighlightRef | null = null;
   private pickKey = '';
   private lastView = '';
+  /** Sim tick up to which tremor cues were checked, -1 not yet this game. */
+  private tremorTick = -1;
+  private readonly cameraStateListeners: ((e: CameraStateChange) => void)[] = [];
+  private cameraStateSource: { onCameraState(cb: (e: CameraStateChange) => void): () => void } | null = null;
+  private cameraStateOff: (() => void) | null = null;
   private readonly subj: ViewSubject = { pos: { x: 0, y: 0, z: 0 }, up: { x: 0, y: 1, z: 0 }, fwd: { x: 1, y: 0, z: 0 }, lengthBu: 1, underground: false, airborne: false };
 
   constructor(private readonly game: ViewsGame) {}
@@ -88,6 +94,15 @@ export class ViewsLayer {
     return s && entranceId >= 0 ? this.edits.toggleEntrance(this.colonyHost(s), entranceId) : null;
   }
 
+  /**
+   * GDD 01 App. C `camera-state-changed` (the possession camera's environment state) for the UI and audio; survives
+   * new games. Returns the unsubscribe function.
+   */
+  onCameraState(cb: (e: CameraStateChange) => void): () => void {
+    this.cameraStateListeners.push(cb);
+    return () => { const i = this.cameraStateListeners.indexOf(cb); if (i >= 0) this.cameraStateListeners.splice(i, 1); };
+  }
+
   /** Set-up after the renderers exist (Game.boot). */
   attach(canvas: HTMLCanvasElement, scene: Scene, registry: RenderRegistry): void {
     this.canvas = canvas;
@@ -107,6 +122,7 @@ export class ViewsLayer {
     this.tools.planner.reset();
     this.edits.reset();
     this.followCreatureId = -1;
+    this.tremorTick = -1;
     this.pickKey = '';
     this.lastPick = null;
     this.markers?.update(null);
@@ -119,6 +135,8 @@ export class ViewsLayer {
   frame(s: GameSession, input: InputState | null, nowS: number): void {
     const view = s.view, st = this.state, entered = this.lastView !== view;
     this.lastView = view;
+    this.relayCameraState(s);
+    this.checkTremor(s);
     colonyPoll(s.sim, st, this.tools, this.colonyHost(s));
     this.edits.poll(s.sim);
     s.views.colonyCapture = view === 'colony' && plannerActive(st);
@@ -234,6 +252,23 @@ export class ViewsLayer {
     return o;
   }
 
+  /** Each session has its own ViewDirector: re-subscribe when it changes, and pass its events on. */
+  private relayCameraState(s: GameSession): void {
+    if (this.cameraStateSource === s.views) return;
+    this.cameraStateOff?.();
+    this.cameraStateSource = s.views;
+    this.cameraStateOff = s.views.onCameraState((e) => { for (const cb of [...this.cameraStateListeners]) cb(e); });
+  }
+
+  /** A footstep tremor reaching the possessed ant shakes the possession camera (GDD 01 §6.1). */
+  private checkTremor(s: GameSession): void {
+    const tick = s.sim.state.tick, since = this.tremorTick;
+    this.tremorTick = tick;
+    if (since < 0 || s.view !== 'possess') return;
+    const a = s.possessedAnt();
+    if (a && tremorStruck(s.sim, a.pos, since)) s.views.tremor();
+  }
+
   /** Writes hover / inspect highlights only when they changed here (so a debug-API highlight is not overwritten). */
   private applyHighlights(): void {
     const h = highlightRefOf(this.state.hover), i = highlightRefOf(this.state.selected);
@@ -242,6 +277,9 @@ export class ViewsLayer {
   }
 
   dispose(): void {
+    this.cameraStateOff?.();
+    this.cameraStateOff = null;
+    this.cameraStateSource = null;
     this.cursor.detach();
     this.markers?.dispose();
     this.markers = null;

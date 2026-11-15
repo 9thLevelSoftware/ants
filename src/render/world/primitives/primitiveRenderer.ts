@@ -167,8 +167,8 @@ export class PrimitiveRenderer {
     let m = this.depthMats.get(family);
     if (!m) {
       m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
-      addPatch(m, `prim-depth-${family}-looks`, (s) => {
-        primVertexPatch(s, family);
+      addPatch(m, `prim-depth-${family}-looks-v2`, (s) => {
+        primVertexPatch(s, family, true);
         // leaf silhouettes cut in the shadow map too (dressing/finishGlsl.ts)
         s.vertexShader = s.vertexShader
           .replace('#include <common>', '#include <common>\nattribute vec4 iLook; varying vec4 vWrLook; varying vec4 vWrSize; varying vec3 vWrP;')

@@ -267,6 +267,10 @@ export const COOP_SHARE = 0.75;
 export const CATERPILLAR_THRASH_P = 0.3;
 export const CATERPILLAR_REGURGITATE_S = 10;
 export const CATERPILLAR_SILK_P = 0.5;
+/** Regurgitation stuns biters within this many L for this long, s; a hairy caterpillar repels a biter for 3 s. */
+export const CATERPILLAR_REGURGITATE_L = 1;
+export const CATERPILLAR_REGURGITATE_STUN_S = 2;
+export const CATERPILLAR_HAIRY_REPEL_S = 3;
 export const CATERPILLAR_SILK_S = 30;
 export const CATERPILLAR_PUPATE_GD = 3;
 export const CATERPILLAR_PER_PLOT_GD = 0.002;
@@ -364,6 +368,12 @@ export const BIRD_ALATE_RADIUS_BU = 30;
 export const BIRD_ALATE_P_PER_S = 0.05;
 export const BIRD_RESPONSE_RADIUS_BU = 40;
 export const BIRD_LEAVE_S = 2;
+/** Sparrow / pigeon also eats crumbs within the target radius: up to this many crumb units per event (§2.6). */
+export const BIRD_CRUMBS_MAX = 10;
+/** Woodpecker: a carve of this radius (BU) every 5 s into the mound / entrance throat, at most 6 (§2.6). */
+export const WOODPECKER_CARVE_BU = 3;
+export const WOODPECKER_CARVE_EVERY_S = 5;
+export const WOODPECKER_CARVES_MAX = 6;
 /** Daylight window: SR + 1 h .. SS - 1 h. */
 export const BIRD_DAY_MARGIN_H = 1;
 /** Overhead cover test (GDD 06 "exposed"): no solid within this many BU straight up. */
@@ -396,6 +406,16 @@ export const QUIET_SAMPLE_EVERY = 10;
 /** Major threat ids this module starts. */
 export const THREAT_BIRD = 'bird';
 export const THREAT_CENTIPEDE = 'centipede-invasion';
+
+// ---- alerts (GDD 05 App. C, GDD 08 §6.5) ----
+/** predator-near: lurking predator within this many BU of the possessed ant or of >= 3 foragers. */
+export const PREDATOR_NEAR_BU = 15;
+export const PREDATOR_NEAR_FORAGERS = 3;
+export const PREDATOR_NEAR_COOLDOWN_GD = 0.1;
+/** predator-near clears once its condition has not held for this long, s (decision: alerts need a clearer). */
+export const PREDATOR_NEAR_CLEAR_S = 30;
+/** nest-attacked clears this long after the last invader left, s. */
+export const NEST_ATTACKED_CLEAR_S = 30;
 
 // ---- director cadence and ambience ----
 /** Hourly sub-step of the director (ticks); aphid-predator arrivals, patch regrowth, bird checks. */

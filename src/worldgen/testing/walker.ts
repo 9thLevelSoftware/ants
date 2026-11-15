@@ -30,10 +30,13 @@ export interface CrossOptions {
   maxSteps?: number;
 }
 
+// The recovery timings mirror the locomotion module's stuck ladder (src/sim/locomotion/params.ts LOCO_TUNING:
+// stuckWindowS 2.5, stuckProgressBU 0.5, sidestepS 1.2, backoffS 0.8); worldgen may not import that module.
 /** Steps without 0.5 BU of progress toward the waypoint before a recovery (2.5 s at 0.1 s steps, as the AI). */
 const STALL_STEPS = 25;
-/** Length of one sidestep / back-off manoeuvre, steps. */
-const MANOEUVRE_STEPS = 10;
+/** Length of one sidestep manoeuvre (1.2 s) and of the other manoeuvres (back-off 0.8 s), steps. */
+const SIDESTEP_STEPS = 12;
+const MANOEUVRE_STEPS = 8;
 /** Recoveries allowed per waypoint before the walk counts as stuck. */
 const MAX_RECOVERIES = 15;
 /** The recovery cycle (one manoeuvre per stall). */
@@ -117,8 +120,8 @@ export function crossPath(w: WorldData, k: Kernel, path: readonly number[], opts
     if (sinceBest > STALL_STEPS && manoeuvre === 0) {
       if (++perWp > MAX_RECOVERIES) break;
       recoveries++;
-      manoeuvre = MANOEUVRE_STEPS;
       kind = MANOEUVRES[(perWp - 1) % MANOEUVRES.length];
+      manoeuvre = kind === 'side' ? SIDESTEP_STEPS : MANOEUVRE_STEPS;
       side = -side;
       sinceBest = 0;
       if (kind === 'drop') {
@@ -144,7 +147,7 @@ export function crossPath(w: WorldData, k: Kernel, path: readonly number[], opts
     if (!Number.isFinite(kin.pos.x) || !Number.isFinite(kin.pos.y) || !Number.isFinite(kin.pos.z)) break;
   }
   const end = cellGround(w, path[path.length - 1], t);
-  const endDist = Math.hypot(kin.pos.x - end.x, kin.pos.z - end.z);
+  const ex = kin.pos.x - end.x, ez = kin.pos.z - end.z, endDist = Math.sqrt(ex * ex + ez * ez);
   const arrived = wp >= path.length;
   return { kin, reached: Math.min(wp, path.length), endDist, steps, recoveries, stuckAt: arrived ? null : { ...kin.pos } };
 }
@@ -173,7 +176,10 @@ export function spherePasses(k: Kernel, a: Vec3, b: Vec3, r: number,
     const f = k.field.sampleXYZ(x0 + i * step, y0 + j * step, z0 + l * step);
     return f >= r && f <= r + shell;
   };
-  const near = (p: Vec3, i: number, j: number, l: number) => Math.hypot(x0 + i * step - p.x, y0 + j * step - p.y, z0 + l * step - p.z) <= reach;
+  const near = (p: Vec3, i: number, j: number, l: number) => {
+    const dx = x0 + i * step - p.x, dy = y0 + j * step - p.y, dz = z0 + l * step - p.z;
+    return dx * dx + dy * dy + dz * dz <= reach * reach;
+  };
   const queue: number[] = [];
   for (let l = 0; l < nz; l++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     if (!near(a, i, j, l)) continue;

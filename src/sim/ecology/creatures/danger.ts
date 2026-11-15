@@ -30,11 +30,16 @@ export function dangerGrid(sim: Sim): { colony: Colony; w: number; h: number; ce
   return { colony: col, w, h, cell };
 }
 
+/** Danger of the player colony at p: its cell's value, or DANGER_AVOID_MARKER inside one of its avoid markers. */
 export function dangerAt(sim: Sim, p: Vec3): number {
   const g = dangerGrid(sim);
   if (!g) return 0;
   const i = cellIndex(g, p);
-  return i < 0 ? 0 : g.colony.danger[i];
+  let d = i < 0 ? 0 : g.colony.danger[i];
+  for (const m of sim.state.markers) {
+    if (m.alive && m.kind === 'avoid' && m.colony === g.colony.id && Math.hypot(m.pos.x - p.x, m.pos.z - p.z) <= m.radius) d = Math.max(d, DANGER_AVOID_MARKER);
+  }
+  return d;
 }
 
 function cellIndex(g: { w: number; h: number; cell: number }, p: Vec3): number {

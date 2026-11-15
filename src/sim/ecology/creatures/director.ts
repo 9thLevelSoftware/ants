@@ -28,7 +28,7 @@ import { birdHourly } from './bird';
 import { updateDanger } from './danger';
 import { expireHazards } from './neutral';
 import { reconcileInvasion } from './lifecycle';
-import { predatorNearAlerts } from './alerts';
+import { nestAttackedAlerts, predatorNearAlerts } from './alerts';
 
 const RUN_S = CREATURE_DIRECTOR_EVERY / TICKS_PER_SECOND;
 
@@ -208,6 +208,7 @@ export function runDirector(sim: Sim): void {
   dir.wasRaining = cond.raining ? 1 : 0;
   reconcileInvasion(sim);
   predatorNearAlerts(sim);
+  nestAttackedAlerts(sim);
   ambience(sim, cond);
   dir.lastRunTick = sim.state.tick;
 }

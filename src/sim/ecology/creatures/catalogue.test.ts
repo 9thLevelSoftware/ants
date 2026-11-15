@@ -80,6 +80,9 @@ const SENSE_CASES: [CreatureKind, string, number, string, string][] = [
   ['jumping-spider', 'scan', 14, 'stalk', 'day hunter'],
   ['wolf-spider', 'ambush', 23, 'orient', 'night ambusher'],
   ['ant-spider', 'patrol', 23, 'approach', 'dusk/night'],
+  // the hunters have no stalk state: on detection they head for the ant ('seek') or wind up at once
+  ['centipede', 'prowl', 23, 'seek', 'night prowler'],
+  ['rove-beetle', 'forage', 23, 'seek', 'litter hunter'],
 ];
 
 describe('senses', () => {
@@ -93,9 +96,14 @@ describe('senses', () => {
       const ant = placeWorker(sim, 250, 250);
       possess(sim, ant); // stands still
       const c = spawnAt(sim, kind, 250 - d, 250, { state: start, stateS: 100 });
-      const visited = new Set<string>();
-      for (let t = 0; t < 25; t++) { sim.tick(); visited.add(c.state); }
-      expect(visited.has(detectState)).toBe(inside);
+      // one scan (every 10 ticks): too short to wander into range
+      let noticed = false;
+      for (let t = 0; t < 11; t++) {
+        sim.tick();
+        const seeks = Math.hypot(c.nav.dest.x - ant.pos.x, c.nav.dest.z - ant.pos.z) < 1 && c.nav.status === 'moving';
+        if (c.state === detectState || (detectState === 'seek' && (seeks || c.state === 'windup'))) noticed = true;
+      }
+      expect(noticed).toBe(inside);
     }
   });
 });
@@ -110,6 +118,8 @@ const STATES: Partial<Record<CreatureKind, string[]>> = {
   centipede: ['prowl', 'windup', 'hold', 'feed', 'recover', 'flee', 'invade'],
   'rove-beetle': ['forage', 'windup', 'hold', 'feed', 'recover', 'flee'],
   ladybird: ['fly-in', 'feed', 'fly-off'],
+  'ladybird-larva': ['crawl', 'feed', 'drop-off', 'wander'],
+  'lacewing-larva': ['crawl', 'feed', 'wander'],
   springtail: ['graze'],
   mite: ['graze'],
   'fly-larva': ['feed', 'burrow'],

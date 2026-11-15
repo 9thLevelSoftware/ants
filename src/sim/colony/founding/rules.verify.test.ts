@@ -21,8 +21,10 @@ describe('site words: live read-out vs static suitability map (task Boundaries; 
 
 describe('pure rules: edge values', () => {
   it('quality, mu, moisture and words stay finite and in range for NaN, negative and huge inputs', () => {
-    expect(siteQuality([NaN, NaN, NaN, NaN, NaN, NaN, NaN], 'lasius-niger')).toBeCloseTo(0.05, 9);
-    expect(siteQuality([], 'lasius-niger')).toBeCloseTo(0.05, 9);
+    // (fix engineer) the 0.05 floor was GDD 06's geometric mean; directions §K's single scoring function (the static
+    // map's weighted sum) vetoes a site with no diggability to 0, so unreadable factors score 0, still finite
+    expect(siteQuality([NaN, NaN, NaN, NaN, NaN, NaN, NaN], 'lasius-niger')).toBe(0);
+    expect(siteQuality([], 'lasius-niger')).toBe(0);
     expect(siteQuality([2, 2, 2, 2, 2, 2, 2], 'lasius-niger')).toBeCloseTo(1, 9);
     expect(moistureFactor(siteProfile('lasius-niger').moist, NaN)).toBe(0);
     for (const q of [-5, 0, 0.5, 1, 5]) {

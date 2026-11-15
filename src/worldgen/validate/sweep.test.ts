@@ -1,8 +1,8 @@
 // Long sweep (FOUNDRESS_LONG=1, or FOUNDRESS_WORLDGEN_FULL=1): 20 seeds per Tier 1 archetype at standard size
 // (Lasius). Task worldgen-life acceptance 2-6 and GDD 04 App. E 3, 6, 7: every world passes validation within the
 // attempt limit (repairs rare), rival spacing, the start rule and a walker reaching a diggable founding site from
-// the start, food anchors reachable and on surfaces, the economy floors, the founding-site class shares, and
-// generation time. The always-on version (3 worlds) is populate/populate.test.ts. Numbers are printed.
+// the start, food anchors reachable and on surfaces, the economy floors (renewable daily supply), the caps on the
+// founding-site class shares, and generation time. The always-on version (3 worlds) is populate/populate.test.ts. Numbers are printed.
 import { describe, expect, it } from 'vitest';
 import { createKernel } from '@/sim/kernel';
 import { T1_ARCHETYPES, FULL } from '../testing/fixtures';
@@ -62,7 +62,7 @@ describe.skipIf(!RUN)(`long sweep: ${SEEDS} seeds per Tier 1 archetype (standard
         c300.push(fr.floors[0].c); p300.push(fr.floors[0].p); c900.push(fr.floors[1].c); p900.push(fr.floors[1].p);
         const dist = siteDistribution(ctx);
         for (const key of Object.keys(shares) as (keyof typeof shares)[]) shares[key] += dist[key] / SEEDS;
-        lines.push(`${s}: attempts=${r.attempts} repairs=[${r.repairs}] ${Math.round(r.timingsMs.total ?? 0)} ms start ${rule.detail} | ${r.checks.find((c) => c.id === 'v-food')!.detail}`);
+        lines.push(`${s}: attempts=${r.attempts} retries=[${r.retries.map((x) => x.failedChecks.join('+')).join(',')}] repairs=[${r.repairs}] ${Math.round(r.timingsMs.total ?? 0)} ms start ${rule.detail} | ${r.checks.find((c) => c.id === 'v-food')!.detail}`);
       }
       const pct = (x: number) => (100 * x).toFixed(1);
       console.info(`[sweep] ${a}\n  ${lines.join('\n  ')}\n  economy 300 BU: C ${stat(c300)}, P ${stat(p300)}; 900 BU: C ${stat(c900)}, P ${stat(p900)}\n`
@@ -70,9 +70,9 @@ describe.skipIf(!RUN)(`long sweep: ${SEEDS} seeds per Tier 1 archetype (standard
         + `  generation ms: ${stat(ms)}; repaired ${repaired}/${SEEDS}\n  failures: ${fails.length ? fails.join('\n    ') : 'none'}`);
       expect(fails, fails.join('\n')).toEqual([]);
       expect(repaired / SEEDS).toBeLessThan(0.05 + 1 / SEEDS);
+      // directions §K ruling (worldgen-life addendum 3): only the caps on excellent and good are binding
       expect(shares.excellent).toBeLessThanOrEqual(0.1);
       expect(shares.good).toBeLessThanOrEqual(0.25);
-      expect(shares.poor).toBeGreaterThanOrEqual(0.05);
     }, 3_600_000);
   }
 });

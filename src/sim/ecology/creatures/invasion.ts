@@ -12,7 +12,7 @@ import {
 import { chance, dist, setState, ticks, walkTo } from './common';
 import type { Conditions } from './conditions';
 import { endMajorThreat, requestMajorThreat } from './threat';
-import { ports } from './ports';
+import { raiseNestAttacked } from './alerts';
 
 const CE = CREATURE_STATS.centipede;
 /** Brood within this distance is eaten, mm. */
@@ -45,12 +45,7 @@ export function maybeInvade(sim: Sim, c: Creature, cond: Conditions): boolean {
     c.bb.nextEat = sim.state.tick + ticks(CENTIPEDE_BROOD_EAT_S);
     setState(sim, c, 'invade');
     walkTo(sim, c, e.pos, CE.walkMmS * 0.5, 2);
-    if (c.bb.invading) {
-      ports.raiseAlert(sim, {
-        kind: 'nest-attacked', level: 'warning', subjectId: c.id, title: 'A centipede is entering the nest',
-        cause: 'centipede', focus: { kind: 'creature', id: c.id, pos: { ...c.pos } }, diagnosticId: 'diag-threats',
-      });
-    }
+    if (c.bb.invading) raiseNestAttacked(sim, c, nest.id);
     return true;
   }
   return false;
@@ -131,5 +126,6 @@ export function triggerInvasion(sim: Sim, colonyId: number, force: boolean, spaw
   c.bb.nextEat = sim.state.tick + ticks(CENTIPEDE_BROOD_EAT_S);
   setState(sim, c, 'invade');
   walkTo(sim, c, e.pos, CE.walkMmS * 0.5, 2);
+  if (player) raiseNestAttacked(sim, c, nest.id);
   return true;
 }

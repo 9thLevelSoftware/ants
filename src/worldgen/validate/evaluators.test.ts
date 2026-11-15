@@ -10,6 +10,7 @@ import { terrainAt } from '../kit/surface';
 import { generated } from '../populate/testkit';
 import { restViolations } from './checks';
 import { evaluateMicro } from './micro';
+import { cellAt, navDistanceTo, portals } from './graph';
 import { MICRO } from '../tuning/pipeline';
 
 vi.setConfig({ testTimeout: 180_000 });
@@ -69,6 +70,36 @@ describe('micro-connection usefulness (v-micro)', () => {
     } finally {
       ctx.world.micro = ctx.world.micro.filter((m) => m.id < 1e6);
       evaluateMicro(ctx);
+    }
+  });
+});
+
+describe('micro-connection usefulness reasons', () => {
+  it("a long detour beyond the capped search is a 'shortcut', not 'only path'; real labels match uncapped searches", () => {
+    const { ctx } = world();
+    const w = ctx.world, bu = w.bu, s = w.queenStart.pos;
+    // a 10 BU connection between two ground cells 160 BU apart on open ground: the detour is about 160 BU, far
+    // beyond the capped search (1.4 x 10 BU), but it exists
+    const base = w.micro.find((m) => m.minClearanceBu >= MICRO.passClearK)!;
+    const far = { x: s.x + 160 * bu, y: s.y, z: s.z };
+    expect(navDistanceTo(ctx, cellAt(ctx, s.x, s.z), cellAt(ctx, far.x, far.z))).toBeLessThan(Infinity);
+    const fake = { ...base, id: 2e6, kind: 'kerb-gap' as const, posA: { ...s }, posB: far, lengthBu: 10, useful: false, reason: '' };
+    w.micro.push(fake);
+    try {
+      evaluateMicro(ctx);
+      expect(fake.useful).toBe(true);
+      expect(fake.reason).toBe('shortcut');
+    } finally {
+      w.micro.pop();
+      evaluateMicro(ctx);
+    }
+    const ports = portals(ctx);
+    for (const m of w.micro) {
+      if (m.reason !== 'only path' && m.reason !== 'shortcut') continue;
+      const p = ports.find((q) => q.microId === m.id)!;
+      const d = navDistanceTo(ctx, p.a, p.b, { skipMicro: m.id }, ports);
+      if (m.reason === 'only path') expect(d, `micro ${m.id}`).toBe(Infinity);
+      else expect(d, `micro ${m.id}`).toBeGreaterThanOrEqual(MICRO.shortcutRatio * p.lenBu);
     }
   });
 });

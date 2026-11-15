@@ -3,13 +3,15 @@
 // Each port resolves the owning module's export when CALLED (import cycles: ecology <-> combat / ants / nest).
 //
 // Relied-on signatures (report): combat.applyDamage(sim, kind, id, dmg, cause) -> dealt, combat.releaseGrapple,
-// combat.raiseAlarm(sim, colony, pos, strength); progression.raiseAlert; locomotion nav*, placeOnSurface,
-// registerSpeedFactor, registerMovementOverride; environment airTemp / isRaining; entities kill/spawn helpers.
+// combat.raiseAlarm(sim, colony, pos, strength); progression.raiseAlert / clearAlert; nest.disturb (woodpecker
+// carves, a T2 hook the nest module fills); locomotion nav*, placeOnSurface, registerSpeedFactor,
+// registerMovementOverride; environment airTemp / isRaining; entities kill/spawn helpers.
 
 import * as combat from '@/sim/combat';
 import * as progression from '@/sim/progression';
 import * as locomotion from '@/sim/locomotion';
 import * as environment from '@/sim/environment';
+import * as nest from '@/sim/nest';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function late<F extends (...args: any[]) => any>(get: () => F): F {
@@ -23,6 +25,9 @@ export const ports = {
   raiseAlarm: late(() => combat.raiseAlarm),
   // progression: alerts (predator-near, nest-attacked)
   raiseAlert: late(() => progression.raiseAlert),
+  clearAlert: late(() => progression.clearAlert),
+  // nest: a woodpecker carve at the mound / entrance throat (GDD 05 §2.6; nest.disturb is the T2 hook)
+  disturbNest: late(() => nest.disturb),
   // locomotion
   navTo: late(() => locomotion.navTo),
   navToTarget: late(() => locomotion.navToTarget),

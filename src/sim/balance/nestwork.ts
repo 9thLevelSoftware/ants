@@ -32,6 +32,8 @@ export const TEND_NEAR_BU = 3;
 /** Nurse crop load, loads (NURSE_LOAD), and the time to load it from the pool, s (GDD 02 §10.4 timed actions). */
 export const NURSE_LOAD = 0.6;
 export const LOAD_S = 6;
+/** Pool -> crop loading rate, loads/s (GDD 02 §5.4.1: 0.1 load/s up to NURSE_LOAD; a smaller load takes less time). */
+export const LOAD_RATE = 0.1;
 /** A nurse goes to load when her crop is below this, loads. */
 export const CROP_MIN_FEED = 0.1;
 /** A nurse without a job loads ahead of the next request while larvae are about and her crop is below this. */
@@ -172,6 +174,11 @@ export const HAUL_IDLE_S = 10;
 // ---- idle, rest, guard (GDD 02 §10.9, §10.11) ----
 /** Idle ants wander within this fraction of their chamber's horizontal radius. */
 export const IDLE_WANDER_FRAC = 0.6;
+/**
+ * A wander that failed (the walker could not move, e.g. on a fin of wall): walk to within this fraction of the
+ * chamber's horizontal radius of its centre on a planned path, then wander again.
+ */
+export const IDLE_RECENTRE_FRAC = 0.2;
 /** Wander speed factor of idle ants ("wander slowly"). */
 export const IDLE_SPEED_MULT = 0.5;
 export const GUARD_RIM_BU = 3;

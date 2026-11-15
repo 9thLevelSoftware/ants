@@ -167,6 +167,22 @@ export const LOCO_TUNING = {
   episodesMax: 16,
   /** Relocation target: this many waypoints / field steps ahead. */
   relocateFieldSteps: 8,
+  /**
+   * Wander (no goal): a walker that did not move stuckProgressBU for wanderStallS pivots on the spot for
+   * wanderPivotS (its heading sweeps round, the pull to the wander centre is ignored), like an ant turning away from
+   * an obstacle. A pivot that frees nothing, or more than wanderStallMax stalls in one request, ends the wander as
+   * 'failed', so the caller can walk somewhere else (the ladder of goal requests has nothing to aim at here).
+   */
+  wanderStallS: 1,
+  wanderPivotS: 1.5,
+  wanderStallMax: 4,
+  /**
+   * Pinned: in a cavity on a steep slope, wall or overhang (up.y below pinnedUpY), standing (speed 0) and without progress for
+   * pinnedS, a walker with a request lets go and drops to the floor below (GDD 01 `let-go`). Thin fins and lips of
+   * carved soil can hold a walker whose every step is rejected; the ladder would take several windows to relocate.
+   */
+  pinnedS: 1,
+  pinnedUpY: 0.7,
 
   // ---- level of detail ----
   /** Distance from the observer beyond which walkers step every lodMidEvery / lodFarEvery ticks, BU. */
@@ -245,7 +261,7 @@ export interface LocoParams {
   routeSnap: number; routeGoal: number; direct: number; planBudget: number; planExpandBudget: number; stuckExplosionTicks: number; stuckExplosionFrac: number; stuckExplosionMin: number; retargetS: number; retarget: number;
   pointFieldMax: number; pointSeek: number; arriveStallS: number; ceilingUpY: number; dropAbove: number; dropBelow: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
-  episodesMax: number; relocateSteps: number;
+  episodesMax: number; relocateSteps: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
   edgeMargin: number; edgeHard: number; edgeRepulse: number;
   avoidCost: number; avoidPad: number; avoidW: number; avoidTrailW: number;
@@ -282,6 +298,8 @@ export function locoParams(bu: number): LocoParams {
     timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,
     stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
     relocateMax: T.relocateMax, episodesMax: T.episodesMax, relocateSteps: T.relocateFieldSteps,
+    wanderStallS: T.wanderStallS, wanderPivotS: T.wanderPivotS, wanderStallMax: T.wanderStallMax,
+    pinnedS: T.pinnedS, pinnedUpY: T.pinnedUpY,
     lodNear: T.lodNearBU * bu, lodFar: T.lodFarBU * bu, lodMid: T.lodMidEvery, lodFarEvery: T.lodFarEvery,
     lodSubstep: T.lodCoarseSubstepBU * bu, lodHardClear: T.lodHardClearBU * bu,
     edgeMargin: T.edgeMarginBU * bu, edgeHard: T.edgeHardBU * bu, edgeRepulse: T.edgeRepulse,

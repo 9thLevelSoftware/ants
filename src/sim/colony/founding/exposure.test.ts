@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { FOUND_SURFACE_EXTRA_PER_GD, FOUND_UPKEEP_PER_GD } from '@/sim/balance/founding';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { coverAt } from './siteAssess';
+import { coverLevelAt } from './siteAssess';
 import { pinTemperature, phase, queen, searchingSim, slabWorld, stepUntil } from './testkit';
 
 const SLAB_C = 40; // BU, slab centre in the slab world
@@ -32,7 +32,7 @@ describe('shelter clock (GDD 06 §5.5, App. E 15)', () => {
     const q = queen(sim);
     sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: { x: SLAB_C * bu, y: 0.3 * bu, z: SLAB_C * bu } });
     sim.tick();
-    expect(coverAt(sim, q.pos.x, q.pos.z)).toBe('roof');
+    expect(coverLevelAt(sim, q.pos.x, q.pos.z).level).toBe('ceiling');
     const t0 = sim.state.tick;
     stepUntil(sim, () => sim.state.tick - t0 >= 14000, 14000);
     expect(q.alive).toBe(true);

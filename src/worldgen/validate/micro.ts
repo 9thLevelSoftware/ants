@@ -10,7 +10,8 @@ import { heightAt } from '@/sim/world/terrainSample';
 import { primEval } from '@/sim/world/primHash';
 import type { GenContext } from '../kit/context';
 import { primIndex } from '../kit/surface';
-import { navDistanceTo, portals } from './graph';
+import { groundComponents, navDistanceTo, portals, type Portal } from './graph';
+import { NAV } from '../tuning/maps';
 import { MICRO, VALID } from '../tuning/pipeline';
 
 /** Mouths within this of a cavity's box (or of a hole cell) reach it, BU. */
@@ -64,9 +65,27 @@ function holeVoidNear(ctx: GenContext, m: MicroConn, reach: number): boolean {
   return false;
 }
 
+/** Whether cells a and b are joined by the ground and the portals other than `skip` (standard clearance). */
+function joinedWithout(label: Int32Array, ports: readonly Portal[], a: number, b: number, skip: number): boolean {
+  const parent = new Map<number, number>();
+  const find = (x: number): number => {
+    let r = x;
+    while (parent.has(r) && parent.get(r) !== r) r = parent.get(r)!;
+    parent.set(x, r);
+    return r;
+  };
+  for (const p of ports) {
+    if (p.microId === skip || p.clearanceBu < NAV.clearanceBu || label[p.a] < 0 || label[p.b] < 0) continue;
+    const ra = find(label[p.a]), rb = find(label[p.b]);
+    if (ra !== rb) parent.set(ra, rb);
+  }
+  return label[a] >= 0 && label[b] >= 0 && find(label[a]) === find(label[b]);
+}
+
 /** Evaluates every micro-connection; returns the number of useful ones. */
 export function evaluateMicro(ctx: GenContext): number {
   const ports = portals(ctx);
+  let label: Int32Array | null = null;
   let n = 0;
   for (const m of ctx.world.micro) {
     if (m.minClearanceBu < MICRO.passClearK) { m.useful = false; m.reason = 'closed for this species'; continue; }
@@ -76,8 +95,12 @@ export function evaluateMicro(ctx: GenContext): number {
     if (p) {
       const limit = MICRO.shortcutRatio * p.lenBu;
       const d = navDistanceTo(ctx, p.a, p.b, { skipMicro: m.id, maxBu: limit + 1 }, ports);
-      if (!(d < Infinity)) { useful = true; reason = 'only path'; }
-      else if (d >= limit) { useful = true; reason = 'shortcut'; }
+      if (d >= limit) {
+        // the capped search cannot tell a long detour from no path at all: the components decide the label
+        label ??= groundComponents(ctx);
+        useful = true;
+        reason = d < Infinity || joinedWithout(label, ports, p.a, p.b, m.id) ? 'shortcut' : 'only path';
+      }
     }
     if (!useful && cavityNear(ctx, m)) { useful = true; reason = 'shelter cavity'; }
     m.useful = useful;

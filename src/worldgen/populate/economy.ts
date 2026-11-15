@@ -1,29 +1,31 @@
-// What the food set of a generated world offers per summer game day within a walking radius of the start
-// (registry C13 economy sanity budget), computed from the anchors and the catalogue's renewal data the source
-// system reads: the stock an anchor's source starts with, one day of pool refill, and the expected carrion drops
-// over the reachable plots of each zone (GDD 05 §1.3 runtime table, T1 x4). Mirrors the source module's
-// anchor-to-variant rule so the numbers are those a new game will have.
+// What the food set of a generated world supplies per summer game day within a walking radius of the start
+// (registry C13 economy sanity budget, a loads-per-game-day budget), computed from the anchors and the
+// catalogue's renewal data the source system reads. Mirrors the source module's anchor-to-variant rule and its
+// own read-outs (src/sim/ecology/sources/budget.ts), so the numbers are those a new game will have:
+//   sustainedOffer: the renewable daily supply the floors are checked against: pool refill per gd, the T1 crumb
+//                   rule (30 % of consumed clusters re-placed daily, so at full consumption 0.3 x a cluster's
+//                   mean stock per cluster and day), and the expected carrion drops over the reachable plots of
+//                   each zone (GDD 05 §1.3 runtime table, T1 x4). One-time stock (a cluster's first units, a
+//                   sugar patch) is not a daily supply.
+//   dayOffer:       read-out only: the stock lying there at the start plus one day of renewal.
 
 import type { FoodAnchor, FoodVariant, ZoneType } from '@/sim/types';
 import { FOOD_VARIANTS, SEASONS } from '@/sim/types';
 import {
   CARRION_DROP_PER_PLOT_GD, CARRION_DROP_TIER, CARRION_DROP_VARIANTS, CARRION_MULT, CARRION_SEASON_MULT, CARRION_ZONE_MULT,
-  ECOLOGY_TIER, PLOT_BU, SOURCE_CATALOGUE, T1_CARRION_MULT, type SourceDef,
+  CRUMB_REPLACE_FRACTION, ECOLOGY_TIER, PLOT_BU, SOURCE_CATALOGUE, T1_CARRION_MULT, type SourceDef,
 } from '@/sim/balance';
 import type { GenContext } from '../kit/context';
 import { anchorAccess, type AnchorAccess } from './access';
 import { anchorAccessTable } from './food';
+import { defAt } from './common';
 
 export interface FoodOffer { c: number; p: number; byVariant: Partial<Record<FoodVariant, { c: number; p: number }>> }
 
 const HERDS: readonly FoodVariant[] = ['aphid-herd', 'scale-herd'];
 const SUMMER = 1 << SEASONS.indexOf('summer');
 
-/** Catalogue row with the tier's overrides (GDD 05 §0 T1 rules). */
-export function defAt(v: FoodVariant, tier: number = ECOLOGY_TIER): SourceDef {
-  const d = SOURCE_CATALOGUE[v];
-  return tier === 1 && d.t1 ? { ...d, ...d.t1 } : d;
-}
+export { defAt };
 
 /** Variant hint of an anchor (first word naming a variant of its kind), or null. */
 export function anchorHint(a: FoodAnchor): FoodVariant | null {
@@ -67,15 +69,33 @@ function add(o: FoodOffer, v: FoodVariant, c: number, p: number): void {
   e.c += c; e.p += p;
 }
 
-/** Summer day offer within radiusBu of the start along `d` (distances from the start). */
+const meanStock = (def: SourceDef) => (def.units[0] + def.units[1]) / 2;
+
+/** Renewable loads per game day of one anchor's source: pool refill, or the T1 crumb rule at full consumption. */
+export function renewalPerGd(v: FoodVariant): number {
+  const def = defAt(v);
+  if (def.refillPerGd > 0) return def.refillPerGd;
+  const t1Crumb = ECOLOGY_TIER === 1 && (v === 'crumb-starch' || v === 'crumb-protein');
+  return t1Crumb ? CRUMB_REPLACE_FRACTION * meanStock(def) : 0;
+}
+
+/** Renewable summer daily supply within radiusBu of the start along `d` (distances from the start). */
+export function sustainedOffer(ctx: GenContext, d: Float64Array, radiusBu: number): FoodOffer {
+  return offer(ctx, d, radiusBu, renewalPerGd);
+}
+
+/** Read-out only: the stock of every source plus one day of renewal, within radiusBu (see the file header). */
 export function dayOffer(ctx: GenContext, d: Float64Array, radiusBu: number): FoodOffer {
+  return offer(ctx, d, radiusBu, (v) => meanStock(defAt(v)) + defAt(v).refillPerGd);
+}
+
+function offer(ctx: GenContext, d: Float64Array, radiusBu: number, loadsPerAnchor: (v: FoodVariant) => number): FoodOffer {
   const o: FoodOffer = { c: 0, p: 0, byVariant: {} };
   for (const a of ctx.world.placements.foodAnchors) {
     const v = sourceVariant(a);
     if (!v || !(a.seasonMask & SUMMER) || !(anchorDistance(ctx, a, d) <= radiusBu)) continue;
-    const def = defAt(v);
-    const stock = (def.units[0] + def.units[1]) / 2;
-    add(o, v, (stock + def.refillPerGd) * def.c, (stock + def.refillPerGd) * def.p);
+    const def = defAt(v), n = loadsPerAnchor(v);
+    if (n > 0) add(o, v, n * def.c, n * def.p);
   }
   // expected carrion drops over the reachable plots of each zone type
   const { navN, navCell, bu } = ctx.dims;

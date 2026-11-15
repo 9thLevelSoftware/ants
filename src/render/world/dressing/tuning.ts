@@ -23,13 +23,14 @@ export interface GritSpec {
 
 /** Loose grains per ground material (GDD 04 §9 decor-grit / pebble-fine, at the scale the macro camera sees). */
 export const GRIT: Partial<Record<MaterialId, GritSpec>> = {
-  // pea gravel: stones of an ant's own size, lying flat (GDD 08 11.6 "concrete grain = boulders")
-  gravel: { density: 0.03, sizeMm: [2.2, 6.5], flat: [0.35, 0.6], chipShare: 0.35, colors: ['#9d968b', '#b8afa1', '#7d7368', '#a88f73', '#c7c0b4'], rough: 0.7 },
-  loam: { density: 0.006, sizeMm: [0.5, 2.2], flat: [0.45, 0.8], chipShare: 0.2, colors: ['#4a3626', '#5a4330', '#3a2a1e', '#6e5a48', '#8a8073'], rough: 0.95 },
-  clay: { density: 0.004, sizeMm: [0.6, 2.4], flat: [0.4, 0.7], chipShare: 0.4, colors: ['#7a5236', '#8c6444', '#6a4630'], rough: 0.9 },
-  humus: { density: 0.008, sizeMm: [0.6, 2.8], flat: [0.3, 0.6], chipShare: 0.25, colors: ['#2f2219', '#3d2c20', '#4e3a2a', '#5e4a35'], rough: 0.95 },
-  sand: { density: 0.012, sizeMm: [0.35, 1.0], flat: [0.6, 0.9], chipShare: 0.5, colors: ['#c9b38c', '#b89f78', '#d8c7a6', '#9c8a6c'], rough: 0.8 },
-  asphalt: { density: 0.0025, sizeMm: [0.8, 2.6], flat: [0.45, 0.8], chipShare: 0.8, colors: ['#3a3a3a', '#5a5856', '#2a2a2a', '#7a7672'], rough: 0.75 },
+  // pea gravel: stones of an ant's own size, lying flat and touching (GDD 08 11.6 "concrete grain = boulders")
+  gravel: { density: 0.06, sizeMm: [1.5, 6.5], flat: [0.35, 0.6], chipShare: 0.3, colors: ['#9d968b', '#b8afa1', '#7d7368', '#a88f73', '#c7c0b4', '#8e8a84'], rough: 0.7 },
+  // garden soil: crumbs a quarter to half an ant long, lighter dry crust on top, a few mineral grains
+  loam: { density: 0.016, sizeMm: [0.4, 2.6], flat: [0.45, 0.85], chipShare: 0.25, colors: ['#6b5038', '#7a5c40', '#5a4330', '#8a7058', '#857d70', '#4a3626', '#8f7d66'], rough: 0.95 },
+  clay: { density: 0.008, sizeMm: [0.6, 2.4], flat: [0.4, 0.7], chipShare: 0.4, colors: ['#7a5236', '#8c6444', '#6a4630', '#9a7656'], rough: 0.9 },
+  humus: { density: 0.014, sizeMm: [0.5, 3.0], flat: [0.3, 0.6], chipShare: 0.25, colors: ['#3d2c20', '#4e3a2a', '#5e4a35', '#6e5840', '#2f2219', '#7d7468'], rough: 0.95 },
+  sand: { density: 0.02, sizeMm: [0.35, 1.0], flat: [0.6, 0.9], chipShare: 0.5, colors: ['#c9b38c', '#b89f78', '#d8c7a6', '#9c8a6c'], rough: 0.8 },
+  asphalt: { density: 0.004, sizeMm: [0.8, 2.6], flat: [0.45, 0.8], chipShare: 0.8, colors: ['#3a3a3a', '#5a5856', '#2a2a2a', '#7a7672'], rough: 0.75 },
   concrete: { density: 0.0012, sizeMm: [0.4, 1.4], flat: [0.5, 0.8], chipShare: 0.7, colors: ['#9a958c', '#7d786f', '#b4ada2'], rough: 0.85 },
   stone: { density: 0.0012, sizeMm: [0.4, 1.4], flat: [0.5, 0.8], chipShare: 0.7, colors: ['#9a958c', '#7d786f', '#b4ada2'], rough: 0.85 },
   rubber: { density: 0.003, sizeMm: [0.8, 2.0], flat: [0.5, 0.8], chipShare: 0.9, colors: ['#6a2e27', '#2a2a2a', '#3a2c28'], rough: 0.9 },
@@ -38,14 +39,31 @@ export const GRIT: Partial<Record<MaterialId, GritSpec>> = {
   mortar: { density: 0.002, sizeMm: [0.4, 1.4], flat: [0.5, 0.8], chipShare: 0.6, colors: ['#b8b0a2', '#9a9284'], rough: 0.9 },
 };
 
-/** Quality knobs: grains drawn at most, placement radius around the camera focus (mm at BU 4). */
-export const GRIT_QUALITY: Record<QualityId, { max: number; radiusMm: number }> = {
-  test: { max: 0, radiusMm: 0 },
-  low: { max: 600, radiusMm: 90 },
-  medium: { max: 1800, radiusMm: 130 },
-  high: { max: 4000, radiusMm: 180 },
-  ultra: { max: 6500, radiusMm: 240 },
+/**
+ * Quality knobs: grains drawn at most, how many of the nearest use the fine mesh and cast shadows, placement radius
+ * around the camera focus (mm at BU 4).
+ */
+export const GRIT_QUALITY: Record<QualityId, { max: number; near: number; radiusMm: number }> = {
+  test: { max: 0, near: 0, radiusMm: 0 },
+  low: { max: 700, near: 0, radiusMm: 90 },
+  medium: { max: 1800, near: 400, radiusMm: 130 },
+  high: { max: 4000, near: 900, radiusMm: 180 },
+  ultra: { max: 6500, near: 1500, radiusMm: 240 },
 };
+
+/** Shading of the grains: icosphere detail near / far, mottling (relative), specks and the buried side's darkening. */
+export const GRIT_LOOK = {
+  nearDetail: 1,
+  farDetail: 0,
+  /** Mottle pattern frequency on the unit grain and its amplitude (x 1 +- mottle). */
+  mottleScale: 2.2,
+  mottle: 0.22,
+  /** Light mineral specks: hash threshold (higher = fewer) and brightening. */
+  speckCut: 0.86,
+  speck: 0.35,
+  /** Albedo factor at the bottom of a grain (soil-stained, shaded). */
+  bottomDark: 0.55,
+} as const;
 
 /** Placement lattice cell, mm: each cell rolls its own grains from a hash (world-anchored: grains never swim). */
 export const GRIT_CELL_MM = 8;
@@ -60,3 +78,30 @@ export const GRIT_MAX_RISE_BU = 0.38;
 export const GRIT_REPLACE_MM = 12;
 /** Grains shrink to nothing over the outer share of the radius (no popping at the edge). */
 export const GRIT_EDGE_FADE = 0.25;
+
+/** Flower heads built from parts (flowerParts.ts): counts and proportions per head kind. */
+export const FLOWER_PARTS = {
+  /** Dandelion: rings of ligules (outer count; inner rings hold fewer), strap width / head radius, bracts. */
+  dandelion: { rings: 6, outer: 34, widthK: 0.16, bracts: 14 },
+  /** Daisy: ray petals per ring (two rings), petal width / head radius. */
+  daisy: { petals: 17, widthK: 0.2 },
+  /** Seed clock: seeds on the sphere, sphere radius / head radius. */
+  seedClock: { seeds: 110, radiusK: 1.05 },
+  clover: { florets: 70 },
+  umbel: { florets: 36 },
+} as const;
+
+/**
+ * Flower dressing per quality: heads within this distance of the camera are built from parts (mm at BU 4; the
+ * shader finish of the head switches to its "receptacle" form inside the same radius), at most `maxParts` parts.
+ * Low keeps the shader-only heads.
+ */
+export const FLOWER_QUALITY: Record<QualityId, { radiusMm: number; maxParts: number }> = {
+  test: { radiusMm: 0, maxParts: 0 },
+  low: { radiusMm: 0, maxParts: 0 },
+  medium: { radiusMm: 450, maxParts: 6000 },
+  high: { radiusMm: 750, maxParts: 12000 },
+  ultra: { radiusMm: 1100, maxParts: 20000 },
+};
+/** The camera moves this far (mm) before the dressed heads are re-selected; heads are built this much farther out. */
+export const FLOWER_REPLACE_MM = 40;

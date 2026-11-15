@@ -47,9 +47,9 @@ export const PALETTE = {
   bucketGreen: lin('#1f4a2a'),
   filter: lin('#e8dcc0'),
   /** Living plant parts. */
-  leaf: L(['#3f6b22', '#4d7a2a', '#36601f', '#58823a']),
-  dandelionLeaf: lin('#3e6a24'),
-  stem: lin('#56803a'),
+  leaf: L(['#365d1d', '#426a28', '#2f5419', '#4b7232']),
+  dandelionLeaf: lin('#365e20'),
+  stem: lin('#5a7a3e'),
   dandelionStem: lin('#7d8f5a'),
   dandelionFlower: lin('#f2b90f'),
   seedClock: lin('#e9e6dc'),

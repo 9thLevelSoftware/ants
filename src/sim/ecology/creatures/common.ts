@@ -179,6 +179,21 @@ export function inStateS(sim: Sim, c: Creature): number {
   return (sim.state.tick - c.stateTick) / TICKS_PER_SECOND;
 }
 
+/** ant.bb key: tick until which a creature's defence keeps the ant from biting (read by combat / behaviours). */
+export const BB_STUNNED = 'cr.stunUntil';
+
+/**
+ * A creature defence stuns an ant (ladybird reflex bleeding, caterpillar regurgitation, hairy caterpillar): its
+ * lock on the creature breaks and it cannot bite for `seconds` (the bite cooldown is pushed back; there is no
+ * stun field in CombatState, see the report).
+ */
+export function stunAnt(sim: Sim, ant: Ant, seconds: number): void {
+  if (ant.combat?.lock) ports.releaseGrapple(sim, ant.id);
+  const until = sim.state.tick + ticks(seconds);
+  ant.bb[BB_STUNNED] = Math.max(ant.bb[BB_STUNNED] ?? 0, until);
+  if (ant.combat) ant.combat.biteCdTick = Math.max(ant.combat.biteCdTick, until);
+}
+
 /** Cue event for audio (ids listed in src/audio/README.md "cues waiting for an emitter"). */
 export function cue(sim: Sim, id: 'creature-step' | 'wing-buzz' | 'bird-strike' | 'antlion-flick' | 'prey-struggle' | 'cricket-call' | `ambient.${string}`, pos: Vec3 | null, strength = 1): void {
   sim.emit({ type: 'cue', cue: id, pos: pos ? { x: pos.x, y: pos.y, z: pos.z } : null, strength });

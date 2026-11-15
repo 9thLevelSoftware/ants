@@ -98,7 +98,10 @@ export function checkConnect(ctx: GenContext): CheckResult {
 /**
  * v-food (GDD 04 §4.3) with the populate guarantees: >= 3 anchors within 600 BU path distance of the start, a
  * renewable carbohydrate and a protein anchor within 900 BU, every good site near the start with >= 2
- * carbohydrate sources within 400 BU (GDD 05 §1.3), and the registry C13 economy floors.
+ * carbohydrate sources within 400 BU (GDD 05 §1.3), and the registry C13 economy floors (renewable daily supply).
+ * The map-wide share of fed good sites is reported, not enforced: at Tier 1 the forest and garden-bed sites far
+ * from the start have only flowers and the few static films as carbohydrate (no herds, no extrafloral nectaries,
+ * no crumbs there by design), so "every good site" cannot hold there until the Tier 2 ecology lands.
  */
 export function checkFood(ctx: GenContext): CheckResult {
   if (!ctx.provides.has('food')) return na('v-food', 'no food placer yet');
@@ -108,7 +111,7 @@ export function checkFood(ctx: GenContext): CheckResult {
     // GDD 05 §0: two static honeydew films within 600 BU, where plants grow there to carry them (a deep-forest
     // start may have none: the other carbohydrate guarantees still hold)
     && r.filmsNear >= Math.min(T1_HONEYDEW.nearMin, r.films, r.filmSitesNear);
-  return ok('v-food', pass, `near=${r.near} carb=${r.carb} protein=${r.protein} films=${r.filmsNear}/${r.films} filmSites=${r.filmSitesNear} siteCarbMin=${r.siteMin} `
+  return ok('v-food', pass, `near=${r.near} carb=${r.carb} protein=${r.protein} films=${r.filmsNear}/${r.films} filmSites=${r.filmSitesNear} siteCarbMin=${r.siteMin} siteShare=${r.siteShare.toFixed(2)} `
     + r.floors.map((f) => `${f.radiusBu}BU:${f.c.toFixed(0)}C/${f.p.toFixed(0)}P${f.ok ? '' : '!'}`).join(' '));
 }
 

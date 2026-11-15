@@ -3,10 +3,10 @@
 // determinism comparison. The long block (FOUNDRESS_LONG=1) generates compact and large maps and non-default
 // difficulty presets, which the implementer's sweep did not cover (acceptance 2 "per archetype and size").
 //
-// Tests that fail here are findings for the fixer (see the review report):
-//  - the C13 economy floor holds only when one-time crumb stock is counted as a daily supply;
-//  - guarantee top-ups put crumb clusters in zones where GDD 05 §1.2 places no crumbs (forest);
-//  - Tier 1 flowers get a season mask without winter although the catalogue's T1 row is "always" open.
+// The FINDING tests were the review's findings (they failed on the reviewed tree) and are now regression tests:
+//  - the C13 economy floor holds on the renewable daily supply, not by counting one-time crumb stock;
+//  - guarantee top-ups put crumb clusters only in zones where GDD 05 §1.2 / §1.3 places crumbs (not forest);
+//  - Tier 1 flowers carry the winter bit (the catalogue's T1 row is "always" open).
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeId, DifficultyId, WorldSizeId, ZoneType } from '@/sim/types';
 import { SEASONS } from '@/sim/types';

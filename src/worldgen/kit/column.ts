@@ -46,6 +46,7 @@ export function primColumn(e: PrimEntry, x: number, z: number, out: ColumnHit): 
 export function primColumnAnalytic(e: PrimEntry, x: number, z: number, out: ColumnHit): ColumnHit {
   out.hit = false;
   if (x < e.minX || x > e.maxX || z < e.minZ || z > e.maxZ) return out;
+  if (e.m11 > UPRIGHT && e.shape === SHAPE_BOX && e.round === 0) return uprightSharpBox(e, x, z, out);
   if (e.m11 > UPRIGHT && (e.shape === SHAPE_BOX || e.shape === SHAPE_CYLINDER)) return uprightColumn(e, x, z, out);
   // the line in local space: l(t) = o + t u, world y = py + t
   const dx = x - e.px, dz = z - e.pz;
@@ -69,6 +70,20 @@ function uprightColumn(e: PrimEntry, x: number, z: number, out: ColumnHit): Colu
     _p.x = lx; _p.y = 0; _p.z = lz;
     if (sdRoundBox(_p, s, e.round) > 0) return out;
   } else if (lx * lx + lz * lz > s.x * s.x) return out;
+  out.hit = true;
+  out.bottom = e.py - s.y;
+  out.top = e.py + s.y;
+  return out;
+}
+
+/**
+ * uprightColumn for a box without rounding: the same decision without the distance call (sdRoundBox with r = 0 at
+ * local y = 0 is positive exactly when |lx| > s.x or |lz| > s.z). Slabs, walls and ceilings take most columns.
+ */
+function uprightSharpBox(e: PrimEntry, x: number, z: number, out: ColumnHit): ColumnHit {
+  const dx = x - e.px, dz = z - e.pz, s = e.size;
+  const lx = e.m00 * dx + e.m20 * dz, lz = e.m02 * dx + e.m22 * dz;
+  if (Math.abs(lx) > s.x || Math.abs(lz) > s.z) return out;
   out.hit = true;
   out.bottom = e.py - s.y;
   out.top = e.py + s.y;

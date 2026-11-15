@@ -14,13 +14,13 @@ import {
   APHID_PRED_DAYS, APHID_PRED_MIN_A, APHID_PRED_MIN_C, CREATURE_STATS, FLY_PHASE_S, HERD_STAND_MM, LACEWING_APHIDS_PER,
   LACEWING_ARRIVAL_PER_H, LACEWING_BITE_DMG, LACEWING_BITE_EVERY_S, LACEWING_DAYS, LACEWING_DETECT_L,
   LACEWING_DETECT_P_PER_S, LACEWING_EAT_S, LACEWING_HARASS_LEAVE, LADYBIRD_APHIDS_PER, LADYBIRD_ARRIVAL_PER_H,
-  LADYBIRD_AUTUMN_MULT, LADYBIRD_BLEED_P, LADYBIRD_EAT_S, LADYBIRD_HARASS_LEAVE, LADYBIRD_LARVA_APHIDS_PER,
+  LADYBIRD_AUTUMN_MULT, LADYBIRD_BLEED_P, LADYBIRD_BLEED_STUN_S, LADYBIRD_EAT_S, LADYBIRD_HARASS_LEAVE, LADYBIRD_LARVA_APHIDS_PER,
   LADYBIRD_LARVA_DROP_BU, LADYBIRD_LARVA_EAT_S, LADYBIRD_LARVA_HARASS_LEAVE, LADYBIRD_MAX_EATEN, LARVA_COUNT,
   LARVA_DAYS, LARVA_DELAY_GD, LARVA_P, LARVA_TRIGGER_EATEN, PUPATE_GD, REF_BU_MM,
 } from '@/sim/balance/creatures';
 import { SECONDS_PER_DAY, TICKS_PER_DAY } from '@/sim/time';
 import { rngInt } from '@/core/rng';
-import { CreatureFlag, antLen, awayPoint, chance, cue, dist, rng, setState, ticks, timerDone, walkTo } from './common';
+import { CreatureFlag, antLen, awayPoint, chance, cue, dist, rng, setState, stunAnt, ticks, timerDone, walkTo } from './common';
 import { conditions, inDays, type Conditions } from './conditions';
 import { spawnKind } from './spawn';
 import { capOf } from './caps';
@@ -117,7 +117,9 @@ function layLarvae(sim: Sim, c: Creature): void {
 
 export const ladybird: KindBehaviour = {
   onHit(sim, c, antId, kind) {
-    if (kind === 'bite' && antId >= 0 && chance(sim, LADYBIRD_BLEED_P)) ports.releaseGrapple(sim, antId);
+    // reflex bleeding: the biter is stunned 2 s and its lock breaks
+    const biter = sim.stores.ants.get(antId);
+    if (kind === 'bite' && biter && chance(sim, LADYBIRD_BLEED_P)) stunAnt(sim, biter, LADYBIRD_BLEED_STUN_S);
     if (c.state !== 'fly-off' && c.harass >= LADYBIRD_HARASS_LEAVE) ladybirdFlyOff(sim, c, true);
   },
   update(sim, c, cond) {

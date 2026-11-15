@@ -9,9 +9,14 @@
 //
 // The raw inputs of the 4 samples of every nav cell are read once per derived-maps pass into a table; a profile
 // (the played species, or a rival mapped onto a playable profile) is then a cheap weighted combination.
+//
+// One scoring function, one threshold table (directions §K, last bullet): the factor rules below (`bandDigFactor`,
+// `coverValueOf`, `warmFactorOf`, `moistFactor`, `floodFactorOf`, `quietFactorOf`, `rivalFactorAt`), the combination
+// `siteQualityOf` and the words `siteClass` are pure functions of numbers, exported for the founding queen's live
+// read-out (src/sim/colony/founding/siteAssess.ts), which samples the same inputs from the running world.
 
-import type { SpeciesId } from '@/sim/types';
-import { MATERIAL_IDS, materialFromCode } from '@/sim/types';
+import type { MaterialId, SpeciesId } from '@/sim/types';
+import { MATERIAL_IDS } from '@/sim/types';
 import { digFactor } from '@/sim/balance';
 import type { GenContext } from '../kit/context';
 import { CLS } from './nav';
@@ -28,9 +33,67 @@ export function siteClass(q: number): SiteClass {
   return q >= SUIT.excellent ? 'excellent' : q >= SUIT.good ? 'good' : q >= SUIT.fair ? 'fair' : 'poor';
 }
 
+/** Cover levels of a site, in increasing order (directions §K: missing cover is a low value, not a neutral one). */
+export const COVER_LEVELS = ['bare', 'sward', 'litter', 'beside', 'ceiling'] as const;
+export type CoverLevel = (typeof COVER_LEVELS)[number];
+
+/** fCover of a cover level (SUIT.cover*). */
+export function coverValueOf(level: CoverLevel): number {
+  return level === 'ceiling' ? SUIT.coverCeiling : level === 'beside' ? SUIT.coverBeside : level === 'litter' ? SUIT.coverLitter
+    : level === 'sward' ? SUIT.coverSward : SUIT.coverBare;
+}
+
+/** fWarm: the sun the ground gets (1 - day-mean shade), with the warm-stone bonus under or beside stone, capped 1. */
+export function warmFactorOf(shadeMean: number, warmCover: boolean): number {
+  return Math.min(1, Math.max(0, (1 - shadeMean) * (warmCover ? SUIT.warmStoneMult : 1)));
+}
+
+/** fFlood = 1 - flood risk. */
+export function floodFactorOf(floodRisk: number): number {
+  return Math.min(1, Math.max(0, 1 - floodRisk));
+}
+
+/** fQuiet = 1 - clamp(expected disturbance passes of the zone variant / DISTURBANCE_FULL). */
+export function quietFactorOf(passes: number): number {
+  return 1 - Math.min(1, Math.max(0, passes) / DISTURBANCE_FULL);
+}
+
+/** fRival = clamp(distance to the nearest rival site / SUIT.rivalFullBu); 1 with no rival site. */
+export function rivalFactorAt(sites: readonly { origin: { x: number; z: number } }[], x: number, z: number, bu: number): number {
+  if (sites.length === 0) return 1;
+  let d = Infinity;
+  for (const s of sites) d = Math.min(d, Math.sqrt((s.origin.x - x) ** 2 + (s.origin.z - z) ** 2));
+  return Math.min(1, d / (SUIT.rivalFullBu * bu));
+}
+
+/** Digging factor of one sample of the founding band: the species' dig table, damp or dry sand. */
+export function bandDigFactor(species: SpeciesId, material: MaterialId, theta: number): number {
+  return bandDigCode(digTable(species), MATERIAL_IDS.indexOf(material), theta);
+}
+
+const SAND_CODE = MATERIAL_IDS.indexOf('sand');
+/** bandDigFactor by material code, with the species' table (the generator's hot loop). */
+function bandDigCode(dig: Float32Array, code: number, theta: number): number {
+  const d = dig[code] ?? 0;
+  if (code !== SAND_CODE) return d;
+  return d > 0 ? (theta >= SUIT.dampSandTheta ? SUIT.dampSand : SUIT.drySand) : 0;
+}
+
+/** The factor values a site is scored from (0..1 each). */
+export interface SiteFactorValues {
+  fDig: number; fCover: number; fWarm: number; fMoist: number; fFlood: number; fQuiet: number; fRival: number; fSpecial: number;
+}
+
+/** THE site quality: veto x the weighted sum of the factors (GDD 04 §12.1; directions §K one scoring function). */
+export function siteQualityOf(weights: SuitabilityProfile['weights'], f: SiteFactorValues, veto: boolean): number {
+  if (veto) return 0;
+  return weights.dig * f.fDig + weights.cover * f.fCover + weights.warm * f.fWarm + weights.moist * f.fMoist
+    + weights.flood * f.fFlood + weights.quiet * f.fQuiet + weights.rival * f.fRival + weights.special * f.fSpecial;
+}
+
 /** Moisture window factor (linear ramps). */
 export function moistFactor(p: SuitabilityProfile['moist'], t: number): number {
-  if (t <= p.lo0) return 0;
+  if (!(t > p.lo0)) return 0; // also NaN
   if (t < p.lo1) return (t - p.lo0) / (p.lo1 - p.lo0);
   if (t <= p.hi1) return 1;
   const v = t >= p.hi0 ? 0 : 1 - (t - p.hi1) / (p.hi0 - p.hi1);
@@ -58,10 +121,9 @@ export interface SiteProfileInput {
   slabCoverMult?: number;
 }
 
-/** Cover kinds, in increasing order (index into COVER_VALUES). */
+/** Cover kinds as indices into COVER_LEVELS. */
 const COVER_BARE = 0, COVER_SWARD = 1, COVER_LITTER = 2, COVER_BESIDE = 3, COVER_CEILING = 4;
-const coverValue = (k: number) =>
-  k === COVER_CEILING ? SUIT.coverCeiling : k === COVER_BESIDE ? SUIT.coverBeside : k === COVER_LITTER ? SUIT.coverLitter : k === COVER_SWARD ? SUIT.coverSward : SUIT.coverBare;
+const coverValue = (k: number) => coverValueOf(COVER_LEVELS[k] ?? 'bare');
 
 /** Raw inputs of one sample (what the profile combines). */
 interface RawSample { veto: boolean; fDig: number; cover: number; warmCover: boolean; moist: number; fQuiet: number }
@@ -108,8 +170,7 @@ function rawSample(ctx: GenContext, digSpecies: SpeciesId, woodNester: boolean, 
       for (let s = 0; s < SUIT.bandSamples; s++) {
         const d = (SUIT.bandBu[0] + ((SUIT.bandBu[1] - SUIT.bandBu[0]) * s) / (SUIT.bandSamples - 1)) * bu;
         const code = d < crust ? surf : subsoil;
-        const m = materialFromCode(code);
-        fDig += m === 'sand' ? (theta >= SUIT.dampSandTheta ? SUIT.dampSand : SUIT.drySand) * (dig[code] > 0 ? 1 : 0) : dig[code];
+        fDig += bandDigCode(dig, code, theta);
       }
       fDig /= SUIT.bandSamples;
     }
@@ -127,7 +188,7 @@ function rawSample(ctx: GenContext, digSpecies: SpeciesId, woodNester: boolean, 
   }
   out.veto = veto; out.fDig = fDig; out.cover = cover; out.moist = moist;
   out.warmCover = cover >= COVER_BESIDE && (st.col.over[j] & OVER_WARM) !== 0;
-  out.fQuiet = 1 - Math.min(1, (zone.variant ? DISTURBANCE_PASSES[zone.variant] ?? 0 : 0) / DISTURBANCE_FULL);
+  out.fQuiet = quietFactorOf(zone.variant ? DISTURBANCE_PASSES[zone.variant] ?? 0 : 0);
   return out;
 }
 
@@ -135,14 +196,12 @@ function rawSample(ctx: GenContext, digSpecies: SpeciesId, woodNester: boolean, 
 function combine(st: MapState, inp: SiteProfileInput, c: number, r: RawSample, fRival: number, fSpecial: number, out: SuitabilityFactors): SuitabilityFactors {
   let fCover = coverValue(r.cover);
   if (r.warmCover && inp.slabCoverMult) fCover = Math.min(1, fCover * inp.slabCoverMult);
-  const fWarm = Math.min(1, (1 - st.shade.mean[c]) * (r.warmCover ? SUIT.warmStoneMult : 1));
+  const fWarm = warmFactorOf(st.shade.mean[c], r.warmCover);
   const fMoist = moistFactor(inp.profile.moist, r.moist);
-  const fFlood = 1 - st.water.flood[c];
-  const wt = inp.profile.weights;
+  const fFlood = floodFactorOf(st.water.flood[c]);
   out.veto = r.veto; out.fDig = r.fDig; out.fCover = fCover; out.fWarm = fWarm; out.fMoist = fMoist; out.fFlood = fFlood;
   out.fQuiet = r.fQuiet; out.fRival = fRival; out.fSpecial = fSpecial;
-  out.q = r.veto ? 0 : wt.dig * r.fDig + wt.cover * fCover + wt.warm * fWarm + wt.moist * fMoist + wt.flood * fFlood
-    + wt.quiet * r.fQuiet + wt.rival * fRival + wt.special * fSpecial;
+  out.q = siteQualityOf(inp.profile.weights, out, r.veto);
   return out;
 }
 
@@ -245,13 +304,7 @@ export function rivalFactorOf(ctx: GenContext): (c: number) => number {
   const sites = ctx.world.placements.rivalSites;
   if (sites.length === 0) return () => 1;
   const { navN, navCell, bu } = ctx.dims;
-  const full = SUIT.rivalFullBu * bu;
-  return (c) => {
-    const x = ((c % navN) + 0.5) * navCell, z = (Math.floor(c / navN) + 0.5) * navCell;
-    let d = Infinity;
-    for (const s of sites) d = Math.min(d, Math.sqrt((s.origin.x - x) ** 2 + (s.origin.z - z) ** 2));
-    return Math.min(1, d / full);
-  };
+  return (c) => rivalFactorAt(sites, ((c % navN) + 0.5) * navCell, (Math.floor(c / navN) + 0.5) * navCell, bu);
 }
 
 /** Re-applies fRival = clamp(distance to the nearest rival site / 600 BU) to the played species' map. */

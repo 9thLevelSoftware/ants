@@ -80,6 +80,44 @@ export function navDistanceTo(ctx: GenContext, from: number, to: number, opts: D
   return d;
 }
 
+/**
+ * Calls `visit` for every cell within opts.maxBu (required) of cell `from`, with its distance. Reuses the buffers
+ * of navDistanceTo, so many small searches on one map (food around each source) allocate nothing per query.
+ */
+export function forEachWithin(
+  ctx: GenContext, from: number, opts: DistanceOptions & { maxBu: number }, visit: (cell: number, distBu: number) => void,
+  ports: readonly Portal[] = portals(ctx),
+): void {
+  const nn = ctx.dims.navN * ctx.dims.navN;
+  if (!scratch || scratch.dist.length !== nn) scratch = { dist: new Float64Array(nn).fill(Infinity), touched: [] };
+  const { dist, touched } = scratch;
+  search(ctx, [from], opts, ports, dist, touched, -1);
+  for (const c of touched) {
+    if (dist[c] <= opts.maxBu) visit(c, dist[c]);
+    dist[c] = Infinity;
+  }
+  touched.length = 0;
+}
+
+/**
+ * Connected components of the walkable grid with the searches' moves but no portals (label per cell, -1 where not
+ * walkable). With the portals as extra edges this answers "is there any path" without a whole-map search.
+ */
+export function groundComponents(ctx: GenContext): Int32Array {
+  const nn = ctx.dims.navN * ctx.dims.navN, cls = ctx.world.nav.cls.data;
+  const label = new Int32Array(nn).fill(-1);
+  const dist = new Float64Array(nn).fill(Infinity), touched: number[] = [];
+  let n = 0;
+  for (let c = 0; c < nn; c++) {
+    if (label[c] >= 0 || !walkable(cls[c])) continue;
+    search(ctx, [c], {}, [], dist, touched, -1);
+    for (const t of touched) { label[t] = n; dist[t] = Infinity; }
+    touched.length = 0;
+    n++;
+  }
+  return label;
+}
+
 /** Dijkstra over the nav grid into `dist` (all Infinity on entry); records written cells in `touched` if given. */
 function search(
   ctx: GenContext, starts: readonly number[], opts: DistanceOptions, allPorts: readonly Portal[],
