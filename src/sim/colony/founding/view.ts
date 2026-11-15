@@ -8,6 +8,7 @@ import { FB, bbGet, foundingNest, foundingQueen, openingOf, phaseAgeGd, queenOf,
 import { clutchForecast, clutchLimit, eggsLaid } from './clutch';
 import { desiccationRate, reserveDrainPerGd } from './exposure';
 import { failCauseOf } from './failure';
+import { undoRefusal } from './commands';
 import { lapseCounters } from './lapse';
 import { readoutActive } from './readout';
 import { factorWord, siteProfile } from './siteScore';
@@ -16,6 +17,8 @@ export interface FoundingView {
   phase: OpeningPhase;
   attempt: number;
   retriesLeft: number;
+  /** "Undo founding: try another site" is offered now (GDD 06 §5.14: failure card, or until the first lay). */
+  canUndo: boolean;
   /** Queen meters 0..1 (null after hand-over). */
   reserves: number | null;
   desiccation: number | null;
@@ -93,6 +96,7 @@ export function foundingView(sim: Sim): FoundingView | null {
   return {
     phase: op.phase, attempt: op.attempt,
     retriesLeft: Math.max(0, sim.state.config.difficulty.params.openingRetries - op.retriesUsed),
+    canUndo: undoRefusal(sim) === null,
     reserves: f ? Math.max(0, f.reserveLoads / f.R0) : null,
     desiccation: f ? f.desiccation : null,
     health: q ? q.hp / q.maxHp : anyQueen && anyQueen.alive ? anyQueen.hp / anyQueen.maxHp : null,

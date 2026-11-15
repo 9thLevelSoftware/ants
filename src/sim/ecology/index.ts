@@ -4,8 +4,9 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, CarrionStage, CommandHandlerMap, FoodAmount, FoodKind, Sim, System, WorldData } from '@/sim/types';
 import { CARRION_STAGES } from '@/sim/types';
-import { spawnCreature, type EntityCtx } from '@/sim/entities';
-import { CREATURE_DIRECTOR_EVERY, CREATURE_DIRECTOR_OFFSET, HOURLY_EVERY, PLANTS_OFFSET } from '@/sim/balance';
+import { type EntityCtx } from '@/sim/entities';
+import { HOURLY_EVERY, PLANTS_OFFSET } from '@/sim/balance';
+import { creatureDirectorSystem, creatureSystem, commandHandlers as creatureCommands } from './creatures';
 import {
   createSource, defaultVariant, discoverSource as discoverSourceImpl, freeSlotsOf, initSources,
   nearestSource as nearestSourceImpl, sourceDef, sourcesSystem, takeFromSource, type SourceFilter,
@@ -18,13 +19,14 @@ export { sourcesSystem };
 export const plantsSystem: System = {
   name: 'plants', phase: 'ecology', every: HOURLY_EVERY, offset: PLANTS_OFFSET, run: () => {},
 };
-/** Spawns/despawns creatures within caps (territories). Stub: creatures. */
-export const creatureDirectorSystem: System = {
-  name: 'creature-director', phase: 'creatures', every: CREATURE_DIRECTOR_EVERY, offset: CREATURE_DIRECTOR_OFFSET,
-  run: () => {},
-};
-/** Creature AI state machines. Stub: creatures. */
-export const creatureSystem: System = { name: 'creatures', phase: 'creatures', run: () => {} };
+// Creatures (owner: creatures): systems and the public API from ./creatures.
+export { creatureDirectorSystem, creatureSystem };
+export {
+  threatsNear, preyNear, knownHazardsNear, creatureArmour, creaturePull, addStruggleInput, isSeized, requestMajorThreat,
+  endMajorThreat, canStartMajorThreat, quietShare, dangerAt, addDanger, transportMode, preyRemains, arriveAtHerd, herdSite,
+  startBird, triggerBird, isExposedAnt, CreatureFlag, capOf, isEngaged, spawnCreatureOfKind, noteCreatureHit, preyEvades,
+  creatureKilled, creatureCounts, type ThreatInfo, type PreyInfo, type TransportMode, type DeadPrey, type HitKind,
+} from './creatures';
 
 export const systems: readonly System[] = [sourcesSystem, plantsSystem, creatureDirectorSystem, creatureSystem];
 
@@ -75,9 +77,7 @@ export function initEcology(ctx: EntityCtx, world: WorldData): void {
 const noop = (): void => {};
 
 export const commandHandlers: Partial<CommandHandlerMap> = {
-  'cheat.spawnCreature': (sim, c) => {
-    spawnCreature(sim, { kind: c.kind, pos: c.pos, init: { variant: c.variant, state: c.state ?? 'idle' } });
-  },
+  'cheat.spawnCreature': creatureCommands['cheat.spawnCreature'], // owner: creatures
   'cheat.spawnFood': (sim, c) => {
     const variant = c.variant ?? defaultVariant(c.kind);
     if (!variant || sourceDef(variant).kind !== c.kind) {
@@ -93,6 +93,6 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
     const h = sim.stores.herds.get(c.herdId);
     if (h) h.frozen = true;
   },
-  'cheat.triggerBird': noop, // owner: creatures
-  'cheat.triggerNestInvasion': noop, // owner: creatures
+  'cheat.triggerBird': creatureCommands['cheat.triggerBird'], // owner: creatures
+  'cheat.triggerNestInvasion': creatureCommands['cheat.triggerNestInvasion'], // owner: creatures
 };

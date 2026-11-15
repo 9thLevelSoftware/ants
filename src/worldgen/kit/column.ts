@@ -9,7 +9,7 @@
 //    quadratics for cylinders, capsules and ellipsoids). Rounded rims are bracketed between the closed-form
 //    interval of the outer (sharp) solid and that of a subset of the rounded one, then bisected; only a line
 //    that clips nothing but a rounded rim falls back to the search. Same answer as the search within its
-//    bisection precision (maps/columns.equiv.test.ts); used by the derived maps.
+//    bisection precision (maps/maps.verify.test.ts); used by the derived maps.
 
 import { makePrimEntry, primEval, SHAPE_BOX, SHAPE_CAPSULE, SHAPE_CYLINDER, SHAPE_ELLIPSOID, type PrimEntry } from '@/sim/world/primHash';
 import { sdRoundBox as sdRoundBoxImp } from '@/core/math/sdf';

@@ -27,6 +27,8 @@ export interface Hazard {
   state: string;
   /** Bitmask of colony slots that know it. */
   knownBy: number;
+  /** Additive (creatures): tick it disappears (slime trails), absent = permanent. */
+  untilTick?: number;
 }
 
 export interface CreatureTerritory {
@@ -43,6 +45,12 @@ export interface CreatureDirector {
   lastRunTick: number;
   perKindCounts: Record<string, number>;
   territories: CreatureTerritory[];
+  /** Additive (creatures): carrion source ids already seeded with fly larvae (GDD 05 §1.6), ascending. */
+  seededSources?: number[];
+  /** Additive (creatures): last hourly sub-step run, tick (-1 none). */
+  lastHourlyTick?: number;
+  /** Additive (creatures): 1 when it rained at the last director run (rain-event start detection). */
+  wasRaining?: number;
 }
 
 export interface BirdEvent {
@@ -52,6 +60,14 @@ export interface BirdEvent {
   startTick: number;
   kills: number;
   carves: number;
+  /** Additive (creatures): targeted colony, landing / end ticks, the pending peck (head-cock aim), next carve. */
+  colonyId?: number;
+  landTick?: number;
+  endTick?: number;
+  nextPeckTick?: number;
+  peckTargetId?: number;
+  peckAim?: Vec3 | null;
+  nextCarveTick?: number;
 }
 
 /** 2D grid over the world in TERR_CELL cells (GDD 05 §3.5 territory). */
@@ -101,6 +117,33 @@ export interface ThreatDirector {
   activeKind: string | null;
   activeSinceTick: number;
   lastEndTick: number;
+  /** Additive (creatures): quiet-share bookkeeping of invariant I11 (GDD 05 §6); absent until first used. */
+  quiet?: QuietTracker;
+}
+
+/**
+ * Hourly quiet-share record (GDD 05 §6 I11). `hours` is a ring of the last QUIET_WINDOW_GD x 24 clock hours:
+ * -1 not counted (night, founding, winter), 0 loud, 1 quiet. The current hour accumulates in the cur* fields.
+ */
+export interface QuietTracker {
+  hours: number[];
+  /** Next write index in `hours`. */
+  head: number;
+  /** Clock hour index (calendar tick / ticks per hour) being accumulated, -1 none. */
+  curHour: number;
+  /** 1 when a major threat was active at any time in the current hour. */
+  curThreat: number;
+  /** Alert samples taken / samples with a warning or critical player-colony alert, current hour. */
+  curSamples: number;
+  curAlertSamples: number;
+  /** 1 when the current hour counts (day phase, not founding, not winter), sampled at its start. */
+  curCounted: number;
+  /** Hours closed so far (all, counted, quiet), for reports. */
+  total: number;
+  counted: number;
+  quiet: number;
+  /** Major threats started so far, for reports. */
+  threats: number;
 }
 
 export interface RivalsState {

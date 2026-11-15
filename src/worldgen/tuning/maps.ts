@@ -123,8 +123,12 @@ export const SUITABILITY: Record<SpeciesId, SuitabilityProfile> = {
 
 export const SUIT = {
   /**
-   * Site words (directions §K ruling, replacing GDD 04 §12.2's good 0.6 / fair 0.4): calibrated by worldgen-life on
-   * final generated worlds to about 10 % excellent, 25 % good, 40 % fair, the rest poor of the diggable cells.
+   * Site words (directions §K ruling, replacing GDD 04 §12.2's good 0.6 / fair 0.4), calibrated by worldgen-life on
+   * final generated worlds (20 seeds x 5 Tier 1 archetypes): open sunny mown lawn is fair (Q about 0.76-0.79),
+   * the ground under a stone or slab in sun excellent (about 0.95), beside one good (about 0.90); shade, damp
+   * hollows, disturbance and rival nests make poor. Shares of diggable cells: excellent < 1 %, good 1-10 %, fair
+   * 60-80 %, poor 15-40 % (the targets' maxima of 10 % / 25 % hold; T1 maps have little cover, so fair absorbs
+   * the rest). populate/populate.test.ts and validate/sweep.test.ts check them.
    */
   excellent: 0.93,
   good: 0.86,

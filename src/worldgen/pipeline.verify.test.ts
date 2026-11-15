@@ -10,6 +10,14 @@ import { paramsFor, T1_ARCHETYPES } from './testing/fixtures';
 import { buildLayout } from './layout';
 import { BUILT_SIZE, FRACTION_TOLERANCE } from './tuning/archetypes';
 import { area } from './layout/geom';
+import type { ArchetypeId, WorldData } from '@/sim/types';
+import { generateWorldReport } from './pipeline';
+import { primColumn } from './kit/column';
+import { discoveredModules } from './kit/registry';
+import { deriveMaps, mapState } from './maps';
+
+declare const process: { env: Record<string, string | undefined> };
+const LONG = process.env.FOUNDRESS_LONG === '1';
 
 vi.setConfig({ testTimeout: 300_000 });
 
@@ -87,4 +95,48 @@ describe('acceptance 4 / GDD 04 App. E 3 with the pipeline seeds', () => {
       expect(bad).toEqual([]);
     }, 300_000);
   }
+});
+
+// worldgen-fixes: the derived maps changed their column routine (closed form instead of the search, within the
+// tolerance stated in maps/maps.verify.test.ts) and keep the geometric maps on a re-derivation whose inputs did not
+// change. Nothing placed may move: placers rest objects with the search routine (kit/surface.ts supportAt), and the
+// later steps read maps that differ by at most a few threshold cells.
+describe('placed content does not depend on the derived-map column routine', () => {
+  const OBJECT_LEVEL = ['prims', 'objects', 'micro', 'cavities', 'preCarve', 'climbRoutes', 'pois', 'waterBodies', 'placements', 'queenStart'] as const;
+
+  function sameContent(a: ArchetypeId, seed: number): string[] {
+    const p = paramsFor(a, seed);
+    const legacy = generateWorldReport(p, { columns: primColumn }).world, analytic = generateWorldReport(p).world;
+    const diff = OBJECT_LEVEL.filter((k) => JSON.stringify(legacy[k]) !== JSON.stringify(analytic[k])).map((k) => `${a} #${seed} ${k}`);
+    if (legacy.meta.attempts !== analytic.meta.attempts) diff.push(`${a} #${seed} attempts`);
+    return diff;
+  }
+
+  it('kitchen-door #1: object lists, cavities, routes, micro-connections, anchors and start identical', () => {
+    expect(sameContent('kitchen-door', 1)).toEqual([]);
+  });
+
+  it.skipIf(!LONG)('FOUNDRESS_LONG: the same on 3 seeds of every Tier 1 archetype', () => {
+    const diff: string[] = [];
+    for (const a of T1_ARCHETYPES) for (const seed of [1, 2, 3]) diff.push(...sameContent(a, seed));
+    expect(diff).toEqual([]);
+  }, 3_600_000);
+
+  it('a re-derivation after steps 7-9 that keeps the geometric maps equals a full rebuild', () => {
+    const grab = (w: WorldData) => [w.nav.cls.data, w.nav.cost.data, w.nav.groundY!, w.nav.flags!.data, w.maps.shade.data, w.maps.moisture.data,
+      w.maps.floodRisk.data, w.maps.exposure.data, w.maps.shelter.data, w.maps.suitability[w.params.speciesId].data].map((x) => Array.from(x));
+    let kept = false, before: number[][] = [], after: number[][] = [];
+    let first: unknown = null;
+    generateWorldReport(paramsFor('car-park-verge', 2, 'compact'), { modules: [...discoveredModules(), { placers: [
+      { id: 'verify/first', step: 'resources', order: -1e6, run: (ctx) => { first = mapState(ctx).col; } },
+      { id: 'verify/full', step: 'start', order: -1e6, run: (ctx) => {
+        kept = mapState(ctx).col === first;
+        before = grab(ctx.world);
+        deriveMaps(ctx, { full: true });
+        after = grab(ctx.world);
+      } },
+    ] }] });
+    expect(kept).toBe(true); // populate adds anchors and sites, no geometry
+    expect(after).toEqual(before);
+  });
 });

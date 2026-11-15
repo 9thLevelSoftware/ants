@@ -105,8 +105,10 @@ export function checkFood(ctx: GenContext): CheckResult {
   const r = foodReport(ctx);
   const floors = r.floors.every((f) => f.ok);
   const pass = r.near >= VALID.foodMin && r.carb && r.protein && r.siteMin >= SITE_FOOD.carbMin && floors
-    && r.filmsNear >= Math.min(T1_HONEYDEW.nearMin, r.films);
-  return ok('v-food', pass, `near=${r.near} carb=${r.carb} protein=${r.protein} films=${r.filmsNear}/${r.films} siteCarbMin=${r.siteMin} `
+    // GDD 05 §0: two static honeydew films within 600 BU, where plants grow there to carry them (a deep-forest
+    // start may have none: the other carbohydrate guarantees still hold)
+    && r.filmsNear >= Math.min(T1_HONEYDEW.nearMin, r.films, r.filmSitesNear);
+  return ok('v-food', pass, `near=${r.near} carb=${r.carb} protein=${r.protein} films=${r.filmsNear}/${r.films} filmSites=${r.filmSitesNear} siteCarbMin=${r.siteMin} `
     + r.floors.map((f) => `${f.radiusBu}BU:${f.c.toFixed(0)}C/${f.p.toFixed(0)}P${f.ok ? '' : '!'}`).join(' '));
 }
 
@@ -160,9 +162,9 @@ const REST_SAMPLES = [0.2, 0.5, 0.8];
 
 /**
  * Objects tagged 'prop' whose lowest primitive floats more than 1 mm above whatever is below it everywhere: the
- * primitive's underside is probed on a 3 x 3 grid over its footprint, and the prop rests if any probe touches the
- * terrain or another object (a stone lying across a paving joint rests on the slabs, not on the joint below its
- * centre).
+ * prop rests if its lowest point touches the terrain or another object below its footprint centre (as before), or
+ * if any probe of the primitive's underside on a 3 x 3 grid over its footprint does (a stone lying across a paving
+ * joint rests on the slabs, not on the joint below its centre).
  */
 export function restViolations(ctx: GenContext): number[] {
   const ix = primIndex(ctx);
@@ -174,7 +176,9 @@ export function restViolations(ctx: GenContext): number[] {
     for (let i = ob.primStart; i < ob.primStart + ob.primCount; i++) if (low < 0 || ix.entries[i].minY < ix.entries[low].minY) low = i;
     if (low < 0) continue;
     const e = ix.entries[low];
-    let rests = false;
+    // the lowest point over the terrain at the footprint centre (a stone tilted onto one edge), else the underside
+    const cx = (e.minX + e.maxX) / 2, cz = (e.minZ + e.maxZ) / 2;
+    let rests = e.minY - heightAt(ctx.world.terrain, cx, cz) <= PLACE.floatTolMm || supported(ctx, ob.id, cx, e.minY, cz);
     for (const fz of REST_SAMPLES) for (const fx of REST_SAMPLES) {
       if (rests) break;
       const x = e.minX + (e.maxX - e.minX) * fx, z = e.minZ + (e.maxZ - e.minZ) * fz;

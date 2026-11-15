@@ -125,6 +125,8 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
         det *= 0.6 + 0.4 * step(0.25, abs(fract(a + step(0.0, lp.y) * 0.5) - 0.5));
       }
     }
+    // a rust scan's normals belong to its rust blisters: clean finishes keep the geometric normal
+    ${rustScan ? 'wrNw = normalize(mix(ln, wrNw, rust));' : ''}
     wrAlb = mix(col * det, raw * vec3(1.0, 0.92, 0.85), rust);
     wrRoughO = mix(rough, 0.85, rust);
     wrMetal = metal * (1.0 - rust);

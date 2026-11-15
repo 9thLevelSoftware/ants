@@ -54,9 +54,10 @@ function presetFor(id: QualityId): QualityPreset {
 const assets = createBrowserAssetLoader({ anisotropy: presetFor(qualityId).anisotropy, maxTextureSize: presetFor(qualityId).maxTextureSize, warn: (m) => console.warn('[assets]', m) });
 let canvas = makeCanvas();
 let app: RenderApp = createRenderApp(canvas, { quality: presetFor(qualityId), scene, camera });
-const worldRenderer = new WorldRenderer();
-const decor = new DecorRenderer();
-const ants = new AntRenderer();
+// renderers are replaced (not re-initialised) when a quality change needs a new WebGL context
+let worldRenderer = new WorldRenderer();
+let decor = new DecorRenderer();
+let ants = new AntRenderer();
 
 function makeCanvas(): HTMLCanvasElement {
   const c = document.createElement('canvas');
@@ -217,6 +218,7 @@ async function setQuality(id: QualityId): Promise<ReturnType<typeof stats>> {
     canvas = makeCanvas();
     app = createRenderApp(canvas, { quality: p, scene, camera });
     app.setOnDemand(true);
+    worldRenderer = new WorldRenderer(); decor = new DecorRenderer(); ants = new AntRenderer();
     await initRenderers(p);
     if (world && sim) { await worldRenderer.setWorld(world, sim); decor.setWorld(world, sim); ants.setSim(sim); }
   } else {

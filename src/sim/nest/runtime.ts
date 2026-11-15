@@ -45,6 +45,11 @@ export interface NestRuntime {
   digOwner: number;
   /** Entrances that closed without a plug this tick, reported at the end of the nest system (entrances.ts). */
   closedPending: { nestId: number; entranceId: number }[];
+  /**
+   * Per nest: a counter bumped by every carve or fill that touches its sample box (+ DIRTY_PAD), so nest-local
+   * caches (deadEnd.ts) are not dropped by digging in other nests. Starts at 0 for a nest not seen yet.
+   */
+  carveStamp: Map<number, number>;
 }
 
 /** Open samples of one chunk inside a nest's box: summed where deep under the terrain, listed near the surface. */
@@ -74,6 +79,7 @@ export function nestRuntime(sim: Sim): NestRuntime {
     moundMasks: new Map(),
     digOwner: -1,
     closedPending: [],
+    carveStamp: new Map(),
   };
   sim.carve.addListener((c: CarveChange) => onCarve(sim, made, c.box));
   RUNTIMES.set(sim, made);
@@ -93,7 +99,10 @@ function onCarve(sim: Sim, rt: NestRuntime, box: VoxelBox): void {
     if (!nest.alive) continue;
     const b = nestSampleBox(sim, nest);
     if (b.i0 - DIRTY_PAD <= box.i1 && b.i1 + DIRTY_PAD >= box.i0 && b.j0 - DIRTY_PAD <= box.j1 && b.j1 + DIRTY_PAD >= box.j0
-      && b.k0 - DIRTY_PAD <= box.k1 && b.k1 + DIRTY_PAD >= box.k0) rt.dirtyNests.add(nest.id);
+      && b.k0 - DIRTY_PAD <= box.k1 && b.k1 + DIRTY_PAD >= box.k0) {
+      rt.dirtyNests.add(nest.id);
+      rt.carveStamp.set(nest.id, (rt.carveStamp.get(nest.id) ?? 0) + 1);
+    }
   }
 }
 

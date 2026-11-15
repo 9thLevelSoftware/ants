@@ -147,16 +147,19 @@ export const PELLET_BULK_PER_BU3 = 0.6;
  */
 export const HAUL_URGENCY_GAIN = 2;
 /**
- * Tamping never leaves less open height than this above a raised floor sample, in body lengths of the species'
- * largest worker (GDD 03 §5.1: a passage under 1.5 BU is a crack the species cannot walk). A floor sample with
- * less headroom is not raised; the tamp spreads to the wider radii of TAMP_RADII_BU instead, and a pellet that
- * finds no room stays lying (its haul urgency keeps rising) until the next try after TAMP_RETRY_S.
+ * Passage rule of tamping: the narrowest passage the species' workers can walk, in body lengths of its largest
+ * worker caste (GDD 03 §5.1: under 1.5 BU is a crack). A tamp's fill must not split the open space around it as
+ * passages this wide (tamp.ts tampPassageSamples, passage.ts); it spreads to the wider radii of TAMP_RADII_BU
+ * instead, and a pellet that finds no room stays lying (its haul urgency stays at its maximum) until the next try
+ * TAMP_RETRY_S later. (The name is kept from an earlier per-column headroom rule; see tamp.ts.)
  */
 export const TAMP_MIN_HEADROOM_BU = 1.5;
 /** Radii tried in turn for a tamp (GDD 03 §1.3: TAMP_RADIUS, then the fallback; then wider before giving up), BU. */
 export const TAMP_RADII_BU = [TAMP_RADIUS_BU, TAMP_RADIUS_FALLBACK_BU, 2.5, 4];
-/** A pellet that could not be tamped (no headroom left) is tried again this much later, game s. */
+/** A pellet that could not be tamped (no headroom left) is tried again this often after its tamping age, game s. */
 export const TAMP_RETRY_S = 300;
+/** Over MAX_LOOSE_PELLETS_PER_NEST, at most this many of the oldest clutter pellets are tried per drop (pellets.ts). */
+export const TAMP_CAP_TRIES = 4;
 /**
  * The passage check of a tamp (passage.ts) looks at the open space within this distance of the fill, BU: a fill
  * that would split it (plainly, or as passages at least 1.5 BU across) is refused.
@@ -216,10 +219,17 @@ export const MOUND_MIN_H_BU = 0.05;
 export const MOUND_BATCH_TICKS = 250;
 /**
  * Relaxation work per tick over all mounds (box cells visited + 8 x cells evaluated, moundRelax.ts relaxSweeps): a
- * batch's relaxation continues over the following ticks within this budget (at least one sweep per tick), so no
- * tick pays a whole batch (about 0.5 ms of the nest system's share on the reference machine).
+ * batch's relaxation continues over the following ticks within this budget; a sweep may stop between rows, so a
+ * tick does at most this plus one row of the sweep box (<= 9 x MOUND_GRID_N units), about 0.5 ms of the nest
+ * system's share on the reference machine.
  */
 export const MOUND_RELAX_WORK_PER_TICK = 30_000;
+/**
+ * Each relaxing pile also gets at least the work rate that would finish MOUND_MAX_SWEEPS full sweeps of its box
+ * within this share of MOUND_BATCH_TICKS (moundBatch.ts), so many big piles at once still settle and are published
+ * before their next batch (a mature 6000-pellet heap: about 35,000 units per tick).
+ */
+export const MOUND_RELAX_FINISH_SHARE = 0.8;
 /** A carve this close below a mound grid's lowest base (or higher) can change its kept-clear mask, BU. */
 export const MOUND_MASK_CARVE_REACH_BU = 2;
 /** Spoil heaps (no entrance): merge distance and cap per nest. */

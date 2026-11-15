@@ -10,7 +10,7 @@ import { navTo } from '@/sim/locomotion';
 import { heightAt } from '@/sim/world/terrainSample';
 import { carveCapsule as carveCapsuleOp, carveEllipsoid as carveEllipsoidOp, carveSphere } from './carveOps';
 import { foundingReadiness } from './chambers/foundingCell';
-import { colonyNests, freeDig, runFreeDig } from './freeDigKit';
+import { colonyNests, freeDig, runFreeDig, settleSurfacePellets } from './freeDigKit';
 import { dumpPoint, moundVolume } from './index';
 import { createMound, deposit, moundById, moundContains, publishMound, relax } from './mounds';
 import { moundOrigin, pileOverOpenings } from './moundRelax';
@@ -89,6 +89,9 @@ describe('verify: in-game batches only (no test-side settling), haulers dumping 
     const bu = sim.world.bu;
     const nest = colonyNests(sim, queen.colony)[0];
     const e = nest.entrances[0];
+    // the dig's own last pellets (a queen not in `digging` drops them on the surface) settle first, so `before`
+    // holds them (sim-fix-colony review: they had joined this mound during the measured ticks, +8 %)
+    settleSurfacePellets(sim);
     const m0 = e.moundId >= 0 ? moundById(sim, e.moundId) : undefined;
     const before = m0 ? moundVolume(sim, m0) : 0;
     const p = { x: 0, y: 0, z: 0 };

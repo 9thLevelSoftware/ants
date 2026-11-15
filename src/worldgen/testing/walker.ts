@@ -150,16 +150,17 @@ export function crossPath(w: WorldData, k: Kernel, path: readonly number[], opts
 }
 
 /**
- * True if a sphere of radius `r` can travel through free space from near `a` to near `b` (both within `reach`):
- * a breadth-first search over a lattice of spacing `step` (< r, so neighbouring spheres overlap) inside the box
- * around a, b and `include` (points the passage runs past, e.g. a pipe's ends) grown by `margin`, keeping the
- * lattice points where the field clears r. Shows that a passage (door crack, pipe annulus) is physically as wide
- * as its recorded clearance says.
+ * True if a sphere of radius `r` can travel from near `a` to near `b` (both within `reach`) the way a walker does,
+ * along surfaces: a breadth-first search over a lattice of spacing `step` (< r, so neighbouring spheres overlap)
+ * inside the box around a, b and `include` (points the passage runs past, e.g. a pipe's ends) grown by `margin`,
+ * keeping the lattice points whose clearance f lies in [r, r + shell] (free for the sphere, and within `shell` of
+ * a surface, which keeps the search off the open air). Shows that a passage (door crack, pipe annulus) is
+ * physically as wide as the clearance it must offer.
  */
 export function spherePasses(k: Kernel, a: Vec3, b: Vec3, r: number,
-  opts: { step?: number; reach?: number; margin?: number; include?: readonly Vec3[] } = {}): boolean {
+  opts: { step?: number; reach?: number; margin?: number; shell?: number; include?: readonly Vec3[] } = {}): boolean {
   if (!(r > 0)) return false;
-  const step = opts.step ?? 0.8 * r, reach = opts.reach ?? 3 * k.bu, margin = opts.margin ?? 4 * k.bu;
+  const step = opts.step ?? 0.5 * r, reach = opts.reach ?? 3 * k.bu, margin = opts.margin ?? 4 * k.bu, shell = opts.shell ?? 3 * step;
   const pts = [a, b, ...(opts.include ?? [])];
   const lo = (f: (p: Vec3) => number) => Math.min(...pts.map(f)) - margin, hi = (f: (p: Vec3) => number) => Math.max(...pts.map(f)) + margin;
   const x0 = lo((p) => p.x), y0 = lo((p) => p.y), z0 = lo((p) => p.z);
@@ -168,7 +169,10 @@ export function spherePasses(k: Kernel, a: Vec3, b: Vec3, r: number,
   const nz = Math.ceil((hi((p) => p.z) - z0) / step) + 1;
   const state = new Uint8Array(nx * ny * nz); // 0 unknown, 1 blocked, 2 queued
   const at = (i: number, j: number, l: number) => (l * ny + j) * nx + i;
-  const free = (i: number, j: number, l: number) => k.field.sampleXYZ(x0 + i * step, y0 + j * step, z0 + l * step) >= r;
+  const free = (i: number, j: number, l: number) => {
+    const f = k.field.sampleXYZ(x0 + i * step, y0 + j * step, z0 + l * step);
+    return f >= r && f <= r + shell;
+  };
   const near = (p: Vec3, i: number, j: number, l: number) => Math.hypot(x0 + i * step - p.x, y0 + j * step - p.y, z0 + l * step - p.z) <= reach;
   const queue: number[] = [];
   for (let l = 0; l < nz; l++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {

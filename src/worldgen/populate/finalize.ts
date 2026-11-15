@@ -18,7 +18,7 @@ import { SUIT } from '../tuning/maps';
 import { VALID } from '../tuning/pipeline';
 import { objectById, poiById, pointInCell, startDistances } from './common';
 import { accessOfAnchor, anchorDistance, dayOffer, isCarbSource, isProteinAnchor, sourceVariant, defAt } from './economy';
-import { honeydewFilmFeet, placeAnchor } from './food';
+import { honeydewFilmFeet, placeAnchor, placeFilm } from './food';
 import { HOST_BIT, usableHostPois } from './hosts';
 import { ECONOMY_FLOORS, SITE_FOOD, T1_HONEYDEW, TOP_UP } from './tuning';
 
@@ -101,7 +101,7 @@ export function siteFoodMin(ctx: GenContext, dStart: Float64Array): { min: numbe
   return { min, sites: sites.length };
 }
 
-export interface FoodReport { near: number; carb: boolean; protein: boolean; filmsNear: number; films: number; floors: { radiusBu: number; c: number; p: number; ok: boolean }[]; siteMin: number }
+export interface FoodReport { near: number; carb: boolean; protein: boolean; filmsNear: number; films: number; filmSitesNear: number; floors: { radiusBu: number; c: number; p: number; ok: boolean }[]; siteMin: number }
 
 /** Measures the guarantees against the current start (validation and reports). */
 export function foodReport(ctx: GenContext): FoodReport {
@@ -115,10 +115,14 @@ export function foodReport(ctx: GenContext): FoodReport {
     carb: within(ctx, d, VALID.foodKindRadiusBu, renewableCarb) > 0,
     protein: within(ctx, d, VALID.foodKindRadiusBu, isProteinAnchor) > 0,
     films: ctx.world.placements.foodAnchors.filter((a) => a.initialState.startsWith('honeydew-film')).length,
+    filmSitesNear: honeydewFilmFeet(ctx).filter((f) => cellDist(ctx, d, f.foot) <= T1_HONEYDEW.nearBu).length,
     filmsNear: within(ctx, d, T1_HONEYDEW.nearBu, (a) => a.initialState.startsWith('honeydew-film')),
     floors, siteMin: siteFoodMin(ctx, d).min,
   };
 }
+
+const cellDist = (ctx: GenContext, d: Float64Array, p: { x: number; z: number }) =>
+  d[Math.min(ctx.dims.navN - 1, Math.floor(p.z / ctx.dims.navCell)) * ctx.dims.navN + Math.min(ctx.dims.navN - 1, Math.floor(p.x / ctx.dims.navCell))];
 
 /**
  * GDD 05 §0: at least 2 of the static honeydew films within 600 BU of the start. When the start moved away from
@@ -131,10 +135,11 @@ function honeydewNearStart(ctx: GenContext, d: Float64Array): number {
     const films = ctx.world.placements.foodAnchors.filter(isFilm);
     if (films.filter((f) => anchorDistance(ctx, f, d) <= T1_HONEYDEW.nearBu).length >= T1_HONEYDEW.nearMin) break;
     const used = new Set(films.map((f) => f.hostObjectId));
-    const cand = honeydewFilmFeet(ctx).filter((f) => !used.has(f.p.objectId)).sort((a, b) => a.p.objectId - b.p.objectId);
+    const cand = honeydewFilmFeet(ctx).filter((f) => !used.has(f.p.objectId))
+      .sort((a, b) => Number(b.host) - Number(a.host) || a.p.objectId - b.p.objectId);
     let placed = false;
     for (const f of cand) {
-      if (placeAnchor(ctx, 'honeydew-film', 'honeydew', f.foot, f.p.objectId) < 0) continue;
+      if (!(cellDist(ctx, d, f.foot) <= T1_HONEYDEW.nearBu) || !placeFilm(ctx, f)) continue;
       const a = ctx.world.placements.foodAnchors[ctx.world.placements.foodAnchors.length - 1];
       if (anchorDistance(ctx, a, d) <= T1_HONEYDEW.nearBu) { placed = true; break; }
       ctx.world.placements.foodAnchors.pop();

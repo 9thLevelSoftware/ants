@@ -48,6 +48,11 @@ export interface ActiveAlert {
   /** Times re-raised while active. */
   count: number;
   acknowledged: boolean;
+  /**
+   * Token values for the interface's wording table (`alertText(kind, tokens)`), set when the sim raised the alert
+   * without wording of its own (title and cause are then ''). Additive (progression).
+   */
+  tokens?: Record<string, string | number>;
 }
 
 /** Entry of the event log ring (GDD 08 App. A `progression.eventLog`). */
@@ -57,4 +62,8 @@ export interface EventLogEntry {
   level: AlertLevel;
   text: string;
   focus: TargetRef | null;
+  /** Text id the interface formats (alert kind, milestone id, codex id ...); text is then ''. Additive (progression). */
+  key?: string;
+  /** Token values for `key`'s wording. Additive (progression). */
+  tokens?: Record<string, string | number>;
 }

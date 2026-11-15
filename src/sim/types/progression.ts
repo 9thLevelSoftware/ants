@@ -32,6 +32,14 @@ export interface JournalEntry {
   text: string;
   /** Related entity ids or milestone id strings. */
   refs: string[];
+  /**
+   * Text id the interface formats (milestone id, `stage.<id>`, `season.<index>`, `weather.<state>`, `loss`,
+   * `winter-report`, `flight`, aim id, `event.<kind>`); entries written by progression leave title and text ''.
+   * Additive (progression).
+   */
+  key?: string;
+  /** Token values for `key`'s wording (ids and numbers, never words). Additive (progression). */
+  tokens?: Record<string, string | number>;
 }
 
 export interface AimRecord {
@@ -115,6 +123,35 @@ export interface ProgressionState {
   /** Game over: final cause chain (diagnostic/cause ids), empty while alive. */
   finalCauses: string[];
   gameOver: boolean;
+  /** Progression bookkeeping (counters, cooldowns, accumulators, queues). Additive (progression): created on first use. */
+  engine?: ProgressionEngineState;
+}
+
+/**
+ * Bookkeeping of the progression module (owner: src/sim/progression). Plain data so that alert cooldowns, the aim
+ * queue, trigger timers and statistics accumulators survive save/load.
+ */
+export interface ProgressionEngineState {
+  nextJournalId: number;
+  nextAlertId: number;
+  /** Alert key (`kind:subjectId`) -> tick it cleared (cooldown of GDD 08 §6.3). */
+  alertCleared: Record<string, number>;
+  /** Eligible aims waiting for a free "Current focus" slot, oldest first. */
+  aimQueue: string[];
+  /** Trigger memory: named counters, timers and flags (numbers only). */
+  mem: Record<string, number>;
+  /** Event accumulators since the last hourly sample, by series id. */
+  hourAcc: Record<string, number>;
+  /** Accumulators of the current day per series id: [sum, samples, min, max]. */
+  dayAcc: Record<string, number[]>;
+  /** Ticks of recent player-colony adult deaths (loss entries, last 0.25 GD). */
+  recentDeathTicks: number[];
+  /** Established trails by source id: [established tick, length BU]. */
+  trails: Record<string, number[]>;
+  /** Weather hours of the current season, by weather state (season journal summary). */
+  seasonWeather: Record<string, number>;
+  /** First-of-kind weather journal entries already written, by `<year>:<season>:<state>`. */
+  weatherSeen: Record<string, number>;
 }
 
 // ---- Lineage store records (device store `lineage`, NOT part of SimState; GDD 06 §12) ----

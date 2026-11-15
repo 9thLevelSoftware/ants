@@ -14,8 +14,9 @@ import { supportAt } from '../kit/surface';
 import { dcos, dsin } from '../kit/dmath';
 import { interiorFoodSpots } from '../place/interior/food';
 import { mapState } from '../maps/state';
+import { cellAt, snapWalkable } from '../validate/graph';
 import { anchorAccess, type AnchorAccess } from './access';
-import { addAnchor, mapPlots, objectById, poiById, pointInCell, roundRandom, routeById, scaledCap, shuffled, startDistances, toSurface, zoneCells, zonePlots, zoneTypeAtXZ } from './common';
+import { addAnchor, mapPlots, navCentre, objectById, poiById, pointInCell, roundRandom, routeById, scaledCap, shuffled, startDistances, toSurface, zoneCells, zonePlots, zoneTypeAtXZ } from './common';
 import { HOST_BIT, poisOf, treeHerdPois, usableHostPois } from './hosts';
 import {
   CRUMB_PROTEIN_EVERY, CRUMB_SPOT, INTERIOR_VARIANT, NODE_DENSITY, PREY_PATCH, T1_HONEYDEW, WINDFALL,
@@ -73,13 +74,38 @@ function flowers(ctx: GenContext): void {
 function stemFoot(ctx: GenContext, p: PlantPlacement): Vec3 | null {
   const ob = objectById(ctx, p.objectId);
   const r = ob ? routeById(ctx, ob.routeIds[0]) : undefined;
-  return r ? { x: r.points[0].x, y: supportAt(ctx, r.points[0].x, r.points[0].z), z: r.points[0].z } : null;
+  // the support at or below the route's first node (not a branch or leaf overhead)
+  return r ? { x: r.points[0].x, y: supportAt(ctx, r.points[0].x, r.points[0].z, r.points[0].y + ctx.dims.bu), z: r.points[0].z } : null;
 }
 
-/** Aphid hosts with a usable herd site and the ground under their stem: where static honeydew films may go. */
-const filmFeet = new WeakMap<GenContext, { p: PlantPlacement; foot: Vec3 }[]>();
-export function honeydewFilmFeet(ctx: GenContext): { p: PlantPlacement; foot: Vec3 }[] {
+/**
+ * Where static honeydew films may go: the ground under the stems of aphid hosts with a usable herd site first,
+ * then under other outdoor plants (a film placed there makes the plant an aphid host: GDD 05 §0 puts the films
+ * "under host stems carrying the aphid host flag").
+ */
+export interface FilmFoot { p: PlantPlacement; foot: Vec3; host: boolean }
+const filmFeet = new WeakMap<GenContext, FilmFoot[]>();
+export function honeydewFilmFeet(ctx: GenContext): FilmFoot[] {
   return filmFeet.get(ctx) ?? [];
+}
+
+/** Places a film under a plant's stem, making the plant an aphid host; true if placed. */
+export function placeFilm(ctx: GenContext, f: FilmFoot): boolean {
+  if (placeAnchor(ctx, 'honeydew-film', 'honeydew', f.foot, f.p.objectId) < 0) {
+    // a trunk or a wide stem base fills its nav cell: the drip falls on the nearest open ground beside it
+    const c = snapWalkable(ctx, cellAt(ctx, f.foot.x, f.foot.z), 1);
+    if (c < 0) return false;
+    const q = navCentre(ctx, c), x = (q.x + f.foot.x) / 2, z = (q.z + f.foot.z) / 2;
+    const near = snapWalkable(ctx, cellAt(ctx, x, z), 0) === cellAt(ctx, x, z) ? { x, z } : q;
+    if (placeAnchor(ctx, 'honeydew-film', 'honeydew', { x: near.x, y: supportAt(ctx, near.x, near.z, f.foot.y + ctx.dims.bu), z: near.z }, f.p.objectId) < 0) return false;
+  }
+  if (!(f.p.hostFlags & HOST_BIT.aphid)) {
+    f.p.hostFlags |= HOST_BIT.aphid;
+    f.p.hostPoiIds = undefined;
+    usableHostPois(ctx, f.p);
+    f.host = true;
+  }
+  return true;
 }
 
 /** Aphid herd sites (T2) on every aphid host, and the T1 static honeydew films under some of their stems. */
@@ -88,7 +114,7 @@ function honeydew(ctx: GenContext): void {
   const hosts = ctx.world.placements.plants.filter((p) => p.hostFlags & HOST_BIT.aphid);
   const herds = treeHerdPois(ctx);
   const cap = scaledCap(ctx, NODE_DENSITY.aphidHost.cap);
-  const footOf: { p: PlantPlacement; foot: Vec3 }[] = [];
+  const feet: FilmFoot[] = [];
   let herdCount = 0;
   for (const p of hosts) {
     const ob = objectById(ctx, p.objectId);
@@ -100,24 +126,29 @@ function honeydew(ctx: GenContext): void {
       if (placeAnchor(ctx, 'aphid-herd', 'honeydew', poiById(ctx, id)!.pos, p.objectId) >= 0) herdCount++;
     }
     const foot = stemFoot(ctx, p);
-    if (foot && sites.length > 0) footOf.push({ p, foot });
+    if (foot && sites.length > 0) feet.push({ p, foot, host: true });
   }
-  filmFeet.set(ctx, footOf);
-  // T1 static films: 1 per 250 plots, at least 2 within 600 BU of the start, the rest anywhere
+  for (const p of ctx.world.placements.plants) {
+    if (p.hostFlags & HOST_BIT.aphid) continue;
+    const foot = stemFoot(ctx, p);
+    if (foot && zoneTypeAtXZ(ctx, foot.x, foot.z) !== 'interior') feet.push({ p, foot, host: false });
+  }
+  filmFeet.set(ctx, feet);
+  // T1 static films: 1 per 250 plots, at least 2 within 600 BU of the start, the rest anywhere; hosts first
   const total = Math.max(T1_HONEYDEW.nearMin, Math.round(mapPlots(ctx) / T1_HONEYDEW.plotsPerSite));
   const d = startDistances(ctx);
   const cell = (v: Vec3) => Math.min(ctx.dims.navN - 1, Math.floor(v.z / ctx.dims.navCell)) * ctx.dims.navN + Math.min(ctx.dims.navN - 1, Math.floor(v.x / ctx.dims.navCell));
-  const near = footOf.filter((f) => d[cell(f.foot)] <= T1_HONEYDEW.nearBu).sort((a, b) => d[cell(a.foot)] - d[cell(b.foot)] || a.p.objectId - b.p.objectId);
   const used = new Set<number>();
   let placed = 0;
-  for (const f of shuffled(rng, near)) {
+  const hostFirst = (list: FilmFoot[]) => [...shuffled(rng, list.filter((f) => f.host)), ...shuffled(rng, list.filter((f) => !f.host))];
+  for (const f of hostFirst(feet.filter((f) => d[cell(f.foot)] <= T1_HONEYDEW.nearBu))) {
     if (placed >= T1_HONEYDEW.nearMin) break;
-    if (placeAnchor(ctx, 'honeydew-film', 'honeydew', f.foot, f.p.objectId) >= 0) { placed++; used.add(f.p.objectId); }
+    if (placeFilm(ctx, f)) { placed++; used.add(f.p.objectId); }
   }
-  for (const f of shuffled(rng, footOf)) {
+  for (const f of hostFirst(feet)) {
     if (placed >= total) break;
     if (used.has(f.p.objectId)) continue;
-    if (placeAnchor(ctx, 'honeydew-film', 'honeydew', f.foot, f.p.objectId) >= 0) { placed++; used.add(f.p.objectId); }
+    if (placeFilm(ctx, f)) { placed++; used.add(f.p.objectId); }
   }
 }
 
@@ -134,8 +165,8 @@ function plantSeedsAndEfn(ctx: GenContext): void {
       if (s) placeAnchor(ctx, 'extrafloral-nectary', 'nectar', s.pos, p.objectId);
     }
     if (p.hostFlags & HOST_BIT.elaiosome && countOf(ctx, 'seed', 'elaiosome-seed') < elaCap) {
-      const r = routeById(ctx, ob.routeIds[0]);
-      if (r) placeAnchor(ctx, 'elaiosome-seed', 'seed', { x: r.points[0].x, y: supportAt(ctx, r.points[0].x, r.points[0].z), z: r.points[0].z }, p.objectId);
+      const foot = stemFoot(ctx, p);
+      if (foot) placeAnchor(ctx, 'elaiosome-seed', 'seed', foot, p.objectId);
     }
     if (p.hostFlags & HOST_BIT.seed && countOf(ctx, 'seed', 'grass-seed') < seedCap) {
       const s = usable.find((q) => q.kind === 'seed-site');

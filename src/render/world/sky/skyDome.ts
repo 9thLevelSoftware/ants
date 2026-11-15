@@ -39,7 +39,7 @@ void main() {
     sky += vec3(0.8, 0.85, 1.0) * s * stars;
   }
   vec3 col = mix(horizon, sky, smoothstep(-0.02, 0.01, h));
-  // screen-space dither (+-1.5 %): the smooth gradient otherwise shows 8-bit bands after tone mapping (look-pass)
+  // screen-space dither (+-1.5 %) against 8-bit banding of the wide, smooth gradient on low-contrast displays
   if (envPass < 0.5) col *= 1.0 + (wrH13(vec3(gl_FragCoord.xy, 17.0)) - 0.5) * 0.03;
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>

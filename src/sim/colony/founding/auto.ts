@@ -7,6 +7,7 @@
 import type { Ant, Nest, OpeningState, Sim, SpeciesId } from '@/sim/types';
 import { FOUNDING_TEMPLATE } from '@/sim/balance/nest';
 import { OPEN_LAY_BATCH_EGGS } from '@/sim/balance/actions';
+import { AUTO_CLUTCH_SURVIVAL } from '@/sim/balance/founding';
 import { layEgg } from '../queen';
 import { FB, bbGet, bbSet, setPhase, speciesOf } from './access';
 import { clutchLimit, eggsLaid } from './clutch';
@@ -14,10 +15,10 @@ import { cavityEntrances } from './dig';
 
 const STEP = 'fd.autoStep';
 
-/** Clutch aimed for to end with about `workers` first workers at a fair site (survival about 0.45). */
+/** Clutch aimed for to end with about `workers` first workers at a fair site (survival AUTO_CLUTCH_SURVIVAL). */
 export function autoClutchFor(sim: Sim, workers: number): number {
   const cap = speciesOf(sim).opening.clutchCap;
-  const eggs = Math.ceil(Math.max(1, workers) / 0.45 / OPEN_LAY_BATCH_EGGS) * OPEN_LAY_BATCH_EGGS;
+  const eggs = Math.ceil(Math.max(1, workers) / AUTO_CLUTCH_SURVIVAL / OPEN_LAY_BATCH_EGGS) * OPEN_LAY_BATCH_EGGS;
   return Math.max(OPEN_LAY_BATCH_EGGS, Math.min(cap, eggs));
 }
 

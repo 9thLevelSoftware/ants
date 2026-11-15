@@ -4,20 +4,31 @@
 // overlay record (progress, stage, counters, beats) and decides its end: first eclosion + 0.4 GD.
 
 import type { Ant, Nest, OpeningState, Sim, TimelapseState } from '@/sim/types';
-import { FOUND_END_AFTER_ECLOSION_GD, TIMELAPSE_BEATS, TIMELAPSE_SPAN_GUESS_GD } from '@/sim/balance/founding';
+import {
+  FOUND_END_AFTER_ECLOSION_GD, TIMELAPSE_COUNTER_TICKS, TIMELAPSE_REESTIMATE_MIN_FRAC, TIMELAPSE_REESTIMATE_TICKS,
+  TIMELAPSE_SPAN_GUESS_GD,
+} from '@/sim/balance/founding';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { isWorkerCaste } from '../census';
 import { FB, bbGet, playerColonyOf, setPhase, speciesOf } from './access';
-import { cellTempC } from './clutch';
+import { cellTempC, eggsLaidTotal } from './clutch';
 import { devTimeGd } from './model';
 
-/** Beat names by playback fraction (GDD 06 §5.11 script). */
-const BEAT_NAMES = ['eggs', 'larvae', 'pupae', 'cocoons', 'eclosion', 'final'] as const;
+/** Beat names of the GDD 06 §5.11 script, in order. */
+export type LapseBeat = 'eggs' | 'larvae' | 'pupae' | 'cocoons' | 'eclosion' | 'final';
 
-export function beatAt(p: number): (typeof BEAT_NAMES)[number] {
-  let i = 0;
-  while (i < TIMELAPSE_BEATS.length && p >= TIMELAPSE_BEATS[i]) i++;
-  return BEAT_NAMES[i];
+/**
+ * The beat the brood is really at (the stage strip follows the cell, not the playback fraction, which is only an
+ * estimate while the temperature varies): the final card once the lapse is over, eclosion from the first worker,
+ * else the stage holding most of the living brood; pupae become `cocoons` once no egg or larva is left.
+ */
+export function beatOf(c: Record<string, number>, ended: boolean): LapseBeat {
+  if (ended) return 'final';
+  if (c.workers > 0) return 'eclosion';
+  const eggs = c.eggs ?? 0, larvae = c.larvae ?? 0, pupae = c.pupae ?? 0;
+  if (pupae > 0 && eggs === 0 && larvae === 0) return 'cocoons';
+  if (pupae >= eggs && pupae >= larvae && pupae > 0) return 'pupae';
+  return larvae > eggs ? 'larvae' : 'eggs';
 }
 
 /** Counts for the overlay: brood by stage, adult workers, eggs eaten and brood lost, reserves 0..1. */
@@ -33,7 +44,7 @@ export function lapseCounters(sim: Sim, q: Ant | undefined): Record<string, numb
   }
   for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && isWorkerCaste(a.caste)) c.workers++;
   if (q) {
-    const laid = q.queen?.founding?.eggsLaid ?? 0;
+    const laid = eggsLaidTotal(q);
     c.eaten = bbGet(q, FB.eaten, 0);
     c.lost = Math.max(0, laid - (c.eggs + c.larvae + c.pupae) - bbGet(q, FB.eclosed, 0));
     const f = q.queen?.founding;
@@ -57,7 +68,7 @@ function reestimateEnd(sim: Sim, tl: TimelapseState): void {
     if (done > best) best = done;
   }
   const frac = best / total, elapsed = sim.state.tick - tl.startTick;
-  if (frac < 0.05 || elapsed <= 0) return;
+  if (frac < TIMELAPSE_REESTIMATE_MIN_FRAC || elapsed <= 0) return;
   tl.endTick = tl.startTick + Math.round(elapsed / frac + FOUND_END_AFTER_ECLOSION_GD * TICKS_PER_DAY);
 }
 
@@ -69,7 +80,7 @@ export function beginLapse(sim: Sim, op: OpeningState, q: Ant, nest: Nest, skipp
   const start = sim.state.tick;
   op.lapse = { startTick: start, endTick: -1, skipped, outcome: '' };
   const tl: TimelapseState = {
-    kind: 'founding', startTick: start, endTick: start + Math.round(guess * TICKS_PER_DAY), progress: 0, stage: 'eggs',
+    kind: 'founding', startTick: start, endTick: start + Math.round(guess * TICKS_PER_DAY), progress: 0, stage: 'eggs' as LapseBeat,
     counters: lapseCounters(sim, q), interrupt: null,
   };
   sim.state.player.timelapse = tl;
@@ -93,19 +104,20 @@ export function lapseTick(sim: Sim, op: OpeningState, q: Ant): 'end' | 'empty' |
     lapse.endTick = now + Math.round(FOUND_END_AFTER_ECLOSION_GD * TICKS_PER_DAY);
     tl.endTick = lapse.endTick;
   }
-  if (lapse.endTick < 0 && now % 100 === 0) reestimateEnd(sim, tl);
+  if (lapse.endTick < 0 && now % TIMELAPSE_REESTIMATE_TICKS === 0) reestimateEnd(sim, tl);
   const span = Math.max(1, tl.endTick - tl.startTick);
   const p = Math.min(lapse.endTick < 0 ? 0.999 : 1, Math.max(tl.progress, (now - tl.startTick) / span));
-  const before = beatAt(tl.progress);
   tl.progress = p;
-  if (now % 10 === 0 || p >= 1) {
+  const ended = lapse.endTick >= 0 && now >= lapse.endTick;
+  if (now % TIMELAPSE_COUNTER_TICKS === 0 || ended) {
+    const before = tl.stage;
     tl.counters = lapseCounters(sim, q);
-    tl.stage = beatAt(p);
+    tl.stage = beatOf(tl.counters, ended);
     if (tl.stage !== before) sim.emit({ type: 'opening.timelapse', kind: 'beat', p, spanGd: span / TICKS_PER_DAY, hazard: null });
-    else if (now % 100 === 0) sim.emit({ type: 'opening.timelapse', kind: 'progress', p, spanGd: span / TICKS_PER_DAY, hazard: null });
+    else if (now % TIMELAPSE_REESTIMATE_TICKS === 0) sim.emit({ type: 'opening.timelapse', kind: 'progress', p, spanGd: span / TICKS_PER_DAY, hazard: null });
   }
-  if (lapse.endTick >= 0 && now >= lapse.endTick) return 'end';
-  if (lapse.endTick < 0 && (tl.counters.eggs + tl.counters.larvae + tl.counters.pupae) === 0 && now % 10 === 0) {
+  if (ended) return 'end';
+  if (lapse.endTick < 0 && (tl.counters.eggs + tl.counters.larvae + tl.counters.pupae) === 0 && now % TIMELAPSE_COUNTER_TICKS === 0) {
     const live = col ? sim.state.brood.some((b) => b.alive && b.colony === col.id) : false;
     if (!live) return 'empty';
   }

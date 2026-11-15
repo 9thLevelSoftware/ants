@@ -7,7 +7,7 @@ import { BULKING, MOUND_CLEAR_PAD_BU } from '@/sim/balance/nest';
 import { navTo, navToTarget } from '@/sim/locomotion';
 import { heightAt } from '@/sim/world/terrainSample';
 import { throatPassage } from './entrances';
-import { colonyNests, freeDig } from './freeDigKit';
+import { colonyNests, freeDig, settleSurfacePellets } from './freeDigKit';
 import { dumpPoint, moundVolume } from './index';
 import { createMound, deposit, moundById, moundCellAt, publishMound, relax } from './mounds';
 import { nestSim, placeWorker, playerNest, runTicks } from './nestTestKit';
@@ -55,6 +55,9 @@ describe('defect 3 / acceptance 3: 200 pellets dumped around a freely dug entran
     const nest = colonyNests(sim, queen.colony)[0];
     const e = nest.entrances[0];
     expect(e).toBeDefined();
+    // the dig's own last pellets (a queen not in `digging` drops them on the surface) settle first, so `before`
+    // holds them (sim-fix-colony review: they had joined this mound during the measured ticks, +8 %)
+    settleSurfacePellets(sim);
     const m0 = e.moundId >= 0 ? moundById(sim, e.moundId) : undefined;
     const before = m0 ? moundVolume(sim, m0) : 0;
     // 200 pellets: most at the hauler dump ring, every tenth straight onto the opening (a careless dump)

@@ -1,12 +1,12 @@
 // Hand-over to normal play (GDD 06 §5.13, GDD 02 §2.7 / E-21): the first workers exist; the queen becomes an
 // established queen whose remaining pool is split into reserve (C) and reserveP (P); the nest record moves to
-// `reopening` and a reopen job for every sealed entrance of the cell is requested through the nest's command (the
-// nanitics dig the plug out themselves, beh-nest); the first journal aims open. Workers are already autonomous.
+// `reopening` and the nanitics' dig through the plug is requested from the nest (reopen.ts; they dig it with their own
+// behaviour); the first journal aims open. Workers are already autonomous.
 
 import type { Ant, AimId, Nest, OpeningState, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { bbClear, playerColonyOf, setPhase, speciesOf } from './access';
-import { cavityEntrances } from './dig';
+import { requestReopen } from './reopen';
 import { lapseCounters } from './lapse';
 
 /** First aims opened at hand-over (GDD 06 §5.13), per species. */
@@ -54,9 +54,7 @@ export function handover(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
   const reserves = establishQueen(q);
   if (nest.founding) {
     nest.founding.state = 'reopening';
-    for (const e of cavityEntrances(sim, nest)) {
-      if (e.status === 'sealed' || e.status === 'sealing') sim.enqueue({ type: 'reopenEntrance', entranceId: e.id });
-    }
+    requestReopen(sim, nest);
   }
   if (op.lapse) {
     op.lapse.endTick = sim.state.tick;

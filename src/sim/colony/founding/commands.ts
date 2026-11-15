@@ -6,6 +6,7 @@ import type { CommandHandlerMap, CommandOf, FoundingDigState, OpeningPhase, Sim 
 import { ensureThermal } from '@/sim/environment';
 import { FB, bbSet, foundingNest, foundingQueen, openingOf, setPhase } from './access';
 import { autoClutchFor, startAuto } from './auto';
+import { eggsLaidTotal } from './clutch';
 import { beginLapse } from './lapse';
 
 const reject = (sim: Sim, commandType: string, reason: string): void => sim.emit({ type: 'command-rejected', commandType, reason });
@@ -46,12 +47,28 @@ function respond(sim: Sim, _c: CommandOf<'timelapseRespond'>): void {
   if (!tl || !tl.interrupt) reject(sim, 'timelapseRespond', 'no-interrupt');
 }
 
+/** Phases from which "Undo founding" is offered from the pause menu (GDD 06 §5.14: until the first lay). */
+const UNDO_PHASES: readonly OpeningPhase[] = ['search', 'dig', 'seal', 'lay'];
+
+/**
+ * Why "Undo founding" is refused now, or null when it is allowed: from the failure card always, from the pause
+ * menu until the first egg is laid, and only while retries are left (GDD 06 §5.14).
+ */
+export function undoRefusal(sim: Sim): 'invalid-phase' | 'limit' | null {
+  const op = openingOf(sim);
+  if (!op) return 'invalid-phase';
+  if (op.phase !== 'failed') {
+    if (!UNDO_PHASES.includes(op.phase)) return 'invalid-phase';
+    const q = foundingQueen(sim);
+    if (op.layBatches > 0 || (q && eggsLaidTotal(q) > 0)) return 'invalid-phase';
+  }
+  return op.retriesUsed >= sim.state.config.difficulty.params.openingRetries ? 'limit' : null;
+}
+
 /** Undo is restored by the game from its checkpoint; the sim checks only that it is still allowed. */
 function undo(sim: Sim): void {
-  const op = openingOf(sim);
-  const allowed: OpeningPhase[] = ['search', 'dig', 'seal', 'lay', 'failed'];
-  if (!op || !allowed.includes(op.phase)) reject(sim, 'openingUndo', 'invalid-phase');
-  else if (op.retriesUsed >= sim.state.config.difficulty.params.openingRetries) reject(sim, 'openingUndo', 'limit');
+  const why = undoRefusal(sim);
+  if (why) reject(sim, 'openingUndo', why);
 }
 
 /** cheat.completeFounding: the remaining steps run automatically (auto.ts), aiming at about `workers` first workers. */

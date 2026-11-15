@@ -85,7 +85,7 @@ describe('load-crop (GDD 02 §5.4.1-5.4.2)', () => {
     expect(canDo(sim, w, 'load-crop', null).reason).toBe('crop-full');
     w.cropC = 0;
     const col = sim.state.colonies[0];
-    col.stores.c = 0; col.stores.p = 0.05;
+    col.stores.c = 0; col.stores.p = 0.01;
     expect(canDo(sim, w, 'load-crop', null).reason).toBe('no-reserve');
   });
 

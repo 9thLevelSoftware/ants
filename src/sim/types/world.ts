@@ -305,6 +305,15 @@ export interface Mound {
   relaxSweep?: number;
   /** Bits of the relaxation in progress: 1 = the batch changed the pile, 2 = a sweep moved material. */
   relaxFlags?: number;
+  /**
+   * A sweep stopped part-way by the work budget (sim-fix-colony review, additive): the next row of the sweep (0 or
+   * absent: at a sweep boundary), the sweep box [x0, x1, z0, z1] in grid cells, the largest transfer so far in
+   * the sweep (mm) and whether a transfer reached the box edge (1).
+   */
+  relaxRow?: number;
+  relaxBox?: number[];
+  relaxMaxT?: number;
+  relaxEdge?: number;
 }
 
 /** Runtime change of a static object (moved car, opened door, mown plant). */

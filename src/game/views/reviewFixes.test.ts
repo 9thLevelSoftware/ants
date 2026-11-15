@@ -341,3 +341,24 @@ describe('marker scene version and label cache', () => {
     expect(freed).toEqual(['c', 'd']);
   });
 });
+
+describe('release hand-over after a teleport (no frame rendered in between)', () => {
+  it('does not start the follow orbit from a stale camera far away: the camera ends near the ant, above ground', () => {
+    const sim = makeTestSim({ nest: 'small', systems: [] });
+    const d = director(sim);
+    const bu = sim.world.bu, c = sim.world.size / 2;
+    const q = sim.state.ants[0];
+    const at = (x: number, z: number): ViewSubject => ({ pos: { x, y: sim.field.height(x, z), z }, up: { x: 0, y: 1, z: 0 }, fwd: { x: 1, y: 0, z: 0 }, lengthBu: q.lengthBu, underground: false, airborne: false });
+    d.setView('possess', at(c, c), true);
+    d.settle(1, 1 / 30);
+    const far = at(c + 80 * bu, c + 40 * bu); // teleported, then released before any frame
+    d.setSubject(far);
+    d.setView('observer', far);
+    let f = d.update(0, null);
+    for (let i = 0; i < 90; i++) f = d.update(1 / 30, null);
+    const L = q.lengthBu * bu;
+    const dist = Math.hypot(f.pose.pos.x - far.pos.x, f.pose.pos.y - far.pos.y, f.pose.pos.z - far.pos.z);
+    expect(dist).toBeLessThan(13 * L);
+    expect(f.pose.pos.y - sim.field.height(f.pose.pos.x, f.pose.pos.z)).toBeGreaterThan(L);
+  });
+});

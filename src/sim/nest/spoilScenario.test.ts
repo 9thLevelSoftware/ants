@@ -1,14 +1,13 @@
 // sim-fix-colony item 2, acceptance 3: a nest of a 60-worker colony takes the spoil of two game days of digging
 // with hauling throttled (most pellets stay in the nest and tamp after 1,200 s). Tamping never cuts a chamber off
-// its entrance and never leaves a raised floor lower than the species' workers can walk (the passage rule, GDD 03
+// its entrance and never narrows the way out below a passage the species' workers can walk (the passage rule, GDD 03
 // §5.1 / §5.3 N1). With the entrance closed (no plug) the nest reports why (`entrance-closed`), the internal-dump
 // query (GDD 03 §7.7) returns a valid dead-end tip, and the colony raises `midden-blocked` (GDD 02 §10.8).
 import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '@/core/math/vec3';
 import { rngFork, rngInt } from '@/core/rng';
 import type { Nest, Sim } from '@/sim/types';
-import { VoxelFlag } from '@/sim/types';
-import { PELLET_TAMP_S } from '@/sim/balance/nest';
+import { HAUL_URGENCY_GAIN, PELLET_TAMP_S } from '@/sim/balance/nest';
 import { PHYSIO_EVERY } from '@/sim/balance';
 import { removeItem } from '@/sim/entities';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
@@ -21,10 +20,10 @@ import { nestSampleBox } from './chambers/detect';
 import { findChamberAtImpl } from './chambers/registry';
 import { internalDumpSite } from './deadEnd';
 import { nestSim } from './nestTestKit';
-import { loosePellets, placePellet, spawnPellet } from './pellets';
-import { nestRuntime } from './runtime';
+import { loosePellets, pelletHaulUrgency, placePellet, spawnPellet } from './pellets';
 import { nestSystem } from './system';
-import { tampHeadroomSamples } from './tamp';
+import { tampPassageSamples } from './tamp';
+import { packSample, sampleI, sampleJ, sampleK } from './voxelKey';
 
 const PELLET = 0.85;
 
@@ -65,25 +64,56 @@ function cutOff(sim: Sim, nest: Nest): number[] {
   return nest.chambers.filter((c) => sim.nestNav.distance(nest.id, { kind: 'exit', id: -1 }, c.center) < 0).map((c) => c.id);
 }
 
-/** Raised (LOOSE) floor samples with less open headroom above them than the passage rule keeps. */
-function lowCeilings(sim: Sim, nest: Nest, need: number): number {
-  const flags = nestRuntime(sim).flags, b = nestSampleBox(sim, nest);
-  let bad = 0;
-  for (const key of sim.carve.data.keys) {
-    sim.carve.forEachOpenSample(key, (i, j, k) => {
-      if (i < b.i0 || i > b.i1 || k < b.k0 || k > b.k1) return;
-      if (sim.carve.sampleAt(i, j - 1, k) >= OPEN_MIN || (flags.get(i, j - 1, k) & VoxelFlag.LOOSE) === 0) return;
-      if ((flags.get(i, j - 1, k) & VoxelFlag.PLUG) !== 0) return;
-      let run = 0;
-      while (run < need && sim.carve.sampleAt(i, j + run, k) >= OPEN_MIN) run++;
-      if (run < need) bad++;
-    });
+/**
+ * Chambers that no longer reach an open entrance through a passage the species can walk: open samples eroded
+ * `steps` times (6-neighbour), i.e. at least 2 steps + 1 samples across (GDD 03 §5.1), searched over the whole nest
+ * box from samples near each open entrance's throat.
+ */
+function narrowCutOff(sim: Sim, nest: Nest, across: number): number[] {
+  const b = nestSampleBox(sim, nest), carve = sim.carve, v = carve.voxel, steps = Math.max(1, Math.ceil((across - 1) / 2));
+  const wide = (i: number, j: number, k: number): boolean => {
+    for (let dk = -steps; dk <= steps; dk++) for (let dj = -steps; dj <= steps; dj++) for (let di = -steps; di <= steps; di++) {
+      if (Math.abs(di) + Math.abs(dj) + Math.abs(dk) > steps) continue;
+      if (carve.sampleAt(i + di, j + dj, k + dk) < OPEN_MIN) return false;
+    }
+    return true;
+  };
+  const key = packSample;
+  const seen = new Set<number>(), queue: [number, number, number][] = [];
+  for (const e of nest.entrances) {
+    if (e.status !== 'open') continue;
+    const ci = Math.round(e.pos.x / v), ck = Math.round(e.pos.z / v), cj = Math.round(e.pos.y / v), R = Math.round((3 * sim.world.bu) / v);
+    for (let dj = -2 * R; dj <= 0; dj++) for (let dk = -R; dk <= R; dk++) for (let di = -R; di <= R; di++) {
+      const s: [number, number, number] = [ci + di, cj + dj, ck + dk];
+      if (!seen.has(key(...s)) && wide(...s)) { seen.add(key(...s)); queue.push(s); }
+    }
   }
-  return bad;
+  for (let q = 0; q < queue.length; q++) {
+    const [i, j, k] = queue[q];
+    for (const [di, dj, dk] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+      const ni = i + di, nj = j + dj, nk = k + dk;
+      if (ni < b.i0 || ni > b.i1 || nj < b.j0 || nj > b.j1 || nk < b.k0 || nk > b.k1) continue;
+      const kk = key(ni, nj, nk);
+      if (seen.has(kk) || !wide(ni, nj, nk)) continue;
+      seen.add(kk);
+      queue.push([ni, nj, nk]);
+    }
+  }
+  // a chamber is reached when any reached sample lies inside its ellipsoid
+  const reached = new Set<number>();
+  for (const kk of seen) {
+    const x = sampleI(kk) * v, y = sampleJ(kk) * v, z = sampleK(kk) * v;
+    for (const c of nest.chambers) {
+      if (reached.has(c.id)) continue;
+      const q = ((x - c.center.x) / c.radii.x) ** 2 + ((y - c.center.y) / c.radii.y) ** 2 + ((z - c.center.z) / c.radii.z) ** 2;
+      if (q <= 1) reached.add(c.id);
+    }
+  }
+  return nest.chambers.filter((c) => !reached.has(c.id)).map((c) => c.id);
 }
 
 describe('spoil inside the nest with hauling throttled (acceptance 3)', () => {
-  it('two game days of spoil: tamping never cuts a chamber off and keeps the headroom; a closed nest has a dump site and midden-blocked', () => {
+  it('two game days of spoil: tamping never cuts a chamber off and keeps a walkable passage; a closed nest has a dump site and midden-blocked', () => {
     const { sim, nest } = colonyNest(5);
     const col = sim.state.colonies[0];
     expect(nest.entrances.some((e) => e.status === 'open')).toBe(true);
@@ -91,7 +121,7 @@ describe('spoil inside the nest with hauling throttled (acceptance 3)', () => {
     const necks = neckSites(nest), floors = tunnelFloors(sim, nest);
     expect(floors.length).toBeGreaterThan(50);
     const rng = rngFork(5, 'spoil-scenario');
-    const need = tampHeadroomSamples(sim, nest);
+    const need = tampPassageSamples(sim, nest);
     const closedEvents: { cause: string }[] = [];
     sim.events.on('entrance-closed', (e) => closedEvents.push(e));
     let tamped = 0;
@@ -115,8 +145,8 @@ describe('spoil inside the nest with hauling throttled (acceptance 3)', () => {
       if (t % 600 === 0 || t === END - 1) {
         const off = cutOff(sim, nest);
         if (off.length > 0) failures.push(`tick ${sim.state.tick}: chambers ${off} cut off`);
-        const low = lowCeilings(sim, nest, need);
-        if (low > 0) failures.push(`tick ${sim.state.tick}: ${low} raised floor samples under ${need} samples of headroom`);
+        const narrow = narrowCutOff(sim, nest, need);
+        if (narrow.length > 0) failures.push(`tick ${sim.state.tick}: chambers ${narrow} reach no entrance through a ${need}-sample passage`);
       }
     }
     expect(failures).toEqual([]);
@@ -125,7 +155,10 @@ describe('spoil inside the nest with hauling throttled (acceptance 3)', () => {
     expect(isMiddenBlocked(col)).toBe(false);
     const lying = loosePellets(sim, nest.id);
     for (const it of lying) expect(it.volume).toBeGreaterThan(0);
-    expect(sim.state.tick - Math.min(...lying.map((it) => it.droppedTick))).toBeLessThanOrEqual(PELLET_TAMP_S * TICKS_PER_SECOND + 1);
+    // pellets past tamping age lie only where the passage rule refused them; they keep their age (and full haul
+    // urgency) and are retried every TAMP_RETRY_S
+    const overdue = lying.filter((it) => sim.state.tick - it.droppedTick > PELLET_TAMP_S * TICKS_PER_SECOND + 1);
+    for (const it of overdue) expect(pelletHaulUrgency(sim, it)).toBeCloseTo(1 + HAUL_URGENCY_GAIN, 9);
 
     // close every entrance by filling its throat with loose soil (no plug): the nest says why
     for (const e of nest.entrances) {

@@ -8,9 +8,10 @@ import { TICKS_PER_SECOND } from '@/sim/time';
 import { FB, bbClear, bbGet, bbSet, foundingNest, foundingQueen, openingOf, queenOf, setPhase } from './access';
 import { autoTick, isAuto } from './auto';
 import { careTick } from './care';
-import { layTick } from './clutch';
+import { layTick, refuseLayBeforeSeal } from './clutch';
 import { bitePoint, digTick, sealTick, searchTick } from './dig';
 import { exposureTick, nestSealed } from './exposure';
+import { soilForSeal } from './seal';
 import { broodLost, causeOfQueenDeath, failOpening } from './failure';
 import { closeAim, handover, openAim } from './handover';
 import { beginLapse, lapseTick } from './lapse';
@@ -102,8 +103,10 @@ function step(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       }
       return;
     case 'seal':
+      refuseLayBeforeSeal(sim, q);
       exposureTick(sim, q, true);
       if (!q.alive) return;
+      soilForSeal(sim, q, nest);
       if (sealTick(sim, op, nest)) {
         setPhase(sim, op, 'lay');
         closeAim(sim, 'aim-seal');

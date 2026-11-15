@@ -249,8 +249,12 @@ export const HOLD_ACTIONS: readonly ActionId[] = [
 // ---- care primitives (sim-fix-ants: load-crop, unload-crop, feed-queen, assist-eclosion, cannibalise) ----
 // Durations and amounts come from GDD 02 (§2.9 ECLOSE_ASSIST_S, §5.4.1 loads and feeds, §5.7 S3); the values live
 // in balance/nestwork.ts (LOAD_S, QUEEN_FEED_S, ASSIST_S, CANNIBALISE_S, NURSE_LOAD ...) and are used from there.
-/** A crop is loaded from the pool only while it holds at least this much C or P, loads (GDD 02 §5.4.1). */
-export const LOAD_POOL_MIN = 0.1;
+/**
+ * A crop is loaded from the pool only while it holds at least this much food, loads. GDD 02 §5.4.1 writes "pool C >=
+ * 0.1 or P >= 0.1"; this is the beh-nest adapter's "empty pool" floor instead (recorded deviation, sim-fix-ants): in
+ * starvation S3 the queen's protein is the 0.03 P of each eaten egg, which a 0.1 floor would never let a carer load.
+ */
+export const LOAD_POOL_MIN = 0.02;
 /** Unloading the crop straight into a food chamber runs at this fraction of TROPH_RATE (GDD 02 §5.3: half rate). */
 export const UNLOAD_DIRECT_RATE_MULT = 0.5;
 /** Grooming one item of a brood pile tends every item within this radius (GDD 02 §10.4 nurse.tend: 2 BU), BU. */

@@ -89,7 +89,7 @@ function runAttempt(params: WorldParams, dims: WorldDims, a: number, reg: Regist
     buildStrata(ctx, ctx.rng('wg/height/strata'));
   });
   for (const id of ['structures', 'props', 'plants'] as const) step(id, () => runPlacers(ctx, reg, id));
-  step('derived', () => deriveMaps(ctx, opts.columns));
+  step('derived', () => deriveMaps(ctx, { column: opts.columns }));
   let late = 0;
   for (const id of ['resources', 'rivals', 'cavities'] as const) step(id, () => { late += runPlacers(ctx, reg, id); });
   // Steps 7-9 can change anything the maps read (primitives, holes, water bodies, ground paint, height edits,
@@ -97,7 +97,7 @@ function runAttempt(params: WorldParams, dims: WorldDims, a: number, reg: Regist
   if (late > 0) {
     // timed apart from the steps (no progress event: the GDD lists step 6 once)
     const t0 = opts.now?.() ?? 0;
-    deriveMaps(ctx, opts.columns);
+    deriveMaps(ctx, { column: opts.columns });
     if (opts.now) timings.rederive = opts.now() - t0;
   }
   step('start', () => runPlacers(ctx, reg, 'start'));
@@ -124,7 +124,7 @@ function repairAttempt(best: Attempt, reg: Registry, column?: ColumnFn): string[
     if (!failed.includes(r.check) || applied.includes(r.id)) continue;
     if (r.run(ctx)) {
       applied.push(r.id);
-      deriveMaps(ctx, column);
+      deriveMaps(ctx, { column });
     }
   }
   if (applied.length > 0) {

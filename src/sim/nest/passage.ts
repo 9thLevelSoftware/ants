@@ -1,7 +1,8 @@
 // The passage check of tamping (sim-fix-colony item 2): would a fill (spheres of one radius) split the open space
 // around it? Two tests in a local box around the fill: plain connectivity of the open samples (nav connectivity:
 // the nest-nav graph's corner rule makes it face connectivity) and connectivity of the ERODED open set (samples
-// whose six face neighbours are open too: a passage at least 3 samples = 1.5 BU across, GDD 03 §5.1 walkable).
+// whose face neighbours are open too, `e` steps deep: a passage at least 2e + 1 samples across, GDD 03 §5.1
+// walkable; e = 1, 3 samples = 1.5 BU, for the standard worker).
 // The fill is safe when every pair of samples that stays open (stays eroded-open) and was connected inside the
 // box before is still connected inside it after. Conservative: two parts joined only outside the box count as
 // split, and then the fill is refused.
@@ -58,17 +59,21 @@ function noSplit(before: Int32Array, after: Int32Array): boolean {
   return true;
 }
 
-/** Is a fill of these spheres safe for the passages around it (see the file comment)? */
-export function fillKeepsPassages(sim: Sim, centres: readonly Vec3[], r: number): boolean {
+/**
+ * Is a fill of these spheres safe for the passages around it (see the file comment)? `across`: samples across the
+ * narrowest passage the species can walk (tamp.ts tampPassageSamples, default 3).
+ */
+export function fillKeepsPassages(sim: Sim, centres: readonly Vec3[], r: number, across = 3): boolean {
   if (centres.length === 0) return true;
+  const steps = Math.max(1, Math.ceil((across - 1) / 2));
   const carve = sim.carve, v = carve.voxel, ramp = carve.ramp, pad = r + ramp / 2 + TAMP_PASSAGE_MARGIN_BU * sim.world.bu;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const c of centres) {
     x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); z0 = Math.min(z0, c.z); z1 = Math.max(z1, c.z);
   }
-  // one sample of apron around the box so the eroded test can read the neighbours of the box's own cells
-  const i0 = Math.floor((x0 - pad) / v) - 1, j0 = Math.floor((y0 - pad) / v) - 1, k0 = Math.floor((z0 - pad) / v) - 1;
-  const nx = Math.ceil((x1 + pad) / v) + 1 - i0 + 1, ny = Math.ceil((y1 + pad) / v) + 1 - j0 + 1, nz = Math.ceil((z1 + pad) / v) + 1 - k0 + 1;
+  // `steps` samples of apron around the box so the eroded test can read the neighbours of the box's own cells
+  const i0 = Math.floor((x0 - pad) / v) - steps, j0 = Math.floor((y0 - pad) / v) - steps, k0 = Math.floor((z0 - pad) / v) - steps;
+  const nx = Math.ceil((x1 + pad) / v) + steps - i0 + 1, ny = Math.ceil((y1 + pad) / v) + steps - j0 + 1, nz = Math.ceil((z1 + pad) / v) + steps - k0 + 1;
   const n = nx * ny * nz, before = new Uint8Array(n), after = new Uint8Array(n);
   let changed = false;
   for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
@@ -89,5 +94,7 @@ export function fillKeepsPassages(sim: Sim, centres: readonly Vec3[], r: number)
     }
     return out;
   };
-  return noSplit(label(erode(before), nx, ny, nz), label(erode(after), nx, ny, nz));
+  let eb: Uint8Array = before, ea: Uint8Array = after;
+  for (let e = 0; e < steps; e++) { eb = erode(eb); ea = erode(ea); }
+  return noSplit(label(eb, nx, ny, nz), label(ea, nx, ny, nz));
 }

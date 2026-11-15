@@ -5,7 +5,7 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_SWITCH_DIP_HALF_S, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_SWITCH_DIP_HALF_S, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
   copyPose, fitsAt, makePose, planTransition, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
@@ -159,7 +159,7 @@ export class ViewDirector {
     if (view === 'observer') {
       // GDD 01 §2 "X: release; camera stays, becomes follow-orbit on the released ant": the orbit starts where the
       // possession camera was
-      if (subject) this.follow(subject, prev === 'possess' ? this.last.pos : undefined);
+      if (subject) this.follow(subject, prev === 'possess' && this.poseFrames(subject) ? this.last.pos : undefined);
       else { this.stopFollowing(); this.placeObserverAbove(this.last.look); }
     }
     if (view === 'colony') {
@@ -188,6 +188,20 @@ export class ViewDirector {
     this.setSubject(subject);
     this.following = true;
     this.observer.setFollow(this.followTarget, from);
+  }
+
+  /**
+   * Does the last rendered camera frame this subject (so a hand-over can keep it)? Not after a teleport or a jump
+   * since the last frame (scripts step without rendering): then the pose is somewhere else entirely, possibly
+   * underground, and the follow orbit keeps its own direction instead.
+   */
+  private poseFrames(subject: ViewSubject): boolean {
+    const p = this.last.pos, q = subject.pos, L = subject.lengthBu * this.world.bu;
+    const d = { x: q.x - p.x, y: q.y - p.y, z: q.z - p.z }, l = Math.hypot(d.x, d.y, d.z);
+    if (l > CAM_HANDOVER_KEEP_MAX_L * L) return false;
+    if (l < 1e-6) return true;
+    d.x /= l; d.y /= l; d.z /= l;
+    return this.world.trace(p, d, l, 0) >= l - 0.5 * L; // the ant is in sight
   }
 
   /** The smallest GDD 6.1 clearance of the play cameras (mm): transitions keep at least this. */

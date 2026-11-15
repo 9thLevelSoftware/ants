@@ -1,0 +1,56 @@
+# Creatures (task `creatures`, GDD 05 §2)
+
+Pure simulation of the other animals: prey, neutral fauna, aphid predators, ant predators, the bird event, the
+creature director, the player colony's danger grid and the threat director's quiet share (I11).
+Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the balance barrel).
+
+## Files
+
+| File | What |
+| --- | --- |
+| `index.ts` | systems (`creature-director` every 50 ticks, `creatures` every tick, phase `creatures`), public API, cheat handlers |
+| `system.ts` | per-tick loop, kind table, deaths from hp <= 0, subduing, hit reactions |
+| `director.ts` | residents / visitors from territories, despawning, caps, global cap 260, winter, hourly rolls |
+| `spawners.ts` | prey patches (+ regrowth), patch prey around foragers, fruit flies, caterpillars, fly larvae, stranded worms, pits |
+| `attack.ts`, `predator.ts` | telegraph / strike / seize / venom / struggle; victim choice, flee, feed, recover |
+| `spiders.ts`, `hunters.ts`, `antlion.ts`, `invasion.ts` | jumping & wolf spider; ant-spider, centipede, rove beetle; antlion pit; centipede nest raid |
+| `aphidPredators.ts`, `preyFauna.ts`, `neutral.ts`, `bird.ts` | the other families and the bird event |
+| `prey.ts` | remains (carcass item / tear source), transport rule, subduing |
+| `queries.ts` | `threatsNear`, `preyNear`, `knownHazardsNear`, `creatureArmour`, `creaturePull` |
+| `danger.ts`, `threat.ts` | danger grid (nav cost overlay), threat director + quiet share |
+| `hooks.ts`, `lifecycle.ts` | lazily installed locomotion hooks (movement override, speed factor) and event listeners |
+| `ports.ts` | every external function called for an effect (tests swap them) |
+| `testkit.ts`, `soakScene.ts` | test support only |
+
+## States (`Creature.state`) and flags (`Creature.flags`, `CreatureFlag`)
+
+- jumping-spider: `rest scan stalk windup hold feed recover flee`
+- wolf-spider: `rest wander ambush orient freeze windup hold feed recover flee` (`freeze` = vibration cue, 1 s)
+- ant-spider: `rest patrol approach windup wait collect carry feed recover flee`
+- antlion: `wait drag feed rebuild collapsed` (pit hazard `state` mirrors it; flag DORMANT when <= 10 C / winter)
+- centipede: `prowl windup hold feed recover flee invade`; rove-beetle: `forage windup hold feed recover flee`
+- ladybird: `fly-in feed fly-off` (flag FLYING); ladybird-larva: `egg crawl feed drop-off wander`;
+  lacewing-larva: `crawl feed`
+- springtail / mite: `graze`; fly-larva: `feed burrow`; caterpillar: `feed crawl silk subdued` (ON_SILK, HAIRY);
+  fruit-fly: `feed fly` (FLYING + HIDDEN between hops)
+- woodlouse: `shelter wander graze roll` (CURLED); earthworm: `surface return dying`; snail: `graze wander retract cover`;
+  millipede: `wander graze coil cover`
+- any prey: `subdued` (SUBDUED). HIDDEN creatures are not drawn and not interactive.
+
+A strike in progress: `bb.strikeAt` (tick), `bb.tgt` (ant id), `bb.aimX/Y/Z`; `predator-telegraph` carries them.
+The bird event is `state.ecology.birdEvent` (`phase` approach / landed / leaving, `pos`, `peckAim`), not an agent.
+
+## Seams for other modules (report these when integrating)
+
+- combat: call `noteCreatureHit(sim, creatureId, antId, 'bite' | 'spray' | 'sting')` for each hit on a creature;
+  ask `preyEvades(sim, creatureId, antId)` before a bite; kill creatures with `creatureKilled(sim, id, antIds)`
+  (not `killCreature`) so they become food; read `creatureArmour` / `creaturePull`. Damage this module deals goes
+  through `combat.applyDamage(sim, 'ant', id, dmg, 'predation' | 'antlion' | 'bird')` and lets go with
+  `combat.releaseGrapple`. Seized ants: `ant.combat.seizedBy`, `escape`; paralysed: `paralysedUntilTick`.
+- player control: `addStruggleInput(sim, antId)` per struggle input (bites, specials and > 90 degree turns are also
+  read from the recorded intent).
+- behaviours: `threatsNear` (state word, telegraphed strikes, repel zones of secretions, the bird), `preyNear`,
+  `knownHazardsNear` (avoid pit radius + 1 L), `dangerAt`; the danger grid also prices nav-grid cells.
+- rivals: `requestMajorThreat(sim, kind)` / `endMajorThreat(sim, kind)` for raids (one major threat at a time, I11).
+- locomotion: flight is not simulated (ladybirds and fruit flies appear / hop; see the report); springtail jumps and
+  antlion flicks are re-placements through `placeOnSurface` / the movement override.

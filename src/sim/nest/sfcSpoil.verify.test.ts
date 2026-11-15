@@ -156,8 +156,9 @@ describe('verify: GDD 03 App. E check 7 in a tunnel (the check\'s own wording) u
     runTicks(sim, 10);
     expect(sim.stores.items.has(it.id)).toBe(false);
     expect(beforeWide - openVolumeNear(sim, floor, 5 * bu)).toBeCloseTo(0.85, 2); // conserved, but spread wider:
-    // GDD 03 §1.3 / App. E check 7: within 1.0 BU (1.5 BU if not enough). Fails: the headroom rule leaves only the
-    // tunnel's centre line of floor samples usable, so the fill spreads to TAMP_RADII_BU 2.5 / 4 BU.
+    // GDD 03 §1.3 / App. E check 7: within 1.0 BU (1.5 BU if not enough). Failed under the earlier per-column
+    // headroom rule (only the tunnel's centre line of floor samples usable, fill spread to 2.5 / 4 BU); fixed by
+    // judging the walkable passage instead (sim-fix-colony review).
     expect(before - openVolumeNear(sim, floor, 1.5 * bu)).toBeCloseTo(0.85, 2);
   }, 60_000);
 });

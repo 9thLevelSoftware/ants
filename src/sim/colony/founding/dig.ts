@@ -6,7 +6,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, OpeningState, Sim, SpeciesId } from '@/sim/types';
 import {
-  FOUND_ABANDON_BU, FOUND_ABANDON_MAX, FOUND_IN_CELL_MARGIN_BU, FOUND_READINESS_EVERY_TICKS, FOUND_THROAT_PROBE_BU,
+  FOUND_ABANDON_BU, FOUND_ABANDON_RECORD_MAX, FOUND_IN_CELL_MARGIN_BU, FOUND_READINESS_EVERY_TICKS, FOUND_THROAT_PROBE_BU,
 } from '@/sim/balance/founding';
 import { canDigAt, foundingReadiness, type FoundingReadiness } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround, setPhase, speciesOf } from './access';
@@ -33,7 +33,7 @@ function restartSite(sim: Sim, nest: Nest, p: Vec3): void {
   const f = nest.founding;
   if (!f) return;
   for (const e of nest.entrances) if (!f.abandoned.includes(e.id)) f.abandoned.push(e.id);
-  while (f.abandoned.length > FOUND_ABANDON_MAX * 4) f.abandoned.shift(); // bounded record (ids only)
+  while (f.abandoned.length > FOUND_ABANDON_RECORD_MAX) f.abandoned.shift(); // bounded record (ids only)
   nest.origin = { x: p.x, y: sim.field.height(p.x, p.z), z: p.z };
   f.cavitySeed = { x: p.x, y: p.y, z: p.z };
   f.readiness = 0;

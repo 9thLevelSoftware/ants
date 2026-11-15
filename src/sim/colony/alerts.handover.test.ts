@@ -1,6 +1,7 @@
 // Hand-over of diagnostics to progression: once progression's publishDiagnostic stores records (here a fake that
 // stores a copy), the colony fallback must not overwrite them, and reports that it did not run (so the caller
-// emits no diagnostic-changed event of its own). With the current stub, the fallback stores the record.
+// emits no diagnostic-changed event of its own). With a progression that stores nothing (the old stub), the
+// fallback stores the record. Progression's real publishDiagnostic now stores records itself.
 
 import { describe, expect, it } from 'vitest';
 import type { Diagnostic, Sim } from '@/sim/types';
@@ -31,10 +32,20 @@ describe('diagnostics hand-over to progression', () => {
     expect(list[0].status).toBe('warn');
   });
 
-  it('with the progression stub the fallback upserts the record (one entry per id)', () => {
+  it('with a progression that stores nothing the fallback upserts the record (one entry per id)', () => {
     const sim = makeColonySim();
-    expect(colonyPublish(sim, diag('ok'))).toBe(true);
-    expect(colonyPublish(sim, diag('bad'))).toBe(true);
+    const stub = (): void => {};
+    expect(colonyPublish(sim, diag('ok'), stub)).toBe(true);
+    expect(colonyPublish(sim, diag('bad'), stub)).toBe(true);
+    const list = sim.state.progression.diagnostics.filter((d) => d.id === 'diag-stores');
+    expect(list).toHaveLength(1);
+    expect(list[0].status).toBe('bad');
+  });
+
+  it('with the real progression the record is progression\'s and the fallback does not run', () => {
+    const sim = makeColonySim();
+    expect(colonyPublish(sim, diag('ok'))).toBe(false);
+    expect(colonyPublish(sim, diag('bad'))).toBe(false);
     const list = sim.state.progression.diagnostics.filter((d) => d.id === 'diag-stores');
     expect(list).toHaveLength(1);
     expect(list[0].status).toBe('bad');

@@ -51,20 +51,26 @@ export function addPoi(ctx: GenContext, kind: PoiKind, pos: Vec3, objectId = -1)
   return id;
 }
 
-/** Carve chunks an op's bounding box touches (for the budget). */
-function opChunks(ctx: GenContext, op: PreCarveOp, out: Set<number>): void {
-  const c = CHUNK_BU * ctx.dims.bu;
-  let lo: Vec3, hi: Vec3;
-  if (op.shape === 'sphere') { lo = { x: op.a.x - op.r, y: op.a.y - op.r, z: op.a.z - op.r }; hi = { x: op.a.x + op.r, y: op.a.y + op.r, z: op.a.z + op.r }; }
-  else if (op.shape === 'ellipsoid') { lo = { x: op.a.x - op.b.x, y: op.a.y - op.b.y, z: op.a.z - op.b.z }; hi = { x: op.a.x + op.b.x, y: op.a.y + op.b.y, z: op.a.z + op.b.z }; }
-  else {
-    lo = { x: Math.min(op.a.x, op.b.x) - op.r, y: Math.min(op.a.y, op.b.y) - op.r, z: Math.min(op.a.z, op.b.z) - op.r };
-    hi = { x: Math.max(op.a.x, op.b.x) + op.r, y: Math.max(op.a.y, op.b.y) + op.r, z: Math.max(op.a.z, op.b.z) + op.r };
+/**
+ * Carve-chunk keys (CHUNK_KEY_SPAN packing) of the chunks a pre-carve op's bounding box touches: the cells
+ * addPreCarve counts against PRECARVE_CHUNK_MAX. Placers use it to admit a cavity as a whole within their share of
+ * the budget and to give a removed object's chunks back.
+ */
+export function opChunkKeys(bu: number, op: Pick<PreCarveOp, 'shape' | 'a' | 'b' | 'r'>, out: Set<number>): Set<number> {
+  const c = CHUNK_BU * bu;
+  let lx: number, ly: number, lz: number, hx: number, hy: number, hz: number;
+  if (op.shape === 'sphere') {
+    lx = op.a.x - op.r; ly = op.a.y - op.r; lz = op.a.z - op.r; hx = op.a.x + op.r; hy = op.a.y + op.r; hz = op.a.z + op.r;
+  } else if (op.shape === 'ellipsoid') {
+    lx = op.a.x - op.b.x; ly = op.a.y - op.b.y; lz = op.a.z - op.b.z; hx = op.a.x + op.b.x; hy = op.a.y + op.b.y; hz = op.a.z + op.b.z;
+  } else {
+    lx = Math.min(op.a.x, op.b.x) - op.r; ly = Math.min(op.a.y, op.b.y) - op.r; lz = Math.min(op.a.z, op.b.z) - op.r;
+    hx = Math.max(op.a.x, op.b.x) + op.r; hy = Math.max(op.a.y, op.b.y) + op.r; hz = Math.max(op.a.z, op.b.z) + op.r;
   }
-  for (let k = Math.floor(lo.z / c); k <= Math.floor(hi.z / c); k++)
-    for (let j = Math.floor(lo.y / c); j <= Math.floor(hi.y / c); j++)
-      for (let i = Math.floor(lo.x / c); i <= Math.floor(hi.x / c); i++)
-        out.add(i + CHUNK_KEY_SPAN * (j + CHUNK_KEY_SPAN * k));
+  for (let k = Math.floor(lz / c); k <= Math.floor(hz / c); k++)
+    for (let j = Math.floor(ly / c); j <= Math.floor(hy / c); j++)
+      for (let i = Math.floor(lx / c); i <= Math.floor(hx / c); i++) out.add(i + CHUNK_KEY_SPAN * (j + CHUNK_KEY_SPAN * k));
+  return out;
 }
 
 /**
@@ -72,8 +78,7 @@ function opChunks(ctx: GenContext, op: PreCarveOp, out: Set<number>): void {
  * would exceed PRECARVE_CHUNK_MAX.
  */
 export function addPreCarve(ctx: GenContext, op: PreCarveOp): boolean {
-  const touched = new Set<number>();
-  opChunks(ctx, op, touched);
+  const touched = opChunkKeys(ctx.dims.bu, op, new Set<number>());
   let extra = 0;
   for (const k of touched) if (!ctx.budget.chunks.has(k)) extra++;
   if (ctx.budget.chunks.size + extra > ctx.budget.limit.precarveChunks) return false;

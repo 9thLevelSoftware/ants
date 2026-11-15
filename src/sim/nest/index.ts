@@ -37,7 +37,7 @@ export { nestFieldsSystem, nestSystem } from './system';
 export { registerNestFields } from './navFields';
 export { biteTicks, digSpeedAt, moistureAt, sMax, wallMin } from './substrate';
 export { clutterSpeedMult, chokedSpots, pelletHaulUrgency } from './pellets';
-export { tampHeadroomSamples } from './tamp';
+export { tampPassageSamples } from './tamp';
 export { internalDumpSite, type DumpSite } from './deadEnd';
 export { createFoundingNest, carveTemplateNest, nestStatsImpl as nestStats, type NestStats } from './lifecycle';
 export { chamberStats, nestBounds, voxelAt, wallSpots, type WallSpot } from './queries';

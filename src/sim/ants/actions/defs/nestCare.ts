@@ -66,7 +66,7 @@ export const loadCropDef: ActionDef = {
     if (!col) return 'no-target';
     if (cropOf(ant) >= LOAD_CAP[loadKind(ant)] - EPS) return 'crop-full';
     const k = loadKind(ant);
-    const enough = k === 'depart' ? col.stores.c >= LOAD_POOL_MIN : col.stores.c >= LOAD_POOL_MIN || col.stores.p >= LOAD_POOL_MIN;
+    const enough = k === 'depart' ? col.stores.c >= LOAD_POOL_MIN : col.stores.c + col.stores.p >= LOAD_POOL_MIN;
     return enough ? null : 'no-reserve';
   },
   durationS: () => LOAD_S,

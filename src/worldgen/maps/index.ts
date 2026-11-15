@@ -1,6 +1,7 @@
 // Step 6 — derived maps (GDD 04 §4.2): top surface (columns), nav grid, shade samples, water (catchment, flood,
 // puddles), moisture / litter / shelter / exposure / access, and nesting suitability of the played species.
-// Re-run after steps 7-9 when any placer is registered there, and after repairs.
+// Re-run after steps 7-9 when any placer is registered there, and after repairs; a re-run whose geometric inputs
+// are unchanged (state.ts geometrySignature) keeps the geometric maps and recomputes only suitability.
 
 import type { GenContext } from '../kit/context';
 import { rasterColumns } from './columns';
@@ -11,17 +12,30 @@ import { buildWater } from './water';
 import { buildSurfaceMaps } from './surface';
 import { computeSuitability, applyRivalFactor } from './suitability';
 import { specialFactor } from './special';
-import { setMapState, type MapState } from './state';
+import { geometrySignature, hasMapState, mapState, setMapState, type MapState } from './state';
 
-/** `column`: the column routine of the top-surface raster (default analytic; tests pass the legacy search). */
-export function deriveMaps(ctx: GenContext, column?: ColumnFn): MapState {
-  const col = rasterColumns(ctx, column);
-  ctx.derived = col;
-  const nav = buildNav(ctx, col);
-  const shade = buildShade(ctx, col);
-  const water = buildWater(ctx, nav);
-  const surface = buildSurfaceMaps(ctx, nav, shade, water);
-  const st: MapState = { col, nav, shade, water, surface, q: {} };
+export interface DeriveOptions {
+  /** Column routine of the top-surface raster (default analytic; the equivalence tests pass the legacy search). */
+  column?: ColumnFn;
+  /** Rebuild the geometric maps even when their inputs did not change. */
+  full?: boolean;
+}
+
+export function deriveMaps(ctx: GenContext, opts: DeriveOptions = {}): MapState {
+  const geometry = geometrySignature(ctx);
+  const prev = hasMapState(ctx) ? mapState(ctx) : null;
+  let st: MapState;
+  if (prev && !opts.full && prev.geometry === geometry && prev.column === opts.column) {
+    st = { ...prev, q: {} };
+  } else {
+    const col = rasterColumns(ctx, opts.column);
+    ctx.derived = col;
+    const nav = buildNav(ctx, col);
+    const shade = buildShade(ctx, col);
+    const water = buildWater(ctx, nav);
+    const surface = buildSurfaceMaps(ctx, nav, shade, water);
+    st = { col, nav, shade, water, surface, q: {}, geometry, column: opts.column };
+  }
   setMapState(ctx, st);
   const sp = ctx.params.speciesId;
   const special = specialFactor(ctx, sp);

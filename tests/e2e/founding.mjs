@@ -329,12 +329,12 @@ export default async ({ page, shot, log }) => {
   s = await summary();
   result.afterHandover = { workers: s.colony?.workers, speedAllowed: s.speed?.allowed };
   let opened = false;
-  for (let i = 0; i < 40 && !opened; i++) {
+  for (let i = 0; i < 12 && !opened; i++) {
     await step(500);
     opened = (await nest()).entrances.some((e) => e.status === 'open');
   }
   result.reopened = opened;
-  if (!opened) log('the plug was not reopened within 20000 ticks (worker dig behaviour)');
+  if (!opened) log('the plug was not reopened within 6000 ticks (worker dig behaviour)');
   const e0 = (await nest()).entrances[0];
   await g(() => window.__game.release());
   await g(({ a, l }) => window.__game.camera.setPose(a, l), await clearPose(e0.pos, 8, 14));

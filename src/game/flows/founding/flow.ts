@@ -225,7 +225,7 @@ export class FoundingFlow implements FoundingActions {
   retry(): void {
     const sim = this.sim;
     const v = sim ? foundingView(sim) : null;
-    if (!sim || !this.checkpoint || !v || v.retriesLeft <= 0) return;
+    if (!sim || !this.checkpoint || !v || !v.canUndo) return;
     const { state } = restore(this.checkpoint.bytes);
     const op = state.player.opening!;
     const now = sim.state.player.opening!;

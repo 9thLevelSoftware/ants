@@ -88,6 +88,8 @@ describe('beh-nest haul to the midden and store (acceptance 5)', () => {
       sim.tick();
       if (tCrumb < 0 && !sim.stores.items.has(crumb.id)) tCrumb = t;
     }
+    // the give reports its trophallaxis event when it ends (the donor down to TROPH_DONOR_MIN): let it end
+    for (let t = 0; t < 200 && forager.action?.id === 'trophallaxis-give'; t++) sim.tick();
     const gotC = col.ledger.inDeliveryC - led0.c, gotP = col.ledger.inDeliveryP - led0.p;
     console.log('[beh-nest AC5 store]', JSON.stringify({ crumbStoredTicks: tCrumb, ledgerC: +gotC.toFixed(3), ledgerP: +gotP.toFixed(3), foragerCrop: +forager.cropC.toFixed(3), receivedBy }));
     expect(tCrumb).toBeGreaterThan(0);

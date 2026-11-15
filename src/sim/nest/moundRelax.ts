@@ -213,6 +213,7 @@ const EX = new Float64Array(NS);
  */
 export function relaxPile(sim: Sim, m: Mound): boolean {
   const moved = clearKeptCells(sim, m, moundMask(sim, m));
+  clearCursor(m); // a whole relaxation from sweep 0 (a part-way batch sweep, if any, restarts at its next run)
   return relaxSweeps(sim, m, 0, Infinity).moved || moved;
 }
 
@@ -228,33 +229,48 @@ export interface SweepRun {
   work: number;
 }
 
+/** Scratch masks of relaxSweeps (one pair, reused: a run fills them before reading). */
+let ACT = new Uint8Array(0), NXT = new Uint8Array(0);
+
 /**
  * Relaxation sweeps `first`, `first + 1`, ... of a batch (the sweep index picks the scan order), until the pile
- * settles, MOUND_MAX_SWEEPS is reached, or `budget` work units are spent (at least one sweep runs). The sweep box
- * is the pile's extent + MOUND_SWEEP_PAD at the start of the run, and the first sweep of a run evaluates every
- * box cell: a run can resume where the last one stopped from the persisted heights and sweep index alone (a cell
- * whose stencil did not change gives nothing, so evaluating it changes nothing), which is what lets the nest
- * system spread a batch's relaxation over ticks (moundRelaxStep) deterministically and save/load-safely.
+ * settles, MOUND_MAX_SWEEPS is reached, or `budget` work units are spent (at least one row runs). A sweep can stop
+ * part-way, between rows: its next row, box, largest transfer so far and edge flag are kept on the mound
+ * (relaxRow, relaxBox, relaxMaxT, relaxEdge), so a tick never pays more than the budget plus one row of the box.
+ * Within a run, a sweep evaluates only the cells next to a cell that changed in the previous sweep or so far in
+ * this one (a cell whose 3 x 3 stencil did not change since it last gave nothing gives nothing again); a run starts
+ * by evaluating every cell, which by the same argument gives the same heights, so the result depends on the
+ * persisted state alone (deterministic and save/load-safe however the work is cut into ticks). The sweep box is
+ * the pile's extent + MOUND_SWEEP_PAD at the start of a sweep that begins a run, growing while transfers reach
+ * its edge.
  */
 export function relaxSweeps(sim: Sim, m: Mound, first: number, budget: number): SweepRun {
   const out: SweepRun = { moved: false, done: true, sweeps: 0, work: 0 };
   const mask = moundMask(sim, m);
   const n = m.n, h = m.h, base = m.base, ok = mask.ok, clear = mask.clear, cap = mask.cap;
   let x0 = n, x1 = -1, z0 = n, z1 = -1;
-  for (let idx = 0; idx < n * n; idx++) {
-    if (h[idx] <= 0) continue;
-    const ix = idx % n, iz = (idx - ix) / n;
-    if (ix < x0) x0 = ix; if (ix > x1) x1 = ix; if (iz < z0) z0 = iz; if (iz > z1) z1 = iz;
+  let row = m.relaxRow ?? 0, maxT = m.relaxMaxT ?? 0, edge = (m.relaxEdge ?? 0) !== 0;
+  if (row > 0 && m.relaxBox && m.relaxBox.length === 4) {
+    [x0, x1, z0, z1] = m.relaxBox;
+  } else {
+    row = 0; maxT = 0; edge = false;
+    for (let idx = 0; idx < n * n; idx++) {
+      if (h[idx] <= 0) continue;
+      const ix = idx % n, iz = (idx - ix) / n;
+      if (ix < x0) x0 = ix; if (ix > x1) x1 = ix; if (iz < z0) z0 = iz; if (iz > z1) z1 = iz;
+    }
+    if (x1 < 0) { clearCursor(m); return out; }
+    x0 = Math.max(0, x0 - MOUND_SWEEP_PAD); z0 = Math.max(0, z0 - MOUND_SWEEP_PAD);
+    x1 = Math.min(n - 1, x1 + MOUND_SWEEP_PAD); z1 = Math.min(n - 1, z1 + MOUND_SWEEP_PAD);
   }
-  if (x1 < 0) return out;
-  x0 = Math.max(0, x0 - MOUND_SWEEP_PAD); z0 = Math.max(0, z0 - MOUND_SWEEP_PAD);
-  x1 = Math.min(n - 1, x1 + MOUND_SWEEP_PAD); z1 = Math.min(n - 1, z1 + MOUND_SWEEP_PAD);
   const tan = Math.tan((reposeDeg(m.material) * Math.PI) / 180) * m.cell;
   const eps = MOUND_TRANSFER_EPS_BU * sim.world.bu;
-  let lost = 0;
-  // cells to evaluate: all of the box in the first sweep, then only those near a cell that changed (a cell whose
-  // stencil saw no change cannot move: same result, a fraction of the cost once the pile is nearly settled)
-  let act = new Uint8Array(n * n).fill(1), nxt = new Uint8Array(n * n);
+  let lost = 0, rows = 0;
+  if (ACT.length !== n * n) { ACT = new Uint8Array(n * n); NXT = new Uint8Array(n * n); }
+  let act = ACT, nxt = NXT;
+  act.fill(1);
+  nxt.fill(1); // a resumed sweep: the rows already done may have marks this run cannot see
+  if (row === 0) nxt.fill(0);
   const touch = (c: number): void => {
     const cx = c % n, cz = (c - cx) / n;
     nxt[c] = 1;
@@ -265,15 +281,18 @@ export function relaxSweeps(sim: Sim, m: Mound, first: number, budget: number): 
   };
   out.done = false;
   for (let sweep = first; sweep < MOUND_MAX_SWEEPS; sweep++) {
-    if (out.sweeps > 0 && out.work >= budget) return finish(sim, m, out, lost);
-    let maxT = 0, edge = false;
-    out.sweeps++;
     // alternate the scan over eight orders (x or z fastest, each forward or back): material moved into a cell
     // scanned later in the same sweep travels on, so a fixed order would stretch piles along it
     const fx = (sweep & 1) === 0, fz = (sweep & 2) === 0, zFast = (sweep & 4) !== 0;
     const na = zFast ? x1 - x0 : z1 - z0, nb = zFast ? z1 - z0 : x1 - x0;
-    out.work += (na + 1) * (nb + 1);
-    for (let a = 0; a <= na; a++) {
+    for (let a = row; a <= na; a++) {
+      if (rows > 0 && out.work >= budget) {
+        // relaxRow 0: stopped at a sweep boundary (the box is then only kept for sweepCostBound)
+        m.relaxRow = a; m.relaxBox = [x0, x1, z0, z1]; m.relaxMaxT = maxT; m.relaxEdge = edge ? 1 : 0;
+        return finish(sim, m, out, lost);
+      }
+      rows++;
+      out.work += nb + 1;
       for (let b = 0; b <= nb; b++) {
         const u = zFast ? a : b, w = zFast ? b : a;
         const ix = fx ? x0 + u : x1 - u, iz = fz ? z0 + w : z1 - w;
@@ -321,15 +340,47 @@ export function relaxSweeps(sim: Sim, m: Mound, first: number, budget: number): 
         h[i] -= gave;
         if (gave > 0) touch(i);
         if (gave > maxT) maxT = gave;
+        if (gave > eps) out.moved = true;
       }
     }
+    out.sweeps++;
+    row = 0;
     const t = act; act = nxt; nxt = t; nxt.fill(0);
-    if (maxT > eps) out.moved = true;
     if (edge) { x0 = Math.max(0, x0 - 1); z0 = Math.max(0, z0 - 1); x1 = Math.min(n - 1, x1 + 1); z1 = Math.min(n - 1, z1 + 1); }
-    if (maxT <= eps) { out.done = true; return finish(sim, m, out, lost); }
+    const settled = maxT <= eps;
+    maxT = 0; edge = false;
+    if (settled) break;
   }
   out.done = true;
+  clearCursor(m);
   return finish(sim, m, out, lost);
+}
+
+/**
+ * Upper bound of the work of one sweep of the pile's relaxation: every cell of its sweep box evaluated (the box
+ * of the sweep in progress, else the pile's extent + MOUND_SWEEP_PAD).
+ */
+export function sweepCostBound(m: Mound): number {
+  let x0: number, x1: number, z0: number, z1: number;
+  if (m.relaxBox && m.relaxBox.length === 4) [x0, x1, z0, z1] = m.relaxBox;
+  else {
+    const n = m.n;
+    x0 = n; x1 = -1; z0 = n; z1 = -1;
+    for (let idx = 0; idx < n * n; idx++) {
+      if (m.h[idx] <= 0) continue;
+      const ix = idx % n, iz = (idx - ix) / n;
+      if (ix < x0) x0 = ix; if (ix > x1) x1 = ix; if (iz < z0) z0 = iz; if (iz > z1) z1 = iz;
+    }
+    if (x1 < 0) return 0;
+    x0 = Math.max(0, x0 - MOUND_SWEEP_PAD); z0 = Math.max(0, z0 - MOUND_SWEEP_PAD);
+    x1 = Math.min(n - 1, x1 + MOUND_SWEEP_PAD); z1 = Math.min(n - 1, z1 + MOUND_SWEEP_PAD);
+  }
+  return (x1 - x0 + 1) * (z1 - z0 + 1) * (NS + 1);
+}
+
+/** The relaxation is at a sweep boundary (or over): no part-way sweep to resume. */
+export function clearCursor(m: Mound): void {
+  delete m.relaxRow; delete m.relaxBox; delete m.relaxMaxT; delete m.relaxEdge;
 }
 
 function finish(sim: Sim, m: Mound, out: SweepRun, lost: number): SweepRun {

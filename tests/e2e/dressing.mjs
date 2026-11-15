@@ -7,7 +7,7 @@
 // Look shots at `medium` (post chain: DoF, bloom, grade effect) and the frost shot at `low` (no-post path: the direct
 // grading pass). Each shot is saved twice: with the UI and as a clean plate (`-plate`, every UI element hidden,
 // context prompts included) so the scene itself can be judged. Software GL: a medium frame takes several seconds here.
-// DRESSING_SKIP_LEAK=1 skips the leak cycle (the slowest part: three games at medium).
+// DRESSING_SKIP_LEAK=1 skips the leak cycle (the slowest part: four games at medium).
 const DAY = 6000; // ticks per game day
 const at = (day, hour) => day * DAY + Math.round((hour / 24) * DAY); // calendar tick (day 0 = spring day 1)
 

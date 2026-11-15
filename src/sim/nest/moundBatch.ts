@@ -1,18 +1,20 @@
 // Mound batches (GDD 03 §1.4): surface pellets settle into the nest's mounds and heaps every MOUND_BATCH_TICKS per
 // pile (staggered by id); each due pile then relaxes to its angle of repose, spread over this and the following
-// ticks within MOUND_RELAX_WORK_PER_TICK (sim-fix-colony), and is published once it has settled.
+// ticks within MOUND_RELAX_WORK_PER_TICK (sim-fix-colony; a sweep may stop between rows), and is published once it
+// has settled (or, if the next batch comes first, as it stands then).
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Entrance, Item, Mound, Nest, Sim } from '@/sim/types';
 import {
-  BULKING, HEAP_CAP, HEAP_MERGE_DIST_BU, MOUND_BATCH_TICKS, MOUND_CELL_BU, MOUND_GRID_N, MOUND_RELAX_WORK_PER_TICK,
+  BULKING, HEAP_CAP, HEAP_MERGE_DIST_BU, MOUND_BATCH_TICKS, MOUND_CELL_BU, MOUND_GRID_N, MOUND_MAX_SWEEPS,
+  MOUND_RELAX_FINISH_SHARE, MOUND_RELAX_WORK_PER_TICK,
   PELLET_SETTLE_S,
 } from '@/sim/balance/nest';
 import { removeItem } from '@/sim/entities';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { refreshWalkers } from './carveOps';
 import { createMound, deposit, moundById, moundContains, publishMound } from './mounds';
-import { clearKeptCells, moundMask, relaxSweeps } from './moundRelax';
+import { clearCursor, clearKeptCells, moundMask, relaxSweeps, sweepCostBound } from './moundRelax';
 import { isPellet, pelletNest } from './pellets';
 
 function sameClass(m: Mound, it: Item): boolean {
@@ -59,8 +61,12 @@ function settleBatches(sim: Sim): void {
   }
   for (const m of mounds) {
     if (!due(m) && !touched.has(m)) continue;
+    // a relaxation the next batch overtakes (many big piles at once) is published as it stands, so every pile
+    // reaches the field and the nav grid at least once per batch period; the new run carries on from there
+    if ((m.relaxSweep ?? -1) >= 0 && (m.relaxFlags ?? 0) !== 0) { publishMound(sim, m); m.relaxFlags = 0; }
     const cleared = clearKeptCells(sim, m, moundMask(sim, m));
     m.relaxSweep = 0;
+    clearCursor(m);
     m.relaxFlags = (m.relaxFlags ?? 0) | (touched.has(m) || cleared ? RELAX_CHANGED : 0);
     m.lastBatchTick = tick;
   }
@@ -70,17 +76,22 @@ function settleBatches(sim: Sim): void {
 const RELAX_CHANGED = 1, RELAX_MOVED = 2;
 
 /**
- * Runs the relaxations in progress (Mound.relaxSweep >= 0) within MOUND_RELAX_WORK_PER_TICK work units this tick,
- * in mound order (the first one always gets at least one sweep). Walkers on a pile that moved are re-projected;
+ * Runs the relaxations in progress (Mound.relaxSweep >= 0) this tick. They share MOUND_RELAX_WORK_PER_TICK work
+ * units, and each also gets at least the rate that finishes a whole relaxation (MOUND_MAX_SWEEPS sweeps of its
+ * box) within MOUND_RELAX_FINISH_SHARE of a batch period, so several big piles relaxing at once all settle and
+ * are published before their next batch. Per tick: at most the shared budget plus each running pile's rate plus
+ * one row per pile. The pile that goes first rotates with the tick. Walkers on a pile that moved are re-projected;
  * a pile whose relaxation ended is published (field overlay, nav-grid cells, `mound-changed`) if it changed.
  */
 export function moundRelaxStep(sim: Sim): void {
-  let spent = 0, ran = false;
-  for (const m of sim.state.worldDelta.mounds) {
-    if ((m.relaxSweep ?? -1) < 0) continue;
-    if (ran && spent >= MOUND_RELAX_WORK_PER_TICK) break;
-    const run = relaxSweeps(sim, m, m.relaxSweep!, MOUND_RELAX_WORK_PER_TICK - spent);
-    ran = true;
+  const running = sim.state.worldDelta.mounds.filter((m) => (m.relaxSweep ?? -1) >= 0);
+  if (running.length === 0) return;
+  const start = sim.state.tick % running.length;
+  let spent = 0;
+  for (let q = 0; q < running.length; q++) {
+    const m = running[(start + q) % running.length];
+    const rate = Math.ceil((MOUND_MAX_SWEEPS * sweepCostBound(m)) / (MOUND_BATCH_TICKS * MOUND_RELAX_FINISH_SHARE));
+    const run = relaxSweeps(sim, m, m.relaxSweep!, Math.max(rate, MOUND_RELAX_WORK_PER_TICK - spent));
     spent += run.work;
     if (run.moved) m.relaxFlags = (m.relaxFlags ?? 0) | RELAX_MOVED;
     if (!run.done) {

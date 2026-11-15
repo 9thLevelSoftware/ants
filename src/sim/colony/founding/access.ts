@@ -29,6 +29,10 @@ export const FB = {
   /** Raw readings of the last site read-out: deep soil moisture 0..1 and cell temperature, C. */
   siteTheta: 'fd.siteTheta',
   siteTempC: 'fd.siteTempC',
+  /** The passive player's automatic batch was laid (the lapse begins once it is done, GDD 06 §5.1). */
+  autoLaid: 'fd.autoLaid',
+  /** Eggs of earlier clutches (the extra clutch after total brood loss counts its own eggs from 0). */
+  earlierEggs: 'fd.earlierEggs',
 } as const;
 
 export function openingOf(sim: Sim): OpeningState | null {

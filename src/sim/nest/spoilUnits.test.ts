@@ -2,18 +2,21 @@
 // internal-dump query (GDD 03 §7.7) and the `entrance-closed` report with its cause.
 import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
-import { HAUL_URGENCY_GAIN, PELLET_TAMP_S } from '@/sim/balance/nest';
+import { HAUL_URGENCY_GAIN, MAX_LOOSE_PELLETS_PER_NEST, PELLET_TAMP_S, TAMP_RETRY_S } from '@/sim/balance/nest';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { OPEN_MIN } from './carve/keys';
-import { internalDumpSite } from './deadEnd';
-import { designateChamber, haulPelletLoad, haulStimulus, pelletHaulUrgency } from './index';
+import { nestSampleBox } from './chambers/detect';
+import { dumpSiteSearches, internalDumpSite } from './deadEnd';
+import { createSim } from '@/sim/sim';
+import { restore, snapshot } from '@/sim/save';
+import { designateChamber, haulPelletLoad, haulStimulus, pelletHaulUrgency, sealEntrance } from './index';
 import { checkEntrances, flushClosedEntrances } from './entrances';
 import { createMound, publishMound } from './mounds';
 import { moundOrigin } from './moundRelax';
 import { collect, nestSim, playerNest, runTicks } from './nestTestKit';
 import { fillKeepsPassages } from './passage';
 import { loosePellets, placePellet, spawnPellet } from './pellets';
-import { tampHeadroomSamples } from './tamp';
+import { tampPassageSamples } from './tamp';
 
 const BU = 4;
 
@@ -56,7 +59,7 @@ describe('haul urgency of spoil in the nest', () => {
 describe('passage rule of tamping', () => {
   it('a heap of spoil in a 2 BU tunnel narrows it to a squeeze but leaves 1.5 BU of headroom and the passage', () => {
     const { sim, nest, c, y } = tunnel();
-    const need = tampHeadroomSamples(sim, nest);
+    const need = tampPassageSamples(sim, nest);
     expect(need).toBe(3); // 1.5 BU of the standard worker in 0.5 BU samples
     const at = floorUnder(sim, c, y, c);
     for (let n = 0; n < 12; n++) placePellet(sim, spawnPellet(sim, at, 0.85, 'loam', nest.id, nest.colony, -1), at);
@@ -93,6 +96,59 @@ describe('passage rule of tamping', () => {
   });
 });
 
+describe('retried tamps and the loose-pellet cap', () => {
+  it('a pellet the passage rule refuses keeps its age and full haul urgency and is retried every TAMP_RETRY_S', () => {
+    const { sim, nest, c, y } = tunnel();
+    const at = floorUnder(sim, c, y, c);
+    const placed = sim.state.tick;
+    for (let n = 0; n < 12; n++) placePellet(sim, spawnPellet(sim, at, 0.85, 'loam', nest.id, nest.colony, -1), at);
+    runTicks(sim, PELLET_TAMP_S * TICKS_PER_SECOND + 10);
+    const left = loosePellets(sim, nest.id);
+    expect(left.length).toBeGreaterThan(0);
+    for (const it of left) {
+      expect(it.droppedTick).toBe(placed); // not reset by the refused tamp
+      expect(pelletHaulUrgency(sim, it)).toBeCloseTo(1 + HAUL_URGENCY_GAIN, 9);
+    }
+    // the next try comes exactly TAMP_RETRY_S after tamping age: nothing between, a tamp attempt at that tick
+    const vol = () => loosePellets(sim, nest.id).reduce((s, it) => s + it.volume, 0);
+    const v0 = vol(), due = placed + (PELLET_TAMP_S + TAMP_RETRY_S) * TICKS_PER_SECOND - 1;
+    runTicks(sim, due - sim.state.tick);
+    expect(vol()).toBe(v0);
+    // carve room beside the heap so the retry finds floor: it is used at that tick
+    sim.kernel.carveSphere({ x: c, y: y - 0.5 * BU, z: c + 1.6 * BU }, 1.6 * BU, { force: true });
+    runTicks(sim, 1);
+    expect(vol()).toBeLessThan(v0);
+  }, 60_000);
+
+  it('over the cap the oldest clutter pellet tamps; one the passage rule refuses is skipped for the next oldest', () => {
+    const sim = nestSim({});
+    const c = sim.world.size / 2, y = -20 * BU;
+    // a wide room (lots of floor) and, apart from it, a crawlway exactly 3 samples (1.5 BU) across: each of its
+    // floor samples borders the axis, so any fill would cut the walkable passage
+    sim.kernel.carveSphere({ x: c, y, z: c }, 6 * BU, { force: true });
+    sim.kernel.carveCapsule({ x: c + 20 * BU, y, z: c - 8 * BU }, { x: c + 20 * BU, y, z: c + 8 * BU }, 0.68 * BU, { force: true });
+    const nest = playerNest(sim, { x: c, y, z: c });
+    const room = floorUnder(sim, c, y, c), crawl = floorUnder(sim, c + 20 * BU, y, c);
+    // the oldest pellet lies in the crawlway, the rest in the room (each a tick apart, so the age order is clear)
+    placePellet(sim, spawnPellet(sim, crawl, 0.85, 'loam', nest.id, nest.colony, -1), crawl);
+    const stuck = loosePellets(sim, nest.id)[0];
+    for (let n = 1; n < MAX_LOOSE_PELLETS_PER_NEST; n++) {
+      sim.state.tick++;
+      placePellet(sim, spawnPellet(sim, room, 0.85, 'loam', nest.id, nest.colony, -1), room);
+    }
+    expect(loosePellets(sim, nest.id).length).toBe(MAX_LOOSE_PELLETS_PER_NEST);
+    const secondOldest = loosePellets(sim, nest.id)[1];
+    const ev = collect<{ type: string; itemId: number; into: string }>(sim, ['pellet-dumped'], () => {
+      sim.state.tick++;
+      placePellet(sim, spawnPellet(sim, room, 0.85, 'loam', nest.id, nest.colony, -1), room);
+    });
+    expect(loosePellets(sim, nest.id).length).toBe(MAX_LOOSE_PELLETS_PER_NEST);
+    expect(sim.stores.items.has(stuck.id)).toBe(true); // refused: the crawlway stays 1.5 BU
+    expect(stuck.volume).toBeCloseTo(0.85, 9);
+    expect(ev.map((e) => [e.itemId, e.into])).toEqual([[secondOldest.id, 'tamp']]);
+  }, 60_000);
+});
+
 describe('internal dump (GDD 03 §7.7)', () => {
   it('in the small test nest: the blind branch tip, >= 6 BU from every chamber; a midden chamber wins', () => {
     const sim = nestSim({ nest: 'small' });
@@ -109,7 +165,34 @@ describe('internal dump (GDD 03 §7.7)', () => {
     expect(designateChamber(sim, food.id, 'midden', 'player')).toBe(true);
     const midden = internalDumpSite(sim, nest.id);
     expect(midden!.kind).toBe('midden');
-    expect(midden!.pos).toEqual(food.center);
+    // the floor under the chamber's centre (a point to put things down on, like a tip)
+    const v = sim.carve.voxel, mi = Math.round(midden!.pos.x / v), mj = Math.round(midden!.pos.y / v), mk = Math.round(midden!.pos.z / v);
+    expect(Math.hypot(midden!.pos.x - food.center.x, midden!.pos.z - food.center.z)).toBeLessThanOrEqual(v);
+    expect(midden!.pos.y).toBeLessThan(food.center.y);
+    expect(sim.carve.sampleAt(mi, mj, mk)).toBeGreaterThanOrEqual(OPEN_MIN);
+    expect(sim.carve.sampleAt(mi, mj - 1, mk)).toBeLessThan(OPEN_MIN);
+  });
+
+  it('the cache is kept through digging elsewhere and redone after digging in the nest (same answer as a fresh search)', () => {
+    const sim = nestSim({ nest: 'small' });
+    const nest = playerNest(sim);
+    const site = internalDumpSite(sim, nest.id)!;
+    const n0 = dumpSiteSearches(sim);
+    // far outside the nest's box: no new search
+    const box = nestSampleBox(sim, nest), v = sim.carve.voxel, ver = sim.carve.version;
+    sim.kernel.carveSphere({ x: (box.i1 + 20) * v, y: -10 * BU, z: (box.k0 + box.k1) * v / 2 }, 1 * BU, { force: true });
+    expect(sim.carve.version).toBeGreaterThan(ver); // it did carve
+    expect(internalDumpSite(sim, nest.id)).toEqual(site);
+    expect(dumpSiteSearches(sim)).toBe(n0);
+    // the blind branch dug 3 BU longer: a new search, and the tip moves with it
+    const tip = site.pos;
+    sim.kernel.carveCapsule({ x: tip.x, y: tip.y + BU, z: tip.z }, { x: tip.x + 3 * BU, y: tip.y + BU, z: tip.z }, BU, { force: true });
+    const moved = internalDumpSite(sim, nest.id)!;
+    expect(dumpSiteSearches(sim)).toBe(n0 + 1);
+    expect(moved.pos.x).toBeGreaterThan(tip.x + 2 * BU);
+    // a loaded copy (no cache) finds the same site
+    const loaded = createSim(restore(snapshot(sim)).state, sim.world, {});
+    expect(internalDumpSite(loaded, nest.id)).toEqual(moved);
   });
 
   it('null for a nest without chambers', () => {
@@ -144,8 +227,16 @@ describe('entrance-closed (sim-fix-colony 4)', () => {
     expect(e2.status).toBe('sealed');
     expect(ev2.map((e) => e.cause)).toEqual(['mound-buried']);
 
+    // a real plug: seal-entrance until the entrance is sealed
     const plug = nestSim({ nest: 'small' });
-    const ev3 = collect(plug, ['entrance-closed'], () => runTicks(plug, 30));
+    const e3 = playerNest(plug).entrances[0];
+    const ev3 = collect(plug, ['entrance-closed'], () => {
+      for (let n = 0; n < 8 && e3.status !== 'sealed'; n++) sealEntrance(plug, e3.id, -1);
+      flushClosedEntrances(plug);
+      runTicks(plug, 30);
+    });
+    expect(e3.status).toBe('sealed');
+    expect(e3.plugVoxelCount).toBeGreaterThan(0);
     expect(ev3).toEqual([]);
   });
 });

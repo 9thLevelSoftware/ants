@@ -5,11 +5,13 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Nest, Sim } from '@/sim/types';
+import { MOUND_BATCH_TICKS, PELLET_SETTLE_S } from '@/sim/balance/nest';
 import { begin } from '@/sim/ants';
 import { removeNest } from '@/sim/entities';
 import { navTo } from '@/sim/locomotion';
 import { makeTestSim } from '@/sim/testing';
 import { passiveBehaviours } from '@/sim/testing/e2e/colonyScenario';
+import { TICKS_PER_SECOND } from '@/sim/time';
 
 export interface FreeDigOptions {
   /** Horizontal heading of the shaft (unit x / z). */
@@ -108,3 +110,17 @@ export function freeDig(seed: number, opts: { awayBu?: number; noNest?: boolean 
 }
 
 export const colonyNests = (sim: Sim, colony: number): Nest[] => sim.state.nests.filter((n) => n.alive && n.colony === colony);
+
+/**
+ * Ticks until no lying surface pellet is left (each settles into a pile at its first mound batch after
+ * PELLET_SETTLE_S), so a mound volume measured afterwards no longer includes the free dig's own spoil. A dig
+ * without the founding expulsion leaves its last pellets on the surface. Returns the ticks run.
+ */
+export function settleSurfacePellets(sim: Sim): number {
+  const lying = (): boolean => sim.state.items.some((it) => it.alive && (it.kind === 'soil-pellet' || it.kind === 'frass')
+    && !it.inNest && it.carrierIds.length === 0);
+  const max = PELLET_SETTLE_S * TICKS_PER_SECOND + 2 * MOUND_BATCH_TICKS;
+  let t = 0;
+  for (; t < max && lying(); t++) sim.tick();
+  return t;
+}

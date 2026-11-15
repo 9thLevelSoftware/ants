@@ -8,7 +8,11 @@
 // floor, whose branch is one-sided: the samples INTERNAL_DUMP_BRANCH_BU closer to the chambers around it lie on
 // one side of it (their centroid is well behind it). That rejects the ridge where two paths of a loop meet and
 // shallow dimples in a through tunnel. Tips inside a live plan's volume (a digging front) or near an entrance
-// throat are skipped. Cached per carve version and chamber set (derived, never persisted).
+// throat are skipped. The search stays inside the nest's sample box, and depth is measured below the base terrain
+// (mounds do not reorder tips), so the answer depends only on the nest's own carve state, chambers, entrances,
+// live plans and mound volumes: it is cached on exactly those (the nest's carve stamp in runtime.ts, bumped only by
+// carves touching its box; derived, never persisted). A bite in the same nest still means a recompute (about
+// 5-10 ms for a 400-worker nest on the reference machine): haulers should ask once per trip, not per tick.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Nest, Sim } from '@/sim/types';
@@ -16,19 +20,22 @@ import {
   INTERNAL_DUMP_BRANCH_BU, INTERNAL_DUMP_ENTRANCE_BU, INTERNAL_DUMP_MIN_CHAMBER_BU, INTERNAL_DUMP_PLAN_CLEAR_BU,
   INTERNAL_DUMP_SEARCH_MAX,
 } from '@/sim/balance/nest';
+import { heightAt } from '@/sim/world/terrainSample';
 import { OPEN_MIN } from './carve/keys';
+import { nestSampleBox } from './chambers/detect';
 import { chamberSamples } from './chambers/registry';
 import { planG } from './plans/geometry';
 import { planCache } from './plans/targets';
 import { planIsLive } from './navFields';
+import { nestRuntime } from './runtime';
 import { packSample, sampleI, sampleJ, sampleK } from './voxelKey';
 
 export interface DumpSite {
-  /** Floor point to put the item down on, mm. */
+  /** Floor point to put the item down on, mm (an open sample with a non-open sample below). */
   pos: Vec3;
-  /** 'tip': a dead-end tunnel tip; 'midden': the centre of a midden chamber. */
+  /** 'tip': a dead-end tunnel tip; 'midden': the floor under a midden chamber's centre. */
   kind: 'tip' | 'midden';
-  /** Depth below the terrain surface, BU. */
+  /** Depth below the base terrain surface (without mounds), BU. */
   depthBu: number;
   /** Path distance from the nearest (non-midden) chamber, BU (0 for a midden chamber). */
   fromChamberBu: number;
@@ -37,21 +44,43 @@ export interface DumpSite {
 const DIRS = [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1];
 
 const CACHE = new WeakMap<Sim, Map<number, { stamp: string; site: DumpSite | null }>>();
+const SEARCHES = new WeakMap<Sim, number>();
+
+/** Tip searches run so far for this Sim (diagnostics and tests: how often the cache missed). */
+export function dumpSiteSearches(sim: Sim): number {
+  return SEARCHES.get(sim) ?? 0;
+}
 
 function stampOf(sim: Sim, nest: Nest): string {
-  return `${sim.carve.version}|${nest.chambers.map((c) => `${c.id}:${c.type}:${c.voxelCount}`).join(',')}|${nest.entrances.length}|${nest.digPlans.filter((p) => planIsLive(p.status)).map((p) => p.id).join(',')}`;
+  const o = nest.origin;
+  const chambers = nest.chambers.map((c) => `${c.id}:${c.type}:${c.voxelCount}:${c.center.x},${c.center.y},${c.center.z}:${c.radii.x},${c.radii.y},${c.radii.z}`);
+  const entrances = nest.entrances.map((e) => `${e.pos.x},${e.pos.y},${e.pos.z}`);
+  const plans = nest.digPlans.filter((p) => planIsLive(p.status)).map((p) => p.id);
+  const mounds = nest.moundIds.map((id) => sim.state.worldDelta.mounds.find((m) => m.id === id)?.volume ?? -1);
+  return `${nestRuntime(sim).carveStamp.get(nest.id) ?? 0}|${o.x},${o.y},${o.z}|${chambers.join(';')}|${entrances.join(';')}|${plans.join(',')}|${mounds.join(',')}`;
+}
+
+/** The floor under p: the lowest open sample of p's column reached from p through open samples (p itself if not open). */
+function floorUnder(sim: Sim, p: Vec3): Vec3 {
+  const v = sim.carve.voxel, i = Math.round(p.x / v), k = Math.round(p.z / v);
+  let j = Math.round(p.y / v);
+  if (sim.carve.sampleAt(i, j, k) < OPEN_MIN) return { ...p };
+  while (sim.carve.sampleAt(i, j - 1, k) >= OPEN_MIN) j--;
+  return { x: i * v, y: j * v, z: k * v };
 }
 
 /**
- * The internal dump site of a nest (GDD 03 §7.7): a `midden` chamber's centre if the nest has one, else the
- * deepest dead-end tunnel tip at least INTERNAL_DUMP_MIN_CHAMBER_BU from every chamber; null when there is none.
+ * The internal dump site of a nest (GDD 03 §7.7): the floor under a `midden` chamber's centre if the nest has one,
+ * else the deepest dead-end tunnel tip at least INTERNAL_DUMP_MIN_CHAMBER_BU from every chamber; null when there is
+ * none.
  */
 export function internalDumpSite(sim: Sim, nestId: number): DumpSite | null {
   const nest = sim.stores.nests.get(nestId);
   if (!nest || !nest.alive) return null;
   const midden = nest.chambers.find((c) => c.type === 'midden');
   if (midden) {
-    return { pos: { ...midden.center }, kind: 'midden', depthBu: midden.depthBu, fromChamberBu: 0 };
+    const pos = floorUnder(sim, midden.center);
+    return { pos, kind: 'midden', depthBu: (heightAt(sim.world.terrain, pos.x, pos.z) - pos.y) / sim.world.bu, fromChamberBu: 0 };
   }
   let byNest = CACHE.get(sim);
   if (!byNest) { byNest = new Map(); CACHE.set(sim, byNest); }
@@ -59,12 +88,14 @@ export function internalDumpSite(sim: Sim, nestId: number): DumpSite | null {
   const hit = byNest.get(nestId);
   if (hit && hit.stamp === stamp) return hit.site ? { ...hit.site, pos: { ...hit.site.pos } } : null;
   const site = findDeepestTip(sim, nest);
+  SEARCHES.set(sim, dumpSiteSearches(sim) + 1);
   byNest.set(nestId, { stamp, site });
   return site ? { ...site, pos: { ...site.pos } } : null;
 }
 
-/** Path distances (in samples) from every chamber sample over the nest's open samples (6-connected). */
+/** Path distances (in samples) from every chamber sample over the nest's open samples in its box (6-connected). */
 function chamberDistances(sim: Sim, nest: Nest): Map<number, number> {
+  const b = nestSampleBox(sim, nest);
   const dist = new Map<number, number>();
   const queue: number[] = [];
   for (const c of nest.chambers) {
@@ -80,6 +111,7 @@ function chamberDistances(sim: Sim, nest: Nest): Map<number, number> {
     const i = sampleI(key), j = sampleJ(key), k = sampleK(key);
     for (let n = 0; n < 18; n += 3) {
       const ni = i + DIRS[n], nj = j + DIRS[n + 1], nk = k + DIRS[n + 2];
+      if (ni < b.i0 || ni > b.i1 || nj < b.j0 || nj > b.j1 || nk < b.k0 || nk > b.k1) continue;
       const nkey = packSample(ni, nj, nk);
       if (dist.has(nkey) || carve.sampleAt(ni, nj, nk) < OPEN_MIN) continue;
       dist.set(nkey, d + 1);
@@ -116,7 +148,7 @@ function findDeepestTip(sim: Sim, nest: Nest): DumpSite | null {
     if (nest.entrances.some((e) => Math.hypot(e.pos.x - x, e.pos.y - y, e.pos.z - z) < entranceR)) continue;
     if (plans.some((g) => planG(g!, x, y, z) > -planClear)) continue;
     if (!oneSided(dist, key, d, branch, v)) continue;
-    const depthBu = (sim.field.height(x, z) - y) / bu;
+    const depthBu = (heightAt(sim.world.terrain, x, z) - y) / bu;
     const fromChamberBu = (d * v) / bu;
     const fk = packSample(i, fj, k);
     if (!best || depthBu > best.depthBu + 1e-9 || (Math.abs(depthBu - best.depthBu) <= 1e-9

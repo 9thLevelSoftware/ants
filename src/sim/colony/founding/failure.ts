@@ -8,7 +8,8 @@ import { OPEN_LAY_BATCH_EGGS } from '@/sim/balance/actions';
 import { BROOD_LOST_FAIL_GD, BROOD_LOST_RELAY_MIN } from '@/sim/balance/founding';
 import { killAnt } from '@/sim/entities';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { FB, bbGet, bbSet, setPhase, speciesOf } from './access';
+import { FB, bbGet, bbSet, setPhase } from './access';
+import { clutchCap } from './clutch';
 
 const BY_DEATH: Partial<Record<DeathCause, FoundingFailCause>> = {
   desiccation: 'desiccation', heat: 'heat', cold: 'cold', drowning: 'drowning', crushed: 'crushed', predation: 'predation',
@@ -56,16 +57,18 @@ export function failCauseOf(op: OpeningState): FoundingFailCause | null {
  * one extra clutch of up to half the cap (back to `lay`); otherwise the founding fails (`no-workers`) after 1 GD.
  * Returns true when the opening failed.
  */
-export function broodLost(sim: Sim, op: OpeningState, q: Ant, _nest: Nest): boolean {
+export function broodLost(sim: Sim, op: OpeningState, q: Ant, nest: Nest): boolean {
   const f = q.queen?.founding;
   if (!f) return false;
   if (bbGet(q, FB.relayClutch, -1) < 0 && f.reserveLoads >= BROOD_LOST_RELAY_MIN * f.R0) {
-    const cap = speciesOf(sim).opening.clutchCap;
-    const half = Math.max(OPEN_LAY_BATCH_EGGS, Math.floor(cap / 2));
-    // the colony's laying rule counts the clutch against the species cap: leave room for the extra clutch
-    f.eggsLaid = Math.max(0, cap - half);
-    bbSet(q, FB.relayClutch, cap);
-    op.layBatches = Math.ceil(f.eggsLaid / OPEN_LAY_BATCH_EGGS);
+    // the extra clutch is a clutch of its own: up to half the clutch cap (species and chamber volume), counted
+    // from 0 (the colony's laying rule checks eggsLaid against the species cap); earlier eggs stay on record
+    const half = Math.max(OPEN_LAY_BATCH_EGGS, Math.floor(clutchCap(sim, nest) / 2));
+    bbSet(q, FB.earlierEggs, bbGet(q, FB.earlierEggs, 0) + f.eggsLaid);
+    f.eggsLaid = 0;
+    bbSet(q, FB.relayClutch, half);
+    bbSet(q, FB.autoLaid, 0);
+    op.layBatches = 0;
     op.lapse = null;
     sim.state.player.timelapse = null;
     setPhase(sim, op, 'lay');

@@ -68,6 +68,15 @@ export const SITE_ROOF_MAX_BU = 3;
 export const SITE_COVER = { roof: 1.0, litter: 0.5, grass: 0.15, bare: 0.1 } as const;
 /** Litter map value from which the ground counts as densely littered. */
 export const SITE_LITTER_MIN = 0.5;
+/**
+ * Cover probes, BU: the upward trace starts this far above the ground; a primitive within BESIDE_R of a point this
+ * high above the ground (and rising above HIGHER_THAN) counts as "beside a stone".
+ */
+export const SITE_COVER_PROBE = { startBu: 0.25, besideR: 1.0, higherThanBu: 0.5 } as const;
+/** Read-out words of the raw soil moisture (theta at the sample depth): Dry below the first, ... Waterlogged from the last. */
+export const SITE_MOISTURE_WORD_THETA = [0.15, 0.3, 0.65, 0.9] as const;
+/** Warmth words by the cell temperature: Cold below Topt_lo - COLD, Cool below Topt_lo, Mild in the band, Warm up to Topt_hi + HOT. */
+export const SITE_WARMTH_WORD_C = { cold: 6, hot: 4 } as const;
 /** Sand diggability: 0.8 x clamp(0.4 + theta / 0.5, 0.4, 1) (dry sand collapses). */
 export const SITE_SAND = { mult: 0.8, base: 0.4, per: 0.5, min: 0.4 } as const;
 /** Rival scent: 1 - clamp(home scent / RIVAL_FULL_PH). */
@@ -108,8 +117,17 @@ export const FOUND_READINESS_EVERY_TICKS = 10;
 export const FOUND_ABANDON_BU = 6;
 /** At most this many abandoned burrows per queen (GDD 03 §13.4). */
 export const FOUND_ABANDON_MAX = 3;
+/** Entrance ids remembered of abandoned sites (several openings per burrow), a bounded record. */
+export const FOUND_ABANDON_RECORD_MAX = 12;
 /** The queen counts as inside the cell when this deep below the ground (with readiness met), BU below D_MIN. */
 export const FOUND_IN_CELL_MARGIN_BU = 2;
+/**
+ * Soil for the plug (GDD 06 §5.9): the queen in the throat scrapes the wall beside her at these slopes (deg, the
+ * dig bite's ramp slope; first that removes soil wins).
+ */
+export const FOUND_SEAL_SCRAPE_SLOPES_DEG = [0, 30, -30] as const;
+/** ... while at least this deep below the ground, BU (inside the cavity, not on the surface). */
+export const FOUND_SEAL_SCRAPE_MIN_DEPTH_BU = 1;
 /** An entrance belongs to the founding cavity when a point this far down its throat (BU) is connected to the cell. */
 export const FOUND_THROAT_PROBE_BU = [1, 2, 3, 4] as const;
 
@@ -173,6 +191,11 @@ export const TIMELAPSE_MAX_S = 120;
 export const TIMELAPSE_SPAN_GUESS_GD = 4.9;
 /** Beat boundaries by playback fraction (eggs, larvae, pupae, cocoons, eclosion, final card). */
 export const TIMELAPSE_BEATS = [0.12, 0.35, 0.55, 0.8, 0.95] as const;
+/** The lapse re-estimates its end every this many ticks, from the most advanced brood once it is this far along. */
+export const TIMELAPSE_REESTIMATE_TICKS = 100;
+export const TIMELAPSE_REESTIMATE_MIN_FRAC = 0.05;
+/** Overlay counters and the stage strip refresh every this many ticks. */
+export const TIMELAPSE_COUNTER_TICKS = 10;
 /** Skipped: the final card stays this long, real s. */
 export const TIMELAPSE_SKIP_CARD_S = 2;
 
@@ -181,7 +204,21 @@ export const TIMELAPSE_SKIP_CARD_S = 2;
 /** Hand-over: paused for the first second; `done` on first movement input or after this long, real s. */
 export const HANDOVER_PAUSE_S = 1;
 export const HANDOVER_DONE_S = 10;
+/**
+ * Reopening (GDD 06 §5.13 (b)): the plug's inner face is searched within this radius of the opening on a grid of
+ * this step, BU; the workers' entrance plan through the plug has this priority.
+ */
+export const REOPEN_FACE_SEARCH_BU = 5;
+export const REOPEN_FACE_STEP_BU = 0.5;
+/** ... at least this far inside the soil (substrate distance), BU: carved space, not the air above the plug. */
+export const REOPEN_FACE_INSIDE_BU = 0.75;
+export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
 /** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */
 export const BROOD_LOST_RELAY_MIN = 0.35;
 /** ... else `failed` with cause `no-workers` after this long, GD. */
 export const BROOD_LOST_FAIL_GD = 1;
+
+// ---- cheat.completeFounding ----
+
+/** Egg-to-worker survival the automatic clutch assumes (GDD 06 §5.12: about 46 % of eggs at a typical site). */
+export const AUTO_CLUTCH_SURVIVAL = 0.45;

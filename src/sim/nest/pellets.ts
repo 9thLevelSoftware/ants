@@ -6,7 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Item, MaterialId, Mound, Nest, PelletDumpTarget, Sim } from '@/sim/types';
 import {
   BULKING, CHOKE_COUNT, CHOKE_LEN_BU, CLUTTER_RADIUS_BU, CLUTTER_SLOW_MIN, CLUTTER_SLOW_PER, EXPEL_ENTRANCE_REACH_BU,
-  FRASS_MATERIALS, HAUL_URGENCY_GAIN, MAX_LOOSE_PELLETS_PER_NEST, PELLET_BULK_PER_BU3, PELLET_TAMP_S, SPOIL_JOIN_BU,
+  FRASS_MATERIALS, HAUL_URGENCY_GAIN, MAX_LOOSE_PELLETS_PER_NEST, TAMP_CAP_TRIES, PELLET_BULK_PER_BU3, PELLET_TAMP_S, SPOIL_JOIN_BU,
 } from '@/sim/balance/nest';
 import { removeItem, spawnItem } from '@/sim/entities';
 import { TICKS_PER_SECOND } from '@/sim/time';
@@ -112,12 +112,17 @@ export function pelletHaulUrgency(sim: Sim, it: Item): number {
   return 1 + HAUL_URGENCY_GAIN * Math.min(1, age);
 }
 
+/**
+ * GDD 03 §1.3 cap: above MAX_LOOSE_PELLETS_PER_NEST lying pellets the oldest clutter pellet tamps at once. When the
+ * passage rule refuses it (or takes only part), the next oldest is tried, up to TAMP_CAP_TRIES pellets per drop; a
+ * nest with no floor left to raise anywhere near its oldest clutter can then hold more than the cap (the passage
+ * rule wins: sim-fix-colony item 2), and every further drop pays at most TAMP_CAP_TRIES tamp attempts.
+ */
 function enforceLooseCap(sim: Sim, nest: Nest): void {
   const loose = loosePellets(sim, nest.id);
   if (loose.length <= MAX_LOOSE_PELLETS_PER_NEST) return;
-  let oldest: Item | null = null;
-  for (const it of loose) if (it.spoilPlanId < 0 && (!oldest || it.droppedTick < oldest.droppedTick)) oldest = it;
-  if (oldest) tampPellet(sim, oldest);
+  const clutter = loose.filter((it) => it.spoilPlanId < 0 && it.reservedBy < 0).sort((a, b) => a.droppedTick - b.droppedTick || a.id - b.id);
+  for (let n = 0; n < clutter.length && n < TAMP_CAP_TRIES; n++) if (tampPellet(sim, clutter[n])) return;
 }
 
 // ---- founding expulsion (GDD 03 §13.2 `digging`) ----

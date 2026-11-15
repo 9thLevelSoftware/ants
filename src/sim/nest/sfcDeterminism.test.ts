@@ -1,5 +1,5 @@
 // sim-fix-colony acceptance 6: the state this task added (a mound relaxation in progress, partly tamped pellets and
-// their retry clock, the colony's midden-blocked flag and report tick) is deterministic and survives a save / load:
+// their retries, the colony's midden-blocked flag and report tick) is deterministic and survives a save / load:
 // a run saved and restored in the middle ends in the same state hash as an uninterrupted one.
 import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
@@ -10,6 +10,7 @@ import { commandsSystem } from '@/sim/systems';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { economySystem, isMiddenBlocked } from '@/sim/colony';
 import { spawnAnt } from '@/sim/entities';
+import { OPEN_MIN } from './carve/keys';
 import { internalDumpSite } from './deadEnd';
 import { nestSim, playerNest } from './nestTestKit';
 import { loosePellets, placePellet, spawnPellet } from './pellets';
@@ -18,7 +19,15 @@ import { nestSystem } from './system';
 const BU = 4;
 const SYSTEMS = [commandsSystem, nestSystem, economySystem];
 
-/** The small nest with five workers, a heap of old spoil at the blind branch's tip and fresh soil around the mouth. */
+/** Floor sample under p (walking down through open samples). */
+function floorAt(sim: Sim, p: { x: number; y: number; z: number }) {
+  const v = sim.carve.voxel, i = Math.round(p.x / v), k = Math.round(p.z / v);
+  let j = Math.round(p.y / v);
+  while (sim.carve.sampleAt(i, j - 1, k) >= OPEN_MIN) j--;
+  return { x: i * v, y: j * v, z: k * v };
+}
+
+/** The small nest with five workers, a heap of old spoil at the food-nursery neck and fresh soil around the mouth. */
 function scene(): Sim {
   const sim = nestSim({ nest: 'small', seed: 9, systems: SYSTEMS });
   const nest = playerNest(sim);
@@ -26,8 +35,13 @@ function scene(): Sim {
   for (let n = 0; n < 5; n++) {
     spawnAnt(sim, { colony: nest.colony, caste: 'worker', pos: { ...food.center }, ageGd: 5, nestId: nest.id, chamberId: food.id });
   }
-  const floor = internalDumpSite(sim, nest.id)!.pos; // the blind branch's tip: a 2 BU tunnel
-  for (let n = 0; n < 14; n++) {
+  // the neck where the tunnel leaves the nursery toward the food chamber: more spoil than the passage rule lets
+  // into its floor, so some pellets are only partly tamped
+  const nursery = nest.chambers.find((c) => c.type === 'nursery')!;
+  const dx = food.center.x - nursery.center.x, dz = food.center.z - nursery.center.z, l = Math.hypot(dx, dz);
+  const floor = floorAt(sim, { x: nursery.center.x + (dx / l) * nursery.radii.x * 0.95, y: nursery.center.y - nursery.radii.y + BU, z: nursery.center.z + (dz / l) * nursery.radii.z * 0.95 });
+  internalDumpSite(sim, nest.id); // the dump-site cache is derived state too (it must not change the outcome)
+  for (let n = 0; n < 40; n++) {
     const it = spawnPellet(sim, floor, 0.85, 'loam', nest.id, nest.colony, -1);
     placePellet(sim, it, floor);
     it.droppedTick = sim.state.tick - PELLET_TAMP_S * TICKS_PER_SECOND + 200 + 10 * n; // due from tick ~200
