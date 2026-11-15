@@ -5,7 +5,7 @@
 // Test support only (not used by the game).
 
 import type { Ant, CreatureKind, DifficultyId, Sim, System } from '@/sim/types';
-import { DIFFICULTY_PARAMS } from '@/sim/balance/difficulty';
+import { DIFFICULTY_PARAMS, resolveRules } from '@/sim/balance/difficulty';
 import { rngFork, rngFloat, rngRange } from '@/core/rng';
 import { makeTestSim } from '@/sim/testing';
 import { spawnBrood } from '@/sim/entities';
@@ -144,6 +144,8 @@ export function runSoak(days: number, seed: number, preset: DifficultyId = 'natu
     });
     sim.state.config.difficulty.preset = preset;
     sim.state.config.difficulty.params = { ...DIFFICULTY_PARAMS[preset] };
+    // the preset's Predators setting (GDD 05 §5: Gentle Few, Naturalist Normal, Harsh Many)
+    sim.state.config.rules.predators = resolveRules(preset, {}, sim.state.config.rules.seasonLengthDays).predators;
     return soakOn(sim, days);
   } finally {
     restore();

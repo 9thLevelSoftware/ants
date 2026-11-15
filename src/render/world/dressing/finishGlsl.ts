@@ -114,17 +114,19 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
         float ph = fract(lp.y / period);
         float groove = 1.0 - smoothstep(0.0, 0.06, abs(ph - 0.5));
         col *= 1.0 - 0.28 * groove;
-        wrNw = normalize(ln + vec3(0.0, 0.35 * cos(ph * 6.2832), 0.0) * smoothstep(0.3, 0.5, abs(ph - 0.5) + groove * 0.5));
+        wrNw = normalize(ln + vec3(0.0, 0.2 * cos(ph * 6.2832), 0.0) * smoothstep(0.3, 0.5, abs(ph - 0.5) + groove * 0.5));
       } else if (ln.y > 0.6) col = mix(col, vec3(dot(col, vec3(0.33))) * 1.15, 0.25);
     }
     else if (fin == ${F.appliance}) {
       // ventilated plinth along the bottom of the sides; a dark door gap a quarter of the way up
+      // plinth: the bottom 45 mm (a kick plate with vertical vent slots), whatever the appliance's height
       vec3 q = lp / max(hs, vec3(1e-3));
+      float fromFloor = lp.y + hs.y;
       if (abs(ln.y) < 0.6) {
-        if (q.y < -0.88) {
-          float u = (abs(ln.x) > abs(ln.z) ? lp.z : lp.x) / 4.0;
-          float slot = step(0.5, fract(u)) * step(-0.97, q.y) * step(q.y, -0.91);
-          col = mix(vec3(0.03), vec3(0.008), slot); rough = 0.6; det = vec3(1.0);
+        if (fromFloor < 45.0) {
+          float u = (abs(ln.x) > abs(ln.z) ? lp.z : lp.x) / 8.0;
+          float slot = step(0.62, fract(u)) * step(8.0, fromFloor) * step(fromFloor, 36.0);
+          col = mix(vec3(0.06, 0.06, 0.065), vec3(0.01), slot); rough = 0.55; det = vec3(1.0);
         } else col *= 1.0 - 0.8 * (1.0 - smoothstep(0.0, 0.004, abs(q.y - 0.25)));
       }
     }
@@ -188,7 +190,8 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     // raised midrib, sunken veins
     vec3 bump = vec3(0.0, 0.0, sign(v) * (-0.25 * rib) ) + vec3(0.0, 0.0, 0.12 * vein * sign(v));
     if (abs(ln.y) > 0.5) wrNw = normalize(ln + bump * sign(ln.y));
-    wrRoughO = top ? 0.62 : 0.75; wrMetal = 0.0; wrTransl = lk.z;
+    // a flat leaf is thicker than a grass blade: it glows when back-lit, but far less
+    wrRoughO = top ? 0.62 : 0.75; wrMetal = 0.0; wrTransl = lk.z * 0.45;
   } else if (fin == ${F.stem}) {
     // ---- stem: smooth, waxy and slightly translucent; fine lengthwise ridges (vascular bundles) in the shading and
     // the tone; style 1 = herbaceous stem with nodes and fine hairs that catch the light at the silhouette

@@ -170,6 +170,14 @@ export const DETECT_STEALTH: Partial<Record<CreatureKind, Record<string, number>
 export const DETERRENCE_HALF_LIFE_S = 20;
 export const DETERRENCE_PER_BITE = 0.08;
 export const DETERRENCE_PER_SPRAY = 0.35;
+/**
+ * Hp a creature loses within this long after a hit combat reported belongs to that hit, s: acid and stings deal
+ * their damage over 2 s (§4.4) and combat may report before or after it applies the damage. Only hp lost outside
+ * this window, with no report at all, counts as an extra (unreported) bite.
+ */
+export const HIT_ATTRIBUTION_S = 2.5;
+/** Biter records (noteCreatureHit) older than this are dropped, s. */
+export const BITER_MEMORY_S = 5;
 /** Struggle meter (§2.4). */
 export const STRUGGLE_PER_INPUT = 0.08;
 export const STRUGGLE_MAX_INPUTS_PER_S = 4;
@@ -200,6 +208,12 @@ export const WOLF_WANDER_S: [number, number] = [30, 90];
 export const WOLF_DAY_ACTIVITY = 0.4;
 export const WOLF_HOME_RADIUS_MM = 120 * REF_BU_MM;
 export const WOLF_ORIENT_S = 0.3;
+/** Wolf spider: chance per cycle to switch from wander to ambush (an ambush always ends in a wander or rest). */
+export const WOLF_AMBUSH_CHANCE = 0.5;
+/** Wolf spider gives up a frozen ambush on a target that has not come closer within this long, s. */
+export const WOLF_FREEZE_MAX_S = 4;
+/** Jumping spider: active in daylight at or above this air temperature, C (§2.2a "day, >= 15 C"). */
+export const JUMPING_SPIDER_MIN_C = 15;
 /** Ant-spider (§2.2b, §2.4): venom 6 over 15 s, paralysed 60 s at health <= 0.3, detection 1 L, retreat 4 L. */
 export const ANT_SPIDER_VENOM_TOTAL = 6;
 export const ANT_SPIDER_VENOM_S = 15;
@@ -218,6 +232,11 @@ export const ROVE_SECRETION_COOLDOWN_S = 10;
 export const CENTIPEDE_INVADE_ENTRANCE_BU = 20;
 export const CENTIPEDE_INVADE_P = 0.2;
 export const CENTIPEDE_BROOD_EAT_S = 40;
+/** An invading centipede eats a brood item within this reach of its body, mm. */
+export const CENTIPEDE_EAT_REACH_MM = 6;
+/** Centipedes and rove beetles out of their active time slip under litter for this long before they are gone, s
+ *  (§2.2b "burrows (despawns) at dawn unless engaged"; visible, so never a pop-out next to the focus). */
+export const BURROW_S = 3;
 /** Generic wander speed share of the walk speed and home radius for residents without a stated one, mm. */
 export const RESIDENT_HOME_RADIUS_MM = 400;
 
@@ -230,6 +249,8 @@ export const ANTLION_UPSLOPE_MULT = 0.4;
 export const ANTLION_REBUILD_S = 300;
 export const ANTLION_RAIN_REBUILD_GD = 0.3;
 export const ANTLION_DORMANT_C = 10;
+/** A pit whose antlion is gone (killed) stops working at once and fills in over this long, gd. */
+export const ANTLION_EMPTY_PIT_FILL_GD = 0.3;
 /** Default pit radius / depth when the territory gives none, mm (Ø 20-75, depth 10-50). */
 export const ANTLION_PIT_RADIUS_MM: [number, number] = [10, 37];
 export const ANTLION_PIT_DEPTH_PER_R = 0.7;
@@ -256,6 +277,14 @@ export const PATCH_IMMIGRATION_PER_GD = 0.05;
 export const PATCH_LAMBDA: Partial<Record<CreatureKind, number>> = { springtail: 0.05, mite: 0.01 };
 export const PATCH_SPAWN_AHEAD_L: [number, number] = [2, 4];
 export const PATCH_RADIUS_BU_DEFAULT = 30;
+/**
+ * Pop-in rule for the possessed ant (§2.3): patch prey appears outside its front cone. Half-angle of that cone and
+ * the widest bearing used (beyond 90 degrees = slightly behind, still close to its path), degrees.
+ */
+export const PATCH_POPIN_CONE_DEG = 60;
+export const PATCH_POPIN_MAX_DEG = 110;
+/** Lateral scatter of patch prey for an autonomous ant (fraction of the distance ahead, each side). */
+export const PATCH_SPAWN_SIDE = 0.5;
 /** Subdue (§1.5): pinned this long at health <= 0.5 stops struggling, dies 4 s later. */
 export const SUBDUE_PIN_S = 8;
 export const SUBDUE_HEALTH = 0.5;
@@ -281,6 +310,8 @@ export const FLY_LARVA_COUNT: [number, number] = [4, 20];
 export const FLY_LARVA_MIN_BULK = 5;
 export const FLY_LARVA_MIN_C = 12;
 export const FLY_LARVA_LIFE_GD = 1.5;
+/** Tier 1 carrion has no decay stages: it counts as ripe for fly larvae at this age window, gd (§1.6). */
+export const FLY_LARVA_RIPE_AGE_GD: [number, number] = [0.5, 1.5];
 export const FLY_LARVA_WRIGGLE_P = 0.1;
 /** Maggots eat 10 % of the carcass' remaining P per gd per 5 maggots (§1.6). */
 export const MAGGOT_P_PER_GD_PER_5 = 0.1;
@@ -298,14 +329,23 @@ export const WOODLOUSE_ROLL_SHARE = 0.5;
 export const WOODLOUSE_ROLLED_ARMOUR = 0.9;
 export const WOODLOUSE_ROLL_S = 20;
 export const MILLIPEDE_COIL_S = 15;
+/** Millipede secretion: the biter flees this long (§2.2b "biter flees 4 s"). */
+export const MILLIPEDE_REPEL_S = 4;
+/** Snails and millipedes heading into cover: one cover leg of the walk, s (the cover state lasts 4 legs). */
+export const COVER_S = 8;
 export const SNAIL_RETRACT_S = 20;
 export const SLIME_SPEED_MULT = 0.7;
 export const SLIME_LIFE_GD = 0.5;
 export const SLIME_SPACING_MM = 20;
 export const SLIME_RADIUS_MM = 4;
 export const SLIME_MAX = 120;
+/** Hazard speed factors apply only to an ant on the hazard's own surface: its feet within this height of the slime
+ *  (or of the pit, between rim and floor), BU. Ants in tunnels underneath or on a stem above are not slowed. */
+export const HAZARD_SURFACE_TOL_BU = 1;
 /** Earthworms: 0-3 stranded per rain event on hard ground, dying after 0.3 gd in sun. */
 export const WORM_STRANDED_PER_RAIN: [number, number] = [0, 3];
+/** Share of stranded worms placed on pavement (the rest on asphalt). */
+export const WORM_STRANDED_PAVEMENT_SHARE = 0.5;
 export const WORM_DYING_GD = 0.3;
 export const WORM_SURFACE_PER_TERRITORY = 1;
 /** Graze / wander rhythm of neutral fauna, s. */
@@ -370,6 +410,8 @@ export const BIRD_RESPONSE_RADIUS_BU = 40;
 export const BIRD_LEAVE_S = 2;
 /** Sparrow / pigeon also eats crumbs within the target radius: up to this many crumb units per event (§2.6). */
 export const BIRD_CRUMBS_MAX = 10;
+/** Share of bird events at a forest / lawn mound that are woodpeckers (§2.6 variants). */
+export const WOODPECKER_SHARE = 0.2;
 /** Woodpecker: a carve of this radius (BU) every 5 s into the mound / entrance throat, at most 6 (§2.6). */
 export const WOODPECKER_CARVE_BU = 3;
 export const WOODPECKER_CARVE_EVERY_S = 5;

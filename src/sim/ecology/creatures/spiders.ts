@@ -6,8 +6,9 @@
 
 import type { Creature, Sim } from '@/sim/types';
 import {
-  CREATURE_STATS, LONE_ANT_L, STALK_GIVE_UP_S, STALK_MOVE_S, STALK_PAUSE_S, STRIKE_RANGE_MM, WOLF_AMBUSH_S, WOLF_DAY_ACTIVITY,
-  WOLF_FREEZE_CUE_S, WOLF_HOME_RADIUS_MM, WOLF_ORIENT_S, WOLF_WANDER_S, windupMaxTargetSpeed,
+  CREATURE_STATS, JUMPING_SPIDER_MIN_C, LONE_ANT_L, STALK_GIVE_UP_S, STALK_MOVE_S, STALK_PAUSE_S, STRIKE_RANGE_MM, WOLF_AMBUSH_S, WOLF_DAY_ACTIVITY,
+  WOLF_AMBUSH_CHANCE, WOLF_FREEZE_CUE_S, WOLF_FREEZE_MAX_S, WOLF_HOME_RADIUS_MM, WOLF_ORIENT_S, WOLF_WANDER_S,
+  windupMaxTargetSpeed,
 } from '@/sim/balance/creatures';
 import { antLen, between, chance, cue, dist, face, inStateS, setState, stop, ticks, timerDone, walkTo, wander, nestmateWithin } from './common';
 import type { Conditions } from './conditions';
@@ -19,12 +20,10 @@ import type { KindBehaviour } from './kinds';
 
 const JS = CREATURE_STATS['jumping-spider'];
 const WS = CREATURE_STATS['wolf-spider'];
-const JS_MIN_C = 15;
 /** Scan / detection cadence, ticks. */
 const SCAN_EVERY = 10;
 /** The spider strolls this close to its sunny spot while scanning, mm. */
 const JS_SCAN_RADIUS_MM = 60;
-const WOLF_FREEZE_MAX_S = 4;
 
 /** Flee check shared by both spiders (any state but flee). */
 function fleeCheck(sim: Sim, c: Creature, burst: number): boolean {
@@ -43,7 +42,7 @@ function landAndFollow(sim: Sim, c: Creature): void {
 export const jumpingSpider: KindBehaviour = {
   update(sim, c, cond: Conditions) {
     if (fleeCheck(sim, c, JS.burstMmS)) return;
-    const active = cond.day && cond.airC >= JS_MIN_C;
+    const active = cond.day && cond.airC >= JUMPING_SPIDER_MIN_C;
     switch (c.state) {
       case 'hold': holdState(sim, c); return;
       case 'windup': if (strikeDue(sim, c)) landAndFollow(sim, c); return;
@@ -99,7 +98,7 @@ function wolfNextCycle(sim: Sim, c: Creature, cond: Conditions): void {
     walkTo(sim, c, c.homeCenter, WS.walkMmS * 0.5, 6);
     return;
   }
-  if (c.state === 'wander' || chance(sim, 0.5)) {
+  if (c.state === 'wander' || chance(sim, WOLF_AMBUSH_CHANCE)) {
     setState(sim, c, 'ambush', between(sim, WOLF_AMBUSH_S));
     stop(sim, c);
   } else {

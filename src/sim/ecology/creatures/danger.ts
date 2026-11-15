@@ -61,16 +61,21 @@ export function addDanger(sim: Sim, p: Vec3, amount = DANGER_ADD): void {
  * (the victim itself for a survived strike, any other nestmate for a kill).
  */
 export function noteDangerEvent(sim: Sim, victim: Ant, p: Vec3, outcome: 'killed' | 'survived'): void {
+  noteDangerFor(sim, victim.colony, antLen(sim, victim), victim.id, p, outcome);
+}
+
+/** noteDangerEvent for a victim known only by colony, body length (mm) and id (it may be gone from the store). */
+export function noteDangerFor(sim: Sim, colonyId: number, lengthMm: number, victimId: number, p: Vec3, outcome: 'killed' | 'survived'): void {
   const g = dangerGrid(sim);
-  if (!g || victim.colony !== g.colony.id) return;
-  const r = DANGER_WITNESS_L * antLen(sim, victim);
+  if (!g || colonyId !== g.colony.id) return;
+  const r = DANGER_WITNESS_L * lengthMm;
   let witnessed = outcome === 'survived';
   if (!witnessed) {
     const ids: number[] = [];
     sim.index.queryAnts(p, r, ids);
     for (const id of ids) {
       const a = sim.stores.ants.get(id);
-      if (a && a.id !== victim.id && a.colony === victim.colony && dist(a.pos, p) <= r) { witnessed = true; break; }
+      if (a && a.alive && a.id !== victimId && a.colony === colonyId && dist(a.pos, p) <= r) { witnessed = true; break; }
     }
   }
   if (witnessed) addDanger(sim, p);
@@ -78,6 +83,32 @@ export function noteDangerEvent(sim: Sim, victim: Ant, p: Vec3, outcome: 'killed
 
 /** Last cost written per cell (runtime cache) so the nav grid overlay is only touched where it changed. */
 const written = new WeakMap<Sim, Float32Array>();
+/** Cells inside an avoid marker this run (runtime scratch, 1 = inside); `dirty` when the last run set any. */
+const markerMask = new WeakMap<Sim, { cells: Uint8Array; dirty: boolean }>();
+
+/**
+ * Rasterises the colony's avoid markers into the mask, visiting only each marker's bounding cells (cost grows with
+ * the markers' area, not cells x markers). Returns false when there are no markers (the mask is then all zero).
+ */
+function rasterAvoidMarkers(sim: Sim, g: { colony: Colony; w: number; h: number; cell: number }, mask: Uint8Array, dirty: boolean): boolean {
+  if (dirty) mask.fill(0);
+  let any = false;
+  for (const m of sim.state.markers) {
+    if (!m.alive || m.kind !== 'avoid' || m.colony !== g.colony.id) continue;
+    any = true;
+    const reach = m.radius + 0.5 * g.cell;
+    const ix0 = Math.max(0, Math.floor((m.pos.x - reach) / g.cell)), ix1 = Math.min(g.w - 1, Math.floor((m.pos.x + reach) / g.cell));
+    const iz0 = Math.max(0, Math.floor((m.pos.z - reach) / g.cell)), iz1 = Math.min(g.h - 1, Math.floor((m.pos.z + reach) / g.cell));
+    for (let iz = iz0; iz <= iz1; iz++) {
+      const cz = (iz + 0.5) * g.cell - m.pos.z;
+      for (let ix = ix0; ix <= ix1; ix++) {
+        const cx = (ix + 0.5) * g.cell - m.pos.x;
+        if (cx * cx + cz * cz <= reach * reach) mask[iz * g.w + ix] = 1;
+      }
+    }
+  }
+  return any;
+}
 
 /** Decays the grid by dtS seconds and refreshes the nav-grid cost overlay of changed cells. */
 export function updateDanger(sim: Sim, dtS: number): void {
@@ -88,15 +119,14 @@ export function updateDanger(sim: Sim, dtS: number): void {
   for (let i = 0; i < d.length; i++) if (d[i] !== 0) d[i] = d[i] < DANGER_EPS ? 0 : d[i] * k;
   let last = written.get(sim);
   if (!last || last.length !== d.length) { last = new Float32Array(d.length).fill(1); written.set(sim, last); }
-  const markers = sim.state.markers.filter((m) => m.alive && m.kind === 'avoid' && m.colony === g.colony.id);
+  let mm = markerMask.get(sim);
+  if (!mm || mm.cells.length !== d.length) { mm = { cells: new Uint8Array(d.length), dirty: false }; markerMask.set(sim, mm); }
+  mm.dirty = rasterAvoidMarkers(sim, g, mm.cells, mm.dirty);
+  const mask = mm.cells;
   const ng = sim.navGrid;
   const scale = ng.cell / g.cell;
   for (let i = 0; i < d.length; i++) {
-    let danger = d[i];
-    if (markers.length > 0) {
-      const cx = ((i % g.w) + 0.5) * g.cell, cz = (Math.floor(i / g.w) + 0.5) * g.cell;
-      for (const m of markers) if (Math.hypot(m.pos.x - cx, m.pos.z - cz) <= m.radius + 0.5 * g.cell) danger = Math.max(danger, DANGER_AVOID_MARKER);
-    }
+    const danger = mask[i] === 1 ? Math.max(d[i], DANGER_AVOID_MARKER) : d[i];
     const cost = danger < DANGER_EPS ? 1 : Math.min(DANGER_COST_MAX, 1 + DANGER_COST_PER * danger);
     if (Math.abs(cost - last[i]) < 0.01) continue;
     last[i] = cost;

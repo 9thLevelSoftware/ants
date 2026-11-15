@@ -62,8 +62,8 @@ export const GRASS = {
   lodWidenPow: 0.5,
   lodMaxWiden: 3.5,
   /** Rows per blade at each preset (spike 2.8 had 4 / 5 / 7 / 9; look-pass: the bend of a blade 15 mm from the
-   *  lens showed its polygon kinks at 7, so High uses 10); far blocks use half. */
-  rows: { test: 3, low: 4, medium: 6, high: 10, ultra: 12 } as Record<QualityId, number>,
+   *  lens showed its polygon kinks at 7; High uses 8 to stay inside the 1.5 M triangle budget); far blocks use half. */
+  rows: { test: 3, low: 4, medium: 6, high: 8, ultra: 11 } as Record<QualityId, number>,
   folded: { test: false, low: false, medium: true, high: true, ultra: true } as Record<QualityId, boolean>,
   /** Blocks nearer than this (mm, nearest point) use the full row count and cast shadows. */
   nearBlockMm: 480,

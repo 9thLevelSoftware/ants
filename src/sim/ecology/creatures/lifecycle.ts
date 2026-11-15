@@ -3,7 +3,7 @@
 // Runs from the `creature-died` / `creature-despawned` events (installed lazily with the other hooks).
 
 import type { Sim } from '@/sim/types';
-import { RESPAWN_DELAY_GD, THREAT_CENTIPEDE } from '@/sim/balance/creatures';
+import { ANTLION_EMPTY_PIT_FILL_GD, RESPAWN_DELAY_GD, THREAT_CENTIPEDE } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { endMajorThreat } from './threat';
 import { clearCreatureAlerts } from './alerts';
@@ -21,6 +21,23 @@ export function onCreatureGone(sim: Sim, id: number, died: boolean): void {
   }
   clearCreatureAlerts(sim, id);
   reconcileInvasion(sim);
+  abandonOrphanPits(sim);
+}
+
+/**
+ * Pits whose antlion is gone (killed, despawned by a cheat; whoever removed it) stop working at once (no flicks, no
+ * upslope slowdown, not a known hazard) and fill in over ANTLION_EMPTY_PIT_FILL_GD; expireHazards then removes
+ * them. Antlion territories are never re-occupied. Also run by the director, so no removal path is missed.
+ */
+export function abandonOrphanPits(sim: Sim): void {
+  for (const h of sim.state.ecology.hazards) {
+    if (h.kind !== 'antlion-pit' || h.untilTick !== undefined) continue;
+    let owned = false;
+    for (const c of sim.stores.creatures.list) if (c.alive && c.kind === 'antlion' && c.bb.pit === h.id) { owned = true; break; }
+    if (owned) continue;
+    h.state = 'collapsed';
+    h.untilTick = sim.state.tick + Math.round(ANTLION_EMPTY_PIT_FILL_GD * TICKS_PER_DAY);
+  }
 }
 
 /** The centipede-invasion threat ends when no living centipede is invading the player nest. */

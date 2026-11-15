@@ -8,6 +8,7 @@ import { carrionFromItem, carrionVariantForBulk } from '@/sim/ecology/sources';
 import { REF_CARRY_MG } from '@/sim/balance/ecology';
 import { COOP_MAX_ANTS, COOP_SHARE, SUBDUE_DIE_S, SUBDUE_HEALTH, SUBDUE_PIN_S } from '@/sim/balance/creatures';
 import { CreatureFlag, holderIds, setState, statsOf, ticks } from './common';
+import { releaseAnt } from './attack';
 
 /** Tear hardness of soft-bodied prey (the carrion row's own hardness applies to the rest). */
 const SOFT_HARDNESS: Partial<Record<CreatureKind, number>> = {
@@ -69,6 +70,7 @@ export function preyRemains(sim: Sim, c: Creature): DeadPrey {
  */
 export function creatureDies(sim: Sim, c: Creature, cause: string, byAnts: number[] = []): DeadPrey {
   if (!c.alive) return { itemId: -1, sourceId: -1 };
+  if (c.seizedAntId >= 0) releaseAnt(sim, c, false); // a predator killed with an ant in its jaws lets it go
   const remains = c.kind === 'bird' ? { itemId: -1, sourceId: -1 } : preyRemains(sim, c);
   if (byAnts.length > 0) sim.emit({ type: 'prey-subdued', creatureId: c.id, kind: c.kind, antIds: byAnts.slice() });
   killCreature(sim, c.id, cause);

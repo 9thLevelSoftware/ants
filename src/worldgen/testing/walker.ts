@@ -10,6 +10,7 @@ import { createWalkerKin, walkerLetGo, walkerPlace, walkerStep, type WalkerKin }
 import type { WorldData } from '@/sim/types';
 import { navDistances } from '../validate/graph';
 import { walkable } from '../maps/nav';
+import { exactLocalField, type FieldFn } from './exactField';
 
 export interface CrossResult {
   /** Waypoints reached (the last one included when the walk ended there). */
@@ -158,10 +159,11 @@ export function crossPath(w: WorldData, k: Kernel, path: readonly number[], opts
  * inside the box around a, b and `include` (points the passage runs past, e.g. a pipe's ends) grown by `margin`,
  * keeping the lattice points whose clearance f lies in [r, r + shell] (free for the sphere, and within `shell` of
  * a surface, which keeps the search off the open air). Shows that a passage (door crack, pipe annulus) is
- * physically as wide as the clearance it must offer.
+ * physically as wide as the clearance it must offer. `exact` measures with the unblended field (exactField.ts:
+ * the kernel's smooth minimum reads up to k/4 low between facing surfaces, so it understates a gap's width).
  */
 export function spherePasses(k: Kernel, a: Vec3, b: Vec3, r: number,
-  opts: { step?: number; reach?: number; margin?: number; shell?: number; include?: readonly Vec3[] } = {}): boolean {
+  opts: { step?: number; reach?: number; margin?: number; shell?: number; include?: readonly Vec3[]; exact?: boolean } = {}): boolean {
   if (!(r > 0)) return false;
   const step = opts.step ?? 0.5 * r, reach = opts.reach ?? 3 * k.bu, margin = opts.margin ?? 4 * k.bu, shell = opts.shell ?? 3 * step;
   const pts = [a, b, ...(opts.include ?? [])];
@@ -172,8 +174,12 @@ export function spherePasses(k: Kernel, a: Vec3, b: Vec3, r: number,
   const nz = Math.ceil((hi((p) => p.z) - z0) / step) + 1;
   const state = new Uint8Array(nx * ny * nz); // 0 unknown, 1 blocked, 2 queued
   const at = (i: number, j: number, l: number) => (l * ny + j) * nx + i;
+  const grow = r + shell + step;
+  const field: FieldFn = opts.exact
+    ? exactLocalField(k, { x: x0 - grow, y: y0 - grow, z: z0 - grow }, { x: x0 + nx * step + grow, y: y0 + ny * step + grow, z: z0 + nz * step + grow })
+    : (x, y, z) => k.field.sampleXYZ(x, y, z);
   const free = (i: number, j: number, l: number) => {
-    const f = k.field.sampleXYZ(x0 + i * step, y0 + j * step, z0 + l * step);
+    const f = field(x0 + i * step, y0 + j * step, z0 + l * step);
     return f >= r && f <= r + shell;
   };
   const near = (p: Vec3, i: number, j: number, l: number) => {

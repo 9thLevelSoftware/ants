@@ -2,10 +2,11 @@
 // a loaded game installs them again on its first tick):
 //  - movement override: an ant seized (or carried) by a creature rides at the creature's mouth; a paralysed ant
 //    stays put; an antlion flick displaces an ant downslope (pending displacements live only within one tick);
-//  - speed factor: x0.4 moving upslope inside an antlion pit, x0.7 on a snail's slime trail.
+//  - speed factor: x0.4 moving upslope inside an antlion pit, x0.7 on a snail's slime trail (only for ants on the
+//    hazard's surface, not in tunnels underneath or on a stem above).
 
 import type { Ant, Creature, Sim, Walker } from '@/sim/types';
-import { ANTLION_UPSLOPE_MULT, SLIME_SPEED_MULT } from '@/sim/balance/creatures';
+import { ANTLION_UPSLOPE_MULT, HAZARD_SURFACE_TOL_BU, SLIME_SPEED_MULT } from '@/sim/balance/creatures';
 import { ports } from './ports';
 
 const installed = new WeakSet<Sim>();
@@ -66,19 +67,28 @@ function holdAtMouth(c: Creature, ant: Ant): void {
   ant.medium = c.medium === 'air' ? 'surface' : c.medium;
 }
 
+/**
+ * Speed factor of the hazards under an ant. Only an ant walking on the hazard's own surface is slowed: outside the
+ * nest, on a surface (not falling), its feet within HAZARD_SURFACE_TOL_BU of the slime or between the pit's rim and
+ * floor. Ants in tunnels underneath, or on a stem above a trail, walk at full speed.
+ */
 function hazardSpeedMult(sim: Sim, w: Walker): number {
   const hz = sim.state.ecology.hazards;
-  if (hz.length === 0 || !isAnt(w)) return 1;
+  if (hz.length === 0 || !isAnt(w) || w.nestId >= 0 || w.medium !== 'surface') return 1;
+  const tol = HAZARD_SURFACE_TOL_BU * sim.world.bu;
+  const feetY = w.pos.y - w.up.y * w.footOffset;
   let m = 1;
   for (let i = 0; i < hz.length; i++) {
     const h = hz[i];
     const dx = w.pos.x - h.pos.x, dz = w.pos.z - h.pos.z;
     const d2 = dx * dx + dz * dz;
     if (d2 > h.radius * h.radius) continue;
-    if (h.kind === 'slime-trail') m *= SLIME_SPEED_MULT;
-    else if (h.kind === 'antlion-pit' && h.state !== 'collapsed') {
+    if (h.kind === 'slime-trail') {
+      if (Math.abs(feetY - h.pos.y) <= tol) m *= SLIME_SPEED_MULT;
+    } else if (h.kind === 'antlion-pit' && h.state !== 'collapsed') {
+      const onSlope = feetY <= h.pos.y + tol && feetY >= h.pos.y - h.depth - tol;
       // upslope = heading away from the pit centre
-      if (dx * w.fwd.x + dz * w.fwd.z > 0) m *= ANTLION_UPSLOPE_MULT;
+      if (onSlope && dx * w.fwd.x + dz * w.fwd.z > 0) m *= ANTLION_UPSLOPE_MULT;
     }
   }
   return m;

@@ -6,7 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Creature, CreatureKind, Hazard, Sim } from '@/sim/types';
 import { colonySlotBit } from '@/sim/entities';
 import {
-  BIRD_RESPONSE_RADIUS_BU, CREATURE_STATS, ROVE_SECRETION_FLEE_S, ROVE_SECRETION_RADIUS_L, WOODLOUSE_ROLLED_ARMOUR,
+  BIRD_RESPONSE_RADIUS_BU, CREATURE_STATS, MILLIPEDE_REPEL_S, ROVE_SECRETION_FLEE_S, ROVE_SECRETION_RADIUS_L, WOODLOUSE_ROLLED_ARMOUR,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { CreatureFlag, dist, statsOf } from './common';
@@ -29,8 +29,6 @@ export interface ThreatInfo {
 
 const ANT_PREDATORS = new Set<CreatureKind>(['jumping-spider', 'wolf-spider', 'ant-spider', 'antlion', 'centipede', 'rove-beetle']);
 const _ids: number[] = [];
-/** Millipede secretion: the biter flees 4 s (§2.2b). */
-const MILLIPEDE_REPEL_S = 4;
 
 /** Ant predators (and the bird event, and secreting millipedes) within radiusMm of p, nearest first. */
 export function threatsNear(sim: Sim, p: Vec3, radiusMm: number): ThreatInfo[] {
@@ -106,10 +104,14 @@ export function preyNear(sim: Sim, p: Vec3, radiusMm: number, colonyId: number):
   return out.sort((a, b) => a.distanceMm - b.distanceMm || a.creatureId - b.creatureId);
 }
 
-/** Hazards (antlion pits) a colony knows within radiusMm of p: avoid `radius + 1 L` in local steering (§2.4). */
+/**
+ * Hazards (antlion pits) a colony knows within radiusMm of p: avoid `radius + 1 L` in local steering (§2.4).
+ * An abandoned pit (its antlion is gone; it fills in and expires, lifecycle.ts) is no longer a hazard.
+ */
 export function knownHazardsNear(sim: Sim, colonyId: number, p: Vec3, radiusMm: number): Hazard[] {
   const bit = colonySlotBit(sim, colonyId);
-  return sim.state.ecology.hazards.filter((h) => h.kind === 'antlion-pit' && (h.knownBy & bit) !== 0 && dist(h.pos, p) <= radiusMm + h.radius);
+  return sim.state.ecology.hazards.filter((h) => h.kind === 'antlion-pit' && h.untilTick === undefined && (h.knownBy & bit) !== 0
+    && dist(h.pos, p) <= radiusMm + h.radius);
 }
 
 /** Armour of a creature now (rolled woodlice 0.9), for combat's damage formula. */

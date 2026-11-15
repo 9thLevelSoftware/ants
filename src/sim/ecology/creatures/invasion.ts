@@ -7,7 +7,7 @@ import type { Creature, Nest, Sim } from '@/sim/types';
 import { killBrood } from '@/sim/entities';
 import { calendarTick, TICKS_PER_DAY } from '@/sim/time';
 import {
-  CENTIPEDE_BROOD_EAT_S, CENTIPEDE_INVADE_ENTRANCE_BU, CENTIPEDE_INVADE_P, CREATURE_STATS, REF_BU_MM, THREAT_CENTIPEDE,
+  CENTIPEDE_BROOD_EAT_S, CENTIPEDE_EAT_REACH_MM as EAT_REACH_MM, CENTIPEDE_INVADE_ENTRANCE_BU, CENTIPEDE_INVADE_P, CREATURE_STATS, REF_BU_MM, THREAT_CENTIPEDE,
 } from '@/sim/balance/creatures';
 import { chance, dist, setState, ticks, walkTo } from './common';
 import type { Conditions } from './conditions';
@@ -16,7 +16,6 @@ import { raiseNestAttacked } from './alerts';
 
 const CE = CREATURE_STATS.centipede;
 /** Brood within this distance is eaten, mm. */
-const EAT_REACH_MM = 6;
 
 function nestHasBrood(sim: Sim, nest: Nest): boolean {
   for (const b of sim.stores.brood.list) if (b.alive && b.nestId === nest.id) return true;

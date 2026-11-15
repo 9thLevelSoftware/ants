@@ -9,10 +9,11 @@ import { randomPointInZone, ageGd } from '@/sim/ecology/sources';
 import { zoneAt } from '@/sim/world';
 import {
   ANTLION_PIT_DEPTH_PER_R, ANTLION_PIT_RADIUS_MM, CATERPILLAR_DAYS, CATERPILLAR_HAIRY_SHARE, CATERPILLAR_MEDIUM_SHARE,
-  CATERPILLAR_PER_PLOT_GD, CATERPILLAR_PUPATE_GD, FLY_LARVA_COUNT, FLY_LARVA_MIN_BULK, FLY_LARVA_MIN_C,
+  CATERPILLAR_PER_PLOT_GD, CATERPILLAR_PUPATE_GD, FLY_LARVA_COUNT, FLY_LARVA_MIN_BULK, FLY_LARVA_MIN_C, FLY_LARVA_RIPE_AGE_GD,
   FRUIT_FLY_FEED_S, FRUIT_FLY_MIN_C, FRUIT_FLY_PER_SOURCE, FRUIT_FLY_SOURCE_RADIUS_MM, FRUIT_FLY_SPAWN_P,
   PATCH_COMPOST_FACTOR, PATCH_IMMIGRATION_PER_GD, PATCH_K_PER_BU2, PATCH_LAMBDA, PATCH_R_PER_GD, PATCH_RADIUS_BU_DEFAULT,
-  PATCH_SPAWN_AHEAD_L, PATCH_ZONE_FACTOR, WORM_STRANDED_PER_RAIN,
+  PATCH_POPIN_CONE_DEG, PATCH_POPIN_MAX_DEG, PATCH_SPAWN_AHEAD_L, PATCH_SPAWN_SIDE, PATCH_ZONE_FACTOR,
+  WORM_STRANDED_PAVEMENT_SHARE, WORM_STRANDED_PER_RAIN,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { CreatureFlag, antLen, between, chance, dist2D, isPossessed, onSurface, rng } from './common';
@@ -52,15 +53,20 @@ export function initPreyPatches(sim: Sim): void {
   }
 }
 
-/** One pit per antlion territory, each with its antlion (they are worldgen-only and persistent). */
+/**
+ * One pit per antlion territory, each with its antlion (they are worldgen-only and persistent), up to the kind's
+ * cap x Predators setting (I5): territories beyond it stay empty sand, in worldgen order.
+ */
 export function initPits(sim: Sim): void {
   const eco = sim.state.ecology;
+  const cap = capOf(sim, 'antlion');
+  let placed = countKind(sim, 'antlion');
   eco.director.territories.forEach((t, i) => {
-    if (t.kind !== 'antlion' || t.occupantId >= 0) return;
+    if (t.kind !== 'antlion' || t.occupantId >= 0 || placed >= cap) return;
     const r = t.radius > 0 ? Math.min(Math.max(t.radius, ANTLION_PIT_RADIUS_MM[0]), ANTLION_PIT_RADIUS_MM[1]) : between(sim, ANTLION_PIT_RADIUS_MM);
     const pit = createPit(sim, t.center, r, r * ANTLION_PIT_DEPTH_PER_R);
     const c = spawnKind(sim, 'antlion', t.center, { state: 'wait', territoryId: i, homeRadius: r, bb: { pit: pit.id } });
-    if (c) t.occupantId = c.id;
+    if (c) { t.occupantId = c.id; placed++; } else eco.hazards.splice(eco.hazards.indexOf(pit), 1); // no surface here
   });
 }
 
@@ -95,6 +101,28 @@ function huntersIn(sim: Sim, center: Vec3, r: number, out: Ant[]): Ant[] {
 
 const _h: Ant[] = [];
 
+const DEG = Math.PI / 180;
+
+/**
+ * Where patch prey appears for this ant (§2.3): 2-4 L away on the ground. Ahead of an autonomous ant (lateral
+ * scatter PATCH_SPAWN_SIDE); for the possessed ant, whose camera looks along its heading, at a bearing outside the
+ * front cone (PATCH_POPIN_CONE_DEG .. PATCH_POPIN_MAX_DEG, either side) so nothing pops in in view.
+ */
+function patchSpawnPoint(sim: Sim, ant: Ant): Vec3 {
+  const L = antLen(sim, ant), d = between(sim, PATCH_SPAWN_AHEAD_L) * L;
+  const g = { x: ant.pos.x - ant.up.x * ant.footOffset, y: ant.pos.y - ant.up.y * ant.footOffset, z: ant.pos.z - ant.up.z * ant.footOffset };
+  const fl = Math.hypot(ant.fwd.x, ant.fwd.z) || 1;
+  const fx = ant.fwd.x / fl, fz = ant.fwd.z / fl;
+  if (isPossessed(sim, ant)) {
+    const side = chance(sim, 0.5) ? 1 : -1;
+    const a = rngRange(rng(sim), PATCH_POPIN_CONE_DEG * DEG, PATCH_POPIN_MAX_DEG * DEG) * side;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    return { x: g.x + (fx * ca - fz * sa) * d, y: g.y, z: g.z + (fz * ca + fx * sa) * d };
+  }
+  const side = rngRange(rng(sim), -PATCH_SPAWN_SIDE, PATCH_SPAWN_SIDE);
+  return { x: g.x + (fx + side * fz) * d, y: g.y, z: g.z + (fz - side * fx) * d };
+}
+
 /** §2.3: per ant moving in a patch, per second lambda = 0.05 count/K (springtail), 0.01 (mite); 2-4 L ahead. */
 export function spawnPatchPrey(sim: Sim, cond: Conditions, dtS: number): void {
   if (cond.winter) return;
@@ -106,11 +134,7 @@ export function spawnPatchPrey(sim: Sim, cond: Conditions, dtS: number): void {
         if (countKind(sim, kind) >= capOf(sim, kind)) continue;
         const lambda = (PATCH_LAMBDA[kind] ?? 0) * (p.count / p.k);
         if (!chance(sim, 1 - Math.exp(-lambda * dtS))) continue;
-        const L = antLen(sim, ant), d = between(sim, PATCH_SPAWN_AHEAD_L) * L;
-        const side = rngRange(rng(sim), -0.5, 0.5);
-        const g = { x: ant.pos.x - ant.up.x * ant.footOffset, y: ant.pos.y - ant.up.y * ant.footOffset, z: ant.pos.z - ant.up.z * ant.footOffset };
-        const pos = { x: g.x + (ant.fwd.x + side * ant.fwd.z) * d, y: g.y, z: g.z + (ant.fwd.z - side * ant.fwd.x) * d };
-        spawnKind(sim, kind, pos, { state: 'graze', bb: { patch: p.id, contact: sim.state.tick } });
+        spawnKind(sim, kind, patchSpawnPoint(sim, ant), { state: 'graze', bb: { patch: p.id, contact: sim.state.tick } });
       }
     }
   }
@@ -174,7 +198,7 @@ export function spawnFlyLarvae(sim: Sim, cond: Conditions): void {
   for (const s of sim.stores.sources.list) {
     if (!s.alive || s.kind !== 'carrion' || s.units * s.unitBulk < FLY_LARVA_MIN_BULK || seeded.includes(s.id)) continue;
     const age = ageGd(sim, s);
-    const ripe = s.stage === 'ripe' || (s.stage === null && age >= 0.5 && age < 1.5);
+    const ripe = s.stage === 'ripe' || (s.stage === null && age >= FLY_LARVA_RIPE_AGE_GD[0] && age < FLY_LARVA_RIPE_AGE_GD[1]);
     if (!ripe) continue;
     seeded.push(s.id);
     if (seeded.length > 256) seeded.splice(0, seeded.length - 256);
@@ -193,7 +217,7 @@ export function strandWorms(sim: Sim): void {
   const n = rngInt(rng(sim), WORM_STRANDED_PER_RAIN[0], WORM_STRANDED_PER_RAIN[1]);
   const pos = { x: 0, y: 0, z: 0 };
   for (let i = 0; i < n && countKind(sim, 'earthworm') < capOf(sim, 'earthworm'); i++) {
-    const zone: ZoneType = chance(sim, 0.5) ? 'pavement' : 'asphalt';
+    const zone: ZoneType = chance(sim, WORM_STRANDED_PAVEMENT_SHARE) ? 'pavement' : 'asphalt';
     if (!randomPointInZone(sim.world, rng(sim), zone, pos)) continue;
     spawnKind(sim, 'earthworm', pos, { state: 'surface', bb: { stranded: 1 } });
   }

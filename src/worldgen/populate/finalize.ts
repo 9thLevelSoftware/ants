@@ -233,6 +233,7 @@ export function finalizeFood(ctx: GenContext): void {
 function crumbsForSites(ctx: GenContext, d: Float64Array): number {
   const lay = ctx.layout, cls = ctx.world.nav.cls.data, zones = topUpZones('crumb-starch');
   const anchors = ctx.world.placements.foodAnchors;
+  const moved = new Set<FoodAnchor>();
   let added = 0;
   for (let n = 0; n < TOP_UP.siteCrumbMax; n++) {
     const reach = VALID.startRadiusBu + SITE_FOOD.radiusBu;
@@ -253,7 +254,7 @@ function crumbsForSites(ctx: GenContext, d: Float64Array): number {
       else anchors.pop();
     }
     // no crumb ground by this site (deep in a forest or bed): move a far static film under a plant near it
-    if (!placed && !moveFilmToSite(ctx, d, worst)) break;
+    if (!placed && !moveFilmToSite(ctx, d, worst, moved)) break;
     added++;
   }
   return added;
@@ -263,11 +264,12 @@ function crumbsForSites(ctx: GenContext, d: Float64Array): number {
  * Moves the static honeydew film farthest from the start under an unused plant within 400 BU of `site` (GDD 05 §0
  * places the films "anywhere" beyond the 2 near the start, so the count and the near-start rule still hold).
  */
-function moveFilmToSite(ctx: GenContext, d: Float64Array, site: number): boolean {
+function moveFilmToSite(ctx: GenContext, d: Float64Array, site: number, moved: Set<FoodAnchor>): boolean {
   const isFilm = (a: FoodAnchor) => a.initialState.startsWith('honeydew-film');
   const films = ctx.world.placements.foodAnchors.filter(isFilm)
     .sort((a, b) => anchorDistance(ctx, b, d) - anchorDistance(ctx, a, d) || a.id - b.id);
-  const far = films[0];
+  // films already moved to a site stay; so do the nearMin nearest to the start
+  const far = films.slice(0, Math.max(0, films.length - T1_HONEYDEW.nearMin)).find((f) => !moved.has(f));
   if (!far || films.filter((f) => f !== far && anchorDistance(ctx, f, d) <= T1_HONEYDEW.nearBu).length < T1_HONEYDEW.nearMin) return false;
   const near = new Map<number, number>();
   forEachWithin(ctx, site, { maxBu: SITE_FOOD.radiusBu }, (c, dist) => near.set(c, dist));
@@ -280,6 +282,7 @@ function moveFilmToSite(ctx: GenContext, d: Float64Array, site: number): boolean
       return !!acc && anchorDistance(ctx, a, d) < Infinity && (near.get(acc.cell) ?? Infinity) + acc.climbBu <= SITE_FOOD.radiusBu;
     };
     if (!placeFilm(ctx, f, fits)) continue;
+    moved.add(ctx.world.placements.foodAnchors[ctx.world.placements.foodAnchors.length - 1]);
     removeFilm(ctx, far);
     return true;
   }

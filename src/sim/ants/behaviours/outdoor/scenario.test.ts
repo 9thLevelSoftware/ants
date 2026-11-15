@@ -90,8 +90,11 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
     // ant re-evaluated to another task while it walks home still books its trip, and the allocator moves ants in and
     // out of `forage` between trips, so the average forage headcount understates the ants working the sugar; the
     // count against `hi` is reported, the per-ant cycle is asserted.)
+    // the cycle bound is the sugar's (300 BU): trips to the carrion, 200 BU away, are shorter (sim-fix-ants review:
+    // a carrion forager cycled in 79 s once the carrion was found inside the window)
     const byAnt = new Map<number, number[]>();
     for (const e of hourDeliveries) {
+      if (e.type !== 'delivery' || e.sourceId !== sugar.id) continue;
       const x = e as unknown as { antId: number; tick: number };
       byAnt.set(x.antId, [...(byAnt.get(x.antId) ?? []), x.tick]);
     }

@@ -127,7 +127,8 @@ export function placeFilm(ctx: GenContext, f: FilmFoot, accept?: (a: FoodAnchor)
 
 /** Removes a film anchor; a plant that was an aphid host only for this film loses the flag again. */
 export function removeFilm(ctx: GenContext, film: FoodAnchor): void {
-  ctx.world.placements.foodAnchors = ctx.world.placements.foodAnchors.filter((x) => x !== film);
+  const list = ctx.world.placements.foodAnchors, i = list.indexOf(film);
+  if (i >= 0) list.splice(i, 1); // in place: callers may hold the array
   const set = filmPromoted.get(ctx);
   if (!set?.has(film.hostObjectId)) return;
   set.delete(film.hostObjectId);

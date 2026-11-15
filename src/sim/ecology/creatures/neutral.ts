@@ -11,7 +11,7 @@ import type { Creature, Sim } from '@/sim/types';
 import { despawnCreature } from '@/sim/entities';
 import { zoneAt } from '@/sim/world';
 import {
-  CREATURE_STATS, GRAZE_S, MILLIPEDE_COIL_S, SLIME_LIFE_GD, SLIME_MAX, SLIME_RADIUS_MM, SLIME_SPACING_MM,
+  COVER_S, CREATURE_STATS, GRAZE_S, MILLIPEDE_COIL_S, SLIME_LIFE_GD, SLIME_MAX, SLIME_RADIUS_MM, SLIME_SPACING_MM,
   SNAIL_RETRACT_S, WANDER_S, WOODLOUSE_ROLL_BITES, WOODLOUSE_ROLL_S, WORM_DYING_GD,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY } from '@/sim/time';
@@ -22,7 +22,6 @@ import type { KindBehaviour } from './kinds';
 
 const HARD_ZONES = new Set(['pavement', 'asphalt']);
 /** Going into cover / burrowing takes this long before the animal is gone, s. */
-const COVER_S = 8;
 
 function outside(cond: Conditions): boolean {
   return cond.dark || cond.raining;

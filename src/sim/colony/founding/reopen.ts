@@ -8,7 +8,7 @@
 // and the nest keeps an entrance with plug voxels left in its throat `sealing` (GDD 03 §4.2), which no forager uses
 // as an exit. So after the hand-over `reopenTick` keeps one founding plan at a time going: the passage first, then
 // a short plan through each plug remnant, until the entrance is `open` (see reopenTick for how long it watches).
-// Plug samples the fill left above the ground surface cannot be dug at all (`clearGhosts`, a local adapter).
+// Plug voxels no plan can take are unplugged by the nest's own unplug function (`unplugRemnants`, a local adapter).
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { DigPlan, Entrance, Nest, Sim } from '@/sim/types';
@@ -16,7 +16,7 @@ import { VoxelFlag } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import {
   REOPEN_CHECK_TICKS, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
-  REOPEN_GHOST_BITES, REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD, REOPEN_REMNANT_REACH_BU,
+  REOPEN_UNPLUG_BITES, REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD,
 } from '@/sim/balance/founding';
 import { cancelPlan, createPlan, unsealEntrance, voxelAt } from '@/sim/nest';
 import { TICKS_PER_DAY } from '@/sim/time';
@@ -107,13 +107,18 @@ function passagePlan(sim: Sim, nest: Nest, e: Entrance): number {
   return face ? shaftPlan(sim, nest, face, e.pos) : -1;
 }
 
-/** A short dig through the plug remnant nearest the opening that a plan can reach from the cavity; plan id or -1. */
+/**
+ * A short dig through the plug remnant nearest the opening: a plan anchored at the remnant itself (beside the open
+ * passage) and rising REOPEN_PAST_BU, so it reaches up towards the surface and stays within the anchor's
+ * connection reach (the nest's plan checks); plan id or -1 when the nest refuses every remnant.
+ */
 function remnantPlan(sim: Sim, nest: Nest, e: Entrance): number {
-  const reach = REOPEN_REMNANT_REACH_BU * sim.world.bu;
+  const lift = REOPEN_PAST_BU * sim.world.bu;
   for (const r of plugRemnants(sim, e, 'soil')) {
-    const from = cavityPointNear(sim, nest, r, reach, false);
-    if (!from) continue;
-    const id = shaftPlan(sim, nest, from, r);
+    const id = createPlan(sim, {
+      nestId: nest.id, kind: 'shaft', anchor: { pos: r, normal: UP }, end: { x: r.x, y: r.y + lift, z: r.z },
+      priority: REOPEN_PLAN_PRIORITY, confirmWarnings: true,
+    }, 'founding');
     if (id >= 0) return id;
   }
   return -1;
@@ -138,18 +143,19 @@ export function requestReopen(sim: Sim, nest: Nest): number[] {
 }
 
 /**
- * Local adapter for the nest defect above: the ghost plug samples are cleared with the nest's own unplugging
- * function (`unsealEntrance`, the `unseal-entrance` effect: it opens only plug voxels), at most
- * REOPEN_GHOST_BITES times. Ghosts lie in free space, so the walkable world does not change; only the nest's
- * plug count does. Called only when no remnant is left inside the soil. True when some were cleared.
+ * Local adapter (see the founding report, needs from nest and beh-nest): plug voxels that no plan can take are
+ * cleared with the nest's own unplugging function (`unsealEntrance`, the `unseal-entrance` effect, which opens
+ * only plug voxels: GDD 03 §4.2 "unseal = dig-bite on plug voxels"). These are the samples the fill left at or
+ * above the ground surface (free space already, which no bite finds) and the rim the nest's plan checks refuse
+ * (`too-close` / `undermines` / `non-diggable` right at the opening). At most REOPEN_UNPLUG_BITES per check.
  */
-function clearGhosts(sim: Sim, e: Entrance): boolean {
-  let cleared = false;
-  for (let n = 0; n < REOPEN_GHOST_BITES && plugRemnants(sim, e, 'ghost').length > 0; n++) {
+function unplugRemnants(sim: Sim, e: Entrance): boolean {
+  let any = false;
+  for (let n = 0; n < REOPEN_UNPLUG_BITES && plugRemnants(sim, e).length > 0; n++) {
     unsealEntrance(sim, e.id, -1);
-    cleared = true;
+    any = true;
   }
-  return cleared;
+  return any;
 }
 
 const live = (p: DigPlan) => p.status !== 'complete' && p.status !== 'cancelled';
@@ -197,7 +203,7 @@ export function reopenTick(sim: Sim): number {
     const remnant = e.status === 'sealing' && e.plugVoxelCount > 0;
     const id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
     if (id >= 0) return id;
-    if (remnant && plugRemnants(sim, e, 'soil').length === 0) clearGhosts(sim, e);
+    if (remnant) unplugRemnants(sim, e);
   }
   return -1;
 }

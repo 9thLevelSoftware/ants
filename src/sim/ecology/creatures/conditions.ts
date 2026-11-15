@@ -63,3 +63,8 @@ function safe<T>(f: () => T, fallback: T): T {
 export function inDays(c: Conditions, range: readonly [number, number]): boolean {
   return c.d28 >= range[0] && c.d28 <= range[1];
 }
+
+/** Night-active visitors (centipede, rove beetle, millipede): out at night and twilight, never in winter. */
+export function nightActive(c: Conditions): boolean {
+  return !c.winter && c.dark;
+}

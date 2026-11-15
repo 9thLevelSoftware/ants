@@ -15,7 +15,7 @@ import {
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { antLen, dist, face, isPossessed, rng, ticks } from './common';
 import { conditions } from './conditions';
-import { noteDangerEvent } from './danger';
+import { noteDangerEvent, noteDangerFor } from './danger';
 import { ports } from './ports';
 
 const TICK_S = 1 / TICKS_PER_SECOND;
@@ -97,11 +97,23 @@ export function landStrike(sim: Sim, c: Creature, seize: boolean, dmgOverride?: 
   sim.emit({ type: 'predator-strike', creatureId: c.id, targetId: ant.id, hit, damage: dealt });
   if (hit) ports.raiseAlarm(sim, ant.colony, ant.pos, 1);
   const alive = sim.stores.ants.has(ant.id) && ant.hp > 0;
+  if (hit && alive && seize) {
+    // the strike's danger event waits for the end of the hold: freed = survived, dead = killed (witness rule)
+    seizeAnt(sim, c, ant);
+    c.bb.dnCol = ant.colony; c.bb.dnLen = antLen(sim, ant); c.bb.dnId = ant.id;
+    return 'seized';
+  }
   noteDangerEvent(sim, ant, aim, alive ? 'survived' : 'killed');
   if (!hit) return 'miss';
   if (!alive) return 'killed';
-  if (seize) { seizeAnt(sim, c, ant); return 'seized'; }
   return 'hit';
+}
+
+/** Settles the danger event of a strike whose victim was seized (landStrike) once the hold ends. */
+function settleHoldDanger(sim: Sim, c: Creature, outcome: 'killed' | 'survived'): void {
+  if (c.bb.dnCol === undefined) return;
+  noteDangerFor(sim, c.bb.dnCol, c.bb.dnLen ?? 0, c.bb.dnId ?? -1, c.pos, outcome);
+  delete c.bb.dnCol; delete c.bb.dnLen; delete c.bb.dnId;
 }
 
 /** Moves the predator onto the aim point (its strike ends there), keeping it on the level set. */
@@ -131,6 +143,7 @@ export function releaseAnt(sim: Sim, c: Creature, freed: boolean): void {
   const ant = sim.stores.ants.get(c.seizedAntId);
   c.seizedAntId = -1;
   if (!ant) return;
+  settleHoldDanger(sim, c, ant.hp > 0 ? 'survived' : 'killed');
   if (ant.combat && ant.combat.seizedBy === c.id) { ant.combat.seizedBy = -1; ant.combat.escape = 0; }
   ant.bb[BB_IMMUNE] = sim.state.tick + ticks(STRIKE_IMMUNITY_S);
   sim.emit({ type: 'ant-freed', antId: ant.id, by: c.id });
@@ -185,7 +198,7 @@ export type HoldResult = 'held' | 'freed' | 'dead';
 export function holdTick(sim: Sim, c: Creature, venomPerS = VENOM_PER_S[c.kind] ?? 0, cause: 'predation' | 'antlion' = 'predation',
   helpers = 0): HoldResult {
   const ant = sim.stores.ants.get(c.seizedAntId);
-  if (!ant || ant.hp <= 0) { c.seizedAntId = -1; return 'dead'; }
+  if (!ant || ant.hp <= 0) { c.seizedAntId = -1; settleHoldDanger(sim, c, 'killed'); return 'dead'; }
   const cs = ensureCombat(ant);
   if (isPossessed(sim, ant)) possessedInputs(sim, c, ant);
   else cs.escape += STRUGGLE_AI_INPUTS_PER_S * STRUGGLE_PER_INPUT * TICK_S;
@@ -193,7 +206,7 @@ export function holdTick(sim: Sim, c: Creature, venomPerS = VENOM_PER_S[c.kind] 
   if (cs.escape < 0) cs.escape = 0;
   if (cs.escape >= 1 - 1e-9) { releaseAnt(sim, c, true); return 'freed'; }
   if (venomPerS > 0) ports.applyDamage(sim, 'ant', ant.id, venomPerS * conditions(sim).levers.predatorDamageMult * TICK_S, cause);
-  if (!sim.stores.ants.has(ant.id) || ant.hp <= 0) { c.seizedAntId = -1; return 'dead'; }
+  if (!sim.stores.ants.has(ant.id) || ant.hp <= 0) { c.seizedAntId = -1; settleHoldDanger(sim, c, 'killed'); return 'dead'; }
   return 'held';
 }
 

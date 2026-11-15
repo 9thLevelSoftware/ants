@@ -25,9 +25,12 @@ const TRIP_MAX_S = TRIP_LOST_S + SLACK_S;
 /** 5 game hours are only 1,250 ticks; the run covers 100 game hours (four game days), longer than TRIP_MAX_S. */
 const HOURS = 100;
 const TICKS = HOURS * 250;
+const LONG = !!(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.FOUNDRESS_LONG;
+/** Default mode: one seed (about 40 s under load); FOUNDRESS_LONG=1: three. */
+const SEEDS = LONG ? [1, 2, 3] : [1];
 
 describe('acceptance 4: bounded trips and states', () => {
-  it.each([1, 2, 3])(`seed %i: ${HOURS} game hours`, (seed) => {
+  it.each(SEEDS)(`seed %i: ${HOURS} game hours`, (seed) => {
     const { sim, col, sources } = forageScenario({
       seed,
       sources: [

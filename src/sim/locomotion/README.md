@@ -62,8 +62,11 @@ changed under it (flag persisted in its scratch), a moving target moved, or the 
 Moving targets are re-resolved every second, and every tick once the walker is close.
 
 Avoid markers (GDD 02 §12.2): an autonomous ant's planner prices every 16 BU cell whose square overlaps a disc
-(not only cells whose centre is inside) x 20, and string-pulling never cuts a disc; while a colony has avoid discs,
-trips home use A* instead of the cached entrance flow field. A trail sensor reading inside a disc counts x 0.1; a
+(not only cells whose centre is inside) x 20, and string-pulling never cuts a disc. While a colony has avoid discs,
+its trips home follow a disc-weighted variant of the cached entrance flow field (key `nest:<id>|avoid`, signature
+including the discs; a cell inside a disc carries the x 20 itself, since walkers descend the field to the lowest
+neighbour; rebuilt in full on a grid change, never repaired), so a large outdoor force pays no A* per trip; a
+two-cell lookahead that would cut a disc falls back to the next cell. A trail sensor reading inside a disc counts x 0.1; a
 trail that goes on only inside a disc is not crossed as a gap: the walker turns out of the disc instead.
 
 Steering: the leg's direction is normalised first, then separation (in nests and near the goal), the prefer-floor
@@ -75,6 +78,17 @@ Progress = the leg's own metric (distance to the waypoint, field distance, flow 
 progress (its first metric is only a baseline; the window keeps running), so a walker whose legs keep ending
 without arriving is caught. No improvement of 0.5 BU in 2.5 s climbs one rung: replan, sidestep, back off, re-snap,
 relocate (<= 2 per request, 6 BU toward the next waypoint / flow cell / field sample, event `ant-unstuck`), fail. Episodes per request are capped and every request has a timeout, so every walker ends `arrived` or `failed`.
+
+A wander has no goal to replan toward or relocate along, so it has its own short ladder (`stuck.ts` wanderStuck):
+no 0.5 BU of movement for `wanderStallS` (1 s) pivots the walker on the spot for `wanderPivotS` (its heading sweeps
+round a quarter turn ahead, the pull to the wander centre ignored); a pivot that frees nothing, or more than
+`wanderStallMax` stalls in one request, ends the wander `failed` with mode 'none' (callers that re-issue "while not
+wandering" do so at once; the in-nest idle behaviour walks back toward its chamber's centre first).
+
+Pinned walkers: in a cavity on a steep slope, wall or overhang (up.y < 0.7), standing (speed 0) and without progress
+for `pinnedS` (1 s), a walker with any request lets go and drops to the floor below; the request goes on after the
+landing. Thin fins and lips of dug soil held walkers whose every step was rejected for many seconds (the 2-game-day
+soak's longest continuous "moving, speed 0" run fell from 241 to 19 ticks).
 
 ## Level of detail
 

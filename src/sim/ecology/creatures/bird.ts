@@ -14,14 +14,14 @@ import {
   BIRD_ALATE_P_PER_S, BIRD_ALATE_RADIUS_BU, BIRD_APPROACH_S, BIRD_DAY_MARGIN_H, BIRD_DURATION_S, BIRD_GAP_GD,
   BIRD_HEAD_COCK_S, BIRD_KILL_P, BIRD_KILL_RADIUS_MM, BIRD_LEAVE_S, BIRD_MAX_KILLS, BIRD_MIN_EXPOSED, BIRD_MIN_WORKERS,
   BIRD_PECK_EVERY_S, BIRD_RATE, BIRD_TARGET_RADIUS_BU, EXPOSED_COVER_BU, LETHAL_DAMAGE, REF_BU_MM, STRIKE_ALARM,
-  THREAT_BIRD, BIRD_CRUMBS_MAX, WOODPECKER_CARVE_BU, WOODPECKER_CARVE_EVERY_S, WOODPECKER_CARVES_MAX,
+  THREAT_BIRD, BIRD_CRUMBS_MAX, WOODPECKER_SHARE, WOODPECKER_CARVE_BU, WOODPECKER_CARVE_EVERY_S, WOODPECKER_CARVES_MAX,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { between, chance, cue, dist, onSurface, rng, ticks } from './common';
 import type { Conditions } from './conditions';
 import { conditions } from './conditions';
 import { endMajorThreat, requestMajorThreat } from './threat';
-import { addDanger } from './danger';
+import { noteDangerEvent } from './danger';
 import { ports } from './ports';
 
 /** Candidate points examined for a bird target. */
@@ -74,7 +74,7 @@ export function birdTarget(sim: Sim, colonyId: number): Vec3 | null {
 
 function variantAt(sim: Sim, p: Vec3, atMound: boolean): CreatureVariant {
   const z = zoneAt(sim.world, p.x, p.z);
-  if ((z === 'forest' || z === 'lawn') && atMound && chance(sim, 0.2)) return 'woodpecker';
+  if ((z === 'forest' || z === 'lawn') && atMound && chance(sim, WOODPECKER_SHARE)) return 'woodpecker';
   return z === 'pavement' || z === 'asphalt' || z === 'sand' || z === 'rubber' ? 'sparrow' : 'thrush';
 }
 
@@ -93,10 +93,16 @@ export function startBird(sim: Sim, colonyId: number, pos: Vec3, variant: Creatu
   return ev;
 }
 
-/** Hourly roll (§2.6 rate / 24 per hour) for the player colony; returns true when an event started. */
+/**
+ * Hourly roll for the player colony; returns true when an event started. §2.6 gives BIRD_RATE per game day, and
+ * birds only come in the daylight window SR + 1 h .. SS - 1 h, so each hourly roll in that window has
+ * p = rate / (window hours): about `rate` events per day before the gap and threat-director gating.
+ */
 export function birdHourly(sim: Sim, cond: Conditions): boolean {
   if (sim.state.ecology.birdEvent || cond.raining || cond.winter) return false;
-  if (cond.hour < cond.sunrise + BIRD_DAY_MARGIN_H || cond.hour > cond.sunset - BIRD_DAY_MARGIN_H) return false;
+  const from = cond.sunrise + BIRD_DAY_MARGIN_H, to = cond.sunset - BIRD_DAY_MARGIN_H;
+  if (cond.hour < from || cond.hour > to) return false;
+  const windowH = Math.max(1, to - from);
   const col = sim.state.colonies.find((c) => c.alive && c.isPlayer);
   if (!col) return false;
   let workers = 0;
@@ -104,7 +110,7 @@ export function birdHourly(sim: Sim, cond: Conditions): boolean {
   if (workers < BIRD_MIN_WORKERS) return false;
   const last = sim.state.ecology.lastBirdTick[String(col.id)] ?? -Infinity;
   if (sim.state.tick - last < BIRD_GAP_GD * TICKS_PER_DAY) return false;
-  if (!chance(sim, BIRD_RATE[sim.state.config.rules.predators] / 24)) return false;
+  if (!chance(sim, Math.min(1, BIRD_RATE[sim.state.config.rules.predators] / windowH))) return false;
   const pos = birdTarget(sim, col.id);
   if (!pos) return false;
   // a blocked bird event is cancelled (§6)
@@ -219,7 +225,7 @@ function doPeck(sim: Sim, ev: BirdEvent): void {
   const a = sim.stores.ants.get(id);
   if (!a || dist(a.pos, aim) > BIRD_KILL_RADIUS_MM || !chance(sim, BIRD_KILL_P)) return;
   ports.applyDamage(sim, 'ant', a.id, LETHAL_DAMAGE, 'bird');
-  if (!sim.stores.ants.has(a.id) || a.hp <= 0) { ev.kills++; addDanger(sim, aim); }
+  if (!sim.stores.ants.has(a.id) || a.hp <= 0) { ev.kills++; noteDangerEvent(sim, a, aim, 'killed'); }
 }
 
 function alatesAtRisk(sim: Sim, ev: BirdEvent): void {

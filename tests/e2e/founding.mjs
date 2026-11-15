@@ -5,16 +5,14 @@
 // Beats (one screenshot each, all looked at): intro card; site read-out; the dug entrance with its mound; the sealed
 // chamber with eggs; the time-lapse overlay at three points (eggs, larvae, pupae); the outcome card; the hand-over with
 // the first workers at the reopened entrance; a possessed worker; then a second game where the queen dies before
-// sealing (failure card, retry). Where a step cannot be done by the player's own actions it records a STAND-IN.
-// FOUNDING_SKIP_FAIL=1 skips the failure part while iterating.
+// sealing (failure card, retry). Every step is the player's own action through the real primitives (no stand-ins:
+// a step that does not work fails the run). FOUNDING_SKIP_FAIL=1 skips the failure part while iterating.
 
 const SHAFT_DEPTH_BU = 9; // Lasius D_MIN in open soil is 8 BU
 const SHAFT_MAX_BITES = 260;
 const SHAFT_SLOPE_DEG = 55;
 const ROOM_MAX_ROUNDS = 4;
-const SITE_MAX_R_BU = 40;
-const DAY = 6000; // ticks per game day
-const SUMMER_DAY1_7H = 7 * DAY + (7 / 24) * DAY; // calendar tick: summer day 1, 07:00 (7-day seasons)
+const SITE_MAX_R_BU = 120;
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -26,8 +24,7 @@ export default async ({ page, shot, log }) => {
   const step = (n) => g((k) => window.__game.step(k), n);
   const visible = (id) => g((t) => { const e = document.querySelector(`[data-testid="${t}"]`); return !!e && e.getBoundingClientRect().width > 0; }, id);
   const click = (id) => page.click(`[data-testid="${id}"]`);
-  const result = { beats: [], standIns: [] };
-  const standIn = (feature, detail) => { result.standIns.push({ feature, detail }); log('STAND-IN', feature, '-', detail); };
+  const result = { beats: [] };
   // an observer pose `back` BU from point m and `up` BU above it with a clear line of sight (plants, stones, walls)
   const clearPose = (m, up, back) => g(({ m, up, back }) => {
     const gm = window.__game, bu = gm.query.world().bu;
@@ -65,10 +62,7 @@ export default async ({ page, shot, log }) => {
   await page.keyboard.press('KeyW'); // any key skips the card
   await step(1);
   expect(await phase() === 'dealation', 'the intro card did not close on a key', await phase());
-  // The opening's calendar (Lasius: summer day 3, afternoon) leaves about 4.5 GD of summer, and the first brood needs
-  // about that much at 19.5 C; this scripted dig takes far longer than a player's, so the clock is set back to the
-  // first morning of summer first (test setup, like the Stage 1A script's start time).
-  await g((t) => window.__game.cheat.setTime(t), SUMMER_DAY1_7H);
+  result.start = await g(() => window.__game.summary().time);
   await step(85); // the wings are shed (8 s), the search begins
   expect(await phase() === 'search', 'dealation did not end in search', await phase());
 
@@ -103,14 +97,8 @@ export default async ({ page, shot, log }) => {
   }, { o, slope: SHAFT_SLOPE_DEG, fromBu, toBu, stepBu });
   s = await summary();
   const start = { x: s.possessed.pos[0], y: s.possessed.pos[1], z: s.possessed.pos[2] };
-  let site = await findSite(start, 2, SITE_MAX_R_BU, 1);
-  if (!site) {
-    site = await findSite(start, SITE_MAX_R_BU, 600, 4);
-    expect(site, 'no diggable founding site found', start);
-    standIn('start placement', `no diggable site within ${SITE_MAX_R_BU} BU of the start: the queen is teleported ${Math.round(site.rBu)} BU (world-population task)`);
-    await g((p) => window.__game.teleport('possessed', p), { x: site.x - site.h.x * 2 * bu, y: site.y + 0.5 * bu, z: site.z - site.h.z * 2 * bu });
-    await step(5);
-  }
+  const site = await findSite(start, 2, SITE_MAX_R_BU, 1);
+  expect(site, `no diggable founding site within ${SITE_MAX_R_BU} BU of the start`, start);
   const H = site.h;
   const steerTo = async (gx, gz, tol) => {
     for (let i = 0; i < 600; i++) {
@@ -190,12 +178,6 @@ export default async ({ page, shot, log }) => {
     v = await view();
     log('readiness', JSON.stringify(v.readiness), 'phase', v.phase);
   }
-  if ((await phase()) === 'dig') {
-    standIn('cell width', 'the scripted room did not pass the width test; the cell is widened by cheat.carveEllipsoid round the shaft end');
-    await g(({ c, bu }) => window.__game.cheat.raw({ type: 'cheat.carveEllipsoid', center: { x: c[0], y: c[1] + 0.2 * bu, z: c[2] }, radii: { x: 2.2 * bu, y: 1.1 * bu, z: 2.4 * bu }, yawDeg: 0 }), { c: centre, bu });
-    await steerTo(centre[0], centre[2], 0.4 * bu);
-    await step(120);
-  }
   v = await view();
   result.readiness = v.readiness;
   expect(v.phase === 'seal', 'the founding cell never became ready', { phase: v.phase, readiness: v.readiness });
@@ -211,7 +193,7 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.possess('queen'));
   await step(2);
 
-  // --- 6. sealing: bites in the throat give pellets (expulsion stops at `ready`); seal-entrance plugs it ------------
+  // --- 6. sealing: E at the shaft (held seal-entrance; the founding rule puts soil in her mandibles) ----------------
   const queenAction = () => g(() => { const gm = window.__game; const a = gm.query.ant(gm.summary().possessed?.id); return a ? a.action : null; });
   const stopDig = async () => { await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' })); await step(20); };
   await stopDig(); // a held dig repeats until the input is released
@@ -223,11 +205,6 @@ export default async ({ page, shot, log }) => {
   const toOpening = async () => { const p = (await summary()).possessed.pos; return Math.hypot(p[0] - ent.pos.x, p[1] - ent.pos.y, p[2] - ent.pos.z) / bu; };
   for (let tries = 0; tries < 12 && (await phase()) === 'seal'; tries++) {
     if ((await toOpening()) > 2.6) { await steerTo(throat.x, throat.z, 0.4 * bu); await step(5); }
-    // a pellet from the ramp's floor (bites give pellets once the cell is ready; side walls this near the surface
-    // would breach a second opening), then plug the throat
-    await dig(75, 30, H);
-    await stopDig();
-    await walkDir(1, { x: -H.x, y: 0, z: -H.z });
     if (tries < 3) log('before seal: action', JSON.stringify(await queenAction()), 'carry', JSON.stringify(await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry; })));
     await g(() => window.__game.act('seal-entrance'));
     await step(30);
@@ -243,18 +220,7 @@ export default async ({ page, shot, log }) => {
       await walkDir(3, H);
     }
   };
-  if ((await phase()) === 'seal') {
-    standIn('seal', `seal-entrance did not close the throat after ${seals} tries; the throat is filled by cheat.fillSphere`);
-    await goDown();
-    const c = Math.cos((SHAFT_SLOPE_DEG * Math.PI) / 180), sn = Math.sin((SHAFT_SLOPE_DEG * Math.PI) / 180);
-    for (const e of (await nest()).entrances.filter((x) => Math.hypot(x.pos.x - ent.pos.x, x.pos.z - ent.pos.z) < 8 * bu)) {
-      for (const u of [-0.5, 0, 0.75, 1.5, 2.25]) {
-        const p = { x: e.pos.x + H.x * u * c * bu, y: e.pos.y - u * sn * bu, z: e.pos.z + H.z * u * c * bu };
-        await g((q) => window.__game.cheat.raw({ type: 'cheat.fillSphere', pos: q.p, r: q.r, loose: true }), { p, r: 1.8 * bu });
-      }
-    }
-    for (let i = 0; i < 20 && (await phase()) === 'seal'; i++) await step(20);
-  }
+  for (let i = 0; i < 5 && (await phase()) === 'seal'; i++) await step(20);
   expect(await phase() === 'lay', 'not sealed', { phase: await phase(), entrances: (await nest()).entrances });
   result.seal = { seals, entrances: (await nest()).entrances.map((e) => e.status) };
   log('sealed', JSON.stringify(result.seal));
@@ -273,12 +239,14 @@ export default async ({ page, shot, log }) => {
   result.clutch = v.clutch;
   log('clutch', JSON.stringify(v.clutch));
   if (!v.clutch || v.clutch.eggs === 0) {
+    // she may have stopped in the shaft's end: walk on into the registered cell and lay there
     log('lay refused:', JSON.stringify(await g(() => window.__game.events('action-failed', 4).map((e) => `${e.action}:${e.reason}`))), 'action', JSON.stringify(await queenAction()));
-    standIn('lay', 'lay-egg refused in the cell; the queen is moved into the registered founding chamber');
     const cell = (await nest()).chambers.find((c) => c.type === 'founding');
-    await g((p) => window.__game.teleport('possessed', p), { x: cell.center.x, y: cell.center.y - cell.radii.y * 0.5, z: cell.center.z });
-    for (let b = 0; b < 4; b++) await layBatch();
-    v = await view();
+    for (let i = 0; i < 3 && (!v.clutch || v.clutch.eggs === 0); i++) {
+      await steerTo(cell.center.x, cell.center.z, 0.6 * bu);
+      for (let b = 0; b < 4; b++) await layBatch();
+      v = await view();
+    }
   }
   expect(v.clutch && v.clutch.eggs >= 6, 'no eggs laid', v.clutch);
   await g(() => window.__game.camera.orbit(160, 15)); // round to the front of the queen: the eggs under her head
@@ -328,14 +296,23 @@ export default async ({ page, shot, log }) => {
   expect(await visible('founding-handover'), 'no hand-over banner');
   s = await summary();
   result.afterHandover = { workers: s.colony?.workers, speedAllowed: s.speed?.allowed };
-  let opened = false;
-  for (let i = 0; i < 12 && !opened; i++) {
-    await step(500);
-    opened = (await nest()).entrances.some((e) => e.status === 'open');
+  // the first workers dig the plug open (their own dig behaviour on the founding module's plans) and walk out
+  const outside = () => g(() => {
+    const gm = window.__game, bu = gm.query.world().bu, n = gm.query.nest()[0];
+    return gm.query.ants().some((a) => a.caste === 'worker' && gm.query.field(a.pos.x, 0, a.pos.z).height - a.pos.y < 0.5 * bu
+      && n.entrances.every((e) => Math.hypot(a.pos.x - e.pos.x, a.pos.z - e.pos.z) > 3 * bu));
+  });
+  let opened = false, out = false;
+  for (let i = 0; i < 24 && !(opened && out); i++) {
+    await step(250);
+    opened ||= (await nest()).entrances.some((e) => e.status === 'open');
+    out ||= opened && await outside();
   }
   result.reopened = opened;
-  if (!opened) log('the plug was not reopened within 6000 ticks (worker dig behaviour)');
-  const e0 = (await nest()).entrances[0];
+  result.workerOutside = out;
+  expect(opened, 'the first workers did not reopen the entrance within 6000 ticks', (await nest()).entrances.map((e) => `${e.status}:${e.plugVoxelCount}`));
+  expect(out, 'no worker walked out of the reopened entrance within 6000 ticks');
+  const e0 = (await nest()).entrances.find((e) => e.status === 'open') ?? (await nest()).entrances[0];
   await g(() => window.__game.release());
   await g(({ a, l }) => window.__game.camera.setPose(a, l), await clearPose(e0.pos, 8, 14));
   await beat('09-handover-entrance');

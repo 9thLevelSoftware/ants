@@ -38,7 +38,9 @@ export function grainGeometry(detail: number, seed: number, cuts: number, smooth
     v.fromBufferAttribute(pos, i);
     n.copy(v).normalize();
     const h = Math.sin(n.x * 5.1 + seed) * Math.sin(n.y * 4.3 + seed * 2.1) * Math.sin(n.z * 6.7 + seed * 0.7);
-    v.multiplyScalar(1 + 0.2 * h);
+    // crumbs get a second, finer octave: lumpy aggregates, not smooth eggs
+    const h2 = smooth ? Math.sin(n.x * 11.3 + seed * 3.1) * Math.sin(n.y * 9.7 + seed) * Math.sin(n.z * 12.9 + seed * 1.9) : 0;
+    v.multiplyScalar(1 + 0.2 * h + 0.12 * h2);
     for (const p of planes) { const d = v.dot(p) - 0.6; if (d > 0) v.addScaledVector(p, -d); } // flat fracture faces
     pos.setXYZ(i, v.x, v.y, v.z);
   }

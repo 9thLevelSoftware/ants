@@ -174,17 +174,16 @@ export const REOPEN_FACE_INSIDE_BU = 0.75;
 export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
 /**
  * After the hand-over a new founding plan is asked for (when none is left) every REOPEN_CHECK_TICKS ticks: the
- * passage through a closed throat for REOPEN_MAX_GD, plans through plug remnants (each reached from a cavity point
- * within REOPEN_REMNANT_REACH_BU and dug REOPEN_PAST_BU beyond the remnant) for as long as they are left.
+ * passage through a closed throat for REOPEN_MAX_GD (dug REOPEN_PAST_BU beyond the opening), and short plans
+ * anchored at each plug remnant, rising REOPEN_PAST_BU, for as long as remnants are left.
  */
 export const REOPEN_CHECK_TICKS = 50;
 export const REOPEN_MAX_GD = 2;
-export const REOPEN_REMNANT_REACH_BU = 2.5;
 export const REOPEN_PAST_BU = 0.5;
 /** A founding reopening plan still live after this long is cancelled (nobody could dig it), GD. */
 export const REOPEN_PLAN_STALL_GD = 0.2;
-/** At most this many unplugging calls clear the plug samples left above the ground surface, per check. */
-export const REOPEN_GHOST_BITES = 24;
+/** At most this many unplugging calls clear plug voxels that no plan can take, per check. */
+export const REOPEN_UNPLUG_BITES = 24;
 /** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */
 export const BROOD_LOST_RELAY_MIN = 0.35;
 /** ... else `failed` with cause `no-workers` after this long, GD. */

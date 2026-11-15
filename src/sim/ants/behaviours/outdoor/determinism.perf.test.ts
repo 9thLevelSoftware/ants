@@ -16,6 +16,10 @@ import { perceptionSystem } from '@/sim/ants/perception';
 import { announce, forageScenario, run } from './testkit';
 
 const BUDGET_MS = 1.2;
+const LONG = !!(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.FOUNDRESS_LONG;
+/** Determinism run segments and cost windows: shorter in default mode, the full measurement with FOUNDRESS_LONG=1. */
+const SEG = LONG ? 3000 : 1500;
+const WINDOWS = LONG ? 4 : 2;
 
 describe('acceptance 7: determinism and cost', () => {
   it('same seed, same state; save -> load -> continue equals the uninterrupted run', () => {
@@ -31,13 +35,13 @@ describe('acceptance 7: determinism and cost', () => {
       return s;
     };
     const a = mk(), b = mk();
-    run(a.sim, 3000);
-    run(b.sim, 3000);
+    run(a.sim, SEG);
+    run(b.sim, SEG);
     expect(stateHash(a.sim.state)).toBe(stateHash(b.sim.state));
     const saved = snapshot(a.sim);
-    run(a.sim, 3000);
+    run(a.sim, SEG);
     const c = createSim(restore(saved).state, b.sim.world, { systems: a.sim.systems });
-    run(c, 3000);
+    run(c, SEG);
     expect(stateHash(c.state)).toBe(stateHash(a.sim.state));
   }, 300000);
 
@@ -72,7 +76,7 @@ describe('acceptance 7: determinism and cost', () => {
     };
     run(sim, 1500, 1, push); // let them get out
     const windows: { ms: number; outside: number }[] = [];
-    for (let w = 0; w < 4; w++) {
+    for (let w = 0; w < WINDOWS; w++) {
       const acc = { ms: 0 };
       const runB = timed(behaviourSystem, acc), runP = timed(perceptionSystem, acc);
       const oB = behaviourSystem.run, oP = perceptionSystem.run;

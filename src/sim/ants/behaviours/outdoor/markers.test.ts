@@ -6,6 +6,10 @@ import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
 import { announce, countEvents, distBu, forageScenario, isOutdoorAnt, run } from './testkit';
 
+const LONG = !!(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.FOUNDRESS_LONG;
+/** Discovery seeds: one in default mode, three with FOUNDRESS_LONG=1. */
+const DISCOVERY_SEEDS = LONG ? [1, 2, 3] : [1];
+
 /** Counts entries of outdoor ants into a disc (x, z, radius BU) over n ticks; also the ants inside at the end. */
 function traffic(sim: Sim, c: { x: number; z: number }, rBu: number, n: number): { entries: number; insideAfter30s: number } {
   const inside = new Set<number>();
@@ -63,7 +67,7 @@ describe('acceptance 5: markers', () => {
       while (sim.state.tick < LIMIT && !found()) run(sim, 100);
       return found() ? sim.state.tick : LIMIT;
     };
-    const rows = [1, 2, 3].map((seed) => ({ seed, with: discoveredAt(seed, true), without: discoveredAt(seed, false) }));
+    const rows = DISCOVERY_SEEDS.map((seed) => ({ seed, with: discoveredAt(seed, true), without: discoveredAt(seed, false) }));
     for (const r of rows) console.log(`forage marker, seed ${r.seed}: discovered at tick ${r.with} with the marker, ${r.without} without (cap ${LIMIT})`);
     const meanWith = rows.reduce((m, r) => m + r.with, 0) / rows.length;
     const meanWithout = rows.reduce((m, r) => m + r.without, 0) / rows.length;

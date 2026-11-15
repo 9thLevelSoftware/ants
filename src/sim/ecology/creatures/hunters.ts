@@ -2,7 +2,8 @@
 //  ant-spider:  rest (day) | patrol -> approach (ant mimicry) -> windup 0.3 s -> bite (1 + venom 6 over 15 s) ->
 //               retreat -> wait (venom; paralysed at health <= 0.3) -> collect -> carry to cover -> feed | flee
 //               (detected within 1 L by another ant, or bitten once).
-//  centipede:   prowl -> windup 0.5 s -> lunge -> hold (venom 1/s) -> feed 60 s | flee; nest raids (invasion.ts).
+//  centipede:   prowl -> windup 0.5 s -> lunge -> hold (venom 1/s) -> feed 60 s | flee; nest raids (invasion.ts);
+//               burrow at dawn (director.ts). Rove beetles burrow too; both hunt only while night-active.
 //  rove-beetle: forage (erratic) -> target a lone ant -> windup 0.4 s -> grab and hold 1.5/s -> feed | secretion
 //               (>= 2 biters within 2 s: ants within 1.5 L flee 3 s) -> flee.
 
@@ -16,7 +17,7 @@ import { TICKS_PER_SECOND } from '@/sim/time';
 import {
   antLen, awayPoint, dist, setState, stop, ticks, timerDone, walkTo, wander,
 } from './common';
-import type { Conditions } from './conditions';
+import { nightActive, type Conditions } from './conditions';
 import { beginWindup, ensureCombat, landStrike, seizeAnt } from './attack';
 import {
   currentVictim, findVictim, holdState, shouldFlee, startFeed, startFlee, startRecover, strikeDue,
@@ -78,6 +79,8 @@ export const antSpider: KindBehaviour = {
       case 'carry': {
         const ant = sim.stores.ants.get(c.seizedAntId);
         if (!ant) { c.seizedAntId = -1; setState(sim, c, 'patrol'); return; }
+        // §2.4: any detection makes it retreat - it drops the victim, so nestmates can carry it home
+        if (detectedByAnt(sim, c)) { antSpiderFlee(sim, c); return; }
         if (c.nav.status === 'arrived' || c.nav.status === 'failed' || dist(c.pos, c.homeCenter) < 6) {
           c.seizedAntId = -1;
           if (ant.combat) ant.combat.seizedBy = -1;
@@ -160,12 +163,13 @@ export const centipede: KindBehaviour = {
         }
         return;
       case 'invade': invasionTick(sim, c, cond); return;
+      case 'burrow': return; // slipping under the litter at dawn (director.ts)
       case 'feed': case 'flee': case 'recover':
         if (timerDone(c)) setState(sim, c, 'prowl');
         return;
-      default: { // prowl
+      default: { // prowl (hunts only while night-active: §2.2b "night only")
         const inNest = c.nestId >= 0;
-        if ((sim.state.tick + c.id) % SCAN_EVERY === 0) {
+        if (nightActive(cond) && (sim.state.tick + c.id) % SCAN_EVERY === 0) {
           const v = findVictim(sim, c, { rangeMm: CE.senseMm, inNest });
           if (v && v.speed <= windupMaxTargetSpeed('centipede', cond.levers.telegraphMult) * 3) {
             if (dist(v.pos, c.pos) <= (STRIKE_RANGE_MM.centipede ?? 15) && v.speed <= windupMaxTargetSpeed('centipede', cond.levers.telegraphMult)) {
@@ -209,11 +213,12 @@ export const roveBeetle: KindBehaviour = {
           else startRecover(sim, c);
         }
         return;
+      case 'burrow': return; // slipping under the litter at dawn (director.ts)
       case 'feed': case 'flee': case 'recover':
         if (timerDone(c)) setState(sim, c, 'forage');
         return;
-      default: { // forage: erratic dashes in its litter territory
-        if ((sim.state.tick + c.id) % SCAN_EVERY === 0) {
+      default: { // forage: erratic dashes in its litter territory; targets ants only while night-active
+        if (nightActive(cond) && (sim.state.tick + c.id) % SCAN_EVERY === 0) {
           const v = findVictim(sim, c, { rangeMm: RB.senseMm, lone: true });
           if (v && v.speed <= windupMaxTargetSpeed('rove-beetle', cond.levers.telegraphMult)) {
             if (dist(v.pos, c.pos) <= (STRIKE_RANGE_MM['rove-beetle'] ?? 8)) { beginWindup(sim, c, v); setState(sim, c, 'windup'); return; }

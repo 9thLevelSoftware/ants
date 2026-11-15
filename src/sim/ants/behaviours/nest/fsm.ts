@@ -127,19 +127,28 @@ export function ownState(ant: Ant): boolean {
 }
 
 /**
- * A waiting ant (nothing to do right now) thinks less often: at the next multiple of WAIT_THINK_TICKS. The waiting
- * ants of a colony then think on the same ticks, so the per-tick job lists they read (haul and store jobs, the
- * nursery claims) are computed once per WAIT_THINK_TICKS, not on every tick (sim-fix-ants item 2).
+ * A waiting ant (nothing to do right now) thinks less often: once per WAIT_THINK_TICKS, on its own phase (tick + id).
+ * Staggered by id, a tenth of the waiting ants think on each tick. Aligned on one tick (sim-fix-ants first version)
+ * the mean was the same, but every tenth tick cost about 5x the others (800 in-nest workers: behaviours 7.8 against
+ * 1.6 ms), which turns into frame hitches; staggered (with alignedThink kept for groomers) 2.2-2.5 against 1.5 ms.
+ * The per-tick job lists they read are then built on most ticks; that is inside the measured mean.
  */
 export function waitThink(sim: Sim, ant: Ant): void {
-  ant.thinkTick = Math.max(ant.thinkTick, nextAligned(sim, WAIT_THINK_TICKS));
+  ant.thinkTick = Math.max(ant.thinkTick, nextPhased(sim, WAIT_THINK_TICKS, ant.id));
 }
 
-/** Sets the next think to the next multiple of `every` ticks (shared by all ants doing the same polling). */
+/**
+ * Sets the next think to the next multiple of `every` ticks, the same tick for every ant. For polling that must
+ * see the nursery board as soon as it is rebuilt (its 2 s windows start on such ticks): nurses grooming between
+ * jobs. Staggering them by id (as waitThink) delayed their answer to new feed requests by half a period on average
+ * and raised the mean larval hunger of the colony scenario (0.54 -> 0.58 over 3 seeds).
+ */
 export function alignedThink(sim: Sim, ant: Ant, every: number): void {
-  ant.thinkTick = nextAligned(sim, every);
+  ant.thinkTick = (Math.floor(sim.state.tick / every) + 1) * every;
 }
 
-function nextAligned(sim: Sim, every: number): number {
-  return (Math.floor(sim.state.tick / every) + 1) * every;
+/** The first tick after now with (tick + phase) % every === 0. */
+function nextPhased(sim: Sim, every: number, phase: number): number {
+  const t = sim.state.tick + 1;
+  return t + ((every - ((t + phase) % every)) % every);
 }

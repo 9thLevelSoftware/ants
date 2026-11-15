@@ -28,8 +28,12 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 - jumping-spider: `rest scan stalk windup hold feed recover flee`
 - wolf-spider: `rest wander ambush orient freeze windup hold feed recover flee` (`freeze` = vibration cue, 1 s)
 - ant-spider: `rest patrol approach windup wait collect carry feed recover flee`
-- antlion: `wait drag feed rebuild collapsed` (pit hazard `state` mirrors it; flag DORMANT when <= 10 C / winter)
-- centipede: `prowl windup hold feed recover flee invade`; rove-beetle: `forage windup hold feed recover flee`
+- antlion: `wait drag feed rebuild collapsed` (pit hazard `state` mirrors it; flag DORMANT when <= 10 C / winter).
+  A pit whose antlion is gone becomes `collapsed` with `untilTick` (fills in over ANTLION_EMPTY_PIT_FILL_GD) and is
+  no longer slowing or a known hazard. Pits are placed only up to cap x Predators setting (I5).
+- centipede: `prowl windup hold feed recover flee invade burrow`; rove-beetle: `forage windup hold feed recover flee burrow`
+  (both hunt only while night-active; out of it and not engaged they burrow: gone at once far from the focus, after
+  BURROW_S in state `burrow` near it)
 - ladybird: `fly-in feed fly-off` (flag FLYING); ladybird-larva: `egg crawl feed drop-off wander`;
   lacewing-larva: `crawl feed`
 - springtail / mite: `graze`; fly-larva: `feed burrow`; caterpillar: `feed crawl silk subdued` (ON_SILK, HAIRY);
@@ -41,13 +45,20 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 A strike in progress: `bb.strikeAt` (tick), `bb.tgt` (ant id), `bb.aimX/Y/Z`; `predator-telegraph` carries them.
 Stunned ants (ladybird reflex bleeding 2 s, caterpillar regurgitation 2 s, hairy caterpillar 3 s): their lock breaks,
 `ant.bb['cr.stunUntil']` holds the end tick and `combat.biteCdTick` is pushed back to it (CombatState has no stun field).
+Danger grid: misses and non-seizing hits count as survived strikes at once; a seizing strike is settled when the hold
+ends (freed = survived, dead = killed, which needs another nestmate within 6 L). Avoid markers are rasterised over
+their own bounding cells. Hazard speed factors (slime x0.7, pit upslope x0.4) apply only to ants outside the nest on
+the hazard's surface (feet within HAZARD_SURFACE_TOL_BU). Patch prey for the possessed ant appears outside its front
+cone (PATCH_POPIN_CONE_DEG). Bird rolls use p = BIRD_RATE / (daylight window hours) per hourly roll.
 Bird variants: a sparrow eats up to 10 crumb units at landing; a woodpecker calls `nest.disturb(sim, entrance, 3 BU,
 'woodpecker')` every 5 s (up to 6) - the carve itself is the nest module's hook.
 The bird event is `state.ecology.birdEvent` (`phase` approach / landed / leaving, `pos`, `peckAim`), not an agent.
 
 ## Seams for other modules (report these when integrating)
 
-- combat: call `noteCreatureHit(sim, creatureId, antId, 'bite' | 'spray' | 'sting')` for each hit on a creature;
+- combat: call `noteCreatureHit(sim, creatureId, antId, 'bite' | 'spray' | 'sting')` once per hit on a creature
+  (before or after applying its damage; hp lost within HIT_ATTRIBUTION_S of a report, e.g. 2 s of acid, belongs to
+  that report; hp lost with no report at all is counted as one unreported bite);
   ask `preyEvades(sim, creatureId, antId)` before a bite; kill creatures with `creatureKilled(sim, id, antIds)`
   (not `killCreature`) so they become food; read `creatureArmour` / `creaturePull`. Damage this module deals goes
   through `combat.applyDamage(sim, 'ant', id, dmg, 'predation' | 'antlion' | 'bird')` and lets go with

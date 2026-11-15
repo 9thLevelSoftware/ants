@@ -11,12 +11,12 @@ import { rngFloat } from '@/core/rng';
 import {
   AMBIENT_BIRD_P, AMBIENT_CRICKET_P, CREATURE_AGENT_CAP, CREATURE_STATS, DESPAWN_MIN_DIST_BU, DIRECTOR_HOURLY_TICKS,
   RESIDENT_HOME_RADIUS_MM, RESIDENT_KINDS, SPAWN_MIN_DIST_ANT_BU, SPAWN_MIN_DIST_FOCUS_BU,
-  STUCK_DESPAWN_S, VISITOR_KINDS, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
+  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
 } from '@/sim/balance/creatures';
 import { CREATURE_DIRECTOR_EVERY } from '@/sim/balance';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { chance, cue, dist, rng } from './common';
-import { conditions, type Conditions } from './conditions';
+import { chance, cue, dist, inStateS, rng, setState, stop } from './common';
+import { conditions, nightActive, type Conditions } from './conditions';
 import { capOf } from './caps';
 import { spawnKind } from './spawn';
 import { aphidPredatorArrivals, countKind, trackAphids } from './aphidPredators';
@@ -27,7 +27,7 @@ import {
 import { birdHourly } from './bird';
 import { updateDanger } from './danger';
 import { expireHazards } from './neutral';
-import { reconcileInvasion } from './lifecycle';
+import { abandonOrphanPits, reconcileInvasion } from './lifecycle';
 import { nestAttackedAlerts, predatorNearAlerts } from './alerts';
 
 const RUN_S = CREATURE_DIRECTOR_EVERY / TICKS_PER_SECOND;
@@ -75,7 +75,19 @@ export function isEngaged(sim: Sim, c: Creature): boolean {
 function visitorActive(kind: CreatureKind, cond: Conditions): boolean {
   if (cond.winter) return false;
   if (kind === 'earthworm' || kind === 'snail') return cond.dark || cond.raining;
-  return cond.dark;
+  return nightActive(cond);
+}
+
+/**
+ * §2.2b: centipedes and rove beetles burrow (despawn) at dawn unless engaged - near the focus too (they would
+ * otherwise hunt all day where the colony lives). Far from the focus they are simply gone; near it they first
+ * slip under the litter for BURROW_S (state 'burrow', no hunting) so the player sees them leave.
+ */
+function burrowAtDawn(sim: Sim, c: Creature): void {
+  if (farFromFocus(sim, c.pos) || (c.state === 'burrow' && inStateS(sim, c) >= BURROW_S)) { despawnCreature(sim, c.id, 'burrowed'); return; }
+  if (c.state === 'burrow') return;
+  stop(sim, c);
+  setState(sim, c, 'burrow');
 }
 
 function homeRadiusFor(kind: CreatureKind, territoryRadius: number): number {
@@ -115,8 +127,8 @@ function despawnRules(sim: Sim, cond: Conditions): void {
   for (const c of sim.stores.creatures.list) {
     if (!c.alive) continue;
     if (c.lifeEndTick >= 0 && sim.state.tick >= c.lifeEndTick && !isEngaged(sim, c)) { despawnCreature(sim, c.id, 'lifetime'); continue; }
-    if ((c.kind === 'centipede' || c.kind === 'rove-beetle') && !visitorActive(c.kind, cond) && !isEngaged(sim, c) && farFromFocus(sim, c.pos)) {
-      despawnCreature(sim, c.id, 'burrowed');
+    if ((c.kind === 'centipede' || c.kind === 'rove-beetle') && !visitorActive(c.kind, cond) && !isEngaged(sim, c)) {
+      burrowAtDawn(sim, c);
       continue;
     }
     // stuck: no progress for STUCK_DESPAWN_S while not near the focus
@@ -181,6 +193,7 @@ export function runDirector(sim: Sim): void {
   ensureInit(sim);
   const dir = sim.state.ecology.director;
   const hourly = (dir.lastHourlyTick ?? -1) < 0 || sim.state.tick - (dir.lastHourlyTick ?? 0) >= DIRECTOR_HOURLY_TICKS;
+  abandonOrphanPits(sim);
   expireHazards(sim);
   updateDanger(sim, RUN_S);
   if (cond.winter) winterClear(sim);
