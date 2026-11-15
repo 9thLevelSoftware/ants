@@ -10,11 +10,10 @@
 
 import type { Ant, Sim } from '@/sim/types';
 import { ACTION_ACTIVE_FRAC, ACTION_WINDUP_FRAC } from '@/sim/balance/actions';
+import { ATTACKER_SEARCH_BU } from '@/sim/balance/combat';
 import { dep } from './late';
 
 const ids: number[] = [];
-/** Search radius around the target, BU (spray range 1.5 L of the largest ants plus bodies). */
-const SEARCH_BU = 12;
 
 /** Tick count (1-based elapsed) at which a timed primitive of d ticks applies its effect (mirrors the runner). */
 function effectTickOf(windupFrac: number, d: number): number {
@@ -34,7 +33,7 @@ function atEffect(sim: Sim, a: Ant): boolean {
 
 /** The ant whose `bite` on (kind, id) or whose `spray-acid` is applying its effect now, or null. */
 export function executingAttacker(sim: Sim, kind: string, id: number, pos: { x: number; y: number; z: number }): Ant | null {
-  sim.index.queryAnts(pos, SEARCH_BU * sim.world.bu, ids);
+  sim.index.queryAnts(pos, ATTACKER_SEARCH_BU * sim.world.bu, ids);
   let best: Ant | null = null;
   let bestIdx = Infinity;
   for (let i = 0; i < ids.length; i++) {

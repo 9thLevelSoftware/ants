@@ -2,14 +2,20 @@
 // is inside the solid. Used for the top-surface map, nav, shade and resting.
 //
 // Two routines:
-//  - `primColumn` (search): analytic for upright boxes and cylinders, otherwise a golden-section search for the
+//  - `primColumn` (search): a shortcut for upright boxes and cylinders, otherwise a golden-section search for the
 //    deepest point of the line plus bisection of both ends (about 53 distance evaluations). Placement (resting,
 //    supportAt) keeps using it so that placed objects stay bit-identical.
-//  - `primColumnAnalytic`: closed-form line/solid intersection for every shape at any rotation (slabs for boxes,
-//    quadratics for cylinders, capsules and ellipsoids). Rounded rims are bracketed between the closed-form
-//    interval of the outer (sharp) solid and that of a subset of the rounded one, then bisected; only a line
-//    that clips nothing but a rounded rim falls back to the search. Same answer as the search within its
-//    bisection precision (maps/maps.verify.test.ts); used by the derived maps.
+//  - `primColumnAnalytic`: closed-form line/solid intersection for every tilted shape (slabs for boxes, quadratics
+//    for cylinders, capsules and ellipsoids). Rounded rims are bracketed between the closed-form interval of the
+//    outer (sharp) solid and that of a subset of the rounded one, then bisected; only a line that clips nothing
+//    but a rounded rim falls back to the search. Same answer as the search within its bisection precision
+//    (maps/maps.verify.test.ts); used by the derived maps.
+// The upright shortcut, shared by both routines so the derived maps match the search: an upright box or cylinder
+// reports its full height [py - s.y, py + s.y] wherever the line meets its mid cross-section. That is exact for a
+// sharp shape; over the rounded rim of a rounded one the true ends lie up to `round` closer to the middle
+// (kit/column.verify.test.ts bounds it), so a map cell at the very edge of a rounded slab or post reads its top up
+// to the rounding radius too high. Exact rims here would make the derived maps differ from the search that
+// placement uses, and steps 7-10 place content from those maps, which this task must not change.
 
 import { makePrimEntry, primEval, SHAPE_BOX, SHAPE_CAPSULE, SHAPE_CYLINDER, SHAPE_ELLIPSOID, type PrimEntry } from '@/sim/world/primHash';
 import { sdRoundBox as sdRoundBoxImp } from '@/core/math/sdf';
@@ -42,7 +48,7 @@ export function primColumn(e: PrimEntry, x: number, z: number, out: ColumnHit): 
   return searchColumn(e, x, z, out);
 }
 
-/** Fills `out` with the column interval of `e` at (x, z) (closed-form routine). */
+/** Fills `out` with the column interval of `e` at (x, z) (closed-form routine; upright shapes: see the header). */
 export function primColumnAnalytic(e: PrimEntry, x: number, z: number, out: ColumnHit): ColumnHit {
   out.hit = false;
   if (x < e.minX || x > e.maxX || z < e.minZ || z > e.maxZ) return out;

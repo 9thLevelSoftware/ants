@@ -4,8 +4,8 @@
 
 import type { Ant, Creature, Sim } from '@/sim/types';
 import {
-  HIT_CHANCE_FREE, HIT_CHANCE_HELPLESS, HIT_SIZE_CLAMP, HOLD_FIRST_BITE_S, PIN_FRONT_HALF_DEG, PIN_MIN_HOLDERS, PIN_PULL_RATIO,
-  SLOTS_MAX, SLOTS_MIN, SLOTS_PER_LEN, TUNNEL_FREE_RADIUS_L, TUNNEL_SLOTS,
+  HIT_CHANCE_FREE, HIT_CHANCE_HELPLESS, HIT_SIZE_CLAMP, HOLD_FIRST_BITE_S, HOLDER_SEARCH_BU, HOLDER_SEARCH_SIZE_MULT, PIN_FRONT_HALF_DEG, PIN_MIN_HOLDERS, PIN_PULL_RATIO,
+  SLOTS_MAX, SLOTS_MIN, SLOTS_PER_LEN, TUNNEL_CLOSED_PROBES, TUNNEL_FREE_RADIUS_L, TUNNEL_SLOTS,
 } from '@/sim/balance/combat';
 import { CREATURE_STATS } from '@/sim/balance/creatures';
 import { rngFloat } from '@/core/rng';
@@ -30,7 +30,7 @@ export function pullOf(sim: Sim, b: Body): number {
 /** Ids of the ants holding a creature (ascending). */
 export function creatureHolders(sim: Sim, c: Creature, out: number[]): number[] {
   out.length = 0;
-  const r = c.radius + 4 * (CREATURE_STATS[c.kind]?.sizeMm ?? c.radius * 2) + 4 * sim.world.bu;
+  const r = c.radius + HOLDER_SEARCH_SIZE_MULT * (CREATURE_STATS[c.kind]?.sizeMm ?? c.radius * 2) + HOLDER_SEARCH_BU * sim.world.bu;
   sim.index.queryAnts(c.pos, r, ids);
   for (let i = 0; i < ids.length; i++) {
     const a = sim.stores.ants.get(ids[i]);
@@ -55,6 +55,13 @@ export function holdersOf(sim: Sim, b: Body, out: number[]): number[] {
 }
 
 const holderScratch: number[] = [];
+
+/** Speed left to a held body: max(0, 1 - Σ pull_h / pull_t) (1 when free; §4.3 movement under locks). */
+export function heldSpeedFactor(sim: Sim, b: Body): number {
+  if (holdersOf(sim, b, holderScratch).length === 0) return 1;
+  const p = pullOf(sim, b);
+  return p > 0 ? Math.max(0, 1 - holdersPull(sim, b) / p) : 0;
+}
 
 /** Σ pull of the holders of a body. */
 export function holdersPull(sim: Sim, b: Body): number {
@@ -121,7 +128,7 @@ export function inTunnel(sim: Sim, b: Body, lenMm: number): boolean {
     probe.x = ox + dx * r; probe.y = oy + dy * r; probe.z = oz + dz * r;
     if (!sim.field.segmentFree(origin, probe, 0)) closed++;
   }
-  return closed >= 2;
+  return closed >= TUNNEL_CLOSED_PROBES;
 }
 
 /** Contact slots of the target for this attacker. */

@@ -1,6 +1,7 @@
 // Alerts owned by combat (GDD 05 §4.10, App. C): `queen-in-danger` when the player queen takes damage or a hostile
 // ant is within 3 L of her (cleared 30 s after the last danger), and `possessed-danger` with cause "pinned" while
-// the possessed ant is pinned. The alert state lives in the subject ant's bb.
+// the possessed ant is pinned (cleared when it is no longer pinned, possessed or alive). The alert state lives in
+// the subject ant's bb.
 
 import type { Ant, Sim } from '@/sim/types';
 import { QUEEN_DANGER_CLEAR_S, QUEEN_DANGER_L } from '@/sim/balance/combat';
@@ -47,8 +48,9 @@ export function combatAlerts(sim: Sim): void {
       clearAlert(sim, 'queen-in-danger', q.id);
     }
   }
+  clearStale(sim);
   const p = sim.stores.ants.get(sim.state.player.possessedAntId);
-  if (p && isPossessed(p)) {
+  if (p && p.alive && isPossessed(p)) {
     const pinned = !!p.combat?.pinned;
     if (pinned && p.bb[PIN_ON] !== 1) {
       p.bb[PIN_ON] = 1;
@@ -56,9 +58,30 @@ export function combatAlerts(sim: Sim): void {
         kind: 'possessed-danger', level: 'warning', subjectId: p.id, title: 'Pinned', cause: 'pinned',
         focus: { kind: 'ant', id: p.id, pos: { ...p.pos } }, diagnosticId: null, tokens: { cause: 'pinned' },
       });
-    } else if (!pinned && p.bb[PIN_ON] === 1) {
-      p.bb[PIN_ON] = 0;
-      clearAlert(sim, 'possessed-danger', p.id);
+    } else if (!pinned && p.bb[PIN_ON] === 1) unpin(sim, p.id);
+  }
+}
+
+function unpin(sim: Sim, antId: number): void {
+  const a = sim.stores.ants.get(antId);
+  if (a) delete a.bb[PIN_ON];
+  clearAlert(sim, 'possessed-danger', antId);
+}
+
+/**
+ * Alerts whose subject is gone: queen-in-danger of a queen that died (or is no longer the player queen), and the
+ * "pinned" possessed-danger of an ant the player left, that died or is no longer pinned.
+ */
+function clearStale(sim: Sim): void {
+  const alerts = sim.state.progression.alerts;
+  for (let i = alerts.length - 1; i >= 0; i--) {
+    const al = alerts[i];
+    const a = sim.stores.ants.get(al.subjectId);
+    if (al.kind === 'queen-in-danger') {
+      if (!a || !a.alive || !playerQueen(sim, a)) clearAlert(sim, 'queen-in-danger', al.subjectId);
+    } else if (al.kind === 'possessed-danger' && al.cause === 'pinned') {
+      const current = !!a && a.alive && isPossessed(a) && sim.state.player.possessedAntId === a.id && !!a.combat?.pinned;
+      if (!current) unpin(sim, al.subjectId);
     }
   }
 }

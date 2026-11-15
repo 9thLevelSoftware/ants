@@ -72,14 +72,18 @@ function clearFightBb(ant: Ant): void {
   delete ant.bb[CB.srcX]; delete ant.bb[CB.srcY]; delete ant.bb[CB.srcZ]; delete ant.bb[CB.rally];
 }
 
-/** Ends the ant's fight: below 0.25 health it flees (then rests), otherwise it resumes its earlier task. */
+/**
+ * Ends the ant's fight (GDD 02 §10.13): below 0.25 health it flees and then rests (already in the nest: it rests
+ * at once), otherwise it resumes its earlier task.
+ */
 export function endFight(sim: Sim, ant: Ant, reason: ReasonCode = 'job:resume'): void {
   const resume = resumeTaskOf(ant);
   clearFightBb(ant);
   delete ant.bb[CB.prevTask];
   if (ant.task !== 'fight') return;
-  if (healthOf(ant) < FIGHT_EXIT_FLEE_HEALTH && ant.nestId < 0) setTask(sim, ant, 'flee', 'threat');
-  else setTask(sim, ant, resume, reason);
+  if (healthOf(ant) >= FIGHT_EXIT_FLEE_HEALTH) setTask(sim, ant, resume, reason);
+  else if (ant.nestId >= 0) setTask(sim, ant, 'rest', 'threat');
+  else setTask(sim, ant, 'flee', 'threat');
 }
 
 /** Switches a fighting (or any autonomous) ant to `flee` (GDD 05 §4.6). */

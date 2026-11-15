@@ -95,9 +95,9 @@ export function resumeTravel(sim: Sim, ant: Ant, src: FoodSource): void {
   if (!h) return;
   ant.bb[TH.herd] = h.id;
   if (num(ant, TH.trip0, -1) < 0) ant.bb[TH.trip0] = sim.state.tick;
-  setState(sim, ant, atHerd(sim, ant, src) ? HS.solicit : HS.travel, 'job:resume');
-  if (herdState(ant) === HS.travel) requestTravel(sim, ant, src);
-  else stop(sim, ant);
+  if (atHerd(sim, ant, src)) { startSolicit(sim, ant, 'job:resume'); stop(sim, ant); return; }
+  setState(sim, ant, HS.travel, 'job:resume');
+  requestTravel(sim, ant, src);
 }
 
 function requestTravel(sim: Sim, ant: Ant, src: FoodSource): void {
@@ -182,8 +182,7 @@ function travel(sim: Sim, ant: Ant, h: Herd, src: FoodSource): void {
   if (atHerd(sim, ant, src)) {
     stop(sim, ant);
     ant.bb[TH.tries] = 0;
-    ant.bb[TH.empty0] = -1;
-    setState(sim, ant, HS.solicit, 'job:herd', h.id);
+    startSolicit(sim, ant, 'job:herd', h.id);
     return;
   }
   const s = ant.nav.status;
@@ -237,10 +236,30 @@ function solicit(sim: Sim, ant: Ant, h: Herd, src: FoodSource): void {
     setState(sim, ant, HS.guard, 'job:guard', h.id);
     return;
   }
-  if (stroke(sim, ant, h, src)) { ant.bb[TH.empty0] = -1; return; }
-  const e0 = num(ant, TH.empty0, -1);
-  if (e0 < 0) ant.bb[TH.empty0] = sim.state.tick;
-  else if ((sim.state.tick - e0) / TICKS_PER_SECOND >= TEND_SOLICIT_EMPTY_S) setState(sim, ant, HS.wait, 'source-depleted', h.id);
+  noteHoney(sim, ant);
+  stroke(sim, ant, h, src);
+  // "pool empty for 60 s" as this tender sees it: no droplet came its way (an empty pool, or one shared out by a
+  // crowd of tenders before its strokes end)
+  if (ant.action?.id !== 'tend-aphid' && dryS(sim, ant) >= TEND_SOLICIT_EMPTY_S) setState(sim, ant, HS.wait, 'source-depleted', h.id);
+}
+
+/** Into `solicit` afresh (arrived, back from guard duty, after a relay): the dry clock starts now. */
+function startSolicit(sim: Sim, ant: Ant, reason?: ReasonCode, detail = -1): void {
+  ant.bb[TH.empty0] = sim.state.tick;
+  ant.bb[TH.cropSeen] = cropOf(ant);
+  setState(sim, ant, HS.solicit, reason, detail);
+}
+
+/** Restarts the dry clock when the crop rose since the last think (a droplet came). */
+function noteHoney(sim: Sim, ant: Ant): void {
+  const c = cropOf(ant);
+  if (c > num(ant, TH.cropSeen, c) + 1e-9 || num(ant, TH.empty0, -1) < 0) ant.bb[TH.empty0] = sim.state.tick;
+  ant.bb[TH.cropSeen] = c;
+}
+
+/** Seconds since the tender last got honeydew at the herd. */
+function dryS(sim: Sim, ant: Ant): number {
+  return (sim.state.tick - num(ant, TH.empty0, sim.state.tick)) / TICKS_PER_SECOND;
 }
 
 function enterFull(sim: Sim, ant: Ant): void {
@@ -251,8 +270,10 @@ function enterFull(sim: Sim, ant: Ant): void {
 
 function waitAtHerd(sim: Sim, ant: Ant, h: Herd, src: FoodSource): void {
   if (cropOf(ant) >= CROP_RETURN_FRACTION * ant.cropCap) { enterFull(sim, ant); return; }
-  if (h.pool >= APHID_DROPLET && hasSlot(sim, ant, src)) { ant.bb[TH.empty0] = -1; setState(sim, ant, HS.solicit); return; }
-  if (stateS(sim, ant) >= TEND_WAIT_TIMEOUT_S) leaveHerd(sim, ant, 'timeout');
+  noteHoney(sim, ant);
+  // the wait ends after WAIT_TIMEOUT_S without honeydew; short spells of soliciting in between do not restart it
+  if (dryS(sim, ant) >= TEND_SOLICIT_EMPTY_S + TEND_WAIT_TIMEOUT_S) { leaveHerd(sim, ant, 'timeout'); return; }
+  if (h.pool >= APHID_DROPLET && hasSlot(sim, ant, src)) setState(sim, ant, HS.solicit);
 }
 
 function guard(sim: Sim, ant: Ant, h: Herd, src: FoodSource, preds: Creature[]): void {
@@ -283,7 +304,7 @@ function guard(sim: Sim, ant: Ant, h: Herd, src: FoodSource, preds: Creature[]):
   }
   ant.bb[TH.shift] = 0;
   if (!atHerd(sim, ant, src)) { setState(sim, ant, HS.travel); requestTravel(sim, ant, src); return; }
-  setState(sim, ant, HS.solicit);
+  startSolicit(sim, ant);
 }
 
 /** Whether o can take honeydew home for the tender: a nestmate outside, not possessed, crop at most half full, not
@@ -342,8 +363,7 @@ function full(sim: Sim, ant: Ant, h: Herd, src: FoodSource): void {
       if (give === GIVE.started) reportRelay(sim, ant, rid, moved, false);
       ant.bb[TH.give] = GIVE.none;
       ant.bb[TH.rcv] = -1;
-      // back to stroking: the tender stays at the herd
-      setState(sim, ant, HS.solicit, 'job:relay', rid);
+      startSolicit(sim, ant, 'job:relay', rid); // back to stroking: the tender stays at the herd
       return;
     }
   }

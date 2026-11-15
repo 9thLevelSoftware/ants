@@ -47,10 +47,11 @@ export function damageAnt(sim: Sim, ant: Ant, raw: number, cause: DeathCause, at
   const mult = isPossessed(ant) ? sim.state.config.difficulty.params.damageTakenMult : 1;
   const dealt = raw * (1 - armour) * mult;
   if (!(dealt > 0)) return 0;
+  // the fight record opens with the health before this hit ("lost >= 0.3 health in the fight", §4.7)
+  noteFightActivity(sim, ant);
   ant.hp -= dealt;
   const now = sim.state.tick;
   if (attackerId >= 0) noteHitter(sim, ant, attackerId);
-  noteFightActivity(sim, ant);
   ant.bb[CB.lastDmg] = now;
   const attacker = attackerId >= 0 ? sim.stores.ants.get(attackerId) : undefined;
   if (attacker) attacker.bb[CB.lastDmg] = now;

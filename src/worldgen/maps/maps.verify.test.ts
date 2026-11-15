@@ -13,7 +13,7 @@ import { SEASONS } from '@/sim/types';
 import { createKernel } from '@/sim/kernel';
 import { NAV, SUIT } from '../tuning/maps';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
-import { spherePasses } from '../testing/walker';
+import { spherePasses, surfacePoint, walkPoints } from '../testing/walker';
 import type { ArchetypeId, WorldData } from '@/sim/types';
 import { PrimFlag } from '@/sim/types';
 import { entryOf, primColumn, primColumnAnalytic, type ColumnHit } from '../kit/column';
@@ -106,47 +106,65 @@ describe('GDD 04 App. E checks at this level (regression)', () => {
 
   // E5 reads: "the door-crack gap is >= 5.4 mm (0.6 BU) or the door is sealed and a pipe penetration with
   // clearance >= 0.6 BU exists". The weather-strip variant (p 0.25) closes the crack (gap 0) and forces a pipe
-  // penetration (GDD 04 §6.2), so the check accepts either and then proves the passage physically: a sphere as
-  // wide as the standard worker's clearance (GDD 04 §6.1: 0.45 BU) travels along the surfaces of the field from
-  // one mouth to the other (pre-carves applied as at New Game). The sphere moves in the unblended field
-  // (testing/exactField.ts): the kernel's smooth minimum reads up to k/4 = 0.84 mm low between facing surfaces, so
-  // in seed 4's 5.8 mm crack it peaks at 2.05 mm, a hair above the 2.025 mm radius, which the 1 mm lattice misses.
-  // A sphere wider than the crack must not pass (the check discriminates); the walker itself rides at footOffset
-  // <= 0.15 BU, well inside the blended slot.
-  it('E5: Camponotus kitchen-door: door crack >= 5.4 mm (0.6 BU), or a sealed door and a pipe penetration >= 0.6 BU', () => {
+  // penetration (GDD 04 §6.2), so the check accepts either and then proves the passage physically, twice:
+  //  - a sphere as wide as the standard worker's clearance (GDD 04 §6.1: 0.45 BU) travels along the surfaces of the
+  //    field from one mouth to the other (pre-carves applied as at New Game). The sphere moves in the unblended field
+  //    (testing/exactField.ts): the kernel's smooth minimum reads up to k/4 = 0.84 mm low between facing surfaces, so
+  //    in seed 4's 5.8 mm crack it peaks at 2.05 mm, a hair above the 2.025 mm radius, which the 1 mm lattice misses.
+  //    A sphere wider than the crack must not pass (the check discriminates);
+  //  - the game's own walker (the kernel's blended field, its foot offset) walks through an open crack both ways
+  //    without climbing (it stays within 2 BU of the floor), and cannot get past a sealed door.
+  // Seed 1 rolls the weather strip (the sealed branch), seed 4 has the narrowest crack (5.8 mm); seed 3 (7.6 mm)
+  // with FOUNDRESS_LONG=1. maps/derive.verify.test.ts adds the 0.6 BU sphere on the open cracks.
+  function e5(seed: number): 'open' | 'sealed' {
     const minMm = 0.6 * 9;
-    let sealed = 0;
-    for (const seed of [1, 3, 4]) {
-      const w = report('kitchen-door', seed, 'standard', 'camponotus-pennsylvanicus').world;
-      expect(w.bu).toBe(9);
-      const door = w.micro.find((m) => m.kind === 'door-crack');
-      expect(door, `seed ${seed}`).toBeDefined();
-      let way = door!;
-      if (door!.gapMm >= minMm - 1e-9) expect(door!.minClearanceBu).toBeGreaterThanOrEqual(0.6 - 1e-9);
-      else {
-        // weather strip: closed for every species, and a pipe penetration wide enough for this one
-        sealed++;
-        expect(door!.gapMm, `seed ${seed}: a crack under 5.4 mm must be the sealed variant`).toBe(0);
-        expect(door!.useful).toBe(false);
-        const pipe = w.micro.filter((m) => m.kind === 'pipe-penetration' && m.minClearanceBu >= 0.6 - 1e-9).sort((x, y) => x.id - y.id)[0];
-        expect(pipe, `seed ${seed}: pipe penetration >= 0.6 BU`).toBeDefined();
-        expect(pipe.useful).toBe(true);
-        way = pipe;
-      }
-      const { state } = createNewGame({ ...defaultGameConfig('camponotus-pennsylvanicus', w.params.seed, 'naturalist'), world: w.params }, w);
-      const k = createKernel(w, state.worldDelta.carve);
-      // the passage runs past its pipe (up the wall to the hole): include the nearest pipe's top in the search box
-      const pipes = w.objects.filter((o) => o.templateId === 'service-pipe').map((o) => w.prims[o.primStart]);
-      const mid = { x: (way.posA.x + way.posB.x) / 2, z: (way.posA.z + way.posB.z) / 2 };
-      const near = way.kind === 'pipe-penetration' && pipes.length > 0
-        ? pipes.reduce((p, q) => (Math.hypot(p.pos.x - mid.x, p.pos.z - mid.z) <= Math.hypot(q.pos.x - mid.x, q.pos.z - mid.z) ? p : q)) : null;
-      const include = near ? [{ x: near.pos.x, y: near.pos.y + near.size.x + 2 * w.bu, z: near.pos.z }] : [];
-      const clearance = NAV.clearanceBu * w.bu;
-      expect(spherePasses(k, way.posA, way.posB, clearance / 2, { include, exact: true }), `seed ${seed}: ${way.kind} passes the worker's ${clearance} mm`).toBe(true);
-      if (way.kind === 'door-crack') expect(spherePasses(k, way.posA, way.posB, way.gapMm / 2 + 0.75, { exact: true }), `seed ${seed}: wider than the crack`).toBe(false);
+    const w = report('kitchen-door', seed, 'standard', 'camponotus-pennsylvanicus').world;
+    expect(w.bu).toBe(9);
+    const door = w.micro.find((m) => m.kind === 'door-crack');
+    expect(door, `seed ${seed}`).toBeDefined();
+    let way = door!;
+    const sealed = door!.gapMm < minMm - 1e-9;
+    if (!sealed) expect(door!.minClearanceBu).toBeGreaterThanOrEqual(0.6 - 1e-9);
+    else {
+      // weather strip: closed for every species, and a pipe penetration wide enough for this one
+      expect(door!.gapMm, `seed ${seed}: a crack under 5.4 mm must be the sealed variant`).toBe(0);
+      expect(door!.useful).toBe(false);
+      const pipe = w.micro.filter((m) => m.kind === 'pipe-penetration' && m.minClearanceBu >= 0.6 - 1e-9).sort((x, y) => x.id - y.id)[0];
+      expect(pipe, `seed ${seed}: pipe penetration >= 0.6 BU`).toBeDefined();
+      expect(pipe.useful).toBe(true);
+      way = pipe;
     }
-    // seed 1 rolls the weather strip today (the sealed branch is exercised); seed 4 has the narrowest crack (5.8 mm)
-    expect(sealed).toBeGreaterThan(0);
+    const { state } = createNewGame({ ...defaultGameConfig('camponotus-pennsylvanicus', w.params.seed, 'naturalist'), world: w.params }, w);
+    const k = createKernel(w, state.worldDelta.carve);
+    // the passage runs past its pipe (up the wall to the hole): include the nearest pipe's top in the search box
+    const pipes = w.objects.filter((o) => o.templateId === 'service-pipe').map((o) => w.prims[o.primStart]);
+    const mid = { x: (way.posA.x + way.posB.x) / 2, z: (way.posA.z + way.posB.z) / 2 };
+    const near = way.kind === 'pipe-penetration' && pipes.length > 0
+      ? pipes.reduce((p, q) => (Math.hypot(p.pos.x - mid.x, p.pos.z - mid.z) <= Math.hypot(q.pos.x - mid.x, q.pos.z - mid.z) ? p : q)) : null;
+    const include = near ? [{ x: near.pos.x, y: near.pos.y + near.size.x + 2 * w.bu, z: near.pos.z }] : [];
+    const clearance = NAV.clearanceBu * w.bu;
+    expect(spherePasses(k, way.posA, way.posB, clearance / 2, { include, exact: true }), `seed ${seed}: ${way.kind} passes the worker's ${clearance} mm`).toBe(true);
+    if (way.kind === 'door-crack') expect(spherePasses(k, way.posA, way.posB, way.gapMm / 2 + 0.75, { exact: true }), `seed ${seed}: wider than the crack`).toBe(false);
+    // the kernel walker at the door: through an open crack both ways, never over a sealed door
+    const floor = Math.max(surfacePoint(k, door!.posA).y, surfacePoint(k, door!.posB).y);
+    for (const [a, b] of [[door!.posA, door!.posB], [door!.posB, door!.posA]]) {
+      let top = -Infinity;
+      const r = walkPoints(k, [a, b], w.bu, { maxSteps: 3000, onStep: (kin) => { top = Math.max(top, kin.pos.y - kin.footOffset); } });
+      if (sealed) expect(r.stuckAt, `seed ${seed}: a walker got past the sealed door`).not.toBeNull();
+      else {
+        expect(r.stuckAt, `seed ${seed}: kernel walker through the ${door!.gapMm.toFixed(2)} mm crack`).toBeNull();
+        expect(top, `seed ${seed}: the walker went under the door, not over it`).toBeLessThan(floor + 2 * w.bu);
+      }
+    }
+    return sealed ? 'sealed' : 'open';
+  }
+
+  it('E5: Camponotus kitchen-door: door crack >= 5.4 mm (0.6 BU), or a sealed door and a pipe penetration >= 0.6 BU', () => {
+    expect([1, 4].map(e5)).toEqual(['sealed', 'open']);
+  });
+
+  it.skipIf(!LONG)('E5 on kitchen-door seed 3 (FOUNDRESS_LONG=1)', () => {
+    expect(e5(3)).toBe('open');
   });
 
   it('E25 (first clause): Messor/mediterranean static Q is 0 on every interior and paving cell', () => {

@@ -18,8 +18,10 @@ and diagnostics. Constants: `src/sim/balance/combat.ts`. The `fight` and `patrol
 | `grapple.ts` | locks, contact slots (tunnel cap), pins, lock-break odds |
 | `movement.ts` | locomotion hooks: speed factors (holder x0.3, held target, disoriented, lost legs) and the movement override (contact, immobilised, dragged, dodge) |
 | `acid.ts`, `sting.ts`, `dodge.ts` | spray resolution, the sting and dodge primitives (registered into the action library, see below) |
+| `doses.ts` | acid / venom doses in progress, each on its own 2 s clock (slots in bb) |
+| `selfDefence.ts` | queens / gynes (never sent to `fight`) answer a hit in place; the fight alarm deposit (GDD 02 ALARM_FIGHT_RATE) |
 | `alarm.ts`, `recruit.ts`, `rally.ts` | alarm bursts and decay; hit reactions, encounter roll, alarm recruitment with cap; rally markers |
-| `engage.ts` | attack roll (§3.6), θ_fight, recruit cap, retreat rule, stance, territory claim test |
+| `engage.ts` | attack roll (§3.6), `mayAttack` / `protectedQueen` (gentle founding queen, used by every target choice), θ_fight, recruit cap, retreat rule, stance, territory claim test |
 | `fight.ts`, `fightRecord.ts`, `injuries.ts` | task switches into / out of `fight` and `flee`; the per-ant fight record; injury roll and recovery top-up |
 | `alerts.ts`, `diagnostics.ts` | `queen-in-danger`, `possessed-danger` (pinned); `diag-combat-losses`, `combatSummary` |
 | `attribution.ts` | finds the attacker of an action-library `bite` / `spray-acid` call that does not name it |
@@ -40,8 +42,10 @@ re-roll marks. Creatures carry `cb.acid*`, `cb.h.<antId>` (recent hitters), `cb.
   `attribution.ts` finds it exactly (the action system steps ants in list order). Proposed: pass `ant.id` as the
   new optional 6th argument, then the lookup is unused. `dodge` and `sting` have no shells in the library, so
   `installActionAdapters()` (dodge.ts) adds combat's definitions to `ACTION_DEFS` when absent, and replaces the
-  `bite` entry by a copy without its strength-1 cue (combat emits `bite` with the target's hardness). A pinned or
-  stunned ant's bite still starts (the shell does not ask combat) but deals nothing (`mayBite`).
+  `bite` entry by a copy without its strength-1 cue (combat emits `bite` with the target's hardness) whose cooldown
+  (`cd.bite`) is the caste's bite cycle (§4.1: AI and player share it; the shell's own is a fixed 1.0 s), and wraps
+  `spray-acid`'s check to refuse a gaster-wounded ant. A pinned or stunned ant's bite still starts (the shell does
+  not ask combat) but deals nothing (`mayBite`).
 - Creatures: bites, sprays and stings report through `noteCreatureHit`; `preyEvades` is asked before free bites
   and grabs; kills go through `creatureKilled`. Creature damage to ants comes in through `applyDamage` with
   causes `predation` / `bird` / `antlion` (armour and the possessed ant's `damageTakenMult` apply).

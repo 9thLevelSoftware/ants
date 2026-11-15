@@ -162,3 +162,23 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
   the 1B gate verifies).
 - Running: founding-close; worldgen-life fix + worldgen-fixes; look-pass + sim-fix-ants review; combat +
   ecology-plants (launched 18:45).
+
+### Nov 15, 19:35 — combat + ecology-plants landed (implement → review → fix); rivals + ui-panels launched
+- **combat**: full GDD 05 §4 module, fight + patrol behaviours; review found 4 major + 10 minor, 12 fixed, 2 shown
+  not to be defects (duel bias = seed noise over 2000 fresh seeds; removal.verify repeat visitor is a scout).
+- **ecology-plants**: herds, honeydew, nectar rhythm, tend behaviour; review 2 major + 6 minor, all fixed.
+  3-day long run: 77–99 % of herd production reaches the nest.
+- **Integration list for the gates** (not done by the task owners):
+  - `src/sim/ants/behaviourRunner.test.ts`: expected task list needs fight, patrol, tend (Lasius/Camponotus).
+  - `src/sim/testing/stubs.test.ts`: combat is real (applyDamage(queen, 5) = 4).
+  - Colony `computeDemand` must call `herdTendDemand`; then `TEND_DEMAND_ADAPTER = false`.
+  - `ECOLOGY_TIER` 1 → 2 at the Stage 2 gate (herds and flower rhythm are off in the real game until then).
+  - Action library: pass attacker id to applyDamage; native `dodge`/`sting` shells; bite shell asks combat
+    (pinned/stunned), spray shell asks combat (gaster wound); drop fixed-strength bite cue.
+  - `fleeTask`: hand back `rest` (not `idle`) at health < 0.25.
+  - Colony regen vs GDD 05 §4.7 (0.25/gd in nest, 0.1 elsewhere; colony gives 0.2 everywhere); injured bias.
+  - Perception/locomotion: antenna-loss x0.6, trail noise x2, leg-loss climb x0.75; possessed prediction
+    ignores movement overrides (pinned possessed ant may twitch).
+  - Forage owner: does a scout crossing the rim zone count in removal.verify (limit 2)?
+  - Text: `remedy.slider.tend`, `remedy.possess.tend` (given to ui-panels).
+- Launched: rivals (Opus) + ui-panels (Sonnet implement, Opus review, visual).

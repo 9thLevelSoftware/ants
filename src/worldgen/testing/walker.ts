@@ -35,6 +35,8 @@ export interface CrossOptions {
   speed?: number;
   /** Step budget for the whole path. */
   maxSteps?: number;
+  /** Called after every step (e.g. to record the highest point of the walk). */
+  onStep?: (kin: WalkerKin) => void;
 }
 
 // The walker mirrors the locomotion module's stuck ladder (src/sim/locomotion/stuck.ts and params.ts LOCO_TUNING;
@@ -123,11 +125,20 @@ export function crossPath(w: WorldData, k: Kernel, path: readonly number[], opts
 }
 
 /**
- * Places a walker on the surface nearest `points[0]` and walks it through the other points in order (each passed
- * within `reach` mm of the foot point). For short passages such as a door crack or a pipe annulus.
+ * Places a walker on the surface nearest `points[0]` and walks it through the other points in order (each one's
+ * nearest surface point passed within `reach` mm of the foot point, in 3D). For short passages such as a door crack.
  */
 export function walkPoints(k: Kernel, points: readonly Vec3[], reach: number, opts: CrossOptions = {}): CrossResult & { kin: WalkerKin } {
-  return follow(k, points[0], points.length, (i, out) => { out.x = points[i].x; out.y = points[i].y; out.z = points[i].z; return out; }, reach, opts);
+  const ground = points.map((p) => surfacePoint(k, p));
+  return follow(k, points[0], points.length, (i, out) => { out.x = ground[i].x; out.y = ground[i].y; out.z = ground[i].z; return out; }, reach, opts);
+}
+
+/** The walkable surface point nearest `p` (a mouth position may sit inside a floor slab): the level set less the foot offset. */
+export function surfacePoint(k: Kernel, p: Vec3): Vec3 {
+  const kin = createWalkerKin(k.walker.footOffset);
+  if (!walkerPlace(k.field, kin, p, {}, k.walker)) return { ...p };
+  const f = kin.footOffset;
+  return { x: kin.pos.x - kin.up.x * f, y: kin.pos.y - kin.up.y * f, z: kin.pos.z - kin.up.z * f };
 }
 
 function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: Vec3) => Vec3, reach: number,
@@ -186,6 +197,7 @@ function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: 
     if (kin.medium === 'air') walkerStep(k.field, kin, null, 0, STEP_S, k.walker);
     else walkerStep(k.field, kin, dir, speed, STEP_S, k.walker);
     steps++;
+    opts.onStep?.(kin);
     if (!Number.isFinite(kin.pos.x) || !Number.isFinite(kin.pos.y) || !Number.isFinite(kin.pos.z)) break;
   }
   const end = target(count - 1, t);

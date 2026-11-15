@@ -13,10 +13,11 @@ import { getRivalSpecies } from '@/sim/species';
 import { noteCreatureHit } from '@/sim/ecology/creatures';
 import { sprayDisabled } from './acid';
 import { alarmBurst } from './alarm';
+import { scheduleDose } from './doses';
 import { startRetreat } from './fight';
 import { noteFightActivity } from './fightRecord';
 import { combatStats } from './stats';
-import { antLenMm, bodyOf, bodyPos, bodyRadius, CB, dist, ensureCombat, ticksOf } from './state';
+import { antLenMm, bodyOf, bodyPos, bodyRadius, dist, ensureCombat, ticksOf } from './state';
 
 function speciesOf(sim: Sim, ant: Ant): string {
   return sim.stores.colonies.get(ant.colony)?.species ?? sim.species.id;
@@ -56,11 +57,7 @@ export function stingHit(sim: Sim, ant: Ant, kind: 'ant' | 'creature', id: numbe
   if (!b) return 0;
   ensureCombat(ant).specialCdTick = sim.state.tick + ticksOf(STING_COOLDOWN_S);
   const total = stingDamage(sim, ant);
-  const bb = b.kind === 'ant' ? b.ant.bb : b.c.bb;
-  const ticks = Math.max(1, ticksOf(STING_ACID_S));
-  bb[CB.acidLeft] = (bb[CB.acidLeft] ?? 0) + total;
-  bb[CB.acidRate] = Math.max(bb[CB.acidRate] ?? 0, total / ticks);
-  bb[CB.acidBy] = ant.id;
+  scheduleDose(b.kind === 'ant' ? b.ant.bb : b.c.bb, total, STING_ACID_S, ant.id);
   noteFightActivity(sim, ant);
   if (b.kind === 'creature') noteCreatureHit(sim, id, ant.id, 'sting');
   else {

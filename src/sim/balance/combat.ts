@@ -60,6 +60,11 @@ export const SLOTS_MAX = 12;
 export const TUNNEL_SLOTS = 2;
 /** A place is a tunnel when the free radius around the target is below this, L (probed sideways and upward). */
 export const TUNNEL_FREE_RADIUS_L = 1.5;
+/** ... in at least this many of the five probe directions (forward, back, both sides, up). */
+export const TUNNEL_CLOSED_PROBES = 2;
+/** Holders of a creature are searched within radius + HOLDER_SEARCH_SIZE_MULT x its size + HOLDER_SEARCH_BU. */
+export const HOLDER_SEARCH_SIZE_MULT = 4;
+export const HOLDER_SEARCH_BU = 4;
 /** Holder speed multiplier (GDD 01 bite-hold). */
 export const HOLDER_SPEED_MULT = 0.3;
 /** A single holder stronger than the target drags it at this fraction of cruise. */
@@ -93,6 +98,10 @@ export const SPRAY_DISORIENT_S = 1;
 export const DISORIENTED_SPEED_MULT = 0.5;
 /** The free-segment test of the spray cone uses a sphere of this radius, L. */
 export const SPRAY_SEGMENT_RADIUS_L = 0.1;
+/** Acid and venom doses running at once on one body, each over its own 2 s (more doses merge into the latest). */
+export const ACID_DOSE_SLOTS = 4;
+/** The executing attacker of a library bite / spray is searched within this distance of the target, BU. */
+export const ATTACKER_SEARCH_BU = 12;
 
 // ---- dodge (§4.8) ----
 
@@ -135,6 +144,8 @@ export const FIGHT_RECRUIT_SHARE = 0.25;
 export const FIGHT_RECRUIT_SHARE_INVADED = 0.6;
 /** Recruitment and encounter scans run for each ant every this many ticks (staggered by id). */
 export const COMBAT_SCAN_EVERY = 5;
+/** GDD 02 §8 ALARM_FIGHT_RATE (balance/pheromone) is deposited by fighting ants in chunks every this many ticks. */
+export const ALARM_FIGHT_DEPOSIT_EVERY_TICKS = 10;
 
 // ---- encounters and engagement (§3.6, §4.9) ----
 
@@ -186,6 +197,13 @@ export const FIGHT_HOLDERS_WANTED = 2;
 export const FIGHT_SPRAY_MIN_ACID = 2;
 /** A fight record ends this long after the last lock, hit or damage, s (then injuries are rolled). */
 export const FIGHT_END_QUIET_S = 5;
+/** Arrival gap when closing on a target, and the gap that counts as contact, L (bodies' radii added). */
+export const FIGHT_ARRIVE_GAP_L = 0.3;
+export const FIGHT_CONTACT_GAP_L = 0.6;
+/** A target within this many contact distances counts as seen (keeps it from being lost). */
+export const FIGHT_SEEN_CONTACT_MULT = 2;
+/** A queen (not possessed, never sent to fight) bites back at a hostile that hit her within this window, s. */
+export const QUEEN_DEFENCE_WINDOW_S = 2;
 
 // ---- injuries and recovery (§4.7) ----
 

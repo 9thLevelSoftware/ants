@@ -2,7 +2,7 @@
 // size with the Node time budget (App. E 8), forced validation failure and repair (App. E 10), progress and
 // placer registration.
 import { describe, expect, it, vi } from 'vitest';
-import type { WorldData } from '@/sim/types';
+import type { ArchetypeId, WorldData, WorldSizeId } from '@/sim/types';
 import { generateWorld, generateWorldReport, worldFingerprint } from './index';
 import { paramsFor, PERF_STRICT, report, T1_ARCHETYPES } from './testing/fixtures';
 import { WORLDGEN_TIME_MS } from './tuning/pipeline';
@@ -15,13 +15,15 @@ import { PrimFlag } from '@/sim/types';
 vi.setConfig({ testTimeout: 300_000 });
 
 const now = () => performance.now();
-declare const process: { cpuUsage(): { user: number; system: number } };
+declare const process: { cpuUsage(): { user: number; system: number }; env: Record<string, string | undefined> };
+const LONG = process.env.FOUNDRESS_LONG === '1';
 /** CPU time of this worker process, ms (vitest runs files in forked processes): much less load-sensitive. */
 const cpuNow = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
 
 describe('determinism and fingerprint (DET-1, DET-6)', () => {
   it('E1 (Node part): identical params give identical fingerprints in repeated runs; seeds differ', () => {
-    const p = { ...paramsFor('suburban-garden', 0), seedText: 'oak-17', seed: 0 };
+    // compact: determinism does not depend on the size, and three standard worlds cost ~15 s on the loaded machine
+    const p = { ...paramsFor('suburban-garden', 0, 'compact'), seedText: 'oak-17', seed: 0 };
     const a = generateWorld(p), b = generateWorld(p);
     expect(a.meta.fingerprint).toBe(b.meta.fingerprint);
     expect(worldFingerprint(a)).toBe(a.meta.fingerprint);
@@ -65,32 +67,48 @@ describe('determinism and fingerprint (DET-1, DET-6)', () => {
   });
 });
 
+/** The derived-map steps (6 and the re-derivation after 7-9; maps/**) may take this share of the E8 budget. */
+const DERIVED_SHARE = 0.3;
+
+function validWorld(a: ArchetypeId, size: WorldSizeId): void {
+  const t0 = now(), c0 = cpuNow();
+  // per-step CPU times (process.cpuUsage: waiting for a core does not count; contention still inflates it)
+  const r = report(a, 3, size, 'lasius-niger', { now: cpuNow });
+  const ms = now() - t0, cpu = cpuNow() - c0;
+  const failed = r.checks.filter((c) => c.status === 'fail');
+  expect(failed, `${a} ${size}: ${failed.map((c) => `${c.id} ${c.detail}`).join('; ')}`).toEqual([]);
+  expect(r.attempts).toBeLessThanOrEqual(8);
+  expect(r.world.prims.length).toBeLessThanOrEqual(Math.round(BUDGETS.primTotal * SIZE_SCALE[size]));
+  if (size !== 'standard') return;
+  // E8: <= 3000 ms in Node "on the CI machine". FOUNDRESS_PERF_STRICT=1 (an idle machine) checks the wall clock
+  // against it. The shared machine often runs at a load average of 10-20 on 4 cores, so the default run checks
+  // this process's CPU time against twice the budget, whatever the number of attempts. The derived-map steps (this
+  // module's part of the budget) are checked on their own, from the per-step CPU times of the returned attempt.
+  const t = r.timingsMs, derived = (t.derived ?? 0) + (t.rederive ?? 0);
+  const steps = Object.entries(t).map(([k, v]) => `${k}=${Math.round(v)}`).join(' ');
+  const why = `${a} standard: ${ms.toFixed(0)} ms wall, ${cpu.toFixed(0)} ms CPU, ${r.attempts} attempt(s); last attempt CPU per step: ${steps}`;
+  if (PERF_STRICT) {
+    expect(ms, why).toBeLessThan(WORLDGEN_TIME_MS.node);
+    expect(derived, why).toBeLessThan(DERIVED_SHARE * WORLDGEN_TIME_MS.node);
+  } else {
+    expect(cpu, why).toBeLessThan(2 * WORLDGEN_TIME_MS.node);
+    expect(derived, why).toBeLessThan(2 * DERIVED_SHARE * WORLDGEN_TIME_MS.node);
+  }
+}
+
 describe('every Tier 1 archetype at every size generates a valid world', () => {
   for (const a of T1_ARCHETYPES) {
-    it(`${a}: compact, standard, large pass validation; standard within the Node budget`, () => {
-      for (const size of ['compact', 'standard', 'large'] as const) {
-        const t0 = now(), c0 = cpuNow();
-        const r = report(a, 3, size);
-        const ms = now() - t0, cpu = cpuNow() - c0;
-        const failed = r.checks.filter((c) => c.status === 'fail');
-        expect(failed, `${a} ${size}: ${failed.map((c) => `${c.id} ${c.detail}`).join('; ')}`).toEqual([]);
-        expect(r.attempts).toBeLessThanOrEqual(8);
-        expect(r.world.prims.length).toBeLessThanOrEqual(Math.round(BUDGETS.primTotal * SIZE_SCALE[size]));
-        if (size === 'standard') {
-          // E8: <= 3000 ms in Node. FOUNDRESS_PERF_STRICT=1 (idle machine) checks the wall clock against it. The
-          // shared machine often runs at a load average of ~20 on 4 cores, so the default run checks this process's
-          // CPU time (waiting for a core does not count; contention still inflates it) against twice the budget.
-          if (PERF_STRICT) expect(ms, `${a} standard took ${ms.toFixed(0)} ms`).toBeLessThan(WORLDGEN_TIME_MS.node);
-          else expect(cpu, `${a} standard took ${cpu.toFixed(0)} ms CPU (${ms.toFixed(0)} ms wall)`).toBeLessThan(2 * WORLDGEN_TIME_MS.node);
-        }
-      }
+    it(`${a}: compact and standard pass validation; standard within the Node budget`, () => {
+      validWorld(a, 'compact');
+      validWorld(a, 'standard');
     });
+    it.skipIf(!LONG)(`${a}: large passes validation (FOUNDRESS_LONG=1)`, () => validWorld(a, 'large'));
   }
 });
 
 describe('regeneration and repair (GDD 04 §4.3)', () => {
   it('E10: forced v-found failure for 8 attempts -> attempts = 8, repairs contain R2, final map passes v-found', () => {
-    const r = generateWorldReport(paramsFor('suburban-garden', 5), { forceFail: { check: 'v-found', attempts: 8 } });
+    const r = generateWorldReport(paramsFor('suburban-garden', 5, 'compact'), { forceFail: { check: 'v-found', attempts: 8 } });
     expect(r.attempts).toBe(8);
     expect(r.world.meta.attempts).toBe(8);
     expect(r.repairs).toContain('R2');

@@ -6,7 +6,7 @@ import { hash2u } from '@/core/math/noise';
 import { rngFork } from '@/core/rng';
 import { generateWorld, worldFingerprint } from './index';
 import { worldDims } from './params';
-import { paramsFor, T1_ARCHETYPES } from './testing/fixtures';
+import { FULL, paramsFor, T1_ARCHETYPES } from './testing/fixtures';
 import { buildLayout } from './layout';
 import { BUILT_SIZE, FRACTION_TOLERANCE } from './tuning/archetypes';
 import { area } from './layout/geom';
@@ -18,6 +18,8 @@ import { deriveMaps, mapState } from './maps';
 
 declare const process: { env: Record<string, string | undefined> };
 const LONG = process.env.FOUNDRESS_LONG === '1';
+/** Layout seeds per archetype and size of the zone-share sweep: 20 with FOUNDRESS_LONG=1 or FOUNDRESS_WORLDGEN_FULL=1. */
+const SHARE_SEEDS = LONG || FULL ? 20 : 5;
 
 vi.setConfig({ testTimeout: 300_000 });
 
@@ -74,10 +76,10 @@ describe('acceptance 4 / GDD 04 App. E 3 with the pipeline seeds', () => {
   });
 
   for (const a of T1_ARCHETYPES) {
-    it(`${a}: natural shares inside the GDD range (+-${FRACTION_TOLERANCE}) where reachable, built share <= 70 % (20 seeds, 3 sizes)`, () => {
+    it(`${a}: natural shares inside the GDD range (+-${FRACTION_TOLERANCE}) where reachable, built share <= 70 % (${SHARE_SEEDS} seeds, 3 sizes)`, () => {
       const bad: string[] = [];
       for (const size of ['compact', 'standard', 'large'] as const) {
-        for (let s = 1; s <= 20; s++) {
+        for (let s = 1; s <= SHARE_SEEDS; s++) {
           const { lay, dims } = pipelineLayout(a, s, size);
           const nat = lay.zones.filter((z) => !z.built);
           const lo = nat.reduce((t, z) => t + z.range![0], 0), hi = nat.reduce((t, z) => t + z.range![1], 0);

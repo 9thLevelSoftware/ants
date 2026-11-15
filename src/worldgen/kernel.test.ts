@@ -15,8 +15,9 @@ declare const process: { env: Record<string, string | undefined> };
 const LONG = process.env.FOUNDRESS_LONG === '1';
 
 /**
- * A kernel walker (testing/walker.ts: aims at each waypoint's ground point, recovers by sidestepping, climbing,
- * backing off or letting go; never teleports) walks the nav path across the start's row, end to end.
+ * A kernel walker (testing/walker.ts: walks at the AI's 12 BU/s, aims at each waypoint's ground point, climbs the
+ * game's stuck ladder with its 2.5 s window, and where the game would relocate tries a climb and a let-go instead;
+ * never teleports) walks the nav path across the start's row, end to end, each waypoint passed in 3D.
  */
 function crossesMap(a: ArchetypeId, seed: number): void {
   const w = report(a, seed).world;
@@ -29,7 +30,7 @@ function crossesMap(a: ArchetypeId, seed: number): void {
   expect(Math.abs((path![path!.length - 1] % n) - (path![0] % n)) * cell).toBeGreaterThan(0.5 * w.size);
   const r = crossPath(w, k, path!);
   expect(Number.isFinite(r.kin.pos.x) && Number.isFinite(r.kin.pos.y) && Number.isFinite(r.kin.pos.z)).toBe(true);
-  expect(r.stuckAt, `${a} #${seed}: stuck after ${r.reached}/${path!.length} waypoints`).toBeNull();
+  expect(r.stuckAt, `${a} #${seed}: stuck after ${r.reached}/${path!.length} waypoints (${r.episodes} episodes, ${r.extras} beyond the game's ladder)`).toBeNull();
   expect(r.endDist, `${a} #${seed} walker end`).toBeLessThan(cell);
 }
 
@@ -48,8 +49,11 @@ describe('kernel from generated worlds', () => {
   }
 });
 
+// Open (locomotion, reported): at the AI's speed with the game's ladder, three of these 15 crossings stay stuck where
+// the game would relocate: suburban-garden #4 (a nav cell open only through the 15 mm strip under a raised gravel
+// board at a fence end; the walker aims at the cell centre and meets the solid board), playground-park #3 (the
+// rim of a toy bucket wall) and kitchen-door #3 (the raised tip of a dandelion leaf: a thin sheet the walker cannot
+// step off). These stay red under FOUNDRESS_LONG until locomotion handles thin-sheet edges and narrow openings.
 describe.skipIf(!LONG)('walker crossings over more seeds (FOUNDRESS_LONG=1)', () => {
-  for (const a of T1_ARCHETYPES) {
-    it(`${a}: seeds 1, 3, 4`, () => { for (const s of [1, 3, 4]) crossesMap(a, s); }, 600_000);
-  }
+  for (const a of T1_ARCHETYPES) for (const s of [1, 3, 4]) it(`${a} #${s}`, () => crossesMap(a, s), 600_000);
 });

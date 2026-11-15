@@ -6,7 +6,7 @@
 import type { Ant, Colony, Sim } from '@/sim/types';
 import { COMBAT_SCAN_EVERY, ENCOUNTER_REROLL_S, RECOGNITION_L } from '@/sim/balance/combat';
 import { alarmSource } from './alarm';
-import { attackChance, canFight, fightThreshold, recruitCap, retreatReason } from './engage';
+import { attackChance, canFight, fightThreshold, protectedQueen, recruitCap, retreatReason } from './engage';
 import { startFight, startRetreat } from './fight';
 import { roll } from './grapple';
 import { antLenMm, CB, dist, ticksOf } from './state';
@@ -55,8 +55,10 @@ function reactToHit(sim: Sim, ant: Ant): boolean {
   const kind = ant.bb[CB.hitByKind] === 2 ? 'creature' : 'ant';
   const id = ant.bb[CB.hitBy] ?? -1;
   delete ant.bb[CB.hitTick];
-  // GDD 02 §10.12: an ant carrying brood (or one the retreat rule sends away) flees; the others fight back
-  if (ant.carry.kind === 'brood' || retreatReason(sim, ant)) { startRetreat(sim, ant); return true; }
+  // GDD 02 §10.12: an ant carrying brood (or one the retreat rule sends away) flees; the others fight back.
+  // A rival bitten by the protected founding queen (gentle, §3.10) backs off instead of fighting her.
+  const hitter = kind === 'ant' ? sim.stores.ants.get(id) : undefined;
+  if (ant.carry.kind === 'brood' || retreatReason(sim, ant) || (hitter && protectedQueen(sim, hitter))) { startRetreat(sim, ant); return true; }
   return startFight(sim, ant, { kind, id }, null, 'threat');
 }
 
@@ -93,7 +95,9 @@ function recruitByAlarm(sim: Sim, ant: Ant, ctx: ScanContext): boolean {
   if (n >= recruitCap(col, invaded)) return false;
   const by = ant.bb[CB.alarmBy] ?? -1;
   const attacker = by >= 0 ? sim.stores.ants.get(by) ?? sim.stores.creatures.get(by) : undefined;
-  const target = attacker && attacker.alive ? { kind: ('caste' in attacker ? 'ant' : 'creature') as 'ant' | 'creature', id: by } : null;
+  const isAnt = !!attacker && 'caste' in attacker;
+  const allowed = attacker && attacker.alive && !(isAnt && protectedQueen(sim, attacker as Ant));
+  const target = allowed ? { kind: (isAnt ? 'ant' : 'creature') as 'ant' | 'creature', id: by } : null;
   const p = alarmSource(ant, src);
   if (!startFight(sim, ant, target, p, 'alarm')) return false;
   ctx.fighters.set(col.id, n + 1);

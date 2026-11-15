@@ -73,11 +73,11 @@ export function raiseAlarm(sim: Sim, colony: number, pos: Vec3, strength: number
 // ---- further API for behaviours, rivals, creatures, UI and tests ----
 export { combatStats, fightStrength, healthOf, retreatHealth, type CombatStats } from './stats';
 export {
-  attackChance, canFight, colonyAggression, fightThreshold, localStrength, recruitCap, retreatReason, stanceFactor,
-  territoryAt, territoryFactor, type RetreatReason,
+  attackChance, canFight, colonyAggression, fightThreshold, localStrength, mayAttack, protectedQueen, recruitCap,
+  retreatReason, stanceFactor, territoryAt, territoryFactor, type RetreatReason,
 } from './engage';
 export { endFight, fightTarget, fightSource, resumeTaskOf, setFightTarget, startFight, startRetreat } from './fight';
-export { computePinned, holdersOf, isHelpless, isPinned, slotsFor } from './grapple';
+export { computePinned, frontHolder, holdersOf, isHelpless, isPinned, slotsFor } from './grapple';
 export { biteHitChance, mayBite, outnumberMult, resolveBite } from './hits';
 export { sprayDamage, sprayDisabled, sprayHit } from './acid';
 export { dodgeDef, dodgeRefusal, setDodgeDirection, startDodge } from './dodge';
@@ -86,7 +86,7 @@ export { alarmBurst } from './alarm';
 export { hasInjury, injure, rollInjuries } from './injuries';
 export { activeRally } from './rally';
 export { combatSummary, publishCombatDiagnostic, type CombatSummary } from './diagnostics';
-export { combatFlags, type CombatFlags } from './state';
+export { combatFlags, faceToward, type CombatFlags } from './state';
 export { ensureInstalled } from './system';
 
 export const commandHandlers: Partial<CommandHandlerMap> = {

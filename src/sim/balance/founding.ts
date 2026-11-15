@@ -84,14 +84,45 @@ export const FOUND_IN_CELL_MARGIN_BU = 2;
  * Soil for the plug (GDD 06 §5.9): the queen in the throat scrapes the wall beside her at these slopes (deg, the
  * dig bite's ramp slope; first that removes soil wins).
  */
-export const FOUND_SEAL_SCRAPE_SLOPES_DEG = [0, 30, -30] as const;
+export const FOUND_SEAL_SCRAPE_SLOPES_DEG = [0, 30, -30, 60] as const;
+/** ... at these headings from her own, deg (behind first: down the shaft, away from the plug; never straight ahead). */
+export const FOUND_SEAL_SCRAPE_HEADINGS_DEG = [180, 135, -135, 90, -90, 45, -45] as const;
+/** ... and never within this distance of the ground surface (a scrape there could open a new hole), BU. */
+export const FOUND_SEAL_SCRAPE_SOIL_BU = 0.5;
 /** A scrape is skipped when plug voxels lie within the bite radius + MARGIN of its ramp over the first REACH, BU. */
-export const FOUND_SEAL_SCRAPE_MARGIN_BU = 0.25;
-export const FOUND_SEAL_SCRAPE_REACH_BU = 1;
+export const FOUND_SEAL_SCRAPE_MARGIN_BU = 0.75;
+export const FOUND_SEAL_SCRAPE_REACH_BU = 1.5;
 /** ... while at least this deep below the ground, BU (inside the cavity, not on the surface). */
-export const FOUND_SEAL_SCRAPE_MIN_DEPTH_BU = 1;
+export const FOUND_SEAL_SCRAPE_MIN_DEPTH_BU = 0.5;
 /** An entrance belongs to the founding cavity when a point this far down its throat (BU) is connected to the cell. */
 export const FOUND_THROAT_PROBE_BU = [1, 2, 3, 4] as const;
+/**
+ * Sealing by the leak (task founding-close §1, src/sim/colony/founding/seal*.ts). The cavity is flooded from the
+ * cell through open samples to the outside air within this radius, BU, and at most this many samples.
+ */
+export const SEAL_FLOOD_RADIUS_BU = 40;
+export const SEAL_FLOOD_MAX_SAMPLES = 60_000;
+/** The plug aims where the leak path is this far inside the soil (substrate distance), BU. */
+export const SEAL_TARGET_SOIL_BU = 0.75;
+/** Stands are chosen this far inside the action's throat reach, BU (the walker settles a little off its goal). */
+export const SEAL_REACH_MARGIN_BU = 0.35;
+/** The best-scored stands checked for a plug that cuts the leak outright (a flood each). */
+export const SEAL_CUT_CHECKS = 8;
+/** The queen walks to a stand until this close, BU, or gives it up after this long, ticks. */
+export const SEAL_STAND_TOL_BU = 0.45;
+export const SEAL_WALK_MAX_TICKS = 200;
+/** Stands given up within this radius of an unreachable one, BU; after this many the guide stops (prompt). */
+export const SEAL_EXCLUDE_BU = 0.75;
+export const SEAL_MAX_REPLANS = 6;
+/**
+ * Bound of one sealing (stated and tested): at most this many plugs (seal-entrance actions) for any throat the dig
+ * can produce. Each plug fills up to a PLUG_RADIUS sphere across the leak, so a 3 BU throat needs about 3-6.
+ */
+export const SEAL_MAX_PLUGS = 12;
+/** Without soil in her mandibles at the stand for this long she walks toward the cell to scrape some, ticks. */
+export const SEAL_SOIL_WAIT_TICKS = 20;
+/** The passive player: no input this long in phase `seal` and the queen seals by herself, GD (same path as E). */
+export const OPEN_AUTO_SEAL_GD = 0.5;
 
 // ---- clutch (GDD 06 §5.10) ----
 
@@ -196,5 +227,3 @@ export const BROOD_LOST_FAIL_GD = 1;
 
 /** Egg-to-worker survival the automatic clutch assumes (GDD 06 §5.12: about 46 % of eggs at a typical site). */
 export const AUTO_CLUTCH_SURVIVAL = 0.45;
-/** The cheat's plug: a loose fill of this radius this far down each throat of the cell, BU. */
-export const AUTO_SEAL_FILL = { depthBu: 1.5, rBu: 1.6 } as const;

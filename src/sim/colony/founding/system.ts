@@ -12,6 +12,7 @@ import { layTick, refuseLayBeforeSeal } from './clutch';
 import { bitePoint, digTick, sealTick, searchTick } from './dig';
 import { exposureTick, nestSealed } from './exposure';
 import { soilForSeal } from './seal';
+import { sealGuideTick } from './sealGuide';
 import { broodLost, causeOfQueenDeath, failOpening } from './failure';
 import { closeAim, handover, openAim } from './handover';
 import { beginLapse, lapseTick } from './lapse';
@@ -118,7 +119,11 @@ function step(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       refuseLayBeforeSeal(sim, q);
       exposureTick(sim, q, true);
       if (!q.alive) return;
-      soilForSeal(sim, q, nest);
+      // sealed first: soil is scraped (and the guide plans) only while a throat is still open
+      if (!sealTick(sim, op, nest)) {
+        soilForSeal(sim, q, nest);
+        sealGuideTick(sim, q, nest);
+      }
       if (sealTick(sim, op, nest)) {
         setPhase(sim, op, 'lay');
         closeAim(sim, 'aim-seal');

@@ -14,8 +14,10 @@ export const TH = {
   badUntil: 'th.badU',
   /** Next stroke allowed at (tick): a stroke and its drink take 6 s. */
   next: 'th.next',
-  /** Tick the pool was first found empty while soliciting (-1 not empty). */
+  /** Tick the tender last got honeydew at the herd (arrival, guard duty or a relay count as a fresh start; -1 unset),
+   * and its crop at the last think there (a rise = a droplet came). */
   empty0: 'th.e0',
+  cropSeen: 'th.cs',
   /** 1 while on a guard shift (GDD 02 tend.guard-herd roster), and the tick the shift began. */
   shift: 'th.sh',
   shift0: 'th.sh0',

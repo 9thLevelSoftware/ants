@@ -69,11 +69,19 @@ export function stanceFactor(sim: Sim, col: Colony | undefined): number {
   return STANCE_ATTACK_MULT[col.directives.stance] ?? 1;
 }
 
-/** A founding queen of the player colony on gentle is never attacked (GDD 05 §3.10). */
-function protectedQueen(sim: Sim, other: Ant): boolean {
+/**
+ * A founding queen of the player colony on gentle is never attacked by rivals (GDD 05 §3.10, App. E 23): not by
+ * the encounter roll, and not by fighters, patrols, recruits or guards choosing a target.
+ */
+export function protectedQueen(sim: Sim, other: Ant): boolean {
   if (other.caste !== 'queen' || (other.flags & AntFlag.FOUNDING) === 0) return false;
   const col = sim.stores.colonies.get(other.colony);
   return !!col && col.isPlayer && sim.state.config.difficulty.preset === 'gentle';
+}
+
+/** Whether the AI of `ant` may pick `other` as a foe: a living ant of another colony that is not protected. */
+export function mayAttack(sim: Sim, ant: Ant, other: Ant): boolean {
+  return other.alive && other.colony !== ant.colony && !protectedQueen(sim, other);
 }
 
 /**

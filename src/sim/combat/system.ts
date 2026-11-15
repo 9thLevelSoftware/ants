@@ -1,7 +1,8 @@
 // The combat system (phase `combat`, every tick, after locomotion; GDD 05 §0 "combat every tick"). Per ant:
 // alarm decay, acid in progress, spray detection (`combat-spray`), lock upkeep (hold bites on the bite cycle, lock
 // breaks, stalemates, partner gone), the fight record and injuries, and every COMBAT_SCAN_EVERY ticks the
-// recruitment scan. Per creature: acid and holders. On cadences: rally recruitment, alerts and diagnostics.
+// recruitment scan; queens defending themselves in place and the fighting ants' alarm deposit. Per creature: acid
+// and holders. On cadences: rally recruitment, alerts and diagnostics.
 
 import type { Ant, Sim } from '@/sim/types';
 import {
@@ -11,12 +12,12 @@ import {
 } from '@/sim/balance/combat';
 import { rngInt, rngShuffle } from '@/core/rng';
 import { dep } from './late';
-import { acidTick, clearSprayHits, takeSprayHits } from './acid';
+import { acidTick, clearSprayHits, sprayDisabled, takeSprayHits } from './acid';
 import { alarmBurst, decayAlarm } from './alarm';
 import { combatAlerts } from './alerts';
 import { publishCombatDiagnostic } from './diagnostics';
 import { installActionAdapters } from './dodge';
-import { canFight } from './engage';
+import { canFight, mayAttack } from './engage';
 import { startFight } from './fight';
 import { closeFightRecord, inFightRecord } from './fightRecord';
 import { holdersOf, holdersPull, lockedBody, pullOf, releaseGrapple, roll, updatePin } from './grapple';
@@ -24,6 +25,7 @@ import { resolveBite } from './hits';
 import { recoveryTopUp, rollInjuries } from './injuries';
 import { ensureMovementHooks, lockGap } from './movement';
 import { rallyRecruit } from './rally';
+import { endSelfDefence, fightAlarmDeposit, selfDefence } from './selfDefence';
 import { pruneRerolls, scanAnt } from './recruit';
 import { combatStats } from './stats';
 import { CB, combatFlags, rng, ticksOf } from './state';
@@ -44,6 +46,7 @@ export function ensureInstalled(sim: Sim): void {
 function guardEngage(sim: Sim, guard: Ant, who: { kind: 'ant' | 'creature'; id: number }): void {
   const target = who.kind === 'ant' ? sim.stores.ants.get(who.id) : sim.stores.creatures.get(who.id);
   if (!target || !target.alive) return;
+  if (who.kind === 'ant' && !mayAttack(sim, guard, target as Ant)) return;
   startFight(sim, guard, who, target.pos, 'threat');
 }
 
@@ -102,12 +105,13 @@ function fightRecordTick(sim: Sim, a: Ant): void {
   if (sim.state.tick - (a.bb[CB.lastAct] ?? 0) < ticksOf(FIGHT_END_QUIET_S)) return;
   rollInjuries(sim, a);
   closeFightRecord(a);
+  endSelfDefence(a);
 }
 
 /** A spray happened this tick (its charge was spent): `combat-spray` and the sprayer's own alarm. */
 function sprayCheck(sim: Sim, a: Ant): void {
   const seen = a.bb[CB.acidSeen];
-  if (seen !== undefined && a.acid < seen - 1e-9) {
+  if (seen !== undefined && a.acid < seen - 1e-9 && !sprayDisabled(a)) {
     const hitIds = takeSprayHits(sim, a.id);
     sim.emit({
       type: 'combat-spray', antId: a.id, pos: { x: a.pos.x, y: a.pos.y, z: a.pos.z },
@@ -142,6 +146,8 @@ function antTick(sim: Sim, a: Ant): void {
     if (a.combat && a.combat.heldBy.length > 0) heldTick(sim, a);
   }
   fightRecordTick(sim, a);
+  selfDefence(sim, a);
+  fightAlarmDeposit(sim, a);
   if ((now + a.id) % COMBAT_SCAN_EVERY === 0 && canFight(a) && !combatFlags(sim).noScan) scanAnt(sim, a);
   if ((now + a.id) % RECOVERY_EVERY_TICKS === 0) {
     recoveryTopUp(sim, a);

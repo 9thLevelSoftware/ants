@@ -1,17 +1,18 @@
 // `cheat.completeFounding` (GDD 06 App. B; task deliverable 4): runs every remaining step of the opening through
 // the same state machine, as fast as the ticks allow. Instead of the player's bites, holds and batches it uses the
 // debug world edits that exist as commands (carve the species' founding template at the queen, move her into the
-// cell, close the throat) and the colony's own laying; the readiness, sealing, clutch, time-lapse (marked skipped,
+// cell) and the colony's own laying; the throat is sealed the passive player's way (sealGuide.ts: the real
+// seal-entrance at the leak); the readiness, sealing, clutch, time-lapse (marked skipped,
 // so the game runs it at full rate) and hand-over are the normal code.
 
 import type { Ant, Nest, OpeningState, Sim, SpeciesId } from '@/sim/types';
 import { FOUNDING_TEMPLATE } from '@/sim/balance/nest';
 import { OPEN_LAY_BATCH_EGGS } from '@/sim/balance/actions';
-import { AUTO_CLUTCH_SURVIVAL, AUTO_SEAL_FILL } from '@/sim/balance/founding';
+import { AUTO_CLUTCH_SURVIVAL } from '@/sim/balance/founding';
 import { layEgg } from '../queen';
 import { FB, bbGet, bbSet, setPhase, speciesOf } from './access';
 import { clutchLimit, eggsLaid } from './clutch';
-import { cavityEntrances } from './dig';
+import { requestSeal } from './sealGuide';
 
 const STEP = 'fd.autoStep';
 
@@ -73,18 +74,10 @@ export function autoTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       if (step < 2) { sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: cellFloor(sim, nest) }); bbSet(q, STEP, 2); }
       else if (q.chamberId < 0 && q.medium !== 'cavity') sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: cellFloor(sim, nest) });
       return;
-    case 'seal': {
-      if (step >= 3) return;
-      const bu = sim.world.bu;
-      for (const e of cavityEntrances(sim, nest)) {
-        if (e.status === 'sealed') continue;
-        const d = AUTO_SEAL_FILL.depthBu * bu;
-        const p = { x: e.pos.x - e.dir.x * d, y: e.pos.y - e.dir.y * d, z: e.pos.z - e.dir.z * d };
-        sim.enqueue({ type: 'cheat.fillSphere', pos: p, r: AUTO_SEAL_FILL.rBu * bu, loose: true });
-      }
-      bbSet(q, STEP, 3);
+    case 'seal':
+      // the passive player's sealing: the guide walks her to the leak and plugs it with seal-entrance
+      if (step < 3) { requestSeal(sim, q, true); bbSet(q, STEP, 3); }
       return;
-    }
     case 'lay': {
       if (q.chamberId < 0) { sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: cellFloor(sim, nest) }); return; }
       const limit = clutchLimit(sim, q, nest);

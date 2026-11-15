@@ -21,7 +21,7 @@ export const CB = {
   shakeNext: 'cb.shake',
   /** Last tick either side of a lock dealt damage (stalemate). */
   lastDmg: 'cb.dmgT',
-  /** Acid in progress on this body: damage left, damage per tick, the sprayer's id. */
+  /** Acid / venom in progress on this body: total left; with a slot suffix (doses.ts) per dose left, per tick, source. */
   acidLeft: 'cb.acid',
   acidRate: 'cb.acidR',
   acidBy: 'cb.acidBy',
@@ -130,6 +130,15 @@ export function isDisoriented(sim: Sim, ant: Ant): boolean {
 
 export function dist(a: Vec3, b: Vec3): number {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+/** Turns the ant in its tangent plane to face p (heading only; locomotion owns position). */
+export function faceToward(ant: Ant, p: Vec3): void {
+  let dx = p.x - ant.pos.x, dy = p.y - ant.pos.y, dz = p.z - ant.pos.z;
+  const k = dx * ant.up.x + dy * ant.up.y + dz * ant.up.z;
+  dx -= k * ant.up.x; dy -= k * ant.up.y; dz -= k * ant.up.z;
+  const l = Math.hypot(dx, dy, dz);
+  if (l > 1e-6) { ant.fwd.x = dx / l; ant.fwd.y = dy / l; ant.fwd.z = dz / l; }
 }
 
 /** Body length of an ant, mm. */

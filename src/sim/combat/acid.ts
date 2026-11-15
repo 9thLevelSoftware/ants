@@ -12,6 +12,7 @@ import { CREATURE_STATS } from '@/sim/balance/creatures';
 import { noteCreatureHit } from '@/sim/ecology/creatures';
 import { alarmBurst } from './alarm';
 import { damageAnt, damageCreature } from './damage';
+import { scheduleDose, tickDoses } from './doses';
 import { noteFightActivity } from './fightRecord';
 import { releaseGrapple, roll } from './grapple';
 import { combatStats } from './stats';
@@ -44,14 +45,6 @@ export function sprayDamage(sim: Sim, sprayer: Ant, sens: number): number {
   return SPRAY_ACID_PER_MG23 * Math.pow(Math.max(0, sprayer.massMg), 2 / 3) * combatStats(sim, sprayer).sprayMult * sens;
 }
 
-function scheduleAcid(bb: Record<string, number>, total: number, sprayerId: number): void {
-  const ticks = Math.max(1, ticksOf(SPRAY_ACID_S));
-  const left = (bb[CB.acidLeft] ?? 0) + total;
-  bb[CB.acidLeft] = left;
-  bb[CB.acidRate] = Math.max(bb[CB.acidRate] ?? 0, total / ticks);
-  bb[CB.acidBy] = sprayerId;
-}
-
 /** One target of a spray. Returns the acid scheduled (0 when blocked or the sprayer cannot spray). */
 export function sprayHit(sim: Sim, sprayer: Ant, kind: 'ant' | 'creature', id: number): number {
   if (sprayDisabled(sprayer)) return 0;
@@ -74,12 +67,12 @@ export function sprayHit(sim: Sim, sprayer: Ant, kind: 'ant' | 'creature', id: n
   if (b.kind === 'creature') {
     const total = sprayDamage(sim, sprayer, CREATURE_STATS[b.c.kind]?.acidSens ?? 1);
     noteCreatureHit(sim, id, sprayer.id, 'spray');
-    scheduleAcid(b.c.bb, total, sprayer.id);
+    scheduleDose(b.c.bb, total, SPRAY_ACID_S, sprayer.id);
     return total;
   }
   const t = b.ant;
   const total = sprayDamage(sim, sprayer, 1);
-  scheduleAcid(t.bb, total, sprayer.id);
+  scheduleDose(t.bb, total, SPRAY_ACID_S, sprayer.id);
   const cs = ensureCombat(t);
   if (cs.lock && roll(sim, SPRAY_RELEASE_P)) releaseGrapple(sim, t.id);
   cs.disorientedUntilTick = Math.max(cs.disorientedUntilTick, sim.state.tick + ticksOf(SPRAY_DISORIENT_S));
@@ -89,16 +82,12 @@ export function sprayHit(sim: Sim, sprayer: Ant, kind: 'ant' | 'creature', id: n
   return total;
 }
 
-/** Applies one tick of acid on a body (ants and creatures); clears the record when spent. */
+/** Applies one tick of every acid / venom dose on a body (ants and creatures); clears spent doses. */
 export function acidTick(sim: Sim, kind: 'ant' | 'creature', body: Ant | Creature): void {
-  const left = body.bb[CB.acidLeft];
-  if (left === undefined) return;
-  const d = Math.min(left, body.bb[CB.acidRate] ?? left);
-  const by = body.bb[CB.acidBy] ?? -1;
-  const rest = left - d;
-  if (rest <= 1e-9) { delete body.bb[CB.acidLeft]; delete body.bb[CB.acidRate]; delete body.bb[CB.acidBy]; } else body.bb[CB.acidLeft] = rest;
-  if (kind === 'ant') {
-    const a = body as Ant;
-    damageAnt(sim, a, d, 'combat', by, 'acid');
-  } else damageCreature(sim, body as Creature, d, by);
+  if (body.bb[CB.acidLeft] === undefined) return;
+  tickDoses(body.bb, (d, by) => {
+    if (kind === 'ant') damageAnt(sim, body as Ant, d, 'combat', by, 'acid');
+    else damageCreature(sim, body as Creature, d, by);
+    return body.alive;
+  });
 }

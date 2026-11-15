@@ -7,13 +7,15 @@
 // Seized and paralysed ants are the creature module's override (registered earlier, it runs first).
 
 import type { Ant, Creature, Sim, Walker } from '@/sim/types';
+import { AntFlag } from '@/sim/types';
 import {
   DISORIENTED_SPEED_MULT, DRAG_CRUISE_FRAC, HOLDER_SPEED_MULT, LEG_SPEED_FLOOR, LEG_SPEED_MULT, LOCK_CONTACT_GAP_L,
 } from '@/sim/balance/combat';
 import { INPUT_DEADZONE } from '@/sim/balance/actions';
 import { placeOnSurface, registerMovementOverride, registerSpeedFactor } from '@/sim/locomotion';
 import { dodgeStep } from './dodge';
-import { holdersOf, pullOf } from './grapple';
+import { heldSpeedFactor, holdersOf, pullOf } from './grapple';
+import { casteSpeeds } from '@/sim/locomotion';
 import { combatStats } from './stats';
 import { antLenMm, type Body, bodyOf, bodyPos, bodyRadius, CB, dist, isDisoriented, isParalysed, isPossessed, isSeized } from './state';
 
@@ -37,14 +39,7 @@ export function contactMm(sim: Sim, holder: Ant, b: Body): number {
   return holder.radius + bodyRadius(b) + LOCK_CONTACT_GAP_L * antLenMm(sim, holder);
 }
 
-/** Speed left to a held body: max(0, 1 - Σ pull_h / pull_t) (1 when free). */
-export function heldSpeedFactor(sim: Sim, b: Body): number {
-  if (holdersOf(sim, b, hs).length === 0) return 1;
-  let sum = 0;
-  for (const id of hs) { const h = sim.stores.ants.get(id); if (h) sum += combatStats(sim, h).pull; }
-  const p = pullOf(sim, b);
-  return p > 0 ? Math.max(0, 1 - sum / p) : 0;
-}
+export { heldSpeedFactor };
 
 function legFactor(ant: Ant): number {
   const n = ant.bb[CB.legs] ?? 0;
@@ -80,17 +75,29 @@ export function holderDrags(sim: Sim, holder: Ant): boolean {
   return combatStats(sim, holder).pull > pullOf(sim, b) && wantsToMove(sim, holder);
 }
 
-/** Puts the walker on the surface at distance d from anchor along the current line (no move when within d). */
-function keepWithin(sim: Sim, w: Walker, anchorX: number, anchorY: number, anchorZ: number, d: number, dt: number): void {
+/**
+ * Moves the walker toward distance d from anchor along the current line (no move when within d), by at most
+ * `maxStep` mm: a holder cannot follow faster than it may walk, so a target that gets away (a dodge out of a
+ * weak grip) opens the gap until the lock breaks (lockGap).
+ */
+function keepWithin(sim: Sim, w: Walker, anchorX: number, anchorY: number, anchorZ: number, d: number, dt: number, maxStep = Infinity): void {
   const dx = w.pos.x - anchorX, dy = w.pos.y - anchorY, dz = w.pos.z - anchorZ;
   const l = Math.hypot(dx, dy, dz);
   if (l <= d || l < 1e-6) { w.speed = 0; return; }
-  const k = d / l;
+  const k = Math.max(d, l - maxStep) / l;
   to.x = anchorX + dx * k - w.up.x * w.footOffset;
   to.y = anchorY + dy * k - w.up.y * w.footOffset;
   to.z = anchorZ + dz * k - w.up.z * w.footOffset;
-  const moved = l - d;
+  const moved = l - k * l;
   if (placeOnSurface(sim, w, to)) w.speed = moved / Math.max(dt, 1e-6);
+}
+
+/** Fastest a holder may follow its target, mm/s: its sprint x the holder multiplier (GDD 01 bite-hold x0.3). */
+function holderMaxSpeed(sim: Sim, holder: Ant): number {
+  const col = sim.stores.colonies.get(holder.colony);
+  const species = col ? col.species : sim.species.id;
+  const founding = (holder.flags & AntFlag.FOUNDING) !== 0;
+  return casteSpeeds(species, holder.caste, sim.world.bu, founding).sprint * HOLDER_SPEED_MULT;
 }
 
 function override(sim: Sim, w: Walker, dt: number): boolean {
@@ -105,7 +112,7 @@ function override(sim: Sim, w: Walker, dt: number): boolean {
     const b = bodyOf(sim, cs.lock.targetKind, cs.lock.targetId);
     if (!b) return false;
     const p = bodyPos(b);
-    keepWithin(sim, ant, p.x, p.y, p.z, contactMm(sim, ant, b), dt);
+    keepWithin(sim, ant, p.x, p.y, p.z, contactMm(sim, ant, b), dt, holderMaxSpeed(sim, ant) * dt);
     return true;
   }
   if (cs.heldBy.length > 0) return heldStep(sim, ant, { kind: 'ant', ant }, dt);

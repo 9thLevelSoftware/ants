@@ -17,7 +17,7 @@ import {
 import { begin, canDo } from '@/sim/ants/actions';
 import { navStop, navTo, navToTarget, navWander } from '@/sim/locomotion';
 import { taskCycleDone } from '@/sim/colony';
-import { activeRally, startFight } from '@/sim/combat';
+import { activeRally, mayAttack, startFight } from '@/sim/combat';
 import { secondsToTicks } from '@/sim/time';
 import { homeNest, logDecision, mainEntrance } from './common';
 import { hostileCreature } from './fightTargets';
@@ -75,7 +75,7 @@ function sighting(sim: Sim, ant: Ant, within: Marker | null): { kind: 'ant' | 'c
   sim.index.queryAnts(at, r, ids);
   for (const id of ids) {
     const o = sim.stores.ants.get(id);
-    if (!o || !o.alive || o.colony === ant.colony) continue;
+    if (!o || !mayAttack(sim, ant, o)) continue;
     const d = d3(o.pos, at);
     if (d <= r && d < bestD) { best = { kind: 'ant', id, pos: o.pos }; bestD = d; }
   }

@@ -10,8 +10,8 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
 import {
-  FOUND_DIG_COST_PER_BITE, FOUND_SEAL_SCRAPE_MARGIN_BU, FOUND_SEAL_SCRAPE_MIN_DEPTH_BU, FOUND_SEAL_SCRAPE_REACH_BU,
-  FOUND_SEAL_SCRAPE_SLOPES_DEG,
+  FOUND_DIG_COST_PER_BITE, FOUND_SEAL_SCRAPE_HEADINGS_DEG, FOUND_SEAL_SCRAPE_MARGIN_BU, FOUND_SEAL_SCRAPE_MIN_DEPTH_BU,
+  FOUND_SEAL_SCRAPE_REACH_BU, FOUND_SEAL_SCRAPE_SLOPES_DEG, FOUND_SEAL_SCRAPE_SOIL_BU,
 } from '@/sim/balance/founding';
 import { DIG_RAMP_RADIUS_BU } from '@/sim/balance/nest';
 import { VoxelFlag } from '@/sim/types';
@@ -38,7 +38,7 @@ export function throatToSeal(sim: Sim, nest: Nest, q: Ant): Entrance | null {
 
 /** Is the queen inside her founding cavity (below the ground), with an entrance of it still to seal? */
 function needsSoil(sim: Sim, nest: Nest, q: Ant): boolean {
-  if (depthBelowGround(sim, q) < FOUND_SEAL_SCRAPE_MIN_DEPTH_BU * sim.world.bu) return false;
+  if (q.medium !== 'cavity' && depthBelowGround(sim, q) < FOUND_SEAL_SCRAPE_MIN_DEPTH_BU * sim.world.bu) return false;
   return cavityEntrances(sim, nest).some((e) => e.status !== 'sealed');
 }
 
@@ -61,31 +61,35 @@ const VOXEL_PLUG = VoxelFlag.PLUG;
 const probe: Vec3 = { x: 0, y: 0, z: 0 };
 
 /**
- * Would a bite from the queen's feet along `h` at `slope` reach plug voxels? The bite's ramp (the nest's dig
+ * Would a bite from the queen's feet along `h` at `slope` reach the plug or the ground surface? The bite's ramp (the nest's dig
  * geometry, GDD 03 §1.2: a capsule of DIG_RAMP_RADIUS_BU whose floor runs through the feet) is probed along
- * FOUND_SEAL_SCRAPE_REACH_BU; any plug voxel within the radius plus a margin of it vetoes the bite.
+ * FOUND_SEAL_SCRAPE_REACH_BU; any solid plug voxel, or solid within FOUND_SEAL_SCRAPE_SOIL_BU of the ground
+ * surface, within the radius plus a margin of it vetoes the bite.
  */
 function biteNearPlug(sim: Sim, h: Vec3, slopeDeg: number): boolean {
   const bu = sim.world.bu, v = sim.carve.voxel, r = (DIG_RAMP_RADIUS_BU + FOUND_SEAL_SCRAPE_MARGIN_BU) * bu;
   const s = (slopeDeg * Math.PI) / 180, cs = Math.cos(s), sn = Math.sin(s);
   const ax = feet.x + h.x * sn * DIG_RAMP_RADIUS_BU * bu, ay = feet.y + cs * DIG_RAMP_RADIUS_BU * bu, az = feet.z + h.z * sn * DIG_RAMP_RADIUS_BU * bu;
-  for (let t = 0; t <= FOUND_SEAL_SCRAPE_REACH_BU * bu; t += bu) {
+  for (let t = 0; t <= FOUND_SEAL_SCRAPE_REACH_BU * bu; t += 2 * v) {
     const cx = ax + h.x * cs * t, cy = ay - sn * t, cz = az + h.z * cs * t;
     for (let dz = -r; dz <= r; dz += v) for (let dy = -r; dy <= r; dy += v) for (let dx = -r; dx <= r; dx += v) {
       if (dx * dx + dy * dy + dz * dz > r * r) continue;
       probe.x = cx + dx; probe.y = cy + dy; probe.z = cz + dz;
       const vx = voxelAt(sim, probe);
-      if ((vx.flags & VOXEL_PLUG) !== 0 && vx.open < CARVE_OPEN) return true;
+      if (vx.open >= CARVE_OPEN) continue; // already open: the bite removes nothing there
+      if ((vx.flags & VOXEL_PLUG) !== 0) return true;
+      // never toward the ground surface: a scrape there could open a new hole beside the plug
+      if (sim.field.substrateXYZ(probe.x, probe.y, probe.z) > -FOUND_SEAL_SCRAPE_SOIL_BU * bu) return true;
     }
   }
   return false;
 }
 
 /**
- * One tick of the rule (phase `seal`): scrapes a pellet when the queen needs one. Tries the wall behind her, to her left and to
- * her right, then behind her (never ahead: in the throat that is the opening; behind first, down the shaft, away
- * from the plug), skipping any bite that would reach the plug's voxels, at the slopes of
- * FOUND_SEAL_SCRAPE_SLOPES_DEG.
+ * One tick of the rule (phase `seal`): scrapes a pellet when the queen needs one. Tries the wall at the headings of
+ * FOUND_SEAL_SCRAPE_HEADINGS_DEG from her own (behind first: down the shaft, away from the plug; never straight
+ * ahead, the opening) and the slopes of FOUND_SEAL_SCRAPE_SLOPES_DEG, skipping any bite that would reach the
+ * plug's voxels or come near the ground surface.
  * Returns true when she picked up soil this tick.
  */
 export function soilForSeal(sim: Sim, q: Ant, nest: Nest): boolean {
@@ -94,9 +98,9 @@ export function soilForSeal(sim: Sim, q: Ant, nest: Nest): boolean {
   feet.x = q.pos.x - q.up.x * q.footOffset;
   feet.y = q.pos.y - q.up.y * q.footOffset;
   feet.z = q.pos.z - q.up.z * q.footOffset;
-  for (const angle of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
+  for (const deg of FOUND_SEAL_SCRAPE_HEADINGS_DEG) {
     for (const slope of FOUND_SEAL_SCRAPE_SLOPES_DEG) {
-      const h = headingAt(q, angle);
+      const h = headingAt(q, (deg * Math.PI) / 180);
       if (biteNearPlug(sim, h, slope)) continue; // never scrape the plug she is building
       const res = digBite(sim, q, feet, h, slope);
       if (!res.ok) continue;
