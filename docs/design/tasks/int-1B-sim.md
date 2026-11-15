@@ -92,7 +92,7 @@ rival nests pre-carve (rivals).
 **Outdoor budget**: 500 foragers outdoors ≤ 1.2 ms per tick is still unproven. Measure on a quiet machine
 (`uptime` load < 2) and report the table; if it is over, profile and fix the top two costs.
 
-## Addendum 4 (Nov 15, 23:30) — launch state
+## Addendum 4 (Nov 15, 20:45) — launch state
 
 - `sim-fix-ants` is reviewed and fixed: stalled share 0.56 % → 0.01 % (longest stall 241 → 11 ticks on the
   2-game-day soak), wander ladder + pinned let-go in cavities, staggered thinking, crop-capacity-aware

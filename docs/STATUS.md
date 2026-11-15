@@ -192,7 +192,7 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Gate prep: `int-1B-sim.md` Addendum 3 (integration list), `notes-1B.md` regenerated.
 - Waiting for: look-pass + sim-fix-ants review/fix, founding-close → then both 1B gates.
 
-### Nov 15, 23:30 — look-pass and sim-fix-ants landed (reviewed + fixed); both 1B gates launched
+### Nov 15, 20:45 — look-pass and sim-fix-ants landed (reviewed + fixed); both 1B gates launched
 - **look-pass**: review 3 major + 4 minor; 6 fixed (car sky occlusion + skirt, asphalt glitter, leaf bend ≤ 1 mm,
   flower cap, dead leaf, wings at dealation). Quality-switch ghosting root cause is in `renderApp` (autoClear) →
   app gate. Orchestrator look at 4 frames: soil grit and ants good; underground queen now warm and readable;

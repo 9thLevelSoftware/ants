@@ -301,9 +301,12 @@ export default async ({ page, shot, log, wait }) => {
         return { n: all.length, rows: d.querySelectorAll('[data-testid="health-row"]').length, text: d.textContent.slice(0, 80) };
       });
       const seen = new Set();
+      const where = () => g(() => { const a = document.activeElement; return a ? `${a.closest('.fd-drawer') ? 'IN' : 'OUT'} ${a.tagName}.${String(a.className).slice(0, 24)}` : 'none'; });
+      const trace = [await where()];
       for (let i = 0; i < reach.n + 3; i++) {
         await page.keyboard.press('Tab');
         const id = await g(() => { const a = document.activeElement; return a && a.closest('.fd-drawer') ? `${a.tagName}.${a.className}.${a.textContent.slice(0, 24)}.${[...a.parentNode.children].indexOf(a)}` : null; });
+        trace.push(await where());
         if (id) seen.add(id);
       }
       expect(seen.size >= Math.min(reach.n, 3), `Tab moves through the ${drawer} drawer`, { reach, seen: seen.size, trace });

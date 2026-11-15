@@ -51,7 +51,7 @@ Seen in `test-output/views-fix2/12-high-colony-slice.png` and `04-possess-tunnel
 - The red alert dot in the colony panel is lit in every shot with no visible reason; check what raises it
   (see founding-close item 4, which fixes the empty card and the midden false alarm).
 
-## Addendum (Nov 15, 23:30) — launch state and look-pass hand-over
+## Addendum (Nov 15, 20:45) — launch state and look-pass hand-over
 
 - **Quality switch ghosting (yours, `src/render/app/renderApp.ts`)**: postprocessing's EffectComposer sets
   `renderer.autoClear = false`; when the post chain is disposed on a switch to a preset without post it is
