@@ -9,7 +9,7 @@ import type { Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
 import { SEAL_CUT_CHECKS, SEAL_REACH_MARGIN_BU, SEAL_TARGET_SOIL_BU } from '@/sim/balance/founding';
 import { cavityEntrances } from './dig';
-import { floodCavity, floodStart, isAirSample, isOpenSample, keyI, keyJ, keyK, keyPos, throatLeak, type Sphere } from './leak';
+import { floodCavity, floodStart, isAirSample, isOpenSample, keyI, keyJ, keyK, keyPos, throatClosed, throatLeak, type Sphere } from './leak';
 import { predictPlug } from './plugPredict';
 
 export interface SealPlan {
@@ -19,6 +19,8 @@ export interface SealPlan {
   target: Vec3;
   /** The queen's pose now would plug across the leak (and the action accepts it). */
   here: { ok: boolean; cuts: boolean };
+  /** She is inside the action's reach now (it would not refuse for want of a target). */
+  inReach: boolean;
   /** Where to stand instead (null: nowhere better than here, or nowhere at all). */
   stand: Vec3 | null;
   standCuts: boolean;
@@ -78,7 +80,7 @@ function otherAnts(sim: Sim, q: Ant, near: Vec3, r: number): Vec3[] {
 
 /** The first entrance of the founding cavity still to seal, or null. */
 export function entranceToSeal(sim: Sim, nest: Nest): Entrance | null {
-  return cavityEntrances(sim, nest).find((e) => e.status !== 'sealed') ?? null;
+  return cavityEntrances(sim, nest).find((e) => !throatClosed(sim, e)) ?? null;
 }
 
 /** The leak now: through the throat of an unsealed entrance of the cavity (null: none, the throat reads sealed). */
@@ -109,11 +111,12 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
   const cuts = (s: Sphere) => throatLeak(sim, e, [s]) === null;
   // the queen as she stands now
   let here = { ok: false, cuts: false };
-  if (inSealReach(sim, e, q.pos)) {
+  const inReach = inSealReach(sim, e, q.pos);
+  if (inReach) {
     const s = predictPlug(sim, e, q.pos, q.fwd, len, others);
     if (s && crossCount(sim, path, s) > 0) here = { ok: true, cuts: cuts(s) };
   }
-  if (here.cuts) return { entrance: e, path, target, here, stand: null, standCuts: false };
+  if (here.cuts) return { entrance: e, path, target, here, inReach, stand: null, standCuts: false };
   // the cavity's surface samples within reach, scored by the plug the action would place from each
   const cands: { p: Vec3; n: number; d: number; s: Sphere; floor: number }[] = [];
   const p = { x: 0, y: 0, z: 0 };
@@ -132,7 +135,7 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
   cands.sort((a, b) => b.floor - a.floor || b.n - a.n || a.d - b.d);
   const top = cands.slice(0, SEAL_CUT_CHECKS).sort((a, b) => a.d - b.d);
   const cutter = top.find((c) => cuts(c.s));
-  if (cutter) return { entrance: e, path, target, here, stand: cutter.p, standCuts: true };
-  if (here.ok) return { entrance: e, path, target, here, stand: null, standCuts: false };
-  return { entrance: e, path, target, here, stand: cands[0]?.p ?? null, standCuts: false };
+  if (cutter) return { entrance: e, path, target, here, inReach, stand: cutter.p, standCuts: true };
+  if (here.ok) return { entrance: e, path, target, here, inReach, stand: null, standCuts: false };
+  return { entrance: e, path, target, here, inReach, stand: cands[0]?.p ?? null, standCuts: false };
 }

@@ -10,6 +10,7 @@ import {
 } from '@/sim/balance/founding';
 import { canDigAt, foundingReadiness, type FoundingReadiness } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround, setPhase, speciesOf } from './access';
+import { throatClosed } from './leak';
 
 /** Where the queen's current dig bite aims (its target point, else her head), or null when she is not biting. */
 export function bitePoint(sim: Sim, q: Ant): Vec3 | null {
@@ -130,7 +131,7 @@ export function sealTick(sim: Sim, op: OpeningState, nest: Nest): boolean {
   if (!f) return false;
   if (f.state === 'ready') {
     const mine = cavityEntrances(sim, nest);
-    if (mine.length > 0 && mine.every((e) => e.status === 'sealed')) {
+    if (mine.length > 0 && mine.every((e) => throatClosed(sim, e))) {
       f.state = 'sealed';
       f.sealedTick = sim.state.tick;
       sim.emit({ type: 'founding-sealed', nestId: nest.id, entranceId: mine[0].id });

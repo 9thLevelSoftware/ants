@@ -156,3 +156,14 @@ export function throatLeak(sim: Sim, e: Entrance, fill: readonly Sphere[] = []):
   }
   return null;
 }
+
+/**
+ * Is this entrance closed for the founding? `sealed`, or `reopening` with no passage left. The nest module moves a
+ * throat whose passage is too thin for a walker from `sealed` to `reopening` (also a narrow dug throat before any
+ * plug) and has no transition back to `sealed` once a plug closes it again; GDD 03 §4.2 gives `reopening` the
+ * behaviour of `sealed`, so a reopening throat with no passage is sealed here (reported to the nest owner).
+ */
+export function throatClosed(sim: Sim, e: Entrance): boolean {
+  if (e.status === 'sealed') return true;
+  return e.status === 'reopening' && throatLeak(sim, e) === null;
+}

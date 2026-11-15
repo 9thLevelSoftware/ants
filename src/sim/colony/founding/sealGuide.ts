@@ -10,8 +10,8 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { ActionId, Ant, Nest, Sim } from '@/sim/types';
 import { INPUT_DEADZONE } from '@/sim/balance/actions';
 import {
-  OPEN_AUTO_SEAL_GD, SEAL_EXCLUDE_BU, SEAL_MAX_PLUGS, SEAL_MAX_REPLANS, SEAL_SOIL_WAIT_TICKS, SEAL_STAND_TOL_BU,
-  SEAL_WALK_MAX_TICKS,
+  OPEN_AUTO_SEAL_GD, SEAL_EXCLUDE_BU, SEAL_FACE_MAG, SEAL_FACE_STEP_BU, SEAL_FACE_TICKS, SEAL_MAX_PLUGS, SEAL_MAX_REPLANS,
+  SEAL_SOIL_WAIT_TICKS, SEAL_STAND_TOL_BU, SEAL_WALK_MAX_TICKS,
 } from '@/sim/balance/founding';
 import { begin } from '@/sim/ants/actions/runner';
 import { navStop, navTo } from '@/sim/locomotion';
@@ -22,13 +22,14 @@ import { planSeal } from './sealPlan';
 
 /** Guide state on the queen (ant.bb, numbers only). */
 export const SG = {
-  state: 'fd.sg', // 0 idle, 1 walking to the stand, 2 plugging, 3 stuck (no stand reachable)
+  state: 'fd.sg', // 0 idle, 1 walking to the stand, 2 plugging, 3 stuck (no stand reachable), 4 facing the leak
   ask: 'fd.sgAsk', // tick of the latest E press in phase `seal`
   seen: 'fd.sgSeen', // the ask tick already acted on
   auto: 'fd.sgAuto',
   autoTick: 'fd.sgAutoTick', // last passive request
   since: 'fd.sgTick',
   sx: 'fd.sgSx', sy: 'fd.sgSy', sz: 'fd.sgSz',
+  tx: 'fd.sgTx', ty: 'fd.sgTy', tz: 'fd.sgTz', // where the leak crosses the throat
   dx: 'fd.sgDx', dy: 'fd.sgDy', dz: 'fd.sgDz', // movement input the guide wrote (to tell the player's apart)
   plugs: 'fd.sgPlugs', // plugs of this request
   total: 'fd.sgTotal', // seal-entrance actions begun by the guide in this opening
@@ -36,7 +37,7 @@ export const SG = {
   ex: 'fd.sgEx', // excluded stands: fd.sgEx0x.. (up to SEAL_MAX_REPLANS)
 } as const;
 
-const IDLE = 0, WALK = 1, PLUG = 2, STUCK = 3;
+const IDLE = 0, WALK = 1, PLUG = 2, STUCK = 3, FACE = 4;
 
 /** E-actions that mean "seal" while the opening is in phase `seal`. */
 const E_ACTIONS: readonly ActionId[] = ['seal-entrance', 'put-down', 'groom', 'lay-egg'];
@@ -130,6 +131,44 @@ function plugHere(sim: Sim, q: Ant): boolean {
   return true;
 }
 
+function planNow(sim: Sim, q: Ant) {
+  const nest = foundingNestOf(sim);
+  return nest ? planSeal(sim, nest, q, excluded(q), SEAL_EXCLUDE_BU * sim.world.bu) : null;
+}
+
+function targetOf(q: Ant): Vec3 {
+  return { x: bbGet(q, SG.tx, q.pos.x), y: bbGet(q, SG.ty, q.pos.y), z: bbGet(q, SG.tz, q.pos.z) };
+}
+
+/** In reach but her pose would plug beside the leak: she turns toward it (a short slow step) before plugging. */
+function face(sim: Sim, q: Ant): void {
+  bbSet(q, SG.state, FACE);
+  bbSet(q, SG.since, sim.state.tick);
+  const t = targetOf(q);
+  if (!possessed(sim, q)) {
+    const d = Math.hypot(t.x - q.pos.x, t.y - q.pos.y, t.z - q.pos.z);
+    navTo(sim, q, t, Math.max(SEAL_STAND_TOL_BU * sim.world.bu, d - SEAL_FACE_STEP_BU * sim.world.bu));
+  }
+}
+
+function faceTick(sim: Sim, q: Ant): void {
+  const t = sim.state.tick - bbGet(q, SG.since, sim.state.tick);
+  const p = planNow(sim, q);
+  if (!p) { stop(sim, q, IDLE); return; }
+  if (!hasPellet(sim, q)) { if (t > SEAL_FACE_TICKS) giveUp(sim, q, q.pos); return; }
+  if ((p.here.ok || t >= SEAL_FACE_TICKS) && p.inReach) {
+    if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
+    if (plugHere(sim, q)) return;
+    giveUp(sim, q, q.pos);
+    return;
+  }
+  if (!p.inReach) { giveUp(sim, q, q.pos); return; }
+  if (possessed(sim, q)) {
+    const u = unit(q.pos, targetOf(q));
+    setIntent(sim, q, { x: u.x * SEAL_FACE_MAG, y: u.y * SEAL_FACE_MAG, z: u.z * SEAL_FACE_MAG });
+  }
+}
+
 /** Plans the next step: plug here, walk to a stand, or stop (sealed, nothing to plug, or stuck). */
 function plan(sim: Sim, q: Ant): void {
   const nest = foundingNestOf(sim);
@@ -140,6 +179,8 @@ function plan(sim: Sim, q: Ant): void {
   if (p.here.ok && (p.here.cuts || !p.standCuts) && hasPellet(sim, q)) {
     if (plugHere(sim, q)) return;
   }
+  bbSet(q, SG.tx, p.target.x); bbSet(q, SG.ty, p.target.y); bbSet(q, SG.tz, p.target.z);
+  if (p.inReach && hasPellet(sim, q) && !p.standCuts) { face(sim, q); return; }
   if (!p.stand) { stop(sim, q, STUCK); return; }
   bbSet(q, SG.sx, p.stand.x); bbSet(q, SG.sy, p.stand.y); bbSet(q, SG.sz, p.stand.z);
   bbSet(q, SG.state, WALK);
@@ -186,11 +227,11 @@ function walkTick(sim: Sim, q: Ant, nest: Nest): void {
       if (t > SEAL_SOIL_WAIT_TICKS) soilWalk(sim, q, nest);
       return;
     }
-    plan(sim, q);
-    // planned the stand she has just reached (or her pose there) again, with no plug from here: give it up
-    const ns = { x: bbGet(q, SG.sx, 0), y: bbGet(q, SG.sy, 0), z: bbGet(q, SG.sz, 0) };
-    const near = (a: Vec3) => Math.hypot(ns.x - a.x, ns.y - a.y, ns.z - a.z) <= SEAL_EXCLUDE_BU * sim.world.bu;
-    if (bbGet(q, SG.state, IDLE) === WALK && (near(q.pos) || near(s))) giveUp(sim, q, ns);
+    const p = planNow(sim, q);
+    if (!p) { stop(sim, q, IDLE); return; }
+    if (p.here.ok && hasPellet(sim, q) && plugHere(sim, q)) return;
+    if (p.inReach) { face(sim, q); return; }
+    giveUp(sim, q, s);
     return;
   }
   if (t > SEAL_WALK_MAX_TICKS || (!possessed(sim, q) && q.nav.status === 'failed')) { giveUp(sim, q, s); return; }
@@ -224,6 +265,7 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
     return;
   }
   if (q.action) return; // a bite or anything else under way ends first
+  if (state === FACE) { faceTick(sim, q); return; }
   walkTick(sim, q, nest);
 }
 
@@ -231,7 +273,7 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
 export function sealGuideView(sim: Sim, q: Ant | undefined): { state: 'idle' | 'walking' | 'plugging' | 'stuck'; stand: Vec3 | null; plugs: number } | null {
   if (!q) return null;
   const s = bbGet(q, SG.state, IDLE);
-  const state = s === WALK ? 'walking' : s === PLUG ? 'plugging' : s === STUCK ? 'stuck' : 'idle';
+  const state = s === WALK || s === FACE ? 'walking' : s === PLUG ? 'plugging' : s === STUCK ? 'stuck' : 'idle';
   const stand = s === WALK ? { x: bbGet(q, SG.sx, 0), y: bbGet(q, SG.sy, 0), z: bbGet(q, SG.sz, 0) } : null;
   return { state, stand, plugs: bbGet(q, SG.total, 0) };
 }

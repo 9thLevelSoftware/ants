@@ -111,6 +111,11 @@ export const SEAL_CUT_CHECKS = 8;
 /** The queen walks to a stand until this close, BU, or gives it up after this long, ticks. */
 export const SEAL_STAND_TOL_BU = 0.45;
 export const SEAL_WALK_MAX_TICKS = 200;
+/** In reach but facing beside the leak: she turns toward it with this much movement input (0..1) for at most
+ * this long, ticks, stepping at most this far, BU, then plugs. */
+export const SEAL_FACE_MAG = 0.3;
+export const SEAL_FACE_TICKS = 12;
+export const SEAL_FACE_STEP_BU = 0.4;
 /** Stands given up within this radius of an unreachable one, BU; after this many the guide stops (prompt). */
 export const SEAL_EXCLUDE_BU = 0.75;
 export const SEAL_MAX_REPLANS = 6;

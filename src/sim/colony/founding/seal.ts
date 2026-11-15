@@ -18,6 +18,7 @@ import { VoxelFlag } from '@/sim/types';
 import { digBite, voxelAt } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround } from './access';
 import { cavityEntrances } from './dig';
+import { throatClosed } from './leak';
 
 /**
  * Is the ant in the throat of entrance e (within SEAL_THROAT_BU of the opening, not outside above it)? The same
@@ -32,14 +33,14 @@ export function inThroatOf(sim: Sim, a: Ant, e: Entrance): boolean {
 
 /** The unsealed entrance of the founding cavity whose throat the queen is in, or null. */
 export function throatToSeal(sim: Sim, nest: Nest, q: Ant): Entrance | null {
-  for (const e of cavityEntrances(sim, nest)) if (e.status !== 'sealed' && inThroatOf(sim, q, e)) return e;
+  for (const e of cavityEntrances(sim, nest)) if (!throatClosed(sim, e) && inThroatOf(sim, q, e)) return e;
   return null;
 }
 
 /** Is the queen inside her founding cavity (below the ground), with an entrance of it still to seal? */
 function needsSoil(sim: Sim, nest: Nest, q: Ant): boolean {
   if (q.medium !== 'cavity' && depthBelowGround(sim, q) < FOUND_SEAL_SCRAPE_MIN_DEPTH_BU * sim.world.bu) return false;
-  return cavityEntrances(sim, nest).some((e) => e.status !== 'sealed');
+  return cavityEntrances(sim, nest).some((e) => !throatClosed(sim, e));
 }
 
 const feet: Vec3 = { x: 0, y: 0, z: 0 };
