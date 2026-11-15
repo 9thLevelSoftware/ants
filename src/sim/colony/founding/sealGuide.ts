@@ -65,7 +65,7 @@ export function requestSeal(sim: Sim, q: Ant, auto: boolean): void {
   bbSet(q, SG.auto, auto ? 1 : 0);
   bbSet(q, SG.plugs, 0);
   bbSet(q, SG.replans, 0);
-  for (let n = 0; n < SEAL_MAX_REPLANS; n++) for (const c of 'xyz') delete q.bb[`${SG.ex}${n}${c}`];
+  clearExcluded(q);
   if (q.action && q.action.id === 'seal-entrance') {
     // the player's own plug is under way: the guide carries on from it
     bbSet(q, SG.plugs, 1);
@@ -111,6 +111,10 @@ function excluded(q: Ant): Vec3[] {
   return out;
 }
 
+function clearExcluded(q: Ant): void {
+  for (let n = 0; n < SEAL_MAX_REPLANS; n++) for (const c of 'xyz') delete q.bb[`${SG.ex}${n}${c}`];
+}
+
 function exclude(q: Ant, p: Vec3): void {
   const n = bbGet(q, SG.replans, 0) % SEAL_MAX_REPLANS;
   bbSet(q, `${SG.ex}${n}x`, p.x); bbSet(q, `${SG.ex}${n}y`, p.y); bbSet(q, `${SG.ex}${n}z`, p.z);
@@ -128,6 +132,9 @@ function plugHere(sim: Sim, q: Ant): boolean {
   bbSet(q, SG.plugs, bbGet(q, SG.plugs, 0) + 1);
   bbSet(q, SG.state, PLUG);
   bbSet(q, SG.since, sim.state.tick);
+  // progress: the stands given up so far may serve again around the new plug
+  bbSet(q, SG.replans, 0);
+  clearExcluded(q);
   return true;
 }
 
@@ -248,11 +255,16 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
     return;
   }
   const state = bbGet(q, SG.state, IDLE);
-  if (state === IDLE || state === STUCK) {
+  if (state === STUCK) {
+    // never a dead end: after a pause the guide tries again from wherever she is now
+    if (sim.state.tick - bbGet(q, SG.since, sim.state.tick) >= SEAL_WALK_MAX_TICKS) requestSeal(sim, q, bbGet(q, SG.auto, 0) === 1);
+    return;
+  }
+  if (state === IDLE) {
     const idleTicks = sim.state.tick - Math.max(sim.state.player.lastInputTick, 0);
     const passive = !possessed(sim, q) || idleTicks >= OPEN_AUTO_SEAL_GD * TICKS_PER_DAY;
     const cooled = sim.state.tick - bbGet(q, SG.autoTick, -1e9) >= SEAL_WALK_MAX_TICKS;
-    if (state === IDLE && passive && cooled && phaseAgeGd(sim, q) >= OPEN_AUTO_SEAL_GD) {
+    if (passive && cooled && phaseAgeGd(sim, q) >= OPEN_AUTO_SEAL_GD) {
       bbSet(q, SG.autoTick, sim.state.tick);
       requestSeal(sim, q, true);
     }

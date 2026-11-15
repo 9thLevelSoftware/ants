@@ -42,3 +42,52 @@ Two fix tasks ran before this gate and took most of the root causes listed in th
 - **Colony seams.** A public count-only delivery function (the foraging adapter imports colony internals today); `cheat.injectReturn` must reach foragers waiting in the entrance chamber; the `stores-full` alert; the allocator must not reassign ants that are outside on a trip; passive home-pheromone deposits (`HOME_DEPOSIT_PER_BU`) have no owner, so scouts never bias away from home ground; crop loading, queen feeding, eclosion help and cannibalism still run through a local adapter instead of action primitives; liquids need an unload-to-chamber primitive and the departure ration its own ledger key.
 - **Hygiene.** `src/sim/balance/index.ts` should re-export the foraging, nest-work and architect balance files; `behaviourRunner.test.ts` still asserts an empty outdoor list; remove the no-op `perception` placeholder system; check for an import cycle between `src/sim/colony/founding/clutch.ts` and `src/sim/ants/actions` (`ports.canLay is not a function` appeared depending on import order); once founding sets `digging` on the first bite, remove `site-search` from `FOUNDING_CELL_STATES`.
 - Tier 1 static spills still evaporate (half-life 0.15-1 game day) and Tier 1 carrion is removed after 3 game days: check both against the design's Tier 1 rules and the economy floor.
+
+## Addendum 3 (Nov 15, evening) — integration list handed to this gate by the task owners
+
+Everything below is small, cross-module and unowned. Do each, with a test where it changes behaviour.
+The collected reports are in `docs/design/tasks/notes-1B.md` (claims to check, not facts).
+
+**Red tests to resolve (baseline `test-output/full-suite-nov15.txt`: 23 failures)**
+1. `src/sim/sim.test.ts` restore-at-N equals uninterrupted — save/load determinism. Top priority: find
+   the state that is not saved or not restored (candidates: `SimState.nurseryBoards` cadence, behaviour
+   blackboards added since, module-private caches) and fix at the cause.
+2. `commands.robust` periodic-system tick collision.
+3. Layering tests: `performance.now` in `src/sim/ants/testing/costTable.ts`, `window` in
+   `src/sim/locomotion/update.ts`, `src/worldgen/populate/common.ts` matching the `window` rule,
+   `src/worldgen/populate/populate.verify.test.ts` importing `@/sim/balance/ecology`.
+4. `src/sim/ants/behaviourRunner.test.ts`: the expected task list needs fight, patrol and tend
+   (Lasius/Camponotus). `src/sim/testing/stubs.test.ts`: combat is real (`applyDamage(queen, 5)` = 4).
+5. `src/worldgen/validate/checks.ts` `checkStart`: when the start rule fails only because the good-site
+   count is short and `contentLimited(ctx, good)` is true, return `regenerate: false` like `checkFound`
+   and `checkConnect`. Turns `pipeline.test.ts` "wood nesters without catalogue wood" green.
+6. `removal.verify.test.ts`: a scout in `scout.explore` re-enters the rim zone five times after a removal.
+   Decide per GDD 02 whether scouts count; fix the behaviour or the test, and say which and why.
+7. Architect layout 50 ms, outdoor `determinism.perf`, `sfaReview` feed-queen, populate.verify (3),
+   remaining outdoor/interior worldgen tests: re-run each alone on a quiet machine first; several were
+   load-sensitive. Fix what is real.
+
+**Seams**
+8. Colony `computeDemand` must compute the `tend` demand with `herdTendDemand(sim, colonyId)`; then set
+   `TEND_DEMAND_ADAPTER = false` in the plants module.
+9. `fleeTask`: hand back `rest` instead of `idle` when health < 0.25 (GDD 02 §10.13).
+10. Action library: pass the attacker id to `applyDamage` from bite and spray shells; native `dodge` and
+    `sting` shells; the bite shell asks combat whether the ant may bite, the spray shell whether the
+    special works; drop the fixed-strength bite cue (combat emits it with the target's hardness). Then
+    remove combat's runtime adapters that patch `ACTION_DEFS`.
+11. Locomotion on the surface (from the worldgen-fixes walker work): an ant that has wrapped onto the
+    underside of a stone bulge or stands on the raised tip of a thin leaf sheet cannot get off and ends in
+    the relocation teleport; `letGoPinned` / `dropToGoal` only act in the cavity medium. Add a surface
+    let-go / step-down. The stuck ladder's progress metric must count climbing (a 47 BU fence board
+    triggers it mid-climb). A nav cell open only through a narrow strip traps a walker aiming at the cell
+    centre. Sites to reproduce are listed in the worldgen-fixes report; the three `FOUNDRESS_LONG`
+    kernel crossings (suburban-garden #4, playground-park #3, kitchen-door #3) are the acceptance.
+12. Possessed-ant per-frame prediction ignores movement overrides (a pinned possessed ant twitches).
+13. Colony health regeneration vs GDD 05 §4.7 (0.25/gd in nest with crop C, 0.1/gd elsewhere).
+
+**Not for this gate (recorded for Stage 2/3)**: `ECOLOGY_TIER` 1 → 2; map-wide site-food rule; Camponotus
+kitchen-door has no good founding site (species-carpenter); generation time E8 on an idle machine (perf);
+rival nests pre-carve (rivals).
+
+**Outdoor budget**: 500 foragers outdoors ≤ 1.2 ms per tick is still unproven. Measure on a quiet machine
+(`uptime` load < 2) and report the table; if it is over, profile and fix the top two costs.

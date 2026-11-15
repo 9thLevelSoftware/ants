@@ -182,3 +182,12 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
   - Forage owner: does a scout crossing the rim zone count in removal.verify (limit 2)?
   - Text: `remedy.slider.tend`, `remedy.possess.tend` (given to ui-panels).
 - Launched: rivals (Opus) + ui-panels (Sonnet implement, Opus review, visual).
+
+### Nov 15, 19:45 — worldgen-life fix + worldgen-fixes landed
+- **worldgen-life**: 10 of 11 findings fixed (renewable-only economy floors, zone-correct top-ups, start rule
+  re-check). 145 swept worlds pass, 0 repairs; 14 % of standard worlds now need a second attempt.
+- **worldgen-fixes**: derived-map step 2.4–4.6x faster, identical content; 8 of 9 red tests green; reviewed
+  (pass with minors), minors fixed. Open: `checkStart` regenerate flag (validation), E8 on an idle machine,
+  three LONG kernel crossings that trap the game's walker (locomotion).
+- Gate prep: `int-1B-sim.md` Addendum 3 (integration list), `notes-1B.md` regenerated.
+- Waiting for: look-pass + sim-fix-ants review/fix, founding-close → then both 1B gates.
