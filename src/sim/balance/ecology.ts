@@ -401,3 +401,158 @@ export const BUDGET_N300_NEED = { c: 57.1, p: 77.3 } as const;
 /** What C13 says the T1 static food set supplies within BUDGET_T1_RADIUS_BU of the nest (lower bounds). */
 export const BUDGET_T1_SUPPLY_MIN = { c: 45, p: 25 } as const;
 export const BUDGET_T1_RADIUS_BU = 900;
+
+// =====================================================================================================
+// ---- plants: honeydew herds, tenders, nectar (owner: ecology-plants; GDD 05 §1.2, §1.4; GDD 07 §6.1; GDD 02 §10.3) ----
+// =====================================================================================================
+
+import type { HostClass } from '@/sim/types';
+
+/** Honeydew made per aphid per gd at `tend` 1 and temperature factor 1, C loads (GDD 05 HONEYDEW_PER_APHID). */
+export const HONEYDEW_PER_APHID = 0.10;
+/** Production factor of an untended herd: factor = UNTENDED_PROD + (1 - UNTENDED_PROD) x tend. */
+export const UNTENDED_PROD = 0.5;
+/** Herd pool cap = HERD_POOL_BASE + HERD_POOL_PER_APHID x A, loads (x foodAbundanceMult). */
+export const HERD_POOL_BASE = 1.0;
+export const HERD_POOL_PER_APHID = 0.02;
+/** One `tend-aphid` cycle releases this much honeydew; none is released from a pool below it, loads. */
+export const APHID_DROPLET = 0.15;
+/** Seconds a tender drinks after each stroke (3 s stroke + 3 s drink = 0.025 load/s, GDD 02 TEND_SOLICIT_RATE). */
+export const TEND_DRINK_S = 3;
+/** Time constant of the tending level (EWMA), gd (GDD 05 TEND_TAU 0.1 gd = 60 s). */
+export const TEND_TAU_GD = 0.1;
+/** Tenders needed for tend 1: ceil(A / APHIDS_PER_TENDER). */
+export const APHIDS_PER_TENDER = 50;
+/** Tender slots of a herd: TEND_SLOTS_BASE + floor(A / TEND_SLOTS_PER_APHIDS), at most TEND_SLOTS_MAX. */
+export const TEND_SLOTS_BASE = 2;
+export const TEND_SLOTS_PER_APHIDS = 25;
+export const TEND_SLOTS_MAX = 16;
+/** A tender is a `tend` ant (or one stroking the herd) within this many body lengths of the herd. */
+export const TENDER_RADIUS_L = 2;
+/** The ant query around a herd covers TENDER_RADIUS_L lengths of the longest caste (TENDER_QUERY_L_MAX body units)
+ * and at least TENDER_QUERY_MIN_BU (the herd's odour radius, for discovery). */
+export const TENDER_QUERY_L_MAX = 3;
+export const TENDER_QUERY_MIN_BU = 6;
+/** Tender-seconds that decide the claiming colony are counted over this window, gd (EWMA). */
+export const TENDER_WINDOW_GD = 0.25;
+/** Carrying capacity by host class, aphids (a tree branch; a tree carries up to TREE_HERDS_MAX herds). */
+export const HERD_K: Record<HostClass, number> = { herb: 80, shrub: 250, tree: 400 };
+export const TREE_HERDS_MAX = 3;
+/** Tending raises growth by x(1 + 0.3 tend) and K by x(1 + 0.25 tend). */
+export const TEND_GROWTH_BONUS = 0.3;
+export const TEND_K_BONUS = 0.25;
+/** Host quality falls by this per gd from default-year day HOST_DECLINE_FROM_DOY, to the floor; 1.0 again on day 1. */
+export const HOST_DECLINE_PER_GD = 0.08;
+export const HOST_DECLINE_FROM_DOY = 10;
+export const HOST_QUALITY_FLOOR = 0.5;
+
+/** Growth rate r per gd by default-year day window (doy a-b inclusive); days 22-28 the herd is dormant. */
+export const APHID_GROWTH_PHASES: readonly { from: number; to: number; r: number; phase: string }[] = [
+  { from: 1, to: 7, r: 0.9, phase: 'spring growth' },
+  { from: 8, to: 10, r: 0.6, phase: 'summer peak' },
+  { from: 11, to: 14, r: 0.2, phase: 'host decline' },
+  { from: 15, to: 17, r: -0.2, phase: 'return flight' },
+  { from: 18, to: 21, r: -0.5, phase: 'sexual forms' },
+];
+/** First default-year day of the dormant (egg) phase. */
+export const HERD_DORMANT_FROM_DOY = 22;
+/** Stem mothers hatched from the eggs on day 1 at this clock hour: A = min(E, STEM_MOTHERS_MAX). */
+export const STEM_MOTHERS_MAX = 8;
+export const HERD_HATCH_HOUR = 6;
+/** Overwintering eggs laid at the end of day 21: E = min(EGG_MAX, round(EGG_FRACTION x season max A)). */
+export const EGG_FRACTION = 0.1;
+export const EGG_MAX = 20;
+
+/** Temperature factor fT of the air at the plant: piecewise linear (°C, factor). */
+export const APHID_TEMP_CURVE: readonly (readonly [number, number])[] = [[8, 0], [18, 1], [28, 1], [34, 0.6]];
+/** Parasitoids: PARASITOID_RATE x (1 - PARASITOID_TEND_CUT x tend) of A per gd, on default-year days in window. */
+export const PARASITOID_RATE = 0.05;
+export const PARASITOID_TEND_CUT = 0.6;
+export const PARASITOID_DAYS: readonly [number, number] = [6, 18];
+/** Dispersal: DISPERSAL_RATE x A per gd while A >= DISPERSAL_TRIGGER x K_eff, in batches of DISPERSAL_BATCH aphids. */
+export const DISPERSAL_RATE = 0.15;
+export const DISPERSAL_TRIGGER = 0.8;
+export const DISPERSAL_BATCH = 5;
+/** A dispersing batch settles on an unoccupied host within this, BU (else it is lost). */
+export const DISPERSAL_RADIUS_BU = 400;
+/** Winged migrants found a herd of MIGRANT_APHIDS on an unoccupied host with this probability per gd, in the window. */
+export const MIGRANT_P_PER_GD = 0.12;
+export const MIGRANT_DAYS: readonly [number, number] = [3, 12];
+export const MIGRANT_APHIDS = 5;
+/** Mowing a lawn host: A x MOW_A_MULT, K_eff x MOW_K_MULT recovering linearly over MOW_RECOVERY_GD. */
+export const MOW_A_MULT = 0.2;
+export const MOW_K_MULT = 0.3;
+export const MOW_RECOVERY_GD = 3;
+/** An hour of downpour or storm: A x DOWNPOUR_A_MULT. */
+export const DOWNPOUR_A_MULT = 0.95;
+/** A herd below this many aphids in the active season has died out (collapsed). */
+export const HERD_EXTINCT_A = 0.5;
+/** Culling: one aphid becomes a food piece of these values; the AI culls at most HERD_CULL_MAX_PER_GD of A per gd. */
+export const CULL_PIECE = { bulk: 0.15, c: 0.02, p: 0.08 } as const;
+export const HERD_CULL_MAX_PER_GD = 0.05;
+/**
+ * New Game: share of the worldgen herd sites that start with a herd (the others are unoccupied hosts for migrants
+ * and dispersal; estimate, GDD 05 gives none). Sites without a herd keep the expected map aphids at peak inside
+ * the §6 band of 1500-9000 on a standard map.
+ */
+export const HERD_INITIAL_OCCUPANCY = 0.6;
+/** Temperature factor used to pre-grow the starting herds from day 1 to the start date (no past weather exists). */
+export const HERD_PREGROW_FT = 0.6;
+
+// ---- the tender (GDD 07 §6.1.4 with GDD 02 §10.3) ----
+
+/** A rival's claim keeps other colonies from working a herd while its `tend` is above this (GDD 05 §1.4: a herd is
+ * defended, and attacked by others, when tend > 0.2). */
+export const RIVAL_TEND_GUARD = 0.2;
+/** A `forage` marker over a herd multiplies its tenders wanted (GDD 07 HERD_FORAGE_MARKER_MULT); `avoid` sets 0. */
+export const HERD_FORAGE_MARKER_MULT = 2.0;
+/** Tenders arrive within this of the herd point, BU. */
+export const HERD_ARRIVE_BU = 1.5;
+/** At the herd: within HERD_ARRIVE_BU + TEND_AT_HERD_SLACK_BU, or within TEND_AT_HERD_TENDER_BU while counting as
+ * a tender (the walker circles a thin stem). */
+export const TEND_AT_HERD_SLACK_BU = 0.5;
+export const TEND_AT_HERD_TENDER_BU = 2;
+/** The herd's roster (tenders and guards of one colony) counts ants within this of the herd point, BU. */
+export const TEND_ROSTER_RADIUS_BU = 3;
+/** Approach radii: to the stroke place, to a predator (to bite), to a relay receiver, BU. */
+export const TEND_STROKE_APPROACH_BU = 0.5;
+export const TEND_BITE_APPROACH_BU = 0.4;
+export const RELAY_APPROACH_BU = 0.3;
+/** A tender gives up the herd after this many failed trips to it, and avoids it for TEND_HERD_BLOCK_GD. */
+export const TEND_TRAVEL_TRIES = 3;
+export const TEND_HERD_BLOCK_GD = 0.5;
+/** At the herd: wait for the pool (GDD 07 WAIT_TIMEOUT_S) and leave when it stays empty, s. */
+export const TEND_WAIT_TIMEOUT_S = 300;
+/** Pool empty this long while soliciting -> wait (GDD 07 §6.1.4). */
+export const TEND_SOLICIT_EMPTY_S = 60;
+/** Guards: become one when fewer than this share of the herd's tenders guard; a shift lasts TEND_GUARD_SHIFT_GD. */
+export const TEND_GUARD_FRACTION = 0.3;
+export const TEND_GUARD_SHIFT_GD = 0.25;
+/** A guard sips one droplet for its upkeep when its crop is below this, loads. */
+export const TEND_GUARD_SIP_CROP = 0.1;
+/** A herd predator within this of the herd turns tenders into defenders, BU. */
+export const TEND_PREDATOR_RADIUS_BU = 4;
+/** A defender flees below this share of its hp. */
+export const TEND_FLEE_HP_FRAC = 0.3;
+/** Honeydew relay (GDD 07 §6.1.2): to a nestmate within RELAY_RADIUS_BU whose crop is at most this share of its cap. */
+export const RELAY_ENABLED = true;
+export const RELAY_RADIUS_BU = 3;
+export const RELAY_RECEIVER_MAX_CROP = 0.5;
+/** A tender with a full crop looks for a receiver this long, then goes home itself, s (estimate). */
+export const RELAY_TRY_S = 10;
+/** A chosen receiver stays chosen while within RELAY_KEEP_MULT x RELAY_RADIUS_BU of the herd. */
+export const RELAY_KEEP_MULT = 2;
+/**
+ * Local adapter: the colony allocation does not compute the `tend` demand yet (GDD 02 §6.2); while this is on the
+ * plants module adds Σ tenders wanted of the colony's known herds right after each allocation pass (reported).
+ */
+export const TEND_DEMAND_ADAPTER = true;
+
+// ---- nectar (GDD 05 §1.2 flower / extrafloral-nectary rows; the refill itself is sources-core's) ----
+
+/** Tier 2 flying-insect drain of flower nectar per hour, while air >= FLOWER_DRAIN_MIN_C and dry. */
+export const FLOWER_DRAIN_PER_H = 0.15;
+export const FLOWER_DRAIN_MIN_C = 15;
+/** Flowers refill fully in their peak (default-year days); outside it (still open) x FLOWER_OFFPEAK_REFILL_MULT (estimate). */
+export const FLOWER_PEAK_DAYS: readonly [number, number] = [5, 14];
+export const FLOWER_OFFPEAK_REFILL_MULT = 0.5;

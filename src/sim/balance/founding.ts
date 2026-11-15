@@ -85,6 +85,9 @@ export const FOUND_IN_CELL_MARGIN_BU = 2;
  * dig bite's ramp slope; first that removes soil wins).
  */
 export const FOUND_SEAL_SCRAPE_SLOPES_DEG = [0, 30, -30] as const;
+/** A scrape is skipped when plug voxels lie within the bite radius + MARGIN of its ramp over the first REACH, BU. */
+export const FOUND_SEAL_SCRAPE_MARGIN_BU = 0.25;
+export const FOUND_SEAL_SCRAPE_REACH_BU = 1;
 /** ... while at least this deep below the ground, BU (inside the cavity, not on the surface). */
 export const FOUND_SEAL_SCRAPE_MIN_DEPTH_BU = 1;
 /** An entrance belongs to the founding cavity when a point this far down its throat (BU) is connected to the cell. */

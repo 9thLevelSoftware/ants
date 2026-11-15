@@ -47,8 +47,10 @@ export const PALETTE = {
   bucketGreen: lin('#1f4a2a'),
   filter: lin('#e8dcc0'),
   /** Living plant parts. */
-  leaf: L(['#365d1d', '#426a28', '#2f5419', '#4b7232']),
-  dandelionLeaf: lin('#365e20'),
+  leaf: L(['#3a5a24', '#45652e', '#33521f', '#4d6c36']),
+  dandelionLeaf: lin('#3b5c27'),
+  /** Shredded bark mulch: dark, fibrous. */
+  mulch: lin('#5b4130'),
   stem: lin('#5a7a3e'),
   dandelionStem: lin('#7d8f5a'),
   dandelionFlower: lin('#f2b90f'),
@@ -57,7 +59,8 @@ export const PALETTE = {
   cloverHead: lin('#ead9de'),
   umbel: L(['#efeae0', '#c9b6d8', '#e9d7a8']),
   moss: lin('#4f6f23'),
-  deadLeaf: L(['#8a5a2b', '#a0612a', '#6e4a2a', '#b07a3a']),
+  /** Fallen leaves: weathered browns (bright orange read as a varnished plank at ant scale). */
+  deadLeaf: L(['#6b4a2c', '#7a5532', '#5a3e26', '#86603a']),
   fungusCap: L(['#a8724a', '#c9a77a', '#7a4b2e']),
   fungusStem: lin('#d9cdb4'),
   nut: lin('#7a5230'),

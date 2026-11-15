@@ -10,6 +10,10 @@ export interface HoneydewModule {
   herdClaims: number[];
   /** Honeydew yield per game day over the last season (capacity = this game's season length). */
   yieldHistory: TimeSeries;
+  /** Additive (ecology-plants): honeydew C taken from herds so far on game day `yieldDay`, loads. */
+  yieldTodayC?: number;
+  /** Additive (ecology-plants): game day (state.tick / TICKS_PER_DAY) yieldTodayC belongs to, -1 none. */
+  yieldDay?: number;
 }
 
 /** One Camponotus nest site in wood (GDD 07 §6.2). */

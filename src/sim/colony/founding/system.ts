@@ -5,7 +5,7 @@
 import type { Ant, Nest, OpeningPhase, OpeningState, Sim, System } from '@/sim/types';
 import { OPEN_DEALATION_LOCK_S, OPEN_DEALATION_S, HANDOVER_DONE_S } from '@/sim/balance/founding';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { FB, bbClear, bbGet, bbSet, foundingNest, foundingQueen, openingOf, queenOf, setPhase } from './access';
+import { FB, bbClear, bbGet, bbSet, foundingNest, foundingQueen, openingOf, playerColonyOf, queenOf, setPhase } from './access';
 import { autoTick, isAuto } from './auto';
 import { careTick } from './care';
 import { layTick, refuseLayBeforeSeal } from './clutch';
@@ -68,7 +68,18 @@ function sealedOrOpen(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
   }
 }
 
+/**
+ * The founding queen's pool replaces the colony's stores until the first worker eats (GDD 02 §2.7 point 1): the
+ * colony's empty stores are no famine, so its starvation clocks (GDD 02 §5.7: brood sacrifice and the "colony is
+ * starving" alarm) do not run during the opening.
+ */
+function holdStarvationClocks(sim: Sim): void {
+  const core = playerColonyOf(sim)?.core;
+  if (core) { core.cZeroSinceTick = -1; core.pZeroSinceTick = -1; }
+}
+
 function step(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
+  holdStarvationClocks(sim);
   if (isAuto(q)) autoTick(sim, op, q, nest);
   switch (op.phase) {
     case 'dealation':

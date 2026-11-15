@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeId, DifficultyId, WorldSizeId, ZoneType } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
-import { CARRION_DROP_VARIANTS, CRUMB_REPLACE_FRACTION, ECOLOGY_TIER } from '@/sim/balance/ecology';
+import { CARRION_DROP_VARIANTS, CRUMB_REPLACE_FRACTION, ECOLOGY_TIER } from '@/sim/balance';
 import { generateWorldReport } from '../pipeline';
 import { defaultWorldParams } from '../params';
 import { discoveredModules, type WorldgenModule } from '../kit/registry';

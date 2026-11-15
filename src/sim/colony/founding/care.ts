@@ -159,10 +159,10 @@ export function careTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): CareRe
   bbSet(q, FB.careTick, sim.state.tick);
   f.reserveLoads -= upkeep(sim);
   // The queen feeds this brood from her pool, which replaces the colony's stores until the first worker eats
-  // (GDD 02 §2.7 point 1): the empty stores are no shortage, so neither the early (minim) pupation clock (§2.6) nor
-  // the starvation clocks (§5.7: brood sacrifice and its "colony is starving" alarm) run in the claustral cell.
+  // (GDD 02 §2.7 point 1): the empty stores are no protein shortage, so the early (minim) pupation clock (§2.6)
+  // does not run in the claustral cell (the starvation clocks are held by the opening system, system.ts).
   const core = col.core;
-  if (core) { core.minimSinceTick = -1; core.cZeroSinceTick = -1; core.pZeroSinceTick = -1; }
+  if (core) core.minimSinceTick = -1;
   const list = colonyBrood(sim, col.id);
   const def = speciesOf(sim);
   const mu = foundingMu(op.siteQ, def.id as Parameters<typeof foundingMu>[1], sim.state.config.difficulty.params.foundingBroodMortalityMult,

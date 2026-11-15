@@ -20,6 +20,8 @@ import { FORAGE, SCOUT, TEND } from './flavours';
 import { markerResponseSystem, trailMonitorSystem } from './monitor';
 
 export const behaviours: Behaviour[] = [makeBehaviour(SCOUT), makeBehaviour(FORAGE), makeBehaviour(TEND), fleeBehaviour];
+import { tendHerdBehaviour } from './tendHerd'; behaviours.push(tendHerdBehaviour); // ecology-plants: herd tend (Lasius, Camponotus)
+import { fightBehaviour } from './fight'; import { patrolBehaviour } from './patrol'; behaviours.push(fightBehaviour, patrolBehaviour); // combat: fight, patrol
 
 /** Extra systems of these behaviours (e.g. perception); src/sim/ants/index.ts adds them to the module's systems. */
 export const systems: System[] = [perceptionSystem, trailMonitorSystem, markerResponseSystem];

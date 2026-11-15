@@ -57,4 +57,11 @@ export interface Herd {
   frozen: boolean;
   /** Times ants moved this herd to another host (GDD 07 §6.1.1 honeydew module extension). */
   relocations: number;
+  /**
+   * Additive (ecology-plants): highest A this season (the overwintering eggs are 10 % of it, GDD 05 §1.4);
+   * absent = A.
+   */
+  peakA?: number;
+  /** Additive (ecology-plants): carrying-capacity override, aphids (cheat.spawnHerd `k`); absent or <= 0 = by host class. */
+  kMax?: number;
 }

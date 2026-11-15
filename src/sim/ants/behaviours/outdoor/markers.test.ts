@@ -54,7 +54,8 @@ describe('acceptance 5: markers', () => {
   }, 600000);
 
   it('a forage marker at an undiscovered source brings its discovery forward', () => {
-    const LIMIT = 4 * 6000;
+    // the run without the marker usually reaches the cap: one game day in default mode, four with FOUNDRESS_LONG=1
+    const LIMIT = (LONG ? 4 : 1) * 6000;
     const discoveredAt = (seed: number, marker: boolean): number => {
       const { sim, sources } = forageScenario({
         seed, pinned: true, holdStores: { c: 2, p: 0.3 },

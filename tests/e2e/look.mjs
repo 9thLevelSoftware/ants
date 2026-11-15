@@ -74,6 +74,7 @@ export default async ({ page, shot, log, out }) => {
             file: name, frame: fr.id, light, quality: q, note: placed.note, placed: placed.ok, onGround: placed.subjectOnGround, feetGapMm: placed.feetGapMm,
             drawCalls: st.frame.drawCalls, triangles: st.frame.triangles, ms: st.ms ?? null,
             grit: st.world?.gritGrains ?? null, gritTriangles: st.world?.gritTriangles ?? null,
+            flowerHeads: st.world?.flowerHeads ?? null, flowerParts: st.world?.flowerParts ?? null,
           };
           shots.push(rec);
           log(`${name}: ${rec.note} ground=${rec.onGround} gap=${rec.feetGapMm} draws=${rec.drawCalls} tris=${rec.triangles}${rec.ms !== null ? ` ms=${rec.ms}` : ''}`);

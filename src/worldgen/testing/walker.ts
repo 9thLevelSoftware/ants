@@ -1,8 +1,8 @@
 // Test support: a kernel surface walker that follows a nav-grid path across a generated world (GDD 04 §11), the
-// way an ant does: it aims at each waypoint's ground point (so it walks down a stone or a stem it has climbed and
-// back onto the cell's ground, instead of circling a bulge on a level heading), and when it makes no progress it
-// sidesteps or backs off along the surface. It never teleports: reaching the end shows that a real walker can
-// physically follow the path the nav grid claims.
+// way an ant does: at the AI's walking speed it aims at each waypoint's ground point (so it walks down a stone or a
+// stem it has climbed and back onto the cell's ground, instead of circling a bulge on a level heading), and when it
+// makes no progress it climbs the game's stuck ladder (sidestep, back off, re-snap, let go when pinned). It never
+// teleports: reaching the end shows that a real walker can physically follow the path the nav grid claims.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Kernel } from '@/sim/kernel';
@@ -15,36 +15,51 @@ import { exactLocalField, type FieldFn } from './exactField';
 export interface CrossResult {
   /** Waypoints reached (the last one included when the walk ended there). */
   reached: number;
-  /** Final XZ distance to the last waypoint's centre, mm. */
+  /** Final XZ distance to the last waypoint, mm. */
   endDist: number;
   steps: number;
-  /** Recovery manoeuvres used (sidesteps and back-offs). */
+  /** Stuck episodes (stall windows that started a recovery ladder). */
+  episodes: number;
+  /** Recovery manoeuvres used (sidesteps, back-offs, re-snaps, let-gos). */
   recoveries: number;
+  /** Let-gos (rung 4 when hanging, rung 6). */
+  letGos: number;
+  /** Rungs beyond the game's surface ladder (5 climb, 6 let go), used where the game would relocate. */
+  extras: number;
   /** Where the walker was when it gave up (null when it arrived). */
   stuckAt: Vec3 | null;
 }
 
 export interface CrossOptions {
-  /** Walking speed, mm/s (default 60 BU/s: a test that runs fast; the walker caps the step length anyway). */
+  /** Walking speed, mm/s (default WALK_SPEED_BU: the AI's cruise, so the stall window covers the game's distance). */
   speed?: number;
   /** Step budget for the whole path. */
   maxSteps?: number;
 }
 
-// The recovery timings mirror the locomotion module's stuck ladder (src/sim/locomotion/params.ts LOCO_TUNING:
-// stuckWindowS 2.5, stuckProgressBU 0.5, sidestepS 1.2, backoffS 0.8); worldgen may not import that module.
-/** Steps without 0.5 BU of progress toward the waypoint before a recovery (2.5 s at 0.1 s steps, as the AI). */
-const STALL_STEPS = 25;
-/** Length of one sidestep manoeuvre (1.2 s) and of the other manoeuvres (back-off 0.8 s), steps. */
-const SIDESTEP_STEPS = 12;
-const MANOEUVRE_STEPS = 8;
-/** Recoveries allowed per waypoint before the walk counts as stuck. */
-const MAX_RECOVERIES = 15;
-/** The recovery cycle (one manoeuvre per stall). */
-const MANOEUVRES = ['side', 'side', 'up', 'back', 'drop'] as const;
-/** Below this `up.y` the walker hangs on a wall or an underside and may let go. */
-const HANGING_UP_Y = 0.3;
-/** A waypoint counts as passed within this share of a nav cell (XZ). */
+// The walker mirrors the locomotion module's stuck ladder (src/sim/locomotion/stuck.ts and params.ts LOCO_TUNING;
+// worldgen may not import that module, so the numbers are repeated here): a stall is a window of stuckWindowS
+// without stuckProgressBU of progress, and each stall climbs one rung: 1 re-aim (the game re-plans; the path here
+// is fixed), 2 sidestep, 3 back off, 4 re-snap onto the surface, 5 the game relocates the walker (a teleport), so
+// here the walk is stuck. Progress resets the rung; episodes per walk are capped as per request in the game.
+// One deviation, counted in `letGos`: at rung 4 a walker hanging on a wall or an underside lets go and drops (GDD 01
+// `let-go`) instead of re-snapping. The game applies its pinned let-go (update.ts letGoPinned) only in cavities; on
+// the surface a walker that has wrapped round a leaf tip or under a stone's bulge waits for rung 5 (relocation).
+/** Design seed §3: ant walk speed ~12 BU/s. */
+const WALK_SPEED_BU = 12;
+const STEP_S = 0.1;
+const STALL_STEPS = Math.round(2.5 / STEP_S);
+const PROGRESS_BU = 0.5;
+const SIDESTEP_STEPS = Math.round(1.2 / STEP_S);
+const BACKOFF_STEPS = Math.round(0.8 / STEP_S);
+/** Stuck episodes allowed per walk (LOCO_TUNING.episodesMax, per request in the game). */
+const EPISODES_MAX = 16;
+/** Rungs of the game's surface ladder before its relocation, and of this walker's (two extra manoeuvres). */
+const GAME_RUNGS = 4;
+const LADDER_RUNGS = 6;
+/** Hanging on a wall or an underside: up.y below this (LOCO_TUNING.pinnedUpY). */
+const PINNED_UP_Y = 0.7;
+/** A waypoint counts as passed when the walker's foot point is within this share of a nav cell of its ground point (3D). */
 const REACH_CELLS = 0.6;
 
 function navCtx(w: WorldData) {
@@ -102,55 +117,81 @@ export function cellGround(w: WorldData, c: number, out: Vec3): Vec3 {
 
 /** Places a walker on the surface above the first cell of `path` and walks it to the last one. */
 export function crossPath(w: WorldData, k: Kernel, path: readonly number[], opts: CrossOptions = {}): CrossResult & { kin: WalkerKin } {
-  const kin = createWalkerKin(k.walker.footOffset);
   const p0 = cellGround(w, path[0], { x: 0, y: 0, z: 0 });
-  if (!walkerPlace(k.field, kin, { x: p0.x, y: k.field.height(p0.x, p0.z) + 20 * w.bu, z: p0.z }, {}, k.walker)) {
-    return { kin, reached: 0, endDist: Infinity, steps: 0, recoveries: 0, stuckAt: { ...p0 } };
+  const start = { x: p0.x, y: k.field.height(p0.x, p0.z) + 20 * w.bu, z: p0.z };
+  return follow(k, start, path.length, (i, out) => cellGround(w, path[i], out), REACH_CELLS * w.nav.cls.cell, opts);
+}
+
+/**
+ * Places a walker on the surface nearest `points[0]` and walks it through the other points in order (each passed
+ * within `reach` mm of the foot point). For short passages such as a door crack or a pipe annulus.
+ */
+export function walkPoints(k: Kernel, points: readonly Vec3[], reach: number, opts: CrossOptions = {}): CrossResult & { kin: WalkerKin } {
+  return follow(k, points[0], points.length, (i, out) => { out.x = points[i].x; out.y = points[i].y; out.z = points[i].z; return out; }, reach, opts);
+}
+
+function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: Vec3) => Vec3, reach: number,
+  opts: CrossOptions): CrossResult & { kin: WalkerKin } {
+  const kin = createWalkerKin(k.walker.footOffset);
+  const bu = k.bu;
+  if (!walkerPlace(k.field, kin, start, {}, k.walker)) {
+    return { kin, reached: 0, endDist: Infinity, steps: 0, episodes: 0, recoveries: 0, letGos: 0, extras: 0, stuckAt: { ...start } };
   }
-  const speed = opts.speed ?? 60 * w.bu, maxSteps = opts.maxSteps ?? 40_000, dt = 0.1;
-  const reach = REACH_CELLS * w.nav.cls.cell, progressMm = 0.5 * w.bu, foot = kin.footOffset;
+  const speed = opts.speed ?? WALK_SPEED_BU * bu, maxSteps = opts.maxSteps ?? 200_000;
+  const progressMm = PROGRESS_BU * bu, foot = kin.footOffset;
   const t: Vec3 = { x: 0, y: 0, z: 0 }, dir: Vec3 = { x: 0, y: 0, z: 0 };
-  let wp = 0, steps = 0, recoveries = 0, perWp = 0;
-  let best = Infinity, sinceBest = 0, manoeuvre = 0, side = 1;
-  let kind: (typeof MANOEUVRES)[number] = 'side';
-  while (wp < path.length && steps < maxSteps) {
-    cellGround(w, path[wp], t);
-    const dx = t.x - kin.pos.x, dz = t.z - kin.pos.z, flat = Math.sqrt(dx * dx + dz * dz);
-    if (flat < reach) { wp++; best = Infinity; sinceBest = 0; perWp = 0; manoeuvre = 0; continue; }
-    if (flat < best - progressMm) { best = flat; sinceBest = 0; } else sinceBest++;
+  let wp = 0, steps = 0, episodes = 0, recoveries = 0, letGos = 0, extras = 0, stuck = false;
+  let best = Infinity, sinceBest = 0, rung = 0, manoeuvre = 0, side = 1;
+  let kind: 'side' | 'back' | 'climb' = 'side';
+  while (wp < count && steps < maxSteps && !stuck) {
+    target(wp, t);
+    const dx = t.x - kin.pos.x, dz = t.z - kin.pos.z;
+    // the foot point (the walker's centre rides footOffset along its up vector) against the target ground point
+    const fx = kin.pos.x - kin.up.x * foot - t.x, fy = kin.pos.y - kin.up.y * foot - t.y, fz = kin.pos.z - kin.up.z * foot - t.z;
+    const d3 = Math.sqrt(fx * fx + fy * fy + fz * fz);
+    if (d3 < reach) { wp++; best = Infinity; sinceBest = 0; rung = 0; manoeuvre = 0; continue; }
+    if (d3 < best - progressMm) { best = d3; sinceBest = 0; rung = 0; } else sinceBest++;
     if (sinceBest > STALL_STEPS && manoeuvre === 0) {
-      if (++perWp > MAX_RECOVERIES) break;
-      recoveries++;
-      kind = MANOEUVRES[(perWp - 1) % MANOEUVRES.length];
-      manoeuvre = kind === 'side' ? SIDESTEP_STEPS : MANOEUVRE_STEPS;
-      side = -side;
+      if (rung === 0 && ++episodes > EPISODES_MAX) { stuck = true; break; }
+      rung++;
       sinceBest = 0;
-      if (kind === 'drop') {
-        manoeuvre = 0;
-        if (kin.up.y < HANGING_UP_Y) walkerLetGo(k.field, kin, undefined, k.walker);
+      if (rung > LADDER_RUNGS) { stuck = true; break; }
+      if (rung > 1) recoveries++;
+      if (rung > GAME_RUNGS) extras++;
+      switch (rung) {
+        case 1: break; // re-aim (the game re-plans)
+        case 2: kind = 'side'; side = -side; manoeuvre = SIDESTEP_STEPS; break;
+        case 3: kind = 'back'; manoeuvre = BACKOFF_STEPS; break;
+        case 4:
+          // re-snap; hanging on a wall or an underside, let go instead (see the header)
+          if (kin.up.y < PINNED_UP_Y) { walkerLetGo(k.field, kin, undefined, k.walker); letGos++; }
+          else walkerPlace(k.field, kin, kin.pos, { dir: { x: -kin.up.x, y: -kin.up.y, z: -kin.up.z } }, k.walker);
+          break;
+        case 5: kind = 'climb'; manoeuvre = SIDESTEP_STEPS; break;
+        default: walkerLetGo(k.field, kin, undefined, k.walker); letGos++; break;
       }
     }
-    // aim at the waypoint's ground point (the walker's centre rides footOffset above it)
+    // aim at the target's ground point (the walker's centre rides footOffset above it)
     dir.x = dx; dir.y = t.y + foot - kin.pos.y; dir.z = dz;
     if (manoeuvre > 0) {
       manoeuvre--;
       if (kind === 'back') { dir.x = -dx; dir.y = -dir.y; dir.z = -dz; }
-      else if (kind === 'up') { dir.x = 0; dir.y = 1; dir.z = 0; }
+      else if (kind === 'climb') { dir.x = 0; dir.y = 1; dir.z = 0; }
       else {
         const u = kin.up;
         const sx = u.y * dir.z - u.z * dir.y, sy = u.z * dir.x - u.x * dir.z, sz = u.x * dir.y - u.y * dir.x;
         dir.x = side * sx; dir.y = side * sy; dir.z = side * sz;
       }
     }
-    if (kin.medium === 'air') walkerStep(k.field, kin, null, 0, dt, k.walker);
-    else walkerStep(k.field, kin, dir, speed, dt, k.walker);
+    if (kin.medium === 'air') walkerStep(k.field, kin, null, 0, STEP_S, k.walker);
+    else walkerStep(k.field, kin, dir, speed, STEP_S, k.walker);
     steps++;
     if (!Number.isFinite(kin.pos.x) || !Number.isFinite(kin.pos.y) || !Number.isFinite(kin.pos.z)) break;
   }
-  const end = cellGround(w, path[path.length - 1], t);
+  const end = target(count - 1, t);
   const ex = kin.pos.x - end.x, ez = kin.pos.z - end.z, endDist = Math.sqrt(ex * ex + ez * ez);
-  const arrived = wp >= path.length;
-  return { kin, reached: Math.min(wp, path.length), endDist, steps, recoveries, stuckAt: arrived ? null : { ...kin.pos } };
+  const arrived = wp >= count;
+  return { kin, reached: Math.min(wp, count), endDist, steps, episodes, recoveries, letGos, extras, stuckAt: arrived ? null : { ...kin.pos } };
 }
 
 /**

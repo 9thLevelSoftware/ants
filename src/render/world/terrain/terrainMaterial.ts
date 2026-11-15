@@ -13,6 +13,7 @@ import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms, WORLD_OCCLUSION_TERRAI
 import type { WorldUniforms } from '../materials/uniforms';
 import { CLIPMAP_GLSL } from './clipmap';
 import { HOLE_MASK_GLSL, type HoleMaskUniforms } from './holeMask';
+import { SKY_OCCLUSION_GLSL, skyOcclusionApplyGlsl } from './skyOcclusion';
 import { MAT_SLOTS, type TerrainLayerTable, type TerrainTextures } from './terrainData';
 
 export interface TerrainShared {
@@ -42,6 +43,7 @@ float wrH(vec2 xz) {
 
 const FRAG_DECL = /* glsl */ `
 ${GLSL_NOISE}
+${SKY_OCCLUSION_GLSL}
 ${GLSL_WET}
 ${GLSL_OCCLUSION}
 ${GLSL_CONTACT}
@@ -171,7 +173,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
   m.name = 'world:terrain';
-  addPatch(m, 'terrain-v3', (s) => {
+  addPatch(m, 'terrain-v4', (s) => {
     const t = shared.textures.uniforms;
     Object.assign(s.uniforms, {
       tWrHeight: t.tWrHeight, uWrHf: t.uWrHf, tWrMat: t.tWrMat, tWrHoles: t.tWrHoles, uWrMatGrid: t.uWrMatGrid, uWrHoleGrid: t.uWrHoleGrid,
@@ -180,6 +182,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
       uWet: shared.world.uWet,
       uWrDapple: shared.world.uDapple, uWrDappleMm: shared.world.uDappleMm,
       tWrCanopy: shared.world.tDappleMask, uWrCanopyInv: shared.world.uDappleMaskInv,
+      tWrSkyOcc: shared.world.tSkyOcc, uWrSkyOccInv: shared.world.uSkyOccInv,
       ...shared.holeMask,
       ...occlusionUniforms(shared.world),
       ...level,
@@ -198,7 +201,8 @@ vNormalWr = objectNormal;`)
       .replace('#include <map_fragment>', FRAG_MAIN)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(roughness * wrRg, wrWet, wrWR);')
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(wrNw, 0.0)).xyz);')
-      .replace('#include <lights_fragment_begin>', dappledLightsChunk());
+      .replace('#include <lights_fragment_begin>', dappledLightsChunk())
+      .replace('#include <aomap_fragment>', `#include <aomap_fragment>\n${skyOcclusionApplyGlsl('vWrW.xz')}`);
   });
   return { material: m, level };
 }

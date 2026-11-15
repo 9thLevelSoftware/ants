@@ -25,3 +25,23 @@ export const TERRAIN_QUALITY: Record<QualityId, TerrainQuality> = {
 export const HOLE_MASK_TEXEL_BU = 0.25;
 export const HOLE_MASK_TILE_TEXELS = 64;
 export const HOLE_MASK_ATLAS_SLOTS = 16;
+
+/**
+ * Static sky occlusion of the ground (skyOcclusion.ts). Cell = grid edge, mm; primitives narrower than minSizeMm
+ * or covering more than maxCellsPerPrim cells (a room's ceiling: the interior has its own light) are skipped.
+ * Under an overhang the occlusion is `under` x max(highFloor, 1 - clearance / (openK x half width)); a footprint
+ * resting on the ground counts `contact` (only its blurred ring shows: contact darkening round props).
+ * `strength` scales the ground's indirect light: x (1 - strength x occlusion).
+ */
+export const SKY_OCCLUSION = {
+  cellMm: 16,
+  minSizeMm: 6,
+  maxCellsPerPrim: 40000,
+  groundContactMm: 2,
+  contact: 0.9,
+  under: 0.9,
+  highFloor: 0.3,
+  openK: 2,
+  blurCells: 2,
+  strength: 0.85,
+} as const;

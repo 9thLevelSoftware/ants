@@ -16,6 +16,7 @@ import { GLSL_NOISE, GLSL_WET } from '../materials/glsl';
 import { GLSL_OCCLUSION, occlusionUniforms, WORLD_OCCLUSION_TERRAIN_TMAX } from '../materials/occlusion';
 import type { WorldUniforms } from '../materials/uniforms';
 import type { TerrainSource } from '../lighting/simAdapter';
+import { SKY_OCCLUSION_GLSL, skyOcclusionApplyGlsl } from '../terrain/skyOcclusion';
 import { placeGrit, type GritGround } from './gritPlacement';
 import { GRIT_LOOK, GRIT_QUALITY, GRIT_REPLACE_MM } from './tuning';
 
@@ -69,8 +70,8 @@ export class GroundGrit {
     this.material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0 });
     this.material.name = 'world:grit';
     const L = GRIT_LOOK;
-    addPatch(this.material, 'world-grit-v2', (s) => {
-      Object.assign(s.uniforms, occlusionUniforms(uniforms), { uWet: uniforms.uWet });
+    addPatch(this.material, 'world-grit-v3', (s) => {
+      Object.assign(s.uniforms, occlusionUniforms(uniforms), { uWet: uniforms.uWet, tWrSkyOcc: uniforms.tSkyOcc, uWrSkyOccInv: uniforms.uSkyOccInv });
       s.vertexShader = s.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vWrW; varying vec3 vGrL; varying float vGrId;')
         .replace('#include <project_vertex>', `#include <project_vertex>
@@ -78,7 +79,7 @@ vWrW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
 vGrL = position;
 vGrId = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.71;`);
       s.fragmentShader = s.fragmentShader
-        .replace('#include <common>', `#include <common>\nvarying vec3 vWrW; varying vec3 vGrL; varying float vGrId; uniform float uWet;\n${GLSL_NOISE}\n${GLSL_OCCLUSION}\n${GLSL_WET}`)
+        .replace('#include <common>', `#include <common>\nvarying vec3 vWrW; varying vec3 vGrL; varying float vGrId; uniform float uWet;\n${GLSL_NOISE}\n${GLSL_OCCLUSION}\n${GLSL_WET}\n${SKY_OCCLUSION_GLSL}`)
         .replace('#include <map_fragment>', `wrOccDither(vWrW, ${WORLD_OCCLUSION_TERRAIN_TMAX.toFixed(3)});`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 {
@@ -90,7 +91,8 @@ vGrId = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.71;`);
   diffuseColor.rgb *= mix(${L.bottomDark.toFixed(3)}, 1.0, smoothstep(-0.9, 0.3, vGrL.y));
   diffuseColor.rgb = wrWetAlbedo(diffuseColor.rgb, uWet, 0.65);
 }`)
-        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(roughness, uWet, 0.25);');
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(roughness, uWet, 0.25);')
+        .replace('#include <aomap_fragment>', `#include <aomap_fragment>\n${skyOcclusionApplyGlsl('vWrW.xz')}`);
     });
     const near = GRIT_LOOK.nearDetail, far = GRIT_LOOK.farDetail;
     this.meshes.chipsNear = this.makeMesh(grainGeometry(near, 1.3, 3, false), 'world:grit:chips');

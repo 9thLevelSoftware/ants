@@ -243,9 +243,9 @@ export const LEAF_PALETTE = {
    * Tint of dry litter per season (old leaves darken and grey over winter). The oak atlas is a pale peach scan:
    * outside autumn it is pulled toward weathered brown (look-pass: summer litter read as salmon-pink sheets).
    */
-  dryTint: [[0.52, 0.47, 0.38], [0.56, 0.5, 0.39], [0.92, 0.8, 0.66], [0.46, 0.41, 0.36]] as const,
+  dryTint: [[0.48, 0.47, 0.4], [0.5, 0.5, 0.42], [0.92, 0.8, 0.66], [0.44, 0.41, 0.37]] as const,
   /** Tint of fresh leaves per season. */
   freshTint: [[0.9, 0.95, 0.8], [0.85, 0.95, 0.75], [1.05, 1.0, 0.95], [0.7, 0.65, 0.6]] as const,
   /** Saturation per season (1 = atlas). */
-  saturation: [0.68, 0.7, 0.95, 0.6] as const,
+  saturation: [0.6, 0.6, 0.95, 0.55] as const,
 } as const;

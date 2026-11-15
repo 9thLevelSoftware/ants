@@ -9,8 +9,13 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
-import { FOUND_DIG_COST_PER_BITE, FOUND_SEAL_SCRAPE_MIN_DEPTH_BU, FOUND_SEAL_SCRAPE_SLOPES_DEG } from '@/sim/balance/founding';
-import { digBite } from '@/sim/nest';
+import {
+  FOUND_DIG_COST_PER_BITE, FOUND_SEAL_SCRAPE_MARGIN_BU, FOUND_SEAL_SCRAPE_MIN_DEPTH_BU, FOUND_SEAL_SCRAPE_REACH_BU,
+  FOUND_SEAL_SCRAPE_SLOPES_DEG,
+} from '@/sim/balance/founding';
+import { DIG_RAMP_RADIUS_BU } from '@/sim/balance/nest';
+import { VoxelFlag } from '@/sim/types';
+import { digBite, voxelAt } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround } from './access';
 import { cavityEntrances } from './dig';
 
@@ -38,6 +43,8 @@ function needsSoil(sim: Sim, nest: Nest, q: Ant): boolean {
 }
 
 const feet: Vec3 = { x: 0, y: 0, z: 0 };
+/** Carve-grid iso level (design seed §4: openness 0 solid .. 255 open, iso 127.5). */
+const CARVE_OPEN = 127.5;
 const heading: Vec3 = { x: 0, y: 0, z: 0 };
 
 /** Horizontal unit heading at `angle` (rad) from the queen's own horizontal heading, into `heading`. */
@@ -50,9 +57,34 @@ function headingAt(q: Ant, angle: number): Vec3 {
   return heading;
 }
 
+const VOXEL_PLUG = VoxelFlag.PLUG;
+const probe: Vec3 = { x: 0, y: 0, z: 0 };
+
 /**
- * One tick of the rule (phase `seal`): scrapes a pellet when the queen needs one. Tries the wall to her left and to
- * her right, then behind her (never ahead: in the throat that is the opening), at the slopes of
+ * Would a bite from the queen's feet along `h` at `slope` reach plug voxels? The bite's ramp (the nest's dig
+ * geometry, GDD 03 §1.2: a capsule of DIG_RAMP_RADIUS_BU whose floor runs through the feet) is probed along
+ * FOUND_SEAL_SCRAPE_REACH_BU; any plug voxel within the radius plus a margin of it vetoes the bite.
+ */
+function biteNearPlug(sim: Sim, h: Vec3, slopeDeg: number): boolean {
+  const bu = sim.world.bu, v = sim.carve.voxel, r = (DIG_RAMP_RADIUS_BU + FOUND_SEAL_SCRAPE_MARGIN_BU) * bu;
+  const s = (slopeDeg * Math.PI) / 180, cs = Math.cos(s), sn = Math.sin(s);
+  const ax = feet.x + h.x * sn * DIG_RAMP_RADIUS_BU * bu, ay = feet.y + cs * DIG_RAMP_RADIUS_BU * bu, az = feet.z + h.z * sn * DIG_RAMP_RADIUS_BU * bu;
+  for (let t = 0; t <= FOUND_SEAL_SCRAPE_REACH_BU * bu; t += bu) {
+    const cx = ax + h.x * cs * t, cy = ay - sn * t, cz = az + h.z * cs * t;
+    for (let dz = -r; dz <= r; dz += v) for (let dy = -r; dy <= r; dy += v) for (let dx = -r; dx <= r; dx += v) {
+      if (dx * dx + dy * dy + dz * dz > r * r) continue;
+      probe.x = cx + dx; probe.y = cy + dy; probe.z = cz + dz;
+      const vx = voxelAt(sim, probe);
+      if ((vx.flags & VOXEL_PLUG) !== 0 && vx.open < CARVE_OPEN) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * One tick of the rule (phase `seal`): scrapes a pellet when the queen needs one. Tries the wall behind her, to her left and to
+ * her right, then behind her (never ahead: in the throat that is the opening; behind first, down the shaft, away
+ * from the plug), skipping any bite that would reach the plug's voxels, at the slopes of
  * FOUND_SEAL_SCRAPE_SLOPES_DEG.
  * Returns true when she picked up soil this tick.
  */
@@ -62,9 +94,11 @@ export function soilForSeal(sim: Sim, q: Ant, nest: Nest): boolean {
   feet.x = q.pos.x - q.up.x * q.footOffset;
   feet.y = q.pos.y - q.up.y * q.footOffset;
   feet.z = q.pos.z - q.up.z * q.footOffset;
-  for (const angle of [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+  for (const angle of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
     for (const slope of FOUND_SEAL_SCRAPE_SLOPES_DEG) {
-      const res = digBite(sim, q, feet, headingAt(q, angle), slope);
+      const h = headingAt(q, angle);
+      if (biteNearPlug(sim, h, slope)) continue; // never scrape the plug she is building
+      const res = digBite(sim, q, feet, h, slope);
       if (!res.ok) continue;
       const it = res.pelletId >= 0 ? sim.stores.items.get(res.pelletId) : undefined;
       const f = q.queen?.founding;

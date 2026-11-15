@@ -141,14 +141,14 @@ export function defAt(v: FoodVariant, tier: number = ECOLOGY_TIER): SourceDef {
 /**
  * Season bits of an anchor of a variant at the ecology tier. Kinds people leave behind (crumbs, sugar, pet food,
  * water) lie there all year; a tier override that clears the window (T1 flowers, GDD 05 §1.2 "T1: always") opens
- * the anchor all year too, since the source system ANDs this mask before reading the window.
+ * the anchor all year too, since the source system ANDs this mask before reading the catalogue days.
  */
 export function anchorSeasonMask(variant: FoodVariant | null, kind: FoodKind): number {
   const all = kind === 'crumb' || kind === 'sugar' || kind === 'pet-food' || kind === 'dew';
   if (!variant) return seasonMaskOf(null, all);
-  const window = defAt(variant).window;
-  const tierAlways = window === null && SOURCE_CATALOGUE[variant].window !== null;
-  return seasonMaskOf(window, all || tierAlways);
+  const days = defAt(variant).window;
+  const tierAlways = days === null && SOURCE_CATALOGUE[variant].window !== null;
+  return seasonMaskOf(days, all || tierAlways);
 }
 
 /** Records a food anchor of a catalogue variant (the variant is the first word of initialState). */

@@ -177,12 +177,13 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     float net = 1.0 - smoothstep(0.03, 0.12, abs(wrNoise(nq) - 0.5));
     vec3 c = wrCol * (0.82 + 0.3 * wrFbm(lp.xz * 0.12 + lk.w * 9.0));
     c = mix(c, c * vec3(1.45, 1.4, 1.05), rib * 0.75);
-    c *= 1.0 + 0.32 * vein + 0.1 * net;
+    // dead, dry leaves (low translucency) show their veins faintly; at full contrast the arcs read as wood grain
+    c *= 1.0 + mix(0.08, 0.32, lk.z) * vein + 0.1 * net;
     c *= mix(1.0, 0.85, smoothstep(0.8, 1.0, av)); // darker margin
     c = mix(c, c * vec3(1.25, 1.15, 0.6), 0.35 * smoothstep(0.75, 1.0, t) * lk.z); // yellowing tip on living leaves
     // a few blemishes: pale feeding scars and dark spots
-    float bl = wrNoise(lp.xz * 0.35 + lk.w * 23.0);
-    c *= 1.0 - 0.35 * smoothstep(0.86, 0.9, bl);
+    float bl = wrNoise(lp.xz * 0.5 + lk.w * 23.0);
+    c *= 1.0 - 0.18 * smoothstep(0.9, 0.94, bl);
     if (!top) c = mix(c, c * vec3(1.15, 1.2, 1.05), 0.6); // paler, matte underside
     ${'' /* clover-style chevron */}
     if (lk.y > ${LEAF_STYLE.obovate - 0.5} && lk.y < ${LEAF_STYLE.obovate + 0.5}) c = mix(c, c * vec3(1.6, 1.55, 1.25), 0.5 * (1.0 - smoothstep(0.02, 0.16, abs(av - 0.45 - (1.0 - t) * 0.3))) * smoothstep(0.3, 0.45, t));

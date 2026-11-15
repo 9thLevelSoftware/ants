@@ -17,6 +17,7 @@ import { SkyEnvironment } from '../sky/skyEnvironment';
 import { MoundRenderer } from '../terrain/moundRenderer';
 import { TerrainRenderer } from '../terrain/terrainRenderer';
 import type { HoleProbe } from '../terrain/holeMask';
+import { buildSkyOcclusion } from '../terrain/skyOcclusion';
 import { ENV_REBAKE_DEG, ENV_REBAKE_MIN_S, HAZE_EASE_S, INTERIOR_LOOK, STARS_DOF_GAIN, UNDERGROUND } from './constants';
 import { LightingRig } from './lightingRig';
 import { HASH_SEED, hashNum, hashStr } from './signature';
@@ -74,6 +75,7 @@ export class WorldRenderer {
   /** objectMovesSignature the `moved` replacements were built for (NaN = rebuild). */
   private movesSig = Number.NaN;
   private canopyTex: DataTexture | null = null;
+  private skyOccTex: DataTexture | null = null;
   private camPos = new Vector3();
   private camDir = new Vector3();
   private subject = new Vector3();
@@ -109,6 +111,7 @@ export class WorldRenderer {
     await this.terrain.setSource(terrainSource(world, sim));
     if (gen !== this.worldGen) return; // a newer setWorld (or dispose) took over while the textures loaded
     this.setCanopy(world);
+    this.setSkyOcclusion(world);
     this.mounds = new MoundRenderer(this.library, this.terrain.holeMask!.uniforms);
     this.group.add(this.mounds.group);
     this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
@@ -142,6 +145,20 @@ export class WorldRenderer {
     this.canopyTex = t;
     this.uniforms.tDappleMask.value = t;
     this.uniforms.uDappleMaskInv.value.set(1 / (m.nx * m.cell), 1 / (m.nz * m.cell));
+  }
+
+  /** Static sky occlusion of the ground under and around the world's primitives (terrain/skyOcclusion.ts). */
+  private setSkyOcclusion(world: WorldData): void {
+    this.skyOccTex?.dispose();
+    const m = buildSkyOcclusion(staticPrims(world), (x, z) => this.terrain.height(x, z), world.size);
+    const t = new DataTexture(m.data, m.nx, m.nz, RedFormat, UnsignedByteType);
+    t.magFilter = t.minFilter = LinearFilter;
+    t.wrapS = t.wrapT = ClampToEdgeWrapping;
+    t.unpackAlignment = 1;
+    t.needsUpdate = true;
+    this.skyOccTex = t;
+    this.uniforms.tSkyOcc.value = t;
+    this.uniforms.uSkyOccInv.value.set(1 / (m.nx * m.cell), 1 / (m.nz * m.cell));
   }
 
   /** Takes the current world down (its terrain is about to be replaced): no drawing until the next world is ready. */
@@ -381,6 +398,10 @@ export class WorldRenderer {
     this.canopyTex?.dispose();
     this.canopyTex = null;
     this.uniforms.tDappleMask.value = null;
+    this.skyOccTex?.dispose();
+    this.skyOccTex = null;
+    this.uniforms.tSkyOcc.value = null;
+    this.uniforms.uSkyOccInv.value.set(0, 0);
     this.world = null;
     this.sim = null;
   }

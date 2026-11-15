@@ -133,10 +133,16 @@ export default async ({ page, shot, log }) => {
     const gm = window.__game, p = gm.summary().possessed;
     if (!p) { gm.possess('queen'); return; }
     const d = 8;
-    gm.act({ action: 'dig-bite', target: { kind: 'point', id: -1, pos: { x: p.pos[0] + h.x * d, y: p.pos[1] - Math.tan((slope * Math.PI) / 180) * d, z: p.pos[2] + h.z * d } } });
-    gm.step(n);
+    const r = gm.act({ action: 'dig-bite', target: { kind: 'point', id: -1, pos: { x: p.pos[0] + h.x * d, y: p.pos[1] - Math.tan((slope * Math.PI) / 180) * d, z: p.pos[2] + h.z * d } } });
+    // a held dig repeats at its first target: release it at once (the bite under way finishes), so the next bite
+    // aims from where she stands then; wait for the bite to end
+    gm.step(2);
+    gm.act({ action: 'dig-bite', phase: 'stop' });
+    for (let t = 0; t < n; t += 2) { if (!gm.query.ant(p.id)?.action) break; gm.step(2); }
+    return r;
   }, { slope: slopeDeg, n: ticks, h });
   const depthBu = (p) => (mouth.pos[1] - p[1]) / bu;
+  const lastSeq = () => g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
   for (let k = 0; k < 6 && (await phase()) === 'search'; k++) {
     await dig(SHAFT_SLOPE_DEG, 30, H);
     if ((await phase()) === 'search') {
@@ -146,13 +152,21 @@ export default async ({ page, shot, log }) => {
   }
   expect(await phase() === 'dig', 'the first bite did not start the dig', await phase());
   // dig until the readiness depth bar is full (the deepest open voxel at D_MIN) and the queen is a little deeper
-  let bites = 1, depth = 0, depthBar = 0;
-  while (bites < SHAFT_MAX_BITES && (depthBar < 1 || depth < SHAFT_DEPTH_BU - 2)) {
+  let bites = 1, depth = 0, depthBar = 0, best = 0, bestAt = 0;
+  while (bites < SHAFT_MAX_BITES && (depthBar < 1 || depth < SHAFT_DEPTH_BU - 2) && bites - bestAt < 60) {
+    // she bites the face ahead and below until it is open (the bite fails), then steps on into the cut
+    const seq0 = await lastSeq();
     await dig(SHAFT_SLOPE_DEG, 30, H);
-    await walkDir(2, H);
+    const failed = await g((q) => window.__game.events('action-failed', 5, q).filter((e) => e.reason !== 'blocked').length, seq0);
+    if (failed > 0) await walkDir(3, H); // the face ahead is open now: step on down into the cut
     bites++;
     depth = depthBu((await summary()).possessed.pos);
     depthBar = (await view()).readiness?.depth ?? 0;
+    if (depth > best + 0.1) { best = depth; bestAt = bites; }
+    if (bites % 15 === 0) {
+      log('dig', bites, 'depth', depth.toFixed(2), 'bar', depthBar.toFixed(2), 'pos', JSON.stringify((await summary()).possessed.pos),
+        'refused', JSON.stringify(await g(() => window.__game.events('action-failed', 4).map((e) => `${e.action}:${e.reason}`))));
+    }
   }
   result.shaft = { bites, depthBu: depth, depthBar };
   log('shaft', JSON.stringify(result.shaft));
@@ -205,11 +219,23 @@ export default async ({ page, shot, log }) => {
   const toOpening = async () => { const p = (await summary()).possessed.pos; return Math.hypot(p[0] - ent.pos.x, p[1] - ent.pos.y, p[2] - ent.pos.z) / bu; };
   for (let tries = 0; tries < 12 && (await phase()) === 'seal'; tries++) {
     if ((await toOpening()) > 2.6) { await steerTo(throat.x, throat.z, 0.4 * bu); await step(5); }
-    if (tries < 3) log('before seal: action', JSON.stringify(await queenAction()), 'carry', JSON.stringify(await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry; })));
-    await g(() => window.__game.act('seal-entrance'));
+    const carrying = async () => (await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry?.kind; })) === 'item';
+    if (!(await carrying())) {
+      // no soil in her mandibles (the wall beside the plug is left alone): a bite of the shaft wall lower down
+      await walkDir(4, H);
+      await step(5);
+      if (!(await carrying())) await dig(0, 30, { x: -H.z, y: 0, z: H.x });
+      await steerTo(throat.x, throat.z, 0.4 * bu);
+      await step(5);
+    }
+    for (let w = 0; w < 20 && (await queenAction()); w++) await step(5); // the bite or plug under way ends first
+    if (tries < 3 || tries > 9) log('before seal: action', JSON.stringify(await queenAction()), 'carry', JSON.stringify(await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry; })));
+    const sq = await lastSeq();
+    const r = await g(() => window.__game.act('seal-entrance'));
     await step(30);
     await g(() => window.__game.act({ action: 'seal-entrance', phase: 'stop' }));
     await step(5);
+    if (tries < 3) log('seal', JSON.stringify(r), JSON.stringify(await g((q) => window.__game.events(undefined, 60, q).filter((e) => !/creature|entity|food-source/.test(e.type)).map((e) => e.type + (e.reason ? ':' + e.reason : '')), sq)));
     seals++;
   }
   result.sealRefusals = await g(() => window.__game.events('action-failed', 12).map((e) => `${e.action}:${e.reason}`));

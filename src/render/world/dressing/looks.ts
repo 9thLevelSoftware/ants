@@ -121,6 +121,8 @@ function templateLook(o: LookObject, p: Primitive): PrimLook | null {
     case 'garden-hose': return m === 'rubber' ? colour(PALETTE.hoseGreen, 0.45, 0.05, 0.5) : null;
     case 'wheel-stop': return m === 'rubber' ? colour(PALETTE.rubber, 0.8, 0.1, 1) : null;
     case 'cigarette-butt': return colour(PALETTE.filter, 0.8, 0, 0.6);
+    // the bark scan planar-mapped on a chip's top read as an orange plank: darker, keep the fibre detail
+    case 'mulch-chip': return m === 'bark' ? colour(PALETTE.mulch, 0.9, 0, 1) : null;
     case 'doormat-inside': return m === 'fabric' ? colour(pick(PALETTE.mat, id), 0.95, 0, 1) : null;
     case 'curled-leaf': return leaf('ovate', pick(PALETTE.deadLeaf, id), p, 0.35);
     case 'log': case 'stump':

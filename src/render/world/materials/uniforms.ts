@@ -34,6 +34,9 @@ export interface WorldUniforms {
   uContact: Uniform<Vector4>;
   /** Flower heads nearer the camera than this (mm) are dressed with parts (dressing/flowerDressing.ts); 0 = none. */
   uFlowerMm: Uniform<number>;
+  /** Static sky occlusion of the ground (terrain/skyOcclusion.ts) and 1 / its extent in mm (0 = none). */
+  tSkyOcc: Uniform<Texture | null>;
+  uSkyOccInv: Uniform<Vector2>;
 }
 
 export function createWorldUniforms(): WorldUniforms {
@@ -55,5 +58,7 @@ export function createWorldUniforms(): WorldUniforms {
     uOcc: new Uniform(new Vector4(0, 1, 1, 0.35)),
     uContact: new Uniform(new Vector4(0, 0, 0, 0)),
     uFlowerMm: new Uniform(0),
+    tSkyOcc: new Uniform(null),
+    uSkyOccInv: new Uniform(new Vector2(0, 0)),
   };
 }
