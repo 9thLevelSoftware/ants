@@ -1,0 +1,152 @@
+{
+ "implReport": {
+  "summary": "sim-fix-ants is done: all seven spec items are implemented. Typecheck is clean in my paths. Every test file under src/sim/locomotion and src/sim/ants passes. The new tests for the three stall cases, deliver-first, home deposits and avoid markers each fail on a copy of the old code (HEAD 1b435e5 extracted with `git archive` into my scratchpad).\n\n1. **Locomotion stall (root cause found and fixed).** A point goal inside a nest was followed on a \"point field\": a navigation field whose target is the goal rounded to a 2 BU cell and spread over 1 BU, so its bottom is not the goal. The field leg reported 'done' while the arrival test still failed. The trip re-planned the same leg up to three times and was then left with no direction, so the walker stood at speed 0 with status 'moving' until the 2.5 s recovery ladder started. Fixes:\n   - Within 3 BU of a point goal the walker now walks straight to the goal (aimed at the goal raised by the foot offset).\n   - On the last leg, standing still for 0.6 s within the arrival radius counts as arrived.\n   - Upside down in a cavity with the goal below, locomotion now lets go and drops.\n   - The \"pivot toward a goal behind you\" rule now uses the real turning circle, so it no longer pivots far from the goal, and keeps a small creep speed.\n   - A finished or failed walk makes the ant think on the next tick.\n   - Share of ant-ticks at \"moving, speed 0\" over 2 game days with 100 workers: **4.86 % before \u2192 0.56 % after** (1.0 % of the moving ticks).\n   - Workaround removed from behaviours/nest: the ceiling let-go in `reachAndAct`, `approach` and `travel`, and the think-every-tick-near-target rule. Kept: the pass-beyond step (it also turns the ant to face the target) and the 0.8 s stand-still safety net.\n\n2. **Behaviour cost.**\n   - The nursery job board is rebuilt once per aligned 2 s window and stored in state (`SimState.nurseryBoards`); claims stay live.\n   - Waiting ants think on aligned ticks, so the haul, store and claim lists are built about once per second instead of every tick.\n   - Locomotion changes:\n     - Separation uses a fine per-tick ant grid and runs on every second tick.\n     - The AI speed is cached in persisted state for 10 ticks.\n     - Standing walkers are not stepped.\n     - The stuck-relocation lookahead is computed only when the ladder may escalate.\n   - Perception's contact query uses the same fine grid.\n   - 800-ant in-nest behaviour cost (beh-nest perf test, best segment): **2.34 ms before (load \u224817) \u2192 1.36 ms after (load \u224818)**, under the 1.5 ms budget even on the loaded machine.\n   - 500 outdoor ants (behaviours + perception): before 1.63\u20131.84 ms, after 1.62\u20132.69 ms. No change I can separate from the noise, and the 1.2 ms budget is not met under load; the idle-machine figure is unknown.\n\n3. **Action primitives.** `load-crop`, `unload-crop`, `feed-queen` (secondary variant: from the carer's own reserve), `assist-eclosion` and `cannibalise` are real primitives with timing, pose and the shared lifecycle. Grooming one item of a brood pile now tends the whole pile. `careActs.ts` is deleted and the behaviours use the primitives. Foragers with nobody to hand their crop to now unload straight into the food chamber at half rate (GDD 02 \u00a75.3). The departure ration is booked under the ledger's `ration` key, C only.\n\n4. **Deliver first.** New optional `Behaviour.delivering` hook. While it is true the runner keeps the old behaviour after a task change, gives it one more think to finish, then switches (at most 600 s; flee and fight take over at once). It is used by the in-nest behaviours (carrying anything) and the outdoor engine (outside the nest, or in its return / deliver phase). This replaced the outdoor `exit()` hand-back workaround.\n\n5. **Home deposits.** The action system lays HOME_DEPOSIT_PER_BU for every colony ant walking outside. A test shows the colony's own walking marks the ground above HOME_EXPLORED and that a scout there turns further away from home than on unmarked ground.\n\n6. **Avoid markers.** The planner now penalises every 16 BU cell whose square touches a disc (not only cells whose centre is inside). Trail readings inside a disc count \u00d70.1, and the follower turns out of the disc instead of walking on into it. The behaviours' own detour waypoints stay: with them disabled the App. E 20 marker test counted 14 entries into the disc against 9 allowed.\n\n7. **Hygiene.**\n   - `behaviourRunner.test.ts` is rewritten.\n   - The no-op perception placeholder is removed; the real system is renamed 'perception' so the tick-order test still holds.\n   - `actions.verify` \"stopAction\" was a test fault: the ant's own behaviour started a put-down of the pellet afterwards. The test now counts only dig-bite events.\n   - The import cycle: `clutch.ts` no longer imports the action library (the founding engineer removed it), so the cycle is gone today. The ports now look their functions up at call time anyway, with a test that imports the colony module first.\n\nMistake to flag: once, while deleting `careActs.ts`, I ran `git rm --cached`, which staged a deletion. I undid it at once with `git restore --staged` on that one path; the index is as before and the file deletion is a normal working-tree change.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/locomotion/params.ts",
+   "/home/user/foundress/src/sim/locomotion/trip.ts",
+   "/home/user/foundress/src/sim/locomotion/legs.ts",
+   "/home/user/foundress/src/sim/locomotion/update.ts",
+   "/home/user/foundress/src/sim/locomotion/system.ts",
+   "/home/user/foundress/src/sim/locomotion/runtime.ts",
+   "/home/user/foundress/src/sim/locomotion/speed.ts",
+   "/home/user/foundress/src/sim/locomotion/steer.ts",
+   "/home/user/foundress/src/sim/locomotion/modes.ts",
+   "/home/user/foundress/src/sim/locomotion/index.ts",
+   "/home/user/foundress/src/sim/locomotion/grid/search.ts",
+   "/home/user/foundress/src/sim/locomotion/README.md",
+   "/home/user/foundress/src/sim/locomotion/stallkit.ts",
+   "/home/user/foundress/src/sim/locomotion/nestGoal.test.ts",
+   "/home/user/foundress/src/sim/locomotion/avoid.test.ts",
+   "/home/user/foundress/src/sim/locomotion/perf.test.ts",
+   "/home/user/foundress/src/sim/ants/actions/defs/nestCare.ts",
+   "/home/user/foundress/src/sim/ants/actions/defs/index.ts",
+   "/home/user/foundress/src/sim/ants/actions/defs/care.ts",
+   "/home/user/foundress/src/sim/ants/actions/defs/food.ts",
+   "/home/user/foundress/src/sim/ants/actions/ports.ts",
+   "/home/user/foundress/src/sim/ants/actions/runner.ts",
+   "/home/user/foundress/src/sim/ants/actions/system.ts",
+   "/home/user/foundress/src/sim/ants/actions/types.ts",
+   "/home/user/foundress/src/sim/ants/actions/nestCare.test.ts",
+   "/home/user/foundress/src/sim/ants/actions/ports.test.ts",
+   "/home/user/foundress/src/sim/ants/actions/actions.verify.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviourRunner.ts",
+   "/home/user/foundress/src/sim/ants/behaviourRunner.test.ts",
+   "/home/user/foundress/src/sim/ants/index.ts",
+   "/home/user/foundress/src/sim/ants/determinism.colony.test.ts",
+   "/home/user/foundress/src/sim/ants/perception/index.ts",
+   "/home/user/foundress/src/sim/ants/perception/sense.ts",
+   "/home/user/foundress/src/sim/ants/testing/report.ts",
+   "/home/user/foundress/src/sim/ants/testing/costTable.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/board.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/careActs.ts (deleted)",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/common.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/travel.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/fsm.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/nurse.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/queenCare.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/haul.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/dig.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/store.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/stall.soak.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/boardCadence.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/deliverFirst.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/cost.perf.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/soak.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/perf.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/reviewFixes.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/nest/haulStore.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/outdoor/adapters.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/outdoor/engine.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/outdoor/phaseNest.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/outdoor/phaseScout.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/outdoor/homeRange.test.ts",
+   "/home/user/foundress/src/sim/ants/behaviours/outdoor/scenario.test.ts",
+   "/home/user/foundress/src/sim/balance/actions.ts",
+   "/home/user/foundress/src/sim/balance/ants.ts",
+   "/home/user/foundress/src/sim/balance/nestwork.ts",
+   "/home/user/foundress/src/sim/types/ids/ants.ts",
+   "/home/user/foundress/src/sim/types/moduleApi.ts",
+   "/home/user/foundress/src/sim/types/navScratch.ts",
+   "/home/user/foundress/src/sim/types/nurseryBoard.ts",
+   "/home/user/foundress/src/sim/types/index.ts",
+   "/home/user/foundress/src/sim/types/state.ts"
+  ],
+  "verification": [
+   "npx tsc --noEmit -p tsconfig.json: no errors in src/sim/ants, src/sim/locomotion, src/sim/types or src/sim/balance. 4 remaining errors are in other engineers' WIP files: src/sim/ecology/creatures/{aphidPredators,bird,spawners}.ts and src/sim/progression/stats.test.ts.",
+   "npx vitest run src/sim/locomotion src/sim/ants/actions src/sim/ants/player src/sim/ants/perception + runner, determinism and lifecycle tests: 35 files, 232 tests passed. Re-ran locomotion perf + actions + runner after the last edits: 12 files, 86 tests passed.",
+   "npx vitest run src/sim/ants/behaviours/outdoor (full folder, after the last fixes): 15 files, 37 tests passed.",
+   "npx vitest run src/sim/ants/behaviours/nest (full folder): 2 failures, then fixed. haulStore failed because its test read the trophallaxis event before the give had ended (test fixed). starvation failed because the load-crop pool floor of 0.1 kept the queen from getting the 0.03 P of eaten eggs (floor lowered, see notes). Re-runs: starvation passed; 14 nest files + nestCare: 37 tests passed; soak, perf, stall soak and cost table passed in their own runs.",
+   "Reproductions on the old code (HEAD extracted to the scratchpad): nestGoal.test 4/4 fail; deliverFirst.test 2/2 fail; homeRange.test 2/2 fail; avoid.test 2/2 fail. All pass on the new code.",
+   "Stall soak, FOUNDRESS_LONG=1, 2 game days, 100 workers. Before: 58,343 of 1,200,000 ant-ticks stalled (4.86 %; 8.9 % of the moving ticks). After the first fix: 0.25 %. Final code: 6,728 (0.56 %; 1.0 % of the moving ticks). Short default window (40 workers, 600 ticks): before 3.16 %, after 0 %.",
+   "Cost table (FOUNDRESS_LONG=1, ms per tick, best of 3 segments of 300 ticks; load 16-24). Before (2 runs): 300 workers 9.5 / 9.8 (locomotion 5.1 / 5.3, behaviours 2.1 / 2.2); 800 workers 23.3 / 13.5 (locomotion 15.7 / 9.5, behaviours 4.35 / 2.55); 1500 workers 45.5 / 28.5 (locomotion 34.5 / 23.2, behaviours 7.7 / 3.3). After (2 runs): 300 workers 6.6 / 5.8 (locomotion 3.1 / 2.7, behaviours 1.36 / 1.46); 800 workers 11.3 / 10.7 (locomotion 7.3 / 6.2, behaviours 1.93 / 2.17); 1500 workers 14.9 / 24.7 (locomotion 9.4 / 15.9, behaviours 3.1 / 4.3). Raw JSON in test-output/sfa/cost-*.json.",
+   "beh-nest perf test (800 in-nest ants, behaviour functions only): before best 2.34 ms (segments 4.55 / 2.40 / 2.34, load \u224817); after best 1.36 ms (2.35 / 1.36 / 1.58, load \u224818). Budget 1.5 ms.",
+   "Outdoor determinism.perf test (500 outdoor ants, behaviours + perception), alternating runs: after 1.62 / 2.69 / 2.45 ms, before 1.84 / 1.73 / 1.63 ms. Budget 1.2 ms; not asserted under heavy load.",
+   "boardCadence.test: the board is built at most once per 2 s window; a game saved at tick 1207 (mid-window) and loaded runs 900 more ticks with the same state hash as the uninterrupted run. saveLoad.verify also passes.",
+   "Determinism across processes: determinism.colony.test run in two separate vitest processes both wrote hash 9f395243; two in-process runs also match.",
+   "GDD 02 App. E 19 with pre-fed larvae: all 10 larvae moved by tick 1075 (old code: 1292). E19 as spawned: 351 ticks (old: 402). E21: 8 larvae moved by tick 222."
+  ],
+  "acceptance": [
+   {
+    "criterion": "AC1: npm run typecheck clean; all tests under src/sim/locomotion and src/sim/ants green in default mode; files cheap (~20 s each idle), large sweeps behind FOUNDRESS_LONG=1",
+    "status": "partial",
+    "evidence": "Typecheck is clean in my paths. All test files in locomotion, ants/actions, ants/player, ants/perception and behaviours/outdoor pass, and the nest folder passes after the two fixes noted under verification. File cost: I moved the 5-day nest soak, the 1-day mutation check and the long locomotion and nest perf runs behind FOUNDRESS_LONG. The soak file dropped from about 200 s to about 41 s under load. Several outdoor acceptance files from beh-forage are still far over 20 s under load and were not restructured: nutrition ~185 s, markers ~215 s, determinism.perf ~195 s, bounds ~170 s, scenario ~100 s, removal ~67 s."
+   },
+   {
+    "criterion": "AC2: the three stall reproductions pass; 2-game-day 100-worker share of 'moving, speed 0' ant-ticks reported before and after and below 1 % after; GDD 02 App. E E4, E19 (as spawned) and E22 still pass with the workaround reduced",
+    "status": "met",
+    "evidence": "nestGoal.test has 4 cases (near goals 0.4-2 BU, moves under one voxel, chamber ceiling, tunnel ceiling); all fail on the old code and pass now. The 2-game-day share went from 4.86 % to 0.56 %. E4 (queenNurse.verify and nurse.test), E19 as spawned (sortingE19.verify) and E22 (haulE22.verify) pass with the ceiling let-go and think-close-by workarounds removed."
+   },
+   {
+    "criterion": "AC3: cost tables for 300 / 800 / 1500 workers before and after, with the budget verdict; save -> load -> run equals the uninterrupted run with the board cadence at 2 s",
+    "status": "partial",
+    "evidence": "Tables are under verification and in test-output/sfa/cost-*.json. The in-nest budget is met even under load: 1.36 ms against 1.5 ms (before 2.34 ms). The outdoor 500-ant budget of 1.2 ms is not met under load: min 1.62 ms after vs 1.63 ms before. The idle-machine number is unknown and I could not show an outdoor improvement. Board cadence and mid-window save/load equality are proven by boardCadence.test."
+   },
+   {
+    "criterion": "AC4: every former careActs act is an action primitive with a pose; the possessed-ant path is tested for at least crop loading and queen feeding",
+    "status": "met",
+    "evidence": "The new primitives are load-crop (pose drink), unload-crop (troph-give), feed-queen (troph-give, secondary variant from the reserve), assist-eclosion (tear) and cannibalise (tear). Pile tending is folded into the groom primitive. careActs.ts is deleted. nestCare.test covers durations (base / workRate), poses, refusals, ledger keys, and the possessed ant using load-crop and feed-queen through the `action` command."
+   },
+   {
+    "criterion": "AC5: deliver-first, home deposits and avoid-marker behaviour each have a test that fails on the old code",
+    "status": "met",
+    "evidence": "deliverFirst.test (2 tests), homeRange.test (2) and avoid.test (2) fail on the old-code copy and pass now. behaviourRunner.test also has unit tests for the runner's hold, the concluding think and the flee/fight exemption."
+   },
+   {
+    "criterion": "AC6: determinism holds (same seed and commands, same state hash across two processes)",
+    "status": "met",
+    "evidence": "determinism.colony.test gave hash 9f395243 in two separate vitest processes; the in-process determinism tests (ants, nest soak, outdoor determinism.perf) pass."
+   }
+  ],
+  "notDone": [
+   "The outdoor 1.2 ms budget for 500 ants is not shown as met: under load 1.62-2.69 ms after vs 1.63-1.84 ms before. The largest remaining items are perception's contact counting among the crowd of waiting foragers inside the nest (about 8 % of the scenario's time) and the outdoor behaviour dispatch itself.",
+   "Locomotion is still the largest system: 6-7 ms per tick at 800 workers under load. Part of that cost sits in other modules' hooks: the nest's clutter speed factor queries items, and the nest-nav field lookups; the speed cache now hides most of the speed-factor part.",
+   "The beh-forage outdoor acceptance files are still far over the ~20 s per-file target (times under AC1). I did not restructure them because that would need redesigning their scenarios.",
+   "walkStalled (0.8 s stand-still near a target counts as arrived) and the pass-beyond step remain in reachAndAct / approach. walkStalled is a safety net; the pass also turns the ant to face its target. Neither is needed for the stall cases any more.",
+   "The entrance flow field is still not avoid-aware. While a colony has avoid markers, trips home use A*, which respects the discs; making the cached flow field disc-aware would need changes to the incremental flow repair and was not done."
+  ],
+  "contractChanges": [
+   "src/sim/types/ids/ants.ts: ACTION_IDS gains 'load-crop', 'unload-crop', 'feed-queen', 'assist-eclosion', 'cannibalise'.",
+   "src/sim/types/moduleApi.ts: Behaviour gains an optional delivering?(sim, ant): boolean (GDD 02 \u00a710.0 deliver first).",
+   "src/sim/types/navScratch.ts: NavScratch gains optional spdV, spdTick, spdCarry (persisted AI speed cache).",
+   "src/sim/types/nurseryBoard.ts (new): NurseryBoardState, NurseryJobState, NurserySortState, exported from src/sim/types/index.ts.",
+   "src/sim/types/state.ts: SimState gains optional nurseryBoards?: NurseryBoardState[].",
+   "Not contracts but public: ActionDef (src/sim/ants/actions/types.ts) gains an optional who(), and check() gains an optional `secondary` argument; canDo() takes optional BeginOptions; locomotion exports queryAntsNear; LocoStats gains drops and standSkipped; behaviourRunner exports deliveringFor."
+  ],
+  "needsFromOthers": [
+   "species-data (src/sim/species/**): list the five new action ids in the caste action tables (worker castes; assist-eclosion also for queens). Until then each primitive's own `who()` grants them.",
+   "nest (src/sim/nest/**): the clutter speed factor (pellets.ts clutterSpeedMult, which queries items for every walker) was about 6 % of a crowded in-nest tick. The new speed cache refreshes it only every 10 ticks, but a cheaper factor would help further.",
+   "colony: a queen-carer cannot help the queen's protein upkeep from its own reserve (the reserve is C only), so in starvation the queen depends on recycled egg P reaching the pool. That is why I lowered the load floor (see notes)."
+  ],
+  "notesForIntegrator": [
+   "Precedence decision: LOAD_POOL_MIN is 0.02 loads (the beh-nest adapter's 'empty pool' floor), not GDD 02 \u00a75.4.1's 'pool C \u2265 0.1 or P \u2265 0.1'. With 0.1, starvation S3's 0.03 P per eaten egg never reached the queen and App. E 9 (queen dies last) failed.",
+   "Pose choices (GDD 01 \u00a77.3 has no rows for these acts): load-crop = drink, unload-crop and feed-queen = troph-give, assist-eclosion and cannibalise = tear. Cue for assist-eclosion is 'eclosion'.",
+   "Deliver first uses the Behaviour.delivering hook; DELIVER_FIRST_MAX_S = 600 and the flee/fight exemption are in balance/ants.ts. A forager whose task changes at the end of a trip goes to its wait phase after booking. Without that, a hold-for-delivery loop booked the same delivery again on every think; the scenario test caught it at 1,981 deliveries.",
+   "outdoor/scenario.test: the per-hour upper bound on deliveries now checks each ant's cycle time (at least 0.75 \u00d7 the GDD fastest cycle) instead of the average forage headcount. Reason: re-evaluated foragers finish their trips under deliver first, and the allocator moves ants in and out of `forage` between trips, so that headcount understates the ants working the source.",
+   "outdoor/adapters.ts now uses the colony's public recordDeliveryCount; it no longer imports colony internals.",
+   "Waiting ants in the nest (waitThink) and nurse groom checks now think on aligned ticks (multiples of 10). Per-tick job lists are therefore built about once per 10 ticks, in a short burst rather than spread out.",
+   "Separation steering now runs on every second tick, staggered by ant id (a light preference; it stays a function of state).",
+   "Measurement tools: src/sim/ants/testing/costTable.ts and cost.perf.test.ts (FOUNDRESS_LONG=1) write test-output/reports/cost-table.json; stall.soak.test.ts writes stall-2gd.json and stall-short.json; determinism.colony.test writes determinism-hash.json for cross-process comparison.",
+   "The old-code copy used for before/after numbers is at /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scratchpad/before (scratchpad, not in the repo)."
+  ]
+ }
+}

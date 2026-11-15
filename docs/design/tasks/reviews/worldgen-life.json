@@ -1,0 +1,250 @@
+{
+ "implReport": {
+  "summary": "I implemented the world's living layer as a pipeline module in src/worldgen/populate/**, registered through the kit's registry; pipeline.ts was not edited. It adds:\n- micro-connection guarantee\n- plant host assignments\n- food anchors by zone, season and kind\n- creature territories\n- established and incipient rival sites\n- food guarantees near the start: honeydew films, the v-food distances, the GDD 05 site-food rule and the registry C13 economy floors\n\nI also rewrote the queen start rule in maps/start.ts. The start is now outdoors on bare natural ground, fair-or-worse, with at least 3 good sites reachable by walking within 250 BU and a diggable founding patch within 60 BU walk. It stays at least 800 BU from established rivals and 300-800 BU from incipients, with no water, hole or ant-predator territory on top of her. maps/suitability.ts is calibrated per directions \u00a7K: missing cover is now a low factor value, ground beside a stone or slab counts as cover, and new word thresholds are fair 0.72, good 0.86, excellent 0.93.\n\nIn validate/** I fixed the three handed-over evaluator defects. I also extended v-food, v-start and v-rivals, rebuilt R3, R4 and R5, and fixed R4's buried (closed) channel. Seed 1 now starts the queen on garden-bed soil and both stage-1A end-to-end tests pass. That needed a one-line change in a scenario file I don't own (src/sim/testing/e2e/colonyScenario.ts), explained in the integrator notes.\n\nResults: the 20-seed \u00d7 5-archetype sweep (FOUNDRESS_LONG=1) passed on every world. 98 of 100 worlds were accepted on the first attempt, 2 on the second, and none needed a repair. Generation got slower: my steps take about 1.3-2.2 s of a 4.7-6.3 s world on a heavily loaded machine (load average ~21), so the 3000 ms Node budget is not shown to hold.",
+  "filesTouched": [
+   "/home/user/foundress/src/worldgen/populate/index.ts",
+   "/home/user/foundress/src/worldgen/populate/tuning.ts",
+   "/home/user/foundress/src/worldgen/populate/common.ts",
+   "/home/user/foundress/src/worldgen/populate/access.ts",
+   "/home/user/foundress/src/worldgen/populate/routeCheck.ts",
+   "/home/user/foundress/src/worldgen/populate/hosts.ts",
+   "/home/user/foundress/src/worldgen/populate/food.ts",
+   "/home/user/foundress/src/worldgen/populate/economy.ts",
+   "/home/user/foundress/src/worldgen/populate/finalize.ts",
+   "/home/user/foundress/src/worldgen/populate/territories.ts",
+   "/home/user/foundress/src/worldgen/populate/rivals.ts",
+   "/home/user/foundress/src/worldgen/populate/channel.ts",
+   "/home/user/foundress/src/worldgen/populate/microGuarantee.ts",
+   "/home/user/foundress/src/worldgen/populate/testkit.ts",
+   "/home/user/foundress/src/worldgen/populate/populate.test.ts",
+   "/home/user/foundress/src/worldgen/maps/start.ts",
+   "/home/user/foundress/src/worldgen/maps/suitability.ts",
+   "/home/user/foundress/src/worldgen/validate/checks.ts",
+   "/home/user/foundress/src/worldgen/validate/micro.ts",
+   "/home/user/foundress/src/worldgen/validate/repair.ts",
+   "/home/user/foundress/src/worldgen/validate/sweep.test.ts",
+   "/home/user/foundress/src/worldgen/validate/evaluators.test.ts",
+   "/home/user/foundress/src/worldgen/tuning/maps.ts (SUIT block only: thresholds, cover levels, comment)",
+   "/home/user/foundress/src/worldgen/tuning/pipeline.ts (additive MICRO.crackMinSlotBu)",
+   "/home/user/foundress/src/sim/types/world.ts (additive PlantPlacement.hostPoiIds)",
+   "/home/user/foundress/src/sim/testing/e2e/colonyScenario.ts (one-line scenarioSource fix, see notes)"
+  ],
+  "verification": [
+   "npm run typecheck: no errors in any of my paths. The only error left in the repository is src/sim/ecology/creatures/__dbg/dbg.test.ts (another engineer's work in progress).",
+   "npx vitest run src/worldgen/populate/populate.test.ts src/worldgen/validate/evaluators.test.ts: 13/13 pass, about 30 s on the loaded machine, 3 worlds generated once (woodland-edge, suburban-garden, kitchen-door, seed 1).",
+   "Long sweep, FOUNDRESS_LONG=1 npx vitest run src/worldgen/validate/sweep.test.ts, run once: all 5 archetypes pass, 100 worlds, failures none, 98 accepted on the first attempt and 2 on the second, 0 repairs. Each world checks validation, rival spacing, the start rule, a walker reaching a diggable site, every anchor reachable, a sample of anchors not inside solids, economy and class shares.",
+   "Economy, summer day offer within walking distance of the start (min / median, loads per day):",
+   "  woodland-edge: 300 BU 20.7 C / 5.4 P min, 47.4 C / 7.3 P median; 900 BU 49.6 C / 25.5 P min, 63.7 C / 31.2 P median.",
+   "  suburban-garden: 300 BU 17.6 C / 5.4 P min, 24.6 C / 9.4 P median; 900 BU 48.7 C / 25.2 P min, 124.3 C / 32.1 P median.",
+   "  playground-park: 300 BU 17.6 C / 5.4 P min; 900 BU 49.7 C / 26.1 P min.",
+   "  car-park-verge: 300 BU 18.4 C / 5.4 P min; 900 BU 50.5 C / 25.3 P min.",
+   "  kitchen-door: 300 BU 17.6 C / 6.4 P min; 900 BU 53.8 C / 26.9 P min.",
+   "  Floors: 15 C / 5 P at 300 BU (colony of 50), 45 C / 25 P at 900 BU (colony of 300).",
+   "Site-class shares, mean over 20 seeds (excellent / good / fair / poor):",
+   "  woodland-edge 0.8 / 8.7 / 73.9 / 16.7 %",
+   "  suburban-garden 0.2 / 1.7 / 64.5 / 33.5 %",
+   "  playground-park 0.3 / 2.2 / 68.4 / 29.1 %",
+   "  car-park-verge 0.1 / 1.4 / 81.4 / 17.2 %",
+   "  kitchen-door 0.2 / 1.0 / 59.0 / 39.8 %",
+   "  On the always-on worlds, open sunny mown lawn reads fair in 100 % of cells and sunny covered ground reads good or better in 100 %.",
+   "npx vitest run src/sim/testing/e2e/stage1a.e2e.test.ts src/sim/testing/e2e/stage1a.verify.test.ts src/sim/createGame.test.ts: 3 files, 11/11 pass. Before my work, (a) and verify failed at tick 0.",
+   "Generation time from 3 timing-probe runs on a loaded machine (load average ~21), minimum total per archetype: woodland 6253 ms, suburban 5364, playground 6369, car-park 4718, kitchen-door 6249.",
+   "  My steps in those runs: resources 460-850 ms, rivals 160-400, the extra re-derive that late placers trigger 210-420, start plus food guarantees 220-640, validation 250-540.",
+   "Determinism, within and across processes: the woodland-edge economy figures were identical in two separate sweep processes run before the last code change. The world fingerprint walks every value of WorldData, placements included, so the existing pipeline determinism test E1 covers them.",
+   "Layering test: the only finding left is src/worldgen/testing/walker.ts using Math.hypot (the other worldgen engineer's file). My performance.now and `window` findings are fixed.",
+   "Other worldgen tests I touch indirectly, run once: maps.test kitchen +150 / E5 and the pipeline wood-nester case were already on worldgen-fixes' list of red tests. The other failures were timeouts under load (60-120 s limits; a standard world took up to 48 s). maps.verify 'Messor suitability rises' fails because of my content (see notes)."
+  ],
+  "acceptance": [
+   {
+    "criterion": "AC1: typecheck clean, tests green, imports limited to core, sim/types, the kernel and worldgen",
+    "status": "met",
+    "evidence": "No type errors in my paths. My 2 always-on test files and the sweep pass. Imports go only to @/core, @/sim/types, @/sim/kernel, @/sim/locomotion/walker, @/sim/world/{primHash,terrainSample}, @/sim/balance, @/sim/species and worldgen; the layering test reports nothing in my files."
+   },
+   {
+    "criterion": "AC2: 20 seeds per Tier 1 archetype: every check passes or is regenerated within the attempt limit; no world returned that violates a guarantee",
+    "status": "partial",
+    "evidence": "Met for standard size with Lasius: 100/100 pass, 98 first attempt, 0 repairs. Not met for 'and size': compact and large maps were not swept."
+   },
+   {
+    "criterion": "AC3: rival spacing constants; queen start on walkable ground with at least the required good founding cells within the chapter's radius",
+    "status": "met",
+    "evidence": "Spacing (600 BU between rivals, 800 BU from the start, 200 BU from the edge, Formica at most 400 BU from an edge) holds on all 103 worlds. Start rule check plus a kernel walker reaching a diggable patch pass on all 103: every start had at least 3 good cells by walking within 250 BU, usually 8-200."
+   },
+   {
+    "criterion": "AC4: summed Tier 1 summer food supply meets the economy floor for the listed colony sizes (numbers per archetype)",
+    "status": "met",
+    "evidence": "The 300 BU and 900 BU floors are met on all 100 worlds; minimums per archetype are listed under verification. The finalize step tops up flowers or crumbs where a world falls short."
+   },
+   {
+    "criterion": "AC5: every food anchor reachable by a walker from the start (nav grid, micro-connections, climb routes), none inside a solid",
+    "status": "met",
+    "evidence": "Every anchor gets an access record (ground cell, or the foot of a walkable climb route), and anchors the final start cannot reach are dropped. Checked on every anchor of 103 worlds. A kernel field sample of at least -0.5 mm (not inside a solid) is checked on every anchor of the 3 always-on worlds and every 5th anchor in the sweep. An independent walker (outdoor's walkRoute) followed 115 of 115 flower routes."
+   },
+   {
+    "criterion": "AC6: fingerprints deterministic; total generation time within budget (report)",
+    "status": "partial",
+    "evidence": "Deterministic: the placers use only seeded per-step RNG streams, and identical results came from two separate processes. Time: about 4.7-6.4 s per standard world under load ~21, of which my steps are ~1.3-2.2 s. Not shown to fit 3000 ms Node idle."
+   },
+   {
+    "criterion": "Site-quality ruling: calibrate factors and thresholds to the distribution targets; test over 20 seeds per archetype",
+    "status": "partial",
+    "evidence": "Calibrated on final worlds and checked in the sweep; the maxima hold (excellent at most 0.8 %, good at most 8.7 %). The fair ~40 % target is not reached: fair is 59-81 % and poor 17-40 %, because open lawn must read fair and T1 maps have little cover. The founding module's live read-out uses different thresholds (see notes)."
+   },
+   {
+    "criterion": "Deliverable 1: food anchors by zone, season and kind, on points of interest, with renewal data the source system reads",
+    "status": "met",
+    "evidence": "Anchors carry a variant hint (initialState) plus a season mask from the catalogue window, so the source system reads renewal from SOURCE_CATALOGUE. Placed: flowers on nectar hosts, T1 honeydew films and T2 herd sites, extrafloral nectaries, elaiosome and grass seeds, crumb spots by benches, tables and bins with 1 protein per 4, sugar, interior points (counter, bread board, sugar bowl, fruit bowl, hob, table, pet bowl, bin), windfalls, prey patches and water spots."
+   },
+   {
+    "criterion": "Deliverable 2: plant host assignments for Tier 2",
+    "status": "met",
+    "evidence": "Tree branches get aphids at p 0.35, aphid hosts are topped up to at least 20, and PlantPlacement.hostPoiIds lists usable points whose route a walker follows."
+   },
+   {
+    "criterion": "Deliverable 3: creature territories and spawn tables per habitat",
+    "status": "met",
+    "evidence": "Territories (GDD 04 \u00a78.2 rules) for: springtail/mite with prey patches, aphids and aphid predators with herds, woodlice/millipedes, earthworms, snails, wolf and jumping spiders, ant-spider, antlion, centipede, rove beetle, fruit fly, fly larva and bird regions. Caps hold; ant predators stay at least 150 BU plus their radius from the start."
+   },
+   {
+    "criterion": "Deliverable 4: rival sites with spacing, species per habitat, per-profile suitability, data for pre-carving",
+    "status": "met",
+    "evidence": "Region roster weighted by zone area, at most one Formica, a conspecific first on naturalist and harsh. Per-species suitability maps are written to maps.suitability[rivalId]. RivalSite gives species and origin on soil; the nest template comes from RIVAL_SPECIES."
+   },
+   {
+    "criterion": "Deliverable 5 and addendum: start pose fixed; seed-1 e2e tests pass; walker sweep with always-on and long versions",
+    "status": "met",
+    "evidence": "stage1a e2e and verify pass. Always-on walker test on 3 worlds; long sweep on 100 worlds."
+   },
+   {
+    "criterion": "Deliverable 6: micro minimum, food near nest sites, economy floor, regeneration when unmet",
+    "status": "met",
+    "evidence": "The micro guarantee inserts kerb-gap, fence-gap or wall-crevice channels when short. v-food covers the 600/900 BU rules, 2 carbohydrate sources within 400 BU of each good site near the start, honeydew films near the start, and the economy floors. Failures regenerate the world."
+   },
+   {
+    "criterion": "Addendum: the three evaluator defects (rest across joints, terrain-hole voids, asphalt cracks at least 300 BU)",
+    "status": "met",
+    "evidence": "validate/evaluators.test.ts covers all three (3/3 pass)."
+   }
+  ],
+  "notDone": [
+   "The fair ~40 % share is not reached (it is 59-81 %), for the reason given under the site-quality ruling.",
+   "The static map and the live site read-out still use different scoring: GDD 04 weighted sum with 0.72 / 0.86 / 0.93, against GDD 06's geometric mean with SITE_WORD_Q 0.68 / 0.74 / 0.89 in src/sim/balance/founding.ts. Directions \u00a7K asks for the same factors and thresholds, but the founding files are not mine.",
+   "Generation time was not measured on an idle machine; the 3000 ms Node budget is unproven, and my steps add ~1.3-2.2 s under load.",
+   "Compact and large sizes were not swept.",
+   "The Camponotus kitchen-door 13 world needs repairs R2/R5 at attempt 8. Soil does not count as a founding patch for wood nesters, and the fixture has no decayed wood.",
+   "No bait anchors: bait comes at run time from the T2 human event (GDD 05 \u00a71.8). There are no carrion 'area' anchors either: runtime drops are already per zone.",
+   "Rival nests are not pre-carved and no chunk budget is reserved for them (GDD 04 Appendix F 7). Pre-carved chunks reach 480 of 800 on woodland, so 4 rivals plus 3 incipients at 30 chunks each could exceed it.",
+   "Edge-crossing GDD 04 Appendix E checks: E3 and E4 were run over 20 seeds per archetype, not 200. E8 (time) is partial. E10 is pipeline.test (another owner). E25 (Messor) is maps.test (another owner).",
+   "GDD 05 Appendix E checks that need other modules: E21 and E22 (agent budget, herd occupancy) need rivals and ecology-plants, using my hosts and rival sites; E23 needs rivals. GDD 05 \u00a71.3 'every good site has 2 carbohydrate sources within 400 BU' is enforced only for good sites near the start; across the whole map it is not measured."
+  ],
+  "contractChanges": [
+   "src/sim/types/world.ts: PlantPlacement gains optional hostPoiIds?: number[] (usable host POIs whose climb route a walker follows).",
+   "src/worldgen/tuning/pipeline.ts: MICRO gains crackMinSlotBu: 300 (additive).",
+   "src/worldgen/tuning/maps.ts SUIT: values changed (good 0.6 -> 0.86, fair 0.4 -> 0.72, coverLitter 0.6 -> 0.5, coverSward 0.4 -> 0.15) and new keys added (excellent, coverBeside, besideCells, litterMin, coverBare). This is the calibration edit the spec authorised outside my folder; no renames or removals."
+  ],
+  "needsFromOthers": [
+   "worldgen-fixes (maps.verify.test.ts, 'Messor suitability rises next to seed anchors'): generate the base world with the same module set as the comparison run (`report(...)` -> `generateWorldReport(params, { modules: [] })`). The default modules now include populate, whose seed-head anchors already saturate fSpecial near the chosen cell.",
+   "worldgen-fixes (src/worldgen/testing/walker.ts): replace Math.hypot; the layering test flags it.",
+   "worldgen-fixes (pipeline.test.ts, the wood-nester case): the fixture premise ('no catalogue wood') no longer holds; it needs a new fixture, as their spec already notes.",
+   "founding owner: align the live site-assessment words with the static map (SUIT.fair / good / excellent, or a shared table) as directions \u00a7K requires; today they differ.",
+   "rivals owner: pre-carve rival nests from placements.rivalSites (template from RIVAL_SPECIES.nestTemplate) and reserve the pre-carve chunk budget.",
+   "creatures and ecology-plants owners: consume placements.territories, PlantPlacement.hostFlags and hostPoiIds, and the aphid-herd anchors."
+  ],
+  "notesForIntegrator": [
+   "createGame.ts consumes world.queenStart directly (walkerPlace from start.pos) and has no fallback that overrides it, so no change was needed there.",
+   "Edit outside my paths: src/sim/testing/e2e/colonyScenario.ts scenarioSource now picks the cheat-spawned 'sugary-spill' instead of the first alive source. Generated worlds now have food anchors, so the old 'first source' rule sent the scripted foragers to a flower across the map; this was the one remaining e2e failure.",
+   "Precedence decisions:",
+   "  Directions \u00a7K overrides GDD 04 \u00a712.2 thresholds and the open-lawn rating.",
+   "  The start rule combines GDD 04 \u00a712.5's score with directions \u00a7K and the addendum: natural zones only, fair or worse, at least 3 good sites by walking with queen clearance, a diggable patch within 60 BU, incipient rivals 300-800 BU away.",
+   "  The GDD 05 '2 films within 600 BU' rule is enforced only where plants grow within reach.",
+   "  Incipient-rival shortfalls are noted, not failed.",
+   "  Elaiosome seeds follow the catalogue window (days 3-9, spring plus early summer).",
+   "The R4 repair previously carved a buried capsule whose mouths were closed; it and the micro guarantee now share populate/channel.ts, with mouths at the ground.",
+   "Probe scripts used for calibration and timing are in test-output/wgl/ (git-ignored)."
+  ]
+ },
+ "review": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the task spec, design seed, architecture, contracts guidance and tech-stack gotchas; read GDD 04 \u00a74, \u00a76, \u00a78, \u00a712 and App. E/F, GDD 05 \u00a71.2-1.3, \u00a73.1 and App. E, registry C10/C13 and directions \u00a7K",
+   "Read every file in src/worldgen/populate/**, maps/start.ts, maps/suitability.ts, validate/** and the SUIT block in tuning/maps.ts; also how sim/ecology/sources/anchors.ts and season.ts consume the anchors",
+   "npm run typecheck: none of the owned paths has an error. The only error left is src/sim/ecology/creatures/__dbg/dbg.test.ts, which is another engineer's file",
+   "npx vitest run src/worldgen/populate/populate.test.ts src/worldgen/validate/evaluators.test.ts: 13/13 pass in about 25 s",
+   "Generated 4 exploratory worlds (compact, large, harsh compact, gentle) and broke down the economy offer per variant, the zones of top-up anchors and the per-step timings. The timings came from two runs of suburban-garden #1 at load average about 16; the fingerprint was identical across those runs",
+   "New file populate.verify.test.ts, always-on part (woodland-edge #1 generated twice): determinism, start-pose extras and anchor integrity pass; 3 FINDING tests fail as intended",
+   "FOUNDRESS_LONG=1, the long part of populate.verify.test.ts run once: 45 worlds (5 archetypes x {compact harsh, large naturalist, standard gentle with 0 rivals} x seeds 201-203). All 45 pass validation, the start rule and the walk to a diggable site, with 0 repairs. The sustained economy offer is printed for each world",
+   "Checked the createGame/colonyScenario claim by reading the code only; I did not re-run the stage1a end-to-end tests"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "The C13 economy floor is met only because one-time stock is counted as daily supply",
+    "where": "src/worldgen/populate/economy.ts dayOffer (stock + refillPerGd per anchor); finalize.ts finalizeFood economy loop; tuning.ts ECONOMY_FLOORS",
+    "detail": "dayOffer adds each anchor's whole mean stock to one day of refill. A crumb-starch cluster (about 15.75 C) therefore counts as 15.75 C per day, although T1 re-places only 30 % of consumed clusters daily. A sugar patch has no T1 renewal at all. Registry C13 is a loads-per-game-day budget: the full need is given in loads/gd, and T1 at N 50 is '2 flowers, sugar and crumbs \u2248 15 C' per day. finalizeFood tops up until this stock-inclusive number passes, so the guarantee is satisfied by construction. Reproduction: npx vitest run src/worldgen/populate/populate.verify.test.ts, test 'FINDING: the sustained per-day offer...'. On woodland-edge #1 the counted offer within 300 BU is 47.4 C / 7.3 P but the sustained offer (pool refill + 30 % crumb re-placement + carrion drops) is 14.3 C / 5.0 P. Within 900 BU it is 51.0 C counted against 17.0 C sustained, while the floor is 45 C. In the long run (45 worlds, compact/large/gentle/harsh), the sustained offer within 300 BU is below 15 C on 37 worlds and below 5 P on 22, with a minimum of 5.3 C / 3.3 P. So acceptance 4 is not demonstrated. Either count flows only, as C13 does, and top up with renewable sources, or get a design ruling that stock counts. In the second case, delete that test."
+   },
+   {
+    "severity": "major",
+    "title": "Guarantee top-ups put crumb clusters in forest, where the GDD places no crumbs",
+    "where": "src/worldgen/populate/finalize.ts addGround (any non-interior walkable cell) and addCarb's fallback to it",
+    "detail": "addGround picks any walkable non-interior cell between 60 and 280 BU from the start, including forest and garden-bed. GDD 05 \u00a71.2 lists crumb-starch and crumb-protein only for pavement, asphalt, sand, interior and lawn (picnic), and the \u00a71.3 T1 crumb density for forest is 0. On woodland-edge #1 the only food within 300 BU of the start is 3 top-up crumb-starch clusters lying in the forest. That makes the woodland start's food synthetic and conflicts with deliverable 1 (food by zone) and the naturalistic brief. Reproduction: test 'FINDING: guarantee top-up crumbs lie only in zones...' in populate.verify.test.ts, which receives ['crumb-starch full top-up in forest' x3]. Suggested fix: top up with natural food for the zone (flowers or honeydew films under plants, an extra T1 carrion or protein source within the GDD rules), or restrict crumbs to the zones the GDD lists."
+   },
+   {
+    "severity": "major",
+    "title": "Site-class shares miss the directions \u00a7K 'fair about 40 %' target (acknowledged; needs a design ruling)",
+    "where": "src/worldgen/tuning/maps.ts SUIT (fair 0.72 / good 0.86 / excellent 0.93); src/worldgen/maps/suitability.ts",
+    "detail": "The implementer's sweep reports fair at 59-81 % and poor at 17-40 %. The excellent and good maxima hold. Directions \u00a7K asks for both 'open mown lawn is fair' and 'fair about 40 %'. On lawn-dominated Tier 1 maps these two cannot both hold, because open lawn alone is far more than 40 % of diggable cells. The criterion is therefore unmet as written. This is a contradiction inside directions \u00a7K, not an implementation error, and should go to the design owner. Separately, the live read-out (src/sim/balance/founding.ts SITE_WORD_Q 0.68 / 0.74 / 0.89, geometric mean) still differs from the static map, which \u00a7K forbids; task #110 (fnd-review) is open for that."
+   },
+   {
+    "severity": "minor",
+    "title": "Tier 1 flowers get a season mask without winter; the catalogue's T1 row says 'always'",
+    "where": "src/worldgen/populate/common.ts addAnchor / seasonMaskOf (reads SOURCE_CATALOGUE[v].window, ignoring the t1 override)",
+    "detail": "Flower anchors get seasonMask 0b0111 from the base window [3, 18]. The catalogue row has t1: { window: null }, which means always open in T1. sim/ecology/sources/season.ts isInSeason ANDs the anchor mask before checking the window, so T1 flowers close in winter, contrary to GDD 05 \u00a71.2 ('T1: always'). Reproduction: test 'FINDING: Tier 1 flowers are open all year...' (flower 0 mask 7). Fix: derive the mask from defAt(variant, ECOLOGY_TIER).window."
+   },
+   {
+    "severity": "minor",
+    "title": "The start-rule check is weaker than the start placer",
+    "where": "src/worldgen/maps/start.ts checkStartRule and hazardFree",
+    "detail": "checkStartRule, which v-start uses, does not re-check the 300 BU map-edge rule; only candidates() applies it. hazardFree tests ant-predator territories only for the centre-in-radius case. START_RULE.hazardClearBu (40 BU) is documented as applying to 'water body, terrain hole, rival or predator territory', but it is not added for territories. Neither gap shows up on the generated worlds today, since territories keep 150 BU + radius from the provisional start. Still, v-start would not catch a later start move to the edge or next to a predator."
+   },
+   {
+    "severity": "minor",
+    "title": "Outdoor crumb spots have no host object, so outdoor bins never get fruit flies",
+    "where": "src/worldgen/populate/food.ts crumbsAndSugar (crumb(pos) at benches, tables and bins without an objectId); territories.ts withAnchors",
+    "detail": "Spot crumbs around benches, tables and litter bins are recorded with hostObjectId -1. withAnchors adds fruit-fly territories only for crumbs with hostObjectId >= 0, so outdoor bins get none. GDD 04 \u00a78.2 lists bins for fly-larva and fruit-fly. Pass the object id to crumb()."
+   },
+   {
+    "severity": "minor",
+    "title": "placeFilm sets the aphid flag even when the film is later rolled back or moved",
+    "where": "src/worldgen/populate/food.ts placeFilm; finalize.ts honeydewNearStart (pops the anchor, removes the far film)",
+    "detail": "placeFilm adds HOST_BIT.aphid to the plant before the caller checks the distance. If the anchor is then popped, or a far film is removed, the plant stays an aphid host with no film. The aphid-host count can also exceed the GDD 05 cap of 90; populate.test.ts tolerates this with '90 + trees + 60'. The effect is small, but T2 ecology will treat these plants as herd hosts."
+   },
+   {
+    "severity": "minor",
+    "title": "Site-food rule enforced only near the start; constants left unused",
+    "where": "src/worldgen/populate/tuning.ts SITE_FOOD.mapShareMin, RIVAL_NEST_CHUNKS; finalize.ts siteFoodMin",
+    "detail": "GDD 05 \u00a71.3 requires that 'every candidate founding site rated Good or better has >= 2 C-sources and >= 1 prey patch or carcass-capable zone within 400 BU'. It is checked only for good sites within 250 BU of the start, and the prey/carcass part is not checked. mapShareMin (0.75) and RIVAL_NEST_CHUNKS (30) are defined but never read. The implementer acknowledged this."
+   },
+   {
+    "severity": "minor",
+    "title": "Generation-time budget unproven; the populate steps are about a third of a world",
+    "where": "src/worldgen/populate/** (resources, rivals, re-derive, start, validate)",
+    "detail": "In my two timing runs of suburban-garden #1 standard (load average about 16), resources took 687-1177 ms, rivals 220-444, rederive 297-650, start 402-797 and validate 197-270. Totals were 5.9-7.6 s against the GDD 04 WORLDGEN_TIME_MS of 3000 ms in Node (App. E 8). The measurements are noisy under load, but finalize recomputes siteFoodMin up to 24 times, and each call runs one Dijkstra per carbohydrate anchor and rebuilds portals. This is the first place to look if the budget is missed on an idle machine."
+   },
+   {
+    "severity": "minor",
+    "title": "Usefulness reason mislabelled when the capped search stops",
+    "where": "src/worldgen/validate/micro.ts evaluateMicro",
+    "detail": "navDistanceTo is capped at maxBu = limit + 1. A long detour therefore returns Infinity and is labelled 'only path' instead of 'shortcut'. The useful flag is still correct; only the reason text, shown in diagnostics, is wrong."
+   },
+   {
+    "severity": "minor",
+    "title": "Stale reference and files touched outside the owned paths",
+    "where": "src/worldgen/maps/suitability.ts header comment; src/worldgen/tuning/pipeline.ts; src/sim/testing/e2e/colonyScenario.ts",
+    "detail": "The suitability.ts header cites populate/calibration.test.ts, which does not exist; the calibration tests are in populate.test.ts and validate/sweep.test.ts. MICRO.crackMinSlotBu (additive) and the one-line scenarioSource change in colonyScenario.ts are outside the owned paths. Both were reported by the implementer and look harmless; I did not re-run the stage1a end-to-end tests."
+   }
+  ],
+  "testsAdded": [
+   "/home/user/foundress/src/worldgen/populate/populate.verify.test.ts \u2014 always-on (woodland-edge #1, generated twice, about 20 s): 4 passing regression tests and 3 failing FINDING tests. Passing: determinism of fingerprint, start pose, placements and micro; start >= 300 BU from the edge, flood risk <= 0.3, ant-predator territories and water bodies beyond radius + 40 BU; every anchor's host exists and its mask is non-empty; the stock-inclusive floors (reproducing the implementer's claim). Failing on purpose: sustained economy floor, top-up crumbs in forest, T1 flower winter mask. The FOUNDRESS_LONG=1 block (15 cases x 3 seeds: compact harsh, large naturalist, standard gentle with 0 rivals, on all 5 Tier 1 archetypes) was run once: all 45 worlds validate on the first or second attempt with 0 repairs, and the start rule and the walk to a dig site hold. This closes the implementer's 'compact and large not swept' gap for AC2."
+  ]
+ }
+}

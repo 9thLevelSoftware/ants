@@ -1,0 +1,221 @@
+{
+ "implReport": {
+  "summary": "The play views now work on top of the real renderers: possession, observer and colony view, picking, markers and dig plans.\n\n**Tunnel shot (the gate defect).** It is fixed and verified in the browser. In the queen-sized 1 BU shaft the camera now sits 1.25\u20132.5 L behind the queen. She is drawn at full opacity, the walls are not dithered away and no sky shows. Before, the camera sat 0.23 L away with a dithered view of the sky.\n\nThere were four root causes:\n- The carve field's cavity distance saturates at 0.5 BU. A camera collision sphere of 0.5 BU (the queen's) therefore never fits inside a tunnel. Collision traces now use at most 0.35 BU; the GDD's clearance guarantee (f \u2265 0.5 R) is unchanged.\n- One straight trace from the pivot hit the wall at every bend. The tunnel boom now checks collision along the ant's own trail, keeps the camera near the tunnel's middle, pushes trail points off ledges and prefers a spot that still sees the ant (never closer than 1.2 L).\n- The 0.8 L occlusion capsule was wider than the shaft. It is now a narrow cone that ends 0.5 L short of the ant (one-line edit in the nest wall shader).\n- `crevice` forced that cutaway everywhere. It now does so only above ground.\n\n**Other camera additions:**\n- A rate limiter (20 L/s relative to the pivot, except where the clearance guard must act) stops frame-to-frame jumps.\n- A squeezed orbit in a low chamber leans on the ant's trail behind it.\n- Pinch fallback (camera over the ant) and an optional ceiling-comfort mode (default off).\n- The camera snaps behind the ant after a teleport or a jump of more than 3 L.\n- When an ant is possessed inside a tunnel with no trail yet, the camera picks the freest direction behind her.\n- A view hand-over whose straight path would pass through soil uses a dip-fade instead of a flight.\n\n**Observer.** Hover highlight under the cursor; click to select (repeat clicks cycle overlapping ants); click-hold, double-click or E to possess; F to follow an ant or a creature; right-click to deselect. The HUD can read the selection through `game.viewsLayer.inspectTarget` (also `hoverTarget`); the shape is `{kind, id, pos}`.\n\n**Colony view.**\n- The slice can now reach the deepest chamber.\n- X-ray shows ants and brood as dots and labels each chamber with its type.\n- Marker tool: place, move (Shift+click), delete, undo and cap checks for forage, avoid, rally, move-brood and move-queen.\n- Dig planner: Chamber, Tunnel, Shaft and Entrance templates; S/M/L size; 15\u00b0 rotation; anchoring on the cut face or a wall; the nest module's own validation shown live; warnings need a second click; sends `planDig`.\n- Ghosts are drawn by `src/render/fx/markers`: dashed yellow when valid, amber when there are warnings, red cross-hatch with the reason text when refused. Existing plans are outlined by status.\n\n**End-to-end script.** `tests/e2e/views.mjs` passes with no console errors and 15 screenshots, all looked at. It runs on the test world (flat terrain with the standard wall, table and small nest), not a generated world.\n\n**Full test suite.** It did not finish within 50 minutes at load average ~20. All failures it printed before timing out are outside my paths.",
+  "filesTouched": [
+   "/home/user/foundress/src/render/camera/thirdPersonRig.ts",
+   "/home/user/foundress/src/render/camera/boomPath.ts",
+   "/home/user/foundress/src/render/camera/motionGuard.ts",
+   "/home/user/foundress/src/render/camera/pinch.ts",
+   "/home/user/foundress/src/render/camera/fade.ts",
+   "/home/user/foundress/src/render/camera/constants.ts",
+   "/home/user/foundress/src/render/camera/possessionStates.ts",
+   "/home/user/foundress/src/render/camera/types.ts",
+   "/home/user/foundress/src/render/camera/retune.test.ts",
+   "/home/user/foundress/src/game/views/viewDirector.ts",
+   "/home/user/foundress/src/game/views/viewsLayer.ts",
+   "/home/user/foundress/src/game/views/viewsState.ts",
+   "/home/user/foundress/src/game/views/observerControl.ts",
+   "/home/user/foundress/src/game/views/pointer.ts",
+   "/home/user/foundress/src/game/views/debug.ts",
+   "/home/user/foundress/src/game/views/picking/pickMath.ts",
+   "/home/user/foundress/src/game/views/picking/entityPick.ts",
+   "/home/user/foundress/src/game/views/picking/scenePick.ts",
+   "/home/user/foundress/src/game/views/picking/picking.test.ts",
+   "/home/user/foundress/src/game/views/colony/markerTool.ts",
+   "/home/user/foundress/src/game/views/colony/digPlanner.ts",
+   "/home/user/foundress/src/game/views/colony/colonyControl.ts",
+   "/home/user/foundress/src/game/views/colony/markerScene.ts",
+   "/home/user/foundress/src/game/views/colony/reasons.ts",
+   "/home/user/foundress/src/game/views/colony/colonyTools.test.ts",
+   "/home/user/foundress/src/game/views/colony/markerScene.test.ts",
+   "/home/user/foundress/src/game/views/possessionCamera.test.ts",
+   "/home/user/foundress/src/game/views/handover.test.ts",
+   "/home/user/foundress/src/game/views/testing/nestWalk.ts",
+   "/home/user/foundress/src/render/fx/markers/MarkerRenderer.ts",
+   "/home/user/foundress/src/render/fx/markers/shapes.ts",
+   "/home/user/foundress/src/render/fx/markers/palette.ts",
+   "/home/user/foundress/tests/e2e/views.mjs",
+   "/home/user/foundress/src/game/Game.ts (minimal, reported)",
+   "/home/user/foundress/src/game/session.ts (one line, reported)",
+   "/home/user/foundress/src/game/debug/debugApi.ts (two lines, reported)",
+   "/home/user/foundress/src/render/nest/materials/glsl.ts (wall dither cone, allowed by the addendum)",
+   "/home/user/foundress/src/render/nest/NestRenderer.ts (doc comment only)",
+   "/home/user/foundress/src/render/nest/materials/nestUniforms.ts (doc comment only)"
+  ],
+  "verification": [
+   "npm run typecheck: 0 errors in the whole project at the end. Earlier runs showed transient errors only in others' work in progress (src/sim/colony/founding/system.ts, Game.ts title wiring), never in my paths.",
+   "npx vitest run src/render/camera src/game/views: 11 files, 69 tests passed.",
+   "npx vitest run src/game src/render/camera src/render/fx src/render/nest src/render/slots: 408 of 409 passed. The one failure is render-nest's chunkMeshManager.verify timing test (13.3 ms against 8 at load ~20); the Stage 1A gate report already lists it as load-dependent.",
+   "Negative control for the new teleport test: with the trail rebuild reduced to straight back only, the 'possessing an ant that stands in a tunnel' test fails (8.16 < 8.56 mm); with the fan it passes.",
+   "Full e2e: node tools/harness/play.mjs --root . --query \"test=1&quality=test\" --script tests/e2e/views.mjs --out test-output/views gave ok:true, errors [], 15 screenshots, 834 s. All looked at: 01 open ground, 02 wall, 03 ceiling (frame-locked), 03b ceiling with comfort, 04 tunnel (queen from behind at 1.5 L, solid walls, no sky), 04b high-quality tunnel, 05 chamber, 06 observer following the queen with a highlighted hovered worker, 07 slice, 08 x-ray with labels and ant dots, 08b slice with the forage ring, 09 amber dig ghost on the blind-branch tunnel wall with warning text, 10 placed plan outline, 11 red cross-hatched ghost reading 'Start from a tunnel or chamber of this nest', 12 high-quality colony slice.",
+   "Classic build: vite build --mode classic --outDir test-output/views-classic, then the harness --static --mount /games/foundress/v1/ with VIEWS_QUICK=1 gave ok:true, 7 screenshots (forage-marker shot looked at).",
+   "In-browser per-tick camera sampling (__game.views.walk) on open ground, wall, ceiling, shaft, chamber and after a colony double-click possession: minF \u2265 clearance in every walk, 0 guarded frames, maxOccludedFor 0.",
+   "Node scripted queen walk (surface -> deepest chamber -> back, real kernel field and test nest): f \u2265 0.5 R on all frames; relative motion \u2264 20 L/s except guarded frames (< 3 %, each < 1.5 L); median tunnel distance > 1.5 L; occlusion \u2264 0.5 s.",
+   "Full suite (npx vitest run): did not finish within 3000 s at load ~20. Failing files printed before the timeout, all outside my paths: worldgen terrain/pipeline/kernel/maps(.verify), sim/testing/e2e/stage1a.verify, sim/kernel.perf, sim/ants/actions.verify, sim/ants/behaviourRunner, zz_dbg (empty)."
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. typecheck clean; unit tests green (state switching, picking maths, plan ghost geometry, transition blending)",
+    "status": "met",
+    "evidence": "Typecheck 0 errors. Tests: retune.test.ts (state switching/hold, cone fade, rule 4 only above ground, up-vector timing E14, pinch, comfort, path boom, teleport snap), picking.test.ts (rays, sphere/ellipsoid hits, 12 px inflation, overlap cycling, entity pick on a sim), markerScene.test.ts (ghost outline from plan geometry, fill volumes, patterns, marker rings), handover.test.ts (transition kinds and timings, colony rise and descent, dip through solid, photo keeps the pose), colonyTools.test.ts, possessionCamera.test.ts. Only failure in my test run is render-nest's load-dependent chunkMeshManager timing test."
+   },
+   {
+    "criterion": "2. e2e passes with no console errors; screenshots show possession on open ground, wall, ceiling, in a tunnel and a chamber with the camera never inside solid; observer following an ant with hover highlight; colony slice and x-ray, a placed forage marker, a dig-plan ghost on a tunnel wall with validation feedback",
+    "status": "met",
+    "evidence": "test-output/views/full.out ok:true, errors []; 15 screenshots looked at (listed in verification). The clearance check f \u2265 0.5 R runs on every shot and every walk tick. Shots are on the test world (flat terrain plus the test wall, table and small nest), not a generated world."
+   },
+   {
+    "criterion": "3. Scripted walk surface -> deepest chamber -> back: camera centre never inside solid (every frame) and never jumps more than the allowed amount",
+    "status": "met",
+    "evidence": "possessionCamera.test.ts walks the queen through the real test nest with the real walker and field, through the ViewDirector, checking every frame. Allowed jump: camera motion relative to the pivot \u2264 CAM_MAX_REL_SPEED_L\u00b7L\u00b7dt (20 L/s); the only exceptions are clearance-guard frames, which must be < 3 % and < 1.5 L each. Worker and table-climb walks are also covered. The browser walk() samples showed the same with 0 guarded ticks. The full walk runs in Node, not in the browser."
+   },
+   {
+    "criterion": "4. Placing a dig plan through the colony view creates it in the sim; an invalid anchor shows the reason and creates nothing",
+    "status": "met",
+    "evidence": "e2e: plan-created {id 30, status queued, source player, kind chamber} after the warning confirm click; plan-refused {codes [anchor-not-in-nest], reason 'Start from a tunnel or chamber of this nest'} with digPlans count unchanged. Also unit-tested in colonyTools.test.ts."
+   },
+   {
+    "criterion": "5. Clicking an ant in observer view and holding (or the possess key) possesses it; Tab cycles in the documented order",
+    "status": "partial",
+    "evidence": "The E key through the real input path possessed the hovered ant (possess-E 28). The click-hold path possessed through __game.views.possessAt, which runs the same pick and possess code; a real held mouse button was not driven in the harness (the 400 ms hold binding belongs to the input module). Colony double-click possession works. Tab: six presses through Game.cycle in one frame (views.cycle) matched the documented order (nearest first from the current ant, frozen list, wraps); one real Tab key press also possessed another ant. Six real key presses could not fit in TAB_LIST_TTL_S (2 s) because software-GL frames take seconds."
+   },
+   {
+    "criterion": "6. Works in test quality and in high; works in the classic single-file build",
+    "status": "met",
+    "evidence": "High-quality shots 04b-high-tunnel and 12-high-colony-slice, no errors. The classic build served from /games/foundress/v1/ passed the quick subset (ok:true)."
+   }
+  ],
+  "notDone": [
+   "Tunnel plans with one bend (Shift+click middle point) are not implemented: tunnels are straight, start click then end click. Shaft length changes in 2 BU steps (Shift+wheel) rather than by dragging.",
+   "Marker radius is set with Shift+wheel or the API, not by dragging; moving a marker is select then Shift+click. The marker palette UI is ui-panels' (Stage 2); tools are reachable by Shift+1..7, the API and `game.viewsLayer.selectTool()`.",
+   "Editing a placed plan (priority, pause, resume) has no view interaction: Delete cancels it, and priority can only be chosen before placing.",
+   "Ceiling comfort is a rig option (default off) but not a persisted setting: the settings schema is not mine.",
+   "Terrain and primitive occlusion dithering is not done (render-integration's, per the addendum). Only nest walls use the new cone.",
+   "In x-ray, chambers are labelled with their type as text, not glyphs.",
+   "GDD 08 E18 (200 ms reduced-motion crossfade) is not met: GDD 01 \u00a72, which owns the camera, says 0.3 s and that is what is implemented.",
+   "GDD 08 E11 (alert click-through moves the camera to a chamber) needs ui-panels plus a views camera call; not done.",
+   "The full vitest suite could not complete under the machine load."
+  ],
+  "contractChanges": [
+   "No changes to src/sim/types/** or src/core/**.",
+   "src/render/camera/types.ts (owned by this task): FadeOutput gains an optional `coneStart`, and capsuleA/capsuleB/capsuleRadius now describe a cone from the camera to a point 0.5 L short of the thorax. Field names are unchanged, so nestSlot needed no edit.",
+   "ThirdPersonOutput gains pinch, occludedFor, guarded and base; ThirdPersonOptions gains ceilingComfort; ThirdPersonEnv gains an optional field (f(p)); new rig getters collisionRadiusMm and clearanceMm.",
+   "ViewWorld gains an optional field; ViewSubject gains an optional flying (T2 hook); ViewDirector gains colonyCapture; new export handoverPlan.",
+   "Debug API: new `__game.views.*` (pointer, pick, project, click, possessAt, follow, select, tool, planner, hoverPlan, rotate, resize, radius, cancel, deleteSelected, undo, colonyCamera, cameraOptions, possession, walk, cycle, state, markers, inspectTarget)."
+  ],
+  "needsFromOthers": [
+   "ui-hud: read the inspect and hover targets from `game.viewsLayer.inspectTarget` and `game.viewsLayer.hoverTarget` (PickTarget `{kind: 'ant'|'brood'|'item'|'source'|'creature'|'chamber'|'entrance', id, pos}`). game.hover and game.inspect still carry the renderer highlights.",
+   "ui-panels: the marker palette should call `game.viewsLayer.selectTool(tool)`, `viewsLayer.tools.markers.setRadius()` and `viewsLayer.tools.planner.{setTemplate, chamberType, size, rotate, resize, priority}`, and show `viewsLayer.state.message`.",
+   "Settings owner: add a camera setting `ceilingComfort` and pass it to `session.views.third.setOptions({ ceilingComfort })`.",
+   "render-integration: terrain and primitive occlusion dithering should use the same cone (FadeOutput capsuleA/capsuleB/capsuleRadius/coneStart). The debug fx-slot renderer draws its own marker discs under my rings (the grey/blue disc in the colony shots). DoF focus changes should be instant under reduced motion (GDD 08 \u00a712) in app.setFocus.",
+   "nestops: validatePlanImpl takes 18\u201338 ms per anchor change in the browser under load (GDD 03 \u00a77.3 says \u2264 2 ms per pointer move). The planner caches it per anchor voxel, yaw, size and tick.",
+   "Session owner (T2): set ViewSubject.flying for alates in flight so the `flight` camera state engages."
+  ],
+  "notesForIntegrator": [
+   "Edits outside my paths, all minimal:\n- src/game/Game.ts: import ViewsLayer; add `readonly viewsLayer = new ViewsLayer(this)`; `viewsLayer.attach(canvas, scene, registry)` in boot; `viewsLayer.reset()` in startPlaying and endGame; `this.viewsLayer.frame(s, live, nowS)` at the top of renderScene (the `live` line moved above currentSubject); Esc in menuPressed first calls `viewsLayer.consumeEscape(s)`; `viewsLayer.dispose()` in dispose.\n- src/game/session.ts: ViewWorld gets `field: (x, y, z) => sim.field.sampleXYZ(x, y, z)`.\n- src/game/debug/debugApi.ts: `views: buildViewsDebug(game)`.\n- src/render/nest/materials/glsl.ts: the occlusion test is a cone (t strictly inside (0, 1), radius tapered by NEST_OCC_CONE, imported from the camera constants).",
+   "Deviation note for GDD 01 \u00a76.5 (addendum ruling):\n- Rule 3: the 0.8 L capsule becomes a cone from the camera (radius 0.35 \u00d7 0.35 L) to 0.5 L short of the thorax (radius 0.35 L), so only walls between camera and ant are dithered.\n- Rule 4: `crevice` forces the cutaway and the 0.5 opacity cap only above ground.\n- No sky backdrop was needed: with the camera on the trail the shaft is never dithered (04 shots).",
+   "Other camera deviations (GDD 01 \u00a76.1\u20136.4):\n- Collision sphere capped at 0.35 BU because the cavity field saturates at 0.5 BU; clearance guarantee unchanged.\n- crevice distance: 1.8 L default, 1.2\u20132.5 L zoom (GDD: 1.2 L fixed).\n- The tunnel boom is checked along the trail with a mid-gap raise, ledge relaxation and a line-of-sight preference (\u2265 1.2 L).\n- Pull-in is rate-limited to 20 L/s unless the clearance guard must act (GDD: immediate).\n- A squeezed orbit blends toward the trail (path assist).\n- Snap behind the ant after a jump of more than 3 L.\n- View hand-overs whose path crosses solid dip-fade (GDD: colony rise/descent is a flight).",
+   "Contradiction recorded: GDD 08 \u00a72.4 and E18 say reduced-motion camera transitions are a 200 ms crossfade; GDD 01 \u00a72 (camera owner) says 0.3 s. Followed GDD 01 per the precedence rule.",
+   "The entrance tool uses the dig planner (`planDig` kind entrance, GDD 03 \u00a714.2) and places no 'entrance' marker, so no marker without a plan is left behind.",
+   "GDD Appendix E checks:\n- Covered here: GDD 01 E12 (worker in a 2 BU tunnel, 60 frames at 60 fps, unit test), E13 (ground -> table leg -> underside -> top, comfort on and off; the climb takes ~6 s, not 60 s), E14 (up-vector timing), E20 (Tab order, e2e).\n- Existing scripts, not rerun here: E21, E22, E23, E24 (flow.mjs/smoke.mjs). Game.menuPressed now lets the colony tool consume Esc first, but with no tool active the colony toggle is unchanged.\n- Need other modules: GDD 08 E11 (alerts/ui-panels), E17 (creatures).\n- GDD 03 App. E validation checks belong to nestops; the views only display them.",
+   "Load notes: SwiftShader frames took 3\u201311 s at load ~20. The full views e2e takes ~14 min (VIEWS_SKIP_HIGH=1 shortens it; VIEWS_ONLY=wall,ceiling,tunnel,chamber,observer,colony picks sections; VIEWS_QUICK=1 is the classic-build subset). The planner validation-time test asserts \u2264 50 ms, skips under heavy load, and asserts 2 ms only with FOUNDRESS_PERF_STRICT=1.",
+   "thirdPersonRig.ts is 470 lines, over the 400-line target; the motion guard, boom path and pinch/comfort are already split out."
+  ]
+ },
+ "review": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the task spec views.md, design seed, architecture, contracts guidance and tech-stack; GDD 01 \u00a71.3, \u00a72, \u00a73, \u00a76 and \u00a79 plus App. E; GDD 08 \u00a74.3 and App. E; GDD 03 \u00a77 and \u00a714.2; the gate-1A report \u00a75 and \u00a77; spike-nest \u00a75 and \u00a76",
+   "Read all the code in the owned paths: src/render/camera/** (thirdPersonRig, boomPath, motionGuard, pinch, fade, envState, possessionStates, constants, types, breadcrumbs, observerRig, colonyRig, transition), src/game/views/** (viewDirector, viewsLayer, observerControl, pointer, debug, picking/*, colony/*, testing/nestWalk), src/render/fx/markers/** and tests/e2e/views.mjs. Also read the reported edits in Game.ts and the nest glsl cone",
+   "npm run typecheck: 0 errors in the owned paths, including my new test file. The one error elsewhere is src/render/world/boundary/boundary.verify.test.ts (`process`), which is another engineer's work",
+   "npx vitest run src/render/camera src/game/views src/render/fx/markers before my additions: 11 files, 69 tests passed",
+   "After adding views.verify.test.ts: 12 files, 79 tests. 73 pass and 6 fail. All 6 failures are in my new file and each shows a defect",
+   "Timing of the possession rig over the 698-frame queen nest walk in Node, 3 runs: median 0.06\u20130.08 ms per frame, p95 \u2264 0.73 ms. No performance problem",
+   "Full e2e on the dev server: node tools/harness/play.mjs --root . --query 'test=1&quality=test' --script tests/e2e/views.mjs --out test-output/views-review gave ok:true, errors [], 15 screenshots, all looked at. Every shot has the new founding intro card (another task's work) covering the middle of the frame, so the subject cannot be seen",
+   "Classic build: vite build --mode classic --outDir test-output/views-review-classic succeeded",
+   "Review copy of the e2e (test-output/views-review2/review.mjs) that sends `openingSkipIntro` after newGame and also tries a real Playwright mouse hold. Run with --static --mount /games/foundress/v1/ on the classic build: ok:true, errors [], 13 screenshots, all looked at",
+   "What those screenshots show: 01 the queen from behind on open ground; 02 on the wall; 03 on the ceiling and 03b with ceiling comfort; 04 the queen from behind at 1.75 L in the 1 BU shaft with solid walls and no sky (the gate defect is fixed); 05 the chamber; 06 the hover highlight and the HUD inspect card fed by viewsLayer.inspectTarget; 07 the slice; 08 the x-ray with chamber labels and ant dots; 08b the forage ring; 09 the amber warning ghost with its text; 10 the placed plan; 11 the red cross-hatched ghost with 'Start from a tunnel or chamber of this nest'",
+   "A dev-server run of the review script failed at load: src/render/world/boundary/skirt.ts does not export makeSkirtHeight. This is another engineer's work in progress, so I used the classic build snapshot instead",
+   "The real browser mouse hold did not possess the ant, because test-mode renderFrame() passes no live input to the views layer. So this attempt proves nothing either way. A unit test that drives the real InputState through observerInput confirms the click-hold path"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Observer follow camera goes inside solid in the queen's shaft (GDD 6.1/6.6)",
+    "where": "src/render/camera/observerRig.ts:160-169 (updateFollow)",
+    "detail": "The follow centre is 0.5 L above the subject. In a queen-sized 1 BU shaft that point lies inside the soil. The trace from it then returns 0, so followDist becomes 0 and the camera sits at the centre, inside solid. Reproduce with views.verify.test.ts 'the observer FOLLOWING the queen down the shaft\u2026': it walks the queen down the test nest with the real field. Three of 698 frames fail, the worst at f = -0.61 mm against the required 0.6 mm. Players reach this state on X (release) or Esc from the colony view while the ant is in a tunnel. GDD 6.1 applies the f \u2265 0.5 R rule to every camera, and \u00a76.6 says the follow camera uses the same collision as \u00a76.2. It needs a clearance guard (for example the possession rig's MotionGuard) or a pivot clamped into free space."
+   },
+   {
+    "severity": "major",
+    "title": "Release hand-over does not keep the camera: the observer orbit swings to a stale yaw",
+    "where": "src/game/views/viewDirector.ts:144-146; src/render/camera/observerRig.ts:69-78",
+    "detail": "GDD 01 \u00a72 says 'X: release; camera stays, becomes follow-orbit on the released ant'. setView('observer', subject) calls follow(), which keeps the observer rig's old yaw and pitch, so the 0.4 s flight ends somewhere unrelated. Reproduce with views.verify.test.ts 'after the release the follow orbit looks at the ant from where the possession camera was'. The view direction changes by 90\u00b0 with no orbit input and by 150\u00b0 after a 120\u00b0 orbit. Fix: start the follow orbit from the pose being left (yaw and pitch from camera minus ant, distance clamped to 2..80 L)."
+   },
+   {
+    "severity": "major",
+    "title": "Shift+wheel with a marker tool changes the marker radius and moves the slice plane in the same frame",
+    "where": "src/game/views/colony/colonyControl.ts:46-53; src/game/views/viewDirector.ts:238-242 and viewsLayer.ts:94 (colonyCapture only when the planner is active)",
+    "detail": "With the forage, avoid or rally tool active, Shift+wheel changes the radius in colonyKeys. The ColonyRig still receives cv-slice-up/down and moves the plane 10 BU, because Shift also applies the fast multiplier. Reproduce with views.verify.test.ts 'Shift+wheel with a marker tool\u2026': planeY goes from -40 to -80 mm. Either set colonyCapture for any tool that takes Shift+wheel, or use a different binding for the radius. GDD 08 \u00a74.3 sets the radius by dragging."
+   },
+   {
+    "severity": "major",
+    "title": "The committed e2e no longer shows what acceptance criterion 2 requires: the founding intro card hides the subject in every shot, yet the script still passes",
+    "where": "tests/e2e/views.mjs:24 (after newGame)",
+    "detail": "With the founding flow now in the checkout, a test-mode game keeps the 'Black garden ant' intro card on screen, because the manual clock never advances it. All 15 screenshots of the committed script have the card over the ant (test-output/views-review/01\u202612). The run still reports ok:true, so the script no longer protects the visual criterion. I fixed it in a copy (test-output/views-review2/review.mjs) by adding `await g(() => window.__game.command({ type: 'openingSkipIntro' })); await g(() => window.__game.step(1));` after newGame. With that line all shots are readable and every assertion passes."
+   },
+   {
+    "severity": "minor",
+    "title": "A refused marker move loses the selection",
+    "where": "src/game/views/colony/markerTool.ts:98-111",
+    "detail": "move() removes the marker and places it again. If the sim refuses the new spot (for example move-brood into the food chamber, reason 'invalid'), the tool puts the marker back under a new id, but selectedId still points to the removed id. Delete then does nothing and the ring is no longer highlighted. Reproduce with views.verify.test.ts 'a refused marker move keeps the marker and a valid selection'."
+   },
+   {
+    "severity": "minor",
+    "title": "Ctrl+Z after a move does nothing",
+    "where": "src/game/views/colony/markerTool.ts:98-123",
+    "detail": "A move is not pushed to the undo stack. Undo then pops the earlier 'placed' entry, whose marker id is now dead, so nothing happens but the call returns true. Reproduce with views.verify.test.ts 'Ctrl+Z after a move undoes something': the marker state is the same before and after. GDD 08 \u00a74.3 says Ctrl+Z undoes the last placement or removal, and a move is both."
+   },
+   {
+    "severity": "minor",
+    "title": "The free observer camera cannot move at all when it starts closer than its radius to a surface",
+    "where": "src/render/camera/observerRig.ts:131-143 (moveWithCollision)",
+    "detail": "Each axis move traces with radius r from the current position. When f(pos) < r the trace returns 0 in every direction, so the camera is stuck even when flying away from the wall. Reproduce with views.verify.test.ts 'a free camera closer than its radius to the ground\u2026': it starts at f = 0.8 R and is still at y = 0.96 mm after 1 s of flying up. The camera can get there through freeFlyAt(current pose) right after the in-solid follow frames above, or through camera.setPose. Moves that increase f should be allowed."
+   },
+   {
+    "severity": "minor",
+    "title": "Marker renderer: label textures leak, and the whole scene is rebuilt every sim tick",
+    "where": "src/render/fx/markers/MarkerRenderer.ts:122-148; src/game/views/colony/markerScene.ts:64 and 110",
+    "detail": "Label CanvasTextures are cached by text and never freed until dispose(). The ghost text contains the live volume (e.g. 'nursery chamber: 73 BU\u00b3'), so hovering over walls adds a new GPU texture for each distinct value without limit. Separately, the version key includes sim.state.tick, so the renderer throws away and recreates all line geometries and materials, and re-uploads the nest ghost instances, about 10 times per second at 1x in every view, possession included where nothing is drawn. Fixes: keep the tick out of the key unless plan progress changed, and give the label cache a small LRU."
+   },
+   {
+    "severity": "minor",
+    "title": "E on overlapping ants possesses the hovered one, not the one selected by click cycling",
+    "where": "src/game/views/observerControl.ts:27",
+    "detail": "possessable(st.hover) is checked before st.selected. If the player cycles with repeated clicks to the second of two overlapping ants and presses E, the first (hovered) ant is possessed. GDD 01 \u00a73.2 says 'E on the selected or hovered ant', and the point of cycling is to choose among overlaps, so E should prefer the selection when it is under the cursor."
+   },
+   {
+    "severity": "minor",
+    "title": "Planner reports 'created' for a plan that is only queued",
+    "where": "src/game/views/colony/digPlanner.ts:159",
+    "detail": "In real time, h.command returns applied:false. confirm() then returns outcome 'created' with planId -1, and colonyClick closes the tool. If the sim refuses the plan on the next tick, the player is left with no tool and no plan, and only the generic refusal toast."
+   },
+   {
+    "severity": "minor",
+    "title": "GDD 03 \u00a714.2 edit rows missing and not all reported",
+    "where": "src/game/views/colony/*",
+    "detail": "There is no designateChamber (chamber type change) and no sealEntrance or reopenEntrance on clicking a chamber or entrance, and nothing in src/game or src/ui sends them. The report lists plan priority, pause and resume as not done, but does not mention chamber type change or seal/reopen. The orchestrator should assign these, possibly to ui-panels through the inspect card."
+   },
+   {
+    "severity": "minor",
+    "title": "Smaller GDD 01 gaps in the camera",
+    "where": "src/render/camera/*",
+    "detail": "Not implemented: footstep tremor shake (\u00a76.1); the game-level `camera-state-changed` event (App. C); and clearance during transition flights, where blendPoses positions are not guarded and crossesSolid traces with radius 0 (\u00a76.1 applies to every rendered frame). The ghost reason label is very large: in shot 09 it spans about 75 % of the 1280 px width and overlaps the HUD."
+   }
+  ],
+  "testsAdded": [
+   "/home/user/foundress/src/game/views/views.verify.test.ts \u2014 passing regressions (5): possession clearance at dt 0.2 s; at 144 fps with reduced motion and world-up lock; degenerate subject (fwd parallel to up) gives finite output; flying on after stopping the follow underground; observer click-hold of 400 ms possesses through the real InputState while a short click only selects",
+   "/home/user/foundress/src/game/views/views.verify.test.ts \u2014 failing tests that show defects, left for the fixer (6): observer follow inside solid in the shaft; release hand-over swings the camera 90\u2013150\u00b0; Shift+wheel with a marker tool also moves the slice; refused marker move loses the selection; Ctrl+Z after a move does nothing; free observer camera stuck within its radius of a surface",
+   "Review copy of the e2e script (not committed material): /home/user/foundress/test-output/views-review2/review.mjs. It adds openingSkipIntro and a real mouse-hold attempt. Screenshots in /home/user/foundress/test-output/views-review2/ and /home/user/foundress/test-output/views-review/"
+  ]
+ }
+}
