@@ -107,7 +107,7 @@ describe('herd tending in a 60-worker colony (AC 3, 4)', () => {
     // the control: the same untended herd in a sim without ants (same days, same model)
     const ctl = plantSim({ sizeBu: 200, herbs: HERBS, systems: undefined });
     const ctlHerd = addHerd(ctl.sim, ctl.plants[2], 100);
-    const w = watch(sim, avoided, TICKS_PER_DAY);
+    const w = watch(sim, avoided, TICKS_PER_DAY, herds);
     stepTicks(ctl.sim, TICKS_PER_DAY);
     const col = sim.state.colonies[0];
     for (const h of herds) {
@@ -120,6 +120,11 @@ describe('herd tending in a 60-worker colony (AC 3, 4)', () => {
     expect(w.climbs.size).toBeGreaterThanOrEqual(3); // tenders went up the stems by their climb routes
     expect(w.atHerd.size).toBeGreaterThanOrEqual(4);
     expect(w.honeydewC[0] ?? 0).toBeGreaterThan(3);
+    // AC 3 range on the first day (it includes the walk-out and the claim): never more than the herds made, and at
+    // least a third of it (the steady 50-105 % band of later days is checked in the FOUNDRESS_LONG run)
+    console.log(JSON.stringify({ day0: { honeydewC: w.honeydewC[0], productionC: w.prodC[0] } }));
+    expect(w.honeydewC[0] ?? 0).toBeLessThan(1.05 * w.prodC[0] + 1);
+    expect(w.honeydewC[0] ?? 0).toBeGreaterThan(w.prodC[0] / 3);
     expect(w.maxStill).toBeLessThan(60);
     // GDD 07 App. E 9: no ant tends the herd under the avoid marker; it follows the untended model exactly
     expect(w.avoidedTenders).toBe(0);
