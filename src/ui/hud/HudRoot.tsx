@@ -14,6 +14,10 @@ import { Directives } from '../panels/directives/Directives';
 import { InspectCard } from '../panels/inspect/InspectCard';
 import { startInspectRequests } from '../panels/inspect/inspectState';
 import { Roster } from '../panels/roster/Roster';
+import { HealthDrawer } from '../panels/health/HealthDrawer';
+import { NestDrawer } from '../panels/nest/NestDrawer';
+import { installPanels } from '../panels/wiring/install';
+import { PanelsLayer } from '../panels/wiring/PanelsLayer';
 import { AlertsFeed } from './AlertsFeed';
 import { startFeed } from './alerts/store';
 import { ColonyPulse } from './ColonyPulse';
@@ -40,7 +44,7 @@ function useHudWiring(): void {
       installEnvironment(window, () => { const q = facade.value?.getSettings?.().graphics.quality; return q === 'high' || q === 'ultra'; }),
     ];
     installHudStyles();
-    stops.push(installMenuKeys(window), installHudKeys(), startHudPad(), startFeed(), startInspectRequests());
+    stops.push(installMenuKeys(window), installHudKeys(), startHudPad(), startFeed(), startInspectRequests(), installPanels());
     const params = new URLSearchParams(location.search);
     if (params.get('test') === '1' || document.documentElement.dataset.hudDemo === '1') stops.push(installHudDebug());
     // the roster request follows the open drawer; any change of the query refreshes the snapshot (at most once a frame)
@@ -128,6 +132,9 @@ function HudLayer() {
       {hidden && <div class="fd-hiddenhint fd-chip" data-testid="hidden-hint"><KeyHint action="hide-hud">HUD hidden</KeyHint></div>}
       {drawer === 'directives' && <Directives />}
       {drawer === 'roster' && <Roster />}
+      {drawer === 'health' && <HealthDrawer />}
+      {drawer === 'nest' && <NestDrawer />}
+      <PanelsLayer />
     </div>
   );
 }

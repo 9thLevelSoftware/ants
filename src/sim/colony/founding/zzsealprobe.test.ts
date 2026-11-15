@@ -26,7 +26,7 @@ describe('probe', () => {
       const t0 = sim.state.tick;
       if (env.env.POSS) sim.enqueue({ type: 'action', actionId: 'seal-entrance', phase: 'start' });
       else begin(sim, q, 'seal-entrance', null);
-      const n = stepUntil(sim, () => phase(sim) !== 'seal', 4000);
+      const n = stepUntil(sim, () => phase(sim) !== "seal", Number(env.env.T ?? 4000));
       const ents = cavityEntrances(sim, nestOf(sim)).map((e) => `${e.status}:${e.plugVoxelCount}`).join(',');
       log(soil, p, w, 'start', ph0, 'ticks', n, 'phase', phase(sim), 'ents', ents, 'plugs', q.bb[SG.total], 'guide', q.bb[SG.state], 'replans', q.bb[SG.replans], 'leak', leakPath(sim, nestOf(sim)) ? 'yes' : 'no', 'refused', [...new Set(refused)].join(','));
     }

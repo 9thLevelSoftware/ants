@@ -84,7 +84,7 @@ describe('AntRenderer (CPU side)', () => {
     expect(r.stats.wings).toBe(1);
   });
 
-  it('the founding queen is wingless (wing scars) except while the dealation is on screen (look-pass)', () => {
+  it('the founding queen is winged only before and during the dealation, wingless (wing scars) after it (look-pass)', () => {
     const founding = ant(1, 0, 0, { caste: 'queen', lengthBu: 2.1, flags: AntFlag.FOUNDING, queen: { founding: { wings: true } } });
     const { r, camera, sim } = setup([founding]);
     camera.position.set(0, 20, -40); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
@@ -93,7 +93,10 @@ describe('AntRenderer (CPU side)', () => {
     sim.state.player.opening = { phase: 'dealation' };
     r.update(frame(camera));
     expect(r.stats.wings).toBe(1); // shedding them on screen
-    for (const phase of ['intro-card', 'search', 'dig', 'seal', 'lay', 'done']) {
+    sim.state.player.opening = { phase: 'intro-card' };
+    r.update(frame(camera));
+    expect(r.stats.wings).toBe(1); // under the card she is as she landed: no blink at the card's fade-out
+    for (const phase of ['search', 'dig', 'seal', 'lay', 'done']) {
       sim.state.player.opening = { phase };
       r.update(frame(camera));
       expect(r.stats.wings, phase).toBe(0);

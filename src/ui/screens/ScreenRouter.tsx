@@ -7,6 +7,7 @@ import { facade, snapshot } from '../store';
 import { installEnvironment } from '../styles';
 import { computeScale } from '../styles/scale';
 import { uiPrefs } from '../styles/prefs';
+import { CodexBook } from '../panels/codex/CodexBook';
 import { Credits } from './credits/Credits';
 import { startBindingSync } from './gameSync';
 import { startGamepadNav } from './gamepadNav';
@@ -45,7 +46,7 @@ function renderOverlay(id: OverlayId) {
     case 'settings': return <Settings tab={n.settingsTab} onTab={(settingsTab) => updateNav((s) => ({ ...s, settingsTab }))} onClose={close} />;
     case 'save-load': return <SaveLoad tab={n.saveTab} onTab={(saveTab) => updateNav((s) => ({ ...s, saveTab }))} onClose={close} />;
     case 'credits': return <Credits onClose={close} />;
-    case 'codex': return <BookPlaceholder kind="codex" onClose={close} />;
+    case 'codex': return <CodexBook onClose={close} />;
     case 'lineage': return <BookPlaceholder kind="lineage" onClose={close} />;
   }
 }

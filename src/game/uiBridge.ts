@@ -10,6 +10,7 @@ import { RosterBuilder } from './uiBridge/rosterSlice';
 import { directivesOf } from './uiBridge/directivesSlice';
 import { alertsOf, colonyOf, possessedOf, promptOf, timeOf } from './uiBridge/hudSlices';
 import { inspectOf } from './uiBridge/inspectSlice';
+import { codexOf, healthOf, journalOf, markerCountsOf, nestOf } from './uiBridge/panels';
 import { hudRequests } from './uiBridge/requests';
 import { share } from './uiBridge/share';
 import type { SpeedReport } from './loop/speedMeter';
@@ -78,6 +79,12 @@ export class SnapshotBuilder {
       directives: inGame && req.directivesOpen ? share(p?.directives ?? undefined, directivesOf(sim)) : null,
       roster: inGame && req.roster ? share(p?.roster ?? undefined, this.roster.build(sim, req.roster, nowMs)) : null,
       inspect: inGame ? share(p?.inspect ?? undefined, inspectOf(sim, inspectReq)) : null,
+      // ui-panels: built only while the panel is open (codex and marker counts are small and always built)
+      health: inGame && req.panels.health ? share(p?.health ?? undefined, healthOf(sim)) : null,
+      nest: inGame && req.panels.nest ? share(p?.nest ?? undefined, nestOf(sim)) : null,
+      journal: inGame && req.panels.journal ? share(p?.journal ?? undefined, journalOf(sim)) : null,
+      codex: inGame ? share(p?.codex ?? undefined, codexOf(sim)) : null,
+      markers: inGame ? share(p?.markers ?? undefined, markerCountsOf(sim)) : null,
     };
     this.prev = snap;
     return snap;

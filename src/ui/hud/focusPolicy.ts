@@ -6,7 +6,8 @@
 // A drawer or the alert menu is a "panel": everything else inside the HUD root is a chip.
 
 /** Selector of the panels whose controls keep their focus behaviour. */
-export const PANEL_SELECTOR = '.fd-drawer, .fd-alert-menu';
+/** `.pn-panel` is the colony view's tool UI (marker palette, tool options, overlay buttons): Tab is free there (GDD 08 section 8). `.ui-book-wrap` is a book screen (Journal, Codex) opened over the HUD. */
+export const PANEL_SELECTOR = '.fd-drawer, .fd-alert-menu, .pn-panel, .ui-book-wrap';
 /** Regions the keyboard can enter on purpose (backquote); game keys wait while focus is inside one. */
 export const ENTERED_SELECTOR = '.fd-drawer, .fd-alerts, .fd-pulse';
 const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex]';

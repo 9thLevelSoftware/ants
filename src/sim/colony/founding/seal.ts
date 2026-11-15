@@ -105,18 +105,42 @@ export function soilForSeal(sim: Sim, q: Ant, nest: Nest): boolean {
       if (biteNearPlug(sim, h, slope)) continue; // never scrape the plug she is building
       const res = digBite(sim, q, feet, h, slope);
       if (!res.ok) continue;
-      const it = res.pelletId >= 0 ? sim.stores.items.get(res.pelletId) : undefined;
-      const f = q.queen?.founding;
-      if (f) f.reserveLoads -= FOUND_DIG_COST_PER_BITE;
-      bbSet(q, FB.bites, bbGet(q, FB.bites, 0) + 1);
-      if (!it) return false;
-      // into her mandibles (the pick-up of the action library's carry.ts takeItem)
-      if (!it.carrierIds.includes(q.id)) it.carrierIds.push(q.id);
-      it.reservedBy = -1;
-      it.inNest = false;
-      q.carry = { kind: 'item', id: it.id };
-      return true;
+      return keepBite(sim, q, res.pelletId);
     }
+  }
+  return false;
+}
+
+/** The bite's cost to the pool; its pellet into her mandibles when they are free. True when she holds it. */
+function keepBite(sim: Sim, q: Ant, pelletId: number): boolean {
+  const f = q.queen?.founding;
+  if (f) f.reserveLoads -= FOUND_DIG_COST_PER_BITE;
+  bbSet(q, FB.bites, bbGet(q, FB.bites, 0) + 1);
+  const it = pelletId >= 0 ? sim.stores.items.get(pelletId) : undefined;
+  if (!it || q.carry.kind !== 'none') return false;
+  // into her mandibles (the pick-up of the action library's carry.ts takeItem)
+  if (!it.carrierIds.includes(q.id)) it.carrierIds.push(q.id);
+  it.reservedBy = -1;
+  it.inNest = false;
+  q.carry = { kind: 'item', id: it.id };
+  return true;
+}
+
+/**
+ * Shut off from her cell (a plug closed between them): she bites toward the cell (through the loose plug fill),
+ * the nest's own dig bite at the slope toward it. True when soil was removed.
+ */
+export function biteToward(sim: Sim, q: Ant, to: Vec3): boolean {
+  if (q.action) return false;
+  feet.x = q.pos.x - q.up.x * q.footOffset;
+  feet.y = q.pos.y - q.up.y * q.footOffset;
+  feet.z = q.pos.z - q.up.z * q.footOffset;
+  const dx = to.x - q.pos.x, dy = to.y - q.pos.y, dz = to.z - q.pos.z, hl = Math.hypot(dx, dz);
+  heading.x = hl > 1e-6 ? dx / hl : q.fwd.x; heading.y = 0; heading.z = hl > 1e-6 ? dz / hl : q.fwd.z;
+  const slope = (Math.atan2(-dy, Math.max(hl, 1e-6)) * 180) / Math.PI;
+  for (const s of [slope, 0, slope / 2]) {
+    const res = digBite(sim, q, feet, heading, s);
+    if (res.ok) { keepBite(sim, q, res.pelletId); return true; }
   }
   return false;
 }

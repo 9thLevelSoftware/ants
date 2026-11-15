@@ -19,13 +19,13 @@ export type AntView = Pick<Ant,
 };
 
 /**
- * Opening phases in which the founding queen is shown winged: only the dealation (GDD 06 §5.1 / §5.4), where she
- * sheds them on screen. The intro card covers the screen; from `search` on, and in any game without an opening
- * state (tests, loads past the opening), she has already shed them: wing scars only, even when the sim's
- * `queen.founding.wings` was never cleared (look-pass: the flag starts true at spawn and only the founding
- * module's dealation clears it; until that module advances the phases a new game stays in `intro-card`).
+ * Opening phases in which the founding queen is shown winged (while the sim's `queen.founding.wings` is still set):
+ * the intro card, under which the world shows her as she landed, and the dealation, where she sheds them on screen
+ * (GDD 06 §5.1 / §5.4; the founding module clears the flag at its end). Hiding them under the card made them blink
+ * on at the dealation (look-pass review). From `search` on, and in any game without an opening state (tests, loads
+ * past the opening), she has already shed them: wing scars only.
  */
-export const WINGED_OPENING_PHASES: readonly string[] = ['dealation'];
+export const WINGED_OPENING_PHASES: readonly string[] = ['intro-card', 'dealation'];
 
 type PlayerView = { possessedAntId: number; opening?: { phase: string } | null };
 export type BroodView = Pick<Brood, 'id' | 'alive' | 'colony' | 'stage' | 'destined' | 'progress' | 'pos' | 'carriedBy' | 'destinedLengthBu'>;

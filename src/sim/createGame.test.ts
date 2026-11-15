@@ -33,14 +33,14 @@ describe('createNewGame', () => {
     expect(state.nextId).toBeGreaterThan(col.queenId);
   }, GEN_TIMEOUT);
 
-  it('starts on the species founding day (Lasius: summer day 3) and honours the season length', () => {
+  it('starts on the species founding day (Lasius: summer day 2) and honours the season length', () => {
     const { state } = createNewGame(config);
     expect(currentSeason(state)).toBe('summer');
-    expect(currentDayOfYear(state)).toBe(10);
+    expect(currentDayOfYear(state)).toBe(9); // startDoy.default 9 (founding-close ruling)
     const ten = { ...config, rules: { ...config.rules, seasonLengthDays: 10 as const } };
     const s10 = createNewGame(ten).state;
     expect(currentSeason(s10)).toBe('summer');
-    expect(currentDayOfYear(s10)).toBe(13);
+    expect(currentDayOfYear(s10)).toBe(12);
     expect(calendarTick(s10)).toBeGreaterThan(calendarTick(state));
   }, GEN_TIMEOUT);
 

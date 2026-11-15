@@ -55,6 +55,8 @@ export type RivalCombatEvent =
   | { type: 'rival-orphaned'; colonyId: number; species: ColonySpeciesId; pos: Vec3 }
   | { type: 'rival-destroyed'; colonyId: number; species: ColonySpeciesId; pos: Vec3 }
   | { type: 'rival-founded'; colonyId: number; species: ColonySpeciesId; pos: Vec3 }
+  /** Additive (rivals): colony `by` met colony `colonyId` for the first time (contact or its nest found). */
+  | { type: 'rival-discovered'; colonyId: number; by: number; species: ColonySpeciesId; pos: Vec3 }
   | { type: 'combat-hit'; attackerId: number; targetId: number; dmg: number; kind: HitKind }
   | { type: 'combat-lock'; holderId: number; targetId: number }
   | { type: 'combat-unlock'; holderId: number; targetId: number }

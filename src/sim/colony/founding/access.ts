@@ -114,3 +114,17 @@ export function isAboveGround(sim: Sim, a: Ant): boolean {
 export function depthBelowGround(sim: Sim, a: Ant): number {
   return Math.max(0, sim.field.height(a.pos.x, a.pos.z) - a.pos.y);
 }
+
+/**
+ * The opening is running for the player's colony (from the intro card until `done`, and after it while the first
+ * workers still dig the founding plug out; not after a failure): the claustral founding, when the queen's pool replaces the stores and the plugged entrance is no fault. Read by the
+ * colony's alarms that would otherwise fire on an empty store or a closed nest (starvation clocks, midden-blocked).
+ */
+export function foundingInProgress(sim: Sim, colonyId: number): boolean {
+  if (colonyId !== (playerColonyOf(sim)?.id ?? -2)) return false;
+  const op = sim.state.player.opening;
+  if (op && !op.done && op.phase !== 'failed' && op.phase !== 'done') return true;
+  // after the hand-over the first workers are still digging the plug out (the nest record is not `established`)
+  const f = foundingNest(sim)?.founding;
+  return !!op && op.phase !== 'failed' && !!f && (f.state === 'sealed' || f.state === 'reopening');
+}

@@ -159,7 +159,8 @@ export class AlertFeed {
     }
     const fresh: Entry = { key, alert: a, level, fate: 'log', shownAtS: ctx.nowS, collapsedAtS: -1, resolvedUntilS: -1, acknowledged: a.acknowledged === true, raisedTick: a.raisedTick ?? ctx.tick };
     this.entries.set(key, fresh);
-    if (fresh.acknowledged) return;
+    // never an empty card or toast: an alert raised with no words stays in the log (founding-close §4)
+    if (fresh.acknowledged || !a.title) return;
     const gate = this.gate(key, fresh, ctx);
     if (gate === 'toast') this.grant(key, fresh, ctx, 'raise');
     else if (gate === 'rate') fresh.fate = 'overflow';

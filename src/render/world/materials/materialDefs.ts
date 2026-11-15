@@ -59,6 +59,11 @@ export interface MaterialDef {
   edgeJitter: number;
   /** Second, coarser texture scale multiplier for anti-tiling (0 = single scale). */
   dualScale: number;
+  /**
+   * Ground layers only: albedo highlights above `knee` (linear luminance) are compressed by `k`, baked into the
+   * terrain texture array. The asphalt scan's white sand specks read as snow at ant scale, worst in sky-lit shade.
+   */
+  highlights?: { knee: number; k: number };
   /** Overrides when the material is a solid object rather than ground (e.g. wood floor -> furniture wood). */
   prim?: Partial<Omit<MaterialDef, 'id' | 'prim'>>;
 }
@@ -80,8 +85,9 @@ export const MATERIAL_DEFS: Record<MaterialId, MaterialDef> = withIds({
   gravel: { ...SOIL, texture: 'gravel_fine', scaleMm: 420, tint: [0.9, 0.89, 0.87], roughMin: 0.65, wetDarken: 0.7, wetRough: 0.3 },
   // cement paste with sand grains and air voids (GDD 08 11.6: aggregate and pores at ant scale, not noise)
   concrete: { ...HARD, texture: null, procedural: { base: '#948f86', alt: '#7f7b73', grain: 0.04, bump: 0.38, rough: 0.9, speckle: 0.8, pores: 0.025, size: 512 }, scaleMm: 90, tint: [0.92, 0.91, 0.89], roughMin: 0.7, roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.35, dualScale: 6 },
-  // roughMin: the scan's glossy aggregate mirrored the sky as white flecks in the shade under a car (look-pass)
-  asphalt: { ...HARD, texture: 'asphalt', scaleMm: 260, tint: [0.85, 0.85, 0.85], roughMin: 0.6, roughness: 1, normalScale: 1.2, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
+  // roughMin and highlights: the scan's glossy white sand specks mirrored the sky and read as snow in the shade
+  // beside a car (look-pass review); they become grey, dusty aggregate
+  asphalt: { ...HARD, texture: 'asphalt', scaleMm: 260, tint: [0.85, 0.85, 0.85], roughMin: 0.72, highlights: { knee: 0.16, k: 0.3 }, roughness: 1, normalScale: 1.2, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },
   // fine-grained rock (flags, pebbles, walls): the gravel scan shrunk to mineral-grain size (grains ~0.2 mm read as
   // granite / sandstone at ant scale; at 70 mm per tile they read as loose gravel: look-pass audit)
   stone: { ...HARD, texture: 'gravel_fine', scaleMm: 28, tint: [0.66, 0.64, 0.6], roughMin: 0.75, roughness: 1, normalScale: 0.45, wetDarken: 0.7, wetRough: 0.18, dualScale: 5 },

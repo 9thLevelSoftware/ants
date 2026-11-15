@@ -5,6 +5,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { CreatureKind } from './ids';
 import type { CreatureVariant, HazardKind, RelationState } from './ids/ecology';
 import type { Herd } from './plant';
+import type { RivalsModuleState } from './rivalsModule';
 
 export interface PreyPatch {
   id: number;
@@ -154,4 +155,6 @@ export interface RivalsState {
   relations: RivalRelation[];
   territory: TerritoryGrid;
   threatDirector: ThreatDirector;
+  /** Additive (rivals): the rivals module's bookkeeping, created on first use. */
+  module?: RivalsModuleState;
 }

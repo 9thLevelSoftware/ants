@@ -7,9 +7,9 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
-import { SEAL_CUT_CHECKS, SEAL_REACH_MARGIN_BU, SEAL_TARGET_SOIL_BU } from '@/sim/balance/founding';
+import { SEAL_CUT_CHECKS, SEAL_HERE_SHARE, SEAL_MIN_COVER, SEAL_SOIL_WEIGHT, SEAL_REACH_MARGIN_BU, SEAL_TARGET_SOIL_BU } from '@/sim/balance/founding';
 import { cavityEntrances } from './dig';
-import { floodCavity, floodStart, isAirSample, isOpenSample, keyI, keyJ, keyK, keyPos, throatClosed, throatLeak, type Sphere } from './leak';
+import { floodCavity, floodStart, isAirSample, isOpenSample, keyI, keyJ, keyK, keyPos, sampleKey, carvedAirOver, throatClosed, throatLeak, throatPassageSet, type Sphere } from './leak';
 import { predictPlug } from './plugPredict';
 
 export interface SealPlan {
@@ -24,6 +24,8 @@ export interface SealPlan {
   /** Where to stand instead (null: nowhere better than here, or nowhere at all). */
   stand: Vec3 | null;
   standCuts: boolean;
+  /** Where she should face at the stand (the leak's crossing or the opening). */
+  standAim: Vec3;
 }
 
 /** The action's throat reach (entranceAtThroat + inThroat), shrunk by `margin` mm. */
@@ -45,11 +47,24 @@ function crossing(sim: Sim, path: number[]): Vec3 {
   return keyPos(sim, path[path.length - 1], p);
 }
 
+/** Samples of `keys` inside the plug sphere s. */
+function countIn(sim: Sim, keys: readonly number[], s: Sphere): number {
+  const p = { x: 0, y: 0, z: 0 };
+  let n = 0;
+  for (const k of keys) {
+    keyPos(sim, k, p);
+    if ((p.x - s.c.x) ** 2 + (p.y - s.c.y) ** 2 + (p.z - s.c.z) ** 2 <= s.r * s.r) n++;
+  }
+  return n;
+}
+
+/** Soil samples of `keys` inside the plug sphere s (what that plug would fill). */
 function crossCount(sim: Sim, path: number[], s: Sphere): number {
   const p = { x: 0, y: 0, z: 0 };
   let n = 0;
   for (const k of path) {
     keyPos(sim, k, p);
+    if (sim.field.substrateXYZ(p.x, p.y, p.z) >= 0) continue; // air: no plug fills it
     if ((p.x - s.c.x) ** 2 + (p.y - s.c.y) ** 2 + (p.z - s.c.z) ** 2 <= s.r * s.r) n++;
   }
   return n;
@@ -103,22 +118,24 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
   if (!e) return null;
   const path = throatLeak(sim, e);
   if (!path) return null;
+  // what the plugs still have to fill or cut: the soil samples on any passage through the throat
+  const passage = throatPassageSet(sim, e);
+  const airOver = carvedAirOver(sim, passage);
+  // a plug's worth: the passage soil it fills, then (much less) the carved air over the passage it uses up
+  const worth = (s: Sphere) => SEAL_SOIL_WEIGHT * crossCount(sim, passage, s) + countIn(sim, airOver, s);
   // stands: the cavity's own samples (the cell's side of any plug so far)
-  const flood = floodCavity(sim, floodStart(nest));
+  const from = floodStart(nest), flood = floodCavity(sim, from);
   const target = crossing(sim, path), bu = sim.world.bu;
   const len = q.lengthBu * bu, margin = SEAL_REACH_MARGIN_BU * bu;
   const others = otherAnts(sim, q, e.pos, 8 * bu);
   const cuts = (s: Sphere) => throatLeak(sim, e, [s]) === null;
   // the queen as she stands now
-  let here = { ok: false, cuts: false };
   const inReach = inSealReach(sim, e, q.pos);
-  if (inReach) {
-    const s = predictPlug(sim, e, q.pos, q.fwd, len, others);
-    if (s && crossCount(sim, path, s) > 0) here = { ok: true, cuts: cuts(s) };
-  }
-  if (here.cuts) return { entrance: e, path, target, here, inReach, stand: null, standCuts: false };
-  // the cavity's surface samples within reach, scored by the plug the action would place from each
-  const cands: { p: Vec3; n: number; d: number; s: Sphere; floor: number }[] = [];
+  const hereS = inReach ? predictPlug(sim, e, q.pos, q.fwd, len, others) : null;
+  const hereN = hereS ? worth(hereS) : 0;
+  // the cavity's surface samples within reach, scored by the plug the action would place from each (facing the
+  // leak's crossing, or the opening)
+  const cands: { p: Vec3; n: number; d: number; s: Sphere; floor: number; aim: Vec3 }[] = [];
   const p = { x: 0, y: 0, z: 0 };
   for (const k of flood.cavity.keys()) {
     keyPos(sim, k, p);
@@ -126,16 +143,51 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
     const floor = onSurface(sim, keyI(k), keyJ(k), keyK(k));
     if (floor === 0) continue;
     if (exclude.some((x) => Math.hypot(x.x - p.x, x.y - p.y, x.z - p.z) < excludeR)) continue;
-    const s = predictPlug(sim, e, p, unitTo(p, target), len, others);
-    if (!s) continue;
-    const n = crossCount(sim, path, s);
-    if (n > 0) cands.push({ p: { ...p }, n, d: Math.hypot(p.x - q.pos.x, p.y - q.pos.y, p.z - q.pos.z), s, floor });
+    let best: { s: Sphere; n: number; aim: Vec3 } | null = null;
+    for (const aim of [target, e.pos]) {
+      const s = predictPlug(sim, e, p, unitTo(p, aim), len, others);
+      const n = s ? worth(s) : 0;
+      if (s && (!best || n > best.n)) best = { s, n, aim };
+    }
+    if (best && best.n >= SEAL_MIN_COVER) {
+      cands.push({ p: { ...p }, n: best.n, d: Math.hypot(p.x - q.pos.x, p.y - q.pos.y, p.z - q.pos.z), s: best.s, floor, aim: best.aim });
+    }
   }
-  // floors first (a walker settles there), then the plugs that cross most of the leak, then the nearest
+  // floors first (a walker settles there), then the plugs that fill most of the passage, then the nearest
   cands.sort((a, b) => b.floor - a.floor || b.n - a.n || a.d - b.d);
+  const okHere = hereS !== null && hereN >= Math.max(SEAL_MIN_COVER, SEAL_HERE_SHARE * (cands[0]?.n ?? 0));
+  const aimOf = (c: { aim: Vec3 } | undefined) => c?.aim ?? target;
+  const here = { ok: okHere, cuts: okHere && hereS !== null && cuts(hereS) };
+  if (here.cuts) return { entrance: e, path, target, here, inReach, stand: null, standCuts: false, standAim: target };
   const top = cands.slice(0, SEAL_CUT_CHECKS).sort((a, b) => a.d - b.d);
   const cutter = top.find((c) => cuts(c.s));
-  if (cutter) return { entrance: e, path, target, here, inReach, stand: cutter.p, standCuts: true };
-  if (here.ok) return { entrance: e, path, target, here, inReach, stand: null, standCuts: false };
-  return { entrance: e, path, target, here, inReach, stand: cands[0]?.p ?? null, standCuts: false };
+  if (cutter) return { entrance: e, path, target, here, inReach, stand: cutter.p, standCuts: true, standAim: aimOf(cutter) };
+  if (here.ok) return { entrance: e, path, target, here, inReach, stand: null, standCuts: false, standAim: target };
+  return { entrance: e, path, target, here, inReach, stand: cands[0]?.p ?? null, standCuts: false, standAim: aimOf(cands[0]) };
+}
+
+/** Is any cavity sample within one sample of p in the flood's cavity? */
+function nearCavity(sim: Sim, cavity: Map<number, number>, p: Vec3): boolean {
+  const v = sim.carve.voxel, ci = Math.round(p.x / v), cj = Math.round(p.y / v), ck = Math.round(p.z / v);
+  for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    if (cavity.has(sampleKey(ci + di, cj + dj, ck + dk))) return true;
+  }
+  return false;
+}
+
+/**
+ * Would the plug from her pose now leave her on the cell's side? (A plug between her and the cell would shut
+ * her out of her own nest.) True when no plug would be placed, or when she stays connected to the cell.
+ */
+export function plugKeepsQueenInside(sim: Sim, nest: Nest, q: Ant): boolean {
+  const e = entranceToSeal(sim, nest);
+  if (!e) return true;
+  const s = predictPlug(sim, e, q.pos, q.fwd, q.lengthBu * sim.world.bu, otherAnts(sim, q, e.pos, 8 * sim.world.bu));
+  if (!s) return true;
+  return nearCavity(sim, floodCavity(sim, floodStart(nest), [s]).cavity, q.pos);
+}
+
+/** Is the queen in the cavity connected to the founding cell (not out on the air side of a plug)? */
+export function queenInCavity(sim: Sim, nest: Nest, q: Ant): boolean {
+  return nearCavity(sim, floodCavity(sim, floodStart(nest)).cavity, q.pos);
 }

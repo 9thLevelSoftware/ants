@@ -756,23 +756,17 @@ Finding 3 (slow test files): fixed.
 
 ## look-pass
 
-**Summary:** I resumed and finished the interrupted look-pass. I kept the earlier engineer's sound work: the finish/look system (no rust unless tagged, car paint, enamel, stainless, glass, tyres with hubs), occlusion dithering in every world material, the gallery page and script, and the founding-queen wing fix plus its test. I fixed what was broken and added the missing pieces.
+**Summary:** I reproduced all seven review findings. Six were real and are fixed at the root cause in my paths. The seventh (quality switch) is real; its root cause is in src/render/app, which I don't own: I diagnosed it, added a workaround on the gallery side and am reporting it to the app owner.
 
-AUDIT of the current state against high-midday, high-golden and high-overcast (baseline shots in test-output/look2/cur; this list was the plan), largest gap first:
-1. The ground had no volume. Grit was sparse, dark and shard-like, while the reference shows a field of crumbs and pebbles.
-2. Objects floated: the 4 mm sun-shadow depth bias detached every shadow from its base (the app's -0.0004 times a 10 m shadow frustum).
-3. Plants: stems were polka-dotted green poles, flower heads were flat ellipsoids, leaves were flat minty pads.
-4. Grass blades near the lens showed polygon kinks.
-5. Summer leaf litter was salmon-pink flat sheets, and the dead leaf under the woodland queen read as an orange varnished plank.
-6. Concrete showed dark pits with lit rims (it read as hammered metal), and asphalt aggregate glittered like snow in shade.
-7. Props were plain: flat orange pot, plain water butt, fridge as a beige block.
-8. Gallery framing: the woodland start camera sat inside a litter bin.
-9. The underground queen was dark from the camera side.
-10. Sky and haze were acceptable (analytic dome with sun and moon discs, per-habitat haze); no change needed.
-
-DONE (all render-side):
-- Shadow bias is now set in millimetres in the lighting rig (0.35 texel depth, 0.6 texel normal), giving contact shadows under pebbles, ants and props.
-- Static sky-occlusion map (new terrain/skyOcclusion.ts). It darkens the indirect light on ter
+1. **Sky occlusion skipped every car (fixed).** The per-primitive cap was tested on the circumradius bounding square. It now tests the footprint's true area, 4·hx·hz/|det|. A car is 30 234 cells and stays in; ceilings, floor slabs and the sealed-house blocks (62–71 k cells) stay out. The loops use the footprint's oriented extent.
+   - I also added the "soft occlusion skirt" the reviewer suggested. Beside a tall body, the ground loses the sky its flank hides: wall-strip formula times the azimuth the body spans. It reaches out to min(2× height, 2 m) and fades over its outer half. It is computed on a 4× coarser grid and up-sampled.
+   - Terrain heights are sampled once per cell. Build time per world is 166–257 ms (kitchen-door, suburban; minimum of 3 runs).
+2. **Asphalt glitter (fixed).** The flecks were mostly albedo: the scan's white sand specks are linear ~1.0 against a ~0.03 binder, 25× contrast.
+   - Ground layers can now ask for highlight compression, baked into the terrain texture array (`compressHighlights`). Asphalt uses knee 0.16, k 0.3, and its roughMin rose from 0.6 to 0.72.
+   - Together with the car's footprint and skirt occlusion, the car-park object frame now shows grey aggregate instead of snow.
+3. **Leaf bend float/sink (fixed).** The bend moved to `materials/leafBend.ts`. The GLSL and a CPU mirror, `leafBendMm`, share one set of constants.
+   - Cup and tip bend together are capped at 1 mm, which is 0.25 BU of Lasius.
+   - Margins always lift toward the sky. A tilted leaf d
 
 ### Not done
 - Terrain parallax or vertex relief (step 3's alternative to instancing) was not done. Near-ground relief comes only from the instanced grit, the shadows and the sky-occlusion contact rings.
@@ -783,12 +777,20 @@ DONE (all render-side):
 - Frame-time numbers are too noisy on the shared machine to draw a conclusion; only draw calls and triangles are reliable.
 - The in-page switch to Low in the gallery produces stale screenshots; I did not find the cause.
 - The last small changes (fainter veins on dead leaves) went in after the definitive gallery run, so they are not in the screenshots. They are covered by typecheck and tests.
+- The real fix for finding 5 is in src/render/app/renderApp.ts, which I don't own. applyRendererQuality should set `renderer.autoClear = true` when it disposes the post chain (or DirectGrade.render should clear its target). The game's own High→Low switch is not proven: it most likely shows the same ghosting.
+- Rosette leaves are pressed into the soil by the generator: about 28% of dandelion rosette leaves have their top within 0.2 mm of the terrain, or below it, at their centre (suburban 111 of 398, playground 135 of 544, car-park 134 of 512, kitchen 84 of 300, woodland 46 of 192 plus 31 of 158 curled leaves). The old uncapped 2.4 mm cup used to lift them into view. With the bend capped they are partly hidden by the soil (see rev/pairs/pair-suburban-garden-plant-high.png), which matches what the walker actually stands on. A worldgen-outdoor fix (rest the leaves on the terrain) would change the fingerprint, so it is not mine to make.
+- The car-park shade frame is now dark overall, and the black worker reads poorly against the dark aggregate. This is plausible for midday shade, but it remains a difference from the reference.
+- The dead leaf is still a flat, smooth-edged sheet (no draped curl or tattered margin). It reads as a leaf now, not a varnished plank, but true draped litter is still open.
+- I did not re-run the classic (portable) build of the gallery this round. The changes are shader strings and TypeScript only, with no import or structure changes.
+- The occlusion map now also darkens the foot of every tall upright body (walls, fences, pots, trunks), with a mean of 0.06–0.24 per world. I looked at it in the gallery and it reads as grounding, but it is a broader visual change than the car fix alone.
 
 ### Needs from others
 - render/app or render/ants owners: in the look gallery, switching quality in-page to Low at runtime produces captures with content from earlier frames, while booting at Low is correct. Repro: LOOK_QUALITY=low LOOK_ARCH=woodland-edge LOOK_FRAMES=start,plant with --query 'quality=high' (out test-output/look2/swchk) against --query 'quality=low' (test-output/look2/lowchk). AntRenderer.setQuality, which rebuilds the variant store, is a suspect; I could not confirm it.
 - render-ants owner: the queen and worker cuticle turns pale grey under the bright overcast sky (clearcoat reflecting the sky); the overcast pairs show it.
 - World slot (render/slots): FrameInfo.fade is already passed to WorldFrame.occlusion (verified by slots.dressing.test.ts); nothing more needed.
 - Nest renderer owner: underground ants now get a warm camera-side fill from the world lighting rig (UNDERGROUND.fillRel 0.4). Nest walls are unaffected because they use their own shader material. Check the founding chamber frames with the real nest.
+- App owner (src/render/app/renderApp.ts): restore `renderer.autoClear = true` when the post chain is disposed in applyRendererQuality, or clear explicitly in DirectGrade.render. Repro: test-output/look-review/probe/switch6.mjs with SW=1 (?quality=high) against a boot at ?quality=low. Before the gallery workaround, far geometry updated while near objects of the previous view stayed on screen.
+- worldgen-outdoor owner (plant grower): rosette and curled leaves lying on the ground are sunk 0.1–3.7 mm into the terrain at their centre, and 18 tips in suburban-garden seed 1 are below the terrain even when flat. Rest them on the terrain surface (fingerprint change). The numbers are in the leafBend.verify log.
 
 ### Notes for the integrator
 - Previous engineer's work kept: dressing/looks.ts, finishes.ts, palette.ts, finishGlsl.ts (extended), gritPlacement.ts, world occlusion dither (materials/occlusion.ts in terrain, prims, grit, draped decor, grass), contact AO, gallery and look.mjs, queen wing rule in src/render/ants/simAdapter.ts plus its test (no new ants edits from me).
@@ -798,6 +800,10 @@ DONE (all render-side):
 - Decision: the sky-occlusion map is built from static primitives only (16 mm cells, about 50 ms per world at setWorld). Moved or dynamic primitives do not update it, and spans over 40,000 cells (ceilings) are skipped so the interior keeps its room light.
 - Gallery outputs (git-ignored): test-output/look2/after (final High, 70 shots, plus pairs/), test-output/look2/ladder-q (medium and low), test-output/look2/cur (state at resume = the earlier engineer's interim), test-output/look2/after-v1 (intermediate), test-output/look2/classic-run, test-output/look2/bench-*.
 - Other engineers' processes (worldgen pipeline tests) were running concurrently; none were mine. I left no background processes.
+- Changes to the reviewer's tests: leafBend.verify now mirrors the shader through the shared `leafBendMm` instead of the old uncapped formula. Test 3 separates tips buried by the bend (must be 0, and now 0 tips are lowered) from tips that are below the terrain even when flat (generator placement, logged). The thresholds are unchanged. My own older sky-occlusion tests that assumed no occlusion beside a raised body were updated for the skirt.
+- The gallery page gained probe helpers: sceneNames, boundTarget, setVisible, pose. It also has the autoClear workaround in setQuality, and sets its sim to the post-dealation state.
+- Once, another engineer's work-in-progress (src/sim/species/rivals.ts missing the export rivalProfile) stopped the gallery from booting. A retry later worked; it was not my code.
+- Evidence: test-output/look-review/rev (High plus pairs), test-output/look-review/ladder (Medium/Low after an in-page switch), test-output/look-review/probe (switch diagnosis), test-output/look-review/under/a (real-chamber queen).
 
 ### Contract changes
 - No change to src/sim/types/** or src/core/**.
@@ -805,10 +811,12 @@ DONE (all render-side):
 - LightingState (mine) gained fillIntensity.
 - WorldRenderer.stats() gained flowerHeads, flowerParts and flowerTriangles (additive).
 - WorldFrame.occlusion was already present from the earlier engineer and is unchanged.
+- None in src/sim/types/** or src/core/**.
+- In render code I own: MaterialDef gained an optional `highlights?: {knee, k}` (ground layers only); LayerSource gained an optional `highlights`; SKY_OCCLUSION gained skirtMinHeightMm, skirtK, skirtMaxMm, skirt and skirtCoarse; LEAF_BEND gained maxMm, flatLo and flatHi and moved to materials/leafBend.ts (surfacePatch.ts re-exports it).
+- src/render/ants/simAdapter.ts (authorised for wing state): WINGED_OPENING_PHASES is now ['intro-card', 'dealation'].
 
 ### Acceptance criteria not fully met
-- [partial] 2. After-gallery judged honestly beside the references: relief near the camera with no shimmer, plants that read as plants, materials correct with no stray rust, props recognisable, sky and haze depth, wingless queen, every remaining difference listed — Met: grit with volume and contact shadows, real flower heads from parts, leaf outlines, veins and cupping, clean metals and enamel, moulded plastics, appliance plinth, haze and sky in every archetype and light, queen wingless with stubs from the first frame (WINGED_OPENING_PHASES = dealation only, as GDD 06 §5.1 has her shed them on screen; covered by simAdapter.test.ts). Not met: terrain relief is normal-map only, grass blades near the lens are flat ribbons, leaves remain flat boxes. Remaining differences are listed in the summary. Pairs are in test-output/look2/after/pairs.
-- [partial] 4. Draw calls and triangles within the architecture §6 budget per preset (before/after); runtime quality switching still works — High: at most 158 draws and 1.22 M triangles (budget 350 / 1.5 M); Medium at most 101 / 0.66 M; Low at most 72 / 0.38 M. My renderers' setQuality paths are unit-tested (flowerDressing.test.ts, lookPass.test.ts), and the in-page high-to-medium switch rendered correctly. The in-page switch to Low showed stale captures in the gallery (not root-caused); booting at Low is correct.
+- [partial] Finding 5: in-page switch to Low differs from booting at Low (AC4) — Root cause found (EffectComposer leaves autoClear false after the post chain is disposed). The gallery workaround brings switch-vs-boot RMSE to about 0.001. The fix belongs in src/render/app, which I don't own; the game's own switch is unverified.
 
 ## founding
 
@@ -877,10 +885,6 @@ DONE (all render-side):
 - [partial] Finding 9: tests not tautological; the end-to-end script has no stand-ins — The flow test reads the speed context from the sim and checks the sim accepts 8x; the real-action path is tested headless. The e2e has no stand-ins any more but does not yet pass (stops at sealing).
 - [not-met] Spec acceptance 2: e2e passes with all screenshots — Last harness run fails at sealing; only screenshots 01-03 were taken.
 - [partial] GDD 06 App. E checks 15, 16, 18, 19 — E15 (exposure.test), E18 (model.test) and E19 (lapse.test) pass. E16's worked-example numbers are replaced by the map-scale examples under the directions §K ruling. E17 (a 'readiness' refusal for seal-entrance) needs the actions module. E21 (milestones) and E25 (no autosave during the lapse) belong to progression and save.
-
-## founding-close
-
-(no report found)
 
 ## views
 

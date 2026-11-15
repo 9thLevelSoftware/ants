@@ -158,6 +158,7 @@ export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.marker.move-brood': 'Move the brood',
   'remedy.marker.move-queen': 'Move the queen',
   'remedy.possess.forage': 'Take control of a forager',
+  'remedy.possess.tend': 'Take control of a worker tending the herd',
   'remedy.possessed.find-soil': 'Find soil to dig in',
   'remedy.possessed.move-closer': 'Move closer',
   'remedy.possessed.put-down': 'Put the load down',
@@ -165,6 +166,7 @@ export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.slider.dig': 'Raise the Dig share',
   'remedy.slider.forage': 'Raise the Forage share',
   'remedy.slider.nurse': 'Raise the Nurse share',
+  'remedy.slider.tend': 'Raise the Forage share (it holds the tenders)',
   'remedy.stock.low': 'Lower the stock target',
 };
 

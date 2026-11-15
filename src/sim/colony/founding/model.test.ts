@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { requireSpecies } from '@/sim/species';
 import { BROOD_SURVIVAL } from '@/sim/balance';
-import { colonyBaseHazardPerGd, devTimeGd, forecast, foundingMu, modelStats, runModel } from './model';
+import { colonyBaseHazardPerGd, devTimeGd, forecast, foundingMu, hazardTimeGd, modelStats, runModel } from './model';
+import { FOUND_FIRST_BROOD_DEV_MULT } from '@/sim/balance/founding';
 
 const def = requireSpecies('lasius-niger');
 
@@ -23,14 +24,18 @@ describe('founding model (GDD 06 §5.12)', () => {
     expect(foundingMu(0.7, 'lasius-niger', 1, 0)).toBeCloseTo(0.168 * 3, 6);
   });
 
-  it('egg to worker takes 4.52 GD at 19.5 C (3.9 GD at 21 C)', () => {
-    expect(Math.abs(devTimeGd(def, 19.5) - 4.52)).toBeLessThan(0.01);
-    expect(Math.abs(devTimeGd(def, 21) - 3.9)).toBeLessThan(0.01);
+  it('egg to worker: 4.52 GD of hazard exposure at 19.5 C (3.9 GD at 21 C); the fast-tracked first brood takes less', () => {
+    expect(Math.abs(hazardTimeGd(def, 19.5) - 4.52)).toBeLessThan(0.01);
+    expect(Math.abs(hazardTimeGd(def, 21) - 3.9)).toBeLessThan(0.01);
+    // founding-close ruling: eggs and pupae x FOUND_FIRST_BROOD_DEV_MULT, larvae at the colony rate
+    const g = def.life.stageGd, r = 9.5 / 11;
+    expect(devTimeGd(def, 19.5)).toBeCloseTo((g.egg / FOUND_FIRST_BROOD_DEV_MULT + g.larva + g.pupa / FOUND_FIRST_BROOD_DEV_MULT) / r, 3);
+    expect(devTimeGd(def, 19.5)).toBeLessThan(hazardTimeGd(def, 19.5));
   });
 
   it('the colony base hazard averaged over development matches its per-stage survival', () => {
     const total = -Math.log(BROOD_SURVIVAL.egg * BROOD_SURVIVAL.larva * BROOD_SURVIVAL.pupa);
-    expect(colonyBaseHazardPerGd(def, 19.5) * devTimeGd(def, 19.5)).toBeCloseTo(total, 6);
+    expect(colonyBaseHazardPerGd(def, 19.5) * hazardTimeGd(def, 19.5)).toBeCloseTo(total, 6);
   });
 
   it('E18: Q 0.7, 19.5 C, R0 56, clutch 24, 200 seeds: mean 11.5 +- 1.5, p10 ~8, p90 ~15, no queen deaths', () => {
@@ -39,8 +44,9 @@ describe('founding model (GDD 06 §5.12)', () => {
     expect(Math.abs(s.p10 - 8)).toBeLessThanOrEqual(1);
     expect(Math.abs(s.p90 - 15)).toBeLessThanOrEqual(1);
     expect(s.queenDeathRate).toBe(0);
-    // E19 in the model: first eclosion 4.52 +- 0.1 GD after the first egg
-    expect(Math.abs(s.meanFirstEclosionGd - 4.52)).toBeLessThanOrEqual(0.1);
+    // E19 in the model: first eclosion 4.52 +- 0.1 GD after the first egg in the GDD; the fast track shortens it
+    // to devTimeGd (deviation recorded in the founding-close report)
+    expect(Math.abs(s.meanFirstEclosionGd - devTimeGd(def, 19.5))).toBeLessThanOrEqual(0.1);
   });
 
   it('E18: clutch 48 at Q 0.7 kills the queen in 50-80 % of runs; at Q 0.9 in more than 90 %', () => {
@@ -56,7 +62,7 @@ describe('founding model (GDD 06 §5.12)', () => {
 
   it('forecast: E = N exp(-mu Tdev) as a 0.7-1.3 range; reserves at first worker; safe band', () => {
     const f = forecast(def, 24, 19.5, 0.7);
-    expect(f.expected).toBeCloseTo(24 * Math.exp(-0.168 * devTimeGd(def, 19.5)), 6);
+    expect(f.expected).toBeCloseTo(24 * Math.exp(-0.168 * hazardTimeGd(def, 19.5)), 6);
     expect(f.range).toEqual([Math.round(0.7 * f.expected), Math.round(1.3 * f.expected)]);
     // GDD 06 §5.4 calibration: a good site with a 24-egg clutch ends with about 0.4 left
     expect(f.reserves).toBeGreaterThan(0.3);

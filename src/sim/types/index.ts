@@ -30,6 +30,7 @@ export * from './decor';
 export * from './config';
 export * from './species';
 export * from './rivalSpecies';
+export * from './rivalsModule';
 export * from './commands';
 export * from './commandsCheat';
 export * from './events';

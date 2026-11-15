@@ -91,3 +91,26 @@ rival nests pre-carve (rivals).
 
 **Outdoor budget**: 500 foragers outdoors ≤ 1.2 ms per tick is still unproven. Measure on a quiet machine
 (`uptime` load < 2) and report the table; if it is over, profile and fix the top two costs.
+
+## Addendum 4 (Nov 15, 23:30) — launch state
+
+- `sim-fix-ants` is reviewed and fixed: stalled share 0.56 % → 0.01 % (longest stall 241 → 11 ticks on the
+  2-game-day soak), wander ladder + pinned let-go in cavities, staggered thinking, crop-capacity-aware
+  `load-crop`, avoid-weighted entrance flow field. Outdoor 500 ants: 1.33 ms measured at load 11 (budget
+  1.2 ms; idle figure unknown — measure it). Its fix did **not** cover the surface traps in item 11.
+- From its report: add a starvation-stage check inside `src/sim/colony/queen.ts` `feedQueenFromReserve`
+  (the ants-side primitive gates it today; any other caller is unprotected).
+- **Other engineers are working now; do not edit their paths, and expect their files to change under you:**
+  `founding-close` in `src/sim/colony/founding/**`, `src/sim/balance/founding.ts`, a guard in
+  `src/sim/colony/midden.ts` / `diagnostics.ts`, `startDoy` in the Lasius species file;
+  `rivals` in `src/sim/rivals/**`, `src/sim/species/rivals/**` (a half-written rivals file can break
+  typecheck or a boot for a few minutes — retry before diagnosing);
+  `ui-panels` in `src/ui/**`.
+  The founding opening is verified by this gate **at the end**: run the founding folder tests and one
+  headless real-action founding on generated seeds 1–3 after the rest of your work; if `founding-close`
+  has not finished by then, report what you saw rather than fixing it.
+- Machine: 4 cores shared with ~4 other agents. Never run the whole vitest suite in one go while others
+  work; run it folder by folder (`src/core`, `src/sim/<module>`, `src/worldgen/<part>`, `src/game`, …),
+  record pass/fail per folder in the gate report, and re-run a failing file alone before believing it.
+- Gate report: `docs/design/tasks/gate-1B-sim-report.md` — per item of Addendum 3: fixed / not fixed /
+  not a defect, with evidence; the folder-by-folder suite table; budgets measured; open risks.

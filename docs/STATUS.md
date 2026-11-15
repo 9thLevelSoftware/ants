@@ -191,3 +191,13 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
   three LONG kernel crossings that trap the game's walker (locomotion).
 - Gate prep: `int-1B-sim.md` Addendum 3 (integration list), `notes-1B.md` regenerated.
 - Waiting for: look-pass + sim-fix-ants review/fix, founding-close → then both 1B gates.
+
+### Nov 15, 23:30 — look-pass and sim-fix-ants landed (reviewed + fixed); both 1B gates launched
+- **look-pass**: review 3 major + 4 minor; 6 fixed (car sky occlusion + skirt, asphalt glitter, leaf bend ≤ 1 mm,
+  flower cap, dead leaf, wings at dealation). Quality-switch ghosting root cause is in `renderApp` (autoClear) →
+  app gate. Orchestrator look at 4 frames: soil grit and ants good; underground queen now warm and readable;
+  grass still faceted, white untextured pillar in woodland, under-car frame nearly black → app gate (exposure)
+  and second look pass.
+- **sim-fix-ants**: review 3 major + 5 minor; 7 fixed, budgets reported. Stalled share 0.01 %. Outdoor 1.33 ms
+  at load 11 (budget 1.2 ms, idle unknown).
+- Launched `int-1B-sim` + `int-1B-app` (Opus, with review). Still running: founding-close, rivals, ui-panels.

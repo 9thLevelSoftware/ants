@@ -5,6 +5,8 @@
 import type { Binding } from '@/input';
 import { currentBindings } from '../components';
 import { snapshot } from '../store';
+import { cycleOtherOverlay, toggleOverlay } from '../overlays/state';
+import { openBook } from '../panels/wiring/state';
 import { togglePanel } from './state';
 
 const BACKQUOTE = 'Backquote';
@@ -28,6 +30,13 @@ export function onHudKey(e: KeyboardEvent): void {
   if (snapshot.peek().mode !== 'playing') return;
   if (matchesAction(e, 'directives')) { e.preventDefault(); togglePanel('directives'); return; }
   if (matchesAction(e, 'roster')) { e.preventDefault(); togglePanel('roster'); return; }
+  // ui-panels: Colony health (Y), Nest overview (U), Journal (J), Codex (K), scent view (V), the other overlays (O)
+  if (matchesAction(e, 'why-view')) { e.preventDefault(); openBook.value = null; togglePanel('health'); return; }
+  if (matchesAction(e, 'nest-overview')) { e.preventDefault(); openBook.value = null; togglePanel('nest'); return; }
+  if (matchesAction(e, 'journal')) { e.preventDefault(); openBook.value = openBook.peek() === 'journal' ? null : 'journal'; return; }
+  if (matchesAction(e, 'codex')) { e.preventDefault(); openBook.value = openBook.peek() === 'codex' ? null : 'codex'; return; }
+  if (matchesAction(e, 'scent-view')) { e.preventDefault(); toggleOverlay('scent'); return; }
+  if (matchesAction(e, 'overlay-cycle')) { e.preventDefault(); cycleOtherOverlay(); return; }
   if (e.code === BACKQUOTE && !e.shiftKey && enterFeed()) e.preventDefault();
 }
 

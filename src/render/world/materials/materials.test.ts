@@ -5,6 +5,7 @@ import manifestRaw from '../../../../public/assets/manifest.json?raw';
 import { MATERIAL_IDS } from '@/sim/types';
 import { MATERIAL_DEFS, materialDef, primMaterialDef } from './materialDefs';
 import { proceduralPixels } from './procedural';
+import { compressHighlights } from './textureArray';
 
 const manifest = JSON.parse(manifestRaw) as {
   materials: Record<string, { maps: Record<string, string> }>;
@@ -62,5 +63,21 @@ describe('rain look (GDD 08 11.4)', () => {
   it('the wet roughness factor is x0.4 above the material floor', async () => {
     const { GLSL_WET } = await import('./glsl');
     expect(GLSL_WET).toContain('r * 0.4');
+  });
+});
+
+describe('ground highlight compression (asphalt specks)', () => {
+  it('greys white specks, keeps the dark binder and the hue', () => {
+    const px = new Uint8ClampedArray([255, 255, 255, 255, 40, 40, 42, 255, 250, 200, 150, 255]);
+    compressHighlights(px, 0.16, 0.3);
+    expect(px[0]).toBeLessThan(190);
+    expect(px[0]).toBeGreaterThan(140);
+    expect([px[4], px[5], px[6]]).toEqual([40, 40, 42]);
+    expect(px[8]).toBeGreaterThan(px[9]);
+    expect(px[9]).toBeGreaterThan(px[10]);
+  });
+
+  it('only the asphalt asks for it', () => {
+    expect(materialDef('asphalt').highlights).toBeDefined();
   });
 });

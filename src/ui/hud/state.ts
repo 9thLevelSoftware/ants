@@ -6,7 +6,7 @@ import type { UiAlert, UiRosterQuery } from '../api';
 import { defaultQuery } from '../panels/roster/rosterModel';
 import type { HudBridge } from '@/game/uiBridge/install';
 
-export type DrawerId = 'directives' | 'roster';
+export type DrawerId = 'directives' | 'roster' | 'health' | 'nest';
 
 /** The drawer that is open (one at a time, GDD 08 4.1), or null. */
 export const openDrawer = signal<DrawerId | null>(null);

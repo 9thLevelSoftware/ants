@@ -8,8 +8,8 @@ import type { MeshStandardMaterial, Uniform, Vector4, WebGLProgramParametersWith
 import { dappledLightsChunk, GLSL_DAPPLE } from './dapple';
 import { foliageLightsChunk } from '../decor/foliageLight';
 import { LOOK_FRAG_DECL, LOOK_VERT_DECL, LOOK_VERT_MAIN, lookFragMain } from '../dressing/finishGlsl';
-import { FINISH } from '../dressing/finishes';
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
+import { LEAF_BEND_GLSL } from './leafBend';
 import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms } from './occlusion';
 import type { MaterialDef } from './materialDefs';
 import type { TextureSet } from './materialLibrary';
@@ -67,7 +67,7 @@ export function addPatch(mat: { onBeforeCompile: MeshStandardMaterial['onBeforeC
  * Vertex expansion of the primitive geometry. Attributes: `normal` = unit direction, `aCorner` = point on the
  * normalised inner box/cylinder; per instance `iSize` = (size.xyz, round). Shared with the shadow depth material.
  * `leafCurl`: leaf-finish instances (iLook.x == FINISH.leaf; the caller declares `iLook`) are cupped across and
- * droop at the tip, a render-only bend of at most LEAF_BEND of the leaf's half extents (collision stays flat).
+ * bent along the blade, a render-only bend capped in mm (materials/leafBend.ts; collision stays flat).
  */
 export function primVertexPatch(s: WebGLProgramParametersWithUniforms, mode: 'rounded' | 'ellipsoid', leafCurl = false): void {
   const pos = mode === 'ellipsoid' ? 'normal * iSize.xyz' : 'aCorner * max(iSize.xyz - vec3(iSize.w), vec3(0.0)) + normal * iSize.w';
@@ -84,22 +84,7 @@ ${leafCurl ? `objectNormal = wrLeafBendNormal(${pos}, objectNormal);` : ''}`)
 ${leafCurl ? 'transformed.y += wrLeafBend(transformed);' : ''}`);
 }
 
-/** Leaf bend: cup across the blade (edges up) and droop toward the tip (+x), fractions of the half extents. */
-export const LEAF_BEND = { cup: 0.12, droop: 0.06 } as const;
-const LEAF_BEND_GLSL = /* glsl */ `
-bool wrIsLeaf() { return abs(iLook.x - ${FINISH.leaf}.0) < 0.5; }
-float wrLeafBend(vec3 p) {
-  if (!wrIsLeaf()) return 0.0;
-  float v = p.z / max(iSize.z, 1e-3), t = max(0.0, p.x / max(iSize.x, 1e-3));
-  return ${LEAF_BEND.cup.toFixed(3)} * iSize.z * v * v - ${LEAF_BEND.droop.toFixed(3)} * iSize.x * t * t;
-}
-vec3 wrLeafBendNormal(vec3 p, vec3 n) {
-  if (!wrIsLeaf()) return n;
-  float v = p.z / max(iSize.z, 1e-3), t = max(0.0, p.x / max(iSize.x, 1e-3));
-  float dydz = 2.0 * ${LEAF_BEND.cup.toFixed(3)} * v, dydx = -2.0 * ${LEAF_BEND.droop.toFixed(3)} * t;
-  return normalize(n + vec3(-dydx, 0.0, -dydz) * n.y);
-}
-`;
+export { LEAF_BEND } from './leafBend';
 
 export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOptions): void {
   const d = o.def;

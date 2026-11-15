@@ -8,9 +8,28 @@ import {
 import type { PixelSet } from './procedural';
 
 /** One layer source: decoded images (ImageBitmap / canvas / image) or procedural pixels. */
-export type LayerSource =
+export type LayerSource = (
   | { kind: 'images'; albedo: CanvasImageSource | null; normal: CanvasImageSource | null; rough: CanvasImageSource | null }
-  | { kind: 'pixels'; set: PixelSet };
+  | { kind: 'pixels'; set: PixelSet }
+) & { highlights?: { knee: number; k: number } };
+
+const toLin = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+const toSrgb = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+const LIN = Float32Array.from({ length: 256 }, (_, i) => toLin(i / 255));
+
+/**
+ * Compresses albedo highlights in place (sRGB bytes, RGBA): above `knee` linear luminance the excess is scaled by
+ * `k`, hue kept. Dark and mid tones are untouched.
+ */
+export function compressHighlights(px: Uint8ClampedArray | Uint8Array, knee: number, k: number): void {
+  for (let i = 0; i < px.length; i += 4) {
+    const r = LIN[px[i]], g = LIN[px[i + 1]], b = LIN[px[i + 2]];
+    const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (l <= knee) continue;
+    const s = (knee + (l - knee) * k) / l;
+    px[i] = Math.round(toSrgb(r * s) * 255); px[i + 1] = Math.round(toSrgb(g * s) * 255); px[i + 2] = Math.round(toSrgb(b * s) * 255);
+  }
+}
 
 export interface TerrainTextureArrays {
   albedoRough: DataArrayTexture;
@@ -84,6 +103,7 @@ export function buildTerrainArrays(sources: LayerSource[], size: number, anisotr
       nor = resamplePixels(src.set.normal, src.set.size, size);
       rou = resamplePixels(src.set.rough, src.set.size, size);
     }
+    if (src.highlights) compressHighlights(alb, src.highlights.knee, src.highlights.k);
     const o = layer * size * size * 4;
     for (let i = 0; i < size * size * 4; i += 4) {
       ar[o + i] = alb[i]; ar[o + i + 1] = alb[i + 1]; ar[o + i + 2] = alb[i + 2]; ar[o + i + 3] = rou[i + 1];

@@ -6,7 +6,7 @@
  * URL flags: ?quality=low|medium|high|ultra  &arch=<archetype>|swatch  &frame=start|plant|prop|paving|interior
  *            &light=midday|golden|overcast|night  &seed=N  &t=SECONDS (frozen clock)  &hud=0
  * Globals:   window.__ready, window.__gallery (load, frames, setFrame, setLight, setQuality, setCamera, render,
- *            stats, dispose)
+ *            bench, stats, dispose; probe helpers: sceneNames, boundTarget, setVisible, pose)
  * Scripted by tests/e2e/look.mjs.
  */
 import { PerspectiveCamera, Scene, Vector3 } from 'three';
@@ -97,6 +97,9 @@ async function load(arch: string, seed = Number(qs.get('seed') ?? 1)): Promise<{
   world = made.world; sim = made.sim; worldName = arch;
   const s = sim.state;
   queen = s.ants.find((a) => a.caste === 'queen') ?? null;
+  // the gallery shows play after the opening's dealation (the founding module's own end state): wings shed
+  if (queen?.queen?.founding) queen.queen.founding.wings = false;
+  if (s.player.opening) s.player.opening.phase = 'search';
   const ctx = { state: s, stores: sim.stores, emit: () => {}, world: { bu: world.bu } };
   worker = spawnAnt(ctx as never, { colony: s.colonies[0].id, caste: 'worker', pos: { ...world.queenStart.pos }, fwd: { ...world.queenStart.fwd }, lengthBu: 1 });
   await worldRenderer.setWorld(world, sim);
@@ -223,6 +226,10 @@ async function setQuality(id: QualityId): Promise<ReturnType<typeof stats>> {
   qualityId = id;
   const p = presetFor(id);
   app.setQuality(p);
+  // Workaround (root cause in src/render/app, reported): postprocessing's EffectComposer sets renderer.autoClear =
+  // false and nothing restores it when a switch to a preset without post (Low) disposes the chain, so the direct
+  // path drew every new frame over the old colour and depth (near objects of the previous view stayed on screen).
+  if (!app.post) app.renderer.autoClear = true;
   if (app.needsRecreate) {
     ants.dispose(); decor.dispose(); worldRenderer.dispose(); app.dispose();
     canvas.remove();
@@ -259,6 +266,18 @@ window.__gallery = {
     return { ms: Math.round(best), ...stats() };
   },
   stats,
+  /** Top-level scene children (probes: nothing of a disposed renderer may stay in the scene). */
+  sceneNames: () => scene.children.map((c) => `${c.name || c.type}:${c.children.length}`),
+  /** Name of the render target bound after the last frame (null = the screen), for probes. */
+  boundTarget: () => { const t = app.renderer.getRenderTarget(); return t ? (t.texture.name || 'unnamed') : null; },
+  /** Shows or hides a top-level scene group by name (world, decor, ants), for probes isolating a renderer. */
+  setVisible: (name: string, on: boolean) => { for (const c of scene.children) if (c.name === name) c.visible = on; render(); return true; },
+  /** Camera, subject and the two ants (for probes comparing runs). */
+  pose: () => ({
+    camera: camera.position.toArray().map((v) => Math.round(v * 100) / 100), subject: subject.toArray().map((v) => Math.round(v * 100) / 100),
+    queen: queen ? { id: queen.id, caste: queen.caste, pos: { ...queen.pos } } : null, worker: worker ? { id: worker.id, caste: worker.caste, pos: { ...worker.pos } } : null,
+    ants: sim?.state.ants.map((a) => ({ id: a.id, caste: a.caste, pos: { ...a.pos } })) ?? [],
+  }),
   dispose: () => { ants.dispose(); decor.dispose(); worldRenderer.dispose(); app.dispose(); },
 };
 

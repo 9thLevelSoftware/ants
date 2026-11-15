@@ -60,7 +60,7 @@ export const PALETTE = {
   umbel: L(['#efeae0', '#c9b6d8', '#e9d7a8']),
   moss: lin('#4f6f23'),
   /** Fallen leaves: weathered browns (bright orange read as a varnished plank at ant scale). */
-  deadLeaf: L(['#6b4a2c', '#7a5532', '#5a3e26', '#86603a']),
+  deadLeaf: L(['#6a4b31', '#76573a', '#5a412d', '#7f6040']), // greyer browns: the old ones lit orange in sun
   fungusCap: L(['#a8724a', '#c9a77a', '#7a4b2e']),
   fungusStem: lin('#d9cdb4'),
   nut: lin('#7a5230'),

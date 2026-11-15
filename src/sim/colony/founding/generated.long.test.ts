@@ -8,9 +8,9 @@ import { begin } from '@/sim/ants';
 import { navStop, navTo } from '@/sim/locomotion';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
-import { makeTestSim } from '@/sim/testing';
 import { runFoundingDig } from '@/sim/testing/e2e/foundingScript';
-import { TICKS_PER_DAY, currentSeason } from '@/sim/time';
+import { TICKS_PER_DAY, calendarTick, currentSeason, daysPerYear, seasonLengthOf } from '@/sim/time';
+import { requireSpecies } from '@/sim/species';
 import { generateWorld } from '@/worldgen';
 import { SUIT } from '@/worldgen/tuning/maps';
 import { isWorkerCaste } from '../census';
@@ -146,38 +146,48 @@ describe.skipIf(!LONG)('the player path on a generated world (no stand-ins; temp
   }, 1_800_000);
 });
 
-/** cheat.completeFounding where the queen stands, real environment; outcome before winter. */
-function outcome(sim: Sim): { ok: boolean; gd: number; workers: number; q: number } {
+/**
+ * The passive opening where the queen stands (cheat.completeFounding: the founding template carved there, the real
+ * seal by the guide, the colony's own laying, the lapse in the real environment). Margin: game days from the
+ * hand-over to the first day of autumn (>= 1.0 wanted: hand-over no later than the start of the last summer day).
+ */
+function outcome(sim: Sim): { ok: boolean; gd: number; workers: number; q: number; margin: number; phase: string } {
   sim.enqueue({ type: 'cheat.completeFounding', workers: 10 });
-  stepUntil(sim, () => phase(sim) === 'timelapse', 4000);
+  stepUntil(sim, () => phase(sim) === 'timelapse' || phase(sim) === 'failed', 8000);
   const t0 = sim.state.tick;
   const winter = () => currentSeason(sim.state) === 'winter';
   stepUntil(sim, () => phase(sim) !== 'timelapse' || winter(), 14 * TICKS_PER_DAY);
   const v = foundingView(sim);
-  return { ok: phase(sim) === 'handover' || phase(sim) === 'done', gd: (sim.state.tick - t0) / TICKS_PER_DAY, workers: v?.outcome?.workers ?? 0, q: sim.state.player.opening!.siteQ };
+  const L = seasonLengthOf(sim.state.config);
+  const dayNow = (calendarTick(sim.state) / TICKS_PER_DAY) % daysPerYear(sim.state.config);
+  return {
+    ok: phase(sim) === 'handover' || phase(sim) === 'done', gd: (sim.state.tick - t0) / TICKS_PER_DAY, workers: v?.outcome?.workers ?? 0,
+    q: sim.state.player.opening!.siteQ, margin: 2 * L - dayNow, phase: phase(sim),
+  };
 }
 
+const range = requireSpecies('lasius-niger').opening.expectedFirstWorkers;
+const fmt = (o: ReturnType<typeof outcome>) => `${o.ok ? 'ok' : `FAIL(${o.phase})`} lapse ${o.gd.toFixed(2)} GD, ${o.workers} workers, margin ${o.margin.toFixed(2)} GD (Q ${o.q.toFixed(2)})`;
+const accepted = (o: ReturnType<typeof outcome>) => o.ok && o.workers >= range.min && o.workers <= range.max && o.margin >= 1.0;
+
 describe.skipIf(!LONG)('founding outcome in the real environment (default start date, GDD 06 §5.11 / §5.15)', () => {
-  it('generated worlds: at the start and at the nearest good site; test worlds: Summer 3 (default) vs Summer 2', () => {
+  it('generated worlds 1-8, default start: hand-over in the chapter range with >= 1 GD before autumn', () => {
     const rows: string[] = [];
-    let ok = 0, n = 0;
-    for (const seed of SEEDS) {
+    let good = 0;
+    const seeds = env?.env.FOUNDRESS_SEEDS ? SEEDS : [1, 2, 3, 4, 5, 6, 7, 8];
+    for (const seed of seeds) {
       const a = outcome(newGame(seed));
       const s2 = newGame(seed);
       const site = goodSite(s2, 300);
       s2.enqueue({ type: 'cheat.teleport', antId: queen(s2).id, pos: { x: site.x, y: site.y + 0.5 * s2.world.bu, z: site.z } });
       s2.tick();
       const b = outcome(s2);
-      rows.push(`gen ${seed}: start ${a.ok ? 'ok' : 'FAIL'} ${a.gd.toFixed(2)} GD ${a.workers} w (Q ${a.q.toFixed(2)}); good site ${b.ok ? 'ok' : 'FAIL'} ${b.gd.toFixed(2)} GD ${b.workers} w (Q ${b.q.toFixed(2)})`);
-      ok += (a.ok ? 1 : 0) + (b.ok ? 1 : 0); n += 2;
+      if (accepted(b) || accepted(a)) good++;
+      rows.push(`gen ${seed}: start ${fmt(a)}; nearest good site ${fmt(b)}`);
+      log(rows[rows.length - 1]);
+      worlds.clear(); // one generated world in memory at a time
     }
-    for (let seed = 1; seed <= 8; seed++) {
-      const d3 = outcome(makeTestSim({ sizeBu: 128, seed }));
-      const d2 = outcome(makeTestSim({ sizeBu: 128, seed, config: { startDayOfSeason: 2 } }));
-      rows.push(`test ${seed}: Summer 3 ${d3.ok ? 'ok' : 'FAIL'} ${d3.gd.toFixed(2)} GD ${d3.workers} w; Summer 2 ${d2.ok ? 'ok' : 'FAIL'} ${d2.gd.toFixed(2)} GD ${d2.workers} w`);
-    }
-    for (const r of rows) log(r);
-    log(`generated: ${ok} of ${n} reach the hand-over before winter`);
-    expect(rows.length).toBe(SEEDS.length + 8);
+    log(`accepted (start or nearest good site): ${good} of ${seeds.length}; range ${range.min}-${range.max}`);
+    expect(good).toBe(seeds.length);
   }, 3_600_000);
 });

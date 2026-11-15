@@ -21,7 +21,9 @@ export interface HudRequests {
   inspect: InspectRequest | null;
   /** The Directives panel is open: only then does the bridge fill `UiSnapshot.directives` (a pass over ants and brood). */
   directivesOpen: boolean;
+  /** ui-panels: which panels are open; the bridge builds their slices only then (UiSnapshot.health / nest / journal). */
+  panels: { health: boolean; nest: boolean; journal: boolean };
   hooks: BridgeHooks | null;
 }
 
-export const hudRequests: HudRequests = { roster: null, inspect: null, directivesOpen: false, hooks: null };
+export const hudRequests: HudRequests = { roster: null, inspect: null, directivesOpen: false, panels: { health: false, nest: false, journal: false }, hooks: null };

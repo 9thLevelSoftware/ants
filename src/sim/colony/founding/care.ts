@@ -11,8 +11,8 @@ import { BroodFlag } from '@/sim/types';
 import { FEED_LARVA_LOADS, FOUNDING_FEED_P_SHARE } from '@/sim/balance/actions';
 import { LARVA_GUT_CAP } from '@/sim/balance';
 import {
-  FOUND_CANNIBAL, FOUND_CARE_EVERY_TICKS, FOUND_CARE_FEED_BELOW, FOUND_HAZARD, FOUND_HAZARD_EVERY_GD,
-  FOUND_HAZARD_LOSS, FOUND_HAZARD_RESPONDED, FOUND_UPKEEP_PER_GD, FOUND_WINTER_UPKEEP_FACTOR,
+  FOUND_CANNIBAL, FOUND_CARE_EVERY_TICKS, FOUND_CARE_FEED_BELOW, FOUND_FIRST_BROOD_DEV_MULT, FOUND_HAZARD, FOUND_HAZARD_EVERY_GD,
+  FOUND_HAZARD_LOSS, FOUND_HAZARD_RESPONDED, FOUND_HAZARD_RESPONSE, FOUND_UPKEEP_PER_GD, FOUND_WINTER_UPKEEP_FACTOR,
 } from '@/sim/balance/founding';
 import { removeItem } from '@/sim/entities';
 import { chamberHumidity, rainIntensityAt } from '@/sim/environment';
@@ -20,6 +20,7 @@ import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
 import type { FoundingHazard } from '@/sim/types';
 import { ecloseBrood, larvaRemainingNeed } from '../brood';
 import { broodTempC } from '../envAdapter';
+import { devRate, stageDu } from '../life';
 import { feedFromCrop } from '../stores';
 import { broodDies } from '../brood';
 import { FB, bbGet, bbSet, playerColonyOf, speciesOf } from './access';
@@ -116,17 +117,25 @@ export function hazardRates(sim: Sim, op: OpeningState, nest: Nest): Record<'flo
   };
 }
 
-/** Applies one hazard's outcome (no interrupt beats in T1: the default outcome; Gentle: responded and halved). */
+/**
+ * Applies one hazard's outcome. No interrupt beats in T1: Gentle resolves with the responded outcome halved; on the
+ * other difficulties the first openingInterruptMax hazards are answered by her automatic care (the success outcome),
+ * later ones take the default outcome.
+ */
 function applyHazard(sim: Sim, op: OpeningState, q: Ant, list: Brood[], hazard: FoundingHazard): void {
-  const gentle = sim.state.config.difficulty.params.openingInterruptMax <= 0;
-  const loss = (gentle ? FOUND_HAZARD_RESPONDED : FOUND_HAZARD_LOSS)[hazard];
+  const max = sim.state.config.difficulty.params.openingInterruptMax;
+  const gentle = max <= 0;
+  // an interrupt beat the T1 lapse cannot show yet: her automatic care responds (FOUND_HAZARD_RESPONSE)
+  const responds = !gentle && op.interruptsUsed < max;
+  if (responds) op.interruptsUsed++;
+  const loss = (gentle ? FOUND_HAZARD_RESPONDED : responds ? FOUND_HAZARD_RESPONSE : FOUND_HAZARD_LOSS)[hazard];
   const rng = sim.stream('rng.opening');
   let lost = 0;
   for (const b of list) {
     if (b.alive && rngFloat(rng) < loss.brood) { broodDies(sim, b, hazard === 'flood' ? 'flooding' : 'predation'); lost++; }
   }
   if (loss.health > 0) q.hp = Math.max(0, q.hp - loss.health * q.maxHp);
-  op.hazardLog.push({ tick: sim.state.tick, hazard, outcome: `${gentle ? 'responded' : 'default'}:${lost}` });
+  op.hazardLog.push({ tick: sim.state.tick, hazard, outcome: `${gentle || responds ? 'responded' : 'default'}:${lost}` });
   sim.emit({ type: 'queen.hazard', queenId: q.id, hazard });
   if (q.hp <= 0) queenDies(sim, q, hazard === 'intruder' ? 'predation' : 'crushed', hazard === 'intruder' ? 'predation' : 'crushed');
 }
@@ -147,6 +156,16 @@ function rollHazards(sim: Sim, op: OpeningState, q: Ant, nest: Nest, list: Brood
 function upkeep(sim: Sim): number {
   const winter = currentSeason(sim.state) === 'winter' ? FOUND_WINTER_UPKEEP_FACTOR : 1;
   return FOUND_UPKEEP_PER_GD * winter * sim.state.config.difficulty.params.reserveDrainMult * CARE_DT_GD;
+}
+
+/**
+ * The first brood's fast track (FOUND_FIRST_BROOD_DEV_MULT): an egg or a pupa still developing gains the extra
+ * development of one care period on top of the colony brood system's own step (which then moves the stage on).
+ */
+function fastTrackStep(def: ReturnType<typeof speciesOf>, b: Brood, tempC: number): void {
+  if (b.stage === 'larva' || (b.flags & (BroodFlag.READY | BroodFlag.DIAPAUSE)) !== 0) return;
+  const extra = ((FOUND_FIRST_BROOD_DEV_MULT - 1) * devRate(def, tempC) * CARE_DT_GD) / stageDu(def, b.stage, b.destined);
+  if (extra > 0) b.progress = Math.min(1, b.progress + extra);
 }
 
 /** One care period (every FOUND_CARE_EVERY_TICKS ticks) of the sealed founding queen. */
@@ -178,9 +197,12 @@ export function careTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): CareRe
       if (ecloseBrood(sim, b.id, q.id)) { res.eclosed++; bbSet(q, FB.eclosed, bbGet(q, FB.eclosed, 0) + 1); }
       continue;
     }
-    // the model's hazard beyond the colony's own base hazard at this temperature
-    const extra = mu - colonyBaseHazardPerGd(def, broodTempC(sim, b));
+    // the model's hazard beyond the colony's own base hazard at this temperature (compressed with the fast track)
+    const tempC = broodTempC(sim, b);
+    const track = b.stage === 'larva' ? 1 : FOUND_FIRST_BROOD_DEV_MULT;
+    const extra = mu * track - colonyBaseHazardPerGd(def, tempC);
     if (extra > 0 && rngFloat(rng) < 1 - Math.exp(-extra * CARE_DT_GD)) { broodDies(sim, b, 'base'); continue; }
+    fastTrackStep(def, b, tempC);
     if (b.stage === 'larva' && b.gutC + b.gutP < FOUND_CARE_FEED_BELOW) feedLarva(sim, q, b);
   }
   tidyCell(sim, nest);

@@ -9,8 +9,8 @@ import {
   FOUND_ABANDON_BU, FOUND_ABANDON_RECORD_MAX, FOUND_IN_CELL_MARGIN_BU, FOUND_READINESS_EVERY_TICKS, FOUND_THROAT_PROBE_BU,
 } from '@/sim/balance/founding';
 import { canDigAt, foundingReadiness, type FoundingReadiness } from '@/sim/nest';
-import { FB, bbGet, bbSet, depthBelowGround, setPhase, speciesOf } from './access';
-import { throatClosed } from './leak';
+import { FB, bbGet, bbSet, depthBelowGround, foundingQueen, setPhase, speciesOf } from './access';
+import { floodCavity, floodStart, sampleKey, throatClosed } from './leak';
 
 /** Where the queen's current dig bite aims (its target point, else her head), or null when she is not biting. */
 export function bitePoint(sim: Sim, q: Ant): Vec3 | null {
@@ -121,6 +121,18 @@ export function cavityEntrances(sim: Sim, nest: Nest): Entrance[] {
   }));
 }
 
+/** Is the founding queen in the cavity of her cell (not shut out above a plug)? */
+function queenSealedIn(sim: Sim, nest: Nest): boolean {
+  const q = foundingQueen(sim);
+  if (!q) return true;
+  const v = sim.carve.voxel, cav = floodCavity(sim, floodStart(nest)).cavity;
+  const ci = Math.round(q.pos.x / v), cj = Math.round(q.pos.y / v), ck = Math.round(q.pos.z / v);
+  for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    if (cav.has(sampleKey(ci + di, cj + dj, ck + dk))) return true;
+  }
+  return false;
+}
+
 /**
  * Seal phase: sealed when every entrance into the founding cavity is sealed (GDD 06 §5.9). The nest module flips
  * the record itself when ALL its entrances are sealed; trial pits of the same nest must not block it, so this
@@ -129,12 +141,16 @@ export function cavityEntrances(sim: Sim, nest: Nest): Entrance[] {
 export function sealTick(sim: Sim, op: OpeningState, nest: Nest): boolean {
   const f = nest.founding;
   if (!f) return false;
-  if (f.state === 'ready') {
+  if (f.state === 'ready' || (f.state === 'sealed' && op.phase === 'seal')) {
     const mine = cavityEntrances(sim, nest);
-    if (mine.length > 0 && mine.every((e) => throatClosed(sim, e))) {
+    // sealed with the queen inside (a plug between her and the cell is no seal of her cell)
+    const done = mine.length > 0 && mine.every((e) => throatClosed(sim, e)) && queenSealedIn(sim, nest);
+    if (done && f.state === 'ready') {
       f.state = 'sealed';
       f.sealedTick = sim.state.tick;
       sim.emit({ type: 'founding-sealed', nestId: nest.id, entranceId: mine[0].id });
+    } else if (!done && f.state === 'sealed') {
+      f.state = 'ready'; // the nest flipped the record while she is shut out (or a throat is open again)
     }
   }
   if (f.state !== 'sealed') return false;

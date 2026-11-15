@@ -50,3 +50,32 @@ Seen in `test-output/views-fix2/12-high-colony-slice.png` and `04-possess-tunnel
 - "+2 more" alert chip overlaps the top of the read-out panel.
 - The red alert dot in the colony panel is lit in every shot with no visible reason; check what raises it
   (see founding-close item 4, which fixes the empty card and the midden false alarm).
+
+## Addendum (Nov 15, 23:30) — launch state and look-pass hand-over
+
+- **Quality switch ghosting (yours, `src/render/app/renderApp.ts`)**: postprocessing's EffectComposer sets
+  `renderer.autoClear = false`; when the post chain is disposed on a switch to a preset without post it is
+  never restored, so the direct-grade path draws over old colour and depth. Fix in `applyRendererQuality`
+  (or clear in `DirectGrade.render`), remove the gallery workaround, and prove High→Low→High in the game
+  with before/after captures (switch vs boot RMSE ≈ 0).
+- **Too dark to read under large bodies**: `test-output/look-review/rev/rev-car-park-verge-object-high.png`
+  — under a parked car the frame is nearly black and the possessed ant is barely visible. The world must
+  stay readable wherever the player can walk: exposure adaptation (or a shade floor on ambient) is in
+  `src/render/app/look/**` / the lighting rig hand-off; fix it where the adaptation lives and show the
+  same frame after. Do not flatten sunlit scenes to do it.
+- **HUD overlaps** (three listed in the earlier addendum, plus the founding "Chamber" bar overlapping the
+  possessed-ant card bottom-left in `test-output/look-review/under/a/queen-chamber.png`): the `ui-panels`
+  engineer is fixing HUD stacking in `src/ui/hud/**` now. Do not edit `src/ui/hud/**` layout; verify in
+  your screenshots at the end and report what is still wrong.
+- **Founding in the browser**: `founding-close` is fixing sealing in steep shafts and the default start
+  date now. Build your `firstplay` e2e on the real founding flow with no stand-ins; if it fails at a
+  founding step that `founding-close` owns, re-run after that task reports (the orchestrator will tell
+  you nothing — check `git log` for a commit mentioning founding round 3) and report the state you saw.
+- **Look notes for the record (not yours to fix; second look pass)**: grass blades are flat-shaded facets;
+  an untextured white pillar stands in the woodland start frame; ground rosette leaves read as paper
+  sheets; map edge still "pale primitive masses".
+- Machine: 4 cores shared with ~4 other agents; one browser at a time; `--script-timeout` generous
+  (views e2e needs 1 500 000 ms under load).
+- Gate report: `docs/design/tasks/gate-1B-app-report.md` with the firstplay screenshot list, each
+  described after looking at it; portable build + `verify:portable` result; what a player would hit in
+  the first ten minutes that is still wrong, most serious first.

@@ -170,8 +170,9 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     float av = abs(v) / hw;
     bool top = ln.y > 0.0;
     float rib = 1.0 - smoothstep(0.0, 0.06, abs(v));
-    // secondary veins run from the midrib toward the tip and the margin; a finer net between them
-    float g = fract((t - av * 0.42) * 8.0 + lk.w * 3.0);
+    // secondary veins: straight lines from the midrib toward the tip and the margin (measured in mm, so they stay
+    // straight on a wide leaf: normalised by the outline they bent into concentric arcs that read as wood grain)
+    float g = fract((t - abs(v) * hs.z / (2.0 * hs.x) * 0.9) * 8.0 + lk.w * 3.0);
     float vein = (1.0 - smoothstep(0.0, 0.06, min(g, 1.0 - g))) * smoothstep(0.06, 0.2, av) * (1.0 - smoothstep(0.8, 0.98, av));
     vec2 nq = vec2(t * hs.x, v * hs.z) * 0.9;
     float net = 1.0 - smoothstep(0.03, 0.12, abs(wrNoise(nq) - 0.5));
@@ -184,15 +185,25 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
     // a few blemishes: pale feeding scars and dark spots
     float bl = wrNoise(lp.xz * 0.5 + lk.w * 23.0);
     c *= 1.0 - 0.18 * smoothstep(0.9, 0.94, bl);
+    // dry, dead leaves (low translucency): blotchy decay, dark fungal specks, duller hue, matte and crinkled
+    bool dry = lk.z < 0.5;
+    if (dry) {
+      float blot = wrFbm(lp.xz * 0.05 + lk.w * 5.0);
+      c = mix(c, c * vec3(0.6, 0.52, 0.46), 0.75 * smoothstep(0.42, 0.72, blot));
+      c = mix(c, c * vec3(1.18, 1.1, 0.95), 0.4 * smoothstep(0.55, 0.3, blot));
+      c *= 1.0 - 0.4 * smoothstep(0.86, 0.9, wrNoise(lp.xz * 0.9 + lk.w * 41.0));
+      c = mix(vec3(wrLuma(c)), c, 0.72);
+    }
     if (!top) c = mix(c, c * vec3(1.15, 1.2, 1.05), 0.6); // paler, matte underside
     ${'' /* clover-style chevron */}
     if (lk.y > ${LEAF_STYLE.obovate - 0.5} && lk.y < ${LEAF_STYLE.obovate + 0.5}) c = mix(c, c * vec3(1.6, 1.55, 1.25), 0.5 * (1.0 - smoothstep(0.02, 0.16, abs(av - 0.45 - (1.0 - t) * 0.3))) * smoothstep(0.3, 0.45, t));
     wrAlb = c;
     // raised midrib, sunken veins
     vec3 bump = vec3(0.0, 0.0, sign(v) * (-0.25 * rib) ) + vec3(0.0, 0.0, 0.12 * vein * sign(v));
+    if (dry) bump += vec3(wrNoise(lp.xz * 0.22 + 3.1) - 0.5, 0.0, wrNoise(lp.zx * 0.22 + 8.7) - 0.5) * 0.5; // crinkles
     if (abs(ln.y) > 0.5) wrNw = normalize(ln + bump * sign(ln.y));
     // a flat leaf is thicker than a grass blade: it glows when back-lit, but far less
-    wrRoughO = top ? 0.62 : 0.75; wrMetal = 0.0; wrTransl = lk.z * 0.45;
+    wrRoughO = dry ? 0.9 : (top ? 0.62 : 0.75); wrMetal = 0.0; wrTransl = lk.z * 0.45;
   } else if (fin == ${F.stem}) {
     // ---- stem: smooth, waxy and slightly translucent; fine lengthwise ridges (vascular bundles) in the shading and
     // the tone; style 1 = herbaceous stem with nodes and fine hairs that catch the light at the silhouette

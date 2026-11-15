@@ -28,10 +28,14 @@ export const HOLE_MASK_ATLAS_SLOTS = 16;
 
 /**
  * Static sky occlusion of the ground (skyOcclusion.ts). Cell = grid edge, mm; primitives narrower than minSizeMm
- * or covering more than maxCellsPerPrim cells (a room's ceiling: the interior has its own light) are skipped.
+ * or whose footprint area exceeds maxCellsPerPrim cells (a room's ceiling or floor slab, ~70 000 cells: the interior
+ * has its own light) are skipped; a parked car's body (~30 000 cells) is in.
  * Under an overhang the occlusion is `under` x max(highFloor, 1 - clearance / (openK x half width)); a footprint
  * resting on the ground counts `contact` (only its blurred ring shows: contact darkening round props).
  * `strength` scales the ground's indirect light: x (1 - strength x occlusion).
+ * Beside a body at least skirtMinHeightMm tall, out to min(skirtK x its height, skirtMaxMm) from its footprint, the
+ * ground loses the sky the body's flank hides: `skirt` x (wall formula 0.5 (1 - d / hypot(d, h)) for a flank standing
+ * on the ground) x (azimuth it spans / PI), faded out over the outer half; computed on a grid skirtCoarse x coarser.
  */
 export const SKY_OCCLUSION = {
   cellMm: 16,
@@ -44,4 +48,9 @@ export const SKY_OCCLUSION = {
   openK: 2,
   blurCells: 2,
   strength: 0.85,
+  skirtMinHeightMm: 40,
+  skirtK: 2,
+  skirtMaxMm: 2000,
+  skirt: 1,
+  skirtCoarse: 4,
 } as const;

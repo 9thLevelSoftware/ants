@@ -105,17 +105,36 @@ export const SEAL_FLOOD_MAX_SAMPLES = 60_000;
 /** The plug aims where the leak path is this far inside the soil (substrate distance), BU. */
 export const SEAL_TARGET_SOIL_BU = 0.75;
 /** Stands are chosen this far inside the action's throat reach, BU (the walker settles a little off its goal). */
-export const SEAL_REACH_MARGIN_BU = 0.35;
+export const SEAL_REACH_MARGIN_BU = 0.25;
+/** The guide sends the plug's command only this far inside the action's reach (she may settle a little), BU. */
+export const SEAL_COMMAND_MARGIN_BU = 0.1;
+/** ... and only while she moves slower than this (settled), BU/s. */
+export const SEAL_SETTLED_SPEED_BU_S = 0.5;
+/** A plug is worth placing when it would fill at least this many passage samples, and the queen plugs where she
+ * stands when hers would fill at least this share of the best stand's. */
+export const SEAL_MIN_COVER = 1;
+export const SEAL_HERE_SHARE = 0.6;
+/** A passage soil sample a plug fills counts this many times a carved air sample over the passage it uses up. */
+export const SEAL_SOIL_WEIGHT = 10;
 /** The best-scored stands checked for a plug that cuts the leak outright (a flood each). */
 export const SEAL_CUT_CHECKS = 8;
 /** The queen walks to a stand until this close, BU, or gives it up after this long, ticks. */
-export const SEAL_STAND_TOL_BU = 0.45;
+export const SEAL_STAND_TOL_BU = 0.7;
 export const SEAL_WALK_MAX_TICKS = 200;
+/** While walking, every this many ticks a pose in reach that already plugs well is taken. */
+export const SEAL_OPPORTUNITY_TICKS = 5;
 /** In reach but facing beside the leak: she turns toward it with this much movement input (0..1) for at most
- * this long, ticks, stepping at most this far, BU, then plugs. */
-export const SEAL_FACE_MAG = 0.3;
-export const SEAL_FACE_TICKS = 12;
-export const SEAL_FACE_STEP_BU = 0.4;
+ * this long, ticks, then plugs. */
+export const SEAL_FACE_MAG = 0.2;
+export const SEAL_FACE_TICKS = 10;
+/** The possessed queen is steered along a route through the cavity to a waypoint this far ahead, BU; the route
+ * search visits at most this many samples. */
+export const SEAL_WAYPOINT_BU = 1.5;
+export const SEAL_ROUTE_MAX_SAMPLES = 20_000;
+/** ... the first route sample whose direction lies at least this much (0..1) along her walking surface. */
+export const SEAL_WAYPOINT_TANGENT = 0.6;
+/** Shut off from her cell by a plug, she bites back toward it once per this many ticks (about one bite). */
+export const SEAL_UNPOCKET_EVERY_TICKS = 13;
 /** Stands given up within this radius of an unreachable one, BU; after this many the guide stops (prompt). */
 export const SEAL_EXCLUDE_BU = 0.75;
 export const SEAL_MAX_REPLANS = 6;
@@ -167,8 +186,27 @@ export const FOUND_HAZARD_RESPONDED = {
   flood: { brood: 0.075, health: 0 }, intruder: { brood: 0.05, health: 0.05 }, fungus: { brood: 0.05, health: 0 },
   collapse: { brood: 0.1, health: 0 }, outbreak: { brood: 0.05, health: 0 },
 } as const;
+/**
+ * The success outcome of a hazard the queen responds to (GDD 06 §5.11 table, "Success outcome"). Interrupt beats
+ * (handing the queen back to the player, §5.11) are T2; until they exist her lapse care is automatic, so the
+ * hazards that would have interrupted the lapse (the first diff.openingInterruptMax) take this outcome: she
+ * re-seals, bites the intruder, carries the brood high (founding-close decision, see the report).
+ */
+export const FOUND_HAZARD_RESPONSE = {
+  flood: { brood: 0.15, health: 0 }, intruder: { brood: 0.1, health: 0.1 }, fungus: { brood: 0.1, health: 0 },
+  collapse: { brood: 0.2, health: 0 }, outbreak: { brood: 0.1, health: 0 },
+} as const;
 /** The founding hazards are rolled this often, GD. */
 export const FOUND_HAZARD_EVERY_GD = 0.05;
+
+/**
+ * The first brood is fast-tracked (design brief; founding-close ruling): the claustral brood's eggs and pupae develop
+ * this many times faster than the colony's later brood at the same temperature. The larvae keep their rate, so each
+ * still costs LARVA_COST_LOADS of the pool; the brood hazard is compressed with the time (the same hazard per unit
+ * of development), so the worker count of GDD 06 §5.12 / E18 is unchanged and only the span shortens. Measured as
+ * the least value giving every generated world 1-8 a hand-over at least 1 GD before autumn (see the report).
+ */
+export const FOUND_FIRST_BROOD_DEV_MULT = 1.4;
 
 // ---- automatic queen care in the claustral cell (GDD 02 §2.7 `queen.found-care`, GDD 06 §5.11) ----
 
@@ -232,3 +270,8 @@ export const BROOD_LOST_FAIL_GD = 1;
 
 /** Egg-to-worker survival the automatic clutch assumes (GDD 06 §5.12: about 46 % of eggs at a typical site). */
 export const AUTO_CLUTCH_SURVIVAL = 0.45;
+/** The cheat's founding template: the shaft as a ramp at this pitch (deg), carved in spheres this far apart, and
+ * the cell overlapping the ramp's foot by this much, BU. */
+export const AUTO_SHAFT_PITCH_DEG = 55;
+export const AUTO_CARVE_STEP_BU = 0.3;
+export const AUTO_CELL_OVERLAP_BU = 0.5;

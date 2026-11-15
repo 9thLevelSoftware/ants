@@ -49,10 +49,12 @@ describe('SimReader', () => {
       ant({ id: 3, caste: 'queen', queen: { founding: { wings: true } } }), ant({ id: 4, caste: 'queen', queen: { founding: null } }),
     ]);
     const read = () => { const r = new SimReader(src); r.beginFrame(); return r.ants.map((a) => r.readAnt(a, 1, newAntSample()).winged); };
-    // look-pass: the founding queen has already flown; her wings show only while the dealation is on screen
+    // look-pass: the founding queen sheds her wings in the dealation; they show under the intro card and while she sheds them
     expect(read()).toEqual([true, false, false, false]);
     src.state.player.opening = { phase: 'dealation' };
     expect(read()).toEqual([true, false, true, false]);
+    src.state.player.opening = { phase: 'intro-card' };
+    expect(read()).toEqual([true, false, true, false]); // not yet shed: no blink when the card fades into the dealation
     src.state.player.opening = { phase: 'search' };
     expect(read()).toEqual([true, false, false, false]);
   });

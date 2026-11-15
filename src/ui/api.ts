@@ -197,6 +197,223 @@ export interface UiSnapshot {
   roster?: UiRoster | null;
   /** ui-hud: plain-data read-outs of the hovered / selected target (null = no card). */
   inspect?: UiInspect | null;
+  /** ui-panels: the diagnostics of the player colony; built only while Colony health is open (null otherwise). */
+  health?: UiHealth | null;
+  /** ui-panels: the player's main nest (chambers, entrances, tunnels); built only while Nest overview is open. */
+  nest?: UiNest | null;
+  /** ui-panels: aims, milestones, event log and history series; built only while the Journal is open. */
+  journal?: UiJournal | null;
+  /** ui-panels: codex entries observed in this game, id -> when (always built in a game; a few dozen entries at most). */
+  codex?: UiCodexSeen | null;
+  /** ui-panels: markers of the player colony and plan counts against their caps (colony view palette). */
+  markers?: UiMarkerCounts | null;
+}
+
+// ---- ui-panels: Colony health, Nest overview, Journal, Codex, marker palette (GDD 08 4.3, 4.4, 4.6, 7.2, 7.3) ----
+
+export type UiDiagStatus = 'ok' | 'info' | 'warn' | 'bad';
+
+/** A target the "Show" buttons and alert click-through move the camera to. */
+export interface UiFocus {
+  kind: string;
+  id: number;
+  /** mm, world space. */
+  pos: Vec3;
+}
+
+export interface UiDiagFactor {
+  /** Factor id ('protein', 'nurses' ...): the UI words it from the content tables. */
+  cause: string;
+  /** Share of the shortfall, 0..1 (the shares of one diagnostic sum to 1). */
+  weight: number;
+  /** Detail line with the numbers already formatted ("3 of 12 nurses"). */
+  detail: string;
+  /** Diagnostic that explains this factor (cause chain), null none. */
+  diagId: string | null;
+}
+
+export interface UiDiagnostic {
+  id: string;
+  system: string;
+  status: UiDiagStatus;
+  label: string;
+  /** Main value (a ratio of the normal rate for most diagnostics). */
+  value: number;
+  sinceTick: number;
+  /** "Day 4, 09:00" style stamp of `sinceTick`. */
+  sinceLabel: string;
+  factors: UiDiagFactor[];
+  /** Remedy ids ('remedy.slider.nurse'); the UI words them and maps them to controls. */
+  remedies: string[];
+  focus: UiFocus | null;
+  /** Up to 72 hourly samples (3 game days) of the series that stands for this diagnostic, oldest first; [] none. */
+  history: number[];
+  /** History series id the samples come from (the sparkline's accessible name), null none. */
+  historyId: string | null;
+}
+
+export interface UiHealth {
+  /** The worst status of all records ('ok' when there is none). */
+  overall: UiDiagStatus;
+  rows: UiDiagnostic[];
+  nowTick: number;
+}
+
+/** A point of the nest in BU relative to the nest origin: x, z horizontal, depth below the ground at that spot. */
+export interface UiNestPoint {
+  x: number;
+  z: number;
+  depth: number;
+}
+
+export interface UiChamberLoad {
+  adults: number;
+  brood: number;
+  food: number;
+  other: number;
+}
+
+export interface UiChamber {
+  id: number;
+  /** ChamberType id ('nursery' ...). */
+  type: string;
+  designatedBy: string;
+  p: UiNestPoint;
+  /** Horizontal radius (BU) for the diagram. */
+  radius: number;
+  /** BU^3 */
+  volume: number;
+  capacity: UiChamberLoad;
+  occupancy: UiChamberLoad;
+  /** Degrees C. */
+  temp: number;
+  /** Relative humidity 0..1. */
+  humidity: number;
+  /** Flooded fraction 0..1 and predicted flood risk 0..1. */
+  flooded: number;
+  floodRisk: number;
+  /** Types this chamber may be given now (valid for the species and big enough). */
+  allowed: string[];
+}
+
+export interface UiEntrance {
+  id: number;
+  /** 'open' | 'sealed' | 'sealing' | 'reopening' ... (the nest module's EntranceStatus). */
+  status: string;
+  kind: string;
+  p: UiNestPoint;
+  /** Mound height in BU, null when there is none. */
+  moundBu: number | null;
+  /** Ants per game hour. */
+  trafficIn: number;
+  trafficOut: number;
+}
+
+export interface UiTunnel {
+  planId: number;
+  kind: string;
+  status: string;
+  pts: UiNestPoint[];
+}
+
+export interface UiNest {
+  nestId: number;
+  /** Species id ("lasius-niger"). */
+  species: string;
+  /** The species' comfortable brood temperature band, degrees C; null unknown. */
+  broodBand: { lo: number; hi: number; rhLo: number; rhHi: number } | null;
+  volumeOpen: number;
+  chambers: UiChamber[];
+  entrances: UiEntrance[];
+  tunnels: UiTunnel[];
+  /** Open dig plans, for the "plans" line. */
+  openPlans: number;
+}
+
+export interface UiAimLine {
+  id: string;
+  openedTick: number;
+  doneTick: number;
+  /** 'out-of-season' for an aim that cannot be worked on yet. */
+  hint: string | null;
+}
+
+export interface UiJournalEntry {
+  id: number;
+  tick: number;
+  kind: string;
+  key: string;
+  tokens: Record<string, string | number>;
+}
+
+export interface UiEventLogLine {
+  tick: number;
+  kind: string;
+  level: string;
+  /** Text as the sim wrote it; '' when the interface words `key` with `tokens`. */
+  text: string;
+  key: string;
+  tokens: Record<string, string | number>;
+  focus: UiFocus | null;
+}
+
+export interface UiJournal {
+  nowTick: number;
+  /** env.calendar.startTick: calendar tick = tick + startTick. */
+  startTick: number;
+  seasonLength: number;
+  /** Species id for the aim wording variants. */
+  species: string;
+  aims: { current: UiAimLine[]; done: UiAimLine[] };
+  /** Journal entries oldest first (all kinds; the timeline filters milestones). */
+  entries: UiJournalEntry[];
+  /** Milestone thumbnails by milestone id (JPEG data URLs). */
+  thumbs: Record<string, string>;
+  /** Event log, oldest first. */
+  events: UiEventLogLine[];
+  /** Series for the graphs: hourly samples of the last 7 days (ending now) and daily samples (ending the last full day). */
+  hourly: Record<string, number[]>;
+  daily: Record<string, number[]>;
+  /** Calendar day index of the last filed daily sample. */
+  dailyEndDay: number;
+  deaths: { total: number; top: { cause: string; n: number }[] };
+}
+
+export interface UiCodexSeen {
+  /** Codex id -> { tick it was first seen in this game, date label }. */
+  seen: Record<string, { tick: number; label: string }>;
+  /** Device-wide unlocks (the profile) when the game exposes them; absent = per-game only. */
+  device?: Record<string, { label: string }>;
+}
+
+export interface UiMarkerCount {
+  n: number;
+  cap: number;
+}
+
+/** A dig plan as the dig-plans legend lists it (GDD 08 4.3 status table). */
+export interface UiPlanLine {
+  id: number;
+  /** 'chamber' | 'tunnel' | 'shaft' | 'entrance'. */
+  kind: string;
+  chamberType: string | null;
+  /** proposed | queued | active | stalled | paused | complete. */
+  status: string;
+  /** 'player' | 'architect' | ... */
+  source: string;
+  /** The nest module's reason id while stalled, null otherwise. */
+  blockedReason: string | null;
+  /** Carved fraction 0..1. */
+  progress: number;
+}
+
+export interface UiMarkerCounts {
+  /** Per tool kind of GDD 08 4.3 (dig, forage, avoid, rally, entrance, move-brood, move-queen). */
+  counts: Record<string, UiMarkerCount>;
+  /** Open dig plans (at most 12), for the dig-plans legend. */
+  plans: UiPlanLine[];
+  /** The species' comfortable brood temperature band, for the temperature legend; null unknown. */
+  comfortBand: { lo: number; hi: number } | null;
 }
 
 /** Allocation groups, in panel order. */

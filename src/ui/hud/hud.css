@@ -106,7 +106,7 @@ button.fd-more { cursor: pointer; }
 .fd-notice { pointer-events: auto; padding: var(--s-3) var(--s-5); background: var(--c-scrim); border: 1px solid var(--c-border-strong); border-radius: var(--r-s); color: var(--c-text); font: inherit; font-size: var(--t-small); cursor: pointer; }
 
 /* ---- Inspect card: 280 dp, docked left under the time cluster ---- */
-.fd-ins { left: 1rem; top: 6.75rem; width: 17.5rem; max-height: calc(100% - 6.75rem - 9.5rem); overflow: auto; padding: 0.5rem 0.75rem 0.75rem; display: flex; flex-direction: column; gap: var(--s-3); background: var(--c-panel); box-shadow: var(--e-1); }
+.fd-ins { left: 1rem; top: 6.75rem; width: 17.5rem; max-height: calc(100% - 6.75rem - var(--fd-bottom-reserve, 9.5rem)); overflow: auto; padding: 0.5rem 0.75rem 0.75rem; display: flex; flex-direction: column; gap: var(--s-3); background: var(--c-panel); box-shadow: var(--e-1); }
 .fd-ins-head { display: flex; align-items: center; gap: var(--s-3); }
 .fd-ins-title { flex: 1; font-size: var(--t-h3); line-height: var(--t-h3-lh); font-family: var(--font-sans); font-weight: 600; }
 .fd-ins-h { font-size: var(--t-caption); line-height: var(--t-caption-lh); letter-spacing: 0.04em; text-transform: uppercase; color: var(--c-text-2); margin-bottom: var(--s-2); }
@@ -220,3 +220,10 @@ button.fd-more { cursor: pointer; }
 .fd-quick .ui-tip > .ui-btn { width: 100%; }
 /* the quick buttons are the first row of the drawer: a reason that opened upwards would sit under the header */
 .fd-quick .ui-tip-bubble.is-top { bottom: auto; top: calc(100% + 6px); }
+
+/* ---- layout fixes (task ui-panels): the opening's panels share the corners with the HUD ---- */
+/* the queen's meters sit above the possessed-ant panel (bottom 11.5 rem, three rows): the inspect card stops above them */
+body:has(.fo-queen) .fd-root { --fd-bottom-reserve: 18.5rem; }
+/* the opening's site read-out and clutch forecast take the right column below the colony pulse: the alerts feed moves under them */
+body:has(.fo-site) .fd-alerts { top: 19.5rem; }
+body:has(.fo-clutch) .fd-alerts { top: 12.5rem; }

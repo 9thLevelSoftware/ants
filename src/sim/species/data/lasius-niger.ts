@@ -72,7 +72,7 @@ export const LASIUS_NIGER: SpeciesDef = {
     siteHard: ['no-hard-surface'], siteBonuses: ['under-cover', 'recent-rain', 'rival-scent-penalty'],
     dMinOpenBu: 8, dMinCoverBu: 5, vMinBu3: 10, wMinBu: 3.5, shaftTargetBu: 10, seal: true, R0: 56, clutchCap: 48,
     trophicFraction: 0, firstBroodClass: { caste: 'worker', nanitic: true }, expectedFirstWorkers: { min: 8, max: 16 },
-    special: [], startDoy: { min: 9, max: 12, default: 10 }, startHours: [14, 16],
+    special: [], startDoy: { min: 9, max: 12, default: 9 }, startHours: [14, 16],
   },
   scale: {
     simCapWorkers: 1500, wildColonySize: { typical: [5000, 10000], max: 17000 },

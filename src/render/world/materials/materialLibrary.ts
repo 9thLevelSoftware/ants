@@ -138,10 +138,10 @@ export class MaterialLibrary {
   layerSource(def: MaterialDef): LayerSource {
     if (def.texture && this.assets) {
       const img = (m: string) => (this.assets!.texture(def.texture!, m).image ?? null) as CanvasImageSource | null;
-      return { kind: 'images', albedo: img('albedo'), normal: img('normal'), rough: img('rough') };
+      return { kind: 'images', albedo: img('albedo'), normal: img('normal'), rough: img('rough'), highlights: def.highlights };
     }
     const look = def.procedural ?? DEFAULT_LOOK;
-    return { kind: 'pixels', set: proceduralPixels(look, look.size ?? PROCEDURAL_TEXTURE_SIZE, proceduralSeed(def)) };
+    return { kind: 'pixels', set: proceduralPixels(look, look.size ?? PROCEDURAL_TEXTURE_SIZE, proceduralSeed(def)), highlights: def.highlights };
   }
 
   setAnisotropy(n: number): void {

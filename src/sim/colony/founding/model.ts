@@ -8,7 +8,7 @@ import type { SpeciesDef, SpeciesId } from '@/sim/types';
 import { BROOD_SURVIVAL } from '@/sim/balance';
 import {
   FORECAST_RANGE, FORECAST_SAFE_RESERVE, FOUND_CANNIBAL, FOUND_END_AFTER_ECLOSION_GD, FOUND_MU, FOUND_MU_MOIST,
-  FOUND_MU_SPECIES, FOUND_UPKEEP_PER_GD, LARVA_COST_LOADS,
+  FOUND_FIRST_BROOD_DEV_MULT, FOUND_MU_SPECIES, FOUND_UPKEEP_PER_GD, LARVA_COST_LOADS,
 } from '@/sim/balance/founding';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { devRate } from '../life';
@@ -23,14 +23,28 @@ export function foundingMu(q: number, species: SpeciesId, difficultyMult = 1, mo
   return base * (FOUND_MU_SPECIES[species] ?? 1) * difficultyMult * dry;
 }
 
-/** Egg-to-worker time at a constant temperature, GD (sum of stage durations / devRate). Infinity when r = 0. */
+/** The first brood's fast-track factor of a stage (eggs and pupae; the larvae keep the colony rate). */
+export function fastTrack(stage: Stage): number {
+  return stage === 'larva' ? 1 : FOUND_FIRST_BROOD_DEV_MULT;
+}
+
+/** Egg-to-worker time of the fast-tracked first brood at a constant temperature, GD. Infinity when r = 0. */
 export function devTimeGd(def: SpeciesDef, tempC: number): number {
+  const r = devRate(def, tempC), g = def.life.stageGd;
+  return r > 0 ? (g.egg / fastTrack('egg') + g.larva + g.pupa / fastTrack('pupa')) / r : Infinity;
+}
+
+/**
+ * Egg-to-worker time at the colony's own rate, GD (sum of stage durations / devRate): the exposure to the brood
+ * hazard mu (the fast track compresses the hazard with the time, so survival is exp(-mu x this)).
+ */
+export function hazardTimeGd(def: SpeciesDef, tempC: number): number {
   const r = devRate(def, tempC);
   const du = def.life.stageGd.egg + def.life.stageGd.larva + def.life.stageGd.pupa;
   return r > 0 ? du / r : Infinity;
 }
 
-/** Egg + larva time (when the larval draw has been paid), GD. */
+/** Egg + larva hazard time (the larval draw is paid by the larvae that survive it), GD. */
 export function preePupaGd(def: SpeciesDef, tempC: number): number {
   const r = devRate(def, tempC);
   return r > 0 ? (def.life.stageGd.egg + def.life.stageGd.larva) / r : Infinity;
@@ -66,11 +80,11 @@ export function forecastReserves(n: number, r0: number, mu: number, tDev: number
 }
 
 export function forecast(def: SpeciesDef, clutch: number, tempC: number, q: number, opts: { difficultyMult?: number; drainMult?: number; moisture?: number; r0?: number } = {}): Forecast {
-  const tDev = devTimeGd(def, tempC), tPre = preePupaGd(def, tempC);
+  const tDev = devTimeGd(def, tempC), tHaz = hazardTimeGd(def, tempC), tPre = preePupaGd(def, tempC);
   const mu = foundingMu(q, def.id as SpeciesId, opts.difficultyMult ?? 1, opts.moisture ?? 1);
   const r0 = opts.r0 ?? def.opening.R0;
   const drain = opts.drainMult ?? 1;
-  const e = Number.isFinite(tDev) ? clutch * Math.exp(-mu * tDev) : 0;
+  const e = Number.isFinite(tDev) ? clutch * Math.exp(-mu * tHaz) : 0;
   let safe = 0;
   for (let n = 1; n <= def.opening.clutchCap; n++) if (forecastReserves(n, r0, mu, tDev, tPre, drain) >= FORECAST_SAFE_RESERVE) safe = n;
   return {
@@ -119,7 +133,9 @@ export function runModel(p: ModelParams): ModelRun {
   let R = r0 - EGG_COST_P * p.clutch;
   const items: Item[] = [];
   for (let i = 0; i < p.clutch; i++) items.push({ stage: 0, progress: 0, invested: 0, alive: true });
-  const pDie = 1 - Math.exp(-mu * dt);
+  // the fast track compresses development and hazard together (eggs and pupae)
+  const track = STAGES.map(fastTrack);
+  const pDie = track.map((f) => 1 - Math.exp(-mu * f * dt));
   const cannibalEvery = Math.max(1, Math.round(FOUND_CANNIBAL.everyGd / dt));
   let t = 0, step = 0, workers = 0, first = -1, eaten = 0, died = false;
   const maxGd = 60;
@@ -130,8 +146,8 @@ export function runModel(p: ModelParams): ModelRun {
     let live = 0;
     for (const it of items) {
       if (!it.alive) continue;
-      if (rngFloat(rng) < pDie) { it.alive = false; continue; }
-      const dp = (r * dt) / du[it.stage];
+      if (rngFloat(rng) < pDie[it.stage]) { it.alive = false; continue; }
+      const dp = (r * track[it.stage] * dt) / du[it.stage];
       if (it.stage === 1) {
         // the draw is taken even when the pool is spent: the queen then has to eat brood to cover it (step 3)
         const draw = LARVA_COST_LOADS * drain * Math.min(dp, 1 - it.progress);

@@ -88,8 +88,8 @@ export function floodCavity(sim: Sim, from: Vec3, fill: readonly Sphere[] = []):
       if (cavity.has(nk2)) continue;
       const x = ni * v, y = nj * v, z = nk * v;
       if ((x - from.x) ** 2 + (y - from.y) ** 2 + (z - from.z) ** 2 > maxR * maxR) continue;
-      if (fill.length > 0 && inSpheres(x, y, z, fill)) continue;
       if (isAirSample(sim, ni, nj, nk)) { if (!path) path = pathTo(cavity, n, nk2); continue; }
+      if (fill.length > 0 && inSpheres(x, y, z, fill)) continue; // a plug fills carved soil, never the air
       if (!isOpenSample(sim, ni, nj, nk)) continue;
       cavity.set(nk2, n);
       queue.push(nk2);
@@ -119,9 +119,9 @@ export function floodStart(nest: Nest): Vec3 {
 export function throatLeak(sim: Sim, e: Entrance, fill: readonly Sphere[] = []): number[] | null {
   const v = sim.carve.voxel, R = e.radius + THROAT_BU * sim.world.bu, inner = R - 2 * v;
   const free = (i: number, j: number, k: number): boolean => {
-    const x = i * v, y = j * v, z = k * v;
-    if (fill.length > 0 && inSpheres(x, y, z, fill)) return false;
-    return isOpenSample(sim, i, j, k) || isAirSample(sim, i, j, k);
+    if (isAirSample(sim, i, j, k)) return true; // a plug fills carved soil, never the air
+    if (fill.length > 0 && inSpheres(i * v, j * v, k * v, fill)) return false;
+    return isOpenSample(sim, i, j, k);
   };
   const inSphere = (i: number, j: number, k: number) => (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 <= R * R;
   const parents = new Map<number, number>();
@@ -166,4 +166,90 @@ export function throatLeak(sim: Sim, e: Entrance, fill: readonly Sphere[] = []):
 export function throatClosed(sim: Sim, e: Entrance): boolean {
   if (e.status === 'sealed') return true;
   return e.status === 'reopening' && throatLeak(sim, e) === null;
+}
+
+/**
+ * A route through open cavity samples (air excluded) from `from` to the sample nearest `to`: sample keys from the
+ * start, or null when `from` is not in the cavity or `to` cannot be reached within `maxSamples`.
+ */
+export function cavityRoute(sim: Sim, from: Vec3, to: Vec3, maxSamples = SEAL_FLOOD_MAX_SAMPLES): number[] | null {
+  const v = sim.carve.voxel;
+  const seed = seedNear(sim, from);
+  if (seed < 0) return null;
+  const goal = 1.5 * v;
+  const parents = new Map<number, number>([[seed, -1]]);
+  const queue = [seed];
+  for (let q = 0; q < queue.length && parents.size < maxSamples; q++) {
+    const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
+    if ((i * v - to.x) ** 2 + (j * v - to.y) ** 2 + (k * v - to.z) ** 2 <= goal * goal) {
+      const out: number[] = [];
+      for (let m = n; m >= 0; m = parents.get(m) ?? -1) out.push(m);
+      return out.reverse();
+    }
+    for (let d = 0; d < 18; d += 3) {
+      const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2];
+      const m = key(ni, nj, nk);
+      if (parents.has(m) || isAirSample(sim, ni, nj, nk) || !isOpenSample(sim, ni, nj, nk)) continue;
+      parents.set(m, n);
+      queue.push(m);
+    }
+  }
+  return null;
+}
+
+/**
+ * Every soil sample that lies on SOME passage of the throat (reachable from the mouth and from the throat's inner
+ * shell, through free samples inside the throat sphere): what the plugs still have to fill or cut. Keys.
+ */
+export function throatPassageSet(sim: Sim, e: Entrance): number[] {
+  const v = sim.carve.voxel, R = e.radius + THROAT_BU * sim.world.bu, inner = R - 2 * v;
+  const free = (i: number, j: number, k: number) => isOpenSample(sim, i, j, k) || isAirSample(sim, i, j, k);
+  const inSphere = (i: number, j: number, k: number) => (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 <= R * R;
+  const i0 = Math.floor((e.pos.x - R) / v), i1 = Math.ceil((e.pos.x + R) / v);
+  const j0 = Math.floor((e.pos.y - R) / v), j1 = Math.ceil((e.pos.y + R) / v);
+  const k0 = Math.floor((e.pos.z - R) / v), k1 = Math.ceil((e.pos.z + R) / v);
+  const fromMouth: number[] = [], fromInner: number[] = [];
+  for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    if (!inSphere(i, j, k) || !free(i, j, k)) continue;
+    const sub = sim.field.substrateXYZ(i * v, j * v, k * v);
+    const d2 = (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2;
+    if (sub >= -0.5 * v && Math.hypot(i * v - e.pos.x, k * v - e.pos.z) <= e.radius + v) fromMouth.push(key(i, j, k));
+    if (d2 >= inner * inner && sub < 0) fromInner.push(key(i, j, k));
+  }
+  const spread = (seeds: number[]): Set<number> => {
+    const seen = new Set(seeds), queue = [...seeds];
+    for (let q = 0; q < queue.length; q++) {
+      const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
+      for (let d = 0; d < 18; d += 3) {
+        const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2], m = key(ni, nj, nk);
+        if (seen.has(m) || !inSphere(ni, nj, nk) || !free(ni, nj, nk)) continue;
+        seen.add(m);
+        queue.push(m);
+      }
+    }
+    return seen;
+  };
+  const a = spread(fromMouth), b = spread(fromInner);
+  const out: number[] = [];
+  for (const n of a) {
+    if (!b.has(n)) continue;
+    if (sim.field.substrateXYZ(keyI(n) * v, keyJ(n) * v, keyK(n) * v) < 0) out.push(n);
+  }
+  return out;
+}
+
+/**
+ * Carved samples in the air just above the passage's soil samples (6-neighbours): a plug spends itself on these
+ * first (the nest re-centres a plug on carved open samples, air or soil), so filling them clears the way.
+ */
+export function carvedAirOver(sim: Sim, passage: readonly number[]): number[] {
+  const out = new Set<number>();
+  for (const n of passage) {
+    const i = keyI(n), j = keyJ(n), k = keyK(n);
+    for (let d = 0; d < 18; d += 3) {
+      const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2];
+      if (isAirSample(sim, ni, nj, nk) && isOpenSample(sim, ni, nj, nk)) out.add(key(ni, nj, nk));
+    }
+  }
+  return [...out];
 }

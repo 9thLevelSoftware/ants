@@ -3,7 +3,9 @@
 // instanced meshes: straps and discs. The head's own primitive stays (its finish switches to a "core" inside the
 // same radius, uWorld.uFlowerMm), so collision, routes and the generation fingerprint are untouched.
 // Re-selected when the camera moved FLOWER_REPLACE_MM; heads are taken up to that far beyond the radius so a head
-// the shader treats as dressed always has its parts.
+// the shader treats as dressed always has its parts. When the part cap stops the selection early, the shader radius
+// shrinks to stay inside the dressed heads (a head treated as dressed without parts would show its bare core), and
+// it is 0 until the first selection and while the parts are hidden underground.
 import { Group, InstancedBufferAttribute, InstancedMesh, Matrix4, type BufferGeometry, type Vector3 } from 'three';
 import type { QualityPreset } from '@/render/app';
 import type { Primitive } from '@/sim/types';
@@ -35,6 +37,8 @@ export class FlowerDressing {
   private bu = 4;
   private last = { x: Number.NaN, y: 0, z: Number.NaN };
   private parts: FlowerPart[] = [];
+  /** Shader radius (uFlowerMm) of the current selection, mm: every head nearer the camera than this has its parts. */
+  private dressedMm = 0;
   /** Heads and parts drawn (statistics). */
   headCount = 0;
   partCount = 0;
@@ -65,7 +69,7 @@ export class FlowerDressing {
       }
     }
     this.last.x = Number.NaN;
-    this.uniforms.uFlowerMm.value = this.heads.length ? this.radiusMm : 0;
+    this.dressedMm = this.uniforms.uFlowerMm.value = 0; // until update() selects the heads
   }
 
   setQuality(q: QualityPreset): void {
@@ -77,7 +81,7 @@ export class FlowerDressing {
       this.discs = this.makeMesh(this.discGeom, cap, 'world:flowers:discs');
     }
     for (const m of [this.straps, this.discs]) m.mesh.castShadow = q.shadows.enabled;
-    this.uniforms.uFlowerMm.value = this.heads.length ? this.radiusMm : 0;
+    this.dressedMm = this.uniforms.uFlowerMm.value = 0; // until update() selects the heads
     this.last.x = Number.NaN;
   }
 
@@ -100,10 +104,19 @@ export class FlowerDressing {
   /** Re-selects the dressed heads when the camera moved; hidden underground. */
   update(cam: Vector3, underground: number): void {
     this.group.visible = underground < 0.99;
-    const R = this.radiusMm;
-    if (R <= 0 || this.heads.length === 0) { this.straps.mesh.count = this.discs.mesh.count = this.headCount = this.partCount = 0; return; }
-    if (Math.hypot(cam.x - this.last.x, cam.y - this.last.y, cam.z - this.last.z) < FLOWER_REPLACE_MM) return;
+    if (this.radiusMm <= 0 || this.heads.length === 0) {
+      this.straps.mesh.count = this.discs.mesh.count = this.headCount = this.partCount = 0;
+      this.dressedMm = 0;
+    } else if (!(Math.hypot(cam.x - this.last.x, cam.y - this.last.y, cam.z - this.last.z) < FLOWER_REPLACE_MM)) { // NaN: never selected
+      this.select(cam);
+    }
+    // hidden parts: every head keeps its full shader form (seen from a nest entrance)
+    this.uniforms.uFlowerMm.value = this.group.visible ? this.dressedMm : 0;
+  }
+
+  private select(cam: Vector3): void {
     this.last.x = cam.x; this.last.y = cam.y; this.last.z = cam.z;
+    const R = this.radiusMm;
     const reach = R + FLOWER_REPLACE_MM;
     const near = this.heads
       .map((h) => ({ h, d: Math.hypot(h.pos.x - cam.x, h.pos.y - cam.y, h.pos.z - cam.z) }))
@@ -112,10 +125,16 @@ export class FlowerDressing {
     const max = FLOWER_QUALITY[this.quality.id].maxParts;
     this.parts.length = 0;
     let heads = 0;
+    this.dressedMm = R;
     for (const e of near) {
       const before = this.parts.length;
       flowerParts(e.h, this.parts);
-      if (this.parts.length > max) { this.parts.length = before; break; }
+      if (this.parts.length > max) {
+        this.parts.length = before;
+        // the first head left bare is e.d away; the camera may come FLOWER_REPLACE_MM closer before the next selection
+        this.dressedMm = Math.max(0, Math.min(R, e.d - FLOWER_REPLACE_MM));
+        break;
+      }
       heads++;
     }
     this.headCount = heads;

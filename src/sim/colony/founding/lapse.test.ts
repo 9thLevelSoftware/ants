@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { requireSpecies } from '@/sim/species';
-import { modelStats, runModel } from './model';
+import { devTimeGd, modelStats, runModel } from './model';
 import { foundingView } from './view';
 import { pinTemperature, phase, queen, nestOf, stepUntil } from './testkit';
 import { makeTestSim } from '@/sim/testing';
@@ -33,13 +33,13 @@ function runFounding(seed: number, tempC: number, q: number, workers = 10): Outc
 }
 
 describe('first-brood time-lapse on the running simulation (GDD 06 §5.11-§5.13)', () => {
-  it('E19: at a constant 19.5 C the first worker ecloses 4.52 +- 0.1 GD after the first egg; hand-over follows 0.4 GD later', () => {
+  it('E19: at a constant 19.5 C the first worker ecloses devTimeGd (fast-tracked; GDD 4.52) +- 0.1 GD after the first egg; hand-over 0.4 GD later', () => {
     const o = runFounding(1, 19.5, 0.7);
     expect(phase(o.sim)).toBe('handover');
     expect(o.events).toEqual(['dealation', 'search', 'dig', 'seal', 'lay', 'timelapse', 'handover']);
     expect(o.firstEggTick).toBeGreaterThan(0);
     const gd = (o.firstEclosionTick - o.firstEggTick) / TICKS_PER_DAY;
-    expect(Math.abs(gd - 4.52)).toBeLessThanOrEqual(0.1);
+    expect(Math.abs(gd - devTimeGd(requireSpecies('lasius-niger'), 19.5))).toBeLessThanOrEqual(0.1);
     const lapse = o.sim.state.player.opening!.lapse!;
     expect(lapse.endTick - o.firstEclosionTick).toBeGreaterThanOrEqual(0.4 * TICKS_PER_DAY - 11);
     // a good site, clutch 24: the GDD's 8-15 first workers (one seed: a little wider), about 0.4 of the pool left
