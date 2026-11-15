@@ -1,0 +1,230 @@
+{
+ "implReport": {
+  "summary": "Delivered all three deliverables: (1) 102 written codex entries, one per id of `allCodexIds()` (63 fixed + 4 species + 27 materials + 8 habitats), each a 69-104 word naturalist note with an optional \"in the game\" line, a citation line and related links, plus a pure lookup API; (2) journal/alert/hint/aim/relation/death-cause/founding-failure/diagnostic wording tables keyed by the contract id sets, and a wording review of existing strings (change table in notesForIntegrator); (3) a nine-page player manual in docs/manual (20 sections marked `<!-- verify-at-release -->`) and a controls reference generated from the bindings table, embedded in the manual and compared in a test. Every fact in the codex is backed by a verbatim dossier quote that a test re-reads from docs/research and checks is not tagged estimated or unsupported (406 quotes); 25 sampled entries are traced sentence by sentence. 54 tests in 5 files pass in about 2.5 s; typecheck is clean for src/content. No shared contract or core file was touched; only new files under src/content/** and docs/manual/**.",
+  "filesTouched": [
+   "/home/user/foundress/src/content/index.ts",
+   "/home/user/foundress/src/content/manual.test.ts",
+   "/home/user/foundress/src/content/codex/index.ts",
+   "/home/user/foundress/src/content/codex/types.ts",
+   "/home/user/foundress/src/content/codex/banned.ts",
+   "/home/user/foundress/src/content/codex/provenance.ts",
+   "/home/user/foundress/src/content/codex/provenanceTypes.ts",
+   "/home/user/foundress/src/content/codex/provenanceBio.ts",
+   "/home/user/foundress/src/content/codex/provenanceWorld.ts",
+   "/home/user/foundress/src/content/codex/sample25.ts",
+   "/home/user/foundress/src/content/codex/codex.test.ts",
+   "/home/user/foundress/src/content/codex/provenance.test.ts",
+   "/home/user/foundress/src/content/codex/entries/species.ts",
+   "/home/user/foundress/src/content/codex/entries/castes.ts",
+   "/home/user/foundress/src/content/codex/entries/behaviours.ts",
+   "/home/user/foundress/src/content/codex/entries/plantsFood.ts",
+   "/home/user/foundress/src/content/codex/entries/creatures.ts",
+   "/home/user/foundress/src/content/codex/entries/habitats.ts",
+   "/home/user/foundress/src/content/codex/entries/materials.ts",
+   "/home/user/foundress/src/content/codex/entries/weather.ts",
+   "/home/user/foundress/src/content/codex/entries/human.ts",
+   "/home/user/foundress/src/content/codex/entries/interface.ts",
+   "/home/user/foundress/src/content/text/index.ts",
+   "/home/user/foundress/src/content/text/format.ts",
+   "/home/user/foundress/src/content/text/milestones.ts",
+   "/home/user/foundress/src/content/text/alerts.ts",
+   "/home/user/foundress/src/content/text/hints.ts",
+   "/home/user/foundress/src/content/text/words.ts",
+   "/home/user/foundress/src/content/text/journal.ts",
+   "/home/user/foundress/src/content/text/controls.ts",
+   "/home/user/foundress/src/content/text/text.test.ts",
+   "/home/user/foundress/src/content/text/controls.test.ts",
+   "/home/user/foundress/docs/manual/README.md",
+   "/home/user/foundress/docs/manual/01-getting-started.md",
+   "/home/user/foundress/docs/manual/02-controls.md",
+   "/home/user/foundress/docs/manual/03-views.md",
+   "/home/user/foundress/docs/manual/04-the-colony.md",
+   "/home/user/foundress/docs/manual/05-the-nest.md",
+   "/home/user/foundress/docs/manual/06-species.md",
+   "/home/user/foundress/docs/manual/07-settings.md",
+   "/home/user/foundress/docs/manual/08-troubleshooting.md"
+  ],
+  "verification": [
+   "npx vitest run src/content -> 5 files, 54 tests passed, about 2.5 s (the machine had load average about 26). Run once; no whole-suite run.",
+   "npx tsc --noEmit -p tsconfig.json filtered to src/content and docs: no errors. The only errors in the project output are 3 in src/sim/nest/spoilUnits.test.ts (another engineer's work in progress).",
+   "Scratch node --experimental-strip-types scripts (in the scratchpad, not committed) re-checked before the vitest run: 102 of 102 expected ids present and none extra; body length min 69, max 104 words; 406 provenance quotes found verbatim in the dossiers with no unsourced tag after them; the 25-entry trace covers 123 sentences with 183 claim links.",
+   "Wording self-test: the banned-pattern checker flags 'We found it!', the quoted-speech case and the words enemy, victory, truce, soldiers, battle, and passes the rival wording ('Neutral', 'Wary', 'Clashing', 'Territorial dispute', 'Lull'). The only allow-listed phrase is the mandated title 'Orders without a commander' (GDD 06 \u00a710; the manual also quotes it).",
+   "The controls table embedded in docs/manual/02-controls.md equals controlsMarkdown() output exactly (test). All 78 button actions and 14 axes appear; 60+ key mentions written as `Key`<!--key:action--> in the manual prose are each checked against the default bindings.",
+   "No harness run or screenshots: this task is text only and has no visual output.",
+   "Not run: FOUNDRESS_LONG sweeps (none exist; nothing in this module is slow)."
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. A test asserts every codex id in the design index has an entry with a non-empty title and a body within the length bounds, and that no entry contains banned patterns (first-person ant speech, jokes flagged by a small list, the words listed as avoided in GDD 08).",
+    "status": "met",
+    "evidence": "src/content/codex/codex.test.ts uses allCodexIds() (102 ids), asserts exactly one entry per id, non-empty title, 60-140 words (actual 69-104), no placeholders or unfilled tokens, valid categories and related ids, and runs wordingProblems() (banned.ts: avoided words from GDD 08 \u00a76.4, first-person patterns, joke list, speech and institution patterns) over title, body and in-game line of every entry. Passes."
+   },
+   {
+    "criterion": "2. Fact-check sample: for 25 entries chosen across species, each factual sentence is traceable to a dossier statement that is not marked unsupported (list the mapping in the report).",
+    "status": "met",
+    "evidence": "src/content/codex/sample25.ts maps every one of the 123 sentences of 25 entries either to claim indexes or to a stated hedge/framing reason. Claims are verbatim dossier quotes (provenanceBio.ts, provenanceWorld.ts). provenance.test.ts re-reads all five dossiers via ?raw and checks every quote exists, carries no unsupported/estimate marker, and is not followed by an [E]/[EST]/[MEM]/[NF]/[2ND]/[U]/[UNVERIFIED] tag in its table cell, and that the trace covers each sentence. Mapping (dossier: key quotes): lasius-niger species => L 3.4-5.0 mm, 8.0-9.0 mm, no morphological sub-castes, max 28 years, under stones/paving/wood that the sun warms, typical 4,000-7,000, monogynous. camponotus species => C third-season majors, queen about 19 mm, they do not eat wood, mostly nocturnal, 2,000-4,000, parent and satellite nests, 6-16 mm, native to central/eastern USA. messor species => M Myrmicinae S. Europe, lab colony 2-15 mm, macrocephalic, dead arthropods 1.82%, monogynous, inter-lineage hybrids, permanent trunk trails, refuse pile. atta species => A up to 2 million, sandy/loamy soil, only Atta in USA, workers do not eat leaves, summer night foraging, strongly polymorphic. queen-reserves => L 33.1 +/- 6.0 mg, newly mated mass not found. brood-stages => L ontogenesis 52 d, 19-23 C, stage endpoints undefined, silk cocoons; C legless grubs, eggs clump. nanitics => L 1.08 vs 1.15 mm (~6%), more efficient at brood care; C 4-25 workers. claustral-founding => L/C/M/A claustral mode, small burrows, 'would most likely not survive' (assumption stated as such), 99%. trail-pheromone => L ~20% ignore, <150 pg, acidopore, 84% laid trail; M/A persistence. route-memory => L memory+pheromone, 23.5-26 mm/s, 5.9-6.5 BU/s. home-range => L non-volatile CHCs, gradient, 'long lasting'. cofounding => L 18-25%, 2-5 queens, fecundity decides; A A. texana workers do not eliminate co-foundresses. nuptial-flight => E 97% July/Aug, far less synchronised; L >13 C, wind <6.3 m/s, >25 C; C March-July mode May; A clear moonless nights. satellite-nests => C parent/satellite contents, drier-warmer, 2-25. wood-moisture => C >=15%, not termites, 15.2 cm, brood failure. trunk-trail => M 1-30 m, persist, ~20% depots; A kept clear. seed-classes => M 0.08-95.9 mg, 4-50 mg, <0.4 mg soft edge, 1.5 cm burial. hybridogenesis => M lineages, 2.4 males, 13.4%, 20:22. fungus-garden => A 1-2 mm pieces, 6 weeks, 21-25 C, 20% protein. leaf-cutting => A 25 s/mm at 25 C, 77 s at 15 C, burden 1.2-1.5. garden-waste => A 45 of 169, heap workers, half as long. mound-structure => L CT scans, 5,390/7,099 cm3, ~30%, 5.9 mm, ~12 mm. honeydew => L incomplete diet, melezitose, 0.75 uL, 84%; C preferred food. antlion => E dry loose sand, angle of repose, 2 in x 3 in. habitat-asphalt => E >50 C, 52.2 C, 36.3 C shaded, not diggable. Sentences that are hedges are labelled in the trace and must contain a hedge word (test)."
+   },
+   {
+    "criterion": "3. The manual covers every screen and control and matches the actual default bindings (generated table compared in a test).",
+    "status": "met",
+    "evidence": "docs/manual has README plus 8 pages (getting started, controls, views, colony, nest, species, settings, troubleshooting). src/content/text/controls.ts generates the table from src/input/actions.ts and bindings.ts (defaultBindings); controls.test.ts compares it with the block embedded between marker comments in 02-controls.md (exact equality), checks all button actions and axes appear once, spot-checks defaults against GDD 01 \u00a75 and 08 \u00a75.4, and that rebinding changes the output. manual.test.ts checks all 22 screen ids appear as rows of the screens table in 03-views.md, every key marker in the prose equals a default binding of that action, internal links resolve, and wording rules pass. Fully met for what is in the code; a few controls belong to screens not built yet and are marked verify-at-release."
+   },
+   {
+    "criterion": "Addendum: data modules with stable ids and a small pure lookup API.",
+    "status": "met",
+    "evidence": "src/content/index.ts re-exports getCodexEntry, hasCodexEntry, listCodexEntries(filter: category, species, text), relatedEntries, codexCategories, codexCategoryCounts, entryAppliesTo, controlsForEntry, and from text: milestoneText, alertText, weatherChangeText, humanEventWarningText, hintText, aimText, formatText, relation/status/death-cause/stage/zone/factor-cause/remedy/founding-failure word tables, journal and report templates, buildControlsReference, controlsMarkdown. Tables are typed Record<ContractIdUnion, ...> and tests assert they cover MILESTONE_IDS, ALERT_KINDS, HINT_IDS, AIM_IDS, DEATH_CAUSES, RELATION_STATES, FOUNDING_FAIL_CAUSES and more."
+   },
+   {
+    "criterion": "Addendum: do not edit UI/game files; put proposed changes for their wording in a table.",
+    "status": "met",
+    "evidence": "No file outside src/content/** and docs/manual/** was edited. The proposed-change table is in notesForIntegrator (rows prefixed WORDING)."
+   },
+   {
+    "criterion": "Addendum: mark manual sections describing features not yet present with an HTML comment on the line above the heading.",
+    "status": "met",
+    "evidence": "20 `<!-- verify-at-release -->` markers, each directly above a heading (test enforces this and lists 20 headings that must be marked). Features checked absent or placeholder in the code: Codex and Lineage pages (placeholders), the opening (game flow in progress), minimap, scent view and overlays, photo mode, winter and first-brood time-lapse presentation, colony health drawer, journal, overwintering, people/predators/rivals, nuptial flights, flooding and collapse, nest overview drawer, species 2-4, parts of Accessibility and Gameplay settings, gamepad columns."
+   },
+   {
+    "criterion": "Codex is honest that real colonies are larger than the game's and that queen directives and brood raiding are abstractions (directions K).",
+    "status": "met",
+    "evidence": "All four species entries state the game's caps (1,500 / 1,200) against real sizes; cx-interface-orders says no queen gives orders and that the panel and markers are a simplification for play; cx-interface-markers says markers are an abstraction; cx-cofounding's in-game line says brood raiding is a game mechanic not documented for the black garden ant. Tests assert each of these."
+   }
+  ],
+  "notDone": [
+   "The codex and journal panels, toast on codex.unlocked, and wiring of alertText/milestoneText/aimText into the sim and UI are later tasks and are not done here. Unlock triggers are not stored in the data; consumers read them from GDD 06 \u00a710 (a trigger field would be easy to add once the progression owner picks event ids).",
+   "The sentence-by-sentence fact trace exists for the 25 sampled entries only. The other 77 entries have verified quotes (provenance tables) but not a per-sentence trace. Hedged sentences are worded as hedged but not machine-labelled outside the sample.",
+   "Only the first 8 verification caveats that bear on codex text were applied from the dossiers; ecology-habitats values the dossier marks [E] (many dimensions, droplet sizes, wind ratio, shoe size, dew timing, kerb height) are written as 'estimated' and kept out of the claim tables, so those statements are labelled estimates in the text, not facts.",
+   "The in-game controls reference is data plus a markdown generator; the screen that displays it ('Show controls', Settings > Controls reminder) is the UI owner's.",
+   "The manual's controls table must be regenerated by hand if default bindings change; the test failure shows the expected text (controlsMarkdown()). There is no write-back script (the project has no node types for tests and tools/ is not mine).",
+   "Nest-overview, colony-health, journal and codex screens are documented from GDD 08, not from code, because the code does not have them yet (marked verify-at-release).",
+   "No visual verification or harness run (text-only task)."
+  ],
+  "contractChanges": [
+   "None. No file in src/sim/types/**, src/core/** or any shared path was edited. src/content/** only imports types (and the id arrays in tests) from '@/sim/types' and the pure modules '@/input/actions', '@/input/bindings' and '@/input/types'; it uses no DOM, three, Math.random or Date.now."
+  ],
+  "notesForIntegrator": [
+   "API entry point: `import { getCodexEntry, listCodexEntries, milestoneText, alertText, aimText, hintText, buildControlsReference, controlsForEntry } from '@/content'`. Entries carry `source` (citation line, derived from provenance), `alwaysUnlocked` (cx-interface-why/markers/time; cx-interface-orders unlocks on first use) and `controlActions` (action ids whose current bindings the Interface entry page lists; resolve with controlsForEntry(id, bindingSet)).",
+   "DECISION (conflict): GDD 06 \u00a710 says the dossier source is kept in docs/research and not shown in play; GDD 08 \u00a77.3 shows a 'Source line'. I provide `source` as an optional field so the UI owner chooses; the text bodies never cite sources.",
+   "DECISION (conflict): aim texts. GDD 08 \u00a79.2 and GDD 06 \u00a75.13 both word aim-first-food, aim-second-chamber, aim-first-protein and aim-first-trail differently. GDD 06 owns the hand-over aims, and src/game/flows/founding/flowView.ts already uses its questions, so AIM_TEXT follows GDD 06 for those four and GDD 08 for the five opening aims. flowView.ts has its own AIM_TEXT table; it can use aimText() instead.",
+   "CONTRADICTIONS WITH SOURCES, resolved per the fact-checked dossiers (GDD 06 \u00a710 / \u00a78 drafts changed): cx-queen-reserves 'loses roughly half her weight' is unmeasured (dossier: newly mated queen mass not found) so the note says so; cx-callow 'darken over about an hour' (dossier: 3-4 days, unsourced) is hedged and ms-first-worker no longer says 'within the hour'; cx-egg-eating, GDD says a hungry queen may eat a larva generally, dossier supports only Atta 'first brood 90 %' (TAMU), so the black garden ant part is labelled a rule of play; cx-seed-classes size classes 0.4-4/4-20/20-100 mg are not in the dossier, rewritten from Hensen/Plowes values and the class limits called design values; cx-fungus-garden 'thrives at 21-25 C' is 'ants choose 21-25 C when relocating'; cx-hot-surfaces 'lose muscle control within minutes' is an extrapolation, rewritten from the CTmax study; cx-claustral-founding 'a queen with no shelter would most likely not survive' is the authors' assumption, labelled; cx-nuptial-flight keeps humidity out (not a trigger per Hart et al.); cx-hibernation 5-10 C is a hobbyist figure, labelled; ms-first-honeydew no longer says 'aphids on a stem above' (T1 has static honeydew-film sites, GDD index E-109); ms-first-trail no longer says a trail 'persists only as long as it is walked' (lifetime is unverified); ms-first-flight 'most will have been eaten' became 'many'. cx-pavement-wars and cx-formica use the boundary-contest wording (GDD 00-index E-107).",
+   "Extra alert kinds: ALERT_KINDS now includes 'entrance-closed' and 'midden-blocked' (added by other engineers); ALERT_TEXT covers all 37 kinds and its test fails if a kind is added without wording, which is intended.",
+   "Bundle weight: the codex data plus provenance is roughly 100 KB of source text. If that matters, import the entries only; the provenance tables are used just for the `source` line and the tests.",
+   "Appendix E checks that concern this module and need other modules: GDD 06 E#21 (a milestone fires once and its journal entry carries the date; needs progression plus milestoneText), E#24 (ms-queen-lost journaled; progression); GDD 08 E#4, #5, #11 (alert dedupe, throttle, click-through; UI feed using alertText), E#9, #10 (hint lifecycle; HINT_TEXT supplies verbs), E#21 (the conflict message must name 'Move right'; see WORDING row for src/input/actions.ts), E#26 (prompt and button 'Colony orders'), E#27 (milestone notices). The text-level parts are covered by text.test.ts.",
+   "WORDING table, review of existing player-facing strings (file | id | current -> proposed | reason). Rule IDs: T tone, C consistency of terms, W wording rules of GDD 08 \u00a76.4, F factual.",
+   "WORDING | src/game/possessionEvents.ts | TOASTS.speedPossession | '8\u00d7 is available when you are not controlling an ant' -> '8x is available only while observing' | C: GDD and HUD tooltips write '8x'; toasts use the multiplication sign; matches the tooltip 'Only while observing'.",
+   "WORDING | src/game/possessionEvents.ts | TOASTS.speedOpening | 'The queen is in danger: time runs at most at 2\u00d7 now' -> 'The queen is in danger: time is limited to 2x' | T: 'at most at ... now' is clumsy; same 2x spelling.",
+   "WORDING | src/game/possessionEvents.ts | TOASTS.steppedDown | 'Simulation could not keep pace at 4\u00d7; running at 2\u00d7' -> 'The game could not keep up at 4x and now runs at 2x' | T: 'Simulation' is jargon; spelling.",
+   "WORDING | src/game/possessionEvents.ts | TOASTS.possessRejected | 'Cannot take that ant (dead)' with raw reason ids dead / not-colony / view / unknown -> 'That ant is dead' / 'That ant belongs to another colony' / 'Not available in this view' / 'That ant cannot be taken' | T/C: reason ids are shown to the player.",
+   "WORDING | src/game/Game.ts | quickSave/quickLoad fallbacks | 'Saving is not available yet' / 'Loading is not available yet' -> 'Saving is not available here' / 'Loading is not available here' | F: 'yet' is only true before the save system exists; the same text 'Saving to this browser is not available here' is used elsewhere.",
+   "WORDING | src/game/save/install.ts, possessionEvents.ts | toast punctuation | 'Quick saved.' / 'Controller connected' / 'Paused while the window is in the background' -> one rule: no full stop on status toasts of up to six words, full stop on sentences | C: both styles are in use.",
+   "WORDING | src/sim/ants/player/prompt.ts | PROMPT_VERB trophallaxis-receive | 'Beg food' -> 'Ask for food' | T: calm, plain.",
+   "WORDING | src/sim/ants/player/prompt.ts | reason budget | 'no strength left today' -> 'worn out for now' | C: 'today' reads as real time; the budget is a game-day quantity.",
+   "WORDING | src/sim/colony/economy.ts | stores-full | 'Food stores are full' / 'dig a food chamber' -> 'Stores are full' / 'foragers are resting with full crops' (GDD 08 \u00a76.5) | W/T: the cause line states a cause, not advice; advice belongs in remedies. Table: alertText('stores-full').",
+   "WORDING | src/sim/colony/diagnostics.ts | brood-stalled | title 'Brood growth has stalled', cause = raw factor id e.g. 'temperature' -> title 'Brood growth slowed', cause '{words}; nursery {temp} \u00b0C' via FACTOR_CAUSE_WORD | W: present-tense subject-state pattern; raw ids reach the player.",
+   "WORDING | src/sim/colony/starvation.ts | food-c-low, food-p-low | cause '1.2 days left' -> '1.2 C in store \u2014 about 0.5 game days left' and 'Protein short for the larvae' / '18 larvae, 0.3 P stored' | C/W: 'game days' (not 'days') and numbers with units; GDD 08 \u00a76.5 titles.",
+   "WORDING | src/sim/colony/starvation.ts | colony-starving | cause 'brood is being sacrificed' -> 'stores empty; brood is being eaten' | T/F: 'sacrificed' implies intent; cannibalism is the observed behaviour.",
+   "WORDING | src/sim/colony/midden.ts | midden-blocked | 'Waste cannot leave the nest' / 'no open entrance: haulers drop it in a dead-end tunnel' -> cause 'no open entrance \u2014 waste is dropped in a dead end' | C: GDD cause pattern '<cause> \u2014 <detail>'; 'haulers' is internal.",
+   "WORDING | src/game/flows/founding/flowView.ts | FAIL_TEXT.cold / heat | 'The cold took her.' / 'The ground was too hot.' -> 'She died of cold.' / 'The ground was too hot for her.' | T: no personification; FOUNDING_FAIL_TEXT also covers garden-lost, starvation and retired, which currently fall through to a generic line.",
+   "WORDING | src/game/flows/founding/flowView.ts | AIM_TEXT (local copy) | five questions duplicated -> use aimText(id, species) from '@/content' | C: one source for aim wording.",
+   "WORDING | src/ui/screens/Simple.tsx, src/ui/boot/ErrorOverlay.tsx | 'Something went wrong' -> 'The game stopped unexpectedly' | T: vague; says what happened.",
+   "WORDING | src/ui/screens/Simple.tsx vs src/ui/boot/Unsupported.tsx | two versions of the WebGL 2 message ('This browser cannot run the game' ... vs 'This game needs WebGL 2, which this browser or page does not provide.') -> keep the first (has the three remedies) | C: duplicated screen.",
+   "WORDING | src/ui/boot/Loading.tsx vs src/ui/screens/Loading.tsx | 'This seed would not produce a viable locality' vs 'This locality could not be completed.' -> use the GDD 08 \u00a73.6 text in both | C: two failure wordings; 'viable' is jargon.",
+   "WORDING | src/ui/boot/PauseMenu.tsx vs src/ui/screens/Pause.tsx | 'Quit to title' vs 'Return to title' -> 'Return to title' | C: GDD 08 \u00a73.5.",
+   "WORDING | src/ui/hud/speedModel.ts, src/ui/panels/directives/PolicySections.tsx | 'Arrives with the full sandbox' / 'Suggestions arrive with the full sandbox' -> 'Not yet available' | C/T: 'sandbox' is a genre word; same phrase as the species cards.",
+   "WORDING | src/ui/screens/newgame/NewGame.tsx vs saves/SaveLoad.tsx, settings/GameplayTab.tsx | 'Not yet available' vs 'Not available yet' -> 'Not yet available' everywhere | C.",
+   "WORDING | src/ui/panels/directives/PolicySections.tsx | 'Raising winged queens and males costs a great deal of food. Workers only keeps every egg a worker.' -> '... With Workers only, every egg is raised as a worker.' | T: grammar.",
+   "WORDING | src/ui/screens/Loading.tsx | tips | 'The richest food ends up with the strongest trail.' -> 'Foragers lay a scent trail and nestmates follow it; about one forager in five ignores it.' | F: the sugar-strength link is tagged unverified in the dossier; the second is verified.",
+   "WORDING | src/ui/screens/Loading.tsx | tips | 'Nurses carry eggs and larvae between chambers, following changes in warmth and damp.' -> 'Nurses are reported to carry eggs and larvae between chambers as warmth and damp change.' | F: keeper observation only (dossier [2ND]).",
+   "WORDING | src/ui/screens/Loading.tsx | tips | 'In winter the colony withdraws to the deep chambers and slows almost to a stop.' -> 'In winter the workers cluster deep in the nest and the queen stops laying.' | F: matches the dossier statements.",
+   "WORDING | src/ui/screens/Loading.tsx | tips | 'Soil ... carried out grain by grain' -> 'pellet by pellet' | C: the game and codex say pellets.",
+   "WORDING | src/ui/screens/saves/SaveLoad.tsx | 'That did not work.' (default error) -> 'The action could not be completed.' | T: say what.",
+   "WORDING | src/input/actions.ts | directives label 'Directives' -> 'Colony orders' | C: panel title and hint use 'Colony orders' (GDD 08 \u00a74.2); manual mentions both.",
+   "WORDING | src/input/actions.ts | axis component labels 'Move (right)' -> 'Move right' | C/GDD 08 E#21: the conflict message must name 'Move right'.",
+   "WORDING | src/input/actions.ts | 'Mouse look drag / captured' -> 'Mouse look: drag or captured' | T: reads as one phrase.",
+   "WORDING | src/ui/panels/directives/Directives.tsx | tooltip on the title | currently 'About colony orders' -> GDD 08 \u00a74.2 text 'Ants have no commander. These orders stand for many local decisions; read why in the codex.' with a link that opens cx-interface-orders | W: the abstraction must be said in play (gap G2); the word 'commander' in this mandated sentence is allowed.",
+   "WORDING | all UI | term check: 'Possess' (UI) vs 'Take control' (manual) are both kept; the README says so. Terms used consistently in the new text: Colony orders, Colony health, Nest overview, game day, body length (BU), C and P, Territorial dispute / Lull / Clashing / Wary / Neutral.",
+   "Regenerate docs/manual/02-controls.md table: paste controlsMarkdown() output between the controls-table markers; controls.test.ts prints the diff when bindings change.",
+   "Verify-at-release sections to check against the finished game: 01 (Lineage and Codex, The opening), 02 (Gamepad), 03 (minimap, overlays and scent view, photo mode, first brood and winter), 04 (colony health, journal, overwintering, people/predators/rivals, nuptial flight), 05 (water/heat/collapse, nest overview), 06 (three species), 07 (display and text, spiders and overlays, auto-slow and difficulty).",
+   "Machine note: load average was about 26 during the work; the vitest run of this module is cheap (2-3 s) and needs no load guard."
+  ],
+  "needsFromOthers": [
+   "Progression owner: use milestoneText(id, tokens) for journal entries, alertText()/weatherChangeText()/humanEventWarningText() for alerts, and emit codex.unlocked for ids in allCodexIds(); triggers are in GDD 06 \u00a710 (not stored in the data).",
+   "UI owners (codex and journal books, alert feed, HUD): read through '@/content'; show `source` only if GDD 08 \u00a77.3's Source line is wanted; resolve key caps from the current BindingSet using hintText(id).action and controlsForEntry(id, set).",
+   "Input owner: label changes listed in the WORDING rows for src/input/actions.ts (Directives -> Colony orders, 'Move (right)' -> 'Move right').",
+   "Founding flow owner: use aimText() and FOUNDING_FAIL_TEXT from '@/content' instead of the local tables in flowView.ts.",
+   "Release documentation pass: check the 20 verify-at-release sections of docs/manual and regenerate the controls table if bindings changed."
+  ]
+ },
+ "review": {
+  "verdict": "pass-with-minor",
+  "checksRun": [
+   "npm run typecheck, filtered to src/content and docs/manual: no errors",
+   "npx vitest run src/content: the implementer's 54 tests pass; with my 45 added tests the run is 99 tests, 95 pass and 4 fail on purpose (listed in findings)",
+   "Read all of src/content/** (codex entries, provenance tables, text tables, controls generator, tests) and all 9 manual pages",
+   "Checked codex ids, titles and species tags against GDD 06 section 10. All 56+ table rows have entries with identical titles. Species tags match except 4 deliberate widenings: cx-egg-eating +AT, cx-brood-stages +CP, cx-night-foraging +MB, cx-trunk-trail +AT",
+   "Checked milestone ids and titles against the GDD 06 section 8 table: all present, titles equal",
+   "Checked hint verbs against the GDD 08 section 9 table and confirmed every hint action id exists in src/input/actions.ts",
+   "Re-derived about 40 codex facts from docs/research by grep. All were found in the dossiers: 33.1 mg queen at 64 weeks, 0.75 uL and n=63, 5,390 and 7,099 cm3, 6.6% Escovopsis, 13.4%, 1.5 cm burial, 91 m and 30 m range, 97% in July/August, 1.7 m/s, 4x nitrogen, 0.1-0.3 m/s ground wind, the 50-times-lifting caveat, and others. Dossier [E] values are worded as estimates (wind ratio, shoe print)",
+   "Checked game-rule numbers in the in-game lines against src/sim/balance/nest.ts and GDD 04: gravel 0.35, wood-sound 0.4 and 0.25, decayed wood, food x0.7",
+   "Checked unmarked manual claims against code: Shift+1..7 (colonyControl.ts), Q/E dig-ghost rotation by 15 degrees, seed field limit of 32 characters, the autosave options, and which screens exist in src/ui",
+   "Checked the 20 verify-at-release markers sit directly above headings, and that the unmarked sections (directives, roster, markers, settings, saves) match features present in src/ui and src/game",
+   "Checked layering: no Math.random, Date.now or DOM use in src/content; sim types are imported as types only; nothing outside src/content and docs/manual is imported by the content modules except pure @/input modules",
+   "Checked lookup edge cases: prototype-property ids, regex characters in text filters, whitespace filter, fresh arrays per call, JSON round-trip, determinism"
+  ],
+  "findings": [
+   {
+    "severity": "minor",
+    "title": "Count templates are ungrammatical for a count of one (\"Only 1 ants remain\")",
+    "where": "src/content/text/alerts.ts (last-ants, food-p-low, raid-seen, alates-ready, weather-change, food-c-low), src/content/text/journal.ts (FLIGHT_ENTRY, LOSS_ENTRY, WINTER_REPORT.survived); failing test src/content/text/text.verify.test.ts 'plural and count wording'",
+    "detail": "formatText only substitutes tokens, so the plural noun is fixed in the template. alertText('last-ants',{n:1}).title gives 'Only 1 ants remain'. This is the common case: the queen alone is the last ant. Also reproduced: '1 larvae, 1 P stored', '1 workers', 'within 1 game hours', '1 winged ants', and in the journal '1 queens mated' and 'Lost 1 workers'. This breaks the wording quality bar of GDD 08 section 6.4 for the critical last-ants alert. A small plural helper or a count-aware template (singular and plural forms keyed by n) fixes it. The two verify tests stay red until then."
+   },
+   {
+    "severity": "minor",
+    "title": "Two codex entries share the title 'Asphalt' in the same category",
+    "where": "src/content/codex/entries/habitats.ts (cx-habitat-asphalt) and materials.ts (cx-material-asphalt), both category 'habitats'; failing test codex.verify.test.ts 'keeps titles unique'",
+    "detail": "Both are titled 'Asphalt' and both sit under 'Habitats and materials', so the codex rail will show two indistinguishable rows. Rename one, for example 'Asphalt surfaces' for the habitat and 'Asphalt (material)'. The other 101 titles are unique."
+   },
+   {
+    "severity": "minor",
+    "title": "Screens test uses a hand-typed id list that omits registry ids; 'unsupported' is not in the screens table",
+    "where": "src/content/manual.test.ts SCREEN_IDS (22 ids) vs GDD 00-index B2 (24 ids); docs/manual/03-views.md; failing test src/content/manual.verify.test.ts 'names every registry screen id'",
+    "detail": "The registry lists `unsupported` (src/ui/boot/Unsupported.tsx exists) and `playing`. The manual describes the unsupported-browser message only in 08-troubleshooting.md, with no row or `unsupported` id in the screens table. `playing` is the play state and is covered by the views text. The criterion 'covers every screen' is met in substance but the test cannot catch registry drift. Add an `unsupported` row to 03-views.md. Better, parse the registry line as my verify test does."
+   },
+   {
+    "severity": "minor",
+    "title": "Fact trace is only partly machine-verified; some quotes are cut off before their numbers",
+    "where": "src/content/codex/sample25.ts, provenance.test.ts, provenanceBio.ts",
+    "detail": "The test checks that a cited claim index exists, not that the claim supports the sentence. Several quotes stop before the figure they back (Messor 'a laboratory colony from S. France spanned', the 0.08 to 95.9 mg seed range, antlion 2 in by 3 in converted to 75 by 50 mm). My trace.verify.test.ts requires every digit string in a traced sentence to appear in the cited quotes. It passes at a tolerance of 15% (8 of 61 numbers miss). I checked each miss by hand against the dossiers and all are legitimate: truncated quote, unit conversion, 5.9 mm rounded to 6 mm. The sample-of-25 criterion is therefore met. The remaining 77 entries have verified quotes but no per-sentence trace, as the report says."
+   },
+   {
+    "severity": "minor",
+    "title": "Provenance claim tables ship in the runtime bundle only to derive a citation string",
+    "where": "src/content/codex/index.ts imports citationOf from provenance.ts, which pulls provenanceBio.ts and provenanceWorld.ts (about 37 KB of source quotes)",
+    "detail": "When the codex panel imports '@/content', all 406 verbatim dossier quotes are bundled. Only the one-line citation per entry is needed at runtime. Keep the citations in a small map beside the entries and move the claim tables to a test-only module. Nothing imports src/content yet, so this is not urgent."
+   },
+   {
+    "severity": "minor",
+    "title": "Hardcoded default key letters in codex in-game lines and some state-dependent journal sentences",
+    "where": "codex entries cx-trophallaxis (G), cx-nursing (E), cx-antennation (T), cx-interface-markers (Delete); src/content/text/milestones.ts ms-first-heat-wave, ms-first-storm, ms-first-frost",
+    "detail": "The interface-time entry promises that 'Rebinding a key changes the key hint in the game too', but those four lines name default keys in plain text and go stale after a rebind (my test only confirms they match the current defaults). Use a token such as {key:share-food} resolved by controlsForEntry. Some milestone texts state outcomes as fact: heat-wave 'The pavement was too hot to cross' (Woodland Edge has no pavement), storm 'Every forager was recalled; the nest held', frost 'Underground, the colony is above freezing'. They came from GDD 06 and were left as written. Also ms-first-flight says 'a single morning's rush', which sits oddly with cx-nuptial-flight ('far less synchronised') and with night-flying Atta."
+   },
+   {
+    "severity": "minor",
+    "title": "Species tags widened beyond GDD 06 section 10 without being listed in the report",
+    "where": "cx-egg-eating (+AT), cx-brood-stages (+CP), cx-night-foraging (+MB), cx-trunk-trail (+AT)",
+    "detail": "Each widening is justified by the body text (it mentions Atta, Camponotus, Messor or Atta respectively) and the dossiers. It changes which entries show under the species filter, so it should be recorded as a deviation from the GDD table. My test pins the four deviations so any further change is noticed."
+   },
+   {
+    "severity": "major",
+    "title": "Integrator additions (not from the reviewer)",
+    "detail": "(1) Four reviewer tests are red in the full suite and must go green by fixing the content, not the tests: src/content/text/text.verify.test.ts (journal reports and alert titles/causes must read correctly for a count of one), src/content/manual.verify.test.ts (every registry screen id named in the manual), src/content/codex/codex.verify.test.ts (unique titles). (2) The progression engine now writes journal entries with two keys that have no wording yet: 'loss.queen' (token {cause}) and 'season-summary' (tokens {year}, {seasons}, {weather}); read src/sim/progression (journal code and its wording.test.ts, which lists known gaps including event.* keys) and add wording for every key progression emits, then tell the integrator which gaps in wording.test.ts can be closed. (3) Alert kinds 'entrance-closed' and 'midden-blocked' and any other kind in the contracts' ALERT_KINDS must have wording. (4) Keep to your own paths (src/content/**, docs/manual/**)."
+   }
+  ],
+  "testsAdded": [
+   "src/content/codex/codex.verify.test.ts (18 tests; 1 fails on purpose: duplicate title 'Asphalt'). Covers GDD 06 section 10 ids, titles and tags, text hygiene, key letters against defaults, controlActions ids, lookup edge cases and JSON round-trip",
+   "src/content/text/text.verify.test.ts (17 tests; 2 fail on purpose: plural wording for a count of one in alerts and in journal reports). Covers milestone ids and titles against the GDD, hint verbs and action ids, aim text, formatText edge cases, controls-reference edge cases and rebinding",
+   "src/content/manual.verify.test.ts (9 tests; 1 fails on purpose: registry screen id 'unsupported' is missing from the manual). Covers unmarked key names against default bindings, table column counts, heading hygiene, no placeholders, verify-at-release markers and screen coverage against GDD 00-index B2",
+   "src/content/codex/trace.verify.test.ts (1 test, passes). Checks that digits in traced sentences occur in the cited quotes, within a 15% tolerance"
+  ]
+ }
+}
