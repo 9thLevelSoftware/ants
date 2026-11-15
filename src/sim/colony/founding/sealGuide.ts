@@ -22,7 +22,7 @@ import { planSeal } from './sealPlan';
 
 /** Guide state on the queen (ant.bb, numbers only). */
 export const SG = {
-  state: 'fd.sg', // 0 idle, 1 walking to the stand, 2 plugging, 3 stuck (no stand reachable), 4 facing the leak
+  state: 'fd.sg', // 0 idle, 1 walking to the stand, 2 plugging, 3 stuck (no stand reachable), 4 facing the leak, 5 fetching soil
   ask: 'fd.sgAsk', // tick of the latest E press in phase `seal`
   seen: 'fd.sgSeen', // the ask tick already acted on
   auto: 'fd.sgAuto',
@@ -37,7 +37,7 @@ export const SG = {
   ex: 'fd.sgEx', // excluded stands: fd.sgEx0x.. (up to SEAL_MAX_REPLANS)
 } as const;
 
-const IDLE = 0, WALK = 1, PLUG = 2, STUCK = 3, FACE = 4;
+const IDLE = 0, WALK = 1, PLUG = 2, STUCK = 3, FACE = 4, SOIL = 5;
 
 /** E-actions that mean "seal" while the opening is in phase `seal`. */
 const E_ACTIONS: readonly ActionId[] = ['seal-entrance', 'put-down', 'groom', 'lay-egg'];
@@ -187,6 +187,13 @@ function plan(sim: Sim, q: Ant): void {
     if (plugHere(sim, q)) return;
   }
   bbSet(q, SG.tx, p.target.x); bbSet(q, SG.ty, p.target.y); bbSet(q, SG.tz, p.target.z);
+  if (!hasPellet(sim, q)) {
+    // nothing to tamp: down toward the cell until the soil rule finds a wall to scrape (seal.ts)
+    bbSet(q, SG.state, SOIL);
+    bbSet(q, SG.since, sim.state.tick);
+    soilWalk(sim, q, nest);
+    return;
+  }
   if (p.inReach && hasPellet(sim, q) && !p.standCuts) { face(sim, q); return; }
   if (!p.stand) { stop(sim, q, STUCK); return; }
   bbSet(q, SG.sx, p.stand.x); bbSet(q, SG.sy, p.stand.y); bbSet(q, SG.sz, p.stand.z);
@@ -220,6 +227,12 @@ function giveUp(sim: Sim, q: Ant, s: Vec3): void {
   bbSet(q, SG.replans, bbGet(q, SG.replans, 0) + 1);
   if (bbGet(q, SG.replans, 0) > SEAL_MAX_REPLANS) { stop(sim, q, STUCK); return; }
   plan(sim, q);
+}
+
+function soilTick(sim: Sim, q: Ant, nest: Nest): void {
+  if (hasPellet(sim, q)) { if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q); plan(sim, q); return; }
+  if (sim.state.tick - bbGet(q, SG.since, sim.state.tick) > SEAL_WALK_MAX_TICKS) { stop(sim, q, STUCK); return; }
+  if (possessed(sim, q)) soilWalk(sim, q, nest);
 }
 
 function walkTick(sim: Sim, q: Ant, nest: Nest): void {
@@ -278,6 +291,7 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
   }
   if (q.action) return; // a bite or anything else under way ends first
   if (state === FACE) { faceTick(sim, q); return; }
+  if (state === SOIL) { soilTick(sim, q, nest); return; }
   walkTick(sim, q, nest);
 }
 
@@ -285,7 +299,7 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
 export function sealGuideView(sim: Sim, q: Ant | undefined): { state: 'idle' | 'walking' | 'plugging' | 'stuck'; stand: Vec3 | null; plugs: number } | null {
   if (!q) return null;
   const s = bbGet(q, SG.state, IDLE);
-  const state = s === WALK || s === FACE ? 'walking' : s === PLUG ? 'plugging' : s === STUCK ? 'stuck' : 'idle';
+  const state = s === WALK || s === FACE || s === SOIL ? 'walking' : s === PLUG ? 'plugging' : s === STUCK ? 'stuck' : 'idle';
   const stand = s === WALK ? { x: bbGet(q, SG.sx, 0), y: bbGet(q, SG.sy, 0), z: bbGet(q, SG.sz, 0) } : null;
   return { state, stand, plugs: bbGet(q, SG.total, 0) };
 }
