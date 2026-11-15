@@ -34,3 +34,6 @@ Damage exchange goes through the combat module's functions (a parallel Stage 2 t
 - Sound: the audio system already maps cue ids that wait for you — `creature-step`, `wing-buzz`, `bird-strike`, `antlion-flick`, `prey-struggle`, `cricket-call` and the `ambient.<kind>` family (see `src/audio/README.md`, "cues waiting for an emitter"): emit exactly those ids.
 - The 28-game-day soak of criterion 3 goes behind `FOUNDRESS_LONG=1` (run it once for the report) with a 2-day always-on version; keep every committed test file to about 20 s on an idle machine.
 - Registration: add your systems through your own module index and the simulation's registration mechanism (one import line in the ecology index if that is how it is wired — report it).
+
+## Addendum (integrator): this task was interrupted part-way
+An earlier engineer worked on this task and was cut off before finishing or reporting. Their partial work is in the tree (in the paths this spec owns; `git log -3 --stat` and the files' dates show it; harness output and notes may remain under `test-output/`). Start by auditing it against this spec: run its tests, look at its screenshots if any, keep what is sound, repair or replace what is not, then finish the remaining work. Report on the whole task, not only your part.

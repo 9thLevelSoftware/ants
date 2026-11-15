@@ -35,3 +35,8 @@ Do not edit `src/render/slots/**`, `src/render/app/**`, `src/render/camera/**`, 
 3. World generation output is unchanged except for tints and tags (fingerprint statement in the report); the simulation is untouched; ants still stand on the ground (no visible float or sink in the gallery frames).
 4. Draw calls and triangles stay within the budgets in `docs/03-architecture.md` §6 for each quality preset (report before/after); runtime quality switching still works.
 5. All new textures or shapes are procedural or built from assets already in the manifest (no downloads, originality rule respected).
+
+## Addendum (integrator): this task was interrupted part-way
+An earlier engineer worked on this task and was cut off before finishing or reporting. Their partial work is in the tree (in the paths this spec owns; `git log -3 --stat` and the files' dates show it; harness output and notes may remain under `test-output/`). Start by auditing it against this spec: run its tests, look at its screenshots if any, keep what is sound, repair or replace what is not, then finish the remaining work. Report on the whole task, not only your part.
+- Seen in the earlier engineer's interim gallery (`test-output/look/pairs/`): the "after" paving/gravel ground showed coarse black-and-white square speckles (a low-resolution procedural texture magnified) — worse than before; plants beside the ant were still plain green poles. Neither is acceptable in the final gallery.
+- The founding queen underground is nearly black from the camera side (`test-output/founding-e2e/04-*.png`, `08-*.png`): underground ants need enough fill light to read their shape (your lighting rig; the nest renderer is not yours — report if the cause is there).

@@ -23,3 +23,6 @@ Another engineer is working at the same time on `src/worldgen/populate/**`, `src
 2. Generation time for a standard world, minimum of five runs, per archetype, before and after, per step; the derived-map step is at least twice as fast on woodland-edge and kitchen-door; the equivalence test for columns passes.
 3. World fingerprints: state whether they changed. Derived maps may change only within the stated tolerance; placed objects, cavities and routes must not change at all (a test compares object lists before and after on three seeds per archetype — capture the "before" lists first).
 4. Determinism holds (same seed, same fingerprint, across two processes).
+
+## Addendum (integrator): this task was interrupted part-way
+An earlier engineer worked on this task and was cut off before finishing or reporting. Their partial work is in the tree (in the paths this spec owns; `git log -3 --stat` and the files' dates show it; harness output and notes may remain under `test-output/`). Start by auditing it against this spec: run its tests, look at its screenshots if any, keep what is sound, repair or replace what is not, then finish the remaining work. Report on the whole task, not only your part.
