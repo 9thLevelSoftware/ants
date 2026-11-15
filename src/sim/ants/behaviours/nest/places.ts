@@ -7,6 +7,7 @@ import type { Ant, Chamber, ChamberType, Colony, Entrance, Nest, Sim } from '@/s
 import { nestFieldId } from '@/sim/types';
 import { perTick } from './perTick';
 import { MIDDEN_DIRECTIONS, MIDDEN_DIST_BU, PILE_RADIUS_BU, PILE_SPREAD, REACHABLE_ABOVE_BU } from '@/sim/balance/nestwork';
+import { ITEM_BURIED_BU } from '@/sim/balance/nest';
 
 export function colonyOf(sim: Sim, ant: Ant): Colony | undefined {
   return sim.stores.colonies.get(ant.colony);
@@ -165,8 +166,10 @@ function computeMidden(sim: Sim, nest: Nest, out: Vec3): Vec3 | null {
  * within REACHABLE_ABOVE_BU straight below): nothing walks there, so no job is made of them.
  */
 export function onSurface(sim: Sim, p: Vec3): boolean {
-  const max = REACHABLE_ABOVE_BU * sim.world.bu;
-  return sim.field.sample(p) <= 0 || sim.field.sphereTrace(p, DOWN, max, 0) < max;
+  const max = REACHABLE_ABOVE_BU * sim.world.bu, s = sim.field.sample(p);
+  // buried deeper than ITEM_BURIED_BU inside solid soil (a fill closed over it): nothing can reach it either
+  if (s < -ITEM_BURIED_BU * sim.world.bu) return false;
+  return s <= 0 || sim.field.sphereTrace(p, DOWN, max, 0) < max;
 }
 
 const DOWN: Vec3 = { x: 0, y: -1, z: 0 };

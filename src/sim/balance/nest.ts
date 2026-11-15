@@ -112,6 +112,12 @@ export const BULKING = 1.25;
 export const PELLET_SETTLE_S = 300;
 /** A clutter or spoil-pile pellet untouched this long is tamped into the floor, game s. */
 export const PELLET_TAMP_S = 1200;
+/**
+ * An item whose centre lies deeper than this inside solid soil is buried (a fill or plug closed over it): no ant
+ * can reach it, and a buried pellet is part of the soil at its tamping time, BU (int-1B-sim: pellets left in a
+ * founding throat were sealed in by the plug, and haulers walked at them for days).
+ */
+export const ITEM_BURIED_BU = 0.3;
 /** Tamping spreads the volume over floor voxels within this radius, BU (then the fallback radius). */
 export const TAMP_RADIUS_BU = 1.0;
 export const TAMP_RADIUS_FALLBACK_BU = 1.5;

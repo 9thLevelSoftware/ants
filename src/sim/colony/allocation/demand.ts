@@ -14,7 +14,7 @@ import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
 import { intakeTarget } from '../needs';
 import { queenOf } from '../queen';
-import { digDemand as nestDigDemand, haulPelletLoad } from '@/sim/nest';
+import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
 import { herdTendDemand } from '@/sim/ecology/plants/demand';
 
 const T = (t: Task): number => ti(t);
@@ -31,7 +31,10 @@ export function knownCapacity(sim: Sim, col: Colony): { ants: number; loads: num
 
 /** Worker-equivalents of open dig work: the nest module's digDemand over the colony's plans (GDD 03 §7.7). */
 export function digDemand(sim: Sim, col: Colony): number {
-  return nestDigDemand(sim, col.id);
+  // a `reopening` entrance's plug is dig work too (GDD 03 §4.2, §13: the first workers dig it out), one digger each
+  let unplug = 0;
+  for (const nid of col.nestIds) if (entranceToUnplug(sim, nid)) unplug++;
+  return nestDigDemand(sim, col.id) + unplug;
 }
 
 /** Threat multiplier for guards and patrols: alarm near an entrance. */

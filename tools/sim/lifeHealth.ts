@@ -6,7 +6,8 @@
 // - foraging: workers leave and come back with food: deliveries on at least half of the days after day 1;
 // - stores: the colony is never in starvation stage S3 (brood-sacrifice) or worse at a day boundary for two days
 //   in a row (GDD 02 §5.7: S1/S2 are the tolerated warning stages);
-// - larvae fed: at day ends with larvae, mean larval hunger stays below 0.8, and no larva starves to death in
+// - larvae fed: mean larval hunger is not >= 0.8 at two day ends in a row (one snapshot can be a larva that has
+//   just hatched hungry and is fed within hours), and no larva starves to death in
 //   more than one day;
 // - growth: GDD 07 §1 growth targets for the founding year (Lasius y1: 12-25 workers at the end of colony year 1,
 //   i.e. an incipient colony holds its first workers and grows slowly; GDD 02 §15 +11 %/gd is the 60-worker summer
@@ -48,9 +49,11 @@ export function judge(r: LifeReport): Verdict {
   for (const d of live) { run = bad(d.state.starvationStage) ? run + 1 : 0; worst = Math.max(worst, run); }
   add('stores', worst < 2, `longest run of day ends at S3 or worse: ${worst}; stages ${live.map((d) => d.state.starvationStage).join(',')}`);
 
-  const hungry = live.filter((d) => d.state.larvae > 0 && d.state.meanLarvalHunger >= 0.8).length;
+  const isHungry = (d: (typeof live)[number]) => d.state.larvae > 0 && d.state.meanLarvalHunger >= 0.8;
+  const hungry = live.filter(isHungry).length;
+  const hungryRun = live.reduce((acc, d) => { const run = isHungry(d) ? acc.run + 1 : 0; return { run, max: Math.max(acc.max, run) }; }, { run: 0, max: 0 }).max;
   const starvedDays = live.filter((d) => Object.entries(d.events.broodDeathsByCause).some(([k, v]) => k.startsWith('larva:starv') && v > 0)).length;
-  add('larvae fed', hungry === 0 && starvedDays <= 1, `day ends with mean hunger >= 0.8: ${hungry}; days with larval starvation deaths: ${starvedDays}`);
+  add('larvae fed', hungryRun <= 1 && starvedDays <= 1, `day ends with mean hunger >= 0.8: ${hungry} (longest run ${hungryRun}); days with larval starvation deaths: ${starvedDays}`);
 
   const w0 = f.workers, wEnd = days[days.length - 1].state.workers;
   let maxRate = 0;

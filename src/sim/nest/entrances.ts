@@ -502,6 +502,29 @@ export function unsealEntranceImpl(sim: Sim, entranceId: number, antId: number):
   return e.status === 'open';
 }
 
+/**
+ * The entrance of a nest whose plug the workers should dig out now (GDD 03 §4.2 `reopening`: "plug being dug"; §13
+ * "nanitics dig it"): `reopening`, or `sealing` with a passage (the rim a reopen leaves; "plug removed -> open"),
+ * with plug voxels left in its throat, while nobody closes the nest on purpose (no live `seal` plan, no ant of the
+ * colony running `seal-entrance`). Lowest id first; null when there is none. The founding module's reopen plans dig the passage;
+ * plug voxels the plans leave keep the throat narrower than NAV_CLEAR (int-1B-sim: car-park-verge #3 stayed
+ * `reopening` with 211 plug voxels for the rest of the run).
+ */
+export function entranceToUnplug(sim: Sim, nestId: number): Entrance | null {
+  const nest = sim.stores.nests.get(nestId);
+  if (!nest || !nest.alive) return null;
+  if (nest.digPlans.some((p) => p.kind === 'seal' && p.status !== 'complete' && p.status !== 'cancelled')) return null;
+  let best: Entrance | null = null;
+  for (const e of nest.entrances) {
+    if ((e.status !== 'reopening' && e.status !== 'sealing') || e.plugVoxelCount <= 0 || (best && e.id >= best.id)) continue;
+    best = e;
+  }
+  if (!best) return null;
+  // `sealing` is also the state of a throat being closed on purpose: never while an ant of the colony tamps a plug
+  for (const a of sim.stores.ants.list) if (a.alive && a.colony === nest.colony && a.action?.id === 'seal-entrance') return null;
+  return best;
+}
+
 /** Nearest open entrance of a nest to p (straight-line distance; ties: lower id), or null. */
 export function nearestOpenEntrance(sim: Sim, nestId: number, p: Vec3): Entrance | null {
   const nest = sim.stores.nests.get(nestId);

@@ -223,11 +223,17 @@ export const STATE_TIMEOUT_S: Readonly<Record<string, number>> = {
   'queen-care.attend': 120, 'queen-care.load': 120, 'queen-care.feed': 90, 'queen-care.collect-eggs': 150,
   'queen-care.escort': 300,
   'store.post': 120, 'store.receive': 30, 'store.disperse': 40, 'store.shift': 150, 'store.clean': 240,
-  'dig.claim': 40, 'dig.travel': 90, 'dig.bite': 60, 'dig.stow': 240,
+  'dig.claim': 40, 'dig.travel': 90, 'dig.bite': 60, 'dig.stow': 240, 'dig.unplug': 240,
   'haul.claim': 40, 'haul.travel': 120, 'haul.pick': 30, 'haul.carry': 240, 'haul.return': 150,
   'guard.post': 360, 'guard.alarm-raise': 20,
   'queen.reside': 300, 'queen.relocate': 600,
 };
+/** At most this many diggers unplug one `reopening` entrance at a time (the throat holds about two ants). */
+export const UNPLUG_DIGGERS_MAX = 2;
+/** The unplugging stand point lies this far inside the opening along the throat (inside SEAL_THROAT_BU), BU. */
+export const UNPLUG_STAND_BU = 1.5;
+/** After failing to reach or bite a plug, a digger does not try unplugging again for this long, s. */
+export const UNPLUG_RETRY_S = 60;
 /** Waiting ants (no job, standing post) think every this many ticks (the runner's default is 5). */
 export const WAIT_THINK_TICKS = 10;
 /** Timeout of a state missing from the table, s. */

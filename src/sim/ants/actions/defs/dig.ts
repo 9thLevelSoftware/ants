@@ -172,7 +172,8 @@ function throatReachable(sim: Sim, ant: Ant, t: TargetRef): boolean {
   return e !== null && inThroat(sim, ant, e.entrance);
 }
 
-const isPlugged = (e: Entrance): boolean => e.status === 'sealed' || e.status === 'sealing';
+// GDD 03 §4.2: `reopening` is "plug being dug", so its plug voxels are unseal-entrance targets too
+const isPlugged = (e: Entrance): boolean => e.status === 'sealed' || e.status === 'sealing' || e.status === 'reopening';
 
 export const sealEntranceDef: ActionDef = {
   id: 'seal-entrance', kind: 'timed', targets: ['entrance'], cancellable: true, pose: 'tamp', cue: 'seal-tamp',

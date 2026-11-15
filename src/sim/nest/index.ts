@@ -18,7 +18,7 @@ import { digBiteImpl } from './bite';
 import { carveEllipsoid, carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { chamberById, designateChamberImpl, findChamberAtImpl } from './chambers/registry';
 import { bestBroodChamberImpl } from './chambers/upkeep';
-import { nearestOpenEntrance, sealEntranceImpl, unsealEntranceImpl } from './entrances';
+import { entranceToUnplug as entranceToUnplugImpl, nearestOpenEntrance, sealEntranceImpl, unsealEntranceImpl } from './entrances';
 import { pileOverOpenings } from './moundRelax';
 import { dumpPelletImpl, isPellet, placePellet, spawnPellet } from './pellets';
 import { antSlot, claimSlot, releaseSlot } from './plans/frontier';
@@ -143,6 +143,11 @@ export function sealEntrance(sim: Sim, entranceId: number, antId: number): boole
 /** Removes one plug from a sealed entrance (`unseal-entrance`); true when it is open again. */
 export function unsealEntrance(sim: Sim, entranceId: number, antId: number): boolean {
   return unsealEntranceImpl(sim, entranceId, antId);
+}
+
+/** The `reopening` entrance of a nest whose plug the workers should dig out now (`unseal-entrance`), or null. */
+export function entranceToUnplug(sim: Sim, nestId: number): Entrance | null {
+  return entranceToUnplugImpl(sim, nestId);
 }
 
 /** Claims a free dig slot of an active plan for an ant (writes ant.bb.planId / slotIdx). */

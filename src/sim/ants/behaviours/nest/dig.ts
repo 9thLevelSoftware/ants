@@ -2,17 +2,20 @@
 // API), walk to it, bite with the `dig-bite` primitive aimed by the plan (planDigAim: heading and ramp slope),
 // then stow the pellet on the plan's spoil pile while it has room and the colony has haulers, else carry it out
 // to the dump point beside the nearest open entrance. Claims are released on every failure and on task change.
+// A `reopening` entrance's plug (GDD 03 §4.2 "plug being dug", §13 "nanitics dig it") comes first: up to
+// UNPLUG_DIGGERS_MAX diggers stand in the throat and run `unseal-entrance` until it is open (each new bite drops the
+// pellet carried from the last one behind the digger; haulers take them out).
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Behaviour, DigPlan, DigSlot, Nest, Sim } from '@/sim/types';
+import type { Ant, Behaviour, DigPlan, DigSlot, Entrance, Nest, Sim } from '@/sim/types';
 import { navTo, navStop } from '@/sim/locomotion';
-import { claimDigSite, planDigAim, releaseDigSite } from '@/sim/nest';
+import { claimDigSite, entranceToUnplug, planDigAim, releaseDigSite } from '@/sim/nest';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { taskHeadcount } from '@/sim/colony';
 import {
   DIG_AIM_BU, DIG_BITE_CHECK_TICKS, DIG_BITE_FAILS_MAX, DIG_CLAIM_TRIES, DIG_FACE_CONE_DEG, DIG_RETRY_S, DIG_TURN_ARRIVE_BU, DIG_TURN_BU,
   DIG_TURN_S, DROP_ARRIVE_BU, REACH_NEAR_BU, SLOT_ARRIVE_BU, SHORT_HOP_SPEED_MULT, SLOT_HOLD_BU, SLOT_STALL_ACCEPT_BU,
-  SPOIL_PILE_RADIUS_BU,
+  SPOIL_PILE_RADIUS_BU, UNPLUG_DIGGERS_MAX, UNPLUG_RETRY_S, UNPLUG_STAND_BU,
 } from '@/sim/balance/nestwork';
 import { SPOIL_PILE_MAX } from '@/sim/balance/nest';
 import { secondsToTicks } from '@/sim/time';
@@ -26,6 +29,9 @@ const ENTRY = 'dig.claim';
 const FAILS = 'bn.df', TURN = 'bn.tn', TURNED = 'bn.td', FORCE = 'bn.fo';
 /** bb: the current turning walk is a step toward the face after a missed bite (1), not a turn (0). */
 const STEP = 'bn.dsp';
+/** bb: tick before which this digger does not try unplugging again; failed unplug attempts in the state. */
+const UNPLUG_UNTIL = 'bn.uu', UNPLUG_FAILS = 'bn.uf';
+const UNPLUG = 'dig.unplug';
 const feet: Vec3 = { x: 0, y: 0, z: 0 };
 const heading: Vec3 = { x: 0, y: 0, z: 0 };
 const ids: number[] = [];
@@ -45,8 +51,19 @@ function slotOf(sim: Sim, ant: Ant): SlotRef | null {
   return null;
 }
 
+/** The entrance this digger should unplug now (its nest's `reopening` plug, room in the throat), or null. */
+function unplugTarget(sim: Sim, ant: Ant): Entrance | null {
+  if (ant.nestId < 0 || sim.state.tick < bbv(ant, UNPLUG_UNTIL, 0)) return null;
+  const e = entranceToUnplug(sim, ant.nestId);
+  if (!e) return null;
+  let n = 0;
+  for (const a of sim.stores.ants.list) if (a.alive && a.colony === ant.colony && a.id !== ant.id && a.state === UNPLUG) n++;
+  return n < UNPLUG_DIGGERS_MAX ? e : null;
+}
+
 function claimStep(sim: Sim, ant: Ant): void {
   if (ant.carry.kind === 'item') { setState(sim, ant, 'dig.stow'); return; }
+  if (!slotOf(sim, ant) && unplugTarget(sim, ant)) { ant.bb[UNPLUG_FAILS] = 0; setState(sim, ant, UNPLUG, 'job:dig'); return; }
   if (slotOf(sim, ant) || claimDigSite(sim, ant)) { setState(sim, ant, 'dig.travel', 'deficit:dig'); return; }
   // no free slot: wait DIG_RETRY_S and try again; after DIG_CLAIM_TRIES give the task back to the allocator
   const tries = Math.floor((sim.state.tick - ant.stateTick) / secondsToTicks(DIG_RETRY_S));
@@ -133,6 +150,29 @@ function biteStep(sim: Sim, ant: Ant): void {
   if (ant.bb[FAILS] >= DIG_BITE_FAILS_MAX) giveUpSlot(sim, ant);
 }
 
+const stand: Vec3 = { x: 0, y: 0, z: 0 };
+
+/** dig.unplug: walk into the throat of the `reopening` entrance and bite its plug (`unseal-entrance`) until open. */
+function unplugStep(sim: Sim, ant: Ant): void {
+  const e = ant.nestId >= 0 ? entranceToUnplug(sim, ant.nestId) : null;
+  if (primitiveDone(ant)) ant.bb[B.began] = 0;
+  if (!e) { setState(sim, ant, ant.carry.kind === 'item' ? 'dig.stow' : ENTRY); return; }
+  const bu = sim.world.bu;
+  if (act(sim, ant, 'unseal-entrance', { kind: 'entrance', id: e.id, pos: e.pos })) return;
+  const inside = e.radius + UNPLUG_STAND_BU * bu;
+  stand.x = e.pos.x - e.dir.x * inside; stand.y = e.pos.y - e.dir.y * inside; stand.z = e.pos.z - e.dir.z * inside;
+  const st = approach(sim, ant, entity('point', -1, stand), SLOT_ARRIVE_BU * bu, true, SLOT_STALL_ACCEPT_BU * bu);
+  if (st === 'moving') return;
+  // at the stand point (or as near as the walk gets) and still no bite: count it, give up after DIG_BITE_FAILS_MAX
+  ant.bb[UNPLUG_FAILS] = bbv(ant, UNPLUG_FAILS, 0) + 1;
+  if (st === 'failed' || ant.bb[UNPLUG_FAILS] >= DIG_BITE_FAILS_MAX) {
+    ant.bb[UNPLUG_UNTIL] = sim.state.tick + secondsToTicks(UNPLUG_RETRY_S);
+    setState(sim, ant, ant.carry.kind === 'item' ? 'dig.stow' : ENTRY, 'stuck');
+    return;
+  }
+  waitThink(sim, ant);
+}
+
 /** Pellets lying on the plan's spoil pile. */
 function spoilPileCount(sim: Sim, plan: DigPlan): number {
   ids.length = 0;
@@ -184,6 +224,7 @@ function step(sim: Sim, ant: Ant): void {
     case 'dig.travel': return travelStep(sim, ant);
     case 'dig.bite': return biteStep(sim, ant);
     case 'dig.stow': return stowStep(sim, ant);
+    case UNPLUG: return unplugStep(sim, ant);
     default:
       if (ant.state !== ENTRY) { setState(sim, ant, ENTRY); return; }
       return claimStep(sim, ant);

@@ -418,7 +418,9 @@ export default async ({ page, shot, log, wait }) => {
     for (let i = 0; i < 4 && !(await where()).ring; i++) await press(8, 1); // View, a tap (retried: a slow frame can make a tap look like a hold)
     let w = await where();
     expect(w.inTools && w.suspended && w.ring, 'a tap of View puts the pad focus on the tool UI and parks the game bindings', w);
+    await wait.frames(3);
     expect(await count('[data-testid="pad-legend"]') === 1, 'the button legend is shown');
+    await pic('18-pad-tools-1280');
     // D-pad left walks along the palette (Select, the active tool, is its last button); A chooses the focused tool in the views layer
     const first = w.tool;
     await press(14);
@@ -454,7 +456,9 @@ export default async ({ page, shot, log, wait }) => {
     w = await where();
     expect(!w.inTools && !w.suspended && !w.ring, 'B leaves the tool UI and gives the game its bindings back', w);
     await g(() => { navigator.getGamepads = () => []; });
-    await pic('18-pad-tools-1280');
+    await wait.frames(3);
+    // the game pauses when the last-used pad goes away (GDD 01 5.9); give the speed back
+    if (await g(() => window.__game.summary().time.paused)) await g(() => window.__hud.game.togglePause());
     await q('[data-testid="marker-palette"] [data-tool="select"]').click();
     await g(() => window.__hud.game.setView('observer'));
     ok('tools', { tabbed: toolsAll, overlay: reached });

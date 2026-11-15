@@ -13,7 +13,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Item, Nest, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import {
-  PELLET_BULK_PER_BU3, PELLET_TAMP_S, TAMP_MIN_HEADROOM_BU, TAMP_PASSAGE_GREEDY_MAX, TAMP_RADII_BU, TAMP_RETRY_S, TAMP_ROUNDS,
+  ITEM_BURIED_BU, PELLET_BULK_PER_BU3, PELLET_TAMP_S, TAMP_MIN_HEADROOM_BU, TAMP_PASSAGE_GREEDY_MAX, TAMP_RADII_BU, TAMP_RETRY_S, TAMP_ROUNDS,
   TAMP_SPHERE_BU,
 } from '@/sim/balance/nest';
 import { removeItem } from '@/sim/entities';
@@ -55,6 +55,12 @@ const TAMP_DONE_SHARE = 0.01;
  */
 export function tampPellet(sim: Sim, it: Item): boolean {
   const bu3 = sim.world.bu ** 3;
+  // a pellet a fill or plug closed over (buried inside solid soil) is part of that soil already
+  if (sim.field.sample(it.pos) < -ITEM_BURIED_BU * sim.world.bu) {
+    removeItem(sim, it.id, 'tamp');
+    sim.emit({ type: 'pellet-dumped', itemId: it.id, into: 'tamp' });
+    return true;
+  }
   const closed = raiseFloor(sim, it.pos, it.volume * bu3, tampPassageSamples(sim, pelletNest(sim, it))) / bu3;
   if (closed >= it.volume * (1 - TAMP_DONE_SHARE)) {
     removeItem(sim, it.id, 'tamp');
