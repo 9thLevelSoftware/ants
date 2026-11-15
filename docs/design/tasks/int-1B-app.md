@@ -36,3 +36,17 @@ Integration edits anywhere under `src/render/**`, `src/game/**`, `src/ui/**`, `s
 - Judge camera framing and the world's look at `high` quality with decor registered, beside the reference images in `docs/research/spike-look-img/` (the possession camera should frame the ant the way the reference does: the ant large in the lower-middle of the frame, the ground filling the foreground, plants and objects towering). Open items from the orchestrator's last screenshot review, to check and fix if still present: the founding queen appears small, foreshortened and partly dithered in the open-view possession shot; the colony slice view is hard to read (the cut face, chamber labels and markers must make the nest's structure obvious at a glance).
 - Known items handed to this gate by finished tasks (also in the notes file): the worldgen worker ships in the portable build but the game still generates on the main thread (wire `loadWorkerSource` + `blobWorkerFactory` + `generateWorldAsync`, with the main-thread path as fallback, and keep the loading screen's progress honest); `<button autofocus>` in the title, pause menu and Button component raises a console error inside a cross-origin iframe (focus by ref in an effect, then make `verify:portable` strict by default); the HUD's two stand-ins (queen hand-over written directly, alerts pushed into `progression.alerts`) must be replaced by the real founding hand-over and the simulation's alert events; audio (if `src/audio/**` has landed) must start on the first user gesture and be covered by the portable build's reference scan.
 - The harness is slow on this shared machine (software GL): give `page.screenshot` generous timeouts in new scripts, take screenshots at `test` quality unless the beat is about the look, and never run two browser scripts at once.
+
+## Addendum (Nov 15, orchestrator screenshot review of the views fix run)
+
+Seen in `test-output/views-fix2/12-high-colony-slice.png` and `04-possess-tunnel.png`:
+- Colony view at `high`: a large flat light-blue disc sits on the ground next to the nest entrance
+  (puddle or water body drawn unlit and unshaded in the slice view). Find what it is and make it read
+  as what it is (water with the world's water look, or hide it if it is a debug/marker surface).
+- HUD overlap: the inspect card (left) overlaps the Reserves/Drying/Health panel — the "Because" row is
+  drawn under it. The two panels need to stack, not overlap.
+- The founding site read-out ("Good, Q 0.75" with seven factor rows) is still shown in colony view after
+  the colony has 14 workers. It belongs to the founding walk only.
+- "+2 more" alert chip overlaps the top of the read-out panel.
+- The red alert dot in the colony panel is lit in every shot with no visible reason; check what raises it
+  (see founding-close item 4, which fixes the empty card and the midden false alarm).

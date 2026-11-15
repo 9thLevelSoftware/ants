@@ -149,3 +149,16 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Economy plan: fewer parallel agents (<= 6, <= 3 visual); first-playable gate + published build + source archive take priority over Stage 2/3.
 - Gate notes keys (collect-notes.py): add progression, creatures when done; journals of the resumed runs: wf_4cadfab0-257, wf_29443f25-e24, wf_0d1bed28-f6c.
 - 17:20 User supplied a git remote: origin = https://github.com/9thLevelSoftware/ants.git (was empty). Pushed main (75 commits). FROM NOW ON: push main after every milestone commit (`git push origin main`, retry with backoff on network errors). The repo was empty, so work goes straight to main (no PR base existed).
+
+### Nov 15, 19:10 — founding round 2 + views fix landed; round 3 launched
+- **views**: all 12 review findings closed; e2e green (15 screenshots, reviewed 04 and 12). HUD overlap and a
+  flat blue disc in colony view noted in `int-1B-app.md` addendum.
+- **founding round 2**: 9 of 12 findings fixed (reopen, seal by action, passive path, single site-quality
+  function, starvation alarm held). Open: sealing fails in steep/wide throats (browser e2e stops at beat 03),
+  first workers before winter on default start (6/8 at Summer 3, 8/8 at Summer 2), midden false alarm, empty
+  red alert card.
+- **Ruling**: Lasius `startDoy.default` 10 → 9; if not enough, a founding-only development factor (brief:
+  "fast-tracked first brood"). Spec: `docs/design/tasks/founding-close.md` (Opus, visual, no separate review —
+  the 1B gate verifies).
+- Running: founding-close; worldgen-life fix + worldgen-fixes; look-pass + sim-fix-ants review; combat +
+  ecology-plants (launched 18:45).

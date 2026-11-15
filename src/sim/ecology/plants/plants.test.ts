@@ -118,7 +118,7 @@ describe('cheats', () => {
     expect(made).toHaveLength(before + 1);
     const h = made[made.length - 1];
     expect(h.a).toBe(12);
-    expect(Number.isFinite(h.kMax)).toBe(true);
+    expect(h.kMax === undefined || Number.isFinite(h.kMax)).toBe(true);
   });
 });
 

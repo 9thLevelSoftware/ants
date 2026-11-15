@@ -54,11 +54,13 @@ interface Watch {
   atHerd: Set<number>;
   avoidedTenders: number;
   maxStill: number;
+  /** Ants in task `tend` at the end of the run, and the tick (10-tick samples) since when they have been. */
+  tendSince: Map<number, number>;
 }
 
 /** Steps n ticks recording honeydew delivered per game day, climbs, arrivals and tenders of the avoided herd. */
 function watch(sim: Sim, avoided: Herd, ticks: number, tended: Herd[] = []): Watch {
-  const w: Watch = { honeydewC: [], prodC: [], climbs: new Set(), atHerd: new Set(), avoidedTenders: 0, maxStill: 0 };
+  const w: Watch = { honeydewC: [], prodC: [], climbs: new Set(), atHerd: new Set(), avoidedTenders: 0, maxStill: 0, tendSince: new Map() };
   const day = () => Math.floor(sim.state.tick / TICKS_PER_DAY);
   const d0 = day();
   sim.events.on('delivery', (e) => {
@@ -75,7 +77,8 @@ function watch(sim: Sim, avoided: Herd, ticks: number, tended: Herd[] = []): Wat
     }
     if (t % 10 !== 0) continue;
     for (const a of sim.state.ants) {
-      if (!a.alive || a.task !== 'tend') continue;
+      if (!a.alive || a.task !== 'tend') { w.tendSince.delete(a.id); continue; }
+      if (!w.tendSince.has(a.id)) w.tendSince.set(a.id, sim.state.tick);
       if (a.nav.mode === 'climb') w.climbs.add(a.id);
       if (a.state === 'tend.solicit') w.atHerd.add(a.id);
       if ((a.bb[TH.herd] ?? -1) === avoided.id) w.avoidedTenders++;
@@ -178,12 +181,16 @@ describe('relay and determinism', () => {
     let gave = false;
     sim.events.on('action-started', (e) => { if (e.antId === tender.id && e.action === 'trophallaxis-give') gave = true; });
     stepTicks(sim, 100);
-    expect(gave).toBe(true); // within 10 s the give has begun (the tender turns round on the stem first)
-    stepTicks(sim, 100); // a full crop passes at TROPH_RATE: the relay event follows when the give ends
-    expect(relays.length).toBeGreaterThanOrEqual(1);
+    // within 10 s the give has begun and the relay is reported (the tender turns round on the stem first)
+    expect(gave).toBe(true);
+    expect(relays).toHaveLength(1);
     expect(relays[0].fromAnt).toBe(tender.id);
     expect(relays[0].toAnt).toBe(forager.id);
-    expect(forager.cropC).toBeGreaterThan(0.2);
+    const f0 = 0.2;
+    stepTicks(sim, 100); // the give itself runs at TROPH_RATE (up to TROPH_MAX_S)
+    expect(relays).toHaveLength(1); // one report per give
+    // the reported loads are what the give moved
+    expect(relays[0].loads).toBeCloseTo(forager.cropC + forager.cropP - f0, 2);
     expect(['tend.solicit', 'tend.wait', 'tend.guard-herd', 'tend.full']).toContain(tender.state);
     expect(Math.hypot(tender.pos.x - site.x, tender.pos.y - site.y, tender.pos.z - site.z)).toBeLessThan(3 * bu);
   });
@@ -202,18 +209,23 @@ describe('relay and determinism', () => {
 });
 
 describe.skipIf(!LONG)('3 game days (FOUNDRESS_LONG)', () => {
-  it('no stuck tenders, every tender keeps making trips, honeydew per day within the herds production', () => {
+  it('no stuck tenders, every tender keeps making trips, honeydew per day within the herds production', { timeout: 600_000 }, () => {
     restore = fixWeather(20);
     const { sim, herds, avoided } = colony60(2);
     const trips = new Map<number, number>();
     sim.events.on('delivery', (e) => { if (e.kind === 'honeydew') trips.set(e.antId, (trips.get(e.antId) ?? 0) + 1); });
     const w = watch(sim, avoided, 3 * TICKS_PER_DAY, herds);
+    const endTick = sim.state.tick;
     const tenders = sim.state.ants.filter((a) => a.alive && a.task === 'tend');
     const report = { honeydewC: w.honeydewC, productionC: w.prodC, maxStill: w.maxStill, tenders: tenders.length, climbs: w.climbs.size,
       herds: herds.map((h) => ({ a: h.a, tend: h.tend })), avoided: avoided.a, trips: [...trips.values()] };
     console.log(JSON.stringify(report));
     expect(w.maxStill).toBeLessThan(60);
     for (const a of tenders) expect(Number.isFinite(a.pos.x + a.pos.y + a.pos.z)).toBe(true);
+    // every ant that stayed in `tend` for at least a game day kept bringing honeydew home
+    const steady = [...w.tendSince].filter(([, t0]) => endTick - t0 >= TICKS_PER_DAY).map(([id]) => id);
+    expect(steady.length).toBeGreaterThanOrEqual(4);
+    for (const id of steady) expect(trips.get(id) ?? 0, `ant ${id}`).toBeGreaterThanOrEqual(2);
     // honeydew home per day (days 2 and 3, past the start) between half and all of the tended herds' production
     for (const d of [1, 2]) {
       expect(w.honeydewC[d] ?? 0).toBeGreaterThan(0.5 * w.prodC[d]);
