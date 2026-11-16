@@ -1,0 +1,36 @@
+# Task look-pass-2 — The picture a player actually sees: night, underground ants, plant bases, horizon, low quality (Sonnet implement / Opus verify, visual)
+
+## Goal
+The first look pass brought materials, ground grit, plants and props close to the reference in the gallery at `high` quality, by day. Screenshots from the real game since then show pictures a player would call broken or ugly in ordinary play. Fix them, judged by screenshots from the real game in the situations listed, at `high`, `medium` and `low`.
+
+## Evidence (look at every one first; all are from the real game)
+- `test-output/viab/e2e-3/03-entrance-mound.png` (night, rain, queen about to seal): the ground is nearly black and unreadable; two pale grey stems with a plain stretched texture hang in the air with ragged cut ends above the ground.
+- `test-output/viab/e2e-3/10-worker-possessed.png` (first possessed worker, night): a flat pale-blue slab with a hard straight edge stands against the starry sky (map edge / far plane / fog colour not following the night sky); a huge untextured dark block beside it; the ground is blue-black streaks.
+- `test-output/viab/e2e-3/08-outcome-card.png` (underground, first workers): workers are pure black silhouettes with thin rim highlights against the warm chamber; body form, segments and legs cannot be read.
+- `test-output/viab/e2e-3/12-retry-search.png` (day, overcast, `quality=test`): bare brown ground into flat fog, two brick blocks floating above the surface, no grass, no litter, no horizon shape; the possessed queen is not in frame.
+- `test-output/viab/e2e-3/09-handover-entrance-high.png` (night, `high`): better, but the mound and ground are crushed to black.
+- Earlier integrator notes still open: grass blades show flat facets close up; fallen leaves read as paper cut-outs (no thickness, curl or shading); a featureless white pillar in the garden; the car's underbody is a set of dark slabs; bare streaky soil outside the grit radius; creature surfaces read as plastic.
+
+## Read first
+`docs/design/tasks/look-pass.md` (what was done and how the gallery works), `docs/research/spike-look.md`, GDD 08's art direction (look per time of day and weather; night is "moonlit, readable, quiet", never black), GDD 01 §6 camera rules. `src/render/world/**`, `src/render/app/look/**` (grade, exposure, `shadeAdapt`), `src/render/nest/**`, `src/render/ants/**`, `tests/e2e/look.mjs`, `spikes/look-gallery`.
+
+## You own
+`src/render/world/**` except `weather/` and `humans/` (finished by another engineer; read only), `src/render/app/look/**`, `src/render/nest/**` (lighting and materials only), `src/render/ants/**` (shading and lighting response only: no geometry or animation changes), `src/render/creatures/**` (surface shading only), `tests/e2e/look.mjs`, `spikes/look-gallery/**`. Authorised small edits, each reported: tints/tags in `src/worldgen/catalog/**` (visual only; never shape, size, position or collision; say if a fingerprint changes) and quality presets in `src/render/app/quality*` (decor densities per preset). Do not edit `src/sim/**`, `src/game/**`, `src/ui/**`, `src/render/slots/**`, `src/render/index.ts`.
+
+## Work, in priority order
+1. **Night is readable.** At night, under moon, overcast and rain, the player must be able to read the ground relief, the nest entrance and mound, plant silhouettes and her own ant from the possession camera and from observer height. Use what a camera would: exposure adaptation with a floor, a cool moonlight key with soft shadows, sky fill, and a subtle rim on the possessed ant; keep night clearly night (cool, low contrast, desaturated), never grey day. Fog and the far plane take the night sky's colour so that no pale slab or hard edge shows at the horizon. Target: in a night frame the median luminance of the ground within 20 body lengths is 12–25 % (sRGB), and the ant's body is separable from the ground (state the measured contrast).
+2. **Ants underground are lit.** In chambers and tunnels workers, queen and brood show form: segments, legs, sheen. Add nest fill light / ambient that reaches the ant shader underground (the nest renderer already has a warm look; the ants ignore it), keep the queen readable beside the wall. Check the outcome card frame, the sealed chamber with eggs, and a tunnel walk from possession.
+3. **Nothing floats, nothing is cut.** Plant stems, trunks, fence posts, bricks and props meet the ground: extend render geometry below the terrain surface where the collision primitive ends above it, or snap the dressing to the sampled ground height; ragged open ends are capped. Find the cause of the two floating blocks in the retry-search frame and the hanging stems in the entrance frame (they may be collision primitives placed above local ground: then report the template and coordinates to the integrator and fix the render side).
+4. **Horizon and map edge.** From ant height in every direction the world ends in soft silhouettes and haze (hedge, fence, wall, tree line as the archetype has them), by day and night; no visible ground-plane edge, no single-colour slab. Use the boundary renderer (`src/render/world/boundary`).
+5. **`low` and `medium` are still a place.** At `low` the ground near the ant keeps sparse grit and litter and some grass (reduced counts, no shadows if needed); the frame must not be bare soil into fog. (`quality=test` is a harness preset and may stay bare; say what it disables.)
+6. **Leaves, grass, pillar, car underbody, bare soil beyond the grit radius, creature shading**: leaves get thickness impression (curl, vein normal, edge darkening, contact shadow), grass blades smooth normals across the blade, the white pillar gets a material that reads (painted render or concrete with base dirt), the car underbody reads as chassis/exhaust/tyre treads in dark metal and rubber, soil detail fades to a believable mid-distance texture instead of streaks, creature surfaces get the roughness/albedo variation used on ants.
+
+## Acceptance criteria
+1. Typecheck clean; tests in the owned folders green; any numeric rule added (exposure floor, fill levels) is in the look tuning tables with a unit test.
+2. A before/after contact sheet `test-output/look2/` from the real game (harness, `?test=1&seed=1&autostart=1`, `cheat.completeFounding`, `cheat.setTime` or the debug API for time of day and weather), 1280×720, at `high`: night clear, night rain, dusk, noon, overcast; each from possession (surface), possession (inside the nest), observer, and the colony slice; plus the same set at `low` for noon and night, and one other archetype (woodland-edge or kitchen-door). You must look at every picture you cite and write what is still wrong, most serious first.
+3. Luminance and contrast numbers for work item 1 measured from the screenshots (script under `tests/e2e/lib` or `test-output/look2/`).
+4. Frame cost at `high` and `low` not worse than before by more than 5 % in draw calls and triangles (renderer statistics; say the load when quoting times).
+5. No console errors; gallery page still works; classic build not required.
+
+## Machine rules
+4 cores shared with five other engineers; one headless browser at a time; never the whole vitest suite; global Playwright only (never npm-install it). Software GL is slow under load: allow long timeouts rather than lowering quality.
