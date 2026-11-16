@@ -87,21 +87,42 @@ function sameSpeed(s: NavScratch, opts: NavOptions | undefined): boolean {
 function rejected(w: Walker, s: NavScratch): false {
   s.req = 'none';
   w.nav.status = 'failed';
+  w.nav.failReason = 'rejected';
   w.nav.desiredSpeed = 0;
   return false;
 }
 
+/**
+ * The same trip asked for again while it runs (same target, arrival radius and speed; a point within 0.5 BU of the
+ * one it was made with): a behaviour re-issuing its walk on every think would restart the stuck ladder each time, so
+ * a walker wedged on the way never escalated (loco-fix3: rival raiders stalled in their nest's exit at woodland-edge
+ * #2 and playground-park #2, re-issued every second by the raid job). Kept as it is, like navWander.
+ */
+function sameTrip(sim: Sim, w: Walker, kind: TargetRef['kind'], id: number, dest: Vec3, arrive: number, opts: NavOptions | undefined): boolean {
+  const s = w.nav.loco, nav = w.nav;
+  return !!s && s.req === 'goto' && nav.status === 'moving' && nav.destKind === kind && nav.destId === id && nav.arriveDist === arrive
+    && s.reqDest !== undefined && dist3(s.reqDest, dest) < 0.5 * sim.world.bu && sameSpeed(s, opts);
+}
+
 /** Seek a point (planner composes the legs); arriveDist mm. False if no route can exist. */
 export function navTo(sim: Sim, w: Walker, dest: Vec3, arriveDist?: number, opts?: NavOptions): boolean {
+  const arrive = arriveOf(sim, arriveDist, opts);
+  if (finite3(dest) && sameTrip(sim, w, 'point', -1, dest, arrive, opts)) return true;
   const { s, r } = begin(sim, w, opts, dist3(w.pos, dest));
-  if (!startTrip(sim, w, s, r, dest, 'point', -1, arriveOf(sim, arriveDist, opts), walkerId(w))) return rejected(w, s);
+  if (!startTrip(sim, w, s, r, dest, 'point', -1, arrive, walkerId(w))) return rejected(w, s);
+  s.reqDest = { x: dest.x, y: dest.y, z: dest.z };
   return true;
 }
 
 /** Seek a (possibly moving) target: entity, entrance, chamber, plan, nest, marker or point. False if it is gone. */
 export function navToTarget(sim: Sim, w: Walker, target: TargetRef, arriveDist?: number, opts?: NavOptions): boolean {
+  const arrive = arriveOf(sim, arriveDist, opts);
+  // a moving target is re-resolved by the request itself: the same entity asked for again keeps the request
+  if (finite3(target.pos) && (target.id >= 0 || target.kind === 'point') && sameTrip(sim, w, target.kind, target.id,
+    target.id >= 0 ? (w.nav.loco?.reqDest ?? target.pos) : target.pos, arrive, opts)) return true;
   const { s, r } = begin(sim, w, opts, dist3(w.pos, target.pos));
-  if (!startTrip(sim, w, s, r, target.pos, target.kind, target.id, arriveOf(sim, arriveDist, opts), walkerId(w))) return rejected(w, s);
+  if (!startTrip(sim, w, s, r, target.pos, target.kind, target.id, arrive, walkerId(w))) return rejected(w, s);
+  s.reqDest = { x: target.pos.x, y: target.pos.y, z: target.pos.z };
   return true;
 }
 

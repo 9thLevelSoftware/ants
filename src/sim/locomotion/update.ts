@@ -3,13 +3,14 @@
 // world direction (unnormalised; zero = stand). Arrival and failure set nav.status and end the request.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Sim, Walker } from '@/sim/types';
+import type { Ant, NavFailReason, Sim, Walker } from '@/sim/types';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { isLocoNavGrid as isLocoNavGridImp } from './grid/navGridImpl';
-import { followClimb as followClimbImp, followField as followFieldImp, type LegResult } from './legs';
+import { exitPoint as exitPointImp, followClimb as followClimbImp, followField as followFieldImp, type LegResult } from './legs';
 import { copy3 as copy3Imp, dist3 as dist3Imp, set3 as set3Imp } from './mathx';
 import { retraceDesired as retraceDesiredImp, trailDesired as trailDesiredImp, wanderDesired as wanderDesiredImp } from './modes';
 import { routeById as routeByIdImp } from './routes';
+import { atMouth as atMouthImp } from './nests';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
 import { aiSpeedCached as aiSpeedCachedImp } from './speed';
@@ -18,7 +19,7 @@ import { walkerLetGo as walkerLetGoImp } from './walker';
 import { afterClimb as afterClimbImp, discsChanged as discsChangedImp, finalLeg as finalLegImp, finite3 as finite3Imp, followLeg as followLegImp, legFlow as legFlowImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, surfaceDist as surfaceDistImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, pivotDesired = pivotDesiredImp, wanderStuck = wanderStuckImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
+const atMouth = atMouthImp, exitPoint = exitPointImp, walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, pivotDesired = pivotDesiredImp, wanderStuck = wanderStuckImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
 const MOVING_KINDS = new Set(['ant', 'creature', 'item', 'brood']);
@@ -40,8 +41,10 @@ export function arrive(w: Walker, s: NavScratch, r: LocoRuntime): void {
   r.stats.arrivals++;
 }
 
-export function fail(w: Walker, s: NavScratch, r: LocoRuntime): void {
+/** Ends the request as failed; `reason` says why (nav.failReason, read by behaviours while the status is 'failed'). */
+export function fail(w: Walker, s: NavScratch, r: LocoRuntime, reason: NavFailReason): void {
   w.nav.status = 'failed';
+  w.nav.failReason = reason;
   w.nav.desiredSpeed = 0;
   s.req = 'none';
   r.stats.failures++;
@@ -57,7 +60,12 @@ function legTarget(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3
       const g = sim.navGrid, flow = legFlow(sim, s, r);
       return flow !== null && isLocoNavGrid(g) && Number.isFinite(g.flowNext(flow, w.pos, r.P.relocateSteps, out));
     }
-    case 'field': return Number.isFinite(sim.nestNav.lookahead(s.legField, w.pos, r.P.relocateSteps, out));
+    case 'field': {
+      const d = sim.nestNav.lookahead(s.legField, w.pos, r.P.relocateSteps, out);
+      // an exit leg at the mouth: the lookahead ends at the mouth; the way on is over the rim (legs.ts exitPoint)
+      if (s.legExit && Number.isFinite(d) && d <= Math.max(w.nav.arriveDist, 1.5 * sim.carve.voxel) + r.P.bu) return exitPoint(sim, w, s, r, out) || true;
+      return Number.isFinite(d);
+    }
     case 'climb': {
       const route = routeById(sim.world, nav.routeId);
       if (!route) return false;
@@ -78,7 +86,7 @@ function stuckStep(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numbe
   }
   const hasTarget = legTarget(sim, w, s, r, _target);
   const act = checkStuck(sim, w, s, r, id, hasTarget ? _target : w.nav.dest);
-  if (act === 'fail') { fail(w, s, r); return false; }
+  if (act === 'fail' || act === 'fail-repeat') { fail(w, s, r, act === 'fail' ? 'stuck' : 'stuck-repeat'); return false; }
   if (act === 'replan') s.planTick = -1;
   ladderOverride(w, s, sim.state.tick, out);
   return true;
@@ -86,15 +94,15 @@ function stuckStep(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numbe
 
 function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, dt: number, out: Vec3): boolean {
   const tick = sim.state.tick, nav = w.nav;
-  if (s.timeoutTick >= 0 && tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r); return false; }
-  const here = walkerNest(sim, w, nestIdOf(w));
+  if (s.timeoutTick >= 0 && tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r, 'timeout'); return false; }
+  const here = mouthHold(sim, w, s, r, walkerNest(sim, w, nestIdOf(w)));
   // a moving target is re-resolved every retargetS, and every tick once the walker is close to it (arrival is
   // judged against where the target is now, not where it was up to a second ago)
   if (nav.destId >= 0 && MOVING_KINDS.has(nav.destKind)
     && (tick - s.retargetTick >= r.P.retargetS * TICKS_PER_SECOND || surfaceDist(w, nav.dest) < nav.arriveDist + r.P.retarget)) {
     s.retargetTick = tick;
     copy3(_tmp, nav.dest);
-    if (!resolveTarget(sim, nav.destKind, nav.destId, nav.dest, s, r, nav.dest) || !finite3(nav.dest)) { fail(w, s, r); return false; }
+    if (!resolveTarget(sim, nav.destKind, nav.destId, nav.dest, s, r, nav.dest) || !finite3(nav.dest)) { fail(w, s, r, 'rejected'); return false; }
     setGoal(sim, s, nav.dest, nav.arriveDist, id, r.P.spread);
     if (dist3(_tmp, nav.dest) > r.P.retarget) s.planTick = -1;
   }
@@ -102,17 +110,17 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   // an avoid marker placed (or removed) while the walker is under way: plan the surface leg again
   if (here < 0 && s.planTick >= 0 && discsChanged(sim, w, s, r)) s.planTick = -1;
   if (s.planTick < 0 || here !== s.legNest) {
-    if (!planLeg(sim, w, s, r, here)) { fail(w, s, r); return false; }
+    if (!planLeg(sim, w, s, r, here)) { fail(w, s, r, 'no-route'); return false; }
   }
   let res = followLeg(sim, w, s, r, out);
   for (let k = 0; k < MAX_LEG_SWITCHES && res.state !== 'go'; k++) {
     if (res.state === 'done' && nav.mode === 'climb' && afterClimb(w, s)) { res = followLeg(sim, w, s, r, out); continue; }
-    if (!planLeg(sim, w, s, r, here)) { fail(w, s, r); return false; }
+    if (!planLeg(sim, w, s, r, here)) { fail(w, s, r, 'no-route'); return false; }
     const prev = res.state;
     res = followLeg(sim, w, s, r, out);
-    if (prev === 'fail' && res.state === 'fail') { fail(w, s, r); return false; }
+    if (prev === 'fail' && res.state === 'fail') { fail(w, s, r, 'leg'); return false; }
   }
-  if (res.state === 'fail') { fail(w, s, r); return false; }
+  if (res.state === 'fail') { fail(w, s, r, 'leg'); return false; }
   // stuck within the arrival radius of the destination (the spread goal may be unreachable, e.g. inside a stone):
   // that is arrival, not a reason to climb the recovery ladder
   const last = finalLeg(w, s);
@@ -121,6 +129,18 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   if ((last && dropToGoal(sim, w, s, r)) || letGoPinned(sim, w, s, r, dt)) return false;
   if (last) speedCap = arriveCap(w, s, r, res.metric, dt, out, aiSpeedCached(sim, w, s, r.P));
   return stuckStep(sim, w, s, r, id, res, out);
+}
+
+/**
+ * Hysteresis at an entrance mouth (loco-fix3): on the lip a walker flips between the cavity and the surface, and
+ * every flip re-planned its leg (exit field <-> surface seek), so it stayed on the rim until the ladder relocated it.
+ * A walker on its way out keeps its surface leg while in the mouth; one on its way in keeps its nest leg.
+ */
+function mouthHold(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here: number): number {
+  const rim = r.P.entranceHandover, depth = r.P.mouthDepth;
+  if (here >= 0 && s.legNest < 0 && s.goalNest !== here && atMouth(sim, here, w.pos, rim, depth)) return -1;
+  if (here < 0 && s.legNest >= 0 && !s.legExit && s.goalNest === s.legNest && atMouth(sim, s.legNest, w.pos, rim, depth)) return s.legNest;
+  return here;
 }
 
 /**
@@ -207,19 +227,19 @@ function arriveCap(w: Walker, s: NavScratch, r: LocoRuntime, fieldMetric: number
 }
 
 function fieldUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, out: Vec3): boolean {
-  if (s.timeoutTick >= 0 && sim.state.tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r); return false; }
+  if (s.timeoutTick >= 0 && sim.state.tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r, 'timeout'); return false; }
   const res = followField(sim, w, s, r, w.nav.arriveDist, out);
   if (res.state === 'done') { arrive(w, s, r); return false; }
-  if (res.state === 'fail') { fail(w, s, r); return false; }
+  if (res.state === 'fail') { fail(w, s, r, 'leg'); return false; }
   if (letGoPinned(sim, w, s, r, TICK_DT)) return false;
   return stuckStep(sim, w, s, r, id, res, out);
 }
 
 function climbUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, out: Vec3): boolean {
-  if (s.timeoutTick >= 0 && sim.state.tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r); return false; }
+  if (s.timeoutTick >= 0 && sim.state.tick > s.timeoutTick) { r.stats.timeouts++; fail(w, s, r, 'timeout'); return false; }
   const res = followClimb(sim, w, s, r, out);
   if (res.state === 'done') { arrive(w, s, r); return false; }
-  if (res.state === 'fail') { fail(w, s, r); return false; }
+  if (res.state === 'fail') { fail(w, s, r, 'leg'); return false; }
   return stuckStep(sim, w, s, r, id, res, out);
 }
 
@@ -238,7 +258,7 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
       if (letGoPinned(sim, w, s, r, dt)) break;
       const st = wanderStuck(w, s, r, tick);
       // a failed wander also drops its mode: callers that re-issue "while not wandering" do so at once
-      if (st === 'fail') { fail(w, s, r); w.nav.mode = 'none'; break; }
+      if (st === 'fail') { fail(w, s, r, 'wander-stall'); w.nav.mode = 'none'; break; }
       if (st === 'pivot') pivotDesired(w, s, out);
       else wanderDesired(w, s, r, id, tick, dt, out);
       go = true;
@@ -247,7 +267,7 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
     case 'trail': {
       const v = trailDesired(sim, w, s, r, id, tick, dt, out);
       s.trailLostS = v > 0 ? 0 : s.trailLostS + dt;
-      if (s.trailLostS >= r.P.trailLostS) { fail(w, s, r); break; }
+      if (s.trailLostS >= r.P.trailLostS) { fail(w, s, r, 'trail-lost'); break; }
       trackMovement(w, s, tick, r);
       checkStuck(sim, w, s, r, id, null);
       ladderOverride(w, s, tick, out);

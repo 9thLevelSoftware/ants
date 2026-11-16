@@ -5,7 +5,7 @@ import { Color, Vector3 } from 'three';
 import { createKernel } from '@/sim/kernel';
 import { emptyCarve, makeFlatWorld } from '@/sim/kernel.testWorld';
 import type { Primitive, Sim, WorldData } from '@/sim/types';
-import { HAZE_VIS_BU, HAZE_HEIGHT_K, LIGHT_KEYS, SUN_INTENSITY, UNDERGROUND } from './constants';
+import { HAZE_VIS_BU, HAZE_HEIGHT_K, LIGHT_KEYS, NIGHT_LOOK, SUN_INTENSITY, UNDERGROUND } from './constants';
 import { snapShadowCenter, lightBasis } from './shadowSnap';
 import {
   applyHeightDeltas, fieldHoleProbe, HOLE_MARGIN_BU, moonFromSun, movedStaticPrims, sunFromCalendar,
@@ -97,8 +97,8 @@ describe('weather and places', () => {
   it('exposure: GDD 08 11.2 column plus the recorded metering (constants.ts AUTO_EXPOSURE_K)', () => {
     // pinned so any change of the departure is deliberate; see the RECORDED DEPARTURE note in constants.ts
     const ev = (e: number) => computeLighting(input(e)).exposureEV;
-    expect(ev(-30)).toBeCloseTo(3.02, 1);
-    expect(ev(0)).toBeCloseTo(1.91, 1);
+    expect(ev(-30)).toBeGreaterThanOrEqual(NIGHT_LOOK.minEV); // night: metered (lookPass2.test.ts)
+    expect(ev(0)).toBeCloseTo(2.24, 1); // dusk: half-way into the night metering (NIGHT_LOOK blend)
     expect(ev(8)).toBeCloseTo(1.28, 1);
     expect(ev(30)).toBeLessThan(0.5);
     expect(ev(60)).toBeCloseTo(0, 5);

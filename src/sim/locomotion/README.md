@@ -87,6 +87,17 @@ instead of laddered mid-climb; going up and down the same wall is not progress.
 No improvement of 0.5 BU in 2.5 s climbs one rung: replan, sidestep, back off, re-snap,
 relocate (<= 2 per request, 6 BU toward the next waypoint / flow cell / field sample, event `ant-unstuck`), fail. Episodes per request are capped and every request has a timeout, so every walker ends `arrived` or `failed`.
 
+Relocation is a last resort that terminates across requests (loco-fix3): the walker remembers where it was last
+relocated from and to (`nav.loco.relocTick/relocFrom/relocTo`). Stuck again within `relocRepeatBU` (2 BU) of either
+place inside `relocRepeatS` (300 s), the relocation rung lets go instead (a drop, nothing teleported; one log line);
+the next time the walk fails with reason `stuck-repeat` at that rung (the rungs that move nobody still run). A
+relocation target closer than `relocMinBU` (an exit field ending where the walker stands) is pushed toward the
+destination. Relocations log no line (only escalations do).
+
+Failed requests say why (`nav.failReason`, valid while `nav.status` is 'failed'; additive contract): `rejected` (the
+request could not start: target gone, a nest goal with no usable entrance), `no-route`, `timeout`, `stuck` (the
+ladder ran out), `stuck-repeat`, `trail-lost`, `wander-stall`, `leg` (a field or route vanished).
+
 A wander has no goal to replan toward or relocate along, so it has its own short ladder (`stuck.ts` wanderStuck):
 no 0.5 BU of movement for `wanderStallS` (1 s) pivots the walker on the spot for `wanderPivotS` (its heading sweeps
 round a quarter turn ahead, the pull to the wander centre ignored); a pivot that frees nothing, or more than
@@ -107,6 +118,21 @@ re-issue it every think no longer restart its ladder.
 The kernel walker's projection falls back to a bracketed bisection along the gradient when Newton cycles (a crease
 where blended solids meet), and hops a small value jump of the field on its free side (the terrain pseudo-distance
 across a steep crest of a mound pile against an object, < 0.75 x foot offset): walker.ts bracketProject.
+
+## Stems, mouths and gates (loco-fix3)
+
+- A walker more than 3 BU above the ground whose goal is not near (a home trip included) leaves by the nearest climb
+  route; on a steep face with no route near it seeks the ground straight below, aiming in 3D (`seekDown`). Retrace
+  aims at its crumbs in 3D on steep faces. (A plan-view aim on a vertical stem circles it: tenders were lost on a
+  shrub at suburban-garden #2.)
+- An exit leg at the entrance mouth heads for the ground `exitRimBU` beyond the rim on the goal's side (legs.ts
+  `exitPoint`; also its relocation target), not for a point in the air over a vertical shaft. On the lip, where the
+  walker flips between cavity and surface, a trip keeps its leg (update.ts `mouthHold`: out-bound walkers keep the
+  surface leg within the mouth, in-bound ones their nest leg).
+- Edge gates (grid/gates.ts): where the straight crossing between side-by-side cells meets a tall barrier
+  (blocked at 1 BU and at `gateTallBU` 8 BU above the ground) but a strip of the shared edge at least 1 BU wide lets a
+  body through (the opening under a raised gravel board at a fence end), the planner's string-pulling adds the
+  strip's entry and exit points. The kernel test walker uses the same finder.
 
 ## Weather (weather.ts, puddles.ts; GDD 06 §3.3, §3.10)
 

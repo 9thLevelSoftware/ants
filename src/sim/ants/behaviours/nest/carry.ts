@@ -3,6 +3,7 @@
 // the colony midden (GDD 02 §10.8). Uses B.leg and B.drop* of the current state.
 
 import type { Ant, Sim } from '@/sim/types';
+import { nestFieldId } from '@/sim/types';
 import { dumpPoint, nearestEntrance } from '@/sim/nest';
 import { DROP_ARRIVE_BU } from '@/sim/balance/nestwork';
 import { B, bbv } from './fsm';
@@ -14,11 +15,23 @@ export type CarryStatus = 'moving' | 'dropped' | 'failed';
 
 const p = { x: 0, y: 0, z: 0 };
 
+/**
+ * The ant can walk out of the nest she is in: she is outside already, or the nest has an exit field (an `open`
+ * entrance). In a closed nest a trip out ends at the closure (D_seal), where it stands in the way of the diggers
+ * opening it (nest-fix3 review, escape dig): such trips are refused at once.
+ */
+export function hasWayOut(sim: Sim, ant: Ant): boolean {
+  return ant.nestId < 0 || sim.nestNav.hasTarget(nestFieldId(ant.nestId, EXIT));
+}
+
+const EXIT = { kind: 'exit', id: -1 } as const;
+
 /** Picks the drop point (into bb) for a trip to the mound or the midden; false if there is none. */
 function chooseDrop(sim: Sim, ant: Ant, to: 'mound' | 'midden'): boolean {
   const nest = homeNest(sim, ant);
   if (!nest) return false;
   if (to === 'mound') {
+    if (!hasWayOut(sim, ant)) return false;
     const e = nearestEntrance(sim, nest.id, ant.pos);
     if (!e) return false;
     dumpPoint(sim, e, p);

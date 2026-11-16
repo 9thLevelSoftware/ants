@@ -10,7 +10,7 @@ import {
   DELIVER_MAX_S, DEPART_RATION_C, FOOD_ROOM_ARRIVE_BU, GIVE_REACH_L, RATION_MAX_S, RATION_POOL_MIN_C, RATION_SEARCH_BU,
   RECEIVER_ARRIVE_L, RECEIVER_SEARCH_BU, RECEIVER_SEARCH_WIDE_BU, RECEIVER_STORE_BONUS_BU, RECEIVER_TRY_S, REST_MAX_S,
   SUCCESS_CROP, THINK_WAIT_TICKS, UNLOAD_CROP_MARGIN, UNLOAD_MAX_WAIT_S, UNLOAD_RETRY_S, UNLOAD_SEARCH_S,
-  WAIT_REEVAL_S, WAIT_SPREAD_BU,
+  WAIT_MIN_S, WAIT_REEVAL_S, WAIT_SPREAD_BU,
 } from '@/sim/balance/foraging';
 import { begin, canDo, stopAction } from '@/sim/ants/actions';
 import { commitDeparture, departureDue, recordForagerReturn, taskCycleDone } from '@/sim/colony';
@@ -52,7 +52,7 @@ export function updateWait(sim: Sim, ant: Ant, fl: Flavour): void {
   const room = nest ? entranceChamber(nest) : undefined;
   if (room && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, WAIT_SPREAD_BU);
   forgetStaleRoutes(sim, ant);
-  const why = departureDue(sim, ant, THINK_WAIT_TICKS);
+  const why = phaseS(sim, ant) >= WAIT_MIN_S ? departureDue(sim, ant, THINK_WAIT_TICKS) : null;
   if (why) {
     const src = chooseSource(sim, ant, departFilter(sim, ant, fl));
     const s = src >= 0 ? sim.stores.sources.get(src) : undefined;

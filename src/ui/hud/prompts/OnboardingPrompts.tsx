@@ -8,6 +8,7 @@ import { facade, snapshot } from '../../store';
 import { foundingUi } from '../../screens/founding/store';
 import { overlays } from '../../overlays/state';
 import { screenSlice } from '../slices';
+import { matchesAction } from '../hotkeys';
 import { openDrawer } from '../state';
 import { installOnboardingDebug } from './debug';
 import { gateFoundingPrompts } from './foundingGate';
@@ -68,16 +69,26 @@ const isEditable = (t: EventTarget | null): boolean => {
 };
 
 /**
- * Shift+H dismisses the teaching hint on screen: the card, or when there is none the opening overlay's prompts. The key is
- * always taken while a game runs, so a Shift+H with nothing to dismiss never toggles the HUD (H). Captured before the
- * game's input.
+ * Dismisses the teaching hint on screen: the card, or when there is none the opening overlay's prompts. Runs for the
+ * `dismiss-hint` action (Shift+H on the keyboard, RB + View on the pad: the nav layer calls it for the pad). True when
+ * a game is running (the action is then always taken, so it never falls through to another one).
+ */
+export function dismissHintNow(): boolean {
+  const c = onboarding.peek();
+  if (!c) return false;
+  if (!c.dismiss()) c.dismissExternal(foundingPromptHints(foundingUi.peek()));
+  return true;
+}
+
+/**
+ * The keyboard half of `dismiss-hint` (rebindable, Shift+H by default). The key is always taken while a game runs, so a
+ * Shift+H with nothing to dismiss never toggles the HUD (H). Captured before the game's input.
  */
 function watchDismissKey(ctl: () => OnboardingController | null): () => void {
   const onKey = (e: KeyboardEvent) => {
-    if (e.code !== 'KeyH' || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || isEditable(e.target)) return;
-    const c = ctl();
-    if (!c) return;
-    if (!c.dismiss()) c.dismissExternal(foundingPromptHints(foundingUi.peek()));
+    if (e.ctrlKey || e.altKey || e.metaKey || isEditable(e.target) || !matchesAction(e, 'dismiss-hint')) return;
+    if (!ctl()) return;
+    dismissHintNow();
     e.preventDefault();
     e.stopImmediatePropagation();
   };

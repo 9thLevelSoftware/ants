@@ -7,14 +7,13 @@
 //    demo, which has no shell, does it here), sliders and segmented controls get the arrow first;
 //  - Y opens Colony health, X Nest overview, a click of the left stick the Journal, of the right stick the Codex. A pad
 //    button the player bound to one of those actions (Settings > Controls) opens it from anywhere.
-// Polls only while a pad is connected, so a keyboard-only session never runs a loop.
+// The poller that used to call these is gone: src/ui/nav drives the pad now and calls enterTools / leaveTools; the helpers and
+// the `padToolsFocus` signal stay here.
 import { signal } from '@preact/signals';
-import { PAD } from '@/input/defaults';
 import { currentBindings } from '../../components';
 import { pickSpatial, type Dir } from '../../components/logic/spatialNav';
 import { boundPadFires } from '../../hud/hudPad';
-import { hudBridge, openDrawer, togglePanel } from '../../hud/state';
-import { snapshot } from '../../store';
+import { hudBridge, togglePanel } from '../../hud/state';
 import { openBook, type BookId } from './state';
 
 /** The tool UI: the palette and its options (`.pn-panel`) and the overlay buttons, which are chips in the observer view. */
@@ -108,50 +107,4 @@ export function openBoundPanel(pad: Buttons): boolean {
     if (boundPadFires(currentBindings.value.pad[o.action as never], pad)) { o.open(); return true; }
   }
   return false;
-}
-
-/** Starts the poller; returns the uninstaller. */
-export function startToolsPad(): () => void {
-  if (typeof window === 'undefined' || !('getGamepads' in navigator)) return () => {};
-  let raf = 0, prev: boolean[] = [], lastStick = 0, viewAt = -1, viewLb = false;
-  const poll = (now: number) => {
-    const pad = Array.from(navigator.getGamepads?.() ?? []).find((p): p is Gamepad => !!p && p.connected);
-    if (!pad) { raf = 0; return; }
-    raf = requestAnimationFrame(poll);
-    const down = pad.buttons.map((b) => b.pressed);
-    const buttons: Buttons = { down: (i) => !!down[i], edge: (i) => !!down[i] && !prev[i] };
-    const playing = snapshot.peek().mode === 'playing';
-    if (playing) {
-      if (openBoundPanel(buttons)) { prev = down; return; }
-      const a = document.activeElement as HTMLElement | null;
-      // the focus left the tool UI by itself (a drawer opened, the view changed and the palette is gone)
-      if (padToolsFocus.peek() && !inTools(a)) leaveTools(false);
-      if (buttons.edge(PAD.VIEW)) { viewAt = now; viewLb = !!down[PAD.LB]; }
-      const released = !down[PAD.VIEW] && !!prev[PAD.VIEW];
-      if (released && isViewTap(now - viewAt, viewLb)) {
-        if (padToolsFocus.peek()) leaveTools();
-        else if (!openDrawer.peek() && !openBook.peek()) enterTools();
-      }
-      if (padToolsFocus.peek() && inTools(a) && !inList(a)) {
-        const shell = !!document.querySelector('[data-testid="ui-root"]');
-        if (buttons.edge(PAD.DUP)) moveInTools('up');
-        if (buttons.edge(PAD.DDOWN)) moveInTools('down');
-        if (buttons.edge(PAD.DLEFT)) moveInTools('left');
-        if (buttons.edge(PAD.DRIGHT)) moveInTools('right');
-        const d = stickDir(pad.axes[0] ?? 0, pad.axes[1] ?? 0);
-        if (d && now - lastStick > REPEAT_MS) { lastStick = now; moveInTools(d); }
-        if (!shell && buttons.edge(PAD.A)) a?.click();
-        if (buttons.edge(PAD.B)) leaveTools();
-        if (buttons.edge(PAD.Y)) OPENERS[0].open();
-        if (buttons.edge(PAD.X)) OPENERS[1].open();
-        if (buttons.edge(PAD.LS)) OPENERS[2].open();
-        if (buttons.edge(PAD.RS)) OPENERS[3].open();
-      }
-    } else if (padToolsFocus.peek()) leaveTools(false);
-    prev = down;
-  };
-  const start = () => { if (!raf) { prev = []; raf = requestAnimationFrame(poll); } };
-  window.addEventListener('gamepadconnected', start);
-  if (Array.from(navigator.getGamepads?.() ?? []).some((p) => p?.connected)) start();
-  return () => { window.removeEventListener('gamepadconnected', start); if (raf) cancelAnimationFrame(raf); raf = 0; if (padToolsFocus.peek()) leaveTools(false); };
 }

@@ -117,6 +117,8 @@ export class ViewDirector {
   private subjectLengthBu = 1;
   /** Footstep tremor time left (real s), -1 none. */
   private tremorT = -1;
+  /** Settings > Accessibility "Camera shake and sway" (0..1, set by src/game/accessibility); reduced motion forces zero. */
+  tremorScale = 1;
   private lastPossessionState: PossessionCamState | null = null;
   private readonly stateListeners: ((e: CameraStateChange) => void)[] = [];
   /** Orbit requested by the debug API, added to the next rig update (degrees). */
@@ -214,7 +216,13 @@ export class ViewDirector {
 
   /** Footstep tremor (GDD 01 §6.1): 0.05 L for 0.4 real s on the possession camera; none in reduced motion. */
   tremor(): void {
-    if (!this.third.opts.reducedMotion) this.tremorT = CAM_TREMOR_S;
+    if (this.tremorAmplitudeMm() > 0) this.tremorT = CAM_TREMOR_S;
+  }
+
+  /** The peak amplitude (mm) the next footstep tremor would have: zero in reduced motion or with the shake setting at 0. */
+  tremorAmplitudeMm(): number {
+    if (this.third.opts.reducedMotion) return 0;
+    return CAM_TREMOR_AMP_L * this.subjectLengthBu * this.world.bu * Math.max(0, Math.min(1, this.tremorScale));
   }
 
   /** GDD 01 App. C `camera-state-changed`; returns the unsubscribe function. */
@@ -342,7 +350,7 @@ export class ViewDirector {
     if (this.tremorT < 0) return;
     if (this.view !== 'possess' || this.third.opts.reducedMotion) { this.tremorT = -1; return; }
     const age = CAM_TREMOR_S - this.tremorT;
-    const a = CAM_TREMOR_AMP_L * this.subjectLengthBu * this.world.bu * (this.tremorT / CAM_TREMOR_S) * Math.sin(2 * Math.PI * CAM_TREMOR_HZ * age);
+    const a = this.tremorAmplitudeMm() * (this.tremorT / CAM_TREMOR_S) * Math.sin(2 * Math.PI * CAM_TREMOR_HZ * age);
     const p = this.last.pos, u = this.last.up, q = { x: p.x + u.x * a, y: p.y + u.y * a, z: p.z + u.z * a };
     if (fitsAt(this.world.trace, q, UP, this.third.clearanceMm)) {
       p.x = q.x; p.y = q.y; p.z = q.z;

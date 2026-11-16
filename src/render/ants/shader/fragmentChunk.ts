@@ -10,6 +10,9 @@ uniform vec3 uHiWarm;
 uniform float uSubjectOpacity;
 uniform float uCapOpacity;
 uniform vec3 uHiCool;
+uniform float uFillBody;
+uniform float uFillRim;
+uniform vec3 uFillCol;
 float antHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 vec3 antHash3(vec3 p) { return vec3(antHash(p), antHash(p + 19.19), antHash(p + 47.47)); }
 float antNoise(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -55,6 +58,25 @@ export const ANT_EMISSIVE = /* glsl */ `#include <emissivemap_fragment>
       float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 4.0); // a rim: silhouettes only
       totalEmissiveRadiance += (vAntHi > 0.0 ? uHiWarm : uHiCool) * hiA * (fr + 0.015);
     }
+  }`;
+
+/**
+ * Form light (tuning.ts ANT_FILL), body materials only: where the scene lights leave the cuticle black (underground,
+ * night) a soft key from the viewer's upper left and a sky / ceiling term show the form of the body on a lifted
+ * albedo, and a grazing rim separates it from the ground. Zero (and skipped) in daylight.
+ */
+export const ANT_FILL = /* glsl */ `
+  if (uFillBody > 0.0 || uFillRim > 0.0) {
+    vec3 fN = normalize(normal);
+    vec3 fV = normalize(vViewPosition);
+    vec3 fUp = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    float fKey = 0.5 + 0.5 * dot(fN, normalize(vec3(-0.4, 0.6, 0.7)));
+    float fSky = 0.5 + 0.5 * dot(fN, fUp);
+    float fRim = pow(1.0 - clamp(dot(fN, fV), 0.0, 1.0), 3.0);
+    vec3 fBase = diffuseColor.rgb;
+    float fLum = dot(fBase, vec3(0.2126, 0.7152, 0.0722));
+    vec3 fAlb = fBase * 0.6 + vec3(0.8 * fLum + 0.012);
+    totalEmissiveRadiance += uFillCol * (uFillBody * fAlb * (0.9 * fKey * fKey + 0.6 * fSky) + uFillRim * fRim);
   }`;
 
 export const ANT_SHEEN = /* glsl */ `#include <lights_physical_fragment>

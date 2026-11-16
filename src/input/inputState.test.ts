@@ -96,7 +96,7 @@ describe('InputState: keys and edges', () => {
     const { input } = make('P');
     expect(input.keyDown('F5')).toBe(true);
     expect(input.keyDown('KeyU', { ctrl: true })).toBe(false); // never steal browser shortcuts
-    expect(input.keyDown('Backquote')).toBe(false);
+    expect(input.keyDown('IntlBackslash')).toBe(false);
   });
 });
 
@@ -342,13 +342,13 @@ describe('InputState: gamepad', () => {
 describe('InputState: rebinding takes effect', () => {
   it('uses the new key after rebind', () => {
     const { input, frame } = make('P');
-    const r = rebind(defaultBindings(), 'dig', 0, { kind: 'key', code: 'Backquote' });
+    const r = rebind(defaultBindings(), 'dig', 0, { kind: 'key', code: 'IntlBackslash' });
     if (r.status !== 'applied') throw new Error('rebind failed');
     input.setBindings(r.bindings);
     input.keyDown('KeyF');
     frame();
     expect(input.held('dig')).toBe(false);
-    input.keyDown('Backquote');
+    input.keyDown('IntlBackslash');
     frame();
     expect(input.held('dig')).toBe(true);
   });

@@ -9,7 +9,7 @@ import type { WorldData, ZoneType } from '@/sim/types';
 import { zoneTypeAt } from '../lighting/simAdapter';
 import { MeshBuilder } from './meshBuilder';
 import { makeSkirtHeight } from './skirtHeight';
-import { BACKDROP_BAND_MM, BACKDROP_DENSITY_PER_M, BACKDROP_HEX, BACKDROP_MARGIN_MM, BACKDROP_SIZE, FOLIAGE_LUMP, FOLIAGE_SHADE } from './tuning';
+import { BACKDROP_BAND_MM, BACKDROP_DENSITY_PER_M, BACKDROP_HEX, BACKDROP_MARGIN_MM, BACKDROP_SIZE, FENCE_GAP_P, FENCE_HEIGHT_VARY, FOLIAGE_LUMP, FOLIAGE_SHADE } from './tuning';
 
 export type EdgeTreatment = 'woods' | 'garden' | 'park' | 'road' | 'house';
 
@@ -182,7 +182,10 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
       const p = place(r, r.u0 + ((i + 0.5) / panels) * len, fOff, f.thick);
       const pw = len / panels / 2;
       const along = r.side.out.x !== 0;
-      mb.box(p.x, p.y + f.height / 2, p.z, along ? f.thick : pw, f.height / 2, along ? pw : f.thick, 0, hex(BACKDROP_HEX.fence, rng, 0.05));
+      // look-pass 2: a fence is not one ruler-straight band: panels differ a little in height and the odd one is missing
+      const hk = rngRange(rng, FENCE_HEIGHT_VARY[0], FENCE_HEIGHT_VARY[1]), gone = rngFloat(rng) < FENCE_GAP_P;
+      if (gone) continue;
+      mb.box(p.x, p.y + (f.height * hk) / 2, p.z, along ? f.thick : pw, (f.height * hk) / 2, along ? pw : f.thick, 0, hex(BACKDROP_HEX.fence, rng, 0.05));
       shapes++;
     }
     for (let i = 0, n = count(r, BACKDROP_DENSITY_PER_M.trees * 0.4); i < n; i++) tree(r, band('gardenTrees'));

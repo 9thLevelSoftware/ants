@@ -385,7 +385,30 @@ function evalSignature(sim: Sim, nest: Nest, e: Entrance): string {
   const pocket = nest.founding && nest.founding.state !== 'established' && nest.chambers.length > 0;
   // the founding pocket rule also reads the nest's founding state and its chambers
   const fd = nest.founding ? `${nest.founding.state}:${nest.chambers.length}:${pocket ? rt.carveStamp.get(nest.id) ?? 0 : ''}` : '';
-  return `${chunkStampSum(sim, box)}|${pileNear(sim, e)}|${dynPrimsNear(sim, box)}|${sim.state.worldDelta.heightDeltas.length}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}|${fd}`;
+  return `${chunkStampSum(sim, box)}|${pileNear(sim, e)}|${dynPrimsNear(sim, box)}|${heightNear(sim, e)}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}|${fd}`;
+}
+
+/**
+ * Fingerprint of the terrain delta tiles over the throat (human events edit them in place: GDD 04 §15 footprints,
+ * sand play): a weighted sum of the delta grid points within the throat radius plus one cell, 0 where no tile is.
+ */
+function heightNear(sim: Sim, e: Entrance): number {
+  const deltas = sim.state.worldDelta.heightDeltas;
+  if (deltas.length === 0) return 0;
+  const hf = sim.world.terrain, cell = hf.cell, R = throatR(sim, e) + cell;
+  const T = Math.round(Math.sqrt(deltas[0].data.length)), tilesX = Math.ceil(hf.nx / T);
+  const i0 = Math.max(0, Math.floor((e.pos.x - R) / cell)), i1 = Math.min(hf.nx - 1, Math.ceil((e.pos.x + R) / cell));
+  const k0 = Math.max(0, Math.floor((e.pos.z - R) / cell)), k1 = Math.min(hf.nz - 1, Math.ceil((e.pos.z + R) / cell));
+  let f = 0;
+  for (const t of deltas) {
+    const tx = t.tileIndex % tilesX, tz = Math.floor(t.tileIndex / tilesX);
+    const a0 = Math.max(i0, tx * T), a1 = Math.min(i1, tx * T + T - 1), b0 = Math.max(k0, tz * T), b1 = Math.min(k1, tz * T + T - 1);
+    for (let k = b0; k <= b1; k++) for (let i = a0; i <= a1; i++) {
+      const idx = k * hf.nx + i;
+      f += t.data[(k - tz * T) * T + (i - tx * T)] * (1 + ((idx * 2654435761) % 1013));
+    }
+  }
+  return f;
 }
 
 /**

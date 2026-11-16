@@ -48,6 +48,10 @@ The table below is generated from the game's bindings table and lists the defaul
 <!-- verify-at-release -->
 ### Gamepad
 
+Every action can be played from a gamepad with the standard mapping, and every menu can be used with it: the D-pad or left stick moves between controls, A chooses, B goes back, LB and RB switch tabs, LT and RT scroll, X and Y are the second and third action of a row (for example Possess and Follow in the roster), and Menu backs out of everything. The key hints in the game switch to controller glyphs (letters on an Xbox-style pad, shapes on a PlayStation pad) as soon as you use the pad, and back to keys when you use the keyboard or mouse again.
+
+RB is a modifier for the panels: RB with the D-pad opens Colony orders (up), the roster (down), the nest overview (left) and colony health (right); RB with X opens the journal, with Y the codex, with B cycles the overlays; RB with View dismisses the hint on screen. A tap of RB alone still takes the next ant. In Settings > Controls, the Gamepad column can be rebound the same way as keys: select it, press the new button (hold LB or RB first for a combination); Menu cancels and Shift+Enter clears it.
+
 Gamepad bindings are listed in the table. The gamepad columns describe the standard mapping, and are checked against a real controller at release.
 
 ### The generated table
@@ -66,14 +70,16 @@ Gamepad bindings are listed in the table. The gamepad columns describe the stand
 | Speed up | = | LB+Dpad right |
 | Speed down | - | LB+Dpad left |
 | Hide / show HUD | H | LB+Dpad down |
+| Dismiss the hint on screen | Shift+H | RB+View |
+| Focus the alert feed | Backquote | LB+View |
 | Quick save | F5 | none |
 | Quick load | F9 | none |
-| Directives | I | none |
-| Nest overview | U | none |
-| Codex | K | none |
-| Journal | J | none |
-| Colony health | Y | none |
-| Roster | L | none |
+| Colony orders | I | RB+Dpad up |
+| Nest overview | U | RB+Dpad left |
+| Codex | K | RB+Y |
+| Journal | J | RB+X |
+| Colony health | Y | RB+Dpad right |
+| Roster | L | RB+Dpad down |
 | Show controls | Shift+/ | Start hold |
 | Go to newest alert | Enter | LB+RB |
 
@@ -83,8 +89,8 @@ Gamepad bindings are listed in the table. The gamepad columns describe the stand
 | --- | --- | --- |
 | Colony view | M | View hold |
 | Scent overlay | V | Dpad left |
-| Photo mode | F2 | RS+LS |
-| Cycle overlays | O | none |
+| Photo mode | F2 or LS+RS | RS+LS |
+| Cycle overlays | O | RB+B |
 | Possess a forager | 5 | LB+X |
 | Possess a digger | 6 | LB+A |
 | Possess a nurse | 7 | LB+B |
@@ -94,7 +100,7 @@ Gamepad bindings are listed in the table. The gamepad columns describe the stand
 
 | Action | Keyboard and mouse | Gamepad |
 | --- | --- | --- |
-| Mouse look drag / captured | F8 | none |
+| Mouse look: drag or captured | F8 | none |
 | Next nearby ant | Tab | RB |
 | Previous nearby ant | Shift+Tab | LB tap |
 | Back to previous ant | Backspace | none |
@@ -190,6 +196,10 @@ Gamepad bindings are listed in the table. The gamepad columns describe the stand
 | Menu back | none | B |
 | Previous tab | Q | LB |
 | Next tab | E | RB |
+| Menu secondary action | Shift+Enter | X |
+| Menu tertiary action | none | Y |
+| Scroll up | PageUp | LT |
+| Scroll down | PageDown | RT |
 <!-- controls-table:end -->
 
 A mouse binding such as "LMB click" means a click without dragging, "hold" a press held without moving, and "drag" a press held while the mouse moves. "Shift+Wheel up" is the wheel with Shift held. "LB+Dpad up" means hold the left bumper and press the d-pad. "tap" is a quick release.

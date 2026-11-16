@@ -323,18 +323,42 @@ export function floodedAt(c: SpillCache, voxel: number, x: number, y: number, z:
 const COLUMN_PROBE = [0, 1, -1];
 
 /**
+ * The rest of the 3x3x3 neighbourhood (di, dj, dk triples, same layer first, then above, then below), tried when the
+ * column misses: a body on a wall or a slope has its centre within its foot offset of the surface, which can put it
+ * in the solid sample beside the cavity rather than above or below one (nest-fix3 review: an ant on the wall of a
+ * full sealed nest read "off the basin", so she neither drowned nor fled).
+ */
+const SIDE_PROBE: number[] = (() => {
+  const out: number[] = [];
+  for (const dj of [0, 1, -1])
+    for (const dk of [0, -1, 1])
+      for (const di of [0, -1, 1]) if (di !== 0 || dk !== 0) out.push(di, dj, dk);
+  return out;
+})();
+
+/**
  * Depth of the water standing over a point, mm (task weather-fix2 review, finding 3): the level minus the higher of
  * `baseY` (the feet, the brood's floor point) and the bottom of the spill layer of the point's column floor (the
  * lowest basin sample straight below the point, contiguous). The floor's spill layer, not the point's own sample:
  * the flooded set is a prefix of the spill order (E22), so which samples of a partly filled layer count as flooded is
  * an artefact of the order; the level is not. A floor behind a sill has the sill's spill layer, so the depth there
- * stays 0 until the water has risen over the sill. -Infinity where the point is not over the basin.
+ * stays 0 until the water has risen over the sill. A point beside the basin rather than over it (a body on a wall)
+ * takes the column of the first basin sample of its neighbourhood (SIDE_PROBE). -Infinity where the point is not at
+ * the basin.
  */
 export function waterDepthOver(c: SpillCache, voxel: number, x: number, y: number, z: number, level: number, baseY: number): number {
-  const i = Math.round(x / voxel), k = Math.round(z / voxel), j0 = Math.round(y / voxel);
-  if (i < c.box.i0 || i > c.box.i1 || k < c.box.k0 || k > c.box.k1 || j0 < c.box.j0 - 1 || j0 > c.box.j1 + 1) return -Infinity;
+  let i = Math.round(x / voxel), k = Math.round(z / voxel);
+  const j0 = Math.round(y / voxel);
+  if (i < c.box.i0 - 1 || i > c.box.i1 + 1 || k < c.box.k0 - 1 || k > c.box.k1 + 1 || j0 < c.box.j0 - 1 || j0 > c.box.j1 + 1) return -Infinity;
   let j = Number.NaN;
   for (const d of COLUMN_PROBE) if (c.index.get(i, j0 + d, k) >= 0) { j = j0 + d; break; }
+  if (Number.isNaN(j)) {
+    for (let n = 0; n < SIDE_PROBE.length; n += 3) {
+      if (c.index.get(i + SIDE_PROBE[n], j0 + SIDE_PROBE[n + 1], k + SIDE_PROBE[n + 2]) < 0) continue;
+      i += SIDE_PROBE[n]; j = j0 + SIDE_PROBE[n + 1]; k += SIDE_PROBE[n + 2];
+      break;
+    }
+  }
   if (Number.isNaN(j)) return -Infinity;
   while (c.index.get(i, j - 1, k) >= 0) j--;
   const floorLayer = c.level[c.index.get(i, j, k)];

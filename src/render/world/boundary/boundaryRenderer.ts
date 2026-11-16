@@ -7,7 +7,7 @@ import type { WorldData } from '@/sim/types';
 import { buildBackdrop } from './backdrop';
 import { applyEdgeHazeLight, createEdgeHazeUniforms, patchEdgeHaze, type EdgeHazeLight, type EdgeHazeUniforms } from './edgeHaze';
 import { buildSkirt } from './skirt';
-import { BACKDROP_FUZZ, BACKDROP_MIN_HAZE, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM } from './tuning';
+import { BACKDROP_FUZZ, BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM } from './tuning';
 
 export interface BoundaryStats {
   skirtTriangles: number;
@@ -86,7 +86,12 @@ export class BoundaryRenderer {
    */
   update(frame: { underground?: boolean }, light?: EdgeHazeLight): void {
     this.group.visible = !frame.underground;
-    if (light) applyEdgeHazeLight(this.uniforms, light);
+    if (light) {
+      applyEdgeHazeLight(this.uniforms, light);
+      // at night the far shapes dissolve into the horizon band: a pale fence panel against a dark sky read as a slab
+      const n = Math.min(1, Math.max(0, light.nightW ?? 0));
+      this.backdropLook.minHaze.value = BACKDROP_MIN_HAZE + (BACKDROP_MIN_HAZE_NIGHT - BACKDROP_MIN_HAZE) * n;
+    }
   }
 
   stats(): BoundaryStats {

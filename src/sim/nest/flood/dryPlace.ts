@@ -9,7 +9,10 @@
 //                  the water has not reached (a side chamber behind a sill)
 //   dryPlace       the nearest dry place: first along the nest's exit field (staying inside if the route passes one),
 //                  else, along the route out, just outside the opening it ends at; with no exit field, the nearest
-//                  basin sample whose spill layer stands clear of the water; null when the basin is full
+//                  basin floor whose spill layer stands clear of the water; null when the basin is full. `route`
+//                  says how to get there: 'exit' = follow the exit field (the place is a cavity sample on it, not a
+//                  standing point: the walker stops where her own feet are dry), 'walk' = walk to the point (a
+//                  surface point outside, or a floor voxel of the basin)
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Entrance, Nest, Sim } from '@/sim/types';
@@ -47,10 +50,11 @@ export function isDryAt(sim: Sim, w: WaterView, p: Vec3, margin: number): boolea
   return waterDepthOver(w.cache, sim.carve.voxel, p.x, p.y, p.z, w.level, -Infinity) <= -margin;
 }
 
-/** Result of dryPlace: the point and whether it lies outside the nest (through an opening). */
+/** Result of dryPlace: the point, whether it lies outside the nest (through an opening), and how to get there. */
 export interface DryPlace {
   pos: Vec3;
   outside: boolean;
+  route: 'exit' | 'walk';
 }
 
 const step: Vec3 = { x: 0, y: 0, z: 0 };
@@ -76,6 +80,12 @@ function outsidePoint(sim: Sim, e: Entrance): Vec3 {
   return { x, y: sim.field.height(x, z), z };
 }
 
+/** The surface place just outside the open entrance nearest p (where a flight out of the nest ends), or null. */
+export function outsidePlace(sim: Sim, nest: Nest, p: Vec3): DryPlace | null {
+  const e = nearestOpen(nest, p);
+  return e ? { pos: outsidePoint(sim, e), outside: true, route: 'walk' } : null;
+}
+
 /** Follows the exit field down from p, sample by sample, to the first dry sample; the opening when there is none. */
 function alongExit(sim: Sim, w: WaterView, from: Vec3, margin: number): DryPlace | null {
   const id = nestFieldId(w.nest.id, { kind: 'exit', id: -1 });
@@ -88,31 +98,49 @@ function alongExit(sim: Sim, w: WaterView, from: Vec3, margin: number): DryPlace
     if (!Number.isFinite(d)) return null;
     if (isDryAt(sim, w, step, margin)) {
       const outside = sim.field.substrate(step) >= 0;
-      return { pos: { x: step.x, y: step.y, z: step.z }, outside };
+      return { pos: { x: step.x, y: step.y, z: step.z }, outside, route: 'exit' };
     }
     if (d <= 0 || (step.x === px && step.y === py && step.z === pz && n > 0)) break;
   }
-  const e = nearestOpen(w.nest, step);
-  return e ? { pos: outsidePoint(sim, e), outside: true } : null;
+  return outsidePlace(sim, w.nest, step);
 }
 
+/** The basin's high floors for one water level and margin (built once per flood step, shared by every wet ant). */
+interface HighFloors { level: number; margin: number; samples: Int32Array }
+const HIGH_FLOORS = new WeakMap<SpillCache, HighFloors>();
+
 /**
- * The basin sample nearest `from` whose spill layer stands at least `margin` above the water and that has a floor
- * (a non-basin sample right below it), scanning down from the highest spill layer (at most FLEE_SCAN_MAX_SAMPLES).
+ * Basin samples whose spill layer stands at least `margin` above the water and that have a floor (a non-basin sample
+ * right below them), scanning down from the highest spill layer (at most FLEE_SCAN_MAX_SAMPLES). A function of the
+ * cache, the level and the margin only, so it is kept per cache until the level changes.
  */
-function highGround(sim: Sim, w: WaterView, from: Vec3, margin: number): DryPlace | null {
-  const c = w.cache, v = sim.carve.voxel;
-  let best = -1, bestD = Infinity;
+function highFloors(w: WaterView, margin: number, v: number): Int32Array {
+  const c = w.cache;
+  const hit = HIGH_FLOORS.get(c);
+  if (hit && hit.level === w.level && hit.margin === margin) return hit.samples;
+  const out: number[] = [];
   const stop = Math.max(0, c.si.length - FLEE_SCAN_MAX_SAMPLES);
   for (let s = c.si.length - 1; s >= stop; s--) {
     if ((c.level[s] - 0.5) * v < w.level + margin) break;
-    const i = c.si[s], j = c.sj[s], k = c.sk[s];
-    if (c.index.get(i, j - 1, k) >= 0) continue; // not a floor
-    const d = (i * v - from.x) ** 2 + (j * v - from.y) ** 2 + (k * v - from.z) ** 2;
+    if (c.index.get(c.si[s], c.sj[s] - 1, c.sk[s]) >= 0) continue; // not a floor
+    out.push(s);
+  }
+  const samples = Int32Array.from(out);
+  HIGH_FLOORS.set(c, { level: w.level, margin, samples });
+  return samples;
+}
+
+/** The high, dry basin floor nearest `from` (highFloors), ties to the earlier sample. */
+function highGround(sim: Sim, w: WaterView, from: Vec3, margin: number): DryPlace | null {
+  const c = w.cache, v = sim.carve.voxel, list = highFloors(w, margin, v);
+  let best = -1, bestD = Infinity;
+  for (let n = 0; n < list.length; n++) {
+    const s = list[n];
+    const d = (c.si[s] * v - from.x) ** 2 + (c.sj[s] * v - from.y) ** 2 + (c.sk[s] * v - from.z) ** 2;
     if (d < bestD) { bestD = d; best = s; }
   }
   if (best < 0) return null;
-  return { pos: { x: c.si[best] * v, y: c.sj[best] * v, z: c.sk[best] * v }, outside: false };
+  return { pos: { x: c.si[best] * v, y: c.sj[best] * v, z: c.sk[best] * v }, outside: false, route: 'walk' };
 }
 
 /**

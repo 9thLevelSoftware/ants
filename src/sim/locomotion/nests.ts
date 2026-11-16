@@ -36,6 +36,21 @@ export function nestContaining(sim: Sim, p: Vec3, prefer = -1): number {
   return -1;
 }
 
+/**
+ * True if p lies in the mouth of an entrance of the nest: within the entrance radius plus `rim` of its axis (plan
+ * view) and no deeper than `depth` below the entrance point. Walkers on the lip flip between the cavity and the
+ * surface there (trip hysteresis, update.ts).
+ */
+export function atMouth(sim: Sim, nestId: number, p: Vec3, rim: number, depth: number): boolean {
+  const n = nestById(sim, nestId);
+  if (!n) return false;
+  for (const e of n.entrances) {
+    const r = e.radius + rim;
+    if ((p.x - e.pos.x) ** 2 + (p.z - e.pos.z) ** 2 <= r * r && p.y >= e.pos.y - depth) return true;
+  }
+  return false;
+}
+
 export function nestById(sim: Sim, id: number): Nest | undefined {
   return sim.stores.nests.get(id);
 }

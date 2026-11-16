@@ -272,6 +272,11 @@ export const ENTRANCE_SCAN_BU = 8;
 export const THROAT_BU = 3;
 /** Extra seed radius of the exit / seal nav fields around an entrance opening, BU (opening samples sit just below the surface). */
 export const ENTRANCE_SEED_PAD_BU = 1;
+/**
+ * A closed entrance with no PLUG voxels (buried by a fill, a collapse, a heap): D_seal is seeded at the nest's open
+ * voxels nearest the mouth within this distance of it, BU (beyond it the closure is too deep to call a throat).
+ */
+export const SEAL_INNER_REACH_BU = 6;
 /** Plug sphere (`seal-entrance`): radius and offset ahead of the head toward the opening, BU. */
 export const PLUG_RADIUS_BU = 1.2;
 export const PLUG_AHEAD_BU = 1.0;

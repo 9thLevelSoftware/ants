@@ -181,6 +181,8 @@ export function createDebugApi(game: Game) {
     fx: buildFxDebug(() => game.registry, () => game.requestRender()),
     /** Picking and view tools (src/game/views/debug.ts). */
     views: buildViewsDebug(game),
+    /** What the accessibility settings did to the systems: reduced motion, tremor, DoF, palette, hold timing (src/game/accessibility). */
+    a11y: { state: () => plain(game.a11y.state()) },
     ui: {
       /** Screens that exist so far: 'pause' (the menu). Anything else is refused (not silently ignored). */
       open: (screen: string) => {

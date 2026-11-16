@@ -54,6 +54,10 @@ export class RawSources {
   pad: PadSnapshot | null = null;
   /** After focus loss the pad is ignored until every input returns to neutral (no phantom presses). */
   padSuppressed = false;
+  /** Orbit-by-toggle (hold-to-toggle for the drag): buttons whose press starts / ends an orbit; set by the input state. */
+  toggleDragButtons: ReadonlySet<number> = new Set();
+  /** Toggle-drag buttons that are orbiting right now (their mouse movement feeds the drag axis without a held button). */
+  readonly latchedDrag = new Set<number>();
 
   private pendingDown: { code: string; shift: boolean }[] = [];
   private pendingPulses = new Map<string, number>();
@@ -91,6 +95,10 @@ export class RawSources {
   mouseDown(button: number, x: number, y: number, now: number, locked: boolean): void {
     this.activity = true;
     this.mouse.set(button, { x0: x, y0: y, t0: now, dragging: false, holdsFired: [] });
+    if (this.toggleDragButtons.has(button) && !locked) {
+      if (this.latchedDrag.has(button)) this.latchedDrag.delete(button);
+      else this.latchedDrag.add(button);
+    }
     this.pulse(`press:${button}`);
     if (locked) this.pulse(`click:${button}`);
   }
@@ -105,6 +113,13 @@ export class RawSources {
     for (const [button, s] of this.mouse) {
       if (!s.dragging && Math.hypot(x - s.x0, y - s.y0) >= CLICK_SLOP_PX) s.dragging = true;
       if (!s.dragging) continue;
+      const d = this.pendingDrag.get(button) ?? { dx: 0, dy: 0 };
+      d.dx += dx;
+      d.dy += dy;
+      this.pendingDrag.set(button, d);
+    }
+    for (const button of this.latchedDrag) {
+      if (this.mouse.get(button)?.dragging) continue; // already fed above
       const d = this.pendingDrag.get(button) ?? { dx: 0, dy: 0 };
       d.dx += dx;
       d.dy += dy;
@@ -146,6 +161,7 @@ export class RawSources {
     this.keys.clear();
     this.mouse.clear();
     this.padButtons.clear();
+    this.latchedDrag.clear();
     this.pendingDown = [];
     this.pendingPulses.clear();
     this.pendingPadTaps = [];

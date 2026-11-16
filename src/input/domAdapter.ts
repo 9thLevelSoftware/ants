@@ -1,7 +1,7 @@
 // Thin DOM adapter: browser events -> InputState. Everything with logic lives in the pure modules; this file only
 // translates events, applies preventDefault where the GDD says so, and performs pointer-lock requests.
 import type { InputState } from './inputState';
-import type { PadSnapshot } from './types';
+import { gamepadApiPresent, readGamepads } from './padSource';
 
 export interface DomInputOptions {
   /** Element receiving mouse presses and wheel (the game canvas). */
@@ -28,10 +28,6 @@ function isTextField(el: EventTarget | null): boolean {
   if (h.tagName !== 'INPUT') return false;
   const type = (h as HTMLInputElement).type;
   return !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'color', 'file', 'image'].includes(type);
-}
-
-function toSnapshot(g: Gamepad): PadSnapshot {
-  return { index: g.index, id: g.id, mapping: g.mapping, buttons: g.buttons.map((b) => b.value || (b.pressed ? 1 : 0)), axes: [...g.axes] };
 }
 
 export function attachDomInput(input: InputState, opts: DomInputOptions): DomInput {
@@ -102,15 +98,13 @@ export function attachDomInput(input: InputState, opts: DomInputOptions): DomInp
   doc.addEventListener('pointerlockchange', onLockChange);
   doc.addEventListener('pointerlockerror', onLockError);
 
-  const pollPads = opts.gamepads !== false && typeof win.navigator.getGamepads === 'function';
+  const pollPads = opts.gamepads !== false && gamepadApiPresent(win);
 
   return {
     poll() {
       if (input.pointer.takeReleaseRequest() && doc.pointerLockElement) doc.exitPointerLock();
       if (!pollPads) return;
-      let pads: (Gamepad | null)[] = [];
-      try { pads = [...win.navigator.getGamepads()]; } catch { pads = []; }
-      input.setPads(pads.map((g) => (g && g.connected ? toSnapshot(g) : null)));
+      input.setPads(readGamepads(win)); // the single pad read (padSource.ts): tests override navigator.getGamepads
     },
     detach() {
       win.removeEventListener('keydown', onKeyDown);

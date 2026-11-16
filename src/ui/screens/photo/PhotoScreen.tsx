@@ -3,6 +3,7 @@
 // read-out (store.ts); the HUD hides itself in photo mode (src/ui/hud/HudRoot.tsx). Mounted by src/ui/App.tsx.
 import { useEffect, useState } from 'preact/hooks';
 import { KeyHint } from '../../components';
+import { inputDevice } from '../../nav/device';
 import { facade, snapshot } from '../../store';
 import { ControlsPanel } from './ControlsPanel';
 import { Guides } from './Guides';
@@ -86,8 +87,11 @@ export function PhotoScreen() {
         : <ControlsPanel ui={ui} a={a} onCollapse={() => setCollapsed(true)} />}
       {ui.preview && <PreviewCard p={ui.preview} a={a} />}
       <p class="ph-hint" data-testid="photo-hint">
-        <span>WASD fly</span><KeyHint action="ph-up">up</KeyHint><KeyHint action="ph-down">down</KeyHint><span>right-drag look</span>
-        <span>wheel focal length</span><span>Shift+wheel focus</span><KeyHint action="ph-capture">Capture</KeyHint>
+        {inputDevice.value === 'pad'
+          ? <><KeyHint action="ph-move">fly</KeyHint><KeyHint action="ph-up">up</KeyHint><KeyHint action="ph-down">down</KeyHint><KeyHint action="ph-look">look</KeyHint>
+            <KeyHint action="ph-focal">focal length</KeyHint><KeyHint action="ph-focus">focus</KeyHint><KeyHint action="ph-capture">Capture</KeyHint><KeyHint action="ph-exit">Leave</KeyHint></>
+          : <><span>WASD fly</span><KeyHint action="ph-up">up</KeyHint><KeyHint action="ph-down">down</KeyHint><span>right-drag look</span>
+            <span>wheel focal length</span><span>Shift+wheel focus</span><KeyHint action="ph-capture">Capture</KeyHint></>}
       </p>
     </div>
   );

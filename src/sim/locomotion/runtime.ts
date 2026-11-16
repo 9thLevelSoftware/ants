@@ -40,6 +40,9 @@ export interface LocoStats {
   standSkipped: number;
   /** Steps skipped by in-nest wanderers dozing in a crowd. */
   dozed: number;
+  /** Stuck again where the walker was relocated: let-gos instead of a relocation, and walks failed 'stuck-repeat'. */
+  relocRepeatDrops: number;
+  relocRepeatFails: number;
 }
 
 interface FlowSig {
@@ -111,7 +114,7 @@ function zeroStats(): LocoStats {
   return {
     requests: 0, arrivals: 0, failures: 0, timeouts: 0, plans: 0, planDeferred: 0, planFailed: 0, stuckEpisodes: 0,
     replans: 0, sidesteps: 0, backoffs: 0, resnaps: 0, relocations: 0, stepped: 0, lodSkipped: 0, walkerFailed: 0,
-    surfaceChanged: 0, edgeClamps: 0, slips: 0, rescues: 0, drops: 0, standSkipped: 0, dozed: 0,
+    surfaceChanged: 0, edgeClamps: 0, slips: 0, rescues: 0, drops: 0, standSkipped: 0, dozed: 0, relocRepeatDrops: 0, relocRepeatFails: 0,
   };
 }
 

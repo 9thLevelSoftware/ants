@@ -9,7 +9,7 @@ import { ACTIONS, actionDef, axisComponents, axisDef } from './actions';
 import { bindingsOf, defaultBindings, type BindingSet } from './bindings';
 import { ContextStack } from './contexts';
 import {
-  DEVICE_SWITCH_HYST_S, HOLD_THRESHOLD_MS, PAD_AXIS, ZOOM_STEP_PER_NOTCH, ZOOM_STEP_PER_SECOND_KEYS, ZOOM_STEP_PER_SECOND_PAD,
+  DEVICE_SWITCH_HYST_S, HOLD_MS_DEFAULT, HOLD_THRESHOLD_MS, PAD_AXIS, ZOOM_STEP_PER_NOTCH, ZOOM_STEP_PER_SECOND_KEYS, ZOOM_STEP_PER_SECOND_PAD,
   defaultInputSettings, type InputSettings,
 } from './defaults';
 import { PadTracker, applyResponse, padHasInput, radialDeadzone } from './gamepad';
@@ -47,6 +47,9 @@ export class InputState {
   private suspendedFlag = false;
   private mouseHolds: number[] = [];
   private padHolds: number[] = [];
+  /** The hold-duration scale the thresholds were collected with (settings.holdMs / HOLD_MS_DEFAULT). */
+  private holdScaleSeen = 1;
+  private orbitToggleSeen = false;
   private device: InputDevice = 'kbm';
   private deviceSince = -Infinity;
   private pendingDevice: InputDevice | null = null;
@@ -71,16 +74,38 @@ export class InputState {
     this.collectHoldThresholds();
   }
 
+  /** Multiplier for every hold threshold: the player's hold duration relative to the default (GDD 08 7.4). */
+  get holdScale(): number {
+    const ms = this.settings.holdMs ?? HOLD_MS_DEFAULT;
+    return Number.isFinite(ms) ? Math.min(2.5, Math.max(0.5, ms / HOLD_MS_DEFAULT)) : 1;
+  }
+
+  /** A binding's hold / tap threshold in real ms, scaled. The pulses are keyed by this exact number. */
+  private holdOf(ms: number | undefined): number {
+    return Math.round((ms ?? HOLD_THRESHOLD_MS) * this.holdScaleSeen);
+  }
+
   private collectHoldThresholds(): void {
+    this.holdScaleSeen = this.holdScale;
     const mh = new Set<number>(), ph = new Set<number>();
+    const toggle = new Set<number>();
     for (const a of ACTIONS) {
       for (const b of bindingsOf(this.bindingSet, a.id)) {
-        if (b.kind === 'mouse' && b.gesture === 'hold') mh.add(b.holdMs ?? HOLD_THRESHOLD_MS);
-        if (b.kind === 'pad' && b.gesture === 'hold') ph.add(b.holdMs ?? HOLD_THRESHOLD_MS);
+        if (b.kind === 'mouse' && b.gesture === 'hold') mh.add(this.holdOf(b.holdMs));
+        if (b.kind === 'pad' && b.gesture === 'hold') ph.add(this.holdOf(b.holdMs));
+        if (b.kind === 'drag' && a.axis && axisDef(a.axis)?.kind === 'look2') toggle.add(b.button);
       }
     }
     this.mouseHolds = [...mh];
     this.padHolds = [...ph];
+    this.orbitToggleSeen = !!this.settings.orbitToggle;
+    this.raw.toggleDragButtons = this.orbitToggleSeen ? toggle : new Set();
+    if (!this.orbitToggleSeen) this.raw.latchedDrag.clear();
+  }
+
+  /** Settings changed in place (Object.assign from the game): re-collect what depends on them. */
+  private syncSettings(): void {
+    if (this.holdScale !== this.holdScaleSeen || !!this.settings.orbitToggle !== this.orbitToggleSeen) this.collectHoldThresholds();
   }
 
   /** Text field focused: every game binding is suspended (GDD 01 5.8). */
@@ -135,15 +160,27 @@ export class InputState {
     const from = this.events.length;
     const player = this.pads.update(pads, this.settings.deadZone, this.events);
     // "was the active device": the player pad AND the device that produced the latest input (GDD 01 5.8)
+    let lostActivePad = false;
     for (let i = from; i < this.events.length; i++) {
       const e = this.events[i];
-      if (e.type === 'pad-disconnected') e.wasActiveDevice = e.wasActiveDevice && this.device === 'pad';
+      if (e.type === 'pad-disconnected') {
+        e.wasActiveDevice = e.wasActiveDevice && this.device === 'pad';
+        lostActivePad = lostActivePad || e.wasActiveDevice;
+      }
+    }
+    // the pad that owned the glyphs is gone: the keyboard and mouse own them again at once (GDD 01 App. E 19)
+    if (lostActivePad) {
+      this.device = 'kbm';
+      this.pendingDevice = null;
+      this.deviceSince = -Infinity;
+      this.events.push({ type: 'device-changed', device: 'kbm' });
     }
     this.raw.setPad(player);
   }
 
   // ------------------------------------------------------------------ per frame
   update(nowMs: number): void {
+    this.syncSettings();
     this.refreshLive();
     this.frame = this.raw.latch(nowMs, this.mouseHolds, this.padHolds, this.liveAxisModifiers());
     this.pumpPointerNotices();
@@ -202,8 +239,9 @@ export class InputState {
   /** Is there a live pad binding on `button` whose modifier is currently held? (then the plain binding yields) */
   private modifiedVariantHeld(button: number): boolean {
     for (const id of this.liveIds) {
-      const b = this.bindingSet.pad[id];
-      if (b && b.kind === 'pad' && b.button === button && b.mod !== undefined && this.raw.padButtonDown(b.mod)) return true;
+      for (const b of bindingsOf(this.bindingSet, id)) {
+        if (b.kind === 'pad' && b.button === button && b.mod !== undefined && this.raw.padButtonDown(b.mod)) return true;
+      }
     }
     return false;
   }
@@ -265,7 +303,7 @@ export class InputState {
         if (b.button === 0 && this.settings.leftButton === 'orbit' && !b.gesture) return { held: false, pulses: 0, value: 0 };
         if (b.gesture === 'click') return { held: false, pulses: f.pulses.get(`click:${b.button}`) ?? 0, value: 0 };
         if (b.gesture === 'dbl') return { held: false, pulses: f.pulses.get(`dbl:${b.button}`) ?? 0, value: 0 };
-        if (b.gesture === 'hold') return { held: false, pulses: f.pulses.get(`hold:${b.button}:${b.holdMs ?? HOLD_THRESHOLD_MS}`) ?? 0, value: 0 };
+        if (b.gesture === 'hold') return { held: false, pulses: f.pulses.get(`hold:${b.button}:${this.holdOf(b.holdMs)}`) ?? 0, value: 0 };
         const held = this.raw.mouse.has(b.button);
         return { held, pulses: held ? 0 : f.pulses.get(`press:${b.button}`) ?? 0, value: held ? 1 : 0 };
       }
@@ -280,10 +318,10 @@ export class InputState {
         const modOk = b.mod === undefined ? !this.modifiedVariantHeld(b.button) : this.raw.padButtonDown(b.mod);
         if (!modOk) return { held: false, pulses: 0, value: 0 };
         if (b.gesture === 'tap') {
-          const lim = b.holdMs ?? HOLD_THRESHOLD_MS;
+          const lim = this.holdOf(b.holdMs);
           return { held: false, pulses: f.padTaps.filter((t) => t.button === b.button && t.ms < lim).length, value: 0 };
         }
-        if (b.gesture === 'hold') return { held: false, pulses: f.pulses.get(`padhold:${b.button}:${b.holdMs ?? HOLD_THRESHOLD_MS}`) ?? 0, value: 0 };
+        if (b.gesture === 'hold') return { held: false, pulses: f.pulses.get(`padhold:${b.button}:${this.holdOf(b.holdMs)}`) ?? 0, value: 0 };
         // a plain binding on a button that also has a tap gesture elsewhere still fires on press (LB in menus)
         const held = this.raw.padButtonDown(b.button);
         const v = this.raw.pad?.buttons[b.button] ?? 0;
@@ -315,7 +353,7 @@ export class InputState {
       }
     }
     const wasHeld = r.held;
-    const holdMs = a.holdMs ?? HOLD_THRESHOLD_MS;
+    const holdMs = (a.holdMs ?? HOLD_THRESHOLD_MS) * this.holdScaleSeen;
     r.pressed = (held && !wasHeld) || pulses > 0;
     r.released = (wasHeld && !held) || (pulses > 0 && !held);
     r.holdStart = false;

@@ -53,6 +53,11 @@ export const WAIT_SPREAD_BU = 2;
 export const FOOD_ROOM_ARRIVE_BU = 1.5;
 /** Arrival radius of point legs: scout legs, avoid detours, flee runs, BU. */
 export const LEG_ARRIVE_BU = 2;
+/**
+ * Shortest wait in the nest before a forager leaves again, s (GDD 02 §10.2: wait 30-90 s). econ-growth: with the
+ * need-driven spontaneous rate (NEED_SPONT_MULT) the draw alone fell under 30 s, cycles shorter than the GDD's fastest.
+ */
+export const WAIT_MIN_S = 30;
 /** A waiting forager re-evaluates its task after this long without departing, s (and restarts its wait). */
 export const WAIT_REEVAL_S = 300;
 /** Rest phase timeout, s (fatigue 0.9 -> 0.2 takes 105 s at FATIGUE_RECOVER). */

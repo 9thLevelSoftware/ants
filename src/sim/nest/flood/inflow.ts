@@ -114,7 +114,8 @@ export function rimFactorOf(sim: Sim, e: Entrance): number {
 /**
  * Rain intensity I at an entrance (the flood cheat overrides it outdoors): the sky's (GDD 06 rainIntensityAt), or a
  * sprinkler, hose or can watering the spot (human-events humanRainRateAt > 0: GDD 03 §11.1 "sprinkler or hose 0.5"),
- * whichever is more.
+ * whichever is more. The can counts as 0.5 too (decision, nest-fix3 review): §11.1 names sprinkler and hose only,
+ * but a can is the same watering on the spot and GDD 04 §15.4 gives it the highest rate (humanWater.real.test.ts).
  */
 export function intensityAt(sim: Sim, p: Vec3): number {
   const forced = floodCheats(sim.state).rainI;

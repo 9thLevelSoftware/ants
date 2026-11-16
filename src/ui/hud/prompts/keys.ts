@@ -1,7 +1,7 @@
 // The key cap text of a hint, from the player's CURRENT bindings (GDD 08 2.7: never a hard-coded key). Axes are
 // written from their components (`move` -> "W A S D"), the speed keys as a range ("1-4"), a hint whose key is not a
 // rebindable action (the marker tools) from its fixed text. Pure: no DOM.
-import { bindingLabel, type Binding, type BindingSet } from '@/input';
+import { bindingLabel, hintText, padBindingGlyph, type Binding, type BindingSet, type InputDevice, type PadStyle } from '@/input';
 
 const first = (set: BindingSet, id: string): Binding | null => (set.kbm[id] ?? []).find((b): b is Binding => !!b) ?? null;
 const label = (set: BindingSet, id: string): string | null => {
@@ -20,8 +20,9 @@ function range(labels: string[]): string {
  * The text of the key cap for `action` (a button action id, an axis id, or `speed-1` for the four speed keys), or null
  * when the hint has no key or the action is unbound. `fixedKey` is used when `action` is null.
  */
-export function keyCapText(set: BindingSet, action: string | null, fixedKey?: string): string | null {
+export function keyCapText(set: BindingSet, action: string | null, fixedKey?: string, device: InputDevice = 'kbm', style: PadStyle = 'xbox'): string | null {
   if (action === null) return fixedKey ?? null;
+  if (device === 'pad') return padKeyCapText(set, action, style) ?? keyCapText(set, action, fixedKey);
   if (action === 'move') {
     const parts = ['up', 'left', 'down', 'right'].map((d) => label(set, `move.${d}`)).filter((l): l is string => !!l);
     return parts.length > 0 ? parts.join(' ') : null;
@@ -33,4 +34,13 @@ export function keyCapText(set: BindingSet, action: string | null, fixedKey?: st
     return used.length > 0 ? range(used) : null;
   }
   return label(set, action);
+}
+
+/** The pad's text for a hint (GDD 01 5.8: hints follow the last-used device): the glyph of the binding; the speed keys as the step pair. */
+function padKeyCapText(set: BindingSet, action: string, style: PadStyle): string | null {
+  if (action === 'speed-1') {
+    const down = set.pad['speed-down'], up = set.pad['speed-up'];
+    return down && up ? `${padBindingGlyph(down, style)} / ${padBindingGlyph(up, style)}` : null;
+  }
+  return hintText(set, action, 'pad', style);
 }

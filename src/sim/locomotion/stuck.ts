@@ -1,9 +1,11 @@
 // Stuck detection and the recovery ladder. A goal-directed request is stuck when its leg's progress metric did not
 // improve by stuckProgress within stuckWindow. Each stuck episode climbs the ladder one rung per window:
-//   1 replan   2 sidestep   3 back off   4 re-snap to the surface   5 relocate along the route (logged event)
+//   1 replan   2 sidestep   3 back off   4 re-snap to the surface   5 relocate along the route (event `ant-unstuck`)
 //   6 fail.
 // Progress resets the rung. Episodes and relocations per request are capped, and every request has a timeout,
-// so no walker can loop forever: it arrives or reports `failed`.
+// so no walker can loop forever: it arrives or reports `failed`. Relocation is a last resort that terminates across
+// requests too (loco-fix3): a walker stuck again where it was relocated (relocRepeat) lets go instead, then its walk
+// fails with reason 'stuck-repeat' where rung 5 would relocate (the other rungs, which move nobody, still run).
 // A wander has no goal to replan toward or relocate along: it has its own short ladder (wanderStuck): pivot on the
 // spot, then fail.
 
@@ -11,18 +13,19 @@ import type { Vec3 } from '@/core/math/vec3';
 import { createLogger } from '@/core/log';
 import type { Ant, Sim, Walker } from '@/sim/types';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { walkerPlace as walkerPlaceImp, walkerSurfaceChanged as walkerSurfaceChangedImp } from './walker';
+import { walkerLetGo as walkerLetGoImp, walkerPlace as walkerPlaceImp, walkerSurfaceChanged as walkerSurfaceChangedImp } from './walker';
 import { dist3 as dist3Imp, normalizeInPlace as normalizeInPlaceImp, rotateTangent as rotateTangentImp, set3 as set3Imp, tangentPart as tangentPartImp } from './mathx';
 import type { LocoRuntime } from './runtime';
 import { NO_PROGRESS, type NavScratch } from './scratch';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const walkerPlace = walkerPlaceImp, walkerSurfaceChanged = walkerSurfaceChangedImp, dist3 = dist3Imp, normalizeInPlace = normalizeInPlaceImp, rotateTangent = rotateTangentImp, set3 = set3Imp, tangentPart = tangentPartImp;
+const walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSurfaceChanged = walkerSurfaceChangedImp, dist3 = dist3Imp, normalizeInPlace = normalizeInPlaceImp, rotateTangent = rotateTangentImp, set3 = set3Imp, tangentPart = tangentPartImp;
 
 const log = createLogger('loco');
 const _t: Vec3 = { x: 0, y: 0, z: 0 }, _p: Vec3 = { x: 0, y: 0, z: 0 }, _from: Vec3 = { x: 0, y: 0, z: 0 };
 
-export type StuckAction = 'none' | 'replan' | 'fail';
+/** 'fail-repeat': stuck again where the walker was already relocated (nav.failReason 'stuck-repeat'). */
+export type StuckAction = 'none' | 'replan' | 'fail' | 'fail-repeat';
 
 /**
  * Updates the progress record with this tick's metric (mm, lower is better). The first metric of a new leg
@@ -82,9 +85,16 @@ export function checkStuck(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, i
       return target ? 'replan' : 'none';
     }
     case 5: {
-      if (!target || s.relocations >= P.relocateMax) return target ? 'fail' : 'none';
+      if (!target) return 'none';
+      if (repeatHere(w, s, tick, P)) return escalate(sim, w, s, r, id);
+      if (s.relocations >= P.relocateMax) return 'fail';
+      set3(_from, w.pos.x, w.pos.y, w.pos.z);
       if (!relocate(sim, w, id, target, r)) return 'fail';
       s.relocations++;
+      s.relocTick = tick;
+      s.relocFrom = { x: _from.x, y: _from.y, z: _from.z };
+      s.relocTo = { x: w.pos.x, y: w.pos.y, z: w.pos.z };
+      s.relocRepeat = 0;
       s.ladder = 0;
       return 'replan';
     }
@@ -126,21 +136,56 @@ export function pivotDesired(w: Walker, s: NavScratch, out: Vec3): void {
   rotateTangent(out, w.fwd, w.up, s.side * Math.PI * 0.5);
 }
 
+/** The walker is stuck within relocRepeat of where it was last relocated from or put, within relocRepeatTicks. */
+function repeatHere(w: Walker, s: NavScratch, tick: number, P: LocoRuntime['P']): boolean {
+  if (s.relocTick === undefined || tick - s.relocTick > P.relocRepeatTicks) return false;
+  const near = (p: Vec3 | undefined) => p !== undefined && dist3(w.pos, p) <= P.relocRepeat;
+  return near(s.relocFrom) || near(s.relocTo);
+}
+
+/**
+ * Stuck again where it was relocated: the first time the walker lets go (drops off the spot; nothing is teleported),
+ * after that the walk fails with 'stuck-repeat'. One log line per escalation.
+ */
+function escalate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number): StuckAction {
+  const n = (s.relocRepeat ?? 0) + 1;
+  s.relocRepeat = n;
+  if (n === 1 && w.medium !== 'air') {
+    walkerLetGo(sim.field, w, 0, sim.kernel.walker);
+    r.stats.relocRepeatDrops++;
+    s.ladder = 0;
+    log.info(`walker ${id} stuck again at ${fmt(w.pos)} after a relocation: let go`);
+    return 'replan';
+  }
+  r.stats.relocRepeatFails++;
+  log.info(`walker ${id} stuck again at ${fmt(w.pos)}: walk failed (stuck-repeat)`);
+  return 'fail-repeat';
+}
+
 function negUp(w: Walker): Vec3 {
   return set3(_t, -w.up.x, -w.up.y, -w.up.z);
 }
 
-/** Moves the walker a bounded distance toward target (on the surface there) and logs it. */
+/**
+ * Moves the walker a bounded distance toward target (on the surface there). A target closer than relocMin (a field
+ * lookahead that ends where the walker stands, the mouth of an exit field) moves nobody: then the point is pushed
+ * relocMin along the way to the walker's destination. Emits `ant-unstuck` (no log line: one per escalation only).
+ */
 function relocate(sim: Sim, w: Walker, id: number, target: Vec3, r: LocoRuntime): boolean {
   set3(_from, w.pos.x, w.pos.y, w.pos.z);
   const maxD = 6 * r.P.bu;
-  const d = dist3(w.pos, target);
+  let tx = target.x - w.pos.x, ty = target.y - w.pos.y, tz = target.z - w.pos.z;
+  if (Math.hypot(tx, ty, tz) < r.P.relocMin) {
+    const g = w.nav.dest, gx = g.x - w.pos.x, gy = g.y - w.pos.y, gz = g.z - w.pos.z, gl = Math.hypot(gx, gy, gz);
+    if (gl > r.P.relocMin) { const k = Math.min(gl, 2 * r.P.relocMin) / gl; tx = gx * k; ty = gy * k; tz = gz * k; }
+  }
+  const d = Math.hypot(tx, ty, tz);
   const k = d > maxD ? maxD / d : 1;
-  set3(_p, w.pos.x + (target.x - w.pos.x) * k, w.pos.y + (target.y - w.pos.y) * k, w.pos.z + (target.z - w.pos.z) * k);
-  set3(_t, target.x - w.pos.x, target.y - w.pos.y, target.z - w.pos.z);
+  set3(_p, w.pos.x + tx * k, w.pos.y + ty * k, w.pos.z + tz * k);
+  set3(_t, tx, ty, tz);
   if (!walkerPlace(sim.field, w, _p, { dir: { x: 0, y: -1, z: 0 }, heading: _t }, sim.kernel.walker)) return false;
   r.stats.relocations++;
-  log.info(`relocated walker ${id} from ${fmt(_from)} to ${fmt(w.pos)}`);
+  void id;
   if (isAnt(w)) sim.emit({ type: 'ant-unstuck', antId: w.id, from: { ..._from }, to: { ...w.pos } });
   return true;
 }

@@ -11,7 +11,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { CarveGrid, NavSeeds, Nest, NestFieldTarget, NestNav, Sim, SimState } from '@/sim/types';
 import { VoxelFlag, nestFieldId } from '@/sim/types';
-import { ENTRANCE_SEED_PAD_BU, MAX_PLUG_SEEDS, THROAT_BU } from '@/sim/balance/nest';
+import { ENTRANCE_SEED_PAD_BU, MAX_PLUG_SEEDS, SEAL_INNER_REACH_BU, THROAT_BU } from '@/sim/balance/nest';
 import { OPEN_MIN } from './carve/keys';
 import { FlagStore } from './flags';
 import { nestRuntime } from './runtime';
@@ -43,6 +43,10 @@ function writeNestFields(nav: NestNav, carve: CarveGrid, flags: FlagStore, nest:
   const opening = (r: number) => r + ENTRANCE_SEED_PAD_BU * bu;
   if (exits.length > 0) wanted.set(nestFieldId(nest.id, EXIT), { points: exits, radius: opening(exitR) });
   const plugs = plugPoints(carve, flags, nest, bu);
+  // a throat closed by plain soil (a collapse, a heap, a fill: no PLUG voxels) is seeded on its nest side too: the
+  // mouth itself is buried, and a field seeded there reaches no voxel of the nest (nest-fix3 review: every walk inside
+  // such a sealed nest failed)
+  if (plugs.length === 0 && seals.length > 0) innerThroatPoints(nav, carve, nest, bu, plugs);
   if (plugs.length > 0) wanted.set(nestFieldId(nest.id, SEAL), { points: plugs, radius: 1.5 * carve.voxel });
   else if (seals.length > 0) wanted.set(nestFieldId(nest.id, SEAL), { points: seals, radius: opening(sealR) });
   for (const c of nest.chambers) {
@@ -95,6 +99,37 @@ function plugPoints(carve: CarveGrid, flags: FlagStore, nest: Nest, bu: number):
   if (all.length <= MAX_PLUG_SEEDS) return all;
   const step = all.length / MAX_PLUG_SEEDS;
   return Array.from({ length: MAX_PLUG_SEEDS }, (_, n) => all[Math.floor(n * step)]);
+}
+
+/**
+ * For each closed entrance whose mouth is buried: the open voxels of the nest's own space (the open region of one of
+ * its chambers) nearest the mouth, within SEAL_INNER_REACH_BU of it, i.e. the nest side of the closure. Appended to
+ * out; nothing for an entrance whose closure is deeper than the reach (the mouth seeds stay, as before).
+ */
+function innerThroatPoints(nav: NestNav, carve: CarveGrid, nest: Nest, bu: number, out: Vec3[]): void {
+  const v = carve.voxel, regions = new Set<number>();
+  for (const c of nest.chambers) {
+    const r = nav.componentAt(c.center);
+    if (r >= 0) regions.add(r);
+  }
+  if (regions.size === 0) return;
+  const p: Vec3 = { x: 0, y: 0, z: 0 };
+  for (const e of nest.entrances) {
+    if (e.status === 'open') continue;
+    const R = e.radius + SEAL_INNER_REACH_BU * bu;
+    let best = Infinity;
+    const found: { p: Vec3; d: number }[] = [];
+    for (let k = Math.floor((e.pos.z - R) / v); k <= Math.ceil((e.pos.z + R) / v); k++)
+      for (let j = Math.floor((e.pos.y - R) / v); j <= Math.ceil((e.pos.y + R) / v); j++)
+        for (let i = Math.floor((e.pos.x - R) / v); i <= Math.ceil((e.pos.x + R) / v); i++) {
+          p.x = i * v; p.y = j * v; p.z = k * v;
+          const d = Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z);
+          if (d > R || d > best + v || carve.sampleAt(i, j, k) < OPEN_MIN || !regions.has(nav.componentAt(p))) continue;
+          if (d < best) best = d;
+          found.push({ p: { ...p }, d });
+        }
+    for (const f of found) if (f.d <= best + v && out.length < MAX_PLUG_SEEDS) out.push(f.p);
+  }
 }
 
 /** (Re)defines the D_plan field of one plan from its current slots; removes it when the plan has none. */

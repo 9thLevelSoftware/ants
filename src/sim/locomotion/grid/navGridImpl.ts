@@ -9,6 +9,7 @@ import { NAV_CLASSES } from '@/sim/types';
 import type { WorldField } from '@/sim/world/field';
 import { deriveFromField, deriveFromWorld, isBlocked, linkPortals, NAV_GRID_TUNING, type GridData, type Portal } from './gridData';
 import { GridSearch, lineClear, type CostDisc } from './search';
+import { findGate } from './gates';
 
 // planner tunables (GDD 04 §11), in NAV_GRID_TUNING (re-exported from src/sim/balance)
 const {
@@ -91,7 +92,7 @@ export interface LocoNavGrid extends NavGrid {
    */
   setWetCells(cells: readonly number[], values: readonly number[]): number;
   readonly portals: readonly Portal[];
-  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number };
+  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number; gates: number };
   /** Nodes expanded by all A* searches so far. */
   readonly expandedTotal: number;
 }
@@ -117,7 +118,7 @@ class NavGridImpl implements LocoNavGrid {
   private readonly search: GridSearch;
   private readonly flows: FlowEntry[] = [];
   private clock = 0;
-  private counters = { searches: 0, expanded: 0, flowBuilds: 0, flowRepairs: 0, flowRepairCells: 0 };
+  private counters = { searches: 0, expanded: 0, flowBuilds: 0, flowRepairs: 0, flowRepairCells: 0, gates: 0 };
   /** Recent cell changes, oldest first; fields older than `fullVersion` need a full rebuild. */
   private readonly changes: ChangeEntry[] = [];
   private fullVersion = 0;
@@ -413,6 +414,9 @@ class NavGridImpl implements LocoNavGrid {
         if (this.segmentWalkable(prev, target, discs)) break;
       }
       if (j <= i) j = i + 1;
+      // a single step to the side-by-side cell whose shared edge is open only in a strip (a gap under a raised
+      // board at a fence end): go through the strip, not at the cell centre behind the solid part (gates.ts)
+      if (j === i + 1 && this.field) prev = this.gate(prev, _cells[i], _cells[j], out);
       if (j === last) break;
       const wp = this.centre(_cells[j], { x: 0, y: 0, z: 0 });
       out.push(wp);
@@ -420,6 +424,16 @@ class NavGridImpl implements LocoNavGrid {
       i = j;
     }
     out.push({ x: end.x, y: end.y, z: end.z });
+  }
+
+  /** Adds the entry and exit points of the gate between side-by-side cells a and b to out; returns the new last point. */
+  private gate(prev: Vec3, a: number, b: number, out: Vec3[]): Vec3 {
+    const pa = this.centre(a, _t), ax = pa.x, az = pa.z, pb = this.centre(b, _t);
+    const g = findGate(this.field!, ax, az, pb.x, pb.z, this.cell, this.data.bu, prev);
+    if (!g) return prev;
+    this.counters.gates++;
+    out.push(g.entry, g.exit);
+    return g.exit;
   }
 
   flowField(key: string, sig: string, seeds: readonly Vec3[], discs: readonly CostDisc[] | null = null): Float32Array {
@@ -503,7 +517,7 @@ class NavGridImpl implements LocoNavGrid {
     return best;
   }
 
-  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number } {
+  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number; gates: number } {
     return { ...this.counters };
   }
 

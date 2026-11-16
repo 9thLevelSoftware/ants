@@ -89,6 +89,12 @@ export const LOCO_TUNING = {
   fieldLookahead: 4,
   /** Hand-over from a surface leg to the entrance mouth: extra radius around the entrance, BU. */
   entranceHandoverBU: 1.5,
+  /** An exit leg at the mouth heads for the ground this far beyond the entrance rim, toward the goal, BU. */
+  exitRimBU: 1.5,
+  /** Below the exit point's ground by more than this, the walker in the mouth climbs up first, BU. */
+  exitClimbBU: 0.5,
+  /** The mouth of an entrance (trip hysteresis, update.ts mouthHold): down to this far below the entrance point, BU. */
+  mouthDepthBU: 1.5,
   /** Arrival points are spread around entrances and point goals over this fraction of the radius. */
   arrivalSpread: 0.6,
   /**
@@ -167,6 +173,16 @@ export const LOCO_TUNING = {
   episodesMax: 16,
   /** Relocation target: this many waypoints / field steps ahead. */
   relocateFieldSteps: 8,
+  /**
+   * Relocation is the last resort and must terminate (loco-fix3): a walker stuck again within relocRepeatBU of
+   * where it was last relocated from (or put), within relocRepeatS, is not relocated again: the first repeat lets
+   * go (a drop off the spot), later ones fail the walk with reason 'stuck-repeat' at the rung that would relocate
+   * (replan, sidestep, back-off and re-snap still run). A relocation target closer than relocMinBU (a field lookahead that ends where
+   * the walker stands) is replaced by a point that far toward the next point after it, or toward the goal.
+   */
+  relocRepeatS: 300,
+  relocRepeatBU: 2,
+  relocMinBU: 1,
   /**
    * Wander (no goal): a walker that did not move stuckProgressBU for wanderStallS pivots on the spot for
    * wanderPivotS (its heading sweeps round, the pull to the wander centre is ignored), like an ant turning away from
@@ -290,12 +306,12 @@ export interface LocoParams {
   antReach: number; antAngle: number; trailGain: number; trailDetect: number; trailLostS: number; lodTrailMax: number;
   crumbSpacing: number; crumbTurnCos: number; crumbTurnMin: number; loopClose: number; shortcutN: number;
   shortcutLift: number; shortcutR: number; crumbReach: number; piNoise: number;
-  wpReach: number; climbReach: number; fieldLook: number; entranceHandover: number; spread: number; elevated: number;
+  wpReach: number; climbReach: number; fieldLook: number; entranceHandover: number; exitRim: number; exitClimb: number; mouthDepth: number; spread: number; elevated: number;
   brakeS: number; arriveTurnRadii: number; pivotCreep: number;
   routeSnap: number; routeGoal: number; direct: number; planBudget: number; planExpandBudget: number; stuckExplosionTicks: number; stuckExplosionFrac: number; stuckExplosionMin: number; retargetS: number; retarget: number;
   pointFieldMax: number; pointSeek: number; arriveStallS: number; ceilingUpY: number; dropAbove: number; dropBelow: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
-  episodesMax: number; relocateSteps: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
+  episodesMax: number; relocateSteps: number; relocRepeatTicks: number; relocRepeat: number; relocMin: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
   stallMove: number; stallTicks: number; waterSpeed: number; wetGrip: number;
   dozeCrowd: number; dozeCycle: number; dozeAwake: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
@@ -325,7 +341,7 @@ export function locoParams(bu: number): LocoParams {
     loopClose: T.loopCloseBU * bu, shortcutN: T.shortcutLookahead, shortcutLift: T.shortcutLiftBU * bu,
     shortcutR: T.shortcutRadiusBU * bu, crumbReach: T.crumbReachBU * bu, piNoise: T.piNoise,
     wpReach: T.waypointReachBU * bu, climbReach: T.climbReachBU * bu, fieldLook: T.fieldLookahead,
-    entranceHandover: T.entranceHandoverBU * bu, spread: T.arrivalSpread, elevated: T.elevatedBU * bu,
+    entranceHandover: T.entranceHandoverBU * bu, exitRim: T.exitRimBU * bu, exitClimb: T.exitClimbBU * bu, mouthDepth: T.mouthDepthBU * bu, spread: T.arrivalSpread, elevated: T.elevatedBU * bu,
     brakeS: T.arriveBrakeS, arriveTurnRadii: T.arriveTurnRadii, pivotCreep: T.arrivePivotCreep,
     routeSnap: T.routeSnapBU * bu, routeGoal: T.routeGoalBU * bu, direct: T.directBU * bu, planBudget: T.planBudget, planExpandBudget: T.planExpandBudget, stuckExplosionTicks: T.stuckExplosionS * 10, stuckExplosionFrac: T.stuckExplosionFrac, stuckExplosionMin: T.stuckExplosionMin,
     retargetS: T.retargetS, retarget: T.retargetBU * bu, pointFieldMax: T.pointFieldMax,
@@ -334,6 +350,7 @@ export function locoParams(bu: number): LocoParams {
     timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,
     stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
     relocateMax: T.relocateMax, episodesMax: T.episodesMax, relocateSteps: T.relocateFieldSteps,
+    relocRepeatTicks: Math.round(T.relocRepeatS * 10), relocRepeat: T.relocRepeatBU * bu, relocMin: T.relocMinBU * bu,
     wanderStallS: T.wanderStallS, wanderPivotS: T.wanderPivotS, wanderStallMax: T.wanderStallMax,
     pinnedS: T.pinnedS, pinnedUpY: T.pinnedUpY,
     stallMove: T.stallMoveBU * bu, stallTicks: Math.round(T.stallWindowS * 10), waterSpeed: T.waterSpeedMult, wetGrip: T.wetGripMult,

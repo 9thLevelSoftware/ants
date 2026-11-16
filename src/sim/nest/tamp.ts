@@ -20,7 +20,7 @@ import { removeItem } from '@/sim/entities';
 import { OPEN_FRACTION, OPEN_MIN } from './carve/keys';
 import { fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { pelletNest } from './pellets';
-import { fillKeepsPassages } from './passage';
+import { PassageProbe } from './passage';
 import { nestRuntime } from './runtime';
 import { packSample, sampleI, sampleJ, sampleK } from './voxelKey';
 
@@ -83,11 +83,16 @@ function liftToFloor(sim: Sim, it: Item): boolean {
  * one in scan order (at most TAMP_PASSAGE_GREEDY_MAX tried).
  */
 function passageSafeFloor(sim: Sim, floor: Vec3[], r: number, across: number): Vec3[] {
-  if (fillKeepsPassages(sim, floor, r, across)) return floor;
+  if (floor.length === 0) return floor;
+  // one probe for the whole search: the same answers as fillKeepsPassages per subset, without re-reading the box
+  const probe = new PassageProbe(sim, floor, r, across);
+  for (const c of floor) probe.push(c);
+  if (probe.keeps()) return floor;
+  for (let n = floor.length - 1; n >= 0; n--) probe.pop();
   const kept: Vec3[] = [];
   for (let n = 0; n < floor.length && n < TAMP_PASSAGE_GREEDY_MAX; n++) {
-    kept.push(floor[n]);
-    if (!fillKeepsPassages(sim, kept, r, across)) kept.pop();
+    probe.push(floor[n]);
+    if (probe.keeps()) kept.push(floor[n]); else probe.pop();
   }
   return kept;
 }
@@ -104,7 +109,7 @@ export function tampPassageSamples(sim: Sim, nest: Nest | undefined): number {
 }
 
 /** Floor samples around p: open, inside the substrate, with a non-open sample below, within `radius` of p (scan order). */
-function floorSamples(sim: Sim, p: Vec3, radius: number): Vec3[] {
+export function floorSamples(sim: Sim, p: Vec3, radius: number): Vec3[] {
   const carve = sim.carve, v = carve.voxel, out: Vec3[] = [];
   for (let k = Math.floor((p.z - radius) / v); k <= Math.ceil((p.z + radius) / v); k++)
     for (let j = Math.floor((p.y - radius) / v); j <= Math.ceil((p.y + radius) / v); j++)

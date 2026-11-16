@@ -3,10 +3,11 @@
 // ant is, never takes focus, never blocks input (pointer events only on its close button). Compact form (after a minute
 // without the action): the key cap alone, faded. Reduced motion: an opacity fade only (CSS, data-motion).
 import { useEffect, useRef } from 'preact/hooks';
-import { currentBindings, KeyCap } from '../../components';
+import { currentBindings, hintLabel, KeyCap } from '../../components';
 import type { HintView } from '@/game/onboarding';
 import { keepOutRects } from '../keepOut';
 import { placeAvoiding, type Rect } from '../promptPlacement';
+import { inputDevice, padStyle } from '../../nav/device';
 import { keyCapText } from './keys';
 
 /** The context prompt chip is placed by its own loop (over the ant, or the bottom fallback); the card steps aside for it. */
@@ -48,7 +49,7 @@ export interface HintCardProps {
 }
 
 export function HintCard({ view, onDismiss }: HintCardProps) {
-  const text = keyCapText(currentBindings.value, view.action, view.fixedKey);
+  const text = keyCapText(currentBindings.value, view.action, view.fixedKey, inputDevice.value, padStyle.value);
   const ref = useRef<HTMLDivElement>(null);
   useStepAside(ref, view.anchor === 'top', view.seq);
   return (
@@ -57,11 +58,11 @@ export function HintCard({ view, onDismiss }: HintCardProps) {
       data-hud="hint" data-testid="hint-card" data-hint-id={view.id} data-compact={view.compact ? '1' : '0'}
     >
       {view.hold && !view.compact && <span class="hn-hold">Hold</span>}
-      {view.action !== null || view.fixedKey ? <KeyCap label={text ?? '?'} class={text ? '' : 'is-unbound'} /> : null}
+      {view.action !== null || view.fixedKey ? <KeyCap label={text ?? '?'} kind={inputDevice.value === 'pad' && view.action !== null ? 'pad' : 'key'} class={text ? '' : 'is-unbound'} /> : null}
       {!view.compact && <span class="hn-verb" data-testid="hint-verb">{view.verb}</span>}
       {!view.compact && (
         <button
-          type="button" class="hn-close" tabIndex={-1} aria-label="Dismiss hint" title="Dismiss (Shift+H)" data-testid="hint-dismiss"
+          type="button" class="hn-close" tabIndex={-1} aria-label="Dismiss hint" title={`Dismiss (${hintLabel(currentBindings.value, 'dismiss-hint') ?? 'Shift+H'})`} data-testid="hint-dismiss"
           onMouseDown={(e) => e.preventDefault()} onClick={onDismiss}
         >
           {'×'}

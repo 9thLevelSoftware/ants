@@ -5,11 +5,11 @@
 //  - inside the feed or the pulse: X opens the card's menu (Shift+Enter), B returns the focus to the game;
 //  - a pad button the player has bound to the `directives` or `roster` action toggles that drawer (no default: GDD 08 5.4
 //    reaches them through the pause menu).
-// Polls only while a pad is connected, so a keyboard-only session never runs a loop.
+// The poller that used to call these is gone: src/ui/nav drives the pad now (one reader for every layer). `boundPadFires`
+// and `stepHudPad` stay as pure helpers with their tests.
 import { PAD } from '@/input/defaults';
 import type { Binding } from '@/input';
 import { currentBindings } from '../components';
-import { snapshot } from '../store';
 import { isEntered } from './focusPolicy';
 import { enterFeed } from './hotkeys';
 import { togglePanel, type DrawerId } from './state';
@@ -32,24 +32,4 @@ export function stepHudPad(pad: PadButtons, playing: boolean, active: HTMLElemen
   if (!active || !isEntered(active) || active.closest('.fd-drawer')) return;
   if (pad.edge(PAD.X)) active.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true }));
   if (pad.edge(PAD.B)) active.blur();
-}
-
-/** Starts the poller; returns the uninstaller. */
-export function startHudPad(): () => void {
-  if (typeof window === 'undefined' || !('getGamepads' in navigator)) return () => {};
-  let raf = 0;
-  let prev: boolean[] = [];
-  const poll = () => {
-    const pad = Array.from(navigator.getGamepads?.() ?? []).find((p): p is Gamepad => !!p && p.connected);
-    if (!pad) { raf = 0; return; }
-    const now = pad.buttons.map((b) => b.pressed);
-    const mode = snapshot.peek().mode;
-    stepHudPad({ down: (i) => !!now[i], edge: (i) => !!now[i] && !prev[i] }, mode === 'playing', document.activeElement as HTMLElement | null);
-    prev = now;
-    raf = requestAnimationFrame(poll);
-  };
-  const start = () => { if (!raf) { prev = []; raf = requestAnimationFrame(poll); } };
-  window.addEventListener('gamepadconnected', start);
-  if (Array.from(navigator.getGamepads?.() ?? []).some((p) => p?.connected)) start();
-  return () => { window.removeEventListener('gamepadconnected', start); if (raf) cancelAnimationFrame(raf); raf = 0; };
 }

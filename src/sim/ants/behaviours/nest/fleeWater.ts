@@ -8,7 +8,12 @@
 //     nearest high floor). An ant on the surface walking into the wet part of a nest stops where she is instead
 //     (GDD 03 §11.3 via the task: "workers on the surface do not walk into a flooded nest unless carrying brood out");
 //   - every tick, the fleeing ants only: their behaviour is held (thinkTick in the future; the runner skips them) and
-//     they walk; at the dry place they wait (`flee.freeze`);
+//     they walk: up the exit field itself to a dry place inside (no point goal: a point in a tunnel is not a place
+//     to stand, and the walk would end below it), else to the point (outside the opening, a high floor of a closed
+//     nest). On a flight to a place inside she stops and waits (`flee.freeze`) where her own feet stand
+//     FLEE_DRY_MARGIN clear of the water; on a flight out she goes all the way to the surface place (the throat is
+//     no place to crowd). Never a wait in water: a walk that ends with her still in it (arrived short, failed) is
+//     planned again at the next check;
 //   - she resumes her task (the runner enters it afresh) once the place she fled from is dry again, the nest is dry,
 //     or after FLEE_RETRY_S; if her task leads back into the water she flees again.
 // Never moved by this rule: the possessed ant (she gets the water alert instead, flood/diagnostics.ts), a founding
@@ -25,10 +30,10 @@ import {
   FLEE_NURSE_MAX_SUB_S, FLEE_WATER_DEPTH_BU, FLOOD_ANT_SUB_KEY, FLOOD_SUBMERGE_DEPTH_BU,
 } from '@/sim/balance/weather';
 import { secondsToTicks } from '@/sim/time';
-import { navStop, navTo } from '@/sim/locomotion';
+import { navFollowField, navStop, navTo } from '@/sim/locomotion';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { exitBehaviour } from '@/sim/ants/behaviourRunner';
-import { depthOver, dryPlace, isDryAt, waterView, type WaterView } from '@/sim/nest/flood/dryPlace';
+import { depthOver, dryPlace, isDryAt, outsidePlace, waterView, type DryPlace, type WaterView } from '@/sim/nest/flood/dryPlace';
 import { waterDepthOver } from '@/sim/nest/flood/spill';
 import { claimFresh, isCarryJob } from './board';
 import { B, logDecision } from './fsm';
@@ -48,6 +53,10 @@ export const FW = {
   ox: 'fw.ox', oy: 'fw.oy', oz: 'fw.oz',
   /** Nest whose water she flees. */
   nest: 'fw.n',
+  /** How she walks: 1 up the exit field, 0 to the point. */
+  route: 'fw.r',
+  /** 1: the dry place is outside the nest (she goes all the way out), 0: inside (she stops where her feet are dry). */
+  out: 'fw.x',
 } as const;
 
 const RUN = 'flee.run', WAIT = 'flee.freeze';
@@ -96,22 +105,42 @@ function exempt(sim: Sim, a: Ant, depth: number): boolean {
   return a.task === 'nurse' && depth < FLOOD_SUBMERGE_DEPTH_BU * sim.world.bu;
 }
 
-/** Starts a flight to `place` from the wet point `origin` (her task is left: claims released, walk stopped). */
-function startFlee(sim: Sim, a: Ant, nest: Nest, place: Vec3, origin: Vec3, why: 'wet' | 'hold'): void {
+const EXIT = { kind: 'exit', id: -1 } as const;
+
+/** Sets off toward a dry place: up the exit field (route 'exit'), else to the point. */
+function walkTo(sim: Sim, a: Ant, nest: Nest, place: DryPlace): void {
+  a.bb[FW.tx] = place.pos.x; a.bb[FW.ty] = place.pos.y; a.bb[FW.tz] = place.pos.z;
+  a.bb[FW.route] = place.route === 'exit' ? 1 : 0;
+  a.bb[FW.out] = place.outside ? 1 : 0;
+  a.bb[FW.phase] = 0;
+  const arrive = FLEE_ARRIVE_BU * sim.world.bu;
+  if (place.route === 'exit' && navFollowField(sim, a, nest.id, EXIT, arrive)) return;
+  a.bb[FW.route] = 0;
+  navTo(sim, a, place.pos, arrive);
+}
+
+/**
+ * Starts a flight from the wet point `origin` (her task is left: claims released, walk stopped): toward `place`, or
+ * (why 'hold': an ant outside about to walk into the water) standing where she is.
+ */
+function startFlee(sim: Sim, a: Ant, nest: Nest, place: DryPlace | null, origin: Vec3, why: 'wet' | 'hold'): void {
   exitBehaviour(sim, a);
   if (a.action && interruptible(a)) cancel(sim, a, null);
   a.bb[FW.on] = 1;
   a.bb[FW.nest] = nest.id;
   a.bb[FW.since] = sim.state.tick;
-  a.bb[FW.tx] = place.x; a.bb[FW.ty] = place.y; a.bb[FW.tz] = place.z;
   a.bb[FW.ox] = origin.x; a.bb[FW.oy] = origin.y; a.bb[FW.oz] = origin.z;
-  a.bb[FW.phase] = why === 'hold' ? 1 : 0;
   const state = why === 'hold' ? WAIT : RUN;
   logDecision(sim, a, 'threat', state);
   a.state = state;
   a.stateTick = sim.state.tick;
-  if (why === 'hold') navStop(sim, a);
-  else navTo(sim, a, place, FLEE_ARRIVE_BU * sim.world.bu);
+  if (why === 'hold' || !place) {
+    a.bb[FW.tx] = a.pos.x; a.bb[FW.ty] = a.pos.y; a.bb[FW.tz] = a.pos.z;
+    a.bb[FW.route] = 0;
+    a.bb[FW.out] = 0;
+    a.bb[FW.phase] = 1;
+    navStop(sim, a);
+  } else walkTo(sim, a, nest, place);
   a.thinkTick = sim.state.tick + HOLD_TICKS;
   fleeing(sim).add(a.id);
 }
@@ -125,15 +154,18 @@ function endFlee(sim: Sim, a: Ant): void {
   a.thinkTick = sim.state.tick;
 }
 
-/** A new flight target for a fleeing ant whose dry place became wet (rising water), or null (none: stay). */
+/** A new flight for a fleeing ant in water again (rising water, a walk that ended short), if a dry place remains. */
 function retarget(sim: Sim, a: Ant, w: WaterView): void {
   const place = dryPlace(sim, w, a.pos, FLEE_DRY_MARGIN_BU * sim.world.bu);
   if (!place) return;
-  a.bb[FW.tx] = place.pos.x; a.bb[FW.ty] = place.pos.y; a.bb[FW.tz] = place.pos.z;
-  a.bb[FW.phase] = 0;
   a.state = RUN;
   a.stateTick = sim.state.tick;
-  navTo(sim, a, place.pos, FLEE_ARRIVE_BU * sim.world.bu);
+  walkTo(sim, a, w.nest, place);
+}
+
+/** Her own feet stand at least FLEE_DRY_MARGIN clear of the water (or off its basin): she may stop here. */
+function feetDry(sim: Sim, w: WaterView, a: Ant): boolean {
+  return depthOver(sim, w, a.pos, feetY(a)) <= -FLEE_DRY_MARGIN_BU * sim.world.bu;
 }
 
 /** The place she fled from is dry again (by the resume margin), or the nest is dry. */
@@ -155,7 +187,10 @@ function checkFleeing(sim: Sim, a: Ant, w: WaterView | null): void {
   }
   if (!w) return;
   const wetHere = depthOver(sim, w, a.pos, feetY(a)) >= FLEE_WATER_DEPTH_BU * bu;
-  if (wetHere && (a.bb[FW.phase] === 1 || !isDryAt(sim, w, target(a, tmp), FLEE_RESUME_MARGIN_BU * bu))) retarget(sim, a, w);
+  if (!wetHere) return;
+  // waiting in water again, walking toward a place the water took, or a walk that ended before she was dry
+  const stalled = a.bb[FW.phase] === 0 && a.nav.status !== 'moving';
+  if (a.bb[FW.phase] === 1 || stalled || !isDryAt(sim, w, target(a, tmp), FLEE_RESUME_MARGIN_BU * bu)) retarget(sim, a, w);
 }
 
 /** Is the walk's destination on a floor under water (an ant about to walk into the flooded part)? */
@@ -191,31 +226,49 @@ function checkNest(sim: Sim, w: WaterView, set: Set<number>): void {
     if (depth >= FLEE_WATER_DEPTH_BU * bu) {
       const place = dryPlace(sim, w, a.pos, FLEE_DRY_MARGIN_BU * bu);
       // no dry place anywhere (a full sump with no way out): she stays, and the water decides (no cheating)
-      if (place) startFlee(sim, a, w.nest, place.pos, { x: a.pos.x, y: feetY(a), z: a.pos.z }, 'wet');
+      if (place) startFlee(sim, a, w.nest, place, { x: a.pos.x, y: feetY(a), z: a.pos.z }, 'wet');
     } else if (walkingIntoWater(sim, a, w)) {
-      startFlee(sim, a, w.nest, a.pos, a.nav.dest, 'hold');
+      startFlee(sim, a, w.nest, null, a.nav.dest, 'hold');
     }
   }
 }
 
-/** The per-tick walk of the fleeing ants (their behaviour held). */
+/** Stops her walk and waits where she stands. */
+function waitHere(sim: Sim, a: Ant, tick: number): void {
+  if (a.nav.status === 'moving') navStop(sim, a);
+  a.bb[FW.phase] = 1;
+  a.state = WAIT;
+  a.stateTick = tick;
+}
+
+/**
+ * The per-tick walk of the fleeing ants (their behaviour held). A flight to a dry place inside ends where her own
+ * feet stand dry; a flight out of the nest goes up the exit field and on to the surface place beyond the rim (the
+ * dry-place search found nothing dry inside on the way, so the throat is no place to crowd). Any other end of the
+ * walk with her still in water leaves her walking for the next check to plan again: never a wait in water.
+ */
 function driveFleeing(sim: Sim, set: Set<number>): void {
-  const tick = sim.state.tick, arrive = FLEE_ARRIVE_BU * sim.world.bu;
+  const tick = sim.state.tick;
   for (const id of [...set].sort((x, y) => x - y)) {
     const a = sim.stores.ants.get(id);
     if (!a || !a.alive) { set.delete(id); continue; }
     if ((a.flags & AntFlag.POSSESSED) !== 0) { endFlee(sim, a); continue; }
     a.thinkTick = tick + HOLD_TICKS;
     if (a.bb[FW.phase] === 1) continue;
-    const t = target(a, tmp);
-    const there = Math.hypot(a.pos.x - t.x, a.pos.y - t.y, a.pos.z - t.z) <= arrive;
-    if (there || a.nav.status === 'arrived' || a.nav.status === 'failed' || a.nav.status === 'idle') {
-      // arrived, or the walk cannot get closer: wait here (the next check moves her on if the water comes)
-      if (a.nav.status === 'moving') navStop(sim, a);
-      a.bb[FW.phase] = 1;
-      a.state = WAIT;
-      a.stateTick = tick;
+    const nest = sim.stores.nests.get(a.bb[FW.nest] ?? -1);
+    const w = nest ? waterView(sim, nest) : null;
+    if (!w) { waitHere(sim, a, tick); continue; }
+    const out = a.bb[FW.out] === 1, dry = feetDry(sim, w, a);
+    if (dry && !out) { waitHere(sim, a, tick); continue; }
+    if (a.nav.status === 'moving') continue;
+    if (a.bb[FW.route] === 1 && a.nav.status === 'arrived') {
+      // at the top of the exit field: on out through the opening
+      const place = outsidePlace(sim, w.nest, a.pos);
+      if (place) { walkTo(sim, a, w.nest, place); continue; }
     }
+    if (dry) { waitHere(sim, a, tick); continue; }
+    // the walk ended with her in water: no wait here; checkFleeing plans a new walk at its next pass
+    if (a.nav.status !== 'idle') navStop(sim, a);
   }
 }
 

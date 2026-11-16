@@ -38,6 +38,8 @@ export interface EdgeHazeLight {
   sunDir: Vector3;
   sunGlow: number;
   keyColor: Color;
+  /** 0 by day .. 1 at night (LightingState.nightW); absent = day. */
+  nightW?: number;
 }
 
 /** Copies the current sky into the edge-haze uniforms (every frame; cheap). */
@@ -61,6 +63,7 @@ float bdEdgeHaze(vec3 w) {
 }
 vec3 bdSky(vec3 d) {
   float t = pow(clamp(d.y, 0.0, 1.0), mix(0.45, 1.0, uBdOvercast));
+  t *= mix(0.5, 1.0, smoothstep(0.0, 0.22, d.y)); // the dome's broad haze band (sky/skyDome.ts)
   vec3 sky = mix(uBdHorizon, uBdZenith, t);
   float mu = max(dot(d, normalize(uBdSunDir)), 0.0);
   sky += uBdSunGlow * (0.25 * pow(mu, 6.0) + 0.6 * pow(mu, 48.0)) * (1.0 - 0.6 * t) * smoothstep(-0.12, 0.02, uBdSunDir.y);
@@ -116,5 +119,5 @@ float bdRimOf(vec3 n, vec3 v) { return 1.0 - abs(dot(normalize(n), normalize(v))
 #include <alphahash_fragment>`)
       .replace('#include <fog_fragment>', EDGE_FOG_FRAGMENT);
   };
-  m.customProgramCacheKey = () => 'boundary-edge-haze-v3';
+  m.customProgramCacheKey = () => 'boundary-edge-haze-v4';
 }

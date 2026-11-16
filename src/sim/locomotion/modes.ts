@@ -112,7 +112,9 @@ export function trailDesired(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime,
 /** Retrace: steer to the current crumb (shortcuts included). False when home (crumb 0) is reached. */
 export function retraceDesired(sim: Sim, ant: Ant, s: NavScratch, r: LocoRuntime, out: Vec3): boolean {
   if (!retraceTarget(sim, ant, s, r, _c)) return false;
-  if (ant.medium === 'surface') set3(out, _c.x - ant.pos.x, 0, _c.z - ant.pos.z);
+  // on a steep face (a stem, a trunk, a wall) the crumbs lie along the way the ant climbed: aim at them in 3D, or a
+  // plan-view aim circles the stem and never comes down (loco-fix3: tenders lost on a shrub at suburban-garden #2)
+  if (ant.medium === 'surface' && Math.abs(ant.up.y) >= r.P.pinnedUpY) set3(out, _c.x - ant.pos.x, 0, _c.z - ant.pos.z);
   else set3(out, _c.x - ant.pos.x, _c.y - ant.pos.y, _c.z - ant.pos.z);
   return true;
 }

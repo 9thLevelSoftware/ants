@@ -37,7 +37,9 @@ export const EDGE_HAZE_MIN_MM = 2500;
 /** Grazing silhouettes of the backdrop shapes take this much more haze (soft, blurred-looking edges). */
 export const BACKDROP_RIM_HAZE = 0.7;
 /** Backdrop shapes always carry at least this much haze (aerial perspective: they are never crisp foreground). */
-export const BACKDROP_MIN_HAZE = 0.15;
+export const BACKDROP_MIN_HAZE = 0.3;
+/** ...and at night (look-pass 2): moonlit panels and canopies against the dark horizon band must not read as pale slabs. */
+export const BACKDROP_MIN_HAZE_NIGHT = 0.8;
 /** Silhouette fuzz: the outermost rim of a backdrop shape is dithered away (hashed alpha), 0..1 strength. */
 export const BACKDROP_FUZZ = 0.85;
 /** Foliage masses: radius noise amplitude and underside darkening of canopies, shrubs and hedges. */
@@ -101,3 +103,7 @@ export const BACKDROP_HEX = {
 export const EDGE_GLYPH_BAND_BU = 1;
 /** Minimum outward component of the ant's intended direction for "pressing outward". */
 export const EDGE_GLYPH_MIN_OUTWARD = 0.3;
+
+/** Backdrop fence panels (look-pass 2): height factor range per panel and the share of panels that are missing. */
+export const FENCE_HEIGHT_VARY: readonly [number, number] = [0.78, 1.08];
+export const FENCE_GAP_P = 0.07;

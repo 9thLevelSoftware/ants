@@ -43,6 +43,7 @@ import { registerScenicQueries, TitleHost, titleQualityCap, titleSceneWanted } f
 import { edgeGlyphActive } from '@/render/world/boundary';
 import { createGameAudio, type AudioSystem } from '@/audio';
 import { clearOverlays, ComfortFeed, installOverlayHost } from './stage2Wiring';
+import { Accessibility } from './accessibility';
 
 export interface GameOptions {
   canvas: HTMLCanvasElement;
@@ -142,6 +143,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Undo of the fx slot's overlay-host registration (stage2Wiring). */
   private uninstallOverlayHost: () => void = () => {};
   private readonly comfort = new ComfortFeed();
+  /** Applies Settings > Accessibility to the camera, the render app and the palette (src/game/accessibility). */
+  readonly a11y = new Accessibility(this);
 
   constructor(readonly opts: GameOptions) {
     this.realtime = !opts.testMode;
@@ -197,6 +200,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       setGrade: (g) => this.app.setGrade(this.viewsLayer.photo.mapGrade(g)),
     });
     this.uninstallOverlayHost = installOverlayHost(this.registry, this.settings);
+    this.a11y.attach();
     this.viewsLayer.attach(this.opts.canvas, this.scene, this.registry);
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
@@ -426,6 +430,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     const instantFocus = settleS > 0 || dt === 0 || this.settings.get().camera.reducedMotion;
     this.app.setFocus(vf.focus, undefined, instantFocus);
     this.viewsLayer.photo.afterCamera(s, instantFocus); // photo mode: aperture range, bokeh, exposure
+    this.a11y.frame(s.view); // tremor scale and depth-of-field strength of the accessibility settings
     const pred = s.possessedId >= 0 && s.view === 'possess' && subject ? subject : null;
     const frame: FrameInfo = {
       dt: s.view === 'photo' ? 0 : dt, time: this.time, alpha, sim: s.sim, view: s.view, underground, camera: this.camera,
@@ -711,6 +716,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.audio.dispose();
     this.viewsLayer.dispose();
     this.uninstallOverlayHost();
+    this.a11y.dispose();
     this.registry?.dispose();
     this.dom?.detach();
     this.app?.dispose();

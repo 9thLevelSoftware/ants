@@ -30,8 +30,10 @@ function crossesMap(a: ArchetypeId, seed: number): void {
   expect(Math.abs((path![path!.length - 1] % n) - (path![0] % n)) * cell).toBeGreaterThan(0.5 * w.size);
   const r = crossPath(w, k, path!);
   expect(Number.isFinite(r.kin.pos.x) && Number.isFinite(r.kin.pos.y) && Number.isFinite(r.kin.pos.z)).toBe(true);
-  expect(r.stuckAt, `${a} #${seed}: stuck after ${r.reached}/${path!.length} waypoints (${r.episodes} episodes, ${r.extras} beyond the game's ladder)`).toBeNull();
+  expect(r.stuckAt, `${a} #${seed}: stuck after ${r.reached}/${r.points.length} points (${r.episodes} episodes, ${r.extras} beyond the game's ladder)`).toBeNull();
   expect(r.endDist, `${a} #${seed} walker end`).toBeLessThan(cell);
+  // loco-fix3: with the game's ladder only (its edge gates included), never the test walker's climb-over pass
+  expect(r.overs, `${a} #${seed}: climb-over passes`).toBe(0);
 }
 
 describe('kernel from generated worlds', () => {
@@ -49,11 +51,11 @@ describe('kernel from generated worlds', () => {
   }
 });
 
-// Open (locomotion, reported): at the AI's speed with the game's ladder, three of these 15 crossings stay stuck where
-// the game would relocate: suburban-garden #4 (a nav cell open only through the 15 mm strip under a raised gravel
-// board at a fence end; the walker aims at the cell centre and meets the solid board), playground-park #3 (the
-// rim of a toy bucket wall) and kitchen-door #3 (the raised tip of a dandelion leaf: a thin sheet the walker cannot
-// step off). These stay red under FOUNDRESS_LONG until locomotion handles thin-sheet edges and narrow openings.
+// loco-fix3: suburban-garden #4 (a nav cell open only through the strip under a raised gravel board at a fence end)
+// now crosses through the game's edge gate, playground-park #3 without the climb-over pass. Open (reported, world
+// side): playground-park #4 (the path runs through a closed toy bucket whose thin walls the walker cannot climb back
+// over: stuck on the inner face at (1610.9, 21.1, 1181.4) BU) and woodland-edge #3 (the last cell of the row lies on
+// a dry-stone garden wall; its waypoint sits across a crevice between two stones, (3911.8, 4.5, 1995.0) BU).
 describe.skipIf(!LONG)('walker crossings over more seeds (FOUNDRESS_LONG=1)', () => {
   for (const a of T1_ARCHETYPES) for (const s of [1, 3, 4]) it(`${a} #${s}`, () => crossesMap(a, s), 600_000);
 });

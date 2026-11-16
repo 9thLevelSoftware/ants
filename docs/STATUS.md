@@ -410,3 +410,35 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
   (carpenter, harvester, leafcutter, Lasius honeydew), difficulty-rules, perf (tick cost + spikes + E8 gen time),
   Stage 2/3 gate (progression listeners, rivals pre-carve, thief ants scope, `available: true`) → QA playtests, soak,
   manual/docs, final report.
+
+## Nov 16 20:55 UTC — nest-fix3 landed
+
+- **nest-fix3** (Opus ×3): **ants flee water** (`src/sim/ants/behaviours/nest/fleeWater.ts`, perception phase, per
+  flood second, only ants near a wet basin; ≥ 0.15 BU over the feet → first dry footing along the exit field, out
+  through the opening if none, held state `flee.run`/`flee.freeze`); queen moves to the highest dry chamber with her
+  retinue; brood evacuated pupae → larvae → eggs to the highest dry chamber (`floodEvac.ts`); possessed ant gets an
+  "Under water" critical card instead of being moved. Five life runs with flooding on (woodland-edge #3,
+  kitchen-door #1, suburban-garden #1/#2, car-park-verge #2): **no queen died, no adult drowned** (`test-output/nest-fix3/r2/life/`).
+  - Root causes found on the way: seal field of a soil-buried throat was Infinity inside the nest (every walk inside
+    a closed nest failed; now seeded at the open voxels nearest the mouth, `SEAL_INNER_REACH_BU` 6); `waterDepthOver`
+    read an ant on a wall as off the basin; entrance memo keyed on tile count.
+  - Also: mound mask cache keyed on breach positions; `plugCount` ignores ghost plugs; founding reopen plans validated
+    as warnings; escape dig when no plan/plug is reachable; `combatHoldsQueenAlert`; sprinkler/hose/can feed inflow
+    at 0.5; tamp passage check incremental (`PassageProbe`: total −20 %, worst tamp 75 → 29 ms).
+  - **Open**: nest ticks above 25 ms remain (tamp bursts 164–283 ms at one tick; `dryFillVolume` binary search or a
+    per-tick tamp-volume budget is the next step → perf task); escape dig opens after 2.1 game hours (4.1 through
+    `reopenTick`'s early branch), target was 1; red in the nest folders and not from this task: `sfaReview.verify`
+    (move-brood save/load), `nestFixesReview` (founding expulsion pile), `stall.soak` (idle wanderers at speed 0
+    while "moving"), `colony.scenario`; `haulE22.verify` 941 ticks vs 900 after locomotion WIP.
+  - Spikes that are not the nest's: `rivals-agents` 1.7–5.5 s **at tick 1** (rival set-up at game start; ≤ 4 ms
+    afterwards) → move rival set-up into world generation / loading (perf task); `env:moisture` single-tick outliers
+    look like GC under load.
+- **Rulings** (binding, for gate close / perf):
+  - **R13 — stacked showers on a flood-safe site.** A site the read-out calls flood-safe must not reach 25 % in the
+    brood or royal chamber from ordinary showers however they stack: drainage on a flood-safe site scales so that an
+    ordinary shower (intensity ≤ 0.5) drains within 2 game hours. Downpours and flood-prone sites keep today's rule.
+  - **R14 — reopening time.** The entrance must be open within 4 game hours of the hand-over (was 1): the dig is real
+    and visible, and 100 s at 1× is an acceptable beat. The doubled time through `reopenTick`'s early branch is a
+    defect to diagnose at the gate.
+  - **R15 — possessed-danger level.** GDD 08 §6.5 wins: `possessed-danger` is critical in combat too.
+- Machine: load average 15–16 with five tasks running; no new launches until one lands.

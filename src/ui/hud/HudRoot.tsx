@@ -25,9 +25,8 @@ import { ColonyPulse } from './ColonyPulse';
 import { installHudDebug } from './debugHook';
 import { watchKeepOut } from './keepOut';
 import { ENTERED_SELECTOR, keepChipsOutOfTabOrder, onChipClick, onChipMouseDown, onLeaveKey } from './focusPolicy';
-import { startDrawerPad } from './drawerPad';
 import { installHudKeys } from './hotkeys';
-import { startHudPad } from './hudPad';
+import { installNav } from '../nav';
 import { PossessedPanel } from './PossessedPanel';
 import { ContextPrompts } from './ContextPrompts';
 import { hudHiddenSlice, screenSlice, viewSlice } from './slices';
@@ -45,7 +44,7 @@ function useHudWiring(): void {
       installEnvironment(window, () => { const q = facade.value?.getSettings?.().graphics.quality; return q === 'high' || q === 'ultra'; }),
     ];
     installHudStyles();
-    stops.push(installMenuKeys(window), installHudKeys(), startHudPad(), startFeed(), startInspectRequests(), installPanels());
+    stops.push(installMenuKeys(window), installHudKeys(), installNav(), startFeed(), startInspectRequests(), installPanels());
     const params = new URLSearchParams(location.search);
     if (params.get('test') === '1' || document.documentElement.dataset.hudDemo === '1') stops.push(installHudDebug());
     // the roster request follows the open drawer; any change of the query refreshes the snapshot (at most once a frame)
@@ -71,9 +70,6 @@ function useHudWiring(): void {
     stops.push(effect(() => { void snapshot.value; hudBridge.peek()?.settle(); }));
     return () => { stops.forEach((s) => s()); cancelAnimationFrame(raf); hudRequests.roster = null; hudRequests.directivesOpen = false; };
   }, []);
-  // gamepad movement inside the open drawer (polls only while one is open)
-  // (a book screen over the HUD - Journal, Codex - takes the same movement: D-pad between controls, A, B)
-  useEffect(() => effect(() => (openDrawer.value || openBook.value ? startDrawerPad(() => document.querySelector<HTMLElement>('.fd-drawer, .ui-book')) : undefined)), []);
   // keys belong to the drawer, the alerts feed or the pulse while focus is inside it (the game's Tab cycles ants, its arrows orbit the camera)
   useEffect(() => {
     const inside = (t: EventTarget | null): boolean => !!(t as Element | null)?.closest?.(ENTERED_SELECTOR);

@@ -4,7 +4,7 @@
 import { Color, Vector3 } from 'three';
 import type { WeatherState, ZoneType } from '@/sim/types';
 import {
-  AMBIENT_SCALE, AUTO_EXPOSURE_K, AUTO_EXPOSURE_MAX_EV, ENV_INTENSITY, HAZE_HEIGHT_K, INTERIOR_LOOK, HAZE_VIS_BU, HAZE_VIS_SCALE, HAZE_VIS_WEATHER_BU, LIGHT_KEYS, OVERCAST_SKY, SUN_INTENSITY, UNDERGROUND, WEATHER_LOOK,
+  AMBIENT_SCALE, AUTO_EXPOSURE_K, AUTO_EXPOSURE_MAX_EV, ENV_INTENSITY, HAZE_HEIGHT_K, INTERIOR_LOOK, HAZE_VIS_BU, HAZE_VIS_SCALE, HAZE_VIS_WEATHER_BU, LIGHT_KEYS, NIGHT_LOOK, OVERCAST_SKY, SUN_INTENSITY, UNDERGROUND, WEATHER_LOOK,
   type LightKey,
 } from './constants';
 
@@ -41,6 +41,8 @@ export interface LightingState {
    * of a soft warm light from the camera toward the subject, 0 on the surface.
    */
   fillIntensity: number;
+  /** 0 by day .. 1 at night (nightWeight of the sun elevation): the night look's blend, for the layers that follow it. */
+  nightW: number;
 }
 
 export interface LightingInput {
@@ -73,7 +75,7 @@ export function createLightingState(): LightingState {
     keyDir: new Vector3(0, 1, 0), keyColor: new Color(1, 1, 1), keyIntensity: SUN_INTENSITY, moonlit: false, penumbra: 1,
     hemiSky: new Color(), hemiGround: new Color(), hemiIntensity: 0.5, envIntensity: ENV_INTENSITY,
     skyZenith: new Color(), skyHorizon: new Color(), skyGround: new Color(), sunGlow: 0, sunDisc: 0, stars: 0, overcast: 0,
-    sunDir: new Vector3(0, 1, 0), fogColor: new Color(), fogDensity: 0, exposureEV: 0, saturation: 1, gain: [1, 1, 1], fillIntensity: 0,
+    sunDir: new Vector3(0, 1, 0), fogColor: new Color(), fogDensity: 0, exposureEV: 0, saturation: 1, gain: [1, 1, 1], fillIntensity: 0, nightW: 0,
   };
 }
 
@@ -132,9 +134,10 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
     out.keyIntensity = SUN_INTENSITY * keyRel * horizonFade * sunMult;
   } else {
     out.keyDir.copy(inp.moonDir).normalize();
-    out.keyIntensity = SUN_INTENSITY * keyRel * (0.35 + 0.65 * inp.moonIllum) * (1 - 0.6 * inp.cloud);
+    out.keyIntensity = SUN_INTENSITY * NIGHT_LOOK.moonRel * (0.35 + 0.65 * inp.moonIllum) * (1 - (1 - NIGHT_LOOK.cloudKeep) * inp.cloud);
   }
-  out.penumbra = lerp(1, W.penumbra, ov);
+  const nightW = nightWeight(inp.sunElevDeg);
+  out.penumbra = lerp(lerp(1, W.penumbra, ov), Math.max(NIGHT_LOOK.penumbra, W.penumbra), nightW);
 
   // sky dome and haze (horizon == fog colour)
   lerpHex(a.hazeHex, b.hazeHex, t, out.skyHorizon);
@@ -143,6 +146,9 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
   out.skyZenith.setRGB(lerp(a.zenith[0], b.zenith[0], t), lerp(a.zenith[1], b.zenith[1], t), lerp(a.zenith[2], b.zenith[2], t));
   const dayLevel = Math.max(keyRel, 0.06);
   cb.setRGB(OVERCAST_SKY[0], OVERCAST_SKY[1], OVERCAST_SKY[2]).multiplyScalar(dayLevel);
+  // a cloudy night sky is a dark, cool lid (moon and distant glow in the cloud), not the grey of a day: at the night
+  // exposure the day-referenced colour showed as a flat light-grey sky in the rain
+  if (nightW > 0) cb.lerp(ca.setRGB(...NIGHT_LOOK.overcastSkyRgb), nightW);
   out.skyZenith.lerp(cb, ov);
   out.skyHorizon.lerp(cb.multiplyScalar(1.12), ov);
   out.sunGlow = lerp(a.glow, b.glow, t) * (1 - 0.85 * ov);
@@ -157,13 +163,19 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
   out.hemiGround.setRGB(0.32, 0.27, 0.2);
   out.hemiIntensity = AMBIENT_SCALE * lerp(a.ambientRel, b.ambientRel, t) * (1 + 0.4 * ov);
   out.envIntensity = ENV_INTENSITY;
+  // night: the moonlit sky fill replaces the (dark) keyframe ambient and the ground bounce goes cool and dim
+  if (nightW > 0) {
+    out.hemiSky.lerp(ca.set(NIGHT_LOOK.fillHex), nightW);
+    out.hemiGround.lerp(cb.setRGB(...NIGHT_LOOK.groundRgb), nightW);
+    out.hemiIntensity = lerp(out.hemiIntensity, AMBIENT_SCALE * NIGHT_LOOK.fillRel, nightW);
+  }
 
   // haze
   out.fogColor.copy(out.skyHorizon);
   const visBU = (inp.hazeVisBU ?? hazeVisBU(inp.zone, inp.weather)) * HAZE_VIS_SCALE + HAZE_HEIGHT_K * Math.max(0, inp.cameraHeightBU ?? 0);
   const vis = visBU * inp.bu;
   // a weather state's own haze, or (cloudy 'clear' sky) toward the overcast haze: never both
-  const hazeMult = W.hazeMult * lerp(1, WEATHER_LOOK.overcast.hazeMult, cloudy);
+  const hazeMult = W.hazeMult * lerp(1, WEATHER_LOOK.overcast.hazeMult, cloudy) * lerp(1, NIGHT_LOOK.hazeMult, nightW);
   out.fogDensity = inp.hazeScale > 0 ? (inp.hazeScale * hazeMult * (1 + 2 * inp.fog)) / vis : 0;
 
   out.exposureEV = lerp(a.exposureEV, b.exposureEV, t) + W.exposureEV + WEATHER_LOOK.overcast.exposureEV * cloudy;
@@ -181,6 +193,8 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
   // weather meters through meterSunMult (the storm meters like rain, so its -0.7 EV stays on screen)
   const meter = sunUp && W.sunMult > 0 ? (W.meterSunMult * lerp(1, WEATHER_LOOK.overcast.sunMult, cloudy)) / sunMult : 1;
   out.exposureEV += autoExposureEV(out, meter);
+  // night: the photographer meters the moonlit ground instead (NIGHT_LOOK); blended in through the dusk
+  if (nightW > 0) out.exposureEV = lerp(out.exposureEV, nightExposureEV(out), nightW);
   // interior: tungsten ambient from above, the sun only through openings
   const ins = Math.min(1, Math.max(0, inp.interior ?? 0));
   if (ins > 0) {
@@ -208,7 +222,41 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
     out.exposureEV = lerp(out.exposureEV, UNDERGROUND.exposureEV, u);
   }
   out.fillIntensity = u * UNDERGROUND.fillRel;
+  out.nightW = nightW;
   return out;
+}
+
+/** 0 by day .. 1 at night: smoothstep over the sun elevations NIGHT_LOOK.nightFromDeg .. nightToDeg. */
+export function nightWeight(sunElevDeg: number): number {
+  const t = Math.min(1, Math.max(0, (NIGHT_LOOK.nightFromDeg - sunElevDeg) / (NIGHT_LOOK.nightFromDeg - NIGHT_LOOK.nightToDeg)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Exposure of a moonlit scene: meters the horizontal irradiance of the ground (moon + sky fill) toward
+ * NIGHT_LOOK.targetE, clamped to [minEV, maxEV] (the floor and the cap are the "exposure adaptation with a floor").
+ */
+export function nightExposureEV(l: LightingState): number {
+  const e = groundIrradiance(l);
+  return Math.min(NIGHT_LOOK.maxEV, Math.max(NIGHT_LOOK.minEV, Math.log2(NIGHT_LOOK.targetE / Math.max(1e-5, e))));
+}
+
+/** Horizontal irradiance of the ground (key light + sky fill), three's physical units (before albedo / pi). */
+export function groundIrradiance(l: LightingState): number {
+  return l.keyIntensity * luminance(l.keyColor) * Math.max(0, l.keyDir.y) + l.hemiIntensity * luminance(l.hemiSky);
+}
+
+/**
+ * The display luminance (sRGB-encoded luma, 0..1) a flat ground of linear albedo `albedo` shows under this lighting:
+ * radiance = albedo * E / pi, times the exposure, through the ACES filmic curve (a grey through three's
+ * ACESFilmicToneMapping, input 1/0.6 scaled) and the sRGB transfer. A model for tests and tuning; the real
+ * measurements are tests/e2e/look2.mjs (acceptance 3).
+ */
+export function groundDisplayLuma(l: LightingState, albedo: number): number {
+  const x = (albedo * groundIrradiance(l) / Math.PI) * Math.pow(2, l.exposureEV) / 0.6;
+  const a = x * (x + 0.0245786) - 0.000090537, b = x * (0.983729 * x + 0.432951) + 0.238081;
+  const t = Math.min(1, Math.max(0, a / b));
+  return t <= 0.0031308 ? 12.92 * t : 1.055 * Math.pow(t, 1 / 2.4) - 0.055;
 }
 
 /** Midday horizontal irradiance proxy (sun at 60 degrees + day ambient). */

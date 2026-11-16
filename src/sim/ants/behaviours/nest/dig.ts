@@ -19,7 +19,7 @@ import {
 } from '@/sim/balance/nestwork';
 import { SPOIL_PILE_MAX } from '@/sim/balance/nest';
 import { secondsToTicks } from '@/sim/time';
-import { carryTo } from './carry';
+import { carryTo, hasWayOut } from './carry';
 import { approach, endCycle, primitiveDone, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
 import { act, entity, travel } from './travel';
@@ -199,7 +199,9 @@ function stowStep(sim: Sim, ant: Ant): void {
     // an oversized pellet (bulk above the digger's own carry capacity: no hauler could pick it up again) goes out
     const it = sim.stores.items.get(ant.carry.id);
     const liftable = !!it && it.bulk <= ant.carryCap;
-    mode = liftable && ref && spoilPileCount(sim, ref.plan) < SPOIL_PILE_MAX && taskHeadcount(sim, ant.colony, 'haul') > 0 ? 1 : 2;
+    // in a closed nest the pile is the only place (a trip out would end at the closure, in the diggers' way)
+    const pile = !!ref && (!hasWayOut(sim, ant) || (spoilPileCount(sim, ref.plan) < SPOIL_PILE_MAX && taskHeadcount(sim, ant.colony, 'haul') > 0));
+    mode = liftable && pile ? 1 : 2;
     ant.bb[B.n] = mode;
   }
   if (mode === 1) {

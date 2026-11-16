@@ -71,3 +71,26 @@ export const CALLOW_DARKEN_TICKS = 1500;
 
 /** Individual colour variation of the cuticle (+/- fraction). */
 export const TINT_VARIATION = 0.12;
+
+/**
+ * Form light on ants where the scene lights leave them black (look-pass 2): underground (the nest's sense light
+ * reaches the walls, but a cuticle albedo of ~0.012 turns every ant into a silhouette) and at night. A soft key
+ * from the viewer's upper left, a sky/ceiling term and a grazing rim, added as emission and scaled by 2^-EV so it
+ * keeps the same brightness whatever the exposure (the highlight rim does the same). All values are what the
+ * ant's surface sends to the eye in linear light BEFORE tone mapping, at the exposure the scene is metered for.
+ *  - `body`: peak of the key + sky terms on the lifted cuticle (underground / at night);
+ *  - `rim`: grazing-angle edge light added to every ant fragment;
+ *  - `fromEV`..`toEV`: exposure range over which a dim surface scene (night) blends the fill in; underground is
+ *    always full strength (the blend follows the underground factor instead).
+ * Warm underground (the nest's lantern colour), cool under the moon.
+ */
+export const ANT_FILL = {
+  body: { underground: 1.4, night: 0.8 },
+  rim: { underground: 0.025, night: 0.02 },
+  fromEV: 1.6,
+  toEV: 3.0,
+  warm: [1.0, 0.62, 0.34] as [number, number, number],
+  cool: [0.66, 0.78, 1.0] as [number, number, number],
+  /** Time constant (s) of the underground blend. */
+  easeS: 0.35,
+};

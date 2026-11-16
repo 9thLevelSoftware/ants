@@ -143,7 +143,7 @@ export function queenFloodAlert(sim: Sim): void {
   }
 }
 
-/** ant.bb flag: the flood's `possessed-danger` card is up for this ant (persisted). */
+/** ant.bb flag: the flood's `possessed-danger` card was raised for this ant and not yet cleared (persisted). */
 const POSSESSED_ALERT_KEY = 'wx.pAlert';
 const WATER_CAUSE = 'under-water';
 
@@ -151,20 +151,24 @@ const WATER_CAUSE = 'under-water';
  * The possessed ant is never moved out of the water by the flee rule (task nest-fix3): while she is submerged the
  * player gets `possessed-danger` ("Under water", find dry ground) from her first second under water, 50 s before her
  * health starts to fall; cleared once she is dry, released or dead. The queen has her own card (queenFloodAlert).
+ * The card is shared (kind + subject) with combat's "Pinned": decided on the alert list itself, as for the queen, so
+ * a card combat raised is never overwritten and a card combat cleared is raised again while she is still under water.
+ * Level critical (GDD 08 §6.5 `possessed-danger`, "drowning"): no re-raise cooldown after combat's clear.
  */
 export function possessedFloodAlert(sim: Sim): void {
   const id = sim.state.player.possessedAntId;
   const p = id >= 0 ? sim.stores.ants.get(id) : undefined;
   if (p && p.alive && p.caste !== 'queen' && (p.bb[FLOOD_ANT_SUB_KEY] ?? 0) > 0) {
-    if (p.bb[POSSESSED_ALERT_KEY] === 1) return;
     p.bb[POSSESSED_ALERT_KEY] = 1;
+    if (possessedAlert(sim, p.id)) return; // ours, or combat's (pinned): left as it is
     raiseAlert(sim, {
-      kind: 'possessed-danger', level: 'warning', subjectId: p.id, title: 'Under water', cause: WATER_CAUSE,
+      kind: 'possessed-danger', level: 'critical', subjectId: p.id, title: 'Under water', cause: WATER_CAUSE,
       focus: { kind: 'ant', id: p.id, pos: { ...p.pos } }, diagnosticId: p.nestId >= 0 ? `diag-nest-flood:${p.nestId}` : null,
       tokens: { cause: 'climb to dry ground' },
     });
     return;
   }
+  if (p && p.bb[POSSESSED_ALERT_KEY] === 1) delete p.bb[POSSESSED_ALERT_KEY];
   // clear any water card whose ant is dry, released or dead
   const alerts = sim.state.progression.alerts;
   for (let i = alerts.length - 1; i >= 0; i--) {
@@ -175,4 +179,8 @@ export function possessedFloodAlert(sim: Sim): void {
     if (a) delete a.bb[POSSESSED_ALERT_KEY];
     clearAlert(sim, 'possessed-danger', al.subjectId);
   }
+}
+
+function possessedAlert(sim: Sim, antId: number) {
+  return sim.state.progression.alerts.find((a) => a.kind === 'possessed-danger' && a.subjectId === antId);
 }

@@ -1,7 +1,8 @@
 // KeyHint / KeyCap (GDD 08 2.7): shows the CURRENT binding of an action, never a hard-coded key. The binding set
 // lives in a signal the shell updates when bindings change; `device` chooses the keyboard / mouse or gamepad glyph.
 import { signal } from '@preact/signals';
-import { bindingLabel, defaultBindings, type Binding, type BindingSet } from '@/input';
+import { defaultBindings, hintText, type BindingSet } from '@/input';
+import { inputDevice, padStyle } from '../nav/device';
 import { cx } from './cx';
 
 /** The bindings KeyHints read. The Settings screen and the game keep it current via setCurrentBindings. */
@@ -13,14 +14,15 @@ export function setCurrentBindings(set: BindingSet): void {
 
 export type GlyphDevice = 'kbm' | 'pad';
 
-/** Label of the first binding of `actionId` for the device, or null when unbound. */
-export function hintLabel(set: BindingSet, actionId: string, device: GlyphDevice = 'kbm'): string | null {
-  if (device === 'pad') {
-    const b = set.pad[actionId];
-    return b ? bindingLabel(b) : null;
-  }
-  const b = (set.kbm[actionId] ?? []).find((x): x is Binding => !!x);
-  return b ? bindingLabel(b) : null;
+/**
+ * Text of the key cap of `actionId` (a button action, or an axis such as `move`, `orbit`, `zoom`) for the device: the
+ * keyboard / mouse binding, or the pad glyph in the style of the last pad used. Null when unbound for that device.
+ * With no device given it follows the last-used device (GDD 01 5.8): read inside a component it re-renders on change.
+ */
+export function hintLabel(set: BindingSet, actionId: string, device: GlyphDevice = inputDevice.value): string | null {
+  const text = hintText(set, actionId, device, padStyle.value);
+  // an action with no pad binding (quick save lives in the menu) still shows its key rather than "unbound"
+  return text ?? (device === 'pad' ? hintText(set, actionId, 'kbm') : null);
 }
 
 export interface KeyCapProps {
@@ -38,17 +40,21 @@ export interface KeyHintProps {
   action: string;
   /** Text after the key, e.g. "Interact". */
   children?: string;
+  /** Default: the device the player used last. */
   device?: GlyphDevice;
   class?: string;
   /** Use these bindings instead of the shared signal (tests, demo). */
   bindings?: BindingSet;
 }
 
-export function KeyHint({ action, children, device = 'kbm', class: cls, bindings }: KeyHintProps) {
-  const label = hintLabel(bindings ?? currentBindings.value, action, device);
+export function KeyHint({ action, children, device, class: cls, bindings }: KeyHintProps) {
+  const dev = device ?? inputDevice.value;
+  const set = bindings ?? currentBindings.value;
+  const label = hintLabel(set, action, dev);
+  const isPadLabel = dev === 'pad' && hintText(set, action, 'pad') !== null;
   return (
     <span class={cx('ui-keyhint', cls)}>
-      {label ? <KeyCap label={label} kind={device === 'pad' ? 'pad' : label.startsWith('LMB') || label.startsWith('RMB') || label.startsWith('MMB') ? 'mouse' : 'key'} /> : <KeyCap label="unbound" class="is-unbound" />}
+      {label ? <KeyCap label={label} kind={isPadLabel ? 'pad' : label.startsWith('LMB') || label.startsWith('RMB') || label.startsWith('MMB') ? 'mouse' : 'key'} /> : <KeyCap label="unbound" class="is-unbound" />}
       {children && <span class="ui-keyhint-text">{children}</span>}
     </span>
   );

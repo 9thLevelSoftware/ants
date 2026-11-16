@@ -10,6 +10,7 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import { devRate, stageDu } from '@/sim/colony';
 import { forceClimate, makeNestColony } from './testkit';
 import { EGG_COLLECT_BU } from '@/sim/balance/nestwork';
+import { floodCheats } from '@/sim/nest/flood/cheats';
 
 /** The brood model's reference temperature (r = 1 DU per gd, GDD 02 §2.2). */
 const CHAMBER_C = 21;
@@ -28,6 +29,10 @@ describe('beh-nest colony scenario (acceptance 2)', () => {
     });
     const { sim, queen } = k;
     forceClimate(k, () => [CHAMBER_C, 0.85]);
+    // a nursing scenario: no rain into the nest (nest-fix3 review: a shower floods 1-3 % of the royal chamber here,
+    // and every egg laid there is then evacuated to the highest dry floor, the food chamber, GDD 03 §9.4; floods
+    // have their own tests in fleeWater*.test.ts)
+    floodCheats(sim.state).rainI = 0;
     const def = sim.species;
     const eclosedAt: number[] = [];
     const laid: number[] = [];

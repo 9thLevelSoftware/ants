@@ -39,12 +39,12 @@ export const ENV_INTENSITY = 0.55;
 
 export const LIGHT_KEYS: readonly LightKey[] = [
   { // deep night (moon)
-    elevDeg: -18, sunHex: '#C9D6FF', sunRel: 0.06, ambientHex: '#28324A', ambientRel: 0.15, hazeHex: '#1E2433', hazeLevel: 0.6,
-    zenith: [0.004, 0.007, 0.018], glow: 0.02, disc: 0, stars: 0.6, exposureEV: 1.2, saturation: 0.7, gain: [0.92, 0.98, 1.1],
+    elevDeg: -18, sunHex: '#C9D6FF', sunRel: 0.06, ambientHex: '#28324A', ambientRel: 0.15, hazeHex: '#1E2433', hazeLevel: 0.3,
+    zenith: [0.002, 0.0035, 0.009], glow: 0.02, disc: 0, stars: 0.6, exposureEV: 1.2, saturation: 0.7, gain: [0.92, 0.98, 1.1],
   },
   { // night begins
-    elevDeg: -6, sunHex: '#C9D6FF', sunRel: 0.06, ambientHex: '#28324A', ambientRel: 0.15, hazeHex: '#1E2433', hazeLevel: 0.7,
-    zenith: [0.006, 0.01, 0.024], glow: 0.05, disc: 0, stars: 0.35, exposureEV: 1.2, saturation: 0.75, gain: [0.94, 0.98, 1.08],
+    elevDeg: -6, sunHex: '#C9D6FF', sunRel: 0.06, ambientHex: '#28324A', ambientRel: 0.15, hazeHex: '#1E2433', hazeLevel: 0.4,
+    zenith: [0.003, 0.005, 0.012], glow: 0.05, disc: 0, stars: 0.35, exposureEV: 1.2, saturation: 0.75, gain: [0.94, 0.98, 1.08],
   },
   { // dawn / dusk
     elevDeg: 0, sunHex: '#FFC08A', sunRel: 0.45, ambientHex: '#7E8AA6', ambientRel: 0.25, hazeHex: '#E3B98F', hazeLevel: 0.62,
@@ -158,6 +158,54 @@ export const UNDERGROUND = {
  */
 export const AUTO_EXPOSURE_K = 0.6;
 export const AUTO_EXPOSURE_MAX_EV = 2.0;
+
+/**
+ * Moonlit night (look-pass 2). GDD 08 11.2 asks for "night must stay readable"; the first implementation (GDD
+ * ambient #28324A at 0.15, the moon at 0.06 of the sun cut by cloud, exposure capped at +3 EV) left the ground at
+ * a few percent of display luminance and the nest mound black. A night camera does three things, and so does this:
+ *  - a cool moon key with SOFT shadows (`penumbra`), not much dimmed by cloud (`cloudKeep`: cloud scatters the
+ *    moon's light, it does not remove it the way it removes a sun disc);
+ *  - a sky fill of its own (`fillHex` at `fillRel`; the GDD ambient colour is already dark before its 0.15 level);
+ *  - exposure that meters the ground: EV = log2(targetE / E), clamped to [minEV, maxEV] (the FLOOR keeps a bright
+ *    moon from making the night grey; the cap keeps a cloudy new moon from turning the noise up forever). The
+ *    metering replaces the GDD exposure column and the weather EV at night (rain and cloud already cut E).
+ * `nightFromDeg`..`nightToDeg`: the sun elevations over which the dusk blends into this night look (smoothstep).
+ * Target (acceptance): median luminance of the ground within 20 body lengths 12..25 % of the display range.
+ * Tuned by tests/e2e/look2.mjs measurements; pinned by lighting.test.ts (night numbers) and lookPass2.test.ts.
+ */
+export interface NightLook {
+  moonRel: number;
+  cloudKeep: number;
+  fillHex: string;
+  fillRel: number;
+  /** Ground bounce under the night sky (linear), colour of the light that comes back up from the ground. */
+  groundRgb: [number, number, number];
+  /** Linear colour of the overcast sky at night (the dome flattens toward it under cloud). */
+  overcastSkyRgb: [number, number, number];
+  penumbra: number;
+  targetE: number;
+  minEV: number;
+  maxEV: number;
+  nightFromDeg: number;
+  nightToDeg: number;
+  /** Extra haze at night (fraction of the day density): the horizon hides what is beyond the map in a soft band. */
+  hazeMult: number;
+}
+export const NIGHT_LOOK: NightLook = {
+  moonRel: 0.06,
+  cloudKeep: 0.6,
+  fillHex: '#6E86C0',
+  fillRel: 0.3,
+  groundRgb: [0.05, 0.06, 0.09],
+  overcastSkyRgb: [0.0045, 0.0055, 0.011],
+  penumbra: 2.5,
+  targetE: 2.2,
+  minEV: 2.6,
+  maxEV: 5.5,
+  nightFromDeg: 2,
+  nightToDeg: -6,
+  hazeMult: 1,
+};
 
 /** GDD 08 11.3 interior: warm tungsten from above, daylight only through windows and doors. */
 export const INTERIOR_LOOK = {

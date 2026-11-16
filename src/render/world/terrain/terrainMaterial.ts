@@ -162,6 +162,10 @@ if (wB > 0.02) {
 }
 // macro variation so large areas never look printed
 wrAlb *= mix(0.86, 1.12, wrFbm(vWrW.xz / 340.0));
+// mid-distance soil (look-pass 2): past a few body lengths the scanned tile is already averaged (it must not sparkle),
+// and what is left reads as streaks along the view; clod-scale variation keeps it ground. Soft materials only.
+float wrFarK = smoothstep(80.0, 320.0, wrDist) * wrJit;
+wrAlb *= mix(1.0, 0.78 + 0.44 * (wrFbm(vWrW.xz / 26.0) * 0.6 + wrFbm(vWrW.xz / 7.0) * 0.4), wrFarK * 0.9);
 float wrWet = uWet;
 diffuseColor.rgb *= wrWetAlbedo(wrAlb, wrWet, wrWD) * wrContactAO(vWrW);
 `;
@@ -173,7 +177,7 @@ export function createTerrainMaterial(shared: TerrainShared): { material: MeshSt
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
   m.name = 'world:terrain';
-  addPatch(m, 'terrain-v4', (s) => {
+  addPatch(m, 'terrain-v5', (s) => {
     const t = shared.textures.uniforms;
     Object.assign(s.uniforms, {
       tWrHeight: t.tWrHeight, uWrHf: t.uWrHf, tWrMat: t.tWrMat, tWrHoles: t.tWrHoles, uWrMatGrid: t.uWrMatGrid, uWrHoleGrid: t.uWrHoleGrid,

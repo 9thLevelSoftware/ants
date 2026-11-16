@@ -23,6 +23,9 @@ void main() {
   vec3 d = normalize(vDir);
   float h = d.y;
   float t = pow(clamp(h, 0.0, 1.0), mix(0.45, 1.0, overcast));
+  // a broad haze band at the horizon (look-pass 2): the gradient starts gently, so far shapes dissolved into the
+  // horizon colour have no steep sky edge to be outlined against (twin of bdSky in boundary/edgeHaze.ts)
+  t *= mix(0.5, 1.0, smoothstep(0.0, 0.22, h));
   vec3 sky = mix(horizon, zenith, t);
   float mu = dot(d, normalize(sunDir));
   // wide and tight forward-scattering lobes, stronger near the horizon (more air)

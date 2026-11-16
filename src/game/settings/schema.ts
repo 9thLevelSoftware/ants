@@ -28,7 +28,7 @@ const SPECS: Record<Exclude<SettingsSection, 'bindings'>, Record<string, Spec>> 
   controls: {
     mouseLook: oneOf('drag', 'locked'), leftButton: oneOf('bite', 'orbit'), orbitSensDrag: num(0.02, 2), orbitSensLocked: num(0.02, 2),
     mouseSensitivity: num(0.2, 3), invertX: bool, invertY: bool, stickYawRate: num(30, 720), stickPitchRate: num(30, 720),
-    stickResponse: num(1, 3), deadZone: num(0.05, 0.35), holdMs: num(300, 1500),
+    stickResponse: num(1, 3), deadZone: num(0.05, 0.35), holdMs: num(300, 1500), orbitToggle: bool,
   },
   graphics: { quality: { kind: 'quality' }, overrides: { kind: 'overrides' } },
   audio: {

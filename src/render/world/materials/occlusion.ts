@@ -22,6 +22,8 @@ export const WORLD_OCCLUSION_TERRAIN_TMAX = 0.85;
 
 /** GLSL: uniforms + `wrOccDither(worldPos, tMax)` (discards). Fragment only. */
 export const GLSL_OCCLUSION = /* glsl */ `
+#define WR_OCC_RIM 0.45
+#define WR_OCC_END 0.8
 uniform vec3 uWrOccA; uniform vec3 uWrOccB; uniform vec4 uWrOcc;
 void wrOccDither(vec3 w, float tMax) {
   if (uWrOcc.x <= 0.0) return;
@@ -29,10 +31,17 @@ void wrOccDither(vec3 w, float tMax) {
   float t = dot(w - uWrOccA, ab) / max(dot(ab, ab), 1e-6);
   if (t <= 0.0 || t >= tMax) return;
   if (w.y < uWrOccB.y - uWrOcc.w * uWrOcc.x) return;
-  if (length(w - (uWrOccA + ab * t)) >= uWrOcc.x * mix(uWrOcc.z, 1.0, t)) return;
+  float coneR = uWrOcc.x * mix(uWrOcc.z, 1.0, t);
+  float off = length(w - (uWrOccA + ab * t));
+  if (off >= coneR) return;
+  // soft rim (look-pass 2): the kept share eases from 1 at the cone's edge to uWrOcc.y over its outer half, and back
+  // to 1 over the last stretch before tMax, so a stem or a blade crossing the cone fades out instead of ending in a
+  // ragged cut line against the ground
+  float keep = mix(uWrOcc.y, 1.0, smoothstep(coneR * WR_OCC_RIM, coneR, off));
+  keep = mix(keep, 1.0, smoothstep(tMax * WR_OCC_END, tMax, t));
   vec2 c = mod(floor(gl_FragCoord.xy), 4.0);
   float bayer = mod(c.x * 4.0 + c.y * 9.0 + c.x * c.y * 3.0, 16.0) / 16.0; // ordered 4x4 pattern (as the nest)
-  if (bayer >= uWrOcc.y) discard;
+  if (bayer >= keep) discard;
 }
 `;
 

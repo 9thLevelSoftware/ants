@@ -60,6 +60,14 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     col *= 1.0 + 0.18 * mid;
     col *= mix(0.75, 1.0, smoothstep(0.35, 0.75, a));
     bump = vec2(wrNoise(lp * 1.3) - 0.5, wrNoise(lp.yx * 1.3 + 5.0) - 0.5) * 0.7 + vec2(0.0, sign(uv.y) * mid * 0.6);
+    // thickness and relief (look-pass 2): the cut edge is a thin dark margin that turns up (the leaf is a body, not
+    // paper), and secondary veins run from the midrib toward the margin as shallow grooves
+    float edgeW = 1.0 - smoothstep(0.52, 0.86, a);
+    col *= 1.0 - 0.3 * edgeW;
+    float hv = fract((uv.x * 0.5 + 0.5) * 8.0 - abs(uv.y) * 2.6);
+    float vein = (1.0 - smoothstep(0.0, 0.09, min(hv, 1.0 - hv))) * smoothstep(0.1, 0.3, abs(uv.y)) * (1.0 - smoothstep(0.7, 0.95, abs(uv.y)));
+    col *= 1.0 - 0.1 * vein;
+    bump += vec2(0.0, sign(uv.y) * (vein * 0.5 - edgeW * 0.4));
     rough = 0.62; tr = fresh ? 1.0 : 0.45;
   } else if (k < ${K.needle + 0.5}) {
     a = (1.0 - smoothstep(0.55, 1.0, abs(uv.y))) * (1.0 - smoothstep(0.9, 1.0, abs(uv.x)));

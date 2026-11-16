@@ -1,6 +1,7 @@
 // The opening's in-play panels (GDD 06 §5.5-§5.10, GDD 08 §9.2-§9.3): the queen's meters (reserves, shelter clock,
 // health), the site read-out card, the readiness bar, the script's glyph prompts and the clutch forecast.
 import { Button, KeyHint, ProgressBar } from '../../components';
+import { inputDevice } from '../../nav/device';
 import type { FoundingUi } from './store';
 
 const pct = (v: number): string => `${Math.round(v * 100)} %`;
@@ -56,10 +57,14 @@ export function Prompts({ ui, onTend }: { ui: FoundingUi; onTend: () => void }) 
   return (
     <div class="fo-chip fo-prompts" data-testid="founding-prompts">
       {ui.prompts.map((p) => (p.action === 'tend'
-        ? <Button key="tend" variant="primary" onClick={onTend} disabled={!ui.canBeginLapse} data-testid="founding-tend">{p.text}</Button>
-        : p.action === 'move'
-          ? <span key="move" class="ui-keyhint"><kbd class="ui-keycap is-key">W A S D</kbd><span class="ui-keyhint-text">{p.text}</span></span>
-          : <KeyHint key={p.action} action={p.action}>{p.text}</KeyHint>))}
+        ? (
+          <span key="tend" class="fo-tend">
+            <Button variant="primary" onClick={onTend} disabled={!ui.canBeginLapse} data-testid="founding-tend">{p.text}</Button>
+            {/* a pad has no pointer: holding the interact button begins the lapse (src/ui/nav controller) */}
+            {inputDevice.value === 'pad' && <KeyHint action="interact">hold to tend</KeyHint>}
+          </span>
+        )
+        : <KeyHint key={p.action} action={p.action}>{p.text}</KeyHint>))}
     </div>
   );
 }

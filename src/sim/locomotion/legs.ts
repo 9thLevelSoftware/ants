@@ -43,7 +43,9 @@ function toward3(out: Vec3, w: Walker, t: Vec3): void {
 
 export function followSeek(w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3): LegResult {
   const d = dist3(w.pos, s.seekTarget);
-  if (w.medium === 'surface' && s.legNest < 0) towardXZ(out, w, s.seekTarget);
+  // a descent from a stem (trip.ts planDescent) aims in 3D: the target lies below, along the stem
+  if (w.medium === 'surface' && s.legNest < 0 && s.seekDown === 1) toward3(out, w, s.seekTarget);
+  else if (w.medium === 'surface' && s.legNest < 0) towardXZ(out, w, s.seekTarget);
   else {
     // in carved space the target lies on a surface and the walker's centre footOffset above its own: aim at the
     // target lifted by footOffset, so a target on the same floor gives a tangent direction, not one into the floor
@@ -108,16 +110,40 @@ export function followField(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, 
   const near = Math.max(arrive, 1.5 * sim.carve.voxel);
   if (s.legExit) {
     if (d <= near + 0.5 * r.P.bu) {
-      const hit = s.entranceId >= 0 ? entranceById(sim, s.entranceId) : null;
-      if (hit) {
-        const e = hit.entrance;
-        set3(out, e.pos.x + e.dir.x * r.P.bu - w.pos.x, e.pos.y + e.dir.y * r.P.bu - w.pos.y, e.pos.z + e.dir.z * r.P.bu - w.pos.z);
-      } else set3(out, 0, 1, 0);
+      if (!exitPoint(sim, w, s, r, _t)) set3(out, 0, 1, 0);
+      else if (w.pos.y < _t.y + w.footOffset - r.P.exitClimb) {
+        // still below the rim (on the throat wall, under an overhanging lip): up first, leaning to the exit side;
+        // aimed straight at the exit point it pressed into the lip and circled under it
+        set3(out, 0.3 * (_t.x - w.pos.x), Math.hypot(_t.x - w.pos.x, _t.z - w.pos.z) + r.P.bu, 0.3 * (_t.z - w.pos.z));
+      } else toward3(out, w, _t);
       return result('go', d);
     }
   } else if (d <= near || (s.goalNest >= 0 && isPointField(s.legField) && d <= r.P.pointSeek)) return result('done', d);
   toward3(out, w, _t);
   return result('go', d);
+}
+
+/**
+ * Where an exit leg at the entrance mouth heads (into out; false without an entrance): on the ground just beyond
+ * the rim, on the side of the trip's goal. The point one BU out along the entrance axis (the old aim) lies in the
+ * air over a vertical shaft: a walker cannot reach it and circled the lip in and out of the hole (loco-fix3,
+ * relocations at the mouth on suburban-garden #2). Also the relocation target of such a walker (update.ts).
+ */
+export function exitPoint(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3): boolean {
+  const hit = s.entranceId >= 0 ? entranceById(sim, s.entranceId) : null;
+  if (!hit) return false;
+  const e = hit.entrance, bu = r.P.bu;
+  // horizontal direction from the hole to the goal, without its part along the entrance axis
+  let hx = s.goal.x - e.pos.x, hz = s.goal.z - e.pos.z;
+  const along = hx * e.dir.x + hz * e.dir.z;
+  hx -= along * e.dir.x; hz -= along * e.dir.z;
+  let l = Math.hypot(hx, hz);
+  if (l < 1e-6) { hx = w.pos.x - e.pos.x; hz = w.pos.z - e.pos.z; l = Math.hypot(hx, hz); }
+  if (l < 1e-6) { hx = 1; hz = 0; l = 1; }
+  const k = (e.radius + r.P.exitRim) / l;
+  const x = e.pos.x + e.dir.x * 0.5 * bu + hx * k, z = e.pos.z + e.dir.z * 0.5 * bu + hz * k;
+  set3(out, x, sim.field.height(x, z), z);
+  return true;
 }
 
 /**

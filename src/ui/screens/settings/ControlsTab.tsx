@@ -2,7 +2,7 @@
 // back to the game through GameFacade.getBindings / setBindings; without them the table works on a local copy that
 // is kept in localStorage `foundress.bindings.v1` (the key the input module names) so rebinding still persists.
 import { useState } from 'preact/hooks';
-import { BINDINGS_STORAGE_KEY, defaultBindings, parseBindings, resetAll, serializeBindings, type BindingSet } from '@/input';
+import { actionDef, BINDINGS_STORAGE_KEY, defaultBindings, HOLD_MS_DEFAULT, HOLD_MS_RANGE, parseBindings, resetAll, resetContext, serializeBindings, setHoldToggle, type BindingSet, type InputContext } from '@/input';
 import { Button, ConfirmDialog, Field, SegmentedControl, Slider, Toggle, setCurrentBindings } from '../../components';
 import { Icon } from '../../icons';
 import { facade } from '../../store';
@@ -39,10 +39,17 @@ export function writeBindings(set: BindingSet): void {
   setCurrentBindings(set);
 }
 
+/** Actions whose hold can be switched to a toggle (GDD 08 7.4 "Hold or toggle", 12), with the words the player knows them by. */
+export const HOLD_TOGGLE_ROWS: { id: string; label: string }[] = [
+  { id: 'dig', label: 'Dig' }, { id: 'inspect', label: 'Antennate (sniff)' }, { id: 'bite', label: 'Bite' }, { id: 'hurry', label: 'Hurry' },
+  { id: 'foot', label: 'Grip' }, { id: 'obs-fast', label: 'Fly fast (observer)' }, { id: 'tl-skip', label: 'Skip the time-lapse' },
+];
+
 export function ControlsTab() {
   const [settings, setSettings] = useGameSettings();
   const [bindings, setBindings] = useState<BindingSet>(() => readBindings());
-  const [open, setOpen] = useState<Record<string, boolean>>({ G: true });
+  // every group starts closed: a pad player reaches any group in a few D-pad steps instead of walking through the first one's rows
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [confirmReset, setConfirmReset] = useState(false);
   if (!settings) return <p class="ui-notice">Settings are not available yet.</p>;
   const c = settings.controls;
@@ -63,12 +70,30 @@ export function ControlsTab() {
         <Field label="Gamepad dead zone">
           <Slider value={c.deadZone} min={0.05} max={0.35} step={0.01} format={(v) => v.toFixed(2)} onChange={(v) => setSettings({ controls: { deadZone: v } })} />
         </Field>
+        <Field label="Hold duration" help="How long a hold-activated button must be held. 600 ms is the designed feel; longer is easier on the hands.">
+          <Slider value={c.holdMs ?? HOLD_MS_DEFAULT} min={HOLD_MS_RANGE.min} max={HOLD_MS_RANGE.max} step={50} format={(v) => `${v} ms`} onChange={(v) => setSettings({ controls: { holdMs: v } })} />
+        </Field>
+        <Field label="Orbit by drag" help="Hold keeps the camera turning while the button is down. Toggle: press once to start turning, press again to stop. (With Toggle, a quick right click no longer reads as a click.)">
+          <SegmentedControl value={c.orbitToggle ? 'toggle' : 'hold'} onChange={(v) => setSettings({ controls: { orbitToggle: v === 'toggle' } })} options={[{ value: 'hold', label: 'Hold' }, { value: 'toggle', label: 'Toggle' }]} />
+        </Field>
+      </div>
+      <h2 class="ui-section-title">Hold or toggle</h2>
+      <p class="ui-field-help">Toggle makes one press switch the action on and the next press switch it off, so nothing has to be held down.</p>
+      <div class="ui-fieldset" data-testid="hold-toggle-rows">
+        {HOLD_TOGGLE_ROWS.filter((r) => actionDef(r.id)?.holdToggle).map((r) => (
+          <Field key={r.id} label={r.label}>
+            <SegmentedControl
+              value={bindings.holdToggle[r.id] ?? 'hold'} onChange={(v) => change(setHoldToggle(bindings, r.id, v))} data-testid={`holdtoggle-${r.id}`}
+              options={[{ value: 'hold', label: 'Hold' }, { value: 'toggle', label: 'Toggle' }]}
+            />
+          </Field>
+        ))}
       </div>
       <div class="ui-bindings-head">
-        <h2 class="ui-section-title">Keyboard and mouse</h2>
+        <h2 class="ui-section-title">Keyboard, mouse and gamepad</h2>
         <Button variant="ghost" icon="reset" onClick={() => setConfirmReset(true)} data-testid="reset-all">Reset all to defaults</Button>
       </div>
-      <p class="ui-field-help">Select a binding, then press the new key. With a binding selected, Delete clears it. Esc, F11 and F12 cannot be bound.</p>
+      <p class="ui-field-help">Select a binding, then press the new key. With a binding selected, Delete clears it. Esc, F11 and F12 cannot be bound. On the Gamepad column press the new button; hold LB or RB first to bind a combination. Menu cancels, Shift+Enter clears.</p>
       {groupActions().map((g) => {
         const expanded = !!open[g.id];
         return (
@@ -80,6 +105,7 @@ export function ControlsTab() {
             </button>
             {expanded && (
               <div class="ui-keybind-table" role="group" aria-label={`${g.title} bindings`}>
+                <div class="ui-keybind-groupreset"><Button variant="ghost" icon="reset" onClick={() => change(resetContext(bindings, g.id as InputContext))} data-testid={`reset-${g.id}`}>Reset {g.title.toLowerCase()} to defaults</Button></div>
                 <div class="ui-keybind-headrow" aria-hidden="true"><span>Action</span><span>Primary</span><span>Secondary</span><span>Gamepad</span><span /></div>
                 {g.actions.map((a) => <KeybindRow key={a.id} def={a} bindings={bindings} onChange={change} />)}
               </div>

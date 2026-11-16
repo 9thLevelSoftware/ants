@@ -126,10 +126,11 @@ interface NestInfo { ctx: SortContext; alarmed: Set<number>; chamberIds: Set<num
 const markerOut = { marker: false };
 
 /**
- * Where evacuated brood goes: the best-scoring dry chamber for its stage group (a brood chamber when one is dry),
- * else the dry chamber with the highest floor of any type, else the nearest dry place (floodEvac.ts DRY_SPOT).
+ * Where dry brood lying outside its chambers goes back to while the nest is wet (not an evacuation): the
+ * best-scoring dry chamber for its stage group, else the evacuation destination (floodEvac.ts: the dry chamber with
+ * the highest floor, else DRY_SPOT).
  */
-function evacDest(ctx: SortContext, f: FloodEvac, group: number): number {
+function dryReturnDest(ctx: SortContext, f: FloodEvac, group: number): number {
   let best = -1, bestS = 0;
   for (let i = 0; i < ctx.chambers.length; i++) {
     const s = ctx.scores[group][i];
@@ -151,14 +152,16 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
     // chamber the water reaches
     if (broodInWater(sim, info.flood, b)) {
       const prio = JOB_PRIORITY.evacuate + BROOD_EVAC_STAGE_BONUS[b.stage];
-      return job(Job.evacuate, prio, evacDest(ctx, info.flood, groupOf(b)));
+      // GDD 03 §9.4 "score dryness first", task nest-fix3 item 2 "to the highest dry chamber floor": a brood chamber
+      // just above the water would need a second carry when the water rises on
+      return job(Job.evacuate, prio, info.flood.dest);
     }
   }
   if (b.chamberId < 0 || !info.chamberIds.has(b.chamberId)) {
     const dest = ctx.best[groupOf(b)];
     // dry brood out of its chamber (evacuated) goes back only to a chamber the water does not reach: the best dry one
     if (dest >= 0 && info.flood?.wetChambers.has(ctx.chambers[dest].id)) {
-      const dry = evacDest(ctx, info.flood, groupOf(b));
+      const dry = dryReturnDest(ctx, info.flood, groupOf(b));
       return dry >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, dry) : null;
     }
     return dest >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, ctx.chambers[dest].id) : null;

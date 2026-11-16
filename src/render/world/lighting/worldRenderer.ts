@@ -9,6 +9,7 @@ import { MaterialLibrary } from '../materials/materialLibrary';
 import { createWorldUniforms, type WorldUniforms } from '../materials/uniforms';
 import { applyOcclusion, CONTACT_RADIUS_BU } from '../materials/occlusion';
 import { PrimitiveRenderer } from '../primitives/primitiveRenderer';
+import { snapPrimitivesToGround, type SnapStats } from '../primitives/groundSnap';
 import { lookTable } from '../dressing/looks';
 import { GroundGrit } from '../dressing/groundGrit';
 import { FlowerDressing } from '../dressing/flowerDressing';
@@ -76,6 +77,8 @@ export class WorldRenderer {
   private movesSig = Number.NaN;
   private canopyTex: DataTexture | null = null;
   private skyOccTex: DataTexture | null = null;
+  /** What the last setWorld's ground snapping did (statistics, tests). */
+  snapStats: SnapStats = { considered: 0, snapped: 0, maxGapMm: 0 };
   private camPos = new Vector3();
   private camDir = new Vector3();
   private subject = new Vector3();
@@ -117,7 +120,9 @@ export class WorldRenderer {
     this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
     const looks = lookTable(world.objects);
     this.prims.setLooks(looks);
-    this.prims.setStatic(staticPrims(world));
+    // the drawn copies of upright boxes, posts and stems that stop a little above the ground are stretched down to it
+    this.snapStats = { considered: 0, snapped: 0, maxGapMm: 0 };
+    this.prims.setStatic(snapPrimitivesToGround(staticPrims(world), (x, z) => this.terrain.height(x, z), world.bu, this.snapStats));
     this.flowers.setPrims(staticPrims(world), looks, world.bu);
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
@@ -369,8 +374,10 @@ export class WorldRenderer {
   stats(): {
     terrainLevels: number; terrainTriangles: number; prims: ReturnType<PrimitiveRenderer['stats']>; mounds: number; holeSlots: number; holeTilesDropped: number; envBakes: number;
     gritGrains: number; gritTriangles: number; flowerHeads: number; flowerParts: number; flowerTriangles: number;
+    snappedPrims: number; snapMaxGapMm: number;
   } {
     return {
+      snappedPrims: this.snapStats.snapped, snapMaxGapMm: this.snapStats.maxGapMm,
       gritGrains: this.grit.count, gritTriangles: this.grit.triangles,
       flowerHeads: this.flowers.headCount, flowerParts: this.flowers.partCount, flowerTriangles: this.flowers.triangles,
       terrainLevels: this.terrain.levelCount, terrainTriangles: this.terrain.triangles, prims: this.prims.stats(), mounds: this.mounds?.count ?? 0,

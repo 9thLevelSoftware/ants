@@ -135,7 +135,7 @@ export function resolveTarget(sim: Sim, kind: TargetKind, id: number, fallback: 
 function resetLeg(w: Walker, s: NavScratch): void {
   w.nav.path = null; w.nav.pathIdx = 0; w.nav.routeId = -1;
   w.nav.fieldNest = -1; w.nav.fieldTarget = -1; w.nav.fieldKind = 'none';
-  s.legField = ''; s.legExit = false; s.flowKey = ''; s.seekFinal = 0;
+  s.legField = ''; s.legExit = false; s.flowKey = ''; s.seekFinal = 0; s.seekDown = 0;
 }
 
 /** Seek leg to t; a seek to the trip's goal itself (t === s.goal) is the final one. */
@@ -273,6 +273,7 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
   if (s.goalNest >= 0) {
     const e = nearestOpenEntrance(sim, s.goalNest, w.pos);
     if (!e) return false;
+    if (planDescent(sim, w, s, r)) return true;
     s.entranceId = e.id;
     if (distXZ(w.pos, e.pos) <= e.radius + P.entranceHandover) {
       set3(_d, e.pos.x - e.dir.x * P.bu, e.pos.y - e.dir.y * P.bu, e.pos.z - e.dir.z * P.bu);
@@ -296,11 +297,28 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
       if (!walkerUp) return planSurface(sim, w, s, r, g.route.points[0], -1);
     }
   }
-  if (walkerUp && far) {
-    const k = nearestRouteNode(sim.world, w.pos, P.routeGoal, 1);
-    if (k) { setClimb(w, s, k.route.id, k.idx, 0, false); return true; }
-  }
+  if (walkerUp && far && planDescent(sim, w, s, r)) return true;
   return planSurface(sim, w, s, r, s.goal, -1);
+}
+
+/**
+ * A walker high on an object (more than `elevated` above the ground) whose goal is not near: it leaves by the
+ * nearest climb route (down to the route's base); on a steep face (a stem, a trunk) with no route near, it heads
+ * straight down, aiming in 3D (a plan-view aim on a vertical stem circles it and never comes down: loco-fix3, tenders
+ * lost on a shrub at suburban-garden #2). On a level top (a stone, a table) false: the surface leg walks off its edge.
+ */
+function planDescent(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  const P = r.P;
+  if (w.medium !== 'surface') return false;
+  const ground = sim.field.height(w.pos.x, w.pos.z);
+  if (w.pos.y - ground <= P.elevated || dist3(w.pos, s.goal) <= P.routeGoal) return false;
+  const k = nearestRouteNode(sim.world, w.pos, P.routeGoal, 1);
+  if (k) { setClimb(w, s, k.route.id, k.idx, 0, false); return true; }
+  if (Math.abs(w.up.y) >= P.pinnedUpY) return false;
+  set3(_d, w.pos.x, ground, w.pos.z);
+  setSeek(w, s, _d);
+  s.seekDown = 1;
+  return true;
 }
 
 /**

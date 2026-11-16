@@ -31,6 +31,14 @@ export function AccessibilityTab() {
         <SegmentedControl value={a.reducedMotion} onChange={setMotion} options={[{ value: 'system', label: 'System' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} />
       </Field>
       {settings && (
+        <Field label="Camera shake and sway" help={effectiveReducedMotion(a.reducedMotion) ? 'Reduced motion is on, so the camera does not shake.' : 'How strongly the camera shakes when a footstep lands nearby.'}>
+          <Slider
+            value={effectiveReducedMotion(a.reducedMotion) ? 0 : settings.accessibility.shake} min={0} max={100} step={5} format={(v) => `${v} %`}
+            disabled={effectiveReducedMotion(a.reducedMotion)} onChange={(v) => setSettings({ accessibility: { shake: v } })} data-testid="shake-slider"
+          />
+        </Field>
+      )}
+      {settings && (
         <Field label="Camera horizon">
           <SegmentedControl value={settings.camera.worldUpLock ? 'level' : 'follow'} onChange={(v) => setSettings({ camera: { worldUpLock: v === 'level' } })} options={[{ value: 'follow', label: 'Follow surface' }, { value: 'level', label: 'Keep level' }]} />
         </Field>
@@ -39,7 +47,7 @@ export function AccessibilityTab() {
         <SegmentedControl value={a.spiderComfort} onChange={(v: SpiderComfort) => set({ spiderComfort: v })} options={[{ value: 'off', label: 'Off' }, { value: 'softened', label: 'Softened' }, { value: 'abstract', label: 'Abstract' }, { value: 'marker', label: 'Marker only' }]} />
       </Field>
       <Field label="Also apply to mites and centipedes"><Toggle checked={a.comfortMitesCentipedes} onChange={(v) => set({ comfortMitesCentipedes: v })} /></Field>
-      <Field label="Overlay palette" help="Pattern only keeps every overlay readable without colour.">
+      <Field label="Overlay palette" help="Okabe-Ito colours are safe for every kind of colour blindness. High contrast and Pattern only also drop the colours of status marks, which always carry a shape and a word.">
         <SegmentedControl value={a.overlayPalette} onChange={(v: OverlayPalette) => set({ overlayPalette: v })} options={[{ value: 'okabe-ito', label: 'Okabe-Ito' }, { value: 'high-contrast', label: 'High contrast' }, { value: 'pattern-only', label: 'Pattern only' }]} />
       </Field>
       <Field label="Sound-cue indicators" help="Shows an edge marker for sounds that carry information."><Toggle checked={a.soundCueIndicators} onChange={(v) => set({ soundCueIndicators: v })} /></Field>

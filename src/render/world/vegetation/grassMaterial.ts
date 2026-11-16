@@ -56,7 +56,7 @@ function bindBlade(s: { uniforms: Record<string, unknown> }, shared: DecorShared
 
 const FRAG_COMMON = /* glsl */ `
 ${GLSL_NOISE}
-varying float vBH; varying float vBS; varying float vBFade; varying vec3 vBInfo;
+varying float vBH; varying float vBS; varying float vBFade; varying vec3 vBInfo; varying vec3 vBNrm; varying vec3 vBSide;
 ${BLADE_FRAG_GLSL}
 // discard (keeps the opaque pipeline): the LOD cross-fade as a screen door over the whole (small, far) blade; the
 // eye / line-of-sight fade as a per-blade cut with a slightly noisy edge (PARTING.cutRange)
@@ -89,6 +89,9 @@ bc = mix(bc, vec3(0.42, 0.36, 0.17), smoothstep(0.86, 1.0, vBH) * step(0.6, vBIn
 bc *= mix(0.28, 1.0, smoothstep(0.0, 0.55, vBH));
 diffuseColor.rgb *= wrWetAlbedo(bc, uWet, 0.8);`)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = wrWetRough(roughness, uWet, 0.2);')
+      // a blade is a curved strip: the normal bends smoothly across its width (vBS interpolates linearly over the
+      // few triangles), instead of the piecewise-linear vertex normals that showed flat facets up close
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(normalize(vBNrm + vBSide * vBS * 0.62), 0.0)).xyz) * faceDirection;')
       .replace('#include <lights_fragment_begin>', foliageLightsChunk('uTransl * 0.9', 'vec3(1.25, 1.45, 0.55)'));
   });
   const depth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking, side: DoubleSide });

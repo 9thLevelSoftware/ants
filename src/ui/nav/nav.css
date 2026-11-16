@@ -1,0 +1,12 @@
+/* Navigation layer styles (src/ui/nav). When the last input was the pad, the focus ring is drawn for ANY focus, not only
+   for focus the browser thinks came from a keyboard: the pad moves focus by script, and a mouse click earlier in the
+   session would otherwise hide the ring (GDD 08 2.7: visible focus on every interactive element). Same ring as base.css. */
+:root[data-input="pad"] .ui-root :focus,
+:root[data-input="pad"] .fd-root :focus {
+  outline: var(--focus-width) solid var(--c-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 calc(2px + var(--focus-width) + 2px) var(--c-halo);
+}
+:root[data-input="pad"] .ui-root .ui-select-list:focus,
+:root[data-input="pad"] .ui-root .ui-input:focus { box-shadow: none; }
+:root[data-input="pad"] .ui-root .ui-input:focus { outline-offset: 0; }

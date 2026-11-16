@@ -106,6 +106,19 @@ float wrRoughO = -1.0, wrMetal = metalness, wrCoat = 0.0, wrTransl = 0.0;
       if (q.y < -0.55) { col = mix(col, vec3(0.02), 0.85); wrCoat = 0.2; }
       float arch = max(1.0 - smoothstep(0.18, 0.24, length(vec2(abs(q.z) - 0.68, q.y + 1.0))), 0.0);
       col *= 1.0 - 0.9 * arch;
+      if (ln.y < -0.6) {
+        // underbody, the view of an ant walking beneath the car (look-pass 2): undersealed dark steel with two
+        // chassis rails, cross-members every metre or so, an exhaust run with a silencer box, road grime
+        float rails = 1.0 - smoothstep(0.02, 0.06, abs(abs(q.z) - 0.52));
+        float beams = 1.0 - smoothstep(0.015, 0.045, abs(fract(q.x * 3.2 + 0.31) - 0.5) - 0.44);
+        float pipe = 1.0 - smoothstep(0.018, 0.04, abs(q.z + 0.16));
+        float box = (1.0 - smoothstep(0.02, 0.05, abs(q.x + 0.42) - 0.2)) * (1.0 - smoothstep(0.1, 0.16, abs(q.z + 0.16)));
+        float grime = wrFbm(lp.xz * 0.06 + lk.w * 4.0);
+        vec3 under = vec3(0.028, 0.026, 0.024) * (0.65 + 0.7 * grime);
+        under = mix(under, vec3(0.085, 0.082, 0.08), max(rails, beams) * 0.8);
+        under = mix(under, vec3(0.16, 0.1, 0.07), max(pipe, box) * (0.45 + 0.4 * grime));
+        col = under; det = vec3(1.0); wrCoat = 0.0; metal = max(pipe, box) * 0.55; rough = mix(0.82, 0.5, max(rails, beams));
+      }
     }
     else if (fin == ${F.moulded}) {
       // moulding ribs every few cm round the sides (a groove and a raised band), lighter sun-faded top

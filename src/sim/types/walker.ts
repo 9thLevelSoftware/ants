@@ -16,6 +16,16 @@ export type NavMode = (typeof NAV_MODES)[number];
 export const NAV_STATUSES = ['idle', 'moving', 'arrived', 'failed'] as const;
 export type NavStatus = (typeof NAV_STATUSES)[number];
 
+/**
+ * Why a request ended 'failed' (loco-fix3, additive), so a behaviour can tell a goal it cannot reach from a walk that
+ * went wrong: 'rejected' (the request could not start: target gone, not finite, a nest goal with no usable
+ * entrance), 'no-route' (the planner found no path), 'timeout' (the request's time ran out), 'stuck' (the recovery
+ * ladder ran out), 'stuck-repeat' (stuck again where the walker was already rescued: relocating it again would only
+ * loop), 'trail-lost', 'wander-stall', 'leg' (a leg could not be followed: field or route gone).
+ */
+export const NAV_FAIL_REASONS = ['rejected', 'no-route', 'timeout', 'stuck', 'stuck-repeat', 'trail-lost', 'wander-stall', 'leg'] as const;
+export type NavFailReason = (typeof NAV_FAIL_REASONS)[number];
+
 /** Steering request and its status. Owned by locomotion; behaviours set it only through locomotion functions. */
 export interface NavState {
   mode: NavMode;
@@ -51,6 +61,8 @@ export interface NavState {
    * locomotion on the first request and never read by other modules. Additive (loco).
    */
   loco?: NavScratch;
+  /** Why the last request failed (set with status 'failed', cleared by the next request). Additive (loco-fix3). */
+  failReason?: NavFailReason;
 }
 
 /** Kinematic state on the level set f(p) = footOffset. */

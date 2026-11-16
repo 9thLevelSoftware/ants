@@ -10,7 +10,7 @@ import { uiPrefs } from '../styles/prefs';
 import { CodexBook } from '../panels/codex/CodexBook';
 import { Credits } from './credits/Credits';
 import { startBindingSync } from './gameSync';
-import { startGamepadNav } from './gamepadNav';
+import { installNav } from '../nav';
 import { Loading } from './Loading';
 import { installMenuKeys } from './menuKeys';
 import { activeOverlay, baseScreen, closeTop, nav, onModeChange, updateNav, type OverlayId } from './nav';
@@ -73,7 +73,7 @@ export function ScreenRouter() {
 
   useEffect(() => installEnvironment(window, blurWanted), []);
   useEffect(() => installMenuKeys(window), []);
-  useEffect(() => startGamepadNav(), []);
+  useEffect(() => installNav(window), []); // gamepad + focus navigation for every layer (src/ui/nav)
   useEffect(() => startBindingSync(), []);
   useEffect(() => {
     if (prev.current !== snap.screen) {

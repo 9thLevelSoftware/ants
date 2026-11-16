@@ -60,6 +60,20 @@ export const NAV_GRID_TUNING = {
   flowClearanceBU: 0.45,
   /** Down a flow field: a walker this close (horizontally) to a portal's entry mouth heads for the exit mouth, BU. */
   portalReachBU: 2,
+  /**
+   * Edge gates (gates.ts, loco-fix3): a crossing between side-by-side cells is tested with a body of gateRadiusBU
+   * carried gateLiftBU above the ground; where the straight crossing is blocked, the shared edge is sampled every
+   * gateStepBU for strips at least gateMinRunBU wide, each tested over gateDepthCells of a cell on either side.
+   */
+  gateLiftBU: 1,
+  gateRadiusBU: 0.45,
+  gateStepBU: 0.5,
+  gateMinRunBU: 1,
+  gateDepthCells: 0.25,
+  /** A crossing free at this height above the ground meets only a low obstacle (climbed, no gate), BU. */
+  gateTallBU: 8,
+  /** A gate waypoint counts as passed within this distance (3D foot point), BU. */
+  gateReachBU: 1.5,
 } as const;
 
 /** A micro-connection as a nav edge between the passable cells at its two mouths (GDD 04 §11). */

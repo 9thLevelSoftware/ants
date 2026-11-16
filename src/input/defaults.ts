@@ -63,7 +63,19 @@ export interface InputSettings {
   stickPitchRate: number;
   stickResponse: number;
   deadZone: number;
+  /**
+   * Hold duration for hold-activated buttons, ms (GDD 08 7.4: 300-1500, default 600). Every hold threshold of the
+   * action table (GDD 01 5: 250 / 400 / 500 / 1000 ms) is multiplied by `holdMs / HOLD_MS_DEFAULT`, so the default
+   * keeps the designed feel and a slower player stretches all of them together.
+   */
+  holdMs?: number;
+  /** Orbit by drag: a press of the drag button starts the orbit and the next press ends it (GDD 08 12 hold-to-toggle). */
+  orbitToggle?: boolean;
 }
+
+/** The hold duration setting's default, the point where every GDD 01 threshold is used as written. */
+export const HOLD_MS_DEFAULT = 600;
+export const HOLD_MS_RANGE = { min: 300, max: 1500 } as const;
 
 export function defaultInputSettings(): InputSettings {
   return {
@@ -78,6 +90,8 @@ export function defaultInputSettings(): InputSettings {
     stickPitchRate: 120,
     stickResponse: 1.6,
     deadZone: STICK_DEADZONE,
+    holdMs: HOLD_MS_DEFAULT,
+    orbitToggle: false,
   };
 }
 

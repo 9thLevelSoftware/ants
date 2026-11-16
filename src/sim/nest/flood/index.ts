@@ -21,7 +21,7 @@ export { stepNestFlood, drainageOf } from './step';
 export { predictRain, predictReferenceStorm, refreshFloodRisk } from './predict';
 export { entranceInflow, nestInflow, catchmentOf, rimFactorOf } from './inflow';
 export { floodDiagnostic, possessedFloodAlert, queenFloodAlert } from './diagnostics';
-export { depthOver, dryPlace, isDryAt, waterView, type DryPlace, type WaterView } from './dryPlace';
+export { depthOver, dryPlace, isDryAt, outsidePlace, waterView, type DryPlace, type WaterView } from './dryPlace';
 export { drownStep, isUnderWater } from './drown';
 export { erodeDueMounds, erodeMound, erodeMounds } from './erosion';
 export { floodGeometry, spillFor, spillPeek } from './runtime';

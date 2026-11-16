@@ -9,6 +9,7 @@ import type { UiPromptLine } from '../api';
 import { KeyCap, currentBindings, hintLabel } from '../components';
 import { promptSlice, possessedSlice } from './slices';
 import { facade } from '../store';
+import { inputDevice } from '../nav/device';
 import { hudBridge } from './state';
 import { ACTION_OF, visibleLines } from './promptLines';
 import { keepOutRects } from './keepOut';
@@ -20,7 +21,7 @@ function Line({ line }: { line: UiPromptLine }) {
   return (
     <div class={`fd-ctxline${line.ok ? '' : ' is-disabled'}`} data-testid="prompt-line" data-input={line.input} aria-disabled={line.ok ? undefined : 'true'}>
       {hold && <span class="fd-ctxline-hold">Hold</span>}
-      <KeyCap label={label ?? '?'} class={label ? '' : 'is-unbound'} />
+      <KeyCap label={label ?? '?'} kind={inputDevice.value === 'pad' ? 'pad' : 'key'} class={label ? '' : 'is-unbound'} />
       <span class="fd-ctxline-text">{line.text}</span>
     </div>
   );

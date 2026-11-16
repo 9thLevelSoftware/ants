@@ -4,10 +4,13 @@
 // input is already used for and offers Swap / Unbind other / Cancel. All rules come from src/input/rebind.ts.
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
-  bindingLabel, defaultBindings, rebind, type ActionDef, type Binding, type BindingSet, type Conflict, type ConflictResolution, type Slot,
+  bindingLabel, defaultBindings, firstPad, PAD, padBindingGlyph, PadCapture, rebind, readGamepads, type ActionDef, type Binding, type BindingSet, type Conflict,
+  type ConflictResolution, type PadCaptureKind, type Slot,
 } from '@/input';
 import { Button, IconButton, cx, pushBack } from '../../components';
 import { BACK_LEVEL } from '../../components/logic/escapeStack';
+import { padCaptureHolds, swallowGamePad } from '../../nav';
+import { padStyle } from '../../nav/device';
 import { actionLabel, captureKey, captureMouse, captureWheel, conflictMessage, REFUSAL_TEXT } from './captureBinding';
 
 export interface KeybindRowProps {
@@ -25,6 +28,16 @@ interface PendingConflict {
 /** Mouse buttons and wheel are offered only to actions whose defaults already use them (GDD 08 7.5). */
 export function allowsPointer(def: ActionDef): boolean {
   return [...def.kbm, ...(def.fixed ?? [])].some((b) => b.kind !== 'key') || def.id.endsWith('.drag');
+}
+
+/** A pad row that nobody presses anything on stops listening after this long (a pad-only player has no Esc). */
+export const PAD_LISTEN_TIMEOUT_MS = 10000;
+
+/** What the pad capture should accept for this action: a stick, a stick direction (zoom), or a button. */
+export function padCaptureKind(def: ActionDef): PadCaptureKind {
+  const comp = def.axis ? def.id.split('.')[1] : null;
+  if (comp === 'stick') return 'stick';
+  return comp === 'in' || comp === 'out' ? 'axis' : 'button';
 }
 
 function slotBindings(set: BindingSet, id: string): (Binding | null)[] {
@@ -99,11 +112,40 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listening, def.id]);
 
+  // gamepad slot: the next button (or stick push) becomes the binding; Menu or 10 s of silence cancels
+  useLayoutEffect(() => {
+    if (listening !== 'pad') return;
+    padCaptureHolds.value++;
+    const capture = new PadCapture(padCaptureKind(def));
+    const startedAt = performance.now();
+    let raf = 0;
+    const done = () => { setListening(null); };
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const p = firstPad(readGamepads());
+      if (p && (p.buttons[PAD.START] ?? 0) > 0.5) { swallowGamePad(); setMessage(''); done(); return; } // Menu cancels; the game must not also read it as "close the pause menu"
+      const b = capture.feed(p);
+      if (b) { done(); apply('pad', b); return; }
+      if (performance.now() - startedAt > PAD_LISTEN_TIMEOUT_MS) { setMessage(''); done(); }
+    };
+    raf = requestAnimationFrame(tick);
+    const off = pushBack(() => { setListening(null); setMessage(''); }, BACK_LEVEL.capture);
+    return () => { cancelAnimationFrame(raf); off(); padCaptureHolds.value--; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listening, def.id]);
+
   const startListening = (slot: 0 | 1) => {
     if (def.locked) return;
     setPending(null);
     setMessage('Press a key (Esc to cancel)');
     setListening(slot);
+  };
+
+  const startPadListening = () => {
+    if (def.locked) return;
+    setPending(null);
+    setMessage(padCaptureKind(def) === 'button' ? 'Press a controller button, or hold LB / RB and press another (Menu to cancel)' : 'Push a stick (Menu to cancel)');
+    setListening('pad');
   };
 
   /** Gamepad-stick components are pad-only: the keyboard slots do not apply (rebind refuses them). */
@@ -136,7 +178,18 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
       <span class="ui-keybind-name">{actionLabel(def)}{unboundRequired && <span class="ui-keybind-req"> (required)</span>}</span>
       {slotButton(0)}
       {slotButton(1)}
-      <span class="ui-keybind-pad" aria-label={pad ? `Gamepad: ${bindingLabel(pad)}` : 'Gamepad: none'}>{pad ? bindingLabel(pad) : ''}</span>
+      <button
+        type="button" class={cx('ui-keybind-slot', 'ui-keybind-pad', listening === 'pad' && 'is-listening', !pad && 'is-empty')} data-listening={listening === 'pad' ? '1' : undefined}
+        aria-label={`Gamepad binding of ${actionLabel(def)}: ${pad ? bindingLabel(pad) : 'none'}. Activate to change; Shift+Enter clears it.`}
+        disabled={!!def.locked} onClick={startPadListening}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (listening === 'pad' || def.locked) return;
+          if (((e.key === 'Enter' && e.shiftKey) || e.key === 'Delete') && pad) { e.preventDefault(); apply('pad', null); }
+        }}
+        data-testid={`bind-${def.id}-pad`}
+      >
+        {listening === 'pad' ? 'Press a button…' : pad ? padBindingGlyph(pad, padStyle.value) : 'Unbound'}
+      </button>
       <IconButton
         icon="reset" label={`Reset ${actionLabel(def)} to default`} class={cx('ui-keybind-reset', !changed && 'is-hidden')}
         disabled={!changed} onClick={() => { const d = defaultBindings(); const next = JSON.parse(JSON.stringify(bindings)) as BindingSet; next.kbm[def.id] = d.kbm[def.id]; next.pad[def.id] = d.pad[def.id]; setPending(null); setMessage(''); onChange(next); }}

@@ -3,7 +3,7 @@
 // the time-lapse) and injects the stylesheet once. Mounted by src/ui/App.tsx over the HUD.
 import { useEffect } from 'preact/hooks';
 import { currentBindings } from '../../components';
-import { snapshot } from '../../store';
+import { facade, snapshot } from '../../store';
 import css from './founding.css?inline';
 import { FailureCard, HandoverBanner, OutcomeCard } from './Cards';
 import { IntroCard } from './IntroCard';
@@ -12,8 +12,15 @@ import { foundingActions, foundingUi } from './store';
 import { TimelapseOverlay } from './TimelapseOverlay';
 
 const STYLE_ID = 'foundress-founding-styles';
-/** Holding the skip key this long skips the time-lapse (GDD 01 `tl-skip`), ms. */
+/** Holding the skip key this long skips the time-lapse (GDD 01 `tl-skip`), ms, at the default hold duration. */
 const SKIP_HOLD_MS = 1000;
+
+/** The skip hold at the player's hold duration (Settings > Controls); 0 when `tl-skip` is set to toggle: one press skips. */
+function skipHoldMs(): number {
+  if (currentBindings.value.holdToggle['tl-skip'] === 'toggle') return 0;
+  const ms = facade.peek()?.getSettings?.().controls?.holdMs ?? 600;
+  return SKIP_HOLD_MS * Math.min(2.5, Math.max(0.5, ms / 600));
+}
 
 function installStyles(): void {
   if (typeof document === 'undefined' || document.getElementById(STYLE_ID)) return;
@@ -36,7 +43,7 @@ function useScriptKeys(): void {
       if (!ui || !a) return;
       if (ui.phase === 'intro-card') { a.skipIntro(); return; }
       if (ui.phase === 'timelapse' && e.code === skipCode() && held === null && !e.repeat) {
-        held = window.setTimeout(() => { held = null; foundingActions.peek()?.skipLapse(); }, SKIP_HOLD_MS);
+        held = window.setTimeout(() => { held = null; foundingActions.peek()?.skipLapse(); }, skipHoldMs());
       }
     };
     const up = (e: KeyboardEvent) => {

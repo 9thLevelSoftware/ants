@@ -16,7 +16,7 @@ import { AntStateTable, smoothFactors, stepAntState, trackOffscreen, type Smooth
 import { footTarget } from './gait';
 import { copyPose, poseTarget, withAlarm, withCarry, NEUTRAL_POSE, type PoseTarget } from './poses';
 import { selectLods, type SelectResult } from './select';
-import { CAMERA_CAPSULE, GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
+import { ANT_FILL, CAMERA_CAPSULE, GAIT, HIGHLIGHT, lodSettingsFor, type AntLodSettings } from './tuning';
 import { createSharedUniforms, type SharedAntUniforms } from './shader/materials';
 import { VariantStore } from './variantStore';
 import { ItemCatalog, type ItemRef } from './items/catalog';
@@ -107,6 +107,28 @@ export class AntRenderer {
     const k = Math.pow(2, -e);
     this.shared.uHiWarm.value.copy(HI_WARM_BASE).multiplyScalar(k);
     this.shared.uHiCool.value.copy(HI_COOL_BASE).multiplyScalar(k);
+    this.updateFill();
+  }
+
+  /** Underground blend of the form light (eased in update()) and the dim-scene blend that follows the exposure. */
+  private fillUnder = 0;
+
+  /**
+   * Form light uniforms (tuning.ts ANT_FILL) from the exposure and the underground blend: the underground amplitudes
+   * and the warm colour follow `fillUnder`, the night amplitudes the exposure above the daylight range; both are
+   * scaled by 2^-EV like the highlight rim, so the ant's brightness on screen does not depend on the metering.
+   */
+  private updateFill(): void {
+    const F = ANT_FILL, u = this.fillUnder;
+    const t = Math.min(1, Math.max(0, (this.highlightEV - F.fromEV) / (F.toEV - F.fromEV)));
+    const night = (1 - u) * t * t * (3 - 2 * t);
+    const k = Math.pow(2, -this.highlightEV);
+    this.shared.uFillBody.value = k * (F.body.underground * u + F.body.night * night);
+    this.shared.uFillRim.value = k * (F.rim.underground * u + F.rim.night * night);
+    const w = u + night > 0 ? u / (u + night) : 0;
+    this.shared.uFillCol.value.setRGB(
+      F.cool[0] + (F.warm[0] - F.cool[0]) * w, F.cool[1] + (F.warm[1] - F.cool[1]) * w, F.cool[2] + (F.warm[2] - F.cool[2]) * w,
+    );
   }
 
   setHover(t: PickTarget | null): void { this.hover = t; }
@@ -144,6 +166,10 @@ export class AntRenderer {
     this.shared.uTime.value = frame.time;
     const op = frame.subjectOpacity;
     this.shared.uSubjectOpacity.value = op !== undefined && Number.isFinite(op) ? Math.min(1, Math.max(0, op)) : 1;
+    const underGoal = frame.underground ? 1 : 0, ke = frame.dt > 0 ? 1 - Math.exp(-frame.dt / ANT_FILL.easeS) : 1;
+    const under = this.fillUnder + (underGoal - this.fillUnder) * ke;
+    this.fillUnder = under;
+    this.updateFill(); // a few multiplications: every frame, so a retuned ANT_FILL (the look lab) shows at once
     if (!reader) { this.store.commitAll(); this.loose.update([], camera, 1, 1, 0); return; }
     reader.beginFrame();
     camera.updateMatrixWorld();

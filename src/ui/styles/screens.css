@@ -144,13 +144,13 @@
 .ui-keybind-slot.is-empty { color: var(--c-text-3); font-style: italic; }
 .ui-keybind-slot.is-listening { border-color: var(--c-accent); color: var(--c-accent); background: var(--c-panel); }
 .ui-keybind-slot:disabled { color: var(--c-text-3); cursor: not-allowed; }
+.ui-keybind-groupreset { display: flex; justify-content: flex-end; padding: var(--s-1) 0; }
 .ui-keybind-na { color: var(--c-text-3); padding: 0 var(--s-3); }
-.ui-keybind-pad { font-family: var(--font-mono); font-size: var(--t-caption); color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-keybind-pad { min-width: 0; }
 .ui-keybind-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-s); background: var(--c-panel-raised); font-size: var(--t-small); color: var(--c-text); }
 .ui-keybind-note .is-conflict { color: var(--c-status-warn); }
 .ui-keybind-resolve { display: inline-flex; gap: var(--s-2); }
-:root[data-layout="compact"] .ui-keybind-headrow, :root[data-layout="compact"] .ui-keybind { grid-template-columns: minmax(6rem, 1.4fr) minmax(4.5rem, 1fr) minmax(4.5rem, 1fr) 2rem; }
-:root[data-layout="compact"] .ui-keybind-pad, :root[data-layout="compact"] .ui-keybind-headrow span:nth-child(4) { display: none; }
+:root[data-layout="compact"] .ui-keybind-headrow, :root[data-layout="compact"] .ui-keybind { grid-template-columns: minmax(5rem, 1.2fr) repeat(3, minmax(3.5rem, 1fr)) 2rem; gap: var(--s-2); }
 
 /* ---- Credits (3.3) ---- */
 .ui-credits-scroll { padding-right: var(--s-4); }

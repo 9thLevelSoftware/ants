@@ -106,6 +106,8 @@ attribute vec4 iRoot; attribute vec4 iShape; attribute vec4 iBend;
 uniform float uTime; uniform vec2 uWindDir; uniform float uGrWind; uniform vec3 uCamPos; uniform vec3 uSubject;
 uniform float uGrPart; uniform vec4 uGrLod; uniform vec4 uGrPartP;
 varying float vBH; varying float vBS; varying float vBFade; varying vec3 vBInfo; varying vec3 vBW;
+// the blade's own frame (world space), so the fragment shader can curve the normal across the blade (look-pass 2)
+varying vec3 vBNrm; varying vec3 vBSide;
 vec3 grRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
 // uGrLod: x full-density distance mm, y falloff power, z quality density, w max widening
 // uGrPartP: x bend radius mm (+ heightK in y), z ray fade radius mm, w beyond-subject mm
@@ -114,6 +116,7 @@ void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
   float dCam = length(iRoot.xz - uCamPos.xz);
   float keep = uGrLod.z * (dCam <= uGrLod.x ? 1.0 : pow(uGrLod.x / dCam, uGrLod.y));
   vBH = h; vBS = s; vBInfo = vec3(iBend.z, iBend.w, rnd); vBW = iRoot.xyz;
+  vBNrm = vec3(0.0, 1.0, 0.0); vBSide = vec3(1.0, 0.0, 0.0);
   if (iRoot.w >= keep) { P = iRoot.xyz; N = vec3(0.0, 1.0, 0.0); vBFade = 0.0; return; }
   W *= min(uGrLod.w, pow(max(keep, 1e-3), -${GRASS.lodWidenPow.toFixed(3)}));
   vec3 fwd = vec3(sin(yaw), 0.0, cos(yaw)), side = vec3(cos(yaw), 0.0, -sin(yaw)), up = vec3(0.0, 1.0, 0.0);
@@ -125,6 +128,7 @@ void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
   float w = 0.5 * W * pow(clamp((1.0 - h) / 0.3, 0.0, 1.0), 0.75) * (0.8 + 0.2 * smoothstep(0.0, 0.08, h));
   vec3 p = (fwd * xl + up * yl) * H + side * s * w + nrm * (1.0 - abs(s)) * w * 0.35;
   vec3 n = normalize(nrm + side * s * 0.45);
+  vBNrm = nrm; vBSide = side;
   float ph = dot(iRoot.xz, uWindDir) * ${WIND.waveK.toFixed(5)} - uTime * ${WIND.waveSpeed.toFixed(3)};
   float gust = 0.55 + 0.45 * sin(ph) * sin(ph * 0.43 + 1.7);
   float flut = sin(uTime * (5.0 + rnd * 4.0) + rnd * 40.0) * 0.18;
@@ -142,6 +146,7 @@ void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
   if (ang > 1e-4) {
     vec3 axis = vec3(push.y, 0.0, -push.x) / ang;
     p = grRot(p, axis, ang * h); n = grRot(n, axis, ang * h);
+    vBNrm = grRot(vBNrm, axis, ang * h); vBSide = grRot(vBSide, axis, ang * h);
   }
   P = iRoot.xyz + p; N = n; vBW = P;
   // fade out the last instances before the LOD cut (only while thinning; GLSL smoothstep needs edge0 < edge1)
