@@ -221,7 +221,7 @@ export class HumansRenderer implements SubRenderer {
         const since = t - a.keys[1].t;
         // the pour lasts a moment after it reaches the surface, its column breaking up from the top
         const flowing = p.lift > 1 ? 1 : Math.max(0, 1 - since / POUR_FLOW_TICKS);
-        const thick = Math.min(9, Math.max(3, extent / 10));
+        const thick = Math.min(5, Math.max(2.5, extent / 14));
         if (v.stream) {
           const top = a.keys[0].lift;
           v.stream.visible = flowing > 0;

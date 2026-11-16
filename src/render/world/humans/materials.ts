@@ -153,7 +153,7 @@ export function createHumanMaterials(): HumanMaterials {
     carPaint: std({ map: tex.carPaint, roughness: 0.4, metalness: 0.45 }),
     chassis: std({ color: '#26272a', roughness: 0.8, metalness: 0.4 }),
     metal: std({ color: '#8c8f93', roughness: 0.35, metalness: 0.85 }),
-    blade: std({ color: '#b7bbc0', roughness: 0.3, metalness: 0.9, transparent: true, opacity: 0.55, depthWrite: false }),
+    blade: std({ color: '#5d6166', roughness: 0.3, metalness: 0.9, transparent: true, opacity: 0.22, depthWrite: false }),
     plastic: std({ map: tex.plastic, roughness: 0.4, metalness: 0 }),
     greyPlastic: std({ color: '#55595e', roughness: 0.45, metalness: 0, transparent: true, vertexColors: true }),
     toyPlastic: std({ color: '#4d7598', roughness: 0.35, metalness: 0, transparent: true, vertexColors: true }),

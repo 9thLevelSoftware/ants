@@ -130,8 +130,9 @@ async function show(id: string): Promise<{ ok: boolean; note: string; tick: numb
   // look between the focus and where its actor is now (a sole still in the air, a mower still coming)
   const actor = plan.actors[imp.actor];
   const pose = actor ? samplePose(actor.keys, sim.state.tick - inst.startTick, { x: 0, y: 0, z: 0, yaw: 0, lift: 0, u: 0 }) : null;
-  const ax = pose ? (imp.fp.x + pose.x) / 2 : imp.fp.x, az = pose ? (imp.fp.z + pose.z) / 2 : imp.fp.z;
-  subject.set(ax, ground + (pose ? Math.max(0, pose.lift) * 0.5 : 0), az);
+  const mid = pose && !def.atImpact;
+  const ax = mid ? (imp.fp.x + pose.x) / 2 : imp.fp.x, az = mid ? (imp.fp.z + pose.z) / 2 : imp.fp.z;
+  subject.set(ax, ground + (mid ? Math.max(0, pose.lift) * 0.5 : 0), az);
   // camera: at ant height, `bearing` from the actor's heading around the focus, turned until nothing solid is
   // between it and the subject (table legs, cabinet sides)
   for (let k = 0; k < 16; k++) {

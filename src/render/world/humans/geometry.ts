@@ -217,17 +217,17 @@ export function buildCloth(mt: HumanMaterials): Group {
   g.add(mesh(c, mt.towel));
   const hems: BufferGeometry[] = [];
   for (const s of [-1, 1]) {
-    const h = new BoxGeometry(14, 3, W);
-    h.translate(s * (L / 2 - 7), 1.6, 0);
+    const h = new BoxGeometry(12, 2.4, W);
+    h.translate(s * (L / 2 - 6), 1.6, 0);
     hems.push(h);
     for (let k = 0; k < 9; k++) {
-      const th = new BoxGeometry(18 + jitter(k, s + 3) * 10, 0.8, 0.9);
+      const th = new BoxGeometry(12 + jitter(k, s + 3) * 8, 0.5, 0.6);
       th.rotateY(jitter(k, s + 5) * 0.6);
       th.translate(s * (L / 2 + 8), 0.6, -W / 2 + 12 + k * (W - 24) / 8);
       hems.push(th);
     }
   }
-  g.add(mesh(mergeGeometries(hems), mt.canvas));
+  g.add(mesh(mergeGeometries(hems), mt.lace));
   return g;
 }
 
