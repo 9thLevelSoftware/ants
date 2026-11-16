@@ -8,9 +8,14 @@
 //    draws them, learned when the player does the thing) but never draws a second copy: `presenter: 'founding'`.
 //    `hint-look` is about the opening and no overlay draws it, so the engine draws it.
 //  - Pick-up and share-food are verbs of the context prompt chip (`[E] Pick up crumb`): tracked, drawn by the chip.
+//  - `hint-why` and `hint-directives` have no prerequisite hint (GDD 08 §9.2 #18, #19, decision E-100): the owning
+//    chapter wins over an earlier ordering idea. The one-at-a-time rule and the per-minute limit keep them from piling up.
 //  - `hint-photo` and `hint-overlay` are additive ids for the photo mode and the overlay cycle (the integrator asked
 //    for one hint each).
-import { HINT_PHOTO_AFTER_REAL_S, HINT_DIRECTIVES_FALLBACK_GAME_DAYS, HINT_PASSIVE_NOTICE_REAL_S } from './balance';
+import {
+  HINT_ANTENNATE_AFTER_REAL_S, HINT_DIRECTIVES_FALLBACK_GAME_DAYS, HINT_LOOK_DELAY_REAL_S, HINT_LOOK_QUIET_REAL_S, HINT_MARKER_DELAY_REAL_S,
+  HINT_MOVE_DELAY_REAL_S, HINT_OVERLAY_DELAY_REAL_S, HINT_PASSIVE_NOTICE_REAL_S, HINT_PHOTO_AFTER_REAL_S, HINT_PHOTO_DELAY_REAL_S, HINT_SPEED_DELAY_REAL_S,
+} from './balance';
 import type { HintDef } from './types';
 
 const SEARCH = 'search';
@@ -21,12 +26,12 @@ export const HINT_TABLE: readonly HintDef[] = [
   { id: 'hint-reserves', order: 0, presenter: 'founding', anchor: 'top', opening: true,
     when: (f) => inOpening(f, SEARCH), learn: { key: 'reserves', uses: 1 }, passiveS: HINT_PASSIVE_NOTICE_REAL_S },
   { id: 'hint-move', order: 1, presenter: 'founding', anchor: 'top', opening: true,
-    when: (f) => inOpening(f, SEARCH) && !f.moving, delayS: 2, learn: { key: 'move', uses: 3, seconds: true } },
+    when: (f) => inOpening(f, SEARCH) && !f.moving, delayS: HINT_MOVE_DELAY_REAL_S, learn: { key: 'move', uses: 3, seconds: true } },
   { id: 'hint-look', order: 2, presenter: 'engine', anchor: 'top', opening: true, after: ['hint-move'],
-    when: (f, c) => f.view === 'possess' && !!f.possessed && (!f.foundingInProgress || inOpening(f, SEARCH, 'dig')) && c.sinceUse('look') >= 5,
-    delayS: 1, learn: { key: 'look', uses: 2 } },
+    when: (f, c) => f.view === 'possess' && !!f.possessed && (!f.foundingInProgress || inOpening(f, SEARCH, 'dig')) && c.sinceUse('look') >= HINT_LOOK_QUIET_REAL_S,
+    delayS: HINT_LOOK_DELAY_REAL_S, learn: { key: 'look', uses: 2 } },
   { id: 'hint-antennate', order: 3, presenter: 'founding', anchor: 'top', opening: true,
-    when: (f, c) => inOpening(f, SEARCH) && c.clock >= 10, learn: { key: 'antennate', uses: 2 } },
+    when: (f, c) => inOpening(f, SEARCH) && c.clock >= HINT_ANTENNATE_AFTER_REAL_S, learn: { key: 'antennate', uses: 2 } },
   { id: 'hint-dig', order: 4, presenter: 'founding', anchor: 'top', opening: true,
     when: (f) => inOpening(f, SEARCH, 'dig'), learn: { key: 'dig', uses: 1 },
     aims: { opens: ['aim-dig-chamber'], closes: ['aim-find-site'] } },
@@ -57,23 +62,26 @@ export const HINT_TABLE: readonly HintDef[] = [
     when: (f, c) => playing(f) && !f.foundingInProgress && (f.firstFood || c.flag('firstDelivery')), learn: { key: 'colony-view', uses: 1 },
     aims: { opens: ['aim-first-trail'], closes: ['aim-first-food'] } },
   { id: 'hint-marker', order: 15, presenter: 'engine', anchor: 'bottom', // the colony view's palette fills the top centre
-    when: (f) => f.view === 'colony', delayS: 3, learn: { key: 'marker', uses: 1 }, aims: { opens: ['aim-second-chamber'] } },
+    when: (f) => f.view === 'colony', delayS: HINT_MARKER_DELAY_REAL_S, learn: { key: 'marker', uses: 1 }, aims: { opens: ['aim-second-chamber'] } },
   { id: 'hint-speed', order: 16, presenter: 'engine', anchor: 'time',
-    when: (f) => f.view === 'observer' && !f.alertActive && !f.foundingInProgress, delayS: 30, learn: { key: 'speed', uses: 2 } },
+    when: (f) => f.view === 'observer' && !f.alertActive && !f.foundingInProgress, delayS: HINT_SPEED_DELAY_REAL_S, learn: { key: 'speed', uses: 2 } },
   { id: 'hint-scent', order: 17, presenter: 'engine', anchor: 'top',
     when: (f, c) => playing(f) && !f.foundingInProgress && (f.firstTrail || c.flag('trailExists')), learn: { key: 'scent', uses: 1 } },
-  { id: 'hint-why', order: 18, presenter: 'engine', anchor: 'pulse', after: ['hint-cycle'], // not before the first workers are taken in hand
+  { id: 'hint-why', order: 18, presenter: 'engine', anchor: 'pulse', // no prerequisite: GDD 08 §9.2 #18 is "the first diagnostic turns warn"
     when: (f, c) => playing(f) && !f.foundingInProgress && (f.diagWarn || c.flag('diagWarn')), learn: { key: 'why', uses: 1 } },
-  { id: 'hint-directives', order: 19, presenter: 'engine', anchor: 'panel',
+  // The possessed queen already has the context chip "Colony orders (I)" (and the panel button): the chip is the hint, so the
+  // card is not drawn on top of it. When the queen is not possessed the card is the fallback chip by the time cluster.
+  { id: 'hint-directives', order: 19, presenter: 'prompt', engineFallback: true, anchor: 'time', // no prerequisite: a player who possesses by click never learns Tab
+    anchorWhen: (f) => (f.possessed?.isQueen ? 'panel' : 'time'), // (GDD 08 §9.2 #19)
     when: (f) => playing(f) && !f.foundingInProgress
       && ((!!f.possessed && f.possessed.isQueen && f.possessed.colonyOrders)
         || (f.workers >= 1 && f.daysSinceFirstWorker >= HINT_DIRECTIVES_FALLBACK_GAME_DAYS)),
     learn: { key: 'directives', uses: 1 } },
   { id: 'hint-photo', order: 20, presenter: 'engine', anchor: 'top', after: ['hint-scent'],
-    when: (f, c) => playing(f) && !f.foundingInProgress && f.workers >= 1 && c.clock >= HINT_PHOTO_AFTER_REAL_S, delayS: 8,
+    when: (f, c) => playing(f) && !f.foundingInProgress && f.workers >= 1 && c.clock >= HINT_PHOTO_AFTER_REAL_S, delayS: HINT_PHOTO_DELAY_REAL_S,
     learn: { key: 'photo', uses: 1 } },
   { id: 'hint-overlay', order: 21, presenter: 'engine', anchor: 'top', after: ['hint-scent'],
-    when: (f) => playing(f) && !f.foundingInProgress && f.workers >= 1, delayS: 20, learn: { key: 'overlay', uses: 1 } },
+    when: (f) => playing(f) && !f.foundingInProgress && f.workers >= 1, delayS: HINT_OVERLAY_DELAY_REAL_S, learn: { key: 'overlay', uses: 1 } },
 ];
 
 const BY_ID = new Map(HINT_TABLE.map((d) => [d.id, d] as const));

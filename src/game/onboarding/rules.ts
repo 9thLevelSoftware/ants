@@ -42,8 +42,9 @@ export const EVENT_RULES: readonly EventRule[] = [
   { type: 'trophallaxis', run: (e, a) => { if (mine(e, a, 'donorId') && e.ambient !== true) a.use('share'); } },
   { type: 'trail-toggled', run: (e, a) => { if (mine(e, a) && e.on === true) a.use('trail'); } },
 
-  // ---- time
-  { type: 'time.speed-changed', run: (e, a) => { if (e.reason === 'command') a.use('speed'); } },
+  // ---- time: no rule. A `time.speed-changed` event with reason 'command' is also what the performance step-down, the
+  // pause on focus loss and the opening's own pause cause, so the controller counts the player's calls of
+  // Game.setSpeed instead (controller.ts, `hookGame`).
 
   // ---- flags that open later hints
   { type: 'delivery', run: (e, a) => { if (num(e.colonyId) === a.ctx.colonyId) a.flag('firstDelivery'); } },

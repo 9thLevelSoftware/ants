@@ -90,6 +90,21 @@ export default async ({ page, shot, log }) => {
     const pos = { x: t.x + Math.cos(y) * Math.cos(e) * d, y: t.y + Math.sin(e) * d, z: t.z + Math.sin(y) * Math.cos(e) * d };
     return g(([p, l]) => window.__game.camera.setPose(p, l), [pos, t]);
   };
+  /** Like look(), but turns the camera round the target until the camera and the line to the target are clear of primitives. */
+  const lookClear = async (t, distBu, elevDeg = 25, yawDeg = 200) => {
+    for (const dy of [0, 180, 90, 270, 45, 135, 225, 315]) {
+      const e = (elevDeg * Math.PI) / 180, y = ((yawDeg + dy) * Math.PI) / 180, d = distBu * bu;
+      const cam = { x: t.x + Math.cos(y) * Math.cos(e) * d, y: t.y + Math.sin(e) * d, z: t.z + Math.sin(y) * Math.cos(e) * d };
+      let clear = true;
+      for (const f of [0, 0.25, 0.5, 0.75]) {
+        const p = { x: cam.x + (t.x - cam.x) * f, y: cam.y + (t.y - cam.y) * f, z: cam.z + (t.z - cam.z) * f };
+        const hit = await g(([x, y, z, b]) => window.__game.query.dig(x, y, z, b), [p.x, p.y, p.z, 1.5 * bu]);
+        if (hit.prim !== null) { clear = false; break; }
+      }
+      if (clear) return look(t, distBu, elevDeg, yawDeg + dy);
+    }
+    return look(t, distBu, elevDeg, yawDeg);
+  };
   const spawnWorker = async (pos) => {
     const before = new Set((await q('ants')).map((a) => a.id));
     await cheat('spawnAnts', 1, 'worker', null, pos);
@@ -405,9 +420,11 @@ export default async ({ page, shot, log }) => {
         await render();
         drawn = (await g(() => window.__game.perf().renderers.humans)).actors ?? 0;
         if (drawn > 0) pos = await actorAt();
+        // a broom is picked at its stroke, not while it is carried in or out above the ground
+        if (pos && kind === 'sweeping' && pos.y - (await groundY(pos.x, pos.z)) > 150) pos = null;
       }
       if (pos) {
-        await look({ x: pos.x, y: await groundY(pos.x, pos.z), z: pos.z }, kind === 'mowing' ? 380 : 220, 24, 200);
+        await lookClear({ x: pos.x, y: await groundY(pos.x, pos.z), z: pos.z }, kind === 'mowing' ? 380 : 220, 24, 200);
         await pic(`08-${kind}`);
         out[kind] = { drawn, at: pos };
         break;
@@ -558,7 +575,7 @@ export default async ({ page, shot, log }) => {
     await step(60);
     const centre = foodPos ? { x: (ent.x + foodPos.x) / 2, y: ent.y, z: (ent.z + foodPos.z) / 2 } : ent;
     const out = {};
-    // where the topsoil moisture changes most within 100 BU of the nest (soil against paving, wet against dry): the
+    // where the topsoil moisture changes most within 400 BU of the nest (soil against paving, wet against dry): the
     // contour lines at 25 / 50 / 75 % can only be seen where there is a gradient
     const grad = await sim((sm, c) => {
       const m = sm.state.env.moisture, bu = sm.world.bu;
@@ -566,8 +583,8 @@ export default async ({ page, shot, log }) => {
       const at = (x, z) => m.theta0[Math.min(m.nz - 1, Math.max(0, Math.floor(z / m.cell))) * m.nx + Math.min(m.nx - 1, Math.max(0, Math.floor(x / m.cell)))] / 255;
       const vals = [];
       let best = null, bg = -1;
-      for (let dz = -100 * bu; dz <= 100 * bu; dz += 3 * bu) {
-        for (let dx = -100 * bu; dx <= 100 * bu; dx += 3 * bu) {
+      for (let dz = -400 * bu; dz <= 400 * bu; dz += 8 * bu) {
+        for (let dx = -400 * bu; dx <= 400 * bu; dx += 8 * bu) {
           const x = c.x + dx, z = c.z + dz, w = 6 * bu;
           vals.push(at(x, z));
           const n = [at(x + w, z), at(x - w, z), at(x, z + w), at(x, z - w), at(x, z)];
@@ -589,6 +606,17 @@ export default async ({ page, shot, log }) => {
         const st = await g(() => window.__game.fx.stats());
         expect(st.field > 0, `the ${id} overlay drew nothing (${tag})`, st);
         out[`${id}-${tag}`] = { field: st.field, labels: st.labels };
+        if (id === 'temperature') {
+          // the isotherm / value labels (renderer internals, read only): where each one is on screen and how big
+          out[`labels-${tag}`] = await g(() => {
+            const gm = window.__hud.game, cam = gm.camera, grp = gm.scene.getObjectByName('fx:overlay-labels');
+            const W = gm.renderer?.domElement?.width ?? 1280, H = gm.renderer?.domElement?.height ?? 720;
+            return (grp?.children ?? []).filter((c) => c.visible).map((c) => {
+              const v = c.position.clone().project(cam);
+              return { text: c.material.map?.image ? `${c.material.map.image.width}x${c.material.map.image.height}` : 'no map', px: [Math.round((v.x + 1) * W / 2), Math.round((1 - v.y) * H / 2)], z: Math.round(v.z * 1000) / 1000, sy: c.scale.y, col: c.material.color.r };
+            });
+          });
+        }
         await g((o) => window.__game.fx.overlay(o, false), id);
       }
       out[`theta0-${tag}`] = (await sim((sm, c) => {
@@ -626,17 +654,33 @@ export default async ({ page, shot, log }) => {
     }
     expect(fall && fall.footprint, 'no footstep landed in 1600 ticks', fall);
     const out = {};
-    for (const [tag, dist, elev, yaw] of [['high', 110, 18, 200], ['low', 55, 5, 160]]) {
+    for (const [tag, dist, elev, yaw] of [['high', 110, 18, 200], ['low', 55, 5, 160], ['top', 90, 55, 200]]) {
       await look(fall.footprint, dist, elev, yaw);
       await pic(`13-human-shoe-${tag}`);
       out[tag] = (await g(() => window.__game.perf().renderers.humans)).actors ?? 0;
     }
     expect(out.high > 0, 'the shoe was not drawn', out);
+    if (process.env.STAGE2_DEBUG_BLOB) {
+      // debugging aid: draw every blob shadow as an opaque red ellipse (renderer internals) to see where they lie
+      await g(() => {
+        const r = window.__hud.game.registry.entries.find((e) => e.slot === 'humans').renderer;
+        for (const o of r.group.children) if (o.isMesh && o.geometry.type === 'CircleGeometry') { o.material.map = null; o.material.transparent = false; o.material.color.set(0xff0000); o.material.needsUpdate = true; }
+      });
+      await look(fall.footprint, 90, 55, 200);
+      await g(() => window.__game.renderFrame({ settle: 1 }));
+      result.shots.push(await shot('13-human-blob-debug'));
+    }
     // the soft blob shadows the renderer laid down (renderer internals, read only): where, how big, how dark
     out.blobs = await g(() => {
       const r = window.__hud.game.registry.entries.find((e) => e.slot === 'humans').renderer;
       return r.group.children.filter((o) => o.visible && o.isMesh && o.geometry.type === 'CircleGeometry')
-        .map((o) => ({ at: [o.position.x, o.position.y, o.position.z].map(Math.round), scale: [o.scale.x, o.scale.z].map(Math.round), opacity: Math.round(o.material.opacity * 100) / 100 }));
+        .map((o) => {
+          // is the blob buried in a hard primitive (a paving slab above the terrain height it was laid at)?
+          const sm = window.__hud.game.session.sim;
+          let up = 0;
+          while (up < 200 && sm.field.hardXYZ(o.position.x, o.position.y + up, o.position.z) < 0) up += 1;
+          return { at: [o.position.x, o.position.y, o.position.z].map(Math.round), scale: [o.scale.x, o.scale.z].map(Math.round), opacity: Math.round(o.material.opacity * 100) / 100, buriedBy: up, terrain: Math.round(sm.field.height(o.position.x, o.position.z) * 10) / 10 };
+        });
     });
     return out;
   });

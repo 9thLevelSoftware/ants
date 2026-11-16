@@ -135,6 +135,8 @@ export const SEAL_BELOW_STEP_BU = 1.5;
  * nobody. One body length of a worker (the digger's body centre stands behind the plug face it bites).
  */
 export const SEAL_PLUG_INSIDE_BU = 1;
+/** Plugs past the throat sphere are allowed once the guide's watchdog has changed strategy this many times. */
+export const SEAL_DEEP_AFTER_CHANGES = 1;
 /** Other ants within this distance of the opening (or of her, for the back-fill) are kept clear of a plug, BU. */
 export const SEAL_OTHER_ANTS_BU = 8;
 /** `deep` / `mouth` strategies: the inner / outer part of the throat sphere, split at this fraction of its radius. */
@@ -276,9 +278,8 @@ export const REOPEN_FACE_INSIDE_BU = 0.75;
 /** A plug laid deep in the throat: the face is searched around this many of its voxels farthest from the opening. */
 export const REOPEN_FACE_PLUG_TRIES = 4;
 /**
- * A plug aimed at the throat's inner end reaches past the throat sphere by up to its plug radius (PLUG_RADIUS_BU
- * 1.2): the reopening looks for its voxels this far past the opening's rim, BU (THROAT_BU 3 + the plug radius +
- * one voxel).
+ * Diagnostics and tests (reopen.ts plugRemnants with a wider reach): plug voxels are looked for this far past the
+ * opening's rim, BU (THROAT_BU 3 + the plug radius 1.2 + a margin).
  */
 export const REOPEN_DEEP_REACH_BU = 4.7;
 export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
@@ -292,6 +293,11 @@ export const REOPEN_MAX_GD = 2;
 export const REOPEN_PAST_BU = 0.5;
 /** The plug closing the cavity past the throat is searched through at most this many of its voxels. */
 export const REOPEN_PLUG_MAX_SAMPLES = 4000;
+/**
+ * ... and dug in plans at most this long, BU: the anchor's connection reach (ANCHOR_CONNECTION_BU 4) less the wall
+ * minimum (2), the tunnel radius (1) and a margin, so open space beyond the plan's end is exempt from `too-close`.
+ */
+export const REOPEN_STEP_BU = 0.75;
 /** A founding reopening plan still live after this long is cancelled (nobody could dig it), GD. */
 export const REOPEN_PLAN_STALL_GD = 0.2;
 /** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */

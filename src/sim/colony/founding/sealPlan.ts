@@ -190,7 +190,8 @@ export function planSeal(
 ): SealPlan | null {
   const e = entranceToSeal(sim, nest);
   if (!e) return null;
-  // plugs inside the throat sphere only, unless the guide has found none it can lay there (deepOk, sealGuide.ts)
+  // plugs inside the throat sphere only, unless the guide got stuck laying one there (deepOk, sealGuide.ts); the
+  // workers dig a plug past it out through short dig plans at the hand-over (reopen.ts closingPlugPlan)
   const placeable = (s: Sphere) => deepOk || plugInThroat(sim, e, s);
   if (strategy === 'below') return planBelow(sim, nest, q, e, placeable);
   // the leak by the nest's founding pocket rule, else the plain one (the nest still reads the throat open)

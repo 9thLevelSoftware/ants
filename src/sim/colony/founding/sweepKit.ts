@@ -65,6 +65,28 @@ export function goodSite(sim: Sim, rBu: number): { x: number; y: number; z: numb
   return best;
 }
 
+/**
+ * Up to n good (or better) static-map cells within `rBu` of the queen, nearest first, at least `spacingBu` apart
+ * (sites a player would try one after another); ground points.
+ */
+export function goodSites(sim: Sim, rBu: number, n: number, spacingBu: number): { x: number; y: number; z: number; q: number }[] {
+  const q = queen(sim), m = sim.world.maps.suitability['lasius-niger'], bu = sim.world.bu;
+  const all: { x: number; y: number; z: number; q: number; d: number }[] = [];
+  for (let iz = 0; iz < m.nz; iz++) for (let ix = 0; ix < m.nx; ix++) {
+    const x = (ix + 0.5) * m.cell, z = (iz + 0.5) * m.cell, v = m.data[iz * m.nx + ix] / 255;
+    const d = Math.hypot(x - q.pos.x, z - q.pos.z);
+    if (v >= SUIT.good && d <= rBu * bu) all.push({ x, y: 0, z, q: v, d });
+  }
+  all.sort((a, b) => a.d - b.d);
+  const out: { x: number; y: number; z: number; q: number }[] = [];
+  for (const c of all) {
+    if (out.length >= n) break;
+    if (out.some((o) => Math.hypot(o.x - c.x, o.z - c.z) < spacingBu * bu)) continue;
+    out.push({ x: c.x, y: sim.field.height(c.x, c.z), z: c.z, q: c.q });
+  }
+  return out;
+}
+
 export interface SweepResult {
   ok: boolean;
   /** Ticks from the seal request (E press / auto request) to `sealed`, -1 if never. */
@@ -135,7 +157,7 @@ export function setSweepDebug(f: ((s: string) => void) | null): void { DEBUG = f
 
 /** Walking to the site by her own input when locomotion's route fails: at most this long, ticks. */
 const WALK_STEER_TICKS = 3000;
-const SHAFT_SLOPE_DEG = 55, SHAFT_DEPTH_BU = 9, SHAFT_MAX_BITES = 260, ROOM_MAX_ROUNDS = 6, CELL_DEPTH_BU = 9.5, SITE_SEARCH_BU = 30, OPEN_ABOVE_BU = 12;
+const SHAFT_SLOPE_DEG = 55, SHAFT_DEPTH_BU = 9, SHAFT_MAX_BITES = 260, ROOM_MAX_ROUNDS = 10, CELL_DEPTH_BU = 9.5, SITE_SEARCH_BU = 30, OPEN_ABOVE_BU = 12;
 
 function setDir(sim: Sim, d: { x: number; y: number; z: number } | null): void {
   const i = sim.state.player.intent;
@@ -294,8 +316,12 @@ export function passiveCase(sim: Sim): SweepResult {
   return { ...result(sim, t0, refusals, 'seal'), movedBu };
 }
 
-/** The player path: walk to `site`, dig with dig-bite, press E once in the cell (possessed). */
-export function playerCase(sim: Sim, site: { x: number; y: number; z: number } | null): SweepResult {
+/**
+ * The player path: walk to `site`, dig with dig-bite, press E once in the cell (possessed). `template` false: when
+ * the scripted dig never starts, the case ends there (stage `dig`, the player would try another site) instead of
+ * carving the cheat's template.
+ */
+export function playerCase(sim: Sim, site: { x: number; y: number; z: number } | null, template = true): SweepResult {
   const q = queen(sim);
   if (site && !walkTo(sim, site, 1.5, 6000)) {
     // locomotion's route did not get her there (viab-loco): the player walks her there with her own input instead
@@ -310,6 +336,7 @@ export function playerCase(sim: Sim, site: { x: number; y: number; z: number } |
   const nest = nestOf(sim);
   playerDig(sim);
   let note = '';
+  if (phase(sim) === 'search' && !template) return { ...result(sim, sim.state.tick, [], 'dig'), ok: false, note: 'the dig never started here' };
   if (phase(sim) === 'search') {
     // the scripted digger never got a bite in here (sand-pit fill, a pit it slides about in: a dig and locomotion
     // matter, reported): the template a dig produces is carved instead (cheat.completeFounding's), then the

@@ -9,6 +9,7 @@ import type { AlatePolicy } from './ids/progression';
 import type { StockTarget } from './ids/species';
 import type { FungusModule, GranaryModule, HoneydewModule, WoodModule } from './colonyModules';
 import type { Nutrients } from './refs';
+import type { ColonyLifecycleState } from './lifecycle';
 
 /** In-nest food pool (social stomach + store chambers), loads (D2.15). */
 export interface ColonyStores {
@@ -220,6 +221,8 @@ export interface Colony {
   core?: ColonyCoreState;
   /** Outdoor-behaviour bookkeeping (GDD 02 §8.4, App. C). Additive (beh-forage): created on first use. */
   forage?: ColonyForageState;
+  /** Overwintering, reproduction and succession bookkeeping (GDD 06 §6, §11-§13). Additive (overwinter-repro). */
+  lifecycle?: ColonyLifecycleState;
 }
 
 /** Colony-level memory of the outdoor behaviours' trail observers (owner: src/sim/ants/behaviours/outdoor/monitor.ts). */

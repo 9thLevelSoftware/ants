@@ -18,8 +18,8 @@ import type { DigPlan, Entrance, Nest, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import {
-  REOPEN_CHECK_TICKS, REOPEN_DEEP_REACH_BU, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
-  REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD, REOPEN_PLUG_MAX_SAMPLES,
+  REOPEN_CHECK_TICKS, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
+  REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD, REOPEN_PLUG_MAX_SAMPLES, REOPEN_STEP_BU,
 } from '@/sim/balance/founding';
 import { cancelPlan, createPlan, voxelAt } from '@/sim/nest';
 import { setEntranceStatus } from '@/sim/nest/entrances';
@@ -194,7 +194,7 @@ function isPlugVoxel(sim: Sim, p: Vec3): boolean {
  * beside the plug voxel nearest the opening (`face`) and, among the plug voxels connected to that one, the one nearest
  * the opening (`outer`). Null when the cavity touches no plug.
  */
-function closingPlug(sim: Sim, nest: Nest, e: Entrance): { face: Vec3; outer: Vec3 } | null {
+export function closingPlug(sim: Sim, nest: Nest, e: Entrance): { face: Vec3; outer: Vec3 } | null {
   const v = sim.carve.voxel, at = { x: 0, y: 0, z: 0 };
   const dist = (p: Vec3) => Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z);
   let face: Vec3 | null = null, inner: Vec3 | null = null, best = Infinity;
@@ -227,10 +227,25 @@ function closingPlug(sim: Sim, nest: Nest, e: Entrance): { face: Vec3; outer: Ve
   return { face, outer };
 }
 
-/** The dig through the plug that closes the cavity (closingPlug), from its inner face; plan id or -1. */
+/**
+ * The dig through the plug that closes the cavity (closingPlug), from its inner face toward its far side, at most
+ * REOPEN_STEP_BU long: the nest refuses a founding plan with open space beyond the anchor's connection reach within
+ * the wall minimum of it (`too-close`: the open throat past a long plan's end), so a thick plug is dug in steps, the
+ * next plan from the new face once the last is dug (reopenTick). Plan id or -1.
+ */
 function closingPlugPlan(sim: Sim, nest: Nest, e: Entrance): number {
   const plug = closingPlug(sim, nest, e);
-  return plug ? shaftPlan(sim, nest, plug.face, plug.outer) : -1;
+  if (!plug) return -1;
+  const { face, outer } = plug, bu = sim.world.bu;
+  const dx = outer.x - face.x, dy = outer.y - face.y, dz = outer.z - face.z, len = Math.hypot(dx, dy, dz);
+  if (len < 1e-6) return -1;
+  // a `tunnel` plan: it runs exactly to its end point at any slope (a `shaft` plan is tilted to near vertical and at
+  // least SHAFT_LEN_BU long, which reaches out of the throat and is refused)
+  const k = Math.min(1, (REOPEN_STEP_BU * bu) / len);
+  return createPlan(sim, {
+    nestId: nest.id, kind: 'tunnel', anchor: { pos: face, normal: UP }, end: { x: face.x + dx * k, y: face.y + dy * k, z: face.z + dz * k },
+    priority: REOPEN_PLAN_PRIORITY, confirmWarnings: true,
+  }, 'founding');
 }
 
 const live = (p: DigPlan) => p.status !== 'complete' && p.status !== 'cancelled';

@@ -38,7 +38,7 @@ export interface Facts {
   workers: number;
   /** Game days since the first worker hatched (milestone `ms-first-worker`); -1 while none has. */
   daysSinceFirstWorker: number;
-  /** A pick-up prompt line / a share-food prompt line is showing. */
+  /** A pick-up prompt line / a share-food prompt line is showing (the "Colony orders" line is tracked through `externalShown`). */
   promptPickup: boolean;
   promptShare: boolean;
   /** The first food was delivered / the first trail exists (milestones of the sim). */
@@ -87,6 +87,8 @@ export interface HintDef {
   /** The engine draws it as a fallback when its own presenter is not showing it (hint-cycle after the hand-over banner is gone). */
   engineFallback?: boolean;
   anchor: HintAnchor;
+  /** Where the card sits when that depends on the game (GDD 08 §9.2 #19: on the panel, or by the time cluster); `anchor` is the default. */
+  anchorWhen?(f: Facts): HintAnchor;
   /** The trigger: true while the hint would help. */
   when(f: Facts, c: TriggerContext): boolean;
   /** Hints that must be learned or dismissed first. */
@@ -116,6 +118,8 @@ export interface HintStore {
   dismiss(id: HintId): void;
   /** Every hint pending again ("Reset hints"). */
   reset(): void;
+  /** Writes the progress to storage now (the e2e before a reload; the profile also writes on its own a moment after a change). */
+  flush?(): Promise<void>;
   /** Called after any change of the hint states (also a reset from Settings); returns the unsubscribe function. */
   subscribe(fn: () => void): () => void;
 }

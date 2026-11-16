@@ -1,0 +1,23 @@
+/* The nuptial flight's screens (GDD 06 §11.6): prompts, the flight read-out, the end card. Tokens from the shell. */
+
+.fl-root { position: absolute; inset: 0; pointer-events: none; z-index: 13; color: var(--c-text); }
+.fl-chip { position: absolute; background: var(--c-scrim); border-radius: var(--r-m); padding: 0.5rem 0.9rem; pointer-events: auto; box-shadow: var(--e-0); }
+.fl-label { font-size: var(--t-small); color: var(--c-text-2); }
+.fl-num { font-variant-numeric: tabular-nums; font-weight: 600; font-size: var(--t-small); }
+.fl-buttons { display: flex; gap: 0.75rem; justify-content: center; margin-top: 0.5rem; }
+.fl-prompt { left: 50%; top: 5rem; transform: translateX(-50%); text-align: center; padding: 0.75rem 1.25rem; max-width: 34rem; }
+.fl-cap { left: 50%; top: 1rem; transform: translateX(-50%); text-align: center; padding: 0.5rem 1.5rem; }
+.fl-title { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.03em; }
+.fl-sub { font-size: var(--t-small); color: var(--c-text-2); }
+.fl-meters { right: 1rem; top: 7rem; width: 18rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.fl-meter { display: grid; grid-template-columns: 4.5rem 1fr 2.75rem; gap: 0.5rem; align-items: center; }
+.fl-bar { height: 0.5rem; border-radius: 0.25rem; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.fl-bar > i { display: block; height: 100%; background: var(--c-accent); }
+.fl-bar.is-mating > i { background: #d9a7c7; }
+.fl-keys { left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; gap: 1rem; align-items: center; }
+.fl-card-wrap { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.fl-card { pointer-events: auto; background: #e9dfc8; color: #2b241b; border: 1px solid #8a7c66; border-radius: 4px; padding: 1.5rem 2rem; width: 32rem; text-align: center; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.45); font-family: Georgia, 'Times New Roman', serif; }
+.fl-card h2 { margin: 0 0 0.5rem; font-size: 1.35rem; font-weight: normal; }
+.fl-card p { margin: 0.3rem 0; }
+/* buttons on the parchment: dark text, visible outlines */
+.fl-card .ui-btn--ghost, .fl-card .ui-btn--secondary { color: #2b241b; border-color: #8a7c66; background: rgba(255, 255, 255, 0.25); }

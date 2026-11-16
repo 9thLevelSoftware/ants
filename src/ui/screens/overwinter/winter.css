@@ -1,0 +1,43 @@
+/* The overwintering screens (GDD 06 §6.4-§6.5): banner, winter time-lapse overlay, Winter Report card. Tokens from
+   the shell (src/ui/styles). The lapse cools the world behind it; the report is a field-journal card. */
+
+.wi-root { position: absolute; inset: 0; pointer-events: none; z-index: 13; color: var(--c-text); }
+.wi-chip { position: absolute; background: var(--c-scrim); border-radius: var(--r-m); padding: 0.5rem 0.9rem; pointer-events: auto; box-shadow: var(--e-0); }
+.wi-label { font-size: var(--t-small); color: var(--c-text-2); }
+.wi-buttons { display: flex; gap: 0.75rem; justify-content: center; margin-top: 0.5rem; }
+
+.wi-banner { left: 50%; top: 5rem; transform: translateX(-50%); text-align: center; padding: 0.75rem 1.25rem; }
+.wi-banner-title { font-size: 1.1rem; font-weight: 600; }
+
+/* nearly opaque: the HUD behind already shows spring (the winter is computed before it is played back) */
+.wi-lapse { position: absolute; inset: 0; pointer-events: auto; background: radial-gradient(ellipse at 50% 55%, rgba(22, 26, 32, 0.95), rgba(8, 10, 14, 0.985)); }
+.wi-rime { position: absolute; left: 0; right: 0; top: 0; height: 4.5rem; background: linear-gradient(to bottom, rgba(222, 232, 240, 0.55), rgba(222, 232, 240, 0)); }
+.wi-lapse.is-frost .wi-rime { height: 6rem; background: linear-gradient(to bottom, rgba(236, 243, 250, 0.8), rgba(236, 243, 250, 0)); }
+.wi-cap { left: 50%; top: 1rem; transform: translateX(-50%); text-align: center; padding: 0.5rem 1.5rem; }
+.wi-title { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.04em; }
+.wi-sub { font-size: var(--t-small); color: var(--c-text-2); }
+.wi-stage { left: 50%; top: 50%; transform: translate(-50%, -55%); width: 30rem; text-align: center; background: rgba(28, 22, 16, 0.72); }
+.wi-cluster { width: 28rem; height: 14rem; }
+.wi-chamber { fill: #3b2d20; stroke: #5b4630; stroke-width: 2; }
+.wi-ants { fill: #120d09; }
+.wi-stage.is-still { animation: wi-crossfade 0.8s ease-out; }
+@keyframes wi-crossfade { from { opacity: 0.2; } to { opacity: 1; } }
+.wi-temp { font-size: var(--t-small); color: #b9cbe0; }
+.wi-beat { margin-top: 0.25rem; font-weight: 600; color: #dbe7f3; }
+.wi-strip { left: 50%; bottom: 1.25rem; transform: translateX(-50%); width: 40rem; }
+.wi-counts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; margin-bottom: 0.5rem; text-align: center; }
+.wi-counts b { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.wi-counts span { font-size: var(--t-caption); color: var(--c-text-2); text-transform: uppercase; letter-spacing: 0.06em; }
+.wi-foot { display: flex; align-items: center; gap: 1rem; }
+.wi-foot .ui-progress { flex: 1; }
+
+.wi-card-wrap { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto; background: rgba(10, 12, 16, 0.55); }
+.wi-card { background: #e9dfc8; color: #2b241b; border: 1px solid #8a7c66; border-radius: 4px; padding: 1.5rem 2rem 1.25rem; width: 46rem; max-width: 94vw; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.45); font-family: Georgia, 'Times New Roman', serif; }
+.wi-card h2 { margin: 0 0 0.75rem; font-size: 1.3rem; font-weight: normal; }
+.wi-card h3 { margin: 0 0 0.3rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: #5a4e3e; }
+.wi-card p, .wi-card li { margin: 0.15rem 0; font-size: 0.95rem; }
+.wi-card ul { margin: 0.2rem 0 0.4rem; padding-left: 1.1rem; }
+.wi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.5rem; border-top: 1px solid #b9ab8f; padding-top: 0.6rem; }
+.wi-outlook { border-top: 1px solid #b9ab8f; padding-top: 0.5rem; margin-top: 0.6rem; font-style: italic; }
+/* buttons on the parchment: dark text, visible outlines */
+.wi-card .ui-btn--ghost, .wi-card .ui-btn--secondary { color: #2b241b; border-color: #8a7c66; background: rgba(255, 255, 255, 0.25); }

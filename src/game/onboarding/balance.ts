@@ -40,3 +40,24 @@ export const HINT_DIRECTIVES_FALLBACK_GAME_DAYS = 3;
 export const HINT_PHOTO_AFTER_REAL_S = 240;
 /** Engine steps in `advance(realS)` are at most this long, so cumulative-time hints behave as in play. */
 export const HINT_ADVANCE_STEP_REAL_S = 0.25;
+/** A shown hint whose trigger stayed false this long is withdrawn (the player did something else). */
+export const HINT_TRIGGER_LOST_REAL_S = 1;
+/** The engine log (read by the e2e; it is not a save) keeps this many entries. */
+export const HINT_LOG_CAP = 400;
+/** Mouse travel under pointer lock (CSS px) that counts as one camera look. */
+export const HINT_LOCKED_LOOK_PX = 96;
+/** Table timings (GDD 08 §9.2): real seconds a trigger must hold before its hint shows. */
+export const HINT_MOVE_DELAY_REAL_S = 2;
+export const HINT_LOOK_DELAY_REAL_S = 1;
+/** hint-look: no camera drag for this long. */
+export const HINT_LOOK_QUIET_REAL_S = 5;
+/** hint-antennate: this long after the start of the game. */
+export const HINT_ANTENNATE_AFTER_REAL_S = 10;
+export const HINT_MARKER_DELAY_REAL_S = 3;
+export const HINT_SPEED_DELAY_REAL_S = 30;
+export const HINT_PHOTO_DELAY_REAL_S = 8;
+export const HINT_OVERLAY_DELAY_REAL_S = 20;
+/** The colony view's marker palette pulses once when hint-marker shows (a static outline in reduced motion), real ms. */
+export const HINT_PALETTE_PULSE_MS = 1800;
+/** Manual clock (?test=1): at most this much sim time (real seconds at 1x) is credited to the engine per refresh. */
+export const HINT_MANUAL_MAX_STEP_REAL_S = 30;

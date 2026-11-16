@@ -13,15 +13,14 @@
 import type { HintId, HintState } from '@/sim/types';
 import { hintText } from '@/content/text';
 import {
-  HINT_DELAY_REAL_S, HINT_EXPIRY_REAL_S, HINT_FIGHT_QUIET_REAL_S, HINT_GAP_REAL_S, HINT_IDLE_REAL_S, HINT_MAX_FULL_SHOWS,
-  HINT_MAX_PER_MINUTE, HINT_RATE_WINDOW_REAL_S, HINT_RESHOW_COOLDOWN_REAL_S, HINT_RETIRE_COOLDOWN_REAL_S, HINT_RETURN_REAL_S, HINT_USE_GAP_REAL_S,
+  HINT_DELAY_REAL_S, HINT_EXPIRY_REAL_S, HINT_FIGHT_QUIET_REAL_S, HINT_GAP_REAL_S, HINT_IDLE_REAL_S, HINT_LOG_CAP, HINT_MAX_FULL_SHOWS,
+  HINT_MAX_PER_MINUTE, HINT_RATE_WINDOW_REAL_S, HINT_RESHOW_COOLDOWN_REAL_S, HINT_RETIRE_COOLDOWN_REAL_S, HINT_RETURN_REAL_S, HINT_TRIGGER_LOST_REAL_S,
+  HINT_USE_GAP_REAL_S,
 } from './balance';
 import { EVENT_RULES } from './rules';
 import { HINT_TABLE } from './table';
 import type { EngineEvent, EventContext, Facts, HintDef, HintLogEntry, HintStore, HintView, TriggerContext, UseKey } from './types';
 
-/** The log keeps this many entries (the e2e reads it; it is not a save). */
-const LOG_CAP = 400;
 /** Verbs whose repeated reports within HINT_USE_GAP_REAL_S count once. */
 const GAPPED: ReadonlySet<UseKey> = new Set<UseKey>(['antennate']);
 
@@ -48,11 +47,13 @@ interface Runtime {
   passiveS: number;
   /** An external presenter showed it at least once (log once). */
   externalLogged: boolean;
+  /** The card has put it on screen at least once since the last reset: from then on it is no longer a NEW prompt. */
+  everShown: boolean;
 }
 
 const newRuntime = (): Runtime => ({
   trueS: 0, fullS: 0, compactS: 0, displayS: 0, lostS: 0, compact: false, returned: false, fulls: 0, hiddenAt: -Infinity, hiddenCooldown: 0,
-  secs: 0, passiveS: 0, externalLogged: false,
+  secs: 0, passiveS: 0, externalLogged: false, everShown: false,
 });
 
 export interface EngineOptions {
@@ -122,10 +123,11 @@ export class HintEngine {
     if (this.cur === null) { this.cached = null; return null; }
     const def = this.defOf(this.cur);
     const rt = this.runtime(this.cur);
+    const anchor = this.facts && def.anchorWhen ? def.anchorWhen(this.facts) : def.anchor;
     const c = this.cached;
-    if (c && c.id === this.cur && c.seq === this.seq && c.compact === rt.compact) return c;
+    if (c && c.id === this.cur && c.seq === this.seq && c.compact === rt.compact && c.anchor === anchor) return c;
     const t = hintText(this.cur);
-    this.cached = { id: this.cur, seq: this.seq, anchor: def.anchor, compact: rt.compact, verb: t.verb, action: t.action, hold: !!t.hold, ...(t.fixedKey ? { fixedKey: t.fixedKey } : {}) };
+    this.cached = { id: this.cur, seq: this.seq, anchor, compact: rt.compact, verb: t.verb, action: t.action, hold: !!t.hold, ...(t.fixedKey ? { fixedKey: t.fixedKey } : {}) };
     return this.cached;
   }
 
@@ -189,6 +191,22 @@ export class HintEngine {
     return true;
   }
 
+  /**
+   * Shift+H with no card on screen: dismiss teaching hints another presenter draws right now (the opening overlay's
+   * prompts). Only hints this engine tracks and that are still open are touched. True when any was dismissed.
+   */
+  dismissExternal(ids: readonly HintId[]): boolean {
+    let any = false;
+    for (const id of ids) {
+      const d = this.table.find((x) => x.id === id);
+      if (!d || d.presenter === 'engine' || this.isResolved(id)) continue;
+      this.store.dismiss(id);
+      this.logEntry('dismissed', id, d.presenter);
+      any = true;
+    }
+    return any;
+  }
+
   /** "Reset hints": every hint pending again (the profile's reset; the engine follows through its store subscription). */
   resetStore(): void {
     this.store.reset();
@@ -227,6 +245,7 @@ export class HintEngine {
       if (on && r.trueS >= (d.delayS ?? HINT_DELAY_REAL_S) && this.clockS - r.hiddenAt >= r.hiddenCooldown) candidates.push(d);
     }
     if (this.cur !== null) this.tickCurrent(f, ctx, dt);
+    if (this.cur !== null && f.hintsOn) this.maybePreempt(candidates);
     if (this.cur === null && candidates.length > 0 && f.hintsOn) this.maybeShow(candidates);
     if (!f.hintsOn && this.cur !== null) this.hideCurrent('hints-off', false);
   }
@@ -291,15 +310,36 @@ export class HintEngine {
     }
   }
 
+  /** A hint nobody has seen yet counts against the per-minute limit; stored progress alone (a partial use) does not make it old. */
+  private isNew(d: HintDef): boolean {
+    return !this.runtime(d.id).everShown;
+  }
+
+  /** The best candidate the rate limit lets through, lowest order first. */
+  private pickCandidate(candidates: HintDef[], below = Infinity): HintDef | null {
+    const sorted = candidates.filter((d) => d.order < below).sort((a, b) => a.order - b.order);
+    for (const d of sorted) {
+      if (this.isNew(d) && this.recentFirstShows() >= HINT_MAX_PER_MINUTE) continue;
+      return d;
+    }
+    return null;
+  }
+
   private maybeShow(candidates: HintDef[]): void {
     if (this.clockS - this.lastHiddenAt < HINT_GAP_REAL_S) return;
-    candidates.sort((a, b) => a.order - b.order);
-    for (const d of candidates) {
-      const fresh = this.state(d.id) === 'pending';
-      if (fresh && this.recentFirstShows() >= HINT_MAX_PER_MINUTE) continue;
-      this.show(d, fresh);
-      return;
-    }
+    const d = this.pickCandidate(candidates);
+    if (d) this.show(d);
+  }
+
+  /**
+   * A hint that has faded to its compact form (nobody acted on it for a minute) gives the single slot to a hint that is
+   * due and comes earlier in the table; it may return after a while. A full-size hint is never pushed off.
+   */
+  private maybePreempt(candidates: HintDef[]): void {
+    const id = this.cur;
+    if (id === null || !this.runtime(id).compact) return;
+    if (!this.pickCandidate(candidates, this.defOf(id).order)) return;
+    this.hideCurrent('preempted', true, HINT_RESHOW_COOLDOWN_REAL_S);
   }
 
   private recentFirstShows(): number {
@@ -307,12 +347,15 @@ export class HintEngine {
     return this.firstShows.length;
   }
 
-  private show(d: HintDef, fresh: boolean): void {
+  private show(d: HintDef): void {
     const r = this.runtime(d.id);
+    const fresh = !r.everShown;
     this.cur = d.id;
     this.seq++;
     r.fullS = 0; r.compactS = 0; r.displayS = 0; r.lostS = 0; r.compact = false; r.returned = false; r.fulls++;
-    if (fresh) { this.store.markShown(d.id); this.firstShows.push(this.clockS); }
+    r.everShown = true;
+    if (fresh) this.firstShows.push(this.clockS);
+    if (this.state(d.id) === 'pending') this.store.markShown(d.id);
     this.logEntry('shown', d.id, 'engine');
   }
 
@@ -325,7 +368,7 @@ export class HintEngine {
     if (this.isResolved(id)) { this.hideCurrent('resolved', false); return; }
     if (this.suppressed(d, f) || !this.drawable(d, f)) { this.hideCurrent('suppressed', true, 0); return; }
     r.lostS = d.when(f, ctx) ? 0 : r.lostS + dt;
-    if (r.lostS >= 1) { this.hideCurrent('trigger-gone', true, HINT_RESHOW_COOLDOWN_REAL_S); return; }
+    if (r.lostS >= HINT_TRIGGER_LOST_REAL_S) { this.hideCurrent('trigger-gone', true, HINT_RESHOW_COOLDOWN_REAL_S); return; }
     r.displayS += dt;
     if (r.displayS >= HINT_EXPIRY_REAL_S) { this.logEntry('retired', id, 'engine'); this.hideCurrent('expired', true, HINT_RETIRE_COOLDOWN_REAL_S); return; }
     if (!r.compact) {
@@ -366,7 +409,7 @@ export class HintEngine {
 
   private logEntry(event: HintLogEntry['event'], id: HintId, presenter: HintLogEntry['presenter'] = 'engine', note?: string): void {
     this.log.push({ at: Math.round(this.clockS * 100) / 100, event, id, presenter, ...(note ? { note } : {}) });
-    if (this.log.length > LOG_CAP) this.log.splice(0, this.log.length - LOG_CAP);
+    if (this.log.length > HINT_LOG_CAP) this.log.splice(0, this.log.length - HINT_LOG_CAP);
   }
 
   /** Uses counted this game, by verb (debug read-out). */

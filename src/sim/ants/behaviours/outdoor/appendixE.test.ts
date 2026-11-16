@@ -49,6 +49,10 @@ describe('GDD 02 App. E 12: activation by successful returns', () => {
     const s = sim(3, 7);
     const col = s.state.colonies[0];
     s.enqueue({ type: 'cheat.addFood', colonyId: col.id, c: 3, p: 0.5, toxin: 0 });
+    // somewhere to go (econ-growth: a forager with no known source and no marker re-evaluates instead of departing);
+    // a forage marker leaves the spontaneous rate as GDD 02 §6.6 has it (no known source: no need multiplier)
+    const e = entranceOf(s);
+    s.enqueue({ type: 'placeMarker', kind: 'forage', pos: { x: e.pos.x + 150 * s.world.bu, y: 0, z: e.pos.z }, radius: 20 * s.world.bu });
     s.applyPendingCommands();
     const [returner, ...ants] = s.state.ants.filter((a) => a.caste === 'worker');
     for (const a of ants) requestTask(s, a, 'forage', 'job:test');

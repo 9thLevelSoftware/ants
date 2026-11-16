@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Ant, Sim } from '@/sim/types';
 import { ALARM_STRONG } from '@/sim/balance';
+import { HUMAN_FLEE_REFRACTORY_S } from '@/sim/balance/foraging';
 import { requestTask } from '@/sim/colony';
 import { SYSTEMS } from '@/sim/systems';
 import { makeTestSim } from '@/sim/testing';
@@ -11,8 +12,9 @@ import { K, PHASE } from './keys';
 import { announce } from './testkit';
 
 function outbound(): { sim: Sim; ant: Ant } {
+  // the human-event runner drops runs it did not schedule: the tests below push hand-made cue runs, so it is left out
   const sim = makeTestSim({
-    sizeBu: 400, nest: 'small', workers: 2, seed: 5, systems: SYSTEMS.filter((s) => s.phase !== 'colony-allocation'),
+    sizeBu: 400, nest: 'small', workers: 2, seed: 5, systems: SYSTEMS.filter((s) => s.phase !== 'colony-allocation' && s.name !== 'human-events'),
     config: { startSeason: 'summer', startDayOfSeason: 2, startHour: 10 },
   });
   const col = sim.state.colonies[0];
@@ -86,5 +88,27 @@ describe('flee', () => {
     expect(ran).toBe(true);
     expect(dz).toBeGreaterThan(3); // away from the lane, on its own side
     expect(Math.abs(dx)).toBeLessThan(dz);
+  }, 120000);
+
+  it('econ-growth: a long tremor warning (footsteps, 500 BU radius, 60 s) is one run, then the trip goes on', () => {
+    const { sim, ant } = outbound();
+    const bu = sim.world.bu, now = sim.state.tick;
+    const o = { x: ant.pos.x + 200 * bu, y: 0, z: ant.pos.z + 50 * bu };
+    sim.state.env.human.active.push({
+      instId: 97, progressS: 0, nextImpactTick: now + 600,
+      cues: [{ kind: 'tremor', origin: o, radiusMm: 500 * bu, intensity: 1, startTick: now, impactTick: now + 600 }],
+    });
+    const seen: string[] = [];
+    for (let t = 0; t < 600; t++) {
+      sim.tick();
+      if (seen[seen.length - 1] !== ant.state) seen.push(ant.state);
+    }
+    console.log('long tremor:', seen.join(' -> '));
+    // one run per HUMAN_FLEE_REFRACTORY_S at most, no freeze / re-check cycles, and the trip goes on to the food
+    expect(seen.filter((x) => x === 'flee.run').length).toBeLessThanOrEqual(Math.ceil(60 / HUMAN_FLEE_REFRACTORY_S));
+    expect(seen).not.toContain('flee.freeze');
+    expect(seen[seen.indexOf('flee.run') + 1]).toBe('forage.outbound');
+    expect(seen.indexOf('forage.collect')).toBeGreaterThan(0);
+    expect(seen.indexOf('forage.collect')).toBeLessThan(seen.indexOf('forage.return')); // not sent home empty
   }, 120000);
 });

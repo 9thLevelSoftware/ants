@@ -72,7 +72,7 @@ function blobTexture(size = 64): DataTexture {
       const r = Math.min(1, Math.hypot(dx, dy));
       // a plateau that rolls off softly to nothing at the rim: no visible edge, no cusp in the middle
       const sm = r * r * (3 - 2 * r);
-      const a = Math.pow(1 - sm, 1.3);
+      const a = Math.pow(1 - sm, 0.8);
       const i = (y * size + x) * 4;
       data[i] = data[i + 1] = data[i + 2] = 0;
       data[i + 3] = Math.round(a * 255);
@@ -180,7 +180,7 @@ export function createHumanMaterials(): HumanMaterials {
     kibble: std({ color: '#5e3d22', roughness: 0.85 }),
     syrup: std({ color: '#c98b2b', roughness: 0.08, metalness: 0, transparent: true, opacity: 0.78 }),
     water: std({ color: '#b9d3e3', roughness: 0.04, metalness: 0, transparent: true, opacity: 0.55, depthWrite: false }),
-    shadow: new MeshBasicMaterial({ map: blobTexture(), color: '#000000', transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }),
+    shadow: new MeshBasicMaterial({ map: blobTexture(), color: '#000000', transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -16 }),
   };
   const all = () => Object.values(m) as Material[];
   return { ...m, all };

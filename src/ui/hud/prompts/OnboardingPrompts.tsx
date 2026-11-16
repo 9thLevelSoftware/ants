@@ -3,7 +3,7 @@
 // draws the hint card. Registered once in src/ui/App.tsx.
 import { useEffect } from 'preact/hooks';
 import { effect, untracked } from '@preact/signals';
-import { HINT_DRAG_MIN_PX, OnboardingController, type OnboardingGame, type UiFacts } from '@/game/onboarding';
+import { HINT_DRAG_MIN_PX, HINT_LOCKED_LOOK_PX, HINT_PALETTE_PULSE_MS, OnboardingController, type OnboardingGame, type UiFacts } from '@/game/onboarding';
 import { facade, snapshot } from '../../store';
 import { foundingUi } from '../../screens/founding/store';
 import { overlays } from '../../overlays/state';
@@ -11,7 +11,7 @@ import { screenSlice } from '../slices';
 import { openDrawer } from '../state';
 import { installOnboardingDebug } from './debug';
 import { gateFoundingPrompts } from './foundingGate';
-import { foundingShownHints } from './foundingShown';
+import { foundingPromptHints, foundingShownHints } from './foundingShown';
 import { HintCard } from './HintCard';
 import { hintView, onboarding } from './state';
 import css from './hint.css?inline';
@@ -43,7 +43,7 @@ function watchDrags(onDrag: () => void): () => void {
     if (down && !down.far && Math.hypot(e.clientX - down.x, e.clientY - down.y) >= HINT_DRAG_MIN_PX) down.far = true;
     if (document.pointerLockElement) {
       locked += Math.hypot(e.movementX, e.movementY);
-      if (locked >= 8 * HINT_DRAG_MIN_PX) { locked = 0; onDrag(); }
+      if (locked >= HINT_LOCKED_LOOK_PX) { locked = 0; onDrag(); }
     }
   };
   const onUp = () => {
@@ -67,14 +67,43 @@ const isEditable = (t: EventTarget | null): boolean => {
   return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 };
 
-/** Shift+H dismisses the hint on the card. Captured before the game's input so H (hide HUD) does not also fire. */
+/**
+ * Shift+H dismisses the teaching hint on screen: the card, or when there is none the opening overlay's prompts. The key is
+ * always taken while a game runs, so a Shift+H with nothing to dismiss never toggles the HUD (H). Captured before the
+ * game's input.
+ */
 function watchDismissKey(ctl: () => OnboardingController | null): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (e.code !== 'KeyH' || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || isEditable(e.target)) return;
-    if (ctl()?.dismiss()) { e.preventDefault(); e.stopImmediatePropagation(); }
+    const c = ctl();
+    if (!c) return;
+    if (!c.dismiss()) c.dismissExternal(foundingPromptHints(foundingUi.peek()));
+    e.preventDefault();
+    e.stopImmediatePropagation();
   };
   window.addEventListener('keydown', onKey, true);
   return () => window.removeEventListener('keydown', onKey, true);
+}
+
+const reducedMotion = (): boolean => document.documentElement.dataset.motion === 'reduced' || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** The colony view's marker palette pulses once when hint-marker shows (a static outline in reduced motion, see hint.css). */
+function watchPalettePulse(): () => void {
+  let timer = 0;
+  const clear = () => {
+    window.clearTimeout(timer);
+    document.querySelectorAll('.hn-palette-pulse').forEach((el) => el.classList.remove('hn-palette-pulse'));
+  };
+  const stop = effect(() => {
+    const v = hintView.value;
+    if (v?.id !== 'hint-marker') { clear(); return; }
+    const el = document.querySelector<HTMLElement>('[data-testid="marker-palette"]');
+    if (!el || el.classList.contains('hn-palette-pulse')) return;
+    el.classList.add('hn-palette-pulse');
+    window.clearTimeout(timer);
+    if (!reducedMotion()) timer = window.setTimeout(() => el.classList.remove('hn-palette-pulse'), HINT_PALETTE_PULSE_MS);
+  });
+  return () => { stop(); clear(); };
 }
 
 /** Keeps the opening overlay's prompt chip free of hints already learned (see foundingGate.ts). Re-applied when the DOM changes. */
@@ -116,6 +145,7 @@ function useOnboarding(): void {
     stops.push(watchFoundingGate(() => ctl));
     stops.push(watchDrags(() => ctl?.noteDrag()));
     stops.push(watchDismissKey(() => ctl));
+    stops.push(watchPalettePulse());
     if (test) stops.push(installOnboardingDebug(() => ctl));
     return () => { stops.forEach((s) => s()); unsub?.(); ctl?.dispose(); onboarding.value = null; hintView.value = null; };
   }, []);

@@ -10,7 +10,7 @@
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  FLEE_CLEAR_S, FLEE_FREEZE_S, FLEE_LEG_BU, FLEE_MAX_CYCLES, FLEE_RUN_S, LEG_ARRIVE_BU, SUCCESS_CROP,
+  FLEE_CLEAR_S, FLEE_FREEZE_S, FLEE_LEG_BU, FLEE_MAX_CYCLES, FLEE_RUN_S, HUMAN_FLEE_REFRACTORY_S, LEG_ARRIVE_BU, SUCCESS_CROP,
 } from '@/sim/balance/foraging';
 import { THREAT, threatApproach, threatCode, threatX, threatZ } from '@/sim/ants/perception';
 import { TICKS_PER_SECOND } from '@/sim/time';
@@ -22,6 +22,8 @@ import { resumeExplore } from './phaseScout';
 import { dropAction, resumeOutboundNav, startReturn } from './transitions';
 
 const REQUEST_X = 'fo.fRx', REQUEST_Z = 'fo.fRz', REQUEST = 'fo.fReq';
+/** 1 while the current flee runs from a human-event cue; tick until which tremor warnings are ignored. */
+const HUMAN_FLEE = 'fo.fHum', HUMAN_QUIET = 'fo.fHq';
 
 /** Tier 2 hook: flee from (x, z) at the next think (outdoor tasks only). */
 export function requestFlee(_sim: Sim, ant: Ant, x: number, z: number): void {
@@ -30,9 +32,31 @@ export function requestFlee(_sim: Sim, ant: Ant, x: number, z: number): void {
   ant.bb[REQUEST_Z] = z;
 }
 
-function threatAt(ant: Ant): { x: number; z: number } | null {
+function threatAt(sim: Sim, ant: Ant): { x: number; z: number } | null {
   if (num(ant, REQUEST, 0) === 1) return { x: num(ant, REQUEST_X, ant.pos.x), z: num(ant, REQUEST_Z, ant.pos.z) };
-  return threatCode(ant) !== THREAT.none ? { x: threatX(ant), z: threatZ(ant) } : null;
+  const code = threatCode(ant);
+  if (code === THREAT.none) return null;
+  if (code === THREAT.human && sim.state.tick < num(ant, HUMAN_QUIET, -1) && !shadowOver(sim, ant)) return null;
+  return { x: threatX(ant), z: threatZ(ant) };
+}
+
+function inAvoid(sim: Sim, ant: Ant, x: number, z: number): boolean {
+  for (const m of sim.stores.markers.list) {
+    if (m.alive && m.kind === 'avoid' && m.colony === ant.colony && Math.hypot(x - m.pos.x, z - m.pos.z) <= m.radius) return true;
+  }
+  return false;
+}
+
+/** A looming footprint (shadow cue) covers the ant right now: the step lands here (GDD 04 §15 cues). */
+function shadowOver(sim: Sim, ant: Ant): boolean {
+  const now = sim.state.tick;
+  for (const run of sim.state.env.human.active) {
+    for (const c of run.cues) {
+      if (c.kind !== 'shadow' || now > c.impactTick || now < c.startTick) continue;
+      if (Math.hypot(ant.pos.x - c.origin.x, ant.pos.z - c.origin.z) <= c.radiusMm) return true;
+    }
+  }
+  return false;
 }
 
 function inFlee(ant: Ant): boolean {
@@ -56,7 +80,13 @@ function run(sim: Sim, ant: Ant, fl: Flavour, from: { x: number; z: number }): v
   const l = Math.hypot(dx, dz);
   if (l < 1e-6) { dx = ant.fwd.x; dz = ant.fwd.z; } else { dx /= l; dz /= l; }
   const leg = FLEE_LEG_BU * sim.world.bu;
-  const x = ant.pos.x + dx * leg, z = ant.pos.z + dz * leg;
+  let x = ant.pos.x + dx * leg, z = ant.pos.z + dz * leg;
+  // never run into the colony's avoid markers (GDD 02 §12.2: no autonomous ant inside one): turn 90° either way, then back
+  for (const k of [1, -1, 2]) {
+    if (!inAvoid(sim, ant, x, z)) break;
+    const c = Math.cos((k * Math.PI) / 2), sn = Math.sin((k * Math.PI) / 2);
+    x = ant.pos.x + (dx * c - dz * sn) * leg; z = ant.pos.z + (dx * sn + dz * c) * leg;
+  }
   setPhase(sim, ant, fl.names, PHASE.fleeRun);
   goTo(sim, ant, { x, y: sim.field.height(x, z), z }, LEG_ARRIVE_BU, { speed: 'run' });
 }
@@ -70,7 +100,8 @@ export function fleeCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
     if (inFlee(ant)) endFlee(sim, ant, fl);
     return false;
   }
-  const t = threatAt(ant);
+  const human = num(ant, REQUEST, 0) !== 1 && threatCode(ant) === THREAT.human;
+  const t = threatAt(sim, ant);
   if (t) ant.bb[K.fleeSeen] = sim.state.tick;
   ant.bb[REQUEST] = 0;
   if (!inFlee(ant)) {
@@ -78,6 +109,7 @@ export function fleeCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
     const p = phaseOf(ant);
     ant.bb[K.resume] = p;
     ant.bb[K.fleeN] = 1;
+    ant.bb[HUMAN_FLEE] = human ? 1 : 0;
     dropAction(sim, ant);
     logDecision(sim, ant, threatCode(ant) === THREAT.alarm ? 'alarm' : 'threat', threatCode(ant));
     run(sim, ant, fl, t);
@@ -85,7 +117,18 @@ export function fleeCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
   }
   const s = phaseS(sim, ant);
   if (phaseOf(ant) === PHASE.fleeRun) {
-    if (s >= FLEE_RUN_S) { stop(sim, ant); setPhase(sim, ant, fl.names, PHASE.fleeFreeze); }
+    if (s < FLEE_RUN_S) return true;
+    // GDD 02 §10.12: a human-event warning is one run across the pass, then the task goes on; tremor warnings of
+    // the same pass are ignored for HUMAN_FLEE_REFRACTORY_S (a 2 m tremor radius would otherwise hold every ant
+    // in run-freeze cycles and send it home empty, econ-growth)
+    if (num(ant, HUMAN_FLEE, 0) === 1) {
+      ant.bb[HUMAN_FLEE] = 0;
+      ant.bb[HUMAN_QUIET] = sim.state.tick + HUMAN_FLEE_REFRACTORY_S * TICKS_PER_SECOND;
+      endFlee(sim, ant, fl);
+      return true;
+    }
+    stop(sim, ant);
+    setPhase(sim, ant, fl.names, PHASE.fleeFreeze);
     return true;
   }
   // freeze: re-check

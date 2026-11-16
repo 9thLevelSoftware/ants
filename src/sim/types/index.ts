@@ -18,6 +18,7 @@ export * from './nest';
 export * from './marker';
 export * from './colony';
 export * from './colonyModules';
+export * from './lifecycle';
 export * from './pheromone';
 export * from './environment';
 export * from './human';

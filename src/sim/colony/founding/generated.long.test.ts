@@ -16,13 +16,15 @@ import { isWorkerCaste } from '../census';
 import { cavityEntrances } from './dig';
 import { plugRemnants } from './reopen';
 import { foundingView } from './view';
-import { goodSite, playerCase, sealHeldThrough, sweepSim } from './sweepKit';
+import { goodSite, goodSites, playerCase, sealHeldThrough, sweepSim } from './sweepKit';
 import { nestOf, phase, pinTemperature, queen, stepUntil } from './testkit';
 
 const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined>; stderr: { write(s: string): void } } }).process;
 const LONG = !!env?.env.FOUNDRESS_LONG;
 const SEEDS = (env?.env.FOUNDRESS_SEEDS ?? '1,2,3').split(',').map(Number);
 const NO_FLOOD = !!env?.env.FOUNDRESS_NO_FLOOD;
+/** Good sites the scripted player tries, nearest first, when her dig never starts at one. */
+const PLAYER_SITE_TRIES = 4;
 const log = (...a: unknown[]) => env?.stderr.write(`[founding.long] ${a.join(' ')}\n`);
 
 const worlds = new Map<number, WorldData>();
@@ -51,14 +53,19 @@ describe.skipIf(!LONG)('the player path on a generated world (no stand-ins; temp
   it('walk to a good site, dig with dig-bite, seal with one E press (seal-entrance), lay with lay-egg, lapse, hand-over; the workers reopen the entrance and walk out', () => {
     const sim = newGame(SEEDS[0]);
     const bu = sim.world.bu;
-    const site = goodSite(sim, 120);
-    log('site', JSON.stringify(site), 'from', JSON.stringify(queen(sim).pos));
-    expect(site.q).toBeGreaterThan(0);
+    const sites = goodSites(sim, 120, PLAYER_SITE_TRIES, 12);
+    log('sites', JSON.stringify(sites), 'from', JSON.stringify(queen(sim).pos));
+    expect(sites.length).toBeGreaterThan(0);
     pinTemperature(sim, 25);
     const nest = nestOf(sim);
     const q = queen(sim);
-    // the browser player's dig and one press of E in the cell; the founding guide seals with seal-entrance
-    const seal = playerCase(sim, site);
+    // the browser player's dig and one press of E in the cell; the founding guide seals with seal-entrance. Where the
+    // scripted digger gets no bite in, she walks on to the next good site, as a player would (never the template)
+    let seal = playerCase(sim, sites[0], false);
+    for (let i = 1; i < sites.length && seal.stage === 'dig' && phase(sim) === 'search'; i++) {
+      log('no dig at site', i - 1, '- next site');
+      seal = playerCase(sim, sites[i], false);
+    }
     log('seal', JSON.stringify(seal));
     expect(seal.ok).toBe(true);
     expect(seal.refusals).not.toContain('no-target');

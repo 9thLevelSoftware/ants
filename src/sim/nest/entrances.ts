@@ -613,16 +613,6 @@ function unplugBite(sim: Sim, nest: Nest, e: Entrance, c: Vec3): boolean {
 }
 
 /**
- * The unseal bite (`unsealEntranceImpl`'s) at a given plug voxel `at`, which may lie past the throat sphere: a
- * founding plug aimed at the throat's inner end reaches up to its plug radius beyond it (the founding hand-over's
- * reopening, colony/founding/reopen.ts). True when e reads `open` afterwards.
- */
-export function unplugAt(sim: Sim, entranceId: number, at: Vec3): boolean {
-  const found = entranceById(sim, entranceId);
-  return found ? unplugBite(sim, found.nest, found.e, at) : false;
-}
-
-/**
  * The entrance of a nest whose plug the workers should dig out now (GDD 03 §4.2 `reopening`: "plug being dug"; §13
  * "nanitics dig it"): `reopening` with plug voxels left in its throat, while nobody closes the nest on purpose (no
  * live `seal` plan, no ant of the colony running `seal-entrance`). Lowest id first; null when there is none. The

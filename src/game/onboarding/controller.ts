@@ -6,11 +6,14 @@
 // Two clocks. In play the engine runs on the wall clock (`tick()` measures real seconds between calls). In the manual
 // clock test mode (?test=1: only __game.step advances the game) the wall clock is ignored and `advance(realS)` is the
 // only thing that moves the engine, so scripted runs are deterministic however slow the machine or the screenshots are.
-import type { Sim } from '@/sim/types';
+import { foundingInProgress } from '@/sim/colony/founding/access';
+import type { HintId, Sim } from '@/sim/types';
 import type { UiSnapshot } from '@/ui/api';
-import { HINT_ADVANCE_STEP_REAL_S } from './balance';
+import { TICK_SECONDS } from '../config/loop';
+import { HINT_ADVANCE_STEP_REAL_S, HINT_MANUAL_MAX_STEP_REAL_S } from './balance';
 import { HintEngine } from './engine';
 import { noFacts, readFacts, type UiFacts } from './facts';
+import { hookMethod } from './gameHooks';
 import { EVENT_RULES } from './rules';
 import { LiveHintStore } from './store';
 import type { Facts, HintStore, HintView } from './types';
@@ -19,6 +22,10 @@ import type { Facts, HintStore, HintView } from './types';
 export interface OnboardingGame {
   session?: { sim: Sim } | null;
   getSettings?(): { gameplay: { hints: boolean } };
+  /** The player's speed command (keys, time cluster, debug API). The controller counts the ones that change the speed. */
+  setSpeed?(level: number): void;
+  /** Settings > Gameplay > Reset hints (added by the persistence module). The controller makes the engine follow it. */
+  resetHints?(): void;
 }
 
 export interface ControllerOptions {
@@ -47,10 +54,45 @@ export class OnboardingController {
   private shown: HintView | null = null;
   private readonly listeners = new Set<(v: HintView | null) => void>();
   private readonly store: HintStore;
+  private readonly unhooks: (() => void)[] = [];
+  /** Manual clock: the sim tick the engine last caught up to (and the sim it belongs to). */
+  private clockSim: Sim | null = null;
+  private clockTick = 0;
 
   constructor(private readonly opts: ControllerOptions) {
     this.store = opts.store ?? new LiveHintStore();
     this.engine = new HintEngine({ store: this.store });
+    this.hookGame(opts.game);
+  }
+
+  /**
+   * Two things only the Game's own methods can tell:
+   *  - Settings > Reset hints clears the persistence layer's profile; the engine's store may be another instance of the
+   *    same data (the profile is registered late, or not at all outside ?test=1), so the engine is told too.
+   *  - A speed COMMAND is not a speed CHOICE: the performance step-down, the pause on focus loss and the opening's own
+   *    pause all send the same command (and the same `time.speed-changed` event) as a key press. Only calls of
+   *    `Game.setSpeed` (keys, time cluster buttons, the debug API) teach hint-speed.
+   */
+  private hookGame(game: OnboardingGame | undefined): void {
+    if (!game || typeof game !== 'object') return;
+    this.unhooks.push(hookMethod(game, 'resetHints', (raw) => () => {
+      (raw as (() => void) | undefined)?.call(game);
+      this.engine.resetStore();
+      this.publish();
+    }));
+    this.unhooks.push(hookMethod(game, 'setSpeed', (raw) => ((level: number) => {
+      this.noteSpeedChoice(level);
+      return (raw as ((l: number) => void) | undefined)?.call(game, level);
+    }) as never));
+  }
+
+  /** The player chose speed `level` (0 = pause) through the game's own entry point. */
+  private noteSpeedChoice(level: number): void {
+    const sim = this.opts.game.session?.sim ?? null;
+    if (!sim || sim !== this.sim) return; // a game being started or loaded: the call is the game's own
+    if (foundingInProgress(sim, sim.state.player.colonyId)) return; // the opening pauses at its intro card and resumes by itself
+    const t = sim.state.env.time;
+    if (level === 0 ? !t.paused : t.paused || t.speed !== level) this.engine.use('speed');
   }
 
   get manual(): boolean {
@@ -68,12 +110,28 @@ export class OnboardingController {
     return () => this.listeners.delete(fn);
   }
 
-  /** One refresh from the UI: wall-clock time since the last call drives the engine (never in manual mode). */
+  /**
+   * One refresh from the UI. In play the wall-clock time since the last call drives the engine. In the manual clock mode
+   * the wall clock is ignored; what the sim was stepped since the last call (`__game.step`) counts as real seconds at
+   * 1x, so scripted runs and the App E checks see the hints move with the game.
+   */
   tick(): void {
+    if (this.opts.manual) { this.advance(this.simSecondsSinceLastCall()); return; }
     const now = (this.opts.now ?? Date.now)();
     const dt = Number.isFinite(this.lastNow) ? Math.min(1, Math.max(0, (now - this.lastNow) / 1000)) : 0;
     this.lastNow = now;
-    this.step(this.opts.manual ? 0 : dt);
+    this.step(dt);
+  }
+
+  private simSecondsSinceLastCall(): number {
+    const sim = this.opts.game.session?.sim ?? null;
+    if (!sim) { this.clockSim = null; return 0; }
+    const tick = sim.state.tick;
+    const same = sim === this.clockSim && tick >= this.clockTick;
+    this.clockSim = sim;
+    const before = this.clockTick;
+    this.clockTick = tick;
+    return same ? Math.min(HINT_MANUAL_MAX_STEP_REAL_S, (tick - before) * TICK_SECONDS) : 0;
   }
 
   /** Moves the engine by `realS` real seconds with the current facts (the clock of a scripted run). */
@@ -85,6 +143,11 @@ export class OnboardingController {
       left -= dt;
     }
     this.step(0); // publish
+  }
+
+  /** Writes the hint progress to storage now. */
+  flush(): Promise<void> {
+    return this.store.flush?.() ?? Promise.resolve();
   }
 
   /** The player dragged the camera. */
@@ -99,7 +162,15 @@ export class OnboardingController {
     return was;
   }
 
+  /** Shift+H with no card: dismiss the opening overlay's teaching prompts (`ids`) that are on screen. */
+  dismissExternal(ids: readonly HintId[]): boolean {
+    const was = this.engine.dismissExternal(ids);
+    this.publish();
+    return was;
+  }
+
   dispose(): void {
+    for (const u of this.unhooks.splice(0)) u();
     this.off?.();
     this.engine.dispose();
     this.listeners.clear();
@@ -130,6 +201,8 @@ export class OnboardingController {
     this.off = null;
     this.sim = sim;
     this.prev = null;
+    this.clockSim = sim; // the manual clock counts the sim's steps from here
+    this.clockTick = sim?.state.tick ?? 0;
     if (!sim) return;
     this.engine.newGame();
     this.off = sim.events.onAny((type, payload) => {

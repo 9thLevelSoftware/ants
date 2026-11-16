@@ -9,7 +9,8 @@ import type { Ant, Colony, Sim } from '@/sim/types';
 import {
   ACTIVATION_DEPART, CURFEW_ALARM_PH, CURFEW_FENV, ENC_GAIN, ENC_SCOUT_MULT, FENV_RH_BASE, FENV_RH_GAIN, FORAGE_WAIT_RADIUS_BU,
   FENV_RH_LO_PCT, FENV_RH_SPAN_PCT, NEWS_EXPIRY_GD, NEWS_MAX, RECRUIT_CONTACTS_MAX, RECRUIT_RADIUS_BU,
-  SMALL_COLONY_N, SMALL_SPONT_FULL_N, SMALL_SPONT_MULT_MAX, SPONT_DEPART_RATE_S, SPONT_NEED_BASE, SPONT_ROUTE_MULT,
+  NEED_SOURCE_MIN_SHARE, NEED_SPONT_MULT, SMALL_COLONY_N, SMALL_SPONT_FULL_N, SMALL_SPONT_MULT_MAX, SPONT_DEPART_RATE_S,
+  SPONT_NEED_BASE, SPONT_ROUTE_MULT,
 } from '@/sim/balance';
 import { recordDelivery as recordSourceDelivery } from '@/sim/ecology';
 import { daysToTicks, TICKS_PER_SECOND } from '@/sim/time';
@@ -63,7 +64,7 @@ function curfewWith(sim: Sim, col: Colony, fEnvNow: number): boolean {
  * are environment and pheromone queries that do not depend on the ant. Runtime-only; values are recomputed on
  * the first call of each tick, so results do not depend on whether the cache existed (save/load safe).
  */
-interface ColonyGate { fEnv: number; curfew: boolean }
+interface ColonyGate { fEnv: number; curfew: boolean; spont: number }
 const gateCache = new WeakMap<Sim, { tick: number; byColony: Map<number, ColonyGate> }>();
 
 function gateOf(sim: Sim, col: Colony): ColonyGate {
@@ -75,7 +76,7 @@ function gateOf(sim: Sim, col: Colony): ColonyGate {
   let g = c.byColony.get(col.id);
   if (!g) {
     const f = fEnv(sim, col);
-    g = { fEnv: f, curfew: curfewWith(sim, col, f) };
+    g = { fEnv: f, curfew: curfewWith(sim, col, f), spont: spontaneousMultiplier(sim, col) };
     c.byColony.set(col.id, g);
   }
   return g;
@@ -96,33 +97,74 @@ function knowsLiveSource(sim: Sim, col: Colony): boolean {
   return false;
 }
 
+/**
+ * Whether a source supplies the nutrient (its share of the source's C + P is at least NEED_SOURCE_MIN_SHARE).
+ * Exported for the allocation's per-nutrient known capacity.
+ */
+export function suppliesNutrient(c: number, p: number, nutrient: 'c' | 'p'): boolean {
+  const tot = c + p;
+  return tot > 0 && (nutrient === 'c' ? c : p) >= NEED_SOURCE_MIN_SHARE * tot;
+}
+
+/**
+ * The colony is short of a nutrient (need > 0) and knows a live source of it (econ-growth R9/R10): departures are
+ * then fast at every colony size (NEED_SPONT_MULT), per nutrient, whatever the other nutrient's stock.
+ */
+function knowsSourceOfNeeded(sim: Sim, col: Colony): boolean {
+  const wantC = col.needs.needC > 0, wantP = col.needs.needP > 0;
+  if (!wantC && !wantP) return false;
+  for (const id of col.knownSourceIds) {
+    const s = sim.stores.sources.get(id);
+    if (!s || s.units <= 0) continue;
+    if ((wantC && suppliesNutrient(s.c, s.p, 'c')) || (wantP && suppliesNutrient(s.c, s.p, 'p'))) return true;
+  }
+  return false;
+}
+
+/** Multiplier of the spontaneous departure rate from what the colony needs and knows (R3 small colony, R9/R10). */
+export function spontaneousMultiplier(sim: Sim, col: Colony): number {
+  const small = knowsLiveSource(sim, col) ? smallColonySpontMult(coreOf(col).workers) : 1;
+  return Math.max(small, knowsSourceOfNeeded(sim, col) ? NEED_SPONT_MULT : 1);
+}
+
 function hasLiveRoute(sim: Sim, a: Ant): boolean {
   for (const r of a.mem.routes) if (r.sourceId !== -1 && sim.stores.sources.has(r.sourceId)) return true;
   return false;
 }
 
 /**
- * Called by a waiting forager's behaviour (every `dtTicks`): returns why it departs now, or null. Activation is
- * consumed on a recruited departure.
+ * Whether a waiting forager would depart now (every `dtTicks`), and why: activation reached, or the spontaneous
+ * hazard fired. No side effects besides the RNG draw; `commitDeparture` makes it a departure.
  */
-export function shouldDepart(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spontaneous' | null {
+export function departureDue(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spontaneous' | null {
   const col = sim.stores.colonies.get(a.colony);
   if (!col || !isWaitingForager(a)) return null;
   const gate = gateOf(sim, col);
   if (gate.curfew) return null;
-  let reason: 'recruited' | 'spontaneous' | null = null;
-  if (a.activation >= ACTIVATION_DEPART) reason = 'recruited';
-  else {
-    const need = Math.max(col.needs.needC, col.needs.needP);
-    const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * gate.fEnv * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1)
-      * (knowsLiveSource(sim, col) ? smallColonySpontMult(coreOf(col).workers) : 1);
-    if (rngChance(sim.stream('rng.colony'), rate * (dtTicks / TICKS_PER_SECOND))) reason = 'spontaneous';
-  }
-  if (reason) {
-    a.activation = 0;
-    coreOf(col).departuresToday++;
-    sim.emit({ type: 'forager-departed', antId: a.id, reason });
-  }
+  if (a.activation >= ACTIVATION_DEPART) return 'recruited';
+  const need = Math.max(col.needs.needC, col.needs.needP);
+  const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * gate.fEnv * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1)
+    * gate.spont;
+  return rngChance(sim.stream('rng.colony'), rate * (dtTicks / TICKS_PER_SECOND)) ? 'spontaneous' : null;
+}
+
+/** The forager leaves on a trip: activation consumed, departure counted, `forager-departed` emitted. */
+export function commitDeparture(sim: Sim, a: Ant, reason: 'recruited' | 'spontaneous'): void {
+  const col = sim.stores.colonies.get(a.colony);
+  if (!col) return;
+  a.activation = 0;
+  coreOf(col).departuresToday++;
+  sim.emit({ type: 'forager-departed', antId: a.id, reason });
+}
+
+/**
+ * Called by a waiting forager's behaviour (every `dtTicks`): returns why it departs now, or null. Activation is
+ * consumed on a departure. (Behaviours that must first find somewhere to go use departureDue + commitDeparture, so
+ * a forager with nowhere to go is not counted as departing.)
+ */
+export function shouldDepart(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spontaneous' | null {
+  const reason = departureDue(sim, a, dtTicks);
+  if (reason) commitDeparture(sim, a, reason);
   return reason;
 }
 
@@ -237,6 +279,8 @@ export function recordDeliveryCount(
   if (!col || !(c + p > 0)) return;
   countDelivery(sim, col, sourceId, kind, c, p, waitTicks);
   recordSourceDelivery(sim, col.id, sourceId, c, p);
-  if (ant.task === 'forage' || ant.task === 'scout' || ant.task === 'tend') accAdd(coreOf(col), 'yield.loads', c + p);
+  // GDD 02 §6.2: loads per forage-task ant (econ-growth R10: counting scouts' and tenders' loads over the foragers
+  // alone inflated the yield of a colony with few foragers, and the forage demand intake / yield fell with it)
+  if (ant.task === 'forage') accAdd(coreOf(col), 'yield.loads', c + p);
   sim.emit({ type: 'delivery', antId: ant.id, colonyId: col.id, sourceId, kind, c, p, toxin });
 }

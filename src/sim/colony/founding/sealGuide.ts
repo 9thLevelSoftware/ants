@@ -16,7 +16,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { ActionId, Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { INPUT_DEADZONE, SEAL_ENTRANCE_S } from '@/sim/balance/actions';
 import {
-  OPEN_AUTO_SEAL_GD, SEAL_EXCLUDE_BU, SEAL_MAX_PLUGS, SEAL_MAX_REPLANS, SEAL_COMMAND_MARGIN_BU, SEAL_OPPORTUNITY_TICKS,
+  OPEN_AUTO_SEAL_GD, SEAL_DEEP_AFTER_CHANGES, SEAL_EXCLUDE_BU, SEAL_MAX_PLUGS, SEAL_MAX_REPLANS, SEAL_COMMAND_MARGIN_BU, SEAL_OPPORTUNITY_TICKS,
   SEAL_SETTLED_SPEED_BU_S, SEAL_ROUTE_MAX_SAMPLES, SEAL_UNPOCKET_EVERY_TICKS, SEAL_SOIL_WAIT_TICKS, SEAL_STAND_TOL_BU,
   SEAL_STALL_BU, SEAL_STALL_TICKS, SEAL_STRATEGY_TICKS, SEAL_WALK_MAX_TICKS, SEAL_WAYPOINT_BU, SEAL_WAYPOINT_TANGENT,
 } from '@/sim/balance/founding';
@@ -193,8 +193,8 @@ function aimOf(q: Ant): Vec3 {
 
 function planNow(sim: Sim, q: Ant): SealPlan | null {
   const nest = foundingNestOf(sim);
-  // plugs past the throat sphere only after a whole round of strategies laid none inside it (sealPlan.ts plugInThroat)
-  const deepOk = bbGet(q, SG.changes, 0) >= SEAL_STRATEGIES.length;
+  // plugs past the throat sphere only once a strategy got stuck laying them inside it (sealPlan.ts plugInThroat)
+  const deepOk = bbGet(q, SG.changes, 0) >= SEAL_DEEP_AFTER_CHANGES;
   return nest ? planSeal(sim, nest, q, excluded(q), SEAL_EXCLUDE_BU * sim.world.bu, strategyOf(q), deepOk) : null;
 }
 

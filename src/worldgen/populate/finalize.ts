@@ -22,7 +22,7 @@ import { accessOfAnchor, anchorDistance, defAt, isCarbSource, isProteinAnchor, r
 import { honeydewFilmFeet, placeAnchor, placeFilm, removeFilm } from './food';
 import { HOST_BIT, poisOf, usableHostPois } from './hosts';
 import { preyTerritories } from './territories';
-import { ECONOMY_FLOORS, NODE_DENSITY, PREY_PATCH, SITE_FOOD, T1_HONEYDEW, TOP_UP, topUpZones } from './tuning';
+import { ECONOMY_FLOORS, ECONOMY_LEAN_ACCEPT, NODE_DENSITY, PREY_PATCH, SITE_FOOD, T1_HONEYDEW, TOP_UP, topUpZones } from './tuning';
 
 /** Drops anchors that no walker from the start can reach. Returns how many. */
 export function pruneUnreachable(ctx: GenContext, d: Float64Array): number {
@@ -70,6 +70,9 @@ function addCarb(ctx: GenContext, d: Float64Array, maxBu: number, spread = false
  */
 function addHerd(ctx: GenContext, d: Float64Array, maxBu: number): boolean {
   const anchors = ctx.world.placements.foodAnchors;
+  // the map's aphid-host cap holds for top-ups too (tree branch sites come on top, as in the host placer)
+  const hosts = ctx.world.placements.plants.filter((p) => p.hostFlags & HOST_BIT.aphid && p.hostClass !== 'tree').length;
+  if (hosts >= scaledCap(ctx, NODE_DENSITY.aphidHost.cap)) return false;
   const cands = ctx.world.placements.plants
     .filter((p) => !(p.hostFlags & HOST_BIT.aphid))
     .map((p) => ({ p, ob: objectById(ctx, p.objectId) }))
@@ -197,7 +200,10 @@ export function siteFoodShare(ctx: GenContext): { share: number; sites: number; 
 
 export interface FoodReport {
   near: number; carb: boolean; protein: boolean; filmsNear: number; films: number; filmSitesNear: number;
-  floors: { radiusBu: number; c: number; p: number; ok: boolean }[];
+  /** ok: at least ECONOMY_LEAN_ACCEPT of the target (R8); lean: ok but below the full target. */
+  floors: { radiusBu: number; c: number; p: number; ok: boolean; lean: boolean }[];
+  /** Some floor is accepted but lean (R8 `economyLean`). */
+  economyLean: boolean;
   /** Poorest carbohydrate count of the good sites near the start (enforced). */
   siteMin: number;
   /** Map-wide share of good sites with enough carbohydrate sources, and the carcass-zone half of the rule. */
@@ -207,10 +213,7 @@ export interface FoodReport {
 /** Measures the guarantees against the current start (validation and reports). */
 export function foodReport(ctx: GenContext): FoodReport {
   const d = startDistances(ctx);
-  const floors = ECONOMY_FLOORS.map((f) => {
-    const o = sustainedOffer(ctx, d, f.radiusBu);
-    return { radiusBu: f.radiusBu, c: o.c, p: o.p, ok: o.c >= f.c && o.p >= f.p };
-  });
+  const floors = ECONOMY_FLOORS.map((f) => floorStatus(f, sustainedOffer(ctx, d, f.radiusBu)));
   return {
     near: within(ctx, d, VALID.foodRadiusBu, makesSource),
     carb: within(ctx, d, VALID.foodKindRadiusBu, renewableCarb) > 0,
@@ -218,8 +221,15 @@ export function foodReport(ctx: GenContext): FoodReport {
     films: ctx.world.placements.foodAnchors.filter((a) => a.initialState.startsWith('honeydew-film')).length,
     filmSitesNear: honeydewFilmFeet(ctx).filter((f) => cellDist(ctx, d, f.foot) <= T1_HONEYDEW.nearBu).length,
     filmsNear: within(ctx, d, T1_HONEYDEW.nearBu, (a) => a.initialState.startsWith('honeydew-film')),
-    floors, siteMin: siteFoodMin(ctx, d).min, ...siteShareOf(ctx),
+    floors, economyLean: floors.some((f) => f.lean), siteMin: siteFoodMin(ctx, d).min, ...siteShareOf(ctx),
   };
+}
+
+/** R8: a floor passes from ECONOMY_LEAN_ACCEPT of its target; below the full target it is lean. */
+function floorStatus(f: { radiusBu: number; c: number; p: number }, o: { c: number; p: number }) {
+  const full = o.c >= f.c && o.p >= f.p;
+  const ok = o.c >= ECONOMY_LEAN_ACCEPT * f.c && o.p >= ECONOMY_LEAN_ACCEPT * f.p;
+  return { radiusBu: f.radiusBu, c: o.c, p: o.p, ok, lean: ok && !full };
 }
 
 function siteShareOf(ctx: GenContext): { siteShare: number; carcassZones: boolean } {
@@ -287,6 +297,8 @@ export function finalizeFood(ctx: GenContext): void {
     }
   }
   if (added > 0) ctx.notes.push(`food: ${added} anchors added near the start (guarantees)`);
+  const lean = ECONOMY_FLOORS.map((f) => floorStatus(f, sustainedOffer(ctx, d, f.radiusBu))).filter((f) => f.lean);
+  if (lean.length > 0) ctx.notes.push(`economyLean: ${lean.map((f) => `${f.radiusBu} BU ${f.c.toFixed(0)} C / ${f.p.toFixed(0)} P`).join('; ')}`);
   const flowers = feedGoodSites(ctx, d);
   if (flowers > 0) ctx.notes.push(`food: ${flowers} flowers opened near poorly fed good sites`);
 }

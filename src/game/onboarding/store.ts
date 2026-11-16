@@ -22,6 +22,7 @@ export interface HintProfileLike {
   resetHints(): void;
   subscribe(fn: (p: unknown, part: string) => void): () => void;
   status(): { loaded: string };
+  flush?(): Promise<void>;
 }
 
 export class ProfileHintStore implements HintStore {
@@ -34,6 +35,7 @@ export class ProfileHintStore implements HintStore {
   dismiss(id: HintId): void { this.profile.dismissHint(id); }
   reset(): void { this.profile.resetHints(); }
   subscribe(fn: () => void): () => void { return this.profile.subscribe((_p, part) => { if (part === 'hints') fn(); }); }
+  flush(): Promise<void> { return this.profile.flush?.() ?? Promise.resolve(); }
 }
 
 /** A store in memory (tests, and the last resort when nothing persists). */
@@ -77,8 +79,15 @@ function pickProfile(): ProfileStore {
   const exposed = w?.__persistence?.profile;
   if (exposed) return exposed;
   if (!own) {
-    own = new ProfileStore({ kv: createLocalKv() });
-    void own.load();
+    const store = new ProfileStore({ kv: createLocalKv() });
+    own = store;
+    void store.load();
+    // The persistence layer flushes ITS profile when the page is hidden; this one is ours to flush.
+    if (typeof document !== 'undefined') {
+      const flush = () => { void store.flush(); };
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') flush(); });
+      window.addEventListener('pagehide', flush);
+    }
   }
   return own;
 }
@@ -115,6 +124,7 @@ export class LiveHintStore implements HintStore {
   learn(id: HintId): void { this.cur().learn(id); }
   dismiss(id: HintId): void { this.cur().dismiss(id); }
   reset(): void { this.cur().reset(); }
+  flush(): Promise<void> { return this.cur().flush(); }
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
     this.cur();

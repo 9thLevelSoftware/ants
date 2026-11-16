@@ -13,6 +13,11 @@
 //  D. Learned hints persist across a page reload and nothing appears (card, opening chip) in such a profile; "Reset
 //     hints" brings the first ones back.
 //
+// Store topology: in normal play `window.__persistence` does not exist (it is a ?test=1 hook), so the hint engine keeps its
+// progress in its own profile over localStorage while Settings > Reset hints clears the persistence layer's profile. This
+// run reproduces that: `window.__persistence` is hidden from the first moment (and after the reload), and Reset hints is
+// pressed through the real Settings screen. ONBOARDING_TEST_STORE=1 keeps the test-mode store (the persistence profile).
+//
 // The engine runs on the manual clock in ?test=1: `__onboarding.advance(realSeconds)` is the player's time, so the run
 // does not depend on the speed of the machine. Stand-ins (logged, listed in result.standIns, ONBOARDING_STRICT=1 fails
 // on them) are used only where the game cannot be put into the state by real input in a reasonable time:
@@ -95,6 +100,12 @@ export default async (ctx) => {
   };
 
   // ---- 0. a fresh profile, a game on the intro card ----------------------------------------------------------------------------
+  const HIDE_PERSISTENCE = () => Object.defineProperty(window, '__persistence', { configurable: true, get: () => undefined, set: () => {} });
+  if (!process.env.ONBOARDING_TEST_STORE) {
+    await page.addInitScript(HIDE_PERSISTENCE); // also for the page after the reload of part D
+    await g(HIDE_PERSISTENCE);
+    result.checks.storeTopology = 'normal play: own localStorage profile, no window.__persistence';
+  } else result.checks.storeTopology = 'test mode: the persistence profile';
   expect(tableOrder.length >= 21, 'the hint table is missing entries', tableOrder);
   const start = await hints();
   expect(Object.values(start).every((x) => x.state === 'pending' && x.uses === 0), 'the profile is not fresh', start);
@@ -107,11 +118,17 @@ export default async (ctx) => {
 
   const partD = async () => {
     // ---- D. persistence and reset -----------------------------------------------------------------------------------------------------
-    for (const id of tableOrder) await g((x) => window.__onboarding.learn(x), id); // the whole table learned (some never reached by this run)
-    await g(() => window.__persistence.profile.flush());
+    // what the scripted player learned by playing stays as it is; only hints this run never reached are completed by hand
+    const before = await hints();
+    const byHand = tableOrder.filter((id) => before[id]?.state !== 'learned');
+    result.checks.learnedByPlay = tableOrder.length - byHand.length;
+    result.checks.learnedByHand = byHand;
+    for (const id of byHand) await g((x) => window.__onboarding.learn(x), id);
+    await g(() => window.__onboarding.flush());
     await page.reload();
     await wait(() => window.__ready === true);
     await page.waitForFunction(() => window.__game && window.__game.summary().mode === 'playing', null, { timeout: 600000, polling: 250 });
+    await page.waitForFunction(() => window.__onboarding && Object.values(window.__onboarding.hints()).every((x) => x.state === 'learned'), null, { timeout: 20000, polling: 250 }).catch(() => {});
     const reloaded = await hints();
     result.checks.afterReload = Object.fromEntries(Object.entries(reloaded).map(([k, v]) => [k, v.state]));
     expect(Object.values(reloaded).every((x) => x.state === 'learned'), 'learned hints did not survive a reload', reloaded);
@@ -128,7 +145,27 @@ export default async (ctx) => {
     result.checks.chipWhenLearned = chip;
     expect(chip === 'none' || chip === 'absent', 'the opening overlay still draws its prompt chip in a profile where all hints are learned', chip);
     await pic('11-learned-profile-no-hints');
-    await g(() => window.__onboarding.reset());
+    // Settings > Gameplay > Reset hints, as a player does it (pause menu, Settings, Gameplay, Reset hints, confirm)
+    await g(() => window.__game.ui.open('pause'));
+    await wait(400);
+    await page.getByRole('button', { name: /^settings$/i }).first().click({ timeout: 60000 });
+    await wait(300);
+    await page.getByRole('tab', { name: /gameplay/i }).first().click({ timeout: 60000 });
+    await wait(300);
+    await page.locator('[data-testid="reset-hints"]').click({ timeout: 60000 });
+    await wait(300);
+    await page.locator('[data-testid="confirm-ok"]').click({ timeout: 60000 });
+    await wait(300);
+    result.checks.resetNote = await g(() => document.querySelector('.ui-note-inline')?.textContent ?? null);
+    await g(() => window.__game.ui.close());
+    await wait(400);
+    expect((await summary()).mode === 'playing', 'the game did not resume after Settings');
+    const afterReset = await hints();
+    expect(Object.values(afterReset).every((x) => x.state === 'pending'), 'Settings > Reset hints did not make every hint pending', afterReset);
+    await g(() => window.__onboarding.flush());
+    const stored = await g(() => { try { return Object.keys(JSON.parse(localStorage.getItem('foundress.profile.v1') ?? 'null')?.profile?.hints ?? {}).length; } catch { return -1; } });
+    result.checks.storedHintsAfterReset = stored;
+    expect(stored === 0 || stored === -1 && process.env.ONBOARDING_TEST_STORE, 'the stored profile still holds hints after Reset hints', stored);
     await adv(2);
     lg = await onLog();
     expect(lg.some((e) => e.event === 'shown' && e.id === 'hint-move'), 'Reset hints did not bring hint-move back', lg);
@@ -280,6 +317,11 @@ export default async (ctx) => {
   if (await h.visible('founding-continue')) { await page.click('[data-testid="founding-continue"]', { timeout: 60000 }); await wait.frames(2); }
   await step(1);
   await adv(1);
+  // after a real opening the first workers still dig the plug out of the cell: the sim's foundingInProgress holds, and the
+  // engine is silent about everything but the opening until it is open (the integrator's rule). Let the colony do it.
+  for (let i = 0; i < 60 && (await g(() => window.__onboarding.facts()?.foundingInProgress)); i++) { await g(() => window.__game.step(200)); await adv(0.25); }
+  result.checks.plugOpenAfterTicks = await g(() => window.__game.summary().tick);
+  expect(!(await g(() => window.__onboarding.facts()?.foundingInProgress)), 'the founding nest stayed closed after the hand-over (the colony could not open the plug)', await g(() => window.__onboarding.facts()));
   const handover = { phase: await phase(), workers: (await summary()).colony?.workers ?? null };
   result.checks.handover = handover;
   expect(handover.phase === 'handover' || handover.phase === 'done' || handover.phase === null, 'the colony phase was not reached', handover);
@@ -458,8 +500,16 @@ export default async (ctx) => {
   expect((await summary()).view === 'colony', 'M did not open the colony view', (await summary()).view);
   expect(await stateOf('hint-colony-view') === 'learned', 'the colony view did not teach hint-colony-view', (await hints())['hint-colony-view']);
 
-  // B7. hint-marker: in the colony view; the first marker or dig plan is the use
+  // B7. hint-marker: in the colony view; the palette pulses once (a class seen by an observer: the pulse is shorter than a screenshot)
+  await g(() => {
+    window.__pulseSeen = 0;
+    new MutationObserver((ms) => { for (const m of ms) if (m.target.classList?.contains('hn-palette-pulse')) window.__pulseSeen++; })
+      .observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+  });
   const mk = await waitCard('hint-marker');
+  await wait.frames(3);
+  result.checks.palettePulses = await g(() => window.__pulseSeen);
+  expect(result.checks.palettePulses >= 1, 'the marker palette did not pulse when hint-marker showed', result.checks.palettePulses);
   expect(mk.key === 'Shift+1' && /plan a chamber/i.test(mk.verb ?? ''), 'hint-marker text', mk);
   await pic('06-marker-hint', ['hint-card']);
   const here = await g(() => { const p = window.__game.summary().possessed; return p ? { x: p.pos[0], y: p.pos[1], z: p.pos[2] } : null; });
@@ -532,10 +582,15 @@ export default async (ctx) => {
   await press('Digit8'); await step(2); await adv(0.5);
   s = await summary();
   expect(s.possessed?.caste === 'queen', 'the 8 key did not possess the queen', s.possessed);
-  const dr = await waitCard('hint-directives');
-  expect(dr.key === 'I' && /colony orders/i.test(dr.verb ?? ''), 'hint-directives text', dr);
-  await expectClear(dr, 'hint-directives');
-  await pic('10-directives-hint', ['hint-card']);
+  // The context chip "Colony orders (I)" is the hint for the possessed queen: the card is not drawn on top of it (no duplicate line).
+  for (let t = 0; t < 20; t += 2) { if ((await onLog()).some((e) => e.id === 'hint-directives' && e.event === 'shown')) break; await adv(2); }
+  const dl = (await onLog()).filter((e) => e.id === 'hint-directives' && e.event === 'shown');
+  expect(dl.length === 1 && dl[0].presenter === 'prompt', 'hint-directives is not tracked as drawn by the context chip', dl);
+  const dc = await card();
+  expect(!dc || dc.id !== 'hint-directives', 'the card duplicates the Colony orders chip', dc);
+  const chipText = await g(() => document.querySelector('[data-hud="prompts"]')?.textContent ?? null);
+  expect(/colony orders/i.test(chipText ?? ''), 'the context chip does not show Colony orders', chipText);
+  await pic('10-directives-hint');
   await press('KeyI'); await wait.frames(4);
   await adv(0.5);
   expect(await stateOf('hint-directives') === 'learned', 'I did not teach hint-directives', (await hints())['hint-directives']);
@@ -560,17 +615,25 @@ export default async (ctx) => {
   lg = await onLog();
   const order = shownOrder(lg);
   result.checks.shownOrder = order;
-  // The designed order holds, with the inversions that come from the design itself: the opening overlay draws Walk and
-  // Antennate together when the search begins (hint-antennate, order 3), before the engine draws hint-look (2) once
-  // walking is learned; hint-why (18) is triggered by the colony's first warning diagnostic, which can come before the
-  // 30 quiet seconds of hint-speed (16) and the first trail of hint-scent (17). Anything else out of order, or any hint
-  // shown twice, fails.
-  const rankAll = order.map((id) => tableOrder.indexOf(id));
-  const inversions = rankAll.map((r, i) => (i > 0 && r < rankAll[i - 1] ? order[i] : null)).filter(Boolean);
-  result.checks.inversions = inversions;
-  expect(inversions.every((id) => ['hint-look', 'hint-speed', 'hint-scent'].includes(id)), 'hints were shown out of the designed order', { order, inversions });
+  // The designed order holds among the hints each presenter draws. Hints drawn by different presenters (the opening overlay, the
+  // context prompt chip, the card) are driven by different things (opening phase, what the possessed ant can do, a timer) and
+  // interleave by design: e.g. the overlay draws Walk and Antennate together when the search begins (hint-antennate, 3) before
+  // the card draws hint-look (2); a possessed worker beside a crumb gets its pick-up chip (11) before the card's hint-observer
+  // (10). Within the card's own hints the one known inversion is hint-why (18), triggered by the colony's first warning
+  // diagnostic, which can come before the 30 quiet seconds of hint-speed (16) and the first trail of hint-scent (17).
+  const presenterOf = (id) => lg.find((e) => e.id === id && e.event === 'shown').presenter;
+  const byWho = {};
+  for (const who of ['founding', 'prompt', 'engine']) {
+    const sub = order.filter((id) => presenterOf(id) === who);
+    const rk = sub.map((id) => tableOrder.indexOf(id));
+    const inv = sub.filter((id, i) => i > 0 && rk[i] < rk[i - 1]);
+    byWho[who] = { order: sub, inversions: inv };
+    const allowed = who === 'engine' ? ['hint-speed', 'hint-scent'] : [];
+    expect(inv.every((id) => allowed.includes(id)), `${who}-drawn hints were shown out of the designed order`, { sub, inv });
+  }
+  result.checks.orderByPresenter = byWho;
   expect(new Set(order).size === order.length, 'a hint appears twice in the order', order);
-  result.checks.orderNote = 'known inversions: hint-look after the overlay-drawn hint-antennate; hint-speed and hint-scent after the state-triggered hint-why';
+  result.checks.orderNote = 'order holds per presenter; known inversions: card hints speed and scent after the state-triggered why; across presenters the overlay, the prompt chip and the card interleave by what the game state asks for';
   for (const id of ['hint-reserves', 'hint-move', 'hint-look', 'hint-antennate', 'hint-observer', 'hint-pickup', 'hint-trail', 'hint-share', 'hint-colony-view', 'hint-marker', 'hint-speed', 'hint-scent', 'hint-why', 'hint-directives', 'hint-photo', 'hint-overlay']) {
     if (id === 'hint-share' && result.standIns.some((x) => x.feature === 'hint-share')) continue; // staged by stand-in: the prompt chip never drew it
     expect(order.includes(id), `${id} never appeared`, order);
@@ -583,6 +646,11 @@ export default async (ctx) => {
   await adv(120);
   expect((await onLog()).filter((e) => e.event === 'shown').length === lg.filter((e) => e.event === 'shown').length, 'a learned hint was shown again', (await onLog()).slice(before));
   expect((await card()) === null, 'a card is up although everything the player did is learned', await card());
+
+  // Shift+H with no card on screen dismisses nothing and must not toggle the HUD (that is H alone)
+  await page.keyboard.press('Shift+KeyH'); await wait.frames(3);
+  expect(await g(() => window.__game.ui.snapshot().hudHidden) === false, 'Shift+H with no hint hid the HUD');
+  result.checks.shiftHKeepsHud = true;
 
   await partD();
 

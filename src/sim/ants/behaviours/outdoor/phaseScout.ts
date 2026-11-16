@@ -17,6 +17,7 @@ import { homeHere, isExplored, smelledSource, touchedSource } from '@/sim/ants/p
 import { casteSpeeds } from '@/sim/locomotion';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { usableFor } from './choice';
+import { discoverHerdsNear } from './herdFind';
 import { distFromHome, homeNest, mainEntrance, noteFailure, phaseS, setPhase } from './common';
 import type { Flavour } from './flavours';
 import { K, PHASE } from './keys';
@@ -161,6 +162,7 @@ function exploreOver(sim: Sim, ant: Ant): ReasonCode | null {
 
 export function updateExplore(sim: Sim, ant: Ant, fl: Flavour): void {
   if (ant.nestId >= 0) { startReturn(sim, ant, fl, false, 'job:home'); return; }
+  if (discoverHerdsNear(sim, ant) > 0) ant.bb[K.success] = 1; // a herd found is a find (it reports on its return)
   const touch = touchedSource(ant);
   if (usableFor(sim, ant, touch, fl.accept)) { setPhase(sim, ant, fl.names, PHASE.assess); assessFind(sim, ant, fl, touch); return; }
   const smell = smelledSource(ant);

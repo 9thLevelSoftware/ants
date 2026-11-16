@@ -1,6 +1,6 @@
 // Colony module API: allocation, queen, brood, economy, stats, diagnostics, directives, markers (colony-core,
 // implemented in this folder), founding (colony/founding) and overwintering / reproduction / succession
-// (overwinter-repro; their systems and handlers below are still stubs). Signatures of the F1c stub are kept;
+// (overwinter-repro, in their own folders). Signatures of the F1c stub are kept;
 // additions are optional trailing parameters and new exports.
 
 import { ti } from './taskIdx';
@@ -23,6 +23,9 @@ import { broodDies } from './brood';
 import { applyDirectives, placePlayerMarker } from './directives';
 
 import { foundingCommandHandlers, foundingSystem } from './founding';
+import { overwinterCommandHandlers, overwinterSystem } from './overwinter';
+import { reproductionCommandHandlers, reproductionSystem } from './reproduction';
+import { successionCommandHandlers, successionSystem } from './succession';
 import {
   allocationSystem, broodSystem, colonyDiagnosticsSystem, colonyStatsSystem, economySystem, queenSystem,
   taskReevalSystem,
@@ -34,14 +37,12 @@ export {
 };
 /** Founding sequence (opening phases, founding model, time-lapse): src/sim/colony/founding (owner: founding). */
 export { foundingSystem };
-/** Overwintering notice/banner/lapse/report. Stub: overwinter-repro. */
-export const overwinterSystem: System = { name: 'overwinter', phase: 'colony-economy', run: () => {} };
-/** Alate rearing, nuptial flights, queen death and orphaning. Stub: overwinter-repro. */
-export const reproductionSystem: System = { name: 'reproduction', phase: 'colony-economy', run: () => {} };
+/** Overwintering, reproduction, succession (owner: overwinter-repro, src/sim/colony/{overwinter,reproduction,succession}). */
+export { overwinterSystem, reproductionSystem, successionSystem };
 
 export const systems: readonly System[] = [
   allocationSystem, taskReevalSystem, queenSystem, foundingSystem, broodSystem, economySystem, colonyStatsSystem,
-  colonyDiagnosticsSystem, overwinterSystem, reproductionSystem,
+  colonyDiagnosticsSystem, overwinterSystem, reproductionSystem, successionSystem,
 ];
 
 // ---- queries ----
@@ -112,7 +113,7 @@ export function colonyDemand(sim: Sim, colonyId: number, task: Task): number {
 // Further colony API for behaviours, actions, UI and debug (see each file's header).
 export { taskCycleDone } from './allocation';
 export {
-  recordDelivery, recordDeliveryCount, recordForagerReturn, shouldDepart, curfew, fEnv, isWaitingForager, injectReturn,
+  recordDelivery, recordDeliveryCount, recordForagerReturn, shouldDepart, departureDue, commitDeparture, curfew, fEnv, isWaitingForager, injectReturn,
 } from './activation';
 export {
   ecloseBrood, feedUrgency, larvaHunger, larvaRemainingNeed, setBroodDiapause, tendBrood, tendBroodAt, wantsFeed,
@@ -140,14 +141,17 @@ export { isMiddenBlocked, reportMiddenBlocked } from './midden';
 
 /**
  * The mix of a nurse crop load of `load` loads (GDD 02 §5.4.2): P share P_req / (P_req + C_req); if the pool is
- * short of P she takes what exists and fills with C. Pass the result to withdrawFood.
+ * short of P she takes what exists, and C only up to its own share (econ-growth deviation from §5.4.2 "fills with
+ * C": a larva fed C without P does not grow and burns half its C need, GDD 02 §2.4, so topping crops up with C moved
+ * the carbohydrate a first-year colony needed for the winter into guts that could not use it). Pass the result to
+ * withdrawFood.
  */
 export function nurseLoadMix(sim: Sim, colonyId: number, load: number): FoodAmount {
   const col = sim.stores.colonies.get(colonyId);
   const share = LARVA_P_REQ / (LARVA_P_REQ + LARVA_C_REQ);
   if (!col) return { c: 0, p: 0 };
   const p = Math.min(share * load, col.stores.p);
-  return { c: Math.min(load - p, col.stores.c), p };
+  return { c: Math.min((1 - share) * load, col.stores.c), p };
 }
 
 /** The mix of a queen-carer's ration of `load` loads (laying permitted or withheld, GDD 02 §5.4.2). */
@@ -248,8 +252,6 @@ function cheatSpawnBrood(sim: Sim, cmd: CommandOf<'cheat.spawnBrood'>): void {
   }
 }
 
-const noop = (): void => {};
-
 export const commandHandlers: Partial<CommandHandlerMap> = {
   setDirectives,
   placeMarker: addMarker,
@@ -258,14 +260,10 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
   },
   // founding (owner: founding; skipTimelapse leaves the winter lapse to overwinter-repro)
   ...foundingCommandHandlers,
-  // overwintering and reproduction (owner: overwinter-repro)
-  overwinterChoice: noop,
-  flightRelease: noop,
-  flightPossess: noop,
-  flightLand: noop,
-  retireColony: noop,
-  'cheat.forceFlight': noop,
-  'cheat.triggerWinter': noop,
+  // overwintering, reproduction, succession (owner: overwinter-repro)
+  ...overwinterCommandHandlers,
+  ...reproductionCommandHandlers,
+  ...successionCommandHandlers,
   // colony-core cheats
   'cheat.addFood': (sim, c) => cheatStock(sim, c.colonyId, c.c, c.p, c.toxin, false),
   'cheat.setStores': (sim, c) => cheatStock(sim, c.colonyId, c.c, c.p, 0, true),

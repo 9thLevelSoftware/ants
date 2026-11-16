@@ -12,8 +12,11 @@
 //                      the colony economy only; never for a final sweep)  --no-flood (probe-only: without the nest
 //                      flood system)
 //            --workers N (cheat: N extra workers at the start of colony life, to reach a colony size; economy check)
-//            --food C,P (cheat: loads added to the stores with --workers)  --every K (invariant check period, 500)
+//            --food C,P (cheat: loads added to the stores with --workers)
+//            --stores C,P (cheat: the stores set to these loads with --workers, e.g. 1,1 for the gate §6 "empty stores"
+//                      economy check; econ-growth)  --every K (invariant check period, 500)
 //            --start-day D (start day of the season instead of the species default)
+//            --start-doy D (start on default-year day D, 1-based: spring 1-7, summer 8-14, autumn 15-21; econ-growth)
 //            --perf T (performance mode: after the set-up, 600 warm-up ticks, then 3 segments of T ticks; the
 //                      report's `perf` holds per-system ms per tick of the fastest segment; no day loop)
 //            --cache DIR (development: reuse a snapshot taken at the hand-over for the same world, options and
@@ -36,6 +39,9 @@ import { EventCounter, readState, round, SAMPLE_TICKS, StuckSampler, type DayEve
 import { judge, type Verdict } from './lifeHealth';
 import { deathsByCause, judgeViable, tripsPerForagerDay, tripsPerWorkerDay, type ViableVerdict } from './lifeViable';
 import { stageRank } from '@/sim/colony/starvation';
+import { surfaceActivityOf } from '@/sim/colony/envAdapter';
+import { HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P } from '@/sim/balance';
+import { SEASONS } from '@/sim/types';
 
 declare const process: { exitCode?: number };
 
@@ -62,12 +68,16 @@ export interface LifeOptions {
    * model drowned dry nests; weather-fix2 owns it). Never in a verdict without saying so.
    */
   noFlood: boolean;
+  /** `--stores C,P`: the stores set to these loads after the --workers spawn (economy check), null = untouched. */
+  stores: [number, number] | null;
+  /** Start on this default-year day (1-based doy, `--start-doy`), season and day of season derived; null = default. */
+  startDoy: number | null;
 }
 
 export function parseLifeArgs(args: readonly string[]): LifeOptions {
   const o: LifeOptions = {
     seed: 1, archetype: 'woodland-edge', species: 'lasius-niger', difficulty: 'naturalist', days: 10, out: null,
-    workers: 0, food: [0, 0], every: 500, startDay: null, cache: null, perf: 0, untilDay: 0, untilWinter: false, cacheAny: false, noFlood: false,
+    workers: 0, food: [0, 0], every: 500, startDay: null, cache: null, perf: 0, untilDay: 0, untilWinter: false, cacheAny: false, noFlood: false, startDoy: null, stores: null,
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--cache-any') { o.cacheAny = true; continue; }
@@ -84,6 +94,8 @@ export function parseLifeArgs(args: readonly string[]): LifeOptions {
     else if (k === '--food') { const [c, p] = v.split(',').map(Number); o.food = [c || 0, p || 0]; }
     else if (k === '--every') o.every = Math.max(1, Number(v));
     else if (k === '--start-day') o.startDay = Number(v);
+    else if (k === '--start-doy') o.startDoy = Number(v);
+    else if (k === '--stores') { const [c, p] = v.split(',').map(Number); o.stores = [c || 0, p || 0]; }
     else if (k === '--cache') o.cache = v;
     else if (k === '--perf') o.perf = Number(v);
     else if (k === '--until' && v === 'winter') o.untilWinter = true;
@@ -91,6 +103,55 @@ export function parseLifeArgs(args: readonly string[]): LifeOptions {
     else throw new Error(`life: unknown option ${k}`);
   }
   return o;
+}
+
+/** `--start-doy`: the config's start season and day of season for default-year day `doy` (7-day seasons). */
+function startOfDoy(doy: number | null): { startSeason?: (typeof SEASONS)[number]; startDayOfSeason?: number } {
+  if (!doy || doy < 1) return {};
+  const i = Math.min(2, Math.floor((doy - 1) / 7));
+  return { startSeason: SEASONS[i], startDayOfSeason: doy - 7 * i };
+}
+
+/** Surface activity from which a colony short of food counts as able to forage (econ-growth sweep columns). */
+const ECON_ACTIVITY_MIN = 0.5;
+
+/**
+ * econ-growth sweep columns, sampled every SAMPLE_TICKS over the colony-life days: trips (returns of forage, scout and
+ * tend ants) per worker per gd while a nutrient is under its stock target and surface activity >= ECON_ACTIVITY_MIN,
+ * the share of trips that succeed, and intake / need per nutrient (need = the colony's need-rate EMAs over time).
+ */
+class EconSampler {
+  condGd = 0; condWorkerGd = 0; condTrips = 0;
+  inC = 0; inP = 0; needCGd = 0; needPGd = 0;
+  private lastTrips: number; private trips0: number; private succ0: number; private cond = false;
+  constructor(private readonly sim: Sim) {
+    const col = this.col();
+    this.lastTrips = this.trips0 = col?.counters.trips ?? 0;
+    this.succ0 = col?.counters.tripSuccesses ?? 0;
+    sim.events.on('delivery', (e) => { if (e.colonyId === sim.state.player.colonyId) { this.inC += e.c; this.inP += e.p; } });
+  }
+  private col() { return this.sim.stores.colonies.get(this.sim.state.player.colonyId); }
+  sample(): void {
+    const col = this.col();
+    if (!col) return;
+    const dt = SAMPLE_TICKS / TICKS_PER_DAY;
+    if (this.cond) this.condTrips += col.counters.trips - this.lastTrips;
+    this.lastTrips = col.counters.trips;
+    this.needCGd += col.needs.rateC * dt; this.needPGd += col.needs.rateP * dt;
+    const short = col.needs.needC > 0 || col.needs.needP > 0;
+    this.cond = short && surfaceActivityOf(this.sim, col.species) >= ECON_ACTIVITY_MIN;
+    if (this.cond) { this.condGd += dt; this.condWorkerGd += (col.core?.workers ?? 0) * dt; }
+  }
+  result(larvaeStarved: number): NonNullable<LifeReport['econ']> {
+    const col = this.col();
+    const trips = (col?.counters.trips ?? 0) - this.trips0, succ = (col?.counters.tripSuccesses ?? 0) - this.succ0;
+    return {
+      larvaeStarved, underTargetGd: round(this.condGd),
+      tripsPerWorkerGdUnderTarget: round(this.condWorkerGd > 0 ? this.condTrips / this.condWorkerGd : 0),
+      trips, tripSuccessShare: round(trips > 0 ? succ / trips : 0),
+      intakeOverNeedC: round(this.needCGd > 0 ? this.inC / this.needCGd : 0), intakeOverNeedP: round(this.needPGd > 0 ? this.inP / this.needPGd : 0),
+    };
+  }
 }
 
 interface SysTime { name: string; total: number; max: number; dayTotal: number; dayMax: number }
@@ -131,6 +192,11 @@ export interface LifeReport {
   /** Viability (viab-economy): longest stretch at a stage worse than lean, trips per worker per gd, deaths. */
   economy?: { longestBadStageGd: number; tripsPerWorkerDay: number; tripsPerForagerDay: number; deaths: Record<string, number> };
   viable?: ViableVerdict;
+  /** econ-growth columns (EconSampler). */
+  econ?: {
+    larvaeStarved: number; underTargetGd: number; tripsPerWorkerGdUnderTarget: number; trips: number;
+    tripSuccessShare: number; intakeOverNeedC: number; intakeOverNeedP: number;
+  };
 }
 
 /**
@@ -166,14 +232,14 @@ export interface LifeIO { read(path: string): Uint8Array | null; write(path: str
 export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io: LifeIO | null = null): LifeReport {
   const base = defaultGameConfig(o.species, o.seed, o.difficulty);
   const config = {
-    ...base, cheats: true, ...(o.startDay ? { startDayOfSeason: o.startDay } : {}),
+    ...base, cheats: true, ...(o.startDay ? { startDayOfSeason: o.startDay } : {}), ...startOfDoy(o.startDoy),
     world: { ...base.world, archetype: o.archetype },
   };
   const g0 = performance.now();
   const world = generateWorld(config.world);
   const genMs = performance.now() - g0;
   const cacheFile = o.cache && io
-    ? `${o.cache}/founded-${o.species}-${o.archetype}-${o.seed}-${o.difficulty}-${o.startDay ?? 'd'}-${o.cacheAny ? 'any' : io.codeTag}.bin` : null;
+    ? `${o.cache}/founded-${o.species}-${o.archetype}-${o.seed}-${o.difficulty}-${o.startDoy ? `doy${o.startDoy}` : o.startDay ?? 'd'}-${o.cacheAny ? 'any' : io.codeTag}.bin` : null;
   const cached = cacheFile ? io!.read(cacheFile) : null;
   const times: SysTime[] = [];
   const systems = o.noFlood ? SYSTEMS.filter((s) => s.name !== 'nest-flood') : SYSTEMS;
@@ -198,6 +264,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   }
   const counter = new EventCounter(sim);
   const stuck = new StuckSampler(sim);
+  const econ = new EconSampler(sim);
   if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
@@ -212,6 +279,12 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     const col = sim.state.player.colonyId;
     sim.enqueue({ type: 'cheat.spawnAnts', colonyId: col, n: o.workers, caste: 'worker', ageGd: 4, task: null, pos: null });
     if (o.food[0] > 0 || o.food[1] > 0) sim.enqueue({ type: 'cheat.addFood', colonyId: col, c: o.food[0], p: o.food[1], toxin: 0 });
+    if (o.stores) {
+      sim.enqueue({ type: 'cheat.setStores', colonyId: col, c: o.stores[0], p: o.stores[1] });
+      // "empty stores": the hand-over provisioning (viab-economy R2) would move the queen's reserve above her keep
+      // into the pool over the next game days, so she is set to her keep
+      sim.enqueue({ type: 'cheat.setQueen', colonyId: col, values: { reserve: HANDOVER_QUEEN_KEEP_C, reserveP: HANDOVER_QUEEN_KEEP_P } });
+    }
   }
 
   if (o.perf > 0) return perfReport(sim, o, times, { world, genMs, founding });
@@ -232,6 +305,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       ticksToday++;
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();
+        econ.sample();
         // a stage worse than lean (rationing and on), the stretch measured in game days (viable verdict)
         const st = playerCol()?.starvationStage;
         if (st && stageRank(st) >= 2) { if (badSince < 0) badSince = sim.state.tick; }
@@ -272,6 +346,8 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   report.verdict = judge(report);
   report.economy = { longestBadStageGd: round(longestBad), tripsPerWorkerDay: round(tripsPerWorkerDay(report)), tripsPerForagerDay: round(tripsPerForagerDay(report)), deaths: deathsByCause(report) };
   report.viable = judgeViable(report);
+  const starvedLarvae = report.days.reduce((a, d) => a + (d.events.broodDeathsByCause['larva:starvation'] ?? 0), 0);
+  report.econ = econ.result(starvedLarvae);
   return report;
 }
 
@@ -327,6 +403,12 @@ export function lifeMarkdown(r: LifeReport): string {
   if (r.viable) {
     lines.push('', `Viable: **${r.viable.viable ? 'yes' : 'NO'}**; trips per worker per gd ${r.economy?.tripsPerWorkerDay ?? '-'} (per forager ${r.economy?.tripsPerForagerDay ?? '-'}); deaths ${JSON.stringify(r.economy?.deaths ?? {})}`,
       ...r.viable.checks.map((c) => `- ${c.ok ? 'ok' : 'FAIL'} ${c.name}: ${c.detail}`));
+  }
+  if (r.econ) {
+    const e = r.econ;
+    lines.push('', `Economy (econ-growth): larvae starved ${e.larvaeStarved}; trips per worker per gd while a nutrient is under target `
+      + `and surface activity >= ${ECON_ACTIVITY_MIN}: ${e.tripsPerWorkerGdUnderTarget} (over ${e.underTargetGd} gd); trips ${e.trips}, `
+      + `${Math.round(e.tripSuccessShare * 100)} % successful; intake / need C ${e.intakeOverNeedC}, P ${e.intakeOverNeedP}`);
   }
   const stuckDays = r.days.filter((d) => (d.stuck.stuckWhat ?? []).length > 0);
   if (stuckDays.length > 0) {

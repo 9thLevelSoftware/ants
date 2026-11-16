@@ -1,33 +1,77 @@
 // Demand per task in worker-equivalents (GDD 02 §6.2), recomputed every ALLOC_PERIOD.
 
 import { ti } from '../taskIdx';
-import type { Colony, Sim, Task } from '@/sim/types';
+import type { Colony, FoodSource, Sim, Task } from '@/sim/types';
+import { clamp } from '@/core/math/scalar';
+import { CROP_RETURN_FRACTION } from '@/sim/balance/actions';
+import { harvestForm } from '@/sim/ecology';
 import {
   BROOD_MOVE_NURSE, DEFEND_MIN_WORKERS, DIAPAUSE_LARVAE_PER_NURSE, EGGS_PER_NURSE, ENTRANCE_ALARM_ALERT_PH,
   GUARDS_PER_ENTRANCE, HAUL_MAX_FRAC, HAUL_PER_CORPSE, HAUL_PER_PELLET, HAUL_PER_WASTE, NURSE_FEED_CAPACITY,
   PATROL_FRAC, PUPAE_PER_NURSE, QUEEN_CARE_BASE, QUEEN_CARE_MAX, QUEEN_CARE_PER_WORKERS, SCOUT_BASE_FRAC,
   SCOUT_MAX_FRAC, SCOUT_MIN_ACTIVITY, SCOUT_SHORTFALL_FRAC, SMALL_COLONY_N, SMALL_KNOWN_SOURCES, SMALL_OUTSIDE_FRAC,
   SMALL_OUTSIDE_MIN, SMALL_SCOUTS_MIN, SOURCE_SLOT_FORAGERS, SPOILED_ITEMS_PER_STORE,
-  STORE_PER_FORAGER, THREAT_DEMAND_MULT,
+  STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD,
 } from '@/sim/balance';
 import { accGet, coreOf } from '../core';
 import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
-import { intakeTarget } from '../needs';
+import { intakeTarget, needRates, targetDays } from '../needs';
 import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
 import { herdTendDemand } from '@/sim/ecology/plants/demand';
 
 const T = (t: Task): number => ti(t);
 
-/** Known foraging capacity: forager-equivalents and loads per gd the colony's known sources can absorb. */
-export function knownCapacity(sim: Sim, col: Colony): { ants: number; loads: number } {
-  let ants = 0;
+/** Known foraging capacity: forager-equivalents and loads per gd (C + P, and each) the known sources can absorb. */
+export interface KnownCapacity { ants: number; loads: number; loadsC: number; loadsP: number }
+
+/**
+ * Forager-equivalents one known source keeps busy (GDD 02 §6.2 feedSlots x trips/gd): its slots (SOURCE_SLOT_FORAGERS
+ * each), but no more than its food supports at FORAGER_TRIPS_PER_GD trips each (econ-growth R10: a flower refilling
+ * 4 loads a day counted as 9 foragers, a one-unit carcass as 4.5). A finite source offers all it holds within the day;
+ * a renewable one what it holds plus its refill.
+ */
+function sourceForagers(sim: Sim, s: FoodSource): number {
+  const bySlots = Math.max(1, s.slots) * SOURCE_SLOT_FORAGERS;
+  const form = harvestForm(sim, s);
+  const perTrip = form === 'liquid' ? CROP_RETURN_FRACTION : form === 'tear' ? Math.min(1, 1 / Math.max(s.unitBulk, 1e-6)) : 1;
+  const trips = (Math.max(0, s.units) + Math.max(0, s.refillPerGd)) / perTrip;
+  return Math.min(bySlots, trips / FORAGER_TRIPS_PER_GD);
+}
+
+export function knownCapacity(sim: Sim, col: Colony): KnownCapacity {
+  const out: KnownCapacity = { ants: 0, loads: 0, loadsC: 0, loadsP: 0 };
   for (const id of col.knownSourceIds) {
     const s = sim.stores.sources.get(id);
-    if (s && s.units > 0) ants += Math.max(1, s.slots) * SOURCE_SLOT_FORAGERS;
+    // a renewable source counts while it refills, even when it is empty this minute; a herd's own source holds no
+    // food (its honeydew comes by tending: the `tend` demand counts herds, plants/links.ts)
+    if (!s || s.herdId >= 0 || (s.units <= 0 && !(s.refillPerGd > 0))) continue;
+    const ants = sourceForagers(sim, s);
+    const loads = ants * col.yieldPerForager, tot = s.c + s.p;
+    out.ants += ants;
+    out.loads += loads;
+    if (tot > 0) { out.loadsC += (loads * s.c) / tot; out.loadsP += (loads * s.p) / tot; }
   }
-  return { ants, loads: ants * col.yieldPerForager };
+  return out;
+}
+
+/**
+ * Share of the intake target the known sources cannot supply (GDD 02 §6.2 `shortfall`), per nutrient (econ-growth
+ * R9: a colony short of protein that knows only sugar keeps scouting for protein, whatever its carbohydrate): the
+ * larger of the two nutrients' shortfalls, each counted only while the colony needs that nutrient.
+ */
+export function scoutShortfall(col: Colony, known: KnownCapacity): number {
+  const r = needRates(col), t = targetDays(col), st = col.stores;
+  const short = (rate: number, target: number, stock: number, loads: number, need: number): number => {
+    if (need <= 0) return 0;
+    const want = rate + Math.max(0, target * rate - stock) / STOCK_REFILL_GD;
+    return want > 0 ? clamp(1 - loads / want, 0, 1) : 0;
+  };
+  return Math.max(
+    short(r.c, t.c, st.c, known.loadsC, col.needs.needC),
+    short(r.p, t.p, st.p, known.loadsP, col.needs.needP),
+  );
 }
 
 /** Worker-equivalents of open dig work: the nest module's digDemand over the colony's plans (GDD 03 §7.7). */
@@ -70,20 +114,22 @@ function liveKnownSources(sim: Sim, col: Colony): number {
 /**
  * Small colonies forage (R3, balance SMALL_*): under the stock target on a workable surface, forage + scout demand
  * is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N). Scouts are at least SMALL_SCOUTS_MIN until
- * SMALL_KNOWN_SOURCES live sources are known. With no source known the whole outside share scouts (a forager with
- * nowhere to go only waits); once one is known, the foragers get at least the outside share less those scouts, so
- * the known food is worked while the search goes on (the GDD 02 §6.2 forage demand alone sent one forager to a
- * 300-unit spill 100 BU from a 12-worker nest).
+ * SMALL_KNOWN_SOURCES live sources are known; the rest of the outside share forages (scouts only while nothing is
+ * known).
  */
 function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array): void {
   if (n >= SMALL_COLONY_N || surfaceActivityOf(sim, col.species) < SCOUT_MIN_ACTIVITY) return;
   if (col.needs.needC <= 0 && col.needs.needP <= 0) return;
   const outside = Math.min(n, Math.max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC * n));
-  const known = liveKnownSources(sim, col);
-  const scoutsMin = known < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
+  const live = liveKnownSources(sim, col);
+  const scoutsMin = live < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
   d[T('scout')] = Math.max(d[T('scout')], scoutsMin);
-  if (known === 0) d[T('scout')] = Math.max(d[T('scout')], outside - d[T('forage')]);
-  else d[T('forage')] = Math.max(d[T('forage')], outside - scoutsMin);
+  // with no source known the whole outside share scouts (a forager with nowhere to go only waits); once one is known
+  // the foragers get the rest of it, at least one (a 7-worker colony's 2.45 - 2 scouts rounded to no forager at all).
+  // Foragers short of a source wait inside, where they age at a third of the outside rate (GDD 02 §1.3): sending
+  // them to scout instead cost small colonies their first workers to old age before winter (econ-growth sweep 5).
+  if (live === 0) d[T('scout')] = Math.max(d[T('scout')], outside - d[T('forage')]);
+  else d[T('forage')] = Math.max(d[T('forage')], outside - scoutsMin, 1);
 }
 
 /** Fills col.alloc.demand (Float32Array by TASKS order). */
@@ -111,7 +157,7 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
   d[T('store')] = (foragers >= 1 ? Math.max(1, STORE_PER_FORAGER * foragers) : 0) + (items ? items.spoiled / SPOILED_ITEMS_PER_STORE : 0);
 
   if (surfaceActivityOf(sim, col.species) >= SCOUT_MIN_ACTIVITY) {
-    const shortfall = intake > 0 ? Math.min(1, Math.max(0, 1 - known.loads / intake)) : 0;
+    const shortfall = scoutShortfall(col, known);
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
   smallColonyFloor(sim, col, n, d);

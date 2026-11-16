@@ -10,10 +10,15 @@
    under the time cluster and focus line; left of the colony pulse; above the possessed-ant panel */
 .hn-at-top { left: 50%; top: 1rem; translate: -50% 0; }
 .hn-at-bottom { left: 50%; bottom: 3rem; translate: -50% 0; }
-.hn-at-time { left: 1rem; top: 6.75rem; }
+.hn-at-time { left: 20.75rem; top: 1.25rem; }
 .hn-at-pulse { right: 22.5rem; top: 1.25rem; }
 .hn-at-panel { left: 1rem; bottom: 8.5rem; }
 @keyframes hn-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
 @keyframes hn-fade { from { opacity: 0; } to { opacity: 1; } }
 :root[data-motion="reduced"] .hn-card { animation: hn-fade 120ms linear both; }
 @media (prefers-reduced-motion: reduce) { :root[data-motion="normal"] .hn-card { animation: hn-fade 120ms linear both; } }
+/* hint-marker: the palette pulses once (GDD 08 9.2 #15); in reduced motion it only gets a static outline while the hint shows */
+@keyframes hn-pulse { 0% { outline-color: transparent; outline-offset: 0; } 35% { outline-color: var(--c-accent); outline-offset: 0.25rem; } 100% { outline-color: transparent; outline-offset: 0.5rem; } }
+.hn-palette-pulse { outline: 2px solid transparent; animation: hn-pulse 1.8s ease-out 1 both; }
+:root[data-motion="reduced"] .hn-palette-pulse { animation: none; outline: 2px solid var(--c-accent); outline-offset: 0.25rem; }
+@media (prefers-reduced-motion: reduce) { :root[data-motion="normal"] .hn-palette-pulse { animation: none; outline: 2px solid var(--c-accent); outline-offset: 0.25rem; } }

@@ -43,7 +43,9 @@ const MAX_CHIPS = 900;
 const CLIP = new Color('#6f8f3a'), SAND = new Color('#b39a6a'), DUST = new Color('#9a9188');
 const tmpQ = new Quaternion(), yAxis = new Vector3(0, 1, 0), zAxis = new Vector3(0, 0, 1);
 /** Blob shadow darkness at touch-down and the lift (mm) over which it fades to a fifth. */
-const SHADOW_MAX_OPACITY = 0.62;
+const SHADOW_MAX_OPACITY = 0.85;
+/** The blob floats this far above the surface (mm): the post chain's depth buffer cannot separate a decal 0.4 mm above the ground from it at 300 mm. */
+const SHADOW_LIFT_MM = 2.5;
 const SHADOW_FADE_LIFT_MM = 1600;
 /** The wet streak behind a wiping cloth, mm (length behind the cloth's rear edge, width). */
 const WET_STREAK = { behind: 150, length: 260, width: 200 };
@@ -272,7 +274,7 @@ export class HumansRenderer implements SubRenderer {
     const sh = v.shadow;
     const thin = a.kind === 'shoe' || a.kind === 'child-shoe' || a.kind === 'broom' || a.kind === 'nozzle' || a.kind === 'car';
     const b = sunBlob(this.keyDir.x, this.keyDir.y, this.keyDir.z, this.keyLight, v.shadowR, thin ? 0.55 : 1, lift, this.blob);
-    sh.position.set(p.x + b.dx, ground + 0.4, p.z + b.dz);
+    sh.position.set(p.x + b.dx, ground + SHADOW_LIFT_MM, p.z + b.dz);
     sh.scale.set(b.major, 1, b.minor);
     sh.quaternion.setFromAxisAngle(yAxis, b.yaw);
     sh.visible = b.major > 0.5;
@@ -324,7 +326,7 @@ export class HumansRenderer implements SubRenderer {
     const aim = Math.atan2(p.z - sz, p.x - sx);
     head.root.quaternion.setFromAxisAngle(yAxis, -aim);
     head.shadow.visible = sprinkler;
-    head.shadow.position.set(sx, headGround + 0.4, sz);
+    head.shadow.position.set(sx, headGround + SHADOW_LIFT_MM, sz);
     head.shadow.scale.set(head.shadowR, 1, head.shadowR);
     (head.shadow.material as MeshBasicMaterial).opacity = SHADOW_MAX_OPACITY * 0.6;
     const arc = sprinkler ? JET.sprinklerArc : JET.hoseArc;

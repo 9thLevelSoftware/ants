@@ -46,6 +46,8 @@ export const RAIN_FADE_FAR_BU: readonly [number, number] = [40, 66];
  * varies between PER_DROP_MIN and 1 of the class opacity.
  */
 export const RAIN_TINT_GAIN = 2;
+/** No channel of a streak's colour exceeds this (linear scene units, before opacity): bright hazes do not turn rain pure white. */
+export const RAIN_TINT_MAX = 0.8;
 export const RAIN_PER_DROP_MIN = 0.5;
 /** Splash crowns, ripple rings and frost glints: the rain tint x this (their own brightness against the haze). */
 export const SPLASH_TINT = 0.9;

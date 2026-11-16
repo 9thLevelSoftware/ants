@@ -65,6 +65,11 @@ export const FORAGE_MARKER_SCORE_MULT = 1.5;
 export const CHOICE_COLLECT_S = 20;
 /** Lowest trip time of the estimate, s (a source next to the entrance is not infinitely attractive). */
 export const CHOICE_MIN_TRIP_S = 10;
+/**
+ * A known source is chosen only while the food left on it after the trips already on their way (econ-growth
+ * claims: units now + refill until arrival - claimed trips) covers this share of one trip.
+ */
+export const CLAIM_MIN_TRIP_SHARE = 0.25;
 /** Floor of the crowding factor fCrowd (a full source still scores a little). */
 export const CHOICE_CROWD_MIN = 0.05;
 
@@ -189,7 +194,8 @@ export const SCOUT_EDGE_BU = 8;
 /** A scout walking to a forage marker arrives within this fraction of its radius. */
 export const SCOUT_MARKER_ARRIVE_FRAC = 0.5;
 export const SCOUT_MAX_S = 300;
-export const SCOUT_MAX_RANGE_BU = 700;
+/** econ-growth: 700 -> 900 BU, the foraging radius registry C13 gives a large colony (900 BU at N 1200). */
+export const SCOUT_MAX_RANGE_BU = 900;
 /**
  * Small colonies scout near home (viab-economy R3): below SMALL_COLONY_N workers (balance/colony.ts) a scout turns
  * home beyond this many BU instead of SCOUT_MAX_RANGE_BU. Its straight-ish outward legs sweep a strip only the odour
@@ -219,6 +225,9 @@ export const INVESTIGATE_S = 30;
 /** Explored bitmap cell edge, BU (the coarse nav cell, seed §3). */
 export const EXPLORED_CELL_BU = 16;
 
+/** Foragers and tenders out on a trip check for undiscovered aphid herds by smell this often, ticks (herdFind.ts). */
+export const HERD_NOTICE_EVERY_TICKS = 20;
+
 // ---- tend, Tier 1 static honeydew sites (GDD 02 §10.3; herds are Tier 2) ----
 /** Tenders look for a known honeydew site within this of the entrance, BU. */
 export const TEND_SITE_RANGE_BU = 600;
@@ -231,6 +240,13 @@ export const FLEE_MAX_CYCLES = 3;
 export const FLEE_CLEAR_S = 6;
 /** Run leg length, BU (the run is a point goal this far away, re-aimed each cycle). */
 export const FLEE_LEG_BU = 30;
+/**
+ * A human-event warning (tremor or shadow, GDD 02 §10.12 "run perpendicular to the approach for 4 s") is one run,
+ * then the task resumes; for this long afterwards the ant ignores further tremor warnings (a shadow over it still
+ * makes it run), s. econ-growth: a footsteps pass telegraphs a 500 BU tremor for ~47 s per step, which held every
+ * outside ant within 750 BU in run-freeze cycles until it gave up and went home empty (woodland-edge #2).
+ */
+export const HUMAN_FLEE_REFRACTORY_S = 30;
 
 // ---- markers (GDD 02 §12.2) ----
 /** Avoid repulsion zone beyond the marker radius in which trail followers switch to the planner, BU. */

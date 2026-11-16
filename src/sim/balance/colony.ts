@@ -320,6 +320,12 @@ export const YIELD_PER_FORAGER_MIN = 0.5;
 export const YIELD_EMA_GD = 1;
 /** Foragers one feed slot of a known source keeps busy (cycle time / time at the source, GDD 02 §10.2). */
 export const SOURCE_SLOT_FORAGERS = 4.5;
+/**
+ * Trips a forager makes per gd for the known-capacity estimate (GDD 02 §10.2: ~2.5 trips per gd at 75 % surface
+ * activity for a source 150 BU away): a source holding or refilling T trips of food a day keeps T / this many
+ * foragers busy (econ-growth R10, allocation/demand.ts).
+ */
+export const FORAGER_TRIPS_PER_GD = 2.5;
 export const SCOUT_BASE_FRAC = 0.02;
 export const SCOUT_SHORTFALL_FRAC = 0.05;
 export const SCOUT_MAX_FRAC = 0.15;
@@ -409,6 +415,16 @@ export const SPONT_ROUTE_MULT = 2;
  */
 export const SMALL_SPONT_MULT_MAX = 5;
 export const SMALL_SPONT_FULL_N = 15;
+/**
+ * Need-driven departures at every colony size (econ-growth R9/R10): while the colony is short of a nutrient (need > 0)
+ * and knows a live source of it, the spontaneous rate is multiplied by NEED_SPONT_MULT. The GDD 02 §6.6 activation
+ * loop needs a successful return within 6 BU of a waiting forager about every 17 s and stayed below ignition at 100
+ * and 300 workers (0-5 % of departures recruited; mean wait ~330 s, half a 600 s game day, 1.1 trips per forager
+ * per gd, against §10.2's 30-90 s wait and C13's 25 s). x5 gives a mean wait of about 70 s at need 0.9 and fEnv 0.6.
+ * A source supplies a nutrient when that nutrient is at least NEED_SOURCE_MIN_SHARE of its C + P.
+ */
+export const NEED_SPONT_MULT = 5;
+export const NEED_SOURCE_MIN_SHARE = 0.3;
 /** fEnv humidity term 0.7 + 0.3 x clamp((RH% - 40) / 40, 0, 1). */
 export const FENV_RH_BASE = 0.7;
 export const FENV_RH_GAIN = 0.3;

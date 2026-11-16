@@ -1,0 +1,17 @@
+/* The Lineage page (GDD 06 §12): a field-journal family tree over everything else. */
+
+.li-root { position: absolute; inset: 0; z-index: 32; display: grid; place-items: center; background: rgba(14, 12, 10, 0.88); padding: 1.5rem; overflow: auto; }
+.li-page { background: #e9dfc8; color: #2b241b; border: 1px solid #8a7c66; border-radius: 4px; width: 46rem; max-width: 96vw; max-height: 92vh; overflow: auto; padding: 1.5rem 2rem 1.25rem; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5); font-family: Georgia, 'Times New Roman', serif; }
+.li-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #b9ab8f; padding-bottom: 0.4rem; margin-bottom: 0.6rem; }
+.li-head h1 { margin: 0; font-size: 1.7rem; font-weight: normal; }
+.li-small { font-size: 0.85rem; color: #5a4e3e; }
+.li-tree, .li-daughters { list-style: none; margin: 0; padding: 0; }
+.li-colony { border-left: 2px solid #b9ab8f; padding: 0.35rem 0 0.35rem 0.75rem; margin: 0.4rem 0; }
+.li-name { font-size: 1.1rem; }
+.li-daughters { margin-top: 0.35rem; display: grid; gap: 0.4rem; }
+.li-daughter { background: #f3ead6; border: 1px solid #c9bb9d; border-radius: 3px; padding: 0.45rem 0.6rem; display: grid; gap: 0.25rem; justify-items: start; }
+.li-daughter.is-founded, .li-daughter.is-lost { opacity: 0.6; }
+.li-daughter .ui-btn { font-family: var(--font-ui, sans-serif); }
+.li-actions { display: flex; gap: 0.6rem; justify-content: flex-end; border-top: 1px solid #b9ab8f; margin-top: 0.8rem; padding-top: 0.8rem; font-family: var(--font-ui, sans-serif); }
+/* buttons on the parchment: dark text, visible outlines */
+.li-actions .ui-btn--ghost, .li-actions .ui-btn--secondary { color: #2b241b; border-color: #8a7c66; background: rgba(255, 255, 255, 0.25); }

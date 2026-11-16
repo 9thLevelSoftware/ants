@@ -102,7 +102,7 @@ export type FlowCommand =
   | { type: 'skipTimelapse' }
   | { type: 'timelapseRespond'; interruptId: number; response: 'step-in' | 'let-it-play' }
   | { type: 'openingUndo' }
-  | { type: 'overwinterChoice'; choice: 'begin' | 'delay' }
+  | { type: 'overwinterChoice'; choice: 'begin' | 'delay' | 'close-report' }
   | { type: 'flightRelease' }
   | { type: 'flightPossess'; gyneId: number }
   | { type: 'flightLand'; point: Vec3 };

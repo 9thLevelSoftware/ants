@@ -78,11 +78,20 @@ export function forageScenario(o: ScenarioOptions = {}): Scenario {
 }
 
 /**
+ * The game's systems (or `base`) plus two fixtures around the ecology phase that keep the given sources from
+ * shrinking (harvesting by ants is undone each tick: "sources fixed in place", GDD 02 App. E 25). Fill `pinned` with
+ * the source ids (value -1) after spawning them.
+ */
+export function pinnedSystems(pinned: Map<number, number>, base: readonly System[] = SYSTEMS): System[] {
+  return fixtureSystems(pinned, null, null, base);
+}
+
+/**
  * The game's systems plus test fixtures: two around the ecology phase that undo the ecology update's decay of
  * pinned sources, and one after the colony economy that holds the stores down.
  */
 function fixtureSystems(pinned: Map<number, number> | null, hold: { c: number; p: number } | null,
-  needs: { needC: number; needP: number; sP: number } | null): System[] {
+  needs: { needC: number; needP: number; sP: number } | null, base: readonly System[] = SYSTEMS): System[] {
   pinned ??= new Map();
   const drain: System = {
     name: 'test-hold-stores', phase: 'colony-economy',
@@ -112,12 +121,12 @@ function fixtureSystems(pinned: Map<number, number> | null, hold: { c: number; p
     },
   };
   const out: System[] = [];
-  for (const s of SYSTEMS) {
+  for (const s of base) {
     if (s.phase === 'ecology' && !out.includes(before)) out.push(before);
     if (s.phase !== 'ecology' && out.includes(before) && !out.includes(after)) out.push(after);
     out.push(s);
   }
-  out.push(drain);
+  if (hold || needs) out.push(drain);
   return out;
 }
 

@@ -38,6 +38,7 @@ import { UndergroundSwitch } from './undergroundSwitch';
 import { requestView, toggleColonyView, togglePhoto, type ViewSwitchHost } from './views/viewSwitch';
 import { ViewsLayer } from './views/viewsLayer';
 import { FoundingFlow, installFoundingDebug } from './flows/founding';
+import { installLifecycleDebug, LifecycleFlows } from './flows/epitaph';
 import { registerScenicQueries, TitleHost, titleQualityCap, titleSceneWanted } from './title';
 import { edgeGlyphActive } from '@/render/world/boundary';
 import { createGameAudio, type AudioSystem } from '@/audio';
@@ -123,6 +124,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   readonly viewsLayer = new ViewsLayer(this);
   /** The opening sequence's flow: intro card, time-lapse playback, hand-over, failure (src/game/flows/founding). */
   readonly founding: FoundingFlow = new FoundingFlow(this);
+  /** Winter, nuptial flight, epitaph and Lineage flows (src/game/flows/{overwinter,flight,epitaph}). */
+  readonly lifecycle: LifecycleFlows = new LifecycleFlows(this);
   /** The live scene behind the title menu (src/game/title, render-integration). */
   readonly title: TitleHost;
   /** GDD 04 §14 edge glyph hook: the possessed ant presses outward against the map's hard limit (for the HUD). */
@@ -148,6 +151,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.settings.set({ graphics: { quality: opts.quality, overrides: {} } });
     registerScenicQueries();
     installFoundingDebug(this.founding, this);
+    installLifecycleDebug(this.lifecycle, this);
     this.title = new TitleHost({
       registry: () => this.registry, app: () => this.app, camera: this.camera, canvas: opts.canvas, testMode: opts.testMode,
       reducedMotion: () => this.settings.get().camera.reducedMotion,
@@ -291,6 +295,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     }
     if (session.view !== 'possess') session.setView('observer', true);
     this.founding.attach(session);
+    this.lifecycle.attach(session);
     this.syncContexts();
     this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
   }
@@ -333,6 +338,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.registry?.onGameEnd(); // also after a cancelled load whose world the renderers already built
     clearOverlays();
     this.founding.detach();
+    this.lifecycle.detach();
     this.viewsLayer.reset();
     this.loading = null;
     if (toTitle) { this.mode = 'title'; void this.title.enter(); }
@@ -367,6 +373,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (this.debugIntent && this.input.anyActivity) this.debugIntent = null; // real input takes over again
     applyIntent(s, this.input, this.cameraBasis(), s.view === 'possess' && this.mode === 'playing', this.intentBuf, this.debugIntent);
     this.founding.frame(s, dt); // the opening's own playback (time-lapse) before the normal clock
+    this.lifecycle.frame(s, dt); // winter lapse playback, flight prompts
     const f = s.driver.frame(dt, { frozen: isFrozen({ mode: this.mode, view: s.view }), realtime: this.realtime, now: () => performance.now() });
     if (f.steppedDownTo !== null) this.toast(TOASTS.steppedDown(s.driver.speed, f.steppedDownTo));
     if (f.running) s.predict(f.advancedS); // game time that really passed, not dt x requested speed
@@ -392,7 +399,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     for (const t of s.toasts.splice(0)) this.toast(t);
     if (s.view !== before) this.viewChanged();
     if (r.repossessId >= 0) this.possess(r.repossessId, 'cycle');
-    if (r.epitaph && this.mode !== 'epitaph') this.enterEpitaph(s);
+    if (this.lifecycle.epitaphDue(r.epitaph) && this.mode !== 'epitaph') this.enterEpitaph(s);
   }
 
   private enterEpitaph(s: GameSession): void {
@@ -400,6 +407,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.mode = 'epitaph';
     const cause = Object.entries(st.progression.deaths.byCause).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
     this.epitaph = { ageDays: Math.floor(st.tick / TICKS_PER_DAY), peakWorkers: st.progression.peakWorkers, cause };
+    this.lifecycle.onEpitaph();
     this.input.contexts.setBase('UI');
     this.refreshUi();
   }
@@ -474,6 +482,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
    */
   afterStep(s: GameSession, ticks = 0): void {
     if (this.opts.testMode) this.toasts.tick(ticks * TICK_SECONDS);
+    this.lifecycle.afterStep(s);
     this.afterSimChange(s, 0);
     this.dirty = true;
     this.refreshUi();

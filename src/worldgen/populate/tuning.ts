@@ -57,6 +57,12 @@ export const ECONOMY_FLOORS: readonly { colony: number; radiusBu: number; c: num
   { colony: 50, radiusBu: 300, c: 15, p: 5 },
   { colony: 300, radiusBu: 900, c: 45, p: 25 },
 ];
+/**
+ * Integrator ruling R8 (econ-growth): after the in-place top-ups a world fails the economy floors (and is
+ * regenerated) only when a floor's C or P is below this share of its target; from it up to the full target the world
+ * is accepted and flagged `economyLean` in the validation report (a generation note).
+ */
+export const ECONOMY_LEAN_ACCEPT = 0.8;
 
 /**
  * GDD 05 §1.3 validation: every good-or-better site has >= 2 carbohydrate sources within 400 BU (enforced for the

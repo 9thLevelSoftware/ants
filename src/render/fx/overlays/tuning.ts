@@ -26,7 +26,7 @@ export const FLOODED_CHAMBER = 0.25;
  * over dark soil reads far more opaque than its alpha; the multiplier avoids that. FILL_ALPHA is the strongest the
  * temperature stain gets (far end of the scale).
  */
-export const FILL_ALPHA = 0.5;
+export const FILL_ALPHA = 0.65;
 /**
  * Moisture stain: none on dry ground. The opacity rises from 0 at MOISTURE_STAIN_START (below the 25 % contour, the
  * lowest band of the legend) to MOISTURE_FILL_MAX at MOISTURE_STAIN_FULL (nearly saturated) and stays there. The
@@ -48,7 +48,7 @@ export const TEMP_STAIN_GAIN = 2.4;
  * The stain's colour is the legend ramp at its place, with its chroma scaled by this (1 = the ramp as it is): the pale
  * middle of the diverging scale carries almost no hue, so the temperature stain boosts it.
  */
-export const STAIN_CHROMA = { temperature: 1.6, moisture: 1.15 } as const;
+export const STAIN_CHROMA = { temperature: 1.9, moisture: 1.15 } as const;
 /** Share of the ramp's own lightness step kept by the stain (0 = hue only; wetter / off-optimum = darker). */
 export const STAIN_LIGHTNESS = 0.1;
 /** Standing water and flooded chambers: solid blue (GDD 08 §10.1), opacity. */

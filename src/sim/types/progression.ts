@@ -166,6 +166,11 @@ export interface FlightRecord {
   nLaunched: number;
   nMated: number;
   flightDeaths: number;
+  /**
+   * Losses of the flight by cause (GDD 06 §11.6): gynes lost in the air (`predation`), males dying after it
+   * (`old-age`, role `male`). Additive (overwinter-repro); missing in older records.
+   */
+  flightDeathsByCause?: Record<string, number>;
   nLanded: number;
   nFounded: number;
   landingZones: ZoneType[];

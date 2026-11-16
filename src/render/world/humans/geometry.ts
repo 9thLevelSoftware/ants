@@ -49,8 +49,10 @@ function soleShape(L: number, W: number): Shape {
     const toe = u > 0.82 ? Math.sqrt(Math.max(0, 1 - ((u - 0.82) / 0.18) ** 2)) : 1;
     return (W / 2) * Math.min(1, heel + 0.5 * Math.min(1, u * 1.6) + waist) * toe * 0.98;
   };
-  for (let i = 0; i <= n; i++) { const u = i / n; const x = -L / 2 + u * L; i === 0 ? s.moveTo(x, -half(u)) : s.lineTo(x, -half(u)); }
-  for (let i = n; i >= 0; i--) { const u = i / n; s.lineTo(-L / 2 + u * L, half(u)); }
+  // points cluster at the heel and the toe, where the outline turns (the same point count reads rounder)
+  const at = (i: number): number => 0.5 - 0.5 * Math.cos((Math.PI * i) / n);
+  for (let i = 0; i <= n; i++) { const u = at(i); const x = -L / 2 + u * L; i === 0 ? s.moveTo(x, -half(u)) : s.lineTo(x, -half(u)); }
+  for (let i = n; i >= 0; i--) { const u = at(i); s.lineTo(-L / 2 + u * L, half(u)); }
   return s;
 }
 

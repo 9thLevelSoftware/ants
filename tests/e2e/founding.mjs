@@ -7,6 +7,8 @@
 // the first workers at the reopened entrance; a possessed worker; then a second game where the queen dies before
 // sealing (failure card, retry). Every step is the player's own action through the real primitives (no stand-ins:
 // a step that does not work fails the run). FOUNDING_SKIP_FAIL=1 skips the failure part while iterating.
+// FOUNDING_NO_FLOOD=1 drains the sealed cell (cheat.setDrainScale) while weather-fix2's seepage flooding still
+// drowns the first clutch; the run log says so.
 
 const SHAFT_DEPTH_BU = 9; // Lasius D_MIN in open soil is 8 BU
 const SHAFT_MAX_BITES = 260;
@@ -245,6 +247,12 @@ export default async ({ page, shot, log }) => {
   expect(await phase() === 'lay', 'not sealed', { phase: await phase(), seal: (await view()).seal, entrances: (await nest()).entrances.map((e) => e.status) });
   result.seal = { ticks: sealTicks, plugs: sealEvents.filter((e) => e === 'action-completed:seal-entrance').length, entrances: (await nest()).entrances.map((e) => e.status) };
   log('sealed', JSON.stringify(result.seal));
+  if (process.env.FOUNDING_NO_FLOOD) {
+    // workaround, opt-in (task viab-founding: weather-fix2 owns the sealed cell filling by seepage and drowning the
+    // first clutch): the flood model's drainage scaled up so no water stands in the cell; reported, never the default
+    await g(() => window.__game.cheat.raw({ type: 'cheat.setDrainScale', k: 1e6 }));
+    log('FOUNDING_NO_FLOOD: nest drainage x1e6 (weather-fix2 workaround)');
+  }
   const goDown = async () => {
     for (let i = 0; i < 40; i++) {
       if (depthBu((await summary()).possessed.pos) >= SHAFT_DEPTH_BU - 1) break;

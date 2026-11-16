@@ -7,6 +7,10 @@ import { OnboardingPrompts } from './hud/prompts';
 import { FoundingOverlay } from './screens/founding';
 import { PhotoScreen } from './screens/photo';
 import { ScreenRouter } from './screens';
+import { WinterOverlay } from './screens/overwinter';
+import { FlightOverlay } from './screens/flight';
+import { EpitaphScreen } from './screens/epitaph';
+import { LineageScreen } from './screens/lineage';
 
 export function App() {
   return (
@@ -16,6 +20,10 @@ export function App() {
       <OnboardingPrompts />
       <PhotoScreen />
       <ScreenRouter />
+      <WinterOverlay />
+      <FlightOverlay />
+      <EpitaphScreen />
+      <LineageScreen />
     </>
   );
 }

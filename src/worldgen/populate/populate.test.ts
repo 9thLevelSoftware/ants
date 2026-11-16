@@ -20,7 +20,7 @@ import { foodReport, siteFoodShare } from './finalize';
 import { honeydewFilmFeet, placeFilm, removeFilm } from './food';
 import { anchorSeasonMask, startDistances } from './common';
 import { HOST_BIT, routeOfPoi } from './hosts';
-import { ANT_PREDATORS, CRUMB_SPOT, ECONOMY_FLOORS, INCIPIENT, PREDATOR_START_CLEAR_BU, START_RULE, topUpZones } from './tuning';
+import { ANT_PREDATORS, CRUMB_SPOT, ECONOMY_FLOORS, ECONOMY_LEAN_ACCEPT, INCIPIENT, PREDATOR_START_CLEAR_BU, START_RULE, topUpZones } from './tuning';
 
 vi.setConfig({ testTimeout: 180_000 });
 
@@ -113,10 +113,15 @@ describe('food anchors (acceptance 5, GDD 04 §8.1, GDD 05 §0 / §1.3)', () => 
     for (const { a, ctx } of all()) {
       const r = foodReport(ctx);
       console.info(`[economy] ${a}#1 summer day offer: ${r.floors.map((f) => `${f.radiusBu} BU ${f.c.toFixed(1)} C / ${f.p.toFixed(1)} P`).join(', ')}; near=${r.near} siteCarbMin=${r.siteMin}`);
+      // integrator ruling R8 (econ-growth): a floor passes from ECONOMY_LEAN_ACCEPT of its target; below the full
+      // target the world is flagged economyLean
       r.floors.forEach((f, i) => {
-        expect(f.c, `${a} C within ${f.radiusBu}`).toBeGreaterThanOrEqual(ECONOMY_FLOORS[i].c);
-        expect(f.p, `${a} P within ${f.radiusBu}`).toBeGreaterThanOrEqual(ECONOMY_FLOORS[i].p);
+        expect(f.c, `${a} C within ${f.radiusBu}`).toBeGreaterThanOrEqual(ECONOMY_LEAN_ACCEPT * ECONOMY_FLOORS[i].c);
+        expect(f.p, `${a} P within ${f.radiusBu}`).toBeGreaterThanOrEqual(ECONOMY_LEAN_ACCEPT * ECONOMY_FLOORS[i].p);
+        const full = f.c >= ECONOMY_FLOORS[i].c && f.p >= ECONOMY_FLOORS[i].p;
+        expect(f.lean, `${a} lean flag at ${f.radiusBu}`).toBe(!full);
       });
+      expect(r.economyLean).toBe(r.floors.some((f) => f.lean));
       expect(r.near).toBeGreaterThanOrEqual(3);
       expect(r.carb && r.protein).toBe(true);
       expect(r.siteMin).toBeGreaterThanOrEqual(2);

@@ -1,0 +1,31 @@
+/* The Epitaph page (GDD 06 §13.5): a field-journal page over the dimmed world. */
+
+.ep-root { position: absolute; inset: 0; z-index: 30; display: grid; place-items: start center; background: rgba(14, 12, 10, 0.86); overflow: auto; padding: 1.5rem; }
+.ep-page { background: #e9dfc8; color: #2b241b; border: 1px solid #8a7c66; border-radius: 4px; width: 52rem; max-width: 96vw; padding: 1.5rem 2rem 1.25rem; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5); font-family: Georgia, 'Times New Roman', serif; }
+.ep-page h1 { margin: 0; font-size: 1.8rem; font-weight: normal; }
+.ep-sub { margin: 0.1rem 0; color: #5a4e3e; font-size: 0.9rem; }
+.ep-sub code { font-family: ui-monospace, monospace; background: #f6efdc; padding: 0 0.25rem; }
+.ep-text { margin: 0.8rem 0; font-size: 1.02rem; line-height: 1.45; }
+.ep-graph { width: 100%; height: auto; background: #f3ead6; border: 1px solid #c9bb9d; }
+.ep-axis { stroke: #8a7c66; stroke-width: 1; }
+.ep-tick { font-size: 9px; fill: #5a4e3e; font-family: Georgia, serif; }
+.ep-line { fill: none; stroke-width: 1.6; }
+.ep-workers { stroke: #2b241b; stroke-width: 2.2; }
+.ep-brood { stroke: #a0663a; }
+.ep-c { stroke: #c9a227; stroke-dasharray: 4 2; }
+.ep-p { stroke: #7b4c8a; stroke-dasharray: 4 2; }
+.ep-mark { stroke: #4a3f31; stroke-width: 1; }
+.ep-queen { stroke: #8c2f24; stroke-width: 1.2; stroke-dasharray: 3 2; }
+.ep-legend { display: flex; gap: 1rem; font-size: 0.8rem; color: #5a4e3e; margin: 0.25rem 0 0.6rem; align-items: center; }
+.ep-legend i { display: inline-block; width: 1.2rem; height: 0.18rem; margin-right: 0.3rem; vertical-align: middle; }
+.ep-legend .k-w { background: #2b241b; } .ep-legend .k-b { background: #a0663a; } .ep-legend .k-c { background: #c9a227; } .ep-legend .k-p { background: #7b4c8a; }
+.ep-cols { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr; gap: 1.25rem; border-top: 1px solid #b9ab8f; padding-top: 0.6rem; }
+.ep-cols h3, .ep-lineage h3 { margin: 0 0 0.3rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: #5a4e3e; }
+.ep-cols ul { margin: 0; padding-left: 1rem; font-size: 0.88rem; }
+.ep-cols li { margin: 0.1rem 0; }
+.ep-entries li { font-style: italic; }
+.ep-lineage { border-top: 1px solid #b9ab8f; margin-top: 0.6rem; padding-top: 0.5rem; font-size: 0.92rem; }
+.ep-lineage p { margin: 0; }
+.ep-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; border-top: 1px solid #b9ab8f; margin-top: 0.8rem; padding-top: 0.8rem; font-family: var(--font-ui, sans-serif); }
+/* buttons on the parchment: dark text, visible outlines */
+.ep-actions .ui-btn--ghost, .ep-actions .ui-btn--secondary { color: #2b241b; border-color: #8a7c66; background: rgba(255, 255, 255, 0.25); }

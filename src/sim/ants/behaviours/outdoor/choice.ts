@@ -11,6 +11,7 @@ import { sourceWeight } from '@/sim/colony';
 import { harvestForm, slotUsers, sourceQuality } from '@/sim/ecology';
 import { casteSpeeds } from '@/sim/locomotion';
 import { daysToTicks, secondsToTicks } from '@/sim/time';
+import { foodLeftFor } from './claims';
 import { distFromHome } from './common';
 import type { Flavour } from './flavours';
 
@@ -91,7 +92,10 @@ export function sourceScore(sim: Sim, ant: Ant, s: FoodSource): number {
   const slots = Math.max(1, s.slots);
   const crowd = Math.max(CHOICE_CROWD_MIN, 1 - slotUsers(sim, s).length / slots);
   const speed = Math.max(1e-3, casteSpeeds(col.species, ant.caste, sim.world.bu).cruise);
-  const trip = Math.max(CHOICE_MIN_TRIP_S, (2 * distFromHome(sim, ant, s.pos)) / speed + CHOICE_COLLECT_S);
+  const walkS = distFromHome(sim, ant, s.pos) / speed;
+  // food the trips already on their way will take is not there for this one (econ-growth, claims.ts)
+  if (!foodLeftFor(sim, ant, s, walkS)) return 0;
+  const trip = Math.max(CHOICE_MIN_TRIP_S, 2 * walkS + CHOICE_COLLECT_S);
   const marker = inForageMarker(sim, ant, s) ? FORAGE_MARKER_SCORE_MULT : 1;
   return (w * q * crowd * marker) / trip;
 }

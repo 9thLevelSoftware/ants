@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { Color, Fog, HemisphereLight, Scene } from 'three';
 import { depthFade, maxWidthPx, projectedWidthPx, streakLengthMm, streakWidthMm, pixelMm, type RainView } from './rainMath';
 import { rainTint } from './rainTint';
-import { DROP_LOOK, RAIN_FADE_NEAR_BU, RAIN_MAX_LEN_FRAC, RAIN_MAX_WIDTH_FRAC, RAIN_MIN_WIDTH_PX, RAIN_TINT_GAIN } from './tuning';
+import { DROP_LOOK, RAIN_FADE_NEAR_BU, RAIN_MAX_LEN_FRAC, RAIN_MAX_WIDTH_FRAC, RAIN_MIN_WIDTH_PX, RAIN_TINT_GAIN, RAIN_TINT_MAX } from './tuning';
 
 const BU = 4;
 const views: RainView[] = [
@@ -62,10 +62,18 @@ describe('rain colour follows the scene light', () => {
     scene.fog = new Fog(new Color(0.02, 0.025, 0.04), 1, 100);
     const night = Array.from(rainTint(scene));
     expect(night[0]).toBeCloseTo(0.02 * RAIN_TINT_GAIN, 6);
-    scene.fog = new Fog(new Color(0.6, 0.62, 0.66), 1, 100);
+    scene.fog = new Fog(new Color(0.25, 0.27, 0.3), 1, 100);
     const day = Array.from(rainTint(scene));
-    expect(day[2]).toBeGreaterThan(night[2]! * 10);
+    expect(day[2]).toBeGreaterThan(night[2]! * 5);
     expect(Math.max(...night)).toBeLessThan(0.1);
+  });
+
+  it('in a bright haze the colour is capped: no pure white rain, hue kept', () => {
+    const scene = new Scene();
+    scene.fog = new Fog(new Color(0.9, 0.95, 1.0), 1, 100);
+    const t = Array.from(rainTint(scene));
+    expect(Math.max(...t)).toBeLessThanOrEqual(RAIN_TINT_MAX + 1e-9);
+    expect(t[2]! / t[0]!).toBeCloseTo(1 / 0.9, 6);
   });
 
   it('without fog it uses the sky ambient light', () => {

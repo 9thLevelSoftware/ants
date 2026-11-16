@@ -52,6 +52,8 @@ export function installOnboardingDebug(get: Getter): () => void {
     use: (key: string, n = 1) => { need(get).engine.use(key as never, n); need(get).advance(0); return api.hints(); },
     learn: (id: HintId) => { need(get).engine.learn(id); need(get).advance(0); return api.hints(); },
     dismiss: () => need(get).dismiss(),
+    /** Write the hint progress to storage now (the profile also does it a moment after a change). */
+    flush: () => need(get).flush(),
     /** Settings > Reset hints. */
     reset: () => { need(get).engine.resetStore(); need(get).advance(0); return api.hints(); },
   };

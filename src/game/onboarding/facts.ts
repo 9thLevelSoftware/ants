@@ -61,7 +61,9 @@ export function readFacts(src: FactSource): Facts {
   const markerTotal = markers
     ? Object.values(markers.counts).reduce((n, c) => n + c.n, 0) + markers.plans.filter((p) => p.source === 'player').length
     : 0;
+  const promptDirectives = prompt.some((l) => l.input === 'directives'); // the queen's "Colony orders (I)" line
   const external: HintId[] = [...ui.foundingShown];
+  if (promptDirectives) external.push('hint-directives');
   if (promptPickup) external.push('hint-pickup');
   if (promptShare) external.push('hint-share');
   return {

@@ -13,7 +13,7 @@ import {
   WAIT_REEVAL_S, WAIT_SPREAD_BU,
 } from '@/sim/balance/foraging';
 import { begin, canDo, stopAction } from '@/sim/ants/actions';
-import { recordForagerReturn, shouldDepart, taskCycleDone } from '@/sim/colony';
+import { commitDeparture, departureDue, recordForagerReturn, taskCycleDone } from '@/sim/colony';
 import { navToTarget } from '@/sim/locomotion';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { bookDelivery } from './adapters';
@@ -52,14 +52,15 @@ export function updateWait(sim: Sim, ant: Ant, fl: Flavour): void {
   const room = nest ? entranceChamber(nest) : undefined;
   if (room && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, WAIT_SPREAD_BU);
   forgetStaleRoutes(sim, ant);
-  const why = shouldDepart(sim, ant, THINK_WAIT_TICKS);
+  const why = departureDue(sim, ant, THINK_WAIT_TICKS);
   if (why) {
     const src = chooseSource(sim, ant, departFilter(sim, ant, fl));
     const s = src >= 0 ? sim.stores.sources.get(src) : undefined;
-    if (s) { startOutbound(sim, ant, fl, s.id, s.pos, -1, why, s.id); return; }
+    if (s) { commitDeparture(sim, ant, why); startOutbound(sim, ant, fl, s.id, s.pos, -1, why, s.id); return; }
     const m = forageMarker(sim, ant);
-    if (m) { startOutbound(sim, ant, fl, -1, m.pos, m.id, 'marker:forage', m.id); return; }
-    // nothing known to go to: let the allocator decide (usually scout demand, GDD 02 §10.2)
+    if (m) { commitDeparture(sim, ant, why); startOutbound(sim, ant, fl, -1, m.pos, m.id, 'marker:forage', m.id); return; }
+    // nothing known to go to: not a departure (econ-growth: woodland-edge #2 counted 285 such "trips" a day); let
+    // the allocator decide (usually scout demand, GDD 02 §10.2)
     logDecision(sim, ant, why, -1);
     if (taskCycleDone(sim, ant) !== fl.task) return;
   }
