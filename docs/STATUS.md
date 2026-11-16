@@ -442,3 +442,29 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
     defect to diagnose at the gate.
   - **R15 — possessed-danger level.** GDD 08 §6.5 wins: `possessed-danger` is critical in combat too.
 - Machine: load average 15–16 with five tasks running; no new launches until one lands.
+
+## Nov 16 23:10 UTC — container restart; overwinter-repro landed; three workflows resumed
+
+- **The container restarted at about 23:00.** Disk survived (repo, scratchpad, journals). Four agents were cut off:
+  `fix:econ-growth`, `fix:loco-fix3`, `verify:input-gamepad-a11y`, `fix:look-pass-2`. Tree snapshot committed
+  (`535af58`), then the three workflows were resumed with `resumeFromRunId` (finished agents replay from the journal;
+  the cut-off ones re-run and will find part of their work already in the tree): `wws8x2xjj` (wf_a74b450f-823,
+  econ-growth fix), `wbpbsguac` (wf_0fc884f0-b38, loco-fix3 fix + a11y review), `wy9krir5z` (wf_9d6a17e0-fe2,
+  look-pass-2 fix). One typecheck error in the tree at resume: `src/render/world/primitives/snapLayer.test.ts`
+  material id `'wood'` (look-pass-2's, in flight).
+- **overwinter-repro** (Opus ×3, complete): overwintering (notice, banner, winter model over the remaining winter
+  days, losses by cause, time-lapse screen with skip, winter report, spring restart), reproduction (alate
+  investment, flight offer valid only in the window/hours/weather, auto-release, possessed flight with Space climb /
+  Shift descend, mating, landing, dispersal), lineage (per-game flight ids, Lineage screen, daughter-queen new game),
+  succession (queen death, orphan decline, extinction after the sim's 30 s grace, epitaph with history graph).
+  `tests/e2e/lifecycle.mjs` passes on seed 1; screenshots `test-output/lifecycle-fix/` (looked at: winter lapse,
+  flight, epitaph all read; plain but correct).
+  - Long test on the 11 viable sweep end-states (rebuilt from per-day figures, not real states): 8 with enough stores
+    all reach Spring 2 with their queen; of 3 that ran out of sugar, 2 survive, 1 queen starves (suburban-garden #1).
+  - Open (other owners): "E Groom yourself — not now" prompt shows during the flight (`src/sim/ants/player/prompt.ts`);
+    no males drawn at the lek; journal key for the winter notice; `progression/journal.ts yearOfEntry` puts
+    pre-winter entries in the wrong year after a winter jump; auto-slow rule `overwinter-prompt`; optional
+    `intent.flight` from the input layer.
+- **econ-growth** review verdict (fix round re-running): phantom source claims by foragers reassigned in the nest;
+  re-derived E25 fails on empty worker crops, not on foraging; `NEED_SPONT_MULT ×5` makes the activation loop
+  irrelevant and a test was changed to dodge it; acceptance 2–5 not met in the implementer's sweep.
