@@ -36,7 +36,7 @@
 /* centred in the space right of the panel (it ends 18.5rem from the left), wrapping before it would run under it */
 .ph-hint { position: absolute; left: calc(50% + 9.25rem); top: 1rem; transform: translateX(-50%); max-width: calc(100% - 19.5rem); display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem 1rem; padding: 0.25rem 0.75rem; border-radius: var(--r-m); background: var(--c-scrim); font-size: var(--t-small); color: var(--c-text-2); pointer-events: none; }
 
-/* Photo mode shows the world alone (GDD 08 7.9): the opening's panels and every other layer of the UI step aside. */
-.ph-active .ui-root:not(.ph-root):not(.ui-screens), .ph-active .fo-root { visibility: hidden; }
+/* Photo mode shows the world alone (GDD 08 7.9): every other layer of the UI steps aside (the opening's overlay does not render in photo view). */
+.ph-active .ui-root:not(.ph-root):not(.ui-screens) { visibility: hidden; }
 .ph-hint span::after { content: '·'; margin-left: 1rem; color: var(--c-text-2); }
 .ph-hint span:last-of-type::after { content: ''; margin: 0; }

@@ -54,6 +54,8 @@ export function FoundingOverlay() {
   const ui = foundingUi.value;
   const a = foundingActions.value;
   const screen = snapshot.value.screen;
+  // photo mode shows the world alone (GDD 08 §7.9): the opening's panels are not drawn at all, not merely hidden
+  if (snapshot.value.view === 'photo') return null;
   if (!ui || !a || (screen !== 'playing' && screen !== 'paused' && screen !== 'epitaph')) return null;
   if (screen === 'epitaph' && !ui.failure) return null;
   const reduced = ui.lapse?.reducedMotion ?? false;
