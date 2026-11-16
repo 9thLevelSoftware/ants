@@ -63,9 +63,31 @@ export function assembleSystems(modules: readonly { mod: SimModule }[]): { syste
   return { systems, unphased };
 }
 
-export const SYSTEMS: readonly System[] = assembleSystems(SIM_MODULES).systems;
+/**
+ * An array that is filled on first use. The module lists below are built from every module's index, and those
+ * indexes import each other in cycles: when a test enters through a deep module (say ecology/sources), this file can
+ * be evaluated while some module is only half loaded and its `systems` still holds undefined entries. Building the
+ * lists on first use, after every module has finished loading, makes the result independent of the import order.
+ */
+function lazyList<T>(build: () => readonly T[]): readonly T[] {
+  const target: T[] = [];
+  let filled = false;
+  const fill = (): void => {
+    if (filled) return;
+    filled = true;
+    target.push(...build());
+  };
+  return new Proxy(target, {
+    get: (t, k, r) => { fill(); return Reflect.get(t, k, r); },
+    has: (t, k) => { fill(); return Reflect.has(t, k); },
+    ownKeys: (t) => { fill(); return Reflect.ownKeys(t); },
+    getOwnPropertyDescriptor: (t, k) => { fill(); return Reflect.getOwnPropertyDescriptor(t, k); },
+  });
+}
 
-export const BEHAVIOURS: readonly Behaviour[] = SIM_MODULES.flatMap((m) => m.mod.behaviours ?? []);
+export const SYSTEMS: readonly System[] = lazyList(() => assembleSystems(SIM_MODULES).systems);
+
+export const BEHAVIOURS: readonly Behaviour[] = lazyList(() => SIM_MODULES.flatMap((m) => m.mod.behaviours ?? []));
 
 /** Behaviour lookup: a behaviour listing the colony's species wins over the generic one for the same task. */
 export function createBehaviourTable(list: readonly Behaviour[]): BehaviourTable {

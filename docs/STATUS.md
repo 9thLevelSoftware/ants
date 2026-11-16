@@ -395,3 +395,8 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
 - Seen in the rain shots: alert "Founding chamber flooding ×10/×11" long after the hand-over (wrong name once the
   opening is over, and it repeats) → check after nest-fix3; if still there, gate close.
 - Running: econ-growth + overwinter-repro (`wxxwcbc34`), nest-fix3 (`w7nudxfes`, in review).
+- 18:35 Integrator: `SYSTEMS` / `BEHAVIOURS` in `src/sim/systems.ts` are now built on first use (`lazyList`), so a test
+  that enters through a deep module no longer finds half-loaded module indexes (`src/sim/ecology/creatures/*.test.ts`
+  were failing at import: 9 files; now green). Known red, not from this: `src/sim/commands.test.ts` "ends with
+  lifecycle": the `nest-flood` system sorts after `lifecycle` (weather-effects registered it in the lifecycle phase)
+  → gate close / nest owner: give it the phase before lifecycle so drowned ants are swept the same tick.
