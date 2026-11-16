@@ -41,6 +41,7 @@ import { FoundingFlow, installFoundingDebug } from './flows/founding';
 import { registerScenicQueries, TitleHost, titleQualityCap, titleSceneWanted } from './title';
 import { edgeGlyphActive } from '@/render/world/boundary';
 import { createGameAudio, type AudioSystem } from '@/audio';
+import { clearOverlays, ComfortFeed, installOverlayHost } from './stage2Wiring';
 
 export interface GameOptions {
   canvas: HTMLCanvasElement;
@@ -135,6 +136,9 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   private resolveReady: () => void = () => {};
   /** Sound (src/audio): starts on the first user gesture, never in test mode; silent no-op until then. */
   readonly audio: AudioSystem;
+  /** Undo of the fx slot's overlay-host registration (stage2Wiring). */
+  private uninstallOverlayHost: () => void = () => {};
+  private readonly comfort = new ComfortFeed();
 
   constructor(readonly opts: GameOptions) {
     this.realtime = !opts.testMode;
@@ -147,6 +151,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.title = new TitleHost({
       registry: () => this.registry, app: () => this.app, camera: this.camera, canvas: opts.canvas, testMode: opts.testMode,
       reducedMotion: () => this.settings.get().camera.reducedMotion,
+      comfort: () => this.comfort.get(this.settings.get()),
       playerQuality: () => this.playerQuality(),
       setQualityCap: (on) => { if (on !== this.titleCapped) { this.titleCapped = on; this.applyQuality(); } },
     });
@@ -182,9 +187,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.registry = new RenderRegistry({ forceDebug: this.opts.forceDebugRender });
     const assetsReady = this.registry.init({
       renderer: this.app.renderer, scene: this.scene, camera: this.camera, quality: this.app.quality, assets: this.assets,
-      game: { requestRender: () => this.requestRender(), testMode: this.opts.testMode }, setExposure: (ev) => this.app.setExposure(ev),
-      setGrade: (g) => this.app.setGrade(g),
+      game: { requestRender: () => this.requestRender(), testMode: this.opts.testMode },
+      // photo mode adds its exposure compensation and look on top of what the world lighting asks for
+      setExposure: (ev) => this.app.setExposure(this.viewsLayer.photo.mapExposure(ev)),
+      setGrade: (g) => this.app.setGrade(this.viewsLayer.photo.mapGrade(g)),
     });
+    this.uninstallOverlayHost = installOverlayHost(this.registry, this.settings);
     this.viewsLayer.attach(this.opts.canvas, this.scene, this.registry);
     this.app.start(this.onFrame);
     this.app.renderFrame(0);
@@ -323,6 +331,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       this.session = null;
     }
     this.registry?.onGameEnd(); // also after a cancelled load whose world the renderers already built
+    clearOverlays();
     this.founding.detach();
     this.viewsLayer.reset();
     this.loading = null;
@@ -339,8 +348,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     else this.dom?.poll();
     this.input.update(nowMs);
     this.handleInputEvents();
-    if (!this.opts.testMode) this.time += dt;
     const s = this.session;
+    if (!this.opts.testMode && s?.view !== 'photo') this.time += dt; // photo mode freezes the animation clock (GDD 08 7.9)
     if (s && (this.mode === 'playing' || this.mode === 'paused')) this.playFrame(s, dt);
     else if (!s && this.mode === 'title' && !this.opts.testMode) { if (this.titleArmed) this.title.ensure(); this.title.frame(dt); }
     if (!s || (this.mode !== 'playing' && this.mode !== 'paused')) this.audio.idle(dt); // world sound fades outside play
@@ -398,7 +407,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** Camera + renderers for the current state. `settleS` > 0 first settles the camera rig (test screenshots). */
   renderScene(s: GameSession, dt: number, alpha: number, settleS: number): FrameInfo {
     const live = this.mode === 'playing' && settleS === 0 ? this.input : null;
-    this.viewsLayer.frame(s, live, this.nowS);
+    this.viewsLayer.frame(s, live, this.nowS, alpha);
     const subject = s.currentSubject(alpha);
     if (subject) s.views.setSubject(subject);
     const vf = settleS > 0 ? s.views.settle(settleS, TEST_CAMERA_SETTLE_DT) : s.views.update(dt, live);
@@ -406,13 +415,17 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     applyPose(this.camera, vf.pose, canvas.clientWidth / Math.max(1, canvas.clientHeight));
     const underground = this.undergroundSw.update(s.sim.field.substrate(this.camera.position), s.sim.world.bu, settleS > 0);
     // reduced motion: focus changes are instant (GDD 08 §12)
-    this.app.setFocus(vf.focus, undefined, settleS > 0 || dt === 0 || this.settings.get().camera.reducedMotion);
+    const instantFocus = settleS > 0 || dt === 0 || this.settings.get().camera.reducedMotion;
+    this.app.setFocus(vf.focus, undefined, instantFocus);
+    this.viewsLayer.photo.afterCamera(s, instantFocus); // photo mode: aperture range, bokeh, exposure
     const pred = s.possessedId >= 0 && s.view === 'possess' && subject ? subject : null;
     const frame: FrameInfo = {
-      dt, time: this.time, alpha, sim: s.sim, view: s.view, underground, camera: this.camera,
+      dt: s.view === 'photo' ? 0 : dt, time: this.time, alpha, sim: s.sim, view: s.view, underground, camera: this.camera,
       viewportHeightPx: this.app.renderer.domElement.height, subject: subject ? subject.pos : null, possessedId: s.possessedId,
       possessedPose: pred, subjectOpacity: s.view === 'possess' ? vf.subjectOpacity : 1, cutaway: vf.cutaway,
       fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion,
+      comfort: this.comfort.get(this.settings.get()),
+      hidePossessedHighlight: this.viewsLayer.photo.hidesMarkers,
     };
     this.registry.update(frame);
     const pa = s.possessedId >= 0 ? s.sim.stores.ants.get(s.possessedId) : undefined;
@@ -688,6 +701,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.endGame(false);
     this.audio.dispose();
     this.viewsLayer.dispose();
+    this.uninstallOverlayHost();
     this.registry?.dispose();
     this.dom?.detach();
     this.app?.dispose();

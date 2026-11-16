@@ -9,7 +9,7 @@ import { MIDDEN_REPORT_HOLD_S } from '@/sim/balance';
 import { secondsToTicks } from '@/sim/time';
 import { accGet, accSet, coreOf } from './core';
 import { colonyAlert, colonyClearAlert } from './alerts';
-import { foundingInProgress } from './founding/access';
+import { claustralFounding } from './founding/access';
 
 const FLAG = 'midden.blocked', REPORT = 'midden.reportTick';
 
@@ -45,8 +45,8 @@ export function updateMiddenBlocked(sim: Sim, col: Colony): void {
   const core = coreOf(col);
   const reported = accGet(core, REPORT);
   const recent = reported > 0 && sim.state.tick - (reported - 1) < secondsToTicks(MIDDEN_REPORT_HOLD_S);
-  // the claustral founding keeps its plug in on purpose: no false alarm while the opening runs (founding-close §4)
-  const blocked = core.workers > 0 && !foundingInProgress(sim, col.id) && (noMiddenRoute(sim, col) || recent);
+  // the claustral founding keeps its plug in on purpose: no false alarm while the cell is sealed (founding-close §4)
+  const blocked = core.workers > 0 && !claustralFounding(sim, col.id) && (noMiddenRoute(sim, col) || recent);
   if (blocked === isMiddenBlocked(col)) return;
   accSet(core, FLAG, blocked ? 1 : 0);
   sim.emit({ type: 'midden-blocked', colonyId: col.id, blocked });

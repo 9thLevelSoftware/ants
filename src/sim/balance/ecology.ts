@@ -11,7 +11,7 @@ import type { CarrionStage, DifficultyId, FoodKind, FoodVariant, ItemKind, Seaso
  * Which tier's rules new sources follow (GDD 05 §0 tier map). Tier 1: static honeydew-film sites, T1 carrion
  * multiplier, no carrion stages, flowers always open. Raise to 2 when the Tier 2 ecology lands.
  */
-export const ECOLOGY_TIER: 1 | 2 = 1;
+export const ECOLOGY_TIER: 1 | 2 = 2;
 
 /**
  * Age (gd) at which carrion without a stage clock (all carrion at T1) is removed. GDD 05 §1.2 writes the T1 age

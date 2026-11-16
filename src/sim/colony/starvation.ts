@@ -8,11 +8,19 @@ import {
 } from '@/sim/balance';
 import { daysToTicks } from '@/sim/time';
 import { coreOf } from './core';
-import { daysOfStock } from './needs';
+import { daysOfStock, targetDays } from './needs';
 import { colonyAlert, colonyClearAlert } from './alerts';
 import { censusOf } from './census';
 import { foundingInProgress } from './founding/access';
+import { starvationHeld } from './handover';
 import { STARVE_ALERT_GRACE_GD } from '@/sim/balance/colony';
+
+/**
+ * core.acc key: 1 while the stage is held at fed (R2) and the pool is below its carbohydrate target: no reserve refills
+ * then. The first workers hand over with fat for days of upkeep; refilling it drained a quarter of the provisioned
+ * pool before the first forager came home (final sweep, seed 2).
+ */
+export const HELD_LEAN_KEY = 'starve.heldLean';
 
 const RANK: Record<StarvationStage, number> = { fed: 0, lean: 1, rationing: 2, 'brood-sacrifice': 3, 'adult-starvation': 4 };
 
@@ -27,8 +35,23 @@ export function updateStarvation(sim: Sim, col: Colony, starvingAdults: number):
   const core = coreOf(col);
   const now = sim.state.tick;
   const s = col.stores;
+  const held = starvationHeld(sim, col);
+  // while held, a pool under its carbohydrate target stops reserve refills (physiology reads this key)
+  core.acc[HELD_LEAN_KEY] = held && daysOfStock(col).c < targetDays(col).c ? 1 : 0;
+  if (held) {
+    // the founding queen's reserves feed the colony; after the hand-over a grace period (R2): no stage, no clock
+    core.cZeroSinceTick = -1;
+    core.pZeroSinceTick = -1;
+    if (col.starvationStage !== 'fed') setStage(sim, col, col.starvationStage, 'fed');
+    if (col.isPlayer) core.acc['starve.held'] = 1;
+    return;
+  }
+  // an empty protein pool starves only a colony that is raising larvae (viab-economy R5; GDD 02 §5.7 counts any
+  // pool P = 0): a first-year colony whose brood waits in diapause has no protein to give and none to want
+  const cen = censusOf(sim, col.id);
+  const pWanted = cen.larvae - cen.diapause > 0;
   if (s.c <= LOAD_EPS) { if (core.cZeroSinceTick < 0) core.cZeroSinceTick = now; } else core.cZeroSinceTick = -1;
-  if (s.p <= LOAD_EPS) { if (core.pZeroSinceTick < 0) core.pZeroSinceTick = now; } else core.pZeroSinceTick = -1;
+  if (s.p <= LOAD_EPS && pWanted) { if (core.pZeroSinceTick < 0) core.pZeroSinceTick = now; } else core.pZeroSinceTick = -1;
 
   const days = daysOfStock(col);
   const empty = core.cZeroSinceTick >= 0 || core.pZeroSinceTick >= 0;
@@ -40,7 +63,7 @@ export function updateStarvation(sim: Sim, col: Colony, starvingAdults: number):
 
   if (RANK[cur] >= 2) {
     // S2-S4 leave together once the pool holds some of both again (back to S1, which then exits normally).
-    if (s.c > RATION_EXIT_C && s.p > RATION_EXIT_P) next = 'lean';
+    if (s.c > RATION_EXIT_C && (s.p > RATION_EXIT_P || !pWanted)) next = 'lean';
     else if (cur === 'adult-starvation') next = cur; // S4 has no exit but a refilled pool (GDD 02 §5.7)
     else if (!sacrifice) next = 'rationing';
     // S4 follows S3: adults starve only once brood sacrifice is under way (the order of death in §5.7).

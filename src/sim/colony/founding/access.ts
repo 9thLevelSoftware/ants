@@ -120,6 +120,26 @@ export function depthBelowGround(sim: Sim, a: Ant): number {
  * workers still dig the founding plug out; not after a failure): the claustral founding, when the queen's pool replaces the stores and the plugged entrance is no fault. Read by the
  * colony's alarms that would otherwise fire on an empty store or a closed nest (starvation clocks, midden-blocked).
  */
+/** Opening phases in which the founding cell is plugged on purpose and first workers can exist. */
+const CLAUSTRAL_PHASES: readonly OpeningPhase[] = ['lay', 'timelapse', 'handover'];
+
+/**
+ * The claustral part of the opening for this colony: the cell is sealed on purpose (phases lay / timelapse /
+ * handover, or after the hand-over while the first workers still dig the plug out: the nest record `sealed` or
+ * `reopening`). Narrower than foundingInProgress: before the seal no worker exists in a real opening, so a colony
+ * with workers there is a set-up of its own (a test or cheat colony) and its closed nest is a real fault. Read by
+ * midden-blocked (viab-founding: the guard must not hide that alarm from colonies outside the opening).
+ */
+export function claustralFounding(sim: Sim, colonyId: number): boolean {
+  if (colonyId !== (playerColonyOf(sim)?.id ?? -2)) return false;
+  const op = sim.state.player.opening;
+  if (!op || op.phase === 'failed') return false;
+  if (!op.done && CLAUSTRAL_PHASES.includes(op.phase)) return true;
+  if (!op.done && op.phase !== 'done') return false;
+  const f = foundingNest(sim)?.founding;
+  return !!f && (f.state === 'sealed' || f.state === 'reopening');
+}
+
 export function foundingInProgress(sim: Sim, colonyId: number): boolean {
   if (colonyId !== (playerColonyOf(sim)?.id ?? -2)) return false;
   const op = sim.state.player.opening;

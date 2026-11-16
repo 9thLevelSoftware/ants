@@ -10,6 +10,7 @@ import { colonyCancel, colonyClick, plannerActive } from './colony/colonyControl
 import type { PlanTemplate } from './colony/digPlanner';
 import { possessTarget } from './observerControl';
 import type { PlanEdit } from './colony/edits';
+import { buildPhotoDebug } from './photo/debug';
 import type { ViewsState } from './viewsState';
 import type { ColonyTool } from './viewsState';
 
@@ -38,6 +39,8 @@ export function buildViewsDebug(game: Game) {
     });
   };
   const api = {
+    /** Photo mode (src/game/views/photo/debug.ts). */
+    photo: buildPhotoDebug(game),
     /** Places the scripted cursor (CSS px); null moves it off the canvas. */
     pointer(x: number | null, y?: number) { L.cursor.set(x === null ? null : { x, y: y ?? 0 }); return { x: L.cursor.x, y: L.cursor.y, inside: L.cursor.inside }; },
     /** What is under the cursor (hits nearest first, the surface point). */

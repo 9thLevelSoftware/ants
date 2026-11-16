@@ -13,7 +13,7 @@ import {
   FOUND_DIG_COST_PER_BITE, FOUND_SEAL_SCRAPE_HEADINGS_DEG, FOUND_SEAL_SCRAPE_MARGIN_BU, FOUND_SEAL_SCRAPE_MIN_DEPTH_BU,
   FOUND_SEAL_SCRAPE_REACH_BU, FOUND_SEAL_SCRAPE_SLOPES_DEG, FOUND_SEAL_SCRAPE_SOIL_BU,
 } from '@/sim/balance/founding';
-import { DIG_RAMP_RADIUS_BU } from '@/sim/balance/nest';
+import { DIG_RAMP_RADIUS_BU, THROAT_BU } from '@/sim/balance/nest';
 import { VoxelFlag } from '@/sim/types';
 import { digBite, voxelAt } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround } from './access';
@@ -62,12 +62,13 @@ const VOXEL_PLUG = VoxelFlag.PLUG;
 const probe: Vec3 = { x: 0, y: 0, z: 0 };
 
 /**
- * Would a bite from the queen's feet along `h` at `slope` reach the plug or the ground surface? The bite's ramp (the nest's dig
+ * Would a bite from the queen's feet along `h` at `slope` reach the plug, the throat of an entrance still to seal
+ * (`throats`), or the ground surface? The bite's ramp (the nest's dig
  * geometry, GDD 03 §1.2: a capsule of DIG_RAMP_RADIUS_BU whose floor runs through the feet) is probed along
  * FOUND_SEAL_SCRAPE_REACH_BU; any solid plug voxel, or solid within FOUND_SEAL_SCRAPE_SOIL_BU of the ground
  * surface, within the radius plus a margin of it vetoes the bite.
  */
-function biteNearPlug(sim: Sim, h: Vec3, slopeDeg: number): boolean {
+function biteNearPlug(sim: Sim, h: Vec3, slopeDeg: number, throats: readonly { c: Vec3; r: number; minD: number }[]): boolean {
   const bu = sim.world.bu, v = sim.carve.voxel, r = (DIG_RAMP_RADIUS_BU + FOUND_SEAL_SCRAPE_MARGIN_BU) * bu;
   const s = (slopeDeg * Math.PI) / 180, cs = Math.cos(s), sn = Math.sin(s);
   const ax = feet.x + h.x * sn * DIG_RAMP_RADIUS_BU * bu, ay = feet.y + cs * DIG_RAMP_RADIUS_BU * bu, az = feet.z + h.z * sn * DIG_RAMP_RADIUS_BU * bu;
@@ -78,6 +79,13 @@ function biteNearPlug(sim: Sim, h: Vec3, slopeDeg: number): boolean {
       probe.x = cx + dx; probe.y = cy + dy; probe.z = cz + dz;
       const vx = voxelAt(sim, probe);
       if (vx.open >= CARVE_OPEN) continue; // already open: the bite removes nothing there
+      // inside a throat still to seal, only deeper than she stands (away from the opening, the cell's side of her
+      // plugs): soil dug toward the opening widens the very passage the plugs must close (viab-founding: the
+      // scrape-and-plug loop that never sealed a wide throat)
+      if (throats.some((t) => {
+        const d2 = (probe.x - t.c.x) ** 2 + (probe.y - t.c.y) ** 2 + (probe.z - t.c.z) ** 2;
+        return d2 <= t.r * t.r && d2 < t.minD * t.minD;
+      })) return true;
       if ((vx.flags & VOXEL_PLUG) !== 0) return true;
       // never toward the ground surface: a scrape there could open a new hole beside the plug
       if (sim.field.substrateXYZ(probe.x, probe.y, probe.z) > -FOUND_SEAL_SCRAPE_SOIL_BU * bu) return true;
@@ -99,10 +107,16 @@ export function soilForSeal(sim: Sim, q: Ant, nest: Nest): boolean {
   feet.x = q.pos.x - q.up.x * q.footOffset;
   feet.y = q.pos.y - q.up.y * q.footOffset;
   feet.z = q.pos.z - q.up.z * q.footOffset;
+  const bu = sim.world.bu;
+  const throats = cavityEntrances(sim, nest).filter((e) => !throatClosed(sim, e)).map((e) => ({
+    c: e.pos, r: e.radius + THROAT_BU * bu,
+    // no nearer the opening than she stands: her plugs go at least SEAL_STAND_BEHIND_BU nearer it than that
+    minD: Math.hypot(q.pos.x - e.pos.x, q.pos.y - e.pos.y, q.pos.z - e.pos.z),
+  }));
   for (const deg of FOUND_SEAL_SCRAPE_HEADINGS_DEG) {
     for (const slope of FOUND_SEAL_SCRAPE_SLOPES_DEG) {
       const h = headingAt(q, (deg * Math.PI) / 180);
-      if (biteNearPlug(sim, h, slope)) continue; // never scrape the plug she is building
+      if (biteNearPlug(sim, h, slope, throats)) continue; // never scrape the plug she is building, nor its throat
       const res = digBite(sim, q, feet, h, slope);
       if (!res.ok) continue;
       return keepBite(sim, q, res.pelletId);

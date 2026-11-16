@@ -12,6 +12,7 @@ import {
 import { SLICE_REPEAT_HZ } from '@/input';
 import type { ViewId } from '../time/speedRules';
 import { isClaimed, releaseClaims } from './inputClaims';
+import { orbitAround } from './photo/orbit';
 import { observerStartPose } from './startPose';
 
 export interface ViewWorld {
@@ -103,6 +104,8 @@ export class ViewDirector {
   view: ViewId = 'observer';
   /** The view photo mode returns to. */
   photoOrigin: ViewId = 'observer';
+  /** Photo mode orbits this point when the look input turns (the photo's subject), null = free look. Set by the photo controller. */
+  photoOrbit: Vec3 | null = null;
   /** The colony view's planner holds a ghost: Q / E and Shift+wheel are not the camera's (set by the views layer). */
   colonyCapture = false;
   private readonly last: CameraPose = makePose();
@@ -300,8 +303,10 @@ export class ViewDirector {
     } else {
       const l = look('ph-look');
       const m = input ? input.axis2('ph-move') : ZERO2;
+      let yaw = l.x, pitch = l.y;
+      if (this.photoOrbit && (yaw !== 0 || pitch !== 0)) { orbitAround(this.photo, this.photoOrbit, yaw, pitch, w.trace); yaw = pitch = 0; }
       const o = this.photo.update(dt, {
-        yawDeg: l.x, pitchDeg: l.y, zoomLog: 0, move: m, vertical: input ? (input.held('ph-up') ? 1 : 0) - (input.held('ph-down') ? 1 : 0) : 0,
+        yawDeg: yaw, pitchDeg: pitch, zoomLog: 0, move: m, vertical: input ? (input.held('ph-up') ? 1 : 0) - (input.held('ph-down') ? 1 : 0) : 0,
         focalLog: -zoom('ph-focal'), focusLog: zoom('ph-focus-dist'),
         apertureSteps: input ? (input.pressed('ph-aperture-up') ? -1 : 0) + (input.pressed('ph-aperture-down') ? 1 : 0) : 0,
         exposureSteps: input ? (input.pressed('ph-exposure-up') ? 1 : 0) - (input.pressed('ph-exposure-down') ? 1 : 0) : 0,

@@ -40,8 +40,13 @@ export function daysOfStock(col: Colony): { c: number; p: number } {
 /** Target days of stock (stockTarget directive). */
 export function targetDays(col: Colony): { c: number; p: number } {
   const m = STOCK_TARGET_MULT[col.directives.stockTarget] ?? 1;
-  return { c: STOCK_TARGET_C_GD * m, p: STOCK_TARGET_P_GD * m };
+  // the season's carbohydrate multiplier (autumn hoarding, R5), set by the colony cycle (economy.ts)
+  const season = col.core?.acc[SEASON_STOCK_C_KEY] ?? 1;
+  return { c: STOCK_TARGET_C_GD * m * season, p: STOCK_TARGET_P_GD * m };
 }
+
+/** core.acc key: the season's multiplier of the carbohydrate stock target (AUTUMN_STOCK_TARGET_C_MULT in autumn). */
+export const SEASON_STOCK_C_KEY = 'stock.seasonC';
 
 /** Desired protein share sP' (GDD 02 §5.5), after diet emphasis. */
 export function desiredProteinShare(col: Colony): number {

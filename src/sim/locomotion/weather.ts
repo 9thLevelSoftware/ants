@@ -59,7 +59,8 @@ export function walkerUnderWater(sim: Sim, w: Walker | WalkerKin, r: LocoRuntime
   let candidate = false;
   if (nest >= 0 || w.medium === 'cavity') candidate = nest >= 0 ? wet.has(nest) : wet.size > 0;
   if (!candidate && nest < 0) candidate = puddleDepth(sim, w.pos.x, w.pos.z) >= WX_PUDDLE_AVOID_BU * sim.world.bu;
-  return candidate && flood.isUnderWater(sim, w.pos);
+  // depth measured from the feet, as the drowning rule does (drown.ts drownStep)
+  return candidate && flood.isUnderWater(sim, w.pos, w.up.y * w.footOffset);
 }
 
 /** Grip multiplier of a wet surface (GDD 06 §3.10 friction x0.9) for a walker outside the nests. */

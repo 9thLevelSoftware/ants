@@ -33,6 +33,8 @@ export interface AntFrameInfo {
   /** Hover / inspect highlights (null = none); when given they replace setHover / setInspect for this frame. */
   hover?: PickTarget | null;
   inspect?: PickTarget | null;
+  /** Photo mode with 'Hide markers and outlines' on: the possessed ant draws without its possession rim (GDD 01 6.9). */
+  hidePossessedHighlight?: boolean;
 }
 
 /** What the hover / inspect highlight points at. */

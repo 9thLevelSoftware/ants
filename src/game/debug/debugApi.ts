@@ -13,9 +13,11 @@ import { GameSession } from '../session';
 import type { NewGameOptions } from '../newGame/options';
 import { TEST_CAMERA_SETTLE_S } from '../config/loop';
 import type { ViewId } from '../time/speedRules';
+import type { SettingsPatch } from '../settings/settings';
 import { buildSummary } from './summary';
 import { buildQueries, plain } from './query';
 import { registerGateQueries } from './gateQueries';
+import { buildFxDebug, lookOf, registerStage2Queries } from './stage2Debug';
 import { buildCheats } from './cheats';
 import { possessResult } from './possessResult';
 import { buildViewsDebug } from '../views/debug';
@@ -43,6 +45,7 @@ const hudHook = (): HudHook | null => (typeof window !== 'undefined' ? ((window 
 
 export function createDebugApi(game: Game) {
   registerGateQueries();
+  registerStage2Queries();
   const sessionOrThrow = () => {
     if (!game.session) throw new Error('__game: no game running (call newGame first)');
     return game.session;
@@ -164,6 +167,8 @@ export function createDebugApi(game: Game) {
         game.renderNow(0);
         return api.camera.pose();
       },
+      /** Footstep tremors that shook the possession camera this game (src/game/views/tremorCue.ts). */
+      tremors: () => game.viewsLayer.tremorStrikes,
       clearance: () => {
         const s = game.session;
         if (!s) return null;
@@ -172,6 +177,8 @@ export function createDebugApi(game: Game) {
       },
     },
     cheat: buildCheats(game),
+    /** Scent view, overlays and particle effects (src/game/debug/stage2Debug.ts). */
+    fx: buildFxDebug(() => game.registry, () => game.requestRender()),
     /** Picking and view tools (src/game/views/debug.ts). */
     views: buildViewsDebug(game),
     ui: {
@@ -184,6 +191,8 @@ export function createDebugApi(game: Game) {
       close: () => { game.closePauseMenu(); return game.mode; },
       screen: () => game.mode,
       snapshot: () => plain(game.lastSnapshot),
+      /** GDD 08 E17: the render variant creature `id` was drawn as in the last frame ({look, comfort, ring}). */
+      look: (id: number) => lookOf(game.registry, id),
       /** The HUD's own read-outs when the HUD is mounted (window.__hud, ?test=1): region boxes, alerts, prompts. */
       hud: () => plain(hudHook()?.hud?.() ?? game.lastSnapshot),
       alerts: () => plain(hudHook()?.alerts?.() ?? null),
@@ -214,6 +223,11 @@ export function createDebugApi(game: Game) {
       summary: () => plain(game.input.debugSummary()),
     },
     perf() { return game.perf(); },
+    /** The settings now, after applying `patch` when given (same path as the Settings screen: Game.setSettings). */
+    settings(patch?: SettingsPatch) {
+      if (patch) game.setSettings(patch);
+      return plain(game.getSettings());
+    },
     /** Quality preset now (no argument) or switch it at runtime ('test' | 'low' | 'medium' | 'high' | 'ultra'). */
     quality(id?: string) {
       if (id !== undefined) {

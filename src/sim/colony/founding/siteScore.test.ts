@@ -90,7 +90,11 @@ describe('factor rules (the map functions the read-out imports)', () => {
     expect(factorWord('diggability', 1)).toBe('Loose');
     expect(factorWord('cover', 1)).toBe('Roofed');
     expect(factorWord('moisture', 0.5, 0.05)).toBe('Dry');
-    expect(factorWord('warmth', 1, 23, toptOf(LN))).toBe('Mild');
-    expect(factorWord('warmth', 1, 12, toptOf(LN))).toBe('Cold');
+    // warmth is worded from its own value (the sun factor its dots show), whatever the cell temperature
+    expect(factorWord('warmth', 1, 23, toptOf(LN))).toBe('Sun-baked');
+    expect(factorWord('warmth', 0.05, 23, toptOf(LN))).toBe('Shaded');
+    expect(factorWord('warmth', 0.5)).toBe('Mild');
+    expect(factorWord('warmth', 0.8)).toBe('Warm');
+    expect(factorWord('warmth', NaN)).toBe('Shaded');
   });
 });

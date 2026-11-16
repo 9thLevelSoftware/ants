@@ -296,13 +296,20 @@ export default async ({ page, shot, log }) => {
     return (await view()).timelapse;
   };
   const stages = [];
-  let t = await lapseUntil(() => true);
+  // the lapse view is null once the lapse has ended (hand-over or failure): say which instead of reading null
+  const lapseOrWhy = async (t, what) => {
+    if (t) return t;
+    const w = await view();
+    expect(false, `the time-lapse ended before ${what}`, { phase: w.phase, failCause: w.failCause, outcome: w.outcome, stages });
+    return t;
+  };
+  let t = await lapseOrWhy(await lapseUntil(() => true), 'the eggs beat');
   stages.push({ p: t.progress, ...t.counters });
   await beat('05-timelapse-eggs', 'founding-lapse');
-  t = await lapseUntil((c) => c.larvae > 0);
+  t = await lapseOrWhy(await lapseUntil((c) => c.larvae > 0), 'the larvae beat');
   stages.push({ p: t.progress, ...t.counters });
   await beat('06-timelapse-larvae', 'founding-lapse');
-  t = await lapseUntil((c) => c.pupae > 0 && c.larvae === 0);
+  t = await lapseOrWhy(await lapseUntil((c) => c.pupae > 0 && c.larvae === 0), 'the pupae beat');
   stages.push({ p: t.progress, ...t.counters });
   await beat('07-timelapse-pupae', 'founding-lapse');
   result.lapseStages = stages;

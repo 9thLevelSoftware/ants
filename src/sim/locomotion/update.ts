@@ -23,6 +23,8 @@ const walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClim
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
 const MOVING_KINDS = new Set(['ant', 'creature', 'item', 'brood']);
 const MAX_LEG_SWITCHES = 3;
+/** Step length of field and climb requests (never LOD-skipped below the tick), s. */
+const TICK_DT = 1 / TICKS_PER_SECOND;
 /** Speed cap (mm/s) of the arrive behaviour, set by tripUpdate for this walker's step (Infinity = none). */
 let speedCap = Infinity;
 
@@ -68,7 +70,7 @@ function legTarget(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, out: Vec3
 
 function stuckStep(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, res: LegResult, out: Vec3): boolean {
   const tick = sim.state.tick;
-  trackProgress(s, res.metric, res.advanced, tick, r);
+  trackProgress(s, res.metric, res.advanced, tick, r, w);
   // the relocation target (a field lookahead or a flow step) is only needed when the ladder may climb a rung
   if (tick - s.bestTick <= r.P.stuckWindowS * TICKS_PER_SECOND || tick < s.ladderUntil) {
     ladderOverride(w, s, tick, out);
@@ -116,25 +118,52 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
   const last = finalLeg(w, s);
   const stallWindowS = last ? r.P.arriveStallS : r.P.stuckWindowS;
   if (tick - s.bestTick > stallWindowS * TICKS_PER_SECOND && surfaceDist(w, nav.dest) <= nav.arriveDist) { arrive(w, s, r); return false; }
-  if ((last && dropToGoal(sim, w, s, r)) || letGoPinned(sim, w, s, r)) return false;
+  if ((last && dropToGoal(sim, w, s, r)) || letGoPinned(sim, w, s, r, dt)) return false;
   if (last) speedCap = arriveCap(w, s, r, res.metric, dt, out, aiSpeedCached(sim, w, s, r.P));
   return stuckStep(sim, w, s, r, id, res, out);
 }
 
 /**
- * Pinned on a wall, fin or overhang of a cavity: standing, no progress for pinnedS. Let go and drop to the floor
- * below; the request goes on from there (a trip plans its leg again after the landing). True if the walker let go.
+ * Pinned: standing (every step rejected), no progress for pinnedS. Let go and drop; the request goes on from there
+ * (a trip plans its leg again after the landing). In a cavity: on a wall, fin or overhang (up.y < pinnedUpY). On the
+ * surface (viab-loco, int-1B Addendum 3 item 11):
+ * hanging on a wall or under a stone's bulge, or standing on a raised edge (a thin leaf tip the walker cannot wrap
+ * round) with its next point at least dropBelow lower, or upside down (up.y < ceilingUpY) under a sheet or a
+ * bulge it keeps circling with the next point lower: the ant steps off and falls (GDD 01 `let-go`), once per stuck
+ * window. The window is not restarted: a walker that lands back on the same spot (a step it cannot take at a
+ * crease of the field, a crack it is wedged in) climbs the recovery ladder. `dt`: the step's seconds (LOD). True if
+ * the walker let go.
  */
-function letGoPinned(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+function letGoPinned(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, dt: number): boolean {
   const P = r.P, tick = sim.state.tick;
-  if (w.medium !== 'cavity' || w.speed > 0 || w.up.y >= P.pinnedUpY) return false;
-  if (tick - Math.max(s.bestTick, s.reqTick) <= P.pinnedS * TICKS_PER_SECOND) return false;
+  if (w.medium === 'air') return false;
+  const since = tick - Math.max(s.bestTick, s.reqTick), pinned = P.pinnedS * TICKS_PER_SECOND;
+  if (since <= pinned) return false;
+  const hanging = w.up.y < P.pinnedUpY;
+  // standing: once per stuck window (a walker that lands back on the same spot, wedged in a crack or at a crease of
+  // the field, climbs the recovery ladder; restarting the window here kept such walkers dropping in place for game
+  // hours: viab-loco, playground-park #2)
+  const firstTick = since <= pinned + Math.max(1, Math.round(dt * TICKS_PER_SECOND));
+  if (w.medium === 'cavity') {
+    if (!hanging || w.speed > 0 || !firstTick) return false;
+  } else if (w.speed === 0) {
+    // hanging, or at an edge above the next point
+    if (!firstTick || (!hanging && !nextPointBelow(sim, w, s, r))) return false;
+  } else if (!(w.up.y < P.ceilingUpY && nextPointBelow(sim, w, s, r))) {
+    // walking: upside down under a sheet or a bulge it keeps circling (it can wrap round the sheet's rim but not
+    // get down from it) with the next point below
+    return false;
+  }
   walkerLetGo(sim.field, w, 0, sim.kernel.walker);
   s.planTick = -1;
-  s.bestTick = tick;
-  s.ladder = 0;
   r.stats.drops++;
   return true;
+}
+
+/** The point the walker heads for next (leg target, else the goal) lies at least dropBelow below it. */
+function nextPointBelow(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolean {
+  const t = legTarget(sim, w, s, r, _target) ? _target : s.req === 'goto' ? s.goal : null;
+  return t !== null && t.y < w.pos.y - w.footOffset - r.P.dropBelow;
 }
 
 /**
@@ -182,7 +211,7 @@ function fieldUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: num
   const res = followField(sim, w, s, r, w.nav.arriveDist, out);
   if (res.state === 'done') { arrive(w, s, r); return false; }
   if (res.state === 'fail') { fail(w, s, r); return false; }
-  if (letGoPinned(sim, w, s, r)) return false;
+  if (letGoPinned(sim, w, s, r, TICK_DT)) return false;
   return stuckStep(sim, w, s, r, id, res, out);
 }
 
@@ -206,7 +235,7 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
     case 'climb': go = climbUpdate(sim, w, s, r, id, out); break;
     case 'wander': {
       trackMovement(w, s, tick, r);
-      if (letGoPinned(sim, w, s, r)) break;
+      if (letGoPinned(sim, w, s, r, dt)) break;
       const st = wanderStuck(w, s, r, tick);
       // a failed wander also drops its mode: callers that re-issue "while not wandering" do so at once
       if (st === 'fail') { fail(w, s, r); w.nav.mode = 'none'; break; }

@@ -65,8 +65,8 @@ export const SITE_STILL_SPEED_BU_S = 0.2;
 export const SITE_CEILING_PROBE = { startBu: 0.25, primRadiusBu: 0.5 } as const;
 /** Read-out words of the raw soil moisture (theta): Dry below the first, ... Waterlogged from the last. */
 export const SITE_MOISTURE_WORD_THETA = [0.15, 0.3, 0.65, 0.9] as const;
-/** Warmth words by the cell temperature: Cold below Topt_lo - COLD, Cool below Topt_lo, Mild in the band, Warm up to Topt_hi + HOT. */
-export const SITE_WARMTH_WORD_C = { cold: 6, hot: 4 } as const;
+/** The read-out's dotted scale (GDD 08 §9.3 "Moisture ●●●○○"): dots per factor; the warmth word follows the dots. */
+export const SITE_FACTOR_DOTS = 5;
 
 // ---- digging, readiness, sealing (GDD 06 §5.8-§5.9, GDD 03 §13) ----
 
@@ -102,6 +102,9 @@ export const FOUND_THROAT_PROBE_BU = [1, 2, 3, 4] as const;
  */
 export const SEAL_FLOOD_RADIUS_BU = 40;
 export const SEAL_FLOOD_MAX_SAMPLES = 60_000;
+/** The nest's founding pocket rule (src/sim/nest/entrances.ts): carved space this large behind a throat is never a
+ * dead-end pit (searched no further), samples. */
+export const FOUND_POCKET_MAX_SAMPLES = 20_000;
 /** The plug aims where the leak path is this far inside the soil (substrate distance), BU. */
 export const SEAL_TARGET_SOIL_BU = 0.75;
 /** Stands are chosen this far inside the action's throat reach, BU (the walker settles a little off its goal). */
@@ -110,23 +113,32 @@ export const SEAL_REACH_MARGIN_BU = 0.25;
 export const SEAL_COMMAND_MARGIN_BU = 0.1;
 /** ... and only while she moves slower than this (settled), BU/s. */
 export const SEAL_SETTLED_SPEED_BU_S = 0.5;
-/** A plug is worth placing when it would fill at least this many passage samples, and the queen plugs where she
- * stands when hers would fill at least this share of the best stand's. */
+/** A plug is worth placing when it would fill at least this much of the passage (SEAL_SOIL_WEIGHT per soil sample). */
 export const SEAL_MIN_COVER = 1;
-export const SEAL_HERE_SHARE = 0.6;
 /** A passage soil sample a plug fills counts this many times a carved air sample over the passage it uses up. */
 export const SEAL_SOIL_WEIGHT = 10;
 /** The best-scored stands checked for a plug that cuts the leak outright (a flood each). */
 export const SEAL_CUT_CHECKS = 8;
+/** Aimed plugs (viab-founding): passage samples tried as aims per plan, and the margin kept inside the aim reach, BU. */
+export const SEAL_AIM_CANDIDATES = 48;
+/** Aims tried per cross-section by the `narrow` strategy (every cross-section is tried, narrowest first). */
+export const SEAL_LAYER_AIMS = 12;
+export const SEAL_AIM_MARGIN_BU = 0.3;
+/** The stand lies at least this much deeper in the throat (farther from the opening) than the plug's aim, BU. */
+export const SEAL_STAND_BEHIND_BU = 0.5;
+/** The back-fill strategy with nothing of the leak in reach: she climbs this far along it toward the opening, BU. */
+export const SEAL_BELOW_STEP_BU = 1.5;
 /** The queen walks to a stand until this close, BU, or gives it up after this long, ticks. */
 export const SEAL_STAND_TOL_BU = 0.7;
 export const SEAL_WALK_MAX_TICKS = 200;
 /** While walking, every this many ticks a pose in reach that already plugs well is taken. */
-export const SEAL_OPPORTUNITY_TICKS = 5;
-/** In reach but facing beside the leak: she turns toward it with this much movement input (0..1) for at most
- * this long, ticks, then plugs. */
-export const SEAL_FACE_MAG = 0.2;
-export const SEAL_FACE_TICKS = 10;
+export const SEAL_OPPORTUNITY_TICKS = 10;
+/** The guide's watchdog (viab-founding item 2): no plug landed for this long, ticks, or a strategy out of stands
+ * and paused this long -> the next strategy (sealPlan.ts SEAL_STRATEGIES), never the same attempt again. */
+export const SEAL_STRATEGY_TICKS = 200;
+/** Walking to a stand: moved less than this (BU) in this many ticks -> the stand is given up (a stalled walker). */
+export const SEAL_STALL_BU = 0.3;
+export const SEAL_STALL_TICKS = 40;
 /** The possessed queen is steered along a route through the cavity to a waypoint this far ahead, BU; the route
  * search visits at most this many samples. */
 export const SEAL_WAYPOINT_BU = 1.5;
@@ -248,6 +260,8 @@ export const REOPEN_FACE_SEARCH_BU = 5;
 export const REOPEN_FACE_STEP_BU = 0.5;
 /** ... at least this far inside the soil (substrate distance), BU: carved space, not the air above the plug. */
 export const REOPEN_FACE_INSIDE_BU = 0.75;
+/** A plug laid deep in the throat: the face is searched around this many of its voxels farthest from the opening. */
+export const REOPEN_FACE_PLUG_TRIES = 4;
 export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
 /**
  * After the hand-over a new founding plan is asked for (when none is left) every REOPEN_CHECK_TICKS ticks: the
@@ -275,3 +289,7 @@ export const AUTO_CLUTCH_SURVIVAL = 0.45;
 export const AUTO_SHAFT_PITCH_DEG = 55;
 export const AUTO_CARVE_STEP_BU = 0.3;
 export const AUTO_CELL_OVERLAP_BU = 0.5;
+/** The template's cell is probed for diggable ground at this share of its half-sizes (heading choice). */
+export const AUTO_TEMPLATE_PROBE_FRAC = 0.8;
+/** No heading at her place has the template in soil: the nearest place within this radius that has one, BU. */
+export const AUTO_SITE_SEARCH_BU = 24;

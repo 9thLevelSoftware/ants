@@ -149,6 +149,7 @@ export const FACTOR_CAUSE_WORD: Readonly<Record<string, string>> = {
 export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.architect.auto': 'Turn the nest architect on',
   'remedy.diet.protein': 'Shift the diet toward protein',
+  'remedy.dig.drain-chamber': 'Dig a drain chamber below the nest',
   'remedy.dig.food': 'Plan a food chamber',
   'remedy.dig.general': 'Plan more chambers',
   'remedy.dig.nursery': 'Plan a nursery',

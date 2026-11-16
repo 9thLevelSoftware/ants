@@ -13,6 +13,7 @@ import { discoverSource } from '../sources/discovery';
 import { poolCap, productionPerGd, tendersNeeded, tendSlots } from './herdMath';
 import { ensureLinks, herdSourceOf } from './links';
 import { addClaim, removeClaim } from './claims';
+import { rivalTendFloor } from './rivalTend';
 
 const ids: number[] = [];
 /** Tender counts per colony slot of the herd being stepped (scratch). */
@@ -117,7 +118,8 @@ export function stepTending(sim: Sim, h: Herd, dtS: number, fT: number, mult: nu
   if (!h.frozen) {
     const s = h.tenderColony >= 0 ? slotOf(sim, h.tenderColony) : -1;
     const present = s >= 0 ? counts[s] : 0;
-    const target = Math.min(1, present / tendersNeeded(h.a));
+    // a rival's claimed cell keeps its herds tended virtually (GDD 05 §3.5): its virtualTend is the floor
+    const target = Math.max(Math.min(1, present / tendersNeeded(h.a)), rivalTendFloor(sim, src));
     h.tend = target + (h.tend - target) * Math.exp(-dtS / (TEND_TAU_GD * SECONDS_PER_DAY));
   }
   produce(sim, h, dtS, fT, mult);

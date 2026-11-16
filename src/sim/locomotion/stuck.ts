@@ -26,12 +26,19 @@ export type StuckAction = 'none' | 'replan' | 'fail';
 
 /**
  * Updates the progress record with this tick's metric (mm, lower is better). The first metric of a new leg
- * (best = NO_PROGRESS) is only a baseline: the window keeps running from the last real progress.
+ * (best = NO_PROGRESS) is only a baseline: the window keeps running from the last real progress. For goal
+ * requests s.anchor.y holds the highest point climbed (see below).
  */
-export function trackProgress(s: NavScratch, metric: number, advanced: boolean, tick: number, r: LocoRuntime): void {
-  if (advanced) { s.best = metric; s.bestTick = tick; s.ladder = 0; return; }
+export function trackProgress(s: NavScratch, metric: number, advanced: boolean, tick: number, r: LocoRuntime, w: Walker): void {
+  if (advanced) { s.best = metric; s.bestTick = tick; s.ladder = 0; s.anchor.y = w.pos.y; return; }
   if (s.best === NO_PROGRESS) { s.best = metric; return; }
-  if (metric < s.best - r.P.stuckProgress) { s.best = metric; s.bestTick = tick; s.ladder = 0; }
+  if (metric < s.best - r.P.stuckProgress) { s.best = metric; s.bestTick = tick; s.ladder = 0; return; }
+  // climbing counts (viab-loco, int-1B Addendum 3 item 11): on a steep face a new highest point (anchor.y: the
+  // highest point since the leg, waypoint or ladder rung began) re-baselines the metric, so a tall board is climbed
+  // and descended, not laddered mid-climb; going up and down the same wall is not progress
+  if (Math.abs(w.up.y) < r.P.pinnedUpY && w.pos.y > s.anchor.y + r.P.stuckProgress) {
+    s.best = metric; s.bestTick = tick; s.ladder = 0; s.anchor.y = w.pos.y;
+  }
 }
 
 /** Progress of displacement-based requests (wander, trail): moving away from the anchor counts. */

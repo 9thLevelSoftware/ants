@@ -1,6 +1,6 @@
 // `__game.cheat.*` (architecture §5): thin helpers that fill in defaults and issue `cheat.*` commands. The sim
 // refuses them unless config.cheats is on (always on with ?test=1); a refusal comes back in the result.
-import type { AlertKind, Caste, Command, CreatureKind, FoodKind, HumanEventKind, Task, WeatherState } from '@/sim/types';
+import type { AlertKind, Caste, Command, CreatureKind, FoodKind, HumanEventKind, RainClass, Task, WeatherState } from '@/sim/types';
 import { cheatClearAlert, cheatRaiseAlert, type CheatAlert } from './alertCheats';
 import type { Vec3 } from '@/core';
 import type { Game } from '../Game';
@@ -34,6 +34,13 @@ export function buildCheats(game: Game) {
     spawnCreature: (kind: CreatureKind, pos?: Vec3) => run({ type: 'cheat.spawnCreature', kind, variant: null, pos: pos ?? here(), state: null }),
     completeFounding: (workers = 10) => run({ type: 'cheat.completeFounding', workers }),
     triggerEvent: (kind: HumanEventKind, at: Vec3 | null = null, startInS = 0) => run({ type: 'cheat.humanEvent', kind, variant: null, at, startInS }),
+    /** An aphid herd on plant `plantId` (query.plants lists them); k <= 0: carrying capacity by host class. */
+    spawnHerd: (plantId: number, aphids = 60, k = 0) => run({ type: 'cheat.spawnHerd', plantId, aphids, k }),
+    /** Flood-model rain intensity override (nest flooding only; the sky and the renderer follow setWeather). */
+    setRain: (intensity: number) => run({ type: 'cheat.setRain', intensity }),
+    /** Rain class with the weather state (setWeather leaves the class to the weather model). */
+    setWeatherClass: (state: WeatherState, intensityClass: RainClass | null) => run({ type: 'cheat.setWeather', state, intensityClass }),
+    triggerBird: (pos: Vec3 | null = null, force = true) => run({ type: 'cheat.triggerBird', variant: null, pos, force }),
     kill: (id: number, cause = 'cheat') => run({ type: 'cheat.kill', id, cause }),
     /**
      * Raises an alert through progression's own publisher, as a sim module would (alertCheats.ts; refused unless

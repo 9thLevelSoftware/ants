@@ -174,6 +174,8 @@ export interface DayState {
   yieldPerForager?: number;
   /** Mean temperature of the chambers holding brood (else the royal / founding cell) at the day end, C; null none. */
   broodTempC?: number | null;
+  /** Adult carbohydrate need (worker upkeep + queen C) of the last colony cycle, loads/gd (viable verdict). */
+  adultNeedC?: number;
 }
 
 export function readState(sim: Sim, day: number, season: string): DayState {
@@ -220,6 +222,7 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     trailCells: trailCells(sim), outside, byState, byTask,
     needRateC: round(col?.needs.rateC ?? 0), needRateP: round(col?.needs.rateP ?? 0), yieldPerForager: round(col?.yieldPerForager ?? 0),
     broodTempC,
+    adultNeedC: round((col?.core?.acc['inst.upkeepC'] ?? 0) + (col?.core?.acc['inst.queenC'] ?? 0)),
   };
 }
 

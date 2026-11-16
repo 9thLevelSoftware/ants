@@ -46,6 +46,7 @@ export class AntsSlot implements SubRenderer {
     a.dt = frame.dt; a.time = frame.time; a.alpha = frame.alpha; a.sim = this.source; a.camera = frame.camera;
     a.viewportHeightPx = frame.viewportHeightPx; a.underground = frame.underground; a.possessedPose = frame.possessedPose;
     a.hover = frame.hover ?? null; a.inspect = frame.inspect ?? null; a.subjectOpacity = frame.subjectOpacity;
+    a.hidePossessedHighlight = frame.hidePossessedHighlight === true;
     if (this.world) this.ants.setHighlightExposure(this.world.world.lighting.exposureEV);
     this.ants.update(a);
   }

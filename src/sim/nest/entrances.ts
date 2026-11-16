@@ -3,7 +3,7 @@
 // entrance lookup. Nav fields are refreshed whenever an entrance changes.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Entrance, EntranceCloseCause, EntranceStatus, Nest, Sim } from '@/sim/types';
+import type { Entrance, EntranceCloseCause, EntranceKind, EntranceStatus, Nest, Sim } from '@/sim/types';
 import { raiseAlert } from '@/sim/progression';
 import { heightAt } from '@/sim/world/terrainSample';
 import { VoxelFlag } from '@/sim/types';
@@ -11,6 +11,7 @@ import {
   ENTRANCE_MERGE_DIST_BU, ENTRANCE_MIN_HOLE_COLUMNS, ENTRANCE_RADIUS_MAX_BU, ENTRANCE_RADIUS_MIN_BU,
   ENTRANCE_SCAN_BU, MOUND_MIN_H_BU, PLUG_AHEAD_BU, PLUG_ANT_CLEAR_BU, PLUG_RADIUS_BU, THROAT_BU, UNSEAL_RADIUS_BU,
 } from '@/sim/balance/nest';
+import { FOUND_POCKET_MAX_SAMPLES } from '@/sim/balance/founding';
 import { OPEN_MIN, type VoxelBox } from './carve/keys';
 import { carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
 import { clearPilesAround, linkMoundToEntrance } from './mounds';
@@ -156,7 +157,7 @@ function patchJoins(sim: Sim, e: Entrance, cols: readonly number[]): 'same' | 'n
  * entrance of the nest whose cavity it opens; a hole that nest-nav cannot link to any cavity yet (a fresh pit dug
  * from the surface) belongs to the nest of the bite that opened it (ownership.ts).
  */
-function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly number[]): void {
+function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly number[], kind: EntranceKind = 'dug', owner: Nest | null = null): Entrance | null {
   const bu = sim.world.bu;
   for (const nest of sim.stores.nests.list) {
     if (!nest.alive) continue;
@@ -169,13 +170,13 @@ function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly num
         clearPilesAround(sim, e); // the kept-clear disc grew or moved
         refreshNestFields(sim, nest);
       }
-      return;
+      return e;
     }
   }
-  const nest = nestOfCavityPoint(sim, { x: pos.x, y: pos.y - bu, z: pos.z }) ?? digOwnerNest(sim);
-  if (!nest) return;
+  const nest = owner ?? nestOfCavityPoint(sim, { x: pos.x, y: pos.y - bu, z: pos.z }) ?? digOwnerNest(sim);
+  if (!nest) return null;
   const e: Entrance = {
-    id: sim.state.nextId++, kind: 'dug', status: 'open', pos, dir: terrainNormal(sim, pos.x, pos.z), radius,
+    id: sim.state.nextId++, kind, status: 'open', pos, dir: terrainNormal(sim, pos.x, pos.z), radius,
     moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0, passSeen: false,
   };
   nest.entrances.push(e);
@@ -184,6 +185,37 @@ function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly num
   refreshNestFields(sim, nest);
   sim.emit({ type: 'entrance-opened', entranceId: e.id, nestId: nest.id, kind: e.kind });
   sim.emit({ type: 'breach', nestId: nest.id, entranceId: e.id, pos: { ...pos }, radius });
+  return e;
+}
+
+/**
+ * A founding cavity that broke into a world cavity (a pre-carved void under a slab, a crack) reaches the air through
+ * that cavity's own opening, which no breach of the nest registered (viab-founding: "natural entrance registration
+ * at a founding breakthrough"). Registers the opening at `air` (the first open-air sample of the cell's leak) as a
+ * `natural` entrance of `nest`: the hole patch through that column when there is one (or the entrance that patch
+ * already belongs to), else a minimal opening at the point itself (a lateral gap under a slab edge). Returns it.
+ */
+export function registerNaturalOpening(sim: Sim, nest: Nest, air: Vec3): Entrance {
+  const v = sim.carve.voxel, bu = sim.world.bu;
+  const cols = holePatch(sim, Math.round(air.x / v), Math.round(air.z / v), Math.ceil((ENTRANCE_SCAN_BU * bu) / v), new Set());
+  const n = cols.length / 2;
+  if (n > 0) {
+    let sx = 0, sz = 0;
+    for (let q = 0; q < cols.length; q += 2) { sx += cols[q] * v; sz += cols[q + 1] * v; }
+    const cx = sx / n, cz = sz / n;
+    const radius = Math.min(ENTRANCE_RADIUS_MAX_BU * bu, Math.max(ENTRANCE_RADIUS_MIN_BU * bu, Math.sqrt((n * v * v) / Math.PI)));
+    const e = registerOpening(sim, { x: cx, y: sim.field.height(cx, cz), z: cz }, radius, cols, 'natural', nest);
+    if (e) return e;
+  }
+  const e: Entrance = {
+    id: sim.state.nextId++, kind: 'natural', status: 'open', pos: { x: air.x, y: air.y, z: air.z }, dir: terrainNormal(sim, air.x, air.z),
+    radius: ENTRANCE_RADIUS_MIN_BU * bu, moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0,
+    trafficOut: 0, passSeen: false,
+  };
+  nest.entrances.push(e);
+  refreshNestFields(sim, nest);
+  sim.emit({ type: 'entrance-opened', entranceId: e.id, nestId: nest.id, kind: e.kind });
+  return e;
 }
 
 /** The nest whose dig bite is running now (ownership.ts withDigOwner), or null. */
@@ -229,14 +261,52 @@ function forThroatSamples(sim: Sim, e: Entrance, fn: (i: number, j: number, k: n
 }
 
 /**
+ * The founding pocket rule (viab-founding: "sealed" must be stable): while a nest is still founding (its record not
+ * `established`) and has a chamber, a passage through the throat counts only if it leads on to a chamber through
+ * carved space. A dead-end pit dug beside the opening (the queen's first bites in the search) reaches the throat's
+ * inner shell but leads nowhere, and kept the cell's entrance from ever reading `sealed` with the cell cut off.
+ * Returns a test "does the carved space at this inner-shell sample lead to a chamber?", or null (the plain rule).
+ * Bounded breadth-first search over open carved samples below the ground; samples of pockets already found are
+ * remembered for the rest of the call.
+ */
+function foundingPocketTest(sim: Sim, nest: Nest | null): ((i: number, j: number, k: number) => boolean) | null {
+  if (!nest || !nest.founding || nest.founding.state === 'established' || nest.chambers.length === 0) return null;
+  const carve = sim.carve, v = carve.voxel;
+  const inChamber = (x: number, y: number, z: number): boolean => nest.chambers.some((c) =>
+    ((x - c.center.x) / Math.max(v, c.radii.x)) ** 2 + ((y - c.center.y) / Math.max(v, c.radii.y)) ** 2 + ((z - c.center.z) / Math.max(v, c.radii.z)) ** 2 <= 1);
+  const pocket = new Set<number>();
+  const id = (i: number, j: number, k: number) => ((i & 2047) * 2048 + (j & 2047)) * 2048 + (k & 2047);
+  const dirs = [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1];
+  return (i0, j0, k0) => {
+    if (pocket.has(id(i0, j0, k0))) return false;
+    const seen = new Set<number>([id(i0, j0, k0)]);
+    const queue = [i0, j0, k0];
+    for (let q = 0; q < queue.length && seen.size < FOUND_POCKET_MAX_SAMPLES; q += 3) {
+      const i = queue[q], j = queue[q + 1], k = queue[q + 2];
+      if (inChamber(i * v, j * v, k * v)) return true;
+      for (let n = 0; n < 18; n += 3) {
+        const ni = i + dirs[n], nj = j + dirs[n + 1], nk = k + dirs[n + 2], key = id(ni, nj, nk);
+        if (seen.has(key) || carve.sampleAt(ni, nj, nk) < OPEN_MIN || sim.field.substrateXYZ(ni * v, nj * v, nk * v) >= 0) continue;
+        seen.add(key);
+        queue.push(ni, nj, nk);
+      }
+    }
+    if (seen.size >= FOUND_POCKET_MAX_SAMPLES) return true; // too large to be a pit: the plain rule
+    for (const key of seen) pocket.add(key);
+    return false;
+  };
+}
+
+/**
  * Is there a 6-connected path of free samples (carved open, or open air above the ground) from the mouth to the
  * inner end of the throat? 6-connectivity is exactly the kernel nav's connectivity (its edge and corner steps
  * need the face neighbours), so "no passage" means nest-nav cannot cross the throat. When the whole cavity lies
  * inside the throat sphere, reaching every carved sample of it counts as a passage. `eroded` additionally
  * requires every face neighbour of a path sample to be free (a passage that walkers fit through, `NAV_CLEAR`).
  */
-export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
+export function throatPassage(sim: Sim, e: Entrance, eroded: boolean, nest: Nest | null = null): boolean {
   const carve = sim.carve, v = carve.voxel, R = throatR(sim, e), inner = R - 2 * v;
+  const pockets = foundingPocketTest(sim, nest);
   const free = (i: number, j: number, k: number): boolean =>
     carve.sampleAt(i, j, k) >= OPEN_MIN || sim.field.substrateXYZ(i * v, j * v, k * v) > 0;
   const ok = (i: number, j: number, k: number): boolean => {
@@ -261,7 +331,7 @@ export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
   for (let q = 0; q < queue.length; q += 3) {
     const i = queue[q], j = queue[q + 1], k = queue[q + 2];
     const d2 = (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2;
-    if (d2 >= inner * inner && sim.field.substrateXYZ(i * v, j * v, k * v) < 0) return true;
+    if (d2 >= inner * inner && sim.field.substrateXYZ(i * v, j * v, k * v) < 0 && (!pockets || pockets(i, j, k))) return true;
     for (let n = 0; n < 18; n += 3) {
       const ni = i + dirs[n], nj = j + dirs[n + 1], nk = k + dirs[n + 2];
       const key = id(ni, nj, nk);
@@ -270,6 +340,9 @@ export function throatPassage(sim: Sim, e: Entrance, eroded: boolean): boolean {
       queue.push(ni, nj, nk);
     }
   }
+  // a founding nest with its cell (the pocket rule applies): the cavity does not end inside the throat, so no
+  // passage to a chamber means closed (a plug that filled the throat's whole lower part once read `open` here)
+  if (pockets) return false;
   // the cavity ends inside the throat: open iff the mouth reaches carved space below the ground and no carved
   // sample of it is cut off from the mouth (a throat filled solid, with no carved sample left, is closed)
   let cutOff = false, reached = false;
@@ -287,9 +360,11 @@ function entranceMemo(sim: Sim): Map<number, string> {
   return m;
 }
 
-function evalSignature(sim: Sim, e: Entrance): string {
+function evalSignature(sim: Sim, nest: Nest, e: Entrance): string {
   const fv = (sim.field as { geomVersion?: number }).geomVersion ?? sim.state.tick;
-  return `${sim.carve.version}|${nestRuntime(sim).flags.version}|${fv}|${pileNear(sim, e)}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}`;
+  // the founding pocket rule also reads the nest's founding state and its chambers
+  const fd = nest.founding ? `${nest.founding.state}:${nest.chambers.length}` : '';
+  return `${sim.carve.version}|${nestRuntime(sim).flags.version}|${fv}|${pileNear(sim, e)}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}|${fd}`;
 }
 
 /**
@@ -317,12 +392,12 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
   // when none of them changed since this entrance's last evaluation, neither can the result (int-1B-sim: the
   // throat BFS every ENTRANCE_CHECK_TICKS was ~40 % of a small colony's tick). Runtime-only memo, so a restored
   // game evaluates once more and gets the same answer.
-  const sig = evalSignature(sim, e);
+  const sig = evalSignature(sim, nest, e);
   const memo = entranceMemo(sim);
   if (memo.get(e.id) === sig) return;
   memo.set(e.id, sig);
   const plug = plugCount(sim, e);
-  const pass = throatPassage(sim, e, false);
+  const pass = throatPassage(sim, e, false, nest);
   const prev = e.status;
   let next: EntranceStatus = prev;
   // GDD 03 §4.2: an open entrance goes `sealing` when a plug is ADDED ("first plug added"), not because plug
@@ -331,7 +406,7 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
   if (prev === 'open') next = !pass ? 'sealed' : plug > e.plugVoxelCount ? 'sealing' : 'open';
   else if (prev === 'sealing') next = !pass ? 'sealed' : plug === 0 ? 'open' : 'sealing';
   else if (prev === 'sealed' || prev === 'reopening') {
-    if (pass) next = throatPassage(sim, e, true) ? 'open' : 'reopening';
+    if (pass) next = throatPassage(sim, e, true, nest) ? 'open' : 'reopening';
     // a reopening throat that had a passage and lost it again (fill, tamping, a new plug) is closed again
     // (founding-close request 3); one still being dug through (no passage yet) stays `reopening`
     else if (prev === 'reopening' && e.passSeen) next = 'sealed';
@@ -433,9 +508,26 @@ function headOf(sim: Sim, antId: number): Vec3 | null {
 }
 
 /**
+ * An aimed plug (viab-founding: the founding seal guide aims at the leak): the running `seal-entrance` was given a
+ * target point other than the opening, within the plug's reach (PLUG_AHEAD + PLUG_RADIUS beyond the head, whichever
+ * way the ant faces: measured from the body centre plus half a body length). Null: the default rule (ahead of the
+ * head toward the opening).
+ */
+function plugAim(sim: Sim, e: Entrance, antId: number): Vec3 | null {
+  const ant = sim.stores.ants.get(antId);
+  const a = ant?.action;
+  if (!ant || !a || a.id !== 'seal-entrance' || a.target.kind !== 'entrance' || a.target.id !== e.id) return null;
+  const p = a.target.pos;
+  if (Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z) < sim.carve.voxel) return null; // the opening itself
+  const bu = sim.world.bu, reach = (PLUG_AHEAD_BU + PLUG_RADIUS_BU) * bu + ANT_LENGTH_HEAD * ant.lengthBu * bu;
+  return Math.hypot(p.x - ant.pos.x, p.y - ant.pos.y, p.z - ant.pos.z) <= reach ? { x: p.x, y: p.y, z: p.z } : null;
+}
+
+/**
  * One plug (`seal-entrance` effect, GDD 03 §4.2): fills the open throat voxels within PLUG_RADIUS of a point
  * PLUG_AHEAD ahead of the head toward the opening (re-centred on the open part still left there), keeping
- * PLUG_ANT_CLEAR from every ant; the filled voxels get LOOSE | PLUG. True when the entrance is sealed now.
+ * PLUG_ANT_CLEAR from every ant; the filled voxels get LOOSE | PLUG. An aimed plug (plugAim) centres on its aim
+ * instead of the point ahead of the head. True when the entrance is sealed now.
  */
 export function sealEntranceImpl(sim: Sim, entranceId: number, antId: number): boolean {
   const found = entranceById(sim, entranceId);
@@ -445,7 +537,8 @@ export function sealEntranceImpl(sim: Sim, entranceId: number, antId: number): b
   const head = headOf(sim, antId) ?? { x: e.pos.x - e.dir.x * 2 * bu, y: e.pos.y - e.dir.y * 2 * bu, z: e.pos.z - e.dir.z * 2 * bu };
   const tx = e.pos.x - head.x, ty = e.pos.y - head.y, tz = e.pos.z - head.z, tl = Math.hypot(tx, ty, tz) || 1;
   const ahead = Math.min(PLUG_AHEAD_BU * bu, tl);
-  const nominal = { x: head.x + (tx / tl) * ahead, y: head.y + (ty / tl) * ahead, z: head.z + (tz / tl) * ahead };
+  const nominal = plugAim(sim, e, antId)
+    ?? { x: head.x + (tx / tl) * ahead, y: head.y + (ty / tl) * ahead, z: head.z + (tz / tl) * ahead };
   const clear = PLUG_ANT_CLEAR_BU * bu;
   // re-centre on the open part of the throat around the nominal point (so successive plugs close the gaps)
   const R = PLUG_RADIUS_BU * bu, search = 1.5 * R;

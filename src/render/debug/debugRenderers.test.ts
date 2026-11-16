@@ -31,7 +31,7 @@ function find(root: Object3D, name: string): Object3D | undefined {
 describe('debug renderers', () => {
   it('every slot falls back to its debug renderer', () => {
     const { reg } = setup();
-    expect(reg.entries.map((e) => [e.slot, e.debug])).toEqual([['world', true], ['nest', true], ['ants', true], ['creatures', true], ['fx', true]]);
+    expect(reg.entries.map((e) => [e.slot, e.debug])).toEqual([['world', true], ['nest', true], ['ants', true], ['creatures', true], ['humans', true], ['weather', true], ['fx', true]]);
   });
 
   it('terrain follows the field height and covers the world', () => {

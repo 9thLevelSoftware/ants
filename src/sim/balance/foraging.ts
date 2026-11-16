@@ -190,6 +190,13 @@ export const SCOUT_EDGE_BU = 8;
 export const SCOUT_MARKER_ARRIVE_FRAC = 0.5;
 export const SCOUT_MAX_S = 300;
 export const SCOUT_MAX_RANGE_BU = 700;
+/**
+ * Small colonies scout near home (viab-economy R3): below SMALL_COLONY_N workers (balance/colony.ts) a scout turns
+ * home beyond this many BU instead of SCOUT_MAX_RANGE_BU. Its straight-ish outward legs sweep a strip only the odour
+ * range wide; out to 700 BU two scouts left a flower 53 BU from the woodland-edge #1 nest unfound for a game day
+ * (closest pass 12.7 BU, smell 10 BU) while food within the C13 300 BU budget radius lay all around.
+ */
+export const SMALL_SCOUT_RANGE_BU = 220;
 /** Correlated random walk: heading noise per s (sigma), deg; leg length, BU; candidate headings per leg. */
 export const SCOUT_TURN_SIGMA_DEG_S = 25;
 export const SCOUT_LEG_BU = 12;

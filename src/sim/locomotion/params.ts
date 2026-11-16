@@ -184,11 +184,25 @@ export const LOCO_TUNING = {
   pinnedS: 1,
   pinnedUpY: 0.7,
   /**
-   * Stall watch (viab-loco item 1, the `walker-stall` invariant): an ant with nav status 'moving' that stays within
-   * stallMoveBU of one point for stallWindowS game seconds is stalled.
+   * Stall watch (viab-loco item 1, the `walker-stall` invariant): an ant that spends stallWindowS game seconds in
+   * all with nav status 'moving' within stallMoveBU of one point (failed and re-issued walks added up) is stalled.
    */
   stallMoveBU: 0.25,
   stallWindowS: 60,
+  /** The watch looks at each ant every this many ticks (staggered by id): windows are measured to this precision. */
+  stallWatchEveryTicks: 10,
+  /** Below this temperature speed factor an ant is held still by the cold, not stalled (as tools/sim/lifeMetrics). */
+  stallAbleTempFactor: 0.05,
+
+  /**
+   * Dozing in a crowd (viab-loco item 6): an ant wandering in carved space (the in-nest idle wander) with at least
+   * dozeCrowd nestmates (its own colony) within separationBU stands still for the rest of each dozeCycleS once it has walked for
+   * dozeAwakeS of it (phase staggered by id): a crowded room shuffles instead of every ant walking at once, and
+   * the dozing ants cost nothing. Its stuck windows do not run meanwhile.
+   */
+  dozeCrowd: 3,
+  dozeCycleS: 4,
+  dozeAwakeS: 1,
 
   // ---- weather (GDD 06 §3.10) ----
   /** Walking speed under water (a flooded nest voxel, a puddle at least WX_PUDDLE_AVOID_BU deep). */
@@ -213,6 +227,14 @@ export const LOCO_TUNING = {
   edgeMarginBU: 32,
   edgeHardBU: 8,
   edgeRepulse: 1.5,
+  /** A walker found beyond the hard limit is re-placed this far inside it. */
+  edgeInsetBU: 0.5,
+
+  // ---- per-walker check cadences (staggered by id) ----
+  /** Slope / grip checks run every this many ticks per walker. */
+  slipCheckEveryTicks: 4,
+  /** A standing walker (no request) is stepped (re-attached) every this many ticks only. */
+  standCheckEveryTicks: 16,
 
   // ---- avoid markers (GDD 02 §12.2) ----
   avoidCostMult: 20,
@@ -275,8 +297,9 @@ export interface LocoParams {
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
   episodesMax: number; relocateSteps: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
   stallMove: number; stallTicks: number; waterSpeed: number; wetGrip: number;
+  dozeCrowd: number; dozeCycle: number; dozeAwake: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
-  edgeMargin: number; edgeHard: number; edgeRepulse: number;
+  edgeMargin: number; edgeHard: number; edgeRepulse: number; edgeInset: number;
   avoidCost: number; avoidPad: number; avoidW: number; avoidTrailW: number;
   latchTrigger: number; latchTriggerS: number; latchBreakCos: number; latchMaxS: number; latchLowMag: number;
   latchLowMagS: number; rescueS: number; rescueDisp: number; predictBlendS: number; predictSnap: number;
@@ -314,9 +337,10 @@ export function locoParams(bu: number): LocoParams {
     wanderStallS: T.wanderStallS, wanderPivotS: T.wanderPivotS, wanderStallMax: T.wanderStallMax,
     pinnedS: T.pinnedS, pinnedUpY: T.pinnedUpY,
     stallMove: T.stallMoveBU * bu, stallTicks: Math.round(T.stallWindowS * 10), waterSpeed: T.waterSpeedMult, wetGrip: T.wetGripMult,
+    dozeCrowd: T.dozeCrowd, dozeCycle: Math.round(T.dozeCycleS * 10), dozeAwake: Math.round(T.dozeAwakeS * 10),
     lodNear: T.lodNearBU * bu, lodFar: T.lodFarBU * bu, lodMid: T.lodMidEvery, lodFarEvery: T.lodFarEvery,
     lodSubstep: T.lodCoarseSubstepBU * bu, lodHardClear: T.lodHardClearBU * bu,
-    edgeMargin: T.edgeMarginBU * bu, edgeHard: T.edgeHardBU * bu, edgeRepulse: T.edgeRepulse,
+    edgeMargin: T.edgeMarginBU * bu, edgeHard: T.edgeHardBU * bu, edgeRepulse: T.edgeRepulse, edgeInset: T.edgeInsetBU * bu,
     avoidCost: T.avoidCostMult, avoidPad: T.avoidSteerPadBU * bu, avoidW: T.avoidSteerWeight, avoidTrailW: T.avoidTrailWeight,
     latchTrigger: T.latchTriggerDeg * DEG, latchTriggerS: T.latchTriggerS, latchBreakCos: Math.cos(T.latchBreakDeg * DEG),
     latchMaxS: T.latchMaxS, latchLowMag: T.latchLowMag, latchLowMagS: T.latchLowMagS, rescueS: T.stuckRescueS,

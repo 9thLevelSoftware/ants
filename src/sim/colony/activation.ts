@@ -9,7 +9,7 @@ import type { Ant, Colony, Sim } from '@/sim/types';
 import {
   ACTIVATION_DEPART, CURFEW_ALARM_PH, CURFEW_FENV, ENC_GAIN, ENC_SCOUT_MULT, FENV_RH_BASE, FENV_RH_GAIN, FORAGE_WAIT_RADIUS_BU,
   FENV_RH_LO_PCT, FENV_RH_SPAN_PCT, NEWS_EXPIRY_GD, NEWS_MAX, RECRUIT_CONTACTS_MAX, RECRUIT_RADIUS_BU,
-  SPONT_DEPART_RATE_S, SPONT_NEED_BASE, SPONT_ROUTE_MULT,
+  SMALL_COLONY_N, SMALL_SPONT_FULL_N, SMALL_SPONT_MULT_MAX, SPONT_DEPART_RATE_S, SPONT_NEED_BASE, SPONT_ROUTE_MULT,
 } from '@/sim/balance';
 import { recordDelivery as recordSourceDelivery } from '@/sim/ecology';
 import { daysToTicks, TICKS_PER_SECOND } from '@/sim/time';
@@ -81,6 +81,21 @@ function gateOf(sim: Sim, col: Colony): ColonyGate {
   return g;
 }
 
+/** Spontaneous-departure multiplier of a small colony (R3: SMALL_SPONT_*), 1 from SMALL_COLONY_N workers on. */
+export function smallColonySpontMult(workers: number): number {
+  const k = clamp((SMALL_COLONY_N - workers) / (SMALL_COLONY_N - SMALL_SPONT_FULL_N), 0, 1);
+  return 1 + (SMALL_SPONT_MULT_MAX - 1) * k;
+}
+
+/** The colony knows a food source with food left (R3: the fast small-colony departures need food to go to). */
+function knowsLiveSource(sim: Sim, col: Colony): boolean {
+  for (const id of col.knownSourceIds) {
+    const s = sim.stores.sources.get(id);
+    if (s && s.units > 0) return true;
+  }
+  return false;
+}
+
 function hasLiveRoute(sim: Sim, a: Ant): boolean {
   for (const r of a.mem.routes) if (r.sourceId !== -1 && sim.stores.sources.has(r.sourceId)) return true;
   return false;
@@ -99,7 +114,8 @@ export function shouldDepart(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spon
   if (a.activation >= ACTIVATION_DEPART) reason = 'recruited';
   else {
     const need = Math.max(col.needs.needC, col.needs.needP);
-    const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * gate.fEnv * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1);
+    const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * gate.fEnv * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1)
+      * (knowsLiveSource(sim, col) ? smallColonySpontMult(coreOf(col).workers) : 1);
     if (rngChance(sim.stream('rng.colony'), rate * (dtTicks / TICKS_PER_SECOND))) reason = 'spontaneous';
   }
   if (reason) {

@@ -56,7 +56,7 @@ export function foundingView(sim: Sim): FoundingView | null {
   const def = speciesOf(sim);
   const topt = toptOf(def.id as SpeciesId);
   const rawOf = (id: string): number | undefined => {
-    const key = id === 'moisture' ? FB.siteTheta : id === 'warmth' ? FB.siteTempC : null;
+    const key = id === 'moisture' ? FB.siteTheta : null; // warmth is worded from its own value (siteScore)
     const v = key && q ? q.bb[key] : undefined;
     return v === undefined ? undefined : v;
   };

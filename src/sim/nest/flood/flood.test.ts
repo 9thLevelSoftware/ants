@@ -13,7 +13,7 @@ import { forceWeather } from '@/sim/environment/weather';
 import { commandsSystem } from '@/sim/systems';
 import { placeWorker, playerNest } from '../nestTestKit';
 import { floodCheats } from './cheats';
-import { addRim } from './floodTestKit';
+import { addRim, neutralSite } from './floodTestKit';
 import { floodSystem } from './index';
 import { entranceInflow } from './inflow';
 import { refreshFloodRisk } from './predict';
@@ -21,8 +21,10 @@ import { spillFor, spillPeek } from './runtime';
 import { chamberFloodedShare, floodedAt, floodedCount } from './spill';
 import { drainageOf } from './step';
 
+/** The small test nest on a neutral site (world hydrology factor 1: GDD 03's flat-ground c = 1). */
 function floodSim(): Sim {
   const sim = makeTestSim({ nest: 'small', systems: [commandsSystem, floodSystem] });
+  neutralSite(sim);
   return sim;
 }
 

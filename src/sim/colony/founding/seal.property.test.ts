@@ -1,6 +1,7 @@
 // Sealing in every throat the dig can produce (task founding-close §1). Headless, real actions: the throat geometry
 // is carved with the debug brushes (set-up), the queen is possessed as in the game, and the player presses E once
-// (the `action` command for seal-entrance) from the founding cell, far out of the throat's reach. From there the
+// (the `action` command for seal-entrance) from the founding cell, far out of the throat's reach: the press is not
+// refused (it defers to the guide). From there the
 // founding guide (sealGuide.ts) walks her by her own movement input and plugs the leak with the real seal-entrance.
 // Always-on: three cases (the round-2 browser failure 55 deg / 2.1 BU, the steep wide and the shallow narrow ends).
 // The full matrix (pitch 30-85 deg x width 1.5 / 2.1 / 3.0 BU x loam / sand) runs with FOUNDRESS_LONG=1.
@@ -28,20 +29,17 @@ function sealCase(spec: ThroatSpec): Outcome {
   const q = queen(sim), nest = nestOf(sim);
   sim.enqueue({ type: 'possess', antId: q.id });
   sim.tick();
-  // refusals once the guide has her moving: none may be `no-target` (the first press, from the cell, is out of reach)
-  let refusedInReach = 0, pressed = false;
-  sim.events.on('action-failed', (e) => {
-    if (e.antId !== q.id || e.action !== 'seal-entrance') return;
-    if (pressed && e.reason === 'no-target') refusedInReach++;
-    pressed = true;
-  });
+  // no seal-entrance refusal at all, not even for the first press from the cell, far out of the throat's reach
+  // (viab-founding: the press defers to the founding guide instead of refusing `no-target`)
+  let refusedInReach = 0;
+  sim.events.on('action-failed', (e) => { if (e.antId === q.id && e.action === 'seal-entrance') refusedInReach++; });
   sim.enqueue({ type: 'action', actionId: 'seal-entrance', phase: 'start' });
   const ticks = stepUntil(sim, () => phase(sim) !== 'seal', SEAL_TICKS_MAX);
   const cell = nest.chambers.find((ch) => ch.type === 'founding')!;
   const ents = cavityEntrances(sim, nest);
   return {
     phase: phase(sim), ticks, plugs: q.bb[SG.total] ?? 0,
-    nestStatus: ents.map((e) => e.status), leak: ents.some((e) => throatLeak(sim, e) !== null),
+    nestStatus: ents.map((e) => e.status), leak: ents.some((e) => throatLeak(sim, e, [], nest) !== null),
     air: cellReachesAir(sim, nest), exitD: sim.nestNav.distance(nest.id, { kind: 'exit', id: -1 }, cell.center),
     refusedInReach,
   };

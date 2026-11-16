@@ -79,9 +79,11 @@ describe('food anchors (acceptance 5, GDD 04 §8.1, GDD 05 §0 / §1.3)', () => 
       const byObj = new Map(w.placements.plants.map((p) => [p.objectId, p]));
       for (const an of fa.filter((x) => x.initialState.startsWith('flower'))) expect(byObj.get(an.hostObjectId)!.hostFlags & HOST_BIT.nectar).toBeTruthy();
       const films = fa.filter((x) => x.initialState.startsWith('honeydew-film'));
-      expect(films.length, a).toBe(6); // 1 per 250 plots on a standard map (GDD 05 §0)
       const d = navDistances(ctx, [cellAt(ctx, w.queenStart.pos.x, w.queenStart.pos.z)]);
-      expect(films.filter((f) => d[accessOfAnchor(ctx, f)!.cell] <= 600).length, a).toBeGreaterThanOrEqual(2);
+      if (ECOLOGY_TIER < 2) { // the T1 static films (GDD 05 §0); at T2 they are not sources and their count is free
+        expect(films.length, a).toBe(6); // 1 per 250 plots on a standard map (GDD 05 §0)
+        expect(films.filter((f) => d[accessOfAnchor(ctx, f)!.cell] <= 600).length, a).toBeGreaterThanOrEqual(2);
+      }
       for (const f of films) expect(byObj.get(f.hostObjectId)!.hostFlags & HOST_BIT.aphid).toBeTruthy();
       const crumbs = fa.filter((x) => x.kind === 'crumb');
       expect(crumbs.some((c) => c.initialState.startsWith('crumb-protein')), a).toBe(true);
@@ -94,10 +96,16 @@ describe('food anchors (acceptance 5, GDD 04 §8.1, GDD 05 §0 / §1.3)', () => 
         const interior = fa.filter((x) => ctx.layout.zones[ctx.layout.nav[cellAt(ctx, x.pos.x, x.pos.z)]].type === 'interior');
         expect(interior.some((x) => x.kind === 'crumb'), 'interior crumbs').toBe(true);
       }
-      // T1 sources come from flowers, films, crumbs and sugar; T2 kinds wait for their tier
-      const t1 = new Set(fa.map((x) => sourceVariant(x)).filter((v) => v));
-      expect([...t1].every((v) => ['flower', 'honeydew-film', 'crumb-starch', 'crumb-protein', 'sugar-granules', 'sugary-spill'].includes(v!)), [...t1].join()).toBe(true);
-      expect(t1.has('flower') && t1.has('honeydew-film')).toBe(true);
+      // T1 sources come from flowers, films, crumbs and sugar; T2 kinds wait for their tier. At Tier 2 (viab-economy
+      // R1) the static films give way to the herds on the `aphid-herd` anchors (plants module) and T2 kinds appear.
+      const made = new Set(fa.map((x) => sourceVariant(x)).filter((v) => v));
+      if (ECOLOGY_TIER < 2) {
+        expect([...made].every((v) => ['flower', 'honeydew-film', 'crumb-starch', 'crumb-protein', 'sugar-granules', 'sugary-spill'].includes(v!)), [...made].join()).toBe(true);
+        expect(made.has('flower') && made.has('honeydew-film')).toBe(true);
+      } else {
+        expect(made.has('flower') && !made.has('honeydew-film'), [...made].join()).toBe(true);
+        expect(fa.some((x) => x.initialState.startsWith('aphid-herd')), a).toBe(true);
+      }
     }
   });
 

@@ -4,6 +4,7 @@
 // followed creature to the observer, and redraws the markers, plan outlines and the planner's ghost.
 // The HUD reads the inspect target through `inspectTarget` (a plain getter; see the task report).
 import type { PerspectiveCamera, Scene } from 'three';
+import type { RenderApp } from '@/render/app';
 import type { InputState } from '@/input';
 import type { HighlightRef, RenderRegistry } from '@/render';
 import { MarkerRenderer, type MarkerSceneDesc } from '@/render/fx/markers/MarkerRenderer';
@@ -20,6 +21,7 @@ import { observerInput, type ObserverHost } from './observerControl';
 import { highlightRefOf, type PickTarget } from './picking/entityPick';
 import { scenePick, type ScenePick } from './picking/scenePick';
 import { CursorTracker } from './pointer';
+import { PhotoMode } from './photo/PhotoMode';
 import { tremorStruck } from './tremorCue';
 import type { CameraStateChange, ViewSubject } from './viewDirector';
 import { ViewsState, type ColonyTool } from './viewsState';
@@ -29,6 +31,12 @@ export interface ViewsGame {
   readonly session: GameSession | null;
   readonly mode: GameMode;
   readonly camera: PerspectiveCamera;
+  /** Photo mode's needs of the renderer (optional: the layer works on a bare game in tests). */
+  readonly app?: RenderApp;
+  readonly opts?: { readonly canvas: HTMLCanvasElement; readonly testMode: boolean };
+  requestRender?(): void;
+  renderNow?(settleS?: number): void;
+  togglePhoto?(): void;
   hover: HighlightRef | null;
   inspect: HighlightRef | null;
   possess(target: number, via?: 'command' | 'role-key' | 'cycle' | 'last'): unknown;
@@ -47,6 +55,8 @@ export class ViewsLayer {
   readonly tools: ColonyTools = { markers: new MarkerTool(), planner: new DigPlanner() };
   /** Plan, chamber and entrance edits of the selection (GDD 03 §14.2; the inspect card calls editSelection etc.). */
   readonly edits = new ColonyEdits();
+  /** Photo mode: the subject, focus, look and capture (src/game/views/photo). */
+  readonly photo: PhotoMode;
   /** Followed creature (the session follows ants itself), -1 none. */
   followCreatureId = -1;
   lastPick: ScenePick | null = null;
@@ -61,12 +71,16 @@ export class ViewsLayer {
   private lastView = '';
   /** Sim tick up to which tremor cues were checked, -1 not yet this game. */
   private tremorTick = -1;
+  /** Footstep tremors that shook the possession camera since the game started (debug read-out, e2e). */
+  tremorStrikes = 0;
   private readonly cameraStateListeners: ((e: CameraStateChange) => void)[] = [];
   private cameraStateSource: { onCameraState(cb: (e: CameraStateChange) => void): () => void } | null = null;
   private cameraStateOff: (() => void) | null = null;
   private readonly subj: ViewSubject = { pos: { x: 0, y: 0, z: 0 }, up: { x: 0, y: 1, z: 0 }, fwd: { x: 1, y: 0, z: 0 }, lengthBu: 1, underground: false, airborne: false };
 
-  constructor(private readonly game: ViewsGame) {}
+  constructor(private readonly game: ViewsGame) {
+    this.photo = new PhotoMode(game, this);
+  }
 
   /** The selection the inspect card shows (observer / colony click), null none. */
   get inspectTarget(): PickTarget | null { return this.state.selected; }
@@ -124,7 +138,9 @@ export class ViewsLayer {
     this.tools.planner.reset();
     this.edits.reset();
     this.followCreatureId = -1;
+    this.photo.reset();
     this.tremorTick = -1;
+    this.tremorStrikes = 0;
     this.pickKey = '';
     this.lastPick = null;
     this.markers?.update(null);
@@ -132,11 +148,12 @@ export class ViewsLayer {
 
   /**
    * One frame, before the camera rig updates. `input` is null while the camera is only being settled (scripted
-   * screenshots): picking and drawing still happen, clicks do not.
+   * screenshots): picking and drawing still happen, clicks do not. `alpha` is the tick interpolation this frame is drawn at.
    */
-  frame(s: GameSession, input: InputState | null, nowS: number): void {
+  frame(s: GameSession, input: InputState | null, nowS: number, alpha = 1): void {
     const view = s.view, st = this.state, entered = this.lastView !== view;
     this.lastView = view;
+    this.photo.sync(s, alpha);
     this.relayCameraState(s);
     this.checkTremor(s);
     colonyPoll(s.sim, st, this.tools, this.colonyHost(s));
@@ -165,17 +182,29 @@ export class ViewsLayer {
     } else {
       st.hover = null;
       if (view === 'possess' && entered) st.selected = null; // the possessed ant inspects with T
+      if (view === 'photo') this.photo.frame(s, input, alpha);
     }
     if (view !== 'colony' && st.tool) selectTool(st, this.tools, null);
     this.feedCreature(s);
-    this.applyHighlights();
+    // photo mode's "hide markers and outlines" (on by default, GDD 08 §7.9): no outlines, rings or markers in the
+    // picture, and that includes the dig-plans overlay's plan outlines (the overlay stays switched on underneath)
+    const quiet = this.photo.hidesMarkers;
+    this.applyHighlights(quiet);
     this.lastMarkerScene = buildMarkerScene({
-      sim: s.sim, colony: view === 'colony', selectedMarkerId: this.tools.markers.selectedId, selectedPlanId: st.selectedPlanId,
+      sim: s.sim, colony: view === 'colony', plans: this.digPlansOverlay() && !quiet, selectedMarkerId: this.tools.markers.selectedId, selectedPlanId: st.selectedPlanId,
       preview: view === 'colony' && plannerActive(st) ? this.tools.planner.preview : null, tunnelStart: this.tools.planner.tunnelStart?.pos ?? null,
-      hover: view === 'possess' ? null : st.hover, selected: st.selected, cutaway: view === 'colony' ? s.views.colony.cutaway.mode : 'off',
+      hover: view === 'possess' || quiet ? null : st.hover, selected: quiet ? null : st.selected, cutaway: view === 'colony' ? s.views.colony.cutaway.mode : 'off',
       slicePlaneY: view === 'colony' ? s.views.colony.cutaway.planeY : null,
     });
     this.markers?.update(this.lastMarkerScene);
+  }
+
+  /**
+   * The dig-plans overlay is on (the fx renderer flags it on the marker layer, src/render/fx/overlays/FxRenderer.ts):
+   * plan outlines are then drawn in every view, not only in the colony view.
+   */
+  private digPlansOverlay(): boolean {
+    return this.markers?.group.userData.digPlansOverlay === true;
   }
 
   /** Esc in the colony view: cancels the active tool / ghost first (GDD 01 §5.4); true when it was used. */
@@ -270,17 +299,18 @@ export class ViewsLayer {
     this.tremorTick = tick;
     if (since < 0 || s.view !== 'possess') return;
     const a = s.possessedAnt();
-    if (a && tremorStruck(s.sim, a.pos, since)) s.views.tremor();
+    if (a && tremorStruck(s.sim, a.pos, since)) { s.views.tremor(); this.tremorStrikes++; }
   }
 
   /** Writes hover / inspect highlights only when they changed here (so a debug-API highlight is not overwritten). */
-  private applyHighlights(): void {
-    const h = highlightRefOf(this.state.hover), i = highlightRefOf(this.state.selected);
+  private applyHighlights(quiet = false): void {
+    const h = quiet ? null : highlightRefOf(this.state.hover), i = quiet ? null : highlightRefOf(this.state.selected);
     if (!sameRef(h, this.appliedHover)) { this.game.hover = h; this.appliedHover = h; }
     if (!sameRef(i, this.appliedInspect)) { this.game.inspect = i; this.appliedInspect = i; }
   }
 
   dispose(): void {
+    this.photo.dispose();
     this.cameraStateOff?.();
     this.cameraStateOff = null;
     this.cameraStateSource = null;

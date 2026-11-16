@@ -19,6 +19,8 @@ function build(): Sim {
   const ch = addChamber(sim, 'nursery', { x: 100, y: -40, z: 100 }, 20);
   establishQueen(sim, ch);
   for (let i = 0; i < 30; i++) addWorkers(sim, 1, { chamber: i % 4 === 0 ? null : ch, ageGd: i % 16, lifespanGd: 4 + i });
+  // two near the end of their lives: deaths in play whatever the rates of ageing and starvation (viab-economy)
+  addWorkers(sim, 2, { chamber: ch, ageGd: 5, lifespanGd: 5.6 });
   addBrood(sim, 'egg', 10, ch);
   addBrood(sim, 'larva', 10, ch, 0.2);
   addBrood(sim, 'pupa', 6, ch, 0.8);

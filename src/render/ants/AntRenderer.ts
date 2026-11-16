@@ -121,8 +121,11 @@ export class AntRenderer {
     this.settings = lodSettingsFor(q.id, q.density.crowdLod, q.shadows.enabled);
   }
 
+  /** Set per frame from AntFrameInfo.hidePossessedHighlight (photo mode). */
+  private hidePossessedRim = false;
+
   private highlightOf(kind: PickTarget['kind'], id: number, possessed: boolean): number {
-    if (possessed && kind === 'ant') return HIGHLIGHT.possessed;
+    if (possessed && kind === 'ant' && !this.hidePossessedRim) return HIGHLIGHT.possessed;
     if (this.hover && this.hover.kind === kind && this.hover.id === id) return -HIGHLIGHT.hovered;
     if (this.inspect && this.inspect.kind === kind && this.inspect.id === id) return -HIGHLIGHT.inspected;
     return 0;
@@ -134,6 +137,7 @@ export class AntRenderer {
     const reader = this.reader;
     if (frame.hover !== undefined) this.hover = frame.hover;
     if (frame.inspect !== undefined) this.inspect = frame.inspect;
+    this.hidePossessedRim = frame.hidePossessedHighlight === true;
     const camera: PerspectiveCamera = frame.camera ?? this.ctx.camera;
     this.store.resetAll();
     this.stamp++;

@@ -10,7 +10,7 @@
 // Low quality cap (GDD 08 §3.3): while the title is entered the Game renders at most at the Low preset
 // (setQualityCap; titleQualityCap below) and returns to the player's preset when a game starts.
 import type { PerspectiveCamera } from 'three';
-import type { FrameInfo, RenderRegistry } from '@/render';
+import type { ComfortSettings, FrameInfo, RenderRegistry } from '@/render';
 import type { QualityId, RenderApp } from '@/render/app';
 import { applyPose, makePose } from '@/render/camera';
 import type { Sim } from '@/sim/types';
@@ -28,6 +28,8 @@ export interface TitleHostDeps {
   canvas: HTMLCanvasElement;
   testMode: boolean;
   reducedMotion: () => boolean;
+  /** Settings > Accessibility comfort for the creature renderer (GDD 08 §12); omitted: the renderer's default. */
+  comfort?: () => ComfortSettings | null;
   /** The player's own preset (before the title's cap); defaults to the app's current preset. */
   playerQuality?: () => QualityId;
   /** Turns the title's Low quality cap on (entering) or off (leaving). */
@@ -43,6 +45,10 @@ export function titleQualityCap(id: QualityId): QualityId {
 export function titleSceneWanted(search: string): boolean {
   const q = new URLSearchParams(search);
   return q.get('autostart') !== '1' && q.get('title') !== '0';
+}
+
+function comfortKey(c: ComfortSettings | null): string {
+  return c ? `${c.spiderComfort},${c.comfortMites ? 1 : 0},${c.comfortCentipedes ? 1 : 0}` : '-';
 }
 
 export class TitleHost {
@@ -128,7 +134,9 @@ export class TitleHost {
     if (!reg || !app || !sim || !this.built) return null;
     const still = this.still();
     const c = this.deps.canvas;
-    const key = `${app.quality.id}|${c.clientWidth}x${c.clientHeight}|${still}`;
+    const comfort = this.deps.comfort?.() ?? null;
+    // a comfort change in Settings must redraw a settled still backdrop too
+    const key = `${app.quality.id}|${c.clientWidth}x${c.clientHeight}|${still}|${comfortKey(comfort)}`;
     if (key !== this.settleKey) { this.settleKey = key; this.stillFrames = 0; }
     // a settled still frame: nothing moves, so neither the renderers nor the screen need anything
     if (still && !this.deps.testMode && this.stillFrames >= TITLE_STILL_SETTLE_FRAMES && this.lastFrame) return this.lastFrame;
@@ -143,7 +151,7 @@ export class TitleHost {
     const frame: FrameInfo = {
       dt: fdt, time: this.deps.testMode ? 0 : this.t, alpha: 1, sim, view: 'observer', underground: false, camera: this.deps.camera,
       viewportHeightPx: app.renderer.domElement.height, subject, possessedId: -1, possessedPose: null, subjectOpacity: 1, cutaway: null,
-      fade: null, hover: null, inspect: null, reducedMotion: this.deps.reducedMotion(),
+      fade: null, hover: null, inspect: null, reducedMotion: this.deps.reducedMotion(), comfort,
     };
     reg.update(frame);
     if (!this.deps.testMode) {

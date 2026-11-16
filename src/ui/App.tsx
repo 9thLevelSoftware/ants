@@ -4,6 +4,7 @@
 import { render } from 'preact';
 import { HudRoot } from './hud';
 import { FoundingOverlay } from './screens/founding';
+import { PhotoScreen } from './screens/photo';
 import { ScreenRouter } from './screens';
 
 export function App() {
@@ -11,6 +12,7 @@ export function App() {
     <>
       <HudRoot />
       <FoundingOverlay />
+      <PhotoScreen />
       <ScreenRouter />
     </>
   );

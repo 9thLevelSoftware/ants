@@ -15,26 +15,21 @@ import { set3 as set3Imp } from './mathx';
 import { chamberAt as chamberAtImp, nearestOpenEntrance as nearestOpenEntranceImp } from './nests';
 import { MATERIAL_GRIP, LOCO_TUNING, tiltLimit as tiltLimitImp } from './params';
 import { possessedTick as possessedTickImp } from './possessed';
-import { antGrid as antGridImp, ensureGrid as ensureGridImp, rt as rtImp, type LocoRuntime } from './runtime';
+import { antGrid as antGridImp, ensureGrid as ensureGridImp, fillCrowd as fillCrowdImp, rt as rtImp, type LocoRuntime } from './runtime';
 import { walkerId as walkerIdImp, type NavScratch } from './scratch';
 import { addAvoidRepulsion as addAvoidRepulsionImp, addEdgeRepulsion as addEdgeRepulsionImp, addFloorBias as addFloorBiasImp, addSeparation as addSeparationImp, turnToward as turnTowardImp } from './steer';
 import { walkerLetGo as walkerLetGoImp, walkerPlace as walkerPlaceImp, walkerSnapshot as walkerSnapshotImp, walkerStep as walkerStepImp, walkerSurfaceChanged as walkerSurfaceChangedImp, type WalkStatus } from './walker';
 import { aiUpdate as aiUpdateImp, nestIdOf as nestIdOfImp } from './update';
 import { walkerNest as walkerNestImp } from './trip';
 import { syncPuddles as syncPuddlesImp } from './puddles';
-import { watchStall as watchStallImp } from './stallWatch';
+import { forgetStall as forgetStallImp, pruneStalls as pruneStallsImp, watchStall as watchStallImp } from './stallWatch';
 import { isStunned as isStunnedImp, walkerUnderWater as walkerUnderWaterImp, wetGripMult as wetGripMultImp } from './weather';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const antGrid = antGridImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp, syncPuddles = syncPuddlesImp, watchStall = watchStallImp, isStunned = isStunnedImp, walkerUnderWater = walkerUnderWaterImp, wetGripMult = wetGripMultImp;
+const antGrid = antGridImp, fillCrowd = fillCrowdImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp, syncPuddles = syncPuddlesImp, watchStall = watchStallImp, forgetStall = forgetStallImp, pruneStalls = pruneStallsImp, isStunned = isStunnedImp, walkerUnderWater = walkerUnderWaterImp, wetGripMult = wetGripMultImp;
 
 const TICK_S = 0.1;
-/** Slope / grip checks run every this many ticks per walker (staggered). */
-const SLIP_EVERY = 4;
-/** A standing walker (no request) is stepped (re-attached) every this many ticks only (staggered). */
-const STAND_CHECK_EVERY = 16;
-/** clampToMap re-places a walker this far inside the limit, BU. */
-const EDGE_INSET_BU = 0.5;
+const SLIP_EVERY = LOCO_TUNING.slipCheckEveryTicks, STAND_CHECK_EVERY = LOCO_TUNING.standCheckEveryTicks;
 const _desired: Vec3 = { x: 0, y: 0, z: 0 }, _obs: Vec3 = { x: 0, y: 0, z: 0 };
 const coarse = new WeakMap<WalkerParams, WalkerParams>();
 
@@ -85,7 +80,7 @@ export function clampToMap(sim: Sim, w: Walker, r: LocoRuntime): void {
   const x = w.pos.x, z = w.pos.z;
   if (x >= lo && x <= hi && z >= lo && z <= hi) return;
   r.stats.edgeClamps++;
-  const inset = EDGE_INSET_BU * r.P.bu;
+  const inset = r.P.edgeInset;
   const cx = x < lo ? lo + inset : x > hi ? hi - inset : x, cz = z < lo ? lo + inset : z > hi ? hi - inset : z;
   const p = { x: cx, y: Math.max(w.pos.y, sim.field.height(cx, cz) + 2 * r.P.bu), z: cz };
   if (!walkerPlace(sim.field, w, p, {}, sim.kernel.walker)) { w.pos.x = cx; w.pos.z = cz; }
@@ -179,9 +174,16 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
     // dynamic primitives re-attach walkers by surfaceCheck / notifySurfaceChanged); a check now and then remains.
     if (w.speed === 0 && (tick + id) % STAND_CHECK_EVERY !== 0) { r.stats.standSkipped++; st = 'ok'; }
     else st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker); // re-attach, fall
+  } else if (isAnt && dozing(sim, w, w.nav.loco, id, tick, r)) {
+    // dozing in a crowded room: stands this tick, its stuck window paused (the dozed ticks do not count; it resumes
+    // where it was when the ant walks again); it did not move, so map limit, slope and membership are as they were
+    w.nav.loco.bestTick = Math.min(tick, w.nav.loco.bestTick + 1);
+    w.speed = 0;
+    r.stats.dozed++;
+    return;
   } else if (isAnt && isStunned(sim, w as Ant)) {
-    // stunned (GDD 06 §3.3 rain hits, collapses, creatures): stands; the stuck window does not run meanwhile
-    w.nav.loco!.bestTick = tick;
+    // stunned (GDD 06 §3.3 rain hits, collapses, creatures): stands; its stuck window paused meanwhile
+    w.nav.loco!.bestTick = Math.min(tick, w.nav.loco!.bestTick + 1);
     w.nav.desiredSpeed = 0;
     st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker);
   } else {
@@ -216,11 +218,31 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
   }
   if (st === 'failed') r.stats.walkerFailed++;
   clampToMap(sim, w, r);
-  // GDD 06 §3.10: on the surface in a deep puddle the walker swims (medium 'water'; inside a nest it stays 'cavity')
-  if (w.medium === 'surface' && walkerUnderWater(sim, w, r, -1)) w.medium = 'water';
+  // GDD 06 §3.10: on the surface in a deep puddle the walker swims (medium 'water'; inside a nest it stays 'cavity').
+  // Checked every tick, also for a standing walker the stand check did not step: rain hits, heat, dodging and
+  // carrying read the medium, so it turns back on the tick the puddle went shallow
+  if (w.medium === 'surface' || w.medium === 'water') {
+    const under = walkerUnderWater(sim, w, r, -1);
+    if (under) w.medium = 'water';
+    else if (w.medium === 'water') w.medium = sim.field.isInSubstrate(w.pos.x, w.pos.y, w.pos.z) ? 'cavity' : 'surface';
+  }
   slopeSlip(sim, w, id, r);
   if (isAnt) membership(sim, w as Ant, r);
   else if (w.medium !== 'air') (w as Creature).nestId = walkerNest(sim, w, nestIdOf(w));
+}
+
+const _crowd: number[] = [];
+
+/**
+ * An in-nest wanderer in a crowd dozes for the part of its cycle after dozeAwake (LOCO_TUNING.dozeCrowd): a
+ * function of the tick, its id and the positions of the tick start (the crowd grid), so a loaded game dozes alike.
+ */
+function dozing(sim: Sim, w: Walker, s: NavScratch, id: number, tick: number, r: LocoRuntime): boolean {
+  if (s.req !== 'wander' || w.medium !== 'cavity' || !r.crowd) return false;
+  if ((tick + 7 * id) % r.P.dozeCycle < r.P.dozeAwake) return false;
+  // nestmates only (the crowd grid is tagged by colony): raiders in the room keep the residents awake
+  const need = r.P.dozeCrowd;
+  return r.crowd.near(w.pos.x, w.pos.y, w.pos.z, r.P.sepR, id, need, _crowd, (w as Ant).colony) >= need;
 }
 
 function wake(sim: Sim, ant: Ant, tick: number): void {
@@ -252,9 +274,11 @@ export const locomotionSystem: System = {
     }
     r.carveVersion = sim.carve.version;
     const obs = observer(sim, r);
-    antGrid(sim, r); // separation reads the positions of the tick start
+    antGrid(sim, r); // contact queries (queryAntsNear) read the positions of the tick start
+    fillCrowd(sim, r); // and so does separation
+    pruneStalls(sim, r);
     for (let i = 0; i < ants.length; i++) {
-      if (!ants[i].alive) continue;
+      if (!ants[i].alive) { forgetStall(r, ants[i].id); continue; }
       stepWalker(sim, ants[i], true, r, obs);
       watchStall(sim, ants[i], r);
     }

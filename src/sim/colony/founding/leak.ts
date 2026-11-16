@@ -6,7 +6,8 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Entrance, Nest, Sim } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
-import { SEAL_FLOOD_MAX_SAMPLES, SEAL_FLOOD_RADIUS_BU } from '@/sim/balance/founding';
+import { sampleI, sampleJ, sampleK } from '@/sim/nest/voxelKey';
+import { FOUND_POCKET_MAX_SAMPLES, SEAL_FLOOD_MAX_SAMPLES, SEAL_FLOOD_RADIUS_BU } from '@/sim/balance/founding';
 
 /** Carve-grid openness from which a sample counts as open (nest carve keys OPEN_MIN; seed §4: iso 127.5). */
 export const CARVE_OPEN_MIN = 128;
@@ -104,25 +105,67 @@ function pathTo(parents: Map<number, number>, last: number, air: number): number
   return out.reverse();
 }
 
-/** Where the flood starts: the founding cell's centre, else the cavity seed, else the nest origin. */
-export function floodStart(nest: Nest): Vec3 {
+/**
+ * Where the flood starts: the founding cell's seed sample (an open sample of the room the nest detected; the room's
+ * centre can lie in a pillar of soil the bites left, which once seeded the flood in a three-sample pocket), else its
+ * centre, else the cavity seed, else the nest origin.
+ */
+export function floodStart(sim: Sim, nest: Nest): Vec3 {
   const cell = nest.chambers.find((c) => c.type === 'founding') ?? nest.chambers[0];
+  if (cell && cell.seedVoxel !== 0) {
+    const v = sim.carve.voxel, i = sampleI(cell.seedVoxel), j = sampleJ(cell.seedVoxel), k = sampleK(cell.seedVoxel);
+    if (isOpenSample(sim, i, j, k)) return { x: i * v, y: j * v, z: k * v };
+  }
   return cell ? cell.center : nest.founding?.cavitySeed ?? nest.origin;
+}
+
+/**
+ * The nest's founding pocket rule, mirrored (src/sim/nest/entrances.ts foundingPocketTest): while the nest is
+ * founding and has a chamber, a throat passage counts only if its carved space leads on to a chamber (a dead-end
+ * pit beside the opening does not). `fill`: spheres treated as solid. Null when the plain rule applies.
+ */
+function leadsToChamber(sim: Sim, nest: Nest, fill: readonly Sphere[]): ((i: number, j: number, k: number) => boolean) | null {
+  if (!nest.founding || nest.founding.state === 'established' || nest.chambers.length === 0) return null;
+  const v = sim.carve.voxel;
+  const inChamber = (x: number, y: number, z: number): boolean => nest.chambers.some((c) =>
+    ((x - c.center.x) / Math.max(v, c.radii.x)) ** 2 + ((y - c.center.y) / Math.max(v, c.radii.y)) ** 2 + ((z - c.center.z) / Math.max(v, c.radii.z)) ** 2 <= 1);
+  const pocket = new Set<number>();
+  return (i0, j0, k0) => {
+    const k0Key = key(i0, j0, k0);
+    if (pocket.has(k0Key)) return false;
+    const seen = new Set<number>([k0Key]), queue = [k0Key];
+    for (let q = 0; q < queue.length && seen.size < FOUND_POCKET_MAX_SAMPLES; q++) {
+      const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
+      if (inChamber(i * v, j * v, k * v)) return true;
+      for (let d = 0; d < 18; d += 3) {
+        const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2], m = key(ni, nj, nk);
+        if (seen.has(m) || !isOpenSample(sim, ni, nj, nk) || isAirSample(sim, ni, nj, nk)) continue;
+        if (fill.length > 0 && inSpheres(ni * v, nj * v, nk * v, fill)) continue;
+        seen.add(m);
+        queue.push(m);
+      }
+    }
+    if (seen.size >= FOUND_POCKET_MAX_SAMPLES) return true;
+    for (const m of seen) pocket.add(m);
+    return false;
+  };
 }
 
 /**
  * The leak as the nest module judges sealing (src/sim/nest/entrances.ts throatPassage, GDD 03 §4.2): a path of
  * free samples (open, or air) inside the throat sphere (radius + THROAT_BU around the opening) from the mouth (free
  * samples at the ground level inside the opening) to the sphere's inner shell in the soil. Sample keys from the
- * mouth end; null when there is none (the entrance reads `sealed`). `fill`: spheres treated as solid.
+ * mouth end; null when there is none (the entrance reads `sealed`). `fill`: spheres treated as solid; `nest`: apply
+ * the nest's founding pocket rule (leadsToChamber).
  */
-export function throatLeak(sim: Sim, e: Entrance, fill: readonly Sphere[] = []): number[] | null {
+export function throatLeak(sim: Sim, e: Entrance, fill: readonly Sphere[] = [], nest: Nest | null = null): number[] | null {
   const v = sim.carve.voxel, R = e.radius + THROAT_BU * sim.world.bu, inner = R - 2 * v;
   const free = (i: number, j: number, k: number): boolean => {
     if (isAirSample(sim, i, j, k)) return true; // a plug fills carved soil, never the air
     if (fill.length > 0 && inSpheres(i * v, j * v, k * v, fill)) return false;
     return isOpenSample(sim, i, j, k);
   };
+  const leads = nest ? leadsToChamber(sim, nest, fill) : null;
   const inSphere = (i: number, j: number, k: number) => (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 <= R * R;
   const parents = new Map<number, number>();
   const queue: number[] = [];
@@ -141,7 +184,7 @@ export function throatLeak(sim: Sim, e: Entrance, fill: readonly Sphere[] = []):
   for (let q = 0; q < queue.length; q++) {
     const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
     const d2 = (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2;
-    if (d2 >= inner * inner && sim.field.substrateXYZ(i * v, j * v, k * v) < 0) {
+    if (d2 >= inner * inner && sim.field.substrateXYZ(i * v, j * v, k * v) < 0 && (!leads || leads(i, j, k))) {
       const out: number[] = [];
       for (let m = n; m >= 0; m = parents.get(m) ?? -1) out.push(m);
       return out.reverse();
@@ -202,6 +245,11 @@ export function cavityRoute(sim: Sim, from: Vec3, to: Vec3, maxSamples = SEAL_FL
  * shell, through free samples inside the throat sphere): what the plugs still have to fill or cut. Keys.
  */
 export function throatPassageSet(sim: Sim, e: Entrance): number[] {
+  return [...passageDepths(sim, e).keys()];
+}
+
+/** The passage samples of throatPassageSet with their steps from the mouth (breadth-first through free samples). */
+function passageDepths(sim: Sim, e: Entrance): Map<number, number> {
   const v = sim.carve.voxel, R = e.radius + THROAT_BU * sim.world.bu, inner = R - 2 * v;
   const free = (i: number, j: number, k: number) => isOpenSample(sim, i, j, k) || isAirSample(sim, i, j, k);
   const inSphere = (i: number, j: number, k: number) => (i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 <= R * R;
@@ -216,24 +264,38 @@ export function throatPassageSet(sim: Sim, e: Entrance): number[] {
     if (sub >= -0.5 * v && Math.hypot(i * v - e.pos.x, k * v - e.pos.z) <= e.radius + v) fromMouth.push(key(i, j, k));
     if (d2 >= inner * inner && sub < 0) fromInner.push(key(i, j, k));
   }
-  const spread = (seeds: number[]): Set<number> => {
-    const seen = new Set(seeds), queue = [...seeds];
+  // breadth-first from the seeds: sample -> steps from the nearest seed
+  const spread = (seeds: number[]): Map<number, number> => {
+    const seen = new Map<number, number>(), queue = [...seeds];
+    for (const n of seeds) seen.set(n, 0);
     for (let q = 0; q < queue.length; q++) {
-      const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
+      const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n), depth = (seen.get(n) ?? 0) + 1;
       for (let d = 0; d < 18; d += 3) {
         const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2], m = key(ni, nj, nk);
         if (seen.has(m) || !inSphere(ni, nj, nk) || !free(ni, nj, nk)) continue;
-        seen.add(m);
+        seen.set(m, depth);
         queue.push(m);
       }
     }
     return seen;
   };
   const a = spread(fromMouth), b = spread(fromInner);
-  const out: number[] = [];
-  for (const n of a) {
-    if (!b.has(n)) continue;
-    if (sim.field.substrateXYZ(keyI(n) * v, keyJ(n) * v, keyK(n) * v) < 0) out.push(n);
+  const out = new Map<number, number>();
+  for (const [n, depth] of a) {
+    if (b.has(n) && sim.field.substrateXYZ(keyI(n) * v, keyJ(n) * v, keyK(n) * v) < 0) out.set(n, depth);
+  }
+  return out;
+}
+
+/**
+ * The passage samples of entrance e grouped by their steps from the mouth (breadth-first through the throat's free
+ * samples): each group is a cross-section of the throat. Keys by layer.
+ */
+export function passageLayers(sim: Sim, e: Entrance): Map<number, number[]> {
+  const out = new Map<number, number[]>();
+  for (const [n, d] of passageDepths(sim, e)) {
+    const list = out.get(d);
+    if (list) list.push(n); else out.set(d, [n]);
   }
   return out;
 }

@@ -12,6 +12,8 @@ import {
   STARVE_HEALTH_RATE, TOXIN_EFFECT_GD, TOXIN_HEALTH_PER_LOAD,
 } from '@/sim/balance';
 import { killAnt } from '@/sim/entities';
+import { AGE_OUTSIDE_WEAR_SHARE_T2 } from '@/sim/balance/colony';
+import { ECOLOGY_TIER } from '@/sim/balance/ecology';
 import { daysToTicks, TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { isWorkerCaste } from './census';
 import { casteOf, fMet } from './life';
@@ -25,6 +27,7 @@ const _AntFlag = AntFlag;
 const _ACTIVATION_HALF_LIFE_S = ACTIVATION_HALF_LIFE_S;
 const _AGE_MID_MAX_GD = AGE_MID_MAX_GD;
 const _AGE_RATE_IN_NEST = AGE_RATE_IN_NEST;
+const _OUTSIDE_WEAR_SHARE = ECOLOGY_TIER >= 2 ? AGE_OUTSIDE_WEAR_SHARE_T2 : 1;
 const _AGE_YOUNG_MAX_GD = AGE_YOUNG_MAX_GD;
 const _CALLOW_GD = CALLOW_GD;
 const _FATIGUE_GAIN_ACTIVE_S = FATIGUE_GAIN_ACTIVE_S;
@@ -102,7 +105,8 @@ export function newPhysioAcc(col: Colony): PhysioAcc {
   const total = s.c + s.p;
   return {
     upkeepC: 0, alateC: 0, cropC: 0, cropP: 0, starving: 0,
-    refillOk: col.starvationStage === 'fed' && _daysOfStock(col).c >= _RESERVE_REFILL_MIN_DAYS_C,
+    refillOk: col.starvationStage === 'fed' && _daysOfStock(col).c >= _RESERVE_REFILL_MIN_DAYS_C
+      && col.core?.acc['starve.heldLean'] !== 1, // R2 hold: pool under target, no refill (starvation.ts HELD_LEAN_KEY)
     poolLeft: s.c, upkeepDrawn: 0, refillDrawn: 0, toxinPerLoad: total > 0 ? s.toxin / total : 0,
   };
 }
@@ -210,7 +214,9 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
 
   // Ageing and callow hardening (GDD 02 §1.3).
   const cd = _casteOf(def, a.caste);
-  const ageRate = a.flags & _AntFlag.DORMANT ? (cd?.ageRateDormant ?? 0.15) : inside ? _AGE_RATE_IN_NEST : (cd?.ageRateOutside ?? _AGE_RATE_IN_NEST);
+  const outside = cd?.ageRateOutside ?? _AGE_RATE_IN_NEST;
+  const ageRate = a.flags & _AntFlag.DORMANT ? (cd?.ageRateDormant ?? 0.15) : inside ? _AGE_RATE_IN_NEST
+    : _AGE_RATE_IN_NEST + (outside - _AGE_RATE_IN_NEST) * _OUTSIDE_WEAR_SHARE;
   a.physioAgeGd += ageRate * dtGd;
   if ((a.flags & _AntFlag.CALLOW) && sim.state.tick - a.bornTick >= _daysToTicks(_CALLOW_GD)) a.flags &= ~_AntFlag.CALLOW;
 

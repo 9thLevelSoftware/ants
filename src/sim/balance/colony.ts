@@ -88,6 +88,22 @@ export const HEALTH_REGEN_ELSEWHERE = 0.1;
  * founding-close request 1).
  */
 export const STARVE_ALERT_GRACE_GD = 1.0;
+/**
+ * Hand-over provisioning (viab-economy R2; GDD 06 §5.13 (c) keeps it all in the queen): at the hand-over the
+ * queen's reserve above what she keeps for herself goes into the colony pool, as she goes on feeding the first brood
+ * and workers from her body until foragers return. She keeps HANDOVER_QUEEN_KEEP_C of fat (QUEEN_FAT_CAP, her own
+ * refill target) and HANDOVER_QUEEN_KEEP_P of protein (her P upkeep for 10 gd), loads.
+ */
+/**
+ * Ageing outside at Tier 2 (viab-economy R1): GDD 02 §1.3 ages an ant 3x outside (species `ageRateOutside`) as "the
+ * dossier's x5 forager hazard approximated by wear plus real predation". With the Tier 2 ecology predators, human
+ * footfall and drowning kill foragers for real, so only this share of the excess over the in-nest rate stays as
+ * wear (Lasius 3 -> 2 per gd). Without it the short-lived nanitics of a small colony that forages (R3) died of old
+ * age at 10-15 gd, a quarter of the first workers before their first winter.
+ */
+export const AGE_OUTSIDE_WEAR_SHARE_T2 = 0.5;
+export const HANDOVER_QUEEN_KEEP_C = 3.0;
+export const HANDOVER_QUEEN_KEEP_P = 1.0;
 export const HEALTH_REGEN_MAX_FATIGUE = 0.8;
 /** Heat or cold load below which health regenerates. */
 export const HEALTH_REGEN_MAX_THERMAL_LOAD = 0.05;
@@ -195,6 +211,29 @@ export const LAYING_P_MIN_DAYS = 0.25;
 export const LAYING_LARVAL_HUNGER_MAX = 0.6;
 export const LAYING_LARVAE_PER_NURSE = 3;
 export const LAYING_LARVAE_EXTRA = 2;
+/**
+ * Laying-protein release (viab-economy R4, refines GDD 02 §3.3 / §5.4.2): while laying protein is permitted, the
+ * carers pass the queen laying protein for the share `clamp((daysP - FLOOR) / (targetDaysP - FLOOR), 0, 1)` of her
+ * potential: protein in store above the brood's reserve goes to her, a full store releases all of it. FLOOR is the
+ * lean-exit protein level; at the §15 colony (daysP 0.78, target 1.5) this gives the chapter's 28 % (12 eggs/gd).
+ */
+export const LAYING_RELEASE_FLOOR_DAYS = 0.5;
+/**
+ * The queen accepts protein into her gut against a credit (loads P) that accrues at her P upkeep plus the released
+ * laying protein and is capped here; carers bring P only while it holds at least LAYING_CREDIT_FEED_MIN. Without
+ * it the queen took the P of every ration past her C target and laid at her potential while laying was withheld.
+ */
+export const LAYING_CREDIT_CAP = 0.4;
+export const LAYING_CREDIT_FEED_MIN = 0.04;
+/**
+ * Laying waits for protein to raise the brood (R4, "laying tracks protein supply", GDD 02 §3.3): laying protein is
+ * released only while the protein in store plus LAYING_SUPPLY_HORIZON_GD of intake (EMA, LAYING_INTAKE_EMA_GD)
+ * covers what the brood still needs (feeding larvae's remaining protein, LARVA_P_REQ per egg). Without it a
+ * provisioned first-year colony laid 20 eggs into an autumn with no protein coming in, and the larvae it could not
+ * feed sent it into brood sacrifice for days.
+ */
+export const LAYING_SUPPLY_HORIZON_GD = 0.5;
+export const LAYING_INTAKE_EMA_GD = 0.5;
 /** Retinue target: queen gut C and P (GDD 02 §3.3). */
 export const QUEEN_TARGET_GUT_C = 0.3;
 export const QUEEN_TARGET_GUT_P = 0.4;
@@ -226,6 +265,13 @@ export const NEED_EMA_GD = 0.5;
 export const STOCK_TARGET_C_GD = 3;
 export const STOCK_TARGET_P_GD = 1.5;
 export const STOCK_TARGET_MULT = { low: 0.5, normal: 1, high: 2 } as const;
+/**
+ * Autumn hoarding (viab-economy R5): in autumn the carbohydrate stock target is multiplied by this, so a first-year
+ * colony keeps foraging while it still can and enters winter with stores. GDD 06 §6.3 readiness asks 1.5 x the
+ * winter cost (7 gd x MET_DORMANT_MULT 0.3-0.35 x upkeep ≈ 2.5 gd of upkeep, x 1.5 ≈ 3.7 gd): 3 x 2 = 6 gd of the
+ * autumn need covers it. Protein is not hoarded (the brood diapauses, GDD 02 §2.8).
+ */
+export const AUTUMN_STOCK_TARGET_C_MULT = 2;
 export const STOCK_REFILL_GD = 2;
 export const NEED_RATE_C_MIN = 0.5;
 export const NEED_RATE_P_MIN = 0.05;
@@ -273,6 +319,19 @@ export const SCOUT_BASE_FRAC = 0.02;
 export const SCOUT_SHORTFALL_FRAC = 0.05;
 export const SCOUT_MAX_FRAC = 0.15;
 export const SCOUT_MIN_ACTIVITY = 0.1;
+/**
+ * Small colonies forage (viab-economy R3; GDD 02 §6.2 gives an incipient colony 1-2 scouts and a forage demand
+ * capped by the sources it knows, so 7-16 first workers sent 1-2 ants out). Below SMALL_COLONY_N workers, while
+ * the stores are under their target and the surface is workable (surfaceActivity >= SCOUT_MIN_ACTIVITY), the
+ * forage + scout demand is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N), with at least
+ * SMALL_SCOUTS_MIN scouts until SMALL_KNOWN_SOURCES live food sources are known; until then the whole outside share
+ * that the forage demand does not use scouts (foragers with no known source only wait).
+ */
+export const SMALL_COLONY_N = 30;
+export const SMALL_OUTSIDE_MIN = 2;
+export const SMALL_OUTSIDE_FRAC = 0.35;
+export const SMALL_SCOUTS_MIN = 2;
+export const SMALL_KNOWN_SOURCES = 2;
 export const HAUL_PER_PELLET = 6;
 export const HAUL_PER_WASTE = 6;
 export const HAUL_PER_CORPSE = 2;
@@ -335,6 +394,15 @@ export const ACTIVATION_DEPART = 1.0;
 export const SPONT_DEPART_RATE_S = 1 / 240;
 export const SPONT_NEED_BASE = 0.25;
 export const SPONT_ROUTE_MULT = 2;
+/**
+ * Spontaneous departures in small colonies (R3): GDD 02 §6.6's activation loop needs a return about every 17 s and
+ * never ignites with a handful of foragers, so each waited ~330 s per trip (0.5-1.5 trips/gd in the 1B gate). The
+ * spontaneous rate is multiplied by up to SMALL_SPONT_MULT_MAX: in full below SMALL_SPONT_FULL_N workers, tapering
+ * linearly to 1 at SMALL_COLONY_N, while the colony knows a source with food left (scouts search otherwise; GDD 02
+ * App. E 12 keeps its spontaneous rate). Target: >= 2 trips per worker per gd with food known within 150 BU.
+ */
+export const SMALL_SPONT_MULT_MAX = 5;
+export const SMALL_SPONT_FULL_N = 15;
 /** fEnv humidity term 0.7 + 0.3 x clamp((RH% - 40) / 40, 0, 1). */
 export const FENV_RH_BASE = 0.7;
 export const FENV_RH_GAIN = 0.3;

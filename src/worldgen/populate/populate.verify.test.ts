@@ -102,8 +102,13 @@ describe('food (deliverable 1 / 6, acceptance 4)', () => {
     const { ctx } = world();
     const lines: string[] = [];
     let ok = true;
+    // The recomputation above is the Tier 1 supply model (crumb re-placement, carrion drops). At Tier 2 (viab-economy
+    // R1) herds feed films by overflow and prey patches replace the carrion drops: the floors are judged on the
+    // module's Tier 2 count (economy.ts herdOffer), which this test cannot recompute independently.
+    const t2 = ECOLOGY_TIER >= 2 ? foodReport(ctx).floors : null;
     for (const f of ECONOMY_FLOORS) {
-      const s = sustainedOffer(ctx, f.radiusBu), all = dayOffer(ctx, startDistances(ctx), f.radiusBu);
+      const m = t2?.find((x) => x.radiusBu === f.radiusBu);
+      const s = m ? { c: m.c, p: m.p } : sustainedOffer(ctx, f.radiusBu), all = dayOffer(ctx, startDistances(ctx), f.radiusBu);
       lines.push(`${f.radiusBu} BU: counted ${all.c.toFixed(1)} C / ${all.p.toFixed(1)} P, sustained ${s.c.toFixed(1)} C / ${s.p.toFixed(1)} P, floor ${f.c} C / ${f.p} P`);
       if (s.c < f.c || s.p < f.p) ok = false;
     }

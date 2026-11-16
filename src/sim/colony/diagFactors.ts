@@ -33,13 +33,15 @@ export const pct = (x: number): string => `${Math.round(x * 100)}%`;
 
 /**
  * Publishes a diagnostic with status hysteresis: a new status takes effect once it has held DIAG_HYSTERESIS_GD
- * (the first record of an id is published at once). Emits `diagnostic-changed` when the status changes.
+ * (the first record of an id is published at once); while a change waits, the record keeps the old status and the
+ * value that status was given for. Emits `diagnostic-changed` when the status changes.
  */
 export function publishWithHysteresis(sim: Sim, col: Colony, d: Omit<Diagnostic, 'sinceTick'>): Diagnostic {
   const core = coreOf(col);
   const now = sim.state.tick;
   const prev = sim.state.progression.diagnostics.find((x) => x.id === d.id);
   let status = d.status;
+  let value = d.value;
   let since = now;
   if (prev) {
     since = prev.sinceTick;
@@ -53,13 +55,15 @@ export function publishWithHysteresis(sim: Sim, col: Colony, d: Omit<Diagnostic,
         since = now;
         core.diagPending = core.diagPending.filter((x) => x.id !== d.id);
       } else {
+        // the held status keeps its value too: a record never reads "Good" at a value of a poor one (R6)
         status = prev.status;
+        value = prev.value;
       }
     } else {
       core.diagPending = core.diagPending.filter((x) => x.id !== d.id);
     }
   }
-  const rec: Diagnostic = { ...d, status, sinceTick: since };
+  const rec: Diagnostic = { ...d, status, value, sinceTick: since };
   const fallback = colonyPublish(sim, rec);
   if (fallback && (!prev || prev.status !== status)) {
     sim.emit({ type: 'diagnostic-changed', id: rec.id, status: rec.status, topCause: rec.factors[0]?.cause ?? '' });

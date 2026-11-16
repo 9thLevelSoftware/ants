@@ -53,7 +53,8 @@ describe('queen laying (GDD 02 §3.2, E6-E7)', () => {
 
   it('AC7: a protein-limited queen lays (P supply - P upkeep) / EGG_COST_P eggs per gd (worked example: 12)', () => {
     // GDD 02 §15: ration 0.30 C + 0.58 P per gd -> 0.48 P for eggs -> 12 eggs per gd at 0.04 P each.
-    const { sim } = setup(60, { lay: true, tend: true, queenPPerGd: 0.58, queenCPerGd: 0.3 });
+    // larvae fed: hungry larvae withhold laying protein (GDD 02 §3.3), which the queen no longer takes past her credit (R4)
+    const { sim } = setup(60, { lay: true, tend: true, feedLarvae: true, queenPPerGd: 0.58, queenCPerGd: 0.3 });
     step(sim, TICKS_PER_DAY / 4); // settle the gut
     let eggs = 0;
     sim.events.on('egg-laid', () => eggs++);

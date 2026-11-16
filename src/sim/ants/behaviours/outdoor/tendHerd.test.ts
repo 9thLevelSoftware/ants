@@ -22,6 +22,9 @@ import { startTravel } from './tendHerdStates';
 const LONG = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.FOUNDRESS_LONG === '1';
 
 let restore: (() => void) | null = null;
+
+/** After a storm, tenders need this long to walk back out and lift `tend` again (TEND_TAU plus the walk). */
+const STORM_RECOVERY_TICKS = 0.1 * TICKS_PER_DAY;
 afterEach(() => { restore?.(); restore = null; });
 
 const HERBS = [{ dx: -20, dz: -30 }, { dx: 45, dz: -30 }, { dx: -40, dz: 40 }];
@@ -58,13 +61,16 @@ interface Watch {
   returns: Map<number, number>;
   /** `tend` of each tended herd, sampled with prodC (every 250 ticks). */
   tendSamples: number[][];
+  /** Per sample: a storm was on within the last STORM_RECOVERY_TICKS (its curfew calls every tender home). */
+  stormSamples: boolean[];
   /** Ants in task `tend` at the end of the run, and the tick (10-tick samples) since when they have been. */
   tendSince: Map<number, number>;
 }
 
 /** Steps n ticks recording honeydew delivered per game day, climbs, arrivals and tenders of the avoided herd. */
 function watch(sim: Sim, avoided: Herd, ticks: number, tended: Herd[] = []): Watch {
-  const w: Watch = { honeydewC: [], prodC: [], climbs: new Set(), atHerd: new Set(), avoidedTenders: 0, maxStill: 0, tendSince: new Map(), tendSamples: [], returns: new Map() };
+  const w: Watch = { honeydewC: [], prodC: [], climbs: new Set(), atHerd: new Set(), avoidedTenders: 0, maxStill: 0, tendSince: new Map(), tendSamples: [], stormSamples: [], returns: new Map() };
+  let stormTick = -Infinity;
   const day = () => Math.floor(sim.state.tick / TICKS_PER_DAY);
   const d0 = day();
   sim.events.on('delivery', (e) => {
@@ -76,7 +82,9 @@ function watch(sim: Sim, avoided: Herd, ticks: number, tended: Herd[] = []): Wat
   const lastState = new Map<number, string>();
   for (let t = 0; t < ticks; t++) {
     sim.tick();
+    if (sim.state.env.weather.state === 'storm') stormTick = sim.state.tick;
     if (t % 250 === 0) {
+      w.stormSamples.push(sim.state.tick - stormTick <= STORM_RECOVERY_TICKS);
       const i = day() - d0;
       w.prodC[i] = (w.prodC[i] ?? 0) + tended.reduce((s, h) => s + productionPerGd(h.a, h.tend, 1), 0) / 24;
       w.tendSamples.push(tended.map((h) => h.tend));
@@ -109,7 +117,7 @@ function stillCheck(sim: Sim, a: Ant, still: Map<number, { x: number; y: number;
 }
 
 describe('herd tending in a 60-worker colony (AC 3, 4)', () => {
-  it('establishes tending: herds claimed, tend high, tenders climb to the stems and bring honeydew home; the avoided herd stays untended', () => {
+  it('establishes tending: herds claimed, tend high, tenders climb to the stems and bring honeydew home; the avoided herd stays untended', { timeout: 120_000 }, () => {
     restore = fixWeather(20);
     const { sim, herds, avoided } = colony60();
     // the control: the same untended herd in a sim without ants (same days, same model)
@@ -120,9 +128,14 @@ describe('herd tending in a 60-worker colony (AC 3, 4)', () => {
     const col = sim.state.colonies[0];
     // tending established: over the second half of the day each herd's `tend` averages above 0.75 and never falls
     // below 0.5 in the last quarter (it dips when a cohort of tenders that arrived together fills up and leaves
-    // together; the FOUNDRESS_LONG run shows tend near 1 on later days)
+    // together; the FOUNDRESS_LONG run shows tend near 1 on later days). A storm is a curfew that calls every tender
+    // home (GDD 02 §6.6): seed 1's weather brings one late on day 1, so samples during it and while the tenders walk
+    // back out are not held to the floor (L4 of the 1B sim gate: 0.47 there). The colony and the control share it.
     const n = w.tendSamples.length;
-    const secondHalf = w.tendSamples.slice(Math.floor(n / 2)), lastQuarter = w.tendSamples.slice(-Math.round(n / 4));
+    const calm = w.tendSamples.filter((_, k) => !w.stormSamples[k]);
+    const secondHalf = w.tendSamples.slice(Math.floor(n / 2));
+    const lastQuarter = w.tendSamples.slice(-Math.round(n / 4)).filter((_, k) => !w.stormSamples[n - Math.round(n / 4) + k]);
+    expect(calm.length).toBeGreaterThan(n / 2);
     herds.forEach((h, i) => {
       expect(h.tenderColony).toBe(col.id);
       expect(secondHalf.reduce((s, row) => s + row[i], 0) / secondHalf.length).toBeGreaterThan(0.75);

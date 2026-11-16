@@ -243,3 +243,27 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - `human-events` (Opus): 13 of 13 review findings fixed (crush on slopes, footprint trenches, schedule rules, tyre semantics per car pass, cue cost 0.325 → 0.069 ms/tick mowing). I looked at the 12-scene contact sheet: shoes/soles, broom, vacuum head, mower deck read at ant scale; legs are plain gradient cylinders; car underbody dark slabs. Missing GDD effects listed in its result (spill afloat, detergent deposition ×0.5, post-mow effects, engine heat, shade under parked car, toys, door/lights states, diag-human-pressure, diag-bait, T3 variants).
 - Launched `wire-stage2` (Opus, visual: register creatures / fx / weather / humans renderers, overlay host, codexUnlocks, dig-plans overlay, debug queries; `tests/e2e/stage2.mjs`) + `photo` (Sonnet impl, Opus review).
 - Running: stabilisation round (`w7oa5adpf`, `w7ydd9gyu`).
+
+## Nov 16 10:30 UTC — wire-stage2 + photo landed
+
+- **wire-stage2** (Opus impl + review + fix): creatures, humans, weather and fx slots registered in the real game
+  (`RENDERER_SLOTS` = world, nest, ants, creatures, humans, weather, fx), `comfort` in FrameInfo (title too),
+  dig-plans outline in every view (hidden by photo "Hide markers"), codex unlocks from profile, debug queries and
+  cheats (`spawnHerd`, `setRain`, `setWeatherClass`, `triggerBird`), tremor relay. `tests/e2e/stage2.mjs` (9 sections).
+  Measured per-renderer cost via camera layer 31. Evidence `test-output/stage2/**`.
+  - **stage2.mjs is red without `STAGE2_SOFT=1`**: no forager lays a trail to a 400-unit sugar spill 14 BU from the
+    entrance in 12,000 ticks (2 of 3 seed-1 runs). Same root as the viability work (viab-economy R3).
+- **photo** (Sonnet impl, Opus review, fix): photo mode from possession; subject / focal / aperture / focus /
+  exposure / roll / look / guides; 1x and 2x PNG capture with preview card; sandboxed-iframe safe.
+  `tests/e2e/photo.mjs`. Evidence `test-output/photo-fix/**`.
+  - Integrator applied the remaining review finding 1: `FrameInfo.hidePossessedHighlight` → `AntFrameInfo` →
+    `AntRenderer.highlightOf` (test in `src/render/ants/lookFixes.test.ts`).
+  - Not done: `photo-captured` event, pad bindings untested, monochrome/field-note filters (GDD 08 looks win).
+- **Look defects seen by the integrator in the stage 2 shots (owed, for `stage2-look-fix`)**:
+  1. Rain streaks are wide opaque white columns near the camera (`test-output/stage2/final/06-rain-wet-puddle.png`): broken, must fix before publish.
+  2. Moisture overlay makes the whole ground near-black / dark blue.
+  3. Spider comfort "softened" ≈ "off" at observer distance.
+  4. Bird beak spears props; human legs plain cylinders; broom shadow a hard quad.
+  5. FoundingOverlay should hide itself in photo view (currently hidden by CSS only).
+- Alerts after rain on seed 1 after hand-over ("Founding chamber flooding", "Queen under attack: rising water") →
+  covered by weather-fix2 (running).

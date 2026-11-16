@@ -23,7 +23,7 @@ function colony(site: 'hollow' | 'knoll' | 'flat'): Sim {
   for (let iz = 0; iz < t.nz; iz++) for (let ix = 0; ix < t.nx; ix++) {
     const d = Math.hypot(ix * t.cell - ex, iz * t.cell - ez) / bu;
     // knoll: the entrance stands 2.4 BU above its 8 BU ring (c clamps to 0.25); hollow: flat ground in a basin
-    // worldgen rates at flood risk 0.8 (c = 1 + 3 x 0.8 = 3.4)
+    // worldgen rates at flood risk 0.8 (c = 1 + 3 x (0.8 - 1/3) / (2/3) = 3.1)
     if (site === 'knoll') t.data[iz * t.nx + ix] = Math.max(0, 3 * bu * (1 - d / 10));
   }
   if (site === 'hollow') world.maps.floodRisk.data.fill(Math.round(0.8 * 255));

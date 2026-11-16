@@ -121,6 +121,8 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
     importSave: (data: Uint8Array | string, target: string) => importInto(manager, data, target),
     resetHints: () => profile.resetHints(),
     hasLineage: () => profile.get().lineage.colonies.length > 0,
+    /** Codex entries unlocked on this device (the Codex panel, GDD 06 §12; profile, not saves). */
+    codexUnlocks: () => profile.get().codex,
     getBindings: () => game.settings.get().bindings,
     setBindings: (b: GameSettings['bindings']) => game.setSettings({ bindings: b }),
     /** Settings > header notice when settings cannot be stored (ui-shell). */

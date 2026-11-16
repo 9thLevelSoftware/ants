@@ -10,6 +10,7 @@ import { isLocoNavGrid } from './grid/navGridImpl';
 import { locoParams, type LocoParams } from './params';
 import { homeEntranceStatus } from './nests';
 import type { StallRecord } from './stallWatch';
+import { NeighbourGrid } from './neighbours';
 
 /** Counters exposed for diagnostics (locoStats). Monotone over the sim's lifetime. */
 export interface LocoStats {
@@ -37,6 +38,8 @@ export interface LocoStats {
   drops: number;
   /** Steps of standing walkers skipped (no request, already on the level set). */
   standSkipped: number;
+  /** Steps skipped by in-nest wanderers dozing in a crowd. */
+  dozed: number;
 }
 
 interface FlowSig {
@@ -96,6 +99,8 @@ export interface LocoRuntime {
   /** Nests holding flood water, cached for `floodTick` (weather.ts). */
   floodTick: number;
   flooded: Set<number>;
+  /** Crowd grid of the ant positions at the start of this tick's locomotion (separation; neighbours.ts). */
+  crowd: NeighbourGrid | null;
   /** Puddle store as last synced into the nav grid's overlay (puddles.ts); null before the first sync. */
   puddleSeen: Uint8Array | null;
 }
@@ -106,7 +111,7 @@ function zeroStats(): LocoStats {
   return {
     requests: 0, arrivals: 0, failures: 0, timeouts: 0, plans: 0, planDeferred: 0, planFailed: 0, stuckEpisodes: 0,
     replans: 0, sidesteps: 0, backoffs: 0, resnaps: 0, relocations: 0, stepped: 0, lodSkipped: 0, walkerFailed: 0,
-    surfaceChanged: 0, edgeClamps: 0, slips: 0, rescues: 0, drops: 0, standSkipped: 0,
+    surfaceChanged: 0, edgeClamps: 0, slips: 0, rescues: 0, drops: 0, standSkipped: 0, dozed: 0,
   };
 }
 
@@ -116,7 +121,7 @@ export function rt(sim: Sim): LocoRuntime {
   const created: LocoRuntime = {
     P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, planExpand0: 0, observer: null,
     pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1, sepGrid: null, sepTick: -1, possessedOverriddenId: -1,
-    stalls: new Map(), overriddenTick: new Map(), floodTick: -1, flooded: new Set(), puddleSeen: null,
+    stalls: new Map(), overriddenTick: new Map(), floodTick: -1, flooded: new Set(), puddleSeen: null, crowd: null,
   };
   runtimes.set(sim, created);
   return created;
@@ -231,6 +236,18 @@ export function antGrid(sim: Sim, r: LocoRuntime = rt(sim)): HashGrid3 {
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
     if (a.alive) g.insert(a.id, a.pos.x, a.pos.y, a.pos.z);
+  }
+  return g;
+}
+
+/** Fills the crowd grid from the alive ants' current positions, tagged by colony (the locomotion system, once per tick). */
+export function fillCrowd(sim: Sim, r: LocoRuntime): NeighbourGrid {
+  const g = (r.crowd ??= new NeighbourGrid(r.P.sepR));
+  g.clear();
+  const list = sim.stores.ants.list;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    if (a.alive) g.insert(a.id, a.pos.x, a.pos.y, a.pos.z, a.colony);
   }
   return g;
 }

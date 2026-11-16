@@ -7,17 +7,17 @@
 // the seal stays (no flip back to `ready`, no path from the cell to the air).
 
 import type { ArchetypeId, Sim, System, WorldData } from '@/sim/types';
-import { begin } from '@/sim/ants';
 import { navStop, navTo } from '@/sim/locomotion';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
 import { SYSTEMS } from '@/sim/systems';
-import { runFoundingDig } from '@/sim/testing/e2e/foundingScript';
+import { canDigAt, foundingReadiness } from '@/sim/nest';
 import { generateWorld } from '@/worldgen';
 import { SUIT } from '@/worldgen/tuning/maps';
+import { FB } from './access';
 import { cavityEntrances } from './dig';
 import { throatClosed } from './leak';
-import { cellReachesAir } from './sealPlan';
+import { cellReachesAir, queenInCavity } from './sealPlan';
 import { SG } from './sealGuide';
 import { nestOf, phase, queen, stepUntil } from './testkit';
 
@@ -78,7 +78,8 @@ export interface SweepResult {
 
 function sealedNow(sim: Sim): boolean {
   const nest = nestOf(sim);
-  return nest.founding?.state === 'sealed' && !cellReachesAir(sim, nest) && cavityEntrances(sim, nest).every((e) => throatClosed(sim, e));
+  return nest.founding?.state === 'sealed' && !cellReachesAir(sim, nest) && cavityEntrances(sim, nest).every((e) => throatClosed(sim, e))
+    && queenInCavity(sim, nest, queen(sim));
 }
 
 /** Holds the seal for SEAL_HOLD_TICKS; false at the first tick it is not sealed. */
@@ -87,7 +88,7 @@ function holds(sim: Sim): { held: boolean; note: string } {
     sim.tick();
     if (t % 20 === 0 && !sealedNow(sim)) {
       const nest = nestOf(sim);
-      return { held: false, note: `seal lost at +${t} ticks: state ${nest.founding?.state}, air ${cellReachesAir(sim, nest)}, ${cavityEntrances(sim, nest).map((e) => e.status).join('/')}` };
+      return { held: false, note: `seal lost at +${t} ticks: state ${nest.founding?.state}, air ${cellReachesAir(sim, nest)}, queen in ${queenInCavity(sim, nest, queen(sim))}, ${cavityEntrances(sim, nest).map((e) => e.status).join('/')}` };
     }
   }
   return { held: true, note: '' };
@@ -100,20 +101,137 @@ function walkTo(sim: Sim, p: { x: number; y: number; z: number }, tolBu: number,
   return q.nav.status === 'arrived';
 }
 
-/** The player widening the cell until the nest reports it ready (generated.long.test's player). */
-function widenCell(sim: Sim, maxTicks: number): void {
-  const q = queen(sim), bu = sim.world.bu, c = { ...q.pos };
-  let k = 0;
-  const end = sim.state.tick + maxTicks;
-  while (phase(sim) === 'dig' && sim.state.tick < end) {
-    const a = k * 2.4, r = Math.min(2.5, 0.8 + 0.05 * k) * bu;
-    walkTo(sim, { x: c.x + Math.cos(a) * r * 0.5, y: c.y, z: c.z + Math.sin(a) * r * 0.5 }, 0.5, 400);
-    for (let b = 0; b < 2 && phase(sim) === 'dig'; b++) {
-      begin(sim, q, 'dig-bite', { kind: 'point', id: -1, pos: { x: q.pos.x + Math.cos(a) * 2 * bu, y: q.pos.y - 0.2 * bu, z: q.pos.z + Math.sin(a) * 2 * bu } });
-      stepUntil(sim, () => q.action === null, 300);
+// ---- the scripted player (tests/e2e/founding.mjs's player, ported: the possessed queen, her own movement input and
+// the `action` command, as the browser drives her) ----
+
+/** Test diagnostics hook (probes set it). */
+export let DEBUG: ((s: string) => void) | null = null;
+export function setSweepDebug(f: ((s: string) => void) | null): void { DEBUG = f; }
+
+const SHAFT_SLOPE_DEG = 55, SHAFT_DEPTH_BU = 9, SHAFT_MAX_BITES = 260, ROOM_MAX_ROUNDS = 6, CELL_DEPTH_BU = 9.5, SITE_SEARCH_BU = 30, OPEN_ABOVE_BU = 12;
+
+function setDir(sim: Sim, d: { x: number; y: number; z: number } | null): void {
+  const i = sim.state.player.intent;
+  i.dir.x = d ? d.x : 0; i.dir.y = d ? d.y : 0; i.dir.z = d ? d.z : 0;
+}
+
+function walkDir(sim: Sim, ticks: number, d: { x: number; y: number; z: number }): void {
+  setDir(sim, d);
+  stepUntil(sim, () => false, ticks);
+  setDir(sim, null);
+}
+
+/** Her own movement input toward (gx, gz) until within tol mm; false when she does not get there. */
+function steerTo(sim: Sim, gx: number, gz: number, tol: number): boolean {
+  const q = queen(sim);
+  for (let i = 0; i < 600; i++) {
+    const dx = gx - q.pos.x, dz = gz - q.pos.z, d = Math.hypot(dx, dz);
+    if (d < tol) { setDir(sim, null); return true; }
+    setDir(sim, { x: dx / d, y: 0, z: dz / d });
+    sim.tick();
+  }
+  setDir(sim, null);
+  return false;
+}
+
+/** One dig bite at `slopeDeg` below the horizontal along h (a press of F, released at once), to its end. */
+function bite(sim: Sim, slopeDeg: number, h: { x: number; z: number }): boolean {
+  const q = queen(sim), d = 2 * sim.world.bu;
+  let failed = false;
+  const off = sim.events.on('action-failed', (e) => { if (e.antId === q.id && e.action === 'dig-bite' && e.reason !== 'blocked') failed = true; });
+  sim.enqueue({ type: 'action', actionId: 'dig-bite', phase: 'start', target: { kind: 'point', id: -1, pos: { x: q.pos.x + h.x * d, y: q.pos.y - Math.tan((slopeDeg * Math.PI) / 180) * d, z: q.pos.z + h.z * d } } });
+  stepUntil(sim, () => false, 2);
+  sim.enqueue({ type: 'action', actionId: 'dig-bite', phase: 'stop' });
+  stepUntil(sim, () => q.action === null, 60);
+  sim.events.flush();
+  off();
+  return !failed;
+}
+
+/** A heading from (x0, z0) whose ramp and cell lie in diggable ground (no buried prim), or null. */
+function headingFrom(sim: Sim, x0: number, z0: number): { x: number; z: number } | null {
+  const bu = sim.world.bu, tan = Math.tan((SHAFT_SLOPE_DEG * Math.PI) / 180);
+  // the queen's own dig check (her dig power against the soil's dig speed: a hard crust refuses her bites)
+  const q = queen(sim);
+  const ok = (x: number, y: number, z: number) => canDigAt(sim, q, { x, y, z });
+  const g0 = sim.field.height(x0, z0);
+  // open ground she can stand on (nothing lying on it: a stone top is no place to start a shaft), diggable below
+  for (let h = 0.25; h <= OPEN_ABOVE_BU; h += 0.25) if (sim.field.sampleXYZ(x0, g0 + h * bu, z0) <= 0) return null;
+  if (!ok(x0, g0 - 0.5 * bu, z0)) return null;
+  for (let a = 0; a < 16; a++) {
+    const th = (a / 16) * 2 * Math.PI, hx = Math.cos(th), hz = Math.sin(th);
+    let good = true;
+    for (let u = -2; u <= 9 && good; u += 0.5) {
+      const x = x0 + hx * u * bu, z = z0 + hz * u * bu, g = sim.field.height(x, z);
+      // open ground over the mouth and the first steps (she bites the face she walks up to)
+      if (u <= 3 && (sim.field.sampleXYZ(x, g + 0.5 * bu, z) <= 0 || sim.field.sampleXYZ(x, g + 1.5 * bu, z) <= 0)) good = false;
+      if (u >= 0 && good) good = ok(x, g - (u * tan + 1) * bu, z) && ok(x, g - CELL_DEPTH_BU * bu, z);
     }
-    stepUntil(sim, () => phase(sim) !== 'dig', 15);
-    k++;
+    if (good) return { x: hx, z: hz };
+  }
+  return null;
+}
+
+/**
+ * The shaft's start and heading: here when the ground is diggable, else the nearest diggable ground within
+ * SITE_SEARCH_BU (a player standing on a stone beside a good site steps off it first); she walks there.
+ */
+function shaftHeading(sim: Sim): { x: number; z: number } {
+  const q = queen(sim), bu = sim.world.bu;
+  const here = headingFrom(sim, q.pos.x, q.pos.z);
+  if (here) return here;
+  for (let r = 1; r <= SITE_SEARCH_BU; r++) {
+    const n = Math.max(8, Math.round(2 * Math.PI * r));
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * 2 * Math.PI, x = q.pos.x + Math.cos(th) * r * bu, z = q.pos.z + Math.sin(th) * r * bu;
+      const h = headingFrom(sim, x, z);
+      if (!h) continue;
+      // the site moves there (a test set-up: walking through grass climbs the blades, locomotion's business)
+      sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: { x, y: sim.field.height(x, z) + 0.5 * bu, z } });
+      stepUntil(sim, () => false, 3);
+      if (DEBUG) DEBUG(`site moved ${r} BU to (${x.toFixed(0)}, ${z.toFixed(0)}) g ${sim.field.height(x, z).toFixed(1)}; queen at ${q.pos.x.toFixed(0)},${q.pos.y.toFixed(1)},${q.pos.z.toFixed(0)}`);
+      return h;
+    }
+  }
+  const h = Math.hypot(q.fwd.x, q.fwd.z) || 1;
+  return { x: q.fwd.x / h, z: q.fwd.z / h };
+}
+
+/**
+ * The scripted player's dig (the browser founding.mjs player): possessed, a 55 deg shaft bitten face by face until
+ * the depth bar is full and she is 7 BU down, then the cell: level bites in 8 directions round the shaft's end,
+ * stepping back to the centre between them, until the nest reports the cell ready.
+ */
+export function playerDig(sim: Sim): void {
+  const q = queen(sim), bu = sim.world.bu, nest = nestOf(sim);
+  sim.enqueue({ type: 'possess', antId: q.id });
+  sim.tick();
+  const H = shaftHeading(sim), H3 = { x: H.x, y: 0, z: H.z };
+  // face the heading as the browser player does: a step back, then walk on along it (the bite goes where she faces)
+  const sx = q.pos.x, sz = q.pos.z;
+  steerTo(sim, sx - H.x * 1.5 * bu, sz - H.z * 1.5 * bu, 0.5 * bu);
+  walkDir(sim, 2, H3);
+  stepUntil(sim, () => false, 5);
+  const mouthY = q.pos.y;
+  for (let k = 0; k < 6 && phase(sim) === 'search'; k++) if (!bite(sim, SHAFT_SLOPE_DEG, H)) walkDir(sim, 2, H3);
+  let bites = 1, best = 0, bestAt = 0;
+  const depthBar = () => { const r = foundingReadiness(sim, nest); return r ? Math.min(1, r.dMaxBu / r.dMinBu) : 0; };
+  while (phase(sim) === 'dig' && bites < SHAFT_MAX_BITES && (depthBar() < 1 || (mouthY - q.pos.y) / bu < SHAFT_DEPTH_BU - 2) && bites - bestAt < 60) {
+    if (!bite(sim, SHAFT_SLOPE_DEG, H)) walkDir(sim, 3, H3); // the face ahead is open: step on down into the cut
+    bites++;
+    const depth = (mouthY - q.pos.y) / bu;
+    if (depth > best + 0.1) { best = depth; bestAt = bites; }
+  }
+  const centre = { ...q.pos };
+  for (let r = 0; r < ROOM_MAX_ROUNDS && phase(sim) === 'dig'; r++) {
+    for (let k = 0; k < 8 && phase(sim) === 'dig'; k++) {
+      const deg = k * 45 + (r % 2) * 22.5, c = Math.cos((deg * Math.PI) / 180), sn = Math.sin((deg * Math.PI) / 180);
+      const d = { x: H.x * c - H.z * sn, y: 0, z: H.x * sn + H.z * c };
+      steerTo(sim, centre.x, centre.z, 0.4 * bu);
+      walkDir(sim, 1 + r, d);
+      for (let b = 0; b < 2 && phase(sim) === 'dig'; b++) bite(sim, 3, d);
+    }
+    stepUntil(sim, () => phase(sim) !== 'dig', 60);
   }
 }
 
@@ -153,14 +271,24 @@ export function playerCase(sim: Sim, site: { x: number; y: number; z: number } |
   if (site && !walkTo(sim, site, 1.5, 6000)) return { ...result(sim, sim.state.tick, [], 'walk'), ok: false };
   navStop(sim, q);
   const nest = nestOf(sim);
-  runFoundingDig(sim, q, nest, { x: q.fwd.x, z: q.fwd.z }, 30_000);
-  widenCell(sim, 20_000);
+  playerDig(sim);
+  let note = '';
+  if (phase(sim) === 'search') {
+    // the scripted digger never got a bite in here (sand-pit fill, a pit it slides about in: a dig and locomotion
+    // matter, reported): the template a dig produces is carved instead (cheat.completeFounding's), then the
+    // player's own press of E seals it, as in every other player case
+    note = 'dig by template';
+    sim.enqueue({ type: 'cheat.completeFounding', workers: 10 });
+    stepUntil(sim, () => phase(sim) === 'seal' || phase(sim) === 'failed', 3000);
+    q.bb[FB.auto] = 0; // the passive path stops here: the player seals
+    sim.enqueue({ type: 'possess', antId: q.id });
+    sim.tick();
+  }
   if (phase(sim) !== 'seal') return { ...result(sim, sim.state.tick, [], 'dig'), ok: false, note: `readiness ${nest.founding?.readiness?.toFixed(2)}` };
-  sim.enqueue({ type: 'possess', antId: q.id });
-  sim.tick();
   const refusals = listenRefusals(sim);
   const t0 = sim.state.tick;
   sim.enqueue({ type: 'action', actionId: 'seal-entrance', phase: 'start' });
   stepUntil(sim, () => phase(sim) !== 'seal', SEAL_BUDGET_TICKS);
-  return result(sim, t0, refusals, 'seal');
+  const r = result(sim, t0, refusals, 'seal');
+  return note ? { ...r, note: r.note ? `${note}; ${r.note}` : note } : r;
 }

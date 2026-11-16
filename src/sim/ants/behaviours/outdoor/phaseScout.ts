@@ -10,8 +10,9 @@ import {
   INVESTIGATE_S, LEG_ARRIVE_BU, SCOUT_CANDIDATES, SCOUT_DEPART_BU, SCOUT_DEPART_DONE_FRAC, SCOUT_DEPART_MAX_S, SCOUT_EDGE_BU,
   SCOUT_LEG_BU, SCOUT_MARKER_ARRIVE_FRAC,
   SCOUT_FAN_RAD, SCOUT_RAY_LEGS, SCOUT_MARKER_SHARE, SCOUT_MAX_RANGE_BU, SCOUT_MAX_S, SCOUT_TURN_SIGMA_DEG_S,
-  SCOUT_W_AVOID, SCOUT_W_HOME, SCOUT_W_MARKER, SCOUT_W_NOISE, SCOUT_W_STRAIGHT, SCOUT_W_UNEXPLORED,
+  SCOUT_W_AVOID, SCOUT_W_HOME, SCOUT_W_MARKER, SCOUT_W_NOISE, SCOUT_W_STRAIGHT, SCOUT_W_UNEXPLORED, SMALL_SCOUT_RANGE_BU,
 } from '@/sim/balance/foraging';
+import { SMALL_COLONY_N } from '@/sim/balance/colony';
 import { homeHere, isExplored, smelledSource, touchedSource } from '@/sim/ants/perception';
 import { casteSpeeds } from '@/sim/locomotion';
 import { TICKS_PER_SECOND } from '@/sim/time';
@@ -142,10 +143,16 @@ function nextLeg(sim: Sim, ant: Ant): void {
   ant.bb[K.heading] = h;
 }
 
+/** How far a scout of this colony explores, BU: near home in a small colony (SMALL_SCOUT_RANGE_BU, R3). */
+function scoutRangeBu(sim: Sim, ant: Ant): number {
+  const workers = sim.stores.colonies.get(ant.colony)?.core?.workers ?? Infinity;
+  return workers < SMALL_COLONY_N ? SMALL_SCOUT_RANGE_BU : SCOUT_MAX_RANGE_BU;
+}
+
 function exploreOver(sim: Sim, ant: Ant): ReasonCode | null {
   const t = (sim.state.tick - (ant.bb[K.explore0] ?? sim.state.tick)) / TICKS_PER_SECOND;
   if (t > SCOUT_MAX_S) return 'timeout';
-  if (distFromHome(sim, ant, ant.pos) > SCOUT_MAX_RANGE_BU * sim.world.bu) return 'timeout';
+  if (distFromHome(sim, ant, ant.pos) > scoutRangeBu(sim, ant) * sim.world.bu) return 'timeout';
   // GDD 02 §10.1 returns a scout at crop C < 0.05; its own ration (0.1 C at 0.20 C/gd) falls below that after
   // about 150 s, half of SCOUT_MAX_S. Resolved: a scout turns home on hunger like any outside ant (crop C below
   // HUNGER_RETURN_CROP and reserve below half), which the engine's recall check applies.

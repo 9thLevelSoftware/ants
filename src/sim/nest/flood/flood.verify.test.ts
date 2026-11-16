@@ -9,6 +9,7 @@ import { restore, snapshot } from '@/sim/save/snapshot';
 import { commandsSystem } from '@/sim/systems';
 import { playerNest } from '../nestTestKit';
 import { floodCheats } from './cheats';
+import { neutralSite } from './floodTestKit';
 import { floodSystem } from './index';
 import { entranceInflow } from './inflow';
 import { spillFor, spillPeek } from './runtime';
@@ -23,6 +24,12 @@ function milestones(sim: Sim): string[] {
   return out;
 }
 
+/** The test nest on a neutral site: world hydrology factor 1, GDD 03's flat-ground c = 1 (weather-fix2). */
+function onNeutralSite(sim: Sim): Sim {
+  neutralSite(sim);
+  return sim;
+}
+
 /** Rain I = 1 for `wetTicks`, then no rain and fast drainage (the cheats are not saved: re-applied after a load). */
 function rainThenDrain(sim: Sim, phase: 'rain' | 'drain'): void {
   const c = floodCheats(sim.state);
@@ -33,7 +40,7 @@ function rainThenDrain(sim: Sim, phase: 'rain' | 'drain'): void {
 describe('review: flood state across save / load', () => {
   it('survived-flood is emitted after a save / load mid-flood exactly as in an uninterrupted run', () => {
     // A: uninterrupted
-    const a = makeTestSim({ nest: 'small', systems: SYSTEMS });
+    const a = onNeutralSite(makeTestSim({ nest: 'small', systems: SYSTEMS }));
     const evA = milestones(a);
     rainThenDrain(a, 'rain');
     run(a, 300);
@@ -41,7 +48,7 @@ describe('review: flood state across save / load', () => {
     expect(playerNest(a).chambers[2].flooded).toBeGreaterThanOrEqual(0.25);
     rainThenDrain(a, 'drain');
     // B: same history, saved and restored while the water recedes (after the peak, still wet)
-    const b0 = makeTestSim({ nest: 'small', systems: SYSTEMS });
+    const b0 = onNeutralSite(makeTestSim({ nest: 'small', systems: SYSTEMS }));
     rainThenDrain(b0, 'rain');
     run(b0, 700);
     rainThenDrain(b0, 'drain');
@@ -63,7 +70,7 @@ describe('review: flood state across save / load', () => {
 
 describe('review: inflow arithmetic (GDD 03 §11.1)', () => {
   it('Q = 1.2 x I x c x f_cover x f_rim x f_state x floodInflowMult on the flat test entrance', () => {
-    const sim = makeTestSim({ nest: 'small', systems: SYSTEMS });
+    const sim = onNeutralSite(makeTestSim({ nest: 'small', systems: SYSTEMS }));
     const e = playerNest(sim).entrances[0];
     for (const I of [0.1, 0.4, 0.7, 1]) {
       const f = entranceInflow(sim, e, I);
@@ -81,7 +88,7 @@ describe('review: inflow arithmetic (GDD 03 §11.1)', () => {
 
 describe('review: spill cache cost and rebuild cadence (GDD 03 §11.2: rebuilt when carving changes, throttled to 5 s)', () => {
   it('measures a rebuild and counts rebuilds while the nest is dug during a flood (report only)', () => {
-    const sim = makeTestSim({ nest: 'small', systems: SYSTEMS });
+    const sim = onNeutralSite(makeTestSim({ nest: 'small', systems: SYSTEMS }));
     const nest = playerNest(sim);
     floodCheats(sim.state).rainI = 1;
     run(sim, 200);
@@ -110,7 +117,7 @@ describe('review: spill cache cost and rebuild cadence (GDD 03 §11.2: rebuilt w
   });
 
   it('a DRY nest that is being dug rebuilds its whole spill cache at every reference-storm prediction (report only)', () => {
-    const sim = makeTestSim({ nest: 'small', systems: SYSTEMS });
+    const sim = onNeutralSite(makeTestSim({ nest: 'small', systems: SYSTEMS }));
     const nest = playerNest(sim);
     const bu = sim.world.bu, royal = nest.chambers[2];
     run(sim, 300);

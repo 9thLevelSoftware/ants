@@ -76,6 +76,14 @@ function begin(sim: Sim, w: Walker, opts: NavOptions | undefined, distance: numb
   return { s, r };
 }
 
+/** The speed request in opts is the one the scratch holds. */
+function sameSpeed(s: NavScratch, opts: NavOptions | undefined): boolean {
+  const sp = opts?.speed ?? 'cruise';
+  const kind = typeof sp === 'number' ? 'fixed' : sp;
+  const mult = opts?.speedMult !== undefined && opts.speedMult >= 0 ? opts.speedMult : 1;
+  return s.speedKind === kind && s.speedMult === mult && (kind !== 'fixed' || s.speedFixed === sp);
+}
+
 function rejected(w: Walker, s: NavScratch): false {
   s.req = 'none';
   w.nav.status = 'failed';
@@ -120,6 +128,12 @@ export function navStop(_sim: Sim, w: Walker): void {
  * 'none' (stuck.ts wanderStuck).
  */
 export function navWander(sim: Sim, w: Walker, center: Vec3, radius: number, opts?: NavOptions): boolean {
+  // the same wander asked for again while it runs (a behaviour re-issuing it on each think) goes on as it is: a
+  // fresh request would restart its stall ladder every time, and a walker wedged in a crack would never pivot out
+  // (viab-loco: playground-park #2 raiders at the bottom of a slit in a rival nest)
+  const cur = w.nav.loco;
+  if (cur && cur.req === 'wander' && w.nav.status === 'moving' && finite3(center) && dist3(cur.center, center) < 0.5 * sim.world.bu
+    && cur.radius === (Number.isFinite(radius) && radius > 0 ? radius : 0) && sameSpeed(cur, opts)) return true;
   const { s } = begin(sim, w, opts, Infinity);
   if (!finite3(center)) return rejected(w, s);
   s.req = 'wander';
@@ -278,9 +292,9 @@ export const invariants: readonly SimInvariant[] = [{
     }
   },
 }, {
-  // viab-loco item 1: no ant with nav status 'moving' stays within stallMoveBU (0.25 BU) of one point for
-  // stallWindowS (600 ticks); stallWatch.ts lists who is watched (not the possessed, cold-held, stunned or
-  // override-held ants). Each violation names the position, state, target and surface normal.
+  // viab-loco item 1: no ant spends stallWindowS (600 ticks) with nav status 'moving' within stallMoveBU (0.25 BU)
+  // of one point, failed and re-issued walks added up; stallWatch.ts says which time does not count (possessed,
+  // cold-held, stunned, airborne, override-held). Each violation names the position, state, target and normal.
   name: 'walker-stall',
   check(sim, fail) {
     for (const st of stalledAnts(sim, rt(sim))) fail(formatStall(st));

@@ -45,10 +45,14 @@ export function addFloorBias(w: Walker, out: Vec3, weight: number): void {
   out.x += (_t.x / l) * k; out.y += (_t.y / l) * k; out.z += (_t.z / l) * k;
 }
 
-/** Light separation from nearby ants (radius sepR), weight sepW at contact, at most sepMax neighbours. */
+/**
+ * Light separation from nearby ants (radius sepR), weight sepW at contact, at most sepMax neighbours: the crowd
+ * grid of the tick start (runtime.ts crowdGrid) hands over at most sepMax of them, own cell first, so a dense
+ * crowd costs no more than a sparse one (viab-loco item 6).
+ */
 export function addSeparation(sim: Sim, w: Walker, selfId: number, r: LocoRuntime, out: Vec3): void {
   const P = r.P, ids = r.ids;
-  if (r.sepGrid) r.sepGrid.queryRadius(w.pos.x, w.pos.y, w.pos.z, P.sepR, ids);
+  if (r.crowd) r.crowd.near(w.pos.x, w.pos.y, w.pos.z, P.sepR, selfId, P.sepMax, ids);
   else sim.index.queryAnts(w.pos, P.sepR, ids);
   let n = 0;
   for (let i = 0; i < ids.length && n < P.sepMax; i++) {

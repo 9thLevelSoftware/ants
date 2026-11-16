@@ -49,6 +49,13 @@ export const WALKER_TUNING = {
   strideBU: 0.5,
   /** Invariant guard: after a step f(pos) must be at least this fraction of the foot offset. */
   minClearanceFoot: 0.3,
+  /**
+   * Bracketed projection (the fallback where Newton cycles at a crease or jump of the field): bisection steps (the
+   * bracket shrinks to 2^-n of the step clamp), and the largest field jump (x foot offset) it hops over on the jump's
+   * free side (viab-loco: the pseudo-distance across a steep crest of a mound pile).
+   */
+  bracketIters: 24,
+  jumpHopFoot: 0.75,
 } as const;
 
 export interface WalkerParams {
@@ -56,6 +63,7 @@ export interface WalkerParams {
   chordFactor: number; chordSlack: number; midMinFoot: number; maxTurnCos: number; substepRetries: number;
   reprojTol: number; reattachMax: number; minSteer: number; gravity: number; drag: number; fallRadiusFoot: number;
   letGoPush: number; maxFallBelow: number; placeTrace: number; stride: number; minClearanceFoot: number;
+  bracketIters: number; jumpHopFoot: number;
 }
 
 const cache = new Map<number, WalkerParams>();
@@ -71,7 +79,7 @@ export function walkerParamsForBU(bu: number): WalkerParams {
     midMinFoot: T.midMinFoot, maxTurnCos: T.maxTurnCos, substepRetries: T.substepRetries, reprojTol: T.reprojTolBU * bu,
     reattachMax: T.reattachMaxBU * bu, minSteer: T.minSteer, gravity: T.gravity, drag: T.drag, fallRadiusFoot: T.fallRadiusFoot,
     letGoPush: T.letGoPushBU * bu, maxFallBelow: T.maxFallBelowBU * bu, placeTrace: T.placeTraceBU * bu, stride: T.strideBU * bu,
-    minClearanceFoot: T.minClearanceFoot,
+    minClearanceFoot: T.minClearanceFoot, bracketIters: T.bracketIters, jumpHopFoot: T.jumpHopFoot,
   };
   cache.set(bu, p);
   return p;

@@ -1,4 +1,5 @@
-// Where one `seal-entrance` would put its plug if the queen stood at a given pose: the same geometry as the nest
+// Where one `seal-entrance` would put its plug if the queen stood at a given pose (optionally aimed at a point,
+// the nest's plugAim): the same geometry as the nest
 // module's plug (src/sim/nest/entrances.ts sealEntranceImpl, GDD 03 §4.2): a sphere of PLUG_RADIUS centred
 // PLUG_AHEAD ahead of the head toward the opening, re-centred on the open throat samples around that point (samples
 // near an ant excluded), its radius kept PLUG_ANT_CLEAR from every ant. Mirrored, not imported: the nest exports
@@ -8,6 +9,14 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Entrance, Sim } from '@/sim/types';
 import { PLUG_AHEAD_BU, PLUG_ANT_CLEAR_BU, PLUG_RADIUS_BU } from '@/sim/balance/nest';
 import { isOpenSample, type Sphere } from './leak';
+
+/**
+ * How far from the body centre an aimed plug may be centred (the nest's plugAim: PLUG_AHEAD + PLUG_RADIUS beyond
+ * the head, whichever way she faces), mm.
+ */
+export function aimReachMm(sim: Sim, lengthMm: number): number {
+  return (PLUG_AHEAD_BU + PLUG_RADIUS_BU) * sim.world.bu + HEAD_FRAC * lengthMm;
+}
 
 /** The head is half a body length ahead of the body centre (as the nest's headOf). */
 const HEAD_FRAC = 0.5;
@@ -20,16 +29,27 @@ const NEAR_FRAC = 0.5;
  * The plug sphere for a queen of body length `lengthMm` at `pos` facing `fwd` (unit), with the other ants at
  * `others`; null when the nest would place none (no open sample there, or no room beside the ants).
  */
-export function predictPlug(sim: Sim, e: Entrance, pos: Vec3, fwd: Vec3, lengthMm: number, others: readonly Vec3[]): Sphere | null {
+export function predictPlug(sim: Sim, e: Entrance, pos: Vec3, fwd: Vec3, lengthMm: number, others: readonly Vec3[], aim: Vec3 | null = null): Sphere | null {
   const bu = sim.world.bu, v = sim.carve.voxel;
   const d = HEAD_FRAC * lengthMm;
   const hx = pos.x + fwd.x * d, hy = pos.y + fwd.y * d, hz = pos.z + fwd.z * d;
   const tx = e.pos.x - hx, ty = e.pos.y - hy, tz = e.pos.z - hz, tl = Math.hypot(tx, ty, tz) || 1;
   const ahead = Math.min(PLUG_AHEAD_BU * bu, tl);
-  const nx = hx + (tx / tl) * ahead, ny = hy + (ty / tl) * ahead, nz = hz + (tz / tl) * ahead;
+  // an aimed plug within reach of the head centres on its aim (the nest's plugAim)
+  const aimed = aim !== null && Math.hypot(aim.x - pos.x, aim.y - pos.y, aim.z - pos.z) <= aimReachMm(sim, lengthMm);
+  const nx = aimed ? aim.x : hx + (tx / tl) * ahead, ny = aimed ? aim.y : hy + (ty / tl) * ahead, nz = aimed ? aim.z : hz + (tz / tl) * ahead;
+  return plugAround(sim, { x: nx, y: ny, z: nz }, [pos, ...others]);
+}
+
+/**
+ * The plug sphere the nest places around a nominal centre, with the ants at `ants` (the plugging ant included when
+ * it is known): re-centred on the open samples within SEARCH_FRAC x PLUG_RADIUS, kept PLUG_ANT_CLEAR from them.
+ */
+export function plugAround(sim: Sim, nominal: Vec3, antsAll: readonly Vec3[]): Sphere | null {
+  const bu = sim.world.bu, v = sim.carve.voxel, nx = nominal.x, ny = nominal.y, nz = nominal.z;
   const clear = PLUG_ANT_CLEAR_BU * bu, R = PLUG_RADIUS_BU * bu, search = SEARCH_FRAC * R;
-  const ants: Vec3[] = [pos];
-  for (const o of others) if (Math.hypot(o.x - nx, o.y - ny, o.z - nz) < search + 2 * R + clear) ants.push(o);
+  const ants: Vec3[] = [];
+  for (const o of antsAll) if (Math.hypot(o.x - nx, o.y - ny, o.z - nz) < search + 2 * R + clear) ants.push(o);
   const nearAnt = (x: number, y: number, z: number): number => {
     let best = Infinity;
     for (const q of ants) best = Math.min(best, Math.hypot(q.x - x, q.y - y, q.z - z));

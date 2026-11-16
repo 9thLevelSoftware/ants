@@ -1,27 +1,36 @@
-// Submersion (GDD 03 §11.3, GDD 06 §3.10): an ant in a flooded nest voxel or deep in a puddle (>= 0.5 BU; not while
-// it carries a float-able leaf fragment) keeps its health for SUBMERGE_GRACE_S continuous seconds, then loses 1 % of
-// max hp per second (death `drowning` at 150 s);
-// brood in a flooded voxel dies after BROOD_DROWN_S continuous seconds (`brood-drowned`). Carried brood and ants in
-// the air are never submerged. Counters are persisted (ant.bb FLOOD_ANT_SUB_KEY, Brood.submergedS) and reset as
-// soon as the ant or brood is dry, so "continuous" survives save / load.
+// Submersion (GDD 03 §11.3, GDD 06 §3.10): an ant over a wet nest's basin with the water standing at least
+// FLOOD_SUBMERGE_DEPTH_BU (0.5 BU, 00-index water row) deep over it, or deep in a puddle (>= 0.5 BU; not while it
+// carries a float-able leaf fragment), keeps its health for SUBMERGE_GRACE_S continuous seconds, then loses 1 % of
+// max hp per second (death `drowning` at 150 s); brood (lying on the floor) whose centre is under water dies after
+// BROOD_DROWN_S continuous seconds (`brood-drowned`). Carried brood and ants in the air are never submerged.
+// Depth (task weather-fix2 and its review): the water level minus the higher of the feet (the brood's floor point)
+// and the bottom of the spill layer of the column's floor (spill.ts waterDepthOver). The flooded set is the prefix
+// of the spill order whose volume is W (GDD 03 E22), so the first samples of a partly filled layer count as flooded
+// as soon as any water enters it; deciding by "is my sample flooded" let a film of a few mm^3 on a cell floor drown
+// a resting queen, and deciding by "level above my feet" reads a level quantised to sample layers (a film in the
+// lowest layer reads 0.5 BU over the feet of an ant on a floor beside it). The column depth is a function of the
+// level alone. Counters are persisted (ant.bb FLOOD_ANT_SUB_KEY, Brood.submergedS) and reset as soon as the ant or
+// brood is dry, so "continuous" survives save / load.
 
 import type { Ant, Sim } from '@/sim/types';
 import {
-  FLOOD_ANT_SUB_KEY, FLOOD_BROOD_DROWN_S, FLOOD_STEP_TICKS, FLOOD_SUBMERGE_GRACE_S, FLOOD_SUBMERGE_HP_PER_S,
+  FLOOD_ANT_SUB_KEY, FLOOD_BROOD_DROWN_S, FLOOD_STEP_TICKS, FLOOD_SUBMERGE_DEPTH_BU, FLOOD_SUBMERGE_GRACE_S, FLOOD_SUBMERGE_HP_PER_S,
   WX_FLOAT_ITEM_KINDS, WX_PUDDLE_AVOID_BU, WX_PUDDLE_UNIT_MM,
 } from '@/sim/balance/weather';
+import { BROOD_RADIUS_BU } from '@/sim/balance/actions';
 import { killAnt, killBrood } from '@/sim/entities';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { floodRuntime, spillPeek } from './runtime';
-import { floodedAt, floodedCount, type SpillCache } from './spill';
+import { waterDepthOver, type SpillCache } from './spill';
 
 const NONE: ReadonlySet<number> = new Set();
 
-/** A wet nest of this step: its cache and flooded count. */
+/** A wet nest of this step: its cache, flooded count and water level (mm, world y). */
 export interface WetNest {
   nestId: number;
   cache: SpillCache;
   nFlooded: number;
+  level: number;
 }
 
 function puddleDepthAt(sim: Sim, x: number, z: number): number {
@@ -49,9 +58,18 @@ function afloat(sim: Sim, ant: Ant): boolean {
   return it !== undefined && FLOATS.has(it.kind);
 }
 
-function submerged(sim: Sim, wet: readonly WetNest[], x: number, y: number, z: number, floats = false): boolean {
-  const v = sim.carve.voxel;
-  for (const w of wet) if (floodedAt(w.cache, v, x, y, z, w.nFlooded)) return true;
+/** Water over a body of a wet nest at least `need` mm deep (spill.ts waterDepthOver, from `baseY` or the column floor). */
+function deepEnough(sim: Sim, w: { cache: SpillCache; level: number }, x: number, y: number, z: number, baseY: number, need: number): boolean {
+  return w.level - baseY >= need && waterDepthOver(w.cache, sim.carve.voxel, x, y, z, w.level, baseY) >= need;
+}
+
+/**
+ * Is a body at (x, y, z) with its feet at height `feetY` under water: over a wet nest's basin with the water at least
+ * FLOOD_SUBMERGE_DEPTH_BU above its feet and above its column's floor, or in a deep puddle?
+ */
+function submerged(sim: Sim, wet: readonly WetNest[], x: number, y: number, z: number, feetY: number, floats = false): boolean {
+  const v = sim.carve.voxel, need = FLOOD_SUBMERGE_DEPTH_BU * sim.world.bu;
+  for (const w of wet) if (deepEnough(sim, w, x, y, z, feetY, need)) return true;
   if (floats) return false;
   const depth = puddleDepthAt(sim, x, z);
   if (depth < WX_PUDDLE_AVOID_BU * sim.world.bu) return false;
@@ -85,7 +103,7 @@ export function drownStep(sim: Sim, wet: readonly WetNest[], frozen: ReadonlySet
       if (had > 0) counters = true;
       continue;
     }
-    const under = ant.medium !== 'air' && submerged(sim, wet, ant.pos.x, ant.pos.y, ant.pos.z, afloat(sim, ant));
+    const under = ant.medium !== 'air' && submerged(sim, wet, ant.pos.x, ant.pos.y, ant.pos.z, ant.pos.y - ant.up.y * ant.footOffset, afloat(sim, ant));
     if (!under) {
       if (had > 0) delete ant.bb[FLOOD_ANT_SUB_KEY];
       continue;
@@ -110,7 +128,8 @@ export function drownStep(sim: Sim, wet: readonly WetNest[], frozen: ReadonlySet
       if (had > 0) counters = true;
       continue;
     }
-    const under = b.carriedBy < 0 && wet.length > 0 && wet.some((w) => floodedAt(w.cache, sim.carve.voxel, b.pos.x, b.pos.y, b.pos.z, w.nFlooded));
+    const r = BROOD_RADIUS_BU[b.stage] * sim.world.bu;
+    const under = b.carriedBy < 0 && wet.length > 0 && wet.some((w) => deepEnough(sim, w, b.pos.x, b.pos.y + r, b.pos.z, b.pos.y, r));
     if (!under) {
       if (had > 0) delete b.submergedS;
       continue;
@@ -132,15 +151,16 @@ export function drownStep(sim: Sim, wet: readonly WetNest[], frozen: ReadonlySet
 }
 
 /**
- * Is p under water: in a flooded voxel of a nest (as of the last flood step's cache) or in a puddle at least
+ * Is p under water by the submersion rule (feet `footOffset` mm below p): in a flooded voxel of a nest (as of the
+ * last flood step's cache) with the water at least FLOOD_SUBMERGE_DEPTH_BU above the feet, or in a puddle at least
  * 0.5 BU deep below its surface? For locomotion (walker medium `water`, speed x 0.3) and behaviours (flee water).
  */
-export function isUnderWater(sim: Sim, p: { x: number; y: number; z: number }): boolean {
-  const v = sim.carve.voxel;
+export function isUnderWater(sim: Sim, p: { x: number; y: number; z: number }, footOffset = 0): boolean {
+  const need = FLOOD_SUBMERGE_DEPTH_BU * sim.world.bu, feetY = p.y - footOffset;
   for (const nest of sim.stores.nests.list) {
-    if (!nest.alive || nest.flood.water <= 0) continue;
+    if (!nest.alive || nest.flood.water <= 0 || nest.flood.level - feetY < need) continue;
     const c = spillPeek(sim, nest.id);
-    if (c && floodedAt(c, v, p.x, p.y, p.z, floodedCount(c, nest.flood.water))) return true;
+    if (c && deepEnough(sim, { cache: c, level: nest.flood.level }, p.x, p.y, p.z, feetY, need)) return true;
   }
-  return submerged(sim, [], p.x, p.y, p.z);
+  return submerged(sim, [], p.x, p.y, p.z, p.y - footOffset);
 }

@@ -11,6 +11,7 @@ import { book, coreOf } from './core';
 import { colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
 import { larvaRemainingNeed } from './brood';
+import { queenProteinCredit, spendQueenProteinCredit } from './queen';
 
 /**
  * A caller-supplied amount as a safe non-negative number: NaN and negatives become 0. +Infinity is kept (it means
@@ -185,6 +186,8 @@ export function feedFromCrop(sim: Sim, giver: Ant, broodId: number, c: number, p
     // keeps room for the laying protein (int-1B-sim: carers kept a fat queen's gut full of C, and when the
     // workers permitted laying protein no P fitted in: playground-park #2 laid no egg in a 0.55 gd window)
     if (queen.queen.gut.c >= QUEEN_TARGET_GUT_C) wantC = 0;
+    // protein only against her credit: upkeep plus the laying protein the workers release (queen.ts, R4)
+    wantP = Math.min(wantP, queenProteinCredit(queen));
     receiverId = queen.id;
   } else {
     return { c: 0, p: 0 };
@@ -208,6 +211,7 @@ export function feedFromCrop(sim: Sim, giver: Ant, broodId: number, c: number, p
   } else if (queen?.queen) {
     queen.queen.gut.c += wantC;
     queen.queen.gut.p += wantP;
+    spendQueenProteinCredit(queen, wantP);
     bookCropFeed(col, wantC, wantP, 'queen');
   }
   sim.emit({ type: 'feed', giverId: giver.id, receiverId, broodId: larva ? larva.id : -1, c: wantC, p: wantP });

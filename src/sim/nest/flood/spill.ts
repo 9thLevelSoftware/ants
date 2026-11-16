@@ -6,9 +6,11 @@
 //   3. H*(v) = minimax path height from the pool bottom to v (a bucket "priority flood" on sample layers), so a
 //      side chamber fills only once the water rises over its sill;
 //   4. samples sorted by H* with cumulative volume, wet wall area and wall drainage (V(L), A(L), sum K A).
+//      Only the samples connected to the pool bottom are sorted: they are the basin; a part of the cavity that is not
+//      connected to it (a trial pit beside a plugged founding cell) is not in the cache.
 // The water level L for a volume W is then a binary search; voxels with sorted index < flooded count are flooded.
 
-import type { Chamber, Nest, Sim } from '@/sim/types';
+import type { Chamber, Entrance, Nest, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import { FLOOD_K_DRAIN, FLOOD_K_DRAIN_LOOSE_MULT, FLOOD_MAX_VOXELS, FLOOD_WALL_FACE_BU2 } from '@/sim/balance/weather';
 import { OPEN_FRACTION, OPEN_MIN } from '../carve/keys';
@@ -88,19 +90,23 @@ function isCavity(sim: Sim, i: number, j: number, k: number): boolean {
   return sim.field.substrateXYZ(i * v, j * v, k * v) < 0;
 }
 
-/** Throat samples of the nest's entrances (cavity samples within radius + 1 BU of each opening). */
-function seedsOf(sim: Sim, nest: Nest): number[] {
-  const v = sim.carve.voxel, bu = sim.world.bu, out: number[] = [];
-  for (const e of nest.entrances) {
-    const r = e.radius + bu;
-    const i0 = Math.floor((e.pos.x - r) / v), i1 = Math.ceil((e.pos.x + r) / v);
-    const j0 = Math.floor((e.pos.y - r - bu) / v), j1 = Math.ceil((e.pos.y + r) / v);
-    const k0 = Math.floor((e.pos.z - r) / v), k1 = Math.ceil((e.pos.z + r) / v);
-    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      if ((i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 > (r + bu) ** 2) continue;
-      if (isCavity(sim, i, j, k)) out.push(i, j, k);
-    }
+/** Visits the samples of an entrance's throat region (within radius + 2 BU of the opening). */
+function forThroat(sim: Sim, e: Entrance, fn: (i: number, j: number, k: number) => void): void {
+  const v = sim.carve.voxel, bu = sim.world.bu;
+  const r = e.radius + bu;
+  const i0 = Math.floor((e.pos.x - r) / v), i1 = Math.ceil((e.pos.x + r) / v);
+  const j0 = Math.floor((e.pos.y - r - bu) / v), j1 = Math.ceil((e.pos.y + r) / v);
+  const k0 = Math.floor((e.pos.z - r) / v), k1 = Math.ceil((e.pos.z + r) / v);
+  for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    if ((i * v - e.pos.x) ** 2 + (j * v - e.pos.y) ** 2 + (k * v - e.pos.z) ** 2 > (r + bu) ** 2) continue;
+    fn(i, j, k);
   }
+}
+
+/** Throat samples of the nest's entrances (cavity samples within radius + 2 BU of each opening). */
+function seedsOf(sim: Sim, nest: Nest): number[] {
+  const v = sim.carve.voxel, out: number[] = [];
+  for (const e of nest.entrances) forThroat(sim, e, (i, j, k) => { if (isCavity(sim, i, j, k)) out.push(i, j, k); });
   // a nest without entrances (sealed-in founding cell whose opening record is gone): its chambers
   if (out.length === 0) {
     for (const c of nest.chambers) {
@@ -196,10 +202,12 @@ export function buildSpill(sim: Sim, nest: Nest): SpillCache {
   const at = new SampleTable();
   const cav = cavityOf(sim, seeds, at);
   const n = cav.i.length, I = cav.i, J = cav.j, K = cav.k;
-  const si = new Int32Array(n), sj = new Int32Array(n), sk = new Int32Array(n), level = new Int32Array(n);
-  const cumVol = new Float64Array(n + 1), cumWall = new Float64Array(n + 1), cumKA = new Float64Array(n + 1);
+  let si = new Int32Array(n), sj = new Int32Array(n), sk = new Int32Array(n), level = new Int32Array(n);
   const index = new SampleTable();
   const box = { i0: 1e9, j0: 1e9, k0: 1e9, i1: -1e9, j1: -1e9, k1: -1e9 };
+  // only the samples the priority flood reaches from the pool bottom form the basin: a part of the cavity that is
+  // not connected to it (a trial pit beside a plugged founding cell) holds none of this water
+  let out = 0;
   if (n > 0) {
     // bucket priority flood on layers from the pool bottom: level(v) = max(level(u), j(v))
     let jMin = Infinity, jMax = -Infinity;
@@ -210,7 +218,6 @@ export function buildSpill(sim: Sim, nest: Nest): SpillCache {
     const start = poolBottom(n, I, J, K, at, cav.seeds);
     buckets[J[start] - jMin].push(start);
     done[start] = 1;
-    let out = 0;
     for (let b = 0; b < buckets.length; b++) {
       const list = buckets[b];
       for (let h = 0; h < list.length; h++) {
@@ -226,19 +233,26 @@ export function buildSpill(sim: Sim, nest: Nest): SpillCache {
         }
       }
     }
-    // cumulative tables in sorted order
-    for (let s = 0; s < n; s++) {
-      const i = si[s], j = sj[s], k = sk[s];
-      let wall = false;
-      for (let d = 0; d < 18 && !wall; d += 3) if (at.get(i + N6[d], j + N6[d + 1], k + N6[d + 2]) === SEEN_SOLID) wall = true;
-      const vol = OPEN_FRACTION[sim.carve.sampleAt(i, j, k)] * vox;
-      cumVol[s + 1] = cumVol[s] + vol;
-      cumWall[s + 1] = cumWall[s] + (wall ? FLOOD_WALL_FACE_BU2 : 0);
-      cumKA[s + 1] = cumKA[s] + (wall ? FLOOD_WALL_FACE_BU2 * drainK(sim, i, j, k) : 0);
-      if (i < box.i0) box.i0 = i; if (i > box.i1) box.i1 = i;
-      if (j < box.j0) box.j0 = j; if (j > box.j1) box.j1 = j;
-      if (k < box.k0) box.k0 = k; if (k > box.k1) box.k1 = k;
-    }
+    if (out < n) { si = si.slice(0, out); sj = sj.slice(0, out); sk = sk.slice(0, out); level = level.slice(0, out); }
+  }
+  const cumVol = new Float64Array(out + 1), cumWall = new Float64Array(out + 1), cumKA = new Float64Array(out + 1);
+  // cumulative tables in sorted order
+  for (let s = 0; s < out; s++) {
+    const i = si[s], j = sj[s], k = sk[s];
+    let wall = false;
+    for (let d = 0; d < 18 && !wall; d += 3) if (at.get(i + N6[d], j + N6[d + 1], k + N6[d + 2]) === SEEN_SOLID) wall = true;
+    const vol = OPEN_FRACTION[sim.carve.sampleAt(i, j, k)] * vox;
+    cumVol[s + 1] = cumVol[s] + vol;
+    cumWall[s + 1] = cumWall[s] + (wall ? FLOOD_WALL_FACE_BU2 : 0);
+    cumKA[s + 1] = cumKA[s] + (wall ? FLOOD_WALL_FACE_BU2 * drainK(sim, i, j, k) : 0);
+  }
+  // the box spans the whole cavity, the unreached parts too: a carve there (a trial pit dug below the cell) can
+  // move the pool bottom, so it must mark the cache stale (runtime.ts carve listener)
+  for (let q = 0; q < n; q++) {
+    const i = I[q], j = J[q], k = K[q];
+    if (i < box.i0) box.i0 = i; if (i > box.i1) box.i1 = i;
+    if (j < box.j0) box.j0 = j; if (j > box.j1) box.j1 = j;
+    if (k < box.k0) box.k0 = k; if (k > box.k1) box.k1 = k;
   }
   const chamberSamples = new Map<number, Int32Array>();
   for (const c of nest.chambers) chamberSamples.set(c.id, chamberMembers(c, si, sj, sk, v));
@@ -303,4 +317,44 @@ export function floodedAt(c: SpillCache, voxel: number, x: number, y: number, z:
   if (i < c.box.i0 - 1 || i > c.box.i1 + 1 || j < c.box.j0 - 1 || j > c.box.j1 + 1 || k < c.box.k0 - 1 || k > c.box.k1 + 1) return false;
   const s = c.index.get(i, j, k);
   return s >= 0 && s < nFlooded;
+}
+
+/** Column floor search: how many samples above / below the point's own sample a body may sit off the cavity. */
+const COLUMN_PROBE = [0, 1, -1];
+
+/**
+ * Depth of the water standing over a point, mm (task weather-fix2 review, finding 3): the level minus the higher of
+ * `baseY` (the feet, the brood's floor point) and the bottom of the spill layer of the point's column floor (the
+ * lowest basin sample straight below the point, contiguous). The floor's spill layer, not the point's own sample:
+ * the flooded set is a prefix of the spill order (E22), so which samples of a partly filled layer count as flooded is
+ * an artefact of the order; the level is not. A floor behind a sill has the sill's spill layer, so the depth there
+ * stays 0 until the water has risen over the sill. -Infinity where the point is not over the basin.
+ */
+export function waterDepthOver(c: SpillCache, voxel: number, x: number, y: number, z: number, level: number, baseY: number): number {
+  const i = Math.round(x / voxel), k = Math.round(z / voxel), j0 = Math.round(y / voxel);
+  if (i < c.box.i0 || i > c.box.i1 || k < c.box.k0 || k > c.box.k1 || j0 < c.box.j0 - 1 || j0 > c.box.j1 + 1) return -Infinity;
+  let j = Number.NaN;
+  for (const d of COLUMN_PROBE) if (c.index.get(i, j0 + d, k) >= 0) { j = j0 + d; break; }
+  if (Number.isNaN(j)) return -Infinity;
+  while (c.index.get(i, j - 1, k) >= 0) j--;
+  const floorLayer = c.level[c.index.get(i, j, k)];
+  return level - Math.max(baseY, (floorLayer - 0.5) * voxel);
+}
+
+/**
+ * Does the entrance open the cache's basin to the air: a basin sample in its throat region next to a sample in open
+ * air (outside the substrate, carve grid ignored)? False for a throat closed by a plug (the samples under it are
+ * basin, the dent over it is not), and for an opening into a part of the cavity the basin is not connected to.
+ */
+export function entranceOpensBasin(sim: Sim, c: SpillCache, e: Entrance): boolean {
+  const v = sim.carve.voxel;
+  let open = false;
+  forThroat(sim, e, (i, j, k) => {
+    if (open || c.index.get(i, j, k) < 0) return;
+    for (let d = 0; d < 18 && !open; d += 3) {
+      const a = i + N6[d], b = j + N6[d + 1], q = k + N6[d + 2];
+      if (c.index.get(a, b, q) < 0 && sim.field.substrateXYZ(a * v, b * v, q * v) >= 0) open = true;
+    }
+  });
+  return open;
 }

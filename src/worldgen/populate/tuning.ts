@@ -64,6 +64,15 @@ export const ECONOMY_FLOORS: readonly { colony: number; radiusBu: number; c: num
  */
 export const SITE_FOOD = { radiusBu: 400, carbMin: 2 };
 
+/**
+ * Tier 2 budget (viab-economy R1; registry C13 counts "1-2 herds + 2 flowers (≈ 25 C), 1-2 prey patches (≈ 16-32 P)"
+ * within 300 BU for N = 50 at T2). An `aphid-herd` anchor supplies per summer gd the honeydew of the herd it holds
+ * with the plants module's start occupancy (HERD_INITIAL_OCCUPANCY), aphids at `aShare` of the host's K, tended,
+ * at temperature factor 1 (GDD 05 §1.4: A x HONEYDEW_PER_APHID). A prey patch supplies `preyP` loads P per gd, half
+ * the C13 figure (its prey must be caught). The static films and the T1 crumb re-placement are not placed at T2.
+ */
+export const HERD_OFFER = { aShare: 0.5, preyP: 8 };
+
 /** Top-up of food near the start when a floor is missed: flowers first, then crumb clusters, BU. */
 export const TOP_UP = { minBu: 60, maxBu: 280, tries: 40, siteCrumbMax: 6 };
 

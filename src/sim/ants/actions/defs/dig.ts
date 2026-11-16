@@ -6,10 +6,12 @@ import { AntFlag } from '@/sim/types';
 import {
   DIG_ADVANCE_L, DIG_BITE_DEPTH_BU, DIG_BITE_S, DIG_FLOOR_AHEAD_BU, DIG_MIN_SPEED, DIG_PELLET_DROP_BEHIND_L, DIG_POWER,
   DIG_POWER_NANITIC,
-  DIG_SLOPE_DEFAULT_DEG, DIG_SLOPE_MAX_DEG, DIG_SLOPE_MIN_DEG, PELLET_BULK_PER_BU3, PLUG_DIG_FACTOR, SEAL_ENTRANCE_S,
+  ACTION_MIN_TICKS, DIG_SLOPE_DEFAULT_DEG, DIG_SLOPE_MAX_DEG, DIG_SLOPE_MIN_DEG, PELLET_BULK_PER_BU3, PLUG_DIG_FACTOR, SEAL_ENTRANCE_S,
   SEAL_THROAT_BU, UNSEAL_PELLET_VOLUME_BU3,
 } from '@/sim/balance/actions';
+import { PLUG_AHEAD_BU, PLUG_RADIUS_BU } from '@/sim/balance/nest';
 import { removeItem, spawnItem } from '@/sim/entities';
+import { TICKS_PER_SECOND } from '@/sim/time';
 import { carriedItem, releaseCarried, takeItem } from '../carry';
 import { antLengthMm, feetPoint, findEntrance, mandiblePoint, reachMm } from '../geometry';
 import { ports } from '../ports';
@@ -145,9 +147,12 @@ export const digBiteDef: ActionDef = {
   },
 };
 
-/** Entrance of the ant's colony whose throat the ant is in (within SEAL_THROAT_BU of the opening, not outside). */
+/**
+ * Entrance of the ant's colony whose throat the ant is in: inside the throat sphere the nest judges sealing by
+ * (SEAL_THROAT_BU beyond the opening's radius, so a wide or long hole patch is reached from all of it; viab-founding),
+ * not outside above the opening. Nearest opening first.
+ */
 export function entranceAtThroat(sim: Sim, ant: Ant, filter: (e: Entrance) => boolean): Entrance | null {
-  const max = SEAL_THROAT_BU * sim.world.bu;
   let best: Entrance | null = null;
   let bestD = Infinity;
   for (const nest of sim.stores.nests.list) {
@@ -155,7 +160,7 @@ export function entranceAtThroat(sim: Sim, ant: Ant, filter: (e: Entrance) => bo
     for (const e of nest.entrances) {
       if (!filter(e) || !inThroat(sim, ant, e)) continue;
       const d = Math.hypot(ant.pos.x - e.pos.x, ant.pos.y - e.pos.y, ant.pos.z - e.pos.z);
-      if (d <= max && (d < bestD || (d === bestD && best && e.id < best.id))) { best = e; bestD = d; }
+      if (d < bestD || (d === bestD && best && e.id < best.id)) { best = e; bestD = d; }
     }
   }
   return best;
@@ -175,21 +180,85 @@ function throatReachable(sim: Sim, ant: Ant, t: TargetRef): boolean {
 // GDD 03 §4.2: `reopening` is "plug being dug", so its plug voxels are unseal-entrance targets too
 const isPlugged = (e: Entrance): boolean => e.status === 'sealed' || e.status === 'sealing' || e.status === 'reopening';
 
+/**
+ * The founding queen in the opening's `seal` phase (GDD 06 §5.9 "Hold E to close the entrance"): her press of E is a
+ * request to the founding seal guide (src/sim/colony/founding/sealGuide.ts), which walks her to the leak and plugs
+ * it with this same primitive. Read from state (the action library may not import the colony module).
+ */
+function foundingSealPhase(sim: Sim, ant: Ant): boolean {
+  return ant.caste === 'queen' && (ant.flags & AntFlag.FOUNDING) !== 0 && sim.state.player.opening?.phase === 'seal';
+}
+
+/** The nearest entrance of the ant's colony that is not sealed (any distance), or null. */
+function nearestUnsealed(sim: Sim, ant: Ant): Entrance | null {
+  let best: Entrance | null = null, bestD = Infinity;
+  for (const nest of sim.stores.nests.list) {
+    if (!nest.alive || nest.colony !== ant.colony) continue;
+    for (const e of nest.entrances) {
+      if (e.status === 'sealed') continue;
+      const d = Math.hypot(ant.pos.x - e.pos.x, ant.pos.y - e.pos.y, ant.pos.z - e.pos.z);
+      if (d < bestD) { best = e; bestD = d; }
+    }
+  }
+  return best;
+}
+
+/**
+ * A founding press that cannot plug from here (no soil in the mandibles, or not in the throat): instead of a
+ * `no-target` / `out-of-reach` refusal the primitive runs for one tick and places nothing, and the founding guide,
+ * which hears the press, takes the queen to the leak (viab-founding: no refusal reaches the player in phase seal).
+ */
+function deferredToGuide(sim: Sim, ant: Ant, t: TargetRef): boolean {
+  if (!foundingSealPhase(sim, ant)) return false;
+  const it = carriedItem(sim, ant);
+  const e = findEntrance(sim, t.id);
+  if (!it || it.kind !== 'soil-pellet' || !e || e.entrance.status === 'sealed') return true;
+  return !inThroat(sim, ant, e.entrance) && !aimedInReach(sim, ant, t, e.entrance);
+}
+
+/**
+ * An aimed plug (the target carries a point other than the opening, viab-founding) reaches by its aim: the aim lies
+ * in the throat sphere the nest judges sealing by, and within the ant's plug reach (PLUG_AHEAD + PLUG_RADIUS beyond
+ * the head, whichever way she faces; the nest's plugAim uses the same reach). Where the soil goes is what counts,
+ * not where her body stands (a queen stalled just below the throat on a steep wall can still close it).
+ */
+function aimedInReach(sim: Sim, ant: Ant, t: TargetRef, e: Entrance): boolean {
+  const bu = sim.world.bu, p = t.pos;
+  if (Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z) < sim.carve.voxel) return false; // not aimed
+  // in the throat sphere; the founding queen also further down her shaft (a back-fill from inside the cell's side:
+  // with the nest's founding pocket rule a throat that leads to no chamber reads sealed)
+  if (!foundingSealPhase(sim, ant) && Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z) > SEAL_THROAT_BU * bu + e.radius) return false;
+  const reach = (PLUG_AHEAD_BU + PLUG_RADIUS_BU) * bu + 0.5 * antLengthMm(sim, ant);
+  return Math.hypot(p.x - ant.pos.x, p.y - ant.pos.y, p.z - ant.pos.z) <= reach;
+}
+
+/** ant.bb key: the running seal-entrance was deferred to the founding guide (1) or is a real plug (0). */
+export const SEAL_DEFERRED_KEY = 'act.sealDefer';
+
 export const sealEntranceDef: ActionDef = {
   id: 'seal-entrance', kind: 'timed', targets: ['entrance'], cancellable: true, pose: 'tamp', cue: 'seal-tamp',
   autoTarget: (sim, ant) => {
-    const e = entranceAtThroat(sim, ant, (x) => x.status !== 'sealed');
+    const e = entranceAtThroat(sim, ant, (x) => x.status !== 'sealed') ?? (foundingSealPhase(sim, ant) ? nearestUnsealed(sim, ant) : null);
     return e ? { kind: 'entrance', id: e.id, pos: { ...e.pos } } : null;
   },
-  reachable: throatReachable,
+  reachable: (sim, ant, t) => {
+    if (throatReachable(sim, ant, t) || deferredToGuide(sim, ant, t)) return true;
+    const e = findEntrance(sim, t.id);
+    return e !== null && aimedInReach(sim, ant, t, e.entrance);
+  },
   check(sim, ant, t) {
+    if (deferredToGuide(sim, ant, t)) return null;
     const it = carriedItem(sim, ant);
     if (!it || it.kind !== 'soil-pellet') return 'no-target';
     const e = findEntrance(sim, t.id);
     return !e ? 'no-target' : e.entrance.status === 'sealed' ? 'blocked' : null;
   },
-  durationS: () => SEAL_ENTRANCE_S,
+  durationS: (sim, ant, t) => (deferredToGuide(sim, ant, t) ? ACTION_MIN_TICKS / TICKS_PER_SECOND : SEAL_ENTRANCE_S),
+  onBegin(sim, ant, t) {
+    ant.bb[SEAL_DEFERRED_KEY] = deferredToGuide(sim, ant, t) ? 1 : 0;
+  },
   effect(sim, ant, t) {
+    if (ant.bb[SEAL_DEFERRED_KEY] === 1) return 0; // the founding guide takes it from here
     const it = carriedItem(sim, ant);
     if (!it || it.kind !== 'soil-pellet') return 'no-target';
     const sealed = ports.sealEntrance(sim, t.id, ant.id);

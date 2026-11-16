@@ -31,7 +31,12 @@ export function syncPuddles(sim: Sim, g: LocoNavGrid, r: LocoRuntime): void {
   const blockU = Math.ceil((WX_PUDDLE_BLOCK_BU * bu) / WX_PUDDLE_UNIT_MM - 1e-9);
   _cells.length = 0; _vals.length = 0;
   const same = m.cell === g.cell && m.nx === g.w && m.nz === g.h;
+  // compare four cells at a time where the buffers allow it (the whole map every tick: keep it cheap)
+  const words = !fresh && src.byteOffset % 4 === 0 ? Math.floor(src.length / 4) : 0;
+  const a32 = words > 0 ? view32(src, words) : null;
+  const b32 = words > 0 ? view32(seen!, words) : null;
   for (let i = 0; i < src.length; i++) {
+    if (a32 && (i & 3) === 0 && (i >> 2) < words && a32[i >> 2] === b32![i >> 2]) { i += 3; continue; }
     const u = src[i], old = seen![i];
     if (!fresh && u === old) continue;
     seen![i] = u;
@@ -42,6 +47,15 @@ export function syncPuddles(sim: Sim, g: LocoNavGrid, r: LocoRuntime): void {
     pushCovered(g, m.cell, i % m.nx, Math.floor(i / m.nx), v);
   }
   if (_cells.length > 0) g.setWetCells(_cells, _vals);
+}
+
+const views = new WeakMap<Uint8Array, Uint32Array>();
+
+/** A cached 32-bit view of the first `words` words of a byte array. */
+function view32(a: Uint8Array, words: number): Uint32Array {
+  let v = views.get(a);
+  if (!v || v.length !== words) { v = new Uint32Array(a.buffer, a.byteOffset, words); views.set(a, v); }
+  return v;
 }
 
 /** The nav cells under one moisture cell (grids of different cell sizes). */

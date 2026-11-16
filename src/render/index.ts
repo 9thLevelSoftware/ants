@@ -10,11 +10,15 @@ import type { GradeParams } from '@/render/app/look';
 import type { AssetLoader } from '@/render/assets';
 import type { CutawayParams, FadeOutput } from '@/render/camera';
 import { DEBUG_RENDERERS } from './debug';
-import { AntsSlot, FxSlot, NestSlot, WorldSlot } from './slots';
+import { AntsSlot, CreaturesSlot, FxSlot, HumansSlot, NestSlot, WeatherSlot, WorldSlot } from './slots';
 
-export type RendererSlot = 'world' | 'nest' | 'ants' | 'creatures' | 'fx';
-/** Update and init order. `world` first: it owns the lights, sky and fog. */
-export const RENDERER_SLOTS: readonly RendererSlot[] = ['world', 'nest', 'ants', 'creatures', 'fx'];
+export type RendererSlot = 'world' | 'nest' | 'ants' | 'creatures' | 'humans' | 'weather' | 'fx';
+/**
+ * Update and init order. `world` first: it owns the lights, sky and fog, and it is the only writer of the ground's
+ * wetness (slots/worldSlot.ts wetnessTarget; the weather slot is not given the world peer). `weather` comes late only
+ * so that `fx`, last, draws its overlays over the rain.
+ */
+export const RENDERER_SLOTS: readonly RendererSlot[] = ['world', 'nest', 'ants', 'creatures', 'humans', 'weather', 'fx'];
 
 export type ViewName = 'possess' | 'observer' | 'colony' | 'photo';
 
@@ -89,6 +93,17 @@ export interface FrameInfo {
   inspect?: HighlightRef | null;
   /** Accessibility: no moving light patterns or idle animation flourishes. */
   reducedMotion?: boolean;
+  /** Accessibility: spider comfort (and the optional mite / centipede substitutes), Settings > Accessibility. */
+  comfort?: ComfortSettings | null;
+  /** Photo mode with 'Hide markers and outlines' on: the possessed ant draws without its possession rim (GDD 01 6.9). */
+  hidePossessedHighlight?: boolean;
+}
+
+/** The comfort part of Settings > Accessibility (GDD 08 §12), as the creature renderer reads it. */
+export interface ComfortSettings {
+  spiderComfort: 'off' | 'softened' | 'abstract' | 'marker';
+  comfortMites: boolean;
+  comfortCentipedes: boolean;
 }
 
 export interface SubRenderer {
@@ -119,6 +134,10 @@ registerRenderer('world', () => new WorldSlot());
 registerRenderer('nest', () => new NestSlot());
 registerRenderer('ants', () => new AntsSlot());
 registerRenderer('fx', () => new FxSlot());
+// --- Stage 2 (task wire-stage2) ---
+registerRenderer('creatures', () => new CreaturesSlot());
+registerRenderer('humans', () => new HumansSlot());
+registerRenderer('weather', () => new WeatherSlot());
 
 export interface RegistryEntry {
   slot: RendererSlot;

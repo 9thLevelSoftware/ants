@@ -7,7 +7,8 @@
 
 import type { Nest, Sim } from '@/sim/types';
 import {
-  FLOOD_ALERT_FRACTION, FLOOD_DRAIN_MOIST_K, FLOOD_DRY_BU3, FLOOD_LEVEL_EVENT_TICKS, FLOOD_REBUILD_TICKS, FLOOD_STEP_TICKS,
+  FLOOD_ALERT_FRACTION, FLOOD_DRAIN_MOIST_K, FLOOD_DRY_BU3, FLOOD_LEVEL_EVENT_TICKS, FLOOD_REBUILD_SLOTS, FLOOD_REBUILD_TICKS,
+  FLOOD_STEP_TICKS,
 } from '@/sim/balance/weather';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { moistureAt } from '../substrate';
@@ -52,10 +53,13 @@ export interface NestFloodStep {
   frozen: boolean;
 }
 
-/** Seconds since the nest's last integrated step: at least one flood step, at most a throttle period and a step. */
+/** Longest a nest's geometry stays frozen: the throttle period, then up to a full round of rebuild slots. */
+const MAX_FROZEN_TICKS = FLOOD_REBUILD_TICKS + FLOOD_REBUILD_SLOTS * FLOOD_STEP_TICKS;
+
+/** Seconds since the nest's last integrated step: at least one flood step, at most the longest freeze and a step. */
 function elapsedS(tick: number, lastTick: number): number {
   const dt = tick - lastTick;
-  const ticks = !(dt >= FLOOD_STEP_TICKS) ? FLOOD_STEP_TICKS : Math.min(dt, FLOOD_REBUILD_TICKS + FLOOD_STEP_TICKS);
+  const ticks = !(dt >= FLOOD_STEP_TICKS) ? FLOOD_STEP_TICKS : Math.min(dt, MAX_FROZEN_TICKS + FLOOD_STEP_TICKS);
   return ticks / TICKS_PER_SECOND;
 }
 

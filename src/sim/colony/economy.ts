@@ -15,6 +15,14 @@ import { censusOf, storeCycleSnapshot } from './census';
 import { expireDirectives } from './directives';
 import { updateNeeds } from './needs';
 import { updateStarvation } from './starvation';
+import { provisionAtHandover } from './handover';
+import { SEASON_STOCK_C_KEY } from './needs';
+import { AUTUMN_STOCK_TARGET_C_MULT } from '@/sim/balance/colony';
+import { currentSeason } from '@/sim/time';
+import { BroodFlag } from '@/sim/types';
+import { LARVA_C_REQ, LARVA_P_REQ, LAYING_INTAKE_EMA_GD } from '@/sim/balance';
+import { larvaRemainingNeed } from './brood';
+import { BROOD_NEED_P_KEY, PROTEIN_INTAKE_KEY, PROTEIN_LIFE_KEY } from './queen';
 import { measurePileCap, poolSpace, refreshCapacity, spoil } from './stores';
 import { fileDay } from './stats';
 import { dailyRecount } from './population';
@@ -83,6 +91,27 @@ function rollDay(sim: Sim, col: Colony, core: ColonyCoreState, day: number): voi
   if (days > 0) for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id) relaxExperience(a, days);
 }
 
+/**
+ * Protein supply for the laying gate (R4, queen.ts layingReleaseShare): an EMA of protein intake (loads/gd) and what
+ * the brood still needs (feeding larvae's remaining protein, LARVA_P_REQ per egg), into core.acc.
+ */
+function updateProteinSupply(sim: Sim, col: Colony, core: ColonyCoreState, def: SpeciesDef, dtGd: number): void {
+  const life = core.life.inDeliveryP;
+  const prev = core.acc[PROTEIN_LIFE_KEY] ?? life;
+  const k = 1 - Math.exp(-dtGd / LAYING_INTAKE_EMA_GD);
+  const rate = Math.max(0, life - prev) / dtGd;
+  core.acc[PROTEIN_INTAKE_KEY] = (core.acc[PROTEIN_INTAKE_KEY] ?? 0) + (rate - (core.acc[PROTEIN_INTAKE_KEY] ?? 0)) * k;
+  core.acc[PROTEIN_LIFE_KEY] = life;
+  const pShare = LARVA_P_REQ / (LARVA_P_REQ + LARVA_C_REQ);
+  let need = 0;
+  for (const b of sim.stores.brood.list) {
+    if (!b.alive || b.colony !== col.id) continue;
+    if (b.stage === 'egg') need += LARVA_P_REQ;
+    else if (b.stage === 'larva' && (b.flags & BroodFlag.DIAPAUSE) === 0) need += larvaRemainingNeed(def, b) * pShare;
+  }
+  core.acc[BROOD_NEED_P_KEY] = need;
+}
+
 /** Per-tick colony bookkeeping that is not on the cycle: core creation and day rollover. */
 export function colonyTick(sim: Sim, col: Colony): ColonyCoreState {
   const day = dayOf(calendarTick(sim.state));
@@ -108,10 +137,13 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   const rateC = accGet(core, 'inst.upkeepC') + accGet(core, 'inst.alateC') + accGet(core, 'inst.queenC') + accGet(core, 'inst.larvaC');
   // Laying protein uses the realised laying rate (GDD 02 §15 worked example), see the report on §5.5.
   const rateP = accGet(core, 'inst.queenP') + EGG_COST_P * core.layingRate + accGet(core, 'inst.larvaP') + sp.p;
+  updateProteinSupply(sim, col, core, def, dtGd);
+  accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? AUTUMN_STOCK_TARGET_C_MULT : 1);
   updateNeeds(col, { rateC, rateP }, dtGd);
   refreshCapacity(col);
   col.stores.inCrops.c = accGet(core, 'inst.cropC');
   col.stores.inCrops.p = accGet(core, 'inst.cropP');
+  provisionAtHandover(sim, col);
   updateStarvation(sim, col, accGet(core, 'inst.starving'));
   updateTimers(sim, col, core);
   updateMiddenBlocked(sim, col);

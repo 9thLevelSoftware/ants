@@ -12,6 +12,8 @@ export interface ViewSwitchHost {
   release(): void;
   /** The view changed: input contexts and redraw. */
   viewChanged(): void;
+  /** The views layer; its photo controller opens and closes with the photo view (optional: tests pass bare hosts). */
+  readonly viewsLayer?: { readonly photo: { sync(s: GameSession): void } };
 }
 
 /** M: possession / observer -> colony (soft release, return ant stored by the sim); colony -> back. */
@@ -34,6 +36,7 @@ export function togglePhoto(h: ViewSwitchHost): void {
   const s = h.session;
   if (!s || h.mode !== 'playing') return;
   s.setView(s.view === 'photo' ? s.views.photoOrigin : 'photo');
+  h.viewsLayer?.photo.sync(s); // enter / leave at once, not at the next rendered frame
   h.viewChanged();
 }
 

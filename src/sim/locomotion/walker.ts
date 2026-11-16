@@ -67,7 +67,7 @@ export function createWalkerKin(footOffset: number): WalkerKin {
 
 const z3 = (): Vec3 => ({ x: 0, y: 0, z: 0 });
 const _c = z3(), _g = z3(), _n = z3(), _t = z3(), _d = z3();
-const _p0 = z3(), _u0 = z3(), _f0 = z3(), _v0 = z3();
+const _p0 = z3(), _u0 = z3(), _f0 = z3(), _v0 = z3(), _q0 = z3(), _gb = z3(), _qb = z3();
 const DOWN: Vec3 = { x: 0, y: -1, z: 0 };
 
 function dist3(a: Vec3, b: Vec3): number {
@@ -92,7 +92,51 @@ export function walkerSnapshot(w: WalkerKin): void {
 
 /** Local Newton projection of q onto f = foot (gradient at the result in _g). */
 function projectLocal(field: WorldField, q: Vec3, foot: number, maxMove: number, tol: number, P: WalkerParams): boolean {
-  return field.newtonProject(q, foot, maxMove, P.projIters, P.projTol, tol, _g);
+  _q0.x = q.x; _q0.y = q.y; _q0.z = q.z;
+  if (field.newtonProject(q, foot, maxMove, P.projIters, P.projTol, tol, _g)) return true;
+  q.x = _q0.x; q.y = _q0.y; q.z = _q0.z;
+  return bracketProject(field, q, foot, maxMove, tol, P);
+}
+
+/**
+ * Fallback when Newton fails: at a crease of the field (two blended solids, a rounded box meeting the ground) the
+ * gradient changes length and direction across the level set and the Newton iterates cycle without converging
+ * (viab-loco: a raider stood on a fence board's lower edge for game hours). Bracket the root on the line through q
+ * along its gradient and bisect; the gradient at the result goes into _g.
+ */
+function bracketProject(field: WorldField, q: Vec3, foot: number, maxMove: number, tol: number, P: WalkerParams): boolean {
+  const v0 = field.gradientXYZ(q.x, q.y, q.z, _gb) - foot;
+  const gl = Math.sqrt(_gb.x * _gb.x + _gb.y * _gb.y + _gb.z * _gb.z);
+  if (!(gl > 1e-6) || !Number.isFinite(v0)) return false;
+  const dx = _gb.x / gl, dy = _gb.y / gl, dz = _gb.z / gl;
+  // f grows along the gradient: the root is at t < 0 when v0 > 0
+  const sgn = v0 > 0 ? -1 : 1;
+  let lo = 0, hi = 0, vhi = v0;
+  for (let t = Math.min(maxMove, Math.max(Math.abs(v0), 1e-3 * maxMove)); ; t = Math.min(maxMove, 2 * t)) {
+    vhi = field.sampleXYZ(q.x + sgn * dx * t, q.y + sgn * dy * t, q.z + sgn * dz * t) - foot;
+    if (vhi * v0 <= 0) { hi = t; break; }
+    lo = t;
+    if (t >= maxMove) return false;
+  }
+  for (let it = 0; it < P.bracketIters && hi - lo > 1e-9; it++) {
+    const m = 0.5 * (lo + hi);
+    const vm = field.sampleXYZ(q.x + sgn * dx * m, q.y + sgn * dy * m, q.z + sgn * dz * m) - foot;
+    if (Math.abs(vm) < 0.25 * tol) { lo = m; hi = m; break; }
+    if (vm * v0 > 0) lo = m; else hi = m;
+  }
+  const t = 0.5 * (lo + hi);
+  _qb.x = q.x; _qb.y = q.y; _qb.z = q.z;
+  q.x += sgn * dx * t; q.y += sgn * dy * t; q.z += sgn * dz * t;
+  const v = field.gradientXYZ(q.x, q.y, q.z, _g) - foot;
+  if (Math.abs(v) < tol) return true;
+  // the bracket closed on a jump, not a root: the field is discontinuous there (the terrain pseudo-distance across
+  // a steep crease of a mound pile, viab-loco). Stand on the free side of the jump when it is small: the next step
+  // projects from there onto the continuous level set beyond it
+  if (hi - lo > 1e-6 * maxMove) return false;
+  const tf = v0 > 0 ? lo : hi;
+  q.x = _qb.x + sgn * dx * tf; q.y = _qb.y + sgn * dy * tf; q.z = _qb.z + sgn * dz * tf;
+  const vf = field.gradientXYZ(q.x, q.y, q.z, _g) - foot;
+  return vf >= 0 && vf < P.jumpHopFoot * foot;
 }
 
 function normalizeG(out: Vec3): boolean {

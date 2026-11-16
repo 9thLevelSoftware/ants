@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeTestSim } from '@/sim/testing';
 import { isMiddenBlocked } from '../midden';
-import { foundingInProgress, playerColonyOf } from './access';
+import { claustralFounding, foundingInProgress, playerColonyOf } from './access';
 import { phase, pinTemperature, stepUntil } from './testkit';
 
 // (`food-c-low` / `food-p-low` from the colony's lean stage are raised at the start of every game: reported to the
@@ -26,5 +26,15 @@ describe('the opening raises no false alarms', () => {
     stepUntil(sim, () => false, 300); // the colony cycle runs with workers and the plug still in
     expect(isMiddenBlocked(col)).toBe(false);
     expect(raised.filter((k) => FALSE_ALARMS.includes(k))).toEqual([]);
+  }, 60_000);
+
+  it('the guard is the sealed cell only: workers in a closed nest before any seal (a set-up colony) raise midden-blocked', () => {
+    const sim = makeTestSim({ sizeBu: 128, seed: 2 });
+    const col = playerColonyOf(sim)!;
+    expect(sim.state.player.opening?.phase).toBe('intro-card');
+    expect(claustralFounding(sim, col.id)).toBe(false);
+    sim.enqueue({ type: 'cheat.spawnAnts', colonyId: col.id, n: 3, caste: 'worker', ageGd: 4, task: null, pos: null });
+    stepUntil(sim, () => isMiddenBlocked(col), 600);
+    expect(isMiddenBlocked(col)).toBe(true); // no entrance at all: a real fault, not the founding plug
   }, 60_000);
 });

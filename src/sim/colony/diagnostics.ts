@@ -75,6 +75,12 @@ function tripFactors(col: Colony): FactorIn[] {
 }
 
 function intakeDiag(sim: Sim, col: Colony, nutrient: 'c' | 'p'): Diagnostic {
+  const id = nutrient === 'c' ? 'diag-food-intake-c' : 'diag-food-intake-p';
+  const label = nutrient === 'c' ? 'Carbohydrate intake' : 'Protein intake';
+  // the founding queen alone feeds the brood from her own body: no foraging to judge yet (R6)
+  if (foundingQueenAlone(sim, col)) {
+    return publishWithHysteresis(sim, col, record(id, label, 1, [{ cause: 'founding', f: 1, detail: 'the queen lives on her reserves' }], [], 1));
+  }
   const rates = needRates(col);
   const need = nutrient === 'c' ? rates.c : rates.p;
   const intake = recentMean(sim, nutrient === 'c' ? 'intake-c' : 'intake-p', HOURS_PER_DAY);
@@ -94,8 +100,13 @@ function intakeDiag(sim: Sim, col: Colony, nutrient: 'c' | 'p'): Diagnostic {
   if (nutrient === 'p' && col.directives.diet !== 'auto' && col.directives.diet < 0) {
     f.push({ cause: 'diet', f: 1 + (DIET_SHIFT * col.directives.diet) / DIET_RANGE, detail: 'diet set toward carbohydrate' });
   }
-  const id = nutrient === 'c' ? 'diag-food-intake-c' : 'diag-food-intake-p';
-  return publishWithHysteresis(sim, col, record(id, nutrient === 'c' ? 'Carbohydrate intake' : 'Protein intake', value, f, remedies, Math.min(1, value)));
+  return publishWithHysteresis(sim, col, record(id, label, value, f, remedies, Math.min(1, value)));
+}
+
+/** The founding queen is alone (no worker yet): her reserves are the colony's food. */
+function foundingQueenAlone(sim: Sim, col: Colony): boolean {
+  const q = queenOf(sim, col);
+  return !!q?.queen?.founding && censusOf(sim, col.id).workers === 0;
 }
 
 function storesDiag(sim: Sim, col: Colony): Diagnostic {

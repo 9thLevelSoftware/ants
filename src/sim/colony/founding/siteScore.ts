@@ -11,7 +11,7 @@
 
 import type { SiteWord, SpeciesId } from '@/sim/types';
 import { SITE_FACTORS } from '@/sim/types';
-import { SITE_MOISTURE_WORD_THETA, SITE_WARMTH_WORD_C } from '@/sim/balance/founding';
+import { SITE_FACTOR_DOTS, SITE_MOISTURE_WORD_THETA } from '@/sim/balance/founding';
 import { siteClass, siteQualityOf, type SiteFactorValues } from '@/worldgen/maps/suitability';
 import { SUITABILITY, type SuitabilityProfile } from '@/worldgen/tuning/maps';
 
@@ -52,24 +52,31 @@ export function toptOf(species: SpeciesId): readonly [number, number] {
 const FACTOR_WORDS: Record<(typeof SITE_FACTORS)[number], readonly string[]> = {
   diggability: ['Unbreakable', 'Hard', 'Firm', 'Loose'],
   moisture: ['Dry', 'Slightly damp', 'Damp', 'Wet', 'Waterlogged'],
-  warmth: ['Cold', 'Cool', 'Mild', 'Warm', 'Hot'],
+  // by the dots of the factor (the map's fWarm, the sun the ground gets): 0-1 dots Shaded ... 5 Sun-baked
+  warmth: ['Shaded', 'Shaded', 'Mild', 'Mild', 'Warm', 'Sun-baked'],
   cover: ['Open', 'Leaf-covered', 'Roofed'],
   floodSafety: ['Low-lying', 'Sloped', 'Raised'],
   rivalScent: ['Strong', 'Faint', 'None'],
   exposure: ['Busy', 'Open', 'Sheltered'],
 };
 
-/** Word for a factor: by its score, except moisture and warmth, which name the raw reading (dry ... wet, cold ... hot). */
-export function factorWord(factor: (typeof SITE_FACTORS)[number], score: number, raw?: number, toptC?: readonly [number, number]): string {
+/** Filled dots (0..SITE_FACTOR_DOTS) the read-out draws for a factor value: one rounding for the dots and the warmth word. */
+export function factorDots(score: number): number {
+  return Math.round(clamp01(score) * SITE_FACTOR_DOTS);
+}
+
+/**
+ * Word for a factor: by its score, except moisture, which names the raw soil reading (dry ... wet). Warmth is worded
+ * from the same value its dots show (the static map's sun factor fWarm, directions §K), never from the cell
+ * temperature (int-1B-app finding 4: "Mild" beside 0 dots); `raw` and `toptC` are ignored for it.
+ */
+export function factorWord(factor: (typeof SITE_FACTORS)[number], score: number, raw?: number, _toptC?: readonly [number, number]): string {
   const words = FACTOR_WORDS[factor];
   if (factor === 'moisture' && raw !== undefined && Number.isFinite(raw)) {
     const t = SITE_MOISTURE_WORD_THETA;
     return words[raw < t[0] ? 0 : raw < t[1] ? 1 : raw < t[2] ? 2 : raw < t[3] ? 3 : 4];
   }
-  if (factor === 'warmth' && raw !== undefined && Number.isFinite(raw) && toptC) {
-    const w = SITE_WARMTH_WORD_C;
-    return words[raw < toptC[0] - w.cold ? 0 : raw < toptC[0] ? 1 : raw <= toptC[1] ? 2 : raw <= toptC[1] + w.hot ? 3 : 4];
-  }
+  if (factor === 'warmth') return words[factorDots(score)];
   if (factor === 'diggability' && !(score > 0)) return words[0];
   const n = words.length;
   const i = factor === 'diggability' ? 1 + Math.min(n - 2, Math.floor(clamp01(score) * (n - 1))) : Math.min(n - 1, Math.floor(clamp01(score) * n));

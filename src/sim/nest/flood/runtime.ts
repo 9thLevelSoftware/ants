@@ -4,7 +4,7 @@
 //
 // Rebuild throttle (GDD 03 §11.2, "throttled to 5 game s"): the flood model consumes a nest's geometry through
 // `floodGeometry`, which answers null ("frozen") when the geometry may have changed since it was last captured and
-// the last capture is less than FLOOD_REBUILD_TICKS old. Whether it may have changed is decided from persisted state
+// the last capture is less than FLOOD_REBUILD_TICKS old, or this flood step is not the nest's rebuild slot. Whether it may have changed is decided from persisted state
 // only (WorldDelta.carveChangedTick against FloodState.spillTick, and a hash of the nest signature), never from this
 // runtime, so a restored game freezes and captures on exactly the ticks the uninterrupted game does; a frozen step
 // defers its work to the next capture instead of reading a stale cache. "Changed" is any carve in the world after
@@ -12,7 +12,7 @@
 // the capture (carves applied between ticks carry the next tick).
 
 import type { Nest, Sim } from '@/sim/types';
-import { FLOOD_REBUILD_TICKS } from '@/sim/balance/weather';
+import { FLOOD_REBUILD_SLOTS, FLOOD_REBUILD_TICKS, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
 import type { CarveChange } from '../carve/grid';
 import { moundById } from '../mounds';
 import { buildSpill, nestSignature, type SpillCache } from './spill';
@@ -81,17 +81,23 @@ function currentSpill(sim: Sim, nest: Nest, sig: string): SpillCache {
   return c;
 }
 
+/** This flood step is the nest's rebuild slot (balance FLOOD_REBUILD_SLOTS). */
+function rebuildSlot(t: number, nest: Nest): boolean {
+  return (Math.floor(t / FLOOD_STEP_TICKS) + nest.id) % FLOOD_REBUILD_SLOTS === 0;
+}
+
 /**
  * The geometry the flood model may use now, or null while it is frozen: the nest's geometry may have changed since
- * the last capture and that capture is less than FLOOD_REBUILD_TICKS old. A non-null answer is always the current
- * geometry; when the nest had changed, it records a new capture (persisted).
+ * the last capture and that capture is less than `minAgeTicks` (FLOOD_REBUILD_TICKS) old, or (unless `anySlot`: the
+ * reference-storm prediction, spread over its period by nest id already) this step is not the nest's rebuild slot.
+ * A non-null answer is always the current geometry; when the nest had changed, it records a new capture (persisted).
  */
-export function floodGeometry(sim: Sim, nest: Nest): SpillCache | null {
+export function floodGeometry(sim: Sim, nest: Nest, anySlot = false, minAgeTicks = FLOOD_REBUILD_TICKS): SpillCache | null {
   const f = nest.flood, t = sim.state.tick;
   const sig = fullSignature(sim, nest), h = hash32(sig);
   const changedTick = sim.state.worldDelta.carveChangedTick ?? -Infinity;
   const dirty = f.spillTick === undefined || changedTick > f.spillTick || f.spillSig !== h;
-  if (dirty && f.spillTick !== undefined && t - f.spillTick < FLOOD_REBUILD_TICKS && t >= f.spillTick) return null;
+  if (dirty && f.spillTick !== undefined && t >= f.spillTick && (t - f.spillTick < minAgeTicks || (!anySlot && !rebuildSlot(t, nest)))) return null;
   const c = currentSpill(sim, nest, sig);
   if (dirty) {
     f.spillTick = t;

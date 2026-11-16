@@ -15,6 +15,8 @@ import {
   CARRION_DROP_PER_PLOT_GD, CARRION_DROP_TIER, CARRION_DROP_VARIANTS, CARRION_MULT, CARRION_SEASON_MULT, CARRION_ZONE_MULT,
   CRUMB_REPLACE_FRACTION, ECOLOGY_TIER, PLOT_BU, SOURCE_CATALOGUE, T1_CARRION_MULT, type SourceDef,
 } from '@/sim/balance';
+import { HERD_INITIAL_OCCUPANCY, HERD_K, HONEYDEW_PER_APHID } from '@/sim/balance/ecology';
+import { HERD_OFFER } from './tuning';
 import type { GenContext } from '../kit/context';
 import { anchorAccess, type AnchorAccess } from './access';
 import { anchorAccessTable } from './food';
@@ -75,8 +77,11 @@ const meanStock = (def: SourceDef) => (def.units[0] + def.units[1]) / 2;
 export function renewalPerGd(v: FoodVariant): number {
   const def = defAt(v);
   if (def.refillPerGd > 0) return def.refillPerGd;
-  const t1Crumb = ECOLOGY_TIER === 1 && (v === 'crumb-starch' || v === 'crumb-protein');
-  return t1Crumb ? CRUMB_REPLACE_FRACTION * meanStock(def) : 0;
+  // T1: the crumb rule re-places 30 % of consumed clusters daily. T2 drops human food instead (food-drop events at
+  // tables, patios, bins, car parks, playgrounds: the zones crumbs are placed in); the budget takes the same share as
+  // its daily supply (viab-economy R1: an estimate, the human-events schedule is not mirrored here)
+  const crumb = v === 'crumb-starch' || v === 'crumb-protein';
+  return crumb ? CRUMB_REPLACE_FRACTION * meanStock(def) : 0;
 }
 
 /** Renewable summer daily supply within radiusBu of the start along `d` (distances from the start). */
@@ -89,6 +94,22 @@ export function dayOffer(ctx: GenContext, d: Float64Array, radiusBu: number): Fo
   return offer(ctx, d, radiusBu, (v) => meanStock(defAt(v)) + defAt(v).refillPerGd);
 }
 
+/** Tier 2: honeydew of the herds on `aphid-herd` anchors and protein of prey patches in reach (HERD_OFFER), per gd. */
+function herdOffer(ctx: GenContext, d: Float64Array, radiusBu: number, o: FoodOffer): void {
+  const def = SOURCE_CATALOGUE['aphid-herd'];
+  const hostOf = new Map(ctx.world.placements.plants.map((p) => [p.objectId, p.hostClass]));
+  for (const a of ctx.world.placements.foodAnchors) {
+    if (!(a.seasonMask & SUMMER)) continue;
+    const herd = a.kind === 'honeydew' && a.initialState.split(/[\s,;:]+/).includes('aphid-herd');
+    if (!herd && a.kind !== 'prey') continue;
+    if (!(anchorDistance(ctx, a, d) <= radiusBu)) continue;
+    if (herd) {
+      const loads = HERD_INITIAL_OCCUPANCY * HERD_OFFER.aShare * HERD_K[hostOf.get(a.hostObjectId) ?? 'herb'] * HONEYDEW_PER_APHID;
+      add(o, 'aphid-herd', loads * def.c, loads * def.p);
+    } else add(o, 'aphid-herd', 0, HERD_OFFER.preyP);
+  }
+}
+
 function offer(ctx: GenContext, d: Float64Array, radiusBu: number, loadsPerAnchor: (v: FoodVariant) => number): FoodOffer {
   const o: FoodOffer = { c: 0, p: 0, byVariant: {} };
   for (const a of ctx.world.placements.foodAnchors) {
@@ -97,6 +118,7 @@ function offer(ctx: GenContext, d: Float64Array, radiusBu: number, loadsPerAncho
     const def = defAt(v), n = loadsPerAnchor(v);
     if (n > 0) add(o, v, n * def.c, n * def.p);
   }
+  if (ECOLOGY_TIER >= 2) herdOffer(ctx, d, radiusBu, o);
   // expected carrion drops over the reachable plots of each zone type
   const { navN, navCell, bu } = ctx.dims;
   const cellPlots = (navCell * navCell) / (PLOT_BU * bu) ** 2;

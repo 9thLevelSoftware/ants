@@ -3,7 +3,7 @@
 // inspect panel) and feeds `diag-nest-flood`.
 
 import type { Nest, Sim } from '@/sim/types';
-import { FLOOD_REF_INTENSITY, FLOOD_REF_S, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
+import { FLOOD_REBUILD_TICKS, FLOOD_REF_INTENSITY, FLOOD_REF_S, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { nestInflow } from './inflow';
 import { floodGeometry, spillFor } from './runtime';
@@ -23,12 +23,17 @@ export function predictReferenceStorm(sim: Sim, nest: Nest): FloodPrediction {
   return predictWith(sim, nest, spillFor(sim, nest));
 }
 
-function predictWith(sim: Sim, nest: Nest, cache: SpillCache): FloodPrediction {
-  const qIn = nestInflow(sim, nest, undefined, FLOOD_REF_INTENSITY);
+/** Integrates rain of intensity I for `seconds` from an empty nest (pure; tests and the reference storm). */
+export function predictRain(sim: Sim, nest: Nest, intensity: number, seconds: number): FloodPrediction {
+  return predictWith(sim, nest, spillFor(sim, nest), intensity, seconds);
+}
+
+function predictWith(sim: Sim, nest: Nest, cache: SpillCache, intensity = FLOOD_REF_INTENSITY, seconds = FLOOD_REF_S): FloodPrediction {
+  const qIn = nestInflow(sim, nest, undefined, intensity);
   const dt = FLOOD_STEP_TICKS / TICKS_PER_SECOND;
   const cap = spillVolume(cache);
   let w = 0, peak = 0;
-  for (let t = 0; t < FLOOD_REF_S; t += dt) {
+  for (let t = 0; t < seconds; t += dt) {
     const out = drainageOf(sim, nest, cache, floodedCount(cache, w));
     w = Math.min(cap, Math.max(0, w + (qIn - out) * dt));
     if (w > peak) peak = w;
@@ -41,10 +46,11 @@ function predictWith(sim: Sim, nest: Nest, cache: SpillCache): FloodPrediction {
 
 /**
  * Writes Chamber.floodRisk from the reference storm and returns the prediction; null (nothing written) while the
- * nest's flood geometry is frozen by the rebuild throttle (the next period tries again).
+ * nest's flood geometry is frozen by the rebuild throttle (the next period tries again). `minAgeTicks`: the
+ * throttle's minimum capture age (runtime.ts floodGeometry).
  */
-export function refreshFloodRisk(sim: Sim, nest: Nest): FloodPrediction | null {
-  const cache = floodGeometry(sim, nest);
+export function refreshFloodRisk(sim: Sim, nest: Nest, minAgeTicks = FLOOD_REBUILD_TICKS): FloodPrediction | null {
+  const cache = floodGeometry(sim, nest, true, minAgeTicks);
   if (!cache) return null;
   const p = predictWith(sim, nest, cache);
   for (const c of nest.chambers) c.floodRisk = p.chambers.get(c.id) ?? 0;

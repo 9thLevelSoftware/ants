@@ -15,7 +15,7 @@ import type { DigPlan, Entrance, Nest, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import {
-  REOPEN_CHECK_TICKS, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
+  REOPEN_CHECK_TICKS, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
   REOPEN_UNPLUG_BITES, REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD,
 } from '@/sim/balance/founding';
 import { cancelPlan, createPlan, unsealEntrance, voxelAt } from '@/sim/nest';
@@ -60,9 +60,21 @@ function cavityPointNear(sim: Sim, nest: Nest, from: Vec3, radius: number, below
   return best;
 }
 
-/** The plug's inner face: the cavity point nearest to the opening (within REOPEN_FACE_SEARCH_BU, not above it). */
+/**
+ * The plug's inner face: the cavity point nearest to the opening (within REOPEN_FACE_SEARCH_BU, not above it); for
+ * a plug laid deeper in the throat (the seal guide aims it at the throat's narrowest layer, sealPlan.ts) the cavity
+ * point nearest to its deepest voxels.
+ */
 export function plugInnerFace(sim: Sim, nest: Nest, e: Entrance): Vec3 | null {
-  return cavityPointNear(sim, nest, e.pos, REOPEN_FACE_SEARCH_BU * sim.world.bu, true);
+  const r = REOPEN_FACE_SEARCH_BU * sim.world.bu;
+  const atMouth = cavityPointNear(sim, nest, e.pos, r, true);
+  if (atMouth) return atMouth;
+  const plug = plugRemnants(sim, e, 'soil');
+  for (let i = plug.length - 1; i >= Math.max(0, plug.length - REOPEN_FACE_PLUG_TRIES); i--) {
+    const face = cavityPointNear(sim, nest, plug[i], r, false);
+    if (face) return face;
+  }
+  return null;
 }
 
 /**
@@ -180,11 +192,12 @@ function sealingOnPurpose(sim: Sim, nest: Nest): boolean {
 }
 
 /**
- * After the hand-over, while every entrance of the founding cavity is closed: whenever no founding plan is left,
+ * After the hand-over, while the entrances of the founding cavity are closed: whenever no founding plan is left,
  * asks for the next one. A throat with a passage but plug voxels left in it (`sealing`: the rim of the old plug,
  * or loose soil later tamped onto stale plug voxels) gets a plan through the remnant nearest the opening, at any
  * time; a throat with no passage gets the passage plan for REOPEN_MAX_GD after the hand-over (later a closed nest
- * is the colony's own business, e.g. sealing for winter). Nothing is done while the colony seals on purpose.
+ * is the colony's own business, e.g. sealing for winter). Once a throat reads `open`, plug voxels left in it are
+ * unplugged within REOPEN_MAX_GD. Nothing is done while the colony seals on purpose.
  * Runs every REOPEN_CHECK_TICKS; returns the plan created, or -1.
  */
 export function reopenTick(sim: Sim): number {
@@ -197,8 +210,15 @@ export function reopenTick(sim: Sim): number {
   cancelStalled(sim, nest);
   if (livePlan(nest, (source) => source === 'founding')) return -1;
   const mine = cavityEntrances(sim, nest);
-  if (mine.length === 0 || mine.some((e) => e.status === 'open') || sealingOnPurpose(sim, nest)) return -1;
+  if (mine.length === 0 || sealingOnPurpose(sim, nest)) return -1;
   const early = since <= REOPEN_MAX_GD * TICKS_PER_DAY;
+  const opened = mine.find((e) => e.status === 'open');
+  if (opened) {
+    // the way out is dug, yet the nest may call a throat `open` with plug voxels left beside the passage (or fill
+    // at the ground surface): they are unplugged while the reopening window lasts, no plan is needed for them
+    if (early && plugRemnants(sim, opened).length > 0) unplugRemnants(sim, opened);
+    return -1;
+  }
   for (const e of mine) {
     // a passage exists and only the rim of the old plug is left: the rim goes first (the workers dug the way
     // through; the rim keeps the nest's status at `sealing`), and a plan only for what the unplugging leaves

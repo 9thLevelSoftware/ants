@@ -24,8 +24,10 @@ export interface CrossResult {
   recoveries: number;
   /** Let-gos (rung 4 when hanging, rung 6). */
   letGos: number;
-  /** Rungs beyond the game's surface ladder (5 climb, 6 let go), used where the game would relocate. */
+  /** Rungs beyond the game's surface ladder (5 climb, 6 let go, and the climb-over pass), where the game would relocate. */
   extras: number;
+  /** Waypoints that needed the climb-over pass (no rung of the game's ladder; see the header). */
+  overs: number;
   /** Where the walker was when it gave up (null when it arrived). */
   stuckAt: Vec3 | null;
 }
@@ -44,9 +46,19 @@ export interface CrossOptions {
 // without stuckProgressBU of progress, and each stall climbs one rung: 1 re-aim (the game re-plans; the path here
 // is fixed), 2 sidestep, 3 back off, 4 re-snap onto the surface, 5 the game relocates the walker (a teleport), so
 // here the walk is stuck. Progress resets the rung; episodes per walk are capped as per request in the game.
-// One deviation, counted in `letGos`: at rung 4 a walker hanging on a wall or an underside lets go and drops (GDD 01
-// `let-go`) instead of re-snapping. The game applies its pinned let-go (update.ts letGoPinned) only in cavities; on
-// the surface a walker that has wrapped round a leaf tip or under a stone's bulge waits for rung 5 (relocation).
+// As in the game (viab-loco): a walker that stood still for PINNED_S without progress lets go and drops (GDD 01
+// `let-go`) when it hangs on a wall or an underside, or stands blocked at an edge with its target lower down (a
+// raised leaf tip); update.ts letGoPinned, counted in `letGos` (here the let-go restarts the stall window; the game
+// lets go once per window). Where the walk would be stuck after the whole ladder, it climbs over instead, once per
+// waypoint (counted in `extras` and in `overs`): pressed against a face its target lies behind it aims level (the
+// game's surface legs aim in plan view), and climbing counts as progress (on a steep face a new highest point
+// PROGRESS_BU above the last re-baselines the distance, as stuck.ts trackProgress), so a tall fence board is climbed
+// and descended. This pass is not a rung of the game's ladder (the game relocates there): a crossing with overs > 0
+// shows that a walker with one extra manoeuvre gets through, not that the game's ladder does. Applying the level aim
+// and the climbing rule from the start instead (as the game does) leaves this walker, which aims at each cell's 3D
+// ground point, stuck on stems and stones it climbs (7 of 25 crossings fail that way, viab-loco review).
+// One more deviation, counted in `letGos`: at rung 4 a walker hanging on a wall or an underside lets go instead of
+// re-snapping.
 /** Design seed §3: ant walk speed ~12 BU/s. */
 const WALK_SPEED_BU = 12;
 const STEP_S = 0.1;
@@ -61,6 +73,12 @@ const GAME_RUNGS = 4;
 const LADDER_RUNGS = 6;
 /** Hanging on a wall or an underside: up.y below this (LOCO_TUNING.pinnedUpY). */
 const PINNED_UP_Y = 0.7;
+/** Standing still without progress this long lets a pinned walker go (LOCO_TUNING.pinnedS), in steps. */
+const PINNED_STEPS = Math.round(1 / STEP_S);
+/** A target at least this far below the walker makes a blocked walker step down (LOCO_TUNING.dropBelowBU). */
+const DROP_BELOW_BU = 1;
+/** The target lies behind a steep face when the plan-view direction to it is within acos(this) of -up. */
+const BEHIND_COS = 0.8;
 /** A waypoint counts as passed when the walker's foot point is within this share of a nav cell of its ground point (3D). */
 const REACH_CELLS = 0.6;
 
@@ -146,13 +164,13 @@ function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: 
   const kin = createWalkerKin(k.walker.footOffset);
   const bu = k.bu;
   if (!walkerPlace(k.field, kin, start, {}, k.walker)) {
-    return { kin, reached: 0, endDist: Infinity, steps: 0, episodes: 0, recoveries: 0, letGos: 0, extras: 0, stuckAt: { ...start } };
+    return { kin, reached: 0, endDist: Infinity, steps: 0, episodes: 0, recoveries: 0, letGos: 0, extras: 0, overs: 0, stuckAt: { ...start } };
   }
   const speed = opts.speed ?? WALK_SPEED_BU * bu, maxSteps = opts.maxSteps ?? 200_000;
   const progressMm = PROGRESS_BU * bu, foot = kin.footOffset;
   const t: Vec3 = { x: 0, y: 0, z: 0 }, dir: Vec3 = { x: 0, y: 0, z: 0 };
   let wp = 0, steps = 0, episodes = 0, recoveries = 0, letGos = 0, extras = 0, stuck = false;
-  let best = Infinity, sinceBest = 0, rung = 0, manoeuvre = 0, side = 1;
+  let best = Infinity, sinceBest = 0, rung = 0, manoeuvre = 0, side = 1, climbMax = kin.pos.y, still = 0, over = false, overs = 0;
   let kind: 'side' | 'back' | 'climb' = 'side';
   while (wp < count && steps < maxSteps && !stuck) {
     target(wp, t);
@@ -160,13 +178,25 @@ function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: 
     // the foot point (the walker's centre rides footOffset along its up vector) against the target ground point
     const fx = kin.pos.x - kin.up.x * foot - t.x, fy = kin.pos.y - kin.up.y * foot - t.y, fz = kin.pos.z - kin.up.z * foot - t.z;
     const d3 = Math.sqrt(fx * fx + fy * fy + fz * fz);
-    if (d3 < reach) { wp++; best = Infinity; sinceBest = 0; rung = 0; manoeuvre = 0; continue; }
-    if (d3 < best - progressMm) { best = d3; sinceBest = 0; rung = 0; } else sinceBest++;
+    if (d3 < reach) { wp++; best = Infinity; sinceBest = 0; rung = 0; manoeuvre = 0; climbMax = kin.pos.y; over = false; continue; }
+    if (d3 < best - progressMm) { best = d3; sinceBest = 0; rung = 0; }
+    else if (over && Math.abs(kin.up.y) < PINNED_UP_Y && kin.pos.y > climbMax + progressMm) { best = d3; sinceBest = 0; rung = 0; climbMax = kin.pos.y; }
+    else sinceBest++;
+    // pinned let-go / step-down (update.ts letGoPinned)
+    if (!over && kin.medium !== 'air' && still >= PINNED_STEPS && sinceBest >= PINNED_STEPS
+      && (kin.up.y < PINNED_UP_Y || t.y < kin.pos.y - foot - DROP_BELOW_BU * bu)) {
+      walkerLetGo(k.field, kin, 0, k.walker); letGos++; still = 0; sinceBest = 0;
+    }
     if (sinceBest > STALL_STEPS && manoeuvre === 0) {
       if (rung === 0 && ++episodes > EPISODES_MAX) { stuck = true; break; }
       rung++;
       sinceBest = 0;
-      if (rung > LADDER_RUNGS) { stuck = true; break; }
+      if (rung > LADDER_RUNGS) {
+        if (over) { stuck = true; break; }
+        // climb over (see the header): one more try for this waypoint
+        over = true; rung = 0; best = d3; climbMax = kin.pos.y; extras++; overs++;
+        continue;
+      }
       if (rung > 1) recoveries++;
       if (rung > GAME_RUNGS) extras++;
       switch (rung) {
@@ -175,15 +205,18 @@ function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: 
         case 3: kind = 'back'; manoeuvre = BACKOFF_STEPS; break;
         case 4:
           // re-snap; hanging on a wall or an underside, let go instead (see the header)
-          if (kin.up.y < PINNED_UP_Y) { walkerLetGo(k.field, kin, undefined, k.walker); letGos++; }
+          if (kin.up.y < PINNED_UP_Y && !over) { walkerLetGo(k.field, kin, undefined, k.walker); letGos++; }
           else walkerPlace(k.field, kin, kin.pos, { dir: { x: -kin.up.x, y: -kin.up.y, z: -kin.up.z } }, k.walker);
           break;
         case 5: kind = 'climb'; manoeuvre = SIDESTEP_STEPS; break;
-        default: walkerLetGo(k.field, kin, undefined, k.walker); letGos++; break;
+        default: if (!over) { walkerLetGo(k.field, kin, undefined, k.walker); letGos++; } break;
       }
     }
-    // aim at the target's ground point (the walker's centre rides footOffset above it)
-    dir.x = dx; dir.y = t.y + foot - kin.pos.y; dir.z = dz;
+    // aim at the target's ground point (the walker's centre rides footOffset above it); pressed against a face the
+    // target lies behind, aim level and climb over
+    const hl = Math.sqrt(dx * dx + dz * dz);
+    const behind = over && Math.abs(kin.up.y) < PINNED_UP_Y && hl > 0 && (dx * kin.up.x + dz * kin.up.z) < -BEHIND_COS * hl;
+    dir.x = dx; dir.y = behind ? 0 : t.y + foot - kin.pos.y; dir.z = dz;
     if (manoeuvre > 0) {
       manoeuvre--;
       if (kind === 'back') { dir.x = -dx; dir.y = -dir.y; dir.z = -dz; }
@@ -196,6 +229,7 @@ function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: 
     }
     if (kin.medium === 'air') walkerStep(k.field, kin, null, 0, STEP_S, k.walker);
     else walkerStep(k.field, kin, dir, speed, STEP_S, k.walker);
+    still = kin.medium !== 'air' && kin.speed === 0 ? still + 1 : 0;
     steps++;
     opts.onStep?.(kin);
     if (!Number.isFinite(kin.pos.x) || !Number.isFinite(kin.pos.y) || !Number.isFinite(kin.pos.z)) break;
@@ -203,7 +237,7 @@ function follow(k: Kernel, start: Vec3, count: number, target: (i: number, out: 
   const end = target(count - 1, t);
   const ex = kin.pos.x - end.x, ez = kin.pos.z - end.z, endDist = Math.sqrt(ex * ex + ez * ez);
   const arrived = wp >= count;
-  return { kin, reached: Math.min(wp, count), endDist, steps, episodes, recoveries, letGos, extras, stuckAt: arrived ? null : { ...kin.pos } };
+  return { kin, reached: Math.min(wp, count), endDist, steps, episodes, recoveries, letGos, extras, overs, stuckAt: arrived ? null : { ...kin.pos } };
 }
 
 /**

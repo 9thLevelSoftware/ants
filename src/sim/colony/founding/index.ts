@@ -8,7 +8,7 @@ export { runFounding } from './system';
 import './commands';
 export { foundingView, foundingBites, foundingPhaseAgeGd, type FoundingView } from './view';
 export { assessSite, coverLevelAt, footTrafficAt, deepMoisture, topsoilMoisture, type SiteReading } from './siteAssess';
-export { factorWord, mapFactorsOf, siteProfile, siteQuality, siteWordOf, toptOf } from './siteScore';
+export { factorDots, factorWord, mapFactorsOf, siteProfile, siteQuality, siteWordOf, toptOf } from './siteScore';
 /** The static map's moisture window factor (the read-out's moisture bar). */
 export { moistFactor as moistureFactor } from '@/worldgen/maps/suitability';
 export {

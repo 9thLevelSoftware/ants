@@ -10,7 +10,9 @@ import {
 } from '@/sim/balance/founding';
 import { canDigAt, foundingReadiness, type FoundingReadiness } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround, foundingQueen, setPhase, speciesOf } from './access';
-import { floodCavity, floodStart, sampleKey, throatClosed } from './leak';
+import { floodCavity, floodStart, keyPos, sampleKey, throatClosed } from './leak';
+import { registerNaturalOpening } from '@/sim/nest/entrances';
+import { THROAT_BU } from '@/sim/balance/nest';
 
 /** Where the queen's current dig bite aims (its target point, else her head), or null when she is not biting. */
 export function bitePoint(sim: Sim, q: Ant): Vec3 | null {
@@ -76,6 +78,9 @@ export function measureReadiness(sim: Sim, nest: Nest): FoundingReadiness | null
 export function queenInCell(sim: Sim, nest: Nest, q: Ant, r: FoundingReadiness): boolean {
   const cell = nest.chambers.find((c) => c.type === 'founding');
   if (cell && q.chamberId === cell.id) return true;
+  // inside the registered room by its shape (a room dug in a sand pit's fill: the walker reads it as `surface`)
+  if (cell && ((q.pos.x - cell.center.x) / cell.radii.x) ** 2 + ((q.pos.y - cell.center.y) / cell.radii.y) ** 2
+    + ((q.pos.z - cell.center.z) / cell.radii.z) ** 2 <= 1) return true;
   const depth = depthBelowGround(sim, q) / sim.world.bu;
   return q.medium === 'cavity' && depth >= r.dMinBu - FOUND_IN_CELL_MARGIN_BU;
 }
@@ -85,7 +90,10 @@ export function digTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
   const f = nest.founding;
   if (!f) return;
   const bu = sim.world.bu;
-  if (q.medium !== 'cavity' && q.nestId < 0 && horizontal(q.pos, nest.origin) > FOUND_ABANDON_BU * bu && !q.action) {
+  // walked away: off the cavity, far from the opening and from the cavity's seed (a cell dug inside a sand pit's
+  // fill reads as `surface` to the walker, beside its own cell)
+  const far = (p: Vec3) => horizontal(q.pos, p) > FOUND_ABANDON_BU * bu;
+  if (q.medium !== 'cavity' && q.nestId < 0 && far(nest.origin) && far(f.cavitySeed) && !q.action) {
     setPhase(sim, op, 'search');
     return;
   }
@@ -121,11 +129,26 @@ export function cavityEntrances(sim: Sim, nest: Nest): Entrance[] {
   }));
 }
 
+/**
+ * Every registered throat is closed, yet the cell still reaches the open air: the cavity broke into a world cavity
+ * whose own opening no breach of the nest registered. That opening is registered as a `natural` entrance (the guide
+ * then seals it like any other) and the cell is not sealed. False when the cell is cut off from the air.
+ */
+function openedElsewhere(sim: Sim, nest: Nest): boolean {
+  const leak = floodCavity(sim, floodStart(sim, nest)).path;
+  if (!leak) return false;
+  const air = keyPos(sim, leak[leak.length - 1], { x: 0, y: 0, z: 0 });
+  const bu = sim.world.bu;
+  const known = nest.entrances.some((e) => Math.hypot(air.x - e.pos.x, air.y - e.pos.y, air.z - e.pos.z) <= e.radius + THROAT_BU * bu);
+  if (!known) registerNaturalOpening(sim, nest, air);
+  return true;
+}
+
 /** Is the founding queen in the cavity of her cell (not shut out above a plug)? */
 function queenSealedIn(sim: Sim, nest: Nest): boolean {
   const q = foundingQueen(sim);
   if (!q) return true;
-  const v = sim.carve.voxel, cav = floodCavity(sim, floodStart(nest)).cavity;
+  const v = sim.carve.voxel, cav = floodCavity(sim, floodStart(sim, nest)).cavity;
   const ci = Math.round(q.pos.x / v), cj = Math.round(q.pos.y / v), ck = Math.round(q.pos.z / v);
   for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
     if (cav.has(sampleKey(ci + di, cj + dj, ck + dk))) return true;
@@ -146,7 +169,7 @@ export function sealTick(sim: Sim, op: OpeningState, nest: Nest): boolean {
     // sealed with the queen inside (a plug between her and the cell is no seal of her cell)
     // no registered opening at all (a shaft closed under a crust, or one that broke into a natural cavity whose
     // openings the nest module has not registered): nothing the nest module counts as open, so sealed, as it sees it
-    const closed = mine.every((e) => throatClosed(sim, e));
+    const closed = mine.every((e) => throatClosed(sim, e)) && !openedElsewhere(sim, nest);
     const done = closed && queenSealedIn(sim, nest);
     if (done && f.state === 'ready') {
       f.state = 'sealed';

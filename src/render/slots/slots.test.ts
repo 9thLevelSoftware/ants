@@ -1,4 +1,4 @@
-// int-1A: the real world / nest / ant renderers behind the registry (headless three in Node, no WebGL; the sky's
+// int-1A (+ wire-stage2: creatures, humans, weather, fx): the real world / nest / ant renderers behind the registry (headless three in Node, no WebGL; the sky's
 // PMREM bake is stubbed): registration, shared material library, game start / end, quality switches, disposal,
 // the possessed ant drawn at the predicted pose, statistics as plain numbers.
 import { describe, expect, it } from 'vitest';
@@ -31,8 +31,7 @@ describe('render registry with the real renderers', () => {
   it('registers world, nest and ants; shares the material library; runs a game start, frames and end', async () => {
     const reg = new RenderRegistry();
     const d = reg.describe();
-    expect([d.world, d.nest, d.ants]).toEqual(['world', 'nest', 'ants']);
-    expect(d.creatures).toContain('(debug)');
+    expect([d.world, d.nest, d.ants, d.creatures, d.humans, d.weather, d.fx]).toEqual(['world', 'nest', 'ants', 'creatures', 'humans', 'weather', 'fx']);
     const scene = new Scene(), camera = new PerspectiveCamera(60, 16 / 9, 0.1, 1e5);
     await reg.init(context(scene, camera));
     stubSky(reg);

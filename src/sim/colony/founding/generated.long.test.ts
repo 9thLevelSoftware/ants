@@ -1,49 +1,36 @@
 // The opening on GENERATED worlds (FOUNDRESS_LONG=1; several minutes): the player path through the real primitives
 // and the real founding code, and the founding outcome in the real environment over seeds. Numbers go to stderr.
-//   FOUNDRESS_LONG=1 npx vitest run src/sim/colony/founding/generated.long.test.ts
-// FOUNDRESS_SEEDS=a,b,c chooses the generated seeds (default 1,2,3).
+//   FOUNDRESS_LONG=1 FOUNDRESS_SEEDS=1 npx vitest run src/sim/colony/founding/generated.long.test.ts
+// FOUNDRESS_SEEDS=a,b,c chooses the generated seeds (default 1,2,3 for the player path, 1-8 for the outcome); one
+// seed per process is the intended use (one generated world in memory). FOUNDRESS_NO_FLOOD=1 leaves out the nest
+// flood system (weather-fix2's dry-weather drowning, L12) while it still reproduces.
 import { describe, expect, it } from 'vitest';
 import type { Sim, WorldData } from '@/sim/types';
 import { begin } from '@/sim/ants';
-import { navStop, navTo } from '@/sim/locomotion';
-import { createNewGame, defaultGameConfig } from '@/sim/createGame';
-import { createSim } from '@/sim/sim';
-import { runFoundingDig } from '@/sim/testing/e2e/foundingScript';
+import { navTo } from '@/sim/locomotion';
+import { defaultGameConfig } from '@/sim/createGame';
 import { TICKS_PER_DAY, calendarTick, currentSeason, daysPerYear, seasonLengthOf } from '@/sim/time';
 import { requireSpecies } from '@/sim/species';
 import { generateWorld } from '@/worldgen';
-import { SUIT } from '@/worldgen/tuning/maps';
 import { isWorkerCaste } from '../census';
 import { cavityEntrances } from './dig';
-import { plugInnerFace, plugRemnants } from './reopen';
+import { plugRemnants } from './reopen';
 import { foundingView } from './view';
+import { goodSite, playerCase, sweepSim } from './sweepKit';
 import { nestOf, phase, pinTemperature, queen, stepUntil } from './testkit';
 
 const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined>; stderr: { write(s: string): void } } }).process;
 const LONG = !!env?.env.FOUNDRESS_LONG;
 const SEEDS = (env?.env.FOUNDRESS_SEEDS ?? '1,2,3').split(',').map(Number);
+const NO_FLOOD = !!env?.env.FOUNDRESS_NO_FLOOD;
 const log = (...a: unknown[]) => env?.stderr.write(`[founding.long] ${a.join(' ')}\n`);
 
 const worlds = new Map<number, WorldData>();
-function newGame(seed: number, day?: number): Sim {
-  const cfg = { ...defaultGameConfig('lasius-niger', seed), cheats: true, ...(day ? { startDayOfSeason: day } : {}) };
+function newGame(seed: number): Sim {
+  const cfg = { ...defaultGameConfig('lasius-niger', seed), cheats: true };
   let world = worlds.get(seed);
   if (!world) { world = generateWorld(cfg.world); worlds.set(seed, world); }
-  return createSim(createNewGame(cfg, world).state, world);
-}
-
-/** The best static-map cell (good or better if any) within `rBu` of the queen, as a ground point. */
-function goodSite(sim: Sim, rBu: number): { x: number; y: number; z: number; q: number } {
-  const q = queen(sim), m = sim.world.maps.suitability['lasius-niger'], bu = sim.world.bu;
-  let best = { x: q.pos.x, y: 0, z: q.pos.z, q: -1 };
-  for (let iz = 0; iz < m.nz; iz++) for (let ix = 0; ix < m.nx; ix++) {
-    const x = (ix + 0.5) * m.cell, z = (iz + 0.5) * m.cell, v = m.data[iz * m.nx + ix] / 255;
-    const d = Math.hypot(x - q.pos.x, z - q.pos.z);
-    // nearest good site; else the best one
-    const better = best.q < SUIT.good ? v > best.q : v >= SUIT.good && d < Math.hypot(best.x - q.pos.x, best.z - q.pos.z);
-    if (d <= rBu * bu && better) best = { x, y: sim.field.height(x, z), z, q: v };
-  }
-  return best;
+  return sweepSim(world, cfg, { noFlood: NO_FLOOD });
 }
 
 function walkTo(sim: Sim, p: { x: number; y: number; z: number }, tolBu: number, maxTicks: number): boolean {
@@ -51,26 +38,6 @@ function walkTo(sim: Sim, p: { x: number; y: number; z: number }, tolBu: number,
   if (!navTo(sim, q, p, tolBu * sim.world.bu)) return false;
   stepUntil(sim, () => q.nav.status !== 'moving', maxTicks);
   return q.nav.status === 'arrived';
-}
-
-/**
- * The player widening the cell until the nest reports it ready: from the room's centre, level bites outward at
- * spreading angles, stepping back to the centre between them (as a player digs round the shaft's end).
- */
-function widenCell(sim: Sim, maxTicks: number): void {
-  const q = queen(sim), bu = sim.world.bu, c = { ...q.pos };
-  let k = 0;
-  const end = sim.state.tick + maxTicks;
-  while (phase(sim) === 'dig' && sim.state.tick < end) {
-    const a = k * 2.4, r = Math.min(2.5, 0.8 + 0.05 * k) * bu;
-    walkTo(sim, { x: c.x + Math.cos(a) * r * 0.5, y: c.y, z: c.z + Math.sin(a) * r * 0.5 }, 0.5, 400);
-    for (let b = 0; b < 2 && phase(sim) === 'dig'; b++) {
-      begin(sim, q, 'dig-bite', { kind: 'point', id: -1, pos: { x: q.pos.x + Math.cos(a) * 2 * bu, y: q.pos.y - 0.2 * bu, z: q.pos.z + Math.sin(a) * 2 * bu } });
-      stepUntil(sim, () => q.action === null, 300);
-    }
-    stepUntil(sim, () => phase(sim) !== 'dig', 15);
-    k++;
-  }
 }
 
 function act(sim: Sim, id: Parameters<typeof begin>[2], maxTicks = 300): boolean {
@@ -81,34 +48,23 @@ function act(sim: Sim, id: Parameters<typeof begin>[2], maxTicks = 300): boolean
 }
 
 describe.skipIf(!LONG)('the player path on a generated world (no stand-ins; temperature pinned warm only to keep the lapse short)', () => {
-  it('walk to a good site, dig with dig-bite, seal with seal-entrance, lay with lay-egg, lapse, hand-over; the workers reopen the entrance and walk out', () => {
+  it('walk to a good site, dig with dig-bite, seal with one E press (seal-entrance), lay with lay-egg, lapse, hand-over; the workers reopen the entrance and walk out', () => {
     const sim = newGame(SEEDS[0]);
     const bu = sim.world.bu;
-    sim.enqueue({ type: 'openingSkipIntro' });
-    stepUntil(sim, () => phase(sim) === 'search', 200);
     const site = goodSite(sim, 120);
     log('site', JSON.stringify(site), 'from', JSON.stringify(queen(sim).pos));
     expect(site.q).toBeGreaterThan(0);
-    expect(walkTo(sim, site, 1.5, 6000)).toBe(true);
-    navStop(sim, queen(sim));
     pinTemperature(sim, 25);
     const nest = nestOf(sim);
     const q = queen(sim);
-    const dig = runFoundingDig(sim, q, nest, { x: q.fwd.x, z: q.fwd.z }, 30_000);
-    log('dig', JSON.stringify(dig), 'phase', phase(sim), 'readiness', nest.founding?.readiness);
-    widenCell(sim, 20_000);
-    log('cell', phase(sim), 'readiness', nest.founding?.readiness);
-    expect(phase(sim)).toBe('seal');
-    // E at the shaft: up into the throat, hold seal-entrance (the founding rule puts soil in her mandibles)
-    const e = cavityEntrances(sim, nest)[0];
-    const face = plugInnerFace(sim, nest, e)!;
-    expect(face).not.toBeNull();
-    expect(walkTo(sim, face, 0.6, 3000)).toBe(true);
-    const refused: string[] = [];
-    sim.events.on('action-failed', (ev) => { if (ev.antId === q.id) refused.push(`${ev.action}:${ev.reason}`); });
-    for (let i = 0; i < 8 && phase(sim) === 'seal'; i++) { act(sim, 'seal-entrance'); stepUntil(sim, () => false, 5); }
-    log('seal', phase(sim), 'refused', refused.join(','));
+    // the browser player's dig and one press of E in the cell; the founding guide seals with seal-entrance
+    const seal = playerCase(sim, site);
+    log('seal', JSON.stringify(seal));
+    expect(seal.ok).toBe(true);
+    expect(seal.refusals).not.toContain('no-target');
     expect(phase(sim)).toBe('lay');
+    sim.enqueue({ type: 'release', reason: 'player' });
+    sim.tick();
     const cell = nest.chambers.find((c) => c.type === 'founding')!;
     expect(walkTo(sim, { x: cell.center.x, y: cell.center.y - cell.radii.y * 0.5, z: cell.center.z }, 0.8, 3000)).toBe(true);
     for (let i = 0; i < 3; i++) act(sim, 'lay-egg');

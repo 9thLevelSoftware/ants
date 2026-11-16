@@ -1,7 +1,7 @@
 # Locomotion (task loco)
 
 Everything that gets ants and creatures from A to B, on top of the kernel's surface walker (`walker.ts`,
-`walkerMath.ts`, `walkerParams.ts`: F2, not edited here). Pure TypeScript, no three / DOM.
+`walkerMath.ts`, `walkerParams.ts`: F2; viab-loco added the bracketed projection fallback). Pure TypeScript, no three / DOM.
 
 ## API (index.ts)
 
@@ -25,6 +25,11 @@ Behaviours never move walkers: they make a request and poll `nav.status` (`movin
 | `registerMovementOverride(sim, f)` | Tier 2 hook: flight, floating on water |
 | `setLocoObserver(sim, pos)` | LOD observer (camera focus); default: possessed ant, else the player's nest |
 | `locoStats(sim)` | diagnostic counters (plans, stuck episodes, ladder rungs, relocations, LOD skips ...) |
+
+`stalledAnts(sim, rt)` / invariant `walker-stall` (stallWatch.ts): ants that spent 600 ticks with nav status `moving`
+within 0.25 BU of one point, added up across failed, re-issued and paused walks (leaving the sphere starts a new
+window, an arrival ends it; time as the possessed ant, stunned, cold-held, in the air or held by a movement override
+does not count), with position, normal, state, destination and target. `walker-in-bounds`: nothing outside [8 BU, side - 8 BU].
 
 `NavOptions`: `arriveDist` (mm), `speed` (`'cruise'` = species cruise x temperature x health x load x callow,
 `'run'` = the caste's sprint, or a fixed mm/s), `speedMult`.
@@ -76,7 +81,10 @@ bias (cavities), map-edge and avoid repulsion are added with their unitless weig
 
 Progress = the leg's own metric (distance to the waypoint, field distance, flow cost). Planning a new leg is not
 progress (its first metric is only a baseline; the window keeps running), so a walker whose legs keep ending
-without arriving is caught. No improvement of 0.5 BU in 2.5 s climbs one rung: replan, sidestep, back off, re-snap,
+without arriving is caught. Climbing counts as progress: on a steep face (|up.y| < pinnedUpY) a new highest point 0.5 BU above the last
+(`anchor.y`, reset per leg, waypoint and rung) re-baselines the metric, so a tall board is climbed and descended
+instead of laddered mid-climb; going up and down the same wall is not progress.
+No improvement of 0.5 BU in 2.5 s climbs one rung: replan, sidestep, back off, re-snap,
 relocate (<= 2 per request, 6 BU toward the next waypoint / flow cell / field sample, event `ant-unstuck`), fail. Episodes per request are capped and every request has a timeout, so every walker ends `arrived` or `failed`.
 
 A wander has no goal to replan toward or relocate along, so it has its own short ladder (`stuck.ts` wanderStuck):
@@ -85,10 +93,37 @@ round a quarter turn ahead, the pull to the wander centre ignored); a pivot that
 `wanderStallMax` stalls in one request, ends the wander `failed` with mode 'none' (callers that re-issue "while not
 wandering" do so at once; the in-nest idle behaviour walks back toward its chamber's centre first).
 
-Pinned walkers: in a cavity on a steep slope, wall or overhang (up.y < 0.7), standing (speed 0) and without progress
-for `pinnedS` (1 s), a walker with any request lets go and drops to the floor below; the request goes on after the
-landing. Thin fins and lips of dug soil held walkers whose every step was rejected for many seconds (the 2-game-day
+Pinned walkers (`letGoPinned`): standing (speed 0) without progress for `pinnedS` (1 s), a walker with any request
+lets go and drops, once per stuck window (the window is not restarted, so one that lands back on the same spot, wedged
+in a crack or at a crease of the field, climbs the ladder): in a cavity on a steep slope, wall or overhang
+(up.y < 0.7); on the surface when hanging (up.y < 0.7) or at a raised edge (a leaf tip it cannot wrap round) with its
+next point at least 1 BU lower. A surface walker upside down (up.y < -0.5) that keeps circling under a sheet or a bulge
+with its next point lower also lets go. The request goes on after the landing. Thin fins and lips of dug soil held walkers whose every step was rejected for many seconds (the 2-game-day
 soak's longest continuous "moving, speed 0" run fell from 241 to 19 ticks).
+
+A wander asked for again while it runs (same centre within 0.5 BU, radius and speed) is kept as it is: behaviours that
+re-issue it every think no longer restart its ladder.
+
+The kernel walker's projection falls back to a bracketed bisection along the gradient when Newton cycles (a crease
+where blended solids meet), and hops a small value jump of the field on its free side (the terrain pseudo-distance
+across a steep crest of a mound pile against an object, < 0.75 x foot offset): walker.ts bracketProject.
+
+## Weather (weather.ts, puddles.ts; GDD 06 §3.3, §3.10)
+
+- Stunned (`ant.bb[WX_STUN_KEY]` > tick: rain hits, collapses, combat, creatures): the ant does not walk (AI and
+  possessed); its stuck window is held.
+- Under water (`isUnderWater` of the nest flood module: a flooded nest voxel or a puddle >= WX_PUDDLE_AVOID_BU): speed
+  x0.3 (AI and possessed); on the surface the walker's medium is `water` (in a nest it stays `cavity`).
+- Wet surfaces (`surfaceWet` 0..1): grip x lerp(1, 0.9, wetness) outside nests, in the slope slip test.
+- Puddles on the nav grid (the moisture grid is the 16 BU nav grid): cost x WX_PUDDLE_AVOID_COST at the avoid depth,
+  blocked at WX_PUDDLE_BLOCK_BU (`setWetCells`, synced every tick from state). The possessed ant is never planned and
+  may swim.
+
+## Crowding (neighbours.ts)
+
+Separation queries the crowd grid of the tick start, which stops after `separationMax` hits (own cell first): a dense
+room costs no more than a sparse one. An ant wandering in carved space with at least `dozeCrowd` nestmates (ants of its colony) within the
+separation radius dozes (stands, unstepped, stuck window held) for the last 3 s of each 4 s cycle (phase by id).
 
 ## Level of detail
 
@@ -106,6 +141,7 @@ followers step at least every 2nd tick (the trail law is integrated over dt, but
 resolution and leg planning - `legs.ts` leg following - `modes.ts` wander / trail / retrace - `crumbs.ts`
 breadcrumbs and path integration - `steer.ts` turning, separation, floor bias, edge and avoid repulsion -
 `stuck.ts` recovery ladder - `possessed.ts` player movement and prediction - `speed.ts` speed composition -
-`nests.ts`, `routes.ts` queries - `runtime.ts` per-sim caches and counters - `scratch.ts` persisted per-walker
+`nests.ts`, `routes.ts` queries - `stallWatch.ts` stall invariant - `weather.ts`, `puddles.ts` weather hooks -
+`neighbours.ts` crowd grid - `runtime.ts` per-sim caches and counters - `scratch.ts` persisted per-walker
 state (`nav.loco`) - `params.ts` tuning (BU) - `grid/*` the nav grid (`src/sim/world/navGrid.ts` is its entry) -
-`testkit.ts`, `scenario.ts` test support.
+`testkit.ts`, `scenario.ts`, `possessedSweepKit.ts` test support.

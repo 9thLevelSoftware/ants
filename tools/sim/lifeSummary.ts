@@ -6,6 +6,7 @@
 import type { LifeReport } from './life';
 import { lifeMarkdown } from './life';
 import { judge } from './lifeHealth';
+import { deathsByCause, judgeViable, tripsPerForagerDay, tripsPerWorkerDay } from './lifeViable';
 
 export default async function main(args: string[]): Promise<void> {
   const fs = (await import('node:fs' as string)) as { readdirSync(p: string): string[]; readFileSync(p: string, e: string): string };
@@ -13,6 +14,8 @@ export default async function main(args: string[]): Promise<void> {
   const tables = args.includes('--tables');
   const files = fs.readdirSync(dir).filter((f) => f.startsWith('life-') && f.endsWith('.json')).sort();
   const lines: string[] = ['| run | founding | workers start -> end | deliveries | eggs | eclosed | net growth | verdict | failed checks |', '|---|---|---|---|---|---|---|---|---|'];
+  const viab: string[] = ['| run | hand-over | first workers | workers at winter | stores C / P (gd of adult need) | trips / worker / gd (per forager) | deaths by cause | longest stage worse than lean (gd) | strict | viable | failed viable checks |',
+    '|---|---|---|---|---|---|---|---|---|---|---|'];
   const out: string[] = [];
   for (const f of files) {
     const r = JSON.parse(fs.readFileSync(`${dir}/${f}`, 'utf8')) as LifeReport;
@@ -25,6 +28,12 @@ export default async function main(args: string[]): Promise<void> {
     const failed = r.verdict.checks.filter((c) => !c.ok).map((c) => `${c.name} (${c.detail})`).join('; ');
     lines.push(`| ${r.options.archetype} #${r.options.seed} | ${r.founding.phase}, ${r.founding.gd} gd | ${r.founding.workers} -> ${last?.workers ?? '-'} | ${deliveries} | ${eggs} | ${eclosed} | ${r.verdict.netGrowth ? 'yes' : 'no'} | ${r.verdict.healthy ? 'healthy' : 'unhealthy'} | ${failed || '-'} |`);
     if (tables) out.push(lifeMarkdown(r), '');
+    const v = judgeViable(r);
+    const need = last?.adultNeedC ?? 0;
+    const dz = Object.entries(deathsByCause(r)).map(([k, n]) => `${k} ${n}`).join(', ') || '-';
+    viab.push(`| ${r.options.archetype} #${r.options.seed} | ${r.founding.phase}, ${r.founding.gd} gd | ${r.founding.workers} | ${last?.workers ?? '-'} | ${last?.storesC ?? '-'} / ${last?.storesP ?? '-'} (${need > 0 ? ((last?.storesC ?? 0) / need).toFixed(1) : '-'}) | `
+      + `${tripsPerWorkerDay(r).toFixed(2)} (${tripsPerForagerDay(r).toFixed(2)}) | ${dz} | ${(r.economy?.longestBadStageGd ?? 0).toFixed(2)} | ${r.verdict.healthy ? 'healthy' : 'unhealthy'} | ${v.viable ? '**viable**' : 'not viable'} | `
+      + `${v.checks.filter((c) => !c.ok).map((c) => `${c.name} (${c.detail})`).join('; ') || '-'} |`);
   }
-  console.log([...lines, '', ...out].join('\n'));
+  console.log([...viab, '', ...lines, '', ...out].join('\n'));
 }

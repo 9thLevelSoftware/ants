@@ -128,11 +128,27 @@ export const FLOOD_CATCH_DIV_BU = 2;
 export const FLOOD_CATCH_MIN = 0.25;
 export const FLOOD_CATCH_MAX = 4;
 /**
- * World hydrology on top of the local ring (GDD 06 §5.7 floodSafety = 1 - floodRisk; worldgen floodFactorOf): the
- * catchment is multiplied by 1 + GAIN x floodRisk, so a flood-safe site (risk 0) keeps GDD 03's flat-ground c = 1
- * and a hollow with a large catchment gets up to (1 + GAIN) x; the product is clamped like c [WX].
+ * World hydrology on top of the local ring (GDD 06 §5.7 floodSafety = 1 - floodRisk; worldgen floodFactorOf; the
+ * read-out's words Low-lying / Sloped / Raised). The ring catchment is multiplied by a factor of the map's risk,
+ * piecewise linear through
+ *   risk <= SAFE_RISK (floodFactorOf >= 2/3, "Raised")   SAFE_FACTOR
+ *   risk = NEUTRAL_RISK ("Sloped")                         1 (GDD 03's plain ring catchment: App. E 22's flat c = 1)
+ *   risk = 1 (the wettest hollow)                          1 + GAIN
+ * and the product is clamped to [CATCH_MIN x SAFE_FACTOR, CATCH_MAX] [WX]. A raised site sheds the rain around it
+ * and most of what falls at the opening runs off the crown with it: flat ground there takes 0.1 of GDD 03's
+ * flat-ground inflow (crusted 0.15), a knoll 0.025; a site in a steep local pit keeps more. This is what makes the
+ * dynamic model agree with the static map's "Raised" word (task weather-fix2 invariant: a flood-safe site floods in
+ * no ordinary shower, with GDD 03's wall drainage K_DRAIN). Measured on generated worlds: at c >= 0.25 a 7-19 BU^3
+ * incipient cell with a 1.5 BU rim took 2-3 BU^3 in a median shower (30-40 % of the cell); at SAFE_FACTOR 0.15 the
+ * smallest (7 BU^3) still 34 %; at 0.1, 23 %. NEUTRAL_RISK 0.4 is a whole map byte (102 / 255), so a test can stand
+ * a nest on exactly flat-ground catchment.
+ * (weather-fix2: before, every site got at least the flat-ground value, so an incipient open nest on ground the
+ * static map calls flood-safe filled its cell in an ordinary shower.)
  */
 export const FLOOD_HYDRO_GAIN = 3;
+export const FLOOD_HYDRO_SAFE_RISK = 1 / 3;
+export const FLOOD_HYDRO_SAFE_FACTOR = 0.1;
+export const FLOOD_HYDRO_NEUTRAL_RISK = 0.4;
 /** Crusted ring (>= HALF crusted) sheds rain: catchment x CRUST_RUNOFF. */
 export const FLOOD_CRUST_RUNOFF = 1.5;
 export const FLOOD_CRUST_HALF = 0.5;
@@ -160,6 +176,12 @@ export const FLOOD_SEEP_THETA1 = 0.92;
 export const FLOOD_SEEP_RATE = 0.002;
 /** Spill-height cache rebuild at most every this many ticks per nest (H* rebuild <= every 5 s). */
 export const FLOOD_REBUILD_TICKS = 50;
+/**
+ * Rebuild slots: once the throttle allows it, a changed nest rebuilds on the first flood step whose slot
+ * ((tick / FLOOD_STEP_TICKS + nest id) mod SLOTS) is 0, so wet nests do not all rebuild on one tick (a rebuild is
+ * 3-4 ms on a 400 BU^3 nest) [WX, weather-fix2]. The deferred step integrates the whole frozen time.
+ */
+export const FLOOD_REBUILD_SLOTS = 5;
 /** Water below this volume counts as dry, BU^3. */
 export const FLOOD_DRY_BU3 = 0.01;
 /** `flood-level` events at most every this many ticks per nest. */
@@ -167,6 +189,17 @@ export const FLOOD_LEVEL_EVENT_TICKS = 50;
 /** Submersion: health untouched for GRACE s, then -RATE x max hp per s (GDD 03 §11.3). */
 export const FLOOD_SUBMERGE_GRACE_S = 50;
 export const FLOOD_SUBMERGE_HP_PER_S = 0.01;
+/**
+ * An ant is submerged only where the water stands at least this deep above its feet (00-index water row: "drowning
+ * in >= 0.5 BU water", the same depth as a puddle hazard). A film on the floor wets, it does not drown.
+ */
+export const FLOOD_SUBMERGE_DEPTH_BU = 0.5;
+/**
+ * Inflow factor of the plug of a sealed founding cell (claustral phase): 0, the cell takes water only by seepage
+ * from saturated subsoil (task weather-fix2; GDD 06 §5.12 models the claustral flood risk as the founding hazard).
+ * Established nests' sealed entrances keep GDD 03's SEAL_LEAK (FLOOD_STATE_FACTOR.sealed).
+ */
+export const FLOOD_FOUNDING_PLUG_FACTOR = 0;
 /** Brood dies after this many seconds of continuous submersion. */
 export const FLOOD_BROOD_DROWN_S = 75;
 /** ant.bb key: continuous submerged seconds. */
@@ -177,6 +210,12 @@ export const FLOOD_ALERT_FRACTION = 0.25;
 export const FLOOD_REF_INTENSITY = 1;
 export const FLOOD_REF_S = 75;
 export const FLOOD_PREDICT_TICKS = 250;
+/**
+ * A dry nest of another colony whose geometry is changing (a rival digging) re-captures its geometry for the
+ * reference storm at most every this many ticks (5 game min): its spill rebuild was 10-16 ms at every prediction,
+ * every 25 s, through a dry founding (weather-fix2 review). The player's nests and wet nests keep REBUILD_TICKS.
+ */
+export const FLOOD_PREDICT_DRY_REBUILD_TICKS = 3000;
 /** Open voxels per nest the spill cache will index (beyond: the rest are ignored, reported) [WX]. */
 export const FLOOD_MAX_VOXELS = 400000;
 

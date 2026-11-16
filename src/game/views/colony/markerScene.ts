@@ -18,6 +18,8 @@ export interface MarkerSceneInput {
   sim: Sim;
   /** Draw markers and plans (colony view); highlights are drawn in every view. */
   colony: boolean;
+  /** Draw the dig-plan outlines in any view (the dig-plans overlay is on, GDD 08 §4.3); default: only with `colony`. */
+  plans?: boolean;
   selectedMarkerId: number;
   selectedPlanId: number;
   preview: PlanPreview | null;
@@ -65,7 +67,7 @@ export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
   const { sim } = p, bu = sim.world.bu;
   const lines: MarkerLineSet[] = [], labels: MarkerLabel[] = [], volumes: NestGhost[] = [];
   // the version holds what is drawn, not the tick: in most frames nothing changed and nothing is rebuilt
-  const keyParts: (string | number)[] = [p.colony ? 1 : 0];
+  const keyParts: (string | number)[] = [p.colony ? 1 : 0, p.plans ? 1 : 0];
   const height = (x: number, z: number) => sim.field.height(x, z);
   if (p.colony) {
     const col = sim.state.colonies[0]?.id ?? -1;
@@ -86,6 +88,8 @@ export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
       }
       keyParts.push(m.id, m.radius, sel ? 's' : '');
     }
+  }
+  if (p.colony || p.plans) {
     const nest = playerNest(sim);
     for (const plan of nest?.digPlans ?? []) {
       const style = PLAN_STYLE[plan.status];

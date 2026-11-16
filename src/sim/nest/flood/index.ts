@@ -3,25 +3,26 @@
 //   - each nest's water W (step.ts: inflow, wall drainage, level, chamber flooded shares, events),
 //   - submersion of ants and brood (drown.ts),
 //   - every FLOOD_PREDICT_TICKS (spread over the period by nest id): reference storm -> Chamber.floodRisk
-//     (predict.ts; skipped while the nest's geometry is frozen) and `diag-nest-flood:<id>`,
-//   - every EROSION_EVERY_TICKS: one erosion pass over every mound in rain (erosion.ts).
+//     (predict.ts; skipped while the nest's geometry is frozen; a dry nest of another colony captures a changing
+//     geometry at most every FLOOD_PREDICT_DRY_REBUILD_TICKS) and `diag-nest-flood:<id>`,
+//   - every EROSION_EVERY_TICKS per mound, spread over the period by mound id: one erosion pass in rain (erosion.ts).
 // Registered by one line in src/sim/nest/index.ts.
 
 import type { Nest, Sim, System } from '@/sim/types';
-import { EROSION_EVERY_TICKS, FLOOD_PREDICT_TICKS, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
-import { foundingFloodAlert, publishFloodDiagnostic } from './diagnostics';
+import { FLOOD_PREDICT_DRY_REBUILD_TICKS, FLOOD_PREDICT_TICKS, FLOOD_REBUILD_TICKS, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
+import { foundingFloodAlert, publishFloodDiagnostic, queenFloodAlert } from './diagnostics';
 import { drownStep, type WetNest } from './drown';
-import { erodeMounds } from './erosion';
+import { erodeDueMounds } from './erosion';
 import { refreshFloodRisk, type FloodPrediction } from './predict';
 import { stepNestFlood } from './step';
 
 export { floodCheats } from './cheats';
 export { stepNestFlood, drainageOf } from './step';
-export { predictReferenceStorm, refreshFloodRisk } from './predict';
+export { predictRain, predictReferenceStorm, refreshFloodRisk } from './predict';
 export { entranceInflow, nestInflow, catchmentOf, rimFactorOf } from './inflow';
-export { floodDiagnostic } from './diagnostics';
+export { floodDiagnostic, queenFloodAlert } from './diagnostics';
 export { drownStep, isUnderWater } from './drown';
-export { erodeMound, erodeMounds } from './erosion';
+export { erodeDueMounds, erodeMound, erodeMounds } from './erosion';
 export { floodGeometry, spillFor, spillPeek } from './runtime';
 export { floodedCount, waterLevelMm, chamberFloodedShare, spillVolume, type SpillCache } from './spill';
 export { floodSurface, type FloodSurface } from './surface';
@@ -41,6 +42,12 @@ function playerNest(sim: Sim, nest: Nest): boolean {
   return nest.colony === sim.state.colonies[0]?.id;
 }
 
+/** Minimum geometry-capture age of a prediction: a dry nest of another colony waits longer (its floodRisk is read
+ * only by the nest panel; balance FLOOD_PREDICT_DRY_REBUILD_TICKS). */
+function predictMinAge(nest: Nest, mine: boolean): number {
+  return !mine && nest.flood.water <= 0 ? FLOOD_PREDICT_DRY_REBUILD_TICKS : FLOOD_REBUILD_TICKS;
+}
+
 export function runFlood(sim: Sim): void {
   const t = sim.state.tick;
   const wet: WetNest[] = [];
@@ -49,17 +56,19 @@ export function runFlood(sim: Sim): void {
     if (!nest.alive) continue;
     const wasWet = nest.flood.water > 0;
     const r = stepNestFlood(sim, nest);
-    if (r.cache && r.nFlooded > 0) wet.push({ nestId: nest.id, cache: r.cache, nFlooded: r.nFlooded });
+    if (r.cache && r.nFlooded > 0) wet.push({ nestId: nest.id, cache: r.cache, nFlooded: r.nFlooded, level: nest.flood.level });
     if (r.frozen) frozen.add(nest.id);
     const changed = wasWet !== nest.flood.water > 0;
     let pred: FloodPrediction | null = null;
     const due = predictDue(t, nest);
-    if (due && nest.entrances.length > 0) pred = refreshFloodRisk(sim, nest);
-    if (playerNest(sim, nest) && (due || changed)) publishFloodDiagnostic(sim, nest, pred);
+    const mine = playerNest(sim, nest);
+    if (due && nest.entrances.length > 0) pred = refreshFloodRisk(sim, nest, predictMinAge(nest, mine));
+    if (mine && (due || changed)) publishFloodDiagnostic(sim, nest, pred);
     if (nest.founding && (changed || t % ALERT_EVERY === 0)) foundingFloodAlert(sim, nest);
   }
   drownStep(sim, wet, frozen);
-  if ((t + EROSION_OFFSET) % EROSION_EVERY_TICKS === 0) erodeMounds(sim);
+  queenFloodAlert(sim);
+  erodeDueMounds(sim, t, EROSION_OFFSET);
 }
 
 /**

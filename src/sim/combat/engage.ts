@@ -10,7 +10,7 @@ import {
   THETA_FIGHT_NURSE_INVADED, THETA_FIGHT_SURFACE,
 } from '@/sim/balance/combat';
 import { getRivalSpecies } from '@/sim/species';
-import { relationOf } from '@/sim/rivals';
+import { isHostile, relationOf } from '@/sim/rivals';
 import { combatStats, fightStrength, healthOf, retreatHealth } from './stats';
 import { antLenMm, combatFlags, dist, isParalysed, isPossessed, isSeized } from './state';
 
@@ -81,7 +81,8 @@ export function protectedQueen(sim: Sim, other: Ant): boolean {
 
 /** Whether the AI of `ant` may pick `other` as a foe: a living ant of another colony that is not protected. */
 export function mayAttack(sim: Sim, ant: Ant, other: Ant): boolean {
-  return other.alive && other.colony !== ant.colony && !protectedQueen(sim, other);
+  // whether these colonies treat each other as foes is the rivals module's (relations); combat adds the queen rule
+  return other.alive && isHostile(sim, ant.colony, other.colony) && !protectedQueen(sim, other);
 }
 
 /**

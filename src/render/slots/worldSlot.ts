@@ -11,6 +11,7 @@ import type { Sim } from '@/sim/types';
 import { BoundaryRenderer } from '../world/boundary';
 import { DecorRenderer, type DecorFrame } from '../world/decor';
 import { UNDERGROUND, WorldRenderer } from '../world/lighting';
+import { readWeather } from '../world/weather/WeatherRenderer';
 import { WET_EASE_S, WET_PER_PRECIP } from './params';
 import { easeEV, occlusionAt, shadeEV, type OcclusionGrid } from './shadeAdapt';
 
@@ -129,8 +130,7 @@ export class WorldSlot implements SubRenderer {
   }
 
   private updateWetness(sim: Sim, dt: number): void {
-    const precip = sim.state.env?.weather?.precip ?? 0;
-    const target = Math.min(1, Math.max(0, precip * WET_PER_PRECIP));
+    const target = wetnessTarget(sim);
     const k = this.wet < 0 || !(dt > 0) ? 1 : 1 - Math.exp(-dt / WET_EASE_S);
     const next = this.wet < 0 ? target : this.wet + (target - this.wet) * k;
     if (next !== this.wet) { this.wet = next; this.world.setWetness(next); }
@@ -177,4 +177,17 @@ export class WorldSlot implements SubRenderer {
     this.boundary.dispose();
     this.world.dispose();
   }
+}
+
+/**
+ * Surface wetness the ground eases toward (wire-stage2): the weather renderer's reading (rain now, precipitation and
+ * the soil's surface wetness after the rain, src/render/world/weather), so the ground stays wet after a shower. This
+ * slot is the only writer of the world materials' wetness: the weather slot adapter withholds the world peer from the
+ * weather renderer (src/render/slots/weatherSlot.ts), otherwise its instant write would undo this easing.
+ */
+export function wetnessTarget(sim: Sim): number {
+  const w = sim.state.env?.weather;
+  if (!w) return 0;
+  if (!w.windDir || !sim.state.env.moisture) return Math.min(1, Math.max(0, (w.precip ?? 0) * WET_PER_PRECIP));
+  return Math.min(1, Math.max(0, readWeather(sim).wet));
 }

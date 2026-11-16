@@ -88,4 +88,22 @@ describe('camera-to-ant capsule (GDD 01 6.5 rule 2)', () => {
     expect(shared.uCapR.value).toBe(0);
     r.dispose();
   });
+
+  it('photo mode can hide the possession rim: hidePossessedHighlight makes the possessed ant draw with no highlight (GDD 01 6.9)', () => {
+    const camera = new PerspectiveCamera(40, 16 / 9, 0.1, 5000);
+    camera.position.set(-20, 10, 0); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+    const r = new AntRenderer();
+    r.init({ scene: new Scene(), camera, quality: getPreset('test') });
+    const state = { tick: 0, ants: [view(1, 0)], brood: [], items: [], colonies: [{ id: 0, species: 'lasius-niger' }], player: { possessedAntId: 1 } };
+    r.setSim({ state } as never);
+    const hi = (): number => (r as unknown as { highlightOf(k: string, id: number, possessed: boolean): number }).highlightOf('ant', 1, true);
+    const frame = { dt: 1 / 60, time: 0, alpha: 1, camera, viewportHeightPx: 720 };
+    r.update(frame);
+    expect(hi()).toBe(HIGHLIGHT.possessed);
+    r.update({ ...frame, hidePossessedHighlight: true });
+    expect(hi()).toBe(0);
+    r.update(frame); // the flag is per frame: leaving photo mode brings the rim back
+    expect(hi()).toBe(HIGHLIGHT.possessed);
+    r.dispose();
+  });
 });
