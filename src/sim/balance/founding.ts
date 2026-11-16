@@ -290,6 +290,8 @@ export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
 export const REOPEN_CHECK_TICKS = 50;
 export const REOPEN_MAX_GD = 2;
 export const REOPEN_PAST_BU = 0.5;
+/** The plug closing the cavity past the throat is searched through at most this many of its voxels. */
+export const REOPEN_PLUG_MAX_SAMPLES = 4000;
 /** A founding reopening plan still live after this long is cancelled (nobody could dig it), GD. */
 export const REOPEN_PLAN_STALL_GD = 0.2;
 /** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */

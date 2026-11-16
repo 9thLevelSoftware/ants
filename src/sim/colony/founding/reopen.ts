@@ -4,8 +4,9 @@
 // from inside the throat, bite by bite, each bite a pellet); and the founding module asks the nest for ordinary dig
 // plans through the plug (public createPlan, source `founding`), which the workers' dig behaviour claims and digs.
 // Nothing is scripted on the workers, and nothing opens without them (review of viab-founding: an earlier local
-// adapter unplugged with no worker present). The seal guide keeps every plug inside the throat sphere
-// (sealPlan.ts plugInThroat), where the workers' unplugging reaches.
+// adapter unplugged with no worker present). The seal guide lays its plugs inside the throat sphere (sealPlan.ts
+// plugInThroat), where the workers' unplugging reaches, unless it found no other way; a plug past the sphere (or
+// what is left of one) gets a dig plan from the cavity side through it (closingPlugPlan).
 //
 // One plan is not always enough: a 2 BU shaft through a plug laid into a 2.5 BU throat leaves a rim of plug voxels,
 // and the nest keeps an entrance with plug voxels left in its throat `sealing` (GDD 03 §4.2), which no forager uses
@@ -18,13 +19,14 @@ import { VoxelFlag } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import {
   REOPEN_CHECK_TICKS, REOPEN_DEEP_REACH_BU, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
-  REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD,
+  REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD, REOPEN_PLUG_MAX_SAMPLES,
 } from '@/sim/balance/founding';
 import { cancelPlan, createPlan, voxelAt } from '@/sim/nest';
 import { setEntranceStatus } from '@/sim/nest/entrances';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { foundingNest, openingOf } from './access';
 import { cavityEntrances } from './dig';
+import { floodCavity, floodStart, keyPos } from './leak';
 
 /** Carve-grid iso level (design seed §4: openness 0 solid .. 255 open, iso 127.5): above it a sample is open. */
 const CARVE_ISO = 127.5;
@@ -178,6 +180,59 @@ export function requestReopen(sim: Sim, nest: Nest): number[] {
   return ids;
 }
 
+const DIRS6 = [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1];
+
+/** A closed carve sample flagged PLUG (a plug voxel the fill left). */
+function isPlugVoxel(sim: Sim, p: Vec3): boolean {
+  const s = voxelAt(sim, p);
+  return (s.flags & VoxelFlag.PLUG) !== 0 && s.open < CARVE_ISO;
+}
+
+/**
+ * The plug that closes the cell's cavity wherever it lies along the way out (one the seal guide had to lay past the
+ * throat sphere, or the part of one left past it once the workers' unplugging cleared the throat): the cavity sample
+ * beside the plug voxel nearest the opening (`face`) and, among the plug voxels connected to that one, the one nearest
+ * the opening (`outer`). Null when the cavity touches no plug.
+ */
+function closingPlug(sim: Sim, nest: Nest, e: Entrance): { face: Vec3; outer: Vec3 } | null {
+  const v = sim.carve.voxel, at = { x: 0, y: 0, z: 0 };
+  const dist = (p: Vec3) => Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z);
+  let face: Vec3 | null = null, inner: Vec3 | null = null, best = Infinity;
+  for (const k of floodCavity(sim, floodStart(sim, nest)).cavity.keys()) {
+    keyPos(sim, k, at);
+    for (let d = 0; d < 18; d += 3) {
+      const n = { x: at.x + DIRS6[d] * v, y: at.y + DIRS6[d + 1] * v, z: at.z + DIRS6[d + 2] * v };
+      const dn = dist(n);
+      if (dn >= best || !isPlugVoxel(sim, n)) continue;
+      best = dn; face = { x: at.x, y: at.y, z: at.z }; inner = n;
+    }
+  }
+  if (!face || !inner) return null;
+  // the plug's body, breadth-first through plug voxels from the inner one: its voxel nearest the opening
+  let outer = inner, outerD = dist(inner);
+  const key = (p: Vec3) => `${Math.round(p.x / v)},${Math.round(p.y / v)},${Math.round(p.z / v)}`;
+  const seen = new Set<string>([key(inner)]), queue: Vec3[] = [inner];
+  for (let q = 0; q < queue.length && seen.size < REOPEN_PLUG_MAX_SAMPLES; q++) {
+    const p = queue[q];
+    for (let d = 0; d < 18; d += 3) {
+      const n = { x: p.x + DIRS6[d] * v, y: p.y + DIRS6[d + 1] * v, z: p.z + DIRS6[d + 2] * v };
+      const kn = key(n);
+      if (seen.has(kn) || !isPlugVoxel(sim, n)) continue;
+      seen.add(kn);
+      queue.push(n);
+      const dn = dist(n);
+      if (dn < outerD) { outer = n; outerD = dn; }
+    }
+  }
+  return { face, outer };
+}
+
+/** The dig through the plug that closes the cavity (closingPlug), from its inner face; plan id or -1. */
+function closingPlugPlan(sim: Sim, nest: Nest, e: Entrance): number {
+  const plug = closingPlug(sim, nest, e);
+  return plug ? shaftPlan(sim, nest, plug.face, plug.outer) : -1;
+}
+
 const live = (p: DigPlan) => p.status !== 'complete' && p.status !== 'cancelled';
 
 function livePlan(nest: Nest, test: (source: string, kind: string) => boolean): boolean {
@@ -226,6 +281,7 @@ export function reopenTick(sim: Sim): number {
     const remnant = e.status === 'sealing' && e.plugVoxelCount > 0;
     let id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
     if (id < 0 && early && !remnant) id = deepPlugPlan(sim, nest, e);
+    if (id < 0 && early) id = closingPlugPlan(sim, nest, e);
     if (id >= 0) return id;
   }
   return -1;
