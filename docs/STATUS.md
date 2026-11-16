@@ -347,3 +347,27 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
   at night: status line says "Scout · scouting · stuck"; a flat pale blue slab with a hard rectangular edge stands
   against the starry sky (map-edge / far-plane look, known weak) → second look pass. 7 first workers on seed 3
   (below the chapter's 8–16).
+
+## Nov 16 17:10 UTC — HEAD check with flooding on (integrator, `test-output/headcheck/*.log`)
+
+Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, flooding on:
+
+| run | viable | notes |
+|---|---|---|
+| suburban-garden #1 | yes | 12 → 10 workers, 34 deliveries, 26 % of trips succeed, no drowning |
+| suburban-garden #2 | **no** | 16 → 8: `worker:lost 5`, old-age 2, drowning 2; 350 `[loco] relocated walker` lines, the same walkers bounced around (8100–8150, 17–60, 10830–10870) mm (a climb) |
+| woodland-edge #3 | **no** | queen drowned + 4 workers drowned on autumn days 3–4 in the single founding chamber; 0 deliveries, 35 trips 0 % successful |
+| kitchen-door #1 | yes | 15 → 15, 43 deliveries, 9 % of trips succeed |
+
+- Conclusion: flooding no longer kills in dry weather, but **ants do not flee water** (GDD 03 §11.3 never built) →
+  launched `nest-fix3` (`w7nudxfes`, wf_9bf8174e-253; Opus): flee water, mound-mask signature, ghost plugs, reopening
+  plan validation, queen alert helper, nest tick spikes, sprinkler inflow. Ruling R12 (hydrology factor stands;
+  flood-safe sites never lose ants in ordinary rain) is in its spec.
+- **Tick spikes** in every run (load 13–14 inflates, but not to this): `nest` max 4.5–8.5 s, `rivals-agents` max
+  4–6 s, `environment-effects` 0.3–1.2 s, `creatures` 0.75 s, `human-events` 0.99 s. nest → nest-fix3 item 6; the rest
+  → perf task.
+- For the next locomotion task (`loco-fix3`, not launched yet): relocation loop and `lost` workers on the climb at
+  suburban-garden #2; suburban-garden #4 fence crossing (nav cell strip); stall sites from the viab sweep; trip
+  success 9–26 % (econ-growth R10 is looking at causes; split by what it finds).
+- Running (5 agents + reviews): econ-growth, overwinter-repro (`wxxwcbc34`), stage2-look-fix, onboarding
+  (`wk1cq0726`), nest-fix3 (`w7nudxfes`).
