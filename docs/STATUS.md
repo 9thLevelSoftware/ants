@@ -267,3 +267,7 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
   5. FoundingOverlay should hide itself in photo view (currently hidden by CSS only).
 - Alerts after rain on seed 1 after hand-over ("Founding chamber flooding", "Queen under attack: rising water") →
   covered by weather-fix2 (running).
+- 10:35 launched `wk1cq0726` (wf_81fd13d6-11b): `stage2-look-fix` + `onboarding` (Sonnet impl, Opus review, visual) and
+  `wmqt2afty` (wf_fc81142e-a6a): `audio-pass` (Sonnet impl, Opus review). Still running: `w7oa5adpf` (weather-fix2 +
+  viab-founding), `w7ydd9gyu` (viab-economy + viab-loco). Spec `gate-1B-close.md` written; launch it when the two
+  stabilisation workflows have landed, with their result summaries pasted under its "Hand-over".
