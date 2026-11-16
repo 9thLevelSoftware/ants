@@ -3,7 +3,7 @@
 
 import type { Ant, Colony, FoodAmount, Sim } from '@/sim/types';
 import {
-  C_SPOIL_HALF_LIFE_GD, LARVA_GUT_CAP, LOAD_EPS, P_SPOIL_HALF_LIFE_GD, QUEEN_GUT_CAP, SPOIL_OVERFLOW_MULT,
+  C_SPOIL_HALF_LIFE_GD, LARVA_GUT_CAP, LOAD_EPS, P_SPOIL_HALF_LIFE_GD, QUEEN_GUT_CAP, QUEEN_TARGET_GUT_C, SPOIL_OVERFLOW_MULT,
   SPOIL_REF_C, SPOILED_ITEM_LOADS, STOMACH_C_BASE, STOMACH_C_PER_ADULT, STOMACH_P_PER_ADULT, TOXIN_HALF_LIFE_GD,
 } from '@/sim/balance';
 import { spawnItem } from '@/sim/entities';
@@ -181,6 +181,10 @@ export function feedFromCrop(sim: Sim, giver: Ant, broodId: number, c: number, p
     space = Math.min(LARVA_GUT_CAP - larva.gutC - larva.gutP, remaining);
   } else if (queen && queen.queen) {
     space = QUEEN_GUT_CAP - queen.queen.gut.c - queen.queen.gut.p;
+    // GDD 02 §3.3 retinue target gut C >= 0.3, gut P >= 0.4: past the C target she takes only protein, so her gut
+    // keeps room for the laying protein (int-1B-sim: carers kept a fat queen's gut full of C, and when the
+    // workers permitted laying protein no P fitted in: playground-park #2 laid no egg in a 0.55 gd window)
+    if (queen.queen.gut.c >= QUEEN_TARGET_GUT_C) wantC = 0;
     receiverId = queen.id;
   } else {
     return { c: 0, p: 0 };

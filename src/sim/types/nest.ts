@@ -28,6 +28,11 @@ export interface Entrance {
   /** Rolling traffic counters (ants per game hour). */
   trafficIn: number;
   trafficOut: number;
+  /**
+   * Additive (int-1B-sim): a `reopening` throat had a passage at some evaluation, so losing it again closes the
+   * entrance (`reopening` -> `sealed`). Absent / false on every other entrance.
+   */
+  passSeen?: boolean;
 }
 
 /** Capacity or occupancy of a chamber in space units (GDD 03 §6.4). */

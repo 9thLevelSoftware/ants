@@ -87,7 +87,7 @@ describe('(a) a new game on a generated world: founding dig, eggs, brood develop
     // lay (stand-in for founding: the opening reaches its `lay` phase after the seal)
     sim.state.player.opening!.phase = 'lay';
     let laid = 0;
-    const offLay = sim.events.on('egg-laid', () => { laid++; });
+    const offLay = sim.events.on('egg-laid', (e) => { if (e.queenId === queen.id) laid++; });
     // finish the bite in progress and stand still (the founding flow's 'seal' step would do this)
     for (t = 0; t < 200 && queen.action; t++) sim.tick();
     navStop(sim, queen);
@@ -96,7 +96,8 @@ describe('(a) a new game on a generated world: founding dig, eggs, brood develop
     for (t = 0; t < 600 && queen.action; t++) sim.tick();
     offLay();
     expect(laid).toBeGreaterThanOrEqual(1);
-    const eggs = sim.state.brood.filter((b) => b.alive && b.stage === 'egg');
+    // the player colony's eggs (the world's rival colonies keep brood of their own since Stage 1B)
+    const eggs = sim.state.brood.filter((b) => b.alive && b.stage === 'egg' && b.colony === col.id);
     expect(eggs.length).toBe(laid);
 
     // brood develops at the environment's temperature (GDD 02 §3: progress = devRate(T) x dt / stageDu)
@@ -133,7 +134,8 @@ describe('(b) 60 workers forage between the nest and a food source', () => {
     const sc = setupColonyScenario(sim, { workers: 60, eggs: 6, larvae: 6, pupae: 4 });
     expect(sim.state.ants.filter((a) => a.alive && a.caste === 'worker')).toHaveLength(60);
     let deliveries = 0, loads = 0;
-    const off = sim.events.on('delivery', (e) => { deliveries++; loads += e.c + e.p; });
+    // the player colony's deliveries and trips (rival colonies on the generated world forage too since Stage 1B)
+    const off = sim.events.on('delivery', (e) => { if (e.colonyId === col.id) { deliveries++; loads += e.c + e.p; } });
     const inC0 = col.counters ? JSON.stringify(col.counters) : '';
     const stores0 = col.stores.c + col.stores.p;
     for (let t = 0; t < 4000; t++) sim.tick();
@@ -149,7 +151,7 @@ describe('(b) 60 workers forage between the nest and a food source', () => {
     expect(col.knownSourceIds).toContain(sc.source.id);
     expect(col.stores.c + col.stores.p).toBeGreaterThan(stores0 - 5); // upkeep of 61 ants over 4000 ticks is small
     expect(JSON.stringify(col.counters)).not.toBe(inC0);
-    const trips = sim.state.ants.reduce((n, a) => n + (a.bb[SB.trips] ?? 0), 0);
+    const trips = sim.state.ants.reduce((n, a) => n + (a.colony === col.id ? (a.bb[SB.trips] ?? 0) : 0), 0);
     expect(trips).toBe(deliveries);
     // pheromone: foragers laid trail on the way home; with nobody laying, it decays at the hooked rate
     const trailCells = sim.phero.activeCellCount!(col.id, 'trail');

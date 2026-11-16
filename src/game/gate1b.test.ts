@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { makeTestSim } from '@/sim/testing';
 import { raiseAlert } from '@/sim/progression';
 import { generationPhase, GENERATION_SHARE, loadingPhases } from './newGame/loading';
-import { alertsOf } from './uiBridge';
+import { alertsOf, colonyOf } from './uiBridge';
 import { TOASTS } from './possessionEvents';
 
 describe('loading progress', () => {
@@ -23,21 +23,39 @@ describe('loading progress', () => {
 describe('alert feed from progression', () => {
   it('words an alert raised with tokens only (no empty card)', () => {
     const sim = makeTestSim({ nest: 'small', workers: 6 });
+    const op = sim.state.player.opening;
+    if (op) { op.done = true; op.phase = 'done'; } // after the hand-over: store alerts are shown
     raiseAlert(sim, { kind: 'food-c-low', level: 'warning', title: '', cause: '', subjectId: 0, focus: null, diagnosticId: null, tokens: { days: 1 } });
     const a = alertsOf(sim).find((x) => x.kind === 'food-c-low');
     expect(a?.title.length).toBeGreaterThan(0);
   });
 
-  it('hides last-ants for the lone founding queen until the hand-over, and shows it afterwards', () => {
+  it('hides last-ants and the empty-store alerts of the claustral founding until the hand-over', () => {
     const sim = makeTestSim({ nest: 'small', workers: 6 });
     raiseAlert(sim, { kind: 'last-ants', level: 'critical', title: '', cause: '', subjectId: -1, focus: null, diagnosticId: null, tokens: { n: 1, cause: 'cold' } });
+    raiseAlert(sim, { kind: 'food-p-low', level: 'warning', title: 'Protein stores low', cause: '0 days', subjectId: 0, focus: null, diagnosticId: null });
     const op = sim.state.player.opening;
     if (op) {
       op.done = false; op.phase = 'search';
-      expect(alertsOf(sim).some((x) => x.kind === 'last-ants')).toBe(false);
+      expect(alertsOf(sim).some((x) => x.kind === 'last-ants' || x.kind === 'food-p-low')).toBe(false);
       op.done = true; op.phase = 'done';
     }
     expect(alertsOf(sim).some((x) => x.kind === 'last-ants')).toBe(true);
+  });
+});
+
+describe('colony status through the claustral founding', () => {
+  it('ignores the by-design empty stores and trails until the hand-over', () => {
+    const sim = makeTestSim({ nest: 'small', workers: 6 });
+    const diags = sim.state.progression.diagnostics as unknown as { id: string; label: string; status: string }[];
+    diags.push({ ...(diags[0] ?? {}), id: 'diag-stores', label: 'Food stores', status: 'bad' });
+    const op = sim.state.player.opening;
+    if (op) {
+      op.done = false; op.phase = 'search';
+      expect(colonyOf(sim)?.status).not.toBe('bad');
+      op.done = true; op.phase = 'done';
+    }
+    expect(colonyOf(sim)?.status).toBe('bad');
   });
 });
 

@@ -135,7 +135,7 @@ export default async ({ page, shot, log, wait }) => {
     await target.waitForFunction(() => window.__game.summary().mode === 'playing', null, { timeout: 600000, polling: 250 });
     result.play = { generateS: Math.round((Date.now() - t0) / 100) / 10, worker: await g(() => window.__game.assets.backendFor('workers/worldgen.js')) };
     expect(await g(() => window.__founding?.view()?.phase) === 'intro-card', 'the new colony did not start on the intro card');
-    await target.click('#view');
+    await target.focus('#view'); // the intro card covers the canvas: focus it for the key, do not click through the card
     await page.keyboard.press('KeyW');
     await g(() => window.__game.step(90));
     expect(await g(() => window.__founding?.view()?.phase) === 'search', 'a key did not close the intro card');
@@ -148,11 +148,28 @@ export default async ({ page, shot, log, wait }) => {
     await page.keyboard.press('Escape');
     await wait.frames(4);
     await click('pause-save');
+    await target.waitForSelector('[data-testid="save-slot-1"]', { timeout: 60000 });
+    // An opaque-origin frame has no IndexedDB: the Save buttons are disabled and the book says so (GDD 08 §7.6:
+    // "Saving to this browser is not available here. Use Export"). Then the check is the notice and a clean exit.
+    const storageOk = await target.$eval('[data-testid="save-slot-1"]', (b) => b.getAttribute('aria-disabled') !== 'true');
+    result.play.storageOk = storageOk;
+    if (!storageOk) {
+      const notice = await target.$eval('#ui', (el) => el.textContent ?? '');
+      expect(/not available here/.test(notice), 'storage is unavailable but the Save book does not say so');
+      await page.keyboard.press('Escape');
+      await wait.frames(3);
+      await click('pause-title');
+      await wait(500);
+      if (await target.$('[data-testid="confirm-ok"]')) await click('confirm-ok');
+      await target.waitForFunction(() => window.__game.summary().mode === 'title', null, { timeout: 120000, polling: 250 });
+      log(JSON.stringify(result));
+      return result;
+    }
     await click('save-slot-1');
     await wait(1500);
+    if (await target.$('[data-testid="confirm-ok"]')) await click('confirm-ok');
     const hash = await g(() => window.__game.stateHash());
-    await target.keyboard?.press?.('Escape');
-    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape'); // closes the Save book back to the pause menu
     await wait.frames(3);
     await click('pause-title');
     await wait(500);

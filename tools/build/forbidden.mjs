@@ -29,6 +29,14 @@ function creditsUrls() {
   return new Set(text.match(/https?:\/\/[^\s)>`'"|]+/g) ?? []);
 }
 
+function hostOf(url) {
+  try { return new URL(url).host.toLowerCase(); } catch { return ''; }
+}
+
+function creditsHosts() {
+  return new Set([...creditsUrls()].map(hostOf).filter(Boolean));
+}
+
 function excerpt(text, index, len = 70) {
   return text.slice(Math.max(0, index - 25), index + len).replace(/\s+/g, ' ');
 }
@@ -50,6 +58,19 @@ export function scanHtml(file, html) {
     if (/^(?:src|href)\s*=\s*["']?data:/i.test(m[0])) continue;
     add('absolute or root-relative URL in src/href', m.index);
   }
+  // inline <script> bodies follow the bundle's rules (no import(, fetch(, absolute URLs); inline <style> may not
+  // @import or load from an absolute / root URL
+  for (const m of matches(html, /<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/i)) {
+    for (const f of scanJs(file, m[1])) out.push({ ...f, rule: `inline <script>: ${f.rule}` });
+  }
+  for (const m of matches(html, /<style\b[^>]*>([\s\S]*?)<\/style>/i)) {
+    const css = m[1], at = m.index + m[0].indexOf(css);
+    for (const c of matches(css, /@import\b/i)) add('inline <style>: @import', at + c.index);
+    for (const c of matches(css, /url\(\s*["']?(?:[a-z][a-z0-9+.-]*:|\/)/i)) {
+      if (/url\(\s*["']?data:/i.test(c[0])) continue;
+      add('inline <style>: absolute or root-relative url(', at + c.index);
+    }
+  }
   const external = [...matches(html, /<script\b[^>]*\bsrc\s*=/i)];
   if (external.length !== 1) out.push({ file, rule: `expected exactly one external <script src>, found ${external.length}`, excerpt: '' });
   else if (!/\bdefer\b/.test(external[0][0])) add('main script is not deferred', external[0].index);
@@ -65,10 +86,11 @@ export function scanJs(file, js, { allowFetchCalls = 0 } = {}) {
   for (const m of matches(js, /\bnew\s+Worker\s*\(/)) add('new Worker( with a URL', m.index);
   for (const m of matches(js, /\bnew\s+Audio\s*\(/)) add('new Audio(', m.index);
   for (const m of matches(js, /\bXMLHttpRequest\b|\bimportScripts\s*\(/)) add('XMLHttpRequest / importScripts', m.index);
-  const allowed = creditsUrls();
+  const allowedHosts = creditsHosts();
   for (const m of matches(js, /https?:\/\/[^\s"'`)<>\\]+/)) {
     const url = m[0];
-    if (URL_ALLOW.some((re) => re.test(url)) || [...allowed].some((a) => url.startsWith(a) || a.startsWith(url))) continue;
+    // plain-text attribution links only: the URL's host must be exactly a host the credits name (not a prefix match)
+    if (URL_ALLOW.some((re) => re.test(url)) || allowedHosts.has(hostOf(url))) continue;
     add(`absolute URL ${url.slice(0, 60)}`, m.index);
   }
   const fetchCalls = [...matches(js, /\bfetch\s*\(/)];

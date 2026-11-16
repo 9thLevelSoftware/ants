@@ -97,6 +97,9 @@ export default async ({ page, log, wait, shot }) => {
   const victim = (await sum()).possessed.id;
   await g((i) => window.__game.cheat.kill(i), victim);
   await page.waitForTimeout(3500);
+  // the hold is ~3 s of frame time; each frame's dt is capped at 0.25 s, so under software GL (seconds per frame)
+  // it takes longer in real time: wait for the hand-over itself (up to 60 s), same condition as before
+  await page.waitForFunction(() => { const x = window.__game.summary(); return x.possessed === null && x.view === 'observer'; }, null, { timeout: 60000, polling: 250 }).catch(() => {});
   await frames(2);
   s = await sum();
   const died = (await g(() => window.__game.events('possessed-ant-died', 10))).filter((e) => e.antId === victim);

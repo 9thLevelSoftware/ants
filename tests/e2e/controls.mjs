@@ -218,8 +218,10 @@ export default async ({ page, log, out, wait }) => {
   // antennate (T tap: inspect / antennal contact)
   const s1 = await g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
   await tap('KeyT', 20);
-  const sniff = await g((q) => window.__game.events(undefined, 40, q).filter((e) => e.action && /sniff|antennate/.test(e.action)).map((e) => `${e.type}:${e.action}`), s1);
-  expect(sniff.length > 0, 'T did not antennate', sniff);
+  const sniff = await g((q) => window.__game.events(undefined, 40, q).filter((e) => e.action && /sniff|antennate/.test(e.action)).map((e) => `${e.type}:${e.action}${e.reason ? `(${e.reason})` : ''}`), s1);
+  expect(sniff.length > 0, 'T did not reach the antennate action', sniff);
+  // the key reaches the action (the controls check); an action that then fails is the actions' finding, not a pass
+  if (sniff.every((x) => x.startsWith('action-failed'))) (result.findings ??= []).push(`T reaches antennate but the action fails here: ${sniff[0]}`);
   ok('antennate', sniff.slice(0, 2));
 
   // lay a trail (R toggles it on while walking outside)

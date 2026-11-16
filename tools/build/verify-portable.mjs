@@ -87,6 +87,7 @@ function reportHarness(r, expectFile) {
     r.summary?.result?.audio ? `  audio: ${JSON.stringify(r.summary.result.audio)}` : '',
     r.summary?.result?.worker ? `  worker: ${JSON.stringify(r.summary.result.worker)}` : '',
     r.summary?.result?.fonts ? `  fonts loaded: ${JSON.stringify(r.summary.result.fonts.faces)}` : '',
+    r.summary?.result?.play ? `  short play: ${JSON.stringify(r.summary.result.play)}` : '',
   ].filter(Boolean).join('\n');
   stage(r.label, ok, detail);
 }

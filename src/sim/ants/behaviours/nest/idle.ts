@@ -8,7 +8,7 @@ import { rngChance } from '@/core/rng';
 import { navWander } from '@/sim/locomotion';
 import { requestTask } from '@/sim/colony';
 import {
-  AMBIENT_TROPH_IDLE_MIN, AMBIENT_TROPH_RADIUS_BU, IDLE_CYCLE_S, IDLE_RECENTRE_FRAC, IDLE_SPEED_MULT, IDLE_WANDER_FRAC,
+  AMBIENT_TROPH_IDLE_MIN, AMBIENT_TROPH_RADIUS_BU, IDLE_CYCLE_S, IDLE_RECENTRE_FRAC, IDLE_SPEED_MULT, IDLE_STILL_BU, IDLE_WANDER_FRAC,
   ROOM_WAIT_FRAC,
   WAIT_THINK_TICKS,
 } from '@/sim/balance/nestwork';
@@ -35,10 +35,23 @@ function ambientTrophallaxis(sim: Sim, ant: Ant): void {
   }
 }
 
+/** bb: where the ant stood when its idle cycle began (x, y, z). */
+const CX = 'bn.icx', CY = 'bn.icy', CZ = 'bn.icz';
+
 function idleStep(sim: Sim, ant: Ant): void {
   if (ant.carry.kind !== 'none') { act(sim, ant, 'put-down', null); return; }
   if (needsRest(ant)) { setState(sim, ant, 'rest', 'fatigue'); return; }
-  if (sim.state.tick - ant.stateTick > secondsToTicks(IDLE_CYCLE_S)) { setState(sim, ant, 'idle'); return; }
+  if (sim.state.tick - ant.stateTick > secondsToTicks(IDLE_CYCLE_S)) {
+    // a whole cycle of wandering that left the ant where it was (locomotion could not move it: int-1B-sim saw idle
+    // ants stand at one spot of a woodland nest for days with nav `moving`): walk back to the room centre on a
+    // planned path in the next cycle instead of wandering again
+    const still = Math.hypot(ant.pos.x - bbv(ant, CX, NaN), ant.pos.y - bbv(ant, CY, NaN), ant.pos.z - bbv(ant, CZ, NaN))
+      < IDLE_STILL_BU * sim.world.bu;
+    setState(sim, ant, 'idle');
+    ant.bb[CX] = ant.pos.x; ant.bb[CY] = ant.pos.y; ant.bb[CZ] = ant.pos.z;
+    if (still && ant.chamberId >= 0) { ant.bb[B.n] = 2; resetTravel(ant); }
+    return;
+  }
   const nest = homeNest(sim, ant);
   const room = nest ? restChamber(sim, nest) : undefined;
   if (!room) return;

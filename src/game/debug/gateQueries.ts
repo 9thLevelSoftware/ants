@@ -54,7 +54,10 @@ export function registerGateQueries(): void {
     const raised = w.prims.filter((p) => p.shape === 'box' && near(p.pos, 1500 * bu) && p.size.x > 20 * bu && p.size.z > 20 * bu
       && p.pos.y - p.size.y - sim.field.height(p.pos.x, p.pos.z) > 3 * bu)
       .sort((a, b) => b.size.x * b.size.z - a.size.x * a.size.z)[0];
-    const under = raised ? groundAt(raised.pos.x, raised.pos.z) : null;
+    // a parked car (catalogue templates named car*), else the largest raised box
+    const car = w.objects.filter((o) => /(^|-)car($|-)/.test(o.templateId))
+      .sort((a, b) => Math.hypot(a.pos.x - start.x, a.pos.z - start.z) - Math.hypot(b.pos.x - start.x, b.pos.z - start.z))[0];
+    const under = car ? groundAt(car.pos.x, car.pos.z) : raised ? groundAt(raised.pos.x, raised.pos.z) : null;
     return { start: v3(start), prop, propSize: big ? v3(big.size) : null, plants, interior, edge, under, bu, size: w.size };
   });
 }

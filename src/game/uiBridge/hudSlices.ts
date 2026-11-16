@@ -58,10 +58,23 @@ function sparkOf(sim: Sim, id: string, now: number): number[] {
   return tail;
 }
 
-function overallStatus(sim: Sim, col: Colony): { status: 'ok' | 'warn' | 'bad'; worst: UiColony['worst'] } {
-  let rank = col.starvationStage === 'fed' ? 0 : col.starvationStage === 'lean' ? 1 : 2;
+/**
+ * Diagnostics that are by design "bad" through the claustral founding (no stores, no intake, no trails: the queen
+ * lives on her reserves, GDD 03 §2). Until the hand-over they do not colour the pulse red; the queen's reserves do.
+ * Adapter on the app side; the need is reported to the simulation half (progression diagnostics).
+ */
+const OPENING_QUIET_DIAG: ReadonlySet<string> = new Set(['diag-stores', 'diag-foraging-trails', 'diag-food-intake-c', 'diag-food-intake-p']);
+const FOUNDING_RESERVE_WARN = 0.25;
+const FOUNDING_RESERVE_BAD = 0.1;
+
+function overallStatus(sim: Sim, col: Colony, queenReserves: number | null): { status: 'ok' | 'warn' | 'bad'; worst: UiColony['worst'] } {
+  const opening = !queenHandedOver(sim);
+  let rank = opening
+    ? (queenReserves === null ? 0 : queenReserves < FOUNDING_RESERVE_BAD ? 2 : queenReserves < FOUNDING_RESERVE_WARN ? 1 : 0)
+    : col.starvationStage === 'fed' ? 0 : col.starvationStage === 'lean' ? 1 : 2;
   let worst: UiColony['worst'] = null;
   for (const d of sim.state.progression.diagnostics) {
+    if (opening && OPENING_QUIET_DIAG.has(d.id)) continue;
     const r = d.status === 'bad' ? 2 : d.status === 'warn' ? 1 : 0;
     if (r > 0 && (worst === null || r > (worst.status === 'bad' ? 2 : 1))) worst = { id: d.id, label: d.label, status: r === 2 ? 'bad' : 'warn' };
     if (r > rank) rank = r;
@@ -88,12 +101,13 @@ export function colonyOf(sim: Sim): UiColony | null {
   }
   const queen = sim.stores.ants.get(col.queenId);
   const days = daysOfStock(col);
-  const st = overallStatus(sim, col);
+  const queenReserves = queen?.queen?.founding && queen.queen.founding.R0 > 0 ? Math.max(0, Math.min(1, queen.queen.founding.reserveLoads / queen.queen.founding.R0)) : null;
+  const st = overallStatus(sim, col, queenReserves);
   const c = col.stores.c, p = col.stores.p;
   return {
     workers, adults, queenAlive: !!queen, brood, stores: { c, p },
     queenMode: queen?.queen ? queen.queen.mode : 'absent', groups: g,
-    queenReserves: queen?.queen?.founding && queen.queen.founding.R0 > 0 ? Math.max(0, Math.min(1, queen.queen.founding.reserveLoads / queen.queen.founding.R0)) : null,
+    queenReserves,
     past: { c: pastOf(sim, 'stores-c', c), p: pastOf(sim, 'stores-p', p) },
     spark: { c: sparkOf(sim, 'stores-c', c), p: sparkOf(sim, 'stores-p', p) },
     intake: { c: col.counters.intakeTodayC, p: col.counters.intakeTodayP },
@@ -169,15 +183,18 @@ export function promptOf(sim: Sim): UiPrompt | null {
   }
 }
 
+const OPENING_QUIET: ReadonlySet<string> = new Set(['last-ants', 'food-c-low', 'food-p-low']);
+
 /**
  * The alert feed from progression's active alerts (critical first, newest first). An alert the sim raised without
  * wording (title '' and `tokens`) is worded here from the content tables, so no card is ever empty.
  */
 export function alertsOf(sim: Sim): UiAlert[] {
   const opening = !queenHandedOver(sim);
-  // Adapter (reported to the simulation half): progression raises the critical `last-ants` for the lone founding
-  // queen of a claustral founding, which is the expected state, not news. Not shown until the hand-over.
-  return activeAlerts(sim).filter((a) => !(opening && a.kind === 'last-ants')).map((a) => {
+  // Adapter (reported to the simulation half): during a claustral founding the sim raises `last-ants` for the lone
+  // queen and `food-c-low` / `food-p-low` for the empty colony stores (she lives on her reserves). That is the
+  // expected state, not news: these kinds are not shown until the hand-over.
+  return activeAlerts(sim).filter((a) => !(opening && OPENING_QUIET.has(a.kind))).map((a) => {
     const words = a.title ? null : alertText(a.kind, a.tokens ?? {});
     return { ...alertCard(a), title: words ? words.title : a.title, cause: words && !a.cause ? words.cause : a.cause };
   });

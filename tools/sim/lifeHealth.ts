@@ -27,6 +27,9 @@ const Y1_WORKERS: Record<string, { min: number; max: number }> = {
   'messor-barbarus': { min: 15, max: 40 }, 'atta-texana': { min: 100, max: 300 },
 };
 
+/** Laying must have been possible this long within one day before a run without eggs counts against growth, gd. */
+const LAY_OPEN_MIN_GD = 0.25;
+
 export interface Verdict {
   healthy: boolean;
   checks: { name: string; ok: boolean; detail: string }[];
@@ -68,7 +71,9 @@ export function judge(r: LifeReport): Verdict {
   // and the workers to permit laying protein (GDD 02 §3.3: withheld unless the colony is `fed` with protein in
   // stock): a queen of a lean colony that does not lay is the design's response, not a fault. Counted in samples
   // (stuck.layOpenGd, game days with potential > 0.5 and permission); reports without it fall back to the potential.
-  const couldLay = live.some((d) => (d.stuck.layOpenGd ?? ((d.state.layPotential ?? 1) > 0.5 ? 1 : 0)) >= 0.05);
+  // A window shorter than LAY_OPEN_MIN_GD in a day need not yield an egg (the carers first have to feed her the
+  // laying protein, GDD 02 §3.3).
+  const couldLay = live.some((d) => (d.stuck.layOpenGd ?? ((d.state.layPotential ?? 1) > 0.5 ? 1 : 0)) >= LAY_OPEN_MIN_GD);
   add('growth', wEnd >= 0.75 * w0 && wEnd <= 1.5 * y1.max && maxRate <= 0.3 && (eggs > 0 || !couldLay),
     `workers ${w0} -> ${wEnd} (y1 target ${y1.min}-${y1.max}); max daily growth ${(maxRate * 100).toFixed(0)} %; eggs laid ${eggs}; laying potential per day ${live.map((d) => d.state.layPotential ?? '?').join(',')}; laying permitted gd per day ${live.map((d) => d.stuck.layOpenGd ?? '?').join(',')}`);
 

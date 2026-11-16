@@ -49,6 +49,13 @@ function checkLoss(sim: Sim): void {
 /** `last-ants` (critical) while 1..LAST_ANTS_N ants of the colony live; cleared above it. */
 export function checkLastAnts(sim: Sim, census: Census): void {
   if (sim.state.progression.gameOver) return;
+  // not for the founding queen alone while the opening runs: she is alone by design (founding-close request 2; the
+  // opening test is the founding module's foundingInProgress, read from state so progression does not import it).
+  // Title and cause stay empty on purpose: the interface fills them from the alert text table with these tokens
+  // (content/text alertText; the simulation does not import interface text).
+  const op = sim.state.player.opening;
+  const opening = !!op && !op.done && op.phase !== 'failed' && op.phase !== 'done';
+  if (opening && census.living <= 1) { clearAlert(sim, 'last-ants', -1); return; } // the founding queen alone
   if (census.living > 0 && census.living <= LAST_ANTS_N) {
     const cur = sim.state.progression.alerts.find((a) => a.kind === 'last-ants');
     if (cur && cur.tokens?.n === census.living) return;

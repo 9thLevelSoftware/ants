@@ -325,10 +325,18 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
   const pass = throatPassage(sim, e, false);
   const prev = e.status;
   let next: EntranceStatus = prev;
-  if (prev === 'open') next = !pass ? 'sealed' : plug > 0 ? 'sealing' : 'open';
+  // GDD 03 §4.2: an open entrance goes `sealing` when a plug is ADDED ("first plug added"), not because plug
+  // remnants are left in its throat after a reopen (int-1B-sim: an entrance the first workers dug open flipped to
+  // `sealing` on its next check, which raised midden-blocked with the throat passable)
+  if (prev === 'open') next = !pass ? 'sealed' : plug > e.plugVoxelCount ? 'sealing' : 'open';
   else if (prev === 'sealing') next = !pass ? 'sealed' : plug === 0 ? 'open' : 'sealing';
   else if (prev === 'sealed' || prev === 'reopening') {
     if (pass) next = throatPassage(sim, e, true) ? 'open' : 'reopening';
+    // a reopening throat that had a passage and lost it again (fill, tamping, a new plug) is closed again
+    // (founding-close request 3); one still being dug through (no passage yet) stays `reopening`
+    else if (prev === 'reopening' && e.passSeen) next = 'sealed';
+    if (next === 'reopening' && pass) e.passSeen = true;
+    else if (next !== 'reopening' && e.passSeen) delete e.passSeen;
   }
   e.plugVoxelCount = plug;
   if (next !== prev) setEntranceStatus(sim, nest, e, next);

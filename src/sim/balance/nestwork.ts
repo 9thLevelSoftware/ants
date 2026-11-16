@@ -245,3 +245,5 @@ export const AMBIENT_TROPH_IDLE_MIN = 20;
 export const AMBIENT_TROPH_RADIUS_BU = 1.5;
 /** Idle ants re-stamp their state (and re-pick a wander spot) this often, s. */
 export const IDLE_CYCLE_S = 30;
+/** An idle ant that moved less than this over a whole IDLE_CYCLE_S walks back to the room centre on a planned path, BU. */
+export const IDLE_STILL_BU = 0.25;

@@ -10,6 +10,9 @@ import { daysToTicks } from '@/sim/time';
 import { coreOf } from './core';
 import { daysOfStock } from './needs';
 import { colonyAlert, colonyClearAlert } from './alerts';
+import { censusOf } from './census';
+import { foundingInProgress } from './founding/access';
+import { STARVE_ALERT_GRACE_GD } from '@/sim/balance/colony';
 
 const RANK: Record<StarvationStage, number> = { fed: 0, lean: 1, rationing: 2, 'brood-sacrifice': 3, 'adult-starvation': 4 };
 
@@ -53,6 +56,37 @@ export function updateStarvation(sim: Sim, col: Colony, starvingAdults: number):
     next = 'lean';
   }
   if (next !== cur) setStage(sim, col, cur, next);
+  // stores alerts held during the founding and its grace period: raise those of the current stage once it ends
+  if (col.isPlayer) {
+    const held = alertsHeld(sim, col);
+    if (!held && core.acc['starve.held'] === 1) raiseStageAlerts(sim, col, 'fed', col.starvationStage);
+    core.acc['starve.held'] = held ? 1 : 0;
+  }
+}
+
+/**
+ * No stores alerts while the founding opening runs (the queen is alone by design) or within STARVE_ALERT_GRACE_GD
+ * after the hand-over (the first workers have not foraged yet; founding-close request 1).
+ */
+function alertsHeld(sim: Sim, col: Colony): boolean {
+  if (foundingInProgress(sim, col.id)) return true;
+  const end = sim.state.player.opening?.lapse?.endTick ?? -1;
+  return end >= 0 && sim.state.tick - end < daysToTicks(STARVE_ALERT_GRACE_GD);
+}
+
+function raiseStageAlerts(sim: Sim, col: Colony, from: StarvationStage, to: StarvationStage): void {
+  if (RANK[to] >= 1 && RANK[from] === 0) {
+    const d = daysOfStock(col);
+    if (d.c < LEAN_DAYS_C) colonyAlert(sim, 'food-c-low', 'warning', col.id, 'Carbohydrate stores low', `${d.c.toFixed(1)} days left`, 'diag-stores');
+    if (d.p < LEAN_DAYS_P) colonyAlert(sim, 'food-p-low', 'warning', col.id, 'Protein stores low', `${d.p.toFixed(1)} days left`, 'diag-stores');
+  }
+  if (RANK[to] >= 3 && RANK[from] < 3) {
+    // the cause names brood sacrifice only when there is brood to sacrifice
+    const c = censusOf(sim, col.id);
+    const brood = c.eggs + c.larvae + c.pupae > 0;
+    colonyAlert(sim, 'colony-starving', 'critical', col.id, 'The colony is starving',
+      brood ? 'brood is being sacrificed' : 'the stores are empty and the workers are going hungry', 'diag-stores');
+  }
 }
 
 function setStage(sim: Sim, col: Colony, from: StarvationStage, to: StarvationStage): void {
@@ -62,12 +96,7 @@ function setStage(sim: Sim, col: Colony, from: StarvationStage, to: StarvationSt
   core.exitSinceTick = -1;
   sim.emit({ type: 'starvation-stage', colonyId: col.id, stage: to });
   if (!col.isPlayer) return;
-  if (RANK[to] >= 1 && RANK[from] === 0) {
-    const d = daysOfStock(col);
-    if (d.c < LEAN_DAYS_C) colonyAlert(sim, 'food-c-low', 'warning', col.id, 'Carbohydrate stores low', `${d.c.toFixed(1)} days left`, 'diag-stores');
-    if (d.p < LEAN_DAYS_P) colonyAlert(sim, 'food-p-low', 'warning', col.id, 'Protein stores low', `${d.p.toFixed(1)} days left`, 'diag-stores');
-  }
-  if (RANK[to] >= 3 && RANK[from] < 3) colonyAlert(sim, 'colony-starving', 'critical', col.id, 'The colony is starving', 'brood is being sacrificed', 'diag-stores');
+  if (!alertsHeld(sim, col)) raiseStageAlerts(sim, col, from, to);
   if (RANK[to] < 3 && RANK[from] >= 3) colonyClearAlert(sim, 'colony-starving', col.id);
   if (to === 'fed') {
     colonyClearAlert(sim, 'food-c-low', col.id);

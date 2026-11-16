@@ -152,8 +152,9 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
   const expected = requireSpecies(o.species).opening.expectedFirstWorkers;
+  // a cached run restores the hand-over snapshot of a new game, which started at tick 0
   const founding = {
-    phase, gd: round((sim.state.tick - t0) / TICKS_PER_DAY), workers: workers0, expected: { min: expected.min, max: expected.max },
+    phase, gd: round((cached ? sim.state.tick : sim.state.tick - t0) / TICKS_PER_DAY), workers: workers0, expected: { min: expected.min, max: expected.max },
     outcome: foundingView(sim)?.outcome ?? null, ms: round(foundMs),
   };
   log(`founding ${phase} after ${founding.gd} gd, ${workers0} workers (${round(foundMs / 1000)} s)`);
@@ -214,14 +215,15 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
 function perfReport(sim: Sim, o: LifeOptions, times: SysTime[], ctx: { world: { meta: { fingerprint: string | number }; size: number; bu: number }; genMs: number; founding: LifeReport['founding'] }): LifeReport {
   for (let i = 0; i < 600; i++) sim.tick();
   const segs: number[] = [];
-  let best: Record<string, number> = {};
+  // per system the minimum over the segments (each segment's mean ms per tick), so a load spike in one segment does
+  // not hide in the figure of another system
+  const best: Record<string, number> = {};
   for (let k = 0; k < 3; k++) {
     for (const t of times) t.dayTotal = 0;
     const t0 = performance.now();
     for (let i = 0; i < o.perf; i++) sim.tick();
-    const ms = (performance.now() - t0) / o.perf;
-    segs.push(round(ms));
-    if (ms <= Math.min(...segs)) best = Object.fromEntries(times.map((t) => [t.name, round(t.dayTotal / o.perf)]));
+    segs.push(round((performance.now() - t0) / o.perf));
+    for (const t of times) best[t.name] = Math.min(best[t.name] ?? Infinity, round(t.dayTotal / o.perf));
   }
   const st = readState(sim, 0, currentSeason(sim.state));
   return {

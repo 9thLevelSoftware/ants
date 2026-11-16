@@ -82,6 +82,12 @@ export const HEALTH_REGEN_RATE = 0.2;
 export const HEALTH_REGEN_IN_NEST = 0.25;
 /** GDD 05 §4.7 recovery: health per gd anywhere else (outside, or in the nest with an empty crop). */
 export const HEALTH_REGEN_ELSEWHERE = 0.1;
+/**
+ * After the founding hand-over the stores alerts (`food-c-low`, `food-p-low`, `colony-starving`) wait this long:
+ * the first workers have not foraged yet and the pool is empty by design (GDD 06 §5.13), gd (int-1B-sim,
+ * founding-close request 1).
+ */
+export const STARVE_ALERT_GRACE_GD = 1.0;
 export const HEALTH_REGEN_MAX_FATIGUE = 0.8;
 /** Heat or cold load below which health regenerates. */
 export const HEALTH_REGEN_MAX_THERMAL_LOAD = 0.05;

@@ -218,3 +218,10 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Launched `wlu1imvyi` (wf_dc13b542-044): `render-creatures` + `scent-fx` (both Opus, visual). Told not to edit `src/render/slots/**`, `src/render/app/**`, `src/game/**` (app gate is in there); they report registration lines.
 - Still running: both 1B gates (`wbzzr1gt5`).
 - Stage 2 gate must wire: creatures renderer slot, fx slot + overlay host, `codexUnlocks`, `mayAttack`↔`isHostile`, `virtualTend`, `ECOLOGY_TIER` 2, rival-discovered progression listener, debug `query.rivals`/`query.territory`.
+
+## Nov 16, 02:30 UTC — render-creatures + scent-fx landed; weather + human events launched
+
+- `render-creatures` (Opus): 22 creature looks, herds, antlion pit, bird event, comfort modes; 8 of 9 review findings fixed. I looked at the close-up contact sheet: every animal recognisable, scale against a worker right; surfaces plasticky (look pass). Open: sim must register the antlion pit as a ground-height patch (`pitHeightOverlay` profile, copy `-1 + r^1.35` into `src/sim/ecology/creatures/antlion.ts createPit`) or ants float over the cone; slot registration + `comfort` in FrameInfo (Stage 2 gate); `ui.look()` → `lookOf()`.
+- `scent-fx` (Opus): scent view (trail chevrons, home range, alarm, food plumes), temperature/moisture/threat overlays, particles; 8 of 9 findings fixed. I looked at the trail shot (chevrons read well, up the wall too) and the moisture shot (whole ground goes dark blue — too heavy, tune `FILL_ALPHA`/stain at the look pass). Open: dig-plans overlay outside colony view needs the views layer; slot replacement lines in `src/render/fx/overlays/fxSlotReplacement.ts`.
+- Launched: `weather-effects` + `human-events` (both Opus, visual).
+- Still running: both 1B gates (`wbzzr1gt5`): sim gate in review; app gate still implementing (5.5 h).

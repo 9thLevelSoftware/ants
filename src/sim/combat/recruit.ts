@@ -62,9 +62,53 @@ function reactToHit(sim: Sim, ant: Ant): boolean {
   return startFight(sim, ant, { kind, id }, null, 'threat');
 }
 
+/**
+ * Plan-view presence of each colony's ants on a coarse grid, rebuilt on the first encounter scan of a tick (runtime
+ * only, a function of the positions in that tick). An ant with no other colony's ant in the cells around it has no
+ * encounter to roll, so the per-neighbour loop (all nestmates in a crowded nest: 22 ms per tick at 1,500 workers,
+ * int-1B-sim) is skipped; the result is the same, because the loop only acts on other colonies' ants.
+ */
+interface Presence { tick: number; cell: number; masks: Map<number, number>; bits: Map<number, number>; overflow: boolean }
+const PRESENCE = new WeakMap<Sim, Presence>();
+/** Presence grid cell, BU (several recognition ranges; coarse is fine, the test is conservative). */
+const PRESENCE_CELL_BU = 8;
+/** Extra reach of the presence test beyond the scan radius, BU (ants may move a little within the combat pass). */
+const PRESENCE_MARGIN_BU = 2;
+
+function presenceOf(sim: Sim): Presence {
+  let p = PRESENCE.get(sim);
+  if (p && p.tick === sim.state.tick) return p;
+  p = { tick: sim.state.tick, cell: PRESENCE_CELL_BU * sim.world.bu, masks: new Map(), bits: new Map(), overflow: false };
+  PRESENCE.set(sim, p);
+  for (const a of sim.stores.ants.list) {
+    if (!a.alive) continue;
+    let bit = p.bits.get(a.colony);
+    if (bit === undefined) {
+      if (p.bits.size >= 30) { p.overflow = true; break; }
+      bit = 1 << p.bits.size;
+      p.bits.set(a.colony, bit);
+    }
+    const key = Math.floor(a.pos.x / p.cell) * 65536 + Math.floor(a.pos.z / p.cell);
+    p.masks.set(key, (p.masks.get(key) ?? 0) | bit);
+  }
+  return p;
+}
+
+/** Could an ant of another colony be within `r` of p (plan view, conservative)? */
+function foreignNear(sim: Sim, ant: Ant, r: number): boolean {
+  const p = presenceOf(sim);
+  if (p.overflow) return true;
+  const own = p.bits.get(ant.colony) ?? 0, reach = r + PRESENCE_MARGIN_BU * sim.world.bu;
+  const i0 = Math.floor((ant.pos.x - reach) / p.cell), i1 = Math.floor((ant.pos.x + reach) / p.cell);
+  const k0 = Math.floor((ant.pos.z - reach) / p.cell), k1 = Math.floor((ant.pos.z + reach) / p.cell);
+  for (let i = i0; i <= i1; i++) for (let k = k0; k <= k1; k++) if (((p.masks.get(i * 65536 + k) ?? 0) & ~own) !== 0) return true;
+  return false;
+}
+
 /** Encounter with a hostile ant in antennal contact: the attack roll. */
 function encounter(sim: Sim, ant: Ant): boolean {
   const r = RECOGNITION_L * antLenMm(sim, ant) + ant.radius;
+  if (!foreignNear(sim, ant, r * 2)) return false;
   sim.index.queryAnts(ant.pos, r * 2, ids);
   const now = sim.state.tick;
   for (const id of ids) {

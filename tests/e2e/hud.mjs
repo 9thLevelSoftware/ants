@@ -63,6 +63,10 @@ export default async ({ page, shot, log, wait }) => {
     }
     opening = !(await handedOver());
     result.checks.handover = await sim((sm) => ({ phase: sm.state.player.opening?.phase ?? null, tick: sm.state.tick }));
+    // the long automatic opening ends in observer (AFK release, the hand-over choice): take the queen again
+    await g(() => window.__game.possess('queen'));
+    await g(() => window.__game.step(2));
+    await settle();
   }
   if (opening) {
     standIn('hand-over', 'cheat.completeFounding does not finish the opening yet; opening.done is written directly');
@@ -203,7 +207,9 @@ export default async ({ page, shot, log, wait }) => {
   expect(await count('[data-testid="roster-body"]') === 0, 'Esc did not close the Roster');
 
   // --- 5. inspect card ---------------------------------------------------------------------------------------------------
-  const target = await g(() => window.__game.query.ants().find((a) => a.caste === 'worker').id);
+  // a worker of the player's colony (seed 1 has a neighbouring colony whose ants inspect as "Stranger")
+  const ownWorkers = () => g(() => { const all = window.__game.query.ants(); const me = all.find((a) => a.id === window.__game.summary().possessed?.id); return all.filter((a) => a.caste === 'worker' && (!me || a.colony === me.colony)).map((a) => a.id); });
+  const target = (await ownWorkers())[0];
   await g((id) => window.__hud.inspect({ kind: 'ant', id }), target);
   await wait.frames(3);
   await refresh();
@@ -220,7 +226,7 @@ export default async ({ page, shot, log, wait }) => {
   await refresh();
   expect(await count('[data-testid="inspect-card"]') === 0, 'Esc did not unpin the inspect card');
   // a pinned card whose target dies goes away by itself
-  const victim = await g(() => window.__game.query.ants().filter((a) => a.caste === 'worker')[1].id);
+  const victim = (await ownWorkers())[1];
   await g((id) => window.__hud.inspect({ kind: 'ant', id }), victim);
   await refresh();
   expect(await count('[data-testid="inspect-card"]') === 1, 'no card for the second target');

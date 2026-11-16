@@ -152,6 +152,10 @@ export interface DayState {
   outside: number;
   byState: Record<string, number>;
   byTask: Record<string, number>;
+  /** The colony's need-rate EMAs (consumption, GDD 02 §5.5) and forager yield EMA at the day end, loads/gd. */
+  needRateC?: number;
+  needRateP?: number;
+  yieldPerForager?: number;
 }
 
 export function readState(sim: Sim, day: number, season: string): DayState {
@@ -192,6 +196,7 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     layPotential: round(col?.core?.acc['lay.potential'] ?? 0),
     nestVolumeBu3: round(volume / bu3), chambers, entrancesOpen: open, pelletsInNest: pellets,
     trailCells: trailCells(sim), outside, byState, byTask,
+    needRateC: round(col?.needs.rateC ?? 0), needRateP: round(col?.needs.rateP ?? 0), yieldPerForager: round(col?.yieldPerForager ?? 0),
   };
 }
 

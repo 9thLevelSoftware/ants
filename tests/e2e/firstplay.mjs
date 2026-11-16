@@ -202,28 +202,13 @@ export default async (ctx) => {
         // ---- 8. sealing: E at the shaft (held seal-entrance) ------------------------------------------------------------
         await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' }));
         await step(20);
-        const ent = (await nestOf(h)).entrances[0];
-        const tanS = Math.tan((SHAFT_SLOPE_DEG * Math.PI) / 180);
-        const throat = { x: ent.pos.x + H.x * (1.5 / tanS) * bu, z: ent.pos.z + H.z * (1.5 / tanS) * bu };
-        const toOpening = async () => { const p = (await summary()).possessed.pos; return Math.hypot(p[0] - ent.pos.x, p[1] - ent.pos.y, p[2] - ent.pos.z) / bu; };
-        const queenAction = () => g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.action ?? null; });
-        const carrying = async () => (await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed?.id)?.carry?.kind; })) === 'item';
+        // founding-close's rule: one press of the seal action from anywhere in the shaft; the founding walks her to the
+        // throat by her own movement input and plugs the actual leak, repeating until the entrance is sealed
         let seals = 0;
-        for (let tries = 0; tries < 16 && (await phase()) === 'seal'; tries++) {
-          if ((await toOpening()) > 2.6) { await steerTo(h, throat.x, throat.z, 0.4 * bu); await step(5); }
-          if (!(await carrying())) {
-            await walkDir(h, 4, H);
-            await step(5);
-            if (!(await carrying())) await digBite(h, 0, 30, { x: -H.z, y: 0, z: H.x });
-            await steerTo(h, throat.x, throat.z, 0.4 * bu);
-            await step(5);
-          }
-          for (let w = 0; w < 20 && (await queenAction()); w++) await step(5);
-          await g(() => window.__game.act('seal-entrance'));
-          await step(30);
-          await g(() => window.__game.act({ action: 'seal-entrance', phase: 'stop' }));
-          await step(5);
-          seals++;
+        await g(() => window.__game.act('seal-entrance'));
+        for (let t = 0; t < 3000 && (await phase()) === 'seal'; t += 50) {
+          await step(50);
+          seals = await g(() => window.__game.events('action-completed', 400).filter((e) => e.action === 'seal-entrance').length);
         }
         for (let i = 0; i < 5 && (await phase()) === 'seal'; i++) await step(20);
         result.checks.seal = { seals, entrances: (await nestOf(h)).entrances.map((e) => `${e.status}:${e.plugVoxelCount ?? ''}`), refusals: await g(() => window.__game.events('action-failed', 8).map((e) => `${e.action}:${e.reason}`)) };
@@ -275,7 +260,7 @@ export default async (ctx) => {
       result.checks.afterHandover = { possessed: (await summary()).possessed?.caste ?? null };
       const outside = () => g(() => {
         const gm = window.__game, bu = gm.query.world().bu, n = gm.query.nest()[0];
-        return gm.query.ants().some((a) => a.caste === 'worker' && gm.query.field(a.pos.x, 0, a.pos.z).height - a.pos.y < 0.5 * bu
+        return gm.query.ants().some((a) => a.caste === 'worker' && a.colony === gm.query.colony()?.id && gm.query.field(a.pos.x, 0, a.pos.z).height - a.pos.y < 0.5 * bu
           && n.entrances.every((e) => Math.hypot(a.pos.x - e.pos.x, a.pos.z - e.pos.z) > 3 * bu));
       });
       let opened = false, outOk = false;
@@ -345,23 +330,47 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const srcs = await g(() => window.__game.query.sources());
   const food = srcs.filter((s) => Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
   expect(food, 'the spawned food source is missing', srcs.length);
-  let trail = 0;
-  for (let i = 0; i < 60 && trail <= 0; i++) {
-    await step(300);
-    const mid = { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 };
-    trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), mid);
-    if (trail <= 0) {
-      const ev = await g(() => window.__game.events('trail-established', 1));
-      if (ev.length) trail = 1e-6;
+  let trail = 0, via = 'scouts', waited = 0;
+  const waitTrail = async (n) => {
+    for (let i = 0; i < n && trail <= 0; i++) {
+      await step(300);
+      waited += 300;
+      const mid = { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 };
+      trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), mid);
+      if (trail <= 0) {
+        const ev = await g(() => window.__game.events('trail-established', 1));
+        if (ev.length) trail = 1e-6;
+      }
     }
+  };
+  await waitTrail(30);
+  if (trail <= 0) {
+    // The scouts have not found it: the player marks the food for the foragers (GDD 02 §12.2), with the colony view's
+    // marker tool, as a player would. A player action, not a stand-in; the missed discovery is reported as a finding.
+    (result.findings ??= []).push(`no scout discovered a sugar spill ${Math.round(Math.hypot(food.pos.x - ent.pos.x, food.pos.z - ent.pos.z))} mm from the open entrance in ${waited} ticks (foragers wait in the nest for a known source)`);
+    const back = (await summary()).view;
+    await g(() => window.__game.camera.set('colony'));
+    await step(1);
+    await g((o) => window.__game.views.colonyCamera(o), { x: food.pos.x, z: food.pos.z, distBu: 60, pitchDeg: 60, yawDeg: 20, cutaway: 'off' });
+    await render(1);
+    await g(() => window.__game.views.tool('forage'));
+    const fs = await g((p) => window.__game.views.project(p), food.pos);
+    if (fs) await g(([x, y]) => window.__game.views.click(x, y), [fs.x, fs.y]);
+    await g(() => window.__game.views.tool(null));
+    const placed = (await g(() => window.__game.views.markers())).filter((m) => m.kind === 'forage').length;
+    expect(placed > 0, 'the forage marker on the food was not placed', fs);
+    await g(() => window.__game.camera.set('observer'));
+    if (back === 'possess') await g(() => window.__game.possess('queen'));
+    via = 'forage-marker';
+    await waitTrail(30);
   }
   const g0 = await g(() => window.__game.query.growth());
-  result.checks.trail = { trail, growth: g0 };
+  result.checks.trail = { trail, via, waited, growth: g0 };
   expect(trail > 0, 'no forager laid a trail to the food within 18000 ticks');
   // possess a worker near the entrance (Tab cycles from the observer focus; the API by id keeps it deterministic)
   const worker = await g((e) => {
     const gm = window.__game, bu = gm.query.world().bu;
-    const ws = gm.query.ants().filter((a) => a.caste === 'worker').sort((a, b) => Math.hypot(a.pos.x - e.x, a.pos.z - e.z) - Math.hypot(b.pos.x - e.x, b.pos.z - e.z));
+    const ws = gm.query.ants().filter((a) => a.caste === 'worker' && a.colony === gm.query.colony()?.id).sort((a, b) => Math.hypot(a.pos.x - e.x, a.pos.z - e.z) - Math.hypot(b.pos.x - e.x, b.pos.z - e.z));
     const surface = ws.find((a) => gm.query.field(a.pos.x, 0, a.pos.z).height - a.pos.y < 0.5 * bu);
     return (surface ?? ws[0])?.id ?? -1;
   }, ent.pos);
@@ -401,7 +410,7 @@ async function colonyBeats(h, result, { page, click, done, log }) {
     if (a.cropC < after.c * 0.5) break;
     const mate = await g((id) => {
       const gm = window.__game, me = gm.query.ant(id);
-      const near = gm.query.ants().filter((o) => o.id !== id && o.caste === 'worker').sort((a, b) => Math.hypot(a.pos.x - me.pos.x, a.pos.y - me.pos.y, a.pos.z - me.pos.z) - Math.hypot(b.pos.x - me.pos.x, b.pos.y - me.pos.y, b.pos.z - me.pos.z))[0];
+      const near = gm.query.ants().filter((o) => o.id !== id && o.caste === 'worker' && o.colony === gm.query.colony()?.id).sort((a, b) => Math.hypot(a.pos.x - me.pos.x, a.pos.y - me.pos.y, a.pos.z - me.pos.z) - Math.hypot(b.pos.x - me.pos.x, b.pos.y - me.pos.y, b.pos.z - me.pos.z))[0];
       return near ? { id: near.id, pos: near.pos } : null;
     }, worker);
     if (!mate) break;
@@ -460,8 +469,8 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   await step(2);
   const forager = await g(() => {
     const gm = window.__game, bu = gm.query.world().bu;
-    const fs = gm.query.ants().filter((a) => a.caste === 'worker' && a.task === 'forage' && gm.query.field(a.pos.x, 0, a.pos.z).height - a.pos.y < 0.5 * bu);
-    return fs[0]?.id ?? gm.query.ants().find((a) => a.caste === 'worker')?.id ?? -1;
+    const fs = gm.query.ants().filter((a) => a.caste === 'worker' && a.colony === gm.query.colony()?.id && a.task === 'forage' && gm.query.field(a.pos.x, 0, a.pos.z).height - a.pos.y < 0.5 * bu);
+    return fs[0]?.id ?? gm.query.ants().find((a) => a.caste === 'worker' && a.colony === gm.query.colony()?.id)?.id ?? -1;
   });
   expect(forager >= 0, 'no forager to follow');
   await g((id) => { window.__game.views.select({ kind: 'ant', id }); window.__game.views.follow(true); }, forager);

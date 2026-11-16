@@ -55,8 +55,11 @@ const TAMP_DONE_SHARE = 0.01;
  */
 export function tampPellet(sim: Sim, it: Item): boolean {
   const bu3 = sim.world.bu ** 3;
-  // a pellet a fill or plug closed over (buried inside solid soil) is part of that soil already
-  if (sim.field.sample(it.pos) < -ITEM_BURIED_BU * sim.world.bu) {
+  // a pellet a plug closed over (buried inside a plug's solid soil) is part of that plug already; pellets that other
+  // pellets' tamping covered keep the passage rule's retry (they lie in LOOSE fill, not PLUG)
+  const v = sim.carve.voxel;
+  const plugged = (nestRuntime(sim).flags.get(Math.round(it.pos.x / v), Math.round(it.pos.y / v), Math.round(it.pos.z / v)) & VoxelFlag.PLUG) !== 0;
+  if (plugged && sim.field.sample(it.pos) < -ITEM_BURIED_BU * sim.world.bu) {
     removeItem(sim, it.id, 'tamp');
     sim.emit({ type: 'pellet-dumped', itemId: it.id, into: 'tamp' });
     return true;
