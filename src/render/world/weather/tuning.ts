@@ -16,10 +16,10 @@ export const FLECKS: Record<QualityId, number> = { test: 400, low: 400, medium: 
 /** Drop look per class (and storm): diameter mm, fall speed mm/s, streak length mm, density 0..1 of the instances. */
 export interface DropLook { diameterMm: number; speedMmS: number; streakMm: number; density: number; opacity: number }
 export const DROP_LOOK: Record<RainClass | 'storm', DropLook> = {
-  drizzle: { diameterMm: 0.5, speedMmS: 2000, streakMm: 35, density: 0.45, opacity: 0.22 },
-  shower: { diameterMm: 2.5, speedMmS: 6500, streakMm: 90, density: 0.7, opacity: 0.3 },
-  downpour: { diameterMm: 4.5, speedMmS: 9000, streakMm: 140, density: 1, opacity: 0.34 },
-  storm: { diameterMm: 4.5, speedMmS: 9000, streakMm: 150, density: 1, opacity: 0.38 },
+  drizzle: { diameterMm: 0.5, speedMmS: 2000, streakMm: 35, density: 0.45, opacity: 0.42 },
+  shower: { diameterMm: 2.5, speedMmS: 6500, streakMm: 90, density: 0.7, opacity: 0.6 },
+  downpour: { diameterMm: 4.5, speedMmS: 9000, streakMm: 140, density: 1, opacity: 0.75 },
+  storm: { diameterMm: 4.5, speedMmS: 9000, streakMm: 150, density: 1, opacity: 0.8 },
 };
 /** The rain volume around the camera: half width and height, mm (in BU x this for scale-free framing). */
 export const RAIN_BOX_HALF_BU = 60;
@@ -38,15 +38,19 @@ export const RAIN_MIN_WIDTH_MM = 0.12;
 export const RAIN_MIN_WIDTH_PX = 0.9;
 export const RAIN_MAX_WIDTH_FRAC = 0.0035;
 export const RAIN_MAX_LEN_FRAC = 0.12;
-export const RAIN_FADE_NEAR_BU: readonly [number, number] = [6, 20];
-export const RAIN_FADE_FAR_BU: readonly [number, number] = [38, 62];
+export const RAIN_FADE_NEAR_BU: readonly [number, number] = [3, 10];
+export const RAIN_FADE_FAR_BU: readonly [number, number] = [40, 66];
 /**
  * Streak colour = the scene's haze colour x this gain, in the scene's own (HDR, pre tone map) units, so a streak is
  * only ever a little brighter than the air behind it: dim at dusk and by night, never pure white. Per-drop opacity
  * varies between PER_DROP_MIN and 1 of the class opacity.
  */
-export const RAIN_TINT_GAIN = 1.5;
-export const RAIN_PER_DROP_MIN = 0.35;
+export const RAIN_TINT_GAIN = 2;
+export const RAIN_PER_DROP_MIN = 0.5;
+/** Splash crowns, ripple rings and frost glints: the rain tint x this (their own brightness against the haze). */
+export const SPLASH_TINT = 0.9;
+export const RIPPLE_TINT = 0.8;
+export const FLECK_TINT = 1.1;
 /** Colour used when the scene has no fog (haze off in Settings): linear, slightly blue-grey, scaled by sky light. */
 export const RAIN_COLOR: readonly [number, number, number] = [0.72, 0.77, 0.82];
 

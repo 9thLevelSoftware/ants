@@ -10,9 +10,10 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
+import { THROAT_BU } from '@/sim/balance/nest';
 import {
-  SEAL_AIM_CANDIDATES, SEAL_AIM_MARGIN_BU, SEAL_CUT_CHECKS, SEAL_MIN_COVER, SEAL_REACH_MARGIN_BU, SEAL_SOIL_WEIGHT,
-  SEAL_BELOW_STEP_BU, SEAL_LAYER_AIMS, SEAL_STAND_BEHIND_BU, SEAL_TARGET_SOIL_BU,
+  SEAL_AIM_CANDIDATES, SEAL_AIM_MARGIN_BU, SEAL_CUT_CHECKS, SEAL_DEEP_SPLIT, SEAL_MIN_COVER, SEAL_OTHER_ANTS_BU, SEAL_PLUG_INSIDE_BU,
+  SEAL_REACH_MARGIN_BU, SEAL_SOIL_WEIGHT, SEAL_BELOW_STEP_BU, SEAL_LAYER_AIMS, SEAL_STAND_BEHIND_BU, SEAL_TARGET_SOIL_BU,
 } from '@/sim/balance/founding';
 import { cavityEntrances } from './dig';
 import { floodCavity, floodStart, isAirSample, isOpenSample, keyI, keyJ, keyK, keyPos, sampleKey, carvedAirOver, passageLayers, throatClosed, throatLeak, throatPassageSet, type Sphere } from './leak';
@@ -105,6 +106,17 @@ function unitTo(from: Vec3, to: Vec3): Vec3 {
   return { x: x / l, y: y / l, z: z / l };
 }
 
+/**
+ * Does the plug s lie inside the throat sphere of e (radius + THROAT_BU, less SEAL_PLUG_INSIDE_BU)? There the nest
+ * counts it as e's plug and the first workers' `unseal-entrance` (which stands in, and reaches into, the throat) digs
+ * it out at the hand-over. Plugs past the sphere (a queen who cannot climb into the throat) are laid only when the
+ * guide finds no other way; the hand-over reopens those with dig plans the workers dig (reopen.ts).
+ */
+export function plugInThroat(sim: Sim, e: Entrance, s: Sphere): boolean {
+  const R = e.radius + (THROAT_BU - SEAL_PLUG_INSIDE_BU) * sim.world.bu;
+  return Math.hypot(s.c.x - e.pos.x, s.c.y - e.pos.y, s.c.z - e.pos.z) + s.r <= R;
+}
+
 function otherAnts(sim: Sim, q: Ant, near: Vec3, r: number): Vec3[] {
   const out: Vec3[] = [];
   for (const a of sim.stores.ants.list) {
@@ -159,8 +171,8 @@ function aimGroups(sim: Sim, e: Entrance, q: Ant, strategy: SealStrategy): { aim
   const R = e.radius + SEAL_THROAT_BU * sim.world.bu;
   const fromMouth = (k: number) => { const p = keyPos(sim, k, { x: 0, y: 0, z: 0 }); return Math.hypot(p.x - e.pos.x, p.y - e.pos.y, p.z - e.pos.z); };
   let keys = all;
-  if (strategy === 'deep') keys = all.filter((k) => fromMouth(k) >= 0.5 * R);
-  else if (strategy === 'mouth') keys = all.filter((k) => fromMouth(k) < 0.5 * R);
+  if (strategy === 'deep') keys = all.filter((k) => fromMouth(k) >= SEAL_DEEP_SPLIT * R);
+  else if (strategy === 'mouth') keys = all.filter((k) => fromMouth(k) < SEAL_DEEP_SPLIT * R);
   if (keys.length === 0) keys = all;
   if (strategy === 'near') {
     const d = (k: number) => { const p = keyPos(sim, k, { x: 0, y: 0, z: 0 }); return Math.hypot(p.x - q.pos.x, p.y - q.pos.y, p.z - q.pos.z); };
@@ -173,10 +185,14 @@ function aimGroups(sim: Sim, e: Entrance, q: Ant, strategy: SealStrategy): { aim
  * The sealing plan for the queen now, or null when there is nothing to seal (no unsealed entrance, or no leak).
  * `exclude`: stands to avoid (ones she could not reach), with the radius around each, mm.
  */
-export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] = [], excludeR = 0, strategy: SealStrategy = 'narrow'): SealPlan | null {
+export function planSeal(
+  sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] = [], excludeR = 0, strategy: SealStrategy = 'narrow', deepOk = false,
+): SealPlan | null {
   const e = entranceToSeal(sim, nest);
   if (!e) return null;
-  if (strategy === 'below') return planBelow(sim, nest, q, e);
+  // plugs inside the throat sphere only, unless the guide has found none it can lay there (deepOk, sealGuide.ts)
+  const placeable = (s: Sphere) => deepOk || plugInThroat(sim, e, s);
+  if (strategy === 'below') return planBelow(sim, nest, q, e, placeable);
   // the leak by the nest's founding pocket rule, else the plain one (the nest still reads the throat open)
   const path = throatLeak(sim, e, [], nest) ?? throatLeak(sim, e);
   if (!path) return null;
@@ -188,7 +204,7 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
   const cuts = (s: Sphere) => throatLeak(sim, e, [s], nest) === null;
   const target = crossing(sim, path), bu = sim.world.bu;
   const len = q.lengthBu * bu, margin = SEAL_REACH_MARGIN_BU * bu;
-  const others = otherAnts(sim, q, e.pos, 8 * bu);
+  const others = otherAnts(sim, q, e.pos, SEAL_OTHER_ANTS_BU * bu);
   const inReach = inSealReach(sim, e, q.pos);
   // stands: the cavity's surface samples (the cell's side of any plug so far) near the throat; the aimed plug reaches
   // by its aim (src/sim/ants/actions/defs/dig.ts aimedInReach), so a stand just below the throat sphere serves too
@@ -213,7 +229,7 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
     const aims: { a: Vec3; n: number; s: Sphere }[] = [];
     for (const a of g.aims) {
       const s = plugAround(sim, a, others);
-      if (!s) continue;
+      if (!s || !placeable(s)) continue;
       const n = SEAL_SOIL_WEIGHT * crossCount(sim, g.focus, s) + worth(s);
       if (worth(s) >= SEAL_MIN_COVER) aims.push({ a, n, s });
     }
@@ -225,7 +241,7 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
       for (const c of aims) {
         if (!aimInReach(sim, q, q.pos, c.a) || !behind(q.pos, c.a)) continue;
         const s = predictPlug(sim, e, q.pos, q.fwd, len, others, c.a);
-        if (!s || worth(s) < SEAL_MIN_COVER || floods >= SEAL_CUT_CHECKS) continue;
+        if (!s || !placeable(s) || worth(s) < SEAL_MIN_COVER || floods >= SEAL_CUT_CHECKS) continue;
         floods++;
         if (!plugKeepsQueenInside(sim, nest, q, c.a)) continue;
         const cut = cuts(s);
@@ -242,7 +258,7 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
       }
       if (!best) continue;
       const s = predictPlug(sim, e, best.p, unitTo(best.p, c.a), len, others, c.a);
-      if (!s || worth(s) < SEAL_MIN_COVER) continue;
+      if (!s || !placeable(s) || worth(s) < SEAL_MIN_COVER) continue;
       return { entrance: e, path, target, aim: c.a, here: { ok: false, cuts: false }, inReach, stand: best.p, standCuts: cuts(s), standAim: c.a };
     }
   }
@@ -251,16 +267,17 @@ export function planSeal(sim: Sim, nest: Nest, q: Ant, exclude: readonly Vec3[] 
 
 /**
  * The back-fill (strategy `below`): the cell's shortest way to the air (floodCavity), plugged where it passes within
- * her reach, on the opening's side of her: no walking into the throat. A plug there cuts the cell off the air; the
- * nest's founding pocket rule then reads the throat above it (leading to no chamber) as sealed. When no part of the
- * leak is in her reach, the stand is the leak sample SEAL_BELOW_STEP_BU nearer the opening (she climbs toward it).
+ * her reach, on the opening's side of her, with no stand to walk to first. A plug there cuts the cell off the air.
+ * Like every plug it stays inside the throat sphere (plugInThroat, unless deep plugs are allowed: see planSeal);
+ * when no part of the leak there is in her reach, the stand is the leak sample SEAL_BELOW_STEP_BU nearer the opening
+ * (she climbs toward it).
  */
-function planBelow(sim: Sim, nest: Nest, q: Ant, e: Entrance): SealPlan | null {
+function planBelow(sim: Sim, nest: Nest, q: Ant, e: Entrance, placeable: (s: Sphere) => boolean): SealPlan | null {
   const flood = floodCavity(sim, floodStart(sim, nest));
   if (!flood.path) return null;
   const bu = sim.world.bu, len = q.lengthBu * bu;
   const pts = flood.path.slice(0, -1).map((k) => keyPos(sim, k, { x: 0, y: 0, z: 0 })); // cell end first, air dropped
-  const others = otherAnts(sim, q, q.pos, 8 * bu);
+  const others = otherAnts(sim, q, q.pos, SEAL_OTHER_ANTS_BU * bu);
   const leakSet = flood.path;
   const worth = (s: Sphere) => SEAL_SOIL_WEIGHT * countIn(sim, leakSet, s);
   let mine = 0, bestD = Infinity; // her own place along the leak
@@ -271,7 +288,7 @@ function planBelow(sim: Sim, nest: Nest, q: Ant, e: Entrance): SealPlan | null {
     const a = pts[i];
     if (!aimInReach(sim, q, q.pos, a)) continue;
     const s = predictPlug(sim, e, q.pos, unitTo(q.pos, a), len, others, a);
-    if (!s) continue;
+    if (!s || !placeable(s)) continue;
     const n = worth(s); // the leak samples it fills
     if (n < SEAL_MIN_COVER || (best && n <= best.n)) continue;
     if (floods++ >= SEAL_CUT_CHECKS || !plugKeepsQueenInside(sim, nest, q, a)) continue;
@@ -303,7 +320,7 @@ function nearCavity(sim: Sim, cavity: Map<number, number>, p: Vec3): boolean {
 export function plugKeepsQueenInside(sim: Sim, nest: Nest, q: Ant, aim: Vec3 | null = null): boolean {
   const e = entranceToSeal(sim, nest);
   if (!e) return true;
-  const s = predictPlug(sim, e, q.pos, q.fwd, q.lengthBu * sim.world.bu, otherAnts(sim, q, e.pos, 8 * sim.world.bu), aim);
+  const s = predictPlug(sim, e, q.pos, q.fwd, q.lengthBu * sim.world.bu, otherAnts(sim, q, e.pos, SEAL_OTHER_ANTS_BU * sim.world.bu), aim);
   if (!s) return true;
   return nearCavity(sim, floodCavity(sim, floodStart(sim, nest), [s]).cavity, q.pos);
 }

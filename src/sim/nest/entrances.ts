@@ -267,9 +267,12 @@ function forThroatSamples(sim: Sim, e: Entrance, fn: (i: number, j: number, k: n
  * inner shell but leads nowhere, and kept the cell's entrance from ever reading `sealed` with the cell cut off.
  * Returns a test "does the carved space at this inner-shell sample lead to a chamber?", or null (the plain rule).
  * Bounded breadth-first search over open carved samples below the ground; samples of pockets already found are
- * remembered for the rest of the call.
+ * remembered for the rest of the returned test's life. `blocked`: samples treated as solid as well (the founding seal
+ * guide's predicted plugs, colony/founding/leak.ts, which uses this same rule).
  */
-function foundingPocketTest(sim: Sim, nest: Nest | null): ((i: number, j: number, k: number) => boolean) | null {
+export function foundingPocketTest(
+  sim: Sim, nest: Nest | null, blocked: ((i: number, j: number, k: number) => boolean) | null = null,
+): ((i: number, j: number, k: number) => boolean) | null {
   if (!nest || !nest.founding || nest.founding.state === 'established' || nest.chambers.length === 0) return null;
   const carve = sim.carve, v = carve.voxel;
   const inChamber = (x: number, y: number, z: number): boolean => nest.chambers.some((c) =>
@@ -287,6 +290,7 @@ function foundingPocketTest(sim: Sim, nest: Nest | null): ((i: number, j: number
       for (let n = 0; n < 18; n += 3) {
         const ni = i + dirs[n], nj = j + dirs[n + 1], nk = k + dirs[n + 2], key = id(ni, nj, nk);
         if (seen.has(key) || carve.sampleAt(ni, nj, nk) < OPEN_MIN || sim.field.substrateXYZ(ni * v, nj * v, nk * v) >= 0) continue;
+        if (blocked && blocked(ni, nj, nk)) continue;
         seen.add(key);
         queue.push(ni, nj, nk);
       }

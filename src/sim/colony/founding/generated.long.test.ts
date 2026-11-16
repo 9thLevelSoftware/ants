@@ -16,7 +16,7 @@ import { isWorkerCaste } from '../census';
 import { cavityEntrances } from './dig';
 import { plugRemnants } from './reopen';
 import { foundingView } from './view';
-import { goodSite, playerCase, sweepSim } from './sweepKit';
+import { goodSite, playerCase, sealHeldThrough, sweepSim } from './sweepKit';
 import { nestOf, phase, pinTemperature, queen, stepUntil } from './testkit';
 
 const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined>; stderr: { write(s: string): void } } }).process;
@@ -62,6 +62,8 @@ describe.skipIf(!LONG)('the player path on a generated world (no stand-ins; temp
     log('seal', JSON.stringify(seal));
     expect(seal.ok).toBe(true);
     expect(seal.refusals).not.toContain('no-target');
+    // no stand-ins: the cell was dug by the scripted player's own bites, not carved by the cheat's template
+    expect(seal.template).toBe(false);
     expect(phase(sim)).toBe('lay');
     sim.enqueue({ type: 'release', reason: 'player' });
     sim.tick();
@@ -72,8 +74,10 @@ describe.skipIf(!LONG)('the player path on a generated world (no stand-ins; temp
     log('eggs', q.queen?.founding?.eggsLaid);
     expect(q.queen!.founding!.eggsLaid).toBeGreaterThanOrEqual(12);
     sim.enqueue({ type: 'openingBeginTimelapse' });
-    stepUntil(sim, () => phase(sim) === 'handover' || phase(sim) === 'failed', 8 * TICKS_PER_DAY);
-    log('handover', phase(sim), JSON.stringify(foundingView(sim)?.outcome));
+    // sealed and staying sealed through the whole lapse, not only at its start
+    const lost = sealHeldThrough(sim, () => phase(sim) !== 'lay' && phase(sim) !== 'timelapse', 8 * TICKS_PER_DAY, 100);
+    log('handover', phase(sim), JSON.stringify(foundingView(sim)?.outcome), 'seal through the lapse:', lost ?? 'held');
+    expect(lost).toBeNull();
     expect(phase(sim)).toBe('handover');
     const t0 = sim.state.tick;
     if (env?.env.FOUNDRESS_DEBUG) {
@@ -107,18 +111,19 @@ describe.skipIf(!LONG)('the player path on a generated world (no stand-ins; temp
  * seal by the guide, the colony's own laying, the lapse in the real environment). Margin: game days from the
  * hand-over to the first day of autumn (>= 1.0 wanted: hand-over no later than the start of the last summer day).
  */
-function outcome(sim: Sim): { ok: boolean; gd: number; workers: number; q: number; margin: number; phase: string } {
+function outcome(sim: Sim): { ok: boolean; gd: number; workers: number; q: number; margin: number; phase: string; lost: string | null } {
   sim.enqueue({ type: 'cheat.completeFounding', workers: 10 });
   stepUntil(sim, () => phase(sim) === 'timelapse' || phase(sim) === 'failed', 8000);
   const t0 = sim.state.tick;
   const winter = () => currentSeason(sim.state) === 'winter';
-  stepUntil(sim, () => phase(sim) !== 'timelapse' || winter(), 14 * TICKS_PER_DAY);
+  // the seal must hold through the whole lapse
+  const lost = phase(sim) === 'timelapse' ? sealHeldThrough(sim, () => phase(sim) !== 'timelapse' || winter(), 14 * TICKS_PER_DAY, 200) : null;
   const v = foundingView(sim);
   const L = seasonLengthOf(sim.state.config);
   const dayNow = (calendarTick(sim.state) / TICKS_PER_DAY) % daysPerYear(sim.state.config);
   return {
     ok: phase(sim) === 'handover' || phase(sim) === 'done', gd: (sim.state.tick - t0) / TICKS_PER_DAY, workers: v?.outcome?.workers ?? 0,
-    q: sim.state.player.opening!.siteQ, margin: 2 * L - dayNow, phase: phase(sim),
+    q: sim.state.player.opening!.siteQ, margin: 2 * L - dayNow, phase: phase(sim), lost,
   };
 }
 
@@ -128,8 +133,8 @@ const range = requireSpecies('lasius-niger').opening.expectedFirstWorkers;
  * (Q >= 0.85) may give up to the clutch-24 row's p90 at Q 0.9, 19.
  */
 const maxFor = (q: number) => (q >= 0.85 ? 19 : range.max);
-const fmt = (o: ReturnType<typeof outcome>) => `${o.ok ? 'ok' : `FAIL(${o.phase})`} lapse ${o.gd.toFixed(2)} GD, ${o.workers} workers, margin ${o.margin.toFixed(2)} GD (Q ${o.q.toFixed(2)})`;
-const accepted = (o: ReturnType<typeof outcome>) => o.ok && o.workers >= range.min && o.workers <= maxFor(o.q) && o.margin >= 1.0;
+const fmt = (o: ReturnType<typeof outcome>) => `${o.ok ? 'ok' : `FAIL(${o.phase})`} lapse ${o.gd.toFixed(2)} GD, ${o.workers} workers, margin ${o.margin.toFixed(2)} GD (Q ${o.q.toFixed(2)})${o.lost ? `, ${o.lost}` : ''}`;
+const accepted = (o: ReturnType<typeof outcome>) => o.ok && !o.lost && o.workers >= range.min && o.workers <= maxFor(o.q) && o.margin >= 1.0;
 
 describe.skipIf(!LONG)('founding outcome in the real environment (default start date, GDD 06 §5.11 / §5.15)', () => {
   it('generated worlds 1-8, default start: hand-over in the chapter range with >= 1 GD before autumn', () => {

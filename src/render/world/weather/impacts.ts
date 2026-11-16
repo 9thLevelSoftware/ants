@@ -131,6 +131,11 @@ export class ImpactLayer {
     return placed;
   }
 
+  /** Colour of the instances (linear scene units): the weather renderer follows the scene's light with it. */
+  setColor(r: number, g: number, b: number): void {
+    (this.material.uniforms.uColor.value as Vector3).set(r, g, b);
+  }
+
   setOpacity(a: number): void {
     this.material.uniforms.uOpacity.value = a;
   }

@@ -67,7 +67,7 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
   g.add(mesh(toCreasedNormals(sole, 0.9), mt.rubber));
   // the midsole welt: a paler, rounded band that runs round the whole sole edge where the upper meets it
   const weltH = L * 0.035;
-  const welt = new ExtrudeGeometry(soleShape(L * 0.985, W * 0.985), { depth: weltH, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2.5, bevelSegments: 2, curveSegments: 4 });
+  const welt = new ExtrudeGeometry(soleShape(L * 1.0, W * 1.04), { depth: weltH, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2.5, bevelSegments: 2, curveSegments: 4 });
   welt.rotateX(Math.PI / 2);
   welt.translate(0, soleH + 4 + weltH + 3, 0);
   g.add(mesh(toCreasedNormals(welt, 0.9), mt.midsole));
@@ -95,7 +95,7 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
     const k = Math.min(1, Math.max(0, (u - 0.35) / 0.6));
     return L * (0.3 - 0.19 * k * k * (3 - 2 * k));
   };
-  const up = new ExtrudeGeometry(soleShape(L * 0.97, W * 0.94), { depth: 1, bevelEnabled: true, bevelThickness: 0.35, bevelSize: W * 0.1, bevelSegments: 4, curveSegments: 4 });
+  const up = new ExtrudeGeometry(soleShape(L * 0.97, W * 0.94), { depth: 1, bevelEnabled: true, bevelThickness: 0.35, bevelSize: W * 0.06, bevelSegments: 4, curveSegments: 4 });
   up.rotateX(-Math.PI / 2);
   const pu = up.getAttribute('position');
   for (let v = 0; v < pu.count; v++) {
@@ -120,9 +120,6 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
     laces.push(b);
   }
   g.add(mesh(mergeGeometries(laces), mt.lace));
-  const stripe = new BoxGeometry(L * 0.5, 6, W * 0.96);
-  stripe.translate(L * 0.05, soleH + 10, 0);
-  g.add(mesh(stripe, mt.lace));
   // trouser leg: a loose fabric tube, matte, with folds, fading out a short way up (the rest of the person is out of
   // the ant's sight and out of focus)
   const hemY = soleH + L * 0.28;

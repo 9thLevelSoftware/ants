@@ -29,6 +29,20 @@ function rig(workers = 4) {
 
 const worker = (sim: Sim) => sim.state.ants.find((a) => a.caste === 'worker')!;
 
+describe('OnboardingController while the opening runs', () => {
+  it('stays silent about everything but the opening (the test sim starts in the intro card)', () => {
+    const r = rig();
+    r.sim.state.player.opening = { ...r.sim.state.player.opening!, done: false, phase: 'search' };
+    r.setView('possess');
+    r.sim.state.player.possessedAntId = r.sim.state.ants.find((a) => a.caste === 'worker')!.id;
+    r.refresh();
+    r.ctl.advance(30);
+    // the opening is in progress: no card for Tab, X, M and the rest; only hint-look (about the opening) may show, after move is learned
+    const shown = r.ctl.engine.log.filter((l) => l.event === 'shown' && l.presenter === 'engine').map((l) => l.id);
+    expect(shown.every((id) => id === 'hint-look')).toBe(true);
+  });
+});
+
 describe('OnboardingController on a real sim', () => {
   it('learns hint-move from movement intent of the possessed ant, in real seconds, only while possessing', () => {
     const r = rig();

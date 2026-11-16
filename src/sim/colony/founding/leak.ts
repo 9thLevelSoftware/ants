@@ -7,7 +7,8 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Entrance, Nest, Sim } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import { sampleI, sampleJ, sampleK } from '@/sim/nest/voxelKey';
-import { FOUND_POCKET_MAX_SAMPLES, SEAL_FLOOD_MAX_SAMPLES, SEAL_FLOOD_RADIUS_BU } from '@/sim/balance/founding';
+import { foundingPocketTest } from '@/sim/nest/entrances';
+import { SEAL_FLOOD_MAX_SAMPLES, SEAL_FLOOD_RADIUS_BU } from '@/sim/balance/founding';
 
 /** Carve-grid openness from which a sample counts as open (nest carve keys OPEN_MIN; seed §4: iso 127.5). */
 export const CARVE_OPEN_MIN = 128;
@@ -71,9 +72,23 @@ const DIRS = [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1];
  * Floods the whole cavity from `from` (the founding cell) through open samples; air samples are sinks (the first
  * one reached gives `path`, the shortest way out). `fill`:
  * spheres treated as solid (a predicted plug). Bounded by SEAL_FLOOD_RADIUS_BU around `from` and
- * SEAL_FLOOD_MAX_SAMPLES samples.
+ * SEAL_FLOOD_MAX_SAMPLES samples. The result is shared (memoised within a tick): never modify it.
  */
 export function floodCavity(sim: Sim, from: Vec3, fill: readonly Sphere[] = []): CavityFlood {
+  if (fill.length > 0) return floodNow(sim, from, fill);
+  // the plain flood is asked for several times a tick (the seal check, the guide, the planner): reused while
+  // nothing it reads can have changed (same tick, carve grid and field geometry, same start); read-only for callers
+  const sig = `${sim.state.tick}|${sim.carve.version}|${(sim.field as { geomVersion?: number }).geomVersion ?? -1}|${from.x},${from.y},${from.z}`;
+  const memo = floodMemo.get(sim);
+  if (memo && memo.sig === sig) return memo.flood;
+  const flood = floodNow(sim, from, fill);
+  floodMemo.set(sim, { sig, flood });
+  return flood;
+}
+
+const floodMemo = new WeakMap<Sim, { sig: string; flood: CavityFlood }>();
+
+function floodNow(sim: Sim, from: Vec3, fill: readonly Sphere[]): CavityFlood {
   const v = sim.carve.voxel, maxR = SEAL_FLOOD_RADIUS_BU * sim.world.bu;
   const cavity = new Map<number, number>();
   const seed = seedNear(sim, from);
@@ -120,35 +135,13 @@ export function floodStart(sim: Sim, nest: Nest): Vec3 {
 }
 
 /**
- * The nest's founding pocket rule, mirrored (src/sim/nest/entrances.ts foundingPocketTest): while the nest is
- * founding and has a chamber, a throat passage counts only if its carved space leads on to a chamber (a dead-end
- * pit beside the opening does not). `fill`: spheres treated as solid. Null when the plain rule applies.
+ * The nest's founding pocket rule (src/sim/nest/entrances.ts foundingPocketTest, the one rule both use): while the
+ * nest is founding and has a chamber, a throat passage counts only if its carved space leads on to a chamber (a
+ * dead-end pit beside the opening does not). `fill`: spheres treated as solid. Null when the plain rule applies.
  */
 function leadsToChamber(sim: Sim, nest: Nest, fill: readonly Sphere[]): ((i: number, j: number, k: number) => boolean) | null {
-  if (!nest.founding || nest.founding.state === 'established' || nest.chambers.length === 0) return null;
   const v = sim.carve.voxel;
-  const inChamber = (x: number, y: number, z: number): boolean => nest.chambers.some((c) =>
-    ((x - c.center.x) / Math.max(v, c.radii.x)) ** 2 + ((y - c.center.y) / Math.max(v, c.radii.y)) ** 2 + ((z - c.center.z) / Math.max(v, c.radii.z)) ** 2 <= 1);
-  const pocket = new Set<number>();
-  return (i0, j0, k0) => {
-    const k0Key = key(i0, j0, k0);
-    if (pocket.has(k0Key)) return false;
-    const seen = new Set<number>([k0Key]), queue = [k0Key];
-    for (let q = 0; q < queue.length && seen.size < FOUND_POCKET_MAX_SAMPLES; q++) {
-      const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
-      if (inChamber(i * v, j * v, k * v)) return true;
-      for (let d = 0; d < 18; d += 3) {
-        const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2], m = key(ni, nj, nk);
-        if (seen.has(m) || !isOpenSample(sim, ni, nj, nk) || isAirSample(sim, ni, nj, nk)) continue;
-        if (fill.length > 0 && inSpheres(ni * v, nj * v, nk * v, fill)) continue;
-        seen.add(m);
-        queue.push(m);
-      }
-    }
-    if (seen.size >= FOUND_POCKET_MAX_SAMPLES) return true;
-    for (const m of seen) pocket.add(m);
-    return false;
-  };
+  return foundingPocketTest(sim, nest, fill.length > 0 ? (i, j, k) => inSpheres(i * v, j * v, k * v, fill) : null);
 }
 
 /**

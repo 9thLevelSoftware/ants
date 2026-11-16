@@ -56,13 +56,13 @@ export const HINT_TABLE: readonly HintDef[] = [
   { id: 'hint-colony-view', order: 14, presenter: 'engine', anchor: 'top',
     when: (f, c) => playing(f) && !f.foundingInProgress && (f.firstFood || c.flag('firstDelivery')), learn: { key: 'colony-view', uses: 1 },
     aims: { opens: ['aim-first-trail'], closes: ['aim-first-food'] } },
-  { id: 'hint-marker', order: 15, presenter: 'engine', anchor: 'top',
+  { id: 'hint-marker', order: 15, presenter: 'engine', anchor: 'bottom', // the colony view's palette fills the top centre
     when: (f) => f.view === 'colony', delayS: 3, learn: { key: 'marker', uses: 1 }, aims: { opens: ['aim-second-chamber'] } },
   { id: 'hint-speed', order: 16, presenter: 'engine', anchor: 'time',
     when: (f) => f.view === 'observer' && !f.alertActive && !f.foundingInProgress, delayS: 30, learn: { key: 'speed', uses: 2 } },
   { id: 'hint-scent', order: 17, presenter: 'engine', anchor: 'top',
     when: (f, c) => playing(f) && !f.foundingInProgress && (f.firstTrail || c.flag('trailExists')), learn: { key: 'scent', uses: 1 } },
-  { id: 'hint-why', order: 18, presenter: 'engine', anchor: 'pulse',
+  { id: 'hint-why', order: 18, presenter: 'engine', anchor: 'pulse', after: ['hint-cycle'], // not before the first workers are taken in hand
     when: (f, c) => playing(f) && !f.foundingInProgress && (f.diagWarn || c.flag('diagWarn')), learn: { key: 'why', uses: 1 } },
   { id: 'hint-directives', order: 19, presenter: 'engine', anchor: 'panel',
     when: (f) => playing(f) && !f.foundingInProgress

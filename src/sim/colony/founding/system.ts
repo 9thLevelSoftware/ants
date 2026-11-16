@@ -120,12 +120,12 @@ function step(sim: Sim, op: OpeningState, q: Ant, nest: Nest): void {
       refuseLayBeforeSeal(sim, q);
       exposureTick(sim, q, true);
       if (!q.alive) return;
-      // sealed first: soil is scraped (and the guide plans) only while a throat is still open
+      // sealed first: soil is scraped (and the guide plans) only while a throat is still open (a plug lands in the
+      // actions system, after this one, so the next tick's check sees it)
       if (!sealTick(sim, op, nest)) {
         soilForSeal(sim, q, nest);
         sealGuideTick(sim, q, nest);
-      }
-      if (sealTick(sim, op, nest)) {
+      } else {
         setPhase(sim, op, 'lay');
         closeAim(sim, 'aim-seal');
         openAim(sim, 'aim-first-clutch');

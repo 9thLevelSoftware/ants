@@ -128,6 +128,17 @@ export const SEAL_AIM_MARGIN_BU = 0.3;
 export const SEAL_STAND_BEHIND_BU = 0.5;
 /** The back-fill strategy with nothing of the leak in reach: she climbs this far along it toward the opening, BU. */
 export const SEAL_BELOW_STEP_BU = 1.5;
+/**
+ * Every plug the guide lays lies inside the opening's throat sphere (radius + THROAT_BU) by at least this much, BU:
+ * there the nest counts it as the entrance's plug, and there the first workers' `unseal-entrance` (whose stand and
+ * reach are the throat) dig it out at the hand-over (GDD 06 §5.13 (b)); a plug past the sphere could be undone by
+ * nobody. One body length of a worker (the digger's body centre stands behind the plug face it bites).
+ */
+export const SEAL_PLUG_INSIDE_BU = 1;
+/** Other ants within this distance of the opening (or of her, for the back-fill) are kept clear of a plug, BU. */
+export const SEAL_OTHER_ANTS_BU = 8;
+/** `deep` / `mouth` strategies: the inner / outer part of the throat sphere, split at this fraction of its radius. */
+export const SEAL_DEEP_SPLIT = 0.5;
 /** The queen walks to a stand until this close, BU, or gives it up after this long, ticks. */
 export const SEAL_STAND_TOL_BU = 0.7;
 export const SEAL_WALK_MAX_TICKS = 200;
@@ -147,6 +158,8 @@ export const SEAL_ROUTE_MAX_SAMPLES = 20_000;
 export const SEAL_WAYPOINT_TANGENT = 0.6;
 /** Shut off from her cell by a plug, she bites back toward it once per this many ticks (about one bite). */
 export const SEAL_UNPOCKET_EVERY_TICKS = 13;
+/** Such a bite is tried at these fractions of the slope toward the cavity, in order (straight at it, level, half). */
+export const SEAL_UNPOCKET_SLOPE_FRACS = [1, 0, 0.5] as const;
 /** Stands given up within this radius of an unreachable one, BU; after this many the guide stops (prompt). */
 export const SEAL_EXCLUDE_BU = 0.75;
 export const SEAL_MAX_REPLANS = 6;
@@ -279,8 +292,6 @@ export const REOPEN_MAX_GD = 2;
 export const REOPEN_PAST_BU = 0.5;
 /** A founding reopening plan still live after this long is cancelled (nobody could dig it), GD. */
 export const REOPEN_PLAN_STALL_GD = 0.2;
-/** At most this many unplugging calls clear plug voxels that no plan can take, per check. */
-export const REOPEN_UNPLUG_BITES = 24;
 /** All brood lost with the queen alive: one extra clutch of up to half the cap if R >= this x R0. */
 export const BROOD_LOST_RELAY_MIN = 0.35;
 /** ... else `failed` with cause `no-workers` after this long, GD. */

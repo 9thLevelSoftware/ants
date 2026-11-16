@@ -145,8 +145,10 @@ export class HumansRenderer implements SubRenderer {
     const v = pool[n];
     v.root.visible = true;
     v.shadow.visible = true;
-    // a broom or vacuum head is a comb of bristles: its shadow-map shadow is a hard edged rectangle, so the soft blob stands for it
-    const softOnly = key === 'broom' || key === 'nozzle';
+    // At ant scale a person or a tool is a vast, out-of-focus mass: its shadow is the soft blob (sunShadow.ts), not the
+    // sun's shadow-map copy of its outline (a hard edged rectangle for a comb of bristles, a hard polygon for a sole).
+    // The mower and the car keep theirs: they are solid, they are the sun's own shadow.
+    const softOnly = key === 'broom' || key === 'nozzle' || key === 'shoe' || key === 'child-shoe' || key === 'paw';
     v.root.traverse((o) => { o.castShadow = this.shadowsOn && !softOnly && (o as Mesh).isMesh && o.castShadow !== false; });
     return v;
   }

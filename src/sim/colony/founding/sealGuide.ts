@@ -6,11 +6,14 @@
 // plug about 3 times until sealed). Bounded: SEAL_MAX_PLUGS plugs per strategy. Never a dead end: when no plug has
 // landed for SEAL_STRATEGY_TICKS, or a strategy runs out of stands, the guide moves to the next strategy of
 // SEAL_STRATEGIES (which aims it tries first) instead of repeating the last one. Movement input from the player takes
-// the queen back at once. The passive player (OPEN_AUTO_SEAL_GD without input) and cheat.completeFounding use the
-// same guide.
+// the queen back at once, and the guide then waits for the next press (or OPEN_AUTO_SEAL_GD without input). Out of
+// her cavity (she walked out onto the surface, or a plug shut her out above it) she first walks back in by the way
+// the cell still reaches the air, or, shut out, walks to the plugged throat and bites back through it there: never a
+// bite from wherever she stands, which would open a new hole. The passive player (OPEN_AUTO_SEAL_GD without input)
+// and cheat.completeFounding use the same guide.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { ActionId, Ant, Nest, Sim } from '@/sim/types';
+import type { ActionId, Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { INPUT_DEADZONE, SEAL_ENTRANCE_S } from '@/sim/balance/actions';
 import {
   OPEN_AUTO_SEAL_GD, SEAL_EXCLUDE_BU, SEAL_MAX_PLUGS, SEAL_MAX_REPLANS, SEAL_COMMAND_MARGIN_BU, SEAL_OPPORTUNITY_TICKS,
@@ -20,8 +23,9 @@ import {
 import { navStop, navTo } from '@/sim/locomotion';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { bbGet, bbSet, foundingQueen, openingOf, phaseAgeGd } from './access';
-import { cavityRoute, floodStart, keyPos } from './leak';
-import { biteToward } from './seal';
+import { cavityRoute, floodCavity, floodStart, keyPos } from './leak';
+import { biteToward, inThroatOf } from './seal';
+import { cavityEntrances } from './dig';
 import { aimReachMm } from './plugPredict';
 import { SEAL_STRATEGIES, entranceToSeal, inSealReach, planSeal, plugKeepsQueenInside, queenInCavity, type SealPlan } from './sealPlan';
 
@@ -30,7 +34,7 @@ const SEAL_DEFERRED_KEY = 'act.sealDefer';
 
 /** Guide state on the queen (ant.bb, numbers only). */
 export const SG = {
-  state: 'fd.sg', // 0 idle, 1 walking to the stand, 2 plugging, 3 stuck (no stand reachable), 5 fetching soil
+  state: 'fd.sg', // 0 idle, 1 walking to the stand, 2 plugging, 3 stuck (no stand reachable), 4 back into the cavity, 5 fetching soil
   ask: 'fd.sgAsk', // tick of the latest E press in phase `seal`
   seen: 'fd.sgSeen', // the ask tick already acted on
   auto: 'fd.sgAuto',
@@ -47,9 +51,11 @@ export const SG = {
   progress: 'fd.sgProg', // tick of the request or of the last plug (the strategy watchdog)
   changes: 'fd.sgChanges', // strategy changes in this opening (tests, report)
   lx: 'fd.sgLx', // her distance to the stand at the last stall check, mm
+  mouth: 'fd.sgMouth', // shut out: she has reached the plugged opening (1) and digs down from it
+  bit: 'fd.sgBit', // shut out: the last bite toward the cavity removed soil (1) or found none in reach (0)
 } as const;
 
-const IDLE = 0, WALK = 1, PLUG = 2, STUCK = 3, SOIL = 5;
+const IDLE = 0, WALK = 1, PLUG = 2, STUCK = 3, BACK = 4, SOIL = 5;
 
 /** E-actions that mean "seal" while the opening is in phase `seal`. */
 const E_ACTIONS: readonly ActionId[] = ['seal-entrance', 'put-down', 'groom', 'lay-egg'];
@@ -187,7 +193,9 @@ function aimOf(q: Ant): Vec3 {
 
 function planNow(sim: Sim, q: Ant): SealPlan | null {
   const nest = foundingNestOf(sim);
-  return nest ? planSeal(sim, nest, q, excluded(q), SEAL_EXCLUDE_BU * sim.world.bu, strategyOf(q)) : null;
+  // plugs past the throat sphere only after a whole round of strategies laid none inside it (sealPlan.ts plugInThroat)
+  const deepOk = bbGet(q, SG.changes, 0) >= SEAL_STRATEGIES.length;
+  return nest ? planSeal(sim, nest, q, excluded(q), SEAL_EXCLUDE_BU * sim.world.bu, strategyOf(q), deepOk) : null;
 }
 
 /** Nothing to tamp, or shut off from the cell: down toward it until the soil rule finds a wall to scrape. */
@@ -202,7 +210,7 @@ function plan(sim: Sim, q: Ant): void {
   const nest = foundingNestOf(sim);
   if (!nest) { stop(sim, q, IDLE); return; }
   if (bbGet(q, SG.plugs, 0) >= SEAL_MAX_PLUGS) { stop(sim, q, STUCK); return; }
-  if (!queenInCavity(sim, nest, q)) { toSoil(sim, q, nest); return; } // shut off from her cell: back in first
+  if (!queenInCavity(sim, nest, q)) { toBack(sim, q); return; } // out of her cavity: back in first
   const p = planNow(sim, q);
   if (!p) { stop(sim, q, IDLE); return; }
   bbSet(q, SG.tx, p.aim.x); bbSet(q, SG.ty, p.aim.y); bbSet(q, SG.tz, p.aim.z);
@@ -281,15 +289,7 @@ function giveUp(sim: Sim, q: Ant, s: Vec3): void {
 }
 
 function soilTick(sim: Sim, q: Ant, nest: Nest): void {
-  const inside = queenInCavity(sim, nest, q);
-  if (!inside) {
-    // a plug landed between her and the cell: she bites her way back to it through the loose fill
-    if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
-    const t = sim.state.tick - bbGet(q, SG.since, sim.state.tick);
-    if (t % SEAL_UNPOCKET_EVERY_TICKS === 0) biteToward(sim, q, floodStart(sim, nest));
-    if (t > SEAL_WALK_MAX_TICKS) bbSet(q, SG.since, sim.state.tick);
-    return;
-  }
+  if (!queenInCavity(sim, nest, q)) { toBack(sim, q); return; }
   if (hasPellet(sim, q)) {
     if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
     plan(sim, q);
@@ -305,6 +305,83 @@ function soilTick(sim: Sim, q: Ant, nest: Nest): void {
     if (biteToward(sim, q, floodStart(sim, nest))) return;
   }
   if (t <= SEAL_SOIL_WAIT_TICKS) soilWalk(sim, q, nest);
+}
+
+/** Out of her cavity: walk back in (backTick) before anything else. */
+function toBack(sim: Sim, q: Ant): void {
+  bbSet(q, SG.state, BACK);
+  bbSet(q, SG.mouth, 0);
+  bbSet(q, SG.bit, 0);
+  bbSet(q, SG.since, sim.state.tick);
+}
+
+/**
+ * Where she gets back into her cavity from outside: the last cavity sample of the cell's shortest way to the air
+ * (just inside the opening it leaves by); null when the cell no longer reaches the air (a plug shut her out).
+ */
+function wayIn(sim: Sim, nest: Nest): Vec3 | null {
+  const path = floodCavity(sim, floodStart(sim, nest)).path;
+  return path && path.length >= 2 ? keyPos(sim, path[path.length - 2], { x: 0, y: 0, z: 0 }) : null;
+}
+
+/** The opening of her cavity nearest to her (the plugged throat she was shut out of), or null. */
+function nearestOpening(sim: Sim, nest: Nest, q: Ant): Entrance | null {
+  let best: Entrance | null = null, bestD = Infinity;
+  for (const e of cavityEntrances(sim, nest)) {
+    const d = Math.hypot(e.pos.x - q.pos.x, e.pos.y - q.pos.y, e.pos.z - q.pos.z);
+    if (d < bestD) { best = e; bestD = d; }
+  }
+  return best;
+}
+
+/** Her own movement input toward `to` (possessed), else locomotion; a failed walk hands her to the guide's input. */
+function headFor(sim: Sim, q: Ant, to: Vec3, fresh: boolean): void {
+  if (possessed(sim, q)) { setIntent(sim, q, unit(q.pos, to)); return; }
+  if (q.nav.status === 'failed') { sim.enqueue({ type: 'possess', antId: q.id }); return; }
+  if (fresh || q.nav.status !== 'moving') navTo(sim, q, to, SEAL_STAND_TOL_BU * sim.world.bu);
+}
+
+/**
+ * Out of her cavity (state BACK). While the cell still reaches the air she walks in by that way (over the lip and
+ * down: the walker follows the surface part of the input). Shut out (no way in: her own plug lies between her and
+ * the cell) she walks to the plugged opening and, standing over it, bites down through the loose fill toward the
+ * cavity beneath it, about one bite per SEAL_UNPOCKET_EVERY_TICKS. Back inside, the guide plans again.
+ */
+function backTick(sim: Sim, q: Ant, nest: Nest): void {
+  if (queenInCavity(sim, nest, q)) {
+    if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
+    plan(sim, q);
+    return;
+  }
+  const t = sim.state.tick - bbGet(q, SG.since, sim.state.tick);
+  const way = wayIn(sim, nest);
+  if (way) { headFor(sim, q, way, t === 0); return; }
+  const e = nearestOpening(sim, nest, q);
+  if (!e) { stop(sim, q, STUCK); return; }
+  // over the opening itself (on the fill that shut her out) first, never anywhere in the throat sphere around it: a
+  // bite from the ground beside the opening would start a new hole; from there on down the cut while in the throat
+  const over = Math.hypot(q.pos.x - e.pos.x, q.pos.z - e.pos.z) <= e.radius + SEAL_STAND_TOL_BU * sim.world.bu;
+  if (over) bbSet(q, SG.mouth, 1);
+  if (bbGet(q, SG.mouth, 0) !== 1 || !inThroatOf(sim, q, e)) { bbSet(q, SG.mouth, 0); headFor(sim, q, e.pos, t === 0); return; }
+  const face = innerFace(sim, nest, e.pos);
+  if (t % SEAL_UNPOCKET_EVERY_TICKS === 0) {
+    if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
+    bbSet(q, SG.bit, biteToward(sim, q, face) ? 1 : 0);
+  }
+  // a bite that found nothing in reach: a step on down into the cut toward the cavity
+  if (bbGet(q, SG.bit, 0) === 0) headFor(sim, q, face, t % SEAL_UNPOCKET_EVERY_TICKS === 0);
+}
+
+/** The cell's cavity sample nearest `p` (below a plug in the throat: the plug's inner face), else the cell. */
+function innerFace(sim: Sim, nest: Nest, p: Vec3): Vec3 {
+  const at = { x: 0, y: 0, z: 0 };
+  let best = floodStart(sim, nest), bestD = Infinity;
+  for (const k of floodCavity(sim, floodStart(sim, nest)).cavity.keys()) {
+    keyPos(sim, k, at);
+    const d = Math.hypot(at.x - p.x, at.y - p.y, at.z - p.z);
+    if (d < bestD) { bestD = d; best = { x: at.x, y: at.y, z: at.z }; }
+  }
+  return best;
 }
 
 function walkTick(sim: Sim, q: Ant, nest: Nest): void {
@@ -360,10 +437,11 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
     if (sim.state.tick - bbGet(q, SG.since, sim.state.tick) >= SEAL_STRATEGY_TICKS) changeStrategy(sim, q);
     return;
   }
-  if (state === IDLE && !queenInCavity(sim, nest, q) && bbGet(q, SG.total, 0) > 0) { toSoil(sim, q, nest); return; }
   if (state === IDLE) {
+    // idle (no request yet, or the player took her back): only a press of E or the passive player's clock starts the
+    // guide; never while the player is steering her
     const idleTicks = sim.state.tick - Math.max(sim.state.player.lastInputTick, 0);
-    const passive = !possessed(sim, q) || idleTicks >= OPEN_AUTO_SEAL_GD * TICKS_PER_DAY;
+    const passive = !possessed(sim, q) || (idleTicks >= OPEN_AUTO_SEAL_GD * TICKS_PER_DAY && !playerTookOver(sim, q));
     const cooled = sim.state.tick - bbGet(q, SG.autoTick, -1e9) >= SEAL_WALK_MAX_TICKS;
     if (passive && cooled && phaseAgeGd(sim, q) >= OPEN_AUTO_SEAL_GD) {
       bbSet(q, SG.autoTick, sim.state.tick);
@@ -390,6 +468,7 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
   if (sim.state.tick - bbGet(q, SG.progress, sim.state.tick) >= SEAL_STRATEGY_TICKS) { changeStrategy(sim, q); return; }
   if (q.action) return; // a bite or anything else under way ends first
   if (state === SOIL) { soilTick(sim, q, nest); return; }
+  if (state === BACK) { backTick(sim, q, nest); return; }
   walkTick(sim, q, nest);
 }
 
@@ -397,7 +476,7 @@ export function sealGuideTick(sim: Sim, q: Ant, nest: Nest): void {
 export function sealGuideView(sim: Sim, q: Ant | undefined): { state: 'idle' | 'walking' | 'plugging' | 'stuck'; stand: Vec3 | null; plugs: number } | null {
   if (!q) return null;
   const s = bbGet(q, SG.state, IDLE);
-  const state = s === WALK || s === SOIL ? 'walking' : s === PLUG ? 'plugging' : s === STUCK ? 'stuck' : 'idle';
+  const state = s === WALK || s === SOIL || s === BACK ? 'walking' : s === PLUG ? 'plugging' : s === STUCK ? 'stuck' : 'idle';
   const stand = s === WALK ? { x: bbGet(q, SG.sx, 0), y: bbGet(q, SG.sy, 0), z: bbGet(q, SG.sz, 0) } : null;
   return { state, stand, plugs: bbGet(q, SG.total, 0) };
 }

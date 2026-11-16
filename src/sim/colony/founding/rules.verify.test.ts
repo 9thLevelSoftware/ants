@@ -117,7 +117,10 @@ describe('the passive player (GDD 06 §5.1 `lay` exit, §5.10)', () => {
     const sim = searchingSim();
     pinTemperature(sim, 22);
     const nest = nestOf(sim);
-    readyInRampCell(sim);
+    const r = readyInRampCell(sim);
+    // the cell really closed (fill across the ramp): a cell whose record reads sealed while its shaft is still open
+    // takes the rain in, and the queen drowned in it before the 1.5 GD (the nest flood model, rightly)
+    sim.enqueue({ type: 'cheat.fillSphere', pos: r.rampAt(2), r: 1.6 * sim.world.bu, loose: true });
     sim.enqueue({ type: 'cheat.setFoundingState', nestId: nest.id, state: 'sealed' });
     sim.tick();
     expect(phase(sim)).toBe('lay');

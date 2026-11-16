@@ -9,6 +9,7 @@
 /* anchors: the top centre, over the sky and clear of the ant (which sits in the lower middle) and of every HUD corner;
    under the time cluster and focus line; left of the colony pulse; above the possessed-ant panel */
 .hn-at-top { left: 50%; top: 1rem; translate: -50% 0; }
+.hn-at-bottom { left: 50%; bottom: 3rem; translate: -50% 0; }
 .hn-at-time { left: 1rem; top: 6.75rem; }
 .hn-at-pulse { right: 22.5rem; top: 1.25rem; }
 .hn-at-panel { left: 1rem; bottom: 8.5rem; }

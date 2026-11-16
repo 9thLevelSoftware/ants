@@ -558,18 +558,43 @@ export default async ({ page, shot, log }) => {
     await step(60);
     const centre = foodPos ? { x: (ent.x + foodPos.x) / 2, y: ent.y, z: (ent.z + foodPos.z) / 2 } : ent;
     const out = {};
+    // where the topsoil moisture changes most within 100 BU of the nest (soil against paving, wet against dry): the
+    // contour lines at 25 / 50 / 75 % can only be seen where there is a gradient
+    const grad = await sim((sm, c) => {
+      const m = sm.state.env.moisture, bu = sm.world.bu;
+      if (!m || m.nx <= 0) return null;
+      const at = (x, z) => m.theta0[Math.min(m.nz - 1, Math.max(0, Math.floor(z / m.cell))) * m.nx + Math.min(m.nx - 1, Math.max(0, Math.floor(x / m.cell)))] / 255;
+      const vals = [];
+      let best = null, bg = -1;
+      for (let dz = -100 * bu; dz <= 100 * bu; dz += 3 * bu) {
+        for (let dx = -100 * bu; dx <= 100 * bu; dx += 3 * bu) {
+          const x = c.x + dx, z = c.z + dz, w = 6 * bu;
+          vals.push(at(x, z));
+          const n = [at(x + w, z), at(x - w, z), at(x, z + w), at(x, z - w), at(x, z)];
+          const g = Math.max(...n) - Math.min(...n);
+          if (g > bg) { bg = g; best = { x, z }; }
+        }
+      }
+      vals.sort((a, b) => a - b);
+      return { best, gradient: bg, theta0: [0.05, 0.5, 0.95].map((p) => Math.round(vals[Math.floor(p * (vals.length - 1))] * 1000) / 1000) };
+    }, ent);
+    out.gradient = grad;
+    const edge = grad && grad.gradient > 0.05 ? { x: grad.best.x, y: await groundY(grad.best.x, grad.best.z), z: grad.best.z } : null;
     const shoot = async (tag) => {
       for (const id of ['moisture', 'temperature']) {
         await g((o) => window.__game.fx.overlay(o, true), id);
         await look(centre, 110, 60, 210);
         await pic(`12-overlay-${id}-${tag}-wide`);
-        await look(centre, 30, 50, 210);
-        await pic(`12-overlay-${id}-${tag}-close`);
+        if (edge) { await look(edge, 45, 55, 210); await pic(`12-overlay-${id}-${tag}-edge`); }
         const st = await g(() => window.__game.fx.stats());
         expect(st.field > 0, `the ${id} overlay drew nothing (${tag})`, st);
         out[`${id}-${tag}`] = { field: st.field, labels: st.labels };
         await g((o) => window.__game.fx.overlay(o, false), id);
       }
+      out[`theta0-${tag}`] = (await sim((sm, c) => {
+        const m = sm.state.env.moisture;
+        return m.theta0[Math.floor(c.z / m.cell) * m.nx + Math.floor(c.x / m.cell)] / 255;
+      }, centre));
     };
     await shoot('dry');
     await cheat('setWeatherClass', 'rain', 'downpour');
@@ -587,15 +612,17 @@ export default async ({ page, shot, log }) => {
     await setClock(11);
     const spot = await openGround(40, 2.4);
     expect(spot, 'no open ground for the footfall');
-    const impacts = () => g(() => window.__game.events('human.impact', 60).length);
-    const n0 = await impacts();
+    // only the footsteps of this event count (a mower running on its own schedule lands impacts too)
+    const steps = () => g(() => window.__game.events('human.impact', 200).filter((e) => e.kind === 'footsteps'));
+    const n0 = (await steps()).length;
     const r = await cheat('triggerEvent', 'footsteps', spot, 0);
     log('humanlook footsteps', JSON.stringify(r));
     let fall = null;
     // stepping only (no rendering) until a sole has landed, then draw once: cheap under load
     for (let i = 0; i < 400 && !fall; i++) {
       await step(4);
-      if ((await impacts()) > n0) fall = (await g(() => window.__game.events('human.impact', 1)))[0] ?? null;
+      const list = await steps();
+      if (list.length > n0) fall = list[list.length - 1];
     }
     expect(fall && fall.footprint, 'no footstep landed in 1600 ticks', fall);
     const out = {};
@@ -605,6 +632,12 @@ export default async ({ page, shot, log }) => {
       out[tag] = (await g(() => window.__game.perf().renderers.humans)).actors ?? 0;
     }
     expect(out.high > 0, 'the shoe was not drawn', out);
+    // the soft blob shadows the renderer laid down (renderer internals, read only): where, how big, how dark
+    out.blobs = await g(() => {
+      const r = window.__hud.game.registry.entries.find((e) => e.slot === 'humans').renderer;
+      return r.group.children.filter((o) => o.visible && o.isMesh && o.geometry.type === 'CircleGeometry')
+        .map((o) => ({ at: [o.position.x, o.position.y, o.position.z].map(Math.round), scale: [o.scale.x, o.scale.z].map(Math.round), opacity: Math.round(o.material.opacity * 100) / 100 }));
+    });
     return out;
   });
 
@@ -613,14 +646,26 @@ export default async ({ page, shot, log }) => {
     await cheat('setWeather', 'clear');
     await setClock(13);
     // a spot right beside the nearest prop: the sim's aim lands where the beak and head would pass through it
-    const bspot = await openGround(30, 2.2);
-    expect(bspot, 'no open ground for the bird');
+    const primSpot = async () => {
+      for (const dist of [22, 30, 38, 46, 56, 70]) {
+        for (let k = 0; k < 24; k++) {
+          const th = (k * Math.PI) / 12, x = ent.x + Math.cos(th) * dist * bu, z = ent.z + Math.sin(th) * dist * bu;
+          const y = await groundY(x, z);
+          const d = await g(([x, y, z, b]) => window.__game.query.dig(x, y + 0.5 * b, z, b), [x, y, z, bu]);
+          if (d.prim !== null) return { x, y, z, prim: d.prim };
+        }
+      }
+      return null;
+    };
+    const bspot = (await primSpot()) ?? (await openGround(30, 2.2));
+    expect(bspot, 'no ground for the bird');
+    log('birdlook spot', JSON.stringify(bspot));
     await cheat('triggerBird', bspot, true);
     await spawnWorker(bspot);
     let bird = await q('bird');
     for (let i = 0; i < 80 && bird && bird.phase !== 'landed'; i++) { await step(5); bird = await q('bird'); }
     expect(bird, 'cheat.triggerBird started no bird event');
-    const out = { phase: bird.phase, shots: 0 };
+    const out = { phase: bird.phase, shots: 0, nextToPrim: bspot.prim ?? null };
     // two strikes: where the beak waits above its aim, and a few ticks later at the peck
     for (let k = 0; k < 2; k++) {
       await look({ x: bird.pos.x, y: bird.pos.y + 20 * bu, z: bird.pos.z }, 70, 14, 230 + 40 * k);

@@ -21,7 +21,18 @@ export function temperatureDeviation(v: number, mid: number): number {
   return v < mid ? (mid - v) / Math.max(mid, 1e-3) : (v - mid) / Math.max(1 - mid, 1e-3);
 }
 
+/** Share (0..1) of the way from the optimum to the end of the scale that the stain shows for a departure. */
+export function temperatureAmp(v: number, mid: number): number {
+  return 1 - Math.exp(-TEMP_STAIN_GAIN * Math.min(1, Math.max(0, temperatureDeviation(v, mid))));
+}
+
 /** Temperature field value v (0..1 of the scale) with the optimum at `mid` -> opacity of the stain. */
 export function temperatureStainAlpha(v: number, mid: number): number {
-  return FILL_ALPHA * (1 - Math.exp(-TEMP_STAIN_GAIN * Math.min(1, Math.max(0, temperatureDeviation(v, mid)))));
+  return FILL_ALPHA * temperatureAmp(v, mid);
+}
+
+/** The place on the legend ramp (0..1) whose colour the stain uses for field value v: the departure, amplified. */
+export function temperatureStainT(v: number, mid: number): number {
+  const amp = temperatureAmp(v, mid);
+  return v < mid ? mid * (1 - amp) : mid + (1 - mid) * amp;
 }

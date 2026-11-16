@@ -2,7 +2,7 @@
 // flow's own presentation flags. Pure reads; words come from fixed tables here (the GDD 06 §5.7 factor labels,
 // the GDD 08 §9.2 prompt texts), never from the simulation.
 import type { Sim } from '@/sim/types';
-import { foundingView, type FoundingView } from '@/sim/colony/founding';
+import { factorDots, foundingView, type FoundingView } from '@/sim/colony/founding';
 import { airTemp } from '@/sim/environment';
 import { currentDayOfSeason, currentHour, currentSeason } from '@/sim/time';
 import { WEATHER_WORDS } from '@/game/uiBridge/words';
@@ -104,7 +104,7 @@ export function buildFoundingUi(sim: Sim, flags: FlowFlags): FoundingUi | null {
   };
   const site: FoundingUi['site'] = v.site ? {
     active: v.site.active,
-    rows: v.site.factors.map((f) => ({ id: f.id, label: FACTOR_LABELS[f.id] ?? f.id, value: f.value, word: f.word })),
+    rows: v.site.factors.map((f) => ({ id: f.id, label: FACTOR_LABELS[f.id] ?? f.id, value: f.value, dots: factorDots(f.value), word: f.word })),
     q: v.site.q, word: v.site.word, chamberQ: v.phase !== 'search' ? v.site.q : null,
   } : null;
   const fc = v.clutch?.forecast ?? null;

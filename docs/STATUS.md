@@ -288,3 +288,33 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Needs from sim owners (later, when sim is free): plain `dig-bite` duplicate from the runner; miss vs armour-0 bite
   cue strength; emitters for `stridulate`, `leaf-cut`, `garden-tend` (Stage 3 species); ant id on cue events.
 - Machine: load average 14–15 with 6 agents; timing-sensitive tests are unreliable until the stabilisation round lands.
+
+## Nov 16 14:00 UTC — viab-economy + viab-loco landed
+
+- **viab-economy** (Opus ×3): **viability bar met**: 11 of 15 runs viable, ≥ 2 of 3 on every Tier 1 archetype
+  (`test-output/viab/final3.txt`; run in a snapshot = HEAD + founding WIP plug-reopen fix, `--no-flood`). Tier 2
+  ecology on; provisioned hand-over (3 gd window); small-colony forage floor; winter reserve (`WINTER_RESERVE_FROM_D28`
+  10: no laying protein late in the season under 30 workers unless C stores cover adults to winter); honest
+  diagnostics; populate floors (crumbs renew at Tier 1 only; Tier 2 top-ups flowers → herd hosts → prey patches).
+  `life.ts --until winter`, viable verdict, forced-seal fallback.
+  - **Integrator's reading: bar met, game still thin.** Colonies live on the hand-over provision: 0.0–0.3 trips per
+    worker per gd, 0 eclosions in 11 of 15 runs, larvae starve for protein while workers idle, strict "healthy" 1 of 15.
+    Economy check C13 holds at 100 workers, fails at 300 (C 0.57×, P 0.14×). App. E 25 red (carrion piece conflict).
+    Worldgen 2–4.5× slower on 8 of 15 worlds (floor regeneration). → **`econ-growth`** task with rulings R7–R11.
+  - Plain HEAD: entrance plug sometimes never reopened after hand-over (viab-founding WIP fixes); flood model needs
+    `--no-flood` (weather-fix2).
+- **viab-loco** (Opus ×3): stall watch that cannot be escaped by fail/re-issue loops (`stallWatch.ts`); 5 stall-site
+  worlds to day 10: 0 stalls; possessed-movement and weather hooks (under-water from the feet, puddles, wet friction);
+  dozing counts nestmates only; locomotion cost at 1,500 workers 5.9–7.9 ms vs 16–18.6 ms before (37–45 %).
+  Kernel crossings 18 of 20 on the game's ladder.
+  - Open: suburban-garden #4 crossing (nav grid connects two cells through a 1.5 BU strip under a board at a fence
+    end; walker aims at the cell centre behind the fence → needs nav-cell rule in worldgen or an edge-strip follower);
+    playground-park #3 crosses only with the test walker's extra pass; outdoor behaviour budget 1.98 ms vs 1.2 ms;
+    stall sites seen in the final sweep: (2529.0, -16.1, 234.5) BU raid ant woodland-edge #2; (2247.9, -0.2, 1157.2)
+    BU tend.wait car-park-verge #1. → perf task / gate close.
+- **Rulings R7–R11** written into `docs/design/tasks/econ-growth.md` (App. E 25 re-derived with GDD 05 carrion
+  pieces; no regeneration when floors ≥ 80 % after top-ups; protein demand drives foraging; C13 at 100/300/800;
+  ageing stands).
+- Added word `winter-reserve`. `src/content/text/controls.test.ts` still red (known).
+- Launching now: `econ-growth` + `overwinter-repro` (Opus). Still running: `w7oa5adpf` (weather-fix2 +
+  viab-founding), `wk1cq0726` (stage2-look-fix + onboarding).

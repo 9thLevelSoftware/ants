@@ -11,7 +11,7 @@ import type { Ant, Entrance, Nest, Sim } from '@/sim/types';
 import { SEAL_THROAT_BU } from '@/sim/balance/actions';
 import {
   FOUND_DIG_COST_PER_BITE, FOUND_SEAL_SCRAPE_HEADINGS_DEG, FOUND_SEAL_SCRAPE_MARGIN_BU, FOUND_SEAL_SCRAPE_MIN_DEPTH_BU,
-  FOUND_SEAL_SCRAPE_REACH_BU, FOUND_SEAL_SCRAPE_SLOPES_DEG, FOUND_SEAL_SCRAPE_SOIL_BU,
+  FOUND_SEAL_SCRAPE_REACH_BU, FOUND_SEAL_SCRAPE_SLOPES_DEG, FOUND_SEAL_SCRAPE_SOIL_BU, SEAL_UNPOCKET_SLOPE_FRACS,
 } from '@/sim/balance/founding';
 import { DIG_RAMP_RADIUS_BU, THROAT_BU } from '@/sim/balance/nest';
 import { VoxelFlag } from '@/sim/types';
@@ -152,7 +152,8 @@ export function biteToward(sim: Sim, q: Ant, to: Vec3): boolean {
   const dx = to.x - q.pos.x, dy = to.y - q.pos.y, dz = to.z - q.pos.z, hl = Math.hypot(dx, dz);
   heading.x = hl > 1e-6 ? dx / hl : q.fwd.x; heading.y = 0; heading.z = hl > 1e-6 ? dz / hl : q.fwd.z;
   const slope = (Math.atan2(-dy, Math.max(hl, 1e-6)) * 180) / Math.PI;
-  for (const s of [slope, 0, slope / 2]) {
+  for (const f of SEAL_UNPOCKET_SLOPE_FRACS) {
+    const s = f * slope;
     const res = digBite(sim, q, feet, heading, s);
     if (res.ok) { keepBite(sim, q, res.pelletId); return true; }
   }

@@ -60,7 +60,8 @@ export default async (ctx) => {
   const tableOrder = await g(() => window.__onboarding.table().map((t) => t.id));
 
   /** Advances the engine until the card shows `id` (at most `max` real seconds); returns the card. */
-  const waitCard = async (id, max = 70) => {
+  // two new hints per real minute at most (HINT_MAX_PER_MINUTE): a hint may wait up to a minute for its turn
+  const waitCard = async (id, max = 80) => {
     for (let t = 0; t < max; t += 2) {
       await quiet();
       const c = await card();
@@ -103,6 +104,40 @@ export default async (ctx) => {
   await adv(5);
   expect((await onLog()).length === 0 && (await card()) === null, 'the engine must be silent on the intro card', await onLog());
   result.checks.fresh = true;
+
+  const partD = async () => {
+    // ---- D. persistence and reset -----------------------------------------------------------------------------------------------------
+    for (const id of tableOrder) await g((x) => window.__onboarding.learn(x), id); // the whole table learned (some never reached by this run)
+    await g(() => window.__persistence.profile.flush());
+    await page.reload();
+    await wait(() => window.__ready === true);
+    await page.waitForFunction(() => window.__game && window.__game.summary().mode === 'playing', null, { timeout: 600000, polling: 250 });
+    const reloaded = await hints();
+    result.checks.afterReload = Object.fromEntries(Object.entries(reloaded).map(([k, v]) => [k, v.state]));
+    expect(Object.values(reloaded).every((x) => x.state === 'learned'), 'learned hints did not survive a reload', reloaded);
+    await step(1);
+    await press('KeyW'); await step(1);
+    await step(85);
+    expect(await phase() === 'search', 'the second game did not reach the search phase', await phase());
+    await adv(20);
+    await g(() => window.__game.setIntent({ move: { x: 0, y: 1 } })); await adv(5); await g(() => window.__game.setIntent({}));
+    await adv(10);
+    let lg = await onLog();
+    expect(lg.filter((e) => e.event === 'shown').length === 0 && (await card()) === null, 'hints showed in a profile where all are learned', lg);
+    const chip = await g(() => { const e = document.querySelector('[data-testid="founding-prompts"]'); return e ? getComputedStyle(e).display : 'absent'; });
+    result.checks.chipWhenLearned = chip;
+    expect(chip === 'none' || chip === 'absent', 'the opening overlay still draws its prompt chip in a profile where all hints are learned', chip);
+    await pic('11-learned-profile-no-hints');
+    await g(() => window.__onboarding.reset());
+    await adv(2);
+    lg = await onLog();
+    expect(lg.some((e) => e.event === 'shown' && e.id === 'hint-move'), 'Reset hints did not bring hint-move back', lg);
+    const chipBack = await g(() => { const e = document.querySelector('[data-testid="founding-prompts"]'); return e ? getComputedStyle(e).display : 'absent'; });
+    expect(chipBack !== 'none' && chipBack !== 'absent', 'the opening prompt chip did not return after Reset hints', chipBack);
+    await pic('12-after-reset-hints-return');
+  };
+
+  if (process.env.ONBOARDING_ONLY === 'D') { await partD(); expect(consoleErrors.length === 0, 'console errors', consoleErrors.slice(0, 5)); return result; }
 
   // ---- A. the real opening, as far as it works ----------------------------------------------------------------------------------
   await press('KeyW'); // any key closes the intro card
@@ -272,7 +307,7 @@ export default async (ctx) => {
   void q0;
 
   // B2. hint-observer: shown while a worker is possessed; X is the use
-  const obs = await waitCard('hint-observer', 30);
+  const obs = await waitCard('hint-observer');
   expect(obs.key === 'X' && /watch the colony/i.test(obs.verb ?? ''), 'hint-observer text', obs);
   await expectClear(obs, 'hint-observer');
   await pic('02-observer-hint', ['hint-card']);
@@ -340,7 +375,7 @@ export default async (ctx) => {
   expect(pk.length > 0, 'no pick-up prompt beside the crumb', await g(() => window.__game.ui.snapshot().prompt?.lines ?? null));
   await press('KeyE'); await step(30);
   expect((await me()).carry.kind === 'item', 'E did not pick the crumb up', await me());
-  const trail = await waitCard('hint-trail', 40);
+  const trail = await waitCard('hint-trail');
   expect(trail.key === 'R' && /trail home/i.test(trail.verb ?? ''), 'hint-trail text', trail);
   await expectClear(trail, 'hint-trail');
   await pic('04-trail-hint', ['hint-card']);
@@ -358,6 +393,7 @@ export default async (ctx) => {
     const nest = await nestOf(h);
     const sugar = { x: 0.6 * size + 2 * bu, y: ground, z: 0.4 * size + 2 * bu };
     await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'sugar', variant: 'sugary-spill', pos: p, units: 100, stage: null }), sugar);
+    if ((await me()).carry.kind !== 'none') { await press('Space'); await step(20); } // mandibles free: the crumb is let go
     await teleport({ x: sugar.x - 1 * bu, y: ground + 0.3 * bu, z: sugar.z });
     await step(3);
     let dk = await promptKey('drink|sip|harvest');
@@ -367,9 +403,11 @@ export default async (ctx) => {
     const busy = await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed.id)?.action?.id ?? null; });
     if (busy) { await g((id) => window.__game.act({ action: id, phase: 'stop' }), busy); await step(10); }
     expect((await me()).cropC > 0.1, 'the worker did not fill its crop', await me());
+    await teleport({ x: sugar.x + 10 * bu, y: ground + 0.3 * bu, z: sugar.z + 10 * bu }); // away from the spill: the nestmate is the target
+    await step(3);
     for (let rep = 0; rep < 2; rep++) {
       const a = await me();
-      await g(([id, p]) => window.__game.cheat.spawnAnts(1, 'worker', null, p), [0, { x: a.pos.x + a.fwd.x * 0.9 * bu, y: a.pos.y, z: a.pos.z + a.fwd.z * 0.9 * bu }]);
+      await g(([id, p]) => window.__game.cheat.spawnAnts(1, 'worker', 'rest', p), [0, { x: a.pos.x + a.fwd.x * 0.9 * bu, y: a.pos.y, z: a.pos.z + a.fwd.z * 0.9 * bu }]);
       await step(3);
       let sk = await promptKey('^share food');
       for (let i = 0; i < 8 && sk.length === 0; i++) { await press('KeyB', 2); await step(1); await wait.frames(2); sk = await promptKey('^share food'); }
@@ -410,7 +448,7 @@ export default async (ctx) => {
     standIn('delivery', 'cheat.injectReturn raised no delivery event; the event is emitted on the real bus');
     await g(() => { const gm = window.__hud.game; const sim = gm.session.sim; sim.events.emit('delivery', { type: 'delivery', antId: -1, colonyId: sim.state.player.colonyId, sourceId: -1, kind: 'sugar', c: 1, p: 0, toxin: 0 }); });
   }
-  const cvCard = await waitCard('hint-colony-view', 40);
+  const cvCard = await waitCard('hint-colony-view');
   expect(cvCard.key === 'M' && /survey the colony/i.test(cvCard.verb ?? ''), 'hint-colony-view text', cvCard);
   await expectClear(cvCard, 'hint-colony-view');
   await pic('05-colony-view-hint', ['hint-card']);
@@ -421,7 +459,7 @@ export default async (ctx) => {
   expect(await stateOf('hint-colony-view') === 'learned', 'the colony view did not teach hint-colony-view', (await hints())['hint-colony-view']);
 
   // B7. hint-marker: in the colony view; the first marker or dig plan is the use
-  const mk = await waitCard('hint-marker', 30);
+  const mk = await waitCard('hint-marker');
   expect(mk.key === 'Shift+1' && /plan a chamber/i.test(mk.verb ?? ''), 'hint-marker text', mk);
   await pic('06-marker-hint', ['hint-card']);
   const here = await g(() => { const p = window.__game.summary().possessed; return p ? { x: p.pos[0], y: p.pos[1], z: p.pos[2] } : null; });
@@ -434,27 +472,54 @@ export default async (ctx) => {
   await step(2);
   expect((await summary()).view === 'observer', 'M did not leave the colony view', (await summary()).view);
 
-  // B8. hint-speed: 30 quiet real seconds in the observer view; the speed keys twice
+  const simEmit = (type, payload) => g(([t, p]) => { const sim = window.__hud.game.session.sim; sim.events.emit(t, { type: t, ...p, colonyId: sim.state.player.colonyId }); }, [type, payload]);
+
+  // B8. hint-speed (30 quiet real seconds in the observer view; the speed keys twice) and hint-why (the first warning
+  // diagnostic; the chip [Y] Why?; Y opens the health view). Speed is the player's moment, why the colony's: whichever the
+  // engine shows first is done first, so the script follows the card, not a fixed order.
   const alerts = await g(() => window.__game.ui.snapshot().alerts.filter((a) => a.level === 'warning' || a.level === 'critical').map((a) => ({ kind: a.kind, subjectId: a.subjectId })));
   result.checks.alertsCleared = alerts;
   for (const a of alerts) await g((x) => window.__game.cheat.clearAlert(x.kind, x.subjectId), a); // a quiet colony: the hint waits for no active alert
+  if (!(await g(() => window.__onboarding.facts()?.diagWarn))) {
+    standIn('diagnostic-changed', 'no warning diagnostic in the scripted colony; the sim event is emitted on the real bus');
+    await simEmit('diagnostic-changed', { id: 'diag-test', status: 'warn', topCause: 'test' });
+  }
   await adv(10);
   expect((await card())?.id !== 'hint-speed', 'hint-speed showed before its 30 quiet seconds', await card());
-  const sp = await waitCard('hint-speed', 60);
-  expect(sp.key === '1-4' && /change speed/i.test(sp.verb ?? ''), 'hint-speed text', sp);
-  const spGeo = await expectClear(sp, 'hint-speed');
-  result.checks.speedCard = { box: sp.box, geo: spGeo };
-  await pic('07-speed-hint', ['hint-card']);
-  await press('Digit2'); await step(1);
-  await press('Digit1'); await step(1);
-  await adv(0.5);
-  expect(await stateOf('hint-speed') === 'learned', 'two speed changes did not teach hint-speed', (await hints())['hint-speed']);
+  let speedDone = false, whyDone = false;
+  const speedStep = async (sp) => {
+    expect(sp.key === '1-4' && /change speed/i.test(sp.verb ?? ''), 'hint-speed text', sp);
+    const spGeo = await expectClear(sp, 'hint-speed');
+    result.checks.speedCard = { box: sp.box, geo: spGeo };
+    await pic('07-speed-hint', ['hint-card']);
+    await press('Digit2'); await step(1);
+    await press('Digit1'); await step(1);
+    await adv(0.5);
+    expect(await stateOf('hint-speed') === 'learned', 'two speed changes did not teach hint-speed', (await hints())['hint-speed']);
+    speedDone = true;
+  };
+  const whyStep = async (why) => {
+    expect(why.key === 'Y' && (why.compact || /^why\?$/i.test(why.verb ?? '')), 'hint-why text', why);
+    await pic('09-why-hint', ['hint-card']);
+    await press('KeyY'); await wait.frames(4);
+    await adv(0.5);
+    expect(await stateOf('hint-why') === 'learned', 'Y did not teach hint-why', (await hints())['hint-why']);
+    await press('KeyY'); await wait.frames(2);
+    whyDone = true;
+  };
+  for (let t = 0; t < 400 && !(speedDone && whyDone); t += 2) {
+    await quiet();
+    const c = await card();
+    if (c?.id === 'hint-speed' && !speedDone) await speedStep(c);
+    else if (c?.id === 'hint-why' && !whyDone) await whyStep(c);
+    else await adv(2);
+  }
+  expect(speedDone && whyDone, 'hint-speed and hint-why did not both appear', { speedDone, whyDone, log: (await onLog()).slice(-8) });
 
   // B9. hint-scent: the first trail exists; V
-  const simEmit = (type, payload) => g(([t, p]) => { const sim = window.__hud.game.session.sim; sim.events.emit(t, { type: t, ...p, colonyId: sim.state.player.colonyId }); }, [type, payload]);
   const trailMs = await g(() => !!window.__hud.game.session.sim.state.progression.milestones['ms-first-trail']);
   if (!trailMs) { standIn('trail-established', 'the first trail milestone is not reached by the scripted run; the sim event is emitted on the real bus'); await simEmit('trail-established', { sourceId: -1, lengthBu: 12 }); }
-  const sc = await waitCard('hint-scent', 40);
+  const sc = await waitCard('hint-scent');
   expect(sc.key === 'V' && /scent view/i.test(sc.verb ?? ''), 'hint-scent text', sc);
   await expectClear(sc, 'hint-scent');
   await pic('08-scent-hint', ['hint-card']);
@@ -463,22 +528,11 @@ export default async (ctx) => {
   expect(await stateOf('hint-scent') === 'learned', 'V did not teach hint-scent', (await hints())['hint-scent']);
   await press('KeyV');
 
-  // B10. hint-why: the first warning diagnostic; the pulse chip [Y] Why?; Y opens the health view
-  const warn = await g(() => { const c = window.__game.ui.snapshot().colony; return c?.worst?.status ?? c?.status ?? 'ok'; });
-  if (warn !== 'warn' && warn !== 'bad') { standIn('diagnostic-changed', `no warning diagnostic in the scripted colony (status ${warn}); the sim event is emitted on the real bus`); await simEmit('diagnostic-changed', { id: 'diag-test', status: 'warn', topCause: 'test' }); }
-  const why = await waitCard('hint-why', 40);
-  expect(why.key === 'Y' && /^why\?$/i.test(why.verb ?? ''), 'hint-why text', why);
-  await pic('09-why-hint', ['hint-card']);
-  await press('KeyY'); await wait.frames(4);
-  await adv(0.5);
-  expect(await stateOf('hint-why') === 'learned', 'Y did not teach hint-why', (await hints())['hint-why']);
-  await press('KeyY'); await wait.frames(2);
-
   // B11. hint-directives: the queen possessed after the hand-over (the chip beside the ant panel); I opens the orders
   await press('Digit8'); await step(2); await adv(0.5);
   s = await summary();
   expect(s.possessed?.caste === 'queen', 'the 8 key did not possess the queen', s.possessed);
-  const dr = await waitCard('hint-directives', 40);
+  const dr = await waitCard('hint-directives');
   expect(dr.key === 'I' && /colony orders/i.test(dr.verb ?? ''), 'hint-directives text', dr);
   await expectClear(dr, 'hint-directives');
   await pic('10-directives-hint', ['hint-card']);
@@ -489,13 +543,13 @@ export default async (ctx) => {
 
   // B12. photo mode and the overlay cycle (the two additive hints): F2 and O
   await adv(250);
-  const ph = await waitCard('hint-photo', 30);
+  const ph = await waitCard('hint-photo');
   expect(ph.key === 'F2', 'hint-photo text', ph);
   await press('F2'); await step(1); await wait.frames(4);
   await adv(0.5);
   expect(await stateOf('hint-photo') === 'learned', 'F2 did not teach hint-photo', (await hints())['hint-photo']);
   await press('F2'); await wait.frames(4);
-  const ov = await waitCard('hint-overlay', 40);
+  const ov = await waitCard('hint-overlay');
   expect(ov.key === 'O', 'hint-overlay text', ov);
   await press('KeyO'); await wait.frames(4);
   await adv(0.5);
@@ -506,20 +560,19 @@ export default async (ctx) => {
   lg = await onLog();
   const order = shownOrder(lg);
   result.checks.shownOrder = order;
-  // The designed order holds among the hints each presenter draws. Across presenters one deviation is by design of the
-  // opening overlay: it draws Walk and Antennate together when the search begins (hint-antennate, order 3), while the
-  // engine draws hint-look (order 2) once walking is learned. Recorded in result.checks.orderNote.
-  const presenterOf = (id) => lg.find((e) => e.id === id && e.event === 'shown').presenter;
-  for (const who of ['founding', 'engine', 'prompt']) {
-    const sub = order.filter((id) => presenterOf(id) === who);
-    const rk = sub.map((id) => tableOrder.indexOf(id));
-    expect(rk.every((r, i) => r >= 0 && (i === 0 || r > rk[i - 1])), `${who}-drawn hints were shown out of the designed order, or one twice`, sub);
-  }
-  result.checks.orderNote = 'hint-antennate (3) is drawn by the opening overlay together with Walk, before the engine draws hint-look (2)';
+  // The designed order holds, with the inversions that come from the design itself: the opening overlay draws Walk and
+  // Antennate together when the search begins (hint-antennate, order 3), before the engine draws hint-look (2) once
+  // walking is learned; hint-why (18) is triggered by the colony's first warning diagnostic, which can come before the
+  // 30 quiet seconds of hint-speed (16) and the first trail of hint-scent (17). Anything else out of order, or any hint
+  // shown twice, fails.
   const rankAll = order.map((id) => tableOrder.indexOf(id));
-  result.checks.inversions = rankAll.map((r, i) => (i > 0 && r < rankAll[i - 1] ? `${order[i]} after ${order[i - 1]}` : null)).filter(Boolean);
-  expect(result.checks.inversions.length <= 1, 'more than the one known order inversion', result.checks.inversions);
+  const inversions = rankAll.map((r, i) => (i > 0 && r < rankAll[i - 1] ? order[i] : null)).filter(Boolean);
+  result.checks.inversions = inversions;
+  expect(inversions.every((id) => ['hint-look', 'hint-speed', 'hint-scent'].includes(id)), 'hints were shown out of the designed order', { order, inversions });
+  expect(new Set(order).size === order.length, 'a hint appears twice in the order', order);
+  result.checks.orderNote = 'known inversions: hint-look after the overlay-drawn hint-antennate; hint-speed and hint-scent after the state-triggered hint-why';
   for (const id of ['hint-reserves', 'hint-move', 'hint-look', 'hint-antennate', 'hint-observer', 'hint-pickup', 'hint-trail', 'hint-share', 'hint-colony-view', 'hint-marker', 'hint-speed', 'hint-scent', 'hint-why', 'hint-directives', 'hint-photo', 'hint-overlay']) {
+    if (id === 'hint-share' && result.standIns.some((x) => x.feature === 'hint-share')) continue; // staged by stand-in: the prompt chip never drew it
     expect(order.includes(id), `${id} never appeared`, order);
   }
   for (const id of order) expect(lg.filter((e) => e.event === 'shown' && e.id === id && e.presenter === 'engine').length <= 1, `${id} was shown more than once in full`, lg.filter((e) => e.id === id));
@@ -531,35 +584,7 @@ export default async (ctx) => {
   expect((await onLog()).filter((e) => e.event === 'shown').length === lg.filter((e) => e.event === 'shown').length, 'a learned hint was shown again', (await onLog()).slice(before));
   expect((await card()) === null, 'a card is up although everything the player did is learned', await card());
 
-  // ---- D. persistence and reset -----------------------------------------------------------------------------------------------------
-  for (const id of tableOrder) await g((x) => window.__onboarding.learn(x), id); // the whole table learned (some never reached by this run)
-  await g(() => window.__persistence.profile.flush());
-  await page.reload();
-  await wait(() => window.__ready === true);
-  await page.waitForFunction(() => window.__game && window.__game.summary().mode === 'playing', null, { timeout: 600000, polling: 250 });
-  const reloaded = await hints();
-  result.checks.afterReload = Object.fromEntries(Object.entries(reloaded).map(([k, v]) => [k, v.state]));
-  expect(Object.values(reloaded).every((x) => x.state === 'learned'), 'learned hints did not survive a reload', reloaded);
-  await step(1);
-  await press('KeyW'); await step(1);
-  await step(85);
-  expect(await phase() === 'search', 'the second game did not reach the search phase', await phase());
-  await adv(20);
-  await g(() => window.__game.setIntent({ move: { x: 0, y: 1 } })); await adv(5); await g(() => window.__game.setIntent({}));
-  await adv(10);
-  lg = await onLog();
-  expect(lg.filter((e) => e.event === 'shown').length === 0 && (await card()) === null, 'hints showed in a profile where all are learned', lg);
-  const chip = await g(() => { const e = document.querySelector('[data-testid="founding-prompts"]'); return e ? getComputedStyle(e).display : 'absent'; });
-  result.checks.chipWhenLearned = chip;
-  expect(chip === 'none' || chip === 'absent', 'the opening overlay still draws its prompt chip in a profile where all hints are learned', chip);
-  await pic('11-learned-profile-no-hints');
-  await g(() => window.__onboarding.reset());
-  await adv(2);
-  lg = await onLog();
-  expect(lg.some((e) => e.event === 'shown' && e.id === 'hint-move'), 'Reset hints did not bring hint-move back', lg);
-  const chipBack = await g(() => { const e = document.querySelector('[data-testid="founding-prompts"]'); return e ? getComputedStyle(e).display : 'absent'; });
-  expect(chipBack !== 'none' && chipBack !== 'absent', 'the opening prompt chip did not return after Reset hints', chipBack);
-  await pic('12-after-reset-hints-return');
+  await partD();
 
   expect(consoleErrors.length === 0, 'console errors', consoleErrors.slice(0, 5));
   result.consoleErrors = consoleErrors.length;

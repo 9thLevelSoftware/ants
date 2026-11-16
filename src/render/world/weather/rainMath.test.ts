@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { Color, Fog, HemisphereLight, Scene } from 'three';
 import { depthFade, maxWidthPx, projectedWidthPx, streakLengthMm, streakWidthMm, pixelMm, type RainView } from './rainMath';
 import { rainTint } from './rainTint';
-import { DROP_LOOK, RAIN_MAX_LEN_FRAC, RAIN_MAX_WIDTH_FRAC, RAIN_MIN_WIDTH_PX, RAIN_TINT_GAIN } from './tuning';
+import { DROP_LOOK, RAIN_FADE_NEAR_BU, RAIN_MAX_LEN_FRAC, RAIN_MAX_WIDTH_FRAC, RAIN_MIN_WIDTH_PX, RAIN_TINT_GAIN } from './tuning';
 
 const BU = 4;
 const views: RainView[] = [
@@ -48,11 +48,11 @@ describe('rain streak on-screen size', () => {
   it('near streaks fade out instead of growing: invisible at the lens, full in the working band, thin in the haze', () => {
     expect(depthFade(0.5 * BU, BU)).toBe(0);
     expect(depthFade(1.8 * BU, BU)).toBe(0);
-    expect(depthFade(5.9 * BU, BU)).toBe(0);
-    expect(depthFade(30 * BU, BU)).toBeCloseTo(1, 6);
+    expect(depthFade(RAIN_FADE_NEAR_BU[0] * BU, BU)).toBe(0);
+    expect(depthFade(25 * BU, BU)).toBeCloseTo(1, 6);
     expect(depthFade(80 * BU, BU)).toBe(0);
     let prev = -1;
-    for (let d = 6 * BU; d <= 20 * BU; d += BU / 2) { const f = depthFade(d, BU); expect(f).toBeGreaterThanOrEqual(prev); prev = f; }
+    for (let d = RAIN_FADE_NEAR_BU[0] * BU; d <= RAIN_FADE_NEAR_BU[1] * BU; d += BU / 4) { const f = depthFade(d, BU); expect(f).toBeGreaterThanOrEqual(prev); prev = f; }
   });
 });
 

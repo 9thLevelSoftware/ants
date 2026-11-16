@@ -20,7 +20,7 @@ import { RainField } from './rainField';
 import { rainTint } from './rainTint';
 import {
   DROP_LOOK, FLECKS, IMPACT_AREA_BU, RAIN_STREAKS, RIPPLES,
-  RIPPLE_LIFE_S, RIPPLE_RADIUS_MM, SPLASHES, SPLASH_LIFE_S, SPLASH_RADIUS_DROPS, WET_PER_PRECIP,
+  FLECK_TINT, RIPPLE_LIFE_S, RIPPLE_RADIUS_MM, RIPPLE_TINT, SPLASHES, SPLASH_LIFE_S, SPLASH_RADIUS_DROPS, SPLASH_TINT, WET_PER_PRECIP,
 } from './tuning';
 
 /** What the renderer reads of the sim each frame (pure; exported for tests). */
@@ -94,6 +94,7 @@ export class WeatherRenderer implements SubRenderer {
   private build(q: QualityPreset): void {
     for (const l of [this.rain, this.splashes, this.ripples, this.flecks]) if (l) { this.group.remove(l.mesh); l.dispose(); }
     this.rain = new RainField(RAIN_STREAKS[q.id]);
+    // colours are set every frame from the scene's light (rainTint)
     this.splashes = new ImpactLayer('splash', SPLASHES[q.id], [0.8, 0.85, 0.9], 0.5);
     this.ripples = new ImpactLayer('ripple', RIPPLES[q.id], [0.75, 0.8, 0.85], 0.45);
     this.flecks = new ImpactLayer('fleck', FLECKS[q.id], [0.9, 0.95, 1.0], 0.6);
@@ -137,7 +138,10 @@ export class WeatherRenderer implements SubRenderer {
     const cam3 = frame.camera;
     const hPx = frame.viewportHeightPx > 0 ? frame.viewportHeightPx : 720;
     const view = { widthPx: Math.round(hPx * (cam3.aspect > 0 ? cam3.aspect : 16 / 9)), heightPx: hPx, focal: cam3.projectionMatrix.elements[5] > 0 ? cam3.projectionMatrix.elements[5] : 2 };
-    this.streaks = this.rain.set(look, outside && v.rain ? Math.max(0.15, v.intensity) : 0, v.wind, v.windX, v.windZ, rainTint(this.ctx.scene), this.center, frame.time, bu, view);
+    const tint = rainTint(this.ctx.scene);
+    this.streaks = this.rain.set(look, outside && v.rain ? Math.max(0.15, v.intensity) : 0, v.wind, v.windX, v.windZ, tint, this.center, frame.time, bu, view);
+    // splashes, ripples and rime glints are lit like the rain: dim at dusk and by night, never a pure white
+    for (const [layer, k] of [[this.splashes, SPLASH_TINT], [this.ripples, RIPPLE_TINT], [this.flecks, FLECK_TINT]] as const) layer.setColor(tint[0] * k, tint[1] * k, tint[2] * k);
     // splashes on exposed ground, ripples on water, rime glints
     const area = IMPACT_AREA_BU * bu;
     const fx = this.focus.x, fz = this.focus.z;

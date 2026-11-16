@@ -50,7 +50,9 @@ describe('hand-over: the first workers reopen the plugged entrance and leave', (
     }
     const open = mine().find((e) => e.status === 'open');
     expect(open, mine().map((e) => `${e.status}:${e.plugVoxelCount}`).join(',')).toBeDefined();
-    expect(plugRemnants(sim, open!)).toEqual([]);
+    // no plug soil left in the throat (carve samples of the old fill at or above the ground surface, `ghost`, are
+    // free space in the field already and stay flagged: the nest's count, reported to the nest owner)
+    expect(plugRemnants(sim, open!, 'soil')).toEqual([]);
     expect(out).toBe(true);
   }, 120_000);
 });

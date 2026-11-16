@@ -143,6 +143,7 @@ export const FACTOR_CAUSE_WORD: Readonly<Record<string, string>> = {
   upkeep: 'Daily upkeep',
   washed: 'Rain on the trails',
   weather: 'Weather',
+  'winter-reserve': 'Food kept for the winter',
 };
 
 /** Remedy ids in plain words (Diagnostic.remedies; each opens the control concerned and changes nothing itself). */

@@ -1,10 +1,15 @@
 // Test support for the sealing sweep on generated worlds (task viab-founding work item 1; never imported by game
 // code): one generated world, a founding site (the queen's start or the nearest good map cell), and one of two
 // paths to the seal:
-//   passive - cheat.completeFounding (the template carved where she stands, then the passive player's guided seal),
-//   player  - the queen walks to the site, digs with the real dig-bite, then the possessed player presses E once.
+//   passive - cheat.completeFounding (the template carved at the template site nearest her, which the cheat may move up
+//             to AUTO_SITE_SEARCH_BU to find soil for the whole template: `movedBu` says how far), then the passive
+//             player's guided seal,
+//   player  - the queen walks to the site, digs with the real dig-bite, then the possessed player presses E once. When
+//             the scripted digger gets no bite in at all there, the cheat's template is carved instead (`template`
+//             true, noted 'dig by template'): such a case proves the seal, not the dig, and is counted apart.
 // Each case ends with the opening in `lay` and the cell sealed, and is then held for SEAL_HOLD_TICKS checking that
-// the seal stays (no flip back to `ready`, no path from the cell to the air).
+// the seal stays (no flip back to `ready`, no path from the cell to the air). sealHeldThrough checks it for longer
+// (the time-lapse, generated.long.test).
 
 import type { ArchetypeId, Sim, System, WorldData } from '@/sim/types';
 import { navStop, navTo } from '@/sim/locomotion';
@@ -74,12 +79,32 @@ export interface SweepResult {
   held: boolean;
   desiccation: number;
   note: string;
+  /** Player path: the scripted dig never started, the cheat's template was carved instead. */
+  template: boolean;
+  /** Passive path: how far the cheat moved the site from where she stood, BU (0 on the player path). */
+  movedBu: number;
 }
 
 function sealedNow(sim: Sim): boolean {
   const nest = nestOf(sim);
   return nest.founding?.state === 'sealed' && !cellReachesAir(sim, nest) && cavityEntrances(sim, nest).every((e) => throatClosed(sim, e))
     && queenInCavity(sim, nest, queen(sim));
+}
+
+/**
+ * Steps until `done()` (at most maxTicks), checking every `every` ticks that the cell stays sealed (record `sealed`,
+ * no path to the air, every throat closed, the queen inside); the first loss, or null when it held.
+ */
+export function sealHeldThrough(sim: Sim, done: () => boolean, maxTicks: number, every = 50): string | null {
+  for (let t = 0; t < maxTicks && !done(); t++) {
+    sim.tick();
+    if (t % every !== 0 || done()) continue;
+    if (!sealedNow(sim)) {
+      const nest = nestOf(sim);
+      return `seal lost at +${t} ticks (${phase(sim)}): state ${nest.founding?.state}, air ${cellReachesAir(sim, nest)}, ${cavityEntrances(sim, nest).map((e) => e.status).join('/')}`;
+    }
+  }
+  return null;
 }
 
 /** Holds the seal for SEAL_HOLD_TICKS; false at the first tick it is not sealed. */
@@ -108,6 +133,8 @@ function walkTo(sim: Sim, p: { x: number; y: number; z: number }, tolBu: number,
 export let DEBUG: ((s: string) => void) | null = null;
 export function setSweepDebug(f: ((s: string) => void) | null): void { DEBUG = f; }
 
+/** Walking to the site by her own input when locomotion's route fails: at most this long, ticks. */
+const WALK_STEER_TICKS = 3000;
 const SHAFT_SLOPE_DEG = 55, SHAFT_DEPTH_BU = 9, SHAFT_MAX_BITES = 260, ROOM_MAX_ROUNDS = 6, CELL_DEPTH_BU = 9.5, SITE_SEARCH_BU = 30, OPEN_ABOVE_BU = 12;
 
 function setDir(sim: Sim, d: { x: number; y: number; z: number } | null): void {
@@ -122,9 +149,9 @@ function walkDir(sim: Sim, ticks: number, d: { x: number; y: number; z: number }
 }
 
 /** Her own movement input toward (gx, gz) until within tol mm; false when she does not get there. */
-function steerTo(sim: Sim, gx: number, gz: number, tol: number): boolean {
+function steerTo(sim: Sim, gx: number, gz: number, tol: number, maxTicks = 600): boolean {
   const q = queen(sim);
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < maxTicks; i++) {
     const dx = gx - q.pos.x, dz = gz - q.pos.z, d = Math.hypot(dx, dz);
     if (d < tol) { setDir(sim, null); return true; }
     setDir(sim, { x: dx / d, y: 0, z: dz / d });
@@ -243,7 +270,7 @@ function result(sim: Sim, t0: number, refusals: string[], stage: string): SweepR
   const h = sealed ? holds(sim) : { held: false, note: '' };
   return {
     ok: sealed && h.held && q.alive, sealTicks, plugs, refusals, phase: phase(sim), stage, held: h.held,
-    desiccation: q.queen?.founding?.desiccation ?? -1, note: h.note,
+    desiccation: q.queen?.founding?.desiccation ?? -1, note: h.note, template: false, movedBu: 0,
   };
 }
 
@@ -256,19 +283,29 @@ function listenRefusals(sim: Sim): string[] {
 
 /** The passive path at the queen's position (cheat.completeFounding). */
 export function passiveCase(sim: Sim): SweepResult {
+  const at = { ...queen(sim).pos };
   sim.enqueue({ type: 'cheat.completeFounding', workers: 10 });
   stepUntil(sim, () => phase(sim) === 'seal' || phase(sim) === 'failed', 3000);
-  if (phase(sim) !== 'seal') return { ...result(sim, sim.state.tick, [], 'carve'), ok: false };
+  const o = nestOf(sim).origin, movedBu = Math.hypot(o.x - at.x, o.z - at.z) / sim.world.bu;
+  if (phase(sim) !== 'seal') return { ...result(sim, sim.state.tick, [], 'carve'), ok: false, movedBu };
   const refusals = listenRefusals(sim);
   const t0 = sim.state.tick;
   stepUntil(sim, () => phase(sim) !== 'seal', SEAL_BUDGET_TICKS);
-  return result(sim, t0, refusals, 'seal');
+  return { ...result(sim, t0, refusals, 'seal'), movedBu };
 }
 
 /** The player path: walk to `site`, dig with dig-bite, press E once in the cell (possessed). */
 export function playerCase(sim: Sim, site: { x: number; y: number; z: number } | null): SweepResult {
   const q = queen(sim);
-  if (site && !walkTo(sim, site, 1.5, 6000)) return { ...result(sim, sim.state.tick, [], 'walk'), ok: false };
+  if (site && !walkTo(sim, site, 1.5, 6000)) {
+    // locomotion's route did not get her there (viab-loco): the player walks her there with her own input instead
+    navStop(sim, q);
+    sim.enqueue({ type: 'possess', antId: q.id });
+    sim.tick();
+    const steered = steerTo(sim, site.x, site.z, 1.5 * sim.world.bu, WALK_STEER_TICKS);
+    if (DEBUG) DEBUG(`walk by locomotion failed (${q.nav.status}); steered by input: ${steered}`);
+    if (!steered) return { ...result(sim, sim.state.tick, [], 'walk'), ok: false, note: `nav ${q.nav.status}, steering failed too` };
+  }
   navStop(sim, q);
   const nest = nestOf(sim);
   playerDig(sim);
@@ -284,11 +321,11 @@ export function playerCase(sim: Sim, site: { x: number; y: number; z: number } |
     sim.enqueue({ type: 'possess', antId: q.id });
     sim.tick();
   }
-  if (phase(sim) !== 'seal') return { ...result(sim, sim.state.tick, [], 'dig'), ok: false, note: `readiness ${nest.founding?.readiness?.toFixed(2)}` };
+  if (phase(sim) !== 'seal') return { ...result(sim, sim.state.tick, [], 'dig'), ok: false, template: note !== '', note: `readiness ${nest.founding?.readiness?.toFixed(2)}` };
   const refusals = listenRefusals(sim);
   const t0 = sim.state.tick;
   sim.enqueue({ type: 'action', actionId: 'seal-entrance', phase: 'start' });
   stepUntil(sim, () => phase(sim) !== 'seal', SEAL_BUDGET_TICKS);
   const r = result(sim, t0, refusals, 'seal');
-  return note ? { ...r, note: r.note ? `${note}; ${r.note}` : note } : r;
+  return note ? { ...r, template: true, note: r.note ? `${note}; ${r.note}` : note } : r;
 }

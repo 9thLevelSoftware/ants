@@ -272,6 +272,16 @@ describe('event rules', () => {
     expect(engine.uses()['pickup']).toBe(1);
   });
 
+  it('counts sharing food only when the possessed ant gives (not ambient exchange between others)', () => {
+    const { engine } = setup();
+    engine.onEvent({ type: 'trophallaxis', donorId: 9, receiverId: 7, ambient: false }, ctx); // someone else gave
+    engine.onEvent({ type: 'trophallaxis', donorId: 7, receiverId: 9, ambient: true }, ctx); // ambient, not the player's act
+    expect(engine.uses()['share']).toBeUndefined();
+    engine.onEvent({ type: 'trophallaxis', donorId: 7, receiverId: 9, ambient: false }, ctx);
+    engine.onEvent({ type: 'trophallaxis', donorId: 7, receiverId: 9, ambient: false }, ctx);
+    expect(engine.state('hint-share')).toBe('learned');
+  });
+
   it('counts a refreshing site assessment once per reading, not twice a second', () => {
     const { engine, run } = setup();
     for (let i = 0; i < 6; i++) { engine.onEvent({ type: 'opening.site-assessed' }, ctx); run(0.5); }

@@ -1,17 +1,16 @@
-// The first workers reopen the plug (GDD 06 §5.13 (b), GDD 03 §13.2 `reopening`: "nanitics dig it"). The nest's
-// own `reopen` plan cannot be dug yet (no behaviour runs `unseal-entrance` for it, and its slot is placed straight
-// below the opening along the vertical surface normal, inside the soil beside a sloped throat), so the founding
-// module asks the nest for ordinary dig plans instead (public createPlan, source `founding`); the workers' own dig
-// behaviour claims them and bites through the loose plug. Nothing is scripted on the workers.
+// The first workers reopen the plug (GDD 06 §5.13 (b), GDD 03 §13.2 `reopening`: "nanitics dig it"). Nothing here
+// digs: at the hand-over every closed throat of the founding cavity is marked `reopening` (GDD 03 §4.2 "plug being
+// dug"), which is what sends the workers' own dig behaviour to it (the nest's entranceToUnplug: `unseal-entrance`
+// from inside the throat, bite by bite, each bite a pellet); and the founding module asks the nest for ordinary dig
+// plans through the plug (public createPlan, source `founding`), which the workers' dig behaviour claims and digs.
+// Nothing is scripted on the workers, and nothing opens without them (review of viab-founding: an earlier local
+// adapter unplugged with no worker present). The seal guide keeps every plug inside the throat sphere
+// (sealPlan.ts plugInThroat), where the workers' unplugging reaches.
 //
 // One plan is not always enough: a 2 BU shaft through a plug laid into a 2.5 BU throat leaves a rim of plug voxels,
 // and the nest keeps an entrance with plug voxels left in its throat `sealing` (GDD 03 §4.2), which no forager uses
 // as an exit. So after the hand-over `reopenTick` keeps one founding plan at a time going: the passage first, then
 // a short plan through each plug remnant, until the entrance is `open` (see reopenTick for how long it watches).
-// Plug voxels no plan can take are unplugged by the nest's own unplug function (`unplugRemnants`, a local adapter).
-// The seal guide aims its plugs at the throat's narrowest layer (sealPlan.ts), often its inner end beside the cell:
-// the nest refuses every founding plan there (`too-close` to the cell), so such a plug is unplugged the same way,
-// reaching past the throat sphere where the plug does (`unplugDeep`, viab-founding).
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { DigPlan, Entrance, Nest, Sim } from '@/sim/types';
@@ -19,10 +18,10 @@ import { VoxelFlag } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import {
   REOPEN_CHECK_TICKS, REOPEN_DEEP_REACH_BU, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
-  REOPEN_UNPLUG_BITES, REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD,
+  REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD,
 } from '@/sim/balance/founding';
-import { cancelPlan, createPlan, unsealEntrance, voxelAt } from '@/sim/nest';
-import { unplugAt } from '@/sim/nest/entrances';
+import { cancelPlan, createPlan, voxelAt } from '@/sim/nest';
+import { setEntranceStatus } from '@/sim/nest/entrances';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { foundingNest, openingOf } from './access';
 import { cavityEntrances } from './dig';
@@ -157,49 +156,26 @@ function pluggedEntrances(sim: Sim, nest: Nest): Entrance[] {
 }
 
 /**
- * Asks the nest for the reopening dig of every plugged entrance of the founding cavity (at hand-over); returns the
- * plan ids created.
+ * A `sealed` throat of the cavity becomes `reopening` (GDD 03 §4.2 / §13.2: the plug is being dug), the state in
+ * which the workers' dig behaviour unplugs it (the nest's entranceToUnplug). The nest's own state machine keeps it
+ * `reopening` until a passage is dug through, then `open`.
+ */
+function markReopening(sim: Sim, nest: Nest): void {
+  for (const e of pluggedEntrances(sim, nest)) if (e.status === 'sealed') setEntranceStatus(sim, nest, e, 'reopening');
+}
+
+/**
+ * At the hand-over: every plugged entrance of the founding cavity is marked `reopening` and the nest is asked for
+ * the dig through each; returns the plan ids created.
  */
 export function requestReopen(sim: Sim, nest: Nest): number[] {
+  markReopening(sim, nest);
   const ids: number[] = [];
   for (const e of pluggedEntrances(sim, nest)) {
     const id = passagePlan(sim, nest, e);
     if (id >= 0) ids.push(id);
   }
   return ids;
-}
-
-/**
- * Local adapter (see the founding report, needs from nest and beh-nest): plug voxels that no plan can take are
- * cleared with the nest's own unplugging function (`unsealEntrance`, the `unseal-entrance` effect, which opens
- * only plug voxels: GDD 03 §4.2 "unseal = dig-bite on plug voxels"). These are the samples the fill left at or
- * above the ground surface (free space already, which no bite finds) and the rim the nest's plan checks refuse
- * (`too-close` / `undermines` / `non-diggable` right at the opening). At most REOPEN_UNPLUG_BITES per check.
- */
-function unplugRemnants(sim: Sim, e: Entrance): boolean {
-  let any = false;
-  for (let n = 0; n < REOPEN_UNPLUG_BITES && plugRemnants(sim, e).length > 0; n++) {
-    unsealEntrance(sim, e.id, -1);
-    any = true;
-  }
-  return any;
-}
-
-/**
- * Local adapter for a plug laid at the throat's inner end, which no founding plan can take and which reaches past
- * the throat sphere (by up to its plug radius): its voxels within REOPEN_DEEP_REACH_BU of the opening's rim are
- * unplugged with the nest's own unseal bite (`unplugAt`), the deepest first, as the workers would from the cell
- * side; at most REOPEN_UNPLUG_BITES per check. True when it bit.
- */
-function unplugDeep(sim: Sim, e: Entrance): boolean {
-  let any = false;
-  for (let n = 0; n < REOPEN_UNPLUG_BITES; n++) {
-    const rem = plugRemnants(sim, e, 'soil', REOPEN_DEEP_REACH_BU);
-    if (rem.length === 0) break;
-    unplugAt(sim, e.id, rem[rem.length - 1]);
-    any = true;
-  }
-  return any;
 }
 
 const live = (p: DigPlan) => p.status !== 'complete' && p.status !== 'cancelled';
@@ -224,13 +200,14 @@ function sealingOnPurpose(sim: Sim, nest: Nest): boolean {
 }
 
 /**
- * After the hand-over, while the entrances of the founding cavity are closed: whenever no founding plan is left,
- * asks for the next one. A throat with a passage but plug voxels left in it (`sealing`: the rim of the old plug,
- * or loose soil later tamped onto stale plug voxels) gets a plan through the remnant nearest the opening, at any
- * time; a throat with no passage gets the passage plan for REOPEN_MAX_GD after the hand-over (later a closed nest
- * is the colony's own business, e.g. sealing for winter). Once a throat reads `open`, plug voxels left in it are
- * unplugged within REOPEN_MAX_GD. Nothing is done while the colony seals on purpose.
- * Runs every REOPEN_CHECK_TICKS; returns the plan created, or -1.
+ * After the hand-over, while the entrances of the founding cavity are closed: a throat that closed again (`sealed`:
+ * a passage the workers dug lost again to fill or tamping) is marked `reopening` again, and whenever no founding
+ * plan is left the next one is asked for. A throat with a passage but plug voxels left in it (`sealing`: the rim of
+ * the old plug, or loose soil later tamped onto stale plug voxels) gets a plan through the remnant nearest the
+ * opening, at any time; a throat with no passage gets the passage plan, or a short one through a plug laid deep in
+ * the throat, for REOPEN_MAX_GD after the hand-over (later a closed nest is the colony's own business, e.g. sealing
+ * for winter). Nothing is done while the colony seals on purpose. Every plan is dug by the workers; nothing opens
+ * without them. Runs every REOPEN_CHECK_TICKS; returns the plan created, or -1.
  */
 export function reopenTick(sim: Sim): number {
   const op = openingOf(sim);
@@ -240,29 +217,16 @@ export function reopenTick(sim: Sim): number {
   const nest = foundingNest(sim);
   if (!nest) return -1;
   cancelStalled(sim, nest);
-  if (livePlan(nest, (source) => source === 'founding')) return -1;
   const mine = cavityEntrances(sim, nest);
-  if (mine.length === 0 || sealingOnPurpose(sim, nest)) return -1;
+  if (mine.length === 0 || sealingOnPurpose(sim, nest) || mine.some((e) => e.status === 'open')) return -1;
   const early = since <= REOPEN_MAX_GD * TICKS_PER_DAY;
-  const opened = mine.find((e) => e.status === 'open');
-  if (opened) {
-    // the way out is dug, yet the nest may call a throat `open` with plug voxels left beside the passage (or fill
-    // at the ground surface): they are unplugged while the reopening window lasts, no plan is needed for them
-    if (early && plugRemnants(sim, opened).length > 0) unplugRemnants(sim, opened);
-    return -1;
-  }
+  if (early) markReopening(sim, nest);
+  if (livePlan(nest, (source) => source === 'founding')) return -1;
   for (const e of mine) {
-    // a passage exists and only the rim of the old plug is left: the rim goes first (the workers dug the way
-    // through; the rim keeps the nest's status at `sealing`), and a plan only for what the unplugging leaves
-    if (e.status === 'sealing' && e.plugVoxelCount > 0) unplugRemnants(sim, e);
-    if (e.status === 'open') return -1;
     const remnant = e.status === 'sealing' && e.plugVoxelCount > 0;
     let id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
     if (id < 0 && early && !remnant) id = deepPlugPlan(sim, nest, e);
     if (id >= 0) return id;
-    // no plan at all: the plug is unplugged from the cell side (local adapter); its first bite marks the entrance
-    // `reopening`, which also sends the workers' own unplugging (the dig behaviour's `unseal-entrance`) to it
-    if (early && !remnant && (unplugRemnants(sim, e) || unplugDeep(sim, e))) return -1;
   }
   return -1;
 }

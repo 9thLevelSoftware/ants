@@ -65,17 +65,20 @@ void main() {
   if (fade <= 0.0 || uMode == 2) discard;
   vec4 d = texture2D(uField, uv);
   if (d.g < 0.5) discard;
-  // opacity of the stain (stainRamp.ts): temperature by the departure from the optimum, moisture by how wet (none when dry)
-  float alpha;
+  // opacity and ramp place of the stain (stainRamp.ts): temperature by the amplified departure from the optimum,
+  // moisture by how wet (none when dry)
+  float alpha, t = d.r;
   if (uMode == 0) {
     float dev = d.r < uMid ? (uMid - d.r) / max(uMid, 1e-3) : (d.r - uMid) / max(1.0 - uMid, 1e-3);
-    alpha = uFill * (1.0 - exp(-uTempGain * clamp(dev, 0.0, 1.0)));
+    float amp = 1.0 - exp(-uTempGain * clamp(dev, 0.0, 1.0));
+    alpha = uFill * amp;
+    t = d.r < uMid ? uMid * (1.0 - amp) : uMid + (1.0 - uMid) * amp;
   } else {
     if (d.b > 0.5) discard; // standing water: solid, drawn by the ink pass
     alpha = uMoist.z * smoothstep(uMoist.x, uMoist.y, d.r);
   }
   if (alpha < 0.004) discard;
-  vec3 c = ramp(d.r);
+  vec3 c = ramp(t);
   float L = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-3);
   c = max(mix(vec3(L), c, uChroma), vec3(0.0));
   L = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-3);

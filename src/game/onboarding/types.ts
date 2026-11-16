@@ -11,7 +11,7 @@ export type UseKey =
 export type Presenter = 'engine' | 'founding' | 'prompt';
 
 /** Where the hint card sits (the UI maps these to HUD regions that do not cover the subject). */
-export type HintAnchor = 'top' | 'time' | 'pulse' | 'panel';
+export type HintAnchor = 'top' | 'bottom' | 'time' | 'pulse' | 'panel';
 
 /** Plain facts about the running game, refreshed a few times per real second (`facts.ts`). Nothing here is sim state. */
 export interface Facts {

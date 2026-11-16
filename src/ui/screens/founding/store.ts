@@ -8,12 +8,9 @@ export interface FoundingSiteRow {
   label: string;
   /** 0..1 */
   value: number;
+  /** Filled dots (0..5) to draw: the simulation's own rounding (factorDots), the one its words are chosen by. */
+  dots: number;
   word: string;
-}
-
-/** Filled dots (0..5) the read-out draws for a factor value: one rounding for the dots and any word chosen by them. */
-export function siteDots(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.min(5, Math.round(value * 5))) : 0;
 }
 
 export interface FoundingUi {

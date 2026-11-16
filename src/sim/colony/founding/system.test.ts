@@ -137,8 +137,11 @@ describe('opening state machine (GDD 06 §5.1)', () => {
     pinTemperature(sim, 22);
     const nest = nestOf(sim);
     sim.enqueue({ type: 'cheat.setFoundingState', nestId: nest.id, state: 'digging' });
+    const x = queen(sim).pos.x, z = queen(sim).pos.z, g = sim.field.height(x, z);
     carveCellUnderQueen(sim);
     stepUntil(sim, () => phase(sim) === 'seal', 400);
+    // the shaft really closed (loose fill 2 BU down): with the shaft open the rain floods the cell and drowns her
+    sim.enqueue({ type: 'cheat.fillSphere', pos: { x, y: g - 2 * sim.world.bu, z }, r: 1.6 * sim.world.bu, loose: true });
     sim.enqueue({ type: 'cheat.setFoundingState', nestId: nest.id, state: 'sealed' });
     sim.tick();
     expect(phase(sim)).toBe('lay');

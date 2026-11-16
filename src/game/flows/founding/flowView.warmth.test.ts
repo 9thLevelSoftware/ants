@@ -6,16 +6,24 @@ import { makeTestSim } from '@/sim/testing';
 import { SITE_FACTORS } from '@/sim/types';
 import { openingOf, queenOf } from '@/sim/colony/founding/access';
 import { factorDots, factorWord } from '@/sim/colony/founding';
-import { siteDots } from '@/ui/screens/founding/store';
 import { buildFoundingUi } from './flowView';
 
 const FLAGS = { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false, reducedMotion: false };
 const ORDER = ['Shaded', 'Mild', 'Warm', 'Sun-baked'];
 
 describe('site read-out: warmth dots and word', () => {
-  it('the screen draws the dots the simulation words: one rounding', () => {
-    for (let v = -0.1; v <= 1.1001; v += 0.005) expect(siteDots(v)).toBe(factorDots(v));
-    expect(siteDots(NaN)).toBe(factorDots(NaN));
+  it('the screen draws the dots the simulation words: one rounding (the flow publishes factorDots, the UI draws them)', () => {
+    const sim = makeTestSim();
+    const op = openingOf(sim);
+    if (!op) throw new Error('test sim has no opening');
+    op.phase = 'search';
+    op.siteQ = 0.5; op.siteWord = 'fair';
+    for (const v of [-0.1, 0, 0.09, 0.1, 0.11, 0.29, 0.3, 0.5, 0.7, 0.9, 0.95, 1, 1.1, NaN]) {
+      op.siteFactors = SITE_FACTORS.map((id) => (id === 'warmth' ? v : 0.8));
+      const row = buildFoundingUi(sim, FLAGS)?.site?.rows.find((r) => r.id === 'warmth');
+      expect(row?.dots).toBe(factorDots(row!.value));
+      expect(row?.word).toBe(factorWord('warmth', row!.value));
+    }
   });
 
   it('the warmth word rises with the dots drawn, never against them', () => {
@@ -42,7 +50,7 @@ describe('site read-out: warmth dots and word', () => {
     const ui = buildFoundingUi(sim, FLAGS);
     const row = ui?.site?.rows.find((r) => r.id === 'warmth');
     expect(row).toBeDefined();
-    expect(siteDots(row!.value)).toBe(0);
+    expect(row!.dots).toBe(0);
     expect(row!.word).toBe('Shaded');
   });
 });
