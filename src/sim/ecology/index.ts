@@ -77,7 +77,8 @@ export function initEcology(ctx: EntityCtx, world: WorldData): void {
 // ---- commands owned by this module ----
 
 export const commandHandlers: Partial<CommandHandlerMap> = {
-  'cheat.spawnCreature': creatureCommands['cheat.spawnCreature'], // owner: creatures
+  // late-bound: this module can be evaluated while ./creatures is still loading (creatures -> environment -> ecology)
+  'cheat.spawnCreature': (sim, c) => creatureCommands['cheat.spawnCreature']?.(sim, c),
   'cheat.spawnFood': (sim, c) => {
     const variant = c.variant ?? defaultVariant(c.kind);
     if (!variant || sourceDef(variant).kind !== c.kind) {
@@ -87,9 +88,9 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
     const stage = (CARRION_STAGES as readonly string[]).includes(c.stage ?? '') ? (c.stage as CarrionStage) : undefined;
     createSource(sim, { variant, pos: c.pos, units: c.units > 0 ? c.units : undefined, stage, tier: stage ? 2 : undefined });
   },
-  'cheat.setHerd': plantCommandHandlers['cheat.setHerd'], // owner: ecology-plants
-  'cheat.spawnHerd': plantCommandHandlers['cheat.spawnHerd'], // owner: ecology-plants
-  'cheat.freezeGrowth': plantCommandHandlers['cheat.freezeGrowth'], // owner: ecology-plants
-  'cheat.triggerBird': creatureCommands['cheat.triggerBird'], // owner: creatures
-  'cheat.triggerNestInvasion': creatureCommands['cheat.triggerNestInvasion'], // owner: creatures
+  'cheat.setHerd': (sim, c) => plantCommandHandlers['cheat.setHerd']?.(sim, c), // owner: ecology-plants (late-bound)
+  'cheat.spawnHerd': (sim, c) => plantCommandHandlers['cheat.spawnHerd']?.(sim, c), // owner: ecology-plants (late-bound)
+  'cheat.freezeGrowth': (sim, c) => plantCommandHandlers['cheat.freezeGrowth']?.(sim, c), // owner: ecology-plants (late-bound)
+  'cheat.triggerBird': (sim, c) => creatureCommands['cheat.triggerBird']?.(sim, c), // owner: creatures (late-bound)
+  'cheat.triggerNestInvasion': (sim, c) => creatureCommands['cheat.triggerNestInvasion']?.(sim, c), // owner: creatures (late-bound)
 };

@@ -2,6 +2,7 @@
 // "softened" looked like "off"), and creature surfaces are not glossy plastic.
 import { describe, expect, it } from 'vitest';
 import { Color } from 'three';
+import { CreatureBuilder, leg } from './geometry/builder';
 import { JUMPING_SPIDER, WOLF_SPIDER, ANT_SPIDER, SOFTENED, softenLook } from './geometry/arachnids';
 import { LOOKS } from './looks';
 import { surfaceRoughness } from './shader/materials';
@@ -39,6 +40,19 @@ describe('spider comfort looks', () => {
       const o = off.build(0).body, s = soft.build(0).body, a = abs.build(0).body;
       expect(s.triangles).toBeLessThan(o.triangles); // no hairs, no eye domes
       expect(a.triangles).toBeLessThan(s.triangles); // a legless ovoid
+    }
+  });
+});
+
+describe('softened spider legs are round, not faceted sticks (review finding 8)', () => {
+  const spec = { hip: [1, 2, 0] as [number, number, number], yawDeg: 40, reach: 12, kneeAt: 0.33, kneeUp: 6, ankleAt: 0.72, ankleY: 2, radius: 0.5, phase: 0, color: [1, 1, 1] as [number, number, number] };
+  it('a round leg tube has more sides than the plain one at close and middle detail, the same stick far away', () => {
+    for (const d of [0, 1, 2] as const) {
+      const plain = new CreatureBuilder(), round = new CreatureBuilder();
+      leg(plain, d, spec);
+      leg(round, d, { ...spec, round: true });
+      if (d === 2) expect(round.vcount).toBe(plain.vcount);
+      else expect(round.vcount).toBeGreaterThan(plain.vcount);
     }
   });
 });

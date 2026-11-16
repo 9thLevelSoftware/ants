@@ -13,7 +13,7 @@
 // - ink (all modes): lines, hatching and outlines, composited in premultiplied alpha so every ink keeps its hue.
 import { Color, CustomBlending, DataTexture, DstColorFactor, NormalBlending, OneFactor, OneMinusSrcAlphaFactor, ShaderMaterial, Vector3, Vector4, ZeroFactor } from 'three';
 import {
-  FILL_ALPHA, FLOOD_ALPHA, ISOTHERM_STEP_C, LINE_ALPHA, MOISTURE_CONTOUR, MOISTURE_FILL_MAX, MOISTURE_STAIN_FULL, MOISTURE_STAIN_START,
+  FILL_ALPHA, FLOOD_ALPHA, ISOTHERM_STEP_C, LINE_ALPHA, MOISTURE_CONTOUR, MOISTURE_FILL_MAX, MOISTURE_STAIN_CURVE, MOISTURE_STAIN_FULL, MOISTURE_STAIN_START,
   STAIN_CHROMA, STAIN_LIGHTNESS, TEMP_MAX_C, TEMP_MIN_C, TEMP_STAIN_GAIN,
 } from './tuning';
 
@@ -53,7 +53,7 @@ float regionFade(out vec2 uv) {
 const stainFragment = /* glsl */ `
 ${common}
 uniform float uFill;
-uniform vec4 uMoist;   // stain start, full, max opacity
+uniform vec4 uMoist;   // stain start, full, max opacity, curve exponent
 uniform float uTempGain;
 uniform float uChroma;
 uniform float uLumRef;
@@ -75,7 +75,7 @@ void main() {
     t = d.r < uMid ? uMid * (1.0 - amp) : uMid + (1.0 - uMid) * amp;
   } else {
     if (d.b > 0.5) discard; // standing water: solid, drawn by the ink pass
-    alpha = uMoist.z * smoothstep(uMoist.x, uMoist.y, d.r);
+    alpha = uMoist.z * pow(clamp((d.r - uMoist.x) / (uMoist.y - uMoist.x), 0.0, 1.0), uMoist.w);
   }
   if (alpha < 0.004) discard;
   vec3 c = ramp(t);
@@ -185,7 +185,7 @@ function sharedUniforms(tex: DataTexture, bu: number) {
     uBu: { value: bu },
     // stain
     uFill: { value: FILL_ALPHA },
-    uMoist: { value: new Vector4(MOISTURE_STAIN_START, MOISTURE_STAIN_FULL, MOISTURE_FILL_MAX, 0) },
+    uMoist: { value: new Vector4(MOISTURE_STAIN_START, MOISTURE_STAIN_FULL, MOISTURE_FILL_MAX, MOISTURE_STAIN_CURVE) },
     uTempGain: { value: TEMP_STAIN_GAIN },
     uChroma: { value: STAIN_CHROMA.temperature },
     uLumRef: { value: 1 },

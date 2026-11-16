@@ -3,17 +3,13 @@
 // pin down: an overlay is information drawn on top of a visible world, not a wash.
 
 import {
-  FILL_ALPHA, MOISTURE_FILL_MAX, MOISTURE_STAIN_FULL, MOISTURE_STAIN_START, TEMP_STAIN_GAIN,
+  FILL_ALPHA, MOISTURE_FILL_MAX, MOISTURE_STAIN_CURVE, MOISTURE_STAIN_FULL, MOISTURE_STAIN_START, TEMP_STAIN_GAIN,
 } from './tuning';
 
-const smoothstep = (a: number, b: number, x: number): number => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
-/** Moisture (0..1) -> opacity of the stain: 0 on dry ground (below the lowest contour band), MOISTURE_FILL_MAX when saturated. */
+/** Moisture (0..1) -> opacity of the stain: 0 on dry ground, MOISTURE_FILL_MAX when saturated. */
 export function moistureStainAlpha(moisture: number): number {
-  return MOISTURE_FILL_MAX * smoothstep(MOISTURE_STAIN_START, MOISTURE_STAIN_FULL, moisture);
+  const t = Math.min(1, Math.max(0, (moisture - MOISTURE_STAIN_START) / (MOISTURE_STAIN_FULL - MOISTURE_STAIN_START)));
+  return MOISTURE_FILL_MAX * Math.pow(t, MOISTURE_STAIN_CURVE);
 }
 
 /** Departure from the optimum as a fraction of the way to the end of the scale (0 at the optimum, 1 at the end). */

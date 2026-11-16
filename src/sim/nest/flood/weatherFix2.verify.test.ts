@@ -112,7 +112,7 @@ describe('review weather-fix2: queen-in-danger is shared with combat', () => {
     noteQueenDamaged(sim, q);
     q.bb['cb.qdT'] = sim.state.tick - 1000 * TICKS_PER_SECOND;
     combatAlerts(sim);
-    expect(active()).toBe(false); // combat cleared the shared key ...
+    expect(active()).toBe(true); // combat skips clearing the shared card while she is under water (nest-fix3 item 5)
     run(sim, 50);
     expect(q.bb[FLOOD_ANT_SUB_KEY]).toBeGreaterThan(0); // ... she is still under water ...
     expect(active()).toBe(true); // ... so the player must still be told (weather-fix2 item 3: never a silent death)

@@ -1,6 +1,8 @@
 // GDD 08 E17 needs `ui.look()` to report a creature's render variant: lookOf(id) says what each creature was drawn
 // as in the last update (look key, comfort level, ring), and null for creatures not drawn.
 import { describe, expect, it } from 'vitest';
+// Load order: the sim's ecology <-> human-events import cycle only resolves when ecology is loaded first (also fails on HEAD; sim owners' fix).
+import '@/sim/ecology';
 import { PerspectiveCamera, Scene } from 'three';
 import { getPreset } from '@/render/app/quality';
 import type { CreatureKind } from '@/sim/types';

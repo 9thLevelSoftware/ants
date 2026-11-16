@@ -75,10 +75,27 @@ export function moundMask(sim: Sim, m: Mound): MoundMask {
   return mask;
 }
 
+/**
+ * Every input of buildMask that is not the carve grid (whose near-surface changes drop the entry in the nest
+ * runtime's carve listener) or the static base: the entrances on the grid and the breach records it probes around
+ * (positions and radii, the ones near the grid only). Keyed on the breach count alone, a breach replaced by another
+ * elsewhere kept a stale mask (nest-fix3 item 3, weather-fix2's restore divergence).
+ */
 function maskSignature(sim: Sim, m: Mound): string {
-  let sig = `${sim.carve.breaches.length}`;
+  let sig = '';
   for (const e of entrancesOnGrid(sim, m)) sig += `|${e.id}:${e.pos.x}:${e.pos.z}:${e.radius}`;
+  const { x0, z0 } = moundOrigin(m), span = (m.n - 1) * m.cell, pad = MOUND_BREACH_PROBE_BU * sim.world.bu;
+  for (const b of sim.carve.breaches) {
+    if (!breachNearGrid(b, x0, z0, span, pad)) continue;
+    sig += `|b${b.pos.x}:${b.pos.z}:${b.r}`;
+  }
   return sig;
+}
+
+/** The breach's probe disc (radius + pad) overlaps the grid square [x0, x0 + span] x [z0, z0 + span]. */
+function breachNearGrid(b: { pos: { x: number; z: number }; r: number }, x0: number, z0: number, span: number, pad: number): boolean {
+  const r = b.r + pad;
+  return !(b.pos.x + r < x0 || b.pos.x - r > x0 + span || b.pos.z + r < z0 || b.pos.z - r > z0 + span);
 }
 
 function buildMask(sim: Sim, m: Mound): MoundMask {
@@ -107,9 +124,8 @@ function buildMask(sim: Sim, m: Mound): MoundMask {
   for (const e of entrances) around(e.pos.x, e.pos.z, clearRadius(sim, m, e) + MOUND_HOLE_PROBE_BU * bu, probe);
   const span = (n - 1) * m.cell, pad = MOUND_BREACH_PROBE_BU * bu;
   for (const b of sim.carve.breaches) {
-    const r = b.r + pad;
-    if (b.pos.x + r < x0 || b.pos.x - r > x0 + span || b.pos.z + r < z0 || b.pos.z - r > z0 + span) continue;
-    around(b.pos.x, b.pos.z, r, probe);
+    if (!breachNearGrid(b, x0, z0, span, pad)) continue;
+    around(b.pos.x, b.pos.z, b.r + pad, probe);
   }
   return { ok, clear, cap: pitCap(sim, m, clear) };
 }

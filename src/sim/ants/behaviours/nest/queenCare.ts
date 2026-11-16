@@ -17,6 +17,7 @@ import { claim, freeFor, Job, sortOf } from './board';
 import { approach, endCycle, primitiveDone, reachAndAct, recover, releaseAll, think, carryingLoad } from './common';
 import { B, bbv, setState, waitThink } from './fsm';
 import { chamberIn, floorPoint, floorY, foodChamber, GOLDEN_ANGLE, homeNest, pileSlot } from './places';
+import { isFleeingWater } from './fleeWater';
 import { isFoundingQueen } from './queen';
 import { bestChamberId } from './sorting';
 import { act, actResult, entity, resetTravel, travel, tryAct } from './travel';
@@ -73,6 +74,8 @@ function attend(sim: Sim, ant: Ant): void {
   const q = queenOf(sim, ant);
   if (!q) { requestTask(sim, ant, 'idle', 'surplus'); return; }
   if (q.state === 'queen.relocate') { setState(sim, ant, 'queen-care.escort', 'marker:move-queen'); return; }
+  // her retinue follows her out of rising water (GDD 03 §11.3 "escorted by queen-care")
+  if (isFleeingWater(q)) { setState(sim, ant, 'queen-care.escort', 'threat'); return; }
   const egg = eggNearQueen(sim, ant, q);
   if (egg) { claim(sim, ant, Job.collectEggs, egg.id); setState(sim, ant, 'queen-care.collect-eggs', 'job:collect-eggs'); return; }
   const reserve = reserveTime(sim, ant) && ant.cropC + ant.cropP < QUEEN_FEED_LOADS;
@@ -172,7 +175,7 @@ function collectEggs(sim: Sim, ant: Ant): void {
 
 function escort(sim: Sim, ant: Ant): void {
   const q = queenOf(sim, ant);
-  if (!q || q.state !== 'queen.relocate') { setState(sim, ant, ENTRY); return; }
+  if (!q || (q.state !== 'queen.relocate' && !isFleeingWater(q))) { setState(sim, ant, ENTRY); return; }
   if (travel(sim, ant, entity('ant', q.id, q.pos), QUEEN_ATTEND_BU * sim.world.bu) === 'arrived') resetTravel(ant);
 }
 

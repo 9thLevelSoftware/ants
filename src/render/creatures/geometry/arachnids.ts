@@ -112,7 +112,7 @@ export function buildSpider(look: SpiderLook, softened = false) {
         const v0 = L.vcount;
         leg(L, d, {
           hip: [cw * 0.8, yc, hipZ[i]!], yawDeg: yaws[i]!, reach: s.reach[i]!, kneeAt: 0.33, kneeUp: s.kneeUp, ankleAt: 0.72,
-          ankleY: s.kneeUp * 0.35, radius: r, phase: (i % 2) * 0.5, raise: i === 0 ? 1 : i === 1 ? 0.35 : 0, color: C.legs,
+          ankleY: s.kneeUp * 0.35, radius: r, phase: (i % 2) * 0.5, raise: i === 0 ? 1 : i === 1 ? 0.35 : 0, color: C.legs, round: softened,
         });
         // banded legs (annuli), per vertex by distance from the hip
         const hip: V3 = [cw * 0.8, yc, hipZ[i]!];

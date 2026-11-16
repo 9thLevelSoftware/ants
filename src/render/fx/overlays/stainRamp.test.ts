@@ -17,10 +17,14 @@ describe('moisture stain', () => {
     for (let m = 0; m <= 1.0001; m += 0.01) { const a = moistureStainAlpha(m); expect(a).toBeGreaterThanOrEqual(prev - 1e-12); prev = a; }
     expect(moistureStainAlpha(MOISTURE_STAIN_FULL)).toBeCloseTo(MOISTURE_FILL_MAX, 9);
     expect(moistureStainAlpha(1)).toBeCloseTo(MOISTURE_FILL_MAX, 9);
-    expect(MOISTURE_STAIN_START).toBeLessThan(0.25);
-    expect(MOISTURE_STAIN_FULL).toBeLessThanOrEqual(0.9);
+    expect(MOISTURE_STAIN_START).toBeLessThanOrEqual(0.25); // nothing below the lowest contour band
+    expect(MOISTURE_STAIN_FULL).toBeLessThanOrEqual(1); // the ramp spans the range the sim's topsoil really uses
     // the simulation's wet topsoil (about 0.65 to 0.77) is tinted, but not at the cap: a world drying out shows it
     expect(moistureStainAlpha(0.65)).toBeGreaterThan(0.1);
+    // resting soil is a light tint (well under the cap), a downpour clearly stronger (review: not one blue sheet)
+    expect(moistureStainAlpha(0.655)).toBeLessThan(0.5 * MOISTURE_FILL_MAX);
+    expect(moistureStainAlpha(0.725) - moistureStainAlpha(0.655)).toBeGreaterThan(0.03);
+    expect(moistureStainAlpha(0.95)).toBeGreaterThan(1.5 * moistureStainAlpha(0.725));
     expect(moistureStainAlpha(0.65)).toBeLessThan(moistureStainAlpha(0.77));
     expect(moistureStainAlpha(0.77)).toBeLessThan(MOISTURE_FILL_MAX);
   });

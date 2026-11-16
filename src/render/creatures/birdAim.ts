@@ -22,23 +22,58 @@ export function columnSpheres(beakLen: number): readonly (readonly [number, numb
   ];
 }
 
-/** Is a strike at (x, z), tip on the ground at groundY, clear of every primitive? */
-export function strikeClear(x: number, z: number, groundY: number, beakLen: number, hard: HardDistance): boolean {
-  for (const [h, r] of columnSpheres(beakLen)) if (hard(x, groundY + h, z) < r) return false;
+/**
+ * The field reports free distance only up to its hash margin (4 BU) away from primitives, so a sphere wider than
+ * that margin could never test clear. A point this high is free of everything, so the field's value there is the
+ * margin (or more); each sphere's radius is capped by it.
+ */
+export function freeCeiling(hard: HardDistance, x: number, z: number): number {
+  const c = hard(x, BIRD_AIM.skyProbeMm, z);
+  return Number.isFinite(c) && c > 0 ? c : Infinity;
+}
+
+/**
+ * Is a strike at (x, z), tip on the surface at groundY, clear of every primitive? `ceiling` caps the sphere radii
+ * (see freeCeiling); `slackMm` lets a sphere rest tangent to a surface without float noise deciding the answer.
+ */
+export function strikeClear(x: number, z: number, groundY: number, beakLen: number, hard: HardDistance, ceiling = Infinity): boolean {
+  for (const [h, r] of columnSpheres(beakLen)) if (hard(x, groundY + h, z) + BIRD_AIM.slackMm < Math.min(r, ceiling)) return false;
   return true;
 }
 
 /**
- * The aim to strike: `aim` itself when clear, else the nearest clear point on rings of BIRD_AIM.ringsMm round it
- * (BIRD_AIM.steps points per ring, starting at `turn` radians so the pick does not favour one side), else null.
+ * Height of the surface a bird can stand on at (x, z): the terrain, or the top of a primitive reached by sphere
+ * tracing down from `fromY`. null when `fromY` is already inside a primitive (the spot is a wall or a pot's body).
  */
-export function clearAim(aim: AimXZ, turn: number, beakLen: number, groundAt: (x: number, z: number) => number, hard: HardDistance): AimXZ | null {
-  if (strikeClear(aim.x, aim.z, groundAt(aim.x, aim.z), beakLen, hard)) return aim;
+export function standHeight(x: number, z: number, fromY: number, groundAt: (x: number, z: number) => number, hard: HardDistance): number | null {
+  const floor = groundAt(x, z);
+  let y = Math.max(fromY, floor);
+  for (let i = 0; i < BIRD_AIM.traceSteps; i++) {
+    if (y <= floor) return floor;
+    const d = hard(x, y, z);
+    if (d < 0) return i === 0 ? null : y;
+    if (d < BIRD_AIM.slackMm) return y;
+    y -= d;
+  }
+  return Math.max(y, floor);
+}
+
+/**
+ * The aim to strike: `aim` itself when clear (its column starts at the sim's aim height `aim.y`, or the terrain when
+ * higher), else the nearest clear point on rings of BIRD_AIM.ringsMm round it (BIRD_AIM.steps points per ring,
+ * starting at `turn` radians so the pick does not favour one side), else null. A ring point stands on the terrain
+ * or on a primitive's top within BIRD_AIM.stepUpMm of the aim (see standHeight).
+ */
+export function clearAim(aim: AimXZ & { y?: number }, turn: number, beakLen: number, groundAt: (x: number, z: number) => number, hard: HardDistance): AimXZ | null {
+  const ceiling = freeCeiling(hard, aim.x, aim.z);
+  const base = Math.max(groundAt(aim.x, aim.z), aim.y ?? -Infinity);
+  if (strikeClear(aim.x, aim.z, base, beakLen, hard, ceiling)) return { x: aim.x, z: aim.z };
   for (const ring of BIRD_AIM.ringsMm) {
     for (let k = 0; k < BIRD_AIM.steps; k++) {
       const a = turn + (k * 2 * Math.PI) / BIRD_AIM.steps;
       const x = aim.x + Math.cos(a) * ring, z = aim.z + Math.sin(a) * ring;
-      if (strikeClear(x, z, groundAt(x, z), beakLen, hard)) return { x, z };
+      const y = standHeight(x, z, base + BIRD_AIM.stepUpMm, groundAt, hard);
+      if (y !== null && strikeClear(x, z, y, beakLen, hard, ceiling)) return { x, z };
     }
   }
   return null;

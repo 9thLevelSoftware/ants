@@ -173,6 +173,8 @@ export interface LegSpec {
   color: V3;
   /** Foot colour (tarsus). */
   tip?: V3;
+  /** More sides round the tube, so thick legs read round and not as faceted sticks (comfort look). */
+  round?: boolean;
 }
 
 /** A jointed leg on the left side (mirror for the right). */
@@ -192,7 +194,7 @@ export function leg(b: CreatureBuilder, d: Detail, s: LegSpec): void {
   b.footV = [foot[0] - s.hip[0], foot[2] - s.hip[2]];
   b.color = s.color;
   const v0 = b.vcount;
-  b.tubePath(pts, radii, d === 0 ? 5 : 3, false, d < 2);
+  b.tubePath(pts, radii, s.round ? (d === 0 ? 10 : d === 1 ? 6 : 3) : d === 0 ? 5 : 3, false, d < 2);
   if (s.tip) { const tip = s.tip; const last = pts[pts.length - 2]!; const L = sub(foot, last); b.recolor(v0, (p) => (dotN(sub(p, last), L) > 0.55 ? tip : s.color)); }
 }
 

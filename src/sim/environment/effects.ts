@@ -6,6 +6,7 @@
 //                          of 5 rows on a standard map, about 0.7 ms each; weather-fix2: 10 bands every 5 ticks cost
 //                          3.5 ms in one tick), water bodies and surface wetness with band 0 (moisture.ts)
 //   WX_DIAG_EVERY          heat exposure diagnostic (effectsHeat.ts)
+//   with moisture band 0   sprinkler / hose / can water on their footprints (effectsWatering.ts)
 // Nest flooding, mound erosion and collapse are nest-phase systems in src/sim/nest/flood and src/sim/nest/collapse.
 // The cheat handlers the environment index routes to this module are at the end.
 
@@ -17,6 +18,7 @@ import { TICKS_PER_SECOND } from '@/sim/time';
 import { publishHeatDiagnostic } from './effectsHeat';
 import { rainClassNow, rainHitStep, washStep } from './effectsRain';
 import { moistureInputs, setSoilMoistureRegion, stepMoisture } from './moisture';
+import { stepWatering } from './effectsWatering';
 
 /** Dry-weather washing (wind decay only) runs this many times less often, with the matching longer step. */
 const WIND_WASH_MULT = 5;
@@ -41,6 +43,8 @@ export function runEffects(sim: Sim): void {
   // the moisture grid in MOISTURE_SLICES row bands, one per tick: each cell once per ENV_MOISTURE_EVERY ticks
   const slice = (t + ENV_MOISTURE_OFFSET) % MOISTURE_SLICES;
   const r = stepMoisture(sim, ENV_MOISTURE_EVERY, moistureInputs(sim, ENV_MOISTURE_EVERY), slice, MOISTURE_SLICES);
+  // sprinklers and hoses on their footprints, once per moisture period (nest-fix3 item 7)
+  if (slice === 0) stepWatering(sim);
   if (r.cellsAdded > 0 || r.cellsRemoved > 0) sim.emit({ type: 'weather.puddle', cellsAdded: r.cellsAdded, cellsRemoved: r.cellsRemoved });
 }
 

@@ -248,6 +248,31 @@ function closingPlugPlan(sim: Sim, nest: Nest, e: Entrance): number {
   }, 'founding');
 }
 
+/** Candidate faces tried for the escape dig (the cavity samples nearest the ground first). */
+const ESCAPE_TRIES = 8;
+
+/**
+ * The last way out (task nest-fix3 item 4c): no plan through any plug could be made and no plug voxel is left to
+ * reach, so the workers bite their way out from inside along the shortest line to open air: a shaft plan from the
+ * cavity sample with the least soil above it (straight up to the surface; the next candidates if the nest refuses
+ * one). A real dig, by the workers' own dig behaviour, never a stand-in. Plan id or -1.
+ */
+export function escapePlan(sim: Sim, nest: Nest): number {
+  const at = { x: 0, y: 0, z: 0 }, cand: { p: Vec3; d: number }[] = [];
+  for (const k of floodCavity(sim, floodStart(sim, nest)).cavity.keys()) {
+    keyPos(sim, k, at);
+    const d = sim.field.height(at.x, at.z) - at.y;
+    if (d > 0) cand.push({ p: { x: at.x, y: at.y, z: at.z }, d });
+  }
+  cand.sort((a, b) => a.d - b.d || a.p.x - b.p.x || a.p.z - b.p.z || a.p.y - b.p.y);
+  for (let i = 0; i < Math.min(ESCAPE_TRIES, cand.length); i++) {
+    const p = cand[i].p, top = { x: p.x, y: sim.field.height(p.x, p.z), z: p.z };
+    const id = shaftPlan(sim, nest, p, top);
+    if (id >= 0) return id;
+  }
+  return -1;
+}
+
 const live = (p: DigPlan) => p.status !== 'complete' && p.status !== 'cancelled';
 
 function livePlan(nest: Nest, test: (source: string, kind: string) => boolean): boolean {
@@ -299,5 +324,8 @@ export function reopenTick(sim: Sim): number {
     if (id < 0 && early) id = closingPlugPlan(sim, nest, e);
     if (id >= 0) return id;
   }
-  return -1;
+  // nothing to dig through (no plan accepted, no plug voxel in reach of the workers' unplugging in any throat): bite
+  // out along the shortest line to air
+  if (!early || mine.some((e) => plugRemnants(sim, e, 'soil').length > 0)) return -1;
+  return escapePlan(sim, nest);
 }

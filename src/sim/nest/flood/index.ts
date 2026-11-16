@@ -10,7 +10,7 @@
 
 import type { Nest, Sim, System } from '@/sim/types';
 import { FLOOD_PREDICT_DRY_REBUILD_TICKS, FLOOD_PREDICT_TICKS, FLOOD_REBUILD_TICKS, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
-import { foundingFloodAlert, publishFloodDiagnostic, queenFloodAlert } from './diagnostics';
+import { foundingFloodAlert, possessedFloodAlert, publishFloodDiagnostic, queenFloodAlert } from './diagnostics';
 import { drownStep, type WetNest } from './drown';
 import { erodeDueMounds } from './erosion';
 import { refreshFloodRisk, type FloodPrediction } from './predict';
@@ -20,7 +20,8 @@ export { floodCheats } from './cheats';
 export { stepNestFlood, drainageOf } from './step';
 export { predictRain, predictReferenceStorm, refreshFloodRisk } from './predict';
 export { entranceInflow, nestInflow, catchmentOf, rimFactorOf } from './inflow';
-export { floodDiagnostic, queenFloodAlert } from './diagnostics';
+export { floodDiagnostic, possessedFloodAlert, queenFloodAlert } from './diagnostics';
+export { depthOver, dryPlace, isDryAt, waterView, type DryPlace, type WaterView } from './dryPlace';
 export { drownStep, isUnderWater } from './drown';
 export { erodeDueMounds, erodeMound, erodeMounds } from './erosion';
 export { floodGeometry, spillFor, spillPeek } from './runtime';
@@ -68,6 +69,7 @@ export function runFlood(sim: Sim): void {
   }
   drownStep(sim, wet, frozen);
   queenFloodAlert(sim);
+  possessedFloodAlert(sim);
   erodeDueMounds(sim, t, EROSION_OFFSET);
 }
 

@@ -17,7 +17,8 @@ import { carveSphere, fillSphere, forChangedSamples, readBox, sphereBox } from '
 import { clearPilesAround, linkMoundToEntrance } from './mounds';
 import { moundOrigin } from './moundRelax';
 import { refreshNestFields } from './navFields';
-import { nestRuntime } from './runtime';
+import { chunkStampSum, nestRuntime } from './runtime';
+import { dynPrimsNear } from './tampRetry';
 
 /** The entrance with this id and its nest, or null. */
 export function entranceById(sim: Sim, id: number): { nest: Nest; e: Entrance } | null {
@@ -240,14 +241,20 @@ function throatR(sim: Sim, e: Entrance): number {
   return e.radius + THROAT_BU * sim.world.bu;
 }
 
-/** Closed PLUG samples in the throat. */
+/**
+ * Closed PLUG samples in the throat that are real soil: a sample at or above the ground surface (the plug fill
+ * reached it, but the field there is open air) is a ghost no bite can find and no walker meets, so it is not counted
+ * (nest-fix3 item 4a: a throat left with ghosts only stayed `sealing` for good).
+ */
 export function plugCount(sim: Sim, e: Entrance): number {
   const flags = nestRuntime(sim).flags;
   const b = sphereBox(sim, e.pos, throatR(sim, e), 0);
   if (flags.noneIn(b.i0, b.j0, b.k0, b.i1, b.j1, b.k1)) return 0;
+  const v = sim.carve.voxel;
   let n = 0;
   forThroatSamples(sim, e, (i, j, k) => {
-    if ((flags.get(i, j, k) & VoxelFlag.PLUG) !== 0 && sim.carve.sampleAt(i, j, k) < OPEN_MIN) n++;
+    if ((flags.get(i, j, k) & VoxelFlag.PLUG) === 0 || sim.carve.sampleAt(i, j, k) >= OPEN_MIN) return;
+    if (sim.field.substrateXYZ(i * v, j * v, k * v) < 0) n++;
   });
   return n;
 }
@@ -364,11 +371,21 @@ function entranceMemo(sim: Sim): Map<number, string> {
   return m;
 }
 
+/**
+ * Everything evaluateEntrance reads, kept local (nest-fix3 item 6, gate defect L11): the carve chunks of the throat
+ * box (runtime chunk stamps, bumped by every carve or fill reaching them; flag edits always come with one), the piles
+ * and moved primitives over it, terrain edits, the record itself; for a founding nest under the pocket rule (whose
+ * search runs on into the cavity) also the nest's own carve counter. Keyed on the world-wide carve and flag versions
+ * and the field's geometry version before, every bite or pile batch anywhere re-ran every throat search of every
+ * nest (checkEntrances 50-95 ms on generated worlds).
+ */
 function evalSignature(sim: Sim, nest: Nest, e: Entrance): string {
-  const fv = (sim.field as { geomVersion?: number }).geomVersion ?? sim.state.tick;
+  const rt = nestRuntime(sim);
+  const box = sphereBox(sim, e.pos, throatR(sim, e), 1);
+  const pocket = nest.founding && nest.founding.state !== 'established' && nest.chambers.length > 0;
   // the founding pocket rule also reads the nest's founding state and its chambers
-  const fd = nest.founding ? `${nest.founding.state}:${nest.chambers.length}` : '';
-  return `${sim.carve.version}|${nestRuntime(sim).flags.version}|${fv}|${pileNear(sim, e)}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}|${fd}`;
+  const fd = nest.founding ? `${nest.founding.state}:${nest.chambers.length}:${pocket ? rt.carveStamp.get(nest.id) ?? 0 : ''}` : '';
+  return `${chunkStampSum(sim, box)}|${pileNear(sim, e)}|${dynPrimsNear(sim, box)}|${sim.state.worldDelta.heightDeltas.length}|${e.status}|${e.pos.x},${e.pos.y},${e.pos.z}|${e.radius}|${fd}`;
 }
 
 /**

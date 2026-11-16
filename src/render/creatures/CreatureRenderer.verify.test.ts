@@ -2,6 +2,8 @@
 // buffers without a GPU, so instance data, culling bounds, comfort marks and LOD caps can be read back directly.
 // Tests that FAIL here demonstrate real defects and are left for the fixer (see the review report).
 import { describe, expect, it, vi } from 'vitest';
+// Load order: the sim's ecology <-> human-events import cycle only resolves when ecology is loaded first (also fails on HEAD; sim owners' fix).
+import '@/sim/ecology';
 import { PerspectiveCamera, Scene, type InstancedMesh, type Object3D } from 'three';
 import { getPreset } from '@/render/app/quality';
 import type { CreatureKind } from '@/sim/types';

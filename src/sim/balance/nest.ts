@@ -166,6 +166,12 @@ export const TAMP_MIN_HEADROOM_BU = 1.5;
 export const TAMP_RADII_BU = [TAMP_RADIUS_BU, TAMP_RADIUS_FALLBACK_BU, 2.5, 4];
 /** A pellet that could not be tamped (no headroom left) is tried again this often after its tamping age, game s. */
 export const TAMP_RETRY_S = 300;
+/**
+ * A pellet's first tamp comes up to this many ticks before PELLET_TAMP_S, phase-shifted by its id, so pellets
+ * dropped together do not all tamp on one tick (nest-fix3 item 6: a rival nest's 150 founding pellets cost 5.2 s in
+ * one nest tick; one tamp is 10-50 ms). One game hour [WX].
+ */
+export const TAMP_FIRST_SPREAD_TICKS = 250;
 /** Over MAX_LOOSE_PELLETS_PER_NEST, at most this many of the oldest clutter pellets are tried per drop (pellets.ts). */
 export const TAMP_CAP_TRIES = 4;
 /**

@@ -16,6 +16,8 @@ import { feedUrgency, wantsFeed } from '@/sim/colony';
 import { daysToTicks, secondsToTicks } from '@/sim/time';
 import { B, skipped } from './fsm';
 import { broodSpace, groupOf, moveTarget, sortContext, type SortContext } from './sorting';
+import { broodInWater, floodEvac, type FloodEvac } from './floodEvac';
+import { BROOD_EVAC_STAGE_BONUS } from '@/sim/balance/weather';
 
 /** Job kinds stored in B.jobKind: the nursery jobs in NURSERY_JOBS order, then the other claimable jobs. */
 export const Job = {
@@ -106,19 +108,35 @@ function readClaims(sim: Sim, colonyId: number, claims: Map<number, number>, inc
   return nurses;
 }
 
-/** Chamber ids of the nest that are flooded or alarmed (evacuate), once per board build. */
-function alarmedChambers(sim: Sim, colonyId: number, nest: Nest): Set<number> {
+/**
+ * Chamber ids of the nest that are flooded or alarmed (evacuate), once per board build. In a wet nest the water is
+ * judged per brood item instead (floodEvac below), so a chamber counts here for its alarm only.
+ */
+function alarmedChambers(sim: Sim, colonyId: number, nest: Nest, wet: boolean): Set<number> {
   const out = new Set<number>();
   for (const c of nest.chambers) {
-    if (c.flooded >= EVACUATE_FLOOD || sim.phero.sample(colonyId, 'alarm', c.center) >= ALARM_STRONG) out.add(c.id);
+    if ((!wet && c.flooded >= EVACUATE_FLOOD) || sim.phero.sample(colonyId, 'alarm', c.center) >= ALARM_STRONG) out.add(c.id);
   }
   return out;
 }
 
 /** Per-nest data of one board build. */
-interface NestInfo { ctx: SortContext; alarmed: Set<number>; chamberIds: Set<number> }
+interface NestInfo { ctx: SortContext; alarmed: Set<number>; chamberIds: Set<number>; flood: FloodEvac | null }
 
 const markerOut = { marker: false };
+
+/**
+ * Where evacuated brood goes: the best-scoring dry chamber for its stage group (a brood chamber when one is dry),
+ * else the dry chamber with the highest floor of any type, else the nearest dry place (floodEvac.ts DRY_SPOT).
+ */
+function evacDest(ctx: SortContext, f: FloodEvac, group: number): number {
+  let best = -1, bestS = 0;
+  for (let i = 0; i < ctx.chambers.length; i++) {
+    const s = ctx.scores[group][i];
+    if (s > bestS && !f.wetChambers.has(ctx.chambers[i].id)) { best = i; bestS = s; }
+  }
+  return best >= 0 ? ctx.chambers[best].id : f.dest;
+}
 
 /** The highest-priority job of one lying brood item, or null. */
 function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestInfo, b: Brood, movesLeft: number): BoardJob | null {
@@ -127,8 +145,22 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
   const job = (kind: JobKindId, prio: number, dest = -1, marker = false, feedAfter = false): BoardJob => ({
     kind, id: b.id, dest, prio, pos: b.pos, nestId: nest.id, marker, feedAfter,
   });
+  if (info.flood) {
+    // a wet nest (GDD 03 §9.4 emergency, §11.3): brood the water reaches (or nearly, while it rises) is carried to the
+    // highest dry chamber floor or the nearest dry place, pupae first; no sorting or rescue carries brood into a
+    // chamber the water reaches
+    if (broodInWater(sim, info.flood, b)) {
+      const prio = JOB_PRIORITY.evacuate + BROOD_EVAC_STAGE_BONUS[b.stage];
+      return job(Job.evacuate, prio, evacDest(ctx, info.flood, groupOf(b)));
+    }
+  }
   if (b.chamberId < 0 || !info.chamberIds.has(b.chamberId)) {
     const dest = ctx.best[groupOf(b)];
+    // dry brood out of its chamber (evacuated) goes back only to a chamber the water does not reach: the best dry one
+    if (dest >= 0 && info.flood?.wetChambers.has(ctx.chambers[dest].id)) {
+      const dry = evacDest(ctx, info.flood, groupOf(b));
+      return dry >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, dry) : null;
+    }
     return dest >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, ctx.chambers[dest].id) : null;
   }
   if (info.alarmed.has(b.chamberId)) {
@@ -145,7 +177,8 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
     if (to >= 0) return job(Job.move, Math.min(feedPrio + JOB_PRIORITY.moveHungryBonus, JOB_PRIORITY.moveHungryMax), to, markerOut.marker, true);
     return job(Job.feed, feedPrio);
   }
-  const dest = movesLeft > 0 ? moveTarget(ctx, b, markerOut) : -1;
+  let dest = movesLeft > 0 ? moveTarget(ctx, b, markerOut) : -1;
+  if (dest >= 0 && info.flood && info.flood.wetChambers.has(dest)) dest = -1;
   if (dest >= 0) return job(Job.move, markerOut.marker ? JOB_PRIORITY.moveMarker : JOB_PRIORITY.move, dest, markerOut.marker);
   if (b.stage !== 'larva') {
     const age = now - b.lastTendedTick;
@@ -168,7 +201,8 @@ function build(sim: Sim, col: Colony, def: SpeciesDef, live: Live): NurseryBoard
     if (!nest) continue;
     const ctx = sortContext(sim, nest, def, (id) => (space.get(id) ?? 0) + (incoming.get(id) ?? 0));
     sort.push({ nestId: nid, chamberIds: ctx.chambers.map((c) => c.id), scores: ctx.scores, best: ctx.best, markerId: ctx.marker ? ctx.marker.id : -1 });
-    infos.set(nid, { ctx, alarmed: alarmedChambers(sim, col.id, nest), chamberIds: new Set(nest.chambers.map((c) => c.id)) });
+    const flood = floodEvac(sim, nest);
+    infos.set(nid, { ctx, alarmed: alarmedChambers(sim, col.id, nest, !!flood), chamberIds: new Set(nest.chambers.map((c) => c.id)), flood });
   }
   const jobs: NurseryJobState[] = [];
   let movesLeft = SORT_MOVES_PER_NURSE * Math.max(1, nurses);
@@ -352,4 +386,15 @@ export function nextTendNear(sim: Sim, ant: Ant, p: Vec3, radiusMm: number): Bro
 /** Number of nurses counted this tick. */
 export function nurseCount(sim: Sim, colonyId: number): number {
   return liveOf(sim, colonyId).nurses;
+}
+
+/**
+ * Unclaimed evacuation jobs in a nest this tick (brood in rising water, floodEvac.ts): idle workers there turn nurse
+ * to carry it out (GDD 03 §11.3; a small colony has too few nurses to clear a flooding chamber in time).
+ */
+export function evacuationOpen(sim: Sim, colonyId: number, nestId: number): boolean {
+  const board = boardOf(sim, colonyId);
+  if (!board) return false;
+  for (const j of board.jobs) if (j.kind === Job.evacuate && j.nestId === nestId && !board.claims.has(j.id)) return true;
+  return false;
 }

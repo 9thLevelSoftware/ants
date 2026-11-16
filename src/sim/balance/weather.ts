@@ -250,3 +250,47 @@ export const COLLAPSE_HOURLY_MATERIALS: readonly MaterialId[] = ['sand', 'humus'
 export const COLLAPSE_SLOW_CHECK_TICKS = 1000;
 /** Debris brush radius, in voxels (fillSphere per refilled sample). */
 export const COLLAPSE_FILL_R_VOXELS = 0.75;
+
+// ---- fleeing water (GDD 03 §11.3 "flee water along D_exit until dry", task nest-fix3) ----
+
+/**
+ * An adult leaves her task when the water over her feet (the drowning rule's measure) reaches this depth, BU: below
+ * the 0.5 BU drowning depth (FLOOD_SUBMERGE_DEPTH_BU), so she is on her way before her submersion clock starts.
+ */
+export const FLEE_WATER_DEPTH_BU = 0.15;
+/** A dry place stands at least this far clear of the water, BU (rising water does not reach her at once). */
+export const FLEE_DRY_MARGIN_BU = 1;
+/** She resumes once the place she fled from is this far clear of the water again, BU (hysteresis). */
+export const FLEE_RESUME_MARGIN_BU = 0.25;
+/**
+ * At most this long at the dry place, game s: then she tries her task again (the water may stay for hours on a
+ * slow-draining site; if her task leads back into it she flees again). One game hour.
+ */
+export const FLEE_RETRY_S = 25;
+/** Exit-field samples followed looking for a dry one (0.5 BU each: 150 BU of tunnel). */
+export const FLEE_ROUTE_MAX_STEPS = 300;
+/** Basin samples scanned for high ground when no exit field reaches the ant. */
+export const FLEE_SCAN_MAX_SAMPLES = 20000;
+/** Leaving through the opening: wait this far beyond its rim, BU. */
+export const FLEE_OUTSIDE_BU = 2;
+/** Arrival radius at the dry place, BU. */
+export const FLEE_ARRIVE_BU = 1;
+/** Ants near a wet nest are checked every this many ticks (one flood step). */
+export const FLEE_CHECK_TICKS = 10;
+/** Extra radius around the basin's bounding sphere searched for ants (surface ants heading in), BU. */
+export const FLEE_QUERY_PAD_BU = 4;
+/**
+ * Brood evacuation (GDD 03 §9.4 emergency, §11.3 nurses): brood whose floor the water is within this many BU of
+ * while it rises, or already reached, is carried to the highest dry chamber floor (any chamber type), else to the
+ * nearest dry place. Priority bonus per stage over the evacuate job's base (pupae, larvae, eggs, GDD 03 §11.3 via
+ * GDD 02 §10.4 rescue order).
+ */
+export const BROOD_EVAC_MARGIN_BU = 1;
+export const BROOD_EVAC_STAGE_BONUS: Record<'egg' | 'larva' | 'pupa', number> = { pupa: 2, larva: 1, egg: 0 };
+/** Sprinkler, hose and can rain into entrances (GDD 03 §11.1: "sprinkler or hose 0.5"). */
+export const FLOOD_HUMAN_WATER_INTENSITY = 0.5;
+/**
+ * A nurse fetching or carrying brood out of the water keeps at it in water over the drowning depth until her
+ * submersion clock reaches this, game s (well inside FLOOD_SUBMERGE_GRACE_S 50: her health is never touched).
+ */
+export const FLEE_NURSE_MAX_SUB_S = 20;

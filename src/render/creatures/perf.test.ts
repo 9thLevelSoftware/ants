@@ -5,6 +5,8 @@
 // instance are not comparable; detail.test.ts checks every look against the ant at the same size). Also checks the
 // per-instance upload size (112 bytes vs the ants' 176). The GPU side is measured in the demo (bench.mjs).
 import { describe, expect, it } from 'vitest';
+// Load order: the sim's ecology <-> human-events import cycle only resolves when ecology is loaded first (also fails on HEAD; sim owners' fix).
+import '@/sim/ecology';
 import { Frustum, Matrix4, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { getPreset } from '@/render/app/quality';
 import { AntRenderer, type AntSimSource, type AntView } from '@/render/ants';

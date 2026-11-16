@@ -4,7 +4,7 @@
 
 import type { Sim } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
-import { retireSource, spawnBaitStation } from '@/sim/ecology';
+import { retireSource, spawnBaitStation } from '@/sim/ecology/sources';
 import { BAIT_LIFE_GD, BAIT_REFRESH_MAX, BAIT_REFRESH_VISITS, BAIT_STATION_HALF } from '@/sim/balance/human';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { humanExtra } from '../extra';

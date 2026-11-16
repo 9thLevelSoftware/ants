@@ -371,3 +371,27 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
   success 9–26 % (econ-growth R10 is looking at causes; split by what it finds).
 - Running (5 agents + reviews): econ-growth, overwinter-repro (`wxxwcbc34`), stage2-look-fix, onboarding
   (`wk1cq0726`), nest-fix3 (`w7nudxfes`).
+
+## Nov 16 18:30 UTC — stage2-look-fix + onboarding landed
+
+- **stage2-look-fix** (Sonnet impl, Opus review, fix): rain is thin streaks with ground ripples at every camera
+  distance, tinted by scene light (before/after `test-output/stage2-look/pairs/1-rain-*.png`: fixed, looked at);
+  moisture overlay ramp 0.25–1.0 with a 1.5 power curve (resting soil alpha about 0.15, cap 0.38), temperature
+  overlay shows a value label at the focus; spider "softened" has round smooth legs; bird beak clears props and
+  reaches the soil; human trousers/shoes/soft shadow; FoundingOverlay not rendered in photo view.
+  - Open: per-renderer frame cost not re-measured against the wire-stage2 baseline; resting topsoil sits at the
+    "wet" class bound in the sim (0.65), so "dry" still carries a light tint; `src/render/fx/scent/scentTrail.test.ts`
+    red (no forager trail: economy).
+- **onboarding** (Sonnet impl, Opus review, fix): `src/game/onboarding/**` table-driven hint engine (22 hints, one at
+  a time, once-only, rate limit, learned by doing), `src/ui/hud/prompts/**`, Settings "Reset hints",
+  `tests/e2e/onboarding.mjs` (all 22 hints learned by play; stand-ins for hint-share, first delivery, first trail).
+  - Integrator wired `registerHintProfile(profile)` in `src/game/save/install.ts`.
+  - Open: gamepad dismissal needs a `dismiss-hint` input action (→ input-gamepad-a11y task); founding overlay should
+    ask the engine itself (`PlayPanels.tsx`) so the DOM bridge `foundingGate.ts` can go; classic build not re-run.
+- **Integrator fix: sim import cycle** (`creatures → environment → human → ecology index`, and through
+  `colony/allocation/demand`): human effects now import `@/sim/ecology/sources`; `ecology/index.ts` command handlers
+  are late-bound. Importing creatures, sources, plants or human first all load. Six creature test files and
+  `spikes/render-creatures-demo` no longer depend on import order.
+- Seen in the rain shots: alert "Founding chamber flooding ×10/×11" long after the hand-over (wrong name once the
+  opening is over, and it repeats) → check after nest-fix3; if still there, gate close.
+- Running: econ-growth + overwinter-repro (`wxxwcbc34`), nest-fix3 (`w7nudxfes`, in review).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FieldRaster, isothermSpots, regionFor, sameRegion } from './raster';
+import { FieldRaster, isothermSpots, regionFor, sameRegion, texelAt } from './raster';
 import { countdownText, decodeTemp, encodeTemp } from './samplers';
 import { TEMP_MAX_C, TEMP_MIN_C } from './tuning';
 
@@ -54,5 +54,16 @@ describe('ground field raster', () => {
     expect(countdownText(500)).toBe('in 2 h');
     expect(countdownText(125)).toBe('in 30 min');
     expect(countdownText(1)).toBe('in 1 min');
+  });
+});
+
+describe('texelAt', () => {
+  const r = { x0: 100, z0: 200, size: 80 };
+  it('finds the texel under a world point and nothing outside the region', () => {
+    expect(texelAt(r, 8, 100, 200)).toEqual({ i: 0, j: 0 });
+    expect(texelAt(r, 8, 145, 275)).toEqual({ i: 4, j: 7 });
+    expect(texelAt(r, 8, 180, 210)).toBeNull();
+    expect(texelAt(r, 8, 99, 210)).toBeNull();
+    expect(texelAt(r, 8, 120, 280)).toBeNull();
   });
 });

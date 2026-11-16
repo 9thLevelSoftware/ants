@@ -2,7 +2,7 @@
 // carry brood to the best chamber for its stage (sorting, rescue, evacuation, move-brood markers), tend egg and
 // pupa piles, help pupae eclose, cannibalise under starvation S3, groom when nothing else is to do.
 
-import type { Ant, Behaviour, Brood, Sim, SpeciesDef } from '@/sim/types';
+import type { Ant, Behaviour, Brood, Nest, Sim, SpeciesDef } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { larvaRemainingNeed, nextCannibalVictim, wantsFeed } from '@/sim/colony';
 import { FEED_LARVA_LOADS } from '@/sim/balance/actions';
@@ -22,6 +22,7 @@ import { bestChamberId, groupOf } from './sorting';
 import { act, actResult, busy, entity, resetTravel, travel, tryAct } from './travel';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { perTick } from './perTick';
+import { dryDropPoint, DRY_SPOT } from './floodEvac';
 
 const ENTRY = 'nurse.select';
 /** bb key: 1 = pick-up started, 2 = carrying the job's brood (a put-down then delivers). */
@@ -167,6 +168,7 @@ function carry(sim: Sim, ant: Ant): void {
   const nest = homeNest(sim, ant);
   if (!b || !nest) { recover(sim, ant, ENTRY, 'job:move'); return; }
   if (b.carriedBy === ant.id) {
+    if (bbv(ant, B.jobDest) === DRY_SPOT) { carryToDry(sim, ant, b, nest); return; }
     const dest = carryDest(sim, ant, b);
     const room = dest >= 0 ? chamberIn(nest, dest) : undefined;
     if (!room) { recover(sim, ant, ENTRY, 'job:move'); return; } // puts it down here
@@ -198,6 +200,24 @@ function carry(sim: Sim, ant: Ant): void {
   const st = reachAndAct(sim, ant, entity('brood', b.id, b.pos), 'pick-up');
   if (st === 'started') { ant.bb['bn.from'] = b.chamberId; ant.bb[PICKED] = 1; }
   if (st === 'failed') recover(sim, ant, ENTRY, 'job:move', ant.nav.status === 'failed');
+}
+
+/**
+ * An evacuation with no dry chamber (floodEvac.ts DRY_SPOT): the brood goes down at the nearest dry place from where
+ * she picked it up (kept in B.drop*, so the walk does not wander as the water moves); once the nest is dry again the
+ * job is an ordinary one (the board's best chamber).
+ */
+function carryToDry(sim: Sim, ant: Ant, b: Brood, nest: Nest): void {
+  if (bbv(ant, B.leg, 0) !== 1) {
+    const p = dryDropPoint(sim, nest, ant.pos);
+    if (!p) { ant.bb[B.jobDest] = -1; return; } // the nest is dry again (or nowhere is): an ordinary carry
+    ant.bb[B.dropX] = p.x; ant.bb[B.dropY] = p.y; ant.bb[B.dropZ] = p.z; ant.bb[B.leg] = 1;
+  }
+  pile.x = ant.bb[B.dropX]; pile.y = ant.bb[B.dropY]; pile.z = ant.bb[B.dropZ];
+  const st = approach(sim, ant, entity('point', -1, pile), BROOD_DROP_ARRIVE_BU * sim.world.bu, true);
+  if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
+  ant.bb[PICKED] = 2;
+  if (st === 'arrived') act(sim, ant, 'put-down', null);
 }
 
 /**

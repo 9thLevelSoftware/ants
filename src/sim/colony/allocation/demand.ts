@@ -114,8 +114,7 @@ function liveKnownSources(sim: Sim, col: Colony): number {
 /**
  * Small colonies forage (R3, balance SMALL_*): under the stock target on a workable surface, forage + scout demand
  * is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N). Scouts are at least SMALL_SCOUTS_MIN until
- * SMALL_KNOWN_SOURCES live sources are known; the rest of the outside share forages (scouts only while nothing is
- * known).
+ * SMALL_KNOWN_SOURCES live sources are known; the rest of the outside share forages.
  */
 function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array): void {
   if (n >= SMALL_COLONY_N || surfaceActivityOf(sim, col.species) < SCOUT_MIN_ACTIVITY) return;
@@ -124,12 +123,11 @@ function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Fl
   const live = liveKnownSources(sim, col);
   const scoutsMin = live < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
   d[T('scout')] = Math.max(d[T('scout')], scoutsMin);
-  // with no source known the whole outside share scouts (a forager with nowhere to go only waits); once one is known
-  // the foragers get the rest of it, at least one (a 7-worker colony's 2.45 - 2 scouts rounded to no forager at all).
-  // Foragers short of a source wait inside, where they age at a third of the outside rate (GDD 02 §1.3): sending
-  // them to scout instead cost small colonies their first workers to old age before winter (econ-growth sweep 5).
-  if (live === 0) d[T('scout')] = Math.max(d[T('scout')], outside - d[T('forage')]);
-  else d[T('forage')] = Math.max(d[T('forage')], outside - scoutsMin, 1);
+  // the rest of the outside share forages, at least one forager (a 7-worker colony's 2.45 - 2 scouts rounded to no
+  // forager at all). With nothing known yet those foragers wait inside for news, where they age at a third of the
+  // outside rate (GDD 02 §1.3); sending the whole share out to scout cost small colonies their first workers to old
+  // age before the winter (econ-growth sweeps 5-6: 3-4 old-age deaths of 13-15 workers)
+  d[T('forage')] = Math.max(d[T('forage')], outside - scoutsMin, 1);
 }
 
 /** Fills col.alloc.demand (Float32Array by TASKS order). */

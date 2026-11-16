@@ -72,6 +72,7 @@ export class HumansRenderer implements SubRenderer {
   private shadowsOn = false;
   /** The scene's key light (sun by day, moon by night): the blob shadows lean away from it. */
   private key: DirectionalLight | null = null;
+  private keyWait = 0;
   private readonly keyDir = new Vector3(0.3, 1, 0.2).normalize();
   private keyLight = 1;
   private readonly blob = newSunBlob();
@@ -197,7 +198,10 @@ export class HumansRenderer implements SubRenderer {
 
   /** Direction to the key light and its strength relative to full sun (a settle frame reads the same light). */
   private readKeyLight(): void {
-    if (!this.key || !this.key.parent) this.key = (this.scene?.getObjectByName('world:key-light') as DirectionalLight | undefined) ?? null;
+    if ((!this.key || !this.key.parent) && this.keyWait-- <= 0) {
+      this.key = (this.scene?.getObjectByName('world:key-light') as DirectionalLight | undefined) ?? null;
+      this.keyWait = 240; // a miss (demo pages) is retried rarely: the search walks the whole scene graph
+    }
     const k = this.key;
     if (!k) return;
     this.keyDir.setFromMatrixPosition(k.matrixWorld).sub(tmpV.setFromMatrixPosition(k.target.matrixWorld));

@@ -10,11 +10,14 @@
 // queen raises `queen-in-danger` ("rising water") from the first second she is under water (50 s before her health
 // starts to fall, GDD 03 §11.3) for as long as she is under water (the card is shared with combat's queen alert: it is
 // raised again if combat clears it, and left to combat when she dries while combat still holds it), so a queen is
-// never drowned silently, also in a sump below the 25 % chamber share.
+// never drowned silently, also in a sump below the 25 % chamber share. Combat's side of the shared card is asked through
+// combatHoldsQueenAlert (combat keeps the card while she is under water, task nest-fix3 item 5).
+// The possessed ant (never moved by the flee-water rule) raises `possessed-danger` ("Under water") while submerged.
 
 import type { Chamber, Diagnostic, DiagnosticFactor, Nest, Sim } from '@/sim/types';
 import { FLOOD_ALERT_FRACTION, FLOOD_ANT_SUB_KEY, FLOOD_RIM_MIN } from '@/sim/balance/weather';
 import { clearAlert, raiseAlert } from '@/sim/progression/alerts';
+import { combatHoldsQueenAlert } from '@/sim/combat/alerts';
 import { publishDiagnostic } from '@/sim/progression/diagnostics';
 import { moistureAt } from '../substrate';
 import { entranceInflow } from './inflow';
@@ -106,15 +109,11 @@ function chamberAround(sim: Sim, nestId: number, chamberId: number, p: { x: numb
 
 /** ant.bb flag: the queen's submersion wants `queen-in-danger` up (persisted, so a load sees it too). */
 const QUEEN_ALERT_KEY = 'wx.qAlert';
-/**
- * ant.bb flag of the combat module: its own `queen-in-danger` (damage, a hostile near) is up (src/sim/combat/alerts.ts
- * Q_ON). Alerts are keyed on kind and subject only, so the two sources share one card; read here so that this
- * module never clears the card while combat still needs it (task weather-fix2 review, finding 1).
- */
-const COMBAT_QUEEN_ALERT_KEY = 'cb.qdOn';
 
-function queenAlertActive(sim: Sim, queenId: number): boolean {
-  return sim.state.progression.alerts.some((a) => a.kind === 'queen-in-danger' && a.subjectId === queenId);
+const WATER_ATTACKER = 'rising water';
+
+function queenAlert(sim: Sim, queenId: number) {
+  return sim.state.progression.alerts.find((a) => a.kind === 'queen-in-danger' && a.subjectId === queenId);
 }
 
 /**
@@ -129,15 +128,51 @@ export function queenFloodAlert(sim: Sim): void {
   const under = q.alive && (q.bb[FLOOD_ANT_SUB_KEY] ?? 0) > 0;
   if (under) {
     q.bb[QUEEN_ALERT_KEY] = 1;
-    if (queenAlertActive(sim, q.id)) return;
+    const card = queenAlert(sim, q.id);
+    // the shared card is up: combat's while combat holds it, else it must say why (the water) -> updated below
+    if (card && (combatHoldsQueenAlert(q) || card.tokens?.attacker === WATER_ATTACKER)) return;
     const ch = chamberAround(sim, q.nestId, q.chamberId, q.pos);
     raiseAlert(sim, {
       kind: 'queen-in-danger', level: 'critical', subjectId: q.id, title: '', cause: '',
       focus: { kind: 'ant', id: q.id, pos: { ...q.pos } }, diagnosticId: q.nestId >= 0 ? `diag-nest-flood:${q.nestId}` : null,
-      tokens: { attacker: 'rising water', where: ch ? `${ch.type} chamber` : 'the nest' },
+      tokens: { attacker: WATER_ATTACKER, where: ch ? `${ch.type} chamber` : 'the nest' },
     });
   } else if (q.bb[QUEEN_ALERT_KEY] === 1) {
     delete q.bb[QUEEN_ALERT_KEY];
-    if (q.bb[COMBAT_QUEEN_ALERT_KEY] !== 1) clearAlert(sim, 'queen-in-danger', q.id);
+    if (!combatHoldsQueenAlert(q)) clearAlert(sim, 'queen-in-danger', q.id);
+  }
+}
+
+/** ant.bb flag: the flood's `possessed-danger` card is up for this ant (persisted). */
+const POSSESSED_ALERT_KEY = 'wx.pAlert';
+const WATER_CAUSE = 'under-water';
+
+/**
+ * The possessed ant is never moved out of the water by the flee rule (task nest-fix3): while she is submerged the
+ * player gets `possessed-danger` ("Under water", find dry ground) from her first second under water, 50 s before her
+ * health starts to fall; cleared once she is dry, released or dead. The queen has her own card (queenFloodAlert).
+ */
+export function possessedFloodAlert(sim: Sim): void {
+  const id = sim.state.player.possessedAntId;
+  const p = id >= 0 ? sim.stores.ants.get(id) : undefined;
+  if (p && p.alive && p.caste !== 'queen' && (p.bb[FLOOD_ANT_SUB_KEY] ?? 0) > 0) {
+    if (p.bb[POSSESSED_ALERT_KEY] === 1) return;
+    p.bb[POSSESSED_ALERT_KEY] = 1;
+    raiseAlert(sim, {
+      kind: 'possessed-danger', level: 'warning', subjectId: p.id, title: 'Under water', cause: WATER_CAUSE,
+      focus: { kind: 'ant', id: p.id, pos: { ...p.pos } }, diagnosticId: p.nestId >= 0 ? `diag-nest-flood:${p.nestId}` : null,
+      tokens: { cause: 'climb to dry ground' },
+    });
+    return;
+  }
+  // clear any water card whose ant is dry, released or dead
+  const alerts = sim.state.progression.alerts;
+  for (let i = alerts.length - 1; i >= 0; i--) {
+    const al = alerts[i];
+    if (al.kind !== 'possessed-danger' || al.cause !== WATER_CAUSE) continue;
+    const a = sim.stores.ants.get(al.subjectId);
+    if (a && a.alive && a.id === id && (a.bb[FLOOD_ANT_SUB_KEY] ?? 0) > 0) continue;
+    if (a) delete a.bb[POSSESSED_ALERT_KEY];
+    clearAlert(sim, 'possessed-danger', al.subjectId);
   }
 }

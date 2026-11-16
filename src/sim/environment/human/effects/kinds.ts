@@ -4,7 +4,7 @@
 import { rngChance, rngRange } from '@/core/rng';
 import type { HumanEventRun, Sim } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
-import { createSource, spawnHumanFood } from '@/sim/ecology';
+import { createSource, spawnHumanFood } from '@/sim/ecology/sources';
 import {
   BROOM_COLLECT_P, BROOM_DEATH_P, BROOM_DISPLACE_MM, BROOM_ITEM_BU, BROOM_PUSH_MM, BROOM_TUMBLE_S, CAR_ITEM_BU, CAR_ITEM_REMOVE_P,
   CHILD_CAVE_IN_BU, CHILD_CAVE_IN_P, CHILD_CRATER_SHARE, CHILD_HEAP_R_MULT, CHILD_HEAP_SHARE, CHILD_SAND_DELTA_MM, CHILD_SCOOP_ALIVE_P,

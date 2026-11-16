@@ -5,6 +5,7 @@
 
 import type { Behaviour, System } from '@/sim/types';
 import { digBehaviour } from './dig';
+import { fleeWaterSystem } from './fleeWater';
 import { guardBehaviour } from './guard';
 import { haulBehaviour } from './haul';
 import { idleBehaviour, restBehaviour } from './idle';
@@ -17,7 +18,8 @@ export const behaviours: Behaviour[] = [
   guardBehaviour,
 ];
 
-/** Extra systems of these behaviours (none: the nursery board is rebuilt on demand). */
-export const systems: System[] = [];
+/** Extra systems of these behaviours: fleeing water (the nursery board is rebuilt on demand). */
+export const systems: System[] = [fleeWaterSystem];
 
 export { registerGuardEngage, type GuardEngage } from './guard';
+export { isFleeingWater } from './fleeWater';

@@ -91,6 +91,12 @@ export function regionFor(cx: number, cz: number, heightMm: number, bu: number, 
   return { x0, z0, size };
 }
 
+/** The texel of a raster region under world (x, z), or null outside it. */
+export function texelAt(r: Region, n: number, x: number, z: number): { i: number; j: number } | null {
+  const i = Math.floor(((x - r.x0) / r.size) * n), j = Math.floor(((z - r.z0) / r.size) * n);
+  return i >= 0 && j >= 0 && i < n && j < n ? { i, j } : null;
+}
+
 export function sameRegion(a: Region | null, b: Region | null): boolean {
   return !!a && !!b && a.x0 === b.x0 && a.z0 === b.z0 && a.size === b.size;
 }

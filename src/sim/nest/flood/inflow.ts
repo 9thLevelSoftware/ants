@@ -1,6 +1,7 @@
 // Water into a nest (GDD 03 §11.1): Q_in = sum over entrances of Q_BASE x I x c x f_cover x f_rim x f_state, plus
 // seepage from saturated subsoil (GDD 06 §3.10), times the difficulty's floodInflowMult (GDD 06 §14).
-//   I       rain intensity at the entrance (GDD 06 rainIntensityAt; cheat.setRain overrides it)
+//   I       rain intensity at the entrance (GDD 06 rainIntensityAt; a sprinkler or hose on it 0.5; cheat.setRain
+//           overrides it)
 //   c       catchment: clamp(1 + (h_ring - h_ent) / 2 BU, 0.25, 4) on an 8 BU ring of base terrain, x 1.5 when the
 //           ring is mostly crusted, x the world hydrology hydroFactorOf(floodRisk) (decision of this module: 0.1 on
 //           every site worldgen calls flood-safe, 1 at FLOOD_HYDRO_NEUTRAL_RISK, up to 4 in a hollow), clamped to
@@ -17,10 +18,11 @@ import {
   FLOOD_CATCH_DIV_BU, FLOOD_CATCH_MAX, FLOOD_CATCH_MIN, FLOOD_CATCH_RING_BU, FLOOD_COVER_BU, FLOOD_COVER_FACTOR,
   FLOOD_CRUST_HALF, FLOOD_CRUST_RUNOFF, FLOOD_FOUNDING_PLUG_FACTOR, FLOOD_HYDRO_GAIN, FLOOD_HYDRO_NEUTRAL_RISK,
   FLOOD_HYDRO_SAFE_FACTOR, FLOOD_HYDRO_SAFE_RISK, FLOOD_Q_BASE, FLOOD_RIM_FULL_BU, FLOOD_RIM_MIN, FLOOD_SEEP_RATE,
-  FLOOD_SEEP_THETA1, FLOOD_STATE_FACTOR,
+  FLOOD_SEEP_THETA1, FLOOD_STATE_FACTOR, FLOOD_HUMAN_WATER_INTENSITY,
 } from '@/sim/balance/weather';
 import { RIM_RING_BU } from '@/sim/balance/nest';
 import { rainIntensityAt } from '@/sim/environment/queries';
+import { humanRainRateAt } from '@/sim/environment/human/waterRate';
 import { isInteriorAt } from '@/sim/environment/ground';
 import { byteAt, heightAt } from '@/sim/world/terrainSample';
 import { moundById } from '../mounds';
@@ -109,11 +111,17 @@ export function rimFactorOf(sim: Sim, e: Entrance): number {
   return Math.max(FLOOD_RIM_MIN, 1 - rim / FLOOD_RIM_FULL_BU);
 }
 
-/** Rain intensity I at an entrance (the flood cheat overrides it outdoors). */
+/**
+ * Rain intensity I at an entrance (the flood cheat overrides it outdoors): the sky's (GDD 06 rainIntensityAt), or a
+ * sprinkler, hose or can watering the spot (human-events humanRainRateAt > 0: GDD 03 §11.1 "sprinkler or hose 0.5"),
+ * whichever is more.
+ */
 export function intensityAt(sim: Sim, p: Vec3): number {
   const forced = floodCheats(sim.state).rainI;
   if (forced >= 0) return isInteriorAt(sim.world, p.x, p.z) ? 0 : forced;
-  return rainIntensityAt(sim, p);
+  const sky = rainIntensityAt(sim, p);
+  if (sky >= FLOOD_HUMAN_WATER_INTENSITY || sim.state.env.human.active.length === 0) return sky;
+  return humanRainRateAt(sim, p.x, p.z) > 0 ? FLOOD_HUMAN_WATER_INTENSITY : sky;
 }
 
 /** A founding nest in its claustral phase (sealed cell, or the plug being reopened by the first workers). */

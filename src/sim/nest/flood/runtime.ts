@@ -110,3 +110,14 @@ export function floodGeometry(sim: Sim, nest: Nest, anySlot = false, minAgeTicks
 export function spillPeek(sim: Sim, nestId: number): SpillCache | undefined {
   return RUNTIMES.get(sim)?.caches.get(nestId);
 }
+
+/**
+ * The cache the flood model last used for a wet nest, for readers between flood steps (locomotion's water speed,
+ * submersion queries, the flee-water rule): the cache as last built, or, in a Sim that has not built one yet (a
+ * restored game before its first flood step), the one for the current geometry. Without the second case a restored
+ * game read "dry" where the uninterrupted one read water until its next flood step (nest-fix3: ants in water walked at
+ * full speed for one tick after a load). Only for nests holding water.
+ */
+export function spillForReaders(sim: Sim, nest: Nest): SpillCache {
+  return spillPeek(sim, nest.id) ?? spillFor(sim, nest);
+}

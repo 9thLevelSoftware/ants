@@ -50,7 +50,7 @@ function setStatus(sim: Sim, plan: DigPlan, status: PlanStatus, reason: PlanBloc
 export function createPlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource, instant = false): number {
   const v = validatePlanImpl(sim, spec, source);
   if (!v.ok || !v.resolved || !v.geometry) return -1;
-  if (v.warnings.length > 0 && source === 'player' && !spec.confirmWarnings) return -1;
+  if (v.warnings.length > 0 && (source === 'player' || source === 'founding') && !spec.confirmWarnings) return -1;
   const nest = sim.stores.nests.get(spec.nestId)!;
   const plan = draftPlan(nest, spec, v.resolved);
   plan.id = sim.state.nextId++;

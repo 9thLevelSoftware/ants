@@ -1,6 +1,8 @@
 // Aphids sit ON their plant (GDD 05 §1.4): every spot lies on a primitive's surface, nearest the herd's site first,
 // stems wrapped ring by ring, leaves on their underside; the herd layer draws min(A, cap) of them.
 import { describe, expect, it } from 'vitest';
+// Load order: the sim's ecology <-> human-events import cycle only resolves when ecology is loaded first (also fails on HEAD; sim owners' fix).
+import '@/sim/ecology';
 import { PerspectiveCamera, Scene } from 'three';
 import type { Primitive } from '@/sim/types';
 import { getPreset } from '@/render/app/quality';

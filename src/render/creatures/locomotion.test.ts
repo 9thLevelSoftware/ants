@@ -1,5 +1,7 @@
 // Locomotion style from sim state (deliverable 2): walk, crawl, hop, hover, coiled, dead, buried, wind-up.
 import { describe, expect, it } from 'vitest';
+// Load order: the sim's ecology <-> human-events import cycle only resolves when ecology is loaded first (also fails on HEAD; sim owners' fix).
+import '@/sim/ecology';
 import { CreatureFlag } from '@/sim/ecology/creatures/common';
 import type { CreatureKind } from '@/sim/types';
 import { creaturePose, newPose, type CreaturePose } from './locomotion';

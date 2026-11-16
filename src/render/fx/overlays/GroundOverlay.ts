@@ -7,12 +7,12 @@ import {
 } from 'three';
 import type { Sim } from '@/sim/types';
 import { inkFor, legendFor, OKABE_ITO, type PaletteId } from '@/ui/overlays/catalogue';
-import { FieldRaster, isothermSpots, regionFor, sameRegion, type Region } from './raster';
+import { FieldRaster, texelAt, isothermSpots, regionFor, sameRegion, type Region } from './raster';
 import { decodeTemp, encodeTemp, samplerFor, type FieldMode, type Forecast } from './samplers';
 import { createGroundMaterials, lumOf, setVec, type GroundMaterials } from './groundShader';
 import { Labels, type LabelSpec } from './labels';
 import {
-  DRAPE_MAX_RISE_BU, FIELD_LIFT_MM, FIELD_RENDER_ORDER, ISOTHERM_LABEL_C, LABEL_LIFT_BU, RASTER_REFRESH_S, REGION, STAIN_CHROMA, TEMP_MAX_C, TEMP_MIN_C, type OverlayBudget,
+  DRAPE_MAX_RISE_BU, FIELD_LIFT_MM, FIELD_RENDER_ORDER, FOCUS_LABEL_NEAR, ISOTHERM_LABEL_C, LABEL_LIFT_BU, RASTER_REFRESH_S, REGION, STAIN_CHROMA, TEMP_MAX_C, TEMP_MIN_C, type OverlayBudget,
 } from './tuning';
 
 const MODE_INDEX: Record<FieldMode, number> = { temperature: 0, moisture: 1, threats: 2 };
@@ -55,6 +55,10 @@ export class GroundOverlay {
   private frontMode: FieldMode | null = null;
   private passForecasts: Forecast[] = [];
   private passStartedAt = -Infinity;
+  /** Temperature view: the isotherm labels of the last pass, plus a value label at the focus when none is near it. */
+  private focusLabel = false;
+  private isoLabels: LabelSpec[] = [];
+  private focusX = 0; private focusZ = 0;
   private meshRegion: Region | null = null;
   private palette: PaletteId = 'okabe-ito';
   private passes = 0;
@@ -158,6 +162,7 @@ export class GroundOverlay {
     }
     const t0 = performance.now();
     m.uniforms.uExposure.value = f.exposure;
+    this.focusX = f.focusX; this.focusZ = f.focusZ;
     this.labels.setExposure(f.exposure);
     const bu = sim.world.bu;
     const region = regionFor(f.focusX, f.focusZ, f.heightMm, bu, REGION.k, REGION.minBu, REGION.maxBu, REGION.snap);
@@ -175,6 +180,7 @@ export class GroundOverlay {
     this.mesh.visible = this.frontMode === this.mode && !!this.raster.frontRegion;
     this.stainMesh.visible = this.mesh.visible && this.mode !== 'threats';
     if (!this.mesh.visible) this.labels.set([]);
+    else if (this.focusLabel) this.labels.set(this.temperatureLabels());
     this.lastMs = performance.now() - t0;
   }
 
@@ -193,6 +199,8 @@ export class GroundOverlay {
 
   private labelSpecs(sim: Sim, r: Region): LabelSpec[] {
     const bu = sim.world.bu;
+    this.focusLabel = false;
+    this.isoLabels = [];
     if (this.frontMode === 'threats') {
       return this.passForecasts.map((q) => ({ x: q.x, y: q.y + LABEL_LIFT_BU * bu, z: q.z, text: q.text }));
     }
@@ -203,13 +211,31 @@ export class GroundOverlay {
       const x = r.x0 + (s.i + 1) * step, z = r.z0 + (s.j + 0.5) * step;
       return { x, y: sim.field.height(x, z) + LABEL_LIFT_BU * bu, z, text: `${s.c} °C` };
     });
-    // no isotherm to label (uniform weather, or none of the 10 °C ones in view): the value under the view's centre, so
-    // the tint always comes with a number to read against the legend
-    if (labels.length === 0 && this.raster.texel(n >> 1, n >> 1, 1) > 0) {
-      const x = r.x0 + r.size / 2, z = r.z0 + r.size / 2;
-      labels.push({ x, y: sim.field.height(x, z) + LABEL_LIFT_BU * bu, z, text: `${Math.round(decodeTemp(this.raster.texel(n >> 1, n >> 1, 0)))} °C` });
-    }
-    return labels;
+    // the tint always comes with a number to read against the legend: the isotherm labels, and when none of them is
+    // near where the view looks (uniform weather, or the isotherms lie off screen) the value at the focus, kept
+    // under it every frame
+    this.isoLabels = labels;
+    this.focusLabel = true;
+    return this.temperatureLabels();
+  }
+
+  private temperatureLabels(): LabelSpec[] {
+    const r = this.raster.frontRegion;
+    if (!r) return this.isoLabels;
+    const near = FOCUS_LABEL_NEAR * r.size;
+    if (this.isoLabels.some((l) => Math.hypot(l.x - this.focusX, l.z - this.focusZ) < near)) return this.isoLabels;
+    return [...this.focusLabelSpecs(), ...this.isoLabels]; // first: the label budget drops from the end
+  }
+
+  /** The value label at the view's focus point (none while that lies outside the completed raster or off the ground). */
+  private focusLabelSpecs(): LabelSpec[] {
+    const r = this.raster.frontRegion;
+    if (!r || !this.sim) return [];
+    const at = texelAt(r, this.raster.n, this.focusX, this.focusZ);
+    if (!at || this.raster.texel(at.i, at.j, 1) <= 0) return [];
+    const { focusX: x, focusZ: z } = this;
+    const c = Math.round(decodeTemp(this.raster.texel(at.i, at.j, 0)));
+    return [{ x, y: this.sim.field.height(x, z) + LABEL_LIFT_BU * this.sim.world.bu, z, text: `${c} °C` }];
   }
 
   /**

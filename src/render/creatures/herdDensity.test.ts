@@ -1,6 +1,8 @@
 // Herds beyond the instance cap (GDD 05 §1.4 "up to 200; above that, density texture"), herd near detail under the
 // shared near cap (only near detail casts shadows), and T3 scale herds drawn as scale insects.
 import { describe, expect, it } from 'vitest';
+// Load order: the sim's ecology <-> human-events import cycle only resolves when ecology is loaded first (also fails on HEAD; sim owners' fix).
+import '@/sim/ecology';
 import { PerspectiveCamera, Scene, type InstancedMesh, type Object3D } from 'three';
 import type { Primitive } from '@/sim/types';
 import { getPreset, type QualityId } from '@/render/app/quality';

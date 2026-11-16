@@ -23,6 +23,7 @@ import type { LoaderDeps } from './loader';
 import { SaveManager } from './manager';
 import type { SaveStorage } from './storage';
 import type { Sim } from '@/sim/types';
+import { registerHintProfile } from '@/game/onboarding';
 
 const log = createLogger('persistence');
 
@@ -104,6 +105,7 @@ export async function installPersistence(game: Game, opts: InstallOptions = {}):
   // ---- profile (shares the storage the manager ended up with)
   profile = new ProfileStore({ storage: manager.currentStorage(), kv });
   await profile.load();
+  registerHintProfile(profile); // onboarding: hint progress, Reset hints and the page-hide write share this profile
 
   // ---- the hooks Game already calls
   const hooks = game.saves as unknown as HooksLike;

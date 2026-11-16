@@ -2,7 +2,7 @@
 // id, and a runtime memo that skips a retry which could only repeat a refusal (int-1B review: unbounded retry ticks).
 
 import type { Item, Sim } from '@/sim/types';
-import { PELLET_TAMP_S, TAMP_PASSAGE_MARGIN_BU, TAMP_RADII_BU, TAMP_RETRY_S, TAMP_SPHERE_BU } from '@/sim/balance/nest';
+import { PELLET_TAMP_S, TAMP_FIRST_SPREAD_TICKS, TAMP_PASSAGE_MARGIN_BU, TAMP_RADII_BU, TAMP_RETRY_S, TAMP_SPHERE_BU } from '@/sim/balance/nest';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { heightAt } from '@/sim/world/terrainSample';
 import { moundOrigin } from './moundRelax';
@@ -21,11 +21,14 @@ import { tampPellet } from './tamp';
 export function tampDuePellets(sim: Sim): void {
   const age = PELLET_TAMP_S * TICKS_PER_SECOND, retry = TAMP_RETRY_S * TICKS_PER_SECOND, now = sim.state.tick;
   const list = sim.stores.items.list;
+  const spread = TAMP_FIRST_SPREAD_TICKS;
   for (let n = 0; n < list.length; n++) {
     const it = list[n];
     if (!it.alive || !isPellet(it) || !it.inNest || it.carrierIds.length > 0 || it.reservedBy >= 0) continue;
     const late = now + 1 - it.droppedTick - age; // ticks past the tamp age when this tick ends
-    if (late === 0 || (late > 0 && late % retry === it.id % retry)) retryTamp(sim, it);
+    // the first try up to TAMP_FIRST_SPREAD_TICKS early, phase-shifted by id: a batch dropped on one tick (a rival's
+    // founding dig, a hauler's load) no longer tamps on one tick (nest-fix3: 150 pellets, 5.2 s in one tick)
+    if (late === -(it.id % spread) || (late > 0 && late % retry === it.id % retry)) retryTamp(sim, it);
   }
 }
 
@@ -89,7 +92,7 @@ const BELOW_GROUND_VOXELS = 4;
 const PB = { minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0, diggable: false };
 
 /** Dynamic primitives (moved objects) whose bounds reach the sample box: ids and bounds. */
-function dynPrimsNear(sim: Sim, box: { i0: number; j0: number; k0: number; i1: number; j1: number; k1: number }): string {
+export function dynPrimsNear(sim: Sim, box: { i0: number; j0: number; k0: number; i1: number; j1: number; k1: number }): string {
   const v = sim.carve.voxel;
   let out = '';
   for (const prim of sim.state.worldDelta.dynPrims) {

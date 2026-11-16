@@ -4,7 +4,7 @@
 
 import type { CommandHandlerMap, HumanEventInst, HumanEventKind, Sim, System } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
-import { HUMAN_REACTIVE_EVERY, HUMAN_SCHEDULE, WATER_RAIN_MMH, type CrushContact } from '@/sim/balance/human';
+import { HUMAN_REACTIVE_EVERY, HUMAN_SCHEDULE, type CrushContact } from '@/sim/balance/human';
 import { calendarTick, dayOf, TICKS_PER_DAY, TICKS_PER_HOUR, TICKS_PER_SECOND } from '@/sim/time';
 import { humanExtra } from './extra';
 import { baitSpot, ensureListener, newInst, reactiveCheck, reactiveNewDay } from './reactive';
@@ -16,7 +16,6 @@ import { runBaits } from './effects/bait';
 import { crushPAt } from './effects/ground';
 import { syncHeightOverlays } from './effects/terrain';
 import { humanPlan } from './plans';
-import { inFootprint } from './plan';
 import { humanActivityOff } from './rules';
 
 export { humanPlan } from './plans';
@@ -127,22 +126,9 @@ export function humanForecast(sim: Sim): HumanForecastEntry[] {
   return [...running, ...h.scheduled.filter((i) => !i.cancelled)].map(entry);
 }
 
-/**
- * Local rain rate from sprinklers, hoses and cans at (x, z), mm/h equivalent (GDD 04 §15.4: 15 / 40 / 80), for the
- * weather effects (moisture, puddles, entrance inflow) and `rainIntensityAt`. 0 where no water falls now.
- */
-export function humanRainRateAt(sim: Sim, x: number, z: number): number {
-  let r = 0;
-  for (const run of sim.state.env.human.active) {
-    const inst = run.inst;
-    if (!inst || inst.kind !== 'watering' || !run.started) continue;
-    const plan = humanPlan(sim, inst);
-    const area = plan?.impacts[0];
-    if (!plan || !area || sim.state.tick - inst.startTick > plan.endT) continue;
-    if (inFootprint(area.fp, x, z)) r = Math.max(r, WATER_RAIN_MMH[(inst.variant ?? 'sprinkler') as keyof typeof WATER_RAIN_MMH] ?? 0);
-  }
-  return r;
-}
+/** Local rain rate from sprinklers, hoses and cans (a leaf module, so the weather effects and the nest flood model
+ * can read it without loading the whole human-events module; nest-fix3 item 7). */
+export { humanRainRateAt } from './waterRate';
 
 /** Crush probability for a contact at a point (debug `query.world.crushP`). */
 export function crushP(sim: Sim, contact: CrushContact, pos: Vec3): number {

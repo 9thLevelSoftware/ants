@@ -6,9 +6,9 @@
 import { Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, type BufferGeometry } from 'three';
 import { birdHeadGeometry, type BirdVariant } from '../geometry/props';
 import { birdPose, newBirdPose } from '../birdPose';
-import { clearAim, type HardDistance } from '../birdAim';
+import { clearAim, standHeight, type HardDistance } from '../birdAim';
 import type { BirdView } from '../simAdapter';
-import { BIRD_LOOK } from '../tuning';
+import { BIRD_AIM, BIRD_LOOK } from '../tuning';
 import { DrapedDisc } from './drape';
 
 export class BirdRenderer {
@@ -22,7 +22,7 @@ export class BirdRenderer {
   private readonly pose = newBirdPose();
   private lastX = NaN; private lastZ = NaN; private lastScale = NaN;
   /** The strike spot chosen for the current sim aim (re-chosen when the aim changes), null = no clear spot (no strike). */
-  private aimKey = '';
+  private aimTick = NaN; private aimX = NaN; private aimZ = NaN;
   private aim: { x: number; y: number; z: number } | null = null;
   private aimClear = true;
   /** Drawn this frame (stats). */
@@ -70,15 +70,18 @@ export class BirdRenderer {
 
   private chooseAim(ev: BirdView, beakLen: number, height: (x: number, z: number) => number, hard: HardDistance | null): void {
     const want = ev.peckAim ?? ev.pos;
-    const key = `${ev.startTick}:${want.x}:${want.z}`;
-    if (key === this.aimKey) return;
-    this.aimKey = key;
+    if (ev.startTick === this.aimTick && want.x === this.aimX && want.z === this.aimZ) return;
+    this.aimTick = ev.startTick; this.aimX = want.x; this.aimZ = want.z;
     if (!hard) { this.aim = null; this.aimClear = true; return; }
     const spot = clearAim(want, (ev.startTick * 0.618) % (2 * Math.PI), beakLen, height, hard);
     this.aimClear = spot !== null;
     const at = spot ?? want;
-    const y = height(at.x, at.z);
-    this.aim = { x: at.x, y: Number.isFinite(y) ? y : want.y, z: at.z };
+    // the sim's own aim keeps the sim's height (it may be on a slab or a stone); a moved spot stands on what is there
+    const ground = height(at.x, at.z);
+    const floor = Number.isFinite(ground) ? ground : want.y;
+    const kept = at.x === want.x && at.z === want.z;
+    const y = kept ? Math.max(floor, want.y) : (standHeight(at.x, at.z, Math.max(floor, want.y) + BIRD_AIM.stepUpMm, height, hard) ?? floor);
+    this.aim = { x: at.x, y, z: at.z };
   }
 
   dispose(): void {

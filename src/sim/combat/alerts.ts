@@ -5,11 +5,26 @@
 
 import type { Ant, Sim } from '@/sim/types';
 import { QUEEN_DANGER_CLEAR_S, QUEEN_DANGER_L } from '@/sim/balance/combat';
-import { clearAlert, raiseAlert } from '@/sim/progression';
+import { FLOOD_ANT_SUB_KEY } from '@/sim/balance/weather';
+import { clearAlert, raiseAlert } from '@/sim/progression/alerts';
 import { antLenMm, dist, isPossessed, ticksOf } from './state';
 
 const Q_LAST = 'cb.qdT', Q_ON = 'cb.qdOn', PIN_ON = 'cb.pinOn';
 const ids: number[] = [];
+
+/**
+ * Combat holds the shared `queen-in-danger` card for this queen (damage or a hostile near in the last
+ * QUEEN_DANGER_CLEAR_S). Alerts are keyed on kind and subject only, so the flood module (rising water) asks this
+ * before it clears the card (task nest-fix3 item 5).
+ */
+export function combatHoldsQueenAlert(ant: Ant): boolean {
+  return ant.bb[Q_ON] === 1;
+}
+
+/** The queen is under water now (the flood module's submersion counter): the shared card is the flood's to clear. */
+function underWater(ant: Ant): boolean {
+  return (ant.bb[FLOOD_ANT_SUB_KEY] ?? 0) > 0;
+}
 
 function playerQueen(sim: Sim, ant: Ant): boolean {
   if (ant.caste !== 'queen') return false;
@@ -45,7 +60,8 @@ export function combatAlerts(sim: Sim): void {
     }
     if (q.bb[Q_ON] === 1 && sim.state.tick - (q.bb[Q_LAST] ?? 0) >= ticksOf(QUEEN_DANGER_CLEAR_S)) {
       q.bb[Q_ON] = 0;
-      clearAlert(sim, 'queen-in-danger', q.id);
+      // the card is shared with the flood's "rising water": while she is under water it stays (nest-fix3 item 5)
+      if (!underWater(q)) clearAlert(sim, 'queen-in-danger', q.id);
     }
   }
   clearStale(sim);

@@ -28,14 +28,15 @@ export const FLOODED_CHAMBER = 0.25;
  */
 export const FILL_ALPHA = 0.65;
 /**
- * Moisture stain: none on dry ground. The opacity rises from 0 at MOISTURE_STAIN_START (below the 25 % contour, the
- * lowest band of the legend) to MOISTURE_FILL_MAX at MOISTURE_STAIN_FULL (nearly saturated) and stays there. The
- * simulation's topsoil sits near 0.65 between showers and about 0.77 after a downpour, so a wet world is a tinted one
- * (a quarter to a third opaque) and never an opaque blue sheet: the ground texture stays readable. Paving and dry
- * sand (below 0.25) carry almost no tint.
+ * Moisture stain: none on dry ground. The opacity is MOISTURE_FILL_MAX x t^MOISTURE_STAIN_CURVE, t running linearly
+ * from 0 at MOISTURE_STAIN_START (below the 35 % band of the sim's classes) to 1 at MOISTURE_STAIN_FULL (saturated).
+ * The simulation's topsoil rests near 0.65 between showers (0.7-0.77 after a downpour) and only puddles and flooded
+ * ground go above 0.9, so the ramp is spread over that whole range and bends upward: resting soil is a light tint
+ * (about 0.15, texture clearly readable), a downpour a visibly stronger one, saturated ground the 0.38 cap.
  */
-export const MOISTURE_STAIN_START = 0.15;
-export const MOISTURE_STAIN_FULL = 0.85;
+export const MOISTURE_STAIN_START = 0.25;
+export const MOISTURE_STAIN_FULL = 1.0;
+export const MOISTURE_STAIN_CURVE = 1.5;
 export const MOISTURE_FILL_MAX = 0.38;
 /**
  * Temperature stain: amp = 1 - exp(-gain x departure from the optimum), the departure 0..1 over the way to the end
@@ -104,3 +105,6 @@ export const LABEL_SCREEN_H = 0.028;
 export const DIM_RENDER_ORDER = 880;
 export const FIELD_RENDER_ORDER = 890;
 export const LABEL_RENDER_ORDER = 960;
+
+/** A temperature value label is added at the view's focus when no isotherm label lies within this fraction of the region's edge of it. */
+export const FOCUS_LABEL_NEAR = 0.12;

@@ -96,6 +96,8 @@ export const CREATURE_SURFACE = { roughnessFloor: 0.42, roughnessVariation: 0.3,
  */
 export const BIRD_AIM = {
   tipLiftMm: 1.5, tipRadiusMm: 1.5, beakRadiusMm: 4, headLiftMm: 8, headRadiusMm: 13, ringsMm: [10, 20, 32, 48, 70, 100] as readonly number[], steps: 8,
+  /** A probe this high is free of everything (the field's margin cap); slack for tangent spheres; ring points may stand this much above the aim; sphere-trace steps. */
+  skyProbeMm: 100000, slackMm: 0.3, stepUpMm: 30, traceSteps: 16,
 };
 
 /** Spider comfort (GDD 08 §12): ring around abstract and marker spiders, arc for the wind-up, label. */

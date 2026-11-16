@@ -11,8 +11,10 @@ import {
   EVACUATE_FLOOD, QUEEN_HOME_SLACK_BU, QUEEN_REFUGE_TYPES, QUEEN_SEAT_OFFSET, ROOM_WAIT_FRAC,
 } from '@/sim/balance/nestwork';
 import { TYPE_CLIMATE_PREF } from '@/sim/balance/architect';
+import { FLEE_RESUME_MARGIN_BU, FLEE_WATER_DEPTH_BU } from '@/sim/balance/weather';
+import { depthOver, waterView } from '@/sim/nest/flood/dryPlace';
 import { recover, think } from './common';
-import { B, bbv, setState } from './fsm';
+import { B, bbv, setState, waitThink } from './fsm';
 import { chamberIn, floorPoint, homeNest, royalChamber } from './places';
 import { act, entity, travel } from './travel';
 
@@ -33,6 +35,36 @@ export function queenHome(nest: Nest, q: Ant): Chamber | undefined {
 
 function unsafe(sim: Sim, q: Ant, c: Chamber): boolean {
   return c.flooded >= EVACUATE_FLOOD || sim.phero.sample(q.colony, 'alarm', c.center) >= ALARM_STRONG;
+}
+
+/**
+ * Water over a floor point of the nest (her seat), mm; -Infinity when the nest is dry or the point is off its basin
+ * (the drowning rule's measure, flood/dryPlace.ts depthOver).
+ */
+function waterAt(sim: Sim, nest: Nest, p: { x: number; y: number; z: number }): number {
+  const w = waterView(sim, nest);
+  return w ? depthOver(sim, w, p, p.y) : -Infinity;
+}
+
+/** Her seat stands in water as deep as makes an ant flee (nest-fix3: a queen never waits in a puddle). */
+function wetAt(sim: Sim, nest: Nest, p: { x: number; y: number; z: number }): boolean {
+  return waterAt(sim, nest, p) >= FLEE_WATER_DEPTH_BU * sim.world.bu;
+}
+
+/** Water stands in the chamber or reaches its floor (a refuge from water must be dry, GDD 03 §11.3). */
+function wetChamber(sim: Sim, nest: Nest, c: Chamber): boolean {
+  return waterAt(sim, nest, { x: c.center.x, y: c.center.y - c.radii.y, z: c.center.z }) > -FLEE_RESUME_MARGIN_BU * sim.world.bu;
+}
+
+/** The dry chamber with the highest floor that may hold the queen (GDD 03 §11.3 "moves to the highest dry chamber"). */
+function highestDry(sim: Sim, q: Ant, nest: Nest, home: Chamber): Chamber | undefined {
+  let best: Chamber | undefined, bestY = -Infinity;
+  for (const c of nest.chambers) {
+    if (c.id === home.id || !QUEEN_REFUGE_TYPES.includes(c.type) || unsafe(sim, q, c) || wetChamber(sim, nest, c)) continue;
+    const y = c.center.y - c.radii.y;
+    if (y > bestY || (y === bestY && best && c.id < best.id)) { best = c; bestY = y; }
+  }
+  return best;
 }
 
 /** Piecewise-linear preference curve [x, value] (values beyond the end points hold). */
@@ -76,12 +108,17 @@ function relocationTarget(sim: Sim, q: Ant, nest: Nest, home: Chamber): { id: nu
     if (m.placedTick < bbv(q, 'bn.mq', -1)) continue; // a marker she already answered (or failed to reach)
     if (chamberIn(nest, m.targetChamberId)) return { id: m.targetChamberId, marker: true, emergency: false };
   }
+  floorPoint(home, QUEEN_SEAT_OFFSET, Math.PI, seat);
+  if (wetAt(sim, nest, seat)) {
+    const best = highestDry(sim, q, nest, home);
+    return best ? { id: best.id, marker: false, emergency: true } : null;
+  }
   if (unsafe(sim, q, home)) {
     const best = refuge(sim, q, nest, home);
     return best ? { id: best.id, marker: false, emergency: true } : null;
   }
   const royal = royalChamber(nest);
-  if (bbv(q, EMERGENCY, 0) === 1 && royal && royal.id !== home.id && !unsafe(sim, q, royal)) {
+  if (bbv(q, EMERGENCY, 0) === 1 && royal && royal.id !== home.id && !unsafe(sim, q, royal) && !wetChamber(sim, nest, royal)) {
     return { id: royal.id, marker: false, emergency: false };
   }
   return null;
@@ -101,6 +138,8 @@ function reside(sim: Sim, q: Ant): void {
   }
   floorPoint(home, QUEEN_SEAT_OFFSET, Math.PI, seat);
   const away = q.chamberId !== home.id || Math.hypot(q.pos.x - seat.x, q.pos.z - seat.z) > QUEEN_HOME_SLACK_BU * sim.world.bu;
+  // her seat under water and no dry chamber to move to: she stays where she is, dry (fleeWater.ts brought her here)
+  if (away && wetAt(sim, nest, seat)) { waitThink(sim, q); return; }
   if (away) {
     if (travel(sim, q, entity('point', -1, seat), sim.world.bu) === 'failed') recover(sim, q, ENTRY, 'stuck');
     return;

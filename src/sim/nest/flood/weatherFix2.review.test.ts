@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Entrance, Nest, Sim } from '@/sim/types';
 import { FLOOD_ANT_SUB_KEY, FLOOD_PREDICT_DRY_REBUILD_TICKS, FLOOD_PREDICT_TICKS, FLOOD_SUBMERGE_DEPTH_BU } from '@/sim/balance/weather';
-import { combatAlerts, noteQueenDamaged } from '@/sim/combat/alerts';
+import { combatAlerts, combatHoldsQueenAlert, noteQueenDamaged } from '@/sim/combat/alerts';
 import { makeTestSim } from '@/sim/testing';
 import { commandsSystem } from '@/sim/systems';
 import { TICKS_PER_SECOND } from '@/sim/time';
@@ -53,14 +53,15 @@ function drowningQueen(sim: Sim) {
 }
 
 describe('review finding 1: queen-in-danger shared with combat', () => {
-  it('combat clearing the card while she is under water: raised again at the next flood step', () => {
+  it('combat\'s clear while she is under water leaves the card up (nest-fix3 item 5), and it reads "rising water"', () => {
     const sim = floodSim();
     const { q } = drowningQueen(sim);
     expect(queenAlertUp(sim, q.id)).toBe(true);
     noteQueenDamaged(sim, q);
     q.bb['cb.qdT'] = sim.state.tick - 1000 * TICKS_PER_SECOND;
     combatAlerts(sim);
-    expect(queenAlertUp(sim, q.id)).toBe(false);
+    expect(combatHoldsQueenAlert(q)).toBe(false); // combat let go of its side ...
+    expect(queenAlertUp(sim, q.id)).toBe(true); // ... but did not take the card down: she is under water
     run(sim, 10);
     expect(queenAlertUp(sim, q.id)).toBe(true);
     const a = sim.state.progression.alerts.find((x) => x.kind === 'queen-in-danger' && x.subjectId === q.id)!;

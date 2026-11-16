@@ -4,7 +4,7 @@
 
 import { rngRange } from '@/core/rng';
 import type { FoodSource, HumanEventRun, Sim } from '@/sim/types';
-import { createSource } from '@/sim/ecology';
+import { createSource } from '@/sim/ecology/sources';
 import {
   GRASS_GROWTH_MM_GD, GRASS_MAX_MOWN_MM, GRASS_MAX_ROUGH_MM, GRASS_START_MOWN_MM, GRASS_START_ROUGH_MM, MOW_CUT_MM, MOW_REGROW_GD,
 } from '@/sim/balance/human';

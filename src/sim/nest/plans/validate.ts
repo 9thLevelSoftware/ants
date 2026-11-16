@@ -1,5 +1,7 @@
 // Plan validation (GDD 03 §7.3): a pure function of state and the request, in the GDD's check order. Player
 // plans get warnings for `undermines`, `too-close`, `foreign-nest`; architect / worldgen / rival plans are refused.
+// Founding plans (the first workers digging the plug open, colony/founding/reopen.ts) are validated like player
+// plans (nest-fix3 item 4b: a deep plug beside another cavity inside the wall minimum must still open).
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Nest, PlanSource, PlanSpec, PlanValidation, PlanValidationCode, Sim } from '@/sim/types';
@@ -49,7 +51,7 @@ export function validatePlanImpl(sim: Sim, spec: PlanSpec, source: PlanSource): 
   const nest = sim.stores.nests.get(spec.nestId);
   if (!nest || !spec.anchor) return fail('anchor-not-in-nest');
   const bu = sim.world.bu, v = sim.carve.voxel, species = planSpecies(sim, nest), t = nestTemplate(species);
-  const strict = source !== 'player';
+  const strict = source !== 'player' && source !== 'founding';
   // anchor-not-in-nest
   if (spec.kind !== 'entrance' && spec.kind !== 'seal' && spec.kind !== 'reopen' && !nearestNestOpen(sim, nest, spec.anchor.pos, ANCHOR_SNAP_BU * bu)) {
     return fail('anchor-not-in-nest');

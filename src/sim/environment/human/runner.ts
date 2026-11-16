@@ -7,7 +7,7 @@ import { rngChance, rngRange } from '@/core/rng';
 import type { HumanEventInst, HumanEventRun, Sim } from '@/sim/types';
 import { clearAlert, raiseAlert } from '@/sim/progression';
 import { removeItem } from '@/sim/entities';
-import { spawnHumanFood } from '@/sim/ecology';
+import { spawnHumanFood } from '@/sim/ecology/sources';
 import {
   BROOM_COLLECT_P, CAR_DEPART_P, CAR_DOOR_OFFSET_MM, CAR_EVENING_DAY_FRAC, CAR_LITTER_P, HUMAN_DELAY_S, HUMAN_MAX_CONCURRENT, HUMAN_NO_WEATHER, HUMAN_RAIN_STATES, MOW_DRY_GD, MOW_REEL_P,
   SWEEP_GATHER_ANTS, SWEEP_GATHER_CELL_MM, WATER_DRY_GD,

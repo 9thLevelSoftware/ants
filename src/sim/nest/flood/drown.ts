@@ -20,7 +20,7 @@ import {
 import { BROOD_RADIUS_BU } from '@/sim/balance/actions';
 import { killAnt, killBrood } from '@/sim/entities';
 import { TICKS_PER_SECOND } from '@/sim/time';
-import { floodRuntime, spillPeek } from './runtime';
+import { floodRuntime, spillForReaders } from './runtime';
 import { waterDepthOver, type SpillCache } from './spill';
 
 const NONE: ReadonlySet<number> = new Set();
@@ -159,7 +159,7 @@ export function isUnderWater(sim: Sim, p: { x: number; y: number; z: number }, f
   const need = FLOOD_SUBMERGE_DEPTH_BU * sim.world.bu, feetY = p.y - footOffset;
   for (const nest of sim.stores.nests.list) {
     if (!nest.alive || nest.flood.water <= 0 || nest.flood.level - feetY < need) continue;
-    const c = spillPeek(sim, nest.id);
+    const c = spillForReaders(sim, nest);
     if (c && deepEnough(sim, { cache: c, level: nest.flood.level }, p.x, p.y, p.z, feetY, need)) return true;
   }
   return submerged(sim, [], p.x, p.y, p.z, p.y - footOffset);

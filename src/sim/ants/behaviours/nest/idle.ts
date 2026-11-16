@@ -14,6 +14,7 @@ import {
 } from '@/sim/balance/nestwork';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { needsRest, recover, releaseAll, think } from './common';
+import { evacuationOpen } from './board';
 import { B, bbv, setState, waitThink } from './fsm';
 import { homeNest, restChamber } from './places';
 import { queenEnter, queenUpdate } from './queen';
@@ -40,6 +41,9 @@ const CX = 'bn.icx', CY = 'bn.icy', CZ = 'bn.icz';
 
 function idleStep(sim: Sim, ant: Ant): void {
   if (ant.carry.kind !== 'none') { act(sim, ant, 'put-down', null); return; }
+  // brood in rising water and not enough nurses to carry it out: every idle hand helps (GDD 03 §11.3)
+  const home = homeNest(sim, ant);
+  if (home && home.flood.water > 0 && evacuationOpen(sim, ant.colony, home.id)) { requestTask(sim, ant, 'nurse', 'alarm'); return; }
   if (needsRest(ant)) { setState(sim, ant, 'rest', 'fatigue'); return; }
   if (sim.state.tick - ant.stateTick > secondsToTicks(IDLE_CYCLE_S)) {
     // a whole cycle of wandering that left the ant where it was (locomotion could not move it: int-1B-sim saw idle

@@ -5,11 +5,9 @@
 // (one slot per flood step), so the passes of different mounds never stack on one tick.
 
 import type { Mound, Sim } from '@/sim/types';
-import { MOUND_BREACH_PROBE_BU } from '@/sim/balance/nest';
 import { EROSION_DEG_PER_I, EROSION_EVERY_TICKS, EROSION_MIN_I, FLOOD_STEP_TICKS } from '@/sim/balance/weather';
 import { moundMask, usableCell } from '../moundRelax';
 import { publishMound } from '../mounds';
-import { nestRuntime } from '../runtime';
 import { reposeDeg } from '../substrate';
 import { intensityAt } from './inflow';
 
@@ -17,47 +15,10 @@ const DX = [1, -1, 0, 0, 1, 1, -1, -1];
 const DZ = [0, 0, 1, -1, 1, -1, 1, -1];
 const DD = DX.map((x, i) => Math.hypot(x, DZ[i]));
 
-/**
- * Breach records near a mound grid (positions and radii): the mound mask probes around them, but the nest runtime's
- * mask cache is keyed on the breach COUNT only, so a breach replaced by another elsewhere leaves a stale mask (task
- * weather-fix2: stage1a.e2e (c) diverged after a restore because the uninterrupted game eroded with a cached mask
- * holding a hole column a fresh build no longer probes). Owner of the cache: nestops (reported).
- */
-function breachSignature(sim: Sim, m: Mound): string {
-  const half = ((m.n - 1) * m.cell) / 2, pad = MOUND_BREACH_PROBE_BU * sim.world.bu;
-  const x0 = m.centerX - half, z0 = m.centerZ - half, span = 2 * half;
-  let sig = '';
-  for (const b of sim.carve.breaches) {
-    const r = b.r + pad;
-    if (b.pos.x + r < x0 || b.pos.x - r > x0 + span || b.pos.z + r < z0 || b.pos.z - r > z0 + span) continue;
-    sig += `${b.pos.x},${b.pos.z},${b.r};`;
-  }
-  return sig;
-}
-
-/** Per Sim (derived, never persisted): the breach signature each mound's cached mask was last rebuilt for here. */
-const MASK_SIGS = new WeakMap<Sim, Map<number, string>>();
-
-/**
- * The mound's kept-clear mask as a fresh build would give it: the cached one, unless this runtime has not rebuilt
- * it yet or the breaches around the grid changed since (then the cached entry is dropped and rebuilt). A new
- * runtime (a restored game) rebuilds at its first pass, so both games erode with masks of the same state.
- */
-function currentMask(sim: Sim, m: Mound): ReturnType<typeof moundMask> {
-  let sigs = MASK_SIGS.get(sim);
-  if (!sigs) { sigs = new Map(); MASK_SIGS.set(sim, sigs); }
-  const sig = breachSignature(sim, m);
-  if (sigs.get(m.id) !== sig) {
-    nestRuntime(sim).moundMasks.delete(m.id);
-    sigs.set(m.id, sig);
-  }
-  return moundMask(sim, m);
-}
-
 /** One erosion pass over a mound at intensity I; returns the height moved, mm (summed transfers). */
 export function erodeMound(sim: Sim, m: Mound, intensity: number): number {
   if (intensity <= EROSION_MIN_I) return 0;
-  const mask = currentMask(sim, m);
+  const mask = moundMask(sim, m);
   const n = m.n, h = m.h, base = m.base;
   const angle = Math.max(1, reposeDeg(m.material) - EROSION_DEG_PER_I * intensity);
   const tan = Math.tan((angle * Math.PI) / 180) * m.cell;
