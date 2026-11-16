@@ -176,7 +176,7 @@ function registerOpening(sim: Sim, pos: Vec3, radius: number, cols: readonly num
   if (!nest) return;
   const e: Entrance = {
     id: sim.state.nextId++, kind: 'dug', status: 'open', pos, dir: terrainNormal(sim, pos.x, pos.z), radius,
-    moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0,
+    moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0, passSeen: false,
   };
   nest.entrances.push(e);
   linkMoundToEntrance(sim, nest, e);
@@ -336,7 +336,7 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
     // (founding-close request 3); one still being dug through (no passage yet) stays `reopening`
     else if (prev === 'reopening' && e.passSeen) next = 'sealed';
     if (next === 'reopening' && pass) e.passSeen = true;
-    else if (next !== 'reopening' && e.passSeen) delete e.passSeen;
+    else if (next !== 'reopening' && e.passSeen) e.passSeen = false;
   }
   e.plugVoxelCount = plug;
   if (next !== prev) setEntranceStatus(sim, nest, e, next);
@@ -512,23 +512,25 @@ export function unsealEntranceImpl(sim: Sim, entranceId: number, antId: number):
 
 /**
  * The entrance of a nest whose plug the workers should dig out now (GDD 03 §4.2 `reopening`: "plug being dug"; §13
- * "nanitics dig it"): `reopening`, or `sealing` with a passage (the rim a reopen leaves; "plug removed -> open"),
- * with plug voxels left in its throat, while nobody closes the nest on purpose (no live `seal` plan, no ant of the
- * colony running `seal-entrance`). Lowest id first; null when there is none. The founding module's reopen plans dig the passage;
- * plug voxels the plans leave keep the throat narrower than NAV_CLEAR (int-1B-sim: car-park-verge #3 stayed
- * `reopening` with 211 plug voxels for the rest of the run).
+ * "nanitics dig it"): `reopening` with plug voxels left in its throat, while nobody closes the nest on purpose (no
+ * live `seal` plan, no ant of the colony running `seal-entrance`). Lowest id first; null when there is none. The
+ * founding module's reopen plans dig the passage; plug voxels the plans leave keep the throat narrower than
+ * NAV_CLEAR (int-1B-sim: car-park-verge #3 stayed `reopening` with 211 plug voxels for the rest of the run).
+ * A `sealing` throat is never offered: an open entrance only goes `sealing` when a plug is added, i.e. somebody is
+ * closing it on purpose (a possessed ant pressing seal-entrance press by press, int-1B review), and §4.2 sends
+ * workers to a plug only on reopening.
  */
 export function entranceToUnplug(sim: Sim, nestId: number): Entrance | null {
   const nest = sim.stores.nests.get(nestId);
   if (!nest || !nest.alive) return null;
-  if (nest.digPlans.some((p) => p.kind === 'seal' && p.status !== 'complete' && p.status !== 'cancelled')) return null;
   let best: Entrance | null = null;
   for (const e of nest.entrances) {
-    if ((e.status !== 'reopening' && e.status !== 'sealing') || e.plugVoxelCount <= 0 || (best && e.id >= best.id)) continue;
+    if (e.status !== 'reopening' || e.plugVoxelCount <= 0 || (best && e.id >= best.id)) continue;
     best = e;
   }
   if (!best) return null;
-  // `sealing` is also the state of a throat being closed on purpose: never while an ant of the colony tamps a plug
+  if (nest.digPlans.some((p) => p.kind === 'seal' && p.status !== 'complete' && p.status !== 'cancelled')) return null;
+  // a player re-plugging a reopening throat by hand wins over the diggers (rare: only scanned while one exists)
   for (const a of sim.stores.ants.list) if (a.alive && a.colony === nest.colony && a.action?.id === 'seal-entrance') return null;
   return best;
 }

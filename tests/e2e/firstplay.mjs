@@ -16,8 +16,8 @@
 //   FIRSTPLAY_SHORT=1              the short run (portable build): title, new colony, intro, queen, workers, save
 import fs from 'node:fs';
 import {
-  clearPose, digBite, findSite, helpers, lastSeq, nestOf, ROOM_MAX_ROUNDS, SHAFT_DEPTH_BU, SHAFT_MAX_BITES, SHAFT_SLOPE_DEG,
-  SITE_MAX_R_BU, steerTo, walkDir,
+  clearPose, digBite, findSite, FULL_RUN_BEATS, growthVerdict, helpers, lastSeq, nestOf, ROOM_MAX_ROUNDS, SHAFT_DEPTH_BU,
+  SHAFT_MAX_BITES, SHAFT_SLOPE_DEG, SITE_MAX_R_BU, steerTo, walkDir,
 } from './lib/firstplay-steps.mjs';
 
 class Stop extends Error {}
@@ -30,6 +30,8 @@ export default async (ctx) => {
   const UNTIL = process.env.FIRSTPLAY_UNTIL ?? '';
   const SHORT = !!process.env.FIRSTPLAY_SHORT;
   const done = (name) => { if (UNTIL && name.startsWith(UNTIL)) throw new Stop(name); };
+  /** A complete run from a fresh game: every beat is required (not the short, resumed, cut or stand-in runs). */
+  const fullRun = () => !UNTIL && !SHORT && !process.env.FIRSTPLAY_RESUME && !result.standIns?.length;
   const click = async (id) => { await page.click(`[data-testid="${id}"]`, { timeout: 60000 }); await h.frames(2); };
   const consoleErrors = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
@@ -87,12 +89,21 @@ export default async (ctx) => {
       await step(85);
       expect(await phase() === 'search', 'dealation did not end in search', await phase());
       s = await summary();
+      // framing as the look reference (docs/research/spike-look-img/high-midday.png): the ant in the lower middle, one
+      // body length spanning at least 13 % of the frame width (the reference ant's body is about 170 px of 1280)
       const camQueen = await g(() => {
-        const gm = window.__game, p = gm.summary().possessed, scr = gm.views.project({ x: p.pos[0], y: p.pos[1], z: p.pos[2] });
-        return { scr, w: innerWidth, h: innerHeight, cam: gm.camera.state(), clear: gm.camera.clearance() };
+        const gm = window.__game, p = gm.summary().possessed, a = gm.query.ant(p.id), L = a.lengthBu * gm.query.world().bu;
+        const c = gm.camera.pose(), d = c.dir, u = c.up;
+        const r = { x: d.y * u.z - d.z * u.y, y: d.z * u.x - d.x * u.z, z: d.x * u.y - d.y * u.x }, rl = Math.hypot(r.x, r.y, r.z) || 1;
+        const pos = { x: p.pos[0], y: p.pos[1], z: p.pos[2] };
+        const scr = gm.views.project(pos);
+        const edge = gm.views.project({ x: pos.x + (r.x / rl) * L / 2, y: pos.y + (r.y / rl) * L / 2, z: pos.z + (r.z / rl) * L / 2 });
+        const lengthPx = scr && edge ? 2 * Math.hypot(edge.x - scr.x, edge.y - scr.y) : 0;
+        return { scr, lengthPx: Math.round(lengthPx), w: innerWidth, h: innerHeight, cam: gm.camera.state(), clear: gm.camera.clearance() };
       });
       result.checks.queenFraming = camQueen;
-      expect(camQueen.scr && camQueen.scr.x > 0.25 * camQueen.w && camQueen.scr.x < 0.75 * camQueen.w && camQueen.scr.y > 0.35 * camQueen.h, 'the queen is not in the lower middle of the frame', camQueen);
+      expect(camQueen.scr && camQueen.scr.x > 0.3 * camQueen.w && camQueen.scr.x < 0.7 * camQueen.w && camQueen.scr.y > 0.55 * camQueen.h, 'the queen is not in the lower middle of the frame', camQueen);
+      expect(camQueen.lengthPx >= 0.13 * camQueen.w, 'the queen is small in the frame (a body length under 13 % of the width)', camQueen);
       expect(camQueen.clear && camQueen.clear.f > 0, 'the possession camera is inside solid', camQueen.clear);
       await beat('04-queen-surface');
       done('04');
@@ -303,6 +314,11 @@ export default async (ctx) => {
   }
   result.consoleErrors = consoleErrors;
   expect(consoleErrors.length === 0, 'console errors', consoleErrors);
+  if (fullRun()) {
+    const missing = FULL_RUN_BEATS.filter((b) => !result.beats.includes(b));
+    expect(missing.length === 0, 'beats missing from a full run', missing);
+  }
+  expect(!result.failures?.length, 'failed checks', result.failures);
   log('result', JSON.stringify(result));
   return result;
 };
@@ -380,7 +396,8 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   let s = await summary();
   expect(s.possessed?.id === worker, 'possessing the worker failed', s.possessed);
   // walk to the food along the trail (sample the scent on the way: she is on the trail)
-  let onTrail = 0, samples = 0;
+  // beat 14 is shot on the first sample on scent with the food still ahead (> 3 BU), else on arrival: never skipped
+  let onTrail = 0, samples = 0, trailShot = null;
   for (let i = 0; i < 80; i++) {
     const p = (await summary()).possessed.pos;
     const d = Math.hypot(food.pos.x - p[0], food.pos.z - p[2]);
@@ -388,11 +405,13 @@ async function colonyBeats(h, result, { page, click, done, log }) {
     await g((v) => window.__game.setIntent({ dir: v }), { x: (food.pos.x - p[0]) / d, y: 0, z: (food.pos.z - p[2]) / d });
     await step(5);
     samples++;
-    if ((await g((q) => window.__game.query.scent(q[0], q[1], q[2]), p)) > 0) onTrail++;
-    if (i === 12) await beat('14-worker-following-trail');
+    const scented = (await g((q) => window.__game.query.scent(q[0], q[1], q[2]), p)) > 0;
+    if (scented) onTrail++;
+    if (!trailShot && scented && d > 3 * bu) { await beat('14-worker-following-trail'); trailShot = { sample: samples, distBu: Math.round((d / bu) * 10) / 10 }; }
   }
+  if (!trailShot) { await beat('14-worker-following-trail'); trailShot = { sample: samples, distBu: null, fallback: 'at the food' }; }
   await g(() => window.__game.setIntent({}));
-  result.checks.trailWalk = { onTrail, samples };
+  result.checks.trailWalk = { onTrail, samples, shot: trailShot };
   const before = await g((id) => { const a = window.__game.query.ant(id); return { c: a.cropC, p: a.cropP }; }, worker);
   await g((f) => window.__game.act({ action: 'harvest-liquid', target: { kind: 'source', id: f.id, pos: f.pos } }), food);
   for (let i = 0; i < 20; i++) { await step(10); if (!(await g((id) => window.__game.query.ant(id)?.action, worker))) break; }
@@ -524,7 +543,12 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   result.checks.digPlan = { placed, preview: pv?.preview ? { validity: pv.preview.validity, codes: pv.preview.codes } : null };
   expect(placed, 'no dig plan placed off the founding cell', result.checks.digPlan);
   await step(30);
+  // the shot: closer, so the nest's rooms read (named and outlined on the cut), the marker ring entering the frame
+  const mid = { x: c0.x + 0.3 * (food.pos.x - c0.x), z: c0.z + 0.3 * (food.pos.z - c0.z) };
+  await g((o) => window.__game.views.colonyCamera(o), { x: mid.x, z: mid.z, distBu: 36, pitchDeg: 62, yawDeg: 20, cutaway: 'slice', planeYBu: c0.y / bu + 0.5, radiusBu: 50 });
   await beat('20-colony-slice-marker-plan', [], { settle: 1 });
+  result.checks.sliceLabels = (await g(() => window.__game.views.markerLabels())).map((l) => l.text);
+  expect(result.checks.sliceLabels.length > 0, 'the colony slice names no chamber', result.checks.sliceLabels);
   done('20');
 
   // ---- 17. days 2 and 3 at 8x with the HUD showing growth -------------------------------------------------------------------
@@ -533,14 +557,17 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const sp8 = (await summary()).time;
   expect(sp8.speed === 8, '8x refused while observing', sp8);
   const growth = [await g(() => window.__game.query.growth())];
-  const dayOf = () => g(() => window.__game.summary().time.day ?? null);
+  const dayOf = () => g(() => { const t = window.__game.summary().time; return `${t.season} ${t.dayOfSeason}`; });
+  const dayStart = await dayOf();
   for (let d = 0; d < 2; d++) {
     await step(6000);
     growth.push(await g(() => window.__game.query.growth()));
     await g(({ a, l }) => window.__game.camera.setPose(a, l), await clearPose(h, ent.pos, 12, 20));
     await beat(`2${1 + d}-day-${d + 2}-8x`, ['hud-root']);
   }
-  result.checks.days = { growth, day: await dayOf() };
+  result.checks.days = { from: dayStart, to: await dayOf(), ...growthVerdict(growth) };
+  // checked after the remaining beats (the save / continue beats still run and are shot), failing the run at the end
+  if (!result.checks.days.grew) (result.failures ??= []).push(`no growth over game days 2-3 at 8x: ${JSON.stringify(result.checks.days)}`);
   done('22');
 
   // ---- 18. pause menu -> save -> return to title -> continue -> the same state ----------------------------------------------

@@ -3,7 +3,7 @@
 // reason text, and highlight rings. Pure (reads sim state; no three).
 import type { Vec3 } from '@/core';
 import type { MarkerLabel, MarkerLineSet, MarkerPointSet, MarkerSceneDesc } from '@/render/fx/markers/MarkerRenderer';
-import { CHAMBER_LABEL_COLOR, GHOST_FILL_OPACITY, GHOST_STYLE, HOVER_COLOR, MARKER_COLOR, PLAN_STYLE, SELECT_COLOR, XRAY_DOTS } from '@/render/fx/markers/palette';
+import { GHOST_FILL_OPACITY, GHOST_STYLE, HOVER_COLOR, MARKER_COLOR, PLAN_STYLE, SELECT_COLOR, XRAY_DOTS } from '@/render/fx/markers/palette';
 import { pushCapsule, pushEllipse, pushEllipsoid, pushGroundRing, pushHatch } from '@/render/fx/markers/shapes';
 import type { NestGhost } from '@/render/nest';
 import { planCache } from '@/sim/nest/plans/targets';
@@ -11,6 +11,7 @@ import type { PlanGeometry } from '@/sim/nest/plans/geometry';
 import type { Sim } from '@/sim/types';
 import type { PickTarget } from '../picking/entityPick';
 import type { PlanPreview } from './digPlanner';
+import { chamberOverlay } from './chamberOverlay';
 import { playerNest } from './digPlanner';
 
 export interface MarkerSceneInput {
@@ -24,8 +25,10 @@ export interface MarkerSceneInput {
   tunnelStart: Vec3 | null;
   hover: PickTarget | null;
   selected: PickTarget | null;
-  /** Colony cutaway mode: x-ray adds ant / brood dots and chamber labels (GDD 01 §6.7). */
+  /** Colony cutaway mode: x-ray adds ant / brood dots (GDD 01 §6.7); slice and x-ray name the chambers. */
   cutaway?: 'off' | 'slice' | 'xray';
+  /** Slice plane height, mm (the slice outlines the chambers it cuts). */
+  slicePlaneY?: number | null;
 }
 
 /** Lift of surface rings above the ground, BU. */
@@ -129,13 +132,16 @@ export function buildMarkerScene(p: MarkerSceneInput): MarkerSceneDesc {
   }
   const points: MarkerPointSet[] = [];
   const xray = p.colony && p.cutaway === 'xray';
-  if (xray) xrayOverlay(sim, points, labels, keyParts);
+  if (xray) xrayOverlay(sim, points, keyParts);
+  if (p.colony && (p.cutaway === 'xray' || p.cutaway === 'slice')) {
+    keyParts.push(...chamberOverlay({ sim, mode: p.cutaway, planeY: p.cutaway === 'slice' ? p.slicePlaneY ?? null : null }, lines, labels));
+  }
   // x-ray dots follow the ants: they alone change every tick
   return { version: keyParts.join('|'), lines, labels, volumes, points, pointsVersion: xray ? `x${sim.state.tick}` : '' };
 }
 
-/** X-ray: the colony's ants and brood inside the soil as dots, and every chamber labelled with its type. */
-function xrayOverlay(sim: Sim, points: MarkerPointSet[], labels: MarkerLabel[], key: (string | number)[]): void {
+/** X-ray: the colony's ants and brood inside the soil as dots (the chambers are named by chamberOverlay). */
+function xrayOverlay(sim: Sim, points: MarkerPointSet[], key: (string | number)[]): void {
   const col = sim.state.colonies[0]?.id ?? -1;
   const ants: number[] = [], queens: number[] = [], brood: number[] = [];
   for (const a of sim.state.ants) {
@@ -145,13 +151,6 @@ function xrayOverlay(sim: Sim, points: MarkerPointSet[], labels: MarkerLabel[], 
   for (const b of sim.state.brood) if (b.alive && b.carriedBy < 0 && sim.field.substrate(b.pos) < 0) brood.push(b.pos.x, b.pos.y, b.pos.z);
   points.push({ positions: brood, ...XRAY_DOTS.brood }, { positions: ants, ...XRAY_DOTS.ant }, { positions: queens, ...XRAY_DOTS.queen });
   key.push('x');
-  for (const n of sim.state.nests) {
-    if (n.colony !== col) continue;
-    for (const c of n.chambers) {
-      labels.push({ pos: { x: c.center.x, y: c.center.y + c.radii.y, z: c.center.z }, text: c.type, color: CHAMBER_LABEL_COLOR });
-      key.push(c.id, c.type);
-    }
-  }
 }
 
 function chamberRadius(sim: Sim, id: number): number {

@@ -13,9 +13,11 @@ export function trailCellsOf(sim: Sim): number {
   return n;
 }
 
-/** Workers carrying something, with a loaded crop, outside; live dig plans. */
-export function midLifeReadout(sim: Sim): { carrying: number; cropLoaded: number; outside: number; livePlans: number } {
-  let carrying = 0, cropLoaded = 0, outside = 0, livePlans = 0;
+/** Workers carrying something, with a loaded crop, outside; live dig plans; larvae, and larvae that were fed. */
+export function midLifeReadout(sim: Sim): {
+  carrying: number; cropLoaded: number; outside: number; livePlans: number; larvae: number; larvaeFed: number;
+} {
+  let carrying = 0, cropLoaded = 0, outside = 0, livePlans = 0, larvae = 0, larvaeFed = 0;
   for (const a of sim.state.ants) {
     if (!a.alive || a.caste === 'queen') continue;
     if (a.carry.kind !== 'none') carrying++;
@@ -23,5 +25,10 @@ export function midLifeReadout(sim: Sim): { carrying: number; cropLoaded: number
     if (a.nestId < 0) outside++;
   }
   for (const n of sim.state.nests) for (const p of n.digPlans) if (p.status !== 'complete' && p.status !== 'cancelled') livePlans++;
-  return { carrying, cropLoaded, outside, livePlans };
+  for (const b of sim.state.brood) {
+    if (!b.alive || b.stage !== 'larva') continue;
+    larvae++;
+    if (b.fedC + b.fedP > 0) larvaeFed++;
+  }
+  return { carrying, cropLoaded, outside, livePlans, larvae, larvaeFed };
 }

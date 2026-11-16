@@ -151,6 +151,14 @@ export const ALARM_FIGHT_DEPOSIT_EVERY_TICKS = 10;
 
 /** Recognition distance (antennal contact), L. */
 export const RECOGNITION_L = 1.0;
+/**
+ * Encounter-scan presence grid (combat/recruit.ts, performance only, int-1B-sim): plan-view cell, BU (several
+ * recognition ranges; coarse is fine, the test is conservative); extra reach beyond the scan radius, BU (ants move
+ * a little within the combat pass); colonies tracked as mask bits before the grid gives up and every scan runs.
+ */
+export const PRESENCE_CELL_BU = 8;
+export const PRESENCE_MARGIN_BU = 2;
+export const PRESENCE_MAX_COLONIES = 30;
 /** Awareness distance of a fighting ant looking for a hostile, L; while alarmed, ALERT_AWARE_L. */
 export const AWARE_L = 3;
 export const ALERT_AWARE_L = 6;

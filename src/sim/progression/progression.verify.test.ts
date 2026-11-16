@@ -181,6 +181,9 @@ describe('diagnostics registry edge cases (regression)', () => {
 describe('deaths and last ants (regression)', () => {
   it('last-ants: critical at <= 3 living ants, cleared above, never raised for 0', () => {
     const sim = makeProgSim({ workers: 4 }); // 4 workers + queen
+    // an established colony: the test world's opening record is still at its intro card, and last-ants is never
+    // raised while the opening runs (founding-close request 2; int-1B review)
+    sim.state.player.opening!.phase = 'done'; sim.state.player.opening!.done = true;
     pollOnce(sim);
     expect(sim.state.progression.alerts.some((a) => a.kind === 'last-ants')).toBe(false);
     for (const a of workersOf(sim).slice(0, 2)) killAnt(sim, a.id, 'cold');

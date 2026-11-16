@@ -38,9 +38,18 @@ function emptyEvents(): DayEvents {
 
 const bump = (r: Record<string, number>, k: string, n = 1): void => { r[k] = (r[k] ?? 0) + n; };
 
+/** Is the plan one of the player colony's nests' plans? */
+function playerPlan(sim: Sim, planId: number): boolean {
+  const col = sim.state.player.colonyId;
+  return sim.state.nests.some((n) => n.alive && n.colony === col && n.digPlans.some((p) => p.id === planId));
+}
+
 /** Counts the player colony's events into `day` (reset by the caller at each day boundary). */
 export class EventCounter {
   day: DayEvents = emptyEvents();
+  /** Plans of the player's nests seen created, and pellets its ants made (to attribute completions and dumps). */
+  private readonly myPlans = new Set<number>();
+  private readonly myPellets = new Set<number>();
   constructor(private readonly sim: Sim) {
     const col = (): number => sim.state.player.colonyId;
     const mine = (antId: number): boolean => sim.stores.ants.get(antId)?.colony === col();
@@ -54,12 +63,19 @@ export class EventCounter {
     });
     on('ant-died', (e) => { if (e.colonyId === col()) bump(this.day.deathsByCause, `${e.caste}:${e.cause}`); });
     on('brood-died', (e) => { if (e.colonyId === undefined || e.colonyId === col()) bump(this.day.broodDeathsByCause, `${e.stage}:${e.cause}`); });
-    on('egg-laid', () => { this.day.eggsLaid++; });
+    // rival colonies lay, plan and dig too (Stage 1B): every count below is filtered to the player colony
+    on('egg-laid', (e) => {
+      const brood = sim.stores.brood.get(e.broodId);
+      if (brood ? brood.colony === col() : mine(e.queenId)) this.day.eggsLaid++;
+    });
     on('ant-eclosed', (e) => { if (e.colonyId === col()) this.day.eclosions++; });
-    on('plan-created', () => { this.day.plansCreated++; });
-    on('plan-complete', () => { this.day.plansCompleted++; });
-    on('pellet-created', (e) => { if (mine(e.antId)) this.day.pelletsMade++; });
-    on('pellet-dumped', () => { this.day.pelletsDumped++; });
+    on('plan-created', (e) => {
+      if (!playerPlan(sim, e.planId)) return;
+      this.myPlans.add(e.planId); this.day.plansCreated++;
+    });
+    on('plan-complete', (e) => { if (this.myPlans.delete(e.planId) || playerPlan(sim, e.planId)) this.day.plansCompleted++; });
+    on('pellet-created', (e) => { if (mine(e.antId)) { this.myPellets.add(e.itemId); this.day.pelletsMade++; } });
+    on('pellet-dumped', (e) => { if (this.myPellets.delete(e.itemId)) this.day.pelletsDumped++; });
     on('trail-established', (e) => { if (e.colonyId === col()) this.day.trailsEstablished++; });
     on('action-failed', (e) => { if (mine(e.antId)) bump(this.day.actionFailures, `${e.action}:${e.reason}`); });
   }
@@ -156,6 +172,8 @@ export interface DayState {
   needRateC?: number;
   needRateP?: number;
   yieldPerForager?: number;
+  /** Mean temperature of the chambers holding brood (else the royal / founding cell) at the day end, C; null none. */
+  broodTempC?: number | null;
 }
 
 export function readState(sim: Sim, day: number, season: string): DayState {
@@ -176,15 +194,19 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     if (!b.alive || b.colony !== s.player.colonyId) continue;
     if (b.stage === 'egg') eggs++; else if (b.stage === 'larva') { larvae++; hunger += b.hunger; } else if (b.stage === 'pupa') pupae++;
   }
-  const bu3 = sim.world.bu ** 3;
   const chambers: Record<string, number> = {};
-  let volume = 0, open = 0, pellets = 0;
+  let volume = 0, open = 0, pellets = 0, broodT = 0, broodN = 0, cellT = 0, cellN = 0;
   for (const n of sim.stores.nests.list) {
     if (!n.alive || n.colony !== s.player.colonyId) continue;
     volume += n.volumeOpen;
-    for (const c of n.chambers) bump(chambers, c.type);
+    for (const c of n.chambers) {
+      bump(chambers, c.type);
+      if (c.occupancy.brood > 0) { broodT += c.temp; broodN++; }
+      if (c.type === 'royal' || c.type === 'founding') { cellT += c.temp; cellN++; }
+    }
     for (const e of n.entrances) if (e.status === 'open') open++;
   }
+  const broodTempC = broodN > 0 ? round(broodT / broodN) : cellN > 0 ? round(cellT / cellN) : null;
   const mine = new Set(sim.stores.nests.list.filter((n) => n.alive && n.colony === s.player.colonyId).map((n) => n.id));
   for (const it of sim.stores.items.list) {
     if (it.alive && it.kind === 'soil-pellet' && mine.has(it.nestId) && it.carrierIds.length === 0) pellets++;
@@ -194,9 +216,10 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     meanLarvalHunger: larvae > 0 ? round(hunger / larvae) : 0,
     storesC: round(col?.stores.c ?? 0), storesP: round(col?.stores.p ?? 0), starvationStage: col?.starvationStage ?? '-',
     layPotential: round(col?.core?.acc['lay.potential'] ?? 0),
-    nestVolumeBu3: round(volume / bu3), chambers, entrancesOpen: open, pelletsInNest: pellets,
+    nestVolumeBu3: round(volume), chambers, entrancesOpen: open, pelletsInNest: pellets,
     trailCells: trailCells(sim), outside, byState, byTask,
     needRateC: round(col?.needs.rateC ?? 0), needRateP: round(col?.needs.rateP ?? 0), yieldPerForager: round(col?.yieldPerForager ?? 0),
+    broodTempC,
   };
 }
 

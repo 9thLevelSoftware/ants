@@ -118,6 +118,8 @@ export const PELLET_TAMP_S = 1200;
  * founding throat were sealed in by the plug, and haulers walked at them for days).
  */
 export const ITEM_BURIED_BU = 0.3;
+/** How far up a pellet buried under tamping fill (LOOSE, not a plug) is searched for the risen floor, BU (tamp.ts). */
+export const BURIED_LIFT_BU = 2;
 /** Tamping spreads the volume over floor voxels within this radius, BU (then the fallback radius). */
 export const TAMP_RADIUS_BU = 1.0;
 export const TAMP_RADIUS_FALLBACK_BU = 1.5;

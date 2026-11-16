@@ -36,7 +36,7 @@ export function createNest(ctx: EntityCtx, o: CreateNestOptions): Nest {
     founding: o.founding
       ? { state: 'site-search', readiness: 0, cavitySeed: copyV(o.origin), abandoned: [], readyTick: -1, sealedTick: -1 }
       : null,
-    collapse: [], volumeOpen: 0,
+    collapse: [], volumeOpen: 0, detectDue: true,
   };
   applyInit(nest, o.init);
   ctx.stores.nests.add(nest);

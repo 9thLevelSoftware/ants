@@ -60,4 +60,6 @@ export interface Brood {
    * diapause (exit). Additive (colony-core).
    */
   diapauseTicks?: number;
+  /** Continuous seconds under flood water (GDD 03 §11.3: dies at BROOD_DROWN_S). Additive (weather-effects); absent = 0. */
+  submergedS?: number;
 }

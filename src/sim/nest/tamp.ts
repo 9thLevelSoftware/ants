@@ -13,33 +13,16 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Item, Nest, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import {
-  ITEM_BURIED_BU, PELLET_BULK_PER_BU3, PELLET_TAMP_S, TAMP_MIN_HEADROOM_BU, TAMP_PASSAGE_GREEDY_MAX, TAMP_RADII_BU, TAMP_RETRY_S, TAMP_ROUNDS,
-  TAMP_SPHERE_BU,
+  BURIED_LIFT_BU, ITEM_BURIED_BU, PELLET_BULK_PER_BU3, TAMP_MIN_HEADROOM_BU, TAMP_PASSAGE_GREEDY_MAX, TAMP_RADII_BU,
+  TAMP_ROUNDS, TAMP_SPHERE_BU,
 } from '@/sim/balance/nest';
 import { removeItem } from '@/sim/entities';
-import { TICKS_PER_SECOND } from '@/sim/time';
 import { OPEN_FRACTION, OPEN_MIN } from './carve/keys';
 import { fillSphere, forChangedSamples, readBox, sphereBox } from './carveOps';
-import { isPellet, pelletNest } from './pellets';
+import { pelletNest } from './pellets';
 import { fillKeepsPassages } from './passage';
 import { nestRuntime } from './runtime';
 import { packSample, sampleI, sampleJ, sampleK } from './voxelKey';
-
-/**
- * Untouched clutter and spoil-pile pellets are pressed into the floor at PELLET_TAMP_S of age, and those that did
- * not fit (the passage rule) again every TAMP_RETRY_S after that. The schedule is a function of the drop tick
- * alone, so a retried pellet keeps its age (and its full haul urgency, pelletHaulUrgency).
- */
-export function tampDuePellets(sim: Sim): void {
-  const age = PELLET_TAMP_S * TICKS_PER_SECOND, retry = TAMP_RETRY_S * TICKS_PER_SECOND, now = sim.state.tick;
-  const list = sim.stores.items.list;
-  for (let n = 0; n < list.length; n++) {
-    const it = list[n];
-    if (!it.alive || !isPellet(it) || !it.inNest || it.carrierIds.length > 0 || it.reservedBy >= 0) continue;
-    const elapsed = now + 1 - it.droppedTick; // ticks elapsed when this tick ends
-    if (elapsed >= age && (elapsed - age) % retry === 0) tampPellet(sim, it);
-  }
-}
 
 /** Share of a pellet's volume a tamp may leave unplaced and still count as complete (fill rounding). */
 const TAMP_DONE_SHARE = 0.01;
@@ -49,20 +32,25 @@ const TAMP_DONE_SHARE = 0.01;
  * below) lose openness evenly and are flagged LOOSE; the floor rises. Passage rule: the fill never splits the open
  * space around it, plainly or as passages tampPassageSamples across (passage.ts); the radii of TAMP_RADII_BU are
  * tried in turn. A pellet whose volume finds no room keeps what is left, lying where it is, and is tried again
- * every TAMP_RETRY_S (tampDuePellets), so unhauled spoil narrows tunnels to a squeeze but never closes one (GDD 03
+ * every TAMP_RETRY_S (tampRetry.ts tampDuePellets), so unhauled spoil narrows tunnels to a squeeze but never closes one (GDD 03
  * §5.1 walkable >= 1.5 BU; §5.3 N1 every chamber keeps its path to an entrance). Returns true when the pellet is
  * gone.
  */
 export function tampPellet(sim: Sim, it: Item): boolean {
   const bu3 = sim.world.bu ** 3;
-  // a pellet a plug closed over (buried inside a plug's solid soil) is part of that plug already; pellets that other
-  // pellets' tamping covered keep the passage rule's retry (they lie in LOOSE fill, not PLUG)
-  const v = sim.carve.voxel;
-  const plugged = (nestRuntime(sim).flags.get(Math.round(it.pos.x / v), Math.round(it.pos.y / v), Math.round(it.pos.z / v)) & VoxelFlag.PLUG) !== 0;
-  if (plugged && sim.field.sample(it.pos) < -ITEM_BURIED_BU * sim.world.bu) {
-    removeItem(sim, it.id, 'tamp');
-    sim.emit({ type: 'pellet-dumped', itemId: it.id, into: 'tamp' });
-    return true;
+  // a pellet buried inside solid soil (places.ts onSurface: deeper than ITEM_BURIED_BU, no hauler can reach it):
+  // under a plug it is part of that plug already and is absorbed; under the fill of other pellets' tamping (LOOSE,
+  // the floor rose around a heap) it rides up onto the new floor, where haulers and the next tamp can reach it
+  // (int-1B review: such a pellet was never hauled, never absorbed, and kept its volume out of the passage rule)
+  if (sim.field.sample(it.pos) < -ITEM_BURIED_BU * sim.world.bu) {
+    const v = sim.carve.voxel;
+    const plugged = (nestRuntime(sim).flags.get(Math.round(it.pos.x / v), Math.round(it.pos.y / v), Math.round(it.pos.z / v)) & VoxelFlag.PLUG) !== 0;
+    if (plugged) {
+      removeItem(sim, it.id, 'tamp');
+      sim.emit({ type: 'pellet-dumped', itemId: it.id, into: 'tamp' });
+      return true;
+    }
+    if (!liftToFloor(sim, it)) return false; // nothing open above it within reach: it stays (retried)
   }
   const closed = raiseFloor(sim, it.pos, it.volume * bu3, tampPassageSamples(sim, pelletNest(sim, it))) / bu3;
   if (closed >= it.volume * (1 - TAMP_DONE_SHARE)) {
@@ -72,6 +60,20 @@ export function tampPellet(sim: Sim, it: Item): boolean {
   }
   it.volume -= closed;
   it.bulk = PELLET_BULK_PER_BU3 * it.volume;
+  return false;
+}
+
+/**
+ * Moves a buried pellet straight up onto the floor above it: the first point, in half-voxel steps up to
+ * BURIED_LIFT_BU, where the field is free (>= 0). False (unchanged) when there is none.
+ */
+function liftToFloor(sim: Sim, it: Item): boolean {
+  const step = sim.carve.voxel / 2, max = BURIED_LIFT_BU * sim.world.bu;
+  const p = { x: it.pos.x, y: it.pos.y, z: it.pos.z };
+  for (let d = step; d <= max; d += step) {
+    p.y = it.pos.y + d;
+    if (sim.field.sample(p) >= 0) { it.pos.y = p.y; return true; }
+  }
   return false;
 }
 

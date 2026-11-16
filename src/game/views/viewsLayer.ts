@@ -6,7 +6,7 @@
 import type { PerspectiveCamera, Scene } from 'three';
 import type { InputState } from '@/input';
 import type { HighlightRef, RenderRegistry } from '@/render';
-import { MarkerRenderer } from '@/render/fx/markers/MarkerRenderer';
+import { MarkerRenderer, type MarkerSceneDesc } from '@/render/fx/markers/MarkerRenderer';
 import type { NestGhost, NestPick } from '@/render/nest';
 import type { ChamberType, Command, Sim } from '@/sim/types';
 import type { GameSession } from '../session';
@@ -51,6 +51,8 @@ export class ViewsLayer {
   followCreatureId = -1;
   lastPick: ScenePick | null = null;
   private markers: MarkerRenderer | null = null;
+  /** What the marker renderer drew last (debug read-out: labels of the colony view). */
+  lastMarkerScene: MarkerSceneDesc | null = null;
   private nest: NestLike | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private appliedHover: HighlightRef | null = null;
@@ -167,11 +169,13 @@ export class ViewsLayer {
     if (view !== 'colony' && st.tool) selectTool(st, this.tools, null);
     this.feedCreature(s);
     this.applyHighlights();
-    this.markers?.update(buildMarkerScene({
+    this.lastMarkerScene = buildMarkerScene({
       sim: s.sim, colony: view === 'colony', selectedMarkerId: this.tools.markers.selectedId, selectedPlanId: st.selectedPlanId,
       preview: view === 'colony' && plannerActive(st) ? this.tools.planner.preview : null, tunnelStart: this.tools.planner.tunnelStart?.pos ?? null,
       hover: view === 'possess' ? null : st.hover, selected: st.selected, cutaway: view === 'colony' ? s.views.colony.cutaway.mode : 'off',
-    }));
+      slicePlaneY: view === 'colony' ? s.views.colony.cutaway.planeY : null,
+    });
+    this.markers?.update(this.lastMarkerScene);
   }
 
   /** Esc in the colony view: cancels the active tool / ghost first (GDD 01 §5.4); true when it was used. */

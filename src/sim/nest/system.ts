@@ -12,7 +12,7 @@ import { checkEntrances, flushClosedEntrances, processNewBreaches } from './entr
 import { flagNaturalPreCarves } from './naturalCavities';
 import { checkRoyal, detectNestChambers, updateMicroclimate, updateOccupancy } from './chambers/upkeep';
 import { moundBatches } from './moundBatch';
-import { tampDuePellets } from './tamp';
+import { tampDuePellets } from './tampRetry';
 import { dropOldPlans, updatePlan } from './plans/plans';
 import { ensureNestFields } from './navFields';
 import { takeNestDirty } from './runtime';

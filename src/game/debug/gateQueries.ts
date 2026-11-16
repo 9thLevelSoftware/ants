@@ -15,6 +15,15 @@ export function registerGateQueries(): void {
   /** Alive brood of the player colony: id, stage, position (mm). */
   registerQuery('broodList', (sim: Sim) => sim.state.brood.filter((b) => b.alive && b.colony === (sim.state.colonies[0]?.id ?? -1))
     .map((b) => ({ id: b.id, stage: b.stage, pos: v3(b.pos), carriedBy: b.carriedBy })));
+  /** Loose soil pellets: how many lie in the soil (nest cavities: substrate below them) and how many on the surface. */
+  registerQuery('pellets', (sim: Sim) => {
+    let underground = 0, surface = 0;
+    for (const it of sim.state.items) {
+      if (!it.alive || it.kind !== 'soil-pellet' || it.carrierIds.length > 0) continue;
+      if (sim.field.substrate(it.pos) < -sim.world.bu) underground++; else surface++;
+    }
+    return { underground, surface };
+  });
   /** Trail (or another channel's) scent of the player colony at a point. */
   registerQuery('scent', (sim: Sim, ...a: unknown[]) => {
     const [x, y, z, channel] = a as [number, number, number, 'trail' | 'home' | 'alarm' | undefined];

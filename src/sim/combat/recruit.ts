@@ -4,7 +4,9 @@
 // reached θ_fight: recruited toward the attacker (if known) or the alarm point, within the colony's recruit cap.
 
 import type { Ant, Colony, Sim } from '@/sim/types';
-import { COMBAT_SCAN_EVERY, ENCOUNTER_REROLL_S, RECOGNITION_L } from '@/sim/balance/combat';
+import {
+  COMBAT_SCAN_EVERY, ENCOUNTER_REROLL_S, PRESENCE_CELL_BU, PRESENCE_MARGIN_BU, PRESENCE_MAX_COLONIES, RECOGNITION_L,
+} from '@/sim/balance/combat';
 import { alarmSource } from './alarm';
 import { attackChance, canFight, fightThreshold, protectedQueen, recruitCap, retreatReason } from './engage';
 import { startFight, startRetreat } from './fight';
@@ -70,21 +72,19 @@ function reactToHit(sim: Sim, ant: Ant): boolean {
  */
 interface Presence { tick: number; cell: number; masks: Map<number, number>; bits: Map<number, number>; overflow: boolean }
 const PRESENCE = new WeakMap<Sim, Presence>();
-/** Presence grid cell, BU (several recognition ranges; coarse is fine, the test is conservative). */
-const PRESENCE_CELL_BU = 8;
-/** Extra reach of the presence test beyond the scan radius, BU (ants may move a little within the combat pass). */
-const PRESENCE_MARGIN_BU = 2;
 
 function presenceOf(sim: Sim): Presence {
   let p = PRESENCE.get(sim);
   if (p && p.tick === sim.state.tick) return p;
-  p = { tick: sim.state.tick, cell: PRESENCE_CELL_BU * sim.world.bu, masks: new Map(), bits: new Map(), overflow: false };
-  PRESENCE.set(sim, p);
+  // one record per Sim, its maps cleared and refilled each tick (no per-tick allocation)
+  if (!p) { p = { tick: -1, cell: 0, masks: new Map(), bits: new Map(), overflow: false }; PRESENCE.set(sim, p); }
+  p.tick = sim.state.tick; p.cell = PRESENCE_CELL_BU * sim.world.bu; p.overflow = false;
+  p.masks.clear(); p.bits.clear();
   for (const a of sim.stores.ants.list) {
     if (!a.alive) continue;
     let bit = p.bits.get(a.colony);
     if (bit === undefined) {
-      if (p.bits.size >= 30) { p.overflow = true; break; }
+      if (p.bits.size >= PRESENCE_MAX_COLONIES) { p.overflow = true; break; }
       bit = 1 << p.bits.size;
       p.bits.set(a.colony, bit);
     }

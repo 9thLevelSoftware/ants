@@ -6,6 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { HumanEventKind, Season, WeatherState } from './ids';
 import type { AutoSlowMode, ClimateId, DayPhase, RainClass, RunSpeed, WinterPhase } from './ids/progression';
 import type { HumanCueKind, HumanVariant } from './ids/world';
+import type { HumanExtraState } from './human';
 
 /** Calendar values derived from the calendar tick. Runtime cache only (environment `calendarNow`), not in SimState. */
 export interface CalendarDerived {
@@ -151,6 +152,11 @@ export interface MoistureState {
   theta1: Uint8Array;
   /** Puddle depth in 0.05 mm units. */
   puddle: Uint8Array;
+  /**
+   * Additive (weather-effects): surface wetness 0..1 (GDD 06 §3.10 `surfaceWet`): rises with the rain rate, falls
+   * with evaporation; drives wet-looking surfaces. Absent = 0.
+   */
+  surfaceWet?: number;
 }
 
 export interface HumanCue {
@@ -174,6 +180,10 @@ export interface HumanEventInst {
   regionId: number;
   seed: number;
   cancelled: boolean;
+  /** Additive (human-events): a target point (cheat `at`, bait spot, crowd a broom covers), mm; absent/null none. */
+  at?: Vec3 | null;
+  /** Additive (human-events): per-kind parameter fixed at the start (first mowing stripe, car bay), -1 none. */
+  param?: number;
 }
 
 /** A running human event (GDD 04 `HumanEventRun`). */
@@ -183,6 +193,16 @@ export interface HumanEventRun {
   progressS: number;
   nextImpactTick: number;
   cues: HumanCue[];
+  /** Additive (human-events): the inst this run executes (copy, so the run survives the day's list rollover). */
+  inst?: HumanEventInst;
+  /** Additive: tally for `human.casualties`, and items a broom pushed (collected at the end). */
+  killed?: number;
+  displaced?: number;
+  itemsRemoved?: number;
+  touched?: number[];
+  /** Additive: tick of the last `human.telegraph` event per cue kind; whether `human.start` was sent. */
+  telegraphTicks?: Record<string, number>;
+  started?: boolean;
 }
 
 export interface HumanState {
@@ -191,6 +211,8 @@ export interface HumanState {
   active: HumanEventRun[];
   reactive: { interiorVisits: number[]; counterTrailTicks: number; baitRefreshes: number };
   ambient: { doorOpen: boolean; lightsOn: boolean };
+  /** Additive (human-events): parked cars, bait stations, regrowth, mowing progress (src/sim/types/human.ts). */
+  extra?: HumanExtraState;
 }
 
 /**

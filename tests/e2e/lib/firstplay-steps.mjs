@@ -121,3 +121,27 @@ export async function digBite(h, slopeDeg, ticks, hd) {
 
 export const lastSeq = (h) => h.g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
 export const nestOf = async (h) => (await h.g(() => window.__game.query.nest()))[0];
+
+/** Every beat the full first play must shoot (task int-1B-app Work 3); checked at the end of a complete run. */
+export const FULL_RUN_BEATS = [
+  '01-title', '02-new-colony', '03-world-intro-card', '04-queen-surface', '05-site-readout', '06-digging-entrance-mound',
+  '07-inside-shaft', '08-founding-chamber', '09-sealed', '10-first-clutch', '11-timelapse', '12-outcome-card',
+  '13-first-workers-entrance', '14-worker-following-trail', '15-worker-harvesting', '16-worker-delivered',
+  '17-queen-colony-orders', '18-roster', '19-observer-follow-inspect', '20-colony-slice-marker-plan', '21-day-2-8x',
+  '22-day-3-8x', '23-pause-save', '24-title-continue', '25-continued',
+];
+
+/**
+ * "Days 2 and 3 at 8x with the HUD showing growth": over the two days the colony gained workers or brood (eggs,
+ * larvae and pupae together). `series` holds query.growth() samples, first and last compared.
+ */
+export function growthVerdict(series) {
+  const first = series[0], last = series[series.length - 1];
+  const workers = (x) => x?.castes?.worker ?? 0;
+  const out = {
+    workers: series.map(workers), brood: series.map((x) => x?.brood ?? 0),
+    p: series.map((x) => Math.round((x?.stores?.p ?? 0) * 100) / 100), c: series.map((x) => Math.round((x?.stores?.c ?? 0) * 100) / 100),
+  };
+  out.grew = !!first && !!last && (workers(last) > workers(first) || last.brood > first.brood);
+  return out;
+}

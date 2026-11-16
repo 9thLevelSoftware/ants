@@ -177,13 +177,31 @@ export default async ({ page, log, out, wait }) => {
   const busy = await g(() => { const gm = window.__game; return gm.query.ant(gm.summary().possessed.id)?.action?.id ?? null; });
   if (busy) { (result.findings ??= []).push(`after a tapped drink the action '${busy}' keeps running with a full crop`); await g((id) => window.__game.act({ action: id, phase: 'stop' }), busy); await step(10); }
 
-  // feed a larva in the nursery with the full crop
-  await g(([c, ch]) => window.__game.cheat.raw({ type: 'cheat.spawnBrood', colonyId: c, stage: 'larva', n: 3, chamberId: ch, progress: 0.3, destined: null }), [await g(() => window.__game.query.colony().id), nursery.id]);
+  // feed a larva in the nursery. The E prompt offers "Feed larva" only with protein to give (crop P or a carried
+  // protein item; the drink above was sugar), so the worker picks up a protein crumb first. cheat.spawnBrood puts
+  // brood at a chamber's centre, in the air above the floor and out of reach (reported to the sim half), so the
+  // larva is spawned at the queen, placed on the nursery floor beside the worker. Setup by cheat; the controls
+  // (pick-up, walk, feed) are the real keys and actions.
+  const colonyId = await g(() => window.__game.query.colony().id);
+  await teleport({ x: nursery.center.x - 1.5 * bu, y: nursery.center.y, z: nursery.center.z });
+  await step(3);
+  const queenId = await g(() => window.__game.query.ants().find((x) => x.caste === 'queen' && x.colony === window.__game.query.colony().id)?.id ?? -1);
+  expect(queenId >= 0, 'no queen to place the larva beside');
+  a = await me();
+  await g(([id, p]) => window.__game.teleport(id, p), [queenId, { x: a.pos.x + 2.5 * bu, y: a.pos.y, z: a.pos.z }]);
+  await step(3);
+  await g((c) => window.__game.cheat.raw({ type: 'cheat.spawnBrood', colonyId: c, stage: 'larva', n: 1, chamberId: -1, progress: 0.3, destined: null }), colonyId);
   await step(2);
   const larva = await g(() => window.__game.query.broodList().find((x) => x.stage === 'larva' && x.carriedBy < 0));
   expect(larva, 'no larva to feed');
-  await teleport({ x: larva.pos.x - 0.7 * bu, y: larva.pos.y, z: larva.pos.z }); // within reach (feed-larva is out of reach at 1.8 BU)
-  await step(5);
+  a = await me();
+  await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'crumb', variant: 'crumb-protein', pos: p, units: 1, stage: null }), { x: a.pos.x + a.fwd.x * 0.8 * bu, y: a.pos.y, z: a.pos.z + a.fwd.z * 0.8 * bu });
+  await step(3);
+  pr = await prompt('pick up');
+  for (let i = 0; i < 6 && !pr.line; i++) { await tap('KeyB', 2); pr = await prompt('pick up'); }
+  expect(pr.line, 'no pick-up prompt beside the protein crumb', pr.lines);
+  await tap(codeOf(pr.line.key), 30);
+  expect((await me()).carry.kind === 'item', 'the worker did not pick up the protein crumb', pr.line);
   // walk up to the larva (steering by intent: the walking keys are proven above) until the feed prompt appears
   pr = await prompt('feed');
   for (let i = 0; i < 40 && !pr.line; i++) {
@@ -192,20 +210,16 @@ export default async ({ page, log, out, wait }) => {
     await step(1);
     await g(() => window.__game.setIntent({}));
     pr = await prompt('feed');
-    if (!pr.line) { await tap('KeyB', 2); pr = await prompt('feed'); } // B: next target
+    if (!pr.line && i % 4 === 3) { await tap('KeyB', 2); pr = await prompt('feed'); } // B: next target
   }
   result.checks.feedPrompt = pr.lines;
-  if (!pr.line) {
-    // recorded, not hidden: the gate report lists it (the worker shows 'busy' / no feed target next to the larva)
-    (result.notProven ??= []).push({ control: 'feed-larva', prompts: pr.lines });
-    log('NOT PROVEN feed-larva', JSON.stringify(pr.lines));
-  } else {
-    const seq0 = await g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
-    await tap(codeOf(pr.line.key), 60);
-    const fed = await g((q) => window.__game.events(undefined, 60, q).filter((e) => /feed|larva-fed|action-completed|trophallaxis/.test(e.type) || (e.action && /feed/.test(e.action))).map((e) => `${e.type}:${e.action ?? ''}`), seq0);
-    expect(fed.length > 0, `the prompt key ${pr.line.key} did not feed a larva`, { fed, prompt: pr.line });
-    ok('feed-larva', { key: pr.line.key, events: fed.slice(0, 4) });
-  }
+  expect(pr.line, 'no "Feed larva" prompt next to the larva with protein to give', pr.lines);
+  const seq0 = await g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
+  await tap(codeOf(pr.line.key), 60);
+  const fed = await g((q) => window.__game.events(undefined, 60, q).filter((e) => e.action === 'feed-larva' && e.type === 'action-completed').map((e) => `${e.type}:${e.action}:${e.result}`), seq0);
+  expect(fed.length > 0, `the prompt key ${pr.line.key} did not feed the larva`, { fed, prompt: pr.line });
+  ok('feed-larva', { key: pr.line.key, events: fed.slice(0, 2) });
+  if ((await me()).carry.kind !== 'none') await tap('Space', 10); // what is left of the crumb: free the mandibles to dig
 
   // dig (F): hold it facing the chamber wall; the open volume grows
   const vol0 = (await g(() => window.__game.query.voxel())).openVolumeMm3;
@@ -215,13 +229,17 @@ export default async ({ page, log, out, wait }) => {
   expect(vol1 > vol0, 'holding the dig key did not dig', { vol0, vol1, prompt: pr.line });
   ok('dig', { key: pr.line?.key ?? 'F', grewMm3: Math.round(vol1 - vol0) });
 
-  // antennate (T tap: inspect / antennal contact)
+  // antennate (T tap: inspect / antennal contact). The last bite of the dig finishes after F is released; an action
+  // started meanwhile is refused as busy (GDD 01 §7.1), so T is pressed once the worker is idle, as a player would.
+  let idleAfter = -1;
+  for (let t = 0; t <= 100; t += 5) { if (!(await me())?.action) { idleAfter = t; break; } await step(5); }
+  expect(idleAfter >= 0, 'the dig keeps running 100 ticks after F was released', (await me())?.action);
+  result.checks.idleAfterDigTicks = idleAfter;
   const s1 = await g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
   await tap('KeyT', 20);
   const sniff = await g((q) => window.__game.events(undefined, 40, q).filter((e) => e.action && /sniff|antennate/.test(e.action)).map((e) => `${e.type}:${e.action}${e.reason ? `(${e.reason})` : ''}`), s1);
   expect(sniff.length > 0, 'T did not reach the antennate action', sniff);
-  // the key reaches the action (the controls check); an action that then fails is the actions' finding, not a pass
-  if (sniff.every((x) => x.startsWith('action-failed'))) (result.findings ??= []).push(`T reaches antennate but the action fails here: ${sniff[0]}`);
+  expect(sniff.some((x) => x.startsWith('action-completed')), 'T reached antennate but the action did not complete', sniff);
   ok('antennate', sniff.slice(0, 2));
 
   // lay a trail (R toggles it on while walking outside)

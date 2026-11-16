@@ -11,6 +11,11 @@ export interface FoundingSiteRow {
   word: string;
 }
 
+/** Filled dots (0..5) the read-out draws for a factor value: one rounding for the dots and any word chosen by them. */
+export function siteDots(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(5, Math.round(value * 5))) : 0;
+}
+
 export interface FoundingUi {
   phase: string;
   /** Intro card facts (shown while phase is `intro-card`). */

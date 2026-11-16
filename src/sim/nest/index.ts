@@ -97,7 +97,10 @@ export function createNestNav(kernel: Kernel): NestNav {
 
 import { acceptArchitectPlan, architectSystem } from './architect'; export { architectSystem }; // nest architect (owner: architect)
 
-export const systems: readonly System[] = [nestFieldsSystem, nestSystem, architectSystem];
+import { floodSystem } from './flood'; export { floodSystem }; // flooding, submersion, mound erosion (owner: weather-effects)
+import { collapseSystem } from './collapse'; export { collapseSystem }; // ceiling collapse (owner: weather-effects)
+
+export const systems: readonly System[] = [nestFieldsSystem, nestSystem, architectSystem, floodSystem, collapseSystem];
 
 // ---- digging ----
 

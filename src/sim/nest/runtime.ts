@@ -1,7 +1,8 @@
 // Derived, never-persisted helpers of the nest module, one set per Sim (created on first use, so a Sim built by
 // createSim after a load starts from scratch). Nothing here may change simulation results: every cache is a pure
-// function of the persisted state (the detection caches are dropped for every chunk a carve can affect), and the
-// dirty flags only let the system skip work whose result would be the same (all nests start dirty).
+// function of the persisted state (the detection caches are dropped for every chunk a carve can affect). The
+// "detection due" flag that schedules chamber detection is persisted (Nest.detectDue), not kept here: a restored
+// game must detect, and refresh volumeOpen, on exactly the ticks the uninterrupted game does.
 
 import type { Mound, Sim } from '@/sim/types';
 import { MOUND_MASK_CARVE_REACH_BU } from '@/sim/balance/nest';
@@ -15,10 +16,6 @@ import type { PlanCache } from './plans/targets';
 
 export interface NestRuntime {
   flags: FlagStore;
-  /** Nests whose carved space (or mound, cover) changed since their last chamber detection. */
-  dirtyNests: Set<number>;
-  /** Every nest is dirty (new runtime, bulk edit). */
-  allDirty: boolean;
   /** Chamber core samples (packed keys) per carve chunk; dropped for chunks near a carve (detect.ts). */
   coreByChunk: Map<number, number[]>;
   /**
@@ -52,6 +49,11 @@ export interface NestRuntime {
    * caches (deadEnd.ts) are not dropped by digging in other nests. Starts at 0 for a nest not seen yet.
    */
   carveStamp: Map<number, number>;
+  /**
+   * Per carve chunk: a counter bumped by every carve or fill whose box (+1 sample) reaches the chunk, so local
+   * memos (tamp.ts retries) see any change of the samples they read. Starts at 0 for a chunk not seen yet.
+   */
+  chunkStamp: Map<number, number>;
 }
 
 /** Open samples of one chunk inside a nest's box: summed where deep under the terrain, listed near the surface. */
@@ -69,8 +71,6 @@ export function nestRuntime(sim: Sim): NestRuntime {
   if (rt) return rt;
   const made: NestRuntime = {
     flags: new FlagStore(sim.state.worldDelta.carveFlags),
-    dirtyNests: new Set(),
-    allDirty: true,
     coreByChunk: new Map(),
     wallByChunk: new Map(),
     passGrid: new PassGrid(),
@@ -83,6 +83,7 @@ export function nestRuntime(sim: Sim): NestRuntime {
     digOwner: -1,
     closedPending: [],
     carveStamp: new Map(),
+    chunkStamp: new Map(),
   };
   sim.carve.addListener((c: CarveChange) => onCarve(sim, made, c.box));
   RUNTIMES.set(sim, made);
@@ -98,12 +99,13 @@ function onCarve(sim: Sim, rt: NestRuntime, box: VoxelBox): void {
   dropChunks(rt.wallByChunk, box, 1);
   dropMoundMasks(sim, rt, box);
   for (const m of rt.deepVolByNest.values()) dropChunks(m, box, 0);
+  bumpChunks(rt.chunkStamp, box, 1);
   for (const nest of sim.stores.nests.list) {
     if (!nest.alive) continue;
     const b = nestSampleBox(sim, nest);
     if (b.i0 - DIRTY_PAD <= box.i1 && b.i1 + DIRTY_PAD >= box.i0 && b.j0 - DIRTY_PAD <= box.j1 && b.j1 + DIRTY_PAD >= box.j0
       && b.k0 - DIRTY_PAD <= box.k1 && b.k1 + DIRTY_PAD >= box.k0) {
-      rt.dirtyNests.add(nest.id);
+      nest.detectDue = true;
       rt.carveStamp.set(nest.id, (rt.carveStamp.get(nest.id) ?? 0) + 1);
     }
   }
@@ -141,19 +143,36 @@ function dropChunks(map: Map<number, unknown>, box: VoxelBox, pad: number): void
       for (let cx = (box.i0 - pad) >> 4; cx <= (box.i1 + pad) >> 4; cx++) map.delete(chunkKey(cx, cy, cz));
 }
 
-/** Marks one nest for re-detection (mound or cover changes that the carve listener does not see). */
-export function markNestDirty(sim: Sim, nestId: number): void {
-  nestRuntime(sim).dirtyNests.add(nestId);
+/** Increments the stamp of every chunk within `pad` samples of the box. */
+function bumpChunks(map: Map<number, number>, box: VoxelBox, pad: number): void {
+  for (let cz = (box.k0 - pad) >> 4; cz <= (box.k1 + pad) >> 4; cz++)
+    for (let cy = (box.j0 - pad) >> 4; cy <= (box.j1 + pad) >> 4; cy++)
+      for (let cx = (box.i0 - pad) >> 4; cx <= (box.i1 + pad) >> 4; cx++) {
+        const key = chunkKey(cx, cy, cz);
+        map.set(key, (map.get(key) ?? 0) + 1);
+      }
 }
 
-/** Should the nest's chambers be re-detected? Clears the flag. */
+/** Sum of the chunk stamps over a sample box (a change of any sample in the box changes it). */
+export function chunkStampSum(sim: Sim, box: VoxelBox): number {
+  const map = nestRuntime(sim).chunkStamp;
+  let s = 0;
+  for (let cz = box.k0 >> 4; cz <= box.k1 >> 4; cz++)
+    for (let cy = box.j0 >> 4; cy <= box.j1 >> 4; cy++)
+      for (let cx = box.i0 >> 4; cx <= box.i1 >> 4; cx++) s += map.get(chunkKey(cx, cy, cz)) ?? 0;
+  return s;
+}
+
+/** Marks one nest for re-detection (mound or cover changes that the carve listener does not see). */
+export function markNestDirty(sim: Sim, nestId: number): void {
+  const nest = sim.stores.nests.get(nestId);
+  if (nest) nest.detectDue = true;
+}
+
+/** Should the nest's chambers be re-detected? Clears the flag (a save without the field counts as due). */
 export function takeNestDirty(sim: Sim, nestId: number): boolean {
-  const rt = nestRuntime(sim);
-  if (rt.allDirty) {
-    rt.allDirty = false;
-    // every other nest stays dirty until its own turn
-    for (const n of sim.state.nests) if (n.alive && n.id !== nestId) rt.dirtyNests.add(n.id);
-    return true;
-  }
-  return rt.dirtyNests.delete(nestId);
+  const nest = sim.stores.nests.get(nestId);
+  if (!nest || nest.detectDue === false) return false;
+  nest.detectDue = false;
+  return true;
 }

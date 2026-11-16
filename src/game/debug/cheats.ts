@@ -1,7 +1,7 @@
 // `__game.cheat.*` (architecture §5): thin helpers that fill in defaults and issue `cheat.*` commands. The sim
 // refuses them unless config.cheats is on (always on with ?test=1); a refusal comes back in the result.
-import type { AlertKind, AlertLevel, Caste, Command, CreatureKind, FoodKind, HumanEventKind, Task, WeatherState } from '@/sim/types';
-import { clearAlert, raiseAlert } from '@/sim/progression';
+import type { AlertKind, Caste, Command, CreatureKind, FoodKind, HumanEventKind, Task, WeatherState } from '@/sim/types';
+import { cheatClearAlert, cheatRaiseAlert, type CheatAlert } from './alertCheats';
 import type { Vec3 } from '@/core';
 import type { Game } from '../Game';
 import { collectRefusals } from '../refusals';
@@ -36,24 +36,22 @@ export function buildCheats(game: Game) {
     triggerEvent: (kind: HumanEventKind, at: Vec3 | null = null, startInS = 0) => run({ type: 'cheat.humanEvent', kind, variant: null, at, startInS }),
     kill: (id: number, cause = 'cheat') => run({ type: 'cheat.kill', id, cause }),
     /**
-     * Raises an alert through progression's own publisher (dedupe, cooldown, cap, `alert` events), as a sim module
-     * would; scripts use it to show a feed without waiting for the condition. Returns the alert id (-1 refused).
+     * Raises an alert through progression's own publisher, as a sim module would (alertCheats.ts; refused unless
+     * config.cheats). Returns the alert id (-1 refused).
      */
-    raiseAlert: (a: { kind: AlertKind; level: AlertLevel; title?: string; cause?: string; subjectId?: number; tokens?: Record<string, string | number> }) => {
+    raiseAlert: (a: CheatAlert) => {
       const s = game.session;
       if (!s) return -1;
-      const id = raiseAlert(s.sim, {
-        kind: a.kind, level: a.level, title: a.title ?? '', cause: a.cause ?? '', subjectId: a.subjectId ?? -1, focus: null, diagnosticId: null,
-        ...(a.tokens ? { tokens: a.tokens } : {}),
-      });
+      const id = cheatRaiseAlert(s.sim, a);
       game.afterStep(s, 0);
       return id;
     },
     clearAlert: (kind: AlertKind, subjectId = -1) => {
       const s = game.session;
-      if (!s) return;
-      clearAlert(s.sim, kind, subjectId);
+      if (!s) return false;
+      const ok = cheatClearAlert(s.sim, kind, subjectId);
       game.afterStep(s, 0);
+      return ok;
     },
   };
 }

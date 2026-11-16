@@ -85,7 +85,7 @@ export function installSmallNest(sim: Sim): SmallNest {
   const tick = state.tick;
   const entrance: Entrance = {
     id: state.nextId++, kind: 'dug', status: 'open', pos: v(ex, g, ez), dir: v(0, 1, 0), radius: ENTRANCE_R * bu,
-    moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: tick, trafficIn: 0, trafficOut: 0,
+    moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: tick, trafficIn: 0, trafficOut: 0, passSeen: false,
   };
   const chambers = centres.map((c, i) => newChamber(state.nextId++, CHAMBERS[i].name, c, radii[i], bu, g, tick, kernel.carve.voxel));
   nest.origin = v(ex, g, ez);

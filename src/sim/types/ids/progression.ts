@@ -132,6 +132,7 @@ export const ALERT_KINDS = [
   'entrance-closed', 'midden-blocked', // sim-fix-colony: entrance closed without a plug (GDD 03 §4.2); GDD 02 §10.8 flag
   'last-ants', // GDD 06 §13 (three or fewer ants left)
   'garden-failing', 'granary-spoiling', 'wood-drying', // GDD 07
+  'founding-flooding', // weather-effects: water in a sealed founding chamber (GDD 06 §13.1 `drowning`, §5.11 `flood`)
 ] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 

@@ -20,6 +20,7 @@ export * from './colony';
 export * from './colonyModules';
 export * from './pheromone';
 export * from './environment';
+export * from './human';
 export * from './intent';
 export * from './player';
 export * from './diagnostics';

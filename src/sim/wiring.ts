@@ -5,6 +5,8 @@
 //  - pheromones: the environment's decay modifier (temperature, exposure, heat; species trail half-life) and the
 //    world field's free-space test for alarm diffusion (GDD 02 §8.2).
 //  - locomotion: the nest module's clutter speed factor for walkers in cavities (GDD 03 §10, loose pellets).
+//  - nest: its runtime (carve listener) exists from the start, so no carve of a tick is missed by the persisted
+//    chamber-detection flag (Nest.detectDue), whichever module carves first after a load.
 
 import type { ColonySpeciesId, PheroChannel, SignalsDef, Sim } from '@/sim/types';
 import { PHERO_POROUS_MATERIALS, PHERO_SUNLIT_SHADE_MAX } from '@/sim/balance';
@@ -12,12 +14,14 @@ import { microTemp, surfaceTemp } from '@/sim/environment';
 import { isInteriorAt, shadeAt } from '@/sim/environment/ground';
 import { registerSpeedFactor } from '@/sim/locomotion';
 import { clutterSpeedMult } from '@/sim/nest';
+import { nestRuntime } from '@/sim/nest/runtime';
 import { pheroDecayRateMult, type PheroCellClimate, type PheroExposure } from '@/sim/pheromones';
 import { getSpecies } from '@/sim/species';
 
 export function installRuntimeHooks(sim: Sim): void {
   installPheromoneHooks(sim);
   registerSpeedFactor(sim, (s, w) => (w.medium === 'cavity' ? clutterSpeedMult(s, w.pos) : 1));
+  nestRuntime(sim);
 }
 
 const POROUS: ReadonlySet<string> = new Set(PHERO_POROUS_MATERIALS);

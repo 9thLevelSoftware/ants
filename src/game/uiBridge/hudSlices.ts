@@ -12,7 +12,10 @@ import { GROUP_TASKS } from '@/sim/colony/allocation';
 import { airTemp, calendarNow } from '@/sim/environment';
 import { currentDayOfSeason, currentHour, currentSeason, currentYear, seasonLength } from '@/sim/time';
 import type { UiAlert, UiColony, UiPossessed, UiPrompt, UiPromptLine, UiTime } from '@/ui/api';
-import { HEAT_STRESS_LOAD, SPARK_SAMPLES, TREND_WINDOW_GAME_H } from './balance';
+import {
+  FOUNDING_RESERVE_BAD, FOUNDING_RESERVE_WARN, HEAT_STRESS_LOAD, OPENING_QUIET_ALERTS, OPENING_QUIET_DIAGNOSTICS, SPARK_SAMPLES,
+  TREND_WINDOW_GAME_H,
+} from './balance';
 import { antName, stateWord, WEATHER_WORDS } from './words';
 
 const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
@@ -63,9 +66,7 @@ function sparkOf(sim: Sim, id: string, now: number): number[] {
  * lives on her reserves, GDD 03 §2). Until the hand-over they do not colour the pulse red; the queen's reserves do.
  * Adapter on the app side; the need is reported to the simulation half (progression diagnostics).
  */
-const OPENING_QUIET_DIAG: ReadonlySet<string> = new Set(['diag-stores', 'diag-foraging-trails', 'diag-food-intake-c', 'diag-food-intake-p']);
-const FOUNDING_RESERVE_WARN = 0.25;
-const FOUNDING_RESERVE_BAD = 0.1;
+const OPENING_QUIET_DIAG: ReadonlySet<string> = new Set(OPENING_QUIET_DIAGNOSTICS);
 
 function overallStatus(sim: Sim, col: Colony, queenReserves: number | null): { status: 'ok' | 'warn' | 'bad'; worst: UiColony['worst'] } {
   const opening = !queenHandedOver(sim);
@@ -183,7 +184,7 @@ export function promptOf(sim: Sim): UiPrompt | null {
   }
 }
 
-const OPENING_QUIET: ReadonlySet<string> = new Set(['last-ants', 'food-c-low', 'food-p-low']);
+const OPENING_QUIET: ReadonlySet<string> = new Set(OPENING_QUIET_ALERTS);
 
 /**
  * The alert feed from progression's active alerts (critical first, newest first). An alert the sim raised without

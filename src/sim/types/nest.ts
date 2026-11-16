@@ -30,7 +30,8 @@ export interface Entrance {
   trafficOut: number;
   /**
    * Additive (int-1B-sim): a `reopening` throat had a passage at some evaluation, so losing it again closes the
-   * entrance (`reopening` -> `sealed`). Absent / false on every other entrance.
+   * entrance (`reopening` -> `sealed`). False on every other entrance (set to false, never deleted; the nest
+   * module creates entrances with false, and only entrances of saves older than the field lack it).
    */
   passSeen?: boolean;
 }
@@ -163,6 +164,18 @@ export interface FloodState {
   lastTick: number;
   /** -1 when not flooding. */
   floodingSinceTick: number;
+  /**
+   * Milestone bookkeeping of the current flood (weather-effects review, additive): the peak flooded share of a
+   * brood / royal / founding chamber, and whether brood drowned. Absent = 0 / false.
+   */
+  peakShare?: number;
+  broodDrowned?: boolean;
+  /**
+   * Spill-cache throttle (GDD 03 §11.2, weather-effects review, additive): tick the nest's flood geometry was last
+   * captured and a hash of the entrance / chamber / mound / dynamic-world signature then. Absent = never captured.
+   */
+  spillTick?: number;
+  spillSig?: number;
 }
 
 export interface FoundingDig {
@@ -209,4 +222,18 @@ export interface Nest {
   collapse: CollapseWarning[];
   /** Open volume, BU^3. */
   volumeOpen: number;
+  /**
+   * Chamber detection (and the volumeOpen it refreshes) is pending: the nest's carved space, mound or cover changed
+   * since its last detection. Persisted so a restored game detects on the same ticks as an uninterrupted one
+   * (int-1B review: a runtime dirty set made a restored game re-detect, and refresh volumeOpen, where the original
+   * did not). New nests start true; a save from before this field (missing) counts as true.
+   */
+  detectDue?: boolean;
+  /** Tick of the last ceiling collapse (GDD 03 §12, `diag-nest-stability` bad for a game day). Additive (weather-effects); absent = never. */
+  lastCollapseTick?: number;
+  /**
+   * Mean soil moisture at the chambers at the last stability check (GDD 03 §12: a change > 0.1 triggers a check).
+   * Additive (weather-effects review); absent = never checked.
+   */
+  stabilityMoisture?: number;
 }

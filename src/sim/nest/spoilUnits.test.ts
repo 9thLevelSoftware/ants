@@ -109,9 +109,18 @@ describe('retried tamps and the loose-pellet cap', () => {
       expect(it.droppedTick).toBe(placed); // not reset by the refused tamp
       expect(pelletHaulUrgency(sim, it)).toBeCloseTo(1 + HAUL_URGENCY_GAIN, 9);
     }
-    // the next try comes exactly TAMP_RETRY_S after tamping age: nothing between, a tamp attempt at that tick
+    // retries come every TAMP_RETRY_S, phase-shifted by the item id (int-1B review: a batch dropped together must
+    // not retry on one tick): nothing between, a tamp attempt at the first pellet's retry tick
     const vol = () => loosePellets(sim, nest.id).reduce((s, it) => s + it.volume, 0);
-    const v0 = vol(), due = placed + (PELLET_TAMP_S + TAMP_RETRY_S) * TICKS_PER_SECOND - 1;
+    const retry = TAMP_RETRY_S * TICKS_PER_SECOND, age = PELLET_TAMP_S * TICKS_PER_SECOND;
+    const nextTry = (id: number): number => {
+      let t = sim.state.tick;
+      while ((t + 1 - placed - age) % retry !== id % retry) t++;
+      return t;
+    };
+    const phases = new Set(left.map((it) => it.id % retry));
+    expect(phases.size).toBe(left.length); // spread: no two left pellets retry on the same tick
+    const v0 = vol(), due = Math.min(...left.map((it) => nextTry(it.id)));
     runTicks(sim, due - sim.state.tick);
     expect(vol()).toBe(v0);
     // carve room beside the heap so the retry finds floor: it is used at that tick

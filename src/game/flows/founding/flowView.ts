@@ -6,7 +6,7 @@ import { foundingView, type FoundingView } from '@/sim/colony/founding';
 import { airTemp } from '@/sim/environment';
 import { currentDayOfSeason, currentHour, currentSeason } from '@/sim/time';
 import { WEATHER_WORDS } from '@/game/uiBridge/words';
-import type { FoundingUi } from '@/ui/screens/founding/store';
+import { siteDots, type FoundingUi } from '@/ui/screens/founding/store';
 import { placeName } from './placeName';
 
 const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
@@ -15,6 +15,20 @@ const FACTOR_LABELS: Record<string, string> = {
   diggability: 'Diggability', moisture: 'Moisture', warmth: 'Warmth', cover: 'Cover', floodSafety: 'Flood safety',
   rivalScent: 'Rival scent', exposure: 'Exposure',
 };
+
+/** GDD 06 §5.7 warmth words, coldest first. */
+const WARMTH_WORDS = ['Cold', 'Cool', 'Mild', 'Warm', 'Hot'] as const;
+
+/**
+ * The word beside a factor's dots. Warmth's value is the suitability map's fWarm (sun on the ground, warm-stone bonus;
+ * directions §K: one scoring function for map and read-out), while the founding view words warmth from the cell
+ * temperature, so "Mild" could sit beside 0 dots. The row words the value it draws (0-1 dots Cold ... 5 Hot); the
+ * other factors' words already follow their own value. Adapter: reported to the founding owner (siteScore.factorWord).
+ */
+export function siteRowWord(id: string, value: number, simWord: string): string {
+  if (id !== 'warmth') return simWord;
+  return WARMTH_WORDS[Math.max(0, siteDots(value) - 1)];
+}
 
 const ARCHETYPE_WORDS: Record<string, string> = {
   'woodland-edge': 'Woodland Edge', 'suburban-garden': 'Suburban Garden', 'playground-park': 'Playground Park',
@@ -104,7 +118,7 @@ export function buildFoundingUi(sim: Sim, flags: FlowFlags): FoundingUi | null {
   };
   const site: FoundingUi['site'] = v.site ? {
     active: v.site.active,
-    rows: v.site.factors.map((f) => ({ id: f.id, label: FACTOR_LABELS[f.id] ?? f.id, value: f.value, word: f.word })),
+    rows: v.site.factors.map((f) => ({ id: f.id, label: FACTOR_LABELS[f.id] ?? f.id, value: f.value, word: siteRowWord(f.id, f.value, f.word) })),
     q: v.site.q, word: v.site.word, chamberQ: v.phase !== 'search' ? v.site.q : null,
   } : null;
   const fc = v.clutch?.forecast ?? null;

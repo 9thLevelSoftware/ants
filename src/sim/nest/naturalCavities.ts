@@ -104,7 +104,7 @@ function addNaturalEntrance(sim: Sim, nest: Nest, pos: Entrance['pos'], dir: Ent
   if (nest.entrances.some((e) => Math.hypot(e.pos.x - pos.x, e.pos.y - pos.y, e.pos.z - pos.z) <= e.radius + radius)) return;
   const e: Entrance = {
     id: sim.state.nextId++, kind: 'natural', status: 'open', pos: { ...pos }, dir: { ...dir }, radius,
-    moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0,
+    moundId: -1, rimTarget: 0, plugVoxelCount: 0, createdTick: sim.state.tick, trafficIn: 0, trafficOut: 0, passSeen: false,
   };
   nest.entrances.push(e);
   sim.emit({ type: 'entrance-opened', entranceId: e.id, nestId: nest.id, kind: 'natural' });

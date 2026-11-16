@@ -49,13 +49,15 @@ function checkLoss(sim: Sim): void {
 /** `last-ants` (critical) while 1..LAST_ANTS_N ants of the colony live; cleared above it. */
 export function checkLastAnts(sim: Sim, census: Census): void {
   if (sim.state.progression.gameOver) return;
-  // not for the founding queen alone while the opening runs: she is alone by design (founding-close request 2; the
-  // opening test is the founding module's foundingInProgress, read from state so progression does not import it).
+  // never while the opening runs (founding-close request 2): the founding queen is alone by design, and her first
+  // nanitics eclose one by one during the time-lapse, so 2-3 living ants is a healthy founding, not a dying colony.
+  // The opening test is the founding module's foundingInProgress (opening part), read from state so progression
+  // does not import the founding module; a failed opening (queen dead) gets the normal rule.
   // Title and cause stay empty on purpose: the interface fills them from the alert text table with these tokens
   // (content/text alertText; the simulation does not import interface text).
   const op = sim.state.player.opening;
   const opening = !!op && !op.done && op.phase !== 'failed' && op.phase !== 'done';
-  if (opening && census.living <= 1) { clearAlert(sim, 'last-ants', -1); return; } // the founding queen alone
+  if (opening) { clearAlert(sim, 'last-ants', -1); return; }
   if (census.living > 0 && census.living <= LAST_ANTS_N) {
     const cur = sim.state.progression.alerts.find((a) => a.kind === 'last-ants');
     if (cur && cur.tokens?.n === census.living) return;

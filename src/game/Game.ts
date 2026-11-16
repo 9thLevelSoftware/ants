@@ -8,6 +8,7 @@ import {
   applyOverrides, createRenderApp, getPreset, pickQuality, runStartupBenchmark, type QualityId, type QualityPreset, type QualitySetting,
   type RenderApp,
 } from '@/render/app';
+import { applyQualityToServices } from './qualityWiring';
 import { createBrowserAssetLoader, loadWorkerSource, type AssetLoader } from '@/render/assets';
 import { applyPose } from '@/render/camera';
 import { RenderRegistry, type FrameInfo, type HighlightRef } from '@/render';
@@ -175,6 +176,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       this.app.setQuality(this.presetFor(pick.id));
     }
     if (this.opts.testMode) this.app.setOnDemand(true);
+    this.assets.setAnisotropy(this.app.quality.anisotropy);
     this.dom = attachDomInput(this.input, { canvas: this.opts.canvas });
     this.input.contexts.setBase('UI');
     this.registry = new RenderRegistry({ forceDebug: this.opts.forceDebugRender });
@@ -437,7 +439,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (!this.app) return;
     const id = this.titleCapped ? titleQualityCap(this.playerQuality()) : this.playerQuality();
     this.app.setQuality(this.presetFor(id));
-    this.registry?.setQuality(this.app.quality);
+    applyQualityToServices(this.app.quality, { registry: this.registry ?? null, assets: this.assets });
     this.requestRender();
   }
 

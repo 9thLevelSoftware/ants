@@ -28,6 +28,8 @@ describe('mid-life save / restore (gate 1B)', () => {
     expect(trailCellsOf(straight)).toBeGreaterThan(0);
     expect(at.carrying + at.cropLoaded).toBeGreaterThan(0);
     expect(at.outside).toBeGreaterThan(0);
+    expect(at.livePlans).toBeGreaterThan(0); // a dig plan in progress
+    expect(at.larvaeFed).toBeGreaterThan(0); // brood being fed
     const resumed = createSim(restore(snapshot(straight)).state, straight.world);
     for (let i = 0; i < M; i++) { straight.tick(); resumed.tick(); }
     expect(stateHash(resumed.state)).toBe(stateHash(straight.state));

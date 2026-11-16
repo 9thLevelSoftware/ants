@@ -1,7 +1,7 @@
 // The opening's in-play panels (GDD 06 §5.5-§5.10, GDD 08 §9.2-§9.3): the queen's meters (reserves, shelter clock,
 // health), the site read-out card, the readiness bar, the script's glyph prompts and the clutch forecast.
 import { Button, KeyHint, ProgressBar } from '../../components';
-import type { FoundingUi } from './store';
+import { siteDots, type FoundingUi } from './store';
 
 const pct = (v: number): string => `${Math.round(v * 100)} %`;
 
@@ -21,7 +21,7 @@ export function QueenMeters({ q }: { q: NonNullable<FoundingUi['queen']> }) {
 
 /** A 5-step dotted scale (GDD 08 §9.3: "Moisture ●●●○○ damp"). */
 function Dots({ value }: { value: number }) {
-  const n = Math.max(0, Math.min(5, Math.round(value * 5)));
+  const n = siteDots(value);
   return <span class="fo-dots" aria-hidden="true">{'●'.repeat(n)}<span class="off">{'○'.repeat(5 - n)}</span></span>;
 }
 

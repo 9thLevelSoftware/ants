@@ -176,7 +176,7 @@ export function expelVolume(sim: Sim, nest: Nest, volume: number, material: Mate
   if (!m) m = createMound(sim, nest, e, cx, cz, material);
   const ring: Entrance = e ?? {
     id: -1, kind: 'dug', status: 'open', pos: { x: m.centerX, y: nest.origin.y, z: m.centerZ }, dir: { x: 0, y: 1, z: 0 },
-    radius: sim.world.bu, moundId: m.id, rimTarget: 0, plugVoxelCount: 0, createdTick: 0, trafficIn: 0, trafficOut: 0,
+    radius: sim.world.bu, moundId: m.id, rimTarget: 0, plugVoxelCount: 0, createdTick: 0, trafficIn: 0, trafficOut: 0, passSeen: false,
   };
   const p = dumpPoint(sim, ring, { x: 0, y: 0, z: 0 });
   deposit(sim, m, p.x, p.z, volume * BULKING * sim.world.bu ** 3);

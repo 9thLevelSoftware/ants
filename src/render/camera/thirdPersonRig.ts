@@ -81,7 +81,8 @@ export class ThirdPersonRig {
   private ref = vec3(-1, 0, 0);
   private yaw = 0;
   private elev = 20 * DEG;
-  private zoomL: Record<PossessionCamState, number> = { open: 5, chamber: 4, tunnel: 2.5, crevice: 1.2, falling: 5, flight: 6 };
+  /** Player zoom per state, L: starts at each state's default distance (possessionStates.ts is the one table). */
+  private zoomL = Object.fromEntries(Object.entries(STATE_PARAMS).map(([k, p]) => [k, p.dist[0]])) as Record<PossessionCamState, number>;
   private dist = 0;
   private hold = new StateHold();
   private prevState: PossessionCamState = 'open';

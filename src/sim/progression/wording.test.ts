@@ -72,6 +72,7 @@ describe('wording of progression text ids', () => {
   it('alerts progression raises carry exactly their tokens; codex ids in the log have entries', () => {
     const sim = makeProgSim({ workers: 4 });
     const col = sim.state.colonies[0];
+    sim.state.player.opening!.phase = 'done'; sim.state.player.opening!.done = true; // established (no last-ants while the opening runs)
     for (const a of sim.stores.ants.list.filter((x) => x.alive && x.colony === col.id && x.caste === 'worker').slice(0, 2)) killAnt(sim, a.id, 'cold');
     pollOnce(sim);
     const last = sim.state.progression.alerts.find((a) => a.kind === 'last-ants')!;

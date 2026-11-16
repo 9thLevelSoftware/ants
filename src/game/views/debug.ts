@@ -136,6 +136,8 @@ export function buildViewsDebug(game: Game) {
       game.requestRender();
       return plain({ target: r.target, distance: r.distance / bu, cutaway: r.cutaway });
     },
+    /** Labels the colony view draws now (chamber names, the planner's reason): texts and positions, mm. */
+    markerLabels() { return plain((L.lastMarkerScene?.labels ?? []).map((l) => ({ text: l.text, pos: l.pos }))); },
     /** Possession camera options not in the settings yet (ceiling comfort). */
     cameraOptions(o: { ceilingComfort?: boolean }) { session().views.third.setOptions(o); return plain(session().views.third.opts); },
     /** Possession camera read-out of the last frame. */

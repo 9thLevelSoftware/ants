@@ -51,6 +51,7 @@ export const ALERT_TEXT: Record<AlertKind, AlertText> = {
   'wood-drying': { level: 'warning', title: 'The nest wood is drying', cause: 'moisture {pct} %', sample: { pct: 11 } },
   'entrance-closed': { level: 'warning', title: 'An entrance has closed', cause: '{cause}', sample: { cause: 'soil piled over the opening' } },
   'midden-blocked': { level: 'notice', title: 'Waste cannot leave the nest', cause: 'no open entrance — waste is dropped in a dead end', sample: {} },
+  'founding-flooding': { level: 'critical', title: 'Founding chamber flooding', cause: 'water rising around the queen — {pct} % of the cell', sample: { pct: 40 } },
 };
 
 /** Weather alert titles by the weather the colony is told about (GDD 08 §6.5 `weather-change`; GDD 06 §3). */

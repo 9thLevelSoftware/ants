@@ -5,6 +5,7 @@ import type { Sim, SimState } from '@/sim/types';
 import { TEST_CAMERA_SETTLE_S } from '../config/loop';
 import type { Game } from '../Game';
 import type { DriverHost } from './autosaveDriver';
+import { savedCameraOf } from './meta';
 import { captureCanvasThumbnail } from './thumbnail';
 import type { SaveMeta } from './types';
 
@@ -112,7 +113,8 @@ function resumeView(g: Game, s: NonNullable<Game['session']>, state: SimState, m
     g.viewChanged();
   } else if (meta.view === 'colony') {
     g.setView('colony');
-  } else if (meta.camera && s.view === 'observer') {
-    s.views.freeFlyAt(meta.camera.pos, meta.camera.look); // the observer comes back where the player left it
+  } else if (s.view === 'observer') {
+    const cam = savedCameraOf(meta);
+    if (cam) s.views.freeFlyAt(cam.pos, cam.look); // the observer comes back where the player left it
   }
 }

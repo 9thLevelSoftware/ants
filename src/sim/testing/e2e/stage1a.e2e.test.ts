@@ -134,8 +134,12 @@ describe('(b) 60 workers forage between the nest and a food source', () => {
     const sc = setupColonyScenario(sim, { workers: 60, eggs: 6, larvae: 6, pupae: 4 });
     expect(sim.state.ants.filter((a) => a.alive && a.caste === 'worker')).toHaveLength(60);
     let deliveries = 0, loads = 0;
+    const byAnt = new Map<number, number>();
     // the player colony's deliveries and trips (rival colonies on the generated world forage too since Stage 1B)
-    const off = sim.events.on('delivery', (e) => { if (e.colonyId === col.id) { deliveries++; loads += e.c + e.p; } });
+    const off = sim.events.on('delivery', (e) => {
+      if (e.colonyId !== col.id) return;
+      deliveries++; loads += e.c + e.p; byAnt.set(e.antId, (byAnt.get(e.antId) ?? 0) + 1);
+    });
     const inC0 = col.counters ? JSON.stringify(col.counters) : '';
     const stores0 = col.stores.c + col.stores.p;
     for (let t = 0; t < 4000; t++) sim.tick();
@@ -151,8 +155,12 @@ describe('(b) 60 workers forage between the nest and a food source', () => {
     expect(col.knownSourceIds).toContain(sc.source.id);
     expect(col.stores.c + col.stores.p).toBeGreaterThan(stores0 - 5); // upkeep of 61 ants over 4000 ticks is small
     expect(JSON.stringify(col.counters)).not.toBe(inC0);
-    const trips = sim.state.ants.reduce((n, a) => n + (a.colony === col.id ? (a.bb[SB.trips] ?? 0) : 0), 0);
-    expect(trips).toBe(deliveries);
+    // every delivery is one completed trip of the ant that made it: compared per living ant (a forager that
+    // delivered and then died of old age, or drowned, is removed with its trip counter; int-1B review)
+    const living = sim.state.ants.filter((a) => a.alive && a.colony === col.id);
+    const trips = living.reduce((n, a) => n + (a.bb[SB.trips] ?? 0), 0);
+    expect(trips).toBe(living.reduce((n, a) => n + (byAnt.get(a.id) ?? 0), 0));
+    expect(trips).toBeGreaterThan(deliveries * 0.8);
     // pheromone: foragers laid trail on the way home; with nobody laying, it decays at the hooked rate
     const trailCells = sim.phero.activeCellCount!(col.id, 'trail');
     expect(trailCells).toBeGreaterThan(5);

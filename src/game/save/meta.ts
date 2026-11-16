@@ -93,3 +93,22 @@ export function isValidMeta(x: unknown): x is SaveMeta {
   for (const f of STRING_FIELDS) if (typeof o[f] !== 'string') return false;
   return typeof o.pinned === 'boolean' && (o.thumbnail === null || typeof o.thumbnail === 'string');
 }
+
+const finitePoint = (p: unknown): p is { x: number; y: number; z: number } => {
+  if (!p || typeof p !== 'object') return false;
+  const v = p as Record<string, unknown>;
+  return [v.x, v.y, v.z].every((n) => typeof n === 'number' && Number.isFinite(n));
+};
+
+/**
+ * The meta's observer camera when it is two finite, distinct points; null otherwise. The camera is only a view hint,
+ * so a damaged one (hand-edited file, another version) is dropped rather than refusing the whole save.
+ */
+export function savedCameraOf(meta: Pick<SaveMeta, 'camera'>): NonNullable<SaveMeta['camera']> | null {
+  const c = meta.camera as unknown;
+  if (!c || typeof c !== 'object') return null;
+  const { pos, look } = c as Record<string, unknown>;
+  if (!finitePoint(pos) || !finitePoint(look)) return null;
+  if (pos.x === look.x && pos.y === look.y && pos.z === look.z) return null; // no direction to look along
+  return { pos: { x: pos.x, y: pos.y, z: pos.z }, look: { x: look.x, y: look.y, z: look.z } };
+}

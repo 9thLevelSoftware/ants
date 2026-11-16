@@ -12,7 +12,9 @@
 //            --start-day D (start day of the season instead of the species default)
 //            --perf T (performance mode: after the set-up, 600 warm-up ticks, then 3 segments of T ticks; the
 //                      report's `perf` holds per-system ms per tick of the fastest segment; no day loop)
-//            --cache DIR (development: reuse a snapshot taken at the hand-over for the same world and options)
+//            --cache DIR (development: reuse a snapshot taken at the hand-over for the same world, options and
+//                      simulation code: the file name carries a hash of src/sim, src/worldgen and src/core, so any
+//                      code change founds afresh)
 //
 // Wall clock and console live here, never in src/sim.
 
@@ -122,8 +124,12 @@ function found(sim: Sim, maxDays: number): string {
   return op()?.done ? 'done' : (op()?.phase ?? 'none');
 }
 
-/** File access for the development cache (injected: the tool's main has node:fs). */
-export interface LifeIO { read(path: string): Uint8Array | null; write(path: string, data: Uint8Array): void }
+/**
+ * File access for the development cache (injected: the tool's main has node:fs). `codeTag` identifies the
+ * simulation code (a hash of its sources), so a snapshot founded by other code is never restored (int-1B review:
+ * sweeps 2-3 judged the founding from sweep-1 snapshots).
+ */
+export interface LifeIO { read(path: string): Uint8Array | null; write(path: string, data: Uint8Array): void; codeTag: string }
 
 export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io: LifeIO | null = null): LifeReport {
   const base = defaultGameConfig(o.species, o.seed, o.difficulty);
@@ -134,7 +140,8 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const g0 = performance.now();
   const world = generateWorld(config.world);
   const genMs = performance.now() - g0;
-  const cacheFile = o.cache && io ? `${o.cache}/founded-${o.species}-${o.archetype}-${o.seed}-${o.difficulty}-${o.startDay ?? 'd'}.bin` : null;
+  const cacheFile = o.cache && io
+    ? `${o.cache}/founded-${o.species}-${o.archetype}-${o.seed}-${o.difficulty}-${o.startDay ?? 'd'}-${io.codeTag}.bin` : null;
   const cached = cacheFile ? io!.read(cacheFile) : null;
   const state = cached ? restore(cached).state : createNewGame(config, world).state;
   const times: SysTime[] = [];
@@ -205,7 +212,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       .sort((a, b) => b.avgMsPerTick - a.avgMsPerTick),
     msPerTick: round(runMs / ticks),
     finalHash: stateHash(sim.state),
-    verdict: { healthy: false, checks: [] },
+    verdict: { healthy: false, netGrowth: false, checks: [] },
   };
   report.verdict = judge(report);
   return report;
@@ -230,7 +237,7 @@ function perfReport(sim: Sim, o: LifeOptions, times: SysTime[], ctx: { world: { 
     tool: 'life', options: o, world: { fingerprint: ctx.world.meta.fingerprint, genMs: round(ctx.genMs), sizeMm: ctx.world.size, bu: ctx.world.bu, sources: sim.state.sources.length },
     founding: ctx.founding, days: [], violations: [], violationCount: 0, systems: [], msPerTick: Math.min(...segs),
     perf: { tickMs: Math.min(...segs), segmentsMs: segs, systems: best, workers: st.workers, outside: st.outside },
-    finalHash: stateHash(sim.state), verdict: { healthy: true, checks: [] },
+    finalHash: stateHash(sim.state), verdict: { healthy: true, netGrowth: false, checks: [] },
   };
 }
 
@@ -246,7 +253,7 @@ export function lifeMarkdown(r: LifeReport): string {
   const lines = [
     `### ${o.species} on ${o.archetype} #${o.seed} (${o.difficulty})`, '',
     `Founding: ${r.founding.phase} after ${r.founding.gd} gd with ${r.founding.workers} first workers (expected ${r.founding.expected.min}-${r.founding.expected.max}). ` +
-    `Verdict: **${r.verdict.healthy ? 'healthy' : 'UNHEALTHY'}**; ${r.violationCount} invariant violations; ${r.msPerTick} ms per tick; final stateHash ${r.finalHash}.`, '',
+    `Verdict: **${r.verdict.healthy ? 'healthy' : 'UNHEALTHY'}** (net worker growth: ${r.verdict.netGrowth ? 'yes' : 'no'}); ${r.violationCount} invariant violations; ${r.msPerTick} ms per tick; final stateHash ${r.finalHash}.`, '',
     '| day | season | workers | eggs/larvae/pupae | hunger | lay pot. | C | P | stage | trips | deliv. (C/P) | by kind | deaths | eggs laid | eclosed | plans +/done | pellets made/dumped/in nest | volume BU³ | chambers | trail cells | outside | stuck | over timeout | viol. | ms/tick |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   ];
@@ -269,14 +276,33 @@ export function lifeMarkdown(r: LifeReport): string {
   return lines.join('\n');
 }
 
+interface NodeFs {
+  mkdirSync(p: string, o: object): void; writeFileSync(p: string, d: string | Uint8Array): void; existsSync(p: string): boolean;
+  readFileSync(p: string): Uint8Array; readdirSync(p: string, o: { recursive: true }): string[];
+}
+
+/** FNV-1a (32 bit) over the paths and bytes of every non-test .ts file under the directories, as 8 hex digits. */
+function sourceTag(fs: NodeFs, dirs: string[]): string {
+  let h = 0x811c9dc5;
+  const mix = (b: number) => { h = Math.imul(h ^ b, 0x01000193) >>> 0; };
+  for (const dir of dirs) {
+    const files = fs.readdirSync(dir, { recursive: true }).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts')).sort();
+    for (const f of files) {
+      for (let i = 0; i < f.length; i++) mix(f.charCodeAt(i) & 255);
+      const bytes = fs.readFileSync(`${dir}/${f}`);
+      for (let i = 0; i < bytes.length; i++) mix(bytes[i]);
+    }
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 export default async function main(args: string[]): Promise<void> {
   const o = parseLifeArgs(args);
-  const fs = (await import('node:fs' as string)) as {
-    mkdirSync(p: string, o: object): void; writeFileSync(p: string, d: string | Uint8Array): void; existsSync(p: string): boolean; readFileSync(p: string): Uint8Array;
-  };
+  const fs = (await import('node:fs' as string)) as NodeFs;
   const io: LifeIO = {
     read: (p) => (fs.existsSync(p) ? new Uint8Array(fs.readFileSync(p)) : null),
     write: (p, d) => { fs.mkdirSync(p.slice(0, p.lastIndexOf('/')), { recursive: true }); fs.writeFileSync(p, d); },
+    codeTag: o.cache ? sourceTag(fs, ['src/sim', 'src/worldgen', 'src/core']) : '',
   };
   const r = runLife(o, (s) => console.error(`[life] ${s}`), io);
   const md = r.perf ? `perf ${o.archetype} #${o.seed} +${o.workers} workers: ${JSON.stringify(r.perf)}` : lifeMarkdown(r);

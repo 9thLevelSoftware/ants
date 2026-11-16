@@ -253,33 +253,52 @@ export default async ({ page, shot, log }) => {
   const mounds0 = await g(() => window.__game.query.mounds());
   const side = { x: -H.z, z: H.x };
   const rim = { x: mouth.pos[0] + side.x * 6 * bu, y: mouth.pos[1], z: mouth.pos[2] + side.z * 6 * bu }; // beside the entrance
-  standIn('pellet hauling', 'cheat.spawnPellets dumps 100 pellets beside the entrance instead of haulers', 'beh-nest (1B)');
-  for (let k = 0; k < 4; k++) await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnPellets', pos: p, n: 25, volume: 0.85 }), rim);
-  await step(3500);
-  const mounds1 = await g(() => window.__game.query.mounds());
+  // Haulers (beh-nest, 1B): the founding queen has no workers yet, so six are spawned in the dug room with the haul
+  // task (scenario setup, recorded in result.setup); they must carry the tunnel's pellets out to the mound. Only if
+  // they do not is the old stand-in used (cheat.spawnPellets beside the entrance; strict mode fails there).
+  const inNest = () => g(() => window.__game.query.pellets().underground);
+  const qpos = (await summary()).possessed.pos;
+  const col = await g(() => window.__game.query.colony()?.id ?? -1);
+  const spawned = await g(([c, p]) => window.__game.cheat.raw({ type: 'cheat.spawnAnts', colonyId: c, n: 6, caste: 'worker', ageGd: 5, task: 'haul', pos: p }), [col, { x: qpos[0], y: qpos[1], z: qpos[2] }]);
+  (result.setup ??= []).push({ what: '6 hauling workers spawned in the dug room (the founding queen has none)', spawned });
+  const pelletsIn0 = await inNest();
+  let mounds1 = mounds0;
+  for (let k = 0; k < 12 && moundVol(mounds1) <= moundVol(mounds0); k++) { await step(500); mounds1 = await g(() => window.__game.query.mounds()); }
+  result.hauling = { pelletsInNest: [pelletsIn0, await inNest()], moundBefore: moundVol(mounds0), moundAfter: moundVol(mounds1) };
+  log('hauling', JSON.stringify(result.hauling));
+  if (moundVol(mounds1) <= moundVol(mounds0)) {
+    standIn('pellet hauling', `no hauler carried a pellet out in 6000 ticks (${JSON.stringify(result.hauling)}); cheat.spawnPellets dumps 100 pellets beside the entrance`, 'beh-nest (1B)');
+    for (let k = 0; k < 4; k++) await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnPellets', pos: p, n: 25, volume: 0.85 }), rim);
+    await step(3500);
+    mounds1 = await g(() => window.__game.query.mounds());
+  }
   result.mound = { before: moundVol(mounds0), after: moundVol(mounds1), count: mounds1.length };
   log('pellets', JSON.stringify(result.items), 'mound', JSON.stringify(result.mound));
   expect(result.mound.after > result.mound.before, 'the spoil mound did not grow', result.mound);
 
   // --- 7. an egg ---------------------------------------------------------------------------------------------------
-  const brood0 = s.brood;
+  // the player colony's brood (summary().brood counts every colony's; seed 1 has a neighbouring colony whose brood changes)
+  const ownBrood = () => g(() => window.__game.query.broodList().length);
+  const brood0 = await ownBrood();
   await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' }));
   await step(20);
   if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
   await g(() => window.__game.act('lay-egg'));
   await step(300);
   s = await summary();
-  result.egg = { before: brood0, laid: s.brood, refusals: await refusals() };
-  if (s.brood === brood0) {
+  let laid = await ownBrood();
+  result.egg = { before: brood0, laid, refusals: await refusals() };
+  if (laid <= brood0) {
     // lay-egg needs a registered chamber or the founding cell (nestops chamber detection / the 1B founding flow)
     standIn('egg', `lay-egg refused (${result.egg.refusals.filter((r) => r.startsWith('lay-egg')).join(', ') || 'no egg'}); 6 eggs cheat-spawned at the queen`, 'founding (1B)');
     const col = await g(() => window.__game.query.colony()?.id ?? -1);
     await g((c) => window.__game.cheat.raw({ type: 'cheat.spawnBrood', colonyId: c, stage: 'egg', n: 6, chamberId: -1, progress: 0, destined: null }), col);
     s = await summary();
   }
-  result.egg.after = s.brood;
+  laid = await ownBrood();
+  result.egg.after = laid;
   log('egg', JSON.stringify(result.egg));
-  expect(s.brood > brood0, 'no eggs', result.egg);
+  expect(laid > brood0, 'no eggs', result.egg);
 
   // inside the dug room with the queen and the eggs (possession camera)
   await g(() => window.__game.camera.zoom(1.6));

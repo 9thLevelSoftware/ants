@@ -146,9 +146,14 @@ export default async ({ page, shot, log, wait }) => {
   }, [queenId]);
   expect(workers.length >= 3, 'workers on the surface near the queen', workers.length);
   await render();
-  const target = workers[0];
-  const scr = await g((p) => window.__game.views.project(p), { x: target.pos.x, y: target.pos.y + 0.3 * bu, z: target.pos.z });
-  expect(scr, 'worker on screen');
+  // the first of them in the frame (the released queen's observer starts at her possession camera, which frames her
+  // close since gate 1B, so not every worker beside her is in view)
+  let scr = null;
+  for (const w of workers) {
+    scr = await g((p) => { const q = window.__game.views.project(p); return q && q.x > 0 && q.y > 0 && q.x < innerWidth && q.y < innerHeight ? q : null; }, { x: w.pos.x, y: w.pos.y + 0.3 * bu, z: w.pos.z });
+    if (scr) break;
+  }
+  expect(scr, 'worker on screen', workers.length);
   await g(([x, y]) => window.__game.views.pointer(x, y), [scr.x, scr.y]);
   await render();
   st = await g(() => window.__game.views.state());

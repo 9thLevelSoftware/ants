@@ -31,28 +31,17 @@ export * from './system';
 export * from './timeCommands';
 export * from './noLag';
 
-/** Human activity schedule, telegraphs, impacts. Stub: human-events. */
-export const humanEventsSystem: System = { name: 'human-events', phase: 'environment', run: () => {} };
-/** Soil moisture, puddles, flooding inputs, trail washing. Stub: weather-effects. */
-export const environmentEffectsSystem: System = {
-  name: 'environment-effects', phase: 'environment', every: ENV_MOISTURE_EVERY, offset: ENV_MOISTURE_OFFSET, run: () => {},
-};
+import { humanEventsSystem, commandHandlers as humanHandlers } from './human'; export { humanEventsSystem, humanForecast, humanRainRateAt, humanPlan, crushP } from './human'; // owner: human-events
+import { environmentEffectsSystem, weatherEffectsHandlers } from './effects'; export { environmentEffectsSystem } from './effects'; export { moistureAtXZ, puddleDepthMm, surfaceWetness } from './moisture'; // owner: weather-effects
 
 export const systems: readonly System[] = [
   calendarSystem, weatherSystem, antThermalSystem, skipSystem, humanEventsSystem, environmentEffectsSystem,
 ];
 
-/** No overhead cover within 3 BU. Stub: false (weather-effects). */
-export function isExposed(_sim: Sim, _p: Vec3): boolean {
-  return false;
-}
+export { isExposed, isExposedAt } from './effectsExposure'; // owner: weather-effects (no overhead cover within 3 BU)
 
 export const commandHandlers: Partial<CommandHandlerMap> = {
   ...timeHandlers,
-  'cheat.setSoilMoisture': () => {}, // owner: weather-effects
-  'cheat.setRain': () => {}, // owner: weather-effects
-  'cheat.setDrainScale': () => {}, // owner: weather-effects
-  'cheat.setWater': () => {}, // owner: weather-effects
-  'cheat.humanEvent': () => {}, // owner: human-events
-  'cheat.setGrass': () => {}, // owner: human-events
+  ...weatherEffectsHandlers, // owner: weather-effects (setSoilMoisture, setRain, setDrainScale, setWater)
+  ...humanHandlers, // owner: human-events (cheat.humanEvent, cheat.setGrass)
 };

@@ -31,3 +31,5 @@ export const GHOST_FILL_OPACITY = 0.22;
 /** X-ray dots (GDD 01 §6.7: ants as instanced dots >= 3 px), and the chamber labels' frame colour. */
 export const XRAY_DOTS = { ant: { color: '#1B140E', sizePx: 4 }, queen: { color: '#7A1F1F', sizePx: 7 }, brood: { color: '#FFF4D8', sizePx: 3 } };
 export const CHAMBER_LABEL_COLOR = '#C9B79C';
+/** The colony slice: outline of a chamber where the plane cuts it (the cut face reads as rooms, not one blob). */
+export const CHAMBER_OUTLINE_COLOR = '#EADBBF';
