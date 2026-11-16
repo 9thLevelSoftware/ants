@@ -400,3 +400,13 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
   were failing at import: 9 files; now green). Known red, not from this: `src/sim/commands.test.ts` "ends with
   lifecycle": the `nest-flood` system sorts after `lifecycle` (weather-effects registered it in the lifecycle phase)
   → gate close / nest owner: give it the phase before lifecycle so drowned ants are swept the same tick.
+- 18:45 launched `weiuc7x43` (wf_0fc884f0-b38): `loco-fix3` (Opus) + `input-gamepad-a11y` (Sonnet impl, Opus review,
+  visual), and `wwjhnle8f` (wf_9d6a17e0-fe2): `look-pass-2` (Sonnet impl, Opus review, visual). Integrator's reasons for
+  look-pass-2 (from `test-output/viab/e2e-3/*.png`): night frames nearly black; workers underground are black
+  silhouettes; stems and blocks float with cut ends; pale slab at the horizon at night; `low` is bare soil into fog.
+- Running (6 tasks): econ-growth + overwinter-repro (`wxxwcbc34`), nest-fix3 (`w7nudxfes`), loco-fix3 +
+  input-gamepad-a11y (`weiuc7x43`), look-pass-2 (`wwjhnle8f`).
+- **Order after these land**: `gate-1B-close` (then build:portable, publish, source archive) → Stage 3 species
+  (carpenter, harvester, leafcutter, Lasius honeydew), difficulty-rules, perf (tick cost + spikes + E8 gen time),
+  Stage 2/3 gate (progression listeners, rivals pre-carve, thief ants scope, `available: true`) → QA playtests, soak,
+  manual/docs, final report.
