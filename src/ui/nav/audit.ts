@@ -17,17 +17,22 @@ export interface FocusAudit {
 }
 
 /**
+
  * Reading-order violations: going to the next control in Tab order must not land clearly ABOVE the previous one
- * unless it starts a new column (further right). Items are `rects` in Tab order; returns "i->j" descriptions.
+ * unless it moves to the right (a new column, the pins of a staggered timeline). Items are `rects` in Tab order; returns "i->j" descriptions.
  */
+/** A control that starts this far to the right of the previous one counts as moving on, whatever its height. */
+const RIGHTWARD_PX = 4;
+
 export function reachOrderIssues(rects: readonly Rect[], names: readonly string[]): string[] {
   const out: string[] = [];
   for (let i = 1; i < rects.length; i++) {
     const a = rects[i - 1], b = rects[i];
     const tol = Math.max(8, Math.min(a.h, b.h) * 0.6);
     const above = b.y + b.h / 2 < a.y + a.h / 2 - tol;
-    const newColumn = b.x > a.x + a.w - 1;
-    if (above && !newColumn) out.push(`order: "${names[i]}" comes after "${names[i - 1]}" but is above it`);
+    // moving to the right (a new column, or the pins of a staggered timeline) is reading order; going up in the same column is not
+    const rightward = b.x > a.x + RIGHTWARD_PX;
+    if (above && !rightward) out.push(`order: "${names[i]}" comes after "${names[i - 1]}" but is above it`);
   }
   return out;
 }
@@ -82,7 +87,9 @@ export function auditLayer(root: HTMLElement): FocusAudit {
   root.querySelectorAll<HTMLElement>(FOCUSABLE).forEach((el) => {
     if (el.closest('[aria-hidden="true"]') && !el.closest('[inert]')) issues.push(`focusable inside aria-hidden: ${el.tagName.toLowerCase()} "${accessibleName(el)}"`);
   });
-  issues.push(...reachOrderIssues(items.map((i) => i.rect), items.map((i) => i.name)));
+  // controls inside `data-tab-order="logical"` (a timeline: chronological order, stacked in lanes) are ordered by meaning, not by position
+  const positional = els.map((el, i) => i).filter((i) => !els[i].closest('[data-tab-order="logical"]'));
+  issues.push(...reachOrderIssues(positional.map((i) => items[i].rect), positional.map((i) => items[i].name)));
   const a = document.activeElement as HTMLElement | null;
   const first = a && root.contains(a) ? accessibleName(a) : items[0]?.name ?? null;
   return { count: els.length, items, issues, first };

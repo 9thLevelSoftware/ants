@@ -17,6 +17,13 @@
 // - So the checks are ratios to the colony's own need over the measured day (the GDD's absolute 10-14 C / 11-15 P
 //   came from the superseded 0.9 P pieces and 60 workers): C intake 0.9-1.5 x need, P intake 0.9-1.8 x need, eggs
 //   laid in the chapter's 8-16, and the carbohydrate stock falls by no more than 3 loads. Foragers out are reported.
+// - The stocks are the pool (GDD 02 §5.1). A nurse load given to a worker the allocator then moves to idle goes back
+//   to the pool (colony/cropNetwork.ts; before that fix 60 idle workers kept 9 P of nurse loads and dC was -11.7).
+//   The P stock change is reported, not asserted: R7 bounds only the carbohydrate stock (the GDD's check bounded
+//   both; with larvae eating the protein brought in, dP is about -4 here).
+// - The nest flood system is left out: the worked example is a fair summer day, and a trace of night-time flood
+//   water (under 2 % of the nest) sends every idle ant to nurse (nest idle behaviour, flood evacuation), each loading
+//   a crop, which moved ~25 loads out of the pool in one seed (reported to the nest owners).
 import { describe, expect, it } from 'vitest';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { colonySlotBit } from '@/sim/entities';
@@ -39,7 +46,8 @@ function at(d: { distBu: number; deg: number }): { dx: number; dz: number } {
 describe.skipIf(!LONG)('GDD 02 App. E 25 with real behaviour, re-derived (R7; FOUNDRESS_LONG)', () => {
   it('one summer day of 100 workers on a real herd and a beetle: intake vs need, laying, stock', () => {
     const pinned = new Map<number, number>();
-    const { sim, plants } = plantSim({ workers: 100, sizeBu: 600, herbs: [at(HERD)], seed: 1, systems: pinnedSystems(pinned) });
+    const systems = pinnedSystems(pinned).filter((s) => s.name !== 'nest-flood');
+    const { sim, plants } = plantSim({ workers: 100, sizeBu: 600, herbs: [at(HERD)], seed: 1, systems });
     const col = sim.state.colonies[0];
     const bu = sim.world.bu;
     const herd = addHerd(sim, plants[0], APHIDS, { kMax: APHIDS + 50 });

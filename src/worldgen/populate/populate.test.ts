@@ -122,6 +122,8 @@ describe('food anchors (acceptance 5, GDD 04 §8.1, GDD 05 §0 / §1.3)', () => 
         expect(f.lean, `${a} lean flag at ${f.radiusBu}`).toBe(!full);
       });
       expect(r.economyLean).toBe(r.floors.some((f) => f.lean));
+      // the generation note agrees with the final report (econ-growth review: it was read before the last flowers)
+      expect(ctx.notes.some((n) => n.startsWith('economyLean:')), `${a} economyLean note`).toBe(r.economyLean);
       expect(r.near).toBeGreaterThanOrEqual(3);
       expect(r.carb && r.protein).toBe(true);
       expect(r.siteMin).toBeGreaterThanOrEqual(2);

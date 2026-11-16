@@ -52,10 +52,30 @@ describe('kernel from generated worlds', () => {
 });
 
 // loco-fix3: suburban-garden #4 (a nav cell open only through the strip under a raised gravel board at a fence end)
-// now crosses through the game's edge gate, playground-park #3 without the climb-over pass. Open (reported, world
-// side): playground-park #4 (the path runs through a closed toy bucket whose thin walls the walker cannot climb back
-// over: stuck on the inner face at (1610.9, 21.1, 1181.4) BU) and woodland-edge #3 (the last cell of the row lies on
-// a dry-stone garden wall; its waypoint sits across a crevice between two stones, (3911.8, 4.5, 1995.0) BU).
+// now crosses through the game's edge gate, playground-park #3 without the climb-over pass. Two crossings fail on a
+// world defect (AC3 of loco-fix3: named with the place and the reason, and the validation rule that would reject the
+// world). They are expected to fail (`it.fails`): when a world or walker fix makes one cross, its case turns red and
+// must move back to the plain list.
+const WORLD_DEFECTS: Record<string, string> = {
+  // the row path runs into a closed toy bucket: the 4 BU column raster samples between its thin walls,
+  // so the nav cells inside are 'open' ground at the bucket floor; the walker gets in over the rim and is stuck on
+  // the inner face of the wall at (1610.9, 21.1, 1181.4) BU, a wall it cannot climb back over (no climbable inside).
+  // Rule: a passable nav cell must be leavable: each of its passable side neighbours is reached by a straight
+  // crossing or an edge gate (grid/gates.ts crossingFree / findGate) or by a climb of at most gateTallBU on a
+  // CLIMBABLE face; cells that fail are blocked, and a world whose start row has none left is rejected.
+  'playground-park#4': 'closed toy bucket, walls thinner than the column raster',
+  // the last cell of the row lies on a dry-stone garden wall; its waypoint sits across a crevice between two stones,
+  // (3911.8, 4.5, 1995.0) BU, a point no surface walker reaches. Rule: a waypoint (cell ground point) must lie on
+  // the walkable surface: the column top at the cell centre must be within footOffset of the level set
+  // (field.sample within 0.5 BU), else the cell's ground point moves to the nearest sampled point that is, or the
+  // cell is blocked.
+  'woodland-edge#3': 'end cell ground point inside a crevice of a dry-stone wall',
+};
+
 describe.skipIf(!LONG)('walker crossings over more seeds (FOUNDRESS_LONG=1)', () => {
-  for (const a of T1_ARCHETYPES) for (const s of [1, 3, 4]) it(`${a} #${s}`, () => crossesMap(a, s), 600_000);
+  for (const a of T1_ARCHETYPES) for (const s of [1, 3, 4]) {
+    const defect = WORLD_DEFECTS[`${a}#${s}`];
+    if (defect) it.fails(`${a} #${s} (known world defect: ${defect})`, () => crossesMap(a, s), 600_000);
+    else it(`${a} #${s}`, () => crossesMap(a, s), 600_000);
+  }
 });

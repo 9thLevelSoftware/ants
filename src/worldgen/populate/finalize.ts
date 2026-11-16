@@ -297,10 +297,12 @@ export function finalizeFood(ctx: GenContext): void {
     }
   }
   if (added > 0) ctx.notes.push(`food: ${added} anchors added near the start (guarantees)`);
-  const lean = ECONOMY_FLOORS.map((f) => floorStatus(f, sustainedOffer(ctx, d, f.radiusBu))).filter((f) => f.lean);
-  if (lean.length > 0) ctx.notes.push(`economyLean: ${lean.map((f) => `${f.radiusBu} BU ${f.c.toFixed(0)} C / ${f.p.toFixed(0)} P`).join('; ')}`);
   const flowers = feedGoodSites(ctx, d);
   if (flowers > 0) ctx.notes.push(`food: ${flowers} flowers opened near poorly fed good sites`);
+  // R8 flag, read after the last food change so it agrees with the final food report (econ-growth review: computed
+  // before feedGoodSites it could call lean a world whose report was not)
+  const lean = ECONOMY_FLOORS.map((f) => floorStatus(f, sustainedOffer(ctx, d, f.radiusBu))).filter((f) => f.lean);
+  if (lean.length > 0) ctx.notes.push(`economyLean: ${lean.map((f) => `${f.radiusBu} BU ${f.c.toFixed(0)} C / ${f.p.toFixed(0)} P`).join('; ')}`);
 }
 
 /**

@@ -4,8 +4,10 @@
 //   6 fail.
 // Progress resets the rung. Episodes and relocations per request are capped, and every request has a timeout,
 // so no walker can loop forever: it arrives or reports `failed`. Relocation is a last resort that terminates across
-// requests too (loco-fix3): a walker stuck again where it was relocated (relocRepeat) lets go instead, then its walk
-// fails with reason 'stuck-repeat' where rung 5 would relocate (the other rungs, which move nobody, still run).
+// requests too (loco-fix3): a walker is never relocated twice from one place. It remembers its last relocMemory
+// relocations (from and to, no time limit); stuck again at one of those places, it lets go instead (a drop, at most
+// once per relocRepeatS), else its walk fails with reason 'stuck-repeat' where rung 5 would relocate (the other
+// rungs, which move nobody, still run).
 // A wander has no goal to replan toward or relocate along: it has its own short ladder (wanderStuck): pivot on the
 // spot, then fail.
 
@@ -86,15 +88,12 @@ export function checkStuck(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, i
     }
     case 5: {
       if (!target) return 'none';
-      if (repeatHere(w, s, tick, P)) return escalate(sim, w, s, r, id);
+      if (repeatHere(w, s, P)) return escalate(sim, w, s, r, id, tick);
       if (s.relocations >= P.relocateMax) return 'fail';
       set3(_from, w.pos.x, w.pos.y, w.pos.z);
-      if (!relocate(sim, w, id, target, r)) return 'fail';
+      if (!relocate(sim, w, target, r)) return 'fail';
       s.relocations++;
-      s.relocTick = tick;
-      s.relocFrom = { x: _from.x, y: _from.y, z: _from.z };
-      s.relocTo = { x: w.pos.x, y: w.pos.y, z: w.pos.z };
-      s.relocRepeat = 0;
+      remember(s, _from, w.pos, tick, P.relocMemory);
       s.ladder = 0;
       return 'replan';
     }
@@ -136,22 +135,46 @@ export function pivotDesired(w: Walker, s: NavScratch, out: Vec3): void {
   rotateTangent(out, w.fwd, w.up, s.side * Math.PI * 0.5);
 }
 
-/** The walker is stuck within relocRepeat of where it was last relocated from or put, within relocRepeatTicks. */
-function repeatHere(w: Walker, s: NavScratch, tick: number, P: LocoRuntime['P']): boolean {
-  if (s.relocTick === undefined || tick - s.relocTick > P.relocRepeatTicks) return false;
-  const near = (p: Vec3 | undefined) => p !== undefined && dist3(w.pos, p) <= P.relocRepeat;
-  return near(s.relocFrom) || near(s.relocTo);
+/** Records a relocation (from -> to, mm) in the walker's memory: the newest relocMemory relocations are kept. */
+function remember(s: NavScratch, from: Vec3, to: Vec3, tick: number, memory: number): void {
+  const h = s.relocHist ?? (s.relocHist = []);
+  h.push(from.x, from.y, from.z, to.x, to.y, to.z);
+  if (h.length > 6 * memory) h.splice(0, h.length - 6 * memory);
+  s.relocTick = tick;
+  s.relocFrom = { x: from.x, y: from.y, z: from.z };
+  s.relocTo = { x: to.x, y: to.y, z: to.z };
+  s.relocRepeat = 0;
 }
 
 /**
- * Stuck again where it was relocated: the first time the walker lets go (drops off the spot; nothing is teleported),
- * after that the walk fails with 'stuck-repeat'. One log line per escalation.
+ * The walker is stuck within relocRepeat of a place one of its remembered relocations started or ended at, however
+ * long ago (AC2 of loco-fix3: no walker is relocated twice from the same place). Saves from before relocHist keep
+ * only the last relocation, in relocFrom / relocTo.
  */
-function escalate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number): StuckAction {
-  const n = (s.relocRepeat ?? 0) + 1;
-  s.relocRepeat = n;
-  if (n === 1 && w.medium !== 'air') {
+function repeatHere(w: Walker, s: NavScratch, P: LocoRuntime['P']): boolean {
+  const R2 = P.relocRepeat * P.relocRepeat, p = w.pos;
+  const h = s.relocHist;
+  if (h === undefined) {
+    const near = (q: Vec3 | undefined) => q !== undefined && dist3(p, q) <= P.relocRepeat;
+    return near(s.relocFrom) || near(s.relocTo);
+  }
+  for (let i = 0; i + 2 < h.length; i += 3) {
+    const dx = p.x - h[i], dy = p.y - h[i + 1], dz = p.z - h[i + 2];
+    if (dx * dx + dy * dy + dz * dz <= R2) return true;
+  }
+  return false;
+}
+
+/**
+ * Stuck again where it was relocated: the walker lets go (drops off the spot; nothing is teleported) if it has not
+ * let go within relocRepeatTicks, else the walk fails with 'stuck-repeat'. One log line per escalation.
+ */
+function escalate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, tick: number): StuckAction {
+  s.relocRepeat = (s.relocRepeat ?? 0) + 1;
+  const lastDrop = s.relocDropTick;
+  if (w.medium !== 'air' && (lastDrop === undefined || tick - lastDrop > r.P.relocRepeatTicks)) {
     walkerLetGo(sim.field, w, 0, sim.kernel.walker);
+    s.relocDropTick = tick;
     r.stats.relocRepeatDrops++;
     s.ladder = 0;
     log.info(`walker ${id} stuck again at ${fmt(w.pos)} after a relocation: let go`);
@@ -168,16 +191,20 @@ function negUp(w: Walker): Vec3 {
 
 /**
  * Moves the walker a bounded distance toward target (on the surface there). A target closer than relocMin (a field
- * lookahead that ends where the walker stands, the mouth of an exit field) moves nobody: then the point is pushed
- * relocMin along the way to the walker's destination. Emits `ant-unstuck` (no log line: one per escalation only).
+ * lookahead that ends where the walker stands, the mouth of an exit field) would move nobody: then the walker is
+ * moved 2 x relocMin (at most the whole way) toward its destination; a destination closer than relocMin too leaves
+ * nothing to relocate toward (false: the rung fails the walk, nothing is counted or emitted). Emits `ant-unstuck`
+ * (no log line: one per escalation only).
  */
-function relocate(sim: Sim, w: Walker, id: number, target: Vec3, r: LocoRuntime): boolean {
+function relocate(sim: Sim, w: Walker, target: Vec3, r: LocoRuntime): boolean {
   set3(_from, w.pos.x, w.pos.y, w.pos.z);
-  const maxD = 6 * r.P.bu;
+  const maxD = 6 * r.P.bu, minD = r.P.relocMin;
   let tx = target.x - w.pos.x, ty = target.y - w.pos.y, tz = target.z - w.pos.z;
-  if (Math.hypot(tx, ty, tz) < r.P.relocMin) {
+  if (Math.hypot(tx, ty, tz) < minD) {
     const g = w.nav.dest, gx = g.x - w.pos.x, gy = g.y - w.pos.y, gz = g.z - w.pos.z, gl = Math.hypot(gx, gy, gz);
-    if (gl > r.P.relocMin) { const k = Math.min(gl, 2 * r.P.relocMin) / gl; tx = gx * k; ty = gy * k; tz = gz * k; }
+    if (!(gl > minD)) return false;
+    const k = Math.min(gl, 2 * minD) / gl;
+    tx = gx * k; ty = gy * k; tz = gz * k;
   }
   const d = Math.hypot(tx, ty, tz);
   const k = d > maxD ? maxD / d : 1;
@@ -185,7 +212,6 @@ function relocate(sim: Sim, w: Walker, id: number, target: Vec3, r: LocoRuntime)
   set3(_t, tx, ty, tz);
   if (!walkerPlace(sim.field, w, _p, { dir: { x: 0, y: -1, z: 0 }, heading: _t }, sim.kernel.walker)) return false;
   r.stats.relocations++;
-  void id;
   if (isAnt(w)) sim.emit({ type: 'ant-unstuck', antId: w.id, from: { ..._from }, to: { ...w.pos } });
   return true;
 }

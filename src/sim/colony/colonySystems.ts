@@ -2,7 +2,7 @@
 // IDLE_REEVAL_S (staggered), queen / brood / physiology on the staggered slow tick (id mod PHYSIO_EVERY),
 // the colony cycle at the end of each stagger cycle, statistics hourly, diagnostics every DIAGNOSTICS_EVERY.
 
-import type { Colony, ColonyCoreState, Sim, SpeciesDef, System } from '@/sim/types';
+import type { Ant, Colony, ColonyCoreState, Sim, SpeciesDef, System } from '@/sim/types';
 import {
   ALLOC_EVERY, ALLOC_OFFSET, COLONY_DIAGNOSTICS_OFFSET, COLONY_STATS_OFFSET, DIAGNOSTICS_EVERY, HOURLY_EVERY, PHYSIO_EVERY,
 } from '@/sim/balance';
@@ -11,6 +11,7 @@ import { allocateColony, isSurplusRun, reevaluateIdle } from './allocation';
 import { broodStep, flushBroodAcc, newBroodAcc, type BroodAcc } from './brood';
 import { closeColonyCycle, colonyTick } from './economy';
 import { newPhysioAcc, physiologyStep, settlePhysioAcc, type PhysioAcc } from './physiology';
+import { holdsNetworkCrop, returnCropToPool } from './cropNetwork';
 import { queenStep } from './queen';
 import { sampleHour } from './stats';
 import { runColonyDiagnostics } from './diagnostics';
@@ -97,7 +98,13 @@ export const broodSystem: System = {
   },
 };
 
-/** Adult physiology (staggered) and, at the end of each stagger cycle, the colony economy cycle. */
+/** Ants of this slow-tick bucket whose crop goes back to the pool once physiology has settled (scratch). */
+const networkCrops: Ant[] = [];
+
+/**
+ * Adult physiology (staggered), crops of non-feeding in-nest workers back to the pool (cropNetwork.ts) and, at the
+ * end of each stagger cycle, the colony economy cycle.
+ */
 export const economySystem: System = {
   name: 'economy', phase: 'colony-economy',
   run: (sim) => {
@@ -111,7 +118,9 @@ export const economySystem: System = {
       const a = ants[i];
       if (!a.alive || a.caste === 'queen' || a.id % every !== bucket) continue;
       const lc = byId.get(a.colony);
-      if (lc) physiologyStep(sim, a, lc.col, lc.def, every, accs.get(a.colony)!);
+      if (!lc) continue;
+      physiologyStep(sim, a, lc.col, lc.def, every, accs.get(a.colony)!);
+      if (holdsNetworkCrop(a)) networkCrops.push(a);
     }
     for (const lc of cols) {
       const acc = accs.get(lc.col.id)!;
@@ -122,6 +131,11 @@ export const economySystem: System = {
       accAdd(lc.core, 'cyc.cropP', acc.cropP);
       accAdd(lc.core, 'cyc.starving', acc.starving);
     }
+    for (const a of networkCrops) {
+      const lc = byId.get(a.colony);
+      if (lc && a.alive) returnCropToPool(lc.col, a, every);
+    }
+    networkCrops.length = 0;
     if (bucket === every - 1) for (const lc of cols) closeColonyCycle(sim, lc.col, lc.core, lc.def);
   },
 };

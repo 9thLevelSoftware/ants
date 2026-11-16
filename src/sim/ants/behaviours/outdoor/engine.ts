@@ -152,6 +152,9 @@ export function makeBehaviour(fl: Flavour): Behaviour {
     exit(sim, ant) {
       dropAction(sim, ant);
       stopLaying(sim, ant);
+      // the trip is over for this behaviour: its phase must not keep claiming the source (claims.ts) under the next
+      // task; enter() and situate() start every trip afresh
+      ant.bb[K.phase] = -1;
     },
     // Deliver first (GDD 02 §6.5, §10.0): an ant whose task changes while it is outside, or laden in the nest, keeps
     // this behaviour (the runner holds the switch) until it is home and has unloaded.

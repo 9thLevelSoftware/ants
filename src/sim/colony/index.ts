@@ -126,6 +126,7 @@ export { daysOfStock, intakeTarget, needRates, nutrientWeights, recruitAcceptanc
 export { poolCapacity, poolSpace, type DepositSource, type WithdrawPurpose } from './stores';
 export { colonySummary, queryLedger, type ColonySummary } from './summary';
 export { bandOf, health, reserveCap } from './physiology';
+export { typicalForager, unitsPerTripOf } from './tripLoad';
 export { devRate, stageDu } from './life';
 
 /** Kills a brood item with the colony's bookkeeping (death counters by cause, brood-corpse waste). */

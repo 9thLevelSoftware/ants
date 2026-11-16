@@ -9,7 +9,7 @@ import { homeEntranceStatus } from '@/sim/locomotion/nests';
 import { forageScenario, announce, run } from '@/sim/ants/behaviours/outdoor/testkit';
 import { makeProgSim, pollOnce } from '@/sim/progression/testkit';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { midLifeReadout } from './midlifeKit';
+import { MIDLIFE_SAVE_TICK, midLifeReadout } from './midlifeKit';
 import { EventCounter } from '../../../../tools/sim/lifeMetrics';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
@@ -117,7 +117,7 @@ describe('int-1B-sim review: the mid-life save point really is mid-life', () => 
     announce(sim, col, sources[0]);
     sim.enqueue({ type: 'cheat.spawnBrood', colonyId: col.id, stage: 'larva', n: 6, chamberId: -1, progress: 0.3, destined: null });
     sim.enqueue({ type: 'cheat.spawnBrood', colonyId: col.id, stage: 'egg', n: 6, chamberId: -1, progress: 0.2, destined: null });
-    for (let i = 0; i < 3000; i++) sim.tick();
+    for (let i = 0; i < MIDLIFE_SAVE_TICK; i++) sim.tick();
     const at = midLifeReadout(sim);
     const larvae = sim.state.brood.filter((b) => b.alive && b.stage === 'larva').length;
     expect({ livePlans: at.livePlans > 0, larvae: larvae > 0 }).toEqual({ livePlans: true, larvae: true });

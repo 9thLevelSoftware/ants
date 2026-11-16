@@ -100,6 +100,12 @@ export interface WeatherLook {
   /** Haze density multiplier. */
   hazeMult: number;
   exposureEV: number;
+  /**
+   * Exposure kept ON TOP of the night metering (look-pass 2). The night metering replaces `exposureEV` (it would cancel
+   * rain's +0.4 anyway), but GDD 08 11.4 "storm = rain look + sky darkening, exposure -0.7 EV" must still show at night:
+   * only the storm's extra darkening survives. 0 for every other state.
+   */
+  nightEV: number;
   /** Overcast flattening of the sky 0..1. */
   overcast: number;
   /** Saturation multiplier (frost desaturates 30 %). */
@@ -113,12 +119,12 @@ export interface WeatherLook {
 // hazeMult: overcast +20 % (GDD 08 11.4); rain and storm are not given in the GDD (the rain curtain thickens the
 // air: +35 % / +50 %, tuning values); heat changes the haze colour, and its density only over asphalt (above).
 export const WEATHER_LOOK: Record<WeatherState, WeatherLook> = {
-  clear: { sunMult: 1, meterSunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 1, hazeHex: null, shadowHex: null },
-  overcast: { sunMult: 0.35, meterSunMult: 0.35, penumbra: 4, hazeMult: 1.2, exposureEV: 0.3, overcast: 1, saturation: 0.95, hazeHex: null, shadowHex: null },
-  rain: { sunMult: 0.2, meterSunMult: 0.2, penumbra: 4, hazeMult: 1.35, exposureEV: 0.4, overcast: 1, saturation: 0.95, hazeHex: null, shadowHex: null },
-  storm: { sunMult: 0.12, meterSunMult: 0.2, penumbra: 4, hazeMult: 1.5, exposureEV: 0.4 - 0.7, overcast: 1, saturation: 0.9, hazeHex: null, shadowHex: null },
-  heat: { sunMult: 1.05, meterSunMult: 1.05, penumbra: 1, hazeMult: 1, exposureEV: -0.1, overcast: 0, saturation: 0.95, hazeHex: '#EADBC0', shadowHex: null },
-  frost: { sunMult: 1, meterSunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, overcast: 0, saturation: 0.7, hazeHex: null, shadowHex: '#5A6E8C' },
+  clear: { sunMult: 1, meterSunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, nightEV: 0, overcast: 0, saturation: 1, hazeHex: null, shadowHex: null },
+  overcast: { sunMult: 0.35, meterSunMult: 0.35, penumbra: 4, hazeMult: 1.2, exposureEV: 0.3, nightEV: 0, overcast: 1, saturation: 0.95, hazeHex: null, shadowHex: null },
+  rain: { sunMult: 0.2, meterSunMult: 0.2, penumbra: 4, hazeMult: 1.35, exposureEV: 0.4, nightEV: 0, overcast: 1, saturation: 0.95, hazeHex: null, shadowHex: null },
+  storm: { sunMult: 0.12, meterSunMult: 0.2, penumbra: 4, hazeMult: 1.5, exposureEV: 0.4 - 0.7, nightEV: -0.7, overcast: 1, saturation: 0.9, hazeHex: null, shadowHex: null },
+  heat: { sunMult: 1.05, meterSunMult: 1.05, penumbra: 1, hazeMult: 1, exposureEV: -0.1, nightEV: 0, overcast: 0, saturation: 0.95, hazeHex: '#EADBC0', shadowHex: null },
+  frost: { sunMult: 1, meterSunMult: 1, penumbra: 1, hazeMult: 1, exposureEV: 0, nightEV: 0, overcast: 0, saturation: 0.7, hazeHex: null, shadowHex: '#5A6E8C' },
 };
 /** Overcast sky colour (linear) the dome flattens toward. */
 export const OVERCAST_SKY: [number, number, number] = [0.4, 0.42, 0.46];
@@ -168,7 +174,9 @@ export const AUTO_EXPOSURE_MAX_EV = 2.0;
  *  - a sky fill of its own (`fillHex` at `fillRel`; the GDD ambient colour is already dark before its 0.15 level);
  *  - exposure that meters the ground: EV = log2(targetE / E), clamped to [minEV, maxEV] (the FLOOR keeps a bright
  *    moon from making the night grey; the cap keeps a cloudy new moon from turning the noise up forever). The
- *    metering replaces the GDD exposure column and the weather EV at night (rain and cloud already cut E).
+ *    metering replaces the GDD exposure column and the weather EV at night (rain and cloud already cut E; the
+ *    storm's extra -0.7 EV, GDD 08 11.4, is kept through WeatherLook.nightEV, so a night storm is darker than a
+ *    night rain: recorded departure from "metering replaces the weather EV").
  * `nightFromDeg`..`nightToDeg`: the sun elevations over which the dusk blends into this night look (smoothstep).
  * Target (acceptance): median luminance of the ground within 20 body lengths 12..25 % of the display range.
  * Tuned by tests/e2e/look2.mjs measurements; pinned by lighting.test.ts (night numbers) and lookPass2.test.ts.
@@ -199,7 +207,7 @@ export const NIGHT_LOOK: NightLook = {
   groundRgb: [0.05, 0.06, 0.09],
   overcastSkyRgb: [0.0045, 0.0055, 0.011],
   penumbra: 2.5,
-  targetE: 2.2,
+  targetE: 2.45,
   minEV: 2.6,
   maxEV: 5.5,
   nightFromDeg: 2,

@@ -5,9 +5,15 @@
 import { describe, expect, it } from 'vitest';
 import type { FoodVariant, Sim } from '@/sim/types';
 import { ti } from './taskIdx';
-import { FORAGER_TRIPS_PER_GD, NEED_SPONT_MULT, PHYSIO_EVERY, SCOUT_SHORTFALL_FRAC, SOURCE_SLOT_FORAGERS } from '@/sim/balance';
+import {
+  FORAGER_TRIPS_PER_GD, LEAD_VALID_S, NEED_SPONT_MULT, NEED_URGENT_FROM, NEED_URGENT_FULL, SPONT_RATE_MAX_S, PHYSIO_EVERY, SCOUT_SHORTFALL_FRAC,
+  SOURCE_SLOT_FORAGERS,
+} from '@/sim/balance';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim } from './testkit';
-import { recordDeliveryCount, spontaneousMultiplier } from './activation';
+import {
+  antSpontMultiplier, needSpontMult, privateSourceNeed, recordDeliveryCount, spontaneousMultiplier, spontaneousRate,
+} from './activation';
+import { TICKS_PER_SECOND } from '@/sim/time';
 import { accGet, coreOf } from './core';
 import { computeDemand, knownCapacity, scoutShortfall } from './allocation/demand';
 import { censusOf } from './census';
@@ -39,25 +45,52 @@ function needs(sim: Sim, needC: number, needP: number): void {
   Object.assign(colonyOf(sim).needs, { needC, needP });
 }
 
-describe('R9/R10: need-driven departures per nutrient, every colony size', () => {
-  it('a 300-worker colony short of protein that knows a carcass departs fast; knowing only sugar it does not', () => {
+describe('R9/R10: need-driven departures per nutrient, every colony size (econ-growth review rule)', () => {
+  it('colony urgency: above NEED_URGENT_FROM of a nutrient it knows a source of, every forager departs faster', () => {
     const sim = colony(300);
     const col = colonyOf(sim);
     knownSource(sim, 'sugar', 'sugary-spill', 50);
-    needs(sim, 0, 0.8);
+    needs(sim, 0, 1);
     expect(spontaneousMultiplier(sim, col)).toBe(1); // only carbohydrate known: protein is a scout matter
     knownSource(sim, 'carrion', 'insect-medium', 1);
     expect(spontaneousMultiplier(sim, col)).toBe(NEED_SPONT_MULT);
+    needs(sim, 0, NEED_URGENT_FROM); // GDD 02 App. E 12 is set at need 0.5: the GDD's spontaneous rate
+    expect(spontaneousMultiplier(sim, col)).toBe(1);
+    needs(sim, 0, (NEED_URGENT_FROM + NEED_URGENT_FULL) / 2);
+    expect(spontaneousMultiplier(sim, col)).toBeCloseTo((1 + NEED_SPONT_MULT) / 2, 9);
+    needs(sim, 0, NEED_URGENT_FULL);
+    expect(spontaneousMultiplier(sim, col)).toBeCloseTo(NEED_SPONT_MULT, 9);
+    needs(sim, 0, 0);
+    expect(spontaneousMultiplier(sim, col)).toBe(1); // stocked: the base rate
   });
 
-  it('a stocked colony (no need for either nutrient) keeps the base spontaneous rate', () => {
+  it('private information: a forager who knows a source of what the colony needs departs faster at any need', () => {
     const sim = colony(300);
-    knownSource(sim, 'sugar', 'sugary-spill', 50);
-    knownSource(sim, 'carrion', 'insect-medium', 1);
-    needs(sim, 0, 0);
-    expect(spontaneousMultiplier(sim, colonyOf(sim))).toBe(1);
-    needs(sim, 0.4, 0);
-    expect(spontaneousMultiplier(sim, colonyOf(sim))).toBe(NEED_SPONT_MULT);
+    const col = colonyOf(sim);
+    const carcass = knownSource(sim, 'carrion', 'insect-medium', 1);
+    const sugar = knownSource(sim, 'sugar', 'sugary-spill', 50);
+    const [fresh, worked, led, sweet] = sim.state.ants.filter((a) => a.caste === 'worker');
+    needs(sim, 0, 0.3);
+    worked.mem.knownSourceId = carcass;
+    led.mem.lead = { sourceId: carcass, pos: { x: 0, y: 0, z: 0 }, tick: sim.state.tick };
+    sweet.mem.knownSourceId = sugar;
+    const m = (a: typeof fresh) => antSpontMultiplier(sim, col, a, spontaneousMultiplier(sim, col));
+    expect(m(fresh)).toBe(1); // no source of her own: she waits for recruitment (GDD 02 §6.6)
+    expect(m(worked)).toBeCloseTo(needSpontMult(0.3), 9);
+    expect(m(led)).toBeCloseTo(needSpontMult(0.3), 9); // a valid lead is information too (§6.7)
+    expect(m(sweet)).toBe(1); // she knows sugar; the colony is short of protein only
+    expect(privateSourceNeed(sim, col, worked)).toBeCloseTo(0.3, 9);
+    // an expired lead, or a source she found depleted, does not count
+    led.mem.lead.tick = sim.state.tick - (LEAD_VALID_S + 1) * TICKS_PER_SECOND;
+    expect(m(led)).toBe(1);
+    worked.mem.depleted[0] = { sourceId: carcass, untilTick: sim.state.tick + 100 };
+    expect(m(worked)).toBe(1);
+    expect(needSpontMult(1)).toBe(NEED_SPONT_MULT);
+  });
+
+  it('GDD 02 §10.2: stacked multipliers do not take the mean wait below 30 s; the moderate-need wait is the GDD\'s', () => {
+    expect(1 / spontaneousRate(1, 1, true, NEED_SPONT_MULT)).toBeCloseTo(1 / SPONT_RATE_MAX_S, 9);
+    expect(1 / spontaneousRate(0.5, 1, false, 1)).toBeCloseTo(320, 6);
   });
 });
 

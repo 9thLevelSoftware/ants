@@ -16,13 +16,19 @@ const DOWN: Vec3 = { x: 0, y: -1, z: 0 };
 
 /**
  * Turns w.fwd toward the tangent part of dir by at most maxAngle (rad). Returns the remaining |angle| (rad), or
- * -1 when dir had no usable tangent part (heading kept).
+ * -1 when dir had no usable tangent part (heading kept: pushing into a wall, the walker climbs it). With steepUpY, a
+ * surface walker on a steep face (|up.y| below it) whose dir points away from the face (the goal lies behind it, off
+ * the wall) turns down the face instead: it steps back off the wall rather than climbing it on a stale heading
+ * (loco-fix3 review: a walker hugging a wall's foot, sent to a point straight out from the wall, scaled 40 BU).
  */
-export function turnToward(w: Walker, dir: Vec3, maxAngle: number, minSteer: number): number {
+export function turnToward(w: Walker, dir: Vec3, maxAngle: number, minSteer: number, steepUpY = 0): number {
   const dl = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
   if (!(dl > 1e-9) || !Number.isFinite(dl)) return -1;
-  const tl = tangentPart(_t, dir, w.up);
-  if (tl < minSteer * dl) return -1;
+  let tl = tangentPart(_t, dir, w.up);
+  if (tl < minSteer * dl && w.medium === 'surface' && Math.abs(w.up.y) < steepUpY
+    && dir.x * w.up.x + dir.y * w.up.y + dir.z * w.up.z > 0) tl = tangentPart(_t, DOWN, w.up);
+  else if (tl < minSteer * dl) return -1;
+  if (!(tl > 1e-9)) return -1;
   _t.x /= tl; _t.y /= tl; _t.z /= tl;
   let a = signedAngle(w.fwd, _t, w.up);
   const rest = Math.abs(a);

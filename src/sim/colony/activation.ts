@@ -5,12 +5,12 @@
 import type { Vec3 } from '@/core/math/vec3';
 import { rngChance } from '@/core/rng';
 import { clamp } from '@/core/math/scalar';
-import type { Ant, Colony, Sim } from '@/sim/types';
+import type { Ant, Colony, FoodSource, Sim } from '@/sim/types';
 import {
   ACTIVATION_DEPART, CURFEW_ALARM_PH, CURFEW_FENV, ENC_GAIN, ENC_SCOUT_MULT, FENV_RH_BASE, FENV_RH_GAIN, FORAGE_WAIT_RADIUS_BU,
-  FENV_RH_LO_PCT, FENV_RH_SPAN_PCT, NEWS_EXPIRY_GD, NEWS_MAX, RECRUIT_CONTACTS_MAX, RECRUIT_RADIUS_BU,
-  NEED_SOURCE_MIN_SHARE, NEED_SPONT_MULT, SMALL_COLONY_N, SMALL_SPONT_FULL_N, SMALL_SPONT_MULT_MAX, SPONT_DEPART_RATE_S,
-  SPONT_NEED_BASE, SPONT_ROUTE_MULT,
+  FENV_RH_LO_PCT, FENV_RH_SPAN_PCT, LEAD_VALID_S, NEWS_EXPIRY_GD, NEWS_MAX, RECRUIT_CONTACTS_MAX, RECRUIT_RADIUS_BU,
+  NEED_SOURCE_MIN_SHARE, NEED_SPONT_MULT, NEED_URGENT_FROM, NEED_URGENT_FULL, SMALL_COLONY_N, SMALL_SPONT_FULL_N, SMALL_SPONT_MULT_MAX, SPONT_DEPART_RATE_S,
+  SPONT_NEED_BASE, SPONT_RATE_MAX_S, SPONT_ROUTE_MULT,
 } from '@/sim/balance';
 import { recordDelivery as recordSourceDelivery } from '@/sim/ecology';
 import { daysToTicks, TICKS_PER_SECOND } from '@/sim/time';
@@ -106,30 +106,97 @@ export function suppliesNutrient(c: number, p: number, nutrient: 'c' | 'p'): boo
   return tot > 0 && (nutrient === 'c' ? c : p) >= NEED_SOURCE_MIN_SHARE * tot;
 }
 
+/** A source the ant can go back to: it still holds food (or refills) and she has not found it depleted. */
+function liveFor(sim: Sim, a: Ant, id: number): FoodSource | null {
+  if (id < 0) return null;
+  const s = sim.stores.sources.get(id);
+  if (!s || (s.units <= 0 && !(s.refillPerGd > 0))) return null;
+  for (const d of a.mem.depleted) if (d.sourceId === id && d.untilTick > sim.state.tick) return null;
+  return s;
+}
+
 /**
- * The colony is short of a nutrient (need > 0) and knows a live source of it (econ-growth R9/R10): departures are
- * then fast at every colony size (NEED_SPONT_MULT), per nutrient, whatever the other nutrient's stock.
+ * The colony's need (0-1) for what this forager herself knows where to find (econ-growth R9/R10, review): the source
+ * she last worked, the sources of her learned routes and a valid lead, per nutrient, whatever the other nutrient's
+ * stock. 0 when she knows no live source of anything the colony needs.
  */
-function knowsSourceOfNeeded(sim: Sim, col: Colony): boolean {
-  const wantC = col.needs.needC > 0, wantP = col.needs.needP > 0;
-  if (!wantC && !wantP) return false;
+export function privateSourceNeed(sim: Sim, col: Colony, a: Ant): number {
+  const needC = col.needs.needC, needP = col.needs.needP;
+  if (needC <= 0 && needP <= 0) return 0;
+  let c = false, p = false;
+  const note = (id: number): void => {
+    const s = liveFor(sim, a, id);
+    if (!s) return;
+    c ||= suppliesNutrient(s.c, s.p, 'c');
+    p ||= suppliesNutrient(s.c, s.p, 'p');
+  };
+  note(a.mem.knownSourceId);
+  for (const r of a.mem.routes) note(r.sourceId);
+  // a lead passed on by a successful returner (GDD 02 §6.7: recruitment is information transfer) while it is valid
+  const l = a.mem.lead;
+  if (l.sourceId >= 0 && sim.state.tick - l.tick <= LEAD_VALID_S * TICKS_PER_SECOND) note(l.sourceId);
+  return Math.max(c ? needC : 0, p ? needP : 0);
+}
+
+/** Need-driven multiplier of the spontaneous rate: 1 at need 0, NEED_SPONT_MULT at need 1 (linear). */
+export function needSpontMult(need: number): number {
+  return 1 + (NEED_SPONT_MULT - 1) * clamp(need, 0, 1);
+}
+
+/**
+ * The largest need (0-1) among the nutrients the colony knows a live source of (its known sources: routes, leads,
+ * entrance news); 0 when it knows no source of anything it needs.
+ */
+function knownSourceNeed(sim: Sim, col: Colony): number {
+  const needC = col.needs.needC, needP = col.needs.needP;
+  if (needC <= 0 && needP <= 0) return 0;
+  let c = false, p = false;
   for (const id of col.knownSourceIds) {
     const s = sim.stores.sources.get(id);
     if (!s || s.units <= 0) continue;
-    if ((wantC && suppliesNutrient(s.c, s.p, 'c')) || (wantP && suppliesNutrient(s.c, s.p, 'p'))) return true;
+    c ||= suppliesNutrient(s.c, s.p, 'c');
+    p ||= suppliesNutrient(s.c, s.p, 'p');
+    if (c && p) break;
   }
-  return false;
+  return Math.max(c ? needC : 0, p ? needP : 0);
 }
 
-/** Multiplier of the spontaneous departure rate from what the colony needs and knows (R3 small colony, R9/R10). */
+/**
+ * Colony urgency: below half its stock target of a nutrient it knows a source of (need above NEED_URGENT_FROM),
+ * every waiting forager departs faster, rising linearly to NEED_SPONT_MULT at NEED_URGENT_FULL. At or below it (GDD 02
+ * App. E 12 is set at need 0.5) a forager without a source of her own waits for recruitment.
+ */
+export function urgencySpontMult(need: number): number {
+  return 1 + (NEED_SPONT_MULT - 1) * clamp((need - NEED_URGENT_FROM) / (NEED_URGENT_FULL - NEED_URGENT_FROM), 0, 1);
+}
+
+/** Colony-level multiplier of the spontaneous departure rate: small colony (R3) or urgency, whichever is larger. */
 export function spontaneousMultiplier(sim: Sim, col: Colony): number {
   const small = knowsLiveSource(sim, col) ? smallColonySpontMult(coreOf(col).workers) : 1;
-  return Math.max(small, knowsSourceOfNeeded(sim, col) ? NEED_SPONT_MULT : 1);
+  return Math.max(small, urgencySpontMult(knownSourceNeed(sim, col)));
+}
+
+/**
+ * Multiplier of one waiting forager's spontaneous rate: the colony's (R3) or, larger, the need for what she knows
+ * where to find: an experienced forager goes back to a source she knows on her own (Lasius niger foragers lean on
+ * their private route memory, cf. Grueter et al. 2011); a forager with no source of her own waits for recruitment,
+ * so GDD 02 §6.6's loop (App. E 12) is what sends new foragers out.
+ */
+export function antSpontMultiplier(sim: Sim, col: Colony, a: Ant, colonyMult: number): number {
+  return Math.max(colonyMult, needSpontMult(privateSourceNeed(sim, col, a)));
 }
 
 function hasLiveRoute(sim: Sim, a: Ant): boolean {
   for (const r of a.mem.routes) if (r.sourceId !== -1 && sim.stores.sources.has(r.sourceId)) return true;
   return false;
+}
+
+/**
+ * Spontaneous departure hazard of a waiting forager, per s (GDD 02 §6.6 SPONT_DEPART_RATE, x2 with a learned route,
+ * x the colony multiplier), at most SPONT_RATE_MAX_S.
+ */
+export function spontaneousRate(need: number, fEnvNow: number, route: boolean, mult: number): number {
+  return Math.min(SPONT_RATE_MAX_S, SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * fEnvNow * (route ? SPONT_ROUTE_MULT : 1) * mult);
 }
 
 /**
@@ -143,8 +210,7 @@ export function departureDue(sim: Sim, a: Ant, dtTicks = 1): 'recruited' | 'spon
   if (gate.curfew) return null;
   if (a.activation >= ACTIVATION_DEPART) return 'recruited';
   const need = Math.max(col.needs.needC, col.needs.needP);
-  const rate = SPONT_DEPART_RATE_S * (SPONT_NEED_BASE + need) * gate.fEnv * (hasLiveRoute(sim, a) ? SPONT_ROUTE_MULT : 1)
-    * gate.spont;
+  const rate = spontaneousRate(need, gate.fEnv, hasLiveRoute(sim, a), antSpontMultiplier(sim, col, a, gate.spont));
   return rngChance(sim.stream('rng.colony'), rate * (dtTicks / TICKS_PER_SECOND)) ? 'spontaneous' : null;
 }
 

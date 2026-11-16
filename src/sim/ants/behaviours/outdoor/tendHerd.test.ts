@@ -227,7 +227,8 @@ describe('relay and determinism', () => {
     expect(Math.hypot(tender.pos.x - site.x, tender.pos.y - site.y, tender.pos.z - site.z)).toBeLessThan(3 * bu);
   });
 
-  it('same seed -> same state; save, load and continue equals the uninterrupted run; plain data', () => {
+  // three 60-worker runs: about 20 s on an idle machine, over 30 s under the shared machine's load
+  it('same seed -> same state; save, load and continue equals the uninterrupted run; plain data', { timeout: 120_000 }, () => {
     restore = fixWeather(20);
     const run = () => { const c = colony60(3); stepTicks(c.sim, 1200); return c.sim; };
     const a = run(), b = run();

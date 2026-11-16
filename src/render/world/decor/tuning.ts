@@ -128,7 +128,7 @@ export const DRAPE = {
   /** Base lift above the ground, BU (the walker's foot offset is 0.15 BU). */
   liftBU: 0.004,
   /** Extra lift at a curled rim, BU, at curl 1. */
-  curlBU: 0.044,
+  curlBU: 0.03,
   /** Toward-camera depth bias: max(linK x d, depthUnits x one depth step at d). */
   viewBiasLinK: 2.5e-4,
   viewBiasDepthUnits: 6,

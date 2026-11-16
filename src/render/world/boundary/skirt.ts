@@ -19,7 +19,7 @@ import { zoneTypeAt } from '../lighting/simAdapter';
 import { makeSkirtHeight, outsideDistance, reflectInto, skirtLift, terrainMaxInRect, withinOneCell } from './skirtHeight';
 import {
   SKIRT_FAR_HEX, SKIRT_FAR_MIX, SKIRT_FINE_ROWS, SKIRT_FIRST_ROW_BU, SKIRT_MIN_SEGMENTS, SKIRT_ROW_GROWTH, SKIRT_STEP_PER_OFFSET,
-  SKIRT_WIDTH_L, SKIRT_ZONE_HEX,
+  SKIRT_ALBEDO_SCALE, SKIRT_WIDTH_L, SKIRT_ZONE_HEX,
 } from './tuning';
 
 export interface SkirtArrays {
@@ -172,7 +172,7 @@ export function buildSkirt(world: WorldData): SkirtArrays {
     _c.set(SKIRT_ZONE_HEX[zone] ?? SKIRT_ZONE_HEX.lawn);
     _c.lerp(_far, SKIRT_FAR_MIX * Math.min(1, d / width));
     const k = 0.9 + 0.2 * (0.5 + 0.5 * fbm2(x / (8 * bu), z / (8 * bu), seed + 7, 2));
-    colors.set([_c.r * k, _c.g * k, _c.b * k], v * 3);
+    colors.set([_c.r * k * SKIRT_ALBEDO_SCALE, _c.g * k * SKIRT_ALBEDO_SCALE, _c.b * k * SKIRT_ALBEDO_SCALE], v * 3);
   }
   return { positions, normals, colors, index: Uint32Array.from(m.tris), width };
 }

@@ -66,6 +66,7 @@ export default async ({ page, log, out, wait, shot }) => {
   });
   const setPad = (buttons = [], axes = {}) => g(([b, a]) => window.__vp.set(b, a), [buttons, axes]);
   /** Press and release: `mods` are held first (LB + D-pad up), then `button` goes down for `n` frames. */
+  // (Start is pressed for one frame only: Start held for 1 s is the controls reminder, and a loaded machine stretches frames)
   const press = (button, { mods = [], n = 2 } = {}) => g(([b, m, k]) => window.__vp.press(b, m, k), [button, mods, n]);
   const holdFor = async (buttons, axes, ms) => { await setPad(buttons, axes); await frames(2); await new Promise((r) => setTimeout(r, ms)); await setPad([]); await frames(2); };
   /** Back to the play view with nothing open: a failed section must not break the next one. */
@@ -164,10 +165,14 @@ export default async ({ page, log, out, wait, shot }) => {
     const p1 = await g(() => window.__game.summary().possessed);
     expect(p1 && p1.id !== q?.id, 'RB did not possess another ant', { q, p1 });
     ok('possess-next-by-pad', { from: q?.id ?? null, to: p1.id, caste: p1.caste });
-    await press(B.A, { mods: [B.LB] });
-    await step(2);
-    const p2 = await g(() => window.__game.summary().possessed);
-    expect(p2 && p2.caste === 'worker', 'LB + A did not possess a worker', { p2 });
+    let p2 = p1;
+    for (const [btn, role] of [[B.A, 'digger'], [B.X, 'forager'], [B.B, 'nurse']]) { // LB + A / X / B: the role quick keys (whichever role has a worker)
+      await press(btn, { mods: [B.LB] });
+      await step(2);
+      p2 = await g(() => window.__game.summary().possessed);
+      if (p2 && p2.caste === 'worker') break;
+    }
+    expect(p2 && p2.caste === 'worker', 'the role quick keys (LB + A / X / B) did not possess a worker', { p2 });
     ok('possess-digger-by-pad', { id: p2.id, caste: p2.caste, task: p2.task });
     expect((await device())?.device === 'pad', 'the active device is not the pad', await device());
 
@@ -233,7 +238,7 @@ export default async ({ page, log, out, wait, shot }) => {
     ok('directives-closed-by-b');
 
     // save: Start opens the pause menu, Save, a slot
-    await press(B.START);
+    await press(B.START, { n: 1 });
     await frames(6);
     expect((await screenOf()) === 'paused', 'Start did not open the pause menu', await screenOf());
     expect(await moveTo('pause-save'), 'Save not reachable in the pause menu', await focus());
@@ -252,7 +257,7 @@ export default async ({ page, log, out, wait, shot }) => {
     ok('save-by-pad', slots.filter((s) => s.occupied !== false).map((s) => s.slot));
     expect(slots.some((s) => s.slot === 'slot-1' || s.slot === 'quick' || s.slot?.startsWith?.('slot')), 'nothing was saved', slots);
     await press(B.B); await frames(3); // back from Save/Load
-    await press(B.START); await frames(5);
+    await press(B.START, { n: 1 }); await frames(5);
     expect((await screenOf()) === 'playing', 'Start did not resume', await screenOf());
     ok('resume-by-start');
   });
@@ -346,12 +351,13 @@ export default async ({ page, log, out, wait, shot }) => {
     await frames(8);
     expect((await g(() => window.__game.camera.view())) === 'photo', 'LS + RS did not open photo mode', await g(() => window.__game.camera.view()));
     const pose0 = await g(() => window.__game.camera.pose());
-    log('photo entry', JSON.stringify(await g(() => ({ input: window.__game.input.summary(), owner: window.__nav.owner(), focus: window.__nav.focus(), view: window.__game.camera.view() }))));
+    log('photo entry', JSON.stringify(await g(() => ({ input: window.__game.input.summary(), owner: window.__nav.owner(), focus: window.__nav.focus(), view: window.__game.camera.view(), active: document.activeElement?.tagName }))));
     // look: the right stick; move: the left stick
     await setPad([], { [AX.RX]: 1 }); await frames(8);
-    log('photo look held', JSON.stringify(await g(() => ({ input: window.__game.input.summary(), pose: window.__game.camera.pose().dir }))));
+    log('photo look held', JSON.stringify(await g(() => ({ input: window.__game.input.summary(), pose: window.__game.camera.pose().dir, rig: window.__game.views.photo.pose?.(), pads: (navigator.getGamepads()[0] ?? {}).axes, mode: window.__game.ui.screen(), time: window.__game.summary().time.paused, fx: window.__game.fx.state() }))));
     await setPad([]); await frames(3);
     await setPad([], { [AX.LY]: -1 }); await frames(8); await setPad([]); await frames(3);
+    await g(() => window.__game.renderFrame({ settle: 0 })); // the camera follows the rig (a loaded machine skips frames)
     const pose1 = await g(() => window.__game.camera.pose());
     expect(JSON.stringify(pose0.dir) !== JSON.stringify(pose1.dir) || JSON.stringify(pose0.pos) !== JSON.stringify(pose1.pos), 'the sticks did not move the photo camera', { pose0, pose1 });
     // lens: LB + right stick vertical
@@ -381,7 +387,7 @@ export default async ({ page, log, out, wait, shot }) => {
   // =================================================================================================================
   await section('D-rebinding-by-pad', async () => {
     await g(() => window.__game.camera.set('possess'));
-    await press(B.START); await frames(6);
+    await press(B.START, { n: 1 }); await frames(6);
     expect((await screenOf()) === 'paused', 'no pause menu');
     log('D pause', JSON.stringify(await g(() => ({ layers: window.__nav.layers(), focus: window.__nav.focus(), shown: Array.from(document.querySelectorAll('[data-testid^="pause-"]')).map((e) => e.getAttribute('data-testid')) }))));
     expect(await moveTo('pause-controls'), 'Controls not reachable', await focus());
@@ -389,10 +395,13 @@ export default async ({ page, log, out, wait, shot }) => {
     expect(await g(() => !!document.querySelector('[data-testid="bind-dig-pad"], [data-testid^="group-"]')), 'Settings > Controls did not open');
     // open the Possession group and find the pad cell of "Dig"
     if (!(await g(() => !!document.querySelector('[data-testid="bind-dig-pad"]')))) {
+      await press(B.RIGHT); // RIGHT leaves the tab rail for the page; then down through its controls to the group headers
       expect(await moveTo('group-P', 60), 'group Possession not reachable', await focus());
       await press(B.A); await frames(4);
     }
-    expect(await moveTo('bind-dig-pad', 90), 'the Dig gamepad cell is not reachable by pad', await focus());
+    expect(await moveTo('bind-dig-0', 60), 'the Dig row is not reachable by pad', await focus());
+    await press(B.RIGHT); await press(B.RIGHT); // primary -> secondary -> gamepad cell
+    expect((await focus())?.testid === 'bind-dig-pad', 'the Dig gamepad cell is not reachable by pad', await focus());
     await shotOf('D-rebind-row-pad', { draw: false });
     await press(B.A); await frames(4); // listening
     expect(await g(() => document.querySelector('[data-testid="bind-dig-pad"]')?.getAttribute('data-listening') === '1'), 'the Dig pad cell is not listening');
@@ -404,17 +413,19 @@ export default async ({ page, log, out, wait, shot }) => {
     ok('rebind-conflict-message', note);
     await shotOf('D-rebind-conflict', { draw: false });
     // Swap with the pad: focus the Swap button
-    expect(await moveTo('conflict-swap', 16), 'Swap not reachable', await focus());
+    expect((await focus())?.testid === 'conflict-swap' || await moveTo('conflict-swap', 8), 'Swap does not have the focus after a conflict', await focus());
     await press(B.A); await frames(6);
     const bind = await g(() => window.__game.settings().bindings.pad);
     expect(bind.dig?.button === B.Y && bind.inspect?.button === B.X, 'Swap did not exchange Dig and Inspect', { dig: bind.dig, inspect: bind.inspect });
-    const stored = await g(() => localStorage.getItem('foundress.settings.v1') ?? '');
-    ok('rebind-swap-persisted', { dig: bind.dig, inspect: bind.inspect, storedHasIt: stored.includes('"dig"') });
+    await new Promise((r) => setTimeout(r, 1500)); // the settings are written after a short debounce
+    const stored = await g(() => localStorage.getItem('foundress.bindings.v1') ?? '');
+    expect(stored.includes('"dig":{"kind":"pad","button":3}'), 'the swapped pad binding was not written to foundress.bindings.v1', stored.slice(0, 200));
+    ok('rebind-swap-persisted', { dig: bind.dig, inspect: bind.inspect, storedHasIt: true });
     // reset the row
     const resetBtn = await g(() => !!document.querySelector('.ui-keybind[data-action="dig"] .ui-keybind-reset:not(.is-hidden)'));
     ok('reset-offered', resetBtn);
     // hold or toggle: the segmented control of Dig
-    const ht = await g(() => !!document.querySelector('[data-testid="holdtoggle-dig"]'));
+    const ht = await g(() => !!document.querySelector('[data-testid="hold-toggle-rows"]'));
     ok('hold-toggle-rows', ht);
     await press(B.B); await frames(4);
     await press(B.B); await frames(4);
@@ -443,7 +454,7 @@ export default async ({ page, log, out, wait, shot }) => {
       expect(scales[pct].outside.length === 0, `HUD regions outside the viewport at ${pct} %`, scales[pct]);
       await shotOf(`E-ui-scale-${pct}-hud`, { draw: true });
       // Settings > Accessibility by pad, at this scale
-      await press(B.START); await frames(5);
+      await press(B.START, { n: 1 }); await frames(5);
       if (await moveTo('pause-settings')) {
         await press(B.A); await frames(6);
         for (let i = 0; i < 6; i++) { // LB / RB switch tabs: RB until Accessibility is the selected one
@@ -455,8 +466,8 @@ export default async ({ page, log, out, wait, shot }) => {
         await shotOf(`E-ui-scale-${pct}-settings-accessibility`, { draw: false });
         await press(B.B); await frames(4);
       }
-      await press(B.START); await frames(5);
-      if ((await screenOf()) !== 'playing') { await press(B.START); await frames(5); }
+      await press(B.START, { n: 1 }); await frames(5);
+      if ((await screenOf()) !== 'playing') { await press(B.START, { n: 1 }); await frames(5); }
     }
     ok('ui-scale', scales);
     await set({ accessibility: { uiScale: 100 } });
@@ -573,11 +584,11 @@ export default async ({ page, log, out, wait, shot }) => {
       await press(B.RB); await frames(2);
     }
     await press(B.B); await frames(3);
-    expect(await moveTo('pause-save'), 'Save not reachable');
+    expect(await moveTo('pause-save', 12, [B.UP, B.DOWN]), 'Save not reachable'); // focus came back on Settings, Save is above it
     await press(B.A);
     for (const tab of ['save', 'load', 'transfer']) { await record(`save-load-${tab}`, 'book'); await press(B.RB); await frames(2); }
     await press(B.B); await frames(3);
-    expect(await moveTo('pause-codex'), 'Codex not reachable');
+    expect(await moveTo('pause-codex', 12), 'Codex not reachable');
     await press(B.A); await record('codex', 'book'); await press(B.B); await frames(3);
     const restoredPause = await focus();
     await g(() => window.__game.ui.close()); await frames(3);

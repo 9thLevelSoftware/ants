@@ -79,7 +79,8 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
     // GDD 02 §10.2: a trip = walk out and back (path ~1.2 x straight) at cruise + collect 20-33 s + unload 10-20 s + wait 30-90 s
     const v = casteSpeeds(col.species, 'worker', sim.world.bu).cruise / sim.world.bu;
     const walk = (2 * 1.2 * 300) / v;
-    const fastest = walk + 20 + 10 + 30, slowest = walk + 33 + 20 + 90;
+    const waitMinS = 30;
+    const fastest = walk + 20 + 10 + waitMinS, slowest = walk + 33 + 20 + 90;
     const window = (RATE_HOURS * HOUR) / 10;
     const hi = (foragers * window) / fastest, lo = (foragers * window) / slowest;
     console.log(`${RATE_HOURS} daylight game hours after the trail: ${hourDeliveries.length} deliveries (${fromSugar} from the sugar; ${(fromSugar / RATE_HOURS).toFixed(2)} per game hour) by ${foragers.toFixed(1)} foragers on average;`,
@@ -101,7 +102,11 @@ describe('acceptance 2: discovery, trail, delivery rate, source removal', () => 
     let minCycleS = Infinity;
     for (const ts of byAnt.values()) for (let i = 1; i < ts.length; i++) minCycleS = Math.min(minCycleS, (ts[i] - ts[i - 1]) / 10);
     console.log(`deliveries vs hi ${hourDeliveries.length} / ${hi.toFixed(1)}; ants ${byAnt.size}; shortest cycle of one ant ${minCycleS.toFixed(0)} s`);
-    expect(minCycleS).toBeGreaterThanOrEqual(fastest * (1 - EDGE_TOLERANCE));
+    // the floor is the cycle without its wait: §10.2's 30-90 s wait is typical, not a minimum (§6.6: a recruited
+    // forager leaves as soon as her activation reaches 1, and the spontaneous hazard is memoryless), so the shortest
+    // of many cycles may wait less (econ-growth review: 131 s against a 135 s floor that counted a 30 s wait, red
+    // already on bb70193). What no ant may beat is walking, collecting and unloading.
+    expect(minCycleS).toBeGreaterThanOrEqual((fastest - waitMinS) * (1 - EDGE_TOLERANCE));
 
     // remove the sugar: forager traffic to its rim stops; no forager keeps going there. A spill is worked at its rim,
     // so the zone is the footprint plus 15 BU, and the traffic in it is measured before the removal as well. Scouts

@@ -7,7 +7,7 @@ import type { WorldData } from '@/sim/types';
 import { buildBackdrop } from './backdrop';
 import { applyEdgeHazeLight, createEdgeHazeUniforms, patchEdgeHaze, type EdgeHazeLight, type EdgeHazeUniforms } from './edgeHaze';
 import { buildSkirt } from './skirt';
-import { BACKDROP_FUZZ, BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM } from './tuning';
+import { BACKDROP_FUZZ, BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM, SKIRT_BLEND_BU } from './tuning';
 
 export interface BoundaryStats {
   skirtTriangles: number;
@@ -30,8 +30,8 @@ export class BoundaryRenderer {
   readonly name = 'boundary';
   readonly group = new Group();
   readonly uniforms: EdgeHazeUniforms = createEdgeHazeUniforms();
-  private readonly skirtLook = { rim: new Uniform(0), minHaze: new Uniform(0), fuzz: new Uniform(0) };
-  private readonly backdropLook = { rim: new Uniform(BACKDROP_RIM_HAZE), minHaze: new Uniform(BACKDROP_MIN_HAZE), fuzz: new Uniform(BACKDROP_FUZZ) };
+  private readonly skirtLook = { rim: new Uniform(0), minHaze: new Uniform(0), fuzz: new Uniform(0), blend: new Uniform(0) };
+  private readonly backdropLook = { rim: new Uniform(BACKDROP_RIM_HAZE), minHaze: new Uniform(BACKDROP_MIN_HAZE), fuzz: new Uniform(BACKDROP_FUZZ), blend: new Uniform(0) };
   private skirtMat!: MeshStandardMaterial;
   private backdropMat!: MeshStandardMaterial;
   private skirt: Mesh | null = null;
@@ -43,7 +43,7 @@ export class BoundaryRenderer {
     this.scene = ctx.scene;
     this.group.name = 'boundary';
     // polygon offset: the skirt wins ties with the terrain's clamped continuation at the edge
-    this.skirtMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    this.skirtMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, alphaHash: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     this.skirtMat.name = 'boundary:skirt';
     this.backdropMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, alphaHash: true });
     this.backdropMat.name = 'boundary:backdrop';
@@ -58,6 +58,7 @@ export class BoundaryRenderer {
     const S = world.size;
     this.uniforms.uBdBox.value.set(0, 0, S, S);
     this.uniforms.uBdHazeMm.value = Math.max(EDGE_HAZE_K_L * S, EDGE_HAZE_MIN_MM);
+    this.skirtLook.blend.value = SKIRT_BLEND_BU * world.bu;
     const sk = buildSkirt(world);
     this.skirt = new Mesh(geometry(sk.positions, sk.normals, sk.colors, sk.index), this.skirtMat);
     this.skirt.name = 'boundary:skirt';

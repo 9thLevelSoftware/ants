@@ -2,7 +2,7 @@
 // gamepad remapping tier), and a reset button. Clicking a binding starts listening ("Press a key (Esc to cancel)");
 // the next key, mouse button or wheel notch becomes the binding. A conflict is never silent: the row says what the
 // input is already used for and offers Swap / Unbind other / Cancel. All rules come from src/input/rebind.ts.
-import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import {
   bindingLabel, defaultBindings, firstPad, PAD, padBindingGlyph, PadCapture, rebind, readGamepads, type ActionDef, type Binding, type BindingSet, type Conflict,
   type ConflictResolution, type PadCaptureKind, type Slot,
@@ -133,6 +133,11 @@ export function KeybindRow({ def, bindings, onChange }: KeybindRowProps) {
     return () => { cancelAnimationFrame(raf); off(); padCaptureHolds.value--; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listening, def.id]);
+
+  // a conflict is never silent and must be answerable without a pointer: Swap takes the focus (A confirms, the others are one step away)
+  useEffect(() => {
+    if (pending) rowRef.current?.querySelector<HTMLElement>('[data-testid="conflict-swap"]')?.focus();
+  }, [pending]);
 
   const startListening = (slot: 0 | 1) => {
     if (def.locked) return;

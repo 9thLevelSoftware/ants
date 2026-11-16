@@ -297,8 +297,30 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
       if (!walkerUp) return planSurface(sim, w, s, r, g.route.points[0], -1);
     }
   }
+  // a goal up the same object (a herd higher on the stem the walker climbs) is climbed to, not descended from
+  // (loco-fix3 review: a re-issued walk partway up a bare stem was sent back to the ground on every replan)
+  // The ground nav grid says nothing about a climb on one object, and a plan-view aim at a point above circles a
+  // vertical stem: seek the goal directly, aiming in 3D.
+  if (walkerUp && goalUp && sameObject(sim, w, s.goal)) {
+    setSeek(w, s, s.goal);
+    s.seekDown = 1;
+    return true;
+  }
   if (walkerUp && far && planDescent(sim, w, s, r)) return true;
   return planSurface(sim, w, s, r, s.goal, -1);
+}
+
+/**
+ * The walker and the goal point are on the same world object: the nearest primitive within 1 BU of the surface at
+ * each is one primitive, or both belong to one object (stem segments, leaves and flower head of a plant).
+ */
+function sameObject(sim: Sim, w: Walker, goal: Vec3): boolean {
+  const bu = sim.world.bu;
+  const a = sim.field.primAt(w.pos, w.footOffset + bu);
+  if (!a) return false;
+  const b = sim.field.primAt(goal, w.footOffset + bu);
+  if (!b) return false;
+  return a.id === b.id || (a.objectId >= 0 && a.objectId === b.objectId);
 }
 
 /**

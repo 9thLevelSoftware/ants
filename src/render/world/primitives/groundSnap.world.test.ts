@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { generateWorld } from '@/worldgen';
 import { paramsFor } from '@/worldgen/testing/fixtures';
 import type { WorldData } from '@/sim/types';
-import { snapPrimitivesToGround, SNAP_MAX_GAP_BU, SNAP_MIN_GAP_MM, type SnapStats } from './groundSnap';
+import { groundUnderFootprint, snapPrimitivesToGround, SNAP_MAX_GAP_BU, SNAP_MIN_GAP_MM, type SnapStats } from './groundSnap';
 
 declare const process: { env: Record<string, string | undefined> } | undefined;
 const LONG = typeof process !== 'undefined' && !!process.env.FOUNDRESS_LONG;
@@ -36,7 +36,8 @@ function check(w: WorldData) {
     // the stretched body now reaches below the lowest ground sample under its footprint
     const half = q.shape === 'capsule' ? q.size.y + q.size.x : q.size.y;
     const bottom = q.pos.y - half * (1 - 2 * (q.rot.x * q.rot.x + q.rot.z * q.rot.z));
-    worstAfter = Math.max(worstAfter, bottom - h(q.pos.x, q.pos.z));
+    // measured at the LOWEST sample under the footprint (what the snap reaches for), not only at the centre
+    worstAfter = Math.max(worstAfter, bottom - groundUnderFootprint(q, h));
   });
   return { st, byTemplate, worstAfter, w };
 }
@@ -47,7 +48,7 @@ describe('ground snapping on a generated world', () => {
     const r = check(w);
     expect(r.st.snapped).toBeGreaterThan(0);
     expect(r.st.maxGapMm).toBeLessThanOrEqual(SNAP_MAX_GAP_BU * w.bu + 1e-6);
-    expect(r.worstAfter).toBeLessThan(SNAP_MIN_GAP_MM); // the bottom is at or below the ground at the centre
+    expect(r.worstAfter).toBeLessThan(SNAP_MIN_GAP_MM); // the bottom is at or below the lowest ground under the footprint
     // the world's own primitives are untouched (the collision primitive is the simulation's)
     const before = JSON.stringify(w.prims[0]);
     snapPrimitivesToGround(w.prims, heightAt(w), w.bu);

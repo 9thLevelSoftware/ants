@@ -105,7 +105,7 @@ export interface NavScratch {
   spdCarry?: number;
   /**
    * loco-fix3 (additive): the current seek leg aims at its target in 3D (1: a walker high on a stem or trunk heading
-   * for the ground below it), not in plan view.
+   * for the ground below it, or for a goal higher up the same object), not in plan view.
    */
   seekDown?: number;
   /**
@@ -118,6 +118,13 @@ export interface NavScratch {
   relocFrom?: Vec3;
   relocTo?: Vec3;
   relocRepeat?: number;
+  /**
+   * loco-fix3 review (additive): the walker's last LOCO_TUNING.relocMemory relocations, oldest first, flat
+   * [fromX, fromY, fromZ, toX, toY, toZ, ...] mm, kept without a time limit (a walker is never relocated twice from
+   * one place; relocFrom / relocTo above repeat the newest), and the tick of its last let-go at a remembered place.
+   */
+  relocHist?: number[];
+  relocDropTick?: number;
   /**
    * loco-fix3 (additive): the point a goto request was made with (before snapping and spreading), so that the same
    * request made again while it runs (a behaviour re-issuing it on each think) keeps its stuck ladder.

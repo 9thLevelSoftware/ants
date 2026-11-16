@@ -4,14 +4,21 @@
 
 import { describe, expect, it } from 'vitest';
 import type { Ant } from '@/sim/types';
+import { TASKS } from '@/sim/types';
 import { CLAIM_MIN_TRIP_SHARE } from '@/sim/balance/foraging';
 import { chooseSource, sourceScore } from './choice';
-import { claimsOn, foodLeftFor, unitsPerTrip } from './claims';
+import { claimsOn, foodLeftFor, noteClaim, unitsPerTrip } from './claims';
 import { K, PHASE } from './keys';
 import { announce, forageScenario } from './testkit';
 
-/** Puts the ant on an outbound trip to the source (as startOutbound leaves it), without moving it. */
+/**
+ * Puts the ant on an outbound trip to the source (as startOutbound leaves it), running the forage behaviour (only an
+ * ant running an outdoor behaviour claims), without moving it: its next think is put off.
+ */
 function heading(ant: Ant, sourceId: number): void {
+  ant.task = 'forage';
+  ant.bb['run.task'] = TASKS.indexOf('forage');
+  ant.thinkTick = Number.MAX_SAFE_INTEGER;
   ant.bb[K.src] = sourceId;
   ant.bb[K.phase] = PHASE.outbound;
 }
@@ -68,5 +75,23 @@ describe('source claims (econ-growth R10)', () => {
     heading(ants[slots - 1], s.id);
     sim.tick();
     expect(foodLeftFor(sim, ants[ants.length - 1], s, 0)).toBe(false);
+  });
+
+  it('a trip chosen earlier in the same tick is seen by the next chooser (noteClaim)', () => {
+    const { sim, col, sources } = forageScenario({
+      workers: 4, sources: [{ kind: 'carrion', variant: 'insect-small', distBu: 60, bearingDeg: 0, units: 1 }],
+    });
+    const s = sources[0];
+    announce(sim, col, s);
+    const [a, b] = sim.state.ants.filter((x) => x.caste === 'worker');
+    sim.tick();
+    expect(chooseSource(sim, b)).toBe(s.id); // builds this tick's cache: nobody on the way yet
+    heading(a, s.id);
+    noteClaim(sim, a, s.id); // as startOutbound does
+    expect(claimsOn(sim, col.id, s.id)).toBe(1);
+    expect(chooseSource(sim, b)).toBe(-1);
+    noteClaim(sim, a, s.id); // the same claim twice counts once
+    expect(claimsOn(sim, col.id, s.id)).toBe(1);
+    expect(claimsOn(sim, col.id, s.id, a)).toBe(0);
   });
 });

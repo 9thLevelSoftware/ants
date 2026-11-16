@@ -7,6 +7,7 @@
 // The edge haze has its own uniforms and does not depend on scene.fog: with the player's Haze setting off the
 // distance haze goes, but the boundary keeps its edge haze and the skirt's end and the backdrop stay hidden.
 import { Color, Uniform, Vector3, Vector4, type MeshStandardMaterial } from 'three';
+import { BOUNDARY_FOG_SCALE } from './tuning';
 
 export interface EdgeHazeUniforms {
   /** Map square [x0, z0, x1, z1], mm. */
@@ -57,9 +58,12 @@ export function applyEdgeHazeLight(u: EdgeHazeUniforms, l: EdgeHazeLight): void 
  * horizon colour, which is the scene's haze colour, so the ground's haze matches the terrain's.
  */
 export const EDGE_HAZE_GLSL = /* glsl */ `
-float bdEdgeHaze(vec3 w) {
+float bdOutside(vec3 w) {
   vec2 o = max(max(uBdBox.xy - w.xz, w.xz - uBdBox.zw), vec2(0.0));
-  return 1.0 - exp(-length(o) / max(uBdHazeMm, 1e-3));
+  return length(o);
+}
+float bdEdgeHaze(vec3 w) {
+  return 1.0 - exp(-bdOutside(w) / max(uBdHazeMm, 1e-3));
 }
 vec3 bdSky(vec3 d) {
   float t = pow(clamp(d.y, 0.0, 1.0), mix(0.45, 1.0, uBdOvercast));
@@ -76,18 +80,27 @@ export interface EdgeHazeLook {
   rim: Uniform<number>;
   minHaze: Uniform<number>;
   fuzz: Uniform<number>;
+  /**
+   * Fade-in length, mm (0 = none): the material is dithered away within this distance of the map edge and opaque
+   * beyond it. The skirt uses it so the terrain's own continuation shows through at the edge (same material, same
+   * lighting: no seam) and the skirt's ground takes over gradually. Needs `alphaHash` on the material.
+   */
+  blend: Uniform<number>;
 }
 
 /** Fragment code replacing three's <fog_fragment> in the boundary materials. */
 export const EDGE_FOG_FRAGMENT = /* glsl */ `
 {
-  // the scene's distance haze, exactly as three applies it to the terrain (FogExp2 or linear)
+  // the scene's distance haze as three applies it to the terrain (FogExp2 or linear), over a shortened distance
+  // (BOUNDARY_FOG_SCALE): the edge haze below is the aerial perspective of what lies beyond the map, and the full
+  // ant-height fog (about 1.2 m visibility on a lawn) would leave nothing of a fence or a tree line to see
   float bdFog = 0.0;
   #ifdef USE_FOG
+    float bdFogDepth = vFogDepth * ${BOUNDARY_FOG_SCALE.toFixed(3)};
     #ifdef FOG_EXP2
-      bdFog = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+      bdFog = 1.0 - exp(-fogDensity * fogDensity * bdFogDepth * bdFogDepth);
     #else
-      bdFog = smoothstep(fogNear, fogFar, vFogDepth);
+      bdFog = smoothstep(fogNear, fogFar, bdFogDepth);
     #endif
     gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, bdFog);
   #endif
@@ -104,7 +117,7 @@ export function patchEdgeHaze(m: MeshStandardMaterial, u: EdgeHazeUniforms, look
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, {
       uBdBox: u.uBdBox, uBdHazeMm: u.uBdHazeMm, uBdHorizon: u.uBdHorizon, uBdZenith: u.uBdZenith, uBdOvercast: u.uBdOvercast,
-      uBdSunDir: u.uBdSunDir, uBdSunGlow: u.uBdSunGlow, uBdRim: look.rim, uBdMin: look.minHaze, uBdFuzz: look.fuzz,
+      uBdSunDir: u.uBdSunDir, uBdSunGlow: u.uBdSunGlow, uBdRim: look.rim, uBdMin: look.minHaze, uBdFuzz: look.fuzz, uBdBlend: look.blend,
     });
     s.vertexShader = s.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vBdW;')
@@ -112,12 +125,13 @@ export function patchEdgeHaze(m: MeshStandardMaterial, u: EdgeHazeUniforms, look
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform vec4 uBdBox; uniform float uBdHazeMm; uniform vec3 uBdHorizon; uniform vec3 uBdZenith; uniform float uBdOvercast;
-uniform vec3 uBdSunDir; uniform vec3 uBdSunGlow; uniform float uBdRim; uniform float uBdMin; uniform float uBdFuzz;
+uniform vec3 uBdSunDir; uniform vec3 uBdSunGlow; uniform float uBdRim; uniform float uBdMin; uniform float uBdFuzz; uniform float uBdBlend;
 varying vec3 vBdW;\n${EDGE_HAZE_GLSL}
 float bdRimOf(vec3 n, vec3 v) { return 1.0 - abs(dot(normalize(n), normalize(v))); }`)
       .replace('#include <alphahash_fragment>', `diffuseColor.a *= 1.0 - uBdFuzz * pow(bdRimOf(vNormal, vViewPosition), 3.0);
+diffuseColor.a *= uBdBlend > 0.0 ? smoothstep(0.0, uBdBlend, bdOutside(vBdW)) : 1.0;
 #include <alphahash_fragment>`)
       .replace('#include <fog_fragment>', EDGE_FOG_FRAGMENT);
   };
-  m.customProgramCacheKey = () => 'boundary-edge-haze-v4';
+  m.customProgramCacheKey = () => 'boundary-edge-haze-v6';
 }

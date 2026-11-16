@@ -33,7 +33,10 @@ describe('viab-economy R3: a small colony forages known food near home', () => {
     expect(r.forageDemand).toBeGreaterThanOrEqual(Math.max(2, 0.35 * 12) - 2 - 1e-6);
     // econ-growth: R3's "a worker makes >= 2 trips per game day" is read per outside worker (forage + scout); the
     // whole workforce's rate is econ-growth's criterion (>= 1.0 trips per worker per gd while short of food). With
-    // one source known 2 of the 4.2 outside workers scout (R3), so per worker this sits at 1.7-2.0 by construction.
+    // one source known 2 of the 4.2 outside workers scout (R3), so per worker this sits at 1.5-2.0 by construction
+    // (2 per worker would need a 100 s cycle from each of the 4 outside ants, GDD 02 §10.2's fastest). This reading
+    // of a binding ruling is flagged to the integrator (econ-growth review report); the two-source case keeps R3's
+    // literal ">= 2 per worker".
     expect(r.perOutsideGd).toBeGreaterThanOrEqual(2);
     expect(r.perWorkerGd).toBeGreaterThanOrEqual(1);
   });

@@ -254,6 +254,15 @@ export const STORES_FULL_SPACE = 0.05;
 export const STORES_FULL_ALERT_GD = 0.25;
 /** Amounts below this count as zero, loads. */
 export const LOAD_EPS = 1e-9;
+/**
+ * Crop loads back to the social stomach (GDD 02 §5.1, §5.4.1 ambient trophallaxis: "the pool already represents the
+ * network"; econ-growth review). An in-nest worker on a task that does not use a crop load (CROP_NETWORK_TASKS) passes
+ * what her crop holds above CROP_NETWORK_KEEP back to the pool at the trophallaxis rate (TROPH_RATE). Without it a
+ * nurse load kept after reassignment stayed in the crop of an idle ant for good: in App. E 25 60 idle workers held
+ * 10.9 C and 9.0 P while the larvae needed the protein.
+ */
+export const CROP_NETWORK_KEEP = 0.05;
+export const CROP_NETWORK_TASKS = ['idle', 'rest', 'store', 'dig', 'haul', 'guard'] as const;
 
 // ---- needs and demand signals (GDD 02 §5.5) ----
 export const NEED_EMA_GD = 0.5;
@@ -416,14 +425,30 @@ export const SPONT_ROUTE_MULT = 2;
 export const SMALL_SPONT_MULT_MAX = 5;
 export const SMALL_SPONT_FULL_N = 15;
 /**
- * Need-driven departures at every colony size (econ-growth R9/R10): while the colony is short of a nutrient (need > 0)
- * and knows a live source of it, the spontaneous rate is multiplied by NEED_SPONT_MULT. The GDD 02 §6.6 activation
- * loop needs a successful return within 6 BU of a waiting forager about every 17 s and stayed below ignition at 100
- * and 300 workers (0-5 % of departures recruited; mean wait ~330 s, half a 600 s game day, 1.1 trips per forager
- * per gd, against §10.2's 30-90 s wait and C13's 25 s). x5 gives a mean wait of about 70 s at need 0.9 and fEnv 0.6.
+ * Need-driven departures at every colony size (econ-growth R9/R10): a waiting forager who herself knows a live source
+ * (the one she last worked, her route slots) of a nutrient the colony is short of departs spontaneously faster, by up
+ * to NEED_SPONT_MULT at that nutrient's need 1 (linear in the need). The GDD 02 §6.6 activation loop needs a
+ * successful return within 6 BU of a waiting forager about every 17 s per three waiting ants and stayed below ignition
+ * at 100 and 300 workers (0-5 % of departures recruited; mean wait ~330 s, 1.1 trips per forager per gd, against
+ * §10.2's 30-90 s wait). Foragers without a source of their own keep the GDD's rate, so recruitment still decides
+ * when new foragers go out (App. E 12; econ-growth review: a colony-wide x5 had made the loop irrelevant).
  * A source supplies a nutrient when that nutrient is at least NEED_SOURCE_MIN_SHARE of its C + P.
  */
 export const NEED_SPONT_MULT = 5;
+/**
+ * Colony urgency (econ-growth review): above this need of a nutrient the colony knows a source of (stock under half
+ * its target), every waiting forager's spontaneous rate rises too, linearly to NEED_SPONT_MULT at NEED_URGENT_FULL. At or
+ * below it only foragers with a source of their own depart faster: GDD 02 App. E 12 (set at need 0.5) wants injected
+ * returns to triple the spontaneous departures of six fresh foragers.
+ */
+export const NEED_URGENT_FROM = 0.5;
+/** ... and reaches NEED_SPONT_MULT from this need on (stock under a quarter of its target). */
+export const NEED_URGENT_FULL = 0.75;
+/**
+ * Ceiling of a waiting forager's spontaneous departure hazard, per s: a mean wait of 30 s, the short end of GDD 02
+ * §10.2's 30-90 s between trips (the multipliers stacked at need 1 with a learned route gave about 19 s).
+ */
+export const SPONT_RATE_MAX_S = 1 / 30;
 export const NEED_SOURCE_MIN_SHARE = 0.3;
 /** fEnv humidity term 0.7 + 0.3 x clamp((RH% - 40) / 40, 0, 1). */
 export const FENV_RH_BASE = 0.7;

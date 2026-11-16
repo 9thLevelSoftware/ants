@@ -3,7 +3,6 @@
 import { ti } from '../taskIdx';
 import type { Colony, FoodSource, Sim, Task } from '@/sim/types';
 import { clamp } from '@/core/math/scalar';
-import { CROP_RETURN_FRACTION } from '@/sim/balance/actions';
 import { harvestForm } from '@/sim/ecology';
 import {
   BROOD_MOVE_NURSE, DEFEND_MIN_WORKERS, DIAPAUSE_LARVAE_PER_NURSE, EGGS_PER_NURSE, ENTRANCE_ALARM_ALERT_PH,
@@ -19,7 +18,9 @@ import { surfaceActivityOf } from '../envAdapter';
 import { intakeTarget, needRates, targetDays } from '../needs';
 import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
-import { herdTendDemand } from '@/sim/ecology/plants/demand';
+import { herdTendDemand, herdWorkable } from '@/sim/ecology/plants/demand';
+import { productionPerGd } from '@/sim/ecology/plants/herdMath';
+import { typicalForager, unitsPerTripOf } from '../tripLoad';
 
 const T = (t: Task): number => ti(t);
 
@@ -32,26 +33,38 @@ export interface KnownCapacity { ants: number; loads: number; loadsC: number; lo
  * 4 loads a day counted as 9 foragers, a one-unit carcass as 4.5). A finite source offers all it holds within the day;
  * a renewable one what it holds plus its refill.
  */
-function sourceForagers(sim: Sim, s: FoodSource): number {
+function sourceForagers(sim: Sim, col: Colony, s: FoodSource): number {
   const bySlots = Math.max(1, s.slots) * SOURCE_SLOT_FORAGERS;
-  const form = harvestForm(sim, s);
-  const perTrip = form === 'liquid' ? CROP_RETURN_FRACTION : form === 'tear' ? Math.min(1, 1 / Math.max(s.unitBulk, 1e-6)) : 1;
+  const ant = typicalForager(sim, col);
+  const perTrip = unitsPerTripOf(harvestForm(sim, s), ant.cropCap, ant.carryCap, s.unitBulk);
   const trips = (Math.max(0, s.units) + Math.max(0, s.refillPerGd)) / perTrip;
   return Math.min(bySlots, trips / FORAGER_TRIPS_PER_GD);
 }
 
+/**
+ * Known foraging capacity. Foraged sources give forager-equivalents (the `forage` demand cap) and their loads; the
+ * honeydew of the herds the colony works counts as carbohydrate it can get (at full tending, GDD 05 §1.4) but not as
+ * foragers: tenders are the `tend` demand (econ-growth review: without it a colony living on its herds reported a
+ * carbohydrate scout shortfall of 1 for good).
+ */
 export function knownCapacity(sim: Sim, col: Colony): KnownCapacity {
   const out: KnownCapacity = { ants: 0, loads: 0, loadsC: 0, loadsP: 0 };
   for (const id of col.knownSourceIds) {
     const s = sim.stores.sources.get(id);
     // a renewable source counts while it refills, even when it is empty this minute; a herd's own source holds no
-    // food (its honeydew comes by tending: the `tend` demand counts herds, plants/links.ts)
+    // food (its honeydew comes by tending: counted from the herds below)
     if (!s || s.herdId >= 0 || (s.units <= 0 && !(s.refillPerGd > 0))) continue;
-    const ants = sourceForagers(sim, s);
+    const ants = sourceForagers(sim, col, s);
     const loads = ants * col.yieldPerForager, tot = s.c + s.p;
     out.ants += ants;
     out.loads += loads;
     if (tot > 0) { out.loadsC += (loads * s.c) / tot; out.loadsP += (loads * s.p) / tot; }
+  }
+  for (const h of sim.stores.herds.list) {
+    if (!herdWorkable(sim, col, h)) continue;
+    const c = productionPerGd(h.a, 1, 1);
+    out.loads += c;
+    out.loadsC += c;
   }
   return out;
 }

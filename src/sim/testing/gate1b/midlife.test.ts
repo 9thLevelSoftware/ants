@@ -5,7 +5,7 @@ import type { Sim } from '@/sim/types';
 import { restore, snapshot, stateHash } from '@/sim/save';
 import { createSim } from '@/sim/sim';
 import { forageScenario, announce } from '@/sim/ants/behaviours/outdoor/testkit';
-import { trailCellsOf, midLifeReadout } from './midlifeKit';
+import { MIDLIFE_SAVE_TICK, trailCellsOf, midLifeReadout } from './midlifeKit';
 
 function midLife(seed: number): Sim {
   const { sim, col, sources } = forageScenario({
@@ -20,7 +20,7 @@ function midLife(seed: number): Sim {
 
 describe('mid-life save / restore (gate 1B)', () => {
   it('restore at N with trails, carriers and a plan in progress, then M more ticks, equals the uninterrupted N + M run', () => {
-    const N = 3000, M = 1200;
+    const N = MIDLIFE_SAVE_TICK, M = 1200;
     const straight = midLife(4);
     for (let i = 0; i < N; i++) straight.tick();
     const at = midLifeReadout(straight);

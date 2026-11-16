@@ -73,6 +73,8 @@ function begin(sim: Sim, w: Walker, opts: NavOptions | undefined, distance: numb
     s.timeoutTick = sim.state.tick + Math.ceil((r.P.timeoutBase + (r.P.timeoutMult * distance) / v) * TICKS_PER_SECOND);
   } else s.timeoutTick = -1;
   w.nav.stuckTicks = 0;
+  // NavState.failReason describes the last failed request only (a rejection below sets it again)
+  if (w.nav.failReason !== undefined) delete w.nav.failReason;
   return { s, r };
 }
 
@@ -94,9 +96,10 @@ function rejected(w: Walker, s: NavScratch): false {
 
 /**
  * The same trip asked for again while it runs (same target, arrival radius and speed; a point within 0.5 BU of the
- * one it was made with): a behaviour re-issuing its walk on every think would restart the stuck ladder each time, so
+ * one it was made with): a behaviour that re-issues its walk on every think restarted the stuck ladder each time, so
  * a walker wedged on the way never escalated (loco-fix3: rival raiders stalled in their nest's exit at woodland-edge
- * #2 and playground-park #2, re-issued every second by the raid job). Kept as it is, like navWander.
+ * #2 and playground-park #2, re-issued every second by the raid job). The request starts afresh (plan, timeout), but
+ * its stuck window and ladder carry over.
  */
 function sameTrip(sim: Sim, w: Walker, kind: TargetRef['kind'], id: number, dest: Vec3, arrive: number, opts: NavOptions | undefined): boolean {
   const s = w.nav.loco, nav = w.nav;
@@ -104,12 +107,27 @@ function sameTrip(sim: Sim, w: Walker, kind: TargetRef['kind'], id: number, dest
     && s.reqDest !== undefined && dist3(s.reqDest, dest) < 0.5 * sim.world.bu && sameSpeed(s, opts);
 }
 
+interface StuckCarry { best: number; bestTick: number; ladder: number; ladderUntil: number; episodes: number; relocations: number; side: number; ax: number; ay: number; az: number }
+const _carry: StuckCarry = { best: 0, bestTick: 0, ladder: 0, ladderUntil: 0, episodes: 0, relocations: 0, side: 1, ax: 0, ay: 0, az: 0 };
+
+function holdStuck(s: NavScratch, c: StuckCarry): void {
+  c.best = s.best; c.bestTick = s.bestTick; c.ladder = s.ladder; c.ladderUntil = s.ladderUntil; c.episodes = s.episodes;
+  c.relocations = s.relocations; c.side = s.side; c.ax = s.anchor.x; c.ay = s.anchor.y; c.az = s.anchor.z;
+}
+
+function restoreStuck(s: NavScratch, c: StuckCarry): void {
+  s.best = c.best; s.bestTick = c.bestTick; s.ladder = c.ladder; s.ladderUntil = c.ladderUntil; s.episodes = c.episodes;
+  s.relocations = c.relocations; s.side = c.side; s.anchor.x = c.ax; s.anchor.y = c.ay; s.anchor.z = c.az;
+}
+
 /** Seek a point (planner composes the legs); arriveDist mm. False if no route can exist. */
 export function navTo(sim: Sim, w: Walker, dest: Vec3, arriveDist?: number, opts?: NavOptions): boolean {
   const arrive = arriveOf(sim, arriveDist, opts);
-  if (finite3(dest) && sameTrip(sim, w, 'point', -1, dest, arrive, opts)) return true;
+  const again = finite3(dest) && sameTrip(sim, w, 'point', -1, dest, arrive, opts);
+  if (again) holdStuck(w.nav.loco!, _carry);
   const { s, r } = begin(sim, w, opts, dist3(w.pos, dest));
   if (!startTrip(sim, w, s, r, dest, 'point', -1, arrive, walkerId(w))) return rejected(w, s);
+  if (again) restoreStuck(s, _carry);
   s.reqDest = { x: dest.x, y: dest.y, z: dest.z };
   return true;
 }
@@ -117,11 +135,13 @@ export function navTo(sim: Sim, w: Walker, dest: Vec3, arriveDist?: number, opts
 /** Seek a (possibly moving) target: entity, entrance, chamber, plan, nest, marker or point. False if it is gone. */
 export function navToTarget(sim: Sim, w: Walker, target: TargetRef, arriveDist?: number, opts?: NavOptions): boolean {
   const arrive = arriveOf(sim, arriveDist, opts);
-  // a moving target is re-resolved by the request itself: the same entity asked for again keeps the request
-  if (finite3(target.pos) && (target.id >= 0 || target.kind === 'point') && sameTrip(sim, w, target.kind, target.id,
-    target.id >= 0 ? (w.nav.loco?.reqDest ?? target.pos) : target.pos, arrive, opts)) return true;
+  // a moving entity is re-resolved by the request itself: the same entity counts as the same trip
+  const again = finite3(target.pos) && sameTrip(sim, w, target.kind, target.id,
+    target.id >= 0 ? (w.nav.loco?.reqDest ?? target.pos) : target.pos, arrive, opts);
+  if (again) holdStuck(w.nav.loco!, _carry);
   const { s, r } = begin(sim, w, opts, dist3(w.pos, target.pos));
   if (!startTrip(sim, w, s, r, target.pos, target.kind, target.id, arrive, walkerId(w))) return rejected(w, s);
+  if (again) restoreStuck(s, _carry);
   s.reqDest = { x: target.pos.x, y: target.pos.y, z: target.pos.z };
   return true;
 }
@@ -137,6 +157,7 @@ export function navToPoi(sim: Sim, w: Walker, poiId: number, arriveDist?: number
 export function navStop(_sim: Sim, w: Walker): void {
   const s = w.nav.loco; // no scratch is created for a walker that never had a request (keeps saves small)
   if (s) s.req = 'none';
+  if (w.nav.failReason !== undefined) delete w.nav.failReason;
   w.nav.mode = 'none';
   w.nav.status = 'idle';
   w.nav.desiredSpeed = 0;

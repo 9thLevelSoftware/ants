@@ -31,9 +31,15 @@ export const SKIRT_LIFT_MAX_MM = 2;
  * Exponential haze from the edge outward (GDD 04 §14): extra haze fraction 1 - exp(-d / (k L)) for a point d mm
  * outside the map, on top of the scene's distance haze. At 0.5 L it is ~98 % so the skirt's end never shows.
  */
-export const EDGE_HAZE_K_L = 0.12;
+export const EDGE_HAZE_K_L = 0.08;
 /** ...but never shorter than this (mm): small maps (the title vignette) still show human-scale silhouettes softly. */
-export const EDGE_HAZE_MIN_MM = 2500;
+export const EDGE_HAZE_MIN_MM = 2400;
+/**
+ * The scene's distance fog reaches the boundary shapes over this fraction of the real distance (look-pass 2): the lawn's
+ * 1.2 m visibility hid every fence and tree line at 1.6 m and beyond, so the world ended in a flat band of fog colour.
+ * The edge haze (above) then does the aerial perspective, from the map edge outward.
+ */
+export const BOUNDARY_FOG_SCALE = 0.35;
 /** Grazing silhouettes of the backdrop shapes take this much more haze (soft, blurred-looking edges). */
 export const BACKDROP_RIM_HAZE = 0.7;
 /** Backdrop shapes always carry at least this much haze (aerial perspective: they are never crisp foreground). */
@@ -107,3 +113,17 @@ export const EDGE_GLYPH_MIN_OUTWARD = 0.3;
 /** Backdrop fence panels (look-pass 2): height factor range per panel and the share of panels that are missing. */
 export const FENCE_HEIGHT_VARY: readonly [number, number] = [0.78, 1.08];
 export const FENCE_GAP_P = 0.07;
+
+/**
+ * Look pass 2: the skirt's ground colours were the zone palette at full strength, far brighter than the soil and litter
+ * inside the map (a flat lime plane with a ruler-straight horizon at the map edge, by day and night). The skirt is
+ * drawn at this share of that albedo.
+ */
+export const SKIRT_ALBEDO_SCALE = 0.5;
+/**
+ * ...and it is dithered away within this many body units of the map edge, so the terrain's own continuation beyond the
+ * edge (same material and light as the ground inside the map) shows through there and the skirt's ground takes over
+ * gradually. A haze FLOOR on the skirt (tried first) turned the row that touches the terrain 60 % sky-coloured in one
+ * step: a hard line (reviewer, look-pass 2). The skirt and the terrain must meet with equal colour, never with a step.
+ */
+export const SKIRT_BLEND_BU = 80;

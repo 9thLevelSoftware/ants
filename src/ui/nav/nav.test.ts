@@ -123,6 +123,9 @@ describe('focus audit: reading order', () => {
     expect(reachOrderIssues([r(0, 0), r(120, 0), r(0, 40), r(120, 40)], ['a', 'b', 'c', 'd'])).toEqual([]);
     expect(reachOrderIssues([r(0, 0), r(0, 40), r(0, 80), r(300, 0), r(300, 40)], ['a', 'b', 'c', 'd', 'e'])).toEqual([]);
   });
+  it('a staggered timeline (each pin a little to the right and at another height) is reading order', () => {
+    expect(reachOrderIssues([r(0, 80), r(60, 20), r(120, 80), r(180, 20)], ['a', 'b', 'c', 'd'])).toEqual([]);
+  });
   it('jumping back up inside a column is reported', () => {
     const issues = reachOrderIssues([r(0, 100), r(0, 0)], ['second', 'first']);
     expect(issues).toHaveLength(1);

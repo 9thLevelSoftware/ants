@@ -523,12 +523,12 @@ export class InputState {
   }
 
   /** Compact view of what is held / pressed, for overlays and the debug API. */
-  debugSummary(): { contexts: string[]; device: InputDevice; held: string[]; pressed: string[]; pointer: string } {
+  debugSummary(): { contexts: string[]; device: InputDevice; held: string[]; pressed: string[]; pointer: string; suspended: boolean; padSuppressed: boolean } {
     const held: string[] = [], pressed: string[] = [];
     for (const [id, r] of this.runtime) {
       if (r.held) held.push(id);
       if (r.pressed) pressed.push(id);
     }
-    return { contexts: this.contexts.live(), device: this.device, held, pressed, pointer: this.pointer.effectiveMode() };
+    return { contexts: this.contexts.live(), device: this.device, held, pressed, pointer: this.pointer.effectiveMode(), suspended: this.suspendedFlag, padSuppressed: this.raw.padSuppressed };
   }
 }

@@ -86,12 +86,11 @@ export function followFlow(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, f
   let d = g.flowNext(flow, w.pos, 2, _t);
   if (!Number.isFinite(d)) return result('fail', 0);
   if (d <= g.cell * 0.5) return result('done', d);
-  // the disc-weighted field (trip.ts avoidFlowKey): its cells keep clear of the discs, but a line two cells ahead
-  // can cut the corner of a cell that touches one; then steer to the next cell only
-  if (s.flowKey.endsWith('|avoid')) {
-    const discs = avoidDiscs(sim, r, sim.stores.nests.get(s.flowNest)?.colony ?? -1);
-    if (discs.length > 0 && !g.gridVisible(w.pos, _t, discs)) d = g.flowNext(flow, w.pos, 1, _t);
-  }
+  // a line two cells ahead can cut the corner of a blocked cell (a wall the walker would climb: loco-fix3 review,
+  // a trip home along a fence) or, in the disc-weighted field (trip.ts avoidFlowKey), of a cell that touches an avoid
+  // disc; then steer to the next cell only
+  const discs = s.flowKey.endsWith('|avoid') ? avoidDiscs(sim, r, sim.stores.nests.get(s.flowNest)?.colony ?? -1) : null;
+  if (!g.gridVisible(w.pos, _t, discs !== null && discs.length > 0 ? discs : null)) d = g.flowNext(flow, w.pos, 1, _t);
   towardXZ(out, w, _t);
   // continuous progress metric: cost left from the steering cell plus the way to it (the cell value alone is a step)
   const tc = g.cellOf(_t.x, _t.z);

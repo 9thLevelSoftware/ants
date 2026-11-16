@@ -16,6 +16,8 @@ export interface GateField {
 export interface Gate {
   entry: Vec3;
   exit: Vec3;
+  /** Width of the free strip along the edge, mm. */
+  width: number;
 }
 
 const _a: Vec3 = { x: 0, y: 0, z: 0 }, _b: Vec3 = { x: 0, y: 0, z: 0 };
@@ -54,7 +56,7 @@ export function findGate(f: GateField, ax: number, az: number, bx: number, bz: n
   const n = Math.floor(cell / step);
   const t0 = -0.5 * cell + 0.5 * (cell - (n - 1) * step);
   const wantT = near ? (horiz ? near.z - mz : near.x - mx) : 0;
-  let best = Infinity, bestT = 0, run = 0, runStart = 0;
+  let best = Infinity, bestT = 0, bestRun = 0, run = 0, runStart = 0;
   for (let i = 0; i <= n; i++) {
     let free = false;
     const t = t0 + i * step;
@@ -66,7 +68,7 @@ export function findGate(f: GateField, ax: number, az: number, bx: number, bz: n
     if (run >= minRun) {
       const c = runStart + 0.5 * (run - 1) * step;
       const d = Math.abs(c - wantT);
-      if (d < best) { best = d; bestT = c; }
+      if (d < best) { best = d; bestT = c; bestRun = run; }
     }
     run = 0;
   }
@@ -76,5 +78,6 @@ export function findGate(f: GateField, ax: number, az: number, bx: number, bz: n
   return {
     entry: { x: ex, y: f.height(ex, ez), z: ez },
     exit: { x: xx, y: f.height(xx, xz), z: xz },
+    width: bestRun * step,
   };
 }

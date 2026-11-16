@@ -3,6 +3,13 @@ import type { Sim } from '@/sim/types';
 import { TRAIL_DETECT } from '@/sim/balance/pheromone';
 
 /** Trail cells of colony 0 at or above TRAIL_DETECT. */
+/**
+ * Save tick of the mid-life save / restore check (midlife.test.ts; asserted mid-life by gate1b.verify.test.ts): on
+ * seed 4 its dig plan, fed larvae, carriers and a trail are all present here. (econ-growth review: at 3000 the plan
+ * had just been completed once the economy changes moved the run; it is live from tick 300 to 2900.)
+ */
+export const MIDLIFE_SAVE_TICK = 2500;
+
 export function trailCellsOf(sim: Sim): number {
   const col = sim.state.colonies[0].id;
   let n = 0;

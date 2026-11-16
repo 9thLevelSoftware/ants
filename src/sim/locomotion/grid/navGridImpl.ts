@@ -9,12 +9,12 @@ import { NAV_CLASSES } from '@/sim/types';
 import type { WorldField } from '@/sim/world/field';
 import { deriveFromField, deriveFromWorld, isBlocked, linkPortals, NAV_GRID_TUNING, type GridData, type Portal } from './gridData';
 import { GridSearch, lineClear, type CostDisc } from './search';
-import { findGate } from './gates';
+import { findGate, type Gate } from './gates';
 
 // planner tunables (GDD 04 §11), in NAV_GRID_TUNING (re-exported from src/sim/balance)
 const {
   smoothLiftBU: SMOOTH_LIFT_BU, smoothRadiusBU: SMOOTH_RADIUS_BU, smoothMaxCells: SMOOTH_MAX_CELLS, snapRadiusCells: SNAP_RADIUS,
-  flowCacheFields: FLOW_CACHE, flowClearanceBU: FLOW_CLEARANCE_BU, portalReachBU: PORTAL_REACH_BU,
+  flowCacheFields: FLOW_CACHE, flowClearanceBU: FLOW_CLEARANCE_BU, portalReachBU: PORTAL_REACH_BU, gateReachBU: GATE_REACH_BU,
 } = NAV_GRID_TUNING;
 
 export interface FindPathOptions {
@@ -92,7 +92,8 @@ export interface LocoNavGrid extends NavGrid {
    */
   setWetCells(cells: readonly number[], values: readonly number[]): number;
   readonly portals: readonly Portal[];
-  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number; gates: number };
+  /** gates: gate crossings inserted into A* paths; flowGates: flow-field steps steered through a gate. */
+  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number; gates: number; flowGates: number };
   /** Nodes expanded by all A* searches so far. */
   readonly expandedTotal: number;
 }
@@ -107,6 +108,21 @@ export function createLocoNavGrid(world: WorldData): LocoNavGrid {
 
 const _cells: number[] = [], _via: number[] = [];
 const _a: Vec3 = { x: 0, y: 0, z: 0 }, _b: Vec3 = { x: 0, y: 0, z: 0 }, _t: Vec3 = { x: 0, y: 0, z: 0 };
+const _ga: Vec3 = { x: 0, y: 0, z: 0 }, _gb: Vec3 = { x: 0, y: 0, z: 0 };
+
+/**
+ * p (plan view) is in the lane of gate g: across, within the strip's half width plus gateReach of the line from entry
+ * to exit (a walker hugging a wall beside the strip is in it); along, from gateReach before the entry to a quarter of
+ * gateReach before the exit (there the walker is clear of the barrier and the flow goes on).
+ */
+function inGateLane(p: Vec3, g: Gate, bu: number): boolean {
+  const reach = GATE_REACH_BU * bu;
+  const ax = g.exit.x - g.entry.x, az = g.exit.z - g.entry.z, len = Math.hypot(ax, az);
+  if (!(len > 1e-9)) return false;
+  const px = p.x - g.entry.x, pz = p.z - g.entry.z;
+  const u = (px * ax + pz * az) / len, lat = Math.abs(px * az - pz * ax) / len;
+  return lat <= 0.5 * g.width + reach && u >= -reach && u <= len - 0.25 * reach;
+}
 
 class NavGridImpl implements LocoNavGrid {
   readonly data: GridData;
@@ -118,7 +134,12 @@ class NavGridImpl implements LocoNavGrid {
   private readonly search: GridSearch;
   private readonly flows: FlowEntry[] = [];
   private clock = 0;
-  private counters = { searches: 0, expanded: 0, flowBuilds: 0, flowRepairs: 0, flowRepairCells: 0, gates: 0 };
+  private counters = { searches: 0, expanded: 0, flowBuilds: 0, flowRepairs: 0, flowRepairCells: 0, gates: 0, flowGates: 0 };
+  /**
+   * Edge gates of side-by-side cell pairs, by edge key (edgeKey), oriented from the lower cell index to the higher,
+   * with the reverse orientation; null = no gate. Static geometry: cleared when the field or an area is re-derived.
+   */
+  private readonly gates = new Map<number, { fwd: Gate; rev: Gate } | null>();
   /** Recent cell changes, oldest first; fields older than `fullVersion` need a full rebuild. */
   private readonly changes: ChangeEntry[] = [];
   private fullVersion = 0;
@@ -179,6 +200,7 @@ class NavGridImpl implements LocoNavGrid {
 
   attachField(field: WorldField, prims: readonly Primitive[]): void {
     this.field = field;
+    this.gates.clear();
     deriveFromField(this.data, field, prims);
     this.bump(null);
   }
@@ -191,6 +213,7 @@ class NavGridImpl implements LocoNavGrid {
     const before = this.snapshotArea(ia - 1, ib + 1, ka - 1, kb + 1);
     this.saveMouths();
     deriveFromField(this.data, this.field, prims, x0, z0, x1, z1); // re-links the portals too
+    this.gates.clear();
     const dirty = this.changedCells(before, ia, ib, ka, kb);
     this.addMovedMouths(dirty);
     this.bump(dirty);
@@ -478,6 +501,14 @@ class NavGridImpl implements LocoNavGrid {
     if (c < 0) return Infinity;
     const d0 = dist[c];
     if (!Number.isFinite(d0)) return Infinity;
+    // edge gates (gates.ts), as in A* paths: a step to a side-by-side cell whose shared edge is open only in a strip
+    // goes through the strip (entry, then exit), and a walker that just came through one keeps to it until its exit
+    // (the solid part of the barrier lies on both sides of the edge). Review of loco-fix3: trips home followed the
+    // flow field to the cell centre behind the fence and climbed it.
+    if (this.field) {
+      const g = this.gateBehind(dist, c, p);
+      if (g) { out.x = g.exit.x; out.y = g.exit.y; out.z = g.exit.z; this.counters.flowGates++; return d0; }
+    }
     for (let k = 0; k < steps; k++) {
       const cx = c % this.w, cz = (c - cx) / this.w;
       let best = c, bd = dist[c];
@@ -498,10 +529,51 @@ class NavGridImpl implements LocoNavGrid {
         return d0;
       }
       if (best === c) break;
+      const g = this.field ? this.edgeGate(c, best) : null;
+      if (g) {
+        const m = k === 0 && inGateLane(p, g, this.data.bu) ? g.exit : g.entry;
+        out.x = m.x; out.y = m.y; out.z = m.z;
+        this.counters.flowGates++;
+        return d0;
+      }
       c = best;
     }
     this.centre(c, out);
     return d0;
+  }
+
+  /**
+   * The gate a walker in cell c is passing through: one on the edge to a side-by-side neighbour higher up the flow
+   * field (where the walker came from) whose lane, entry to exit, contains p. Null if none.
+   */
+  private gateBehind(dist: Float32Array, c: number, p: Vec3): Gate | null {
+    const cx = c % this.w, cz = (c - cx) / this.w;
+    for (let i = 0; i < 4; i++) {
+      const x = cx + (i === 0 ? -1 : i === 1 ? 1 : 0), z = cz + (i === 2 ? -1 : i === 3 ? 1 : 0);
+      if (x < 0 || z < 0 || x >= this.w || z >= this.h) continue;
+      const n = z * this.w + x;
+      if (!(dist[n] > dist[c]) || !Number.isFinite(dist[n])) continue;
+      const g = this.edgeGate(n, c);
+      if (g && inGateLane(p, g, this.data.bu)) return g;
+    }
+    return null;
+  }
+
+  /** Gate on the shared edge of side-by-side cells a and b, entry on a's side (cached), or null. */
+  private edgeGate(a: number, b: number): Gate | null {
+    const lo = Math.min(a, b), hi = Math.max(a, b), d = hi - lo;
+    if (d !== 1 && d !== this.w) return null;
+    const key = 2 * lo + (d === 1 ? 0 : 1);
+    let e = this.gates.get(key);
+    if (e === undefined) {
+      const pa = this.centre(lo, _ga), pb = this.centre(hi, _gb);
+      // no `near`: the cached gate must not depend on who asked first (determinism)
+      const fwd = findGate(this.field!, pa.x, pa.z, pb.x, pb.z, this.cell, this.data.bu, null);
+      e = fwd ? { fwd, rev: { entry: fwd.exit, exit: fwd.entry, width: fwd.width } } : null;
+      this.gates.set(key, e);
+    }
+    if (!e) return null;
+    return a === lo ? e.fwd : e.rev;
   }
 
   /** A portal at cell c leading lower down the flow field than `below` (the best neighbour), or null. */
@@ -517,7 +589,7 @@ class NavGridImpl implements LocoNavGrid {
     return best;
   }
 
-  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number; gates: number } {
+  stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number; gates: number; flowGates: number } {
     return { ...this.counters };
   }
 

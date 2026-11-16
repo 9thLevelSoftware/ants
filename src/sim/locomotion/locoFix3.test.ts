@@ -70,7 +70,7 @@ describe('relocation terminates (loco-fix3 item 2)', () => {
     expect(relocs()).toBe(1);
   });
 
-  it('after the repeat window a relocation is allowed again', () => {
+  it('after the let-go window the walker lets go again, but is never relocated from that place again', () => {
     const sim = locoSim({ sizeBu: 128 });
     const bu = sim.world.bu, ant = sim.state.ants[0];
     expect(placeOnSurface(sim, ant, v3(64 * bu, 0, 64 * bu))).toBe(true);
@@ -79,13 +79,55 @@ describe('relocation terminates (loco-fix3 item 2)', () => {
     for (let i = 0; i < 5; i++) stall(sim, ant, target);
     const s = scratchOf(ant);
     expect(s.relocTick).toBe(sim.state.tick);
-    sim.state.tick += rt(sim).P.relocRepeatTicks + 1;
-    placeOnSurface(sim, ant, home);
+    expect(s.relocHist?.length).toBe(6);
+    for (let round = 0; round < 3; round++) {
+      sim.state.tick += rt(sim).P.relocRepeatTicks + 1;
+      placeOnSurface(sim, ant, home);
+      freshRequest(sim, ant);
+      const acts = [1, 2, 3, 4, 5].map(() => stall(sim, ant, target));
+      expect(acts[4]).toBe('replan'); // a let-go, not a relocation
+      placeOnSurface(sim, ant, home);
+      freshRequest(sim, ant);
+      expect([1, 2, 3, 4, 5].map(() => stall(sim, ant, target))[4]).toBe('fail-repeat');
+    }
+    expect(rt(sim).stats.relocRepeatDrops).toBe(3);
+    expect(rt(sim).stats.relocations).toBe(1);
+  });
+
+  it('remembers its last relocMemory relocations: an older place counts too, the oldest beyond that is forgotten', () => {
+    const sim = locoSim({ sizeBu: 128 });
+    const bu = sim.world.bu, ant = sim.state.ants[0], P = rt(sim).P;
+    const spots = [0, 1, 2, 3, 4].map((i) => v3((30 + 15 * i) * bu, 0, 64 * bu));
+    const relocateAt = (p: ReturnType<typeof v3>) => {
+      expect(placeOnSurface(sim, ant, p)).toBe(true);
+      freshRequest(sim, ant);
+      return [1, 2, 3, 4, 5].map(() => stall(sim, ant, v3(p.x + 2 * bu, 0, p.z)))[4];
+    };
+    for (const p of spots.slice(0, P.relocMemory)) expect(relocateAt(p)).toBe('replan');
+    expect(rt(sim).stats.relocations).toBe(P.relocMemory);
+    // the first place is still remembered: no relocation there
+    expect(relocateAt(spots[0])).toBe('replan');
+    expect(rt(sim).stats.relocations).toBe(P.relocMemory);
+    expect(rt(sim).stats.relocRepeatDrops).toBe(1);
+    // a fifth place pushes the first out of the memory
+    expect(relocateAt(spots[4])).toBe('replan');
+    expect(rt(sim).stats.relocations).toBe(P.relocMemory + 1);
+    expect(scratchOf(ant).relocHist?.length).toBe(6 * P.relocMemory);
+  });
+
+  it('a destination within relocMin leaves nothing to relocate toward: the rung fails the walk, nothing is emitted', () => {
+    const sim = locoSim({ sizeBu: 128 });
+    const bu = sim.world.bu, ant = sim.state.ants[0];
+    expect(placeOnSurface(sim, ant, v3(64 * bu, 0, 64 * bu))).toBe(true);
+    ant.nav.dest = { x: ant.pos.x + 0.3 * bu, y: ant.pos.y, z: ant.pos.z };
+    let unstuck = 0;
+    sim.events.on('ant-unstuck', () => { unstuck++; });
     freshRequest(sim, ant);
-    const acts = [1, 2, 3, 4, 5].map(() => stall(sim, ant, target));
-    expect(acts[4]).toBe('replan');
-    expect(rt(sim).stats.relocRepeatDrops).toBe(0);
-    expect(s.relocations).toBe(1);
+    const acts = [1, 2, 3, 4, 5].map(() => stall(sim, ant, { ...ant.pos }));
+    expect(acts[4]).toBe('fail');
+    expect(rt(sim).stats.relocations).toBe(0);
+    sim.events.flush();
+    expect(unstuck).toBe(0);
   });
 
   it('a relocation target where the walker stands moves it toward its destination instead', () => {
@@ -100,19 +142,21 @@ describe('relocation terminates (loco-fix3 item 2)', () => {
   });
 });
 
-describe('a trip asked for again while it runs is kept (loco-fix3: re-issue loops never climbed the ladder)', () => {
-  it('the same point keeps the request and its stuck window; another point starts a new one', () => {
+describe('a trip asked for again while it runs keeps its stuck window (loco-fix3: re-issue loops never escalated)', () => {
+  it('the same point carries the ladder over; another point starts a new one', () => {
     const sim = locoSim({ sizeBu: 128 });
     const bu = sim.world.bu, ant = sim.state.ants[0];
     expect(placeOnSurface(sim, ant, v3(40 * bu, 0, 64 * bu))).toBe(true);
     const goal = v3(100 * bu, 0, 64 * bu);
     expect(navTo(sim, ant, goal, 2 * bu)).toBe(true);
-    const s = scratchOf(ant), req0 = s.reqTick;
-    for (let t = 0; t < 30; t++) sim.tick();
+    const s = scratchOf(ant);
+    s.bestTick = sim.state.tick - 20; s.ladder = 2; s.episodes = 3;
+    for (let t = 0; t < 5; t++) sim.tick();
+    const bestTick = s.bestTick, ladder = s.ladder, episodes = s.episodes;
     expect(navTo(sim, ant, v3(goal.x + 0.2 * bu, 0, goal.z), 2 * bu)).toBe(true);
-    expect(s.reqTick).toBe(req0);
+    expect([s.bestTick, s.ladder, s.episodes]).toEqual([bestTick, ladder, episodes]);
     expect(navTo(sim, ant, v3(goal.x, 0, goal.z + 10 * bu), 2 * bu)).toBe(true);
-    expect(s.reqTick).toBe(sim.state.tick);
+    expect([s.bestTick, s.ladder, s.episodes]).toEqual([sim.state.tick, 0, 0]);
   });
 });
 
@@ -180,7 +224,9 @@ describe('edge gates (loco-fix3 item 3)', () => {
     expect(findGate(sim.field, 184 * bu, 200 * bu, 200 * bu, 216 * bu, 16 * bu, bu)).toBeNull(); // diagonal: no shared edge
   });
 
-  it('the planner routes a walk across the fence through the strip, without climbing it', () => {
+  // With this fence A* routes round through the cells under the raised board and inserts no gate; the gate insertion
+  // itself is covered by locoFix3.verify.test.ts and the flow-field gates by locoFix3.review.test.ts.
+  it('the planner gets a walk across the fence without climbing it', () => {
     const sim = locoSim({ sizeBu: 400, prims: fence });
     const ant = sim.state.ants[0];
     sim.tick();

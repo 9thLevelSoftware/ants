@@ -12,7 +12,8 @@
 //    to a 5 mm slab would make a block of it (a leaf's lift is its curl, the collision shape the simulation walks on);
 //  - the gap to close is limited to MAX_GAP_BU body units: a bigger gap means the thing is meant to stand on
 //    something else (a tabletop on legs, a car body on wheels, a bench seat), which must stay as it is;
-//  - the stretch goes SKIRT_MM below the ground so no daylight shows under a slope.
+//  - the stretch goes SKIRT_MM below the ground so no daylight shows under a slope;
+//  - the stretch is along the body's own axis and keeps its upper end fixed (a leaning stem does not slide at the top).
 import type { Primitive } from '@/sim/types';
 
 /** cos of the largest tilt of an "upright" primitive (about 14 degrees). */
@@ -66,6 +67,29 @@ function lowestGround(p: Primitive, heightAt: (x: number, z: number) => number):
   return low;
 }
 
+/** Whether the snap may ever touch this primitive: an upright box, cylinder or capsule that is not a flat plate. */
+export function isSnappable(p: Primitive): boolean {
+  if (p.shape === 'ellipsoid' || isPlate(p)) return false;
+  const q = p.rot;
+  return 1 - 2 * (q.x * q.x + q.z * q.z) >= UPRIGHT_COS;
+}
+
+/** The stretched copy of one snappable primitive and the gap it closes (mm), or null when it needs nothing. */
+export function snapOne(p: Primitive, heightAt: (x: number, z: number) => number, bu: number): { prim: Primitive; gap: number } | null {
+  const q = p.rot;
+  const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
+  const bottom = p.pos.y - halfHeight(p) * upY;
+  const gap = bottom - lowestGround(p, heightAt);
+  if (gap < SNAP_MIN_GAP_MM || gap > SNAP_MAX_GAP_BU * bu) return null;
+  // Lengthen the body along its OWN axis, keeping its upper end exactly where it is: the next stem segment and a
+  // flower head are built on the unsnapped primitive, so a leaning stem whose top slid sideways would break at the
+  // joint. The bottom must drop `gap + skirt` vertically, which along an axis tilted by upY takes that / upY.
+  const along = (gap + SNAP_SKIRT_MM) / upY;
+  const ax = 2 * (q.x * q.y - q.w * q.z), az = 2 * (q.y * q.z + q.w * q.x); // local +Y in world space (its y is upY)
+  const pos = { x: p.pos.x - ax * along / 2, y: p.pos.y - upY * along / 2, z: p.pos.z - az * along / 2 };
+  return { prim: { ...p, pos, size: { x: p.size.x, y: p.size.y + along / 2, z: p.size.z } }, gap };
+}
+
 /**
  * The same primitives with their bottoms stretched to the ground. Primitives that need nothing are returned as
  * the same objects (no allocation per primitive); the input is never modified.
@@ -74,26 +98,20 @@ export function snapPrimitivesToGround(
   prims: readonly Primitive[], heightAt: (x: number, z: number) => number, bu: number, stats?: SnapStats,
 ): Primitive[] {
   const out: Primitive[] = new Array(prims.length);
-  const maxGap = SNAP_MAX_GAP_BU * bu;
   for (let i = 0; i < prims.length; i++) {
     const p = prims[i];
     out[i] = p;
-    if (p.shape === 'ellipsoid' || isPlate(p)) continue;
-    const q = p.rot;
-    const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
-    if (upY < UPRIGHT_COS) continue;
+    if (!isSnappable(p)) continue;
     if (stats) stats.considered++;
-    const half = halfHeight(p);
-    const bottom = p.pos.y - half * upY;
-    const low = lowestGround(p, heightAt);
-    const gap = bottom - low;
-    if (gap < SNAP_MIN_GAP_MM || gap > maxGap) continue;
-    // stretch downward along the (upright) local Y axis: the top stays where it is
-    const extend = gap + SNAP_SKIRT_MM;
-    const sizeY = p.size.y + extend / 2 / upY;
-    const shiftY = -(extend / 2);
-    out[i] = { ...p, pos: { x: p.pos.x, y: p.pos.y + shiftY, z: p.pos.z }, size: { x: p.size.x, y: sizeY, z: p.size.z } };
-    if (stats) { stats.snapped++; if (gap > stats.maxGapMm) stats.maxGapMm = gap; }
+    const r = snapOne(p, heightAt, bu);
+    if (!r) continue;
+    out[i] = r.prim;
+    if (stats) { stats.snapped++; if (r.gap > stats.maxGapMm) stats.maxGapMm = r.gap; }
   }
   return out;
+}
+
+/** Lowest ground under a primitive's footprint (exported for tests: the measure the snap itself uses). */
+export function groundUnderFootprint(p: Primitive, heightAt: (x: number, z: number) => number): number {
+  return lowestGround(p, heightAt);
 }

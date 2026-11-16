@@ -174,12 +174,14 @@ export const LOCO_TUNING = {
   /** Relocation target: this many waypoints / field steps ahead. */
   relocateFieldSteps: 8,
   /**
-   * Relocation is the last resort and must terminate (loco-fix3): a walker stuck again within relocRepeatBU of
-   * where it was last relocated from (or put), within relocRepeatS, is not relocated again: the first repeat lets
-   * go (a drop off the spot), later ones fail the walk with reason 'stuck-repeat' at the rung that would relocate
-   * (replan, sidestep, back-off and re-snap still run). A relocation target closer than relocMinBU (a field lookahead that ends where
-   * the walker stands) is replaced by a point that far toward the next point after it, or toward the goal.
+   * Relocation is the last resort and must terminate (loco-fix3): a walker is never relocated twice from one place.
+   * It remembers its last relocMemory relocations (from and to points, no time limit); stuck again within
+   * relocRepeatBU of one of them, it is not relocated: it lets go (a drop off the spot) if it has not let go within
+   * relocRepeatS, else the walk fails with reason 'stuck-repeat' at the rung that would relocate (replan, sidestep,
+   * back-off and re-snap still run). A relocation target closer than relocMinBU (a field lookahead that ends where
+   * the walker stands) is replaced by a point 2 x relocMinBU toward the walker's destination.
    */
+  relocMemory: 4,
   relocRepeatS: 300,
   relocRepeatBU: 2,
   relocMinBU: 1,
@@ -311,7 +313,7 @@ export interface LocoParams {
   routeSnap: number; routeGoal: number; direct: number; planBudget: number; planExpandBudget: number; stuckExplosionTicks: number; stuckExplosionFrac: number; stuckExplosionMin: number; retargetS: number; retarget: number;
   pointFieldMax: number; pointSeek: number; arriveStallS: number; ceilingUpY: number; dropAbove: number; dropBelow: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
-  episodesMax: number; relocateSteps: number; relocRepeatTicks: number; relocRepeat: number; relocMin: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
+  episodesMax: number; relocateSteps: number; relocRepeatTicks: number; relocRepeat: number; relocMin: number; relocMemory: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
   stallMove: number; stallTicks: number; waterSpeed: number; wetGrip: number;
   dozeCrowd: number; dozeCycle: number; dozeAwake: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
@@ -350,7 +352,7 @@ export function locoParams(bu: number): LocoParams {
     timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,
     stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
     relocateMax: T.relocateMax, episodesMax: T.episodesMax, relocateSteps: T.relocateFieldSteps,
-    relocRepeatTicks: Math.round(T.relocRepeatS * 10), relocRepeat: T.relocRepeatBU * bu, relocMin: T.relocMinBU * bu,
+    relocRepeatTicks: Math.round(T.relocRepeatS * 10), relocRepeat: T.relocRepeatBU * bu, relocMin: T.relocMinBU * bu, relocMemory: T.relocMemory,
     wanderStallS: T.wanderStallS, wanderPivotS: T.wanderPivotS, wanderStallMax: T.wanderStallMax,
     pinnedS: T.pinnedS, pinnedUpY: T.pinnedUpY,
     stallMove: T.stallMoveBU * bu, stallTicks: Math.round(T.stallWindowS * 10), waterSpeed: T.waterSpeedMult, wetGrip: T.wetGripMult,

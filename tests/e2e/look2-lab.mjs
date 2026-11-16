@@ -30,10 +30,11 @@ export default async ({ page, log, out: outDir }) => {
   const results = [];
   for (const v of lab.variants) {
     if (v.light) await S.setLight(v.light);
-    await page.evaluate(async ({ code }) => {
+    const ret = await page.evaluate(async ({ code }) => {
       const mod = (p) => import(/* @vite-ignore */ p);
-      await new Function('mod', `return (async () => { ${code} })()`)(mod);
+      return await new Function('mod', `return (async () => { ${code} })()`)(mod);
     }, { code: v.code ?? '' });
+    if (ret !== undefined && ret !== null) log(`${v.name} returned`, JSON.stringify(ret));
     const m = await page.evaluate(async ({ fn, args }) => {
       window.__game.renderFrame({ settle: 0.5 });
       return await new Function(`return (${fn})`)()(args);

@@ -15,6 +15,7 @@ import { HOME, K, NAV, PHASE, UNLOAD } from './keys';
 import { goTo, goToChamber, goToSource, setDest, stop } from './nav';
 import { resetAvoid } from './avoid';
 import { abandonTrip } from './phaseNest';
+import { noteClaim } from './claims';
 import { learnedRoute, prepareRoute, waypoint } from './routes';
 import { decideReturnTrail, stopLaying } from './trail';
 
@@ -69,6 +70,7 @@ export function startOutbound(sim: Sim, ant: Ant, fl: Flavour, srcId: number, de
   resetAvoid(ant);
   const route = learnedRoute(ant, srcId);
   setPhase(sim, ant, fl.names, PHASE.outbound, reason, detail);
+  noteClaim(sim, ant, srcId);
   if (route && route.n >= 2) {
     ant.bb[K.nav] = NAV.route;
     ant.bb[K.wp] = 1;
@@ -109,6 +111,7 @@ export function startApproach(sim: Sim, ant: Ant, fl: Flavour, srcId: number, re
   stopLaying(sim, ant);
   if (ant.bb[K.phase] !== PHASE.outbound) setPhase(sim, ant, fl.names, PHASE.outbound, reason, srcId);
   else if (reason) logDecision(sim, ant, reason, srcId);
+  noteClaim(sim, ant, srcId);
   goToSource(sim, ant, s);
 }
 

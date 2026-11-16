@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { NIGHT_LOOK, SUN_INTENSITY } from './constants';
-import { computeLighting, groundDisplayLuma, nightExposureEV, nightWeight, type LightingInput } from './timeOfDay';
+import { computeLighting, groundDisplayLuma, groundIrradiance, nightExposureEV, nightWeight, type LightingInput } from './timeOfDay';
 
 function input(elev: number, over: Partial<LightingInput> = {}): LightingInput {
   const e = (elev * Math.PI) / 180;
@@ -46,6 +46,15 @@ describe('night exposure metering', () => {
     const l = night({ weather: 'rain', cloud: 0.9 });
     expect(l.exposureEV).toBeCloseTo(nightExposureEV(l), 9);
   });
+  it('pins the clear-night exposure the measurements were tuned at (full dusk blend done, moon 0.8, cloud 0.1)', () => {
+    expect(night().exposureEV).toBeCloseTo(3.418, 2);
+    expect(night({ weather: 'rain', cloud: 1 }).exposureEV).toBeCloseTo(3.593, 2);
+  });
+  it('a night storm keeps its -0.7 EV against night rain (GDD 08 11.4), inside the floor', () => {
+    const rain = night({ weather: 'rain', cloud: 1 }), storm = night({ weather: 'storm', cloud: 1 });
+    expect(storm.exposureEV).toBeCloseTo(rain.exposureEV - 0.7, 6);
+    expect(storm.exposureEV).toBeGreaterThanOrEqual(NIGHT_LOOK.minEV);
+  });
 });
 
 describe('night looks like night, and is readable', () => {
@@ -63,7 +72,9 @@ describe('night looks like night, and is readable', () => {
   it('never reads as day: far darker than a clear noon and cool (blue over red in the key and in the fill)', () => {
     const noon = computeLighting(input(60));
     const l = night();
-    expect(groundDisplayLuma(l, GROUND_ALBEDO)).toBeLessThan(groundDisplayLuma(noon, GROUND_ALBEDO)) // the ACES model saturates; measured in game: night 0.2 vs noon 0.29;
+    expect(groundDisplayLuma(l, GROUND_ALBEDO)).toBeLessThan(groundDisplayLuma(noon, GROUND_ALBEDO)); // measured in game: night 0.2 vs noon 0.29
+    // the scene-referred light (what the exposure then lifts) is more than 10x below noon's: the camera, not the light, makes it readable
+    expect(groundIrradiance(l)).toBeLessThan(0.1 * groundIrradiance(noon));
     expect(l.keyColor.b).toBeGreaterThan(l.keyColor.r);
     expect(l.hemiSky.b).toBeGreaterThan(l.hemiSky.r * 1.3);
     expect(l.saturation).toBeLessThan(0.85);
@@ -78,7 +89,7 @@ describe('night looks like night, and is readable', () => {
     let prev = computeLighting(input(10));
     for (let e = 9.5; e >= -10; e -= 0.5) {
       const l = computeLighting(input(e));
-      expect(Math.abs(l.exposureEV - prev.exposureEV), `elev ${e}`).toBeLessThan(0.9);
+      expect(Math.abs(l.exposureEV - prev.exposureEV), `elev ${e}`).toBeLessThan(0.6); // per half degree of sun elevation
       expect(Math.abs(l.hemiIntensity - prev.hemiIntensity), `elev ${e}`).toBeLessThan(0.25);
       prev = l;
     }

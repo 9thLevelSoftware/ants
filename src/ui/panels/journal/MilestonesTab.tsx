@@ -46,7 +46,7 @@ export function MilestonesTab({ j }: { j: UiJournal }) {
       ) : (
         <>
           <div class="pn-timeline-scroll" tabIndex={0} role="region" aria-label="Milestone timeline, scrolls sideways" data-testid="timeline">
-            <div class="pn-timeline" style={{ width: rem(width), height: rem(axisY + DAY_LABELS + SEASON_STRIP + BOTTOM_PAD) }}>
+            <div class="pn-timeline" data-tab-order="logical" style={{ width: rem(width), height: rem(axisY + DAY_LABELS + SEASON_STRIP + BOTTOM_PAD) }}>
               {axis.bands.map((b, i) => (
                 <div key={i} class={`pn-tl-band is-${b.season % 2}`} style={{ left: rem(x(b.from)), width: rem((b.to - b.from) * remPerDay), top: rem(axisY + DAY_LABELS) }}>
                   <Icon name={SEASON_ICON[b.label.toLowerCase()] ?? 'sun'} size={16} decorative /> <span>{b.label}</span>

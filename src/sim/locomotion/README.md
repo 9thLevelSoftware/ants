@@ -87,14 +87,17 @@ instead of laddered mid-climb; going up and down the same wall is not progress.
 No improvement of 0.5 BU in 2.5 s climbs one rung: replan, sidestep, back off, re-snap,
 relocate (<= 2 per request, 6 BU toward the next waypoint / flow cell / field sample, event `ant-unstuck`), fail. Episodes per request are capped and every request has a timeout, so every walker ends `arrived` or `failed`.
 
-Relocation is a last resort that terminates across requests (loco-fix3): the walker remembers where it was last
-relocated from and to (`nav.loco.relocTick/relocFrom/relocTo`). Stuck again within `relocRepeatBU` (2 BU) of either
-place inside `relocRepeatS` (300 s), the relocation rung lets go instead (a drop, nothing teleported; one log line);
-the next time the walk fails with reason `stuck-repeat` at that rung (the rungs that move nobody still run). A
-relocation target closer than `relocMinBU` (an exit field ending where the walker stands) is pushed toward the
-destination. Relocations log no line (only escalations do).
+Relocation is a last resort that terminates across requests (loco-fix3): no walker is relocated twice from one
+place. It remembers its last `relocMemory` (4) relocations, from and to points, with no time limit
+(`nav.loco.relocHist`; `relocFrom/relocTo` repeat the newest). Stuck again within `relocRepeatBU` (2 BU) of one of
+them, the relocation rung lets go instead (a drop, nothing teleported; one log line) if the walker has not let go
+within `relocRepeatS` (300 s, `relocDropTick`), else the walk fails with reason `stuck-repeat` at that rung (the
+rungs that move nobody still run). A relocation target closer than `relocMinBU` (an exit field ending where the
+walker stands) is replaced by a point 2 x `relocMinBU` toward the destination; with the destination that close too,
+the rung fails the walk (nothing is relocated or emitted). Relocations log no line (only escalations do).
 
-Failed requests say why (`nav.failReason`, valid while `nav.status` is 'failed'; additive contract): `rejected` (the
+Failed requests say why (`nav.failReason`, set with `nav.status` 'failed', cleared by the next request or navStop;
+additive contract): `rejected` (the
 request could not start: target gone, a nest goal with no usable entrance), `no-route`, `timeout`, `stuck` (the
 ladder ran out), `stuck-repeat`, `trail-lost`, `wander-stall`, `leg` (a field or route vanished).
 
@@ -124,7 +127,12 @@ across a steep crest of a mound pile against an object, < 0.75 x foot offset): w
 - A walker more than 3 BU above the ground whose goal is not near (a home trip included) leaves by the nearest climb
   route; on a steep face with no route near it seeks the ground straight below, aiming in 3D (`seekDown`). Retrace
   aims at its crumbs in 3D on steep faces. (A plan-view aim on a vertical stem circles it: tenders were lost on a
-  shrub at suburban-garden #2.)
+  shrub at suburban-garden #2.) A goal up the same object (trip.ts `sameObject`: the nearest primitive at walker and
+  goal is one primitive or one `objectId`) is not descended from: the walker seeks it directly, aiming in 3D (review
+  of loco-fix3: a walk re-issued partway up a bare stem was sent to the ground on every replan).
+- A surface walker on a steep face whose desired direction points away from the face (no tangent part: the goal lies
+  straight out from the wall) turns down the face and steps off it, instead of climbing on a stale heading
+  (steer.ts `turnToward` with `pinnedUpY`); pushing into a face still climbs it.
 - An exit leg at the entrance mouth heads for the ground `exitRimBU` beyond the rim on the goal's side (legs.ts
   `exitPoint`; also its relocation target), not for a point in the air over a vertical shaft. On the lip, where the
   walker flips between cavity and surface, a trip keeps its leg (update.ts `mouthHold`: out-bound walkers keep the
@@ -132,7 +140,11 @@ across a steep crest of a mound pile against an object, < 0.75 x foot offset): w
 - Edge gates (grid/gates.ts): where the straight crossing between side-by-side cells meets a tall barrier
   (blocked at 1 BU and at `gateTallBU` 8 BU above the ground) but a strip of the shared edge at least 1 BU wide lets a
   body through (the opening under a raised gravel board at a fence end), the planner's string-pulling adds the
-  strip's entry and exit points. The kernel test walker uses the same finder.
+  strip's entry and exit points. The kernel test walker uses the same finder. Trips home follow the entrance flow
+  field: `flowNext` steers a gated step at the gate's entry, from the entry on at its exit, and a walker that came
+  through keeps to the exit until clear of the barrier (the gate's lane: the strip's half width plus `gateReachBU`
+  across). Gates are cached per cell edge (cleared when an area is re-derived). A flow lookahead two cells ahead that
+  is not in grid line of sight (the corner of a blocked or raised cell) falls back to the next cell.
 
 ## Weather (weather.ts, puddles.ts; GDD 06 §3.3, §3.10)
 

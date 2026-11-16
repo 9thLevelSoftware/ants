@@ -9,7 +9,8 @@ import { MaterialLibrary } from '../materials/materialLibrary';
 import { createWorldUniforms, type WorldUniforms } from '../materials/uniforms';
 import { applyOcclusion, CONTACT_RADIUS_BU } from '../materials/occlusion';
 import { PrimitiveRenderer } from '../primitives/primitiveRenderer';
-import { snapPrimitivesToGround, type SnapStats } from '../primitives/groundSnap';
+import type { SnapStats } from '../primitives/groundSnap';
+import { SnapLayer } from '../primitives/snapLayer';
 import { lookTable } from '../dressing/looks';
 import { GroundGrit } from '../dressing/groundGrit';
 import { FlowerDressing } from '../dressing/flowerDressing';
@@ -73,6 +74,9 @@ export class WorldRenderer {
   private lastExposure = NaN;
   private wet = 0;
   private moved = new Map<number, import('@/sim/types').Primitive>();
+  /** `moved` (snapped to the ground it now stands on) plus the props re-snapped after terrain changes: what the dynamic layer gets. */
+  private drawnMoved = new Map<number, import('@/sim/types').Primitive>();
+  private snapLayer = new SnapLayer();
   /** objectMovesSignature the `moved` replacements were built for (NaN = rebuild). */
   private movesSig = Number.NaN;
   private canopyTex: DataTexture | null = null;
@@ -122,7 +126,7 @@ export class WorldRenderer {
     this.prims.setLooks(looks);
     // the drawn copies of upright boxes, posts and stems that stop a little above the ground are stretched down to it
     this.snapStats = { considered: 0, snapped: 0, maxGapMm: 0 };
-    this.prims.setStatic(snapPrimitivesToGround(staticPrims(world), (x, z) => this.terrain.height(x, z), world.bu, this.snapStats));
+    this.prims.setStatic(this.snapLayer.setWorld(staticPrims(world), (x, z) => this.terrain.height(x, z), world.bu, this.snapStats));
     this.flowers.setPrims(staticPrims(world), looks, world.bu);
     this.heightSig = heightDeltaSignature(sim);
     this.hazeVis = -1;
@@ -178,6 +182,8 @@ export class WorldRenderer {
     this.grit.setSource(null);
     this.flowers.setPrims(null, null);
     this.moved.clear();
+    this.drawnMoved.clear();
+    this.snapLayer.clear();
     this.movesSig = Number.NaN;
   }
 
@@ -303,12 +309,14 @@ export class WorldRenderer {
       this.heightSig = hs;
       this.terrain.updateHeights(terrainSource(this.world, sim).heights);
       this.grit.setSource(this.terrain.source, (x, z) => this.inBreach(x, z));
+      this.snapLayer.heightsChanged((x, z) => this.terrain.height(x, z)); // props on changed ground follow it
     }
     this.grit.update(this.subject.x, this.subject.z, this.under);
     this.flowers.update(this.camPos, this.under);
     const moves = objectMoves(sim), movesSig = objectMovesSignature(moves);
-    if (movesSig !== this.movesSig) { this.movesSig = movesSig; movedStaticPrims(this.world, moves, this.moved); }
-    this.prims.syncDynamic(dynamicPrims(sim), this.moved);
+    if (movesSig !== this.movesSig) { this.movesSig = movesSig; movedStaticPrims(this.world, moves, this.moved); this.snapLayer.dirty = true; }
+    if (this.snapLayer.dirty) this.snapLayer.merge(this.moved, (x, z) => this.terrain.height(x, z), this.drawnMoved);
+    this.prims.syncDynamic(dynamicPrims(sim), this.drawnMoved);
     this.prims.setBreaches(breaches(sim), this.camPos);
     this.prims.update(this.camPos, this.primCullMm());
     this.mounds.sync(mounds(sim));

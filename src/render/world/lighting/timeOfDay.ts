@@ -194,7 +194,7 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
   const meter = sunUp && W.sunMult > 0 ? (W.meterSunMult * lerp(1, WEATHER_LOOK.overcast.sunMult, cloudy)) / sunMult : 1;
   out.exposureEV += autoExposureEV(out, meter);
   // night: the photographer meters the moonlit ground instead (NIGHT_LOOK); blended in through the dusk
-  if (nightW > 0) out.exposureEV = lerp(out.exposureEV, nightExposureEV(out), nightW);
+  if (nightW > 0) out.exposureEV = lerp(out.exposureEV, nightExposureEV(out, W.nightEV), nightW);
   // interior: tungsten ambient from above, the sun only through openings
   const ins = Math.min(1, Math.max(0, inp.interior ?? 0));
   if (ins > 0) {
@@ -234,11 +234,12 @@ export function nightWeight(sunElevDeg: number): number {
 
 /**
  * Exposure of a moonlit scene: meters the horizontal irradiance of the ground (moon + sky fill) toward
- * NIGHT_LOOK.targetE, clamped to [minEV, maxEV] (the floor and the cap are the "exposure adaptation with a floor").
+ * NIGHT_LOOK.targetE, plus the weather's own night compensation (a storm's -0.7 EV), clamped to [minEV, maxEV] (the
+ * floor and the cap are the "exposure adaptation with a floor").
  */
-export function nightExposureEV(l: LightingState): number {
+export function nightExposureEV(l: LightingState, weatherEV = 0): number {
   const e = groundIrradiance(l);
-  return Math.min(NIGHT_LOOK.maxEV, Math.max(NIGHT_LOOK.minEV, Math.log2(NIGHT_LOOK.targetE / Math.max(1e-5, e))));
+  return Math.min(NIGHT_LOOK.maxEV, Math.max(NIGHT_LOOK.minEV, Math.log2(NIGHT_LOOK.targetE / Math.max(1e-5, e)) + weatherEV));
 }
 
 /** Horizontal irradiance of the ground (key light + sky fill), three's physical units (before albedo / pi). */

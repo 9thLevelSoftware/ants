@@ -207,7 +207,7 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
       }
       const dl = Math.hypot(_desired.x, _desired.y, _desired.z);
       if (dl > 1e-9) set3(w.nav.desiredDir, _desired.x / dl, _desired.y / dl, _desired.z / dl);
-      turnToward(w, _desired, r.P.aiTurn * dt, r.P.minSteer);
+      turnToward(w, _desired, r.P.aiTurn * dt, r.P.minSteer, r.P.pinnedUpY);
     } else speed = 0;
     if (speed > 0 && walkerUnderWater(sim, w, r, isAnt ? (w as Ant).nestId : nestIdOf(w))) speed *= r.P.waterSpeed;
     // open ground (nearly level, no hard primitive within lodHardClear: no thin sheet to tunnel through) takes
