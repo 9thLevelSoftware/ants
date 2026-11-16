@@ -42,7 +42,11 @@ const ABLE_TEMP_FACTOR = 0.05;
 function watched(sim: Sim, ant: Ant, r: LocoRuntime): boolean {
   if (ant.nav.status !== 'moving' || ant.medium === 'air') return false;
   if ((ant.flags & AntFlag.POSSESSED) !== 0) return false;
-  if (r.overriddenTick.get(ant.id) === sim.state.tick) return false;
+  const held = r.overriddenTick.get(ant.id);
+  if (held !== undefined) {
+    if (held === sim.state.tick) return false;
+    r.overriddenTick.delete(ant.id);
+  }
   if (isStunned(sim, ant)) return false;
   return tempSpeedFactor(sim, ant) > ABLE_TEMP_FACTOR;
 }
@@ -70,7 +74,8 @@ export function stalledAnts(sim: Sim, r: LocoRuntime): StallInfo[] {
   for (const id of ids) {
     const rec = r.stalls.get(id)!;
     const ant = sim.stores.ants.get(id);
-    if (!ant || now - rec.tick < limit) continue;
+    if (!ant) { r.stalls.delete(id); continue; }
+    if (now - rec.tick < limit) continue;
     const t = ant.target;
     out.push({
       id, ticks: now - rec.tick,
