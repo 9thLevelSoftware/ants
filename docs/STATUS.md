@@ -318,3 +318,32 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
 - Added word `winter-reserve`. `src/content/text/controls.test.ts` still red (known).
 - Launching now: `econ-growth` + `overwinter-repro` (Opus). Still running: `w7oa5adpf` (weather-fix2 +
   viab-founding), `wk1cq0726` (stage2-look-fix + onboarding).
+
+## Nov 16 17:00 UTC — weather-fix2 + viab-founding landed
+
+- **weather-fix2** (Opus ×3): submersion measured as water depth over the feet / spill-layer bottom (`waterDepthOver`,
+  0.5 BU for ants, brood by centre); sealed or reopening founding cell takes seepage only, an `open` entrance takes
+  rain only if it really opens the pooled basin to air (`entranceOpensBasin`); spill cache holds only the pooled basin
+  (zero-filled garbage samples removed); queen-in-danger card shared correctly with combat; dry rival nests re-predicted
+  every 3000 ticks (`FLOOD_PREDICT_DRY_REBUILD_TICKS`); restore divergence fixed (stage1a.e2e (c) green; root cause
+  = mound mask cache keyed on breach count only → **need from nest owner: key on breach positions**).
+  - Open: first spill build per nest 11–35 ms once; rain-hour rebuilds 27–46 ms; "flee water along D_exit" behaviour
+    missing (a queen resting in a sump can drown in a chamber < 25 % flooded); sprinkler/hose not wired to inflow;
+    K_DRAIN per real second vs rain per compressed game hour needs a ruling.
+- **viab-founding** (Opus ×3): guide state BACK (queen outside her cavity walks back in / bites down at the opening,
+  never where she stands); guide no longer overrides the player after she is moved; plugs laid inside the throat
+  sphere; **workers reopen the plug at hand-over** (throats set `reopening`; deep plugs through stepped 0.75 BU tunnel
+  plans; the stand-in unplug is deleted); one pocket rule (`foundingPocketTest`); dots published by the flow. Seal
+  sweep: 57 of 60 on the first run, the 2 seal failures pass after the last change (full sweep not re-run on final
+  code). Browser `founding.mjs` seeds 1–3 complete **only with `FOUNDING_NO_FLOOD=1`**; the plain seed 1 run failed
+  with the clutch drowning by seepage ("Founding chamber flooding ×3").
+  - **Conflict to resolve on HEAD**: weather-fix2 says safe/dry nests no longer flood; viab-founding's last browser
+    run (before weather-fix2's final commit?) still drowned the clutch. Integrator is running 4 life runs on HEAD with
+    flooding on (`test-output/headcheck/`), then `founding.mjs` seed 1 without the flag.
+  - Open: scripted digger gets no bite at some good sites (seed 8; seeds 3/4 first site); seed 3 hand-over 0.81–0.91
+    gd before autumn (needs ≥ 1.0); deep-plug reopening depends on the nest accepting stepped tunnel plans; ghost plug
+    voxels above ground counted by `plugCount`; queen cannot climb some steep template throats (seed 3).
+- Integrator's look at `test-output/viab/e2e-3/*.png`: sealed chamber with eggs reads well. First possessed worker
+  at night: status line says "Scout · scouting · stuck"; a flat pale blue slab with a hard rectangular edge stands
+  against the starry sky (map-edge / far-plane look, known weak) → second look pass. 7 first workers on seed 3
+  (below the chapter's 8–16).
