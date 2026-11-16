@@ -5,7 +5,7 @@ import { rngChance, rngRange } from '@/core/rng';
 import type { FoodSource, HumanEventRun, Sim } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
 import { removeItem } from '@/sim/entities';
-import { removeSourcesInArea, sourceDef } from '@/sim/ecology/sources';
+import { removeSourcesInArea, sourceDef } from '@/sim/ecology';
 import { wipeRegion } from '@/sim/pheromones';
 import { CRUSH_P, CRUSH_STUN_S, HUMAN_PHERO, HUMAN_PHERO_HALF_BU, type CrushContact } from '@/sim/balance/human';
 import { crushColumn, surfaceClass } from '../ground';

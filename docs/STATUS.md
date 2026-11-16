@@ -389,8 +389,8 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
   - Open: gamepad dismissal needs a `dismiss-hint` input action (→ input-gamepad-a11y task); founding overlay should
     ask the engine itself (`PlayPanels.tsx`) so the DOM bridge `foundingGate.ts` can go; classic build not re-run.
 - **Integrator fix: sim import cycle** (`creatures → environment → human → ecology index`, and through
-  `colony/allocation/demand`): human effects now import `@/sim/ecology/sources`; `ecology/index.ts` command handlers
-  are late-bound. Importing creatures, sources, plants or human first all load. Six creature test files and
+  `colony/allocation/demand`): `ecology/index.ts` command handlers are late-bound (a second change, pointing human effects at
+  `@/sim/ecology/sources`, broke `crush.test` / `human.verify.test` through `systems.ts` and was reverted). Importing creatures, sources, plants or human first all load. Six creature test files and
   `spikes/render-creatures-demo` no longer depend on import order.
 - Seen in the rain shots: alert "Founding chamber flooding ×10/×11" long after the hand-over (wrong name once the
   opening is over, and it repeats) → check after nest-fix3; if still there, gate close.
