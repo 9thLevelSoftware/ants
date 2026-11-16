@@ -102,6 +102,14 @@ export function canLay(sim: Sim, q: Ant): boolean {
   return qs.gut.p >= EGG_COST_P || (qs.mode === 'founding' && qs.reserveP >= EGG_COST_P);
 }
 
+/**
+ * The floor point under an ant's feet: where its eggs or brood lie. The walker's position floats footOffset above
+ * the surface (more for the large queen), and brood there is out of a nurse's reach (App. E 25: never fed).
+ */
+export function feetOf(a: Ant): { x: number; y: number; z: number } {
+  return { x: a.pos.x - a.up.x * a.footOffset, y: a.pos.y - a.up.y * a.footOffset, z: a.pos.z - a.up.z * a.footOffset };
+}
+
 /** The queen lays one egg (GDD 02 §3.2; GDD 01 `lay-egg` effect). Returns the brood id, -1 if she cannot. */
 export function layEgg(sim: Sim, q: Ant, destined: BroodCaste = 'worker'): number {
   if (!canLay(sim, q)) return -1;
@@ -122,7 +130,7 @@ export function layEgg(sim: Sim, q: Ant, destined: BroodCaste = 'worker'): numbe
   }
   if (col.counters.eclosions === 0 && censusOf(sim, col.id).workers === 0) flags |= BroodFlag.FIRST_BROOD | BroodFlag.NANITIC;
   const b = spawnBrood(sim, {
-    colony: col.id, stage: 'egg', destined, pos: q.pos, nestId: q.nestId, chamberId: q.chamberId, init: { flags },
+    colony: col.id, stage: 'egg', destined, pos: feetOf(q), nestId: q.nestId, chamberId: q.chamberId, init: { flags },
   });
   col.counters.eggsLaid++;
   const doy = currentDayOfYear(sim.state);

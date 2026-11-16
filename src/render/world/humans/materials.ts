@@ -110,6 +110,8 @@ export interface HumanMaterials {
   engine: MeshStandardMaterial;
   brass: MeshStandardMaterial;
   wetFilm: MeshStandardMaterial;
+  /** Flying water drops: brighter and more opaque than standing water, so a jet reads against the sky. */
+  drop: MeshStandardMaterial;
   crumb: MeshStandardMaterial;
   kibble: MeshStandardMaterial;
   syrup: MeshStandardMaterial;
@@ -153,7 +155,7 @@ export function createHumanMaterials(): HumanMaterials {
     carPaint: std({ map: tex.carPaint, roughness: 0.4, metalness: 0.45 }),
     chassis: std({ color: '#26272a', roughness: 0.8, metalness: 0.4 }),
     metal: std({ color: '#8c8f93', roughness: 0.35, metalness: 0.85 }),
-    blade: std({ color: '#5d6166', roughness: 0.3, metalness: 0.9, transparent: true, opacity: 0.22, depthWrite: false }),
+    blade: std({ color: '#3a3d40', roughness: 0.6, metalness: 0, transparent: true, opacity: 0.3, depthWrite: false }),
     plastic: std({ map: tex.plastic, roughness: 0.4, metalness: 0 }),
     greyPlastic: std({ color: '#55595e', roughness: 0.45, metalness: 0, transparent: true, vertexColors: true }),
     toyPlastic: std({ color: '#4d7598', roughness: 0.35, metalness: 0, transparent: true, vertexColors: true }),
@@ -165,6 +167,7 @@ export function createHumanMaterials(): HumanMaterials {
     steel: std({ color: '#c3c7cc', roughness: 0.22, metalness: 0.95 }),
     engine: std({ color: '#1c1d1f', roughness: 0.55, metalness: 0.35 }),
     brass: std({ color: '#8f7240', roughness: 0.35, metalness: 0.9 }),
+    drop: std({ color: '#f2f8fc', roughness: 0.05, metalness: 0, transparent: true, opacity: 0.85, emissive: '#3c4a54' }),
     wetFilm: std({ color: '#dfe7ec', roughness: 0.02, metalness: 0, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }),
     crumb: std({ map: tex.crumb, roughness: 0.9, metalness: 0 }),
     kibble: std({ color: '#5e3d22', roughness: 0.85 }),

@@ -25,12 +25,15 @@ import { routeById, nearestRouteNode, poiById } from './routes';
 import { rt, type LocoRuntime } from './runtime';
 import { NO_PROGRESS, scratchOf, walkerId, type LocoSpeedKind, type NavScratch } from './scratch';
 import { aiSpeed } from './speed';
-import { locomotionSystem } from './system';
+import { clampToMap, locomotionSystem } from './system';
+import { formatStall, stalledAnts } from './stallWatch';
 import { finite3, startTrip } from './trip';
 import { walkerPlace, walkerSurfaceChanged } from './walker';
 import { crumbAt } from './crumbs';
 
 export { locomotionSystem } from './system';
+export { stalledAnts, formatStall, type StallInfo } from './stallWatch';
+export { isStunned, walkerUnderWater, puddleDepth } from './weather';
 export { possessedPose, stepPossessed } from './possessed';
 export { setLocoObserver, locoStats, queryAntsNear, registerMovementOverride, type LocoStats, type MovementOverride } from './runtime';
 export { registerSpeedFactor, aiSpeed, playerSpeed, casteSpeeds, type SpeedFactor } from './speed';
@@ -218,7 +221,12 @@ export function integratePossessed(sim: Sim, ant: Ant, dtSeconds: number): void 
  * wanted wall, e.g. toward a chamber floor). Returns false (walker unchanged) if no surface was found.
  */
 export function placeOnSurface(sim: Sim, w: Walker, pos: Vec3, dir?: Vec3): boolean {
-  if (!walkerPlace(sim.field, w, pos, dir ? { dir } : {}, sim.kernel.walker)) return false;
+  // GDD 04 §14: never placed beyond the hard map limit (creature jumps and spawns, displacements, teleports)
+  const r = rt(sim), lo = r.P.edgeHard, hi = sim.world.size - lo;
+  const p = pos.x >= lo && pos.x <= hi && pos.z >= lo && pos.z <= hi ? pos
+    : { x: Math.min(hi, Math.max(lo, pos.x)), y: pos.y, z: Math.min(hi, Math.max(lo, pos.z)) };
+  if (!walkerPlace(sim.field, w, p, dir ? { dir } : {}, sim.kernel.walker)) return false;
+  clampToMap(sim, w, r);
   navStop(sim, w);
   return true;
 }
@@ -268,6 +276,14 @@ export const invariants: readonly SimInvariant[] = [{
     if (moving >= P.stuckExplosionMin && stuck > P.stuckExplosionFrac * moving) {
       fail(`${stuck} of ${moving} moving walkers without progress for > ${limit} ticks`);
     }
+  },
+}, {
+  // viab-loco item 1: no ant with nav status 'moving' stays within stallMoveBU (0.25 BU) of one point for
+  // stallWindowS (600 ticks); stallWatch.ts lists who is watched (not the possessed, cold-held, stunned or
+  // override-held ants). Each violation names the position, state, target and surface normal.
+  name: 'walker-stall',
+  check(sim, fail) {
+    for (const st of stalledAnts(sim, rt(sim))) fail(formatStall(st));
   },
 }];
 

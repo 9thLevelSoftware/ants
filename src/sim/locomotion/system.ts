@@ -21,15 +21,20 @@ import { addAvoidRepulsion as addAvoidRepulsionImp, addEdgeRepulsion as addEdgeR
 import { walkerLetGo as walkerLetGoImp, walkerPlace as walkerPlaceImp, walkerSnapshot as walkerSnapshotImp, walkerStep as walkerStepImp, walkerSurfaceChanged as walkerSurfaceChangedImp, type WalkStatus } from './walker';
 import { aiUpdate as aiUpdateImp, nestIdOf as nestIdOfImp } from './update';
 import { walkerNest as walkerNestImp } from './trip';
+import { syncPuddles as syncPuddlesImp } from './puddles';
+import { watchStall as watchStallImp } from './stallWatch';
+import { isStunned as isStunnedImp, walkerUnderWater as walkerUnderWaterImp, wetGripMult as wetGripMultImp } from './weather';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const antGrid = antGridImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp;
+const antGrid = antGridImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp, syncPuddles = syncPuddlesImp, watchStall = watchStallImp, isStunned = isStunnedImp, walkerUnderWater = walkerUnderWaterImp, wetGripMult = wetGripMultImp;
 
 const TICK_S = 0.1;
 /** Slope / grip checks run every this many ticks per walker (staggered). */
 const SLIP_EVERY = 4;
 /** A standing walker (no request) is stepped (re-attached) every this many ticks only (staggered). */
 const STAND_CHECK_EVERY = 16;
+/** clampToMap re-places a walker this far inside the limit, BU. */
+const EDGE_INSET_BU = 0.5;
 const _desired: Vec3 = { x: 0, y: 0, z: 0 }, _obs: Vec3 = { x: 0, y: 0, z: 0 };
 const coarse = new WeakMap<WalkerParams, WalkerParams>();
 
@@ -70,22 +75,29 @@ function surfaceCheck(sim: Sim, w: Walker, r: LocoRuntime): void {
   r.stats.surfaceChanged++;
 }
 
-/** Hard map limit (GDD 04 §14): positions are kept inside [8 BU, side - 8 BU]. */
-function clampToMap(sim: Sim, w: Walker, r: LocoRuntime): void {
+/**
+ * Hard map limit (GDD 04 §14): positions are kept inside [8 BU, side - 8 BU]. The walker is put back on the surface
+ * a little inside the limit (a projection onto a steep face there may slide it a hair outward); if it still ends
+ * outside, the coordinate is clamped.
+ */
+export function clampToMap(sim: Sim, w: Walker, r: LocoRuntime): void {
   const lo = r.P.edgeHard, hi = sim.world.size - r.P.edgeHard;
   const x = w.pos.x, z = w.pos.z;
   if (x >= lo && x <= hi && z >= lo && z <= hi) return;
-  const cx = Math.min(hi, Math.max(lo, x)), cz = Math.min(hi, Math.max(lo, z));
   r.stats.edgeClamps++;
+  const inset = EDGE_INSET_BU * r.P.bu;
+  const cx = x < lo ? lo + inset : x > hi ? hi - inset : x, cz = z < lo ? lo + inset : z > hi ? hi - inset : z;
   const p = { x: cx, y: Math.max(w.pos.y, sim.field.height(cx, cz) + 2 * r.P.bu), z: cz };
   if (!walkerPlace(sim.field, w, p, {}, sim.kernel.walker)) { w.pos.x = cx; w.pos.z = cz; }
+  if (w.pos.x < lo) w.pos.x = lo; else if (w.pos.x > hi) w.pos.x = hi;
+  if (w.pos.z < lo) w.pos.z = lo; else if (w.pos.z > hi) w.pos.z = hi;
 }
 
 /** GDD 04 §3: a surface tilted beyond what its grip holds makes the walker let go. */
 function slopeSlip(sim: Sim, w: Walker, id: number, r: LocoRuntime): void {
   if (w.medium === 'air' || (sim.state.tick + id) % SLIP_EVERY !== 0) return;
   if (w.up.y > Math.cos((LOCO_TUNING.tiltMaxLowGrip * Math.PI) / 180)) return;
-  const grip = MATERIAL_GRIP[sim.field.materialAt(w.pos)] ?? LOCO_TUNING.gripDefault;
+  const grip = (MATERIAL_GRIP[sim.field.materialAt(w.pos)] ?? LOCO_TUNING.gripDefault) * wetGripMult(sim, w, r);
   const tilt = Math.acos(Math.max(-1, Math.min(1, w.up.y)));
   if (tilt <= tiltLimit(grip) + 1e-6) return;
   walkerLetGo(sim.field, w, 0, sim.kernel.walker);
@@ -153,7 +165,11 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
   r.stats.stepped++;
   let st: WalkStatus;
   if (possessed) r.possessedOverriddenId = -1;
-  if (r.overrides.length > 0 && overridden(sim, w, dt, r)) { st = 'ok'; if (possessed) r.possessedOverriddenId = id; }
+  if (r.overrides.length > 0 && overridden(sim, w, dt, r)) {
+    st = 'ok';
+    if (possessed) r.possessedOverriddenId = id;
+    if (isAnt) r.overriddenTick.set(id, tick);
+  }
   else if (possessed) st = possessedTick(sim, w as Ant, TICK_S);
   else if (w.medium === 'air') {
     st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker);
@@ -163,6 +179,11 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
     // dynamic primitives re-attach walkers by surfaceCheck / notifySurfaceChanged); a check now and then remains.
     if (w.speed === 0 && (tick + id) % STAND_CHECK_EVERY !== 0) { r.stats.standSkipped++; st = 'ok'; }
     else st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker); // re-attach, fall
+  } else if (isAnt && isStunned(sim, w as Ant)) {
+    // stunned (GDD 06 §3.3 rain hits, collapses, creatures): stands; the stuck window does not run meanwhile
+    w.nav.loco!.bestTick = tick;
+    w.nav.desiredSpeed = 0;
+    st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker);
   } else {
     const s = w.nav.loco;
     let speed = aiUpdate(sim, w, s, r, id, dt, _desired);
@@ -178,7 +199,7 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
       // queries of crowded chambers and stays a function of state (a loaded game applies it on the same ticks)
       if (k === 1 && isAnt && ((tick + id) & 1) === 0 && crowdingMatters(w, r)) addSeparation(sim, w, id, r, _desired);
       addFloorBias(w, _desired, r.P.floorW);
-      if (w.medium === 'surface') {
+      if (w.medium === 'surface' || w.medium === 'water') {
         addEdgeRepulsion(sim, w, r, _desired);
         if (isAnt) addAvoidRepulsion(sim, w as Ant, r, _desired);
       }
@@ -186,6 +207,7 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
       if (dl > 1e-9) set3(w.nav.desiredDir, _desired.x / dl, _desired.y / dl, _desired.z / dl);
       turnToward(w, _desired, r.P.aiTurn * dt, r.P.minSteer);
     } else speed = 0;
+    if (speed > 0 && walkerUnderWater(sim, w, r, isAnt ? (w as Ant).nestId : nestIdOf(w))) speed *= r.P.waterSpeed;
     // open ground (nearly level, no hard primitive within lodHardClear: no thin sheet to tunnel through) takes
     // longer substeps; the kernel's guard still checks every step
     const open = w.medium === 'surface' && w.up.y > 0.85 && openGround(sim, w, s, r);
@@ -194,6 +216,8 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
   }
   if (st === 'failed') r.stats.walkerFailed++;
   clampToMap(sim, w, r);
+  // GDD 06 §3.10: on the surface in a deep puddle the walker swims (medium 'water'; inside a nest it stays 'cavity')
+  if (w.medium === 'surface' && walkerUnderWater(sim, w, r, -1)) w.medium = 'water';
   slopeSlip(sim, w, id, r);
   if (isAnt) membership(sim, w as Ant, r);
   else if (w.medium !== 'air') (w as Creature).nestId = walkerNest(sim, w, nestIdOf(w));
@@ -217,6 +241,7 @@ export const locomotionSystem: System = {
     const r = rt(sim);
     ensureGrid(sim, r);
     syncPortals(sim);
+    if (isLocoNavGrid(sim.navGrid)) syncPuddles(sim, sim.navGrid, r);
     const ants = sim.stores.ants.list, creatures = sim.stores.creatures.list;
     // a carve since the previous locomotion pass (last tick after this phase, or this tick before it). Read from
     // state (worldDelta.carveChangedTick) so a restored save re-checks exactly when the original run did.
@@ -228,7 +253,11 @@ export const locomotionSystem: System = {
     r.carveVersion = sim.carve.version;
     const obs = observer(sim, r);
     antGrid(sim, r); // separation reads the positions of the tick start
-    for (let i = 0; i < ants.length; i++) if (ants[i].alive) stepWalker(sim, ants[i], true, r, obs);
+    for (let i = 0; i < ants.length; i++) {
+      if (!ants[i].alive) continue;
+      stepWalker(sim, ants[i], true, r, obs);
+      watchStall(sim, ants[i], r);
+    }
     for (let i = 0; i < creatures.length; i++) if (creatures[i].alive) stepWalker(sim, creatures[i], false, r, obs);
     if (isLocoEntityIndex(sim.index)) sim.index.refreshWalkers(); else sim.index.refresh();
   },

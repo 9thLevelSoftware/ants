@@ -85,6 +85,11 @@ export interface LocoNavGrid extends NavGrid {
   flowNext(dist: Float32Array, p: Vec3, steps: number, out: Vec3): number;
   /** Opens or closes a micro-portal (GDD 04 §6: weather strip, blocked crack); no-op if unchanged. */
   setPortalOpen(id: number, open: boolean): void;
+  /**
+   * Sets the puddle overlay of cells (1 dry, > 1 a cost factor, Infinity blocked), one grid version for all of
+   * them; cells whose value is unchanged are skipped. Returns how many changed.
+   */
+  setWetCells(cells: readonly number[], values: readonly number[]): number;
   readonly portals: readonly Portal[];
   stats(): { searches: number; expanded: number; flowBuilds: number; flowRepairs: number; flowRepairCells: number };
   /** Nodes expanded by all A* searches so far. */
@@ -275,7 +280,7 @@ class NavGridImpl implements LocoNavGrid {
 
   costAt(x: number, z: number): number {
     const c = this.cellOf(x, z);
-    return c < 0 ? Infinity : this.data.cost[c] * this.data.dyn[c];
+    return c < 0 ? Infinity : this.data.cost[c] * this.data.dyn[c] * this.data.wet[c];
   }
 
   blocked(x: number, z: number): boolean {
@@ -298,6 +303,24 @@ class NavGridImpl implements LocoNavGrid {
       this.addMovedMouths(dirty);
     }
     this.bump(dirty);
+  }
+
+  setWetCells(cells: readonly number[], values: readonly number[]): number {
+    const d = this.data, dirty: number[] = [];
+    let relink = false;
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i], m = values[i] >= 1 ? values[i] : 1;
+      if (c < 0 || c >= d.wet.length || d.wet[c] === m) continue;
+      const was = isBlocked(d, c);
+      d.wet[c] = m;
+      if (isBlocked(d, c) !== was) relink = true;
+      dirty.push(c);
+    }
+    if (dirty.length === 0) return 0;
+    // as setCostMult: mouths follow blocking at once
+    if (relink) { this.saveMouths(); linkPortals(d); this.addMovedMouths(dirty); }
+    this.bump(dirty);
+    return dirty.length;
   }
 
   findPath(from: Vec3, to: Vec3, out: Vec3[]): boolean {

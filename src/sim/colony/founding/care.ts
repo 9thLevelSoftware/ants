@@ -15,7 +15,8 @@ import {
   FOUND_HAZARD_LOSS, FOUND_HAZARD_RESPONDED, FOUND_HAZARD_RESPONSE, FOUND_UPKEEP_PER_GD, FOUND_WINTER_UPKEEP_FACTOR,
 } from '@/sim/balance/founding';
 import { removeItem } from '@/sim/entities';
-import { chamberHumidity, rainIntensityAt } from '@/sim/environment';
+import { chamberHumidity } from '@/sim/environment/chamber';
+import { rainIntensityAt } from '@/sim/environment/queries';
 import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
 import type { FoundingHazard } from '@/sim/types';
 import { ecloseBrood, larvaRemainingNeed } from '../brood';

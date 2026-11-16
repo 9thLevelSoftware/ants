@@ -18,6 +18,7 @@ import { PLAYER_MOVE_OK_ACTIONS } from './params';
 import { rt, type LocoRuntime } from './runtime';
 import { newScratch, scratchOf, type NavScratch } from './scratch';
 import { playerSpeed } from './speed';
+import { isStunned, walkerUnderWater } from './weather';
 
 const _d: Vec3 = { x: 0, y: 0, z: 0 }, _t: Vec3 = { x: 0, y: 0, z: 0 }, _up0: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -25,7 +26,8 @@ function isGripping(ant: Ant, intent: PlayerIntent): boolean {
   return intent.grip || ant.action?.id === 'grip';
 }
 
-function mayWalk(ant: Ant): boolean {
+function mayWalk(sim: Sim, ant: Ant): boolean {
+  if (isStunned(sim, ant)) return false; // GDD 06 §3.3: a rain hit stuns the possessed ant too
   return !ant.action || PLAYER_MOVE_OK_ACTIONS.includes(ant.action.id);
 }
 
@@ -69,7 +71,7 @@ export function stepPossessed(sim: Sim, ant: Ant, kin: Walker | WalkerKin, s: Na
   const P = r.P, field = sim.field;
   if (kin.medium === 'air') return walkerStep(field, kin, null, 0, dt, sim.kernel.walker);
   const mag = Math.min(1, Math.hypot(intent.dir.x, intent.dir.y, intent.dir.z));
-  const want = desiredDir(kin, s, intent, mag, dt, r, _t) && mayWalk(ant);
+  const want = desiredDir(kin, s, intent, mag, dt, r, _t) && mayWalk(sim, ant);
   let speed = 0;
   if (want) {
     const a = signedAngle(kin.fwd, _t, kin.up);
@@ -78,6 +80,8 @@ export function stepPossessed(sim: Sim, ant: Ant, kin: Walker | WalkerKin, s: Na
     const turn = Math.max(-P.playerTurn * dt, Math.min(P.playerTurn * dt, a));
     if (turn !== 0) { rotateTangent(kin.fwd, kin.fwd, kin.up, turn); tangentOf(kin.fwd, kin.fwd, kin.up); }
     if (!s.pivot) speed = playerSpeed(sim, ant, intent.hurry, isGripping(ant, intent), P) * mag;
+    // swimming (GDD 06 §3.10: a possessed ant may cross a deep puddle) and wading in flooded tunnels
+    if (speed > 0 && walkerUnderWater(sim, kin, r, ant.nestId)) speed *= P.waterSpeed;
   } else s.pivot = 0;
   copy3(_up0, kin.up);
   const st = walkerStep(field, kin, null, speed, dt, sim.kernel.walker);

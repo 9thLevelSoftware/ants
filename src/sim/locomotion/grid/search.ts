@@ -81,7 +81,7 @@ export class GridSearch {
       if (isBlocked(g, az * g.w + bx) || isBlocked(g, bz * g.w + ax)) return Infinity;
     }
     const len = g.cell * (diag ? SQRT2 : 1);
-    let c = len * 0.5 * (g.cost[a] * g.dyn[a] * partialMult(g.partial[a]) + g.cost[b] * g.dyn[b] * partialMult(g.partial[b]));
+    let c = len * 0.5 * (g.cost[a] * g.dyn[a] * g.wet[a] * partialMult(g.partial[a]) + g.cost[b] * g.dyn[b] * g.wet[b] * partialMult(g.partial[b]));
     const dh = Math.abs(g.ground[b] - g.ground[a]);
     if (dh > NAV_GRID_TUNING.stepBU * g.bu) {
       if (g.grip[g.ground[b] > g.ground[a] ? b : a] < NAV_GRID_TUNING.stepGripMin) return Infinity;

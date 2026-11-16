@@ -2,7 +2,8 @@
 // intro-card -> dealation -> search <-> dig -> seal -> lay -> timelapse -> handover -> done, and failed.
 // It runs before the actions system, so a bite seen in progress here still lands this tick under the new state.
 
-import type { Ant, Nest, OpeningPhase, OpeningState, Sim, System } from '@/sim/types';
+import type { Ant, Nest, OpeningPhase, OpeningState, Sim } from '@/sim/types';
+import { bindFoundingSystem } from './entry';
 import { OPEN_DEALATION_LOCK_S, OPEN_DEALATION_S, HANDOVER_DONE_S } from '@/sim/balance/founding';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { FB, bbClear, bbGet, bbSet, foundingNest, foundingQueen, openingOf, playerColonyOf, queenOf, setPhase } from './access';
@@ -172,5 +173,6 @@ export function runFounding(sim: Sim): void {
   if (!q.alive) failOpening(sim, op, causeOfQueenDeath(sim));
 }
 
-/** Founding sequence (opening phases, founding model, time-lapse). Owner: founding (src/sim/colony/founding). */
-export const foundingSystem: System = { name: 'founding', phase: 'queen', run: runFounding };
+bindFoundingSystem(runFounding);
+/** Founding sequence (opening phases, founding model, time-lapse); bound late, see entry.ts. */
+export { foundingSystem } from './entry';

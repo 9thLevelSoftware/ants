@@ -104,6 +104,8 @@ export interface GridData {
   cost: Float32Array;
   /** Runtime cost overlay (1 = none, Infinity = blocked). */
   dyn: Float32Array;
+  /** Puddle overlay (weather, GDD 06 §3.10): 1 = dry, WX_PUDDLE_AVOID_COST = avoid, Infinity = blocked. */
+  wet: Float32Array;
   /** Ground height at the cell centre (top of a low object there, else terrain with mounds), mm. */
   ground: Float32Array;
   /** Grip of the cell's ground (1 on terrain; the object's material on top of a low object). */
@@ -123,7 +125,7 @@ export function deriveFromWorld(world: WorldData): GridData {
   const N = n * n;
   const g: GridData = {
     cell, w: n, h: n, size: world.size, bu, cls: new Uint8Array(N), covered: new Uint8Array(N), partial: new Float32Array(N),
-    cost: new Float32Array(N), dyn: new Float32Array(N).fill(1), ground: new Float32Array(N), grip: new Float32Array(N).fill(1),
+    cost: new Float32Array(N), dyn: new Float32Array(N).fill(1), wet: new Float32Array(N).fill(1), ground: new Float32Array(N), grip: new Float32Array(N).fill(1),
     portals: world.micro.map((m) => ({
       id: m.id, posA: { ...m.posA }, posB: { ...m.posB }, cellA: -1, cellB: -1, cost: m.lengthBu * bu,
       clearanceBu: m.minClearanceBu, open: true,
@@ -304,5 +306,5 @@ function clampCell(i: number, n: number): number {
 export function isBlocked(g: GridData, c: number): boolean {
   const k = g.cls[c];
   return g.covered[c] !== 0 || k === CLS.blocked || k === CLS.water || k === CLS.hole || k === CLS.edge
-    || g.dyn[c] === Infinity;
+    || g.dyn[c] === Infinity || g.wet[c] === Infinity;
 }

@@ -2,12 +2,13 @@
 // `command-rejected` with a reason the UI can word. `openingUndo` is a game-level checkpoint restore (the game keeps
 // the `opening-start` snapshot); the sim only refuses it outside the phases that allow it.
 
-import type { CommandHandlerMap, CommandOf, FoundingDigState, OpeningPhase, Sim } from '@/sim/types';
-import { ensureThermal } from '@/sim/environment';
+import type { CommandOf, FoundingDigState, OpeningPhase, Sim } from '@/sim/types';
+import { ensureThermal } from '@/sim/environment/surface';
 import { FB, bbSet, foundingNest, foundingQueen, openingOf, setPhase } from './access';
 import { autoClutchFor, startAuto } from './auto';
 import { eggsLaidTotal } from './clutch';
 import { beginLapse } from './lapse';
+import { bindFoundingCommands } from './entry';
 
 const reject = (sim: Sim, commandType: string, reason: string): void => sim.emit({ type: 'command-rejected', commandType, reason });
 
@@ -104,7 +105,7 @@ function setFoundingState(sim: Sim, c: CommandOf<'cheat.setFoundingState'>): voi
   if (q) bbSet(q, FB.readinessTick, -1e9);
 }
 
-export const foundingCommandHandlers: Partial<CommandHandlerMap> = {
+bindFoundingCommands({
   openingSkipIntro: (sim) => skipIntro(sim),
   openingBeginTimelapse: (sim) => beginTimelapse(sim),
   skipTimelapse: (sim) => skipTimelapse(sim),
@@ -112,4 +113,7 @@ export const foundingCommandHandlers: Partial<CommandHandlerMap> = {
   openingUndo: (sim) => undo(sim),
   'cheat.completeFounding': completeFounding,
   'cheat.setFoundingState': setFoundingState,
-};
+});
+
+/** The opening's command handlers (bound late, see entry.ts). */
+export { foundingCommandHandlers } from './entry';

@@ -11,7 +11,7 @@ import {
   FOUND_HEALTH_REGEN_SEALED, FOUND_SURFACE_EXTRA_PER_GD, FOUND_UPKEEP_PER_GD, FOUND_WINTER_UPKEEP_FACTOR,
 } from '@/sim/balance/founding';
 import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
-import { chamberHumidity } from '@/sim/environment';
+import { chamberHumidity } from '@/sim/environment/chamber';
 import { pointTempC } from '../envAdapter';
 import { FB, bbGet, bbSet, depthBelowGround, foundingNest, speciesOf } from './access';
 import { coverLevelAt } from './siteAssess';

@@ -9,6 +9,7 @@ import { HashGrid3 } from '@/core/spatial/hashGrid';
 import { isLocoNavGrid } from './grid/navGridImpl';
 import { locoParams, type LocoParams } from './params';
 import { homeEntranceStatus } from './nests';
+import type { StallRecord } from './stallWatch';
 
 /** Counters exposed for diagnostics (locoStats). Monotone over the sim's lifetime. */
 export interface LocoStats {
@@ -88,6 +89,15 @@ export interface LocoRuntime {
    * else -1. Read by the per-frame predictor, which must not run the overrides itself (they write state).
    */
   possessedOverriddenId: number;
+  /** Stall watch (stallWatch.ts): per ant id, where its current window started. Diagnostic only. */
+  stalls: Map<number, StallRecord>;
+  /** Tick a movement override last moved each ant (ants held by an override are not stalled). */
+  overriddenTick: Map<number, number>;
+  /** Nests holding flood water, cached for `floodTick` (weather.ts). */
+  floodTick: number;
+  flooded: Set<number>;
+  /** Puddle store as last synced into the nav grid's overlay (puddles.ts); null before the first sync. */
+  puddleSeen: Uint8Array | null;
 }
 
 const runtimes = new WeakMap<Sim, LocoRuntime>();
@@ -106,6 +116,7 @@ export function rt(sim: Sim): LocoRuntime {
   const created: LocoRuntime = {
     P: locoParams(sim.world.bu), stats: zeroStats(), planTick: -1, plans: 0, planExpand0: 0, observer: null,
     pointFields: [], discTick: -1, discs: new Map(), discSigs: new Map(), flowSigs: new Map(), ids: [], gridReady: false, overrides: [], carveVersion: -1, sepGrid: null, sepTick: -1, possessedOverriddenId: -1,
+    stalls: new Map(), overriddenTick: new Map(), floodTick: -1, flooded: new Set(), puddleSeen: null,
   };
   runtimes.set(sim, created);
   return created;

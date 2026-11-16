@@ -77,7 +77,7 @@ export class HumansRenderer implements SubRenderer {
     this.mt = createHumanMaterials();
     this.shadowsOn = ctx.quality.shadows.enabled;
     const drop = new SphereGeometry(1, 8, 6);
-    this.drops = new InstancedMesh(drop, this.mt.water, MAX_DROPS);
+    this.drops = new InstancedMesh(drop, this.mt.drop, MAX_DROPS);
     this.drops.frustumCulled = false;
     this.drops.count = 0;
     this.group.add(this.drops);

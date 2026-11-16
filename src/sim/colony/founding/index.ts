@@ -2,8 +2,10 @@
 // One system (`foundingSystem`, colony module, `queen` phase) and the opening's command handlers, plus read-only
 // helpers for the game flow, the UI and tests. Registered by src/sim/colony/index.ts.
 
-export { foundingSystem, runFounding } from './system';
-export { foundingCommandHandlers } from './commands';
+// entry.ts first: the registration objects exist before any import below can walk into the colony index
+export { foundingCommandHandlers, foundingSystem } from './entry';
+export { runFounding } from './system';
+import './commands';
 export { foundingView, foundingBites, foundingPhaseAgeGd, type FoundingView } from './view';
 export { assessSite, coverLevelAt, footTrafficAt, deepMoisture, topsoilMoisture, type SiteReading } from './siteAssess';
 export { factorWord, mapFactorsOf, siteProfile, siteQuality, siteWordOf, toptOf } from './siteScore';

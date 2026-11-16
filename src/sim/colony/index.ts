@@ -15,7 +15,7 @@ import { walkerPlace } from '@/sim/locomotion/walker';
 import { daysPerYear, daysToTicks, TICKS_PER_DAY } from '@/sim/time';
 import { book } from './core';
 import { deposit, feedFromCrop, withdraw, type DepositSource, type WithdrawPurpose } from './stores';
-import { layEgg as queenLayEgg, queenRationPShare } from './queen';
+import { feetOf, layEgg as queenLayEgg, queenRationPShare } from './queen';
 import { requestTask as allocRequestTask } from './allocation';
 import { injectReturn } from './activation';
 import { addToxinDose } from './physiology';
@@ -225,11 +225,14 @@ function cheatSpawnAnts(sim: Sim, cmd: CommandOf<'cheat.spawnAnts'>): void {
 function cheatSpawnBrood(sim: Sim, cmd: CommandOf<'cheat.spawnBrood'>): void {
   const col = sim.stores.colonies.get(cmd.colonyId);
   if (!col) return;
-  let pos = sim.stores.ants.get(col.queenId)?.pos ?? sim.world.queenStart.pos;
-  let nestId = -1;
+  const queen = sim.stores.ants.get(col.queenId);
+  let pos = queen ? feetOf(queen) : sim.world.queenStart.pos;
+  // chamberId -1: beside the queen, in her chamber (brood left loose outside any chamber is never nursed)
+  let nestId = cmd.chamberId < 0 && queen ? queen.nestId : -1;
+  let chamberId = cmd.chamberId < 0 && queen ? queen.chamberId : cmd.chamberId;
   for (const n of sim.stores.nests.list) {
     const ch = n.alive ? n.chambers.find((c) => c.id === cmd.chamberId) : undefined;
-    if (ch) { pos = ch.center; nestId = n.id; }
+    if (ch) { pos = ch.center; nestId = n.id; chamberId = ch.id; }
   }
   // `destined` arrives as untyped JSON: null means worker, anything that is not a brood caste is refused.
   const destined = cmd.destined ?? 'worker';
@@ -239,7 +242,7 @@ function cheatSpawnBrood(sim: Sim, cmd: CommandOf<'cheat.spawnBrood'>): void {
   }
   for (let i = 0; i < cmd.n; i++) {
     spawnBrood(sim, {
-      colony: col.id, stage: cmd.stage, destined, pos, nestId, chamberId: cmd.chamberId,
+      colony: col.id, stage: cmd.stage, destined, pos, nestId, chamberId,
       init: { progress: cmd.progress },
     });
   }

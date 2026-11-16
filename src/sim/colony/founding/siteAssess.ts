@@ -10,7 +10,7 @@ import type { ByteMap, Material, Sim, SiteWord, SpeciesId, ZoneDef } from '@/sim
 import { materialFromCode } from '@/sim/types';
 import { TERRAIN_CELL_BU } from '@/sim/balance';
 import { SITE_CEILING_PROBE } from '@/sim/balance/founding';
-import { columnTempAt } from '@/sim/environment';
+import { columnTempAt } from '@/sim/environment/chamber';
 import { byteAt } from '@/sim/world/terrainSample';
 import {
   bandDigFactor, coverValueOf, floodFactorOf, moistFactor, quietFactorOf, rivalFactorAt, warmFactorOf, type CoverLevel,

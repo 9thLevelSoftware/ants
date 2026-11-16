@@ -183,6 +183,18 @@ export const LOCO_TUNING = {
    */
   pinnedS: 1,
   pinnedUpY: 0.7,
+  /**
+   * Stall watch (viab-loco item 1, the `walker-stall` invariant): an ant with nav status 'moving' that stays within
+   * stallMoveBU of one point for stallWindowS game seconds is stalled.
+   */
+  stallMoveBU: 0.25,
+  stallWindowS: 60,
+
+  // ---- weather (GDD 06 §3.10) ----
+  /** Walking speed under water (a flooded nest voxel, a puddle at least WX_PUDDLE_AVOID_BU deep). */
+  waterSpeedMult: 0.3,
+  /** Grip on a fully wet surface (friction x0.9); scales linearly with surfaceWetness. */
+  wetGripMult: 0.9,
 
   // ---- level of detail ----
   /** Distance from the observer beyond which walkers step every lodMidEvery / lodFarEvery ticks, BU. */
@@ -262,6 +274,7 @@ export interface LocoParams {
   pointFieldMax: number; pointSeek: number; arriveStallS: number; ceilingUpY: number; dropAbove: number; dropBelow: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
   stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
   episodesMax: number; relocateSteps: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
+  stallMove: number; stallTicks: number; waterSpeed: number; wetGrip: number;
   lodNear: number; lodFar: number; lodMid: number; lodFarEvery: number; lodSubstep: number; lodHardClear: number;
   edgeMargin: number; edgeHard: number; edgeRepulse: number;
   avoidCost: number; avoidPad: number; avoidW: number; avoidTrailW: number;
@@ -300,6 +313,7 @@ export function locoParams(bu: number): LocoParams {
     relocateMax: T.relocateMax, episodesMax: T.episodesMax, relocateSteps: T.relocateFieldSteps,
     wanderStallS: T.wanderStallS, wanderPivotS: T.wanderPivotS, wanderStallMax: T.wanderStallMax,
     pinnedS: T.pinnedS, pinnedUpY: T.pinnedUpY,
+    stallMove: T.stallMoveBU * bu, stallTicks: Math.round(T.stallWindowS * 10), waterSpeed: T.waterSpeedMult, wetGrip: T.wetGripMult,
     lodNear: T.lodNearBU * bu, lodFar: T.lodFarBU * bu, lodMid: T.lodMidEvery, lodFarEvery: T.lodFarEvery,
     lodSubstep: T.lodCoarseSubstepBU * bu, lodHardClear: T.lodHardClearBU * bu,
     edgeMargin: T.edgeMarginBU * bu, edgeHard: T.edgeHardBU * bu, edgeRepulse: T.edgeRepulse,

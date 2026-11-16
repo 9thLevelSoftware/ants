@@ -6,6 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, BroodCaste, BroodStage, Chamber, ChamberType, Colony, Sim, System, Task } from '@/sim/types';
 import { AntFlag, BroodFlag } from '@/sim/types';
 import { removeItem, spawnAnt, spawnBrood } from '@/sim/entities';
+import { walkerPlace } from '@/sim/locomotion/walker';
 import { commandsSystem } from '@/sim/systems';
 import { makeTestSim } from '@/sim/testing';
 import { LAY_EGG_S } from '@/sim/balance/actions';
@@ -90,6 +91,8 @@ export function establishQueen(sim: Sim, chamber: Chamber): Ant {
   q.hp = q.maxHp;
   q.tb = 25;
   q.pos = { ...chamber.center };
+  // onto the chamber floor below the centre (as a real queen stands): her eggs lie at her feet, in a nurse's reach
+  walkerPlace(sim.field, q, { ...chamber.center }, {}, sim.kernel.walker);
   q.nestId = col.nestIds[0];
   q.chamberId = chamber.id;
   return q;
