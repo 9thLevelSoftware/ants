@@ -3,7 +3,7 @@
 import type { WeatherState, ZoneType } from '@/sim/types/ids';
 import { TWILIGHT_HALF_H } from '@/sim/balance/environment';
 import { surfaceOcclusion, type FilterGain } from '../mix';
-import { AMBIENCE } from '../tuning';
+import { AMBIENCE, RAIN_BED } from '../tuning';
 import { zeroLayers, type LayerGains, type LayerId } from './layers';
 
 export const HABITAT_GROUPS = ['woodland', 'open-green', 'hard', 'play', 'interior'] as const;
@@ -158,6 +158,11 @@ function smooth(e0: number, e1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** `from` at precipitation 0 rising smoothly to `to` at `fullAt` and above. */
+function rampBetween(from: number, to: number, precip: number, fullAt: number): number {
+  return from + (to - from) * smooth(0, fullAt, precip);
+}
+
 /** Computes the full target. `out` is reused when given. */
 export function computeAmbience(inp: AmbienceInput, out: AmbienceTarget = newAmbienceTarget()): AmbienceTarget {
   const l = zeroLayers(out.layers);
@@ -190,13 +195,14 @@ export function computeAmbience(inp: AmbienceInput, out: AmbienceTarget = newAmb
   switch (inp.weather) {
     case 'overcast': scale(l, BIRDS, 0.6); break;
     case 'rain':
-      l['rain-light'] += 0.8;
+      l['rain-light'] += 0.8 * rampBetween(RAIN_BED.lightFloor, 1, inp.precip, RAIN_BED.lightFullAt);
+      l['rain-heavy'] += RAIN_BED.heavyGain * smooth(RAIN_BED.heavyFrom, RAIN_BED.heavyFullAt, inp.precip);
       scale(l, BIRDS, 0.2);
       scale(l, CRICKETS, 0.3);
       g.droplets = AMBIENCE.dropletsMinPerS + (AMBIENCE.dropletsMaxPerS - AMBIENCE.dropletsMinPerS) * Math.min(1, Math.max(0, inp.precip));
       break;
     case 'storm':
-      l['rain-heavy'] += 1.0;
+      l['rain-heavy'] += rampBetween(RAIN_BED.stormFloor, 1, inp.precip, RAIN_BED.stormFullAt);
       scale(l, BIRDS, 0);
       scale(l, CRICKETS, 0);
       scale(l, WINDY, 1.5);

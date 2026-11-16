@@ -8,7 +8,7 @@ import type { SynthOneShot } from './synth/ids';
 import { DEFAULT_CUE_CAP, PRIORITY } from './tuning';
 
 export type SpaceClass = 'foley' | 'creature' | 'giant' | 'flat';
-export type CueBus = 'effects' | 'giants' | 'ui';
+export type CueBus = 'ambience' | 'effects' | 'giants' | 'ui';
 
 export interface CueSound {
   bus: CueBus;
@@ -49,16 +49,16 @@ const silent = (note: string): CueSound => S({ silent: true, note });
 
 /** The fixed cue ids (contracts CUE_IDS). */
 export const CUE_SOUNDS: Record<(typeof CUE_IDS)[number], CueSound> = {
-  'step': S({ synth: 'step-click', gainDb: -30, synthSemis: [-2, 2], cap: 4, note: '2-4 ms click 3-8 kHz; gravel uses grit slices (resolveStep)' }),
+  'step': S({ synth: 'step-click', gainDb: -18, synthSemis: [-2, 2], cap: 4, note: '2-4 ms click 3-8 kHz; gravel uses grit slices (resolveStep)' }),
   'dig-bite': S({
     files: [SFX.soil_scrape_01, SFX.soil_scrape_02], fileSemis: [12, 19], slice: [0.12, 0.3], synth: 'soil-scrape', mode: 'file',
-    gainDb: -16, cap: 3,
+    gainDb: -14, cap: 3,
   }),
   'wood-chew': S({ synth: 'wood-gnaw', files: [SFX.wood_rasp_01, SFX.wood_rasp_02], fileSemis: [5, 9], slice: [0.15, 0.35], fileGainDb: -6, mode: 'both', gainDb: -16, cap: 3 }),
   'pellet-drop': S({ synth: 'grain-trickle', gainDb: -24, cap: 3 }),
   'frass-drop': S({ synth: 'grain-trickle', gainDb: -24, synthSemis: [2, 5], cap: 3 }),
-  'pick-up': S({ synth: 'mandible-click', gainDb: -22, cap: 3 }),
-  'drop': S({ synth: 'mandible-click', gainDb: -22, synthSemis: [-3, -1], cap: 3 }),
+  'pick-up': S({ synth: 'mandible-click', gainDb: -11, cap: 3 }),
+  'drop': S({ synth: 'mandible-click', gainDb: -11, synthSemis: [-3, -1], cap: 3 }),
   'bite': S({ synth: 'bite-click', files: [SFX.crunch_01, SFX.crunch_02], fileSemis: [3, 7], slice: [0.06, 0.15], fileGainDb: -8, mode: 'both', gainDb: -16, cap: 4, note: 'crunch layer: hard prey (strength > 0.5)' }),
   'grapple': S({ synth: 'scuffle', gainDb: -20, cap: 3 }),
   'acid-spray': S({ synth: 'acid-hiss', gainDb: -18, cap: 3 }),
@@ -75,9 +75,9 @@ export const CUE_SOUNDS: Record<(typeof CUE_IDS)[number], CueSound> = {
   'prey-struggle': S({ synth: 'prey-flutter', space: 'creature', gainDb: -16, cap: 3 }),
   'creature-step': S({ synth: 'creature-tap', space: 'creature', gainDb: -20, cap: 4, note: 'same sound in every spider comfort mode' }),
   'wing-buzz': S({ synth: 'fly-buzz', files: [SFX.insect_wing_buzz_01, SFX.insect_wing_buzz_02], mode: 'synth', space: 'creature', gainDb: -18, cap: 3, note: 'swarms (strength > 0.6) use the files (resolveCue)' }),
-  'bird-strike': S({ synth: 'wing-whoosh', space: 'creature', files: [], gainDb: -10, cap: 2, priority: PRIORITY.creatureNear }),
+  'bird-strike': S({ synth: 'wing-whoosh', space: 'creature', files: [], gainDb: -10, cap: 2, priority: PRIORITY.creatureNear, note: 'landing (strength 1) = whoosh + thud, otherwise a peck (resolveCue)' }),
   'antlion-flick': S({ synth: 'sand-spray', space: 'creature', gainDb: -18, cap: 3 }),
-  'raindrop-hit': S({ files: [SFX.wet_splat_01, SFX.wet_splat_02], fileSemis: [-5, 12], synth: 'splat', mode: 'file', gainDb: -16, cap: 6, note: 'pitch by drop size: strength 0 = drizzle (+12), 1 = downpour (-5)' }),
+  'raindrop-hit': S({ files: [SFX.wet_splat_01, SFX.wet_splat_02], fileSemis: [-5, 12], synth: 'splat', mode: 'file', gainDb: -8, cap: 6, note: 'a heavy discrete impact at ant scale; pitch by drop size: strength 0 = drizzle (+12), 1 = downpour (-5)' }),
   'drip': S({ files: [SFX.water_drip_01, SFX.water_drip_02], synth: 'drip', mode: 'file', gainDb: -20, cap: 3 }),
   'flood': S({ synth: 'gurgle', files: [SFX.wet_splat_01], fileSemis: [-7, -3], fileGainDb: -10, mode: 'both', gainDb: -12, cap: 2 }),
   'collapse': S({ synth: 'grain-slide', gainDb: -12, cap: 2 }),
@@ -103,6 +103,22 @@ export const GIANT_ONESHOTS: Record<(typeof HUMAN_EVENT_KINDS)[number], CueSound
   'spill': S({ bus: 'giants', space: 'giant', synth: 'glug', files: [SFX.wet_splat_02], fileSemis: [-10, -10], mode: 'both', gainDb: -6, cap: 2, priority: PRIORITY.giant }),
   'bait-station': S({ bus: 'giants', space: 'giant', synth: 'plastic-clack', gainDb: -8, cap: 2, priority: PRIORITY.giant }),
 };
+
+/**
+ * Sounds the audio derives from simulation EVENTS (eventRouter.ts), as `ev.<id>` cues: the sim emits no cue for them.
+ * Gains are relative to the bus like every other cue.
+ */
+export const EVENT_SOUNDS: Record<string, CueSound> = {
+  'strike': S({ synth: 'strike-snap', space: 'creature', gainDb: -10, cap: 3, priority: PRIORITY.creatureNear, note: 'predator strike (spider lunge, centipede snap)' }),
+  'bird-whoosh': S({ synth: 'bird-whoosh', space: 'creature', gainDb: -10, cap: 2, priority: PRIORITY.creatureNear, note: 'bird approach and take-off' }),
+  'gust': S({ bus: 'ambience', space: 'flat', synth: 'gust', gainDb: -4, cap: 2, note: 'wind gust swell on the ambience bus' }),
+};
+
+const BIRD_LANDING = S({ ...CUE_SOUNDS['bird-strike'], synth: 'bird-landing', note: 'whoosh + landing thud' });
+const BIRD_PECK = S({ ...CUE_SOUNDS['bird-strike'], synth: 'peck', gainDb: -8, cap: 3 });
+
+/** Sounds that resolveCue swaps in for a base cue (variants), listed so the file audit sees every file they use. */
+export const CUE_VARIANTS_FOR_AUDIT = (): CueSound[] => [GRAVEL_STEP, SWARM, BIRD_LANDING, BIRD_PECK];
 
 /** Thunder (weather) on the giants bus. */
 export const THUNDER: CueSound = S({ bus: 'giants', space: 'flat', synth: 'thunder', gainDb: -4, cap: 2, priority: PRIORITY.giant });
@@ -159,6 +175,13 @@ export function resolveCue(cue: string, strength = 1, material: string | null = 
       _res.sound = g;
       return _res;
     }
+    if (ns === 'ev') {
+      const ev = EVENT_SOUNDS[arg];
+      if (!ev) return null;
+      _res.key = cue;
+      _res.sound = ev;
+      return _res;
+    }
     if (ns === 'ambient') {
       const a = AMBIENT_ONESHOTS[arg];
       if (!a) return null;
@@ -177,6 +200,7 @@ export function resolveCue(cue: string, strength = 1, material: string | null = 
     _res.semis = MATERIAL_SEMIS[material] ?? (WOOD.has(material) ? -4 : 0);
   }
   if (cue === 'wing-buzz' && strength > 0.6) _res.sound = SWARM;
+  if (cue === 'bird-strike') _res.sound = strength >= 0.95 ? BIRD_LANDING : BIRD_PECK;
   if (cue === 'raindrop-hit') _res.semis = 0; // pitch comes from fileSemis by strength (playback)
   return _res;
 }

@@ -10,7 +10,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeId, DifficultyId, WorldSizeId, ZoneType } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
-import { CARRION_DROP_VARIANTS, CRUMB_REPLACE_FRACTION, ECOLOGY_TIER } from '@/sim/balance';
+import { CARRION_DROP_VARIANTS, CRUMB_REPLACE_FRACTION, ECOLOGY_TIER, SOURCE_CATALOGUE } from '@/sim/balance';
+import { HERD_INITIAL_OCCUPANCY, HERD_K } from '@/sim/balance/ecology';
+// the sim's own herd rules and start date, for an independent recomputation of the Tier 2 supply (test only)
+import { pregrownHerd } from '@/sim/ecology/plants/init';
+import { productionPerGd } from '@/sim/ecology/plants/herdMath';
+import { defaultGameConfig } from '@/sim/createGame';
+import { DEFAULT_DAYS_PER_YEAR, HOURS_PER_DAY } from '@/sim/time';
 import { generateWorldReport } from '../pipeline';
 import { defaultWorldParams } from '../params';
 import { discoveredModules, type WorldgenModule } from '../kit/registry';
@@ -23,7 +29,7 @@ import { generated, walkToDigSite } from './testkit';
 import { startDistances } from './common';
 import { anchorDistance, dayOffer, defAt, sourceVariant } from './economy';
 import { foodReport } from './finalize';
-import { ANT_PREDATORS, ECONOMY_FLOORS, START_RULE } from './tuning';
+import { ANT_PREDATORS, ECONOMY_FLOORS, HERD_OFFER, START_RULE } from './tuning';
 
 vi.setConfig({ testTimeout: 240_000 });
 
@@ -34,19 +40,35 @@ const SUMMER = 1 << SEASONS.indexOf('summer');
 const WINTER = 1 << SEASONS.indexOf('winter');
 
 /**
- * Sustained per-day offer within radiusBu of the start: pool refill per gd, the T1 crumb rule (30 % of consumed
- * clusters re-placed daily, GDD 05 §1.2), and the expected carrion drops (as dayOffer computes them). One-time
- * stock (a crumb cluster's units, a sugar patch) is not a daily supply.
+ * Sustained per-day offer within radiusBu of the start, recomputed from the anchors with the sim's own rules (not
+ * economy.ts): pool refill per gd; the crumb rule at Tier 1 only (30 % of consumed clusters re-placed daily, GDD 05
+ * §1.2; ecology/sources/system.ts re-places none from Tier 2 on); the expected carrion drops (as dayOffer computes
+ * them). At Tier 2 each `aphid-herd` anchor holds a herd with HERD_INITIAL_OCCUPANCY, grown to the game's start day
+ * by the plants module (pregrownHerd), tended, at fT 1 (productionPerGd); prey patches are counted at the populate
+ * tuning's HERD_OFFER.preyP (the creature yield is not recomputable here). One-time stock is not a daily supply.
  */
 function sustainedOffer(ctx: GenContext, radiusBu: number): { c: number; p: number } {
   const d = startDistances(ctx);
+  const t2 = ECOLOGY_TIER >= 2;
+  const start = defaultGameConfig(ctx.params.speciesId, 1);
+  const d28 = (SEASONS.indexOf(start.startSeason) * DEFAULT_DAYS_PER_YEAR) / SEASONS.length + start.startDayOfSeason - 1;
+  const hostOf = new Map(ctx.world.placements.plants.map((p) => [p.objectId, p.hostClass]));
+  const herdDef = SOURCE_CATALOGUE['aphid-herd'];
   let c = 0, p = 0;
   for (const a of ctx.world.placements.foodAnchors) {
+    if (!(a.seasonMask & SUMMER) || !(anchorDistance(ctx, a, d) <= radiusBu)) continue;
+    if (t2 && a.kind === 'honeydew' && a.initialState.split(/[\s,;:]+/).includes('aphid-herd')) {
+      const herdA = pregrownHerd(HERD_K[hostOf.get(a.hostObjectId) ?? 'herb'], d28, HOURS_PER_DAY).a;
+      const loads = HERD_INITIAL_OCCUPANCY * productionPerGd(herdA, 1, 1);
+      c += loads * herdDef.c; p += loads * herdDef.p;
+      continue;
+    }
+    if (t2 && a.kind === 'prey') { p += HERD_OFFER.preyP; continue; }
     const v = sourceVariant(a);
-    if (!v || !(a.seasonMask & SUMMER) || !(anchorDistance(ctx, a, d) <= radiusBu)) continue;
+    if (!v) continue;
     const def = defAt(v);
     const stock = (def.units[0] + def.units[1]) / 2;
-    const perDay = def.refillPerGd > 0 ? def.refillPerGd : a.kind === 'crumb' ? CRUMB_REPLACE_FRACTION * stock : 0;
+    const perDay = def.refillPerGd > 0 ? def.refillPerGd : a.kind === 'crumb' && !t2 ? CRUMB_REPLACE_FRACTION * stock : 0;
     c += perDay * def.c; p += perDay * def.p;
   }
   const all = dayOffer(ctx, d, radiusBu);
@@ -102,13 +124,8 @@ describe('food (deliverable 1 / 6, acceptance 4)', () => {
     const { ctx } = world();
     const lines: string[] = [];
     let ok = true;
-    // The recomputation above is the Tier 1 supply model (crumb re-placement, carrion drops). At Tier 2 (viab-economy
-    // R1) herds feed films by overflow and prey patches replace the carrion drops: the floors are judged on the
-    // module's Tier 2 count (economy.ts herdOffer), which this test cannot recompute independently.
-    const t2 = ECOLOGY_TIER >= 2 ? foodReport(ctx).floors : null;
     for (const f of ECONOMY_FLOORS) {
-      const m = t2?.find((x) => x.radiusBu === f.radiusBu);
-      const s = m ? { c: m.c, p: m.p } : sustainedOffer(ctx, f.radiusBu), all = dayOffer(ctx, startDistances(ctx), f.radiusBu);
+      const s = sustainedOffer(ctx, f.radiusBu), all = dayOffer(ctx, startDistances(ctx), f.radiusBu);
       lines.push(`${f.radiusBu} BU: counted ${all.c.toFixed(1)} C / ${all.p.toFixed(1)} P, sustained ${s.c.toFixed(1)} C / ${s.p.toFixed(1)} P, floor ${f.c} C / ${f.p} P`);
       if (s.c < f.c || s.p < f.p) ok = false;
     }

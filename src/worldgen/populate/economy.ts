@@ -4,9 +4,10 @@
 // own read-outs (src/sim/ecology/sources/budget.ts), so the numbers are those a new game will have:
 //   sustainedOffer: the renewable daily supply the floors are checked against: pool refill per gd, the T1 crumb
 //                   rule (30 % of consumed clusters re-placed daily, so at full consumption 0.3 x a cluster's
-//                   mean stock per cluster and day), and the expected carrion drops over the reachable plots of
-//                   each zone (GDD 05 §1.3 runtime table, T1 x4). One-time stock (a cluster's first units, a
-//                   sugar patch) is not a daily supply.
+//                   mean stock per cluster and day; Tier 1 only, as in the sim), the expected carrion drops over the
+//                   reachable plots of each zone (GDD 05 §1.3 runtime table, T1 x4), and at Tier 2 the herds'
+//                   honeydew and the prey patches (herdOffer). One-time stock (a cluster's first units, a sugar
+//                   patch) is not a daily supply.
 //   dayOffer:       read-out only: the stock lying there at the start plus one day of renewal.
 
 import type { FoodAnchor, FoodVariant, ZoneType } from '@/sim/types';
@@ -25,6 +26,8 @@ import { defAt } from './common';
 export interface FoodOffer { c: number; p: number; byVariant: Partial<Record<FoodVariant, { c: number; p: number }>> }
 
 const HERDS: readonly FoodVariant[] = ['aphid-herd', 'scale-herd'];
+/** Prey-patch protein is booked under the small-insect carcass its springtails and mites become (byVariant). */
+const PREY_VARIANT: FoodVariant = 'insect-small';
 const SUMMER = 1 << SEASONS.indexOf('summer');
 
 export { defAt };
@@ -74,14 +77,15 @@ function add(o: FoodOffer, v: FoodVariant, c: number, p: number): void {
 const meanStock = (def: SourceDef) => (def.units[0] + def.units[1]) / 2;
 
 /** Renewable loads per game day of one anchor's source: pool refill, or the T1 crumb rule at full consumption. */
-export function renewalPerGd(v: FoodVariant): number {
-  const def = defAt(v);
+export function renewalPerGd(v: FoodVariant, tier: number = ECOLOGY_TIER): number {
+  const def = defAt(v, tier);
   if (def.refillPerGd > 0) return def.refillPerGd;
-  // T1: the crumb rule re-places 30 % of consumed clusters daily. T2 drops human food instead (food-drop events at
-  // tables, patios, bins, car parks, playgrounds: the zones crumbs are placed in); the budget takes the same share as
-  // its daily supply (viab-economy R1: an estimate, the human-events schedule is not mirrored here)
+  // T1: the crumb rule re-places 30 % of consumed clusters daily. From T2 on the sim re-places no crumbs
+  // (ecology/sources/system.ts; the runtime budget counts them at T1 only): human food comes from food-drop events
+  // at tables, patios, bins, bays and playgrounds, which are events, not a supply the floors may count on (C13's T2
+  // budget is herds, flowers and prey patches)
   const crumb = v === 'crumb-starch' || v === 'crumb-protein';
-  return crumb ? CRUMB_REPLACE_FRACTION * meanStock(def) : 0;
+  return crumb && tier === 1 ? CRUMB_REPLACE_FRACTION * meanStock(def) : 0;
 }
 
 /** Renewable summer daily supply within radiusBu of the start along `d` (distances from the start). */
@@ -106,7 +110,7 @@ function herdOffer(ctx: GenContext, d: Float64Array, radiusBu: number, o: FoodOf
     if (herd) {
       const loads = HERD_INITIAL_OCCUPANCY * HERD_OFFER.aShare * HERD_K[hostOf.get(a.hostObjectId) ?? 'herb'] * HONEYDEW_PER_APHID;
       add(o, 'aphid-herd', loads * def.c, loads * def.p);
-    } else add(o, 'aphid-herd', 0, HERD_OFFER.preyP);
+    } else add(o, PREY_VARIANT, 0, HERD_OFFER.preyP);
   }
 }
 

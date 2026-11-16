@@ -5,7 +5,6 @@
 import type { Sim, SimEvent } from '@/sim/types';
 import type { Season } from '@/sim/types/ids';
 import { calendarNow } from '@/sim/environment/calendar';
-import { TICKS_PER_SECOND } from '@/sim/time';
 import { createLogger } from '@/core';
 import type { AlertLevel } from '@/sim/types/ids/progression';
 import { AlertSoundGate } from './alertGate';
@@ -13,11 +12,14 @@ import { SPEECH_CHECKED_FILES } from './assetIds';
 import { browserContextHost, ContextManager, type AudioStatus, type ContextHost } from './context';
 import type { AudioBytesSource } from './engine/buffers';
 import type { CueLogEntry } from './engine/cueLog';
-import { FootstepDriver } from './footsteps';
+import { EventRouter } from './eventRouter';
+import { CreatureStepDriver, FootstepDriver } from './footsteps';
+import { RuntimeSink } from './runtimeSink';
 import type { MixSettings } from './mix';
 import { AudioRuntime, type RuntimeFrame } from './runtime';
+import type { AudioStatusDetail, TestBus } from './statusText';
 import { newAmbienceInput, releaseListener, updateAmbienceInput, updateListener, type CameraLike } from './simAdapter';
-import { AMBIENCE, CONTEXT, UI_SOUND } from './tuning';
+import { AMBIENCE, CONTEXT, TEST_HOLD_S, UI_SOUND } from './tuning';
 import { installUiSounds, type DelegationTarget } from './uiDelegation';
 import type { UiSoundId } from './uiSounds';
 
@@ -25,7 +27,7 @@ const log = createLogger('audio');
 
 /** The game settings the audio reads (src/game/settings: one store, these names). */
 export interface AudioSettingsShape {
-  audio: MixSettings & { distantVoices: boolean; muteWhenHidden: boolean; mono: boolean };
+  audio: MixSettings & { distantVoices: boolean; muteWhenHidden: boolean; mono: boolean; /** Alarm shimmer (GDD 08 §13.5 "Settings can disable"); absent = on. */ alarmShimmer?: boolean };
   gameplay: { milestoneNotices: 'full' | 'quiet' | 'off' };
 }
 export interface AudioSettingsSource {
@@ -70,9 +72,12 @@ export class AudioSystem {
   private rt: AudioRuntime | null = null;
   private sim: Sim | null = null;
   private offSim: (() => void) | null = null;
-  private queue: SimEvent[] = [];
+  /** Events waiting for the next frame, with the sim tick they came out of. */
+  private queue: { e: SimEvent; tick: number }[] = [];
+  private router: EventRouter | null = null;
   private readonly gate = new AlertSoundGate();
   private readonly steps = new FootstepDriver();
+  private readonly creatureSteps = new CreatureStepDriver();
   private readonly ambIn = newAmbienceInput();
   private ambAge = Infinity;
   private lastView = '';
@@ -85,6 +90,8 @@ export class AudioSystem {
   private lastRtFrame: RuntimeFrame | null = null;
   /** idle() ran since the last frame(): the world has been faded out. */
   private idling = false;
+  /** A Settings test requested before the sound ran: played once it does. */
+  private pendingTest: TestBus | null = null;
   private readonly disposers: (() => void)[] = [];
 
   constructor(private readonly opts: AudioSystemOptions) {
@@ -110,6 +117,57 @@ export class AudioSystem {
 
   status(): AudioStatus { return this.opts.testMode ? 'off' : this.mgr.status; }
 
+  /**
+   * What Settings > Audio shows: `test` (never starts), `waiting` (no gesture yet), `running`, `muted-hidden` (running,
+   * but the tab is hidden with "Mute when hidden" on), `blocked` (the browser refused), `unsupported`.
+   */
+  statusDetail(): AudioStatusDetail {
+    if (this.opts.testMode) return 'test';
+    switch (this.mgr.status) {
+      case 'running': return this.hiddenSince >= 0 && this.opts.settings.get().audio.muteWhenHidden ? 'muted-hidden' : 'running';
+      case 'blocked': return 'blocked';
+      case 'unsupported': return 'unsupported';
+      default: return 'waiting';
+    }
+  }
+
+  /**
+   * Settings "Test" button of a bus: plays a representative sound on it (a gust on ambience, steps and a bite on
+   * effects, a distant footfall on giants, a click on the interface, a short phrase on music; master plays a little
+   * of each world sound). Called from a click, so it also starts the sound when it has not started yet: the test then
+   * plays as soon as the context runs.
+   */
+  testBus(bus: TestBus): void {
+    if (this.opts.testMode) return;
+    if (!this.rt) {
+      this.pendingTest = bus;
+      this.mgr.enable();
+      return;
+    }
+    try { this.playTest(this.rt, bus); } catch (e) { log.warn(`audio test failed: ${(e as Error).message}`); }
+  }
+
+  private playTest(rt: AudioRuntime, bus: TestBus): void {
+    const c = rt.cues;
+    rt.holdWorldFor(TEST_HOLD_S);
+    switch (bus) {
+      case 'ambience': c.cue('ev.gust', null, 0.8); break;
+      case 'effects':
+        for (let i = 0; i < 3; i++) c.cue('step', null, 1, 'loam', { delayS: i * 0.22 });
+        c.cue('pick-up', null, 1, null, { delayS: 0.8 });
+        c.cue('dig-bite.loam', null, 1, null, { delayS: 1.3 });
+        break;
+      case 'giants': c.cue('giant.footsteps', null, 1, null, { gainDb: -6 }); break;
+      case 'ui': rt.ui.play('click'); rt.ui.play('alert-notice', 0, 0.35); break;
+      case 'music': rt.playMusic(rt.ui.season, 'sparse', 'test'); break;
+      case 'master':
+        c.cue('ev.gust', null, 0.6);
+        c.cue('dig-bite.loam', null, 1, null, { delayS: 0.4 });
+        rt.ui.play('click', 0, 0.8);
+        break;
+    }
+  }
+
   /** Explicit "click to enable sound" (Settings > Audio status line; GDD 08 App. B `audioEnable`). */
   enable(): void { if (!this.opts.testMode) this.mgr.enable(); }
 
@@ -119,11 +177,14 @@ export class AudioSystem {
   private onRunning(ctx: AudioContext): void {
     try {
       this.rt = new AudioRuntime(ctx, { bytes: this.opts.assets });
+      this.router = new EventRouter(new RuntimeSink(this.rt), { alarmShimmer: () => this.opts.settings.get().audio.alarmShimmer !== false });
       this.applySettings(this.opts.settings.get());
       void this.rt.preloadEffects();
+      if (this.pendingTest) { const b = this.pendingTest; this.pendingTest = null; this.playTest(this.rt, b); }
     } catch (e) {
       log.warn(`audio runtime failed: ${(e as Error).message}`);
       this.rt = null;
+      this.router = null;
     }
   }
 
@@ -162,9 +223,11 @@ export class AudioSystem {
   attachSim(sim: Sim): void {
     this.detachSim();
     this.sim = sim;
-    this.offSim = sim.events.onAny((_t, e) => { if (this.rt) this.queue.push(e as SimEvent); });
+    this.offSim = sim.events.onAny((_t, e) => { if (this.rt) this.queue.push({ e: e as SimEvent, tick: sim.state.tick }); });
     this.gate.reset();
     this.steps.reset();
+    this.creatureSteps.reset();
+    this.router?.reset();
     this.ambAge = Infinity;
   }
 
@@ -173,6 +236,7 @@ export class AudioSystem {
     this.offSim = null;
     this.sim = null;
     this.queue.length = 0;
+    this.router?.reset();
     this.lastRtFrame = null;
     if (!this.rt) return;
     this.rt.giants.stopAll();
@@ -217,8 +281,12 @@ export class AudioSystem {
       if (sim) {
         updateListener(sim, { camera: f.camera, focus: f.focus, possessedId: f.possessedId, possessView: f.view === 'possess', underground: f.underground }, rt.listener);
         season = calendarNow(sim).season;
+        this.router?.track(sim);
         this.drainEvents(sim, rt);
-        if (!f.paused) this.steps.update(sim, f.view === 'possess' ? f.possessedId : -1, rt.listener.hear, f.dt, (pos, m) => rt.cues.cue('step', pos, 1, m));
+        if (!f.paused) {
+          this.steps.update(sim, f.view === 'possess' ? f.possessedId : -1, rt.listener.hear, f.dt, (pos, m) => rt.cues.cue('step', pos, 1, m));
+          this.creatureSteps.update(sim, rt.listener.pos, f.dt, (pos, strength) => rt.cues.cue('creature-step', pos, strength));
+        }
         this.ambAge += f.dt;
         if (this.ambAge >= AMBIENCE.refreshS) {
           this.ambAge = 0;
@@ -250,30 +318,20 @@ export class AudioSystem {
   private drainEvents(sim: Sim, rt: AudioRuntime): void {
     const q = this.queue;
     this.queue = [];
-    for (const e of q) {
-      try { this.handleEvent(sim, rt, e); } catch (err) {
+    for (const { e, tick } of q) {
+      try { this.handleEvent(sim, rt, e, tick); } catch (err) {
         log.warn(`audio event ${e.type} failed: ${(err as Error).message}`); // one bad event must not drop the rest
       }
     }
   }
 
-  private handleEvent(sim: Sim, rt: AudioRuntime, e: SimEvent): void {
+  /** Alerts and milestone-like moments belong to the system (settings, gate); everything else is the router's. */
+  private handleEvent(sim: Sim, rt: AudioRuntime, e: SimEvent, tick: number): void {
     switch (e.type) {
-      case 'cue': rt.cues.cue(e.cue, e.pos, e.strength); break;
-      case 'human.telegraph': {
-        const speed = Math.max(1, sim.state.env.time.speed);
-        rt.giants.telegraph(e.instId, e.kind, e.origin, (e.impactTick - sim.state.tick) / TICKS_PER_SECOND / speed);
-        break;
-      }
-      case 'human.start': rt.giants.start(e.instId, e.kind, e.variant); break;
-      case 'human.impact': rt.giants.impact(e.instId, e.kind, e.footprint); break;
-      case 'human.end': case 'human.cancelled': rt.giants.end(e.instId); break;
-      case 'weather.thunder': rt.giants.thunder(e.delayS, e.intensity); break;
       case 'alert': this.onAlert(sim, rt, e.op, e.alert.kind, e.alert.subjectId, e.alert.level, e.alert.id); break;
-      case 'milestone.reached': this.onMilestone(rt); break;
-      case 'time.phase': if (e.phase === 'dawn' || e.phase === 'dusk') rt.musicTrigger(e.phase); break;
-      case 'opening.handover': case 'overwinter.end': rt.musicTrigger('timelapse-end'); break;
-      default: break;
+      case 'milestone.reached': case 'stage.changed': case 'lineage.daughter-added': this.onMilestone(rt); break;
+      case 'opening.handover': this.onMilestone(rt, false); rt.musicTrigger('timelapse-end'); break;
+      default: this.router?.handle(sim, e, tick); break;
     }
   }
 
@@ -297,13 +355,23 @@ export class AudioSystem {
     }
   }
 
-  private onMilestone(rt: AudioRuntime): void {
+  private onMilestone(rt: AudioRuntime, music = true): void {
     const mode = this.opts.settings.get().gameplay.milestoneNotices;
     if (mode !== 'off') rt.ui.play('milestone', mode === 'quiet' ? UI_SOUND.milestoneQuietDb : 0);
-    rt.musicTrigger('milestone');
+    if (music) rt.musicTrigger('milestone');
   }
 
   cueLog(): CueLogEntry[] { return this.rt?.log.list() ?? []; }
+
+  /**
+   * Short-term (3 s) and momentary (400 ms) loudness of the output tap, LUFS (null when silent or no sound runs).
+   * A monitor: the tap is mono, so a centred signal reads true and wide stereo a few LU low (loudness.ts).
+   */
+  loudness(): { shortTermLufs: number | null; momentaryLufs: number | null; running: boolean } {
+    const m = this.rt?.loudness;
+    const fin = (v: number | undefined) => (v !== undefined && Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
+    return { shortTermLufs: fin(m?.shortTerm()), momentaryLufs: fin(m?.momentary()), running: !!this.rt && this.mgr.status === 'running' };
+  }
 
   /** Debug read-out (status, buses, ambience sources and surface filter, voices, giants, decode failures). */
   debug(): Record<string, unknown> {

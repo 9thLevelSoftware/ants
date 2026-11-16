@@ -1,7 +1,7 @@
 // Harness script for the audio demo: offline renders of every cue / ambience state / loop boundary, the CPU bench
 // on the live context (a real click is the user gesture), one screenshot of the read-out table, JSON next to it.
 //   node tools/harness/play.mjs --root spikes/audio-demo --script spikes/audio-demo/scripts/analyse.mjs --out test-output/audio-demo
-//   extras (query): ?skip=bench,loops   to run less
+//   extras (query): ?skip=bench,loops   to run less (skip=loops also leaves out the loop-boundary renders; skip=all is loops only)
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -16,7 +16,9 @@ export default async ({ page, shot, log, out, query }) => {
     log(`bench: ${JSON.stringify(res.bench && { ...res.bench, runs: undefined, state: res.bench.runs?.[0]?.ctxState, voicesAvg: res.bench.runs?.map((r) => r.voicesAvg), startsPerFrame: res.bench.runs?.map((r) => r.startsPerFrame) })}`);
   }
   const t0 = Date.now();
-  res.all = skip.has('all') ? { cues: [], ambience: [], loops: await page.evaluate(() => window.__audioDemo.runLoops()) } : await page.evaluate(() => window.__audioDemo.runAll());
+  res.all = skip.has('all') ? { cues: [], ambience: [], loops: await page.evaluate(() => window.__audioDemo.runLoops()) }
+    : skip.has('loops') ? { cues: await page.evaluate(() => window.__audioDemo.runCues()), ambience: await page.evaluate(() => window.__audioDemo.runAmbience()), loops: [] }
+      : await page.evaluate(() => window.__audioDemo.runAll());
   log(`offline analysis ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   const bad = [...res.all.cues, ...res.all.ambience].filter((r) => r.problems.length);
   for (const b of bad) log(`PROBLEM ${b.name}: ${b.problems.join('; ')}`);

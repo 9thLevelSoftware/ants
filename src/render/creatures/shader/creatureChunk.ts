@@ -36,6 +36,8 @@ uniform vec4 uBody;
 uniform vec4 uMisc;
 uniform vec4 uRetract;
 
+varying vec3 vCrRest;
+
 const float CR_TAU = 6.28318530718;
 
 mat3 crRotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
@@ -161,7 +163,8 @@ export const CREATURE_BEGIN_NORMAL = /* glsl */ `
 vec3 crP; vec3 crN; crDeform(position, normal, crP, crN);
 vec3 objectNormal = crN;
 `;
-export const CREATURE_BEGIN_VERTEX = /* glsl */ `vec3 transformed = crP;`;
+export const CREATURE_BEGIN_VERTEX = /* glsl */ `vec3 transformed = crP;
+vCrRest = position;`;
 export const CREATURE_COLOR_VERTEX = /* glsl */ `
 #include <color_vertex>
 vColor.rgb *= aTint.rgb;
@@ -170,3 +173,30 @@ export const CREATURE_DEPTH_BEGIN_VERTEX = /* glsl */ `
 vec3 crP; vec3 crN; crDeform(position, normal, crP, crN);
 vec3 transformed = crP;
 `;
+
+/**
+ * Fragment side: the surface of a creature is not one flat colour with a glossy highlight (that read as plastic).
+ * Like the ants' cuticle (render/ants/shader/fragmentChunk.ts) it gets micro-variation in the rest frame: the albedo
+ * varies by a few per cent in soft patches and fine grain, and the roughness is raised and varied with it, so the
+ * specular highlight breaks up. The patch size follows the body length (uBody.x) so a millimetre springtail and a
+ * 30 mm millipede get the same look at their own scale.
+ */
+export const CREATURE_FRAG_PARS = /* glsl */ `
+varying vec3 vCrRest;
+uniform vec4 uBody;
+uniform vec4 uSurface; // x albedo variation, y roughness lift, z roughness variation, w grain cells per body length
+float crHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float crNoise(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(crHash(i), crHash(i + vec3(1,0,0)), f.x), mix(crHash(i + vec3(0,1,0)), crHash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(crHash(i + vec3(0,0,1)), crHash(i + vec3(1,0,1)), f.x), mix(crHash(i + vec3(0,1,1)), crHash(i + vec3(1,1,1)), f.x), f.y), f.z); }
+float crSurface() {
+  vec3 q = vCrRest / max(uBody.x, 1e-3);
+  return 0.6 * crNoise(q * 5.0 + 3.1) + 0.4 * crNoise(q * uSurface.w);
+}
+`;
+
+export const CREATURE_COLOR_FRAGMENT = /* glsl */ `#include <color_fragment>
+  diffuseColor.rgb *= 1.0 + uSurface.x * (2.0 * crSurface() - 1.0);`;
+
+export const CREATURE_ROUGHNESS = /* glsl */ `#include <roughnessmap_fragment>
+  roughnessFactor = clamp(roughnessFactor + uSurface.y + uSurface.z * (crSurface() - 0.5), 0.0, 1.0);`;

@@ -10,6 +10,7 @@ import { WEATHER_STATES, type WeatherState } from '@/sim/types/ids';
 import { analyse } from './analysis';
 import { bench, type BenchResult } from './bench';
 import { AMBIENCE_STATES, CUE_SPECS, SILENT_BY_DESIGN } from './catalog';
+import { runFoleyAgainstBed, runLayerLevels, runLoudnessScenes } from './loudnessScenes';
 import { ambienceInput, ambienceName, LOOP_FILES, MIX, renderAmbience, renderCue, renderLoopBoundary, specName, type AmbienceState, type CueSpec } from './offline';
 
 const warnings: string[] = [];
@@ -199,9 +200,22 @@ async function runAll() {
   return { cues, ambience, loops };
 }
 
+/** Loudness ruling (design directions §K): the scene renders measured with BS.1770, and the foley against the calm bed. */
+async function runLoudness(only: string[] | null = null) {
+  const scenes = await runLoudnessScenes(assets, only && only.includes('foley') ? [...only, 'calm-surface-day'] : only);
+  const bed = scenes.find((r) => r.id === 'calm-surface-day');
+  const foley = only && !only.includes('foley') ? [] : await runFoleyAgainstBed(assets, bed ? bed.integratedLufs : -27);
+  results.innerHTML = `<h2>Loudness</h2><table><tr><th>scene</th><th>integrated</th><th>short-term max</th><th>true peak</th><th>target</th><th>check</th></tr>${scenes.map((r) => (
+    `<tr><td>${r.id}</td><td>${r.integratedLufs}</td><td>${r.shortTermMaxLufs}</td><td>${r.truePeakDb}</td><td>${r.targetLufs} ± ${r.tol}</td>`
+    + `<td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? 'ok' : r.problems.join('; ')}</td></tr>`)).join('')}</table>`
+    + `<h2>Foley vs calm bed</h2><table><tr><th>pattern</th><th>short-term</th><th>bed</th><th>delta</th><th>peak</th><th>check</th></tr>${foley.map((r) => (
+      `<tr><td>${r.id}</td><td>${r.shortTermLufs}</td><td>${r.bedLufs}</td><td>${r.deltaLu}</td><td>${r.peakDb}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? 'ok' : 'outside 8 LU'}</td></tr>`)).join('')}</table>`;
+  return { scenes, foley };
+}
+
 declare global { interface Window { __audioDemo?: unknown; __ready?: boolean } }
 window.__audioDemo = {
-  start, runAll, runCues, runAmbience, runLoops, runBench, renderCue: (sp: CueSpec) => renderCue(assets, sp), analyse,
+  start, runAll, runCues, runAmbience, runLoops, runBench, runLoudness, runLayerLevels: () => runLayerLevels(assets), renderCue: (sp: CueSpec) => renderCue(assets, sp), analyse,
   status: () => ({ ctx: ctx?.state ?? 'none' }),
   /** Which asset back end serves audio (embedded = packs) and whether every file decodes. */
   assetCheck: async () => {

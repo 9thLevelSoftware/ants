@@ -29,9 +29,25 @@ export const RAIN_WIND_TILT = 0.06;
 /** Streak width = drop diameter x this (a streak reads thinner than the drop), at least MIN, mm. */
 export const RAIN_WIDTH_PER_DIAMETER = 0.12;
 export const RAIN_MIN_WIDTH_MM = 0.12;
-/** Drops nearer the camera than this (BU) fade out (they would be a blur at the lens). */
-export const RAIN_NEAR_FADE_BU = 4;
-/** Streak colour (linear, slightly blue-grey) and its lift from the sky light. */
+/**
+ * What a streak may look like on screen, whatever its distance (rainMath.ts): projected width between MIN px and
+ * MAX_WIDTH_FRAC of the screen width (0.35 %, under the 0.4 % bound of the look review), projected length at most
+ * MAX_LEN_FRAC of the screen height. Streaks nearer than FADE_NEAR[0] BU (view depth) are invisible, full opacity
+ * from FADE_NEAR[1] BU, and they thin into the haze between FADE_FAR[0] and FADE_FAR[1] BU.
+ */
+export const RAIN_MIN_WIDTH_PX = 0.9;
+export const RAIN_MAX_WIDTH_FRAC = 0.0035;
+export const RAIN_MAX_LEN_FRAC = 0.12;
+export const RAIN_FADE_NEAR_BU: readonly [number, number] = [6, 20];
+export const RAIN_FADE_FAR_BU: readonly [number, number] = [38, 62];
+/**
+ * Streak colour = the scene's haze colour x this gain, in the scene's own (HDR, pre tone map) units, so a streak is
+ * only ever a little brighter than the air behind it: dim at dusk and by night, never pure white. Per-drop opacity
+ * varies between PER_DROP_MIN and 1 of the class opacity.
+ */
+export const RAIN_TINT_GAIN = 1.5;
+export const RAIN_PER_DROP_MIN = 0.35;
+/** Colour used when the scene has no fog (haze off in Settings): linear, slightly blue-grey, scaled by sky light. */
 export const RAIN_COLOR: readonly [number, number, number] = [0.72, 0.77, 0.82];
 
 /** Splashes: radius at the end of the crown in drop diameters, life s, spawn radius around the subject (BU). */

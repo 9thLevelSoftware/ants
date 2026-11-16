@@ -19,18 +19,27 @@ function ping(k: SynthKit, out: AudioNode, t: number, gain: number, freq: number
 }
 
 export const FOLEY: Record<string, ShotRecipe> = {
-  /** Step: 2-4 ms white-noise click band-passed 3-8 kHz; pitch by substrate via rate. */
-  'step-click': (k, o, t, p) => burst(k, o, t, p.gain, 5000 * p.rate, 1.2, 0.0005, 0.003 + 0.001 * k.rng.next()),
+  /**
+   * Step: 2-4 ms white-noise click band-passed 3-8 kHz (pitch by substrate via rate) on a 16 ms body (white noise
+   * band-passed around 3.5 kHz, -2 dB). The body gives the tap enough energy to be heard over the calm bed (loudness
+   * ruling) at a peak well under the bed's crest, and keeps the step a bright tick rather than a thud.
+   */
+  'step-click': (k, o, t, p) => {
+    burst(k, o, t, p.gain * 0.8, 3500 * p.rate, 0.7, 0.001, 0.016, 'white', 'bandpass');
+    return burst(k, o, t, p.gain, 5000 * p.rate, 1.2, 0.0005, 0.003 + 0.001 * k.rng.next());
+  },
   /** Pellet / frass drop: grain trickle, 40 ms noise burst 2-6 kHz with a few grain spikes. */
   'grain-trickle': (k, o, t, p) => {
     burst(k, o, t, p.gain * 0.6, 3500 * p.rate, 0.8, 0.002, 0.04);
     k.noiseGrains(o, 'white', 'bandpass', 4000 * p.rate, 1.2, grains(k, t, 4, 0.035, p.gain, 1), 0.0005, 0.004);
     return 0.09;
   },
-  /** Mandible click: two 1.5 ms pulses at 6 kHz, 12 ms apart. */
+  /** Mandible click: two 1.5 ms pulses at 6 kHz, 12 ms apart, each on a short 3 kHz body (audible over the calm bed). */
   'mandible-click': (k, o, t, p) => {
     burst(k, o, t, p.gain, 6000 * p.rate, 3, 0.0003, 0.0015);
     burst(k, o, t + 0.012, p.gain * 0.8, 6000 * p.rate, 3, 0.0003, 0.0015);
+    burst(k, o, t, p.gain * 0.6, 3000 * p.rate, 1, 0.001, 0.032, 'pink');
+    burst(k, o, t + 0.012, p.gain * 0.5, 3000 * p.rate, 1, 0.001, 0.032, 'pink');
     return 0.06;
   },
   /** Bite: mandible pulse pair plus a short 2 kHz body knock. */
@@ -197,6 +206,42 @@ export const FOLEY: Record<string, ShotRecipe> = {
   'soft-brush': (k, o, t, p) => {
     k.chain(k.noise('pink', t, 0.25), k.filter('bandpass', 2000, 0.5), k.ahr(t, p.gain, 0.06, 0.08, 0.08), o);
     return 0.25;
+  },
+  /** Predator strike (spider lunge, centipede snap): a sharp 12 ms noise crack at 3 kHz on a quiet 220 Hz knock. */
+  'strike-snap': (k, o, t, p) => {
+    burst(k, o, t, p.gain, 3000 * p.rate, 0.8, 0.0005, 0.012);
+    ping(k, o, t, p.gain * 0.08, 220 * p.rate, 0.04);
+    return 0.1;
+  },
+  /** Bird wing whoosh (approach, take-off): brown noise low-pass sweeping 250 -> 1500 Hz over 0.5 s, 0.9 s long. */
+  'bird-whoosh': (k, o, t, p) => {
+    const lp = k.filter('lowpass', 250, 1);
+    lp.frequency.exponentialRampToValueAtTime(1500, t + 0.5);
+    k.chain(k.noise('brown', t, 1), lp, k.ahr(t, p.gain, 0.3, 0.2, 0.4), o);
+    return 0.95;
+  },
+  /** Bird landing: a short whoosh, then a soft landing thud (95 Hz ping on a 250 Hz low-passed noise burst). */
+  'bird-landing': (k, o, t, p) => {
+    const lp = k.filter('lowpass', 300, 1);
+    lp.frequency.exponentialRampToValueAtTime(1200, t + 0.3);
+    k.chain(k.noise('brown', t, 0.45), lp, k.ahr(t, p.gain * 0.8, 0.12, 0.08, 0.22), o);
+    ping(k, o, t + 0.38, p.gain, 95, 0.12);
+    burst(k, o, t + 0.38, p.gain * 0.7, 250, 0.7, 0.002, 0.05, 'pink', 'lowpass');
+    return 0.65;
+  },
+  /** One peck: a quiet 130 Hz thud under a 1.8 kHz tick, 60 ms. */
+  'peck': (k, o, t, p) => {
+    ping(k, o, t, p.gain * 0.2, 130 * p.rate, 0.05);
+    burst(k, o, t, p.gain * 1.3, 1800 * p.rate, 1.2, 0.001, 0.015, 'white');
+    return 0.12;
+  },
+  /** Wind gust: pink noise band-passed 350 -> 700 -> 400 Hz with a 1.6 s swell. */
+  'gust': (k, o, t, p) => {
+    const bp = k.filter('bandpass', 350, 0.6);
+    bp.frequency.linearRampToValueAtTime(700, t + 0.8);
+    bp.frequency.linearRampToValueAtTime(400, t + 1.7);
+    k.chain(k.noise('pink', t, 1.8), bp, k.ahr(t, p.gain, 0.7, 0.3, 0.8), o);
+    return 1.8;
   },
   // ---- fallbacks for file-based cues -------------------------------------------------------------------------
   /** Dig fallback: 150 ms granular scrape, 25 grains 2-7 kHz. */

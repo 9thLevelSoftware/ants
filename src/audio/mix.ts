@@ -1,6 +1,6 @@
 // Pure mix maths (GDD 08 §13.2-13.3): dB conversion, slider law, bus gains from settings, the inverse distance
 // model and the surface-to-underground occlusion curve. No Web Audio here, so all of it is unit-tested in Node.
-import { BUS_DEFAULT_DB, BUS_IDS, OPEN_CUTOFF_HZ, SURFACE_OCCLUSION, type BusId, type DistanceClass } from './tuning';
+import { BUS_DEFAULT_DB, BUS_IDS, MASTER_TRIM_DB, OPEN_CUTOFF_HZ, SURFACE_OCCLUSION, type BusId, type DistanceClass } from './tuning';
 
 export function dbToGain(db: number): number {
   return Math.pow(10, db / 20);
@@ -28,12 +28,12 @@ export interface MixSettings {
   musicMode: 'off' | 'sparse' | 'frequent';
 }
 
-/** Linear gain of every bus: default dB times the slider law; master also carries the mute switch. */
+/** Linear gain of every bus: default dB times the slider law; master also carries the mute switch and the trim. */
 export function busGains(s: MixSettings): Record<BusId, number> {
   const out = {} as Record<BusId, number>;
   for (const id of BUS_IDS) {
     const slider = id === 'master' ? (s.muted ? 0 : s.master) : s[id];
-    out[id] = dbToGain(BUS_DEFAULT_DB[id]) * sliderToGain(slider);
+    out[id] = dbToGain(BUS_DEFAULT_DB[id] + (id === 'master' ? MASTER_TRIM_DB : 0)) * sliderToGain(slider);
   }
   if (s.musicMode === 'off') out.music = 0;
   return out;

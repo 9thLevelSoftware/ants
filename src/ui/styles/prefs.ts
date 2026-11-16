@@ -41,6 +41,7 @@ export interface UiPrefs {
     musicMode: MusicMode;
     muteWhenHidden: boolean;
     mono: boolean;
+    alarmShimmer: boolean;
   };
   gameplay: {
     autosaveMinutes: AutosaveMinutes;
@@ -58,7 +59,7 @@ export function defaultPrefs(): UiPrefs {
       uiScale: 1, textScale: 1, font: 'standard', highContrast: false, reducedMotion: 'system', spiderComfort: 'off',
       comfortMitesCentipedes: false, overlayPalette: 'okabe-ito', soundCueIndicators: false, flashReduction: true,
     },
-    audio: { ambience: 0.8, effects: 0.9, giants: 0.9, interface: 0.6, music: 0.5, musicMode: 'sparse', muteWhenHidden: true, mono: false },
+    audio: { ambience: 0.8, effects: 0.9, giants: 0.9, interface: 0.6, music: 0.5, musicMode: 'sparse', muteWhenHidden: true, mono: false, alarmShimmer: true },
     gameplay: { autosaveMinutes: 5, prompts: 'learning', hints: true, minimap: false, focusLine: 'auto', milestoneNotices: 'full' },
   };
 }
@@ -106,6 +107,7 @@ export function sanitizePrefs(raw: unknown): UiPrefs {
       interface: num(au.interface, 0, 1, dau.interface), music: num(au.music, 0, 1, dau.music),
       musicMode: pickEnum(au.musicMode, ['off', 'sparse', 'frequent'], dau.musicMode),
       muteWhenHidden: bool(au.muteWhenHidden, dau.muteWhenHidden), mono: bool(au.mono, dau.mono),
+      alarmShimmer: bool(au.alarmShimmer, dau.alarmShimmer),
     },
     gameplay: {
       autosaveMinutes: ([0, 2, 5, 10] as const).includes(gp.autosaveMinutes as 0) ? (gp.autosaveMinutes as AutosaveMinutes) : dg.autosaveMinutes,
@@ -136,7 +138,7 @@ export function prefsFromSettings(s: GameSettings): UiPrefs {
       spiderComfort: a.spiderComfort, comfortMitesCentipedes: a.comfortMites || a.comfortCentipedes, overlayPalette: a.overlayPalette,
       soundCueIndicators: a.soundCues, flashReduction: a.flashReduction,
     },
-    audio: { ambience: au.ambience, effects: au.effects, giants: au.giants, interface: au.ui, music: au.music, musicMode: au.musicMode, muteWhenHidden: au.muteWhenHidden, mono: au.mono },
+    audio: { ambience: au.ambience, effects: au.effects, giants: au.giants, interface: au.ui, music: au.music, musicMode: au.musicMode, muteWhenHidden: au.muteWhenHidden, mono: au.mono, alarmShimmer: au.alarmShimmer },
     gameplay: { autosaveMinutes: g.autosaveMin, prompts: g.prompts, hints: g.hints, minimap: g.minimap === 'always', focusLine: g.focusLine, milestoneNotices: g.milestoneNotices },
   });
 }
@@ -170,6 +172,7 @@ export function settingsPatchFromPrefs(p: PrefsPatch): SettingsPatch {
     if (au.musicMode !== undefined) audio.musicMode = au.musicMode;
     if (au.muteWhenHidden !== undefined) audio.muteWhenHidden = au.muteWhenHidden;
     if (au.mono !== undefined) audio.mono = au.mono;
+    if (au.alarmShimmer !== undefined) audio.alarmShimmer = au.alarmShimmer;
     out.audio = audio;
   }
   const g = p.gameplay;

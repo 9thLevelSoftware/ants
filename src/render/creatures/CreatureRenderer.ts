@@ -250,7 +250,7 @@ export class CreatureRenderer {
     if (eco) {
       this.herds.update(eco.herds, lookup, this.store, this.frustum, cam, pxPerMm, s, Math.max(0, s.maxNear - nearUsed));
       this.pits.update(eco.hazards, tick, this.frustum, lookup);
-      this.bird.update(eco.birdEvent, tick - 1 + alpha, (x, z) => lookup.height(x, z, eco.birdEvent?.pos.y ?? 0));
+      this.bird.update(eco.birdEvent, tick - 1 + alpha, (x, z) => lookup.height(x, z, eco.birdEvent?.pos.y ?? 0), lookup.hardDistance());
     } else { this.herds.hide(); this.pits.update([], tick, this.frustum, null); this.bird.update(null, 0, () => 0); }
     this.store.commitAll();
     this.marks.commit();

@@ -11,10 +11,11 @@ import {
   NO_WORKER_CLUTCH_MIN_RESERVE_P, PROJECTED_EGG_WEIGHT, QUEEN_FAT_CAP, QUEEN_LAY_MIN_HEALTH, QUEEN_P_UNPAID_HEALTH,
   QUEEN_GUT_CAP, QUEEN_RATION_BASE, QUEEN_RATION_BASE_P, QUEEN_RATION_P_SHARE_WITHHELD, QUEEN_REFILL_MIN_GUT_C,
   QUEEN_RESERVE_REFILL, QUEEN_STARVE_GD, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P, WORKER_CAP_TAPER, LOAD_EPS,
+  DEFAULT_SEASON_LENGTH_DAYS, SMALL_COLONY_N, WINTER_RESERVE_FROM_D28, WINTER_RESERVE_MULT,
 } from '@/sim/balance';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { killAnt, spawnBrood } from '@/sim/entities';
-import { currentDayOfYear, TICKS_PER_DAY } from '@/sim/time';
+import { currentDayOfYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY } from '@/sim/time';
 import { accAdd, accSet, coreOf } from './core';
 import { censusOf, cycleCensus } from './census';
 import { chamberTempC, d28Now, pointTempC } from './envAdapter';
@@ -77,7 +78,25 @@ export function layingProteinPermitted(sim: Sim, col: Colony): boolean {
   const cen = cycleCensus(sim, col);
   const nurses = cen.nurses;
   return daysOfStock(col).p >= LAYING_P_MIN_DAYS && cen.meanLarvalHunger <= LAYING_LARVAL_HUNGER_MAX
-    && cen.larvae - cen.diapause <= LAYING_LARVAE_PER_NURSE * nurses + LAYING_LARVAE_EXTRA;
+    && cen.larvae - cen.diapause <= LAYING_LARVAE_PER_NURSE * nurses + LAYING_LARVAE_EXTRA
+    && !winterReserveShort(sim, col, cen.workers);
+}
+
+/** Default-year day (0-based d28) the winter starts: spring, summer, autumn come first. */
+const WINTER_D28 = 3 * DEFAULT_SEASON_LENGTH_DAYS;
+
+/**
+ * Late in the season a small colony keeps its pool carbohydrate for the adults until the winter (balance
+ * WINTER_RESERVE_*, viab-economy R5): true while the pool holds less than that, so no laying protein is released.
+ */
+export function winterReserveShort(sim: Sim, col: Colony, workers: number): boolean {
+  if (workers >= SMALL_COLONY_N) return false;
+  const d28 = d28Now(sim);
+  if (d28 < WINTER_RESERVE_FROM_D28 || d28 >= WINTER_D28) return false;
+  const gdLeft = (WINTER_D28 - d28) * (daysPerYear(sim.state.config) / DEFAULT_DAYS_PER_YEAR);
+  const acc = coreOf(col).acc;
+  const adultC = (acc['inst.upkeepC'] ?? 0) + (acc['inst.queenC'] ?? 0);
+  return col.stores.c < WINTER_RESERVE_MULT * adultC * gdLeft;
 }
 
 /** core.acc keys of the protein supply (economy.ts updateProteinSupply): intake EMA, ledger mark, brood need. */

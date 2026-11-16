@@ -13,6 +13,7 @@ const SHAFT_MAX_BITES = 260;
 const SHAFT_SLOPE_DEG = 55;
 const ROOM_MAX_ROUNDS = 4;
 const SITE_MAX_R_BU = 120;
+const SKIP_CLICK_TIMEOUT_MS = 900_000;
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -23,7 +24,7 @@ export default async ({ page, shot, log }) => {
   const render = (settle) => g((s) => window.__game.renderFrame(s === undefined ? {} : { settle: s }), settle);
   const step = (n) => g((k) => window.__game.step(k), n);
   const visible = (id) => g((t) => { const e = document.querySelector(`[data-testid="${t}"]`); return !!e && e.getBoundingClientRect().width > 0; }, id);
-  const click = (id) => page.click(`[data-testid="${id}"]`);
+  const click = (id, timeout) => page.click(`[data-testid="${id}"]`, timeout ? { timeout } : undefined);
   const result = { beats: [] };
   // an observer pose `back` BU from point m and `up` BU above it with a clear line of sight (plants, stones, walls)
   const clearPose = (m, up, back) => g(({ m, up, back }) => {
@@ -316,7 +317,9 @@ export default async ({ page, shot, log }) => {
   log('lapse', JSON.stringify(stages));
   expect(stages[0].eggs > 0 && stages[1].larvae > 0 && stages[2].pupae > 0, 'the brood stages did not advance', stages);
   expect(stages[0].p < stages[1].p && stages[1].p < stages[2].p, 'the progress bar did not advance', stages);
-  await click('founding-skip');
+  // on the manual clock (?test=1) the click runs the rest of the lapse at once, inside the click (minutes on a
+  // loaded machine): the click waits for it
+  await click('founding-skip', SKIP_CLICK_TIMEOUT_MS);
   await step(1);
   v = await view();
   expect(v.phase === 'handover' || v.phase === 'done', 'skip did not end the lapse', { phase: v.phase, cause: v.failCause, opening: await g(() => { const o = window.__founding.opening(); return o && { hazards: o.hazardLog, lapse: o.lapse }; }) });

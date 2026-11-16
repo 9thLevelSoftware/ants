@@ -24,22 +24,24 @@ export interface AmbienceState {
   nearAnts?: number;
   humidity?: number | null;
   woodNest?: boolean;
+  /** Precipitation 0..1 (default 0.6; 1 = downpour). */
+  precip?: number;
 }
 
-function frameFor(amb: AmbienceInput | null, season: Season = 'summer'): RuntimeFrame {
+export function frameFor(amb: AmbienceInput | null, season: Season = 'summer'): RuntimeFrame {
   return { ambience: amb, paused: false, criticalActive: false, calmS: 0, season, combat: false, musicMode: 'off' };
 }
 
 export function ambienceInput(s: AmbienceState): AmbienceInput {
   const a = newAmbienceInput();
   for (const g of Object.keys(a.groups) as HabitatGroup[]) a.groups[g] = g === s.group ? 1 : 0;
-  a.hour = s.hour; a.sunrise = 6; a.sunset = 20; a.weather = s.weather; a.precip = 0.6;
+  a.hour = s.hour; a.sunrise = 6; a.sunset = 20; a.weather = s.weather; a.precip = s.precip ?? 0.6;
   a.underground = (s.depthBu ?? 0) > 0; a.depthBu = s.depthBu ?? 0;
   a.nearAnts = s.nearAnts ?? 0; a.humidity = s.humidity ?? null; a.woodNest = !!s.woodNest; a.colonyAnts = s.woodNest ? 400 : 0;
   return a;
 }
 
-async function offline(bytes: AudioBytesSource | null, seconds: number, beds: boolean) {
+export async function offline(bytes: AudioBytesSource | null, seconds: number, beds: boolean) {
   const ctx = new OfflineAudioContext(2, Math.round(SR * seconds), SR);
   const rt = new AudioRuntime(ctx, { bytes, seed: 11 });
   rt.applySettings(MIX);

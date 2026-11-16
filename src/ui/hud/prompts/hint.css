@@ -1,0 +1,18 @@
+/* The hint card (GDD 08 9). Sizes in rem (1 rem = 16 dp at UI scale 100 %). Margin regions only: the middle of the
+   screen belongs to the ant. Layered over the HUD (z-index 10) and under drawers' pointer targets. */
+.hn-card { position: fixed; z-index: 11; display: inline-flex; align-items: center; gap: var(--s-3); max-width: min(30rem, calc(100vw - 2rem)); min-height: 2.25rem; padding: 0.25rem 0.5rem 0.25rem 0.75rem; border-radius: var(--r-m); background: var(--c-scrim); color: var(--c-text); box-shadow: var(--e-0); pointer-events: none; font-size: var(--t-small); line-height: var(--t-small-lh); white-space: nowrap; animation: hn-in var(--m-fast) var(--ease-enter) both; }
+.hn-card.is-compact { padding: 0.25rem 0.5rem; opacity: 0.6; animation: none; }
+.hn-hold { color: var(--c-text-2); font-weight: 600; }
+.hn-verb { font-weight: 500; }
+.hn-close { pointer-events: auto; width: 1.5rem; height: 1.5rem; margin-left: var(--s-2); padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--c-text-2); font: inherit; line-height: 1; cursor: pointer; }
+.hn-close:hover { background: var(--c-panel-raised); color: var(--c-text); border-color: var(--c-border-strong); }
+/* anchors: the top centre, over the sky and clear of the ant (which sits in the lower middle) and of every HUD corner;
+   under the time cluster and focus line; left of the colony pulse; above the possessed-ant panel */
+.hn-at-top { left: 50%; top: 1rem; translate: -50% 0; }
+.hn-at-time { left: 1rem; top: 6.75rem; }
+.hn-at-pulse { right: 22.5rem; top: 1.25rem; }
+.hn-at-panel { left: 1rem; bottom: 8.5rem; }
+@keyframes hn-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+@keyframes hn-fade { from { opacity: 0; } to { opacity: 1; } }
+:root[data-motion="reduced"] .hn-card { animation: hn-fade 120ms linear both; }
+@media (prefers-reduced-motion: reduce) { :root[data-motion="normal"] .hn-card { animation: hn-fade 120ms linear both; } }

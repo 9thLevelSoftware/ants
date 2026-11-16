@@ -83,6 +83,21 @@ export const BIRD_LOOK = {
   cockTiltRad: 0.5, leaveRiseMm: 400,
 };
 
+/**
+ * Creature surface (shader/creatureChunk.ts): the catalogue roughness r becomes floor + (1 - floor) r; the albedo
+ * varies by +-albedoVariation (a fraction) and the roughness by roughnessVariation over soft patches and fine grain
+ * (grainCells per body length), the way the ants' cuticle does.
+ */
+export const CREATURE_SURFACE = { roughnessFloor: 0.42, roughnessVariation: 0.3, albedoVariation: 0.11, grainCells: 22 };
+
+/**
+ * Where the beak may strike (birdAim.ts): spheres up the column (height above the tip, radius), mm, and the rings
+ * round the sim's aim searched for a clear spot, mm.
+ */
+export const BIRD_AIM = {
+  tipLiftMm: 1.5, tipRadiusMm: 1.5, beakRadiusMm: 4, headLiftMm: 8, headRadiusMm: 13, ringsMm: [10, 20, 32, 48, 70, 100] as readonly number[], steps: 8,
+};
+
 /** Spider comfort (GDD 08 §12): ring around abstract and marker spiders, arc for the wind-up, label. */
 export const COMFORT_LOOK = { ringRadiusBodyLengths: 0.7, ringWidthFraction: 0.18, ring: '#e7d9b8', arc: '#f0b45a', labelPx: 13 };
 

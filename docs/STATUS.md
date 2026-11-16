@@ -271,3 +271,20 @@ All specs: docs/design/tasks/*.md. Build workflow script: scratchpad/wf-build.js
   `wmqt2afty` (wf_fc81142e-a6a): `audio-pass` (Sonnet impl, Opus review). Still running: `w7oa5adpf` (weather-fix2 +
   viab-founding), `w7ydd9gyu` (viab-economy + viab-loco). Spec `gate-1B-close.md` written; launch it when the two
   stabilisation workflows have landed, with their result summaries pasted under its "Hand-over".
+
+## Nov 16 12:00 UTC — audio-pass landed
+
+- **audio-pass** (Sonnet impl, Opus review, fix): BS.1770 loudness estimator (`src/audio/loudness.ts`), levels retuned to
+  the §K ruling (calm about -27 LUFS; fixed ceiling gain after the limiter, giants-bus compressor), every sim event
+  type mapped / covered / deliberately silent (compile-time check in `src/audio/eventMap.ts`), single
+  `EventRouter` with place tracking (`track(sim)` each frame), Settings > Audio status line + enable + Test per bus,
+  packaging test over the real asset plan (45 audio files), portable build decodes audio. Override for scripted
+  checks: `&audio=on`. Evidence `test-output/audio-pass/**`. 221 tests in `src/audio` + settings.
+- Integrator wired the three hooks it asked for: `audio.alarmShimmer` in the settings model/schema/prefs,
+  `audioUi('shutter')` on photo capture, `__game.ui.audio.{loudness,statusDetail,test,enable}`.
+- Open (for gate / perf): voice-start frame p95 1.6 ms under load vs 1 ms budget (re-measure on a quiet machine);
+  in-game calm loudness reading not taken (offline render is the measure); dead-ant positions not tracked (ant-keyed
+  events about an ant killed in the same tick are silent).
+- Needs from sim owners (later, when sim is free): plain `dig-bite` duplicate from the runner; miss vs armour-0 bite
+  cue strength; emitters for `stridulate`, `leaf-cut`, `garden-tend` (Stage 3 species); ant id on cue events.
+- Machine: load average 14–15 with 6 agents; timing-sensitive tests are unreliable until the stabilisation round lands.

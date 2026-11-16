@@ -22,7 +22,7 @@ export interface SpiderLook {
   frontThick: number;
   colors: { carapace: string; carapaceBand: string; abdomen: string; abdomenMark: string; legs: string; legBand: string; eye: string; palp: string };
   eyes: 'salticid' | 'lycosid' | 'small';
-  pattern: 'zebra' | 'wolf' | 'spots';
+  pattern: 'zebra' | 'wolf' | 'spots' | 'plain';
   hairs: number;
 }
 
@@ -42,8 +42,40 @@ export const ANT_SPIDER: SpiderLook = {
   eyes: 'small', pattern: 'spots', hairs: 0.4,
 };
 
-/** Builds a spider; `softened` drops hairs and eye detail (comfort level, GDD 08 §12). */
-export function buildSpider(s: SpiderLook, softened = false) {
+/**
+ * The comfort `softened` look of a spider (GDD 08 §12), clearly its own: the same eight-legged animal, but rounder
+ * and plumper (a bulbous body, short stout legs without joints or bands), one muted warm grey with no markings, no
+ * eyes and no hairs. At observer distance it reads as a soft toy next to the real animal and as a different thing
+ * from the abstract ovoid, which has no legs at all.
+ */
+export const SOFTENED = {
+  bodyWidth: 1.3, bodyHeight: 1.55, reachScale: 0.78, kneeScale: 0.55, legThick: 1.9, muted: 0.62, tone: '#9a8f7e', legTone: '#85796a',
+} as const;
+
+export function softenLook(s: SpiderLook): SpiderLook {
+  const mute = (hex: string, to: string): string => {
+    const a = lin(hex), b = lin(to), t = SOFTENED.muted;
+    // back to sRGB hex for lin() in the builder (a mix in linear space, so the lightness stays honest)
+    const m = [0, 1, 2].map((i) => a[i]! + (b[i]! - a[i]!) * t);
+    const enc = (c: number) => Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055));
+    return `#${m.map((c) => enc(c).toString(16).padStart(2, '0')).join('')}`;
+  };
+  const body = mute(s.colors.carapace, SOFTENED.tone), leg = mute(s.colors.legs, SOFTENED.legTone);
+  return {
+    ...s,
+    carapace: [s.carapace[0], s.carapace[1] * SOFTENED.bodyWidth, s.carapace[2] * SOFTENED.bodyHeight],
+    abdomen: [s.abdomen[0], s.abdomen[1] * SOFTENED.bodyWidth, s.abdomen[2] * SOFTENED.bodyHeight],
+    reach: s.reach.map((r) => r * SOFTENED.reachScale) as SpiderLook['reach'],
+    kneeUp: s.kneeUp * SOFTENED.kneeScale, legR: s.legR * SOFTENED.legThick, frontThick: 1,
+    // one muted body colour, no markings (band and mark colours equal the body)
+    colors: { carapace: body, carapaceBand: body, abdomen: body, abdomenMark: body, legs: leg, legBand: leg, eye: body, palp: leg },
+    pattern: 'plain', hairs: 0,
+  };
+}
+
+/** Builds a spider; `softened` is the comfort look of softenLook(): rounder, muted, no hairs, no eyes. */
+export function buildSpider(look: SpiderLook, softened = false) {
+  const s = softened ? softenLook(look) : look;
   return (d: Detail): Built => {
     const b = new CreatureBuilder();
     const C = Object.fromEntries(Object.entries(s.colors).map(([k, v]) => [k, lin(v)])) as Record<keyof SpiderLook['colors'], V3>;
@@ -59,7 +91,7 @@ export function buildSpider(s: SpiderLook, softened = false) {
     });
     // pedicel + carapace (cephalothorax), squarer at the front for salticids
     body(b, d, {
-      zTail: zJoin - 0.05 * cl, zHead: zFront, rings: 12, radial: [14, 8, 5], e: s.eyes === 'salticid' ? 2.8 : 2.2, lower: 0.55,
+      zTail: zJoin - 0.05 * cl, zHead: zFront, rings: 12, radial: [14, 8, 5], e: softened ? 2 : s.eyes === 'salticid' ? 2.8 : 2.2, lower: softened ? 0.8 : 0.55,
       rows: [row(0, cw * 0.25, ch * 0.3, yc), row(0.15, cw * 0.75, ch * 0.75, yc + ch * 0.1), row(0.5, cw, ch, yc + ch * 0.2), row(0.85, cw * 0.95, ch * 0.95, yc + ch * 0.25), row(1, cw * 0.6, ch * 0.6, yc + ch * 0.15)],
       color: (p) => (s.pattern === 'wolf' && Math.abs(p[0]) < cw * 0.22 && p[1] > yc + ch * 0.4 ? C.carapaceBand
         : s.pattern === 'zebra' && Math.abs(Math.abs(p[0]) - cw * 0.85) < cw * 0.12 ? C.carapaceBand : C.carapace),
@@ -84,7 +116,7 @@ export function buildSpider(s: SpiderLook, softened = false) {
         });
         // banded legs (annuli), per vertex by distance from the hip
         const hip: V3 = [cw * 0.8, yc, hipZ[i]!];
-        L.recolor(v0, (p) => (Math.sin(Math.hypot(p[0] - hip[0], p[2] - hip[2]) / s.reach[i]! * 22) > 0.55 ? C.legBand : C.legs));
+        if (!softened) L.recolor(v0, (p) => (Math.sin(Math.hypot(p[0] - hip[0], p[2] - hip[2]) / s.reach[i]! * 22) > 0.55 ? C.legBand : C.legs));
         if (!softened && d === 0 && s.hairs > 0) legHairs(L, s, hip, yaws[i]!, s.reach[i]!, C.legs);
       }
     });
@@ -95,6 +127,7 @@ export function buildSpider(s: SpiderLook, softened = false) {
 
 function abdomenColor(pattern: SpiderLook['pattern'], C: Record<string, V3>, p: V3, u: number, aw: number, yc: number): V3 {
   const top = p[1] > yc;
+  if (pattern === 'plain') return C.abdomen!;
   if (pattern === 'zebra') return top && Math.sin(u * Math.PI * 7) > 0.35 ? C.abdomenMark! : C.abdomen!;
   if (pattern === 'wolf') {
     const heart = top && Math.abs(p[0]) < aw * (0.25 - 0.15 * Math.abs(u - 0.75)) && u > 0.45;

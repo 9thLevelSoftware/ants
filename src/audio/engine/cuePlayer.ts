@@ -55,8 +55,8 @@ export class CuePlayer {
 
   private get ctx(): BaseAudioContext { return this.env.kit.ctx; }
 
-  /** A simulation cue event. */
-  cue(cue: string, pos: Vec3 | null, strengthIn: number, material: string | null = null): void {
+  /** A simulation cue event (or a sound the audio derives from an event: `extra` delays or trims it). */
+  cue(cue: string, pos: Vec3 | null, strengthIn: number, material: string | null = null, extra?: { delayS?: number; gainDb?: number }): void {
     const now = this.ctx.currentTime;
     const strength = finiteOr(strengthIn, 1); // a bad value from the sim must not reach an AudioParam (it throws)
     const r = resolveCue(cue, strength, material);
@@ -78,7 +78,7 @@ export class CuePlayer {
     }
     let sound = space === s.space ? s : { ...s, space };
     if (cue === 'bite' && strength <= 0.5) sound = { ...sound, mode: 'synth' }; // crunch layer only for hard prey
-    this.play({ key: r.key, sound, pos, strength, semis: semisOff, fileSemis, files: r.files });
+    this.play({ key: r.key, sound, pos, strength, semis: semisOff, fileSemis, files: r.files, delayS: extra?.delayS, gainDb: extra?.gainDb });
   }
 
   /** Plays a resolved sound; returns the voice id (-1 when culled / refused). */

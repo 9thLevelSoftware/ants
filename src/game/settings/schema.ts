@@ -33,7 +33,7 @@ const SPECS: Record<Exclude<SettingsSection, 'bindings'>, Record<string, Spec>> 
   graphics: { quality: { kind: 'quality' }, overrides: { kind: 'overrides' } },
   audio: {
     master: num(0, 1), ambience: num(0, 1), effects: num(0, 1), giants: num(0, 1), ui: num(0, 1), music: num(0, 1), muted: bool,
-    musicMode: oneOf('off', 'sparse', 'frequent'), distantVoices: bool, muteWhenHidden: bool, mono: bool,
+    musicMode: oneOf('off', 'sparse', 'frequent'), distantVoices: bool, muteWhenHidden: bool, mono: bool, alarmShimmer: bool,
   },
   accessibility: {
     uiScale: num(80, 150, 10), textScale: oneOf(100, 115, 130), font: oneOf('standard', 'hyperlegible'), highContrast: bool,

@@ -22,15 +22,16 @@ export function newBirdPose(): BirdPoseOut {
 
 const smooth = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
 
-/** Fills `out` for event `ev` at fractional tick `t` (tick + alpha); groundY = ground height at the event. */
-export function birdPose(ev: BirdView, t: number, groundY: number, out: BirdPoseOut): BirdPoseOut {
+/** Fills `out` for event `ev` at fractional tick `t` (tick + alpha); groundY = ground height at the event (aimOverride's y is the ground at the clear aim). */
+export function birdPose(ev: BirdView, t: number, groundY: number, out: BirdPoseOut, aimOverride?: Vec3 | null): BirdPoseOut {
   const sh = out.shadow, bk = out.beak;
   // approach direction: fixed per event (from its start tick), so the sweep is repeatable
   const a = hash3(ev.startTick, 13, 5) * Math.PI * 2;
   sh.dirX = Math.cos(a); sh.dirZ = Math.sin(a);
   sh.visible = true; bk.visible = false;
   const land = ev.landTick ?? ev.startTick;
-  const aim = ev.peckAim ?? ev.pos;
+  // the renderer may move the strike to clear ground (birdAim.ts); the sim's aim is only the preferred spot
+  const aim = aimOverride ?? ev.peckAim ?? ev.pos;
   if (ev.phase === 'approach' || t < land) {
     const p = smooth((t - ev.startTick) / Math.max(1, land - ev.startTick));
     const off = BIRD_LOOK.approachFromMm * (1 - p);
@@ -61,6 +62,6 @@ export function birdPose(ev: BirdView, t: number, groundY: number, out: BirdPose
   if (since >= 0 && since < strike) h = rest * (1 - since / strike);
   else if (since >= strike && since < strike + recover) h = rest * smooth((since - strike) / recover);
   else if (until >= 0 && until < cock / TICKS_PER_SECOND) { tilt = BIRD_LOOK.cockTiltRad * smooth(1 - until / (cock / TICKS_PER_SECOND)); h = rest * 0.8; }
-  bk.tip.x = aim.x; bk.tip.z = aim.z; bk.tip.y = Math.max(aim.y, groundY) + h; bk.tilt = tilt;
+  bk.tip.x = aim.x; bk.tip.z = aim.z; bk.tip.y = (aimOverride ? aim.y : Math.max(aim.y, groundY)) + h; bk.tilt = tilt;
   return out;
 }

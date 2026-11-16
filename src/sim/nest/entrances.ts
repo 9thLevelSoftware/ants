@@ -591,7 +591,12 @@ export function unsealEntranceImpl(sim: Sim, entranceId: number, antId: number):
     if (d < bestD) { bestD = d; best = { x: i * v, y: j * v, z: k * v }; }
   });
   if (!best) { evaluateEntrance(sim, nest, e); return e.status === 'open'; }
-  const c: Vec3 = best;
+  return unplugBite(sim, nest, e, best);
+}
+
+/** One unseal bite at `c`: opens the plug voxels within UNSEAL_RADIUS_BU of it, then re-evaluates e. */
+function unplugBite(sim: Sim, nest: Nest, e: Entrance, c: Vec3): boolean {
+  const v = sim.carve.voxel, flags = nestRuntime(sim).flags;
   const isPlug = (x: number, y: number, z: number) => (flags.get(Math.round(x / v), Math.round(y / v), Math.round(z / v)) & VoxelFlag.PLUG) !== 0;
   const r = UNSEAL_RADIUS_BU * sim.world.bu;
   const box = sphereBox(sim, c, r, 1);
@@ -601,6 +606,16 @@ export function unsealEntranceImpl(sim: Sim, entranceId: number, antId: number):
   if (e.status === 'sealed') setEntranceStatus(sim, nest, e, 'reopening');
   evaluateEntrance(sim, nest, e);
   return e.status === 'open';
+}
+
+/**
+ * The unseal bite (`unsealEntranceImpl`'s) at a given plug voxel `at`, which may lie past the throat sphere: a
+ * founding plug aimed at the throat's inner end reaches up to its plug radius beyond it (the founding hand-over's
+ * reopening, colony/founding/reopen.ts). True when e reads `open` afterwards.
+ */
+export function unplugAt(sim: Sim, entranceId: number, at: Vec3): boolean {
+  const found = entranceById(sim, entranceId);
+  return found ? unplugBite(sim, found.nest, found.e, at) : false;
 }
 
 /**

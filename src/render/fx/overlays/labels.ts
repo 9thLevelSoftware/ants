@@ -28,6 +28,8 @@ export class Labels {
 
   /** Shows these labels (beyond `max` are dropped), hides the rest. */
   set(list: readonly LabelSpec[]): void {
+    // labels are drawn from a canvas: without one (a Node test of the field pass) there is nothing to show
+    if (typeof document === 'undefined') list = [];
     const n = Math.min(this.max, list.length);
     for (let i = 0; i < n; i++) {
       const l = list[i];

@@ -19,7 +19,7 @@ import { accessOfAnchor, dayOffer, sourceVariant, sustainedOffer } from './econo
 import { foodReport, siteFoodShare } from './finalize';
 import { honeydewFilmFeet, placeFilm, removeFilm } from './food';
 import { anchorSeasonMask, startDistances } from './common';
-import { HOST_BIT } from './hosts';
+import { HOST_BIT, routeOfPoi } from './hosts';
 import { ANT_PREDATORS, CRUMB_SPOT, ECONOMY_FLOORS, INCIPIENT, PREDATOR_START_CLEAR_BU, START_RULE, topUpZones } from './tuning';
 
 vi.setConfig({ testTimeout: 180_000 });
@@ -139,7 +139,9 @@ describe('plant hosts (deliverable 2)', () => {
         expect(p.hostPoiIds, `${a} plant ${p.objectId}`).toBeDefined();
         for (const id of p.hostPoiIds!) expect(ob.poiIds).toContain(id);
         if (p.hostPoiIds!.length > 0) {
-          const route = w.climbRoutes.find((r) => r.id === ob.routeIds[0])!;
+          // the route that leads to the usable point (a tree has one per branch; its first route need not be one)
+          const poi = w.pois.find((q) => q.id === p.hostPoiIds![0])!;
+          const route = w.climbRoutes.find((r) => r.id === routeOfPoi(ctx, ob, poi))!;
           expect(walkRoute(k, route.points, w.bu).up).toBe(true);
           checked++;
         }

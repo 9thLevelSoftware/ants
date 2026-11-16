@@ -71,6 +71,8 @@ export interface AudioSettings {
   distantVoices: boolean;
   muteWhenHidden: boolean;
   mono: boolean;
+  /** Alarm shimmer, the audible stand-in for alarm pheromone (GDD 08 §13.5: "Settings can disable"). */
+  alarmShimmer: boolean;
 }
 
 export interface AccessibilitySettings {
@@ -115,7 +117,7 @@ export function defaultSettings(): GameSettings {
     graphics: { quality: 'auto', overrides: {} },
     audio: {
       master: 1, ambience: 0.8, effects: 0.9, giants: 0.9, ui: 0.6, music: 0.5, muted: false, musicMode: 'sparse',
-      distantVoices: false, muteWhenHidden: true, mono: false,
+      distantVoices: false, muteWhenHidden: true, mono: false, alarmShimmer: true,
     },
     accessibility: {
       uiScale: 100, textScale: 100, font: 'standard', highContrast: false, reducedMotion: 'system', shake: 100,

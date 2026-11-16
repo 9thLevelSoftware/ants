@@ -8,10 +8,11 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three';
 import {
-  CREATURE_BEGIN_NORMAL, CREATURE_BEGIN_VERTEX, CREATURE_COLOR_VERTEX, CREATURE_DEPTH_BEGIN_VERTEX, CREATURE_VERT_PARS,
+  CREATURE_BEGIN_NORMAL, CREATURE_BEGIN_VERTEX, CREATURE_COLOR_FRAGMENT, CREATURE_COLOR_VERTEX, CREATURE_DEPTH_BEGIN_VERTEX, CREATURE_FRAG_PARS,
+  CREATURE_ROUGHNESS, CREATURE_VERT_PARS,
 } from './creatureChunk';
 import { PIT_FRAG_CLIP, PIT_FRAG_PARS, PIT_VERT_INSTANCE, PIT_VERT_MESH, PIT_VERT_MESH_PARS, PIT_VERT_PARS } from './pitDepth';
-import { PIT_DEPTH } from '../tuning';
+import { CREATURE_SURFACE, PIT_DEPTH } from '../tuning';
 
 /** The animation numbers of one kind (shader/creatureChunk.ts documents each component). */
 export interface MotionUniforms {
@@ -45,6 +46,19 @@ function patch(shader: WebGLProgramParametersWithUniforms, withNormal: boolean):
   }
 }
 
+/** Shader roughness of a look: the catalogue number lifted so no creature is glossy plastic (CREATURE_SURFACE). */
+export function surfaceRoughness(r: number): number {
+  return Math.min(1, CREATURE_SURFACE.roughnessFloor + (1 - CREATURE_SURFACE.roughnessFloor) * r);
+}
+
+function patchSurface(shader: WebGLProgramParametersWithUniforms): void {
+  shader.uniforms.uSurface = { value: new Vector4(CREATURE_SURFACE.albedoVariation, 0, CREATURE_SURFACE.roughnessVariation, CREATURE_SURFACE.grainCells) };
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\n' + CREATURE_FRAG_PARS)
+    .replace('#include <color_fragment>', CREATURE_COLOR_FRAGMENT)
+    .replace('#include <roughnessmap_fragment>', CREATURE_ROUGHNESS);
+}
+
 export interface CreatureMatOptions {
   roughness: number; transparent?: boolean; opacity?: number; doubleSide?: boolean;
   /** Lies in an antlion pit: pit depth rule of shader/pitDepth.ts (pit from the instance). */
@@ -64,7 +78,7 @@ function patchPit(shader: WebGLProgramParametersWithUniforms, vertexChunk: strin
 
 export function makeCreatureMaterial(m: MotionUniforms, shared: SharedCreatureUniforms, o: CreatureMatOptions): Material {
   const mat = new MeshStandardMaterial({
-    vertexColors: true, roughness: o.roughness, metalness: 0, transparent: !!o.transparent, opacity: o.opacity ?? 1,
+    vertexColors: true, roughness: surfaceRoughness(o.roughness), metalness: 0, transparent: !!o.transparent, opacity: o.opacity ?? 1,
     depthWrite: !o.transparent,
   });
   // set after construction: passing `side: undefined` to the constructor makes three log a warning
@@ -73,6 +87,8 @@ export function makeCreatureMaterial(m: MotionUniforms, shared: SharedCreatureUn
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
     patch(shader, true);
+    // wing membranes keep their flat tint (they are transparent sheets, not a body surface)
+    if (!o.transparent) patchSurface(shader);
     if (o.pit) patchPit(shader, PIT_VERT_INSTANCE);
   };
   mat.customProgramCacheKey = () => `creature-${o.transparent ? 't' : 's'}${o.doubleSide ? 'd' : ''}${o.pit ? 'p' : ''}`;

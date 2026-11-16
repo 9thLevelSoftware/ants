@@ -3,7 +3,9 @@
 // itself (founding/handover.ts); this reads its outcome (the queen established, the lapse end tick).
 
 import type { Colony, Sim } from '@/sim/types';
-import { HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LOAD_EPS, STARVE_ALERT_GRACE_GD } from '@/sim/balance/colony';
+import {
+  HANDOVER_PROVISION_WINDOW_GD, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LOAD_EPS, STARVE_ALERT_GRACE_GD,
+} from '@/sim/balance/colony';
 import { daysToTicks } from '@/sim/time';
 import { deposit } from './stores';
 
@@ -17,11 +19,14 @@ export function handoverTick(sim: Sim, col: Colony): number {
  * After the hand-over: the queen's reserve above HANDOVER_QUEEN_KEEP_C / _P is credited to the pool as C and P
  * (booked as recycled: food from a colony member's body). What the pool cannot hold stays in the queen and is moved
  * on a later cycle, once there is room (the final sweep's seed 2 handed over with a full pool: the queen kept 9 P while
- * the larvae starved for protein). No loop: an established queen never draws her reserveP and refills her reserve
- * only up to QUEEN_FAT_CAP (= HANDOVER_QUEEN_KEEP_C). Returns the loads moved.
+ * the larvae starved for protein), within HANDOVER_PROVISION_WINDOW_GD of the hand-over; after that the queen's
+ * reserves are her own again (overwintering may fatten her). No loop inside the window either: an established queen
+ * never draws her reserveP and refills her reserve only up to QUEEN_FAT_CAP (= HANDOVER_QUEEN_KEEP_C). Returns the
+ * loads moved.
  */
 export function provisionAtHandover(sim: Sim, col: Colony): { c: number; p: number } {
-  if (handoverTick(sim, col) < 0) return { c: 0, p: 0 };
+  const end = handoverTick(sim, col);
+  if (end < 0 || sim.state.tick - end > daysToTicks(HANDOVER_PROVISION_WINDOW_GD)) return { c: 0, p: 0 };
   const q = sim.stores.ants.get(col.queenId);
   if (!q || !q.alive || !q.queen || q.queen.founding) return { c: 0, p: 0 };
   const qs = q.queen;

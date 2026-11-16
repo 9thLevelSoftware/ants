@@ -37,7 +37,7 @@ const RUMBLE_SWELL: CueSound = { ...GIANT_ONESHOTS.footsteps, files: [], synth: 
 const SPLASH: CueSound = { ...GIANT_ONESHOTS.watering, synth: 'splat', mode: 'file', fileGainDb: 0 };
 
 /** File (if any) and synth fallback of a giant loop. */
-function loopSource(kind: HumanEventKind, variant: string | null): { file: AudioFileId | null; synthId: keyof typeof RECIPES } {
+export function loopSource(kind: HumanEventKind, variant: string | null): { file: AudioFileId | null; synthId: keyof typeof RECIPES } {
   const reel = kind === 'mowing' && variant === 'reel';
   const file = kind === 'mowing' ? (reel ? SFX.lawnmower_push_loop : SFX.lawnmower_loop) : kind === 'watering' ? BED_FILES.rain_light : null;
   const synthId = kind === 'vacuum' ? 'vacuum' : kind === 'watering' ? 'hose-hiss' : reel ? 'reel-whirr' : 'engine';
@@ -112,14 +112,19 @@ export class GiantDirector {
     }
   }
 
-  /** Sim `human.impact`: footfalls thud with a sub sweep and an underground swell. */
-  impact(instId: number, kind: HumanEventKind, footprint: Vec3): void {
+  /**
+   * Sim `human.impact`: footfalls thud with a sub sweep and an underground swell; a child's shoe is a lighter thump,
+   * a car tyre a rolling thud, a hose splash a splat. Other contacts (broom strokes, drops, spills) sound through the
+   * event's own repeat or start sound.
+   */
+  impact(instId: number, kind: HumanEventKind, footprint: Vec3, contact = ''): void {
     const r = this.run(instId, kind);
     r.pos = { ...footprint };
     if (kind === 'footsteps') {
       this.shot(GIANT_ONESHOTS.footsteps, 'giant.footsteps', r.pos);
       this.shot(RUMBLE_SWELL, 'giant.rumble', r.pos);
-    }
+    } else if (kind === 'children' && contact === 'child-shoe') this.shot(GIANT_ONESHOTS.children, 'giant.children', r.pos, undefined, -4);
+    else if (kind === 'car' && contact === 'tyre') this.shot(GIANT_ONESHOTS.footsteps, 'giant.car.tyre', r.pos, undefined, -8);
   }
 
   end(instId: number): void {

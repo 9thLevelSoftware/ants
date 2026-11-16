@@ -6,7 +6,7 @@ import { dbToGain } from '../mix';
 import { BEDS, type BedHandle } from '../synth/beds';
 import { RECIPES } from '../synth/recipes';
 import type { SynthKit } from '../synth/kit';
-import { AMBIENCE, OPEN_CUTOFF_HZ } from '../tuning';
+import { AMBIENCE, LAYER_TRIM_DB, OPEN_CUTOFF_HZ } from '../tuning';
 import type { BufferBank } from '../engine/buffers';
 import { LoopPlayer } from '../engine/loopPlayer';
 import { playShot } from '../engine/shots';
@@ -15,6 +15,8 @@ import { LAYER_IDS, LAYERS, type LayerId } from './layers';
 import type { AmbienceTarget } from './matrix';
 
 const AUDIBLE = 1e-3;
+/** Linear per-layer trims (tuning LAYER_TRIM_DB). */
+const TRIM: Partial<Record<string, number>> = Object.fromEntries(Object.entries(LAYER_TRIM_DB).map(([k, v]) => [k, dbToGain(v ?? 0)]));
 
 interface Channel {
   id: LayerId;
@@ -62,7 +64,7 @@ export class AmbiencePlayer {
       let ch = this.channels.get(id);
       if (!ch && want > AUDIBLE) ch = this.open(id);
       if (!ch) continue;
-      ch.gain.gain.setTargetAtTime(want, now, tau);
+      ch.gain.gain.setTargetAtTime(want * (TRIM[id] ?? 1), now, tau);
       if (want > AUDIBLE) ch.silentSince = Infinity;
       else if (ch.silentSince === Infinity) ch.silentSince = now;
       else if (now - ch.silentSince > AMBIENCE.releaseAfterSilentS) { this.close(ch, now); continue; }

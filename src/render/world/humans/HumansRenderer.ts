@@ -4,7 +4,7 @@
 // comes down. Reads the sim, never writes it. Pools meshes per actor kind; nothing is allocated per frame in steady
 // state except pool growth.
 
-import { BoxGeometry, Color, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3, type Scene } from 'three';
+import { BoxGeometry, Color, DirectionalLight, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3, type Scene } from 'three';
 import type { FrameInfo, RenderContext, SubRenderer } from '@/render';
 import type { QualityPreset } from '@/render/app';
 import type { Sim } from '@/sim/types';
@@ -21,6 +21,8 @@ import {
 } from './geometry';
 import { buildCar, buildHoseNozzle, buildMower, buildSprinkler } from './machines';
 import { planTime, samplePose, type ActorPose } from './pose';
+import { newSunBlob, sunBlob } from './sunShadow';
+import { SUN_INTENSITY } from '@/render/world/lighting/constants';
 
 interface Visual {
   root: Group;
@@ -66,6 +68,11 @@ export class HumansRenderer implements SubRenderer {
   private sim: Sim | null = null;
   private scene: Scene | null = null;
   private shadowsOn = false;
+  /** The scene's key light (sun by day, moon by night): the blob shadows lean away from it. */
+  private key: DirectionalLight | null = null;
+  private readonly keyDir = new Vector3(0.3, 1, 0.2).normalize();
+  private keyLight = 1;
+  private readonly blob = newSunBlob();
   private pose: ActorPose = { x: 0, y: 0, z: 0, yaw: 0, lift: 0, u: 0 };
   private live = new WeakMap<ActorKey, number>();
   private counts = { runs: 0, actors: 0, drops: 0 };
@@ -138,7 +145,9 @@ export class HumansRenderer implements SubRenderer {
     const v = pool[n];
     v.root.visible = true;
     v.shadow.visible = true;
-    v.root.traverse((o) => { o.castShadow = this.shadowsOn && (o as Mesh).isMesh && o.castShadow !== false; });
+    // a broom or vacuum head is a comb of bristles: its shadow-map shadow is a hard edged rectangle, so the soft blob stands for it
+    const softOnly = key === 'broom' || key === 'nozzle';
+    v.root.traverse((o) => { o.castShadow = this.shadowsOn && !softOnly && (o as Mesh).isMesh && o.castShadow !== false; });
     return v;
   }
 
@@ -163,6 +172,7 @@ export class HumansRenderer implements SubRenderer {
     this.dropCount = 0;
     this.chipCount = 0;
     if (!sim || !this.mt) return;
+    this.readKeyLight();
     for (const run of sim.state.env.human.active) {
       const inst = run.inst;
       if (!inst) continue;
@@ -179,6 +189,17 @@ export class HumansRenderer implements SubRenderer {
       if (this.chips.instanceColor) this.chips.instanceColor.needsUpdate = true;
     }
     this.counts.drops = this.dropCount;
+  }
+
+  /** Direction to the key light and its strength relative to full sun (a settle frame reads the same light). */
+  private readKeyLight(): void {
+    if (!this.key || !this.key.parent) this.key = (this.scene?.getObjectByName('world:key-light') as DirectionalLight | undefined) ?? null;
+    const k = this.key;
+    if (!k) return;
+    this.keyDir.setFromMatrixPosition(k.matrixWorld).sub(tmpV.setFromMatrixPosition(k.target.matrixWorld));
+    if (this.keyDir.lengthSq() < 1e-9) this.keyDir.set(0.3, 1, 0.2);
+    this.keyDir.normalize();
+    this.keyLight = k.intensity / SUN_INTENSITY;
   }
 
   private drawActor(sim: Sim, plan: HumanPlan, a: Actor, t: number): void {
@@ -247,12 +268,13 @@ export class HumansRenderer implements SubRenderer {
     // shadow: wide and faint while high, small and dark when it lands
     const lift = Math.max(0, p.lift);
     const sh = v.shadow;
-    const rad = v.shadowR * (1 + lift / 700);
-    sh.position.set(p.x, ground + 0.4, p.z);
-    sh.scale.set(rad, 1, rad * (a.kind === 'shoe' || a.kind === 'child-shoe' || a.kind === 'broom' || a.kind === 'nozzle' || a.kind === 'car' ? 0.55 : 1));
-    sh.quaternion.setFromAxisAngle(yAxis, -p.yaw);
-    sh.visible = rad > 0.5;
-    (sh.material as MeshBasicMaterial).opacity = SHADOW_MAX_OPACITY * Math.max(0.2, 1 - lift / SHADOW_FADE_LIFT_MM);
+    const thin = a.kind === 'shoe' || a.kind === 'child-shoe' || a.kind === 'broom' || a.kind === 'nozzle' || a.kind === 'car';
+    const b = sunBlob(this.keyDir.x, this.keyDir.y, this.keyDir.z, this.keyLight, v.shadowR, thin ? 0.55 : 1, lift, this.blob);
+    sh.position.set(p.x + b.dx, ground + 0.4, p.z + b.dz);
+    sh.scale.set(b.major, 1, b.minor);
+    sh.quaternion.setFromAxisAngle(yAxis, b.yaw);
+    sh.visible = b.major > 0.5;
+    (sh.material as MeshBasicMaterial).opacity = SHADOW_MAX_OPACITY * b.strength * Math.max(0.2, 1 - lift / SHADOW_FADE_LIFT_MM);
   }
 
   /** Flying bits by actor kind: clippings thrown sideways from the deck, grit puffed from under a sole on landing,

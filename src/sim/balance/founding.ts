@@ -262,6 +262,12 @@ export const REOPEN_FACE_STEP_BU = 0.5;
 export const REOPEN_FACE_INSIDE_BU = 0.75;
 /** A plug laid deep in the throat: the face is searched around this many of its voxels farthest from the opening. */
 export const REOPEN_FACE_PLUG_TRIES = 4;
+/**
+ * A plug aimed at the throat's inner end reaches past the throat sphere by up to its plug radius (PLUG_RADIUS_BU
+ * 1.2): the reopening looks for its voxels this far past the opening's rim, BU (THROAT_BU 3 + the plug radius +
+ * one voxel).
+ */
+export const REOPEN_DEEP_REACH_BU = 4.7;
 export const REOPEN_PLAN_PRIORITY = 'urgent' as const;
 /**
  * After the hand-over a new founding plan is asked for (when none is left) every REOPEN_CHECK_TICKS ticks: the

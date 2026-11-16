@@ -4,6 +4,7 @@
 // focus, orbiting it, the look grade, guides, hidden outlines, the post chain's depth of field, exposure and vignette,
 // the overlays the player may toggle, and the capture with its delivery routes. It owns no simulation state and never
 // advances time. The panel (src/ui/screens/photo) talks to it through `PhotoActions`.
+import { audioUi } from '@/audio';
 import { vec3 } from '@/core';
 import type { InputState } from '@/input';
 import type { PerspectiveCamera } from 'three';
@@ -380,6 +381,7 @@ export class PhotoMode implements PhotoActions {
     };
     this.preview = { info, ui };
     this.lastCapture = info;
+    audioUi('shutter'); // GDD 08: a soft shutter click; silent when sound is off or refused
     return info;
   }
 

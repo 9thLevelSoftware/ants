@@ -199,7 +199,10 @@ export function createDebugApi(game: Game) {
       prompts: () => plain(hudHook()?.prompts?.() ?? null),
       inspect: (ref: unknown) => plain(hudHook()?.inspect?.(ref) ?? null),
       /** GDD 08 App. B: the audio status and recent cues (src/audio). */
-      audio: { status: () => game.audio.status(), cueLog: () => plain(game.audio.cueLog()) },
+      audio: {
+        status: () => game.audio.status(), cueLog: () => plain(game.audio.cueLog()), loudness: () => plain(game.audio.loudness()),
+        statusDetail: () => game.audio.statusDetail(), test: (bus: Parameters<typeof game.audio.testBus>[0]) => game.audio.testBus(bus), enable: () => game.audio.enable(),
+      },
     },
     /** Which back end the asset loader would use for a path ('embedded' in the portable build). */
     assets: { backendFor: (path: string) => game.assets.backendFor(path) },

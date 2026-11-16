@@ -9,16 +9,20 @@
 // as an exit. So after the hand-over `reopenTick` keeps one founding plan at a time going: the passage first, then
 // a short plan through each plug remnant, until the entrance is `open` (see reopenTick for how long it watches).
 // Plug voxels no plan can take are unplugged by the nest's own unplug function (`unplugRemnants`, a local adapter).
+// The seal guide aims its plugs at the throat's narrowest layer (sealPlan.ts), often its inner end beside the cell:
+// the nest refuses every founding plan there (`too-close` to the cell), so such a plug is unplugged the same way,
+// reaching past the throat sphere where the plug does (`unplugDeep`, viab-founding).
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { DigPlan, Entrance, Nest, Sim } from '@/sim/types';
 import { VoxelFlag } from '@/sim/types';
 import { THROAT_BU } from '@/sim/balance/nest';
 import {
-  REOPEN_CHECK_TICKS, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
+  REOPEN_CHECK_TICKS, REOPEN_DEEP_REACH_BU, REOPEN_FACE_INSIDE_BU, REOPEN_FACE_PLUG_TRIES, REOPEN_FACE_SEARCH_BU, REOPEN_FACE_STEP_BU, REOPEN_MAX_GD, REOPEN_PAST_BU,
   REOPEN_UNPLUG_BITES, REOPEN_PLAN_PRIORITY, REOPEN_PLAN_STALL_GD,
 } from '@/sim/balance/founding';
 import { cancelPlan, createPlan, unsealEntrance, voxelAt } from '@/sim/nest';
+import { unplugAt } from '@/sim/nest/entrances';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { foundingNest, openingOf } from './access';
 import { cavityEntrances } from './dig';
@@ -78,13 +82,14 @@ export function plugInnerFace(sim: Sim, nest: Nest, e: Entrance): Vec3 | null {
 }
 
 /**
- * Closed plug voxels left in the throat of e (the nest's throat sphere), nearest to the opening first. `soil`: the
+ * Closed plug voxels left in the throat of e (the nest's throat sphere; `reachBu` past the opening's rim instead of
+ * THROAT_BU for a wider search), nearest to the opening first. `soil`: the
  * ones inside the ground, which a dig can remove; `ghost`: carve samples at or above the ground surface (the plug
  * fill reached them), already free space in the field, so no dig bite finds anything there, yet the nest still
  * counts them as plug (nest defect, see the founding report).
  */
-export function plugRemnants(sim: Sim, e: Entrance, which: 'soil' | 'ghost' | 'all' = 'all'): Vec3[] {
-  const v = sim.carve.voxel, R = e.radius + THROAT_BU * sim.world.bu;
+export function plugRemnants(sim: Sim, e: Entrance, which: 'soil' | 'ghost' | 'all' = 'all', reachBu = THROAT_BU): Vec3[] {
+  const v = sim.carve.voxel, R = e.radius + reachBu * sim.world.bu;
   const out: Vec3[] = [];
   const p = { x: 0, y: 0, z: 0 };
   const i0 = Math.floor((e.pos.x - R) / v), i1 = Math.ceil((e.pos.x + R) / v);
@@ -117,6 +122,16 @@ function shaftPlan(sim: Sim, nest: Nest, from: Vec3, to: Vec3): number {
 function passagePlan(sim: Sim, nest: Nest, e: Entrance): number {
   const face = plugInnerFace(sim, nest, e);
   return face ? shaftPlan(sim, nest, face, e.pos) : -1;
+}
+
+/**
+ * The dig through a plug laid deep in the throat (the nest refuses a shaft from its inner face all the way to the
+ * opening: it runs beside the open outer throat, `too-close`): from the inner face through the plug voxel nearest
+ * the opening (REOPEN_PAST_BU beyond it), short enough to stay within the anchor's connection reach; plan id or -1.
+ */
+function deepPlugPlan(sim: Sim, nest: Nest, e: Entrance): number {
+  const face = plugInnerFace(sim, nest, e), outer = plugRemnants(sim, e, 'soil')[0];
+  return face && outer ? shaftPlan(sim, nest, face, outer) : -1;
 }
 
 /**
@@ -165,6 +180,23 @@ function unplugRemnants(sim: Sim, e: Entrance): boolean {
   let any = false;
   for (let n = 0; n < REOPEN_UNPLUG_BITES && plugRemnants(sim, e).length > 0; n++) {
     unsealEntrance(sim, e.id, -1);
+    any = true;
+  }
+  return any;
+}
+
+/**
+ * Local adapter for a plug laid at the throat's inner end, which no founding plan can take and which reaches past
+ * the throat sphere (by up to its plug radius): its voxels within REOPEN_DEEP_REACH_BU of the opening's rim are
+ * unplugged with the nest's own unseal bite (`unplugAt`), the deepest first, as the workers would from the cell
+ * side; at most REOPEN_UNPLUG_BITES per check. True when it bit.
+ */
+function unplugDeep(sim: Sim, e: Entrance): boolean {
+  let any = false;
+  for (let n = 0; n < REOPEN_UNPLUG_BITES; n++) {
+    const rem = plugRemnants(sim, e, 'soil', REOPEN_DEEP_REACH_BU);
+    if (rem.length === 0) break;
+    unplugAt(sim, e.id, rem[rem.length - 1]);
     any = true;
   }
   return any;
@@ -225,8 +257,12 @@ export function reopenTick(sim: Sim): number {
     if (e.status === 'sealing' && e.plugVoxelCount > 0) unplugRemnants(sim, e);
     if (e.status === 'open') return -1;
     const remnant = e.status === 'sealing' && e.plugVoxelCount > 0;
-    const id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
+    let id = remnant ? remnantPlan(sim, nest, e) : early ? passagePlan(sim, nest, e) : -1;
+    if (id < 0 && early && !remnant) id = deepPlugPlan(sim, nest, e);
     if (id >= 0) return id;
+    // no plan at all: the plug is unplugged from the cell side (local adapter); its first bite marks the entrance
+    // `reopening`, which also sends the workers' own unplugging (the dig behaviour's `unseal-entrance`) to it
+    if (early && !remnant && (unplugRemnants(sim, e) || unplugDeep(sim, e))) return -1;
   }
   return -1;
 }

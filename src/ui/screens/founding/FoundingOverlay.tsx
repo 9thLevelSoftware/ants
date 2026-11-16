@@ -48,15 +48,20 @@ function useScriptKeys(): void {
   }, []);
 }
 
+/** Where the opening's overlay is drawn: in play, paused and on the failure epitaph, never in photo view (GDD 08 §7.9). */
+export function foundingShown(screen: string, view: string): boolean {
+  if (view === 'photo') return false;
+  return screen === 'playing' || screen === 'paused' || screen === 'epitaph';
+}
+
 export function FoundingOverlay() {
   useEffect(installStyles, []);
   useScriptKeys();
   const ui = foundingUi.value;
   const a = foundingActions.value;
   const screen = snapshot.value.screen;
-  // photo mode shows the world alone (GDD 08 §7.9): the opening's panels are not drawn at all, not merely hidden
-  if (snapshot.value.view === 'photo') return null;
-  if (!ui || !a || (screen !== 'playing' && screen !== 'paused' && screen !== 'epitaph')) return null;
+  // photo mode shows the world alone: the opening's panels are not rendered at all (no CSS hiding)
+  if (!ui || !a || !foundingShown(screen, snapshot.value.view)) return null;
   if (screen === 'epitaph' && !ui.failure) return null;
   const reduced = ui.lapse?.reducedMotion ?? false;
   const p = ui.phase;

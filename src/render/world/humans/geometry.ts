@@ -8,7 +8,7 @@ import {
   BoxGeometry, BufferAttribute, CircleGeometry, CylinderGeometry, ExtrudeGeometry, Group, IcosahedronGeometry, Mesh, PlaneGeometry,
   Shape, SphereGeometry, TorusGeometry, type BufferGeometry, type Material,
 } from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HumanMaterials } from './materials';
 
 /** Seeded jitter for lugs and bristles (no Math.random in deterministic screenshots). */
@@ -41,7 +41,7 @@ function mesh(g: BufferGeometry, m: Material, shadow = true): Mesh {
 /** Shoe outline in the XZ plane (x forward from the heel at -L/2; width varies heel - waist - ball - toe). */
 function soleShape(L: number, W: number): Shape {
   const s = new Shape();
-  const n = 28;
+  const n = 20;
   const half = (u: number): number => {
     // u: 0 heel .. 1 toe
     const heel = 0.36 + 0.14 * Math.sin(Math.min(1, u / 0.2) * Math.PI / 2);
@@ -59,10 +59,18 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
   const g = new Group();
   const shape = soleShape(L, W);
   const soleH = L * 0.1;
-  const sole = new ExtrudeGeometry(shape, { depth: soleH, bevelEnabled: true, bevelThickness: 4, bevelSize: 3, bevelSegments: 2, curveSegments: 6 });
+  // the outsole: dark rubber with a rounded edge; ExtrudeGeometry is not indexed, so the normals are rebuilt with a
+  // crease angle (smooth round corners, a sharp edge only where the outline really turns), never one flat facet per quad
+  const sole = new ExtrudeGeometry(shape, { depth: soleH, bevelEnabled: true, bevelThickness: 5, bevelSize: 4, bevelSegments: 3, curveSegments: 4 });
   sole.rotateX(Math.PI / 2); // shape XY -> XZ, extrusion down (-Y)
   sole.translate(0, soleH + 4, 0);
-  g.add(mesh(sole, mt.rubber));
+  g.add(mesh(toCreasedNormals(sole, 0.9), mt.rubber));
+  // the midsole welt: a paler, rounded band that runs round the whole sole edge where the upper meets it
+  const weltH = L * 0.035;
+  const welt = new ExtrudeGeometry(soleShape(L * 0.985, W * 0.985), { depth: weltH, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2.5, bevelSegments: 2, curveSegments: 4 });
+  welt.rotateX(Math.PI / 2);
+  welt.translate(0, soleH + 4 + weltH + 3, 0);
+  g.add(mesh(toCreasedNormals(welt, 0.9), mt.midsole));
   // lugs under the sole: what the ant sees coming down
   const lugs: BufferGeometry[] = [];
   const lx = L / 16, lz = W / 7;
@@ -87,7 +95,7 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
     const k = Math.min(1, Math.max(0, (u - 0.35) / 0.6));
     return L * (0.3 - 0.19 * k * k * (3 - 2 * k));
   };
-  const up = new ExtrudeGeometry(soleShape(L * 0.97, W * 0.94), { depth: 1, bevelEnabled: true, bevelThickness: 0.35, bevelSize: W * 0.1, bevelSegments: 4, curveSegments: 8 });
+  const up = new ExtrudeGeometry(soleShape(L * 0.97, W * 0.94), { depth: 1, bevelEnabled: true, bevelThickness: 0.35, bevelSize: W * 0.1, bevelSegments: 4, curveSegments: 4 });
   up.rotateX(-Math.PI / 2);
   const pu = up.getAttribute('position');
   for (let v = 0; v < pu.count; v++) {
@@ -96,8 +104,7 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
     pu.setY(v, soleH + 2 + top * height(x));
     pu.setZ(v, pu.getZ(v) * (1 - 0.3 * top * top));
   }
-  up.computeVertexNormals();
-  g.add(mesh(up, upperMat));
+  g.add(mesh(toCreasedNormals(up, 1.1), upperMat));
   // heel collar (the opening) and laces down the instep
   const ux = -L * 0.2;
   const collar = new TorusGeometry(W * 0.3, W * 0.06, 10, 28);
@@ -116,12 +123,58 @@ export function buildShoe(mt: HumanMaterials, L: number, W: number, child: boole
   const stripe = new BoxGeometry(L * 0.5, 6, W * 0.96);
   stripe.translate(L * 0.05, soleH + 10, 0);
   g.add(mesh(stripe, mt.lace));
-  // trouser hem around the ankle, fading out a short way up (no leg is drawn)
+  // trouser leg: a loose fabric tube, matte, with folds, fading out a short way up (the rest of the person is out of
+  // the ant's sight and out of focus)
   const hemY = soleH + L * 0.28;
-  const trouser = new CylinderGeometry(W * 0.62, W * 0.7, L * 1.4, 28, 8, true);
-  trouser.translate(-L * 0.2, hemY + L * 0.7, 0);
-  fadeUp(trouser, hemY + L * 0.15, hemY + L * 1.25);
+  const trouser = buildTrouserLeg(W * 0.62, W * 0.7, L * 1.4);
+  trouser.translate(-L * 0.2, hemY, 0);
+  fadeFolds(trouser, hemY + L * 0.15, hemY + L * 1.25);
   g.add(mesh(trouser, mt.trouser, false));
+  // the turned-up cuff, a thicker ring of cloth where the hem is
+  const cuff = new TorusGeometry(W * 0.66, W * 0.045, 5, 20);
+  cuff.rotateX(Math.PI / 2);
+  cuff.translate(-L * 0.2, hemY + 4, 0);
+  g.add(mesh(cuff, mt.trouserCuff, false));
+  return g;
+}
+
+/**
+ * A trouser leg of height `h` standing on y = 0 (hem) with radius `r0` at the hem and `r1` at the top: an open tube
+ * whose cloth hangs in vertical folds (a few broad pleats plus finer wrinkles that grow towards the hem, where the
+ * cloth gathers and breaks over the shoe), with horizontal creases near the hem. Vertex colour rgb darkens inside the
+ * folds (the cloth self-shadows in a way the lighting cannot show at this size); alpha is set by fadeFolds().
+ */
+export function buildTrouserLeg(r0: number, r1: number, h: number): BufferGeometry {
+  const radial = 32, rows = 7;
+  const g = new CylinderGeometry(r1, r0, h, radial, rows, true);
+  g.translate(0, h / 2, 0);
+  const p = g.getAttribute('position');
+  const rgba = new Float32Array(p.count * 4);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const a = Math.atan2(z, x), t = y / h; // 0 hem .. 1 top
+    const gather = (1 - t) * (1 - t);
+    const broad = Math.sin(a * 5 + 0.7 + t * 1.6) * 0.045;
+    const fine = Math.sin(a * 13 + t * 5.0) * 0.022 * (0.4 + gather * 1.6);
+    const crease = Math.max(0, Math.sin(y * 0.11 + Math.sin(a * 3) * 1.3)) * 0.05 * gather;
+    const k = 1 + broad + fine - crease;
+    p.setX(i, x * k); p.setZ(i, z * k);
+    const fold = broad + fine - crease; // negative: inside a fold
+    const shade = Math.min(1, Math.max(0.55, 0.92 + fold * 4.5));
+    rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = shade; rgba[i * 4 + 3] = 1;
+  }
+  g.setAttribute('color', new BufferAttribute(rgba, 4));
+  return toCreasedNormals(g, 1.4);
+}
+
+/** Alpha of a vertex-coloured (rgba) mesh: 1 below y0 falling to 0 at y1, keeping its rgb (folds). */
+export function fadeFolds(g: BufferGeometry, y0: number, y1: number): BufferGeometry {
+  const p = g.getAttribute('position'), c = g.getAttribute('color');
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    const a = y <= y0 ? 1 : y >= y1 ? 0 : 1 - (y - y0) / (y1 - y0);
+    c.setW(i, a * a * (3 - 2 * a));
+  }
   return g;
 }
 

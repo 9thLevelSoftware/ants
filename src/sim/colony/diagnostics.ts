@@ -18,7 +18,7 @@ import { referenceDevRate } from './brood';
 import { rainIntensityOf, surfaceActivityOf } from './envAdapter';
 import { meanUnloadWaitS, popOf } from './population';
 import { daysOfStock, needRates, targetDays } from './needs';
-import { queenOf } from './queen';
+import { queenOf, winterReserveShort } from './queen';
 import { GROUP_TASKS, knownCapacity } from './allocation';
 import { type FactorIn, pct, publishWithHysteresis, statusOf, weighFactors } from './diagFactors';
 import { colonyAlert, colonyClearAlert } from './alerts';
@@ -194,7 +194,10 @@ function layingDiag(sim: Sim, col: Colony): Diagnostic | null {
     { cause: 'temperature', f: temp, detail: 'royal chamber temperature' },
     { cause: 'queen-health', f: health, detail: `health ${pct(q.hp / q.maxHp)}` },
     { cause: 'cap', f: cap, detail: 'colony size cap' },
-    { cause: 'protein-supply', f: residual, detail: `${actual.toFixed(1)} of ${potential.toFixed(1)} eggs per day`, diagId: 'diag-food-intake-p' },
+    // a small colony keeping its carbohydrate for the winter withholds laying protein (queen.ts winterReserveShort)
+    winterReserveShort(sim, col, censusOf(sim, col.id).workers)
+      ? { cause: 'winter-reserve', f: residual, detail: `${actual.toFixed(1)} of ${potential.toFixed(1)} eggs per day: carbohydrate kept for the winter`, diagId: 'diag-stores' }
+      : { cause: 'protein-supply', f: residual, detail: `${actual.toFixed(1)} of ${potential.toFixed(1)} eggs per day`, diagId: 'diag-food-intake-p' },
     { cause: 'queen-care', f: care, detail: `${carers} of ${carersTarget} attendants` },
   ];
   const value = ref > 0 ? actual / ref : 0;

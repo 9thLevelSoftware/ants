@@ -46,7 +46,8 @@ export function judgeViable(r: LifeReport): ViableVerdict {
   const add = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
   const last = r.days[r.days.length - 1]?.state;
   const handed = r.founding.phase === 'handover' || r.founding.phase === 'done';
-  add('hand-over', handed, `${r.founding.phase} after ${r.founding.gd} gd`);
+  // a forced seal (life.ts fallback when the real founding fails) still judges the economy; the detail says so
+  add('hand-over', handed, `${r.founding.phase} after ${r.founding.gd} gd${r.founding.forcedSeal ? ` (forced seal; real founding ${r.founding.forcedSeal})` : ''}`);
   if (r.options.untilWinter) add('winter reached', last?.season === 'winter', `ended in ${last?.season ?? '-'} on day ${last?.day ?? '-'}`);
   add('queen alive', !!last?.queenAlive, last?.queenAlive ? 'alive' : 'dead');
   const w0 = r.founding.workers, w1 = last?.workers ?? 0;

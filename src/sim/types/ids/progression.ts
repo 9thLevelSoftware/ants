@@ -141,6 +141,7 @@ export const HINT_IDS = [
   'hint-cycle', 'hint-observer', 'hint-pickup', 'hint-trail', 'hint-share', 'hint-colony-view', 'hint-marker',
   'hint-speed', 'hint-scent', 'hint-why', 'hint-directives',
   'hint-reserves', // GDD 06 opening (former p-reserves)
+  'hint-photo', 'hint-overlay', // onboarding task (additive): photo mode (F2) and the overlay cycle (O), GDD 08 §5.4 / §10
 ] as const;
 export type HintId = (typeof HINT_IDS)[number];
 export const HINT_STATES = ['pending', 'shown', 'learned', 'dismissed'] as const;

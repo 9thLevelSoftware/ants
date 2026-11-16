@@ -8,7 +8,7 @@ import { SYNTH_ONESHOTS } from './synth/ids';
 import { ALL_BED_IDS, ALL_SFX_IDS } from './assetIds';
 import { CrowdMeter, VoiceTable } from './voices';
 import { AlertSoundGate } from './alertGate';
-import { BUS_DEFAULT_DB, DISTANCE } from './tuning';
+import { BUS_DEFAULT_DB, DISTANCE, MASTER_TRIM_DB } from './tuning';
 import manifest from '../../public/assets/manifest.json';
 
 const DEFAULTS = { master: 1, ambience: 0.8, effects: 0.9, giants: 0.9, ui: 0.6, music: 0.5, muted: false, musicMode: 'sparse' as const };
@@ -29,9 +29,9 @@ describe('bus maths (GDD 08 §13.2)', () => {
   });
   it('bus gains: default dB x slider law, mute and music off', () => {
     const g = busGains(DEFAULTS);
-    expect(gainToDb(g.master)).toBeCloseTo(0, 9);
+    expect(gainToDb(g.master)).toBeCloseTo(MASTER_TRIM_DB, 9);
     expect(g.ambience).toBeCloseTo(dbToGain(BUS_DEFAULT_DB.ambience) * 0.64, 9);
-    expect(gainToDb(g.ui)).toBeCloseTo(-14 + 20 * Math.log10(0.36), 9);
+    expect(gainToDb(g.ui)).toBeCloseTo(BUS_DEFAULT_DB.ui + 20 * Math.log10(0.36), 9);
     expect(busGains({ ...DEFAULTS, muted: true }).master).toBe(0);
     expect(busGains({ ...DEFAULTS, musicMode: 'off' }).music).toBe(0);
     expect(busGains({ ...DEFAULTS, effects: 0 }).effects).toBe(0);

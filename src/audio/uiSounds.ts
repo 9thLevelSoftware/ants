@@ -11,7 +11,7 @@ import { RECIPES } from './synth/recipes';
 import type { CueLog } from './engine/cueLog';
 
 export const UI_SOUND_IDS = [
-  'click', 'click-secondary', 'tab', 'hover', 'toggle', 'page', 'alert-notice', 'alert-warning', 'alert-critical', 'milestone',
+  'click', 'click-secondary', 'tab', 'hover', 'toggle', 'page', 'alert-notice', 'alert-warning', 'alert-critical', 'milestone', 'shutter',
 ] as const;
 export type UiSoundId = (typeof UI_SOUND_IDS)[number];
 
@@ -31,6 +31,7 @@ export const UI_SOUNDS: Record<UiSoundId, CueSound> = {
   'alert-warning': U({ synth: 'alert-warning', mode: 'synth', gainDb: -4 }),
   'alert-critical': U({ synth: 'alert-critical', mode: 'synth', gainDb: -2 }),
   'milestone': U({ synth: 'milestone-motif', mode: 'synth', gainDb: -6 }),
+  'shutter': U({ synth: 'shutter-click', mode: 'synth', gainDb: -4 }),
 };
 
 export class UiSounds {

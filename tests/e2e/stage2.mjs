@@ -5,10 +5,14 @@
 // everything on. Every screenshot must be looked at.
 //   node tools/harness/play.mjs --root . --query "test=1&seed=1&quality=high&autostart=1" --script tests/e2e/stage2.mjs \
 //        --out test-output/stage2 --script-timeout 2400000 --timeout 240000
+// rainlook / comfortlook / overlaylook are the screenshots of task stage2-look-fix (rain by day and night from the observer
+// and possession cameras, the three spider comfort looks at two distances, the moisture and temperature overlays in dry
+// and wet weather); they add pictures and checks, no existing assertion was changed.
+// STAGE2_MACHINE=sweeping / STAGE2_RAINLOOK=night narrow those sections (long runs under load).
 // STAGE2_ONLY=creatures,herd,...: run only these sections (setup always runs). STAGE2_SOFT=1: a failing section is
 // recorded in result.failures instead of failing the run. The opening is skipped with cheat.completeFounding (the
 // real opening is another task's).
-const SECTIONS = ['creatures', 'herd', 'comfort', 'scent', 'overlays', 'machine', 'rain', 'footsteps', 'perf'];
+const SECTIONS = ['creatures', 'herd', 'comfort', 'scent', 'overlays', 'machine', 'rain', 'footsteps', 'rainlook', 'comfortlook', 'overlaylook', 'humanlook', 'birdlook', 'perf'];
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -353,7 +357,8 @@ export default async ({ page, shot, log }) => {
     const siteKinds = { mowing: ['lawn-mown'], sweeping: ['patio', 'kerb-strip', 'interior-floor'] };
     const near = (r) => Math.hypot((r.x0 + r.x1) / 2 - ent.x, (r.z0 + r.z1) / 2 - ent.z);
     result.checks.humanSites = sites.map((h) => h.kind);
-    for (const kind of ['mowing', 'sweeping']) {
+    // STAGE2_MACHINE=sweeping picks the broom alone (the mower is the default first choice and ends the loop)
+    for (const kind of process.env.STAGE2_MACHINE ? process.env.STAGE2_MACHINE.split(',') : ['mowing', 'sweeping']) {
       const site = sites.filter((h) => siteKinds[kind].includes(h.kind)).sort((a, b) => near(a.rect) - near(b.rect))[0];
       if (!site) { finding(`no ${siteKinds[kind].join('/')} site in this world for ${kind}`); continue; }
       const at = { x: (site.rect.x0 + site.rect.x1) / 2, y: 0, z: (site.rect.z0 + site.rect.z1) / 2 };
@@ -476,6 +481,155 @@ export default async ({ page, shot, log }) => {
     await g(() => window.__game.camera.set('observer'));
     await step(1);
     return { actors, tremors: tremors - t0 };
+  });
+
+
+  // ---- rain at every camera distance, day and night (task stage2-look-fix) --------------------------------------
+  /** Sets the clock to `hour` (0..24) of the next game day (calendar ticks, 250 per hour). */
+  const setClock = async (hour) => {
+    const cal = await sim((sm) => sm.state.env.calendar.startTick + sm.state.tick);
+    await cheat('setTime', (Math.floor(cal / 6000) + 1) * 6000 + Math.round(hour * 250));
+    await step(5);
+  };
+  await section('rainlook', async () => {
+    const out = {};
+    const spot = (await openGround(12, 0.4)) ?? { x: ent.x + 12 * bu, y: ent.y, z: ent.z };
+    // STAGE2_RAINLOOK=night runs one time of day only
+    const times = [['day', 12], ['night', 22]].filter(([n]) => !process.env.STAGE2_RAINLOOK || process.env.STAGE2_RAINLOOK.split(',').includes(n));
+    for (const [name, hour] of times) {
+      await cheat('setWeather', 'clear');
+      await setClock(hour);
+      await cheat('setWeatherClass', 'rain', 'downpour');
+      let wx = null;
+      for (let i = 0; i < 6; i++) { await step(100); wx = await q('weather', { x: ent.x, z: ent.z }); if (wx.rainRateMmH > 0) break; }
+      expect(wx.rainRateMmH > 0, `no rain for the ${name} shots`, wx);
+      const ant = await spawnWorker({ x: spot.x + 3 * bu, y: spot.y, z: spot.z });
+      await step(2);
+      // observer height
+      await look(spot, 22, 20, 200);
+      await pic(`10-rain-${name}-observer`);
+      // a camera 7 mm above the ground, 1.8 body lengths from the worker (the crevice end of the possession range)
+      const wpos = (await q('ants')).find((a) => a.id === ant.id)?.pos ?? spot;
+      await g(([p, l]) => window.__game.camera.setPose(p, l), [{ x: wpos.x + 2.5 * bu, y: wpos.y + 1.8 * bu, z: wpos.z + 5 * bu }, wpos]);
+      await pic(`10-rain-${name}-crevice`);
+      // possession (the real ant-height camera)
+      await g((id) => window.__game.possess(id), ant.id);
+      await step(2);
+      await g(() => window.__game.renderFrame({ settle: 2 }));
+      await pic(`10-rain-${name}-possess`);
+      const st = await g(() => window.__game.perf().renderers.weather);
+      expect(st.streaks > 0, `no rain streaks drawn in the ${name} possession view`, st);
+      out[name] = { streaks: st.streaks, splashes: st.splashes, ripples: st.ripples };
+      await g(() => { window.__game.release(); window.__game.camera.set('observer'); });
+      await step(1);
+    }
+    await cheat('setWeather', 'clear');
+    return out;
+  });
+
+  // ---- the three spider comfort looks side by side, at observer and possession distance ---------------------------
+  await section('comfortlook', async () => {
+    await cheat('setWeather', 'clear');
+    await setClock(12);
+    const spot = await openGround(48, 5.6);
+    expect(spot, 'no open ground for the comfort row');
+    const sp = await spawnCreature('wolf-spider', spot);
+    expect(sp, 'no wolf spider');
+    await spawnWorker({ x: spot.x + 4 * bu, y: spot.y, z: spot.z });
+    await step(1);
+    const at = (await q('creatures')).find((c) => c.id === sp.id)?.pos ?? spot;
+    const out = {};
+    for (const [dist, elev, tag] of [[16, 30, 'observer'], [6, 22, 'possess']]) {
+      for (const level of ['off', 'softened', 'abstract']) {
+        await g((l) => window.__game.settings({ accessibility: { spiderComfort: l } }), level);
+        await look(at, dist, elev, 215);
+        await pic(`11-comfort-${tag}-${level}`);
+        out[`${tag}-${level}`] = await g((i) => window.__game.ui.look(i), sp.id);
+      }
+    }
+    await g(() => window.__game.settings({ accessibility: { spiderComfort: 'off' } }));
+    return out;
+  });
+
+  // ---- moisture and temperature overlays in dry, uniform and wet weather ----------------------------------------
+  await section('overlaylook', async () => {
+    await cheat('setWeather', 'clear');
+    await setClock(12);
+    await step(60);
+    const centre = foodPos ? { x: (ent.x + foodPos.x) / 2, y: ent.y, z: (ent.z + foodPos.z) / 2 } : ent;
+    const out = {};
+    const shoot = async (tag) => {
+      for (const id of ['moisture', 'temperature']) {
+        await g((o) => window.__game.fx.overlay(o, true), id);
+        await look(centre, 110, 60, 210);
+        await pic(`12-overlay-${id}-${tag}-wide`);
+        await look(centre, 30, 50, 210);
+        await pic(`12-overlay-${id}-${tag}-close`);
+        const st = await g(() => window.__game.fx.stats());
+        expect(st.field > 0, `the ${id} overlay drew nothing (${tag})`, st);
+        out[`${id}-${tag}`] = { field: st.field, labels: st.labels };
+        await g((o) => window.__game.fx.overlay(o, false), id);
+      }
+    };
+    await shoot('dry');
+    await cheat('setWeatherClass', 'rain', 'downpour');
+    for (let i = 0; i < 8; i++) await step(300);
+    // the rain stops, the ground stays wet; the picture is taken in daylight again
+    await cheat('setWeather', 'clear');
+    await setClock(12);
+    await shoot('wet');
+    return out;
+  });
+
+  // ---- a footfall seen from outside: trouser leg, shoe and shadow (task stage2-look-fix) --------------------------
+  await section('humanlook', async () => {
+    await cheat('setWeather', 'clear');
+    await setClock(11);
+    const spot = await openGround(40, 2.4);
+    expect(spot, 'no open ground for the footfall');
+    const impacts = () => g(() => window.__game.events('human.impact', 60).length);
+    const n0 = await impacts();
+    const r = await cheat('triggerEvent', 'footsteps', spot, 0);
+    log('humanlook footsteps', JSON.stringify(r));
+    let fall = null;
+    // stepping only (no rendering) until a sole has landed, then draw once: cheap under load
+    for (let i = 0; i < 400 && !fall; i++) {
+      await step(4);
+      if ((await impacts()) > n0) fall = (await g(() => window.__game.events('human.impact', 1)))[0] ?? null;
+    }
+    expect(fall && fall.footprint, 'no footstep landed in 1600 ticks', fall);
+    const out = {};
+    for (const [tag, dist, elev, yaw] of [['high', 110, 18, 200], ['low', 55, 5, 160]]) {
+      await look(fall.footprint, dist, elev, yaw);
+      await pic(`13-human-shoe-${tag}`);
+      out[tag] = (await g(() => window.__game.perf().renderers.humans)).actors ?? 0;
+    }
+    expect(out.high > 0, 'the shoe was not drawn', out);
+    return out;
+  });
+
+  // ---- the bird's strike beside a prop (task stage2-look-fix) -----------------------------------------------------
+  await section('birdlook', async () => {
+    await cheat('setWeather', 'clear');
+    await setClock(13);
+    // a spot right beside the nearest prop: the sim's aim lands where the beak and head would pass through it
+    const bspot = await openGround(30, 2.2);
+    expect(bspot, 'no open ground for the bird');
+    await cheat('triggerBird', bspot, true);
+    await spawnWorker(bspot);
+    let bird = await q('bird');
+    for (let i = 0; i < 80 && bird && bird.phase !== 'landed'; i++) { await step(5); bird = await q('bird'); }
+    expect(bird, 'cheat.triggerBird started no bird event');
+    const out = { phase: bird.phase, shots: 0 };
+    // two strikes: where the beak waits above its aim, and a few ticks later at the peck
+    for (let k = 0; k < 2; k++) {
+      await look({ x: bird.pos.x, y: bird.pos.y + 20 * bu, z: bird.pos.z }, 70, 14, 230 + 40 * k);
+      await pic(`14-bird-${k}`);
+      out.shots++;
+      await step(7);
+      bird = (await q('bird')) ?? bird;
+    }
+    return out;
   });
 
   // ---- frame cost with everything on (high) ---------------------------------------------------------------------

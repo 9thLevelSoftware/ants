@@ -9,6 +9,7 @@ import { CueLog } from './engine/cueLog';
 import { CuePlayer } from './engine/cuePlayer';
 import { BufferBank, type AudioBytesSource } from './engine/buffers';
 import { MixGraph } from './engine/graph';
+import { RunningLoudness } from './loudness';
 import { GiantDirector } from './giants';
 import { newListener, type Listener } from './listener';
 import type { MixSettings } from './mix';
@@ -53,6 +54,11 @@ export class AudioRuntime {
   readonly giants: GiantDirector;
   readonly ui: UiSounds;
   readonly listener: Listener = newListener();
+  /** Live short-term loudness of the output tap (debug `loudness()`). */
+  readonly loudness: RunningLoudness;
+  private readonly tapBuf = new Float32Array(2048);
+  /** Context time until which the world buses stay open although the game is paused (Settings test sounds). */
+  private worldHoldUntil = 0;
   private readonly director: MusicDirector;
   private readonly musicRng: AudioRng;
   private target: AmbienceTarget = newAmbienceTarget();
@@ -65,6 +71,7 @@ export class AudioRuntime {
   constructor(readonly ctx: BaseAudioContext, opts: RuntimeOptions) {
     const seed = opts.seed ?? 1;
     this.graph = new MixGraph(ctx, opts.destination);
+    this.loudness = new RunningLoudness(ctx.sampleRate);
     this.kit = new SynthKit(ctx, seed);
     this.bank = new BufferBank(ctx, opts.bytes, (id) => BEDS.has(id));
     const env = { kit: this.kit, bank: this.bank };
@@ -79,12 +86,20 @@ export class AudioRuntime {
 
   applySettings(s: MixSettings & { mono?: boolean }): void { this.graph.applySettings(s); }
 
+  /** Keeps the world buses audible for `seconds` even while the game is paused (a Settings test sound). */
+  holdWorldFor(seconds: number): void {
+    this.worldHoldUntil = this.ctx.currentTime + seconds;
+    if (this.paused) { this.paused = false; this.graph.setPaused(false); }
+  }
+
   /** Decode every effect file in the background (§13.1: SFX after the context starts; beds on demand). */
   preloadEffects(): Promise<void> { return this.bank.preload(ALL_SFX_IDS); }
 
   /** Per frame. `horizonS`: how far ahead loops and grains are scheduled. */
   update(dtS: number, f: RuntimeFrame, horizonS = 0.25): void {
-    if (f.paused !== this.paused) { this.paused = f.paused; this.graph.setPaused(f.paused); }
+    // a Settings test sound plays through a paused game (Settings opens from the pause menu): the world is un-paused for it
+    const paused = f.paused && this.ctx.currentTime >= this.worldHoldUntil;
+    if (paused !== this.paused) { this.paused = paused; this.graph.setPaused(paused); }
     this.graph.setDuck(this.giants.active, f.criticalActive);
     this.ambienceAge += dtS;
     if (this.ambienceAge >= AMBIENCE.refreshS || dtS === 0) {
@@ -98,6 +113,15 @@ export class AudioRuntime {
     this.giants.update(horizonS);
     this.ui.season = f.season;
     this.updateMusic(f);
+    this.sampleLoudness(dtS);
+  }
+
+  /** Feeds the loudness monitor with the samples the output tap produced since the last frame (live contexts only). */
+  private sampleLoudness(dtS: number): void {
+    const an = this.graph.analyser;
+    if (!(dtS > 0) || typeof an.getFloatTimeDomainData !== 'function') return;
+    an.getFloatTimeDomainData(this.tapBuf);
+    this.loudness.push(this.tapBuf, dtS * this.ctx.sampleRate);
   }
 
   private updateMusic(f: RuntimeFrame): void {

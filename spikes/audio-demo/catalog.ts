@@ -49,7 +49,7 @@ const deep: Expect = (a) => need(highShare(a) <= 0.01 && lowShare(a) >= 0.9, `ex
 const GROUP_EXPECT: Record<(typeof HABITAT_GROUPS)[number], Record<number, Expect>> = {
   'woodland': { 6: bright, 13: bright, 20: bright, 2: bright },
   'open-green': { 6: bright, 13: bright, 20: bright, 2: bright },
-  'hard': { 6: lowBed, 13: lowBed, 20: lowBed, 2: all(lowBed, bright) }, // night: traffic with crickets
+  'hard': { 6: lowBed, 13: lowBed, 20: lowBed, 2: all(lowBed, atLeastHigh(0.1)) }, // night: traffic with the crickets 6 dB down (loudness retune)
   'play': { 6: bright, 13: murmur, 20: lowBed, 2: bright },
   'interior': { 6: muffled, 13: muffled, 20: muffled, 2: muffled },
 };
@@ -81,6 +81,11 @@ export const CUE_SPECS: { spec: CueSpec; expect: Expect }[] = [
   { spec: { kind: 'cue', id: 'step', material: 'gravel' }, expect: midUp },
   { spec: { kind: 'cue', id: 'wing-buzz', strength: 0.9 }, expect: any },
   { spec: { kind: 'cue', id: 'raindrop-hit', strength: 0 }, expect: midUp },
+  { spec: { kind: 'cue', id: 'bird-strike', strength: 0.8 }, expect: lowMid }, // a peck
+  // sounds the audio derives from events (eventRouter.ts)
+  { spec: { kind: 'cue', id: 'ev.strike' }, expect: midUp },
+  { spec: { kind: 'cue', id: 'ev.bird-whoosh' }, expect: lowMid },
+  { spec: { kind: 'cue', id: 'ev.gust' }, expect: lowMid },
   ...HUMAN_EVENT_KINDS.map((id) => ({ spec: { kind: 'giant', id } as CueSpec, expect: GIANT_EXPECT[id] })),
   { spec: { kind: 'giant', id: 'mowing', variant: 'reel' } as CueSpec, expect: broadband }, // push-mower whirr, no engine
   { spec: { kind: 'thunder' }, expect: lowHeavy },

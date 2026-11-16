@@ -74,9 +74,10 @@ describe('ambience matrix', () => {
   it('weather modifiers', () => {
     const rain = computeAmbience({ ...base, hour: 13, weather: 'rain', precip: 1 });
     expect(rain.layers['rain-light']).toBeCloseTo(0.8, 9);
+    expect(rain.layers['rain-heavy']).toBeCloseTo(0.5, 9); // a hard downpour adds the heavy bed
     expect(rain.layers.birds).toBeCloseTo(0.6 * 0.2, 9);
     expect(rain.grains.droplets).toBe(12);
-    const storm = computeAmbience({ ...base, hour: 13, weather: 'storm' });
+    const storm = computeAmbience({ ...base, hour: 13, weather: 'storm', precip: 1 });
     expect(storm.layers.birds).toBe(0);
     expect(storm.layers['rain-heavy']).toBe(1);
     expect(storm.layers.wind).toBeCloseTo(0.75, 9);
@@ -85,6 +86,18 @@ describe('ambience matrix', () => {
     expect(frost.grains.iceTicks).toBeGreaterThan(0);
     expect(computeAmbience({ ...base, groups: only('hard'), weather: 'heat' }).grains.heatTicks).toBeGreaterThan(0);
     expect(computeAmbience({ ...base, weather: 'heat' }).grains.heatTicks).toBe(0); // only on hard ground
+  });
+  it('the rain beds follow the precipitation read-out: onset quiet, a shower full light bed, a downpour adds the heavy one', () => {
+    const at = (precip: number, weather: 'rain' | 'storm' = 'rain') => computeAmbience({ ...base, hour: 13, weather, precip }).layers;
+    const light = [0, 0.05, 0.15, 0.3, 0.8].map((p) => at(p)['rain-light']);
+    for (let i = 1; i < light.length; i++) expect(light[i]).toBeGreaterThanOrEqual(light[i - 1]);
+    expect(light[0]).toBeGreaterThan(0); // the first drops are heard, not silence until the bell rises
+    expect(light[0]).toBeLessThan(0.2 * 0.8 + 1e-9);
+    expect(light[3]).toBeCloseTo(0.8, 6); // a shower (peak 0.3) has the table's light bed
+    expect(at(0.3)['rain-heavy']).toBe(0); // no heavy bed in a shower
+    expect(at(0.8)['rain-heavy']).toBeCloseTo(0.5, 6); // a downpour peak
+    expect(at(0.5, 'storm')['rain-heavy']).toBeCloseTo(1, 6);
+    expect(at(0, 'storm')['rain-heavy']).toBeGreaterThan(0.4);
   });
   it('underground bands: occluded surface, rumble 0.4 then 0.6, nest murmur by ant count, drips when humid', () => {
     const shallow = computeAmbience({ ...base, underground: true, depthBu: 2 });

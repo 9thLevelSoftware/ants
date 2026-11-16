@@ -11,6 +11,8 @@ export interface HintText {
   action: string | null;
   /** True when the key is held rather than tapped (`[hold F] Dig`). */
   hold?: boolean;
+  /** Key text for a hint whose key is not a rebindable action (the marker tools are Shift+1 to Shift+7). */
+  fixedKey?: string;
 }
 
 export const HINT_TEXT: Record<HintId, HintText> = {
@@ -28,12 +30,14 @@ export const HINT_TEXT: Record<HintId, HintText> = {
   'hint-trail': { verb: 'Lay a trail home', action: 'trail-toggle' },
   'hint-share': { verb: 'Share food', action: 'share-food' },
   'hint-colony-view': { verb: 'Survey the colony', action: 'colony-view' },
-  'hint-marker': { verb: 'Plan a chamber', action: null },
+  'hint-marker': { verb: 'Plan a chamber', action: null, fixedKey: 'Shift+1' },
   'hint-speed': { verb: 'Change speed', action: 'speed-1' },
   'hint-scent': { verb: 'Scent view', action: 'scent-view' },
   'hint-why': { verb: 'Why?', action: 'why-view' },
   'hint-directives': { verb: 'Colony orders', action: 'directives' },
   'hint-reserves': { verb: 'Watch the reserve gauge', action: null },
+  'hint-photo': { verb: 'Photograph the colony', action: 'photo-mode' },
+  'hint-overlay': { verb: 'Show temperature, moisture and threats', action: 'overlay-cycle' },
 };
 
 export interface AimText {

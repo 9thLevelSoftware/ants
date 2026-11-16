@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 import type { Diagnostic, Sim } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import {
-  AUTUMN_STOCK_TARGET_C_MULT, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LAYING_RELEASE_FLOOR_DAYS, SMALL_OUTSIDE_FRAC, SMALL_SCOUTS_MIN,
-  SMALL_SPONT_MULT_MAX, STARVE_ALERT_GRACE_GD,
+  AUTUMN_STOCK_TARGET_C_MULT, HANDOVER_PROVISION_WINDOW_GD, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LAYING_RELEASE_FLOOR_DAYS, SMALL_OUTSIDE_FRAC, SMALL_SCOUTS_MIN,
+  SMALL_COLONY_N, SMALL_SPONT_MULT_MAX, STARVE_ALERT_GRACE_GD, WINTER_RESERVE_FROM_D28,
 } from '@/sim/balance';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { provisionAtHandover, starvationHeld } from './handover';
@@ -15,7 +15,8 @@ import { smallColonySpontMult } from './activation';
 import { computeDemand } from './allocation/demand';
 import { censusOf } from './census';
 import { ti } from './taskIdx';
-import { layingReleaseShare, queenProteinCredit, queenWantsFood } from './queen';
+import { layingProteinPermitted, layingReleaseShare, queenProteinCredit, queenWantsFood, winterReserveShort } from './queen';
+import { setClimateOverride } from './envAdapter';
 import { feedFromCrop, poolSpace } from './stores';
 import { publishWithHysteresis } from './diagFactors';
 import { SEASON_STOCK_C_KEY, daysOfStock, needRates, targetDays } from './needs';
@@ -29,7 +30,10 @@ function handedOver(reserveC: number, reserveP: number, workers = 12): { sim: Si
   q.queen!.reserveP = reserveP;
   addWorkers(sim, workers, { chamber: ch, ageGd: 1 });
   const op = sim.state.player.opening!;
-  op.phase = 'handover';
+  // the opening is over, as in a real game a few seconds after the hand-over card (founding/system.ts): stores
+  // alerts are then held by the grace alone, not by foundingInProgress
+  op.phase = 'done';
+  op.done = true;
   op.lapse = { startTick: 0, endTick: sim.state.tick, skipped: false, outcome: '' };
   sim.enqueue({ type: 'cheat.setStores', colonyId: colonyOf(sim).id, c: 0, p: 0 });
   sim.applyPendingCommands();
@@ -68,6 +72,19 @@ describe('R2: the hand-over is provisioned', () => {
     step(sim, 20);
     expect(q.queen!.reserveP).toBeCloseTo(HANDOVER_QUEEN_KEEP_P, 6);
     expect(col.stores.p).toBeGreaterThan(9 - HANDOVER_QUEEN_KEEP_P - before.p - 0.5);
+  });
+
+  it('provisioning ends HANDOVER_PROVISION_WINDOW_GD after the hand-over: a queen fat later keeps her reserve', () => {
+    const { sim, endTick } = handedOver(HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P);
+    const col = colonyOf(sim);
+    const q = sim.stores.ants.get(col.queenId)!;
+    step(sim, 20); // pool capacity set by the colony cycle; the queen at her keep gives nothing
+    sim.state.tick = endTick + Math.ceil(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY) + 1;
+    q.queen!.reserve = HANDOVER_QUEEN_KEEP_C + 4; // e.g. fattened for the winter
+    q.queen!.reserveP = HANDOVER_QUEEN_KEEP_P + 4;
+    expect(provisionAtHandover(sim, col)).toEqual({ c: 0, p: 0 });
+    sim.state.tick = endTick + Math.floor(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY) - 1;
+    expect(provisionAtHandover(sim, col).c).toBeGreaterThan(3.9);
   });
 
   it('a queen at or below her floor gives nothing', () => {
@@ -112,7 +129,8 @@ describe('R2: the hand-over is provisioned', () => {
     // with no brood the starving alert never says brood is sacrificed (R6)
     step(sim, 0.6 * TICKS_PER_DAY);
     const starving = sim.state.progression.alerts.find((a) => a.kind === 'colony-starving');
-    if (starving) expect(starving.cause).not.toMatch(/brood/);
+    expect(starving).toBeDefined();
+    expect(starving!.cause).not.toMatch(/brood/);
   });
 });
 
@@ -127,7 +145,8 @@ describe('R2 / R6: no stage and no stores alert while the founding queen is alon
     const kinds = sim.state.progression.alerts.map((a) => a.kind);
     for (const k of ['food-c-low', 'food-p-low', 'colony-starving']) expect(kinds).not.toContain(k);
     const p = sim.state.progression.diagnostics.find((d) => d.id === 'diag-food-intake-p');
-    if (p) expect(p.status === 'ok' ? p.value : 1).toBeGreaterThan(0.5); // never "Good at 0.0 of need"
+    expect(p).toBeDefined();
+    if (p!.status === 'ok') expect(p!.value).toBeGreaterThan(0.5); // never "Good at 0.0 of need"
   });
 });
 
@@ -156,6 +175,39 @@ describe('R3: small colonies forage', () => {
     expect(smallColonySpontMult(30)).toBe(1);
     expect(smallColonySpontMult(300)).toBe(1);
     expect(smallColonySpontMult(22.5)).toBeCloseTo(1 + (SMALL_SPONT_MULT_MAX - 1) / 2, 6);
+  });
+});
+
+describe('R5: a small colony keeps its carbohydrate for the winter', () => {
+  function small(c: number, d28: number): Sim {
+    const sim = makeColonySim();
+    const ch = addChamber(sim, 'royal', { x: 100, y: -40, z: 100 });
+    establishQueen(sim, ch);
+    addWorkers(sim, 14, { chamber: ch, ageGd: 3 });
+    sim.enqueue({ type: 'cheat.setStores', colonyId: colonyOf(sim).id, c, p: 10 });
+    sim.applyPendingCommands();
+    step(sim, 200); // upkeep rates set by the colony cycle
+    setClimateOverride(sim, { d28: () => d28 });
+    return sim;
+  }
+
+  it('late in the season laying protein waits until the pool covers the adults to the winter', () => {
+    const late = WINTER_RESERVE_FROM_D28 + 2;
+    const sim = small(1, late);
+    const col = colonyOf(sim);
+    expect(winterReserveShort(sim, col, 14)).toBe(true);
+    expect(layingProteinPermitted(sim, col)).toBe(false);
+    // the same colony with a pool that covers the adults' need until the winter lays again
+    sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: 40, p: 10 });
+    sim.applyPendingCommands();
+    expect(winterReserveShort(sim, col, 14)).toBe(false);
+  });
+
+  it('not before WINTER_RESERVE_FROM_D28, and not from SMALL_COLONY_N workers on', () => {
+    const sim = small(1, WINTER_RESERVE_FROM_D28 - 1);
+    expect(winterReserveShort(sim, colonyOf(sim), 14)).toBe(false);
+    setClimateOverride(sim, { d28: () => WINTER_RESERVE_FROM_D28 + 2 });
+    expect(winterReserveShort(sim, colonyOf(sim), SMALL_COLONY_N)).toBe(false);
   });
 });
 

@@ -70,7 +70,9 @@ function blobTexture(size = 64): DataTexture {
     for (let x = 0; x < size; x++) {
       const dx = (x + 0.5) / size * 2 - 1, dy = (y + 0.5) / size * 2 - 1;
       const r = Math.min(1, Math.hypot(dx, dy));
-      const a = Math.pow(1 - r, 1.6);
+      // a plateau that rolls off softly to nothing at the rim: no visible edge, no cusp in the middle
+      const sm = r * r * (3 - 2 * r);
+      const a = Math.pow(1 - sm, 1.3);
       const i = (y * size + x) * 4;
       data[i] = data[i + 1] = data[i + 2] = 0;
       data[i + 3] = Math.round(a * 255);
@@ -91,6 +93,8 @@ export interface HumanMaterials {
   childCanvas: MeshStandardMaterial;
   lace: MeshStandardMaterial;
   trouser: MeshStandardMaterial;
+  trouserCuff: MeshStandardMaterial;
+  midsole: MeshStandardMaterial;
   fur: MeshStandardMaterial;
   pad: MeshStandardMaterial;
   paint: MeshStandardMaterial;
@@ -148,7 +152,10 @@ export function createHumanMaterials(): HumanMaterials {
     canvas: std({ map: tex.canvas, roughness: 0.85, metalness: 0 }),
     childCanvas: std({ map: tex.childCanvas, roughness: 0.85, metalness: 0 }),
     lace: std({ color: '#cfc6b4', roughness: 0.8 }),
-    trouser: std({ map: tex.denim, roughness: 0.9, transparent: true, vertexColors: true, depthWrite: false, side: DoubleSide }),
+    // matte cloth: the weave is a bump (a normal variation under the lighting), the folds are in the geometry
+    trouser: std({ map: tex.denim, bumpMap: tex.denim, bumpScale: 2.2, roughness: 0.97, transparent: true, vertexColors: true, depthWrite: false, side: DoubleSide }),
+    trouserCuff: std({ map: tex.denim, bumpMap: tex.denim, bumpScale: 2.2, roughness: 0.97, color: '#c8c8d0' }),
+    midsole: std({ color: '#b9b2a2', roughness: 0.82, metalness: 0 }),
     fur: std({ map: tex.fur, roughness: 0.95, transparent: true, vertexColors: true, depthWrite: false }),
     pad: std({ color: '#2e2522', roughness: 0.75 }),
     paint: std({ map: tex.paint, roughness: 0.45, metalness: 0.3 }),

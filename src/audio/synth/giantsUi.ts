@@ -159,6 +159,14 @@ export const UI_TONES: Record<string, ShotRecipe> = {
     f.forEach((hz, i) => wood(k, o, t + i * 0.18, p.gain, hz, 0.5));
     return 0.18 * f.length + 0.5;
   },
+  /** Camera shutter (photo mode): two quick clicks 24 ms apart, 4 kHz then a lower 2 kHz one, each on a short knock. */
+  'shutter-click': (k, o, t, p) => {
+    burst(k, o, t, p.gain, 4000, 2, 0.0004, 0.004);
+    wood(k, o, t, p.gain * 0.4, 1800, 0.02);
+    burst(k, o, t + 0.024, p.gain * 0.8, 2200, 2, 0.0004, 0.005);
+    wood(k, o, t + 0.024, p.gain * 0.3, 1100, 0.025);
+    return 0.12;
+  },
   /** Journal / codex page: noise swish 180 ms, band 1-5 kHz. */
   'page-turn': (k, o, t, p) => {
     const bp = k.filter('bandpass', 1500, 0.6);

@@ -57,9 +57,12 @@ const size = (k: CreatureKind) => CREATURE_STATS[k].sizeMm;
 
 const SNAIL_RETRACT = snailAperture();
 
+/** Softened spiders walk at half the leg amplitude and a longer stride per leg cycle: a slower, calmer leg animation. */
+const SOFT_STRIDE = 1.6;
+
 function spider(kind: CreatureKind, look: typeof JUMPING_SPIDER, softened: boolean, leg: M['leg'], stride: number, rough: number): LookDef {
   return {
-    sizeMm: size(kind), build: buildSpider(look, softened), strideMm: stride, roughness: softened ? Math.max(0.5, rough - 0.2) : rough,
+    sizeMm: size(kind), build: buildSpider(look, softened), strideMm: softened ? stride * SOFT_STRIDE : stride, roughness: softened ? 0.95 : rough,
     motion: motion(leg, NO_WAVE, [size(kind), 1, 0, 0], [0, 0.25, 0.25, 0]), legAmp: softened ? 0.5 : 1, spiderLike: true,
   };
 }

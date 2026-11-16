@@ -6,14 +6,14 @@ export const SYNTH_ONESHOTS = [
   'step-click', 'grain-trickle', 'mandible-click', 'bite-click', 'scuffle', 'acid-hiss', 'liquid-tick', 'antenna-brush',
   'membrane-pop', 'alarm-shimmer', 'wood-drum', 'stridulation-rasp', 'leaf-tear', 'prey-flutter', 'creature-tap',
   'fly-buzz', 'wing-whoosh', 'sand-spray', 'gurgle', 'grain-slide', 'wood-gnaw', 'soil-tamp', 'low-rumble', 'trickle',
-  'soft-brush',
+  'soft-brush', 'strike-snap', 'bird-whoosh', 'bird-landing', 'peck', 'gust',
   // fallbacks for file-based cues
   'soil-scrape', 'crunch', 'drip', 'splat', 'chirp', 'wood-creak', 'swarm-buzz', 'bird-call',
   // giants (§13.6)
   'sub-thump', 'sub-tremor', 'engine', 'reel-whirr', 'broom-swish', 'vacuum', 'tyre-roll', 'hose-hiss', 'sand-thump',
   'glug', 'plastic-clack', 'thunder', 'car-pass',
   // UI and alerts (§13.8)
-  'ui-click', 'ui-hover', 'ui-switch', 'alert-notice', 'alert-warning', 'alert-critical', 'milestone-motif', 'page-turn',
+  'ui-click', 'ui-hover', 'ui-switch', 'alert-notice', 'alert-warning', 'alert-critical', 'milestone-motif', 'page-turn', 'shutter-click',
   // granular ambience grains
   'droplet', 'heat-tick', 'ice-tick', 'nest-tick', 'crackle', 'patter',
 ] as const;

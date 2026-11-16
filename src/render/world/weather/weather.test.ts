@@ -39,9 +39,9 @@ describe('rain field and impacts', () => {
   it('the drop count follows intensity and class density', () => {
     const r = new RainField(1000);
     const c = new Vector3();
-    expect(r.set(DROP_LOOK.downpour, 1, 0, 1, 0, 1, c, 0, 4)).toBe(1000);
-    expect(r.set(DROP_LOOK.drizzle, 1, 0, 1, 0, 1, c, 0, 4)).toBe(450);
-    expect(r.set(DROP_LOOK.shower, 0, 0, 1, 0, 1, c, 0, 4)).toBe(0);
+    expect(r.set(DROP_LOOK.downpour, 1, 0, 1, 0, [1, 1, 1], c, 0, 4)).toBe(1000);
+    expect(r.set(DROP_LOOK.drizzle, 1, 0, 1, 0, [1, 1, 1], c, 0, 4)).toBe(450);
+    expect(r.set(DROP_LOOK.shower, 0, 0, 1, 0, [1, 1, 1], c, 0, 4)).toBe(0);
     expect(r.mesh.visible).toBe(false);
     r.dispose();
   });

@@ -9,7 +9,7 @@
 // What still fails is reported by validation and regenerates the world.
 
 import { rngInt } from '@/core/rng';
-import { CARRION_ZONE_MULT } from '@/sim/balance';
+import { CARRION_ZONE_MULT, ECOLOGY_TIER } from '@/sim/balance';
 import type { FoodAnchor, FoodVariant } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import { walkable } from '../maps/nav';
@@ -17,11 +17,12 @@ import { mapState } from '../maps/state';
 import { cellAt, forEachWithin, portals } from '../validate/graph';
 import { SUIT } from '../tuning/maps';
 import { VALID } from '../tuning/pipeline';
-import { objectById, poiById, pointInCell, scaledCap, startDistances } from './common';
+import { objectById, poiById, pointInCell, scaledCap, startDistances, zoneTypeAtXZ } from './common';
 import { accessOfAnchor, anchorDistance, defAt, isCarbSource, isProteinAnchor, renewalPerGd, sourceVariant, sustainedOffer } from './economy';
 import { honeydewFilmFeet, placeAnchor, placeFilm, removeFilm } from './food';
-import { HOST_BIT, usableHostPois } from './hosts';
-import { ECONOMY_FLOORS, NODE_DENSITY, SITE_FOOD, T1_HONEYDEW, TOP_UP, topUpZones } from './tuning';
+import { HOST_BIT, poisOf, usableHostPois } from './hosts';
+import { preyTerritories } from './territories';
+import { ECONOMY_FLOORS, NODE_DENSITY, PREY_PATCH, SITE_FOOD, T1_HONEYDEW, TOP_UP, topUpZones } from './tuning';
 
 /** Drops anchors that no walker from the start can reach. Returns how many. */
 export function pruneUnreachable(ctx: GenContext, d: Float64Array): number {
@@ -38,8 +39,11 @@ const renewableCarb = (a: FoodAnchor) => {
   return !!v && isCarbSource(a) && renewalPerGd(v) > 0;
 };
 
-/** Adds one carbohydrate source within maxBu of the start: an unused flower, else a starch crumb cluster. */
-function addCarb(ctx: GenContext, d: Float64Array, maxBu: number, spread = false): boolean {
+/**
+ * Adds one carbohydrate source within maxBu of the start: an unused flower, else (unless `renewableOnly`: a crumb
+ * cluster renews nothing from Tier 2 on) a starch crumb cluster.
+ */
+function addCarb(ctx: GenContext, d: Float64Array, maxBu: number, spread = false, renewableOnly = false): boolean {
   const used = new Set(ctx.world.placements.foodAnchors.filter((a) => a.kind === 'nectar').map((a) => a.hostObjectId));
   const flowers = ctx.world.placements.plants.filter((p) => p.hostFlags & HOST_BIT.nectar && !used.has(p.objectId))
     .map((p) => ({ p, ob: objectById(ctx, p.objectId) }))
@@ -55,7 +59,65 @@ function addCarb(ctx: GenContext, d: Float64Array, maxBu: number, spread = false
       ctx.world.placements.foodAnchors.pop();
     }
   }
-  return addGround(ctx, d, 'crumb-starch', maxBu, spread);
+  if (ECOLOGY_TIER >= 2 && addHerd(ctx, d, maxBu)) return true;
+  return !renewableOnly && addGround(ctx, d, 'crumb-starch', maxBu, spread);
+}
+
+/**
+ * Tier 2 carbohydrate top-up: an aphid herd anchor on a plant near the start that has an aphid site but is not yet
+ * a host (it becomes one; the plants module founds its herd at the start with HERD_INITIAL_OCCUPANCY).
+ * Nearest first, outdoors only.
+ */
+function addHerd(ctx: GenContext, d: Float64Array, maxBu: number): boolean {
+  const anchors = ctx.world.placements.foodAnchors;
+  const cands = ctx.world.placements.plants
+    .filter((p) => !(p.hostFlags & HOST_BIT.aphid))
+    .map((p) => ({ p, ob: objectById(ctx, p.objectId) }))
+    .filter((x) => x.ob && zoneTypeAtXZ(ctx, x.ob.pos.x, x.ob.pos.z) !== 'interior' && poisOf(ctx, x.ob, 'aphid-site').length > 0)
+    .map((x) => ({ ...x, dist: cellDist(ctx, d, x.ob!.pos) }))
+    .filter((x) => x.dist <= maxBu)
+    .sort((x, y) => x.dist - y.dist || x.p.objectId - y.p.objectId);
+  for (const { p } of cands) {
+    const flags = p.hostFlags, pois = p.hostPoiIds;
+    p.hostFlags |= HOST_BIT.aphid;
+    p.hostPoiIds = undefined;
+    const site = usableHostPois(ctx, p).map((id) => poiById(ctx, id)!).find((q) => q.kind === 'aphid-site');
+    if (site && placeAnchor(ctx, 'aphid-herd', 'honeydew', site.pos, p.objectId, 'full top-up') >= 0) {
+      if (anchorDistance(ctx, anchors[anchors.length - 1], d) <= maxBu) return true;
+      anchors.pop();
+    }
+    p.hostFlags = flags;
+    p.hostPoiIds = pois;
+  }
+  return false;
+}
+
+/**
+ * Tier 2 protein top-up for the economy floors: a prey patch (C13's T2 protein, GDD 05 §2) on humid walkable ground
+ * of a zone the catalogue puts prey patches in, within maxBu of the start (TOP_UP placement as addGround).
+ */
+function addPreyPatch(ctx: GenContext, d: Float64Array, maxBu: number, spread = false): boolean {
+  const anchors = ctx.world.placements.foodAnchors;
+  const rng = ctx.rng(`wg/start/topup/prey/${anchors.length}`);
+  const lay = ctx.layout, cls = ctx.world.nav.cls.data, theta = mapState(ctx).surface.theta0;
+  const zones = Object.keys(NODE_DENSITY.prey.perPlot);
+  const cellsIn = (lo: number, hi: number) => {
+    const out: number[] = [];
+    for (let c = 0; c < d.length; c++) {
+      if (d[c] >= lo && d[c] <= hi && walkable(cls[c]) && theta[c] >= PREY_PATCH.thetaMin && zones.includes(lay.zones[lay.nav[c]].type)) out.push(c);
+    }
+    return out;
+  };
+  const lo = Math.min(TOP_UP.minBu, maxBu / 2);
+  let cells = spread ? [] : cellsIn(lo, Math.min(maxBu, TOP_UP.maxBu));
+  if (cells.length === 0 && maxBu > TOP_UP.maxBu) cells = cellsIn(lo, maxBu);
+  for (let t = 0; t < TOP_UP.tries && cells.length > 0; t++) {
+    const pos = pointInCell(ctx, cells[rngInt(rng, 0, cells.length - 1)], rng);
+    if (placeAnchor(ctx, null, 'prey', pos, -1, `patch r=${PREY_PATCH.radiusBu[0]} top-up`, 0b0111) < 0) continue;
+    if (anchorDistance(ctx, anchors[anchors.length - 1], d) <= maxBu) { preyTerritories(ctx, anchors[anchors.length - 1]); return true; }
+    anchors.pop();
+  }
+  return false;
 }
 
 /** Walkable cells between lo and hi BU of the start in a zone the variant may be topped up in. */
@@ -216,7 +278,10 @@ export function finalizeFood(ctx: GenContext): void {
       const o = sustainedOffer(ctx, d, f.radiusBu);
       if (o.c >= f.c && o.p >= f.p) break;
       const spread = f.radiusBu > TOP_UP.maxBu;
-      const ok = o.c < f.c ? addCarb(ctx, d, f.radiusBu, spread) : addGround(ctx, d, 'crumb-protein', f.radiusBu, spread);
+      // T1 tops up with crumb clusters (the crumb rule renews them); from T2 on only renewable food counts
+      const t2 = ECOLOGY_TIER >= 2;
+      const ok = o.c < f.c ? addCarb(ctx, d, f.radiusBu, spread, t2)
+        : t2 ? addPreyPatch(ctx, d, f.radiusBu, spread) : addGround(ctx, d, 'crumb-protein', f.radiusBu, spread);
       if (!ok) break;
       added++;
     }

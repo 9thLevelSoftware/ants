@@ -6,7 +6,7 @@
 
 import type { RngState } from '@/core/rng';
 import { rngFloat, rngInt } from '@/core/rng';
-import type { CreatureKind, ZoneType } from '@/sim/types';
+import type { CreatureKind, FoodAnchor, ZoneType } from '@/sim/types';
 import { ZONE_TYPES } from '@/sim/types';
 import type { GenContext } from '../kit/context';
 import { addTerritory } from '../kit/records';
@@ -51,15 +51,20 @@ function byArea(ctx: GenContext, rng: RngState): void {
 /** Bins whose crumbs draw fruit flies (GDD 04 §8.2: bins, fruit bowl, windfalls). */
 const FLY_BINS = new Set(['litter-bin', 'pedal-bin']);
 
+/** The springtail and mite territories of one prey-patch anchor (also for the start's prey top-ups, finalize.ts). */
+export function preyTerritories(ctx: GenContext, a: FoodAnchor): void {
+  const m = /r=(\d+)/.exec(a.initialState);
+  const r = (m ? Number(m[1]) : PREY_PATCH.radiusBu[0]) * ctx.dims.bu;
+  put(ctx, 'springtail', a.pos.x, a.pos.z, r, ['forest', 'lawn', 'garden-bed'], 1);
+  put(ctx, 'mite', a.pos.x, a.pos.z, r, ['forest', 'lawn', 'garden-bed'], 1);
+}
+
 function withAnchors(ctx: GenContext, rng: RngState): void {
   const bu = ctx.dims.bu;
   let herds = 0;
   for (const a of ctx.world.placements.foodAnchors) {
     if (a.kind === 'prey') {
-      const m = /r=(\d+)/.exec(a.initialState);
-      const r = (m ? Number(m[1]) : PREY_PATCH.radiusBu[0]) * bu;
-      put(ctx, 'springtail', a.pos.x, a.pos.z, r, ['forest', 'lawn', 'garden-bed'], 1);
-      put(ctx, 'mite', a.pos.x, a.pos.z, r, ['forest', 'lawn', 'garden-bed'], 1);
+      preyTerritories(ctx, a);
     } else if (a.initialState.startsWith('aphid-herd')) {
       put(ctx, 'aphid', a.pos.x, a.pos.z, 6 * bu, ['forest', 'lawn', 'garden-bed'], 1);
       if (++herds % APHID_PREDATORS.perAnchors === 0) {

@@ -2,7 +2,7 @@
 // Node only (no WebGL): scene graph and transforms.
 
 import { describe, expect, it } from 'vitest';
-import { PerspectiveCamera, Scene, type Mesh } from 'three';
+import { DirectionalLight, PerspectiveCamera, Scene, Vector3, type Mesh } from 'three';
 import type { FrameInfo, RenderContext } from '@/render';
 import { getPreset } from '@/render/app';
 import type { HumanEventKind, HumanVariant } from '@/sim/types';
@@ -60,5 +60,67 @@ describe('HumansRenderer', () => {
     expect(scene.children).toContain(r.group);
     r.dispose();
     expect(scene.children).not.toContain(r.group);
+  });
+});
+
+describe('human actor geometry (task stage2-look-fix)', () => {
+  it('a shoe stays within +-10 % of the triangle count it had before the leg, shoe and shadow rework (3640)', async () => {
+    const { buildShoe } = await import('./geometry');
+    const { createHumanMaterials, disposeHumanMaterials } = await import('./materials');
+    const mt = createHumanMaterials();
+    let tris = 0;
+    buildShoe(mt, 280, 100, false).traverse((o) => {
+      const m = o as Mesh;
+      if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
+    });
+    disposeHumanMaterials(mt);
+    expect(tris).toBeGreaterThan(3640 * 0.9);
+    expect(tris).toBeLessThan(3640 * 1.1);
+  });
+
+  it('the trouser leg is a fabric tube: folds darken the vertex colour, the weave is a bump, the fade keeps the folds', async () => {
+    const { buildTrouserLeg, fadeFolds } = await import('./geometry');
+    const g = fadeFolds(buildTrouserLeg(60, 70, 400), 100, 350);
+    const c = g.getAttribute('color'), p = g.getAttribute('position');
+    let lo = 1, hi = 0, opaque = 0, clear = 0;
+    for (let i = 0; i < c.count; i++) {
+      lo = Math.min(lo, c.getX(i)); hi = Math.max(hi, c.getX(i));
+      if (p.getY(i) < 100 && c.getW(i) === 1) opaque++;
+      if (p.getY(i) >= 350 && c.getW(i) === 0) clear++;
+    }
+    expect(hi - lo).toBeGreaterThan(0.15); // visible fold shading, not one flat tone
+    expect(opaque).toBeGreaterThan(0);
+    expect(clear).toBeGreaterThan(0);
+    const mt = (await import('./materials')).createHumanMaterials();
+    expect(mt.trouser.bumpMap).toBeTruthy();
+    expect(mt.trouser.roughness).toBeGreaterThan(0.9);
+    (await import('./materials')).disposeHumanMaterials(mt);
+  });
+
+  it('the blob shadow leans away from the key light, and a bristle comb casts no shadow-map shadow', () => {
+    const { r, scene } = renderer();
+    const key = new DirectionalLight(0xffffff, 3.3);
+    key.name = 'world:key-light';
+    key.position.set(300, 300, 0); // the sun stands at +X: shadows fall toward -X
+    scene.add(key, key.target);
+    key.updateMatrixWorld(true);
+    key.target.updateMatrixWorld(true);
+    const sim = humanSim(patioWorld({ surface: 'concrete', sizeMm: 4000 }));
+    const site = humanSites(sim.world).list.find((s) => s.kind === 'patio')!;
+    const inst = scheduleNow(sim, 'sweeping', 'broom', site.id, null);
+    sim.tick();
+    const plan = humanPlan(sim, inst)!;
+    while (sim.state.tick < inst.startTick + plan.impacts[0].t - 1) sim.tick();
+    r.update(frame(sim));
+    const shadows = r.group.children.filter((c) => c.visible && c.type === 'Mesh' && (c as Mesh).geometry.type === 'CircleGeometry');
+    expect(shadows.length).toBeGreaterThan(0);
+    const axis = new Vector3(1, 0, 0).applyQuaternion(shadows[0]!.quaternion);
+    expect(axis.x).toBeLessThan(-0.99);
+    // the broom's own meshes do not cast into the sun's shadow map (the soft blob is its shadow)
+    const groups = r.group.children.filter((c) => c.visible && c.type === 'Group');
+    let casters = 0;
+    for (const g of groups) g.traverse((o) => { if ((o as Mesh).isMesh && o.castShadow) casters++; });
+    expect(casters).toBe(0);
+    r.dispose();
   });
 });

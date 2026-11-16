@@ -3,6 +3,7 @@
 // file to composition; each part decides for itself when it shows.
 import { render } from 'preact';
 import { HudRoot } from './hud';
+import { OnboardingPrompts } from './hud/prompts';
 import { FoundingOverlay } from './screens/founding';
 import { PhotoScreen } from './screens/photo';
 import { ScreenRouter } from './screens';
@@ -12,6 +13,7 @@ export function App() {
     <>
       <HudRoot />
       <FoundingOverlay />
+      <OnboardingPrompts />
       <PhotoScreen />
       <ScreenRouter />
     </>

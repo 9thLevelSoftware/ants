@@ -5,8 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { AntFlag } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addBrood, addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step } from './testkit';
-import { AGE_OUTSIDE_WEAR_SHARE_T2 } from '@/sim/balance/colony';
-import { ECOLOGY_TIER } from '@/sim/balance/ecology';
 
 describe('physiology timelines (reviewer)', () => {
   it('§1.4: a young nurse at rest in a nest with an empty pool empties her reserve at 7.5 gd and dies at 9.5 gd', { timeout: 120000 }, () => {
@@ -26,7 +24,7 @@ describe('physiology timelines (reviewer)', () => {
     expect(cause).toBe('starvation');
   });
 
-  it('§1.3: physiological age accrues 1 / gd inside, 3 / gd outside (2 at Tier 2: AGE_OUTSIDE_WEAR_SHARE_T2), 0.15 / gd dormant', () => {
+  it('§1.3: physiological age accrues 1 / gd inside, 3 / gd outside, 0.15 / gd dormant', () => {
     const sim = makeColonySim({ noAllocation: true });
     const ch = addChamber(sim, 'general', { x: 100, y: -40, z: 100 });
     const [inside] = addWorkers(sim, 1, { chamber: ch, ageGd: 2, task: 'rest', state: 'rest' });
@@ -37,9 +35,7 @@ describe('physiology timelines (reviewer)', () => {
     outside.cropC = 1; // enough to keep her fed for 0.5 gd
     step(sim, TICKS_PER_DAY / 2);
     expect(inside.physioAgeGd - 2).toBeCloseTo(0.5, 2);
-    // GDD 02 §1.3's 3 / gd is wear plus predation; at Tier 2 predation is real and half the excess stays (viab-economy)
-    const outsideRate = ECOLOGY_TIER >= 2 ? 1 + 2 * AGE_OUTSIDE_WEAR_SHARE_T2 : 3;
-    expect(outside.physioAgeGd - 2).toBeCloseTo(outsideRate / 2, 2);
+    expect(outside.physioAgeGd - 2).toBeCloseTo(1.5, 2);
     expect(dormant.physioAgeGd - 2).toBeCloseTo(0.075, 3);
   });
 

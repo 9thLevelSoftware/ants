@@ -13,7 +13,8 @@
 // - ink (all modes): lines, hatching and outlines, composited in premultiplied alpha so every ink keeps its hue.
 import { Color, CustomBlending, DataTexture, DstColorFactor, NormalBlending, OneFactor, OneMinusSrcAlphaFactor, ShaderMaterial, Vector3, Vector4, ZeroFactor } from 'three';
 import {
-  FILL_ALPHA, FLOOD_ALPHA, ISOTHERM_STEP_C, LINE_ALPHA, MOISTURE_CONTOUR, MOISTURE_STAIN_MIN, STAIN_LIGHTNESS, TEMP_MAX_C, TEMP_MIN_C,
+  FILL_ALPHA, FLOOD_ALPHA, ISOTHERM_STEP_C, LINE_ALPHA, MOISTURE_CONTOUR, MOISTURE_FILL_MAX, MOISTURE_STAIN_FULL, MOISTURE_STAIN_START,
+  STAIN_CHROMA, STAIN_LIGHTNESS, TEMP_MAX_C, TEMP_MIN_C, TEMP_STAIN_GAIN,
 } from './tuning';
 
 const vertex = /* glsl */ `
@@ -52,7 +53,9 @@ float regionFade(out vec2 uv) {
 const stainFragment = /* glsl */ `
 ${common}
 uniform float uFill;
-uniform float uMoistMin;
+uniform vec4 uMoist;   // stain start, full, max opacity
+uniform float uTempGain;
+uniform float uChroma;
 uniform float uLumRef;
 uniform float uLightness;
 
@@ -62,20 +65,23 @@ void main() {
   if (fade <= 0.0 || uMode == 2) discard;
   vec4 d = texture2D(uField, uv);
   if (d.g < 0.5) discard;
-  float strength;
+  // opacity of the stain (stainRamp.ts): temperature by the departure from the optimum, moisture by how wet (none when dry)
+  float alpha;
   if (uMode == 0) {
-    // departures from the optimum carry the colour; ground near the optimum stays as it is
     float dev = d.r < uMid ? (uMid - d.r) / max(uMid, 1e-3) : (d.r - uMid) / max(1.0 - uMid, 1e-3);
-    strength = clamp(dev * 3.0, 0.0, 1.0);
+    alpha = uFill * (1.0 - exp(-uTempGain * clamp(dev, 0.0, 1.0)));
   } else {
     if (d.b > 0.5) discard; // standing water: solid, drawn by the ink pass
-    strength = mix(uMoistMin, 1.0, d.r);
+    alpha = uMoist.z * smoothstep(uMoist.x, uMoist.y, d.r);
   }
+  if (alpha < 0.004) discard;
   vec3 c = ramp(d.r);
   float L = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-3);
+  c = max(mix(vec3(L), c, uChroma), vec3(0.0));
+  L = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-3);
   // hue at constant luminance, then part of the ramp's own lightness step (wetter / further from optimum = darker)
   vec3 ratio = c / L * pow(clamp(L / uLumRef, 0.05, 1.0), uLightness);
-  float a = uFill * strength * fade;
+  float a = alpha * fade;
   // blended as dst * (src + 1 - a): dst * mix(1, ratio, a)
   gl_FragColor = vec4(min(ratio * a, vec3(1.0)), a);
 }`;
@@ -176,7 +182,9 @@ function sharedUniforms(tex: DataTexture, bu: number) {
     uBu: { value: bu },
     // stain
     uFill: { value: FILL_ALPHA },
-    uMoistMin: { value: MOISTURE_STAIN_MIN },
+    uMoist: { value: new Vector4(MOISTURE_STAIN_START, MOISTURE_STAIN_FULL, MOISTURE_FILL_MAX, 0) },
+    uTempGain: { value: TEMP_STAIN_GAIN },
+    uChroma: { value: STAIN_CHROMA.temperature },
     uLumRef: { value: 1 },
     uLightness: { value: STAIN_LIGHTNESS },
     // ink

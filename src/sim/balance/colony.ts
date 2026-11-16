@@ -88,22 +88,6 @@ export const HEALTH_REGEN_ELSEWHERE = 0.1;
  * founding-close request 1).
  */
 export const STARVE_ALERT_GRACE_GD = 1.0;
-/**
- * Hand-over provisioning (viab-economy R2; GDD 06 §5.13 (c) keeps it all in the queen): at the hand-over the
- * queen's reserve above what she keeps for herself goes into the colony pool, as she goes on feeding the first brood
- * and workers from her body until foragers return. She keeps HANDOVER_QUEEN_KEEP_C of fat (QUEEN_FAT_CAP, her own
- * refill target) and HANDOVER_QUEEN_KEEP_P of protein (her P upkeep for 10 gd), loads.
- */
-/**
- * Ageing outside at Tier 2 (viab-economy R1): GDD 02 §1.3 ages an ant 3x outside (species `ageRateOutside`) as "the
- * dossier's x5 forager hazard approximated by wear plus real predation". With the Tier 2 ecology predators, human
- * footfall and drowning kill foragers for real, so only this share of the excess over the in-nest rate stays as
- * wear (Lasius 3 -> 2 per gd). Without it the short-lived nanitics of a small colony that forages (R3) died of old
- * age at 10-15 gd, a quarter of the first workers before their first winter.
- */
-export const AGE_OUTSIDE_WEAR_SHARE_T2 = 0.5;
-export const HANDOVER_QUEEN_KEEP_C = 3.0;
-export const HANDOVER_QUEEN_KEEP_P = 1.0;
 export const HEALTH_REGEN_MAX_FATIGUE = 0.8;
 /** Heat or cold load below which health regenerates. */
 export const HEALTH_REGEN_MAX_THERMAL_LOAD = 0.05;
@@ -192,6 +176,17 @@ export const CANNIBAL_MIN_HUNGER_GD = 0.1;
 export const EGG_BUDGET_CAP = 3;
 export const QUEEN_GUT_CAP = 1.0;
 export const QUEEN_FAT_CAP = 3.0;
+/**
+ * Hand-over provisioning (viab-economy R2; GDD 06 §5.13 (c) keeps it all in the queen): at the hand-over the
+ * queen's reserve above what she keeps for herself goes into the colony pool, as she goes on feeding the first brood
+ * and workers from her body until foragers return. She keeps HANDOVER_QUEEN_KEEP_C of fat (her own refill cap: a
+ * keep below QUEEN_FAT_CAP would move the fat she refills from the pool back into it every cycle) and
+ * HANDOVER_QUEEN_KEEP_P of protein (her P upkeep for 10 gd), loads. What a full pool cannot take is moved on later
+ * cycles, for HANDOVER_PROVISION_WINDOW_GD after the hand-over only.
+ */
+export const HANDOVER_QUEEN_KEEP_C = QUEEN_FAT_CAP;
+export const HANDOVER_QUEEN_KEEP_P = 1.0;
+export const HANDOVER_PROVISION_WINDOW_GD = 3;
 /** Health lost per gd while P upkeep is unpaid. */
 export const QUEEN_P_UNPAID_HEALTH = 0.05;
 /** Reserve refill from the gut, C per gd, while gut C exceeds QUEEN_REFILL_MIN_GUT_C. */
@@ -272,6 +267,16 @@ export const STOCK_TARGET_MULT = { low: 0.5, normal: 1, high: 2 } as const;
  * autumn need covers it. Protein is not hoarded (the brood diapauses, GDD 02 §2.8).
  */
 export const AUTUMN_STOCK_TARGET_C_MULT = 2;
+/**
+ * Winter reserve of a small colony (viab-economy R5 "the queen may stop laying"): from default-year day
+ * WINTER_RESERVE_FROM_D28 (0-based d28; host plants start to decline there, GDD 05 §1.4 HOST_DECLINE_FROM_DOY) until
+ * the winter, a colony below SMALL_COLONY_N workers releases laying protein only while its pool carbohydrate covers
+ * WINTER_RESERVE_MULT x the adults' carbohydrate need (worker upkeep + queen) for the game days left until the winter.
+ * The 1B sweeps: the brood laid at a late-summer hand-over ate the provisioned pool, flowers close at doy 18 and the
+ * herds decline, and the first workers entered winter with an empty pool.
+ */
+export const WINTER_RESERVE_FROM_D28 = 10;
+export const WINTER_RESERVE_MULT = 1;
 export const STOCK_REFILL_GD = 2;
 export const NEED_RATE_C_MIN = 0.5;
 export const NEED_RATE_P_MIN = 0.05;
@@ -324,8 +329,9 @@ export const SCOUT_MIN_ACTIVITY = 0.1;
  * capped by the sources it knows, so 7-16 first workers sent 1-2 ants out). Below SMALL_COLONY_N workers, while
  * the stores are under their target and the surface is workable (surfaceActivity >= SCOUT_MIN_ACTIVITY), the
  * forage + scout demand is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N), with at least
- * SMALL_SCOUTS_MIN scouts until SMALL_KNOWN_SOURCES live food sources are known; until then the whole outside share
- * that the forage demand does not use scouts (foragers with no known source only wait).
+ * SMALL_SCOUTS_MIN scouts until SMALL_KNOWN_SOURCES live food sources are known. With no source known the whole
+ * outside share scouts (foragers with nowhere to go only wait); once one is known the foragers get at least the
+ * outside share less those scouts (allocation/demand.ts smallColonyFloor).
  */
 export const SMALL_COLONY_N = 30;
 export const SMALL_OUTSIDE_MIN = 2;

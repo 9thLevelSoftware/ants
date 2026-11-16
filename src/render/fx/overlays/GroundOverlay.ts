@@ -12,7 +12,7 @@ import { decodeTemp, encodeTemp, samplerFor, type FieldMode, type Forecast } fro
 import { createGroundMaterials, lumOf, setVec, type GroundMaterials } from './groundShader';
 import { Labels, type LabelSpec } from './labels';
 import {
-  DRAPE_MAX_RISE_BU, FIELD_LIFT_MM, FIELD_RENDER_ORDER, ISOTHERM_LABEL_C, LABEL_LIFT_BU, RASTER_REFRESH_S, REGION, TEMP_MAX_C, TEMP_MIN_C, type OverlayBudget,
+  DRAPE_MAX_RISE_BU, FIELD_LIFT_MM, FIELD_RENDER_ORDER, ISOTHERM_LABEL_C, LABEL_LIFT_BU, RASTER_REFRESH_S, REGION, STAIN_CHROMA, TEMP_MAX_C, TEMP_MIN_C, type OverlayBudget,
 } from './tuning';
 
 const MODE_INDEX: Record<FieldMode, number> = { temperature: 0, moisture: 1, threats: 2 };
@@ -186,6 +186,7 @@ export class GroundOverlay {
     this.tex.needsUpdate = true;
     (m.uniforms.uRegion.value as Vector4).set(r.x0, r.z0, r.size, 1 / r.size);
     m.uniforms.uMode.value = MODE_INDEX[this.frontMode!];
+    m.uniforms.uChroma.value = this.frontMode === 'moisture' ? STAIN_CHROMA.moisture : STAIN_CHROMA.temperature;
     if (!sameRegion(r, this.meshRegion)) this.drape(r);
     this.labels.set(this.labelSpecs(sim, r));
   }
@@ -198,10 +199,17 @@ export class GroundOverlay {
     if (this.frontMode !== 'temperature') return [];
     const n = this.raster.n, step = r.size / n;
     const spots = isothermSpots(this.raster, decodeTemp, ISOTHERM_LABEL_C, this.budget.labels, Math.max(4, n / 5));
-    return spots.map((s) => {
+    const labels = spots.map((s) => {
       const x = r.x0 + (s.i + 1) * step, z = r.z0 + (s.j + 0.5) * step;
       return { x, y: sim.field.height(x, z) + LABEL_LIFT_BU * bu, z, text: `${s.c} °C` };
     });
+    // no isotherm to label (uniform weather, or none of the 10 °C ones in view): the value under the view's centre, so
+    // the tint always comes with a number to read against the legend
+    if (labels.length === 0 && this.raster.texel(n >> 1, n >> 1, 1) > 0) {
+      const x = r.x0 + r.size / 2, z = r.z0 + r.size / 2;
+      labels.push({ x, y: sim.field.height(x, z) + LABEL_LIFT_BU * bu, z, text: `${Math.round(decodeTemp(this.raster.texel(n >> 1, n >> 1, 0)))} °C` });
+    }
+    return labels;
   }
 
   /**

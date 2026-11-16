@@ -17,6 +17,7 @@ import { ImpactLayer } from './impacts';
 import { FloodWater } from './floodWater';
 import { flashDuration, flashStrength, LightningFlash } from './lightning';
 import { RainField } from './rainField';
+import { rainTint } from './rainTint';
 import {
   DROP_LOOK, FLECKS, IMPACT_AREA_BU, RAIN_STREAKS, RIPPLES,
   RIPPLE_LIFE_S, RIPPLE_RADIUS_MM, SPLASHES, SPLASH_LIFE_S, SPLASH_RADIUS_DROPS, WET_PER_PRECIP,
@@ -133,8 +134,10 @@ export class WeatherRenderer implements SubRenderer {
     // rain streaks around the camera
     this.center.set(cam.x, Math.max(cam.y, this.focus.y), cam.z);
     const look = v.rain ? DROP_LOOK[v.rain] : DROP_LOOK.drizzle;
-    const light = Math.min(1, sim.state.env.weather.cloud > 0 ? 1 - 0.5 * sim.state.env.weather.cloud : 1);
-    this.streaks = this.rain.set(look, outside && v.rain ? Math.max(0.15, v.intensity) : 0, v.wind, v.windX, v.windZ, light, this.center, frame.time, bu);
+    const cam3 = frame.camera;
+    const hPx = frame.viewportHeightPx > 0 ? frame.viewportHeightPx : 720;
+    const view = { widthPx: Math.round(hPx * (cam3.aspect > 0 ? cam3.aspect : 16 / 9)), heightPx: hPx, focal: cam3.projectionMatrix.elements[5] > 0 ? cam3.projectionMatrix.elements[5] : 2 };
+    this.streaks = this.rain.set(look, outside && v.rain ? Math.max(0.15, v.intensity) : 0, v.wind, v.windX, v.windZ, rainTint(this.ctx.scene), this.center, frame.time, bu, view);
     // splashes on exposed ground, ripples on water, rime glints
     const area = IMPACT_AREA_BU * bu;
     const fx = this.focus.x, fz = this.focus.z;

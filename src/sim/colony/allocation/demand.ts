@@ -69,21 +69,21 @@ function liveKnownSources(sim: Sim, col: Colony): number {
 
 /**
  * Small colonies forage (R3, balance SMALL_*): under the stock target on a workable surface, forage + scout demand
- * is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N), scouts at least SMALL_SCOUTS_MIN until enough
- * sources are known.
+ * is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N). Scouts are at least SMALL_SCOUTS_MIN until
+ * SMALL_KNOWN_SOURCES live sources are known. With no source known the whole outside share scouts (a forager with
+ * nowhere to go only waits); once one is known, the foragers get at least the outside share less those scouts, so
+ * the known food is worked while the search goes on (the GDD 02 §6.2 forage demand alone sent one forager to a
+ * 300-unit spill 100 BU from a 12-worker nest).
  */
-function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float32Array): void {
+function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array): void {
   if (n >= SMALL_COLONY_N || surfaceActivityOf(sim, col.species) < SCOUT_MIN_ACTIVITY) return;
   if (col.needs.needC <= 0 && col.needs.needP <= 0) return;
   const outside = Math.min(n, Math.max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC * n));
-  // until enough food is known the outside share searches: a forager with no source to go to only waits
-  // (small colonies forage individually; the GDD 02 §6.2 scout share of 1-2 ants left the flower 53 BU from the
-  // woodland-edge #1 nest unfound for 2 gd)
-  if (liveKnownSources(sim, col) < SMALL_KNOWN_SOURCES) {
-    d[T('scout')] = Math.max(d[T('scout')], Math.min(n, Math.max(SMALL_SCOUTS_MIN, outside - d[T('forage')])));
-  }
-  const have = d[T('forage')] + d[T('scout')];
-  if (have < outside) d[T('forage')] += outside - have;
+  const known = liveKnownSources(sim, col);
+  const scoutsMin = known < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
+  d[T('scout')] = Math.max(d[T('scout')], scoutsMin);
+  if (known === 0) d[T('scout')] = Math.max(d[T('scout')], outside - d[T('forage')]);
+  else d[T('forage')] = Math.max(d[T('forage')], outside - scoutsMin);
 }
 
 /** Fills col.alloc.demand (Float32Array by TASKS order). */

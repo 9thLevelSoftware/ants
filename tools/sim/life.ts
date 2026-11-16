@@ -116,7 +116,8 @@ export interface LifeReport {
   tool: 'life';
   options: LifeOptions;
   world: { fingerprint: string | number; genMs: number; sizeMm: number; bu: number; sources: number };
-  founding: { phase: string; gd: number; workers: number; expected: { min: number; max: number }; outcome: unknown; ms: number };
+  /** `forcedSeal`: the real founding failed (phase and gd given) and the hand-over came from a forced seal. */
+  founding: { phase: string; gd: number; workers: number; expected: { min: number; max: number }; outcome: unknown; ms: number; forcedSeal?: string };
   days: DayRow[];
   violations: InvariantViolation[];
   violationCount: number;
@@ -132,14 +133,24 @@ export interface LifeReport {
   viable?: ViableVerdict;
 }
 
-/** Runs the founding to hand-over; returns the opening phase reached. */
-function found(sim: Sim, maxDays: number): string {
+/**
+ * Runs the founding to hand-over; returns the opening phase reached. `forceSeal` (the fallback when the real founding
+ * fails, viab-economy method "use cheat hand-overs where the real founding fails"): as soon as the template cell is
+ * carved (phase `seal`) it is declared sealed by cheat.setFoundingState instead of the queen's own seal; the clutch,
+ * the time-lapse in the real environment and the hand-over then run as usual.
+ */
+function found(sim: Sim, maxDays: number, forceSeal = false): string {
   sim.enqueue({ type: 'cheat.completeFounding', workers: 10 });
   const end = sim.state.tick + maxDays * TICKS_PER_DAY;
   const op = () => sim.state.player.opening;
+  let forced = false;
   while (sim.state.tick < end) {
     sim.tick();
     const p = op()?.phase;
+    if (forceSeal && !forced && p === 'seal') {
+      sim.enqueue({ type: 'cheat.setFoundingState', nestId: -1, state: 'sealed' });
+      forced = true;
+    }
     if (p === 'handover' || p === 'failed' || op()?.done) break;
   }
   return op()?.done ? 'done' : (op()?.phase ?? 'none');
@@ -164,30 +175,39 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const cacheFile = o.cache && io
     ? `${o.cache}/founded-${o.species}-${o.archetype}-${o.seed}-${o.difficulty}-${o.startDay ?? 'd'}-${o.cacheAny ? 'any' : io.codeTag}.bin` : null;
   const cached = cacheFile ? io!.read(cacheFile) : null;
-  const state = cached ? restore(cached).state : createNewGame(config, world).state;
   const times: SysTime[] = [];
   const systems = o.noFlood ? SYSTEMS.filter((s) => s.name !== 'nest-flood') : SYSTEMS;
-  const sim = createSim(state, world, { systems: timed(systems, times) });
-  const counter = new EventCounter(sim);
-  const stuck = new StuckSampler(sim);
+  let state = cached ? restore(cached).state : createNewGame(config, world).state;
+  let sim = createSim(state, world, { systems: timed(systems, times) });
   const invariants = collectInvariants();
   const violations: InvariantViolation[] = [];
   let violationCount = 0;
   log(`world ${o.archetype} #${o.seed}: ${round(genMs)} ms, ${state.sources.filter((s) => s.alive).length} sources`);
 
   const f0 = performance.now(), t0 = sim.state.tick;
-  const phase = cached ? (sim.state.player.opening?.phase ?? 'none') : found(sim, 16);
-  if (cacheFile && !cached && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
+  let phase = cached ? (sim.state.player.opening?.phase ?? 'none') : found(sim, 16);
+  let realFailure: string | null = null;
+  if (!cached && phase !== 'handover' && phase !== 'done') {
+    // the real founding failed (viab-founding's module): judge the economy from a forced hand-over of a fresh game
+    realFailure = `${phase} after ${round(sim.state.tick / TICKS_PER_DAY)} gd`;
+    log(`founding ${realFailure}: retrying with a forced seal`);
+    for (const t of times) { t.total = 0; t.max = 0; }
+    state = createNewGame(config, world).state;
+    sim = createSim(state, world, { systems: timed(systems, times) });
+    phase = found(sim, 16, true);
+  }
+  const counter = new EventCounter(sim);
+  const stuck = new StuckSampler(sim);
+  if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
   const expected = requireSpecies(o.species).opening.expectedFirstWorkers;
   // a cached run restores the hand-over snapshot of a new game, which started at tick 0
   const founding = {
     phase, gd: round((cached ? sim.state.tick : sim.state.tick - t0) / TICKS_PER_DAY), workers: workers0, expected: { min: expected.min, max: expected.max },
-    outcome: foundingView(sim)?.outcome ?? null, ms: round(foundMs),
+    outcome: foundingView(sim)?.outcome ?? null, ms: round(foundMs), ...(realFailure ? { forcedSeal: realFailure } : {}),
   };
-  log(`founding ${phase} after ${founding.gd} gd, ${workers0} workers (${round(foundMs / 1000)} s)`);
-  counter.take(); stuck.take();
+  log(`founding ${phase} after ${founding.gd} gd, ${workers0} workers (${round(foundMs / 1000)} s)${realFailure ? ' (forced seal)' : ''}`);
   if (o.workers > 0) {
     const col = sim.state.player.colonyId;
     sim.enqueue({ type: 'cheat.spawnAnts', colonyId: col, n: o.workers, caste: 'worker', ageGd: 4, task: null, pos: null });
@@ -289,7 +309,8 @@ export function lifeMarkdown(r: LifeReport): string {
   const o = r.options;
   const lines = [
     `### ${o.species} on ${o.archetype} #${o.seed} (${o.difficulty})`, '',
-    `Founding: ${r.founding.phase} after ${r.founding.gd} gd with ${r.founding.workers} first workers (expected ${r.founding.expected.min}-${r.founding.expected.max}). ` +
+    `Founding: ${r.founding.phase} after ${r.founding.gd} gd with ${r.founding.workers} first workers (expected ${r.founding.expected.min}-${r.founding.expected.max})` +
+    `${r.founding.forcedSeal ? ` **from a forced seal** (the real founding: ${r.founding.forcedSeal})` : ''}. ` +
     `Verdict: **${r.verdict.healthy ? 'healthy' : 'UNHEALTHY'}** (net worker growth: ${r.verdict.netGrowth ? 'yes' : 'no'}); ${r.violationCount} invariant violations; ${r.msPerTick} ms per tick; final stateHash ${r.finalHash}.`, '',
     '| day | season | workers | eggs/larvae/pupae | hunger | lay pot. | C | P | stage | trips | deliv. (C/P) | by kind | deaths | eggs laid | eclosed | plans +/done | pellets made/dumped/in nest | volume BU³ | chambers | trail cells | outside | stuck | over timeout | viol. | ms/tick |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',

@@ -25,7 +25,7 @@ export interface CreatureSimSource {
     ecology?: { herds: readonly HerdView[]; hazards: readonly HazardView[]; birdEvent: BirdView | null };
   };
   world?: { prims: readonly Primitive[]; objects: readonly WorldObjectView[]; pois: readonly PoiView[] };
-  field?: { height(x: number, z: number): number };
+  field?: { height(x: number, z: number): number; hardXYZ?(x: number, y: number, z: number): number };
 }
 
 /** One creature as the renderer needs it this frame (interpolated). Reused; never retained by callers. */
@@ -151,6 +151,12 @@ export class WorldLookup {
     const sites = this.sites.get(obj.id) ?? [];
     const site = sites.length > 0 ? sites[Math.abs(h.segment) % sites.length]!.pos : obj.pos;
     return { site, prims: w.prims.slice(obj.primStart, obj.primStart + obj.primCount) };
+  }
+
+  /** Free distance to the hard primitives at a point (positive in free space), or null when the source has no field for it. */
+  hardDistance(): ((x: number, y: number, z: number) => number) | null {
+    const f = this.src.field;
+    return f && f.hardXYZ ? (x, y, z) => f.hardXYZ!(x, y, z) : null;
   }
 
   /** Ground height under (x, z), or `fallback` when the source has no field. */
