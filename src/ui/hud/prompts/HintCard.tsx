@@ -19,13 +19,20 @@ function promptRect(): Rect | null {
 }
 
 /**
- * The top-centre card keeps clear of the HUD regions and of the context prompt chip, wherever that sits: it slides sideways
- * (never down onto the ant). Checked a few times a second with style writes only.
+ * The card keeps clear of the HUD regions and of the context prompt chip, wherever that sits. The top-centre card slides
+ * sideways (never down onto the ant); a card anchored beside the clock or the pulse starts from its CSS place and moves
+ * only if that place covers a HUD region (gate-close-app: the "Colony orders" and "Why?" chips sat on the colony view's
+ * marker palette, e2e/playKitchen/x4-m10-slice.png, e2e/slicenight/slice-night.png). Checked a few times a second with
+ * style writes only.
  */
-function useStepAside(ref: { current: HTMLElement | null }, active: boolean, seq: number): void {
+function useStepAside(ref: { current: HTMLElement | null }, anchor: string, seq: number): void {
   useEffect(() => {
     const el = ref.current;
-    if (!active || !el) return;
+    if (!el) return;
+    const top = anchor === 'top';
+    // the CSS place of a side-anchored card, read once before any style write
+    const r0 = el.getBoundingClientRect();
+    const natural = { x: r0.left, y: r0.top };
     let timer = 0;
     let last = '';
     const place = () => {
@@ -33,14 +40,20 @@ function useStepAside(ref: { current: HTMLElement | null }, active: boolean, seq
       const size = { w: el.offsetWidth, h: el.offsetHeight };
       const view = { w: window.innerWidth, h: window.innerHeight };
       const pr = promptRect();
-      const out = placeAvoiding({ x: (view.w - size.w) / 2, y: m }, size, view, m, pr ? [...keepOutRects(), pr] : keepOutRects(), m * 0.5);
+      const want = top ? { x: (view.w - size.w) / 2, y: m } : natural;
+      const out = placeAvoiding(want, size, view, m, pr ? [...keepOutRects(), pr] : keepOutRects(), m * 0.5);
+      if (!top && last === '' && Math.abs(out.x - natural.x) < 0.5 && Math.abs(out.y - natural.y) < 0.5) return; // its CSS place is clear
       const css = `${out.x.toFixed(0)}px ${out.y.toFixed(0)}px`;
-      if (css !== last) { last = css; el.style.translate = 'none'; el.style.left = `${out.x}px`; el.style.top = `${out.y}px`; }
+      if (css !== last) {
+        last = css;
+        el.style.translate = 'none'; el.style.right = 'auto'; el.style.bottom = 'auto';
+        el.style.left = `${out.x}px`; el.style.top = `${out.y}px`;
+      }
     };
     place();
     timer = window.setInterval(place, 200);
     return () => window.clearInterval(timer);
-  }, [active, seq]);
+  }, [anchor, seq]);
 }
 
 export interface HintCardProps {
@@ -51,7 +64,7 @@ export interface HintCardProps {
 export function HintCard({ view, onDismiss }: HintCardProps) {
   const text = keyCapText(currentBindings.value, view.action, view.fixedKey, inputDevice.value, padStyle.value);
   const ref = useRef<HTMLDivElement>(null);
-  useStepAside(ref, view.anchor === 'top', view.seq);
+  useStepAside(ref, view.anchor, view.seq);
   return (
     <div
       ref={ref} class={`hn-card hn-at-${view.anchor}${view.compact ? ' is-compact' : ''}`} key={view.seq} role="status" aria-live="polite"

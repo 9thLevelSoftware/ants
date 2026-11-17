@@ -1274,3 +1274,20 @@ Tools: `tools/sim/handover-sweep.sh`, `longrun-table.py`, `longrun-life.sh` (CAC
   **L1b** `measureLarder` sizes the P larder on the P need minus the spoilage rate (`inst.spoilP`). Test case added to
   `colony/larder.test.ts` (red without). The running bench keeps tree r4f (the larder size hardly matters under a
   capacity-free top-up); recorded as a bench limitation.
+- 15:37 long run we #1 on r4f: identical outcome to r4c (no waste problem there): **predation 15 of 18 workers** in year
+  one (plus old age 3), 3 workers at winter, extinct by year-2 summer. With threats-live's predators acting in the tree,
+  predation is now the largest worker loss in 3 of the 6 long runs (we #1 15, pp #2 7-9, cpv #1 / kd #1 3). For the
+  integrator: threats-live's calibration against GDD 05 loss bands decides whether this is in the bands; this task does
+  not touch it. Long runs on r4f stopped after pp #2 (cpv #1 and kd #1 had no waste problem on r4c); the slot goes to
+  the nest bench "before" on r4c: `PAR=1 $S/r4c/tools/sim/bench-sweep.sh nest $P/bench-nest-before $P/cache`.
+- 15:47 the r4f long run pp #2 was killed with the batch (xargs took its child down); not re-run. Both nest benches run
+  now, one at a time each: after (r4f) -> `round-4/bench-nest-after/`, before (r4c) -> `round-4/bench-nest-before/`.
+  Restart-safe (re-run the commands of 15:06 and 15:37). ~7-10 min per run.
+- 15:59 **nest bench fixed and restarted**: the first 6 + 1 runs (`round-4/bench-nest-*-uncapped/`) were contaminated by
+  the top-up: `cheat.addFood` ignores capacity and the P need rate counts spoilage, so P stores rose to 80-89 loads, the
+  pile rotted into spoiled-food waste among the brood and the bench showed hygiene losses a real nest cannot have (we #1
+  29, kd #1 51, before and after alike). `tools/sim/bench-colony.ts` `nestBenchSystem` now tops up only as far as
+  `poolSpace` allows and sizes P without the spoilage rate. Both benches restarted, one run at a time each:
+  `PAR=1 $S/r4g/tools/sim/bench-sweep.sh nest $P/bench-nest-after $P/cache` (r4g = tree at 15:58: all round-4 fixes
+  incl. L1b) and `PAR=1 $S/r4c/tools/sim/bench-sweep.sh nest $P/bench-nest-before $P/cache` (r4c + the bench fix).
+  Scratch trees r4a/r4d/r4e/r4f/noL1/base deleted. ETA ~17:45 (15 runs x ~7 min each, two in parallel).

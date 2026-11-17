@@ -155,6 +155,15 @@ const REMEDY_ACTION: Readonly<Record<string, RemedyAction>> = {
   'remedy.guard.entrance': { kind: 'directives', group: 'defend', control: 'workforce' },
   'remedy.dig.granary': { kind: 'tool', tool: 'dig' },
   'remedy.dig.drain-chamber': { kind: 'tool', tool: 'dig' },
+  // leafcutter (fungus) remedies: the nearest control the player has today (the task sub-shares sit inside a group)
+  'remedy.slider.cut': { kind: 'directives', group: 'forage', control: 'workforce' },
+  'remedy.slider.garden': { kind: 'directives', group: 'nurse', control: 'workforce' },
+  'remedy.slider.haul': { kind: 'directives', group: 'dig', control: 'workforce' },
+  'remedy.dig.fungus': { kind: 'tool', tool: 'dig' },
+  'remedy.garden.piece': { kind: 'possess', role: 'forager' },
+  'remedy.leaf-selectivity': { kind: 'directives', group: 'forage', control: 'workforce' },
+  'remedy.forage-night': { kind: 'directives', group: 'forage', control: 'workforce' },
+  'remedy.hitchhiker-escort': { kind: 'directives', group: 'defend', control: 'workforce' },
   // no satellite marker yet: the new-entrance marker is where a satellite starts
   'remedy.marker.satellite': { kind: 'tool', tool: 'entrance' },
   // the species toggles (directiveExtras) have no control of their own yet: open the Nest section

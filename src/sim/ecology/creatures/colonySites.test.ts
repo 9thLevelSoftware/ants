@@ -70,11 +70,12 @@ beforeAll(() => {
 }, 120_000);
 
 describe('colony-range sites on a generated world (woodland-edge #1)', () => {
-  it('jumping-spider sites stand on open ground at the foot of a vertical surface', () => {
+  it('jumping-spider sites: food on a stem, else open ground at the foot of a vertical surface', () => {
     const sim = createSim(restore(base).state, world);
-    const sites = jumpingSpiderSites(sim, colonyAnchor(sim)!);
-    expect(sites.length).toBeGreaterThan(0);
-    for (const s of sites) expect(sim.field.sample({ x: s.x, y: s.y + sim.world.bu, z: s.z })).toBeGreaterThan(0);
+    const { atFood, surfaces } = jumpingSpiderSites(sim, colonyAnchor(sim)!);
+    expect(surfaces.length).toBeGreaterThan(0);
+    for (const s of surfaces) expect(sim.field.sample({ x: s.x, y: s.y + sim.world.bu, z: s.z })).toBeGreaterThan(0);
+    for (const s of atFood) expect(s.y - sim.field.height(s.x, s.z)).toBeGreaterThanOrEqual(JUMPING_SPIDER_SURFACE_MIN_MM);
   });
 
   it('the pause-point kinds wait by one of the colony\'s nearest food sources, where its ants pause', () => {

@@ -13,7 +13,7 @@ Progress log: `docs/design/tasks/progress/gate-close-app-impl.md`.
 | 2 | founding 1-3, firstplay, stage1a, controls, stage2 strict, onboarding, lifecycle pass, or each failure named with cause | **partial** - passes: founding seeds 1-3, controls, stage2 strict (all 14 sections, two runs), onboarding (after an app fix), lifecycle. Named failures: firstplay fails only its growth check (sim: no growth, protein runs out; all 25 beats and the app side pass); stage1a strict fails at the egg (the 1A script never plays the opening, so the founding queen cannot lay: script/design mismatch, not a game defect) | section 2 |
 | 3 | Every seam done or reported | **met** - all eight seams done (four by cross-edits under 30 lines with tests); the five accessibility items done or reported | section 3 |
 | 4 | Portable build verified | **met** - build 27.73 MB, verify:portable OK (sub-path and sandboxed iframe), firstplay beats 1-6 pass on `dist-portable/` | section 6 |
-| 5 | Ranked still-wrong list complete, every cited picture looked at | **met** for seed 1 and the scripts' pictures (kitchen-door: see section 4) | sections 4 and 7 |
+| 5 | Ranked still-wrong list complete, every cited picture looked at | **met**: 32 seed-1 shots and 20 kitchen-door shots looked at, plus the script beats cited; 18 items ranked with owner, picture and cause | sections 4 and 7 |
 
 Not in the criteria but asked: frame time is **indicative only** (40 frames per quality instead of 600, SwiftShader under
 load, section 5); `panels.mjs` second half and `a11y.mjs` section C fail (load timing; sim reopening), section 2.
@@ -42,6 +42,22 @@ Red test found and fixed:
 | Test | Owner | Cause | Fix |
 |---|---|---|---|
 | `src/ui/panels/health/model.test.ts` "every remedy the colony publishes has words and a known action" | ui-panels (mine now) | the species engineers added remedy ids (`remedy.slider.mill`, `.store`, `remedy.caste-emphasis`, `remedy.granary.hygiene`, `remedy.dig.granary`, `remedy.guard.entrance`, `remedy.marker.satellite`, `remedy.dig.drain-chamber`, `remedy.toggle.hideFrass`) with words but no action, so the health panel offered them as plain advice | `REMEDY_ACTION` entries (nearest existing control; a `brood` directives control for caste emphasis) in `src/ui/panels/health/model.ts` |
+
+Final re-run at the end of the task (16:00-16:30, after every change of this task; `test-output/gate-close/app/unit-final/`):
+
+| Folder | Files | Tests | Result |
+|---|---|---|---|
+| src/content | 11 | 114 | green |
+| src/input | 6 | 105 | green |
+| src/audio | 12 | 209 | green |
+| src/ui | 47 | 396 | 1 red at first (`health/model.test.ts`: `remedy.slider.cut`, the leafcutter engineer's new remedy ids `remedy.slider.cut/garden/haul`, `remedy.dig.fungus`, `remedy.garden.piece`, `remedy.leaf-selectivity`, `remedy.forage-night`, `remedy.hitchhiker-escort` had words but no action) -> `REMEDY_ACTION` entries added -> **green** |
+| src/game | 85 | 560 | green |
+| src/render/ants, app, assets, camera, creatures, debug | 49 | 355 | green |
+| src/render/fx | 15 | 69 | green |
+| src/render/nest, slots, world | 80 | 375 (+2 skipped) | green |
+| my `src/sim` cross-edit tests + `src/sim/nest/flood` | 13 (+1 skipped) | 61 (+15 skipped) | green |
+
+`npm run typecheck` after the last edit: 0 errors.
 
 ## 2. Browser scripts on the real game (step 2)
 
@@ -120,7 +136,21 @@ What a player would call broken or ugly (fixed items marked; every picture named
 | P9 | `x1-m02-observer.png` (18:37, about 5 game hours after the hand-over) | the hand-over banner ("Tab to take a worker, or stay with the queen") still sits over the middle of the scene after the player left the queen for the observer view | **fixed** (game): the banner closes when the player changes the view (as it already did when a worker was taken), and by itself after `HANDOVER_BANNER_MAX_S` = 45 real seconds on screen, so a player who only watches is not left with it (`src/game/flows/founding/flow.ts`; two tests in `flow.test.ts`, 7/7 green). The harness drives the game on a manual clock (no real frames between script steps), so the play-through shots cannot show the timeout; the kitchen-door run started before this change |
 | P8 | `x1-m08-scent.png` | scent view reads well (home dots, food rings); no trail chevrons because nobody forages (P5) | - |
 
-**Kitchen door (indoor archetype):** (pending)
+**Kitchen door (`PLAY_ARCH=kitchen-door`: the garden at the house's kitchen door, with an interior zone; the colony
+starts in the lawn / vegetable bed), `test-output/gate-close/app/e2e/playKitchen/` (20 shots, all looked at), 15:17-15:52,
+load 3.6-8.5.** Colony: 15 workers at the hand-over (summer 2 02:02) -> 15 after 20 min at 1x -> **18** after the 4x
+half (summer 6 02:05): this colony does raise new workers; brood 16 eggs / 4 larvae -> 1 egg / 15 larvae; C 13.5 -> 6.5,
+**P 3.3 -> 0.0** (protein exhausted again, S1). Trail chevrons appear in the last scent shot (`x4-m20-scent.png`).
+
+| # | Shot | What is wrong | Owner / outcome |
+|---|---|---|---|
+| K1 | `x1-m04-possession.png`, `x1-m20-possession.png`, `x4-m08-possession.png` | a worker with a full crop shows bright white rings round the gaster (the stretched intersegmental membranes drawn almost white): reads as a bee or a wasp | render-ants (replete gaster look), reported (S16) |
+| K2 | `x4-m10-slice.png` (02:04), `x4-m18-slice.png` | the "Colony orders (I)" hint chip sits on the marker palette's first slots | **fixed** (ui): side-anchored hint cards (beside the clock or the pulse) now step aside from HUD regions like the top card (`src/ui/hud/prompts/HintCard.tsx`); re-shot `e2e/slicenight/slice-night.png` (15:59): the "Why?" chip now sits below the palette, clear of it (looked at). This run started before the change |
+| K3 | `x1-m06-slice.png` (16:27, clear) | alert "Royal chamber flooding" with the sub-line "rim factor 1.00": a number from the flood model, meaningless to a player | sim (`src/sim/nest/flood/diagnostics.ts` factor details feed the alert's cause line), reported (S17) |
+| K4 | `x1-m06-slice.png`, `x1-m14-slice.png`, `x4-m10-slice.png` vs `x4-m18-slice.png` | chamber labels sometimes soft and smeared (16:27, 11:39, 02:04), sometimes crisp (21:17) | render (the label sprites take the depth-of-field blur of the ground behind them); reported (S18) |
+| K5 | `x1-m20-possession.png` (worker under a leaf), `x4-m16-possession.png` (worker on a flower stem) | the possession camera follows the ant upside down / looking straight up into the sky; the flower's petals have a pink fringe | views (camera on steep or inverted surfaces, S10); the fringe is the depth-of-field edge on a bright subject against the sky |
+| K6 | `x1-m02-observer.png`, `x1-m10-observer.png`, `x4-m06-observer.png`, `x4-m14-observer.png` | no ant visible on the surface in any observer shot | sim (S2) |
+| K7 | `x1-m02-observer.png` | the hand-over banner still up 5 game hours after the hand-over | fixed (P9); this run predates the timeout |
 
 **look-pass-2 open items** (checked in these pictures; ant-height observer on seed 1 and the founding/firstplay beats):
 thin lime-green strip at the map-edge horizon - not seen in any of the 32 play-through shots or the founding beats
@@ -184,6 +214,9 @@ Every picture named here was looked at. "Sim" items carry the evidence that sepa
 | S13 | The entrance mound ends in straight, square edges at its foot | `e2e/founding1/09-handover-entrance.png` | render-nest / world (mound skirt) | the mound overlay's footprint shows its grid cell edges |
 | S14 | Photo mode, f/1.4 on the queen: a fine dotted (screen-door) pattern over her head and thorax | `e2e/photo-before/02-f1.4-focus-subject.png` (before), `e2e/photo/02-f1.4-focus-subject.png` (after the fix) | render-ants: **fixed** | photo mode hides the possession rim, and the shader tells the possessed ant apart only by her rim, so she was dithered at 0.4 inside her own camera capsule; the capsule is now off while the rim is hidden (`src/render/ants/AntRenderer.ts`, test in `lookFixes.test.ts`); the re-run photo.mjs (12:56, pass) shows her solid (looked at). Still open: the folded wings over the gaster read as a glass bulb with white veins (render-ants wing membrane) |
 | S15 | In night rain the ants look milky and glassy (grey-white translucent bodies) | `e2e/stage2/10-rain-night-possess.png`, `antfill/after/after-night-rain-surface-high.png` | render-ants (cuticle clearcoat / sheen) | the night fill is not active at the rain exposure; the look comes from the clearcoat and sheen reflecting the wet sky. Not fixed (the fill change covers clear nights only) |
+| S16 | A worker with a full crop shows bright white rings round the gaster (reads as a bee or wasp) | `e2e/playKitchen/x1-m04-possession.png`, `x4-m08-possession.png` | render-ants (replete gaster membrane colour) | the stretched intersegmental membrane is drawn near white; it should be a dull pale brown, darker than the sclerites' highlights |
+| S17 | A flood alert's sub-line reads "rim factor 1.00" (also "catchment x1.2" for other entrances) | `e2e/playKitchen/x1-m06-slice.png` | sim (`src/sim/nest/flood/diagnostics.ts` factor `detail` strings become the alert's cause via `src/sim/progression/diagnostics.ts` `raiseFor`) | model numbers used as player text; needs plain words (or the UI should show `FACTOR_CAUSE_WORD` for the top cause) |
+| S18 | Chamber labels in the colony view are sometimes smeared | `e2e/playKitchen/x1-m14-slice.png` (smeared) vs `x4-m18-slice.png` (crisp) | render (post chain: depth of field over overlay sprites) | the labels do not write depth, so the blur uses the depth of the ground behind them |
 | S11 | Pale strip along the horizon at night | `test-output/gate-close/app/antfill/after/after-night-observer-high.png` | render-world (sky/fog) | fog colour vs night sky at the horizon |
 
 Fixed in this task (re-shot where noted): night colony slice blown out (P1), slice outlines and labels blown out (P2),

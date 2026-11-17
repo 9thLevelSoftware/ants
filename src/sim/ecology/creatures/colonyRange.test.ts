@@ -5,7 +5,7 @@
 // queen's start standing in for the founded one (founding takes ~3 gd of ticks).
 
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Entrance, Sim } from '@/sim/types';
+import type { CreatureKind, Entrance, Sim } from '@/sim/types';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
 import { createNest } from '@/sim/entities';
@@ -16,6 +16,7 @@ import { COLONY_RANGE_BU } from '@/sim/balance/creatures';
 import { runDirector } from './director';
 import { COLONY_RANGE_KINDS, colonyAnchor, colonyRangeSite, ensureColonyRangeTerritories } from './colonyRange';
 import { capOf } from './caps';
+import { colonyRing } from './colonySites';
 
 let world: WorldData;
 let base: Uint8Array;
@@ -37,7 +38,10 @@ const ringBu = (sim: Sim, p: { x: number; z: number }): number => {
   const a = colonyAnchor(sim)!;
   return Math.hypot(p.x - a.x, p.z - a.z) / sim.world.bu;
 };
-const inRing = (sim: Sim, p: { x: number; z: number }) => { const d = ringBu(sim, p); return d >= COLONY_RANGE_BU[0] && d <= COLONY_RANGE_BU[1]; };
+const inRing = (sim: Sim, p: { x: number; z: number }, kind: CreatureKind | null = null) => {
+  const d = ringBu(sim, p), [r0, r1] = colonyRing(kind);
+  return d >= r0 && d <= r1;
+};
 
 beforeAll(() => {
   const d = defaultGameConfig('lasius-niger', 1);
@@ -51,7 +55,7 @@ beforeAll(() => {
 describe('colony-range residents (generated woodland-edge #1)', () => {
   it('cause: worldgen leaves the colony ring without any hunting-predator territory', () => {
     const sim = freshSim();
-    const near = sim.state.ecology.director.territories.filter((t) => COLONY_RANGE_KINDS.includes(t.kind) && inRing(sim, t.center));
+    const near = sim.state.ecology.director.territories.filter((t) => COLONY_RANGE_KINDS.includes(t.kind) && inRing(sim, t.center, t.kind));
     expect(near.length).toBe(0); // the reproduction: the fix must not rely on worldgen
   });
 
@@ -61,7 +65,7 @@ describe('colony-range residents (generated woodland-edge #1)', () => {
     expect(expected).toContain('wolf-spider');
     for (let i = 0; i < 4; i++) { runDirector(sim); sim.state.tick += 50; }
     const terr = sim.state.ecology.director.territories;
-    for (const k of expected) expect(terr.some((t) => t.kind === k && inRing(sim, t.center)), k).toBe(true);
+    for (const k of expected) expect(terr.some((t) => t.kind === k && inRing(sim, t.center, k)), k).toBe(true);
     const wolf = sim.state.creatures.filter((c) => c.alive && c.kind === 'wolf-spider');
     expect(wolf.length).toBeLessThanOrEqual(capOf(sim, 'wolf-spider'));
     expect(wolf.some((c) => ringBu(sim, c.pos) <= COLONY_RANGE_BU[1] + 10), 'a wolf spider lives in the colony range').toBe(true);

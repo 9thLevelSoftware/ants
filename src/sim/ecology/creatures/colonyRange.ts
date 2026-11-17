@@ -47,12 +47,14 @@ export function colonyRangeSite(sim: Sim, anchor: Vec3, kind: CreatureKind): Vec
   const rng = rngFork(sim.state.config.world.seed, `creatures/colony-range/${sim.world.params.archetype}/${kind}`);
   const pick = rngRange(rng, 0, 1);
   const sources = colonySources(sim, anchor);
-  const cands = kind === 'jumping-spider' ? jumpingSpiderSites(sim, anchor) : groundSites(sim, anchor, kind, sources, rng);
-  return pickSite(sim, anchor, kind, cands, sources, pick);
+  if (kind !== 'jumping-spider') return pickSite(sim, anchor, kind, groundSites(sim, anchor, kind, sources, rng), sources, pick);
+  // a stem with food on it first (where the colony's ants climb and stop), else any vertical surface
+  const js = jumpingSpiderSites(sim, anchor);
+  return pickSite(sim, anchor, kind, js.atFood.length > 0 ? js.atFood : js.surfaces, sources, pick);
 }
 
 function hasTerritoryInRing(sim: Sim, anchor: Vec3, kind: CreatureKind, terr: readonly CreatureTerritory[]): boolean {
-  for (const t of terr) if (t.kind === kind && inRing(sim, anchor, t.center)) return true;
+  for (const t of terr) if (t.kind === kind && inRing(sim, anchor, t.center, kind)) return true;
   return false;
 }
 

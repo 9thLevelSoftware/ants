@@ -485,6 +485,14 @@ export const DUSK_PHASES: readonly string[] = ['dusk', 'dawn'];
  */
 export const COLONY_RANGE_BU: [number, number] = [40, 140];
 /**
+ * Inner edge of the ring for kinds that hunt closer in, BU. The jumping spider waits on the stems of the colony's
+ * food plants, and the colonies' nearest food lies 10-30 BU from the entrance (round-3 hand-overs), inside the 40 BU
+ * edge: with it the spider struck on 1 of 5 worlds (threats-live fix round). GDD 05 §5's nest exclusion holds only
+ * until NEST_EXCLUSION_WORKERS workers and is enforced where a predator picks its victim (predator.ts canPrey), and the
+ * resident still appears >= 40 BU from the focus (§2.7, director spawnPointFor).
+ */
+export const COLONY_RANGE_MIN_BU: Partial<Record<CreatureKind, number>> = { 'jumping-spider': 20 };
+/**
  * Chance that a hunting kind with habitat in the ring gets its colony-range territory, at the Normal Predators
  * setting (x the setting's multiplier: Few 0.4, Many 1.6, capped at 1). One draw per world seed and kind, so the
  * sited kinds of Few are a subset of Normal's, and Normal's of Many's. Calibrated in the threats-live report.

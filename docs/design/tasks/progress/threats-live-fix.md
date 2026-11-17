@@ -25,3 +25,10 @@ Started ~15:20 UTC. No earlier progress file existed.
   COLONY_PAUSE_KINDS = [jumping-spider, rove-beetle] only at sources, others route rule. director.test.ts
   'never spawns within 20 BU' rewritten to the property (spawn point >= 20 BU from ants; none when all alt blocked).
 - next: funnel fix2 (same script, out test-output/threats-live/fix2)
+- 16:15 fix2 done (test-output/threats-live/fix2): strike worlds JS 1, wolf 2, ant-spider 3, centipede 1 (habitat 2),
+  rove 4; loss 0.21/owgd (kitchen-door ant-spider 7 kills). Change for fix3: JS sited ON food sources on stems
+  (plant/herd/object source >= 40 mm up, in ring) first, else vertical-prim feet. Started funnel fix3.
+- 16:50 fix3 done: strike worlds JS 1, wolf 3, ant-spider 3, centipede 2 (=habitat), rove 4; loss 0.23/owgd.
+  Change for fix4: COLONY_RANGE_MIN_BU {jumping-spider: 20} (colonySites.colonyRing); JS now on food stems at
+  21-53 BU. Reviewer ring test adapted to colonyRing(kind)[0] (explain in report). Started funnel fix4.
+  Cross-module finding: AI rescue of paralysed nestmates (GDD 05 §2.4, p 0.5) not implemented -> ant-spider bites ~always kill.

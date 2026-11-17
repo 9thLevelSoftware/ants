@@ -86,3 +86,8 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 15:20 portable firstplay 1-6 PASS. Next: playKitchen (kitchen-door, quality=high).
 - 15:20 report sections 0, 5, 6, 8 written; waiting for playKitchen.
 - 15:26 banner: + 45 s real-time timeout (flow.test 7/7). playKitchen running.
+- 15:36 kitchen shots x1 looked at: gaster white bands (crop full), colony labels blurred, upside-down leaf-underside possession, 'rim factor' jargon in flood alert.
+- 15:45 fixed: side-anchored hint cards (time/pulse anchors) now step aside from HUD regions too (HintCard.tsx); HUD tests 78/78, typecheck clean. Re-shoot slicenight after playKitchen.
+- 15:59 kitchen section + S16-S18 written. Next: per-folder unit tests of touched folders, typecheck, final report pass.
+- 16:02 unit-final: content/input/audio/game green; ui 1 red (new leafcutter remedy ids without action) -> REMEDY_ACTION entries added, health tests 32/32.
+- 16:05 final unit runs green (ui after remedy fix), typecheck 0. Report complete. No background processes of mine running.

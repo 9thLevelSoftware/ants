@@ -6,7 +6,7 @@
 //        --cache DIR (reads DIR/founded-lasius-niger-A-S-naturalist-d-any.bin)  --out DIR  [--days N]
 //
 //   nest:   every game hour the stores are topped up to BENCH_STORE_GD (2) game days of the colony's need rates in
-//           C and P (foraging left on). Answers "does the nest raise workers when food is not the limit?".
+//           C and P (foraging left on), as far as the nest can hold it (round 4: capacity-bound, P need without spoilage). Answers "does the nest raise workers when food is not the limit?".
 //   forage: the colony's need rates are held at the hand-over colony's rates scaled to 30 workers (its brood scaled
 //           with it), every tick after the economy, need indices recomputed from the stores (brood care left on).
 //           Answers "what does foraging bring in against a fixed demand?", with the prey funnel.
@@ -22,6 +22,7 @@ import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
 import { generateWorld } from '@/worldgen';
 import { restore, stateHash } from '@/sim/save';
 import { needRates, refreshNeedIndices } from '@/sim/colony/needs';
+import { poolSpace } from '@/sim/colony/stores';
 import { isWorkerCaste } from '@/sim/colony/census';
 import { readState, round, type DayState } from './lifeMetrics';
 import { FunnelObserver, funnelMarkdown, type FunnelReport } from './lifeFunnel';
@@ -57,7 +58,12 @@ function parse(args: readonly string[]): Opts {
 
 // ---------------------------------------------------------------- bench writes (tool-side systems)
 
-/** Nest bench: every game hour the stores get what they lack of BENCH_STORE_GD days of the need rates. */
+/**
+ * Nest bench: every game hour the stores get what they lack of BENCH_STORE_GD days of the need rates, as far as the
+ * nest can hold it (colony-life round 4: `cheat.addFood` is not bound by capacity, and the P need rate counts
+ * spoilage, so the top-up chased its own rot: P stores up to 89 loads, the spoiled food lying among the brood as waste,
+ * hygiene losses that a real colony cannot have). The P need without the spoilage rate; capped by `poolSpace`.
+ */
 function nestBenchSystem(colonyId: number, added: { c: number; p: number }): System {
   return {
     name: 'bench-nest-stores', phase: 'colony-economy',
@@ -66,7 +72,10 @@ function nestBenchSystem(colonyId: number, added: { c: number; p: number }): Sys
       const col = sim.stores.colonies.get(colonyId);
       if (!col) return;
       const r = needRates(col);
-      const dc = Math.max(0, BENCH_STORE_GD * r.c - col.stores.c), dp = Math.max(0, BENCH_STORE_GD * r.p - col.stores.p);
+      const needP = Math.max(0, r.p - (col.core?.acc['inst.spoilP'] ?? 0));
+      const room = poolSpace(col);
+      const dc = Math.min(room.c, Math.max(0, BENCH_STORE_GD * r.c - col.stores.c));
+      const dp = Math.min(room.p, Math.max(0, BENCH_STORE_GD * needP - col.stores.p));
       if (dc + dp <= 0) return;
       sim.enqueue({ type: 'cheat.addFood', colonyId, c: dc, p: dp, toxin: 0 });
       added.c += dc; added.p += dp;

@@ -14,7 +14,7 @@ import type { RngState } from '@/core/rng';
 import { rngRange } from '@/core/rng';
 import { zoneAt } from '@/sim/world';
 import {
-  COLONY_PAUSE_KINDS, COLONY_PAUSE_SOURCES, COLONY_RANGE_BU, COLONY_RANGE_CANDIDATES, COLONY_RANGE_ZONES, COLONY_ROUTE_NEAR_BU,
+  COLONY_PAUSE_KINDS, COLONY_PAUSE_SOURCES, COLONY_RANGE_BU, COLONY_RANGE_MIN_BU, COLONY_RANGE_CANDIDATES, COLONY_RANGE_ZONES, COLONY_ROUTE_NEAR_BU,
   COLONY_ROUTE_REACH_BU, COLONY_SOURCE_CANDIDATES, COLONY_SOURCE_NEAR_BU, JUMPING_SPIDER_SITE_MARGIN_MM,
   JUMPING_SPIDER_SURFACE_MIN_MM, UPRIGHT_MAX_TILT_DEG,
 } from '@/sim/balance/creatures';
@@ -22,9 +22,14 @@ import {
 type P2 = { x: number; z: number };
 const hdist = (a: P2, b: P2): number => Math.hypot(a.x - b.x, a.z - b.z);
 
-export function inRing(sim: Sim, anchor: Vec3, p: P2): boolean {
-  const d = hdist(p, anchor) / sim.world.bu;
-  return d >= COLONY_RANGE_BU[0] && d <= COLONY_RANGE_BU[1];
+/** The kind's colony ring [inner, outer], BU (COLONY_RANGE_BU, inner edge per kind COLONY_RANGE_MIN_BU). */
+export function colonyRing(kind: CreatureKind | null): [number, number] {
+  return [(kind ? COLONY_RANGE_MIN_BU[kind] : undefined) ?? COLONY_RANGE_BU[0], COLONY_RANGE_BU[1]];
+}
+
+export function inRing(sim: Sim, anchor: Vec3, p: P2, kind: CreatureKind | null = null): boolean {
+  const d = hdist(p, anchor) / sim.world.bu, [r0, r1] = colonyRing(kind);
+  return d >= r0 && d <= r1;
 }
 
 /** Open ground at (x, z): on the world, in one of `zones`, not under an object. Returns the ground point. */
@@ -99,11 +104,11 @@ export function pickSite(sim: Sim, anchor: Vec3, kind: CreatureKind, cands: read
  */
 export function groundSites(sim: Sim, anchor: Vec3, kind: CreatureKind, sources: readonly Vec3[], rng: RngState): Vec3[] {
   const zones = COLONY_RANGE_ZONES[kind] ?? [];
-  const bu = sim.world.bu, r0 = COLONY_RANGE_BU[0] * bu, r1 = COLONY_RANGE_BU[1] * bu, near = COLONY_SOURCE_NEAR_BU * bu;
+  const bu = sim.world.bu, [ring0, ring1] = colonyRing(kind), r0 = ring0 * bu, r1 = ring1 * bu, near = COLONY_SOURCE_NEAR_BU * bu;
   const out: Vec3[] = [];
   const push = (a: number, r: number) => {
     const p = openGround(sim, anchor.x + Math.cos(a) * r, anchor.z + Math.sin(a) * r, zones);
-    if (p && inRing(sim, anchor, p)) out.push(p);
+    if (p && inRing(sim, anchor, p, kind)) out.push(p);
   };
   for (const s of atPausePoints(kind) ? sources.slice(0, COLONY_PAUSE_SOURCES) : []) {
     const a0 = Math.atan2(s.z - anchor.z, s.x - anchor.x);
@@ -153,13 +158,22 @@ export function uprightPrim(p: Primitive): { top: number; footR: number } | null
 }
 
 /**
- * Jumping-spider sites: the foot of each upright primitive (of a world object) rising at least
- * JUMPING_SPIDER_SURFACE_MIN_MM, on the side facing the colony, on open ground in the kind's zones inside the ring.
+ * Jumping-spider sites: first the food sources in the ring that sit on a stem or another raised surface (a plant's
+ * nectar or herd, at least JUMPING_SPIDER_SURFACE_MIN_MM above the ground: the stems ants climb and stop on), then the
+ * foot of each upright primitive (of a world object) rising at least that high, on the side facing the colony, on
+ * open ground in the kind's zones inside the ring.
  */
-export function jumpingSpiderSites(sim: Sim, anchor: Vec3): Vec3[] {
+export function jumpingSpiderSites(sim: Sim, anchor: Vec3): { atFood: Vec3[]; surfaces: Vec3[] } {
   const zones = COLONY_RANGE_ZONES['jumping-spider'] ?? [];
   const r1 = (COLONY_RANGE_BU[1] + 10) * sim.world.bu;
+  const atFood: Vec3[] = [];
   const sites: Vec3[] = [];
+  for (const s of sim.stores.sources.list) {
+    if (!s.alive || (s.plantId < 0 && s.herdId < 0 && s.objectId < 0) || !inRing(sim, anchor, s.pos, 'jumping-spider')) continue;
+    if (s.pos.y - sim.field.height(s.pos.x, s.pos.z) < JUMPING_SPIDER_SURFACE_MIN_MM) continue;
+    if (!zones.includes(zoneAt(sim.world, s.pos.x, s.pos.z))) continue;
+    atFood.push({ ...s.pos });
+  }
   for (const ob of sim.world.objects) {
     for (let i = ob.primStart; i < ob.primStart + ob.primCount; i++) {
       const p = sim.world.prims[i];
@@ -169,8 +183,8 @@ export function jumpingSpiderSites(sim: Sim, anchor: Vec3): Vec3[] {
       const dx = anchor.x - p.pos.x, dz = anchor.z - p.pos.z, l = Math.hypot(dx, dz) || 1;
       const off = up.footR + JUMPING_SPIDER_SITE_MARGIN_MM;
       const site = openGround(sim, p.pos.x + (dx / l) * off, p.pos.z + (dz / l) * off, zones);
-      if (site && inRing(sim, anchor, site)) sites.push(site);
+      if (site && inRing(sim, anchor, site, 'jumping-spider')) sites.push(site);
     }
   }
-  return sites;
+  return { atFood, surfaces: sites };
 }

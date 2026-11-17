@@ -16,6 +16,7 @@ import { COLONY_RANGE_BU } from '@/sim/balance/creatures';
 import { COLONY_RANGE_KINDS, colonyAnchor, colonyRangeDrawn, colonyRangeSite, ensureColonyRangeTerritories } from './colonyRange';
 import { creatureDirectorSystem, creatureSystem } from './index';
 import { possessedDangerAlerts } from './alerts';
+import { colonyRing } from './colonySites';
 import { ensureCombat } from './attack';
 import {
   captureEvents, creatureScene, installFakeCombat, placeWorker, possess, sendQueenAway, setClock, spawnAt, step,
@@ -78,7 +79,8 @@ describe('colony-range siting vs a Predators setting raised mid-game (GDD 06 §1
       if (!COLONY_RANGE_KINDS.includes(t.kind)) continue;
       const d = Math.hypot(t.center.x - anchor.x, t.center.z - anchor.z) / sim.world.bu;
       if (d > COLONY_RANGE_BU[1] + 1) continue; // a worldgen territory of the kind
-      expect(d).toBeGreaterThanOrEqual(COLONY_RANGE_BU[0] - 1e-6);
+      // fix round: the inner edge is per kind (the jumping spider waits on the colony's food stems, COLONY_RANGE_MIN_BU)
+      expect(d).toBeGreaterThanOrEqual(colonyRing(t.kind)[0] - 1e-6);
       expect(Number.isFinite(t.center.y)).toBe(true);
       expect(t.center.x).toBeGreaterThanOrEqual(0);
       expect(t.center.z).toBeLessThanOrEqual(sim.world.size);
