@@ -584,3 +584,9 @@ Benches (`tools/sim/bench-colony.ts --mode nest|forage`, `bench-sweep.sh`, `benc
 - **No larder**: a nest with no food chamber refuses solids once social stomachs are full (0.15 P per worker); first food chamber only at 25 workers.
 
 **R21 — the larder of a small nest** (deviation from GDD 03 §6.4): with no food chamber, solid food is piled and booked in the brood's chamber, capacity one game day of the colony's own full need per nutrient (≥ 4 loads); a `stores-full` refusal with no food chamber makes the first food chamber a planning need at once. Written into `colony-life.md` (direction 5).
+
+## Nov 17 09:55 UTC — the calendar (integrator analysis); year-two runs added to the sweep
+
+Nest bench before (food guaranteed, all 15): 231 eggs, eclosed median 0 (seed 1 and 3: 0 in all 10; seed 2: 1–10); workers at winter < hand-over in 12 of 15; brood losses with food guaranteed: egg:untended 61, hygiene 42, larva:starvation 30, pupa:untended 18. Brood temperature colony days 1–3 median 15.2 °C, 5–10 °C by day 5–8.
+
+Reading: `temperate-maritime` seasonal mean = 12 + 8.5 cos → 20.5 °C at day 9.5, 18 at 13, 15 at 15, 11 at 17; r(T) = (T−10)/11. Default start day 9 + founding 3–4.5 gd → hand-over with ≈ 2 warm days left. The model reproduces nature (first-year colony = nanitics only); the growth bar R19 as written asks for something the calendar forbids. Decisions pending numbers: **R20 start day** (bench at 7 and 5) and a restated R19 (year-one hold + year-two growth). Written into `colony-life.md` as direction 6: start-day table contents, **five long runs through winter to day 15 of year 2 in every sweep from now**, warm-nursery evidence. No run has ever gone through a winter: that is the next unknown.

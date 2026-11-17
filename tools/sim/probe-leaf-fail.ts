@@ -26,7 +26,7 @@ export default async function main(args: string[]): Promise<void> {
       const col = sim.state.colonies[0];
       const q = sim.stores.ants.get(col.queenId);
       const g = col.fungus?.gardens[0];
-      console.log(`t${(sim.state.tick / TICKS_PER_DAY).toFixed(2)} phase ${op?.phase} queen ${q?.alive} ch ${q?.chamberId} T ${q && q.chamberId >= 0 ? chamberTempC(sim, q.chamberId).toFixed(1) : '-'} RH ${q ? chamberRh(sim, q.chamberId, q.pos).toFixed(2) : '-'} pellet ${JSON.stringify((op as { garden?: unknown })?.garden)} g ${g ? `${g.state} G${g.biomass.toFixed(2)} h${g.health.toFixed(2)} fT${(g.fT ?? 0).toFixed(2)}` : '-'}`);
+      console.log(`t${(sim.state.tick / TICKS_PER_DAY).toFixed(2)} phase ${op?.phase} queen ${q?.alive} ch ${q?.chamberId} T ${q && q.chamberId >= 0 ? chamberTempC(sim, q.chamberId).toFixed(1) : '-'} RH ${q ? chamberRh(sim, q.chamberId, q.pos).toFixed(2) : '-'} pellet ${JSON.stringify((op as { garden?: unknown })?.garden)} res ${(q?.queen?.founding as { reserveLoads?: number } | null | undefined)?.reserveLoads?.toFixed(2)} brood ${sim.state.brood.filter((b) => b.alive && b.colony === col.id).map((b) => b.stage[0]).join("")} g ${g ? `${g.state} G${g.biomass.toFixed(2)} h${g.health.toFixed(2)} fT${(g.fT ?? 0).toFixed(2)}` : '-'}`);
     }
     if (op?.phase === 'handover' || op?.done || op?.phase === 'failed') { console.log('END', op?.phase, JSON.stringify((op as { failure?: unknown; failCause?: unknown }).failure ?? (op as { failCause?: unknown }).failCause ?? null)); break; }
   }
