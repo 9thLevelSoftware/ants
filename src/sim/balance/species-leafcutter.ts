@@ -144,3 +144,13 @@ export const FOUND_AUTO_PLANT_GD = 0.5;
 
 /** Founding hand-over: the queen's remaining founding reserve she may still spend on the garden, share. */
 export const HANDOVER_FERT_GD = 3;
+
+/**
+ * After the founding the queen lays only while the fungus in view covers the brood already there and one more egg
+ * (GDD 07 §5.4.2: laying is paid from the fungus ration): pool P + harvested staphylae + garden yield over
+ * LAY_COVER_GD, less the queen's own upkeep over the same span. Without it the queen keeps laying from the founding
+ * stores while a small garden feeds a tenth of the larvae, and the starved brood's corpses poison the cell. [EST]
+ */
+export const LAY_COVER_GD = 2.5;
+/** The queen's upkeep in fungus (GDD 07 §5.4.1: 0.5 FL per GD). */
+export const QUEEN_FL_PER_GD = 0.5;

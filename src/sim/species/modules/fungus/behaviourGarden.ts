@@ -31,7 +31,7 @@ import { TEND_MODE, TM } from './actions';
 import { AK, GJ, isSmallMedia } from './work';
 import { isQuarantined } from './quarantine';
 import { cutTripStep, cutTripsUnderway, startCutTrip } from './behaviourCut';
-import { noCutters } from './actions';
+import { noCutters, noProcessors } from './actions';
 import { minimCutTrips } from './allocation';
 
 const ENTRY = 'garden.find';
@@ -78,8 +78,8 @@ function chooseGarden(sim: Sim, ant: Ant, col: Colony, P: FungusParams): GardenR
 /** The job this ant takes at this garden now. */
 export function chooseJob(sim: Sim, ant: Ant, col: Colony, g: GardenRecord, P: FungusParams): number {
   const refuse = (ant.flags & AntFlag.REFUSE) !== 0;
-  // small media and media; while the colony has no media its minims do their work too (first-brood deviation)
-  const big = ant.caste === 'media' || (ant.caste === 'minor' && noCutters(sim, col));
+  // small media and media; while no media works the gardens the minims do their work too (first-brood deviation)
+  const big = ant.caste === 'media' || (ant.caste === 'minor' && noProcessors(sim, col));
   const wasteDue = g.waste > WASTE_HAUL_MIN_LOADS * Math.max(1, g.biomass) || (g.state === 'dead' && g.waste > 1e-6);
   if (refuse) return wasteDue || g.waste > 1e-6 ? GJ.waste : GJ.none;
   if (g.state === 'dead') return big && g.waste > 1e-6 ? GJ.waste : GJ.none;

@@ -74,3 +74,7 @@ snapC builder: /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scr
 - 07:38 custom-rules 28-day run (pid 22876) running, then chain naturalist,gentle,harsh (each ~? min). Outputs test-output/difficulty/difficulty-*.json; logs run-*.log
 - 07:55 restarted chain (snapD=live code incl. rivals0->no incipients; --workers 60 --food 30,15): naturalist, gentle, harsh, custom -> test-output/difficulty/difficulty-*-w60*.json; chain.done marks the end. Earlier w0 results: difficulty-naturalist-1.json (colony dies out by winter: workers max 16)
 - 08:23 gentle w60 done; harsh + custom running
+- 08:44 harsh w60 done; custom w60 running
+- 08:57 ALL 28-day runs done (w60): results in test-output/difficulty/difficulty-{gentle,naturalist,harsh}-1-w60.json + -naturalist-1-w60-custom.json (zero predators/human/rival events, 0 rival colonies). NEXT: vitest (config, balance difficulty.*, weather test), touched-module tests, report
+- 09:05 running touched-module tests: batchA (/tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scratchpad/batchA.txt) then batchB + founding + brood + physiology
+- 09:20 batchA/B done: only baseline-preexisting failures (weather.test determinism, sources drops/season (6), rivals/founding.test, founding/reopen.test: same failures in snapA). running LONG rules test then final typecheck+my tests+report

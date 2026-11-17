@@ -11,6 +11,9 @@ import { processAntDeath } from '@/sim/ants/lifecycle';
 import type { FungusParams } from './params';
 import { liveGardens } from './state';
 import { openingRunning } from './work';
+import { larvaFood } from '@/sim/colony/life';
+import { FL_P_SHARE, LAY_COVER_GD, QUEEN_FL_PER_GD } from '@/sim/balance/species-leafcutter';
+import { yieldPerGd } from './castes';
 
 /** Whether the colony has ever had a garden (a colony still in its opening before the pellet is planted has none). */
 function hadGarden(col: Colony): boolean {
@@ -58,4 +61,26 @@ export function holdGardenLessLaying(sim: Sim, col: Colony): void {
   if (!col.fungus?.gardenLess) return;
   const q = sim.stores.ants.get(col.queenId);
   if (q?.queen) q.queen.eggBudget = 0;
+}
+
+/**
+ * After the founding: the queen's laying budget is held at 0 while the fungus in view (pool P, harvested staphylae,
+ * the gardens' yield over LAY_COVER_GD, less her own upkeep) does not cover the protein the eggs and larvae already
+ * there still need plus one more egg (balance LAY_COVER_GD).
+ */
+export function holdLayingToFungus(sim: Sim, col: Colony, P: FungusParams): void {
+  const q = sim.stores.ants.get(col.queenId);
+  if (!q?.queen || q.queen.founding || q.queen.eggBudget <= 0 || openingRunning(sim, col)) return;
+  const def = sim.getSpecies(col.species);
+  if (!def) return;
+  const minim = def.castes.find((c) => c.caste === 'minor')?.lengthBu.mean ?? 0.35;
+  let need = larvaFood(def, 'worker', minim).p;
+  for (const b of sim.stores.brood.list) {
+    if (!b.alive || b.colony !== col.id || (b.stage !== 'egg' && b.stage !== 'larva')) continue;
+    const f = larvaFood(def, b.destined, b.destinedLengthBu > 0 ? b.destinedLengthBu : minim);
+    need += Math.max(0, f.p - (b.fedP ?? 0));
+  }
+  const mod = col.fungus!;
+  const have = col.stores.p + ((mod.staphylae ?? 0) + (yieldPerGd(P, col) - QUEEN_FL_PER_GD) * LAY_COVER_GD) * FL_P_SHARE;
+  if (have < need) q.queen.eggBudget = 0;
 }

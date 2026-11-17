@@ -27,6 +27,12 @@ function line(sim: Sim): string {
   const brood = sim.state.brood.filter((b) => b.alive && b.colony === col.id);
   const st = (s: string) => brood.filter((b) => b.stage === s).length;
   const g = m.gardens.map((x) => `${x.chamberId}:${x.state} G${x.biomass.toFixed(2)}/${(x.gcap ?? 0).toFixed(1)} h${x.health.toFixed(2)} i${x.infection.toFixed(2)} fs${(x.fsub ?? 0).toFixed(2)} fc${(x.fclim ?? 0).toFixed(2)}(T${(x.fT ?? 0).toFixed(2)} RH${(x.fRH ?? 0).toFixed(2)}) ft${(x.ftend ?? 0).toFixed(2)} W${x.waste.toFixed(2)} cache${(x.cache ?? []).reduce((a, l) => a + l.lu, 0).toFixed(2)} pulp${(x.pulp ?? []).reduce((a, l) => a + l.lu, 0).toFixed(2)} ys${(x.yieldStanding ?? 0).toFixed(2)}`).join(' | ');
+  const wk: Record<string, number> = {};
+  for (const it of sim.state.items) {
+    if (!it.alive || it.kind !== 'waste') continue;
+    const k = `${it.chamberId}:${it.wasteKind}:${it.carrierIds.length ? 'c' : it.inNest ? 'n' : 'o'}`;
+    wk[k] = (wk[k] ?? 0) + 1;
+  }
   const c = m.chain;
   const ch = c ? `chain cut${(c.cut + (c.last?.cut ?? 0)).toFixed(1)} car${(c.carried + (c.last?.carried ?? 0)).toFixed(1)} pro${(c.processed + (c.last?.processed ?? 0)).toFixed(1)} pla${(c.planted + (c.last?.planted ?? 0)).toFixed(1)} har${(c.harvested + (c.last?.harvested ?? 0)).toFixed(2)} narrow ${c.narrow}` : 'chain -';
   const cal = calendarNow(sim);
@@ -34,7 +40,7 @@ function line(sim: Sim): string {
     `t${(sim.state.tick / TICKS_PER_DAY).toFixed(2)} ${cal.phase} act${surfaceActivityOf(sim, col.species).toFixed(2)}`,
     `workers ${Object.values(tasks).reduce((a, b) => a + b, 0)} brood e${st('egg')} l${st('larva')} p${st('pupa')} eggsLaid ${col.counters.eggsLaid}`,
     `pool c${col.stores.c.toFixed(2)} p${col.stores.p.toFixed(2)} staph${(m.staphylae ?? 0).toFixed(2)} queen gut c${q?.queen?.gut.c.toFixed(2)} p${q?.queen?.gut.p.toFixed(2)} res ${q?.queen?.reserveP?.toFixed(2)} budget ${q?.queen?.eggBudget?.toFixed(2)}`,
-    `gardens ${g}`, ch, `tasks ${JSON.stringify(tasks)}`, `states ${JSON.stringify(states)}`,
+    `gardens ${g}`, `waste ${JSON.stringify(wk)}`, ch, `tasks ${JSON.stringify(tasks)}`, `states ${JSON.stringify(states)}`,
   ].join('\n  ');
 }
 

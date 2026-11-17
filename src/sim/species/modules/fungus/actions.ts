@@ -66,6 +66,15 @@ export function noCutters(sim: Sim, col: Colony): boolean {
   return true;
 }
 
+/**
+ * No media works the gardens (none alive, or all of them cutting): the first-brood deviation lets minims process the
+ * cache and haul waste then, else the fragments the cutters bring spoil in the cache.
+ */
+export function noProcessors(sim: Sim, col: Colony): boolean {
+  for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && a.caste === 'media' && a.task === 'garden') return false;
+  return true;
+}
+
 /** Leaf a cut of `seconds` gives this ant (GDD 07: time/15 x carryCap, media 1 LU at 15 s). */
 export function fragmentLu(P: FungusParams, ant: Ant, seconds: number): number {
   return (seconds / P.cutBaseS) * ant.carryCap;
@@ -124,10 +133,10 @@ export const cutLeafDef: ActionDef = {
 
 export const processLeafDef: ActionDef = {
   id: 'process-leaf', kind: 'timed', targets: ['none'], cancellable: true, pose: 'tend-fungus', cue: 'garden-tend',
-  // first-brood deviation: minims process (at MINIM_PROCESS_MULT x the time) while the colony has no media
+  // first-brood deviation: minims process (at MINIM_PROCESS_MULT x the time) while no media works the gardens
   who: (sim, ant) => {
     const col = colonyOf(sim, ant);
-    return ant.caste === 'minor' && !!col?.fungus && noCutters(sim, col);
+    return ant.caste === 'minor' && !!col?.fungus && noProcessors(sim, col);
   },
   check(sim, ant) {
     if (!paramsOf(sim, ant)) return 'species';

@@ -37,7 +37,7 @@ import { fungusAllocationSystem } from './allocation';
 import { attaCasteSystem } from './castes';
 import { fungusDiagnosticsSystem } from './diagnostics';
 import { phoridDeathSystem } from './phorids';
-import { holdGardenLessLaying } from './gardenLess';
+import { holdGardenLessLaying, holdLayingToFungus } from './gardenLess';
 import { cutBehaviour } from './behaviourCut';
 import { gardenBehaviour } from './behaviourGarden';
 import { fungusCheats } from './cheats';
@@ -53,7 +53,7 @@ chamberRhRule.fn = gardenChamberRh;
 const gardenLessLayingSystem: System = {
   name: 'fungus-garden-less-laying', phase: 'behaviours',
   run(sim) {
-    for (const { col } of atColonies(sim)) holdGardenLessLaying(sim, col);
+    for (const { col, P } of atColonies(sim)) { holdGardenLessLaying(sim, col); holdLayingToFungus(sim, col, P); }
   },
 };
 

@@ -700,3 +700,16 @@ Progress (kept current; a successor continues from here)
   (fresh foundings with `life.ts --start-doy D --days 1 --cache`, then the nest bench from each hand-over;
   `bench-colony.ts --snapshot FILE --tag -doyD`). Bench artefact noted: the 2-gd top-up can fill the stores (P up to
   51 loads on sg #2), returning foragers then wait in `deliver` (41 % of worker time on sg #2) - same in before and after.
+- 08:55 sg #1 forage-after: 10 kills, 4 remains lifted, 0 prey loads booked (before: 3, 2, 1). Probe
+  (`probe-lift-sg1*.txt`): the hunter carries the remains home and puts them down in the nest, but `depositFood` accepts
+  nothing: the colony has no food/general chamber (pile capacity 0, GDD 03 §6.4) and its P "social stomach"
+  (0.15 P x 12 workers = 1.8) is full from the hand-over provision; the item stays lying in the chamber, unbooked
+  (`stores-full`, the ant rests). Not a hunting defect; the protein ceiling of a small nest without a food chamber
+  (food chambers exist at winter in 5 of 15 forage-before runs) is a lead. A tried change (solid loads put down only
+  inside a chamber, `phaseNest.ts`) changed nothing in the probe: reverted.
+- 09:00 forage-after 7/15: sg #2 kills 16 -> 47 (chase conversion 11 -> 25 %), we #2 0 -> 2; but sg #2 P/need 0.072 ->
+  0.056: P stores sit at 2.4-2.7 loads the whole run = the P social stomach (0.15 x 16-18 workers, no food chamber):
+  23 trips "item-collected ... fail" = remains refused by `depositFood`. On the forage bench (30-worker demand) the P
+  ceiling, not the catch, limits booked protein where prey is in reach. In the real runs P is near 0 most of the time,
+  so the ceiling there bites only in the first days (hand-over provision). Bench limitation recorded; lead for next round:
+  P storage of a small nest (stomach 0.15 P/worker; first food chamber by `missing-type` only at 25 workers).
