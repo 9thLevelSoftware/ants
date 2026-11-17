@@ -33,3 +33,5 @@ Started 2026-11-17 (no earlier progress file). Last update: see bottom.
 - life run in progress: test-output/viab/fix-sg1.log (--cache-any: founding reused, economy after hand-over is new code)
 - NEXT after it ends: one harness run -> test-output/species-leafcutter-fix/e2e1 (look at PNGs), then report
 - 10:47 life fix-sg1 at day 3 (9 workers, ~5 min/GD under load); expected done ~12:00. Do not restart it; read test-output/viab/fix-sg1.log
+- 11:35 fix-sg1 DONE: Viable yes, workers 9->9, leaf delivered 43, 0 starvation, deaths old-age 2 + media lost 1 (forced seal, founding re-run). Next: harness e2e
+- harness e2e1 started (bg) -> test-output/species-leafcutter-fix/e2e1(.log/.json); if cut off check EXIT line, do not rerun twice

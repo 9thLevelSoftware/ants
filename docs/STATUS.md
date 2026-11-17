@@ -590,3 +590,25 @@ Benches (`tools/sim/bench-colony.ts --mode nest|forage`, `bench-sweep.sh`, `benc
 Nest bench before (food guaranteed, all 15): 231 eggs, eclosed median 0 (seed 1 and 3: 0 in all 10; seed 2: 1–10); workers at winter < hand-over in 12 of 15; brood losses with food guaranteed: egg:untended 61, hygiene 42, larva:starvation 30, pupa:untended 18. Brood temperature colony days 1–3 median 15.2 °C, 5–10 °C by day 5–8.
 
 Reading: `temperate-maritime` seasonal mean = 12 + 8.5 cos → 20.5 °C at day 9.5, 18 at 13, 15 at 15, 11 at 17; r(T) = (T−10)/11. Default start day 9 + founding 3–4.5 gd → hand-over with ≈ 2 warm days left. The model reproduces nature (first-year colony = nanitics only); the growth bar R19 as written asks for something the calendar forbids. Decisions pending numbers: **R20 start day** (bench at 7 and 5) and a restated R19 (year-one hold + year-two growth). Written into `colony-life.md` as direction 6: start-day table contents, **five long runs through winter to day 15 of year 2 in every sweep from now**, warm-nursery evidence. No run has ever gone through a winter: that is the next unknown.
+
+## Nov 17 10:55 UTC — rulings R20 (start day 5) and R22 (growth bar restated)
+
+Start-day table (round 3, nest bench with food guaranteed, fresh foundings; `test-output/colony-life/round-3/bench-startday/`):
+
+| start day | run | hand-over gd / first workers | eggs | pupated | eclosed | workers hand-over → winter |
+|---|---|---|---|---|---|---|
+| 9 | woodland-edge #1 | 3.53 / 16 | 10 | 2 | 0 | 16 → 12 |
+| 7 | woodland-edge #1 | 2.74 / 18 | 26 | 11 | 0 (9 pupae untended) | 18 → 12 |
+| 5 | woodland-edge #1 | 3.45 / 18 | 47 | 18 | 13 | 18 → 25 |
+| 9 | woodland-edge #3 | 4.57 / 7 | 9 | 0 | 0 | 7 → 5 |
+| 7 | woodland-edge #3 | 3.34 / 12 | 20 | 4 | 0 | 12 → 10 |
+| 5 | woodland-edge #3 | 4.20 / 10 | 42 | 5 | 0 (egg:hygiene 22) | 10 → 8 |
+| 9 | suburban-garden #1 | 3.91 / 12 | 10 | 0 | 0 | 12 → 11 |
+| 7 | suburban-garden #1 | 3.04 / 12 | 15 | 8 | 0 (7 pupae untended) | 12 → 9 |
+| 5 | suburban-garden #1 | 3.71 / 9 | 12 | 3 | 1 | 9 → 8 |
+
+- **R20 — the reference species starts on day 5** (`lasius-niger.ts` `opening.startDoy` `{min 5, max 9, default 5}`). Licence against the real flight season (days 9–12); GDD deviation. Round 4 implements it first, regenerates the 15 hand-overs and re-bases the benches. Earlier sweep tables are day-9 tables.
+- **R22 — growth bar**: R19's year-one checks unchanged, plus year two on five long runs: alive in spring with ≥ 0.7 × winter workers in ≥ 4 of 5; workers at day 15 of year two ≥ 2 × first workers in ≥ 3 of 5.
+- Messor (start day 17, autumn) cannot raise first workers before winter under this calendar: species viability pass.
+- Round 3 other results: hunting fix accepted (kills 61 → 123 over 15 benches, conversion 4.7 → 23.7 %); E1 (dry drop point margin) **reverted** — on the nest bench eclosions 20 → 7, exposure 6 → 34, hygiene 42 → 76; the evacuation loop stays open.
+- App strings that name the flight season need a check after R20 (app engineer; list comes from round 4's ledger).
