@@ -8,7 +8,7 @@ import { runSoak, type SoakResult } from './soakScene';
  * Caps (I5), nobody in a solid, predation within the chapter's bounds: per kind and game day at most the kills its
  * feeding times allow (predationBoundPerGd), every predation death attributable to a striking predator, at most
  * BIRD_MAX_KILLS x the Predators setting per bird event (GDD 05 §2.6: Harsh's Many allows 19); the quiet share (I11, with the real predator-near warnings) >= the preset's
- * QUIET_SHARE_MIN; every prey patch >= 0.05 K at the end of each active day (I2).
+ * QUIET_SHARE_MIN in every trailing 3-GD window that ends at a counted hour (E25); every prey patch >= 0.05 K at the end of each active day (I2).
  */
 function check(r: SoakResult, quietMin = 0.6): void {
   expect(r.capViolations).toEqual([]);

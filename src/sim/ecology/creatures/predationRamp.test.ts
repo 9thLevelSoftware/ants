@@ -180,15 +180,22 @@ describe('colony-range siting x ramp (generated woodland-edge #1)', () => {
     expect([...rangeResidents(sim, true).entries()]).toEqual([...before.entries()]);
   });
 
-  it('save -> load while a shrunk colony\'s residents are due to leave equals the uninterrupted run', () => {
+  it.each(PRESETS)('%s: save -> load while a shrunk colony\'s residents are due to leave equals the uninterrupted run', (id) => {
     const a = fresh();
-    setWorkers(a, 40);
+    setPreset(a, id);
+    if (id === 'gentle') { a.state.config.difficulty.custom = { predators: 'normal' }; a.state.config.rules.predators = 'normal'; } // as above
+    const [lo, hi] = PREDATION_RAMP_WORKERS[id];
+    setWorkers(a, hi);
     directorRuns(a, 8);
-    setWorkers(a, 5);
-    directorRuns(a, 60);
+    setWorkers(a, Math.max(0, lo - 5));
+    const gdRuns = Math.round((SETTING_DESPAWN_GD * TICKS_PER_DAY) / 50);
+    directorRuns(a, gdRuns / 2);
+    const pending = rangeResidents(a, true);
+    expect(pending.size).toBeGreaterThan(0); // departures are pending in the snapshot
+    for (const cid of pending.values()) expect(a.stores.creatures.get(cid)!.bb.rampOut).toBeGreaterThanOrEqual(0);
     const b = createSim(restore(snapshot(a)).state, world);
-    directorRuns(a, 80);
-    directorRuns(b, 80);
+    directorRuns(a, gdRuns / 2 + 20);
+    directorRuns(b, gdRuns / 2 + 20);
     expect(rangeResidents(a).size).toBe(0);
     expect(stateHash(b.state)).toBe(stateHash(a.state));
   });

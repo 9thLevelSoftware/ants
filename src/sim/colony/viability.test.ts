@@ -177,12 +177,16 @@ describe('R3: small colonies forage', () => {
     const col = colonyOf(sim);
     step(sim, 200);
     for (let i = 0; i < 2; i++) {
-      const s = spawnSource(sim, { kind: 'nectar', pos: { x: 300 + 40 * i, y: 0, z: 300 }, units: 5 });
+      const s = spawnSource(sim, { kind: 'nectar', pos: { x: 300 + 40 * i, y: 0, z: 300 }, units: 0.3 });
       s.c = 1; s.p = 0; s.discoveredBy = colonySlotBit(sim, col.id);
       col.knownSourceIds.push(s.id);
     }
     col.needs.needC = 0.5; col.needs.needP = 1;
-    expect(computeDemand(sim, col, censusOf(sim, col.id))[ti('scout')]).toBeGreaterThanOrEqual(SMALL_SCOUTS_MIN);
+    const d0 = computeDemand(sim, col, censusOf(sim, col.id));
+    expect(d0[ti('scout')]).toBeGreaterThanOrEqual(SMALL_SCOUTS_MIN);
+    // the outside share the two small sugar sources do not need scouts for protein (no forager waits for news)
+    expect(d0[ti('scout')] + d0[ti('forage')]).toBeGreaterThanOrEqual(SMALL_OUTSIDE_FRAC * 12 - 1e-6);
+    expect(d0[ti('scout')]).toBeGreaterThan(SMALL_SCOUTS_MIN);
     // protein not needed: the old floor (2 sources known) lets the scouts go down
     col.needs.needP = 0;
     expect(computeDemand(sim, col, censusOf(sim, col.id))[ti('scout')]).toBeLessThan(SMALL_SCOUTS_MIN);

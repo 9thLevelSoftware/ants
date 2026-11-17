@@ -19,7 +19,7 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 | `aphidPredators.ts`, `preyFauna.ts`, `neutral.ts`, `bird.ts` | the other families and the bird event |
 | `prey.ts` | remains (carcass item / tear source), transport rule, subduing |
 | `queries.ts` | `threatsNear`, `preyNear`, `knownHazardsNear`, `creatureArmour`, `creaturePull` |
-| `alerts.ts` | `predator-near` (warning; lurking near the possessed ant / 3 foragers, or a strike that landed on a player-colony ant; cleared 30 s after its condition ended or when the creature is gone), `nest-attacked` (critical; cleared 30 s after the last invader left), `possessed-danger` causes `seized` / `paralysed` (critical, per tick; a card another module raised for the same ant is left alone) |
+| `alerts.ts` | `predator-near` (warning; lurking near the possessed ant / 3 foragers, or a strike that landed on a player-colony ant; cleared 30 s after its condition ended, a strike-raised card 5 s after the strike unless the predator lurks again (`PREDATOR_STRUCK_CLEAR_S`: one strike never makes an I11 hour loud), or when the creature is gone), `nest-attacked` (critical; cleared 30 s after the last invader left), `possessed-danger` causes `seized` / `paralysed` (critical, per tick; a card another module raised for the same ant is left alone) |
 | `danger.ts`, `threat.ts` | danger grid (nav cost overlay), threat director + quiet share |
 | `hooks.ts`, `lifecycle.ts` | lazily installed locomotion hooks (movement override, speed factor) and event listeners |
 | `ports.ts` | every external function called for an effect (tests swap them) |

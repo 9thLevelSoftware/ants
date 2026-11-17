@@ -1576,3 +1576,11 @@ Progress (kept current; a successor continues from here)
 
 Scouting is the narrowest stage: one scout, 1-2 trips a game day, bounded at 208 BU, while sugar found first (two C
 sources known) ends the 2-scout floor of R3.
+- 21:47 **PR1b in the tree** (`demand.ts` `smallColonyFloor`): with no protein known (and protein needed) every
+  outside worker the known sources do not need scouts (scoutsMin = max(2, outside - max(1, forage demand)); GDD 02
+  §6.4 "forage uncapped (extra ants scout)", gate S2: foragers sat inside "waiting to leave"). Viability test case
+  extended (scout + forage >= the outside share, scouts > 2 with two tiny sugar sources). First 4-day bench pairs,
+  before -> PR1: cpv #1 prey appeared 0 -> 45, P/need 0.03 -> 0.21, P known never -> 1.86 gd; we #1 P known -> 2.2 gd;
+  but sg #2 P known 0.28 -> 3.6 gd (prey 61 -> 6): single 4-day runs diverge; medians decide. Frozen tree `r5q`
+  (PR1 + PR1b); queued: scratchpad `queue-p1b.sh` waits for the "before" bench, then runs `DAYS=4 PAR=1
+  $S/r5q/tools/sim/bench-sweep.sh forage $P/bench-forage4-p1b $PWD/test-output/colony-life/round-4/cache`.

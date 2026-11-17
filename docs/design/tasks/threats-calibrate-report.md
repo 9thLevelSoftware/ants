@@ -97,6 +97,12 @@ same draws (the ramp's draw uses forked streams, not `rng`), so it is the ramp-o
 | Harsh (`ramp-w60-harsh/`) | 10 | 26,791 | 162 | 162 | 82 | 53 (16 / 7 / 23 / 1 / 6) | **0.047** | above Naturalist | 501 |
 | `predators: off` (`ramp-w60-off/`, 2 gd) | 5 | 3,063 | 0 | 0 | 0 | 0 | **0** | 0: **in** | 298 of 300 |
 
+**Uncertainty (fix round).** Naturalist is 41 deaths in 1,088 outside-worker gd: the exact Poisson 95 % interval of
+the count (29.4-55.6) gives **0.027-0.051** per outside-worker gd, so the point estimate is inside the band but its
+lower edge is not cleared with confidence, and single runs range 0.01-0.09. The design's centre is 0.061. Closing gap
+(a) (rescue of paralysed nestmates, §4) is expected to take the rate to about 0.03, i.e. out of the band at its lower
+edge; §6 names the lever for that case and its measured effect.
+
 Order **Gentle < Naturalist < Harsh** holds on the totals, and off is zero (the residents of the snapshot leave
 through `settingCull`; no telegraph in 10 game days of colony time). Per world and run seed (same snapshot, same run
 seed, only the preset differs) Harsh >= Naturalist in 8 of 10 pairs and Gentle <= Naturalist in 10 of 10. The
@@ -230,6 +236,16 @@ code outside the creature module in both trees).
   build it in `src/sim/ants/**` (a carry kind for an ant, a haul trigger on `ant-paralysed`), then re-measure with
   `tools/sim/threatBatch.ts --workers 60 --run-seeds 1,2` (expect ~0.03); (b) needs nothing; (c) `knownHazardsNear` in
   local steering (locomotion).
+- **If the rate falls below 0.03 once rescue lands** (fix round, review finding): the lever is
+  `COLONY_PAUSE_KINDS = ['jumping-spider']` in `src/sim/balance/creatures.ts` (one kind back at the colony's three
+  nearest food sources, its stems; the rove beetle and every other kind stay on the route rule). Reasons: the jumping
+  spider is the family that kills where ants pause (14 of 21 strikes kill at 60 workers on the route rule) and is the
+  one a player should see near the nest by day; it is the larger half of what made threats-live fix4 reach 0.40 on
+  founding-year colonies without the ramp (14 of 35 kills; the rove beetle at the pause points added 4), and with the
+  ramp that siting reaches founding-year colonies only as the colony grows (Naturalist from 10 workers). Its effect at
+  60 workers was **not measured** in this round (the machine ran at load 10-13; one 10-run batch is ~70 min); the
+  re-measure command below with that one-line change gives it. If it overshoots 0.12, the smaller step is
+  `['rove-beetle']` (4 kills of 35 in fix4).
 - Re-measuring: `node tools/sim/run-ts.mjs tools/sim/threatBatch.ts --out DIR --cache test-output/colony-life/round-4/cache
   --run-seeds 1,2 [--workers 60] [--preset P] [--until-winter 1 --days 20]` (one process, ~4 min per 60-worker run,
   ~6 min per founding-year run to winter).
@@ -251,12 +267,12 @@ code outside the creature module in both trees).
 | E12 jumping spider telegraph and dodge | `predators.possessed.test.ts` | the player `dodge` primitive (actions) - scripted there |
 | E13 struggle (rove beetle) | `hazards.possessed.test.ts`, `predators.possessed.test.ts` | player-control struggle inputs |
 | E14 antlion pit | `antlion.test.ts` (slope, flicks, 6.7 s, witness learns it) | "no nestmate path enters radius + 1 L": **fails** (`coreGaps.repro.test.ts` (c), `it.fails`) - locomotion |
-| E15 bird event | `bird.test.ts` | in real runs the threat director cancels it while human-event warnings keep the quiet share low (§3) |
-| E21 creature agents <= 260 | `soak.test.ts` | 28 gd soak with rivals (gate) |
-| E22 ecosystem soak | `soak.test.ts` | herds / rivals (ecology-plants, rivals) |
+| E15 bird event | `bird.test.ts`; `soak.test.ts` LONG (10-15 bird events per 28 gd run, most kills per event <= `BIRD_MAX_KILLS` x Predators setting: 12, Gentle 5, Harsh 19) | in real runs the threat director cancels it while human-event warnings keep the quiet share low (§3) |
+| E21 creature agents <= 260 | `soak.test.ts` (2 gd always; 28 gd x 3 seeds + Gentle + Harsh under `FOUNDRESS_LONG=1`, run in the fix round: max 69-85 agents, no cap violation) | 28 gd soak with rivals (gate) |
+| E22 ecosystem soak | `soak.test.ts` (same runs: prey patches >= 0.05 K, nobody in a solid, predation per kind and gd within its feeding-time bound) | herds / rivals (ecology-plants, rivals) |
 | E23 gentle founding protection (no predator targets the founding queen) | `difficulty.test.ts` | rivals' half (combat) |
 | E24 determinism | `determinism.test.ts`, `huntSaveLoad.test.ts`, `predationRamp.test.ts` (save -> load with the ramp's departures pending) | - |
-| E25 quiet share | `soak.test.ts` (creature scene) | whole-game soak fails on human-event warnings (§3) - human events / integrator |
+| E25 quiet share | `soak.test.ts` LONG, creature scene (300 workers, dense predators, no human events): lowest window Naturalist 0.65-0.73 (>= 0.60), Gentle 0.80 (>= 0.75), Harsh 0.60 (>= 0.40), 8-15 major threats per run. **Failed 5 of 5 before the fix round** (§11.1) | whole-game soak (suburban-garden, AI colony, human events): fails on human-event warnings (§3) - human events / integrator |
 | (R25) ramp | `predationRamp.test.ts` | - |
 
 ## 9. Shared contracts, cross-edits, files

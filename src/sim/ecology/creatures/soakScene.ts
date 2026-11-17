@@ -29,6 +29,8 @@ export interface SoakResult {
   deathsPerGd: number[];
   /** Quiet share (I11) per closed trailing 3-GD window (counted hours only) and the threats started. */
   minWindowShare: number | null;
+  /** Counted hours in the window with the lowest share. */
+  minWindowCounted: number;
   windows: number;
   threats: number;
   birdEvents: number;
@@ -168,7 +170,7 @@ function soakOn(sim: Sim, days: number): SoakResult {
     });
   }
   const r: SoakResult = {
-    days, ticks: 0, maxCount: {}, capViolations: [], maxTotal: 0, deaths: {}, deathsPerGd: [], minWindowShare: null,
+    days, ticks: 0, maxCount: {}, capViolations: [], maxTotal: 0, deaths: {}, deathsPerGd: [], minWindowShare: null, minWindowCounted: 0,
     windows: 0, threats: 0, birdEvents: 0, invasions: 0, telegraphs: 0, strikes: 0, hits: 0, hitsByKind: {}, killsByKind: {},
     maxKillsPerGdByKind: {}, boundPerGdByKind: {}, maxBirdKills: 0, birdKillCap: birdMaxKills(sim), foragerDays: 0, alertHours: 0, minPatchShare: null,
     insideSolid: 0,
@@ -251,13 +253,16 @@ function soakOn(sim: Sim, days: number): SoakResult {
       hourAlert = 0;
     }
   }
-  // every trailing 3-GD window (72 clock hours) of counted hours
+  // every trailing 3-GD window (72 clock hours) that ends at a counted hour (GDD 05 E25: "every trailing 3-GD window
+  // of daytime hours outside founding and winter"). A window ending in winter or at night holds no new hour: in winter
+  // it shrinks to the last few autumn hours (1 counted hour, a bird event in it: share 0), which is not a window of
+  // the rule (threats-calibrate fix round).
   for (let i = 72; i <= codes.length; i++) {
+    if (codes[i - 1] < 0) continue;
     const w = codes.slice(i - 72, i).filter((c) => c >= 0);
-    if (w.length === 0) continue;
     const share = w.reduce((a, b) => a + b, 0) / w.length;
     r.windows++;
-    r.minWindowShare = r.minWindowShare === null ? share : Math.min(r.minWindowShare, share);
+    if (r.minWindowShare === null || share < r.minWindowShare) { r.minWindowShare = share; r.minWindowCounted = w.length; }
   }
   r.threats = quietTracker(sim).threats;
   r.ticks = end;

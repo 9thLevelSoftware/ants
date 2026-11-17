@@ -1,6 +1,7 @@
 // Batch of threatFunnel runs in one process (threats-calibrate): every world x run seed in turn, one at a time, each
 // written as it finishes (funnel-*.json / .md as threatFunnel.ts --out), then a summary `tables.md` (threatTable's
-// tables plus strikes per family per world). Results already on disk are kept, so a cut-off batch resumes.
+// tables plus strikes per family per world). Results already on disk are kept, so a cut-off batch resumes (only when
+// they were made with the same run options: runMismatch).
 // Observer only: changes no rule.
 //
 //   node tools/sim/run-ts.mjs tools/sim/threatBatch.ts --out DIR [--worlds a,b,..] [--seed 1] [--run-seeds 1,2]
@@ -27,6 +28,25 @@ export function strikesTable(runs: FunnelResult[]): string {
   const tot = HUNTERS.map((k) => `${runs.reduce((a, r) => a + r.kinds[k].stages.strike, 0)} / ${runs.reduce((a, r) => a + (r.workerDeathsPredatorByKind[k] ?? 0), 0)}`);
   lines.push(`| **all** | ${tot.join(' | ')} | ${runs.reduce((a, r) => a + r.bird.pecks, 0)} |`);
   return '(strikes / worker kills)\n\n' + lines.join('\n');
+}
+
+/** The options that decide a run's outcome (out and tag only name files; snapshot is the cache file of the batch). */
+const RUN_KEYS = ['archetype', 'seed', 'days', 'preset', 'rules', 'cache', 'workers', 'food', 'runSeed', 'untilWinter'] as const;
+
+function canon(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canon).join(',')}]`;
+  if (v && typeof v === 'object') return `{${Object.keys(v).sort().map((k) => `${k}:${canon((v as Record<string, unknown>)[k])}`).join(',')}}`;
+  return JSON.stringify(v ?? null);
+}
+
+/**
+ * The run options in which a result on disk differs from the requested run ([] = the same run, safe to reuse).
+ * The file name holds only archetype, seed, preset, custom, workers and run seed; a rerun into the same --out with
+ * other --days, --until-winter, --food, --cache or --rules content must not pick up the old result.
+ */
+export function runMismatch(stored: Record<string, unknown>, wanted: Record<string, unknown>): string[] {
+  const norm = (o: Record<string, unknown>, k: string): unknown => (k === 'untilWinter' ? o[k] === true : o[k]);
+  return RUN_KEYS.filter((k) => canon(norm(stored, k)) !== canon(norm(wanted, k)));
 }
 
 /** Worker deaths to predators per colony run, and their median (the founding-year check: median <= 1). */
@@ -61,9 +81,13 @@ export default async function main(args: string[]): Promise<void> {
       const file = `${o.cache}/founded-lasius-niger-${archetype}-${o.seed}-naturalist-d-any.bin`;
       if (!fs.existsSync(file)) { console.error(`no hand-over snapshot ${file}`); continue; }
       const b = `${out}/funnel-${archetype}-${o.seed}-${preset ?? 'naturalist'}${o.rules ? '-custom' : ''}${o.workers ? `-w${o.workers}` : ''}-r${runSeed}`;
-      // Restartable: a run whose result is already on disk (from a batch cut off by a restart) is read, not re-run.
+      // Restartable: a run whose result is already on disk (from a batch cut off by a restart) is read, not re-run,
+      // but only when it was made with the same options; otherwise stop rather than mix two configurations.
       if (fs.existsSync(`${b}.json`)) {
-        runs.push(JSON.parse(new TextDecoder().decode(fs.readFileSync(`${b}.json`))) as FunnelResult);
+        const kept = JSON.parse(new TextDecoder().decode(fs.readFileSync(`${b}.json`))) as FunnelResult;
+        const diff = runMismatch(kept.options as unknown as Record<string, unknown>, o as unknown as Record<string, unknown>);
+        if (diff.length > 0) throw new Error(`threatBatch: ${b}.json was made with other options (${diff.join(', ')}); use another --out or delete it`);
+        runs.push(kept);
         console.error(`[batch] kept ${archetype} r${runSeed} from ${b}.json`);
         continue;
       }
