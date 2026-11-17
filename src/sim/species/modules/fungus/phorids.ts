@@ -38,7 +38,7 @@ export function phoridStep(sim: Sim, ant: Ant, col: Colony): void {
   dayCounters(sim, col);
   const bu = sim.world.bu;
   const lx = ant.bb[AK.lastX], lz = ant.bb[AK.lastZ];
-  if (lx !== undefined && lz !== undefined) ant.bb[AK.ladenMm] = (ant.bb[AK.ladenMm] ?? 0) + Math.hypot(ant.pos.x - lx, ant.pos.z - lz);
+  if (lx !== undefined && lz !== undefined) ant.bb[AK.ladenMm] = (ant.bb[AK.ladenMm] ?? 0) + Math.sqrt((ant.pos.x - lx) ** 2 + (ant.pos.z - lz) ** 2);
   ant.bb[AK.lastX] = ant.pos.x;
   ant.bb[AK.lastZ] = ant.pos.z;
   const rng = sim.stream('rng.behaviour');

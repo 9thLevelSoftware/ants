@@ -73,3 +73,4 @@ snapC builder: /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scr
   naturalist + rules {predators off, rivals 0, humanActivity off} (-custom.json). Run log: test-output/difficulty/run-*.log
 - 07:38 custom-rules 28-day run (pid 22876) running, then chain naturalist,gentle,harsh (each ~? min). Outputs test-output/difficulty/difficulty-*.json; logs run-*.log
 - 07:55 restarted chain (snapD=live code incl. rivals0->no incipients; --workers 60 --food 30,15): naturalist, gentle, harsh, custom -> test-output/difficulty/difficulty-*-w60*.json; chain.done marks the end. Earlier w0 results: difficulty-naturalist-1.json (colony dies out by winter: workers max 16)
+- 08:23 gentle w60 done; harsh + custom running

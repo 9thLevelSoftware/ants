@@ -1,26 +1,28 @@
 # species-leafcutter implementation — progress (engineer 1)
 
-Started 06:57 UTC Nov 17. No earlier progress file; tree clean at 331d105.
+Started 06:57 UTC Nov 17. Last update 08:30 UTC.
 
 ## Done
-- read docs (seed, arch, contracts, tech-stack, STATUS R1-R19, GDD 07 5.4/6.4/App A-E, GDD 06 5.x, reviews of carpenter/harvester)
-- baseline: test-output/leaf/base.log (life.ts atta suburban-garden 1: founding failed after 10 gd, forced-seal retry)
-- probe tools/sim/probe-leaf-plants.ts (DELETE at end): plants within 300 BU of start: 2-15 objects, nearest 28-180 BU
+- balance src/sim/balance/species-leafcutter.ts; fungus module (params, climate, dynamics, states, substrate, cache,
+  state, economy, spread, quarantine, gardenLess, rejection, leaves, actions, behaviourCut, behaviourGarden, phorids,
+  allocation, castes, chain, feedRule, queenFeed, chamberClimate, display, diagnostics, cheats, work, testkit, index)
+- founding src/sim/colony/founding/species/atta.ts (+ test, 3 pass)
+- tests: dynamics, loop, scenario (pass); state.test.ts written (save/restore, invariant, caste-unlocked, quarantine,
+  relocation) — not yet run
+- Math.hypot replaced by sqrt in sim code (08:29)
+- shared additions: colonyModules.ts (optional fields), envAdapter.ts chamberRhRule hook (9 lines, tested),
+  words.ts factor/remedy/diag words
+- e2e tests/e2e/species-leafcutter.mjs; run r1 started 08:25 (test-output/species-leafcutter/r1)
 
-## Design decisions (so far)
-- Own `cut` behaviour (not the shared outdoor engine): walk to a leaf site, cut-leaf (timed), carry leaf-fragment home
-  to a fungus chamber cache. Leaf sites persisted in col.fungus.leafSites (plant objects + lawn/bed herbage patches).
-- Staphylae harvested by gardeners -> col.fungus.staphylae (FL) -> tops up pool (P 0.75 / C 0.25). Larvae/queen eat pool
-  (fungus); Atta has no prey diet so pool P = fungus only. feed-larva check wrapped for Atta (crop food + living garden
-  instead of a carried staphylae item).
-- Founding hold: Atta queen in phase dig -> my system defers digTick readiness (FB.readinessTick) until pellet planted
-  and garden established (G >= 1.5 x plantedGu at foundingGrowth 0.28/GD). Contradiction GDD06 "0.6-0.8 GD" noted.
-- Deviation: first-brood minims may cut small fragments while the colony has no media (else no substrate at all).
+## Core defects found (report, not fixed in core)
+- founding auto seal never plugs the 35 BU Atta shaft (forced seal used, as life.ts)
+- queen-care feed threshold 0.05 > nanitic minim crop 0.037 (queen never fed) -> queenFeed.ts in module
+- entrance nav cell classed blocked-solid -> every navTo from the entrance fails (cut.clear wander escape)
+- brood humidity hazard reads air RH -> chamberRhRule hook
 
-## Remaining (order)
-1. balance + params + state + dynamics (pure) + tests E21-23
-2. founding atta.ts (pellet, plant, hold, fert, trophic eggs, garden-lost) + test
-3. economy system (climate inputs, yield, staphylae->pool, Escovopsis hazard/spread, states/events, garden-less)
-4. behaviours: cut, garden (tend/harvest/process/plant/weed/waste), castes destiny, allocation demand
-5. chain counters + diag-at-chain, diag-garden, substrate, phorid; rejection; phorids/hitchhikers
-6. render, e2e, viability, soak, report
+## Probes to delete
+tools/sim/probe-leaf-plants.ts, probe-leaf-life.ts, probe-leaf-queen.ts, probe-leaf-cut.ts
+
+## Next
+1. look at r1 screenshots; 2. run own tests + typecheck; 3. viability life runs (one at a time); 4. soak 28 d;
+5. delete probes; 6. report

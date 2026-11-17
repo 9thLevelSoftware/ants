@@ -674,3 +674,29 @@ Progress (kept current; a successor continues from here)
   pile point lies in it by the put-down rule), N2 `board.ts` (a larva with an empty gut, hungerTicks > 0, is fed where it
   lies; sorted once it has food). Test `ants/behaviours/nest/sortReach.test.ts` (2 cases, each red without its fix).
   Next: copy `n1` = h2 + sorting.ts + board.ts; nurse probe there, then nest bench n1.
+- 08:15 correction of the 07:58 entry (probe with the job and destination of each carry): the 89 carries of larva
+  13450 were **flood evacuations to a dry spot** (job `evacuate`, dest DRY_SPOT -2; the nest had no dry chamber while it
+  took water), not sorting. `dryDropPoint` searched a place dry by FLEE_DRY_MARGIN_BU 1 BU; the board evacuates a lying
+  item within BROOD_EVAC_MARGIN_BU 1 BU of the water while the nest takes water: the put-down item was inside the band
+  and was evacuated again at the next board build (every 2 s), a few mm each time. N1/N2 (sorting) **reverted** (they
+  did not change the we #1 probe: same deaths, same carries). Fix E1 in the tree: `ants/behaviours/nest/floodEvac.ts`
+  `dryDropPoint` searches with BROOD_EVAC_MARGIN_BU + new BROOD_DRY_DROP_SLACK_BU 1 (`balance/weather.ts`). Test
+  `ants/behaviours/nest/dryDrop.test.ts` (red without: drop point dry by < 2 BU). Probe after (`probe-nurse-we1-e1.txt`):
+  carries 1-2 per larva (was 89), feeds 100 -> 122, starvation 7 -> 2, but hygiene 3 + exposure 1 (evacuated larvae in
+  the royal chamber with 7-15 waste items) and nurses resting (2 of 2 at once for ~0.15 gd) remain.
+  Copy `n1` = base + hunt/keys/transitions/preyFauna + floodEvac/weather (sorting/board as base).
+- 08:20 forage-h2 stopped after 4 runs (kept: `round-3/bench-forage-h2-partial/`; sg #1 chase conversion 4 % -> 29 %,
+  10 kills, but 4 remains lifted and 0 loads home - to check on the full after-bench). One after-tree for both benches:
+  `n1`. Running: nest-before (base, PAR=1, 5 of 15 done), forage-after (n1, PAR=1) -> `round-3/bench-forage-after/`;
+  nest-after (n1, PAR=1) -> `round-3/bench-nest-after/` starts when nest-before ends (one background chain). If cut
+  off: re-run the three `bench-sweep.sh` commands (finished runs are skipped). Meanwhile: folder tests.
+- 08:45 nest-before 7/15 (`bench-table.py round-3/bench-nest-before`): food guaranteed, seed-1 runs lay 10-12 eggs,
+  pupate 0-2, **eclose 0**; larvae starved 0-6, untended 0-4; laying potential > 0.5 egg/gd 22-31 % of the time;
+  brood 12.5-18 C on days 1-3 falling to 6-10 C by day 5-8. Seed-2 (21-24 C): 24-25 eggs, eclose 2-4, untended 6-18.
+  **Calendar ceiling** (an egg laid on colony day 0-3 developed at each day's brood temperature, r(T) = (T-10)/11, larvae
+  stop at doy 19, winter at doy 22): none of the seed-1 eggs can eclose before winter even with perfect care; of seed 2
+  only sg #2's day-0 egg (colony day 5). So the eclosion bar is limited by time and temperature -> integrator direction 3.
+  Queued (after forage-after): `tools/sim/bench-startday.sh round-3/bench-startday "7 5" "woodland-edge:1 woodland-edge:3"`
+  (fresh foundings with `life.ts --start-doy D --days 1 --cache`, then the nest bench from each hand-over;
+  `bench-colony.ts --snapshot FILE --tag -doyD`). Bench artefact noted: the 2-gd top-up can fill the stores (P up to
+  51 loads on sg #2), returning foragers then wait in `deliver` (41 % of worker time on sg #2) - same in before and after.

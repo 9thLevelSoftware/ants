@@ -63,10 +63,14 @@ export default async function main(args: string[]): Promise<void> {
     fs.mkdirSync('test-output/leaf/probe', { recursive: true });
     fs.writeFileSync(file, snapshot(sim));
   }
+  const deaths: Record<string, number> = {};
+  sim.events.on('ant-died', (e) => { const k = `${(e as { cause?: string }).cause}`; deaths[k] = (deaths[k] ?? 0) + 1; });
+  sim.events.on('brood-died', (e) => { const k = `brood:${(e as { cause?: string }).cause}`; deaths[k] = (deaths[k] ?? 0) + 1; });
   console.log(line(sim));
   const end = sim.state.tick + days * TICKS_PER_DAY;
   while (sim.state.tick < end) {
     for (let i = 0; i < TICKS_PER_DAY / 4; i++) sim.tick();
     console.log(line(sim));
+    console.log('  deaths', JSON.stringify(deaths));
   }
 }

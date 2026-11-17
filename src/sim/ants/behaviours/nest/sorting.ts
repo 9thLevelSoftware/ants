@@ -13,8 +13,7 @@ import {
 import { MOVE_BROOD_LOCK_GD } from '@/sim/balance/colony';
 import { devRate } from '@/sim/colony';
 import { daysToTicks } from '@/sim/time';
-import { pilePoint, royalChamber } from './places';
-import { ports } from '@/sim/ants/actions/ports';
+import { royalChamber } from './places';
 
 /** Chamber types that may hold brood (GDD 02 §10.4.1). */
 const BROOD_TYPES: readonly string[] = ['nursery', 'royal', 'founding', 'general', 'rest'];
@@ -90,20 +89,6 @@ export function chamberScore(def: SpeciesDef, c: Chamber, group: number, space: 
   return s - SORT_ROYAL_DIST_PER_BU * royalDistBu;
 }
 
-/**
- * Whether brood of the group put down at this chamber's pile ends up in it. Brood is assigned to the chamber whose
- * ellipsoid holds the drop point most deeply (nest registry), so where two chambers overlap a pile point may belong
- * to the neighbour. Such a chamber is no sorting destination for the group: every carry to it put the item back where
- * it came from and the board posted the same move again (colony-life round 3: on woodland-edge #1 one larva was
- * carried royal -> royal 89 times in 0.6 gd, two nurses did nothing else, and 6 of 9 larvae starved beside full
- * stores). Its score still counts as the current chamber's.
- */
-function receives(sim: Sim, c: Chamber, group: number): boolean {
-  pilePoint(c, group, _pile);
-  return ports.findChamberAt(sim, _pile)?.id === c.id;
-}
-const _pile = { x: 0, y: 0, z: 0 };
-
 /** Scores every chamber of the nest. `space(chamberId)` gives the brood space there plus incoming moves. */
 export function sortContext(sim: Sim, nest: Nest, def: SpeciesDef, space: (chamberId: number) => number): SortContext {
   const chambers = nest.chambers;
@@ -123,7 +108,7 @@ export function sortContext(sim: Sim, nest: Nest, def: SpeciesDef, space: (chamb
     for (let i = 0; i < chambers.length; i++) {
       const s = off[i] ? 0 : chamberScore(def, chambers[i], g, space(chambers[i].id), royalDist[i]);
       row.push(s);
-      if (s > 0 && (bi < 0 || s > row[bi]) && receives(sim, chambers[i], g)) bi = i;
+      if (s > 0 && (bi < 0 || s > row[bi])) bi = i;
     }
     scores.push(row);
     best.push(bi);

@@ -37,10 +37,10 @@ const HOUR_TICKS = Math.round(TICKS_PER_DAY / 24);
 const PHASE_HUNT = 14;
 const PATCH_KINDS = new Set(['springtail', 'mite']);
 
-interface Opts { mode: 'nest' | 'forage'; archetype: ArchetypeId; seed: number; cache: string; out: string | null; days: number }
+interface Opts { mode: 'nest' | 'forage'; archetype: ArchetypeId; seed: number; cache: string; out: string | null; days: number; snapshot: string | null; tag: string }
 
 function parse(args: readonly string[]): Opts {
-  const o: Opts = { mode: 'nest', archetype: 'woodland-edge', seed: 1, cache: 'test-output/colony-life/round-3/cache', out: null, days: 0 };
+  const o: Opts = { mode: 'nest', archetype: 'woodland-edge', seed: 1, cache: 'test-output/colony-life/round-3/cache', out: null, days: 0, snapshot: null, tag: '' };
   for (let i = 0; i < args.length; i += 2) {
     const k = args[i], v = args[i + 1];
     if (k === '--mode') o.mode = v === 'forage' ? 'forage' : 'nest';
@@ -49,6 +49,8 @@ function parse(args: readonly string[]): Opts {
     else if (k === '--cache') o.cache = v;
     else if (k === '--out') o.out = v;
     else if (k === '--days') o.days = Number(v);
+    else if (k === '--snapshot') o.snapshot = v; // a hand-over snapshot file instead of the cache's (start-day benches)
+    else if (k === '--tag') o.tag = v; // suffix of the output file names
   }
   return o;
 }
@@ -237,6 +239,7 @@ export interface BenchReport {
 
 export function runBench(o: Opts, snap: Uint8Array, log: (s: string) => void): BenchReport {
   const base = defaultGameConfig('lasius-niger', o.seed, 'naturalist');
+  // the world depends only on the world params; a snapshot founded on another start day carries its own calendar
   const config = { ...base, cheats: true, world: { ...base.world, archetype: o.archetype } };
   const world = generateWorld(config.world);
   const state = restore(snap).state;
@@ -302,14 +305,14 @@ interface NodeFs { mkdirSync(p: string, o: object): void; writeFileSync(p: strin
 export default async function main(args: string[]): Promise<void> {
   const o = parse(args);
   const fs = (await import('node:fs' as string)) as NodeFs;
-  const file = `${o.cache}/founded-lasius-niger-${o.archetype}-${o.seed}-naturalist-d-any.bin`;
+  const file = o.snapshot ?? `${o.cache}/founded-lasius-niger-${o.archetype}-${o.seed}-naturalist-d-any.bin`;
   if (!fs.existsSync(file)) { console.error(`no hand-over snapshot ${file}`); process.exitCode = 2; return; }
   const r = runBench(o, new Uint8Array(fs.readFileSync(file)), (s) => console.error(`[bench ${o.mode} ${o.archetype} #${o.seed}] ${s}`));
   const md = markdown(r);
   console.error(md);
   if (o.out) {
     fs.mkdirSync(o.out, { recursive: true });
-    const b = `${o.out}/bench-${o.mode}-${o.archetype}-${o.seed}`;
+    const b = `${o.out}/bench-${o.mode}-${o.archetype}-${o.seed}${o.tag}`;
     fs.writeFileSync(`${b}.json`, JSON.stringify(r, null, 1));
     fs.writeFileSync(`${b}.md`, md);
   } else console.log(JSON.stringify(r));

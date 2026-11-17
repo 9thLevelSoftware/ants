@@ -4,7 +4,8 @@
 //           GARDEN_MIN while a garden lives; at most GARDEN_MAX_FRAC of the workers);
 //   cut     the substrate the gardens need (1.8 LU per GU per GD) over what a cutter brings in a game day, more while
 //           the gardens are short (at least CUT_MIN while the surface is workable; at most CUT_MAX_FRAC);
-//   tend    none: a leafcutter keeps no aphids (honeydew preference 0).
+//   tend    none: a leafcutter keeps no aphids (honeydew preference 0);
+//   queen-care none: the gardeners feed the queen in the garden (queenFeed.ts).
 // A colony without a cutting caste (the first minims) cuts through its gardeners (behaviourGarden.ts, deviation).
 
 import type { Colony, Sim, System, Task } from '@/sim/types';
@@ -87,6 +88,9 @@ export function augmentDemand(sim: Sim, col: Colony, P: FungusParams): void {
   }
   // GDD 07 §5.4.5: no honeydew; and leaves are not food: no prey or carrion foragers either (pref 0)
   d[ti('tend')] = 0;
+  // the queen lives in the garden and is fed fungus there by its gardeners (queenFeed.ts): no queen-care carers
+  // (the shared queen-care never feeds from a minim's crop, which is too small for its feed threshold)
+  d[ti('queen-care')] = 0;
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
   computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0, workforce);
 }

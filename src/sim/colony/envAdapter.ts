@@ -47,8 +47,17 @@ export function chamberRh(sim: Sim, chamberId: number, p: Vec3): number {
   const o = overrides.get(sim);
   if (o?.rh) return o.rh(chamberId);
   const ch = chamberId >= 0 ? chamberById(sim, chamberId) : undefined;
+  const v = ch && chamberRhRule.fn ? chamberRhRule.fn(sim, chamberId) : null;
+  if (v !== null && Number.isFinite(v)) return v;
   return relHumidity(sim, ch ? ch.center : p);
 }
+
+/**
+ * Additive hook (species-leafcutter): a species module may give a chamber's humidity (null = the default rule). The
+ * fungus module answers for its garden chambers (GDD 07 §5.4.6 "brood lives inside the garden": the chamber's own
+ * humidity, GDD 03 §9.2, not the open air's).
+ */
+export const chamberRhRule: { fn: ((sim: Sim, chamberId: number) => number | null) | null } = { fn: null };
 
 /** Temperature a brood item experiences: its chamber, its carrier's chamber, or the micro temperature at it. */
 export function broodTempC(sim: Sim, b: Brood): number {

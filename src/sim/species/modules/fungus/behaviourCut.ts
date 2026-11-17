@@ -64,7 +64,7 @@ export function chooseSite(sim: Sim, ant: Ant, col: Colony): number {
   let best = -1, bestScore = Infinity;
   for (let i = 0; i < sites.length; i++) {
     const s = sites[i];
-    const d = Math.hypot(s.pos.x - home.x, s.pos.z - home.z);
+    const d = Math.sqrt((s.pos.x - home.x) ** 2 + (s.pos.z - home.z) ** 2);
     if (d > range || !siteAcceptable(sim, col, s, minLu)) continue;
     // distance with a jitter of up to +60 % per ant and site (stable over a game hour): cutters spread out
     const jitter = 1 + 0.6 * hash3i(ant.id, i, Math.floor(sim.state.tick / 2500), 0xc07);
@@ -80,7 +80,7 @@ export function dropChamber(sim: Sim, ant: Ant, col: Colony): Chamber | undefine
   for (const g of liveGardens(col.fungus!)) {
     const ch = chamberById(sim, g.chamberId);
     if (!ch) continue;
-    const score = lotsLu(g.cache) / Math.max(0.1, g.biomass) + Math.hypot(ch.center.x - ant.pos.x, ch.center.y - ant.pos.y, ch.center.z - ant.pos.z) * 1e-4;
+    const score = lotsLu(g.cache) / Math.max(0.1, g.biomass) + Math.sqrt((ch.center.x - ant.pos.x) ** 2 + (ch.center.y - ant.pos.y) ** 2 + (ch.center.z - ant.pos.z) ** 2) * 1e-4;
     if (score < bestScore) { bestScore = score; best = ch; }
   }
   return best;
@@ -138,7 +138,7 @@ function giveUp(sim: Sim, ant: Ant): void {
 
 function startClear(sim: Sim, ant: Ant, toward: { x: number; z: number }): void {
   const cell = sim.navGrid.cell;
-  const dx = toward.x - ant.pos.x, dz = toward.z - ant.pos.z, d = Math.max(1e-6, Math.hypot(dx, dz));
+  const dx = toward.x - ant.pos.x, dz = toward.z - ant.pos.z, d = Math.max(1e-6, Math.sqrt(dx * dx + dz * dz));
   const c = { x: ant.pos.x + (dx / d) * CUT_CLEAR_CELLS * cell, y: ant.pos.y, z: ant.pos.z + (dz / d) * CUT_CLEAR_CELLS * cell };
   ant.bb[AK.clears] = (ant.bb[AK.clears] ?? 0) + 1;
   ant.bb[AK.cx] = c.x; ant.bb[AK.cz] = c.z;
@@ -205,6 +205,9 @@ function drop(sim: Sim, ant: Ant): void {
   ant.bb[LEAF.lu] = 0;
   ant.mem.trips = (ant.mem.trips ?? 0) + 1;
   chainAdd(sim, col, 'carried', lu);
+  // the delivery event (journal, milestones: ms-first-leaf; GDD 06 aim-garden): leaf substrate counted in LU as `c`
+  // (a leaf feeds the garden, not the pool: no deposit is made)
+  sim.emit({ type: 'delivery', antId: ant.id, colonyId: col.id, sourceId: -1, kind: 'leaf', c: lu, p: 0, toxin: 0 });
   endCycle(sim, ant, ENTRY);
 }
 

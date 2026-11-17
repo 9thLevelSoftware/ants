@@ -67,3 +67,4 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 08:05 playSeed1 running. NOTE: playthrough steps 1200 ticks (= 2 min of play at 1x) per shot for BOTH the 1x and 4x halves (4x half covers 1/4 of 20 real min at 4x). Document honestly.
 - 08:2x Seen playSeed1/x1-m06-slice.png: label plate + outlines blown to white (exposure scales overlay). FIXED src/render/fx/markers/MarkerRenderer.ts holdAgainstExposure (+exposureHold.test.ts). Also seen: 'Tab Next ant' chip overlaps colony tool palette; hand-over choice card stays on screen for hours.
 - keepOut.ts: .pn-panel added to REGIONS (hint/prompt avoid colony palette).
+- 08:45 playSeed1 at day-night part (20/32 shots). Seen: x4-m16-possession: nearby ant fading through camera capsule looks like a pale ghost skeleton with white dots; no ants visible on the surface in any observer shot (workers stay in); brood 8 eggs -> 5 larvae, workers flat 12.

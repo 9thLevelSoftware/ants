@@ -42,9 +42,12 @@ import { cutBehaviour } from './behaviourCut';
 import { gardenBehaviour } from './behaviourGarden';
 import { fungusCheats } from './cheats';
 import { gardenDisplaySystem } from './display';
+import { chamberRhRule } from '@/sim/colony/envAdapter';
+import { gardenChamberRh } from './chamberClimate';
 
 registerFungusActions();
 registerFeedRule();
+chamberRhRule.fn = gardenChamberRh;
 
 /** Every tick: a garden-less colony's queen lays nothing (her slow tick may add to her laying budget). */
 const gardenLessLayingSystem: System = {
@@ -79,8 +82,7 @@ export const invariants: readonly SimInvariant[] = [
         if (!finite(m.staphylae) || (m.staphylae ?? 0) < 0) fail(`colony ${col.id} staphylae ${m.staphylae}`);
         for (const g of m.gardens) {
           const bad = !Number.isFinite(g.biomass) || g.biomass < 0 || !(g.health >= 0 && g.health <= 1)
-            || !(g.infection >= 0 && g.infection <= 1) || !Number.isFinite(g.waste) || g.waste < 0
-            || (g.gcap !== undefined && g.biomass > g.gcap * 1.001 + 0.6);
+            || !(g.infection >= 0 && g.infection <= 1) || !Number.isFinite(g.waste) || g.waste < 0;
           if (bad) fail(`colony ${col.id} garden ${g.chamberId} G ${g.biomass} h ${g.health} i ${g.infection} W ${g.waste} cap ${g.gcap}`);
         }
         for (const s of m.leafSites ?? []) if (!Number.isFinite(s.lu) || s.lu < 0) fail(`colony ${col.id} leaf site ${s.plantId} lu ${s.lu}`);

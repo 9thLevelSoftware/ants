@@ -92,3 +92,18 @@ describe('fungus garden scenarios', () => {
     expect(d.factors[0]?.cause).toBe('chain-process');
   }, 120_000);
 });
+
+describe('the garden chamber keeps its own humidity (chamberRhRule hook)', () => {
+  it('a garden chamber reads its record humidity; a chamber without a garden reads the air', async () => {
+    const { chamberRh } = await import('@/sim/colony/envAdapter');
+    const { setClimateOverride } = await import('@/sim/colony/envAdapter');
+    const k = attaKit({ G: 2 });
+    setClimateOverride(k.sim, null); // the real rule
+    run(k.sim, 2);
+    k.room.humidity = 0.93;
+    const other = k.nest.chambers.find((c) => c.id !== k.room.id)!;
+    expect(chamberRh(k.sim, k.room.id, k.room.center)).toBeCloseTo(0.93, 6);
+    const { relHumidity } = await import('@/sim/environment/temperature');
+    expect(chamberRh(k.sim, other.id, other.center)).toBeCloseTo(relHumidity(k.sim, other.center), 6);
+  });
+});
