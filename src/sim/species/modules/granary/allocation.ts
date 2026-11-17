@@ -2,7 +2,8 @@
 // allocation pass (same phase and cadence, later in module order) and the targets recomputed from it:
 //   mill   while the paste stock is under pasteTargetGd days of demand and there is seed someone can crack;
 //   store  granary care: gnawing work before the seeds sprout, over the work rate, x granaryHygiene;
-//   patrol the morning patrollers while the gate is closed.
+//   patrol the morning patrollers while the gate is closed;
+//   tend   none: a harvester does not tend aphids (the colony's demand would send tenders to known herds).
 
 import type { Colony, Sim, System, Task } from '@/sim/types';
 import { ti } from '@/sim/colony/taskIdx';
@@ -94,6 +95,8 @@ export function augmentDemand(sim: Sim, col: Colony, g: GranaryParams): void {
   add(d, 'mill', millDemand(col, g, n));
   add(d, 'store', careDemand(sim, col, g, n));
   if (patrolPending(sim, col)) d[ti('patrol')] = Math.max(d[ti('patrol')], patrollersWanted(sim, col));
+  // GDD 07 §5.3.5: a harvester does not tend aphids (honeydew preference 0): no tenders for the herds it knows
+  if (!((sim.getSpecies(col.species)?.diet.foods.honeydew?.pref ?? 0) > 0)) d[ti('tend')] = 0;
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
   computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0, workforce);
 }

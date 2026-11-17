@@ -1,7 +1,9 @@
 // Foraging and scouting for a granary species: the shared outdoor engine (src/sim/ants/behaviours/outdoor) with a
 // harvester's source filter and departure gate (GDD 07 §5.3.7, §6.3.2).
-//   - Seed selection: a seed is taken with p = clamp(sizeFit x hardFit / (1 + dist / acceptDistBu), 0, 1), drawn
-//     once per ant, node and day (stable across thinks); seeds heavier than the ant's carry capacity are refused.
+//   - Diet: sources the species does not eat (preference 0 or none, e.g. honeydew) are ignored by scouts and foragers.
+//   - Seed selection: a seed is taken with p = clamp(sizeFit x hardFit / (1 + dist / acceptDistBu), 0, 1); a visit
+//     looks at SEED_LOOKS_PER_VISIT seeds, drawn once per ant, node and day (stable across thinks); seeds heavier
+//     than the ant's carry capacity are refused.
 //   - Range: no source beyond the heat-limited trip distance.
 //   - Departures: a waiting forager (or a scout about to leave) leaves only with probability (1 - heatStress) x
 //     lull x patrol gate per think; with the gate closed nobody leaves.
@@ -14,6 +16,7 @@ import { FORAGE, SCOUT, type Flavour } from '@/sim/ants/behaviours/outdoor/flavo
 import { K, PHASE } from '@/sim/ants/behaviours/outdoor/keys';
 import { distFromHome, thinkIn } from '@/sim/ants/behaviours/outdoor/common';
 import { THINK_WAIT_TICKS } from '@/sim/balance/foraging';
+import { SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { granaryParams, nutrientsPerSeedLoad, type GranaryParams } from './params';
 import { departureFactor, heatOf } from './rhythm';
@@ -36,6 +39,19 @@ export function seedAcceptP(sim: Sim, ant: Ant, s: FoodSource, g: GranaryParams)
   return Math.max(0, Math.min(1, (sizeFit * hardFit) / (1 + distBu / g.acceptDistBu)));
 }
 
+/** Probability that one visit to the node finds a seed this ant takes (SEED_LOOKS_PER_VISIT seeds looked at). */
+export function seedVisitP(sim: Sim, ant: Ant, s: FoodSource, g: GranaryParams): number {
+  const p = seedAcceptP(sim, ant, s, g);
+  return p <= 0 ? 0 : 1 - Math.pow(1 - p, SEED_LOOKS_PER_VISIT);
+}
+
+/** Whether the species eats this kind of food at all (diet preference above 0; GDD 07 §5.3.5: no honeydew). */
+export function inDiet(sim: Sim, col: Colony, s: FoodSource): boolean {
+  const def = sim.getSpecies(col.species);
+  const f = def?.diet.foods[s.kind as keyof typeof def.diet.foods];
+  return !!f && f.pref > 0;
+}
+
 /** The ant's stable draw for a node today, 0..1. */
 function draw(sim: Sim, ant: Ant, s: FoodSource): number {
   return hash3i(ant.id, s.id, Math.floor(sim.state.tick / TICKS_PER_DAY), 0x5eed);
@@ -52,10 +68,11 @@ export function harvesterAccepts(sim: Sim, ant: Ant, s: FoodSource, allow = true
   const cg = colonyAndParams(sim, ant);
   if (!cg) return true;
   if (!allow && ant.nestId >= 0) return false;
+  if (!inDiet(sim, cg.col, s)) return false;
   const heat = heatOf(sim, cg.col, cg.g);
   if (distFromHome(sim, ant, s.pos) > heat.tripMaxBu * sim.world.bu) return false;
   if (s.kind !== 'seed') return true;
-  return draw(sim, ant, s) < seedAcceptP(sim, ant, s, cg.g);
+  return draw(sim, ant, s) < seedVisitP(sim, ant, s, cg.g);
 }
 
 function accept(s: FoodSource): boolean {
@@ -63,8 +80,14 @@ function accept(s: FoodSource): boolean {
 }
 
 const HARVEST_FORAGE: Flavour = { ...FORAGE, accept };
+function scoutAccept(s: FoodSource): boolean {
+  const col = ctx.sim && ctx.ant ? ctx.sim.stores.colonies.get(ctx.ant.colony) : undefined;
+  return ctx.sim && col ? inDiet(ctx.sim, col, s) : true;
+}
+
+const HARVEST_SCOUT: Flavour = { ...SCOUT, accept: scoutAccept };
 const forageEngine = makeBehaviour(HARVEST_FORAGE);
-const scoutEngine = makeBehaviour(SCOUT);
+const scoutEngine = makeBehaviour(HARVEST_SCOUT);
 
 /** Draws whether this ant may leave on this think. */
 function mayLeave(sim: Sim, ant: Ant): boolean {
@@ -95,13 +118,13 @@ export const harvesterForageBehaviour: Behaviour = {
 
 export const harvesterScoutBehaviour: Behaviour = {
   task: 'scout', species: ['messor-barbarus'],
-  enter: (sim, ant) => scoutEngine.enter(sim, ant),
+  enter: (sim, ant) => withCtx(sim, ant, true, () => scoutEngine.enter(sim, ant)),
   update(sim, ant) {
     if (ant.nestId >= 0 && ant.bb[K.phase] === PHASE.depart && !mayLeave(sim, ant)) {
       thinkIn(sim, ant, THINK_WAIT_TICKS);
       return;
     }
-    scoutEngine.update(sim, ant);
+    withCtx(sim, ant, true, () => scoutEngine.update(sim, ant));
   },
   exit: (sim, ant) => scoutEngine.exit(sim, ant),
   delivering: scoutEngine.delivering,

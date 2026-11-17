@@ -42,6 +42,12 @@ export const SEED_ODOUR_BU = 10;
 export const SEED_QUALITY = 1.0;
 /** Feeding slots of a seed node. */
 export const SEED_SLOTS = 4;
+/**
+ * Seeds a forager looks over on one visit to a seed node before she gives up on it. GDD 07 §6.3.2's acceptance p
+ * is per seed found; a node holds dozens, so a visit takes one with 1 - (1 - p)^n. One draw per ant, node and day
+ * decides it (stable across thinks) [EST].
+ */
+export const SEED_LOOKS_PER_VISIT = 6;
 /** Ground seed patches in open ground around the nest (GDD 05 grass-seed "open zones") and their ring, BU [EST]. */
 export const SEED_PATCHES = 16;
 export const SEED_PATCH_RADIUS_BU: readonly [number, number] = [40, 420];

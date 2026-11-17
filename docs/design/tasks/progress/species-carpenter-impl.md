@@ -28,3 +28,12 @@ State found (sessions 1-2 left no progress file):
   Queen relocation: proposal only (col.wood.queenMove), no execution of the walk -> report as partial.
 - (02:18) DONE words: src/content/text/words.ts additions (13 factor causes, 2 remedies, 5 diag values for wood);
   wood diagnostics cause 'season' renamed 'wood-drying' (collided with Lasius 'Laying season').
+- (02:20) e2e r3 PASSED exit 0 but shot 04 shows no pile (1 loose frass; loop stopped at first loose item). Shots
+  01 (log+opening), 02 (gallery inside wood, possessed minor + media + major), 03 (cutaway, weak) looked at.
+  Changed e2e: frass loop now waits for a pile >= 1 unit (FRASS_STEPS 240), expect requires a pile.
+- (02:20) satellite.test.ts green; wood+text tests 11 files 83 pass.
+- Next: death probe kd1 (drowning), then e2e r4, then soak 28 d, night probe numbers, report.
+- (02:24) death probe kd1 on current tree: no drowning any more (nest moved: log at y 40 mm, ground -17); deaths
+  lost 1 (d9.4) + old-age 1. Drowning not reproduced -> not pursued.
+- (02:25) RUNNING viability sweep test-output/carp/sweep2/run.sh (we + kd seeds 1-3, 2 at a time; done.txt lists
+  finished runs). If cut off: rerun only missing runs.

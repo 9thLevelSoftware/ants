@@ -7,3 +7,4 @@
 - controller.ts VIEW_TAP_MS now imports toolsPad's constant (dedupe). e2e a11y.mjs (739 lines) already throws at end on failures (earlier engineer). Reviewing its sections for: possessed-id-unchanged after RB combos, dismiss-hint with hint up, timelapse skip assertion, opening prompt glyphs, dig-by-pad.
 - e2e already has asserts for all recorded-only checks (RB possessed unchanged, hint dismiss, timelapse, glyphs, dig). NEXT: typecheck, unit tests again, then ONE harness run of tests/e2e/a11y.mjs (out under test-output/), look at screenshots. Then report.
 - e2e run started 01:57:58 log test-output/a11y-fix/run.log (out test-output/a11y-fix)
+- e2e run: G,B,B2,C pass so far (01:xx); waiting for C2,D,E,E2,F

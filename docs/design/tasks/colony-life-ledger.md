@@ -18,19 +18,8 @@ Method notes
   colony-life code, not a different founding. Other engineers edit `src/sim` too, so a fresh founding would change
   with every edit of theirs.
 
-(in progress — sections below are filled as the round goes)
-
-Progress (01:58 UTC, third engineer of this round, after the 01:53 restart): tree = snapshot `9ccb488` (F1-F3 in,
-queen-care change out, `eggCollect.test.ts` removed with it). Now: folder tests of the touched folders
-(`src/sim/nest` had `escapeDig` red, `src/sim/ants/behaviours/nest` had `sfaReview.verify` and `stall.soak` red,
-`src/sim/colony` unfinished), checking each red test against a scratch tree without F1-F3. Remaining: typecheck,
-tried-and-reverted, deviations, next. No new causes this round.
-- 02:03: the three red tests (`escapeDig` reopenTick trigger, `sfaReview.verify` move-brood marker save/load,
-  `stall.soak` short window 22 % stalled) are red with the same numbers in a scratch tree of HEAD with F1-F3 taken
-  out, and at the round's start commit `e299de5`: not this round's. All three are on `gate-close-sim.md`'s known-red
-  list (owner: gate-close-sim).
-- 02:05: `entrances.ts` was last edited at 01:53, after the `after1` runs (01:48): re-running both runs from the same
-  hand-overs into `round-1/after1-check/` to confirm the after numbers hold for the tree as it is.
+Status: **round 1 complete** (02:20 UTC). Engineers: three (cut off by the 01:24 and 01:53 restarts; the third
+finished the round: verification, tried-and-reverted, deviations, next). Tree = snapshot `9ccb488` plus this ledger.
 
 ### Funnel of the studied runs (before = HEAD 0098d97 without the cut-off engineer's queen-care change; `round-1/before/`)
 

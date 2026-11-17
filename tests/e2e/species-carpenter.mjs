@@ -9,7 +9,8 @@
 // because they unlock only in colony year 3), 03 the cell cut open in the colony view, 04 the frass pile at the foot
 // of the log (observer).
 
-const FRASS_STEPS = 80; // x 250 ticks: about 0.6 game day of colony life to see frass outside
+const FRASS_STEPS = 240; // x 250 ticks: at most 1 game day of colony life to see a frass pile outside
+const FRASS_UNITS_WANTED = 1; // GDD 07 §6.2.3: 10 frass items make one pile unit
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -98,6 +99,19 @@ export default async ({ page, shot, log }) => {
   await g(([id, p]) => window.__game.teleport(id, p), [minorId, floor]);
   await g((id) => window.__game.possess(id), minorId);
   await step(3);
+  // the media and the major stand ahead of her, one to each side, so the camera behind the minor sees all three
+  const ahead = await sim((sm, [id, ch]) => {
+    const a = sm.stores.ants.get(id);
+    const b = sm.world.bu;
+    const f = a ? a.fwd : { x: 1, y: 0, z: 0 };
+    const side = { x: -f.z, y: 0, z: f.x };
+    const reach = Math.min(1.6 * b, Math.max(ch.radii.x, ch.radii.z) * 0.6);
+    const at = (k, s) => ({ x: a.pos.x + f.x * reach * k + side.x * s * b, y: a.pos.y + 0.2 * b, z: a.pos.z + f.z * reach * k + side.z * s * b });
+    const big = sm.state.ants.filter((x) => x.alive && x.colony === a.colony && (x.caste === 'media' || x.caste === 'major'));
+    return big.map((x) => ({ id: x.id, pos: x.caste === 'media' ? at(1, 0.7) : at(1.4, -0.8) }));
+  }, [minorId, c]);
+  for (const t of ahead) await g(([id, p]) => window.__game.teleport(id, p), [t.id, t.pos]);
+  await step(2);
   const inside = await sim((sm, id) => { const a = sm.stores.ants.get(id); return a ? { nestId: a.nestId, medium: a.medium, pos: a.pos } : null; }, minorId);
   log(`possessed minor: ${JSON.stringify(inside)}`);
   result.checks.possessedInside = inside;
@@ -134,11 +148,13 @@ export default async ({ page, shot, log }) => {
       units: w ? (w.frassUnitsOutdoor ?? 0) + (w.frassUnitsInterior ?? 0) : null,
     };
   }, nest.id);
+  // live on until the dropped frass has settled into a pile of at least one pile unit (10 items), or the step budget
+  // runs out (then whatever lies outside is shown)
   let fr = await frassNow();
-  for (let i = 0; i < FRASS_STEPS && fr.piles.length === 0 && fr.loose === 0; i++) { await step(250); fr = await frassNow(); }
+  for (let i = 0; i < FRASS_STEPS && !(fr.piles.length > 0 && (fr.units ?? 0) >= FRASS_UNITS_WANTED); i++) { await step(250); fr = await frassNow(); }
   log(`frass: ${JSON.stringify(fr)}`);
   result.checks.frass = fr;
-  expect(fr.piles.length > 0 || fr.loose > 0, 'no frass outside the wood', fr);
+  expect(fr.piles.length > 0, 'no frass pile outside the wood', fr);
   const at = fr.piles.length > 0
     ? await sim((sm, m) => ({ x: m.x, y: sm.field.height(m.x, m.z), z: m.z }), fr.piles[0])
     : fr.loosePos;
