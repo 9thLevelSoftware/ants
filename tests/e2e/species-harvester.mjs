@@ -3,9 +3,9 @@
 // the hand-over), reaches its first workers, and its foragers bring seeds home along a trail into a granary.
 //   node tools/harness/play.mjs --root . --query "test=1&seed=1&quality=test&autostart=1&species=messor-barbarus" \
 //        --script tests/e2e/species-harvester.mjs --out test-output/species-harvester --script-timeout 3000000
-// Screenshots (looked at): 01 a seed carrier on the surface (observer), 02 the granary chamber with its seed (colony
-// view, cutaway), 03 the castes side by side in a possession view (minor, media, major; the major is spawned by a
-// cheat because majors appear only from 40 workers), 04 the chaff midden by the entrance when there is one.
+// Screenshots (looked at): 01 a seed carrier on the surface in daylight, 02 the granary (or proto-granary) chamber
+// with its display seeds, camera inside the chamber, 03 the castes side by side (major, media, minor; spawned by a
+// cheat because majors appear only from 40 workers), 04 the same minor possessed, 05 the chaff midden if there is one.
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -63,7 +63,10 @@ export default async ({ page, shot, log }) => {
   }
 
   // ---- 2. seeds on the trail: step until a forager carries a seed outside ----
+  // daylight only (06:00-19:00), so the picture shows the seed (a game day is 6000 ticks)
   const carrier = () => sim((sm) => {
+    const hour = (((sm.state.tick + sm.state.env.calendar.startTick) % 6000) / 6000) * 24;
+    if (hour < 6 || hour > 19) return null;
     for (const a of sm.state.ants) {
       if (!a.alive || a.colony !== sm.state.colonies[0].id || a.nestId >= 0 || a.carry.kind !== 'item') continue;
       const it = sm.stores.items.get(a.carry.id);
@@ -79,7 +82,7 @@ export default async ({ page, shot, log }) => {
     return { tick: sm.state.tick, archetype: sm.state.config.world.archetype, tasks, known, stores: { c: +c0.stores.c.toFixed(2), p: +c0.stores.p.toFixed(2) } };
   });
   let c = null;
-  for (let i = 0; i < 120 && !(c = await carrier()); i++) {
+  for (let i = 0; i < 200 && !(c = await carrier()); i++) {
     if (i % 20 === 0) log(`colony: ${JSON.stringify(await colonyState())}`);
     await step(250);
   }
@@ -89,10 +92,10 @@ export default async ({ page, shot, log }) => {
     return { stock, paste: m?.pasteLoads ?? 0, granaries: m?.granaries.map((gr) => gr.chamberId) ?? [] };
   });
   log(`seed carrier: ${JSON.stringify(c)} granary ${JSON.stringify(await granaryNow())}`);
-  expect(c, 'no forager carried a seed outside within 30000 ticks');
+  expect(c, 'no forager carried a seed outside in daylight within 50000 ticks');
   const bu = (await g(() => window.__game.query.world())).bu;
   await g(([p, f, b]) => {
-    const eye = { x: p.x - f.x * 14 * b, y: p.y + 7 * b, z: p.z - f.z * 14 * b };
+    const eye = { x: p.x - f.x * 5 * b + f.z * 2 * b, y: p.y + 2.5 * b, z: p.z - f.z * 5 * b - f.x * 2 * b };
     window.__game.camera.setPose(eye, p);
   }, [c.pos, c.fwd, bu]);
   await step(1);
@@ -109,27 +112,38 @@ export default async ({ page, shot, log }) => {
   }, gr.granaries[0]);
   log(`granary chamber: ${JSON.stringify(chamber)}`);
   await step(110); // display seeds sync
-  await g(() => window.__game.camera.set('colony'));
-  await step(1);
-  await g(([ch, b]) => window.__game.views.colonyCamera({
-    x: ch.center.x, z: ch.center.z, distBu: 26, pitchDeg: 50, yawDeg: 35, cutaway: 'slice', planeYBu: ch.center.y / b + ch.radii.y / b, radiusBu: 18,
-  }), [chamber, bu]);
+  // the camera inside the chamber, near its wall, looking across the floor where the display seeds lie
+  await g(([ch, b]) => {
+    const eye = { x: ch.center.x + ch.radii.x * 0.75, y: ch.center.y + ch.radii.y * 0.2, z: ch.center.z + ch.radii.z * 0.3 };
+    const look = { x: ch.center.x - ch.radii.x * 0.2, y: ch.center.y - ch.radii.y * 0.6, z: ch.center.z };
+    window.__game.camera.setPose(eye, look);
+  }, [chamber, bu]);
   await step(1);
   await highShot('02-granary-chamber');
 
-  // ---- 4. castes in a possession view (the major is spawned: majors appear from 40 workers) ----
+  // ---- 4. castes side by side (the major is spawned: majors appear from 40 workers), observer and possession ----
   await g(() => window.__game.camera.set('observer'));
   const home = await sim((sm) => { const n = sm.state.nests.find((x) => x.alive && x.colony === sm.state.colonies[0].id); const e = n?.entrances[0]; return e ? e.pos : null; });
   if (home) {
-    await raw({ type: 'cheat.spawnAnts', colonyId: await sim((sm) => sm.state.colonies[0].id), n: 1, caste: 'major', ageGd: 5, task: 'idle', pos: { x: home.x + 3 * bu, y: home.y, z: home.z } });
-    await raw({ type: 'cheat.spawnAnts', colonyId: await sim((sm) => sm.state.colonies[0].id), n: 1, caste: 'media', ageGd: 5, task: 'idle', pos: { x: home.x + 5 * bu, y: home.y, z: home.z } });
-    await step(2);
-    const minorId = await sim((sm) => sm.state.ants.find((a) => a.alive && a.colony === sm.state.colonies[0].id && a.caste === 'minor')?.id ?? -1);
-    if (minorId >= 0) {
-      await g(([id, p]) => window.__game.teleport(id, p), [minorId, { x: home.x + 1 * bu, y: home.y, z: home.z }]);
-      await g((id) => window.__game.possess(id), minorId);
+    const at = (dx, dz) => ({ x: home.x + dx * bu, y: home.y, z: home.z + dz * bu });
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'major', ageGd: 5, task: 'idle', pos: at(10, 0) });
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'media', ageGd: 5, task: 'idle', pos: at(10, 3) });
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'minor', ageGd: 5, task: 'idle', pos: at(10, 6) });
+    await step(1);
+    const trio = await sim((sm) => {
+      const c0 = sm.state.colonies[0].id;
+      const newest = (caste) => sm.state.ants.filter((a) => a.alive && a.colony === c0 && a.caste === caste).sort((a, b) => b.id - a.id)[0];
+      return ['major', 'media', 'minor'].map((k) => { const a = newest(k); return a ? { id: a.id, pos: a.pos } : null; });
+    });
+    log(`castes: ${JSON.stringify(trio)}`);
+    const mid = trio[1]?.pos ?? at(10, 3);
+    await g(([m, b]) => window.__game.camera.setPose({ x: m.x + 7 * b, y: m.y + 4 * b, z: m.z }, m), [mid, bu]);
+    await step(1);
+    await highShot('03-castes-side-by-side');
+    if (trio[2]) {
+      await g((id) => window.__game.possess(id), trio[2].id);
       await step(2);
-      await highShot('03-castes-possessed');
+      await highShot('04-castes-possessed');
       await g(() => window.__game.release());
     }
   }
@@ -140,7 +154,7 @@ export default async ({ page, shot, log }) => {
   if (chaff) {
     await g(([p, b]) => window.__game.camera.setPose({ x: p.x + 10 * b, y: p.y + 9 * b, z: p.z + 10 * b }, p), [chaff, bu]);
     await step(1);
-    await highShot('04-chaff-midden');
+    await highShot('05-chaff-midden');
   }
   result.checks.summary = await sim((sm) => {
     const c0 = sm.state.colonies[0];

@@ -5,7 +5,7 @@
 // so the UI's computed slices do not fire and Preact re-renders only what changed. Panel-only work (the roster page,
 // the inspect card) runs only while the UI has asked for it (uiBridge/requests.ts).
 import type { Sim } from '@/sim/types';
-import type { UiLoading, UiSnapshot, UiSpeed, UiToast } from '@/ui/api';
+import type { UiLoading, UiSnapshot, UiSoundCue, UiSpeed, UiToast } from '@/ui/api';
 import { RosterBuilder } from './uiBridge/rosterSlice';
 import { directivesOf } from './uiBridge/directivesSlice';
 import { alertsOf, colonyOf, possessedOf, promptOf, timeOf } from './uiBridge/hudSlices';
@@ -35,6 +35,8 @@ export interface SnapshotSource {
   epitaph: UiSnapshot['epitaph'];
   /** Game-level prompt shown when no ant is possessed (optional: null / absent = none). */
   observerPrompt?: string | null;
+  /** Sound-cue indicator pips (src/game/soundCues.ts), absent = none. */
+  soundCues?: readonly UiSoundCue[];
 }
 
 /** A game-level prompt while no ant is possessed (after the death hold: "Tab: take another ant"). */
@@ -85,6 +87,7 @@ export class SnapshotBuilder {
       journal: inGame && req.panels.journal ? share(p?.journal ?? undefined, journalOf(sim)) : null,
       codex: inGame ? share(p?.codex ?? undefined, codexOf(sim)) : null,
       markers: inGame ? share(p?.markers ?? undefined, markerCountsOf(sim)) : null,
+      soundCues: inGame ? share(p?.soundCues, [...(src.soundCues ?? [])]) : [],
     };
     this.prev = snap;
     return snap;

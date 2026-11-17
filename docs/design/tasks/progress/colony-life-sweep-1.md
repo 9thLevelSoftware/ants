@@ -46,3 +46,8 @@ in `test-output/colony-life/round-1/sweep/summary.txt`.
 - Leads: P sources <=300 BU known 0 at end in 13/15 runs; 316 scout trips found nothing; seed 3: 0 of 43 eggs
   hatched in 4 of 5 runs (untended/flooding/exposure, one-chamber nests).
 - Remaining: A/B result, write sweep-table.md (header + body), ledger section, delete scratch nofix, final output.
+
+## 03:45 UTC — COMPLETE
+- A/B done (sweep-ab/): P lower with F1-F3 in both pairs (kd1 0.113 -> 0.065, cpv1 0.315 -> 0.078) but n=2 diverging
+  runs; not attributed. Scratch tree nofix deleted.
+- Ledger section "### Independent sweep after round 1" appended. sweep-table.md written. No processes left.

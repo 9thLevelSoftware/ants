@@ -49,14 +49,20 @@ export class FlashTimer {
   private fresh = false;
   private sinceStartS = Infinity;
 
+  /** A strike from the sim: starts a flash unless flash reduction holds it back (strikeStartsFlash). */
   strike(reduced: boolean): boolean {
     if (this.reduced !== reduced) this.left = 0; // the setting changed mid-flash: drop it
     if (!strikeStartsFlash(reduced, this.left, this.sinceStartS)) return false;
+    this.start(reduced);
+    return true;
+  }
+
+  /** Starts a flash now (demo and tests force one). */
+  start(reduced: boolean): void {
     this.left = flashDuration(reduced);
     this.reduced = reduced;
     this.fresh = true;
     this.sinceStartS = 0;
-    return true;
   }
 
   /** Strength k this frame (0 = no flash). */

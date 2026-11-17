@@ -162,6 +162,18 @@ export interface UiAlert {
   raisedTick?: number;
 }
 
+/** Information-bearing sounds with a visual equivalent (GDD 08 §12 sound-cue indicators). */
+export type UiSoundCueKind = 'tremor' | 'alarm' | 'drum' | 'crackle' | 'rain';
+
+/** One edge pip: the direction of the source on the screen (degrees, 0 = right, 90 = up; null = everywhere, e.g. rain). */
+export interface UiSoundCue {
+  id: number;
+  kind: UiSoundCueKind;
+  angleDeg: number | null;
+  /** The source is inside the view. */
+  onScreen: boolean;
+}
+
 export interface UiToast {
   id: number;
   text: string;
@@ -207,6 +219,8 @@ export interface UiSnapshot {
   codex?: UiCodexSeen | null;
   /** ui-panels: markers of the player colony and plan counts against their caps (colony view palette). */
   markers?: UiMarkerCounts | null;
+  /** Sound-cue indicator pips (only while Settings > Accessibility > Sound-cue indicators is on; absent = none). */
+  soundCues?: UiSoundCue[];
 }
 
 // ---- ui-panels: Colony health, Nest overview, Journal, Codex, marker palette (GDD 08 4.3, 4.4, 4.6, 7.2, 7.3) ----

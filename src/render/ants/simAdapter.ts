@@ -10,6 +10,8 @@ import { AntFlag, POSES } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
 import type { AppearanceLike } from './morph/catalog';
 import { CALLOW_DARKEN_TICKS } from './tuning';
+import { Swarm, type SwarmFlight } from './swarm';
+import { TICKS_PER_SECOND } from '@/sim/time';
 
 export type AntView = Pick<Ant,
   'id' | 'alive' | 'colony' | 'caste' | 'pos' | 'prevPos' | 'up' | 'prevUp' | 'fwd' | 'prevFwd' | 'speed' | 'footOffset' |
@@ -30,7 +32,10 @@ export const WINGED_OPENING_PHASES: readonly string[] = ['intro-card', 'dealatio
 type PlayerView = { possessedAntId: number; opening?: { phase: string } | null };
 export type BroodView = Pick<Brood, 'id' | 'alive' | 'colony' | 'stage' | 'destined' | 'progress' | 'pos' | 'carriedBy' | 'destinedLengthBu'>;
 export type ItemView = Pick<Item, 'id' | 'alive' | 'kind' | 'pos' | 'carrierIds' | 'lengthMm' | 'count' | 'species' | 'colony' | 'decay' | 'foodKind' | 'variant' | 'wasteKind'>;
-export type ColonyView = Pick<Colony, 'id' | 'species'>;
+export type ColonyView = Pick<Colony, 'id' | 'species'> & {
+  /** Only the possessed nuptial flight is read (the males' swarm at the lek, swarm.ts). */
+  lifecycle?: { flight?: SwarmFlight | null } | null;
+};
 
 /** A walker pose (mm, unit vectors): position on the level set f = footOffset, surface normal and heading. */
 export interface WalkerPose { pos: Vec3; up: Vec3; fwd: Vec3 }
@@ -126,7 +131,10 @@ export class SimReader {
   constructor(readonly sim: AntSimSource) {}
 
   get tick(): number { return this.sim.state.tick; }
-  get ants(): readonly AntView[] { return this.sim.state.ants; }
+  /** The sim's ants, plus the males' swarm while the player's nuptial flight is at the lek (render-only, swarm.ts). */
+  get ants(): readonly AntView[] { return this.swarmAnts.length > 0 ? [...this.sim.state.ants, ...this.swarmAnts] : this.sim.state.ants; }
+  private readonly swarm = new Swarm();
+  private swarmAnts: readonly AntView[] = [];
   get brood(): readonly BroodView[] { return this.sim.state.brood; }
   get items(): readonly ItemView[] { return this.sim.state.items; }
   get possessedId(): number { return this.sim.state.player.possessedAntId; }
@@ -140,6 +148,9 @@ export class SimReader {
     for (const c of this.sim.state.colonies) this.colonySpecies.set(c.id, c.species);
     const phase = this.sim.state.player.opening?.phase;
     this.foundingWingsShown = phase !== undefined && WINGED_OPENING_PHASES.includes(phase);
+    const col = this.sim.state.colonies[0];
+    const flight = col?.lifecycle?.flight ?? null;
+    this.swarmAnts = col ? this.swarm.update(flight, this.sim.state.tick, 1 / TICKS_PER_SECOND, col.id, this.speciesInfo(col.species).buMm) : [];
   }
 
   speciesOfColony(colony: number): string {

@@ -175,3 +175,109 @@ written. No ruling, lifespan, need or hand-over provision changed.
 6. **Funnel counters**: trip reasons all read `unlogged`; scout trips that find nothing count as failed (29 of 70 on
    woodland-edge #1). Fix before reading trip success off the funnel.
 7. woodland-edge #1 after F1: 2 workers crushed (runs diverge after day 2; not attributed to F1-F3).
+
+### Independent sweep after round 1
+
+Independent engineer, 02:19-03:42 UTC Nov 17. Table: `test-output/colony-life/round-1/sweep-table.md` (made by
+`python3 tools/sim/sweep-table.py test-output/colony-life/round-1/sweep test-output/econ-growth-review/sweep9`;
+runs by `tools/sim/sweep-life.sh`; logs and `summary.txt` in `round-1/sweep/`). Tree = snapshot `9ccb488` (F1-F3);
+during the sweep only other engineers' Messor files (`species-harvester.ts`, `species/modules/granary/*`) and this
+review's two test files changed. Fresh founding on every run (no code-tagged hand-over existed); woodland-edge #1
+ends with state hash `ef574626`, the round's `after1` hash, so the round's cached hand-overs equal a fresh founding.
+**This table (`round-1/sweep-table.md`) is the one the next round compares with.**
+
+**Viability bar: NOT met** — viable 9 of 15 (sweep 9: 7). woodland-edge 2/3, suburban-garden **1/3**,
+playground-park **1/3**, car-park-verge 2/3, kitchen-door 3/3.
+
+**Growth bar R19: NOT met** (3 of 7 checks):
+
+| check | value | sweep 9 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **5 of 15** | 3 |
+| median eclosions after hand-over >= 4 | **0** (10 of 15 runs: none) | 0 |
+| median intake/need P >= 0.7 | **0.094** | 0.141 |
+| median intake/need C >= 0.9 | 1.258 ok | 0.873 |
+| median trip success >= 50 % | **18.2 %** | 16.7 % |
+| first workers >= 9, >= 13 of 15 | 13 of 15 ok | 13 |
+| no `worker:lost`, >= 13 of 15 | 14 of 15 ok | 10 |
+
+Regressions against sweep 9 (12 runs flagged by the script; the main ones):
+- **suburban-garden #2 and playground-park #2: viable -> NOT viable** while growing (16 -> 17 and 16 -> 22 workers,
+  7 eclosions each): failed check "starvation stage" (worse than lean for 2.20 / 2.05 gd, limit 2): protein. Both
+  spend the hand-over P on the first brood and sit at P 0 from day 3-4 to winter (rationing, brood sacrifice).
+- **playground-park #3**: intake C 0.98 -> 0.06, P 0.47 -> 0.03, trip success 17 -> 0 %, C stores 0 at winter,
+  larvae starved 0 -> 4. 21 trips, all scouts, all `timeout`/`curfew not-reached`; every source within 300 BU
+  (nectar C 6, crumb C 4.2) unknown to the colony at the end.
+- **suburban-garden #3**: intake P 0.73 -> 0, trip success 10 -> 0 % (11 scout trips, none reached anything).
+- intake P down by more than 0.05 in 8 runs (kitchen-door #1 0.27 -> 0.07, car-park-verge #1 0.17 -> 0.08 and larvae starved 3 -> 6,
+  playground-park #1 0.12 -> 0.05). woodland-edge #1 net workers -1 -> -6 (2 crushed, 4 old age).
+- Gains: woodland-edge #3, suburban-garden #1, kitchen-door #1 and #3 not viable -> viable; C intake/need up in 11
+  runs (deliveries from day 1 now; sweep 9 had none before day 3); `worker:lost` 5 runs -> 1; runs with a day ending
+  with no `open` entrance 5 -> 2 (sweep 9: playground-park #3 7 days, car-park-verge #3 8 days; now 1 day each in
+  woodland-edge #2 and car-park-verge #3).
+- A/B for the P drop (`round-1/sweep-ab/`: working tree minus F1-F3, same hand-overs): kitchen-door #1 P 0.113
+  (without) vs 0.065 (with), not viable (9 workers) vs viable (12); car-park-verge #1 P 0.315 vs 0.078, larvae
+  starved 6 vs 6. P is lower with the fixes in both pairs, but two diverging runs do not attribute it; the sweep-9
+  -> now drop on kitchen-door #1 (0.27 -> 0.11) is mostly there without F1-F3 (tree changes since sweep 9). Not
+  called a regression of this round; flagged for measurement (lead 2).
+
+Review of the round (code: `git diff e299de5 HEAD` on `nest/entrances.ts`, `types/nest.ts`, `balance/colony.ts`,
+`colony/brood.ts`, `colony/stores.ts`, `ants/behaviours/nest/board.ts`, `tools/sim/life.ts`, `lifeFunnel.ts`):
+- Verified: typecheck clean (02:22). Folder tests (outputs `round-1/sweep-review/vitest-*.txt`): `ants/behaviours/nest`
+  25 pass, red `sfaReview.verify`, `stall.soak`; `nest` 52 pass, red `escapeDig` + this review's
+  `plugBaseline.verify`; `colony` 51 pass, red `founding/reopen.test`; `balance`+`types` red `ids.test` (38 vs 37).
+  Same red set as the round reported. The round's tests fail on the round-start tree `e299de5` (scratch copy):
+  `plugsReopen` F1 case, `boardStranded`, `wasteHaul` (also with the bulk asserts stubbed: corpse never dumped) — they
+  test the fixes. The `before`/`after1`/`after1-check` hashes are as claimed. No lifespan, need, provision, bar or
+  ruling test changed; no seed/archetype special case; `plugBaseline` is persisted; no wall clock; no `Math.hypot`
+  added; per-tick cost unchanged in kind (F3 adds a care check per lying brood item per board build).
+- **F1 (finding, major): the trigger is not fixed.** `src/sim/nest/plugBaseline.verify.test.ts` (new, RED, kept): a
+  2 BU spoil ring over 5 ghost plug flags around a passable `open` entrance raises `plugCount` 0 -> 5 with no plug
+  added, and the entrance goes `sealing` (no exit field: GDD 03 §4.2 says `open -> sealing` on "first plug added").
+  This is the round's measured trigger on woodland-edge #1. F1 only changes the way back (`sealing -> open` at the
+  remnant baseline), which needs workers to dig the count back down (founding/reopen.ts remnant plans); until then
+  the colony is shut in. The sweep shows it rarely now (2 runs, 1 day each), so the cost is small, but the cause is
+  in `plugCount` / `evaluateEntrance` (pile soil over PLUG flags counted as plug).
+- F2: sound. New `src/sim/ants/behaviours/nest/spoiledHaul.verify.test.ts` (green): spoiled food from `spoil()` lies in
+  reach and a nanitic takes it to the midden within 0.3 gd; on `e299de5` the same item is out of reach (`onSurface`
+  false) and never hauled. Sweep: hygiene losses 2 in 166 eggs' worth of brood (pupa 1, larva 1).
+- F3: sound; same rescue path as before, care job only with no (dry) chamber to return to; no finding.
+- Minor (tool): `tools/sim/lifeFunnel.ts` `FoundingObserver` never stops listening, so `foundingFunnel` and the md line
+  "Founding funnel" include colony-life losses (woodland-edge #1: "adult deaths worker:crushed 2, old-age 4" all
+  happened after the hand-over).
+- Minor (tool): the day rows' "trips" (`forager-departed`) read 0 on most days while 10-145 trips end per run: most
+  trips start outside the activation path; and the funnel's trip count differs from `report.econ` (car-park-verge
+  #1: 60 vs 145). Use one counter before reading trip success off either.
+
+Leads from the failing runs' own diagnostics (most costly first):
+1. **Scouts find nothing; sources within 300 BU stay unknown.** 364 scout trips in the sweep, 319 of them
+   `timeout`/`curfew not-reached` fail; at winter the colony knows 0 of the P sources within 300 BU in 13 of 15 runs
+   (2-11 such sources holding 0.5-8.7 P loads). Kills playground-park #3 (C stores 0, nectar C 6 unknown) and
+   suburban-garden #3 (0 successful trips). Scout trips are 44 % of all trips; non-scout trip success median 48 %.
+2. **Protein**: median P intake/need 0.094; P stores 0 at winter in 6 runs; larvae starved 14 (car-park-verge #1 6,
+   playground-park #3 4). The five growing runs eat the hand-over P with the first brood and then stall; two of them
+   fail viability on it (above). No prey item taken in any run (items taken: crumb, carrion only) — R18's prey
+   patches are still not hunted. `tend` trips: 111 `curfew not-reached` fail.
+3. **Seed 3 brood never hatches**: in 4 of 5 seed-3 runs (woodland-edge, suburban-garden, car-park-verge,
+   kitchen-door #3; 7-9 first workers, one founding chamber at hand-over) 0 of 43 eggs hatched: untended 23,
+   flooding 10, exposure 4, base 4, temperature 2; nest.work 51-61 % of worker time, queen-care 11.9-15.1 worker-gd.
+   This is the queen-care egg loop / one-chamber flooding of round 1 (causes 3a, next 2) across a whole seed.
+   Workers 9 -> 7 on two of them fails viability.
+4. **Eggs lost untended in every archetype**: `egg:untended` 44 of 166 eggs laid after the hand-over (all runs),
+   `pupa:untended` 7 (woodland-edge #1 4: round 1's next 1, nurses carrying pupae between chambers).
+5. **Laying**: 10 eggs (median) after the hand-over; queen potential > 0.5 egg/gd 14-51 % of the time; "winter reserve
+   short" 95 % of the time on playground-park #3, 25-42 % on the five growing runs.
+6. **In-nest stalls**: stuck ant-gd 7.3-16.7 on the five growing runs (0.4-4.7 on the others); invariant
+   `walker-stuck-explosion` on suburban-garden #3, `walker-stall` (raid ants) on suburban-garden #1, playground-park #3.
+7. F1 trigger (above): pile soil over ghost plug flags counts as an added plug.
+
+## Round 2
+
+Engineer: round 2 (started 03:45 UTC Nov 17). Evidence: `test-output/colony-life/round-2/`.
+
+Progress (kept current; a successor continues from here)
+- 03:45 started: read spec, ledger, STATUS. Next: reproduce the sweep's major findings (F1 trigger, protein loss on
+  suburban-garden #2 / playground-park #2), then account the failing runs.
+- 03:50 G1 (sweep finding "F1 trigger") done in the tree: `entrances.ts` `forgetGhostPlugs` (an `open` entrance drops
+  the PLUG flag of ghost samples, so spoil piled on them later is no plug). `plugBaseline.verify` red without it
+  (counted 5, `sealing`), green with it. Next: account (funnel) for the failing runs.

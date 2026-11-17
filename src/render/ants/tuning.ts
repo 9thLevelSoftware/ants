@@ -83,14 +83,31 @@ export const TINT_VARIATION = 0.12;
  *  - `fromEV`..`toEV`: exposure range over which a dim surface scene (night) blends the fill in; underground is
  *    always full strength (the blend follows the underground factor instead).
  * Warm underground (the nest's lantern colour), cool under the moon.
+ * gate-close-app: night body 2.2 -> 1.1 and rim 0.12 -> 0.3 (at 2.2 a black ant read as pale grey glass; the
+ * stronger rim keeps her separable from the ground).
  */
 export const ANT_FILL = {
-  body: { underground: 0.9, night: 2.2 },
-  rim: { underground: 0.025, night: 0.12 },
+  body: { underground: 0.9, night: 1.1 },
+  rim: { underground: 0.025, night: 0.3 },
   fromEV: 1.6,
   toEV: 3.0,
   warm: [1.0, 0.62, 0.34] as [number, number, number],
   cool: [0.66, 0.78, 1.0] as [number, number, number],
   /** Time constant (s) of the underground blend. */
   easeS: 0.35,
+};
+
+/**
+ * The males' swarm at the lek during the possessed nuptial flight (swarm.ts): how many are drawn, their body length
+ * (BU), the radius range of their loops around the lek centre (BU), loop and bob rates (rad/s), bob height and the
+ * vertical spread of the swarm (BU).
+ */
+export const SWARM = {
+  count: 24,
+  lengthBu: 1.0,
+  radiusBu: [3, 14] as [number, number],
+  loopRadS: 0.8,
+  bobRadS: 2.0,
+  bobBu: 1.0,
+  spreadYBu: 8,
 };

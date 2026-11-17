@@ -38,6 +38,8 @@ export type ColonyEvent =
   | { type: 'delivery'; antId: number; colonyId: number; sourceId: number; kind: string; c: number; p: number; toxin: number }
   | { type: 'recruit'; fromId: number; toId: number; sourceId: number }
   | { type: 'forager-departed'; antId: number; reason: 'recruited' | 'spontaneous' }
+  /** A forager, scout or tender ended a trip at home (colony.recordForagerReturn; the colony's trip counters). Additive, colony-life. */
+  | { type: 'forager-returned'; antId: number; colonyId: number; success: boolean; sourceId: number }
   | { type: 'trail-established'; colonyId: number; sourceId: number; lengthBu: number }
   | { type: 'trail-lost'; colonyId: number; sourceId: number; pos: Vec3 }
   | { type: 'route-learned'; antId: number; sourceId: number }

@@ -9,6 +9,8 @@
 // a step that does not work fails the run). FOUNDING_SKIP_FAIL=1 skips the failure part while iterating.
 // FOUNDING_NO_FLOOD=1 drains the sealed cell (cheat.setDrainScale) while weather-fix2's seepage flooding still
 // drowns the first clutch; the run log says so.
+// FOUNDING_PAD=1 (gate-close-app): seal and lay through a virtual standard gamepad's A button (the interact action and
+// its prompt, the path a pad player has) instead of window.__game.act; result.pad records each press and what it did.
 
 const SHAFT_DEPTH_BU = 9; // Lasius D_MIN in open soil is 8 BU
 const SHAFT_MAX_BITES = 260;
@@ -28,6 +30,32 @@ export default async ({ page, shot, log }) => {
   const visible = (id) => g((t) => { const e = document.querySelector(`[data-testid="${t}"]`); return !!e && e.getBoundingClientRect().width > 0; }, id);
   const click = (id, timeout) => page.click(`[data-testid="${id}"]`, timeout ? { timeout } : undefined);
   const result = { beats: [] };
+  const PAD = !!process.env.FOUNDING_PAD;
+  /** Virtual standard gamepad (navigator.getGamepads overridden, as tests/e2e/a11y.mjs does); A = button 0 = interact. */
+  const padTap = async (label) => {
+    const before = await g(() => window.__game.events(undefined, 1)[0]?.seq ?? 0);
+    const prompt = await g(() => window.__game.ui.prompts?.() ?? null);
+    await g(async () => {
+      const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
+      if (!window.__vpad) {
+        window.__vpad = { buttons: new Array(17).fill(0), axes: [0, 0, 0, 0] };
+        Object.defineProperty(navigator, 'getGamepads', {
+          configurable: true,
+          value: () => [{ id: 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)', index: 0, connected: true, mapping: 'standard', axes: window.__vpad.axes.slice(), buttons: window.__vpad.buttons.map((v) => ({ pressed: v > 0.5, touched: v > 0.5, value: v })), timestamp: performance.now() }],
+        });
+        for (let i = 0; i < 4; i++) await raf();
+      }
+      window.__vpad.buttons[0] = 1;
+      for (let i = 0; i < 2; i++) await raf();
+      window.__vpad.buttons[0] = 0;
+      for (let i = 0; i < 3; i++) await raf();
+    });
+    await step(2);
+    const evs = await g((q) => window.__game.events(undefined, 40, q).filter((e) => /^action-/.test(e.type)).map((e) => `${e.type}:${e.action}${e.reason ? ':' + e.reason : ''}`), before);
+    (result.pad ??= []).push({ label, prompt, events: evs });
+    log('pad A', label, JSON.stringify(prompt), JSON.stringify(evs));
+    return evs;
+  };
   // an observer pose `back` BU from point m and `up` BU above it with a clear line of sight (plants, stones, walls)
   const clearPose = (m, up, back) => g(({ m, up, back }) => {
     const gm = window.__game, bu = gm.query.world().bu;
@@ -235,7 +263,7 @@ export default async ({ page, shot, log }) => {
   const stopDig = async () => { await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' })); await step(20); };
   await stopDig(); // a held dig repeats until the input is released
   const sealSeq = await lastSeq();
-  const pressed = await g(() => window.__game.act('seal-entrance'));
+  const pressed = PAD ? await padTap('seal') : await g(() => window.__game.act('seal-entrance'));
   log('E pressed', JSON.stringify(pressed));
   let sealTicks = 0;
   for (; sealTicks < 3000 && (await phase()) === 'seal'; sealTicks += 50) {
@@ -264,6 +292,7 @@ export default async ({ page, shot, log }) => {
   await stopDig();
   await goDown();
   const layBatch = async () => {
+    if (PAD) { await padTap('lay'); await step(55); return; }
     await g(() => window.__game.act('lay-egg'));
     await step(50);
     await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));

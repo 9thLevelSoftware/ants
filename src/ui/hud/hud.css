@@ -227,3 +227,9 @@ body:has(.fo-queen) .fd-root { --fd-bottom-reserve: 18.5rem; }
 /* the opening's site read-out and clutch forecast take the right column below the colony pulse: the alerts feed moves under them */
 body:has(.fo-site) .fd-alerts { top: 19.5rem; }
 body:has(.fo-clutch) .fd-alerts { top: 12.5rem; }
+
+/* sound-cue indicator pips (GDD 08 §12): a word chip at the screen edge in the sound's direction */
+.fd-cuepips { position: absolute; inset: 0; pointer-events: none; }
+.fd-cuepip { transform: translate(-50%, -50%); padding: var(--s-1) var(--s-3); font-size: var(--t-small); font-weight: 600;
+  pointer-events: none; border: 1px solid var(--c-border-strong); }
+.fd-cuepip.is-onscreen { opacity: 0.8; }

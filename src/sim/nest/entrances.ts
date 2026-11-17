@@ -259,6 +259,25 @@ export function plugCount(sim: Sim, e: Entrance): number {
   return n;
 }
 
+/**
+ * Drops the PLUG flag of ghost plug samples (closed, flagged PLUG, above the ground) in an `open` entrance's throat.
+ * A ghost is plug fill that landed in open air: no ant meets it and plugCount does not count it. Left flagged, it
+ * turned into a counted plug as soon as spoil was piled over it, and the passable entrance went `sealing` with no
+ * plug added (colony-life round 1, woodland-edge #1: count 8 -> 13 under a mound pile; GDD 03 §4.2 `open ->
+ * sealing` is "first plug added"). Only for `open` entrances: the founding seal and reopen rules read the flags of
+ * closed throats as they are. The carve samples are not touched, so the passage and the memo signature do not change.
+ */
+function forgetGhostPlugs(sim: Sim, e: Entrance): void {
+  const flags = nestRuntime(sim).flags;
+  const b = sphereBox(sim, e.pos, throatR(sim, e), 0);
+  if (flags.noneIn(b.i0, b.j0, b.k0, b.i1, b.j1, b.k1)) return;
+  const v = sim.carve.voxel;
+  forThroatSamples(sim, e, (i, j, k) => {
+    if ((flags.get(i, j, k) & VoxelFlag.PLUG) === 0 || sim.carve.sampleAt(i, j, k) >= OPEN_MIN) return;
+    if (sim.field.substrateXYZ(i * v, j * v, k * v) >= 0) flags.clear(i, j, k, VoxelFlag.PLUG);
+  });
+}
+
 function forThroatSamples(sim: Sim, e: Entrance, fn: (i: number, j: number, k: number) => void): void {
   const v = sim.carve.voxel, R = throatR(sim, e), b = sphereBox(sim, e.pos, R, 0);
   for (let k = b.k0; k <= b.k1; k++) for (let j = b.j0; j <= b.j1; j++) for (let i = b.i0; i <= b.i1; i++) {
@@ -440,6 +459,7 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
   const memo = entranceMemo(sim);
   if (memo.get(e.id) === sig) return;
   memo.set(e.id, sig);
+  if (e.status === 'open') forgetGhostPlugs(sim, e);
   const plug = plugCount(sim, e);
   const pass = throatPassage(sim, e, false, nest);
   const prev = e.status;

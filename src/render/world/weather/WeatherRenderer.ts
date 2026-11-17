@@ -73,8 +73,6 @@ export class WeatherRenderer implements SubRenderer {
   /** Tick of the last strike the sim reported, and of the last one shown (a strike flashes once, when it is new). */
   private strikeTick = -1;
   private shownStrike = -1;
-  /** The last flash was started with reduced motion / flash reduction (flashNow without a frame). */
-  private lastReduced = false;
   private wetTo: WetTarget | null = null;
   private view: WeatherView | null = null;
   private readonly focus = new Vector3();
@@ -181,7 +179,6 @@ export class WeatherRenderer implements SubRenderer {
       if (sim.state.tick - this.strikeTick <= 2) this.flashTimer.strike(reduced);
       this.shownStrike = this.strikeTick;
     }
-    this.lastReduced = reduced;
     this.flash.set(this.flashTimer.frame(frame.dt, reduced) * (outside ? 1 : 0.1));
     // flooded cavities
     this.flood.update(sim, frame.dt);
@@ -189,14 +186,7 @@ export class WeatherRenderer implements SubRenderer {
 
   /** Forces a lightning flash (demo, tests); `reduced` picks the reduced-motion brightening. */
   flashNow(reduced = false): void {
-    this.startFlash(reduced);
-  }
-
-  private startFlash(reduced: boolean): void {
-    this.flashLeft = flashDuration(reduced);
-    this.flashReduced = reduced;
-    this.sinceFlashS = 0;
-    this.flashFresh = true;
+    this.flashTimer.start(reduced);
   }
 
   stats(): Record<string, number> {

@@ -31,6 +31,7 @@ import { TOASTS } from './possessionEvents';
 import { collectRefusals, type Rejection } from './refusals';
 import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
+import { SoundCueTracker } from './soundCues';
 import { AutoSlowWatcher } from './time/autoSlow';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
@@ -128,6 +129,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   readonly founding: FoundingFlow = new FoundingFlow(this);
   /** Winter, nuptial flight, epitaph and Lineage flows (src/game/flows/{overwinter,flight,epitaph}). */
   readonly lifecycle: LifecycleFlows = new LifecycleFlows(this);
+  /** Sound-cue indicator pips (src/game/soundCues.ts), listed only while the accessibility setting is on. */
+  private readonly soundCues = new SoundCueTracker();
   /** GDD 06 §4.5 automatic slow-downs on raised alerts (src/game/time/autoSlow.ts). */
   private readonly autoSlow = new AutoSlowWatcher({
     level: () => this.session?.driver.level ?? 0,
@@ -308,6 +311,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.founding.attach(session);
     this.lifecycle.attach(session);
     this.autoSlow.attach(sim);
+    this.soundCues.attach(sim, () => performance.now() / 1000);
     this.syncContexts();
     this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
   }
@@ -352,6 +356,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     this.founding.detach();
     this.lifecycle.detach();
     this.autoSlow.detach();
+    this.soundCues.detach();
     this.viewsLayer.reset();
     this.loading = null;
     if (toTitle) { this.mode = 'title'; void this.title.enter(); }
@@ -711,12 +716,25 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       sim: s?.sim ?? null, mode: this.mode, view: s?.view ?? 'observer', loading: this.loading,
       speed: s ? s.driver.speedReport() : null, manualClock: !this.realtime, toasts: this.toasts.list, hudHidden: this.hudHidden,
       error: this.error, underground: this.lastFrame.underground, epitaph: this.epitaph, observerPrompt: s?.observerPrompt ?? null,
+      soundCues: s && this.settings.get().accessibility.soundCues ? this.soundCueList() : undefined,
     }, this.uiRev);
     this.uiRev = snap.rev;
     this.uiCost.lastMs = performance.now() - t0;
     this.uiCost.maxMs = Math.max(this.uiCost.maxMs, this.uiCost.lastMs);
     this.lastSnapshot = snap;
     this.opts.onSnapshot(snap);
+  }
+
+  /** The sound-cue pips for the current camera. */
+  private soundCueList() {
+    const c = this.camera;
+    const f = new Vector3(), u = new Vector3();
+    c.getWorldDirection(f);
+    u.set(0, 1, 0).applyQuaternion(c.quaternion);
+    return this.soundCues.list(performance.now() / 1000, {
+      pos: { x: c.position.x, y: c.position.y, z: c.position.z }, forward: { x: f.x, y: f.y, z: f.z }, up: { x: u.x, y: u.y, z: u.z },
+      fovDeg: c.fov, aspect: c.aspect,
+    });
   }
 
   dispose(): void {

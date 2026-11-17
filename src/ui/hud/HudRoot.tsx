@@ -35,6 +35,7 @@ import { hudBridge, openDrawer, rosterQuery } from './state';
 import { installHudStyles } from './styles';
 import { TimeCluster } from './TimeCluster';
 import { Toasts } from './Toasts';
+import { SoundCuePips } from './SoundCuePips';
 
 /** Wires everything the HUD needs once: styles, keys, feed, requests, bridge, gamepad, debug hook. */
 function useHudWiring(): void {
@@ -127,6 +128,7 @@ function HudLayer() {
       {!hidden && <InspectCard />}
       {!hidden && <ContextPrompts />}
       <Toasts />
+      <SoundCuePips />
       {hidden && <div class="fd-hiddenhint fd-chip" data-testid="hidden-hint"><KeyHint action="hide-hud">HUD hidden</KeyHint></div>}
       {drawer === 'directives' && <Directives />}
       {drawer === 'roster' && <Roster />}

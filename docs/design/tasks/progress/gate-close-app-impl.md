@@ -16,6 +16,19 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - Seam auto-slow: NEW src/game/time/autoSlow.ts (+test) wired in Game.ts (attach/detach). Auto-slow did not exist at all before.
 - typecheck clean after all of the above (03:5x).
 
+- Seam CV_DIST_BU: src/render/camera/{constants.ts (CV_DIST_PER_NEST_SPAN, CV_DIST_SMALL_MIN_BU), colonyRig.ts setNestSpan}, src/game/views/viewsLayer.ts nestSpanBu; test in src/render/camera/rigs.test.ts (green).
+- a11y flash reduction: FlashTimer in src/render/world/weather/lightning.ts (+ min gap 4 s, no restart mid-glow), WeatherRenderer uses it; test src/render/world/weather/flashReduction.test.ts (E25 at 1x/4x/8x green).
+- Night ant BEFORE shots running: test-output/gate-close/app/antfill/before (look2.mjs night,night-rain surface,observer high).
+
+- ANT_FILL night body 2.2->1.1, rim 0.12->0.3 (src/render/ants/tuning.ts). AFTER shots still to take (same look2.mjs cmd, LOOK2_TAG=after).
+- Sound-cue indicators: NEW src/game/soundCues.ts (+test), src/ui/hud/SoundCuePips.tsx, src/content/text/soundCues.ts, UiSnapshot.soundCues (src/ui/api.ts), SnapshotSource.soundCues (src/game/uiBridge.ts), Game.ts wiring, hud.css. Not yet seen in browser.
+- e2e runner: test-output/gate-close/app/e2e/run.sh <names...> (sequential), summary.txt there.
+
+- Males at swarm: NEW src/render/ants/swarm.ts (+test), SWARM in tuning.ts, SimReader appends swarm (simAdapter.ts). Need lifecycle.mjs flight shot to see it.
+- founding.mjs FOUNDING_PAD=1 mode (seal/lay via virtual pad A); runner name foundingPad.
+- NEW tests/e2e/playthrough.mjs (step 4) and tests/e2e/frametime.mjs (step 5); runner names playSeed1, playKitchen, frametime.
+- NOTE: detached (setsid/nohup) launches are refused by the permission system; run runner chunks via run_in_background (<2h each).
+
 ## In progress
 - Step 3 seams: night ant fill (ANT_FILL), CV_DIST_BU, males at swarm; a11y leftovers.
 
