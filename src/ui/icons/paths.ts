@@ -168,6 +168,10 @@ export const ICON_PATHS: Record<string, string> = {
   broom: line('M15 3l-5 9M7 12h6l3 8H4z') + line('M7.5 15.5L7 20M10.5 15.5L10 20'),
   mower: line('M4 14h13l2 3H4zM7 14V8h5') + circle(7, 18.5, 1.8) + circle(16.5, 18.5, 1.8) + line('M17 14l3-8'),
   'water-can': line('M5 10h10v9H5z') + line('M15 12l5-4M15 15h4') + line('M5 10c0-3 10-3 10 0'),
+  // --- sound-cue indicator pips (GDD 08 §12); tremor uses footfall, rain onset weather-rain
+  'cue-alarm': circle(12, 13, 2.6) + line('M12 10.4V8M9.6 11.2L8 9.4M14.4 11.2L16 9.4') + line('M6.5 6.5a8 8 0 0 0 0 13M17.5 6.5a8 8 0 0 1 0 13'),
+  'cue-drum': line('M4 12h2l2-5 3 10 3-10 3 10 2-5h1') + line('M4 20h16'),
+  'cue-crackle': line('M3.5 7.5h17M3.5 7.5V20h17V7.5') + line('M9 7.5l2 4-2.5 3 2.5 5.5M15 7.5l-1.5 3.5 2 2.5'),
   // --- helpers used by components
   'chevron-down': line('M6 9l6 6 6-6'),
   'chevron-up': line('M6 15l6-6 6 6'),

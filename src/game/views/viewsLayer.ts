@@ -334,22 +334,30 @@ export function deepestNestY(sim: Sim): number {
   return y;
 }
 
-/** Span of the player colony's nests (BU): the larger of the horizontal and vertical extent of chambers and entrances. */
+/**
+ * Span of the player colony's nest (BU) for the colony view's closest zoom: the larger of the horizontal extent of its
+ * chambers and entrances and the vertical extent of its chambers. Entrances do not count vertically: on a founding nest
+ * the entrance sits on its mound about 17 mm up while the chamber is 30 mm down, and counting that height gave a 12 BU
+ * span for a 4.5 BU chamber, so the closest view stayed as far out as for a large nest (gate-close-app review).
+ */
 export function nestSpanBu(sim: Sim): number {
   const col = sim.state.colonies[0]?.id ?? -1;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  const add = (x: number, y: number, z: number, rx: number, ry: number, rz: number) => {
+  const addFlat = (x: number, z: number, rx: number, rz: number) => {
     x0 = Math.min(x0, x - rx); x1 = Math.max(x1, x + rx);
-    y0 = Math.min(y0, y - ry); y1 = Math.max(y1, y + ry);
     z0 = Math.min(z0, z - rz); z1 = Math.max(z1, z + rz);
   };
   for (const n of sim.state.nests) {
     if (n.colony !== col) continue;
-    for (const c of n.chambers) add(c.center.x, c.center.y, c.center.z, c.radii.x, c.radii.y, c.radii.z);
-    for (const e of n.entrances) add(e.pos.x, e.pos.y, e.pos.z, 0, 0, 0);
+    for (const c of n.chambers) {
+      addFlat(c.center.x, c.center.z, c.radii.x, c.radii.z);
+      y0 = Math.min(y0, c.center.y - c.radii.y); y1 = Math.max(y1, c.center.y + c.radii.y);
+    }
+    for (const e of n.entrances) addFlat(e.pos.x, e.pos.z, 0, 0);
   }
   if (!Number.isFinite(x0)) return 0;
-  return Math.max(x1 - x0, z1 - z0, y1 - y0) / sim.world.bu;
+  const tall = Number.isFinite(y0) ? y1 - y0 : 0;
+  return Math.max(x1 - x0, z1 - z0, tall) / sim.world.bu;
 }
 
 function sameRef(a: HighlightRef | null, b: HighlightRef | null): boolean {

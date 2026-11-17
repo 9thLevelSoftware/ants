@@ -1291,3 +1291,4 @@ Tools: `tools/sim/handover-sweep.sh`, `longrun-table.py`, `longrun-life.sh` (CAC
   `PAR=1 $S/r4g/tools/sim/bench-sweep.sh nest $P/bench-nest-after $P/cache` (r4g = tree at 15:58: all round-4 fixes
   incl. L1b) and `PAR=1 $S/r4c/tools/sim/bench-sweep.sh nest $P/bench-nest-before $P/cache` (r4c + the bench fix).
   Scratch trees r4a/r4d/r4e/r4f/noL1/base deleted. ETA ~17:45 (15 runs x ~7 min each, two in parallel).
+- 16:39 nest benches 6/15 each done; still running (commands of 15:59). Next: tables, then close the round.

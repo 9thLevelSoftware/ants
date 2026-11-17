@@ -1,13 +1,18 @@
-// Gate play-through with pictures (task gate-close-app step 4): after the hand-over, 20 game minutes at 1x then 20 at
-// 4x, a screenshot every 2 game minutes at the page's quality, in turn from observer, possession, colony slice and
-// scent view; then (PLAY_DAYNIGHT=1) one full day-night cycle at 8x with a shot every 2 game hours.
+// Gate play-through with pictures (task gate-close-app step 4): after the hand-over, 20 minutes of play at 1x then 20
+// at 4x, a screenshot every 2 minutes, in turn from observer, possession, colony slice and scent view; then
+// (PLAY_DAYNIGHT=1) one full day-night cycle at 8x with a shot every 2 game hours.
+// "Minutes" are REAL minutes of play: one game minute is only about 4 ticks (1 game day = 6000 ticks), so 20 game
+// minutes would be 8 real seconds at 1x. The harness runs on a manual clock (window.__game.step(n) advances n ticks
+// whatever the speed setting), so the script itself scales the ticks by the speed: a 2-minute interval is
+// 2 x REAL_MIN_TICKS x speed ticks (1200 at 1x = 4.8 game hours, 4800 at 4x = 19.2 game hours). Shot names carry
+// the speed and the real minute: x1-r02-observer.png, x4-r10-slice.png.
 //   node tools/harness/play.mjs --root . --query "test=1&seed=1&autostart=1&quality=high" --script tests/e2e/playthrough.mjs \
 //        --out test-output/gate-close/app/play/seed1 --timeout 900000 --script-timeout 7200000
 // Environment: PLAY_ARCH=kitchen-door (new game of that archetype first), PLAY_SEED=1, PLAY_MINUTES=20 (per speed),
 // PLAY_DAYNIGHT=1. The opening is completed by the founding cheat and the time-lapse skipped (real first workers),
 // recorded in result.standIns. Every shot is listed in result.shots with time of day, view and colony numbers.
-const MIN_TICKS = 600; // ticks per game minute (1 game day = 600 s at 1x = 6000 ticks)
-const HOUR_TICKS = 250;
+const REAL_MIN_TICKS = 600; // ticks in one real minute at 1x (10 ticks per real second)
+const HOUR_TICKS = 250; // ticks per game hour (1 game day = 6000 ticks)
 
 export default async ({ page, log, out }) => {
   const env = process.env;
@@ -86,15 +91,17 @@ export default async ({ page, log, out }) => {
     log('shot', file, JSON.stringify(c));
   };
 
-  // --- 20 game minutes at 1x, then 20 at 4x, a shot every 2 game minutes -------------------------------------------------
+  // --- 20 real minutes at 1x, then 20 at 4x, a shot every 2 real minutes ------------------------------------------------
   const minutes = Number(env.PLAY_MINUTES ?? 20);
   for (const speed of [1, 4]) {
-    await g((s) => window.__game.setSpeed(s), speed);
+    const tickAtStart = await g(() => window.__game.summary().tick);
     for (let m = 2; m <= minutes; m += 2) {
-      await step(2 * MIN_TICKS);
-      await shotNow(`x${speed}-m${String(m).padStart(2, '0')}`);
+      await g((s) => window.__game.setSpeed(s), speed); // again each time: taking an ant drops to 1x (dropTo1xOnPossess)
+      await step(2 * REAL_MIN_TICKS * speed);
+      await shotNow(`x${speed}-r${String(m).padStart(2, '0')}`);
     }
-    result.colony.push({ after: `${minutes} min at ${speed}x`, ...(await census()) });
+    const ticks = (await g(() => window.__game.summary().tick)) - tickAtStart;
+    result.colony.push({ after: `${minutes} real min at ${speed}x`, ticks, gameHours: +(ticks / HOUR_TICKS).toFixed(1), ...(await census()) });
   }
 
   // --- one day-night cycle at 8x, a shot every 2 game hours (observer: 8x is refused while possessing) --------------------

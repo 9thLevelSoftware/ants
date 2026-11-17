@@ -21,6 +21,8 @@ const SHAFT_SLOPE_DEG = 55;
 const ROOM_MIN_BU3 = 12; // the widened end must add at least the sim's smallest chamber (CHAMBER_MIN_VOLUME, BU^3)
 const SITE_MAX_R_BU = 30; // dig-site search radius around the nest origin (the queen walks there)
 const SITE_FAR_R_BU = 1000; // beyond the walking radius the queen is teleported (a recorded stand-in)
+const OPENING_MAX_BITES = 200; // egg step: bites to deepen the shaft to the founding depth (Lasius D_MIN 8 BU)
+const OPENING_ROOM_ROUNDS = 4; // egg step: rounds of level bites round the shaft's end until the cell is ready
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -276,6 +278,67 @@ export default async ({ page, shot, log }) => {
   log('pellets', JSON.stringify(result.items), 'mound', JSON.stringify(result.mound));
   expect(result.mound.after > result.mound.before, 'the spoil mound did not grow', result.mound);
 
+  // --- the opening, played for real from the dug shaft (used by the egg step) --------------------------------------
+  const opPhase = () => g(() => window.__founding?.view()?.phase ?? null);
+  const readiness = () => g(() => window.__founding?.view()?.readiness ?? null);
+  // one bite at the face (held digs repeat at their first target: release at once, wait for the bite to finish)
+  const bite = async (slopeDeg, h) => g(({ slope, h }) => {
+    const gm = window.__game, p = gm.summary().possessed;
+    if (!p) { gm.possess('queen'); return; }
+    const d = 8;
+    gm.act({ action: 'dig-bite', target: { kind: 'point', id: -1, pos: { x: p.pos[0] + h.x * d, y: p.pos[1] - Math.tan((slope * Math.PI) / 180) * d, z: p.pos[2] + h.z * d } } });
+    gm.step(2);
+    gm.act({ action: 'dig-bite', phase: 'stop' });
+    for (let t = 0; t < 60; t += 2) { if (!gm.query.ant(p.id)?.action) break; gm.step(2); }
+  }, { slope: slopeDeg, h });
+  const playOpeningToLay = async () => {
+    const log1 = [];
+    if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
+    if ((await opPhase()) === 'intro-card') { await g(() => window.__game.command({ type: 'openingSkipIntro' })); await step(1); }
+    for (let t = 0; t < 400 && (await opPhase()) === 'dealation'; t += 20) await step(20);
+    log1.push(`after intro: ${await opPhase()}`);
+    for (let k = 0; k < 8 && (await opPhase()) === 'search'; k++) { await bite(SHAFT_SLOPE_DEG, H); if ((await opPhase()) === 'search') await walkDir(2, H); }
+    log1.push(`after first bite: ${await opPhase()}`);
+    // deepen the shaft until the readiness depth bar is full, then widen the end until the cell is ready (seal phase)
+    for (let b = 0; b < OPENING_MAX_BITES && (await opPhase()) === 'dig' && ((await readiness())?.depth ?? 0) < 1; b++) {
+      await bite(SHAFT_SLOPE_DEG, H);
+      await walkDir(3, H);
+    }
+    log1.push(`depth bar ${JSON.stringify(await readiness())}`);
+    const centre = (await summary()).possessed.pos;
+    for (let r = 0; r < OPENING_ROOM_ROUNDS && (await opPhase()) === 'dig'; r++) {
+      for (let k = 0; k < 8 && (await opPhase()) === 'dig'; k++) {
+        const d = rot(k * 45 + (r % 2) * 22.5);
+        await steerTo(centre[0], centre[2], 0.4 * bu);
+        await walkDir(1, d);
+        for (let n = 0; n < 2; n++) await bite(3, d);
+      }
+      await step(60);
+    }
+    log1.push(`room: ${await opPhase()} ${JSON.stringify(await readiness())}`);
+    if ((await opPhase()) === 'seal') {
+      await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' }));
+      await step(20);
+      await g(() => window.__game.act('seal-entrance'));
+      for (let t = 0; t < 3000 && (await opPhase()) === 'seal'; t += 50) await step(50);
+      log1.push(`after seal: ${await opPhase()}`);
+    }
+    if ((await opPhase()) === 'lay') await steerTo(centre[0], centre[2], 0.6 * bu); // back down into the cell to lay
+    return log1;
+  };
+  // after the clutch: Tend the brood starts the time-lapse; skipped, so the first workers are the sim's own and the
+  // opening's speed limits end before the time-control checks below (8x in the observer)
+  const finishOpening = async () => {
+    const over = () => g(() => { const op = window.__hud.game.session.sim.state.player.opening; return !op || op.done || op.phase === 'handover' || op.phase === 'done'; });
+    if (await over()) return true;
+    await g(() => window.__game.command({ type: 'openingBeginTimelapse' }));
+    for (let i = 0; i < 200 && !(await over()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
+    const cont = page.locator('[data-testid="founding-continue"]');
+    if (await cont.count()) await cont.first().click().catch(() => {});
+    await step(2);
+    return over();
+  };
+
   // --- 7. an egg ---------------------------------------------------------------------------------------------------
   // the player colony's brood (summary().brood counts every colony's; seed 1 has a neighbouring colony whose brood changes)
   const ownBrood = () => g(() => window.__game.query.broodList().length);
@@ -289,20 +352,19 @@ export default async ({ page, shot, log }) => {
   let laid = await ownBrood();
   result.egg = { before: brood0, laid, refusals: await refusals() };
   if (laid <= brood0) {
-    // gate-close-app: the founding queen lays only after she has sealed her cell (GDD 06 §5.8-5.9, claustral founding);
-    // the 1A script asked for an egg straight after the dig. Play the real path first: seal (E), then lay.
-    const opPhase = () => g(() => window.__founding?.view()?.phase ?? null);
+    // Since founding (GDD 06 §5), a founding queen lays only in the opening's lay phase, after she has sealed her cell
+    // (claustral founding); the 1A script dug its shaft with the opening still on the intro card. Play the real
+    // opening from where the queen stands: close the card, shed the wings, take the dig over in this shaft, deepen
+    // it until the founding cell is ready, seal (E), lay (the real lay-egg). No cheat on this path.
     result.egg.phaseBefore = await opPhase();
-    if (result.egg.phaseBefore === 'seal' || result.egg.phaseBefore === 'dig') {
-      await g(() => window.__game.act('seal-entrance'));
-      for (let t = 0; t < 3000 && (await opPhase()) !== 'lay'; t += 50) await step(50);
-      result.egg.phaseAfterSeal = await opPhase();
-      if (result.egg.phaseAfterSeal === 'lay') {
-        await g(() => window.__game.act('lay-egg'));
-        await step(300);
-        laid = await ownBrood();
-        result.egg.laidAfterSeal = laid;
-      }
+    result.egg.opening = await playOpeningToLay();
+    if ((await opPhase()) === 'lay') {
+      await g(() => window.__game.act('lay-egg'));
+      await step(50);
+      await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));
+      await step(5);
+      laid = await ownBrood();
+      result.egg.laidInOpening = laid;
     }
     log('egg path', JSON.stringify(result.egg));
   }
@@ -317,6 +379,13 @@ export default async ({ page, shot, log }) => {
   result.egg.after = laid;
   log('egg', JSON.stringify(result.egg));
   expect(laid > brood0, 'no eggs', result.egg);
+  if (result.egg.laidInOpening !== undefined) {
+    result.egg.handedOver = await finishOpening();
+    log('opening finished', result.egg.handedOver, JSON.stringify(await g(() => window.__game.summary().colony)));
+    expect(result.egg.handedOver, 'the opening did not reach the hand-over after the clutch', result.egg);
+    if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
+    await step(2);
+  }
 
   // inside the dug room with the queen and the eggs (possession camera)
   await g(() => window.__game.camera.zoom(1.6));

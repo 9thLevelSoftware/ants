@@ -1,6 +1,6 @@
 // Where a colony-range territory goes (threats-live; GDD 05 §2.2: hunters where the ants are - jumping spiders on
 // the stems ants climb, ant-spiders near trails, wolf spiders across the paths). Predators strike only an ant that
-// pauses in reach (the wind-up gate, attack.ts), and the colony's ants pause at their food sources (harvesting,
+// pauses in reach (the wind-up gate, windupMaxTargetSpeed), and the colony's ants pause at their food sources (harvesting,
 // tending, drinking), so a site goes next to one of the colony's nearest sources ("pause points") when the ring
 // allows it, else near the routes entrance -> source, else anywhere in the kind's habitat in the ring.
 // Pure functions of the world and the saved state; draws come from the caller's forked stream.
@@ -14,9 +14,9 @@ import type { RngState } from '@/core/rng';
 import { rngRange } from '@/core/rng';
 import { zoneAt } from '@/sim/world';
 import {
-  COLONY_PAUSE_KINDS, COLONY_PAUSE_SOURCES, COLONY_RANGE_BU, COLONY_RANGE_MIN_BU, COLONY_RANGE_CANDIDATES, COLONY_RANGE_ZONES, COLONY_ROUTE_NEAR_BU,
-  COLONY_ROUTE_REACH_BU, COLONY_SOURCE_CANDIDATES, COLONY_SOURCE_NEAR_BU, JUMPING_SPIDER_SITE_MARGIN_MM,
-  JUMPING_SPIDER_SURFACE_MIN_MM, UPRIGHT_MAX_TILT_DEG,
+  COLONY_PAUSE_KINDS, COLONY_PAUSE_SOURCES, COLONY_RANGE_BU, COLONY_RANGE_MIN_BU, COLONY_RANGE_CANDIDATES,
+  COLONY_RANGE_ZONES, COLONY_ROUTE_NEAR_BU, COLONY_ROUTE_REACH_BU, COLONY_SOURCE_CANDIDATES, COLONY_SOURCE_NEAR_BU,
+  JUMPING_SPIDER_SITE_MARGIN_MM, JUMPING_SPIDER_SURFACE_MIN_MM, UPRIGHT_MAX_TILT_DEG,
 } from '@/sim/balance/creatures';
 
 type P2 = { x: number; z: number };

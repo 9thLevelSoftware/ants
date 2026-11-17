@@ -270,3 +270,84 @@ below 1 for Naturalist (fewer kinds near each colony). No other balance was chan
 | 4 | determinism; save -> load mid-hunt | met | `huntSaveLoad.test.ts`, `colonyRange.test.ts`, `determinism.test.ts` |
 | 5 | per-tick cost before/after at 60 and 300 workers, no regression > 0.2 ms | met | creature systems 0.34 -> 0.30 (60), 0.34 -> 0.40 (300) ms, load 10-11 |
 | 6 | report | met | this file |
+
+## 12. Fix round after the independent review (2026-11-17, 15:00-17:30 UTC)
+
+Reviewer findings (8) and what happened to each. Reviewer's tests (`threatsLive.verify.test.ts`) all pass now; one
+assertion was adapted (12.3). Evidence: `test-output/threats-live/fix1` (aborted after 2 worlds), `fix2`, `fix3`,
+`fix4` (final code, Naturalist), `fix-gentle`, `fix-harsh`, `fix-off`, each with `tables.md`.
+
+### 12.1 Code fixes
+
+| # | Finding | Reproduced | Root cause and fix | Test |
+|---|---|---|---|---|
+| R2 | colony-range memo: a raised Predators setting sited nothing until a reload (reload != running game) | yes (reviewer test failed) | Two causes. (a) `colonyRange.ts` marked kinds settled in a runtime `WeakMap` before checking the setting: memo removed; `ensureColonyRangeTerritories` is now a function of the saved state only and the director calls it on its **hourly** runs (persisted cadence: `lastHourlyTick`), so the running and the reloaded game decide at the same tick and a raised setting sites within 1 game hour (GDD 06 §14). (b) `conditions.ts` cached `predatorMult` / levers per tick only, so a setting changed inside a tick was not seen until the next tick: the cache is now also keyed by the identity of `config.difficulty`, its `preset`, `params`, `custom` and `config.rules` (no allocation per call). | reviewer: "raising Few -> Normal ..." passes |
+| R3 | rebalance churn (far resident despawned/respawned every run) | yes (19 in 20 runs) | `rebalanceResidents` now counts a nearer free territory only when it can be filled in the same run (`spawnPointFor` below, not waiting after a failed placement). | reviewer: "a far resident is not despawned ..." passes (0) |
+| R4 | possessed-danger "seized" overwrote combat's "pinned" and then cleared it | yes (card undefined) | `possessedDangerAlerts` leaves any possessed-danger card of the same ant raised by another module alone (as flood's `possessedFloodAlert`); its clear loop only touches its own causes. | reviewer: "a pinned ant keeps ..." passes; "not re-raised" passes |
+| R5 | worldgen territories with a centre inside a solid retried every director run (240 spawn+despawn / gd) | yes: `creature-despawned` 3,405-8,404 per 6 gd per world (`after3`) | A failed placement (`spawnKind` -> `no-surface`) leaves the territory vacant for `TERRITORY_NO_SURFACE_RETRY_GD` = 1 gd. Now 345-537 per 6 gd per world (`fix4`, -90 to -94 %). | `colonySites.test.ts` "a territory whose resident cannot be placed is tried once ..." |
+| R6 | jumping-spider height ignored rotation; site inside the object | yes (code) | New `colonySites.ts uprightPrim`: world-space height from the primitive's rotation (box: sum of |R_yi| s_i; cylinder/capsule: axis within `UPRIGHT_MAX_TILT_DEG` 30 deg of vertical, else not a surface; ellipsoid only if taller than wide; `VISUAL_ONLY` skipped). The site is the foot of the primitive on the side facing the colony, `JUMPING_SPIDER_SITE_MARGIN_MM` outside it, on open ground. | `colonySites.test.ts` uprightPrim (lying post, flat board, visual-only, boulder) and "food on a stem, else open ground at the foot ..." |
+| R7 | "stuck" used for paralysis | yes | Cause is now `paralysed` (an `ANT_CONDITIONS` member; GDD 05 App. C routes `ant-paralysed` to `possessed-danger`; "stuck" is the spill trap of §1.8). GDD reading recorded: App. C's sub-cause list ("pinned", "seized", "stuck") omits "paralysed" although its event table feeds `ant-paralysed` to the card. | `possessedDanger.test.ts` "is critical with cause paralysed ..." |
+| new | found while fixing R3: a site by a busy food source was never filled (an ant within 20 BU nearly always), `fix1` | yes (`fix1`: the near wolf / jumping spider / rove never spawned) | `director.spawnPointFor`: the centre if it passes GDD 05 §2.7's spawn distances, else the first of 8 points `SPAWN_ALT_OFFSET_BU` (25 BU) around it that does; the resident keeps the centre as its home and walks there. Used by occupancy and rebalance alike. | `director.test.ts` "never spawns within 20 BU of an ant or 40 BU of the focus" (rewritten to the property: the spawn point, wherever it is, keeps the distances; none when all 8 are blocked) |
+
+### 12.2 AC2 (the major finding): sites where the ants pause
+
+Cause, measured: predators strike only an ant that pauses in reach (wind-up gate, aim fixed at the telegraph), and the
+colonies' ants pause at their food sources; on 4 of 5 worlds the nearest sources lie 10-29 BU from the entrance, i.e.
+inside the ring's 40 BU inner edge (`threatSites.ts` now lists the sources). Changes (`colonySites.ts`, constants in
+`balance/creatures.ts`):
+- **Pause points.** `COLONY_PAUSE_KINDS` (jumping spider, rove beetle) are sited within `COLONY_SOURCE_NEAR_BU` 20 BU
+  of one of the `COLONY_PAUSE_SOURCES` 3 sources nearest the entrance (16 candidates drawn around each); the others
+  keep the route rule. With the ant-spider at the sources too (`fix1`), one colony lost 7 workers to it in 6 gd, so it
+  stays "near trails" (GDD 05 §2.2b).
+- **Jumping spider on food stems.** Its first candidates are the food sources on a plant, herd or object at least 40 mm
+  above the ground (the stems ants climb and stop on, GDD 05 §2.2a "stems"), then the feet of upright primitives.
+- **Inner edge per kind.** `COLONY_RANGE_MIN_BU` = { jumping-spider: 20 } (others 40). GDD 05 §5's 40 BU exclusion holds
+  only until 5 workers and is enforced where a predator picks a victim (`predator.ts canPrey`); the resident still
+  appears >= 40 BU from the focus (§2.7).
+
+Worlds on which each family reached **strike** (5 round-3 snapshots, 6 gd, Naturalist; one run each):
+
+| family | after3 (review) | fix2 | fix3 | **fix4 (final)** | habitat |
+|---|---|---|---|---|---|
+| jumping-spider | 0 | 1 | 1 | **5** | 5 / 5 |
+| wolf-spider | 4 | 2 | 3 | **2** | 5 / 5 |
+| ant-spider | 2 | 3 | 3 | **5** | 5 / 5 |
+| centipede | 0 (1 in after2) | 1 | 2 | **1** | 2 / 5 (forest / garden-bed in the ring) |
+| rove-beetle | 1 | 4 | 4 | **2** | 5 / 5 |
+| antlion | 0 | 0 | 0 | 0 | 0 / 5 |
+
+Reading: jumping spider and ant-spider meet AC2 in the final run. Wolf spider (2-4 of 5 across the four runs with the
+same wolf siting) and rove beetle (2-4) vary from run to run with the colony (one run per world; the colonies of `fix4`
+shrink faster, fewer ants outside: 2,098 outside worker-h vs 2,565 in `fix3`); centipede struck on 2 of its 2 habitat
+worlds in `fix3`, 1 of 2 in `fix4`. **AC2: partial** (met for jumping spider and ant-spider; wolf spider, rove beetle
+and centipede reach it in some runs, not in the final one).
+
+### 12.3 Reviewer test adapted
+
+`threatsLive.verify.test.ts` "sites stay inside the ring and on the world": the inner edge is now per kind, so the
+assertion reads `colonyRing(t.kind)[0]` instead of `COLONY_RANGE_BU[0]` (the jumping spider may sit 20 BU out). Intent
+(inside the ring, on the world) unchanged. `colonyRange.test.ts`'s own ring helper got the same change.
+
+### 12.4 Loss rates: the AC2 sites cost the colonies far more than the design's arithmetic
+
+| run (Naturalist) | deaths to predators (5 worlds, 6 gd) | deaths / outside-worker-gd | workers at end (5 colonies, from 69) |
+|---|---|---|---|
+| after3 (review) | 7 | 0.07 | 56 |
+| fix2 | 21 | 0.21 | 40 |
+| fix3 | 25 | 0.23 | 39 |
+| **fix4 (final)** | **35** (ant-spider 14, jumping spider 14, rove beetle 4, centipede 2, wolf 1) | **0.40** | **32** |
+
+The design arithmetic (section 3) is 0.061. AC2 and that arithmetic do not fit together at these colony sizes with the
+GDD's per-family rules: each family striking on 3 of 5 worlds in 6 gd needs at least ~15 strikes, and with hit rates of
+0.6-1.0 and kill rates near 1 after a hit, that alone is ~10 kills = ~0.1 per outside-worker-gd before the families that
+strike more often. Two causes outside this module make every hit a death:
+1. **No rescue of paralysed nestmates.** GDD 05 §2.4: "AI carry paralysed nestmates (`haul`) with p 0.5"; nothing in
+   `src/sim/ants/**` does it (grep `paralysedUntilTick`: only fight / patrol skip such ants), so every ant-spider bite
+   (bite 1 + venom 6) ends in the spider carrying the ant off. Half of the 14 ant-spider kills would be saved.
+2. **Worker maxHp 7.2** in the snapshots (drawn size) vs GDD 05 §4.1's 10: the jumping-spider leap (9) kills outright,
+   no `seized` phase and no struggle (also noted in section 10).
+Smallest levers for the integrator (one constant each; not changed here, spec step 5): `COLONY_RANGE_MIN_BU`
+jumping-spider 40 (= `fix3`: 0.23, jumping spider back to 1 of 5); `COLONY_PAUSE_KINDS` = [] (route siting for all,
+= `after3`-like 0.07-0.09, AC2 as at review); `COLONY_RANGE_P` per kind < 1; and the two cross-module items above.
+**For colony-life:** with the final code a 12-16 worker colony loses ~1 worker per game day to predators on Naturalist.
+

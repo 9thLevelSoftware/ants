@@ -1,8 +1,9 @@
-// Sound-cue indicators (GDD 08 §3.4 edge pips, §12): a pip with a word at the screen edge, in the direction of an
+// Sound-cue indicators (GDD 08 §3.4 edge pips, §12): a pip with an icon and a word at the screen edge, in the direction of an
 // information-bearing sound, while Settings > Accessibility > Sound-cue indicators is on (the game lists the pips
 // only then). Rain has no direction: its pip sits at the top centre.
-import { SOUND_CUE_WORD } from '@/content/text/soundCues';
+import { SOUND_CUE_ICON, SOUND_CUE_WORD } from '@/content/text/soundCues';
 import type { UiSoundCue } from '../api';
+import { Icon } from '../icons';
 import { snapshot } from '../store';
 
 /** Where a pip goes, in % of the HUD box: on a rectangle inset from the edges, along the cue's direction. */
@@ -19,7 +20,8 @@ function Pip({ cue }: { cue: UiSoundCue }) {
   return (
     <div class={`fd-cuepip fd-chip${cue.onScreen ? ' is-onscreen' : ''}`} data-testid={`cuepip-${cue.kind}`} role="status"
       style={{ left: `${p.left}%`, top: `${p.top}%` }}>
-      {SOUND_CUE_WORD[cue.kind]}
+      <Icon name={SOUND_CUE_ICON[cue.kind]} size={18} decorative />
+      <span>{SOUND_CUE_WORD[cue.kind]}</span>
     </div>
   );
 }

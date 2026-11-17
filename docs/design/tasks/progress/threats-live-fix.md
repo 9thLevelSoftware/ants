@@ -32,3 +32,10 @@ Started ~15:20 UTC. No earlier progress file existed.
   Change for fix4: COLONY_RANGE_MIN_BU {jumping-spider: 20} (colonySites.colonyRing); JS now on food stems at
   21-53 BU. Reviewer ring test adapted to colonyRing(kind)[0] (explain in report). Started funnel fix4.
   Cross-module finding: AI rescue of paralysed nestmates (GDD 05 §2.4, p 0.5) not implemented -> ant-spider bites ~always kill.
+- 16:20 UTC fix4 done (FINAL CONFIG): strike worlds JS 5, wolf 2, ant-spider 5, centipede 1 (habitat 2), rove 2;
+  loss 0.40/owgd (35 kills). Decision: keep fix4 config (AC2 lead), report loss conflict + levers (spec step 5:
+  report, integrator rules). Tests: creatures + perception 27 files 184 pass. Next: presets.sh (gentle, harsh, off)
+  -> test-output/threats-live/fix-gentle, fix-harsh, fix-off; then harness; then report section 12.
+- report section 12 drafted (12.1-12.4) in docs/design/tasks/threats-live-report.md; remaining: 12.5 presets table
+  (after presets.sh), 12.6 harness, 12.7 acceptance update, perf note.
+- gentle done: 0.02/owgd (2 kills). waiting harsh + off.

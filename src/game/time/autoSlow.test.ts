@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActiveAlert, AlertKind, AlertLevel, SpeedLevel } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { AUTO_SLOW_COOLDOWN_GD, AutoSlowWatcher, autoSlowAction, slowedLevel, type AutoSlowChoice } from './autoSlow';
+import { AUTO_SLOW_COOLDOWN_GD, AutoSlowWatcher, autoSlowAction, OVERWINTER_PROMPT, slowedLevel, type AutoSlowChoice } from './autoSlow';
 
 const alert = (kind: AlertKind, level: AlertLevel): ActiveAlert => ({
   id: 1, kind, level, subjectId: 1, title: '', cause: '', focus: null, diagnosticId: null, raisedTick: 0, updatedTick: 0, count: 1, acknowledged: false,
@@ -49,3 +49,33 @@ describe('AutoSlowWatcher', () => {
     expect(applied).toEqual([1, 1, 1]);
   });
 });
+
+describe('AutoSlowWatcher: escalations and the winter banner', () => {
+  const host = (level0: SpeedLevel, choice: AutoSlowChoice = DEFAULTS) => {
+    const box = { level: level0, applied: [] as [SpeedLevel, string][] };
+    const w = new AutoSlowWatcher({ level: () => box.level, choice: () => choice, apply: (to, key) => { box.applied.push([to, key]); box.level = to; } });
+    return { w, box };
+  };
+
+  it('a warning that escalates to critical slows even right after the warning itself slowed (GDD 08 §6.3)', () => {
+    const { w, box } = host(8, { critical: 'pause', warning: 'slow' });
+    expect(w.consider(alert('nest-collapse-risk', 'warning'), 100)).toBe(1);
+    box.level = 8;
+    expect(w.consider(alert('nest-collapse-risk', 'critical'), 110)).toBe(0); // inside the warning's cooldown
+    expect(box.applied).toEqual([[1, 'nest-collapse-risk:warning'], [0, 'nest-collapse-risk:critical']]);
+  });
+
+  it('the winter banner slows by the critical choice with its own cooldown, separate from the notice alert', () => {
+    const { w, box } = host(8);
+    expect(w.consider(alert('winter-coming', 'notice'), 100)).toBe(1);
+    box.level = 8;
+    expect(w.considerBanner(110)).toBe(1); // a different trigger: not held by the notice's cooldown
+    box.level = 8;
+    expect(w.considerBanner(120)).toBeNull();
+    expect(w.considerBanner(110 + TICKS_PER_DAY)).toBe(1); // "Delay one day": the banner returns next midnight
+    expect(box.applied.map(([, k]) => k)).toEqual(['winter-coming:notice', OVERWINTER_PROMPT, OVERWINTER_PROMPT]);
+    const off = host(8, { critical: 'off', warning: 'slow' });
+    expect(off.w.considerBanner(100)).toBeNull();
+  });
+});
+
