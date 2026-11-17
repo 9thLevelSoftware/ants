@@ -26,19 +26,15 @@ Started 2026-11-17 11:16 UTC (no earlier progress file existed).
   test possessedDanger.test.ts (not yet run).
 
 ## In progress
-- BEFORE funnel DONE (5 archetypes x 6 gd naturalist, round-3 snapshots): every stage 0 for every kind on all 5;
-  nearest hunting territory 511-1604 BU from entrance, worker range p90 99-221 BU. test-output/threats-live/before/.
-- Tests green: creatures folder (21 files), colonyRange/possessedDanger/predatorDetect, perception folder, combat predators.
-- Running (scratchpad/after1.sh, background): placement-only tree 2 archetypes x 3 gd -> test-output/threats-live/placement-only,
-  then scratchpad/fix2-tree (frozen copy of main tree with placement + perception fixes) 5 x 6 gd -> test-output/threats-live/after1.
-  Main tree can be edited meanwhile (runs use the frozen copies).
-
-- placement-only DONE (test-output/threats-live/placement-only, 3 gd): woodland JS sense 1382 s, select 26, 1 telegraph,
-  1 strike, 1 hit, 1 kill; approaches end in 'recover' (ant out of range); ants perceived predators BEYOND GDD
-  detection 179 s vs within 18 s (perception cause confirmed); wolf sense 4 s; rove/centipede sense 0 (night only).
-- Fix 3 (main tree, after fix2-tree copy was frozen): rove beetle also active by day in litter zones (GDD 05 §2.2a
-  "dusk/night; day in litter"): conditions.roveBeetleActive, ROVE_DAY_ZONES, director.visitorActive, hunters.ts.
-- Observer: outsideByPhaseS added (after fix2-tree copy). huntSaveLoad.test.ts written (not run yet).
+- after1 DONE (fix2-tree: placement + perception): naturalist 6 gd x 5: 10 predation kills / 111 outside-worker-gd
+  = 0.09 per owgd (derived band 0.03-0.12, target 0.06). Strikes on >=1 world: JS 2/5, wolf 2/5, ant-spider 3/5,
+  centipede 0/5, rove 0/5. predator-near never raised (rule needs 3 foragers within 15 BU).
+- Since fix2: predator-near raised on a landed strike (alerts.predatorStruck, attack.ts), rove beetle by day in litter,
+  colony ring [40,140] uniform in distance, stream names include archetype (seed 1 everywhere gave identical sites),
+  ant-spider approach 15 mm/s (= GDD walk), COLONY_RANGE_P per kind (all 1 now; x predatorMult) for calibration.
+  New tests (not run yet): strikeAlert.test.ts, huntSaveLoad.test.ts. Tool tools/sim/threatSites.ts (siting read-out).
+- Running: scratchpad/after2.sh (fix3-tree frozen copy) -> test-output/threats-live/after2, 5 x 6 gd naturalist.
+- Next: presets gentle/harsh + predators off on 5 snapshots; colony bench before/after; perf; harness; report.
 
 ## Findings so far
 - Cause candidate 1: territory placement (worldgen populate/territories.ts byArea: random cells over the whole zone,

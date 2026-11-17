@@ -223,7 +223,8 @@ export const PARALYSE_HEALTH = 0.3;
 export const PARALYSE_S = 60;
 export const ANT_SPIDER_DETECT_L = 1;
 export const ANT_SPIDER_RETREAT_L = 4;
-export const ANT_SPIDER_APPROACH_MMS = 6;
+/** Approach speed of the mimicking ant-spider = its walk speed (§2.2a 15 mm/s; was 6, slower than any cruising ant). */
+export const ANT_SPIDER_APPROACH_MMS = 15;
 /** Rove beetle secretion (§2.2b): >= 2 biters within 2 s; ants within 1.5 L flee 3 s; cooldown 10 s. */
 export const ROVE_SECRETION_BITERS = 2;
 export const ROVE_SECRETION_WINDOW_S = 2;
@@ -475,10 +476,11 @@ export const DUSK_PHASES: readonly string[] = ['dusk', 'dawn'];
 /**
  * Ring around the player colony's first entrance (BU of the played species: the colony's foraging range, where its
  * ants walk) in which the director sites one territory for each hunting ant predator that has habitat there and no
- * territory in it yet. Measured range of 12-16 worker Lasius colonies on the round-3 hand-overs: median 54 BU,
- * 90th percentile 176 BU from the entrance; worldgen's territories were 1,600-3,000 BU away (report).
+ * territory in it yet (distance drawn uniformly). Measured range of 12-16 worker Lasius colonies on the round-3
+ * hand-overs: median 24-132 BU, 90th percentile 99-221 BU from the entrance; worldgen's territories lay 511-3,000 BU
+ * away (threats-live report). The inner edge equals the Naturalist nest exclusion (40 BU, §5).
  */
-export const COLONY_RANGE_BU: [number, number] = [60, 170];
+export const COLONY_RANGE_BU: [number, number] = [40, 140];
 /**
  * Chance that a hunting kind with habitat in the ring gets its colony-range territory, at the Normal Predators
  * setting (x the setting's multiplier: Few 0.4, Many 1.6, capped at 1). One draw per world seed and kind, so the

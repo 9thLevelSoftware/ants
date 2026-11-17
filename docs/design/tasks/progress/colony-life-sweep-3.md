@@ -37,6 +37,13 @@ Started 10:40 UTC 2026-11-17.
 - 11:50 long runs started (background, frozen tree): we #1, sg #2, pp #2, cpv #1, kd #1 -> round-3/sweep-long/
   (restart: re-run /home/user/frozen-sweep3/tools/sim/longrun-life.sh <out> <cache> "<runs>"; finished ones skipped).
 
+- 12:10 long runs: we #1 done: NO winter lapse (winter played tick by tick, brood T -1.6..6 C), 14 -> 8 workers by
+  the end of winter (old-age 5, lost 1), 0 workers at year-2 summer d6 (queen alive). sg #2 done: lapse ran (19 -> 17
+  workers, queen alive, C 13.3 P 2.3 at spring) but year 2: laying potential 0 all spring, 17 -> 7 workers by summer
+  d1 (= year-2 doy 15), 1 by autumn; 0 eclosions in year 2. --until-day 34 overshoots by the 7 lapse days (ends at
+  year-2 winter): read the year-2 doy-15 row (first summer row). Probe tools/sim/probe-winter.ts in the FROZEN copy
+  (we #1 cache a9236e3f) queued for when a life slot frees: why no lapse (heated-nest log stale? hypothesis).
+
 ## Remaining
 - typecheck, folder tests (ecology/creatures, ants/behaviours/outdoor, ants/behaviours/nest, balance), table, bars,
   long runs (after the sweep), ledger section, delete /home/user/frozen-sweep3 and scratchpad/nofix.

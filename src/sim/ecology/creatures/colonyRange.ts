@@ -72,9 +72,8 @@ function groundSite(sim: Sim, anchor: Vec3, kind: CreatureKind, seedName: string
   const bu = sim.world.bu;
   for (let i = 0; i < COLONY_RANGE_CANDIDATES; i++) {
     const a = rngRange(rng, 0, 2 * Math.PI);
-    // uniform over the ring's area
-    const r0 = COLONY_RANGE_BU[0] * bu, r1 = COLONY_RANGE_BU[1] * bu;
-    const r = Math.sqrt(rngRange(rng, r0 * r0, r1 * r1));
+    // uniform in distance (not area): the colony's ants are densest near the entrance
+    const r = rngRange(rng, COLONY_RANGE_BU[0] * bu, COLONY_RANGE_BU[1] * bu);
     const x = anchor.x + Math.cos(a) * r, z = anchor.z + Math.sin(a) * r;
     if (x < 0 || z < 0 || x > sim.world.size || z > sim.world.size) continue;
     if (!zones.includes(zoneAt(sim.world, x, z))) continue;
@@ -88,13 +87,13 @@ function groundSite(sim: Sim, anchor: Vec3, kind: CreatureKind, seedName: string
 /** This world draws a colony-range territory for `kind` at the current Predators setting (COLONY_RANGE_P). */
 export function colonyRangeDrawn(sim: Sim, kind: CreatureKind): boolean {
   const p = Math.min(1, (COLONY_RANGE_P[kind] ?? 0) * conditions(sim).predatorMult);
-  return rngRange(rngFork(sim.state.config.world.seed, `creatures/colony-range/${kind}/p`), 0, 1) < p;
+  return rngRange(rngFork(sim.state.config.world.seed, `creatures/colony-range/${sim.world.params.archetype}/${kind}/p`), 0, 1) < p;
 }
 
 /** Where a colony-range territory of `kind` goes, or null when the ring holds no habitat for it. */
 export function colonyRangeSite(sim: Sim, anchor: Vec3, kind: CreatureKind): Vec3 | null {
   if (kind === 'ant-spider' && !ANT_SPIDER_REGIONS.includes(sim.world.params.region)) return null;
-  const name = `creatures/colony-range/${kind}`;
+  const name = `creatures/colony-range/${sim.world.params.archetype}/${kind}`;
   if (kind === 'jumping-spider') return jumpingSpiderSite(sim, anchor, rngRange(rngFork(sim.state.config.world.seed, name), 0, 1));
   return groundSite(sim, anchor, kind, name);
 }
