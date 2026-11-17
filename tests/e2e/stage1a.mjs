@@ -291,6 +291,7 @@ export default async ({ page, shot, log }) => {
     gm.act({ action: 'dig-bite', phase: 'stop' });
     for (let t = 0; t < 60; t += 2) { if (!gm.query.ant(p.id)?.action) break; gm.step(2); }
   }, { slope: slopeDeg, h });
+  let cellCentre = null; // the founding cell's centre, where the queen lays (set by playOpeningToLay)
   const playOpeningToLay = async () => {
     const log1 = [];
     if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
@@ -324,6 +325,7 @@ export default async ({ page, shot, log }) => {
       log1.push(`after seal: ${await opPhase()}`);
     }
     if ((await opPhase()) === 'lay') await steerTo(centre[0], centre[2], 0.6 * bu); // back down into the cell to lay
+    cellCentre = centre;
     return log1;
   };
   // after the clutch: Tend the brood starts the time-lapse, skipped (the same ticks), so the opening's speed limits end
@@ -402,6 +404,9 @@ export default async ({ page, shot, log }) => {
     expect(result.egg.lapse.left, 'the opening is still in its lay phase after the time-lapse', result.egg);
     if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
     await step(2);
+    // after the hand-over she idles where she likes (often up in the narrow ramp shaft): walk her back into the cell
+    // for the chamber shot
+    if (cellCentre) result.egg.backInCell = await steerTo(cellCentre[0], cellCentre[2], 0.6 * bu);
   }
 
   // inside the dug room with the queen and the eggs (possession camera)

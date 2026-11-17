@@ -20,3 +20,7 @@ typecheck; stage1a strict run; nestSpan browser shot; sound pips (F7) decision; 
 - stage1a run4: chamber camera ok this time (stage1a4/04-chamber-queen.png looked at), failed at possess(worker) null -> script now tries up to 8 candidates and logs. check3 used old pip code. Running check4 (pips) + stage1a run5.
 - check4: pips with icons in DOM + check4/rain-pip.png looked at. Report row 7 updated.
 - stage1a run5: possess refused not-colony: candidate list included the neighbour colony's workers; now filtered to colonies[0]. Running stage1a run6.
+- stage1a run6: queen wedged in ramp shaft after handover (queen field f 0.40mm, camera crevice f 0.29) -> script walks her back into the cell before the chamber shot; rig limitation reported. Running run7 (last).
+- stage1a run7: queen still wedged at the same spot (queen f 0.40, upside down), camera crevice f 0.24 -> FAIL at chamber camera; stop iterating, report open. Final: typecheck + folder tests.
+## FINAL (done)
+typecheck 0 errors; vitest src/game/time src/game/views src/game/soundCues* src/ui/hud src/ui/icons src/content src/render/camera: 58 files / 413 tests green. Report section 9 written in gate-close-app-report.md. Open: stage1a chamber camera (queen in 0.4 mm space), time.auto-slow event + speed flash, playthrough not re-run.
