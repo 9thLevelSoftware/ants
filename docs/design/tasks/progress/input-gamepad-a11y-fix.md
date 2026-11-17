@@ -12,3 +12,4 @@
 - dismiss-hint e2e: no hint came up in run (before:null), antBefore null => vacuous. Need: possess worker + make a hint show (reviewer's run saw hint-colony-view after completeFounding + possess digger + step). Fix e2e to make it a real assertion (throw if no hint).
 - added temporary hint-diag log in e2e dismiss section (remove after diagnosis); running A11Y_SECTIONS=C out a11y-fix3
 - e2e dismiss-hint now strict (reset profile, possess digger, advance; throws if no hint). Verifying in chain: A11Y_SECTIONS=G,B,C- out a11y-fix4
+- chain run a11y-fix4 hit script-timeout in C under load 11 (not a failure). Running C- alone (a11y-fix5) to verify strict dismiss-hint.

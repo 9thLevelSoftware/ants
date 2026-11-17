@@ -71,8 +71,18 @@ export default async ({ page, shot, log }) => {
     }
     return null;
   });
+  const colonyState = () => sim((sm) => {
+    const c0 = sm.state.colonies[0];
+    const tasks = {};
+    for (const a of sm.state.ants) if (a.alive && a.colony === c0.id && a.caste !== 'queen') { const k = `${a.caste}:${a.task}${a.nestId < 0 ? '@out' : ''}`; tasks[k] = (tasks[k] ?? 0) + 1; }
+    const known = c0.knownSourceIds.map((id) => sm.stores.sources.get(id)).filter((s) => s).map((s) => `${s.kind}/${s.unitBulk}`);
+    return { tick: sm.state.tick, archetype: sm.state.config.world.archetype, tasks, known, stores: { c: +c0.stores.c.toFixed(2), p: +c0.stores.p.toFixed(2) } };
+  });
   let c = null;
-  for (let i = 0; i < 120 && !(c = await carrier()); i++) await step(250);
+  for (let i = 0; i < 120 && !(c = await carrier()); i++) {
+    if (i % 20 === 0) log(`colony: ${JSON.stringify(await colonyState())}`);
+    await step(250);
+  }
   const granaryNow = () => sim((sm) => {
     const m = sm.state.colonies[0].granary;
     const stock = m ? m.granaries.reduce((a, gr) => a + gr.cohorts.reduce((b, k) => b + k.loads, 0), 0) : 0;
