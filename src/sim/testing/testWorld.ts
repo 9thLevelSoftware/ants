@@ -106,11 +106,19 @@ export interface TestSimOptions extends TestWorldOptions {
   workers?: number;
 }
 
+/**
+ * Where a test sim's calendar starts unless the test says otherwise: summer day 2 (default-year day 9), the reference
+ * species' start day before ruling R20 moved the game's default to day 5. Behaviour tests were written for a warm
+ * summer afternoon; the game's own start day is tested through `defaultGameConfig` / `createNewGame`.
+ */
+export const TEST_START = { startSeason: 'summer', startDayOfSeason: 2 } as const;
+
 /** A new game on a test world, with cheats enabled. */
 export function makeTestSim(opts: TestSimOptions = {}): Sim {
   const world = opts.world ?? makeTestWorld(opts);
   const base = defaultGameConfig(opts.species ?? 'lasius-niger', opts.seed ?? 1);
-  const config: GameConfig = { ...base, cheats: true, world: world.params, ...opts.config };
+  const pinned = (opts.species ?? 'lasius-niger') === 'lasius-niger' ? TEST_START : {};
+  const config: GameConfig = { ...base, ...pinned, cheats: true, world: world.params, ...opts.config };
   const { state } = createNewGame(config, world);
   const sim = createSim(state, world, { systems: opts.systems, behaviours: opts.behaviours });
   const workers = opts.workers ?? 0;

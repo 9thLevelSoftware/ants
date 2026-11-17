@@ -623,3 +623,19 @@ Results in `reviews/species-leafcutter.json`, `reviews/difficulty-rules.json` (i
 - **R23 — `rivals: 0` removes incipient conspecific foundations too** (the player's meaning of "no rivals" wins over GDD 05 §5/§7; implemented that way).
 - **Predators never act.** Three 28-day runs (one per preset): 0 predator strikes, 0 bird visits; 6-day harsh probe: 7.7 live predators on average, 0 telegraphs. Every viability number so far was measured without predation. New task `threats-live.md` (Opus impl + Opus review, launched): funnel per predator family on real worlds, cause, fix, calibration against GDD 05 loss bands per preset, cost to small colonies.
 - Running: colony-life `wji1tefky` (sweep 3, then round 4 with R20), gate-close-app `w9q9gpha0`, threats-live `wngv0c8uu`.
+
+## Nov 17 13:05 UTC — sweep 3; year two collapses; R24; round 4 running
+
+Sweep 3 (`test-output/colony-life/round-3/sweep-table.md`, day-9 start): viable 8 of 15 (woodland-edge, suburban-garden, kitchen-door 1/3 each); R19 3 of 7 (held 4/15, eclosions median 0, P 0.044, C 1.238, trip success 25.4 %). Hunting: prey loads home 41 → 58; 6 of 15 runs never meet patch prey (nearest patch edge 118–244 BU).
+
+**Year two (first runs through a winter; five long runs):** every colony that was viable at winter declines to 0–4 workers by day 15 of year two; no queen died; year-two eclosions 0, 0, 0, 0, 3.
+- woodland-edge #1: **no winter lapse** (heated-nest log kept stale samples "fresh") → winter played tick by tick, 14 → 8, dead by summer. Fixed in round 4 (W1).
+- car-park-verge #1, kitchen-door #1: lapse losses 58–64 % (drowning 5, disease 2 each).
+- playground-park #2: C 7.1 → 1.2 over winter, 0 by spring day 4 → adult starvation.
+- All five: the queen lays nothing until the last spring day or two (`fTempQ` 0 below 14 °C; spring brood chambers 0.4–15.5 °C); year-one workers age out before any year-two worker ecloses.
+
+**R24 — winter lapse losses**: a colony that passes the viability bar at winter loses at most 15 % of its workers in the lapse on Naturalist, unless a hazard the player was alerted to before winter is the cause (then live-play rules apply). Winter stores check and spring laying: evidence first (direction 8 in `colony-life.md`; note at the top of the ledger's Round 4).
+
+Round 4 so far: heated-nest log fixed (W1), R21 larder built and unit-tested (L1); R20 next. Review findings carried: `huntReturn.verify` red (H2b flips hunt ↔ return after a `timeout` return), H2a's contact window is wider than "one roll per bite" (deviation noted, accepted for now).
+
+This workflow run ends after round 4 + sweep 4 (round cap). A new loop follows with the same script (`firstRound: 5`).

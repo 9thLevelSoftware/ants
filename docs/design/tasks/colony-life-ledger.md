@@ -993,6 +993,11 @@ Scratch copies (`/home/user/frozen-sweep3`, scratchpad) and the probe tool delet
 
 ## Round 4
 
+> **INTEGRATOR NOTE (13:05 UTC, binding; also direction 8 in `colony-life.md`).** The year-two runs of sweep 3 make year two the first priority after W1, R21 and R20. Targets on the five long runs (R22): alive in spring with ≥ 0.7 × winter workers in ≥ 4 of 5; ≥ 2 × first workers by day 15 of year two in ≥ 3 of 5. Three things to establish with numbers, on long runs made **after** R20 (start day 5):
+> 1. **Winter losses.** car-park-verge #1 and kitchen-door #1 lose 58–64 % in the lapse (drowning 5, disease 2 each). Show what in the lapse model produced them and what the GDD's formula expects for a colony that enters winter viable in a nest with no flood in the weeks before. Rule (R24): a colony that passes the viability bar at winter loses at most 15 % of its workers in the lapse on Naturalist, unless a hazard the player was alerted to before winter (flood-prone chamber, disease, short stores) is the cause, and then the losses follow the same rules as live play. Fix the lapse model to that; record the deviation if the GDD's numbers say otherwise.
+> 2. **Winter stores.** playground-park #2 enters winter with C 7.1 and has 1.2 in spring, 0 by spring day 4. Show the lapse's consumption against the design's winter need and whether the viability bar's stores check (≥ 1 gd of adult need) is simply too low for a winter; propose the stores check the calendar requires (the integrator rules).
+> 3. **Spring laying.** Report for each long run the day of the first year-two egg and the royal chamber and warmest dry chamber temperature by day through spring. Target: first eggs by spring day 4 in ≥ 4 of 5, first year-two workers before the overwintered workers age out. If the deep royal chamber is the limiter, the lever is the colony using its warmest dry chamber (the existing queen relocation and brood sorting; a shallow nursery in the architect's early plan), not the laying curve and not lifespans. Evidence first; build it only if the numbers say it is needed.
+
 Engineer: round 4 (started 12:42 UTC Nov 17). Evidence: `test-output/colony-life/round-4/`. Order of work: the sweep's
 blocker (heated-nest log) and major (R21 larder), then R20 (start day 5, regenerate hand-overs, re-base benches), then
 the method (account, rank, fix).

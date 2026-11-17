@@ -1,5 +1,6 @@
 // 00-index §D7 (second pass): default-year day numbers, thermal inputs, brood destined caste.
 import { requireSpecies } from '@/sim/species';
+import { naturalStart } from '@/sim/config/rules';
 import { describe, expect, it } from 'vitest';
 import type { Brood, BroodCaste, ThermalInputs } from '@/sim/types';
 import { BROOD_CASTES, CASTES } from '@/sim/types';
@@ -41,7 +42,11 @@ describe('D7.1 default-year day numbers', () => {
 
   it('a new Lasius game starts inside its natural window doy 5-9 (ruling R20) for every season length', () => {
     for (const len of [5, 7, 10] as const) {
-      const sim = makeTestSim({ config: { rules: { ...makeTestSim().state.config.rules, seasonLengthDays: len } } });
+      // the species day converted to the season length, as a new game's config does (config/rules.ts naturalStart)
+      const start = naturalStart('lasius-niger', len);
+      const sim = makeTestSim({
+        config: { rules: { ...makeTestSim().state.config.rules, seasonLengthDays: len }, startSeason: start.season, startDayOfSeason: start.day },
+      });
       const doy28 = currentDefaultYearDoy(sim.state);
       expect(doy28, `len ${len}`).toBeGreaterThanOrEqual(5);
       expect(doy28, `len ${len}`).toBeLessThanOrEqual(9);
@@ -115,7 +120,7 @@ describe('calendarNow cache (runtime only)', () => {
     // Lasius starts on its species startDoy (5 = Spring Day 5 since ruling R20); move to doy 9 = Summer Day 2, where
     // the season length decides the season
     const doy = 9;
-    sim.state.env.calendar.startTick += (doy - requireSpecies('lasius-niger').opening.startDoy.default) * TICKS_PER_DAY;
+    sim.state.env.calendar.startTick += (doy - environment.calendarNow(sim).doy) * TICKS_PER_DAY;
     expect(environment.calendarNow(sim).season).toBe('summer');
     sim.state.config.rules = { ...sim.state.config.rules, seasonLengthDays: 10 };
     // the same calendar tick (day index doy - 1) now falls in a 10-day spring
