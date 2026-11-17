@@ -1,6 +1,7 @@
 // Batch of threatFunnel runs in one process (threats-calibrate): every world x run seed in turn, one at a time, each
 // written as it finishes (funnel-*.json / .md as threatFunnel.ts --out), then a summary `tables.md` (threatTable's
-// tables plus strikes per family per world). Observer only: changes no rule.
+// tables plus strikes per family per world). Results already on disk are kept, so a cut-off batch resumes.
+// Observer only: changes no rule.
 //
 //   node tools/sim/run-ts.mjs tools/sim/threatBatch.ts --out DIR [--worlds a,b,..] [--seed 1] [--run-seeds 1,2]
 //        [--days 6] [--preset P] [--rules JSON] [--workers N] [--food C,P] [--cache DIR] [--until-winter 1]
@@ -59,9 +60,15 @@ export default async function main(args: string[]): Promise<void> {
       const o = { ...base, archetype, runSeed };
       const file = `${o.cache}/founded-lasius-niger-${archetype}-${o.seed}-naturalist-d-any.bin`;
       if (!fs.existsSync(file)) { console.error(`no hand-over snapshot ${file}`); continue; }
+      const b = `${out}/funnel-${archetype}-${o.seed}-${preset ?? 'naturalist'}${o.rules ? '-custom' : ''}${o.workers ? `-w${o.workers}` : ''}-r${runSeed}`;
+      // Restartable: a run whose result is already on disk (from a batch cut off by a restart) is read, not re-run.
+      if (fs.existsSync(`${b}.json`)) {
+        runs.push(JSON.parse(new TextDecoder().decode(fs.readFileSync(`${b}.json`))) as FunnelResult);
+        console.error(`[batch] kept ${archetype} r${runSeed} from ${b}.json`);
+        continue;
+      }
       const r = runFunnel(o, new Uint8Array(fs.readFileSync(file)), (s) => console.error(`[batch ${archetype} r${runSeed} ${preset ?? 'snap'} w${o.workers}] ${s}`));
       runs.push(r);
-      const b = `${out}/funnel-${archetype}-${o.seed}-${preset ?? 'naturalist'}${o.rules ? '-custom' : ''}${o.workers ? `-w${o.workers}` : ''}-r${runSeed}`;
       fs.writeFileSync(`${b}.json`, JSON.stringify(r, null, 1));
       fs.writeFileSync(`${b}.md`, funnelTable([r]) + '\n');
       console.error(`[batch] done ${archetype} r${runSeed}: workers ${r.colony.workersStart} -> ${r.colony.workersEnd}, predation ${JSON.stringify(r.workerDeathsPredatorByKind)}, ${r.wallS} s`);
