@@ -32,6 +32,12 @@ export default async function main(args: string[]): Promise<void> {
       const z = zoneAt(sim.world, a.x + Math.cos(ang) * r, a.z + Math.sin(ang) * r);
       zones[z] = (zones[z] ?? 0) + 1;
     }
+    const srcs = sim.stores.sources.list
+      .filter((s) => s.alive && Math.hypot(s.pos.x - a.x, s.pos.z - a.z) / bu <= 300)
+      .map((s) => ({ s, d: Math.hypot(s.pos.x - a.x, s.pos.z - a.z) / bu }))
+      .sort((x, y) => x.d - y.d)
+      .map(({ s, d }) => `${s.kind}@${Math.round(d)}BU h${Math.round(s.pos.y - sim.field.height(s.pos.x, s.pos.z))}mm${s.plantId >= 0 ? ' plant' : ''}${s.herdId >= 0 ? ' herd' : ''}${s.objectId >= 0 ? ' obj' : ''}`);
+    console.log(`  sources within 300 BU: ${srcs.join(', ') || '-'}`);
     for (let i = 0; i < 6; i++) { runDirector(sim); sim.state.tick += 50; }
     const sited = sim.state.ecology.director.territories
       .map((t, i) => ({ t, i, d: Math.hypot(t.center.x - a.x, t.center.z - a.z) / bu }))

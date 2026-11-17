@@ -8,8 +8,10 @@
 //
 // How many kinds get a colony-range territory follows the Predators setting (COLONY_RANGE_P x Few 0.4 / Normal 1 /
 // Many 1.6), one fixed draw per world and kind.
-// Determinism: the siting draws from a stream forked from the world seed and the kind (not from rng.creatures), and
-// it only adds a territory when the ring has none, so a reload re-runs it without changing anything.
+// Determinism: the siting draws from a stream forked from the world seed and the kind (not from rng.creatures), it
+// only adds a territory when the ring has none, and it keeps no runtime memo: the director calls it on its hourly
+// runs (a persisted cadence), so the running game and a reloaded one take the same decision at the same tick, also
+// after a Predators setting change (GDD 06 §14: added threats appear at the new rate without a reload).
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { CreatureKind, CreatureTerritory, Sim } from '@/sim/types';
@@ -146,23 +148,17 @@ function hasTerritoryInRing(sim: Sim, anchor: Vec3, kind: CreatureKind, terr: re
   return false;
 }
 
-/** Runtime memo (not persisted): the anchor and the kinds already settled for it. */
-const settled = new WeakMap<Sim, { x: number; z: number; kinds: Set<CreatureKind> }>();
-
 /**
- * Adds the missing colony-range territories (one per kind with habitat in the ring and none there yet). Returns the
- * number added. Idempotent: a kind with a territory in the ring, or with no habitat, is left alone.
+ * Adds the missing colony-range territories (one per kind drawn at the current Predators setting, with habitat in
+ * the ring and none there yet). Returns the number added. Idempotent and a function of the saved state only (no
+ * memo), so calling it again, or after a reload, takes the same decision.
  */
 export function ensureColonyRangeTerritories(sim: Sim): number {
   const anchor = colonyAnchor(sim);
   if (!anchor) return 0;
-  let memo = settled.get(sim);
-  if (!memo || memo.x !== anchor.x || memo.z !== anchor.z) { memo = { x: anchor.x, z: anchor.z, kinds: new Set() }; settled.set(sim, memo); }
   const terr = sim.state.ecology.director.territories;
   let added = 0;
   for (const kind of COLONY_RANGE_KINDS) {
-    if (memo.kinds.has(kind)) continue;
-    memo.kinds.add(kind);
     if (hasTerritoryInRing(sim, anchor, kind, terr) || !colonyRangeDrawn(sim, kind)) continue;
     const at = colonyRangeSite(sim, anchor, kind);
     if (!at) continue;

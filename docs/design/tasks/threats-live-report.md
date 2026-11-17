@@ -1,10 +1,11 @@
 # threats-live report — predators that actually hunt
 
-Engineer: threats-live (Opus), 2026-11-17 11:16-? UTC. Spec `docs/design/tasks/threats-live.md`.
+Engineer: threats-live (Opus), 2026-11-17 11:16-14:40 UTC. Spec `docs/design/tasks/threats-live.md`.
 
 **Data set.** All measurements: the round-3 hand-over snapshots
 `test-output/colony-life/round-3/cache/founded-lasius-niger-<archetype>-1-naturalist-d-any.bin` (start day 9, i.e.
-before ruling R20; no round-4 snapshots appeared under `test-output/colony-life/round-4/cache` while this task ran),
+before ruling R20). Round-4 snapshots (start day 5) appeared in `test-output/colony-life/round-4/cache` near the end
+(~13:40 UTC); **every table here uses the round-3 set**,
 seed 1, one per archetype (woodland-edge, suburban-garden, playground-park, car-park-verge, kitchen-door), 6 game
 days from the hand-over (default-year days ~13-19), no player. The colonies hold 12-16 workers, ~2-5 of them on the
 surface on average. Counts are mechanism counts: with R20 the colonies will meet the same predators earlier in the
@@ -14,7 +15,8 @@ Tools (all observers, no rule change): `tools/sim/threatFunnel.ts` (funnel per p
 alerts, quiet share; `--preset`, `--rules`), `tools/sim/threatTable.ts` (summed tables), `tools/sim/threatSites.ts`
 (where the director sites the colony-range territories). Evidence under `test-output/threats-live/`:
 `before/`, `placement-only/`, `after1/` .. `after3/` (naturalist), `final-gentle/`, `final-harsh/`, `final-off/`,
-`tables-naturalist.md`, `tables-presets.md`, `cross-edits.md`, `perf.txt`, `bench-*`, `harness/`.
+`tables-naturalist.md`, `tables-presets.md`, `cross-edits.md`, `perf-before.txt` / `perf-after.txt`,
+`bench-forage-before/` / `bench-forage-after/`, `harness/`.
 
 ## 1. Causes of the zero (step 1-2)
 
@@ -60,6 +62,7 @@ hourly check: `colony < 30 workers` in daylight, else night / rain. Antlion: no 
 | F4 (C4) | `balance/creatures.ts ANT_SPIDER_APPROACH_MMS` 6 -> 15 | approach at the GDD walk speed |
 | F5 (C5) | `alerts.ts predatorStruck`, `attack.ts landStrike` | a strike that lands on a player-colony ant raises `predator-near` at once, under the existing per-creature cooldown 0.1 gd, cleared 30 s later |
 | F6 (C6) | `alerts.ts possessedDangerAlerts` (per tick, `system.ts`) | `possessed-danger` critical, cause `seized` (predator hold, rove grab, antlion drag) or `stuck` (ant-spider paralysis); cleared the tick the cause ends, the ant dies or the player leaves it; read from the alert list (nothing persisted) |
+| F7 | `director.ts settingCull`, `SETTING_DESPAWN_GD` | a Predators setting lowered mid-game (or `off`) removes ant predators above the new cap, farthest first, unseen at once, in view within 1 gd (GDD 06 §14); found by the `predators: off` runs (section 4) |
 
 Cross edits: one (`test-output/threats-live/cross-edits.md`): `src/sim/ants/perception/sense.ts`, test
 `src/sim/ants/perception/predatorDetect.test.ts`. No shared contract changed. No worldgen change (a worldgen fix would
@@ -133,7 +136,35 @@ Notes:
 
 ## 5. What it does to the colonies (step 5)
 
-(bench table pending: `bench-forage-before/` vs `bench-forage-after/`)
+`tools/sim/bench-colony.ts --mode forage` (demand held at 30 workers' needs, brood care on) from the same 5 round-3
+hand-overs to the first tick of winter (8.5-8.9 gd), Naturalist. "Before" = the tree with this task's files restored
+from commit 45ab25a; "after" = final. Raw: `bench-forage-before/`, `bench-forage-after/` (JSON + Markdown per world).
+
+| world | workers hand-over -> winter (before / after) | adult deaths before | adult deaths after | trips home, ok (before / after) | delivered C (before / after) | delivered P (before / after) |
+|---|---|---|---|---|---|---|
+| car-park-verge | 13 -> 11 / 13 -> 10 | old-age 2 | predation 1, old-age 1, lost 1 | 64 (19) / 45 (11) | 15.6 / 9.4 | 0.8 / 0.7 |
+| kitchen-door | 15 -> 10 / 15 -> 6 | old-age 3, crushed 2 | **predation 4**, old-age 3, crushed 2 | 51 (5) / 54 (17) | 5.4 / 14.7 | 1.0 / 0.4 |
+| playground-park | 13 -> 10 / 13 -> 7 | old-age 3 | predation 1, old-age 3, crushed 2 | 44 (21) / 36 (16) | 10.8 / 10.3 | 0.1 / 0.2 |
+| suburban-garden | 12 -> 12 / 12 -> 7 | - | **predation 3**, old-age 2 | 39 (9) / 20 (2) | 3.8 / 2.0 | 0.1 / 0.2 |
+| woodland-edge | 16 -> 13 / 16 -> 9 | old-age 3 | **predation 5**, old-age 1, crushed 1 | 85 (34) / 53 (14) | 20.6 / 11.7 | 0.4 / 0.4 |
+| **all 5** | **56 / 39 at winter** | 18 deaths | 33 deaths, **14 predation** | 283 (88) / 208 (60) | 56.2 / 48.1 | 2.4 / 1.9 |
+
+Reading: on the forage bench predation took 14 workers in 5 colonies over ~8.7 gd (0.32 per colony per gd; with ~3
+workers outside on average that is ~0.1 per outside-worker-gd, the upper edge of the band - the bench keeps more
+foragers out than a free colony). The colonies end autumn with 39 workers instead of 56 (-30 %); trips -27 %,
+C intake -14 %. Predation is ~45 % of adult deaths after (14 of 33) against the design's 2 of the 5 "outside
+hazard" units (40 %): **the share matches the design's own arithmetic**, and that arithmetic is heavy for a colony
+of 12-16: about 3 workers per colony between hand-over and winter. One run of each; the old-age / crushed / lost
+counts move between runs because the colonies differ after the first kill (chaotic), so read the totals.
+
+**This is the GDD's number, not an inconsistency I may rebalance** (the expected 0.061 per outside-worker-gd follows
+from GDD 02 §1.3). If small colonies cannot carry it, smallest levers for the integrator, one constant each:
+1. `COLONY_RANGE_P` for Naturalist 0.5 (each hunting kind sited on half the worlds; expected ~0.035 per owgd);
+2. a small-colony grace: colony-range siting only from N workers (GDD 05 §5 already protects "until 5 workers" with a
+   40 BU exclusion, and the bird waits for 30 workers) - e.g. N = 20 would leave the founding-year colonies of today
+   almost free of predation, i.e. back to "predators never act" for them;
+3. GDD 05 §5's nest exclusion radius to the colony ring (140 BU) until 20 workers.
+
 
 ## 5a. Per-tick cost (AC5)
 
@@ -228,3 +259,14 @@ below 1 for Naturalist (fewer kinds near each colony). No other balance was chan
 - **worldgen** (optional): the colony ring rule could move into `populate/territories.ts` (one territory per hunting
   kind near the start), but saved games and snapshots hold their territories in `state.ecology.director`, so the
   director-side rule is needed either way.
+
+## 11. Acceptance
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | typecheck clean; creature tests green | met | `npm run typecheck` 0 errors (whole tree); `npx vitest run src/sim/ecology/creatures src/sim/ants/perception`: 25 files, 171 passed, 5 skipped (LONG) |
+| 2 | each hunting family reaches strike on >= 3 of 5 snapshots in 6 gd Naturalist, or no habitat | partial | final (`after3/`): wolf spider 4/5 met; ant-spider 2/5 (3/5 in `after1/`); jumping spider 0/5 (sensed 4/5, selects 3/5; 2/5 in `after1/`, 2/5 on Harsh) - stalk speed vs cruising ants; centipede habitat (forest / garden-bed in the ring) on 2/5, struck on 1 (`after2/`); rove beetle 1/5; antlion: no habitat on any of the 5; bird: < 30 workers on all (GDD rule) |
+| 3 | loss rates per preset within the GDD bands, ordered; zero with `predators: off` | met (bands derived, section 3) | 0.01 / 0.07 / 0.16 deaths per outside-worker-gd; off 0 events; mid-game off now also removes residents (`predatorsOff.test.ts`) |
+| 4 | determinism; save -> load mid-hunt | met | `huntSaveLoad.test.ts`, `colonyRange.test.ts`, `determinism.test.ts` |
+| 5 | per-tick cost before/after at 60 and 300 workers, no regression > 0.2 ms | met | creature systems 0.34 -> 0.30 (60), 0.34 -> 0.40 (300) ms, load 10-11 |
+| 6 | report | met | this file |

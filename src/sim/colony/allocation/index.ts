@@ -4,9 +4,9 @@
 import { ti } from '../taskIdx';
 import type { Ant, Colony, ReasonCode, Sim, SpeciesDef, Task } from '@/sim/types';
 import { ALLOCATION_GROUPS, AntFlag } from '@/sim/types';
-import { IDLE_REEVAL_S, SURPLUS_CHECK_S } from '@/sim/balance';
+import { BROOD_HAZARD, IDLE_REEVAL_S, SURPLUS_CHECK_S } from '@/sim/balance';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
-import { censusOf, isWorkerCaste } from '../census';
+import { censusOf, cycleWaste, isWorkerCaste } from '../census';
 import { coreOf } from '../core';
 import { computeDemand } from './demand';
 import { computeTargets } from './targets';
@@ -28,13 +28,24 @@ function refreshActual(sim: Sim, col: Colony): void {
   }
 }
 
+/** True when a chamber holding the colony's brood has waste at the hygiene tolerance (last colony cycle's count). */
+function broodAmongWaste(sim: Sim, col: Colony): boolean {
+  const seen = new Set<number>();
+  for (const b of sim.stores.brood.list) {
+    if (!b.alive || b.colony !== col.id || b.chamberId < 0 || seen.has(b.chamberId)) continue;
+    seen.add(b.chamberId);
+    if (cycleWaste(col, b.chamberId) >= BROOD_HAZARD.wasteTolerance) return true;
+  }
+  return false;
+}
+
 /** The ALLOC_PERIOD pass for one colony: demand, targets, actual counts, and every 120 s the surplus check. */
 export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPass: boolean): void {
   const cen = censusOf(sim, col.id);
   refreshActual(sim, col);
   computeDemand(sim, col, cen);
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
-  computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0, workforce);
+  computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0, workforce, broodAmongWaste(sim, col));
   col.alloc.lastTick = sim.state.tick;
   if (!surplusPass) return;
   for (const a of sim.stores.ants.list) if (a.colony === col.id && isWorkerCaste(a.caste)) surplusCheck(sim, col, a, def);

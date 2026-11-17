@@ -53,6 +53,19 @@ const PRIORITY: readonly Task[] = [
 ];
 const PRIORITY_THREAT: readonly Task[] = ['guard', ...PRIORITY.filter((t) => t !== 'guard')];
 
+/**
+ * Waste in a brood chamber at the hygiene tolerance (colony-life round 4; a deviation from GDD 02 §6.3's fixed order):
+ * `haul` moves up to just after `queen-care`. With the GDD order a small colony whose demand exceeds its workers gives
+ * `haul` nothing (it comes after forage, store, tend and scout), and the waste kills the brood it lies among: on
+ * suburban-garden #2 (9 workers, one royal chamber) haul demand 1.6-1.8, haul workers 0, 0 of 23 waste items taken out
+ * in 5 gd, 15 of 16 brood dead of hygiene. Removing corpses from the brood pile is brood care in real colonies.
+ */
+function withHygiene(order: readonly Task[]): Task[] {
+  const rest = order.filter((t) => t !== 'haul');
+  const at = rest.indexOf('queen-care') + 1;
+  return [...rest.slice(0, at), 'haul', ...rest.slice(at)];
+}
+
 /** Splits `total` over weights with largest remainders (integers summing to total). */
 export function apportion(total: number, weights: number[]): number[] {
   const sum = weights.reduce((a, b) => a + b, 0);
@@ -65,11 +78,12 @@ export function apportion(total: number, weights: number[]): number[] {
   return out;
 }
 
-/** Auto targets (GDD 02 §6.3). */
-function autoTargets(demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array): void {
+/** Auto targets (GDD 02 §6.3). `hygiene`: brood lies among waste (withHygiene). */
+function autoTargets(demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean): void {
   let sum = 0;
   for (const t of PRIORITY) sum += demand[ti(t)];
-  const order = threat ? PRIORITY_THREAT : PRIORITY;
+  const base = threat ? PRIORITY_THREAT : PRIORITY;
+  const order = hygiene ? withHygiene(base) : base;
   const free = new Free(w.all, w.adult, w.outside);
   if (sum <= w.all) {
     for (const t of order) target[ti(t)] = free.take(poolOfTask(t), Math.round(demand[ti(t)]));
@@ -120,17 +134,18 @@ function manualTargets(
 
 /**
  * Recomputes col.alloc.target; returns the idle target (available workers not given a task). `workforce` splits
- * `available` by eligibility (default: every available worker fits every group).
+ * `available` by eligibility (default: every available worker fits every group). `hygiene`: waste in a brood chamber
+ * at the hygiene tolerance (auto mode ranks `haul` after `queen-care`).
  */
 export function computeTargets(
   col: Colony, available: number, threat: boolean,
-  workforce: Workforce = { all: available, adult: available, outside: available },
+  workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false,
 ): number {
   const target = col.alloc.target;
   target.fill(0);
   const a = col.directives.allocation;
   const w = { ...workforce, all: available };
-  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target);
+  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene);
   else manualTargets(col.alloc.demand, w, a, col.directives.taskShares, target);
   let assigned = 0;
   for (let i = 0; i < target.length; i++) assigned += target[i];

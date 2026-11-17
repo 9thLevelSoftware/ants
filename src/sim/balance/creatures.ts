@@ -514,3 +514,9 @@ export const COLONY_RANGE_RADIUS_MM: Partial<Record<CreatureKind, number>> = {
 };
 /** A jumping-spider site is a world object rising at least this high above the ground (wall, fence, post, stem), mm. */
 export const JUMPING_SPIDER_SURFACE_MIN_MM = 40;
+/**
+ * A territory whose resident could not be placed (no walkable surface near its centre, e.g. a worldgen centre inside
+ * a solid) waits this long before the director tries it again, gd (threats-live review: it was retried every
+ * director run, 240 spawn + despawn pairs per gd on woodland-edge).
+ */
+export const TERRITORY_NO_SURFACE_RETRY_GD = 1;

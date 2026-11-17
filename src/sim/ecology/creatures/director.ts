@@ -11,7 +11,7 @@ import { rngFloat } from '@/core/rng';
 import {
   AMBIENT_BIRD_P, AMBIENT_CRICKET_P, CREATURE_AGENT_CAP, CREATURE_STATS, DESPAWN_MIN_DIST_BU, DIRECTOR_HOURLY_TICKS,
   RESIDENT_HOME_RADIUS_MM, RESIDENT_KINDS, SPAWN_MIN_DIST_ANT_BU, SPAWN_MIN_DIST_FOCUS_BU,
-  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, SETTING_DESPAWN_GD, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
+  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, SETTING_DESPAWN_GD, TERRITORY_NO_SURFACE_RETRY_GD, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
 } from '@/sim/balance/creatures';
 import { CREATURE_DIRECTOR_EVERY } from '@/sim/balance';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
@@ -113,7 +113,9 @@ function territoryOrder(sim: Sim): number[] {
 
 /**
  * A resident kind at its cap with a free territory nearer the colony than its farthest occupied one: that farthest
- * resident (not engaged, out of the focus' sight) leaves, so the cap is spent where the colony's ants walk.
+ * resident (not engaged, out of the focus' sight) leaves, so the cap is spent where the colony's ants walk. Only a
+ * near territory that can be filled in this same run counts (spawn distance rule passes, not waiting after a failed
+ * placement); otherwise the far resident would leave and come back on every run.
  */
 function rebalanceResidents(sim: Sim, order: readonly number[]): void {
   const terr = sim.state.ecology.director.territories;
@@ -124,7 +126,7 @@ function rebalanceResidents(sim: Sim, order: readonly number[]): void {
       const t = terr[order[r]];
       if (t.kind !== kind) continue;
       const occ = t.occupantId >= 0 ? sim.stores.creatures.get(t.occupantId) : undefined;
-      if (!occ) { if (freeRank < 0 && sim.state.tick >= t.vacantUntilTick) freeRank = r; }
+      if (!occ) { if (freeRank < 0 && sim.state.tick >= t.vacantUntilTick && spawnPointOk(sim, t.center)) freeRank = r; }
       else if (!isEngaged(sim, occ) && farFromFocus(sim, occ.pos)) farRank = r;
     }
     if (freeRank >= 0 && farRank > freeRank) {
@@ -157,6 +159,7 @@ function occupyTerritories(sim: Sim, cond: Conditions): void {
       bb: t.kind === 'woodlouse' ? { roller: rngFloat(rng(sim)) < WOODLOUSE_ROLLERS ? 1 : 0 } : {},
     });
     if (c) t.occupantId = c.id;
+    else t.vacantUntilTick = sim.state.tick + Math.round(TERRITORY_NO_SURFACE_RETRY_GD * TICKS_PER_DAY);
   }
 }
 
@@ -257,9 +260,10 @@ function ensureInit(sim: Sim): void {
 export function runDirector(sim: Sim): void {
   const cond = conditions(sim);
   ensureInit(sim);
-  if (cond.predatorMult > 0) ensureColonyRangeTerritories(sim);
   const dir = sim.state.ecology.director;
   const hourly = (dir.lastHourlyTick ?? -1) < 0 || sim.state.tick - (dir.lastHourlyTick ?? 0) >= DIRECTOR_HOURLY_TICKS;
+  // hourly (a persisted cadence, so a reload decides at the same tick); also picks up a raised Predators setting
+  if (hourly && cond.predatorMult > 0) ensureColonyRangeTerritories(sim);
   abandonOrphanPits(sim);
   expireHazards(sim);
   updateDanger(sim, RUN_S);

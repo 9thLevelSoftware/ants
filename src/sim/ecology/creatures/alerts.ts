@@ -112,8 +112,11 @@ export function nestAttackedAlerts(sim: Sim): void {
   }
 }
 
-/** possessed-danger causes this module owns (GDD 05 App. C sub-causes): held by a predator, paralysed by venom. */
-const OWN_DANGER = { seized: 'Seized by a predator', stuck: 'Paralysed' } as const;
+/**
+ * possessed-danger causes this module owns: held by a predator (GDD 05 App. C "seized"), paralysed by ant-spider venom
+ * (the `paralysed` condition; App. C routes `ant-paralysed` to this card; "stuck" is the spill-trap state, §1.8).
+ */
+const OWN_DANGER = { seized: 'Seized by a predator', paralysed: 'Paralysed' } as const;
 type OwnDanger = keyof typeof OWN_DANGER;
 
 function dangerCause(sim: Sim, antId: number): OwnDanger | null {
@@ -121,14 +124,16 @@ function dangerCause(sim: Sim, antId: number): OwnDanger | null {
   const a = sim.stores.ants.get(antId);
   if (!a || !a.alive || !a.combat) return null;
   if (a.combat.seizedBy >= 0) return 'seized';
-  if (a.combat.paralysedUntilTick > sim.state.tick) return 'stuck';
+  if (a.combat.paralysedUntilTick > sim.state.tick) return 'paralysed';
   return null;
 }
 
 /**
  * Every tick: `possessed-danger` (critical, ruling R15) while the possessed ant is seized (a strike, a rove-beetle
  * grab, an antlion's drag) or paralysed by an ant-spider; cleared the tick the cause ends, the ant dies or the
- * player leaves it. Read from the alert list itself, so nothing extra is persisted.
+ * player leaves it. Read from the alert list itself, so nothing extra is persisted. Alerts are keyed by kind and
+ * subject, so a card another module raised for the same ant (combat "pinned", flood "under-water") is left as it
+ * is: overwriting it would let this module clear it later while that module still holds it.
  */
 export function possessedDangerAlerts(sim: Sim): void {
   const alerts = sim.state.progression.alerts;
@@ -139,7 +144,7 @@ export function possessedDangerAlerts(sim: Sim): void {
   }
   const id = sim.state.player.possessedAntId;
   const cause = dangerCause(sim, id);
-  if (!cause || alerts.some((al) => al.kind === 'possessed-danger' && al.subjectId === id && al.cause === cause)) return;
+  if (!cause || alerts.some((al) => al.kind === 'possessed-danger' && al.subjectId === id)) return;
   const a = sim.stores.ants.get(id)!;
   const by = cause === 'seized' ? sim.stores.creatures.get(a.combat!.seizedBy) : undefined;
   ports.raiseAlert(sim, {

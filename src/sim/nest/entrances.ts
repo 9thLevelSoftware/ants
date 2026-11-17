@@ -260,11 +260,15 @@ export function plugCount(sim: Sim, e: Entrance): number {
 }
 
 /**
- * Drops the PLUG flag of ghost plug samples (closed, flagged PLUG, above the ground) in an `open` entrance's throat.
- * A ghost is plug fill that landed in open air: no ant meets it and plugCount does not count it. Left flagged, it
- * turned into a counted plug as soon as spoil was piled over it, and the passable entrance went `sealing` with no
- * plug added (colony-life round 1, woodland-edge #1: count 8 -> 13 under a mound pile; GDD 03 §4.2 `open ->
- * sealing` is "first plug added"). Only for `open` entrances: the founding seal and reopen rules read the flags of
+ * Drops the PLUG flag of samples in an `open` entrance's throat that are no plug: ghosts (closed, flagged PLUG, above
+ * the ground) and open samples still flagged PLUG. A ghost is plug fill that landed in open air: no ant meets it and
+ * plugCount does not count it. An open flagged sample is plug soil the founding's reopen dug away without the flag
+ * being cleared. Left flagged, either turned into a counted plug as soon as soil came back over it (a spoil pile, a
+ * pellet tamped into the throat), and the passable entrance went `sealing` with no plug added: colony-life round 1,
+ * woodland-edge #1 (count 8 -> 13 under a mound pile); round 4, suburban-garden #2 (count 6 -> 18 at 2.0 gd after the
+ * hand-over, no ant within 4 BU, open flagged samples deep in the throat closed; the colony was shut in for good:
+ * no midden, 0 waste dumped, 27 of 32 brood lost to hygiene). GDD 03 §4.2 `open -> sealing` is "first plug added",
+ * and only `seal-entrance` adds plug. Only for `open` entrances: the founding seal and reopen rules read the flags of
  * closed throats as they are. The carve samples are not touched, so the passage and the memo signature do not change.
  */
 function forgetGhostPlugs(sim: Sim, e: Entrance): void {
@@ -273,8 +277,9 @@ function forgetGhostPlugs(sim: Sim, e: Entrance): void {
   if (flags.noneIn(b.i0, b.j0, b.k0, b.i1, b.j1, b.k1)) return;
   const v = sim.carve.voxel;
   forThroatSamples(sim, e, (i, j, k) => {
-    if ((flags.get(i, j, k) & VoxelFlag.PLUG) === 0 || sim.carve.sampleAt(i, j, k) >= OPEN_MIN) return;
-    if (sim.field.substrateXYZ(i * v, j * v, k * v) >= 0) flags.clear(i, j, k, VoxelFlag.PLUG);
+    if ((flags.get(i, j, k) & VoxelFlag.PLUG) === 0) return;
+    const open = sim.carve.sampleAt(i, j, k) >= OPEN_MIN;
+    if (open || sim.field.substrateXYZ(i * v, j * v, k * v) >= 0) flags.clear(i, j, k, VoxelFlag.PLUG);
   });
 }
 

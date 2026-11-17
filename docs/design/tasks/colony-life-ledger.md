@@ -1113,3 +1113,32 @@ Progress (kept current; a successor continues from here)
 - 14:26 A/B larder on/off (same sg #2 hand-over, 8 days, `round-4/ab-larder/`): brood hygiene losses on 18, off 15
   (egg 5/4, larva 9/7, pupa 4/4), eclosed 0 both: **the hygiene loss is there without the larder**. pp #2 pair running.
   Next: probe the waste in the brood chamber (`tools/sim/probe-waste.ts`, probe, deleted after) and re-run we #1 long.
+- 14:31 pp #2 A/B larder on/off: hygiene 17 / 17, eclosed 0 / 0; predation 7 / 8 workers in 8 days. **The larder is
+  not the cause** (kept). Probe (`round-4/probe-waste-sg2.txt`, sg #2, 5 gd): 0 waste items dumped; from 2.0 gd the
+  only entrance reads `sealing` to the end, waste piles in the royal chamber (spoiled food 4, brood corpses 16, meconium
+  4: 24 items, tolerance 3) and the brood dies of hygiene. Probe (`round-4/probe-entrance-sg2.txt`, 1.8-2.2 gd): no ant
+  within 4 BU; plugCount 6 -> 10 -> 18 as **open carve samples still flagged PLUG** deep in the throat (substrate
+  -8..-13 mm) close again (open 64-116): plug soil the founding reopen dug away without clearing the flag, refilled by
+  a tamped pellet. Round 1's trigger in a new form (G1 only forgot ghosts above the ground).
+- 14:38 **E2 in the tree**: `nest/entrances.ts` `forgetGhostPlugs` also drops the PLUG flag of *open* samples in an open
+  entrance's throat (an open sample is no plug; only `seal-entrance` adds plug, GDD 03 §4.2). Test
+  `nest/plugFill.test.ts` (fill over open flagged samples keeps the entrance `open`: red without, plugCount 1; a real
+  `seal-entrance` plug still seals); `plugBaseline.verify` green. Next: freeze `r4d`, probe sg #2 again, A/B.
+- 14:58 probe after E2 (`round-4/probe-waste-sg2-e2*.txt`, tree r4d): the entrance stays `open` and a surface midden
+  exists, but still 0 waste dumped: haul demand 1.6-1.8, **haul workers 0** most of the time. GDD 02 §6.3 auto mode:
+  ΣD > A (9 workers), pass 1 gives ceil(0.5 D) in the order nurse, queen-care, forage, store, tend, scout, haul: the
+  workers run out before haul. **H4 in the tree**: `colony/allocation/targets.ts` `withHygiene`: while a chamber holding
+  brood has waste at the hygiene tolerance (BROOD_HAZARD.wasteTolerance 3, last colony cycle's count;
+  `allocation/index.ts` `broodAmongWaste`), haul ranks right after queen-care. GDD deviation (the fixed order). Test
+  `colony/allocation/hygiene.test.ts` (a 9-worker demand: haul 0 in the GDD order, 1 with waste among the brood).
+- 15:05 probe after H4 (`round-4/probe-waste-sg2-h4.txt`, `probe-haul-sg2*.txt`, tree r4e): a hauler now exists, but
+  it carries the **same two ant corpses** (priority 3) to the surface midden and back again, ~10 trips in 0.4 gd: the
+  midden point has the terrain's height (y 26.5) while the corpse lies on a stone at y 58.4, 32 mm off, so `atMidden`
+  (3D, MIDDEN_RADIUS_BU 6 = 24 mm) is false and the corpse is a job again; waste (priority 2) is never reached.
+  **M1 in the tree**: `ants/behaviours/nest/haul.ts` `atMidden` measures across the ground (x, z) for a surface midden
+  (3D for a midden chamber). Test `ants/behaviours/nest/haulMidden.test.ts` (8 BU above the point: at the midden; red
+  with the 3D rule). Next: probe sg #2 with E2 + H4 + M1 (tree r4f), then the A/B life runs.
+- 15:00 probe sg #2 with E2 + H4 + M1 (`round-4/probe-waste-sg2-m1.txt`, 5 gd): 15 waste items dumped at the midden
+  (before: 0), a nursery dug at 1.9 gd, waste among the brood at most 3, **brood hygiene deaths 0** (before 16 in 5
+  gd); remaining brood losses larva:starvation 4, cannibalised 5, egg:untended 2. Running: 8-day life A/B on the same
+  hand-overs (sg #2, pp #2), tree r4f vs the round's "on" runs (r4c) -> `round-4/ab-hygiene/`.

@@ -20,9 +20,20 @@ import { perTick } from './perTick';
 const ENTRY = 'haul.claim';
 const mid = { x: 0, y: 0, z: 0 };
 
-/** Is the item lying at the colony midden already? */
-function atMidden(sim: Sim, nest: Nest, it: Item): boolean {
-  return middenPoint(sim, nest, mid) !== null && dist(it.pos, mid) <= MIDDEN_RADIUS_BU * sim.world.bu;
+/**
+ * Is the item lying at the colony midden already? A surface midden is an area of ground: the distance is measured
+ * across it (x, z), because its point has the terrain's height while the item lies on whatever is there (a stone, a
+ * root, a mound). Measured in 3D, a corpse put down on a stone 32 mm above the terrain at the midden point was "not at
+ * the midden", priority 3 again, and the haulers carried the same two corpses back and forth for the rest of the run
+ * while the waste among the brood was never taken out (colony-life round 4, suburban-garden #2). A midden chamber is
+ * measured in 3D (a tunnel can run above it).
+ */
+export function atMidden(sim: Sim, nest: Nest, it: Item): boolean {
+  if (middenPoint(sim, nest, mid) === null) return false;
+  const r = MIDDEN_RADIUS_BU * sim.world.bu;
+  if (nest.chambers.some((c) => c.type === 'midden')) return dist(it.pos, mid) <= r;
+  const dx = it.pos.x - mid.x, dz = it.pos.z - mid.z;
+  return dx * dx + dz * dz <= r * r;
 }
 
 function nearEntrance(sim: Sim, nest: Nest, it: Item): boolean {
