@@ -119,23 +119,32 @@ export default async ({ page, shot, log }) => {
   // the colony has no granary chamber below 30 workers (architect): plan one from the royal chamber's wall as the
   // colony view's planner places it, dig it at once (cheat.instantPlan), and let the seed come in (new seed goes to
   // the granary; seed already in the proto-granary is relocated by granary care)
-  const plan = await sim((sm) => {
-    const n = sm.state.nests.find((x) => x.alive && x.colony === sm.state.colonies[0].id);
-    if (!n) return null;
-    if (n.chambers.some((ch) => ch.type === 'granary')) return { existing: true };
-    const ch = n.chambers.find((x) => x.type === 'royal') ?? n.chambers[0];
-    const out = { x: 0, y: 0, z: 0 }, nn = { x: 0, y: 1, z: 0 };
-    sm.field.project({ x: ch.center.x + ch.radii.x, y: ch.center.y, z: ch.center.z }, 0, out, nn);
-    return { nestId: n.id, anchor: { pos: out, normal: nn } };
-  });
-  if (plan && !plan.existing) {
-    const r = await g((p) => window.__game.command({ type: 'planDig', nestId: p.nestId, kind: 'chamber', chamberType: 'granary', size: 'm', anchor: p.anchor, yawDeg: 0, priority: 'high', confirmWarnings: true }), plan);
-    log(`planDig granary: ${JSON.stringify(r)}`);
-    await step(1);
-    const planId = await sim((sm, nid) => { const n = sm.stores.nests.get(nid); const p = n?.digPlans.filter((x) => x.kind === 'chamber').sort((a, b) => b.id - a.id)[0]; return p ? p.id : -1; }, plan.nestId);
-    if (planId >= 0) await raw({ type: 'cheat.instantPlan', planId });
-    await step(5);
+  // tried from each side of the royal chamber in turn: a side the architect's own plans already use is refused
+  // ('overlaps-plan')
+  const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const granaryPlans = () => sim((sm) => sm.state.nests.filter((n) => n.colony === sm.state.colonies[0].id).flatMap((n) => n.digPlans)
+    .filter((x) => x.kind === 'chamber' && x.chamberType === 'granary' && !['complete', 'cancelled', 'failed'].includes(x.status)).map((x) => ({ id: x.id, status: x.status })));
+  const hasGranary = () => sim((sm) => sm.state.nests.some((n) => n.colony === sm.state.colonies[0].id && n.chambers.some((ch) => ch.type === 'granary')));
+  await sim(() => { window.__mbPlanEvents = []; });
+  await sim((sm) => { sm.events.on('plan-rejected', (e) => window.__mbPlanEvents.push(e)); });
+  for (const [sx, sz] of sides) {
+    if (await hasGranary() || (await granaryPlans()).length > 0) break;
+    const plan = await sim((sm, d) => {
+      const n = sm.state.nests.find((x) => x.alive && x.colony === sm.state.colonies[0].id);
+      if (!n) return null;
+      const ch = n.chambers.find((x) => x.type === 'royal') ?? n.chambers[0];
+      const out = { x: 0, y: 0, z: 0 }, nn = { x: 0, y: 1, z: 0 };
+      sm.field.project({ x: ch.center.x + d[0] * ch.radii.x, y: ch.center.y, z: ch.center.z + d[1] * ch.radii.z }, 0, out, nn);
+      return { nestId: n.id, anchor: { pos: out, normal: nn } };
+    }, [sx, sz]);
+    if (!plan) break;
+    await g((p) => window.__game.command({ type: 'planDig', nestId: p.nestId, kind: 'chamber', chamberType: 'granary', size: 'm', anchor: p.anchor, yawDeg: 0, priority: 'high', confirmWarnings: true }), plan);
+    await step(2);
   }
+  const made = await granaryPlans();
+  log(`granary plans: ${JSON.stringify(made)} refusals ${JSON.stringify(await g(() => window.__mbPlanEvents))}`);
+  for (const p of made) { await raw({ type: 'cheat.instantPlan', planId: p.id }); await step(2); }
+  await step(20);
   const granaryChamber = () => sim((sm) => {
     const m = sm.state.colonies[0].granary;
     for (const n of sm.state.nests) for (const ch of n.chambers) {
@@ -146,6 +155,7 @@ export default async ({ page, shot, log }) => {
     return null;
   });
   log(`granary chamber after the plan: ${JSON.stringify(await granaryChamber())}`);
+  log(`chambers: ${JSON.stringify(await sim((sm) => sm.state.nests.filter((n) => n.colony === sm.state.colonies[0].id).flatMap((n) => n.chambers.map((c) => ({ id: c.id, type: c.type, vol: c.volume })))))}`);
   for (let i = 0; i < 80 && ((await granaryChamber())?.stock ?? 0) < 4; i++) await step(250);
   const gr = await granaryNow();
   result.checks.granary = gr;

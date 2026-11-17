@@ -8,6 +8,14 @@ import json, sys, statistics
 ARCHETYPES = ['woodland-edge', 'suburban-garden', 'playground-park', 'car-park-verge', 'kitchen-door']
 
 
+def excl_unknown(intake, funnel, nut):
+    if not funnel or not funnel.get('delivered'):
+        return intake
+    tot = sum(v[nut] for v in funnel['delivered'].values())
+    unk = funnel['delivered'].get('unknown', {}).get(nut, 0)
+    return round(intake * (tot - unk) / tot, 3) if tot > 0 else intake
+
+
 def load(d):
     rows = {}
     for a in ARCHETYPES:
@@ -34,6 +42,10 @@ def load(d):
                 fails=[c['name'] + ' (' + c['detail'] + ')' for c in v['checks'] if not c['ok']],
                 hash=r.get('finalHash', ''),
                 funnel=r.get('funnel'),
+                # intake without the deliveries booked as 'unknown' (colony-life round 2, C1: before it, in-nest
+                # unloadings were booked as 'unknown' deliveries, so sweeps before round 2 overstate intake)
+                intakeCx=excl_unknown(e['intakeOverNeedC'], r.get('funnel'), 'c'),
+                intakePx=excl_unknown(e['intakeOverNeedP'], r.get('funnel'), 'p'),
             )
     return rows
 
@@ -87,8 +99,8 @@ def bars(rows):
 
 def compare(rows, prev):
     out = ['\n**Run by run against the previous sweep** (fresh founding in both, so first workers can differ):', '',
-           '| run | viable | first workers | workers at winter | eclosions | intake/need C | intake/need P | trips successful | worker:lost | regression |',
-           '|' + '---|' * 10]
+           '| run | viable | first workers | workers at winter | eclosions | intake/need C | intake/need P | C / P without `unknown` deliveries | trips successful | worker:lost | regression |',
+           '|' + '---|' * 11]
     regs = []
     for key, r in rows.items():
         p = prev.get(key)
@@ -100,7 +112,8 @@ def compare(rows, prev):
             flags.append(f"net workers {p['winter'] - p['first']:+d} -> {r['winter'] - r['first']:+d}")
         if r['eclosions'] < p['eclosions']: flags.append(f"eclosions {p['eclosions']} -> {r['eclosions']}")
         if r['intakeC'] < p['intakeC'] - 0.1: flags.append(f"intake C {p['intakeC']} -> {r['intakeC']}")
-        if r['intakeP'] < p['intakeP'] - 0.05: flags.append(f"intake P {p['intakeP']} -> {r['intakeP']}")
+        if r['intakeP'] < p['intakeP'] - 0.05: flags.append(f"intake P {p['intakeP']} -> {r['intakeP']}"
+                                                         + (f" (without unknown {p['intakePx']} -> {r['intakePx']})" if p['intakePx'] != p['intakeP'] else ''))
         if r['success'] < p['success'] - 0.05: flags.append(f"trip success {round(p['success'] * 100)} -> {round(r['success'] * 100)} %")
         if r['lost'] > p['lost']: flags.append(f"worker:lost {p['lost']} -> {r['lost']}")
         if r['starved'] > p['starved']: flags.append(f"larvae starved {p['starved']} -> {r['starved']}")
@@ -110,7 +123,7 @@ def compare(rows, prev):
         pct = lambda x: f'{round(x * 100)} %'
         yn = lambda x: 'yes' if x else 'no'
         out.append(f"| {a} #{s} | {f('viable', yn)} | {f('first')} | {f('winter')} | {f('eclosions')} | {f('intakeC')} | {f('intakeP')} "
-                   f"| {f('success', pct)} | {f('lost')} | {'; '.join(flags) or '-'} |")
+                   f"| {p['intakeCx']} / {p['intakePx']} -> {r['intakeCx']} / {r['intakePx']} | {f('success', pct)} | {f('lost')} | {'; '.join(flags) or '-'} |")
     return '\n'.join(out), regs
 
 

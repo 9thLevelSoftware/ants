@@ -38,3 +38,16 @@ describe('Swarm', () => {
     expect(r.ants.length).toBe(SWARM.count);
   });
 });
+
+describe('Swarm round the gyne', () => {
+  it('at the lek the males crowd round the gyne; climbing, they hover over the lek centre', () => {
+    const s = new Swarm();
+    const gyne = { x: 0, y: 500, z: 0 };
+    for (const m of s.update({ phase: 'mate', lek, startTick: 0, gyneId: 7 }, 30, 0.1, 1, 4, gyne)) {
+      expect(Math.hypot(m.pos.x - gyne.x, m.pos.z - gyne.z)).toBeLessThanOrEqual(SWARM.radiusBu[1] * 4 + 1e-6);
+    }
+    for (const m of s.update({ phase: 'ascend', lek, startTick: 0, gyneId: 7 }, 30, 0.1, 1, 4, gyne)) {
+      expect(Math.hypot(m.pos.x - lek.x, m.pos.z - lek.z)).toBeLessThanOrEqual(SWARM.radiusBu[1] * 4 + 1e-6);
+    }
+  });
+});

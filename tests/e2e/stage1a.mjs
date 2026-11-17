@@ -289,6 +289,23 @@ export default async ({ page, shot, log }) => {
   let laid = await ownBrood();
   result.egg = { before: brood0, laid, refusals: await refusals() };
   if (laid <= brood0) {
+    // gate-close-app: the founding queen lays only after she has sealed her cell (GDD 06 §5.8-5.9, claustral founding);
+    // the 1A script asked for an egg straight after the dig. Play the real path first: seal (E), then lay.
+    const opPhase = () => g(() => window.__founding?.view()?.phase ?? null);
+    result.egg.phaseBefore = await opPhase();
+    if (result.egg.phaseBefore === 'seal' || result.egg.phaseBefore === 'dig') {
+      await g(() => window.__game.act('seal-entrance'));
+      for (let t = 0; t < 3000 && (await opPhase()) !== 'lay'; t += 50) await step(50);
+      result.egg.phaseAfterSeal = await opPhase();
+      if (result.egg.phaseAfterSeal === 'lay') {
+        await g(() => window.__game.act('lay-egg'));
+        await step(300);
+        laid = await ownBrood();
+        result.egg.laidAfterSeal = laid;
+      }
+    }
+  }
+  if (laid <= brood0) {
     // lay-egg needs a registered chamber or the founding cell (nestops chamber detection / the 1B founding flow)
     standIn('egg', `lay-egg refused (${result.egg.refusals.filter((r) => r.startsWith('lay-egg')).join(', ') || 'no egg'}); 6 eggs cheat-spawned at the queen`, 'founding (1B)');
     const col = await g(() => window.__game.query.colony()?.id ?? -1);

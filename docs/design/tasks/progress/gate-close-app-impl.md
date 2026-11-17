@@ -47,3 +47,9 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - Seen founding1/04-sealed-chamber-eggs-high.png: flood water film (4 %) drawn as pale opaque cross-shaped slab -> FIXED in src/render/world/weather/floodWater.ts (vertex-alpha feathered outline) + tuning (opacity 0.65, roughness 0.55, FLOOD_WATER_EDGE_ALPHA); test floodSheet.test.ts. Needs a re-shot (founding2/3 runs will show).
 - 05:06 firstplay: ALL 25 BEATS SHOT (opening real, trail/harvest/deliver ok, save/continue ok); FAILS only the growth assert (SIM): seed 2 "test=1&quality=test", days summer 6 -> autumn 1 at 8x, workers 15,15,15; brood 8,7,4; P 2.25,1.62,0.26; C 5.96,14,14. Evidence test-output/gate-close/app/e2e/firstplay{,.log,.json}.
 - Running: onboarding lifecycle stage1a founding2 (bg, from 05:07).
+- 05:33 onboarding PASS after facts fix (3 recorded stand-ins: hint-share, delivery, trail-established).
+- 05:40 lifecycle PASS again; flightAnts stats: 90 ants known to renderer, drawn lod0 1 + lod3 12, culled 77 -> swarm males drawn only at far LOD, not readable in 03-flight.png (gyne flies ~35 BU above lek centre). Report males seam as PARTIAL.
+- 05:45 swarm now centres on the gyne in lek/mate phases (swarm.ts gyne arg; SWARM.radiusBu [2,9]); test added. lifecycle rerun needed to see it.
+- 05:47 stage1a strict FAIL at egg (lay refused in dig phase: founding lays only after sealing). Script now plays seal->lay before stand-in (tests/e2e/stage1a.mjs). Rerun pending.
+- 06:01 founding2 PASS (sealed 100 ticks, 3 plugs, 24 eggs, 16 workers). Running: founding3 stage1a lifecycle views (bg from 06:02).
+- Report draft being written at docs/design/tasks/gate-close-app-report.md.

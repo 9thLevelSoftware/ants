@@ -8,7 +8,7 @@ import type { AntView } from './simAdapter';
 import { SWARM } from './tuning';
 
 /** The flight fields the swarm needs (a structural subset of the sim's PossessedFlight). */
-export interface SwarmFlight { phase: string; lek: Vec3; startTick: number }
+export interface SwarmFlight { phase: string; lek: Vec3; startTick: number; gyneId?: number }
 
 const SHOWN = new Set(['ascend', 'lek', 'mate']);
 
@@ -43,15 +43,20 @@ function place(i: number, t: number, lek: Vec3, buMm: number, out: Vec3): void {
 export class Swarm {
   private males: AntView[] = [];
 
-  update(flight: SwarmFlight | null, tick: number, tickS: number, colony: number, buMm: number): readonly AntView[] {
+  /**
+   * `gyne`: where the possessed gyne is. Once she is at the lek (phases lek / mate) the males crowd round her (they
+   * chase the female), else they hover over the lek centre.
+   */
+  update(flight: SwarmFlight | null, tick: number, tickS: number, colony: number, buMm: number, gyne: Vec3 | null = null): readonly AntView[] {
     if (!flight || !SHOWN.has(flight.phase)) return [];
+    const centre = gyne && flight.phase !== 'ascend' ? gyne : flight.lek;
     while (this.males.length < SWARM.count) this.males.push(male(this.males.length, colony));
     const t = (tick - flight.startTick) * tickS;
     for (let i = 0; i < SWARM.count; i++) {
       const m = this.males[i];
       m.colony = colony;
-      place(i, t - tickS, flight.lek, buMm, m.prevPos);
-      place(i, t, flight.lek, buMm, m.pos);
+      place(i, t - tickS, centre, buMm, m.prevPos);
+      place(i, t, centre, buMm, m.pos);
       // heading level (up stays +Y): the direction of travel in the XZ plane
       const dx = m.pos.x - m.prevPos.x, dz = m.pos.z - m.prevPos.z;
       const len = Math.hypot(dx, dz) || 1;

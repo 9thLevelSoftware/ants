@@ -150,7 +150,8 @@ export class SimReader {
     this.foundingWingsShown = phase !== undefined && WINGED_OPENING_PHASES.includes(phase);
     const col = this.sim.state.colonies[0];
     const flight = col?.lifecycle?.flight ?? null;
-    this.swarmAnts = col ? this.swarm.update(flight, this.sim.state.tick, 1 / TICKS_PER_SECOND, col.id, this.speciesInfo(col.species).buMm) : [];
+    const gyne = flight && flight.gyneId !== undefined ? this.sim.state.ants.find((a) => a.id === flight.gyneId)?.pos ?? null : null;
+    this.swarmAnts = col ? this.swarm.update(flight, this.sim.state.tick, 1 / TICKS_PER_SECOND, col.id, this.speciesInfo(col.species).buMm, gyne) : [];
   }
 
   speciesOfColony(colony: number): string {

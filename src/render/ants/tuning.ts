@@ -105,7 +105,7 @@ export const ANT_FILL = {
 export const SWARM = {
   count: 24,
   lengthBu: 1.0,
-  radiusBu: [3, 14] as [number, number],
+  radiusBu: [2, 9] as [number, number],
   loopRadS: 0.8,
   bobRadS: 2.0,
   bobBu: 1.0,

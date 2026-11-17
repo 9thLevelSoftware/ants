@@ -30,6 +30,10 @@
   shaft, nav failed 'leg' every think, 32 BU from the founding chamber; never delivers. Repro: probe ho.ts on
   test-output/harvester/viab2/cache/founded-messor-barbarus-playground-park-1-naturalist-d-fe66cb2b.bin.
 - pp3 killed (stale code). NEXT: e2e harness alone, then viability reruns with final code.
+## 06:40 e2e
+- run 1/2 (test-output/harvester-fix/e2e*): 3 natural first workers; 01 seed carrier LOOKED AT (media with a visible seed,
+  on a leaf, no column). Failed at the granary: planDig via window.__game.command made no plan in the browser
+  (node probe plan2.ts: the same command works on the sim). Run 3: refused 'overlaps-plan' (architect plan on +x side). Run 4: tries 4 sides of the royal chamber.
 ## Viability so far (test-output/harvester/viab2)
 - pp2: real founding never handed over in 16 gd; forced seal failed (egg/larva flooding 18, queen exhaustion). Founding, not granary.
 - pp1 (running): hand-over 2 workers; days 1-7 trips 0, brood 4 eggs -> 0 by day 4, P flat 0.3. To probe with
