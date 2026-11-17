@@ -116,4 +116,41 @@ The band leaves no room to bring the rare families up by levers: `COLONY_PAUSE_K
 jumping spider, or a smaller jumping-spider inner edge, add kills where the rate is already set by the ant-spider and
 the jumping spider (threats-live fix2-fix4: 0.21-0.40 with them).
 
+## 4. The three core gaps (reproduced, not fixed: for the colony engineer)
+
+All three in `src/sim/ecology/creatures/coreGaps.repro.test.ts`. (a) and (c) are `it.fails`: each asserts what the GDD
+asks for and currently fails on that assertion (checked by running them as plain `it`: "expected 0 to be greater than
+0" and "expected 0 to be greater than or equal to 27.6"). When a gap is closed its test starts failing as an
+`it.fails`: turn it into a plain `it` then.
+
+**(a) Paralysed nestmates are never carried home** (GDD 05 §2.4: "AI carry paralysed nestmates (`haul`) with p 0.5";
+§2.2b "rescue paralysed"). Reproduction: a worker at health 0.25 and paralysed (`combat.paralysedUntilTick`, 60 s), three
+idle nestmates 3 BU away, every system of the sim running (`makeTestSim` default systems); in 6 colonies (seeds 1-6),
+over 55 s, no nestmate moves her or takes her home: 0 rescues where the GDD expects about 3. Cause: `Ant.carry.kind` is
+`'none' | 'item' | 'brood'` (no ant can be carried) and nothing in `src/sim/ants/**` reads `paralysedUntilTick` to start a
+haul (grep: only fight / patrol skip such ants). Effect in the runs: at 60 workers the ant-spider hit 53 times and killed
+15 (the rest recovered when ants came within 1 L of the spider and it fled, or the venom left them above the paralysis
+line); with rescue at p 0.5 roughly half of the 15 would live. This is the largest single lever on the 60-worker rate
+(ant-spider = 37 % of the kills), so when it is built the rate at 60 workers drops towards ~0.03: re-measure then (the
+band's lower edge).
+
+**(b) Worker maxHp 7.2 in the hand-overs.** It is not a defect: the hand-over workers are **nanitics** (the founding
+brood, species `firstBroodClass: { caste: 'worker', nanitic: true }`); `colony/brood.ts ecloseBrood` gives them length
+`NANITIC_SCALE` 0.85 x the worker mean, so mass 1.0 x 0.85^3 = 0.614 mg and `entities/antStats.ts` maxHp
+`HP_PER_MG23` 10 x 0.614^(2/3) = 7.2. GDD 05 §4.1's table has the row "LN nanitic (`worker`, scale 0.85): mass 0.6,
+maxHp 7" and GDD 07's caste table the same (7), so code and both chapters agree; the "10" is GDD 05 §4.1's regular
+`worker` row, which E12 ("a lone possessed LN worker ... takes 9 damage, is seized") is written for. By the precedence
+rule nothing contradicts: GDD 05 owns both rows. Consequence, by design as written: a jumping-spider leap (9 x
+`predatorDamageMult`, Naturalist 9) kills a nanitic outright with no seized phase and no struggle; regular workers
+(0.73-1.52 mg, 8.1-13.2 hp, mean 10) are seized. The 60-worker runs used regular workers (`cheat.spawnAnts`). The test
+pins it: nanitic 0.614 mg / 7.2 hp, mean worker 10 hp, leap between the two. If the design wants a seized phase for
+nanitics too, that is a GDD decision (E12 does not ask for it).
+
+**(c) Known antlion pits are not avoided** (GDD 05 §2.4 "known pits ... are avoided in local steering (radius pit + 1 L)
+permanently"; E14 "no nestmate path enters `radius + 1 L` afterwards"). Reproduction: a pit of radius 23.5 mm known to the
+colony (`hazard.knownBy`), a worker sent with `navTo` to the far side: she walks straight in and is dragged under
+(closest approach 0, needed >= 27.6 mm). `knownHazardsNear` (`creatures/queries.ts`, exported from the module index) has
+no caller in `src/sim/locomotion/**` or `src/sim/ants/**` (grep). On the five worlds there is no pit (no habitat), so
+this costs nothing in the measured runs; it matters on worlds with sheltered dry sand.
+
 (SECTIONS FOLLOW)
