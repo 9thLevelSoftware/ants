@@ -8,6 +8,11 @@
 //
 //   node tools/sim/run-ts.mjs tools/sim/threatFunnel.ts --archetype woodland-edge --seed 1 --days 6
 //        [--preset gentle|naturalist|harsh] [--rules '{"predators":"off"}'] [--cache DIR] [--out DIR] [--tag T]
+//        [--run-seed K] [--workers N] [--food C,P]
+//   --run-seed K (threats-calibrate): re-seeds every RNG stream of the restored snapshot from K (tool-side), so the
+//                same hand-over gives a different run; 0 (default) keeps the snapshot's streams.
+//   --workers N  (threats-calibrate): raises the colony to N workers at the start (cheat.spawnAnts, age 4 gd, as
+//                life.ts --workers), e.g. the 60-worker calibration case; --food C,P adds loads with it.
 //
 // Wall clock and files live here, never in src/sim.
 
@@ -18,6 +23,7 @@ import { createSim } from '@/sim/sim';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { generateWorld } from '@/worldgen';
 import { restore, stateHash } from '@/sim/save';
+import { rngFork } from '@/core/rng';
 import {
   BIRD_MIN_EXPOSED, BIRD_MIN_WORKERS, BIRD_TARGET_RADIUS_BU, CREATURE_LEVERS, CREATURE_STATS, LONE_ANT_L,
   NEST_EXCLUSION_WORKERS, PREY_MAX_MG, REF_BU_MM, windupMaxTargetSpeed,
@@ -39,10 +45,13 @@ const APPROACH_STATES: Partial<Record<CreatureKind, readonly string[]>> = {
 const SAMPLE_TICKS = 10;
 const STAGES = ['sense', 'select', 'approach', 'telegraph', 'strike', 'hit', 'kill', 'feed'] as const;
 
-interface Opts { archetype: ArchetypeId; seed: number; days: number; preset: DifficultyId | null; rules: Record<string, unknown> | null; cache: string; out: string | null; tag: string; snapshot: string | null }
+interface Opts {
+  archetype: ArchetypeId; seed: number; days: number; preset: DifficultyId | null; rules: Record<string, unknown> | null; cache: string; out: string | null; tag: string; snapshot: string | null;
+  runSeed: number; workers: number; food: [number, number];
+}
 
 function parse(args: readonly string[]): Opts {
-  const o: Opts = { archetype: 'woodland-edge', seed: 1, days: 6, preset: null, rules: null, cache: 'test-output/colony-life/round-3/cache', out: null, tag: '', snapshot: null };
+  const o: Opts = { archetype: 'woodland-edge', seed: 1, days: 6, preset: null, rules: null, cache: 'test-output/colony-life/round-3/cache', out: null, tag: '', snapshot: null, runSeed: 0, workers: 0, food: [0, 0] };
   for (let i = 0; i < args.length; i += 2) {
     const k = args[i], v = args[i + 1];
     if (k === '--archetype') o.archetype = v as ArchetypeId;
@@ -54,6 +63,9 @@ function parse(args: readonly string[]): Opts {
     else if (k === '--out') o.out = v;
     else if (k === '--tag') o.tag = v;
     else if (k === '--snapshot') o.snapshot = v;
+    else if (k === '--run-seed') o.runSeed = Number(v);
+    else if (k === '--workers') o.workers = Number(v);
+    else if (k === '--food') o.food = v.split(',').map(Number) as [number, number];
     else throw new Error(`threatFunnel: unknown option ${k}`);
   }
   return o;
@@ -364,11 +376,30 @@ export class ThreatObserver {
   }
 }
 
+/** Re-seeds the main stream and every named stream from `runSeed` (tool-side; 0 = unchanged). */
+export function reseedRun(sim: Sim, runSeed: number): void {
+  if (!runSeed) return;
+  const put = (dst: number[], src: number[]) => { for (let i = 0; i < 4; i++) dst[i] = src[i]; };
+  put(sim.state.rng, rngFork(runSeed, 'run/main'));
+  for (const [name, s] of Object.entries(sim.state.rngStreams)) put(s, rngFork(runSeed, `run/${name}`));
+}
+
+/** Raises the player colony to `workers` workers (cheat.spawnAnts, as life.ts --workers), optional food with it. */
+export function raiseColony(sim: Sim, workers: number, food: [number, number]): void {
+  const col = sim.state.player.colonyId;
+  const have = sim.stores.ants.list.filter((a) => a.alive && a.colony === col && isWorkerCaste(a.caste)).length;
+  if (workers > have) sim.enqueue({ type: 'cheat.spawnAnts', colonyId: col, n: workers - have, caste: 'worker', ageGd: 4, task: null, pos: null });
+  if (food[0] > 0 || food[1] > 0) sim.enqueue({ type: 'cheat.addFood', colonyId: col, c: food[0], p: food[1], toxin: 0 });
+  if (workers > have || food[0] > 0 || food[1] > 0) sim.tick();
+}
+
 /** Restores a hand-over snapshot with its world and applies the preset / rules to the run (setDifficulty command). */
-export function simFromSnapshot(o: Pick<Opts, 'archetype' | 'seed' | 'preset' | 'rules'>, snap: Uint8Array): Sim {
+export function simFromSnapshot(o: Pick<Opts, 'archetype' | 'seed' | 'preset' | 'rules'> & Partial<Pick<Opts, 'runSeed' | 'workers' | 'food'>>, snap: Uint8Array): Sim {
   const base = defaultGameConfig('lasius-niger', o.seed, 'naturalist');
   const world = generateWorld({ ...base.world, archetype: o.archetype });
   const sim = createSim(restore(snap).state, world);
+  reseedRun(sim, o.runSeed ?? 0);
+  raiseColony(sim, o.workers ?? 0, o.food ?? [0, 0]);
   if (o.preset || o.rules) {
     sim.enqueue({ type: 'setDifficulty', ...(o.preset ? { preset: o.preset } : {}), ...(o.rules ? { custom: o.rules } : {}) } as never);
     sim.tick();
@@ -436,7 +467,7 @@ export default async function main(args: string[]): Promise<void> {
   console.error(md);
   if (o.out) {
     fs.mkdirSync(o.out, { recursive: true });
-    const b = `${o.out}/funnel-${o.archetype}-${o.seed}-${o.preset ?? 'naturalist'}${o.rules ? '-custom' : ''}${o.tag}`;
+    const b = `${o.out}/funnel-${o.archetype}-${o.seed}-${o.preset ?? 'naturalist'}${o.rules ? '-custom' : ''}${o.workers ? `-w${o.workers}` : ''}${o.runSeed ? `-r${o.runSeed}` : ''}${o.tag}`;
     fs.writeFileSync(`${b}.json`, JSON.stringify(r, null, 1));
     fs.writeFileSync(`${b}.md`, md + '\n');
   } else console.log(JSON.stringify(r));

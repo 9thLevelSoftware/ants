@@ -1292,3 +1292,12 @@ Tools: `tools/sim/handover-sweep.sh`, `longrun-table.py`, `longrun-life.sh` (CAC
   incl. L1b) and `PAR=1 $S/r4c/tools/sim/bench-sweep.sh nest $P/bench-nest-before $P/cache` (r4c + the bench fix).
   Scratch trees r4a/r4d/r4e/r4f/noL1/base deleted. ETA ~17:45 (15 runs x ~7 min each, two in parallel).
 - 16:39 nest benches 6/15 each done; still running (commands of 15:59). Next: tables, then close the round.
+- 16:59 nest benches 9/15 each.
+- 17:10 **bench confound found**: between the frozen trees r4c (13:17) and r4g (15:58) threats-live changed the
+  predators (`ecology/creatures/director.ts`, `conditions.ts`, `colonyRange.ts`, new `colonySites.ts`,
+  `balance/creatures.ts`): on the 10 runs both benches had, worker predation 30 (r4c) vs 64 (r4g), so the r4g "after"
+  (`round-4/bench-nest-after-r4g/`, 10 runs) mixes their change with this round's. Its brood counters: hygiene losses
+  195 -> 86 (median 18 -> 7.5), eclosed 19 -> 34 (median 0 -> 2) over the 10 runs. The clean "after" is tree **r4h** =
+  r4g with r4c's `ecology/creatures/**` and `balance/creatures.ts` (diff r4c..r4h = this round's files only). Running:
+  `PAR=1 $S/r4h/tools/sim/bench-sweep.sh nest $P/bench-nest-after $P/cache "<seeds 1-2>"` now; seed 3 when the
+  "before" bench ends (`... "woodland-edge:3 suburban-garden:3 playground-park:3 car-park-verge:3 kitchen-door:3"`).

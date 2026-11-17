@@ -29,7 +29,7 @@ import { updateDanger } from './danger';
 import { expireHazards } from './neutral';
 import { abandonOrphanPits, reconcileInvasion } from './lifecycle';
 import { nestAttackedAlerts, predatorNearAlerts } from './alerts';
-import { anchorDist2, colonyAnchor, ensureColonyRangeTerritories } from './colonyRange';
+import { anchorDist2, colonyAnchor, drawnKinds, ensureColonyRangeTerritories, isColonyRangeTerritory } from './colonyRange';
 
 const RUN_S = CREATURE_DIRECTOR_EVERY / TICKS_PER_SECOND;
 
@@ -134,14 +134,14 @@ function territoryOrder(sim: Sim): number[] {
  * near territory that can be filled in this same run counts (spawn distance rule passes, not waiting after a failed
  * placement); otherwise the far resident would leave and come back on every run.
  */
-function rebalanceResidents(sim: Sim, order: readonly number[]): void {
+function rebalanceResidents(sim: Sim, order: readonly number[], drawn: ReadonlySet<CreatureKind>): void {
   const terr = sim.state.ecology.director.territories;
   for (const kind of RESIDENT_KINDS) {
     if (kind === 'antlion' || countKind(sim, kind) < capOf(sim, kind)) continue;
     let freeRank = -1, farRank = -1;
     for (let r = 0; r < order.length; r++) {
       const t = terr[order[r]];
-      if (t.kind !== kind) continue;
+      if (t.kind !== kind || suspended(sim, order[r], drawn)) continue;
       const occ = t.occupantId >= 0 ? sim.stores.creatures.get(t.occupantId) : undefined;
       if (!occ) { if (freeRank < 0 && sim.state.tick >= t.vacantUntilTick && spawnPointFor(sim, t)) freeRank = r; }
       else if (!isEngaged(sim, occ) && farFromFocus(sim, occ.pos)) farRank = r;
@@ -155,11 +155,39 @@ function rebalanceResidents(sim: Sim, order: readonly number[]): void {
   }
 }
 
+/** A colony-range territory whose kind the colony-size ramp (R25) does not draw now: not occupied, resident leaves. */
+function suspended(sim: Sim, i: number, drawn: ReadonlySet<CreatureKind>): boolean {
+  return !drawn.has(sim.state.ecology.director.territories[i].kind) && isColonyRangeTerritory(sim, i);
+}
+
+/**
+ * Residents of suspended colony-range territories (the colony shrank below the ramp's draw for their kind) leave
+ * SETTING_DESPAWN_GD after the kind fell out of the draw, not at once (a count that dips for a moment changes
+ * nothing); engaged ones finish first. A kind drawn again before that keeps its resident.
+ */
+function rampCull(sim: Sim, drawn: ReadonlySet<CreatureKind>): void {
+  const terr = sim.state.ecology.director.territories;
+  const now = sim.state.tick;
+  for (let i = 0; i < terr.length; i++) {
+    const t = terr[i];
+    const c = t.occupantId >= 0 ? sim.stores.creatures.get(t.occupantId) : undefined;
+    if (!c || !c.alive) continue;
+    if (!suspended(sim, i, drawn)) { delete c.bb.rampOut; continue; }
+    c.bb.rampOut ??= now;
+    if (now - c.bb.rampOut >= SETTING_DESPAWN_GD * TICKS_PER_DAY && !isEngaged(sim, c)) {
+      despawnCreature(sim, c.id, 'ramp');
+      t.occupantId = -1;
+    }
+  }
+}
+
 /** Fills free territories (residents: after their respawn delay; visitors: while active), nearest the colony first. */
 function occupyTerritories(sim: Sim, cond: Conditions): void {
   const terr = sim.state.ecology.director.territories;
   const order = territoryOrder(sim);
-  rebalanceResidents(sim, order);
+  const drawn = drawnKinds(sim);
+  rampCull(sim, drawn);
+  rebalanceResidents(sim, order, drawn);
   for (const i of order) {
     const t = terr[i];
     const resident = RESIDENT_KINDS.includes(t.kind) && t.kind !== 'antlion';
@@ -167,6 +195,7 @@ function occupyTerritories(sim: Sim, cond: Conditions): void {
     if (!resident && !visitor) continue;
     if (t.occupantId >= 0 && sim.stores.creatures.has(t.occupantId)) continue;
     t.occupantId = -1;
+    if (suspended(sim, i, drawn)) continue;
     if (sim.state.tick < t.vacantUntilTick) continue;
     if (visitor && (!visitorActive(sim, t.kind, cond, t.center) || !chance(sim, VISITOR_SPAWN_P))) continue;
     if (countKind(sim, t.kind) >= capOf(sim, t.kind)) continue;

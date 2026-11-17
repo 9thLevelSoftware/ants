@@ -45,6 +45,8 @@ export interface CreatureTerritory {
   /** Creature id occupying it, -1 vacant. */
   occupantId: number;
   vacantUntilTick: number;
+  /** Additive (threats-calibrate): 1 when the creature director added it for the colony range (ruling R25 ramp). */
+  colonyRange?: number;
 }
 
 export interface CreatureDirector {

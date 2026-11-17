@@ -4,6 +4,7 @@
 
 import type { CustomRules, DifficultyId, DifficultyParams } from '@/sim/types';
 import { DIFFICULTY_PARAMS, MAX_RIVALS, presetRuleValues, type DifficultyKey } from '@/sim/balance';
+import { PREDATION_RAMP_WORKERS } from '@/sim/balance/difficulty';
 
 /**
  * Parameters and rules the design lists but no system reads yet (the owning module does not exist, or does not take
@@ -33,6 +34,15 @@ const pct = (v: number): string => `${Math.round(v * 100)}%`;
 const onOff = (v: boolean): string => (v ? 'shown' : 'hidden');
 const gd = (v: number): string => `${v} day${v === 1 ? '' : 's'}`;
 
+/** The preset whose table `p` is (rows that show a per-preset value kept outside the parameter table). */
+const presetIdOf = (p: DifficultyParams): DifficultyId =>
+  (Object.keys(DIFFICULTY_PARAMS) as DifficultyId[]).find((id) => DIFFICULTY_PARAMS[id] === p) ?? 'naturalist';
+/** Ruling R25: hunters settle where the colony's ants walk once it has grown (PREDATION_RAMP_WORKERS). */
+const rampText = (id: DifficultyId): string => {
+  const [lo, hi] = PREDATION_RAMP_WORKERS[id];
+  return lo > 0 ? `from ${lo} workers, all by ${hi}` : `from the first workers, all by ${hi}`;
+};
+
 /** Rows in the order of the GDD 06 §14 table. */
 export const PRESET_ROWS: readonly PresetRow[] = [
   { group: 'Founding', label: 'Exposure to the sun while founding', keys: ['foundingExposureRate'], format: (p) => mult(p.foundingExposureRate) },
@@ -52,6 +62,7 @@ export const PRESET_ROWS: readonly PresetRow[] = [
   { group: 'Weather and climate', label: 'Rain running into the nest', keys: ['floodInflowMult'], format: (p) => mult(p.floodInflowMult) },
   { group: 'Weather and climate', label: 'Heat tolerance of ants', keys: ['heatToleranceOffsetC'], format: (p) => `${p.heatToleranceOffsetC > 0 ? '+' : ''}${p.heatToleranceOffsetC} C` },
   { group: 'Threats, rivals, humans', label: 'Predators', keys: ['predatorDensityMult'], format: (p) => mult(p.predatorDensityMult) },
+  { group: 'Threats, rivals, humans', label: 'Hunters settling by a growing colony', keys: [], format: (p) => rampText(presetIdOf(p)) },
   { group: 'Threats, rivals, humans', label: 'Rival colonies', keys: ['incipientRivals'], format: (p) => `${p.incipientRivals} young rivals nearby` },
   { group: 'Threats, rivals, humans', label: 'Rival aggression', keys: ['rivalAggMult'], format: (p) => mult(p.rivalAggMult) },
   { group: 'Threats, rivals, humans', label: 'Rival colony size', keys: ['rivalKMult'], format: (p) => mult(p.rivalKMult) },

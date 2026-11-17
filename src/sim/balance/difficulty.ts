@@ -271,3 +271,29 @@ export function effectiveParams(cfg: DifficultyInputs): DifficultyParams {
   for (const k of DIFFICULTY_KEYS) out[k] = valueIn(cfg, k);
   return out as unknown as DifficultyParams;
 }
+
+// ---- predation ramp (integrator ruling R25) --------------------------------------------------------------------
+
+/**
+ * Colony-size ramp of the creature director's colony-range siting of hunting predators (ruling R25, GDD 05 §5
+ * deviation): the siting chance is multiplied by 0 up to the lower worker count, rising linearly to 1 at the upper.
+ * Residents in their own worldgen territories are not ramped. Per preset, in simulated workers of the player colony.
+ */
+export const PREDATION_RAMP_WORKERS: Record<DifficultyId, readonly [number, number]> = {
+  gentle: [20, 60],
+  naturalist: [10, 40],
+  harsh: [0, 20],
+};
+
+/** The ramp's [lower, upper] worker counts for this game's preset. */
+export function predationRampWorkers(src: DifficultySource): readonly [number, number] {
+  return PREDATION_RAMP_WORKERS[src.state.config.difficulty.preset] ?? PREDATION_RAMP_WORKERS.naturalist;
+}
+
+/** Ramp value 0..1 for a colony of `workers`: 0 at or below the lower count, 1 at or above the upper, linear between. */
+export function predationRamp(src: DifficultySource, workers: number): number {
+  const [lo, hi] = predationRampWorkers(src);
+  if (workers <= lo) return 0;
+  if (workers >= hi) return 1;
+  return (workers - lo) / (hi - lo);
+}

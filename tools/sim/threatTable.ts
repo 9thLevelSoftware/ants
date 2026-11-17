@@ -9,7 +9,7 @@ interface NodeFs { readdirSync(p: string): string[]; readFileSync(p: string, enc
 
 const r2 = (x: number): number => Math.round(x * 100) / 100;
 
-function rates(runs: FunnelResult[]): string {
+export function rates(runs: FunnelResult[]): string {
   const lines = ['| run | workers start -> end | outside worker-h | telegraphs | strikes | hits | worker deaths to predators (by kind) | deaths / outside-worker-gd | deaths / 100 outside-worker-h | telegraphs / gd | predator-near raised | quiet share min |', '|---|---|---|---|---|---|---|---|---|---|---|---|'];
   let tD = 0, tH = 0, tT = 0, tS = 0, tHit = 0, tDays = 0;
   for (const r of runs) {
@@ -19,13 +19,14 @@ function rates(runs: FunnelResult[]): string {
     const owgd = r.colony.outsideWorkerHours / 24;
     tD += deaths; tH += r.colony.outsideWorkerHours; tT += tele; tS += strikes; tHit += hits; tDays += r.days;
     const by = Object.entries(r.workerDeathsPredatorByKind).map(([k, v]) => `${k} ${v}`).join(', ') || '-';
-    lines.push(`| ${r.options.archetype} ${r.options.preset ?? 'naturalist'}${r.options.rules ? ' ' + JSON.stringify(r.options.rules) : ''} | ${r.colony.workersStart} -> ${r.colony.workersEnd} | ${r.colony.outsideWorkerHours} | ${tele} | ${strikes} | ${hits} | ${deaths} (${by}) | ${r2(deaths / Math.max(1e-9, owgd))} | ${r2((100 * deaths) / Math.max(1e-9, r.colony.outsideWorkerHours))} | ${r2(tele / r.days)} | ${r.alerts?.predatorNearRaised ?? '-'} | ${r.alerts?.quietShareMin ?? '-'} |`);
+    const ro = r.options as { runSeed?: number; workers?: number };
+    lines.push(`| ${r.options.archetype}${ro.runSeed ? ` r${ro.runSeed}` : ''}${ro.workers ? ` w${ro.workers}` : ''} ${r.options.preset ?? 'naturalist'}${r.options.rules ? ' ' + JSON.stringify(r.options.rules) : ''} | ${r.colony.workersStart} -> ${r.colony.workersEnd} | ${r.colony.outsideWorkerHours} | ${tele} | ${strikes} | ${hits} | ${deaths} (${by}) | ${r2(deaths / Math.max(1e-9, owgd))} | ${r2((100 * deaths) / Math.max(1e-9, r.colony.outsideWorkerHours))} | ${r2(tele / r.days)} | ${r.alerts?.predatorNearRaised ?? '-'} | ${r.alerts?.quietShareMin ?? '-'} |`);
   }
   lines.push(`| **all** | | ${tH} | ${tT} | ${tS} | ${tHit} | ${tD} | **${r2(tD / Math.max(1e-9, tH / 24))}** | **${r2((100 * tD) / Math.max(1e-9, tH))}** | ${r2(tT / Math.max(1e-9, tDays))} | | |`);
   return lines.join('\n');
 }
 
-function worlds(runs: FunnelResult[]): string {
+export function worlds(runs: FunnelResult[]): string {
   const stages = ['sense', 'select', 'telegraph', 'strike', 'hit', 'kill'] as const;
   const lines = ['| kind | ' + stages.map((s) => `worlds with ${s}`).join(' | ') + ' |', '|---|' + stages.map(() => '---|').join('')];
   for (const k of [...HUNTERS, 'antlion']) {
