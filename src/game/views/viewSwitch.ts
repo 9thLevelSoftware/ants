@@ -16,17 +16,6 @@ export interface ViewSwitchHost {
   readonly viewsLayer?: { readonly photo: { sync(s: GameSession): void } };
 }
 
-/**
- * Leaving the colony view for the observer (look pass 3): an ant released from underground is followed by an orbit camera
- * that ends up inside the nest looking at soil (gate-close-app check4/rain-pip.png). The observer then stays free at the
- * colony camera's pose, above the nest it was just studying; a followed ant on the surface is followed as before.
- */
-function observerAfterColony(s: GameSession): void {
-  const a = s.followId >= 0 ? s.sim.stores.ants.get(s.followId) : undefined;
-  if (a && s.sim.field.substrate(a.pos) < 0) { s.followId = -1; s.followItemId = -1; s.views.unfollow(); }
-  s.setView('observer');
-}
-
 /** M: possession / observer -> colony (soft release, return ant stored by the sim); colony -> back. */
 export function toggleColonyView(h: ViewSwitchHost): void {
   const s = h.session;
@@ -37,7 +26,7 @@ export function toggleColonyView(h: ViewSwitchHost): void {
   } else {
     const ret = s.sim.state.player.returnAntId;
     if (ret >= 0 && s.sim.stores.ants.get(ret)) h.possess(ret, 'last');
-    if (s.view === 'colony') observerAfterColony(s); // nothing to return to, or the possession waits for the next tick
+    if (s.view === 'colony') s.setView('observer'); // nothing to return to, or the possession waits for the next tick
   }
   h.viewChanged();
 }
@@ -68,7 +57,7 @@ export function requestView(h: ViewSwitchHost, view: ViewId): void {
   if (view === 'photo') { togglePhoto(h); return; }
   if (s.view === 'colony') {
     if (view === 'possess') { possessReturnOrFollowed(h, s); return; }
-    observerAfterColony(s); // follows a released ant on the surface, stays free over the nest for one underground
+    s.setView('observer'); // follows the released ant when there is one
     h.viewChanged();
     return;
   }

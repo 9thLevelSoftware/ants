@@ -8,7 +8,7 @@ import type { CameraPose } from '@/render/camera';
 import type { Game } from '../Game';
 import type { ViewId } from '../time/speedRules';
 import { applyPalette } from './palette';
-import { motionPlan, resolveReducedMotion, viewDofStrength, type MotionPlan } from './motion';
+import { motionPlan, resolveReducedMotion, type MotionPlan } from './motion';
 
 const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -56,8 +56,7 @@ export class Accessibility {
     const views = this.game.session?.views;
     if (views) views.tremorScale = this.plan.shakeScale;
     const post = this.game.app?.post;
-    const dof = viewDofStrength(this.plan, view);
-    if (post && view !== 'photo' && post.hooks.dofStrength !== dof) post.setHooks({ dofStrength: dof });
+    if (post && view !== 'photo' && post.hooks.dofStrength !== this.plan.dofStrength) post.setHooks({ dofStrength: this.plan.dofStrength });
   }
 
   /** What is in effect right now, read from the systems themselves (the debug API `__game.a11y.state()`). */

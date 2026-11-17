@@ -11,7 +11,7 @@ import {
 import type { AntRig, V4 } from '../geometry/rig';
 import type { V3 } from '../geometry/meshBuilder';
 import { ANT_COLOR_VERTEX, ANT_VERT_PARS } from './vertexChunk';
-import { ANT_EMISSIVE, ANT_FILL, ANT_FRAG_PARS, ANT_NORMAL, ANT_ROUGHNESS, ANT_SHEEN, WING_COLOR, WING_EMISSIVE, WING_FRAG_PARS } from './fragmentChunk';
+import { ANT_EMISSIVE, ANT_FILL, ANT_FRAG_PARS, ANT_NORMAL, ANT_ROUGHNESS, ANT_SHEEN, WING_COLOR, WING_FRAG_PARS } from './fragmentChunk';
 import { CAMERA_CAPSULE, CUTICLE, HIGHLIGHT, WING_LOOK } from '../tuning';
 
 /** Uniforms shared by every ant material (one object each, so updating .value once updates all). */
@@ -23,8 +23,6 @@ export interface SharedAntUniforms {
   uCapA: Uniform<Vector3>; uCapB: Uniform<Vector3>; uCapR: Uniform<number>; uCapOpacity: Uniform<number>;
   /** Form light (tuning.ts ANT_FILL): body and rim amplitudes already scaled by 2^-EV and the dim-scene blend; colour. */
   uFillBody: Uniform<number>; uFillRim: Uniform<number>; uFillCol: Uniform<Color>;
-  /** Night weight of the form light, 0..1 (not scaled by the exposure): the wings' night body. */
-  uFillK: Uniform<number>;
 }
 
 export function createSharedUniforms(): SharedAntUniforms {
@@ -34,7 +32,7 @@ export function createSharedUniforms(): SharedAntUniforms {
     uHiCool: new Uniform(new Color(HIGHLIGHT.cool).multiplyScalar(HIGHLIGHT.coolGain)),
     uSubjectOpacity: new Uniform(1),
     uCapA: new Uniform(new Vector3()), uCapB: new Uniform(new Vector3()), uCapR: new Uniform(0), uCapOpacity: new Uniform(CAMERA_CAPSULE.opacity),
-    uFillBody: new Uniform(0), uFillRim: new Uniform(0), uFillCol: new Uniform(new Color(1, 1, 1)), uFillK: new Uniform(0),
+    uFillBody: new Uniform(0), uFillRim: new Uniform(0), uFillCol: new Uniform(new Color(1, 1, 1)),
   };
 }
 
@@ -107,7 +105,7 @@ export function makeWingMaterial(rig: AntRig, shared: SharedAntUniforms, membran
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + ANT_FRAG_PARS + WING_FRAG_PARS)
       .replace('#include <color_fragment>', WING_COLOR)
-      .replace('#include <emissivemap_fragment>', WING_EMISSIVE);
+      .replace('#include <emissivemap_fragment>', ANT_EMISSIVE);
   };
   mat.customProgramCacheKey = () => 'ant-wing';
   return mat;

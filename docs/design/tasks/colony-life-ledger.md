@@ -1699,3 +1699,6 @@ Tools: `lifeFunnel.ts` `proteinKnownGd`; `bench-table.py` columns (P known gd, s
   1 gd 6/13 -> 3/15 -> 4/15. Reverted (demand.ts and its test edits back to 8b4c207).
 - P1 v1 (the queen's C held to the stomachs as well as her P): kd #1 pool C 0.06 on day 2, 0 on day 3 with no trips;
   replaced by v2 (C as in round 4).
+- 23:20 folder tests after the revert (`round-5/vitest-*.txt`): colony 62/63 files (red: `founding/reopen`, known),
+  ants/behaviours/outdoor 27/28 (red: `removal.verify`, known), nest 56/57 (red: `escapeDig`, known),
+  ants/behaviours/nest 28/30 (red: `sfaReview.verify`, `stall.soak`, known), ants/player 6/6, nest/flood 11/11.

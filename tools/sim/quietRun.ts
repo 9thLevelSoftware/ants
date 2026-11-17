@@ -20,6 +20,11 @@ import { calendarNow } from '@/sim/environment/calendar';
 import { isWorkerCaste } from '@/sim/colony/census';
 import { QUIET_ALERT_SHARE, QUIET_SAMPLE_EVERY, QUIET_WINDOW_GD } from '@/sim/balance/creatures';
 import { canStartMajorThreat, quietTracker } from '@/sim/ecology/creatures';
+import { rngFork } from '@/core/rng';
+import { daysPerYear } from '@/sim/time';
+import { HUMAN_EVENT_KINDS } from '@/sim/types';
+import { dayContext, drawDayEvents } from '@/sim/environment/human/schedule';
+import { expectedDay } from '@/sim/environment/human/testkit';
 
 declare const process: { exitCode?: number };
 
@@ -27,12 +32,14 @@ export interface QuietOpts {
   archetype: ArchetypeId; seed: number; days: number; preset: DifficultyId | null; rules: Record<string, unknown> | null;
   cache: string; out: string | null; tag: string; snapshot: string | null; runSeed: number; workers: number; food: [number, number];
   untilWinter: boolean;
+  /** Print the human-event counts per game day at humanActivity off / low / normal / high instead of running. */
+  counts: boolean;
 }
 
 function parse(args: readonly string[]): QuietOpts {
   const o: QuietOpts = {
     archetype: 'suburban-garden', seed: 1, days: 6, preset: null, rules: null, cache: 'test-output/colony-life/round-4/cache',
-    out: null, tag: '', snapshot: null, runSeed: 0, workers: 0, food: [0, 0], untilWinter: false,
+    out: null, tag: '', snapshot: null, runSeed: 0, workers: 0, food: [0, 0], untilWinter: false, counts: false,
   };
   for (let i = 0; i < args.length; i += 2) {
     const k = args[i], v = args[i + 1];
@@ -49,11 +56,15 @@ function parse(args: readonly string[]): QuietOpts {
     else if (k === '--workers') o.workers = Number(v);
     else if (k === '--food') o.food = v.split(',').map(Number) as [number, number];
     else if (k === '--until-winter') o.untilWinter = v === '1';
+    else if (k === '--counts') o.counts = v === '1';
     else throw new Error(`quietRun: unknown option ${k}`);
   }
   return o;
 }
 
+/** Alerts raised by the people and the creatures (and rivals): the side this task and the creature soak answer for. */
+const OUTSIDE_KINDS = new Set(['human-event-warning', 'predator-near', 'nest-attacked', 'raid-seen', 'queen-in-danger', 'possessed-danger']);
+const isOutside = (label: string): boolean => OUTSIDE_KINDS.has(label.split('/')[0]);
 const r2 = (x: number): number => Math.round(x * 100) / 100;
 const bump = (m: Record<string, number>, k: string, n = 1): void => { m[k] = (m[k] ?? 0) + n; };
 
@@ -77,6 +88,8 @@ export interface HourRecord {
   by: { threat: number; alerts: Record<string, number> } | null;
   /** Share of the hour with any warning/critical alert on screen. */
   alertShare: number;
+  /** The same for the outside kinds only (people, predators, rivals): the share the colony's own alerts do not touch. */
+  outsideShare: number;
 }
 
 export interface QuietResult {
@@ -89,6 +102,8 @@ export interface QuietResult {
   /** Same over every window with at least 24 counted hours (a run shorter than 3 game days has no full window). */
   partialWindows: { n: number; min: number | null; minAtGd: number | null };
   runShare: number | null;
+  /** What the quiet share would be with only the outside alerts (people, predators, rivals) and threats counted. */
+  outsideOnly: { runShare: number | null; windows: number; min: number | null; failing: number };
   perDay: { gd: number; counted: number; quiet: number }[];
   humanStartsByKind: Record<string, number>; humanCancelledByKind: Record<string, number>; humanDays: number;
   threats: { started: number; startedByKind: Record<string, number>; blockedHours: number; blockedByShareHours: number };
@@ -113,7 +128,7 @@ export class QuietObserver {
   readonly startedByKind: Record<string, number> = {};
   blockedHours = 0; blockedByShareHours = 0;
   private lastTotal: number;
-  private hourSamples = 0; private hourAlertSamples = 0; private hourThreat = false;
+  private hourSamples = 0; private hourAlertSamples = 0; private hourOutsideSamples = 0; private hourThreat = false;
   private hourKinds: Record<string, number> = {};
   private blockedSeen = false; private blockedShare = false;
   private since = new Map<number, number>();
@@ -144,7 +159,7 @@ export class QuietObserver {
   /** After every sim.tick(). */
   tick(): void {
     const sim = this.sim, q = quietTracker(sim);
-    let loudNow = false;
+    let loudNow = false, outsideNow = false;
     const seenKinds = new Set<string>();
     for (const a of sim.state.progression.alerts) {
       if (a.level !== 'warning' && a.level !== 'critical') continue;
@@ -152,6 +167,7 @@ export class QuietObserver {
       const label = alertLabel(a), k = this.kind(label);
       if (a.level === 'warning') k.warningS += 1 / TICKS_PER_SECOND; else k.criticalS += 1 / TICKS_PER_SECOND;
       seenKinds.add(label);
+      if (isOutside(label)) outsideNow = true;
     }
     const active = sim.state.rivals.threatDirector.activeKind;
     if (active !== null) this.hourThreat = true;
@@ -159,6 +175,7 @@ export class QuietObserver {
     if (sim.state.tick % QUIET_SAMPLE_EVERY === 0) {
       this.hourSamples++;
       if (loudNow) this.hourAlertSamples++;
+      if (outsideNow) this.hourOutsideSamples++;
       for (const l of seenKinds) bump(this.hourKinds, l);
     }
     if (sim.state.tick % TICKS_PER_HOUR === 1) this.checkBlocked();
@@ -196,12 +213,12 @@ export class QuietObserver {
         if (!this.hourThreat) this.kind(ranked[0][0]).loudMain++;
       }
     }
-    this.hourRecords.push({ h: hourIdx, code, by, alertShare: r2(alertShare) });
-    this.hourSamples = 0; this.hourAlertSamples = 0; this.hourThreat = sim.state.rivals.threatDirector.activeKind !== null;
+    this.hourRecords.push({ h: hourIdx, code, by, alertShare: r2(alertShare), outsideShare: r2(this.hourOutsideSamples / n) });
+    this.hourSamples = 0; this.hourAlertSamples = 0; this.hourOutsideSamples = 0; this.hourThreat = sim.state.rivals.threatDirector.activeKind !== null;
     this.hourKinds = {};
   }
 
-  result(startTick: number): Pick<QuietResult, 'kinds' | 'hours' | 'windows' | 'partialWindows' | 'runShare' | 'perDay' | 'hourRecords'> {
+  result(startTick: number): Pick<QuietResult, 'kinds' | 'hours' | 'windows' | 'partialWindows' | 'runShare' | 'outsideOnly' | 'perDay' | 'hourRecords'> {
     const rec = this.hourRecords;
     let counted = 0, quiet = 0, byThreat = 0, byAlert = 0, byBoth = 0;
     for (const h of rec) {
@@ -213,13 +230,13 @@ export class QuietObserver {
       }
     }
     const W = QUIET_WINDOW_GD * 24;
-    const win = (from: number, minCounted: number) => {
+    const win = (from: number, minCounted: number, codeOf: (h: HourRecord) => number = (h) => h.code) => {
       let n = 0, min: number | null = null, at: number | null = null, failing = 0, minCounted0 = 0;
       for (let i = Math.max(1, from); i <= rec.length; i++) {
         if (rec[i - 1].code < 0) continue;
         const w = rec.slice(Math.max(0, i - W), i).filter((x) => x.code >= 0);
         if (w.length < minCounted) continue;
-        const share = w.reduce((a, b) => a + b.code, 0) / w.length;
+        const share = w.reduce((a, b) => a + codeOf(b), 0) / w.length;
         n++;
         if (min === null || share < min) { min = share; at = i; minCounted0 = w.length; }
         if (share < 0.6) failing++;
@@ -227,6 +244,10 @@ export class QuietObserver {
       return { n, min: min === null ? null : r2(min), at: at === null ? null : r2((startTick + at * TICKS_PER_HOUR) / TICKS_PER_DAY), failing, minCounted: minCounted0 };
     };
     const full = win(W, 1), part = win(1, 24);
+    const outsideCode = (h: HourRecord): number => (h.by?.threat || h.outsideShare >= QUIET_ALERT_SHARE ? 0 : 1);
+    const out = win(W, 1, outsideCode);
+    const outCounted = rec.filter((h) => h.code >= 0);
+    const outsideOnly = { runShare: outCounted.length ? r2(outCounted.reduce((a, b) => a + outsideCode(b), 0) / outCounted.length) : null, windows: out.n, min: out.min, failing: out.failing };
     const perDay: QuietResult['perDay'] = [];
     for (let d = 0; d * 24 < rec.length; d++) {
       const day = rec.slice(d * 24, d * 24 + 24).filter((x) => x.code >= 0);
@@ -236,7 +257,7 @@ export class QuietObserver {
       kinds: this.kinds, hours: { total: rec.length, counted, quiet, loudByThreat: byThreat, loudByAlert: byAlert, loudByBoth: byBoth },
       windows: { n: full.n, min: full.min, minAtGd: full.at, failing: full.failing, minCountedHours: full.minCounted },
       partialWindows: { n: part.n, min: part.min, minAtGd: part.at },
-      runShare: counted > 0 ? r2(quiet / counted) : null, perDay, hourRecords: rec,
+      runShare: counted > 0 ? r2(quiet / counted) : null, outsideOnly, perDay, hourRecords: rec,
     };
   }
 }
@@ -285,8 +306,34 @@ export function quietTable(r: QuietResult): string {
   const h = r.hours;
   L.push('');
   L.push(`counted hours ${h.counted} (quiet ${h.quiet}; loud: threat ${h.loudByThreat}, alert ${h.loudByAlert}, both ${h.loudByBoth}); run share ${r.runShare}; full 3-gd windows ${r.windows.n}, min ${r.windows.min} (at gd ${r.windows.minAtGd}), partial (>= 24 counted h) ${r.partialWindows.n}, min ${r.partialWindows.min}`);
+  L.push(`outside alerts only (people, predators, rivals; colony, nest and weather alerts silent): run share ${r.outsideOnly.runShare}, full windows ${r.outsideOnly.windows}, min ${r.outsideOnly.min}`);
   L.push(`human starts per gd: ${Object.entries(r.humanStartsByKind).map(([k, n]) => `${k} ${r2(n / Math.max(0.01, r.humanDays))}`).join(', ')}`);
   L.push(`threats started ${r.threats.started}; hours the director refused one ${r.threats.blockedHours} (share the reason ${r.threats.blockedByShareHours})`);
+  return L.join('\n');
+}
+
+/** Human events per game day by kind, drawn over a default year (seeded) and expected, at each humanActivity setting. */
+export function humanCountTable(sim: Sim): string {
+  const days = daysPerYear(sim.state.config);
+  const L = [`| kind | ${['off', 'low', 'normal', 'high'].map((a) => `${a} drawn / expected`).join(' | ')} |`, '|---|---|---|---|---|'];
+  const per: Record<string, Record<string, [number, number]>> = {};
+  for (const a of ['off', 'low', 'normal', 'high'] as const) {
+    sim.state.config.difficulty.custom = { humanActivity: a };
+    sim.state.config.rules.humanActivity = a;
+    const rng = rngFork(11, 'quiet.counts');
+    for (let d = 0; d < days; d++) {
+      const ctx = { ...dayContext(sim, d), heat: false };
+      for (const [k, e] of Object.entries(expectedDay(sim, ctx))) ((per[k] ??= {})[a] ??= [0, 0])[1] += e.mean / days;
+      for (const e of drawDayEvents(sim, ctx, rng)) {
+        if ((e.kind === 'car' || e.kind === 'footsteps') && (e.hour >= 22 || e.hour < 6)) continue; // the quiet-hour extras are outside the table
+        ((per[e.kind] ??= {})[a] ??= [0, 0])[0] += 1 / days;
+      }
+    }
+  }
+  for (const k of HUMAN_EVENT_KINDS) {
+    const row = per[k]; if (!row) continue;
+    L.push(`| ${k} | ${(['off', 'low', 'normal', 'high'] as const).map((a) => `${r2(row[a]?.[0] ?? 0)} / ${r2(row[a]?.[1] ?? 0)}`).join(' | ')} |`);
+  }
   return L.join('\n');
 }
 
@@ -297,6 +344,12 @@ export default async function main(args: string[]): Promise<void> {
   const fs = (await import('node:fs' as string)) as NodeFs;
   const file = o.snapshot ?? `${o.cache}/founded-lasius-niger-${o.archetype}-${o.seed}-naturalist-d-any.bin`;
   if (!fs.existsSync(file)) { console.error(`no hand-over snapshot ${file}`); process.exitCode = 2; return; }
+  if (o.counts) {
+    const md = `${o.archetype} #${o.seed}, events per game day over a default year (drawn, seeded / expected)\n${humanCountTable(simFromSnapshot(o, new Uint8Array(fs.readFileSync(file))))}`;
+    console.error(md);
+    if (o.out) { fs.mkdirSync(o.out, { recursive: true }); fs.writeFileSync(`${o.out}/counts-${o.archetype}-${o.seed}.md`, md + '\n'); }
+    return;
+  }
   const r = runQuiet(o, new Uint8Array(fs.readFileSync(file)), (s) => console.error(`[quiet ${o.archetype} #${o.seed}] ${s}`));
   const md = quietTable(r);
   console.error(md);

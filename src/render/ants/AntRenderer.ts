@@ -125,7 +125,6 @@ export class AntRenderer {
     const k = Math.pow(2, -this.highlightEV);
     this.shared.uFillBody.value = k * (F.body.underground * u + F.body.night * night);
     this.shared.uFillRim.value = k * (F.rim.underground * u + F.rim.night * night);
-    this.shared.uFillK.value = night;
     const w = u + night > 0 ? u / (u + night) : 0;
     this.shared.uFillCol.value.setRGB(
       F.cool[0] + (F.warm[0] - F.cool[0]) * w, F.cool[1] + (F.warm[1] - F.cool[1]) * w, F.cool[2] + (F.warm[2] - F.cool[2]) * w,

@@ -139,28 +139,8 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
     if (r.treatment === 'house') {
       const p = place(r, (r.u0 + r.u1) / 2, band('facade') + B.facadeDepth / 2, B.facadeDepth / 2);
       const hw = len / 2 + 600, hh = B.facadeHeight / 2;
-      const yaw = alongYaw(r);
-      mb.box(p.x, p.y + hh, p.z, hw, hh, B.facadeDepth / 2, yaw, hex(BACKDROP_HEX.facade, rng, 0.05));
+      mb.box(p.x, p.y + hh, p.z, hw, hh, B.facadeDepth / 2, alongYaw(r), hex(BACKDROP_HEX.facade, rng, 0.05));
       shapes++;
-      // look pass 3: a bare box read as a pale slab. A plinth, a roof with eaves, two storeys of windows and a door give it
-      // the structure of a house wall (sizes in mm, true scale; every part sits on or just in front of the face toward the map)
-      const face = B.facadeFaceOffset;
-      const put = (u: number, y: number, hx: number, hy: number, hz: number, col: string, dz = 0) => {
-        const q = place(r, u, face + dz, 0);
-        mb.box(q.x, q.y + y, q.z, hx, hy, hz, yaw, hex(col, rng, 0.05));
-        shapes++;
-      };
-      const u0 = (r.u0 + r.u1) / 2 - len / 2, nWin = Math.max(1, Math.round(len / B.facadeWindowPitch));
-      put((r.u0 + r.u1) / 2, B.facadePlinth / 2, hw, B.facadePlinth / 2, 60, BACKDROP_HEX.plinth, -20);
-      put((r.u0 + r.u1) / 2, B.facadeHeight + 160, hw + 260, 160, B.facadeDepth / 2 + 260, BACKDROP_HEX.roof, B.facadeDepth / 2);
-      for (let i = 0; i < nWin; i++) {
-        const u = u0 + ((i + 0.5) / nWin) * len;
-        for (const y of B.facadeWindowY) {
-          put(u, y, B.facadeWindow[0] / 2, B.facadeWindow[1] / 2, 50, BACKDROP_HEX.glass, -10);
-          put(u, y - B.facadeWindow[1] / 2 - 40, B.facadeWindow[0] / 2 + 80, 40, 90, BACKDROP_HEX.trim, -30); // sill
-        }
-      }
-      put(u0 + len * 0.2, B.facadeDoor[1] / 2, B.facadeDoor[0] / 2, B.facadeDoor[1] / 2, 60, BACKDROP_HEX.door, -20);
       continue;
     }
     if (r.treatment === 'road') {

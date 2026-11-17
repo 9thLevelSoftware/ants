@@ -9,7 +9,7 @@ import { CUTICLE } from '../tuning';
 
 export const LASIUS_COLORS: AntColors = {
   head: '#2b221d', mesosoma: '#30251f', gaster: '#231d1a', legs: '#3a2c22', tarsi: '#5a4433', antenna: '#3a2c23',
-  mandible: '#40261a', teeth: '#1a0f09', eye: '#141312', membrane: '#8c7a5e', hair: '#5f5243',
+  mandible: '#40261a', teeth: '#1a0f09', eye: '#141312', membrane: '#bba98a', hair: '#5f5243',
   wingMembrane: '#c8b896', wingVein: '#6b5034', callow: '#b98a52',
 };
 

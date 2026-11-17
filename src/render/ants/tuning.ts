@@ -85,12 +85,10 @@ export const TINT_VARIATION = 0.12;
  * Warm underground (the nest's lantern colour), cool under the moon.
  * gate-close-app: night body 2.2 -> 1.1 and rim 0.12 -> 0.3 (at 2.2 a black ant read as pale grey glass; the
  * stronger rim keeps her separable from the ground).
- * look-pass-3: night body 1.1 -> 0.7 and rim 0.3 -> 0.22, with the rim on legs and antennae cut to ANT_FILL_RIM_THIN: at 1.1 the
- * night ant was grey metal with white outlines (and wire-thin legs at quality test); at 0.7 it is a dark body with readable segments.
  */
 export const ANT_FILL = {
-  body: { underground: 0.9, night: 0.7 },
-  rim: { underground: 0.025, night: 0.22 },
+  body: { underground: 0.9, night: 1.1 },
+  rim: { underground: 0.025, night: 0.3 },
   fromEV: 1.6,
   toEV: 3.0,
   warm: [1.0, 0.62, 0.34] as [number, number, number],
@@ -98,9 +96,6 @@ export const ANT_FILL = {
   /** Time constant (s) of the underground blend. */
   easeS: 0.35,
 };
-
-/** Share of the form-light rim kept on legs and antennae (thin parts are all silhouette: at full rim they drew as pale wire). */
-export const ANT_FILL_RIM_THIN = 0.3;
 
 /**
  * The males' swarm at the lek during the possessed nuptial flight (swarm.ts): how many are drawn, their body length

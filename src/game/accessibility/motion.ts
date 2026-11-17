@@ -23,14 +23,3 @@ export function motionPlan(reduced: boolean, shakePercent: number): MotionPlan {
   const shake = Number.isFinite(shakePercent) ? Math.min(100, Math.max(0, shakePercent)) / 100 : 1;
   return { reduced, shakeScale: reduced ? 0 : shake, swayScale: 0, dofStrength: reduced ? REDUCED_DOF_STRENGTH : 1 };
 }
-
-/**
- * Depth of field in the colony view (look pass 3, gate-close-app S18): a cutaway map with chamber labels and outlines drawn
- * over it is read, not photographed; the labels have no depth of their own and took the blur of the ground behind them. Off.
- */
-export const COLONY_VIEW_DOF_STRENGTH = 0;
-
-/** The post chain's depth-of-field multiplier for a view: the accessibility plan's, and none in the colony view. */
-export function viewDofStrength(plan: MotionPlan, view: string): number {
-  return view === 'colony' ? COLONY_VIEW_DOF_STRENGTH : plan.dofStrength;
-}

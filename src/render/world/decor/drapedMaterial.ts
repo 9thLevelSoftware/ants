@@ -14,7 +14,6 @@ import { DRAPED_RESOLVE_GLSL, DRAPED_VERT_GLSL, LEAF_ATLAS } from './drapedShape
 import { foliageLightsChunk } from './foliageLight';
 import { GLSL_OCCLUSION, occlusionUniforms, WORLD_OCCLUSION_TERRAIN_TMAX } from '../materials/occlusion';
 import { DRAPED_KIND as K } from './instances';
-import { DECOR_LEAF } from './tuning';
 import type { DecorShared } from './shared';
 
 export interface DrapedTextures {
@@ -40,20 +39,13 @@ vec2 dcCell(float rnd, vec4 cr, vec2 uv) {
   float c = floor(rnd * 15.999); vec2 cell = vec2(mod(c, 4.0), floor(c / 4.0));
   return (cell + mix(cr.xy, cr.zw, uv * 0.5 + 0.5)) * 0.25;
 }
-// alpha of a leaf at card coordinates uv (fresh: maple-type atlas, dry: oak-type atlas)
-float dcLeafAlpha(float ra, bool fresh, vec2 uv) {
-  vec2 t = fresh ? dcCell(ra, ${crop(LEAF_ATLAS.fresh)}, uv) : dcCell(ra, ${crop(LEAF_ATLAS.dry)}, vec2(-uv.x, uv.y));
-  return fresh ? texture2D(tDcFreshA, t).r : texture2D(tDcDryA, t).r;
-}
-// contact shadow: 0..1 density of the dark fringe a leaf leaves on the ground beside its margin (leaves only), drawn stippled
-float dcShade;
 vec3 dcSat(vec3 c, float s) { float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); return max(mix(vec3(l), c, s), 0.0); }
 // colour (rgb), alpha, roughness, transmission and a tangent-space bump (x along the card, y across)
 // the resolved point on the hugging surface (dcResolve) and its card coordinates
 vec2 dcUv; vec3 dcWp; bool dcIn;
 void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 bump) {
   float k = vDcInfo.x, ra = vDcInfo.y, rb = vDcInfo.z; vec2 uv = dcUv;
-  bump = vec2(0.0); tr = 0.0; rough = 0.7; dcShade = 0.0;
+  bump = vec2(0.0); tr = 0.0; rough = 0.7;
   if (k < ${K.needle - 0.5}) {
     bool fresh = vDcInfo.w > 0.5;
     vec2 t = fresh ? dcCell(ra, ${crop(LEAF_ATLAS.fresh)}, uv) : dcCell(ra, ${crop(LEAF_ATLAS.dry)}, vec2(-uv.x, uv.y));
@@ -77,13 +69,6 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     col *= 1.0 - 0.1 * vein;
     bump += vec2(0.0, sign(uv.y) * (vein * 0.5 - edgeW * 0.4));
     rough = 0.62; tr = fresh ? 1.0 : 0.45;
-    // thickness (look pass 3): the cut margin is a lit edge, and the leaf leaves a soft dark fringe on the ground beside it
-    col *= 1.0 + ${DECOR_LEAF.edgeLight.toFixed(2)} * (smoothstep(0.5, 0.56, a) * (1.0 - smoothstep(0.56, 0.7, a)));
-    if (a < 0.5) {
-      const float SD = ${DECOR_LEAF.shadowReachUv.toFixed(3)};
-      dcShade = ${DECOR_LEAF.shadowDensity.toFixed(2)} * 0.25 * (dcLeafAlpha(ra, fresh, uv + vec2(SD, 0.0)) + dcLeafAlpha(ra, fresh, uv - vec2(SD, 0.0))
-        + dcLeafAlpha(ra, fresh, uv + vec2(0.0, SD)) + dcLeafAlpha(ra, fresh, uv - vec2(0.0, SD)));
-    }
   } else if (k < ${K.needle + 0.5}) {
     a = (1.0 - smoothstep(0.55, 1.0, abs(uv.y))) * (1.0 - smoothstep(0.9, 1.0, abs(uv.x)));
     col = mix(vec3(0.33, 0.17, 0.07), vec3(0.18, 0.11, 0.06), rb) * (0.85 + 0.3 * wrNoise(uv * vec2(30.0, 2.0)));
@@ -157,11 +142,7 @@ if (!dcIn || vDcFade <= 0.0 || wrHoleMask(dcWp.xz) > 0.5) discard;
 wrOccDither(dcWp, ${WORLD_OCCLUSION_TERRAIN_TMAX.toFixed(3)}); // lies on the ground: like the terrain
 vec3 dcCol; float dcA, dcRough, dcTr; vec2 dcBump;
 dcItem(dcCol, dcA, dcRough, dcTr, dcBump);
-if (dcA < 0.5) {
-  if (dcShade <= wrHash12(floor(gl_FragCoord.xy) + 17.0)) discard;
-  dcCol = vec3(0.012, 0.010, 0.008); dcRough = 1.0; dcTr = 0.0; dcBump = vec2(0.0);
-}
-if (wrHash12(floor(gl_FragCoord.xy)) > vDcFade) discard;
+if (dcA < 0.5 || wrHash12(floor(gl_FragCoord.xy)) > vDcFade) discard;
 diffuseColor.rgb *= wrWetAlbedo(dcCol, uWet, 0.7);
 vec3 dcNw = normalize(vDcN);
 if (length(vDcW - uCamPos) <= uDcFix.x) {

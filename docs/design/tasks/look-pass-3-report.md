@@ -120,3 +120,27 @@ it **worse**: `after/after-noon-slice-high.png` shows the label blurred wider th
 photographed, so it draws without depth of field (`COLONY_VIEW_DOF_STRENGTH` 0, `viewDofStrength`, accessibility controller; test in `accessibility.test.ts`). Picture:
 `before/before-noon-slice-high.png` -> `after/after2-noon-slice-high.png` (the label text is sharp). The original smear needed a particular focus distance and did not show in the
 before picture of this pose, so the improvement is by construction and the check is that the label is crisp.
+
+### 6. HUD and text
+
+* **Pad View tap**: the pad poller counted a tap by real milliseconds, so one slow frame turned a tap into a hold. Both pad readers (`src/input/sources.ts`, `src/ui/nav/padReader.ts`) now count a
+  press seen in at most `PAD_TAP_MAX_POLLS` = 2 polls as a tap (reported as that many nominal 17 ms frames), whatever the clock says; a hold needs more than two polls. Tests:
+  `src/input/inputState.test.ts`, `src/ui/nav/nav.test.ts` (the old "reports edges" test now presses over three polls). Browser: `panels.mjs` second half
+  (`PANELS_ONLY=markers,hudfix,keys,tools,sizes`, `checks/panelsB.log`): "a tap of View puts the pad focus on the tool UI" **passes** (first try, 4 retries allowed as before); the run
+  then stops at the next assertion, "the D-pad reaches an overlay button" (focus stayed on the forage tool after nine D-pad lefts), which the gate round never reached
+  because it failed at the tap. Whether that is mine: `checks/panelsB-orig.log` is the same half with the original readers (see section 7).
+* **Speed control flash and `time.auto-slow`**: `AutoSlowWatcher.apply` now says why (`AutoSlowWhy`), `Game.onAutoSlow` sets the speed, emits the sim event `time.auto-slow` (alert kind,
+  level, `slow`/`pause`) and counts a flash; `UiSpeed.autoSlowFlash` -> `TimeCluster` adds `is-flash` to the selected speed button for one 900 ms animation (`hud.css`, a 300 ms fade in reduced
+  motion). Unit tests: `autoSlow.test.ts`, `uiBridge.hud.test.ts`. Browser (`tests/e2e/look3-hud.mjs`, `checks/hud2.log`): at 8x a critical alert drops to 1x, the selected button carries
+  `is-flash` with `animation-name: fd-speed-flash`, `flashes` = 1 and the event `{"type":"time.auto-slow","alertKind":"nest-collapse-risk","level":"critical","action":"slow"}` was seen on the
+  bus. No picture: the animation lasts 900 ms and a frame takes seconds here, so the whole check runs in one page call (DOM read, as for the sound-cue pips of the gate round).
+* **New Game rules**: `src/sim/config/presetDisplay.ts` rows whose `inEffect` flag is false show a "Not in this build" tag and are disabled (`presetRows.ts`, `NewGame.tsx` `PresetDetails`,
+  `screens.css`; test `newgame.test.ts`). Picture: `checks/firstplay/02-new-colony.png` (the rules column; the detail rows are inside the folded "What Naturalist changes").
+* **Season of the founding flight (R20, day 5, spring)**, every player-facing string that names it:
+  1. `src/ui/screens/newgame/species.ts` Lasius card `foundingSeason` 'summer' -> 'spring', and `foundingSeasonOf(id)`, which reads the season from the sim data's `opening.startDoy.default`
+     (day 5 of a 7-day season = spring) so the screens cannot drift from the data again;
+  2. `src/ui/screens/Loading.tsx` ("Season ... natural start") and `NewGame.tsx` (the Natural start option) use `foundingSeasonOf`;
+  3. `src/content/text/alerts.ts` sample text for the flight alert;
+  4. `checks/firstplay/04-queen-surface.png` shows "Spring . Day 5 . Year 1" in the clock after the opening (looked at).
+  Left, not mine: `src/sim/species/data/lasius-niger.ts` still has `foundingSeason: 'summer'` (sim data), and the title screen's backdrop vignette
+  (`src/game/title/titleWorld.ts`, "summer day 3") is a backdrop, not text about the founding flight.
