@@ -60,10 +60,18 @@ export const CUT_RANGE_BU = 300;
 /** First-brood deviation: while the colony has no worker of a cutting caste, minims cut small fragments within this
  * range of the nest (else a colony of minims would plant no substrate at all), BU. */
 export const MINIM_CUT_RANGE_BU = 160;
+/** First-brood deviation: minims process leaf (while the colony has no media) at this multiple of the time. */
+export const MINIM_PROCESS_MULT = 2;
 /** Leaf fragment item length, BU per LU^(1/2) (render only) [EST]. */
 export const FRAGMENT_LENGTH_BU = 0.9;
 /** A cutter gives up a trip after this long outside, game s (the shared forage engine's TRIP_TURN_S spirit). */
 export const CUT_TRIP_MAX_S = 420;
+/** A cutter whose trip failed waits this long before the next one, game s. */
+export const CUT_RETRY_S = 30;
+/** Out of a blocked nav cell: wander this many nav cells toward the site, for at most CUT_CLEAR_S, CUT_CLEAR_TRIES times. */
+export const CUT_CLEAR_CELLS = 1.2;
+export const CUT_CLEAR_S = 20;
+export const CUT_CLEAR_TRIES = 2;
 /** Cutters leave only while surface activity (thermal gate x light x weather) is at least this. */
 export const CUT_ACTIVITY_MIN = 0.15;
 /** Rain: carriers drop fragments (GDD 07 §6.4.6 stage 2) when rain intensity exceeds this [EST]. */
@@ -103,8 +111,8 @@ export const YIELD_STANDING_GD = 0.25;
 export const GARDEN_MAX_FRAC = 0.55;
 /** At least this many gardeners while any garden lives. */
 export const GARDEN_MIN = 1;
-/** Cutters asked for: substrate need (1.8 LU/GU/GD) over what one cutter brings per game day [EST]. */
-export const CUT_LU_PER_CUTTER_GD = 6;
+/** Cut trips one cutter makes per game day (a trip of 80-200 s inside the night or cool-day window) [EST]. */
+export const CUT_TRIPS_PER_ANT_GD = 3;
 /** Cutters capped at this share of the workers. */
 export const CUT_MAX_FRAC = 0.45;
 /** At least this many cutters while a garden lives and the surface is workable. */

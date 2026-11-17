@@ -23,6 +23,7 @@ import { FB, bbGet, bbSet, foundingNest, foundingQueen, openingOf, playerColonyO
 import { failOpening } from '../failure';
 import { fungusParams, type FungusParams } from '@/sim/species/modules/fungus/params';
 import { gardenOf, seedGarden } from '@/sim/species/modules/fungus/state';
+import { gardenRh } from '@/sim/species/modules/fungus/chamberClimate';
 
 /** Queen bb keys: tick she was first in her cell; highest brood id already looked at for trophic eating. */
 const IN_CELL_SINCE = 'at.inCell';
@@ -95,7 +96,7 @@ function pelletTick(sim: Sim, q: Ant, nest: Nest, P: FungusParams): void {
   const cell = foundingCellOf(nest);
   const inCell = cell && queenInCell(sim, q, nest);
   const t = inCell ? chamberTempC(sim, cell.id) : pointTempC(sim, q.pos);
-  const rh = inCell ? chamberRh(sim, cell.id, cell.center) : chamberRh(sim, -1, q.pos);
+  const rh = inCell ? gardenRh(sim, cell.id) : chamberRh(sim, -1, q.pos);
   if (rh < P.pelletMinRh || t < P.pelletMinC || t > P.pelletMaxC) pg.pelletHealth = Math.max(0, pg.pelletHealth - P.pelletDecayPerGd / TICKS_PER_DAY);
 }
 
@@ -128,6 +129,9 @@ export function attaFoundingTick(sim: Sim): void {
   if (!ctx) return;
   const { op, col, q, nest, P } = ctx;
   const pg = sim.state.player.opening!.garden!;
+  // cheat.completeFounding aims its clutch at a worker count with the shared survival guess; most of an Atta
+  // clutch is eaten (trophicFraction), so the automatic founding lays the whole viable-equivalent clutch
+  if (bbGet(q, FB.auto, 0) === 1 && bbGet(q, FB.autoClutch, -1) > 0) bbSet(q, FB.autoClutch, sim.getSpecies(col.species)?.opening.clutchCap ?? 40);
   pelletTick(sim, q, nest, P);
   if (!pg.planted && pg.pelletHealth <= 0) { failOpening(sim, op, 'garden-lost'); return; }
   const cell = foundingCellOf(nest);

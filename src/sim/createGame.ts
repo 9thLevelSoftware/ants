@@ -12,7 +12,7 @@ import { idleIntent, MATERIAL_IDS, SEASONS, SITE_FACTORS, ZONE_TYPES } from '@/s
 import {
   CARRION_VARIANTS, CARVE_VOXEL_BU, DEFAULT_SEASON_LENGTH_DAYS, DEFAULT_START_HOUR, DEGRADED_AIR_C,
   DIFFICULTY_PARAMS, PHERO_CELL_BU, PHERO_CHUNK_CELLS, RAIN_HISTORY_HOURS, resolveRules, TERR_CELL_BU, TERRAIN_CELL_BU,
-  TERR_COLONY_SLOTS,
+  TERR_COLONY_SLOTS, valueIn,
 } from '@/sim/balance';
 import { createColony, createNest, spawnAnt, type EntityCtx } from '@/sim/entities';
 import { initEcology } from '@/sim/ecology';
@@ -57,7 +57,7 @@ export function defaultGameConfig(
  */
 export function worldRuleInputs(config: Pick<GameConfig, 'difficulty' | 'rules'>): WorldRuleInputs {
   return {
-    rivalCount: config.rules.rivals, incipientCount: config.difficulty.params.incipientRivals,
+    rivalCount: config.rules.rivals, incipientCount: valueIn(config, 'incipientRivals'),
     humanActivity: config.rules.humanActivity,
   };
 }

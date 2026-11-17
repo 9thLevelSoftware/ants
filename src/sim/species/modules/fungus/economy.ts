@@ -6,7 +6,6 @@
 import { rngFloat } from '@/core/rng';
 import type { Ant, Colony, GardenRecord, Sim, System } from '@/sim/types';
 import { chamberById } from '@/sim/colony/census';
-import { chamberRh, chamberTempC } from '@/sim/colony/envAdapter';
 import { deposit } from '@/sim/colony/stores';
 import { GARDEN_STEP_TICKS, FL_P_SHARE, STAPH_POOL_BUFFER_GD, YIELD_STANDING_GD } from '@/sim/balance/species-leafcutter';
 import { TICKS_PER_DAY, ticksPerYear } from '@/sim/time';
@@ -20,6 +19,8 @@ import { gardenWorkers, isFoundingGarden } from './work';
 import { gardenLessStep } from './gardenLess';
 import { checkRejection, recordHealth } from './rejection';
 import { spreadInfection } from './spread';
+import { feedQueenFungus } from './queenFeed';
+import { gardenRh, gardenTempC } from './chamberClimate';
 
 export function atColonies(sim: Sim): { col: Colony; P: FungusParams }[] {
   return fungusColonies(sim, paramsOfColony);
@@ -85,9 +86,8 @@ export function stepColonyGardens(sim: Sim, col: Colony, P: FungusParams, dtGd: 
     ageCache(sim, col, g, P);
     pruneBins(g, sim.state.tick);
     if (g.state === 'dead') continue;
-    const ch = chamberById(sim, g.chamberId);
-    const tempC = chamberTempC(sim, g.chamberId);
-    const rh = chamberRh(sim, g.chamberId, ch ? ch.center : { x: 0, y: 0, z: 0 });
+    const tempC = gardenTempC(sim, g.chamberId);
+    const rh = gardenRh(sim, g.chamberId);
     const w = workers.get(g.chamberId) ?? { gardeners: 0, weeders: 0 };
     const founding = isFoundingGarden(sim, col, g);
     if (g.supply) plantSubstrate(P, g, g.supply, g.supply.luPerGd * dtGd, sim.state.tick);
@@ -124,6 +124,7 @@ export function stepColonyGardens(sim: Sim, col: Colony, P: FungusParams, dtGd: 
   }
   spreadInfection(sim, col, P, dtGd);
   gardenLessStep(sim, col, P, dtGd);
+  feedQueenFungus(sim, col, dtGd);
   releaseStaphylae(col);
   mod.lastStepTick = sim.state.tick;
 }

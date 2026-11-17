@@ -15,7 +15,7 @@ import type { ActionDef } from '@/sim/ants/actions/types';
 import { takeItem } from '@/sim/ants/actions/carry';
 import { workRate } from '@/sim/ants/actions/workRate';
 import { spawnItem } from '@/sim/entities';
-import { FRAGMENT_LENGTH_BU, PLANT_BATCH_LU, PROCESS_BATCH_LU, WASTE_ITEM_LOADS, CUT_AI_S } from '@/sim/balance/species-leafcutter';
+import { FRAGMENT_LENGTH_BU, MINIM_PROCESS_MULT, PLANT_BATCH_LU, PROCESS_BATCH_LU, WASTE_ITEM_LOADS, CUT_AI_S } from '@/sim/balance/species-leafcutter';
 import { plantPellet, plantRefusal } from '@/sim/colony/founding/species/atta';
 import { fungusParams, type FungusParams } from './params';
 import { gardenOf } from './state';
@@ -124,6 +124,11 @@ export const cutLeafDef: ActionDef = {
 
 export const processLeafDef: ActionDef = {
   id: 'process-leaf', kind: 'timed', targets: ['none'], cancellable: true, pose: 'tend-fungus', cue: 'garden-tend',
+  // first-brood deviation: minims process (at MINIM_PROCESS_MULT x the time) while the colony has no media
+  who: (sim, ant) => {
+    const col = colonyOf(sim, ant);
+    return ant.caste === 'minor' && !!col?.fungus && noCutters(sim, col);
+  },
   check(sim, ant) {
     if (!paramsOf(sim, ant)) return 'species';
     const g = gardenHere(sim, ant);
@@ -134,7 +139,7 @@ export const processLeafDef: ActionDef = {
     const P = paramsOf(sim, ant);
     const g = gardenHere(sim, ant);
     const lu = Math.min(PROCESS_BATCH_LU, lotsLu(g?.cache));
-    return (P?.processSPerLu ?? 40) * Math.max(0.05, lu);
+    return (P?.processSPerLu ?? 40) * Math.max(0.05, lu) * (ant.caste === 'minor' ? MINIM_PROCESS_MULT : 1);
   },
   effect(sim, ant) {
     const P = paramsOf(sim, ant);

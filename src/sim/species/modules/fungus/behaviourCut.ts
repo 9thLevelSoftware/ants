@@ -5,6 +5,8 @@
 // Rain makes a carrier drop her fragment. Phorids and hitchhikers ride on the laden walk (phorids.ts).
 //   cut.select  choose a site (or wait in the nest while the surface is closed)
 //   cut.out     walk to it
+//   cut.clear   step out of a nav cell the planner counts as blocked (beside the entrance: a walker standing there
+//               gets no route at all; core defect reported) by a short wander toward the site, then cut.out again
 //   cut.cut     the primitive
 //   cut.home    carry the fragment to a garden chamber
 //   cut.drop    put it into the chamber's cache
@@ -13,13 +15,14 @@ import { hash3i } from '@/core/math/noise';
 import type { Ant, Behaviour, Chamber, Colony, LeafSite, Sim } from '@/sim/types';
 import { endCycle, releaseAll, think } from '@/sim/ants/behaviours/nest/common';
 import { setState } from '@/sim/ants/behaviours/nest/fsm';
-import { busy, entity, travel, tryAct, actEnded } from '@/sim/ants/behaviours/nest/travel';
-import { navStop } from '@/sim/locomotion';
+import { busy, entity, resetTravel, travel, tryAct, actEnded } from '@/sim/ants/behaviours/nest/travel';
+import { navStop, navWander } from '@/sim/locomotion';
 import { removeItem } from '@/sim/entities';
 import { chamberById } from '@/sim/colony/census';
 import { rainIntensityOf, surfaceActivityOf } from '@/sim/colony/envAdapter';
 import {
   CUT_ACTIVITY_MIN, CUT_ARRIVE_BU, CUT_TRIP_MAX_S, MINIM_CUT_RANGE_BU, RAIN_DROP_INTENSITY, CUT_RANGE_BU,
+  CUT_CLEAR_CELLS, CUT_CLEAR_S, CUT_CLEAR_TRIES, CUT_RETRY_S,
 } from '@/sim/balance/species-leafcutter';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { LEAF } from './actions';
@@ -94,6 +97,7 @@ function tripTooLong(sim: Sim, ant: Ant): boolean {
 
 /** Starts a cut trip (site chosen, state cut.out); false when there is nowhere to cut now. */
 export function startCutTrip(sim: Sim, ant: Ant): boolean {
+  if (sim.state.tick < (ant.bb[AK.retry] ?? 0)) return false;
   const col = colonyOf(sim, ant);
   if (!col?.fungus || liveGardens(col.fungus).length === 0) return false;
   if (surfaceActivityOf(sim, col.species) < CUT_ACTIVITY_MIN || rainIntensityOf(sim) > RAIN_DROP_INTENSITY) return false;
@@ -119,7 +123,33 @@ function goOut(sim: Sim, ant: Ant): void {
   if (tripTooLong(sim, ant) || surfaceActivityOf(sim, col.species) < CUT_ACTIVITY_MIN) { setState(sim, ant, 'cut.home', 'curfew'); return; }
   const st = travel(sim, ant, entity('point', -1, s.pos), CUT_ARRIVE_BU * sim.world.bu);
   if (st === 'arrived') setState(sim, ant, 'cut.cut');
-  else if (st === 'failed') endCycle(sim, ant, ENTRY, 'stuck');
+  else if (st === 'failed') {
+    if (ant.nestId < 0 && sim.navGrid.blocked(ant.pos.x, ant.pos.z) && (ant.bb[AK.clears] ?? 0) < CUT_CLEAR_TRIES) { startClear(sim, ant, s.pos); return; }
+    giveUp(sim, ant);
+  }
+}
+
+/** A failed trip: back off before the next one (no re-plan every tick). */
+function giveUp(sim: Sim, ant: Ant): void {
+  ant.bb[AK.retry] = sim.state.tick + CUT_RETRY_S * TICKS_PER_SECOND;
+  ant.bb[AK.clears] = 0;
+  endCycle(sim, ant, ENTRY, 'stuck');
+}
+
+function startClear(sim: Sim, ant: Ant, toward: { x: number; z: number }): void {
+  const cell = sim.navGrid.cell;
+  const dx = toward.x - ant.pos.x, dz = toward.z - ant.pos.z, d = Math.max(1e-6, Math.hypot(dx, dz));
+  const c = { x: ant.pos.x + (dx / d) * CUT_CLEAR_CELLS * cell, y: ant.pos.y, z: ant.pos.z + (dz / d) * CUT_CLEAR_CELLS * cell };
+  ant.bb[AK.clears] = (ant.bb[AK.clears] ?? 0) + 1;
+  ant.bb[AK.cx] = c.x; ant.bb[AK.cz] = c.z;
+  navWander(sim, ant, c, 0.5 * cell);
+  setState(sim, ant, 'cut.clear', 'stuck');
+}
+
+function clear(sim: Sim, ant: Ant): void {
+  if (!sim.navGrid.blocked(ant.pos.x, ant.pos.z)) { resetTravel(ant); setState(sim, ant, carryingFragment(sim, ant) ? 'cut.home' : 'cut.out'); return; }
+  if (sim.state.tick - ant.stateTick > CUT_CLEAR_S * TICKS_PER_SECOND) { navStop(sim, ant); giveUp(sim, ant); return; }
+  navWander(sim, ant, { x: ant.bb[AK.cx] ?? ant.pos.x, y: ant.pos.y, z: ant.bb[AK.cz] ?? ant.pos.z }, 0.5 * sim.navGrid.cell);
 }
 
 function cut(sim: Sim, ant: Ant): void {
@@ -154,6 +184,11 @@ function home(sim: Sim, ant: Ant): void {
   const st = travel(sim, ant, entity('chamber', ch.id, ch.center), 0.6 * Math.min(ch.radii.x, ch.radii.z));
   if (st === 'arrived') setState(sim, ant, laden ? 'cut.drop' : ENTRY);
   else if (st === 'failed' && ant.nestId >= 0 && ant.chamberId >= 0 && laden) setState(sim, ant, 'cut.drop');
+  else if (st === 'failed' && ant.nestId < 0) {
+    if (sim.navGrid.blocked(ant.pos.x, ant.pos.z) && (ant.bb[AK.clears] ?? 0) < CUT_CLEAR_TRIES) { startClear(sim, ant, homeOf(sim, col)); return; }
+    if (laden && !busy(ant)) tryAct(sim, ant, 'drop', null);
+    giveUp(sim, ant);
+  }
 }
 
 /** Puts the fragment into the cache of the garden of the chamber the ant stands in. */
@@ -177,6 +212,7 @@ function drop(sim: Sim, ant: Ant): void {
 export function cutTripStep(sim: Sim, ant: Ant): boolean {
   switch (ant.state) {
     case 'cut.out': goOut(sim, ant); return true;
+    case 'cut.clear': clear(sim, ant); return true;
     case 'cut.cut': cut(sim, ant); return true;
     case 'cut.home': home(sim, ant); return true;
     case 'cut.drop': drop(sim, ant); return true;

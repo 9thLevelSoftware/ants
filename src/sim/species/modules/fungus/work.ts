@@ -25,6 +25,11 @@ export const AK = {
   ladenMm: 'at.laden',
   lastX: 'at.lx',
   lastZ: 'at.lz',
+  /** Cutter: tick before which no new trip starts (a failed trip backs off); cell-clear tries and wander centre. */
+  retry: 'at.retry',
+  clears: 'at.clr',
+  cx: 'at.cx',
+  cz: 'at.cz',
 } as const;
 
 /** Gardener jobs. */

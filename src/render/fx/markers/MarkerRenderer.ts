@@ -6,7 +6,7 @@
 // (the ghost label carries a live volume, so its text keeps changing).
 import {
   BufferGeometry, CanvasTexture, Float32BufferAttribute, Group, LineBasicMaterial, LineDashedMaterial, LineSegments, Points, PointsMaterial, Sprite,
-  SpriteMaterial, type Material, type Scene,
+  SpriteMaterial, type Color, type Material, type Scene, type WebGLRenderer,
 } from 'three';
 import type { Vec3 } from '@/core';
 import type { NestGhost } from '@/render/nest';
@@ -144,6 +144,7 @@ export class MarkerRenderer {
       if (set.style !== 'solid') seg.computeLineDistances();
       seg.renderOrder = MARKER_RENDER_ORDER;
       seg.frustumCulled = false;
+      holdAgainstExposure(seg, m);
       this.materials.push(m);
       this.group.add(seg);
     }
@@ -182,6 +183,7 @@ export class MarkerRenderer {
     s.scale.set(LABEL_LINE_SCREEN_H * t.lines * t.aspect, LABEL_LINE_SCREEN_H * t.lines, 1);
     s.renderOrder = MARKER_RENDER_ORDER + 1;
     s.frustumCulled = false;
+    holdAgainstExposure(s, m);
     return s;
   }
 
@@ -235,4 +237,18 @@ export class MarkerRenderer {
     this.ghostSink?.([]);
     this.scene.remove(this.group);
   }
+}
+
+/**
+ * Overlay marks are drawn into the lit frame, so the scene's exposure scales them too: under a bright metered slice
+ * (2^EV of several stops) a dark label plate and the outlines blew out to white (gate-close-app, playthrough slice
+ * shots). Before each draw the material colour is divided by the renderer's exposure, so marks keep their authored
+ * values whatever the metering.
+ */
+function holdAgainstExposure(obj: { onBeforeRender: unknown }, m: Material & { color: Color }): void {
+  const base = m.color.clone();
+  (obj as { onBeforeRender: (r: WebGLRenderer) => void }).onBeforeRender = (r: WebGLRenderer) => {
+    const e = r.toneMappingExposure > 0 ? r.toneMappingExposure : 1;
+    m.color.copy(base).multiplyScalar(1 / e);
+  };
 }

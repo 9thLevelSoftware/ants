@@ -176,7 +176,9 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
     // A hungry larva in the wrong chamber is carried first and fed where it is going (decision: with one job per
     // item and feed above move, larvae that keep asking for food would never be sorted, against GDD 02 App. E 19).
     // These moves are outside the per-pass cap: a larva left out would be fed where it lies and then wait.
-    const to = moveTarget(ctx, b, markerOut);
+    // A larva whose gut is already empty is fed where it lies, sorted once it has food in it: a carry can fail or
+    // be done by a nurse with an empty crop, and an empty gut starves in LARVA_STARVE_GD (colony-life round 3).
+    const to = b.hungerTicks > 0 ? -1 : moveTarget(ctx, b, markerOut);
     if (to >= 0) return job(Job.move, Math.min(feedPrio + JOB_PRIORITY.moveHungryBonus, JOB_PRIORITY.moveHungryMax), to, markerOut.marker, true);
     return job(Job.feed, feedPrio);
   }

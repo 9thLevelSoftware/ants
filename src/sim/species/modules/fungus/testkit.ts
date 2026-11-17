@@ -32,6 +32,8 @@ export function attaKit(o: KitOptions = {}): FungusKit {
   if (op) { op.done = true; op.phase = 'done'; }
   const t = o.tempC ?? 23, rh = o.rh ?? 0.9;
   setClimateOverride(sim, { chamberTemp: () => t, rh: () => rh, pointTemp: () => t, surfaceActivity: () => o.surface ?? 1, rain: () => 0 });
+  // the chambers' own climate (the garden reads the chamber record's humidity, GDD 03 §9.2)
+  for (const ch of nest.chambers) sim.enqueue({ type: 'cheat.setChamberClimate', chamberId: ch.id, tempC: t, rh });
   const room = nest.chambers[1];
   room.type = 'fungus';
   const col = sim.state.colonies[0];

@@ -24,7 +24,7 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import { fungusParams, type FungusParams } from './params';
 import { emptyFungusChambers, gardenOf, gcapOf, liveGardens, seedGarden } from './state';
 import { colonyChambers } from '@/sim/colony/census';
-import { chamberRh, chamberTempC } from '@/sim/colony/envAdapter';
+import { gardenRh, gardenTempC } from './chamberClimate';
 import { fHumidity, fTemp } from './climate';
 import { lotsLu } from './cache';
 import { TEND_MODE, TM } from './actions';
@@ -35,6 +35,9 @@ import { noCutters } from './actions';
 import { minimCutTrips } from './allocation';
 
 const ENTRY = 'garden.find';
+/** bb key: actions chained in this garden visit; at most GARDEN_CHAIN_MAX before the task cycle ends. */
+const CHAIN = 'at.chain';
+const GARDEN_CHAIN_MAX = 8;
 const DUMP_X = 'at.dx', DUMP_Y = 'at.dy', DUMP_Z = 'at.dz';
 /** Fungus piece carried (GU) and its source health / infection. */
 const PIECE = { g: 'at.pg', h: 'at.ph2', i: 'at.pi', to: 'at.pto' } as const;
@@ -75,15 +78,19 @@ function chooseGarden(sim: Sim, ant: Ant, col: Colony, P: FungusParams): GardenR
 /** The job this ant takes at this garden now. */
 export function chooseJob(sim: Sim, ant: Ant, col: Colony, g: GardenRecord, P: FungusParams): number {
   const refuse = (ant.flags & AntFlag.REFUSE) !== 0;
-  const big = ant.caste === 'media'; // small media and media
+  // small media and media; while the colony has no media its minims do their work too (first-brood deviation)
+  const big = ant.caste === 'media' || (ant.caste === 'minor' && noCutters(sim, col));
   const wasteDue = g.waste > WASTE_HAUL_MIN_LOADS * Math.max(1, g.biomass) || (g.state === 'dead' && g.waste > 1e-6);
   if (refuse) return wasteDue || g.waste > 1e-6 ? GJ.waste : GJ.none;
   if (g.state === 'dead') return big && g.waste > 1e-6 ? GJ.waste : GJ.none;
   if (g.infection > 0) return GJ.weed;
+  // the minims' first work is the brood's food (GDD 07 §6.4.6 stage 7); the larger gardeners' is the leaf
+  const harvest = (g.yieldStanding ?? 0) >= P.staphylaeFl * 0.5;
+  if (ant.caste === 'minor' && harvest) return GJ.harvest;
   if (big && lotsLu(g.cache) > 1e-6) return GJ.process;
   if (lotsLu(g.pulp) > 1e-6) return GJ.plant;
   if (big && wasteDue) return GJ.waste;
-  if ((g.yieldStanding ?? 0) >= P.staphylaeFl * 0.5) return GJ.harvest;
+  if (harvest) return GJ.harvest;
   if ((isSmallMedia(ant) || ant.caste === 'minor') && pieceTarget(sim, col, g, P)) return GJ.piece;
   return GJ.tend;
 }
@@ -103,7 +110,7 @@ export function pieceTarget(sim: Sim, col: Colony, g: GardenRecord, P: FungusPar
       if (ch.type !== 'fungus' || ch.id === g.chamberId) continue;
       const other = gardenOf(col.fungus!, ch.id);
       if (other && other.state !== 'dead' && other.biomass + P.fungusPieceGu > gcapOf(P, ch)) continue;
-      const f = fTemp(P, chamberTempC(sim, ch.id)) * fHumidity(P, chamberRh(sim, ch.id, ch.center));
+      const f = fTemp(P, gardenTempC(sim, ch.id)) * fHumidity(P, gardenRh(sim, ch.id));
       if (f > bestF) { bestF = f; best = ch; }
     }
     if (best) return best;
@@ -165,6 +172,17 @@ function work(sim: Sim, ant: Ant): void {
   const job = ant.bb[AK.job] ?? GJ.tend;
   if (actEnded(ant)) {
     if (job === GJ.waste && ant.carry.kind === 'item') { becomeRefuse(sim, ant, P); startDump(sim, ant); return; }
+    // chained work in the same garden (no walk-out-and-back between two harvests): up to GARDEN_CHAIN_MAX actions
+    const n = (ant.bb[CHAIN] ?? 0) + 1;
+    const next = chooseJob(sim, ant, col, g, P);
+    if (n < GARDEN_CHAIN_MAX && next !== GJ.none && next !== GJ.waste && next !== GJ.piece) {
+      ant.bb[CHAIN] = n;
+      ant.bb[AK.job] = next;
+      ant.bb[TEND_MODE] = modeFor(next);
+      const why2 = next === GJ.process ? tryAct(sim, ant, 'process-leaf', null) : tryAct(sim, ant, 'tend-fungus', null);
+      if (why2 === null) return;
+    }
+    ant.bb[CHAIN] = 0;
     endCycle(sim, ant, ENTRY);
     return;
   }

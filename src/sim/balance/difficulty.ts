@@ -163,9 +163,10 @@ export const OPENING_GRACE_REF_GD = DIFFICULTY_PARAMS.naturalist.openingGraceGd;
  * How a custom rule reaches a parameter. `plain`: the preset value as stored. `founding`: the Founding group of
  * the `foundingLeniency` column. `weather`: scaled by `weatherSeverity` (GDD 06 §14.1). `predators` / `human`:
  * replaced by the rule's setting. The two `*-linked` groups are zeroed by `predators: off` / `humanActivity: off`
- * (no founding threats, no flight hazards, no reactive bait stations).
+ * (no founding threats, no flight hazards, no reactive bait stations); `rivals`: the incipient conspecific foundations
+ * go with the established ones (`rivals: 0` = no rival colonies at all).
  */
-type Group = 'plain' | 'founding' | 'founding+predators' | 'weather' | 'predators' | 'predators-events' | 'human' | 'human-bait';
+type Group = 'plain' | 'founding' | 'founding+predators' | 'weather' | 'predators' | 'predators-events' | 'human' | 'human-bait' | 'rivals';
 
 const KEY_GROUP: { [K in DifficultyKey]: Group } = {
   foundingExposureRate: 'founding', foundingBroodMortalityMult: 'founding', reserveDrainMult: 'founding',
@@ -175,7 +176,7 @@ const KEY_GROUP: { [K in DifficultyKey]: Group } = {
   frostFreqMult: 'weather', pDrySpell: 'plain', rainHitMult: 'weather', floodInflowMult: 'weather',
   heatToleranceOffsetC: 'plain',
   predatorDensityMult: 'predators', rivalAggMult: 'plain', raidCooldownGd: 'plain', rivalKMult: 'plain',
-  incipientRivals: 'plain', humanFreqMult: 'human', humanLethalMult: 'plain', humanTelegraphMult: 'plain',
+  incipientRivals: 'rivals', humanFreqMult: 'human', humanLethalMult: 'plain', humanTelegraphMult: 'plain',
   baitEnabled: 'human-bait', threatMinQuietGd: 'plain', quietShareMin: 'plain',
   foodAbundanceMult: 'plain', honeydewYieldMult: 'plain',
   broodSurvivalMult: 'plain', workerLifespanMult: 'plain', starvationToleranceMult: 'plain', queenLifespanMult: 'plain',
@@ -251,6 +252,9 @@ export function valueIn<K extends DifficultyKey>(cfg: DifficultyInputs, key: K):
       break;
     case 'human-bait':
       if (effectiveRule(cfg, 'humanActivity') === 'off') out = 'off';
+      break;
+    case 'rivals':
+      if (effectiveRule(cfg, 'rivals') === 0) out = 0;
       break;
   }
   return out as DifficultyParams[K];

@@ -286,6 +286,13 @@ export const FLEE_QUERY_PAD_BU = 4;
  * GDD 02 §10.4 rescue order).
  */
 export const BROOD_EVAC_MARGIN_BU = 1;
+/**
+ * Brood put down at a dry place (no dry chamber) must lie clear of the evacuation test above, or the next board build
+ * evacuates it again: the dry place is searched this much beyond BROOD_EVAC_MARGIN_BU (the put-down point is up to
+ * BROOD_DROP_ARRIVE_BU from it, and the item lies at the nurse's mandibles, not at her feet). Colony-life round 3: with
+ * equal margins (1 BU) one larva on woodland-edge #1 was carried a few mm 89 times in 0.6 gd while its brood-mates
+ * starved. */
+export const BROOD_DRY_DROP_SLACK_BU = 1;
 export const BROOD_EVAC_STAGE_BONUS: Record<'egg' | 'larva' | 'pupa', number> = { pupa: 2, larva: 1, egg: 0 };
 /** Sprinkler, hose and can rain into entrances (GDD 03 §11.1: "sprinkler or hose 0.5"). */
 export const FLOOD_HUMAN_WATER_INTENSITY = 0.5;

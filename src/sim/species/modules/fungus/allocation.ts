@@ -15,13 +15,15 @@ import { coreOf } from '@/sim/colony/core';
 import { surfaceActivityOf } from '@/sim/colony/envAdapter';
 import { ALLOC_EVERY, ALLOC_OFFSET } from '@/sim/balance/cadence';
 import {
-  CUT_ACTIVITY_MIN, CUT_LU_PER_CUTTER_GD, CUT_MAX_FRAC, CUT_MIN, GARDEN_MAX_FRAC, GARDEN_MIN, PROCESS_BATCH_LU,
+  CUT_ACTIVITY_MIN, CUT_TRIPS_PER_ANT_GD, CUT_MAX_FRAC, CUT_MIN, GARDEN_MAX_FRAC, GARDEN_MIN, PROCESS_BATCH_LU,
 } from '@/sim/balance/species-leafcutter';
 import type { FungusParams } from './params';
 import { atColonies } from './economy';
 import { liveGardens, totalGarden } from './state';
 import { lotsLu } from './cache';
 import { substrateInputs } from './substrate';
+import { cutsLeaves } from './work';
+import { noCutters } from './actions';
 
 /** Gardeners the colony asks for now. */
 export function gardenDemand(col: Colony, P: FungusParams, workers: number): number {
@@ -39,7 +41,21 @@ export function gardenDemand(col: Colony, P: FungusParams, workers: number): num
   return Math.min(GARDEN_MAX_FRAC * workers, Math.max(GARDEN_MIN, work));
 }
 
-/** Cutters the colony asks for now (0 while the surface is closed). */
+/** Mean carry capacity of the colony's cutters (media and majors), or of its minims while it has no cutter. */
+function cutterCarry(sim: Sim, col: Colony): number {
+  let sum = 0, n = 0, minim = 0, nm = 0;
+  for (const a of sim.stores.ants.list) {
+    if (!a.alive || a.colony !== col.id) continue;
+    if (cutsLeaves(a)) { sum += a.carryCap; n++; } else if (a.caste === 'minor') { minim += a.carryCap; nm++; }
+  }
+  return n > 0 ? sum / n : nm > 0 ? minim / nm : 1;
+}
+
+/**
+ * Cutters the colony asks for now (0 while the surface is closed): the substrate the gardens need over what one
+ * cutter of the colony's size brings in a game day (CUT_TRIPS_PER_ANT_GD trips of a full 15 s fragment), more
+ * while the gardens are short.
+ */
 export function cutDemand(sim: Sim, col: Colony, P: FungusParams, workers: number): number {
   const mod = col.fungus!;
   const G = totalGarden(mod);
@@ -48,7 +64,8 @@ export function cutDemand(sim: Sim, col: Colony, P: FungusParams, workers: numbe
   for (const g of liveGardens(mod)) { supplied += substrateInputs(g, sim.state.tick).subIn1Gd; cached += lotsLu(g.cache) + lotsLu(g.pulp); }
   const need = P.subNeedPerGu * G;
   const short = Math.max(0, Math.min(1, (need - supplied - cached) / need));
-  const n = (need / CUT_LU_PER_CUTTER_GD) * (1 + short);
+  const perAnt = Math.max(0.05, cutterCarry(sim, col)) * CUT_TRIPS_PER_ANT_GD;
+  const n = (need / perAnt) * (1 + short);
   return Math.min(CUT_MAX_FRAC * workers, Math.max(CUT_MIN, n));
 }
 
@@ -61,8 +78,13 @@ export function augmentDemand(sim: Sim, col: Colony, P: FungusParams): void {
   const n = cen.workers;
   if (n === 0) return;
   const d = col.alloc.demand;
-  setAtLeast(d, 'garden', gardenDemand(col, P, n));
-  setAtLeast(d, 'cut', cutDemand(sim, col, P, n));
+  const cut = cutDemand(sim, col, P, n);
+  // first-brood deviation: without a cutting caste the cut trips are the gardeners' (behaviourGarden.ts)
+  if (noCutters(sim, col)) setAtLeast(d, 'garden', Math.min(n, gardenDemand(col, P, n) + Math.ceil(cut)));
+  else {
+    setAtLeast(d, 'garden', gardenDemand(col, P, n));
+    setAtLeast(d, 'cut', cut);
+  }
   // GDD 07 §5.4.5: no honeydew; and leaves are not food: no prey or carrion foragers either (pref 0)
   d[ti('tend')] = 0;
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
@@ -76,8 +98,16 @@ export const fungusAllocationSystem: System = {
   },
 };
 
-/** Cut trips the colony's gardeners make while it has no cutting caste: the cut demand, rounded up. */
+/**
+ * Cut trips the colony's gardeners make while it has no cutting caste: the cut demand, rounded up, at most half the
+ * minims (the others tend, harvest and feed), and half of it while the gardens are fully supplied.
+ */
 export function minimCutTrips(sim: Sim, col: Colony, P: FungusParams): number {
   const n = censusOf(sim, col.id).workers;
-  return Math.ceil(cutDemand(sim, col, P, n));
+  let minims = 0;
+  for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && a.caste === 'minor') minims++;
+  let supplied = 0, need = 0;
+  for (const g of liveGardens(col.fungus!)) { supplied += substrateInputs(g, sim.state.tick).subIn1Gd; need += P.subNeedPerGu * g.biomass; }
+  const d = cutDemand(sim, col, P, n) * (supplied >= need ? 0.5 : 1);
+  return Math.min(Math.ceil(d), Math.max(1, Math.floor(minims / 2)));
 }

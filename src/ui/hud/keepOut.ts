@@ -3,7 +3,8 @@
 // animation-frame loop only reads the cached array, never the layout.
 import type { Rect } from './promptPlacement';
 
-const REGIONS = '[data-hud]:not([data-hud="prompts"]), .fd-drawer';
+// .pn-panel: the colony view's marker palette (gate-close-app: the top hint card sat on top of it)
+const REGIONS = '[data-hud]:not([data-hud="prompts"]), .fd-drawer, .pn-panel';
 
 let rects: Rect[] = [];
 

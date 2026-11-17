@@ -662,3 +662,15 @@ Progress (kept current; a successor continues from here)
   Running (07:35): nest-before (base, PAR=1) -> `round-3/bench-nest-before/`, forage-h2 (h2, PAR=1) ->
   `round-3/bench-forage-h2/`, one process each. If cut off: re-run `PAR=1 $S/base/tools/sim/bench-sweep.sh nest ...`
   and `PAR=1 $S/h2/tools/sim/bench-sweep.sh forage ...` (out dirs above, cache `round-3/cache`).
+- 07:58 **nest-bench finding (we #1, food guaranteed: P in store 15-31 loads)**: 6 of 9 larvae starve. Probe
+  (`round-3/probe-nurse-we1*.txt`, tool deleted): from t+2.55 to t+3.10 gd **no feed at all**; the two nurses spent
+  the 0.55 gd in `nurse.carry` (+ rest); `brood-moved` shows larva 13450 carried royal 5673 -> royal 5673 **89 times**
+  (others 2-9 times). Cause: the warmer nursery 13561 (14.2 C vs royal 12.3 C) is the sorting `best`, but its pile
+  points lie inside the royal chamber's ellipsoid (chamber assignment = deepest ellipsoid, `nest/chambers/registry.ts`),
+  so every put-down lands back in the royal chamber and the board posts the same move again; a hungry larva in the
+  "wrong" chamber only ever gets the combined move + feed job (board.ts), carried by nurses with empty crops -> never
+  fed; all 8 larvae empty from t+2.6, 6 starve at t+3.03-3.16 (LARVA_STARVE_GD 0.5).
+  Fixes in the tree: N1 `ants/behaviours/nest/sorting.ts` (a chamber is a sorting destination for a group only if its
+  pile point lies in it by the put-down rule), N2 `board.ts` (a larva with an empty gut, hungerTicks > 0, is fed where it
+  lies; sorted once it has food). Test `ants/behaviours/nest/sortReach.test.ts` (2 cases, each red without its fix).
+  Next: copy `n1` = h2 + sorting.ts + board.ts; nurse probe there, then nest bench n1.

@@ -7,7 +7,7 @@ import type {
 } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
 import {
-  DEFAULT_SEASON_LENGTH_DAYS, DIFFICULTY_PARAMS, invalidCustomRules, resolveRules, START_DAY_OF_SEASON_RULE,
+  DEFAULT_SEASON_LENGTH_DAYS, DIFFICULTY_PARAMS, invalidCustomRules, resolveRules, START_DAY_OF_SEASON_RULE, valueIn,
 } from '@/sim/balance';
 import { requireSpecies } from '@/sim/species';
 
@@ -61,12 +61,14 @@ export function defaultRules(preset: DifficultyId, seasonLengthDays: SeasonLengt
  * reported (the other rule keeps its value; the accessors in balance/difficulty.ts already zero what cannot happen):
  * - `humanActivity: off` leaves nothing for the reactive bait stations of the preset;
  * - `predators: off` removes founding threats and flight hazards of the preset;
- * - `weatherSeverity: none` has no rain for `floodInflowMult` / `rainHitMult` to scale.
+ * - `weatherSeverity: none` has no rain for `floodInflowMult` / `rainHitMult` to scale;
+ * - `rivals: 0` also leaves out the preset's incipient conspecific foundations (accessor `incipientRivals`).
  */
 export function ruleNotes(rules: CustomRules): RuleIssue[] {
   const notes: RuleIssue[] = [];
   if (rules.humanActivity === 'off') notes.push({ key: 'humanActivity', reason: 'incompatible', detail: 'People are off: no bait stations or human events.' });
   if (rules.predators === 'off') notes.push({ key: 'predators', reason: 'incompatible', detail: 'Predators are off: no founding threats and no flight hazards either.' });
+  if (rules.rivals === 0) notes.push({ key: 'rivals', reason: 'incompatible', detail: 'No rival colonies: the young conspecific rivals are left out too, so there are no brood raids.' });
   if (rules.weatherSeverity === 'none') notes.push({ key: 'weatherSeverity', reason: 'incompatible', detail: 'No weather: only clear and overcast days, so no rain, flooding or storms.' });
   return notes;
 }
@@ -106,13 +108,15 @@ export function applyRules(config: GameConfig, raw: unknown): AppliedRules {
   const start = startFor(config.species, rules.startSeason, seasonLength);
   // a rule-less call keeps the config's own start (a test world or a lineage daughter may have set it)
   const keepStart = custom.seasonLengthDays === undefined && custom.startSeason === undefined;
+  const difficulty = { preset, params, custom };
   const out: GameConfig = {
     ...config,
-    difficulty: { preset, params, custom },
+    difficulty,
     rules,
     ...(keepStart ? {} : { startSeason: start.season, startDayOfSeason: start.day }),
     world: {
-      ...config.world, difficulty: preset, rivalCount: rules.rivals, incipientCount: params.incipientRivals,
+      ...config.world, difficulty: preset, rivalCount: rules.rivals,
+      incipientCount: valueIn({ difficulty, rules }, 'incipientRivals'), // 0 when the rival count is 0
       humanActivity: rules.humanActivity,
     },
   };

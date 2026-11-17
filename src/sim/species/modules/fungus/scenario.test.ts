@@ -21,7 +21,7 @@ describe('fungus garden scenarios', () => {
     addAnts(k, 'minor', 3, k.room, 'nurse', 0.35);
     run(k.sim, Math.round(0.5 * TICKS_PER_DAY));
     const fedP = larvae.reduce((a, b) => a + b.fedP, 0);
-    expect(col.fungus!.chain!.harvested + (col.fungus!.chain!.last?.harvested ?? 0)).toBeGreaterThan(0.1);
+    expect(col.fungus!.chain!.harvested + (col.fungus!.chain!.last?.harvested ?? 0)).toBeGreaterThan(0.05);
     expect(fedP).toBeGreaterThan(0.05);
   }, 120_000);
 

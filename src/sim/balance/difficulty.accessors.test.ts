@@ -84,6 +84,15 @@ describe('humanActivity (GDD 04 §15.7: replaces HUMAN_FREQ_MULT; lethality and 
   });
 });
 
+describe('rivals', () => {
+  it('0 rival colonies leaves out the incipient conspecific foundations; any other count keeps the preset\'s', () => {
+    for (const preset of PRESETS) {
+      expect(difficultyValue(src(cfgOf(preset, { rivals: 0 })), 'incipientRivals')).toBe(0);
+      expect(difficultyValue(src(cfgOf(preset, { rivals: 2 })), 'incipientRivals')).toBe(DIFFICULTY_PARAMS[preset].incipientRivals);
+    }
+  });
+});
+
 describe('foundingLeniency (the Founding group of the gentle / naturalist / harsh column)', () => {
   it.each([['lenient', 'gentle'], ['normal', 'naturalist'], ['strict', 'harsh']] as const)('%s on every preset = the %s founding group', (leniency, column) => {
     for (const preset of PRESETS) {

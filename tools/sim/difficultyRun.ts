@@ -5,7 +5,9 @@
 //   node tools/sim/run-ts.mjs tools/sim/difficultyRun.ts --preset harsh --days 28 --seed 1 --out test-output/difficulty
 //   options: --preset gentle|naturalist|harsh (naturalist)  --seed S (1)  --archetype ID (woodland-edge)  --days N (28)
 //            --rules '{"predators":"off","rivals":0,"humanActivity":"off"}'  --species ID (lasius-niger)
-//            --cache DIR (reuse the founded hand-over snapshot of the same options and code tag)
+//            --workers N (cheat: N adult workers added at the hand-over, so the colony is big enough for losses to show)
+//            --food C,P (cheat: loads added to the stores with --workers)
+//            --cache DIR (reuse the founded hand-over snapshot of the same options; delete it when the code changed)
 //
 // Wall clock and files live here, never in src/sim.
 
@@ -28,11 +30,11 @@ declare const process: { argv: string[]; exitCode?: number; stdout: { write(s: s
 
 interface Opts {
   preset: DifficultyId; seed: number; archetype: ArchetypeId; days: number; rules: unknown; species: SpeciesId;
-  out: string | null; cache: string | null;
+  out: string | null; cache: string | null; workers: number; food: [number, number];
 }
 
 function parse(args: string[]): Opts {
-  const o: Opts = { preset: 'naturalist', seed: 1, archetype: 'woodland-edge', days: 28, rules: {}, species: 'lasius-niger', out: null, cache: null };
+  const o: Opts = { preset: 'naturalist', seed: 1, archetype: 'woodland-edge', days: 28, rules: {}, species: 'lasius-niger', out: null, cache: null, workers: 0, food: [0, 0] };
   for (let i = 0; i < args.length; i += 2) {
     const k = args[i], v = args[i + 1];
     if (v === undefined) throw new Error(`difficultyRun: ${k} needs a value`);
@@ -44,6 +46,8 @@ function parse(args: string[]): Opts {
     else if (k === '--species') o.species = v as SpeciesId;
     else if (k === '--out') o.out = v;
     else if (k === '--cache') o.cache = v;
+    else if (k === '--workers') o.workers = Number(v);
+    else if (k === '--food') { const [c, p] = v.split(',').map(Number); o.food = [c || 0, p || 0]; }
     else throw new Error(`difficultyRun: unknown option ${k}`);
   }
   return o;
@@ -102,6 +106,10 @@ export function runDifficulty(o: Opts, fs: NodeFs): DifficultyReport {
     if (o.cache) { fs.mkdirSync(o.cache, { recursive: true }); fs.writeFileSync(key, snapshot(sim)); }
   }
   const col = (): number => sim.state.player.colonyId;
+  if (o.workers > 0) {
+    sim.enqueue({ type: 'cheat.spawnAnts', colonyId: col(), n: o.workers, caste: 'worker', ageGd: 4, task: null, pos: null });
+    if (o.food[0] > 0 || o.food[1] > 0) sim.enqueue({ type: 'cheat.addFood', colonyId: col(), c: o.food[0], p: o.food[1], toxin: 0 });
+  }
   const r: DifficultyReport = {
     tool: 'difficultyRun', options: o, effective: effectiveParams(sim.state.config) as unknown as Record<string, unknown>,
     rules: sim.state.config.rules, issues: applied.issues, founding, days: o.days,
@@ -165,7 +173,7 @@ export default async function main(): Promise<void> {
   const text = JSON.stringify(rep);
   if (o.out) {
     fs.mkdirSync(o.out, { recursive: true });
-    fs.writeFileSync(`${o.out}/difficulty-${o.preset}-${o.seed}${Object.keys(o.rules as object).length ? '-custom' : ''}.json`, text);
+    fs.writeFileSync(`${o.out}/difficulty-${o.preset}-${o.seed}${o.workers ? `-w${o.workers}` : ''}${Object.keys(o.rules as object).length ? '-custom' : ''}.json`, text);
   }
   process.stdout.write(text + '\n');
 }

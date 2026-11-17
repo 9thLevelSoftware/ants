@@ -8,7 +8,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Brood, Nest, Sim } from '@/sim/types';
-import { BROOD_EVAC_MARGIN_BU, FLEE_DRY_MARGIN_BU } from '@/sim/balance/weather';
+import { BROOD_DRY_DROP_SLACK_BU, BROOD_EVAC_MARGIN_BU, FLEE_DRY_MARGIN_BU } from '@/sim/balance/weather';
 import { nestInflow } from '@/sim/nest/flood/inflow';
 import { depthOver, dryPlace, isDryAt, waterView, type WaterView } from '@/sim/nest/flood/dryPlace';
 
@@ -51,9 +51,14 @@ export function broodInWater(sim: Sim, f: FloodEvac, b: Brood): boolean {
   return depthOver(sim, f.water, b.pos, b.pos.y) > -margin;
 }
 
-/** Where a nurse puts evacuated brood down when no chamber is dry: the nearest dry place from her, or null. */
+/**
+ * Where a nurse puts evacuated brood down when no chamber is dry: the nearest place from her that is dry by more than
+ * broodInWater's margin (BROOD_DRY_DROP_SLACK_BU beyond it), so the item is not evacuated again at the next board
+ * build; or null.
+ */
 export function dryDropPoint(sim: Sim, nest: Nest, from: Vec3): Vec3 | null {
   const w = waterView(sim, nest);
   if (!w) return null;
-  return dryPlace(sim, w, from, FLEE_DRY_MARGIN_BU * sim.world.bu)?.pos ?? null;
+  const margin = Math.max(FLEE_DRY_MARGIN_BU, BROOD_EVAC_MARGIN_BU + BROOD_DRY_DROP_SLACK_BU) * sim.world.bu;
+  return dryPlace(sim, w, from, margin)?.pos ?? null;
 }

@@ -85,7 +85,10 @@ describe('applyRules at game creation', () => {
     const base = defaultGameConfig('lasius-niger', 1, 'naturalist');
     const { config } = applyRules(base, { rivals: 0, humanActivity: 'off' });
     expect(config.rules.rivals).toBe(0);
-    expect(config.world).toMatchObject({ difficulty: 'naturalist', rivalCount: 0, incipientCount: DIFFICULTY_PARAMS.naturalist.incipientRivals, humanActivity: 'off' });
+    // no rival colonies at all: the preset's young conspecific rivals are left out with the established ones
+    expect(config.world).toMatchObject({ difficulty: 'naturalist', rivalCount: 0, incipientCount: 0, humanActivity: 'off' });
+    const one = applyRules(base, { rivals: 1 }).config;
+    expect(one.world).toMatchObject({ rivalCount: 1, incipientCount: DIFFICULTY_PARAMS.naturalist.incipientRivals });
   });
 
   it('applyPreset swaps the preset (params and rules) and keeps what the player overrides', () => {

@@ -63,3 +63,7 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 07:07 views PASS (after script fix). 07:08 photo FAIL: page ReferenceError 'difficultyValue is not defined' — src/sim/balance/difficulty.ts being edited by difficulty-rules engineer right now (sim WIP); rerun later.
 - a11yA sec C FAIL: no hint because onboarding silent while foundingInProgress (nest founding 'reopening' until plug dug, R14 up to 4 gh). Script fixed to play on until foundingInProgress false (tests/e2e/a11y.mjs ~407). Rerun a11yA later.
 - 07:38 a11yA FAIL: B (RB possess-next; script now 1-frame tap with retries) and C (hint; script now plays on). Other sections OK. a11yB running.
+- 07:51 a11yB PASS. Next chunk: playSeed1 photo.
+- 08:05 playSeed1 running. NOTE: playthrough steps 1200 ticks (= 2 min of play at 1x) per shot for BOTH the 1x and 4x halves (4x half covers 1/4 of 20 real min at 4x). Document honestly.
+- 08:2x Seen playSeed1/x1-m06-slice.png: label plate + outlines blown to white (exposure scales overlay). FIXED src/render/fx/markers/MarkerRenderer.ts holdAgainstExposure (+exposureHold.test.ts). Also seen: 'Tab Next ant' chip overlaps colony tool palette; hand-over choice card stays on screen for hours.
+- keepOut.ts: .pn-panel added to REGIONS (hint/prompt avoid colony palette).
