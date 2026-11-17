@@ -16,8 +16,10 @@ import { REASON_CODES } from '@/sim/types/ids/ants';
 import { isWorkerCaste } from '@/sim/colony/census';
 import { layingProteinPermitted, winterReserveShort } from '@/sim/colony/queen';
 import { isDiscoveredBy } from '@/sim/ecology/sources/discovery';
+import { odourRadiusMm } from '@/sim/ecology/sources/def';
+import { smelledSource } from '@/sim/ants/perception';
 import { CREATURE_STATS } from '@/sim/balance/creatures';
-import { TICKS_PER_DAY } from '@/sim/time';
+import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { round } from './lifeMetrics';
 
 /** Radius around the main entrance the source census covers (R18: 300 BU). */
@@ -55,7 +57,20 @@ function timeBucket(a: Ant): string {
   return 'nest.work';
 }
 
-interface TripNow { task: string; reached: boolean; kind: string }
+/**
+ * A trip in progress. `reason` and `ok` are what the ant gave when it turned home; the trip is counted when it ends at
+ * home (ant.mem.trips increments: colony.recordForagerReturn, the same count as col.counters.trips and report.econ).
+ */
+/** One scout trip outside (sampled every TIME_SAMPLE_TICKS): how far it went, how long, how close it came to food. */
+interface ScoutTrip { t0: number; maxD: number; path: number; last: { x: number; z: number }; gap: Map<number, number>; smelled: Set<number> }
+
+const median = (xs: number[]): number => {
+  if (xs.length === 0) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+};
+
+interface TripNow { task: string; reached: boolean; kind: string; reason: string | null }
 
 export interface FunnelReport {
   days: number;
@@ -63,8 +78,13 @@ export interface FunnelReport {
   workerTimeShare: Record<string, number>;
   /** worker-gd per task (allocation result). */
   taskTimeGd: Record<string, number>;
-  /** trips ended (turned home or abandoned in the nest), by `task reason reached|not success|fail`. */
+  /**
+   * Trips ended at home by `task reason reached|not-reached ok|fail` (the colony's trip count, = report.econ.trips;
+   * reason = what the ant turned home with), plus trips abandoned before leaving, listed as `never-left (not counted)`.
+   */
   trips: Record<string, number>;
+  /** Trips ended at home and the successful ones (equal to report.econ.trips / successes over the same span). */
+  tripsHome: { n: number; ok: number };
   tripsByNutrient: Record<string, { trips: number; ok: number }>;
   sources: {
     atStart: Record<string, { n: number; known: number; c: number; p: number }>;
@@ -83,6 +103,23 @@ export interface FunnelReport {
   queen: { potentialOpenShare: number; permittedShare: number; winterReserveShortShare: number; gutPShare: number; meanPotential: number };
   deaths: Record<string, number>;
   stuckAntGd: number;
+  /**
+   * Scout trips outside (colony-life round 2): distance reached from the entrance and time outside (median, p90),
+   * path length; per source kind within FUNNEL_RADIUS_BU, the trips that came within its odour radius (plan view), the
+   * trips that smelled it (perception), and the sources the colony discovered (by kind; `byScout` those found by
+   * scouts). `nearestGapBu`: per trip the closest approach to the odour edge of a P (resp. C) source, median.
+   */
+  scouting: {
+    trips: number; maxDistBu: { median: number; p90: number }; outS: { median: number; p90: number }; pathBu: { median: number };
+    inOdour: Record<string, number>; smelled: Record<string, number>; discovered: Record<string, number>; byScout: Record<string, number>;
+    nearestGapBu: { P: number; C: number };
+  };
+  /**
+   * Prey patches (GDD 05 §2.3, R18) within FUNNEL_RADIUS_BU: count, nearest edge from the entrance (BU), summed K and
+   * prey count at start / end; patch prey that appeared (springtail, mite: they appear only ahead of a forager or
+   * scout inside a patch), prey subdued by the colony's ants, and patch prey that vanished untouched.
+   */
+  preyPatches: { n: number; nearestBu: number; k: number; countStart: number; countEnd: number; appeared: Record<string, number>; subdued: Record<string, number>; vanished: Record<string, number> };
 }
 
 export class FunnelObserver {
@@ -93,6 +130,8 @@ export class FunnelObserver {
   private readonly taskTime: Record<string, number> = {};
   private readonly lastPhase = new Map<number, number>();
   private readonly trip = new Map<number, TripNow>();
+  /** Per ant: mem.trips and mem.lastSuccessTick last seen (a change = a trip ended at home, and whether it succeeded). */
+  private readonly homeTrips = new Map<number, { n: number; okTick: number }>();
   private readonly trips: Record<string, number> = {};
   private readonly byNutrient: Record<string, { trips: number; ok: number }> = {};
   private readonly visits: Record<string, number> = {};
@@ -110,6 +149,17 @@ export class FunnelObserver {
   private q = { open: 0, permitted: 0, winterShort: 0, gutP: 0, potential: 0, n: 0 };
   private readonly lastPos = new Map<number, { x: number; y: number; z: number; tick: number }>();
   private stuckSamples = 0;
+  private tripsHome = 0; private tripsHomeOk = 0;
+  private readonly scout = new Map<number, ScoutTrip>();
+  private readonly scoutDone = { maxD: [] as number[], outS: [] as number[], path: [] as number[], gapP: [] as number[], gapC: [] as number[] };
+  private readonly inOdour: Record<string, number> = {};
+  private readonly smelledKinds: Record<string, number> = {};
+  private readonly discovered: Record<string, number> = {};
+  private readonly discoveredByScout: Record<string, number> = {};
+  private readonly preyAppeared: Record<string, number> = {};
+  private readonly preySubdued: Record<string, number> = {};
+  private readonly preyVanished: Record<string, number> = {};
+  private readonly patchStart: { n: number; nearestBu: number; k: number; count: number };
 
   constructor(private readonly sim: Sim) {
     this.col = sim.state.player.colonyId;
@@ -147,6 +197,17 @@ export class FunnelObserver {
     });
     sim.events.on('ant-eclosed', (e) => { if (e.colonyId === this.col) this.brood.eclosed++; });
     sim.events.on('ant-died', (e) => { if (e.colonyId === this.col) bump(this.deaths, `${e.caste}:${e.cause}`); });
+    sim.events.on('food-source-discovered', (e) => {
+      if (e.colonyId !== this.col) return;
+      const k = `${e.kind}${e.variant ? `/${e.variant}` : ''}`;
+      bump(this.discovered, k);
+      if (sim.stores.ants.get(e.byAntId)?.task === 'scout') bump(this.discoveredByScout, k);
+    });
+    const patchKinds = new Set(['springtail', 'mite']);
+    sim.events.on('creature-spawned', (e) => { if (patchKinds.has(e.kind)) bump(this.preyAppeared, e.kind); });
+    sim.events.on('creature-despawned', (e) => { if (patchKinds.has(e.kind)) bump(this.preyVanished, `${e.kind}:${e.cause}`); });
+    sim.events.on('prey-subdued', (e) => { if (e.antIds.some(mine)) bump(this.preySubdued, e.kind); });
+    this.patchStart = this.patchCensus();
     this.startSources = this.sourceCensus();
     this.startPrey = this.preyCensus();
   }
@@ -187,6 +248,19 @@ export class FunnelObserver {
     return out;
   }
 
+  /** Prey patches whose disc reaches within FUNNEL_RADIUS_BU of the entrance. */
+  private patchCensus(): { n: number; nearestBu: number; k: number; count: number } {
+    const sim = this.sim, e = this.entrancePos(), bu = sim.world.bu;
+    const out = { n: 0, nearestBu: Infinity, k: 0, count: 0 };
+    if (!e) return out;
+    for (const p of sim.state.ecology.preyPatches) {
+      const edge = (Math.sqrt((p.center.x - e.x) ** 2 + (p.center.z - e.z) ** 2) - p.radius) / bu;
+      if (edge > FUNNEL_RADIUS_BU) continue;
+      out.n++; out.nearestBu = Math.min(out.nearestBu, Math.max(0, edge)); out.k += p.k; out.count += p.count;
+    }
+    return { n: out.n, nearestBu: out.n ? round(out.nearestBu) : -1, k: round(out.k), count: round(out.count) };
+  }
+
   private preyCensus(): Record<string, number> {
     const sim = this.sim, e = this.entrancePos(), out: Record<string, number> = {};
     if (!e) return out;
@@ -207,7 +281,8 @@ export class FunnelObserver {
     for (const a of sim.stores.ants.list) {
       if (!a.alive || a.colony !== this.col || !isWorkerCaste(a.caste)) continue;
       if (OUTDOOR_TASKS.has(a.task)) this.watchTrip(a);
-      else if (this.trip.has(a.id)) this.trip.delete(a.id);
+      this.watchHome(a);
+      if (sample) this.watchScout(a);
       if (sample) {
         bump(this.time, timeBucket(a));
         bump(this.taskTime, a.task);
@@ -229,6 +304,49 @@ export class FunnelObserver {
         if (qn.queen.gut.p >= 0.04) this.q.gutP++;
       }
     }
+  }
+
+  /** Scout trip samples (see FunnelReport.scouting); a trip ends when the scout is back inside or no longer scouting. */
+  private watchScout(a: Ant): void {
+    const sim = this.sim, bu = sim.world.bu, e = this.entrancePos();
+    let tr = this.scout.get(a.id);
+    if (a.task !== 'scout' || a.nestId >= 0 || !e) { if (tr) this.closeScout(a.id, tr); return; }
+    if (!tr) { tr = { t0: sim.state.tick, maxD: 0, path: 0, last: { x: a.pos.x, z: a.pos.z }, gap: new Map(), smelled: new Set() }; this.scout.set(a.id, tr); }
+    const dx = a.pos.x - e.x, dz = a.pos.z - e.z;
+    tr.maxD = Math.max(tr.maxD, Math.sqrt(dx * dx + dz * dz) / bu);
+    const sx = a.pos.x - tr.last.x, sz = a.pos.z - tr.last.z;
+    tr.path += Math.sqrt(sx * sx + sz * sz) / bu; tr.last.x = a.pos.x; tr.last.z = a.pos.z;
+    const r300 = FUNNEL_RADIUS_BU * bu;
+    for (const s of sim.stores.sources.list) {
+      if (!s.alive) continue;
+      const ex = s.pos.x - e.x, ez = s.pos.z - e.z;
+      if (ex * ex + ez * ez > r300 * r300) continue;
+      const qx = s.pos.x - a.pos.x, qz = s.pos.z - a.pos.z;
+      const g = (Math.sqrt(qx * qx + qz * qz) - odourRadiusMm(s, bu)) / bu;
+      if (g < (tr.gap.get(s.id) ?? Infinity)) tr.gap.set(s.id, g);
+    }
+    const sm = smelledSource(a);
+    if (sm >= 0) tr.smelled.add(sm);
+  }
+
+  private closeScout(antId: number, tr: ScoutTrip): void {
+    this.scout.delete(antId);
+    const d = this.scoutDone, sim = this.sim;
+    d.maxD.push(tr.maxD); d.outS.push((sim.state.tick - tr.t0) / TICKS_PER_SECOND); d.path.push(tr.path);
+    let gapP = Infinity, gapC = Infinity;
+    const kinds = new Set<string>();
+    for (const [id, g] of tr.gap) {
+      const s = sim.stores.sources.get(id);
+      if (!s) continue;
+      if (s.p > s.c) gapP = Math.min(gapP, g); else gapC = Math.min(gapC, g);
+      if (g <= 0) kinds.add(`${s.kind}${s.variant ? `/${s.variant}` : ''}`);
+    }
+    for (const k of kinds) bump(this.inOdour, k);
+    const smelt = new Set<string>();
+    for (const id of tr.smelled) { const s = sim.stores.sources.get(id); if (s) smelt.add(`${s.kind}${s.variant ? `/${s.variant}` : ''}`); }
+    for (const k of smelt) bump(this.smelledKinds, k);
+    if (gapP < Infinity) d.gapP.push(gapP);
+    if (gapC < Infinity) d.gapC.push(gapC);
   }
 
   private isStuck(a: Ant): boolean {
@@ -258,7 +376,7 @@ export class FunnelObserver {
     this.lastPhase.set(a.id, ph);
     const tr = this.trip.get(a.id);
     if (ph === PH.outbound || ph === PH.explore || ph === PH.depart) {
-      if (!tr) this.trip.set(a.id, { task: a.task, reached: false, kind: this.kindOf(a.bb['fo.src'] ?? -1) });
+      if (!tr) this.trip.set(a.id, { task: a.task, reached: false, kind: this.kindOf(a.bb['fo.src'] ?? -1), reason: null });
       return;
     }
     if ((ph === PH.collect || ph === PH.queue) && tr) {
@@ -266,26 +384,38 @@ export class FunnelObserver {
       tr.reached = true; tr.kind = this.kindOf(a.bb['fo.src'] ?? -1);
       return;
     }
-    if (ph === PH.return && tr) {
-      const r = a.mem.decisions[0];
-      const reason = this.reasonNow(a);
-      const ok = (a.bb['fo.ok'] ?? 0) === 1;
-      const kind = tr.reached ? tr.kind : this.kindOf(a.bb['fo.src'] ?? -1);
-      bump(this.trips, `${tr.task} ${reason} ${tr.reached ? 'reached' : 'not-reached'} ${ok ? 'ok' : 'fail'}`);
-      const nut = `${tr.task}:${this.nutrientOf(kind)}`;
-      const t = (this.byNutrient[nut] ??= { trips: 0, ok: 0 });
-      t.trips++; if (ok) t.ok++;
-      if (ok && a.carry.kind === 'item') bump(this.items, kind);
-      this.trip.delete(a.id);
+    if (ph === PH.return && tr && tr.reason === null) {
+      // the reason it turned home with; the trip is counted when it ends at home (watchHome)
+      tr.reason = this.reasonNow(a);
+      if (!tr.reached) tr.kind = this.kindOf(a.bb['fo.src'] ?? -1);
+      if (a.carry.kind === 'item') bump(this.items, tr.kind);
       return;
     }
-    if (ph === PH.wait && tr && a.nestId >= 0) {
-      // the trip was abandoned before the ant left (abandonTrip): counted with the reason it gave up
-      const r = a.mem.decisions[0];
-      const reason = this.reasonNow(a);
-      bump(this.trips, `${tr.task} ${reason} never-left fail`);
+    if (ph === PH.wait && tr && a.nestId >= 0 && tr.reason === null) {
+      // the trip was abandoned before the ant left (abandonTrip): not a trip of the colony's count, listed apart
+      bump(this.trips, `${tr.task} ${this.reasonNow(a)} never-left (not counted)`);
       this.trip.delete(a.id);
     }
+  }
+
+  /**
+   * A trip ended at home: ant.mem.trips went up this tick (phaseNest finishTrip -> colony.recordForagerReturn, the
+   * only writer), success when mem.lastSuccessTick moved with it. Keyed by the task and reason seen on the way out;
+   * `untracked` when the trip began before the funnel saw it (or outside the outdoor phases it watches).
+   */
+  private watchHome(a: Ant): void {
+    const seen = this.homeTrips.get(a.id);
+    const now = { n: a.mem.trips, okTick: a.mem.lastSuccessTick };
+    this.homeTrips.set(a.id, now);
+    if (!seen || now.n <= seen.n) return;
+    const ok = now.okTick !== seen.okTick;
+    const tr = this.trip.get(a.id);
+    this.trip.delete(a.id);
+    const task = tr?.task ?? a.task;
+    bump(this.trips, `${task} ${tr?.reason ?? 'untracked'} ${tr?.reached ? 'reached' : 'not-reached'} ${ok ? 'ok' : 'fail'}`);
+    const t = (this.byNutrient[`${task}:${this.nutrientOf(tr?.kind ?? 'none')}`] ??= { trips: 0, ok: 0 });
+    t.trips++; if (ok) t.ok++;
+    this.tripsHome++; if (ok) this.tripsHomeOk++;
   }
 
   /**
@@ -318,6 +448,7 @@ export class FunnelObserver {
     return {
       days: round(days), workerTimeGd: time, workerTimeShare: share, taskTimeGd: task,
       trips: Object.fromEntries(Object.entries(this.trips).sort((x, y) => y[1] - x[1])), tripsByNutrient: this.byNutrient,
+      tripsHome: { n: this.tripsHome, ok: this.tripsHomeOk },
       sources: {
         atStart: this.startSources, atEnd: this.sourceCensus(),
         preyCreatures: { atStart: this.startPrey, atEnd: this.preyCensus(), meanAlive: round(this.preyAliveSum / Math.max(1, this.preySamples)) },
@@ -332,6 +463,24 @@ export class FunnelObserver {
       },
       deaths: this.deaths,
       stuckAntGd: round(this.stuckSamples * perGd),
+      scouting: this.scoutingResult(),
+      preyPatches: {
+        n: this.patchStart.n, nearestBu: this.patchStart.nearestBu, k: this.patchStart.k, countStart: this.patchStart.count,
+        countEnd: this.patchCensus().count, appeared: this.preyAppeared, subdued: this.preySubdued, vanished: this.preyVanished,
+      },
+    };
+  }
+
+  private scoutingResult(): FunnelReport['scouting'] {
+    const d = this.scoutDone;
+    const p90 = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length * 0.9)] : 0);
+    return {
+      trips: d.maxD.length,
+      maxDistBu: { median: round(median(d.maxD)), p90: round(p90(d.maxD)) },
+      outS: { median: round(median(d.outS)), p90: round(p90(d.outS)) },
+      pathBu: { median: round(median(d.path)) },
+      inOdour: this.inOdour, smelled: this.smelledKinds, discovered: this.discovered, byScout: this.discoveredByScout,
+      nearestGapBu: { P: round(median(d.gapP)), C: round(median(d.gapC)) },
     };
   }
 }
@@ -339,13 +488,18 @@ export class FunnelObserver {
 /** Founding read-out (hand-over count: what set it). Subscribe before the founding runs. */
 export class FoundingObserver {
   eggsLaid = 0; eclosed = 0; deaths: Record<string, number> = {}; adultDeaths: Record<string, number> = {};
+  /** Set at the hand-over (stop()): later events belong to the colony-life funnel, not to the founding. */
+  private stopped = false;
   constructor(sim: Sim) {
     const col = sim.state.player.colonyId;
-    sim.events.on('egg-laid', (e) => { const b = sim.stores.brood.get(e.broodId); if (b && b.colony === col) this.eggsLaid++; });
-    sim.events.on('brood-died', (e) => { if (e.colonyId === undefined || e.colonyId === col) bump(this.deaths, `${e.stage}:${e.cause}`); });
-    sim.events.on('ant-eclosed', (e) => { if (e.colonyId === col) this.eclosed++; });
-    sim.events.on('ant-died', (e) => { if (e.colonyId === col) bump(this.adultDeaths, `${e.caste}:${e.cause}`); });
+    const live = () => !this.stopped;
+    sim.events.on('egg-laid', (e) => { const b = sim.stores.brood.get(e.broodId); if (live() && b && b.colony === col) this.eggsLaid++; });
+    sim.events.on('brood-died', (e) => { if (live() && (e.colonyId === undefined || e.colonyId === col)) bump(this.deaths, `${e.stage}:${e.cause}`); });
+    sim.events.on('ant-eclosed', (e) => { if (live() && e.colonyId === col) this.eclosed++; });
+    sim.events.on('ant-died', (e) => { if (live() && e.colonyId === col) bump(this.adultDeaths, `${e.caste}:${e.cause}`); });
   }
+  /** The founding is over: count nothing more. */
+  stop(): void { this.stopped = true; }
 }
 
 /** Markdown block of the funnel for the run's .md. */
@@ -356,7 +510,7 @@ export function funnelMarkdown(f: FunnelReport): string {
     '', `Funnel over ${f.days} gd (tools/sim/lifeFunnel.ts):`,
     `- worker time (share): ${kv(f.workerTimeShare)}; stuck ${f.stuckAntGd} worker-gd`,
     `- task time (worker-gd): ${kv(f.taskTimeGd)}`,
-    `- trips: ${kv(f.trips)}`,
+    `- trips ended at home ${f.tripsHome.n}, ${f.tripsHome.ok} successful: ${kv(f.trips)}`,
     `- trips by nutrient: ${Object.entries(f.tripsByNutrient).map(([k, v]) => `${k} ${v.ok}/${v.trips}`).join(', ') || '-'}`,
     `- sources within ${FUNNEL_RADIUS_BU} BU at start: ${src(f.sources.atStart)}`,
     `- sources at end: ${src(f.sources.atEnd)}`,
@@ -366,5 +520,10 @@ export function funnelMarkdown(f: FunnelReport): string {
     `- brood: laid ${f.brood.eggsLaid}, hatched ${f.brood.hatched}, pupated ${f.brood.pupated}, eclosed ${f.brood.eclosed}; losses ${kv(f.brood.deaths)}; mean stage gd ${kv(f.brood.meanStageGd)}; alive at end ${kv(f.brood.aliveAtEnd)} (diapause ${f.brood.diapauseAtEnd})`,
     `- queen: potential > 0.5 egg/gd ${f.queen.potentialOpenShare}, laying protein permitted ${f.queen.permittedShare}, winter reserve short ${f.queen.winterReserveShortShare}, gut P for an egg ${f.queen.gutPShare}, mean potential ${f.queen.meanPotential}`,
     `- deaths: ${kv(f.deaths)}`,
+    `- scouting: ${f.scouting.trips} trips outside; reached median ${f.scouting.maxDistBu.median} BU (p90 ${f.scouting.maxDistBu.p90}) in ${f.scouting.outS.median} s (p90 ${f.scouting.outS.p90}), path ${f.scouting.pathBu.median} BU; ` +
+      `trips in odour range of ${kv(f.scouting.inOdour)}; smelled ${kv(f.scouting.smelled)}; nearest odour edge median P ${f.scouting.nearestGapBu.P} BU, C ${f.scouting.nearestGapBu.C} BU; ` +
+      `discovered ${kv(f.scouting.discovered)} (by scouts ${kv(f.scouting.byScout)})`,
+    `- prey patches within ${FUNNEL_RADIUS_BU} BU: ${f.preyPatches.n} (nearest edge ${f.preyPatches.nearestBu} BU, K ${f.preyPatches.k}, count ${f.preyPatches.countStart} -> ${f.preyPatches.countEnd}); ` +
+      `patch prey appeared on the whole map ${kv(f.preyPatches.appeared)} (vanished ${kv(f.preyPatches.vanished)}), subdued by the colony ${kv(f.preyPatches.subdued)}`,
   ].join('\n');
 }

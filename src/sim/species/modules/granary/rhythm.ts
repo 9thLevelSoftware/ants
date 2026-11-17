@@ -83,7 +83,7 @@ export function heatOf(sim: Sim, col: Colony, g: GranaryParams): HeatReading {
     const f = tempOverride.get(sim);
     for (const p of samplePoints(sim, col, from, pts)) {
       const t = f ? f(p) : microTemp(sim, p);
-      // microTemp now and then returns a non-physical value at a sample point (seen: 1e33 °C); such a sample is skipped
+      // a non-physical reading (NaN, or far outside any weather) must not close the trails for everyone: skipped
       if (!(t >= TRAIL_TEMP_VALID_C[0] && t <= TRAIL_TEMP_VALID_C[1])) continue;
       sum += t;
       if (t >= shade) hot++;

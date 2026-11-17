@@ -278,6 +278,14 @@ Engineer: round 2 (started 03:45 UTC Nov 17). Evidence: `test-output/colony-life
 Progress (kept current; a successor continues from here)
 - 03:45 started: read spec, ledger, STATUS. Next: reproduce the sweep's major findings (F1 trigger, protein loss on
   suburban-garden #2 / playground-park #2), then account the failing runs.
-- 03:50 G1 (sweep finding "F1 trigger") done in the tree: `entrances.ts` `forgetGhostPlugs` (an `open` entrance drops
+- 03:47 G1 (sweep finding "F1 trigger") done in the tree: `entrances.ts` `forgetGhostPlugs` (an `open` entrance drops
   the PLUG flag of ghost samples, so spoil piled on them later is no plug). `plugBaseline.verify` red without it
   (counted 5, `sealing`), green with it. Next: account (funnel) for the failing runs.
+- 03:50 tool fixes (sweep minors) in the tree: `lifeFunnel.ts` `FoundingObserver.stop()` called by `life.ts` at the
+  hand-over; funnel trips now end when `ant.mem.trips` rises (the one writer is phaseNest `finishTrip` ->
+  `recordForagerReturn`, the same count as `report.econ.trips`), reason = what the ant turned home with; trips abandoned
+  before leaving are listed apart; new `funnel.tripsHome` and `funnel.scouting` (scout reach, time out, odour passes,
+  discoveries). Day column renamed "departures (activation path only)". Hand-overs of the sweep copied to
+  `round-2/cache/*-any.bin` (suburban-garden 2/3, playground-park 2/3, kitchen-door 3, car-park-verge 1).
+  Now running: `round-2/before/` suburban-garden #2 and playground-park #3 (`--cache round-2/cache --cache-any`).
+

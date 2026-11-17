@@ -41,6 +41,12 @@ Started 01:56 UTC Nov 17. Two earlier engineers cut off (01:24, 01:53); no progr
   scouts stay near home (nearest pass 65 BU). Fix: SEED_PATCHES 20, ring [20,200] BU; SEED_ODOUR_BU 25. Probe (resites):
   stock 6.3 loads in 21 h, carriers on the trail, heat gate at 13:00. Hand-over caches in test-output/harvester/cache.
 
+- 03:55 e2e run 5 PASSED (ok:true), suburban-garden seed 1, first workers 3 natural + 16 spawned foragers; granary
+  stock 13 loads; shots test-output/species-harvester/01..04 LOOKED AT: 01 carrier small/dark under leaf (weak),
+  02 inside chamber with ants + display seeds (ok), 03 castes shot EMPTY (ants out of frame) -> script now teleports
+  them in a row (not yet re-run), 04 possessed minor (ok).
+- 04:00 viability runs started (background): playground-park 1, car-park-verge 1 -> test-output/harvester/viab/*.log
+
 ## Evidence
 - test-output/harvester/econ/ (old code, --workers 12): 46 deliveries, mostly honeydew, seed 1-2/day, no granary.
 - test-output/harvester/life2/pp1.log : life run with the fixes (started 02:15).

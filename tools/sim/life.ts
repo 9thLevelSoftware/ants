@@ -271,6 +271,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   }
   const counter = new EventCounter(sim);
   const stuck = new StuckSampler(sim);
+  fobs?.stop(); // the founding funnel ends at the hand-over (sweep 1 review: it counted colony-life deaths)
   const econ = new EconSampler(sim);
   const funnel = new FunnelObserver(sim);
   if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
@@ -399,7 +400,7 @@ export function lifeMarkdown(r: LifeReport): string {
     `Founding: ${r.founding.phase} after ${r.founding.gd} gd with ${r.founding.workers} first workers (expected ${r.founding.expected.min}-${r.founding.expected.max})` +
     `${r.founding.forcedSeal ? ` **from a forced seal** (the real founding: ${r.founding.forcedSeal})` : ''}. ` +
     `Verdict: **${r.verdict.healthy ? 'healthy' : 'UNHEALTHY'}** (net worker growth: ${r.verdict.netGrowth ? 'yes' : 'no'}); ${r.violationCount} invariant violations; ${r.msPerTick} ms per tick; final stateHash ${r.finalHash}.`, '',
-    '| day | season | workers | eggs/larvae/pupae | hunger | lay pot. | C | P | stage | trips | deliv. (C/P) | by kind | deaths | eggs laid | eclosed | plans +/done | pellets made/dumped/in nest | volume BU³ | chambers | trail cells | outside | stuck | over timeout | viol. | ms/tick |',
+    '| day | season | workers | eggs/larvae/pupae | hunger | lay pot. | C | P | stage | departures (activation path only) | deliv. (C/P) | by kind | deaths | eggs laid | eclosed | plans +/done | pellets made/dumped/in nest | volume BU³ | chambers | trail cells | outside | stuck | over timeout | viol. | ms/tick |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   const kv = (m: Record<string, number>) => Object.entries(m).map(([k, v]) => `${k} ${v}`).join(', ') || '-';

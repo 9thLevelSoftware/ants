@@ -15,7 +15,7 @@ export const SEED_SOURCE_STEP_TICKS = 250;
 export const GRANARY_DIAG_TICKS = 250;
 /** Ticks between patrol-gate checks. */
 export const PATROL_STEP_TICKS = 10;
-/** Trail temperature samples outside this range, °C, are taken as invalid readings and skipped. */
+/** Trail temperature samples outside this range, °C, are taken as invalid readings and skipped (defensive). */
 export const TRAIL_TEMP_VALID_C: readonly [number, number] = [-40, 80];
 
 // ---- seed sources (GDD 05 grass-seed nodes, activated for a granary species) ----

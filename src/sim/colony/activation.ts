@@ -292,7 +292,6 @@ export function recordForagerReturn(sim: Sim, returner: Ant, success: boolean, s
     returner.mem.lastSuccessTick = sim.state.tick;
     if (sourceId >= 0) updateNews(sim, col, sourceId);
   }
-  sim.emit({ type: 'forager-returned', antId: returner.id, colonyId: col.id, success, sourceId });
   return contactWaiting(sim, col, returner.pos, returner.id, success, returner.task === 'scout', sourceId);
 }
 

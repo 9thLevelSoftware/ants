@@ -127,18 +127,23 @@ export default async ({ page, shot, log }) => {
   if (home) {
     const at = (dx, dz) => ({ x: home.x + dx * bu, y: home.y, z: home.z + dz * bu });
     await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'major', ageGd: 5, task: 'idle', pos: at(10, 0) });
-    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'media', ageGd: 5, task: 'idle', pos: at(10, 3) });
-    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'minor', ageGd: 5, task: 'idle', pos: at(10, 6) });
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'media', ageGd: 5, task: 'idle', pos: at(10, 0) });
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 1, caste: 'minor', ageGd: 5, task: 'idle', pos: at(10, 0) });
     await step(1);
     const trio = await sim((sm) => {
       const c0 = sm.state.colonies[0].id;
       const newest = (caste) => sm.state.ants.filter((a) => a.alive && a.colony === c0 && a.caste === caste).sort((a, b) => b.id - a.id)[0];
       return ['major', 'media', 'minor'].map((k) => { const a = newest(k); return a ? { id: a.id, pos: a.pos } : null; });
     });
-    log(`castes: ${JSON.stringify(trio)}`);
-    const mid = trio[1]?.pos ?? at(10, 3);
-    await g(([m, b]) => window.__game.camera.setPose({ x: m.x + 7 * b, y: m.y + 4 * b, z: m.z }, m), [mid, bu]);
+    // line them up 2 BU apart on the ground (teleport), then frame them from the side, low
+    const base = trio[0]?.pos ?? at(10, 0);
+    for (let i = 0; i < 3; i++) if (trio[i]) await g(([id, p]) => window.__game.teleport(id, p), [trio[i].id, { x: base.x, y: base.y, z: base.z + (i - 1) * 2 * bu }]);
     await step(1);
+    const placed = await sim((sm, ids) => ids.map((id) => sm.stores.ants.get(id)?.pos ?? null), trio.map((t) => t?.id ?? -1));
+    log(`castes: ${JSON.stringify(placed)}`);
+    const mid = placed[1] ?? base;
+    await g(([m, b]) => window.__game.camera.setPose({ x: m.x + 5 * b, y: m.y + 2 * b, z: m.z + 0.5 * b }, { x: m.x, y: m.y + 0.3 * b, z: m.z }), [mid, bu]);
+    await render(0.5);
     await highShot('03-castes-side-by-side');
     if (trio[2]) {
       await g((id) => window.__game.possess(id), trio[2].id);
