@@ -695,3 +695,15 @@ Even without round 4 the bar fails (4 of 15): calendar and protein remain. Year 
 Integrator lead written at the top of the ledger's Round 5: the royal chamber reads 0.8–3 °C on spring day 1 and 12–13 °C on spring days 6–7 of year two, about 5 °C under what the same climate gives a same-depth founding chamber on those days of year one — check the thermal state after the winter lapse before treating late spring laying as a design gap.
 
 threats-calibrate: impl done, review done, fix round running. look-pass-3: impl running.
+
+## Nov 17 23:00 UTC — threats-calibrate landed (R25 ramp in); quiet-time task launched
+
+threats-calibrate (impl + review + fix; report `threats-calibrate-report.md`, results `reviews/threats-calibrate.json`):
+- **R25 ramp built** (`PREDATION_RAMP_WORKERS`, `predationRamp()` in `balance/difficulty.ts`; colony-range territories flagged `colonyRange`). Measured: founding-year colonies **median 0 predation deaths per colony** (0.005 per outside-worker gd) against median 4.5 (0.15) without the ramp over ten runs; at 60 workers Naturalist **0.038** per outside-worker gd (95 % range 0.027–0.051; band 0.03–0.12), Gentle 0.007, Harsh 0.047, off 0 in 23,770 outside worker-hours. Sweep 4 and the round-4 benches predate the ramp: they overstate predation (≈ 0.19 on founding colonies).
+- Review found the long creature soak red 5 of 5 (never run before): cause — every landed strike raised a `predator-near` warning for 30 s, longer than a game hour (25 s), so each strike made a loud hour (I11). Now clears 5 s after the strike (`PREDATOR_STRUCK_CLEAR_S`); soak 6 of 6.
+- Worker maxHp 7.2 is correct (nanitic; GDD 05's 10 hp is the regular worker).
+- Not measured: the lever for when rescue of paralysed nestmates lands (`COLONY_PAUSE_KINDS = ['jumping-spider']`).
+- For colony-life (noted at the top of the ledger's Round 5): creatures folder passes to it; gaps (a) rescue of paralysed nestmates, (c) `knownHazardsNear` in steering.
+- **Whole-game quiet share (I11 / E25) fails on human-event warnings** (14–55 per 6 gd; quiet share 0–0.04), which also cancels every bird event. New task **`quiet-time.md`** (Sonnet impl + Opus review): measure loud hours per alert kind, fix human-event alert durations and re-raises and the colony alerts' bookkeeping, E25 in a whole game.
+
+Running: colony-life `w732tzrqp` (round 5), look-pass-3 `waeqyax2g`, quiet-time (new).

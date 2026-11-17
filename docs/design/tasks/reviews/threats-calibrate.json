@@ -1,0 +1,235 @@
+{
+ "impl:threats-calibrate": {
+  "summary": "I finished threats-calibrate, carrying on from the progress file left when the 18:55 restart cut the first session off. The ramp code (ruling R25) was already in the tree and its tests passed. This session finished the measurements, made the ramp tests cover every preset, wrote the before/after timing and the missing report sections, and checked the results.\n\nResults (each preset run on five worlds with two run seeds; totals over the ten runs):\n- **Founding-year colonies, hand-over to winter, Naturalist, with the ramp:** median 0 predation deaths per colony. That is 2 deaths in 10 runs, 0.005 per outside-worker game day.\n- **Same colonies without the ramp** (the integrator's stop-gap state): median 5 deaths per colony, 0.19 per outside-worker game day. This is one run seed only, five runs. The ramp is what protects young colonies; the stop-gap alone does not.\n- **60-worker colonies, 6 game days, deaths per outside-worker game day:**\n  - Gentle 0.007\n  - Naturalist 0.038 (41 deaths in 26,118 outside worker-hours; band 0.03\u20130.12, so inside it)\n  - Harsh 0.047\n  - Predators off: 0\n- The order Gentle < Naturalist < Harsh holds on the totals. Harsh is only slightly above Naturalist: paired run by run, Harsh is equal or higher in 8 of 10.\n- **No constant changed.** The two values the integrator emptied as a stop-gap (`COLONY_PAUSE_KINDS = []`, `COLONY_RANGE_MIN_BU = {}`) are kept as the calibrated values.\n- **Which families hunt (60 workers, Naturalist, strikes / kills):** ant-spider 65 / 15, jumping spider 21 / 14, wolf spider 35 / 7, rove beetle 7 / 4, centipede 3 / 1, antlion 0 (no pit habitat on these five worlds), bird 0.\n- **Bird:** its own gate opens, but the threat director cancels every bird event because human-event warnings hold the quiet share at 0\u20130.04.\n- **Three core gaps,** reproduced and not fixed, in `coreGaps.repro.test.ts`:\n  - (a) Paralysed nestmates are never carried home. Expected failure, kept as `it.fails`.\n  - (b) The 7.2 hp workers are nanitics. GDD 05 \u00a74.1 has a nanitic row with 7 hp, so the code and the GDD agree. The 10 hp in E12 is for a regular worker.\n  - (c) `knownHazardsNear` is not read by steering. Expected failure, kept as `it.fails`.\n- **Cost:** the creature systems cost the same before and after at 60 and 300 workers, within noise. The machine was at load 8 while I measured.\n\nThe report is complete at /home/user/foundress/docs/design/tasks/threats-calibrate-report.md. Evidence is under /home/user/foundress/test-output/threats-calibrate/.",
+  "filesTouched": [
+   "/home/user/foundress/tools/sim/threatBatch.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/predationRamp.test.ts",
+   "/home/user/foundress/docs/design/tasks/threats-calibrate-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/threats-calibrate-impl.md",
+   "(earlier session, already in the tree) /home/user/foundress/src/sim/balance/difficulty.ts",
+   "(earlier session) /home/user/foundress/src/sim/balance/creatures.ts",
+   "(earlier session) /home/user/foundress/src/sim/config/presetDisplay.ts",
+   "(earlier session) /home/user/foundress/src/sim/ecology/creatures/colonyRange.ts",
+   "(earlier session) /home/user/foundress/src/sim/ecology/creatures/director.ts",
+   "(earlier session) /home/user/foundress/src/sim/ecology/creatures/coreGaps.repro.test.ts",
+   "(earlier session) /home/user/foundress/src/sim/ecology/creatures/colonyRange.test.ts, colonySites.test.ts, threatsLive.verify.test.ts, README.md",
+   "(earlier session, cross-edit) /home/user/foundress/src/sim/types/ecology.ts",
+   "(earlier session) /home/user/foundress/tools/sim/threatFunnel.ts, threatTable.ts"
+  ],
+  "verification": [
+   "npm run typecheck (whole tree) at 19:03 and 20:48 UTC: 0 errors",
+   "npx vitest run src/sim/ecology/creatures src/sim/config/presetDisplay.test.ts at 20:53 UTC: 28 files, 206 passed, 2 expected fail (coreGaps a, c), 6 skipped (LONG)",
+   "npx vitest run src/sim/ecology/creatures/predationRamp.test.ts: 15 tests green, about 28 s",
+   "presetDisplay.test.ts, newgame.test.ts, src/sim/balance: 5 files, 130 passed",
+   "threatBatch ramp-w60-gentle (10 runs): 24,039 outside worker-h, 7 deaths = 0.007 per outside-worker gd",
+   "threatBatch base-w60 Naturalist (10 runs, earlier session): 26,118 outside worker-h, 41 deaths = 0.038",
+   "threatBatch ramp-w60-harsh (10 runs): 26,791 outside worker-h, 53 deaths = 0.047",
+   "threatBatch ramp-w60-off (5 runs x 2 gd): 0 telegraphs, 0 strikes, 0 deaths",
+   "ramp-w60-nat-check: ramp code vs stop-gap code at 60 workers, woodland-edge and car-park-verge run seed 1: identical funnels and death counts; woodland-edge also the identical final state hash",
+   "ramp-found (earlier session, 10 runs to winter): median 0 predation deaths per colony; base-found (stop-gap, no ramp, 5 runs to winter): median 5, 0.19 per outside-worker gd",
+   "perf.txt: life.ts --perf 300 at 60 and 299 workers, 3 repeats, before and after: minimum creatures 0.198 -> 0.205 ms and 0.202 -> 0.192 ms per tick; creature-director 0.044 -> 0.030 ms and 0.031 -> 0.038 ms (load average about 8)"
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Ramp (R25) in the director's colony-range siting; unit test per preset (0 below the lower bound, 1 at the upper, linear between; a shrinking colony loses its colony-range residents over SETTING_DESPAWN_GD, not at once; save -> load equal)",
+    "status": "met",
+    "evidence": "predationRamp.test.ts, 15 tests: ramp values, siting subset and shrink per preset (it.each over the three presets); save -> load stateHash equal"
+   },
+   {
+    "criterion": "2a. Founding-year hand-overs to winter, Naturalist: median predation deaths per colony <= 1",
+    "status": "met",
+    "evidence": "ramp-found/: median 0, 2 deaths in 10 colony-runs; without the ramp (base-found/) median 5"
+   },
+   {
+    "criterion": "2b. 60 workers: 0.03-0.12 per outside-worker gd on Naturalist, ordered Gentle < Naturalist < Harsh, zero with predators off, each world at least twice",
+    "status": "met",
+    "evidence": "Naturalist 0.038, Gentle 0.007, Harsh 0.047, off 0. Every world twice on the three presets; predators off ran once per world for 2 gd (noted in the report)"
+   },
+   {
+    "criterion": "2. Fewest constants, each change shown with its measured effect",
+    "status": "met",
+    "evidence": "No constant changed: the stop-gap values are the calibrated values. The ramp's effect is measured (median deaths per colony 5 without it, 0 with it)"
+   },
+   {
+    "criterion": "3. Strikes per family per world at 60 workers; which families the band leaves rarely seen",
+    "status": "met",
+    "evidence": "Report \u00a72.3 and \u00a73: rove beetle, centipede, antlion and bird are the rare ones, with what a player would notice"
+   },
+   {
+    "criterion": "4. Three core gaps reproduced, not fixed; source of the 7.2 hp and which document is right",
+    "status": "met",
+    "evidence": "coreGaps.repro.test.ts; report \u00a74. 7.2 = nanitic scale 0.85 -> 0.614 mg -> 10 x m^(2/3); GDD 05 \u00a74.1 nanitic row (7 hp) agrees with the code"
+   },
+   {
+    "criterion": "5. Typecheck clean, creature tests green, per-tick cost at 60 / 300 workers before and after",
+    "status": "met",
+    "evidence": "0 type errors; 28 files green; report \u00a75 timing table (measured under load, minimum of three repeats)"
+   },
+   {
+    "criterion": "6. Report docs/design/tasks/threats-calibrate-report.md",
+    "status": "met",
+    "evidence": "Complete: constants, tables, notes for the colony engineer, GDD deviations D1-D5, Appendix E table, acceptance"
+   }
+  ],
+  "notDone": [
+   "Predators off was run once per world (5 runs x 2 gd), not twice; its result is zero events either way.",
+   "The no-ramp founding-year comparison (base-found) used one run seed per world (5 runs), not two.",
+   "The 6 LONG-flagged creature tests were not run in this session."
+  ],
+  "contractChanges": [
+   "src/sim/types/ecology.ts: CreatureTerritory.colonyRange?: number (additive optional field; made by the earlier session, logged in test-output/threats-calibrate/cross-edits.md)",
+   "src/sim/balance/difficulty.ts: PREDATION_RAMP_WORKERS, predationRampWorkers(), predationRamp() (additive, owned)",
+   "src/sim/config/presetDisplay.ts: preset-card row 'Hunters settling by a growing colony' (additive, owned)"
+  ],
+  "needsFromOthers": [
+   "colony-life (src/sim/ants/**): AI ants carry a paralysed nestmate home with p 0.5 (GDD 05 \u00a72.4). Gap (a), the largest lever left on the 60-worker rate; re-measure afterwards with tools/sim/threatBatch.ts --workers 60 --run-seeds 1,2 (expect about 0.03).",
+   "locomotion / behaviours: read knownHazardsNear in local steering so known pits are avoided by radius + 1 L (GDD 05 \u00a72.4, E14). Gap (c).",
+   "human events / integrator: human-event warnings hold the I11 quiet share at 0-0.04, which fails E25 and makes the threat director cancel every bird event."
+  ],
+  "notesForIntegrator": [
+   "Precedence: nothing contradicts on the 7.2 hp question. GDD 05 owns both the nanitic row (7 hp) and the regular-worker row (10 hp) that E12 is written for.",
+   "Deviations from the GDD: R25 (the colony-size ramp) and R26 (the loss rate binds over 'every family strikes on 3 of 5 worlds'), report \u00a77.",
+   "Sweeps run with the stop-gap state but without the ramp had about 0.19 predation deaths per outside-worker gd on founding-year colonies (median 5 per colony to winter). With the ramp this falls to 0.005, so earlier round-4 sweep numbers overstate predation.",
+   "Expected predation for the colony engineer: Naturalist founding year about nothing (median 0 per colony); 60 workers about 0.7 worker deaths per colony per game day (0.038 per outside-worker gd).",
+   "tools/sim/threatBatch.ts now resumes a cut-off batch: runs whose funnel-*.json already exist are read, not re-run.",
+   "Scratch trees and scripts were deleted; no background processes are left running. No harness or browser runs were needed (no visual change)."
+  ]
+ },
+ "verify:threats-calibrate": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the task spec (threats-calibrate.md), the design seed, architecture, contracts guidance, tech-stack section 7, STATUS rulings R25/R26, GDD 05 section 4.1 HP table, the implementer's report and their progress file",
+   "Read the ramp source diff (commit f5f8e67): balance/difficulty.ts (PREDATION_RAMP_WORKERS, predationRamp), config/presetDisplay.ts row, creatures/colonyRange.ts (playerWorkers, colonyRangeDrawn x ramp, isColonyRangeTerritory, drawnKinds), creatures/director.ts (suspended, rampCull), types/ecology.ts colonyRange?: number (additive). Also read predationRamp.test.ts, coreGaps.repro.test.ts, tools/sim/threatBatch.ts, and the threatFunnel/threatTable diffs. Comment-only change in balance/creatures.ts (8bfb523)",
+   "npm run typecheck (whole tree): 0 errors, before and after adding my test",
+   "npx vitest run src/sim/ecology/creatures src/sim/config/presetDisplay.test.ts: 28 files, 206 passed, 2 expected fail, 6 skipped (93 s). Matches the implementer's claim",
+   "npx vitest run src/sim/ecology/creatures/predationRamp.verify.test.ts (new): 7 passed, 18 s",
+   "Recomputed every total in the report from the tables.md of base-w60, ramp-w60-gentle, ramp-w60-harsh, ramp-w60-off, ramp-found, base-found and ramp-w60-nat-check. All match. Harsh >= Naturalist run by run: 8 of 10 by rate (9 of 10 by deaths); Gentle <= Naturalist: 10 of 10",
+   "Confirmed that sim code is unchanged since the ramp commit apart from comments and tests, so the current tree equals the implementer's tree-ramp",
+   "Reproduction 1, threatBatch founding year, woodland-edge, run seed 1, to winter, on the current tree (test-output/threats-calibrate/review-repro-found/): identical to ramp-found, including finalHash 3006d751 (2 centipede deaths, 1474 outside worker-hours)",
+   "Reproduction 2, threatBatch 60 workers, Naturalist, suburban-garden, run seed 2, 6 gd, on the ramp tree (test-output/threats-calibrate/review-repro-w60/): funnel, deaths by kind and outside worker-hours identical to base-w60 (only the hash differs, from the colonyRange flag). The Naturalist row now holds for the ramp code on 3 worlds",
+   "FOUNDRESS_LONG=1 npx vitest run src/sim/ecology/creatures/soak.test.ts: 5 of 5 long tests FAIL on the current tree",
+   "Same LONG soak (seed 1, gentle, harsh) on a scratch copy of the pre-task stop-gap tree (git archive f5f8e67^): also fails, with the same numbers, so the failure was already there before this task",
+   "Diagnostic copy of soakScene (test-output/threats-calibrate/review-diag/soakDiag.ts, output nat-8gd.txt): in the creature-only scene (no human events) predator-near warnings are active in 32 of 81 samples, and minWindowShare is 0.32 after 8 gd",
+   "Checked the alerts block of the funnel runs (predatorNearS 338 s in 6 gd): the report's human-event attribution is plausible for the real-game runs",
+   "Checked GDD 05 section 4.1: the 'LN nanitic, 0.6 mg, 7 hp' row exists, so the reading of gap (b) is correct",
+   "Layering, determinism and state: no three, DOM, Math.random or Date.now in the touched sim files; rampOut lives in the creature's persisted bb as a tick number; no runtime memo; draws come from forked world-seed streams"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "LONG creature soak in the owned folder fails 5 of 5; never run, and the report's Appendix E rows for E21, E22 and E25 claim coverage",
+    "where": "src/sim/ecology/creatures/soak.test.ts:49-69 (describe.skipIf(!LONG)); src/sim/ecology/creatures/soakScene.ts; report docs/design/tasks/threats-calibrate-report.md section 8 and acceptance item 5",
+    "detail": "Reproduce with: FOUNDRESS_LONG=1 npx vitest run src/sim/ecology/creatures/soak.test.ts (about 5 min). Results: seeds 1, 2 and 3 and gentle fail with 'expected 0 to be greater than or equal to 0.6 / 0.75' (minWindowShare 0 in a 3-GD window). Harsh fails with 'expected 18 to be less than or equal to 12' (maxBirdKills 18 > BIRD_MAX_KILLS). JSON results are in test-output/creatures-soak-28d-*.json. The pre-task stop-gap tree (git archive f5f8e67^) fails the same way, so the ramp did not cause this. But the folder is owned by this task, spec item 5 asks for 'creature tests green', and the report marks it met with '6 skipped (LONG)'. The working rules say to run LONG tests once yourself; that was not done. The report's section 8 lists E21, E22 and E25 as 'covered by soak.test.ts (creature scene)' and puts the quiet-share failure on human-event warnings. But the creature soak scene runs only forageDriver, creature director, creature and locomotion systems: it has no human events. My diagnostic (test-output/threats-calibrate/review-diag/nat-8gd.txt) shows the module's own predator-near warnings active in 32 of 81 samples, giving a quiet share of 0.32 after 8 gd. So I11/E25 also fails inside the creature module. The harsh bird event also breaks its kill bound (E15 / BIRD_MAX_KILLS). Fix route: the module owner should decide whether predator-near should count as a loud alert at this density, or whether the soak bound should change per preset, and should correct the report's Appendix E rows."
+   },
+   {
+    "severity": "minor",
+    "title": "Naturalist rate sits at the lower edge of the band with no headroom",
+    "where": "docs/design/tasks/threats-calibrate-report.md sections 2.2 and 6",
+    "detail": "41 deaths in 1,088 outside-worker gd gives 0.038. The Poisson 95% interval is about 0.027 to 0.051, so it crosses the band's 0.03 lower edge. Single runs range from 0.01 to 0.09. The report itself predicts that closing gap (a), rescue of paralysed nestmates, lowers the rate to about 0.03. The criterion is met on the point estimate. Two things are missing: the report should say which lever brings the rate back into the band once rescue lands (for example COLONY_PAUSE_KINDS for one kind), and it should state the uncertainty next to the 'in band' claim. The design's centre value is 0.061."
+   },
+   {
+    "severity": "minor",
+    "title": "Predators-off case run once per world for 2 gd (spec: each world twice, 6 gd); no-ramp founding comparison on one seed",
+    "where": "test-output/threats-calibrate/ramp-w60-off/, base-found/",
+    "detail": "The spec says each world at least twice with different run seeds. ramp-w60-off is 5 runs of 2 gd with run seed 1 only. base-found, used to show the ramp's effect, is 5 runs with one seed. The implementer listed both under notDone. Zero events with predators off is also covered by predatorsOff.test.ts, so the risk is low."
+   },
+   {
+    "severity": "minor",
+    "title": "Save -> load equality is tested on Naturalist only",
+    "where": "src/sim/ecology/creatures/predationRamp.test.ts:180-191",
+    "detail": "Spec item 1 asks for 'a unit test per preset (... save -> load equal)'. The ramp-value, siting and shrink cases use it.each over the three presets, but the save -> load case with pending departures runs only on the default preset. The preset changes only the bounds, so the risk is low."
+   },
+   {
+    "severity": "minor",
+    "title": "threatBatch resume can silently reuse results from a different configuration",
+    "where": "tools/sim/threatBatch.ts:69-75",
+    "detail": "Results already on disk are reused by file name only. The name holds archetype, world seed, preset, '-custom', worker count and run seed. It does not hold --days, --until-winter, --food or the content of --rules. Rerunning into an existing --out directory with, say, --days 2 instead of 6, or a different --rules JSON, reads the old JSON and mixes it into tables.md without a warning. Fix: put those options in the name, or compare r.options with the requested options before reusing."
+   }
+  ],
+  "testsAdded": [
+   "src/sim/ecology/creatures/predationRamp.verify.test.ts: 'gentle/naturalist/harsh: the drawn kinds only grow with the worker count (every count 0..upper+5)' (3 cases)",
+   "src/sim/ecology/creatures/predationRamp.verify.test.ts: 'a shrinking colony loses only colony-range residents to the ramp; worldgen residents are never despawned for it'",
+   "src/sim/ecology/creatures/predationRamp.verify.test.ts: 'an engaged colony-range resident stays past SETTING_DESPAWN_GD and leaves at the first run once free'",
+   "src/sim/ecology/creatures/predationRamp.verify.test.ts: 'a dip that ends resets the timer: a second dip right after gets the full SETTING_DESPAWN_GD'",
+   "src/sim/ecology/creatures/predationRamp.verify.test.ts: 'playerWorkers counts live worker-caste ants of the player colony only'"
+  ]
+ },
+ "fix:threats-calibrate": {
+  "summary": "I fixed all five review findings. One part of finding 2 is still open: the effect of the lever I named for the rate was not measured.\n\n**1 (major): the long creature soak failed 5 of 5. Now 6 of 6 pass.** I reproduced the failure and found three separate causes:\n- **The real defect is in the creature module, not in human events.** Since threats-live, every strike that lands on a player ant raises a `predator-near` warning, and the warning stayed up for 30 s. A game-clock hour is only 25 s, and the quiet-share rule (I11) counts an hour as loud if a warning is up for 25 % of it. So every landed strike made one or two daytime hours loud. In 4 game days, 59 of 62 warnings came from strikes. At the creatures commit 64b8b2d, before threats-live, the same soak passed with 7 alert hours; now it had 114.\n  - Fix: a warning raised by a strike now clears 5 s after the strike (new constant `PREDATOR_STRUCK_CLEAR_S`), unless the predator is seen lurking again, in which case the existing 30 s rule takes over. The toast, the cooldown and the journal entry are unchanged.\n  - Predation is unchanged: the same 62 deaths in the 4-day diagnostic. Over those 4 days the lowest quiet share went from 0.33 to 0.76.\n- **The bird check in the test was wrong.** The GDD allows 12 kills per bird event times the Predators setting, so 19 on Harsh, and the code already caps there. The test compared with 12. `bird.ts` now exports `birdMaxKills`, and the soak checks against it.\n- **The soak scored windows that end inside winter.** Those windows held only the last 1-7 autumn hours, one of them a bird event, which gives a share of 0. GDD 05 E25 measures windows of daytime hours outside founding and winter, so the soak now scores only windows that end at a counted hour.\n\n**2 (minor): Naturalist at the lower edge of the band.** The report now gives the 95 % range next to the \"in band\" claim: 0.027 to 0.051. Once the colony engineer builds rescue of paralysed nestmates (gap a), the expected rate is about 0.03; the report names the lever for that case: `COLONY_PAUSE_KINDS = ['jumping-spider']`, with `['rove-beetle']` as the smaller step. I did not measure it: the machine load was 10-13, and one 10-run batch takes about 70 minutes.\n\n**3 (minor): runs on one seed only.** Both re-run:\n- `predators: off` at 60 workers, every world twice for 6 game days: 0 telegraphs, 0 strikes, 0 deaths in 23,770 outside worker-hours.\n- The no-ramp founding comparison got its second seed on a scratch copy of the stop-gap tree (75514ce): median 3. Over ten runs without the ramp: median 4.5 deaths per colony, 0.15 per outside-worker game day, against median 0 and 0.005 with it. The conclusion stands: the ramp is what protects young colonies.\n\n**4 (minor): save \u2192 load tested on Naturalist only.** That test now runs on all three presets.\n\n**5 (minor): `threatBatch` resume could mix configurations.** It now reuses a result on disk only if the stored options match the requested run on every option that affects the outcome. Otherwise it stops and names the differing options.\n\nI did not weaken or delete any of the reviewer's tests. I changed one existing test of my own: in `strikeAlert.test.ts` it now checks for the warning 10 ticks after the strike instead of 50, because the warning now clears at 50.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/balance/creatures.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/alerts.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/system.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/bird.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/soakScene.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/soak.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/strikeAlert.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/predationRamp.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/threatTools.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/README.md",
+   "/home/user/foundress/tools/sim/threatBatch.ts",
+   "/home/user/foundress/docs/design/tasks/threats-calibrate-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/threats-calibrate-fix.md"
+  ],
+  "verification": [
+   "Reproduced the review: the LONG soak at the creatures commit 64b8b2d (scratch tree) passed Naturalist seed 1 (lowest window 0.60, 7 alert hours) and failed Harsh with 17 > 12. On the current tree it failed 5 of 5. Diagnostic: test-output/threats-calibrate/fix-diag/alertDiag.ts showed 59 of 62 warnings raised by strikes, each held 30 s.",
+   "After the alert fix, a 4-game-day diagnostic gave a lowest window of 0.76 (was 0.33) with the same 62 deaths.",
+   "First LONG run after the alert fix: seeds 2 and 3 still failed with 0. test-output/threats-calibrate/fix-diag/soakDiag2.ts (hour-by-hour map) showed the failing windows end inside winter with 1-7 counted hours.",
+   "FOUNDRESS_LONG=1 npx vitest run src/sim/ecology/creatures/soak.test.ts: 6 of 6 passed (313 s). Lowest windows: Naturalist 0.73 / 0.65 / 0.67, Gentle 0.80, Harsh 0.60. 8-15 major threats per run. Most kills per bird event within the cap (Harsh 14 of 19). Results in test-output/creatures-soak-28d-*.json.",
+   "npx vitest run src/sim/ecology/creatures src/sim/config/presetDisplay.test.ts: 30 files, 220 passed, 2 expected fail (coreGaps.repro (a), (c)), 6 skipped (LONG), 116 s. Includes the reviewer's predationRamp.verify.test.ts (7 cases) and the new threatTools.test.ts.",
+   "npm run typecheck: 0 errors on the whole tree (22:53 UTC).",
+   "threatBatch predators off, 60 workers, run seeds 1 and 2, 6 game days, 10 runs (test-output/threats-calibrate/ramp-w60-off-6gd/tables.md): all zero.",
+   "threatBatch on a scratch copy of the stop-gap tree 75514ce, founding-year runs to winter, run seed 2 (test-output/threats-calibrate/base-found-r2/tables.md): deaths 9, 3, 2, 0, 9, median 3, 0.12 per outside-worker game day.",
+   "Ran one heavy process at a time and checked free -g before each. Scratch trees deleted; no processes left running."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1: LONG creature soak green, root cause fixed, Appendix E rows corrected",
+    "status": "met",
+    "evidence": "Three causes found and fixed: strike warnings held too long (alerts.ts, PREDATOR_STRUCK_CLEAR_S), the bird check in the test, and windows ending in winter (soakScene.ts). LONG soak 6 of 6 pass. Report section 8 (E15, E21, E22, E25 rows) and section 11.1 rewritten."
+   },
+   {
+    "criterion": "Finding 2: state the uncertainty and name the lever for when rescue lands",
+    "status": "partial",
+    "evidence": "Report section 2.2: 95 % range 0.027-0.051. Section 6: lever COLONY_PAUSE_KINDS = ['jumping-spider'], smaller step ['rove-beetle']. Its effect was not measured."
+   },
+   {
+    "criterion": "Finding 3: predators-off on every world twice for 6 game days; no-ramp comparison on a second seed",
+    "status": "met",
+    "evidence": "ramp-w60-off-6gd/: 10 runs, 0 events. base-found-r2/: median 3. Report sections 2.1, 2.2, 10 and 11.3 updated."
+   },
+   {
+    "criterion": "Finding 4: save -> load test per preset",
+    "status": "met",
+    "evidence": "predationRamp.test.ts: the save -> load case runs on all three presets and checks that departures are pending in the snapshot. 17 tests pass."
+   },
+   {
+    "criterion": "Finding 5: threatBatch resume must not reuse results made with other options",
+    "status": "met",
+    "evidence": "threatBatch.ts runMismatch: the batch stops and names the differing options. threatTools.test.ts: 4 cases pass."
+   },
+   {
+    "criterion": "Typecheck and all tests in own paths green; reviewer tests kept",
+    "status": "met",
+    "evidence": "0 type errors; 30 test files green; predationRamp.verify.test.ts unchanged and passing."
+   }
+  ],
+  "notDone": [
+   "The effect of the named lever (COLONY_PAUSE_KINDS = ['jumping-spider']) on the 60-worker Naturalist rate was not measured. I skipped it because the machine load was 10-13 and a 10-run batch takes about 70 minutes. The re-measure command is in report section 6.",
+   "The whole-game E25 check (suburban-garden, AI colony, with human events) is still open. Human-event warnings keep the real-game quiet share low; that belongs to the human-events owner / integrator, as before. The creature-scene part of E25 now passes."
+  ],
+  "contractChanges": [
+   "None. No change under src/sim/types/** or src/core/**. Within my own paths: new balance constant PREDATOR_STRUCK_CLEAR_S in src/sim/balance/creatures.ts, new export birdMaxKills from bird.ts, new creature blackboard key alertClearAt, new SoakResult fields birdKillCap and minWindowCounted."
+  ],
+  "needsFromOthers": [
+   "Colony engineer: once rescue of paralysed nestmates (gap a) lands, re-measure the 60-worker rate (command in report section 6). If it falls below 0.03, set COLONY_PAUSE_KINDS = ['jumping-spider'] and measure again.",
+   "Human events / integrator: the whole-game I11 / E25 quiet share is still held down by human-event-warning alerts. That also cancels every bird event in real games (report section 3)."
+  ],
+  "notesForIntegrator": [
+   "Decision: a predator-near warning raised by a landed strike now clears after 5 s instead of 30 s. Predation numbers are unchanged; only how long the warning stays up changed. The reason is the clock: one game hour is 250 ticks = 25 s, and I11 counts an hour as loud when a warning is up for 25 % of it, so a 30 s warning made every landed strike at least one loud daytime hour. At the design's predation rate, grown colonies could not meet the quiet-share target that way.",
+   "Decision: the soak scores the quiet share only on windows that end at a counted hour, which is how GDD 05 E25 words it ('every trailing 3-GD window of daytime hours outside founding and winter').",
+   "In the stored threats-calibrate funnel tables, the 'predator-near raised' counts and the predation numbers are still valid. The 'quiet share min' column was measured with the old 30 s warning, so it would now read somewhat higher.",
+   "Correction to the previous report: it marked the LONG soak as met with '6 skipped', but it had never been run and was failing 5 of 5. Report section 11.1 records this."
+  ]
+ }
+}

@@ -1,6 +1,7 @@
 # threats-calibrate report — predation at the design's rate, growing with the colony
 
-Engineer: threats-calibrate (Opus), 2026-11-17 17:00-18:55 and 18:58-20:55 UTC (cut off once by a container restart). Spec `docs/design/tasks/threats-calibrate.md`; rulings
+Engineer: threats-calibrate (Opus), 2026-11-17 17:00-18:55 and 18:58-20:55 UTC (cut off once by a container restart);
+review fix round 21:25-23:00 UTC (§11). Spec `docs/design/tasks/threats-calibrate.md`; rulings
 R25 (ramp) and R26 (loss rate first) in `docs/STATUS.md`.
 
 **Data set.** The five round-4 hand-overs `test-output/colony-life/round-4/cache/founded-lasius-niger-<archetype>-1-naturalist-d-any.bin`
@@ -79,7 +80,11 @@ predators.
 | kitchen-door | 15 -> 2 / 9 (ant-spider 9) | 15 -> 9 / 0 |
 
 Without the ramp: median **5** predation deaths per colony, 31 in five colonies, **0.19 per outside-worker gd** (3,890
-outside worker-h; the colonies shrink, so fewer ants go out); with it: median 0, 0.005. The stop-gap alone is not
+outside worker-h; the colonies shrink, so fewer ants go out); with it: median 0, 0.005. **Second run seed (fix round,
+`base-found-r2/`, same stop-gap tree):** 9 / 3 / 2 / 0 / 9 deaths (woodland-edge, suburban-garden, playground-park,
+car-park-verge, kitchen-door), median 3, 23 deaths, 0.12 per outside-worker gd (4,548 outside worker-h). **Ten runs
+without the ramp: median 4.5 deaths per colony, 54 deaths, 0.15 per outside-worker gd**, against median 0, 2 deaths,
+0.005 with it (ten runs, `ramp-found/`). The stop-gap alone is not
 enough for founding-year colonies: the colony-range residents sit in the 40-140 BU ring (woodland-edge: jumping spider 53 BU, ant-spider
 65 BU from the entrance) on the paths that the 9-18 workers share, so the few foragers meet them again and again.
 
@@ -95,7 +100,7 @@ same draws (the ramp's draw uses forked streams, not `rng`), so it is the ramp-o
 | Gentle (`ramp-w60-gentle/`) | 10 | 24,039 | 70 | 70 | 19 | 7 (0 / 4 / 3 / 0 / 0) | **0.007** | below Naturalist | 624 |
 | Naturalist (`base-w60/`; `ramp-w60-nat-check/` on the ramp tree) | 10 | 26,118 | 132 | 131 | 80 | 41 (14 / 7 / 15 / 1 / 4) | **0.038** | 0.03-0.12: **in** | 545 |
 | Harsh (`ramp-w60-harsh/`) | 10 | 26,791 | 162 | 162 | 82 | 53 (16 / 7 / 23 / 1 / 6) | **0.047** | above Naturalist | 501 |
-| `predators: off` (`ramp-w60-off/`, 2 gd) | 5 | 3,063 | 0 | 0 | 0 | 0 | **0** | 0: **in** | 298 of 300 |
+| `predators: off` (`ramp-w60-off-6gd/`, fix round: 5 worlds x run seeds 1, 2, 6 gd) | 10 | 23,770 | 0 | 0 | 0 | 0 | **0** | 0: **in** | 587 of 600 |
 
 **Uncertainty (fix round).** Naturalist is 41 deaths in 1,088 outside-worker gd: the exact Poisson 95 % interval of
 the count (29.4-55.6) gives **0.027-0.051** per outside-worker gd, so the point estimate is inside the band but its
@@ -104,7 +109,7 @@ lower edge is not cleared with confidence, and single runs range 0.01-0.09. The 
 edge; §6 names the lever for that case and its measured effect.
 
 Order **Gentle < Naturalist < Harsh** holds on the totals, and off is zero (the residents of the snapshot leave
-through `settingCull`; no telegraph in 10 game days of colony time). Per world and run seed (same snapshot, same run
+through `settingCull`; no telegraph in 60 game days of colony time, 10 runs). Per world and run seed (same snapshot, same run
 seed, only the preset differs) Harsh >= Naturalist in 8 of 10 pairs and Gentle <= Naturalist in 10 of 10. The
 Naturalist-Harsh gap is small (0.038 vs 0.047, each about +-0.006 from the Poisson count alone): at 60 workers both
 presets site the same kinds (the siting chance is capped at 1, Many x1.6 changes nothing there), so Harsh adds only
@@ -292,10 +297,93 @@ code outside the creature module in both trees).
 |---|---|---|---|
 | 1 | Ramp (R25) in the director's colony-range siting; unit test per preset: 0 below / 1 at the upper / linear; shrinking colony loses its colony-range residents over `SETTING_DESPAWN_GD`, not at once; save -> load equal | **met** | §1; `predationRamp.test.ts` 15 tests green (ramp, siting subset and shrink per preset; save -> load `stateHash` equal) |
 | 2a | Founding-year hand-overs to winter, Naturalist: median predation deaths per colony <= 1 | **met** | median **0** (2 deaths in 10 colony-runs), `ramp-found/` (§2.1) |
-| 2b | 60 workers: 0.03-0.12 deaths per outside-worker gd on Naturalist; Gentle < Naturalist < Harsh; zero with `predators: off`; each world twice | **met** (off: once per world) | Naturalist **0.038** (41 deaths, 26,118 outside worker-h, 10 runs), Gentle 0.007, Harsh 0.047, off 0 (§2.2). Every world twice on the three presets; `predators: off` ran once per world for 2 gd (zero events is not seed-dependent once the residents have left) |
+| 2b | 60 workers: 0.03-0.12 deaths per outside-worker gd on Naturalist; Gentle < Naturalist < Harsh; zero with `predators: off`; each world twice | **met** (Naturalist at the band's lower edge: Poisson 95 % 0.027-0.051) | Naturalist **0.038** (41 deaths, 26,118 outside worker-h, 10 runs), Gentle 0.007, Harsh 0.047, off 0 (§2.2). Every world twice on all four cases; `predators: off` re-run in the fix round with run seeds 1, 2 for 6 gd (10 runs, 23,770 outside worker-h, 0 telegraphs) |
 | 2 | Fewest constants, each change with its measured effect | **met** | no constant changed: the stop-gap values are the calibrated values (§2), measured before and after the ramp (§2.1, §2.2) |
 | 3 | Strikes per family per world (60 workers, 6 gd); which families the band leaves rarely seen | **met** | §2.3, §3 |
 | 4 | Three core gaps reproduced (not fixed); (b) source of 7.2 and which document is right | **met** | §4, `coreGaps.repro.test.ts` ((a), (c) `it.fails`; (b) pins the nanitic row) |
-| 5 | Typecheck clean; creature tests green; per-tick cost at 60 / 300 workers before / after | **met** | `npm run typecheck` 0 errors (whole tree, 19:03 and 20:48 UTC); `npx vitest run src/sim/ecology/creatures src/sim/config/presetDisplay.test.ts` 28 files, 206 passed, 2 expected fail (`coreGaps.repro.test.ts` (a), (c)), 6 skipped (LONG) at 20:53 UTC; §5 |
+| 5 | Typecheck clean; creature tests green; per-tick cost at 60 / 300 workers before / after | **met** (fix round) | `npm run typecheck` 0 errors (whole tree, 22:53 UTC); `npx vitest run src/sim/ecology/creatures src/sim/config/presetDisplay.test.ts` 30 files, 220 passed, 2 expected fail (`coreGaps.repro.test.ts` (a), (c)), 6 skipped (LONG) at 22:52 UTC; the LONG soak `FOUNDRESS_LONG=1 npx vitest run src/sim/ecology/creatures/soak.test.ts` 6 of 6 passed at 21:50 UTC (313 s). **Before the fix round the LONG soak failed 5 of 5 and had not been run** (§11.1); §5 |
 | 6 | This report | **met** | - |
 
+
+
+## 11. Fix round (independent review, 21:25-23:00 UTC)
+
+Progress file `docs/design/tasks/progress/threats-calibrate-fix.md`; evidence `test-output/threats-calibrate/fix-diag/`,
+`ramp-w60-off-6gd/`, `base-found-r2/`, `test-output/creatures-soak-28d-*.json`.
+
+### 11.1 The LONG creature soak failed 5 of 5 (major) - fixed
+
+Reproduced: `FOUNDRESS_LONG=1 npx vitest run src/sim/ecology/creatures/soak.test.ts` failed seeds 1-3 and Gentle on the
+quiet share (lowest 3-GD window 0) and Harsh on the bird bound (18 > 12). The previous report's Appendix E rows were
+wrong: the creature scene has no human events, so the failure was the module's own. Three causes:
+
+1. **Strike-raised `predator-near` cards made every strike a loud hour (the real defect).** A diagnostic that logs who
+   raises the card (`fix-diag/alertDiag.ts`, 4 gd of the soak scene) found 59 of 62 cards raised by a landed strike
+   (`predatorStruck`, added by threats-live), each held `PREDATOR_NEAR_CLEAR_S` = 30 s. A game-clock hour is 250 ticks
+   = 25 s, and I11 calls an hour loud when a warning is active for 25 % of it, so every landed strike made one or two
+   daytime hours loud. At the creatures commit (64b8b2d, before threats-live; scratch tree) the same soak had 7 alert
+   hours in 28 gd and passed (Naturalist 0.60); now 114. This scales with the colony: at the design's predation rate
+   a 300-worker colony would fail I11 in the real game too. Fix: a strike-raised card clears
+   `PREDATOR_STRUCK_CLEAR_S` = 5 s after the strike (below 25 % of an hour, so one strike alone never makes an hour
+   loud; two in an hour do), unless the predator is seen lurking again, in which case the lurking rule's 30 s holds it
+   (`alerts.ts` `predatorStruck` / `struckAlertTick`, per tick from `system.ts`; `bb.alertClearAt`). The raise, the
+   toast, the cooldown of 0.1 gd and the journal entry are unchanged; the card shows "Resolved" after it (GDD 08
+   §6.3). Predation is unchanged (same 62 deaths in the 4-gd diagnostic): the alert does not feed back into the sim.
+   Effect on the lowest window in 4 gd: 0.33 -> 0.76. Tests: `strikeAlert.test.ts` "the strike-raised card clears
+   PREDATOR_STRUCK_CLEAR_S after the strike and leaves the hour quiet" (new), the existing case now looks right after
+   the strike.
+2. **The bird bound in the test was unscaled (test defect).** GDD 05 §2.6: `BIRD_MAX_KILLS` 12 per event x the
+   Predators setting; Harsh's Many allows round(12 x 1.6) = 19, and the code (`bird.ts`) caps there. The test compared
+   with 12. `bird.ts` now exports `birdMaxKills(sim)`; the soak records it as `birdKillCap` and checks against it.
+3. **Windows ending in winter (measurement defect).** With 1 fixed, seeds 2 and 3 still showed 0: the three failing
+   windows ended inside winter and held only the last 1-7 counted hours of autumn, one of them a bird event
+   (`fix-diag/soakDiag2.ts`, hour-by-hour map). GDD 05 E25 measures "every trailing 3-GD window of daytime hours outside
+   founding and winter"; the soak now evaluates the windows that end at a counted hour (`soakScene.ts`; the result also
+   reports `minWindowCounted`).
+
+After the fix, 28 gd (LONG, 6 of 6 passed):
+
+| run | lowest window (counted hours) | target | major threats (bird events) | most kills per bird event / cap | max agents | predation / bird deaths |
+|---|---|---|---|---|---|---|
+| Naturalist seed 1 | 0.73 (33) | 0.60 | 10 | 12 / 12 | 81 | 157 / 95 |
+| Naturalist seed 2 | 0.65 (37) | 0.60 | 13 | 12 / 12 | 83 | 140 / 127 |
+| Naturalist seed 3 | 0.67 (33) | 0.60 | 12 | 12 / 12 | 85 | 151 / 113 |
+| Gentle seed 1 | 0.80 (49) | 0.75 | 8 | 5 / 5 | 69 | 90 / 40 |
+| Harsh seed 1 | 0.60 (5, first spring hours) | 0.40 | 15 | 14 / 19 | 83 | 141 / 122 |
+
+The scene is a stress scene (25 predator territories within 150 BU of a 300-worker nest, 60 foragers out): its
+predation is several times the design's rate and is not a calibration number. The whole-game E25 (suburban-garden, AI
+colony, human events) still needs the human-events / integrator work of §3.
+
+### 11.2 Naturalist at the band's lower edge (minor) - reported
+
+§2.2 now states the Poisson interval (0.027-0.051) next to the "in band" claim; §6 names the lever for the case that
+rescue (gap a) takes the rate below 0.03: `COLONY_PAUSE_KINDS = ['jumping-spider']`, smaller step `['rove-beetle']`.
+Its effect was not measured in this round (machine load 10-13, a 10-run batch is ~70 min): open.
+
+### 11.3 One-seed runs (minor) - re-run
+
+`predators: off` at 60 workers: 5 worlds x run seeds 1, 2, 6 gd: 0 telegraphs, 0 strikes, 0 predation deaths in 23,770
+outside worker-h (`ramp-w60-off-6gd/`). The no-ramp founding comparison got its second run seed on the stop-gap tree
+(75514ce, scratch copy, deleted after): median 3 (`base-found-r2/`); ten runs median 4.5, 0.15 per outside-worker gd
+(§2.1). The conclusion stands: the ramp, not the stop-gap, protects founding-year colonies.
+
+### 11.4 Save -> load on every preset (minor) - fixed
+
+`predationRamp.test.ts` "save -> load while a shrunk colony's residents are due to leave equals the uninterrupted run" is
+now `it.each` over Gentle, Naturalist and Harsh (each preset's own bounds; it also asserts the departures are pending in
+the snapshot, `bb.rampOut` set).
+
+### 11.5 threatBatch resume could mix configurations (minor) - fixed
+
+`tools/sim/threatBatch.ts` reuses a result on disk only when its stored options equal the requested run on every option
+that decides the outcome (`runMismatch`: archetype, seed, days, preset, rules by content, cache, workers, food, run seed,
+until-winter; an older file without until-winter counts as false); otherwise it stops with the differing keys. Test:
+`src/sim/ecology/creatures/threatTools.test.ts` (4 cases).
+
+### 11.6 Files changed in the fix round
+
+`src/sim/balance/creatures.ts` (`PREDATOR_STRUCK_CLEAR_S`), `src/sim/ecology/creatures/alerts.ts`, `system.ts`,
+`bird.ts` (`birdMaxKills` exported), `soakScene.ts`, `soak.test.ts`, `strikeAlert.test.ts`, `predationRamp.test.ts`,
+`threatTools.test.ts` (new), `README.md`; `tools/sim/threatBatch.ts`. No shared contract, nothing outside the owned paths.
+The reviewer's `predationRamp.verify.test.ts` (7 cases) is unchanged and passes.

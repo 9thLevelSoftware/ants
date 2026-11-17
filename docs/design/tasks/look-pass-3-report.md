@@ -24,3 +24,99 @@ are the same script and the same staging, not bit-identical (the worker is a few
 | `test-output/look3/after/` | new code: same list (`after-*`), then the shots re-taken after a second round of fixes (`after2-*`: observerlow, slice, edge, gyne, queenstart, close) |
 | `test-output/look3/tune/` | the tuning variants (`tune1..4-*`) |
 | `test-output/look3/checks/` | browser scripts of acceptance 3 |
+
+## 1. Items, most serious first (each: picture before and after, cause, fix)
+
+### 1. Night at ground level (S4)
+
+Cause: `NIGHT_LOOK` metered the moonlit ground to a target (`targetE` 2.45, floor `minEV` 2.6) that put +3.4 EV on the frame, the night keys kept
+saturation 0.7 / 0.75, and the sky-environment light (PMREM) was lifted with the exposure too: a mid-blue sky, saturated leaves and white pebbles read as an
+overcast day (ground luma 0.164 in clear, 0.160 in rain).
+Fix (`src/render/world/lighting/constants.ts`, `timeOfDay.ts`): `targetE` 1.7, `minEV` 2.2, night key saturation 0.5 / 0.55, a darker overcast night
+sky (`overcastSkyRgb`), new `NIGHT_LOOK.envKeep` 0.35 (the share of the sky-environment light kept at night), `STARS_DOF_GAIN` 0.05 (the DoF star discs read as
+falling snow). The moon key and the fill are unchanged, so the ant, the ground within 5 BU and the trail cues stay readable (the ant keeps its own form light, item 2).
+Tests (`lookPass2.test.ts`, `lighting.test.ts`): exposure pins 3.418 -> 2.891 (clear) and 3.593 -> 3.065 (rain), dusk 2.24 -> 2.13; the ground-luma band
+12..25 % became 9..17 % (model 0.132 at the calibration albedo; game: 0.095-0.123 measured); new asserts: night saturation below 0.6 and the environment light
+below half of the daytime one. Reasoning for the band: 0.10 median luma on the ground is a dark scene in which the 8-bit ground still shows texture
+(see the pictures), and the old 0.16 was what made it read as day.
+
+Median luminance of the ground within 20 body lengths / of the whole frame, same script and pose (`look2-measure`), quality high, seed 1:
+
+| Light, view | before ground / frame | after ground / frame |
+|---|---|---|
+| night, surface | 0.164 / 0.207 | 0.111 / 0.149 |
+| night overcast, surface | 0.168 / 0.281 | 0.107 / 0.138 |
+| night rain, surface | 0.160 / 0.237 | 0.095 / 0.138 |
+| dusk, surface | 0.231 / 0.412 | 0.124 / 0.224 |
+| dawn, surface | 0.262 / 0.497 | 0.183 / 0.378 |
+| night, observer low (frame) | 0.159 | 0.107 |
+| night overcast, observer low (frame) | 0.165 | 0.103 |
+| night rain, observer low (frame) | 0.166 | 0.098 |
+| dusk, observer low (frame) | 0.261 | 0.149 |
+| dawn, observer low (frame) | 0.314 | 0.240 |
+
+Pictures (each pair looked at): `test-output/look3/before/before-<light>-<surface|observerlow>-high.png` and `test-output/look3/after/after-<light>-<...>-high.png`
+for `night`, `night-overcast`, `night-rain`, `dusk`, `dawn`. Clear night: dark navy sky, desaturated grass, dark ground with the pebbles no longer white;
+overcast and rain: a dark cool lid, wet leaves dull. Dusk and dawn stay warm and bright, as dusk and dawn should (they blend into the night look over the sun's
+elevation 2 .. -6 degrees; the dusk exposure moved with the night target: 2.24 -> 2.13 at the horizon).
+Tuning on one staged game with patched live modules: `test-output/look3/tune/tune1-*` (variant `a` kept, `b` with targetE 1.3 was too dark: ground 0.082).
+
+### 2. Ants at night, in rain and underground (S5, S8, S12, S15, S16)
+
+One cause for most of it: the night ant was lit by three things at once, each tuned alone. The form light (`ANT_FILL`) lifted the black cuticle to mid-grey, the
+possession highlight and the form light's rim drew every thin part (legs, antennae: all silhouette) as a full-strength pale line, and the sky reflection in the
+clearcoat was lifted with the night exposure. Result: grey glass with white wire legs at quality high, wire sketches at quality test, milky bodies in rain.
+Fixes (`src/render/ants/`): `ANT_FILL` night body 1.1 -> 0.7 and rim 0.3 -> 0.22; new `ANT_FILL_RIM_THIN` 0.3: the rim gain on legs and scapes/funiculi
+(vertex varying `vAntK.y`, applied to the form light and to the possession highlight); `NIGHT_LOOK.envKeep` (item 1) takes the reflected sky out of the clearcoat
+at night, which is also the night-rain fix; a stretched gaster membrane gets a dull clearcoat (`vAntK.x` 0.1 on a swollen membrane) and the membrane
+colour of the four species is a dull pale brown (Lasius `#bba98a` -> `#8c7a5e`, others similarly) instead of near white; the wings take a faint cool edge light and a
+higher alpha at night (`uFillK`, `WING_EMISSIVE`) so a clear membrane does not vanish against a dark ground.
+Pictures (400 x 225 px around the possessed ant, `close` view): `before/before-night-close-high.png` -> `after/after-night-close-high.png`; `before-night-rain-close-high` ->
+`after-night-rain-close-high`; quality test (the wire sketch of the first workers, S12): `before/before-night-close-test.png` -> `after/after2-night-close-test.png`;
+gyne and male at night (S8): `before/before-night-gyne-high.png` -> `after/after2-night-gyne-high.png`; replete gaster (S16, the ants demo because the game has no full-crop cheat):
+`before/before-replete-a.png` -> `after/after-replete-a.png` (white rings -> thin dull tan lines). Tuning variants: `tune/tune4-e0|e1|e2-*` (e1 kept).
+Not changed / open: S5 (the pale see-through ant ahead of the possessed worker in a tunnel, `playSeed1/x4-m16-possession.png`) could not be reproduced with the
+harness today; from the picture it is a callow worker (pale golden by design, GDD 08 11.6) seen through depth of field in the warm underground light, not a material
+defect, so it is unchanged. The gaster of a night ant still has a soft grey highlight (it reads as polished chitin, no longer as glass).
+
+### 3. Cameras (S10, stage1a strict, observer after the colony view)
+
+* **Slope**: the open-state orbit sits in the surface's tangent plane behind the ant, so climbing a slope the view looks up it at the sky with the ant at the lower
+  edge. `ThirdPersonRig` now raises the orbit elevation by `CAM_SLOPE_LIFT_K` (0.85) x the pitch of the heading above the horizon, at most 40 degrees, eased over 0.4 s
+  (`src/render/camera/constants.ts`, `thirdPersonRig.ts`); the flat and downhill cases add nothing. Test `thirdPersonRig.test.ts` "slope lift": the settled view pitch on
+  a 20/30/40 degree uphill slope is below 0.45 x the slope (20.8 degrees without the lift on a 20 degree slope, 9 or less with it). **Picture: not shown.** The steepest
+  flank within 16 BU of the entrance of seed 1 is 10 degrees, and the worker ended up on a vertical face in the `slopeup` shot (`after/after-noon-slopeup-high.png`, the camera
+  rolls with the surface as designed), so the steep scene of `firstplay/14` could not be staged by cheat; the unit test is the evidence.
+* **Low room (stage1a strict)**: the guard moved the camera to the pivot base when no position cleared f >= 0.5 R, and in a queen's cell 0.4 mm below the ceiling the base
+  itself did not. The camera sphere now shrinks to what fits at the pivot base (down to 8 % of the GDD radius, eased back over 0.5 s; `radiusMm` reports the effective
+  radius, so "f >= 0.5 x radius" holds wherever any camera can stand): `CAM_TIGHT_*`, `ThirdPersonRig.fitRadius`. Tests `thirdPersonRig.test.ts` "tight room". Browser:
+  `STAGE1A_STRICT=1 STAGE1A_SKIP_HIGH=1 stage1a.mjs`: the chamber camera check (row 5 of the gate report) **passes** (`checks/stage1a.log`: egg path 6 laid by the real opening,
+  shaft interior camera f 1.78 mm / radius 2, `04-chamber-queen.png`); the run then stops at the later check "GPU resources grew across quality switches" (section 5).
+* **Observer after the colony view**: leaving the colony view for the observer followed the released ant, and an ant released from underground put the orbit camera inside the nest
+  (`check4/rain-pip.png` of the gate round). `observerAfterColony` (`src/game/views/viewSwitch.ts`): an underground followed ant is not followed; the observer stays free
+  at the colony camera's pose. Test `src/game/views/observerAfterColony.test.ts` (3). Not pictured (the scene needs a whole colony view round trip).
+
+### 4. World dressing at ant height (S9, S11, S13, far structures)
+
+* **Leaves (S9)**: the draped leaf layer is held within 0.034 BU of the ground by a hug rule that the verify tests pin (a lift of 0.048 BU made one ray sample fall off the card in
+  `drapedShape.verify.test.ts`), so the card cannot get a thickness of its own. Instead (`drapedMaterial.ts`, `DECOR_LEAF` in `decor/tuning.ts`): the cut margin is a lit edge
+  (+45 %), and the ground beside the margin gets a stippled dark contact fringe (density 1.0 at the margin, reach 0.11 of the card, four alpha taps, leaves only, near leaves only). Picture:
+  `before/before-noon-observerlow-high.png` -> `after/after2-noon-observerlow-high.png` (the leaves now sit in a dark rim instead of lying on the soil like stickers). **Partial**: a
+  leaf is still flat, the fringe is a 2-4 px dither at this size; a real curl would need the hug rule changed (draped-decor owner).
+* **Horizon strip at night (S11)**: the first rows of the skirt are lawn green and, metered by the night exposure, a lime strip along the horizon. `SKIRT_NIGHT_ALBEDO` 0.3 darkens the skirt with the
+  night weight (`boundaryRenderer.update`, test `nightHaze.test.ts`). Picture: `before/before-night-edge-high.png` -> `after/after2-night-edge-high.png` (a dark soft horizon, no strip).
+* **Mound foot (S13)**: the footprint edge is where the interpolated pile crosses `MOUND_MIN_PILE_MM`, a straight line per cell. The cut-off is now raised by up to
+  `MOUND_RIM_RAG_MM` (1.3 mm of pile) by a two-octave world-space noise: a ragged scatter of crumbs. Picture: `checks/firstplay/13-first-workers-entrance.png` and `checks/founding/09-handover-entrance.png`
+  against the gate round's `founding1/09-handover-entrance.png` (see section 5 for what was looked at). A cheat-staged game has no mound, so no look3 shot.
+* **Far structures**: the backdrop house (`boundary/backdrop.ts`) was one pale box; it has a plinth, a roof with eaves, two storeys of windows with sills and a door now
+  (`BACKDROP_SIZE.facade*`, `BACKDROP_HEX`). Picture: see section 5 (`after/after3-noon-edge-high.png` against `before/before3-noon-edge-high.png`, if the run finished).
+  **Not fixed**: the pale flat blocks of `firstplay/04-queen-surface.png` are worldgen structures (plaster prims) drawn by the primitive layer, hazed and sunlit to a flat white at
+  that distance; they need windows and trim in the worldgen catalogue or a prim-material change that I did not make (reproduction: `checks/firstplay/04-queen-surface.png`, seed 2, quality test).
+
+### 5. Colony view labels (S18)
+
+Cause as the gate round found it: the label sprites have no depth, so the depth-of-field pass blurred them with the ground behind. First attempt (the sprites write their own depth) made
+it **worse**: `after/after-noon-slice-high.png` shows the label blurred wider than before, because the label's depth is not the focus depth. Reverted. Fix: the colony view is read, not
+photographed, so it draws without depth of field (`COLONY_VIEW_DOF_STRENGTH` 0, `viewDofStrength`, accessibility controller; test in `accessibility.test.ts`). Picture:
+`before/before-noon-slice-high.png` -> `after/after2-noon-slice-high.png` (the label text is sharp). The original smear needed a particular focus distance and did not show in the
+before picture of this pose, so the improvement is by construction and the check is that the label is crisp.

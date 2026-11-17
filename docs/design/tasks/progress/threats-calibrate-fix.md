@@ -36,3 +36,9 @@ edge; (3) off/no-ramp runs one seed; (4) save->load per preset; (5) threatBatch 
 2. report: §8 App E rows, alert fix, soak numbers, off runs, base-found r2
 3. typecheck + all tests in src/sim/ecology/creatures + presetDisplay test
 4. delete scratch trees
+
+## DONE 22:55 UTC
+- off batch 10/10 zero (ramp-w60-off-6gd/), base-found-r2 median 3 (ten runs no ramp: median 4.5, 0.15/owgd).
+- vitest src/sim/ecology/creatures + presetDisplay: 30 files, 220 pass, 2 expected fail, 6 skipped (LONG) 22:52.
+- typecheck whole tree 0 errors 22:53. Report §2.1, §2.2, §6, §8, §10, §11 updated. Scratch trees deleted.
+- Open: lever (COLONY_PAUSE_KINDS ['jumping-spider']) effect not measured.
