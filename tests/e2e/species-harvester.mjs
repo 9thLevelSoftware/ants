@@ -51,6 +51,17 @@ export default async ({ page, shot, log }) => {
   expect(first.workers >= 1, 'no first workers after the founding', first);
   result.checks.firstWorkers = first.workers;
 
+  // The real founding yields only 1-3 first workers today (report: founding hazard paid per day of a cold spring
+  // cell). For the trail and granary pictures a working column is spawned at the entrance by cheat: media and
+  // minors on `forage` (caste `worker` does not exist for this species).
+  const entrance = await sim((sm) => { const n = sm.state.nests.find((x) => x.alive && x.colony === sm.state.colonies[0].id); const e = n?.entrances[0]; return e ? e.pos : null; });
+  const colonyId = await sim((sm) => sm.state.colonies[0].id);
+  if (entrance) {
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 10, caste: 'media', ageGd: 4, task: 'forage', pos: entrance });
+    await raw({ type: 'cheat.spawnAnts', colonyId, n: 6, caste: 'minor', ageGd: 4, task: 'forage', pos: entrance });
+    await step(2);
+  }
+
   // ---- 2. seeds on the trail: step until a forager carries a seed outside ----
   const carrier = () => sim((sm) => {
     for (const a of sm.state.ants) {

@@ -415,6 +415,7 @@ export default async ({ page, log, out, wait, shot }) => {
     if (!hintBefore) { await g(() => window.__game.camera.set('observer')); await step(1); await frames(3); await waitHint(); }
     // No hint can be made to come up in this run any more (the engine's rules: one at a time, quiet after the opening, the
     // verbs already learnt): then the pad press is still tested for what it must not do, and the missing card is reported
+    if (!hintBefore) log('hint-diag', JSON.stringify({ state: await g(() => window.__onboarding.state()), hints: await g(() => window.__onboarding.hints()), facts: await g(() => window.__onboarding.facts()), log: await g(() => window.__onboarding.log().slice(-12)), view: await g(() => window.__game.camera.view()), poss: await g(() => window.__game.summary().possessed?.id ?? null) }).slice(0, 3500));
     if (!hintBefore) (result.notDemonstrated ??= []).push('dismiss-hint-by-pad with a hint on screen (none came up: ' + JSON.stringify(await g(() => window.__onboarding?.state?.() ?? null)) + ')');
     const antBeforeHint = (await g(() => window.__game.summary().possessed))?.id ?? null;
     await press(B.VIEW, { mods: [B.RB] });

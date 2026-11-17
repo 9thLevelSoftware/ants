@@ -20,12 +20,20 @@ Started 01:56 UTC Nov 17. Two earlier engineers cut off (01:24, 01:53); no progr
 - New test forage.test.ts (size-matched acceptance; media foragers fill the granary in 0.5 GD) - pass.
 - `npx vitest run src/sim/species/modules/granary src/sim/colony/founding/species/messor.test.ts`: 8 files 31 tests pass.
 
+- 02:40 rhythm.ts: trail samples outside TRAIL_TEMP_VALID_C [-40,80] skipped (microTemp returned 1e33 °C at some
+  point -> heatStress 1 -> departures 0 for that tick; not my bug, reported).
+- life2 (02:15, fixes): founding 2 first workers (was 1); spring hold works (cell 20 °C on spring day 1) but larva:base
+  deaths remain at 17-20 °C. Proper fix needs a hook in src/sim/colony/founding/care.ts (mu x devRate(T)/devRate(26)
+  after the winter jump); my attempt to add it was DENIED by the permission system -> needsFromOthers. Do not retry.
+- e2e edited: spawns 10 media + 6 minor `forage` at the entrance after hand-over (documented), for the trail picture.
+- 8 files / 31 tests pass at 02:42.
+
 ## Evidence
 - test-output/harvester/econ/ (old code, --workers 12): 46 deliveries, mostly honeydew, seed 1-2/day, no granary.
 - test-output/harvester/life2/pp1.log : life run with the fixes (started 02:15).
 
 ## Remaining (order)
-1. read life2 result; check first workers and seed deliveries/granary fill/milling
+1. e2e browser run (next, 02:45)
 2. viability table: playground-park + second archetype (choose: open sunny sand/lawn), seeds 1-3 (<=2 runs at once)
 3. e2e browser run tests/e2e/species-harvester.mjs + LOOK at screenshots
 4. 28-day soak (tools/sim/soak.ts) with messor

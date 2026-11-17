@@ -8,7 +8,10 @@ import { setClimateOverride } from '@/sim/colony/envAdapter';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addAnts, messorKit } from './testkit';
 import { newPatchSite, refreshSeedSites } from './seeds';
-import { seedAcceptP } from './behaviourForage';
+import { harvesterAccepts, seedAcceptP } from './behaviourForage';
+import { augmentDemand } from './allocation';
+import { createSource } from '@/sim/ecology/sources/spawn';
+import { ti } from '@/sim/colony/taskIdx';
 import { setTrailTempOverride } from './rhythm';
 import { stockOf } from './state';
 
@@ -49,6 +52,19 @@ describe('seed selection (GDD 07 §6.3.2)', () => {
     const near = seedAcceptP(k.sim, major, kL, k.g);
     const far = { ...kL, pos: { x: kL.pos.x + 300 * k.sim.world.bu, y: kL.pos.y, z: kL.pos.z } };
     expect(seedAcceptP(k.sim, major, far, k.g)).toBeLessThan(near);
+  });
+});
+
+describe('diet (GDD 07 §5.3.5: a harvester does not tend aphids)', () => {
+  it('honeydew is not taken and the colony asks for no tenders', () => {
+    const { k, sim, col } = seedKit('S', 1);
+    const [media] = addAnts(k, 'media', 1, k.nest.chambers[1]);
+    const e = k.nest.entrance.pos;
+    const film = createSource(sim, { variant: 'honeydew-film', pos: { x: e.x + 20, y: sim.field.height(e.x + 20, e.z), z: e.z }, up: { x: 0, y: 1, z: 0 } });
+    expect(harvesterAccepts(sim, media, film)).toBe(false);
+    col.alloc.demand[ti('tend')] = 5;
+    augmentDemand(sim, col, k.g);
+    expect(col.alloc.demand[ti('tend')]).toBe(0);
   });
 });
 

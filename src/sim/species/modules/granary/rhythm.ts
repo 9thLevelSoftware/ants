@@ -10,7 +10,7 @@ import { surfaceActivityOf } from '@/sim/colony/envAdapter';
 import { currentSeason, TICKS_PER_SECOND } from '@/sim/time';
 import {
   HEAT_SAMPLE_STEP_BU, HEAT_SAMPLES_MAX, PATROL_ALARM_PH, PATROL_FAILSAFE_TICKS, PATROL_GATE_MIN_WORKERS,
-  PATROL_HOLD_TICKS, PATROL_MAX_FRAC, PATROL_STEP_TICKS, TRIP_BASE_BU, WINDOW_ACTIVITY_MIN,
+  PATROL_HOLD_TICKS, PATROL_MAX_FRAC, PATROL_STEP_TICKS, TRAIL_TEMP_VALID_C, TRIP_BASE_BU, WINDOW_ACTIVITY_MIN,
 } from '@/sim/balance/species-harvester';
 import { granaryColonies } from './economy';
 import type { GranaryParams } from './params';
@@ -83,6 +83,8 @@ export function heatOf(sim: Sim, col: Colony, g: GranaryParams): HeatReading {
     const f = tempOverride.get(sim);
     for (const p of samplePoints(sim, col, from, pts)) {
       const t = f ? f(p) : microTemp(sim, p);
+      // microTemp now and then returns a non-physical value at a sample point (seen: 1e33 °C); such a sample is skipped
+      if (!(t >= TRAIL_TEMP_VALID_C[0] && t <= TRAIL_TEMP_VALID_C[1])) continue;
       sum += t;
       if (t >= shade) hot++;
       n++;
