@@ -36,6 +36,13 @@ tools/sim/probe-leaf-plants.ts, probe-leaf-life.ts, probe-leaf-queen.ts, probe-l
   LAY_COVER_GD 2.5). sg1b: stages all fed, larvae starved 0, but workers 9 -> 4 (6 minim old-age), 4 eggs laid
 - sweep sg2, sg3, pp1-3 running sequentially (scratchpad viab.sh -> test-output/viab/*.log, sweep.done)
 
-## Next
-1. look at r1 screenshots; 2. run own tests + typecheck; 3. viability life runs (one at a time); 4. soak 28 d;
-5. delete probes; 6. report
+## 09:52
+- sweep: sg2 hand-over 4 workers, viable yes-by-bar but 0 cut trips (no worker left the nest); sg3/pp1/pp2/pp3
+  founding failed even with the forced seal. Probes: pp1 queen drowned in the founding cell (rain); sg3 all 9 larvae
+  died "flooding" at one tick (t 3.66 GD), relay eggs then eaten by the trophic rule, queen died exhaustion/no-workers.
+- trophic eating limited to the first clutchCap eggs (relay clutch kept). Probes deleted.
+- 28-day life soak (suburban-garden 1, --every 250) running: test-output/viab/atta-soak28.log
+
+## 10:04 — finished
+- 28-day life soak (sg1, invariants every 250 ticks): 0 violations; colony declines 9 -> 1 worker (old age), queen alive
+- final: tsc clean, own tests 21/21, probes deleted, no background processes; report submitted

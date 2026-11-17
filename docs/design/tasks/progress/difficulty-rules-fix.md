@@ -11,3 +11,4 @@ Started. Nothing done yet. Plan: read difficulty.ts, rules.ts; fix findings 1..7
 - schedule.test.ts (human, not mine) fixed: rules.humanActivity = preset-implied (E23 broke with gentle=low). NEXT: run ui newgame, worldgen params, commands tests; AC3 evidence (extend tools/sim/difficultyRun.ts)
 - tools/sim/difficultyRun.ts extended (predatorTelegraphs, livePredatorsAvg, workersOutsideAvg). Running probe: harsh 6d seed1 -> test-output/difficulty/ac3/. Cmd: node tools/sim/run-ts.mjs tools/sim/difficultyRun.ts --preset harsh --days 6 --seed 1 --workers 60 --food 30,15 --cache test-output/difficulty/cache --out test-output/difficulty/ac3
 - probe harsh 6d s1: livePredatorsAvg 7.72, telegraphs 0, strikes 0 (predators never target ants; creature-module behaviour), humanEvents 67 cas 2. Running gentle then naturalist 6d (same cmd) in background
+- AC3 probes done (test-output/difficulty/ac3). Final typecheck+tests run; then report

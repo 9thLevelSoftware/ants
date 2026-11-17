@@ -744,3 +744,15 @@ Progress (kept current; a successor continues from here)
 3. **Protein**: P/need 0.012 on the forage bench. (a) patches out of reach in 6-8 of 15 runs (lead, worldgen);
    (b) chase conversion 4-24 % where prey is met (fixed H2a, H2b); (c) carrion in reach never found (scouting);
    (d) P storage ceiling of a nest without a food chamber (0.15 P per worker) refuses caught prey on the bench.
+- 09:52 **forage bench after** done (`round-3/bench-forage-after/table.md`, tree n1): over the 15 hand-overs patch prey
+  appeared 1049 -> 1014, chased 485 -> 525, **kills 61 -> 123**; chase conversion (median over the 7 runs with >= 5
+  chases) **4.7 % -> 23.7 %**; prey-kind P booked 5.4 -> 6.4 loads; trips that came home with remains the stores refused
+  ("forage item-collected ... fail") 23 -> 62. Medians over all 15 hardly move (P/need 0.012 -> 0.013, trips 45 -> 55,
+  success 26 -> 26 %): 8 runs meet no prey, and where prey is caught the P social-stomach ceiling refuses most of it on
+  this bench. Hunting fix accepted on its mechanism counter (kills, conversion); the booked-P outcome is capped by the
+  P storage ceiling (lead 3d). Running: nest-after (n1) 2/15, start-day benches (base).
+- 10:06 start-day bench, first result (`round-3/bench-startday/`, base tree, fresh founding): woodland-edge #1 at
+  `--start-doy 7` hands over after 2.74 gd with **18** first workers (doy 9: 3.53 gd, 16), brood 22 -> 15 C on days
+  1-3 (doy 9: 15-16 C); with food guaranteed 26 eggs, 12 hatched, **11 pupated** (doy 9: 2), but **0 eclosed: 9 pupae
+  died untended**, 1 exposure. So an earlier start moves the calendar ceiling, and the next loss is pupa care
+  (pupa:untended; untended egg+pupa gd 5.1 on day 7 with 2.4 nurse worker-gd). Waiting for we #3 doy 7, we #1/#3 doy 5.

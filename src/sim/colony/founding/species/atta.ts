@@ -100,16 +100,22 @@ function pelletTick(sim: Sim, q: Ant, nest: Nest, P: FungusParams): void {
   if (rh < P.pelletMinRh || t < P.pelletMinC || t > P.pelletMaxC) pg.pelletHealth = Math.max(0, pg.pelletHealth - P.pelletDecayPerGd / TICKS_PER_DAY);
 }
 
-/** The queen eats the trophic share of the first clutch as it is laid (GDD 06 §5.15, ATTA_TROPHIC_FRACTION_FIRST). */
+/**
+ * The queen eats the trophic share of the first clutch as it is laid (GDD 06 §5.15, ATTA_TROPHIC_FRACTION_FIRST):
+ * only the first clutchCap eggs; a relay clutch laid after a brood loss is kept whole.
+ */
 function trophicEggs(sim: Sim, col: Colony, q: Ant): void {
-  const frac = sim.getSpecies(col.species)?.opening.trophicFraction ?? 0;
+  const def = sim.getSpecies(col.species);
+  const frac = def?.opening.trophicFraction ?? 0;
   if (frac <= 0) return;
+  const first = def?.opening.clutchCap ?? 40;
   let last = bbGet(q, LAST_EGG, -1);
   let seen = bbGet(q, EGGS_SEEN, 0), eaten = bbGet(q, EGGS_EATEN, 0);
   for (const b of sim.stores.brood.list) {
     if (!b.alive || b.colony !== col.id || b.stage !== 'egg' || b.id <= bbGet(q, LAST_EGG, -1)) continue;
-    seen++;
     if (b.id > last) last = b.id;
+    if (seen >= first) continue;
+    seen++;
     // eat every egg that brings the eaten share up to the trophic fraction (even, deterministic spacing)
     if (Math.floor(seen * frac) > eaten) {
       eaten++;
