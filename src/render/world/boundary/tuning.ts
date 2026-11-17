@@ -98,12 +98,20 @@ export const BACKDROP_SIZE = {
   car: { length: 4300, width: 1800, height: 1450 },
   facadeHeight: 6200,
   facadeDepth: 4000,
+  /** Where the facade's face toward the map stands beyond the edge (BACKDROP_BAND_MM.facade), mm. */
+  facadeFaceOffset: 200,
+  /** Facade structure (look pass 3): plinth height, window size (w, h), window centre heights (two storeys), pitch along the edge, door (w, h). */
+  facadePlinth: 700,
+  facadeWindow: [1300, 1500] as const,
+  facadeWindowY: [2200, 4900] as const,
+  facadeWindowPitch: 3000,
+  facadeDoor: [1000, 2100] as const,
 } as const;
 
 /** Silhouette colours (sRGB hex). The haze does most of the work; these keep them believable when close. */
 export const BACKDROP_HEX = {
   bark: '#2f2820', canopy: '#34482a', shrub: '#45592f', hedge: '#3b5129', fence: '#6b5845', car: ['#5a6670', '#7a2e2a', '#c9c6be', '#2b2d30'],
-  facade: '#b3a28c', roof: '#5b4a42',
+  facade: '#a8957d', roof: '#4a3b36', plinth: '#6e6458', glass: '#2a3138', trim: '#d8d2c6', door: '#4c3226',
 } as const;
 
 /** Edge glyph (GDD 04 §14 "edge of the locality"): shown while the possessed ant presses against the hard limit. */

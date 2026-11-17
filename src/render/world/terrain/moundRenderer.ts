@@ -13,6 +13,12 @@ import { HOLE_MASK_GLSL, type HoleMaskUniforms } from './holeMask';
 export const MOUND_MIN_PILE_MM = 0.05;
 /** Pile height over which the rim colour blends into the full crumb colour, mm. */
 export const MOUND_RIM_BLEND_MM = 2.5;
+/**
+ * Look pass 3 (S13): the footprint edge is where the interpolated pile height crosses MOUND_MIN_PILE_MM, a straight line
+ * per grid cell, so the foot of a mound ended in square steps. The cut-off is raised by up to this many mm of pile by a
+ * two-octave noise in world space: the edge becomes a ragged scatter of crumbs.
+ */
+export const MOUND_RIM_RAG_MM = 1.3;
 
 interface MoundMesh {
   /** moundSignature at the last build; NaN forces a rebuild. */
@@ -90,9 +96,16 @@ export class MoundRenderer {
         uniforms: this.holeMask as unknown as Record<string, Uniform<unknown>>,
         vertDecl: 'attribute float aPile; varying float vPile;',
         vertMain: 'vPile = aPile;',
-        fragDecl: `varying float vPile;\n${HOLE_MASK_GLSL}`,
+        fragDecl: `varying float vPile;
+float mdHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float mdNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mdHash(i), mdHash(i + vec2(1.0, 0.0)), f.x), mix(mdHash(i + vec2(0.0, 1.0)), mdHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+${HOLE_MASK_GLSL}`,
         fragMain: `
-if (vPile < ${MOUND_MIN_PILE_MM.toFixed(3)} || wrHoleMask(vWrW.xz) > 0.5) discard;
+float mdRag = 0.6 * mdNoise(vWrW.xz * 1.7) + 0.4 * mdNoise(vWrW.xz * 5.3);
+if (vPile < ${MOUND_MIN_PILE_MM.toFixed(3)} + ${MOUND_RIM_RAG_MM.toFixed(2)} * mdRag || wrHoleMask(vWrW.xz) > 0.5) discard;
 // thin rim: flatter, lighter soil like the surrounding ground; thick pile: dark fresh crumbs
 float wrRim = smoothstep(0.0, ${MOUND_RIM_BLEND_MM.toFixed(2)}, vPile);
 wrAlb *= mix(1.2, 1.0, wrRim);

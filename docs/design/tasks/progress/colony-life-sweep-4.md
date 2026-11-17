@@ -51,3 +51,23 @@ Started 18:15 UTC 2026-11-17.
   items/gd from the P pile in the royal chamber, pre-existing: storeChamber = chs[0] before L1 too).
   Plan after the sweep: table, bars, then 5 long runs (frozen tree, viab/cache, lowest viable seed per archetype).
 - 19:26 sweep 12/15 (viable so far: sg #1 only). Remaining pp #3, cpv #3, kd #3.
+- 19:36 sweep 14/15 (kd #3 running). Started long run sg #1 (the only viable run so far): PAR=1 UNTIL_DAY=32 frozen longrun-life.sh -> round-4/sweep-long (restart-safe).
+- 19:45 **sweep done** (15/15, all tree 8338ddfe). Table `test-output/colony-life/round-4/sweep-table.md` (sweep-table.py,
+  prev = round-3/sweep). Viable **1 of 15** (round 3: 8); R19 2 of 7 (held 2/15, eclosions median 2, P 0.045, C 0.716,
+  success 42.2 %, first>=9 14/15, no lost 15/15). "starvation stage worse than lean" fails 13 of 15 (round 3: 1).
+  Running: (a) long run sg #1 (round-4/sweep-long, frozen tree); (b) A/B "minus4" = frozen tree with the round's 12
+  production files at 5c8c576 (R20, types, balance kept; scratchpad/minus4, tsc clean on sim/tools), same hand-overs
+  (scratchpad/cache4 -> viab/cache ab70a1d3 as -any), cpv #1, kd #1, sg #2, pp #2 -> round-4/sweep-review/ab-minus4/
+  (sequential; restart: re-run the loop, done JSONs skipped). Checked: restore from the cache = in-process run (sg #1
+  long run days 1-4 identical to the sweep's), so the sweep runs are the A/B control.
+  Correction: P 5.35 stays constant days 1-3 (sg #1, we #2): the larder pile does not spoil there; drop the
+  spoiled-food lead.
+  Remaining: long runs (4 more), ledger section.
+- 19:55 long run sg #1 done. Decision: no viable run on we/pp/cpv/kd, so the long run per archetype is the seed with the best workers winter/first: we #3 (10->11), pp #2 (11->10), cpv #1 (11->10), kd #2 (10->8). Started PAR=1 (other slot = A/B).
+- 20:00 A/B first pairs (round 4 vs minus4, same hand-over): kd #1 viable NO -> **yes** (15->7 vs 15->14, eclosed 5 vs 6,
+  P intake 0.016 vs 0.389, prey P 0 vs 6.9, crushed 5 vs 2); cpv #1 NO both (stage 6.75 vs 2.85 gd, 11->10 vs 11->11).
+  Mechanism seen: with L1 the queen's hand-over P (~4 above stomach) goes into the pool at once (day 1 P 5.7 vs 1.6) and
+  is gone the day the larvae hatch; without L1 it stays in the queen and trickles in (handover.ts provisionAtHandover).
+  Extending the A/B to all 15 hand-overs: scratchpad/ab-loop.sh (copy in round-4/sweep-review/ab-loop.sh), queue A
+  (we1 we3 sg1 cpv3 kd3 pp1) after sg2/pp2; queue B (we2 sg3 pp3 cpv2 kd2) when the long runs end.
+  Long runs queue (we3 cpv1 pp2 kd2) running, PAR=1.

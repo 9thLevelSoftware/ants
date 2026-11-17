@@ -20,6 +20,14 @@ function input(elev: number, over: Partial<LightingInput> = {}): LightingInput {
  * model; the evidence for the acceptance target is the screenshots' numbers.
  */
 const GROUND_ALBEDO = 0.06;
+/**
+ * Look pass 3: the night is darker and cooler than look pass 2 left it (it read as an overcast day: saturated grass, a
+ * mid-blue sky, ground 0.164). Measured in the game (tests/e2e/look3.mjs, same pose, quality high, seed 1): clear night
+ * ground 0.164 -> 0.111, night rain 0.160 -> 0.103, frame median 0.207 -> 0.149; the model gives 0.132 at GROUND_ALBEDO.
+ * The exposure pins follow from targetE 2.45 -> 1.7 and minEV 2.6 -> 2.2.
+ */
+const EV_CLEAR = 2.891, EV_RAIN = 3.065;
+const noon0 = () => input(60);
 const night = (over: Partial<LightingInput> = {}) => computeLighting(input(-30, over));
 
 describe('night weight', () => {
@@ -53,8 +61,8 @@ describe('night exposure metering', () => {
     expect(l.exposureEV).toBeCloseTo(nightExposureEV(l), 9);
   });
   it('pins the clear-night exposure the measurements were tuned at (full dusk blend done, moon 0.8, cloud 0.1)', () => {
-    expect(night().exposureEV).toBeCloseTo(3.418, 2);
-    expect(night({ weather: 'rain', cloud: 1 }).exposureEV).toBeCloseTo(3.593, 2);
+    expect(night().exposureEV).toBeCloseTo(EV_CLEAR, 2);
+    expect(night({ weather: 'rain', cloud: 1 }).exposureEV).toBeCloseTo(EV_RAIN, 2);
   });
   it('a night storm keeps its -0.7 EV against night rain (GDD 08 11.4), inside the floor', () => {
     const rain = night({ weather: 'rain', cloud: 1 }), storm = night({ weather: 'storm', cloud: 1 });
@@ -64,15 +72,15 @@ describe('night exposure metering', () => {
 });
 
 describe('night looks like night, and is readable', () => {
-  it('the ground shows 12..25 % display luminance in clear, overcast and rain, full moon to new moon', () => {
+  it('the ground shows 9..17 % display luminance in clear, overcast and rain, full moon to new moon (look pass 3: dark, still readable)', () => {
     const cases: Partial<LightingInput>[] = [
       { weather: 'clear', cloud: 0.1, moonIllum: 1 }, { weather: 'clear', cloud: 0.1, moonIllum: 0.5 },
       { weather: 'overcast', cloud: 0.9, moonIllum: 0.8 }, { weather: 'rain', cloud: 1, moonIllum: 0.8 }, { weather: 'rain', cloud: 1, moonIllum: 0.2 },
     ];
     for (const c of cases) {
       const luma = groundDisplayLuma(night(c), GROUND_ALBEDO);
-      expect(luma, JSON.stringify(c)).toBeGreaterThanOrEqual(0.12);
-      expect(luma, JSON.stringify(c)).toBeLessThanOrEqual(0.25);
+      expect(luma, JSON.stringify(c)).toBeGreaterThanOrEqual(0.09);
+      expect(luma, JSON.stringify(c)).toBeLessThanOrEqual(0.17);
     }
   });
   it('never reads as day: far darker than a clear noon and cool (blue over red in the key and in the fill)', () => {
@@ -83,7 +91,8 @@ describe('night looks like night, and is readable', () => {
     expect(groundIrradiance(l)).toBeLessThan(0.1 * groundIrradiance(noon));
     expect(l.keyColor.b).toBeGreaterThan(l.keyColor.r);
     expect(l.hemiSky.b).toBeGreaterThan(l.hemiSky.r * 1.3);
-    expect(l.saturation).toBeLessThan(0.85);
+    expect(l.saturation).toBeLessThan(0.6); // look pass 3: low saturation, leaves must not stay daylight-green
+    expect(l.envIntensity).toBeLessThan(0.5 * computeLighting(noon0()).envIntensity); // the sky reflection is not lifted with the exposure
     expect(l.keyIntensity).toBeLessThan(0.1 * SUN_INTENSITY);
   });
   it('the moon key is soft (wide penumbra) and not removed by cloud', () => {

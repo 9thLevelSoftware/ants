@@ -186,3 +186,60 @@ describe('ThirdPersonRig clearance (GDD 6.1: f >= 0.5 R on every frame)', () => 
     }
   });
 });
+
+describe('ThirdPersonRig slope lift (look pass 3)', () => {
+  /** Settled view pitch above the horizon (degrees) of an ant on a slope of `slopeDeg`, walking uphill (+) or downhill (-). */
+  function viewPitchDeg(slopeDeg: number, uphill: boolean): number {
+    const open = { trace: makeSphereTracer(() => 1e6) };
+    const r = new ThirdPersonRig({ bu: DEMO_BU, bodyL: 1, autoFollow: 'off' });
+    const s = slopeDeg * DEG, sgn = uphill ? 1 : -1;
+    // the surface rises toward +X: normal (-sin s, cos s, 0); the heading is along the surface, up or down the rise
+    const t: CameraTarget = { pos: vec3(0, 0.5, 0), up: vec3(-Math.sin(s), Math.cos(s), 0), fwd: vec3(sgn * Math.cos(s), sgn * Math.sin(s), 0) };
+    let out = r.update(0, t, NO_ORBIT_INPUT, open);
+    for (let i = 0; i < 90; i++) out = r.update(1 / 30, t, NO_ORBIT_INPUT, open);
+    const dx = out.look.x - out.pos.x, dy = out.look.y - out.pos.y, dz = out.look.z - out.pos.z;
+    return Math.asin(dy / Math.hypot(dx, dy, dz)) / DEG;
+  }
+  it('does not tip the view up at the sky while the ant climbs a slope', () => {
+    for (const slope of [20, 30, 40]) {
+      const up = viewPitchDeg(slope, true);
+      expect(up, `${slope} deg slope, uphill`).toBeLessThan(slope * 0.45);
+    }
+  });
+  it('adds nothing on the flat and nothing downhill', () => {
+    const flat = viewPitchDeg(0, true);
+    expect(Math.abs(flat - viewPitchDeg(0, false))).toBeLessThan(1e-6);
+    expect(viewPitchDeg(30, false)).toBeLessThan(flat); // looking down the slope, as before
+  });
+});
+
+describe('ThirdPersonRig tight room (look pass 3, stage1a strict)', () => {
+  // a flat room 0.8 mm high: lower than the camera sphere of a queen (radius 0.5 BU, clearance 0.25 BU)
+  const BU = 4, ROOM_H = 0.8;
+  const slab: FieldFn = (_x, y) => Math.min(y, ROOM_H - y);
+  const tight = { trace: makeSphereTracer(slab) };
+
+  it('shrinks the camera sphere to what fits, and the camera stands in free space with f >= 0.5 x the reported radius', () => {
+    const r = new ThirdPersonRig({ bu: BU, bodyL: 2, autoFollow: 'off' });
+    const t: CameraTarget = { pos: vec3(0, 0.4, 0), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) };
+    let out = r.update(0, t, NO_ORBIT_INPUT, tight);
+    for (let i = 0; i < 60; i++) out = r.update(1 / 30, t, NO_ORBIT_INPUT, tight);
+    expect(r.radiusMm).toBeLessThan(r.nominalRadiusMm);
+    expect(r.radiusMm).toBeGreaterThan(0);
+    const f = slab(out.pos.x, out.pos.y, out.pos.z);
+    expect(f).toBeGreaterThanOrEqual(r.radiusMm * 0.5);
+    expect(f).toBeGreaterThan(0);
+  });
+
+  it('keeps the full GDD radius where the room is high enough, and grows back after a tight room', () => {
+    const r = new ThirdPersonRig({ bu: BU, bodyL: 2, autoFollow: 'off' });
+    const open = { trace: makeSphereTracer(slab) };
+    const t: CameraTarget = { pos: vec3(0, 0.4, 0), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) };
+    for (let i = 0; i < 30; i++) r.update(1 / 30, t, NO_ORBIT_INPUT, open);
+    expect(r.radiusMm).toBeLessThan(r.nominalRadiusMm);
+    const roomy: FieldFn = (_x, y) => y; // a floor only
+    const out0 = { trace: makeSphereTracer(roomy) };
+    for (let i = 0; i < 150; i++) r.update(1 / 30, { pos: vec3(0, 0.5, 0), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) }, NO_ORBIT_INPUT, out0);
+    expect(r.radiusMm).toBeCloseTo(r.nominalRadiusMm, 3);
+  });
+});

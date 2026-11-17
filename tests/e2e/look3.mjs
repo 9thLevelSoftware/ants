@@ -15,8 +15,9 @@
 //                                   live ones: the dev server hands out one instance per file). Each variant must set every value it
 //                                   touches (nothing is reset between variants).
 // light: night | night-overcast | night-rain | dusk | dawn | noon | overcast | rain
-// view:  slopeup | slopedown (the possessed worker on the steepest flank near the entrance, walking uphill / downhill) |
-//        surface | nest | observerlow | observer | gyne (a gyne and a male beside the possessed worker) | slice | edge
+// view:  mound (ant height 7 BU from the entrance mound, looking at its foot) | queenstart (the queen at the start point, looking out: the opening shot) |
+//        slopeup | slopedown (the possessed worker on the steepest flank near the entrance, walking uphill / downhill) |
+//        close (surface; the plate is the 400 x 225 px around the ant) | surface | nest | observerlow | observer | gyne (a gyne and a male beside the possessed worker) | slice | edge
 // Every picture is a plate (UI hidden); luminance numbers (look2-measure) are logged per shot and written to <tag>-shots.json.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { measureInPage } from './lib/look2-measure.mjs';
@@ -43,10 +44,10 @@ export default async ({ page, log, out: outDir }) => {
   const tag = env.LOOK3_TAG ?? 'after';
   const list = (env.LOOK3_SHOTS ?? (SETS[env.LOOK3_SET ?? 'night'] ?? []).join(',')).split(',').filter(Boolean);
   const g = (fn, arg) => page.evaluate(fn, arg);
-  const plate = async (name) => {
+  const plate = async (name, clip = null) => {
     const file = `${outDir}/${name}.png`;
     const h = await page.addStyleTag({ content: '#ui, #ui *{visibility:hidden !important}' });
-    await page.screenshot({ path: file, timeout: 300000 });
+    await page.screenshot({ path: file, timeout: 300000, ...(clip ? { clip } : {}) });
     await h.evaluate((el) => el.remove());
     return file;
   };
@@ -72,7 +73,7 @@ export default async ({ page, log, out: outDir }) => {
       await g((w) => window.__game.cheat.setWeather(w), L.weather);
       curL = lname;
     }
-    if (view === 'surface' || view === 'gyne') {
+    if (view === 'surface' || view === 'gyne' || view === 'close') {
       await surfaceWorker('surface');
       if (view === 'gyne') {
         await g(({ bu }) => {
@@ -104,6 +105,23 @@ export default async ({ page, log, out: outDir }) => {
         return { slopeDeg: Math.round((Math.atan(best.m) * 180) / Math.PI), at: [best.x, best.z] };
       }, { bu, up: view === 'slopeup' });
       log('slope', view, JSON.stringify(r));
+    } else if (view === 'mound') {
+      await g(() => window.__game.release());
+      await g(() => window.__game.camera.set('observer'));
+      const E = S.nest0.entrances[0]?.pos ?? S.start.pos, f = S.start.fwd;
+      const pos = { x: E.x - f.x * 7 * bu + f.z * 2 * bu, z: E.z - f.z * 7 * bu - f.x * 2 * bu };
+      const gy = (await g((p) => window.__game.query.field(p.x, 0, p.z), pos)).height;
+      await g(({ pos, look }) => window.__game.camera.setPose(pos, look), { pos: { x: pos.x, y: gy + 1.2 * bu, z: pos.z }, look: { x: E.x, y: E.y + 0.4 * bu, z: E.z } });
+    } else if (view === 'queenstart') {
+      await g(() => window.__game.release());
+      await g(() => window.__game.possess('queen'));
+      const st = S.start;
+      await g((p) => window.__game.teleport('possessed', p), { x: st.pos.x, y: st.pos.y + 0.5 * bu, z: st.pos.z });
+      await g(() => window.__game.step(3));
+      await g((d) => window.__game.setIntent({ dir: d }), { x: st.fwd.x, y: 0, z: st.fwd.z });
+      await g(() => window.__game.step(2));
+      await g(() => window.__game.setIntent({}));
+      await g(() => window.__game.step(3));
     } else if (view === 'nest') await nestWorker();
     else if (view === 'observer') await observerAt();
     else if (view === 'observerlow') await observerAt(22, 40);
@@ -113,12 +131,14 @@ export default async ({ page, log, out: outDir }) => {
     await g(() => window.__game.step(1));
     await render(0.5);
     const name = `${vtag}-${lname}-${view}-${q}`;
-    const gp = view === 'surface' || view === 'gyne' ? await groundPoints() : { subject: null, points: [], ring: [] };
+    const gp = view === 'surface' || view === 'gyne' || view === 'close' ? await groundPoints() : { subject: null, points: [], ring: [] };
     const m = await page.evaluate(async ({ fn, args }) => {
       window.__game.renderFrame({ settle: 0.5 });
       return await new Function(`return (${fn})`)()(args);
     }, { fn: measureInPage.toString(), args: { points: gp.points, ring: gp.ring, subject: gp.subject } });
-    await plate(name);
+    // 'close': the plate is the 400 x 225 px around the possessed ant (its look, at the pixels it is drawn with)
+    const clip = view === 'close' && gp.subject ? { x: Math.max(0, Math.min(1280 - 400, gp.subject.x - 200)), y: Math.max(0, Math.min(720 - 225, gp.subject.y - 140)), width: 400, height: 225 } : null;
+    await plate(name, clip);
     const st = await statsNow();
     shots.push({ file: name, variant: variant.name, light: lname, view, quality: q, drawCalls: st.drawCalls, triangles: st.triangles, frameMs: st.frameMs, measure: m });
     log(`${name}: draws=${st.drawCalls} tris=${st.triangles} ground=${m.ground.median?.toFixed(3)} (n=${m.ground.n}) frame=${m.frame.median?.toFixed(3)}${m.contrast != null ? ` antContrast=${m.contrast.toFixed(2)} separable=${m.separable?.toFixed(2)}` : ''}`);
