@@ -1,0 +1,175 @@
+{
+ "implReport": {
+  "summary": "loco-fix3, locomotion side. Several criteria are met. AC2 is not met: suburban-garden #2 still has 143 relocations against the \u226410 target. AC3 and AC4 are partial. Every figure below compares two frozen copies of the source tree under test-output/loco-fix3/: snap-before (the tree at 18:37 UTC) and snap-after (that copy plus only my files). Both start from the same hand-over snapshots, so other engineers' work does not move the numbers.\n\nWhat was wrong and what changed:\n(1) Lost workers on suburban-garden #2 (sg2): returning tenders sat on a 380 BU fruit-tree trunk next to the nest. They aimed in plan view (retrace and the home planner), so on a vertical stem they circled and drifted up until the behaviour's trip clock killed them as 'lost'. Fix in trip.ts planDescent: an elevated walker whose goal is elsewhere, home trips included, takes the nearest climb route down; on a steep face with no route it seeks the ground straight below, aiming in 3D (seekDown). Retrace also aims in 3D on steep faces. Result: 0 lost (4 before).\n(2) Relocation loops. Relocations now terminate across requests: per-walker memory of where it was relocated from and to. Stuck again within 2 BU and 300 s: first it lets go (a drop, no teleport), next the walk fails with reason 'stuck-repeat' at the relocation rung. The rungs that move nobody still run. A relocation target closer than 1 BU is pushed toward the destination. Relocations log nothing; escalations log one line each.\n(3) Failed walks now give a reason the behaviour can read: nav.failReason = rejected / no-route / timeout / stuck / stuck-repeat / trail-lost / wander-stall / leg.\n(4) Nest mouths, the main remaining relocation site: an exit leg used to aim at a point in the air over a vertical shaft. It now climbs out first, then heads for the ground just beyond the rim on the goal's side (legs.ts exitPoint). A trip also no longer re-plans every time the walker flips between cavity and surface on the lip (update.ts mouthHold).\n(5) Nav grid truth: new edge gates (grid/gates.ts). Where the straight crossing between side-by-side cells meets a tall barrier but a strip of the shared edge at least 1 BU wide lets a body through, the A* string-pulling inserts the strip's entry and exit points. The test walker uses the same finder. This fixes suburban-garden #4.\n(6) Rival raiders stalled in their nest exit (woodland-edge #2, playground-park #2) because the raid job re-issues navTo every second, which reset the stuck ladder. The same trip asked for again now carries its stuck window and ladder over. I first tried keeping the whole request instead; kitchen-door #1 successes fell from 16 to 4, so I replaced it with the carry-over.\n\nResults:\n- sg2 to Winter 1: 16 workers (10 before), 0 lost (4), 143 relocations (361), relocations from the same spot as an earlier one by the same walker 10 (88).\n- Kernel crossings with the game's ladder (overs 0): 18 of 20. The two failures are named below.\n- Locomotion/navigation share of failed trips after the fix (before \u2192 after): kitchen-door #1 0.4 \u2192 2.8 %, suburban-garden #1 3.8 \u2192 1.9 %, sg2 14.8 \u2192 2.2 %, woodland-edge #2 7.4 \u2192 2.4 %, woodland-edge #3 9.1 \u2192 6.7 % (1 of 15 trips). Colony trip successes after vs before: kitchen-door #1 16 vs 17, suburban-garden #1 10 vs 16, sg2 19 vs 20, woodland-edge #2 40 vs 40. These numbers swing a lot from run to run.\n- Climbs: on 30 host plants across 4 worlds, 42 of 49 herd or nectar sources were reached and left again (up 46, down 45).\n- Locomotion cost is roughly unchanged; it is within the \u00b115 % noise at all three sizes.\n- LONG stall-site test: 5 of 5 with the final code. The run without the carry-over had 3 of 5 (the two raider stalls).\n- Typecheck is clean; the tests in my paths and the restore and determinism tests pass.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/locomotion/stuck.ts",
+   "/home/user/foundress/src/sim/locomotion/update.ts",
+   "/home/user/foundress/src/sim/locomotion/trip.ts",
+   "/home/user/foundress/src/sim/locomotion/legs.ts",
+   "/home/user/foundress/src/sim/locomotion/modes.ts",
+   "/home/user/foundress/src/sim/locomotion/nests.ts",
+   "/home/user/foundress/src/sim/locomotion/index.ts",
+   "/home/user/foundress/src/sim/locomotion/params.ts",
+   "/home/user/foundress/src/sim/locomotion/runtime.ts",
+   "/home/user/foundress/src/sim/locomotion/grid/gates.ts (new)",
+   "/home/user/foundress/src/sim/locomotion/grid/gridData.ts",
+   "/home/user/foundress/src/sim/locomotion/grid/navGridImpl.ts",
+   "/home/user/foundress/src/sim/locomotion/README.md",
+   "/home/user/foundress/src/sim/locomotion/locoFix3.test.ts (new)",
+   "/home/user/foundress/src/worldgen/testing/walker.ts",
+   "/home/user/foundress/src/worldgen/kernel.test.ts",
+   "/home/user/foundress/src/sim/types/walker.ts (additive)",
+   "/home/user/foundress/src/sim/types/navScratch.ts (additive)",
+   "probes and results (git-ignored): /home/user/foundress/test-output/loco-fix3/ (probe.ts, crossings.ts, plant.ts, raid.ts, perf.sh, table.mjs, trips-table.md, climbs-final.md, perf.txt, crossings-after2.txt, stallSites-long3.txt, before/, after/, snap-before/, snap-after/)"
+  ],
+  "verification": [
+   "npm run typecheck: no errors at all (whole project, final code).",
+   "npx vitest run src/sim/locomotion src/worldgen/kernel.test.ts src/sim/sim.test.ts src/sim/sim.verify.test.ts: 25 files passed, 1 skipped; 160 tests passed, 24 skipped (final code). Earlier: src/sim/sim.kernel.test.ts and src/sim/services.test.ts: 21 passed.",
+   "locoFix3.test.ts (9 reduced cases): run against snap-before, 5 of the cases fail (relocation escalation x3, fail reason, stem descent); all 9 pass on the final code. The gate planner case also passes on the baseline (it is a guard).",
+   "FOUNDRESS_LONG=1 npx vitest run src/sim/locomotion/stallSites.long.test.ts: 5 of 5 passed with the final code (test-output/loco-fix3/stallSites-long3.txt). An earlier run before the stuck-window carry-over had 3 of 5 (raiders at (2529.0,-15.6,232.5) BU woodland-edge #2 and (832.6,-6.3,1559.5) BU playground-park #2).",
+   "Kernel crossings, 20 (5 Tier 1 archetypes x seeds 1-4), via node tools/sim/run-ts.mjs test-output/loco-fix3/crossings.ts: 18 ok with overs 0; woodland-edge #3 and playground-park #4 stuck (test-output/loco-fix3/crossings-after2.txt). Baseline snap-before on the same worlds: suburban-garden #4 stuck at (3917.3, 218.6, 808.7) BU, woodland-edge #3 stuck, playground-park #4 needed 2 climb-over passes.",
+   "Trip classification probe (test-output/loco-fix3/probe.ts) on the same hand-over snapshots in snap-before and snap-after; table in test-output/loco-fix3/trips-table.md.",
+   "Climb probe (test-output/loco-fix3/plant.ts, a fresh worker navTo up from the entrance and back down, rows that failed in the series re-walked from fresh restores): test-output/loco-fix3/climbs-final.md.",
+   "Cost probe, test-output/loco-fix3/perf.sh: life.ts --perf 300 --workers N on suburban-garden #2, 2 reps per tree, interleaved, load average 9-12. Best locomotion ms/tick before / after: 300 workers 2.875 / 2.517; 800: 4.178 / 4.155; 1,500: 6.698 / 7.286 (196 vs 156 ants outside).",
+   "Not done: the 20 crossings were not re-run after the last locomotion-only changes. Those changes do not touch the test walker; the non-LONG kernel.test (5 crossings, overs 0) passes on the final code."
+  ],
+  "acceptance": [
+   {
+    "criterion": "AC1: typecheck clean; src/sim/locomotion and the touched worldgen tests green; LONG stall-site test 5 of 5",
+    "status": "met",
+    "evidence": "Typecheck has no errors. Locomotion tests and kernel.test.ts pass. The LONG stall-site test passes 5 of 5 with the final code (stallSites-long3.txt)."
+   },
+   {
+    "criterion": "AC2: suburban-garden #2 to Winter 1: zero lost, \u226410 relocations, none repeated for the same walker at the same place",
+    "status": "partial",
+    "evidence": "Zero lost (4 before): met. Relocations 143 (361 before): not met. The rule now gives at most one relocation per walker per place per 300 s, but my probe still counts 10 relocations from within 2 BU of an earlier one by the same walker (88 before), all outside that window. Where the remaining relocations happen: the player nest mouth at about (2030.5, 7.2, 2718) BU, where an overhanging lip below the rim traps walkers; rival nest mouths at about (3080, 4, 1084) and (1880, -8, 1464) BU; and tree roots between the trunk and the entrance at about (2016, 7, 2704) BU."
+   },
+   {
+    "criterion": "AC3: 20 of 20 kernel crossings with the game's ladder (or each failure named with coordinates, the reason it is a world defect, and a validation rule)",
+    "status": "partial",
+    "evidence": "18 of 20 with overs 0, including suburban-garden #4 (fixed by the edge gate) and playground-park #3. kernel.test now asserts overs === 0. Failures: (a) playground-park #4: the row path runs through a closed toy bucket at (1596, 2.3, 1168) BU (14 thin panels, 0.38 BU half-thick, 37.5 BU tall). The 4 BU column raster misses the thin walls, so the inside cells count as open; the walker is stuck on the inner face at (1610.9, 21.1, 1181.4) BU. Validation rule: a cell enclosed by a closed ring of tall thin primitives that no 0.45 BU body passes at foot height is not walkable, unless the object has climb routes in and out. (b) woodland-edge #3: the last cells of the row lie on a dry-stone garden wall. Cell (244,124) has its mean ground at 9.59 BU, inside a stone (f < 0), across a crevice from the block end where the walker stops at (3911.8, 4.5, 1995.0) BU. Validation rule: a walkable cell's ground point must not lie inside a solid (use the highest walkable column near the centre, or reclassify the cell). World fingerprints are unchanged; no worldgen construction was modified."
+   },
+   {
+    "criterion": "AC4: failed-trip classification table, before and after, for the four worlds; locomotion/navigation classes \u2264 5 % of trips",
+    "status": "partial",
+    "evidence": "Table: test-output/loco-fix3/trips-table.md. Classes: never left the nest, no path, walk failed, reached the source but took nothing, could not get home (died lost or still out), turned back, scout found nothing. After the fix the locomotion/navigation classes (no path + walk failed + could not get home) are kitchen-door #1 2.8 %, suburban-garden #1 1.9 %, sg2 2.2 %, woodland-edge #2 2.4 %, woodland-edge #3 6.7 %. Before: 0.4 / 3.8 / 14.8 / 7.4 / 9.1 %. woodland-edge #3 is above 5 % because of one trip out of 15: scout 9999, still outside at the end at (2056.3, -3.9, 1883.4) BU after 61 'stuck-repeat' failures. The largest failure classes left are behaviour or economy: reached the source but took nothing (tenders get little honeydew and come back at curfew), scouts finding nothing, and turned back on 'job' or 'timeout'."
+   },
+   {
+    "criterion": "AC5: save/restore determinism unaffected",
+    "status": "met",
+    "evidence": "src/sim/sim.test.ts, sim.verify.test.ts, sim.kernel.test.ts and services.test.ts pass on the final code. All new persisted fields are optional plain data."
+   },
+   {
+    "criterion": "Work 4: climbs to food on the host plants of suburban-garden #1/#2 and woodland-edge #2/#3, with a table of host plants tried",
+    "status": "met",
+    "evidence": "test-output/loco-fix3/climbs-final.md: suburban-garden #1, 13 plants / 21 sources, 19 both ways; sg2, 8 / 14, 10 both ways; woodland-edge #2, 4 / 7, 7; woodland-edge #3, 5 / 7, 6. Failures in the table each carry a reason and coordinates; several are 'stuck' at plant bases or roots near the entrance. sg2 fruit tree 2167: herds at 284.7 and 270.8 BU reached; the way down from 2684 failed on the last re-walk at (1993.7, 290.2, 2788.0) BU but succeeded in the earlier series run."
+   },
+   {
+    "criterion": "Work 5: locomotion cost at 300 / 800 / 1,500 workers not worse than today (same probe as viab-loco; state the load)",
+    "status": "met",
+    "evidence": "life.ts --perf, best of 2, load average 9-12: 300 workers 2.875 \u2192 2.517 ms, 800: 4.178 \u2192 4.155 ms, 1,500: 6.698 \u2192 7.286 ms. The 1,500 figure is within noise and the after run had 26 % more ants outside, which cost more to step."
+   }
+  ],
+  "notDone": [
+   "AC2: relocations on sg2 are 143, not \u226410. Most are at nest mouths (an overhanging lip) and among rival agents; this needs a nest-side fix to the mouth geometry, and possibly a kernel crease fix at tree roots.",
+   "AC2 strict: a walker can be relocated again at the same place after the 300 s repeat window (10 such cases on sg2).",
+   "AC3: playground-park #4 and woodland-edge #3 do not cross. Both are named, with a validation rule, but not fixed: they need worldgen nav construction changes and I did not change world fingerprints.",
+   "AC4: woodland-edge #3 is at 6.7 % (1 of 15 trips).",
+   "Two walkers per run can still stay stuck physically and fail 'stuck-repeat' over and over (sg2 ant 6263 near (2022.6, 7.1, 2725.2) BU, woodland-edge #3 scout at (2056.3, -3.9, 1883.4) BU). The behaviours do not read failReason yet, so these ants would eventually be counted lost.",
+   "I did not repeat the 20-crossing sweep on the final locomotion code (the test walker did not change), and did not run a before/after climb table on the baseline tree.",
+   "GDD 01 App. E checks 13 and 15 (possessed ant from the wall onto the overhang, held input over a convex edge) need the game harness and camera; I did not touch them."
+  ],
+  "contractChanges": [
+   "src/sim/types/walker.ts: new NAV_FAIL_REASONS / NavFailReason ('rejected', 'no-route', 'timeout', 'stuck', 'stuck-repeat', 'trail-lost', 'wander-stall', 'leg'); new optional NavState.failReason, valid while status is 'failed'.",
+   "src/sim/types/navScratch.ts: new optional fields seekDown, relocTick, relocFrom, relocTo, relocRepeat, reqDest (locomotion's persisted working state)."
+  ],
+  "needsFromOthers": [
+   "Rivals (src/sim/rivals/behaviours, raid job, FIELDED agents): the job re-issues navTo to the same point every think, so the stuck ladder never escalated. Stalls seen at (2529.0, -15.6, 232.5) BU on woodland-edge #2 and (832.6, -6.3, 1559.5) BU on playground-park #2. Locomotion now carries the stuck window over a re-issue, but the job should poll nav.status / failReason instead of re-issuing.",
+   "Outdoor behaviours (src/sim/ants/behaviours/outdoor/phaseTravel.ts updateReturn, engine.ts tripClock): when the walk home keeps failing with failReason 'stuck-repeat', switch the homing mode (retrace \u2194 planner) instead of re-issuing the same walk until RETURN_LOST_S declares the ant lost.",
+   "Nest owner: entrance mouths have an overhanging lip just below the rim; walkers leaving circle under it (player nest of sg2 at about (2030.5, 7.2, 2718) BU, rival nests too). A flared or smoothed rim would remove most of the remaining relocations.",
+   "Worldgen nav construction (maps/nav.ts or validate): the two rules in AC3 (thin-walled enclosures such as the toy bucket; a cell's ground point must not lie inside a solid)."
+  ],
+  "notesForIntegrator": [
+   "The WIP snapshot commit 4d878a0 already holds most of this work. The only uncommitted files in my paths are src/sim/locomotion/index.ts (stuck-window carry-over) and src/sim/locomotion/locoFix3.test.ts.",
+   "Precedence or contradiction: the spec says relocation should 'fail the walk with a reason' after one different recovery. I fail at the relocation rung, not at the first stuck window: failing at once made physically stuck tenders fail hundreds of walks in a row and die lost (sg2 ant 6267).",
+   "Red tests outside my paths, not touched: src/sim/types/ids.test.ts (ALERT_KINDS count is 38, the test expects 37: someone added an alert kind). src/worldgen/maps/maps.verify.test.ts E5 (the kitchen-door seed 4 door now rolls 'sealed', a world change).",
+   "Before/after numbers come from two frozen copies of the source tree (test-output/loco-fix3/snap-before and snap-after = baseline + only my files), run from the same hand-over snapshots in test-output/loco-fix3/cache. The live tree changed during the task: sg2 on the live tree showed only 1 relocation in 2.5 days at one point.",
+   "Run-to-run variance in colony outcomes is large: the same code gave kitchen-door #1 colony successes of 16, 4 (with the abandoned keep-the-request variant) and 16. Read the success columns in trips-table.md with that in mind; the locomotion classes are the stable signal.",
+   "No new log spam: relocations no longer log; only escalations log, one line each ('walker N stuck again at ...')."
+  ]
+ },
+ "review": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the spec docs/design/tasks/loco-fix3.md and the full diff since 6966e2f for src/sim/locomotion/**, src/sim/types/{walker,navScratch}.ts, src/worldgen/testing/walker.ts and src/worldgen/kernel.test.ts.",
+   "npm run typecheck: clean before and after my test file was added.",
+   "npx vitest run src/sim/locomotion/locoFix3.test.ts src/worldgen/kernel.test.ts: 19 passed, 15 skipped (LONG).",
+   "npx vitest run src/sim/locomotion (whole dir, non-LONG): 22 files passed. The only failures are the 4 new verify cases below; all other 137 tests pass.",
+   "npx vitest run src/sim/sim.test.ts src/sim/sim.verify.test.ts (AC5): 17 passed.",
+   "Layering and purity grep on the touched files: no Math.random, Date.now, console or three. worldgen/testing importing sim/locomotion/grid has a precedent.",
+   "Probe: navGrid.stats().gates on the implementer's 'planner routes through the strip' fixture is 0 (path goes via (168,104) and (216,104) BU, under the raised board), so that test never runs navGridImpl.gate().",
+   "Probe: home trip (entrance flow field) vs point trip (A*) across a gated fence edge next to the test nest. A* uses 1 gate, crosses at z 194.5 BU and climbs 0.3 BU. The flow-field trip climbs 40.1 BU over the fence.",
+   "Probe on the live tree and on test-output/loco-fix3/snap-before: a walker on a bare stem walking to an elevated goal on the same stem with no climb route.",
+   "Read test-output/loco-fix3/climbs-final.md, trips-table.md, crossings-after2.txt and stallSites-long3.txt. I did not re-run the LONG stall-site test (19 min) or the 20-crossing sweep."
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "planDescent sends a walker climbing toward an elevated goal back down to the ground (regression)",
+    "where": "src/sim/locomotion/trip.ts:300 (planLeg: `if (walkerUp && far && planDescent(...))`) and trip.ts:309-322 planDescent",
+    "detail": "planDescent fires for any surface walker more than elevatedBU (3 BU) above field.height whose goal is farther than routeGoalBU (16 BU). It does not check whether the goal itself is up on the same stem. When goalUp is true but no climb route is near the goal, planLeg falls through to planDescent, and the walker is sent straight down (seekDown) on its first plan and again on every replan (for example stuck rung 1). Repro: 3 BU stem 200 BU tall, no route, speed 12 BU/s, goal at (101.6, y, 100) BU on the stem. Live tree vs snap-before: start 30 BU, goal 150 BU: 54 s with a 95 BU descent to the ground, vs 18 s with no descent. Start 60, goal 180: 100 s with a 177 BU descent, vs 18 s with none. Start at the base, goal 150: 52 s, climbed about 146 BU, then sent all the way down after one replan, vs 30 s. This matters for tenders and nectar foragers re-issuing walks partway up plants with no route. It may explain the 'up' failures on sg1 shrubs 4993/4995 (routes near 0, stuck at the base, y 3.5 BU, in climbs-final.md), but I have not proven that. Test: locoFix3.verify.test.ts 'a walker 30 BU up a bare stem heading for a goal at 150 BU keeps climbing' (fails: minY 0.1 BU). Fix direction: skip planDescent when the goal is elevated (goalUp) and higher than or near the walker's object; descend only when the goal is on the ground or on another object."
+   },
+   {
+    "severity": "major",
+    "title": "Edge gates are only in the A* path smoother: trips home (entrance flow field) still aim at the cell centre behind the fence",
+    "where": "src/sim/locomotion/grid/navGridImpl.ts:417-437 (gate only in findPathEx string-pulling); legs.ts:83-99 followFlow / navGridImpl.flowNext",
+    "detail": "Spec item 3 asks that two cells be connected only if the game's walker can pass between them. A trip into one's own nest uses planSurface -> flow field (s.flowKey), and followFlow steers at flowNext cell centres with no gate. The sg4 fault (strip under a raised gravel board at a fence end) is therefore fixed only for outward A* trips. Repro (verify test 'edge gates on a homeward trip'): blocks leave only the W(176..192,192..208) to E(192..208,192..208) BU edge between the start and the test nest entrance (214,0,200) BU; the fence on x=192 is raised 7 BU for z 191..196. navTo a point beside the entrance: gates=1, crosses at z 194.5, max climb 0.3 BU, 11 s. navToTarget(kind 'nest'): crosses at z 192.1 and climbs 40.1 BU over the fence, 24 s. A world fence too tall or non-climbable would leave the ant stuck, which is the sg4 failure. The kernel crossings test only A* paths, so AC3's 18/20 says nothing about homeward trips."
+   },
+   {
+    "severity": "major",
+    "title": "AC2 not met, and the repeat rule allows a relocation from the same spot every 300 s by design",
+    "where": "src/sim/locomotion/stuck.ts:139-144 repeatHere / params.ts relocRepeatS: 300",
+    "detail": "AC2 requires, for sg2 to Winter 1, \u226410 relocations and none repeated for the same walker at the same place. The implementer reports 143 relocations and 10 same-place repeats. The code makes this permanent: after relocRepeatS the memory expires, the walker is relocated from the same spot again, and relocRepeat resets to 0, so the let-go/fail escalation starts over. Repro (verify test 'a walker wedged at one spot for 20 game minutes is relocated from there once at most'): a walker re-requested after each failure and slid back to the same spot gets 4 relocations from one place in 4 x 300 s. The implementer's own test 'after the repeat window a relocation is allowed again' encodes the opposite of the AC. The implementer acknowledges this as partial; it needs a decision, either place memory without a time limit or a per-walker cap."
+   },
+   {
+    "severity": "major",
+    "title": "Work 4 (climbs to food) reported 'met' although 7 of 49 sources fail, including the sg2 fruit-tree descent",
+    "where": "test-output/loco-fix3/climbs-final.md",
+    "detail": "The spec says ants reach the herd site and return on the host plants of sg1/sg2/we2/we3. The table shows failures: sg1 shrubs 4993/4995 fail 'up' (2 relocations each, stuck at the base); sg2 dandelions 2170/2174 and fruit tree 2167 (source 2684, stuck at (1993.7, 290.2, 2788.0) BU, the trunk where workers were lost) fail 'down'; sg2 daisy 2306 fails 'up'; we3 dandelion 4430 fails 'down'. No baseline climb table was made, so the improvement is not shown. This should be 'partial'. See also the planDescent regression above."
+   },
+   {
+    "severity": "major",
+    "title": "AC3 and AC4 still open; the kernel LONG crossings are knowingly red",
+    "where": "src/worldgen/kernel.test.ts LONG block; test-output/loco-fix3/crossings-after2.txt, trips-table.md",
+    "detail": "18/20 crossings. The playground-park #4 failure is a nav-grid construction defect: the 4 BU column raster misses the thin bucket walls. That construction is in this task's owned paths (src/worldgen nav construction), and the proposed validation rules were only described, not implemented. The kernel.test.ts LONG block now asserts overs===0 and will fail for pp#4 and we#3. AC4: woodland-edge #3 is at 6.7 %. The share's denominator includes 'never-left' excursions, which inflates the denominator: kitchen-door #1 'before' 0.4 % = 2/447 with 377 never-left, and its 'after' run has 71 excursions, so before and after are not comparable. sg1 colony successes fell from 16 to 10, called noise without repeats. The implementer reports all of this as partial; I list it so it is not lost."
+   },
+   {
+    "severity": "minor",
+    "title": "nav.failReason is never cleared, contrary to its contract comment",
+    "where": "src/sim/types/walker.ts:64 ('cleared by the next request'); src/sim/locomotion/index.ts begin()/startTrip",
+    "detail": "Nothing resets failReason on a new request. After a 'rejected' request, a following successful navToTarget leaves status 'moving' (later 'arrived') with failReason 'rejected', and the stale value is persisted in saves. A behaviour that reads failReason without checking status === 'failed' gets wrong answers. Test: locoFix3.verify.test.ts 'is cleared by the next request' (fails). Fix: clear it in begin(), or change the contract to 'valid only while failed'."
+   },
+   {
+    "severity": "minor",
+    "title": "The planner gate test never exercises the gate insertion",
+    "where": "src/sim/locomotion/locoFix3.test.ts 'the planner routes a walk across the fence through the strip'",
+    "detail": "With that fixture, navGrid.stats().gates stays 0. A* goes via (168,104) and (216,104) BU under the raised board, so the test passes on the baseline for an unrelated reason, and navGridImpl.gate() has no planner-level test. The verify test 'a point trip (A*) goes through the strip' now covers it (asserts gates > 0)."
+   },
+   {
+    "severity": "minor",
+    "title": "Small doc and code mismatches in the relocation push",
+    "where": "src/sim/locomotion/stuck.ts:359-380 relocate; params.ts relocMinBU comment",
+    "detail": "The comments say the target is pushed 'relocMin' toward the destination, but the code pushes min(gl, 2*relocMin). When the destination is within relocMin, the near-zero relocation still counts as a relocation and emits ant-unstuck. There is also a leftover `void id;`."
+   },
+   {
+    "severity": "minor",
+    "title": "Perf at 1,500 workers is about 9 % worse, reported as noise from 2 reps under load 9-12",
+    "where": "test-output/loco-fix3/perf.txt",
+    "detail": "Locomotion ms/tick at 1,500 workers, best of 2: 6.698 before vs 7.286 after. The spec says 'not worse than today'. The difference is plausibly the 26 % more ants outside, but it was not normalised per walker, so the claim is not demonstrated."
+   }
+  ],
+  "testsAdded": [
+   "/home/user/foundress/src/sim/locomotion/locoFix3.verify.test.ts: 8 cases. 4 fail and stay in place for the fixer: failReason cleared by the next request; home trip through the gate strip without climbing the fence; at most one relocation from one spot in 20 game minutes (AC2); a walker partway up a bare stem keeps climbing to an elevated goal. 4 pass and stay as regression guards: A* point trip uses the gate (gates > 0, climb < 6 BU); findGate with a NaN near point gives finite points or null; findGate with zero cell size returns null; let-go escalation inside a nest chamber keeps the walker in the nest. The file runs in about 2.7 s."
+  ]
+ }
+}

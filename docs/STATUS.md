@@ -522,3 +522,14 @@ Rulings:
 - `wy0oh3u7p` / wf_737d0742-569: `colony-life` (spec `docs/design/tasks/colony-life.md`, ledger `colony-life-ledger.md`), script `wf-life.js` (copy in `docs/design/workflows/`), args `{maxRounds: 4, firstRound: 1, model: 'opus', effort: 'high'}`. Each round: engineer accounts, ranks, fixes; an independent engineer runs the 15-run sweep and reviews. Stops when viability + growth (R19) hold with no serious finding. To resume after an interruption: same script and args plus `resumeFromRunId`.
 - The sim half of the gate (`gate-close-sim.md`) waits for this loop; its sweep step is then a confirmation. The app half (`gate-close-app.md`) starts when loco-fix3 + a11y land.
 - Running: `wbpbsguac` (loco-fix3 fix, a11y fix), `w4ku7i4q9` (carpenter, harvester), `wy0oh3u7p` (colony-life).
+
+## Nov 17 01:35 UTC — second container restart (01:24); relaunched with four agents
+
+Restarts at ≈ 23:00 and 01:24, both with 5–6 agents and life runs/browsers going. Cause unknown; memory is a suspect (16 GB, no swap). From now: at most 4 agents; agents told to check `free -g` before heavy processes.
+
+- Snapshot `8627b1d` holds everything that was on disk.
+- **loco-fix3's fix round is not resumed** (cut off twice near its end). Its code is in the tree; its review is `docs/design/tasks/reviews/loco-fix3.json`; `src/sim/locomotion/**` now belongs to `colony-life`, which treats the unfinished findings as leads.
+- Relaunched:
+  - `wnk2w0kbw` / wf_3142d9de-859: colony-life from round 1 (`wf-life.js`, args `{maxRounds:4, firstRound:1, model:'opus', effort:'high', note:…}`).
+  - `wb9nmew2q` / wf_2a92d6dd-89f: species-carpenter, species-harvester (Opus, continue from partial work), input-gamepad-a11y fix round (Sonnet, `startAt:'fix'`, review file `reviews/input-gamepad-a11y.json`).
+- Both workflow scripts take an integrator note now (`t.note` / `args.note`); copies in `docs/design/workflows/`.

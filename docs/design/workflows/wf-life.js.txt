@@ -98,7 +98,7 @@ const SWEEP_SCHEMA = {
 
 const roundPrompt = (n, prev) => COMMON + `YOU ARE THE ENGINEER OF ROUND ${n} of the colony-life task.
 ${prev ? 'The independent sweep and review after the previous round reported (also recorded in the ledger):\n' + JSON.stringify(prev).slice(0, 30000) + '\nFix every blocker and major finding in it first (reproduce each; if one is not real, say why with evidence), then continue with the method.' : 'No independent sweep has been run for this task yet: your baseline is the sweep table named in the spec.'}
-Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.`
+Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.` + (args && args.note && n === FIRST ? '\n\nNOTE FROM THE INTEGRATOR: ' + args.note : '')
 
 const sweepPrompt = (n, round) => COMMON + `YOU ARE NOT THE ENGINEER OF THE ROUND. You are the independent engineer who measures and reviews round ${n} of the colony-life task.
 The round's engineer reported (treat every claim as unproven):

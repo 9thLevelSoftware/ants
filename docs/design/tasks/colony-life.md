@@ -11,7 +11,7 @@ Three rounds of work (`viab-economy`, `econ-growth`, its fix round) have left co
 
 ## You own
 All of `src/sim/**`, `src/worldgen/**`, `src/core/**` (contracts additive only), `tools/sim/**`. Other engineers are working in `src/sim/species/modules/**` and their `src/sim/balance/species-*.ts`: do not edit those. Fix at the cause in the module that owns the rule. Determinism rules of the design seed apply.
-At the start of round 1 another engineer (loco-fix3 fix round) is still finishing in `src/sim/locomotion/**`: before editing a file there, check that it was last modified more than 20 minutes ago and re-read it; their findings and your A/B lead concern the same code, so read `docs/design/tasks/loco-fix3.md` and the diff of that folder against commit f2b9eeb before changing it.
+`src/sim/locomotion/**` is yours too: the loco-fix3 fix round was cut off twice by container restarts near its end; its code is in the tree, its review is `docs/design/tasks/reviews/loco-fix3.json` (findings on descent planning, edge gates on the homeward flow field, relocation repeats, climbs to food, kernel crossings). Check the state of each finding before you change that folder, treat the unfinished ones as leads ranked like any other cause, and compare with the locomotion of commit f2b9eeb where the A/B lead points there.
 
 ## What is not allowed
 - No change to lifespans or ageing (R11). No lowering of needs, no free food, no larger hand-over provision than R2, no weakening of the bars or of a test that checks a ruling.

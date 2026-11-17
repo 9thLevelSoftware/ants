@@ -84,7 +84,7 @@ const VERIFY_SCHEMA = {
 }
 
 const implPrompt = (t) => COMMON + `YOUR TASK SPEC: ${ROOT}/${t.spec}
-Read it now and implement it completely. Work through its acceptance criteria one by one and report each honestly (met / partial / not-met with evidence).`
+Read it now and implement it completely. Work through its acceptance criteria one by one and report each honestly (met / partial / not-met with evidence).` + (t.note ? '\n\nNOTE FROM THE INTEGRATOR: ' + t.note : '')
 
 const verifyPrompt = (t, impl) => COMMON + `YOU ARE NOT THE IMPLEMENTER. You are an independent, adversarial reviewer and tester.
 Another engineer has just implemented the task spec ${ROOT}/${t.spec}. Their report (treat every claim as unproven):
