@@ -573,3 +573,14 @@ Results in `reviews/species-carpenter.json`, `reviews/species-harvester.json` (i
 - Both species sit on the same core defects colony-life is working on (in-nest locomotion, laying after hand-over, small-colony allocation). A **species viability** pass comes after colony-life converges: Messor founding yield, Camponotus winter economy and foraging, then the per-species viability bar of the addendum.
 - Launched: `species-leafcutter` (Opus/Opus, visual) and `difficulty-rules` (Sonnet/Opus) in one workflow.
 - Running: colony-life `wji1tefky` (round 3), gate-close-app `w9q9gpha0`, this new one.
+
+## Nov 17 09:20 UTC — colony-life round 3 findings so far; ruling R21
+
+Benches (`tools/sim/bench-colony.ts --mode nest|forage`, `bench-sweep.sh`, `bench-table.py`) work and are finding causes one-run comparisons did not:
+- **Calendar ceiling confirmed** (nest bench, food guaranteed, 7 of 15): seed-1 colonies lay 10–12 eggs, eclose 0; brood 12.5–18 °C on colony days 1–3 falling to 6–10 °C by day 5–8; with r(T) = (T−10)/11 no egg laid after hand-over can eclose before winter. Seed-2 (21–24 °C) eclose 2–4. Start-day bench (7, 5) queued; **the integrator rules on the default start day (R20) from that table.**
+- **Flood evacuation loop** (fixed, E1): the dry drop point was inside the band the board evacuates from → one larva carried 89 times, no feeding for 0.55 gd. `dryDropPoint` margin + `BROOD_DRY_DROP_SLACK_BU`.
+- **Prey escape rolled twice per contact** (fixed, H2a) and empty-handed returners may hunt (H2b): chase conversion 4–11 % → 25–29 % where prey is in reach.
+- **Protein path** (forage bench before): carrion within 300 BU in every run (1–12 pieces), known 0 in 13 of 15; scouts 4–30 trips in 8 gd, nearest approach to a P odour edge ≈ 130 BU; patch prey met only where the patch edge is ≤ 130 BU.
+- **No larder**: a nest with no food chamber refuses solids once social stomachs are full (0.15 P per worker); first food chamber only at 25 workers.
+
+**R21 — the larder of a small nest** (deviation from GDD 03 §6.4): with no food chamber, solid food is piled and booked in the brood's chamber, capacity one game day of the colony's own full need per nutrient (≥ 4 loads); a `stores-full` refusal with no food chamber makes the first food chamber a planning need at once. Written into `colony-life.md` (direction 5).
