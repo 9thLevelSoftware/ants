@@ -21,7 +21,7 @@ export const SPECIES_CARDS: readonly SpeciesCard[] = [
   {
     id: 'lasius-niger', binomial: 'Lasius niger', commonName: 'Black garden ant',
     playstyle: 'A generalist of soil and paving that ranches aphids for honeydew.',
-    founding: 'Dig, seal, lay, wait', foundingSeason: 'summer', castes: ['ant-queen', 'ant-worker'], complexity: 1,
+    founding: 'Dig, seal, lay, wait', foundingSeason: 'spring', // R20: the reference species starts on day 5 (spring) castes: ['ant-queen', 'ant-worker'], complexity: 1,
   },
   {
     id: 'camponotus-pennsylvanicus', binomial: 'Camponotus pennsylvanicus', commonName: 'Black carpenter ant',
@@ -42,6 +42,20 @@ export const SPECIES_CARDS: readonly SpeciesCard[] = [
 
 export function speciesCard(id: SpeciesId): SpeciesCard {
   return SPECIES_CARDS.find((c) => c.id === id) ?? SPECIES_CARDS[0];
+}
+
+const SEASON_ORDER: readonly Season[] = ['spring', 'summer', 'autumn', 'winter'];
+/** The standard season length the day of year of a start is counted in (7 days: GDD 06 1.1). */
+const STANDARD_SEASON_DAYS = 7;
+
+/**
+ * The season a species' natural start falls in, read from its opening's default start day (ruling R20 moved the
+ * reference species to day 5, spring), so the screens never keep a season of their own that the sim data has left.
+ */
+export function foundingSeasonOf(id: SpeciesId): Season {
+  const doy = getSpecies(id)?.opening?.startDoy?.default;
+  if (doy === undefined) return speciesCard(id).foundingSeason;
+  return SEASON_ORDER[Math.min(3, Math.max(0, Math.floor((doy - 1) / STANDARD_SEASON_DAYS)))];
 }
 
 /** Selectable now? (registry data present and flagged available). */

@@ -278,6 +278,24 @@ describe('InputState: gamepad', () => {
     expect(input.pressed('possess-prev')).toBe(true);
   });
 
+  it('a View press of one frame is a tap (release) even when the frame lasts longer than the hold threshold (loaded machine)', () => {
+    const { input, frame } = make('P');
+    input.setPads([pad({ buttons: { [PAD.VIEW]: 1 } })]);
+    frame(16);
+    input.setPads([pad()]);
+    frame(3000); // the next frame came 3 s later
+    expect(input.pressed('release')).toBe(true);
+    expect(input.pressed('colony-view')).toBe(false); // and it is not the 500 ms hold of the colony view
+    // a press seen in three frames and held for over 500 ms is still a hold, not a tap
+    input.setPads([pad({ buttons: { [PAD.VIEW]: 1 } })]);
+    frame(16);
+    frame(300);
+    frame(300);
+    input.setPads([pad()]);
+    frame(16);
+    expect(input.pressed('release')).toBe(false);
+  });
+
   it('LB tap still fires with right-stick drift inside the dead zone; LB + stick in one frame is a modifier use', () => {
     const { input, frame } = make('P');
     input.setPads([pad({ buttons: { [PAD.LB]: 1 }, axes: [0, 0, 0, 0.1] })]); // drift below STICK_DEADZONE

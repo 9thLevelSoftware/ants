@@ -41,9 +41,15 @@ export interface AutoSlowHost {
   /** Current speed level (0 = paused). */
   level(): SpeedLevel;
   choice(): AutoSlowChoice;
-  /** Sets the speed; `trigger` is the cooldown key (`kind:level` of an alert, or OVERWINTER_PROMPT). */
-  apply(to: SpeedLevel, trigger: string): void;
+  /**
+   * Sets the speed; `trigger` is the cooldown key (`kind:level` of an alert, or OVERWINTER_PROMPT). `why` says which alert
+   * (or the winter banner, as `winter-coming` / notice) asked for it and whether it slowed or paused: the host reports
+   * it as the sim event `time.auto-slow` and flashes the speed control once (GDD 06 4.5).
+   */
+  apply(to: SpeedLevel, trigger: string, why: AutoSlowWhy): void;
 }
+
+export interface AutoSlowWhy { alertKind: AlertKind; level: AlertLevel; action: AutoSlowAction }
 
 const rank = (l: AlertLevel): number => ALERT_LEVELS.indexOf(l);
 
@@ -80,22 +86,22 @@ export class AutoSlowWatcher {
 
   /** Applies the slow-down for this raise (or escalation) if its trigger is out of cooldown. Returns the new level, or null. */
   consider(alert: ActiveAlert, tick: number): SpeedLevel | null {
-    return this.trigger(`${alert.kind}:${alert.level}`, autoSlowAction(alert.kind, alert.level, this.host.choice()), tick);
+    return this.trigger(`${alert.kind}:${alert.level}`, alert.kind, alert.level, autoSlowAction(alert.kind, alert.level, this.host.choice()), tick);
   }
 
   /** The winter banner: the blocking prompt slows time like `winter-coming` (by the critical choice). */
   considerBanner(tick: number): SpeedLevel | null {
-    return this.trigger(OVERWINTER_PROMPT, autoSlowAction('winter-coming', 'notice', this.host.choice()), tick);
+    return this.trigger(OVERWINTER_PROMPT, 'winter-coming', 'notice', autoSlowAction('winter-coming', 'notice', this.host.choice()), tick);
   }
 
-  private trigger(key: string, action: AutoSlowAction | null, tick: number): SpeedLevel | null {
+  private trigger(key: string, alertKind: AlertKind, level: AlertLevel, action: AutoSlowAction | null, tick: number): SpeedLevel | null {
     if (!action) return null;
     const last = this.lastTick.get(key);
     if (last !== undefined && tick - last < AUTO_SLOW_COOLDOWN_GD * TICKS_PER_DAY) return null;
     const to = slowedLevel(action, this.host.level());
     if (to === null) return null;
     this.lastTick.set(key, tick);
-    this.host.apply(to, key);
+    this.host.apply(to, key, { alertKind, level, action });
     return to;
   }
 }

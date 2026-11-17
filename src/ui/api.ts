@@ -70,6 +70,8 @@ export interface UiSpeed {
   allowed: SpeedLevel[];
   /** Real-time ticking off (test mode: only __game.step advances). */
   manualClock: boolean;
+  /** Counts the automatic slow-downs of this game; the speed control flashes once whenever it grows (GDD 06 4.5). Absent = 0. */
+  autoSlowFlash?: number;
 }
 
 export interface UiColony {

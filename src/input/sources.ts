@@ -19,7 +19,17 @@ export interface PadButtonState {
   /** Every other button that was down at any moment while this one was down (the chord this press belonged to). */
   chord: number[];
   holdsFired: number[];
+  /** Polls (frames) the button has been seen down, this one included. */
+  polls: number;
 }
+
+/**
+ * A press seen in at most this many polls is a tap whatever the clock says: under load one frame can last longer than a
+ * hold threshold (a one-frame press then measured as a hold and fired nothing). Its duration is counted in frames.
+ */
+export const PAD_TAP_MAX_POLLS = 2;
+/** What a frame-counted tap is reported as, ms (one nominal 60 Hz frame per poll). */
+export const PAD_TAP_FRAME_MS = 17;
 
 /** A live analogue binding that needs `mod` held: deflecting one of `axes` past `deadZone` uses the button. */
 export interface PadAxisModifier {
@@ -197,14 +207,17 @@ export class RawSources {
       const st = this.padButtons.get(b);
       if (down && !st) {
         for (const other of this.padButtons.values()) other.usedAsMod = true;
-        this.padButtons.set(b, { downAt: now, usedAsMod: false, chord: [], holdsFired: [] });
+        this.padButtons.set(b, { downAt: now, usedAsMod: false, chord: [], holdsFired: [], polls: 1 });
         this.pulse(`padpress:${b}`);
       } else if (!down && st) {
         this.padButtons.delete(b);
-        if (!st.usedAsMod) this.pendingPadTaps.push({ button: b, ms: now - st.downAt, chord: st.chord });
+        // a press that spanned only a poll or two is counted in frames, not in (possibly seconds-long) frame times
+        const ms = st.polls <= PAD_TAP_MAX_POLLS ? Math.min(now - st.downAt, st.polls * PAD_TAP_FRAME_MS) : now - st.downAt;
+        if (!st.usedAsMod) this.pendingPadTaps.push({ button: b, ms, chord: st.chord });
       } else if (down && st) {
+        st.polls++;
         for (const h of holdThresholds) {
-          if (now - st.downAt >= h && !st.holdsFired.includes(h)) { st.holdsFired.push(h); this.pulse(`padhold:${b}:${h}`); }
+          if (st.polls > PAD_TAP_MAX_POLLS && now - st.downAt >= h && !st.holdsFired.includes(h)) { st.holdsFired.push(h); this.pulse(`padhold:${b}:${h}`); }
         }
       }
     }

@@ -26,6 +26,15 @@ function simWith(workers: number, extra = 0): Sim {
 
 beforeEach(() => { hudRequests.roster = null; hudRequests.inspect = null; hudRequests.hooks = null; hudRequests.directivesOpen = true; });
 
+describe('speed slice', () => {
+  it('carries the count of automatic slow-downs (the speed control flashes once for each)', () => {
+    const sim = simWith(3);
+    const b = new SnapshotBuilder();
+    expect(b.build(src(sim), 0, 0).speed?.autoSlowFlash).toBe(0);
+    expect(b.build(src(sim, { autoSlowFlashes: 2 }), 1, 0).speed?.autoSlowFlash).toBe(2);
+  });
+});
+
 describe('structural sharing', () => {
   it('plainEqual compares plain data deeply', () => {
     expect(plainEqual({ a: [1, { b: 2 }] }, { a: [1, { b: 2 }] })).toBe(true);

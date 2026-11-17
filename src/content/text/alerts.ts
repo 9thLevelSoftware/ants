@@ -37,7 +37,7 @@ export const ALERT_TEXT: Record<AlertKind, AlertText> = {
   'winter-coming': { level: 'notice', title: 'Winter approaches', cause: 'stores cover {x} of {winterDays:day|days}', sample: { x: 6, winterDays: 7 } },
   'alates-ready': { level: 'notice', title: 'Winged queens and males are ready', cause: '{n:winged ant|winged ants}', sample: { n: 64 } },
   'flight-weather': { level: 'notice', title: 'Flying weather', cause: 'warm, light wind', sample: {} },
-  milestone: { level: 'info', title: '{title}', cause: '{date}', sample: { title: 'A trail', date: 'Summer · Day 5 · Year 1' } },
+  milestone: { level: 'info', title: '{title}', cause: '{date}', sample: { title: 'A trail', date: 'Spring · Day 5 · Year 1' } },
   'save-failed': { level: 'warning', title: 'Save failed', cause: 'storage refused; use Export', sample: {} },
   'storage-unavailable': { level: 'notice', title: 'Saving unavailable here', cause: 'export to keep this colony', sample: {} },
   'audio-blocked': { level: 'info', title: 'Sound is off', cause: 'click anywhere to enable', sample: {} },

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { applyPreset, buildRequest, defaultForm, isCustom, LOCALITY_ARCHETYPES, presetRules, ruleOverrides, setRule } from './form';
 import { suitability, zoneChips } from './locality';
 import { formatSeedCode, fnv1a32, nextSeedText, randomSeedText, resolveSeed, SEED_MAX_CHARS } from './seed';
-import { SPECIES_CARDS, isSpeciesAvailable } from './species';
+import { SPECIES_CARDS, foundingSeasonOf, isSpeciesAvailable } from './species';
+import { NOT_IN_BUILD, presetGroups, unwiredRules } from './presetRows';
+import { PRESET_ROWS, rowInEffect, UNWIRED_RULES } from '@/sim/config/presetDisplay';
 
 describe('seed field (GDD 08 3.7)', () => {
   it('an 8-hex code is the seed itself, with or without the hyphen, any case', () => {
@@ -86,5 +88,36 @@ describe('the New Game request', () => {
     const a = buildRequest(f), b = buildRequest(f);
     expect(a.archetype).toBe(b.archetype);
     expect(LOCALITY_ARCHETYPES).toContain(a.archetype);
+  });
+});
+
+describe('presets and rules that the sim does not read yet are marked, not offered as working', () => {
+  it('a preset row whose parameter nothing reads shows "Not in this build" in place of its value', () => {
+    for (const id of ['gentle', 'naturalist', 'harsh'] as const) {
+      const rows = presetGroups(id).flatMap((g) => g.rows);
+      expect(rows.length).toBe(PRESET_ROWS.length);
+      for (const [i, r] of rows.entries()) {
+        expect(r.inEffect, r.label).toBe(rowInEffect(PRESET_ROWS[i]));
+        if (r.inEffect) expect(r.value, r.label).not.toBe(NOT_IN_BUILD);
+        else expect(r.value, r.label).toBe(NOT_IN_BUILD);
+      }
+    }
+  });
+  it('lists the unwired custom rules (and only those) with the design\'s wording', () => {
+    const u = unwiredRules();
+    expect(u.length).toBe(UNWIRED_RULES.length);
+    for (const r of u) expect(r.effect.length).toBeGreaterThan(10);
+  });
+});
+
+describe('natural start season (ruling R20: the reference species starts on day 5, spring)', () => {
+  it('is read from the species data: day 5 is spring for Lasius, Camponotus and Atta; Messor starts in autumn', () => {
+    expect(foundingSeasonOf('lasius-niger')).toBe('spring');
+    expect(foundingSeasonOf('camponotus-pennsylvanicus')).toBe('spring');
+    expect(foundingSeasonOf('atta-texana')).toBe('spring');
+    expect(foundingSeasonOf('messor-barbarus')).toBe('autumn');
+  });
+  it('the static card agrees with the data (no screen keeps a season of its own)', () => {
+    for (const c of SPECIES_CARDS) expect(c.foundingSeason, c.id).toBe(foundingSeasonOf(c.id));
   });
 });

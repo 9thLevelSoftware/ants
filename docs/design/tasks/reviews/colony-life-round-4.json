@@ -1,0 +1,137 @@
+{
+ "summary": "Round 4 of colony-life is finished. The sweep's blocker and major findings are fixed: the heated-nest log (W1) and the R21 larder (L1, plus L1b, which stops the larder growing with its own spoilage). R20 is in: Lasius starts on day 5, the 15 hand-overs were regenerated at that day (test-output/colony-life/round-4/cache), and the nest bench was rebuilt on them. R24 is in (WL1): a colony loses at most 15 % of its workers in the winter lapse unless the player was warned of the cause. The H2b hunt flip is fixed (H3). The first R20 long runs collapsed in year one: brood died of hygiene in one-chamber nests. Probes traced this to three defects in a chain, all fixed with tests. E2: soil falling back over old founding plug marks made an open entrance read `sealing`, shutting the colony in. H4: with fewer workers than tasks, the GDD priority order gave hauling nobody. M1: haulers carried the same two corpses back and forth at a surface midden, because the corpse lay on a stone above the midden point. On the clean 15-run nest-bench pair (before and after share the same predator code), hygiene losses fell from 256 to 156 (median 16 to 9) and eclosions rose from 35 to 43 (median 0 to 3). Workers at winter did not improve (111 to 106): hauling puts more workers outside, where predators now act. Predators are now the largest worker loss: threats-live's work is in the tree and outside this task.",
+ "causesRanked": [
+  "1. Brood lost to hygiene in one-chamber nests (R20 long runs: sg #2 lost 27 of 32 eggs, pp #2 22 of 28). 0 of 24 waste items were dumped in 5 gd, through E2 (entrance stuck `sealing`), H4 (no haul worker) and M1 (the corpse loop). On the clean nest bench of 15 runs: hygiene 256 -> 156, median 16 -> 9. The 8-day A/B on sg #2: 18 -> 0.",
+  "2. Year-one workers die of old age before any year-one brood replaces them: 4-10 old-age deaths per long run (R11 stands). This follows from cause 1 and from the cooler spring founding.",
+  "3. Predation, which arrived in the tree with threats-live's predators: we #1 lost 15 of 18 workers in year one, pp #2 7-9 of 11 in 8 days, the nest bench 51 (before) and 67 (after) deaths over 15 runs. Reported, not changed.",
+  "4. Year two. Lapse losses are now capped by R24 (the earlier 58-64 % was one shared seed-1 draw of rng.winter). Spring laying is blocked because every chamber sits 9-12 BU deep and stays below 14 C until about spring day 7; no warmer chamber exists to move the queen to. The winter stores check is too low: pp #2's lapse used about 9 gd of summer adult need, against a check of 1 gd.",
+  "5. Carbohydrate foraging in year one: sg #2 after the hygiene fixes had C intake/need 0.18 and C 0 from day 9, and the lapse took 10 -> 3 (short stores counted as alerted). Larvae starving: 30 on the after bench.",
+  "6. Brood left untended on the after bench: 147 (pupae on the growing runs).",
+  "7. R20 shortens the seed-2 foundings: first workers 15-16 -> 8-11 (the total over 15 runs fell from 190 to 168)."
+ ],
+ "fixes": [
+  {
+   "cause": "Sweep blocker (a): the heated-nest log kept samples days old as fresh, so a colony with no brood got no winter lapse",
+   "files": [
+    "src/sim/colony/overwinter/begin.ts",
+    "src/sim/types/lifecycle.ts"
+   ],
+   "test": "src/sim/colony/overwinter/heatedLog.verify.test.ts (the review's red test; red on HEAD's begin.ts, green now)",
+   "beforeAfter": "Unit test: a 3-gd-old log of 20 C samples with no brood: heated -> not heated. No long-run before/after: woodland-edge #1's no-lapse winter came from the day-9 calendar and is not repeated at day 5."
+  },
+  {
+   "cause": "Sweep major: ruling R21, the larder of a small nest. Also L1b: the larder is sized without its own spoilage",
+   "files": [
+    "src/sim/colony/stores.ts",
+    "src/sim/colony/economy.ts",
+    "src/sim/colony/index.ts",
+    "src/sim/nest/architect/needs.ts",
+    "src/sim/balance/colony.ts",
+    "src/sim/types/colony.ts"
+   ],
+   "test": "src/sim/colony/larder.test.ts (5 cases, each red with the larder off)",
+   "beforeAfter": "A/B with the larder on and off on the same hand-overs: the hygiene losses are there either way (sg #2 18 vs 15, pp #2 17 vs 17), so the larder is kept. Larder food is booked and planned for (a food chamber is planned after a refusal); the cpv #1 and kd #1 long-run nests built food chambers."
+  },
+  {
+   "cause": "Ruling R20: the default start day becomes day 5",
+   "files": [
+    "src/sim/species/data/lasius-niger.ts",
+    "src/sim/testing/testWorld.ts",
+    "src/sim/testing/index.ts",
+    "src/sim/environment/human/testkit.ts",
+    "src/sim/createGame.test.ts",
+    "src/sim/types/d7.test.ts",
+    "src/sim/environment/weatherStart.test.ts",
+    "src/sim/species/consistency.test.ts",
+    "src/sim/species/lasiusData.test.ts",
+    "src/sim/species/data/lasius.table.test.ts"
+   ],
+   "test": "species, config, environment, createGame and d7 test folders are green (test sims are pinned to summer day 2 via TEST_START)",
+   "beforeAfter": "15 hand-overs at day 5: first workers 190 -> 168 over 15 runs; >= 9 first workers in 14 of 15 runs (was 13); seed-2 runs 15-16 -> 8-11 workers at hand-over."
+  },
+  {
+   "cause": "Ruling R24: the lapse takes at most 15 % x winterLossMult of the workers unless the player was alerted to the cause (flood alerts -> drowning; short stores -> starvation)",
+   "files": [
+    "src/sim/colony/overwinter/model.ts",
+    "src/sim/colony/overwinter/begin.ts",
+    "src/sim/colony/overwinter/system.ts",
+    "src/sim/balance/lifecycle.ts",
+    "src/sim/types/lifecycle.ts"
+   ],
+   "test": "src/sim/colony/overwinter/lossCap.test.ts (red with the cap off: seed 1 loses 13 of 20)",
+   "beforeAfter": "Sweep 3: cpv #1 lost 11 -> 4 and kd #1 12 -> 5 in the lapse. R20 long runs with the cap: 11 -> 6 and 8 -> 4 (the cap of 1 plus 3 drowned after flood alerts in autumn)."
+  },
+  {
+   "cause": "Sweep minor H2b: an ant sent home for 'timeout' was turned home again by the trip clock while chasing prey, so the hunt flipped back and forth",
+   "files": [
+    "src/sim/ants/behaviours/outdoor/engine.ts"
+   ],
+   "test": "src/sim/ants/behaviours/outdoor/huntReturn.verify.test.ts (the review's red test; green now, red with the check off)",
+   "beforeAfter": "3 hunt -> return flips in 30 s with 0 hits -> no flips."
+  },
+  {
+   "cause": "E2: soil falling back over open throat samples still marked PLUG counted as a new plug, so the entrance went `sealing` (no exit, no midden)",
+   "files": [
+    "src/sim/nest/entrances.ts"
+   ],
+   "test": "src/sim/nest/plugFill.test.ts (red without the fix: plugCount 1, `sealing`)",
+   "beforeAfter": "Probe on sg #2: plugCount 6 -> 18 and `sealing` from 2.0 gd to the end -> the entrance stays `open`."
+  },
+  {
+   "cause": "H4: with fewer workers than tasks, GDD 02 \u00a76.3's order gave haul no worker while waste killed the brood",
+   "files": [
+    "src/sim/colony/allocation/targets.ts",
+    "src/sim/colony/allocation/index.ts"
+   ],
+   "test": "src/sim/colony/allocation/hygiene.test.ts",
+   "beforeAfter": "Probe on sg #2: haul workers mostly 0 -> 1 while waste lies among the brood."
+  },
+  {
+   "cause": "M1: a corpse on a stone at the surface midden was 'not at the midden' in 3D, so haulers moved the same two corpses back and forth and never reached the waste",
+   "files": [
+    "src/sim/ants/behaviours/nest/haul.ts"
+   ],
+   "test": "src/sim/ants/behaviours/nest/haulMidden.test.ts (red with the 3D rule)",
+   "beforeAfter": "Probe on sg #2: waste dumped 0 -> 15 in 5 gd, hygiene deaths 16 -> 0. 8-day A/B: sg #2 hygiene 18 -> 0, eclosed 0 -> 4, workers 11->6 vs 11->11; pp #2 hygiene 17 -> 8. Clean 15-run nest bench (E2+H4+M1+L1b): hygiene 256 -> 156 (median 16 -> 9), eclosed 35 -> 43 (median 0 -> 3), workers at winter 111 -> 106, predation 51 -> 67, worker-gd outside 337 -> 380."
+  }
+ ],
+ "verification": [
+  "npx tsc --noEmit is clean (18:12 UTC).",
+  "Folder tests (outputs in test-output/colony-life/round-4/vitest-*.txt): colony 57/58, nest 55/56, ants/behaviours/nest 27/29, ants/behaviours/outdoor 27/28, overwinter 5/5 + 1 skipped, species 12/12, config 5/5, environment/human 11/11. Every red test is a known one or another engineer's (removal.verify, escapeDig, founding/reopen, stall.soak, sfaReview.verify, ids.test, weather.test streams, layering, stage1a.e2e (c) (also red on the round-start tree), commands*, services, time).",
+  "Each new test was checked red with its fix switched off: heatedLog.verify, larder (5 cases), lossCap, huntReturn.verify, plugFill, allocation/hygiene, haulMidden.",
+  "15 R20 hand-overs made with tools/sim/handover-sweep.sh; the round-3 start-day bench numbers are reproduced (we #1 3.45 gd / 18 workers).",
+  "Long runs to year-2 doy 15: 5 on tree r4c (before E2/H4/M1) and 2 on r4f (after). Tables in round-4/long/longrun-table.md and long-r4f/.",
+  "A/B pairs on the same hand-overs: larder on/off (ab-larder) and the hygiene fixes (ab-hygiene); probes saved as round-4/probe-*.txt (the probe tools are deleted).",
+  "Nest bench on all 15 hand-overs, before (r4c) vs after (r4h, same predator code), with the capacity-bound top-up; tables and causes in round-4/bench-nest-*/.",
+  "Determinism: all new state is plain persisted data; no wall clock, Math.random or Math.hypot added to sim code.",
+  "No processes of this round are left running; scratch trees and probe tools are deleted."
+ ],
+ "next": [
+  "Predation by threats-live's predators is now the largest worker loss (we #1 15 of 18 workers in year one; nest bench 51-67 deaths over 15 runs). Settle it against GDD 05's loss bands before reading any growth numbers.",
+  "Carbohydrate foraging in year one: once hygiene is fixed, colonies run out of C (sg #2 C 0 from day 9, 17 of 45 forage trips home 'hungry', nectar within 300 BU never found). Look at scouting coverage and the departure ration when the pool is empty.",
+  "Nest care after the hygiene fixes: brood untended 147 and larvae starved 30 on the after bench; pupa:untended leads on the growing runs.",
+  "Integrator rulings needed: a winter stores check (proposal: the lapse's own C need plus 4 gd of spring adult need), spring laying (no warm chamber exists in 9-12 BU deep nests), and the R20 cost on seed-2 first workers.",
+  "Remaining hygiene in two-chamber nests (cpv #2 27, cpv #3 21, we #2 and we #3 18 on the after bench): not probed this round."
+ ],
+ "gddDeviations": [
+  "R20: Lasius startDoy {5, 9, default 5}, against the real flight season (GDD 07 species data, GDD 06 \u00a71.6). App strings for the app engineer: src/ui/screens/newgame/species.ts has Lasius foundingSeason 'summer' and should say spring.",
+  "R21: a larder with pile capacity outside food chambers (GDD 03 \u00a76.4): one game day of need per nutrient, at least 4 loads, spoiling in the brood chamber.",
+  "R24: lapse losses capped at 0.15 x winterLossMult except for alerted causes (flood -> drowning, short stores -> starvation). Cold, disease and old age have no alert before winter, so they are always capped. GDD 06 \u00a76.3's flood and fungus terms can otherwise take more than half the colony in one draw.",
+  "H4: GDD 02 \u00a76.3's auto priority order changes while brood lies among waste at the hygiene tolerance: haul moves to just after queen-care.",
+  "M1: GDD 02 \u00a710.8 'at the midden' is measured across the ground (x, z) for a surface midden.",
+  "Test fixture, not a game rule: Lasius test sims start on summer day 2 (TEST_START)."
+ ],
+ "notesForIntegrator": [
+  "rng.winter is forked from the world seed only, so every seed-1 game draws the same winter. In sweep 3, cpv #1 and kd #1 lost exactly drowning 5 + disease 2 for that reason; the five long runs are not independent winters.",
+  "Frozen trees taken minutes apart picked up threats-live's predator changes. Every bench pair must share the same ecology/creatures code; the earlier r4g 'after' bench is kept as superseded (bench-nest-after-r4g).",
+  "The nest bench used to top up food past capacity (cheat.addFood is not capacity-bound, and the P need counts spoilage). Earlier nest-bench hygiene numbers, round 3 included, are inflated by that. The bench is capacity-bound now.",
+  "The threats-calibrate engineer is using test-output/colony-life/round-4/cache. Keep that cache.",
+  "Spring readings: royal chamber 0.9-3.2 C on spring day 1 and 7-12 C on day 4; the royal chamber is the warmest dry chamber in every long run.",
+  "Winter stores proposal (for your ruling): stores at winter >= the lapse's own C need plus 4 gd of spring adult need. For pp #2: 5.9 + 4 x 0.55 = 8.1 > 7.1 in store."
+ ],
+ "triedAndReverted": [
+  "Nothing was reverted. The larder was suspected for the hygiene loss and kept after the A/B (hygiene the same with it off).",
+  "The nest-bench runs with the capacity-free top-up were discarded as contaminated (kept as round-4/bench-nest-*-uncapped).",
+  "The r4g 'after' bench was replaced by r4h, because r4g carried threats-live's predator changes."
+ ]
+}

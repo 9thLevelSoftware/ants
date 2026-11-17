@@ -79,3 +79,18 @@ describe('AutoSlowWatcher: escalations and the winter banner', () => {
   });
 });
 
+describe('AutoSlowWatcher: what the host is told (the sim event and the speed control flash)', () => {
+  it('apply gets the alert kind, its level and the action; the banner reports as winter-coming / notice', () => {
+    const calls: unknown[] = [];
+    let level: SpeedLevel = 8;
+    const w = new AutoSlowWatcher({ level: () => level, choice: () => ({ critical: 'pause', warning: 'slow' }), apply: (to, _k, why) => { calls.push([to, why]); level = 8; } });
+    w.consider(alert('nest-collapse-risk', 'warning'), 100);
+    w.consider(alert('queen-in-danger', 'critical'), 100);
+    w.considerBanner(100);
+    expect(calls).toEqual([
+      [1, { alertKind: 'nest-collapse-risk', level: 'warning', action: 'slow' }],
+      [0, { alertKind: 'queen-in-danger', level: 'critical', action: 'pause' }],
+      [0, { alertKind: 'winter-coming', level: 'notice', action: 'pause' }],
+    ]);
+  });
+});

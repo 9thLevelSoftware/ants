@@ -20,12 +20,31 @@ describe('PadReader', () => {
     expect(r.update(snap(), 0).edge(PAD.A)).toBe(false);
     const f1 = r.update(snap([PAD.A]), 100);
     expect(f1.edge(PAD.A)).toBe(true);
+    r.update(snap([PAD.A]), 250);
     const f2 = r.update(snap([PAD.A]), 400);
     expect(f2.edge(PAD.A)).toBe(false);
     expect(f2.heldMs(PAD.A)).toBe(300);
     const f3 = r.update(snap(), 500);
     expect(f3.release(PAD.A)).toBe(true);
     expect(f3.releasedAfterMs(PAD.A)).toBe(400);
+  });
+
+  it('counts a press of one or two polls in frames, not in the (possibly huge) frame times of a loaded machine', () => {
+    const r = new PadReader();
+    r.update(snap(), 0);
+    expect(r.update(snap([PAD.VIEW]), 1000).edge(PAD.VIEW)).toBe(true);
+    const f = r.update(snap(), 3500); // the next frame came 2.5 s later
+    expect(f.release(PAD.VIEW)).toBe(true);
+    expect(f.releasedAfterMs(PAD.VIEW)).toBeLessThan(50); // a tap (the real-time hold threshold is 450 ms)
+    // two polls down, the second one late
+    r.update(snap([PAD.VIEW]), 4000);
+    expect(r.update(snap([PAD.VIEW]), 6500).heldMs(PAD.VIEW)).toBeLessThan(50);
+    expect(r.update(snap(), 7000).releasedAfterMs(PAD.VIEW)).toBeLessThan(50);
+    // a press seen in three polls keeps its real length
+    r.update(snap([PAD.VIEW]), 8000);
+    r.update(snap([PAD.VIEW]), 8100);
+    r.update(snap([PAD.VIEW]), 8700);
+    expect(r.update(snap(), 8800).releasedAfterMs(PAD.VIEW)).toBe(800);
   });
 
   it('a held direction moves once, waits, then repeats', () => {

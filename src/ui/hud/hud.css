@@ -23,6 +23,8 @@
 .fd-speed-btn { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--c-text-2); cursor: pointer; pointer-events: auto; }
 .fd-speed-btn:hover:not([aria-disabled="true"]) { background: var(--c-panel-raised); color: var(--c-text); border-color: var(--c-border-strong); }
 .fd-speed-btn.is-selected { background: var(--c-accent); color: var(--c-on-accent); border-color: var(--c-accent); }
+.fd-speed-btn.is-flash { animation: fd-speed-flash 900ms ease-out 1; }
+@keyframes fd-speed-flash { 0% { box-shadow: 0 0 0 0 var(--c-accent); transform: scale(1.25); } 100% { box-shadow: 0 0 0 0.5rem transparent; transform: none; } }
 .fd-speed-btn[aria-disabled="true"] { color: var(--c-disabled); cursor: not-allowed; }
 
 /* ---- Colony pulse: 336 x 56 dp collapsed at (928, 16); expands on hover or focus ---- */
@@ -180,6 +182,7 @@ button.fd-more { cursor: pointer; }
 .fd-roster-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); font-size: var(--t-small); color: var(--c-text-2); }
 
 /* reduced motion: the HUD's own animations become plain fades */
+:root[data-motion="reduced"] .fd-speed-btn.is-flash { animation: ui-fade 300ms linear 1; }
 :root[data-motion="reduced"] .fd-alert { animation: ui-fade 120ms linear both; }
 :root[data-motion="reduced"] .fd-pulse { transition: none; }
 :root[data-motion="reduced"] .fd-compass { transition: none; }

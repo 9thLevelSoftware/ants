@@ -47,9 +47,17 @@ function stickDir(x: number, y: number): Dir | null {
   return Math.abs(x) > Math.abs(y) ? (x > 0 ? 'right' : 'left') : y > 0 ? 'down' : 'up';
 }
 
+/**
+ * A press seen in at most this many polls is as short as a tap, whatever the clock says (under load one frame can last
+ * longer than a hold threshold): its length is reported as that many nominal frames. Same rule as src/input/sources.ts.
+ */
+export const TAP_MAX_POLLS = 2;
+const NOMINAL_FRAME_MS = 17;
+
 export class PadReader {
   private prev: boolean[] = [];
   private downAt: number[] = [];
+  private polls: number[] = [];
   private lastRelease: number[] = [];
   private dir: Dir | null = null;
   private dirNext = 0;
@@ -58,6 +66,7 @@ export class PadReader {
   reset(): void {
     this.prev = [];
     this.downAt = [];
+    this.polls = [];
     this.lastRelease = [];
     this.dir = null;
   }
@@ -73,8 +82,10 @@ export class PadReader {
       const was = !!this.prev[i];
       edge[i] = down[i] && !was;
       rel[i] = !down[i] && was;
-      if (edge[i]) { this.downAt[i] = nowMs; if (i !== PAD.HOME && anyEdge < 0) anyEdge = i; }
-      this.lastRelease[i] = rel[i] ? nowMs - (this.downAt[i] ?? nowMs) : -1;
+      if (edge[i]) { this.downAt[i] = nowMs; this.polls[i] = 1; if (i !== PAD.HOME && anyEdge < 0) anyEdge = i; }
+      else if (down[i]) this.polls[i] = (this.polls[i] ?? 0) + 1;
+      const ms = nowMs - (this.downAt[i] ?? nowMs), polls = this.polls[i] ?? 1;
+      this.lastRelease[i] = rel[i] ? (polls <= TAP_MAX_POLLS ? Math.min(ms, polls * NOMINAL_FRAME_MS) : ms) : -1;
       if (down[i]) anyInput = true;
     }
     const ls = { x: p.axes[0] ?? 0, y: p.axes[1] ?? 0 };
@@ -94,7 +105,11 @@ export class PadReader {
     return {
       connected: true, id: p.id,
       down: (b) => !!down[b], edge: (b) => !!edge[b], release: (b) => !!rel[b],
-      heldMs: (b) => (down[b] ? nowMs - (this.downAt[b] ?? nowMs) : 0),
+      heldMs: (b) => {
+        if (!down[b]) return 0;
+        const ms = nowMs - (this.downAt[b] ?? nowMs), polls = this.polls[b] ?? 1;
+        return polls <= TAP_MAX_POLLS ? Math.min(ms, polls * NOMINAL_FRAME_MS) : ms;
+      },
       releasedAfterMs: (b) => released[b] ?? -1,
       move, ls, rs, anyInput, anyEdge,
     };

@@ -1,6 +1,7 @@
 // Time cluster (GDD 08 3.4, 5.1): season glyph and date, clock, sun or moon, weather and surface temperature, and the
 // speed control (pause, 1x, 2x, 4x, 8x, next event). The box is 304 x 56 dp at the top left. The buttons are for the
 // pointer: the keyboard operates the same actions with their keys and the HUD is not in the tab order (focusPolicy.ts).
+import { useRef } from 'preact/hooks';
 import type { UiSpeed, UiTime } from '../api';
 import { currentBindings, hintLabel } from '../components';
 import { Tooltip } from '../components/Tooltip';
@@ -26,8 +27,16 @@ const BUTTONS: readonly SpeedBtn[] = [
   { id: 'next', icon: 'next-event', label: 'Skip to the next event', action: 'skip-ahead' },
 ];
 
+/** How long the speed control's flash stays on the selected button (matches the CSS animation). */
+const FLASH_MS = 900;
+
 function SpeedControl({ speed }: { speed: UiSpeed }) {
   const f = facade.value;
+  // one flash per automatic slow-down: remembered for FLASH_MS so the clock's re-renders do not cut it short
+  const count = speed.autoSlowFlash ?? 0;
+  const seen = useRef({ count, until: 0 });
+  if (seen.current.count !== count) seen.current = { count, until: Date.now() + FLASH_MS };
+  const flash = Date.now() < seen.current.until ? count : 0;
   const choose = (b: SpeedBtn['id']) => {
     if (b === 'pause') f?.togglePause();
     else if (b !== 'next') f?.setSpeed(b);
@@ -44,7 +53,9 @@ function SpeedControl({ speed }: { speed: UiSpeed }) {
         return (
           <Tooltip key={String(b.id)} text={why ? `${b.label}: ${why}` : `${b.label}${keyOf(b.action)}`} placement="bottom">
             <button
-              type="button" class={`fd-speed-btn${sel ? ' is-selected' : ''}`}
+              // the selected button lights up once for every automatic slow-down (GDD 06 4.5): the key restarts the animation
+              key={sel && flash > 0 ? `flash-${flash}` : undefined}
+              type="button" class={`fd-speed-btn${sel ? ' is-selected' : ''}${sel && flash > 0 ? ' is-flash' : ''}`}
               aria-label={b.label} aria-pressed={sel ? 'true' : 'false'} aria-disabled={why ? 'true' : undefined}
               tabIndex={-1} data-testid={`speed-${b.id}`}
               onClick={() => { if (!why) choose(b.id); }}

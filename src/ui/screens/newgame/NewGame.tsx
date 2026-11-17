@@ -12,7 +12,8 @@ import { markGenerating } from '../loadFlow';
 import { applyPreset, buildRequest, isCustom, lastRequest, LOCALITY_ARCHETYPES, newGameForm, setRule, type NewGameForm } from './form';
 import { randomSeedText, resolveSeed, SEED_MAX_CHARS } from './seed';
 import { suitability, zoneChips } from './locality';
-import { isSpeciesAvailable, SHOW_UNRELEASED_SPECIES, SPECIES_CARDS, speciesCard } from './species';
+import { NOT_IN_BUILD, presetGroups, unwiredRules } from './presetRows';
+import { foundingSeasonOf, isSpeciesAvailable, SHOW_UNRELEASED_SPECIES, SPECIES_CARDS, speciesCard } from './species';
 
 const ARCHETYPE_NAMES: Record<ArchetypeId | 'random', string> = {
   'woodland-edge': 'Woodland Edge', 'suburban-garden': 'Suburban Garden', 'playground-park': 'Playground Park',
@@ -72,7 +73,8 @@ function LocalityColumn({ form, set }: { form: NewGameForm; set: (f: NewGameForm
   const ids: (ArchetypeId | 'random')[] = [...LOCALITY_ARCHETYPES, 'random'];
   const options: RadioCardOption<ArchetypeId | 'random'>[] = ids.map((value) => ({ value }));
   const card = speciesCard(form.species);
-  const seasonWord = card.foundingSeason[0].toUpperCase() + card.foundingSeason.slice(1);
+  const season = foundingSeasonOf(card.id);
+  const seasonWord = season[0].toUpperCase() + season.slice(1);
   return (
     <>
       <RadioCards
@@ -151,7 +153,42 @@ function CustomRules({ form, set }: { form: NewGameForm; set: (f: NewGameForm) =
           <Field label="Nest collapse">
             <Toggle checked={r.collapse} onChange={(v) => set(setRule(form, 'collapse', v))} />
           </Field>
+          {unwiredRules().map((u) => (
+            <Field key={u.label} label={u.label} layout="stack" help={u.effect}>
+              <span class="ui-species-flag" data-testid="rule-not-in-build">{NOT_IN_BUILD}</span>
+            </Field>
+          ))}
           <p class="ui-field-help">Rival count and season length are fixed when the world is generated.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What the chosen preset changes, row by row (the card's numbers come from the balance table). */
+function PresetDetails({ preset }: { preset: DifficultyId }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div class="ui-custom">
+      <button type="button" class="ui-disclosure" aria-expanded={open ? 'true' : 'false'} aria-controls="preset-details" onClick={() => setOpen(!open)} data-testid="preset-toggle">
+        <Icon name={open ? 'chevron-down' : 'chevron-right'} size={18} decorative />
+        <span>What {PRESET_TEXT[preset].name} changes</span>
+      </button>
+      {open && (
+        <div id="preset-details" class="ui-custom-body" data-testid="preset-rows">
+          {presetGroups(preset).map((g) => (
+            <section key={g.group} class="ui-preset-group">
+              <h4 class="ui-preset-heading">{g.group}</h4>
+              <dl class="ui-preset-list">
+                {g.rows.map((r) => (
+                  <div key={r.label} class={cx('ui-preset-row', !r.inEffect && 'is-not-in-build')} data-in-effect={r.inEffect ? 'true' : 'false'}>
+                    <dt>{r.label}</dt>
+                    <dd>{r.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
         </div>
       )}
     </div>
@@ -175,6 +212,7 @@ function RulesColumn({ form, set }: { form: NewGameForm; set: (f: NewGameForm) =
           </div>
         )}
       />
+      <PresetDetails preset={form.preset} />
       <CustomRules form={form} set={set} />
       <Field label="Hints">
         <Toggle checked={form.hints} onChange={(hints) => set({ ...form, hints })} />

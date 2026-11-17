@@ -129,8 +129,10 @@ idle nestmates 3 BU away, every system of the sim running (`makeTestSim` default
 over 55 s, no nestmate moves her or takes her home: 0 rescues where the GDD expects about 3. Cause: `Ant.carry.kind` is
 `'none' | 'item' | 'brood'` (no ant can be carried) and nothing in `src/sim/ants/**` reads `paralysedUntilTick` to start a
 haul (grep: only fight / patrol skip such ants). Effect in the runs: at 60 workers the ant-spider hit 53 times and killed
-15 (the rest recovered when ants came within 1 L of the spider and it fled, or the venom left them above the paralysis
-line); with rescue at p 0.5 roughly half of the 15 would live. This is the largest single lever on the 60-worker rate
+15. Bite 1 + venom 6 brings a worker to the paralysis line (health <= 0.3) only if her maxHp <= 10, i.e. the smaller
+half of the regular workers and every nanitic (7.2 hp: left at 0.2 hp); the others walk home, and a spider that is
+seen within 1 L flees. Every paralysed ant the spider reaches is killed; with rescue at p 0.5 roughly half of the 15
+would live. This is the largest single lever on the 60-worker rate
 (ant-spider = 37 % of the kills), so when it is built the rate at 60 workers drops towards ~0.03: re-measure then (the
 band's lower edge).
 
@@ -153,4 +155,56 @@ colony (`hazard.knownBy`), a worker sent with `navTo` to the far side: she walks
 no caller in `src/sim/locomotion/**` or `src/sim/ants/**` (grep). On the five worlds there is no pit (no habitat), so
 this costs nothing in the measured runs; it matters on worlds with sheltered dry sand.
 
-(SECTIONS FOLLOW)
+## 5. Per-tick cost of the creature systems
+
+PERF_TABLE
+
+## 6. What the colony engineer must know
+
+- **Founding year (9-18 workers, Naturalist): about nothing.** Median 0 predation deaths per colony from hand-over to
+  winter, 2 in 10 colony-runs (§2.1). The colony-range hunters appear only as the colony grows: at 10 workers none, then
+  on average one more hunting kind for every ~6 workers, all five kinds with habitat by 40 workers (Gentle 20 -> 60,
+  Harsh 0 -> 20, so Harsh colonies meet them from the first worker). Worldgen's own residents (500-3,000 BU out) are not
+  ramped but founding-year ants rarely reach them. Sweep and bench numbers made with the stop-gap state (no ramp)
+  carried ~0.07 per outside-worker gd of predation on founding-year colonies; with the ramp that is gone.
+- **Established colony (60 workers, Naturalist): 0.04 worker deaths per outside-worker game day** (design 0.061, band
+  0.03-0.12): about 0.7 workers per colony per game day with 12-28 workers outside (41 deaths in 10 colony-runs of 6
+  gd). Gentle GENTLE_RATE, Harsh HARSH_RATE (§2.2). Victims are foragers that stop outside: at food, tending, or pausing on
+  a trail at dusk (ant-spider) and by day near walls and stems (jumping spider).
+- A colony that shrinks below the ramp's draw loses its colony-range hunters one game day later (not at once), and
+  gets them back when it grows again.
+- Deaths carry cause `predation`, a landed strike raises `predator-near`, nothing else changed in the ants' side.
+- The three gaps of §4: (a) rescue of paralysed nestmates is the biggest lever left on the established-colony rate;
+  build it in `src/sim/ants/**` (a carry kind for an ant, a haul trigger on `ant-paralysed`), then re-measure with
+  `tools/sim/threatBatch.ts --workers 60 --run-seeds 1,2` (expect ~0.03); (b) needs nothing; (c) `knownHazardsNear` in
+  local steering (locomotion).
+- Re-measuring: `node tools/sim/run-ts.mjs tools/sim/threatBatch.ts --out DIR --cache test-output/colony-life/round-4/cache
+  --run-seeds 1,2 [--workers 60] [--preset P] [--until-winter 1 --days 20]` (one process, ~4 min per 60-worker run,
+  ~6 min per founding-year run to winter).
+
+## 7. GDD deviations and contradictions
+
+| # | Rule | Deviation / reading | Reason |
+|---|---|---|---|
+| D1 | GDD 05 §5 lists one size protection ("predator exclusion around the player nest until 5 workers") | **R25 (integrator ruling):** the director's colony-range siting x a colony-size ramp per preset; the §5 exclusion and the bird's 30 workers stay | founding-year colonies of 12-16 cannot carry the design's rate (threats-live §5, §12.4); ruling R25 |
+| D2 | threats-live AC2 "every hunting family strikes on >= 3 of 5 worlds within 6 gd" | **R26:** the loss rate binds; families the rate leaves rare stay rare (§3) | ruling R26 |
+| D3 | GDD 02 §1.3 gives the rate only as arithmetic (0.061 per outside-worker gd = 2/33) | the band 0.03-0.12 (Naturalist) and its use as the target are the integrator's (R26); Gentle / Harsh are checked only for order | the GDD has no band per preset (threats-live review) |
+| D4 | GDD 05 E12 "worker takes 9 damage, is seized" vs the hand-over workers dying at once | not a contradiction: E12 is for a regular worker (10 hp), the hand-over workers are nanitics (GDD 05 §4.1 / GDD 07: 7 hp) | §4b |
+| D5 | GDD 05 §2.6 bird rate x §6 threat director | the bird never comes because the director's quiet-share gate is shut by human-event warnings (quiet share 0-0.04) | for the integrator / human events (E25, I11) |
+
+## 8. GDD 05 Appendix E checks touching this module
+
+| Check | Covered by | Needs other modules |
+|---|---|---|
+| E12 jumping spider telegraph and dodge | `predators.possessed.test.ts` | the player `dodge` primitive (actions) - scripted there |
+| E13 struggle (rove beetle) | `hazards.possessed.test.ts`, `predators.possessed.test.ts` | player-control struggle inputs |
+| E14 antlion pit | `antlion.test.ts` (slope, flicks, 6.7 s, witness learns it) | "no nestmate path enters radius + 1 L": **fails** (`coreGaps.repro.test.ts` (c), `it.fails`) - locomotion |
+| E15 bird event | `bird.test.ts` | in real runs the threat director cancels it while human-event warnings keep the quiet share low (§3) |
+| E21 creature agents <= 260 | `soak.test.ts` | 28 gd soak with rivals (gate) |
+| E22 ecosystem soak | `soak.test.ts` | herds / rivals (ecology-plants, rivals) |
+| E23 gentle founding protection (no predator targets the founding queen) | `difficulty.test.ts` | rivals' half (combat) |
+| E24 determinism | `determinism.test.ts`, `huntSaveLoad.test.ts`, `predationRamp.test.ts` (save -> load with the ramp's departures pending) | - |
+| E25 quiet share | `soak.test.ts` (creature scene) | whole-game soak fails on human-event warnings (§3) - human events / integrator |
+| (R25) ramp | `predationRamp.test.ts` | - |
+
+ACCEPTANCE

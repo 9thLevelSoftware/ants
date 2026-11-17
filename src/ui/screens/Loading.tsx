@@ -10,7 +10,7 @@ import { UI_BALANCE } from '../styles/tokens';
 import { lastRequest } from './newgame/form';
 import { loadingContext, markGenerating } from './loadFlow';
 import { formatSeedCode, nextSeedText } from './newgame/seed';
-import { speciesCard } from './newgame/species';
+import { foundingSeasonOf, speciesCard } from './newgame/species';
 import { AntPlate } from './plates/AntPlate';
 
 /** Stage names of the worldgen pipeline, same order and weights as UI_BALANCE.loadingStageWeights. */
@@ -83,7 +83,7 @@ export function Loading({ loading, inert }: { loading: UiLoading | null; inert?:
             <div><dt>Locality</dt><dd>{req.archetype ? ARCHETYPE_WORDS[req.archetype] ?? req.archetype : 'Random'}</dd></div>
             <div><dt>Size</dt><dd>{req.size ? req.size[0].toUpperCase() + req.size.slice(1) : 'Standard'}</dd></div>
             <div><dt>Seed</dt><dd class="ui-mono">{req.seed !== undefined ? formatSeedCode(Number(req.seed)) : ''}</dd></div>
-            <div><dt>Season</dt><dd>{req.startSeason && req.startSeason !== 'natural' ? req.startSeason[0].toUpperCase() + req.startSeason.slice(1) : `${species.foundingSeason[0].toUpperCase()}${species.foundingSeason.slice(1)}, natural start`}</dd></div>
+            <div><dt>Season</dt><dd>{req.startSeason && req.startSeason !== 'natural' ? req.startSeason[0].toUpperCase() + req.startSeason.slice(1) : `${foundingSeasonOf(species.id)[0].toUpperCase()}${foundingSeasonOf(species.id).slice(1)}, natural start`}</dd></div>
           </dl>
         )}
         {l.error ? (

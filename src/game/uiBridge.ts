@@ -37,6 +37,8 @@ export interface SnapshotSource {
   observerPrompt?: string | null;
   /** Sound-cue indicator pips (src/game/soundCues.ts), absent = none. */
   soundCues?: readonly UiSoundCue[];
+  /** Automatic slow-downs so far this game (the speed control flashes once for each; GDD 06 4.5). */
+  autoSlowFlashes?: number;
 }
 
 /** A game-level prompt while no ant is possessed (after the death hold: "Tab: take another ant"). */
@@ -50,7 +52,7 @@ function speedOf(src: SnapshotSource, sim: Sim): UiSpeed {
   const opening = sim.state.player.opening;
   return {
     level: t.paused ? 0 : t.speed, paused: t.paused, requested: t.speed, effective: r ? r.effective : t.speed,
-    lagging: r ? r.lagging : false, belowRealTime: r ? r.belowRealTime : false, manualClock: src.manualClock,
+    lagging: r ? r.lagging : false, belowRealTime: r ? r.belowRealTime : false, manualClock: src.manualClock, autoSlowFlash: src.autoSlowFlashes ?? 0,
     allowed: allowedSpeeds({
       mode: src.mode, view: src.view, possessed: sim.state.player.possessedAntId !== -1,
       openingPhase: opening && !opening.done ? opening.phase : null, timelapse: sim.state.player.timelapse !== null,

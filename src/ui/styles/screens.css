@@ -111,6 +111,12 @@
 .ui-difficulty-text { font-size: var(--t-small); line-height: var(--t-small-lh); color: var(--c-text-2); }
 .ui-custom { border: 1px solid var(--c-border); border-radius: var(--r-s); padding: var(--s-1); }
 .ui-custom-body { padding: 0 var(--s-3) var(--s-3); }
+.ui-preset-heading { margin: var(--s-3) 0 var(--s-1); font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.ui-preset-list { margin: 0; }
+.ui-preset-row { display: flex; justify-content: space-between; gap: var(--s-3); padding: var(--s-1) 0; border-bottom: 1px solid var(--c-border); }
+.ui-preset-row dt { color: var(--c-text); }
+.ui-preset-row dd { margin: 0; color: var(--c-text-2); text-align: right; }
+.ui-preset-row.is-not-in-build dt, .ui-preset-row.is-not-in-build dd { color: var(--c-disabled); font-style: italic; }
 
 /* ---- Save / load (7.6) ---- */
 .ui-slots { display: flex; flex-direction: column; gap: var(--s-3); }

@@ -32,7 +32,7 @@ import { collectRefusals, type Rejection } from './refusals';
 import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
 import { SoundCueTracker } from './soundCues';
-import { AutoSlowWatcher } from './time/autoSlow';
+import { AutoSlowWatcher, type AutoSlowWhy } from './time/autoSlow';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
 import { generationPhase, loadingPhases, type LoadingPhase } from './newGame/loading';
@@ -135,8 +135,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   private readonly autoSlow = new AutoSlowWatcher({
     level: () => this.session?.driver.level ?? 0,
     choice: () => { const g = this.settings.get().gameplay; return { critical: g.autoSlowCritical, warning: g.autoSlowWarning }; },
-    apply: (to) => this.setSpeed(to),
+    apply: (to, _trigger, why) => this.onAutoSlow(to, why),
   });
+  /** Counts the automatic slow-downs of this game: the speed control flashes once per count (GDD 06 4.5). */
+  private autoSlowFlashes = 0;
   /** The live scene behind the title menu (src/game/title, render-integration). */
   readonly title: TitleHost;
   /** GDD 04 §14 edge glyph hook: the possessed ant presses outward against the map's hard limit (for the HUD). */
@@ -717,12 +719,21 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       speed: s ? s.driver.speedReport() : null, manualClock: !this.realtime, toasts: this.toasts.list, hudHidden: this.hudHidden,
       error: this.error, underground: this.lastFrame.underground, epitaph: this.epitaph, observerPrompt: s?.observerPrompt ?? null,
       soundCues: s && this.settings.get().accessibility.soundCues ? this.soundCueList() : undefined,
+      autoSlowFlashes: this.autoSlowFlashes,
     }, this.uiRev);
     this.uiRev = snap.rev;
     this.uiCost.lastMs = performance.now() - t0;
     this.uiCost.maxMs = Math.max(this.uiCost.maxMs, this.uiCost.lastMs);
     this.lastSnapshot = snap;
     this.opts.onSnapshot(snap);
+  }
+
+  /** An automatic slow-down: the speed changes, the sim event `time.auto-slow` says why, the speed control flashes once. */
+  private onAutoSlow(to: SpeedLevel, why: AutoSlowWhy): void {
+    this.setSpeed(to);
+    this.autoSlowFlashes++;
+    this.session?.sim.emit({ type: 'time.auto-slow', alertKind: why.alertKind, level: why.level, action: why.action });
+    this.refreshUi();
   }
 
   /** The sound-cue pips for the current camera. */
