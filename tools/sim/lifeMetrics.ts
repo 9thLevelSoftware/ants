@@ -7,7 +7,7 @@ import { isWorkerCaste } from '@/sim/colony/census';
 import { stateTimeoutTicks } from '@/sim/ants/behaviours/nest/fsm';
 import { speedMult } from '@/sim/environment/thermalResponse';
 import { layingProteinPermitted } from '@/sim/colony/queen';
-import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
+import { currentDayOfYear, currentYear, TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 
 /** Event counts over one game day. */
 export interface DayEvents {
@@ -176,6 +176,16 @@ export interface DayState {
   broodTempC?: number | null;
   /** Adult carbohydrate need (worker upkeep + queen C) of the last colony cycle, loads/gd (viable verdict). */
   adultNeedC?: number;
+  /**
+   * Year-two readings (colony-life direction 8): calendar year and day of year at the day end; the mean temperature of
+   * the royal (or founding) chambers, of the chamber the queen is in, and of the warmest dry chamber (not flooded, not
+   * wet), with that chamber's type and depth, C / BU; null when there is none.
+   */
+  year?: number;
+  doy?: number;
+  royalTempC?: number | null;
+  queenChamberTempC?: number | null;
+  warmestDry?: { tempC: number; type: string; depthBu: number } | null;
 }
 
 export function readState(sim: Sim, day: number, season: string): DayState {
@@ -198,6 +208,8 @@ export function readState(sim: Sim, day: number, season: string): DayState {
   }
   const chambers: Record<string, number> = {};
   let volume = 0, open = 0, pellets = 0, broodT = 0, broodN = 0, cellT = 0, cellN = 0;
+  let warmestDry: { tempC: number; type: string; depthBu: number } | null = null, queenChamberTempC: number | null = null;
+  const queen = col ? sim.stores.ants.get(col.queenId) : undefined;
   for (const n of sim.stores.nests.list) {
     if (!n.alive || n.colony !== s.player.colonyId) continue;
     volume += n.volumeOpen;
@@ -205,6 +217,9 @@ export function readState(sim: Sim, day: number, season: string): DayState {
       bump(chambers, c.type);
       if (c.occupancy.brood > 0) { broodT += c.temp; broodN++; }
       if (c.type === 'royal' || c.type === 'founding') { cellT += c.temp; cellN++; }
+      if (queen && queen.alive && queen.chamberId === c.id) queenChamberTempC = round(c.temp);
+      const dry = c.flooded <= 0 && c.wetUntilTick <= s.tick;
+      if (dry && (!warmestDry || c.temp > warmestDry.tempC)) warmestDry = { tempC: round(c.temp), type: c.type, depthBu: round(c.depthBu) };
     }
     for (const e of n.entrances) if (e.status === 'open') open++;
   }
@@ -222,6 +237,7 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     trailCells: trailCells(sim), outside, byState, byTask,
     needRateC: round(col?.needs.rateC ?? 0), needRateP: round(col?.needs.rateP ?? 0), yieldPerForager: round(col?.yieldPerForager ?? 0),
     broodTempC,
+    year: currentYear(s), doy: currentDayOfYear(s), royalTempC: cellN > 0 ? round(cellT / cellN) : null, queenChamberTempC, warmestDry,
     adultNeedC: round((col?.core?.acc['inst.upkeepC'] ?? 0) + (col?.core?.acc['inst.queenC'] ?? 0)),
   };
 }

@@ -130,6 +130,25 @@ function drawCounts(expected: Record<string, number>, pop: number, rng: RngState
 
 const sum = (r: Record<string, number>): number => Object.values(r).reduce((a, b) => a + b, 0);
 
+/**
+ * Ruling R24: the drawn worker losses with those of not-alerted causes trimmed to `cap` in all. Old age keeps its
+ * share first (the base loss), then the other causes in id order; causes in `alerted` (their hazard was alerted
+ * before winter) are kept in full and do not count against the cap.
+ */
+export function capLapseLosses(losses: Record<string, number>, cap: number, alerted: ReadonlySet<string>): Record<string, number> {
+  const out: Record<string, number> = {};
+  let left = Math.max(0, Math.floor(cap));
+  const order = Object.keys(losses).sort((a, b) => (a === 'old-age' ? -1 : b === 'old-age' ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  for (const cause of order) {
+    const n = losses[cause];
+    if (alerted.has(cause)) { out[cause] = n; continue; }
+    const kept = Math.min(n, left);
+    left -= kept;
+    if (kept > 0) out[cause] = kept;
+  }
+  return out;
+}
+
 /** Runs the winter. `days` = the length of the input arrays (one season). */
 export function runWinterModel(input: WinterInput, p: WinterParams, rng: RngState): WinterOutcome {
   const days = input.tMean.length;

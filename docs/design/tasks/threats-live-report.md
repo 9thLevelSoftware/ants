@@ -98,4 +98,36 @@ GDD 05 states no predation loss per game day directly. The design's numbers that
 - **Quiet share (I11, E25):** Naturalist >= 0.60 of daytime hours without a major threat or a warning/critical alert
   >= 25 % of the hour. `predator-near` is a warning.
 
-(sections 4-8 follow)
+(section 4 follows)
+
+## 6. Determinism and save / load (AC4)
+
+- `src/sim/ecology/creatures/huntSaveLoad.test.ts`: same seed -> same `stateHash` after 1,500 ticks of a hunt with
+  the director on (colony range live); a reload through the real save path (`snapshot` / `restore` bytes) **during
+  the wind-up** and another **during the hold** both continue to the same hash as the uninterrupted run (600 ticks).
+- `colonyRange.test.ts`: siting is idempotent (a second call and a reloaded sim add nothing) and two sims of the same
+  seed get identical territories. The siting streams are forked from (world seed, archetype, kind), never from
+  `rng.creatures`, and the runtime memo is a WeakMap (not persisted).
+- Existing `determinism.test.ts` (E24) still green.
+
+## 7. GDD deviations and contradictions
+
+| # | Rule | Deviation / reading | Arithmetic / reason |
+|---|---|---|---|
+| D1 | GDD 04 §8.2 densities with map caps (wolf spider 1 per 25 m², cap 4; centipede 1 per 30 m² forest, cap 3; jumping spider 1 per 6 m of wall, cap 4), placed anywhere in the zone | The director adds **one territory per hunting kind with habitat in the colony ring** (40-140 BU of the entrance, near the routes) after the hand-over | At GDD density the ring (π(0.56² - 0.16²) m² ≈ 0.9 m² for Lasius) holds 0.04 wolf spiders and 0.03 centipedes; the expected predation then is ~1-3 % of the design's own 0.061 deaths per outside-worker-gd (GDD 02 §1.3) - the GDD numbers cannot give the GDD's expected loss. With one per kind: 0.07 (measured). The §5 lever "predator exclusion around the player nest until 5 workers: 40 BU" also presumes predators within 40 BU of the nest. |
+| D2 | GDD 02 §10.12 flee trigger `FLEE_TRIGGER_DIST` 6 BU vs GDD 05 §2.4 detection 4 L x stealth | GDD 05 §2.4 wins (the chapter that owns predators; precedence rule) | see C2 |
+| D3 | GDD 05 App. C: `predator-strike` -> alert `predator-near`; the trigger text in the same appendix lists only lurking predators near the possessed ant or 3 foragers | both: a landed strike on a colony ant raises it too (same cooldown) | small colonies never had 3 foragers within 15 BU of a predator |
+| D4 | GDD 05 §2.2a rove beetle "dusk/night; day in litter" vs §2.2b "night; despawn at dawn" | active by day in forest / garden-bed; elsewhere it burrows at dawn as before | both rows kept |
+| D5 | Code decision `ANT_SPIDER_APPROACH_MMS` 6 (not a GDD number) | 15 = the GDD walk speed | an approach slower than any cruising ant never closes |
+| - | Not changed, recorded: the wind-up only starts on a slow target (`windupMaxTargetSpeed`, creatures' own decision: the aim is fixed at the telegraph, GDD "no prediction", E12). AI ants die when they pause (harvesting, tending, antennating) in reach of a predator; walking ants escape. This is why the jumping spider (stalk 8 mm/s) rarely strikes. Lead for the next round: site jumping spiders on the stems of food hosts (plants with a herd or flower), where ants pause. | | |
+
+## 8. What the colony-life engineer must know
+
+(see section 5 numbers) Predation now exists in every run with the default rules. On the round-3 hand-overs
+(12-16 workers, 2-5 outside), Naturalist costs about **0.07 workers per outside-worker game day**, i.e. ~0.3 workers
+per game day per colony, ~3 workers between hand-over and winter. Victims are foragers that pause outside (at food,
+tending). Gentle costs ~0.01 (almost nothing), Harsh more (section 4). Deaths carry cause `predation` and appear as
+`predator-near` alerts. Bench / sweep tables made before this change have no predation at all.
+Smallest levers if a small colony cannot carry it (the integrator rules): (a) extend GDD 05 §5's nest-exclusion
+lever from "until 5 workers" to "until 20 workers" (one constant, `NEST_EXCLUSION_WORKERS`); (b) `COLONY_RANGE_P`
+below 1 for Naturalist (fewer kinds near each colony). No other balance was changed.

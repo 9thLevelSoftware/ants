@@ -210,6 +210,11 @@ export interface ColonyLifecycleState {
   broodTempTick?: number;
   /** Calendar tick of the last sample: a calendar jump (winter, time cheats) since then makes the log stale. */
   broodTempCal?: number;
+  /**
+   * Last simulation tick a player alert of each winter hazard was active (alert kind -> tick), for the lapse loss cap
+   * (ruling R24, overwinter/begin.ts). Missing: none seen.
+   */
+  hazardAlertTicks?: Record<string, number>;
   repro: ReproBook;
   flight: PossessedFlight | null;
   /** This game's flights and the daughters they produced (copied into the device Lineage by the game layer). */

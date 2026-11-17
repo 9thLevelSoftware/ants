@@ -34,10 +34,10 @@ describe('Lasius start (clear or overcast, air 18-26 C, wind below 4 m/s)', () =
     expect(states.size).toBe(2);
   });
 
-  it('starts in the afternoon of default-year day 9 (test sims, TEST_START) and gives every seed its own moon, deterministically', () => {
+  it('starts in the afternoon of default-year day 5 (Lasius, ruling R20) and gives every seed its own moon, deterministically', () => {
     const a = started(3), b = started(3), c = started(4);
     const cal = calendarNow(a);
-    expect(cal.doy).toBe(9); // test sims keep the pre-R20 start (testing/testWorld.ts TEST_START)
+    expect(cal.doy).toBe(5); // Lasius startDoy.default 5 (ruling R20; was 9)
     expect(cal.hour).toBeGreaterThanOrEqual(14);
     expect(a.state.env.calendar.moonPhase0).toBe(b.state.env.calendar.moonPhase0);
     expect(a.state.env.calendar.moonPhase0).not.toBe(c.state.env.calendar.moonPhase0);

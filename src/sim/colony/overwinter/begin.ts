@@ -15,6 +15,7 @@ import { calendarTick, currentYear, HOURS_PER_DAY, seasonLength, TICKS_PER_DAY, 
 import {
   OVERWINTER_OUTDOOR_DEATH_P, OVERWINTER_OUTDOOR_SAFE_BU, WINT_OLD_AGE_FRAC, WINT_PUPA_COLD_C, WINT_PUPA_COLD_DEATH,
   WINT_REPORT_SPRING_C_PER_WORKER, WINT_C_QUEEN, WINT_C_PER_LARVA, WINTER_ACTIVE_BROOD_SHARE, WINTER_ACTIVE_WINDOW_GD,
+  WINT_ALERTED_CAUSES, WINT_HAZARD_WINDOW_SEASONS, WINT_LAPSE_LOSS_CAP_FRAC,
 } from '@/sim/balance/lifecycle';
 import { book } from '../core';
 import { broodDies } from '../brood';
@@ -22,7 +23,7 @@ import { invalidateCensus, isWorkerCaste } from '../census';
 import { countStageChange } from '../population';
 import { lifecycleOf } from '../succession/lifecycleState';
 import { clusterOf, winterClimate } from './climate';
-import { runWinterModel, type WinterInput, type WinterParams } from './model';
+import { capLapseLosses, dayNeedC, metFactor, runWinterModel, type WinterInput, type WinterParams } from './model';
 import { rankWhy } from './report';
 
 /** The model's parameters for a colony (species winter data, difficulty). */
@@ -125,7 +126,16 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
     larvae: larvae.length, pupae: pupae0 - (broodLosses.temperature ?? 0), c: col.stores.c, p: col.stores.p,
     queenAlive: !!queen && queen.alive, ...climate, floodSafety: cluster.floodSafety, humidity: cluster.humidity,
   };
-  const out = runWinterModel(input, winterParams(sim, def), rng);
+  const params = winterParams(sim, def);
+  const out = runWinterModel(input, params, rng);
+  // R24: what the lapse may take of the workers, and the presentation's day series scaled to it. Short stores are an
+  // alerted hazard when the winter notice's own arithmetic (overwinter/system.ts storeDays) showed fewer days of
+  // stores than the winter has
+  const storesShort = col.stores.c < days * dayNeedC(input.workers, input.larvae, input.queenAlive, metFactor(params, cluster.tNow));
+  const alerted = alertedCauses(sim, col);
+  if (storesShort) alerted.add('starvation');
+  const workerLosses = capLapseLosses(out.losses, WINT_LAPSE_LOSS_CAP_FRAC * difficultyValue(sim, 'winterLossMult') * workers.length, alerted);
+  scaleDaySeries(out.days, workers.length, sumOf(out.losses), sumOf(workerLosses));
 
   // losses on real ants: old-age takes the oldest, the other causes a random order
   const byAge = [...workers].sort((a, b) => b.physioAgeGd / workerLifespanGd(sim, b) - a.physioAgeGd / workerLifespanGd(sim, a) || a.id - b.id);
@@ -139,10 +149,10 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
       n--;
     }
   };
-  take(byAge, out.losses['old-age'] ?? 0, 'old-age');
+  take(byAge, workerLosses['old-age'] ?? 0, 'old-age');
   const shuffled = rngShuffle(rng, workers.filter((a) => !dead.has(a.id)));
-  for (const cause of Object.keys(out.losses).sort()) {
-    if (cause !== 'old-age') take(shuffled, out.losses[cause], cause as DeathCause);
+  for (const cause of Object.keys(workerLosses).sort()) {
+    if (cause !== 'old-age') take(shuffled, workerLosses[cause], cause as DeathCause);
   }
   killBrood(sim, rng, larvae, out.broodLosses);
   if (!out.queenAlive && queen && queen.alive) killAnt(sim, queen.id, out.queenCause as DeathCause);
@@ -165,12 +175,12 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
   for (const a of colonyAnts(sim, col)) a.bornTick -= jump;
 
   // the record
-  for (const [k, n] of Object.entries(out.losses)) losses[k] = (losses[k] ?? 0) + n;
+  for (const [k, n] of Object.entries(workerLosses)) losses[k] = (losses[k] ?? 0) + n;
   for (const [k, n] of Object.entries(out.broodLosses)) broodLosses[k] = (broodLosses[k] ?? 0) + n;
   let coldest = Infinity;
   for (const t of climate.tMin) coldest = Math.min(coldest, t);
-  const springNeed = out.workers1 * WINT_REPORT_SPRING_C_PER_WORKER + (out.queenAlive ? WINT_C_QUEEN : 0) + out.larvae1 * WINT_C_PER_LARVA;
   const workers1 = colonyAnts(sim, col).filter((a) => isWorkerCaste(a.caste)).length;
+  const springNeed = workers1 * WINT_REPORT_SPRING_C_PER_WORKER + (out.queenAlive ? WINT_C_QUEEN : 0) + out.larvae1 * WINT_C_PER_LARVA;
   const rec: WinterRecord = {
     year, beginTick, springTick: calendarTick(s), workers0: workers.length + (losses.outdoors ?? 0), workers1,
     larvae0: larvae.length, larvae1: out.larvae1, pupae0, losses, broodLosses, c0, c1: out.c1, p0, p1: out.p1,
@@ -188,6 +198,42 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
   };
   life.winters.push(rec);
   return rec;
+}
+
+const sumOf = (r: Record<string, number>): number => Object.values(r).reduce((a, b) => a + b, 0);
+
+/**
+ * The model causes whose hazard the player was alerted to within WINT_HAZARD_WINDOW_SEASONS before Begin (R24): their
+ * losses follow the model in full.
+ */
+function alertedCauses(sim: Sim, col: Colony): Set<string> {
+  const seen = lifecycleOf(col).hazardAlertTicks ?? {};
+  const since = sim.state.tick - WINT_HAZARD_WINDOW_SEASONS * seasonLength(sim.state) * TICKS_PER_DAY;
+  const out = new Set<string>();
+  for (const [cause, kinds] of Object.entries(WINT_ALERTED_CAUSES)) {
+    if (kinds.some((k) => (seen[k] ?? -Infinity) >= since)) out.add(cause);
+  }
+  return out;
+}
+
+/**
+ * Notes, for the R24 lapse loss cap, the winter hazards whose player alerts are active now (called by the overwinter
+ * system). Only the player's colony gets alerts.
+ */
+export function noteHazardAlerts(sim: Sim, col: Colony): void {
+  if (!col.isPlayer) return;
+  const life = lifecycleOf(col);
+  for (const a of sim.state.progression.alerts) {
+    for (const kinds of Object.values(WINT_ALERTED_CAUSES)) {
+      if (kinds.includes(a.kind)) (life.hazardAlertTicks ??= {})[a.kind] = sim.state.tick;
+    }
+  }
+}
+
+/** The presentation's workers by day end on the losses actually applied (the model's day series ends on its own). */
+function scaleDaySeries(days: { workers: number }[], w0: number, modelLost: number, lost: number): void {
+  if (modelLost <= lost) return;
+  for (const d of days) d.workers = Math.round(w0 - ((w0 - d.workers) * lost) / modelLost);
 }
 
 function killBrood(sim: Sim, rng: RngState, larvae: Brood[], counts: Record<string, number>): void {

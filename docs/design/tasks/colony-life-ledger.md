@@ -1005,12 +1005,12 @@ the method (account, rank, fix).
 Progress (kept current; a successor continues from here)
 - 12:42 read spec, ledger, STATUS (to R23). Tree = HEAD 5c8c576 + other engineers' uncommitted files; no round-4 change
   yet. Next: reproduce heated-nest log (red `colony/overwinter/heatedLog.verify.test.ts`), fix in `overwinter/begin.ts`.
-- 12:50 **W1 done** (blocker (a), heated-nest log): `colony/overwinter/begin.ts` keeps the tick of every sample (new
+- 12:47 **W1 done** (blocker (a), heated-nest log): `colony/overwinter/begin.ts` keeps the tick of every sample (new
   additive `LifecycleState.broodTempTicks`, `types/lifecycle.ts`; a log without ticks is read as hourly ending at
   `broodTempTick`) and drops samples older than WINTER_ACTIVE_WINDOW_GD in the sampler and in `heatedNest`; an empty
   window falls back to the chambers now / the cluster. `heatedLog.verify` red on HEAD's begin.ts
   (`{"n":48,"first":20}` -> heated), green now; overwinter folder 4 passed + 1 skipped. Next: R21 larder.
-- 13:15 **L1 (R21 larder) in the tree, unit-tested**: `colony/stores.ts` `measureLarder` (called by `economy.ts`
+- 12:53 **L1 (R21 larder) in the tree, unit-tested**: `colony/stores.ts` `measureLarder` (called by `economy.ts`
   `closeColonyCycle` after the needs): with no food (or granary) chamber, `core.larderC/P` = max(LARDER_MIN_LOADS 4,
   LARDER_NEED_GD 1 x needRates) per nutrient, in the chamber with most brood (`core.larderChamberId`); `poolSpace`
   fills stomach -> larder -> shared piles per nutrient; `spoil` counts the larder as pile; `storeTempC` and spoiled items
@@ -1018,3 +1018,52 @@ Progress (kept current; a successor continues from here)
   refused while a larder exists; `nest/architect/needs.ts` `liveInputs.foodRefused` makes the first food chamber a
   `missing-type` at any worker count. Constants in `balance/colony.ts`; additive fields in `types/colony.ts`.
   Test `colony/larder.test.ts` (4 cases, all red with the larder switched off). Next: folder tests colony + nest, then R20.
+- 12:57 **R20 in the tree**: `species/data/lasius-niger.ts` `startDoy {min 5, max 9, default 5}`. Tests that state the
+  start day changed: `species/consistency.test.ts`, `species/lasiusData.test.ts`, `species/data/lasius.table.test.ts`,
+  `createGame.test.ts` (spring day 5; with 10-day seasons the config keeps spring day 5), `environment/weatherStart.test.ts`
+  (doy 5), `types/d7.test.ts` (window 5-9 through `naturalStart`; the season-length case moves to doy 9 itself).
+  Decision: `testing/testWorld.ts` `makeTestSim` pins Lasius test sims to summer day 2 (`TEST_START`, the pre-R20 day)
+  unless a test sets its own start: behaviour tests were written for a warm summer afternoon; the game's start day is
+  tested through `defaultGameConfig`/`createNewGame`. Next: folder tests for the R20 change, then regenerate hand-overs.
+- 12:58 running (background): (1) folder tests species/environment/config/types/testing/colony + `src/sim/*.test.ts`
+  -> `round-4/vitest-*.txt` (done marker `round-4/vitest-r20.done`); (2) the 15 hand-overs at the new default start,
+  from a frozen copy of the tree (scratchpad `r4a` = tree at 13:48 with W1 + L1 + R20) via the new
+  `tools/sim/handover-sweep.sh round-4/cache round-4/handover` (restart-safe: re-run the same command, existing
+  snapshots are skipped). If the scratch copy is lost: copy src tools *.json *.ts configs again (W1, L1, R20 are in the tree).
+- 13:02 blocker (b) checked, **not a code defect**: cpv #1 and kd #1 lost exactly drowning 5 + disease 2 in the lapse
+  because both are seed 1: `rng.winter` is forked from the world seed only (`sim.ts` rngStream) and first drawn at
+  Begin, so every seed-1 game draws the same winter (one fungus outbreak, one flood), whatever the archetype. The losses
+  follow GDD 06 §6.3 as written (`overwinter/model.ts`: flood P = 0.3 (1 - floodSafety) rain/16, loss 0.5 of the
+  cluster; fungus P 0.05 (x3 humid), loss U(0.10, 0.25)). So the five long runs are not five independent winters:
+  three are seed 1 (we #1 had no lapse because of the W1 bug). pp #2's C 7.1 -> 1.2 is the model's consumption
+  ((20 x 0.08 + 0.3) x fMet 0.35 x 7 d = 4.7 + larvae); its spring C hits 0 on day 4: autumn stock and spring foraging,
+  not the winter. Not changed (a forked stream per archetype would change every game's draws and void every cache).
+  (c) spring laying (fTempQ 0 below 14 C, GDD 07 species data) is evidence for the integrator, as the review says.
+- 13:05 **H3 (sweep minor H2b) in the tree**: `ants/behaviours/outdoor/engine.ts` `tripClock` does not turn home a
+  chase begun on the way home (`chaseOnTheWayHome`: PHASE.hunt with `K.huntFrom` = return); HUNT_CHASE_S and
+  TRIP_LOST_S still bound it. `huntReturn.verify` red with the check switched off, green with it; `hunt.test` green.
+  H2a (contact window, minor): left as the documented deviation for the integrator's ruling.
+- 13:10 read the integrator note (direction 8, R24). Plan from here: (1) R24 lapse loss cap in `overwinter/begin.ts`
+  with a unit test; (2) when the 15 hand-overs are done: five long runs after R20 (one per archetype) to year-2 doy 15
+  with the spring readings direction 8 asks for (first year-2 egg, royal and warmest dry chamber by day); (3) benches
+  on the new hand-overs (nest, forage) for the ranking. Frozen trees in the scratchpad: `base` = git archive 5c8c576
+  (round start) + R20 + bench tools, for "before"; `r4b` = tree at 13:10 (W1 L1 R20 H3).
+- 13:14 **WL1 (R24 lapse loss cap) in the tree**: `colony/overwinter/model.ts` `capLapseLosses` (pure): the drawn worker
+  losses of causes nobody was alerted to are trimmed to WINT_LAPSE_LOSS_CAP_FRAC 0.15 x `winterLossMult` x workers
+  (floor; old age keeps its share first); alerted causes follow the model in full. `begin.ts`: alerted = a
+  `nest-flooding`/`founding-flooding` alert (-> drowning) or `food-c-low`/`colony-starving` (-> starvation) active within
+  WINT_HAZARD_WINDOW_SEASONS 1 (the autumn) before Begin (noted every check by the overwinter system, `noteHazardAlerts`, into the additive
+  `LifecycleState.hazardAlertTicks`), and starvation also when the stores at Begin are below the winter's C need by the
+  notice's own arithmetic (`storeDays` < winter days). Cold, disease and old age have no alert before winter: always
+  capped. The presentation's day series is scaled to the applied losses. Decision: the cap applies to every colony (no
+  in-sim "viable" verdict): a non-viable colony's usual failure, short stores, is the alerted case. Constants in
+  `balance/lifecycle.ts`. Test `colony/overwinter/lossCap.test.ts` (pure cases; 12 seeds of a flood-prone nest: <= cap
+  without an alert, floods above the cap with one); red with the cap off (seed 1 loses 13 of 20). Overwinter folder
+  green (33 + 1 skipped), incl. App. E 20 "starving colony halves the workers" (short stores -> alerted).
+- 13:17 tools: `lifeMetrics.ts` day rows now carry `year`, `doy`, `royalTempC`, `queenChamberTempC`, `warmestDry`
+  (temperature, type, depth of the warmest chamber that is neither flooded nor wet); new `tools/sim/longrun-table.py DIR`
+  (year-two table: R22 checks, first year-2 egg, spring temperatures by day); `longrun-life.sh` takes `CACHE_ANY=1`.
+  Frozen tree for the long runs: scratchpad `r4c` (= tree at 13:17: W1 L1 R20 H3 WL1 + tools); `r4b` deleted (superseded).
+  Next when the hand-overs end (~13:50): `CACHE_ANY=1 UNTIL_DAY=32 $S/r4c/tools/sim/longrun-life.sh
+  $PWD/test-output/colony-life/round-4/long $PWD/test-output/colony-life/round-4/cache "woodland-edge:1
+  suburban-garden:2 playground-park:2 car-park-verge:1 kitchen-door:1"` (round 3's five, for comparison).

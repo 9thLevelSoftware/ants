@@ -8,7 +8,7 @@ import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
 import { spawnAnt } from '@/sim/entities';
 import { walkerPlace } from '@/sim/locomotion/walker';
-import { buildWorld } from '@/sim/testing';
+import { buildWorld, TEST_START } from '@/sim/testing';
 import { defaultWorldParams } from '@/worldgen';
 import type { DifficultyId } from '@/sim/types';
 import { humanEventsSystem } from './index';
@@ -58,7 +58,8 @@ export function patioWorld(o: PatioOptions = {}): WorldData {
 }
 
 export function humanSim(world: WorldData, preset: DifficultyId = 'naturalist', systems = [humanEventsSystem]): Sim {
-  const base = defaultGameConfig('lasius-niger', 1, preset);
+  // a summer afternoon as these tests were written for (TEST_START: the pre-R20 start day of the reference species)
+  const base = { ...defaultGameConfig('lasius-niger', 1, preset), ...TEST_START };
   const { state } = createNewGame({ ...base, cheats: true, world: world.params }, world);
   const sim = createSim(state, world, { systems });
   // the founding queen sits far away (grace rule) unless a test moves her

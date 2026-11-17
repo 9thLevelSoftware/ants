@@ -24,6 +24,24 @@ export const WINTER_ACTIVE_WINDOW_GD = 2;
 
 // ---- 6.3 aggregate model ----
 
+/**
+ * Ruling R24 (colony-life round 4; a deviation from GDD 06 §6.3, whose flood and fungus terms can take more than half
+ * a viable colony in one draw): the lapse takes at most this share of the workers (x diff.winterLossMult, so Gentle
+ * 0.075, Naturalist 0.15, Harsh 0.225), except for losses whose hazard the player was alerted to before winter: those
+ * follow the model in full, as live play would.
+ */
+export const WINT_LAPSE_LOSS_CAP_FRAC = 0.15;
+/** "Before winter": an alert counts when it was active within this many seasons (the autumn) before Begin. */
+export const WINT_HAZARD_WINDOW_SEASONS = 1;
+/**
+ * The model's worker loss causes whose hazard has a player alert, and the alerts that count for it: flooding of the
+ * nest, and short stores. Cold, disease and old age have no alert before winter, so they are always capped.
+ */
+export const WINT_ALERTED_CAUSES: Readonly<Record<string, readonly string[]>> = {
+  drowning: ['nest-flooding', 'founding-flooding'],
+  starvation: ['food-c-low', 'colony-starving'],
+};
+
 /** Reference cluster temperature of the metabolic factor, C. */
 export const WINT_MET_REF_C = 6;
 /** Resting upkeep, C loads per GD: per worker, queen, per dormant larva. */

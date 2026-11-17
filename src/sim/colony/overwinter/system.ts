@@ -13,7 +13,7 @@ import {
   WINTER_ACTIVE_TMEAN_C,
 } from '@/sim/balance/lifecycle';
 import { lifecycleOf, openingOver, playerCol } from '../succession/lifecycleState';
-import { beginOverwinter, heatedNest, sampleBroodTemp, winterParams } from './begin';
+import { beginOverwinter, heatedNest, noteHazardAlerts, sampleBroodTemp, winterParams } from './begin';
 import { clusterOf } from './climate';
 import { dayNeedC, metFactor } from './model';
 import { isWorkerCaste } from '../census';
@@ -194,6 +194,7 @@ export const overwinterSystem: System = {
     if (w.phase === 'lapse' || w.phase === 'report') return;
     const def = sim.getSpecies(col.species);
     if (def?.winter.heatedNestRule && col.alive) sampleBroodTemp(sim, col);
+    if (col.alive) noteHazardAlerts(sim, col);
     // notice: autumn day (L - 1) from noon
     if (season === 'autumn' && life.noticeYear < year && currentDayOfSeason(s) >= seasonLength(s) - OVERWINTER_NOTICE_DAYS_BEFORE_END
       && currentHour(s) >= OVERWINTER_NOTICE_HOUR) {

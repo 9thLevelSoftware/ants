@@ -1,5 +1,5 @@
 // Test helpers for simulation modules (options documented at the top of testWorld.ts).
-export { makeTestWorld, makeTestSim, type TestWorldOptions, type TestSimOptions } from './testWorld';
+export { makeTestWorld, makeTestSim, TEST_START, type TestWorldOptions, type TestSimOptions } from './testWorld';
 export { buildFeatures, TEST_FEATURES, type FeatureSet, type TestFeature } from './testFeatures';
 export { installSmallNest, type SmallNest } from './testNest';
 export { buildWorld, type WorldBuildSpec } from './worldBuilder';

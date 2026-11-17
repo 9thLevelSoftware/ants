@@ -51,11 +51,21 @@ function tripClock(sim: Sim, ant: Ant, fl: Flavour): boolean {
   }
   const s = (sim.state.tick - t0) / TICKS_PER_SECOND;
   if (s > TRIP_LOST_S) { processAntDeath(sim, ant.id, 'lost'); return true; }
-  if (s > TRIP_TURN_S && awayFromHome(phaseOf(ant))) {
+  if (s > TRIP_TURN_S && awayFromHome(phaseOf(ant)) && !chaseOnTheWayHome(ant)) {
     startReturn(sim, ant, fl, ant.cropC + ant.cropP >= SUCCESS_CROP, 'timeout');
     return true;
   }
   return false;
+}
+
+/**
+ * A chase begun on the way home (hunt.ts, after a failed trip) is already homeward bound: the trip clock does not
+ * turn it home again. An ant sent home for `timeout` always has a clock past TRIP_TURN_S, so without this the next
+ * think dropped the bite and huntCheck restarted the chase, again and again (round-3 sweep review,
+ * huntReturn.verify: 3 flips in 30 s, 0 hits). HUNT_CHASE_S still ends the chase and TRIP_LOST_S still applies.
+ */
+function chaseOnTheWayHome(ant: Ant): boolean {
+  return phaseOf(ant) === PHASE.hunt && (ant.bb[K.huntFrom] ?? -1) === PHASE.return;
 }
 
 /** Environmental recall (curfew: storm, stayIn, too hot / cold / dark, alarm at the entrance) and hunger. */
