@@ -6,7 +6,7 @@ import { BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Mesh,
 import type { Sim } from '@/sim/types';
 import { floodSurface } from '@/sim/nest/flood/surface';
 import {
-  FLOOD_LEVEL_EPS_MM, FLOOD_REBUILD_S, FLOOD_WATER_EMISSIVE, FLOOD_WATER_ENV, FLOOD_WATER_OPACITY, FLOOD_WATER_RGB, FLOOD_WATER_ROUGHNESS,
+  FLOOD_LEVEL_EPS_MM, FLOOD_REBUILD_S, FLOOD_WATER_EDGE_ALPHA, FLOOD_WATER_EMISSIVE, FLOOD_WATER_ENV, FLOOD_WATER_OPACITY, FLOOD_WATER_RGB, FLOOD_WATER_ROUGHNESS,
 } from './tuning';
 
 interface Sheet { mesh: Mesh; level: number; cells: number }
@@ -23,7 +23,7 @@ export class FloodWater {
     this.group.name = 'weather.flood-water';
     const c = new Color(FLOOD_WATER_RGB[0], FLOOD_WATER_RGB[1], FLOOD_WATER_RGB[2]);
     this.material = new MeshStandardMaterial({
-      color: c, roughness: FLOOD_WATER_ROUGHNESS, metalness: 0, transparent: true, opacity: FLOOD_WATER_OPACITY, side: DoubleSide,
+      color: c, roughness: FLOOD_WATER_ROUGHNESS, metalness: 0, transparent: true, opacity: FLOOD_WATER_OPACITY, side: DoubleSide, vertexColors: true,
       emissive: new Color(0.5, 0.6, 0.55).multiplyScalar(FLOOD_WATER_EMISSIVE), envMapIntensity: FLOOD_WATER_ENV, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -1,
     });
@@ -75,20 +75,35 @@ export class FloodWater {
   }
 }
 
-/** One quad per surface cell (cell-sized, centred on the sample), all at height y. */
-function sheetGeometry(cells: number[], cell: number, y: number): BufferGeometry {
+/**
+ * One quad per surface cell (cell-sized, centred on the sample), all at height y. A corner shared by fewer than four
+ * cells lies on the sheet's outline and fades (vertex alpha FLOOD_WATER_EDGE_ALPHA), so a few flooded cells read as
+ * a puddle with a soft edge instead of a pale cut-out cross (gate-close-app, founding chamber at 4 %).
+ */
+export function sheetGeometry(cells: number[], cell: number, y: number): BufferGeometry {
   const n = cells.length / 2, h = cell / 2;
-  const pos = new Float32Array(n * 12), nor = new Float32Array(n * 12), idx: number[] = [];
+  const pos = new Float32Array(n * 12), nor = new Float32Array(n * 12), col = new Float32Array(n * 16), idx: number[] = [];
+  const key = (x: number, z: number) => `${Math.round(x / h)},${Math.round(z / h)}`;
+  const corners = new Map<string, number>();
+  for (let c = 0; c < n; c++) {
+    const x = cells[c * 2], z = cells[c * 2 + 1];
+    for (const [dx, dz] of [[-h, -h], [h, -h], [h, h], [-h, h]]) { const k = key(x + dx, z + dz); corners.set(k, (corners.get(k) ?? 0) + 1); }
+  }
   for (let c = 0; c < n; c++) {
     const x = cells[c * 2], z = cells[c * 2 + 1], o = c * 12;
     pos.set([x - h, y, z - h, x + h, y, z - h, x + h, y, z + h, x - h, y, z + h], o);
-    for (let k = 0; k < 4; k++) nor[o + k * 3 + 1] = 1;
+    for (let k = 0; k < 4; k++) {
+      nor[o + k * 3 + 1] = 1;
+      const inner = (corners.get(key(pos[o + k * 3], pos[o + k * 3 + 2])) ?? 0) >= 4;
+      col.set([1, 1, 1, inner ? 1 : FLOOD_WATER_EDGE_ALPHA], c * 16 + k * 4);
+    }
     const b = c * 4;
     idx.push(b, b + 2, b + 1, b, b + 3, b + 2);
   }
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new Float32BufferAttribute(col, 4));
   g.setIndex(idx);
   g.computeBoundingSphere();
   return g;

@@ -61,7 +61,10 @@ function mergeable(g: GranaryParams, c: SeedCohort, seedClass: SeedClass, hardne
 
 /**
  * Adds seed loads to a granary: they merge into the matching cohort with load-weighted u, g and hardness (GDD 07
- * §6.3.3), else start a cohort; with COHORTS_MAX cohorts the closest one by u takes them.
+ * §6.3.3), else start a cohort. With COHORTS_MAX cohorts the closest cohort by u, g and class takes them, but only
+ * one with the same germ state (degermed or not) that is not germinating yet: gnawed seed must stay degermed, fresh
+ * seed must keep its germ, and nothing merges into seed whose radicle is out. With no such cohort a new one starts
+ * (at most two beyond the cap, one of each germ state).
  */
 export function addSeeds(gr: GranaryState, g: GranaryParams, seedClass: SeedClass, hardness: number, loads: number, u: number, gProg = 0, degermed = false): void {
   if (!(loads > 0)) return;
@@ -69,6 +72,7 @@ export function addSeeds(gr: GranaryState, g: GranaryParams, seedClass: SeedClas
   if (!into && gr.cohorts.length >= COHORTS_MAX) {
     let best = Infinity;
     for (const c of gr.cohorts) {
+      if (!!c.degermed !== degermed || c.g >= g.germinatingG) continue;
       const d = Math.abs(c.u - u) + Math.abs(c.g - gProg) + (c.seedClass === seedClass ? 0 : 1);
       if (d < best) { best = d; into = c; }
     }

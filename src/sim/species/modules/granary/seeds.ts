@@ -2,16 +2,17 @@
 // at the seed sites of plants but leaves them empty ("per granary module"). This module keeps a list of seed sites
 // (those anchors plus ground patches in open ground around the nest) and stocks each with a seed node of one class
 // (S, M or L: size-matched carrying) and hardness. GDD 05's window (doy 10-20) is the seed rain: while it lasts
-// the ecology refills the nodes (refillPerGd); outside it the nodes are out of season, and an emptied node is
-// retired by the ecology and set up again at its site the next time the window opens.
+// the ecology refills the nodes (refillPerGd); an emptied node is retired by the ecology and comes back only with
+// the seed rain that falls on its site afterwards. Outside the window the nodes are out of season.
 
 import { rngInt, rngRange } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';
 import type { Colony, FoodSource, GranaryModule, SeedClass, SeedSite, Sim, System } from '@/sim/types';
 import { SEED_CLASSES } from '@/sim/types';
 import { createSource } from '@/sim/ecology/sources/spawn';
-import { isInSeason } from '@/sim/ecology/sources/season';
-import { odourFromRadiusBu } from '@/sim/ecology/sources/def';
+import { isInSeason, windowActive } from '@/sim/ecology/sources/season';
+import { odourFromRadiusBu, sourceDef } from '@/sim/ecology/sources/def';
+import { calendarNow } from '@/sim/environment/calendar';
 import {
   SEED_BANK_START, SEED_BULK, SEED_CLASS_SHARE, SEED_HARDNESS, SEED_NODE_UNITS, SEED_ODOUR_BU, SEED_QUALITY,
   SEED_RAIN_PER_GD, SEED_SLOTS, SEED_SOURCE_STEP_TICKS, SEED_PATCHES, SEED_PATCH_RADIUS_BU, SEED_HEADS_PER_PLANT,
@@ -33,7 +34,9 @@ function classOfDraw(x: number): SeedClass {
 
 function newSite(sim: Sim, pos: Vec3, up: Vec3, anchorId: number, objectId: number): SeedSite {
   const rng = sim.stream('rng.ecology');
-  const seedClass = classOfDraw(rngRange(rng, 0, 1));
+  const drawn = classOfDraw(rngRange(rng, 0, 1));
+  // a plant's seed heads hold M seeds (GDD 07 §6.3.2: cut-seed-head "detaches 1-3 M seeds"); ground patches vary
+  const seedClass: SeedClass = objectId >= 0 ? 'M' : drawn;
   const [h0, h1] = SEED_HARDNESS[seedClass];
   return {
     pos: { x: pos.x, y: pos.y, z: pos.z }, up: { x: up.x, y: up.y, z: up.z }, seedClass, hardness: rngRange(rng, h0, h1),
@@ -116,13 +119,40 @@ function adoptAnchorSource(sim: Sim, site: SeedSite): FoodSource | undefined {
   return undefined;
 }
 
+/** Whether GDD 05's grass-seed window (the seed rain) is open now. */
+function seedRainOn(sim: Sim): boolean {
+  return windowActive(sourceDef('grass-seed').window, calendarNow(sim).yearFrac);
+}
+
+/**
+ * Seed units that fell on an emptied site since its node was found gone (SEED_RAIN_PER_GD x capacity per game
+ * day); null when the site was not emptied. Marks the site emptied the first time its node is found missing.
+ */
+function rainSinceEmptied(sim: Sim, site: SeedSite): number | null {
+  if (site.emptiedTick === undefined) {
+    if (site.sourceId < 0) return null; // never set up: not emptied
+    site.emptiedTick = sim.state.tick;
+  }
+  return (site.capacity * SEED_RAIN_PER_GD * (sim.state.tick - site.emptiedTick)) / TICKS_PER_DAY;
+}
+
 /**
  * Keeps one site stocked: an existing node keeps its class data; a missing one is set up (adopting the empty
- * worldgen node at an anchor) while the seed rain is on. `startFill` is the share of capacity a new node starts with.
+ * worldgen node at an anchor). `startFill` is the share of capacity a new node starts with. A node the colony
+ * emptied while the seed rain is on comes back only with the rain that fell since (the ecology retires an emptied
+ * grass-seed node); out of the window a dormant 1-seed node waits for the next rain.
  */
 function refreshSite(sim: Sim, site: SeedSite, g: GranaryParams, startFill: number): void {
   let s = liveSource(sim, site);
   if (s) { configureSeedSource(s, site, g); return; }
+  const rainOn = seedRainOn(sim);
+  let units = Math.max(1, Math.round(site.capacity * startFill));
+  if (rainOn) {
+    const rain = rainSinceEmptied(sim, site);
+    if (rain !== null && rain < 1) return;
+    if (rain !== null) units = Math.min(site.capacity, Math.floor(rain));
+  }
+  site.emptiedTick = undefined;
   s = adoptAnchorSource(sim, site);
   if (!s) {
     s = createSource(sim, {
@@ -131,9 +161,8 @@ function refreshSite(sim: Sim, site: SeedSite, g: GranaryParams, startFill: numb
     });
   }
   configureSeedSource(s, site, g);
-  if (!isInSeason(sim, s)) { site.sourceId = s.id; return; }
-  s.units = Math.max(1, Math.round(site.capacity * startFill));
   site.sourceId = s.id;
+  if (rainOn && isInSeason(sim, s)) s.units = units;
 }
 
 /** Refreshes every site of the colony; on a new game day in the window the plants grow seed heads again. */

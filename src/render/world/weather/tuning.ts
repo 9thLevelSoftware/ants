@@ -66,10 +66,13 @@ export const RIPPLE_LIFE_S = 0.9;
 
 /** Underground water: colour (linear), opacity, emissive lift so it reads in the dim nest light. */
 export const FLOOD_WATER_RGB: readonly [number, number, number] = [0.07, 0.09, 0.075];
-export const FLOOD_WATER_OPACITY = 0.9;
+/** gate-close-app: 0.9 -> 0.65 and roughness 0.3 -> 0.55, a thin film read as a pale opaque slab under the nest light. */
+export const FLOOD_WATER_OPACITY = 0.65;
+/** Vertex alpha on the sheet's outline (floodWater.ts sheetGeometry): soft puddle edges. */
+export const FLOOD_WATER_EDGE_ALPHA = 0.15;
 export const FLOOD_WATER_EMISSIVE = 0.05;
 /** Water roughness and environment-reflection strength (a tunnel has no sky to mirror). */
-export const FLOOD_WATER_ROUGHNESS = 0.3;
+export const FLOOD_WATER_ROUGHNESS = 0.55;
 export const FLOOD_WATER_ENV = 0.15;
 /** Rebuild the flood surface at most every this many real seconds (and when the level moves by LEVEL_EPS mm). */
 export const FLOOD_REBUILD_S = 0.5;

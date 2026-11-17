@@ -22,3 +22,6 @@ Started fresh (no earlier fix file) 04:01 UTC Nov 17.
 - App E (GDD 07) for this module: 10 brood.test, 11 wood.test, 12 frassFall.test + verify (outdoor; interior visibility
   1.0 path only via founding.test tally), 13 shuttle.test LONG 10/20 (partial), 14 castes test; 8 = honeydew module (other).
 - NEXT after e2e: life.ts we2 --days 28 soak (test-output/carp/fixsoak), then final tests + report.
+- (04:33) e2e fix1 PASSED (test-output/species-carpenter/fix1): pile 13 items = 1.3 units at foot of log (inLog false), shots looked at: 04 pile+grains at log foot (dark: mound renderer soil colour), 02 media+major ahead but queen ghost near camera, 01 opening not visible, 03 slab. Edited e2e: queen moved out for 02, closer 01. RUNNING soak life.ts we2 --days 28 -> test-output/carp/fixsoak
+- (04:43) soak DONE test-output/carp/fixsoak: 0 invariant violations / 28 d (woodland-edge 2, real hand-over); queen + 5 minors starve in the winter lapse (C 0.66 into winter; colony overwinter/economy). RUNNING e2e fix2 -> test-output/species-carpenter/fix2
+- (04:58) e2e fix2 PASSED, shots looked at (02 castes readable, queen out; 01 opening still not readable; 04 frass at log foot, pile dark = renderer). Writing report.

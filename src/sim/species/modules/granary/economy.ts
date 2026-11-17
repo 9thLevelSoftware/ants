@@ -11,6 +11,7 @@ import { decayPaste, releasePaste, rescaleAnimalP } from './paste';
 import { stepLarvae } from './protein';
 import { refreshGranary, syncGranaries } from './state';
 import { rollDayCounters } from './counters';
+import { emitGranaryStates } from './events';
 
 /** Living full-fidelity colonies with a granary module, with their parameters. */
 export function granaryColonies(sim: Sim): { col: Colony; g: GranaryParams }[] {
@@ -35,6 +36,7 @@ export function stepColonyGranary(sim: Sim, col: Colony, g: GranaryParams, dtGd:
     const r = stepCohorts(gr, g, gr.humidity ?? 0, gr.tempC ?? 20, dtGd);
     if (r.rotten > 0) mod.rottenPending = (mod.rottenPending ?? 0) + r.rotten;
   }
+  emitGranaryStates(sim, mod);
   decayPaste(mod, g, dtGd);
   rescaleAnimalP(col, mod);
   stepLarvae(sim, col, mod, g, def?.life.animalProteinMinFrac ?? 0);

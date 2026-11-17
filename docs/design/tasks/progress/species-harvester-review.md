@@ -13,8 +13,13 @@ Started 04:00 UTC Nov 17. No earlier review progress file existed.
   GREEN: 3-minor colony starts granary in kit (impl claim of tiny colonies not foraging is NOT reproduced at kit level),
   save/restore equality, numeric edges, paste release P not lost, fresh seed at cap.
 
+- e2e harness run done (ok:true, 9.8 min): test-output/harvester-review/e2e.log + e2e/01..04.png LOOKED AT.
+  01 one dark ant on a leaf, no seed visible, no trail; 02 royal (proto-granary) chamber with white sphere display seeds;
+  03 castes in a row, very dark; 04 possessed minor, larger caste cut at left edge. paste 0, no chaff/midden shot.
+- final: typecheck clean in owned paths; 10 files, 43 tests: 39 pass, 4 red (the defects above).
+
 ## In progress
-- harness e2e run (test-output/harvester-review/)
+- report (StructuredOutput). DONE after that.
 
 ## Remaining
 1. verify tests: seed node respawn, gnaw at COHORTS_MAX, small colony forage (red), granary-state event, patrol staffing

@@ -7,7 +7,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Colony, PatrolGateState, Sim, System } from '@/sim/types';
 import { microTemp } from '@/sim/environment/microTemp';
 import { surfaceActivityOf } from '@/sim/colony/envAdapter';
-import { currentSeason, TICKS_PER_SECOND } from '@/sim/time';
+import { currentSeason, currentYear, TICKS_PER_SECOND } from '@/sim/time';
 import {
   HEAT_SAMPLE_STEP_BU, HEAT_SAMPLES_MAX, PATROL_ALARM_PH, PATROL_FAILSAFE_TICKS, PATROL_GATE_MIN_WORKERS,
   PATROL_HOLD_TICKS, PATROL_MAX_FRAC, PATROL_STEP_TICKS, TRAIL_TEMP_VALID_C, TRIP_BASE_BU, WINDOW_ACTIVITY_MIN,
@@ -99,11 +99,15 @@ export function heatOf(sim: Sim, col: Colony, g: GranaryParams): HeatReading {
 
 // ---- summer lull ----
 
-/** Departure multiplier of the summer lull: lullActivationMult while yesterday's seed intake is under lullReturnFrac of the spring mean. */
+/**
+ * Departure multiplier of the summer lull: lullActivationMult in summer while yesterday's seed intake is under
+ * lullReturnFrac of this year's mean seed day (counters.ts noteSeedDay; GDD 07 says "spring mean", see there).
+ */
 export function lullMult(sim: Sim, col: Colony, g: GranaryParams): number {
   const mod = col.granary;
   if (!mod || currentSeason(sim.state) !== 'summer') return 1;
-  const mean = mod.springSeedMean ?? 0;
+  if (mod.seedMeanYear !== currentYear(sim.state)) return 1;
+  const mean = mod.seedDayMean ?? 0;
   if (mean <= 0) return 1;
   return (mod.seedInYesterday ?? 0) < g.lullReturnFrac * mean ? g.lullActivationMult : 1;
 }

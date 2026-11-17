@@ -322,3 +322,96 @@ Progress (kept current; a successor continues from here)
   copy, same numbers), combat 12/12, nest 54/55 (red `escapeDig`, known; `plugBaseline.verify` now green), colony
   51/52 (red `founding/reopen.test`, known).
   Next: rank causes (below), then after2 runs (all fixes) on sg #2, pp #3, car-park-verge #1, kitchen-door #3.
+
+### Ranking by measured loss (round 2; the sweep table `round-1/sweep-table.md` + this round's runs)
+
+1. **Protein is never taken from prey patches** (R18). Every probed nest has 2-3 patches within 300 BU (K 72-574,
+   nearest edge 36-202 BU); no behaviour bit patch prey (0 prey items in 15 sweep runs). P intake/need median 0.094
+   (bar 0.7); laying protein permitted 5-10 % of the time on the growing runs; two growing runs lost viability on
+   protein (sg #2, pp #2). Fixed this round (H1), measured on sg #2: P 0.076 -> 0.254, viable.
+2. **Scouts find little** (sweep: 319 of 364 scout trips fail, 44 % of all trips). pp #3 starves of C with nectar C 6 and
+   a crumb C 4.2 unknown within 300 BU (not viable), sg #3 0 successful trips. Scouting line: a small colony's scout
+   walks one ray to the 220 BU range (sg #2 median reach 219 BU in 104 s of its 300 s) and turns home; a raised flower
+   is smelled but not reached (pp #3: smelled 1, discovered 0). Not fixed this round.
+3. **Brood lost before eclosion**: egg:untended 44 of 166 eggs, seed-3 runs 0 of 43 eggs hatched (4 runs), 2 of them
+   not viable (workers 9 -> 7); sg #2 after1 still loses 3 pupae + 3 eggs untended. Not fixed this round.
+4. **Trip count artefact** (C1, fixed): in-nest crop unloading counted as trips and deliveries.
+5. **Ghost plugs under spoil** (G1, fixed): 2 runs with one shut day each in the sweep.
+- 04:33 S1 in the tree (cause 2, the part measured): `outdoor/phaseScout.ts` `bestHeading`: a small colony's scout
+  (range SMALL_SCOUT_RANGE_BU < SCOUT_MAX_RANGE_BU) takes no leg that would end beyond its range less one leg; if no
+  leg fits it heads home. Test `outdoor/scoutRange.test.ts`: trips without S1 162/153/92/160/176/173 s, all at the
+  220 BU range (red, median > 180 s wanted); with S1 green. Not addressed: flowers smelled but not reached (lift
+  12-45 BU on stems), slow scouts on pp #3 (path 1.8 BU/s).
+  Running: `round-2/after2/` car-park-verge #1, kitchen-door #3 (H1 + H1b + C1, started before S1).
+- 04:37 `after2` (H1 + H1b + C1, before S1/B1): car-park-verge #1 viable (as in the sweep), trips 145 -> 52 and
+  success 8 -> 19 % (C1: the sweep's 145 included in-nest unloadings), P intake 0.078 -> 0.037 (the sweep's
+  "unknown" P 0.454 were in-nest crops booked as deliveries, gone with C1), larvae starved 6 -> 1, eclosed 0 (6 larvae
+  in diapause at winter); its patches (edge 202 BU) were never entered: no patch prey appeared, no hunting.
+  kitchen-door #3 unchanged (eggs 10 -> 0 hatched: untended 4, flooding 5), patches at 118 BU never entered, scouts'
+  median reach 70 BU.
+- 04:37 B1 in the tree (cause 3, the part measured): `colony/brood.ts`: brood being carried gets `lastTendedTick`
+  each brood tick (the carrier handles it; the pile clock starts at the put-down). Probe
+  (`round-2/probe-eggs-kd3.txt`, kd #3 hand-over, every 0.02 gd): a queen-carer held 6 eggs 1.70 -> 1.86 gd, they
+  were put down at 0.27 gd "untended" (> UNTENDED_GD 0.25) and two died `untended` at 1.92 / 1.97; the nest flooded
+  (0.08-0.18) at 1.92 and every ant froze (`flee.freeze`) for > 0.1 gd. Test `colony/broodCarried.test.ts` (red
+  without: 0.35 gd untended after the put-down; green).
+  Running: `round-2/after3/` playground-park #3, suburban-garden #3 (all fixes: G1 H1 H1b C1 S1 B1).
+- 04:43 C1 had a hole, found by `outdoor/tendHerd.test` (red: 0 honeydew delivered): the herd branch walks tenders out
+  and back itself (`tendHerd.ts`, `tendHerdStates.ts` set the trip clock `K.out0` directly), so `K.wentOut` never
+  became 1 and C1 dropped every herd delivery from the books (the food still reached the pool). Fixed: both places
+  set `K.wentOut = 1`; tendHerd tests green. **The `after2` runs (cpv #1, kd #3) carry the hole**: their C intake
+  undercounts herd honeydew (cpv #1 C 1.107); they are kept for P / brood / patch figures only. `after3` restarted
+  (04:43) on the fixed tree: playground-park #3, suburban-garden #3.
+- 04:53 `after3` (all fixes) playground-park #3 **viable** (was not): C intake/need 0.064 -> 0.813, P 0.027 -> 0.166,
+  trips 22 -> 32, success 0 -> 31 %; scouts (13 trips, median 374 s out) found the crumb (114 BU) and a carrion; 1
+  prey and 2 carrion loads home; larvae starved 4 -> 5, eclosed 0. suburban-garden #3 still not viable (workers
+  9 -> 7, old age): C 0.132 -> 0.306, trips 10 (success 0 -> 20 %), eggs 9 -> 0 hatched (untended 7, as before: B1
+  did not reach this run's loss). Running now: after3 sg #2 and kd #3; probing sg #3's eggs.
+
+### Sweep findings (round 1 review) -> what this round did
+
+- F1 trigger (major): **real, fixed (G1)**. `plugBaseline.verify` was red (5 ghost flags under a 2 BU ring: count
+  0 -> 5, `sealing`); `nest/entrances.ts` `forgetGhostPlugs`: while an entrance is `open`, the PLUG flag of a closed
+  sample above the ground (a ghost: plug fill that landed in air, already not counted by `plugCount`) is dropped at
+  each evaluation, so soil piled on it later is soil, not a plug. Closed throats keep their flags (the founding seal
+  and reopen rules read them). Green now; nest folder otherwise unchanged (`escapeDig` red as before).
+- Protein loss on sg #2 / pp #2 (major): **real; cause found and fixed (H1)**: no behaviour hunted the prey patches
+  (R18), so the growing runs spent the hand-over P on the first brood and had no protein after it. sg #2 viable again
+  with H1 (P 0.076 -> 0.254). pp #2 not re-run this round.
+- Founding funnel counts colony-life losses (minor): fixed in the tool (`FoundingObserver.stop()` at the hand-over).
+- Trip counters disagree (minor): fixed in the tool (funnel trips end on `ant.mem.trips`, = `report.econ.trips`;
+  the day column is labelled as departures) and found a sim defect behind part of it (C1: in-nest unloading counted
+  as trips and deliveries; the sweep's trip counts and intake include it, e.g. cpv #1 145 trips / P 0.454 "unknown").
+
+### Fixes (round 2)
+
+G1. Ghost plugs under spoil (above). `src/sim/nest/entrances.ts`. Test `src/sim/nest/plugBaseline.verify.test.ts`
+    (the review's, red -> green).
+H1. **Hunting patch prey** (R18; GDD 05 §2.3, §1.5; GDD 02 §10.2 "prey: combat first"). New
+    `src/sim/ants/behaviours/outdoor/hunt.ts`: (1) engine interrupt `huntCheck`: a forager or scout outside, not
+    laden, in outbound / search / explore / investigate, that has patch prey within HUNT_NOTICE_BU 5 (springtail;
+    mite only under a protein deficit) chases it (new phase `hunt` = 14, state names the flavour's collect), and the
+    colony learns the patch (`PreyPatch.knownBy`, additive optional bitmask in `src/sim/types/ecology.ts`);
+    (2) `updateHunt`: `bite` through the action library (combat resolves evasion, damage and the kill, ecology turns
+    the body into a food item and lowers the patch count), then `pick-up` of the remains, home as a solid load
+    (delivery kind `prey`); a chase ends after HUNT_CHASE_S 20 s; (3) departures: `choosePatch` scores known patches
+    with the source rule's terms (P of a catch x the colony's weights x crowding / (walk both ways + HUNT_EXPECT_S 40 s
+    x K / count)) against the best known source; a hunting trip walks to the patch centre and searches the disc for
+    HUNT_PATCH_SEARCH_S 90 s. `src/sim/colony/allocation/demand.ts` counts known patches as P capacity (catches a day
+    = count + regrowth + immigration, at most PATCH_FORAGERS_MAX 6 foragers). Hooks: engine.ts, phaseNest.ts
+    (departure), phaseTravel.ts (patch search), transitions.ts / phaseScout.ts (bout reset, `prey` delivery kind),
+    keys.ts, flavours.ts; constants in `src/sim/balance/foraging.ts`. Test `outdoor/hunt.test.ts` (foragers' hunting
+    trips deliver >= 3 prey loads a day; a scout meeting a springtail catches it and the patch becomes known; a known
+    patch is P capacity) - the behaviour cases red with hunting switched off.
+H1b. `src/sim/combat/damage.ts`: a hit that kills the creature no longer marks the attacker as fighting (GDD 02 §8
+    alarm deposit). Measured: hunters deposited alarm on each one-bite kill and fled from it before picking up the
+    remains (13 kills -> 6 deliveries in the hunt test; after 15 -> 11). A creature that survives the hit still makes a
+    fight. Combat folder green.
+C1. Trips that never went out are not trips: `outdoor/phaseNest.ts` `finishTrip` books delivery, return, route and
+    `mem.trips` only when `K.wentOut`; the herd branch (`tendHerd.ts`, `tendHerdStates.ts`) now sets `K.wentOut`
+    (it runs its own trip clock). Tests `outdoor/tripCount.test.ts` (red without), `outdoor/tendHerd.test.ts` (it caught
+    the herd hole).
+S1. Small-colony scouts search inside their range: `outdoor/phaseScout.ts` `bestHeading`. Test
+    `outdoor/scoutRange.test.ts` (red without: trips 92-176 s, all ending at the 220 BU range).
+B1. Carried brood is tended: `colony/brood.ts`. Test `colony/broodCarried.test.ts` (red without: 0.35 gd).
+Tool: `tools/sim/lifeFunnel.ts` (trip count, founding stop, `scouting`, `preyPatches`), `tools/sim/life.ts`.

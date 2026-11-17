@@ -117,6 +117,7 @@ export function leaveHerd(sim: Sim, ant: Ant, reason: ReasonCode): void {
   ant.bb[TH.cycle] = 1;
   ant.bb[K.src] = src ? src.id : -1;
   ant.bb[K.out0] = sim.state.tick; // the engine's trip clock counts the way home only
+  ant.bb[K.wentOut] = 1; // the herd branch walked it out (finishTrip counts only trips that went outside)
   startReturn(sim, ant, TEND, cropOf(ant) >= SUCCESS_CROP, reason, src ? src.id : -1);
 }
 

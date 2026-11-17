@@ -3,7 +3,7 @@
 // foragers make hunting trips to it, and a known patch counts as protein capacity for the forage demand.
 
 import { describe, expect, it } from 'vitest';
-import type { SimEvent } from '@/sim/types';
+import type { PreyPatch, SimEvent } from '@/sim/types';
 import { knownCapacity } from '@/sim/colony/allocation';
 import { colonySlotBit } from '@/sim/entities';
 import { spawnCreatureOfKind } from '@/sim/ecology';
@@ -13,7 +13,7 @@ import { patchKnownBy } from './hunt';
 /** A springtail patch of radius rBu, its centre distBu east of the entrance, full (count = K). */
 function addPatch(sim: ReturnType<typeof forageScenario>['sim'], at: { x: number; z: number }, distBu: number, rBu: number, k: number) {
   const bu = sim.world.bu, x = at.x + distBu * bu, z = at.z;
-  const p = { id: sim.state.nextId++, center: { x, y: sim.field.height(x, z), z }, radius: rBu * bu, kind: 'springtail' as const, count: k, k };
+  const p: PreyPatch = { id: sim.state.nextId++, center: { x, y: sim.field.height(x, z), z }, radius: rBu * bu, kind: 'springtail', count: k, k };
   sim.state.ecology.preyPatches.push(p);
   return p;
 }

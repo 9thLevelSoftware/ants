@@ -7,6 +7,7 @@
 //   - Scouts recruit only to seed nodes some worker of the colony can carry (no L seeds before majors).
 //   - Granary call: while the granaries are short of target, a waiting forager with nowhere of her own to go takes
 //     a lead to the nearest harvestable seed node the colony knows and leaves on her own (granaryCall).
+//   - Seed heads: at a plant's nearly bare seed node a forager who may cut seed heads cuts one (cutHeadNow).
 //   - Range: no source beyond the heat-limited trip distance.
 //   - Departures: a waiting forager (or a scout about to leave) leaves only with probability (1 - heatStress) x
 //     lull x patrol gate per think; with the gate closed nobody leaves.
@@ -18,9 +19,11 @@ import { makeBehaviour } from '@/sim/ants/behaviours/outdoor/engine';
 import { FORAGE, SCOUT, type Flavour } from '@/sim/ants/behaviours/outdoor/flavours';
 import { K, PHASE } from '@/sim/ants/behaviours/outdoor/keys';
 import { distFromHome, thinkIn } from '@/sim/ants/behaviours/outdoor/common';
-import { moving, stop } from '@/sim/ants/behaviours/outdoor/nav';
+import { atSource, moving, stop } from '@/sim/ants/behaviours/outdoor/nav';
+import { begin, canDo } from '@/sim/ants/actions';
+import { siteOfSource } from './seeds';
 import { THINK_WAIT_TICKS } from '@/sim/balance/foraging';
-import { SEED_CALL_RATE_S, SEED_FORAGE_FRAC, SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
+import { SEED_CALL_RATE_S, SEED_FORAGE_FRAC, SEED_HEAD_CUT_BELOW_UNITS, SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
 import { ACTIVATION_DEPART } from '@/sim/balance/colony';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { seedForageDemand } from './allocation';
@@ -165,6 +168,22 @@ function granaryCall(sim: Sim, ant: Ant, dtTicks: number): void {
   }
 }
 
+/**
+ * Pre-dispersal harvest (GDD 07 §6.3.2, task forage): a forager at a plant's seed node that is nearly bare, who may
+ * cut seed heads (majors, media of at least millMediaMinBu; the primitive checks), cuts one before she collects.
+ */
+export function cutHeadNow(sim: Sim, ant: Ant): boolean {
+  if (ant.nestId >= 0 || ant.action || ant.carry.kind !== 'none' || ant.bb[K.phase] !== PHASE.collect) return false;
+  const s = sim.stores.sources.get(ant.bb[K.src] ?? -1);
+  const mod = sim.stores.colonies.get(ant.colony)?.granary;
+  if (!s || !s.alive || s.kind !== 'seed' || !mod || s.units > SEED_HEAD_CUT_BELOW_UNITS) return false;
+  const site = siteOfSource(mod, s.id);
+  if (!site || site.objectId < 0 || site.seedHeads <= 0 || !atSource(sim, ant, s)) return false;
+  const t = { kind: 'source' as const, id: s.id, pos: s.pos };
+  if (!canDo(sim, ant, 'cut-seed-head', t).ok) return false;
+  return begin(sim, ant, 'cut-seed-head', t);
+}
+
 export const harvesterForageBehaviour: Behaviour = {
   task: 'forage', species: ['messor-barbarus'],
   enter: (sim, ant) => withCtx(sim, ant, true, () => forageEngine.enter(sim, ant)),
@@ -173,6 +192,7 @@ export const harvesterForageBehaviour: Behaviour = {
     const waiting = ant.nestId >= 0 && ant.bb[K.phase] === PHASE.wait;
     const allow = ant.nestId >= 0 ? mayLeave(sim, ant) : true;
     if (waiting && allow) granaryCall(sim, ant, THINK_WAIT_TICKS);
+    cutHeadNow(sim, ant); // the engine waits while the primitive runs (collect phase with an action)
     withCtx(sim, ant, allow, () => forageEngine.update(sim, ant));
   },
   exit: (sim, ant) => forageEngine.exit(sim, ant),

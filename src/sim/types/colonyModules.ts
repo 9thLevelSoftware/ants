@@ -83,6 +83,11 @@ export interface GranaryState {
   /** Additive (species-harvester): last humidity read 0..1 and temperature °C of the chamber. */
   humidity?: number;
   tempC?: number;
+  /**
+   * Additive (species-harvester fix): bit mask of the states present at the last granary-state event (bit 0 stocked,
+   * 1 damp, 2 germinating, 3 sprouted, 4 rotting); absent = none emitted yet.
+   */
+  stateMask?: number;
 }
 
 /** Additive (species-harvester): the morning patrol gate of one day (GDD 07 §5.3.7). */
@@ -141,9 +146,19 @@ export interface GranaryModule {
   pasteUseYesterday?: number;
   /** Additive (species-harvester): game day the counters above belong to. */
   counterDay?: number;
-  /** Additive (species-harvester): mean daily seed intake over spring days, loads (summer-lull reference). */
+  /**
+   * Additive (species-harvester): mean daily seed intake over spring days, loads. Superseded by seedDayMean (the
+   * staple is out of season in spring, GDD 05); no longer written.
+   */
   springSeedMean?: number;
   springDays?: number;
+  /**
+   * Additive (species-harvester fix): summer-lull reference: mean daily seed intake over the days of calendar year
+   * seedMeanYear on which seed came in, loads, and how many such days.
+   */
+  seedDayMean?: number;
+  seedDayCount?: number;
+  seedMeanYear?: number;
   /** Additive (species-harvester): the tick the granary systems last integrated, -1 never. */
   lastStepTick?: number;
   /** Additive (species-harvester): seed node sites the module keeps stocked (GDD 05 grass-seed, GDD 07 §6.3.1). */
@@ -189,6 +204,11 @@ export interface SeedSite {
   sourceId: number;
   /** Seed heads still on the plant (cut-seed-head), 0 for ground patches. */
   seedHeads: number;
+  /**
+   * Additive (species-harvester fix): tick the site's node was found emptied (retired) while the seed rain was on;
+   * the node is set up again only with the rain that fell since. Absent = not emptied.
+   */
+  emptiedTick?: number;
 }
 
 /** One fungus garden (Atta). Symbols follow GDD 07 §6.4 (G biomass, h health, i infection, c substrate, W waste). */

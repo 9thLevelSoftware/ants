@@ -78,7 +78,7 @@ export default async ({ page, shot, log }) => {
     const eye = { x: q.x + d.x * k * b, y: q.y + h * b, z: q.z + d.z * k * b };
     window.__game.camera.setPose(eye, q);
   }, [p, dir, bu, back, up]);
-  await outsidePose(e.pos, e.dir, 7, 3);
+  await outsidePose(e.pos, e.dir, 4, 1.2);
   await step(1);
   await highShot('01-log-opening');
 
@@ -124,12 +124,20 @@ export default async ({ page, shot, log }) => {
   }, [minorId, ahead]);
   log(`castes placed: ${JSON.stringify(placed)}`);
   result.checks.castesPlaced = placed;
+  // the queen shares the small founding cell: out of the picture for this shot (just inside the entrance tunnel; she
+  // goes back afterwards), else the rig fades her as an occluder right in front of the camera
+  const queenAt = await sim((sm) => { const q = sm.stores.ants.get(sm.state.colonies[0].queenId); return q ? { id: q.id, pos: { ...q.pos } } : null; });
+  if (queenAt) {
+    await g(([id, p]) => window.__game.teleport(id, p), [queenAt.id, { x: e.pos.x - e.dir.x * 1.5 * bu, y: e.pos.y, z: e.pos.z - e.dir.z * 1.5 * bu }]);
+    await step(1);
+  }
   // side-on, and kept still for the picture (their own work would turn them around)
   await sim((sm, list) => { for (const t of list) { const x = sm.stores.ants.get(t.id); if (x) x.fwd = { ...t.fwd }; } return true; }, ahead);
   const inside = await sim((sm, id) => { const a = sm.stores.ants.get(id); return a ? { nestId: a.nestId, medium: a.medium, pos: a.pos } : null; }, minorId);
   log(`possessed minor: ${JSON.stringify(inside)}`);
   result.checks.possessedInside = inside;
   await highShot('02-gallery-castes-possessed');
+  if (queenAt) await g(([id, p]) => window.__game.teleport(id, p), [queenAt.id, queenAt.pos]);
   // the possessed minor bites the gallery wall (wood chewing makes frass)
   const bite = await g(() => {
     const gm = window.__game;

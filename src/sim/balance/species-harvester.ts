@@ -57,6 +57,8 @@ export const SEED_LOOKS_PER_VISIT = 6;
  */
 export const SEED_PATCHES = 20;
 export const SEED_PATCH_RADIUS_BU: readonly [number, number] = [20, 200];
+/** A forager at a plant's seed node cuts a seed head (pre-dispersal harvest) once the node holds this few seeds [EST]. */
+export const SEED_HEAD_CUT_BELOW_UNITS = 3;
 /** Seed heads a seed plant carries while the seed rain lasts (cut-seed-head detaches 1-3 seeds each) [EST]. */
 export const SEED_HEADS_PER_PLANT = 4;
 
@@ -66,6 +68,8 @@ export const SEED_HEADS_PER_PLANT = 4;
 export const COHORTS_MAX = 12;
 /** A cohort with less than this many loads is dropped (its loads to rot). */
 export const COHORT_MIN_LOADS = 1e-4;
+/** A cohort state counts as present in a granary (granary-state events) from this many loads. */
+export const GRANARY_STATE_MIN_LOADS = 0.5;
 /** Seeds deposited during rain (rain intensity above this) arrive wet (u = seedUWet). */
 export const WET_ARRIVAL_RAIN = 0.2;
 
@@ -85,6 +89,15 @@ export const GNAW_BATCH_LOADS = 1;
 export const GNAW_AI_BATCH_LOADS = 3;
 /** Seed loads moved per relocation trip (GDD 07 §6.3.4: 1 load per trip). */
 export const RELOCATE_LOADS = 1;
+/** A destination granary must be at least this much drier (humidity 0..1) than the damp one [EST]. */
+export const RELOCATE_HUMIDITY_MARGIN = 0.05;
+/** Granary-care workers asked for while some granary has seed to relocate [EST]. */
+export const RELOCATE_WORKERS = 1;
+/**
+ * Small workers (minors, media under millMediaMinBu) mill soft seed (hardness <= crackLimitMinor) at this multiple
+ * of a major's time (deviation, paste.ts millSecondsPerLoad) [EST]: slower than a large media (x2).
+ */
+export const SMALL_MILL_TIME_MULT = 3;
 /** Workers that `mill` demand asks for per load of paste deficit per game day (labour model) [EST]. */
 export const MILL_LOADS_PER_MILLER_GD = 12;
 /** Foragers asked for to fill the granary: this share of the workers x the share of the target stock missing [EST]. */
@@ -147,17 +160,23 @@ export const PATROL_MAX_FRAC = 0.2;
 export const PATROL_GATE_MIN_WORKERS = 12;
 /** Patrol hold after a patroller died or met alarm: 1 clock hour = 25 game s (species data writes 3600). */
 export const PATROL_HOLD_TICKS = 250;
-/** Fail-safe: a gate still closed this long after the window opened opens anyway (held), ticks (2 h). */
-export const PATROL_FAILSAFE_TICKS = 500;
+/**
+ * Time a morning (gate) patroller spends outside before she turns home, game s (0.8 clock hour) [EST]: one look
+ * round the home-range edge. The shared territory patrol (combat PATROL_TRIP_S 180 s = 7 clock hours) is far longer
+ * than the fail-safe below, so with it no patroller was ever back in time.
+ */
+export const GATE_PATROL_TRIP_S = 20;
+/**
+ * Fail-safe: a gate still closed this long after the window opened opens anyway (held), ticks (3 clock hours). It
+ * must exceed walking out of the nest + GATE_PATROL_TRIP_S + walking back from the home-range edge (about 50 s).
+ */
+export const PATROL_FAILSAFE_TICKS = 750;
 /** Alarm pheromone at the entrance that counts as "met alarm". */
 export const PATROL_ALARM_PH = 0.5;
 /** Surface activity below which the active window is closed (the gate resets for the next window). */
 export const WINDOW_ACTIVITY_MIN = 0.15;
 
-// ---- winter (GDD 07 §5.3.7: consumption drawn from granary stock, converted at 0.8) ----
-
-/** Game days of winter need moved from the granary into the pool when the banner shows. */
-export const WINTER_STOCK_GD = 7;
+// ---- winter (GDD 07 §5.3.7): winter.ts moves as much granary stock into the pool as it holds (no constant) ----
 
 // ---- caste destiny (GDD 07 §2.6, §5.3.2) ----
 

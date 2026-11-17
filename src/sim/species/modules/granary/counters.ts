@@ -2,7 +2,20 @@
 // sums and yesterday's totals, rolled at the first step of each game day.
 
 import type { GranaryModule, Sim } from '@/sim/types';
-import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
+import { currentYear, TICKS_PER_DAY } from '@/sim/time';
+
+/**
+ * The summer-lull reference (GDD 07 §5.3.7 "20 % of the spring mean"): the mean daily seed intake over this year's
+ * days on which seed came in. GDD 07's fSeason has a spring boom, but the staple (GDD 05 grass-seed, doy 10-20) is
+ * out of season in spring, so a spring-only mean is 0 and the lull could never happen. Reset each calendar year.
+ */
+export function noteSeedDay(mod: GranaryModule, year: number, loads: number): void {
+  if (mod.seedMeanYear !== year) { mod.seedMeanYear = year; mod.seedDayMean = 0; mod.seedDayCount = 0; }
+  if (!(loads > 0)) return;
+  const n = (mod.seedDayCount ?? 0) + 1;
+  mod.seedDayMean = ((mod.seedDayMean ?? 0) * (n - 1) + loads) / n;
+  mod.seedDayCount = n;
+}
 
 export function rollDayCounters(sim: Sim, mod: GranaryModule): void {
   const day = Math.floor(sim.state.tick / TICKS_PER_DAY);
@@ -11,12 +24,7 @@ export function rollDayCounters(sim: Sim, mod: GranaryModule): void {
   mod.milledYesterday = fresh ? 0 : mod.milledToday ?? 0;
   mod.seedInYesterday = fresh ? 0 : mod.seedInToday ?? 0;
   mod.pasteUseYesterday = fresh ? 0 : mod.pasteUseToday ?? 0;
-  // the summer-lull reference: the mean daily seed intake of the spring days lived (GDD 07 §5.3.7)
-  if (!fresh && currentSeason(sim.state) === 'spring') {
-    const n = (mod.springDays ?? 0) + 1;
-    mod.springSeedMean = ((mod.springSeedMean ?? 0) * (n - 1) + (mod.seedInYesterday ?? 0)) / n;
-    mod.springDays = n;
-  }
+  if (!fresh) noteSeedDay(mod, currentYear(sim.state), mod.seedInYesterday ?? 0);
   mod.milledToday = 0;
   mod.seedInToday = 0;
   mod.pasteUseToday = 0;

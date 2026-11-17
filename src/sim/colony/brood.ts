@@ -297,6 +297,10 @@ export function broodStep(sim: Sim, b: Brood, col: Colony, core: ColonyCoreState
     b.readyTicks = (b.readyTicks ?? 0) + dtTicks;
   }
 
+  // Brood being carried is being handled: the carrier tends it, and its pile clock starts where it is put down
+  // (colony-life round 2: queen-carers held a clutch for 0.16 gd and put it down past UNTENDED_GD, so the eggs
+  // died `untended` the moment they lay in a pile again; GDD 02 §2.5 counts the untended time of a pile)
+  if (b.carriedBy !== -1) b.lastTendedTick = sim.state.tick;
   // Mortality: base hazard per DU of progress plus the extra hazards per gd.
   hazardScratch.clear();
   extraHazards(sim, col, b, tempC, hazardScratch);

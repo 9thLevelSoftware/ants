@@ -25,7 +25,7 @@ export function pasteEnough(sim: Sim, ant: Ant): boolean {
   const g = col ? granaryParams(sim.getSpecies(col.species)) : null;
   if (!col?.granary || !g) return true;
   const demand = pasteDemandPerGd(g, col);
-  return demand > 0 && col.granary.pasteLoads >= g.pasteTargetGd * demand;
+  return demand <= 0 || col.granary.pasteLoads >= g.pasteTargetGd * demand;
 }
 
 /** The granary chamber of the ant's nest where she can mill, current chamber first; undefined none. */

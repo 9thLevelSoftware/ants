@@ -1,7 +1,9 @@
 // The granary's labour demand (GDD 07 §6.3.4, §6.3.6, §5.3.7), added to the colony's demand right after each
 // allocation pass (same phase and cadence, later in module order) and the targets recomputed from it:
-//   mill   while the paste stock is under pasteTargetGd days of demand and there is seed someone can crack;
-//   store  granary care: gnawing work before the seeds sprout, over the work rate, x granaryHygiene;
+//   mill   while the paste stock is under pasteTargetGd days of demand and there is seed someone can crack (the
+//          part no worker of the mill task can take goes to granary care);
+//   store  granary care: gnawing work before the seeds sprout, over the work rate, x granaryHygiene; plus
+//          relocation out of damp granaries and proto-granaries;
 //   forage SEED_FORAGE_FRAC of the workers while the granaries hold less than targetStockGd days of seed (and
 //          scouts while no seed source is known);
 //   patrol the morning patrollers while the gate is closed;
@@ -11,11 +13,12 @@ import type { Colony, Sim, System, Task } from '@/sim/types';
 import { ti } from '@/sim/colony/taskIdx';
 import { censusOf, isWorkerCaste } from '@/sim/colony/census';
 import { computeTargets } from '@/sim/colony/allocation/targets';
+import { taskWeight } from '@/sim/colony/allocation/groups';
 import { coreOf } from '@/sim/colony/core';
 import { ALLOC_EVERY, ALLOC_OFFSET } from '@/sim/balance/cadence';
 import {
   CARE_ANTICIPATE_G, CARE_MAX_FRAC, CARE_RATE_FLOOR, CARE_WINDOW_MIN_S, MILL_LOADS_PER_MILLER_GD, MILL_MAX_FRAC, MILL_MIN,
-  SEED_FORAGE_FRAC, SEED_SCOUTS_MIN,
+  RELOCATE_WORKERS, SEED_FORAGE_FRAC, SEED_SCOUTS_MIN,
 } from '@/sim/balance/species-harvester';
 import { workRate } from '@/sim/ants/actions/workRate';
 import { GRANARY_HYGIENE_DEFAULT } from '@/sim/balance/colony';
@@ -26,6 +29,7 @@ import { germRatePerGd } from './cohorts';
 import { SECONDS_PER_DAY } from '@/sim/time';
 import { colonyStock } from './state';
 import { patrolPending, patrollersWanted } from './rhythm';
+import { relocateTarget } from './relocate';
 
 /** Millers the colony asks for now. */
 export function millDemand(col: Colony, g: GranaryParams, workers: number): number {
@@ -99,6 +103,24 @@ export function seedForageDemand(col: Colony, g: GranaryParams, workers: number)
   return SEED_FORAGE_FRAC * workers * short;
 }
 
+/** Care workers for seed relocation (GDD 07 §6.3.4): RELOCATE_WORKERS while some granary has seed to move. */
+export function relocateDemand(sim: Sim, col: Colony, g: GranaryParams, workers: number): number {
+  const mod = col.granary!;
+  for (const gr of mod.granaries) if (relocateTarget(sim, col, mod, g, gr)) return Math.min(RELOCATE_WORKERS, workers);
+  return 0;
+}
+
+/** Living adult workers of the colony the species lets take the `mill` task (task weight above 0). */
+export function millTaskWorkers(sim: Sim, col: Colony): number {
+  const def = sim.getSpecies(col.species);
+  if (!def) return 0;
+  let n = 0;
+  for (const a of sim.stores.ants.list) {
+    if (a.alive && a.colony === col.id && isWorkerCaste(a.caste) && taskWeight(def, a, 'mill') > 0) n++;
+  }
+  return n;
+}
+
 /** Whether the colony knows a live seed source. */
 function knowsSeed(sim: Sim, col: Colony): boolean {
   for (const id of col.knownSourceIds) if (sim.stores.sources.get(id)?.kind === 'seed') return true;
@@ -114,8 +136,12 @@ export function augmentDemand(sim: Sim, col: Colony, g: GranaryParams): void {
   const n = cen.workers;
   if (n === 0) return;
   const d = col.alloc.demand;
-  add(d, 'mill', millDemand(col, g, n));
-  add(d, 'store', careDemand(sim, col, g, n));
+  const mill = millDemand(col, g, n);
+  const millers = millTaskWorkers(sim, col);
+  add(d, 'mill', Math.min(mill, millers));
+  // mill work no worker of the `mill` task can take (a colony of nanitic minors: minors have no mill weight) goes to
+  // granary care, whose workers mill the seed they can crack (behaviourCare.ts)
+  add(d, 'store', careDemand(sim, col, g, n) + Math.max(0, mill - millers) + relocateDemand(sim, col, g, n));
   if (patrolPending(sim, col)) d[ti('patrol')] = Math.max(d[ti('patrol')], patrollersWanted(sim, col));
   add(d, 'forage', seedForageDemand(col, g, n));
   if (seedForageDemand(col, g, n) > 0 && !knowsSeed(sim, col)) d[ti('scout')] = Math.max(d[ti('scout')], Math.min(SEED_SCOUTS_MIN, n));

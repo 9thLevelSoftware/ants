@@ -3,6 +3,8 @@
 // appears on the pile as `chaff` items). viableSeedFrac of the discarded seed loads are intact seeds; after rain in
 // spring or autumn each germinates with seedlingGerminateP per GD into a seedling, and a seedling that is not
 // trampled by a trunk trail for seedlingMaturesGd becomes a seed-bearing plant: a new seed site near the nest.
+// §6.3.8's haul rule (a pile over middenHaulHeightBu within middenHaulRadiusBu of its entrance is moved further out)
+// cannot trigger here: refuse is put on the pile middenMinBu (8) or more from the hole, beyond the 6 BU radius.
 
 import { rngFloat } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';

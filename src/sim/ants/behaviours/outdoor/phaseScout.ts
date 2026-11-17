@@ -104,12 +104,18 @@ export function bestHeading(sim: Sim, ant: Ant, from: Vec3, base: number, spread
   const e = nest ? mainEntrance(nest) : undefined;
   const marked = homeHere(ant) > HOME_EXPLORED;
   const edge = SCOUT_EDGE_BU * sim.world.bu, size = sim.world.size;
+  // a small colony's range bounds the walk (colony-life round 2): legs that would end beyond it are not taken, so the
+  // scout turns along the edge and spends its SCOUT_MAX_S searching inside the range instead of walking one ray out
+  // to it and home (a scout of suburban-garden #2 reached the 220 BU range in a median 104 s of its 300 s)
+  const bound = (scoutRangeBu(sim, ant) - SCOUT_LEG_BU) * sim.world.bu;
+  const bounded = scoutRangeBu(sim, ant) < SCOUT_MAX_RANGE_BU && distFromHome(sim, ant, from) <= bound;
   let best = base, bestScore = -Infinity;
   for (let k = 0; k < SCOUT_CANDIDATES; k++) {
     // the walk's own turn first, then a fan around it (the correlated walk stays the default)
     const h = k === 0 ? base : base + ((k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2) * SCOUT_FAN_RAD) + rngGauss(rng, 0, spread * 0.5);
     const x = from.x + Math.cos(h) * leg, z = from.z + Math.sin(h) * leg;
     if (x < edge || z < edge || x > size - edge || z > size - edge || sim.navGrid.blocked(x, z)) continue;
+    if (bounded && distFromHome(sim, ant, { x, z }) > bound) continue;
     let score = rngFloat(rng) * SCOUT_W_NOISE + (k === 0 ? SCOUT_W_STRAIGHT : 0);
     if (col) {
       // unexplored ground along the ray, near cells weighing most: the scout heads for the closest frontier
@@ -123,6 +129,8 @@ export function bestHeading(sim: Sim, ant: Ant, from: Vec3, base: number, spread
     if (marked && e) score += SCOUT_W_HOME * Math.cos(h - Math.atan2(from.z - e.pos.z, from.x - e.pos.x));
     if (score > bestScore) { bestScore = score; best = h; }
   }
+  // every leg would cross the range (a corner of the map, a blocked edge): back toward home
+  if (bestScore === -Infinity && bounded && e) best = Math.atan2(e.pos.z - from.z, e.pos.x - from.x);
   return best;
 }
 

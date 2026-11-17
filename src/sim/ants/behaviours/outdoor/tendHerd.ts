@@ -68,6 +68,7 @@ export const tendHerdBehaviour: Behaviour = {
     if (ant.nestId < 0 && src && h && h.a >= 1 && ant.cropC + ant.cropP < CROP_RETURN_FRACTION * ant.cropCap) {
       ant.bb[K.phase] = PHASE.outbound;
       ant.bb[K.out0] = sim.state.tick;
+      ant.bb[K.wentOut] = 1;
       resumeTravel(sim, ant, src);
       if (herdActive(ant)) return;
     }

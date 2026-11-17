@@ -12,6 +12,8 @@ import { addSeeds, seedClassOf } from './cohorts';
 import { addAnimalP } from './paste';
 import { ensureGranary, granaryChambers, stockOf, storeTarget } from './state';
 import { chamberById } from '@/sim/colony/census';
+import { findChamberAtImpl } from '@/sim/nest/chambers/registry';
+import { floorAhead } from '@/sim/ants/actions/defs/carrying';
 
 /** bb key: id of the item this ant's current put-down was already handled for. */
 const HANDLED = 'mb.put';
@@ -71,15 +73,29 @@ function overflowTarget(sim: Sim, col: Colony, mod: GranaryModule, g: GranaryPar
   return chamberId >= 0 && chamberById(sim, chamberId) ? ensureGranary(sim, mod, g, chamberId) : null;
 }
 
+const scratch = { x: 0, y: 0, z: 0 };
+
+/**
+ * The chamber the running put-down delivers into, -1 none: the chamber at the primitive's own put-down point (its
+ * target point, else the floor ahead of the head), the same test the primitive uses before it pays food into the
+ * pool. The ant's own chamber is not enough: at a tunnel mouth she can stand outside a chamber with the point inside.
+ */
+export function putDownChamberId(sim: Sim, ant: Ant): number {
+  const t = ant.action?.target;
+  const at = !t || t.kind === 'none' || t.kind === 'entrance' ? floorAhead(sim, ant, scratch) : t.pos;
+  return findChamberAtImpl(sim, at)?.id ?? -1;
+}
+
 function handlePutDown(sim: Sim, col: Colony, g: GranaryParams, ant: Ant, it: Item): void {
   if (ant.bb[HANDLED] === it.id) return;
   const route = routeOf(sim, col, it);
+  const chamberId = putDownChamberId(sim, ant);
   if (route === 'granary') {
-    if (ant.chamberId < 0 || it.c + it.p <= 0) return;
-    if (storeSeedItem(sim, col, g, it, ant.chamberId) > 0) ant.bb[HANDLED] = it.id;
+    if (chamberId < 0 || it.c + it.p <= 0) return;
+    if (storeSeedItem(sim, col, g, it, chamberId) > 0) ant.bb[HANDLED] = it.id;
     return;
   }
-  if (isAnimal(it) && it.p > 0 && ant.chamberId >= 0) {
+  if (isAnimal(it) && it.p > 0 && chamberId >= 0) {
     addAnimalP(col.granary!, it.p);
     ant.bb[HANDLED] = it.id;
   }

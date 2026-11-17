@@ -4,23 +4,28 @@
 
 import type { Ant, Colony, GranaryModule, GranaryState, SeedCohort } from '@/sim/types';
 import { deposit } from '@/sim/colony/stores';
-import { PASTE_POOL_BUFFER_GD, PASTE_RELEASE_MIN } from '@/sim/balance/species-harvester';
+import { PASTE_POOL_BUFFER_GD, PASTE_RELEASE_MIN, SMALL_MILL_TIME_MULT } from '@/sim/balance/species-harvester';
 import type { GranaryParams } from './params';
 import { cohortStateOf, pruneCohorts } from './cohorts';
 
 /**
  * Game seconds one load of this cohort takes the ant to mill, at work rate 1; Infinity when the ant may not mill
  * it. Majors: millBaseS x (1 + millHardnessMult x hardness). Media of at least millMediaMinBu: only hardness up to
- * millMediaMaxHardness, x millMediaTimeMult. Sprouted seed is soft: any caste mills it at sproutedMillTimeMult of
- * the major's time (GDD 07 §6.3.4; §6.3.6 "minors only sprouted seeds"; the minors' action list in §5.3.1 omits
- * `mill-seed`, so actions.ts admits minors through `who` for sprouted seed only).
+ * millMediaMaxHardness, x millMediaTimeMult. Small workers (minors, smaller media): only soft seed, hardness up to
+ * their crack limit crackLimitMinor, x SMALL_MILL_TIME_MULT. Sprouted seed is soft: any caste mills it at
+ * sproutedMillTimeMult of the major's time (GDD 07 §6.3.4).
+ * Deviation from §6.3.6 ("minors only sprouted seeds"): the first brood are all nanitic minors and majors come only
+ * at N >= 40, so without soft-seed milling by small workers the granary fed no larva until a colony existed that
+ * could never grow (review finding F3). The crack limit is §6.3.2's own minor value.
  */
 export function millSecondsPerLoad(g: GranaryParams, ant: Pick<Ant, 'caste' | 'lengthBu'>, c: SeedCohort): number {
   const sprouted = c.state === 'sprouted';
+  const small = ant.caste === 'minor' || (ant.caste === 'media' && ant.lengthBu < g.millMediaMinBu);
   let mult: number;
   if (ant.caste === 'major') mult = 1;
-  else if (ant.caste === 'media' && ant.lengthBu >= g.millMediaMinBu && (sprouted || c.hardness <= g.millMediaMaxHardness)) mult = g.millMediaTimeMult;
-  else if (sprouted && (ant.caste === 'minor' || ant.caste === 'media')) mult = 1; // §6.3.4: sprouted seed, any caste
+  else if (ant.caste === 'media' && !small && (sprouted || c.hardness <= g.millMediaMaxHardness)) mult = g.millMediaTimeMult;
+  else if (small && sprouted) mult = 1; // §6.3.4: sprouted seed, any caste
+  else if (small && c.hardness <= g.crackLimitMinor) mult = SMALL_MILL_TIME_MULT;
   else return Infinity;
   const base = g.millBaseS * (1 + g.millHardnessMult * c.hardness) * mult;
   return sprouted ? base * g.sproutedMillTimeMult : base;

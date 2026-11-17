@@ -9,7 +9,8 @@
 //   protein.ts       the animal-protein minimum (larvae short of it grow at half rate)
 //   economy.ts       the granary step that runs the above
 //   actions.ts       mill-seed, gnaw-radicle, cut-seed-head primitives
-//   behaviour*.ts    mill, store (granary care), forage and scout (seed selection, heat range, departure gate)
+//   behaviour*.ts    mill, store (granary care), forage and scout (seed selection, heat range, departure gate),
+//                    patrol (the short morning patrol of the gate)
 //   rhythm.ts        heat on the trails, summer lull, morning patrol gate
 //   allocation.ts    mill / care / patrol labour demand
 //   castes.ts        caste destiny of worker larvae (minor / media / major, the major unlock and protein gate)
@@ -29,6 +30,7 @@ import { granaryAllocationSystem } from './allocation';
 import { casteDestinySystem } from './castes';
 import { harvesterForageBehaviour, harvesterScoutBehaviour } from './behaviourForage';
 import { granaryStoreBehaviour } from './behaviourCare';
+import { harvesterPatrolBehaviour } from './behaviourPatrol';
 import { millBehaviour } from './behaviourMill';
 import { addSeeds } from './cohorts';
 import { granaryDeliverySystem } from './delivery';
@@ -54,7 +56,7 @@ export const systems: readonly System[] = [
 
 /** Species-specific behaviours (set `species` on each). */
 export const behaviours: readonly Behaviour[] = [
-  millBehaviour, granaryStoreBehaviour, harvesterForageBehaviour, harvesterScoutBehaviour,
+  millBehaviour, granaryStoreBehaviour, harvesterForageBehaviour, harvesterScoutBehaviour, harvesterPatrolBehaviour,
 ];
 
 /** Command handlers this module owns. */
