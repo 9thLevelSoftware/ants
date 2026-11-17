@@ -86,7 +86,7 @@ const VERIFY_SCHEMA = {
 
 const progress = (t, role) => `
 
-PROGRESS FILE (binding). This machine restarts without warning (three times in the last three hours) and a restart ends your session; files on disk survive. Your progress file is ${ROOT}/docs/design/tasks/progress/${t.key}-${role}.md.
+PROGRESS FILE (binding). This machine restarts without warning (four times in a day) and a restart ends your session; files on disk survive. Your progress file is ${ROOT}/docs/design/tasks/progress/${t.key}-${role}.md.
 - If it exists, an earlier engineer in your exact role was cut off: read it first, check the tree against it ("git status", the files it names), and CONTINUE from where it stops instead of starting again; do not redo finished work.
 - Keep it current: update it at least every 20 minutes and always before a command that runs longer than 5 minutes. Short and factual: done (with file names and test names), in progress right now, remaining in order, findings and decisions so far, evidence paths, anything the next engineer must not repeat.
 - Before starting a heavy process run "free -g"; wait if less than 4 GB is available.`

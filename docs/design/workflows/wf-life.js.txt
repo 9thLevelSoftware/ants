@@ -7,7 +7,9 @@ export const meta = {
   ],
 }
 
-// args: { maxRounds?: number, firstRound?: number, model?: string, effort?: string }
+// args: { maxRounds?: number, firstRound?: number, model?: string, effort?: string, note?: string, firstRoundResult?: object }
+// firstRoundResult: the result of round `firstRound` when that round finished before an interruption; the loop then starts at its sweep.
+// note: given to the first round engineer that actually runs.
 const ROOT = '/home/user/foundress'
 const MAX = (args && args.maxRounds) || 4
 const FIRST = (args && args.firstRound) || 1
@@ -99,13 +101,13 @@ const SWEEP_SCHEMA = {
 
 const progress = (n, role) => `
 
-PROGRESS (binding). This machine restarts without warning (three times in the last three hours) and a restart ends your session; files on disk survive.
+PROGRESS (binding). This machine restarts without warning (four times in a day) and a restart ends your session; files on disk survive.
 - ${role === 'round' ? 'The ledger section "## Round ' + n + '" is your progress record: if it already exists, an earlier engineer of this round was cut off — read it, check the tree against it ("git status"), and CONTINUE from where it stops; do not redo finished work or re-measure what it already records. Keep it current as you go (at least every 20 minutes and before any command longer than 5 minutes), including what you are doing right now and what remains.' : 'Your progress file is ' + ROOT + '/docs/design/tasks/progress/colony-life-sweep-' + n + '.md: if it exists, an earlier engineer in your role was cut off — read it and CONTINUE; finished runs under test-output/colony-life/round-' + n + '/sweep/ made on the same tree (compare their time with the newest file under src/sim and src/worldgen) are kept, not re-run. Keep the file current (at least every 20 minutes): runs finished, review findings so far, what remains.'}
 - Before starting a heavy process run "free -g"; wait if less than 4 GB is available.`
 
-const roundPrompt = (n, prev) => COMMON + `YOU ARE THE ENGINEER OF ROUND ${n} of the colony-life task.
+const roundPrompt = (n, prev, withNote) => COMMON + `YOU ARE THE ENGINEER OF ROUND ${n} of the colony-life task.
 ${prev ? 'The independent sweep and review after the previous round reported (also recorded in the ledger):\n' + JSON.stringify(prev).slice(0, 30000) + '\nFix every blocker and major finding in it first (reproduce each; if one is not real, say why with evidence), then continue with the method.' : 'No independent sweep has been run for this task yet: your baseline is the sweep table named in the spec.'}
-Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.` + (args && args.note && n === FIRST ? '\n\nNOTE FROM THE INTEGRATOR: ' + args.note : '') + progress(n, 'round')
+Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.` + (args && args.note && withNote ? '\n\nNOTE FROM THE INTEGRATOR: ' + args.note : '') + progress(n, 'round')
 
 const sweepPrompt = (n, round) => COMMON + `YOU ARE NOT THE ENGINEER OF THE ROUND. You are the independent engineer who measures and reviews round ${n} of the colony-life task.
 The round's engineer reported (treat every claim as unproven):
@@ -120,8 +122,11 @@ Be concrete and fair: no style nitpicks, no speculative findings without evidenc
 
 const history = []
 let prev = null
+let noteGiven = false
 for (let n = FIRST; n < FIRST + MAX; n++) {
-  const round = await agent(roundPrompt(n, prev), { label: 'round:' + n, phase: 'Round', schema: ROUND_SCHEMA, model: MODEL, effort: EFFORT })
+  const given = n === FIRST && args && args.firstRoundResult
+  const round = given ? args.firstRoundResult : await agent(roundPrompt(n, prev, !noteGiven), { label: 'round:' + n, phase: 'Round', schema: ROUND_SCHEMA, model: MODEL, effort: EFFORT })
+  if (!given) noteGiven = true
   if (!round) { log('round ' + n + ' returned nothing; stopping'); history.push({ round: n, failed: true }); break }
   const sweep = await agent(sweepPrompt(n, round), { label: 'sweep:' + n, phase: 'Sweep', schema: SWEEP_SCHEMA, model: MODEL, effort: 'high' })
   history.push({ round: n, summary: round.summary, causes: round.causesRanked, fixes: (round.fixes || []).map((f) => f.cause + ' :: ' + f.beforeAfter), deviations: round.gddDeviations, notes: round.notesForIntegrator, sweep })

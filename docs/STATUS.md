@@ -670,3 +670,16 @@ threats-live (results `reviews/threats-live.json`, report `threats-live-report.m
 **First playable published** as a private artifact (owner only): `https://claude.ai/artifact/UN4he4cpvfLj687nUN4BMF` — slug `dd97a4c3-a304-4801-aa70-0302442d71e6`, version `1794941134-d1bb`. Built from the tree at 18:39 UTC (R20 start day 5, round-4 fixes, predation stop-gap), `npm run build:portable` + `verify:portable` OK. Republish with `publish_files` (slug + base_version) after the next gate.
 
 A **look-and-feel pass 3** (app-side items S4, S5, S8–S16, S18, S11, stage1a camera, panels tap threshold) is queued as its own task once the machine has a free slot.
+
+## Nov 17 19:05 UTC — fourth container restart (18:55); relaunched; R27
+
+Restart at 18:55 UTC (fourth: ≈ 23:00 Nov 16, 01:24, 01:53, 18:55 Nov 17). Disk intact; snapshot `1274d45`. Lost in flight: the sweep after round 4 (4 of 15 runs done; progress file `progress/colony-life-sweep-4.md`), threats-calibrate impl (1 h 50 min in), look-pass-3 impl (10 min in).
+
+- `wf-life.js` can now start at a round's sweep: `args.firstRoundResult` (the finished round's result) and the note goes to the first round engineer that actually runs. Copies in `docs/design/workflows/`. Round 4's full result: `reviews/colony-life-round-4.json`.
+- Relaunched:
+  - colony-life `w732tzrqp` / wf_901e470f-d2a: `{firstRound: 4, maxRounds: 5, firstRoundResult: <round 4 in short>, note: …}` → sweep 4 continues, then rounds 5–8.
+  - threats-calibrate `w4bdetuz7` / wf_81a26f5f-ba6 (continue from its progress file).
+  - look-pass-3 `waeqyax2g` / wf_08466742-ac3.
+- **R27 — winter stores check**: the viability bar's stores check becomes "stores at the first tick of winter cover the lapse's own carbohydrate need plus 4 game days of spring adult need" (round 4's proposal, accepted); the autumn provisioning target (R6) aims for it. In the round-5 note.
+- Round-5 note also carries: creatures folder stays with threats-calibrate; directions 8–9; core gaps from threats-live; sim-side needs of the app gate (S2, S3, S6, S7, S17, nest record `reopening`), S3 and S6 to be done in round 5.
+- App string after R20: `src/ui/screens/newgame/species.ts` Lasius `foundingSeason 'summer'` → spring (look-pass-3 item 6).
