@@ -3,7 +3,7 @@
 // the lek centre while the gyne climbs to it and mates. Render-only, deterministic in the tick: nothing is written
 // back. Their ids are negative so they never meet a sim id in the per-ant render state.
 import type { Vec3 } from '@/core/math/vec3';
-import { AntFlag } from '@/sim/types';
+import { AntFlag, POSES } from '@/sim/types';
 import type { AntView } from './simAdapter';
 import { SWARM } from './tuning';
 
@@ -20,7 +20,7 @@ function male(i: number, colony: number): AntView {
   return {
     id: SWARM_ID0 - i, alive: true, colony, caste: 'male', pos: v(), prevPos: v(), up: { x: 0, y: 1, z: 0 }, prevUp: { x: 0, y: 1, z: 0 },
     fwd: { x: 1, y: 0, z: 0 }, prevFwd: { x: 1, y: 0, z: 0 }, speed: 0, footOffset: 0, medium: 'air', lengthBu: SWARM.lengthBu,
-    sizeClass: null, flags: AntFlag.WINGED, pose: 0, carry: { kind: 'none', id: -1 } as AntView['carry'], cropC: 0, cropP: 0,
+    sizeClass: null, flags: AntFlag.WINGED, pose: POSES.indexOf('fly'), carry: { kind: 'none', id: -1 } as AntView['carry'], cropC: 0, cropP: 0,
     cropCap: 0, bornTick: 0, alarmLevel: 0,
   } as AntView;
 }

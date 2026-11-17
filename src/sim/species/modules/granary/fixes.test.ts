@@ -23,6 +23,7 @@ import { granaryDeliverySystem, putDownChamberId } from './delivery';
 import { cutHeadNow } from './behaviourForage';
 import { relocateTarget } from './relocate';
 import { ti } from '@/sim/colony/taskIdx';
+import { syncDisplay } from './display';
 import { patrolDiag } from './diagnostics';
 
 function run(sim: Sim, ticks: number, each?: () => void): void {
@@ -227,5 +228,20 @@ describe('F10 put-down chamber', () => {
     expect(putDownChamberId(k.sim, ant)).toBe(ch.id);
     granaryDeliverySystem.run(k.sim);
     expect(stockOf(k.granary)).toBeCloseTo(1, 6);
+  });
+});
+
+describe('F4 display seeds lie on the granary floor', () => {
+  it('each display seed is in open space with solid floor just below it', () => {
+    const k = messorKit();
+    addSeeds(k.granary, k.g, 'S', 0.2, 12, 0.3, 0);
+    syncDisplay(k.sim, k.sim.state.colonies[0]);
+    const seeds = k.sim.state.items.filter((it) => it.alive && it.kind === 'seed' && it.chamberId === k.granaryChamber.id);
+    expect(seeds.length).toBeGreaterThan(0);
+    const bu = k.sim.world.bu;
+    for (const it of seeds) {
+      expect(k.sim.field.sampleXYZ(it.pos.x, it.pos.y, it.pos.z)).toBeGreaterThan(0);
+      expect(k.sim.field.sampleXYZ(it.pos.x, it.pos.y - 0.3 * bu, it.pos.z)).toBeLessThanOrEqual(0);
+    }
   });
 });

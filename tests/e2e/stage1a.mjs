@@ -304,6 +304,7 @@ export default async ({ page, shot, log }) => {
         result.egg.laidAfterSeal = laid;
       }
     }
+    log('egg path', JSON.stringify(result.egg));
   }
   if (laid <= brood0) {
     // lay-egg needs a registered chamber or the founding cell (nestops chamber detection / the 1B founding flow)

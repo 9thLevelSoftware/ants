@@ -178,11 +178,18 @@ export default async ({ page, shot, log, wait }) => {
   await g(() => window.__game.release());
   await g(() => window.__game.step(1));
   await render();
-  const other = await g(([id, w]) => {
-    const gm = window.__game; // a worker other than the one just released, where it is now
-    return w.map((x) => gm.query.ant(x.id)).find((a) => a && a.id !== id);
+  // a worker other than the one just released, where it is now, and on screen (gate-close-app: the first other worker
+  // may have walked out of the frame meanwhile; the same on-screen rule as the hover pick above)
+  const others = await g(([id, w]) => {
+    const gm = window.__game;
+    return w.map((x) => gm.query.ant(x.id)).filter((a) => a && a.id !== id);
   }, [hovered, workers]);
-  const scr2 = await g((p) => window.__game.views.project(p), { x: other.pos.x + other.up.x * 0.3 * bu, y: other.pos.y + other.up.y * 0.3 * bu, z: other.pos.z + other.up.z * 0.3 * bu });
+  let other = null, scr2 = null;
+  for (const o of others) {
+    scr2 = await g((p) => { const q = window.__game.views.project(p); return q && q.x > 0 && q.y > 0 && q.x < innerWidth && q.y < innerHeight ? q : null; }, { x: o.pos.x + o.up.x * 0.3 * bu, y: o.pos.y + o.up.y * 0.3 * bu, z: o.pos.z + o.up.z * 0.3 * bu });
+    if (scr2) { other = o; break; }
+  }
+  expect(scr2, 'a second worker on screen', others.length);
   // A real held left button (400 ms) through the browser's mouse events and the input layer (GDD 01 §3.2), logged
   // only: in test mode the Game renders (and runs the views layer) only in frames with input activity, and the input
   // layer's hold pulse does not count as activity, so the frame where the hold fires is usually skipped (reported to

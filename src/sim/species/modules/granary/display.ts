@@ -9,7 +9,9 @@ import type { Chamber, Colony, Item, Sim, System } from '@/sim/types';
 import { spawnItem, removeItem } from '@/sim/entities';
 import { floorPoint } from '@/sim/ants/behaviours/nest/places';
 import { chamberById } from '@/sim/colony/census';
-import { DISPLAY_LOADS_PER_SEED, DISPLAY_SEEDS_MAX, DISPLAY_STEP_TICKS, SEED_LENGTH_BU } from '@/sim/balance/species-harvester';
+import {
+  DISPLAY_FLOOR_STEP_BU, DISPLAY_FLOOR_TRIES, DISPLAY_LOADS_PER_SEED, DISPLAY_SEEDS_MAX, DISPLAY_STEP_TICKS, SEED_LENGTH_BU,
+} from '@/sim/balance/species-harvester';
 import { granaryColonies } from './economy';
 import { stockOf } from './state';
 
@@ -20,10 +22,35 @@ export function isDisplaySeed(it: Item, colonyId: number): boolean {
 
 const scratch = { x: 0, y: 0, z: 0 };
 
+/**
+ * Drops p onto the carved floor below it and returns whether it found one: the chamber record is a fitted
+ * ellipsoid, and a dug chamber's real floor often lies above the ellipsoid's bottom, so a seed there would sit
+ * inside the soil (review finding F4: no seed could be seen in the granary). From the chamber's mid height down in
+ * DISPLAY_FLOOR_STEP_BU steps to the first solid sample, at most 2 half-heights down (a hole in the floor, the
+ * shaft out, is not a floor).
+ */
+function restOnFloor(sim: Sim, ch: Chamber, p: { x: number; y: number; z: number }): boolean {
+  const step = DISPLAY_FLOOR_STEP_BU * sim.world.bu;
+  let y = ch.center.y;
+  if (!(sim.field.sampleXYZ(p.x, y, p.z) > 0)) return false;
+  const bottom = ch.center.y - 2 * ch.radii.y;
+  while (y - step > bottom && sim.field.sampleXYZ(p.x, y - step, p.z) > 0) y -= step;
+  if (y - step <= bottom) return false;
+  p.y = y;
+  return true;
+}
+
 function spawnDisplaySeed(sim: Sim, col: Colony, ch: Chamber, k: number, nestId: number): void {
-  const frac = 0.15 + 0.7 * Math.sqrt(hash3i(ch.id, k, 1, 0x5eed));
-  const ang = hash3i(ch.id, k, 2, 0x5eed) * Math.PI * 2;
-  const p = floorPoint(ch, frac, ang, scratch);
+  // a few tries round the floor (a spot over a hole or under a wall is skipped), else the middle of the floor
+  let p = scratch;
+  let placed = false;
+  for (let t = 0; t < DISPLAY_FLOOR_TRIES && !placed; t++) {
+    const frac = 0.15 + 0.7 * Math.sqrt(hash3i(ch.id, k, 1 + 4 * t, 0x5eed));
+    const ang = hash3i(ch.id, k, 2 + 4 * t, 0x5eed) * Math.PI * 2;
+    p = floorPoint(ch, frac, ang, scratch);
+    placed = restOnFloor(sim, ch, p);
+  }
+  if (!placed) { p = floorPoint(ch, 0, 0, scratch); restOnFloor(sim, ch, p); }
   const cls = hash3i(ch.id, k, 3, 0x5eed) < 0.6 ? 'S' : 'M';
   spawnItem(sim, {
     kind: 'seed', pos: { x: p.x, y: p.y, z: p.z },

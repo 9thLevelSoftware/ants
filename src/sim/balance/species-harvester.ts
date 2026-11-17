@@ -217,3 +217,7 @@ export const FOUND_SPRING_HOLD_MAX_GD = 7;
 export const DISPLAY_LOADS_PER_SEED = 1.5;
 export const DISPLAY_SEEDS_MAX = 40;
 export const DISPLAY_STEP_TICKS = 100;
+/** Step of the search for the carved floor under a display seed, BU. */
+export const DISPLAY_FLOOR_STEP_BU = 0.1;
+/** Spots tried for a display seed before it goes to the middle of the floor. */
+export const DISPLAY_FLOOR_TRIES = 4;

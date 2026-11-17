@@ -35,6 +35,14 @@ Started 05:08 UTC (2026-11-17). Fresh start (no earlier progress file).
   hand-over 2.811 gd/15 as round 1). A/B planned after the sweep: round-start tree 151cc41 (no round-2 sim change) in
   scratchpad/ab151 (git archive; delete after), cache copied as -any.bin, `--cache cache --cache-any`.
 - kd #1 NOT viable (15->11, old-age 3, crushed 1); 82 springtails appeared, 6 subdued, 1 prey delivery; 'unknown' P 0.515.
+- 06:12 SWEEP DONE (06:08). Table written: test-output/colony-life/round-2/sweep-table.md. Viability NOT met: 8 of 15
+  (we 1/3, sg 2/3, pp 2/3, cpv 3/3, kd 0/3). R19 NOT met 3/7: held 4/15, eclosions median 0, P 0.031, C 1.016 ok,
+  trip success 24.7 %, first>=9 13/15 ok, no lost 13/15 ok. 14 runs flagged; viable->NOT: we2, we3, pp1, kd1, kd2, kd3.
+  Median P without 'unknown' deliveries: round 1 0.047 -> round 2 0.030; C 1.148 -> 0.982.
+- Hunting sweep-wide: 864 springtails + 195 mites appeared ahead of foragers/scouts, 53 + 11 subdued, 41 prey loads home
+  (P 7.9); sg #1 65 appeared / 0 subdued; we #3 nest 4 BU from its patch, 69 appeared / 1 subdued.
+- 06:10 A/B running in scratchpad/ab151/out (round-start tree 151cc41, same hand-overs): we #2, kd #1.
+- Next: probe-hunt on sg #1 hand-over (cache founded-...-suburban-garden-1-...-fe66cb2b.bin) after the A/B.
 
 ## Remains
 - table, bars, regressions, ledger section

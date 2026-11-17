@@ -53,3 +53,8 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 05:47 stage1a strict FAIL at egg (lay refused in dig phase: founding lays only after sealing). Script now plays seal->lay before stand-in (tests/e2e/stage1a.mjs). Rerun pending.
 - 06:01 founding2 PASS (sealed 100 ticks, 3 plugs, 24 eggs, 16 workers). Running: founding3 stage1a lifecycle views (bg from 06:02).
 - Report draft being written at docs/design/tasks/gate-close-app-report.md.
+- 06:14 founding3 PASS (sealed 50 ticks, 2 plugs, 7 workers).
+- 06:22 stage1a strict still FAIL at egg; added log of the seal->lay path (phase) to see why; rerun later.
+- 06:28 lifecycle PASS; 03-flight.png now SHOWS the males' swarm round the gyne (lod2 20 + lod3 10 drawn). Males fly in walking pose, wings faint; gyne pale at night -> still-wrong list.
+- 06:31 views FAIL: script took an off-screen second worker (project() null). Script fixed to pick an on-screen worker (tests/e2e/views.mjs ~181). Swarm males now in 'fly' pose.
+- Running (bg from 06:35): views stage1a panelsA panelsB. Then: photo a11yA a11yB; stage2; playSeed1; playKitchen; frametime; portable.

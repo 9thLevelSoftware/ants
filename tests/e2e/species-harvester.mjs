@@ -168,12 +168,22 @@ export default async ({ page, shot, log }) => {
   expect(chamber && chamber.type === 'granary' && chamber.stock > 0, 'the seed is not in a granary chamber', chamber);
   log(`granary chamber: ${JSON.stringify(chamber)}`);
   await step(110); // display seeds sync
-  // the camera inside the chamber, near its wall, looking across the floor where the display seeds lie
-  await g(([ch, b]) => {
-    const eye = { x: ch.center.x + ch.radii.x * 0.75, y: ch.center.y + ch.radii.y * 0.2, z: ch.center.z + ch.radii.z * 0.3 };
-    const look = { x: ch.center.x - ch.radii.x * 0.2, y: ch.center.y - ch.radii.y * 0.6, z: ch.center.z };
-    window.__game.camera.setPose(eye, look);
-  }, [chamber, bu]);
+  // the camera inside the chamber, low over the floor, looking at the seeds lying there (the display seeds that
+  // mirror the stock; their centroid, else the floor centre)
+  const seedsAt = await sim((sm, id) => {
+    const ps = sm.state.items.filter((it) => it.alive && it.kind === 'seed' && it.inNest && it.chamberId === id).map((it) => it.pos);
+    if (ps.length === 0) return null;
+    const c = ps.reduce((a, p) => ({ x: a.x + p.x / ps.length, y: a.y + p.y / ps.length, z: a.z + p.z / ps.length }), { x: 0, y: 0, z: 0 });
+    return { c, n: ps.length };
+  }, chamber.id);
+  log(`granary seeds on the floor: ${JSON.stringify(seedsAt)}`);
+  const look = seedsAt ? seedsAt.c : { x: chamber.center.x, y: chamber.center.y - chamber.radii.y * 0.7, z: chamber.center.z };
+  await g(([p, ch, b]) => {
+    const dx = ch.center.x - p.x, dz = ch.center.z - p.z, d = Math.max(1e-6, Math.hypot(dx, dz));
+    // from the chamber's middle side of the seeds, 2.5 BU off and 1.2 BU up
+    const eye = { x: p.x + (dx / d) * 2.5 * b, y: p.y + 1.2 * b, z: p.z + (dz / d) * 2.5 * b };
+    window.__game.camera.setPose(eye, p);
+  }, [look, chamber, bu]);
   await step(1);
   await highShot('02-granary-chamber');
 
@@ -231,7 +241,7 @@ export default async ({ page, shot, log }) => {
   log(`milling: ${JSON.stringify(result.checks.milling)}`);
   expect(chaff, 'no chaff on a midden: nothing was milled', result.checks.milling);
   if (chaff) {
-    await g(([p, b]) => window.__game.camera.setPose({ x: p.x + 10 * b, y: p.y + 9 * b, z: p.z + 10 * b }, p), [chaff, bu]);
+    await g(([p, b]) => window.__game.camera.setPose({ x: p.x + 3 * b, y: p.y + 2.2 * b, z: p.z + 3 * b }, p), [chaff, bu]);
     await step(1);
     await highShot('05-chaff-midden');
   }

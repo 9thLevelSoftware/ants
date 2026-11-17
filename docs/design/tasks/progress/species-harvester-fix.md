@@ -33,7 +33,9 @@
 ## 06:40 e2e
 - run 1/2 (test-output/harvester-fix/e2e*): 3 natural first workers; 01 seed carrier LOOKED AT (media with a visible seed,
   on a leaf, no column). Failed at the granary: planDig via window.__game.command made no plan in the browser
-  (node probe plan2.ts: the same command works on the sim). Run 3: refused 'overlaps-plan' (architect plan on +x side). Run 4: tries 4 sides of the royal chamber.
+  (node probe plan2.ts: the same command works on the sim). Run 3: refused 'overlaps-plan' (architect plan on +x side). Run 4: tries 4 sides of the royal chamber -> ok:true, all 5 shots; 03 good, 04 ok, 01 ok (seed visible, no column),
+  02 weak (dark, motes), 05 blurry. Run 5: 05 chaff visible (good); 02 no seed visible -> display.ts restOnFloor (seeds were inside the soil under
+  the fitted ellipsoid floor) + test F4 in fixes.test.ts (12 pass). Run 6 next, then viability.
 ## Viability so far (test-output/harvester/viab2)
 - pp2: real founding never handed over in 16 gd; forced seal failed (egg/larva flooding 18, queen exhaustion). Founding, not granary.
 - pp1 (running): hand-over 2 workers; days 1-7 trips 0, brood 4 eggs -> 0 by day 4, P flat 0.3. To probe with
