@@ -121,8 +121,16 @@ function bandDig(sim: Sim, species: SpeciesId, x: number, z: number, theta: numb
   return { fDig: sum / SUIT.bandSamples, material: deep };
 }
 
+/** Optional species rule (additive, species-carpenter): adjusts the ground reading, e.g. a wood nester reads the wood at p. */
+export const siteAssessRules: { adjust: ((sim: Sim, p: Vec3, base: SiteReading) => SiteReading) | null } = { adjust: null };
+
 /** The founding queen's assessment of the ground at (x, z) (any y: the ground height is taken). */
 export function assessSite(sim: Sim, p: Vec3): SiteReading {
+  const base = assessGround(sim, p);
+  return siteAssessRules.adjust ? siteAssessRules.adjust(sim, p, base) : base;
+}
+
+function assessGround(sim: Sim, p: Vec3): SiteReading {
   const def = speciesOf(sim);
   const species = def.id as SpeciesId;
   const prof = siteProfile(species);

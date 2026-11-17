@@ -188,7 +188,8 @@ function measure(sim: Sim, g: FoundingGeometry, all: readonly number[], openings
   const widthOk = wideDeep.length > 0;
   // the cell's roof: soil above the cavity over some wide deep sample (not under the shaft, whose column is open)
   const roofMin = FOUNDING_ROOF_MIN_BU * bu;
-  const roofOk = covered || wideDeep.some((key) => roofOver(sim, sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) >= roofMin);
+  const roofOk = covered || wideDeep.some((key) => roofOver(sim, sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) >= roofMin)
+    || (!!rule && wideDeep.some((key) => (rule(sim, nest, sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) ?? 0) >= roofMin));
   const dBu = dMax / bu;
   const readiness = 0.4 * Math.min(1, dBu / dMin) + 0.6 * Math.min(1, vDeep / g.vMin) * (widthOk ? 1 : 0.8);
   const ready = dBu >= dMin && vDeep >= g.vMin && widthOk && roofOk && openings <= FOUNDING_MAX_OPENINGS;

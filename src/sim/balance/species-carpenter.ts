@@ -65,6 +65,8 @@ export const MC_WORD_WET_PCT = 30;
 export const FOUND_WOOD_SEARCH_BU = 3000;
 /** The automatic founding cell sits this deep into the wood from its top surface, BU (GDD 03 §13.1 D_MIN 3 + 1). */
 export const FOUND_CELL_DEPTH_BU = 4.5;
+/** The automatic founding cell keeps this much solid wood between it and any open space it did not carve, BU. */
+export const FOUND_CELL_CLEAR_BU = 2;
 
 /** Diagnostics thresholds of the parent moisture (§6.2.10): warn 11-15 or 30-35, bad < 11 or > 35, %. */
 export const DIAG_MC_BAD_LOW_PCT = 11;
@@ -78,3 +80,19 @@ export const DIAG_SHUTTLE_WAIT_GD = 0.5;
 export const MAJOR_GATE_GD = 2;
 /** Shares the directive `casteEmphasis` (−1..1) moves the major target by: ±50 % of itself (§2.6). */
 export const CASTE_EMPHASIS_SPAN = 0.5;
+/**
+ * Share of the caste-mix ramp present the moment the large castes unlock (GDD 07 App. E 14 wants media and majors
+ * among new larvae at age 2.0 exactly, while §5.2.2 ramps the target in over a year from that age) [EST].
+ */
+export const CASTE_RAMP_START = 0.1;
+
+/** Satellite starter cell (GDD 07 §5.2.6 satellite nursery 10 BU long): tunnel 2 BU x 4 BU, cell 6 x 2.5 x 10 BU. */
+export const SATELLITE_CELL = { tunnelD: 2, tunnelLen: 4, w: 6, h: 2.5, l: 10 } as const;
+/** Satellite wood must be at least this thick, BU (a 6 BU cell with walls) [EST]. */
+export const SATELLITE_MIN_THICK_BU = 9;
+/** Shuttle jobs are handed to free parent nurses every this many ticks (the 0.25 GD evaluation is per item). */
+export const WOOD_SHUTTLE_TICKS = 50;
+/** A shuttle nurse arrives within this distance of the target chamber's centre, BU. */
+export const SHUTTLE_ARRIVE_BU = 2;
+/** A shuttle trip is given up after this long, game days (a cut trail, an unreachable satellite). */
+export const SHUTTLE_TIMEOUT_GD = 0.5;

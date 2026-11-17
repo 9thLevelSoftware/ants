@@ -42,6 +42,11 @@ export const SEED_ODOUR_BU = 10;
 export const SEED_QUALITY = 1.0;
 /** Feeding slots of a seed node. */
 export const SEED_SLOTS = 4;
+/** Ground seed patches in open ground around the nest (GDD 05 grass-seed "open zones") and their ring, BU [EST]. */
+export const SEED_PATCHES = 16;
+export const SEED_PATCH_RADIUS_BU: readonly [number, number] = [40, 420];
+/** Seed heads a seed plant carries while the seed rain lasts (cut-seed-head detaches 1-3 seeds each) [EST]. */
+export const SEED_HEADS_PER_PLANT = 4;
 
 // ---- granary ----
 
@@ -115,3 +120,15 @@ export const WINDOW_ACTIVITY_MIN = 0.15;
 
 /** Game days of winter need moved from the granary into the pool when the banner shows. */
 export const WINTER_STOCK_GD = 7;
+
+// ---- founding (GDD 06 §5.15: winter inside the Messor lapse) ----
+
+/** Survival of each brood item over the winter jump inside the founding lapse (larval overwinter survival). */
+export const FOUND_WINTER_BROOD_SURVIVAL = 0.85;
+
+// ---- granary display (seed items mirroring the stock, for the picture only) ----
+
+/** Seed loads per display seed on a granary floor, the most display seeds per granary, and the sync period. */
+export const DISPLAY_LOADS_PER_SEED = 1.5;
+export const DISPLAY_SEEDS_MAX = 40;
+export const DISPLAY_STEP_TICKS = 100;

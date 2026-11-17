@@ -2,7 +2,7 @@
 // nurses load their crops from to feed larvae, the queen and adults), and the animal share of the pool's protein
 // (§6.3.7). Paste exists only by milling: seeds in the granary feed nobody.
 
-import type { Ant, Colony, GranaryModule, GranaryState, SeedCohort, Sim } from '@/sim/types';
+import type { Ant, Colony, GranaryModule, GranaryState, SeedCohort } from '@/sim/types';
 import { deposit } from '@/sim/colony/stores';
 import { PASTE_POOL_BUFFER_GD, PASTE_RELEASE_MIN } from '@/sim/balance/species-harvester';
 import type { GranaryParams } from './params';
@@ -11,14 +11,16 @@ import { cohortStateOf, pruneCohorts } from './cohorts';
 /**
  * Game seconds one load of this cohort takes the ant to mill, at work rate 1; Infinity when the ant may not mill
  * it. Majors: millBaseS x (1 + millHardnessMult x hardness). Media of at least millMediaMinBu: only hardness up to
- * millMediaMaxHardness, x millMediaTimeMult. Sprouted seed is soft: x sproutedMillTimeMult. Minors: never (species
- * data lists no `mill-seed` for minors, GDD 07 §5.3.1).
+ * millMediaMaxHardness, x millMediaTimeMult. Sprouted seed is soft: any caste mills it at sproutedMillTimeMult of
+ * the major's time (GDD 07 §6.3.4; §6.3.6 "minors only sprouted seeds"; the minors' action list in §5.3.1 omits
+ * `mill-seed`, so actions.ts admits minors through `who` for sprouted seed only).
  */
 export function millSecondsPerLoad(g: GranaryParams, ant: Pick<Ant, 'caste' | 'lengthBu'>, c: SeedCohort): number {
   const sprouted = c.state === 'sprouted';
   let mult: number;
   if (ant.caste === 'major') mult = 1;
   else if (ant.caste === 'media' && ant.lengthBu >= g.millMediaMinBu && (sprouted || c.hardness <= g.millMediaMaxHardness)) mult = g.millMediaTimeMult;
+  else if (sprouted && (ant.caste === 'minor' || ant.caste === 'media')) mult = 1; // §6.3.4: sprouted seed, any caste
   else return Infinity;
   const base = g.millBaseS * (1 + g.millHardnessMult * c.hardness) * mult;
   return sprouted ? base * g.sproutedMillTimeMult : base;
@@ -104,32 +106,4 @@ export function addAnimalP(mod: GranaryModule, p: number): void {
 /** Fraction of the pool's P that is animal now, 0..1. */
 export function animalFraction(col: Colony, mod: GranaryModule): number {
   return col.stores.p > 0 ? Math.min(1, (mod.poolAnimalP ?? 0) / col.stores.p) : 0;
-}
-
-/**
- * Updates every larva's running animal share (Brood.animalPShare) from the protein it digested since the last
- * step, at the pool's animal fraction. Records of larvae that left the stage are dropped.
- */
-export function updateLarvaShares(sim: Sim, col: Colony, mod: GranaryModule): void {
-  const f = animalFraction(col, mod);
-  const recs = mod.larvae ?? (mod.larvae = []);
-  const byId = new Map<number, (typeof recs)[number]>();
-  for (const r of recs) byId.set(r.broodId, r);
-  const keep: typeof recs = [];
-  for (const b of sim.stores.brood.list) {
-    if (!b.alive || b.colony !== col.id || b.stage !== 'larva') continue;
-    let r = byId.get(b.id);
-    if (!r) r = { broodId: b.id, fedP: 0, animalP: 0 };
-    const d = b.fedP - r.fedP;
-    if (d > 0) r.animalP += d * f;
-    r.fedP = b.fedP;
-    b.animalPShare = b.fedP > 0 ? Math.min(1, r.animalP / b.fedP) : 0;
-    keep.push(r);
-  }
-  mod.larvae = keep;
-}
-
-/** Larval growth multiplier of the animal-protein rule: animalProteinGrowthMult while the share is short. */
-export function proteinGrowthMult(g: GranaryParams, minFrac: number, share: number): number {
-  return share < minFrac ? g.animalProteinGrowthMult : 1;
 }

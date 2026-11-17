@@ -42,6 +42,7 @@ import { stageRank } from '@/sim/colony/starvation';
 import { surfaceActivityOf } from '@/sim/colony/envAdapter';
 import { HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P } from '@/sim/balance';
 import { SEASONS } from '@/sim/types';
+import { FoundingObserver, FunnelObserver, funnelMarkdown, type FunnelReport } from './lifeFunnel';
 
 declare const process: { exitCode?: number };
 
@@ -197,6 +198,10 @@ export interface LifeReport {
     larvaeStarved: number; underTargetGd: number; tripsPerWorkerGdUnderTarget: number; trips: number;
     tripSuccessShare: number; intakeOverNeedC: number; intakeOverNeedP: number;
   };
+  /** colony-life funnel (tools/sim/lifeFunnel.ts): where worker time, trips, food and brood go after the hand-over. */
+  funnel?: FunnelReport;
+  /** What the founding produced (absent for a cached hand-over): eggs, eclosions, brood and adult losses. */
+  foundingFunnel?: { eggsLaid: number; eclosed: number; broodDeaths: Record<string, number>; adultDeaths: Record<string, number> };
 }
 
 /**
@@ -251,6 +256,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   log(`world ${o.archetype} #${o.seed}: ${round(genMs)} ms, ${state.sources.filter((s) => s.alive).length} sources`);
 
   const f0 = performance.now(), t0 = sim.state.tick;
+  let fobs = cached ? null : new FoundingObserver(sim);
   let phase = cached ? (sim.state.player.opening?.phase ?? 'none') : found(sim, 16);
   let realFailure: string | null = null;
   if (!cached && phase !== 'handover' && phase !== 'done') {
@@ -260,11 +266,13 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     for (const t of times) { t.total = 0; t.max = 0; }
     state = createNewGame(config, world).state;
     sim = createSim(state, world, { systems: timed(systems, times) });
+    fobs = new FoundingObserver(sim);
     phase = found(sim, 16, true);
   }
   const counter = new EventCounter(sim);
   const stuck = new StuckSampler(sim);
   const econ = new EconSampler(sim);
+  const funnel = new FunnelObserver(sim);
   if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
@@ -302,6 +310,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     let ticksToday = 0;
     for (let i = 0; i < ticksPerDay; i++) {
       sim.tick();
+      funnel.tick();
       ticksToday++;
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();
@@ -348,6 +357,8 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   report.viable = judgeViable(report);
   const starvedLarvae = report.days.reduce((a, d) => a + (d.events.broodDeathsByCause['larva:starvation'] ?? 0), 0);
   report.econ = econ.result(starvedLarvae);
+  report.funnel = funnel.result();
+  if (fobs) report.foundingFunnel = { eggsLaid: fobs.eggsLaid, eclosed: fobs.eclosed, broodDeaths: fobs.deaths, adultDeaths: fobs.adultDeaths };
   return report;
 }
 
@@ -410,6 +421,11 @@ export function lifeMarkdown(r: LifeReport): string {
       + `and surface activity >= ${ECON_ACTIVITY_MIN}: ${e.tripsPerWorkerGdUnderTarget} (over ${e.underTargetGd} gd); trips ${e.trips}, `
       + `${Math.round(e.tripSuccessShare * 100)} % successful; intake / need C ${e.intakeOverNeedC}, P ${e.intakeOverNeedP}`);
   }
+  if (r.foundingFunnel) {
+    const ff = r.foundingFunnel;
+    lines.push('', `Founding funnel: eggs laid ${ff.eggsLaid}, eclosed ${ff.eclosed}, brood losses ${kv(ff.broodDeaths)}, adult deaths ${kv(ff.adultDeaths)}`);
+  }
+  if (r.funnel) lines.push(funnelMarkdown(r.funnel));
   const stuckDays = r.days.filter((d) => (d.stuck.stuckWhat ?? []).length > 0);
   if (stuckDays.length > 0) {
     lines.push('', 'Stuck ants (id task/state nav medium nest at x,y,z BU):');

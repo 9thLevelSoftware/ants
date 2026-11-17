@@ -4,7 +4,7 @@
 // escort her when she relocates.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Behaviour, Brood, Chamber, Sim } from '@/sim/types';
+import type { Ant, Behaviour, Brood, Chamber, Nest, Sim } from '@/sim/types';
 import { reserveFeedAllowed } from '@/sim/ants/actions';
 import { queenWantsFood, requestTask } from '@/sim/colony';
 import { QUEEN_TARGET_GUT_C } from '@/sim/balance/colony';
@@ -56,7 +56,23 @@ function eggPile(sim: Sim, ant: Ant, room: Chamber, k: number, out: Vec3): Vec3 
   return out;
 }
 
-function eggNearQueen(sim: Sim, ant: Ant, q: Ant): Brood | null {
+/**
+ * Where a collected egg would be put down: the egg pile of the best chamber for eggs (its own chamber when the
+ * sorting has none). Null when the colony has no such chamber.
+ */
+function eggDropPoint(sim: Sim, ant: Ant, nest: Nest, b: Brood, out: Vec3): Vec3 | null {
+  const ctx = sortOf(sim, ant.colony, nest.id);
+  const room = chamberIn(nest, ctx ? bestChamberId(ctx, 0) : -1) ?? chamberIn(nest, b.chamberId);
+  return room ? eggPile(sim, ant, room, b.id, out) : null;
+}
+
+/**
+ * The lowest-id free egg lying within EGG_COLLECT_BU of the queen that is worth collecting: its drop point lies
+ * beyond EGG_COLLECT_BU of her. In a chamber too small for that (a founding chamber of 2 BU radius, where the pile
+ * opposite her is still within reach of her) a carer would put the egg down where she picks it up again, for ever,
+ * and the egg could not be tended meanwhile (colony-life round 1): such eggs stay where the queen laid them.
+ */
+function eggNearQueen(sim: Sim, ant: Ant, q: Ant, nest: Nest): Brood | null {
   const r = EGG_COLLECT_BU * sim.world.bu;
   let best: Brood | null = null;
   near.length = 0;
@@ -64,10 +80,18 @@ function eggNearQueen(sim: Sim, ant: Ant, q: Ant): Brood | null {
   for (const id of near) {
     const b = sim.stores.brood.get(id);
     if (!b || !b.alive || b.colony !== ant.colony || b.stage !== 'egg' || b.carriedBy >= 0) continue;
-    if (Math.hypot(b.pos.x - q.pos.x, b.pos.y - q.pos.y, b.pos.z - q.pos.z) > r || !freeFor(sim, ant, b.id)) continue;
-    if (!best || b.id < best.id) best = b;
+    if (dist3(b.pos, q.pos) > r || !freeFor(sim, ant, b.id)) continue;
+    if (best && b.id >= best.id) continue;
+    const drop = eggDropPoint(sim, ant, nest, b, pile);
+    if (!drop || dist3(drop, q.pos) <= r) continue;
+    best = b;
   }
   return best;
+}
+
+function dist3(a: Vec3, b: Vec3): number {
+  const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 function attend(sim: Sim, ant: Ant): void {
@@ -76,7 +100,8 @@ function attend(sim: Sim, ant: Ant): void {
   if (q.state === 'queen.relocate') { setState(sim, ant, 'queen-care.escort', 'marker:move-queen'); return; }
   // her retinue follows her out of rising water (GDD 03 §11.3 "escorted by queen-care")
   if (isFleeingWater(q)) { setState(sim, ant, 'queen-care.escort', 'threat'); return; }
-  const egg = eggNearQueen(sim, ant, q);
+  const home = homeNest(sim, ant);
+  const egg = home ? eggNearQueen(sim, ant, q, home) : null;
   if (egg) { claim(sim, ant, Job.collectEggs, egg.id); setState(sim, ant, 'queen-care.collect-eggs', 'job:collect-eggs'); return; }
   const reserve = reserveTime(sim, ant) && ant.cropC + ant.cropP < QUEEN_FEED_LOADS;
   if ((reserve ? q.queen!.gut.c < QUEEN_TARGET_GUT_C : queenWantsFood(q)) && ant.carry.kind === 'none') {
@@ -152,11 +177,8 @@ function collectEggs(sim: Sim, ant: Ant): void {
   const nest = homeNest(sim, ant);
   if (!b || !nest) { recover(sim, ant, ENTRY, 'job:collect-eggs'); return; }
   if (b.carriedBy === ant.id) {
-    const ctx = sortOf(sim, ant.colony, nest.id);
-    const room = chamberIn(nest, ctx ? bestChamberId(ctx, 0) : -1) ?? chamberIn(nest, b.chamberId);
-    if (!room) { recover(sim, ant, ENTRY, 'job:collect-eggs'); return; }
+    if (!eggDropPoint(sim, ant, nest, b, pile)) { recover(sim, ant, ENTRY, 'job:collect-eggs'); return; }
     ant.bb[PICKED] = 2;
-    eggPile(sim, ant, room, b.id, pile);
     const st = approach(sim, ant, entity('point', -1, pile), BROOD_DROP_ARRIVE_BU * sim.world.bu, true);
     if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
     if (st === 'arrived') act(sim, ant, 'put-down', null);

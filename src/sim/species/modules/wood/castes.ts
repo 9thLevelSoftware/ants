@@ -5,7 +5,7 @@
 
 import type { Brood, CasteDef, Colony, Sim, SpeciesDef } from '@/sim/types';
 import { rngFloat } from '@/core/rng';
-import { CASTE_EMPHASIS_SPAN, MAJOR_GATE_GD } from '@/sim/balance/species-carpenter';
+import { CASTE_EMPHASIS_SPAN, CASTE_RAMP_START, MAJOR_GATE_GD } from '@/sim/balance/species-carpenter';
 import { NANITIC_SCALE } from '@/sim/balance/colony';
 import { larvaFood } from '@/sim/colony/life';
 import { ticksPerYear } from '@/sim/time';
@@ -45,7 +45,7 @@ export function casteTarget(sim: Sim, def: SpeciesDef, col: Colony, p: WoodParam
   let row = def.life.casteMixTarget[0];
   for (const r of def.life.casteMixTarget) if (n >= r[0]) row = r;
   const unlockAge = Math.min(...LARGE.map((c) => casteDef(def, c)?.unlock.minColonyAgeYears ?? 0));
-  const ramp = Math.max(0, Math.min(1, (colonyAgeYears(sim, col) - unlockAge) / Math.max(1e-6, p.casteRampYears)));
+  const ramp = Math.max(CASTE_RAMP_START, Math.min(1, (colonyAgeYears(sim, col) - unlockAge) / Math.max(1e-6, p.casteRampYears)));
   let media = row[2] * ramp, major = row[3] * ramp;
   if (!casteUnlocked(sim, def, col, 'media')) media = 0;
   if (!casteUnlocked(sim, def, col, 'major')) major = 0;

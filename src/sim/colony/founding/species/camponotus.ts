@@ -10,12 +10,20 @@ import { FOUNDING_TEMPLATE } from '@/sim/balance/nest';
 import {
   FOUND_SOUND_MIN_MC_PCT, FOUND_WOOD_MIN_THICK_BU, FOUND_WOOD_SEARCH_BU, MC_WORD_DAMP_PCT, MC_WORD_WET_PCT,
 } from '@/sim/balance/species-carpenter';
-import { carveCapsule } from '@/sim/nest/carveOps';
-import { primDistance } from '@/sim/species/modules/wood/primGeom';
+import { cellSiteIn, chewCell, type CellSize } from '@/sim/species/modules/wood/woodCell';
 import { woodParamsOf } from '@/sim/species/modules/wood/params';
 import { ensureWoodStates, primOf, woodClimateAt } from '@/sim/species/modules/wood/woodState';
 import { autoFoundingRules } from '../auto';
+import { siteAssessRules, type SiteReading } from '../siteAssess';
+import { siteQuality, siteWordOf } from '../siteScore';
+import { coverValueOf } from '@/worldgen/maps/suitability';
+import { woodDecayFactor } from '@/sim/species/modules/wood/biteRule';
+import { woodAt } from '@/sim/species/modules/wood/woodState';
 import { speciesOf } from '../access';
+
+const T = FOUNDING_TEMPLATE['camponotus-pennsylvanicus'];
+/** The founding cell (GDD 03 §13.1 CP: tunnel 6 BU into the wood, cell 4 x 2.5 x 5 BU). */
+const FOUNDING_CELL: CellSize = { tunnelD: T.shaftD, tunnelLen: T.shaftDepth, w: T.cell.w, h: T.cell.h, l: T.cell.l };
 
 /** A wood founding site: the primitive, the entry point on its side, the outward direction there (horizontal). */
 export interface WoodSite { prim: Primitive; wood: WoodState; entry: Vec3; out: Vec3; score: number }
@@ -47,44 +55,6 @@ function moistureScore(sim: Sim, mc: number): number {
   return 1;
 }
 
-const tmp = { x: 0, y: 0, z: 0 };
-
-/** Entry point on the primitive's side facing `from`, at a walkable height, with the outward horizontal direction. */
-function entryOf(sim: Sim, prim: Primitive, w: WoodState, from: Vec3): { entry: Vec3; out: Vec3 } | null {
-  const bu = sim.world.bu, a = w.grainAxis ?? { x: 0, y: 1, z: 0 };
-  const half = ((w.lengthBu ?? 0) * bu) / 2, margin = 6 * bu;
-  const vx = from.x - prim.pos.x, vy = from.y - prim.pos.y, vz = from.z - prim.pos.z;
-  let t = vx * a.x + vy * a.y + vz * a.z;
-  t = Math.max(-half + margin, Math.min(half - margin, t));
-  if (half < margin) t = 0;
-  // a point on the axis above the ground (vertical wood: low on the trunk, where a queen walks up to it)
-  const p0 = { x: prim.pos.x + a.x * t, y: prim.pos.y + a.y * t, z: prim.pos.z + a.z * t };
-  const ground = sim.field.height(p0.x, p0.z);
-  if (Math.abs(a.y) > 0.7) p0.y = Math.max(p0.y, ground + 3 * bu);
-  if (p0.y < ground + bu || primDistance(prim, p0) >= 0) return null;
-  let sx = from.x - p0.x, sz = from.z - p0.z;
-  // horizontal, perpendicular to a horizontal grain
-  if (Math.abs(a.y) < 0.7) { const d = sx * a.x + sz * a.z; sx -= d * a.x; sz -= d * a.z; }
-  const sl = Math.hypot(sx, sz);
-  if (sl < 1e-6) { sx = -a.z; sz = a.x; } else { sx /= sl; sz /= sl; }
-  // march out to the surface, then bisect
-  let lo = 0, hi = bu;
-  for (let n = 0; n < 400; n++) {
-    tmp.x = p0.x + sx * hi; tmp.y = p0.y; tmp.z = p0.z + sz * hi;
-    if (primDistance(prim, tmp) >= 0) break;
-    lo = hi; hi += bu;
-  }
-  for (let n = 0; n < 20; n++) {
-    const m = (lo + hi) / 2;
-    tmp.x = p0.x + sx * m; tmp.y = p0.y; tmp.z = p0.z + sz * m;
-    if (primDistance(prim, tmp) < 0) lo = m; else hi = m;
-  }
-  const entry = { x: p0.x + sx * hi, y: p0.y, z: p0.z + sz * hi };
-  // the entry must be free air on the outside (not buried in soil, not inside another solid)
-  if (sim.field.substrateXYZ(entry.x + sx * bu, entry.y, entry.z + sz * bu) <= 0) return null;
-  return { entry, out: { x: sx, y: 0, z: sz } };
-}
-
 /** The best founding wood within FOUND_WOOD_SEARCH_BU of p (moisture first, then distance; ties by primitive id). */
 export function bestWoodSite(sim: Sim, p: Vec3): WoodSite | null {
   const bu = sim.world.bu, reach = FOUND_WOOD_SEARCH_BU * bu;
@@ -95,49 +65,33 @@ export function bestWoodSite(sim: Sim, p: Vec3): WoodSite | null {
     if (!prim) continue;
     const d = Math.hypot(prim.pos.x - p.x, prim.pos.z - p.z);
     if (d > reach) continue;
-    const e = entryOf(sim, prim, w, p);
-    if (!e) continue;
     const score = moistureScore(sim, w.moisture) - d / reach;
-    if (!best || score > best.score) best = { prim, wood: w, entry: e.entry, out: e.out, score };
+    if (best && score <= best.score) continue;
+    const found = cellSiteIn(sim, prim, w, p, FOUNDING_CELL);
+    if (found) best = { prim, wood: w, entry: found.entry, out: found.out, score };
   }
   return best;
 }
 
 /**
  * The automatic founding's carve in wood: a horizontal tunnel of the template's diameter chewed in from the side,
- * and the cell (W x H x L, long along a horizontal grain) at its end, clipped to the wood by the species' dig rule.
- * The queen is moved to the entry. False (the soil template runs) when the species does not found in wood.
+ * and the cell (W x H x L, long along a horizontal grain) at its end. The queen is moved to the entry. False (the
+ * soil template runs) when the species does not found in wood.
  */
 export function carveWoodTemplate(sim: Sim, q: Ant, nest: Nest): boolean {
   const def = speciesOf(sim);
   if (def.opening.mode !== 'claustral-wood') return false;
   const site = bestWoodSite(sim, q.pos);
   if (!site) return false;
-  const bu = sim.world.bu, t = FOUNDING_TEMPLATE['camponotus-pennsylvanicus'];
+  const bu = sim.world.bu;
   const { entry, out, wood } = site;
-  const radius = ((wood.thicknessBu ?? 0) / 2) * bu;
-  // cell centre as deep as the template asks, but never past the middle of the wood
-  const depth = Math.min(radius, (t.shaftDepth + t.cell.w / 2) * bu);
-  const c = { x: entry.x - out.x * depth, y: entry.y, z: entry.z - out.z * depth };
-  const a = wood.grainAxis ?? { x: 0, y: 1, z: 0 };
-  // the cell's long axis: the grain when it is horizontal, else across the tunnel
-  let gx = a.x, gz = a.z;
-  if (Math.abs(a.y) > 0.7 || Math.hypot(gx, gz) < 1e-6) { gx = -out.z; gz = out.x; }
-  const gl = Math.hypot(gx, gz); gx /= gl; gz /= gl;
-  const sx = -gz, sz = gx; // horizontal, across the cell
-  const r = (t.cell.h / 2) * bu, along = (t.cell.l / 2) * bu - r, side = (t.cell.w / 2) * bu - r;
-  for (const k of [-1, 0, 1]) {
-    const ox = sx * side * k, oz = sz * side * k;
-    carveCapsule(sim, { x: c.x + ox - gx * along, y: c.y, z: c.z + oz - gz * along }, { x: c.x + ox + gx * along, y: c.y, z: c.z + oz + gz * along }, r);
-  }
-  const mouth = { x: entry.x + out.x * 1.5 * bu, y: entry.y, z: entry.z + out.z * 1.5 * bu };
-  carveCapsule(sim, mouth, c, (t.shaftD / 2) * bu);
+  const { tp } = chewCell(sim, nest, wood, entry, out, FOUNDING_CELL);
   const stand = { x: entry.x + out.x * 0.6 * bu, y: entry.y, z: entry.z + out.z * 0.6 * bu };
   sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: stand });
   if (nest.founding && nest.founding.state === 'site-search') nest.founding.state = 'digging';
   nest.origin = { ...entry };
   nest.substrate = site.prim.material;
-  if (nest.founding) nest.founding.cavitySeed = { ...c };
+  if (nest.founding) nest.founding.cavitySeed = { ...tp.c };
   return true;
 }
 
@@ -150,4 +104,30 @@ export function woodMoistureAtQueen(sim: Sim, q: Ant): number {
   return hit ? hit.mc : -1;
 }
 
+/**
+ * The site read-out of a wood nester (GDD 07 §5.2.3): antennating wood reads the wood, not the soil under it.
+ * Diggability is the chewing speed (decay class and moisture, best = 1) and moisture is the brood-moisture band;
+ * both fall to 0 at the zero-survival moisture (8 %). Inside wood the cell is roofed and above the ground water
+ * (flood factor 1). Ground away from wood keeps the ground reading (not diggable for this species: poor).
+ */
+export function woodSiteReading(sim: Sim, p: Vec3, base: SiteReading): SiteReading {
+  const def = speciesOf(sim);
+  const wp = woodParamsOf(def);
+  if (!wp || def.opening.mode !== 'claustral-wood') return base;
+  const hit = woodAt(sim, p, 1.5 * sim.world.bu);
+  if (!hit || !isFoundingWood(sim, hit.wood)) return base;
+  const mc = hit.wood.moisture;
+  const alive = Math.max(0, Math.min(1, (mc - wp.mcZeroSurvivalPct) / (wp.mcFullSurvivalPct - wp.mcZeroSurvivalPct)));
+  const best = woodDecayFactor(wp, 3, wp.mcFullSurvivalPct);
+  const fDig = Math.min(1, best / woodDecayFactor(wp, hit.wood.decay, mc)) * (mc >= wp.mcFullSurvivalPct ? 1 : alive);
+  const factors = base.factors.slice();
+  factors[0] = fDig;
+  factors[1] = moistureScore(sim, mc);
+  factors[3] = coverValueOf('ceiling');
+  factors[4] = 1;
+  const q = siteQuality(factors, def.id as Parameters<typeof siteQuality>[1]);
+  return { ...base, factors, q, word: siteWordOf(q), raw: { ...base.raw, material: hit.prim.material, cover: 'ceiling' } };
+}
+
 autoFoundingRules.carve = carveWoodTemplate;
+siteAssessRules.adjust = woodSiteReading;

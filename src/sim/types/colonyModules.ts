@@ -28,6 +28,14 @@ export interface NestSite {
   /** Moisture content % and decay 0..1 of the wood. */
   moisture: number;
   decay: number;
+  /** Additive (species-carpenter): tick the current state began. */
+  stateTick?: number;
+  /** Additive (species-carpenter): tick the site lost its walkable link to the parent, -1 linked. */
+  isolatedSinceTick?: number;
+  /** Additive (species-carpenter): young-brood hazard (GDD 07 §6.2.4) averaged over the relocation window, /GD (EMA). */
+  hazardEma?: number;
+  /** Additive (species-carpenter): late brood waiting in the parent for transport since this tick, -1 none. */
+  waitingSinceTick?: number;
 }
 
 /** wood-nesting (Camponotus): sites and satellites. */
@@ -37,6 +45,11 @@ export interface WoodModule {
   frassVisibility: number;
   /** Planned queen move; null none. */
   queenMove: { targetSiteId: number; dueTick: number } | null;
+  /** Additive (species-carpenter): frass pile units, interior and outdoor (GDD 07 §6.2.3 `frassVisibility` inputs). */
+  frassUnitsInterior?: number;
+  frassUnitsOutdoor?: number;
+  /** Additive (species-carpenter): brood shuttled parent -> satellite so far (diagnostics, tests). */
+  shuttled?: number;
 }
 
 /** One seed cohort in a granary (Messor). */
@@ -91,6 +104,9 @@ export interface LarvaProteinRecord {
   fedP: number;
   /** Animal protein digested so far, loads. */
   animalP: number;
+  /** Stage progress and fedC the record was last updated at (growth-rate rule). Absent = not seen yet. */
+  progress?: number;
+  fedC?: number;
 }
 
 /** granary (Messor). */
@@ -120,8 +136,36 @@ export interface GranaryModule {
   pasteUseYesterday?: number;
   /** Additive (species-harvester): game day the counters above belong to. */
   counterDay?: number;
+  /** Additive (species-harvester): mean daily seed intake over spring days, loads (summer-lull reference). */
+  springSeedMean?: number;
+  springDays?: number;
   /** Additive (species-harvester): the tick the granary systems last integrated, -1 never. */
   lastStepTick?: number;
+  /** Additive (species-harvester): seed node sites the module keeps stocked (GDD 05 grass-seed, GDD 07 §6.3.1). */
+  seedSites?: SeedSite[];
+  /** Additive (species-harvester): game day the seed sites were last refreshed for, -1 never. */
+  seedDay?: number;
+  /** Additive (species-harvester): calendar year whose winter the granary stock was moved into the pool for. */
+  winterYear?: number;
+}
+
+/** Additive (species-harvester): one place where seeds lie or hang (a grass-seed anchor or a ground patch). */
+export interface SeedSite {
+  pos: Vec3;
+  up: Vec3;
+  seedClass: SeedClass;
+  /** Seed hardness 0..1 (plant species). */
+  hardness: number;
+  /** World food anchor id, -1 for a ground patch. */
+  anchorId: number;
+  /** Host object (plant), -1 none. */
+  objectId: number;
+  /** Seeds a full node holds. */
+  capacity: number;
+  /** Live FoodSource id stocked at this site, -1 none now. */
+  sourceId: number;
+  /** Seed heads still on the plant (cut-seed-head), 0 for ground patches. */
+  seedHeads: number;
 }
 
 /** One fungus garden (Atta). Symbols follow GDD 07 §6.4 (G biomass, h health, i infection, c substrate, W waste). */

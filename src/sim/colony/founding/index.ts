@@ -6,6 +6,7 @@
 export { foundingCommandHandlers, foundingSystem } from './entry';
 export { runFounding } from './system';
 import './commands';
+import './species/camponotus'; // species founding rules (species-carpenter)
 export { foundingView, foundingBites, foundingPhaseAgeGd, type FoundingView } from './view';
 export { assessSite, coverLevelAt, footTrafficAt, deepMoisture, topsoilMoisture, type SiteReading } from './siteAssess';
 export { factorDots, factorWord, mapFactorsOf, siteProfile, siteQuality, siteWordOf, toptOf } from './siteScore';
