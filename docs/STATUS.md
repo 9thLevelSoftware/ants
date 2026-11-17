@@ -516,3 +516,9 @@ Rulings:
 - **R18 Protein a small colony can take.** Within 300 BU of the start site the world offers renewable protein of at least 1.5× the need of a 30-worker colony with full brood, in forms a small colony can take (prey patches, small carrion), and the forage AI finds and takes it. Hunting prey patches is a forage behaviour, not optional.
 - **R19 Growth bar** (on top of the viability bar; same 15-run sweep, flooding on): workers at winter ≥ first workers in ≥ 10 of 15 runs; median eclosions after hand-over ≥ 4; median intake/need P ≥ 0.7 and C ≥ 0.9; median trip success ≥ 50 %; first workers ≥ 9 in ≥ 13 of 15 runs; no worker lost (`worker:lost`) in ≥ 13 of 15 runs.
 - The pattern of three rounds (viab-economy, econ-growth, its fix) is each owner naming another module. Next: one task with authority over the whole sim, run as measured rounds with an independent sweep after each (`colony-life.md`), started when loco-fix3's fix round lands.
+
+## Nov 17 00:55 UTC — colony-life launched
+
+- `wy0oh3u7p` / wf_737d0742-569: `colony-life` (spec `docs/design/tasks/colony-life.md`, ledger `colony-life-ledger.md`), script `wf-life.js` (copy in `docs/design/workflows/`), args `{maxRounds: 4, firstRound: 1, model: 'opus', effort: 'high'}`. Each round: engineer accounts, ranks, fixes; an independent engineer runs the 15-run sweep and reviews. Stops when viability + growth (R19) hold with no serious finding. To resume after an interruption: same script and args plus `resumeFromRunId`.
+- The sim half of the gate (`gate-close-sim.md`) waits for this loop; its sweep step is then a confirmation. The app half (`gate-close-app.md`) starts when loco-fix3 + a11y land.
+- Running: `wbpbsguac` (loco-fix3 fix, a11y fix), `w4ku7i4q9` (carpenter, harvester), `wy0oh3u7p` (colony-life).
