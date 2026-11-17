@@ -46,3 +46,6 @@ Started 05:08 UTC (2026-11-17). Fresh start (no earlier progress file).
 
 ## Remains
 - table, bars, regressions, ledger section
+- 06:36 DONE. Ledger section "### Independent sweep after round 2" appended. A/B outputs kept in
+  test-output/colony-life/round-2/sweep-ab/ (round-start tree); variant runs (noB1, noC1, no patch capacity) recorded in
+  the ledger, scratch trees and probe tools deleted. No processes left running.

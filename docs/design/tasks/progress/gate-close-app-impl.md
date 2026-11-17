@@ -58,3 +58,4 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 06:28 lifecycle PASS; 03-flight.png now SHOWS the males' swarm round the gyne (lod2 20 + lod3 10 drawn). Males fly in walking pose, wings faint; gyne pale at night -> still-wrong list.
 - 06:31 views FAIL: script took an off-screen second worker (project() null). Script fixed to pick an on-screen worker (tests/e2e/views.mjs ~181). Swarm males now in 'fly' pose.
 - Running (bg from 06:35): views stage1a panelsA panelsB. Then: photo a11yA a11yB; stage2; playSeed1; playKitchen; frametime; portable.
+- 06:41 stage1a strict FAIL at egg: opening phase is still 'intro-card' (the 1A script never plays the opening; founding lays only in phase lay). Script/design mismatch; egg path proven by founding.mjs x3 + firstplay. Report, no further change.

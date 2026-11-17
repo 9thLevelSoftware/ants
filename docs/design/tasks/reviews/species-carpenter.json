@@ -1,0 +1,341 @@
+{
+ "impl:species-carpenter": {
+  "summary": "Carpenter ant (Camponotus pennsylvanicus) task, session 3. I continued from the two earlier sessions and did not start over; there was no progress file, so I wrote one from the tree: docs/design/tasks/progress/species-carpenter-impl.md. The wood-nesting module, the Camponotus founding rules and the balance file were already in place with green tests. This session added: a test for satellite founding (the 150-worker rule, the satelliteAuto toggle and the satellite marker); plain words for every wood diagnostic factor, remedy and value (I renamed the wood cause 'season' to 'wood-drying' because 'season' already means the Lasius laying season); and fixes to the e2e script, which now waits for a real frass pile and places the media and major ahead of the possessed minor. I ran the e2e to a pass and looked at all four shots. I ran viability sweeps on woodland-edge, kitchen-door and suburban-garden, the night-activity probes, a 28-day soak and a 28-day life run, and the long App. E 13 test, then deleted the probe files.\n\nViability bar: met on woodland-edge (3 of 3) and suburban-garden (2 of 3). I chose those because they have logs, stumps, fence posts and garden wood, the natural nest sites. Kitchen-door, the earlier choice, only reaches 1 of 3: workers there are crushed by footsteps at the door or lost, and scouts never reach food. The colonies stay viable by living on the hand-over food store. They make almost no foraging trips (0 to 0.13 per worker per game day) because the scouts time out or hit the curfew. That is the shared forage code, not this module, but it means the night shift cannot be seen in a full game.\n\nMost serious open problems, worst first:\n1. Foraging is close to zero, so night-time foraging cannot be shown in the full sim. In the 28-day run the queen starves of carbohydrate in year 2.\n2. App. E 13 (brood shuttling) moves 11 of 20 pupae in a game day; the target is 15. A generic nurse carry detour and stalls at the satellite's side opening are the losses.\n3. Queen relocation is only proposed, never carried out.\n4. Windows are not planned by the architect, and the hideFrass toggle is not built.\n5. The founding usually yields 12 first workers against the chapter's 6-11.\n6. The frass pile renders dark (soil fallback) instead of pale.\n7. Locomotion stalls (walker-stall) appear in 2 of the long runs.\n\nGDD 07 module status:\n- **Done:** wood state, moisture and decay, bite factors with grain and caste factors, minimum wall thickness and carved-fraction limit, wood-only digging, the brood moisture rule with the dry bonus, frass items going into piles with a visibility count, satellite site states and founding (architect rule plus marker), isolation, the shuttle job rule and trip, drumming, age-gated castes, nanitic lifespans, founding in a wood cavity with the moisture read-out, and all diagnostics with words.\n- **Partly done:** windows (counted, not planned), queen relocation (proposal and alert only), the night shift (the activity gate works in unit tests, but full-sim foraging is too rare to show it), shuttle throughput.\n- **Not done:** hideFrass, leak events, the heated-building winter rule, the light-change U-turn (a stretch item), the soil incubator (a stretch item).",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/species/modules/wood/satellite.test.ts (new this session)",
+   "/home/user/foundress/src/sim/species/modules/wood/diagnostics.ts (cause 'season' -> 'wood-drying')",
+   "/home/user/foundress/src/content/text/words.ts (additions only: 13 factor causes, 2 remedies, 5 diag value units for wood; authorised by the addendum)",
+   "/home/user/foundress/tests/e2e/species-carpenter.mjs (frass loop waits for a pile >= 1 unit, strict pile expectation, media/major teleported ahead of the possessed minor)",
+   "/home/user/foundress/tools/sim/probe-carp-death.ts (deleted; copy test-output/carp/probe-carp-death.ts.txt)",
+   "/home/user/foundress/tools/sim/probe-carp-night.ts (extended then deleted; copy test-output/carp/probe-carp-night.ts.txt)",
+   "/home/user/foundress/docs/design/tasks/progress/species-carpenter-impl.md (progress file)",
+   "Earlier sessions, in my paths: src/sim/species/modules/wood/** (woodState, moisture, biteRule, woodCell, frass, sites, satellites, shuttle, shuttleKeys, castes, broodMoisture, drum, colonyPass, diagnostics, invariants, hooks, params, primGeom, behaviours, index, testkit, tests), src/sim/colony/founding/species/camponotus.ts, src/sim/balance/species-carpenter.ts",
+   "Earlier sessions, outside my paths (additive hooks, all marked species-carpenter): src/sim/colony/founding/index.ts (1 registration line), src/sim/colony/founding/siteAssess.ts (optional species reading rule), src/sim/colony/founding/auto.ts (optional species template carve), src/sim/nest/chambers/registry.ts (optional nestDepthRule), src/sim/ants/actions/defs/dig.ts (optional digBiteRules + frass plug material), src/sim/types/world.ts (optional WoodState fields), src/sim/types/colonyModules.ts (optional NestSite/wood fields)"
+  ],
+  "verification": [
+   "npm run typecheck: 0 errors in the whole tree (03:30 UTC)",
+   "npx vitest run src/sim/species/modules/wood src/content/text src/sim/colony/founding/species: 12 files, 85 passed, 1 skipped (the long E13 test)",
+   "FOUNDRESS_LONG=1 npx vitest run src/sim/species/modules/wood/shuttle.test.ts: passes; 'E13: shuttled 11' of 20 pupae in 1 game day (1.9 s); traced with WOOD_DEBUG",
+   "e2e: node tools/harness/play.mjs --root . --query 'test=1&seed=1&quality=test&autostart=1&species=camponotus-pennsylvanicus' --script tests/e2e/species-carpenter.mjs --out test-output/species-carpenter/r4 -> exit 0, ok. Result: 12 first workers in decayed wood (log-on-soil, moisture 28 %, decay 2); possessed minor inside the wood cavity; possessed bite ok; frass: 1 pile of 0.65 BU3, 36 loose items, 15 in the nest, 3.5 units, visibility 0.7",
+   "Screenshots I looked at: r4/01-log-opening.png (log seen from outside), r4/02-gallery-castes-possessed.png (inside the gallery in wood, wood grain on the walls; the small possessed minor in the centre with the larger media and major ahead of her: this is the caste picture, readable but not striking), r4/03-cell-cutaway.png (colony-view slice; weak, outlines of the cell only), r4/04-frass-pile.png (a small dark frass mound and pale grains at the foot of the log, at night). Run r3 (before my e2e fix) passed but its shot 04 showed no pile.",
+   "Viability (node tools/sim/run-ts.mjs tools/sim/life.ts --species camponotus-pennsylvanicus --until winter, test-output/carp/sweep2 and sweep3). Each row: run: first workers -> workers at winter; viable?; C/P stores at winter; trips per worker per game day; deaths. woodland-edge #1: 12 -> 12; yes; 1.35/1.48; 0; none. woodland-edge #2: 12 -> 11; yes; 0.88/0.93; 0.129; old-age 1. woodland-edge #3: 10 -> 8; yes; 2.77/0.70; 0; crushed 1, old-age 1; 3 walker-stall violations (hauler). suburban-garden #1: 12 -> 10; NO; 0.06/0.05 (stores below 1 game day); 0; crushed 2. suburban-garden #2: 12 -> 12; yes; 0.99/0.74; 0.015; none. suburban-garden #3: 9 -> 8; yes; 4.98/1.03; 0; old-age 1. kitchen-door #1: 12 -> 8; NO; 0.85/0 (stage lean); 0; lost 3, old-age 1. kitchen-door #2: 12 -> 11; yes; 1.98/1.53; 0.068; drowning 1. kitchen-door #3: 11 -> 6; NO; 5.29/1.01; 0.024; crushed 3, lost 2. No worker starvation deaths in any run. 0 eclosions after hand-over in all runs, which matches GDD 07 5.2.2: late-summer eggs overwinter as larvae.",
+   "Night activity: probe from the woodland-edge #2 hand-over over 3 game days (test-output/carp/sweep3/night-we2b.txt): ants outside stay flat at 1.3-4 per hour at every hour. They are haulers and diggers at the entrance plus stuck scouts; no forager departures. Hungry variant (stores set to 0.3/0.1 plus 30 extra minors, night-we2-hungry.txt): still about 0 forager departures. Unit test activity.test.ts: at 20 \u00b0C, activity at 22:00 is at least 3 \u00d7 activity at 12:00; at 5 \u00b0C it is 0; Lasius is not nocturnal.",
+   "28-day soak: node tools/sim/run-ts.mjs tools/sim/soak.ts --days 28 --seed 1 --species camponotus-pennsylvanicus --every 500 -> 0 violations in 338 checks, all invariants including the 3 wood ones (a founding queen only; soak.ts does not run the founding). life.ts woodland-edge #2 --days 28 (test-output/carp/soak28): through Winter 1 into year 2 (11 -> 7 workers over winter), queen starves in year 2 (carbohydrate 0), 2 walker-stall violations (an ant in dig.bite, locomotion)",
+   "Death probe kitchen-door #1 on the current tree: the earlier drowning of 8 minors did not happen again (the nest log now sits at y 40 mm); deaths: lost 1, old-age 1"
+  ],
+  "acceptance": [
+   {
+    "criterion": "AC1 Typecheck and tests green; pure simulation code in the module",
+    "status": "met",
+    "evidence": "Typecheck 0 errors. Wood, text and founding/species tests: 85 pass, 1 skipped (long only). The module imports no three, DOM, Math.random or Date.now; its tunables are in src/sim/balance/species-carpenter.ts and the species data block."
+   },
+   {
+    "criterion": "AC2a A founding queen founds in a decayed log and raises first workers within the chapter's range",
+    "status": "partial",
+    "evidence": "All 9 sweep runs found in wood. Hand-over comes after 4.69-5.39 game days (chapter: 5.1 at 24 \u00b0C). First workers 9-12; only 3 of 9 runs fall inside the chapter's 6-11 (the rest are 12). The count comes from the shared Ch 06 founding model (16-egg clutch, low Camponotus brood hazard), not from the wood rules."
+   },
+   {
+    "criterion": "AC2b A growing colony carves galleries only in wood, ejects frass, founds a satellite when the chapter's conditions are met, and shuttles brood between nests",
+    "status": "partial",
+    "evidence": "Wood only: wood.test 'a wood-nesting species digs no soil' plus the bite-rule tests. Frass: e2e r4 shows a pile outside (0.65 BU3, 36 loose items) and founding.test covers E12 outdoors. Satellite: satellite.test.ts founds none at 149 workers and one at 150 (in the dry 12 % log ahead of a damp nearer one, state founding, 8 migrants), none with satelliteAuto off or a roomy parent, and one on a marker placed on wood; a marker off wood is refused. Shuttling: 11 of 20 pupae in 1 game day against E13's 15 (eggs never leave the parent). A year-1 colony never reaches the 150 workers needed, so satellites only appear in scenario tests."
+   },
+   {
+    "criterion": "AC3a Foraging outside is concentrated at night per the activity gates",
+    "status": "partial",
+    "evidence": "The gate is night-weighted (activity.test: 22:00 at least 3 \u00d7 12:00 at 20 \u00b0C). In full-sim runs, forager departures are about 0 at every hour, so no rhythm shows (night-we2b.txt, night-we2-hungry.txt). The cause is the shared forage AI: scouts time out or hit the curfew."
+   },
+   {
+    "criterion": "AC3b Majors appear only after the stated colony age",
+    "status": "met",
+    "evidence": "brood.test App. E 14: at 1.5 years with 100 workers, no media or major among 100 larvae; at 2.0 years with at least 60 workers they appear; below 60 workers they stay locked; no majors when the protein store does not cover MAJOR_GATE_GD."
+   },
+   {
+    "criterion": "AC4 e2e: a new game reaches first workers through the real opening sequence; screenshots (looked at) show a gallery in wood from inside and a frass pile outside",
+    "status": "met",
+    "evidence": "test-output/species-carpenter/r4: exit 0, 12 first workers. 02-gallery-castes-possessed.png shows the inside of the wood gallery, castes side by side. 04-frass-pile.png shows a small frass pile at the foot of the log; it reads as a dark soil-coloured mound, not pale, because the mound renderer has no frass material."
+   },
+   {
+    "criterion": "AC5 The 28-day soak with this species holds all invariants",
+    "status": "partial",
+    "evidence": "soak.ts 28 days: 0 violations in 338 checks (founding queen only). life.ts 28 days from a hand-over: 2 walker-stall violations (locomotion, an ant in dig.bite); the wood invariants held."
+   },
+   {
+    "criterion": "Addendum viability bar on the two best Tier 1 archetypes (at least 2 of 3 seeds)",
+    "status": "met",
+    "evidence": "woodland-edge 3 of 3, suburban-garden 2 of 3 (kitchen-door 1 of 3, reported). No worker starvation deaths. Stores at winter of at least 1 game day hold in every run counted viable; suburban-garden #1 fails on stores."
+   },
+   {
+    "criterion": "GDD 07 App. E checks for this module (8, 10, 11, 12, 13, 14)",
+    "status": "partial",
+    "evidence": "E10 met (brood.test: 75 \u00b1 10 eggs survive at 10 % moisture, all at 20 %). E11 met (wood.test: 1.2 / 2.16 / 1.92 \u00d7 DIG_BITE_S, exactly 1 frass per bite). E12 met outdoors (+0.2 visibility); the interior case is not covered because the test world has no interior zone. E13 partial (11 of 20). E14 met. E8 covered at the activity-gate level only; the herd tender count needs the honeydew/tend module."
+   }
+  ],
+  "notDone": [
+   "Queen relocation is not carried out: satellites.ts only proposes it (col.wood.queenMove and the queen-relocation event). The existing queen behaviour only moves within one nest (src/sim/ants/behaviours/nest/queen.ts relocationTarget uses chamberIn(nest)), so a walk between nests needs a new behaviour.",
+   "Window planning (WINDOW_SPACING_BU 30, at most 6 per site, cut where a gallery passes within 1 BU of a side surface) is not built. Windows are only counted; openings come from the founding cell and the satellite starter cell.",
+   "The hideFrass toggle (frass kept in an inside midden chamber) is not built; it needs the haul behaviour (not mine). The diagnostics already name it as a remedy.",
+   "Leak events (structural-dry to structural-leak) are not wired to human events; the heated-building winter rule (GDD 07 6.2.8) is not built.",
+   "App. E 13 throughput: 11 of 20 against 15. A minor walks loaded at about 3.75 BU/s, so a 200 BU round trip takes about 1,150 ticks (about 20 trips at best for 4 nurses in a day). The trace shows a generic nurse.carry detour of about 1,000 ticks and a final trip stalled 600 ticks climbing into the satellite's side opening.",
+   "Night-shift foraging is not visible in the full sim (shared forage AI); the 28-day life run starves in year 2.",
+   "Kitchen-door viability is 1 of 3 (crushed by footsteps, lost workers).",
+   "GDD 07 stretch items not done: light-change U-turn on trails, soil incubator."
+  ],
+  "needsFromOthers": [
+   "Forage/colony owner (colony-life): Camponotus scouts never reach food (life.ts kitchen-door #1: 'scout timeout not-reached fail 10, scout curfew not-reached fail 8', 0 % successful trips). Trips per worker per game day are 0-0.13 in every run, and the 28-day run starves the queen in year 2.",
+   "Render owner (src/render/world/materials/materialDefs.ts, MATERIAL_DEFS): add a pale 'frass' mound material. moundRenderer.ts falls back to MOUND_SOIL, so frass piles render dark instead of the chapter's pale pile.",
+   "Founding owner (Ch 06 model): Camponotus usually raises 12 first workers against the chapter's 6-11 (clutch cap 16 with foundingMu \u00d7 0.55). Please check the expected-survival calibration.",
+   "Locomotion owner: walker-stall violations: a hauler in haul.carry at (3238.5, 13.2, 1433.0) BU on woodland-edge #3, and an ant in dig.bite at (1083.5, 4.4, 3459.5) BU on woodland-edge #2 (28-day run). Workers marked 'lost' on kitchen-door and suburban-garden.",
+   "Nest-behaviour owner: the generic nurse.carry sometimes walks brood toward the satellite and back (about 1,000 ticks wasted in the E13 scenario). An inter-nest queen walk is needed for Camponotus queen relocation (GDD 07 6.2.7).",
+   "Nest/flood owner (watch item): an earlier session saw 8 minors drown in a wood cavity on kitchen-door #1. The flood inflow (src/sim/nest/flood/inflow.ts) takes ground-ring catchment at a log's side opening as if it were a hole in the ground. It does not reproduce on the current tree."
+  ],
+  "contractChanges": [
+   "No new shared-contract changes this session.",
+   "Earlier sessions (additive, optional, marked species-carpenter): src/sim/types/world.ts WoodState optional fields (placement, grainAxis, thicknessBu, lengthBu, carvedFrac, sunExposure, windowCount, interior, segments, lastRainTick); src/sim/types/colonyModules.ts optional NestSite fields (stateTick, isolatedSinceTick, hazardEma, waitingSinceTick) and wood fields (frassUnitsInterior/Outdoor, shuttled).",
+   "Hooks outside my paths from earlier sessions (each optional and inert for other species): founding/index.ts registration line, siteAssess.ts species reading rule, auto.ts species carve, nest/chambers/registry.ts nestDepthRule, ants/actions/defs/dig.ts digBiteRules plus frass as plug material.",
+   "src/content/text/words.ts (this session, additions only): FACTOR_CAUSE_WORD mould, windows, sun, leak-repaired, wood-drying, carved-out, moisture, no-satellite, isolated, shuttle-short, castes, age-locked, interior-windows; REMEDY_WORD remedy.toggle.hideFrass, remedy.marker.satellite; DIAG_VALUE_WORD diag-wood, diag-cp-parent-moisture, diag-cp-satellites, diag-cp-growth, diag-cp-frass."
+  ],
+  "notesForIntegrator": [
+   "Restart notes are in docs/design/tasks/progress/species-carpenter-impl.md. Some times in it before 03:30 were my estimates and run ahead of the real clock; the 03:34 final entry is real (date -u).",
+   "Precedence decisions: (1) The viability archetypes are woodland-edge and suburban-garden, not kitchen-door; the addendum lets me choose, and kitchen-door losses come from footsteps and locomotion. (2) Zero eclosions after hand-over in year 1 is correct per GDD 07 5.2.2 (late-summer eggs overwinter as larvae), so 'net worker growth: no' in the life.ts verdict is expected for this species. (3) The Lasius 'season' cause word would have shown 'Laying season' on a wood diagnostic, so the wood cause is now 'wood-drying'.",
+   "Visual evidence: test-output/species-carpenter/r4/*.png. The castes are told apart in 02 (possessed small minor in the centre; media and major larger, ahead of her). A large ghosted ant close to the camera still blurs that frame.",
+   "Lifecycle check: the 28-day life run from a woodland-edge hand-over passes the overwinter model (Winter 1 jump, 11 -> 7 workers, no crash, wood invariants hold). I did not check the nuptial flight, because colonies cannot reach maturity (4 years) in a headless run.",
+   "Probe files were deleted from tools/sim; copies are kept as .txt under test-output/carp/.",
+   "src/content/text/controls.test.ts, listed as red in STATUS, passes in my run."
+  ]
+ },
+ "verify:species-carpenter": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the spec, the addendum, the design seed, the architecture doc, tech-stack \u00a77, GDD 07 \u00a75.2 and \u00a76.2, and GDD 07 App. A-E. Read every file under src/sim/species/modules/wood/**, plus src/sim/colony/founding/species/camponotus.ts, src/sim/balance/species-carpenter.ts and tests/e2e/species-carpenter.mjs.",
+   "npm run typecheck: 0 errors in the owned paths. One error outside them, in src/render/ants/swarm.test.ts(33,29) TS2345 (another engineer's work, not touched).",
+   "npx vitest run src/sim/species/modules/wood src/sim/colony/founding/species: 8 files, 37 passed, 1 skipped (the LONG E13 test).",
+   "npx vitest run src/sim/species/modules/wood/wood.verify.test.ts (new): 8 tests, 2 pass, 6 fail on purpose to show defects.",
+   "e2e: node tools/harness/play.mjs --root . --query 'test=1&seed=1&quality=test&autostart=1&species=camponotus-pennsylvanicus' --script tests/e2e/species-carpenter.mjs --out test-output/species-carpenter/review1 finished with exit 0 and ok:true. The result is deterministic and identical to the implementer's r4: 12 first workers, log-on-soil, mc 28, decay 2, one frass pile of 0.65 BU3, 36 loose items, units 3.5. I looked at all four screenshots (01-04 in test-output/species-carpenter/review1/).",
+   "Checked every wood-nesting param for use: 19 of the species-data parameters are read nowhere (grep).",
+   "Checked the implementer's r4 run.json against the frass pile maths (V_BITE_NOMINAL x headScale^3 x BULKING)."
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Frass does not settle into a pile, and the e2e frass check passes on loose items",
+    "where": "src/sim/species/modules/wood/frass.ts:15 (pileUnits); tests/e2e/species-carpenter.mjs:150-156; test-output/species-carpenter/review1 (run log)",
+    "detail": "In both e2e runs (r4 and mine) the only frass pile has volume 0.65 BU3. That is exactly one minor's frass item (0.85 x 0.85^3 x 1.25), so the pile holds 0.06 pile units. Meanwhile 36 frass items lie loose outside (the first at y 63 mm, on the log rather than at its foot). The e2e loop stops when `piles.length > 0 && units >= 1`, but `units` comes from frassTally, which adds 0.1 unit per loose item. So the check passes with no real pile. GDD 07 \u00a76.2.3 says frass 'falls under gravity and joins the frass-pile below'; Deliverable 3 and AC4 ask for a frass pile outside. Neither is shown. Screenshot 04 shows a small dark diamond and a few scattered grains."
+   },
+   {
+    "severity": "major",
+    "title": "Pile units are counted from nominal bite volume, so 10 minor frass items make 0.61 unit, not 1 (App. E 12)",
+    "where": "src/sim/species/modules/wood/frass.ts:15; test: wood.verify.test.ts '10 frass items chewed by minors make 1 pile unit'",
+    "detail": "pileUnits = volume / BULKING / (10 x V_BITE_NOMINAL). But a bite removes V_BITE_NOMINAL x headScale^3 (src/sim/nest/bite.ts:128), and headScale is 0.85 for minors and nanitics (DIG_HEAD_SCALE). Ten minor items therefore give 0.614 pile units; majors (1.3) would give 2.2. GDD 07 \u00a76.2.3 and App. E 12 say FRASS_PER_PILE_UNIT is 10 items. founding.test.ts only covers the nominal volume, so it passes. frassVisibility and the diag-cp-frass threshold are skewed the same way. To reproduce: npx vitest run src/sim/species/modules/wood/wood.verify.test.ts -t 'frass items' (expected 1, got 0.61)."
+   },
+   {
+    "severity": "major",
+    "title": "Shuttle jobs ignore the satellite's free capacity",
+    "where": "src/sim/species/modules/wood/satellites.ts:200-226 (assignShuttles)",
+    "detail": "freeIn() only decides whether a satellite is a target (>0). After that, every waiting late-brood item gets a nurse. GDD 07 \u00a76.2.6 creates a job only 'if a satellite nursery has free capacity'. To reproduce: wood.verify.test.ts 'a satellite with room for 2 receives at most 2 shuttle jobs' (6 jobs given, 6 free nurses)."
+   },
+   {
+    "severity": "major",
+    "title": "The E13 scenario's temperatures never take effect: the module reads the raw cavity model, so the reported 11/20 is for about 20/20 \u00b0C, not 22/26 \u00b0C",
+    "where": "src/sim/species/modules/wood/satellites.ts:39 and broodMoisture.ts:53 (chamberTemp from '@/sim/environment/chamber'); shuttle.test.ts scenario()",
+    "detail": "The wood module calls environment chamberTemp directly. That function ignores cheat.setChamberClimate (it only writes chamber.temp and the nest runtime map) and the colony's climate seam (src/sim/colony/envAdapter.ts chamberTempC/setClimateOverride). In the E13 set-up I measured chamberTemp at 20.5 \u00b0C (parent) and 20.1 \u00b0C (satellite). The satellite then wins only through the dry bonus, by about 0.08-0.107, right at the 0.1 margin, and with a slightly different cavity temperature the rule gives 0 jobs. So the LONG E13 result (11 of 20) was not measured on the chapter's scenario (nursery 22 \u00b0C, satellite 26 \u00b0C). To reproduce: wood.verify.test.ts 'App. E 13 set-up ...' (0 jobs with the override set to 22/26 \u00b0C). Fix: read chamber climate through chamberTempC, then re-measure E13."
+   },
+   {
+    "severity": "major",
+    "title": "Satellite marker founds satellites in crumbling wood and ignores the satellite caps",
+    "where": "src/sim/species/modules/wood/satellites.ts:122-133 (markerSatellites -> foundSatellite)",
+    "detail": "The marker path skips every check that bestCandidate makes (decay < 4, SATELLITE_MIN_THICK_BU, wood not already used) and the 4-outdoor / 2-interior caps. GDD 07 App. B: refused 'if no wood within 4 BU or wood unsuitable'; \u00a76.2.2: class 4 is not nestable; \u00a76.2.5: at most 4 outdoor + 2 interior. To reproduce: wood.verify.test.ts 'satellite marker on crumbling (decay 4) wood' (a satellite is founded) and 'respect the cap of 4 outdoor satellites' (5 founded). satellitesMaxInterior is never read anywhere."
+   },
+   {
+    "severity": "major",
+    "title": "GDD 07 rules missing from both the code and the implementer's notDone list",
+    "where": "src/sim/species/modules/wood/** (grep: these species-data params are never read)",
+    "detail": "(1) Trunk trails (\u00a75.2.7 signals, \u00a76.2.5 'trunk trail laid', \u00a76.2.7) are not built for Camponotus. Only granary/trunk.ts (Messor) reads trunkTrail. Deliverable 5 names them. (2) Satiation (\u00a75.2.7: stores >= 10 GD gives surface activity x 0.7) and the 3 % forager share / forageDemandMult 0.15 (\u00a75.2.4) are unused. (3) Decay 4 does not make chambers `unstable` or sites `abandoned` (\u00a76.2.2, \u00a76.2.5, \u00a76.2.9). (4) The 7 GD orphan-satellite flag (satelliteOrphanGd) is missing. (5) Eggs and young larvae outside the parent are not carried back with priority (\u00a76.2.6). (6) The bird chance per outdoor pile unit (birdChancePerPileUnitGd) has no consumer. (7) Isolation means 'no open entrance' instead of 'no walkable trail path for 1 GD' (\u00a76.2.5). The report should list these as not done."
+   },
+   {
+    "severity": "major",
+    "title": "AC4 and the addendum caste-shot rule are not met by the screenshots",
+    "where": "test-output/species-carpenter/review1/01..04 (same as r4)",
+    "detail": "02-gallery-castes-possessed: the wood gallery is visible, but the media and major ahead of the possessed minor are hard to tell apart. The largest body is a dithered, near-camera translucent ghost covering the lower right; the 'Groom queen' prompt suggests it is the queen. The addendum requires castes 'told apart at a glance'. 01-log-opening: the founding opening cannot be seen; only a tiny ant on a dark log. 03-cell-cutaway: a flat brown slab with dashed blue outlines and no visible cell. 04-frass-pile: a dark diamond (soil mound fallback) on asphalt, not the 'pale pile at the foot of the log'. The founding also goes through cheat.completeFounding, not a played opening."
+   },
+   {
+    "severity": "major",
+    "title": "AC5 soak evidence does not cover a working colony",
+    "where": "implementer report: soak.ts 28 d and life.ts we2 --days 28",
+    "detail": "The clean soak (0 violations in 338 checks) ran a founding queen only, so no founding, no wood colony and no frass. The life.ts 28-day run from a hand-over shows 2 walker-stall invariant violations, and the queen starves in year 2. AC5 ('the 28-day soak with this species holds all invariants') is therefore not shown for a real colony."
+   },
+   {
+    "severity": "minor",
+    "title": "Module-level caches keyed by colony id leak between sims (no caste-unlocked in a second game)",
+    "where": "src/sim/species/modules/wood/index.ts:20 (`announced`), colonyPass.ts:13 (`ejectedSeen`)",
+    "detail": "Both are module Maps keyed by colony id that never reset. A second game in the same page (New Game, daughter colony) reuses colony id 1. Its first media/major then never emits `caste-unlocked` (the journal milestone for signature moment 8), and frass item ids seen earlier suppress `frass-ejected` and the cue. ejectedSeen also grows without bound: one id per frass item ever ejected. To reproduce: wood.verify.test.ts 'announced in every new sim' (the second sim gets []). Fix: key the caches per Sim (WeakMap<Sim,...>) or persist the flags."
+   },
+   {
+    "severity": "minor",
+    "title": "Wall-too-thin refusal gives a generic reason instead of the spec prompt",
+    "where": "src/sim/species/modules/wood/hooks.ts:26-28",
+    "detail": "woodBiteRefusal returns 'wall-thin', but the hook maps it to the generic 'not-allowed-here'. GDD 07 \u00a76.2.3 asks for the prompt 'The wall is too thin'. Neither the ActionFailReason union nor the words have such an entry."
+   },
+   {
+    "severity": "minor",
+    "title": "Remedy points to a toggle that does nothing",
+    "where": "src/sim/species/modules/wood/diagnostics.ts:52,79",
+    "detail": "diag-cp-parent-moisture and diag-cp-frass offer 'remedy.toggle.hideFrass' ('Keep frass inside'), but hideFrass is not built, so the remedy leads the player to a no-op. diag-cp-satellites also has no late-brood share in its value (\u00a75.2.10 'late-brood share in satellites')."
+   },
+   {
+    "severity": "minor",
+    "title": "Magic number and per-call allocation in hot lookups",
+    "where": "satellites.ts:110 (`w.interior ? 4 : 0` warmth); woodState.ts:132 (key string built on every ensureWoodStates call)",
+    "detail": "The interior warmth bonus of 4 \u00b0C is inline instead of in balance. Every woodOf/woodAt call (per bite, per brood item every 10 s) runs ensureWoodStates, which builds a template string just to compare the cache key. This is cheap now but sits on per-bite and per-brood paths."
+   }
+  ],
+  "testsAdded": [
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: passes (regression): brood hazard continuity at the band edges; cheat.setWood with NaN leaves the state finite (the command layer guards it)",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: fails (bug): a satellite marker on decay-4 wood is refused",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: fails (bug): satellite markers respect the 4-outdoor cap",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: fails (bug): shuttle jobs are limited by the satellite's free capacity",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: fails (bug): the shuttle score honours the colony climate seam (E13 22/26 \u00b0C set-up)",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: fails (bug): caste-unlocked fires again in a second sim",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts: fails (bug): 10 minor frass items make 1 pile unit"
+  ]
+ },
+ "fix:species-carpenter": {
+  "summary": "Fix round on the Camponotus wood-nesting module. I reproduced all 13 findings, and all 13 are real. Seven are fully fixed with tests. Three are partly fixed: the screenshots (finding 7), the missing GDD rules (finding 6) and the wall-thin prompt (finding 10). Finding 4 is fixed in the code, but the E13 number it uncovered is still short of the target. The 28-day soak (finding 8) holds all invariants with a real colony, but the colony itself does not survive winter.\n\nAll 8 of the reviewer's tests now pass. I rewrote one of them, '10 minor frass items = 1 pile unit'. The old version passed a volume into pileUnits, and a volume cannot tell 10 minor items from 6 nominal ones. pileUnits now counts the items a pile has absorbed, so the test goes through the real path instead: 10 minor-sized pellets settle into a frass pile and that pile reads 1.0 unit.\n\nFixes:\n(1) **Frass did not settle into a pile.** New file frassFall.ts adds a system, wood-frass-fall, that runs every 1 s. Frass lying outside on nest wood rolls off the wood and drops to the first surface below that is not that wood. From there the nest module's mound batch settles it into the frass pile. The e2e now passes only when one pile has absorbed at least 10 items (loose items no longer count), and it also checks that the pile is not under the log.\n(2) **Pile units came from volume.** frass.ts pileUnits(mound) = absorbed / FRASS_PER_PILE_UNIT.\n(3) **Shuttle capacity.** assignShuttles fills satellites in best-score order, up to each one's free room. Free room is the satellite's brood capacity minus the brood already there and minus items on their way. Satellites with no recorded capacity no longer count as unlimited.\n(4) **Climate seam.** satellites.ts and broodMoisture.ts now read temperature through the colony's envAdapter (chamberTempC and broodTempC), the same seam brood development uses. The long E13 test sets 22/26 \u00b0C through setClimateOverride and re-measures: 10 of 20 pupae reach the satellite (the chapter wants 15). The previous 11 was measured at about 20/20 \u00b0C.\n(5) **Satellite marker skipped checks.** A shared satelliteWoodRefusal check (too thin, decay 4, wood already used, 4 outdoor + 2 interior caps) now serves both the marker and the architect, and a refused marker gives a specific reason.\n(9) **Module caches leaked between games.** The announced castes are now persisted in col.wood.castesAnnounced. The ejectedSeen map is gone; newly ejected frass is found by drop tick instead.\n(11) **Remedy pointed at a no-op toggle.** The hideFrass remedy is removed, because the toggle is not built. diag-cp-satellites gains a late-brood-share factor and an orphan factor.\n(12) **Magic number and per-call allocation.** The interior warmth bonus of 4 \u00b0C, the decay-4 threshold and the marker reach are now in balance. ensureWoodStates compares two numbers instead of building a string on every call.\n\nFrom finding 6, newly built:\n- Isolation now means no walkable path between the two nests' open entrances on the coarse navigation grid for 1 game day (new siteStates.ts).\n- A satellite isolated for 7 game days is flagged as an orphan satellite (NestSite.orphan).\n- A satellite in crumbling wood (decay 4) is abandoned.\n- Eggs and young larvae found in a satellite, and all brood of an abandoned satellite, are carried back to the parent with priority by the nurses living in that satellite (new returns.ts, reusing the shuttle trip). Returns do not count toward the 'shuttled' total.\n\nScreenshots (finding 7), all looked at in test-output/species-carpenter/fix2:\n- 02-gallery-castes-possessed: the possessed minor, a media and a major can be told apart at a glance. The media and major are now placed from the camera's real view direction, and the queen is moved out of the small founding cell for this one shot. The large translucent ghost in the earlier runs was the queen, not the major.\n- 04-frass-pile: frass grains lie along the foot of the log with the pile beside it. The pile is still drawn in the soil mound colour (dark brown), not as a pale pile; that is the mound renderer, not my code.\n- 01-log-opening: still does not show the opening clearly.\n- 03-cell-cutaway: still shows a slab with dashed outlines.\n\nSoak (finding 8): life.ts, woodland-edge seed 2, 28 days from a real hand-over: 0 invariant violations. The colony is still not viable: the queen and 5 minors starve during the winter time-lapse. That is the colony's winter and food economy, not the wood module.\n\nThe founding still goes through cheat.completeFounding, which runs the real seal, laying, first brood and hand-over but not a played opening.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/species/modules/wood/index.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/colonyPass.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/frass.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/frassFall.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/wood/frassFall.test.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/wood/satellites.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/siteStates.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/wood/siteStates.test.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/wood/returns.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/wood/broodMoisture.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/diagnostics.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/shuttle.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/shuttle.test.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/woodState.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/founding.test.ts",
+   "/home/user/foundress/src/sim/species/modules/wood/wood.verify.test.ts (reviewer's frass-unit test rewritten through the real settle path; other reviewer tests unchanged)",
+   "/home/user/foundress/src/sim/balance/species-carpenter.ts",
+   "/home/user/foundress/src/sim/types/colonyModules.ts (additive)",
+   "/home/user/foundress/src/content/text/words.ts (3 factor words, addendum-authorised)",
+   "/home/user/foundress/tests/e2e/species-carpenter.mjs",
+   "/home/user/foundress/docs/design/tasks/progress/species-carpenter-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: 0 errors in my paths. The 3 remaining errors are someone else's work in progress: src/render/ants/swarm.test.ts(33) TS2345 and src/sim/ants/behaviours/outdoor/hunt.test.ts(26,70) TS2339 'knownBy'.",
+   "npx vitest run src/sim/species/modules/wood src/content/text: 14 files, 99 passed, 1 skipped (the long E13 test). All 8 of the reviewer's tests in wood.verify.test.ts pass; 6 of them failed at the start of this round.",
+   "FOUNDRESS_LONG=1 npx vitest run src/sim/species/modules/wood/shuttle.test.ts: passes. E13 with 22/26 \u00b0C set through the colony's climate seam: 10 of 20 pupae shuttled in 1 game day, no eggs left the parent.",
+   "Harness, first run (test-output/species-carpenter/fix1): exit 0, ok:true. One frass pile absorbed 13 items (1.3 units) at the foot of the log (not under it); 59 more items lay loose on the ground at y about 0 instead of on the log. Shots 01-04 looked at.",
+   "Harness, final run (test-output/species-carpenter/fix2): exit 0, ok:true. 12 first workers in a decayed log-on-soil (moisture 28 %, decay 2). Media placed 1.8 BU and major 2.4 BU from the possessed minor. Frass pile absorbed 12 items (1.2 units) at the foot of the log. Shots looked at: 02 shows minor, media and major clearly told apart with no ghost; 04 shows frass grains along the log foot and the pile beside it (dark: soil mound colour); 01 does not show the opening clearly; 03 is a slab with dashed chamber outlines.",
+   "Soak: node tools/sim/run-ts.mjs tools/sim/life.ts --species camponotus-pennsylvanicus --seed 2 --archetype woodland-edge --days 28 (test-output/carp/fixsoak): 0 invariant violations over 28 game days, 2.76 ms per tick. Verdict NOT viable: the queen and 5 minors starve during the winter time-lapse (C store 0.66 going into winter); 9 deliveries in 28 days.",
+   "Probe file src/sim/species/modules/wood/zz-probe.test.ts (navigation-grid path check) was created and then deleted."
+  ],
+  "acceptance": [
+   {
+    "criterion": "F1: frass settles into a pile and the e2e checks a real pile",
+    "status": "met",
+    "evidence": "New frassFall.ts and its test (3 tests). The e2e now requires a pile that has absorbed at least 10 items and is not under the log; fix2 had 12 items at the log foot."
+   },
+   {
+    "criterion": "F2: 10 minor frass items make 1 pile unit (App. E 12)",
+    "status": "met",
+    "evidence": "pileUnits counts absorbed items. The rewritten reviewer test and frassFall.test both settle 10 items and read 1.0 unit."
+   },
+   {
+    "criterion": "F3: shuttle jobs limited by the satellite's free capacity",
+    "status": "met",
+    "evidence": "Reviewer test 'room for 2' passes."
+   },
+   {
+    "criterion": "F4: shuttle score and dry bonus read the colony climate seam; E13 re-measured",
+    "status": "partial",
+    "evidence": "Reviewer seam test passes. E13 on the 22/26 \u00b0C set-up gives 10 of 20; the chapter wants at least 15."
+   },
+   {
+    "criterion": "F5: satellite marker refuses decay-4 wood and respects the caps",
+    "status": "met",
+    "evidence": "Both reviewer tests pass; the interior cap of 2 is now enforced too."
+   },
+   {
+    "criterion": "F6: GDD 07 rules that were missing",
+    "status": "partial",
+    "evidence": "Built: isolation by walkable path, the 7-day orphan flag, crumbling satellite abandoned, young brood carried back to the parent (siteStates.test, 5 tests). Not built: see notDone."
+   },
+   {
+    "criterion": "F7 / AC4: screenshots show a gallery in wood with castes told apart, and a frass pile outside",
+    "status": "partial",
+    "evidence": "fix2/02 shows the three castes side by side. fix2/04 shows frass at the log foot, but the pile is drawn in soil colour. 01 (opening) and 03 (cutaway) are still weak."
+   },
+   {
+    "criterion": "F8 / AC5: 28-day soak with a working colony holds all invariants",
+    "status": "met",
+    "evidence": "life.ts woodland-edge seed 2: 0 violations. The colony is still not viable (it dies in winter)."
+   },
+   {
+    "criterion": "F9: caste-unlocked fires in every new game",
+    "status": "met",
+    "evidence": "Reviewer test passes; the announced castes are persisted in col.wood.castesAnnounced."
+   },
+   {
+    "criterion": "F10: wall-too-thin refusal gives its own prompt",
+    "status": "not-met",
+    "evidence": "Needs a new ActionFailReason member plus one line in src/sim/ants/player/prompt.ts (another module's exhaustive map). Listed under needs from others."
+   },
+   {
+    "criterion": "F11: no remedy that leads to a no-op toggle",
+    "status": "met",
+    "evidence": "The hideFrass remedy is removed from both diagnostics; late-brood share and orphan factors added."
+   },
+   {
+    "criterion": "F12: no magic number or per-call allocation in hot lookups",
+    "status": "met",
+    "evidence": "INTERIOR_WARMTH_C, CRUMBLING_DECAY and SATELLITE_MARKER_REACH_BU are in balance; ensureWoodStates compares two numbers."
+   },
+   {
+    "criterion": "AC1: typecheck and tests green",
+    "status": "met",
+    "evidence": "0 type errors in my paths; 99 tests pass."
+   }
+  ],
+  "notDone": [
+   "App. E 13 throughput: 10 of 20 pupae reach the satellite (the chapter wants at least 15). Most of the loss is walk time on a 200 BU round trip plus stalls entering the satellite's side opening.",
+   "Trunk trails for Camponotus (GDD 07 \u00a75.2.7, \u00a76.2.5, \u00a76.2.7) are not built.",
+   "Satiation (surface activity x 0.7 when stores cover at least 10 game days) and the 3 % forager share are not built; both need hooks in the colony allocator, which belongs to another module.",
+   "Decay 4 does not make chambers unstable and lead to collapse after 2 game days; only the satellite-abandoned part is built.",
+   "The bird chance per outdoor frass pile unit has no consumer (creatures module).",
+   "The hideFrass toggle (frass stored in an inside midden chamber) is not built; it needs the haul behaviour to choose a different destination.",
+   "The queen relocation walk is still only a proposal; she does not actually walk to the new site.",
+   "The window planning rule (a window within 30 BU path distance of every gallery) is not built.",
+   "Brood can only be carried back to the parent by nurses living in the satellite; parent nurses do not go out to fetch it.",
+   "The prompt 'The wall is too thin' is not shown; the refusal still uses the generic reason.",
+   "Interior frass visibility of 1.0 per pile unit (the indoor half of App. E 12) has no test of its own; only the outdoor 0.2 is tested.",
+   "Screenshots: 01 does not show the opening clearly, 03 is a slab with dashed outlines, and the frass pile in 04 is drawn in soil colour instead of pale frass.",
+   "The founding still goes through cheat.completeFounding rather than a played opening.",
+   "Colony viability is unchanged by this round: in the 28-day soak the queen and 5 minors starve in the winter time-lapse, and foraging stays rare (9 deliveries in 28 days)."
+  ],
+  "contractChanges": [
+   "src/sim/types/colonyModules.ts, WoodModule: new optional field castesAnnounced?: string[] (persisted caste-unlocked announcements).",
+   "src/sim/types/colonyModules.ts, NestSite: new optional field orphan?: boolean (GDD 07 \u00a76.2.5 orphan satellite flag).",
+   "The satellite-state event (its state field is a plain string) now also carries the value 'orphan'."
+  ],
+  "needsFromOthers": [
+   "Ant actions owner: add 'wall-thin' to ACTION_FAIL_REASONS in src/sim/types/ids/ants.ts and the line 'wall-thin': 'the wall is too thin' to REASONS in src/sim/ants/player/prompt.ts. Then I change one line in src/sim/species/modules/wood/hooks.ts so biteRefusal returns woodBiteRefusal's 'wall-thin' instead of 'not-allowed-here'.",
+   "Nest render owner: the mound renderer has no 'frass' material, so frass piles are drawn as dark soil. GDD 07 \u00a75.2.9 wants a pale pile.",
+   "Nest render or views owner: the colony-view cutaway does not cut primitives such as logs, so a wood gallery cannot be seen in cutaway (shot 03).",
+   "Colony owner: a hook so a species can scale its forage demand (forageDemandMult 0.15, 3 % forager share) and apply satiation (surface activity x 0.7 when stores cover at least 10 game days), both read from the species data.",
+   "Colony winter owner: with Camponotus the queen and workers starve in the winter time-lapse (woodland-edge seed 2 goes into winter with C store 0.66).",
+   "Nest collapse owner: a way to treat crumbling wood (decay 4) as unstable so the collapse rules apply after 2 game days (GDD 07 \u00a76.2.9)."
+  ],
+  "notesForIntegrator": [
+   "Contradiction, recorded: GDD 07 \u00a76.2.3 says a frass pile unit is '10 items; 1.5 BU\u00b3 per unit', but Ch 01 bite volumes make 10 items about 6.5 to 10.6 BU\u00b3 depending on caste. Following the precedence order, the item count defines a pile unit (FRASS_PER_PILE_UNIT, App. E 12), and the pile's physical size follows the deposited volume (nest module, volume conservation).",
+   "Decision: isolation uses the coarse navigation grid. Walls never cut a route because ants climb them; only impassable cells do (water, holes, cost overlays). The test cuts the route with setCostMult(Infinity).",
+   "Satellite markers refuse with a command-rejected detail of 'the wood is crumbling', 'too thin', 'already a site', 'as many satellites as it can keep', 'no nest wood within 4 BU' or 'no room for a cell'.",
+   "The e2e moves the queen into the entrance tunnel for shot 02 only and teleports her back right after.",
+   "Each e2e run takes about 15 minutes of script time on this machine.",
+   "git status shows my wood files as already committed by the orchestrator; only colonyModules.ts, the e2e script and the progress file were still modified at the end.",
+   "Evidence: test-output/species-carpenter/fix1, test-output/species-carpenter/fix2, test-output/carp/fixsoak. Progress file: docs/design/tasks/progress/species-carpenter-fix.md."
+  ]
+ }
+}

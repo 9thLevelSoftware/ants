@@ -1,6 +1,9 @@
 # species-harvester fix round (reviewer findings) — progress
 
 ## Status
+- 08:45 UTC: DONE except the report. Final: typecheck 0 errors (whole repo); granary + messor founding 11 files / 55 pass.
+  Viability (viab3, final code): playground-park 1 viable (2 workers, 0 eggs), 2 founding failed, 3 viable (1 worker);
+  car-park-verge 1 NOT viable (1 nanitic died of old age). e2e test-output/harvester-fix/e2e ok:true, 5 shots looked at.
 - 05:10 UTC: all findings coded; fixes.test.ts 10 pass; typecheck clean in my paths. diag-mb-patrol now warns only
   on a patroller > 1 h late (patrolOverdueTicks). e2e script reworked (carrier in good light near another carrier,
   planDig granary + cheat.instantPlan, castes at 10:00, possessed view with castes ahead, chaff midden required).
@@ -35,7 +38,14 @@
   on a leaf, no column). Failed at the granary: planDig via window.__game.command made no plan in the browser
   (node probe plan2.ts: the same command works on the sim). Run 3: refused 'overlaps-plan' (architect plan on +x side). Run 4: tries 4 sides of the royal chamber -> ok:true, all 5 shots; 03 good, 04 ok, 01 ok (seed visible, no column),
   02 weak (dark, motes), 05 blurry. Run 5: 05 chaff visible (good); 02 no seed visible -> display.ts restOnFloor (seeds were inside the soil under
-  the fitted ellipsoid floor) + test F4 in fixes.test.ts (12 pass). Run 6 next, then viability.
+  the fitted ellipsoid floor) + test F4 in fixes.test.ts (12 pass). Run 6 ok:true (test-output/harvester-fix/e2e/01..05 LOOKED AT): 02 granary chamber floor with seed items
+  (render as white spheres: render owner), 03 castes clear, 04 ok, 05 chaff flake on the midden. e2e DONE.
+- 07:55 viability reruns with final code: test-output/harvester/viab3 pp1, pp2 (background shells).
+  pp2: founding fails again (timelapse 16 gd, forced seal: flooding, queen exhaustion) - founding module.
+  pp1: hand-over 2 workers; day 1-2 trips 2+1, deliveries 3+2 (gathererFloor works), then 0 (deliver stuck, nav 'leg').
+  pp3 started ~08:05. Probe dir test-output/harvester/probe deleted.
+  pp1 final: Viable yes (2->2 workers, queen alive, C 20 gd) but deliver 44 % of worker time (nav stuck), 0 eggs after
+  hand-over (laying permitted 0 gd/day), 4 seed deliveries. cpv1 started ~08:20. After pp3+cpv1: final vitest, report.
 ## Viability so far (test-output/harvester/viab2)
 - pp2: real founding never handed over in 16 gd; forced seal failed (egg/larva flooding 18, queen exhaustion). Founding, not granary.
 - pp1 (running): hand-over 2 workers; days 1-7 trips 0, brood 4 eggs -> 0 by day 4, P flat 0.3. To probe with

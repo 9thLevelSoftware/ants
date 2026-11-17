@@ -12,6 +12,7 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Item, PreyPatch, Sim } from '@/sim/types';
+import { REASON_CODES } from '@/sim/types/ids/ants';
 import { CROP_RETURN_FRACTION } from '@/sim/balance/actions';
 import {
   CHOICE_CROWD_MIN, CHOICE_MIN_TRIP_S, HUNT_CHASE_S, HUNT_EXPECT_S, HUNT_NOTICE_BU, HUNT_REMAINS_BU, PATCH_FORAGERS_MAX,
@@ -57,8 +58,18 @@ export function notePatch(sim: Sim, colonyId: number, patchId: number): void {
 
 // ---- part 1: noticing prey on the way ----
 
-/** Phases in which an outside ant on its way (or searching) may break off to chase prey. */
-function mayBreakOff(phase: number): boolean {
+/**
+ * Reasons for turning home after which an ant that meets patch prey on the way back still takes it: the trip found
+ * nothing to carry (time out, source gone or crowded, trail lost, stuck). Not after curfew, weather, hunger, fatigue,
+ * threat, recall or a task change: those send the ant home for a reason a springtail does not outweigh. Round-2 sweep
+ * review: on suburban-garden #1, for 33 of 72 patch prey the nearest ant was walking home empty and walked past.
+ */
+const HUNT_ON_RETURN = new Set<string>(['timeout', 'source-depleted', 'source-crowded', 'trail-lost', 'stuck']);
+
+/** Phases in which an outside ant on its way (or searching, or going home empty) may break off to chase prey. */
+function mayBreakOff(ant: Ant): boolean {
+  const phase = phaseOf(ant);
+  if (phase === PHASE.return) return HUNT_ON_RETURN.has(REASON_CODES[ant.bb[K.returnWhy] ?? -1] ?? '');
   return phase === PHASE.outbound || phase === PHASE.search || phase === PHASE.explore || phase === PHASE.investigate;
 }
 
@@ -72,7 +83,7 @@ function free(ant: Ant): boolean {
  * deficit (GDD 05 §2.2b: "AI takes only under protein deficit"). True when the hunt began.
  */
 export function huntCheck(sim: Sim, ant: Ant, fl: Flavour): boolean {
-  if (fl.task === 'tend' || ant.nestId >= 0 || !mayBreakOff(phaseOf(ant)) || !free(ant)) return false;
+  if (fl.task === 'tend' || ant.nestId >= 0 || !mayBreakOff(ant) || !free(ant)) return false;
   const col = sim.stores.colonies.get(ant.colony);
   if (!col) return false;
   const near = preyNear(sim, ant.pos, HUNT_NOTICE_BU * sim.world.bu, ant.colony);
@@ -125,6 +136,12 @@ function endChase(sim: Sim, ant: Ant, fl: Flavour): void {
   ant.bb[K.prey] = -1;
   const from = ant.bb[K.huntFrom] ?? PHASE.outbound;
   const p = patchOf(sim, ant.bb[K.patch] ?? -1);
+  if (from === PHASE.return) {
+    // back on the way home, with the reason it turned home for (and a scout's find, if it had one)
+    const why = REASON_CODES[ant.bb[K.returnWhy] ?? -1] ?? 'timeout';
+    startReturn(sim, ant, fl, (ant.bb[K.success] ?? 0) === 1, why);
+    return;
+  }
   if (from === PHASE.search && p) { startSearch(sim, ant, fl, p.center, p.radius, 'job:hunt'); return; }
   if (fl.scout) { resumeExplore(sim, ant, fl); return; }
   setPhase(sim, ant, fl.names, PHASE.outbound, 'job:resume');
@@ -136,8 +153,11 @@ function endChase(sim: Sim, ant: Ant, fl: Flavour): void {
 export function updateHunt(sim: Sim, ant: Ant, fl: Flavour): void {
   if (ant.action) return; // a bite or the pick-up of the remains is under way
   if (ant.carry.kind === 'item') {
-    // the remains are lifted: a solid load, home with it
+    // the remains are lifted: a solid load, home with it. The load is prey from no source, also when the chase
+    // interrupted a trip to a known source: the trip's source is dropped, so the delivery is booked as `prey` and
+    // neither the source nor its route is credited with it (round-2 sweep review, huntSourceTrip.verify).
     ant.bb[K.prey] = -1;
+    ant.bb[K.src] = -1;
     startReturn(sim, ant, fl, true, 'item-collected');
     return;
   }

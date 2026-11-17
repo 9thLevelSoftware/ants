@@ -5,6 +5,7 @@ import { rngChance } from '@/core/rng';
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, ReasonCode, Sim } from '@/sim/types';
 import { AntFlag, FOOD_KINDS } from '@/sim/types';
+import { REASON_CODES } from '@/sim/types/ids/ants';
 import { TRAIL_IGNORE_P } from '@/sim/balance';
 import { OUTBOUND_ARRIVE_BU, ROUTE_WP_ARRIVE_BU, SEARCH_RADIUS_BU, WAIT_SPREAD_BU } from '@/sim/balance/foraging';
 import { cancel, interruptible } from '@/sim/ants/actions';
@@ -166,6 +167,7 @@ export function startReturn(sim: Sim, ant: Ant, fl: Flavour, success: boolean, r
   }
   resetAvoid(ant);
   if (ant.nestId >= 0 && (ant.bb[K.wentOut] ?? 0) !== 1) { abandonTrip(sim, ant, fl, reason); return; }
+  ant.bb[K.returnWhy] = (REASON_CODES as readonly string[]).indexOf(reason.split(':')[0]);
   setPhase(sim, ant, fl.names, PHASE.return, reason, detail >= 0 ? detail : src);
   if (ant.nestId >= 0) { startDeliver(sim, ant, fl); return; }
   const route = learnedRoute(ant, src);

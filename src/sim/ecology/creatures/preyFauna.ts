@@ -56,10 +56,21 @@ function jump(sim: Sim, c: Creature): void {
   setState(sim, c, 'graze');
 }
 
+/**
+ * A springtail rolls its escape once per contact (GDD 05 §2.3: "escapes per bite attempt with the substrate
+ * probability"; table 2.2b: jump on touch). The touch of an approaching ant comes first; when the springtail stays,
+ * it has spent its jump on this contact: a bite in the same contact window (the jump cooldown) lands without a
+ * second roll. Before (colony-life round 3) touch and bite each rolled 0.6 on open ground: 0.16 caught per approach.
+ */
+function rolledThisContact(sim: Sim, c: Creature): boolean {
+  return sim.state.tick < (c.bb.stayUntil ?? -1);
+}
+
 function patchPrey(jumps: boolean): KindBehaviour {
   return {
     evades(sim, c) {
       if (!jumps) return chance(sim, MITE_EVADE);
+      if (rolledThisContact(sim, c)) return false;
       if (chance(sim, inLitter(sim, c) ? SPRINGTAIL_ESCAPE_LITTER : SPRINGTAIL_ESCAPE_OPEN)) {
         jump(sim, c);
         sim.emit({ type: 'prey-escaped', creatureId: c.id, kind: c.kind, antIds: [] });
@@ -75,6 +86,7 @@ function patchPrey(jumps: boolean): KindBehaviour {
       if (jumps && near >= 0 && sim.state.tick >= (c.bb.jumpCd ?? 0) && antNear(sim, c, 1) >= 0) {
         c.bb.jumpCd = sim.state.tick + ticks(2);
         if (chance(sim, inLitter(sim, c) ? SPRINGTAIL_ESCAPE_LITTER : SPRINGTAIL_ESCAPE_OPEN)) { jump(sim, c); return; }
+        c.bb.stayUntil = c.bb.jumpCd; // it stayed: a bite during this contact gets no second escape roll
       }
       if (c.nav.mode !== 'wander') wander(sim, c, c.homeCenter, 8 * sim.world.bu, CREATURE_STATS[c.kind].walkMmS * 0.5);
     },

@@ -8,7 +8,11 @@ import { knownCapacity } from '@/sim/colony/allocation';
 import { colonySlotBit } from '@/sim/entities';
 import { spawnCreatureOfKind } from '@/sim/ecology';
 import { forageScenario, run } from './testkit';
+import { despawnCreature } from '@/sim/entities';
 import { patchKnownBy } from './hunt';
+import { FORAGE } from './flavours';
+import { K, PHASE } from './keys';
+import { startReturn } from './transitions';
 
 /** A springtail patch of radius rBu, its centre distBu east of the entrance, full (count = K). */
 function addPatch(sim: ReturnType<typeof forageScenario>['sim'], at: { x: number; z: number }, distBu: number, rBu: number, k: number) {
@@ -73,4 +77,33 @@ describe('hunting patch prey (R18)', () => {
     expect(after.ants).toBeGreaterThan(before.ants);
     expect(after.loadsC).toBe(before.loadsC);
   });
+
+  it('an ant walking home empty after a failed trip takes patch prey it meets; one sent home by the curfew does not (round 3)', () => {
+    // round-2 sweep review: for 33 of 72 patch prey on suburban-garden #1 the nearest ant was going home with an empty
+    // crop and walked past (huntCheck only let outbound / searching ants break off)
+    const { sim, col, entrance } = forageScenario({ workers: 24, stores: { c: 4, p: 0 }, holdNeeds: { needC: 0, needP: 1, sP: 0.9 } });
+    const patch = addPatch(sim, entrance.pos, 60, 30, 400);
+    let ant: ReturnType<typeof sim.stores.ants.get>;
+    for (let t = 0; t < 6000 && !ant; t += 20) {
+      run(sim, 20);
+      ant = sim.stores.ants.list.find((a) => a.alive && a.colony === col.id && a.task === 'forage' && a.nestId < 0
+        && a.bb[K.phase] === PHASE.outbound && a.carry.kind === 'none' && a.cropC + a.cropP < 0.05);
+    }
+    expect(ant, 'an outbound forager').toBeTruthy();
+    const a = ant!;
+    const bu = sim.world.bu;
+    const chases = (reason: 'timeout' | 'curfew'): boolean => {
+      startReturn(sim, a, FORAGE, false, reason);
+      const x = a.pos.x + a.fwd.x * 3 * bu, z = a.pos.z + a.fwd.z * 3 * bu;
+      const c = spawnCreatureOfKind(sim, 'springtail', { x, y: sim.field.height(x, z), z }, { state: 'graze', bb: { patch: patch.id, contact: sim.state.tick, jumpCd: sim.state.tick + 100 } });
+      expect(c).toBeTruthy(); // (no touch jump in this test: the rule under test is the ant's)
+      // the creature index sees it from the next tick; the ant thinks every THINK_TRAVEL_TICKS (5)
+      let hunting = false;
+      for (let i = 0; i < 6 && !hunting; i++) { run(sim, 1); hunting = a.bb[K.phase] === PHASE.hunt && a.bb[K.prey] === c!.id; }
+      despawnCreature(sim, c!.id, 'test');
+      return hunting;
+    };
+    expect(chases('curfew')).toBe(false);
+    expect(chases('timeout')).toBe(true);
+  }, 120_000);
 });

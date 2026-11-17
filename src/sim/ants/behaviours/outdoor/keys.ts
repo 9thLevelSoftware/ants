@@ -78,6 +78,9 @@ export const K = {
   /** Hunting (hunt.ts): prey patch of this trip (-1 none), the prey chased (-1 none), where it was last seen (x, z mm),
    * and the phase the chase interrupted (resumed after it). */
   patch: 'fo.patch', prey: 'fo.prey', preyX: 'fo.prx', preyZ: 'fo.prz', huntFrom: 'fo.hfrom',
+  /** Why the ant turned home (index into REASON_CODES, set by startReturn; -1 unknown): a chase from the way home
+   * resumes the return with it (hunt.ts). */
+  returnWhy: 'fo.rwhy',
 } as const;
 
 /** Behaviour phases of the outdoor engine. Values are persisted; append only. */

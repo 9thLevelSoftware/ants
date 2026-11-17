@@ -497,3 +497,144 @@ that); sg #2 eclosions 7 = before (the P that came in fed larvae of the first br
 5. kd #3 after: 3 workers lost (crushed day 1, drowned + lost day 8), one run; watch `worker:lost` in the sweep.
 
 Status: **round 2 complete** (05:05 UTC). Probe tools and scratch copies deleted; no processes left running.
+
+### Independent sweep after round 2
+
+Independent engineer, 05:07-06:35 UTC Nov 17. Table: `test-output/colony-life/round-2/sweep-table.md` (made by
+`python3 tools/sim/sweep-table.py test-output/colony-life/round-2/sweep test-output/colony-life/round-1/sweep`; runs by
+`tools/sim/sweep-life.sh test-output/colony-life/round-2/sweep test-output/viab/cache`; logs, `summary.txt` in
+`round-2/sweep/`). Tree = the round's tree (G1 H1 H1b C1 S1 B1); during the sweep only other engineers' Messor/wood files
+and this review's test files changed (the `summary.txt` hash covers test files, the cache tag does not). Fresh founding
+on every run; the founding is the same as round 1's (first workers and hand-over times equal in all 15 runs). Check of
+the cache path: woodland-edge #2 restored from its hand-over with an inert change (below) ends with the sweep run's state
+hash `0999a6a3`, so cached hand-overs equal a fresh founding. **This table (`round-2/sweep-table.md`) is the one the next
+round compares with.** Tool change: `sweep-table.py` now also prints intake/need without the deliveries booked as
+`unknown` (before C1, in-nest unloadings were booked as `unknown` intake, so round-1 numbers overstate intake).
+
+**Viability bar: NOT met** - viable 8 of 15 (round 1: 9). woodland-edge **1/3**, suburban-garden 2/3, playground-park
+2/3, car-park-verge 3/3, kitchen-door **0/3**. 6 of the 7 failures are the workers check (old age with nothing eclosed),
+1 is the starvation stage (kitchen-door #2, protein).
+
+**Growth bar R19: NOT met** (3 of 7 checks, as in round 1):
+
+| check | value | round 1 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **4 of 15** | 5 |
+| median eclosions after hand-over >= 4 | **0** (10 of 15 runs: none) | 0 |
+| median intake/need P >= 0.7 | **0.031** (without `unknown`: 0.030) | 0.094 (0.047) |
+| median intake/need C >= 0.9 | 1.016 ok (without `unknown`: 0.982) | 1.258 (1.148) |
+| median trip success >= 50 % | **24.7 %** | 18.2 % (inflated by C1's false trips) |
+| first workers >= 9, >= 13 of 15 | 13 of 15 ok | 13 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok | 14 |
+
+Regressions against round 1 (same hand-overs; 14 runs flagged by the script, the main ones):
+- **viable -> NOT viable: woodland-edge #2** (15 -> 11, was 15 -> 19; eclosed 7 -> 2; pupa:untended 6, egg:untended 7,
+  crushed 3), **woodland-edge #3** (7 -> 5), **playground-park #1** (13 -> 9; 2 `worker:lost`), **kitchen-door #1**
+  (15 -> 11, need 12), **kitchen-door #2** (grows 15 -> 19 but worse than lean 2.50 gd on protein: P 0.21 -> 0.025,
+  stores P 0 at winter), **kitchen-door #3** (7 -> 4: crushed, drowned, lost, as the round reported).
+- not viable -> viable: suburban-garden #2, playground-park #2 and #3, car-park-verge #3 (the round's sg #2 / pp #3 gains
+  hold in the sweep).
+- C intake/need down by more than 0.1 in 9 runs (median 1.258 -> 1.016; without `unknown` 1.148 -> 0.982): sg #1
+  0.93 -> 0.44, cpv #3 1.72 -> 0.79, kd #1 1.85 -> 1.01, we #3 0.52 -> 0.25 (without `unknown`).
+- Eclosions down in 4 of the 5 seed-2 runs (we #2 7 -> 2, sg #2 7 -> 5, cpv #2 9 -> 4, kd #2 9 -> 7).
+- A/B (`round-2/sweep-ab/`, round-start tree `151cc41` via `git archive`, same hand-overs, `--cache-any`): woodland-edge #2
+  15 -> 19, 7 eclosed, viable; kitchen-door #1 15 -> 12, viable - round 1's outcomes. So both losses come with this
+  round's code. But they are not one fix's mechanism: three perturbed variants of the round-2 tree on woodland-edge #2
+  gave without B1 viable (8 eclosed, 2 deaths), without C1 viable (8 eclosed, 6 deaths), without the known-patch
+  capacity term identical to the sweep (that colony never knew a patch); kitchen-door #1 without the patch capacity term
+  viable at exactly 12 workers. Single runs diverge chaotically after any change; several viability verdicts sit within
+  one worker of the line. The aggregate numbers are the evidence; per-run flips are not attributable.
+
+Review of the round (code: `git diff 151cc41` on the files the round lists; outputs `round-2/sweep-review/`):
+- Verified: `tsc --noEmit` clean (05:13 and 06:35). Folder tests: `ants/behaviours/outdoor` 24 of 26 files (red
+  `removal.verify`, known, and this review's `huntSourceTrip.verify`), `nest` 54/55 (`escapeDig`, known;
+  `plugBaseline.verify` green), `colony` 52/53 (`founding/reopen`, known), `combat` + `types` + `balance` only `ids.test`
+  (known), `ants/behaviours/nest` `sfaReview.verify` + `stall.soak` (known). Same red set as the round reported.
+- In a scratch copy (deleted) each new test is red with its fix taken out: `broodCarried`, `tripCount`, `scoutRange`, and
+  `hunt.test`'s two behaviour cases (huntCheck and choosePatch switched off). They test the fixes.
+- Not allowed list: no lifespan, need, provision, bar or ruling-test change; no seed or archetype case; new constants are
+  in `balance/foraging.ts` and listed as deviations. Determinism: `knownBy`, `PHASE.hunt` and the hunt keys are persisted
+  state; no wall clock, no `Math.random`, no `Math.hypot` added in sim code. New
+  `src/sim/ants/behaviours/outdoor/huntSaveLoad.verify.test.ts` (green): a game saved while ants hunt continues with the
+  same state hash as the uninterrupted one. Per-tick cost: `huntCheck` runs at the travel think cadence with one
+  spatial query; `huntersOf` loops over all ants per known patch, but only in a departure decision.
+- G1, S1 (range less one leg = 208 BU), B1, H1b: sound, no finding.
+- **H1 (finding, minor): prey caught on a trip to a known source is booked as that source.** huntCheck keeps the trip's
+  `K.src`; `transitions.ts` `noteKind` reads the kind from it, so the remains come home as `nectar` (or `honeydew`), and
+  `recordForagerReturn` / route memory credit that source. `src/sim/ants/behaviours/outdoor/huntSourceTrip.verify.test.ts`
+  (new, RED, kept): delivery `nectar c0 p0.25 src32`. Intake totals are right (c/p are the load's); the funnel's
+  `prey` count undercounts hunting (the round's "16 kills, 11 loads home" may be partly this).
+- **H1 (finding, major on effect): hunting catches little of the prey it meets.** Sweep: 864 springtails and 195 mites
+  appeared ahead of colony foragers/scouts (they appear only there), 53 + 11 were subdued, 41 prey loads came home (P 7.9
+  in 15 runs). Probe (`round-2/sweep-review/probe-hunt-*.txt`, tool deleted; the sweep's hand-overs): suburban-garden #1
+  72 appeared, 21 chased, **0 caught** (71 vanished); woodland-edge #3 (nest 4 BU from its patch) 74 appeared, 27 chased,
+  1 caught. Of the 72 on sg #1 the nearest ant was in `forage.return` / `scout.return` with an empty crop (33; return is
+  not a phase that may break off), already hunting (21), outbound/explore/search (17). Chased prey got within 0.1-0.6 BU
+  of the hunter and still vanished. From the code (not measured): a springtail rolls its escape (0.6 on open ground) on
+  every touch within 1 L (`preyFauna.ts` jump on touch, every 2 s) before the bite rolls it again, so a catch costs
+  ~6 approaches on lawn instead of the ~2 `HUNT_EXPECT_S` assumes; the round's `hunt.test` world may be litter (0.25).
+- Checked, no finding: endChase after a chase that interrupted a source search restarts the search at the patch centre
+  (observed 120 BU off the source), but the forager still found its source (test deleted); a nanitic crop return mark is
+  0.8 x 0.614 = 0.491 < SUCCESS_CROP 0.5, yet foragers (13 of 13) and tenders (8 of 8) with a full crop counted as
+  successful (test deleted, output `sweep-review/naniticCrop-checked-no-defect.txt`).
+
+Leads from the failing runs' own diagnostics (most costly first):
+1. **Nothing laid after a late hand-over ecloses before winter.** All 5 seed-2 runs (hand-over 2.75-2.81 gd, brood
+   21-24 C on days 1-2, egg stage 0.95-0.99 gd) eclose 2-7; all 10 seed-1/3 runs (hand-over 3.48-4.59 gd, brood 12-18 C
+   on days 1-2, egg stage 1.5-3.0 gd) eclose 0. Same split in round 1. This alone holds the eclosions median at 0 and
+   `held` at 4-5 of 15; 6 of 7 viability failures are old-age losses with no eclosion (deaths: old-age 31, crushed 7,
+   lost 3, drowning 1). Check whether the first clutch after the hand-over is laid too late (laying potential > 0 only on
+   days 1-2 of seed-1 runs; 0 the whole run on we #1, cpv #1, kd #1) or develops too slowly at autumn brood temperature.
+2. **Protein**: median P intake/need 0.031. Patches out of reach (nearest edge 174-244 BU: we #1, pp #1, cpv #1, cpv #3,
+   sg #3, kd #2) - no prey at all; in reach, the catch rate above. kd #2 fails viability on protein only (laying
+   permitted 0 the whole run, P stores 0); larvae starved 20 (we #1 8, cpv #1 6, pp #3 5).
+3. **Seed-3 brood**: 4 of 5 seed-3 runs hatch 0 of 40 eggs (untended 20, flooding 6, exposure 4); pp #3 hatched 7.
+4. **Brood losses, all runs**: egg:untended 42 of 172 eggs, pupa:untended 15 (we #2 6, against 2 in round 1 and 0 in
+   the two perturbed variants).
+5. **Locomotion / stuck**: `walker-stuck-explosion` on we #2 (14 violations) and kd #2 (11); stuck ant-gd 16.2 (pp #2),
+   12.5 (kd #2), 9.6 (sg #2); cpv #2 131 forage trips abandoned before leaving the nest (`stuck never-left`); pp #1's two
+   `worker:lost` were tenders stuck in `tend.return` at (972, -9.5, 3490) BU on days 5-6.
+6. **C intake fell in 9 runs** (above). kd #1 A/B on the same hand-over: honeydew loads 32 -> 10, tend 21.9 -> 13.1
+   worker-gd, forage 18.2 -> 28.5; not the patch capacity term (variant without it: honeydew 8 loads). Cause not
+   isolated; also 76 `tend crop-full` trips booked as failures against 79 ok (not the nanitic crop arithmetic, above).
+7. `unknown` deliveries remain after C1 (kd #1 9 loads, P 0.515; probe sg #1: ants in `scout.depart` / `rest` /
+   `forage.wait` unloading 0.02-0.06 C with no source): a smaller accounting artefact of the same kind.
+
+## Round 3
+
+Engineer: round 3 (started 06:37 UTC Nov 17). Evidence: `test-output/colony-life/round-3/`. Method per the integrator
+direction of 06:45 in `colony-life.md`: benches from the 15 hand-over snapshots, fixes accepted on bench medians.
+
+Progress (kept current; a successor continues from here)
+- 06:40 read spec, ledger, STATUS. Copied the 15 hand-overs of sweep 2 (`test-output/viab/cache`, tags fe66cb2b /
+  d1834f5c / 10481b17, written 05:10-06:05 by the sweep) to `round-3/cache/*-any.bin` (bench and before/after input).
+  Next: reproduce the sweep's major finding (hunting conversion), then build the benches.
+- 06:50 benches written: `tools/sim/bench-colony.ts` (`--mode nest|forage`, one hand-over snapshot, to winter; nest =
+  stores topped up every game hour to 2 gd of the need rates via `cheat.addFood`; forage = need-rate EMAs held every
+  tick at the hand-over colony's rates x 30 / its workers, need indices recomputed from the stores; both report the
+  life funnel (`lifeFunnel.ts`) and day rows; forage adds a prey funnel: appeared ahead of a colony ant, nearest ant's
+  state, chased, bite escapes, touch jumps, outcome, remains lifted, loads home) and `tools/sim/bench-sweep.sh MODE OUT`
+  (15 runs, 2 at a time, restart-safe). Decision: "30 workers with full brood" = the hand-over colony's own rates
+  (its first brood) scaled to 30 workers. ~32 s per gd under load.
+  Running now (06:50): forage bench baseline, all 15 -> `round-3/bench-forage-before/` (`bench-sweep.sh forage ...`;
+  if cut off, re-run the same command: finished runs are skipped).
+- 06:50 (correction) baselines run from a **frozen copy of the round-start tree** (HEAD e614493 + the bench tools) at
+  `$SCRATCH/base` (scratchpad `.../scratchpad/base`, node_modules symlinked), so my edits do not leak into "before".
+  `bench-sweep.sh` now runs the tree it lives in. If the copy is lost after a restart: re-create it with
+  `cp -r src tools vite.config.ts tsconfig.json package.json` + `git show HEAD:<each file this round changed>`.
+  Running: forage bench before -> `round-3/bench-forage-before/` (started 06:49).
+- 06:50 probe (scratch test, a lawn test world, 30 springtails put 3 BU ahead of outbound foragers): 28 chased, 11
+  caught (39 %); 17 vanished after the 20 s chase ended. Per chase 0-23 jumps; about 2 of every 3 jumps are the
+  touch-jump (no bite), 1 of 3 a bite escape: the springtail rolls its 0.6 escape on contact within 1 L and again on
+  the bite -> about 0.16 catch per approach instead of the GDD's 0.4 ("escapes per bite attempt", GDD 05 §2.3).
+  In the minor finding's case fixed in the tree: `hunt.ts` lifting the remains drops `K.src` (delivery booked `prey`).
+- 06:53 in the tree (forage side; not yet benched):
+  H2a `ecology/creatures/preyFauna.ts`: one escape roll per contact (a springtail that stays when touched is not rolled
+  again by a bite in the same 2 s contact window). Test `ecology/creatures/prey.test.ts` "one escape roll per contact"
+  (bite lands on 13 % of approaches without, wanted 30-50 %; green with ~40 %). Probe after: chased 29, caught 22 (76 %).
+  H2b `outdoor/hunt.ts` + `keys.ts` (`K.returnWhy`, set by `transitions.ts` startReturn): an ant going home empty after
+  a failed trip (timeout, source gone/crowded, trail lost, stuck) may break off for patch prey; not after curfew,
+  weather, hunger, fatigue, threat, recall. After the chase it resumes the return with its reason. Test
+  `outdoor/hunt.test.ts` case 4 (red without).
+  H1-minor `hunt.ts`: lifting the remains drops `K.src`; `huntSourceTrip.verify` green.
+  Next: wait for forage-before, then forage-after (H2a+H2b) on all 15; write the nest bench runs meanwhile.

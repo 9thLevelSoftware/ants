@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { takeFromSource } from '@/sim/ecology/sources';
 import { CREATURE_STATS, PATCH_IMMIGRATION_PER_GD } from '@/sim/balance/creatures';
+import { despawnCreature } from '@/sim/entities';
 import { creatureKilled, preyEvades, transportMode } from './index';
 import { initPreyPatches, regrowPatches } from './spawners';
 import { conditions } from './conditions';
@@ -131,6 +132,27 @@ describe('prey escapes', () => {
     for (let i = 0; i < n; i++) if (preyEvades(sim, spawnAt(sim, 'mite', 250, 250).id, -1)) m++;
     expect(m / n).toBeGreaterThan(0.42);
     expect(m / n).toBeLessThan(0.58);
+  });
+
+  it('one escape roll per contact: a springtail that stayed when touched is not rolled again by the bite (colony-life round 3)', () => {
+    // GDD 05 §2.3 "escapes per bite attempt with the substrate probability" (0.6 on open ground). An ant that walks up
+    // touches it first (jump on touch, 2.2b); before round 3 the touch and the bite each rolled 0.6, so only 16 % of
+    // approaches ended in a bite that landed. Now a contact is one roll: ~40 % of approaches are catches.
+    const sim = creatureScene({ seed: 11 });
+    sendQueenAway(sim);
+    const ant = placeWorker(sim, 250, 252); // within 1 L (4 mm) of every springtail put at (250, 250)
+    let landed = 0;
+    const n = 300;
+    for (let i = 0; i < n; i++) {
+      const s = spawnAt(sim, 'springtail', 250, 250, { state: 'graze', bb: { contact: sim.state.tick } });
+      const x0 = s.pos.x, z0 = s.pos.z;
+      step(sim, 10); // the touch rolls on the creature's update
+      const jumped = (s.pos.x - x0) ** 2 + (s.pos.z - z0) ** 2 > 30 * 30;
+      if (!jumped && !preyEvades(sim, s.id, ant.id)) landed++; // the bite, within the contact window
+      despawnCreature(sim, s.id, 'test');
+    }
+    expect(landed / n).toBeGreaterThan(0.3);
+    expect(landed / n).toBeLessThan(0.5);
   });
 
   it('a feeding fruit fly is caught with p 0.15 per strike; a hairy caterpillar is not prey', () => {
