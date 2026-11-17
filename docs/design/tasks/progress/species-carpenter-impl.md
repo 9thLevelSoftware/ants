@@ -52,3 +52,9 @@ State found (sessions 1-2 left no progress file):
   scouts, flat over the day), night-we2-hungry.txt (stores 0.3/0.1 + 30 spawned minors: still ~0 forager
   departures). AC3 -> partial: gate unit-tested; full-sim foraging too rare to show a rhythm (forage AI, not mine).
 - (03:11) RUNNING e2e r4 (test-output/species-carpenter/r4/).
+- (03:30) e2e r4 PASSED (test-output/species-carpenter/r4/): 12 first workers in decayed log-on-soil (mc 28,
+  decay 2); 02 shows possessed minor + media + major ahead inside the wood gallery; 04 shows a small frass pile
+  (dark: mound renderer has no 'frass' material -> soil fallback) + pale frass grains at the foot of the log.
+  frass: 1 pile 0.65 BU3, 36 loose, 15 in nest, units 3.5, visibility 0.7.
+- (03:31) RUNNING 28-day soak: life.ts we2 --days 28 (test-output/carp/soak28/).
+- (03:25) probes deleted from tools/sim (copies as .txt in test-output/carp/).

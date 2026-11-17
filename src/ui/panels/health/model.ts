@@ -114,7 +114,7 @@ export function valueWord(d: UiDiagnostic): string {
 
 /** What opening a remedy does. Remedies never apply anything: they open the control concerned. */
 export type RemedyAction =
-  | { kind: 'directives'; group: 'forage' | 'nurse' | 'dig' | 'defend' | null; control: 'workforce' | 'diet' | 'stock' | 'stance' | 'architect' }
+  | { kind: 'directives'; group: 'forage' | 'nurse' | 'dig' | 'defend' | null; control: 'workforce' | 'diet' | 'stock' | 'stance' | 'architect' | 'brood' }
   | { kind: 'tool'; tool: 'forage' | 'avoid' | 'rally' | 'entrance' | 'move-brood' | 'move-queen' | 'dig' }
   | { kind: 'plan'; chamberType: 'food' | 'nursery' | 'rest' }
   | { kind: 'possess'; role: 'forager' | 'digger' | 'nurse' }
@@ -147,6 +147,16 @@ const REMEDY_ACTION: Readonly<Record<string, RemedyAction>> = {
   'remedy.dig.general': { kind: 'tool', tool: 'dig' },
   'remedy.possess.forage': { kind: 'possess', role: 'forager' },
   'remedy.possess.tend': { kind: 'possess', role: 'forager' },
+  // species economy remedies (granary, wood): the nearest control the player has today
+  'remedy.slider.mill': { kind: 'directives', group: 'nurse', control: 'workforce' },
+  'remedy.slider.store': { kind: 'directives', group: 'nurse', control: 'workforce' },
+  'remedy.granary.hygiene': { kind: 'directives', group: 'nurse', control: 'workforce' },
+  'remedy.caste-emphasis': { kind: 'directives', group: null, control: 'brood' },
+  'remedy.guard.entrance': { kind: 'directives', group: 'defend', control: 'workforce' },
+  'remedy.dig.granary': { kind: 'tool', tool: 'dig' },
+  'remedy.dig.drain-chamber': { kind: 'tool', tool: 'dig' },
+  // no satellite marker yet: the new-entrance marker is where a satellite starts
+  'remedy.marker.satellite': { kind: 'tool', tool: 'entrance' },
 };
 
 /** Words and action of a remedy id; an unknown id is shown as plain advice. */
@@ -163,6 +173,7 @@ export function remedySelector(a: Extract<RemedyAction, { kind: 'directives' }>)
     case 'stock':
     case 'stance': return '[data-testid="dir-safety"]';
     case 'architect': return '[data-testid="dir-nest"]';
+    case 'brood': return '[data-testid="dir-brood"]';
   }
 }
 

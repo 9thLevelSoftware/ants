@@ -24,6 +24,7 @@ import { entranceInflow } from './inflow';
 import type { FloodPrediction } from './predict';
 
 const BROOD_TYPES = new Set(['nursery', 'royal', 'founding']);
+const CHAMBER_WORD: Record<string, string> = { nursery: 'Nursery', royal: 'Royal chamber', founding: "Queen's chamber" };
 
 function rainSoon(sim: Sim): boolean {
   const w = sim.state.env.weather;
@@ -38,11 +39,11 @@ function factor(cause: string, weight: number, detail: string): DiagnosticFactor
 
 /** The diagnostic record of one nest's flood state and risk. */
 export function floodDiagnostic(sim: Sim, nest: Nest, pred: FloodPrediction | null): Diagnostic {
-  let worstNow = 0, worstPred = 0, worstAny = 0, lowName = '';
+  let worstNow = 0, worstPred = 0, worstAny = 0, lowName = '', nowName = '';
   for (const c of nest.chambers) {
     if (c.flooded > worstAny) worstAny = c.flooded;
     if (!BROOD_TYPES.has(c.type)) continue;
-    if (c.flooded > worstNow) worstNow = c.flooded;
+    if (c.flooded > worstNow) { worstNow = c.flooded; nowName = c.type; }
     const p = pred?.chambers.get(c.id) ?? c.floodRisk;
     if (p > worstPred) { worstPred = p; lowName = c.type; }
   }
@@ -63,7 +64,8 @@ export function floodDiagnostic(sim: Sim, nest: Nest, pred: FloodPrediction | nu
   factors.push(factor('low-brood-chamber', worstPred, lowName ? `${lowName} ${Math.round(worstPred * 100)} % in a reference storm` : 'no brood chamber at risk'));
   factors.push(factor('soil-saturation', m, `soil moisture ${Math.round(m * 100)} %`));
   factors.push(factor('rain-forecast', rainSoon(sim) ? 0.5 : 0, rainSoon(sim) ? 'rain now or next' : 'no rain forecast'));
-  const label = status === 'bad' ? 'Nest flooding'
+  // the card names the chamber it is about (gate-close-app: a generic name read as the founding card after the opening)
+  const label = status === 'bad' ? `${CHAMBER_WORD[nowName] ?? 'Nest'} flooding`
     : status === 'info' ? (worstAny >= FLOOD_ALERT_FRACTION ? 'Water in the nest' : worstAny > 0 ? 'A little water in the nest' : 'Nest at risk of flooding')
       : 'Nest drains well';
   return {
@@ -80,18 +82,31 @@ export function publishFloodDiagnostic(sim: Sim, nest: Nest, pred: FloodPredicti
   return d;
 }
 
-/** Raises or clears `founding-flooding` for a founding nest whose cell takes water. */
+/**
+ * Raises or clears `founding-flooding` for a founding nest whose cell takes water. Only during the opening: once the
+ * nest is reopening (hand-over) the card goes and `diag-nest-flood` names the chamber. A periodic re-raise of a card
+ * that is up is the same condition, not a repeat: it updates the share in place without counting up.
+ */
 export function foundingFloodAlert(sim: Sim, nest: Nest): void {
   if (!nest.founding) return;
   let share = 0;
   for (const c of nest.chambers) share = Math.max(share, c.flooded);
-  if (share <= 0) {
+  const opening = nest.founding.state !== 'reopening' && nest.founding.state !== 'established';
+  if (share <= 0 || !opening) {
     clearAlert(sim, 'founding-flooding', nest.id);
     return;
   }
   const colony = sim.stores.colonies.get(nest.colony);
   const queen = colony ? sim.stores.ants.get(colony.queenId) : undefined;
   const pct = Math.round(share * 100);
+  const card = sim.state.progression.alerts.find((a) => a.kind === 'founding-flooding' && a.subjectId === nest.id);
+  if (card) {
+    if (card.tokens?.pct === pct) return;
+    card.tokens = { pct };
+    card.updatedTick = sim.state.tick;
+    sim.emit({ type: 'alert', op: 'update', alert: { ...card, tokens: { pct }, focus: card.focus ? { ...card.focus, pos: { ...card.focus.pos } } : null } });
+    return;
+  }
   raiseAlert(sim, {
     kind: 'founding-flooding', level: 'critical', subjectId: nest.id, title: '', cause: '',
     focus: queen ? { kind: 'ant', id: queen.id, pos: { ...queen.pos } } : { kind: 'nest', id: nest.id, pos: { ...nest.origin } },

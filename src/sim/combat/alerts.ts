@@ -71,7 +71,8 @@ export function combatAlerts(sim: Sim): void {
     if (pinned && p.bb[PIN_ON] !== 1) {
       p.bb[PIN_ON] = 1;
       raiseAlert(sim, {
-        kind: 'possessed-danger', level: 'warning', subjectId: p.id, title: 'Pinned', cause: 'pinned',
+        // critical as every possessed-danger card (ruling R15, GDD 08 §6.5)
+        kind: 'possessed-danger', level: 'critical', subjectId: p.id, title: 'Pinned', cause: 'pinned',
         focus: { kind: 'ant', id: p.id, pos: { ...p.pos } }, diagnosticId: null, tokens: { cause: 'pinned' },
       });
     } else if (!pinned && p.bb[PIN_ON] === 1) unpin(sim, p.id);

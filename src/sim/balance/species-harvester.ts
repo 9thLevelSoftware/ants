@@ -38,8 +38,8 @@ export const SEED_RAIN_PER_GD = 0.25;
 export const SEED_BANK_LOSS_PER_GD = 0.02;
 /** Seed bank at game start, share of capacity (the colony starts in autumn after the seed rain). */
 export const SEED_BANK_START = 0.8;
-/** Odour radius of a seed node, BU (harvesters find seed patches by search; GDD 05 gives none) [EST]. */
-export const SEED_ODOUR_BU = 10;
+/** Detection radius of a seed node, BU: a patch is seeds scattered over several BU found by search (GDD 05 gives no odour); 10 BU left 15 nodes within 300 BU unfound for a game day [EST]. */
+export const SEED_ODOUR_BU = 25;
 /** Recruitment quality of a seed node 0..1.3. */
 export const SEED_QUALITY = 1.0;
 /** Feeding slots of a seed node. */
