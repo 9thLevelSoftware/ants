@@ -7,7 +7,7 @@ import type { ActiveAlert, AlertKind, AlertLevel, Sim } from '@/sim/types';
 import { ALERT_LEVELS } from '@/sim/types';
 import { ALERT_COOLDOWN_GAME_H, ALERTS_ACTIVE_MAX } from '@/sim/balance';
 import { TICKS_PER_HOUR } from '@/sim/time';
-import { engineOf } from './engine';
+import { engineOf, memGet, memSet } from './engine';
 import { logEvent } from './journal';
 
 /** Alert fields a module supplies; progression fills id, ticks, count and acknowledgement. */
@@ -55,7 +55,8 @@ export function alertRefusal(sim: Sim, req: Pick<AlertRequest, 'kind' | 'level' 
 
 /**
  * Raises or updates an alert; returns its id, or -1 when it is refused (see `alertRefusal`): the raise then goes
- * to the event log only. A repeat of an active key counts up; a higher level escalates it (op 'update').
+ * to the event log only. A repeat of an active key counts up; a higher level escalates it, and a lower level from the
+ * same diagnostic eases it (op 'update').
  */
 export function raiseAlert(sim: Sim, req: AlertRequest): number {
   const p = sim.state.progression;
@@ -71,10 +72,15 @@ export function raiseAlert(sim: Sim, req: AlertRequest): number {
     cur.focus = req.focus;
     cur.diagnosticId = req.diagnosticId;
     if (req.tokens) cur.tokens = { ...req.tokens };
+    // the same diagnostic asks for a lower level: its cause eased (bad -> warn), so the card falls back with it
+    const eased = rank(req.level) < rank(cur.level) && req.diagnosticId !== null && req.diagnosticId === cur.diagnosticId;
     if (escalated) {
       cur.level = req.level;
       cur.acknowledged = false;
       log(sim, cur, 'escalate');
+    } else if (eased) {
+      cur.level = req.level;
+      log(sim, cur, 'ease');
     }
     sim.emit({ type: 'alert', op: 'update', alert: snapshot(cur) });
     return cur.id;
@@ -119,6 +125,7 @@ export function clearAlert(sim: Sim, kind: AlertKind, subjectId: number): void {
   const [a] = p.alerts.splice(i, 1);
   const eng = engineOf(sim);
   eng.alertCleared[alertKey(kind, subjectId)] = sim.state.tick;
+  delete eng.mem[seenKey(kind, subjectId)];
   pruneCooldowns(sim);
   log(sim, a, 'clear');
   sim.emit({ type: 'alert', op: 'clear', alert: snapshot(a) });
@@ -145,4 +152,34 @@ export function activeAlerts(sim: Sim): ActiveAlert[] {
   return sim.state.progression.alerts
     .map(snapshot)
     .sort((a, b) => rank(b.level) - rank(a.level) || b.updatedTick - a.updatedTick || b.id - a.id);
+}
+
+// ---- lifetime of an alert whose raiser clears it by condition and time (quiet-time) ----
+// A raiser that holds a card only while a condition holds calls `touchAlert` each time the condition is seen, and
+// `expireAlert` each check: the card leaves once the condition has not been seen for `idleTicks`, or when it has been
+// up for `maxTicks`, whichever comes first. The marks live in `progression.engine.mem` (saved with the game).
+
+export interface AlertLifetime {
+  /** Clear this long after the condition was last seen, ticks. */
+  idleTicks: number;
+  /** Clear this long after the card was raised, ticks (0 = no cap). */
+  maxTicks: number;
+}
+
+const seenKey = (kind: AlertKind, subjectId: number): string => `aseen:${alertKey(kind, subjectId)}`;
+
+/** The condition behind an active alert holds now: restarts its idle clock without counting a repeat. */
+export function touchAlert(sim: Sim, kind: AlertKind, subjectId: number): void {
+  memSet(sim, seenKey(kind, subjectId), sim.state.tick);
+}
+
+/** Clears the alert when its lifetime is over (see `AlertLifetime`); true when it was cleared. */
+export function expireAlert(sim: Sim, kind: AlertKind, subjectId: number, life: AlertLifetime): boolean {
+  const a = sim.state.progression.alerts.find((x) => x.kind === kind && x.subjectId === subjectId);
+  if (!a) return false;
+  const now = sim.state.tick;
+  const seen = Math.max(a.raisedTick, memGet(sim, seenKey(kind, subjectId), a.raisedTick));
+  if (now - seen < life.idleTicks && (life.maxTicks <= 0 || now - a.raisedTick < life.maxTicks)) return false;
+  clearAlert(sim, kind, subjectId);
+  return true;
 }

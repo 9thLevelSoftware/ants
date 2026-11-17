@@ -467,3 +467,22 @@ export const HUMAN_GRID_MM = 250;
 export const HUMAN_LANE_THIN = 2;
 /** Grass inside the play area or a lawn smaller than this is not a lane site, m^2. */
 export const HUMAN_MIN_SITE_M2 = 2;
+
+// ---- the warning card (quiet-time, GDD 05 I11) ----
+// The telegraph (cues: sound, tremor, shadow) always plays; the `human-event-warning` card is raised only while the
+// player's ants are in the path of an impact due within the look-ahead, one card per site (the alert engine's
+// cooldown of a warning, 1 game hour, then keeps a busy site from re-raising it), and it never stays up longer than
+// HUMAN_ALERT_MAX_S: a human event lasts real seconds (a mowing run up to 240 s = ten clock hours of 25 s), and a
+// card held for the whole event made every event loud for the quiet share. Below QUIET_ALERT_SHARE of a clock hour
+// (6.25 s) so that one card alone never makes an hour loud.
+/** Impacts due within this many seconds (x HUMAN_TELEGRAPH_MULT) count as "ahead of the ants". */
+export const HUMAN_ALERT_LOOKAHEAD_S = 3;
+/** An ant within this distance of an impact footprint (mm) is in its path. */
+export const HUMAN_ALERT_MARGIN_MM = 60;
+/** The card clears this long after the last time an ant was in the path (the impact has passed or the ants left), s. */
+export const HUMAN_ALERT_IDLE_S = 1;
+/** Longest stay of one card, s. */
+export const HUMAN_ALERT_MAX_S = 5;
+/** The check runs every this many ticks; at most this many upcoming impacts are looked at per check. */
+export const HUMAN_ALERT_EVERY = 5;
+export const HUMAN_ALERT_MAX_IMPACTS = 24;

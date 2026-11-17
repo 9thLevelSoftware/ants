@@ -23,10 +23,10 @@ const GROUND_ALBEDO = 0.06;
 /**
  * Look pass 3: the night is darker and cooler than look pass 2 left it (it read as an overcast day: saturated grass, a
  * mid-blue sky, ground 0.164). Measured in the game (tests/e2e/look3.mjs, same pose, quality high, seed 1): clear night
- * ground 0.164 -> 0.111, night rain 0.160 -> 0.103, frame median 0.207 -> 0.149; the model gives 0.132 at GROUND_ALBEDO.
- * The exposure pins follow from targetE 2.45 -> 1.7 and minEV 2.6 -> 2.2.
+ * ground 0.164 -> 0.111, night rain 0.160 -> 0.103, frame median 0.207 -> 0.149 (at targetE 1.7); the model gives 0.147 at GROUND_ALBEDO for targetE 1.9.
+ * The exposure pins follow from targetE 2.45 -> 1.9 and minEV 2.6 -> 2.3 (1.7 / 2.2 first; lifted a little after the founding night picture showed a fresh mound at 02:49 under cloud almost black).
  */
-const EV_CLEAR = 2.891, EV_RAIN = 3.065;
+const EV_CLEAR = 3.051, EV_RAIN = 3.226;
 const noon0 = () => input(60);
 const night = (over: Partial<LightingInput> = {}) => computeLighting(input(-30, over));
 

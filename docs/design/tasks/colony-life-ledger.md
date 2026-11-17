@@ -1650,3 +1650,52 @@ sources known) ends the 2-scout floor of R3.
 - 22:41 red-with-the-fix-removed check (scratch copy, the five fixed files at 8b4c207): `larderProvision.verify`,
   `lossCapStores.verify`, `haulMidden.verify`, `founding/padPrompt.test` all RED, green on the tree. (`causeWords`,
   `storesNeed`, the new `lossCap` case test new functions.) Typecheck clean (22:28). Full benches 2/15 each.
+- 23:00 full-length forage benches 6/15 each: P/need median **0.079 (r5start) -> 0.245 (r5f)**; we #1 0.32 -> 0.37,
+  sg #1 0.08 -> 0.25, pp #1 0.05 -> 0.36, cpv #1 0.06 -> 0.24, kd #1 0.08 -> 0.03, we #2 0.14 -> 0.07. Caveat: r5f
+  carries other engineers' creature files committed after 8b4c207 (`ecology/creatures/alerts.ts`, `bird.ts`,
+  `system.ts`): predation 0 -> 7 worker deaths on the 6 pairs. Waiting for the other 9 (ETA ~23:50).
+
+### Fixes (round 5; in the tree)
+
+P1. **Hand-over protein stays in the queen until the stomachs take it** (sweep-4 blocker, L1 x R2):
+    `colony/handover.ts` `provisionAtHandover`, new `colony/stores.ts` `stomachSpace`. P goes into the social
+    stomachs only (never the larder or a chamber pile, P half-life 3 gd); C as in round 4 (whole pool, larder
+    included). Tests: `colony/larderProvision.verify` (review's; red before, green), `viability.test` R2 "moves in
+    later" restated to the stomach rule. Before/after: cpv #1 72 h P spoiled 1.98 -> 0.01, spoiled items 4 -> 0;
+    kd #1 (round-4 code vs tree, same cache) 0.84 -> 0.04 P spoiled by h21.
+WL2. **The workers the R24 cap keeps eat through the lapse** (sweep-4 major): `overwinter/model.ts`
+    `sparedWorkersFood`, `overwinter/begin.ts` `chargeSparedWorkers`. Tests: `overwinter/lossCapStores.verify`
+    (review's; red before, green), `lossCap.test` new case (a capped flood colony eats as the dry one).
+M2. **An item in the nest is never at a surface midden** (sweep-4 minor): `ants/behaviours/nest/haul.ts` `atMidden`.
+    Test `haulMidden.verify` (review's; red before, green).
+R27. **Winter stores check** (ruling): `overwinter/storesNeed.ts` `winterStoresNeed`; verdict `tools/sim/lifeViable.ts`
+    (stores >= R27 need, read from the new day-row fields `winterStoresNeedC` / `lapseNeedC` of `lifeMetrics.ts`);
+    `sweep-table.py` column; autumn target `economy.ts` `autumnStockMult` = max(x2, R27 x 1.25). Constants
+    WINTER_STORES_SPRING_GD 4, WINTER_STORES_TARGET_MARGIN 1.25 (`balance/lifecycle.ts`). Test
+    `overwinter/storesNeed.test.ts`.
+S3/S6. **Founding prompts by pad** (`ants/player/targeting.ts`; `balance/actions.ts` PROMPT_CLASS_WEIGHT.lay 7.5).
+    Test `colony/founding/padPrompt.test.ts` (red with the old targeting).
+S17. **Flood cause lines in plain words** (`nest/flood/diagnostics.ts` `rimWords`, `catchmentWords`; bands in
+    `balance/weather.ts`). Test `nest/flood/causeWords.test.ts`.
+SR. **Small-colony scout range 220 -> 300 BU** (`balance/foraging.ts` SMALL_SCOUT_RANGE_BU; R18's radius). Scouts'
+    median farthest point 207 -> 260 BU on the 4-day bench; cpv #1 / we #1 find their 202 / 210 BU patches.
+Tools: `lifeFunnel.ts` `proteinKnownGd`; `bench-table.py` columns (P known gd, scout trips / maxD, gap to P odour);
+`bench-sweep.sh` DAYS; probes `tools/sim/probe/*.ts` (deleted at the end of the round).
+
+### GDD deviations (round 5)
+
+- S3: GDD 01 §9.2 puts the queen's "Lay egg" in class 9 (self, weight 1), below brood (7). A queen who can lay now,
+  and the founding queen in the opening's `lay` phase always, gets class `lay` (7.5): her eggs lie in reach and
+  "Pick up egg" otherwise takes the button. S6: a plugged entrance is offered to the founding queen at class `self`
+  (her own line first; GDD 06 §5.9 "she can reopen it later" stays possible by cycle-target).
+- R27 (ruling): the viability stores check (viab-economy) and the R6 autumn target are restated on the winter's own C
+  need; "spring adult need" is read as the adults' C need of the colony cycle at the first tick of winter.
+- SMALL_SCOUT_RANGE_BU 300: viab-economy R3's 220 is below ruling R18's 300 BU radius.
+
+### Tried and reverted (round 5)
+
+- PR1 (2-scout floor while no protein is known) and PR1b (with no protein known every outside worker the known
+  sources do not need scouts; gate S2): 4-day forage bench P/need median 0.237 -> 0.232 -> 0.152, protein known within
+  1 gd 6/13 -> 3/15 -> 4/15. Reverted (demand.ts and its test edits back to 8b4c207).
+- P1 v1 (the queen's C held to the stomachs as well as her P): kd #1 pool C 0.06 on day 2, 0 on day 3 with no trips;
+  replaced by v2 (C as in round 4).

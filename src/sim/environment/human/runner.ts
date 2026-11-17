@@ -5,7 +5,6 @@
 
 import { rngChance, rngRange } from '@/core/rng';
 import type { HumanEventInst, HumanEventRun, Sim } from '@/sim/types';
-import { clearAlert, raiseAlert } from '@/sim/progression';
 import { removeItem } from '@/sim/entities';
 import { spawnHumanFood } from '@/sim/ecology';
 import {
@@ -17,6 +16,7 @@ import { humanExtra } from './extra';
 import { applyImpact } from './effects/kinds';
 import { humanRng } from './effects/common';
 import { addParkedCar, removeDyn } from './effects/objects';
+import { checkHumanAlert, endHumanAlert, expireHumanAlerts } from './alerts';
 import { refreshCues } from './cues';
 import { firstImpactAtOrAfter, forgetPlan, humanPlan } from './plans';
 import type { HumanPlan } from './plan';
@@ -111,20 +111,6 @@ export function startDue(sim: Sim): void {
   }
 }
 
-function warn(sim: Sim, inst: HumanEventInst, plan: HumanPlan): void {
-  const a = plan.area;
-  const player = sim.state.colonies[0]?.id ?? -1;
-  const exposed = sim.stores.ants.list.some((ant) => ant.alive && ant.colony === player && ant.nestId < 0
-    && ant.pos.x >= a.x0 && ant.pos.x <= a.x1 && ant.pos.z >= a.z0 && ant.pos.z <= a.z1);
-  if (!exposed) return;
-  const area = siteById(sim.world, plan.siteId)?.area ?? 'garden';
-  raiseAlert(sim, {
-    kind: 'human-event-warning', level: 'warning', subjectId: inst.id, title: '', cause: '',
-    focus: { kind: 'point', id: -1, pos: { x: (a.x0 + a.x1) / 2, y: plan.impacts[0]?.fp.y ?? 0, z: (a.z0 + a.z1) / 2 } },
-    diagnosticId: 'diag-human-pressure', tokens: { area, event: inst.kind },
-  });
-}
-
 /** Advances every active run by one tick: cues, start, impacts due, end. */
 export function stepRuns(sim: Sim): void {
   const h = sim.state.env.human, now = sim.state.tick;
@@ -134,9 +120,8 @@ export function stepRuns(sim: Sim): void {
     if (!inst || !plan) { h.active.splice(h.active.indexOf(run), 1); continue; }
     const t = now - inst.startTick;
     run.progressS = t / TICKS_PER_SECOND;
-    const firstWarning = !run.telegraphTicks || Object.keys(run.telegraphTicks).length === 0;
     refreshCues(sim, run, inst, plan);
-    if (firstWarning && run.telegraphTicks && Object.keys(run.telegraphTicks).length > 0) warn(sim, inst, plan);
+    checkHumanAlert(sim, inst, plan);
     if (!run.started && t >= plan.firstT) {
       run.started = true;
       sim.emit({ type: 'human.start', instId: inst.id, kind: inst.kind, variant: inst.variant, region: inst.regionId });
@@ -150,6 +135,7 @@ export function stepRuns(sim: Sim): void {
     }
     if (t >= plan.endT) endRun(sim, run, inst, plan);
   }
+  expireHumanAlerts(sim);
 }
 
 function endRun(sim: Sim, run: HumanEventRun, inst: HumanEventInst, plan: HumanPlan): void {
@@ -163,7 +149,7 @@ function endRun(sim: Sim, run: HumanEventRun, inst: HumanEventInst, plan: HumanP
   if (inst.kind === 'car') endCar(sim, inst, plan);
   sim.emit({ type: 'human.casualties', instId: inst.id, killed: run.killed ?? 0, displaced: run.displaced ?? 0, itemsRemoved: run.itemsRemoved ?? 0 });
   sim.emit({ type: 'human.end', instId: inst.id, kind: inst.kind, variant: inst.variant, region: inst.regionId });
-  clearAlert(sim, 'human-event-warning', inst.id);
+  endHumanAlert(sim, plan.siteId, inst.id);
   h.active.splice(h.active.indexOf(run), 1);
   forgetPlan(sim, inst.id);
 }
