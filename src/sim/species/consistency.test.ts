@@ -124,9 +124,9 @@ describe('canonical constants repeated in species data (00-index C-sections)', (
     expect(PLAYABLE_SPECIES.map((d) => d.winter.mode)).toEqual(['diapause-lapse', 'diapause-lapse', 'rest-lapse', 'active']);
   });
 
-  it('natural start windows (06 §1.6 / C1): doy 9-12 (10), 2-9 (5), 15-19 (17), 2-8 (5)', () => {
+  it('natural start windows (06 §1.6 / C1; Lasius R20): doy 5-9 (5), 2-9 (5), 15-19 (17), 2-8 (5)', () => {
     expect(PLAYABLE_SPECIES.map((d) => d.opening.startDoy)).toEqual([
-      { min: 9, max: 12, default: 9 }, { min: 2, max: 9, default: 5 }, { min: 15, max: 19, default: 17 }, { min: 2, max: 8, default: 5 },
+      { min: 5, max: 9, default: 5 }, { min: 2, max: 9, default: 5 }, { min: 15, max: 19, default: 17 }, { min: 2, max: 8, default: 5 },
     ]);
   });
 

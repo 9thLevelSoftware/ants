@@ -13,8 +13,8 @@ import { CHEAT_SPAWN_LIFT_BU, CHEAT_SPAWN_SCATTER_BU, LARVA_C_REQ, LARVA_P_REQ }
 import { killAnt, removeMarker, spawnAnt, spawnBrood } from '@/sim/entities';
 import { walkerPlace } from '@/sim/locomotion/walker';
 import { daysPerYear, daysToTicks, TICKS_PER_DAY } from '@/sim/time';
-import { book } from './core';
-import { deposit, feedFromCrop, withdraw, type DepositSource, type WithdrawPurpose } from './stores';
+import { book, coreOf } from './core';
+import { deposit, feedFromCrop, refusedIntoLarder, withdraw, type DepositSource, type WithdrawPurpose } from './stores';
 import { feetOf, layEgg as queenLayEgg, queenRationPShare } from './queen';
 import { requestTask as allocRequestTask } from './allocation';
 import { injectReturn } from './activation';
@@ -73,6 +73,9 @@ export function depositFood(sim: Sim, colonyId: number, c: number, p: number, to
   const col = sim.stores.colonies.get(colonyId);
   if (!col) return { c: 0, p: 0 };
   const got = deposit(col, c, p, toxin, source);
+  // R21 (b): a delivery the full stores refuse while the nest has only its larder makes the first food chamber a
+  // planning need (nest/architect/needs.ts reads the tick)
+  if (source === 'delivery' && refusedIntoLarder(col, { c, p }, got)) coreOf(col).larderRefusedTick = sim.state.tick;
   return { c: got.c, p: got.p };
 }
 

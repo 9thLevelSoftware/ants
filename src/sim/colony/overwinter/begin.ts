@@ -239,31 +239,72 @@ function broodLogFresh(sim: Sim, life: ReturnType<typeof lifecycleOf>): boolean 
   return Math.abs(dCal - dTick) <= TICKS_PER_HOUR && dCal <= 2 * TICKS_PER_HOUR;
 }
 
+/**
+ * The tick of each sample of the log. A log without ticks (an older save) is read as one sample an hour, ending at the
+ * last sample tick.
+ */
+function sampleTicks(life: ReturnType<typeof lifecycleOf>): number[] {
+  const log = life.broodTempLog ?? [];
+  const ticks = life.broodTempTicks;
+  if (ticks && ticks.length === log.length) return ticks;
+  const last = life.broodTempTick ?? 0;
+  return log.map((_, i) => last - (log.length - 1 - i) * TICKS_PER_HOUR);
+}
+
+/**
+ * Drops the samples older than WINTER_ACTIVE_WINDOW_GD. Hours without brood add no sample, so without this a log
+ * whose brood died days ago would still hold the warm hours of when it lived (sweep 3, woodland-edge #1: 48 samples
+ * 4 gd old decided "heated" and the colony got no winter lapse).
+ */
+function dropOldSamples(sim: Sim, life: ReturnType<typeof lifecycleOf>): void {
+  const log = life.broodTempLog ?? [];
+  const ticks = sampleTicks(life);
+  const oldest = sim.state.tick - WINTER_ACTIVE_WINDOW_GD * TICKS_PER_DAY;
+  let first = 0;
+  while (first < ticks.length && ticks[first] <= oldest) first++;
+  life.broodTempLog = log.slice(first);
+  life.broodTempTicks = ticks.slice(first);
+}
+
 /** Hourly sample of the heated-nest log (kept for WINTER_ACTIVE_WINDOW_GD; restarted after a calendar jump). */
 export function sampleBroodTemp(sim: Sim, col: Colony): void {
   const life = lifecycleOf(col);
   const last = life.broodTempTick ?? -1;
   if (last >= 0 && sim.state.tick - last < TICKS_PER_HOUR) return;
-  if (!broodLogFresh(sim, life)) life.broodTempLog = [];
+  if (!broodLogFresh(sim, life)) {
+    life.broodTempLog = [];
+    life.broodTempTicks = [];
+  }
+  dropOldSamples(sim, life);
   life.broodTempTick = sim.state.tick;
   life.broodTempCal = calendarTick(sim.state);
   const t = broodChamberTemp(sim, col);
-  const log = (life.broodTempLog ??= []);
-  if (t !== null) log.push(t);
+  if (t !== null) {
+    life.broodTempLog!.push(t);
+    life.broodTempTicks!.push(sim.state.tick);
+  }
   const keep = Math.round(WINTER_ACTIVE_WINDOW_GD * HOURS_PER_DAY);
-  if (log.length > keep) log.splice(0, log.length - keep);
+  const extra = life.broodTempLog!.length - keep;
+  if (extra > 0) {
+    life.broodTempLog!.splice(0, extra);
+    life.broodTempTicks!.splice(0, extra);
+  }
 }
 
 /**
  * Heated nests (GDD 06 §6.1): the colony keeps active through winter when the brood-weighted mean chamber
- * temperature over the last WINTER_ACTIVE_WINDOW_GD is at least `tMeanC`. Without a fresh log (none yet, or the
- * calendar jumped since, as with the winter trigger cheat): the brood chambers now, or the cluster without brood.
+ * temperature over the last WINTER_ACTIVE_WINDOW_GD is at least `tMeanC`; hours without brood weigh nothing. Without a
+ * fresh log (none yet, the calendar jumped since, as with the winter trigger cheat, or no brood in the window): the
+ * brood chambers now, or the cluster without brood.
  */
 export function heatedNest(sim: Sim, col: Colony, def: SpeciesDef, tMeanC: number): boolean {
   if (!def.winter.heatedNestRule) return false;
   const life = lifecycleOf(col);
-  const log = life.broodTempLog ?? [];
-  if (broodLogFresh(sim, life)) return log.reduce((a, b) => a + b, 0) / log.length >= tMeanC;
+  if (broodLogFresh(sim, life)) {
+    dropOldSamples(sim, life);
+    const log = life.broodTempLog ?? [];
+    if (log.length > 0) return log.reduce((a, b) => a + b, 0) / log.length >= tMeanC;
+  }
   const now = broodChamberTemp(sim, col);
   return (now ?? clusterOf(sim, col).tNow) >= tMeanC;
 }

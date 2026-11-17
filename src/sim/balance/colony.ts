@@ -260,6 +260,13 @@ export const WASTE_BULK = {
   meconium: 0.05, cocoon: 0.05, 'spoiled-food': 0.3,
   'brood-corpse': { egg: 0.02, larva: 0.3, pupa: 0.4 },
 } as const;
+/**
+ * The larder of a small nest (ruling R21, a deviation from GDD 03 §6.4 "pile capacity 0 outside food chambers"): a
+ * colony with no food chamber keeps solid food as a pile on the floor of the chamber its brood lives in, LARDER_NEED_GD
+ * game days of the colony's own full need per nutrient, never less than LARDER_MIN_LOADS loads per nutrient.
+ */
+export const LARDER_NEED_GD = 1;
+export const LARDER_MIN_LOADS = 4;
 /** Pool counts as full when its free space is below this, loads. */
 export const STORES_FULL_SPACE = 0.05;
 export const STORES_FULL_ALERT_GD = 0.25;

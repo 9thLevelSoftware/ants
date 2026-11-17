@@ -10,14 +10,15 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 | --- | --- |
 | `index.ts` | systems (`creature-director` every 50 ticks, `creatures` every tick, phase `creatures`), public API, cheat handlers |
 | `system.ts` | per-tick loop, kind table, deaths from hp <= 0, subduing, hit reactions |
-| `director.ts` | residents / visitors from territories, despawning, caps, global cap 260, winter, hourly rolls |
+| `director.ts` | residents / visitors from territories (nearest the colony first, far residents give way), despawning, caps, global cap 260, winter, hourly rolls |
+| `colonyRange.ts` | colony-range residents (threats-live): after the hand-over, one territory per hunting kind with habitat in the ring `COLONY_RANGE_BU` around the player's first entrance, near the colony's routes (entrance -> food sources); `COLONY_RANGE_P` x Predators setting |
 | `spawners.ts` | prey patches (+ regrowth), patch prey around foragers, fruit flies, caterpillars, fly larvae, stranded worms, pits |
 | `attack.ts`, `predator.ts` | telegraph / strike / seize / venom / struggle; victim choice, flee, feed, recover |
 | `spiders.ts`, `hunters.ts`, `antlion.ts`, `invasion.ts` | jumping & wolf spider; ant-spider, centipede, rove beetle; antlion pit; centipede nest raid |
 | `aphidPredators.ts`, `preyFauna.ts`, `neutral.ts`, `bird.ts` | the other families and the bird event |
 | `prey.ts` | remains (carcass item / tear source), transport rule, subduing |
 | `queries.ts` | `threatsNear`, `preyNear`, `knownHazardsNear`, `creatureArmour`, `creaturePull` |
-| `alerts.ts` | `predator-near` (warning; cleared 30 s after its condition ended or when the creature is gone) and `nest-attacked` (critical; cleared 30 s after the last invader left) |
+| `alerts.ts` | `predator-near` (warning; lurking near the possessed ant / 3 foragers, or a strike that landed on a player-colony ant; cleared 30 s after its condition ended or when the creature is gone), `nest-attacked` (critical; cleared 30 s after the last invader left), `possessed-danger` causes `seized` / `stuck` (critical, per tick) |
 | `danger.ts`, `threat.ts` | danger grid (nav cost overlay), threat director + quiet share |
 | `hooks.ts`, `lifecycle.ts` | lazily installed locomotion hooks (movement override, speed factor) and event listeners |
 | `ports.ts` | every external function called for an effect (tests swap them) |
@@ -32,8 +33,8 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
   A pit whose antlion is gone becomes `collapsed` with `untilTick` (fills in over ANTLION_EMPTY_PIT_FILL_GD) and is
   no longer slowing or a known hazard. Pits are placed only up to cap x Predators setting (I5).
 - centipede: `prowl windup hold feed recover flee invade burrow`; rove-beetle: `forage windup hold feed recover flee burrow`
-  (both hunt only while night-active; out of it and not engaged they burrow: gone at once far from the focus, after
-  BURROW_S in state `burrow` near it)
+  (both hunt while night-active, rove beetles also by day in leaf litter (`ROVE_DAY_ZONES`); out of it and not engaged
+  they burrow: gone at once far from the focus, after BURROW_S in state `burrow` near it)
 - ladybird: `fly-in feed fly-off` (flag FLYING); ladybird-larva: `egg crawl feed drop-off wander`;
   lacewing-larva: `crawl feed`
 - springtail / mite: `graze`; fly-larva: `feed burrow`; caterpillar: `feed crawl silk subdued` (ON_SILK, HAIRY);
@@ -65,6 +66,8 @@ The bird event is `state.ecology.birdEvent` (`phase` approach / landed / leaving
   `combat.releaseGrapple`. Seized ants: `ant.combat.seizedBy`, `escape`; paralysed: `paralysedUntilTick`.
 - player control: `addStruggleInput(sim, antId)` per struggle input (bites, specials and > 90 degree turns are also
   read from the recorded intent).
+- perception (ants): `predatorPerceivedBy(sim, creature, ant)` is GDD 05 §2.4's AI detection (4 L x stealth by
+  state; never hidden / dormant creatures or a buried antlion) - `ants/perception/sense.ts` flees only from these.
 - behaviours: `threatsNear` (state word, telegraphed strikes, repel zones of secretions, the bird), `preyNear`,
   `knownHazardsNear` (avoid pit radius + 1 L), `dangerAt` (avoid markers count as 3); the danger grid also prices
   nav-grid cells. Seized ants (`combat.seizedBy`) and paralysed ants are moved by this module's movement override;

@@ -246,6 +246,15 @@ export interface ColonyCoreState {
   workers: number;
   /** Solid pile capacity of the colony's chambers, loads, at the last colony update. */
   pileCap: number;
+  /**
+   * The larder of a nest with no food chamber (ruling R21), at the last colony update: its pile capacity per nutrient,
+   * loads (0 or missing: no larder, the colony has a food chamber), and the chamber whose floor holds it (-1 none).
+   */
+  larderC?: number;
+  larderP?: number;
+  larderChamberId?: number;
+  /** Tick of the last delivery the full stores refused while the colony had no food chamber, -1 or missing: none. */
+  larderRefusedTick?: number;
   /** Tick pool C / pool P became zero, -1 while positive. */
   cZeroSinceTick: number;
   pZeroSinceTick: number;

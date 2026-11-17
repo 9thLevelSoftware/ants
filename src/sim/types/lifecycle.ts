@@ -201,6 +201,12 @@ export interface ColonyLifecycleState {
    * heated-nest rule (GDD 06 §6.1), and the tick of the last sample. Missing: none yet.
    */
   broodTempLog?: number[];
+  /**
+   * Simulation tick of each `broodTempLog` sample (same length). An hour without brood adds no sample, so the ticks
+   * say which samples still lie inside the window. Missing (older saves): the samples are taken as hourly, ending at
+   * `broodTempTick`.
+   */
+  broodTempTicks?: number[];
   broodTempTick?: number;
   /** Calendar tick of the last sample: a calendar jump (winter, time cheats) since then makes the log stale. */
   broodTempCal?: number;

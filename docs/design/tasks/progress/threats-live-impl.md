@@ -26,15 +26,14 @@ Started 2026-11-17 11:16 UTC (no earlier progress file existed).
   test possessedDanger.test.ts (not yet run).
 
 ## In progress
-- after1 DONE (fix2-tree: placement + perception): naturalist 6 gd x 5: 10 predation kills / 111 outside-worker-gd
-  = 0.09 per owgd (derived band 0.03-0.12, target 0.06). Strikes on >=1 world: JS 2/5, wolf 2/5, ant-spider 3/5,
-  centipede 0/5, rove 0/5. predator-near never raised (rule needs 3 foragers within 15 BU).
-- Since fix2: predator-near raised on a landed strike (alerts.predatorStruck, attack.ts), rove beetle by day in litter,
-  colony ring [40,140] uniform in distance, stream names include archetype (seed 1 everywhere gave identical sites),
-  ant-spider approach 15 mm/s (= GDD walk), COLONY_RANGE_P per kind (all 1 now; x predatorMult) for calibration.
-  New tests (not run yet): strikeAlert.test.ts, huntSaveLoad.test.ts. Tool tools/sim/threatSites.ts (siting read-out).
-- Running: scratchpad/after2.sh (fix3-tree frozen copy) -> test-output/threats-live/after2, 5 x 6 gd naturalist.
-- Next: presets gentle/harsh + predators off on 5 snapshots; colony bench before/after; perf; harness; report.
+- after3 DONE = FINAL naturalist (fix4-tree = main tree sim code): 7 kills / 103.6 owgd = 0.07 per owgd (0.28 per 100
+  owh); strikes on worlds: wolf 4/5, ant-spider 2/5, rove 1/5, JS 0/5 (sense 4/5, select 3/5; stalk 8 mm/s cannot
+  close on cruising ants), centipede 0/5 (habitat on 2/5; struck in after2), antlion: no pits on any of the 5.
+- Running (13:10 UTC): scratchpad/presets.sh (fix4-tree): final-gentle, final-harsh (6 gd), final-off (3 gd) under
+  test-output/threats-live/. Then: harness (test-output/threats-live/harness/threat-shots.mjs), perf (scratchpad/perf.sh
+  before-tree vs main), benches (scratchpad/bench.sh forage before-tree vs main -> test-output/threats-live/bench-*).
+- Report draft: docs/design/tasks/threats-live-report.md sections 1-3 written (causes, fixes, funnel after, design
+  target derivation 0.061/owgd band 0.03-0.12). README of creatures updated. tables-naturalist.md written.
 
 ## Findings so far
 - Cause candidate 1: territory placement (worldgen populate/territories.ts byArea: random cells over the whole zone,

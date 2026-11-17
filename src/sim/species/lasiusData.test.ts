@@ -32,6 +32,6 @@ describe('Lasius niger life history and start window', () => {
   });
 
   it('the natural start window is doy 9-12, default 10 (C1)', () => {
-    expect(requireSpecies('lasius-niger').opening.startDoy).toEqual({ min: 9, max: 12, default: 9 });
+    expect(requireSpecies('lasius-niger').opening.startDoy).toEqual({ min: 5, max: 9, default: 5 }) // ruling R20 (was 9-12, default 9);
   });
 });

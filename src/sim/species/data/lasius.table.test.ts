@@ -38,7 +38,7 @@ const ROWS: ValueRow[] = [
   ['§5.1.3', 'opening.siteMaterials.gravel', 0.4], ['C6', 'opening.dMinOpenBu', 8], ['C6', 'opening.dMinCoverBu', 5],
   ['C6', 'opening.vMinBu3', 10], ['C6', 'opening.wMinBu', 3.5], ['§5.1.3', 'opening.shaftTargetBu', 10],
   ['C6', 'opening.R0', 56], ['C6', 'opening.clutchCap', 48], ['§5.1.3', 'opening.expectedFirstWorkers.min', 8],
-  ['§5.1.3', 'opening.expectedFirstWorkers.max', 16], ['§5.1.3', 'opening.startDoy', { min: 9, max: 12, default: 9 }],
+  ['§5.1.3', 'opening.expectedFirstWorkers.max', 16], ['§5.1.3 / R20', 'opening.startDoy', { min: 5, max: 9, default: 5 }],
   ['C1', 'opening.startHours', [14, 16]], ['§1', 'foundingSeason', 'summer'],
   // scale and reproduction (§5.1.4, C2, C11)
   ['C2', 'scale.simCapWorkers', 1500], ['§5.1.4', 'scale.wildColonySize.typical', [5000, 10000]],

@@ -31,6 +31,11 @@ export interface NeedInputs {
   queenAlive: boolean;
   /** Ants able to dig (dig power > 0). */
   diggers: number;
+  /**
+   * The colony's full stores refused a delivery while it had no food chamber (ruling R21 (b)): the first food chamber
+   * is then a missing type whatever the worker count. Optional: abstract layouts leave it out.
+   */
+  foodRefused?: boolean;
 }
 
 /** One triggered need and the chamber it asks for. */
@@ -64,7 +69,11 @@ function belongs(sim: Sim, nest: Nest, nestId: number): boolean {
 /** Need inputs of a nest from the live state. */
 export function liveInputs(sim: Sim, nest: Nest): NeedInputs {
   const now = sim.state.tick;
-  const out: NeedInputs = { workers: 0, adultUnits: 0, broodUnits: 0, foodLoads: 0, looseFoodItems: 0, queenAlive: false, diggers: 0 };
+  const col = sim.stores.colonies.get(nest.colony);
+  const out: NeedInputs = {
+    workers: 0, adultUnits: 0, broodUnits: 0, foodLoads: 0, looseFoodItems: 0, queenAlive: false, diggers: 0,
+    foodRefused: (col?.core?.larderRefusedTick ?? -1) >= 0,
+  };
   for (const a of sim.stores.ants.list) {
     if (!a.alive || a.colony !== nest.colony) continue;
     if (!belongs(sim, nest, a.nestId)) continue;
@@ -121,7 +130,9 @@ export function missingType(nest: Nest, species: string, inputs: NeedInputs, pen
     missing++;
   }
   for (const r of REQUIRED_TYPES[species as keyof typeof REQUIRED_TYPES] ?? []) {
-    if (inputs.workers < r.workers || chambersOfType(nest, r.type, pending) >= r.count) continue;
+    // R21 (b): refused food makes the first food chamber due at any worker count
+    const due = inputs.workers >= r.workers || (inputs.foodRefused === true && r.type === (FOOD_CHAMBER_TYPE[species as SpeciesId] ?? 'food') && r.count === 1);
+    if (!due || chambersOfType(nest, r.type, pending) >= r.count) continue;
     if (!first) first = { type: r.type, size: r.size };
     missing++;
   }

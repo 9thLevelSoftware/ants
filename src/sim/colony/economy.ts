@@ -23,7 +23,7 @@ import { BroodFlag } from '@/sim/types';
 import { LARVA_C_REQ, LARVA_P_REQ, LAYING_INTAKE_EMA_GD } from '@/sim/balance';
 import { larvaRemainingNeed } from './brood';
 import { BROOD_NEED_P_KEY, PROTEIN_INTAKE_KEY, PROTEIN_LIFE_KEY } from './queen';
-import { measurePileCap, poolSpace, refreshCapacity, spoil } from './stores';
+import { measureLarder, measurePileCap, poolSpace, refreshCapacity, spoil } from './stores';
 import { fileDay } from './stats';
 import { dailyRecount } from './population';
 import { queenOf } from './queen';
@@ -140,6 +140,7 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   updateProteinSupply(sim, col, core, def, dtGd);
   accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? AUTUMN_STOCK_TARGET_C_MULT : 1);
   updateNeeds(col, { rateC, rateP }, dtGd);
+  measureLarder(sim, col); // after the needs: the larder holds a game day of this cycle's need (R21)
   refreshCapacity(col);
   col.stores.inCrops.c = accGet(core, 'inst.cropC');
   col.stores.inCrops.p = accGet(core, 'inst.cropP');

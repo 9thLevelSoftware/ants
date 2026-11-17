@@ -44,6 +44,17 @@ Started 10:40 UTC 2026-11-17.
   year-2 winter): read the year-2 doy-15 row (first summer row). Probe tools/sim/probe-winter.ts in the FROZEN copy
   (we #1 cache a9236e3f) queued for when a life slot frees: why no lapse (heated-nest log stale? hypothesis).
 
+- 12:35 PROBE CONFIRMED (sweep-review/probe-winter-we1.txt): we #1 at winter d1: brood 0, chambers null, heated-nest
+  log 48 samples (21.4..14.2, mean 14.63 >= 14) kept "fresh" hourly with no new samples -> heatedNest true -> no lapse.
+  NEW RED src/sim/colony/overwinter/heatedLog.verify.test.ts (log of 20 C + 3 gd no brood at 4 C -> still heated).
+  overwinter folder 3 pass + 1 skipped + my red. cpv #1 long: lapse 11 -> 4 (drowning 5, disease 2), 3 at y2 doy 15,
+  0 by y2 autumn. pp #2 long: lapse 20 -> 19 but C 7.1 -> 1.2 over winter, C 0 in spring (rationing ->
+  adult-starvation), 15 at y2 doy 15, 1 at y2 winter. Spring laying 0 in all: fTempQ 0 below 14 C royal chamber.
+  scratchpad/nofix deleted.
+
+- 12:45 DONE. Ledger section "### Independent sweep after round 3" appended. kd #1 long: lapse 12 -> 5 (drowning 5,
+  disease 2). Correction of the 12:10 note: year-2 doy 15 = first AUTUMN row (not summer). tsc clean with the new tests.
+  /home/user/frozen-sweep3 (incl. probe tool) and scratchpad files deleted; no processes left.
+
 ## Remaining
-- typecheck, folder tests (ecology/creatures, ants/behaviours/outdoor, ants/behaviours/nest, balance), table, bars,
-  long runs (after the sweep), ledger section, delete /home/user/frozen-sweep3 and scratchpad/nofix.
+- nothing.

@@ -17,7 +17,8 @@ beforeEach(() => { undo = installFakeCombat().restore; });
 afterEach(() => undo());
 
 function scene(seed: number): Sim {
-  const sim = makeTestSim({ seed, sizeBu: 160, nest: 'small', workers: 2, systems: SYSTEMS });
+  // 6 workers: past the nest exclusion of §5 (until 5 workers, 40 BU at Naturalist)
+  const sim = makeTestSim({ seed, sizeBu: 160, nest: 'small', workers: 6, systems: SYSTEMS });
   if (sim.state.player.opening) { sim.state.player.opening.done = true; sim.state.player.opening.phase = 'done'; }
   setClock(sim, 'summer', 3, 14);
   const e = sim.state.nests[0]?.entrances[0]?.pos ?? { x: 320, y: 0, z: 320 };

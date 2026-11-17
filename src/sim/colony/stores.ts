@@ -1,9 +1,9 @@
 // The colony food pool and its exact ledger (GDD 02 §5.1-§5.4). Every change of `Colony.stores.{c,p}` goes
 // through this file and is booked on one ledger key, so pool change == inflows - outflows to rounding error.
 
-import type { Ant, Colony, FoodAmount, Sim } from '@/sim/types';
+import type { Ant, Chamber, Colony, FoodAmount, Sim } from '@/sim/types';
 import {
-  C_SPOIL_HALF_LIFE_GD, LARVA_GUT_CAP, LOAD_EPS, P_SPOIL_HALF_LIFE_GD, QUEEN_GUT_CAP, QUEEN_TARGET_GUT_C, SPOIL_OVERFLOW_MULT,
+  C_SPOIL_HALF_LIFE_GD, LARDER_MIN_LOADS, LARDER_NEED_GD, LARVA_GUT_CAP, LOAD_EPS, P_SPOIL_HALF_LIFE_GD, QUEEN_GUT_CAP, QUEEN_TARGET_GUT_C, SPOIL_OVERFLOW_MULT,
   SPOIL_REF_C, SPOILED_ITEM_LOADS, WASTE_BULK, STOMACH_C_BASE, STOMACH_C_PER_ADULT, STOMACH_P_PER_ADULT, TOXIN_HALF_LIFE_GD,
 } from '@/sim/balance';
 import { spawnItem } from '@/sim/entities';
@@ -12,6 +12,7 @@ import { colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
 import { larvaRemainingNeed } from './brood';
 import { queenProteinCredit, spendQueenProteinCredit } from './queen';
+import { needRates } from './needs';
 
 /**
  * A caller-supplied amount as a safe non-negative number: NaN and negatives become 0. +Infinity is kept (it means
@@ -43,12 +44,18 @@ export interface PoolCapacity {
   stomachP: number;
   /** Solid piles in chambers, loads (C and P together). */
   pileCap: number;
+  /** The larder of a nest without a food chamber (R21), loads per nutrient (0: none). */
+  larderC: number;
+  larderP: number;
 }
 
 export function poolCapacity(col: Colony): PoolCapacity {
   const core = coreOf(col);
   const n = core.workers;
-  return { stomachC: STOMACH_C_BASE + STOMACH_C_PER_ADULT * n, stomachP: STOMACH_P_PER_ADULT * n, pileCap: core.pileCap };
+  return {
+    stomachC: STOMACH_C_BASE + STOMACH_C_PER_ADULT * n, stomachP: STOMACH_P_PER_ADULT * n, pileCap: core.pileCap,
+    larderC: core.larderC ?? 0, larderP: core.larderP ?? 0,
+  };
 }
 
 /** Pile capacity of the colony's chambers (GDD 03 §6.4 `capacity.food`), loads. */
@@ -58,16 +65,64 @@ export function measurePileCap(sim: Sim, col: Colony): number {
   return cap;
 }
 
-/** Free room for C and for P given the current stock. */
+/**
+ * The chamber the brood lives in (most living brood; royal, then nursery, then founding chamber when there is none),
+ * or undefined without chambers.
+ */
+function broodChamber(sim: Sim, col: Colony, chs: Chamber[]): Chamber | undefined {
+  const count = new Map<number, number>();
+  for (const b of sim.stores.brood.list) {
+    if (b.alive && b.colony === col.id && b.chamberId >= 0) count.set(b.chamberId, (count.get(b.chamberId) ?? 0) + 1);
+  }
+  let best: Chamber | undefined, bestN = 0;
+  for (const ch of chs) {
+    const n = count.get(ch.id) ?? 0;
+    if (n > bestN) { best = ch; bestN = n; }
+  }
+  return best ?? chs.find((c) => c.type === 'royal') ?? chs.find((c) => c.type === 'nursery') ?? chs.find((c) => c.type === 'founding');
+}
+
+/**
+ * The larder of a small nest (ruling R21): with no food chamber, solid food lies on the floor of the chamber the
+ * brood lives in, up to LARDER_NEED_GD of the colony's own need per nutrient (at least LARDER_MIN_LOADS each). Sets
+ * core.larderC / larderP / larderChamberId (0, 0, -1 once the colony has a food chamber).
+ */
+export function measureLarder(sim: Sim, col: Colony): void {
+  const core = coreOf(col);
+  const chs = colonyChambers(sim, col);
+  // a granary is the food chamber of a seed harvester (architect FOOD_CHAMBER_TYPE)
+  const room = chs.some((c) => c.type === 'food' || c.type === 'granary') ? undefined : broodChamber(sim, col, chs);
+  if (!room) {
+    core.larderC = 0; core.larderP = 0; core.larderChamberId = -1;
+    return;
+  }
+  const need = needRates(col);
+  core.larderC = Math.max(LARDER_MIN_LOADS, need.c * LARDER_NEED_GD);
+  core.larderP = Math.max(LARDER_MIN_LOADS, need.p * LARDER_NEED_GD);
+  core.larderChamberId = room.id;
+}
+
+/**
+ * Free room for C and for P given the current stock. Each nutrient first fills its social stomach, then its larder
+ * (R21; a nest without a food chamber), then the shared chamber piles.
+ */
 export function poolSpace(col: Colony): { c: number; p: number } {
   const k = poolCapacity(col);
   const s = col.stores;
-  const pileC = Math.max(0, s.c - k.stomachC);
-  const pileP = Math.max(0, s.p - k.stomachP);
+  const ownC = k.stomachC + k.larderC, ownP = k.stomachP + k.larderP;
+  const sharedC = Math.max(0, s.c - ownC);
+  const sharedP = Math.max(0, s.p - ownP);
   return {
-    c: Math.max(0, k.stomachC + k.pileCap - pileP - s.c),
-    p: Math.max(0, k.stomachP + k.pileCap - pileC - s.p),
+    c: Math.max(0, ownC + k.pileCap - sharedP - s.c),
+    p: Math.max(0, ownP + k.pileCap - sharedC - s.p),
   };
+}
+
+/** True when a delivery offered `c`, `p` and the pool took less (full), while the colony has a larder (R21 (b)). */
+export function refusedIntoLarder(col: Colony, offered: FoodAmount, got: FoodAmount): boolean {
+  const k = poolCapacity(col);
+  if (k.larderC <= 0 && k.larderP <= 0) return false;
+  return offered.c + offered.p - (got.c + got.p) > LOAD_EPS * 1e3;
 }
 
 /** Refreshes `stores.cap` (display: C and P capacity given the other nutrient's piles). */
@@ -223,11 +278,17 @@ function spoilRatePerGd(halfLifeGd: number, tempC: number): number {
   return Math.LN2 / (halfLifeGd * Math.pow(2, (SPOIL_REF_C - tempC) / 10));
 }
 
-/** Temperature of the food store: the first food chamber, else the colony's first chamber. */
-export function storeTempC(sim: Sim, col: Colony): number {
+/** Where the piles lie: the first food chamber, else the larder's chamber (R21), else the colony's first chamber. */
+function storeChamber(sim: Sim, col: Colony): Chamber | undefined {
   const chs = colonyChambers(sim, col);
-  const food = chs.find((ch) => ch.type === 'food') ?? chs[0];
-  return chamberTempC(sim, food ? food.id : -1);
+  const larder = col.core?.larderChamberId ?? -1;
+  return chs.find((ch) => ch.type === 'food') ?? chs.find((ch) => ch.id === larder) ?? chs[0];
+}
+
+/** Temperature of the food store (storeChamber). */
+export function storeTempC(sim: Sim, col: Colony): number {
+  const ch = storeChamber(sim, col);
+  return chamberTempC(sim, ch ? ch.id : -1);
 }
 
 /**
@@ -240,7 +301,8 @@ export function spoil(sim: Sim, col: Colony, dtGd: number): { c: number; p: numb
   const t = storeTempC(sim, col);
   const pileC = Math.max(0, s.c - k.stomachC);
   const pileP = Math.max(0, s.p - k.stomachP);
-  const over = Math.max(0, pileC + pileP - k.pileCap);
+  // what lies beyond the stomachs, the larder and the chamber piles spoils faster
+  const over = Math.max(0, Math.max(0, pileC - k.larderC) + Math.max(0, pileP - k.larderP) - k.pileCap);
   const overShare = pileC + pileP > 0 ? over / (pileC + pileP) : 0;
   const mult = 1 + overShare * (SPOIL_OVERFLOW_MULT - 1);
   const rateC = pileC * spoilRatePerGd(C_SPOIL_HALF_LIFE_GD, t) * mult;
@@ -266,8 +328,8 @@ export function spoil(sim: Sim, col: Colony, dtGd: number): { c: number; p: numb
 }
 
 function spawnSpoiledItem(sim: Sim, col: Colony): void {
-  const chs = colonyChambers(sim, col);
-  const ch = chs.find((x) => x.type === 'food') ?? chs[0];
+  // in the chamber whose pile spoiled: the food chamber, or the larder in the brood's chamber (R21: hygiene applies)
+  const ch = storeChamber(sim, col);
   const nest = sim.stores.nests.get(col.nestIds[0] ?? -1);
   // on the chamber's floor below its centre (the centre is in the air of the cavity: an item there is out of every
   // hauler's reach, haul.ts `onSurface`, and stayed in the food chamber for good; colony-life round 1)

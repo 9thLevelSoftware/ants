@@ -862,3 +862,154 @@ Status: **round 3 complete** (10:45 UTC). In the tree: H2a, H2b, H1m + their tes
 (`base`, `h2`, `n1`, scratchpad) and probe tools deleted; no processes of this round left running. Evidence:
 `test-output/colony-life/round-3/` (bench-forage-before/after, bench-nest-before/after, bench-forage-h2-partial,
 bench-startday, probe-*.txt, hunt-sg1*.txt, vitest/).
+
+### Independent sweep after round 3
+
+Independent engineer, 10:40-12:45 UTC Nov 17. **Table: `test-output/colony-life/round-3/sweep-table.md`** (made by
+`python3 tools/sim/sweep-table.py test-output/colony-life/round-3/sweep test-output/colony-life/round-2/sweep`; runs by
+`tools/sim/sweep-life.sh`, which now runs the tree it lives in, started from a frozen copy of the tree taken at 10:40,
+hash `2e2c79d2`, all 15 runs on it; logs and `summary.txt` in `round-3/sweep/`). The tree = round 3 (H2a, H2b, H1m; E1,
+N1/N2 and the phaseNest change reverted - checked: no diff against e614493 in `ants/behaviours/nest`,
+`balance/weather.ts`) plus other engineers' commits since e614493 (difficulty accessors in temperature.ts, weather.ts,
+physiology.ts, brood.ts, founding/*; neutral at Naturalist, all multipliers 1.0). Founding identical to round 2 in all
+15 runs (same first workers, same hand-over times). **This table is the one the next round compares with.**
+
+**Viability bar: NOT met** - viable 8 of 15 (round 2: 8). woodland-edge **1/3**, suburban-garden **1/3**,
+playground-park 2/3, car-park-verge 3/3, kitchen-door **1/3**. 6 of 7 failures are the workers check (old age with
+nothing or too little eclosed), kitchen-door #2 the starvation stage (protein, 2.5 gd worse than lean).
+
+**Growth bar R19: NOT met** (3 of 7 checks, as in rounds 1 and 2), computed by `sweep-table.py`:
+
+| check | round 3 | round 2 | round 1 | sweep9 |
+|---|---|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **4 of 15** | 4 | 5 | 3 |
+| median eclosions after hand-over >= 4 | **0** (10 of 15 none) | 0 | 0 | 0 |
+| median intake/need P >= 0.7 | **0.044** | 0.031 | 0.094 | 0.141 |
+| median intake/need C >= 0.9 | 1.238 ok | 1.016 | 1.258 | 0.873 |
+| median trip success >= 50 % | **25.4 %** | 24.7 % | 18.2 % | 16.7 % |
+| first workers >= 9, >= 13 of 15 | 13 of 15 ok | 13 | 13 | 13 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok | 13 | 14 | 10 |
+
+(Rounds 1 and sweep9 intake numbers include the `unknown` deliveries removed by round 2's C1.)
+
+What the round's hunting fixes did in the sweep: **6 of 15 runs are outcome-identical to round 2** (we #1, sg #3, pp #1,
+cpv #1, kd #2, kd #3: same workers, eclosions, intake, trips) - in all six no patch prey ever appeared ahead of an ant
+(nearest patch edge 118-244 BU). Over the sweep: patch prey subdued 68 -> 96, prey loads home 41 -> 58, prey P booked
+7.9 -> 12.7 loads (sg #2 4.1, pp #2 4.6, cpv #2 3.3 P), median P intake 0.031 -> 0.044. Trips that came home with a solid
+load and were booked as failed (`item-collected ... fail`) 8 -> 21 (cpv #2 11).
+
+Regressions against round 2 (script, 7 runs flagged; none is a bar check):
+- **suburban-garden #1: viable -> NOT viable** (12 -> 9, need >= 9.6): old-age deaths 1 -> 3, nothing eclosed in
+  either; C intake rose 0.51 -> 1.31 and P 0.025 -> 0.143 (honeydew 9 -> 21 loads, 2 kills). A chaotic flip at the
+  line (R11 lifespans), not a mechanism of the round.
+- woodland-edge #2 net workers -4 -> -5, woodland-edge #3 -2 -> -3, car-park-verge #2 +1 -> 0 (eclosions 4 -> 3):
+  one worker each.
+- playground-park #3 P 0.166 -> 0.062 (two carrion loads, 0.9 P, not found again), car-park-verge #3 C 0.83 -> 0.59
+  (one honeydew load fewer), kitchen-door #1 larvae starved 1 -> 3 (but not viable -> viable, 11 -> 12).
+- not viable -> viable: kitchen-door #1.
+- Against sweep9 (econ-growth-review): viable 7 -> 8, `worker:lost`-free runs 10 -> 13, C 0.87 -> 1.24, trip success
+  16.7 -> 25.4 %; P lower (0.141 -> 0.044, sweep9 inflated by `unknown` intake).
+
+**Year two (direction 6): five long runs**, one per archetype, the lowest seed viable at winter (we #1, sg #2, pp #2,
+cpv #1, kd #1), `tools/sim/longrun-life.sh` (new; `life.ts --until-day 34`, same frozen tree, same hand-overs; outputs
+`round-3/sweep-long/`). Year one of each is identical to its sweep run. (--until-day counts simulated days, so runs with
+the lapse go on to the first tick of Winter 2; year-2 doy 15 = first autumn row.)
+
+| run | workers at Winter 1 | winter | first spring day: queen / workers / C / P | year 2: workers at spring d1 / summer d1 / doy 15 / last | year-2 eggs, eclosions |
+|---|---|---|---|---|---|
+| woodland-edge #1 | 14 | **no lapse: played in real time** (brood -1.6..6 C); 14 -> 8 by its end (old age 5, lost 1) | alive / 7 / 7.4 / 2.0 | 7 / 4 / **0** / 0 (queen alone from summer d7) | 14, 0 |
+| suburban-garden #2 | 18 | lapse: 18 -> 17 | alive / 17 / 13.3 / 2.3 | 17 / 7 / 2 / 1 | 19, 0 |
+| playground-park #2 | 20 | lapse: 20 -> 19, **C 7.1 -> 1.2** | alive / 19 / 1.2 / 2.1 | 19 / 15 / 4 / 1; C 0 from spring d4 (rationing -> adult-starvation) | 18, 0 |
+| car-park-verge #1 | 11 | lapse: **11 -> 4** (drowning 5, disease 2) | alive / 4 / 10.5 / 3.5 | 4 / 2 / 1 / 0 | 7, 0 |
+| kitchen-door #1 | 12 | lapse: **12 -> 5** (drowning 5, disease 2) | alive / 5 / 7.3 / 3.2 | 5 / 3 / 4 / 3 | 12, 3 |
+
+Every colony that was viable at winter declines through year two to 0-4 workers by doy 15; no queen died. In all five
+the queen hardly lays in the spring of year 2: laying potential is 0 until the last spring day or two (spring maximum
+0-3 eggs/gd; summer 8-28), because Lasius `fTempQ` is 0 below a 14 C royal chamber and the spring brood chambers read
+0.4-15.5 C; laying starts in earnest in summer, when most year-one workers have died of old age (old-age deaths 6-21
+per run). Year-2 eggs 7-19 per run, eclosions 0, 0, 0, 0, 3.
+
+Review of the round (code: `git diff e614493` on the files the round lists; outputs `round-3/sweep-review/`):
+- Verified: `tsc --noEmit` clean (10:48). Folder tests: `ecology/creatures` 18/18 files; `ants/behaviours/outdoor` 26/28
+  (red `removal.verify`, known, and this review's `huntReturn.verify`); `ants/behaviours/nest` 26/28 + 3 skipped (red
+  `sfaReview.verify`, `stall.soak`, known); `balance` 3/3; `colony/overwinter` 3/5 + 1 skipped (red: this review's
+  `heatedLog.verify`). Same known reds as the round reported.
+- In a scratch copy (deleted) each round test is red with its fix taken out: prey.test "one escape roll per contact"
+  (0.133 < 0.3), hunt.test case 4 (false). They test the fixes.
+- Not allowed list: no lifespan, need, provision, bar or ruling-test change; no seed or archetype case; no constant
+  changed. Determinism: `K.returnWhy` (ant bb) and `stayUntil` (creature bb) are persisted state; no wall clock,
+  `Math.random` or `Math.hypot` added in sim code. Per-tick cost: none added (one Set lookup per think in return phase,
+  one string split per `startReturn`).
+- H1m: sound, no finding.
+- **H2b (finding, minor): the chase from the way home does not work after a `timeout` return.**
+  `src/sim/ants/behaviours/outdoor/huntReturn.verify.test.ts` (new, RED, kept): an ant sent home for `timeout` has, by
+  definition, a trip clock past TRIP_TURN_S; PHASE.hunt counts as away from home in `engine.ts` `tripClock`, so on the
+  next think the clock sends it home again (`startReturn` drops the bite under way) and huntCheck restarts the chase:
+  3 hunt -> return flips in 30 s, longest hunt 5 ticks, 0 hits; the chase's 20 s limit (phase time) never runs out.
+  Control (same ant, `trail-lost`, young clock): 0 flips, a kill after 11.5 s. The round's hunt.test case 4 uses a
+  fresh outbound ant, so it cannot see this. Size: `timeout` ends 65 of the sweep's trips (round 2: 79 of 870).
+- **H2a (note for the integrator, documented deviation):** `src/sim/ecology/creatures/preyContact.verify.test.ts`
+  (new, green): after a touch it stayed for, a springtail is bitten with no escape roll for the whole 2 s window - by
+  the same ant's second bite (bite cycle 1.0 s) and by a second ant (0 escapes; > 40 springtails that stayed); GDD 05 §2.3 "per bite
+  attempt" would roll 0.6 each. The ledger lists the one-roll-per-contact reading as a deviation; the measured scope is
+  wider than one roll per approach.
+- **R21 (finding, major): ruling R21 (direction 5, binding since 09:20) is not implemented.** No larder pile, no
+  `stores-full` planning trigger in the tree (grep); the round lists the P ceiling only as a lead. The round's own bench
+  counted 62 refused prey loads; the sweep 21 trips home with a solid load booked as failed (cpv #2 11).
+- **Heated-nest log (finding, blocker by direction 6; found by the year-two runs, code outside the round's diff):**
+  woodland-edge #1, viable at winter, gets no overwintering lapse. Probe on the same hand-over
+  (`round-3/sweep-review/probe-winter-we1.txt`, tool deleted): at Winter 1 day 1 the colony has had no brood for about 4 gd
+  (chamber reading null), but `lifecycle.broodTempLog` still holds 48 samples from when brood lived
+  (21.4 .. 14.2 C, mean 14.63 >= WINTER_ACTIVE_TMEAN_C 14): `sampleBroodTemp` (`colony/overwinter/begin.ts`) refreshes
+  the log's timestamp every hour but adds no sample without brood, so `broodLogFresh` stays true and `heatedNest` says
+  "heated". The winter runs tick by tick at -1.6..6 C, workers age at the active rate (14 -> 8), the colony is dead by
+  year-2 summer. `src/sim/colony/overwinter/heatedLog.verify.test.ts` (new, RED, kept): a log of 20 C samples, then
+  3 gd with no brood in a 4 C nest -> still heated. Any colony whose brood dies out (or is all in diapause) days before winter can hit this: 7 of 15 sweep runs
+  end with no brood or only diapause brood.
+
+Leads from the failing runs' own diagnostics (most costly first):
+1. **Year two: every winter-viable colony dies out** (table above). (a) Heated-nest log bug (we #1; fix in
+   `overwinter/begin.ts`, red test above). (b) The queen hardly lays in spring: brood chambers 0.4-15.5 C vs `fTempQ` 0 at
+   14 C; the first year-2 eggs come in summer, after the year-one workers' old age (R11 stands) - for the integrator's
+   restated R19/R20 and the warm-nursery evidence (direction 6). (c) Winter losses 58-64 % on cpv #1 and kd #1 (winter
+   model flood 5 + disease 2 each) and pp #2's C stores 7.1 -> 1.2 over the winter, 0 in spring.
+2. **Calendar, year one**: all 10 seed-1/3 runs eclose 0 (brood 9-17 C on days 0-3, falling to 4-8 C); seed-2 runs
+   (21-24 C) eclose 2-8. Same split as rounds 1-2; integrator's R20.
+3. **Pupae lost in the only runs that can eclose**: seed-2 runs pupated 46 and eclosed 25; pupa losses there 21
+   (untended 16: we #2 6, sg #2 4, cpv #2 4, kd #2 2; exposure 3, hygiene 2). Sweep-wide brood losses: egg:untended 53,
+   larva:starvation 21, pupa:untended 17, egg:exposure 10, egg:flooding 5 of 189 eggs.
+4. **Larvae starve with protein in store**: we #1 8 (P 2.56 at winter), cpv #1 6 (P 3.79), pp #3 4 (P 3.35), kd #1 3
+   (P 3.47) - unchanged since round 2; the round's we #1 probe tied we #1's to the flood-evacuation loop (E1 reverted;
+   the board-side fix is open).
+5. **Protein**: P median 0.044. No patch prey met in 6 runs (patch edge 118-244 BU); kd #2 fails viability on protein
+   alone (P 0.025, P stores 0); R21 not implemented (21 refused solid-load trips).
+6. **Seed-3 brood**: we #3, sg #3, cpv #3, kd #3 hatch 0 of 44 eggs (untended 24, exposure 6, flooding 5; brood
+   9-12 C on days 0-3).
+7. **Stuck/locomotion**: `walker-stuck-explosion` 6-16 violations in 10 runs (as round 2); stuck ant-gd sg #2 14.3,
+   kd #2 12.5, pp #2 10.7; cpv #2 81 trips ending `stuck`.
+8. H2b `timeout` flip (red test above), small.
+
+Scratch copies (`/home/user/frozen-sweep3`, scratchpad) and the probe tool deleted; no processes left running.
+
+## Round 4
+
+Engineer: round 4 (started 12:42 UTC Nov 17). Evidence: `test-output/colony-life/round-4/`. Order of work: the sweep's
+blocker (heated-nest log) and major (R21 larder), then R20 (start day 5, regenerate hand-overs, re-base benches), then
+the method (account, rank, fix).
+
+Progress (kept current; a successor continues from here)
+- 12:42 read spec, ledger, STATUS (to R23). Tree = HEAD 5c8c576 + other engineers' uncommitted files; no round-4 change
+  yet. Next: reproduce heated-nest log (red `colony/overwinter/heatedLog.verify.test.ts`), fix in `overwinter/begin.ts`.
+- 12:50 **W1 done** (blocker (a), heated-nest log): `colony/overwinter/begin.ts` keeps the tick of every sample (new
+  additive `LifecycleState.broodTempTicks`, `types/lifecycle.ts`; a log without ticks is read as hourly ending at
+  `broodTempTick`) and drops samples older than WINTER_ACTIVE_WINDOW_GD in the sampler and in `heatedNest`; an empty
+  window falls back to the chambers now / the cluster. `heatedLog.verify` red on HEAD's begin.ts
+  (`{"n":48,"first":20}` -> heated), green now; overwinter folder 4 passed + 1 skipped. Next: R21 larder.
+- 13:15 **L1 (R21 larder) in the tree, unit-tested**: `colony/stores.ts` `measureLarder` (called by `economy.ts`
+  `closeColonyCycle` after the needs): with no food (or granary) chamber, `core.larderC/P` = max(LARDER_MIN_LOADS 4,
+  LARDER_NEED_GD 1 x needRates) per nutrient, in the chamber with most brood (`core.larderChamberId`); `poolSpace`
+  fills stomach -> larder -> shared piles per nutrient; `spoil` counts the larder as pile; `storeTempC` and spoiled items
+  use the larder's chamber. R21 (b): `colony/index.ts` `depositFood` sets `core.larderRefusedTick` when a delivery is
+  refused while a larder exists; `nest/architect/needs.ts` `liveInputs.foodRefused` makes the first food chamber a
+  `missing-type` at any worker count. Constants in `balance/colony.ts`; additive fields in `types/colony.ts`.
+  Test `colony/larder.test.ts` (4 cases, all red with the larder switched off). Next: folder tests colony + nest, then R20.

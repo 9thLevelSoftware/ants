@@ -78,3 +78,5 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 09:42 panelsB FAIL again at the View tap (real-ms tap threshold VIEW_TAP_MS 450 vs page frame time under load 9-10): not measured under load. a11yA running.
 - 10:35 a11yA: B passes now; C fails (hints silent: foundingInProgress true 2 game days after the cheat hand-over, nest record never established). Next: stage2 alone.
 - 11:34 stage2 running (sections creatures..rain OK so far).
+- 12:34 stage2 strict: 11 sections OK (creatures..overlaylook), humanlook cut by the 1h50 script timeout under load (footsteps alone 2494 s); birdlook, perf not reached. Next: stage2rest (humanlook,birdlook,perf) + photo rerun.
+- 12:44 stage2rest PASS (humanlook, birdlook, perf). stage2 strict: all 14 sections OK over two runs. Load fell to ~5; photo rerun now, then frametime.
