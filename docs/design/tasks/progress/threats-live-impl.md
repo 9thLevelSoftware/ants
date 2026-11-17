@@ -34,8 +34,27 @@ Started 2026-11-17 11:16 UTC (no earlier progress file existed).
   before-tree vs main), benches (scratchpad/bench.sh forage before-tree vs main -> test-output/threats-live/bench-*).
 - final-gentle DONE: 1 kill / 106 owgd = 0.01; final-harsh DONE: 19 kills / 115 owgd = 0.16 (13->7, 15->8, 12->7!).
   final-off running (3 gd). I11 quiet share low everywhere from human-event-warning alerts (14-55 per run), not predators.
+- final-off DONE: 0 events, but residents of the snapshot stayed alive -> added director.settingCull (GDD 06 §14:
+  despawn over 1 gd when the setting is lowered; SETTING_DESPAWN_GD) + predatorsOff.test.ts. Tests green (25 files).
+  NOTE gentle/harsh/off runs predate settingCull (gentle could shift slightly; record in report).
+- harness DONE (run 2): 01-telegraph-possessed, 02-attack-possessed (predator-near card), 03-attack-observer, all looked
+  at and fine; JS strike 9 dmg killed the worker outright (worker maxHp 7.2) so no 'seized' card in the browser.
+- perf DONE: test-output/threats-live/perf-before.txt / perf-after.txt (min creatures+director: 60w 0.337->0.295;
+  300w 0.343->0.397 ms; perception 0.42->0.52 at 300w, more ants outside). Round-4 snapshots appeared (start day 5);
+  all my tables use round-3.
+- 13:52 UTC benches running: scratchpad/benches.sh (forage, 5 archetypes, before=perf-before tree, after=bench-after-tree)
+  -> test-output/threats-live/bench-forage-before|after (DONE files). Summarise with scratchpad/benchsum.py DIR.
+- (old) perf running: scratchpad/perfboth.sh (perf-before tree = main with my files from commit 45ab25a) ->
+  test-output/threats-live/perf-before.txt / perf-after.txt. Then benches (bench.sh, use perf-before tree as before).
+- (old) harness run 1 OK but camera.set('observer') released the possessed ant -> miss, and 'possess' camera took the queen.
+  Script fixed (possessed shots first, face the spider); run 2 in background (~10 min). Then perf, benches.
+- Report sections 1-4, 6-8 written (section 5 colony + perf pending).
 - Report draft: docs/design/tasks/threats-live-report.md sections 1-3 written (causes, fixes, funnel after, design
   target derivation 0.061/owgd band 0.03-0.12). README of creatures updated. tables-naturalist.md written.
+
+- Report: sections 1-10 written except section 5 bench table (pending benches). Probe dirs deleted.
+- Remaining after benches: fill section 5, final vitest creatures + perception folders, typecheck, delete scratchpad
+  trees, StructuredOutput.
 
 ## Findings so far
 - Cause candidate 1: territory placement (worldgen populate/territories.ts byArea: random cells over the whole zone,

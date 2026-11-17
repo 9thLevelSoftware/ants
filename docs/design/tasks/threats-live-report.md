@@ -98,7 +98,78 @@ GDD 05 states no predation loss per game day directly. The design's numbers that
 - **Quiet share (I11, E25):** Naturalist >= 0.60 of daytime hours without a major threat or a warning/critical alert
   >= 25 % of the hour. `predator-near` is a warning.
 
-(section 4 follows)
+## 4. Calibration per preset (step 4, AC3)
+
+Same 5 snapshots x 6 gd per preset (`final-gentle/`, `after3/` = Naturalist, `final-harsh/`; `final-off/` 3 gd), preset
+switched at the hand-over with the `setDifficulty` command. Rates are per outside-worker game day (owgd = worker on
+the surface for 24 game hours); totals over the 5 worlds. Full tables: `tables-presets.md`.
+
+| preset | outside worker-h | telegraphs | strikes | hits | worker deaths to predators | deaths / owgd | deaths / 100 outside-worker-h | telegraphs / gd per colony | band (section 3) |
+|---|---|---|---|---|---|---|---|---|---|
+| Gentle | 2,540 | 12 | 12 | 4 | 1 (ant-spider 1) | **0.01** | 0.04 | 0.4 | <= 0.06: in |
+| Naturalist | 2,487 | 25 | 25 | 11 | 7 (ant-spider 3, wolf spider 3, rove beetle 1) | **0.07** | 0.28 | 0.8 | 0.03-0.12: in |
+| Harsh | 2,764 | 44 | 44 | 20 | 19 (ant-spider 7, jumping spider 6, wolf spider 3, centipede 2, rove beetle 1) | **0.16** | 0.69 | 1.5 | 0.06-0.2: in |
+| `predators: off` | 1,483 | 0 | 0 | 0 | 0 | **0** | 0 | 0 | 0: in |
+
+Order gentle < naturalist < harsh holds for every rate. Naturalist per world: 0, 0.11, 0.08, 0.18, 0 (two worlds lost
+nobody in 6 gd); Harsh per world: 0.19, 0.21, 0, 0.19, 0.24. Earlier Naturalist rounds on the same snapshots: 0.09
+(`after1/`), 0.08 (`after2/`) - the rate is stable across the siting changes, the families that do the killing are not.
+
+Notes:
+- `predators: off` showed zero events, but the residents of the snapshot stayed alive (spawned before the switch).
+  GDD 06 §14: a removed threat's creatures despawn over 1 GD; added afterwards: `director.settingCull` (ant
+  predators above the cap x setting leave, farthest first: unseen at once, in view within `SETTING_DESPAWN_GD` 1 gd),
+  test `predatorsOff.test.ts`. The Gentle / Harsh / off runs above predate `settingCull`; on Gentle it removes far
+  residents only (the colony-range ones are the nearest and stay within the cap), so the table should not move.
+- Meetings: telegraphs per colony per gd 0.4 / 0.8 / 1.5 are below the research's "3-6 spider hunts per gd" (section
+  3). The wind-up gate (strikes only on a pausing ant) keeps the count down; raising it would mean more misses, not
+  more kills (lead in section 7).
+- Birds: 0 on every preset (colonies < 30 workers: GDD rule). Antlion: no pit on any world (no habitat).
+- Quiet share (I11): min over the run 0-0.31 on every preset, **also with 0 predator alerts** (e.g. Naturalist
+  woodland-edge 0.0 with `predator-near` raised 0 times; Gentle 0.0 on 4 worlds). The loud hours come from
+  `human-event-warning` (14-55 raises per 6 gd run, `events` in each JSON), not from predators; `predator-near`
+  raised 0-6 times per run. E25 will fail on the human-event cadence: for the human-events owner / integrator.
+
+
+## 5. What it does to the colonies (step 5)
+
+(bench table pending: `bench-forage-before/` vs `bench-forage-after/`)
+
+## 5a. Per-tick cost (AC5)
+
+Method of `gate-1B-sim-report.md` §9: `life.ts --perf 300 --workers N --food N/2,N/4` on woodland-edge #1 (round-3
+hand-over, `--cache-any`), 600 warm-up ticks, 3 segments of 300 ticks; per system the fastest segment, ms per tick; 3
+repeats each, minimum reported. "Before" = today's tree with this task's files restored from commit 45ab25a (the
+tree when the task started); "after" = final. Load average 10-11 during the runs (the colony-life sweep ran two
+life processes at the same time), so these are upper bounds and +/-20 % noise. Raw: `perf-before.txt`, `perf-after.txt`.
+
+| workers (outside) | creatures before -> after | creature-director before -> after | perception before -> after | whole tick before -> after |
+|---|---|---|---|---|
+| 60 (9 -> 12) | 0.239 -> 0.202 | 0.098 -> 0.093 | 0.388 -> 0.348 | 5.64 -> 5.43 |
+| 300 (15 -> 19) | 0.228 -> 0.294 | 0.115 -> 0.103 | 0.419 -> 0.521 | 8.70 -> 9.26 |
+
+Creature systems together: 60 workers 0.34 -> 0.30 ms, 300 workers 0.34 -> 0.40 ms (+0.05): **no regression above
+0.2 ms**. Perception +0.10 ms at 300 workers with 4 more ants outside (fewer flee-and-return cycles); the added call
+(`predatorPerceivedBy`, a distance test only for creatures within 6 BU) is not measurable separately at this noise.
+
+## 5b. The player's side (step 6)
+
+- Telegraph to a possessed ant: `predators.possessed.test.ts` (E12 jumping spider >= 0.6 s, dodge misses; wolf
+  spider freeze cue + wind-up; centipede; ant-spider), `hazards.possessed.test.ts` (E13 struggle, E14 antlion) - green.
+- `possessed-danger` (R15 critical): causes `seized` / `stuck` now raised by this module, `possessedDanger.test.ts`.
+- Alerts for colony losses: `predator-near` on a landed strike (`strikeAlert.test.ts`); cadence in the runs: Naturalist
+  0-3 raises per colony per 6 gd (7 in 5 colonies), Harsh 0-6 (17), Gentle 0-2 (3) - one per attack, at most one per
+  predator per 0.1 gd.
+- Browser (`test-output/threats-live/harness/`, script `threat-shots.mjs`, `?test=1&seed=1&quality=test&autostart=1&archetype=woodland-edge`,
+  founding by `cheat.completeFounding`, sim stepped by hand): the director had sited a jumping spider (53 BU from the
+  entrance, scanning), a wolf spider (117 BU) and an ant-spider (146 BU) by the colony. A possessed worker standing
+  3.5 BU in front of the jumping spider got `predator-telegraph` at tick 31217 (strike at 31222, 0.5 s) and was hit
+  (9 damage). Screenshots looked at: `01-telegraph-possessed.png` (possession view: the spider in its wind-up pose,
+  legs raised, facing the worker; HUD "Store · freeze · threat"), `02-attack-possessed.png` (the leap: the spider on
+  the worker; "Predator near foragers — jumping-spider" card; workers 18 -> 17), `03-attack-observer.png` (observer
+  close-up of the spider over the dead worker). Harness `ok: true`, no page errors. Note: this worker's `maxHp` was
+  7.2 (size-drawn), so the 9-damage leap killed it outright and no `seized` card could show; with the 10 hp of GDD 05
+  §4.1's standard worker it is seized first (E12 test).
 
 ## 6. Determinism and save / load (AC4)
 
@@ -131,3 +202,29 @@ tending). Gentle costs ~0.01 (almost nothing), Harsh more (section 4). Deaths ca
 Smallest levers if a small colony cannot carry it (the integrator rules): (a) extend GDD 05 §5's nest-exclusion
 lever from "until 5 workers" to "until 20 workers" (one constant, `NEST_EXCLUSION_WORKERS`); (b) `COLONY_RANGE_P`
 below 1 for Naturalist (fewer kinds near each colony). No other balance was changed.
+
+## 9. GDD 05 Appendix E checks touching creatures
+
+| Check | Covered by (this module's tests) | Needs other modules |
+|---|---|---|
+| E4 ladybird feeding / harassment | `aphidPredators.test.ts` | - |
+| E12 jumping spider telegraph and dodge | `predators.possessed.test.ts`; browser shots (section 5b) | player `dodge` primitive (actions task) - scripted here |
+| E13 struggle (rove beetle) | `hazards.possessed.test.ts` / `predators.possessed.test.ts` | player-control struggle inputs (wired through `addStruggleInput`) |
+| E14 antlion pit | `antlion.test.ts`, `hazards.possessed.test.ts` | "no nestmate path enters radius + 1 L afterwards": `knownHazardsNear` is **not called by locomotion / behaviours** (grep) - for the locomotion owner |
+| E15 bird event | `bird.test.ts` | a colony >= 30 workers in a real run (none of today's colonies) |
+| E21 creature agents <= 260 | `soak.test.ts` | 28 gd soak with rivals: gate |
+| E22 ecosystem soak (prey patches) | `soak.test.ts` | herds / rivals: ecology-plants, rivals |
+| E24 determinism | `determinism.test.ts`, `huntSaveLoad.test.ts` (new) | - |
+| E25 quiet share | `soak.test.ts` (creature scene) | whole-game soak: **fails today on human-event warnings**, not predators (section 4) - human events / integrator |
+
+## 10. Notes for others
+
+- **colony-life**: section 8. Benches and sweeps made before this change ran without predation.
+- **locomotion / behaviours**: known antlion pits (`knownHazardsNear`) are not avoided by steering (GDD 05 §2.4);
+  the danger grid is fed (`addDanger` via strikes) - check that route costs read it.
+- **human events / integrator**: I11 quiet share 0-0.4 in every 6 gd run from `human-event-warning` alone.
+- **species data**: Lasius workers of the snapshots carry `maxHp` 7.2 (drawn size), GDD 05 §4.1 / E12 assume 10; a
+  jumping-spider leap (9) then kills outright instead of seizing.
+- **worldgen** (optional): the colony ring rule could move into `populate/territories.ts` (one territory per hunting
+  kind near the start), but saved games and snapshots hold their territories in `state.ecology.director`, so the
+  director-side rule is needed either way.

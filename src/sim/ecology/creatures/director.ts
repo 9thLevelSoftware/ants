@@ -11,10 +11,10 @@ import { rngFloat } from '@/core/rng';
 import {
   AMBIENT_BIRD_P, AMBIENT_CRICKET_P, CREATURE_AGENT_CAP, CREATURE_STATS, DESPAWN_MIN_DIST_BU, DIRECTOR_HOURLY_TICKS,
   RESIDENT_HOME_RADIUS_MM, RESIDENT_KINDS, SPAWN_MIN_DIST_ANT_BU, SPAWN_MIN_DIST_FOCUS_BU,
-  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
+  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, SETTING_DESPAWN_GD, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
 } from '@/sim/balance/creatures';
 import { CREATURE_DIRECTOR_EVERY } from '@/sim/balance';
-import { TICKS_PER_SECOND } from '@/sim/time';
+import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { chance, cue, dist, inStateS, rng, setState, stop } from './common';
 import { conditions, nightActive, roveBeetleActive, type Conditions } from './conditions';
 import { capOf } from './caps';
@@ -177,6 +177,34 @@ function despawnRules(sim: Sim, cond: Conditions): void {
   }
 }
 
+/**
+ * A Predators setting lowered mid-game (GDD 06 §14: "existing creatures despawn over 1 GD"; `off` = none): ant
+ * predators above their kind's cap x setting leave, farthest from the colony first - at once when unseen (far from
+ * the focus), else once they have been over the cap for SETTING_DESPAWN_GD. Engaged ones finish first.
+ */
+function settingCull(sim: Sim): void {
+  const anchor = colonyAnchor(sim) ?? focusPoints(sim, _focus)[0] ?? null;
+  const byKind = new Map<CreatureKind, Creature[]>();
+  for (const c of sim.stores.creatures.list) {
+    if (!c.alive || CREATURE_STATS[c.kind].family !== 'ant-predator') continue;
+    const l = byKind.get(c.kind) ?? [];
+    l.push(c);
+    byKind.set(c.kind, l);
+  }
+  const now = sim.state.tick;
+  for (const [kind, list] of byKind) {
+    const cap = capOf(sim, kind);
+    if (list.length <= cap) { for (const c of list) delete c.bb.overCap; continue; }
+    list.sort((a, b) => anchorDist2(anchor, a.pos) - anchorDist2(anchor, b.pos) || a.id - b.id);
+    for (let i = cap; i < list.length; i++) {
+      const c = list[i];
+      if (isEngaged(sim, c)) continue;
+      c.bb.overCap ??= now;
+      if (farFromFocus(sim, c.pos) || now - c.bb.overCap >= SETTING_DESPAWN_GD * TICKS_PER_DAY) despawnCreature(sim, c.id, 'setting');
+    }
+  }
+}
+
 const CULL_ORDER: readonly CreatureFamily[] = ['neutral', 'prey', 'aphid-predator'];
 
 /** Global cap (I5): cull non-engaged creatures by family order, farthest from the focus first. */
@@ -237,6 +265,7 @@ export function runDirector(sim: Sim): void {
   updateDanger(sim, RUN_S);
   if (cond.winter) winterClear(sim);
   else {
+    settingCull(sim);
     despawnRules(sim, cond);
     occupyTerritories(sim, cond);
     spawnPatchPrey(sim, cond, RUN_S);

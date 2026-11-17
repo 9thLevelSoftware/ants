@@ -1067,3 +1067,29 @@ Progress (kept current; a successor continues from here)
   Next when the hand-overs end (~13:50): `CACHE_ANY=1 UNTIL_DAY=32 $S/r4c/tools/sim/longrun-life.sh
   $PWD/test-output/colony-life/round-4/long $PWD/test-output/colony-life/round-4/cache "woodland-edge:1
   suburban-garden:2 playground-park:2 car-park-verge:1 kitchen-door:1"` (round 3's five, for comparison).
+- 13:28 folder tests (outputs `round-4/vitest-*.txt`): outdoor 27/28 (red `removal.verify`, known; `huntReturn.verify`
+  green now); nest 54/55 + 1 skipped (red `escapeDig`, known); colony 55/56 (red `founding/reopen`, known; run before
+  WL1, overwinter re-run green after it); species 12/12; config 5/5; environment: `weather.test` "uses only the weather
+  stream" red on HEAD's start day too (not this round), human `effects.test` E14 was red with the R20 start (spring sward
+  regrowth) -> `environment/human/testkit.ts` pins its sims to TEST_START, human folder 11/11; types: `ids.test` (known);
+  testing: `layering` (others' test files importing `@/content`, `@/game`) and `stage1a.e2e` (c) save/restore hash red
+  (also red on the round-start tree 5c8c576, start day 9 or 5, scratch copy);
+  `src/sim/*.test.ts`: `commands*`, `services`, `time` red on others' modules (fungus/granary systems, human.ts, presetDisplay.ts).
+  None of these touch a round-4 file except where fixed above. Hand-overs 9/15 done.
+- 13:41 **15 hand-overs at the R20 default (doy 5)** in `round-4/cache/*-any.bin` (logs `round-4/handover/`, tree r4a;
+  the founding is unchanged by W1/L1/H3/WL1: workers are 0 until the hand-over). Against sweep 3's day-9 foundings:
+
+  | run | day 9 (sweep 3): gd / first workers | day 5: gd / first workers |
+  |---|---|---|
+  | we #1 / #2 / #3 | 3.53 / 16, 2.81 / 15, 4.57 / 7 | 3.45 / 18, 4.67 / **8**, 4.20 / 10 |
+  | sg #1 / #2 / #3 | 3.91 / 12, 2.79 / 16, 4.59 / 9 | 3.71 / 9, 4.63 / 11, 4.21 / 10 |
+  | pp #1 / #2 / #3 | 3.89 / 13, 2.75 / 16, 3.59 / 12 | 3.70 / 13, 4.57 / 11, 3.64 / 13 |
+  | cpv #1 / #2 / #3 | 3.59 / 13, 2.75 / 15, 4.25 / 9 | 3.49 / 11, 4.57 / 9, 3.76 / 11 |
+  | kd #1 / #2 / #3 | 3.48 / 15, 2.80 / 15, 4.56 / 7 | 3.42 / 15, 4.67 / 10, 4.19 / 9 |
+
+  First workers 190 -> 168 in all; >= 9 in 14 of 15 (day 9: 13). **The cooler spring founding costs the seed-2 runs**
+  (day 9: 2.75-2.81 gd, 15-16 workers; day 5: 4.57-4.67 gd, 8-11 workers); seed 3 gains (7-9 -> 9-11), seed 1 is mixed.
+  For the integrator (direction 7 asked to say so with numbers). Running now: the five long runs (tree r4c) ->
+  `round-4/long/` (restart-safe: re-run the 13:17 command). Then the benches on these hand-overs.
+- 13:46 long run woodland-edge #1 ended with exit 143 (SIGTERM from outside, 3 min in; load average 8-10 on the
+  machine); not this round's tooling. It is re-run after the batch (the script skips only runs with a JSON).

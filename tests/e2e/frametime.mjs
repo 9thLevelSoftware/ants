@@ -15,6 +15,7 @@ export default async ({ page, log }) => {
   for (let i = 0; i < 200 && !(await handedOver()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
   const cont = page.locator('[data-testid="founding-continue"]');
   if (await cont.count()) await cont.first().click().catch(() => {});
+  log('handed over', JSON.stringify(await g(() => ({ tick: window.__hud.game.session.sim.state.tick }))));
   await g(() => window.__game.step(600)); // a game minute of colony life
   // the observer over the nest (the view a player watches the colony from)
   const bu = (await g(() => window.__game.query.world())).bu;
@@ -36,6 +37,7 @@ export default async ({ page, log }) => {
       }
       return out;
     }, N);
+    log(q, 'frames done', ms.length);
     const p = await g(() => window.__game.perf());
     const sorted = [...ms].sort((a, b) => a - b);
     const at = (f) => sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))];

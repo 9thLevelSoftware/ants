@@ -88,6 +88,9 @@ export const SPAWN_MIN_DIST_FOCUS_BU = 40;
 export const SPAWN_MIN_DIST_ANT_BU = 20;
 export const DESPAWN_MIN_DIST_BU = 60;
 export const STUCK_DESPAWN_S = 30;
+/** Ant predators over their cap after the Predators setting was lowered leave within this long even in view, gd
+ *  (GDD 06 §14 "existing creatures despawn over 1 GD"). */
+export const SETTING_DESPAWN_GD = 1;
 /** Territory re-occupation after a resident died, gd (§2.2b; antlion: worldgen-only, never re-occupied). */
 export const RESPAWN_DELAY_GD: Partial<Record<CreatureKind, number>> = {
   'jumping-spider': 1, 'wolf-spider': 1.5, 'ant-spider': 1, woodlouse: 1, antlion: 1e9,
