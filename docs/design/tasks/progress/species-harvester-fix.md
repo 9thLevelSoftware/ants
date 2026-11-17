@@ -1,7 +1,13 @@
 # species-harvester fix round (reviewer findings) — progress
 
 ## Status
-- 04:50 UTC: F1, F2, F5, F6, F9, F10 code done (F9/F10 tests not yet written). Now F3 (small workers mill soft seed).
+- 05:10 UTC: all findings coded; fixes.test.ts 10 pass; typecheck clean in my paths. diag-mb-patrol now warns only
+  on a patroller > 1 h late (patrolOverdueTicks). e2e script reworked (carrier in good light near another carrier,
+  planDig granary + cheat.instantPlan, castes at 10:00, possessed view with castes ahead, chaff midden required).
+- RUNNING (background, started 05:06): life.ts playground-park seeds 1, 2 -> test-output/harvester/viab2/pp{1,2}.log/.json
+  (status file test-output/harvester/viab2/status). NEXT: pp3 + car-park-verge 1-3 (2 at a time), then e2e harness.
+- F2 extra: shared patrol return stops at the hole outside (nestId -1) -> behaviourPatrol enterNest walks into the
+  entrance chamber; GATE_PATROL_TRIP_S 15, PATROL_FAILSAFE_TICKS 1000. rhythm.test passes again (gate opened on returns).
 
 ## Done
 - F1 seeds.ts refreshSite: emptied in-season node comes back only with rain since (SeedSite.emptiedTick, types additive).
@@ -11,6 +17,24 @@
 - F6 cohorts.ts addSeeds fallback: same germ state + not germinating is a hard key.
 - F9 counters.ts noteSeedDay + rhythm.ts lullMult: reference = mean of this year's seed days (seedDayMean/Count/Year, types additive).
 - F10 delivery.ts putDownChamberId: chamber at the primitive's own put-down point.
+- F3 paste.ts millSecondsPerLoad (small workers soft seed x SMALL_MILL_TIME_MULT 3), behaviourCare 'mill' job when
+  paste short, allocation.ts moves unmet mill demand (no mill-weight workers) to store; behaviourMill pasteEnough true at demand 0.
+- F7 relocate.ts (new) + behaviourCare 'relocate' job/state store.care-carry + allocation relocateDemand; middens.ts
+  header documents haul rule n/a; WINTER_STOCK_GD removed (unused).
+- F8 behaviourForage cutHeadNow (SEED_HEAD_CUT_BELOW_UNITS 3); plant sites always M class (seeds.ts newSite).
+## 05:58 status
+- allocation.ts gathererFloor (GATHERERS_MIN 1): with the granary short one worker scouts/forages, queen care gives way
+  (pp1 probe: 2 workers were nurse + queen-care, 0 trips in 11 gd). scenario.test.ts: E17 + paste-bottleneck scenarios
+  now run with surfaceActivity 0 (isolate in-nest mechanics). Granary suite 11 files / 54 pass.
+- BLOCKER found (not mine, locomotion/nest nav): pp1 probe: forager with a seed in forage.deliver, at y -9 mm in the
+  shaft, nav failed 'leg' every think, 32 BU from the founding chamber; never delivers. Repro: probe ho.ts on
+  test-output/harvester/viab2/cache/founded-messor-barbarus-playground-park-1-naturalist-d-fe66cb2b.bin.
+- pp3 killed (stale code). NEXT: e2e harness alone, then viability reruns with final code.
+## Viability so far (test-output/harvester/viab2)
+- pp2: real founding never handed over in 16 gd; forced seal failed (egg/larva flooding 18, queen exhaustion). Founding, not granary.
+- pp1 (running): hand-over 2 workers; days 1-7 trips 0, brood 4 eggs -> 0 by day 4, P flat 0.3. To probe with
+  test-output/harvester/probe/ho.ts (args: cache file, archetype, seed, days) after pp1 ends. Delete probe dir at end.
+- pp3 started 05:20 (background shell, & - make sure it ends).
 ## Decisions
 - F3: small workers (minor, media < 1.2 BU) mill seed hardness <= crackLimitMinor (0.3) at SMALL_MILL_TIME_MULT x major time
   (deviation from GDD 07 6.3.6 'minors only sprouted'); species data gives minors mill weight 0 (not my file) so the

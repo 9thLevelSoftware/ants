@@ -107,6 +107,8 @@ export const SEED_FORAGE_FRAC = 0.3;
  * second: at an empty granary about 10 departures per game day (600 s) of waiting [EST].
  */
 export const SEED_CALL_RATE_S = 1 / 60;
+/** Workers kept gathering (scouting, then foraging) while the granary is short, even in a 2-worker colony. */
+export const GATHERERS_MIN = 1;
 /** Scouts asked for while the granary is short and no seed source is known. */
 export const SEED_SCOUTS_MIN = 2;
 /** Millers asked for at most this share of the workers. */
@@ -161,16 +163,20 @@ export const PATROL_GATE_MIN_WORKERS = 12;
 /** Patrol hold after a patroller died or met alarm: 1 clock hour = 25 game s (species data writes 3600). */
 export const PATROL_HOLD_TICKS = 250;
 /**
- * Time a morning (gate) patroller spends outside before she turns home, game s (0.8 clock hour) [EST]: one look
+ * Time a morning (gate) patroller spends outside before she turns home, game s (0.6 clock hour) [EST]: one look
  * round the home-range edge. The shared territory patrol (combat PATROL_TRIP_S 180 s = 7 clock hours) is far longer
  * than the fail-safe below, so with it no patroller was ever back in time.
  */
-export const GATE_PATROL_TRIP_S = 20;
+export const GATE_PATROL_TRIP_S = 15;
+/** A returning patroller walks into the entrance chamber to within this distance, BU, and re-thinks this often, ticks. */
+export const PATROL_ENTER_ARRIVE_BU = 2;
+export const PATROL_ENTER_THINK_TICKS = 5;
 /**
- * Fail-safe: a gate still closed this long after the window opened opens anyway (held), ticks (3 clock hours). It
- * must exceed walking out of the nest + GATE_PATROL_TRIP_S + walking back from the home-range edge (about 50 s).
+ * Fail-safe: a gate still closed this long after the window opened opens anyway (held), ticks (4 clock hours). It
+ * must exceed being assigned + walking out of the nest (up to about 40 s in the test nest) + GATE_PATROL_TRIP_S +
+ * walking back from the home-range edge.
  */
-export const PATROL_FAILSAFE_TICKS = 750;
+export const PATROL_FAILSAFE_TICKS = 1000;
 /** Alarm pheromone at the entrance that counts as "met alarm". */
 export const PATROL_ALARM_PH = 0.5;
 /** Surface activity below which the active window is closed (the gate resets for the next window). */

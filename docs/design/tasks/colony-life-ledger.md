@@ -323,6 +323,20 @@ Progress (kept current; a successor continues from here)
   51/52 (red `founding/reopen.test`, known).
   Next: rank causes (below), then after2 runs (all fixes) on sg #2, pp #3, car-park-verge #1, kitchen-door #3.
 
+### Funnel of the studied runs (`round-2/before/`, round-start tree + G1, the sweep's hand-overs)
+
+| | suburban-garden #2 | playground-park #3 |
+|---|---|---|
+| hand-over | 2.79 gd, 16 workers | 3.59 gd, 12 workers |
+| workers at winter / viable | 17 / no (worse than lean 2.20 gd: protein) | 10 / no (C stores 0, worse than lean 2.90 gd) |
+| worker time | nest.work 30 %, wait 22 %, nest.idle 19 %, travel 22 % | nest.work 41 %, nest.idle 31 %, wait 16 %, search 4 % |
+| task time (worker-gd) | tend 42.0, forage 33.9, nurse 28.1, idle 26.0, queen-care 19.1 | idle 26.5, queen-care 17.0, forage 14.8, scout 11.9, nurse 11.9 |
+| trips home / ok | 104 / 34 (scouts 0 of 31 found anything) | 22 / 0 (all scouts) |
+| scouting | 40 trips, median reach 219 BU in 104 s, 2 sources found | 26 trips, median reach 149 BU in 192 s, 0 found |
+| P path | P sources within 300 BU: carrion 2.2 P (known 0); 2 prey patches (K 294, edge 36 BU), 0 prey taken; P in: honeydew 1.24, "unknown" 0.46 (C1 artefact); fed to larvae 9.8 P (hand-over P) | carrion 0.9 P, crumb 0.3 P, 2 patches (K 574, edge 95 BU), none known; P in 0.14 ("unknown"); fed to larvae 1.5 P |
+| brood after hand-over | 10 laid, 10 hatched, 7 pupated, 7 eclosed; laying protein permitted 6 % of the time | 10 laid, 7 hatched, 0 pupated; larva:starvation 4 |
+| deaths | old-age 5, lost 1 | old-age 2 |
+
 ### Ranking by measured loss (round 2; the sweep table `round-1/sweep-table.md` + this round's runs)
 
 1. **Protein is never taken from prey patches** (R18). Every probed nest has 2-3 patches within 300 BU (K 72-574,
@@ -415,3 +429,71 @@ S1. Small-colony scouts search inside their range: `outdoor/phaseScout.ts` `best
     `outdoor/scoutRange.test.ts` (red without: trips 92-176 s, all ending at the 220 BU range).
 B1. Carried brood is tended: `colony/brood.ts`. Test `colony/broodCarried.test.ts` (red without: 0.35 gd).
 Tool: `tools/sim/lifeFunnel.ts` (trip count, founding stop, `scouting`, `preyPatches`), `tools/sim/life.ts`.
+
+### Before / after (same hand-over snapshots, `--cache round-2/cache --cache-any`)
+
+before = `round-2/before/` (round-start tree + G1) for sg #2 and pp #3, the sweep (`round-1/sweep/`, same hand-overs)
+for sg #3 and kd #3; after = `round-2/after3/` (G1 H1 H1b C1 S1 B1). Trip and intake figures of the "before" columns
+include the C1 artefact (in-nest unloadings counted as trips and as "unknown" deliveries).
+
+| run | viable | workers hand-over -> winter | eclosed (eggs laid) | intake/need C | P | trips / success | larvae starved | worst-stage stretch gd | prey loads home |
+|---|---|---|---|---|---|---|---|---|---|
+| suburban-garden #2 before | no | 16 -> 17 | 7 (10) | 1.459 | 0.076 | 104 / 33 % | 0 | 2.20 | 0 |
+| suburban-garden #2 after | **yes** | 16 -> 19 | 7 (12) | 1.544 | **0.133** | 116 / 36 % | 0 | 0.50 | 11 (1.9 P) |
+| playground-park #3 before | no | 12 -> 10 | 0 (10) | 0.064 | 0.027 | 22 / 0 % | 4 | 2.90 | 0 |
+| playground-park #3 after | **yes** | 12 -> 10 | 0 (10) | **0.813** | 0.166 | 32 / 31 % | 5 | 0 | 1 (+2 carrion) |
+| suburban-garden #3 before (sweep) | no | 9 -> 7 | 0 (9) | 0.132 | 0 | 10 / 0 % | 0 | 0 | 0 |
+| suburban-garden #3 after | no | 9 -> 7 | 0 (9) | 0.306 | 0.016 | 10 / 20 % | 0 | 0 | 0 |
+| kitchen-door #3 before (sweep) | yes | 7 -> 6 | 0 (10) | 0.144 | 0 | 12 / 17 % | 0 | 0 | 0 |
+| kitchen-door #3 after | **no** | 7 -> 4 | 0 (10) | 0.279 | 0.02 | 8 / 13 % | 0 | 0 | 0 |
+
+Reading: protein from patches works where a patch lies in the colony's reach (sg #2: 16 kills, 11 loads home, laying
+permitted 6 -> 22 % of the time; pp #3: patch 95 BU, 3 kills). Where the nearest patch is 118-202 BU out (kd #3, cpv #1,
+sg #3) no scout or forager entered it and nothing changed for protein. S1 + the hunting trips took pp #3 from C
+starvation to viable (crumb at 114 BU found). The seed-3 runs (sg #3, kd #3) still hatch nothing: eggs die
+`untended` (7 / 6) and flooding; kd #3 lost 3 workers in its last days (crushed day 1 by a human event, drowned and
+lost on day 8): one run, not attributed. Not measured this round: the other 11 sweep runs (the independent sweep does
+that); sg #2 eclosions 7 = before (the P that came in fed larvae of the first brood; laying permitted only 22 %).
+
+### Verification (05:05 UTC)
+
+- `npx tsc --noEmit`: clean (earlier in the round other engineers' `render/ants/swarm.test.ts`,
+  `species/modules/wood/wood.verify.test.ts`, `species/modules/granary/fixes.test.ts` had errors; not touched).
+- Folder tests (outputs `round-2/vitest/`): `ants/behaviours/outdoor` 24/25 files (red `removal.verify`, red with the
+  same numbers on the round-start tree 151cc41 in a scratch copy, deleted); `ants/behaviours/nest` 26/28 (red
+  `sfaReview.verify` 11 vs 12, `stall.soak` 22 %: as in round 1); `nest` 54/55 (red `escapeDig`, known;
+  `plugBaseline.verify` green now); `colony` 52/53 (red `founding/reopen.test`, known); `combat` 12/12; `types` +
+  `balance` red `ids.test` (ALERT_KINDS 38 vs 37, known).
+- Runs: `round-2/before/`, `after1/` (H1 + H1b), `after2/` (+ C1 with the herd hole: C intake undercounted),
+  `after3/` (all fixes); probes (`probe-eggs-kd3.txt`, `probe-eggs-sg3.txt`) by tools deleted after use.
+
+### Tried and reverted
+
+- A `forager-returned` sim event to reconcile the trip counters: it needs an entry in `src/audio/eventMap.ts` (the
+  audio map is exhaustive over event types; not this task's folder). The funnel reads `ant.mem.trips` instead.
+- Hunting without H1b: hunters fled from their own alarm after each kill (above).
+
+### GDD deviations
+
+- S1: GDD 02 §10.1 sends a scout home at `distance > SCOUT_MAX_RANGE`. For a small colony (R3's 220 BU range, a
+  viab-economy number, not the GDD's 700) the range now bounds the walk and the scout returns on time, hunger or
+  curfew. The large-colony rule is unchanged.
+- H1: HUNT_NOTICE_BU, HUNT_CHASE_S, HUNT_REMAINS_BU, HUNT_PATCH_SEARCH_S, HUNT_EXPECT_S, PATCH_FORAGERS_MAX are new
+  (GDD 05 §2.3 gives the spawn rate, escape chances and yields, not the forager's search times); derivations in
+  `balance/foraging.ts`. No need, lifespan, provision, bar or ruling test changed; no seed or archetype case.
+- B1: GDD 02 §2.5 counts a pile's untended time; carried brood was already exempt from the hazard, now its clock also
+  restarts at the put-down.
+
+### Next (for round 3; the independent sweep comes first)
+
+1. **Patches out of reach**: kd #3 (nearest patch edge 118 BU), cpv #1 (202 BU), sg #3 (186 BU): nobody enters them,
+   so no hunting. Scouts of these runs reach a median 65-160 BU. Check the sweep's patch line per run (`preyPatches`
+   in the funnel) and whether worldgen's R18 top-ups (`worldgen/populate/finalize.ts`) place patches near the start.
+2. **Protein still far below the bar** where hunting works (sg #2 P 0.133, 16 kills in 6 gd): hunting trips per day,
+   their success, and the remains lost after a kill (16 kills, 11 loads home).
+3. **Seed-3 brood** (sg #3, kd #3): eggs still die `untended` (7 / 6) and of flooding; one founding chamber, ~1 nurse
+   among 7-9 workers (dig takes 4-5); queen-care keeps collecting eggs. B1 removed one path (carried past the limit).
+4. **Flowers smelled but not reached** (pp #3, sg #2): investigate gives up after 30 s at a raised flower.
+5. kd #3 after: 3 workers lost (crushed day 1, drowned + lost day 8), one run; watch `worker:lost` in the sweep.
+
+Status: **round 2 complete** (05:05 UTC). Probe tools and scratch copies deleted; no processes left running.

@@ -5,7 +5,7 @@
 //   store  granary care: gnawing work before the seeds sprout, over the work rate, x granaryHygiene; plus
 //          relocation out of damp granaries and proto-granaries;
 //   forage SEED_FORAGE_FRAC of the workers while the granaries hold less than targetStockGd days of seed (and
-//          scouts while no seed source is known);
+//          scouts while no seed source is known); at least GATHERERS_MIN out, queen care giving way (gathererFloor);
 //   patrol the morning patrollers while the gate is closed;
 //   tend   none: a harvester does not tend aphids (the colony's demand would send tenders to known herds).
 
@@ -18,8 +18,10 @@ import { coreOf } from '@/sim/colony/core';
 import { ALLOC_EVERY, ALLOC_OFFSET } from '@/sim/balance/cadence';
 import {
   CARE_ANTICIPATE_G, CARE_MAX_FRAC, CARE_RATE_FLOOR, CARE_WINDOW_MIN_S, MILL_LOADS_PER_MILLER_GD, MILL_MAX_FRAC, MILL_MIN,
-  RELOCATE_WORKERS, SEED_FORAGE_FRAC, SEED_SCOUTS_MIN,
+  GATHERERS_MIN, RELOCATE_WORKERS, SEED_FORAGE_FRAC, SEED_SCOUTS_MIN, WINDOW_ACTIVITY_MIN,
 } from '@/sim/balance/species-harvester';
+import { surfaceActivityOf } from '@/sim/colony/envAdapter';
+import { inDiet } from './behaviourForage';
 import { workRate } from '@/sim/ants/actions/workRate';
 import { GRANARY_HYGIENE_DEFAULT } from '@/sim/balance/colony';
 import { granaryColonies } from './economy';
@@ -121,6 +123,32 @@ export function millTaskWorkers(sim: Sim, col: Colony): number {
   return n;
 }
 
+/** Whether the colony knows a live source in its diet with food left. */
+function knowsFood(sim: Sim, col: Colony): boolean {
+  for (const id of col.knownSourceIds) {
+    const s = sim.stores.sources.get(id);
+    if (s && s.alive && s.units > 0 && inDiet(sim, col, s)) return true;
+  }
+  return false;
+}
+
+/**
+ * The addendum's loop (found -> gather the staple -> grow) in a nanitic colony: while the granary is short and the
+ * surface is workable, at least one worker goes out: a scout until a seed node is known (a waiting forager with
+ * nowhere to go takes the only free worker first in the allocator's order, so the forage demand is dropped while
+ * the colony knows no food at all), then a forager. Queen care gives way first: with 2 first workers, 1 nurse and
+ * 1 queen carer left nobody to gather (life run playground-park #1: 0 trips in 11 game days).
+ */
+function gathererFloor(sim: Sim, col: Colony, d: Float32Array, n: number): void {
+  if (surfaceActivityOf(sim, col.species) < WINDOW_ACTIVITY_MIN) return;
+  const job: Task = knowsSeed(sim, col) ? 'forage' : 'scout';
+  if (job === 'scout' && !knowsFood(sim, col)) d[ti('forage')] = 0;
+  d[ti(job)] = Math.max(d[ti(job)], GATHERERS_MIN);
+  const inside = Math.ceil(d[ti('nurse')]) + Math.ceil(d[ti('queen-care')]);
+  const room = n - GATHERERS_MIN;
+  if (inside > room) d[ti('queen-care')] = Math.max(0, d[ti('queen-care')] - (inside - room));
+}
+
 /** Whether the colony knows a live seed source. */
 function knowsSeed(sim: Sim, col: Colony): boolean {
   for (const id of col.knownSourceIds) if (sim.stores.sources.get(id)?.kind === 'seed') return true;
@@ -143,8 +171,10 @@ export function augmentDemand(sim: Sim, col: Colony, g: GranaryParams): void {
   // granary care, whose workers mill the seed they can crack (behaviourCare.ts)
   add(d, 'store', careDemand(sim, col, g, n) + Math.max(0, mill - millers) + relocateDemand(sim, col, g, n));
   if (patrolPending(sim, col)) d[ti('patrol')] = Math.max(d[ti('patrol')], patrollersWanted(sim, col));
-  add(d, 'forage', seedForageDemand(col, g, n));
-  if (seedForageDemand(col, g, n) > 0 && !knowsSeed(sim, col)) d[ti('scout')] = Math.max(d[ti('scout')], Math.min(SEED_SCOUTS_MIN, n));
+  const seed = seedForageDemand(col, g, n);
+  if (seed > 0 && knowsSeed(sim, col)) add(d, 'forage', seed);
+  if (seed > 0 && !knowsSeed(sim, col)) d[ti('scout')] = Math.max(d[ti('scout')], Math.min(SEED_SCOUTS_MIN, n));
+  if (seed > 0) gathererFloor(sim, col, d, n);
   // GDD 07 §5.3.5: a harvester does not tend aphids (honeydew preference 0): no tenders for the herds it knows
   if (!((sim.getSpecies(col.species)?.diet.foods.honeydew?.pref ?? 0) > 0)) d[ti('tend')] = 0;
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };

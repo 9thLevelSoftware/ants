@@ -3,7 +3,7 @@
 //   diag-mb-milling         paste stock under 1 GD of demand while the granaries hold more than 5 GD
 //   diag-mb-animal-protein  larvae's mean animal share of protein under the 10 % minimum
 //   diag-mb-heat            the heat-limited trip distance and the summer lull (info)
-//   diag-mb-patrol          foraging held by the patrol gate for more than an hour
+//   diag-mb-patrol          foraging held by the patrol gate: a patroller more than an hour late, or the hold
 
 import type { Colony, Diagnostic, Sim, System } from '@/sim/types';
 import { publishWithHysteresis, weighFactors, type FactorIn } from '@/sim/colony/diagFactors';
@@ -16,6 +16,7 @@ import { pasteDemandPerGd } from './paste';
 import { colonyStock, colonyTotals } from './state';
 import { heatOf, lullMult } from './rhythm';
 import { careDemand, millDemand } from './allocation';
+import { patrolOverdueTicks } from './behaviourPatrol';
 import { dailyRate } from './counters';
 
 const SYSTEM = 'species';
@@ -108,7 +109,13 @@ export function heatDiag(sim: Sim, col: Colony, g: GranaryParams): Rec {
 export function patrolDiag(sim: Sim, col: Colony): Rec {
   const gate = col.granary?.patrol;
   const now = sim.state.tick;
-  const heldClosed = !!gate && !gate.open && gate.closedTick >= 0 && now - gate.closedTick > PATROL_HOLD_TICKS;
+  // held = a patroller more than an hour late (GDD 07 §5.3.10 "> 1 h"); the normal round (walking out, the look
+  // round, walking back) is not a hold
+  let late = 0;
+  if (gate && !gate.open && gate.closedTick >= 0) {
+    for (const id of gate.out) { const a = sim.stores.ants.get(id); if (a) late = Math.max(late, patrolOverdueTicks(sim, a)); }
+  }
+  const heldClosed = late > PATROL_HOLD_TICKS;
   const held = !!gate && gate.holdUntilTick > now;
   const f: FactorIn[] = [
     { cause: 'patrol-out', f: heldClosed ? 0.2 : 1, detail: gate ? `${gate.returns.length} back, ${gate.out.length} out` : '' },

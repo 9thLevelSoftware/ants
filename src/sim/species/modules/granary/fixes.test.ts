@@ -10,8 +10,8 @@ import { spawnItem } from '@/sim/entities';
 import { begin } from '@/sim/ants/actions';
 import { walkerPlace } from '@/sim/locomotion/walker';
 import { K, PHASE } from '@/sim/ants/behaviours/outdoor/keys';
-import { TICKS_PER_DAY } from '@/sim/time';
-import { PATROL_FAILSAFE_TICKS, SEED_RAIN_PER_GD } from '@/sim/balance/species-harvester';
+import { secondsToTicks, TICKS_PER_DAY } from '@/sim/time';
+import { GATE_PATROL_TRIP_S, PATROL_FAILSAFE_TICKS, PATROL_HOLD_TICKS, SEED_RAIN_PER_GD } from '@/sim/balance/species-harvester';
 import { addAnts, addLarvae, messorKit } from './testkit';
 import { newPatchSite, refreshSeedSites } from './seeds';
 import { addSeeds, totalsOf } from './cohorts';
@@ -22,6 +22,8 @@ import { ensureGranary, stockOf } from './state';
 import { granaryDeliverySystem, putDownChamberId } from './delivery';
 import { cutHeadNow } from './behaviourForage';
 import { relocateTarget } from './relocate';
+import { ti } from '@/sim/colony/taskIdx';
+import { patrolDiag } from './diagnostics';
 
 function run(sim: Sim, ticks: number, each?: () => void): void {
   for (let i = 0; i < ticks; i++) { sim.tick(); each?.(); }
@@ -87,6 +89,22 @@ describe('F2 morning patrol', () => {
   }, 60_000);
 });
 
+describe('F2 diag-mb-patrol', () => {
+  it('a normal morning round is not a hold; a patroller more than an hour late is', () => {
+    const k = messorKit();
+    const col = k.sim.state.colonies[0];
+    const [p] = addAnts(k, 'media', 1, k.nest.chambers[1], 'patrol');
+    const gate = gateOf(col);
+    run(k.sim, 5);
+    Object.assign(gate, { open: false, closedTick: 0, out: [p.id], returns: [], holdUntilTick: -1 });
+    p.nestId = -1;
+    p.bb['mb.pt.out'] = k.sim.state.tick - secondsToTicks(GATE_PATROL_TRIP_S);
+    expect(patrolDiag(k.sim, col).status).toBe('ok');
+    p.bb['mb.pt.out'] = k.sim.state.tick - secondsToTicks(GATE_PATROL_TRIP_S) - PATROL_HOLD_TICKS - 1;
+    expect(patrolDiag(k.sim, col).status).toBe('warn');
+  });
+});
+
 describe('F3 small workers mill soft seed (deviation from GDD 07 §6.3.6)', () => {
   it('a minor mills seed up to her crack limit at SMALL_MILL_TIME_MULT x the major time, nothing harder', () => {
     const k = messorKit();
@@ -110,6 +128,21 @@ describe('F3 small workers mill soft seed (deviation from GDD 07 §6.3.6)', () =
     const fed = k.sim.state.brood.filter((b) => b.alive && b.stage === 'larva').reduce((a, b) => a + b.fedC + b.fedP, 0);
     expect(totalsOf(k.granary).loads).toBeLessThan(20);
     expect(fed).toBeGreaterThan(0.02);
+  }, 60_000);
+});
+
+describe('F3 the loop in a 2-worker colony (allocation gathererFloor)', () => {
+  it('with the granary empty one of 2 first workers goes out: a scout while no seed is known', () => {
+    const k = quietKit();
+    const col = k.sim.state.colonies[0];
+    col.granary!.seedSites = []; // no seed anywhere yet
+    col.stores.c = 4; col.stores.p = 0.3; // a fed pool: the base allocator sees no need
+    addAnts(k, 'minor', 2, k.nest.chambers[1], 'idle', 0.6);
+    addLarvae(k, 2, k.nest.chambers[1]);
+    run(k.sim, 200);
+    const t = col.alloc.target;
+    expect(t[ti('scout')] + t[ti('forage')]).toBeGreaterThanOrEqual(1);
+    expect(t[ti('scout')]).toBeGreaterThanOrEqual(1);
   }, 60_000);
 });
 
@@ -139,7 +172,9 @@ describe('F7 seed relocation (GDD 07 §6.3.4)', () => {
     run(k.sim, Math.round(0.3 * TICKS_PER_DAY));
     expect(stockOf(k.granary)).toBeGreaterThanOrEqual(1);
     const carried = k.sim.stores.ants.list.reduce((a, x) => a + (x.bb['mb.rl.n'] ?? 0), 0);
-    expect(stockOf(proto) + stockOf(k.granary) + carried).toBeCloseTo(6, 6);
+    const foraged = col.granary!.seedInToday ?? 0; // the media also forage the test world's seed
+    expect(stockOf(proto)).toBeLessThan(1);
+    expect(stockOf(proto) + stockOf(k.granary) + carried).toBeCloseTo(6 + foraged, 6);
   }, 60_000);
 });
 

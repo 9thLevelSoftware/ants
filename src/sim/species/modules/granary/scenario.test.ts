@@ -54,6 +54,8 @@ describe('granary care in the nest (E15, AC2)', () => {
 describe('milling (E17)', () => {
   it('a major mills 10 loads of hardness 0.5 in 360 s of work into 8 paste loads', () => {
     const k = messorKit();
+    // a closed surface: the allocator's gatherer floor would send the colony's only worker out (allocation.ts)
+    setClimateOverride(k.sim, { chamberTemp: () => 22, rh: () => 0.3, pointTemp: () => 22, surfaceActivity: () => 0 });
     addSeeds(k.granary, k.g, 'M', 0.5, 10, 0.3, 0);
     const [major] = addAnts(k, 'major', 1, k.granaryChamber, 'idle', 1.55);
     major.bb[MILL_WANT] = 10;
@@ -81,6 +83,9 @@ describe('milling (E17)', () => {
 describe('the paste bottleneck (AC2)', () => {
   function larvaeColony(withMajors: boolean) {
     const k = messorKit({ tempC: 26 });
+    // a closed surface (night): nobody forages, so the larvae have only what the granary gives (the gatherer floor
+    // of allocation.ts would otherwise send a minor out to the test world's food)
+    setClimateOverride(k.sim, { chamberTemp: () => 26, rh: () => 0.3, pointTemp: () => 26, surfaceActivity: () => 0 });
     addSeeds(k.granary, k.g, 'M', 0.5, 400, 0.3, 0);
     const nursery = k.nest.chambers[1];
     addAnts(k, 'minor', 6, nursery, 'nurse');
