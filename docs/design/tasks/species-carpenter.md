@@ -24,3 +24,6 @@ GDD 07 (`docs/design/gdd/07-species.md`): the Camponotus data set and the wood-n
 3. Foraging outside is concentrated at night per the activity gates; majors appear only after the stated colony age.
 4. `tests/e2e/species-carpenter.mjs`: a new game with this species reaches first workers through the real opening sequence; screenshots (looked at) show a gallery in wood from inside and a frass pile outside.
 5. The 28-day soak with this species holds all invariants.
+
+## Addendum (Nov 17, binding)
+Read `docs/design/tasks/species-common-addendum.md` after this spec; where they differ, the addendum wins.

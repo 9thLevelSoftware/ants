@@ -24,3 +24,6 @@ GDD 07 (`docs/design/gdd/07-species.md`): the Atta data set and the fungus-garde
 3. Leaf loads are size-matched by caste; the bottleneck detector identifies an understaffed stage in a scripted imbalance.
 4. `tests/e2e/species-leafcutter.mjs`: a new game with this species reaches first workers; screenshots (looked at) show a leaf-carrying column and a garden chamber.
 5. The 28-day soak with this species holds all invariants.
+
+## Addendum (Nov 17, binding)
+Read `docs/design/tasks/species-common-addendum.md` after this spec; where they differ, the addendum wins.

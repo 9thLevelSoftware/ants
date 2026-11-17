@@ -21,3 +21,6 @@ GDD 07 (`docs/design/gdd/07-species.md`): the honeydew-ranching module in full (
 2. Headless scenarios: with relocation enabled a colony increases its number of productive herds over a season within the chapter's limits; guarded herds lose fewer aphids to ladybirds than unguarded ones by a clear margin; relay raises honeydew intake per tender per the chapter.
 3. Disabling each extra leaves the base herd economy unchanged.
 4. The 28-day soak holds all invariants.
+
+## Addendum (Nov 17, binding)
+Read `docs/design/tasks/species-common-addendum.md` after this spec; where they differ, the addendum wins.

@@ -24,3 +24,6 @@ GDD 07 (`docs/design/gdd/07-species.md`): the Messor data set and the granary ec
 3. Foraging stops in midday summer heat and resumes in the cooler windows; no foraging before the patrol gate opens.
 4. `tests/e2e/species-harvester.mjs`: a new game with this species reaches first workers; screenshots (looked at) show ants carrying seeds on a trail and a granary chamber with seeds.
 5. The 28-day soak with this species holds all invariants.
+
+## Addendum (Nov 17, binding)
+Read `docs/design/tasks/species-common-addendum.md` after this spec; where they differ, the addendum wins.
