@@ -162,6 +162,7 @@ export class ViewsLayer {
     if (view === 'colony') {
       const rig = s.views.colony;
       rig.setDeepest(deepestNestY(s.sim));
+      rig.setNestSpan(nestSpanBu(s.sim));
       // just entered: the slice starts 2 BU above the ant the camera rose from (ColonyRig.enter could only clamp it
       // to the default depth range: it does not know the nest)
       if (entered && rig.cutaway.mode === 'slice') {
@@ -331,6 +332,24 @@ export function deepestNestY(sim: Sim): number {
     for (const e of n.entrances) y = Math.min(y, e.pos.y);
   }
   return y;
+}
+
+/** Span of the player colony's nests (BU): the larger of the horizontal and vertical extent of chambers and entrances. */
+export function nestSpanBu(sim: Sim): number {
+  const col = sim.state.colonies[0]?.id ?? -1;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  const add = (x: number, y: number, z: number, rx: number, ry: number, rz: number) => {
+    x0 = Math.min(x0, x - rx); x1 = Math.max(x1, x + rx);
+    y0 = Math.min(y0, y - ry); y1 = Math.max(y1, y + ry);
+    z0 = Math.min(z0, z - rz); z1 = Math.max(z1, z + rz);
+  };
+  for (const n of sim.state.nests) {
+    if (n.colony !== col) continue;
+    for (const c of n.chambers) add(c.center.x, c.center.y, c.center.z, c.radii.x, c.radii.y, c.radii.z);
+    for (const e of n.entrances) add(e.pos.x, e.pos.y, e.pos.z, 0, 0, 0);
+  }
+  if (!Number.isFinite(x0)) return 0;
+  return Math.max(x1 - x0, z1 - z0, y1 - y0) / sim.world.bu;
 }
 
 function sameRef(a: HighlightRef | null, b: HighlightRef | null): boolean {

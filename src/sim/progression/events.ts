@@ -85,6 +85,9 @@ function bookkeeping(sim: Sim, ev: SimEvent): void {
     case 'human.start':
       addJournal(sim, 'event', `event.human.${ev.kind}`, {});
       break;
+    case 'overwinter.notice':
+      addJournal(sim, 'event', 'event.winter-notice', {});
+      break;
     case 'flood-started':
       if (playerNests(sim).some((n) => n.id === ev.nestId)) addJournal(sim, 'event', 'event.flood', {});
       break;

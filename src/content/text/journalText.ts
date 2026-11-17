@@ -55,6 +55,7 @@ export function journalEntryText(key: string, tokens: TextTokens = {}): JournalW
   if (has(AIM_IDS, key)) return { title: 'Aim', text: AIM_TEXT[key as AimId].text };
   if (key === 'event.flood') return fill(EVENT_ENTRY.flood);
   if (key === 'event.raid') return fill(EVENT_ENTRY.raid);
+  if (key === 'event.winter-notice') return fill(EVENT_ENTRY.winterNotice);
   if (key.startsWith('event.human.')) {
     const kind = key.slice(12);
     return has(HUMAN_EVENT_KINDS, kind) ? fill(HUMAN_EVENT_ENTRY[kind as HumanEventKind]) : null;

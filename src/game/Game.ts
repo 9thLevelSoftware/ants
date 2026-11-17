@@ -31,6 +31,7 @@ import { TOASTS } from './possessionEvents';
 import { collectRefusals, type Rejection } from './refusals';
 import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
+import { AutoSlowWatcher } from './time/autoSlow';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
 import { generationPhase, loadingPhases, type LoadingPhase } from './newGame/loading';
@@ -127,6 +128,12 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   readonly founding: FoundingFlow = new FoundingFlow(this);
   /** Winter, nuptial flight, epitaph and Lineage flows (src/game/flows/{overwinter,flight,epitaph}). */
   readonly lifecycle: LifecycleFlows = new LifecycleFlows(this);
+  /** GDD 06 §4.5 automatic slow-downs on raised alerts (src/game/time/autoSlow.ts). */
+  private readonly autoSlow = new AutoSlowWatcher({
+    level: () => this.session?.driver.level ?? 0,
+    choice: () => { const g = this.settings.get().gameplay; return { critical: g.autoSlowCritical, warning: g.autoSlowWarning }; },
+    apply: (to) => this.setSpeed(to),
+  });
   /** The live scene behind the title menu (src/game/title, render-integration). */
   readonly title: TitleHost;
   /** GDD 04 §14 edge glyph hook: the possessed ant presses outward against the map's hard limit (for the HUD). */
@@ -300,6 +307,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     if (session.view !== 'possess') session.setView('observer', true);
     this.founding.attach(session);
     this.lifecycle.attach(session);
+    this.autoSlow.attach(sim);
     this.syncContexts();
     this.renderNow(this.opts.testMode ? TEST_CAMERA_SETTLE_S : 0);
   }
@@ -343,6 +351,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     clearOverlays();
     this.founding.detach();
     this.lifecycle.detach();
+    this.autoSlow.detach();
     this.viewsLayer.reset();
     this.loading = null;
     if (toTitle) { this.mode = 'title'; void this.title.enter(); }

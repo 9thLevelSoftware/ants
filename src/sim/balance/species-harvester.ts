@@ -50,9 +50,13 @@ export const SEED_SLOTS = 4;
  * decides it (stable across thinks) [EST].
  */
 export const SEED_LOOKS_PER_VISIT = 6;
-/** Ground seed patches in open ground around the nest (GDD 05 grass-seed "open zones") and their ring, BU [EST]. */
-export const SEED_PATCHES = 16;
-export const SEED_PATCH_RADIUS_BU: readonly [number, number] = [40, 420];
+/**
+ * Ground seed patches in open ground around the nest (GDD 05 grass-seed "open zones") and their ring, BU [EST]. A
+ * harvester founds in seed-rich open ground; the ring stays inside a small colony's scouting range
+ * (SMALL_SCOUT_RANGE_BU 220): with 40-420 BU two scouts found none of 16 patches in a game day (suburban-garden #1).
+ */
+export const SEED_PATCHES = 20;
+export const SEED_PATCH_RADIUS_BU: readonly [number, number] = [20, 200];
 /** Seed heads a seed plant carries while the seed rain lasts (cut-seed-head detaches 1-3 seeds each) [EST]. */
 export const SEED_HEADS_PER_PLANT = 4;
 

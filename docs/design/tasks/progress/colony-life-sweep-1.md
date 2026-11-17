@@ -37,3 +37,12 @@ in `test-output/colony-life/round-1/sweep/summary.txt`.
 - Planned A/B after the sweep: scratch tree = working tree minus F1-F3 at
   /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scratchpad/nofix (DELETE when done), run
   kitchen-door #1 (+ car-park-verge #1) there, out test-output/colony-life/round-1/sweep-ab/, to attribute the P drop.
+
+## 03:40 UTC — sweep DONE (15/15), A/B running (sweep-ab/, kd1 + cpv1 without F1-F3)
+- Table body: test-output/colony-life/round-1/sweep-table.body.md (from tools/sim/sweep-table.py). Viable 9/15
+  (sg 1/3, pp 1/3 -> bar NOT met). R19 3 of 7 (C 1.258 ok, first>=9 13/15 ok, no lost 14/15 ok; held 5/15, eclosions
+  median 0, P 0.094, trip success 18.2 %). 12 runs flagged vs sweep 9 (mostly P intake down; sg2, pp2 viable -> not on
+  P starvation stage while GROWING; pp3 C collapse, scouts find nothing).
+- Leads: P sources <=300 BU known 0 at end in 13/15 runs; 316 scout trips found nothing; seed 3: 0 of 43 eggs
+  hatched in 4 of 5 runs (untended/flooding/exposure, one-chamber nests).
+- Remaining: A/B result, write sweep-table.md (header + body), ledger section, delete scratch nofix, final output.

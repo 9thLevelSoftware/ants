@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultBindings } from '@/input';
 import type { HintId } from '@/sim/types';
 import type { FoundingUi } from '../../screens/founding/store';
-import { promptVisibility } from './foundingGate';
+import { promptVisibility } from './foundingShown';
 import { foundingShownHints } from './foundingShown';
 import { keyCapText } from './keys';
 

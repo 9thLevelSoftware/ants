@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { vec3 } from '@/core';
 import { ColonyRig } from './colonyRig';
+import { CV_DIST_BU, CV_DIST_PER_NEST_SPAN, CV_DIST_SMALL_MIN_BU } from './constants';
 import { ObserverRig } from './observerRig';
 import { fNumberAt, fovForFocal, PhotoRig } from './photoRig';
 import { makeSphereTracer } from './sphereTrace';
@@ -104,6 +105,27 @@ describe('ColonyRig', () => {
     expect(r.cutaway.mode).toBe('xray');
     r.setCutRadius(1000);
     expect(r.cutaway.radius).toBe(400 * DEMO_BU);
+  });
+});
+
+describe('ColonyRig closest zoom for a small nest (gate-close-app)', () => {
+  it('a founding-sized nest allows a closer minimum; a large nest keeps CV_DIST_BU[0]; never below the floor', () => {
+    const r = new ColonyRig({ bu: DEMO_BU, worldSize: 400 });
+    r.enter(vec3(50, -20, 0), true, demoGroundHeight);
+    const env = { groundHeight: demoGroundHeight, trace };
+    const zoomIn = () => { for (let i = 0; i < 100; i++) r.update(1 / 30, { ...NO, pan: { x: 0, y: 0 }, zoomLog: -0.3 }, env); };
+    zoomIn();
+    expect(r.distance).toBeCloseTo(CV_DIST_BU[0] * DEMO_BU, 6);
+    r.setNestSpan(6);
+    zoomIn();
+    expect(r.distance).toBeCloseTo(6 * CV_DIST_PER_NEST_SPAN * DEMO_BU, 6);
+    expect(r.distance).toBeLessThan(CV_DIST_BU[0] * DEMO_BU);
+    r.setNestSpan(1);
+    zoomIn();
+    expect(r.distance).toBeCloseTo(CV_DIST_SMALL_MIN_BU * DEMO_BU, 6);
+    r.setNestSpan(80);
+    zoomIn();
+    expect(r.distance).toBeCloseTo(CV_DIST_BU[0] * DEMO_BU, 6);
   });
 });
 

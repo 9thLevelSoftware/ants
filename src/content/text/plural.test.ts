@@ -81,7 +81,7 @@ describe('journal wording of every key progression writes', () => {
       ...MILESTONE_IDS, ...AIM_IDS, ...HUMAN_EVENT_KINDS.map((k) => `event.human.${k}`),
       'stage.founding', 'stage.first-workers', 'stage.growing', 'stage.mature',
       'season.0', 'season.1', 'season.2', 'season.3', 'weather.rain', 'weather.storm', 'weather.heat', 'weather.frost',
-      'loss', 'loss.queen', 'season-summary', 'winter-report', 'flight', 'event.flood', 'event.raid',
+      'loss', 'loss.queen', 'season-summary', 'winter-report', 'flight', 'event.flood', 'event.raid', 'event.winter-notice',
     ];
     for (const k of keys) {
       const w = journalEntryText(k, {});

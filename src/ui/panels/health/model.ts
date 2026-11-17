@@ -157,6 +157,8 @@ const REMEDY_ACTION: Readonly<Record<string, RemedyAction>> = {
   'remedy.dig.drain-chamber': { kind: 'tool', tool: 'dig' },
   // no satellite marker yet: the new-entrance marker is where a satellite starts
   'remedy.marker.satellite': { kind: 'tool', tool: 'entrance' },
+  // the species toggles (directiveExtras) have no control of their own yet: open the Nest section
+  'remedy.toggle.hideFrass': { kind: 'directives', group: null, control: 'architect' },
 };
 
 /** Words and action of a remedy id; an unknown id is shown as plain advice. */

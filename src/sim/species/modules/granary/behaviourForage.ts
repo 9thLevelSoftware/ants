@@ -18,6 +18,7 @@ import { makeBehaviour } from '@/sim/ants/behaviours/outdoor/engine';
 import { FORAGE, SCOUT, type Flavour } from '@/sim/ants/behaviours/outdoor/flavours';
 import { K, PHASE } from '@/sim/ants/behaviours/outdoor/keys';
 import { distFromHome, thinkIn } from '@/sim/ants/behaviours/outdoor/common';
+import { moving, stop } from '@/sim/ants/behaviours/outdoor/nav';
 import { THINK_WAIT_TICKS } from '@/sim/balance/foraging';
 import { SEED_CALL_RATE_S, SEED_FORAGE_FRAC, SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
 import { ACTIVATION_DEPART } from '@/sim/balance/colony';
@@ -168,8 +169,9 @@ export const harvesterForageBehaviour: Behaviour = {
   task: 'forage', species: ['messor-barbarus'],
   enter: (sim, ant) => withCtx(sim, ant, true, () => forageEngine.enter(sim, ant)),
   update(sim, ant) {
+    // the departure gate holds every forager inside the nest, a returner resuming her job as well as a waiting one
     const waiting = ant.nestId >= 0 && ant.bb[K.phase] === PHASE.wait;
-    const allow = waiting ? mayLeave(sim, ant) : true;
+    const allow = ant.nestId >= 0 ? mayLeave(sim, ant) : true;
     if (waiting && allow) granaryCall(sim, ant, THINK_WAIT_TICKS);
     withCtx(sim, ant, allow, () => forageEngine.update(sim, ant));
   },
@@ -181,7 +183,11 @@ export const harvesterScoutBehaviour: Behaviour = {
   task: 'scout', species: ['messor-barbarus'],
   enter: (sim, ant) => withCtx(sim, ant, true, () => scoutEngine.enter(sim, ant)),
   update(sim, ant) {
-    if (ant.nestId >= 0 && ant.bb[K.phase] === PHASE.depart && !mayLeave(sim, ant)) {
+    const ph = ant.bb[K.phase];
+    if (ant.nestId >= 0 && (ph === PHASE.depart || ph === PHASE.wait) && !mayLeave(sim, ant)) {
+      // a scout already walking up the shaft stops there until the gate opens; the held time is not her depart time
+      if (moving(ant)) stop(sim, ant);
+      ant.bb[K.phase0] = sim.state.tick;
       thinkIn(sim, ant, THINK_WAIT_TICKS);
       return;
     }

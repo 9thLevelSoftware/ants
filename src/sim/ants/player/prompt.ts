@@ -103,9 +103,14 @@ function line(sim: Sim, ant: Ant, input: PromptInput, id: ActionId, t: TargetRef
   return { input, actionId: id, target: t, ok: check.ok, reason: check.reason, text: lineText(sim, ant, id, t, check.ok, check.reason) };
 }
 
+/** In the air (nuptial flight): no ground action applies, so no prompt is offered ("Groom yourself" during a flight). */
+function flying(ant: Ant): boolean {
+  return ant.medium === 'air' || ant.alate?.flightPhase != null;
+}
+
 /** The context prompt for the possessed ant (best action on what it faces); null for other ants or nothing. */
 export function currentPrompt(sim: Sim, ant: Ant): ActionPrompt | null {
-  if (!isPossessed(ant)) return null;
+  if (!isPossessed(ant) || flying(ant)) return null;
   const c = selectedCandidate(sim, ant);
   return c ? { actionId: c.primary, target: c.target, ok: c.ok, reason: c.reason } : null;
 }
@@ -120,7 +125,7 @@ function colonyOrdersLine(sim: Sim, ant: Ant): PromptLine | null {
 /** Full prompt for the HUD: primary, secondary and extra key lines. */
 export function promptView(sim: Sim, ant: Ant): PromptView {
   const view: PromptView = { primary: null, secondary: null, extras: [] };
-  if (!isPossessed(ant)) return view;
+  if (!isPossessed(ant) || flying(ant)) return view;
   const c = selectedCandidate(sim, ant);
   if (c) {
     view.primary = line(sim, ant, 'interact', c.primary, c.target, c);

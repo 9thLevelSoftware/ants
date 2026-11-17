@@ -3,7 +3,7 @@ import { defaultBindings } from '@/input';
 import { hintText } from '@/content/text';
 import { HINT_IDS } from '@/sim/types';
 import type { FoundingUi } from '../../screens/founding/store';
-import { promptVisibility } from './foundingGate';
+import { promptVisibility } from './foundingShown';
 import { foundingShownHints, promptHintId } from './foundingShown';
 import { keyCapText } from './keys';
 

@@ -15,7 +15,7 @@ import type { RainClass, Sim } from '@/sim/types';
 import { isInteriorAt } from '@/sim/environment/ground';
 import { ImpactLayer } from './impacts';
 import { FloodWater } from './floodWater';
-import { flashDuration, flashStrength, LightningFlash } from './lightning';
+import { FlashTimer, LightningFlash } from './lightning';
 import { RainField } from './rainField';
 import { rainTint } from './rainTint';
 import {
@@ -69,12 +69,12 @@ export class WeatherRenderer implements SubRenderer {
   private readonly flash = new LightningFlash();
   private sim: Sim | null = null;
   private offLightning: (() => void) | null = null;
-  private flashLeft = 0;
+  private readonly flashTimer = new FlashTimer();
   /** Tick of the last strike the sim reported, and of the last one shown (a strike flashes once, when it is new). */
   private strikeTick = -1;
   private shownStrike = -1;
-  private flashFresh = false;
-  private flashReduced = false;
+  /** The last flash was started with reduced motion / flash reduction (flashNow without a frame). */
+  private lastReduced = false;
   private wetTo: WetTarget | null = null;
   private view: WeatherView | null = null;
   private readonly focus = new Vector3();
@@ -178,18 +178,11 @@ export class WeatherRenderer implements SubRenderer {
     const reduced = !!frame.reducedMotion || !!frame.reducedFlash;
     if (this.strikeTick !== this.shownStrike) {
       // only a strike of the last couple of ticks flashes (a scripted jump over many ticks shows none)
-      if (sim.state.tick - this.strikeTick <= 2) this.startFlash(reduced);
+      if (sim.state.tick - this.strikeTick <= 2) this.flashTimer.strike(reduced);
       this.shownStrike = this.strikeTick;
     }
-    if (this.flashReduced !== reduced) this.flashLeft = 0; // the setting changed mid-flash: drop it
-    // running frames fade the flash; a settle frame (dt 0) shows a new pulse once, never an old one (the slow
-    // reduced-motion glow holds still on settle frames)
-    const step = frame.dt > 0 ? frame.dt : 0;
-    const left = reduced ? Math.max(0, this.flashLeft - step) : this.flashLeft;
-    const show = this.flashLeft > 0 && (reduced || frame.dt > 0 || this.flashFresh);
-    this.flash.set(show ? flashStrength(left, reduced) * (outside ? 1 : 0.1) : 0);
-    this.flashLeft = frame.dt > 0 ? Math.max(0, this.flashLeft - frame.dt) : reduced ? this.flashLeft : 0;
-    this.flashFresh = false;
+    this.lastReduced = reduced;
+    this.flash.set(this.flashTimer.frame(frame.dt, reduced) * (outside ? 1 : 0.1));
     // flooded cavities
     this.flood.update(sim, frame.dt);
   }
@@ -202,6 +195,7 @@ export class WeatherRenderer implements SubRenderer {
   private startFlash(reduced: boolean): void {
     this.flashLeft = flashDuration(reduced);
     this.flashReduced = reduced;
+    this.sinceFlashS = 0;
     this.flashFresh = true;
   }
 

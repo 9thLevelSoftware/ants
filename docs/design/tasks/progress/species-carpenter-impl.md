@@ -58,3 +58,12 @@ State found (sessions 1-2 left no progress file):
   frass: 1 pile 0.65 BU3, 36 loose, 15 in nest, units 3.5, visibility 0.7.
 - (03:31) RUNNING 28-day soak: life.ts we2 --days 28 (test-output/carp/soak28/).
 - (03:25) probes deleted from tools/sim (copies as .txt in test-output/carp/).
+- (03:35) soak.ts 28 d CP seed 1: 0 violations / 338 checks (founding queen only, no auto founding). life.ts we2 --days 28: winter passed (11 -> 7 workers), queen starved in year 2 (C 0, forage), 2 walker-stall violations (dig.bite ant, loco). Files test-output/carp/soak28/.
+- (03:40) E13 LONG measured again: 11 of 20 (1.9 s run). Trace: round trip ~1,150 ticks (3.75 BU/s loaded),
+  max ~20 in 1 GD with 4 nurses; losses: a generic nurse.carry detour toward the satellite and back (~1,000
+  ticks), last trip stalls 600 ticks climbing into the satellite's side opening, 1 pupa died untended. Left partial.
+- NEXT: final typecheck + tests, then the report (StructuredOutput). Nothing else heavy pending.
+- (03:34 real, date -u; some earlier stamps above were estimates and run ahead) FINAL: typecheck 0 errors; wood +
+  text + founding/species tests 12 files 85 pass 1 skipped. Report delivered. Remaining (not done, for a next
+  engineer): queen relocation walk (proposal only), window planning (WINDOW_SPACING), hideFrass toggle, leak
+  events, E13 throughput 11/20, pale frass pile material (render owner).

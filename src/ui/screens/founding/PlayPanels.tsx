@@ -2,6 +2,8 @@
 // health), the site read-out card, the readiness bar, the script's glyph prompts and the clutch forecast.
 import { Button, KeyHint, ProgressBar } from '../../components';
 import { inputDevice } from '../../nav/device';
+import { onboarding } from '../../hud/prompts/state';
+import { promptVisibility } from '../../hud/prompts/foundingShown';
 import type { FoundingUi } from './store';
 
 const pct = (v: number): string => `${Math.round(v * 100)} %`;
@@ -52,11 +54,15 @@ export function Readiness({ r }: { r: NonNullable<FoundingUi['readiness']> }) {
   );
 }
 
+/** The script's glyph prompts; a prompt whose hint the engine no longer allows (learned, dismissed, off) is left out. */
 export function Prompts({ ui, onTend }: { ui: FoundingUi; onTend: () => void }) {
-  if (ui.prompts.length === 0) return null;
+  const engine = onboarding.value?.engine;
+  const shown = promptVisibility(ui, (id) => (engine ? engine.allows(id) : true));
+  const prompts = ui.prompts.filter((_, i) => shown[i]);
+  if (prompts.length === 0) return null;
   return (
     <div class="fo-chip fo-prompts" data-testid="founding-prompts">
-      {ui.prompts.map((p) => (p.action === 'tend'
+      {prompts.map((p) => (p.action === 'tend'
         ? (
           <span key="tend" class="fo-tend">
             <Button variant="primary" onClick={onTend} disabled={!ui.canBeginLapse} data-testid="founding-tend">{p.text}</Button>

@@ -73,9 +73,10 @@ export const SEASON_SUMMARY_ENTRY = {
   text: 'The {seasons:season note|season notes} and {weather:weather note|weather notes} of year {year} were folded into this line.',
 } as const;
 
-/** Notable events (kind `event`). Keys: `event.flood`, `event.raid` (token {n} = size of the raiding party). */
+/** Notable events (kind `event`). Keys: `event.flood`, `event.raid` (token {n} = size of the raiding party), `event.winter-notice`. */
 export const EVENT_ENTRY = {
   flood: { title: 'Flood', text: 'Water has entered the nest.' },
+  winterNotice: { title: 'Winter is near', text: 'The nights are turning cold. Winter is close, and the colony will soon withdraw into the nest.' },
   raid: { title: 'Rival raid', text: 'A party of {n:rival worker|rival workers} has set out for the nest.' },
 } as const;
 

@@ -169,6 +169,13 @@ export const OBS_FOLLOW_LIFT_L = 0.5;
 /** Colony view (GDD 6.7). */
 export const CV_PITCH_DEG: [number, number, number] = [30, 55, 89];
 export const CV_DIST_BU: [number, number, number] = [30, 200, 1500];
+/**
+ * A small nest lets the colony camera come closer than CV_DIST_BU[0] (gate-close-app: at 30 BU the founding chamber
+ * was about 110 px wide at 1280): the closest distance is CV_DIST_PER_NEST_SPAN x the nest's span, kept between
+ * CV_DIST_SMALL_MIN_BU and CV_DIST_BU[0].
+ */
+export const CV_DIST_PER_NEST_SPAN = 2.5;
+export const CV_DIST_SMALL_MIN_BU = 10;
 export const CV_ENTRY_DIST_BU = 120;
 /** The colony camera's boom starts this far above the target (so a pulled-in camera still looks down at it). */
 export const CV_BOOM_LIFT_BU = 2;

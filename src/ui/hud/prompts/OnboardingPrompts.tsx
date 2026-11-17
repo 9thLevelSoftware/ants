@@ -11,7 +11,6 @@ import { screenSlice } from '../slices';
 import { matchesAction } from '../hotkeys';
 import { openDrawer } from '../state';
 import { installOnboardingDebug } from './debug';
-import { gateFoundingPrompts } from './foundingGate';
 import { foundingPromptHints, foundingShownHints } from './foundingShown';
 import { HintCard } from './HintCard';
 import { hintView, onboarding } from './state';
@@ -117,22 +116,6 @@ function watchPalettePulse(): () => void {
   return () => { stop(); clear(); };
 }
 
-/** Keeps the opening overlay's prompt chip free of hints already learned (see foundingGate.ts). Re-applied when the DOM changes. */
-function watchFoundingGate(ctl: () => OnboardingController | null): () => void {
-  const root = document.getElementById('ui') ?? document.body;
-  let raf = 0;
-  const apply = () => {
-    raf = 0;
-    const c = ctl();
-    gateFoundingPrompts(root, foundingUi.peek(), (id) => (c ? c.engine.allows(id) : true));
-  };
-  const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
-  const mo = new MutationObserver(schedule);
-  mo.observe(root, { childList: true, subtree: true });
-  const stop = effect(() => { void foundingUi.value; void snapshot.value; schedule(); });
-  return () => { mo.disconnect(); stop(); if (raf) cancelAnimationFrame(raf); };
-}
-
 function useOnboarding(): void {
   useEffect(() => {
     installStyles();
@@ -153,7 +136,6 @@ function useOnboarding(): void {
     stops.push(effect(() => { const f = facade.value; untracked(() => bind(f as unknown as OnboardingGame | null)); }));
     stops.push(effect(() => { void snapshot.value; untracked(() => ctl?.tick()); }));
     stops.push(effect(() => { void openDrawer.value; void overlays.value; void foundingUi.value; untracked(() => ctl?.tick()); }));
-    stops.push(watchFoundingGate(() => ctl));
     stops.push(watchDrags(() => ctl?.noteDrag()));
     stops.push(watchDismissKey(() => ctl));
     stops.push(watchPalettePulse());

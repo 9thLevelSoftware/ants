@@ -86,3 +86,9 @@ export const LIGHTNING_INTENSITY = 0.9;
 export const LIGHTNING_S = 0.12;
 export const LIGHTNING_REDUCED = 0.15;
 export const LIGHTNING_REDUCED_S = 2;
+/**
+ * With flash reduction a new soft brightening starts at most every LIGHTNING_REDUCED_MIN_GAP_S real seconds and never
+ * over one that is still running (GDD 08 App. E 25: at most 5 brightening events in 20 s of storm; at 8x the sim's
+ * strikes come about every 0.75-2.6 real s).
+ */
+export const LIGHTNING_REDUCED_MIN_GAP_S = 4;

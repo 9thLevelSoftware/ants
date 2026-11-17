@@ -37,12 +37,16 @@ Started 01:56 UTC Nov 17. Two earlier engineers cut off (01:24, 01:53); no progr
   Probe now: seed carriers and granary stock rising on day 1 after spawn. Tests added in forage.test.ts.
 - e2e run 1 (02:35): first workers 3 (natural), FAILED: no seed carrier in 30000 ticks (before fixes a-c).
 
+- 03:40 e2e run 3: archetype is suburban-garden; colony knew NO source in 4 GD. Cause: patches 40-420 BU, small-colony
+  scouts stay near home (nearest pass 65 BU). Fix: SEED_PATCHES 20, ring [20,200] BU; SEED_ODOUR_BU 25. Probe (resites):
+  stock 6.3 loads in 21 h, carriers on the trail, heat gate at 13:00. Hand-over caches in test-output/harvester/cache.
+
 ## Evidence
 - test-output/harvester/econ/ (old code, --workers 12): 46 deliveries, mostly honeydew, seed 1-2/day, no granary.
 - test-output/harvester/life2/pp1.log : life run with the fixes (started 02:15).
 
 ## Remaining (order)
-1. e2e browser run 2 (03:05)
+1. e2e browser run 4 (03:34) — after: gate holds returners, overflow storage, scout depart hold; 33 tests pass
 2. viability table: playground-park + second archetype (choose: open sunny sand/lawn), seeds 1-3 (<=2 runs at once)
 3. e2e browser run tests/e2e/species-harvester.mjs + LOOK at screenshots
 4. 28-day soak (tools/sim/soak.ts) with messor

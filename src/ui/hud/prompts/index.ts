@@ -2,6 +2,5 @@
 export { OnboardingPrompts } from './OnboardingPrompts';
 export { HintCard } from './HintCard';
 export { keyCapText } from './keys';
-export { foundingShownHints } from './foundingShown';
+export { foundingShownHints, promptVisibility } from './foundingShown';
 export { hintView, onboarding } from './state';
-export { gateFoundingPrompts, promptVisibility } from './foundingGate';

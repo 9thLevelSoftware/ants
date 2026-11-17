@@ -36,3 +36,17 @@ export function foundingPromptHints(ui: FoundingUi | null): HintId[] {
   }
   return [...out];
 }
+
+/**
+ * What to show for each prompt of the opening overlay's chip, in order (false hides the item): a glyph prompt of the
+ * opening is "not yet learned" or it does not show (GDD 06 §5.16, GDD 08 §9.1). The "Tend the brood" button is an action,
+ * not a lesson, and always stays. Pure; PlayPanels asks the hint engine through `allows`.
+ */
+export function promptVisibility(ui: FoundingUi | null, allows: (id: HintId) => boolean): boolean[] {
+  if (!ui) return [];
+  return ui.prompts.map((p) => {
+    if (p.action === 'tend') return true;
+    const id = promptHintId(ui.phase, p.action);
+    return id ? allows(id) : true;
+  });
+}

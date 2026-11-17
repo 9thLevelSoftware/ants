@@ -2,7 +2,7 @@
 // parameters (off / slice plane / x-ray) that the terrain, primitive and nest renderers read.
 import { v3AddScaled, v3Copy, v3Normalize, v3Set, v3Sub, vec3, type Vec3 } from '@/core';
 import {
-  CAM_FAR_BU, CAM_OBSERVER_RADIUS_BU, CV_BOOM_LIFT_BU, CV_DIST_BU, CV_ENTRY_DIST_BU, CV_FOV_DEG, CV_PAN_PER_DIST, CV_PITCH_DEG, CV_RCUT_BU,
+  CAM_FAR_BU, CAM_OBSERVER_RADIUS_BU, CV_BOOM_LIFT_BU, CV_DIST_BU, CV_DIST_PER_NEST_SPAN, CV_DIST_SMALL_MIN_BU, CV_ENTRY_DIST_BU, CV_FOV_DEG, CV_PAN_PER_DIST, CV_PITCH_DEG, CV_RCUT_BU,
   CV_SLICE_BELOW_DEEPEST_BU, CV_SLICE_FAST_MULT, CV_SLICE_STEP_BU,
 } from './constants';
 import { clampN, DEG } from './frameMath';
@@ -56,6 +56,8 @@ export class ColonyRig {
   yaw = 0;
   pitch = CV_PITCH_DEG[1] * DEG;
   distance: number;
+  /** Closest zoom (BU): CV_DIST_BU[0], or closer for a small nest (setNestSpan). */
+  minDistanceBu = CV_DIST_BU[0];
   readonly cutaway: CutawayParams;
   readonly out: CameraPose & { cutaway: CutawayParams; focusDistance: number };
   private tmp = vec3();
@@ -84,6 +86,12 @@ export class ColonyRig {
     this.cutaway.planeY = Math.max(this.cutaway.planeY, this.cutaway.minPlaneY);
   }
 
+  /** The player nest's span (BU, the larger of its width and depth; 0 = no nest): a small nest allows a closer zoom. */
+  setNestSpan(spanBu: number): void {
+    const want = spanBu > 0 ? spanBu * CV_DIST_PER_NEST_SPAN : CV_DIST_BU[0];
+    this.minDistanceBu = clampN(want, CV_DIST_SMALL_MIN_BU, CV_DIST_BU[0]);
+  }
+
   setCutRadius(bu: number): void {
     this.cutaway.radius = clampN(bu, CV_RCUT_BU[0], CV_RCUT_BU[2]) * this.opts.bu;
   }
@@ -93,7 +101,7 @@ export class ColonyRig {
     const bu = this.opts.bu, o = this.out;
     this.yaw -= input.yawDeg * DEG;
     this.pitch = clampN(this.pitch - input.pitchDeg * DEG, CV_PITCH_DEG[0] * DEG, CV_PITCH_DEG[2] * DEG);
-    this.distance = clampN(this.distance * Math.exp(input.zoomLog), CV_DIST_BU[0] * bu, CV_DIST_BU[2] * bu);
+    this.distance = clampN(this.distance * Math.exp(input.zoomLog), this.minDistanceBu * bu, CV_DIST_BU[2] * bu);
     // pan: 0.8 x distance per second for keys/stick; drag moves the ground under the cursor roughly 1:1
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     let px = input.pan.x * CV_PAN_PER_DIST * this.distance * dt, pz = input.pan.y * CV_PAN_PER_DIST * this.distance * dt;

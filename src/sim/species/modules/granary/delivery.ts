@@ -4,13 +4,14 @@
 // loads into a granary cohort while the put-down is in progress and leaves the item empty, so the primitive's
 // effect removes it as stored. Animal food put down is noted as animal protein entering the pool (§6.3.7).
 
-import type { Ant, Colony, FoodKind, FoodRoute, Item, Sim, System } from '@/sim/types';
+import type { Ant, Colony, FoodKind, FoodRoute, GranaryModule, GranaryState, Item, Sim, System } from '@/sim/types';
 import { rainIntensityOf } from '@/sim/colony/envAdapter';
 import { WET_ARRIVAL_RAIN } from '@/sim/balance/species-harvester';
 import { granaryParams, nutrientsPerSeedLoad, type GranaryParams } from './params';
 import { addSeeds, seedClassOf } from './cohorts';
 import { addAnimalP } from './paste';
-import { storeTarget } from './state';
+import { ensureGranary, granaryChambers, stockOf, storeTarget } from './state';
+import { chamberById } from '@/sim/colony/census';
 
 /** bb key: id of the item this ant's current put-down was already handled for. */
 const HANDLED = 'mb.put';
@@ -46,7 +47,9 @@ export function storeSeedItem(sim: Sim, col: Colony, g: GranaryParams, it: Item,
   const per = nutrientsPerSeedLoad(g);
   const loads = (it.c + it.p) / (per.c + per.p);
   if (!(loads > 0)) return 0;
-  const gr = storeTarget(sim, col, mod, g, chamberId);
+  // with every granary full the seed still goes into one (over capacity; diag-granary shows it): seed is food only
+  // once milled, so it must never reach the colony pool through the put-down
+  const gr = storeTarget(sim, col, mod, g, chamberId) ?? overflowTarget(sim, col, mod, g, chamberId);
   if (!gr) return 0;
   const u = rainIntensityOf(sim) > WET_ARRIVAL_RAIN ? g.seedUWet : g.seedUArriving;
   addSeeds(gr, g, seedClassOf(g, loads / Math.max(1, it.count)), seedHardness(it), loads, u);
@@ -54,6 +57,18 @@ export function storeSeedItem(sim: Sim, col: Colony, g: GranaryParams, it: Item,
   it.c = 0;
   it.p = 0;
   return loads;
+}
+
+/** The granary that takes seed when none has room: the least overfull granary chamber, else the chamber itself. */
+function overflowTarget(sim: Sim, col: Colony, mod: GranaryModule, g: GranaryParams, chamberId: number): GranaryState | null {
+  let best: GranaryState | null = null, bestOver = Infinity;
+  for (const ch of granaryChambers(sim, col)) {
+    const gr = ensureGranary(sim, mod, g, ch.id);
+    const over = stockOf(gr) - (gr.capacityLoads ?? 0);
+    if (over < bestOver) { best = gr; bestOver = over; }
+  }
+  if (best) return best;
+  return chamberId >= 0 && chamberById(sim, chamberId) ? ensureGranary(sim, mod, g, chamberId) : null;
 }
 
 function handlePutDown(sim: Sim, col: Colony, g: GranaryParams, ant: Ant, it: Item): void {
