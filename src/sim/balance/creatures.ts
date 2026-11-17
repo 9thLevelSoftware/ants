@@ -512,8 +512,35 @@ export const ANT_SPIDER_REGIONS: readonly string[] = ['temperate-eu', 'mediterra
 export const COLONY_RANGE_RADIUS_MM: Partial<Record<CreatureKind, number>> = {
   'wolf-spider': WOLF_HOME_RADIUS_MM, 'jumping-spider': 400, 'ant-spider': 400, centipede: 400, 'rove-beetle': 300,
 };
-/** A jumping-spider site is a world object rising at least this high above the ground (wall, fence, post, stem), mm. */
+/** A jumping-spider site is an upright primitive rising at least this high above the ground (wall, fence, post, stem), mm. */
 export const JUMPING_SPIDER_SURFACE_MIN_MM = 40;
+/** A primitive is upright (offers a vertical surface) when a face or axis is within this angle of vertical, degrees. */
+export const UPRIGHT_MAX_TILT_DEG = 30;
+/** The jumping-spider site lies this far outside the upright primitive's foot, on the side facing the colony, mm. */
+export const JUMPING_SPIDER_SITE_MARGIN_MM = 2;
+/**
+ * Pause points: the colony's foragers stop at food sources (harvest, tend, drink), the only place a predator's
+ * wind-up gate (a slow target) is met often. Sites go within COLONY_SOURCE_NEAR_BU of one of the
+ * COLONY_PAUSE_SOURCES sources nearest the entrance when the ring allows it (threats-live review, AC2: siting near
+ * routes alone left the jumping spider without a strike on 5 of 5 worlds). COLONY_SOURCE_CANDIDATES points are drawn
+ * around each of them.
+ */
+export const COLONY_PAUSE_SOURCES = 3;
+/**
+ * Kinds sited at the pause points: the jumping spider (stems where ants climb to food, GDD 05 §2.2a) and the rove
+ * beetle (litter where a lone ant stops). The others keep to the routes (ant-spider "patrol near trails", wolf
+ * spider "across the paths", centipede): sited at the sources too, the ant-spider alone took 7 workers of one colony in
+ * 6 gd (threats-live fix round, run fix1), far above the design's loss rate.
+ */
+export const COLONY_PAUSE_KINDS: readonly CreatureKind[] = ['jumping-spider', 'rove-beetle'];
+/**
+ * A resident whose territory centre is not a valid spawn point (an ant within 20 BU, the focus within 40 BU: §2.7)
+ * may appear at one of 8 points this far from it instead and walk home, BU. Without it a site by a busy food source
+ * was never filled (fix1: every near jumping spider, wolf spider and rove beetle stayed unspawned).
+ */
+export const SPAWN_ALT_OFFSET_BU = 25;
+export const COLONY_SOURCE_NEAR_BU = 20;
+export const COLONY_SOURCE_CANDIDATES = 16;
 /**
  * A territory whose resident could not be placed (no walkable surface near its centre, e.g. a worldgen centre inside
  * a solid) waits this long before the director tries it again, gd (threats-live review: it was retried every

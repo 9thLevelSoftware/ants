@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CreatureKind, Sim } from '@/sim/types';
 import { killCreature } from '@/sim/entities';
-import { CREATURE_AGENT_CAP, DANGER_HALF_LIFE_GD } from '@/sim/balance/creatures';
+import { CREATURE_AGENT_CAP, DANGER_HALF_LIFE_GD, SPAWN_ALT_OFFSET_BU } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { addDanger, canStartMajorThreat, creatureCounts, dangerAt, quietShare, requestMajorThreat, endMajorThreat } from './index';
 import { runDirector } from './director';
@@ -73,10 +73,28 @@ describe('residents and visitors', () => {
   it('never spawns within 20 BU of an ant or 40 BU of the focus', () => {
     const sim = scene();
     addTerritory(sim, 'jumping-spider', 500, 500);
-    placeWorker(sim, 500 + 10 * sim.world.bu, 500);
+    const ant = placeWorker(sim, 500 + 10 * sim.world.bu, 500);
     sim.tick();
+    // the resident may appear at a point SPAWN_ALT_OFFSET_BU from its blocked centre (and walk home), never near the ant
+    const at: { x: number; z: number }[] = [];
+    sim.events.onAny((type, ev) => {
+      if (type !== 'creature-spawned') return;
+      const c = sim.stores.creatures.get((ev as { id: number }).id);
+      if (c) at.push({ x: c.pos.x, z: c.pos.z });
+    });
     runs(sim, 5);
-    expect(creatureCounts(sim)['jumping-spider'] ?? 0).toBe(0);
+    for (const p of at) expect(Math.hypot(p.x - ant.pos.x, p.z - ant.pos.z) / sim.world.bu).toBeGreaterThanOrEqual(20 - 0.5);
+    // with ants all round the territory there is no spawn point at all
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      placeWorker(sim, 500 + Math.cos(a) * SPAWN_ALT_OFFSET_BU * sim.world.bu, 500 + Math.sin(a) * SPAWN_ALT_OFFSET_BU * sim.world.bu);
+    }
+    for (const c of sim.stores.creatures.list) if (c.kind === 'jumping-spider') killCreature(sim, c.id, 'test');
+    sim.tick(); // the ant index sees the new workers
+    for (const t of sim.state.ecology.director.territories) t.vacantUntilTick = -1;
+    at.length = 0;
+    runs(sim, 5);
+    expect(at.length).toBe(0);
   });
 
   it('the global cap of 260 culls prey and neutral fauna first, never ant predators (I5)', () => {

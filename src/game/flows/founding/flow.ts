@@ -25,6 +25,12 @@ const LAPSE_CAMERA_YAW_DEG = 150;
 const LAPSE_CAMERA_ZOOM = 1.3;
 /** UI refresh of the founding screens in real time, Hz. */
 const PUBLISH_HZ = 15;
+/**
+ * The hand-over banner ("Tab to take a worker, or stay with the queen") goes by itself after this many real seconds on
+ * screen: a player who just watches has made their choice (gate-close-app, playSeed1/x1-m02-observer.png: it sat over
+ * the scene for hours).
+ */
+export const HANDOVER_BANNER_MAX_S = 45;
 /** Synchronous skip in test mode: the most it will run (one tick per call, so it stops on the end tick). */
 const TEST_SKIP_MAX_TICKS = 400_000;
 
@@ -54,6 +60,7 @@ export class FoundingFlow implements FoundingActions {
   private pausedForIntro = false;
   /** The view the hand-over banner first showed over (null until it shows): changing it answers the banner. */
   private handoverView: string | null = null;
+  private handoverS = 0;
   private checkpoint: { attempt: number; bytes: Uint8Array; config: GameConfig } | null = null;
   private readonly runner = new LapseRunner();
   private readonly flags: FlowFlags = { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false, reducedMotion: false };
@@ -67,6 +74,7 @@ export class FoundingFlow implements FoundingActions {
     this.introS = 0;
     this.outcomeS = 0;
     this.handoverView = null;
+    this.handoverS = 0;
     this.runner.reset();
     Object.assign(this.flags, { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false });
     const op = session.sim.state.player.opening;
@@ -133,8 +141,9 @@ export class FoundingFlow implements FoundingActions {
     // longer sits over the scene for hours (gate-close-app play-through, playSeed1/x1-m02-observer.png: still up 5
     // game hours later)
     if (this.flags.handoverOpen && !this.flags.outcomeOpen) {
+      this.handoverS += dt;
       if (this.handoverView === null) this.handoverView = session.view; // the view the banner first showed over
-      else if (session.view !== this.handoverView) { this.flags.handoverOpen = false; changed = true; }
+      else if (session.view !== this.handoverView || this.handoverS >= HANDOVER_BANNER_MAX_S) { this.flags.handoverOpen = false; changed = true; }
     }
     this.publishS += dt;
     this.publish(changed || !this.host.realtime || this.publishS >= 1 / PUBLISH_HZ || ran > 0);
@@ -158,6 +167,7 @@ export class FoundingFlow implements FoundingActions {
       this.flags.outcomeOpen = true;
       this.flags.handoverOpen = true;
       this.handoverView = null;
+      this.handoverS = 0;
       this.outcomeS = 0;
     }
     if (to === 'failed') this.flags.failureDismissed = false;

@@ -13,6 +13,7 @@ import { liveInputs, missingType } from '@/sim/nest/architect/needs';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { depositFood, poolSpace } from './index';
 import { needRates } from './needs';
+import { measureLarder } from './stores';
 
 /** 10 workers, a royal chamber with the queen, a nursery with 6 larvae (or pupae); no food chamber unless asked. */
 function smallNest(o: { foodChamber?: boolean; nurseryC?: number; care?: boolean; brood?: 'larva' | 'pupa' } = {}) {
@@ -47,6 +48,14 @@ describe('the larder of a small nest (R21)', () => {
     expect(poolSpace(col).p).toBeCloseTo(0, 6);
     // the larder of one nutrient is not taken by the other
     expect(poolSpace(col).c).toBeGreaterThan(LARDER_MIN_LOADS);
+  });
+
+  it('(a) the larder is sized on what the colony eats, not on its own spoilage', () => {
+    const { col, sim } = smallNest();
+    col.needs.rateP = 10; // a need of 10 P/gd of which 8 is the pile rotting
+    col.core!.acc['inst.spoilP'] = 8;
+    measureLarder(sim, col);
+    expect(col.core!.larderP).toBeCloseTo(Math.max(LARDER_MIN_LOADS, 2), 9);
   });
 
   it('(a) a colony with a food chamber has no larder (GDD 03 §6.4 unchanged)', () => {

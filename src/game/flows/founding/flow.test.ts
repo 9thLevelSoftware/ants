@@ -9,7 +9,7 @@ import { setClimateOverride } from '@/sim/colony/envAdapter';
 import { foundingUi } from '@/ui/screens/founding/store';
 import { GameSession } from '../../session';
 import { allowedSpeeds } from '../../time/speedRules';
-import { FoundingFlow, type FoundingHost } from './flow';
+import { FoundingFlow, HANDOVER_BANNER_MAX_S, type FoundingHost } from './flow';
 import { watchTicksPerSecond } from './lapseRunner';
 
 const cam = { autoFollow: 'gentle' as const, fovOffset: 0, worldUpLock: false, reducedMotion: false };
@@ -134,6 +134,20 @@ describe('founding flow: the hand-over banner (gate-close-app)', () => {
     session.setView(at === 'colony' ? 'observer' : 'colony', true);
     expect(session.view).not.toBe(at);
     flow.frame(session, 1 / 60);
+    expect(foundingUi.value!.handover).toBeNull();
+  }, 120_000);
+
+  it('goes by itself after HANDOVER_BANNER_MAX_S real seconds on screen when the player only watches', () => {
+    const { sim, session, flow } = atLapse();
+    flow.skipLapse();
+    playFrames(flow, session, sim);
+    flow.frame(session, 1 / 60);
+    flow.closeOutcome();
+    flow.frame(session, 1);
+    expect(foundingUi.value!.handover).not.toBeNull();
+    for (let t = 0; t < HANDOVER_BANNER_MAX_S - 5; t += 1) flow.frame(session, 1);
+    expect(foundingUi.value!.handover).not.toBeNull();
+    for (let t = 0; t < 10; t += 1) flow.frame(session, 1);
     expect(foundingUi.value!.handover).toBeNull();
   }, 120_000);
 });

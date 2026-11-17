@@ -31,11 +31,18 @@ export interface Conditions {
   predatorMult: number;
 }
 
-const cache = new WeakMap<Sim, Conditions>();
+/**
+ * Per-tick cache. Also keyed by the difficulty inputs' identity: a setting changed within a tick (a command, a test)
+ * must be seen at once, or the running game would decide differently from a reload at the same tick.
+ */
+interface Cached { c: Conditions; difficulty: object; preset: string; params: object; custom: object | undefined; rules: object }
+const cache = new WeakMap<Sim, Cached>();
 
 export function conditions(sim: Sim): Conditions {
   const hit = cache.get(sim);
-  if (hit && hit.tick === sim.state.tick) return hit;
+  const d = sim.state.config.difficulty, rules = sim.state.config.rules;
+  if (hit && hit.c.tick === sim.state.tick && hit.difficulty === d && hit.preset === d.preset && hit.params === d.params
+    && hit.custom === d.custom && hit.rules === rules) return hit.c;
   const cal = calendarNow(sim);
   const cfg = sim.state.config;
   const c: Conditions = {
@@ -47,7 +54,7 @@ export function conditions(sim: Sim): Conditions {
     levers: CREATURE_LEVERS[cfg.difficulty.preset] ?? CREATURE_LEVERS.naturalist,
     predatorMult: difficultyValue(sim, 'predatorDensityMult'),
   };
-  cache.set(sim, c);
+  cache.set(sim, { c, difficulty: d, preset: d.preset, params: d.params, custom: d.custom, rules });
   return c;
 }
 

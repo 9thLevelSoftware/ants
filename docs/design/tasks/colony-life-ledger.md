@@ -1142,3 +1142,135 @@ Progress (kept current; a successor continues from here)
   (before: 0), a nursery dug at 1.9 gd, waste among the brood at most 3, **brood hygiene deaths 0** (before 16 in 5
   gd); remaining brood losses larva:starvation 4, cannibalised 5, egg:untended 2. Running: 8-day life A/B on the same
   hand-overs (sg #2, pp #2), tree r4f vs the round's "on" runs (r4c) -> `round-4/ab-hygiene/`.
+- 15:06 **8-day A/B on the same hand-overs** (`round-4/ab-hygiene/` = tree r4f with E2 + H4 + M1, against
+  `round-4/ab-larder/on/` = tree r4c): suburban-garden #2 brood hygiene losses 18 -> 0, eclosed 0 -> 4, workers
+  11 -> 6 vs 11 -> 11; playground-park #2 hygiene 17 -> 8, eclosed 0 -> 1, workers 11 -> 3 both (predation 7 / 9 of
+  them: threats-live's predators), larvae starved 0 -> 5 (P intake 0.015-0.05 of need).
+  Running now (restart-safe; re-run the same commands, finished runs are skipped):
+  `PAR=1 CACHE_ANY=1 UNTIL_DAY=32 $S/r4f/tools/sim/longrun-life.sh $P/long-r4f $P/cache "suburban-garden:2
+  woodland-edge:1 playground-park:2 car-park-verge:1 kitchen-door:1"` and `PAR=1 $S/r4f/tools/sim/bench-sweep.sh nest
+  $P/bench-nest-after $P/cache` ($S = scratchpad, $P = test-output/colony-life/round-4; tree r4f = the working tree at
+  14:58 incl. M1). Next: nest bench "before" on r4c when the long runs end (`PAR=1 $S/r4c/tools/sim/bench-sweep.sh nest
+  $P/bench-nest-before $P/cache`), then the tables. Folder tests behaviours/nest, colony, nest running (vitest-*2.txt).
+- 15:08 folder tests on the tree with E2 + H4 + M1 (`round-4/vitest-behnest.txt`, `vitest-colony2.txt`,
+  `vitest-nest2.txt`): ants/behaviours/nest 27/29 + 3 skipped (red `stall.soak`, `sfaReview.verify`: known since round
+  1); colony 57/58 + 3 skipped (red `founding/reopen`, known); nest 55/56 + 1 skipped (red `escapeDig`, known). New tests
+  green: `haulMidden`, `plugFill`, `allocation/hygiene`, `larder`, `lossCap`, `heatedLog.verify`, `huntReturn.verify`.
+  Long run sg #2 and the nest bench run at ~13 ms/tick (machine load): ~35 min per long run, ~17 min per bench run.
+
+### Funnel of the studied runs (round 4; R20 hand-overs, long runs on tree r4c = W1 L1 R20 H3 WL1)
+
+| | suburban-garden #2 | playground-park #2 | car-park-verge #1 | kitchen-door #1 |
+|---|---|---|---|---|
+| hand-over (doy 5 start) | 4.63 gd, 11 workers | 4.57 gd, 11 | 3.49 gd, 11 | 3.42 gd, 15 |
+| workers at Winter 1 / spring d1 / y2 doy 15 | 5 / 5 / 1 | 3 / 2 / 0 | 11 / 6 / 1 | 8 / 4 / 1 |
+| brood year 1: laid / eclosed | 32 / 0 | 28 / 0 | 20 / 5 | 18 / 4 |
+| brood losses year 1 | hygiene 27, starvation 2, base 2, exposure 1 | hygiene 22, base 4, untended 2 | flooding 5, untended 5, hygiene 2, starvation 1 | starvation 4, untended 3, hygiene 2, temperature 2 |
+| adult deaths (whole run) | old-age 7, predation 2, crushed 1 | predation 7, old-age 4 | old-age 10, predation 3, drowning 3 | old-age 9, predation 3, crushed 3, drowning 3 |
+| nest | royal chamber only | royal only | royal, nursery, food | royal, nursery, food |
+| waste dumped (probe, sg #2, 5 gd) | 0 of 24 items: entrance `sealing` from 2.0 gd (E2); then haul 0 workers (H4); then haulers loop on 2 corpses at the midden (M1) | | | |
+| spring y2: royal = warmest dry chamber, C | d1 0.9, d4 8.4, d7 12.4 | d1 1.1, d4 7.9, d7 10.7 | d1 1.4, d4 7.1, d7 11.0 | d1 3.2, d4 11.6, d7 15.4 |
+
+### Ranking by measured loss (round 4)
+
+1. **Brood lost to hygiene in one-chamber nests** (sg #2 27 of 32 eggs, pp #2 22 of 28; A/B with the larder off: the
+   same, so not R21): three defects in a chain, each enough to stop all waste removal: (a) the entrance read `sealing`
+   with no plug added (E2), (b) the allocator gave `haul` no worker in a short colony (H4), (c) haulers looped on
+   corpses at a surface midden on a stone (M1). Fixed: sg #2 8-day A/B hygiene 18 -> 0, eclosed 0 -> 4, workers held
+   11 -> 11 (was 11 -> 6).
+2. **Year-one workers die of old age before year-one brood replaces them** (old-age 4-10 per long run; R11 stands):
+   follows from 1 (no eclosions) and from the spring founding's longer, cooler lapse; not changed.
+3. **Predation** (2-9 workers per run, new with threats-live's predators in the tree): pp #2 lost 7-9 of 11 in 8 days.
+   Not this task's module at the moment (threats-live is calibrating it); reported.
+4. **Year two**: lapse losses now capped (WL1); spring laying blocked by temperature in every chamber of these
+   shallow nests until spring day ~7 (no warmer chamber exists); overwintered workers 1-6 at spring day 1.
+5. Larvae starving with P intake 0.015-0.1 of need (pp #2 5 in 8 days after the hygiene fix): protein, as in round 3.
+
+### Fixes (round 4; in the tree)
+
+W1. **Heated-nest log** (sweep blocker a): `colony/overwinter/begin.ts` + additive `LifecycleState.broodTempTicks`:
+    samples carry their tick; samples older than WINTER_ACTIVE_WINDOW_GD are dropped in the sampler and in
+    `heatedNest`; an empty window falls back to the chambers now / the cluster. Test `overwinter/heatedLog.verify` (the
+    review's; red before, green).
+L1. **R21 larder** (sweep major): `colony/stores.ts` `measureLarder`, `poolSpace`, `spoil`, `storeChamber`;
+    `colony/economy.ts`; `colony/index.ts` `depositFood` (refusal -> `core.larderRefusedTick`);
+    `nest/architect/needs.ts` (`foodRefused` -> first food chamber is a missing type); constants LARDER_NEED_GD 1,
+    LARDER_MIN_LOADS 4 (`balance/colony.ts`); additive `ColonyCoreState.larderC/larderP/larderChamberId/
+    larderRefusedTick`. Test `colony/larder.test.ts` (4 cases; red with the larder off). A/B on sg #2 / pp #2: brood
+    hygiene 18/15 and 17/17 with/without: the larder does not cause the hygiene loss.
+R20. Start day 5 (`species/data/lasius-niger.ts`); tests that state it updated; `testing/testWorld.ts` `TEST_START`
+    pins test sims (and `environment/human/testkit.ts`) to summer day 2.
+H3. Chase on the way home not turned home by the trip clock (`ants/behaviours/outdoor/engine.ts`; review minor H2b).
+    Test `outdoor/huntReturn.verify` (the review's; red before, green).
+WL1. **R24 lapse loss cap** (`overwinter/model.ts` `capLapseLosses`, `begin.ts` `alertedCauses`/`noteHazardAlerts`,
+    `system.ts`; `balance/lifecycle.ts` WINT_LAPSE_LOSS_CAP_FRAC 0.15 x winterLossMult, WINT_HAZARD_WINDOW_SEASONS 1,
+    WINT_ALERTED_CAUSES; additive `LifecycleState.hazardAlertTicks`). Test `overwinter/lossCap.test.ts` (red with the cap
+    off: seed 1 loses 13 of 20). Long runs: cpv #1 11 -> 6 and kd #1 8 -> 4 in the lapse = cap 1 + drowning 3 that was
+    alerted (seed-1 autumn flood alerts).
+E2. **No plug from soil over old plug flags** (`nest/entrances.ts` `forgetGhostPlugs`: open flagged samples lose the
+    flag while the entrance is open). Test `nest/plugFill.test.ts` (red without: plugCount 1, `sealing`). Probe sg #2:
+    the entrance stays `open` (was `sealing` from 2.0 gd to the end).
+H4. **Haul after queen-care while brood lies among waste** (`colony/allocation/targets.ts` `withHygiene`,
+    `allocation/index.ts` `broodAmongWaste`). Test `colony/allocation/hygiene.test.ts`.
+M1. **Surface midden measured across the ground** (`ants/behaviours/nest/haul.ts` `atMidden`, exported for the test).
+    Test `ants/behaviours/nest/haulMidden.test.ts` (red with the 3D rule).
+    E2 + H4 + M1 together, sg #2 8-day A/B (same hand-over): waste dumped 0 -> 15 in 5 gd (probe), brood hygiene losses
+    18 -> 0, eclosed 0 -> 4, workers 11 -> 6 vs 11 -> 11; pp #2 hygiene 17 -> 8, eclosed 0 -> 1 (predation 9 of 11).
+Tools: `tools/sim/handover-sweep.sh`, `longrun-table.py`, `longrun-life.sh` (CACHE_ANY, PAR), `lifeMetrics.ts`
+(year, doy, royal / queen-chamber / warmest-dry temperatures in the day rows). Probes `probe-waste.ts`,
+`probe-entrance.ts` (deleted at the end of the round).
+
+### GDD deviations (round 4)
+
+- R20 (ruling): Lasius `startDoy` {5, 9, 5} against the real flight season (GDD 07 species data, GDD 06 §1.6 table).
+  App strings for the app engineer: `src/ui/screens/newgame/species.ts` Lasius `foundingSeason: 'summer'` -> spring;
+  GDD 06 §1.6 start table "Start: summer, afternoon" for Lasius. Codex texts on the real flight season (behaviours.ts,
+  provenanceBio.ts) describe biology and need no change.
+- R21 (ruling): pile capacity outside food chambers (GDD 03 §6.4). Larder per nutrient, the shared chamber piles after.
+- R24 (ruling): lapse losses capped (GDD 06 §6.3 flood 0.5 of occupants and fungus U(0.10, 0.25) can take more than half
+  a viable colony in one draw). The cap is x winterLossMult; alerted causes: nest flooding and short stores (alerts
+  `nest-flooding`, `founding-flooding`, `food-c-low`, `colony-starving`, or stores below the notice's winter need);
+  cold, disease and old age have no alert before winter, so they are always capped. Applies to every colony (no in-sim
+  viability verdict).
+- H4: GDD 02 §6.3's auto priority order changes while brood lies among waste at the hygiene tolerance (haul after
+  queen-care).
+- M1: GDD 02 §10.8 midden: "at the midden" is measured across the ground for a surface midden.
+- Test sims start on summer day 2 (TEST_START), not the species day: a test fixture choice, not a game rule.
+
+### Tried and reverted (round 4)
+
+- Nothing reverted. The larder was suspected for the hygiene loss and kept after the A/B (above).
+
+### Year two (direction 8), round-4 findings
+
+1. **Winter losses**: cpv #1 / kd #1's 58-64 % in sweep 3 were one draw (both seed 1: `rng.winter` is forked from the
+   world seed only, first drawn at Begin; one fungus outbreak + one flood, GDD 06 §6.3 as written: flood 0.5 of the
+   cluster, fungus U(0.10, 0.25)). For a colony that enters winter viable with no flood before, the GDD's expected loss
+   is base 6 % (old workers x2) + cold stress 0.008/C-day below 2 C + P(fungus) 5 % x 17 % + P(flood) per rain end
+   0.3 (1 - floodSafety) rain/16: about 7-12 % in expectation, but a single draw can take 50-70 %. R24 caps it (WL1);
+   with the cap, the R20 long runs lost 1 + 3 (cpv #1) and 1 + 3 (kd #1), the 3 being drowning after autumn flood
+   alerts (live-play rules, as R24 says).
+2. **Winter stores**: pp #2 (sweep 3) entered winter with C 7.1 for 20 workers (adult need 0.653 C/gd, so the viability
+   check's 1 gd is 0.65 C). The lapse took 5.9 C (7 days x (20 x 0.08 + 0.3 + 0.02 x 1) x fMet 0.44 at a cluster near
+   9 C = 0.84 C/day): the winter alone needs about 9 gd of summer adult need. In spring the nest is below 10 C until
+   about day 4 (round-4 long runs) and foraging brings little: pp #2's C went 1.2 -> 0 by spring day 4. **Proposal for
+   the integrator**: the stores check at winter = the lapse's own C need (winter days x `dayNeedC` at the cluster's
+   current temperature, the arithmetic of the winter notice) + 4 gd of spring adult need; for pp #2: 5.9 + 4 x 0.55 =
+   8.1 > 7.1, not viable by that check. In summer-need terms about 12-13 gd for a Lasius colony.
+3. **Spring laying**: in the four R20 long runs every chamber is 9-12 BU deep and the royal chamber is the warmest dry
+   chamber on every spring day (table in `round-4/long/longrun-table.md`): 0.9-3.2 C on day 1, 7-12 C on day 4,
+   10.7-15.4 C on day 7. fTempQ is 0 below 14 C: laying potential 0 until day 7 (kd #1 1.6 eggs/gd that day). No warmer
+   chamber exists, so queen relocation or brood sorting cannot help; a warmer spring nursery would need a chamber
+   under a sun-warmed surface (stone, paving), i.e. architect siting, not built here (evidence first). Target "first eggs
+   by spring day 4 in 4 of 5": 0 of 4 (eggs on day 3 in sg #2 / pp #2 were budget left at potential 0).
+- 15:21 long run sg #2 on r4f (E2 + H4 + M1; `round-4/long-r4f/`): year one now **grows** 9 -> 12 workers (4 eclosed;
+  hygiene 0, was 27), 10 workers at Winter 1 (r4c: 5); but **C stores 0 from day 9 to winter** (intake/need C 0.18:
+  17 of 45 forage trips came home "hungry", the nectar within 300 BU, 2.2 C, never found; honeydew herds found late),
+  so the lapse counts starvation as alerted (stores below the winter need) and takes 10 -> 3; the queen starves in
+  spring (C 0). Next limit on this run: carbohydrate foraging in year one (rounds 2-3 leads: scouting coverage).
+- 15:23 nest bench after (r4f) runs 1-2: P stores up to 89 loads (bench added P 181 on we #1): the bench tops up to 2 gd
+  of `needRates`, whose P rate includes spoilage (economy.ts), which grows with the pile: a bench artefact round 3 also
+  saw (P 51 on sg #2), since `cheat.addFood` is not capacity-bound. The larder must not grow with its own rot either:
+  **L1b** `measureLarder` sizes the P larder on the P need minus the spoilage rate (`inst.spoilP`). Test case added to
+  `colony/larder.test.ts` (red without). The running bench keeps tree r4f (the larder size hardly matters under a
+  capacity-free top-up); recorded as a bench limitation.

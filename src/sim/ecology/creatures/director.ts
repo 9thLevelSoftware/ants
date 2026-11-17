@@ -5,13 +5,13 @@
 // neutral -> prey -> aphid predators; never ant predators), winter, the danger grid and expired hazards.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Creature, CreatureKind, Sim } from '@/sim/types';
+import type { Creature, CreatureKind, CreatureTerritory, Sim } from '@/sim/types';
 import { despawnCreature } from '@/sim/entities';
 import { rngFloat } from '@/core/rng';
 import {
   AMBIENT_BIRD_P, AMBIENT_CRICKET_P, CREATURE_AGENT_CAP, CREATURE_STATS, DESPAWN_MIN_DIST_BU, DIRECTOR_HOURLY_TICKS,
   RESIDENT_HOME_RADIUS_MM, RESIDENT_KINDS, SPAWN_MIN_DIST_ANT_BU, SPAWN_MIN_DIST_FOCUS_BU,
-  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, SETTING_DESPAWN_GD, TERRITORY_NO_SURFACE_RETRY_GD, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
+  STUCK_DESPAWN_S, VISITOR_KINDS, BURROW_S, SETTING_DESPAWN_GD, TERRITORY_NO_SURFACE_RETRY_GD, SPAWN_ALT_OFFSET_BU, VISITOR_SPAWN_P, WOLF_HOME_RADIUS_MM, WOODLOUSE_ROLLERS, type CreatureFamily,
 } from '@/sim/balance/creatures';
 import { CREATURE_DIRECTOR_EVERY } from '@/sim/balance';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
@@ -54,6 +54,23 @@ export function spawnPointOk(sim: Sim, p: Vec3): boolean {
   sim.index.queryAnts(p, SPAWN_MIN_DIST_ANT_BU * bu, _ids);
   for (const id of _ids) { const a = sim.stores.ants.get(id); if (a && dist(a.pos, p) < SPAWN_MIN_DIST_ANT_BU * bu) return false; }
   return true;
+}
+
+/**
+ * Where a territory's resident may appear now: the centre when it passes the §2.7 spawn distances, else the first of
+ * 8 points SPAWN_ALT_OFFSET_BU around it (in a fixed order) on the world that does; null when none does. The resident
+ * keeps the centre as its home and walks there (a site by a busy food source is rarely free of ants for 20 BU).
+ */
+export function spawnPointFor(sim: Sim, t: CreatureTerritory): Vec3 | null {
+  if (spawnPointOk(sim, t.center)) return t.center;
+  const r = SPAWN_ALT_OFFSET_BU * sim.world.bu;
+  for (let k = 0; k < 8; k++) {
+    const a = (k * Math.PI) / 4, x = t.center.x + Math.cos(a) * r, z = t.center.z + Math.sin(a) * r;
+    if (x < 0 || z < 0 || x > sim.world.size || z > sim.world.size) continue;
+    const p = { x, y: sim.field.height(x, z), z };
+    if (spawnPointOk(sim, p)) return p;
+  }
+  return null;
 }
 
 function farFromFocus(sim: Sim, p: Vec3): boolean {
@@ -126,7 +143,7 @@ function rebalanceResidents(sim: Sim, order: readonly number[]): void {
       const t = terr[order[r]];
       if (t.kind !== kind) continue;
       const occ = t.occupantId >= 0 ? sim.stores.creatures.get(t.occupantId) : undefined;
-      if (!occ) { if (freeRank < 0 && sim.state.tick >= t.vacantUntilTick && spawnPointOk(sim, t.center)) freeRank = r; }
+      if (!occ) { if (freeRank < 0 && sim.state.tick >= t.vacantUntilTick && spawnPointFor(sim, t)) freeRank = r; }
       else if (!isEngaged(sim, occ) && farFromFocus(sim, occ.pos)) farRank = r;
     }
     if (freeRank >= 0 && farRank > freeRank) {
@@ -153,9 +170,11 @@ function occupyTerritories(sim: Sim, cond: Conditions): void {
     if (sim.state.tick < t.vacantUntilTick) continue;
     if (visitor && (!visitorActive(sim, t.kind, cond, t.center) || !chance(sim, VISITOR_SPAWN_P))) continue;
     if (countKind(sim, t.kind) >= capOf(sim, t.kind)) continue;
-    if (!spawnPointOk(sim, t.center)) continue;
-    const c = spawnKind(sim, t.kind, t.center, {
+    const at = spawnPointFor(sim, t);
+    if (!at) continue;
+    const c = spawnKind(sim, t.kind, at, {
       state: INITIAL_STATE[t.kind] ?? 'idle', territoryId: i, homeRadius: homeRadiusFor(t.kind, t.radius),
+      homeCenter: at === t.center ? undefined : t.center,
       bb: t.kind === 'woodlouse' ? { roller: rngFloat(rng(sim)) < WOODLOUSE_ROLLERS ? 1 : 0 } : {},
     });
     if (c) t.occupantId = c.id;

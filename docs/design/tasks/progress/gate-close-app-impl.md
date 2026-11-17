@@ -81,3 +81,8 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 12:34 stage2 strict: 11 sections OK (creatures..overlaylook), humanlook cut by the 1h50 script timeout under load (footsteps alone 2494 s); birdlook, perf not reached. Next: stage2rest (humanlook,birdlook,perf) + photo rerun.
 - 12:44 stage2rest PASS (humanlook, birdlook, perf). stage2 strict: all 14 sections OK over two runs. Load fell to ~5; photo rerun now, then frametime.
 - 14:28 frametime with N=600 aborted twice: SwiftShader frame wall time ~3-10 s here (1B report: 8.8-11.4 s), 600 frames x 3 qualities = 5-8 h. Running N=40 per quality, reported as indicative.
+- 15:05 frametime N=40 done (low 8.5 s median, medium 7.5, high 12.5; load 7.3 -> 6.4). Next: build:portable.
+- 15:10 build:portable OK (27.73 MB, 12.5 s); verify:portable OK (sub-path + sandboxed iframe). Next: firstplay beats 1-6 on dist-portable.
+- 15:20 portable firstplay 1-6 PASS. Next: playKitchen (kitchen-door, quality=high).
+- 15:20 report sections 0, 5, 6, 8 written; waiting for playKitchen.
+- 15:26 banner: + 45 s real-time timeout (flow.test 7/7). playKitchen running.

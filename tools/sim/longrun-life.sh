@@ -11,7 +11,7 @@ out=$1; cache=$2; runs=$3; until=${UNTIL_DAY:-34}; any=${CACHE_ANY:+--cache-any}
 mkdir -p "$out"
 export out cache until any
 for r in $runs; do echo "${r%%:*} ${r##*:}"; done |
-  xargs -P 2 -L 1 bash -c '
+  xargs -P "${PAR:-2}" -L 1 bash -c '
     a=$0; s=$1
     if [ -f "$out/life-lasius-niger-$a-$s.json" ]; then exit 0; fi
     t0=$(date -u +%H:%M)
