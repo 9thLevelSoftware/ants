@@ -37,3 +37,6 @@ State found (sessions 1-2 left no progress file):
   lost 1 (d9.4) + old-age 1. Drowning not reproduced -> not pursued.
 - (02:25) RUNNING viability sweep test-output/carp/sweep2/run.sh (we + kd seeds 1-3, 2 at a time; done.txt lists
   finished runs). If cut off: rerun only missing runs.
+- (02:20) sweep2 round 1: we1 viable (12->?; 0 trips), kd1 NOT (lost 3 + old-age 1; scouts 0 % trips:
+  "scout timeout/curfew not-reached" = forage AI, not mine). e2e edited: media+major teleported ahead of the
+  possessed minor for the castes shot (not yet run).

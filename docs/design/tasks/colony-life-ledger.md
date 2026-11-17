@@ -115,3 +115,63 @@ failure is 6 worker deaths (2 crushed, 4 of old age (R11); the runs diverge afte
 no eclosion. F2 removed every hygiene loss in both runs. Kitchen-door #3 turns viable, but still raises nothing:
 its eggs now die of flooding (night rain in the one founding chamber) and untended. **Neither run ecloses a
 worker**: the growth bar is not moved by this round.
+
+Check (third engineer): `entrances.ts` was last written at 01:53, after the `after1` runs (01:48), so both runs were
+repeated on the tree as it stands (`round-1/after1-check/`): final state hashes equal to `after1` (woodland-edge #1
+`ef574626`, kitchen-door #3 `165e6e93`). The table above is the tree's.
+
+### Verification (02:10-02:20 UTC)
+
+- `npm run typecheck`: clean.
+- Folder tests (outputs in `round-1/probe/vitest-*.txt`):
+  - `src/sim/nest`: 52 files pass, 1 red: `escapeDig` (reopenTick trigger: never opens in 6 h). `plugsReopen` green.
+  - `src/sim/ants/behaviours/nest`: 25 pass, 2 red: `sfaReview.verify` (move-brood marker save/load, board built one
+    period early: 11 vs 12), `stall.soak` short window (22 % of in-nest ant-ticks at "moving, speed 0", target < 1 %).
+    `wasteHaul`, `boardStranded` green.
+  - `src/sim/colony`: 50 pass, 1 red: `founding/reopen.test.ts` (2 plug-soil voxels left in the throat).
+  - `src/sim/balance`, `src/sim/types`: 1 red: `ids.test` (ALERT_KINDS 38, test expects 37).
+- Every red test is red with the same numbers at the round's start commit `e299de5` and in a scratch copy of HEAD
+  with F1-F3 taken out: none comes from this round. `escapeDig`, `sfaReview.verify` and `stall.soak` are on
+  `gate-close-sim.md`'s known-red list; `reopen.test` is a lead in the spec. Not fixed here (integrator: no new
+  causes in round 1); see "Next".
+
+### Tried and reverted
+
+- **Queen-care egg collection only when the drop point is out of the queen's reach** (cause 3a; first engineer,
+  snapshot `8627b1d`: `queenCare.ts` `eggDropPoint` / `eggNearQueen`, test `eggCollect.test.ts`). A carer would
+  collect an egg only if the egg pile it would carry it to lies beyond `EGG_COLLECT_BU` of the queen; otherwise the
+  egg stays where she laid it. The second engineer took it out before the `after1` runs, with its red test.
+  Re-measured by the third engineer in a scratch tree (the test: 0.5 gd, 2 carers, founding-size chamber): pick-ups
+  11 for 5 eggs without the change, 6 for 4 eggs with it; the test's bound (pick-ups <= eggs) is red either way, the
+  roomy-chamber case green either way. Reverted because it halves the pick-ups but does not stop them, the test does
+  not reproduce the run's rate (~500 a gd), so the mechanism is not understood yet. The second engineer's extended
+  test (nurses, untended count) is kept at `round-1/probe/eggCollect.test.ts.wip.txt`. Note for whoever takes this
+  up: `eggNearQueen` uses `Math.hypot` (not allowed in sim code); the reverted change had replaced it.
+
+### GDD deviations
+
+None. `WASTE_BULK` is new (waste items had the item default 1.0); its values follow GDD 05 §1 (bulk = item mass /
+2 mg; the dead aphid of the same chapter, 1 mg, is bulk 0.5). F1 implements GDD 03 §4.2 "plug removed -> open" as
+written. No ruling, lifespan, need or hand-over provision changed.
+
+### Next (for round 2; the independent sweep comes first)
+
+1. **No worker ecloses after the hand-over** in either run (the growth bar). woodland-edge #1 after F1-F3: 4 pupae
+   die `pupa:untended` while nurses spend the pupa's untended gap (0.6-0.8 gd) in `nurse.carry` / `nurse.load` next
+   to it (`probe/tend-we1-after1.txt`: ~200 samples `nurse.carry(near)`, claims `nurse/nurse.carry`): pupae are
+   carried between two chambers and not tended. Start there.
+2. **kitchen-door #3 forages nothing**: 0 counted trips on every day of colony life, before and after (day rows);
+   intake/need C 0.14 after; it lives on the hand-over stores. 7 first workers in one founding chamber (the seed-3
+   lead), 2 of them in `queen-care.feed` most of the time. Its eggs die of flooding (5, night rain in the one
+   chamber), untended (4) and in the queen-care egg loop (above).
+3. **Laying**: 10 eggs after the hand-over in each run; laying potential > 0.5 egg/gd only 29 % / 14 % of the time;
+   "winter reserve short" 56 % of the time on woodland-edge #1 (funnel).
+4. **In-nest locomotion**: `stall.soak` 22 % of in-nest ant-ticks moving at speed 0 (red since before this round);
+   kitchen-door #3 has `walker-stuck-explosion` invariant violations before and after (11 of 11 moving walkers
+   without progress > 1200 ticks). Locomotion is this task's; it may be a large part of the 42-59 % "nest.work" time.
+5. **Founding reopen** leaves plug soil in the throat (`reopen.test`: 2 voxels): F1 tolerates remnants, but they are
+   what let the entrance flip to `sealing`. `escapeDig`: the founding escape plan never opens with the founding
+   system on.
+6. **Funnel counters**: trip reasons all read `unlogged`; scout trips that find nothing count as failed (29 of 70 on
+   woodland-edge #1). Fix before reading trip success off the funnel.
+7. woodland-edge #1 after F1: 2 workers crushed (runs diverge after day 2; not attributed to F1-F3).

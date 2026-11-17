@@ -8,3 +8,4 @@
 - e2e already has asserts for all recorded-only checks (RB possessed unchanged, hint dismiss, timelapse, glyphs, dig). NEXT: typecheck, unit tests again, then ONE harness run of tests/e2e/a11y.mjs (out under test-output/), look at screenshots. Then report.
 - e2e run started 01:57:58 log test-output/a11y-fix/run.log (out test-output/a11y-fix)
 - e2e run: G,B,B2,C pass so far (01:xx); waiting for C2,D,E,E2,F
+- e2e full run 02:25: G,B,B2,C,C2(635s under load 10),D,E passed; script timeout (1500s) hit in E2 due to load. Re-running A11Y_SECTIONS=E2,F out test-output/a11y-fix2
