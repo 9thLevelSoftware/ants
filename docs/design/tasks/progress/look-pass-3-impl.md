@@ -20,3 +20,4 @@ test-output/look3/
 - BEFORE night shots running (test-output/look3/before, log before-night.log): ~2 min per shot.
 - 18:59 session 2 (restarted 18:55): re-read spec+gate report; before night shots exist only for night:surface and night:observerlow (high) in test-output/look3/before; running item-6 unit tests now
 - 19:00 item6 unit tests green + typecheck clean (fixed species.ts castes comment bug). Running 'before' for remaining night lights in bg (before-night2.log). Plan: tune via runtime patch (import('/src/render/world/lighting/constants.ts') in page, mutate NIGHT_LOOK) -> add LOOK3_EVAL/variants to look3.mjs
+- 19:20 added NIGHT_LOOK.envKeep (constants.ts, timeOfDay.ts); look3.mjs has LOOK3_VARIANTS (runtime eval patches); before shots for 5 lights x (surface,observerlow) done in test-output/look3/before. Now tuning night via test-output/look3/tune/v1.json

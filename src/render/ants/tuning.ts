@@ -97,6 +97,9 @@ export const ANT_FILL = {
   easeS: 0.35,
 };
 
+/** Share of the form-light rim kept on legs and antennae (thin parts are all silhouette: at full rim they drew as pale wire). */
+export const ANT_FILL_RIM_THIN = 0.3;
+
 /**
  * The males' swarm at the lek during the possessed nuptial flight (swarm.ts): how many are drawn, their body length
  * (BU), the radius range of their loops around the lek centre (BU), loop and bob rates (rad/s), bob height and the

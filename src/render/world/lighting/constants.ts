@@ -198,6 +198,12 @@ export interface NightLook {
   nightToDeg: number;
   /** Extra haze at night (fraction of the day density): the horizon hides what is beyond the map in a soft band. */
   hazeMult: number;
+  /**
+   * Share of the sky-environment (PMREM) light kept at night. The night exposure (+3 EV and more) multiplies the
+   * dome's reflection on every glossy surface (cuticle clearcoat, wet leaves, pebbles): at full strength a black
+   * ant read as grey glass and pebbles as white chips (look-pass 3). The moon key and the fill still light the form.
+   */
+  envKeep: number;
 }
 export const NIGHT_LOOK: NightLook = {
   moonRel: 0.06,
@@ -213,6 +219,7 @@ export const NIGHT_LOOK: NightLook = {
   nightFromDeg: 2,
   nightToDeg: -6,
   hazeMult: 1,
+  envKeep: 1,
 };
 
 /** GDD 08 11.3 interior: warm tungsten from above, daylight only through windows and doors. */

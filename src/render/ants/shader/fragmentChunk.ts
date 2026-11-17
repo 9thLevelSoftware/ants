@@ -5,6 +5,7 @@ varying vec3 vAntMat;
 varying vec3 vRest;
 varying float vAntHi;
 varying float vCapIn;
+varying vec2 vAntK;
 uniform float uFacet;
 uniform vec3 uHiWarm;
 uniform float uSubjectOpacity;
@@ -76,12 +77,15 @@ export const ANT_FILL = /* glsl */ `
     vec3 fBase = diffuseColor.rgb;
     float fLum = dot(fBase, vec3(0.2126, 0.7152, 0.0722));
     vec3 fAlb = fBase * 0.6 + vec3(0.8 * fLum + 0.012);
-    totalEmissiveRadiance += uFillCol * (uFillBody * fAlb * (0.9 * fKey * fKey + 0.6 * fSky) + uFillRim * fRim);
+    totalEmissiveRadiance += uFillCol * (uFillBody * fAlb * (0.9 * fKey * fKey + 0.6 * fSky) + uFillRim * vAntK.y * fRim);
   }`;
 
 export const ANT_SHEEN = /* glsl */ `#include <lights_physical_fragment>
 #ifdef USE_SHEEN
   material.sheenColor *= vAntMat.y;
+#endif
+#ifdef USE_CLEARCOAT
+  material.clearcoat *= vAntK.x; // a stretched membrane is dull, not lacquered (white rings on a full gaster)
 #endif`;
 
 export const WING_FRAG_PARS = /* glsl */ `

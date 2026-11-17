@@ -76,3 +76,4 @@ Started 2026-11-17 ~17:00 UTC. No earlier progress file existed.
 - Summary helper: `python3 $SCRATCH/summ.py DIR...` (totals per batch dir: owh, deaths, rate, strikes/kills per family).
 - Report placeholders left: BEFORE_RAMP (§2.1), PRESETS_TABLE, GENTLE_RATE/HARSH_RATE (§2.2/§6), PERF_TABLE (§5),
   ACCEPTANCE. At the end: delete $SCRATCH/tree-base and tree-ramp (spec: delete scratch trees).
+- 19:29 ramp-w60-gentle DONE: 10 runs, 24,039 owh, 7 deaths = 0.007/owgd (JS 0/0, wolf 38/4, ant-sp 32/3). Harsh running (chain3).

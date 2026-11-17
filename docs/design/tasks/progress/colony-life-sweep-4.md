@@ -50,3 +50,4 @@ Started 18:15 UTC 2026-11-17.
   crushed 7 (kd #1 4 on day 5); we #2 hygiene 12 in a royal-only nest with a hauler (estimate: ~1.3 spoiled-food
   items/gd from the P pile in the royal chamber, pre-existing: storeChamber = chs[0] before L1 too).
   Plan after the sweep: table, bars, then 5 long runs (frozen tree, viab/cache, lowest viable seed per archetype).
+- 19:26 sweep 12/15 (viable so far: sg #1 only). Remaining pp #3, cpv #3, kd #3.

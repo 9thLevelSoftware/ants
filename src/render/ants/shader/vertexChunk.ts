@@ -22,7 +22,7 @@
  * body's motion (forward, sideways, turning), so a stance foot here is just R(angle) * restFoot + offset. In swing the
  * placement is the frozen lift-off point and the foot travels to the predicted touchdown point.
  */
-import { CUTICLE } from '../tuning';
+import { ANT_FILL_RIM_THIN, CUTICLE } from '../tuning';
 
 export const ANT_VERT_PARS = /* glsl */ `
 attribute vec4 aRig;
@@ -56,6 +56,7 @@ uniform vec3 uCallow;
 varying vec3 vAntMat;   // x roughness override (<0: none), y sheen gain, z 1 = compound eye
 varying vec3 vRest;     // rest-frame position (eye facets, cuticle micro-variation)
 varying float vAntHi;   // highlight (+ possessed, - hovered)
+varying vec2 vAntK;      // x clearcoat gain (1 on sclerites, low on a stretched membrane: dull, not glassy), y form-light rim gain (thin legs and antennae are all edge: a full rim drew them as pale wire)
 varying float vCapIn;   // 1: an ant other than the possessed one inside the camera-to-ant capsule (GDD 01 6.5 rule 2)
 uniform vec3 uCapA;     // capsule: camera position (world, mm)
 uniform vec3 uCapB;     // capsule: the possessed ant's thorax (world, mm)
@@ -215,6 +216,9 @@ export const ANT_COLOR_VERTEX = /* glsl */ `#include <color_vertex>
   if (aRig.x < 7.5 || aRig.x > 8.5) vColor.rgb *= aTint.rgb;
 #endif
   vAntHi = aExtra.y;
+  vAntK = vec2(1.0, 1.0);
+  if (aRig.x > 5.5 && aRig.x < 6.5) vAntK.x = 1.0 - 0.9 * aRig.w * smoothstep(0.05, 0.6, aPose.z);
+  if (aRig.x > 2.5 && aRig.x < 5.5) vAntK.y = ${ANT_FILL_RIM_THIN.toFixed(3)};
   vCapIn = 0.0;
   if (uCapR > 0.0 && aExtra.y <= 0.0) {
     vec3 antO = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;

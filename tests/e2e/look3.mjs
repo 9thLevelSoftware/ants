@@ -15,7 +15,8 @@
 //                                   live ones: the dev server hands out one instance per file). Each variant must set every value it
 //                                   touches (nothing is reset between variants).
 // light: night | night-overcast | night-rain | dusk | dawn | noon | overcast | rain
-// view:  surface | nest | observerlow | observer | gyne (a gyne and a male beside the possessed worker) | slice | edge
+// view:  slopeup | slopedown (the possessed worker on the steepest flank near the entrance, walking uphill / downhill) |
+//        surface | nest | observerlow | observer | gyne (a gyne and a male beside the possessed worker) | slice | edge
 // Every picture is a plate (UI hidden); luminance numbers (look2-measure) are logged per shot and written to <tag>-shots.json.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { measureInPage } from './lib/look2-measure.mjs';
@@ -85,6 +86,24 @@ export default async ({ page, log, out: outDir }) => {
           window.__game.step(3);
         }, { bu });
       }
+    } else if (view === 'slopeup' || view === 'slopedown') {
+      await surfaceWorker('surface');
+      const r = await g(async ({ bu, up }) => {
+        const gm = window.__game, E = gm.query.nest().find((n) => n.colony === gm.summary().colony?.id)?.entrances?.[0]?.pos ?? gm.query.world().queenStart.pos;
+        const h = (x, z) => gm.query.field(x, 0, z).height;
+        let best = null;
+        for (let rr = 2; rr <= 16; rr += 1) for (let a = 0; a < 24; a++) {
+          const x = E.x + Math.cos((a / 24) * 2 * Math.PI) * rr * bu, z = E.z + Math.sin((a / 24) * 2 * Math.PI) * rr * bu, e = 0.5 * bu;
+          const gx = (h(x + e, z) - h(x - e, z)) / (2 * e), gz = (h(x, z + e) - h(x, z - e)) / (2 * e), m = Math.hypot(gx, gz);
+          if (!best || m > best.m) best = { x, z, m, gx: gx / m, gz: gz / m };
+        }
+        const sgn = up ? 1 : -1, d = { x: sgn * best.gx, y: 0, z: sgn * best.gz };
+        gm.teleport('possessed', { x: best.x - d.x * 3 * bu, y: h(best.x, best.z) + 1.5 * bu, z: best.z - d.z * 3 * bu });
+        gm.step(3);
+        gm.setIntent({ dir: d }); gm.step(6); gm.setIntent({}); gm.step(3);
+        return { slopeDeg: Math.round((Math.atan(best.m) * 180) / Math.PI), at: [best.x, best.z] };
+      }, { bu, up: view === 'slopeup' });
+      log('slope', view, JSON.stringify(r));
     } else if (view === 'nest') await nestWorker();
     else if (view === 'observer') await observerAt();
     else if (view === 'observerlow') await observerAt(22, 40);
