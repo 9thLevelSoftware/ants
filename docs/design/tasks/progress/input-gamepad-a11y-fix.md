@@ -13,3 +13,5 @@
 - added temporary hint-diag log in e2e dismiss section (remove after diagnosis); running A11Y_SECTIONS=C out a11y-fix3
 - e2e dismiss-hint now strict (reset profile, possess digger, advance; throws if no hint). Verifying in chain: A11Y_SECTIONS=G,B,C- out a11y-fix4
 - chain run a11y-fix4 hit script-timeout in C under load 11 (not a failure). Running C- alone (a11y-fix5) to verify strict dismiss-hint.
+- C- run a11y-fix5 passed with strict dismiss-hint (before hint-cycle, ant unchanged). NEXT: final typecheck + vitest + view screenshots + report.
+- DONE: final typecheck clean, 165 unit tests pass (input, nav, a11y, controls, toolsPad, weather), e2e sections all pass across runs a11y-fix/fix2/fix5. Write report.

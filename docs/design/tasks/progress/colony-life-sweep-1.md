@@ -6,7 +6,7 @@ in `test-output/colony-life/round-1/sweep/summary.txt`.
 ## Sweep
 - Script: `tools/sim/sweep-life.sh test-output/colony-life/round-1/sweep test-output/viab/cache` (skips runs whose
   JSON exists; restart it the same way to continue). Started 02:19 UTC.
-- Runs finished: see summary.txt (5 of 15 at 02:54)
+- Runs finished: see summary.txt (10 of 15 at 03:19)
 
 ## Review findings so far (updated 02:45 UTC)
 - typecheck clean 02:22. src/sim/ants/behaviours/nest: 25 pass, 2 red (sfaReview.verify, stall.soak) = as claimed

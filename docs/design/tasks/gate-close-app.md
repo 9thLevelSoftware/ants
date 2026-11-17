@@ -4,7 +4,7 @@
 Prove by running the real game in a browser that a new player can start, play the opening, hand over to the first workers and watch the colony live, with every screen and view working; fix what stops that; list bluntly what a player would call broken or ugly. This task replaces steps 1 (app folders), 3, 4 (app items), 5 and 6 of `gate-1B-close.md`; a second engineer runs `gate-close-sim.md` at the same time and owns the sim.
 
 ## Read in full
-`docs/STATUS.md` from the Nov 16 10:30 entry to the end (rulings R1–R15 binding). `gate-1B-app-report.md` §10. `docs/design/tasks/onboarding.md`, `overwinter-repro.md`, `input-gamepad-a11y.md`, `look-pass-2.md` and the "Hand-over" below.
+`docs/STATUS.md` from the Nov 16 10:30 entry to the end (rulings R1–R19 binding). `gate-1B-app-report.md` §10. `docs/design/tasks/onboarding.md`, `overwinter-repro.md`, `input-gamepad-a11y.md`, `look-pass-2.md` and the "Hand-over" below.
 
 ## You own
 `src/game/**`, `src/ui/**`, `src/render/**`, `src/audio/**`, `src/content/**`, `src/input/**`, `tests/e2e/**`, `tools/harness/**`. Assertions in e2e scripts must not be weakened; where one is wrong say why. If a fix needs a `src/sim` file and is under 30 lines, first append one line to `test-output/gate-close/cross-edits.md` (file, what, why), then make it with a test; larger ones go in your report with a failing test or exact reproduction (seed, query string, steps).
@@ -36,5 +36,23 @@ Prove by running the real game in a browser that a new player can start, play th
 ## Machine rules
 4 cores shared with another engineer running colony-life sweeps. One headless browser at a time; global Playwright only (never install it); never the whole vitest suite in one process. Check `date -u` before writing a timestamp. Evidence under `test-output/gate-close/app/`.
 
-## Hand-over
-(Integrator fills in before launch.)
+## Hand-over (integrator, Nov 17 03:25 UTC)
+
+**State of the tree.** Everything is on `main` (auto-snapshots every 10 minutes; do not run git commands that change the index). Three other engineers are working in this checkout right now: `colony-life` (all of `src/sim` except species modules, `src/worldgen`, `src/core`, `tools/sim`) and two species engineers (`src/sim/species/modules/**`, `src/sim/balance/species-*.ts`, `src/sim/colony/founding/species/**`). Type errors or red tests there may be work in progress: mention them, do not fix them. The cross-edit rule above stands for anything in `src/sim`.
+
+**The sim does not grow colonies yet.** Sweep 9: 7 of 15 colonies viable, 0 eclosions after hand-over in 11 of 15. `colony-life` is fixing this in measured rounds (ledger `colony-life-ledger.md`); round 1 fixed an entrance stuck `sealing`, waste never hauled, stranded brood. So: `firstplay.mjs`'s growth assert and anything that needs second-generation workers may fail for sim reasons. Establish with evidence whether a failure is the app or the sim; an app failure you fix; a sim failure you report with seed, query string, the step and the value seen, and move on. Do not weaken the assert.
+
+**Machine.** Load average is 10–13 on 4 cores (life runs, species tests). Browser scripts run 3–5× slower than on an idle machine: give every harness run a generous `--script-timeout`, and treat a timeout under load as "not measured", not as a failure — re-run it alone with a longer timeout before you call it red. `a11y.mjs` does not finish in one process under load: run `A11Y_SECTIONS=G,B,C-,C2,D,E` and `A11Y_SECTIONS=E2,F` separately. Frame-time numbers (step 5) are only valid when nothing else heavy is running: check `uptime` before and after and say so beside the numbers; if the load never drops, report the numbers as indicative and say that.
+
+**look-pass-2 (landed).** Night look table (`NIGHT_LOOK`), ground snap for leaning stems, dithered skirt, boundary fog, night ant fill 0.8 → 2.2. Evidence `test-output/look2/r2/**`. Open, yours to check in step 4 and fix or report: night ant pale and glassy (seam in step 3); a thin lime-green strip at the map-edge horizon; the nearest facade and fence shapes read as pale straight-edged blocks; a white pillar, a leaf contact shadow, the car underbody, ragged open-end caps and a floating block were reported without coordinates — find them or say you could not; dusk, overcast and night rain were not re-shot.
+
+**input-gamepad-a11y (fix round landed, review `reviews/input-gamepad-a11y.json`, progress `progress/input-gamepad-a11y-fix.md`).** Closed: RB modifier clash, pad rebinding gestures, scent-view yield, reduced-motion crossfade (0.2 s), player-pad picking, hold-duration setting, e2e fails on a broken section, flash reduction reaches the lightning renderer. Left for you:
+- The **sound-cue indicators** toggle does nothing: wire it (audio + HUD are yours) or report exactly what is missing.
+- **Flash reduction** is On by default and lightning then uses the 2 s soft glow (`LIGHTNING_REDUCED`): measure it against GDD 08 App E 25 (no frame-to-frame exposure rise above +0.5 EV; at most 5 brightening events in 20 s of storm) from frames, and fix if it does not hold.
+- Seal and lay **by pad through the real founding phases** are not demonstrated (the e2e uses a stand-in carve): do it once by hand through the harness on seed 1 and report.
+- The a11y engineer edited files outside their folders (`src/game/Game.ts`, `src/game/debug/debugApi.ts`, `src/game/views/viewDirector.ts`, `src/game/settings/schema.ts`, `src/render/camera/constants.ts`, `src/render/index.ts` `FrameInfo.reducedFlash`, `src/render/world/weather/WeatherRenderer.ts`): read those edits as their owner and keep or correct them.
+- GDD 08 App E 21 names `foundress.settings.v1` for bindings, GDD 01 §5.7 names `foundress.bindings.v1`; the code follows GDD 01. Note it in the report as a document fix; no code change.
+
+**Species.** Carpenter and harvester ants are being built; `available` stays false. Not your concern except: the new-game screen must not offer an unavailable species (check once).
+
+**Report honestly.** The report is read by the integrator to decide whether to publish the first playable build. A short true list of what is broken is worth more than a pass.

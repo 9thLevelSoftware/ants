@@ -549,3 +549,10 @@ Relaunched (after any restart: same script and args, new run; agents pick up fro
 - `wji1tefky` / wf_227aebec-eb4: colony-life, `{maxRounds:4, firstRound:1, model:'opus', effort:'high', note: finish round 1}`.
 - `whq2tpy3r` / wf_e200cf00-636: species-carpenter, species-harvester (Opus).
 - `wdfxq8s95` / wf_91d8e4bc-a70: input-gamepad-a11y fix (Sonnet, `startAt:'fix'`).
+
+## Nov 17 03:25 UTC — a11y fix round landed; app half of the gate launched
+
+- **input-gamepad-a11y fix round** (Sonnet; result `reviews/input-gamepad-a11y-fix.json`): review findings closed except: seal/lay by pad through the real founding phases not demonstrated; sound-cue indicators toggle has no effect; flash reduction wired to lightning (`FrameInfo.reducedFlash`, default On → 2 s soft glow) but App E 25 not measured; photo-by-pad flake not reproduced; `a11y.mjs` needs two processes under load (`A11Y_SECTIONS=G,B,C-,C2,D,E` and `E2,F`). All handed to the app gate.
+- **gate-close-app launched** (Opus impl + Opus review + fix, visual) with its Hand-over filled (`gate-close-app.md`). Told: load is 10–13, a timeout under load is "not measured"; separate app failures from sim failures.
+- colony-life: round 1 finished; independent sweep 1 in progress (`progress/colony-life-sweep-1.md`): at 5 of 15 runs C intake up, P intake down in 3 of 5, 0 eclosions; reviewer's `plugBaseline.verify.test.ts` red (F1 fixes only the way back from `sealing`, not the trigger).
+- Running: colony-life `wji1tefky`, species `whq2tpy3r`, gate-close-app (new), auto-snapshot loop `b6hyz8z3p`.
