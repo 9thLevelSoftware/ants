@@ -80,3 +80,4 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 11:34 stage2 running (sections creatures..rain OK so far).
 - 12:34 stage2 strict: 11 sections OK (creatures..overlaylook), humanlook cut by the 1h50 script timeout under load (footsteps alone 2494 s); birdlook, perf not reached. Next: stage2rest (humanlook,birdlook,perf) + photo rerun.
 - 12:44 stage2rest PASS (humanlook, birdlook, perf). stage2 strict: all 14 sections OK over two runs. Load fell to ~5; photo rerun now, then frametime.
+- 14:28 frametime with N=600 aborted twice: SwiftShader frame wall time ~3-10 s here (1B report: 8.8-11.4 s), 600 frames x 3 qualities = 5-8 h. Running N=40 per quality, reported as indicative.

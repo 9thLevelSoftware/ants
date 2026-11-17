@@ -1093,3 +1093,23 @@ Progress (kept current; a successor continues from here)
   `round-4/long/` (restart-safe: re-run the 13:17 command). Then the benches on these hand-overs.
 - 13:46 long run woodland-edge #1 ended with exit 143 (SIGTERM from outside, 3 min in; load average 8-10 on the
   machine); not this round's tooling. It is re-run after the batch (the script skips only runs with a JSON).
+- 14:03 first long runs (tree r4c, `round-4/long/`): suburban-garden #2 11 -> 1 workers, playground-park #2 11 -> 0,
+  both **in year one**: brood laid 32 / 28, eclosed 0, lost to **hygiene 27 / 22** (eggs, larvae, pupae in the one
+  royal chamber); deaths old-age 7 / 4, predation 2 / 7 (predators act now: threats-live's work is in the tree), crushed
+  1 / 0. Both nests have only the royal chamber. Suspect: the R21 larder puts its spoiling P (the hand-over provision
+  now moves into the larder at once: P 5.35 at day 1) and its spoiled-food items in the brood chamber. Next: A/B on the
+  same hand-over, r4c vs r4c with the larder switched off (scratchpad `noL1`), sg #2 and pp #2, 8 days, once the
+  running long runs (cpv #1, kd #1) end; we #1 long run still to re-run.
+- 14:26 long runs cpv #1, kd #1 done; table `round-4/long/longrun-table.md` (tool `longrun-table.py`). All four so far fail
+  in **year one**: workers at Winter 1 11 -> 11 (cpv #1), 15 -> 8 (kd #1), 11 -> 3 (pp #2), 11 -> 5 (sg #2); eclosed
+  5, 4, 0, 0; deaths old-age 10 / 9 / 4 / 7, predation 3 / 3 / 7 / 2, drowning 3 / 3 (in the lapse, flood alerted
+  before winter: both seed 1, same autumn weather), crushed 0 / 3 / 0 / 1. Lapse: cpv #1 11 -> 6, kd #1 8 -> 4 (cap 1 +
+  alerted drowning 3 each), sg #2 5 -> 5, pp #2 3 -> 2. **Spring readings (direction 8.3)**: every chamber of these
+  nests is 9-12 BU deep (36-48 mm) and the royal chamber *is* the warmest dry one: royal 0.9-3.2 C on spring day 1,
+  4.6-8.4 C on day 3-4, 10-15 C on day 5-7; fTempQ is 0 below 14 C, so laying potential is 0 until about day 7 (kd #1
+  1.6 eggs/gd on day 7). No warmer dry chamber exists to move the queen or brood to: the lever "use the warmest dry
+  chamber" has nothing to work with in these nests. First year-2 egg: doy 3 (sg #2, pp #2: leftover budget, potential
+  0), 16 (cpv #1), none by doy 15 (kd #1). Overwintered workers are 1-6 at spring day 1 and 1-2 by day 7 (old age).
+- 14:26 A/B larder on/off (same sg #2 hand-over, 8 days, `round-4/ab-larder/`): brood hygiene losses on 18, off 15
+  (egg 5/4, larva 9/7, pupa 4/4), eclosed 0 both: **the hygiene loss is there without the larder**. pp #2 pair running.
+  Next: probe the waste in the brood chamber (`tools/sim/probe-waste.ts`, probe, deleted after) and re-run we #1 long.
