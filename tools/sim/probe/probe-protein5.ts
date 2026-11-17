@@ -25,7 +25,7 @@ export default async function main(args: string[]): Promise<void> {
     const larvae = sim.state.brood.filter((b) => b.alive && b.colony === col.id && b.stage === 'larva').length;
     const items = sim.state.items.filter((i) => i.alive && i.wasteKind === 'spoiled-food').length;
     const L = col.ledger as unknown as Record<string, number>;
-    console.log(`${h} ${r(col.stores.c)} ${r(col.stores.p)} ${r(q?.queen?.reserveP ?? 0)} ${larvae} | ${r(L.inRecycledP)} ${r(L.inDeliveryP)} ${r(L.outLarvaeP)} ${r(L.outSpoiledP)} ${items}`);
+    console.log(`${h} ${r(col.stores.c)} ${r(col.stores.p)} ${r(q?.queen?.reserveP ?? 0)} qC ${r(q?.queen?.reserve ?? 0)} capC ${r(col.stores.cap.c)} inDelC ${r(L.inDeliveryC)} inRecC ${r(L.inRecycledC)} ${larvae} | ${r(L.inRecycledP)} ${r(L.inDeliveryP)} ${r(L.outLarvaeP)} ${r(L.outSpoiledP)} ${items}`);
     while (sim.state.tick < t0 + (h + 3) * TICKS_PER_HOUR) sim.tick();
   }
 }

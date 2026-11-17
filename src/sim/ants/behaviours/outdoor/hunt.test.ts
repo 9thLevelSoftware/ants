@@ -83,9 +83,6 @@ describe('hunting patch prey (R18)', () => {
     // crop and walked past (huntCheck only let outbound / searching ants break off)
     const { sim, col, entrance } = forageScenario({ workers: 24, stores: { c: 4, p: 0 }, holdNeeds: { needC: 0, needP: 1, sP: 0.9 } });
     const patch = addPatch(sim, entrance.pos, 60, 30, 400);
-    // round 5: the colony knows protein (this patch), so its outside share forages; with no protein known it would
-    // scout instead (allocation/demand.ts smallColonyFloor) and no forager would be outbound
-    patch.knownBy = colonySlotBit(sim, col.id);
     let ant: ReturnType<typeof sim.stores.ants.get>;
     for (let t = 0; t < 6000 && !ant; t += 20) {
       run(sim, 20);

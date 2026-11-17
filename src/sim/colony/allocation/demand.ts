@@ -151,22 +151,14 @@ function liveKnownSources(sim: Sim, col: Colony): number {
 /**
  * Small colonies forage (R3, balance SMALL_*): under the stock target on a workable surface, forage + scout demand
  * is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N). Scouts are at least SMALL_SCOUTS_MIN until
- * SMALL_KNOWN_SOURCES live sources are known, and while the colony needs protein and knows no protein at all
- * (colony-life round 5, R18: two sugar sources found first dropped the scouts to one, and no protein was known
- * after 13 gd in 12 of 15 runs of sweep 4), and then every outside worker the known sources do not need scouts;
- * the rest of the outside share forages.
+ * SMALL_KNOWN_SOURCES live sources are known; the rest of the outside share forages.
  */
-function smallColonyFloor(sim: Sim, col: Colony, n: number, known: KnownCapacity, d: Float64Array | Float32Array): void {
+function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array): void {
   if (n >= SMALL_COLONY_N || surfaceActivityOf(sim, col.species) < SCOUT_MIN_ACTIVITY) return;
   if (col.needs.needC <= 0 && col.needs.needP <= 0) return;
   const outside = Math.min(n, Math.max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC * n));
   const live = liveKnownSources(sim, col);
-  const noProtein = col.needs.needP > 0 && known.loadsP <= 0;
-  let scoutsMin = live < SMALL_KNOWN_SOURCES || noProtein ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
-  // with no protein known, the outside share the known (sugar) sources do not need scouts instead of waiting inside
-  // (GDD 02 §6.4 "forage uncapped (extra ants scout)"; gate S2: foragers sat inside "waiting to leave"). The search
-  // ends as soon as a protein source or prey patch is known; until then old age outside is the price of protein
-  if (noProtein) scoutsMin = Math.max(scoutsMin, outside - Math.max(1, d[T('forage')]));
+  const scoutsMin = live < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
   d[T('scout')] = Math.max(d[T('scout')], scoutsMin);
   // the rest of the outside share forages, at least one forager (a 7-worker colony's 2.45 - 2 scouts rounded to no
   // forager at all). With nothing known yet those foragers wait inside for news, where they age at a third of the
@@ -203,7 +195,7 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
     const shortfall = scoutShortfall(col, known);
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
-  smallColonyFloor(sim, col, n, known, d);
+  smallColonyFloor(sim, col, n, d);
   // GDD 02 §6.2: Σ tenderSlots over the colony's workable herds (the plants module owns the herd rules)
   d[T('tend')] = herdTendDemand(sim, col.id);
   d[T('dig')] = digDemand(sim, col);

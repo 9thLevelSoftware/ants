@@ -23,7 +23,7 @@ edge; (3) off/no-ramp runs one seed; (4) save->load per preset; (5) threatBatch 
 - finding 5: tools/sim/threatBatch.ts runMismatch + refuse; test src/sim/ecology/creatures/threatTools.test.ts (4 pass).
 - finding 4: predationRamp.test.ts save->load now it.each(PRESETS) (17 pass, 37 s under load).
 
-## In progress (21:53 UTC)
+## In progress (22:27 UTC: off batch DONE 10/10 all zero, 23,770 owh; base-found-r2 running)
 - background script scratchpad/runs.sh: (1) main tree threatBatch predators off, 60 workers, run seeds 1,2, 6 gd ->
   test-output/threats-calibrate/ramp-w60-off-6gd/ ; (2) scratch tree of 75514ce (stop-gap, no ramp) base-found run
   seed 2 to winter -> test-output/threats-calibrate/base-found-r2/. If cut off: rerun the same commands (threatBatch

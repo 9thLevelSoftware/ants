@@ -1584,3 +1584,67 @@ sources known) ends the 2-scout floor of R3.
   but sg #2 P known 0.28 -> 3.6 gd (prey 61 -> 6): single 4-day runs diverge; medians decide. Frozen tree `r5q`
   (PR1 + PR1b); queued: scratchpad `queue-p1b.sh` waits for the "before" bench, then runs `DAYS=4 PAR=1
   $S/r5q/tools/sim/bench-sweep.sh forage $P/bench-forage4-p1b $PWD/test-output/colony-life/round-4/cache`.
+- 22:11 **P1 before/after on the review's case** (cpv #1 hand-over, 72 h, `round-5/probe-protein-cpv1.txt`, probe
+  `tools/sim/probe/probe-protein5.ts`; ledger columns are per game day): P spoiled 1.98 (round-4 tree,
+  `round-4/sweep-review/probe-r4-cpv1.txt`) -> **0.01**; spoiled-food items 4 -> 0; the queen pays her reserve in as
+  the larvae eat (11.45 at h0, 9.3 at h27, 4.8 at h51, her keep 1.0 at h60), larvae fed 7.79 P on day 3 alone (h48-69).
+- 22:11 **4-day forage bench, before (r5base) vs PR1 (r5p)**, 15 hand-overs each (`round-5/bench-forage4-*`; compare
+  `$S/cmp.py`): P/need median 0.237 -> 0.232, C/need 1.53 -> 1.54, protein known within 1 gd 6 of 13 -> 3 of 15,
+  never 6 -> 5, scout trips 130 -> 107 (longer trips with the 300 BU range). **PR1 does not move the counter.** Scout
+  trips are ~1 per scout per gd (trip 300-500 s, surface time of a day ~400 s): discovery scales with the number of
+  scouts, which PR1 left at 1-2. kd #3 is a bench artefact: its entrance reads not-open at every day end on the forage
+  bench in both trees (6 tenders out, "deliver" 7 ant-gd), but opens at 0.14 gd and stays open in the plain sim
+  (`round-5/probe-entrance-kd3.txt`) and in the sweep-4 life run. PR1b (scouts = the outside share the known sources do
+  not need) is on the bench now.
+- 22:26 **PR1b result and decision.** 4-day forage bench, 15 hand-overs (`round-5/bench-forage4-p1b`): P/need median
+  0.237 (before) -> 0.232 (PR1) -> **0.152 (PR1b)**; protein known within 1 gd 6 of 13 -> 3 of 15 -> 4 of 15; scout
+  trips 130 -> 107 -> 138. More scouts do not bring protein sooner on this bench: on kd #1 (plain sim, 2 gd,
+  `round-5/probe-scout-kd1.txt`, probe `probe-scout5.ts`) 1.6 scouts were outside on average, spread over all
+  bearings, and crossed the one near patch (149 BU, r 20 BU) for 15 s in 2 gd; it was found at 1.25 gd. Where a patch is
+  known the counter is set by the catch: we #3 (patch at the door) 94 prey appeared, 43 chased, **7 subdued**, 132
+  touch jumps, 36 chases ended with the prey gone (springtail rules in `ecology/creatures/**`, threats-calibrate's
+  files: not this task's to edit; reported). **Reverted**: the protein scout floor (PR1) and PR1b (demand.ts,
+  viability/hunt/huntReturn test edits back to 8b4c207). **Kept**: SMALL_SCOUT_RANGE_BU 300 (R18 places a small
+  colony's protein within 300 BU; scouts' median farthest point 207 -> 260 BU; cpv #1 found its 202 BU patch at
+  1.9 gd, we #1 its 210 BU patch at 2.2 gd; P/need median unchanged).
+- 22:26 **P1 v2**: the hand-over's carbohydrate goes into the pool as in round 4 (larder included); only the protein
+  is held to the stomachs. Reason: kd #1 life run on the stomach-only variant (tree r5base) had pool C 0.06 on day 2,
+  0 on day 3 with 0 trips; with v2 1.3 / 0.5 C and 11 trips on day 3 (`round-5/life-p1v2/`). The round-4 code on the
+  same cache gives the same C course as v2 for 30 h and spoils 0.84 P by h21 (v2: 0.04;
+  `round-5/probe-protein-kd1-*` not kept: numbers here). Tests unchanged and green.
+- 22:26 frozen trees: `r5start` = git archive 8b4c207 (round start, round-4 code) + this round's bench tools (funnel,
+  bench-sweep DAYS, bench-table columns); `r5f` = the tree now (P1 v2, WL2, M2, R27, S3, S6, S17, range 300). Running
+  (restart-safe): `PAR=1 $S/r5start/tools/sim/bench-sweep.sh forage $P/bench-forage-before
+  $PWD/test-output/colony-life/round-4/cache` and `PAR=1 $S/r5f/tools/sim/bench-sweep.sh forage $P/bench-forage-after
+  ...` (full length, to winter). Scratch trees r5p, r5q deleted; r5base kept until the end.
+
+### Ranking by measured loss (round 5; from the sweep-4 A/Bs and funnels, the 4-day benches and the probes)
+
+1. **L1 x R2 provision** (sweep-4 blocker): -26 workers at winter, -21 eclosions, +41 starved larvae over the 15
+   pairs (review A/B). Fixed (P1 v2): P spoiled before the first larva 1.98 -> 0.01 on the review's case.
+2. **Protein income** (P intake/need median 0.045 in sweep 4; laying permitted 0.07-0.26 of the time in 11 runs):
+   (a) found: 6 of 15 hand-overs know no protein after 4 gd on the forage bench, their nearest patch edge 118-244 BU;
+   more scouts did not change it (PR1/PR1b reverted, above); (b) taken: where a patch is known, 7-20 of 43-87 chases
+   end in a catch (creature-side springtail jump/escape rules, threats-calibrate's folder); (c) the 4-day bench
+   median P/need is 0.23 of the 30-worker demand before and after this round's kept changes. Full-length benches
+   running for the counter.
+3. **Carbohydrate in 4 runs** (we #3, sg #2, sg #3, kd #3: C 0 at winter): there the queen's laying protein is
+   withheld 83-93 % of the time by the R5 winter reserve (`queen.ts winterReserveShort`, from d28 10 = host decline)
+   because the pool C is 0; in the C-rich runs (kd #1 C 24, cpv #1 13) laying is still permitted only 13-14 % of the
+   time, by the protein gates (P stock days, larval hunger). C income is the second limit, after protein.
+4. **Old age** (56 of 75 adult deaths in year one): follows from 1-3 (R11 stands).
+5. **Winter stores / R27**: implemented (verdict, table, autumn target); WL2 makes the spring stores honest.
+6. **Brood care** (egg:untended 24, pupa:untended 20, egg:flooding 24, hygiene 53 of which L1's larva:hygiene ~24).
+7. **Predation / crushed** (10 / 8 over the sweep; predation now under threats-calibrate's ramp).
+8. **Core gaps from threats-calibrate** (report §4): (a) paralysed nestmates never carried home - the largest lever on
+   the 60-worker rate, ~0 on founding-year colonies under R25's ramp; (c) known pits not avoided - no antlion pit on
+   the five worlds, costs nothing measured. Both below 1-7 this round; not built (next round: (c) through
+   `locomotion/runtime.ts avoidDiscs`, the avoid-marker discs the planner and trail weighting already use; (a) needs
+   an ant carry kind). Their `it.fails` reproductions stay in `ecology/creatures/coreGaps.repro.test.ts`.
+9. App-gate needs: S3, S6 done; S17 done; S7 not a sim defect (script cheat); S2 ("waiting to leave") is PR1b's
+   subject, reverted on the counter (more scouts cut P/need 0.237 -> 0.152): the waiting foragers are the outside
+   share the known sources do not need; the nest record `reopening` after a pad-played opening: not reproduced this
+   round (`founding/reopen.test` stays red on plug remnants, known since round 1).
+- 22:41 red-with-the-fix-removed check (scratch copy, the five fixed files at 8b4c207): `larderProvision.verify`,
+  `lossCapStores.verify`, `haulMidden.verify`, `founding/padPrompt.test` all RED, green on the tree. (`causeWords`,
+  `storesNeed`, the new `lossCap` case test new functions.) Typecheck clean (22:28). Full benches 2/15 each.
