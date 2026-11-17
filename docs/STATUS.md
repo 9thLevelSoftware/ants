@@ -487,3 +487,11 @@ Open (carry to gate-1B-close / QA look review):
 - White pillar, leaf contact shadow, car underbody, ragged open-end caps, floating-block coordinates: not identified / not re-shot.
 - Colony view minimum distance 30 BU (`CV_DIST_BU[0]`) leaves the founding chamber ~110 px wide; needs the camera rig.
 - Dusk, overcast, night rain not re-shot after the fill change; contact sheets not regenerated.
+
+## Nov 17 00:25 UTC — launches while the fix rounds finish
+
+- Gate-close split into two parallel specs: `gate-close-sim.md` (sweep with flooding on, R13, R14, sim seams, cost) and `gate-close-app.md` (browser scripts, app seams, play-through with pictures, portable build). Launch both when econ-growth, loco-fix3 and input-gamepad-a11y fix rounds have landed; fill each "Hand-over" first.
+- `species-common-addendum.md` written (binding for the four species tasks: do not edit forage/colony/loco/ecology/nest; complete loop first; viability bar per species; do not flip `available`).
+- Launched `w4ku7i4q9` / wf_466f5a8d-d06: `species-carpenter`, `species-harvester` (Opus impl, Opus review, visual). Their folders are isolated (`src/sim/species/modules/{wood,granary}`).
+- Still running: `wws8x2xjj` econ-growth fix; `wbpbsguac` loco-fix3 fix + a11y fix.
+- Next: leafcutter + honeydew after econ-growth lands (honeydew sits on the herd economy it is changing).
