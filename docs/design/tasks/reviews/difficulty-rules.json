@@ -1,0 +1,257 @@
+{
+ "impl:difficulty-rules": {
+  "summary": "Difficulty presets and custom rules are now applied through one table and one set of accessors. The default (naturalist) behaviour is bit-for-bit unchanged, the three 28-day runs show the expected ordering with two single-seed exceptions (rain hours and human casualties), and every acceptance criterion is met or partial as listed. The foundation already had the preset table and part of the plumbing, so this task added the accessors and rule overlays, the rules module, the New Game display data, the wiring and the tests. Typecheck is clean, and my tests pass (116 passed, 2 LONG-gated and skipped; the LONG rules test passed once).\n\n**What was built**\n- **Accessors (src/sim/balance/difficulty.ts):** `difficultyValue(sim, key)` returns the stored preset value, with the custom rules applied. `valueIn`, `effectiveParams` and `effectiveRule` are the config-level and rule-level versions.\n- **Rule overlays:** with default rules every accessor returns the stored value untouched. A rule changes a parameter only when it is explicit (`difficulty.custom`) or differs from what the preset implies.\n  - `weatherSeverity` scales the seven weather parameters (rain, storm, heat-wave and frost frequency, heat offset, rain-hit rate, flood inflow). `none` zeroes them but leaves the heat offset alone.\n  - `predators` replaces `predatorDensityMult`. `off` also zeroes founding threats and flight hazards.\n  - `humanActivity` replaces the human frequency. `off` also removes bait stations.\n  - `foundingLeniency` swaps in the Founding group of the gentle, naturalist or harsh column.\n  - `rivals: 0` also removes the incipient conspecific rivals.\n- **Rules module (src/sim/config/rules.ts):**\n  - `normalizeCustomRules` drops unknown or invalid values with an issue each, and refuses the fixed-at-generation rules mid-game.\n  - `applyRules` and `applyPreset` apply overrides at creation, including season length 5/7/10, the starting season (spring, summer or autumn start on day 3), the rival count and the world generator's copies. They also report incompatibilities such as people off or predators off.\n  - `naturalStart` and `startFor` work out the start date for a season length.\n- **Display data (src/sim/config/presetDisplay.ts):** preset cards with two-line descriptions and a row per table parameter, plus the custom-rules table with choices and a fixed-at-generation flag. All values are read from the table.\n- **Wiring:** every non-test read of the preset parameters, in about 30 files outside my paths, now goes through the accessors. `src/game/newGame/options.ts` now accepts `customRules` and `startSeason` and applies them, so the New Game screen's overrides reach the game. These were previously ignored.\n- **Newly consuming their values:**\n  - honeydew yield (herd production only)\n  - brood survival (divides the base brood hazard)\n  - worker lifespan (scales the old-age death threshold)\n  - orphan decline (slows ageing in an orphaned colony)\n  - starvation tolerance (scales worker health loss)\n  - opening grace (scales the human-effect grace period `HUMAN_GRACE_GD` by `openingGraceGd` / 0.3)\n  - `forecastPanel` (hides the founding forecast in the founding view)\n  - `foundingLeniency` (decides whether the site read-out starts on its own)\n- **Run tool:** `tools/sim/difficultyRun.ts` runs a game under a preset and optional custom rules and counts weather, threats and losses.\n\n**Numbers for the 28-day runs** (seed 1, woodland-edge, 60 workers and 30/15 stores added at the hand-over so the colony is big enough to show losses; the unseeded colony starts with 10 workers and dies out by winter, so its counts say little):\n\n| | gentle | naturalist | harsh |\n|---|---|---|---|\n| Storm hours | 4 | 3 | 25 |\n| Heat hours | 0 | 66 | 85 |\n| Rain, mm | 294 | 232 | 634 |\n| Rain hours | 109 | 87 | 93 |\n| Predator spawns | 135 | 7464 | 10995 |\n| Human events | 140 | 289 | 410 |\n| Human casualties | 1 | 17 | 0 |\n| Ant deaths | 51 | 67 | 87 |\n| Brood deaths | 25 | 62 | 13 |\n\nStorms, heat, rain millimetres, predator spawns, human events and ant deaths follow gentle < naturalist < harsh. Rain hours and human casualties do not, and brood deaths are highest on naturalist; the weather differences between runs are partly sampling noise, since a single run is one draw of the weather. A second sample uses weather alone over 200 years per setting, in events per year:\n\n| | rain | storm | heat | frost |\n|---|---|---|---|---|\n| gentle | 15.35 | 1.20 | 0.74 | 1.48 |\n| naturalist | 16.56 | 2.15 | 1.02 | 1.59 |\n| harsh | 17.09 | 2.96 | 1.09 | 1.76 |\n\nAll four are strictly ordered there. With `weatherSeverity` none, all four are 0 per year; mild gives 13.44 / 1.43 / 0.69 / 1.44 and severe gives 18.65 / 2.75 / 1.03 / 1.97.\n\nThe custom-rules run (naturalist, `predators: off, rivals: 0, humanActivity: off`) shows zero predator spawns, predator strikes, bird visits, rival raids and encounters, human events and casualties, and zero rival colonies at the end. The same game with default rules shows predators, people and three rival colonies; the LONG test checks this over 3 days.\n\n**Bit-for-bit proof** (state hash of a generated woodland-edge world, seed 1, taken at tick 3000, at the hand-over and one day after, comparing the code before my changes with the code after):\n- **Naturalist:** identical to the baseline at all three points (dab32bfe, 6eccad55, dbfa796c), hash including config.\n- **Gentle and harsh:** differ from baseline on purpose, because the previously unread parameters are now consumed. To check the overlay logic itself, I ran the new code with those parameters set to naturalist values and the hash excluding `config.difficulty.params`. The result was identical to the baseline at ticks 1, 100, 500, 1500 and 3000, and through hand-over plus one day, for both presets.\n\n**Decisions and contradictions**\n- GDD 08's custom-rule table shows gentle with Low human activity and Mild weather, and harsh with High and Severe. GDD 06's per-preset parameters already carry that scaling, so applying 'mild' on top would count it twice. The presets therefore keep 'normal' for both rules, and the preset parameters stay the source of truth.\n- `openingGraceGd` is only wired into the existing human grace period. Gating all creature and human spawns for the opening would have changed naturalist behaviour.\n- `rivals: 0` removes the incipient rivals as well. GDD 05 says incipients \"do not count toward the 0-4 setting\", but the acceptance wording (\"zero events of that kind\") reads more naturally this way. A first run with `rivals: 0` still left one incipient colony alive, which is why I made the change.\n- GDD 06 \u00a714.1 says weather severity multiplies the preset values; I implemented it as a multiplier and recorded that.\n\n**Appendix E checks and what other modules still need**\n- **Covered at accessor level here:** GDD 04 E12 (footstep warning 4.5 s on gentle), E16 (no bait on gentle), E23 (half the human events on gentle), GDD 03 E24 (collapse off on gentle), GDD 05 E25 thresholds (0.75 / 0.60 / 0.40) and GDD 01 E25 (cold-speed floor 0.5). GDD 08 E13 and GDD 06 E1 are covered by the season-length tests.\n- **Need other modules:** GDD 05 E25 itself (28-day quiet-share soak, seeds 1-5, three presets), GDD 05 E23 (gentle founding protection, driven by the preset-keyed creature levers), and GDD 04 E24 (people off: no `human.start` in 5 game days). The 28-day runs and the LONG test above give zero human starts with people off, but no module-level test of E24 was run.\n\n**Acceptance**\n1. Typecheck and tests green: met for my paths. The full suite was not run.\n2. Table-driven check against GDD 06: met (all 44 parameters \u00d7 3 presets, plus the rule values per preset).\n3. Three 28-day runs plus the custom-rules run: partial. Zero-event part met; the ordering part is described above and has the two single-seed exceptions.\n4. Season length 5 and 10: met. Tests check years of 20 and 40 days, every season boundary, the default-year windows scaling, and `createNewGame` for all four species.\n\n**Not done**\n- Several parameters have no consuming system yet: queen lifespan and queen senescence (queens never die of age; the draw happens but nothing enforces it), the founding threat director, nuptial-flight predator events (possessed flight, tier 3), alert lead warnings and founding assist (UI hints).\n- `setDifficulty` mid-game is not mine; it already keeps rules and custom up to date and leaves the fixed-at-generation rules alone.\n- GDD 05's other per-preset levers (predator damage, rival war and founding multipliers, carrion, bait toxicity) stay in their owners' tables keyed by preset. They are not merged into the difficulty table.\n- GDD 07 asks difficulty for `diseaseMult` (Escovopsis), but GDD 06 \u00a714 has no value for it. The leafcutter module reads it by a cast with default 1. The wiring test allows that one direct read.\n\n**Other findings**\n- Creature spawn counts are inflated by respawn churn (jumping spiders about 6700 spawns in 28 days against a cap of 4). Use deaths, strikes and bird visits when judging threat levels.\n- Pre-existing failures, identical on the code before my changes: weather.test determinism (1), sources drops/season (5, the 3 files totalling 6 failures with the weather one), rivals/founding.test (1) and founding/reopen.test (1). The rivals/founding.test run also hit a TypeError in `systems.ts` on the live tree.",
+  "filesTouched": [
+   "src/sim/balance/difficulty.ts",
+   "src/sim/balance/difficulty.table.test.ts",
+   "src/sim/balance/difficulty.accessors.test.ts",
+   "src/sim/config/rules.ts",
+   "src/sim/config/presetDisplay.ts",
+   "src/sim/config/rules.test.ts",
+   "src/sim/config/presetDisplay.test.ts",
+   "src/sim/config/wiring.test.ts",
+   "src/sim/config/weather.difficulty.test.ts",
+   "src/sim/config/rules.long.test.ts",
+   "tools/sim/difficultyRun.ts",
+   "docs/design/tasks/progress/difficulty-rules-impl.md",
+   "src/game/newGame/options.ts",
+   "src/sim/createGame.ts",
+   "src/sim/ants/actions/workRate.ts",
+   "src/sim/colony/brood.ts",
+   "src/sim/colony/physiology.ts",
+   "src/sim/colony/founding/care.ts",
+   "src/sim/colony/founding/clutch.ts",
+   "src/sim/colony/founding/commands.ts",
+   "src/sim/colony/founding/exposure.ts",
+   "src/sim/colony/founding/readout.ts",
+   "src/sim/colony/founding/view.ts",
+   "src/sim/colony/overwinter/begin.ts",
+   "src/sim/colony/reproduction/launch.ts",
+   "src/sim/colony/reproduction/rearing.ts",
+   "src/sim/combat/damage.ts",
+   "src/sim/ecology/creatures/bird.ts",
+   "src/sim/ecology/creatures/conditions.ts",
+   "src/sim/ecology/creatures/threat.ts",
+   "src/sim/ecology/plants/system.ts",
+   "src/sim/ecology/sources/spawn.ts",
+   "src/sim/environment/antThermal.ts",
+   "src/sim/environment/effectsRain.ts",
+   "src/sim/environment/human/effects/common.ts",
+   "src/sim/environment/human/rules.ts",
+   "src/sim/environment/temperature.ts",
+   "src/sim/environment/weather.ts",
+   "src/sim/locomotion/speed.ts",
+   "src/sim/nest/collapse/index.ts",
+   "src/sim/nest/flood/inflow.ts",
+   "src/sim/rivals/founding.ts",
+   "src/sim/rivals/index.ts",
+   "src/sim/rivals/raids.ts"
+  ],
+  "verification": [
+   "Typecheck: npx tsc --noEmit -p tsconfig.json clean at the end.",
+   "Bit-for-bit, naturalist: state hash of a generated woodland-edge world, seed 1, at tick 3000, at hand-over and one day later (dab32bfe, 6eccad55, dbfa796c) is identical before and after, hash including config (test-output/difficulty/baseline-naturalist.json vs after-naturalist.json). 'Before' is a frozen copy of the source tree taken at the start, so other engineers' edits cannot confuse it.",
+   "Overlay equivalence on gentle and harsh: the new code with the newly wired parameter values set to naturalist values, hashing without config.difficulty.params, equals the baseline at ticks 1, 100, 500, 1500 and 3000, and through hand-over plus one day (test-output/difficulty/np-snapA-*.json vs np-snapB-*.json, hash3000 probes).",
+   "My tests: npx vitest run src/sim/config src/sim/balance/difficulty.table.test.ts src/sim/balance/difficulty.accessors.test.ts src/game/newGame gives 7 files passed, 116 tests passed, 2 LONG tests skipped, about 25 s under load. The wiring test scans src/sim and fails if a system reads config.difficulty.params or the main rules directly.",
+   "LONG: FOUNDRESS_LONG=1 npx vitest run src/sim/config/rules.long.test.ts passed in 371 s (control shows predators, human events and rival colonies; custom run shows none).",
+   "Touched-module tests: 2 batches of 62 files (environment, creatures, plants, sources, overwinter, reproduction, succession, founding, brood, physiology, rivals, collapse, flood, combat, commands, newGame, createGame) gave 8 failures in 5 files. All 5 files fail identically on the baseline source copy: weather.test (1), sources drops/season (5), rivals/founding.test (1), founding/reopen.test (1).",
+   "28-day runs, one at a time, with 60 seeded workers and food: test-output/difficulty/difficulty-{gentle,naturalist,harsh}-1-w60.json and difficulty-naturalist-1-w60-custom.json; first rivals-0 custom run kept one incipient colony alive, which led to the incipient change; the rerun shows 0 rival colonies.",
+   "Weather-only statistics, 200 years per setting: test-output/difficulty/weatherStats.json (strict ordering of rain, storm, heat and frost by preset; severity none = 0).",
+   "resolveNewGame({difficulty:'harsh', customRules:{seasonLengthDays:10, rivals:0, predators:'off'}, startSeason:'autumn'}) gives a 10-day season, autumn day 3, rival count 0, incipient 0 (run via tools/sim/run-ts.mjs)."
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Typecheck and tests green",
+    "status": "met",
+    "evidence": "Typecheck clean; all tests in my paths pass (116 passed, 2 LONG-gated skipped, LONG rules test passed once). Tests of the touched modules show only failures that also occur on the baseline source copy (weather.test determinism, sources drops/season, rivals/founding.test, founding/reopen.test). The full suite was not run, as instructed."
+   },
+   {
+    "criterion": "2. A table-driven test checks every parameter of every preset against GDD 06's table",
+    "status": "met",
+    "evidence": "src/sim/balance/difficulty.table.test.ts: expected values are typed in from GDD 06 section 14 (and the owning chapters 01, 04, 05, 00-index C10/C11) for all 44 parameters x 3 presets, plus rule values per preset and a coverage check that the table and the expected rows have the same keys. Passes."
+   },
+   {
+    "criterion": "3. Three 28-day headless runs (same seed) show the expected ordering in threat counts, losses and weather severity; disabling predators/rivals/human activity yields zero events of that kind",
+    "status": "partial",
+    "evidence": "Zero-event part met: with predators off, rivals 0 and human activity off there are 0 predator spawns, strikes, bird visits, rival raids and encounters, human events and casualties, and 0 rival colonies (difficulty-naturalist-1-w60-custom.json; the LONG test checks it over 3 days with a default-rules control). Ordering gentle < naturalist < harsh holds for storm hours 4/3/25 (gentle not below naturalist), heat hours 0/66/85, rain mm 294/232/634, predator spawns 135/7464/10995, human events 140/289/410 (ratios 0.48/1/1.42) and ant deaths 51/67/87. It does not hold in the single seed for rain hours 109/87/93, human casualties 1/17/0 or brood deaths 25/62/13; the weather draw differs between runs. A weather-only sample of 200 years per setting is strictly ordered for rain, storm, heat and frost."
+   },
+   {
+    "criterion": "4. Season length 5 and 10 produce years of 20 and 40 days with all seasonal windows scaled",
+    "status": "met",
+    "evidence": "src/sim/config/rules.test.ts: for lengths 5, 7 and 10 the year is 20, 28 and 40 days (ticks per year follow), every season boundary and the year rollover are checked day by day, default-year windows (for example flight doy 9-13) open and close at the scaled ticks and are always 5/28 of the year, `scaleDoy` scales, the species start day is re-derived for every species, and `createNewGame` on each length starts on the right season and day. The startSeason rule (spring, summer, autumn on day 3, never winter) is tested too."
+   }
+  ],
+  "notDone": [
+   "No system consumes queenLifespanMult or the queenSenescence rule: queens are never killed by age (workers are), so GDD 06 section 13.2 queen lifespan and senescence still need an owner. Accessor and rule are ready.",
+   "openingThreatsMax has no consumer because the founding threat director (GDD 06 5.6) does not exist. flightPredatorEvents needs the possessed nuptial flight (tier 3), alertLeadWarnings needs the alert layer, and foundingAssist needs the UI hint. All are reachable through difficultyValue or effectiveRule.",
+   "GDD 07 asks difficulty for diseaseMult (Escovopsis) but GDD 06 section 14 has no value. The leafcutter module reads it by a cast with default 1 (src/sim/species/modules/fungus/economy.ts:35), and the wiring test allow-lists that one direct read. Neither a table value nor a contract field was invented.",
+   "GDD 05's other preset-keyed levers (predator damage, telegraph, AI dodge, rival war threshold and founding multipliers, early-raid lever, carrion, collapse warning) stay in their owners' tables keyed by preset, not in the difficulty table.",
+   "Mid-game setDifficulty is not mine: it already strips the fixed-at-generation rules and recomputes the rules, and every accessor reads the new values at once.",
+   "GDD 05 E25 (28-day quiet-share soak, seeds 1-5, three presets) and GDD 04 E24 as a module test with real systems were not run by me. The thresholds and the human-off effect are covered at accessor level and in the LONG test.",
+   "No browser or UI check was made: the New Game screen was not changed. It still builds its own rule table (src/ui/screens/newgame/form.ts); presetDisplay.ts is available for it to adopt."
+  ],
+  "contractChanges": [
+   "None to src/sim/types/** or src/core/**.",
+   "Additive exports in src/sim/balance/difficulty.ts: DifficultyKey, DifficultyInputs, DifficultySource, DIFFICULTY_KEYS, difficultyValue, valueIn, effectiveParams, effectiveRule, presetRuleValues, LENIENCY_PRESET, START_DAY_OF_SEASON_RULE, OPENING_GRACE_REF_GD.",
+   "Additive optional fields on NewGameOptions (src/game/newGame/options.ts): customRules and startSeason; they match the fields the New Game screen already sent."
+  ],
+  "notesForIntegrator": [
+   "Edits outside my paths (all one-line accessor replacements plus an import line, unless noted): combat/damage.ts; environment/{antThermal,effectsRain,temperature,weather}.ts (temperature.ts also lost the now-unused severityMult; weather.ts no longer multiplies by severity itself, because the accessor does); environment/human/rules.ts (humanActivityOff and humanFreqMult now use the accessors; customActivity removed); environment/human/effects/common.ts (grace scales with openingGraceGd); colony/brood.ts (survival hazard), colony/physiology.ts (starvation, orphan decline, worker lifespan); colony/founding/{care,clutch,commands,exposure,readout,view}.ts (view hides the forecast when the panel is off; readout uses founding leniency); colony/overwinter/begin.ts; colony/reproduction/{launch,rearing}.ts; ecology/creatures/{bird,conditions,threat}.ts; ecology/plants/system.ts (honeydew yield); ecology/sources/spawn.ts; nest/collapse/index.ts; nest/flood/inflow.ts; locomotion/speed.ts; ants/actions/workRate.ts; rivals/{index,raids,founding}.ts; createGame.ts (world rule inputs use the accessor so rivals 0 removes the incipient rivals); game/newGame/options.ts (applies customRules and startSeason through applyRules; this is the only place outside the sim that needed it).",
+   "Behaviour that is intentionally new on gentle and harsh: honeydewYieldMult, broodSurvivalMult, workerLifespanMult, starvationToleranceMult, orphanDeclineMult and openingGraceGd are consumed for the first time, and forecastPanel hides the founding forecast on harsh. Colony-viability numbers on gentle and harsh will move accordingly. Naturalist is unchanged.",
+   "Another engineer's leafcutter work is in progress in src/sim/species/modules/fungus, balance/species-leafcutter.ts, types/colonyModules.ts and colony/founding/species/atta.ts. The live tree showed transient type errors and, during one vitest run, a TypeError in systems.ts:57 (a system with no phase). I used frozen copies of the source (baseline plus only my files) for the hash proofs and the 28-day runs.",
+   "The shared per-preset tables of the other chapters are not merged. The creature module reads CREATURE_LEVERS and the rivals module reads RIVAL_LEVERS by difficulty.preset, so those levers do not respond to custom rules.",
+   "The 28-day tool is node tools/sim/run-ts.mjs tools/sim/difficultyRun.ts --preset P --days 28 --seed 1 --workers 60 --food 30,15 [--rules '{...}'] [--cache DIR]. The cache is keyed by options, not by code, so delete it after code changes.",
+   "Weather event counts saturate for heat and frost (about one heat wave per summer), so short runs cannot order them strictly by difficulty; the committed weather test is strict for storms and totals, and strict for all four kinds under FOUNDRESS_LONG=1."
+  ]
+ },
+ "verify:difficulty-rules": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the spec docs/design/tasks/difficulty-rules.md, the design seed, the architecture doc, contracts guidance, tech-stack section 7, GDD 06 sections 1.6, 1.7, 5.2, 13.3 and 14/14.1, GDD 04 section 15.7, GDD 05 section 5 (plus incipient rules at lines 459-470 and 651), and GDD 08 section 3.7.",
+   "Read all owned code: src/sim/balance/difficulty.ts, src/sim/config/rules.ts, src/sim/config/presetDisplay.ts and all task tests. Reviewed the wiring diff across the 32 touched files outside the owned paths with git diff 331d105 HEAD.",
+   "npm run typecheck: clean, before and after adding my tests.",
+   "npx vitest run src/sim/config src/sim/balance/difficulty.table.test.ts src/sim/balance/difficulty.accessors.test.ts: 6 files passed, 112 tests passed, 2 LONG tests skipped, 19.7 s.",
+   "Probe script run with tools/sim/run-ts.mjs (scratchpad/probe.ts). invalidCustomRules accepts {toString:5} and {constructor:1} as valid rules, and throws a TypeError on {hasOwnProperty:...}.",
+   "Checked the New Game UI path (src/ui/screens/newgame/form.ts presetRules/ruleOverrides): the form only sends rules that differ from presetRuleValues.",
+   "Checked that BIRD_RATE equals PREDATOR_SETTING_MULT, so the bird.ts change keeps behaviour; BIRD_RATE is now dead.",
+   "Checked every use of lifespanGd, layingLog sizing and the doy-based calendar call sites for the season-length change.",
+   "Read the implementer's 28-day run outputs: test-output/difficulty/difficulty-{gentle,naturalist,harsh}-1-w60.json.",
+   "npx vitest run of my two new verify files: 23 tests, 12 pass, 11 fail on purpose (each failure shows a defect), 3.9 s."
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Presets imply humanActivity 'normal' on gentle and harsh, so the same rule value means different things",
+    "where": "src/sim/balance/difficulty.ts:62-72 (PRESET_RULES.gentle/harsh.humanActivity) together with overrides()/valueIn 'human' group at :206-209, :250-252",
+    "detail": "GDD 08 \u00a73.7 sets human activity to Low / Normal / High for Gentle / Naturalist / Harsh. GDD 04 \u00a715.7 says the rule REPLACES HUMAN_FREQ_MULT (off 0, low 0.5, normal 1.0, high 1.5), and those values are exactly the presets' humanFreqMult (0.5 / 1.0 / 1.5). Unlike weatherSeverity (a multiplier), using low and high here would not count anything twice. The implementer's double-counting argument holds only for weather; predators already use few and many correctly. With 'normal' stored, the outcomes are inconsistent: (1) on Gentle the New Game screen shows 'Normal', and picking 'Low' gives 0.5, the same as not changing anything. (2) On Harsh, 'Normal' means 1.5 and 'High' also means 1.5. (3) The same value 'normal' gives humanFreqMult 0.5 when it is implicit (New Game) and 1.0 when it is explicit (setDifficulty custom mid-game, or applyRules({humanActivity:'normal'})). Reproduce: valueIn(applyRules(defaultGameConfig('lasius-niger',1,'gentle'),{humanActivity:'normal'}).config,'humanFreqMult') is 1, while valueIn(applyRules(defaultGameConfig('lasius-niger',1,'gentle'),{}).config,'humanFreqMult') is 0.5. Fix: gentle 'low', harsh 'high' (world.humanActivity copies then follow). Failing tests: src/sim/balance/difficulty.verify.test.ts, block 'humanActivity means the same on every preset' (5 tests)."
+   },
+   {
+    "severity": "major",
+    "title": "AC3 ordering of threats and losses not shown",
+    "where": "test-output/difficulty/difficulty-*-1-w60.json; tools/sim/difficultyRun.ts",
+    "detail": "The spec asks for the expected gentle < naturalist < harsh ordering in threat counts, losses and weather severity. In the three 28-day runs, predatorStrikes is 0 and birdVisits is 0 on all three presets. The only 'threat count' that is ordered, predatorsSpawned, is respawn churn by the implementer's own account. Human casualties are 1 / 17 / 0, brood deaths 25 / 62 / 13, and floods 57 on naturalist against 36 on harsh, although harsh has 634 mm of rain and a 1.4x inflow multiplier. The harsh colony dies out (workersEnd 0, 59 starvation deaths), which hides most harsh-side losses after that point. The weather part holds, both in the runs (rain mm, storm and heat hours) and in the 200-year weather statistics. The implementer marked AC3 'partial', and that is accurate, so the criterion is not met. Zero birds and zero strikes on every preset points at the creature or bird modules (behaviour unchanged by this task: BIRD_RATE equals PREDATOR_SETTING_MULT), but the acceptance evidence is missing either way. It needs a multi-seed comparison (FOUNDRESS_LONG) of deaths by cause and strikes, or a ruling."
+   },
+   {
+    "severity": "minor",
+    "title": "Rule validation accepts or throws on Object.prototype key names; a setDifficulty command can throw out of the tick",
+    "where": "src/sim/balance/difficulty.ts:125-133 (invalidCustomRules: RULE_VALUES[k] lookup on a plain object), used by src/sim/config/rules.ts normalizeCustomRules and src/sim/commands.ts PAYLOAD_GUARDS",
+    "detail": "Keys are looked up with a plain index on an object literal. 'toString' and 'constructor' (also 'valueOf', which throws) resolve to Object.prototype members. These are truthy functions, so {\"toString\":5} or {\"constructor\":1} counts as a VALID rule and is copied into difficulty.custom and config.rules, which is persisted state. 'hasOwnProperty' is called as the validator and throws 'Cannot convert undefined or null to object', and '__proto__' throws 'check is not a function'. normalizeCustomRules documents 'never thrown'. With the JSON command {type:'setDifficulty',custom:{hasOwnProperty:1}} from the debug API, sim.tick() throws. The lookup was already in the foundation, but it is now in an owned file and drives the new normalizeCustomRules. Fix: use Object.hasOwn(RULE_VALUES, k). Failing tests: difficulty.verify.test.ts 'rule validation of untyped JSON' (5 tests) and rules.verify.test.ts 'a setDifficulty payload with a prototype-named key is rejected, not thrown out of the tick'."
+   },
+   {
+    "severity": "minor",
+    "title": "rivals: 0 also removes incipient conspecifics, against GDD 05",
+    "where": "src/sim/balance/difficulty.ts:256-258 ('rivals' group), src/sim/config/rules.ts:119, src/sim/createGame.ts worldRuleInputs",
+    "detail": "GDD 05 line 651 says '0-4 by custom rule (GDD 08), plus 1-3 incipient conspecific foundations', and \u00a73.8 depends on incipients for brood raids. The owning chapter therefore keeps incipients at rivals 0. The implementer recorded the deviation, choosing the AC3 wording 'zero events of that kind'. That is a reasonable reading, but it changes another chapter's rule, so it needs an orchestrator ruling rather than a silent change. The display (presetDisplay row 'Rival colonies' shows only incipientRivals) and the ruleNotes text both assume the deviation."
+   },
+   {
+    "severity": "minor",
+    "title": "openingGraceGd is wired to an unrelated constant; the opening spawn grace of GDD 06 \u00a75.2 does not exist",
+    "where": "src/sim/environment/human/effects/common.ts:98",
+    "detail": "GDD 06 \u00a75.2: 'no human event or predator spawns for the first OPEN_GRACE_GD = 0.3 GD (Gentle 0.6, Harsh 0.15)'. No system implements that gate. Instead the parameter scales GDD 04's fixed HUMAN_GRACE_GD = 0.25 (no lethal effect within 200 BU of the queen), by openingGraceGd / 0.3. That coupling is invented and appears in neither chapter. Under naturalist it is harmless (factor 1). It makes the display row 'Grace period before threats: 0.6 days' untrue, because spawns are not gated at all. The implementer did report the missing gate. Further parameters have no consumer (reported, accepted): queenLifespanMult, queenSenescence, openingThreatsMax, flightPredatorEvents, alertLeadWarnings, foundingAssist. The RULE_DISPLAY text for queenSenescence promises an effect that does not happen."
+   },
+   {
+    "severity": "minor",
+    "title": "workerLifespanMult scales only the death threshold, not the other uses of lifespan",
+    "where": "src/sim/colony/physiology.ts:231; src/sim/colony/overwinter/begin.ts:124,131",
+    "detail": "The multiplier is applied only at the death check (physioAgeGd >= lifespanGd * mult). Overwinter uses physioAgeGd / lifespanGd for 'oldWorkers' (WINT_OLD_AGE_FRAC) and for ranking winter losses, both unscaled. On Gentle (x1.2), workers are therefore counted 'old' for winter losses earlier than their real end of life, and on Harsh later. A consistent approach scales lifespanGd at the draw, or applies the multiplier wherever the lifespan is read."
+   },
+   {
+    "severity": "minor",
+    "title": "Test hygiene and small leftovers",
+    "where": "src/sim/config/weather.difficulty.test.ts:9; src/sim/balance/difficulty.table.test.ts:110-121; src/sim/balance/creatures.ts:395; src/sim/config/rules.ts:17",
+    "detail": "(a) weather.difficulty.test.ts uses 5 seeds outside LONG; the working rules allow at most 3. (b) The table test 'rule values each preset implies match ... GDD 08 \u00a73.7' quietly leaves out humanActivity and weatherSeverity, which is how the first finding got through. (c) BIRD_RATE is no longer read: bird.ts now uses predatorDensityMult with the comment '= BIRD_RATE', so tuning BIRD_RATE silently does nothing. (d) RuleIssueReason 'winter-start' is never produced (winter is rejected as 'unknown-or-invalid'). (e) naturalStart in rules.ts duplicates the start-day arithmetic in defaultGameConfig; it should be a single shared helper. (f) The edits to temperature.ts and human/rules.ts go beyond one-line replacements: the exported severityMult was removed from temperature.ts. Typecheck is clean, so nothing breaks today, but it is a removal from another module's API and is not listed as such."
+   }
+  ],
+  "testsAdded": [
+   "src/sim/balance/difficulty.verify.test.ts: 'humanActivity means the same on every preset' (5 tests, FAIL on purpose: gentle/harsh New Game choices, explicit vs implicit equality, GDD 08 preset values)",
+   "src/sim/balance/difficulty.verify.test.ts: 'every rule combination gives finite, table-shaped values' (432 combinations, passes) and 'predators off / people off / rivals 0 zero their parameters; turning them back restores the preset' (passes)",
+   "src/sim/balance/difficulty.verify.test.ts: 'rule validation of untyped JSON' x5 keys toString/constructor/hasOwnProperty/__proto__/valueOf (FAIL on purpose)",
+   "src/sim/config/rules.verify.test.ts: natural start stays inside the species founding window at season lengths 5/7/10 for all 4 species (passes)",
+   "src/sim/config/rules.verify.test.ts: resolveNewGame applies customRules and startSeason to config, rules and world copies; garbage JSON is ignored (passes)",
+   "src/sim/config/rules.verify.test.ts: setDifficulty mid-game on a real sim: override acts next tick, generation rules refused, removal restores preset; preset change keeps overrides (passes)",
+   "src/sim/config/rules.verify.test.ts: setDifficulty with a prototype-named key must not throw out of the tick (FAIL on purpose)"
+  ]
+ },
+ "fix:difficulty-rules": {
+  "summary": "Fixed six of the seven findings and left finding 2 (AC3 ordering) and the incipient part of finding 4 open. Typecheck is clean, and my paths pass 147 tests with 2 LONG-gated skips, including all the reviewer's previously failing tests: the humanActivity, prototype-key and setDifficulty ones. Finding 2 stays partial: in four 6-day probes (plus the earlier 28-day runs) no predator ever telegraphs or strikes at an ant, which sits in the creature behaviour code, outside my paths.",
+  "filesTouched": [
+   "src/sim/balance/difficulty.ts",
+   "src/sim/balance/difficulty.accessors.test.ts",
+   "src/sim/balance/difficulty.table.test.ts",
+   "src/sim/config/presetDisplay.ts",
+   "src/sim/config/presetDisplay.test.ts",
+   "src/sim/config/rules.ts",
+   "src/sim/config/weather.difficulty.test.ts",
+   "src/sim/createGame.ts",
+   "src/sim/environment/human/effects/common.ts",
+   "src/sim/environment/human/schedule.test.ts",
+   "src/sim/environment/temperature.ts",
+   "src/sim/colony/physiology.ts",
+   "src/sim/colony/overwinter/begin.ts",
+   "src/sim/balance/creatures.ts",
+   "src/sim/ecology/creatures/bird.ts",
+   "tools/sim/difficultyRun.ts",
+   "docs/design/tasks/progress/difficulty-rules-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: clean.",
+   "npx vitest run src/sim/balance/difficulty src/sim/config: 8 files passed, 1 skipped (LONG); 147 tests passed, 2 skipped. This includes the reviewer's difficulty.verify.test.ts and rules.verify.test.ts, which failed on purpose before the fixes.",
+   "npx vitest run src/sim/colony/overwinter src/sim/colony/physiology.verify.test.ts src/sim/colony/starvation.test.ts src/sim/createGame.test.ts src/sim/ecology/creatures/bird.test.ts src/sim/environment/temperature.test.ts: 75 passed, 1 skipped.",
+   "npx vitest run src/sim/environment/human: the first run had one failure, E23 in schedule.test.ts (footsteps on gentle = 0.5 x naturalist). The test hard-coded rules.humanActivity='normal' for every preset; I changed it to the preset-implied value, and schedule.test.ts then passed 8/8. I did not re-run the rest of the human folder after that edit, but only schedule.test.ts changed.",
+   "npx vitest run src/ui/screens/newgame src/worldgen/params.test.ts src/sim/commands.verify.test.ts src/sim/commands.validation.test.ts: 28 passed.",
+   "AC3 probes: node tools/sim/run-ts.mjs tools/sim/difficultyRun.ts --preset P --days 6 --seed 1 --workers 60 --food 30,15 for the three presets; JSON in test-output/difficulty/ac3/. Numbers are listed under the AC3 criterion below. The earlier 28-day JSONs are in test-output/difficulty/."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1: humanActivity means the same on every preset",
+    "status": "met",
+    "evidence": "PRESET_RULES now has gentle 'low' and harsh 'high' (GDD 08 \u00a73.7). Their values equal the presets' humanFreqMult (0.5 / 1.0 / 1.5), so nothing is double-counted. Explicit and implicit values now agree. The 5 failing tests pass, and the table test now pins humanActivity (and weatherSeverity)."
+   },
+   {
+    "criterion": "Finding 3: prototype-named rule keys",
+    "status": "met",
+    "evidence": "invalidCustomRules uses Object.hasOwn(RULE_VALUES, k), so toString, constructor, hasOwnProperty, __proto__ and valueOf are rejected as unknown rules and nothing is thrown out of the tick. The 5 key tests and the setDifficulty payload test pass."
+   },
+   {
+    "criterion": "Finding 4: rivals 0 also removes incipient conspecifics",
+    "status": "partial",
+    "evidence": "This is an open ruling. I kept the behaviour, because AC3 asks for zero events when rivals is 0, and marked it with a DECISION comment at the rivals case in valueIn(). GDD 05 \u00a75/\u00a77 and 00-index line 301 say incipients do not count toward the 0-4 setting. To follow the chapter, change the rivals case of valueIn() in difficulty.ts to leave incipientRivals at the preset value, drop incipientRivals from the rivals-0 expectations in difficulty.verify.test.ts and difficulty.accessors.test.ts, and revise the matching ruleNotes text and the 'Rival colonies' display row."
+   },
+   {
+    "criterion": "Finding 5: openingGraceGd wired to an unrelated constant",
+    "status": "partial",
+    "evidence": "I removed the invented coupling: inGrace() uses the plain HUMAN_GRACE_GD again (naturalist unchanged), and OPENING_GRACE_REF_GD is gone. The spawn gate of GDD 06 \u00a75.2 is still missing, because it would change naturalist behaviour and touch the human scheduler and creature director. I added UNWIRED_PARAMS and UNWIRED_RULES to presetDisplay.ts, with an inEffect flag on card rows and rule choices. A test checks that nothing on those lists is read anywhere, so wiring one forces its removal from the list. Lists: openingThreatsMax, openingGraceGd, queenLifespanMult, flightPredatorEvents, alertLeadWarnings, queenSenescence, foundingAssist."
+   },
+   {
+    "criterion": "Finding 6: workerLifespanMult only on the death threshold",
+    "status": "met",
+    "evidence": "New accessor workerLifespanGd(src, ant) in difficulty.ts. It is used for the death check in physiology.ts and for oldWorkers and the loss ranking in overwinter/begin.ts. Naturalist is unchanged because the multiplier is 1. A test in difficulty.accessors.test.ts covers it, and the overwinter and physiology tests pass."
+   },
+   {
+    "criterion": "Finding 7 (test hygiene and leftovers): a to f",
+    "status": "met",
+    "evidence": "(a) weather.difficulty.test.ts runs 3 seeds by default and 5 under LONG. (b) The table test now pins humanActivity and weatherSeverity per preset, and checks humanActivity against humanFreqMult. (c) BIRD_RATE is now = PREDATOR_SETTING_MULT, so the two cannot diverge. (d) 'winter-start' removed from RuleIssueReason. (e) defaultGameConfig now uses the shared naturalStart from config/rules. (f) severityMult is restored in temperature.ts as an exported function reading effectiveRule."
+   },
+   {
+    "criterion": "Finding 2 / AC3: ordering of threats, losses and weather across presets",
+    "status": "partial",
+    "evidence": "Not met in the strict sense. 6-day runs, seed 1, 60 workers, cheat hand-over; the order below is gentle / naturalist / harsh. livePredatorsAvg (hourly mean of live predators, not respawn churn) is 3.13 / 7.81 / 7.72: gentle is clearly lower, but naturalist and harsh are equal, which looks like a spawn cap. predatorsSpawned is 22 / 1597 / 2379. humanEventsStarted is 58 / 62 / 67. humanCasualties are 0 / 6 / 2, not ordered. Strikes, telegraphs and bird visits are 0 on all three, so no predator ever targets an ant. The earlier 28-day runs had the same zeros, and one more reason to doubt strikes there is that all three ran with 60 cheat-spawned workers. Weather over 6 days is noise (rain mm 28 / 46 / 16); the weather ordering holds in the 28-day runs and in the 200-year statistics test."
+   }
+  ],
+  "notDone": [
+   "Finding 2 / AC3 stays partial. Zero predator telegraphs and strikes across presets is behaviour of the creature modules, outside my paths: the predators and birds are present but never act on the player's ants in headless play. That module's owner should look at it. A multi-seed FOUNDRESS_LONG comparison of deaths by cause was not run, because a 28-day run takes about 15 minutes per preset on this loaded machine. Casualty ordering at seed 1 is noise.",
+   "Finding 4: the rivals 0 versus incipient conflict (GDD 05 \u00a75/\u00a77 and 00-index line 301 against the task's AC3) needs an orchestrator ruling. I kept the AC3 reading and marked the spot.",
+   "Finding 5: the opening spawn gate of GDD 06 \u00a75.2 does not exist: no human event or predator spawn is blocked for the first OPEN_GRACE_GD. Several parameters still have no consumer (openingThreatsMax, openingGraceGd, queenLifespanMult, flightPredatorEvents, alertLeadWarnings, and the rules queenSenescence and foundingAssist). They are now flagged inEffect:false for the New Game screen, which has not been wired to use the flag."
+  ],
+  "contractChanges": [
+   "src/sim/config/presetDisplay.ts (additive): PresetCard rows carry inEffect:boolean, RuleDisplay carries inEffect:boolean, plus new exports UNWIRED_PARAMS, UNWIRED_RULES and rowInEffect.",
+   "src/sim/balance/difficulty.ts (additive): new export workerLifespanGd(src, ant). Removed export OPENING_GRACE_REF_GD, which had no other users.",
+   "src/sim/environment/temperature.ts: severityMult(sim) is exported again; it now reads effectiveRule."
+  ],
+  "notesForIntegrator": [
+   "Edits outside my paths, all small. Source: human/effects/common.ts (inGrace no longer scales by the difficulty), colony/physiology.ts and colony/overwinter/begin.ts (use workerLifespanGd), createGame.ts (naturalStart shared), temperature.ts (severityMult), balance/creatures.ts (BIRD_RATE = PREDATOR_SETTING_MULT), ecology/creatures/bird.ts (comment). Tests: human/schedule.test.ts, because E23 broke once gentle implies 'low' (the test now sets rules.humanActivity to the preset-implied value). kitchen.verify.test.ts still hard-codes 'normal' but uses naturalist, so it is fine.",
+   "tools/sim/difficultyRun.ts now also reports predatorTelegraphs, livePredatorsAvg and workersOutsideAvg.",
+   "The new presetDisplay test reads all of src through import.meta.glob '?raw' (no node types in this project), so it adds about a second of transform time.",
+   "Tests in other areas that set rules.humanActivity by hand next to a preset change should use presetRuleValues(preset).humanActivity, as schedule.test.ts now does."
+  ]
+ }
+}

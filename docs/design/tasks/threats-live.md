@@ -1,0 +1,33 @@
+# Task threats-live — Predators that actually hunt (Opus; diagnosis first)
+
+## Why this task exists
+In every headless colony-life run so far no predator has ever telegraphed or struck at an ant. The difficulty task measured it (`docs/design/tasks/reviews/difficulty-rules.json`, finding "AC3 ordering of threats and losses not shown", and `progress/difficulty-rules-fix.md`): three 28-day runs, one per preset: `predatorStrikes` 0, `birdVisits` 0 on all three; a 6-day harsh probe: 7.7 live predators on average, 0 telegraphs, 0 strikes. The creature module's own tests pass (per kind, possessed scenarios, soak). So the creatures exist and work in their fixtures, and do nothing in a real world. Every viability number of the project so far was measured without predation.
+
+## Read in full
+- GDD 05 (`docs/design/gdd/05-ecology.md`): the creature chapters in full (predator families, the director, telegraphs, strike rules, expected losses, caps, bird visits, antlion pits, spiders; "balance levers per difficulty"); its Appendix E checks about creatures.
+- GDD 06 difficulty section (what each preset changes for predators) and `src/sim/balance/difficulty.ts` accessors that creatures read.
+- `src/sim/ecology/creatures/README.md`, `director.ts`, `spawn.ts`, `spawners.ts`, `predator.ts`, `hunters.ts`, `spiders.ts`, `antlion.ts`, `bird.ts`, `attack.ts`, `threat.ts`, `danger.ts`, `alerts.ts`, `queries.ts`.
+- `docs/STATUS.md` rulings R1–R22 (binding), and `docs/design/tasks/colony-life.md` with its ledger: another engineer is repairing the colony economy in measured rounds right now.
+- `tools/sim/difficultyRun.ts` (reports `predatorTelegraphs`, `livePredatorsAvg`, `workersOutsideAvg`), `tools/sim/life.ts`, `tools/sim/bench-colony.ts`.
+
+## You own
+`src/sim/ecology/creatures/**` except `prey.ts`, `preyFauna.ts` and their tests (the colony-life engineer is changing the hunted-prey rules there). New tool files under `tools/sim/threat*.ts`. Constants in `src/sim/balance/creatures.ts`. If the cause lies outside (world population, spawn sites from worldgen, the ants' perception/flee behaviour, combat hits), first prove it with a failing test or a counted reproduction, then: a fix under 30 lines in another module is allowed with a test beside it and a line in `test-output/threats-live/cross-edits.md` (file, what, why); a larger one goes in the report with the reproduction. Do not touch `src/sim/ants/behaviours/outdoor/hunt.ts`, `src/sim/colony/**`, `src/sim/nest/**`.
+
+## Work, in this order
+1. **Count before you touch code.** A tool-side observer (no behaviour change) on at least five cached hand-over snapshots (`test-output/colony-life/round-3/cache/*-any.bin`, one per archetype; `--cache-any`), 6 game days each, Naturalist: per predator kind — how many are alive, where they are relative to where the ants walk (distance to the nearest colony ant outside, share of time within sensing range), how many times each stage of the hunt happens (sense → select target → approach → telegraph → strike → hit → kill → feed), and the reason each stage fails most often. Same for bird visits (scheduled, started, landed, pecks) and antlion pits (ants crossing a pit, slides, captures). Put the funnel table in the report.
+2. **Find the cause(s)** of the zero: for each family the first stage of the funnel that reads zero, and why (never sensing because of range or height, never placed where ants are, target filter excludes workers, state machine waits for an event that only the fixtures send, the director's budget, the caps, a difficulty accessor returning zero, …). One failing unit or scenario test per cause, in a real generated world or the cached snapshot, not a fixture.
+3. **Fix at the cause.** Keep the GDD's numbers; where a GDD number cannot give the GDD's own expected loss rate, say so with the arithmetic and record a deviation.
+4. **Calibrate against the design's expectation**, not against a feeling: GDD 05 states what a colony of a given size should lose to predators per game day on each preset and how often the player should meet a threat. Measure on the five snapshots × 6 gd, 3 presets: telegraphs, strikes, hits, worker deaths by predator kind per gd per 100 outside-worker-hours; bird visits per gd. Show the ordering gentle < naturalist < harsh and zero with `predators: off`.
+5. **What it does to the colonies.** Before/after on the same five snapshots to winter (`bench-colony.ts --mode forage` and `--mode nest`, or `life.ts`): worker deaths by cause, trips, intake. Predation must cost a colony of 12–16 workers no more than the design's stated share; if the design's own numbers kill small colonies, report the arithmetic and propose the smallest lever (the integrator rules; do not rebalance on your own beyond a recorded GDD inconsistency).
+6. **The player's side**: the telegraph a possessed ant gets (existing `predators.possessed.test.ts`, `hazards.possessed.test.ts`) still works; alerts (`alerts.ts`) fire for colony losses to predators at the design's cadence; the `possessed-danger` diagnostic (R15). One harness run in the browser (`quality=test`, one headless browser at a time, long timeout) on a hand-over snapshot or seed 1 where a predator hunts near the nest: screenshots of a telegraph and of an attack that you look at.
+
+## Acceptance criteria
+1. Typecheck clean; tests green in `src/sim/ecology/creatures` (folder by folder, never the whole suite).
+2. The funnel table before and after; every family that the GDD says hunts ants reaches "strike" on a real world within 6 game days on Naturalist on at least 3 of the 5 snapshots, or the report shows why that family should not (no habitat on that archetype).
+3. Loss rates per preset within the GDD's stated bands, ordered across presets; zero predator events with `predators: off`.
+4. Determinism: same seed, same result; save → load mid-hunt equals the uninterrupted run (test).
+5. Per-tick cost of the creature systems reported before/after at 60 and 300 workers (same method as `gate-1B-sim-report.md` §9); no regression above 0.2 ms per tick.
+6. Report `docs/design/tasks/threats-live-report.md`: causes, fixes, tables, cross-edits, GDD deviations, what the colony-life engineer must know (how much predation now costs a small colony).
+
+## Machine rules
+4 cores shared with three other engineers (load average around 9). At most one life/bench run of yours at a time; check `uptime` and `free -g` before a heavy process; no `process` in test files (no `@types/node`); long tests behind `FOUNDRESS_LONG=1`; delete probe files before you finish; `date -u` before writing a timestamp. Do not run git commands that change the index. Evidence under `test-output/threats-live/`.

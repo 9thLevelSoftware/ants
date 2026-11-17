@@ -1,0 +1,387 @@
+{
+ "impl:species-leafcutter": {
+  "summary": "The Atta texana fungus-garden playstyle is built as a pure-sim species module, and the natural loop runs after hand-over with real workers and no cheats. Workers cut size-matched leaf fragments at plants and lawn herbage near the nest and carry them home. The fragments wait in the garden chamber's cache, are processed to pulp and planted as substrate. Garden growth follows the GDD 07 \u00a76.4.2 law. Gardeners harvest staphylae, which feed the larvae and the queen.\n\nBuilt and tested:\n- Garden dynamics: health, contamination, climate tolerance, yield, the GDD 07 \u00a76.4.3 states, and Escovopsis (outbreak, weeding, spread, quarantine through an `avoid` marker).\n- Hygiene: refuse workers and waste hauling.\n- Learned rejection of harmful plants, the garden-less state, and relocation and re-seeding with fungus pieces.\n- Processing-chain bottleneck detection (`diag-at-chain`), plus `diag-garden`, `diag-at-substrate` and `diag-at-phorid`.\n- Phorids with abstract hitchhikers, caste destiny and caste mix.\n- Founding with the pellet (plant, hold until the garden is established, fertilisation, trophic eggs, and failure as `garden-lost`).\n- Save/restore equality.\n\nNot met:\n- **Viability bar (addendum): not met on either archetype.** Only suburban-garden seed 2 passes the Winter-1 checks, and only on 4 first workers (range 8\u201314) with no leaf cutting at all. Three of the six seeds die in the founding cell even with the forced seal. Two of them were probed: the queen drowned (playground-park 1), or all larvae died of flooding in one tick (suburban-garden 3). Both are core flood rules, not this module.\n- Where hand-over works (suburban-garden 1), the founding garden cannot grow. The 35 BU founding cell sits at about 28\u201330 \u00b0C after hand-over, so the temperature factor fT averages about 0.3. The architect never digs a deeper fungus chamber below 10 workers, so the garden stays at 0.6\u20130.7 GU, the founding minims die of old age, and the colony shrinks.\n\nThree module fixes from this session:\n- The queen's laying is held to the fungus in view. This removed a starvation and hygiene cascade: 29 brood hygiene deaths and 2.6 GD in rationing went to 0.\n- Minims process leaves whenever no media works the gardens.\n- Trophic egg eating is limited to the first clutch.\n\n**Viability table** (`life.ts --species atta-texana --until winter`, naturalist; all runs needed life.ts's forced seal because the real founding fails):\n\n| run | founding | first workers | Winter 1 | queen | workers at end (needs \u22650.8\u00d7first) | worker starvation deaths | longest stretch worse than lean | stores | viable |\n|---|---|---|---|---|---|---|---|---|---|\n| suburban-garden 1 (before fixes) | hand-over 4.6 GD | 9 | day 12 | alive | 7 (FAIL) | 0 | 2.6 GD (FAIL) | 19 GD | NO |\n| suburban-garden 1 (after fixes) | hand-over 4.6 GD | 9 | day 12 | alive | 4 (FAIL; 6 old-age) | 0 | 0 | 29 GD | NO |\n| suburban-garden 2 | hand-over 6.3 GD | 4 (below 8\u201314) | day 10 | alive | 4 (ok) | 0 | 0 | 16 GD | yes by the bar, but 0 cut trips and 2 eggs |\n| suburban-garden 3 | failed 4.8 GD (larvae drowned, then queen died: no workers) | 0 | no | dead | - | - | - | - | NO |\n| playground-park 1 | failed 2.2 GD (queen drowned) | 0 | no | dead | - | - | - | - | NO |\n| playground-park 2 | failed 5.2 GD (queen died of exhaustion; not probed further) | 0 | no | dead | - | - | - | - | NO |\n| playground-park 3 | failed 3.9 GD (not probed) | 0 | no | dead | - | - | - | - | NO |\n\nSuburban-garden 2 through playground-park 3 ran with the laying hold and minim processing but before the trophic-eggs fix. I chose these two archetypes because the Atta site factors are sand 1.0 and loam 1.0, both lawn and garden archetypes have many leaf plants, and woodland-edge is humus (0.5).\n\n**GDD 07 module status.**\n- Done: \u00a76.4.1 state; \u00a76.4.2 growth, starvation, tending, yield, waste, contamination, climate fT and fRH, substrate quality, health recovery, relocation and re-seeding; \u00a76.4.3 states; \u00a76.4.4 hazard, growth, weeding, health, spread between gardens, quarantine spread \u00d70.1, refuse workers; \u00a76.4.5 accept and reject; \u00a76.4.6 stages 1\u20138 with bottleneck detection; \u00a76.4.7 hitchhiker and phorid chance and parasitoid death; \u00a76.4.8 founding garden; \u00a76.4.9 garden-less; \u00a76.4.11 diagnostics; \u00a75.4.2 caste mix and destiny; \u00a75.4.3 pellet founding.\n- Partly done: \u00a76.4.4 (no waste-through-garden spread, no quarantine waste routing, no inspect-card detection); \u00a76.4.5 (no trail decay \u00d74); \u00a76.4.9 (brood is not carried to a live garden, no epitaph cause); \u00a76.4.12 player role (no fragment-size choice, no `hitchhikerEscort` directive wiring, no `externalHeap`); visuals (display items, not a renderer).\n- Not done: air and vents (T3 stretch), co-founding (stretch), raid recovery (stretch), stridulation, the phorid-fly creature.",
+  "filesTouched": [
+   "src/sim/balance/species-leafcutter.ts",
+   "src/sim/species/modules/fungus/index.ts",
+   "src/sim/species/modules/fungus/params.ts",
+   "src/sim/species/modules/fungus/climate.ts",
+   "src/sim/species/modules/fungus/dynamics.ts",
+   "src/sim/species/modules/fungus/states.ts",
+   "src/sim/species/modules/fungus/substrate.ts",
+   "src/sim/species/modules/fungus/cache.ts",
+   "src/sim/species/modules/fungus/state.ts",
+   "src/sim/species/modules/fungus/economy.ts",
+   "src/sim/species/modules/fungus/spread.ts",
+   "src/sim/species/modules/fungus/quarantine.ts",
+   "src/sim/species/modules/fungus/gardenLess.ts",
+   "src/sim/species/modules/fungus/rejection.ts",
+   "src/sim/species/modules/fungus/leaves.ts",
+   "src/sim/species/modules/fungus/actions.ts",
+   "src/sim/species/modules/fungus/behaviourCut.ts",
+   "src/sim/species/modules/fungus/behaviourGarden.ts",
+   "src/sim/species/modules/fungus/phorids.ts",
+   "src/sim/species/modules/fungus/allocation.ts",
+   "src/sim/species/modules/fungus/castes.ts",
+   "src/sim/species/modules/fungus/chain.ts",
+   "src/sim/species/modules/fungus/feedRule.ts",
+   "src/sim/species/modules/fungus/queenFeed.ts",
+   "src/sim/species/modules/fungus/chamberClimate.ts",
+   "src/sim/species/modules/fungus/display.ts",
+   "src/sim/species/modules/fungus/diagnostics.ts",
+   "src/sim/species/modules/fungus/cheats.ts",
+   "src/sim/species/modules/fungus/work.ts",
+   "src/sim/species/modules/fungus/testkit.ts",
+   "src/sim/species/modules/fungus/dynamics.test.ts",
+   "src/sim/species/modules/fungus/loop.test.ts",
+   "src/sim/species/modules/fungus/scenario.test.ts",
+   "src/sim/species/modules/fungus/state.test.ts",
+   "src/sim/colony/founding/species/atta.ts",
+   "src/sim/colony/founding/species/atta.test.ts",
+   "tests/e2e/species-leafcutter.mjs",
+   "docs/design/tasks/progress/species-leafcutter-impl.md",
+   "OUTSIDE my paths: src/sim/types/colonyModules.ts (additive optional fields and new interfaces)",
+   "OUTSIDE my paths: src/sim/colony/envAdapter.ts (additive chamberRhRule hook, 9 lines, tested in scenario.test.ts)",
+   "OUTSIDE my paths: src/content/text/words.ts (authorised additions: factor, remedy and diag words)"
+  ],
+  "verification": [
+   "npx tsc --noEmit -p . : 0 errors over the whole project (run last at about 09:48 UTC, after the final code edits).",
+   "npx vitest run src/sim/species/modules/fungus src/sim/colony/founding/species/atta.test.ts : 5 files, 21 tests passed (dynamics, loop, scenario, state, atta founding).",
+   "npx vitest run src/content/text : passed (covers the words.ts additions).",
+   "Browser e2e: node tools/harness/play.mjs ... --script tests/e2e/species-leafcutter.mjs --out test-output/species-leafcutter/r2 -> EXIT 0, ok:true. Founding phase done, garden planted and established; first workers 8 (minors) at tick 28123; 4 leaf carriers outside at 00:29 game time. I looked at all screenshots: 01-leaf-carriers.png is a close-up of one minim carrying a pale-green leaf fragment on the ground at night (one carrier in frame, not a column). 01b-leaf-carrier-possessed.png is the possessed carrier holding the fragment, with HUD 'leaf fragment' and the prompt 'Put down leaf piece'. 02-garden-chamber.png shows pale cream garden masses (8 lumps) in the founding chamber with the queen beside them. 03-castes-possessed.png shows a possessed minim with spawned media and major ahead; the size difference is not obvious. No refuse heap appeared within 1 GD more (garden 0.62 GU, seeded), so there is no heap screenshot.",
+   "Viability: 7 runs of node tools/sim/run-ts.mjs tools/sim/life.ts --species atta-texana --archetype {suburban-garden,playground-park} --seed {1,2,3} --until winter, one at a time. Logs: test-output/viab/sg1.log, sg1b.log, suburban-garden-2.log, suburban-garden-3.log, playground-park-1.log, playground-park-2.log, playground-park-3.log. Results are in the table in the summary.",
+   "Failure probes (temporary script, now deleted): playground-park 1, the player queen died of 'drowning' at tick 12901 during the founding time-lapse (rain, founding chamber flooded 0.12). suburban-garden 3, 9 larvae died of 'flooding' at tick 21961, then the queen died of exhaustion at tick 28731 through the brood-lost path; her founding reserve was still 42.7 loads. playground-park 2, queen died of exhaustion at tick 30911 (not probed further).",
+   "28-day soak: life.ts --species atta-texana --archetype suburban-garden --seed 1 --days 28 --every 250 -> '0 invariant violations'. The queen is alive at day 28 but workers fell 9 -> 1 (9 old-age deaths); log at test-output/viab/atta-soak28.log.",
+   "Diagnosis probe probe9 (now deleted): before the laying hold, brood corpses reached 22\u201324 in the founding cell (core hygiene hazard at more than 3 waste items); the garden stayed at G 0.6\u20130.7 with fT 0.08\u20130.93 swinging over the day.",
+   "Searched my sim code for Math.hypot, Math.random and Date.now: none left (Math.hypot replaced by Math.sqrt)."
+  ],
+  "acceptance": [
+   {
+    "criterion": "AC1: typecheck and tests green; pure sim",
+    "status": "met",
+    "evidence": "tsc clean; 21/21 own tests pass. No three, DOM, Math.random, Date.now or Math.hypot in my sim code, and no module-level caches keyed by colony id (the params cache is a WeakMap keyed by the species definition)."
+   },
+   {
+    "criterion": "AC2a: headless, a founding queen establishes the garden and first workers in the chapter range",
+    "status": "partial",
+    "evidence": "With life.ts's forced seal, suburban-garden 1 gives 9 first workers after 4.6 GD and the garden is planted and established. Other seeds give 4 first workers or fail (flooding, drowning). The real founding never seals the 35 BU shaft (core defect)."
+   },
+   {
+    "criterion": "AC2b: the garden follows the growth law",
+    "status": "met",
+    "evidence": "The App. E 21 test gives growth 2.33 \u00b1 0.05 and E22 gives h 0.85 (dynamics.test.ts), plus starvation and poison tests. The GDD 07 \u00a76.4.2 formula is implemented as written in dynamics.ts."
+   },
+   {
+    "criterion": "AC2c: brood starve when the garden is unhealthy even with leaves piled; a diagnostic names the cause",
+    "status": "met",
+    "evidence": "loop.test.ts: with a dead garden the larvae starve and diag-garden is 'bad' with factor garden-lost. scenario.test.ts runs App. E 24 (all gardens lost: at least 50 % of larvae dead in 1 GD, no eggs, queen dead after 3 more GD)."
+   },
+   {
+    "criterion": "AC2d: untreated parasite collapses at the stated rate; weeding contains it",
+    "status": "met",
+    "evidence": "dynamics.test.ts App. E 23: an unweeded garden dies in 4.0\u20134.6 GD; full weeding clears the infection in under 2 GD. state.test.ts: quarantine cuts spread to under 35 % of the open rate."
+   },
+   {
+    "criterion": "AC3: size-matched loads; the bottleneck detector names the understaffed stage",
+    "status": "met",
+    "evidence": "loop.test.ts covers size-matched fragments (fragment LU = time/15 \u00d7 carryCap). scenario.test.ts: with cutters and no processors, narrowestStage is 'processed' and diag-at-chain is 'warn' with factor chain-process."
+   },
+   {
+    "criterion": "AC4: e2e new game reaches first workers; the screenshots I looked at show a leaf-carrying column and the garden chamber",
+    "status": "partial",
+    "evidence": "r2 EXIT 0 with 8 first workers. 02 clearly shows garden masses. 01 and 01b show a leaf carrier with its fragment, but only one carrier is in frame, not a column (4 carriers were spread out). The founding needs the forced seal and skips the time-lapse (completeFounding), as life.ts does. There is no refuse-heap shot."
+   },
+   {
+    "criterion": "AC5: a 28-day soak holds the invariants",
+    "status": "met",
+    "evidence": "life.ts 28 days on suburban-garden 1 with invariants every 250 ticks: 0 violations. The colony declines to 1 worker by old age; the invariants hold."
+   },
+   {
+    "criterion": "Addendum: viability bar (at least 2 of 3 seeds reach Winter 1 on the two best Tier-1 archetypes)",
+    "status": "not-met",
+    "evidence": "Suburban-garden: 1 of 3 passes by the bar (seed 2, on 4 first workers and no leaf cutting). Playground-park: 0 of 3; all foundings failed (flood and drowning confirmed in 1; seed 2 queen exhaustion, seed 3 not probed). See the table in the summary."
+   },
+   {
+    "criterion": "Addendum: available:true not set; files outside my paths listed; defects ranked",
+    "status": "met",
+    "evidence": "The species stays unavailable. Changes outside my paths are listed in filesTouched and contractChanges; defects are ranked in needsFromOthers."
+   }
+  ],
+  "notDone": [
+   "Viability bar not met (see the table): the founding cell floods or drowns the queen (core), and the founding garden cannot grow in the hot 35 BU cell with no deeper fungus chamber dug.",
+   "GDD 07 \u00a76.4.4: waste carried through a garden chamber does not add +0.05 spread per trip; quarantine does not route waste to a midden around other gardens; the possessed gardener's inspect card does not show infection from 0.01 ('grey threads').",
+   "GDD 07 \u00a76.4.5: trails to a rejected plant do not decay \u00d74 (cutters refuse it, the event fires, the rejection log is kept).",
+   "GDD 07 \u00a76.4.2 / \u00a76.4.9: brood is not moved with the garden on relocation, nor carried to the nearest live garden when one garden dies; the epitaph does not name the garden's death cause.",
+   "GDD 07 \u00a76.4.2 air/CO2 and vents (T3 stretch): not built (fAir = 1).",
+   "GDD 07 \u00a76.4.7: no phorid-fly creature; the attack is a probability roll and the hitchhiker is abstract (no minim actually boards).",
+   "GDD 07 \u00a76.4.12: the player cannot choose the fragment size; the `hitchhikerEscort` and `externalHeap` directives are not wired; dig markers with chamber type fungus or midden come from the core planner (not checked).",
+   "GDD 07 \u00a75.4.2: co-founding (stretch) not built. \u00a76.4.9: raid recovery of fungus from a rival garden (stretch) not built.",
+   "Stridulation (GDD 07 \u00a75.4.7) not built.",
+   "Render: no src/render/nest/species/fungus* or src/render/ants/species/atta* files. Gardens show as inert pale display items ('fungus-piece' lumps, grey share = infection) and garden waste as 'garden-waste' items. Fragments use the existing leaf-fragment item. A refuse heap was not seen in the e2e (none dumped outside within 5 GD).",
+   "Garden-waste items dropped in the nest by a dying carrier are never cleared (the unused helper was removed).",
+   "difficulty.diseaseMult does not exist in the difficulty block; the hazard defaults to \u00d71.",
+   "The founding cell template is 9\u00d73\u00d79 against the GDD's 10 BU sphere; gcap has a floor at about 2.1 GU for the founding chamber.",
+   "Founding: the GDD 06 'established in 0.6\u20130.8 GD' contradicts the growth rates; it is measured at about 1.5\u20131.8 GD with G \u2265 1.5 \u00d7 planted. The real (unforced) founding never seals."
+  ],
+  "contractChanges": [
+   "src/sim/types/colonyModules.ts (additive, all optional). GardenRecord gains: contamination, gcap, subQ, subP, subT, fsub, fclim, ftend, fT, fRH, subBins, cache, pulp, yieldStanding, healthLog, healthSlot, climBadSince, preInfectState, createdTick, diedTick, lastCause, quarantined, supply. New interfaces: LeafLot, SubstrateBin, LeafSite, ChainCounters. FungusModule gains: leafSites, staphylae, lastStepTick, chain, gardenLessReserve, lostCause, phoridDay, phoridToday, phoridForagersToday, phoridLastDayRate, rejectLog, majorsUnlocked, fertUntilTick. The existing `substrate` field is used as subIn1Gd.",
+   "src/sim/colony/envAdapter.ts: additive hook `export const chamberRhRule: { fn: ((sim, chamberId) => number | null) | null }`. chamberRh asks it first for a known chamber (9 lines). The fungus module answers for garden chambers with the chamber's own humidity. Tested in scenario.test.ts.",
+   "src/content/text/words.ts: FACTOR_CAUSE_WORD (garden-substrate, garden-temperature, garden-dry, garden-gardeners, garden-waste, garden-substrate-quality, garden-escovopsis, garden-lost, chain-cut, chain-carry, chain-process, chain-plant, leaf-toxic, leaf-protein, phorid-flies); REMEDY_WORD (remedy.slider.cut, remedy.slider.garden, remedy.slider.haul, remedy.dig.fungus, remedy.leaf-selectivity, remedy.garden.piece, remedy.hitchhiker-escort, remedy.forage-night); DIAG_VALUE_WORD (diag-garden, diag-at-chain, diag-at-substrate, diag-at-phorid).",
+   "Atta founding (src/sim/colony/founding/species/atta.ts) is registered as a system from the fungus module's index (attaFoundingSystem), not with a line in src/sim/colony/founding/index.ts."
+  ],
+  "needsFromOthers": [
+   "Most serious, core nest flood / founding: the sealed 35 BU Atta founding cell floods in rain. Reproduction: playground-park 1 (forced seal): player queen died 'drowning' at tick 12901, chamber flooded 0.12. Suburban-garden 3: 9 larvae died 'flooding' at tick 21961 in one tick, then the queen died exhaustion/no-workers. Three of six viability seeds fail founding this way or with queen exhaustion (playground-park 2 not probed further).",
+   "Core founding: the auto seal never plugs the 35 BU Atta shaft. The seal guide is idle with 0 plugs; reproduced with the fungus rules disabled. Every Atta run needs life.ts's forced seal ('founding failed after 9.999 gd').",
+   "Core nest architect / balance nestTemplates: Atta never gets a fungus chamber below 10 workers (REQUIRED_TYPES worker gate), and the founding cell at about 35 BU runs 26\u201330 \u00b0C after hand-over (fT about 0.3), so the garden cannot grow. Atta needs a deeper fungus chamber (depth band 40\u2013400) from the first workers, or a review of fT/devRate against the soil temperature model.",
+   "Core queen-care: the feed threshold QUEEN_FEED_LOADS \u00d7 0.5 = 0.05 is above the nanitic minim crop (0.037), so carers stick in queen-care.feed and the queen is never fed. The fungus module works around it with its own queenFeed.ts and queen-care demand 0 for Atta.",
+   "Core locomotion / nav grid: the nav cell just outside the Atta entrance is classed 'blocked-solid', so every navTo from the entrance fails ('no-route'). The fungus module escapes with a short wander (cut.clear) and a 30 s retry.",
+   "Core brood humidity hazard (brood.ts:181) reads air RH through chamberRh, giving 17 brood humidity deaths in 4 GD. I added the additive chamberRhRule hook in envAdapter.ts (listed) instead of editing brood.ts; core may prefer chamber humidity for all species.",
+   "Core hauling: brood corpses pile up in a single-chamber founding nest (22\u201324 'waste' items, inNest) faster than haul takes them out, which drives the hygiene hazard cascade. It was masked here once starvation stopped.",
+   "Progression: the ms-first-leaf rule requires c + p > 0, so the leaf delivery event carries LU in `c`. Succession foodC and life.ts delivery C therefore count leaf LU as food C. A leaf kind with c = p = 0, or a separate lu field, would be cleaner.",
+   "Difficulty: add diseaseMult (GDD 06) to the difficulty params block."
+  ],
+  "notesForIntegrator": [
+   "Deviations from GDD 07, all documented in the code: (1) while the colony has no media/major, minims cut small fragments (minimCutTrips \u2264 minims/2, halved when the substrate is supplied); (2) minims process (\u00d72 time) and haul waste while no media works the gardens (noProcessors); (3) gardeners feed the queen from staphylae, then the pool (queenFeed.ts), because the core queen-care threshold blocks minims; (4) the queen's laying budget is held to 0 after hand-over while pool P + staphylae + (yield \u2212 queen upkeep) \u00d7 2.5 GD does not cover the brood's remaining protein plus one egg (LAY_COVER_GD and QUEEN_FL_PER_GD in balance, [EST]); (5) the hitchhiker is abstract; (6) spread distance between gardens is straight-line, not tunnel distance; (7) garden visuals are inert display items, not a renderer.",
+   "Trophic eggs: now only the first clutchCap (40) eggs are counted for the 0.7 share; a relay clutch after a loss is kept whole. This changed after the suburban-garden 2/3 and playground-park runs; suburban-garden 1 and the soak have the same hand-over and identical day rows before and after.",
+   "e2e (tests/e2e/species-leafcutter.mjs) uses cheat.completeFounding plus a forced seal and steps the time-lapse; it takes about 11 minutes in the harness on this loaded machine. Screenshots are in test-output/species-leafcutter/r2/.",
+   "The fungus module's systems: attaFoundingSystem (colony-allocation), leafSiteSystem (ecology), fungusAllocationSystem, attaCasteSystem (brood), gardenLessLayingSystem (behaviours; also runs the fungus laying hold), gardenEconomySystem (colony-economy, every 25 ticks), gardenDisplaySystem (player only, every 100), phoridDeathSystem, fungusDiagnosticsSystem. Invariant: 'garden-finite' (G \u2264 gcap is not checked: a garden above a shrunken chamber's capacity is legitimate and shrinks).",
+   "Events emitted: garden-state, garden-infected, all-gardens-lost, plant-rejected, leaf-cache-spoiled, waste-dumped, hitchhiker-mounted, phorid-strike, caste-unlocked (fires once per sim; tested twice in fresh sims), queen.egg-eaten, delivery (kind 'leaf', for ms-first-leaf / aim-garden), feed. Alert: garden-failing.",
+   "Progress file: docs/design/tasks/progress/species-leafcutter-impl.md. Life-run outputs: test-output/viab/{sg1,sg1b,suburban-garden-*,playground-park-*,atta-soak28}.log and test-output/viab/out/life-atta-texana-*.md. Probes tools/sim/probe-leaf-*.ts are deleted. No background processes are left running."
+  ]
+ },
+ "verify:species-leafcutter": {
+  "verdict": "fail",
+  "checksRun": [
+   "npm run typecheck: 0 errors over the whole project (10:07 UTC)",
+   "npx vitest run src/sim/species/modules/fungus src/sim/colony/founding/species/atta.test.ts: 5 files, 21/21 pass (32 s)",
+   "npx vitest run src/sim/species/modules/fungus/review.verify.test.ts: 16 tests, 9 pass, 7 RED. Each red test shows a confirmed defect.",
+   "Harness, one run: node tools/harness/play.mjs --root . --query 'test=1&seed=1&quality=test&autostart=1&species=atta-texana' --script tests/e2e/species-leafcutter.mjs --out test-output/species-leafcutter-review/e2e1 gave EXIT 0 and 8 first minims (with the forced seal and completeFounding). I looked at all 4 PNGs in test-output/species-leafcutter-review/e2e1/.",
+   "Code read in full: every file under src/sim/species/modules/fungus/**, src/sim/balance/species-leafcutter.ts, src/sim/colony/founding/species/atta*.ts and tests/e2e/species-leafcutter.mjs. Also read the touched shared files colonyModules.ts (GardenRecord, additive) and envAdapter.ts (chamberRhRule hook).",
+   "Read the implementer's viability logs test-output/viab/{sg1,sg1b,suburban-garden-2,suburban-garden-3,playground-park-1..3,atta-soak28}.log. Their table matches the logs. I did not rerun life.ts: the machine was loaded and a harness run of another engineer was active.",
+   "Searched owned sim code for three, DOM, Math.random, Date.now and Math.hypot: none found. The state is plain data, and save/restore equality is covered by the existing state.test.ts plus my determinism test (passes)."
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "A 'seeded' garden starved to ~0 GU never dies, so the colony never becomes garden-less",
+    "where": "src/sim/species/modules/fungus/states.ts:31 (`if (g.biomass < P.deadG && s !== 'seeded') return 'dead'`); red test review.verify.test.ts 'a seeded garden starved of all substrate eventually dies'",
+    "detail": "nextState exempts `seeded` from the G < deadG rule, and starvation never lowers health. A seeded garden with no substrate therefore shrinks toward 0 and stays 'seeded' forever. Repro: pure steps for 20 GD at G0 0.6, subIn1Gd 0, gardeners 3 gives G < 0.1 but the state is still 'seeded'. This is the real case: after the hand-over the founding garden stays 'seeded' below 1 GU. My e2e ends at 'seeded' 0.71 -> 0.62 GU, and the implementer's r2 run also ends 'seeded' at 0.62. A starving founding garden can therefore never trigger garden-less (\u00a76.4.9), all-gardens-lost, the queen's 3 GD reserve or the epitaph. The feed rule and the laying hold keep treating it as alive."
+   },
+   {
+    "severity": "major",
+    "title": "Health recovery never happens in play: the 'no toxin' gate meets a leaf table where every plant is toxic",
+    "where": "src/sim/species/modules/fungus/dynamics.ts:107 (subT <= 1e-6) with src/sim/balance/species-leafcutter.ts LEAF_TRAITS (herbage t 0.05, others 0.1-0.45); red test 'a garden fed ordinary herbage ... recovers health'",
+    "detail": "GDD 07 \u00a76.4.2 gives +0.1 h/GD when i = 0, c < 0.2, fclim >= 0.8 and there is no toxin. The module's own LEAF_TRAITS give every plant kind a toxin above 0, so any real substrate has subT > 0. Repro: a garden at h 0.7, 23 \u00b0C, RH 0.9, fully supplied with LEAF_TRAITS.herbage, ends at h 0.6775 after 3 GD instead of about 1.0. Every knock (heat, an outbreak, poison) is therefore permanent, and gardens drift toward stressed/collapsing over a season. Fix one side: a toxin threshold (e.g. below rejectToxin) or toxin-free common herbage."
+   },
+   {
+    "severity": "major",
+    "title": "Refuse workers are made nurses and feed larvae (GDD 07 \u00a76.4.4)",
+    "where": "AntFlag.REFUSE is read only in src/sim/species/modules/fungus/behaviourGarden.ts; allocation.ts never excludes refuse workers; red test 'refuse workers are never made nurses and never feed larvae'",
+    "detail": "The GDD rule: a waste hauler becomes refuse and is 'never again assigned garden or nurse'; nestmates avoid it. Nothing outside the garden FSM reads the flag. When no waste is waiting, chooseJob returns GJ.none, the cycle ends, and the colony allocator gives the ant any task. Repro: 6 REFUSE minims, 8 larvae, 0.4 GD gives 3425 ant-ticks with task 'nurse' (expected 0). In a probe, refuse media were also reassigned to cut and forage. Fix: an additive allocator hook or a demand filter that keeps REFUSE ants off nurse and queen-care."
+   },
+   {
+    "severity": "major",
+    "title": "Minims in a minim-only colony haul waste and become REFUSE for life with half their remaining lifespan",
+    "where": "src/sim/species/modules/fungus/behaviourGarden.ts chooseJob (`big = media || (minor && noProcessors)`) + becomeRefuse; red test 'minims gardening ... are not turned into refuse workers'",
+    "detail": "The first-brood deviation lets minims do media work, including GJ.waste, whenever no media gardens. Every minim that hauls once is flagged REFUSE, its remaining lifespan is halved, and from then on it only hauls. GDD \u00a76.4.6 stage 8 gives waste to small and full media. Repro: kit with G 1.5, W 1 and 4 minims on garden, no media; after 1 GD, 2 of 4 minims are REFUSE. In the real founding (8-14 minims, no media for a long time) this steadily removes gardeners and feeders. It is a plausible contributor to the early 'old-age' deaths in the logs (sg1b: 6 of 9 minims dead of old age by Winter 1 against a 40 GD mean lifespan; atta-soak28: 9 of 9 by day 17). I have not proven how much of that decline it explains; the 3x ageing outside on minim cut trips and scouting also contributes."
+   },
+   {
+    "severity": "major",
+    "title": "Garden waste is put down inside the garden chamber when there is no midden and no open entrance; W drops but the waste never leaves",
+    "where": "src/sim/species/modules/fungus/behaviourGarden.ts startDump (`if (!p) { tryAct(... 'put-down') }`); balance WASTE_DUMP_MIN_BU declared but never used; red test 'waste taken from a garden is not left lying in a fungus chamber'",
+    "detail": "middenPoint returns null when the nest has no midden chamber and no open entrance. That is the state of a young nest that is closed (sealed after the hand-over, rain closure); the architect makes no midden early. The hauler then puts the garden-waste item down where she stands. Repro: entrance held sealed, W 3, 3 media gardeners, 0.25 GD gives W 0 and 6 garden-waste items lying in the garden chamber (chamberId of the room). Contamination never sees this waste and nothing ever picks it up (the report admits only the second half). The \u226525 BU-from-fungus midden rule (\u00a75.4.6) is not applied at all."
+   },
+   {
+    "severity": "major",
+    "title": "Possession by caste is not playable: the HUD never offers cut-leaf, process-leaf or tend-fungus",
+    "where": "src/sim/ants/player/targeting.ts classify() (no fungus actions; outside the owned paths); the e2e shots 01b ('Put down leaf piece') and 03 ('Groom yourself')",
+    "detail": "GDD 07 \u00a75.4.8 and \u00a76.4.12: the media cuts and carries, the small media processes, the minim tends, weeds, feeds and hitchhikes. The actions exist (actions.ts) but no prompt path reaches them, so a player can only do these through debug act(). The report lists only 'no fragment-size choice'. It should list this as a needsFromOthers item with the exact hook (e.g. an additive species prompt-candidate hook) or a local adapter."
+   },
+   {
+    "severity": "major",
+    "title": "AC4 not met: no leaf-carrying column, castes not distinguishable, garden not in a fungus chamber, no refuse heap",
+    "where": "test-output/species-leafcutter-review/e2e1/*.png; tests/e2e/species-leafcutter.mjs",
+    "detail": "My run (EXIT 0): 01-leaf-carriers.png shows a single minim with a pale-green fragment, not a column; the script accepts n >= 1 after 60 polls. 03-castes-possessed.png shows the major, media and small media as near-identical pale small ants behind the possessed minim, so they cannot be told apart at a glance (an addendum requirement), and the worker colour is whitish rather than rusty brown. 02-garden-chamber.png shows pale lumps in the founding cell (type 'founding'); no fungus chamber exists. No refuse heap appears. Chain counters at the check were carried 0 and planted 0, and staphylae were 0. The script also forces the seal and uses completeFounding, and it asserts neither delivery nor planting. No src/render/nest/species/fungus* or src/render/ants/species/atta* exists."
+   },
+   {
+    "severity": "major",
+    "title": "Viability bar not met (confirmed from logs); the module cannot move the garden out of the hot founding cell",
+    "where": "test-output/viab/*.log; behaviourGarden.ts pieceTarget needs an existing 'fungus' chamber",
+    "detail": "The logs match the report: 0 of 6 seeds are viable with species-specific activity. The only 'yes' (suburban-garden 2) has 4 first workers and 0 cut trips. In atta-soak28 there are 34 failed minim garden/cut trips ('garden untracked not-reached fail 34') and 9 of 9 minims are dead by day 17. Relocation and re-seeding need a chamber of type 'fungus', but the module never proposes one (no dig marker or architect proposal from the module). The garden therefore stays in a 28-30 \u00b0C cell at fT ~0.3, and \u00a76.4.11's remedy 'dig a deeper fungus chamber' has no executor. Flood and drowning foundings are core issues, as reported."
+   },
+   {
+    "severity": "minor",
+    "title": "tend-fungus ignores the `secondary` variant in durationS/effect (plant pulp harvests instead)",
+    "where": "src/sim/species/modules/fungus/actions.ts modeOf(..., false) in durationS and effect; red test 'tend-fungus asked as the secondary (plant pulp) plants the pulp'",
+    "detail": "check() validates the secondary mode (plant pulp or take waste), but durationS and effect recompute the mode with secondary = false. Repro: begin(tend-fungus, {secondary:true}) with 1 LU of pulp and 0.5 FL standing yield takes 36 ticks and completes with result 0.1 (a harvest); the pulp is untouched. Read ant.action.secondary in both."
+   },
+   {
+    "severity": "minor",
+    "title": "diag-garden reports ok for a starving 'seeded' garden",
+    "where": "src/sim/species/modules/fungus/diagnostics.ts gardenStatus; red test 'diag-garden does not say ok for a seeded garden with no substrate'",
+    "detail": "Only 'establishing with fsub < 0.8' warns. A 'seeded' garden (the colony's only garden after the hand-over) with fsub 0 reports ok, so the Why view stays silent while the garden starves. \u00a76.4.11 says 'ok if healthy'."
+   },
+   {
+    "severity": "minor",
+    "title": "Tunables inline outside the balance file",
+    "where": "castes.ts (MAJOR_GATE_GD 2, EMPHASIS_SPAN 0.5, STEP_TICKS 50, worker larva {c:0.1,p:0.3}); display.ts (DISPLAY_GU_PER_LUMP, DISPLAY_LUMPS_MAX, LUMP_BU, DOME_BU ...); behaviourGarden.ts GARDEN_CHAIN_MAX 8; behaviourCut.ts jitter 0.6 and 2500 ticks; phorids.ts system every 50",
+    "detail": "The design seed requires all tunables in src/sim/balance or species data. WASTE_DUMP_MIN_BU in balance is unused."
+   },
+   {
+    "severity": "minor",
+    "title": "Per-tick allocation and O(brood)/O(ants) scans in hot paths",
+    "where": "index.ts gardenLessLayingSystem (every tick: atColonies allocates an array of objects; holdLayingToFungus scans all brood while eggBudget > 0); actions.ts noCutters/noProcessors and behaviourGarden staffOf (O(N) per job choice)",
+    "detail": "Harmless at founding scale. At the 1,500-worker cap, holdLayingToFungus runs a full brood scan with larvaFood calls on every tick the queen has a budget, and job choice is O(N) per gardener decision. Cache per allocation pass."
+   },
+   {
+    "severity": "minor",
+    "title": "Smaller rule gaps and contract notes",
+    "where": "various",
+    "detail": "(a) The phorid rate counts strikes on all laden carriers but foragers only once carried >= 100 BU (phorids.ts), so diag-at-phorid overstates. (b) Re-seeding ignores \u00a76.4.3 'chamber reusable after W = 0' (emptyFungusChambers/seedGarden). (c) syncGardens kills a garden whose chamber vanished without a garden-state event or lostCause. (d) Display lumps are ordinary items, so a possessed ant is offered 'Pick up fungus-piece' on the garden mass (targeting classify item -> pick-up). (e) The GardenRecord.quarantined field is declared but never written. (f) chamberRhRule is a single global slot that a second species module would overwrite. (g) GDD contradictions recorded correctly by the implementer: \u00a76.4.8 0.17/GD vs \u00a76.4.3 0.28/GD founding growth; GDD 06 'established at >= 0.5 x planting size' is true at planting (the implementer used 1.5x, documented)."
+   }
+  ],
+  "testsAdded": [
+   "src/sim/species/modules/fungus/review.verify.test.ts \u2014 9 passing regression tests: climate factor ends/NaN; zero-step, zero-mass and NaN climate stay finite; contamination rise/clear rates; collapsing rate and death; chain narrowestStage cases; substrate ledger windows, plant merge, negative/NaN LU; takeLots FIFO; App. E 24 queen dies with cause 'starvation' within 4 GD; same-seed determinism of two fresh sims.",
+   "src/sim/species/modules/fungus/review.verify.test.ts \u2014 7 RED tests left for the fixer: seeded garden never dies; no health recovery on herbage; minims become refuse; refuse made nurses; waste left in garden chamber when no dump point; tend-fungus secondary harvests instead of planting; diag-garden ok for a starving seeded garden."
+  ]
+ },
+ "fix:species-leafcutter": {
+  "summary": "Fix round for the review of species-leafcutter. I reproduced all 7 of the reviewer's red tests. Each defect was fixed at its root cause, and all 16 reviewer tests now pass. In one of them I changed a precondition that contradicted the correct fix; the reason is written in the test file.\n\n1. Seeded gardens now die. A starved `seeded` garden reaches dead when G < 0.1, so the colony can become garden-less and the queen's reserve, the epitaph and the diagnostics all work (states.ts).\n2. Health can recover on real leaves. GDD 07 \u00a76.4.2 says recovery needs \"no toxin\", but every plant in LEAF_TRAITS has some toxin. The rule now reads \"no toxin\" as substrate toxin at or below HEALTH_RECOVER_TOXIN_MAX (0.1, in the balance file). Ordinary herbage and clover pass; defended plants do not.\n3. Garden waste is now its own job, task `haul` with subtype garden-waste, as GDD 07 \u00a76.4.6 stage 8 and the spec ask.\n   - New file behaviourHaul.ts takes over the haul entry state. When garden waste is due it does that first; otherwise it hands over to the shared haul behaviour.\n   - Only small media, media or refuse workers may take waste (actions.ts). Taking waste flags the ant as a refuse worker with half her remaining lifespan; the player is affected too.\n   - Minims never haul waste, even when the colony has no media.\n   - Each allocation pass, ensureWasteHaulers moves refuse workers first, then small media, then media onto `haul`.\n4. Refuse workers can no longer nurse or garden. Editing the colony allocator was refused by permissions, so a local guard (refuse.ts) runs twice per tick and moves any refuse worker it finds on nurse, queen-care or garden to `haul`.\n5. Waste dump rule (wasteDump.ts): a midden at least 25 BU from every fungus chamber first, then the surface heap beside an open entrance, then a midden that is too close. If none exists, nobody takes the waste: it stays in W, where contamination counts it. A load that cannot reach the dump goes back into its garden's W.\n6. tend-fungus now honours the secondary variant (\"plant pulp\" or \"take waste\"). The effect reads `ant.action.secondary` and `onBegin` re-times the action.\n7. diag-garden now warns for a seeded garden that is short of substrate.\n\nMinor findings, also done:\n- All inline tunables are in the balance file.\n- Hot paths are cached once per tick: the colony list, noCutters, noProcessors and gardener counts.\n- The phorid-rate denominator now counts every laden carrier once per trip.\n- A dead garden's chamber can only be re-seeded after W = 0.\n- A garden whose chamber is lost now dies with a `garden-state` event and a cause.\n- `GardenRecord.quarantined` is written each garden step.\n- The chamber-humidity hook is chained instead of overwritten.\n- Garden display lumps cannot be picked up.\n- Leaf fragments a possessed ant puts down in a garden chamber join the cache.\n- New playerPrompts.ts says what a possessed leafcutter should be offered by caste. It is not wired in yet; that needs a hook in the targeting code, which is outside my paths.\n\nViability: suburban-garden seed 1 now passes the Winter-1 bar. Workers went 9 \u2192 9 with 43 leaf deliveries, no starvation and no stage worse than lean. Before this round the same seed lost all 9 minims to old age and failed. Only this one seed was re-run, and its founding needed the forced seal. The full bar (2 of 3 seeds on two archetypes) is still not shown.\n\nHarness runs e2e1 and e2e2 both exited 0, and I looked at every screenshot:\n- 03-castes-possessed.png (e2e2) shows the castes told apart by day in rusty brown: major with the big head on the left, media, small media, and the possessed minim in front.\n- 02 shows the pale garden mass in the founding cell.\n- 01 is still a weak picture of a column: three tiny minim carriers within 25 BU.\n- No refuse heap appeared within the run window.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/species/modules/fungus/states.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/dynamics.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/actions.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/diagnostics.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/behaviourGarden.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/behaviourHaul.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/fungus/refuse.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/fungus/wasteDump.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/fungus/displayGuard.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/fungus/playerPrompts.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/fungus/allocation.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/work.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/economy.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/cache.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/state.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/castes.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/display.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/behaviourCut.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/phorids.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/index.ts",
+   "/home/user/foundress/src/sim/species/modules/fungus/review.verify.test.ts (one precondition amended, explained inline)",
+   "/home/user/foundress/src/sim/species/modules/fungus/refuse.test.ts (new)",
+   "/home/user/foundress/src/sim/species/modules/fungus/fixround.test.ts (new)",
+   "/home/user/foundress/src/sim/balance/species-leafcutter.ts",
+   "/home/user/foundress/tests/e2e/species-leafcutter.mjs",
+   "/home/user/foundress/docs/design/tasks/progress/species-leafcutter-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: clean, no errors anywhere in the output",
+   "npx vitest run src/sim/species/modules/fungus src/sim/colony/founding/species/atta.test.ts: 8 files, 48 tests, all pass. This includes review.verify.test.ts (16 of 16, the 7 that were red now green), the new refuse.test.ts (4) and the new fixround.test.ts (7)",
+   "Before the fixes, review.verify.test.ts reproduced all 7 red tests with the reviewer's exact numbers: 'seeded' instead of dead; h 0.6775; 2 minims made refuse; 3425 nurse ant-ticks; 6 waste items left in the chamber; pulp untouched; diag status ok",
+   "node tools/sim/run-ts.mjs tools/sim/life.ts --species atta-texana --seed 1 --archetype suburban-garden --until winter --cache test-output/viab/cache --cache-any: Viable yes. Hand-over 4.6 GD with 9 minims (forced seal). Workers 9 -> 9, 0 starvation deaths, longest stretch worse than lean 0 GD, stores 25 GD. 43 leaf deliveries; cut 6.9 and haul 16 worker-GD. Deaths: 2 old age, 1 media lost. 0 invariant violations. Log: test-output/viab/fix-sg1.log. The earlier run of the same seed (atta-soak28.log) had 9 of 9 minims dead of old age",
+   "Harness run e2e1 (test-output/species-leafcutter-fix/e2e1): EXIT 0. Founding: pellet planted and established, 8 minims. 3 carriers within 25 BU. Chain cut 0.97, carried 0.41, planted 0.14. Looked at 01 (a single carrier close-up), 02 (garden lumps), 03 (castes by day) and 04 \u2014 04 turned out to be a carried waste item inside the garden chamber, not a heap, so I fixed the script's filter",
+   "Harness run e2e2 (test-output/species-leafcutter-fix/e2e2): EXIT 0. Looked at 01 (minim carriers too small in frame to read as a column), 02, and 03-castes-possessed.png (major, media, small media and the possessed minim clearly distinct in size and head shape, rusty brown). Refuse heap: none within the window"
+  ],
+  "acceptance": [
+   {
+    "criterion": "Reviewer finding 1: a starved seeded garden dies and the colony becomes garden-less",
+    "status": "met",
+    "evidence": "states.ts no longer exempts `seeded`. Reviewer red test is green; fixround.test.ts also checks the path through to gardenLess = true"
+   },
+   {
+    "criterion": "Finding 2: health recovers on ordinary herbage",
+    "status": "met",
+    "evidence": "HEALTH_RECOVER_TOXIN_MAX 0.1 in the balance file (my reading of 'no toxin', recorded there). Reviewer test green; App E 25 plant rejection still passes"
+   },
+   {
+    "criterion": "Finding 3: refuse workers are never nurses and never feed larvae",
+    "status": "met",
+    "evidence": "refuse.ts guards after the allocation pass and after the behaviours. Reviewer test green (0 nurse ticks, 0 feeds); refuse.test.ts guard test green. Done as a local adapter because editing the allocator was refused"
+   },
+   {
+    "criterion": "Finding 4: minims are not turned into refuse workers",
+    "status": "met",
+    "evidence": "Waste is now task haul and limited to media or refuse workers (wasteCheck returns 'caste' for a minim). Reviewer test green; refuse.test.ts minim test green"
+   },
+   {
+    "criterion": "Finding 5: waste is not left lying in a fungus chamber; the 25 BU midden rule applies",
+    "status": "met",
+    "evidence": "wasteDump.ts applies the 25 BU rule; with no dump point no waste is taken; a failed carry returns its load to W. Reviewer test green (precondition amended); refuse.test.ts shows media dumping outside an open nest"
+   },
+   {
+    "criterion": "Finding 6: possession by caste is playable from the HUD",
+    "status": "partial",
+    "evidence": "playerPrompts.ts fungusSelfPrompt is written and tested, and display lumps can no longer be picked up. It is not reachable from the HUD until the targeting code gets a hook (needsFromOthers)"
+   },
+   {
+    "criterion": "Finding 7 / AC4: carrying column, castes told apart, garden chamber, refuse heap",
+    "status": "partial",
+    "evidence": "e2e2/03-castes-possessed.png shows the castes distinct and rusty. Chain delivery and planting are now asserted. The garden lives in the founding cell, which GDD 07 \u00a75.4.6 lists as 'fungus: founding 10 BU'. The column picture is weak: minims are 2.4 mm, so 01 shows tiny carriers. No refuse heap appeared within the run window"
+   },
+   {
+    "criterion": "Finding 8: viability bar",
+    "status": "not-met",
+    "evidence": "Only 1 seed re-run: suburban-garden seed 1 is now viable with real leaf work (43 deliveries). The bar needs 2 of 3 seeds on two archetypes; three of the six seeds fail in the core founding (forced seal, drowning, flooding)"
+   },
+   {
+    "criterion": "Finding 9: tend-fungus secondary variant",
+    "status": "met",
+    "evidence": "actions.ts onBegin re-times and the effect reads ant.action.secondary. Reviewer test green"
+   },
+   {
+    "criterion": "Finding 10: diag-garden warns for a starving seeded garden",
+    "status": "met",
+    "evidence": "Reviewer test green"
+   },
+   {
+    "criterion": "Finding 11: tunables in the balance file",
+    "status": "met",
+    "evidence": "castes, display, cut jitter, phorid step, diagnostic thresholds, garden choice and fallback constants all moved to src/sim/balance/species-leafcutter.ts; WASTE_DUMP_MIN_BU is now used"
+   },
+   {
+    "criterion": "Finding 12: per-tick allocations and O(N) scans",
+    "status": "partial",
+    "evidence": "atColonies, noCutters, noProcessors, staffOf and the hauler counts are cached once per tick, and the refuse ids are cached. holdLayingToFungus still scans the brood on ticks when the queen has an egg budget; I kept it that way because a cross-tick cache would break save/load determinism"
+   },
+   {
+    "criterion": "Finding 13: smaller gaps a-g",
+    "status": "met",
+    "evidence": "(a) phorid denominator fixed; (b) re-seeding only after W = 0; (c) garden-state event and cause on a lost chamber; (d) pick-up guard (the refused prompt still shows, see needs); (e) quarantined written; (f) humidity hook chained; (g) GDD contradictions already recorded by the implementer. Covered by fixround.test.ts"
+   },
+   {
+    "criterion": "GDD 07 App E 21-25 covered at module level",
+    "status": "met",
+    "evidence": "21-23 in dynamics.test.ts; 24 in scenario.test.ts and review.verify.test.ts; 25 in scenario.test.ts. All pass"
+   }
+  ],
+  "notDone": [
+   "The viability bar is not met. Only suburban-garden seed 1 was re-run: it passes with leaf work, but it relied on the forced seal, and the founding was re-run with the new code because --cache-any did not reuse a snapshot. playground-park and the other seeds were not re-run (each run takes about 25-50 minutes on this loaded machine). The earlier founding failures are core issues: the queen drowned (playground-park 1), larvae flooded (suburban-garden 3), and the automatic seal never closes the 35 BU Atta shaft.",
+   "The leaf-carrying picture still does not read as a column. The first brood is all minims (2.4 mm), and minim-only colonies send at most half their minims on cut trips. A real column needs media, which come only with growth.",
+   "No refuse heap appears in the e2e window: only media haul garden waste, and the first-brood colony has none. In a minim-only colony the waste stays in the garden (W) and raises contamination until small media emerge; this follows GDD 07 \u00a76.4.6 stage 8.",
+   "The garden stays in the founding cell, which is hot (fT about 0.3). Relocation needs a `fungus` chamber. The architect plans 2 fungus chambers at 10 or more adult workers (REQUIRED_TYPES in balance/architect.ts, not mine), and minims cannot dig. Nothing in my paths proposes an earlier fungus chamber.",
+   "The possession prompts are not wired: fungusSelfPrompt exists and is tested but is never called.",
+   "'Nestmates avoid contact with refuse workers' (GDD 07 \u00a76.4.4) is not modelled.",
+   "Quarantine routing of waste ('straight to a midden, avoiding other gardens') is still abstract; quarantine only reduces spread.",
+   "No new render files exist under src/render/nest/species/fungus* or src/render/ants/species/atta*. The Atta morphologies already live in src/render/ants/morph/atta.ts (not mine), and the garden is drawn as display lumps."
+  ],
+  "needsFromOthers": [
+   "Colony allocation owner (src/sim/colony/allocation/groups.ts, function `eligible`): add `if ((a.flags & AntFlag.REFUSE) && (t === 'nurse' || t === 'queen-care' || t === 'garden')) return false;` (GDD 07 \u00a76.4.4). My edit to this file was refused by permissions. Once it lands, the guard systems in src/sim/species/modules/fungus/refuse.ts can be dropped.",
+   "Player targeting owner (src/sim/ants/player/targeting.ts): (1) add an optional hook, for example `export const selfPromptRule: { fn: ((sim, ant) => { primary: ActionId; secondary: ActionId | null } | null) | null } = { fn: null }`, consulted at the start of classify `case 'none'` and returning `{ cls: 'self', ...r }` when it gives a result. The fungus module will set it to fungusSelfPrompt (src/sim/species/modules/fungus/playerPrompts.ts). (2) In classify `case 'item'`, skip garden display lumps: `isDisplayLump(it, it.colony)` from fungus/display.ts, or a generic inert-item flag.",
+   "Founding / nest owners: the automatic seal never plugs the 35 BU Atta shaft, so the forced seal is still needed. Founding cells drown or flood (playground-park 1, suburban-garden 3). The founding cell runs at 28-30 \u00b0C, so the garden's fT is about 0.3.",
+   "Colony core: first-brood lifespan uses NANITIC_LIFESPAN_MEAN_GD 24 (sd 10) for every species, while GDD 07 \u00a75.4.1 gives the Atta minim 40 (sd 12). Together with \u00d73 ageing outside, this ages the Atta first brood out early.",
+   "Architect (balance/architect.ts REQUIRED_TYPES for atta-texana): 2 fungus chambers at 10 workers is the only route to a real fungus chamber. Consider asking for one as soon as the first media emerges, so the garden can leave the hot founding cell."
+  ],
+  "notesForIntegrator": [
+   "Waste hauling moved from task `garden` to task `haul` (a species-specific haul behaviour that hands over to the shared haul). The species data already lists 'haul:garden-waste' as a task subtype.",
+   "Two new systems were added in phases colony-allocation and colony-economy (fungus-refuse-guard-alloc, fungus-refuse-guard). Both cost almost nothing while no refuse worker exists.",
+   "The module now wraps the shared `pick-up` action check (displayGuard.ts) in the same way it already wrapped feed-larva (feedRule.ts).",
+   "The chamberRhRule hook is now chained instead of replaced, so another module can set it too.",
+   "review.verify.test.ts: the 'waste ... nowhere to dump' test had the precondition `removed > 0`, which contradicts the correct fix. It now checks that the waste is conserved (W plus carried loads), with the reason written in the test.",
+   "The whole suite was not run. Only my paths and their tests were run, per the working rules. Contract changes: none (I used existing optional fields only).",
+   "Decision recorded: 'no toxin' in GDD 07 \u00a76.4.2 means substrate toxin at or below HEALTH_RECOVER_TOXIN_MAX (0.1, an estimate). Read literally (0), no garden could recover on any real leaf.",
+   "Machine load: life.ts ran at about 5 minutes per game day, and each harness run took about 20 minutes."
+  ],
+  "contractChanges": []
+ }
+}

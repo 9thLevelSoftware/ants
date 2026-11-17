@@ -109,11 +109,16 @@ export default async ({ page, shot, log }) => {
   result.checks.carriers = { n: c.n, near: c.near, hour: c.hour, caste: c.best.caste, fragmentMm: c.best.len };
   // low and close (scaled to the carrier's body: a minim is a third of a BU), from the side and a little ahead of the
   // leading carrier, looking back along its path so the fragment and the next carrier show
-  await g(([p, f, b, body]) => {
-    const k = Math.max(0.35, body) * b;
-    const eye = { x: p.x + f.x * 2.4 * k + f.z * 1.8 * k, y: p.y + 1.0 * k, z: p.z + f.z * 2.4 * k - f.x * 1.8 * k };
-    window.__game.camera.setPose(eye, { x: p.x - f.x * 0.8 * k, y: p.y + 0.1 * k, z: p.z - f.z * 0.8 * k });
-  }, [c.best.pos, c.best.fwd, bu, c.best.body]);
+  // the group: aim at the centroid of the carriers near the leading one, from the side, far enough to hold them all
+  await g(([p, f, b, all]) => {
+    const near = all.filter((q) => Math.hypot(q.x - p.x, q.z - p.z) < 25 * b);
+    const cx = near.reduce((a, q) => a + q.x, 0) / near.length, cz = near.reduce((a, q) => a + q.z, 0) / near.length;
+    const cy = near.reduce((a, q) => a + q.y, 0) / near.length;
+    const spread = Math.max(2.5 * b, ...near.map((q) => Math.hypot(q.x - cx, q.z - cz)));
+    const d = 1.6 * spread;
+    const eye = { x: cx + f.z * d - f.x * 0.4 * d, y: cy + 0.45 * d, z: cz - f.x * d - f.z * 0.4 * d };
+    window.__game.camera.setPose(eye, { x: cx, y: cy, z: cz });
+  }, [c.best.pos, c.best.fwd, bu, c.all]);
   await step(1);
   await highShot('01-leaf-carriers');
   // the same carrier from its own possession camera (the fragment held over its head)
@@ -190,10 +195,10 @@ export default async ({ page, shot, log }) => {
       const others = four.filter((a) => a.id !== minim.id);
       if (me) {
         // side by side across the view, the major farthest out so her size reads against the others
-        const sides = [-2.6, 0, 1.8];
+        const sides = [-1.9, 0, 1.3];
         for (let i = 0; i < others.length; i++) {
           const s = sides[i] ?? 0;
-          const p = { x: me.pos.x + me.fwd.x * 4.0 * bu + me.fwd.z * s * bu, y: me.pos.y, z: me.pos.z + me.fwd.z * 4.0 * bu - me.fwd.x * s * bu };
+          const p = { x: me.pos.x + me.fwd.x * 2.6 * bu + me.fwd.z * s * bu, y: me.pos.y, z: me.pos.z + me.fwd.z * 2.6 * bu - me.fwd.x * s * bu };
           await g(([id, q]) => window.__game.teleport(id, q), [others[i].id, p]);
         }
         await step(2);
@@ -205,7 +210,8 @@ export default async ({ page, shot, log }) => {
 
   // ---- 5. the refuse heap (garden waste carried out): wait up to 1 GD for the first dump ----
   const heapNow = () => sim((sm) => {
-    const ps = sm.state.items.filter((it) => it.alive && it.kind === 'garden-waste' && !it.inNest && it.hardness !== 0).map((it) => it.pos);
+    // lying on the surface (not still in a hauler's mandibles)
+    const ps = sm.state.items.filter((it) => it.alive && it.kind === 'garden-waste' && !it.inNest && it.hardness !== 0 && it.carrierIds.length === 0).map((it) => it.pos);
     return ps.length ? { n: ps.length, p: ps[0] } : null;
   });
   let heap = await heapNow();

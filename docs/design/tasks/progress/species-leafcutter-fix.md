@@ -35,3 +35,8 @@ Started 2026-11-17 (no earlier progress file). Last update: see bottom.
 - 10:47 life fix-sg1 at day 3 (9 workers, ~5 min/GD under load); expected done ~12:00. Do not restart it; read test-output/viab/fix-sg1.log
 - 11:35 fix-sg1 DONE: Viable yes, workers 9->9, leaf delivered 43, 0 starvation, deaths old-age 2 + media lost 1 (forced seal, founding re-run). Next: harness e2e
 - harness e2e1 started (bg) -> test-output/species-leafcutter-fix/e2e1(.log/.json); if cut off check EXIT line, do not rerun twice
+- e2e1 EXIT 0 (shots looked at: 01 one carrier close-up, 03 castes by day rusty, 04 was a CARRIED waste item in the garden chamber, not a heap -> filter fixed). e2e2 started with framing fixes; do not rerun again
+## FINISHED (final)
+- e2e2 EXIT 0: 03 castes by day distinguishable (major big head left, media, small media, minim possessed); 01 carriers
+  tiny minims (3 within 25 BU, frame weak); no refuse heap within the window (minim-only colony; media spawned late)
+- final: tsc clean; owned tests 8 files / 48 pass; report submitted. Nothing in progress.
