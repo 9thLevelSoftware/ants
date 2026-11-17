@@ -1,8 +1,9 @@
 // New-game options (UI New Game screen, URL flags, debug API) -> GameConfig and an optional prepared test world.
 // Pure: no DOM, no three.
-import type { ArchetypeId, DifficultyId, GameConfig, SpeciesId, WorldData, WorldSizeId } from '@/sim/types';
+import type { ArchetypeId, CustomRules, DifficultyId, GameConfig, SpeciesId, StartSeasonRule, WorldData, WorldSizeId } from '@/sim/types';
 import { ARCHETYPES, DIFFICULTY_IDS, SPECIES_IDS, WORLD_SIZES } from '@/sim/types';
 import { defaultGameConfig, syncWorldParams } from '@/sim/createGame';
+import { applyRules } from '@/sim/config/rules';
 import { makeTestWorld, type TestWorldOptions } from '@/sim/testing';
 import { seedFromText } from '@/worldgen';
 
@@ -15,6 +16,10 @@ export interface NewGameOptions {
   archetype?: ArchetypeId;
   size?: WorldSizeId;
   difficulty?: DifficultyId;
+  /** Custom rules on top of the preset (GDD 06 §14.1); unknown or invalid ones are ignored (src/sim/config/rules.ts). */
+  customRules?: Partial<CustomRules>;
+  /** The `startSeason` rule: `natural` (default) = the species' founding day. */
+  startSeason?: StartSeasonRule;
   /** Enable cheat.* commands (always on with ?test=1). */
   cheats?: boolean;
   /** View after loading: possess the founding queen (default) or the observer. */
@@ -51,7 +56,8 @@ export function resolveNewGame(opts: NewGameOptions = {}): ResolvedNewGame {
   const species = pick(opts.species, SPECIES_IDS, 'lasius-niger');
   const difficulty = pick(opts.difficulty, DIFFICULTY_IDS, 'naturalist');
   const { seed, text } = seedOf(opts.seed);
-  const base = defaultGameConfig(species, seed, difficulty);
+  const preset = defaultGameConfig(species, seed, difficulty);
+  const base = applyRules(preset, opts.startSeason ? { ...opts.customRules, startSeason: opts.startSeason } : opts.customRules).config;
   const world = {
     ...base.world, seedText: text,
     archetype: pick(opts.archetype, ARCHETYPES, base.world.archetype),

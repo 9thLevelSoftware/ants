@@ -220,6 +220,108 @@ export interface GardenRecord {
   infection: number;
   substrate: number;
   waste: number;
+  /**
+   * Additive (species-leafcutter): GDD 07 §6.4.1 names. `substrate` above holds subIn1Gd (LU planted over the last
+   * game day); `contamination` is c (0..1); `gcap` Gcap (GU); subQ / subP / subT the load-weighted quality, protein
+   * and toxin of the substrate of the last 1.5 GD; `fsub`, `fclim`, `ftend` the last step's factors (0..1+).
+   */
+  contamination?: number;
+  gcap?: number;
+  subQ?: number;
+  subP?: number;
+  subT?: number;
+  fsub?: number;
+  fclim?: number;
+  ftend?: number;
+  fT?: number;
+  fRH?: number;
+  /** Additive (species-leafcutter): substrate ledger, one bin per SUB_BIN_GD, newest last (§6.4.1 subSources). */
+  subBins?: SubstrateBin[];
+  /** Additive (species-leafcutter): leaf fragments waiting in the chamber (§6.4.6 stage 3 `cache`). */
+  cache?: LeafLot[];
+  /** Additive (species-leafcutter): chewed pulp waiting to be planted (stage 4 -> 5), LU, with its traits. */
+  pulp?: LeafLot[];
+  /** Additive (species-leafcutter): harvestable staphylae standing on the garden, FL (unharvested yield is lost). */
+  yieldStanding?: number;
+  /** Additive (species-leafcutter): health at the last rejection checks (§6.4.5), oldest first, one per 0.25 GD. */
+  healthLog?: number[];
+  /** Additive (species-leafcutter): check slot of the last healthLog entry (tick / check period), -1 none. */
+  healthSlot?: number;
+  /** Additive (species-leafcutter): tick the climate first fell below relocateFclim, -1 not now. */
+  climBadSince?: number;
+  /** Additive (species-leafcutter): state before an infection (restored when it clears). */
+  preInfectState?: GardenState;
+  /** Additive (species-leafcutter): tick this record was created, and the tick it last died (-1). */
+  createdTick?: number;
+  diedTick?: number;
+  /** Additive (species-leafcutter): what last pushed it towards death ('infection', 'heat', 'cold', 'starvation', 'poison'). */
+  lastCause?: string;
+  /** Additive (species-leafcutter): the chamber is quarantined by an avoid marker (read each step). */
+  quarantined?: boolean;
+  /** Additive (species-leafcutter): debug substrate supply (cheat.supplySubstrate), planted each step; null none. */
+  supply?: { luPerGd: number; q: number; p: number; t: number; plantId: number } | null;
+}
+
+/** Additive (species-leafcutter): a quantity of leaf with its plant traits (cache or pulp). */
+export interface LeafLot {
+  /** Leaf units, LU. */
+  lu: number;
+  /** Quality 0..1 (halved once the lot is older than the spoil age), protein fraction, toxin 0..1. */
+  q: number;
+  p: number;
+  t: number;
+  /** Plant (world object id) it was cut from; -1 herbage or unknown. */
+  plantId: number;
+  /** Tick it arrived in this state (cache: delivered; pulp: chewed). */
+  tick: number;
+}
+
+/** Additive (species-leafcutter): substrate planted during one ledger bin. */
+export interface SubstrateBin {
+  /** First tick of the bin. */
+  tick: number;
+  lu: number;
+  /** Load-weighted sums: quality x LU, protein x LU, toxin x LU. */
+  qLu: number;
+  pLu: number;
+  tLu: number;
+  /** Largest suppliers: plant id, LU, and the plant's protein fraction and toxin. */
+  plants: { plantId: number; lu: number; p: number; t: number }[];
+}
+
+/** Additive (species-leafcutter): a place leaves are cut (a plant object, or a patch of herbage on the ground). */
+export interface LeafSite {
+  /** Ground point the cutter walks to, mm. */
+  pos: Vec3;
+  /** World object id of the plant; -1 a herbage patch. */
+  plantId: number;
+  /** Plant kind (template id, or 'herbage'). */
+  kind: string;
+  /** Leaf quality, protein fraction and toxin (GDD 07 §6.4.5 leafQ, leafP, leafT). */
+  q: number;
+  p: number;
+  t: number;
+  /** Leaf standing, LU, and the most it holds. */
+  lu: number;
+  capacity: number;
+}
+
+/** Additive (species-leafcutter): stage throughput counters of the processing chain (GDD 07 §6.4.6). */
+export interface ChainCounters {
+  /** First tick of the current window. */
+  windowTick: number;
+  /** This window's LU (or LU-equivalents) through each stage so far. */
+  cut: number;
+  carried: number;
+  processed: number;
+  planted: number;
+  harvested: number;
+  wasteOut: number;
+  /** The last complete window's figures, and the demand (1.8 x sum G per GD x window) then. */
+  last: { cut: number; carried: number; processed: number; planted: number; harvested: number; wasteOut: number; demand: number } | null;
+  /** The narrowest stage of the last window, '' none; and since when it has been short. */
+  narrow: string;
+  narrowSince: number;
 }
 
 /** fungus-garden (Atta). */
@@ -228,4 +330,27 @@ export interface FungusModule {
   rejected: { plantId: number; untilTick: number }[];
   gardenLess: boolean;
   gardenLessTick: number;
+  /** Additive (species-leafcutter): leaf sites the colony cuts from (built once around the nest). */
+  leafSites?: LeafSite[];
+  /** Additive (species-leafcutter): harvested staphylae not yet in the pool, FL. */
+  staphylae?: number;
+  /** Additive (species-leafcutter): tick the module last integrated, -1 never. */
+  lastStepTick?: number;
+  /** Additive (species-leafcutter): processing-chain counters. */
+  chain?: ChainCounters;
+  /** Additive (species-leafcutter): queen reserve left for the garden-less colony, loads (GDD 07 §6.4.9: 3 GD). */
+  gardenLessReserve?: number;
+  /** Additive (species-leafcutter): cause of the last garden loss ('infection', 'heat', 'cold', 'starvation', 'poison'). */
+  lostCause?: string;
+  /** Additive (species-leafcutter): phorid strikes / laden-forager exposure this game day (diag-at-phorid). */
+  phoridDay?: number;
+  phoridToday?: number;
+  phoridForagersToday?: number;
+  phoridLastDayRate?: number;
+  /** Additive (species-leafcutter): plants rejected in the last 3 GD (diag-at-substrate): plant id and tick. */
+  rejectLog?: { plantId: number; tick: number; reason: string }[];
+  /** Additive (species-leafcutter): the first major has been destined (`caste-unlocked` emitted once). */
+  majorsUnlocked?: boolean;
+  /** Additive (species-leafcutter): the founding garden's queen fertilisation still running after hand-over, until tick. */
+  fertUntilTick?: number;
 }

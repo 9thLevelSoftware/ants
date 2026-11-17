@@ -647,3 +647,18 @@ Progress (kept current; a successor continues from here)
   queen-care / haul / dig / idle worker-gd, larva-gd, hungry larva-gd, untended egg+pupa gd).
   Decision: no worldgen change this round (patch placement): it would change every world and void the 15 cached
   hand-overs the benches stand on. Recorded as a lead (R18 reach) instead.
+- 07:20 NOTE: other engineers (difficulty rules, leafcutter) are changing many `src/sim` files in this checkout
+  (brood.ts, physiology.ts, combat/damage.ts, founding/*, ...; commit 331d105 and snapshots). Benches therefore run on
+  frozen copies: `base` = e614493 + bench tools; `h2` = base + my four files (hunt.ts, keys.ts, transitions.ts,
+  preyFauna.ts). Each after-copy = base + this round's files only. The auto-snapshot loop commits my files too.
+  forage-before 8/15 at 07:17 (median P/need 0.024; pp #2 25 kills, 20 loads, 4.8 P; sg #2 16 kills).
+  Plan when it ends: nest-before (base, PAR=1) and forage-after (h2, PAR=1) side by side.
+- 07:38 **forage bench before** done (`round-3/bench-forage-before/table.md`, base tree, demand of 30 workers):
+  median trips 45, success 26 %, C/need 0.78, **P/need 0.012**. Protein path: patch prey met in 9 of 15 runs (only
+  where the nearest patch edge is <= 130 BU), chased 0-144, caught 0-25 (median chase conversion 0 %; pp #2 24 %, sg #2
+  11 %, cpv #2 14 %, sg #1 4 %), prey loads home 0-20 (only pp #2 brings real protein: 4.8 P). Carrion within 300 BU:
+  1-12 pieces at the end of every run (P 0.6-15 loads), **known 0** in 13 of 15; scouts make 4-30 trips in 8 gd,
+  nearest approach to a P source's odour edge median ~130 BU. Crumbs (we #2 1.9 P, pp #2 1.0 P) are the other P.
+  Running (07:35): nest-before (base, PAR=1) -> `round-3/bench-nest-before/`, forage-h2 (h2, PAR=1) ->
+  `round-3/bench-forage-h2/`, one process each. If cut off: re-run `PAR=1 $S/base/tools/sim/bench-sweep.sh nest ...`
+  and `PAR=1 $S/h2/tools/sim/bench-sweep.sh forage ...` (out dirs above, cache `round-3/cache`).

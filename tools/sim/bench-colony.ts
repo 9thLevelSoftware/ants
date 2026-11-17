@@ -144,7 +144,8 @@ class PreyObserver {
     sim.events.on('creature-despawned', (e) => { if (this.live.has(e.id)) this.end(e.id, `despawn:${e.cause}`); });
     sim.events.on('creature-died', (e) => { if (this.live.has(e.id)) this.end(e.id, `died:${e.cause}`); });
     sim.events.on('delivery', (e) => {
-      if (!this.carrying.has(e.antId)) return;
+      // the remains' delivery (a springtail 0.25 P, a mite 0.08), not a crop unloaded by the same ant
+      if (!this.carrying.has(e.antId) || e.p < 0.05) return;
       this.carrying.delete(e.antId);
       this.loadsHome++; this.pHome += e.p;
     });

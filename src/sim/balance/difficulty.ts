@@ -138,10 +138,10 @@ export function invalidCustomRules(custom: unknown): string[] {
 export type DifficultyKey = keyof DifficultyParams;
 
 /** The slice of a config the accessors read. */
-export type DifficultyConfig = Pick<GameConfig, 'difficulty' | 'rules'>;
+export type DifficultyInputs = Pick<GameConfig, 'difficulty' | 'rules'>;
 
 /** Anything that carries the game config: the `Sim`, or a bare `{ state: { config } }` in tests. */
-export interface DifficultySource { state: { config: DifficultyConfig } }
+export interface DifficultySource { state: { config: DifficultyInputs } }
 
 /** Rule values a preset implies, for the rules that can be overridden (everything but the fixed-at-generation ones). */
 export function presetRuleValues(preset: DifficultyId): Omit<CustomRules, 'seasonLengthDays' | 'startSeason'> {
@@ -193,7 +193,7 @@ const NO_FLIGHT_PREDATORS: [number, number] = [0, 0];
  * The value of a rule in force: the player's explicit override (`difficulty.custom`) first, else the effective
  * rules (`config.rules`, which `resolveRules` and the `setDifficulty` command keep up to date).
  */
-export function effectiveRule<K extends keyof CustomRules>(cfg: DifficultyConfig, key: K): CustomRules[K] {
+export function effectiveRule<K extends keyof CustomRules>(cfg: DifficultyInputs, key: K): CustomRules[K] {
   const own = cfg.difficulty.custom?.[key];
   return own !== undefined ? own : cfg.rules[key];
 }
@@ -202,19 +202,19 @@ export function effectiveRule<K extends keyof CustomRules>(cfg: DifficultyConfig
  * The rule departs from what the preset implies, or the player set it explicitly: only then does it override the
  * preset's parameter. With default rules every accessor therefore returns the stored preset value untouched.
  */
-function overrides(cfg: DifficultyConfig, key: 'predators' | 'humanActivity' | 'weatherSeverity' | 'foundingLeniency'): boolean {
+function overrides(cfg: DifficultyInputs, key: 'predators' | 'humanActivity' | 'weatherSeverity' | 'foundingLeniency'): boolean {
   if (cfg.difficulty.custom?.[key] !== undefined) return true;
   return cfg.rules[key] !== PRESET_RULES[cfg.difficulty.preset][key];
 }
 
 /** Scale of the weather parameters from `weatherSeverity`; `none` leaves the heat offset (temperature curve) alone. */
-function severityScale(cfg: DifficultyConfig, key: DifficultyKey): number {
+function severityScale(cfg: DifficultyInputs, key: DifficultyKey): number {
   if (!overrides(cfg, 'weatherSeverity')) return 1;
   const s = SEVERITY_MULT[effectiveRule(cfg, 'weatherSeverity')] ?? 1;
   return s === 0 && key === 'heatOffsetMult' ? 1 : s;
 }
 
-function predatorsOff(cfg: DifficultyConfig): boolean {
+function predatorsOff(cfg: DifficultyInputs): boolean {
   return effectiveRule(cfg, 'predators') === 'off';
 }
 
@@ -224,7 +224,7 @@ export function difficultyValue<K extends DifficultyKey>(src: DifficultySource, 
 }
 
 /** `difficultyValue` for a bare config (display, tests, the New Game screen). */
-export function valueIn<K extends DifficultyKey>(cfg: DifficultyConfig, key: K): DifficultyParams[K] {
+export function valueIn<K extends DifficultyKey>(cfg: DifficultyInputs, key: K): DifficultyParams[K] {
   const base = cfg.difficulty.params[key];
   const group = KEY_GROUP[key];
   if (group === 'plain') return base;
@@ -257,7 +257,7 @@ export function valueIn<K extends DifficultyKey>(cfg: DifficultyConfig, key: K):
 }
 
 /** The whole parameter record in force (a fresh object; not for hot paths). */
-export function effectiveParams(cfg: DifficultyConfig): DifficultyParams {
+export function effectiveParams(cfg: DifficultyInputs): DifficultyParams {
   const out: Record<string, unknown> = {};
   for (const k of DIFFICULTY_KEYS) out[k] = valueIn(cfg, k);
   return out as unknown as DifficultyParams;

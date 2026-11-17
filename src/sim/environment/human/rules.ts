@@ -1,18 +1,13 @@
-// Difficulty and rule multipliers of human activity (GDD 04 §15.7). The custom rule `humanActivity` replaces the
-// preset frequency only when the player set it (config.difficulty.custom); `off` always silences people.
+// Difficulty and rule multipliers of human activity (GDD 04 §15.7), read through balance/difficulty.ts: the custom
+// rule `humanActivity` replaces the preset frequency when the player set it; `off` always silences people.
 
 import type { Sim } from '@/sim/types';
-import type { HUMAN_ACTIVITY_MULT } from '@/sim/balance/human';
 import { HUMAN_LETHAL_CAP } from '@/sim/balance/human';
-import { difficultyValue } from '@/sim/balance/difficulty';
-
-function customActivity(sim: Sim): keyof typeof HUMAN_ACTIVITY_MULT | undefined {
-  return (sim.state.config.difficulty.custom as { humanActivity?: keyof typeof HUMAN_ACTIVITY_MULT } | undefined)?.humanActivity;
-}
+import { difficultyValue, effectiveRule } from '@/sim/balance/difficulty';
 
 /** The player switched people off (rule or custom difficulty): nothing is scheduled, the world does not answer. */
 export function humanActivityOff(sim: Sim): boolean {
-  return sim.state.config.rules.humanActivity === 'off' || customActivity(sim) === 'off';
+  return effectiveRule(sim.state.config, 'humanActivity') === 'off';
 }
 
 export function humanFreqMult(sim: Sim): number {

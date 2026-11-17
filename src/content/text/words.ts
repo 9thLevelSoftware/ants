@@ -173,6 +173,22 @@ export const FACTOR_CAUSE_WORD: Readonly<Record<string, string>> = {
   'late-brood-share': 'Late brood in satellites',
   'orphan-satellite': 'Satellite cut off for a week',
   'wood-crumbling': 'Nest wood crumbling',
+  // fungus garden (Atta, GDD 07 §6.4.11, §5.4.10; species-leafcutter)
+  'garden-substrate': 'Too little leaf for the garden',
+  'garden-temperature': 'Garden chamber too hot or too cold',
+  'garden-dry': 'Garden chamber too dry',
+  'garden-gardeners': 'Too few gardeners',
+  'garden-waste': 'Spent leaf not taken out',
+  'garden-substrate-quality': 'Toxic or protein-rich leaves',
+  'garden-escovopsis': 'Grey parasite threads in the garden',
+  'garden-lost': 'The garden is gone',
+  'chain-cut': 'Too few leaves cut',
+  'chain-carry': 'Leaves cut but not brought home',
+  'chain-process': 'Leaves waiting to be chewed',
+  'chain-plant': 'Leaf pulp waiting to be planted',
+  'leaf-toxic': 'A plant poisoned the garden',
+  'leaf-protein': 'A plant too rich in protein for the garden',
+  'phorid-flies': 'Phorid flies on the leaf carriers',
 };
 
 /** Remedy ids in plain words (Diagnostic.remedies; each opens the control concerned and changes nothing itself). */
@@ -210,6 +226,14 @@ export const REMEDY_WORD: Readonly<Record<string, string>> = {
   'remedy.slider.tend': 'Raise the Forage share (it holds the tenders)',
   'remedy.stance.cautious': 'Set the stance to cautious',
   'remedy.stock.low': 'Lower the stock target',
+  'remedy.slider.cut': 'Raise the Cut share (inside Forage)',
+  'remedy.slider.garden': 'Raise the Garden share (inside Nurse)',
+  'remedy.slider.haul': 'Raise the Haul share (inside Dig)',
+  'remedy.dig.fungus': 'Plan a deeper, cooler fungus chamber',
+  'remedy.leaf-selectivity': 'Raise leaf selectivity',
+  'remedy.garden.piece': 'Carry a piece of living garden in (only a living garden can start a new one)',
+  'remedy.hitchhiker-escort': 'Turn on hitchhiker escort',
+  'remedy.forage-night': 'Cut leaves at night',
 };
 
 /**
@@ -249,6 +273,10 @@ export const DIAG_VALUE_WORD: Readonly<Record<string, DiagValueSpec>> = {
   'diag-cp-satellites': { kind: 'count', unit: 'satellite nests' },
   'diag-cp-growth': { kind: 'count', unit: 'years old' },
   'diag-cp-frass': { kind: 'count', unit: 'frass visibility' },
+  'diag-garden': { kind: 'count', unit: 'garden units' },
+  'diag-at-chain': { kind: 'count', unit: 'leaf units planted in half a day' },
+  'diag-at-substrate': { kind: 'count', unit: 'plants refused' },
+  'diag-at-phorid': { kind: 'percent', unit: 'of carriers struck today' },
   'diag-released-ant': { kind: 'none', unit: '' },
   'diag-possessed-action': { kind: 'none', unit: '' },
   'diag-possessed-movement': { kind: 'none', unit: '' },

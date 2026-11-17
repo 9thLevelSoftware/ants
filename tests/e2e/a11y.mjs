@@ -217,9 +217,14 @@ export default async ({ page, log, out, wait, shot }) => {
 
     // possess an ant: RB = next nearby ant (the queen stays under AI); LB + A = a digger
     const q = await g(() => window.__game.summary().possessed);
-    await press(B.RB);
-    await step(2);
-    const p1 = await g(() => window.__game.summary().possessed);
+    // RB is a tap (released before the hold threshold): on a loaded machine one frame can outlast it, so the tap is one
+    // frame and retried (as panels.mjs does for View); the assertion is unchanged
+    let p1 = null;
+    for (let i = 0; i < 3 && !(p1 && p1.id !== q?.id); i++) {
+      await press(B.RB, { n: 1 });
+      await step(2);
+      p1 = await g(() => window.__game.summary().possessed);
+    }
     expect(p1 && p1.id !== q?.id, 'RB did not possess another ant', { q, p1 });
     ok('possess-next-by-pad', { from: q?.id ?? null, to: p1.id, caste: p1.caste });
     let p2 = p1;
@@ -406,6 +411,10 @@ export default async ({ page, log, out, wait, shot }) => {
     // the engine's clock runs. The clock is manual in ?test=1, so advance it.
     await g(() => { window.__onboarding.reset(); window.__game.camera.set('possess'); window.__game.possess('digger'); });
     await step(2); await frames(3);
+    // the engine stays silent while the opening is in progress, which lasts until the first workers have dug the plug
+    // out (the nest's founding record `established`, up to 4 game hours after the hand-over by ruling R14): play on
+    // until then, as tests/e2e/onboarding.mjs does (gate-close-app: the sim's reopening got slower)
+    for (let i = 0; i < 60 && (await g(() => window.__onboarding.facts()?.foundingInProgress)); i++) { await step(200); await g((n) => window.__onboarding.advance(n), 0.25); }
     let hintBefore = await hintView();
     for (let i = 0; i < 12 && !hintBefore; i++) { await g((n) => window.__onboarding.advance(n), 6); await frames(2); hintBefore = await hintView(); }
     const hintDiag = async () => JSON.stringify({ state: await g(() => window.__onboarding.state()), hints: await g(() => window.__onboarding.hints()), facts: await g(() => window.__onboarding.facts()), log: await g(() => window.__onboarding.log().slice(-12)), view: await g(() => window.__game.camera.view()) }).slice(0, 3000);
