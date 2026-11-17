@@ -288,8 +288,10 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
   const walkerUp = w.medium === 'surface' && w.pos.y - groundW > P.elevated;
   const goalUp = s.goal.y - groundG > P.elevated;
   const far = dist3(w.pos, s.goal) > P.routeGoal;
+  // a climb route serves the goal: the walker gets onto it (climbs it if already on it, else walks to its base, coming
+  // down first if it is up elsewhere: on a root of the same tree, partway up off the route)
+  const g = goalUp ? nearestRouteNode(sim.world, s.goal, P.routeGoal, 1) : null;
   if (goalUp) {
-    const g = nearestRouteNode(sim.world, s.goal, P.routeGoal, 1);
     if (g) {
       const k = nearestRouteNode(sim.world, w.pos, P.routeSnap);
       if (walkerUp && !far) { setSeek(w, s, s.goal); return true; }
@@ -297,11 +299,12 @@ export function planLeg(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here
       if (!walkerUp) return planSurface(sim, w, s, r, g.route.points[0], -1);
     }
   }
-  // a goal up the same object (a herd higher on the stem the walker climbs) is climbed to, not descended from
-  // (loco-fix3 review: a re-issued walk partway up a bare stem was sent back to the ground on every replan)
-  // The ground nav grid says nothing about a climb on one object, and a plan-view aim at a point above circles a
-  // vertical stem: seek the goal directly, aiming in 3D.
-  if (walkerUp && goalUp && sameObject(sim, w, s.goal)) {
+  // a goal up the same object with no climb route (a herd higher on the bare stem the walker climbs) is climbed to,
+  // not descended from (loco-fix3 review: a re-issued walk partway up a bare stem was sent back to the ground on every
+  // replan). The ground nav grid says nothing about a climb on one object, and a plan-view aim at a point above
+  // circles a vertical stem: seek the goal directly, aiming in 3D. With a route the route is taken (above): a 3D aim
+  // from a root of a tree at a herd high in its crown wedges the walker where the root meets the trunk.
+  if (walkerUp && goalUp && !g && sameObject(sim, w, s.goal)) {
     setSeek(w, s, s.goal);
     s.seekDown = 1;
     return true;
@@ -335,9 +338,17 @@ function planDescent(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime): boolea
   const ground = sim.field.height(w.pos.x, w.pos.z);
   if (w.pos.y - ground <= P.elevated || dist3(w.pos, s.goal) <= P.routeGoal) return false;
   const k = nearestRouteNode(sim.world, w.pos, P.routeGoal, 1);
-  if (k) { setClimb(w, s, k.route.id, k.idx, 0, false); return true; }
+  if (k) {
+    // at the foot of the route already: walk off (a route that starts on a root flare leaves a walker at its foot
+    // still 'up', and sending it down the route again ended the leg at once, every replan: loco-fix3 review)
+    if (dist3(w.pos, k.route.points[0]) <= P.routeSnap) return false;
+    setClimb(w, s, k.route.id, k.idx, 0, false);
+    return true;
+  }
   if (Math.abs(w.up.y) >= P.pinnedUpY) return false;
+  // the ground below, or the top of what covers it (a root flare at the foot of a trunk): never a point in a solid
   set3(_d, w.pos.x, ground, w.pos.z);
+  snapToSurface(sim, _d, P.bu);
   setSeek(w, s, _d);
   s.seekDown = 1;
   return true;

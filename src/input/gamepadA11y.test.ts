@@ -2,13 +2,13 @@
 // the default pad bindings of the books and panels, dismiss-hint, hold duration scaling, orbit by toggle.
 import { describe, expect, it } from 'vitest';
 import { ACTIONS, actionDef } from './actions';
-import { defaultBindings } from './bindings';
+import { collides, defaultBindings } from './bindings';
 import { HOLD_MS_DEFAULT, PAD } from './defaults';
 import { hintText, padBindingGlyph, padStyleOf } from './glyphs';
 import { InputState } from './inputState';
 import { PadCapture } from './padCapture';
-import { readGamepads } from './padSource';
-import { allConflicts } from './rebind';
+import { PlayerPadPicker, readGamepads } from './padSource';
+import { allConflicts, rebind, settlePadBinding } from './rebind';
 import type { PadSnapshot } from './types';
 
 function pad(buttons: number[] = [], axes: number[] = [0, 0, 0, 0], id = 'pad (standard)'): PadSnapshot {
@@ -133,11 +133,33 @@ describe('the panel shortcuts behind RB do not disturb the pad actions they shar
     expect(input.pressed('directives')).toBe(false);
   });
 
-  it('RB alone still takes the next ant', () => {
+  it('an RB tap takes the next ant on release, a long RB press does not', () => {
     const { input, frame } = make('P');
     frame(null);
     frame(pad([PAD.RB]));
+    expect(input.pressed('possess-next'), 'RB is a modifier: nothing fires on the press edge').toBe(false);
+    frame(pad());
     expect(input.pressed('possess-next')).toBe(true);
+    // held past the tap limit (250 ms)
+    frame(pad([PAD.RB]));
+    for (let i = 0; i < 30; i++) frame(pad([PAD.RB]));
+    frame(pad());
+    expect(input.pressed('possess-next')).toBe(false);
+  });
+
+  it('the second button of a chord does not tap on its own when its partner was released first', () => {
+    const { input, frame } = make('P');
+    frame(null);
+    frame(pad([PAD.RB]));
+    frame(pad([PAD.RB, PAD.VIEW]));
+    frame(pad([PAD.VIEW])); // RB up first
+    frame(pad());
+    expect(input.pressed('release'), 'RB + View is dismiss-hint, not a View tap').toBe(false);
+    frame(pad([PAD.LB]));
+    frame(pad([PAD.LB, PAD.RB]));
+    frame(pad([PAD.RB])); // LB up first
+    frame(pad());
+    expect(input.pressed('possess-next'), 'LB + RB is alert-jump').toBe(false);
   });
 });
 
@@ -229,5 +251,51 @@ describe('padSource', () => {
     expect(pads[1]).toBeNull();
     expect(readGamepads(fake(() => { throw new Error('refused'); }))).toEqual([]);
     expect(readGamepads({ navigator: {} } as unknown as Window)).toEqual([]);
+  });
+});
+
+describe('pad rebinding keeps the gestures the table relies on (reviewer findings, round 2)', () => {
+  it('a tap and a hold of one button coexist; a plain press collides with both', () => {
+    expect(collides({ kind: 'pad', button: PAD.VIEW, gesture: 'tap' }, { kind: 'pad', button: PAD.VIEW, gesture: 'hold' })).toBe(false);
+    expect(collides({ kind: 'pad', button: PAD.VIEW }, { kind: 'pad', button: PAD.VIEW, gesture: 'hold' })).toBe(true);
+    expect(collides({ kind: 'pad', button: PAD.VIEW }, { kind: 'pad', button: PAD.VIEW, mod: PAD.RB })).toBe(false);
+    expect(collides({ kind: 'pad', button: PAD.A, gesture: 'tap' }, { kind: 'pad', button: PAD.A, gesture: 'tap' })).toBe(true);
+  });
+
+  it('the default table has no collisions (a tap / hold pair on View and Start is intended)', () => {
+    expect(allConflicts(defaultBindings())).toEqual([]);
+  });
+
+  it('an action that is not a hold, rebound to a modifier button, fires on release; a hold action keeps the plain press', () => {
+    const set = defaultBindings();
+    // Roster (G) onto RB: RB is the modifier of every panel shortcut, so a press edge would fire it with each one
+    const r = settlePadBinding(set, 'cycle-target', { kind: 'pad', button: PAD.RB });
+    expect(r).toMatchObject({ kind: 'pad', button: PAD.RB, gesture: 'tap' });
+    expect(settlePadBinding(set, 'dig', { kind: 'pad', button: PAD.RB })).toEqual({ kind: 'pad', button: PAD.RB });
+    expect(settlePadBinding(set, 'cycle-target', { kind: 'pad', button: PAD.Y })).toEqual({ kind: 'pad', button: PAD.Y });
+  });
+
+  it('a rebound action that takes the place of an RB tap still lets RB + D-pad up open Colony orders alone', () => {
+    const res = rebind(defaultBindings(), 'cycle-target', 'pad', { kind: 'pad', button: PAD.RB }, 'unbind-other');
+    expect(res.status).toBe('applied');
+    if (res.status !== 'applied') return;
+    const input = new InputState(res.bindings);
+    input.contexts.setBase('P');
+    let now = 1000;
+    const seen = new Set<string>();
+    const frame = (p: PadSnapshot) => { input.setPads([p]); now += 16; input.update(now); for (const id of ['cycle-target', 'directives']) if (input.pressed(id)) seen.add(id); };
+    frame(pad()); frame(pad([PAD.RB])); frame(pad([PAD.RB, PAD.DUP])); frame(pad([PAD.RB])); frame(pad());
+    expect([...seen]).toEqual(['directives']);
+  });
+});
+
+describe('the player pad among several (GDD 01 5.8)', () => {
+  const at = (index: number, buttons: number[] = []): PadSnapshot => ({ ...pad(buttons), index });
+  it('the first pad with input is chosen and kept until it disconnects', () => {
+    const picker = new PlayerPadPicker();
+    expect(picker.pick([at(0), at(1)])?.index).toBe(0); // nobody has pressed anything: the first connected pad
+    expect(picker.pick([at(0), at(1, [PAD.A])])?.index).toBe(1);
+    expect(picker.pick([at(0, [PAD.B]), at(1)])?.index, 'pad 1 stays the player pad while connected').toBe(1);
+    expect(picker.pick([at(0, [PAD.B]), null])?.index, 'pad 1 left').toBe(0);
   });
 });

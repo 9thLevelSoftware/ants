@@ -1,6 +1,6 @@
 // Look pass 2, work item 2: ants are lit where the scene leaves them black (underground, night). The form light is a
 // pair of uniforms (tuning.ts ANT_FILL) set from the exposure and the underground blend; the shader term is checked
-// by tests/e2e/look2.mjs (the pictures) and by the program compiling in the harness.
+// by tests/e2e/lib/look2.mjs (the pictures) and by the program compiling in the harness.
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Scene } from 'three';
 import { getPreset } from '@/render/app/quality';

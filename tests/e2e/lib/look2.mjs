@@ -1,7 +1,7 @@
 // Look pass 2 contact sheet from the REAL game (task look-pass-2): night, dusk, noon and overcast, seen from the
 // possession camera on the surface, from inside the nest, from observer height and as a colony slice.
 //
-//   node tools/harness/play.mjs --root . --query "test=1&seed=1&autostart=1&quality=high" --script tests/e2e/look2.mjs \
+//   node tools/harness/play.mjs --root . --query "test=1&seed=1&autostart=1&quality=high" --script tests/e2e/lib/look2.mjs \
 //        --out test-output/look2/p2/after --timeout 300000 --script-timeout 3600000
 //
 // Environment (all optional):
@@ -14,10 +14,10 @@
 //   LOOK2_BENCH=3             also time each frame: minimum of n synchronous renders
 // Every picture is a plate (UI hidden). Result: per shot { file, light, view, quality, drawCalls, triangles, ms,
 // groundPoints } where groundPoints are the screen positions of terrain samples within 20 body lengths of the ant
-// (tests/e2e/lib/look2-metrics.py turns them and the PNG into the luminance and contrast numbers).
+// (tests/e2e/lib/look2-measure.mjs reads the luminance and contrast numbers from the frame itself, in the page).
 import { writeFileSync } from 'node:fs';
-import { measureInPage } from './lib/look2-measure.mjs';
-import { LIGHTS, stage } from './lib/look2-stage.mjs';
+import { measureInPage } from './look2-measure.mjs';
+import { LIGHTS, stage } from './look2-stage.mjs';
 
 export default async ({ page, log, out: outDir }) => {
   const env = process.env;
@@ -69,17 +69,17 @@ export default async ({ page, log, out: outDir }) => {
         await g(() => window.__game.step(1));
         await render(0.5);
         const name = `${tag}-${lname}-${view}-${q}`;
-        const gp = view === 'surface' || view === 'entrance' ? await groundPoints() : { subject: null, points: [] };
+        const gp = view === 'surface' || view === 'entrance' ? await groundPoints() : { subject: null, points: [], ring: [] };
         // measured from a frame drawn in the same task (the drawing buffer is cleared once it is presented)
         const m = await page.evaluate(async ({ fn, args }) => {
           window.__game.renderFrame({ settle: 0.5 });
           return await new Function(`return (${fn})`)()(args);
-        }, { fn: measureInPage.toString(), args: { points: gp.points, subject: gp.subject } });
+        }, { fn: measureInPage.toString(), args: { points: gp.points, ring: gp.ring, subject: gp.subject } });
         const file = await plate(name);
         const st = await statsNow();
         const rec = { file: name, light: lname, view, quality: q, drawCalls: st.drawCalls, triangles: st.triangles, frameMs: st.frameMs, subject: gp.subject, measure: m, groundPoints: gp.points };
         shots.push(rec);
-        log(`${name}: draws=${st.drawCalls} tris=${st.triangles} ground=${m.ground.median?.toFixed(3)} (n=${m.ground.n}) frame=${m.frame.median?.toFixed(3)}${m.contrast !== null && m.contrast !== undefined ? ` antContrast=${m.contrast.toFixed(2)}` : ''}`);
+        log(`${name}: draws=${st.drawCalls} tris=${st.triangles} ground=${m.ground.median?.toFixed(3)} (n=${m.ground.n}) frame=${m.frame.median?.toFixed(3)}${m.contrast !== null && m.contrast !== undefined ? ` antContrast=${m.contrast.toFixed(2)} separable=${m.separable?.toFixed(2)}` : ''}`);
         if (!file) throw new Error(`no screenshot ${name}`);
       }
     }

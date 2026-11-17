@@ -14,11 +14,12 @@ import { atMouth as atMouthImp } from './nests';
 import type { LocoRuntime } from './runtime';
 import type { NavScratch } from './scratch';
 import { aiSpeedCached as aiSpeedCachedImp } from './speed';
-import { checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, pivotDesired as pivotDesiredImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp, wanderStuck as wanderStuckImp } from './stuck';
+import { accrueTravel as accrueTravelImp, travelShort as travelShortImp, checkStuck as checkStuckImp, ladderOverride as ladderOverrideImp, pivotDesired as pivotDesiredImp, trackMovement as trackMovementImp, trackProgress as trackProgressImp, wanderStuck as wanderStuckImp } from './stuck';
 import { walkerLetGo as walkerLetGoImp } from './walker';
 import { afterClimb as afterClimbImp, discsChanged as discsChangedImp, finalLeg as finalLegImp, finite3 as finite3Imp, followLeg as followLegImp, legFlow as legFlowImp, planLeg as planLegImp, resolveTarget as resolveTargetImp, setGoal as setGoalImp, surfaceDist as surfaceDistImp, tripArrived as tripArrivedImp, walkerNest as walkerNestImp } from './trip';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
+const accrueTravel = accrueTravelImp, travelShort = travelShortImp;
 const atMouth = atMouthImp, exitPoint = exitPointImp, walkerLetGo = walkerLetGoImp, isLocoNavGrid = isLocoNavGridImp, followClimb = followClimbImp, followField = followFieldImp, copy3 = copy3Imp, dist3 = dist3Imp, set3 = set3Imp, retraceDesired = retraceDesiredImp, trailDesired = trailDesiredImp, wanderDesired = wanderDesiredImp, routeById = routeByIdImp, aiSpeedCached = aiSpeedCachedImp, checkStuck = checkStuckImp, ladderOverride = ladderOverrideImp, pivotDesired = pivotDesiredImp, wanderStuck = wanderStuckImp, trackMovement = trackMovementImp, trackProgress = trackProgressImp, afterClimb = afterClimbImp, discsChanged = discsChangedImp, finalLeg = finalLegImp, finite3 = finite3Imp, followLeg = followLegImp, legFlow = legFlowImp, planLeg = planLegImp, resolveTarget = resolveTargetImp, setGoal = setGoalImp, surfaceDist = surfaceDistImp, tripArrived = tripArrivedImp, walkerNest = walkerNestImp;
 
 const _target: Vec3 = { x: 0, y: 0, z: 0 }, _tmp: Vec3 = { x: 0, y: 0, z: 0 };
@@ -80,7 +81,7 @@ function stuckStep(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numbe
   const tick = sim.state.tick;
   trackProgress(s, res.metric, res.advanced, tick, r, w);
   // the relocation target (a field lookahead or a flow step) is only needed when the ladder may climb a rung
-  if (tick - s.bestTick <= r.P.stuckWindowS * TICKS_PER_SECOND || tick < s.ladderUntil) {
+  if (tick - s.bestTick <= r.P.stuckWindowS * TICKS_PER_SECOND || tick < s.ladderUntil || travelShort(s, r.P)) {
     ladderOverride(w, s, tick, out);
     return true;
   }
@@ -139,8 +140,18 @@ function tripUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: numb
 function mouthHold(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, here: number): number {
   const rim = r.P.entranceHandover, depth = r.P.mouthDepth;
   if (here >= 0 && s.legNest < 0 && s.goalNest !== here && atMouth(sim, here, w.pos, rim, depth)) return -1;
-  if (here < 0 && s.legNest >= 0 && !s.legExit && s.goalNest === s.legNest && atMouth(sim, s.legNest, w.pos, rim, depth)) return s.legNest;
+  if (here < 0 && s.legNest >= 0 && !s.legExit && s.goalNest === s.legNest && inNestLeg(sim, w, s) && atMouth(sim, s.legNest, w.pos, rim, depth)) return s.legNest;
   return here;
+}
+
+/**
+ * The walker is on a nest field leg it can follow from where it stands. A new request has no leg yet, and a field
+ * that does not reach the lip cannot be followed from it: holding such a walker in the nest failed its walk with
+ * 'leg' on every tick, and the behaviour asked again on the next (review of loco-fix3: workers on the lip of the
+ * suburban-garden #2 entrance failed thousands of walks on the spot).
+ */
+function inNestLeg(sim: Sim, w: Walker, s: NavScratch): boolean {
+  return w.nav.mode === 'field' && s.legField !== '' && Number.isFinite(sim.nestNav.distanceAt(s.legField, w.pos));
 }
 
 /**
@@ -289,5 +300,6 @@ export function aiUpdate(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id:
   if (!go) { w.nav.desiredSpeed = 0; return 0; }
   const v = Math.min(aiSpeedCached(sim, w, s, r.P), speedCap);
   w.nav.desiredSpeed = v;
+  accrueTravel(s, v, dt, r.P);
   return v;
 }

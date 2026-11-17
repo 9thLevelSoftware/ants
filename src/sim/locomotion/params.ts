@@ -163,6 +163,20 @@ export const LOCO_TUNING = {
   /** A leg is stuck when its progress metric did not improve by stuckProgressBU within stuckWindowS. */
   stuckWindowS: 2.5,
   stuckProgressBU: 0.5,
+  /**
+   * A stall also needs the walker to have been able to cover this far at its own commanded speed since its last
+   * progress (loco-fix3 review): a walker slowed by the cold (speed factor near 0 on an autumn morning) crawls at a
+   * tenth of a BU a second and is not stuck. Without it, 120 of 126 relocations on suburban-garden #2 to Winter 1
+   * were cold walkers teleported along their way. At cruise (6 BU/s) the window still decides; a walker that cannot
+   * move at all waits for its request timeout instead of climbing the ladder.
+   */
+  stuckTravelBU: 4,
+  /**
+   * Below this commanded speed, BU/s, a walker is held still (by the cold: 0.05 of the Lasius cruise, the stall watch's
+   * stallAbleTempFactor), not stuck: no travel counts toward stuckTravel, so its ladder does not climb (rival raiders
+   * at their entrance on a 3 degree night were still relocated at a hundredth of a BU a second).
+   */
+  stuckCrawlBUs: 0.3,
   sidestepS: 1.2,
   backoffS: 0.8,
   /**
@@ -312,7 +326,7 @@ export interface LocoParams {
   brakeS: number; arriveTurnRadii: number; pivotCreep: number;
   routeSnap: number; routeGoal: number; direct: number; planBudget: number; planExpandBudget: number; stuckExplosionTicks: number; stuckExplosionFrac: number; stuckExplosionMin: number; retargetS: number; retarget: number;
   pointFieldMax: number; pointSeek: number; arriveStallS: number; ceilingUpY: number; dropAbove: number; dropBelow: number; pointFieldCell: number; pointFieldR: number; timeoutBase: number; timeoutMult: number; surfaceTol: number;
-  stuckWindowS: number; stuckProgress: number; sidestepS: number; backoffS: number; relocateMax: number;
+  stuckWindowS: number; stuckProgress: number; stuckTravel: number; stuckCrawl: number; sidestepS: number; backoffS: number; relocateMax: number;
   episodesMax: number; relocateSteps: number; relocRepeatTicks: number; relocRepeat: number; relocMin: number; relocMemory: number; wanderStallS: number; wanderPivotS: number; wanderStallMax: number; pinnedS: number; pinnedUpY: number;
   stallMove: number; stallTicks: number; waterSpeed: number; wetGrip: number;
   dozeCrowd: number; dozeCycle: number; dozeAwake: number;
@@ -350,7 +364,7 @@ export function locoParams(bu: number): LocoParams {
     pointSeek: T.pointSeekBU * bu, arriveStallS: T.arriveStallS, ceilingUpY: T.ceilingUpY, dropAbove: T.dropAboveBU * bu, dropBelow: T.dropBelowBU * bu,
     pointFieldCell: T.pointFieldCellBU * bu, pointFieldR: T.pointFieldRadiusBU * bu, timeoutBase: T.timeoutBaseS,
     timeoutMult: T.timeoutMult, surfaceTol: T.surfaceChangeTolBU * bu,
-    stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
+    stuckWindowS: T.stuckWindowS, stuckProgress: T.stuckProgressBU * bu, stuckTravel: T.stuckTravelBU * bu, stuckCrawl: T.stuckCrawlBUs * bu, sidestepS: T.sidestepS, backoffS: T.backoffS,
     relocateMax: T.relocateMax, episodesMax: T.episodesMax, relocateSteps: T.relocateFieldSteps,
     relocRepeatTicks: Math.round(T.relocRepeatS * 10), relocRepeat: T.relocRepeatBU * bu, relocMin: T.relocMinBU * bu, relocMemory: T.relocMemory,
     wanderStallS: T.wanderStallS, wanderPivotS: T.wanderPivotS, wanderStallMax: T.wanderStallMax,

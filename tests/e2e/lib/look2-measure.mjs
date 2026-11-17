@@ -1,14 +1,21 @@
 // Luminance and contrast numbers from the real game's canvas (look-pass-2 acceptance 3). Runs IN the page right after
 // a frame was rendered (the drawing buffer is still valid in the same task): reads the canvas back through a 2D
 // canvas, so no PNG decoder is needed. Luminance = Rec. 709 weights on the sRGB-ENCODED values / 255 (what a viewer
-// sees; 0.18 = 18 %). Inputs are CSS px positions of terrain samples within 20 body lengths of the ant (look2.mjs) and
-// the ant's projected centre and size.
+// sees; 0.18 = 18 %). Inputs come from look2-stage.mjs groundPoints(): CSS px positions of terrain samples within 20 body
+// lengths of the ant ("points"), terrain samples within a few body widths of it ("ring") and the ant's projected
+// centre and size ("subject": x, y, rPx = half the projected body length).
 //
-//   const m = await page.evaluate(measureInPage, { points, subject })
-//   m = { ground: { n, median, p10, p90 }, ant: { median, p90 }, ring: { median }, contrast, frame: { median } }
+//   const m = await page.evaluate(measureInPage, { points, ring, subject })
+//   m = { ground: { n, median, p10, p90 }, ant: { n, median, p10, p90 }, ring: { n, median }, contrast, frame: { median } }
+//
+// contrast = Michelson contrast of the ant disc's median luma against the median luma of the terrain around it;
+// separable = share of the ant disc's pixels more than 0.06 luma away from that ground median.
 
 /* eslint-disable no-undef */
-export async function measureInPage({ points, subject }) {
+export async function measureInPage({ points, ring: ringPoints, subject }) {
+  // (everything must live inside this function: it is serialised into the page)
+  /** Luma difference (sRGB-encoded, 0..1) from the ground's median beyond which an ant pixel counts as separated from it. */
+  const SEP_LUMA = 0.06;
   const c = document.getElementById('view');
   const im = new Image();
   im.src = c.toDataURL('image/png');
@@ -29,22 +36,25 @@ export async function measureInPage({ points, subject }) {
   const all = [];
   for (let y = 4; y < im.height; y += 8) for (let x = 4; x < im.width; x += 8) all.push(luma(x / k, y / k));
   out.frame = { median: q(all, 0.5) };
-  const near = (p) => subject && Math.hypot(p[0] - subject.x, p[1] - subject.y) < subject.rPx * 1.2;
+  // ground: terrain samples outside the ant's disc (the stage already dropped them; guarded here as well)
+  const near = (p) => subject && Math.hypot(p[0] - subject.x, p[1] - subject.y) <= subject.rPx * 1.15;
   const g = (points || []).filter((p) => !near(p)).map((p) => luma(p[0], p[1]));
   out.ground = { n: g.length, median: q(g, 0.5), p10: q(g, 0.1), p90: q(g, 0.9) };
   if (subject) {
-    const inner = [], ring = [];
+    const inner = [];
     const r = subject.rPx;
-    for (let dy = -r * 1.7; dy <= r * 1.7; dy += 1.5) for (let dx = -r * 1.7; dx <= r * 1.7; dx += 1.5) {
-      const d = Math.hypot(dx, dy), x = subject.x + dx, y = subject.y + dy;
-      if (x < 0 || y < 0 || x >= c.clientWidth || y >= c.clientHeight) continue;
-      if (d <= r * 0.55) inner.push(luma(x, y)); else if (d >= r * 1.2 && d <= r * 1.7) ring.push(luma(x, y));
+    for (let dy = -r; dy <= r; dy += Math.max(0.75, r / 12)) for (let dx = -r; dx <= r; dx += Math.max(0.75, r / 12)) {
+      if (Math.hypot(dx, dy) <= r * 0.5) inner.push(luma(subject.x + dx, subject.y + dy));
     }
+    const ring = (ringPoints || []).map((p) => luma(p[0], p[1]));
     const am = q(inner, 0.5), rm = q(ring, 0.5);
-    out.ant = { median: am, p90: q(inner, 0.9), p10: q(inner, 0.1) };
-    out.ring = { median: rm };
-    // contrast of the ant region against the ground around it (Michelson on luma) and the spread inside the ant
+    out.ant = { n: inner.length, median: am, p90: q(inner, 0.9), p10: q(inner, 0.1) };
+    out.ring = { n: ring.length, median: rm };
     out.contrast = am !== null && rm !== null && am + rm > 0 ? Math.abs(rm - am) / (rm + am) : null;
+    // share of the ant disc's pixels that differ from the ground's median by more than SEP_LUMA: a dark body with bright
+    // glints and a rim separates from the ground even when its MEDIAN luma equals the ground's (noon: median contrast
+    // 0.05, yet the ant is plainly there), so the median contrast alone understates (and overstates) separability
+    out.separable = rm !== null && inner.length ? inner.filter((v) => Math.abs(v - rm) > SEP_LUMA).length / inner.length : null;
     out.antSpread = out.ant.p90 !== null ? out.ant.p90 - out.ant.p10 : null;
   }
   return out;

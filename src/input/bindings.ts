@@ -45,6 +45,20 @@ export function sameBinding(a: Binding | null | undefined, b: Binding | null | u
   }
 }
 
+/**
+ * Would two bindings fire from the same physical input (what a rebinding conflict means)? Like sameBinding, but a
+ * pad button with the same modifier collides across gestures: a plain press fires together with that button's tap
+ * or hold. Only a tap and a hold of the same button coexist (View tap releases, View hold is the colony view).
+ */
+export function collides(a: Binding | null | undefined, b: Binding | null | undefined): boolean {
+  if (a?.kind === 'pad' && b?.kind === 'pad') {
+    if (a.button !== b.button || (a.mod ?? -1) !== (b.mod ?? -1)) return false;
+    const ga = a.gesture ?? 'press', gb = b.gesture ?? 'press';
+    return ga === gb || ga === 'press' || gb === 'press';
+  }
+  return sameBinding(a, b);
+}
+
 export function isPadBinding(b: Binding): boolean {
   return b.kind === 'pad' || b.kind === 'padAxis' || b.kind === 'padStick';
 }

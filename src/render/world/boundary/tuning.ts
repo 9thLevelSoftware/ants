@@ -37,9 +37,10 @@ export const EDGE_HAZE_MIN_MM = 2400;
 /**
  * The scene's distance fog reaches the boundary shapes over this fraction of the real distance (look-pass 2): the lawn's
  * 1.2 m visibility hid every fence and tree line at 1.6 m and beyond, so the world ended in a flat band of fog colour.
- * The edge haze (above) then does the aerial perspective, from the map edge outward.
+ * The edge haze (above) then does the aerial perspective, from the map edge outward. 0.35 still left a fence at its
+ * nearest distance a pale slab (reviewer's round; horizonHaze.test.ts); 0.15 leaves it a soft grey-brown silhouette.
  */
-export const BOUNDARY_FOG_SCALE = 0.35;
+export const BOUNDARY_FOG_SCALE = 0.15;
 /** Grazing silhouettes of the backdrop shapes take this much more haze (soft, blurred-looking edges). */
 export const BACKDROP_RIM_HAZE = 0.7;
 /** Backdrop shapes always carry at least this much haze (aerial perspective: they are never crisp foreground). */

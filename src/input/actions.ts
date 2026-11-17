@@ -65,7 +65,8 @@ export const BUTTON_ACTIONS: readonly ActionDef[] = [
   def({ id: 'alert-jump', label: 'Go to newest alert', contexts: ['G'], type: 'press', kbm: [k('Enter')], pad: p(PAD.RB, PAD.LB), tier: 2 }),
   def({ id: 'skip-ahead', label: 'Skip to next event', contexts: ['O', 'C'], type: 'press', kbm: [k('KeyN')], pad: p(PAD.LS, PAD.LB), tier: 2 }),
   def({ id: 'pointer-lock-toggle', label: 'Mouse look: drag or captured', contexts: ['P', 'O', 'Ph'], type: 'toggle', kbm: [k('F8')], pad: null }),
-  def({ id: 'possess-next', label: 'Next nearby ant', contexts: ['P', 'O'], type: 'press', kbm: [k('Tab')], pad: p(PAD.RB) }),
+  // RB and LB are tap gestures (they fire on release, and not when they served as the modifier of a combination)
+  def({ id: 'possess-next', label: 'Next nearby ant', contexts: ['P', 'O'], type: 'press', kbm: [k('Tab')], pad: pTap(PAD.RB, HOLD_THRESHOLD_MS) }),
   def({ id: 'possess-prev', label: 'Previous nearby ant', contexts: ['P', 'O'], type: 'press', kbm: [ks('Tab')], pad: pTap(PAD.LB, HOLD_THRESHOLD_MS) }),
   def({ id: 'possess-last', label: 'Back to previous ant', contexts: ['P', 'O'], type: 'press', kbm: [k('Backspace')], pad: null }),
   def({ id: 'possess-forager', label: 'Possess a forager', contexts: PLAY, type: 'press', kbm: [k('Digit5')], pad: p(PAD.X, PAD.LB) }),

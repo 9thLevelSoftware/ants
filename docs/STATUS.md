@@ -468,3 +468,22 @@ Tree = pushed HEAD + econ-growth's work in progress. `life.ts --until winter`, f
 - **econ-growth** review verdict (fix round re-running): phantom source claims by foragers reassigned in the nest;
   re-derived E25 fails on empty worker crops, not on foraging; `NEED_SPONT_MULT ×5` makes the activation loop
   irrelevant and a test was changed to dodge it; acceptance 2–5 not met in the implementer's sweep.
+
+## Nov 17 00:20 UTC — look-pass-2 landed (fix round done)
+
+Review verdict was fail (11 findings); fix round closed most. I looked at
+`test-output/look2/r2/b/r3-{night,noon}-surface-high.png`, `r3-noon-edge-high.png`,
+`r2/kit/kit-night-nest-high.png`.
+
+- Night now reads (moon key, `NIGHT_LOOK`); underground workers are visible, not silhouettes.
+- Ground snap keeps the top of leaning stems fixed; `SnapLayer` re-snaps on moved objects / changed ground.
+- Skirt floor seam gone (dithered over 80 BU); `BOUNDARY_FOG_SCALE` 0.35 → 0.15.
+- `ANT_FILL` night body 0.8 → 2.2, rim 0.02 → 0.12.
+- Frame cost at observer poses: −3.3 % to −0.1 % triangles, ≤ +1 draw call. No valid before/after at possession poses.
+
+Open (carry to gate-1B-close / QA look review):
+- Night ant looks pale and glassy (a black ant reads as grey-white). Prefer lower body fill + stronger rim.
+- Thin lime-green strip at the map-edge horizon (soft now); nearest facade/fence shapes read as pale straight-edged blocks.
+- White pillar, leaf contact shadow, car underbody, ragged open-end caps, floating-block coordinates: not identified / not re-shot.
+- Colony view minimum distance 30 BU (`CV_DIST_BU[0]`) leaves the founding chamber ~110 px wide; needs the camera rig.
+- Dusk, overcast, night rain not re-shot after the fill change; contact sheets not regenerated.

@@ -101,7 +101,7 @@ Gamepad bindings are listed in the table. The gamepad columns describe the stand
 | Action | Keyboard and mouse | Gamepad |
 | --- | --- | --- |
 | Mouse look: drag or captured | F8 | none |
-| Next nearby ant | Tab | RB |
+| Next nearby ant | Tab | RB tap |
 | Previous nearby ant | Shift+Tab | LB tap |
 | Back to previous ant | Backspace | none |
 

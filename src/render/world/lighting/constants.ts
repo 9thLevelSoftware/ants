@@ -179,7 +179,7 @@ export const AUTO_EXPOSURE_MAX_EV = 2.0;
  *    night rain: recorded departure from "metering replaces the weather EV").
  * `nightFromDeg`..`nightToDeg`: the sun elevations over which the dusk blends into this night look (smoothstep).
  * Target (acceptance): median luminance of the ground within 20 body lengths 12..25 % of the display range.
- * Tuned by tests/e2e/look2.mjs measurements; pinned by lighting.test.ts (night numbers) and lookPass2.test.ts.
+ * Tuned by tests/e2e/lib/look2.mjs measurements; pinned by lighting.test.ts (night numbers) and lookPass2.test.ts.
  */
 export interface NightLook {
   moonRel: number;

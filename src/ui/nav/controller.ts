@@ -7,7 +7,7 @@
 // LT / RT scroll, X / Y are the secondary / tertiary action of a row, Start backs out of everything.
 import { effect, signal } from '@preact/signals';
 import { INTERACT_HOLD_MS, PAD } from '@/input/defaults';
-import { firstPad, readGamepads } from '@/input/padSource';
+import { PlayerPadPicker, readGamepads } from '@/input/padSource';
 import type { Binding } from '@/input';
 import { currentBindings } from '../components';
 import { handleBack } from '../components/logic/escapeStack';
@@ -23,12 +23,12 @@ import { noteKbm, notePad } from './device';
 import { focusFirst, isTextField, moveFocusIn, scrollerOf } from './focusMove';
 import { activeLayer, type LiveLayer } from './layers';
 import { PadReader, type PadFrame } from './padReader';
-import { shortcutsOf, ShortcutMatcher } from './shortcuts';
+import { modifiedCombos, shortcutsOf, ShortcutMatcher, type PadShortcut } from './shortcuts';
 
 /** While > 0 the pad belongs to a rebinding row that is listening for a button (the controller keeps its hands off). */
 export const padCaptureHolds = signal(0);
 
-/** A View press shorter than this is a tap; longer is the game's colony-view hold. */
+/** A View press shorter than this (times the hold-duration setting) is a tap; longer is the game's colony-view hold. */
 const VIEW_TAP_MS = 450;
 /** Scroll speed of LT / RT, CSS px per real second. */
 const SCROLL_PX_S = 700;
@@ -76,6 +76,7 @@ function leaveRegion(layer: LiveLayer): void {
 
 export class NavController {
   private reader = new PadReader();
+  private picker = new PlayerPadPicker();
   private matcher = new ShortcutMatcher();
   private lastNow = 0;
   private viewPressLb = false;
@@ -84,8 +85,13 @@ export class NavController {
   private skipArmed = false;
   private skipAt = 0;
 
+  /** The player's pad among the connected ones (the first to produce input, as the game's tracker chooses). */
+  pickPad(pads: ReturnType<typeof readGamepads>) {
+    return this.picker.pick(pads);
+  }
+
   /** One frame. Exposed so a test can drive it with its own clock. */
-  step(nowMs: number, pad = firstPad(readGamepads())): void {
+  step(nowMs: number, pad = this.pickPad(readGamepads())): void {
     const dt = this.lastNow ? Math.min(0.1, (nowMs - this.lastNow) / 1000) : 0;
     this.lastNow = nowMs;
     const f = this.reader.update(pad, nowMs);
@@ -156,7 +162,7 @@ export class NavController {
     // View tap: into the colony view's tool UI or the photo panel (the game's own View tap is `release` in possession)
     if (f.edge(PAD.VIEW)) this.viewPressLb = f.down(PAD.LB) || f.down(PAD.RB);
     const vt = f.releasedAfterMs(PAD.VIEW);
-    if (f.release(PAD.VIEW) && vt >= 0 && vt < VIEW_TAP_MS && !this.viewPressLb && !openDrawer.peek() && !openBook.peek()) {
+    if (f.release(PAD.VIEW) && vt >= 0 && vt < VIEW_TAP_MS * holdScale() && !this.viewPressLb && !openDrawer.peek() && !openBook.peek()) {
       if (padToolsFocus.peek()) leaveTools();
       else if (snap.view === 'photo') this.enterPhotoPanel();
       else enterTools();
@@ -164,7 +170,13 @@ export class NavController {
     const view = snap.view;
     const pad = currentBindings.value.pad as Record<string, Binding | null>;
     const ids = view === 'photo' ? [] : [...PANEL_ACTIONS, ...EXTRA_ACTIONS];
-    for (const id of this.matcher.fired(shortcutsOf(pad, ids), f, holdScale())) this.run(id);
+    for (const id of this.matcher.fired(shortcutsOf(pad, ids), f, holdScale(), this.combosOf(pad))) this.run(id);
+  }
+
+  private combosCache: { pad: Record<string, Binding | null>; combos: PadShortcut[] } | null = null;
+  private combosOf(pad: Record<string, Binding | null>): PadShortcut[] {
+    if (this.combosCache?.pad !== pad) this.combosCache = { pad, combos: modifiedCombos(pad) };
+    return this.combosCache.combos;
   }
 
   private run(id: string): void {
@@ -221,7 +233,7 @@ export function startNavController(win: Window = window): () => void {
     raf = 0;
     if (stopped) return;
     const pads = readGamepads(win);
-    const pad = firstPad(pads);
+    const pad = ctl.pickPad(pads);
     ctl.step(now, pad);
     if (pad) raf = win.requestAnimationFrame(loop);
     else timer = win.setTimeout(() => { timer = 0; raf = win.requestAnimationFrame(loop); }, 250);

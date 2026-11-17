@@ -85,8 +85,8 @@ export const TINT_VARIATION = 0.12;
  * Warm underground (the nest's lantern colour), cool under the moon.
  */
 export const ANT_FILL = {
-  body: { underground: 0.9, night: 0.8 },
-  rim: { underground: 0.025, night: 0.02 },
+  body: { underground: 0.9, night: 2.2 },
+  rim: { underground: 0.025, night: 0.12 },
   fromEV: 1.6,
   toEV: 3.0,
   warm: [1.0, 0.62, 0.34] as [number, number, number],

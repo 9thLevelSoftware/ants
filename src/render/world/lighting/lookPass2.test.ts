@@ -1,5 +1,5 @@
 // Look pass 2, work item 1: night is readable. The numeric rules (moonlit sky fill, exposure metering with a floor
-// and a cap, soft moon shadows) live in constants.ts NIGHT_LOOK; the real measurements are tests/e2e/look2.mjs.
+// and a cap, soft moon shadows) live in constants.ts NIGHT_LOOK; the real measurements are tests/e2e/lib/look2.mjs.
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { NIGHT_LOOK, SUN_INTENSITY } from './constants';
@@ -12,8 +12,14 @@ function input(elev: number, over: Partial<LightingInput> = {}): LightingInput {
     weather: 'clear', cloud: 0.1, fog: 0, zone: 'lawn', bu: 4, under: 0, hazeScale: 1, ...over,
   };
 }
-/** Effective linear albedo of the game's soil as measured (tests/e2e/look2.mjs: model and screenshots agree at ~0.04). */
-const GROUND_ALBEDO = 0.04;
+/**
+ * Effective linear albedo that makes the NIGHT model agree with the game: measured in the real frames (tests/e2e/lib/
+ * look2.mjs, quality high, seed 1, ground within 20 body lengths, n = 140 samples) clear night 0.18, night rain 0.17;
+ * the model gives 0.184 for both at this albedo. The model is a night model only: by day and dusk the ground is also lit
+ * by the sky environment map, which the model leaves out (noon: model 0.22, game 0.31). The 12..25 % test below pins the
+ * model; the evidence for the acceptance target is the screenshots' numbers.
+ */
+const GROUND_ALBEDO = 0.06;
 const night = (over: Partial<LightingInput> = {}) => computeLighting(input(-30, over));
 
 describe('night weight', () => {
@@ -72,7 +78,7 @@ describe('night looks like night, and is readable', () => {
   it('never reads as day: far darker than a clear noon and cool (blue over red in the key and in the fill)', () => {
     const noon = computeLighting(input(60));
     const l = night();
-    expect(groundDisplayLuma(l, GROUND_ALBEDO)).toBeLessThan(groundDisplayLuma(noon, GROUND_ALBEDO)); // measured in game: night 0.2 vs noon 0.29
+    expect(groundDisplayLuma(l, GROUND_ALBEDO)).toBeLessThan(0.9 * groundDisplayLuma(noon, GROUND_ALBEDO)); // measured in game: night 0.18 vs noon 0.31
     // the scene-referred light (what the exposure then lifts) is more than 10x below noon's: the camera, not the light, makes it readable
     expect(groundIrradiance(l)).toBeLessThan(0.1 * groundIrradiance(noon));
     expect(l.keyColor.b).toBeGreaterThan(l.keyColor.r);

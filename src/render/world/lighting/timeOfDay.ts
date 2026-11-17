@@ -251,7 +251,9 @@ export function groundIrradiance(l: LightingState): number {
  * The display luminance (sRGB-encoded luma, 0..1) a flat ground of linear albedo `albedo` shows under this lighting:
  * radiance = albedo * E / pi, times the exposure, through the ACES filmic curve (a grey through three's
  * ACESFilmicToneMapping, input 1/0.6 scaled) and the sRGB transfer. A model for tests and tuning; the real
- * measurements are tests/e2e/look2.mjs (acceptance 3).
+ * measurements are tests/e2e/lib/look2.mjs (acceptance 3). Valid for the moonlit night (nightW = 1) only: it has no sky
+ * environment light, so by day it reads dark (noon 0.22 against 0.31 measured) and at dusk darker still (a near-black
+ * 1 degree sun, where the game shows 0.15..0.25).
  */
 export function groundDisplayLuma(l: LightingState, albedo: number): number {
   const x = (albedo * groundIrradiance(l) / Math.PI) * Math.pow(2, l.exposureEV) / 0.6;

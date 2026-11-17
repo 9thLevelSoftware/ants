@@ -1,8 +1,8 @@
 // Rebinding rules (GDD 01 5.7, GDD 08 7.5): conflicts per context, reserved keys, swap / unbind-other, resets.
 import { ACTIONS, actionDef, requiredActionIds, requiredPadActionIds } from './actions';
-import { cloneBindings, defaultBindings, isPadBinding, sameBinding, type BindingSet } from './bindings';
+import { bindingsOf, cloneBindings, collides, defaultBindings, isPadBinding, type BindingSet } from './bindings';
 import { anyContextsOverlap } from './contexts';
-import { KBM_SLOTS } from './defaults';
+import { HOLD_THRESHOLD_MS, KBM_SLOTS } from './defaults';
 import type { Binding, InputContext } from './types';
 
 /** A slot is a KBM slot index (0..KBM_SLOTS-1) or the gamepad slot. */
@@ -53,6 +53,33 @@ function contextsOf(id: string): InputContext[] {
   return actionDef(id)?.contexts ?? [];
 }
 
+/** Does another action live in the same contexts as `actionId` with a pad combination that holds `button` as its modifier? */
+function isModifierInContext(set: BindingSet, actionId: string, button: number): boolean {
+  const mine = contextsOf(actionId);
+  return ACTIONS.some((o) => o.id !== actionId && anyContextsOverlap(mine, o.contexts)
+    && bindingsOf(set, o.id).some((b) => b.kind === 'pad' && b.mod === button));
+}
+
+/**
+ * The binding a captured pad press really becomes. The capture only sees which button was pressed, but a bare press
+ * is wrong in two cases, so the slot keeps what the table gives it:
+ * - the button is the action's own default and the default carries a gesture (View tap = release, View hold = colony
+ *   view share the button; LB tap = previous ant frees LB as the modifier of every LB combination);
+ * - the button is the modifier of other combinations in the same contexts: a press fires on the down edge, before the
+ *   second button arrives, so a press / toggle action takes the tap gesture (fires on release, and not as a modifier).
+ */
+export function settlePadBinding(set: BindingSet, actionId: string, binding: Binding): Binding {
+  if (binding.kind !== 'pad' || binding.gesture) return binding;
+  const a = actionDef(actionId);
+  if (!a) return binding;
+  const own = a.pad;
+  if (own && own.kind === 'pad' && own.gesture && own.button === binding.button && (own.mod ?? -1) === (binding.mod ?? -1)) return { ...own };
+  if ((a.type === 'press' || a.type === 'toggle') && binding.mod === undefined && isModifierInContext(set, actionId, binding.button)) {
+    return { kind: 'pad', button: binding.button, gesture: 'tap', holdMs: HOLD_THRESHOLD_MS };
+  }
+  return binding;
+}
+
 /** Other actions in overlapping contexts that already use `binding` (GDD 01 5.7: never silent). */
 export function findConflicts(set: BindingSet, actionId: string, binding: Binding): Conflict[] {
   const mine = contextsOf(actionId);
@@ -60,8 +87,8 @@ export function findConflicts(set: BindingSet, actionId: string, binding: Bindin
   for (const other of ACTIONS) {
     if (other.id === actionId || !anyContextsOverlap(mine, other.contexts)) continue;
     const slots = set.kbm[other.id] ?? [];
-    for (let i = 0; i < slots.length; i++) if (sameBinding(slots[i], binding)) out.push({ actionId: other.id, slot: i });
-    if (sameBinding(set.pad[other.id], binding)) out.push({ actionId: other.id, slot: 'pad' });
+    for (let i = 0; i < slots.length; i++) if (collides(slots[i], binding)) out.push({ actionId: other.id, slot: i });
+    if (collides(set.pad[other.id], binding)) out.push({ actionId: other.id, slot: 'pad' });
   }
   return out;
 }
@@ -105,7 +132,8 @@ export type RebindResult =
  * Swap: each conflicting action receives this slot's previous binding (or is cleared if there was none).
  * Returns a new BindingSet; the input is never mutated.
  */
-export function rebind(set: BindingSet, actionId: string, slot: Slot, binding: Binding | null, resolution?: ConflictResolution): RebindResult {
+export function rebind(set: BindingSet, actionId: string, slot: Slot, captured: Binding | null, resolution?: ConflictResolution): RebindResult {
+  const binding = captured !== null && slot === 'pad' ? settlePadBinding(set, actionId, captured) : captured;
   if (binding === null) {
     if (actionDef(actionId)?.locked) return { status: 'refused', reason: 'locked' };
     const next = cloneBindings(set);

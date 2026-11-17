@@ -20,7 +20,12 @@
 // - The stocks are the pool (GDD 02 §5.1). A nurse load given to a worker the allocator then moves to idle goes back
 //   to the pool (colony/cropNetwork.ts; before that fix 60 idle workers kept 9 P of nurse loads and dC was -11.7).
 //   The P stock change is reported, not asserted: R7 bounds only the carbohydrate stock (the GDD's check bounded
-//   both; with larvae eating the protein brought in, dP is about -4 here).
+//   both; dP is about -1 here, inside the GDD's own +-3).
+// - The standing brood is spread evenly over each stage (econ-growth review): spawned all at progress 0.5, the five
+//   larvae pupated together a third of the way into the day, the protein need collapsed (rateP 11 -> 4.5 P/gd) and
+//   the colony, rightly, stopped going out for protein, so the day's ratio measured the fixture (P 0.87 x need), not
+//   the economy. Spread as the §15 flow it stands for: C 1.19, P 1.03 x need, 9 eggs, dC -1.2, dP -0.8 (seed 1).
+//   Late in the day departures fall with surface activity (fEnv 0.22 at 0.5 gd): that is the day, not a stall.
 // - The nest flood system is left out: the worked example is a fair summer day, and a trace of night-time flood
 //   water (under 2 % of the nest) sends every idle ant to nurse (nest idle behaviour, flood evacuation), each loading
 //   a crop, which moved ~25 loads out of the pool in one seed (reported to the nest owners).
@@ -64,8 +69,12 @@ describe.skipIf(!LONG)('GDD 02 App. E 25 with real behaviour, re-derived (R7; FO
     sim.state.player.opening!.phase = 'done'; sim.state.player.opening!.done = true;
     const nest = sim.stores.nests.get(col.nestIds[0])!;
     establishQueen(sim, nest.chambers.find((c) => c.type === 'royal') ?? nest.chambers[0]);
-    const brood = (stage: 'egg' | 'larva' | 'pupa', n: number) =>
-      sim.enqueue({ type: 'cheat.spawnBrood', colonyId: col.id, stage, n, chamberId: -1, progress: 0.5, destined: null });
+    // a standing brood is a flow: its items are spread over their stage, not all half-way through it
+    const brood = (stage: 'egg' | 'larva' | 'pupa', n: number) => {
+      for (let i = 0; i < n; i++) {
+        sim.enqueue({ type: 'cheat.spawnBrood', colonyId: col.id, stage, n: 1, chamberId: -1, progress: (i + 0.5) / n, destined: null });
+      }
+    };
     brood('egg', 12); brood('larva', 5); brood('pupa', 13);
     sim.applyPendingCommands();
 

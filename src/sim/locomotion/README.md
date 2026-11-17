@@ -84,6 +84,12 @@ progress (its first metric is only a baseline; the window keeps running), so a w
 without arriving is caught. Climbing counts as progress: on a steep face (|up.y| < pinnedUpY) a new highest point 0.5 BU above the last
 (`anchor.y`, reset per leg, waypoint and rung) re-baselines the metric, so a tall board is climbed and descended
 instead of laddered mid-climb; going up and down the same wall is not progress.
+A stall is also judged against the walker's own speed (review of loco-fix3): the window elapses only once the walker
+could have covered `stuckTravelBU` (4 BU) at its commanded speed since its last progress (`nav.loco.stallTravel`,
+counted per step from `stallFrom` = bestTick). At cruise the 2.5 s window decides as before; a walker crawling in the
+cold (speed factor near 0 on an autumn morning) is not stuck, and one slower than `stuckCrawlBUs` (0.3 BU/s: held
+still by the cold, as the stall watch's `stallAbleTempFactor`) or unable to move at all counts no travel and waits
+for its request timeout instead of climbing the ladder (on suburban-garden #2 to Winter 1, 120 of 126 relocations were cold walkers).
 No improvement of 0.5 BU in 2.5 s climbs one rung: replan, sidestep, back off, re-snap,
 relocate (<= 2 per request, 6 BU toward the next waypoint / flow cell / field sample, event `ant-unstuck`), fail. Episodes per request are capped and every request has a timeout, so every walker ends `arrived` or `failed`.
 
@@ -128,8 +134,14 @@ across a steep crest of a mound pile against an object, < 0.75 x foot offset): w
   route; on a steep face with no route near it seeks the ground straight below, aiming in 3D (`seekDown`). Retrace
   aims at its crumbs in 3D on steep faces. (A plan-view aim on a vertical stem circles it: tenders were lost on a
   shrub at suburban-garden #2.) A goal up the same object (trip.ts `sameObject`: the nearest primitive at walker and
-  goal is one primitive or one `objectId`) is not descended from: the walker seeks it directly, aiming in 3D (review
-  of loco-fix3: a walk re-issued partway up a bare stem was sent to the ground on every replan).
+  goal is one primitive or one `objectId`) with no climb route serving it is not descended from: the walker seeks it
+  directly, aiming in 3D (review of loco-fix3: a walk re-issued partway up a bare stem was sent to the ground on every
+  replan). A goal that a climb route serves is reached by the route, also from elsewhere on the same object (a
+  tender on a root of the fruit tree at suburban-garden #2 aimed in 3D at a herd in the crown and wedged where the
+  root meets the trunk). A walker already at the foot of the route (within routeSnap) walks off instead of taking the route
+  down again (a route that starts on a root flare left a walker at its foot 'up', and every replan sent it down the
+  route again), and the ground a stem walker seeks below is moved up onto whatever covers it (a root flare), never
+  left inside a solid.
 - A surface walker on a steep face whose desired direction points away from the face (no tangent part: the goal lies
   straight out from the wall) turns down the face and steps off it, instead of climbing on a stale heading
   (steer.ts `turnToward` with `pinnedUpY`); pushing into a face still climbs it.

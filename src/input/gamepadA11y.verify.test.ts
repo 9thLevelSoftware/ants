@@ -155,3 +155,54 @@ describe('hint text', () => {
     expect(hintText(set, 'cv-rotate', 'pad')).toBe('Right stick');
   });
 });
+
+describe('re-capturing a default that carries a gesture (reviewer, round 2)', () => {
+  // possess-prev is "LB tap" so that LB can be the modifier of pause / speed / hide HUD / the role keys. The pad capture
+  // only ever yields a plain press, so a player who rebinds possess-prev to LB (its own default button) turns every LB
+  // combination into "previous ant + the combination".
+  it('possess-prev re-captured as LB still lets LB + D-pad up pause without taking the previous ant', () => {
+    const captured = feedCapture([pad([]), pad([PAD.LB]), pad([])]);
+    expect(captured).toEqual({ kind: 'pad', button: PAD.LB });
+    const r = rebind(defaultBindings(), 'possess-prev', 'pad', captured!);
+    expect(r.status).toBe('applied');
+    if (r.status !== 'applied') return;
+    const input = new InputState(r.bindings);
+    input.contexts.setBase('O');
+    let now = 1000;
+    const seen = new Set<string>();
+    const frame = (p: PadSnapshot) => { input.setPads([p]); now += 16; input.update(now); for (const id of ['possess-prev', 'pause-toggle']) if (input.pressed(id)) seen.add(id); };
+    frame(pad()); frame(pad([PAD.LB])); frame(pad([PAD.LB, PAD.DUP])); frame(pad([PAD.LB])); frame(pad());
+    expect(seen.has('pause-toggle')).toBe(true);
+    expect([...seen], 'LB + D-pad up also took the previous ant').not.toContain('possess-prev');
+  });
+});
+
+describe('hold duration 1500 ms (reviewer regression)', () => {
+  it('a 1 s View press is still a tap (release) and only a press past 1.25 s opens the colony view', () => {
+    const settings = { ...new InputState().settings, holdMs: 1500 };
+    const run = (ms: number) => {
+      const input = new InputState(defaultBindings(), settings);
+      input.contexts.setBase('P');
+      let now = 1000, release = false, colony = false;
+      const f = (p: PadSnapshot) => { input.setPads([p]); now += 16; input.update(now); release ||= input.pressed('release'); colony ||= input.pressed('colony-view'); };
+      f(pad());
+      for (let t = 0; t < ms; t += 16) f(pad([PAD.VIEW]));
+      f(pad()); f(pad());
+      return { release, colony };
+    };
+    expect(run(1000)).toEqual({ release: true, colony: false });
+    expect(run(1400)).toEqual({ release: false, colony: true });
+  });
+});
+
+describe('several pads (GDD 01 5.8: the first pad to produce input is the player pad)', () => {
+  // The navigation layer (src/ui/nav/controller.ts) reads `firstPad(readGamepads())`: the first CONNECTED pad. With an
+  // idle pad in slot 0 (a second controller, a virtual pad of a remapper) the menus never see the player's pad in slot 1,
+  // while the game's PadTracker plays with slot 1.
+  it('the pad the menus read is the one the player is using', async () => {
+    const { firstPad } = await import('./padSource');
+    const idle = { ...pad([]), index: 0 };
+    const active = { ...pad([PAD.A]), index: 1 };
+    expect(firstPad([idle, active])?.index).toBe(1);
+  });
+});

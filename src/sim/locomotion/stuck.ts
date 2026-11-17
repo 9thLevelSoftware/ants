@@ -2,7 +2,8 @@
 // improve by stuckProgress within stuckWindow. Each stuck episode climbs the ladder one rung per window:
 //   1 replan   2 sidestep   3 back off   4 re-snap to the surface   5 relocate along the route (event `ant-unstuck`)
 //   6 fail.
-// Progress resets the rung. Episodes and relocations per request are capped, and every request has a timeout,
+// Progress resets the rung. A stall is judged against the walker's own speed too: the window elapses only once the
+// walker could have covered stuckTravel since its last progress (a walker crawling in the cold is not stuck). Episodes and relocations per request are capped, and every request has a timeout,
 // so no walker can loop forever: it arrives or reports `failed`. Relocation is a last resort that terminates across
 // requests too (loco-fix3): a walker is never relocated twice from one place. It remembers its last relocMemory
 // relocations (from and to, no time limit); stuck again at one of those places, it lets go instead (a drop, at most
@@ -46,6 +47,36 @@ export function trackProgress(s: NavScratch, metric: number, advanced: boolean, 
   }
 }
 
+/**
+ * Counts the distance the walker can cover this step at its commanded speed (mm/s) toward the stall allotment;
+ * a new bestTick (progress, a ladder rung, a new request) starts the count again. A walker slower than stuckCrawl
+ * (held still by the cold) counts nothing. Call once per step, after the request logic.
+ */
+export function accrueTravel(s: NavScratch, speed: number, dt: number, P: LocoRuntime['P']): void {
+  if (s.stallFrom !== s.bestTick) { s.stallFrom = s.bestTick; s.stallTravel = 0; }
+  s.stallTravel = (s.stallTravel ?? 0) + (speed >= P.stuckCrawl ? speed * dt : 0);
+}
+
+/**
+ * Holds the stall window of a walker that stands this step for a reason that excuses it (dozing, stunned): the
+ * window start moves on by the ticks of the step (`ticks`: 1, or the LOD step of a walker stepped every k ticks), and
+ * the travel count stays with it, so the walker resumes where it was when it walks again.
+ */
+export function pauseStall(s: NavScratch, tick: number, ticks: number): void {
+  const b = Math.min(tick, s.bestTick + ticks);
+  if (s.stallFrom === s.bestTick) s.stallFrom = b;
+  s.bestTick = b;
+}
+
+/**
+ * Since its last progress the walker could not yet have covered stuckTravel at its own speed (it crawls in the
+ * cold, or stands still with speed 0): too early to call it stuck, whatever the clock says. A walker whose count
+ * does not belong to its current bestTick (none taken yet) is judged by the window alone.
+ */
+export function travelShort(s: NavScratch, P: LocoRuntime['P']): boolean {
+  return s.stallFrom === s.bestTick && (s.stallTravel ?? 0) < P.stuckTravel;
+}
+
 /** Progress of displacement-based requests (wander, trail): moving away from the anchor counts. */
 export function trackMovement(w: Walker, s: NavScratch, tick: number, r: LocoRuntime): void {
   if (dist3(w.pos, s.anchor) >= r.P.stuckProgress) {
@@ -65,7 +96,7 @@ function isAnt(w: Walker): w is Ant {
  */
 export function checkStuck(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, id: number, target: Vec3 | null): StuckAction {
   const tick = sim.state.tick, P = r.P;
-  if (tick - s.bestTick <= P.stuckWindowS * TICKS_PER_SECOND || tick < s.ladderUntil) return 'none';
+  if (tick - s.bestTick <= P.stuckWindowS * TICKS_PER_SECOND || tick < s.ladderUntil || travelShort(s, P)) return 'none';
   const st = r.stats;
   if (s.ladder === 0) {
     s.episodes++;
@@ -111,7 +142,7 @@ export type WanderStuck = 'go' | 'pivot' | 'fail';
 export function wanderStuck(w: Walker, s: NavScratch, r: LocoRuntime, tick: number): WanderStuck {
   const P = r.P;
   if (s.ladder === 1 && tick < s.ladderUntil) return 'pivot';
-  if (tick - s.bestTick <= P.wanderStallS * TICKS_PER_SECOND) return 'go';
+  if (tick - s.bestTick <= P.wanderStallS * TICKS_PER_SECOND || travelShort(s, P)) return 'go';
   // stalled: still on the pivot rung means the pivot freed nothing (any movement resets the rung)
   if (s.ladder >= 1) return 'fail';
   s.episodes++;

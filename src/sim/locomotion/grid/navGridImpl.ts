@@ -370,6 +370,23 @@ class NavGridImpl implements LocoNavGrid {
     return best;
   }
 
+  /** Nearest cell to c within SNAP_RADIUS rings whose flow distance is finite (deterministic scan order), -1 if none. */
+  private nearestFlowCell(dist: Float32Array, c: number): number {
+    const cx = c % this.w, cz = (c - cx) / this.w;
+    let best = -1, bestD = Infinity;
+    for (let r = 1; r <= SNAP_RADIUS && best < 0; r++) {
+      for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+        const x = cx + dx, z = cz + dz;
+        if (x < 0 || z < 0 || x >= this.w || z >= this.h) continue;
+        const n = z * this.w + x;
+        const d = dx * dx + dz * dz;
+        if (Number.isFinite(dist[n]) && d < bestD) { best = n; bestD = d; }
+      }
+    }
+    return best;
+  }
+
   private clampedCell(p: Vec3): number {
     const ix = Math.min(this.w - 1, Math.max(0, Math.floor(p.x / this.cell)));
     const iz = Math.min(this.h - 1, Math.max(0, Math.floor(p.z / this.cell)));
@@ -500,7 +517,15 @@ class NavGridImpl implements LocoNavGrid {
     let c = this.snap(this.clampedCell(p));
     if (c < 0) return Infinity;
     const d0 = dist[c];
-    if (!Number.isFinite(d0)) return Infinity;
+    if (!Number.isFinite(d0)) {
+      // the flow has no value here (a walker on a root inside a tree's blocked footprint, snapped to an open pocket
+      // the field does not reach): head for the nearest cell it reaches (review of loco-fix3: trips home from the
+      // roots of the fruit tree at suburban-garden #2 failed thousands of times on the spot, every tick)
+      const n = this.nearestFlowCell(dist, this.clampedCell(p));
+      if (n < 0) return Infinity;
+      this.centre(n, out);
+      return dist[n] + Math.hypot(out.x - p.x, out.z - p.z);
+    }
     // edge gates (gates.ts), as in A* paths: a step to a side-by-side cell whose shared edge is open only in a strip
     // goes through the strip (entry, then exit), and a walker that just came through one keeps to it until its exit
     // (the solid part of the barrier lies on both sides of the edge). Review of loco-fix3: trips home followed the

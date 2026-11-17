@@ -1,10 +1,13 @@
 // Gamepad play, rebinding and accessibility end to end (task input-gamepad-a11y). A virtual gamepad is injected by
 // overriding `navigator.getGamepads` in the page, the single function the game's input layer and the menu navigation
 // layer read (src/input/padSource.ts); nothing of the game is touched. Sections:
-//   A  title and new game by pad only (focus moves, device switches to the pad, glyph hints)
+//   G  the opening by pad: intro card, glyph prompts, walk, first dig bite (X held), time-lapse skip (A held); the cell is a
+//      stand-in carve, seal / lay / tend by pad are NOT playable yet (result.notDemonstrated)
 //   B  the game by pad only: finish the opening (A on Continue), possess an ant (RB), walk (left stick), dig (hold X),
 //      open Colony orders (RB + D-pad up), change a slider (D-pad right), close it (B), save (Start, A ... A)
-//   C  hints in pad glyphs; the pad panel shortcuts; photo mode from the pad; Dismiss-hint (RB + View)
+//   C  hints in pad glyphs; the pad panel shortcuts (the possessed ant must not change); LB + D-pad left leaves the scent view
+//      alone; Dismiss-hint (RB + View) with a hint on screen; C2 photo mode from the pad
+//   A failed section fails the run (a11y-result.json is written first); A11Y_SECTIONS=C,E runs a subset
 //   D  rebinding by pad (capture UI) and hold-to-toggle
 //   E  accessibility: UI scale 80 / 150 %, reduced motion (tremor / sway / DoF / transitions), palette, comfort mode
 //   F  focus-order audit of every screen and panel
@@ -123,29 +126,74 @@ export default async ({ page, log, out, wait, shot }) => {
 
   // =================================================================================================================
   await section('G-opening-by-pad', async () => {
-    // the intro card is skipped by any pad button
-    expect((await g(() => window.__founding?.view()?.phase)) === 'intro-card', 'expected the intro card first');
+    const phase = () => g(() => window.__founding?.view()?.phase ?? null);
+    const raw = (c) => g((cmd) => window.__game.cheat.raw(cmd), c);
+    const events = (n = 40) => g((k) => window.__game.events(undefined, k).map((e) => `${e.type}:${e.action ?? ''}`), n);
+    // 1. the intro card is skipped by any pad button
+    expect((await phase()) === 'intro-card', 'expected the intro card first', await phase());
     await press(B.A);
     await frames(4);
-    expect((await g(() => window.__founding?.view()?.phase)) !== 'intro-card', 'a pad button did not skip the intro card');
+    expect((await phase()) === 'dealation', 'a pad button did not skip the intro card', await phase());
     ok('intro-card-skipped-by-pad');
-    // the pad's prompts for the opening show glyphs, not keys
-    const prompts = await g(() => Array.from(document.querySelectorAll('[data-testid="founding-prompts"] .ui-keycap')).map((k) => k.textContent));
+    await step(85); // the wings are shed, the search begins
+    expect((await phase()) === 'search', 'dealation did not end in search', await phase());
+    // 2. the opening's prompts print the pad's glyphs, not keys (the last input was the pad)
+    let prompts = [];
+    for (let i = 0; i < 20 && prompts.length === 0; i++) { await frames(3); prompts = await g(() => Array.from(document.querySelectorAll('[data-testid="founding-prompts"] .ui-keycap')).map((k) => k.textContent)); }
+    expect(prompts.length > 0 && prompts.some((t) => /stick/i.test(t)) && !prompts.some((t) => /^(W|A|S|D|T|E|F)$/.test(t) && t !== 'A'), 'the opening prompts do not show pad glyphs', prompts);
     ok('opening-prompt-glyphs', prompts);
+    // 3. walk: the left stick forward moves the queen
+    const p0 = (await g(() => window.__game.summary().possessed)).pos;
+    await setPad([], { [AX.LY]: -1 }); await frames(3);
+    for (let i = 0; i < 4; i++) { await step(10); await frames(1); }
+    await setPad([]); await frames(2);
+    const p1 = (await g(() => window.__game.summary().possessed)).pos;
+    const bu0 = await g(() => window.__game.query.world().bu);
+    expect(Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) > 0.5 * bu0, 'the left stick did not walk the founding queen', { p0, p1 });
+    ok('opening-walk-by-pad');
+    // 4. dig: X held; the first bite starts the dig (the phase leaves `search`)
+    await setPad([B.X]); await frames(3);
+    for (let i = 0; i < 6; i++) { await step(10); await frames(1); }
+    await setPad([]); await frames(3);
+    const ev = await events();
+    expect((await phase()) === 'dig', 'holding X did not start the dig (the first bite)', { phase: await phase(), ev });
+    expect(ev.includes('action-started:dig-bite'), 'no dig-bite was started by the pad', ev);
+    ok('opening-dig-by-pad', { phase: await phase() });
+    // 5. a stand-in for the shaft and the cell (cheat carve, as the sim tests do): the shaft and the cell are hundreds of
+    // bites; the opening's later steps are then played with the pad as far as the input mapping allows
+    const q = await g(() => window.__game.summary().possessed);
+    const [x0, , z0] = q.pos;
+    const gy = await g(([x, z]) => window.__game.query.field(x, 0, z).height, [x0, z0]);
+    const depth = 10, th = (55 * Math.PI) / 180, run = depth / Math.tan(th), len = depth / Math.sin(th), r = 0.6 * bu0;
+    for (let t = -0.5; t <= len; t += 0.3) await raw({ type: 'cheat.carveSphere', pos: { x: x0 + (t / len) * run * bu0, y: gy - (t / len) * depth * bu0, z: z0 }, r });
+    const cell = { x: x0 + (run + 2) * bu0, y: gy - (depth + 0.5) * bu0, z: z0 };
+    await raw({ type: 'cheat.carveEllipsoid', center: cell, radii: { x: 2.5 * bu0, y: 1.1 * bu0, z: 2.5 * bu0 }, yawDeg: 0 });
+    await step(2);
+    await raw({ type: 'cheat.teleport', antId: q.id, pos: { x: cell.x, y: cell.y - 0.9 * bu0, z: cell.z } });
+    for (let i = 0; i < 20 && (await phase()) !== 'seal'; i++) await step(50);
+    expect((await phase()) === 'seal', 'the carved cell did not bring the opening to the seal phase', await g(() => window.__founding.view()?.readiness));
+    ok('opening-seal-phase-reached (stand-in carve)');
+    // seal by holding the action, lay, tend: not playable by pad (or key) in this build. In the seal phase the queen's prompt is
+    // "put down the pellet she carries" (query.prompt) and has no seal-entrance on interact; cheat.completeFounding then runs
+    // seal, lay AND tend itself (the phase jumps to timelapse). Recorded, not asserted; the nav layer's tend hold is unit-tested.
+    result.notDemonstrated = ['opening-seal-by-hold', 'opening-lay-by-pad', 'opening-tend-by-pad (unit: src/ui/nav/opening.test.ts)'];
+    await g(() => window.__game.cheat.completeFounding(10));
+    for (let i = 0; i < 40 && (await phase()) !== 'timelapse'; i++) await step(50);
+    expect((await phase()) === 'timelapse', 'the opening did not reach the time-lapse', await phase());
+    // 6. the time-lapse is skipped by holding A (the tl-skip binding, one second at the default hold duration); the hold
+    // is armed on the press, so the overlay must be on screen (the UI read-out caught up) before A goes down
+    for (let i = 0; i < 40 && (await g(() => window.__founding.ui()?.phase)) !== 'timelapse'; i++) await frames(3);
+    expect((await g(() => window.__founding.ui()?.phase)) === 'timelapse', 'the time-lapse overlay did not come up', await g(() => window.__founding.ui()?.phase));
+    await holdFor([B.A], {}, 2500);
+    const after = await phase();
+    expect(after !== 'timelapse', 'holding A did not skip the time-lapse', after);
+    ok('timelapse-skipped-by-pad', { phaseAfter: after });
   });
 
   await section('B-gamepad-play', async () => {
     await g(() => window.__game.cheat.completeFounding(10));
     const handedOver = () => sim((sm) => { const op = sm.state.player.opening; return !op || op.done || op.phase === 'handover' || op.phase === 'done'; });
-    let skippedByPad = false;
-    for (let i = 0; i < 160 && !(await handedOver()); i++) {
-      if (!skippedByPad && (await g(() => window.__founding?.view()?.phase)) === 'timelapse') {
-        // the first time-lapse is skipped with the pad: A held (the tl-skip binding, 1 s at the default hold duration)
-        skippedByPad = true;
-        await holdFor([B.A], {}, 2500);
-        ok('timelapse-skipped-by-pad', { phaseAfter: await g(() => window.__founding?.view()?.phase) });
-      } else await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
-    }
+    for (let i = 0; i < 160 && !(await handedOver()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
     expect(await handedOver(), 'the opening was not handed over');
     await frames(6);
     // the outcome card has focus on Continue: A presses it (a menu layer owns the pad: the game does not see the A)
@@ -201,8 +249,8 @@ export default async ({ page, log, out, wait, shot }) => {
     await step(10);
     const vol1 = (await g(() => window.__game.query.voxel())).openVolumeMm3;
     const bites = await g(() => window.__game.events('action-completed', 200).filter((e) => e.action === 'dig-bite').length);
-    ok('dig-by-pad', { volumeGrewMm3: Math.round(vol1 - vol0), bites });
     expect(vol1 > vol0 || bites > 0, 'holding X did not dig', { vol0, vol1, bites });
+    ok('dig-by-pad', { volumeGrewMm3: Math.round(vol1 - vol0), bites });
   });
 
   await section('B2-directives-and-save', async () => {
@@ -295,6 +343,9 @@ export default async ({ page, log, out, wait, shot }) => {
       { name: 'codex', mods: [B.RB], button: B.Y, sel: '.ui-book' },
     ];
     const opened = {};
+    // RB is the modifier of every one of these: opening a panel must not also take the next ant (GDD 08 App E 26)
+    const ant0 = (await g(() => window.__game.summary().possessed))?.id ?? null;
+    expect(ant0 !== null, 'no ant is possessed before the panel shortcuts');
     for (const p of panels) {
       await press(p.button, { mods: p.mods });
       await frames(8);
@@ -306,14 +357,22 @@ export default async ({ page, log, out, wait, shot }) => {
       await press(B.B);
       await frames(6);
       expect((await owner()) === null, `${p.name}: B did not close it and give the pad back`, await owner());
+      const antNow = (await g(() => window.__game.summary().possessed))?.id ?? null;
+      expect(antNow === ant0, `${p.name}: opening it by pad changed the possessed ant`, { ant0, antNow });
     }
-    ok('panels-by-pad', opened);
+    ok('panels-by-pad', { ...opened, possessedUnchanged: ant0 });
 
-    // scent view (D-pad left) and the overlay cycle (RB + B)
+    // scent view (D-pad left): LB + D-pad left is the game's speed-down and must not toggle it
+    const scent0 = (await g(() => window.__game.fx.state())).scent;
+    await press(B.LEFT, { mods: [B.LB] });
+    await frames(4);
+    const scentAfterLb = (await g(() => window.__game.fx.state())).scent;
+    expect(scentAfterLb === scent0, 'LB + D-pad left (speed down) also toggled the scent view', { scent0, scentAfterLb });
     await press(B.LEFT);
     await frames(4);
     const scentOn = await g(() => window.__game.fx.state());
-    ok('scent-by-pad', scentOn);
+    expect(scentOn.scent === !scent0, 'D-pad left alone did not toggle the scent view', { scent0, scentOn });
+    ok('scent-by-pad', { ...scentOn, lbLeftLeftItAlone: true });
 
     // pause anywhere: LB + D-pad up pauses and resumes in every play view
     const pausedIn = {};
@@ -330,12 +389,23 @@ export default async ({ page, log, out, wait, shot }) => {
     ok('pause-anywhere', pausedIn);
     await g(() => window.__game.camera.set('possess')); await step(1);
 
-    // dismiss-hint: RB + View
-    const hintBefore = await g(() => window.__onboarding?.view?.() ?? null);
+    // dismiss-hint: RB + View, with a teaching hint really on screen; the possessed ant stays the same
+    const hintView = () => g(() => window.__onboarding?.view?.() ?? null);
+    // a hint comes up as the engine's clock runs: in play first, then (hint-speed) from the observer view
+    let hintBefore = await hintView();
+    const waitHint = async () => { for (let i = 0; i < 12 && !hintBefore; i++) { await g((n) => window.__onboarding.advance(n), 6); await frames(2); hintBefore = await hintView(); } };
+    await waitHint();
+    if (!hintBefore) { await g(() => window.__onboarding.reset()); await waitHint(); }
+    if (!hintBefore) { await g(() => window.__game.camera.set('observer')); await step(1); await frames(3); await waitHint(); }
+    expect(hintBefore, 'no teaching hint came up to dismiss', await g(() => window.__onboarding?.state?.() ?? null));
+    const antBeforeHint = (await g(() => window.__game.summary().possessed))?.id ?? null;
     await press(B.VIEW, { mods: [B.RB] });
     await frames(4);
-    const hintAfter = await g(() => window.__onboarding?.view?.() ?? null);
-    ok('dismiss-hint-by-pad', { before: hintBefore?.id ?? null, after: hintAfter?.id ?? null });
+    const hintAfter = await hintView();
+    const antAfterHint = (await g(() => window.__game.summary().possessed))?.id ?? null;
+    expect(!hintAfter || hintAfter.id !== hintBefore.id, 'RB + View did not dismiss the hint', { hintBefore, hintAfter });
+    expect(antAfterHint === antBeforeHint, 'RB + View changed the possessed ant', { antBeforeHint, antAfterHint });
+    ok('dismiss-hint-by-pad', { before: hintBefore.id, after: hintAfter?.id ?? null, possessedUnchanged: antBeforeHint });
     // the mouse takes the glyphs back to the keyboard
     await page.mouse.move(300, 300); await page.mouse.move(340, 330);
     await frames(4);
@@ -352,14 +422,30 @@ export default async ({ page, log, out, wait, shot }) => {
     expect((await g(() => window.__game.camera.view())) === 'photo', 'LS + RS did not open photo mode', await g(() => window.__game.camera.view()));
     const pose0 = await g(() => window.__game.camera.pose());
     log('photo entry', JSON.stringify(await g(() => ({ input: window.__game.input.summary(), owner: window.__nav.owner(), focus: window.__nav.focus(), view: window.__game.camera.view(), active: document.activeElement?.tagName }))));
-    // look: the right stick; move: the left stick
-    await setPad([], { [AX.RX]: 1 }); await frames(8);
-    log('photo look held', JSON.stringify(await g(() => ({ input: window.__game.input.summary(), pose: window.__game.camera.pose().dir, rig: window.__game.views.photo.pose?.(), pads: (navigator.getGamepads()[0] ?? {}).axes, mode: window.__game.ui.screen(), time: window.__game.summary().time.paused, fx: window.__game.fx.state() }))));
-    await setPad([]); await frames(3);
-    await setPad([], { [AX.LY]: -1 }); await frames(8); await setPad([]); await frames(3);
-    await g(() => window.__game.renderFrame({ settle: 0 })); // the camera follows the rig (a loaded machine skips frames)
-    const pose1 = await g(() => window.__game.camera.pose());
-    expect(JSON.stringify(pose0.dir) !== JSON.stringify(pose1.dir) || JSON.stringify(pose0.pos) !== JSON.stringify(pose1.pos), 'the sticks did not move the photo camera', { pose0, pose1 });
+    // look: the right stick; move: the left stick. The stick is held until the camera answers (up to 6 x 8 frames: a
+    // loaded machine starves the frame loop), and a failure says what the input layer saw (it was once seen with the
+    // pose unchanged in a long chain; see the report)
+    const poseKey = (p) => JSON.stringify([p.dir, p.pos]);
+    const diag = () => g(() => ({ input: window.__game.input.summary(), axes: navigator.getGamepads()[0]?.axes, owner: window.__nav.owner(), focus: window.__nav.focus(), view: window.__game.camera.view(), mode: window.__game.ui.screen(), paused: window.__game.summary().time.paused, active: document.activeElement?.tagName }));
+    const moved = async (axes, from) => {
+      await setPad([], axes);
+      let now = from, tries = 0;
+      for (; tries < 6; tries++) {
+        await frames(8);
+        await g(() => window.__game.renderFrame({ settle: 0 })); // the camera follows the rig
+        now = await g(() => window.__game.camera.pose());
+        if (poseKey(now) !== poseKey(from)) break;
+      }
+      const seen = await diag();
+      await setPad([]); await frames(3);
+      return { now, tries: tries + 1, seen, changed: poseKey(now) !== poseKey(from) };
+    };
+    const look = await moved({ [AX.RX]: 1 }, pose0);
+    log('photo look', JSON.stringify({ changed: look.changed, tries: look.tries, input: look.seen.input, axes: look.seen.axes }));
+    const walk = await moved({ [AX.LY]: -1 }, look.now);
+    const pose1 = walk.now;
+    expect(look.changed || walk.changed, 'the sticks did not move the photo camera', { pose0, pose1, look: look.seen, walk: walk.seen });
+    ok('photo-sticks', { look: look.changed, move: walk.changed, tries: [look.tries, walk.tries] });
     // lens: LB + right stick vertical
     const st0 = await g(() => window.__game.views.photo.state());
     await setPad([B.LB], {}); await frames(3); await setPad([B.LB], { [AX.RY]: -1 }); await frames(14);
@@ -446,6 +532,8 @@ export default async ({ page, log, out, wait, shot }) => {
     for (const pct of [80, 150]) {
       await set({ accessibility: { uiScale: pct } });
       await frames(8);
+      // the root font follows on the next UI refresh: poll (a loaded machine stretches frames) instead of a fixed frame count
+      for (let i = 0; i < 40 && Math.abs((await a11y()).ui.scaleRootPx - (16 * pct) / 100) > 0.5; i++) await frames(3);
       const ui = (await a11y()).ui;
       const regions = await hudInside();
       scales[pct] = { rootPx: ui.scaleRootPx, layout: ui.layout, outside: regions.filter((r) => !r.inside).map((r) => r.hud) };
@@ -491,7 +579,7 @@ export default async ({ page, log, out, wait, shot }) => {
     expect(on.reducedMotion.effective && on.reducedMotion.rigFlag === true, 'reduced motion did not reach the camera rig', on.reducedMotion);
     expect(on.camera.shakeAmplitudeMm === 0 && on.camera.shakeScale === 0, 'camera shake is not zero in reduced motion', on.camera);
     expect(on.camera.swayAmplitudeMm === 0, 'camera sway is not zero', on.camera);
-    expect(on.camera.transition.kind === 'crossfade' && on.camera.transition.duration <= 0.3 + 1e-9, 'the camera transition is not the short crossfade', on.camera.transition);
+    expect(on.camera.transition.kind === 'crossfade' && on.camera.transition.duration <= 0.2 + 1e-9, 'the camera transition is not a crossfade of at most 200 ms (GDD 08 2.4)', on.camera.transition);
     expect(on.dof.strength !== null && on.dof.strength < 1 && on.dof.strength === on.dof.target, 'depth-of-field strength was not reduced', on.dof);
     expect(/fade/.test(pauseOn.name) && parseFloat(pauseOn.dur) <= 0.12 + 1e-6, 'UI transitions are not the 120 ms fade', pauseOn);
     expect(/enter/.test(pauseOff.name) && parseFloat(pauseOff.dur) > 0.12, 'normal motion lost its UI entrance', pauseOff);
@@ -622,5 +710,8 @@ export default async ({ page, log, out, wait, shot }) => {
   });
 
   await shotOf('end');
+  // the harness only reports script exceptions: a section that failed must fail the run
+  writeFileSync(`${out}/a11y-result.json`, JSON.stringify(result, null, 1));
+  if (result.failures.length) throw new Error(`a11y: ${result.failures.length} section(s) failed: ${result.failures.map((f) => `${f.section}: ${f.error}`).join(' | ').slice(0, 3000)}`);
   return result;
 };

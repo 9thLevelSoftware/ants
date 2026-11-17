@@ -45,7 +45,7 @@ describe('CameraTransition', () => {
     const a = pose(0, 0, 0, 0, 0, -1), near = pose(30 * DEMO_BU, 0, 0, 0, 0, -1), far = pose(400 * DEMO_BU, 0, 0, 0, 0, -1);
     expect(planTransition(a, near, DEMO_BU, false).duration).toBeCloseTo(0.5, 6);
     expect(planTransition(a, far, DEMO_BU, false).kind).toBe('dip');
-    expect(planTransition(a, near, DEMO_BU, true)).toEqual({ kind: 'crossfade', duration: 0.3 });
+    expect(planTransition(a, near, DEMO_BU, true)).toEqual({ kind: 'crossfade', duration: 0.2 });
     const tr = new CameraTransition();
     tr.start(a, planTransition(a, far, DEMO_BU, false));
     let peak = 0;

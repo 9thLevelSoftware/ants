@@ -110,9 +110,9 @@ export interface NavScratch {
   seekDown?: number;
   /**
    * loco-fix3 (additive): relocation memory of the walker, kept across requests: the tick and place (mm) of its
-   * last relocation and how many recoveries in a row started within LOCO_TUNING.relocRepeatBU of that place inside
-   * relocRepeatS (0 = none), and where it was put (relocTo). A repeat escalates (let go, then fail the walk with
-   * reason 'stuck-repeat').
+   * last relocation, where it was put (relocTo), and how many escalations (let-go or 'stuck-repeat' failure) it had
+   * since (0 = none). Stuck again within LOCO_TUNING.relocRepeatBU of a remembered place (relocHist below, no time
+   * limit) escalates instead of relocating.
    */
   relocTick?: number;
   relocFrom?: Vec3;
@@ -130,4 +130,12 @@ export interface NavScratch {
    * request made again while it runs (a behaviour re-issuing it on each think) keeps its stuck ladder.
    */
   reqDest?: Vec3;
+  /**
+   * loco-fix3 review (additive): distance, mm, the walker could have covered at its commanded speed since tick
+   * stallFrom (= bestTick when it was counted; a new bestTick restarts it). A stall needs this to reach
+   * LOCO_TUNING.stuckTravelBU, so a walker slowed by the cold is not taken for a stuck one (one slower than
+   * stuckCrawlBUs counts nothing).
+   */
+  stallTravel?: number;
+  stallFrom?: number;
 }

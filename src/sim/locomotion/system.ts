@@ -24,9 +24,10 @@ import { walkerNest as walkerNestImp } from './trip';
 import { syncPuddles as syncPuddlesImp } from './puddles';
 import { forgetStall as forgetStallImp, pruneStalls as pruneStallsImp, watchStall as watchStallImp } from './stallWatch';
 import { isStunned as isStunnedImp, walkerUnderWater as walkerUnderWaterImp, wetGripMult as wetGripMultImp } from './weather';
+import { pauseStall as pauseStallImp } from './stuck';
 
 // Hot imports re-bound as local consts (Vitest reads imported bindings through getters; see 02-kernel.md §2.11).
-const antGrid = antGridImp, fillCrowd = fillCrowdImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp, syncPuddles = syncPuddlesImp, watchStall = watchStallImp, forgetStall = forgetStallImp, pruneStalls = pruneStallsImp, isStunned = isStunnedImp, walkerUnderWater = walkerUnderWaterImp, wetGripMult = wetGripMultImp;
+const antGrid = antGridImp, fillCrowd = fillCrowdImp, isLocoEntityIndex = isLocoEntityIndexImp, isLocoNavGrid = isLocoNavGridImp, clearCrumbs = clearCrumbsImp, integrateHome = integrateHomeImp, recordCrumb = recordCrumbImp, resetHomeVec = resetHomeVecImp, startCrumbs = startCrumbsImp, set3 = set3Imp, chamberAt = chamberAtImp, nearestOpenEntrance = nearestOpenEntranceImp, tiltLimit = tiltLimitImp, possessedTick = possessedTickImp, ensureGrid = ensureGridImp, rt = rtImp, walkerId = walkerIdImp, addAvoidRepulsion = addAvoidRepulsionImp, addEdgeRepulsion = addEdgeRepulsionImp, addFloorBias = addFloorBiasImp, addSeparation = addSeparationImp, turnToward = turnTowardImp, walkerLetGo = walkerLetGoImp, walkerPlace = walkerPlaceImp, walkerSnapshot = walkerSnapshotImp, walkerStep = walkerStepImp, walkerSurfaceChanged = walkerSurfaceChangedImp, aiUpdate = aiUpdateImp, nestIdOf = nestIdOfImp, walkerNest = walkerNestImp, syncPuddles = syncPuddlesImp, watchStall = watchStallImp, forgetStall = forgetStallImp, pruneStalls = pruneStallsImp, pauseStall = pauseStallImp, isStunned = isStunnedImp, walkerUnderWater = walkerUnderWaterImp, wetGripMult = wetGripMultImp;
 
 const TICK_S = 0.1;
 const SLIP_EVERY = LOCO_TUNING.slipCheckEveryTicks, STAND_CHECK_EVERY = LOCO_TUNING.standCheckEveryTicks;
@@ -177,13 +178,13 @@ function stepWalker(sim: Sim, w: Walker, isAnt: boolean, r: LocoRuntime, obs: Ve
   } else if (isAnt && dozing(sim, w, w.nav.loco, id, tick, r)) {
     // dozing in a crowded room: stands this tick, its stuck window paused (the dozed ticks do not count; it resumes
     // where it was when the ant walks again); it did not move, so map limit, slope and membership are as they were
-    w.nav.loco.bestTick = Math.min(tick, w.nav.loco.bestTick + 1);
+    pauseStall(w.nav.loco, tick, k);
     w.speed = 0;
     r.stats.dozed++;
     return;
   } else if (isAnt && isStunned(sim, w as Ant)) {
     // stunned (GDD 06 §3.3 rain hits, collapses, creatures): stands; its stuck window paused meanwhile
-    w.nav.loco!.bestTick = Math.min(tick, w.nav.loco!.bestTick + 1);
+    pauseStall(w.nav.loco!, tick, k);
     w.nav.desiredSpeed = 0;
     st = walkerStep(sim.field, w, null, 0, dt, sim.kernel.walker);
   } else {

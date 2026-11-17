@@ -144,7 +144,8 @@ export const CAM_SWITCH_DIP_HALF_S = 0.15;
 export const CAM_TO_COLONY_S = 0.8;
 /** A release keeps the camera (GDD 01 §2) when it is within this many body lengths of the ant and sees it. */
 export const CAM_HANDOVER_KEEP_MAX_L = 12;
-export const CAM_REDUCED_CROSSFADE_S = 0.3;
+/** Reduced motion: a view switch is a crossfade this long (GDD 08 2.4: 200 ms). */
+export const CAM_REDUCED_CROSSFADE_S = 0.2;
 
 /** Observer (GDD 6.6). */
 export const OBS_SPEED_BASE_BU = 4;

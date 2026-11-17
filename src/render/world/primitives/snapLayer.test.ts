@@ -6,7 +6,7 @@ import { SnapLayer } from './snapLayer';
 const BU = 4;
 const IDENT = { x: 0, y: 0, z: 0, w: 1 };
 const post = (id: number, x: number, y: number): Primitive => ({
-  id, pos: { x, y, z: 50 }, rot: IDENT, size: { x: 2, y: 6, z: 2 }, round: 0, material: 'wood', flags: 0, objectId: id, shape: 'box',
+  id, pos: { x, y, z: 50 }, rot: IDENT, size: { x: 2, y: 6, z: 2 }, round: 0, material: 'wood-sound', flags: 0, objectId: id, shape: 'box',
 });
 const bottom = (p: Primitive) => p.pos.y - p.size.y;
 

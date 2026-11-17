@@ -292,9 +292,12 @@ describe('reviewer: relocation on the ladder', () => {
     teleport(sim, ant, e.pos.x - 80 * bu, e.pos.z);
     const moves: number[] = [];
     sim.events.on('ant-unstuck', (ev) => moves.push(Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z) / bu));
-    // speed 0: the walker cannot make progress, so the ladder climbs to the relocation rung
+    // speed 0: the walker cannot make progress, so the ladder climbs to the relocation rung. Since loco-fix3 review a
+    // walker that cannot move at all is not stuck (stuckTravel: it waits for its timeout), so the test also tells the
+    // ladder that the walker could have moved (as one wedged at cruise would have)
     expect(navToTarget(sim, ant, { kind: 'chamber', id: deep.id, pos: deep.center }, bu, { speed: 0 })).toBe(true);
-    for (let t = 0; t < 400 && moves.length === 0; t++) sim.tick();
+    const s = ant.nav.loco!;
+    for (let t = 0; t < 400 && moves.length === 0; t++) { s.stallFrom = s.bestTick; s.stallTravel = Infinity; sim.tick(); }
     expect(ant.nav.mode).toBe('path');
     expect(moves.length).toBeGreaterThan(0);
     expect(moves[0]).toBeGreaterThan(1);

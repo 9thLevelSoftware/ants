@@ -2,6 +2,8 @@
 // menu navigation layer in src/ui/nav, the rebinding capture) calls `readGamepads()`, which calls
 // `navigator.getGamepads()` once per call. A test can therefore inject a virtual pad by overriding that single
 // browser function in the page (Playwright has no gamepad); nothing in the game has to be touched.
+import { STICK_DEADZONE } from './defaults';
+import { padHasInput } from './gamepad';
 import type { PadSnapshot } from './types';
 
 /** Snapshot of one browser Gamepad (button values 0..1, axes -1..1). */
@@ -27,8 +29,33 @@ export function readGamepads(win: Window | undefined = typeof window === 'undefi
   }
 }
 
-/** The pad the player uses: the first connected one (the game's tracker is more exact; menus only need one). */
-export function firstPad(pads: readonly (PadSnapshot | null)[]): PadSnapshot | null {
-  for (const p of pads) if (p) return p;
-  return null;
+/**
+ * The pad the player uses, stateless: the first connected pad that shows input right now, else the first connected
+ * one. (A second controller or a remapper's virtual pad can sit in slot 0 while the player uses slot 1.)
+ */
+export function firstPad(pads: readonly (PadSnapshot | null)[], deadZone = STICK_DEADZONE): PadSnapshot | null {
+  let first: PadSnapshot | null = null;
+  for (const p of pads) {
+    if (!p) continue;
+    if (padHasInput(p, deadZone)) return p;
+    first ??= p;
+  }
+  return first;
+}
+
+/**
+ * The same choice as the game's PadTracker (GDD 01 5.8) for code that only needs the pad, not its events: the first
+ * pad to produce input becomes the player pad and stays it until it disconnects. Until one has produced input, the
+ * first connected pad is read, so a lone idle pad works for the menus.
+ */
+export class PlayerPadPicker {
+  private index = -1;
+
+  pick(pads: readonly (PadSnapshot | null)[], deadZone = STICK_DEADZONE): PadSnapshot | null {
+    const current = pads.find((p) => p && p.index === this.index);
+    if (current) return current;
+    const chosen = firstPad(pads, deadZone);
+    this.index = chosen && padHasInput(chosen, deadZone) ? chosen.index : -1;
+    return chosen;
+  }
 }

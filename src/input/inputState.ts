@@ -246,6 +246,17 @@ export class InputState {
     return false;
   }
 
+  /** Was `button` part of a chord with the modifier of a live binding on it? (then its tap belongs to that combination) */
+  private modifiedVariantIn(button: number, chord: readonly number[]): boolean {
+    if (chord.length === 0) return false;
+    for (const id of this.liveIds) {
+      for (const b of bindingsOf(this.bindingSet, id)) {
+        if (b.kind === 'pad' && b.button === button && b.mod !== undefined && chord.includes(b.mod)) return true;
+      }
+    }
+    return false;
+  }
+
   /** Pad axes claimed by a live modified padAxis binding whose modifier is held (LB + RS vertical = zoom). */
   private claimedAxis(axis: number): boolean {
     for (const id of this.liveIds) {
@@ -319,7 +330,8 @@ export class InputState {
         if (!modOk) return { held: false, pulses: 0, value: 0 };
         if (b.gesture === 'tap') {
           const lim = this.holdOf(b.holdMs);
-          return { held: false, pulses: f.padTaps.filter((t) => t.button === b.button && t.ms < lim).length, value: 0 };
+          const taps = f.padTaps.filter((t) => t.button === b.button && t.ms < lim && (b.mod !== undefined || !this.modifiedVariantIn(b.button, t.chord)));
+          return { held: false, pulses: taps.length, value: 0 };
         }
         if (b.gesture === 'hold') return { held: false, pulses: f.pulses.get(`padhold:${b.button}:${this.holdOf(b.holdMs)}`) ?? 0, value: 0 };
         // a plain binding on a button that also has a tap gesture elsewhere still fires on press (LB in menus)

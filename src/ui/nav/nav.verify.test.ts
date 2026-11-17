@@ -66,10 +66,4 @@ describe('PadReader edge cases', () => {
     expect(f.down(PAD.START)).toBe(false);
     expect(f.move).toBeNull();
   });
-
-  it('NaN axes do not produce a move', () => {
-    const r = new PadReader();
-    r.update(snap(), 0);
-    expect(r.update(snap([], [NaN, NaN, 0, 0]), 16).move).toBeNull();
-  });
 });

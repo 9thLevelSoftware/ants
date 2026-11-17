@@ -16,6 +16,8 @@ export interface PadButtonState {
   downAt: number;
   /** Another button went down while this one was held: it served as a modifier, so its tap does not fire. */
   usedAsMod: boolean;
+  /** Every other button that was down at any moment while this one was down (the chord this press belonged to). */
+  chord: number[];
   holdsFired: number[];
 }
 
@@ -26,6 +28,8 @@ export interface PadAxisModifier {
   deadZone: number;
 }
 
+export interface PadTap { button: number; ms: number; chord: readonly number[] }
+
 /** Everything the action layer needs for one frame. */
 export interface FrameSnapshot {
   now: number;
@@ -33,8 +37,8 @@ export interface FrameSnapshot {
   keyDownEdges: { code: string; shift: boolean }[];
   /** Pulses: one-frame events, e.g. 'click:2', 'dbl:0', 'hold:0:400', 'press:0', 'padhold:8:500', 'padpress:3', 'wheel:-1'. */
   pulses: Map<string, number>;
-  /** Pad buttons released this frame without having served as a modifier, with how long they were held. */
-  padTaps: { button: number; ms: number }[];
+  /** Pad buttons released this frame without having served as a modifier, with how long they were held and the chord they were part of. */
+  padTaps: PadTap[];
   drag: Map<number, { dx: number; dy: number }>;
   lockedDx: number; lockedDy: number;
   /** Wheel notches this frame (positive = scroll down), split by whether Shift was held. */
@@ -61,7 +65,7 @@ export class RawSources {
 
   private pendingDown: { code: string; shift: boolean }[] = [];
   private pendingPulses = new Map<string, number>();
-  private pendingPadTaps: { button: number; ms: number }[] = [];
+  private pendingPadTaps: PadTap[] = [];
   private pendingDrag = new Map<number, { dx: number; dy: number }>();
   private pendingLocked = { dx: 0, dy: 0 };
   private pendingWheel = 0;
@@ -193,16 +197,21 @@ export class RawSources {
       const st = this.padButtons.get(b);
       if (down && !st) {
         for (const other of this.padButtons.values()) other.usedAsMod = true;
-        this.padButtons.set(b, { downAt: now, usedAsMod: false, holdsFired: [] });
+        this.padButtons.set(b, { downAt: now, usedAsMod: false, chord: [], holdsFired: [] });
         this.pulse(`padpress:${b}`);
       } else if (!down && st) {
         this.padButtons.delete(b);
-        if (!st.usedAsMod) this.pendingPadTaps.push({ button: b, ms: now - st.downAt });
+        if (!st.usedAsMod) this.pendingPadTaps.push({ button: b, ms: now - st.downAt, chord: st.chord });
       } else if (down && st) {
         for (const h of holdThresholds) {
           if (now - st.downAt >= h && !st.holdsFired.includes(h)) { st.holdsFired.push(h); this.pulse(`padhold:${b}:${h}`); }
         }
       }
+    }
+    // buttons held together remember each other: the second button of a chord must not tap on its own when released
+    // after (or before) its partner (RB released first, then View: that is RB + View, not a View tap)
+    for (const [b, st] of this.padButtons) {
+      for (const o of this.padButtons.keys()) if (o !== b && !st.chord.includes(o)) st.chord.push(o);
     }
     for (const m of axisMods) {
       const st = this.padButtons.get(m.mod);
