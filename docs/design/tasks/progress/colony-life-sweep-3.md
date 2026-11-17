@@ -7,7 +7,7 @@ Started 10:40 UTC 2026-11-17.
   Tree hash (src/sim + src/worldgen + src/core *.ts) 2e2c79d2. Delete the copy at the end.
 - Command: /home/user/frozen-sweep3/tools/sim/sweep-life.sh /home/user/foundress/test-output/colony-life/round-3/sweep /home/user/foundress/test-output/viab/cache
   (restart-safe: re-run the same command; runs with a JSON are skipped). sweep-life.sh now cds to its own tree.
-- Runs finished: see test-output/colony-life/round-3/sweep/summary.txt.
+- Runs finished: see test-output/colony-life/round-3/sweep/summary.txt (8 of 15 at 11:21).
 - Table: python3 tools/sim/sweep-table.py test-output/colony-life/round-3/sweep PREV > test-output/colony-life/round-3/sweep-table.md
   (PREV = previous sweep named in the ledger; check).
 
