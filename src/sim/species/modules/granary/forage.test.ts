@@ -9,7 +9,8 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import { addAnts, messorKit } from './testkit';
 import { newPatchSite, refreshSeedSites } from './seeds';
 import { harvesterAccepts, seedAcceptP } from './behaviourForage';
-import { augmentDemand } from './allocation';
+import { augmentDemand, seedForageDemand } from './allocation';
+import { addSeeds } from './cohorts';
 import { createSource } from '@/sim/ecology/sources/spawn';
 import { ti } from '@/sim/colony/taskIdx';
 import { setTrailTempOverride } from './rhythm';
@@ -65,6 +66,16 @@ describe('diet (GDD 07 §5.3.5: a harvester does not tend aphids)', () => {
     col.alloc.demand[ti('tend')] = 5;
     augmentDemand(sim, col, k.g);
     expect(col.alloc.demand[ti('tend')]).toBe(0);
+  });
+});
+
+describe('granary stock target (GDD 07 §6.3.5)', () => {
+  it('an empty granary asks for foragers, a full one does not', () => {
+    const { k, col } = seedKit('S', 1);
+    col.needs.rateC = 1; col.needs.rateP = 0.3;
+    expect(seedForageDemand(col, k.g, 20)).toBeGreaterThan(5);
+    addSeeds(k.granary, k.g, 'S', 0.3, 2000, 0.3, 0);
+    expect(seedForageDemand(col, k.g, 20)).toBe(0);
   });
 });
 

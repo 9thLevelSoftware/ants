@@ -6,7 +6,7 @@ in `test-output/colony-life/round-1/sweep/summary.txt`.
 ## Sweep
 - Script: `tools/sim/sweep-life.sh test-output/colony-life/round-1/sweep test-output/viab/cache` (skips runs whose
   JSON exists; restart it the same way to continue). Started 02:19 UTC.
-- Runs finished: (see summary.txt)
+- Runs finished: see summary.txt (5 of 15 at 02:54)
 
 ## Review findings so far (updated 02:45 UTC)
 - typecheck clean 02:22. src/sim/ants/behaviours/nest: 25 pass, 2 red (sfaReview.verify, stall.soak) = as claimed
@@ -30,3 +30,10 @@ in `test-output/colony-life/round-1/sweep/summary.txt`.
 - table script (tools/sim/sweep-table.py), bars, regressions vs sweep9-table.md
 - code review of F1-F3, typecheck, folder tests, *.verify.test.ts
 - ledger section "### Independent sweep after round 1"
+
+## 02:58 UTC
+- 5 of 15 done. Pattern so far: C intake up a lot (deliveries from day 1; sweep 9 had none before day 3), P intake
+  down in 3 of 5 (kd1 0.27 -> 0.07, carrion deliveries 15 -> 0). 0 eclosions in all 5.
+- Planned A/B after the sweep: scratch tree = working tree minus F1-F3 at
+  /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scratchpad/nofix (DELETE when done), run
+  kitchen-door #1 (+ car-park-verge #1) there, out test-output/colony-life/round-1/sweep-ab/, to attribute the P drop.

@@ -83,6 +83,15 @@ export const GNAW_AI_BATCH_LOADS = 3;
 export const RELOCATE_LOADS = 1;
 /** Workers that `mill` demand asks for per load of paste deficit per game day (labour model) [EST]. */
 export const MILL_LOADS_PER_MILLER_GD = 12;
+/** Foragers asked for to fill the granary: this share of the workers x the share of the target stock missing [EST]. */
+export const SEED_FORAGE_FRAC = 0.3;
+/**
+ * A waiting forager of a granary short of its target leaves on her own at this rate x the shortfall, per game
+ * second (about one trip per 4 game minutes waited at an empty granary) [EST].
+ */
+export const SEED_CALL_RATE_S = 1 / 240;
+/** Scouts asked for while the granary is short and no seed source is known. */
+export const SEED_SCOUTS_MIN = 2;
 /** Millers asked for at most this share of the workers. */
 export const MILL_MAX_FRAC = 0.35;
 /** At least this many millers while there is millable seed and the paste stock is under target. */

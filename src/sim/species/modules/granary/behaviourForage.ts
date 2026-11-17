@@ -16,7 +16,10 @@ import { FORAGE, SCOUT, type Flavour } from '@/sim/ants/behaviours/outdoor/flavo
 import { K, PHASE } from '@/sim/ants/behaviours/outdoor/keys';
 import { distFromHome, thinkIn } from '@/sim/ants/behaviours/outdoor/common';
 import { THINK_WAIT_TICKS } from '@/sim/balance/foraging';
-import { SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
+import { SEED_CALL_RATE_S, SEED_FORAGE_FRAC, SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
+import { ACTIVATION_DEPART } from '@/sim/balance/colony';
+import { TICKS_PER_SECOND } from '@/sim/time';
+import { seedForageDemand } from './allocation';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { granaryParams, nutrientsPerSeedLoad, type GranaryParams } from './params';
 import { departureFactor, heatOf } from './rhythm';
@@ -105,12 +108,48 @@ function withCtx(sim: Sim, ant: Ant, allow: boolean, run: () => void): void {
   try { run(); } finally { ctx.sim = prev.sim; ctx.ant = prev.ant; ctx.allow = prev.allow; }
 }
 
+/** Whether the ant has somewhere of her own to go: a valid lead or a route to a live source. */
+function hasOwnSource(sim: Sim, ant: Ant): boolean {
+  if (ant.mem.lead.sourceId >= 0 && sim.stores.sources.has(ant.mem.lead.sourceId)) return true;
+  for (const r of ant.mem.routes) if (r.sourceId >= 0 && sim.stores.sources.has(r.sourceId)) return true;
+  return false;
+}
+
+/**
+ * The granary's call on a waiting forager (GDD 07 §6.3.5, §5.3.7 trunk trails): while the granaries are short of
+ * their target stock, a forager with nowhere of her own to go takes the trunk trail to the nearest seed node the
+ * colony knows and she would harvest (a lead), and leaves on her own with SEED_CALL_RATE_S x shortfall per second
+ * (the colony's departure rule follows the pool's need only, which a granary does not show).
+ */
+function granaryCall(sim: Sim, ant: Ant, dtTicks: number): void {
+  const cg = colonyAndParams(sim, ant);
+  if (!cg) return;
+  const short = seedForageDemand(cg.col, cg.g, 1) / SEED_FORAGE_FRAC;
+  if (short <= 0) return;
+  if (!hasOwnSource(sim, ant)) {
+    let best: FoodSource | undefined, bestD = Infinity;
+    for (const id of cg.col.knownSourceIds) {
+      const s = sim.stores.sources.get(id);
+      if (!s || !s.alive || s.kind !== 'seed' || s.units <= 0 || !harvesterAccepts(sim, ant, s)) continue;
+      const d = distFromHome(sim, ant, s.pos);
+      if (d < bestD || (d === bestD && best && s.id < best.id)) { best = s; bestD = d; }
+    }
+    if (!best) return;
+    ant.mem.lead = { sourceId: best.id, pos: { x: best.pos.x, y: best.pos.y, z: best.pos.z }, tick: sim.state.tick };
+  }
+  if (ant.activation < ACTIVATION_DEPART && rngFloat(sim.stream('rng.behaviour')) < SEED_CALL_RATE_S * short * (dtTicks / TICKS_PER_SECOND)) {
+    ant.activation = ACTIVATION_DEPART;
+  }
+}
+
 export const harvesterForageBehaviour: Behaviour = {
   task: 'forage', species: ['messor-barbarus'],
   enter: (sim, ant) => withCtx(sim, ant, true, () => forageEngine.enter(sim, ant)),
   update(sim, ant) {
     const waiting = ant.nestId >= 0 && ant.bb[K.phase] === PHASE.wait;
-    withCtx(sim, ant, waiting ? mayLeave(sim, ant) : true, () => forageEngine.update(sim, ant));
+    const allow = waiting ? mayLeave(sim, ant) : true;
+    if (waiting && allow) granaryCall(sim, ant, THINK_WAIT_TICKS);
+    withCtx(sim, ant, allow, () => forageEngine.update(sim, ant));
   },
   exit: (sim, ant) => forageEngine.exit(sim, ant),
   delivering: forageEngine.delivering,
