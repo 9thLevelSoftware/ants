@@ -20,6 +20,11 @@ import { speciesIdOf } from '../workRate';
 
 const DEG = Math.PI / 180;
 
+/** Plug material in the mandibles: a soil pellet, or chewed wood fibre (frass) in a wood nest (GDD 06 §5.9). Additive (species-carpenter). */
+export function isPlugPellet(it: { kind: string } | undefined | null): boolean {
+  return !!it && (it.kind === 'soil-pellet' || it.kind === 'frass');
+}
+
 /** Dig power of the ant's caste; 0 = it cannot dig (established queens, alates, minims). */
 export function digPower(ant: Ant): number {
   if (ant.caste === 'queen' && (ant.flags & AntFlag.FOUNDING) === 0) return 0;
@@ -57,6 +62,15 @@ function digSamplePoint(sim: Sim, contact: Vec3, out: Vec3): Vec3 {
 }
 
 const sp = { x: 0, y: 0, z: 0 };
+
+/**
+ * Optional species rules for a bite (additive, species-carpenter: the wood-nesting module sets them at load, GDD 07
+ * §6.2.3): the bite time in seconds at the sample point inside the solid (null = the default rule), and a refusal.
+ */
+export const digBiteRules: {
+  seconds: ((sim: Sim, ant: Ant, sample: Vec3) => number | null) | null;
+  refuse: ((sim: Sim, ant: Ant, sample: Vec3) => ActionFailReason | null) | null;
+} = { seconds: null, refuse: null };
 
 /**
  * digSpeed at the bite (GDD 03 §2.1, §2.2): the nest module's substrate rule at the sample point inside the
@@ -99,6 +113,8 @@ function digCheck(sim: Sim, ant: Ant, t: TargetRef): ActionFailReason | null {
   const c = contactFor(sim, ant, t);
   const speed = digSpeedAt(sim, ant, c);
   if (speed * power < DIG_MIN_SPEED) return 'not-diggable';
+  const refused = digBiteRules.refuse?.(sim, ant, digSamplePoint(sim, c, sp)) ?? null;
+  if (refused) return refused;
   return ports.canDigAt(sim, ant, c) ? null : 'not-allowed-here';
 }
 
@@ -130,7 +146,10 @@ export const digBiteDef: ActionDef = {
     return d <= Math.max(reachMm(sim, ant), DIG_ADVANCE_L * antLengthMm(sim, ant));
   },
   check: digCheck,
-  durationS: (sim, ant, t) => DIG_BITE_S / Math.max(1e-6, digSpeedAt(sim, ant, contactFor(sim, ant, t)) * digPower(ant)),
+  durationS: (sim, ant, t) => {
+    const c = contactFor(sim, ant, t);
+    return digBiteRules.seconds?.(sim, ant, digSamplePoint(sim, c, sp)) ?? DIG_BITE_S / Math.max(1e-6, digSpeedAt(sim, ant, c) * digPower(ant));
+  },
   onBegin(sim, ant, t) {
     dropPelletBehind(sim, ant);
     if (t.kind !== 'surface') return;
@@ -212,7 +231,7 @@ function deferredToGuide(sim: Sim, ant: Ant, t: TargetRef): boolean {
   if (!foundingSealPhase(sim, ant)) return false;
   const it = carriedItem(sim, ant);
   const e = findEntrance(sim, t.id);
-  if (!it || it.kind !== 'soil-pellet' || !e || e.entrance.status === 'sealed') return true;
+  if (!isPlugPellet(it) || !e || e.entrance.status === 'sealed') return true;
   return !inThroat(sim, ant, e.entrance) && !aimedInReach(sim, ant, t, e.entrance);
 }
 
@@ -249,7 +268,7 @@ export const sealEntranceDef: ActionDef = {
   check(sim, ant, t) {
     if (deferredToGuide(sim, ant, t)) return null;
     const it = carriedItem(sim, ant);
-    if (!it || it.kind !== 'soil-pellet') return 'no-target';
+    if (!it || !isPlugPellet(it)) return 'no-target';
     const e = findEntrance(sim, t.id);
     return !e ? 'no-target' : e.entrance.status === 'sealed' ? 'blocked' : null;
   },
@@ -260,7 +279,7 @@ export const sealEntranceDef: ActionDef = {
   effect(sim, ant, t) {
     if (ant.bb[SEAL_DEFERRED_KEY] === 1) return 0; // the founding guide takes it from here
     const it = carriedItem(sim, ant);
-    if (!it || it.kind !== 'soil-pellet') return 'no-target';
+    if (!it || !isPlugPellet(it)) return 'no-target';
     const sealed = ports.sealEntrance(sim, t.id, ant.id);
     if (sim.stores.items.has(it.id)) removeItem(sim, it.id, 'plug');
     ant.carry = { kind: 'none', id: -1 };
@@ -279,7 +298,7 @@ export const unsealEntranceDef: ActionDef = {
   check(sim, ant, t) {
     if (digPower(ant) <= 0) return 'caste';
     const it = carriedItem(sim, ant);
-    if (ant.carry.kind === 'brood' || (it && it.kind !== 'soil-pellet')) return 'hands-full';
+    if (ant.carry.kind === 'brood' || (it && !isPlugPellet(it))) return 'hands-full';
     const e = findEntrance(sim, t.id);
     return e && isPlugged(e.entrance) ? null : 'no-target';
   },

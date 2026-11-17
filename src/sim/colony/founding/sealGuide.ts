@@ -21,6 +21,7 @@ import {
   SEAL_STALL_BU, SEAL_STALL_TICKS, SEAL_STRATEGY_TICKS, SEAL_WALK_MAX_TICKS, SEAL_WAYPOINT_BU, SEAL_WAYPOINT_TANGENT,
 } from '@/sim/balance/founding';
 import { navStop, navTo } from '@/sim/locomotion';
+import { isPlugPellet } from '@/sim/ants/actions/defs/dig';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { bbGet, bbSet, foundingQueen, openingOf, phaseAgeGd } from './access';
 import { cavityRoute, floodCavity, floodStart, keyPos } from './leak';
@@ -140,7 +141,7 @@ function exclude(q: Ant, p: Vec3): void {
 }
 
 function hasPellet(sim: Sim, q: Ant): boolean {
-  return q.carry.kind === 'item' && sim.stores.items.get(q.carry.id)?.kind === 'soil-pellet';
+  return q.carry.kind === 'item' && isPlugPellet(sim.stores.items.get(q.carry.id));
 }
 
 /** Begins one plug aimed at `aim` where she stands; false when it cannot start here (the guide then re-plans). */

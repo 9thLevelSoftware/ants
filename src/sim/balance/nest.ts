@@ -21,9 +21,9 @@ export const DIG_SPECIES_MULT: Record<SpeciesId, Partial<Record<MaterialId, numb
   'lasius-niger': { loam: 1, humus: 1, sand: 1, clay: 1, gravel: 1, 'wood-decayed': 0.5, insulation: 0.5 },
   'messor-barbarus': { loam: 1, humus: 0.8, sand: 1, clay: 1, gravel: 1 },
   'atta-texana': { loam: 1, humus: 1, sand: 1, clay: 1, gravel: 1 },
-  'camponotus-pennsylvanicus': {
-    loam: 0.6, humus: 0.8, sand: 0.6, clay: 0.3, 'wood-decayed': 1, 'wood-sound': 1, insulation: 1,
-  },
+  // Wood (and wall insulation) only: GDD 07 §5.2.6 "no soil nests" (the species chapter owns nesting) overrides
+  // GDD 03 §2.1's soil column for CP (species-carpenter; soil incubators are a T3 stretch).
+  'camponotus-pennsylvanicus': { 'wood-decayed': 1, 'wood-sound': 1, insulation: 1 },
 };
 
 /** Dig-speed factor of a material for a species (DIG_SPEED x species multiplier); 0 = not diggable. */

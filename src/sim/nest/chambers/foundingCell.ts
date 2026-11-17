@@ -11,7 +11,7 @@ import {
 import { OPEN_FRACTION, OPEN_MIN } from '../carve/keys';
 import { packSample, sampleI, sampleJ, sampleK } from '../voxelKey';
 import { nestSampleBox } from './detect';
-import { capacityOf, chamberAtIn, depthAbove, regionStats, registerChamber, roofAbove } from './registry';
+import { capacityOf, chamberAtIn, depthAbove, nestDepthRule, regionStats, registerChamber, roofAbove } from './registry';
 
 /** Founding geometry of a species (GDD 03 §13.1; SpeciesDef.founding), BU / BU^3. */
 interface FoundingGeometry { dMinOpen: number; dMinCover: number; vMin: number; wMin: number }
@@ -135,10 +135,10 @@ export function foundingReadiness(sim: Sim, nest: Nest): FoundingReadiness | nul
   }
   let best: FoundingReadiness | null = null;
   for (let id = 0; id < parts.length; id++) {
-    const r = measure(sim, g, parts[id], openings[id]);
+    const r = measure(sim, g, parts[id], openings[id], nest);
     if (!best || (r.ready && !best.ready) || (r.ready === best.ready && r.readiness > best.readiness)) best = r;
   }
-  return best ?? measure(sim, g, [], 0);
+  return best ?? measure(sim, g, [], 0, nest);
 }
 
 /** Soil roof over the open column through (x, y, z): from the top of that open run to the next free space, mm. */
@@ -150,9 +150,11 @@ function roofOver(sim: Sim, x: number, y0: number, z: number): number {
 }
 
 /** Readiness of one connected cavity (ascending sample keys) with `openings` entrances into it. */
-function measure(sim: Sim, g: FoundingGeometry, all: readonly number[], openings: number): FoundingReadiness {
+function measure(sim: Sim, g: FoundingGeometry, all: readonly number[], openings: number, nest: Nest): FoundingReadiness {
   const carve = sim.carve, v = carve.voxel, bu = sim.world.bu;
-  const depthOf = (key: number) => sim.field.height(sampleI(key) * v, sampleK(key) * v) - sampleJ(key) * v;
+  const rule = nestDepthRule.depthMm;
+  const depthOf = (key: number) => (rule ? rule(sim, nest, sampleI(key) * v, sampleJ(key) * v, sampleK(key) * v) : null)
+    ?? sim.field.height(sampleI(key) * v, sampleK(key) * v) - sampleJ(key) * v;
   let dMax = 0;
   for (const key of all) {
     const x = sampleI(key) * v, y = sampleJ(key) * v, z = sampleK(key) * v;

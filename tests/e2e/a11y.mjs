@@ -185,9 +185,15 @@ export default async ({ page, log, out, wait, shot }) => {
     for (let i = 0; i < 40 && (await g(() => window.__founding.ui()?.phase)) !== 'timelapse'; i++) await frames(3);
     expect((await g(() => window.__founding.ui()?.phase)) === 'timelapse', 'the time-lapse overlay did not come up', await g(() => window.__founding.ui()?.phase));
     await holdFor([B.A], {}, 2500);
-    const after = await phase();
-    expect(after !== 'timelapse', 'holding A did not skip the time-lapse', after);
-    ok('timelapse-skipped-by-pad', { phaseAfter: after });
+    // the skip runs the rest of the lapse on the manual clock: minutes on a loaded machine. Wait for it, up to 4 minutes.
+    let after = await phase(), skipping = false;
+    for (let i = 0; i < 240 && after === 'timelapse'; i++) {
+      skipping ||= !!(await g(() => window.__founding.ui()?.lapse?.skipping));
+      await new Promise((r) => setTimeout(r, 1000));
+      after = await phase();
+    }
+    expect(after !== 'timelapse', 'holding A did not skip the time-lapse', { after, skipping });
+    ok('timelapse-skipped-by-pad', { phaseAfter: after, sawSkipping: skipping });
   });
 
   await section('B-gamepad-play', async () => {
@@ -395,7 +401,12 @@ export default async ({ page, log, out, wait, shot }) => {
     let hintBefore = await hintView();
     const waitHint = async () => { for (let i = 0; i < 12 && !hintBefore; i++) { await g((n) => window.__onboarding.advance(n), 6); await frames(2); hintBefore = await hintView(); } };
     await waitHint();
-    if (!hintBefore) { await g(() => window.__onboarding.reset()); await waitHint(); }
+    if (!hintBefore) {
+      // hint-observer (possess a worker once Cycling is learnt): reset the profile, learn `cycle`, possess a worker
+      await g(() => { window.__onboarding.reset(); window.__onboarding.use('cycle', 2); window.__game.camera.set('possess'); window.__game.possess('digger'); });
+      await step(2); await frames(3);
+      await waitHint();
+    }
     if (!hintBefore) { await g(() => window.__game.camera.set('observer')); await step(1); await frames(3); await waitHint(); }
     expect(hintBefore, 'no teaching hint came up to dismiss', await g(() => window.__onboarding?.state?.() ?? null));
     const antBeforeHint = (await g(() => window.__game.summary().possessed))?.id ?? null;

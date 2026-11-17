@@ -10,6 +10,7 @@ import {
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { carriedItem } from '../actions/carry';
 import { entranceAtThroat, inLayingPlace } from '../actions/defs';
+import { isPlugPellet } from '../actions/defs/dig';
 import {
   bearingDeg, contactDistance, findEntrance, inReach, mandiblePoint, placeOf, reachMm, selfTarget, type TargetPlace,
 } from '../actions/geometry';
@@ -81,7 +82,7 @@ function classify(sim: Sim, ant: Ant, t: TargetRef): Classified | null {
       const e = findEntrance(sim, t.id)?.entrance;
       if (!e) return null;
       const plugged = e.status === 'sealed' || e.status === 'sealing';
-      if (carriedItem(sim, ant)?.kind === 'soil-pellet' && e.status !== 'sealed') {
+      if (isPlugPellet(carriedItem(sim, ant)) && e.status !== 'sealed') {
         return { cls: 'receiver', primary: 'seal-entrance', secondary: 'put-down' };
       }
       return plugged ? { cls: 'structure', primary: 'unseal-entrance', secondary: null } : null;

@@ -70,7 +70,7 @@ export const pickUp: ActionDef = {
       if (!it) return 'no-target';
       if (it.carrierIds.length > 0 && !it.carrierIds.includes(ant.id)) return 'blocked';
       if (it.reservedBy !== -1 && it.reservedBy !== ant.id && sim.stores.ants.has(it.reservedBy)) return 'blocked';
-      if (queen) return it.kind === 'soil-pellet' ? null : 'caste';
+      if (queen) return it.kind === 'soil-pellet' || it.kind === 'frass' ? null : 'caste';
       return it.bulk > ant.carryCap ? 'too-heavy' : null;
     }
     if (queen) return 'caste';

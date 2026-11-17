@@ -105,7 +105,11 @@ function templateSite(sim: Sim, q: Ant): { x: number; z: number; h: readonly [nu
  * heading whose template lies in diggable ground (a buried stone or footing beside a good site, viab-founding),
  * then the species' cell at its foot.
  */
+/** Optional species carve of the template (additive, species-carpenter: a cell chewed into wood); true = done. */
+export const autoFoundingRules: { carve: ((sim: Sim, q: Ant, nest: Nest) => boolean) | null } = { carve: null };
+
 function carveTemplate(sim: Sim, q: Ant, nest: Nest): void {
+  if (autoFoundingRules.carve?.(sim, q, nest)) return;
   const bu = sim.world.bu, t = template(sim);
   const site = templateSite(sim, q);
   const x = site.x, z = site.z, g = sim.field.height(x, z);

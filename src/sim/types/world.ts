@@ -7,6 +7,7 @@ import type { Quat } from '@/core/math/quat';
 import type { Vec3 } from '@/core/math/vec3';
 import type { CreatureKind, FoodKind, SpeciesId, ZoneType } from './ids';
 import type { RivalSpeciesId } from './ids/ecology';
+import type { WoodPlacement } from './ids/species';
 import type {
   CavityKind, ClimbRouteKind, MicroKind, PoiKind, WaterBodyKind, ZoneVariant,
 } from './ids/world';
@@ -379,4 +380,28 @@ export interface WoodState {
   moisture: number;
   /** Decay class, integer 0..4: 0 sound, 1 early, 2 moderate, 3 advanced (intact), 4 crumbling. */
   decay: number;
+  /** Additive (species-carpenter): where the wood lies (GDD 07 §6.2.1), derived from its world object at first use. */
+  placement?: WoodPlacement;
+  /** Additive (species-carpenter): unit long axis of the primitive (grain direction), world space. */
+  grainAxis?: Vec3;
+  /** Additive (species-carpenter): smallest cross-section of the primitive, BU. */
+  thicknessBu?: number;
+  /** Additive (species-carpenter): length along the grain, BU. */
+  lengthBu?: number;
+  /** Additive (species-carpenter): carved voxel volume / primitive volume, 0..1 (refreshed by the wood system). */
+  carvedFrac?: number;
+  /** Additive (species-carpenter): 0..1 sun on the wood (open sky 1, under shelter or indoors less). */
+  sunExposure?: number;
+  /** Additive (species-carpenter): windows (wood-nesting entrances) opened into this primitive. */
+  windowCount?: number;
+  /** Additive (species-carpenter): inside a building (structural timber, wall voids). */
+  interior?: boolean;
+  /**
+   * Additive (species-carpenter): up to 4 segments along the grain from the primitive's -axis end (GDD 07 §6.2.1):
+   * moisture %, decay class, the game days banked toward the next decay class and the placement moisture the
+   * segment relaxes to before weather (GDD 07 §6.2.2 MC_PLACE with its per-placement splits), %.
+   */
+  segments?: { mc: number; decay: number; decayGd: number; base: number }[];
+  /** Additive (species-carpenter): tick of the last rain on this wood, -1 never. */
+  lastRainTick?: number;
 }

@@ -148,7 +148,10 @@ across a steep crest of a mound pile against an object, < 0.75 x foot offset): w
 - An exit leg at the entrance mouth heads for the ground `exitRimBU` beyond the rim on the goal's side (legs.ts
   `exitPoint`; also its relocation target), not for a point in the air over a vertical shaft. On the lip, where the
   walker flips between cavity and surface, a trip keeps its leg (update.ts `mouthHold`: out-bound walkers keep the
-  surface leg within the mouth, in-bound ones their nest leg).
+  surface leg within the mouth, in-bound ones their nest leg). The in-bound hold needs a nest leg the walker can
+  follow from where it stands (mode 'field' and a finite field distance there): a new request from the lip, or a
+  field that does not reach it, plans from the surface (review: workers on the lip failed their walk with 'leg' on
+  every tick, thousands of times, at suburban-garden #2).
 - Edge gates (grid/gates.ts): where the straight crossing between side-by-side cells meets a tall barrier
   (blocked at 1 BU and at `gateTallBU` 8 BU above the ground) but a strip of the shared edge at least 1 BU wide lets a
   body through (the opening under a raised gravel board at a fence end), the planner's string-pulling adds the
@@ -156,7 +159,9 @@ across a steep crest of a mound pile against an object, < 0.75 x foot offset): w
   field: `flowNext` steers a gated step at the gate's entry, from the entry on at its exit, and a walker that came
   through keeps to the exit until clear of the barrier (the gate's lane: the strip's half width plus `gateReachBU`
   across). Gates are cached per cell edge (cleared when an area is re-derived). A flow lookahead two cells ahead that
-  is not in grid line of sight (the corner of a blocked or raised cell) falls back to the next cell.
+  is not in grid line of sight (the corner of a blocked or raised cell) falls back to the next cell. A walker whose
+  cell the flow does not reach (on a root inside a tree's blocked footprint) heads for the nearest cell it reaches
+  (within `snapRadiusCells`) instead of failing the leg.
 
 ## Weather (weather.ts, puddles.ts; GDD 06 §3.3, §3.10)
 

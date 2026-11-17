@@ -29,6 +29,12 @@ export interface RegionStats {
 const zeroLoad = (): ChamberLoad => ({ adults: 0, brood: 0, food: 0, other: 0 });
 
 /**
+ * Optional species rule (additive, species-carpenter): depth of a nest sample in mm when the species measures it
+ * into the wood it nests in (GDD 03 §13.1 "CP 3 into wood") instead of below the ground; null = the ground rule.
+ */
+export const nestDepthRule: { depthMm: ((sim: Sim, nest: Nest, x: number, y: number, z: number) => number | null) | null } = { depthMm: null };
+
+/**
  * Depth of p below the outside surface along +Y (cavities ignored, GDD 03 §0.1), mm, and whether the column
  * crosses a non-diggable primitive (cover) on the way up.
  */

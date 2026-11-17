@@ -495,3 +495,24 @@ Open (carry to gate-1B-close / QA look review):
 - Launched `w4ku7i4q9` / wf_466f5a8d-d06: `species-carpenter`, `species-harvester` (Opus impl, Opus review, visual). Their folders are isolated (`src/sim/species/modules/{wood,granary}`).
 - Still running: `wws8x2xjj` econ-growth fix; `wbpbsguac` loco-fix3 fix + a11y fix.
 - Next: leafcutter + honeydew after econ-growth lands (honeydew sits on the herd economy it is changing).
+
+## Nov 17 00:45 UTC — econ-growth fix round landed; colonies still do not grow
+
+Review findings 1–3, 5, 8–10 fixed with tests (phantom claims, crop loads returned to the pool, `NEED_SPONT_MULT` only for a forager who herself knows a live source of the needed nutrient, herd honeydew counts as known C capacity, one per-trip helper `tripLoad.ts`). Acceptance 2–5 **not met**.
+
+Sweep 9 on the shared tree (flooding on): `test-output/econ-growth-review/sweep9-table.md`
+- viable 7 of 15 (woodland-edge 1/3, suburban-garden 1/3, playground-park 2/3, car-park-verge 2/3, kitchen-door 1/3)
+- median trip success 17 %; median trips per worker per gd while short 0.94
+- median intake/need: C 0.87, **P 0.14**; eclosions after hand-over 0 in 11 of 15 runs
+- most failures: workers die of old age with nothing eclosing (no protein → no second brood)
+- seed 3 hands over with 7–9 workers on every archetype
+- A/B (`test-output/econ-growth-review/ab/`): kitchen-door #1 tends no herd and woodland-edge #1 starves of C with the current locomotion (loco-fix3 in flight); both recover with f2b9eeb's locomotion. Stall at woodland-edge #1: (4490.3, 51.6, 7958.4).
+- E25 re-derived passes on seed 1 only (P 0.89 on seeds 2, 3): steady state is protein-limited (demand capped by known capacity ≈ 17 foragers on one carcass; 0.375 P pieces need ≈ 30 trips/gd).
+- Leads from the report: prey patches are never hunted (Tier 2 protein effectively missing); eggs lost as `egg:untended`; night flood traces send idle ants to nurse; `reopen.test.ts` red; slow spring founding (6.48 gd from doy 2).
+
+Rulings:
+- **R16** `outdoor/scenario.test` cycle floor (135 s GDD fastest) applies to travel + handling, excluding the nest wait. Accepted as changed.
+- **R17** R3 reads: ≥ 2 trips per game day per **outside** worker and ≥ 1 per worker overall, over 0.5 gd. Accepted.
+- **R18 Protein a small colony can take.** Within 300 BU of the start site the world offers renewable protein of at least 1.5× the need of a 30-worker colony with full brood, in forms a small colony can take (prey patches, small carrion), and the forage AI finds and takes it. Hunting prey patches is a forage behaviour, not optional.
+- **R19 Growth bar** (on top of the viability bar; same 15-run sweep, flooding on): workers at winter ≥ first workers in ≥ 10 of 15 runs; median eclosions after hand-over ≥ 4; median intake/need P ≥ 0.7 and C ≥ 0.9; median trip success ≥ 50 %; first workers ≥ 9 in ≥ 13 of 15 runs; no worker lost (`worker:lost`) in ≥ 13 of 15 runs.
+- The pattern of three rounds (viab-economy, econ-growth, its fix) is each owner naming another module. Next: one task with authority over the whole sim, run as measured rounds with an independent sweep after each (`colony-life.md`), started when loco-fix3's fix round lands.
