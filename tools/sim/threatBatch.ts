@@ -3,7 +3,7 @@
 // tables plus strikes per family per world). Observer only: changes no rule.
 //
 //   node tools/sim/run-ts.mjs tools/sim/threatBatch.ts --out DIR [--worlds a,b,..] [--seed 1] [--run-seeds 1,2]
-//        [--days 6] [--preset P] [--rules JSON] [--workers N] [--food C,P] [--cache DIR]
+//        [--days 6] [--preset P] [--rules JSON] [--workers N] [--food C,P] [--cache DIR] [--until-winter 1]
 //
 // Wall clock and files live here, never in src/sim.
 
@@ -28,6 +28,15 @@ export function strikesTable(runs: FunnelResult[]): string {
   return '(strikes / worker kills)\n\n' + lines.join('\n');
 }
 
+/** Worker deaths to predators per colony run, and their median (the founding-year check: median <= 1). */
+export function perColony(runs: FunnelResult[]): string {
+  const d = runs.map((r) => Object.values(r.workerDeathsPredatorByKind).reduce((a, b) => a + b, 0));
+  const s = [...d].sort((a, b) => a - b);
+  const med = s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0;
+  const days = runs.map((r) => r.days);
+  return `predation deaths per colony: ${d.join(', ')} (median ${med}); run lengths ${Math.min(...days)}-${Math.max(...days)} gd; workers start ${runs.map((r) => r.colony.workersStart).join(', ')}`;
+}
+
 export default async function main(args: string[]): Promise<void> {
   const fs = (await import('node:fs' as string)) as NodeFs;
   const get = (k: string, d: string): string => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
@@ -41,6 +50,7 @@ export default async function main(args: string[]): Promise<void> {
     seed: Number(get('--seed', '1')), days: Number(get('--days', '6')), preset, rules: rulesS ? JSON.parse(rulesS) as Record<string, unknown> : null,
     cache: get('--cache', 'test-output/colony-life/round-4/cache'), out, tag: '', snapshot: null,
     workers: Number(get('--workers', '0')), food: get('--food', '0,0').split(',').map(Number) as [number, number],
+    untilWinter: get('--until-winter', '0') === '1',
   };
   fs.mkdirSync(out, { recursive: true });
   const runs: FunnelResult[] = [];
@@ -57,7 +67,7 @@ export default async function main(args: string[]): Promise<void> {
       console.error(`[batch] done ${archetype} r${runSeed}: workers ${r.colony.workersStart} -> ${r.colony.workersEnd}, predation ${JSON.stringify(r.workerDeathsPredatorByKind)}, ${r.wallS} s`);
     }
   }
-  const md = `# ${out}\n\nargs: ${args.join(' ')}\n\n## Rates\n\n${rates(runs)}\n\n## Strikes per family\n\n${strikesTable(runs)}\n\n## Worlds reaching each stage\n\n${worlds(runs)}\n\n## Funnel (summed)\n\n${funnelTable(runs)}\n`;
+  const md = `# ${out}\n\nargs: ${args.join(' ')}\n\n${perColony(runs)}\n\n## Rates\n\n${rates(runs)}\n\n## Strikes per family\n\n${strikesTable(runs)}\n\n## Worlds reaching each stage\n\n${worlds(runs)}\n\n## Funnel (summed)\n\n${funnelTable(runs)}\n`;
   fs.writeFileSync(`${out}/tables.md`, md);
   fs.writeFileSync(`${out}/DONE`, '');
   console.error(md);

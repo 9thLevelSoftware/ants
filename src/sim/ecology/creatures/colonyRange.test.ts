@@ -16,18 +16,24 @@ import { COLONY_RANGE_BU } from '@/sim/balance/creatures';
 import { runDirector } from './director';
 import { COLONY_RANGE_KINDS, colonyAnchor, colonyRangeSite, ensureColonyRangeTerritories } from './colonyRange';
 import { capOf } from './caps';
+import { placeWorker } from './testkit';
+import { PREDATION_RAMP_WORKERS } from '@/sim/balance/difficulty';
 import { colonyRing } from './colonySites';
 
 let world: WorldData;
 let base: Uint8Array;
 
-/** A post-hand-over colony: a nest with one entrance at the queen's start, the opening done. */
+/**
+ * A post-hand-over colony: a nest with one entrance at the queen's start, the opening done, and 40 workers at the
+ * entrance (the Naturalist upper bound of the colony-size ramp, R25: the siting below is the un-ramped rule).
+ */
 function founded(sim: Sim): void {
   const col = sim.state.colonies.find((c) => c.isPlayer)!;
   const p = sim.world.queenStart.pos;
   const nest = createNest(sim, { colony: col.id, origin: p });
   nest.entrances.push({ id: sim.state.nextId++, pos: { ...p } } as Entrance);
   if (sim.state.player.opening) sim.state.player.opening.done = true;
+  for (let i = 0; i < PREDATION_RAMP_WORKERS.naturalist[1]; i++) placeWorker(sim, p.x + (i % 5) - 2, p.z + Math.floor(i / 5) % 5 - 2, col.id);
 }
 
 function freshSim(): Sim {

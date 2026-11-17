@@ -251,3 +251,28 @@ check now that founding.mjs covers it); frame time on a GPU machine (section 5).
 **Shared contracts (additive only):** `UiSnapshot.soundCues?` with `UiSoundCue` / `UiSoundCueKind` in `src/ui/api.ts`;
 `SnapshotSource.soundCues?` in `src/game/uiBridge.ts`; `NestUniforms.uCutGain` (render-internal); optional
 `lifecycle.flight` on the ants renderer's `ColonyView` (render-internal).
+
+## 9. Review fix round (gate-close-app-fix, 2026-11-17 16:20-)
+
+Reviewer findings (`reviews` of this task), each reproduced first; progress log `docs/design/tasks/progress/gate-close-app-fix.md`;
+evidence `test-output/gate-close/app-fix/`.
+
+| # | Finding | Reproduced | Fix | Test / evidence |
+|---|---|---|---|---|
+| 1 | The winter banner (overwinter-prompt) did not slow time; only the autumn notice did | yes: `autoSlow.verify.test.ts` red (speed stayed 8 at the banner) | `AutoSlowWatcher` also listens to the sim event `overwinter.banner` (raised at winter day 1 00:00 and again after each "Delay one day") with its own cooldown key `overwinter-prompt`, by the critical choice like `winter-coming` | `autoSlow.verify.test.ts` green; `autoSlow.test.ts` "the winter banner slows by the critical choice with its own cooldown"; browser: `app-fix/check2.log` `winterAfter {speed:1, phase:'banner'}` from 8x, `check2/winter-banner.png` (looked at: banner up, 1x selected) |
+| 2 | An alert escalated to critical (op `update`) never slowed time | yes: verify test red (`applied=[]`) | the watcher keeps the last level per alert id (seeded from the active alerts on attach, dropped on `clear`); an `update` that raises the level is treated like a raise. Cooldown key is now `kind:level`, so a warning that slowed time does not swallow its own escalation to critical a moment later (GDD 08 §6.3: an escalation re-toasts) | verify test green; `autoSlow.test.ts` escalation test; browser `afterEscalation: 1` |
+| 3 | Closest colony zoom on the real founding nest was 29 BU, not ~15 | yes: `nestSpan.verify.test.ts` red (29.25) | `nestSpanBu` measures the chambers only. The first attempt (entrances counted only horizontally) still gave 25.8 BU in the browser, because the founding nest's entrance sits 32 mm to the side of the chamber; entrances are now left out. Founding nest: span 4.5 BU, closest zoom 11.25 BU | `src/game/views/nestSpan.test.ts` (4 tests, including "the chamber stays inside the field of view at the closest zoom at every pitch"); verify test green; browser `check2.log` `closest.distance 11.25`, `check2/slice-closest.png` (looked at: the Royal chamber about 190 px across, was about 110) |
+| 4 | Play-through "4x" half ran the same ticks as 1x; "game minutes" labels wrong | yes (script reading) | `tests/e2e/playthrough.mjs`: interval is `2 x REAL_MIN_TICKS x speed` ticks (REAL minutes of play: 1200 ticks at 1x = 4.8 game hours, 4800 at 4x), speed re-set before each interval (taking an ant drops to 1x), shots named `x{speed}-r{minute}`, `result.colony` carries ticks and game hours per half | `node --check`; NOT re-run (the full run takes about 80 minutes here) - the pictures of section 4 keep their old names (`m02` = real minute 2 at 1x) |
+| 5 | stage1a strict egg step: dead seal->lay branch | yes (`phaseBefore: intro-card`) | the egg step now plays the real opening from the dug shaft: close the intro card, dealation, first bite (takes the dig over), deepen to the founding depth, seal (E), lay (real `lay-egg`); after the clutch, Tend the brood + skip (so the opening's 2x limit ends before the 8x check) | `app-fix/stage1a.log`: `egg path ... "after seal: lay", laidInOpening: 6` - no cheat; result of the full strict run below |
+| 6 | Auto-slow had no Game-level / browser test | yes | `src/game/time/autoSlow.session.test.ts`: the watcher on a GameSession's real-time SimDriver (host = Game's wiring: enqueue while ticking): critical at 8x -> 1x within one frame (GDD 08 App E 6), pause choice -> paused within one frame and a later Resume is not undone, escalation -> 1x within one frame. Browser through `Game.setSpeed`: `check2.log` (`afterCritical 1`, `afterWarning 8` (warning off by default), `afterEscalation 1`, banner 1) - alert events emitted on the real sim bus by the script (the sim raises these kinds only in situations a short script cannot stage) | |
+| 7 | Sound-cue pips drew a word, not an icon | yes | each pip shows an icon and its word: new line icons `cue-alarm`, `cue-drum`, `cue-crackle` (original), tremor = `footfall`, rain onset = `weather-rain` (`SOUND_CUE_ICON` in `src/content/text/soundCues.ts`) | `src/ui/hud/soundCuePips.test.ts`; browser shot: see below |
+
+Found while checking: the "Why?" hint chip sat on the winter banner's title (`check/winter-banner.png`); the winter banner
+(`.wi-banner`) is now a HUD keep-out region (`src/ui/hud/keepOut.ts`, test extended); `check2/winter-banner.png`: chip
+beside the pulse, clear of the banner (looked at).
+
+Not done / open from this round:
+- GDD 06 §4.5 "speed control flashes once" on an auto-slow and the sim event `time.auto-slow` (declared in the event
+  types, no emitter): not implemented. The `pause` choice's "Resume" is the time cluster's pause button (it toggles back
+  to the last speed); there is no separate Resume button on the alert card.
+- The playthrough was not re-run after the script fix (cost); its section 4 pictures stand.

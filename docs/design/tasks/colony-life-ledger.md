@@ -1301,3 +1301,5 @@ Tools: `tools/sim/handover-sweep.sh`, `longrun-table.py`, `longrun-life.sh` (CAC
   r4g with r4c's `ecology/creatures/**` and `balance/creatures.ts` (diff r4c..r4h = this round's files only). Running:
   `PAR=1 $S/r4h/tools/sim/bench-sweep.sh nest $P/bench-nest-after $P/cache "<seeds 1-2>"` now; seed 3 when the
   "before" bench ends (`... "woodland-edge:3 suburban-garden:3 playground-park:3 car-park-verge:3 kitchen-door:3"`).
+- 17:30 before bench 13/15; after (r4h) 2/10 of seeds 1-2.
+- 17:41 before bench done (15/15). After (r4h) seed-3 instance started in the free slot.

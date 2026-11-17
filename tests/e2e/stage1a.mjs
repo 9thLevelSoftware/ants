@@ -337,13 +337,22 @@ export default async ({ page, shot, log }) => {
   const finishOpening = async () => {
     const left = (o) => !o || o.done || ['handover', 'done', 'failed'].includes(o.phase);
     if (left(await openingState())) return openingState();
-    await g(() => window.__game.command({ type: 'openingBeginTimelapse' }));
+    // Tend the brood: refused while her lay-egg action still runs ('busy'), so ask again a few ticks later
+    const tendRefusals = [];
+    for (let k = 0; k < 20 && (await openingState())?.phase === 'lay'; k++) {
+      const seq = await g(() => { const e = window.__game.events(undefined, 1); return e.length ? e[e.length - 1].seq : 0; });
+      await g(() => window.__game.command({ type: 'openingBeginTimelapse' }));
+      await step(1);
+      tendRefusals.push(...(await g((q) => window.__game.events('command-rejected', 3, q).map((e) => `${e.commandType}:${e.reason}`), seq)));
+      if ((await openingState())?.phase === 'lay') await step(20);
+    }
+    if ((await openingState())?.phase === 'lay') return { ...(await openingState()), left: false, tendRefusals };
     for (let i = 0; i < 200 && !left(await openingState()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
     const cont = page.locator('[data-testid="founding-continue"]');
     if (await cont.count()) await cont.first().click().catch(() => {});
     await step(2);
     const o = await openingState();
-    return { ...o, left: left(o) };
+    return { ...o, left: left(o), tendRefusals };
   };
 
   // --- 7. an egg ---------------------------------------------------------------------------------------------------
@@ -400,6 +409,14 @@ export default async ({ page, shot, log }) => {
   await render(1);
   await timed('chamber', () => shot('04-chamber-queen'));
   const c4 = await g(() => window.__game.camera.clearance());
+  if (c4.f < c4.radius * 0.5) {
+    // diagnosis for the report: is the queen herself inside solid (sim), or only the camera (rig)?
+    result.chamberCamera = await g(() => {
+      const gm = window.__game, s = gm.summary(), p = s.possessed?.pos;
+      return { queenF: p ? gm.query.field(p[0], p[1], p[2]).f : null, queen: s.possessed && { pos: s.possessed.pos, up: s.possessed.up, task: s.possessed.task ?? null }, camera: s.camera, clearance: gm.camera.clearance() };
+    });
+    log('chamber camera', JSON.stringify(result.chamberCamera));
+  }
   expect(c4.f >= c4.radius * 0.5, 'camera inside solid in the chamber', c4);
   expect((await summary()).camera.underground === true, 'the chamber view is not marked underground');
   // colony view from the possessed queen underground: the cutaway slice opens the ground over the nest

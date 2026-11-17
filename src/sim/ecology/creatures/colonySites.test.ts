@@ -11,6 +11,7 @@ import { createSim } from '@/sim/sim';
 import { createNest } from '@/sim/entities';
 import { restore, snapshot } from '@/sim/save';
 import { generateWorld } from '@/worldgen';
+import { PREDATION_RAMP_WORKERS } from '@/sim/balance/difficulty';
 import { makeTestSim } from '@/sim/testing';
 import { locomotionSystem } from '@/sim/locomotion';
 import { TICKS_PER_DAY } from '@/sim/time';
@@ -22,7 +23,7 @@ import { atPausePoints, colonySources, jumpingSpiderSites, uprightPrim } from '.
 import { COLONY_RANGE_KINDS, colonyAnchor, ensureColonyRangeTerritories } from './colonyRange';
 import { creatureDirectorSystem, creatureSystem } from './index';
 import { ports } from './ports';
-import { captureEvents, setClock, step } from './testkit';
+import { captureEvents, placeWorker, setClock, step } from './testkit';
 
 function prim(shape: Primitive['shape'], size: { x: number; y: number; z: number }, rot = quatIdentityNew(), flags = 0): Primitive {
   return { id: 1, shape, pos: { x: 0, y: 0, z: 0 }, rot, size, round: 0, material: 'wood-sound', flags, objectId: 1 };
@@ -67,6 +68,8 @@ beforeAll(() => {
   const nest = createNest(sim, { colony: col.id, origin: p });
   nest.entrances.push({ id: sim.state.nextId++, pos: { ...p } } as Entrance);
   if (sim.state.player.opening) sim.state.player.opening.done = true;
+  // threats-calibrate: 40 workers, the Naturalist upper bound of the colony-size ramp (R25), so the siting is un-ramped
+  for (let i = 0; i < PREDATION_RAMP_WORKERS.naturalist[1]; i++) placeWorker(sim, p.x + (i % 5) - 2, p.z + Math.floor(i / 5) % 5 - 2, col.id);
   base = snapshot(sim);
 }, 120_000);
 

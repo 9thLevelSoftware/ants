@@ -11,6 +11,7 @@
 //        [--run-seed K] [--workers N] [--food C,P]
 //   --run-seed K (threats-calibrate): re-seeds every RNG stream of the restored snapshot from K (tool-side), so the
 //                same hand-over gives a different run; 0 (default) keeps the snapshot's streams.
+//   --until-winter 1 (threats-calibrate): stop at the first tick of winter (hand-over to winter), --days caps it.
 //   --workers N  (threats-calibrate): raises the colony to N workers at the start (cheat.spawnAnts, age 4 gd, as
 //                life.ts --workers), e.g. the 60-worker calibration case; --food C,P adds loads with it.
 //
@@ -48,6 +49,8 @@ const STAGES = ['sense', 'select', 'approach', 'telegraph', 'strike', 'hit', 'ki
 interface Opts {
   archetype: ArchetypeId; seed: number; days: number; preset: DifficultyId | null; rules: Record<string, unknown> | null; cache: string; out: string | null; tag: string; snapshot: string | null;
   runSeed: number; workers: number; food: [number, number];
+  /** Stop at the first tick of winter (or after `days`, whichever comes first). */
+  untilWinter?: boolean;
 }
 
 function parse(args: readonly string[]): Opts {
@@ -66,6 +69,7 @@ function parse(args: readonly string[]): Opts {
     else if (k === '--run-seed') o.runSeed = Number(v);
     else if (k === '--workers') o.workers = Number(v);
     else if (k === '--food') o.food = v.split(',').map(Number) as [number, number];
+    else if (k === '--until-winter') { o.untilWinter = v === '1'; }
     else throw new Error(`threatFunnel: unknown option ${k}`);
   }
   return o;
@@ -417,6 +421,7 @@ export function runFunnel(o: Opts, snap: Uint8Array, log: (s: string) => void): 
   const obs = new ThreatObserver(sim, col);
   const end = startTick + o.days * TICKS_PER_DAY;
   while (sim.state.tick < end) {
+    if (o.untilWinter && calendarNow(sim).season === 'winter') break;
     sim.tick();
     obs.tick();
     if (sim.state.tick % TICKS_PER_DAY === 0) log(`gd ${r2((sim.state.tick - startTick) / TICKS_PER_DAY)}: workers ${workers()}, telegraphs ${HUNTERS.map((k) => obs.kinds[k].stages.telegraph).join('/')}`);

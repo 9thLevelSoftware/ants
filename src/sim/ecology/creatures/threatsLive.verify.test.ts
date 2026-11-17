@@ -8,6 +8,7 @@ import { createSim } from '@/sim/sim';
 import { createNest } from '@/sim/entities';
 import { restore, snapshot } from '@/sim/save';
 import { generateWorld } from '@/worldgen';
+import { PREDATION_RAMP_WORKERS } from '@/sim/balance/difficulty';
 import { raiseAlert } from '@/sim/progression';
 import { combatAlerts } from '@/sim/combat/alerts';
 import { makeTestSim } from '@/sim/testing';
@@ -43,6 +44,8 @@ beforeAll(() => {
   const nest = createNest(sim, { colony: col.id, origin: p });
   nest.entrances.push({ id: sim.state.nextId++, pos: { ...p } } as Entrance);
   if (sim.state.player.opening) sim.state.player.opening.done = true;
+  // threats-calibrate: 40 workers, the Naturalist upper bound of the colony-size ramp (R25), so the siting is un-ramped
+  for (let i = 0; i < PREDATION_RAMP_WORKERS.naturalist[1]; i++) placeWorker(sim, p.x + (i % 5) - 2, p.z + Math.floor(i / 5) % 5 - 2, col.id);
   base = snapshot(sim);
 }, 120_000);
 
