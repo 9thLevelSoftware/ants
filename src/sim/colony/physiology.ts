@@ -214,7 +214,7 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
   // Ageing and callow hardening (GDD 02 §1.3).
   const cd = _casteOf(def, a.caste);
   const ageRate = a.flags & _AntFlag.DORMANT ? (cd?.ageRateDormant ?? 0.15) : inside ? _AGE_RATE_IN_NEST : (cd?.ageRateOutside ?? _AGE_RATE_IN_NEST);
-  a.physioAgeGd += ageRate * dtGd * (col.orphaned ? difficultyValue(sim, 'orphanDeclineMult') : 1);
+  a.physioAgeGd += ageRate * dtGd * (col.orphanedAtTick >= 0 ? difficultyValue(sim, 'orphanDeclineMult') : 1);
   if ((a.flags & _AntFlag.CALLOW) && sim.state.tick - a.bornTick >= _daysToTicks(_CALLOW_GD)) a.flags &= ~_AntFlag.CALLOW;
 
   // Fatigue (GDD 02 §1.7) and forager activation decay (§6.6).
