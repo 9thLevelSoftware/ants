@@ -162,7 +162,7 @@ export function computeLighting(inp: LightingInput, out: LightingState = createL
   lerpHex(a.ambientHex, b.ambientHex, t, out.hemiSky);
   out.hemiGround.setRGB(0.32, 0.27, 0.2);
   out.hemiIntensity = AMBIENT_SCALE * lerp(a.ambientRel, b.ambientRel, t) * (1 + 0.4 * ov);
-  out.envIntensity = ENV_INTENSITY;
+  out.envIntensity = ENV_INTENSITY * lerp(1, NIGHT_LOOK.envKeep, nightW);
   // night: the moonlit sky fill replaces the (dark) keyframe ambient and the ground bounce goes cool and dim
   if (nightW > 0) {
     out.hemiSky.lerp(ca.set(NIGHT_LOOK.fillHex), nightW);

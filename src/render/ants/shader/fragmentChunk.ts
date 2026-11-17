@@ -5,6 +5,7 @@ varying vec3 vAntMat;
 varying vec3 vRest;
 varying float vAntHi;
 varying float vCapIn;
+varying vec2 vAntK;
 uniform float uFacet;
 uniform vec3 uHiWarm;
 uniform float uSubjectOpacity;
@@ -12,6 +13,7 @@ uniform float uCapOpacity;
 uniform vec3 uHiCool;
 uniform float uFillBody;
 uniform float uFillRim;
+uniform float uFillK;
 uniform vec3 uFillCol;
 float antHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 vec3 antHash3(vec3 p) { return vec3(antHash(p), antHash(p + 19.19), antHash(p + 47.47)); }
@@ -56,7 +58,7 @@ export const ANT_EMISSIVE = /* glsl */ `#include <emissivemap_fragment>
     float hiA = abs(vAntHi);
     if (hiA > 0.001) {
       float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 4.0); // a rim: silhouettes only
-      totalEmissiveRadiance += (vAntHi > 0.0 ? uHiWarm : uHiCool) * hiA * (fr + 0.015);
+      totalEmissiveRadiance += (vAntHi > 0.0 ? uHiWarm : uHiCool) * hiA * (fr * vAntK.y + 0.015);
     }
   }`;
 
@@ -76,12 +78,15 @@ export const ANT_FILL = /* glsl */ `
     vec3 fBase = diffuseColor.rgb;
     float fLum = dot(fBase, vec3(0.2126, 0.7152, 0.0722));
     vec3 fAlb = fBase * 0.6 + vec3(0.8 * fLum + 0.012);
-    totalEmissiveRadiance += uFillCol * (uFillBody * fAlb * (0.9 * fKey * fKey + 0.6 * fSky) + uFillRim * fRim);
+    totalEmissiveRadiance += uFillCol * (uFillBody * fAlb * (0.9 * fKey * fKey + 0.6 * fSky) + uFillRim * vAntK.y * fRim);
   }`;
 
 export const ANT_SHEEN = /* glsl */ `#include <lights_physical_fragment>
 #ifdef USE_SHEEN
   material.sheenColor *= vAntMat.y;
+#endif
+#ifdef USE_CLEARCOAT
+  material.clearcoat *= vAntK.x; // a stretched membrane is dull, not lacquered (white rings on a full gaster)
 #endif`;
 
 export const WING_FRAG_PARS = /* glsl */ `
@@ -113,4 +118,10 @@ export const WING_COLOR = /* glsl */ `#include <color_fragment>
     diffuseColor.rgb = mix(diffuseColor.rgb, uVein, m);
     // hyaline membrane: four folded layers over a dark body must stay clear (0.16 read as milky white)
     diffuseColor.a = mix(0.07, 0.92, m) * mix(1.6, 1.0, edge);
+    // night: a clear membrane against a dark ground and sky vanished (faint male wings, look pass 3): it takes a little more body
+    diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + 2.2 * uFillK));
   }`;
+
+/** Wing emissive: the possession highlight and, at night, a faint cool edge light (the form light's rim) so the wings keep their outline. */
+export const WING_EMISSIVE = ANT_EMISSIVE + /* glsl */ `
+  totalEmissiveRadiance += uFillCol * uFillRim * 2.5 * (0.3 + 0.7 * pow(1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.0));`;

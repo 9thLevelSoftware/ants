@@ -83,3 +83,5 @@ Started 18:15 UTC 2026-11-17.
   scratchpad/abL1-loop.sh (tree minusL1 = frozen with stores/economy/colony index/architect needs at 5c8c576, tsc
   clean) on kd1 cpv1 sg2 pp2 -> round-4/sweep-review/ab-minusL1/, then ab-loop.sh queue B (we2 sg3 pp3 cpv2 kd2).
   Queue A (we1 we3 sg1 cpv3 kd3 pp1) running in the other slot.
+- 20:40 A/B queue A 5/6 done; long runs 4/5 (kd #2 running). Then abL1 (4) and queue B (5).
+- 20:44 long runs 5/5 done (table round-4/sweep-long/longrun-table.md). Running in 2 slots: abL1-loop (kd1 cpv1 sg2 pp2) and ab-loop queue B (we2 sg3 pp3 cpv2 kd2); restart: re-run each.

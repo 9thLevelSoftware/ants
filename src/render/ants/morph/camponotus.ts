@@ -8,7 +8,7 @@ import type { AntColors, AntMorphology } from './types';
 
 const COLORS: AntColors = {
   head: '#16130f', mesosoma: '#181410', gaster: '#14110e', legs: '#241c16', tarsi: '#3a2c20', antenna: '#221a14',
-  mandible: '#2a1a10', teeth: '#0e0805', eye: '#0f0e0d', membrane: '#b8a888', hair: '#8f8573',
+  mandible: '#2a1a10', teeth: '#0e0805', eye: '#0f0e0d', membrane: '#8a7a5e', hair: '#8f8573',
   wingMembrane: '#cdbf9e', wingVein: '#5e4630', callow: '#b07f4c',
 };
 

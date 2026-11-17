@@ -81,3 +81,8 @@ Started 2026-11-17 ~17:00 UTC. No earlier progress file existed.
 - 20:08 ramp-w60-harsh DONE: 26,791 owh, 53 deaths = 0.047/owgd; paired per world/seed Harsh >= Naturalist in 7 of 10. Off running, then nat-check, perf, base-found.
 - 20:22 off DONE (0 telegraphs/strikes/deaths, 5 runs x 2 gd). nat-check DONE: tree-ramp == tree-base funnels identical (woodland-edge r1 same finalHash; car-park-verge r1 same counts, hash differs only by the colonyRange flag). Perf running (chain5).
 - 20:30 perf DONE (perf.txt). Report: PRESETS_TABLE, PERF_TABLE, rates filled; BEFORE_RAMP + ACCEPTANCE left. base-found running.
+- 20:38 base-found (no ramp) 2/5: woodland-edge 18->4 (10 predation), suburban-garden 9->3 (5).
+- 20:52 base-found DONE: no ramp median 5 deaths/colony, 0.19/owgd. Report BEFORE_RAMP filled. Final vitest next.
+- 20:55 DONE. Final: typecheck 0 errors (20:48); creatures + presetDisplay 28 files, 206 passed, 2 expected fail, 6 skipped.
+  Report docs/design/tasks/threats-calibrate-report.md complete (no placeholders). Scratch trees and scripts deleted.
+  Nothing left to run.

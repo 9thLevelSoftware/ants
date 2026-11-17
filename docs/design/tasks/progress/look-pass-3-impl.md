@@ -29,3 +29,6 @@ test-output/look3/
 - tune3 (ant fill variants e0/e1/e2, night close high/test) running -> test-output/look3/tune/tune3-*.png
 - 19:53 !! BEFORE-run mechanics: test-output/look3/mine/stash.sh puts ORIGINAL render files (commit 29d44ee) in place and keeps mine in test-output/look3/mine/new/; unstash.sh restores mine. IF A RESTART HAPPENS WHILE STASHED: run unstash.sh FIRST (check 'ls test-output/look3/mine/STASHED'). Do not edit src while stashed.
 - 20:10 BEFORE run started (run-before.sh; stashed until test-output/look3/mine/before-done exists). ANT_FILL chosen night body 0.7 rim 0.22 (tune4 e1).
+- 20:44 BEFORE run done and my files RESTORED (unstash ok). Before pics in test-output/look3/before (night x10, close/gyne/edge/mound/slope/queenstart/slice/medium/test, replete). Slope at entrance is only 10 deg.
+- 20:44 AFTER run started (run-after.sh; log test-output/look3/after-all.log; marker mine/after-done). Not stashed; src edits allowed but avoid render files used by the page.
+- 20:45 wrote tests/e2e/look3-hud.mjs (flash+event check, not yet run). Wing night fix (WING_EMISSIVE, uFillK, wing alpha boost) coded after the AFTER run started -> needs a re-shot of night:gyne.

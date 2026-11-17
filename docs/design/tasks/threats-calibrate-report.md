@@ -1,6 +1,6 @@
 # threats-calibrate report — predation at the design's rate, growing with the colony
 
-Engineer: threats-calibrate (Opus), 2026-11-17 17:00-(END) UTC. Spec `docs/design/tasks/threats-calibrate.md`; rulings
+Engineer: threats-calibrate (Opus), 2026-11-17 17:00-18:55 and 18:58-20:55 UTC (cut off once by a container restart). Spec `docs/design/tasks/threats-calibrate.md`; rulings
 R25 (ramp) and R26 (loss rate first) in `docs/STATUS.md`.
 
 **Data set.** The five round-4 hand-overs `test-output/colony-life/round-4/cache/founded-lasius-niger-<archetype>-1-naturalist-d-any.bin`
@@ -66,7 +66,22 @@ Ten runs (5 worlds x run seeds 1, 2), from the hand-over (day 8.4-8.9) to the fi
 
 **Median predation deaths per colony 0** (target <= 1); 2 deaths in 10 colony-runs, 10,506 outside worker-hours,
 4 strikes in all. The colonies still shrink (old age of the nanitics, crushing; colony-life's subject), not from
-predators. BEFORE_RAMP
+predators.
+
+**The ramp's measured effect** (same hand-overs, run seed 1, the stop-gap state without the ramp, `base-found/`):
+
+| world | workers at hand-over -> winter, no ramp / predation deaths | with the ramp (run 1) |
+|---|---|---|
+| woodland-edge | 18 -> 4 / 10 (ant-spider 5, jumping spider 3, wolf spider 2) | 18 -> 10 / 2 |
+| suburban-garden | 9 -> 3 / 5 (ant-spider 4, jumping spider 1) | 9 -> 7 / 0 |
+| playground-park | 13 -> 9 / 3 (jumping spider 2, ant-spider 1) | 13 -> 10 / 0 |
+| car-park-verge | 11 -> 5 / 4 (ant-spider 3, jumping spider 1) | 11 -> 9 / 0 |
+| kitchen-door | 15 -> 2 / 9 (ant-spider 9) | 15 -> 9 / 0 |
+
+Without the ramp: median **5** predation deaths per colony, 31 in five colonies, **0.19 per outside-worker gd** (3,890
+outside worker-h; the colonies shrink, so fewer ants go out); with it: median 0, 0.005. The stop-gap alone is not
+enough for founding-year colonies: the colony-range residents sit in the 40-140 BU ring (woodland-edge: jumping spider 53 BU, ant-spider
+65 BU from the entrance) on the paths that the 9-18 workers share, so the few foragers meet them again and again.
 
 ### 2.2 (b) 60-worker colonies, 6 gd (`base-w60/` Naturalist; `ramp-w60-gentle/`, `ramp-w60-harsh/`, `ramp-w60-off/`)
 
@@ -202,7 +217,8 @@ code outside the creature module in both trees).
   on average one more hunting kind for every ~6 workers, all five kinds with habitat by 40 workers (Gentle 20 -> 60,
   Harsh 0 -> 20, so Harsh colonies meet them from the first worker). Worldgen's own residents (500-3,000 BU out) are not
   ramped but founding-year ants rarely reach them. Sweep and bench numbers made with the stop-gap state (no ramp)
-  carried ~0.07 per outside-worker gd of predation on founding-year colonies; with the ramp that is gone.
+  carried **~0.19 per outside-worker gd** of predation on these founding-year colonies (median 5 deaths per colony from
+  hand-over to winter, §2.1); with the ramp that is gone (0.005, median 0).
 - **Established colony (60 workers, Naturalist): 0.04 worker deaths per outside-worker game day** (design 0.061, band
   0.03-0.12): about 0.7 workers per colony per game day with 12-28 workers outside (41 deaths in 10 colony-runs of 6
   gd). Gentle 0.007 (about 0.1 a day), Harsh 0.047 (about 0.9 a day) (§2.2). Victims are foragers that stop outside: at food, tending, or pausing on
@@ -264,6 +280,6 @@ code outside the creature module in both trees).
 | 2 | Fewest constants, each change with its measured effect | **met** | no constant changed: the stop-gap values are the calibrated values (§2), measured before and after the ramp (§2.1, §2.2) |
 | 3 | Strikes per family per world (60 workers, 6 gd); which families the band leaves rarely seen | **met** | §2.3, §3 |
 | 4 | Three core gaps reproduced (not fixed); (b) source of 7.2 and which document is right | **met** | §4, `coreGaps.repro.test.ts` ((a), (c) `it.fails`; (b) pins the nanitic row) |
-| 5 | Typecheck clean; creature tests green; per-tick cost at 60 / 300 workers before / after | **met** | `npm run typecheck` 0 errors (whole tree, 19:03 and END_TC); `npx vitest run src/sim/ecology/creatures` 27 files, 187 passed, 2 expected fail, 6 skipped (LONG) (END_VT); §5 |
+| 5 | Typecheck clean; creature tests green; per-tick cost at 60 / 300 workers before / after | **met** | `npm run typecheck` 0 errors (whole tree, 19:03 and 20:48 UTC); `npx vitest run src/sim/ecology/creatures src/sim/config/presetDisplay.test.ts` 28 files, 206 passed, 2 expected fail (`coreGaps.repro.test.ts` (a), (c)), 6 skipped (LONG) at 20:53 UTC; §5 |
 | 6 | This report | **met** | - |
 
