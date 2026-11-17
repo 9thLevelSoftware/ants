@@ -683,3 +683,15 @@ Restart at 18:55 UTC (fourth: ≈ 23:00 Nov 16, 01:24, 01:53, 18:55 Nov 17). Dis
 - **R27 — winter stores check**: the viability bar's stores check becomes "stores at the first tick of winter cover the lapse's own carbohydrate need plus 4 game days of spring adult need" (round 4's proposal, accepted); the autumn provisioning target (R6) aims for it. In the round-5 note.
 - Round-5 note also carries: creatures folder stays with threats-calibrate; directions 8–9; core gaps from threats-live; sim-side needs of the app gate (S2, S3, S6, S7, S17, nest record `reopening`), S3 and S6 to be done in round 5.
 - App string after R20: `src/ui/screens/newgame/species.ts` Lasius `foundingSeason 'summer'` → spring (look-pass-3 item 6).
+
+## Nov 17 21:45 UTC — sweep 4 (day-5 start): 1 of 15 viable; round 4's larder × hand-over provision is the regression; round 5 running
+
+Sweep 4 (`test-output/colony-life/round-4/sweep-table.md`; R20 start day 5; predators at the 17:00 stop-gap): viable **1 of 15**; R19 2 of 7 (held 2/15, eclosions median 2, P 0.045, C 0.716, trip success 42.2 %, first ≥ 9 14/15, no lost 15/15). 13 of 15 fail "starvation stage worse than lean > 1 gd".
+
+A/B on the same 15 hand-overs, round 4's 12 production files reverted ("minus4"): viable 1 vs **4**, workers at winter 128 vs **154**, eclosions 35 vs **56**, larvae starved 48 vs **7**, bad-stage median 3.55 vs **0.10 gd**; trip success 42 % vs 30 %. Second A/B, only L1 reverted (4 pairs): eclosions 14 → 24, larvae starved 7 → 0, P intake 0.09 → 0.22. **Cause: L1 (R21 larder) × R2 hand-over provision** — with a larder the queen's whole protein reserve is paid into a floor pile at once and rots among the eggs (1.98 P spoiled before the first larva hatches on car-park-verge #1; larva:hygiene 28 vs 4). R21 stands for solid food carried home; the queen's reserve was never a pile. Round 5 fixed it first (P1: the provision goes to the workers' stomachs only; the rest stays in the queen). Other review findings fixed at the start of round 5: WL2 (the workers the R24 cap keeps now eat in the lapse), M2 (waste inside the nest under a surface midden is not "at the midden"), R27 implemented (`winterStoresNeed`, autumn target).
+
+Even without round 4 the bar fails (4 of 15): calendar and protein remain. Year two (five long runs): alive in spring with ≥ 0.7 × winter workers 3 of 5; ≥ 2 × first workers by day 15 of year two **0 of 5**; 4 of 5 lay nothing in spring; old age takes the overwintered workers.
+
+Integrator lead written at the top of the ledger's Round 5: the royal chamber reads 0.8–3 °C on spring day 1 and 12–13 °C on spring days 6–7 of year two, about 5 °C under what the same climate gives a same-depth founding chamber on those days of year one — check the thermal state after the winter lapse before treating late spring laying as a design gap.
+
+threats-calibrate: impl done, review done, fix round running. look-pass-3: impl running.

@@ -15,7 +15,8 @@ Started 2026-11-17 (fix engineer). Findings from review: (1 major) LONG soak fai
   (per tick, system.ts tickCreature) clears; lurk seen -> alertClearAt -1 (30 s rule). bird.ts export birdMaxKills;
   soakScene birdKillCap; soak.test.ts uses r.birdKillCap.
 ## In progress
-- strikeAlert.test.ts additions; then run alerts tests, then LONG soak
+- strikeAlert.test.ts: 2 tests pass (new: card clears at strike+5 s, hours stay quiet). diag 4 gd: minWindowShare 0.33 -> 0.76, same deaths (62).
+- running LONG soak (FOUNDRESS_LONG=1 soak.test.ts, ~5 min) 21:40 UTC
 
 ## Remaining (order)
 1. finding 1 (root cause, fix, run LONG once)

@@ -1503,6 +1503,8 @@ processes left running. A/B outputs and the probe's text kept under `round-4/swe
 
 ## Round 5
 
+> **INTEGRATOR NOTE (21:45 UTC).** Good: the sweep-4 findings first, then protein (direction 10). One lead to check when you reach year two (it may be a defect, not a design gap): the sweep-4 long runs read the royal chamber at **0.8–3 °C on spring day 1 and 12–13 °C on spring day 6–7 of year two**, while the same climate's seasonal mean air temperature on days 6–7 is about 18–19 °C (12 + 8.5 cos, peak day 9.5; soil mean +1) and a founding chamber of the same depth on days 5–9 of **year one** was warm enough to raise 8–18 first workers in 3.5–4.7 gd. Compare, on one nest, the royal chamber temperature on days 5–9 of year one with days 5–9 of year two, term by term (seasonal mean, weather offset, `Wsoil` soak EMA, anomaly, cover, depth damping): if year two is colder by more than the weather explains, something in the thermal state after the winter lapse (the soak EMA, the anomaly series, a cached soil state, the cluster temperature left in place) is wrong, and the queen's late laying is that defect. Report the table either way.
+
 Engineer: round 5 (started 21:13 UTC Nov 17). Evidence: `test-output/colony-life/round-5/`. Order of work: sweep-4
 blocker (L1 x R2 provision) and major (WL1 lapse food), minor M1, then R27 (stores check in life tool + sweep table,
 R6 autumn target), S3 + S6 (player targeting / prompt), then direction 10 (protein first) by the method.
