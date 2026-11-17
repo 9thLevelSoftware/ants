@@ -9,7 +9,7 @@ import type { Entrance, Nest, Primitive, Sim, WoodState } from '@/sim/types';
 import { FOUND_CELL_CLEAR_BU } from '@/sim/balance/species-carpenter';
 import { carveCapsule } from '@/sim/nest/carveOps';
 import { registerNaturalOpening } from '@/sim/nest/entrances';
-import { primDistance } from './primGeom';
+import { horizLen, primDistance } from './primGeom';
 
 /** Cell and tunnel sizes, BU: tunnel diameter and length, cell width (across), height and length (along the grain). */
 export interface CellSize { tunnelD: number; tunnelLen: number; w: number; h: number; l: number }
@@ -29,7 +29,7 @@ export function entryOf(sim: Sim, prim: Primitive, w: WoodState, from: Vec3, t: 
   if (p0.y < ground + bu || primDistance(prim, p0) >= 0) return null;
   let sx = from.x - p0.x, sz = from.z - p0.z;
   if (Math.abs(a.y) < 0.7) { const d = sx * a.x + sz * a.z; sx -= d * a.x; sz -= d * a.z; }
-  const sl = Math.hypot(sx, sz);
+  const sl = horizLen(sx, sz);
   if (sl < 1e-6) { sx = -a.z; sz = a.x; } else { sx /= sl; sz /= sl; }
   if (flip) { sx = -sx; sz = -sz; }
   // march out to the surface, then bisect
@@ -62,8 +62,8 @@ export function templateFor(sim: Sim, w: WoodState, entry: Vec3, out: Vec3, t: C
   const a = w.grainAxis ?? { x: 0, y: 1, z: 0 };
   // the cell's long axis: the grain when it is horizontal, else across the tunnel
   let gx = a.x, gz = a.z;
-  if (Math.abs(a.y) > 0.7 || Math.hypot(gx, gz) < 1e-6) { gx = -out.z; gz = out.x; }
-  const gl = Math.hypot(gx, gz); gx /= gl; gz /= gl;
+  if (Math.abs(a.y) > 0.7 || horizLen(gx, gz) < 1e-6) { gx = -out.z; gz = out.x; }
+  const gl = horizLen(gx, gz); gx /= gl; gz /= gl;
   const r = (t.h / 2) * bu;
   return {
     c, g: { x: gx, y: 0, z: gz }, s: { x: -gz, y: 0, z: gx }, r, along: Math.max(0, (t.l / 2) * bu - r), side: Math.max(0, (t.w / 2) * bu - r),
@@ -78,7 +78,7 @@ export function templatePoints(sim: Sim, tp: WoodTemplate, entry: Vec3): Vec3[] 
   for (const [ga, sa, dy] of [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const) {
     out.push({ x: tp.c.x + tp.g.x * ga * reach + tp.s.x * sa * wide, y: tp.c.y + dy * tp.r, z: tp.c.z + tp.g.z * ga * reach + tp.s.z * sa * wide });
   }
-  const bu = sim.world.bu, len = Math.hypot(tp.c.x - entry.x, tp.c.z - entry.z);
+  const bu = sim.world.bu, len = horizLen(tp.c.x - entry.x, tp.c.z - entry.z);
   for (let d = bu; d < len; d += bu) {
     const f = d / len;
     out.push({ x: entry.x + (tp.c.x - entry.x) * f, y: entry.y, z: entry.z + (tp.c.z - entry.z) * f });

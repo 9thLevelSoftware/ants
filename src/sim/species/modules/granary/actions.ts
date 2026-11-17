@@ -16,6 +16,13 @@ import { siteOfSource } from './seeds';
 
 /** bb keys of the mill action: loads asked for (AI batch) and loads done. */
 export const MILL_WANT = 'mb.millWant';
+/** bb key of the gnaw action: loads asked for (AI batch; the possessed ant gnaws GNAW_BATCH_LOADS per press). */
+export const GNAW_WANT = 'mb.gnawWant';
+
+function gnawBatch(ant: Ant): number {
+  const w = ant.bb[GNAW_WANT];
+  return w > 0 ? w : GNAW_BATCH_LOADS;
+}
 const MILL_DONE = 'mb.millDone';
 
 function paramsOf(sim: Sim, ant: Ant): GranaryParams | null {
@@ -87,13 +94,14 @@ export const gnawRadicleDef: ActionDef = {
   },
   durationS(sim, ant) {
     const g = paramsOf(sim, ant);
-    return (g ? g.gnawRadicleS : 5) * GNAW_BATCH_LOADS;
+    return (g ? g.gnawRadicleS : 5) * gnawBatch(ant);
   },
   effect(sim, ant) {
     const g = paramsOf(sim, ant);
     const gr = granaryHere(sim, ant);
     if (!g || !gr) return 'no-target';
-    const n = gnawLoads(gr, g, GNAW_BATCH_LOADS);
+    const n = gnawLoads(gr, g, gnawBatch(ant));
+    ant.bb[GNAW_WANT] = 0;
     if (n <= 0) return 'no-target';
     sim.emit({ type: 'radicle-gnawed', antId: ant.id, loads: n });
     return n;

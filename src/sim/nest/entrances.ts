@@ -447,8 +447,13 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
   // GDD 03 §4.2: an open entrance goes `sealing` when a plug is ADDED ("first plug added"), not because plug
   // remnants are left in its throat after a reopen (int-1B-sim: an entrance the first workers dug open flipped to
   // `sealing` on its next check, which raised midden-blocked with the throat passable)
-  if (prev === 'open') next = !pass ? 'sealed' : plug > e.plugVoxelCount ? 'sealing' : 'open';
-  else if (prev === 'sealing') next = !pass ? 'sealed' : plug === 0 ? 'open' : 'sealing';
+  if (prev === 'open') {
+    next = !pass ? 'sealed' : plug > e.plugVoxelCount ? 'sealing' : 'open';
+    // the remnants it had before: "plug removed" is back down to these (colony-life round 1: an entrance with 8
+    // founding remnants went `sealing` when a mound pile raised the ground over a few ghost plug samples, and with
+    // `plug === 0` as its way back it stayed `sealing` to winter: no exit field, no foraging, no midden)
+    if (next === 'sealing') e.plugBaseline = e.plugVoxelCount;
+  } else if (prev === 'sealing') next = !pass ? 'sealed' : plug <= (e.plugBaseline ?? 0) ? 'open' : 'sealing';
   else if (prev === 'sealed' || prev === 'reopening') {
     if (pass) next = throatPassage(sim, e, true, nest) ? 'open' : 'reopening';
     // a reopening throat that had a passage and lost it again (fill, tamping, a new plug) is closed again
@@ -458,6 +463,7 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
     else if (next !== 'reopening' && e.passSeen) e.passSeen = false;
   }
   e.plugVoxelCount = plug;
+  if (next !== 'sealing' && e.plugBaseline) e.plugBaseline = 0;
   if (next !== prev) setEntranceStatus(sim, nest, e, next);
 }
 

@@ -9,7 +9,7 @@ import { installWoodHooks } from './hooks';
 import { playedWoodParams, woodColonies, colonyWoodParams } from './params';
 import { ensureWoodStates, woodOf } from './woodState';
 import { setWood, stepAllWood } from './moisture';
-import { assignCastes } from './castes';
+import { assignCastes, naniticLifespans } from './castes';
 import { broodMoisturePass } from './broodMoisture';
 import { colonyHourly } from './colonyPass';
 import { woodInvariants } from './invariants';
@@ -40,6 +40,7 @@ export const systems: readonly System[] = [
         let seen = announced.get(col.id);
         if (!seen) { seen = new Set(); announced.set(col.id, seen); }
         for (const caste of assignCastes(sim, def, col, p, seen)) sim.emit({ type: 'caste-unlocked', colonyId: col.id, caste });
+        naniticLifespans(sim, col);
       }
     },
   },

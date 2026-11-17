@@ -1,12 +1,14 @@
 // Test helpers of the granary module: a Messor colony in the standard small test nest (src/sim/testing/testNest.ts)
 // with castes placed by hand, a granary designated in one of its chambers, and seed nodes near the entrance.
 
-import type { Ant, Caste, Chamber, Sim, Task } from '@/sim/types';
+import type { Ant, Brood, BroodCaste, Caste, Chamber, Sim, Task } from '@/sim/types';
 import { makeTestSim } from '@/sim/testing/testWorld';
 import { installSmallNest, type SmallNest } from '@/sim/testing/testNest';
 import { setClimateOverride } from '@/sim/colony/envAdapter';
-import { spawnAnt } from '@/sim/entities';
+import { spawnAnt, spawnBrood } from '@/sim/entities';
+import { floorPoint, GOLDEN_ANGLE } from '@/sim/ants/behaviours/nest/places';
 import { walkerPlace } from '@/sim/locomotion/walker';
+import { coreOf } from '@/sim/colony/core';
 import { granaryParams, type GranaryParams } from './params';
 import { ensureGranary } from './state';
 import type { GranaryState } from '@/sim/types';
@@ -47,6 +49,17 @@ export function addAnts(k: GranaryKit, caste: Caste, n: number, chamber: Chamber
     walkerPlace(k.sim.field, ant, p, { dir: { x: 0, y: -1, z: 0 } }, k.sim.kernel.walker);
     out.push(ant);
   }
-  col.core!.workers += n;
+  coreOf(col).workers += n;
+  return out;
+}
+
+/** Spawns `n` larvae lying on the floor of a chamber (destined `minor` unless given). */
+export function addLarvae(k: GranaryKit, n: number, chamber: Chamber, destined: BroodCaste = 'minor'): Brood[] {
+  const col = k.sim.state.colonies[0];
+  const out: Brood[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = floorPoint(chamber, 0.3, i * GOLDEN_ANGLE, { x: 0, y: 0, z: 0 });
+    out.push(spawnBrood(k.sim, { colony: col.id, stage: 'larva', destined, pos: p, nestId: k.nest.nest.id, chamberId: chamber.id }));
+  }
   return out;
 }

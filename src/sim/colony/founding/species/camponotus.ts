@@ -19,6 +19,7 @@ import { siteQuality, siteWordOf } from '../siteScore';
 import { coverValueOf } from '@/worldgen/maps/suitability';
 import { woodDecayFactor } from '@/sim/species/modules/wood/biteRule';
 import { woodAt } from '@/sim/species/modules/wood/woodState';
+import { horizLen } from '@/sim/species/modules/wood/primGeom';
 import { speciesOf } from '../access';
 
 const T = FOUNDING_TEMPLATE['camponotus-pennsylvanicus'];
@@ -63,7 +64,7 @@ export function bestWoodSite(sim: Sim, p: Vec3): WoodSite | null {
     if (!isFoundingWood(sim, w)) continue;
     const prim = primOf(sim, w.primId);
     if (!prim) continue;
-    const d = Math.hypot(prim.pos.x - p.x, prim.pos.z - p.z);
+    const d = horizLen(prim.pos.x - p.x, prim.pos.z - p.z);
     if (d > reach) continue;
     const score = moistureScore(sim, w.moisture) - d / reach;
     if (best && score <= best.score) continue;

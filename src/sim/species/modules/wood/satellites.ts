@@ -17,6 +17,7 @@ import { adultWorkers } from './castes';
 import { dryHazardPerGd, isLateBrood } from './broodMoisture';
 import { broodChamberOf, parentSite, refreshSites, satelliteSites, setSiteState, sitePoint } from './sites';
 import { cellSiteIn, chewCell } from './woodCell';
+import { horizLen } from './primGeom';
 import { ensureWoodStates, primOf, woodClimateAt, woodOf } from './woodState';
 import { SH, isShuttling } from './shuttleKeys';
 
@@ -103,7 +104,7 @@ function bestCandidate(sim: Sim, col: Colony, p: WoodParams): { prim: Primitive;
     if (used.has(w.primId) || (w.thicknessBu ?? 0) < SATELLITE_MIN_THICK_BU || w.decay >= 4) continue;
     const prim = primOf(sim, w.primId);
     if (!prim) continue;
-    const route = Math.hypot(prim.pos.x - parent.origin.x, prim.pos.z - parent.origin.z) / bu;
+    const route = horizLen(prim.pos.x - parent.origin.x, prim.pos.z - parent.origin.z) / bu;
     if (route > p.satelliteMaxRouteBu) continue;
     const s = candidateScore(p, w, route, w.interior ? 4 : 0);
     if (!best || s > best.s) best = { prim, wood: w, s };

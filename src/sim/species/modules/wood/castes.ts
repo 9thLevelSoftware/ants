@@ -4,9 +4,11 @@
 // casteEmphasis and the major P gate (MAJOR_GATE_GD). Emits `caste-unlocked` the first time a caste is destined.
 
 import type { Brood, CasteDef, Colony, Sim, SpeciesDef } from '@/sim/types';
-import { rngFloat } from '@/core/rng';
+import { rngFloat, rngGauss } from '@/core/rng';
+import { AntFlag } from '@/sim/types';
 import { CASTE_EMPHASIS_SPAN, CASTE_RAMP_START, MAJOR_GATE_GD } from '@/sim/balance/species-carpenter';
-import { NANITIC_SCALE } from '@/sim/balance/colony';
+import { LIFESPAN_CLAMP_GD, NANITIC_SCALE } from '@/sim/balance/colony';
+import { CAMPONOTUS_NANITIC_MINOR } from '@/sim/species/data/camponotus-pennsylvanicus';
 import { larvaFood } from '@/sim/colony/life';
 import { ticksPerYear } from '@/sim/time';
 import type { WoodParams } from './params';
@@ -122,4 +124,25 @@ function setCaste(sim: Sim, def: SpeciesDef, b: Brood, caste: WorkerCaste, nanit
   // their (smaller) larval food
   const mean = casteDef(def, caste)?.lengthBu.mean ?? 1;
   b.destinedLengthBu = nanitic ? NANITIC_SCALE * mean : drawLength(sim, casteDef(def, caste), false);
+}
+
+/** Blackboard mark of a nanitic whose lifespan this module has drawn. */
+const NANITIC_LIFE_KEY = 'wd.nl';
+
+/**
+ * Nanitic lifespan of the species (GDD 07 §5.2.1: 40 GD, sd 15 [EST]). The colony module draws every nanitic's
+ * lifespan from the reference species' values (24, sd 10) at eclosion; this pass redraws it once per nanitic of a
+ * wood-nesting colony from the species row. Returns how many were redrawn.
+ */
+export function naniticLifespans(sim: Sim, col: Colony): number {
+  const row = CAMPONOTUS_NANITIC_MINOR.lifespanGd;
+  let n = 0;
+  for (const a of sim.stores.ants.list) {
+    if (!a.alive || a.colony !== col.id || (a.flags & AntFlag.NANITIC) === 0 || a.bb[NANITIC_LIFE_KEY] === 1) continue;
+    const draw = rngGauss(sim.stream('rng.brood'), row.mean, row.sd);
+    a.lifespanGd = Math.max(LIFESPAN_CLAMP_GD[0], Math.min(LIFESPAN_CLAMP_GD[1], draw));
+    a.bb[NANITIC_LIFE_KEY] = 1;
+    n++;
+  }
+  return n;
 }

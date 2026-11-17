@@ -5,6 +5,7 @@
 //   mill.go    walk into it
 //   mill.work  the primitive
 
+import { v3DistanceSq } from '@/core/math/vec3';
 import type { Ant, Behaviour, Chamber, Sim } from '@/sim/types';
 import { ROOM_ARRIVE_FRAC } from '@/sim/balance/nestwork';
 import { endCycle, releaseAll, think } from '@/sim/ants/behaviours/nest/common';
@@ -37,7 +38,7 @@ function millRoom(sim: Sim, ant: Ant): Chamber | undefined {
   for (const gr of col.granary.granaries) {
     const ch = chamberIn(nest, gr.chamberId);
     if (!ch || !millCohort(g, ant, gr)) continue;
-    const d = gr.chamberId === ant.chamberId ? -1 : Math.hypot(ch.center.x - ant.pos.x, ch.center.y - ant.pos.y, ch.center.z - ant.pos.z);
+    const d = gr.chamberId === ant.chamberId ? -1 : v3DistanceSq(ch.center, ant.pos);
     if (d < bestD) { bestD = d; best = ch; }
   }
   return best;

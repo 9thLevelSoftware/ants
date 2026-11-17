@@ -6,9 +6,10 @@
 //   store.care-go    walk into it
 //   store.care-work  gnaw or mill there
 
+import { v3DistanceSq } from '@/core/math/vec3';
 import type { Ant, Behaviour, Chamber, GranaryState, Sim } from '@/sim/types';
 import { ROOM_ARRIVE_FRAC } from '@/sim/balance/nestwork';
-import { MILL_BATCH_LOADS } from '@/sim/balance/species-harvester';
+import { GNAW_AI_BATCH_LOADS, GNAW_BATCH_LOADS, MILL_BATCH_LOADS } from '@/sim/balance/species-harvester';
 import { endCycle, think } from '@/sim/ants/behaviours/nest/common';
 import { B, bbv, setState } from '@/sim/ants/behaviours/nest/fsm';
 import { chamberIn, homeNest } from '@/sim/ants/behaviours/nest/places';
@@ -18,7 +19,7 @@ import { canDo } from '@/sim/ants/actions/runner';
 import { granaryParams } from './params';
 import { germinatingLoads } from './cohorts';
 import { millCohort } from './paste';
-import { MILL_WANT } from './actions';
+import { GNAW_WANT, MILL_WANT } from './actions';
 import { pasteEnough } from './behaviourMill';
 
 const CARE = 'store.care-find';
@@ -63,7 +64,7 @@ function careRoom(sim: Sim, ant: Ant): Chamber | undefined {
   for (const gr of col.granary.granaries) {
     const ch = chamberIn(nest, gr.chamberId);
     if (!ch || !jobIn(sim, ant, gr)) continue;
-    const d = gr.chamberId === ant.chamberId ? -1 : Math.hypot(ch.center.x - ant.pos.x, ch.center.y - ant.pos.y, ch.center.z - ant.pos.z);
+    const d = gr.chamberId === ant.chamberId ? -1 : v3DistanceSq(ch.center, ant.pos);
     if (d < bestD) { bestD = d; best = ch; }
   }
   return best;
@@ -89,6 +90,7 @@ function careStep(sim: Sim, ant: Ant): void {
       const job = gr ? jobIn(sim, ant, gr) : null;
       if (!job) { endCycle(sim, ant, STORE_ENTRY); return; }
       if (job === 'mill') ant.bb[MILL_WANT] = Math.min(MILL_BATCH_LOADS, sprouted(gr!));
+      else ant.bb[GNAW_WANT] = Math.max(GNAW_BATCH_LOADS, Math.min(GNAW_AI_BATCH_LOADS, germinatingLoads(gr!) + sprouted(gr!)));
       const failed = tryAct(sim, ant, job === 'gnaw' ? 'gnaw-radicle' : 'mill-seed', null);
       if (failed) endCycle(sim, ant, STORE_ENTRY);
       return;
@@ -120,5 +122,12 @@ export const granaryStoreBehaviour: Behaviour = {
     storeBehaviour.update(sim, ant);
   },
   exit: (sim, ant) => storeBehaviour.exit(sim, ant),
-  delivering: storeBehaviour.delivering,
+  // a care worker at work in a sprouting granary finishes the radicles there before she takes another task
+  delivering: (sim, ant) => storeBehaviour.delivering!(sim, ant) || (ant.state === 'store.care-work' && gnawingLeftHere(sim, ant)),
 };
+
+/** Germinating seed is left in the granary the ant stands in. */
+function gnawingLeftHere(sim: Sim, ant: Ant): boolean {
+  const gr = sim.stores.colonies.get(ant.colony)?.granary?.granaries.find((x) => x.chamberId === ant.chamberId);
+  return !!gr && germinatingLoads(gr) > 0;
+}

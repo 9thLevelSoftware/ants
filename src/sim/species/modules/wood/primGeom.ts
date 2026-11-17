@@ -78,3 +78,8 @@ export function alongGrain(prim: Primitive, axis: Vec3, p: Vec3): number {
   const t = (p.x - prim.pos.x) * axis.x + (p.y - prim.pos.y) * axis.y + (p.z - prim.pos.z) * axis.z;
   return Math.max(0, Math.min(1, (t + half) / Math.max(1e-6, 2 * half)));
 }
+
+/** Length of a horizontal vector (x, z), mm. Math.sqrt, not Math.hypot (determinism rule of the sim). */
+export function horizLen(x: number, z: number): number {
+  return Math.sqrt(x * x + z * z);
+}

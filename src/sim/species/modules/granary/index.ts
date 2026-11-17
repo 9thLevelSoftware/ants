@@ -12,7 +12,9 @@
 //   behaviour*.ts    mill, store (granary care), forage and scout (seed selection, heat range, departure gate)
 //   rhythm.ts        heat on the trails, summer lull, morning patrol gate
 //   allocation.ts    mill / care / patrol labour demand
+//   castes.ts        caste destiny of worker larvae (minor / media / major, the major unlock and protein gate)
 //   middens.ts       chaff middens and their seedlings
+//   trunk.ts         trunk trails: cells walked by seed carriers, kept scented while used, fading when not
 //   winter.ts        granary stock into the pool for the overwintering
 //   display.ts       a few inert seed items on each granary floor, mirroring the stock (pictures)
 //   diagnostics.ts   diag-granary, diag-mb-*
@@ -24,6 +26,7 @@ import { chamberEntry } from '@/sim/colony/census';
 import { messorLapseWinterSystem } from '@/sim/colony/founding/species/messor';
 import { registerGranaryActions } from './actions';
 import { granaryAllocationSystem } from './allocation';
+import { casteDestinySystem } from './castes';
 import { harvesterForageBehaviour, harvesterScoutBehaviour } from './behaviourForage';
 import { granaryStoreBehaviour } from './behaviourCare';
 import { millBehaviour } from './behaviourMill';
@@ -38,13 +41,15 @@ import { patrolGateSystem } from './rhythm';
 import { seedSourceSystem } from './seeds';
 import { ensureGranary } from './state';
 import { granaryWinterSystem } from './winter';
+import { trunkTrailSystem } from './trunk';
 
 registerGranaryActions();
 
 /** Systems of this module (each with a `phase`). */
 export const systems: readonly System[] = [
-  messorLapseWinterSystem, seedSourceSystem, patrolGateSystem, granaryAllocationSystem, granaryDeliverySystem,
-  granaryEconomySystem, middenSystem, granaryWinterSystem, granaryDisplaySystem, granaryDiagnosticsSystem,
+  messorLapseWinterSystem, seedSourceSystem, patrolGateSystem, granaryAllocationSystem, casteDestinySystem,
+  granaryDeliverySystem,
+  granaryEconomySystem, middenSystem, granaryWinterSystem, granaryDisplaySystem, granaryDiagnosticsSystem, trunkTrailSystem,
 ];
 
 /** Species-specific behaviours (set `species` on each). */

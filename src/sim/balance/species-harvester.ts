@@ -68,8 +68,9 @@ export const PASTE_RELEASE_MIN = 0.02;
 
 /** Loads one mill-seed action processes (AI); the action is continuous and stops after this many. */
 export const MILL_BATCH_LOADS = 2;
-/** Loads one gnaw-radicle action processes. */
+/** Loads one gnaw-radicle action processes (the possessed ant), and what an AI care worker takes on at once. */
 export const GNAW_BATCH_LOADS = 1;
+export const GNAW_AI_BATCH_LOADS = 3;
 /** Seed loads moved per relocation trip (GDD 07 §6.3.4: 1 load per trip). */
 export const RELOCATE_LOADS = 1;
 /** Workers that `mill` demand asks for per load of paste deficit per game day (labour model) [EST]. */
@@ -78,8 +79,14 @@ export const MILL_LOADS_PER_MILLER_GD = 12;
 export const MILL_MAX_FRAC = 0.35;
 /** At least this many millers while there is millable seed and the paste stock is under target. */
 export const MILL_MIN = 1;
+/** Damp cohorts count for care demand once their germination clock is past this share of germinatingG. */
+export const CARE_ANTICIPATE_G = 0.6;
+/** Shortest time a care demand plans to gnaw a cohort in, game s (a cohort about to sprout asks for many, not all). */
+export const CARE_WINDOW_MIN_S = 30;
+/** Care demand divides by the workers' mean work rate, but not by less than this. */
+export const CARE_RATE_FLOOR = 0.25;
 /** Granary-care workers at most this share of the workers. */
-export const CARE_MAX_FRAC = 0.3;
+export const CARE_MAX_FRAC = 0.5;
 
 // ---- middens (GDD 07 §6.3.8) ----
 
@@ -91,10 +98,20 @@ export const MIDDEN_ITEMS_MAX = 40;
 export const MIDDEN_VIABLE_MAX = 60;
 /** Seedlings tracked at most per colony. */
 export const SEEDLINGS_MAX = 24;
-/** A seedling within this distance of a trunk trail is trampled, BU (GDD 07: the 6 BU ribbon). */
+/** A seedling within this distance of a trunk-trail cell centre is trampled, BU (GDD 07: the 6 BU ribbon). */
 export const SEEDLING_TRAMPLE_BU = 3;
-/** Trail pheromone above which a cell counts as trunk-trail ribbon. */
-export const TRUNK_TRAIL_PH = 0.5;
+
+// ---- trunk trails (GDD 07 §5.3.7) ----
+
+/** Ticks between marks of the cells under laden foragers, and between scent top-ups of the live cells. */
+export const TRUNK_MARK_TICKS = 20;
+export const TRUNK_REFRESH_TICKS = 300;
+/** Trunk-trail cell size, BU (the pheromone cell of the design seed). */
+export const TRUNK_CELL_BU = 4;
+/** Trail scent a full-strength trunk cell is kept at, ph (the recruitment trail tops it up further). */
+export const TRUNK_KEEP_PH = 0.6;
+/** Most trunk cells a colony keeps (new ones beyond are not recorded) [EST]. */
+export const TRUNK_CELLS_MAX = 1500;
 
 // ---- heat rhythm and patrol gate (GDD 07 §5.3.7) ----
 
@@ -120,6 +137,19 @@ export const WINDOW_ACTIVITY_MIN = 0.15;
 
 /** Game days of winter need moved from the granary into the pool when the banner shows. */
 export const WINTER_STOCK_GD = 7;
+
+// ---- caste destiny (GDD 07 §2.6, §5.3.2) ----
+
+/** Ticks between caste-destiny passes over the colony's brood (a new larva is destined within 1 game s). */
+export const CASTE_STEP_TICKS = 10;
+/** A major needs the colony's protein (pool P + paste P) to cover this many game days of larval demand (App. E 5). */
+export const MAJOR_GATE_GD = 2;
+/** Smallest major share of the caste-mix target once majors are unlocked (the §5.3.2 ramp is 0 at N = 40) [EST]. */
+export const MAJOR_UNLOCK_MIN_SHARE = 0.03;
+/** casteEmphasis (-1..1) scales the major share by 1 + CASTE_EMPHASIS_SPAN x emphasis. */
+export const CASTE_EMPHASIS_SPAN = 0.5;
+/** Larval protein per larva over its stage when its caste is not decided yet, loads (GDD 07 §2.3 media cost). */
+export const UNDECIDED_LARVA_P = 1.2;
 
 // ---- founding (GDD 06 §5.15: winter inside the Messor lapse) ----
 

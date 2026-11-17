@@ -13,7 +13,7 @@ import {
   LARVA_C_DEFICIT_GROWTH,
   LARVA_FEED_REQUEST, LARVA_GUT_CAP, LARVA_P_DEFICIT_C_USE, LARVA_PSTARVE_GD, LARVA_STARVE_GD, LIFESPAN_CLAMP_GD,
   LOAD_EPS, MINIM_MIN_PROGRESS, MINIM_SCALE, MINIM_TRIGGER_GD, NANITIC_LIFESPAN_MEAN_GD, NANITIC_LIFESPAN_SD_GD,
-  NANITIC_SCALE, PRIORITY_PROGRESS_BONUS, PROTEIN_PRIORITY_DAYS_P, UNTENDED_GD,
+  NANITIC_SCALE, PRIORITY_PROGRESS_BONUS, PROTEIN_PRIORITY_DAYS_P, UNTENDED_GD, WASTE_BULK,
 } from '@/sim/balance';
 import { killBrood, removeEclosedBrood, spawnAnt, spawnItem } from '@/sim/entities';
 import { currentDefaultYearDoy, currentSeason, daysToTicks, TICKS_PER_DAY } from '@/sim/time';
@@ -134,9 +134,10 @@ export function setBroodDiapause(b: Brood, on: boolean): void {
 }
 
 function spawnWaste(sim: Sim, b: Brood, wasteKind: 'meconium' | 'cocoon' | 'brood-corpse'): void {
+  const bulk = wasteKind === 'brood-corpse' ? WASTE_BULK['brood-corpse'][b.stage] : WASTE_BULK[wasteKind];
   _spawnItem(sim, {
     kind: 'waste', pos: b.pos,
-    init: { wasteKind, nestId: b.nestId, chamberId: b.chamberId, inNest: b.chamberId >= 0, colony: b.colony },
+    init: { wasteKind, bulk, nestId: b.nestId, chamberId: b.chamberId, inNest: b.chamberId >= 0, colony: b.colony },
   });
 }
 

@@ -42,7 +42,7 @@ export function granaryDiag(sim: Sim, col: Colony, g: GranaryParams): Rec {
   const meanHum = n > 0 ? hum / n : 0;
   const status: Diagnostic['status'] = t.rotting > 0 || t.sprouted > 0.2 * Math.max(stock, 1e-9) ? 'bad' : dampShare > 0.2 ? 'warn' : 'ok';
   const cen = censusOf(sim, col.id);
-  const careNeed = careDemand(col, g, cen.workers);
+  const careNeed = careDemand(sim, col, g, cen.workers);
   const care = cen.byTask[ti('store')];
   const days = stock / Math.max(1e-6, seedDemandPerGd(col, g));
   const f: FactorIn[] = [

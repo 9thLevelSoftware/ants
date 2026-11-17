@@ -32,6 +32,12 @@ export function germTempFactor(g: GranaryParams, tempC: number): number {
   return 1 + (g.germFactorHot - 1) * ((tempC - g.germTempRefC) / (g.germTempHotC - g.germTempRefC));
 }
 
+/** Germination clock speed of a cohort now, per game day (0 when dry, degermed or too cold). */
+export function germRatePerGd(g: GranaryParams, c: SeedCohort, tempC: number): number {
+  if (c.degermed || c.u <= g.uDamp) return 0;
+  return ((c.u - g.uDamp) / g.germDenominator) * germTempFactor(g, tempC);
+}
+
 /** The state a cohort is in from its numbers (sprouted > germinating > rotting > damp > stored). */
 export function cohortStateOf(g: GranaryParams, c: SeedCohort): SeedCohortState {
   if (c.g >= g.sproutedG) return 'sprouted';

@@ -4,7 +4,7 @@
 import type { Ant, Colony, FoodAmount, Sim } from '@/sim/types';
 import {
   C_SPOIL_HALF_LIFE_GD, LARVA_GUT_CAP, LOAD_EPS, P_SPOIL_HALF_LIFE_GD, QUEEN_GUT_CAP, QUEEN_TARGET_GUT_C, SPOIL_OVERFLOW_MULT,
-  SPOIL_REF_C, SPOILED_ITEM_LOADS, STOMACH_C_BASE, STOMACH_C_PER_ADULT, STOMACH_P_PER_ADULT, TOXIN_HALF_LIFE_GD,
+  SPOIL_REF_C, SPOILED_ITEM_LOADS, WASTE_BULK, STOMACH_C_BASE, STOMACH_C_PER_ADULT, STOMACH_P_PER_ADULT, TOXIN_HALF_LIFE_GD,
 } from '@/sim/balance';
 import { spawnItem } from '@/sim/entities';
 import { book, coreOf } from './core';
@@ -269,9 +269,14 @@ function spawnSpoiledItem(sim: Sim, col: Colony): void {
   const chs = colonyChambers(sim, col);
   const ch = chs.find((x) => x.type === 'food') ?? chs[0];
   const nest = sim.stores.nests.get(col.nestIds[0] ?? -1);
-  const pos = ch ? ch.center : nest ? nest.origin : sim.world.queenStart.pos;
+  // on the chamber's floor below its centre (the centre is in the air of the cavity: an item there is out of every
+  // hauler's reach, haul.ts `onSurface`, and stayed in the food chamber for good; colony-life round 1)
+  const pos = ch ? { x: ch.center.x, y: ch.center.y - ch.radii.y, z: ch.center.z } : nest ? nest.origin : sim.world.queenStart.pos;
   spawnItem(sim, {
     kind: 'waste', pos,
-    init: { wasteKind: 'spoiled-food', nestId: nest ? nest.id : -1, chamberId: ch ? ch.id : -1, inNest: !!ch, colony: col.id },
+    init: {
+      wasteKind: 'spoiled-food', bulk: WASTE_BULK['spoiled-food'], nestId: nest ? nest.id : -1, chamberId: ch ? ch.id : -1,
+      inNest: !!ch, colony: col.id,
+    },
   });
 }

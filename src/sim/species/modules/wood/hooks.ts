@@ -1,11 +1,13 @@
 // The wood-nesting module's rules plugged into other modules' optional hooks (each hook is additive and inert for
 // species without the module): the dig-bite time and refusal (ants/actions), the depth of a nest sample (nest
-// founding readiness). Installed once when the module loads.
+// founding readiness), and the `drum` action primitive added to the catalogue. Installed once when the module loads.
 
 import type { Ant, Nest, Sim } from '@/sim/types';
 import type { Vec3 } from '@/core/math/vec3';
 import { VoxelFlag } from '@/sim/types';
 import { digBiteRules } from '@/sim/ants/actions/defs/dig';
+import { ACTION_DEFS } from '@/sim/ants/actions/defs';
+import { drumDef } from './drum';
 import { nestDepthRule } from '@/sim/nest/chambers/registry';
 import { flagsAt } from '@/sim/nest/substrate';
 import { woodBiteRefusal, woodBiteSeconds } from './biteRule';
@@ -41,4 +43,6 @@ export function installWoodHooks(): void {
   digBiteRules.seconds = biteSeconds;
   digBiteRules.refuse = biteRefusal;
   nestDepthRule.depthMm = woodNestDepthMm;
+  // the `drum` primitive (GDD 07 A.0) joins the catalogue; only wood-nesting colonies pass its check
+  ACTION_DEFS.drum ??= drumDef;
 }

@@ -249,6 +249,17 @@ export const SPOIL_OVERFLOW_MULT = 1.5;
 export const SPOIL_SUBMERGED_MULT = 2.0;
 /** One spoiled-food waste item per this many spoiled loads. */
 export const SPOILED_ITEM_LOADS = 0.5;
+/**
+ * Carry bulk of waste items (GDD 05 §1: bulk = item mass / the standard worker's carry mass, 2 mg for Lasius; the
+ * same fractions hold for every species, whose brood scales with its worker). A worker pupa or full-grown larva
+ * weighs about what the worker does (0.6-1 mg Lasius), an egg about 0.02 mg; meconium and an empty cocoon are a
+ * few per cent of a pupa. These were missing (every waste item had the item default 1.0), so the first workers
+ * (nanitics, carryCap ~0.75) could not lift any of it and brood chambers filled with corpses (colony-life round 1).
+ */
+export const WASTE_BULK = {
+  meconium: 0.05, cocoon: 0.05, 'spoiled-food': 0.3,
+  'brood-corpse': { egg: 0.02, larva: 0.3, pupa: 0.4 },
+} as const;
 /** Pool counts as full when its free space is below this, loads. */
 export const STORES_FULL_SPACE = 0.05;
 export const STORES_FULL_ALERT_GD = 0.25;

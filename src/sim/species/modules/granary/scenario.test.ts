@@ -6,9 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
 import { begin, canDo, workRate } from '@/sim/ants/actions';
-import { spawnBrood } from '@/sim/entities';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
-import { addAnts, messorKit } from './testkit';
+import { addAnts, addLarvae, messorKit } from './testkit';
 import { addSeeds, totalsOf } from './cohorts';
 import { MILL_WANT } from './actions';
 import { heatOf, setTrailTempOverride, stepGate, gateMult } from './rhythm';
@@ -19,15 +18,36 @@ function run(sim: Sim, ticks: number, each?: () => void): void {
   for (let i = 0; i < ticks; i++) { sim.tick(); each?.(); }
 }
 
-describe('granary care in the nest (E15)', () => {
-  it('4 store workers gnaw radicles: a damp granary (rh 0.9, 20 °C, 100 M loads u 0.9) has 0 sprouted after 0.8 GD', () => {
+describe('granary care in the nest (E15, AC2)', () => {
+  // E15 itself (4 care workers at work rate 1) is the pure model check in cohorts.test.ts. Here the colony's own
+  // allocator has to find the care workers: 10 minors, rh 0.9 at 20 °C, where a Messor works at about half rate.
+  it('the allocator puts care workers on a damp granary (100 M loads u 0.9): 0 sprouted after 0.8 GD', () => {
     const k = messorKit({ rh: 0.9, tempC: 20 });
     addSeeds(k.granary, k.g, 'M', 0.4, 100, 0.9, 0);
-    addAnts(k, 'minor', 4, k.granaryChamber, 'store');
+    const col = k.sim.state.colonies[0];
+    col.stores.c = 6;
+    col.stores.p = 2;
+    addAnts(k, 'minor', 10, k.nest.chambers[1], 'idle');
+    let gnawed = 0;
+    k.sim.events.on('radicle-gnawed', (e) => { gnawed += e.loads; });
     run(k.sim, Math.round(0.8 * TICKS_PER_DAY));
     const t = totalsOf(k.granary);
     expect(t.sprouted).toBe(0);
-    expect(t.loads).toBeGreaterThan(90);
+    expect(gnawed).toBeGreaterThan(90);
+    expect(t.loads).toBeGreaterThan(99);
+  }, 60_000);
+
+  it('without care (granaryHygiene 0) the same granary sprouts', () => {
+    const k = messorKit({ rh: 0.9, tempC: 20 });
+    addSeeds(k.granary, k.g, 'M', 0.4, 100, 0.9, 0);
+    const col = k.sim.state.colonies[0];
+    col.stores.c = 6;
+    col.stores.p = 2;
+    col.directives.granaryHygiene = 0;
+    addAnts(k, 'minor', 10, k.nest.chambers[1], 'idle');
+    run(k.sim, Math.round(0.8 * TICKS_PER_DAY));
+    const t = totalsOf(k.granary);
+    expect(t.sprouted + (100 - t.loads)).toBeGreaterThan(50);
   }, 60_000);
 });
 
@@ -37,16 +57,17 @@ describe('milling (E17)', () => {
     addSeeds(k.granary, k.g, 'M', 0.5, 10, 0.3, 0);
     const [major] = addAnts(k, 'major', 1, k.granaryChamber, 'idle', 1.55);
     major.bb[MILL_WANT] = 10;
-    const col = k.sim.state.colonies[0];
+    let pasteOut = 0, milled = 0;
+    k.sim.events.on('seed-milled', (e) => { pasteOut += e.pasteOut; milled += e.loads; });
     const ok = begin(k.sim, major, 'mill-seed', null);
     expect(ok).toBe(true);
-    const rate = workRate(k.sim, major);
-    let ticks = 0;
-    while (major.action?.id === 'mill-seed' && ticks < 20_000) { k.sim.tick(); ticks++; }
-    const workS = (ticks / TICKS_PER_SECOND) * rate;
-    expect(Math.abs(workS - 360)).toBeLessThan(4 + 360 * 0.03);
+    // the action's clock runs at the ant's work rate (GDD 01 §7.1), which follows her body temperature
+    let workS = 0, ticks = 0;
+    while (major.action?.id === 'mill-seed' && ticks < 20_000) { workS += workRate(k.sim, major) / TICKS_PER_SECOND; k.sim.tick(); ticks++; }
+    expect(Math.abs(workS - 360)).toBeLessThan(4);
     expect(totalsOf(k.granary).loads).toBeLessThan(1e-6);
-    expect(col.granary!.pasteLoads + col.stores.c + col.stores.p).toBeGreaterThan(7.5);
+    expect(milled).toBeCloseTo(10, 6);
+    expect(pasteOut).toBeCloseTo(8, 6);
   });
 
   it('a possessed minor facing unsprouted seed may not mill', () => {
@@ -67,9 +88,7 @@ describe('the paste bottleneck (AC2)', () => {
     const col = k.sim.state.colonies[0];
     col.stores.c = 0;
     col.stores.p = 0;
-    for (let i = 0; i < 8; i++) {
-      spawnBrood(k.sim, { colony: col.id, stage: 'larva', destined: 'minor', pos: { ...nursery.center }, nestId: k.nest.nest.id, chamberId: nursery.id });
-    }
+    addLarvae(k, 8, nursery);
     return { k, col };
   }
 

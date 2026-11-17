@@ -147,6 +147,24 @@ export interface GranaryModule {
   seedDay?: number;
   /** Additive (species-harvester): calendar year whose winter the granary stock was moved into the pool for. */
   winterYear?: number;
+  /** Additive (species-harvester): the first major has been destined (`caste-unlocked` emitted once). */
+  majorsUnlocked?: boolean;
+  /** Additive (species-harvester): trunk-trail cells (GDD 07 §5.3.7), one per pheromone cell walked by seed carriers. */
+  trunk?: TrunkCell[];
+}
+
+/** Additive (species-harvester): one cell of a harvester's trunk trail. Render reads it (ground clearing ribbon). */
+export interface TrunkCell {
+  /** Cell centre on the ground, mm. */
+  x: number;
+  y: number;
+  z: number;
+  /** Laden returns counted over this cell. */
+  uses: number;
+  /** Tick a laden forager last walked over it. */
+  lastTick: number;
+  /** Strength 0..1 (1 while used within the trail's persistence, fading after; 0 = ghost: cleared ground only). */
+  strength: number;
 }
 
 /** Additive (species-harvester): one place where seeds lie or hang (a grass-seed anchor or a ground patch). */

@@ -142,7 +142,6 @@ function dryReturnDest(ctx: SortContext, f: FloodEvac, group: number): number {
 /** The highest-priority job of one lying brood item, or null. */
 function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestInfo, b: Brood, movesLeft: number): BoardJob | null {
   const ctx = info.ctx;
-  const now = sim.state.tick;
   const job = (kind: JobKindId, prio: number, dest = -1, marker = false, feedAfter = false): BoardJob => ({
     kind, id: b.id, dest, prio, pos: b.pos, nestId: nest.id, marker, feedAfter,
   });
@@ -160,11 +159,12 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
   if (b.chamberId < 0 || !info.chamberIds.has(b.chamberId)) {
     const dest = ctx.best[groupOf(b)];
     // dry brood out of its chamber (evacuated) goes back only to a chamber the water does not reach: the best dry one
-    if (dest >= 0 && info.flood?.wetChambers.has(ctx.chambers[dest].id)) {
-      const dry = dryReturnDest(ctx, info.flood, groupOf(b));
-      return dry >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, dry) : null;
-    }
-    return dest >= 0 ? job(Job.rescue, JOB_PRIORITY.rescue, ctx.chambers[dest].id) : null;
+    let back = dest >= 0 ? ctx.chambers[dest].id : -1;
+    if (dest >= 0 && info.flood?.wetChambers.has(back)) back = dryReturnDest(ctx, info.flood, groupOf(b));
+    if (back >= 0) return job(Job.rescue, JOB_PRIORITY.rescue, back);
+    // nowhere dry to take it back to (a one-chamber nest under water at night): it is fed and tended where it lies
+    // (colony-life round 1: brood put at the dry spot had no job at all, and eggs died untended, larvae starved)
+    return careJob(sim, col, def, b, job);
   }
   if (info.alarmed.has(b.chamberId)) {
     const dest = ctx.best[groupOf(b)];
@@ -183,10 +183,17 @@ function jobFor(sim: Sim, col: Colony, def: SpeciesDef, nest: Nest, info: NestIn
   let dest = movesLeft > 0 ? moveTarget(ctx, b, markerOut) : -1;
   if (dest >= 0 && info.flood && info.flood.wetChambers.has(dest)) dest = -1;
   if (dest >= 0) return job(Job.move, markerOut.marker ? JOB_PRIORITY.moveMarker : JOB_PRIORITY.move, dest, markerOut.marker);
-  if (b.stage !== 'larva') {
-    const age = now - b.lastTendedTick;
-    if (age > daysToTicks(TEND_DUE_GD)) return job(Job.tend, JOB_PRIORITY.tend + (age > daysToTicks(TEND_URGENT_GD) ? JOB_PRIORITY.tendUrgent : 0));
-  }
+  return careJob(sim, col, def, b, job);
+}
+
+/** Care of a brood item where it lies: feed a hungry larva, tend an egg or pupa pile that is due; else null. */
+function careJob(
+  sim: Sim, col: Colony, def: SpeciesDef, b: Brood,
+  job: (kind: JobKindId, prio: number) => BoardJob,
+): BoardJob | null {
+  if (b.stage === 'larva') return wantsFeed(b, def) ? job(Job.feed, JOB_PRIORITY.feedBase + JOB_PRIORITY.feedUrgency * feedUrgency(b, col)) : null;
+  const age = sim.state.tick - b.lastTendedTick;
+  if (age > daysToTicks(TEND_DUE_GD)) return job(Job.tend, JOB_PRIORITY.tend + (age > daysToTicks(TEND_URGENT_GD) ? JOB_PRIORITY.tendUrgent : 0));
   return null;
 }
 

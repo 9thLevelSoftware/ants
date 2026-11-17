@@ -54,7 +54,7 @@ function samplePoints(sim: Sim, col: Colony, from: Vec3, out: Vec3[]): Vec3[] {
   out.push(from);
   const bu = sim.world.bu, step = HEAT_SAMPLE_STEP_BU * bu, maxD = TRIP_BASE_BU * bu;
   const srcs = col.knownSourceIds.map((id) => sim.stores.sources.get(id)).filter((s) => !!s)
-    .map((s) => ({ s: s!, d: Math.hypot(s!.pos.x - from.x, s!.pos.z - from.z) })).sort((a, b) => a.d - b.d || a.s.id - b.s.id);
+    .map((s) => ({ s: s!, d: Math.sqrt((s!.pos.x - from.x) ** 2 + (s!.pos.z - from.z) ** 2) })).sort((a, b) => a.d - b.d || a.s.id - b.s.id);
   for (const { s, d } of srcs) {
     const len = Math.min(d, maxD);
     for (let k = step; k <= len && out.length < HEAT_SAMPLES_MAX; k += step) {

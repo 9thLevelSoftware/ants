@@ -6,11 +6,11 @@ import { spawnAnt, spawnBrood } from '@/sim/entities';
 import { daysPerYear, TICKS_PER_DAY } from '@/sim/time';
 import { WOOD_BROOD_TICKS } from '@/sim/balance/species-carpenter';
 import type { Sim } from '@/sim/types';
-import { BroodFlag } from '@/sim/types';
+import { AntFlag, BroodFlag } from '@/sim/types';
 import { woodParamsOf } from './params';
 import { setWood } from './moisture';
 import { broodHazardPerGd, broodMoisturePass } from './broodMoisture';
-import { assignCastes, casteTarget } from './castes';
+import { assignCastes, casteTarget, naniticLifespans } from './castes';
 import { woodOf } from './woodState';
 import { carveLogChamber, CP, LOG_ID, woodSim } from './testkit';
 
@@ -109,5 +109,27 @@ describe('age-gated polymorphism (GDD 07 §5.2.2, App. E 14)', () => {
     expect(e.destined).toBe('minor');
     expect(n.destined).toBe('minor');
     expect(n.flags & BroodFlag.NANITIC).toBeTruthy();
+  });
+
+  it('nanitic minors live 40 GD on average (sd 15, GDD 07 §5.2.1), drawn once each; normal minors keep theirs', () => {
+    const sim = woodSim();
+    const col = sim.state.colonies[0];
+    const nan = [];
+    for (let i = 0; i < 200; i++) {
+      const a = spawnAnt(sim, { colony: col.id, caste: 'minor', pos: { x: 0, y: 0, z: 0 }, ageGd: 0 });
+      a.flags |= AntFlag.NANITIC;
+      a.lifespanGd = 24;
+      nan.push(a);
+    }
+    const normal = spawnAnt(sim, { colony: col.id, caste: 'minor', pos: { x: 0, y: 0, z: 0 }, ageGd: 0 });
+    const before = normal.lifespanGd;
+    expect(naniticLifespans(sim, col)).toBe(200);
+    const mean = nan.reduce((s, a) => s + a.lifespanGd, 0) / nan.length;
+    expect(mean).toBeGreaterThan(37);
+    expect(mean).toBeLessThan(43);
+    expect(normal.lifespanGd).toBe(before);
+    const first = nan[0].lifespanGd;
+    expect(naniticLifespans(sim, col)).toBe(0);
+    expect(nan[0].lifespanGd).toBe(first);
   });
 });

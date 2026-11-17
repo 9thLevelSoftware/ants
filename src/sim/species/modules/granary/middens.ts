@@ -10,12 +10,13 @@ import type { Colony, Entrance, GranaryModule, Sim, System } from '@/sim/types';
 import { spawnItem } from '@/sim/entities';
 import { currentSeason, TICKS_PER_DAY } from '@/sim/time';
 import {
-  CHAFF_ITEM_LOADS, MIDDEN_ITEMS_MAX, MIDDEN_VIABLE_MAX, SEEDLING_TRAMPLE_BU, SEEDLINGS_MAX, TRUNK_TRAIL_PH,
+  CHAFF_ITEM_LOADS, MIDDEN_ITEMS_MAX, MIDDEN_VIABLE_MAX, SEEDLING_TRAMPLE_BU, SEEDLINGS_MAX,
   GRANARY_STEP_TICKS,
 } from '@/sim/balance/species-harvester';
 import { granaryColonies } from './economy';
 import type { GranaryParams } from './params';
 import { newPatchSite } from './seeds';
+import { onTrunk } from './trunk';
 
 /** The midden point of an entrance: on the ground, middenMin-middenMax BU out, in a fixed direction per entrance. */
 export function middenPoint(sim: Sim, e: Entrance, g: GranaryParams): Vec3 {
@@ -46,7 +47,7 @@ function pileItems(sim: Sim, col: Colony, at: Vec3, radiusMm: number): number[] 
   const ids: number[] = [];
   for (const it of sim.stores.items.list) {
     if (it.alive && it.kind === 'chaff' && it.colony === col.id && !it.inNest
-      && Math.hypot(it.pos.x - at.x, it.pos.z - at.z) <= radiusMm) ids.push(it.id);
+      && (it.pos.x - at.x) ** 2 + (it.pos.z - at.z) ** 2 <= radiusMm * radiusMm) ids.push(it.id);
   }
   return ids;
 }
@@ -134,13 +135,9 @@ export function stepSeedlings(sim: Sim, col: Colony, g: GranaryParams, dtGd: num
   mod.seedlings = keep;
 }
 
-/** A seedling on the trunk-trail ribbon is trampled (trail pheromone at it or SEEDLING_TRAMPLE_BU to a side). */
+/** A seedling on the trunk-trail ribbon (within SEEDLING_TRAMPLE_BU of a trunk cell) is trampled. */
 function trampled(sim: Sim, col: Colony, p: Vec3): boolean {
-  const r = SEEDLING_TRAMPLE_BU * sim.world.bu;
-  for (const [dx, dz] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]] as const) {
-    if (sim.phero.sample(col.id, 'trail', { x: p.x + dx, y: p.y, z: p.z + dz }) > TRUNK_TRAIL_PH) return true;
-  }
-  return false;
+  return onTrunk(col.granary!, p.x, p.z, SEEDLING_TRAMPLE_BU * sim.world.bu);
 }
 
 function entranceById(sim: Sim, col: Colony, id: number): Entrance | undefined {

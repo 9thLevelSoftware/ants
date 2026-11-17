@@ -2,13 +2,18 @@
 // larva starts, it is destined minor, media or major by comparing the colony's current caste mix (adults and
 // destined larvae) with casteMixTarget(N), shifted by the casteEmphasis directive (+-50 % of the major share). A
 // major needs the caste unlocked (N >= unlock.minWorkers) and protein cover of MAJOR_GATE_GD days of larval demand;
-// otherwise the next smaller class. The first brood (NANITIC) are minors. The destined length is a triangular draw
-// of the caste's length range. Runs right after the colony's brood step.
+// otherwise the larva becomes the caste with the next largest shortfall. Once unlocked, the major share is at least
+// MAJOR_UNLOCK_MIN_SHARE. The first brood (NANITIC) are minors. The destined length is a triangular draw of the
+// caste's length range. Runs right after the colony's brood step.
 
 import { rngFloat } from '@/core/rng';
 import type { Brood, BroodCaste, Caste, CasteDef, Colony, Sim, SpeciesDef, System } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
-import { CASTE_STEP_TICKS, MAJOR_GATE_GD } from '@/sim/balance/species-harvester';
+import {
+  CASTE_EMPHASIS_SPAN, CASTE_STEP_TICKS, MAJOR_GATE_GD, MAJOR_UNLOCK_MIN_SHARE, UNDECIDED_LARVA_P,
+} from '@/sim/balance/species-harvester';
+import { NANITIC_SCALE } from '@/sim/balance/colony';
+import { larvaFood } from '@/sim/colony/life';
 import { granaryColonies } from './economy';
 import type { GranaryParams } from './params';
 
@@ -29,9 +34,9 @@ export function casteMixTarget(def: SpeciesDef, n: number): [number, number, num
   return [z[1], z[2], z[3]];
 }
 
-/** Target with the casteEmphasis directive: the major share x (1 + 0.5 e), the difference taken from or given to minors. */
+/** Target with the casteEmphasis directive: the major share x (1 + SPAN e), the difference taken from or given to minors. */
 export function emphasised(target: [number, number, number], emphasis: number): [number, number, number] {
-  const major = Math.max(0, target[2] * (1 + 0.5 * Math.max(-1, Math.min(1, emphasis))));
+  const major = Math.max(0, target[2] * (1 + CASTE_EMPHASIS_SPAN * Math.max(-1, Math.min(1, emphasis))));
   const minor = Math.max(0, target[0] - (major - target[2]));
   const sum = minor + target[1] + major;
   return sum > 0 ? [minor / sum, target[1] / sum, major / sum] : target;
@@ -39,11 +44,12 @@ export function emphasised(target: [number, number, number], emphasis: number): 
 
 /** Days of larval protein demand the colony's protein (pool P plus the P in its paste) covers. */
 export function proteinCoverGd(sim: Sim, col: Colony, g: GranaryParams, def: SpeciesDef): number {
-  let larvae = 0;
-  for (const b of sim.stores.brood.list) if (b.alive && b.colony === col.id && b.stage === 'larva') larvae++;
-  const media = def.castes.find((c) => c.caste === 'media');
-  const perGd = media ? 1.2 / def.life.stageGd.larva : 0.5; // GDD 07 §2.3: 1.2 P per standard larva over its stage
-  const demand = Math.max(1, larvae) * perGd;
+  let perStage = 0;
+  for (const b of sim.stores.brood.list) {
+    if (!b.alive || b.colony !== col.id || b.stage !== 'larva') continue;
+    perStage += b.destined === 'worker' ? UNDECIDED_LARVA_P : larvaFood(def, b.destined, b.destinedLengthBu).p;
+  }
+  const demand = Math.max(UNDECIDED_LARVA_P, perStage) / Math.max(1e-6, def.life.stageGd.larva);
   const p = col.stores.p + (col.granary?.pasteLoads ?? 0) * g.pasteP;
   return p / demand;
 }
@@ -58,9 +64,24 @@ function mix(sim: Sim, col: Colony): Record<string, number> {
   return m;
 }
 
+/**
+ * Target shares at N workers with the major floor: once majors are unlocked their share is at least
+ * MAJOR_UNLOCK_MIN_SHARE (GDD 07 App. E 5 wants majors among new larvae at N = 40, where the §5.3.2 ramp starts at 0).
+ */
+export function casteTargetAt(def: SpeciesDef, workers: number, emphasis: number): [number, number, number] {
+  const t = casteMixTarget(def, workers);
+  const majorDef = def.castes.find((c) => c.caste === 'major');
+  if (majorDef && workers >= majorDef.unlock.minWorkers && t[2] < MAJOR_UNLOCK_MIN_SHARE) {
+    const lift = MAJOR_UNLOCK_MIN_SHARE - t[2];
+    t[0] = Math.max(0, t[0] - lift);
+    t[2] = MAJOR_UNLOCK_MIN_SHARE;
+  }
+  return emphasised(t, emphasis);
+}
+
 /** Caste for a new worker larva of the colony. */
 export function chooseCaste(sim: Sim, col: Colony, g: GranaryParams, def: SpeciesDef, workers: number, m = mix(sim, col)): BroodCaste {
-  const target = emphasised(casteMixTarget(def, workers), col.directives.casteEmphasis ?? 0);
+  const target = casteTargetAt(def, workers, col.directives.casteEmphasis ?? 0);
   const total = m.minor + m.media + m.major + 1;
   const majorDef = def.castes.find((c) => c.caste === 'major');
   const majorOk = !!majorDef && workers >= majorDef.unlock.minWorkers && proteinCoverGd(sim, col, g, def) >= MAJOR_GATE_GD;
@@ -85,12 +106,16 @@ export function drawLength(def: CasteDef, u: number): number {
 /** Destines one worker larva (no-op for brood already destined to a polymorphic or sexual caste). */
 export function destine(sim: Sim, col: Colony, g: GranaryParams, def: SpeciesDef, b: Brood, workers: number): void {
   if (b.destined !== 'worker') return;
-  const caste: BroodCaste = (b.flags & BroodFlag.NANITIC) !== 0 ? 'minor' : chooseCaste(sim, col, g, def, workers);
+  const nanitic = (b.flags & BroodFlag.NANITIC) !== 0;
+  const caste: BroodCaste = nanitic ? 'minor' : chooseCaste(sim, col, g, def, workers);
   const cd = def.castes.find((c) => c.caste === caste);
   b.destined = caste;
-  if (cd && (b.flags & BroodFlag.NANITIC) === 0) b.destinedLengthBu = drawLength(cd, rngFloat(sim.stream('rng.colony')));
-  if (caste === 'major' && !col.granary?.majorsUnlocked) {
-    col.granary!.majorsUnlocked = true;
+  // 1 is the colony's "undecided" length marker: never store exactly 1
+  if (cd) b.destinedLengthBu = nanitic ? NANITIC_SCALE * cd.lengthBu.mean : drawLength(cd, rngFloat(sim.stream('rng.colony')));
+  if (b.destinedLengthBu === 1) b.destinedLengthBu = 1 - 1e-6;
+  const mod = col.granary;
+  if (caste === 'major' && mod && !mod.majorsUnlocked) {
+    mod.majorsUnlocked = true;
     sim.emit({ type: 'caste-unlocked', colonyId: col.id, caste: 'major' });
   }
 }

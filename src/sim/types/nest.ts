@@ -34,6 +34,12 @@ export interface Entrance {
    * module creates entrances with false, and only entrances of saves older than the field lack it).
    */
   passSeen?: boolean;
+  /**
+   * Additive (colony-life round 1): while `sealing`, the plug voxel count the throat had before the plug was added
+   * (remnants of an earlier plug, e.g. the founding plug the first workers reopened). "Plug removed -> open" (GDD 03
+   * §4.2) means back down to this count, not to zero. 0 when not sealing; absent in older saves (read as 0).
+   */
+  plugBaseline?: number;
 }
 
 /** Capacity or occupancy of a chamber in space units (GDD 03 §6.4). */

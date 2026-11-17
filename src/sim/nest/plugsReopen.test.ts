@@ -10,6 +10,7 @@ import { createPlanImpl } from './plans/plans';
 import { validatePlanImpl } from './plans/validate';
 import { nestSim, playerNest } from './nestTestKit';
 import { nestRuntime } from './runtime';
+import { chunkKey } from './carve/keys';
 
 describe('plug voxels at or above the ground (nest-fix3 item 4a)', () => {
   it('ghosts are not counted; a `sealing` entrance with ghosts only returns to `open`; real plug soil still counts', () => {
@@ -38,6 +39,47 @@ describe('plug voxels at or above the ground (nest-fix3 item 4a)', () => {
     expect(soil.length).toBe(1);
     flags.add(soil[0][0], soil[0][1], soil[0][2], VoxelFlag.PLUG);
     expect(plugCount(sim, e)).toBe(1);
+  });
+});
+
+describe('a `sealing` entrance with founding remnants (colony-life round 1)', () => {
+  it('goes back to `open` once the added plug is gone, not only at zero plug voxels', () => {
+    const sim = nestSim({ nest: 'small', seed: 1 });
+    const nest = playerNest(sim), e = nest.entrances[0], v = sim.carve.voxel, flags = nestRuntime(sim).flags;
+    expect(e.status).toBe('open');
+    // real plug soil in the throat wall: closed carve samples below the ground surface
+    const R = e.radius + 2 * sim.world.bu;
+    const soil: number[][] = [];
+    for (let k = Math.floor((e.pos.z - R) / v); k <= Math.ceil((e.pos.z + R) / v); k++)
+      for (let j = Math.floor((e.pos.y - R) / v); j <= Math.ceil((e.pos.y + R) / v); j++)
+        for (let i = Math.floor((e.pos.x - R) / v); i <= Math.ceil((e.pos.x + R) / v); i++) {
+          const dx = i * v - e.pos.x, dy = j * v - e.pos.y, dz = k * v - e.pos.z;
+          if (dx * dx + dy * dy + dz * dz > (R - v) * (R - v) || sim.carve.sampleAt(i, j, k) >= 128) continue;
+          if (sim.field.substrateXYZ(i * v, j * v, k * v) < -v && soil.length < 6) soil.push([i, j, k]);
+        }
+    expect(soil.length).toBe(6);
+    // the entrance memo re-evaluates on carve changes; the test edits flags only, so it marks the chunks changed
+    const rt = nestRuntime(sim);
+    const touch = () => { for (const [i, j, k] of soil) { const key = chunkKey(i >> 4, j >> 4, k >> 4); rt.chunkStamp.set(key, (rt.chunkStamp.get(key) ?? 0) + 1); } };
+    // four remnants of an earlier plug, left in the throat by a reopening (which records them): still `open`
+    for (const [i, j, k] of soil.slice(0, 4)) flags.add(i, j, k, VoxelFlag.PLUG);
+    e.plugVoxelCount = 4;
+    touch(); evaluateEntrance(sim, nest, e);
+    expect(e.status).toBe('open');
+    expect(e.plugVoxelCount).toBe(4);
+    // two more plug voxels: a plug is being added
+    for (const [i, j, k] of soil.slice(4)) flags.add(i, j, k, VoxelFlag.PLUG);
+    touch(); evaluateEntrance(sim, nest, e);
+    expect(e.status).toBe('sealing');
+    // one of the added two removed: still sealing
+    flags.clear(soil[5][0], soil[5][1], soil[5][2], VoxelFlag.PLUG);
+    touch(); evaluateEntrance(sim, nest, e);
+    expect(e.status).toBe('sealing');
+    // the added plug gone (the remnants stay): `open` again (before: `sealing` until the count reached zero)
+    flags.clear(soil[4][0], soil[4][1], soil[4][2], VoxelFlag.PLUG);
+    touch(); evaluateEntrance(sim, nest, e);
+    expect(e.status).toBe('open');
+    expect(e.plugBaseline ?? 0).toBe(0);
   });
 });
 
