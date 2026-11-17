@@ -185,6 +185,13 @@ export default async ({ page, shot, log, wait }) => {
     return w.map((x) => gm.query.ant(x.id)).filter((a) => a && a.id !== id);
   }, [hovered, workers]);
   let other = null, scr2 = null;
+  // none in the frame (they walk off while the queen is followed): look at the first of them from 6 BU away
+  const onScreen = (o) => g((p) => { const q = window.__game.views.project(p); return q && q.x > 0 && q.y > 0 && q.x < innerWidth && q.y < innerHeight ? q : null; }, { x: o.pos.x + o.up.x * 0.3 * bu, y: o.pos.y + o.up.y * 0.3 * bu, z: o.pos.z + o.up.z * 0.3 * bu });
+  if (others.length > 0 && !(await Promise.all(others.map(onScreen))).some(Boolean)) {
+    const o = others[0];
+    await g(({ p, bu }) => window.__game.camera.setPose({ x: p.x - 4 * bu, y: p.y + 4 * bu, z: p.z - 4 * bu }, p), { p: o.pos, bu });
+    await render();
+  }
   for (const o of others) {
     scr2 = await g((p) => { const q = window.__game.views.project(p); return q && q.x > 0 && q.y > 0 && q.x < innerWidth && q.y < innerHeight ? q : null; }, { x: o.pos.x + o.up.x * 0.3 * bu, y: o.pos.y + o.up.y * 0.3 * bu, z: o.pos.z + o.up.z * 0.3 * bu });
     if (scr2) { other = o; break; }

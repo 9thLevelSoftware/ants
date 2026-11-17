@@ -46,5 +46,26 @@ All of `src/sim/**`, `src/worldgen/**`, `src/core/**` (contracts additive only),
 - **Growth, R19**: workers at winter ≥ first workers in ≥ 10 of 15 runs; median eclosions after hand-over ≥ 4; median intake/need P ≥ 0.7 and C ≥ 0.9; median trip success ≥ 50 %; first workers ≥ 9 in ≥ 13 of 15 runs; no `worker:lost` in ≥ 13 of 15 runs.
 - Once both hold, also report (not a bar): a spring start (`--start-doy 2`) to winter, and one run from the default start through winter to the second autumn, with worker counts over time.
 
+## Integrator direction for round 3 onward (Nov 17 06:45 UTC; binding; read with the sweep-2 section of the ledger)
+
+Two sweeps have not moved the bars (viable 7 → 9 → 8 of 15; eclosions median 0; P intake 0.14 → 0.09 → 0.03). Single whole-life runs diverge after a day or two, so a before/after on one run is weak evidence, and the 15-run sweep is too slow and noisy to steer by. From this round:
+
+**1. Steer by benches, confirm by sweep.** Build two tool-side benches under `tools/sim/` that start from the cached hand-over snapshots (all 15) and isolate one half of the colony each. They are measuring tools: they change no rule and are never used by the game.
+- **Nest bench**: stores are topped up by the tool to 2 gd of need in C and P every game hour (tool-side write, bench only), foraging left on. Run to winter. Report per run: eggs laid, hatched, pupated, eclosed, every brood loss by cause, larvae starved, laying potential/permission shares, brood temperature by day, workers by day. This answers "does the nest raise workers when food is not the limit?" and gives the ceiling the calendar and temperatures allow.
+- **Forage bench**: the nest's demand is held at the need of 30 workers with full brood (tool-side), brood care left on. Report trips by outcome per nutrient, P and C delivered per gd against that need, prey encountered / subdued / carried home, scout discoveries.
+A fix is accepted when its mechanism counter moves on the bench across the 15 snapshots (medians, not one run), and a unit test pins the rule. Benches must be quick: stop at winter, 2 at a time; if a bench run costs more than a life run, cut its reporting, not its length.
+
+**2. What the sweep-2 table says the bar needs (my reading; verify, then rank by bench numbers).** The eclosion and worker-hold checks need runs of the seed-1 kind (hand-over at 3.5–3.9 gd with 12–16 workers) to raise ≥ 4 workers, not only the seed-2 kind (2.8 gd).
+- **Larvae starve while protein sits in the stores**: woodland-edge #1 (8 starved, P 2.56 in store at winter), car-park-verge #1 (6 starved, P 3.79), playground-park #3 (5 starved, P 4.12). Find where the path store → nurse → larva breaks (ration or reserve rule, form of the stored item, nurse job, reach) — nest bench.
+- **Brood dies untended with nurses present**: egg:untended 44 and pupa:untended 14 across the sweep; woodland-edge #2 lost 13 of 21 that way with 15 workers. Nest bench.
+- **Only 9–21 eggs are laid in the 8–9 gd after hand-over**; laying potential > 0.5 for 14–50 % of the time. With nanitics ageing out (1–3 per run, R11 stands) a colony cannot hold its count on that. Show from the nest bench what limits laying when food is not short (queen feeding path, "winter reserve short", temperature) and what the design's own numbers (GDD 02 §4, §15) expect for a colony of 12–16 at this point of the year.
+- **Seed 3** (7–9 workers, 4.3–4.6 gd, 0 of ~43 eggs hatched): one-chamber nests losing eggs to exposure, flooding, no care. Is the first chamber's siting/depth or the missing second chamber the cause?
+- **Hunting converts 7 %** of encounters (1,059 prey ahead of ants, 64 subdued, 41 loads home) and P intake fell — forage bench. Kitchen-door went from 2 of 3 viable to 0 of 3: establish with the round-start tree whether round 2 did that.
+- **Stuck ants and crushed workers**: up to 16 ant-gd stuck in a run (playground-park #2), `walker-stuck-explosion`, 8 crushed in the sweep.
+
+**3. Calendar.** If the nest bench shows that with food guaranteed and brood care working the median run still ecloses fewer than 4 workers before winter, the limit is time and temperature, and the lever is the **default start day** (not development rates, not temperatures, not lifespans): measure the bench at start days 9, 7 and 5 (`--start-doy`, fresh foundings, a few seeds) and report eclosions and first-worker counts for each; the integrator rules on the start day from that table. Do not change the default yourself.
+
+**4. Regressions first, as before**: every run that was viable and is not, with the cause; revert a change that costs more than it gains and record it under "Tried and reverted".
+
 ## Machine rules
 4 cores shared with other engineers and a headless browser. At most 2 life runs at a time; never the whole vitest suite in one process; long tests behind `FOUNDRESS_LONG=1`; no `process` in test files (no `@types/node`); delete probe files and scratch copies of the tree before you finish; `date -u` before writing a timestamp. Evidence under `test-output/colony-life/round-N/`.
