@@ -6,6 +6,7 @@
 import type { Brood, CasteDef, Colony, Sim, SpeciesDef } from '@/sim/types';
 import { rngFloat } from '@/core/rng';
 import { CASTE_EMPHASIS_SPAN, MAJOR_GATE_GD } from '@/sim/balance/species-carpenter';
+import { NANITIC_SCALE } from '@/sim/balance/colony';
 import { larvaFood } from '@/sim/colony/life';
 import { ticksPerYear } from '@/sim/time';
 import type { WoodParams } from './params';
@@ -73,9 +74,8 @@ export function majorGateOpen(sim: Sim, def: SpeciesDef, col: Colony): boolean {
 }
 
 /** Triangular draw (min, mean as mode, max), BU. */
-function drawLength(sim: Sim, cd: CasteDef | undefined, nanitic: boolean): number {
+function drawLength(sim: Sim, cd: CasteDef | undefined, _nanitic: boolean): number {
   const L = cd?.lengthBu ?? { min: 1, mean: 1, max: 1 };
-  if (nanitic) return 1; // the colony module scales nanitics at eclosion (NANITIC_SCALE x the caste mean)
   const u = rngFloat(sim.stream('rng.brood'));
   const { min: a, mean: c, max: b } = L;
   if (b <= a) return c;
@@ -118,7 +118,8 @@ export function assignCastes(sim: Sim, def: SpeciesDef, col: Colony, p: WoodPara
 
 function setCaste(sim: Sim, def: SpeciesDef, b: Brood, caste: WorkerCaste, nanitic: boolean): void {
   b.destined = caste;
-  const len = drawLength(sim, casteDef(def, caste), nanitic);
-  // nanitics keep the marker value off 1 so they are not re-decided
-  b.destinedLengthBu = nanitic ? 1 - 1e-6 : len;
+  // nanitics: the colony module sizes them at eclosion (NANITIC_SCALE x the caste mean); the length here only sets
+  // their (smaller) larval food
+  const mean = casteDef(def, caste)?.lengthBu.mean ?? 1;
+  b.destinedLengthBu = nanitic ? NANITIC_SCALE * mean : drawLength(sim, casteDef(def, caste), false);
 }
