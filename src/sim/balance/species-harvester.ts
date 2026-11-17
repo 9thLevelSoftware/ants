@@ -155,6 +155,15 @@ export const UNDECIDED_LARVA_P = 1.2;
 
 /** Survival of each brood item over the winter jump inside the founding lapse (larval overwinter survival). */
 export const FOUND_WINTER_BROOD_SURVIVAL = 0.85;
+/**
+ * After the winter jump the brood stays arrested while the founding cell is colder than this, °C: the lapse skips
+ * ahead in steps of FOUND_SPRING_HOLD_STEP_GD (queen drain at the winter rate, no brood simulated) for at most
+ * FOUND_SPRING_HOLD_MAX_GD. GDD 06 §5.15 arrests the brood below 14 °C; at 14-16 °C devRate is under 0.2, so the
+ * brood would sit for days in the cell paying the founding hazard per day for almost no development [EST].
+ */
+export const FOUND_SPRING_RESUME_C = 16;
+export const FOUND_SPRING_HOLD_STEP_GD = 0.25;
+export const FOUND_SPRING_HOLD_MAX_GD = 7;
 
 // ---- granary display (seed items mirroring the stock, for the picture only) ----
 

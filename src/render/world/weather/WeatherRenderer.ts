@@ -174,8 +174,8 @@ export class WeatherRenderer implements SubRenderer {
     });
     // wet surfaces (the world slot's own precip easing runs first; this write wins for the frame)
     this.wetTo?.setWetness(v.wet);
-    // lightning (reduced motion: a slow soft brightening instead of the pulse)
-    const reduced = !!frame.reducedMotion;
+    // lightning (reduced motion or flash reduction: a slow soft brightening instead of the pulse)
+    const reduced = !!frame.reducedMotion || !!frame.reducedFlash;
     if (this.strikeTick !== this.shownStrike) {
       // only a strike of the last couple of ticks flashes (a scripted jump over many ticks shows none)
       if (sim.state.tick - this.strikeTick <= 2) this.startFlash(reduced);

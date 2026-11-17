@@ -93,6 +93,8 @@ export interface FrameInfo {
   inspect?: HighlightRef | null;
   /** Accessibility: no moving light patterns or idle animation flourishes. */
   reducedMotion?: boolean;
+  /** Accessibility: Settings > Accessibility > Flash reduction. Lightning uses the soft brightening instead of the pulse. */
+  reducedFlash?: boolean;
   /** Accessibility: spider comfort (and the optional mite / centipede substitutes), Settings > Accessibility. */
   comfort?: ComfortSettings | null;
   /** Photo mode with 'Hide markers and outlines' on: the possessed ant draws without its possession rim (GDD 01 6.9). */

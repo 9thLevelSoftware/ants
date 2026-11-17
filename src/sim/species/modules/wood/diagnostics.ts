@@ -37,7 +37,7 @@ function dryingFactors(sim: Sim, col: Colony, p: WoodParams): DiagnosticFactor[]
     if (windows > 0) out.push(f('windows', windows, `${w.windowCount} openings ventilate the wood`));
     if ((w.sunExposure ?? 0) > 0.5) out.push(f('sun', w.sunExposure ?? 0, 'the wood lies in the sun'));
     if (w.placement === 'structural-dry') out.push(f('leak-repaired', 1, 'dry building timber'));
-    if (out.length === 0) out.push(f('season', 1, 'the wood is drying'));
+    if (out.length === 0) out.push(f('wood-drying', 1, 'the wood is drying with the season'));
   }
   if ((w.carvedFrac ?? 0) >= p.satelliteCarvedFracTrigger) out.push(f('carved-out', w.carvedFrac ?? 0, `${Math.round((w.carvedFrac ?? 0) * 100)} % carved`));
   return out;

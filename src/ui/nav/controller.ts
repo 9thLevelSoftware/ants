@@ -15,7 +15,7 @@ import { enterFeed, HUD_ACTIONS } from '../hud/hotkeys';
 import { dismissHintNow } from '../hud/prompts/OnboardingPrompts';
 import { hudBridge, openDrawer } from '../hud/state';
 import { openBook } from '../panels/wiring/state';
-import { enterTools, leaveTools, padToolsFocus } from '../panels/wiring/toolsPad';
+import { enterTools, leaveTools, padToolsFocus, VIEW_TAP_MS as TOOLS_VIEW_TAP_MS } from '../panels/wiring/toolsPad';
 import { foundingActions, foundingUi } from '../screens/founding/store';
 import { updateNav } from '../screens/nav';
 import { facade, snapshot } from '../store';
@@ -29,7 +29,7 @@ import { modifiedCombos, shortcutsOf, ShortcutMatcher, type PadShortcut } from '
 export const padCaptureHolds = signal(0);
 
 /** A View press shorter than this (times the hold-duration setting) is a tap; longer is the game's colony-view hold. */
-const VIEW_TAP_MS = 450;
+const VIEW_TAP_MS = TOOLS_VIEW_TAP_MS;
 /** Scroll speed of LT / RT, CSS px per real second. */
 const SCROLL_PX_S = 700;
 /** The actions the UI handles itself, with a pad binding from the current bindings. */

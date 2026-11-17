@@ -436,7 +436,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       dt: s.view === 'photo' ? 0 : dt, time: this.time, alpha, sim: s.sim, view: s.view, underground, camera: this.camera,
       viewportHeightPx: this.app.renderer.domElement.height, subject: subject ? subject.pos : null, possessedId: s.possessedId,
       possessedPose: pred, subjectOpacity: s.view === 'possess' ? vf.subjectOpacity : 1, cutaway: vf.cutaway,
-      fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion,
+      fade: s.view === 'possess' ? vf.fade : null, hover: this.hover, inspect: this.inspect, reducedMotion: this.settings.get().camera.reducedMotion, reducedFlash: this.settings.get().accessibility.flashReduction,
       comfort: this.comfort.get(this.settings.get()),
       hidePossessedHighlight: this.viewsLayer.photo.hidesMarkers,
     };
