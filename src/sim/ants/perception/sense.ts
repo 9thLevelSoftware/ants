@@ -11,6 +11,7 @@ import {
   SMELL_CREATURE_BU, SMELL_QUERY_MAX_BU,
 } from '@/sim/balance/foraging';
 import { footprintMm, isAvailable, odourRadiusMm } from '@/sim/ecology';
+import { predatorPerceivedBy } from '@/sim/ecology/creatures';
 import { queryAntsNear } from '@/sim/locomotion';
 import { PC, THREAT } from './keys';
 
@@ -180,7 +181,9 @@ function threats(sim: Sim, ant: Ant): void {
     sim.index.queryCreatures(ant.pos, SMELL_CREATURE_BU * sim.world.bu, ids);
     for (let i = 0; i < ids.length; i++) {
       const c = sim.stores.creatures.get(ids[i]);
-      if (c && PREDATORS.has(c.kind)) { setThreat(ant, THREAT.creature, c.pos.x, c.pos.z); return; }
+      // GDD 05 §2.4 (owns predator detection): 4 L x the predator's stealth, never hidden / dormant ones or a buried
+      // antlion (threats-live; was: any predator within SMELL_CREATURE_BU)
+      if (c && PREDATORS.has(c.kind) && predatorPerceivedBy(sim, c, ant)) { setThreat(ant, THREAT.creature, c.pos.x, c.pos.z); return; }
     }
   }
   const alarm = ant.bb[PC.alarm] ?? 0;

@@ -30,6 +30,13 @@ Started 10:40 UTC 2026-11-17.
 - Round-2 sweep trip reasons: timeout 79 of 870 trips (stuck 143, source-depleted 40): sizes the H2b timeout defect.
 - Long runs: tools/sim/longrun-life.sh (copied into the frozen tree), --until-day 34, out round-3/sweep-long.
 
+- 11:50 SWEEP DONE (15/15, tree 2e2c79d2, 10:40-11:49). Table written: test-output/colony-life/round-3/sweep-table.md
+  (sweep-table.py vs round-2/sweep). Viable 8/15 (we 1, sg 1, pp 2, cpv 3, kd 1) NOT met; R19 3/7 (held 4, ecl 0,
+  P 0.044, C 1.238 ok, trip 25.4 %, first>=9 13 ok, no lost 13 ok). 6 runs identical to round 2 (no patch prey met).
+  Sweep prey: loads 41 -> 58, P 7.9 -> 12.7, subdued 68 -> 96; refused remains (item-collected fail) 8 -> 21.
+- 11:50 long runs started (background, frozen tree): we #1, sg #2, pp #2, cpv #1, kd #1 -> round-3/sweep-long/
+  (restart: re-run /home/user/frozen-sweep3/tools/sim/longrun-life.sh <out> <cache> "<runs>"; finished ones skipped).
+
 ## Remaining
 - typecheck, folder tests (ecology/creatures, ants/behaviours/outdoor, ants/behaviours/nest, balance), table, bars,
   long runs (after the sweep), ledger section, delete /home/user/frozen-sweep3 and scratchpad/nofix.

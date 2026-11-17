@@ -17,6 +17,7 @@ import { antLen, dist, face, isPossessed, rng, ticks } from './common';
 import { conditions } from './conditions';
 import { noteDangerEvent, noteDangerFor } from './danger';
 import { ports } from './ports';
+import { predatorStruck } from './alerts';
 
 const TICK_S = 1 / TICKS_PER_SECOND;
 /** ant.bb key (namespaced) holding the tick until which the ant cannot be struck again (§2.4: 1 s after freedom). */
@@ -95,7 +96,7 @@ export function landStrike(sim: Sim, c: Creature, seize: boolean, dmgOverride?: 
   const raw = (dmgOverride ?? STRIKE_DAMAGE[c.kind] ?? 0) * lv.predatorDamageMult;
   const dealt = hit ? ports.applyDamage(sim, 'ant', ant.id, raw, 'predation') : 0;
   sim.emit({ type: 'predator-strike', creatureId: c.id, targetId: ant.id, hit, damage: dealt });
-  if (hit) ports.raiseAlarm(sim, ant.colony, ant.pos, 1);
+  if (hit) { ports.raiseAlarm(sim, ant.colony, ant.pos, 1); predatorStruck(sim, c, ant.colony); }
   const alive = sim.stores.ants.has(ant.id) && ant.hp > 0;
   if (hit && alive && seize) {
     // the strike's danger event waits for the end of the hold: freed = survived, dead = killed (witness rule)

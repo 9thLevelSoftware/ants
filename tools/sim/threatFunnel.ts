@@ -24,8 +24,10 @@ import {
 } from '@/sim/balance/creatures';
 import { isWorkerCaste } from '@/sim/colony/census';
 import { calendarNow } from '@/sim/environment/calendar';
-import { isExposedAnt } from '@/sim/ecology/creatures';
+import { CreatureFlag, isExposedAnt, quietShare } from '@/sim/ecology/creatures';
 import { conditions } from '@/sim/ecology/creatures/conditions';
+import { detectRangeMm } from '@/sim/ecology/creatures/attack';
+import { THREAT, threatCode, threatX, threatZ } from '@/sim/ants/perception';
 
 declare const process: { exitCode?: number };
 
@@ -82,6 +84,8 @@ export interface KindFunnel {
   approachBlock: Record<string, number>;
   /** How approaches ended. */
   approachEnd: Record<string, number>;
+  /** Worker-seconds with this kind as the perceived threat (ant perception), split by the GDD 05 §2.4 detection range. */
+  antThreatS: Record<string, number>;
 }
 
 function emptyKind(): KindFunnel {
@@ -89,19 +93,24 @@ function emptyKind(): KindFunnel {
     territories: 0, territoryToNestBu: { nearest: null, median: null }, spawned: 0, aliveSampleS: 0, aliveAvg: 0, stateS: {},
     nearestAntBuMedian: null, nearestAntBuMin: null, inSenseShare: 0,
     stages: { sense: 0, select: 0, approach: 0, telegraph: 0, strike: 0, hit: 0, kill: 0, feed: 0 },
-    senseFail: {}, approachBlock: {}, approachEnd: {},
+    senseFail: {}, approachBlock: {}, approachEnd: {}, antThreatS: {},
   };
 }
 
 export interface FunnelResult {
   tool: 'threatFunnel'; options: Opts; startGd: number; days: number;
-  colony: { workersStart: number; workersEnd: number; outsideWorkerHours: number; outsideAvg: number };
+  colony: { workersStart: number; workersEnd: number; outsideWorkerHours: number; outsideAvg: number; outsideByPhaseS: Record<string, number>;
+    /** Distance of surface workers from the first entrance (hourly samples), BU: median, 90th percentile, max. */
+    rangeBu: { p50: number | null; p90: number | null; max: number | null } };
+  /** Every ant-predator territory: kind, centre distance to the first entrance and radius, BU. */
+  territories: { kind: string; distBu: number; radiusBu: number }[];
   kinds: Record<string, KindFunnel>;
   antlion: { pits: number; pitToNestBuNearest: number | null; crossings: number; flicks: number; grabs: number; kills: number; antsOnSlopeS: number };
   bird: { hourlyChecks: number; gate: Record<string, number>; approaches: number; landed: number; pecks: number; kills: number };
   deathsByCause: Record<string, number>;
   workerDeathsPredatorByKind: Record<string, number>;
   events: Record<string, number>;
+  alerts: { predatorNearS: number; predatorNearRaised: number; quietShareMin: number | null; quietShareEnd: number | null };
   finalHash: string; wallS: number;
 }
 
@@ -115,6 +124,13 @@ export class ThreatObserver {
   readonly events: Record<string, number> = {};
   outsideWorkerS = 0;
   samples = 0;
+  /** Surface worker-seconds by day phase (night hunters need ants outside at night). */
+  readonly outsideByPhaseS: Record<string, number> = {};
+  readonly rangeSamples: number[] = [];
+  /** Seconds a predator-near alert was active; possessed-danger raises; trailing I11 quiet share (hourly, from 3 gd). */
+  readonly alerts = { predatorNearS: 0, predatorNearRaised: 0, quietShareMin: null as number | null, quietShareEnd: null as number | null };
+  private readonly startTick: number;
+  readonly territories: { kind: string; distBu: number; radiusBu: number }[] = [];
   private nearest: Record<string, number[]> = {};
   private inSenseS: Record<string, number> = {};
   private selecting = new Map<number, number>(); // creature id -> target id it held last sample
@@ -125,13 +141,17 @@ export class ThreatObserver {
 
   constructor(private readonly sim: Sim, private readonly col: number) {
     this.bu = sim.world.bu;
+    this.startTick = sim.state.tick;
     for (const k of [...HUNTERS, 'antlion' as CreatureKind]) this.kinds[k] = emptyKind();
     const entrance = this.entrance();
     const terrDist: Record<string, number[]> = {};
     for (const t of sim.state.ecology.director.territories) {
       if (!this.kinds[t.kind]) continue;
       this.kinds[t.kind].territories++;
-      if (entrance) (terrDist[t.kind] ??= []).push(Math.hypot(t.center.x - entrance.x, t.center.z - entrance.z) / this.bu);
+      if (!entrance) continue;
+      const d = Math.hypot(t.center.x - entrance.x, t.center.z - entrance.z) / this.bu;
+      (terrDist[t.kind] ??= []).push(d);
+      this.territories.push({ kind: t.kind, distBu: Math.round(d), radiusBu: Math.round(t.radius / this.bu) });
     }
     for (const [k, ds] of Object.entries(terrDist)) {
       ds.sort((a, b) => a - b);
@@ -173,6 +193,7 @@ export class ThreatObserver {
       }
     });
     for (const t of ['ant-freed', 'ant-paralysed', 'alert', 'alarm-raised', 'creature-died', 'creature-despawned']) on(t, () => bump(this.events, t));
+    on('alert', (e: { op: string; alert: { kind: string } }) => { if (e.op === 'raise' && e.alert.kind === 'predator-near') this.alerts.predatorNearRaised++; if (e.op === 'raise') bump(this.events, `alert:${e.alert.kind}`); });
   }
 
   private entrance(): { x: number; z: number } | null {
@@ -225,6 +246,7 @@ export class ThreatObserver {
     const workersAll = sim.stores.ants.list.filter((a) => a.alive && a.colony === this.col && isWorkerCaste(a.caste)).length;
     const surf = this.surfaceWorkers(this._w);
     this.outsideWorkerS += surf.length * dt;
+    bump(this.outsideByPhaseS, conditions(sim).phase, surf.length * dt);
     const entrance = this.entrance();
     const hourly = sim.state.tick % Math.round(TICKS_PER_DAY / 24) === 0;
     const lv = CREATURE_LEVERS[sim.state.config.difficulty.preset] ?? CREATURE_LEVERS.naturalist;
@@ -266,6 +288,20 @@ export class ThreatObserver {
       else if (c.state !== 'feed' && this.selecting.get(c.id) === -2) this.selecting.delete(c.id);
     }
     for (const id of [...this.approaching.keys()]) if (!seenNow.has(id)) this.approaching.delete(id);
+    // the ants' side: which predator each surface worker perceives as its threat, and from how far
+    for (const a of surf) {
+      if (threatCode(a) !== THREAT.creature) continue;
+      let best: Creature | null = null, bd = Infinity;
+      for (const c of sim.stores.creatures.list) {
+        if (!c.alive || !this.kinds[c.kind]) continue;
+        const d = Math.hypot(c.pos.x - threatX(a), c.pos.z - threatZ(a));
+        if (d < bd) { bd = d; best = c; }
+      }
+      if (!best || bd > 50) continue;
+      const hidden = (best.flags & (CreatureFlag.HIDDEN | CreatureFlag.DORMANT)) !== 0;
+      const within = dist(best.pos, a.pos) <= detectRangeMm(sim, best, a);
+      bump(this.kinds[best.kind].antThreatS, hidden ? 'hidden or dormant' : best.kind === 'antlion' ? 'buried antlion' : within ? 'within GDD detection' : 'beyond GDD detection', dt);
+    }
     // antlion pits: ants on a live pit's slope
     for (const h of sim.state.ecology.hazards) {
       if (h.kind !== 'antlion-pit' || h.untilTick !== undefined) continue;
@@ -276,7 +312,16 @@ export class ThreatObserver {
         else this.onSlope.delete(key);
       }
     }
-    if (hourly) this.birdGate(workersAll);
+    if (sim.state.progression.alerts.some((al) => al.kind === 'predator-near')) this.alerts.predatorNearS += dt;
+    if (hourly) {
+      this.birdGate(workersAll);
+      const q = quietShare(sim);
+      if (q !== null) {
+        this.alerts.quietShareEnd = r2(q);
+        if (sim.state.tick - this.startTick >= 3 * TICKS_PER_DAY) this.alerts.quietShareMin = r2(Math.min(this.alerts.quietShareMin ?? 1, q));
+      }
+      if (entrance) for (const a of surf) this.rangeSamples.push(Math.hypot(a.pos.x - entrance.x, a.pos.z - entrance.z) / this.bu);
+    }
   }
 
   /** Why an hourly bird roll would not start (the gates of bird.ts birdHourly, read only). */
@@ -300,21 +345,22 @@ export class ThreatObserver {
     bump(this.bird.gate, bestN < BIRD_MIN_EXPOSED ? `< ${BIRD_MIN_EXPOSED} exposed ants within 25 BU` : 'eligible (roll)');
   }
 
-  result(): Pick<FunnelResult, 'kinds' | 'antlion' | 'bird' | 'deathsByCause' | 'workerDeathsPredatorByKind' | 'events'> {
+  result(): Pick<FunnelResult, 'kinds' | 'antlion' | 'bird' | 'deathsByCause' | 'workerDeathsPredatorByKind' | 'events' | 'alerts'> {
     for (const [k, kf] of Object.entries(this.kinds)) {
       kf.aliveAvg = r2(kf.aliveSampleS / Math.max(1, this.samples));
       kf.inSenseShare = r2((this.inSenseS[k] ?? 0) / Math.max(1e-9, kf.aliveSampleS));
       const ds = (this.nearest[k] ?? []).sort((a, b) => a - b);
       kf.nearestAntBuMedian = ds.length ? r2(ds[Math.floor(ds.length / 2)]) : null;
       kf.nearestAntBuMin = ds.length ? r2(ds[0]) : null;
-      for (const m of [kf.stateS, kf.senseFail, kf.approachBlock]) for (const key of Object.keys(m)) m[key] = Math.round(m[key]);
+      for (const m of [kf.stateS, kf.senseFail, kf.approachBlock, kf.antThreatS]) for (const key of Object.keys(m)) m[key] = Math.round(m[key]);
     }
     const ent = this.entrance();
     const pits = this.sim.state.ecology.hazards.filter((h) => h.kind === 'antlion-pit');
     this.antlion.pits = pits.length;
     if (ent && pits.length) this.antlion.pitToNestBuNearest = r2(Math.min(...pits.map((h) => Math.hypot(h.pos.x - ent.x, h.pos.z - ent.z))) / this.bu);
     this.antlion.antsOnSlopeS = Math.round(this.antlion.antsOnSlopeS);
-    return { kinds: this.kinds, antlion: this.antlion, bird: this.bird, deathsByCause: this.deathsByCause, workerDeathsPredatorByKind: this.workerDeathsPredatorByKind, events: this.events };
+    this.alerts.predatorNearS = Math.round(this.alerts.predatorNearS);
+    return { kinds: this.kinds, antlion: this.antlion, bird: this.bird, deathsByCause: this.deathsByCause, workerDeathsPredatorByKind: this.workerDeathsPredatorByKind, events: this.events, alerts: this.alerts };
   }
 }
 
@@ -346,9 +392,14 @@ export function runFunnel(o: Opts, snap: Uint8Array, log: (s: string) => void): 
   }
   const days = (sim.state.tick - startTick) / TICKS_PER_DAY;
   const outsideH = obs.outsideWorkerS / 25; // 1 clock hour = 25 s
+  const rs = [...obs.rangeSamples].sort((a, b) => a - b);
+  const pct = (q: number) => (rs.length ? Math.round(rs[Math.min(rs.length - 1, Math.floor(q * rs.length))]) : null);
   return {
     tool: 'threatFunnel', options: o, startGd: r2(startTick / TICKS_PER_DAY), days: r2(days),
-    colony: { workersStart: w0, workersEnd: workers(), outsideWorkerHours: Math.round(outsideH), outsideAvg: r2(obs.outsideWorkerS / Math.max(1, obs.samples)) },
+    colony: { workersStart: w0, workersEnd: workers(), outsideWorkerHours: Math.round(outsideH), outsideAvg: r2(obs.outsideWorkerS / Math.max(1, obs.samples)),
+      outsideByPhaseS: Object.fromEntries(Object.entries(obs.outsideByPhaseS).map(([k, v]) => [k, Math.round(v)])),
+      rangeBu: { p50: pct(0.5), p90: pct(0.9), max: rs.length ? Math.round(rs[rs.length - 1]) : null } },
+    territories: obs.territories.sort((a, b) => a.distBu - b.distBu),
     ...obs.result(), finalHash: stateHash(sim.state), wallS: Math.round((Date.now() - t0) / 100) / 10,
   };
 }

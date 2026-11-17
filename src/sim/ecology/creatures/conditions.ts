@@ -4,7 +4,9 @@
 import type { DayPhase, Season, Sim } from '@/sim/types';
 import { calendarNow } from '@/sim/environment/calendar';
 import { currentDefaultYearDoy } from '@/sim/time';
-import { CREATURE_LEVERS, type CreatureLevers } from '@/sim/balance/creatures';
+import type { Vec3 } from '@/core/math/vec3';
+import { CREATURE_LEVERS, ROVE_DAY_ZONES, type CreatureLevers } from '@/sim/balance/creatures';
+import { zoneAt } from '@/sim/world';
 import { difficultyValue } from '@/sim/balance/difficulty';
 import { ports } from './ports';
 
@@ -66,4 +68,9 @@ export function inDays(c: Conditions, range: readonly [number, number]): boolean
 /** Night-active visitors (centipede, rove beetle, millipede): out at night and twilight, never in winter. */
 export function nightActive(c: Conditions): boolean {
   return !c.winter && c.dark;
+}
+
+/** Rove beetles: night-active everywhere, and by day in leaf litter (§2.2a "dusk/night; day in litter"). */
+export function roveBeetleActive(sim: Sim, c: Conditions, pos: Vec3): boolean {
+  return nightActive(c) || (!c.winter && c.day && ROVE_DAY_ZONES.includes(zoneAt(sim.world, pos.x, pos.z)));
 }

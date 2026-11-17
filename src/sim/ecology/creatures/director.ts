@@ -16,7 +16,7 @@ import {
 import { CREATURE_DIRECTOR_EVERY } from '@/sim/balance';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { chance, cue, dist, inStateS, rng, setState, stop } from './common';
-import { conditions, nightActive, type Conditions } from './conditions';
+import { conditions, nightActive, roveBeetleActive, type Conditions } from './conditions';
 import { capOf } from './caps';
 import { spawnKind } from './spawn';
 import { aphidPredatorArrivals, countKind, trackAphids } from './aphidPredators';
@@ -29,6 +29,7 @@ import { updateDanger } from './danger';
 import { expireHazards } from './neutral';
 import { abandonOrphanPits, reconcileInvasion } from './lifecycle';
 import { nestAttackedAlerts, predatorNearAlerts } from './alerts';
+import { anchorDist2, colonyAnchor, ensureColonyRangeTerritories } from './colonyRange';
 
 const RUN_S = CREATURE_DIRECTOR_EVERY / TICKS_PER_SECOND;
 
@@ -71,10 +72,11 @@ export function isEngaged(sim: Sim, c: Creature): boolean {
   return false;
 }
 
-/** Is the kind out and about now (residents always; visitors at night or in rain). */
-function visitorActive(kind: CreatureKind, cond: Conditions): boolean {
+/** Is the kind out and about now at pos (residents always; visitors at night or in rain; rove beetles also by day in litter). */
+function visitorActive(sim: Sim, kind: CreatureKind, cond: Conditions, pos: Vec3): boolean {
   if (cond.winter) return false;
   if (kind === 'earthworm' || kind === 'snail') return cond.dark || cond.raining;
+  if (kind === 'rove-beetle') return roveBeetleActive(sim, cond, pos);
   return nightActive(cond);
 }
 
@@ -100,10 +102,46 @@ const INITIAL_STATE: Partial<Record<CreatureKind, string>> = {
   'rove-beetle': 'forage', millipede: 'wander', earthworm: 'surface', snail: 'graze',
 };
 
-/** Fills free territories (residents: after their respawn delay; visitors: while active). */
+/** Territory indices nearest the player colony first (ties: worldgen order), so capped places fill where its ants walk. */
+function territoryOrder(sim: Sim): number[] {
+  const terr = sim.state.ecology.director.territories;
+  const anchor = colonyAnchor(sim);
+  const order = terr.map((_, i) => i);
+  if (anchor) order.sort((a, b) => anchorDist2(anchor, terr[a].center) - anchorDist2(anchor, terr[b].center) || a - b);
+  return order;
+}
+
+/**
+ * A resident kind at its cap with a free territory nearer the colony than its farthest occupied one: that farthest
+ * resident (not engaged, out of the focus' sight) leaves, so the cap is spent where the colony's ants walk.
+ */
+function rebalanceResidents(sim: Sim, order: readonly number[]): void {
+  const terr = sim.state.ecology.director.territories;
+  for (const kind of RESIDENT_KINDS) {
+    if (kind === 'antlion' || countKind(sim, kind) < capOf(sim, kind)) continue;
+    let freeRank = -1, farRank = -1;
+    for (let r = 0; r < order.length; r++) {
+      const t = terr[order[r]];
+      if (t.kind !== kind) continue;
+      const occ = t.occupantId >= 0 ? sim.stores.creatures.get(t.occupantId) : undefined;
+      if (!occ) { if (freeRank < 0 && sim.state.tick >= t.vacantUntilTick) freeRank = r; }
+      else if (!isEngaged(sim, occ) && farFromFocus(sim, occ.pos)) farRank = r;
+    }
+    if (freeRank >= 0 && farRank > freeRank) {
+      const t = terr[order[farRank]];
+      despawnCreature(sim, t.occupantId, 'rebalanced');
+      t.occupantId = -1;
+      t.vacantUntilTick = -1;
+    }
+  }
+}
+
+/** Fills free territories (residents: after their respawn delay; visitors: while active), nearest the colony first. */
 function occupyTerritories(sim: Sim, cond: Conditions): void {
   const terr = sim.state.ecology.director.territories;
-  for (let i = 0; i < terr.length; i++) {
+  const order = territoryOrder(sim);
+  rebalanceResidents(sim, order);
+  for (const i of order) {
     const t = terr[i];
     const resident = RESIDENT_KINDS.includes(t.kind) && t.kind !== 'antlion';
     const visitor = VISITOR_KINDS.includes(t.kind);
@@ -111,7 +149,7 @@ function occupyTerritories(sim: Sim, cond: Conditions): void {
     if (t.occupantId >= 0 && sim.stores.creatures.has(t.occupantId)) continue;
     t.occupantId = -1;
     if (sim.state.tick < t.vacantUntilTick) continue;
-    if (visitor && (!visitorActive(t.kind, cond) || !chance(sim, VISITOR_SPAWN_P))) continue;
+    if (visitor && (!visitorActive(sim, t.kind, cond, t.center) || !chance(sim, VISITOR_SPAWN_P))) continue;
     if (countKind(sim, t.kind) >= capOf(sim, t.kind)) continue;
     if (!spawnPointOk(sim, t.center)) continue;
     const c = spawnKind(sim, t.kind, t.center, {
@@ -127,7 +165,7 @@ function despawnRules(sim: Sim, cond: Conditions): void {
   for (const c of sim.stores.creatures.list) {
     if (!c.alive) continue;
     if (c.lifeEndTick >= 0 && sim.state.tick >= c.lifeEndTick && !isEngaged(sim, c)) { despawnCreature(sim, c.id, 'lifetime'); continue; }
-    if ((c.kind === 'centipede' || c.kind === 'rove-beetle') && !visitorActive(c.kind, cond) && !isEngaged(sim, c)) {
+    if ((c.kind === 'centipede' || c.kind === 'rove-beetle') && !visitorActive(sim, c.kind, cond, c.pos) && !isEngaged(sim, c)) {
       burrowAtDawn(sim, c);
       continue;
     }
@@ -191,6 +229,7 @@ function ensureInit(sim: Sim): void {
 export function runDirector(sim: Sim): void {
   const cond = conditions(sim);
   ensureInit(sim);
+  if (cond.predatorMult > 0) ensureColonyRangeTerritories(sim);
   const dir = sim.state.ecology.director;
   const hourly = (dir.lastHourlyTick ?? -1) < 0 || sim.state.tick - (dir.lastHourlyTick ?? 0) >= DIRECTOR_HOURLY_TICKS;
   abandonOrphanPits(sim);

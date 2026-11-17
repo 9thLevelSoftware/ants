@@ -3,7 +3,7 @@
 //               retreat -> wait (venom; paralysed at health <= 0.3) -> collect -> carry to cover -> feed | flee
 //               (detected within 1 L by another ant, or bitten once).
 //  centipede:   prowl -> windup 0.5 s -> lunge -> hold (venom 1/s) -> feed 60 s | flee; nest raids (invasion.ts);
-//               burrow at dawn (director.ts). Rove beetles burrow too; both hunt only while night-active.
+//               burrow at dawn (director.ts). Rove beetles burrow too, except in leaf litter: §2.2a "day in litter".
 //  rove-beetle: forage (erratic) -> target a lone ant -> windup 0.4 s -> grab and hold 1.5/s -> feed | secretion
 //               (>= 2 biters within 2 s: ants within 1.5 L flee 3 s) -> flee.
 
@@ -17,7 +17,7 @@ import { TICKS_PER_SECOND } from '@/sim/time';
 import {
   antLen, awayPoint, dist, setState, stop, ticks, timerDone, walkTo, wander,
 } from './common';
-import { nightActive, type Conditions } from './conditions';
+import { nightActive, roveBeetleActive, type Conditions } from './conditions';
 import { beginWindup, ensureCombat, landStrike, seizeAnt } from './attack';
 import {
   currentVictim, findVictim, holdState, shouldFlee, startFeed, startFlee, startRecover, strikeDue,
@@ -217,8 +217,8 @@ export const roveBeetle: KindBehaviour = {
       case 'feed': case 'flee': case 'recover':
         if (timerDone(c)) setState(sim, c, 'forage');
         return;
-      default: { // forage: erratic dashes in its litter territory; targets ants only while night-active
-        if (nightActive(cond) && (sim.state.tick + c.id) % SCAN_EVERY === 0) {
+      default: { // forage: erratic dashes in its litter territory; targets ants while active (night; by day in litter)
+        if (roveBeetleActive(sim, cond, c.pos) && (sim.state.tick + c.id) % SCAN_EVERY === 0) {
           const v = findVictim(sim, c, { rangeMm: RB.senseMm, lone: true });
           if (v && v.speed <= windupMaxTargetSpeed('rove-beetle', cond.levers.telegraphMult)) {
             if (dist(v.pos, c.pos) <= (STRIKE_RANGE_MM['rove-beetle'] ?? 8)) { beginWindup(sim, c, v); setState(sim, c, 'windup'); return; }

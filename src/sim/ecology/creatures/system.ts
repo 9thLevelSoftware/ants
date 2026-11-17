@@ -14,6 +14,7 @@ import { preyCaught } from './spawners';
 import { finishInvasion } from './invasion';
 import { quietTick } from './threat';
 import { birdTick } from './bird';
+import { possessedDangerAlerts } from './alerts';
 import type { KindTable } from './kinds';
 import { jumpingSpider, wolfSpider } from './spiders';
 import { antSpider, centipede, roveBeetle } from './hunters';
@@ -78,4 +79,5 @@ export function runCreatures(sim: Sim): void {
     const c = list[i];
     if (c && c.alive) tickCreature(sim, c);
   }
+  possessedDangerAlerts(sim);
 }

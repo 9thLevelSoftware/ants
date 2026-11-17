@@ -1,0 +1,137 @@
+// Colony-range residents (threats-live). GDD 05 §2.7: ant predators occupy territories; GDD 04 §8.2 places them by
+// zone density with a small map cap (4 wolf spiders on a 4,000 BU map), so on the generated worlds the nearest
+// territory of every hunting predator lay 1,600-3,000 BU from the colony while its ants walk within ~200 BU: no
+// predator ever sensed an ant. The director therefore makes sure that each hunting kind with habitat inside the
+// colony's foraging ring (COLONY_RANGE_BU around the player's first entrance) has one territory there, and fills the
+// kind's capped places nearest the colony first (rebalance: the farthest unseen resident gives way). Caps (I5),
+// spawn distances and every strike number are unchanged. Antlions stay worldgen-only (§2.2b).
+//
+// How many kinds get a colony-range territory follows the Predators setting (COLONY_RANGE_P x Few 0.4 / Normal 1 /
+// Many 1.6), one fixed draw per world and kind.
+// Determinism: the siting draws from a stream forked from the world seed and the kind (not from rng.creatures), and
+// it only adds a territory when the ring has none, so a reload re-runs it without changing anything.
+
+import type { Vec3 } from '@/core/math/vec3';
+import type { CreatureKind, CreatureTerritory, Sim } from '@/sim/types';
+import { rngFork, rngRange } from '@/core/rng';
+import { zoneAt } from '@/sim/world';
+import { conditions } from './conditions';
+import {
+  ANT_SPIDER_REGIONS, COLONY_RANGE_BU, COLONY_RANGE_CANDIDATES, COLONY_RANGE_P, COLONY_RANGE_RADIUS_MM, COLONY_RANGE_ZONES,
+  JUMPING_SPIDER_SURFACE_MIN_MM,
+} from '@/sim/balance/creatures';
+
+/** Kinds the colony-range rule sites, in a fixed order. */
+export const COLONY_RANGE_KINDS = Object.keys(COLONY_RANGE_ZONES) as CreatureKind[];
+
+/**
+ * The player colony's first entrance (ground point), or null before the hand-over (the founding queen meets the
+ * opening's own threats, GDD 06 §5.6) or while the colony has no nest.
+ */
+export function colonyAnchor(sim: Sim): Vec3 | null {
+  const op = sim.state.player.opening;
+  if (op && !op.done && op.phase !== 'handover' && op.phase !== 'done') return null;
+  const col = sim.state.colonies.find((c) => c.alive && c.isPlayer);
+  const nest = col ? sim.state.nests.find((n) => n.alive && n.colony === col.id && n.entrances.length > 0) : undefined;
+  return nest ? nest.entrances[0].pos : null;
+}
+
+function inRing(sim: Sim, anchor: Vec3, p: Vec3): boolean {
+  const d = Math.hypot(p.x - anchor.x, p.z - anchor.z) / sim.world.bu;
+  return d >= COLONY_RANGE_BU[0] && d <= COLONY_RANGE_BU[1];
+}
+
+/** Height of a world object's tallest primitive above the ground at its position, mm. */
+function objectRise(sim: Sim, primStart: number, primCount: number, x: number, z: number): number {
+  let top = -Infinity;
+  for (let i = primStart; i < primStart + primCount; i++) {
+    const p = sim.world.prims[i];
+    if (p) top = Math.max(top, p.pos.y + p.size.y);
+  }
+  return top - sim.field.height(x, z);
+}
+
+/** A jumping-spider site: a world object with a vertical surface in the ring (deterministic pick). */
+function jumpingSpiderSite(sim: Sim, anchor: Vec3, pick: number): Vec3 | null {
+  const zones = COLONY_RANGE_ZONES['jumping-spider'] ?? [];
+  const sites: Vec3[] = [];
+  for (const ob of sim.world.objects) {
+    if (!inRing(sim, anchor, ob.pos) || !zones.includes(zoneAt(sim.world, ob.pos.x, ob.pos.z))) continue;
+    if (objectRise(sim, ob.primStart, ob.primCount, ob.pos.x, ob.pos.z) < JUMPING_SPIDER_SURFACE_MIN_MM) continue;
+    sites.push(ob.pos);
+  }
+  if (sites.length === 0) return null;
+  const s = sites[Math.min(sites.length - 1, Math.floor(pick * sites.length))];
+  return { x: s.x, y: sim.field.height(s.x, s.z), z: s.z };
+}
+
+/** A ground site in the kind's zones inside the ring, or null (no habitat there). */
+function groundSite(sim: Sim, anchor: Vec3, kind: CreatureKind, seedName: string): Vec3 | null {
+  const zones = COLONY_RANGE_ZONES[kind] ?? [];
+  const rng = rngFork(sim.state.config.world.seed, seedName);
+  const bu = sim.world.bu;
+  for (let i = 0; i < COLONY_RANGE_CANDIDATES; i++) {
+    const a = rngRange(rng, 0, 2 * Math.PI);
+    // uniform over the ring's area
+    const r0 = COLONY_RANGE_BU[0] * bu, r1 = COLONY_RANGE_BU[1] * bu;
+    const r = Math.sqrt(rngRange(rng, r0 * r0, r1 * r1));
+    const x = anchor.x + Math.cos(a) * r, z = anchor.z + Math.sin(a) * r;
+    if (x < 0 || z < 0 || x > sim.world.size || z > sim.world.size) continue;
+    if (!zones.includes(zoneAt(sim.world, x, z))) continue;
+    const y = sim.field.height(x, z);
+    if (sim.field.sample({ x, y: y + bu, z }) <= 0) continue; // under an object: not open ground
+    return { x, y, z };
+  }
+  return null;
+}
+
+/** This world draws a colony-range territory for `kind` at the current Predators setting (COLONY_RANGE_P). */
+export function colonyRangeDrawn(sim: Sim, kind: CreatureKind): boolean {
+  const p = Math.min(1, (COLONY_RANGE_P[kind] ?? 0) * conditions(sim).predatorMult);
+  return rngRange(rngFork(sim.state.config.world.seed, `creatures/colony-range/${kind}/p`), 0, 1) < p;
+}
+
+/** Where a colony-range territory of `kind` goes, or null when the ring holds no habitat for it. */
+export function colonyRangeSite(sim: Sim, anchor: Vec3, kind: CreatureKind): Vec3 | null {
+  if (kind === 'ant-spider' && !ANT_SPIDER_REGIONS.includes(sim.world.params.region)) return null;
+  const name = `creatures/colony-range/${kind}`;
+  if (kind === 'jumping-spider') return jumpingSpiderSite(sim, anchor, rngRange(rngFork(sim.state.config.world.seed, name), 0, 1));
+  return groundSite(sim, anchor, kind, name);
+}
+
+function hasTerritoryInRing(sim: Sim, anchor: Vec3, kind: CreatureKind, terr: readonly CreatureTerritory[]): boolean {
+  for (const t of terr) if (t.kind === kind && inRing(sim, anchor, t.center)) return true;
+  return false;
+}
+
+/** Runtime memo (not persisted): the anchor and the kinds already settled for it. */
+const settled = new WeakMap<Sim, { x: number; z: number; kinds: Set<CreatureKind> }>();
+
+/**
+ * Adds the missing colony-range territories (one per kind with habitat in the ring and none there yet). Returns the
+ * number added. Idempotent: a kind with a territory in the ring, or with no habitat, is left alone.
+ */
+export function ensureColonyRangeTerritories(sim: Sim): number {
+  const anchor = colonyAnchor(sim);
+  if (!anchor) return 0;
+  let memo = settled.get(sim);
+  if (!memo || memo.x !== anchor.x || memo.z !== anchor.z) { memo = { x: anchor.x, z: anchor.z, kinds: new Set() }; settled.set(sim, memo); }
+  const terr = sim.state.ecology.director.territories;
+  let added = 0;
+  for (const kind of COLONY_RANGE_KINDS) {
+    if (memo.kinds.has(kind)) continue;
+    memo.kinds.add(kind);
+    if (hasTerritoryInRing(sim, anchor, kind, terr) || !colonyRangeDrawn(sim, kind)) continue;
+    const at = colonyRangeSite(sim, anchor, kind);
+    if (!at) continue;
+    terr.push({ kind, center: at, radius: COLONY_RANGE_RADIUS_MM[kind] ?? 400, occupantId: -1, vacantUntilTick: -1 });
+    added++;
+  }
+  return added;
+}
+
+/** Squared horizontal distance of a territory from the colony anchor (Infinity without one). */
+export function anchorDist2(anchor: Vec3 | null, p: Vec3): number {
+  if (!anchor) return Infinity;
+  return (p.x - anchor.x) ** 2 + (p.z - anchor.z) ** 2;
+}

@@ -77,3 +77,4 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 09:36 fixed photo-mode dotted queen (capsule off while possession rim hidden; lookFixes.test.ts 5/5). Queue: photo rerun to confirm.
 - 09:42 panelsB FAIL again at the View tap (real-ms tap threshold VIEW_TAP_MS 450 vs page frame time under load 9-10): not measured under load. a11yA running.
 - 10:35 a11yA: B passes now; C fails (hints silent: foundingInProgress true 2 game days after the cheat hand-over, nest record never established). Next: stage2 alone.
+- 11:34 stage2 running (sections creatures..rain OK so far).

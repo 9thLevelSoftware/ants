@@ -3,13 +3,14 @@
 // combat modules'; these queries give them what GDD 05 §2.4 says an ant can perceive.
 
 import type { Vec3 } from '@/core/math/vec3';
-import type { Creature, CreatureKind, Hazard, Sim } from '@/sim/types';
+import type { Ant, Creature, CreatureKind, Hazard, Sim } from '@/sim/types';
 import { colonySlotBit } from '@/sim/entities';
 import {
   BIRD_RESPONSE_RADIUS_BU, CREATURE_STATS, MILLIPEDE_REPEL_S, ROVE_SECRETION_FLEE_S, ROVE_SECRETION_RADIUS_L, WOODLOUSE_ROLLED_ARMOUR,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { CreatureFlag, dist, statsOf } from './common';
+import { detectRangeMm } from './attack';
 
 export interface ThreatInfo {
   /** Creature id; -1 for the bird event. */
@@ -123,4 +124,16 @@ export function creatureArmour(c: Creature): number {
 /** Pull of a creature (combat's lock / pin rules, GDD 05 §4.3). */
 export function creaturePull(c: Creature): number {
   return statsOf(c).pull;
+}
+
+/**
+ * Does this ant perceive this predator now (GDD 05 §2.4 "AI avoidance" column)? Within 4 L x the predator's stealth
+ * in its current state (jumping spider stalking 0.5, wolf spider 0.75 / ambush 0.4, ant-spider 1 L, centipede and
+ * rove beetle 0.8); never while it is hidden or dormant, and never a buried antlion (known pits are avoided by
+ * steering through knownHazardsNear, not fled from). The ant side's flee trigger asks this.
+ */
+export function predatorPerceivedBy(sim: Sim, c: Creature, ant: Ant): boolean {
+  if (!c.alive || (c.flags & (CreatureFlag.HIDDEN | CreatureFlag.DORMANT)) !== 0) return false;
+  if (!ANT_PREDATORS.has(c.kind) || c.kind === 'antlion') return false;
+  return dist(c.pos, ant.pos) <= detectRangeMm(sim, c, ant);
 }

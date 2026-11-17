@@ -16,7 +16,7 @@ import { ANTLION_PIT_DEPTH_PER_R, ANTLION_PIT_RADIUS_MM } from '@/sim/balance/cr
 import type { DeadPrey } from './prey';
 import type { HitKind } from './hits';
 
-export { threatsNear, preyNear, knownHazardsNear, creatureArmour, creaturePull, type ThreatInfo, type PreyInfo } from './queries';
+export { threatsNear, preyNear, knownHazardsNear, creatureArmour, creaturePull, predatorPerceivedBy, type ThreatInfo, type PreyInfo } from './queries';
 export { addStruggleInput, isSeized } from './attack';
 export { requestMajorThreat, endMajorThreat, canStartMajorThreat, quietShare, quietTracker } from './threat';
 export { dangerAt, addDanger } from './danger';

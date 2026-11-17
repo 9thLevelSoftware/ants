@@ -214,6 +214,8 @@ export const WOLF_AMBUSH_CHANCE = 0.5;
 export const WOLF_FREEZE_MAX_S = 4;
 /** Jumping spider: active in daylight at or above this air temperature, C (§2.2a "day, >= 15 C"). */
 export const JUMPING_SPIDER_MIN_C = 15;
+/** Rove beetles also hunt by day in leaf litter (§2.2a active "dusk/night; day in litter"): these zones. */
+export const ROVE_DAY_ZONES: readonly ZoneType[] = ['forest', 'garden-bed'];
 /** Ant-spider (§2.2b, §2.4): venom 6 over 15 s, paralysed 60 s at health <= 0.3, detection 1 L, retreat 4 L. */
 export const ANT_SPIDER_VENOM_TOTAL = 6;
 export const ANT_SPIDER_VENOM_S = 15;
@@ -468,3 +470,38 @@ export const AMBIENT_CRICKET_P = 0.05;
 export const AMBIENT_BIRD_P = 0.03;
 /** Earthworms, snails and woodlice active (out) at night or in rain; day phases treated as dusk for activity. */
 export const DUSK_PHASES: readonly string[] = ['dusk', 'dawn'];
+
+// ---- colony-range residents (threats-live; GDD 05 §2.7 residents, GDD 04 §8.2 habitats) ----
+/**
+ * Ring around the player colony's first entrance (BU of the played species: the colony's foraging range, where its
+ * ants walk) in which the director sites one territory for each hunting ant predator that has habitat there and no
+ * territory in it yet. Measured range of 12-16 worker Lasius colonies on the round-3 hand-overs: median 54 BU,
+ * 90th percentile 176 BU from the entrance; worldgen's territories were 1,600-3,000 BU away (report).
+ */
+export const COLONY_RANGE_BU: [number, number] = [60, 170];
+/**
+ * Chance that a hunting kind with habitat in the ring gets its colony-range territory, at the Normal Predators
+ * setting (x the setting's multiplier: Few 0.4, Many 1.6, capped at 1). One draw per world seed and kind, so the
+ * sited kinds of Few are a subset of Normal's, and Normal's of Many's. Calibrated in the threats-live report.
+ */
+export const COLONY_RANGE_P: Partial<Record<CreatureKind, number>> = {
+  'wolf-spider': 1, 'jumping-spider': 1, 'ant-spider': 1, centipede: 1, 'rove-beetle': 1,
+};
+/** Candidate points examined per kind when siting (deterministic stream per world seed and kind). */
+export const COLONY_RANGE_CANDIDATES = 64;
+/** Kinds sited in the colony range and their zones (GDD 04 §8.2 / GDD 05 §2.2a). Antlions stay worldgen-only. */
+export const COLONY_RANGE_ZONES: Partial<Record<CreatureKind, readonly ZoneType[]>> = {
+  'wolf-spider': ['lawn', 'forest', 'garden-bed'],
+  'jumping-spider': ['lawn', 'garden-bed', 'forest', 'pavement', 'sand', 'rubber'],
+  'ant-spider': ['sand', 'lawn', 'pavement', 'garden-bed'],
+  centipede: ['forest', 'garden-bed'],
+  'rove-beetle': ['forest', 'garden-bed', 'lawn'],
+};
+/** Ant-spiders only in these regions (GDD 05 §2.2a "temperate and Mediterranean localities"). */
+export const ANT_SPIDER_REGIONS: readonly string[] = ['temperate-eu', 'mediterranean'];
+/** Territory radius of a colony-range territory, mm (absolute, as GDD 04 §8.2's home ranges). */
+export const COLONY_RANGE_RADIUS_MM: Partial<Record<CreatureKind, number>> = {
+  'wolf-spider': WOLF_HOME_RADIUS_MM, 'jumping-spider': 400, 'ant-spider': 400, centipede: 400, 'rove-beetle': 300,
+};
+/** A jumping-spider site is a world object rising at least this high above the ground (wall, fence, post, stem), mm. */
+export const JUMPING_SPIDER_SURFACE_MIN_MM = 40;
