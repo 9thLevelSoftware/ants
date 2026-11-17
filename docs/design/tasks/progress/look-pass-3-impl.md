@@ -18,3 +18,5 @@ test-output/look3/
   * New Game: src/ui/screens/newgame/presetRows.ts (+NewGame.tsx PresetDetails, unwired rules disabled 'Not in this build', screens.css), test newgame.test.ts.
   * season strings: species.ts (Lasius card 'spring', foundingSeasonOf() from sim data startDoy), Loading.tsx, NewGame.tsx, content/text/alerts.ts sample. LIST for report: species card, loading summary, alerts sample; sim/species/data/lasius-niger.ts foundingSeason 'summer' (sim, not mine); game/title/titleWorld.ts vignette 'summer day 3' (backdrop only).
 - BEFORE night shots running (test-output/look3/before, log before-night.log): ~2 min per shot.
+- 18:59 session 2 (restarted 18:55): re-read spec+gate report; before night shots exist only for night:surface and night:observerlow (high) in test-output/look3/before; running item-6 unit tests now
+- 19:00 item6 unit tests green + typecheck clean (fixed species.ts castes comment bug). Running 'before' for remaining night lights in bg (before-night2.log). Plan: tune via runtime patch (import('/src/render/world/lighting/constants.ts') in page, mutate NIGHT_LOOK) -> add LOOK3_EVAL/variants to look3.mjs

@@ -36,3 +36,17 @@ Started 18:15 UTC 2026-11-17.
   Early leads: P stores ~0 on 11-13 of ~14 days in 3 of 4 runs; old-age 18 of 21 adult deaths; egg:flooding 20 (seed 1).
 - Plan after sweep: table + bars, then 5 long runs (R22 year two) with the frozen tree + viab/cache (reuses the sweep
   hand-overs): `PAR=2 UNTIL_DAY=32 /home/user/frozen-sweep4/tools/sim/longrun-life.sh <abs>/round-4/sweep-long <abs>/viab/cache "<a:s ...>"`.
+- 18:59 container restart at ~18:55 (pp #2, sg #2 cut off). Resumed the sweep with the same command (frozen tree hash
+  still 8338ddfe; 6 runs kept: we1 sg1 pp1 cpv1 kd1 we2).
+- 19:15 sweep resumed (pp #2, sg #2 running). Review so far (this session): E2, H3, L1, W1 read, no new defect; checked
+  that heatedNest's state write (dropOldSamples) has sim-only callers (system.ts). Live sim tree = frozen tree + the two
+  verify tests (diff -rq). Open: H4 trigger end-to-end test (coverage gap), leads from the sweep.
+- 19:10 new verify test `src/sim/colony/allocation/hygieneWiring.verify.test.ts` (H4 trigger through allocateColony on a
+  real nest, 3 workers, ΣD 4.8 > 3): GREEN; red with broodAmongWaste unwired (scratch copy scratchpad/rev): closes
+  the coverage gap noted at 18:25. Machine load ~8 (other engineers).
+- 19:09 sweep 8/15 (sg #2, pp #2 NO). tsc clean 19:05 (incl. new verify test); colony/allocation folder 4/4 green.
+  Leads so far: P intake 0.005-0.13 (P stores 0 from day ~3; "starvation stage worse than lean" fails 5 of 6 first runs,
+  P-driven: kd #1 C 24 in store, stage rationing); old age 29 of 39 adult deaths; egg:flooding 20 (sg #1 11, pp #1 9);
+  crushed 7 (kd #1 4 on day 5); we #2 hygiene 12 in a royal-only nest with a hauler (estimate: ~1.3 spoiled-food
+  items/gd from the P pile in the royal chamber, pre-existing: storeChamber = chs[0] before L1 too).
+  Plan after the sweep: table, bars, then 5 long runs (frozen tree, viab/cache, lowest viable seed per archetype).

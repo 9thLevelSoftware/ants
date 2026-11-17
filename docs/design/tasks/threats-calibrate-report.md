@@ -33,12 +33,13 @@ Tools (observers only, no rule change; all in `tools/sim/`):
 Residents of worldgen territories, the 40 BU nest exclusion until 5 workers (`predator.ts canPrey`) and the bird's 30
 workers (`bird.ts`) are unchanged. Everything is a function of saved state (no runtime memo).
 
-Tests (`src/sim/ecology/creatures/predationRamp.test.ts`, 13, generated woodland-edge #1): ramp per preset (0 below the
+Tests (`src/sim/ecology/creatures/predationRamp.test.ts`, 15, generated woodland-edge #1): ramp per preset (0 below the
 lower bound, 1 at the upper, linear between); the ruling's numbers and the card text; per preset nothing drawn at the
 lower bound, exactly the un-ramped draw at the upper, a subset between; a 10-worker Naturalist colony gets no
 colony-range territory, a 40-worker one every kind with habitat; growing past the draw sites at the next hourly run;
-shrinking to 5 workers keeps every resident for just under 1 gd and none after it, the suspended territories stay
-empty, regrowth brings them back; a dip shorter than 1 gd keeps the same residents; save -> load while residents are
+per preset, a colony at the upper bound shrunk below the lower one (Gentle 15, Naturalist 5, Harsh 0 workers) keeps
+every resident for just under 1 gd and none after it, the suspended territories stay empty, regrowth brings them back
+(Gentle with a custom Predators Normal, because Few draws no kind on this world; the ramp stays Gentle's); a dip shorter than 1 gd keeps the same residents; save -> load while residents are
 due to leave equals the uninterrupted run (`stateHash`); worldgen territories never count, unflagged old ones are
 recognised. Tests whose subject is the un-ramped siting got 40 workers in their set-up (`colonyRange.test.ts`,
 `colonySites.test.ts`, `threatsLive.verify.test.ts`; assertions unchanged).

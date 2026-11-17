@@ -139,14 +139,20 @@ describe('colony-range siting x ramp (generated woodland-edge #1)', () => {
     expect(ensureColonyRangeTerritories(sim)).toBeGreaterThan(0);
   });
 
-  it('a colony that shrinks below the draw loses its colony-range residents after SETTING_DESPAWN_GD, not at once', () => {
+  it.each(PRESETS)('%s: a colony that shrinks below the lower bound loses its colony-range residents after SETTING_DESPAWN_GD, not at once', (id) => {
     const sim = fresh();
-    setWorkers(sim, 40);
+    setPreset(sim, id);
+    // Gentle's Few setting (x0.4) draws no kind on this world; a custom Normal setting changes the siting chance only,
+    // the ramp stays Gentle's (20 -> 60), which is what this case is about.
+    if (id === 'gentle') { sim.state.config.difficulty.custom = { predators: 'normal' }; sim.state.config.rules.predators = 'normal'; }
+    const [lo, hi] = PREDATION_RAMP_WORKERS[id];
+    setWorkers(sim, hi);
     directorRuns(sim, 8);
     const before = rangeResidents(sim);
     const residentsBefore = rangeResidents(sim, true).size;
     expect(residentsBefore).toBeGreaterThan(0);
-    setWorkers(sim, 5);
+    setWorkers(sim, Math.max(0, lo - 5)); // Harsh: 0 workers (queen only) is its lower bound
+    expect(predationRamp(sim, playerWorkers(sim))).toBe(0);
     const gdRuns = Math.round((SETTING_DESPAWN_GD * TICKS_PER_DAY) / 50);
     directorRuns(sim, gdRuns - 4); // just under the delay: all still there
     expect([...rangeResidents(sim).entries()]).toEqual([...before.entries()]);
@@ -156,7 +162,7 @@ describe('colony-range siting x ramp (generated woodland-edge #1)', () => {
     directorRuns(sim, 20);
     expect(rangeResidents(sim).size).toBe(0);
     // grown again: the residents come back
-    setWorkers(sim, 40);
+    setWorkers(sim, hi);
     directorRuns(sim, 8);
     expect(rangeResidents(sim, true).size).toBe(residentsBefore);
   });

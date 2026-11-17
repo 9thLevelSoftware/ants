@@ -58,3 +58,21 @@ Started 2026-11-17 ~17:00 UTC. No earlier progress file existed.
   Colony-range territories = state territories with index >= world.placements.territories.length (worldgen ones keep
   their indices; no type change). Not drawn any more -> no re-occupation; resident leaves after SETTING_DESPAWN_GD
   (creature bb marker), not at once.
+
+## Session 2 (started 18:58 UTC after the 18:55 restart)
+- threatBatch.ts now resumes: a run whose funnel-*.json exists is read, not re-run (copied into both scratch trees).
+- 18:59 relaunched ramp-w60-gentle (woodland-edge r1,r2 kept) via `$SCRATCH/chain2.sh` (log `$SCRATCH/chain2.log`).
+  Next, one at a time: ramp-w60-harsh, ramp-w60-off, base-found (base-found optional: stop-gap tree to winter).
+- 19:03 typecheck whole tree 0 errors; creatures folder 27 files, 187 passed / 2 expected fail / 6 skipped.
+- predationRamp.test.ts: shrink test is now per preset (it.each; Gentle with custom predators normal since Few draws
+  nothing on woodland-edge #1): 15 tests green.
+- Queued (detached): chain3 = ramp-w60-harsh then ramp-w60-off (wait on gentle DONE); chain4 = ramp-w60-nat-check
+  (tree-ramp Naturalist w60 woodland-edge + car-park-verge r1, to show equal to base-w60) after off.
+- After those: perf before/after ($SCRATCH/perf.sh tree-base before, main tree after) — nothing else running then.
+- base-found (no-ramp founding year) optional, last.
+- 19:12 chain5 (detached): waits for ramp-w60-nat-check DONE, then perf (perf.sh tree-base `before`, tree-ramp `after`
+  -> test-output/threats-calibrate/perf.txt, then perf.DONE; if cut off mid-way delete perf.txt and rerun), then
+  base-found (tree-base, r1, --until-winter 1; the earlier chain had forgotten --until-winter).
+- Summary helper: `python3 $SCRATCH/summ.py DIR...` (totals per batch dir: owh, deaths, rate, strikes/kills per family).
+- Report placeholders left: BEFORE_RAMP (§2.1), PRESETS_TABLE, GENTLE_RATE/HARSH_RATE (§2.2/§6), PERF_TABLE (§5),
+  ACCEPTANCE. At the end: delete $SCRATCH/tree-base and tree-ramp (spec: delete scratch trees).

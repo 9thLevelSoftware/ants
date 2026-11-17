@@ -9,10 +9,15 @@
 //   LOOK3_SHOTS=night:surface:high,...   list of light:view:quality (default: the 'night' set)
 //   LOOK3_SET=night|ants|...        a named list (see SETS), used when LOOK3_SHOTS is not given
 //   LOOK3_ARCH / LOOK3_SEED         start a game of that archetype first (default: the page's autostart game, seed 1)
+//   LOOK3_VARIANTS=file.json        [{ "name": "v1", "eval": "const c = await import('/src/render/world/lighting/constants.ts'); c.NIGHT_LOOK.targetE = 1.6;" }, ...]
+//                                   every shot is taken once per variant (file name <tag>-<name>-<light>-<view>-<quality>); the eval runs
+//                                   in the page before the variant's shots, so a look can be tuned on one staged game (modules are the
+//                                   live ones: the dev server hands out one instance per file). Each variant must set every value it
+//                                   touches (nothing is reset between variants).
 // light: night | night-overcast | night-rain | dusk | dawn | noon | overcast | rain
 // view:  surface | nest | observerlow | observer | gyne (a gyne and a male beside the possessed worker) | slice | edge
 // Every picture is a plate (UI hidden); luminance numbers (look2-measure) are logged per shot and written to <tag>-shots.json.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { measureInPage } from './lib/look2-measure.mjs';
 import { stage, at, SUMMER_DAY } from './lib/look2-stage.mjs';
 
@@ -47,7 +52,11 @@ export default async ({ page, log, out: outDir }) => {
   const S = await stage(page, log, { arch: env.LOOK3_ARCH || null, seed: Number(env.LOOK3_SEED ?? 1) });
   const { render, statsNow, surfaceWorker, nestWorker, observerAt, sliceAt, edgeAt, groundPoints, bu } = S;
   const shots = [];
+  const variants = env.LOOK3_VARIANTS ? JSON.parse(readFileSync(env.LOOK3_VARIANTS, 'utf8')) : [{ name: '', eval: '' }];
   let curQ = null, curL = null;
+  for (const variant of variants) {
+  if (variant.eval) await page.evaluate(async (src) => { await new (Object.getPrototypeOf(async function () {}).constructor)(src)(); }, variant.eval);
+  const vtag = variant.name ? `${tag}-${variant.name}` : tag;
   for (const spec of list) {
     const [lname, view, q = 'high'] = spec.split(':');
     const L = LIGHTS[lname];
@@ -84,7 +93,7 @@ export default async ({ page, log, out: outDir }) => {
     else throw new Error(`look3: unknown view ${view}`);
     await g(() => window.__game.step(1));
     await render(0.5);
-    const name = `${tag}-${lname}-${view}-${q}`;
+    const name = `${vtag}-${lname}-${view}-${q}`;
     const gp = view === 'surface' || view === 'gyne' ? await groundPoints() : { subject: null, points: [], ring: [] };
     const m = await page.evaluate(async ({ fn, args }) => {
       window.__game.renderFrame({ settle: 0.5 });
@@ -92,9 +101,10 @@ export default async ({ page, log, out: outDir }) => {
     }, { fn: measureInPage.toString(), args: { points: gp.points, ring: gp.ring, subject: gp.subject } });
     await plate(name);
     const st = await statsNow();
-    shots.push({ file: name, light: lname, view, quality: q, drawCalls: st.drawCalls, triangles: st.triangles, frameMs: st.frameMs, measure: m });
+    shots.push({ file: name, variant: variant.name, light: lname, view, quality: q, drawCalls: st.drawCalls, triangles: st.triangles, frameMs: st.frameMs, measure: m });
     log(`${name}: draws=${st.drawCalls} tris=${st.triangles} ground=${m.ground.median?.toFixed(3)} (n=${m.ground.n}) frame=${m.frame.median?.toFixed(3)}${m.contrast != null ? ` antContrast=${m.contrast.toFixed(2)} separable=${m.separable?.toFixed(2)}` : ''}`);
     writeFileSync(`${outDir}/${tag}-shots.json`, JSON.stringify(shots));
+  }
   }
   return { tag, n: shots.length };
 };
