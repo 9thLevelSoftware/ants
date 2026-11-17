@@ -83,8 +83,16 @@ const VERIFY_SCHEMA = {
   required: ['verdict', 'checksRun', 'findings'],
 }
 
+
+const progress = (t, role) => `
+
+PROGRESS FILE (binding). This machine restarts without warning (three times in the last three hours) and a restart ends your session; files on disk survive. Your progress file is ${ROOT}/docs/design/tasks/progress/${t.key}-${role}.md.
+- If it exists, an earlier engineer in your exact role was cut off: read it first, check the tree against it ("git status", the files it names), and CONTINUE from where it stops instead of starting again; do not redo finished work.
+- Keep it current: update it at least every 20 minutes and always before a command that runs longer than 5 minutes. Short and factual: done (with file names and test names), in progress right now, remaining in order, findings and decisions so far, evidence paths, anything the next engineer must not repeat.
+- Before starting a heavy process run "free -g"; wait if less than 4 GB is available.`
+
 const implPrompt = (t) => COMMON + `YOUR TASK SPEC: ${ROOT}/${t.spec}
-Read it now and implement it completely. Work through its acceptance criteria one by one and report each honestly (met / partial / not-met with evidence).` + (t.note ? '\n\nNOTE FROM THE INTEGRATOR: ' + t.note : '')
+Read it now and implement it completely. Work through its acceptance criteria one by one and report each honestly (met / partial / not-met with evidence).` + (t.note ? '\n\nNOTE FROM THE INTEGRATOR: ' + t.note : '') + progress(t, 'impl')
 
 const verifyPrompt = (t, impl) => COMMON + `YOU ARE NOT THE IMPLEMENTER. You are an independent, adversarial reviewer and tester.
 Another engineer has just implemented the task spec ${ROOT}/${t.spec}. Their report (treat every claim as unproven):
@@ -96,14 +104,14 @@ Your job is to find what is wrong or missing before it costs the team time later
 3. Check every acceptance criterion against the code and by running it. Hunt for: spec violations, logic and numerical bugs, edge cases (zero, negative, NaN, empty, huge), nondeterminism, layering violations (three/DOM/Math.random in sim code), state that is not plain serialisable data, magic numbers that belong in balance files, performance traps in hot paths (per-tick allocations, O(n^2) scans), missing or weak tests, files touched outside the owned paths.
 4. Write additional tests that try to break the implementation, inside the task's owned paths (name them *.verify.test.ts). Keep tests that pass as regression tests; a failing test that demonstrates a real bug stays in place for the fixer.
 5. Do NOT modify production code. Report findings with severity (blocker = wrong/unsafe to build on; major = spec criterion not met or real bug; minor = quality), a precise location and a reproduction.
-Be concrete and fair: no style nitpicks, no speculative findings without evidence. If it is good, say pass.`
+Be concrete and fair: no style nitpicks, no speculative findings without evidence. If it is good, say pass.` + progress(t, 'review')
 
 const fixPrompt = (t, impl, verify) => COMMON + `You are the engineer responsible for the task spec ${ROOT}/${t.spec} (already implemented; summary: ${String(impl && impl.summary).slice(0, 1500)}).
 An independent reviewer reported these findings:
 ${JSON.stringify(verify.findings).slice(0, 80000)}
 Tests the reviewer added: ${JSON.stringify(verify.testsAdded || [])}
 
-For each finding: reproduce it; if it is real, fix it properly (root cause, not the symptom) and make sure a test covers it; if it is not real, say why with evidence. Then re-run typecheck and all tests in your paths${t.visual ? ' and the harness screenshots (look at them)' : ''}. Do not weaken or delete the reviewer's tests unless a test itself is wrong (explain). Report what you fixed and anything still open in notDone.`
+For each finding: reproduce it; if it is real, fix it properly (root cause, not the symptom) and make sure a test covers it; if it is not real, say why with evidence. Then re-run typecheck and all tests in your paths${t.visual ? ' and the harness screenshots (look at them)' : ''}. Do not weaken or delete the reviewer's tests unless a test itself is wrong (explain). Report what you fixed and anything still open in notDone.` + progress(t, 'fix')
 
 const results = await pipeline(
   tasks,

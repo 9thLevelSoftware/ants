@@ -533,3 +533,19 @@ Restarts at ≈ 23:00 and 01:24, both with 5–6 agents and life runs/browsers g
   - `wnk2w0kbw` / wf_3142d9de-859: colony-life from round 1 (`wf-life.js`, args `{maxRounds:4, firstRound:1, model:'opus', effort:'high', note:…}`).
   - `wb9nmew2q` / wf_2a92d6dd-89f: species-carpenter, species-harvester (Opus, continue from partial work), input-gamepad-a11y fix round (Sonnet, `startAt:'fix'`, review file `reviews/input-gamepad-a11y.json`).
 - Both workflow scripts take an integrator note now (`t.note` / `args.note`); copies in `docs/design/workflows/`.
+
+## Nov 17 02:05 UTC — third container restart (01:53); restart-proofing
+
+Three restarts (≈ 23:00, 01:24, 01:53). No sign of memory exhaustion; the kernel build changed across the last one (fc-v509 → fc-v553), so the host is being redeployed. Outside our control; work on disk has survived each time.
+
+Restart-proofing:
+- Both workflow scripts now give every agent a **progress file** rule: `docs/design/tasks/progress/<key>-<role>.md` (for colony-life: the ledger's round section, and `progress/colony-life-sweep-N.md`). A successor reads it and continues instead of starting again.
+- A background loop commits and pushes a snapshot every 10 minutes (re-create it after a restart; it dies with the container).
+- Per workflow only 2 agents run at once (CPU count − 2), so separate workflows are launched for work that should run side by side.
+
+colony-life round 1 so far (ledger `docs/design/tasks/colony-life-ledger.md`): entrance stuck `sealing` after founding-plug remnants (fixed, F1); waste never hauled because every waste item had bulk 1.0 > a nanitic's carry cap 0.75 (fixed, F2: hygiene losses 7 of 20 brood → 0); brood stranded outside a chamber got no job (fixed, F3). woodland-edge #1 stores 0.67 → 10.7 gd; kitchen-door #3 turns viable. Neither run ecloses a worker yet.
+
+Relaunched (after any restart: same script and args, new run; agents pick up from progress files):
+- `wji1tefky` / wf_227aebec-eb4: colony-life, `{maxRounds:4, firstRound:1, model:'opus', effort:'high', note: finish round 1}`.
+- `whq2tpy3r` / wf_e200cf00-636: species-carpenter, species-harvester (Opus).
+- `wdfxq8s95` / wf_91d8e4bc-a70: input-gamepad-a11y fix (Sonnet, `startAt:'fix'`).

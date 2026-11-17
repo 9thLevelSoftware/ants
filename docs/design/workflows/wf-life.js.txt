@@ -96,9 +96,16 @@ const SWEEP_SCHEMA = {
   required: ['viabilityMet', 'growthMet', 'tablePath', 'numbers', 'findings', 'checksRun'],
 }
 
+
+const progress = (n, role) => `
+
+PROGRESS (binding). This machine restarts without warning (three times in the last three hours) and a restart ends your session; files on disk survive.
+- ${role === 'round' ? 'The ledger section "## Round ' + n + '" is your progress record: if it already exists, an earlier engineer of this round was cut off — read it, check the tree against it ("git status"), and CONTINUE from where it stops; do not redo finished work or re-measure what it already records. Keep it current as you go (at least every 20 minutes and before any command longer than 5 minutes), including what you are doing right now and what remains.' : 'Your progress file is ' + ROOT + '/docs/design/tasks/progress/colony-life-sweep-' + n + '.md: if it exists, an earlier engineer in your role was cut off — read it and CONTINUE; finished runs under test-output/colony-life/round-' + n + '/sweep/ made on the same tree (compare their time with the newest file under src/sim and src/worldgen) are kept, not re-run. Keep the file current (at least every 20 minutes): runs finished, review findings so far, what remains.'}
+- Before starting a heavy process run "free -g"; wait if less than 4 GB is available.`
+
 const roundPrompt = (n, prev) => COMMON + `YOU ARE THE ENGINEER OF ROUND ${n} of the colony-life task.
 ${prev ? 'The independent sweep and review after the previous round reported (also recorded in the ledger):\n' + JSON.stringify(prev).slice(0, 30000) + '\nFix every blocker and major finding in it first (reproduce each; if one is not real, say why with evidence), then continue with the method.' : 'No independent sweep has been run for this task yet: your baseline is the sweep table named in the spec.'}
-Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.` + (args && args.note && n === FIRST ? '\n\nNOTE FROM THE INTEGRATOR: ' + args.note : '')
+Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.` + (args && args.note && n === FIRST ? '\n\nNOTE FROM THE INTEGRATOR: ' + args.note : '') + progress(n, 'round')
 
 const sweepPrompt = (n, round) => COMMON + `YOU ARE NOT THE ENGINEER OF THE ROUND. You are the independent engineer who measures and reviews round ${n} of the colony-life task.
 The round's engineer reported (treat every claim as unproven):
@@ -109,7 +116,7 @@ Do this, in order:
 2. Compute both bars from the table by script, not by eye: the viability bar and the growth bar R19 exactly as written in the spec. Compare every run with the previous sweep table (the ledger names it; the first is test-output/econ-growth-review/sweep9-table.md) and list regressions with numbers.
 3. While the sweep runs (it takes over an hour), review the round's code changes ("git diff" against the last commit, plus what the ledger's round section lists): does each fix address its cause rather than a symptom; is anything forbidden by the spec's "What is not allowed" (lifespans, needs, free food, weakened bars or ruling tests, special cases for a seed or archetype); determinism (persisted triggers, memo keys, no wall clock); per-tick cost traps; tests that would not fail without the fix. Run typecheck and the tests of the folders the round touched, folder by folder. Write *.verify.test.ts tests that try to break the fixes; a failing test that shows a real bug stays in place. Do NOT modify production code.
 4. Append "### Independent sweep after round ${n}" to the ledger ${LEDGER}: the table path, the bar numbers, regressions, findings, and the leads you see in the failing runs' own diagnostics for the next round (most costly first).
-Be concrete and fair: no style nitpicks, no speculative findings without evidence.`
+Be concrete and fair: no style nitpicks, no speculative findings without evidence.` + progress(n, 'sweep')
 
 const history = []
 let prev = null
