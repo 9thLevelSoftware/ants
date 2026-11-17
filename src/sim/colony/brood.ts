@@ -16,6 +16,7 @@ import {
   NANITIC_SCALE, PRIORITY_PROGRESS_BONUS, PROTEIN_PRIORITY_DAYS_P, UNTENDED_GD, WASTE_BULK,
 } from '@/sim/balance';
 import { killBrood, removeEclosedBrood, spawnAnt, spawnItem } from '@/sim/entities';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { currentDefaultYearDoy, currentSeason, daysToTicks, TICKS_PER_DAY } from '@/sim/time';
 import { accAdd, coreOf } from './core';
 import { chamberById, cycleWaste, isWorkerCaste } from './census';
@@ -305,7 +306,7 @@ export function broodStep(sim: Sim, b: Brood, col: Colony, core: ColonyCoreState
   hazardScratch.clear();
   extraHazards(sim, col, b, tempC, hazardScratch);
   // Diapause larvae do not progress: their base hazard runs per gd (as at r = 1), x _DIAPAUSE_HAZARD_MULT.
-  const perDu = -Math.log(_BROOD_SURVIVAL[b.stage]) / du;
+  const perDu = -Math.log(_BROOD_SURVIVAL[b.stage]) / du / difficultyValue(sim, 'broodSurvivalMult');
   const base = diapause ? perDu * _DIAPAUSE_HAZARD_MULT * dtGd : perDu * progressDu;
   let total = base;
   for (const v of hazardScratch.values()) total += v * dtGd;

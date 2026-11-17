@@ -9,6 +9,7 @@ import {
   JOIN_P, PLAYER_RAID_MAX, PLAYER_RAID_SHARE, PREDATORY_RATIO, RAID_END_LOOT_SHARE, RAID_END_PARTY_SHARE, RAID_MAX_GD,
   RAID_GATHER_BU, RAID_GATHER_MAX_S, RAID_GATHER_SHARE, RAID_P, RAID_PARTY_SHARE, RAID_PLAYER_MIN_WORKERS, RAID_RATIO, RALLY_ATTACK_BU, RIVAL_LEVERS,
 } from '@/sim/balance/rivals';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { activeRally, canFight } from '@/sim/combat';
 import { endMajorThreat, requestMajorThreat } from '@/sim/ecology';
 import { switchTask } from '@/sim/colony/allocation';
@@ -124,7 +125,7 @@ function cooldownOk(sim: Sim, attacker: Colony, target: Colony): boolean {
   const last = attacker.rival ? attacker.rival.lastRaidTick : -1;
   if (last < 0) return true;
   void target; // GDD 05 §5 gives one cooldown lever (raids on the player); rival-on-rival raids use it too
-  return sim.state.tick - last >= sim.state.config.difficulty.params.raidCooldownGd * TICKS_PER_DAY;
+  return sim.state.tick - last >= difficultyValue(sim, 'raidCooldownGd') * TICKS_PER_DAY;
 }
 
 /** Raids on the player before 50 workers follow the difficulty lever (never / incipient brood raids / allowed). */

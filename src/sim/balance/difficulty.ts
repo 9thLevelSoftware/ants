@@ -1,7 +1,12 @@
 // Difficulty presets (GDD 06 §14 table; values owned by GDD 04 §15.7 and GDD 05 §5; registry C10, C11).
-// The difficulty-rules task owns the plumbing; systems read config.difficulty.params and config.rules.
+// The ONE table of tuned values per preset, the rule values each preset implies, and the accessors every system
+// reads them through: `difficultyValue(sim, key)` (parameters, with the custom rules applied) and
+// `effectiveRule(config, key)` (rules). Systems never read `config.difficulty.params` directly.
 
-import type { CustomRules, DifficultyId, DifficultyParams } from '@/sim/types';
+import type { CustomRules, DifficultyId, DifficultyParams, GameConfig } from '@/sim/types';
+import { HUMAN_ACTIVITY_MULT } from './human';
+import { PREDATOR_SETTING_MULT } from './creatures';
+import { SEVERITY_MULT } from './environmentWeather';
 import {
   FOUNDING_LENIENCIES, HUMAN_ACTIVITY_LEVELS, PREDATOR_SETTINGS, SEASON_LENGTHS, START_SEASON_RULES,
   WEATHER_SEVERITIES, WINTER_RULES,
@@ -125,4 +130,135 @@ export function invalidCustomRules(custom: unknown): string[] {
     if (!check || (v !== undefined && !check(v))) bad.push(k);
   }
   return bad;
+}
+
+// ---- accessors -------------------------------------------------------------------------------------------------
+
+/** Every tuned parameter of a preset (the keys of the table). */
+export type DifficultyKey = keyof DifficultyParams;
+
+/** The slice of a config the accessors read. */
+export type DifficultyConfig = Pick<GameConfig, 'difficulty' | 'rules'>;
+
+/** Anything that carries the game config: the `Sim`, or a bare `{ state: { config } }` in tests. */
+export interface DifficultySource { state: { config: DifficultyConfig } }
+
+/** Rule values a preset implies, for the rules that can be overridden (everything but the fixed-at-generation ones). */
+export function presetRuleValues(preset: DifficultyId): Omit<CustomRules, 'seasonLengthDays' | 'startSeason'> {
+  return { ...PRESET_RULES[preset] };
+}
+
+/** Preset whose column supplies the founding parameter group for each `foundingLeniency` value (GDD 06 §14.1). */
+export const LENIENCY_PRESET: Record<CustomRules['foundingLeniency'], DifficultyId> = {
+  lenient: 'gentle', normal: 'naturalist', strict: 'harsh',
+};
+
+/** Day of the season a game starts on when the custom rule `startSeason` names a season (GDD 06 §1.6). */
+export const START_DAY_OF_SEASON_RULE = 3;
+
+/** Season length the preset tables and the `HUMAN_GRACE_GD` constant are written for (GDD 06 §1.7). */
+export const OPENING_GRACE_REF_GD = DIFFICULTY_PARAMS.naturalist.openingGraceGd;
+
+/**
+ * How a custom rule reaches a parameter. `plain`: the preset value as stored. `founding`: the Founding group of
+ * the `foundingLeniency` column. `weather`: scaled by `weatherSeverity` (GDD 06 §14.1). `predators` / `human`:
+ * replaced by the rule's setting. The two `*-linked` groups are zeroed by `predators: off` / `humanActivity: off`
+ * (no founding threats, no flight hazards, no reactive bait stations).
+ */
+type Group = 'plain' | 'founding' | 'founding+predators' | 'weather' | 'predators' | 'predators-events' | 'human' | 'human-bait';
+
+const KEY_GROUP: { [K in DifficultyKey]: Group } = {
+  foundingExposureRate: 'founding', foundingBroodMortalityMult: 'founding', reserveDrainMult: 'founding',
+  openingThreatsMax: 'founding+predators', openingInterruptMax: 'founding', openingGraceGd: 'founding',
+  openingRetries: 'founding', forecastPanel: 'founding',
+  rainFreqMult: 'weather', stormFreqMult: 'weather', heatWaveFreqMult: 'weather', heatOffsetMult: 'weather',
+  frostFreqMult: 'weather', pDrySpell: 'plain', rainHitMult: 'weather', floodInflowMult: 'weather',
+  heatToleranceOffsetC: 'plain',
+  predatorDensityMult: 'predators', rivalAggMult: 'plain', raidCooldownGd: 'plain', rivalKMult: 'plain',
+  incipientRivals: 'plain', humanFreqMult: 'human', humanLethalMult: 'plain', humanTelegraphMult: 'plain',
+  baitEnabled: 'human-bait', threatMinQuietGd: 'plain', quietShareMin: 'plain',
+  foodAbundanceMult: 'plain', honeydewYieldMult: 'plain',
+  broodSurvivalMult: 'plain', workerLifespanMult: 'plain', starvationToleranceMult: 'plain', queenLifespanMult: 'plain',
+  winterLossMult: 'plain', winterQueenDeathP: 'plain', orphanDeclineMult: 'plain', damageTakenMult: 'plain',
+  matureGateMult: 'plain', alateCapMult: 'plain', flightLossMult: 'plain', flightPredatorEvents: 'predators-events',
+  autoSlowDefault: 'plain', alertLeadWarnings: 'plain', playerTempFloor: 'plain',
+};
+
+/** Every key of the table, in table order. */
+export const DIFFICULTY_KEYS = Object.keys(KEY_GROUP) as DifficultyKey[];
+
+const NO_FLIGHT_PREDATORS: [number, number] = [0, 0];
+
+/**
+ * The value of a rule in force: the player's explicit override (`difficulty.custom`) first, else the effective
+ * rules (`config.rules`, which `resolveRules` and the `setDifficulty` command keep up to date).
+ */
+export function effectiveRule<K extends keyof CustomRules>(cfg: DifficultyConfig, key: K): CustomRules[K] {
+  const own = cfg.difficulty.custom?.[key];
+  return own !== undefined ? own : cfg.rules[key];
+}
+
+/**
+ * The rule departs from what the preset implies, or the player set it explicitly: only then does it override the
+ * preset's parameter. With default rules every accessor therefore returns the stored preset value untouched.
+ */
+function overrides(cfg: DifficultyConfig, key: 'predators' | 'humanActivity' | 'weatherSeverity' | 'foundingLeniency'): boolean {
+  if (cfg.difficulty.custom?.[key] !== undefined) return true;
+  return cfg.rules[key] !== PRESET_RULES[cfg.difficulty.preset][key];
+}
+
+/** Scale of the weather parameters from `weatherSeverity`; `none` leaves the heat offset (temperature curve) alone. */
+function severityScale(cfg: DifficultyConfig, key: DifficultyKey): number {
+  if (!overrides(cfg, 'weatherSeverity')) return 1;
+  const s = SEVERITY_MULT[effectiveRule(cfg, 'weatherSeverity')] ?? 1;
+  return s === 0 && key === 'heatOffsetMult' ? 1 : s;
+}
+
+function predatorsOff(cfg: DifficultyConfig): boolean {
+  return effectiveRule(cfg, 'predators') === 'off';
+}
+
+/** The value of one tuned parameter for this game, custom rules applied (the single read path for systems). */
+export function difficultyValue<K extends DifficultyKey>(src: DifficultySource, key: K): DifficultyParams[K] {
+  return valueIn(src.state.config, key);
+}
+
+/** `difficultyValue` for a bare config (display, tests, the New Game screen). */
+export function valueIn<K extends DifficultyKey>(cfg: DifficultyConfig, key: K): DifficultyParams[K] {
+  const base = cfg.difficulty.params[key];
+  const group = KEY_GROUP[key];
+  if (group === 'plain') return base;
+  let out: unknown = base;
+  switch (group) {
+    case 'founding':
+    case 'founding+predators':
+      if (overrides(cfg, 'foundingLeniency')) out = DIFFICULTY_PARAMS[LENIENCY_PRESET[effectiveRule(cfg, 'foundingLeniency')]][key];
+      if (group === 'founding+predators' && predatorsOff(cfg)) out = 0;
+      break;
+    case 'weather': {
+      const s = severityScale(cfg, key);
+      if (s !== 1) out = (base as number) * s;
+      break;
+    }
+    case 'predators':
+      if (overrides(cfg, 'predators')) out = PREDATOR_SETTING_MULT[effectiveRule(cfg, 'predators')] ?? base;
+      break;
+    case 'predators-events':
+      if (predatorsOff(cfg)) out = NO_FLIGHT_PREDATORS;
+      break;
+    case 'human':
+      if (overrides(cfg, 'humanActivity')) out = HUMAN_ACTIVITY_MULT[effectiveRule(cfg, 'humanActivity')] ?? base;
+      break;
+    case 'human-bait':
+      if (effectiveRule(cfg, 'humanActivity') === 'off') out = 'off';
+      break;
+  }
+  return out as DifficultyParams[K];
+}
+
+/** The whole parameter record in force (a fresh object; not for hot paths). */
+export function effectiveParams(cfg: DifficultyConfig): DifficultyParams {
+  const out: Record<string, unknown> = {};
+  for (const k of DIFFICULTY_KEYS) out[k] = valueIn(cfg, k);
+  return out as unknown as DifficultyParams;
 }

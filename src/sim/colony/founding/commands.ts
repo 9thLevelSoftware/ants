@@ -3,6 +3,7 @@
 // the `opening-start` snapshot); the sim only refuses it outside the phases that allow it.
 
 import type { CommandOf, FoundingDigState, OpeningPhase, Sim } from '@/sim/types';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { ensureThermal } from '@/sim/environment/surface';
 import { FB, bbSet, foundingNest, foundingQueen, openingOf, setPhase } from './access';
 import { autoClutchFor, startAuto } from './auto';
@@ -63,7 +64,7 @@ export function undoRefusal(sim: Sim): 'invalid-phase' | 'limit' | null {
     const q = foundingQueen(sim);
     if (op.layBatches > 0 || (q && eggsLaidTotal(q) > 0)) return 'invalid-phase';
   }
-  return op.retriesUsed >= sim.state.config.difficulty.params.openingRetries ? 'limit' : null;
+  return op.retriesUsed >= difficultyValue(sim, 'openingRetries') ? 'limit' : null;
 }
 
 /** Undo is restored by the game from its checkpoint; the sim checks only that it is still allowed. */

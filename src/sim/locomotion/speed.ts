@@ -7,6 +7,7 @@
 import type { Ant, ColonySpeciesId, Sim, Walker } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { HEALTH_FACTOR_BASE } from '@/sim/balance/actions';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { speedMult as speedMultImp } from '@/sim/environment/thermalResponse';
 import { getRivalSpecies, getSpecies } from '@/sim/species';
 import { locoParams as locoParamsImp, type LocoParams } from './params';
@@ -131,7 +132,7 @@ export function playerSpeed(sim: Sim, ant: Ant, hurry: boolean, gripping: boolea
   const cs = casteSpeeds(speciesOf(sim, ant), ant.caste, P.bu, (ant.flags & AntFlag.FOUNDING) !== 0);
   const t = tempSpeedFactor(sim, ant);
   if (!(t > 0)) return cs.cruise * P.coldCrawl;
-  const floor = sim.state.config.difficulty.params.playerTempFloor;
+  const floor = difficultyValue(sim, 'playerTempFloor');
   let v = cs.cruise * Math.max(floor, t) * healthSpeedFactor(ant);
   if (ant.carry.kind !== 'none') v *= cs.load;
   if (hurry) v = Math.min(v * P.hurryMult, Math.max(cs.sprint, v));

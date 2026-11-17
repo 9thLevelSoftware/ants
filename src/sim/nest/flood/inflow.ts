@@ -21,6 +21,7 @@ import {
   FLOOD_SEEP_THETA1, FLOOD_STATE_FACTOR, FLOOD_HUMAN_WATER_INTENSITY,
 } from '@/sim/balance/weather';
 import { RIM_RING_BU } from '@/sim/balance/nest';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { rainIntensityAt } from '@/sim/environment/queries';
 import { humanRainRateAt } from '@/sim/environment/human/waterRate';
 import { isInteriorAt } from '@/sim/environment/ground';
@@ -187,7 +188,7 @@ export function entranceInflow(sim: Sim, e: Entrance, iOverride = -1, nest?: Nes
   out.catchment = site.catchment;
   out.cover = site.cover;
   out.rim = rimFactorOf(sim, e);
-  out.q = FLOOD_Q_BASE * intensity * out.catchment * out.cover * out.rim * out.state * sim.state.config.difficulty.params.floodInflowMult;
+  out.q = FLOOD_Q_BASE * intensity * out.catchment * out.cover * out.rim * out.state * difficultyValue(sim, 'floodInflowMult');
   return out;
 }
 

@@ -3,6 +3,7 @@
 import type { ActionId, Ant, CasteDef, Sim, SpeciesId } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { HEALTH_FACTOR_BASE } from '@/sim/balance/actions';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { casteDef } from '@/sim/entities';
 import { ports } from './ports';
 
@@ -20,7 +21,7 @@ export function tempFactor(sim: Sim, ant: Ant): number {
   const colony = sim.stores.colonies.get(ant.colony);
   const t = ports.speedMult(sim, ant.tb, colony ? colony.species : sim.species.id);
   if (!isPossessed(ant) || t <= 0) return t;
-  return Math.max(sim.state.config.difficulty.params.playerTempFloor, t);
+  return Math.max(difficultyValue(sim, 'playerTempFloor'), t);
 }
 
 export function healthFactor(ant: Ant): number {

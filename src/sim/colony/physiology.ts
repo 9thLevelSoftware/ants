@@ -12,6 +12,7 @@ import {
   STARVE_HEALTH_RATE, TOXIN_EFFECT_GD, TOXIN_HEALTH_PER_LOAD,
 } from '@/sim/balance';
 import { killAnt } from '@/sim/entities';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { daysToTicks, TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { isWorkerCaste } from './census';
 import { casteOf, fMet } from './life';
@@ -177,7 +178,7 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
 
   // Health: starvation, toxin, regeneration, injury flag (GDD 02 §1.4-1.5).
   let poisoned = false;
-  if (starving) a.hp -= _STARVE_HEALTH_RATE * a.maxHp * dtGd;
+  if (starving) a.hp -= _STARVE_HEALTH_RATE * a.maxHp * dtGd / difficultyValue(sim, 'starvationToleranceMult');
   const dose = a.bb[BB_TOXIN];
   if (dose !== undefined && dose > 0) {
     const take = dose * Math.min(1, dtGd / _TOXIN_EFFECT_GD);
@@ -213,7 +214,7 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
   // Ageing and callow hardening (GDD 02 §1.3).
   const cd = _casteOf(def, a.caste);
   const ageRate = a.flags & _AntFlag.DORMANT ? (cd?.ageRateDormant ?? 0.15) : inside ? _AGE_RATE_IN_NEST : (cd?.ageRateOutside ?? _AGE_RATE_IN_NEST);
-  a.physioAgeGd += ageRate * dtGd;
+  a.physioAgeGd += ageRate * dtGd * (col.orphaned ? difficultyValue(sim, 'orphanDeclineMult') : 1);
   if ((a.flags & _AntFlag.CALLOW) && sim.state.tick - a.bornTick >= _daysToTicks(_CALLOW_GD)) a.flags &= ~_AntFlag.CALLOW;
 
   // Fatigue (GDD 02 §1.7) and forager activation decay (§6.6).
@@ -227,7 +228,7 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
 
   acc.cropC += a.cropC;
   acc.cropP += a.cropP;
-  if (worker && a.physioAgeGd >= a.lifespanGd) {
+  if (worker && a.physioAgeGd >= a.lifespanGd * difficultyValue(sim, 'workerLifespanMult')) {
     _killAnt(sim, a.id, 'old-age');
     return;
   }

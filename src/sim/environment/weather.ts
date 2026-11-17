@@ -6,7 +6,8 @@
 import { rngChance, rngFloat } from '@/core/rng';
 import type { CalendarDerived, RainClass, Sim, WeatherForecast, WeatherState } from '@/sim/types';
 import {
-  COLDSNAP_EXT_H, COLDSNAP_MAX_EXT, DEFAULT_SEASON_LENGTH_DAYS, DRYSPELL_DAYS, FROST_END_AFTER_SUNRISE_H, HEAT_SEASON_STOP_H,
+  COLDSNAP_EXT_H, COLDSNAP_MAX_EXT, DEFAULT_SEASON_LENGTH_DAYS, difficultyValue, DRYSPELL_DAYS, effectiveRule,
+  FROST_END_AFTER_SUNRISE_H, HEAT_SEASON_STOP_H,
   HEAT_WEIGHT_CALIBRATION,
   LIGHTNING_MEAN_EXTRA_TICKS, LIGHTNING_MIN_GAP_TICKS, P_COLDSNAP_PERSIST, PRECIP_NORM,
   STORM_PRECIP_NORM, WEATHER_DEFS, WIND_STORM_TURN_DEG,
@@ -14,7 +15,7 @@ import {
 import { calendarTick, dayOf, TICKS_PER_DAY, TICKS_PER_HOUR, yearFraction } from '@/sim/time';
 import { dayLengthH, deriveCalendar, nextSeasonStartTick } from './calendar';
 import { climateDef, seasonalMean } from './climates';
-import { climateOf, dmTarget, severityMult, woffTarget } from './temperature';
+import { climateOf, dmTarget, woffTarget } from './temperature';
 import { airTemp } from './temperature';
 import { applyStartHistory, drawStart } from './weatherStart';
 import { baseWind } from './wind';
@@ -45,8 +46,6 @@ export function drawContextAt(sim: Sim, stateTick: number): WeatherDrawCtx {
   const ct = s.env.calendar.startTick + stateTick;
   const cal = deriveCalendar(ct, s.config, s.env.calendar.moonPhase0, calScratch);
   const c = climateOf(sim);
-  const p = s.config.difficulty.params;
-  const sev = severityMult(sim);
   const x = ctxScratch;
   x.season = cal.season;
   x.hour = cal.hour;
@@ -54,11 +53,11 @@ export function drawContextAt(sim: Sim, stateTick: number): WeatherDrawCtx {
   x.sunset = cal.sunset;
   x.climate = c;
   x.tSeason = seasonalMean(c, cal.yearFrac);
-  x.rainMult = c.rainMult * p.rainFreqMult * sev;
-  x.stormMult = c.stormMult * p.stormFreqMult * sev;
-  x.heatMult = c.heatMult * p.heatWaveFreqMult * sev * HEAT_WEIGHT_CALIBRATION;
-  x.frostMult = c.frostMult * p.frostFreqMult * sev;
-  x.clearOvercastOnly = s.config.rules.weatherSeverity === 'none';
+  x.rainMult = c.rainMult * difficultyValue(sim, 'rainFreqMult'); // difficulty x weatherSeverity (accessor)
+  x.stormMult = c.stormMult * difficultyValue(sim, 'stormFreqMult');
+  x.heatMult = c.heatMult * difficultyValue(sim, 'heatWaveFreqMult') * HEAT_WEIGHT_CALIBRATION;
+  x.frostMult = c.frostMult * difficultyValue(sim, 'frostFreqMult');
+  x.clearOvercastOnly = effectiveRule(s.config, 'weatherSeverity') === 'none';
   x.dryspell = dryspellActiveAt(sim, stateTick);
   return x;
 }
@@ -77,7 +76,7 @@ export function rollDryspell(sim: Sim, fromTick: number): void {
     return;
   }
   const rng = sim.stream('rng.weather');
-  const hit = rngChance(rng, s.config.difficulty.params.pDrySpell);
+  const hit = rngChance(rng, difficultyValue(sim, 'pDrySpell'));
   const startAt = rngFloat(rng);
   h.dryspellDone = true;
   const dur = dryspellTicks(sim);

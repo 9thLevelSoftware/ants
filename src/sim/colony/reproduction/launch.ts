@@ -6,6 +6,7 @@ import { hash3u } from '@/core/math/noise';
 import { hashString, rngFloat, type RngState } from '@/core/rng';
 import type { Colony, DaughterRecord, FlightRecord, Sim, SpeciesDef, ZoneType } from '@/sim/types';
 import { killAnt } from '@/sim/entities';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { airTemp } from '@/sim/environment';
 import { calendarTick, currentHour, dayOf, daysToTicks, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import {
@@ -149,7 +150,7 @@ function binomial(rng: RngState, n: number, p: number): number {
 /** Aggregate probabilities of the flight (GDD 06 §11.6). */
 export function flightOdds(sim: Sim, def: SpeciesDef, nGynes: number, nMales: number): { pAir: number; pMate: number; pFound: number } {
   const wind = sim.state.env.weather.wind2m;
-  const lossMult = sim.state.config.difficulty.params.flightLossMult;
+  const lossMult = difficultyValue(sim, 'flightLossMult');
   const pAir = (def.reproduction.pAir * (wind > FLIGHT_WIND_AIR_MS ? FLIGHT_WIND_AIR_MULT : 1) * (1 - FLIGHT_BIRD_LOSS * FLIGHT_BIRD_DENSITY)) / lossMult;
   const ratio = nGynes > 0 ? Math.min(1, Math.max(FLIGHT_MALE_RATIO_MIN, nMales / nGynes)) : 1;
   return { pAir: Math.min(1, pAir), pMate: def.reproduction.pMate * ratio, pFound: def.reproduction.pFound };

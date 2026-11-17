@@ -7,6 +7,7 @@ import { rngFloat, rngShuffle, type RngState } from '@/core/rng';
 import type { Ant, Brood, BroodDeathCause, Colony, DeathCause, Sim, SpeciesDef, WinterRecord } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { killAnt } from '@/sim/entities';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { releasePossessed } from '@/sim/ants/player/possession';
 import { timeHandlers } from '@/sim/environment';
 import { chamberTempC } from '../envAdapter';
@@ -26,10 +27,9 @@ import { rankWhy } from './report';
 
 /** The model's parameters for a colony (species winter data, difficulty). */
 export function winterParams(sim: Sim, def: SpeciesDef): WinterParams {
-  const d = sim.state.config.difficulty.params;
   return {
     tColdStress: def.winter.tColdStress, baseLoss: def.winter.wintBaseLoss, metBase: def.winter.wintMetBase,
-    q10: def.winter.wintQ10, lossMult: d.winterLossMult, queenDeathP: d.winterQueenDeathP,
+    q10: def.winter.wintQ10, lossMult: difficultyValue(sim, 'winterLossMult'), queenDeathP: difficultyValue(sim, 'winterQueenDeathP'),
   };
 }
 

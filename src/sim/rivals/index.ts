@@ -6,7 +6,7 @@
 // wiring.ts, and the `raid` behaviour is registered in src/sim/ants/behaviours/outdoor/index.ts.
 
 import type { CommandHandlerMap, Sim, SimInvariant, System } from '@/sim/types';
-import { HOURLY_EVERY, RIVALS_OFFSET } from '@/sim/balance';
+import { difficultyValue, HOURLY_EVERY, RIVALS_OFFSET } from '@/sim/balance';
 import { ANT_TOTAL_CAP } from '@/sim/balance/rivals';
 import { rivalsImpl } from './late';
 import { rivalColonies, rmod } from './state';
@@ -61,7 +61,7 @@ export const invariants: readonly SimInvariant[] = [
           if (!(v >= 0) || !Number.isFinite(v)) fail(`rival ${c.id}: ${k}=${v}`);
         }
         // I6: N <= K_max x rivalKMult
-        const k = rivalProfile(c.species).kMax * sim.state.config.difficulty.params.rivalKMult;
+        const k = rivalProfile(c.species).kMax * difficultyValue(sim, 'rivalKMult');
         if (r.n > k + 1e-6) fail(`rival ${c.id}: N ${r.n.toFixed(1)} > K_max x rivalKMult ${k}`);
       }
     },

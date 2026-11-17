@@ -2,7 +2,9 @@
 // preset frequency only when the player set it (config.difficulty.custom); `off` always silences people.
 
 import type { Sim } from '@/sim/types';
-import { HUMAN_ACTIVITY_MULT, HUMAN_LETHAL_CAP } from '@/sim/balance/human';
+import type { HUMAN_ACTIVITY_MULT } from '@/sim/balance/human';
+import { HUMAN_LETHAL_CAP } from '@/sim/balance/human';
+import { difficultyValue } from '@/sim/balance/difficulty';
 
 function customActivity(sim: Sim): keyof typeof HUMAN_ACTIVITY_MULT | undefined {
   return (sim.state.config.difficulty.custom as { humanActivity?: keyof typeof HUMAN_ACTIVITY_MULT } | undefined)?.humanActivity;
@@ -14,14 +16,11 @@ export function humanActivityOff(sim: Sim): boolean {
 }
 
 export function humanFreqMult(sim: Sim): number {
-  if (humanActivityOff(sim)) return 0;
-  const custom = customActivity(sim);
-  if (custom !== undefined) return HUMAN_ACTIVITY_MULT[custom] ?? 1;
-  return sim.state.config.difficulty.params.humanFreqMult;
+  return humanActivityOff(sim) ? 0 : difficultyValue(sim, 'humanFreqMult'); // the rule's setting is applied by the accessor
 }
 
 export function humanLethalMult(sim: Sim): number {
-  return sim.state.config.difficulty.params.humanLethalMult;
+  return difficultyValue(sim, 'humanLethalMult');
 }
 
 /** A crush / removal probability with the difficulty's lethality applied (cap HUMAN_LETHAL_CAP). */
@@ -30,12 +29,12 @@ export function lethalP(sim: Sim, p: number): number {
 }
 
 export function humanTelegraphMult(sim: Sim): number {
-  return sim.state.config.difficulty.params.humanTelegraphMult;
+  return difficultyValue(sim, 'humanTelegraphMult');
 }
 
 /** Where bait stations may be placed: none (gentle), interior, interior and garden (harsh). */
 export function baitMode(sim: Sim): 'off' | 'interior' | 'interior-garden' {
-  return sim.state.config.difficulty.params.baitEnabled as 'off' | 'interior' | 'interior-garden';
+  return difficultyValue(sim, 'baitEnabled');
 }
 
 /** Gentle: the possessed ant is stunned and displaced instead of killed (§15.7). */

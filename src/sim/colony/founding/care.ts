@@ -9,7 +9,7 @@ import { rngFloat } from '@/core/rng';
 import type { Ant, Brood, Nest, OpeningState, Sim } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { FEED_LARVA_LOADS, FOUNDING_FEED_P_SHARE } from '@/sim/balance/actions';
-import { LARVA_GUT_CAP } from '@/sim/balance';
+import { difficultyValue, LARVA_GUT_CAP } from '@/sim/balance';
 import {
   FOUND_CANNIBAL, FOUND_CARE_EVERY_TICKS, FOUND_CARE_FEED_BELOW, FOUND_FIRST_BROOD_DEV_MULT, FOUND_HAZARD, FOUND_HAZARD_EVERY_GD,
   FOUND_HAZARD_LOSS, FOUND_HAZARD_RESPONDED, FOUND_HAZARD_RESPONSE, FOUND_UPKEEP_PER_GD, FOUND_WINTER_UPKEEP_FACTOR,
@@ -108,11 +108,10 @@ export function hazardRates(sim: Sim, op: OpeningState, nest: Nest): Record<'flo
   const cell = nest.chambers.find((c) => c.type === 'founding') ?? nest.chambers[0];
   const humidity = cell ? chamberHumidity(sim, cell.id) : 0.6;
   const depthBu = cell ? cell.depthMm / sim.world.bu : 10;
-  const params = sim.state.config.difficulty.params;
   const H = FOUND_HAZARD;
   return {
     flood: H.floodBase * (1 - flood) ** 2 * rainIntensityAt(sim, nest.origin),
-    intruder: H.intruderBase * (1 - cover) * H.intruderSealed * params.predatorDensityMult * (1 + H.intruderRivalGain * (1 - rival)),
+    intruder: H.intruderBase * (1 - cover) * H.intruderSealed * difficultyValue(sim, 'predatorDensityMult') * (1 + H.intruderRivalGain * (1 - rival)),
     fungus: H.fungusBase * Math.max(0, (humidity - H.fungusHumidityFrom) / H.fungusHumiditySpan),
     collapse: depthBu < H.collapseDepthBu ? H.collapseBase * footTrafficAt(sim, nest.origin.x, nest.origin.z) : 0,
   };
@@ -124,7 +123,7 @@ export function hazardRates(sim: Sim, op: OpeningState, nest: Nest): Record<'flo
  * later ones take the default outcome.
  */
 function applyHazard(sim: Sim, op: OpeningState, q: Ant, list: Brood[], hazard: FoundingHazard): void {
-  const max = sim.state.config.difficulty.params.openingInterruptMax;
+  const max = difficultyValue(sim, 'openingInterruptMax');
   const gentle = max <= 0;
   // an interrupt beat the T1 lapse cannot show yet: her automatic care responds (FOUND_HAZARD_RESPONSE)
   const responds = !gentle && op.interruptsUsed < max;
@@ -156,7 +155,7 @@ function rollHazards(sim: Sim, op: OpeningState, q: Ant, nest: Nest, list: Brood
 /** Upkeep of the sealed queen for one care period (no surface extra underground), loads. */
 function upkeep(sim: Sim): number {
   const winter = currentSeason(sim.state) === 'winter' ? FOUND_WINTER_UPKEEP_FACTOR : 1;
-  return FOUND_UPKEEP_PER_GD * winter * sim.state.config.difficulty.params.reserveDrainMult * CARE_DT_GD;
+  return FOUND_UPKEEP_PER_GD * winter * difficultyValue(sim, 'reserveDrainMult') * CARE_DT_GD;
 }
 
 /**
@@ -185,7 +184,7 @@ export function careTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): CareRe
   if (core) core.minimSinceTick = -1;
   const list = colonyBrood(sim, col.id);
   const def = speciesOf(sim);
-  const mu = foundingMu(op.siteQ, def.id as Parameters<typeof foundingMu>[1], sim.state.config.difficulty.params.foundingBroodMortalityMult,
+  const mu = foundingMu(op.siteQ, def.id as Parameters<typeof foundingMu>[1], difficultyValue(sim, 'foundingBroodMortalityMult'),
     deepMoisture(sim, nest.origin.x, nest.origin.z));
   const rng = sim.stream('rng.opening');
   const cell = nest.chambers.find((c) => c.type === 'founding') ?? nest.chambers[0];

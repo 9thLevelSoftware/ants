@@ -3,7 +3,7 @@
 // Lethal doses kill through the shared `killAnt`; stupor and coma start/stop emit the env.* events.
 
 import type { Ant, Sim, System, ThermalDef } from '@/sim/types';
-import { ANT_THERMAL_EVERY } from '@/sim/balance';
+import { ANT_THERMAL_EVERY, difficultyValue } from '@/sim/balance';
 import { killAnt } from '@/sim/entities';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { microTemp } from './microTemp';
@@ -11,7 +11,7 @@ import { applyThermalDose, relaxBodyTemp, thermalDefOf } from './thermalResponse
 
 /** Heat stress threshold of an ant, C: species `stressC` + difficulty offset + colony acclimation (GDD 06 §2.7). */
 export function stressCOf(sim: Sim, def: ThermalDef): number {
-  return def.stressC + sim.state.config.difficulty.params.heatToleranceOffsetC + sim.state.env.thermal.heatAccl;
+  return def.stressC + difficultyValue(sim, 'heatToleranceOffsetC') + sim.state.env.thermal.heatAccl;
 }
 
 /** Steps one ant's body temperature and loads by `dtS` seconds; returns false if the ant died of it. */

@@ -4,9 +4,8 @@
 import type { DayPhase, Season, Sim } from '@/sim/types';
 import { calendarNow } from '@/sim/environment/calendar';
 import { currentDefaultYearDoy } from '@/sim/time';
-import {
-  CREATURE_LEVERS, PREDATOR_SETTING_MULT, type CreatureLevers,
-} from '@/sim/balance/creatures';
+import { CREATURE_LEVERS, type CreatureLevers } from '@/sim/balance/creatures';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { ports } from './ports';
 
 export interface Conditions {
@@ -44,7 +43,7 @@ export function conditions(sim: Sim): Conditions {
     airC: safe(() => ports.airTemp(sim), 20), raining: safe(() => ports.isRaining(sim), false),
     winter: cal.season === 'winter',
     levers: CREATURE_LEVERS[cfg.difficulty.preset] ?? CREATURE_LEVERS.naturalist,
-    predatorMult: PREDATOR_SETTING_MULT[cfg.rules.predators] ?? 1,
+    predatorMult: difficultyValue(sim, 'predatorDensityMult'),
   };
   cache.set(sim, c);
   return c;

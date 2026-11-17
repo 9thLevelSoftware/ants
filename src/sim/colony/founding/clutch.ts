@@ -5,6 +5,7 @@
 
 import type { Ant, Nest, OpeningState, Sim } from '@/sim/types';
 import { OPEN_LAY_BATCH_EGGS } from '@/sim/balance/actions';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { EGG_VOLUME_BU3, OPEN_AUTO_LAY_GD } from '@/sim/balance/founding';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { layEgg } from '../queen';
@@ -45,9 +46,8 @@ export function cellTempC(sim: Sim, nest: Nest, q: Ant): number {
 /** The forecast panel's numbers for a clutch of `eggs` at this site and cell. */
 export function clutchForecast(sim: Sim, op: OpeningState, q: Ant, nest: Nest, eggs: number): Forecast {
   const def = speciesOf(sim);
-  const p = sim.state.config.difficulty.params;
   return forecast(def, eggs, cellTempC(sim, nest, q), op.siteQ, {
-    difficultyMult: p.foundingBroodMortalityMult, drainMult: p.reserveDrainMult,
+    difficultyMult: difficultyValue(sim, 'foundingBroodMortalityMult'), drainMult: difficultyValue(sim, 'reserveDrainMult'),
     moisture: deepMoisture(sim, nest.origin.x, nest.origin.z), r0: q.queen?.founding?.R0,
   });
 }

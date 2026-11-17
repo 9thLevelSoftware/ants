@@ -6,6 +6,7 @@ import type { Ant, Creature, DeathCause, Sim } from '@/sim/types';
 import {
   ALARM_BITTEN, ALARM_BITTEN_EVERY_S, ALARM_KILLED_WITNESS_L, ALARM_NESTMATE_KILLED, RECENT_HITTER_KEEP_S,
 } from '@/sim/balance/combat';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { creatureArmour } from '@/sim/ecology/creatures/queries';
 import { creatureKilled } from '@/sim/ecology/creatures';
 import { dep } from './late';
@@ -44,7 +45,7 @@ function noteHitter(sim: Sim, ant: Ant, hitterId: number): void {
 export function damageAnt(sim: Sim, ant: Ant, raw: number, cause: DeathCause, attackerId: number, kind: DamageKind): number {
   if (!ant.alive || !(raw > 0)) return 0;
   const armour = combatStats(sim, ant).armour;
-  const mult = isPossessed(ant) ? sim.state.config.difficulty.params.damageTakenMult : 1;
+  const mult = isPossessed(ant) ? difficultyValue(sim, 'damageTakenMult') : 1;
   const dealt = raw * (1 - armour) * mult;
   if (!(dealt > 0)) return 0;
   // the fight record opens with the health before this hit ("lost >= 0.3 health in the fight", §4.7)

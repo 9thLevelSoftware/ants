@@ -59,3 +59,5 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - 06:31 views FAIL: script took an off-screen second worker (project() null). Script fixed to pick an on-screen worker (tests/e2e/views.mjs ~181). Swarm males now in 'fly' pose.
 - Running (bg from 06:35): views stage1a panelsA panelsB. Then: photo a11yA a11yB; stage2; playSeed1; playKitchen; frametime; portable.
 - 06:41 stage1a strict FAIL at egg: opening phase is still 'intro-card' (the 1A script never plays the opening; founding lays only in phase lay). Script/design mismatch; egg path proven by founding.mjs x3 + firstplay. Report, no further change.
+- 06:54 panelsA PASS (stand-ins hand-over, alert-with-focus recorded by script). 06:59 panelsB FAIL at View-tap -> tool UI (tap measured in real ms vs VIEW_TAP_MS 450 under load: likely load timing; rerun alone later). Running (bg 07:00): views photo a11yA a11yB.
+- 07:07 views PASS (after script fix). 07:08 photo FAIL: page ReferenceError 'difficultyValue is not defined' — src/sim/balance/difficulty.ts being edited by difficulty-rules engineer right now (sim WIP); rerun later.

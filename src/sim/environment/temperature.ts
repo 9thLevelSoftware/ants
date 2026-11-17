@@ -4,7 +4,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, WeatherState } from '@/sim/types';
 import {
-  AIR_PEAK_HOUR, COLD_SNAP_DAY_OFFSET_C, DIURNAL_MULT, HEAT_RAMP_H, INTERIOR_AIR_W, INTERIOR_RH, INTERIOR_SET_C,
+  AIR_PEAK_HOUR, COLD_SNAP_DAY_OFFSET_C, difficultyValue, DIURNAL_MULT, HEAT_RAMP_H, INTERIOR_AIR_W, INTERIOR_RH, INTERIOR_SET_C,
   SEVERITY_MULT, UNHEATED_ADD_C, UNHEATED_AIR_W, WEATHER_DEFS, WEATHER_OFFSET_C,
 } from '@/sim/balance';
 import { TICKS_PER_HOUR } from '@/sim/time';
@@ -31,8 +31,7 @@ export function severityMult(sim: Sim): number {
 /** Heat wave air offset, C: climate offset * difficulty * severity (GDD 06 §2.2 `Woff`). */
 export function heatOffsetC(sim: Sim): number {
   const c = climateOf(sim);
-  const sev = sim.state.config.rules.weatherSeverity === 'none' ? 1 : severityMult(sim);
-  return c.heatOffsetC * sim.state.config.difficulty.params.heatOffsetMult * sev;
+  return c.heatOffsetC * difficultyValue(sim, 'heatOffsetMult'); // difficulty x severity (none leaves the offset)
 }
 
 /** Seasonal mean air temperature at the current time, C. */

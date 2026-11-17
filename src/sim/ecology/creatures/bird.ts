@@ -13,9 +13,10 @@ import { retireSource } from '@/sim/ecology/sources';
 import {
   BIRD_ALATE_P_PER_S, BIRD_ALATE_RADIUS_BU, BIRD_APPROACH_S, BIRD_DAY_MARGIN_H, BIRD_DURATION_S, BIRD_GAP_GD,
   BIRD_HEAD_COCK_S, BIRD_KILL_P, BIRD_KILL_RADIUS_MM, BIRD_LEAVE_S, BIRD_MAX_KILLS, BIRD_MIN_EXPOSED, BIRD_MIN_WORKERS,
-  BIRD_PECK_EVERY_S, BIRD_RATE, BIRD_TARGET_RADIUS_BU, EXPOSED_COVER_BU, LETHAL_DAMAGE, REF_BU_MM, STRIKE_ALARM,
+  BIRD_PECK_EVERY_S, BIRD_TARGET_RADIUS_BU, EXPOSED_COVER_BU, LETHAL_DAMAGE, REF_BU_MM, STRIKE_ALARM,
   THREAT_BIRD, BIRD_CRUMBS_MAX, WOODPECKER_SHARE, WOODPECKER_CARVE_BU, WOODPECKER_CARVE_EVERY_S, WOODPECKER_CARVES_MAX,
 } from '@/sim/balance/creatures';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { between, chance, cue, dist, onSurface, rng, ticks } from './common';
 import type { Conditions } from './conditions';
@@ -110,7 +111,7 @@ export function birdHourly(sim: Sim, cond: Conditions): boolean {
   if (workers < BIRD_MIN_WORKERS) return false;
   const last = sim.state.ecology.lastBirdTick[String(col.id)] ?? -Infinity;
   if (sim.state.tick - last < BIRD_GAP_GD * TICKS_PER_DAY) return false;
-  if (!chance(sim, Math.min(1, BIRD_RATE[sim.state.config.rules.predators] / windowH))) return false;
+  if (!chance(sim, Math.min(1, difficultyValue(sim, 'predatorDensityMult') / windowH))) return false; // = BIRD_RATE of the setting
   const pos = birdTarget(sim, col.id);
   if (!pos) return false;
   // a blocked bird event is cancelled (§6)

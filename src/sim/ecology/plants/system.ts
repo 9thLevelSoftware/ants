@@ -6,7 +6,7 @@
 //   tend-demand  right after each allocation pass (local adapter, TEND_DEMAND_ADAPTER).
 
 import type { Sim, System } from '@/sim/types';
-import { ALLOC_EVERY, ALLOC_OFFSET, HOURLY_EVERY, PLANTS_OFFSET, RAIN_INTENSITY } from '@/sim/balance';
+import { ALLOC_EVERY, ALLOC_OFFSET, difficultyValue, HOURLY_EVERY, PLANTS_OFFSET, RAIN_INTENSITY } from '@/sim/balance';
 import { TEND_DEMAND_ADAPTER } from '@/sim/balance/ecology';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { applyTendDemand } from './demand';
@@ -40,7 +40,7 @@ export function plantAirC(sim: Sim): number {
 }
 
 function abundance(sim: Sim): number {
-  return sim.state.config.difficulty.params.foodAbundanceMult ?? 1;
+  return difficultyValue(sim, 'foodAbundanceMult') ?? 1;
 }
 
 /** One hourly plants step of dtGd game days. */
@@ -76,7 +76,7 @@ export const plantsSystem: System = {
 /** One tending step of dtS seconds over every herd. */
 export function runTendingStep(sim: Sim, dtS: number): void {
   const fT = tempFactor(plantAirC(sim));
-  const mult = abundance(sim);
+  const mult = abundance(sim) * difficultyValue(sim, 'honeydewYieldMult'); // honeydew yield: herds only
   const herds = sim.stores.herds.list;
   for (let i = 0, n = herds.length; i < n; i++) if (herds[i].alive) stepTending(sim, herds[i], dtS, fT, mult);
 }

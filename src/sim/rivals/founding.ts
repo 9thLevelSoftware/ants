@@ -7,6 +7,7 @@
 import { rngChance, rngInt } from '@/core/rng';
 import type { Ant, Colony, Sim } from '@/sim/types';
 import { DIG_MC_REF, DIG_P, DIG_PARTY, RIVAL_LEVERS } from '@/sim/balance/rivals';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { protectedQueen } from '@/sim/combat';
 import { endMajorThreat, requestMajorThreat } from '@/sim/ecology';
 import { quietShare } from '@/sim/ecology/creatures';
@@ -69,7 +70,7 @@ function threatPacing(sim: Sim, kind: string): 'slot' | 'founding' | null {
   if (quietShare(sim) !== null) return null;
   const td = sim.state.rivals.threatDirector;
   if (td.activeKind !== null) return null;
-  const minGd = sim.state.config.difficulty.params.threatMinQuietGd;
+  const minGd = difficultyValue(sim, 'threatMinQuietGd');
   if (td.lastEndTick >= 0 && sim.state.tick - td.lastEndTick < minGd * TICKS_PER_DAY) return null;
   return 'founding';
 }

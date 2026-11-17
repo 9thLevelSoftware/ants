@@ -6,6 +6,7 @@
 
 import type { QuietTracker, Sim, ThreatDirector } from '@/sim/types';
 import { LOUD_HOURS_PER_THREAT, QUIET_ALERT_SHARE, QUIET_MARGIN, QUIET_SAMPLE_EVERY, QUIET_WINDOW_GD } from '@/sim/balance/creatures';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { calendarTick, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { conditions } from './conditions';
 
@@ -36,12 +37,11 @@ export function quietShare(sim: Sim): number | null {
 export function canStartMajorThreat(sim: Sim): boolean {
   const td = director(sim);
   if (td.activeKind !== null) return false;
-  const p = sim.state.config.difficulty.params;
-  if (td.lastEndTick >= 0 && sim.state.tick - td.lastEndTick < p.threatMinQuietGd * TICKS_PER_DAY) return false;
+  if (td.lastEndTick >= 0 && sim.state.tick - td.lastEndTick < difficultyValue(sim, 'threatMinQuietGd') * TICKS_PER_DAY) return false;
   // the trailing share must stay above the target + margin even with the new threat's loud hours in it (a window
   // with few counted hours - after winter, after founding - would otherwise drop below the target at once)
   const { counted, quiet } = trailingCounts(sim);
-  return quiet / (counted + LOUD_HOURS_PER_THREAT) >= p.quietShareMin + QUIET_MARGIN;
+  return quiet / (counted + LOUD_HOURS_PER_THREAT) >= difficultyValue(sim, 'quietShareMin') + QUIET_MARGIN;
 }
 
 /** Counted and quiet hours in the trailing window. */

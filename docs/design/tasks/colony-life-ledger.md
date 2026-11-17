@@ -638,3 +638,12 @@ Progress (kept current; a successor continues from here)
   `outdoor/hunt.test.ts` case 4 (red without).
   H1-minor `hunt.ts`: lifting the remains drops `K.src`; `huntSourceTrip.verify` green.
   Next: wait for forage-before, then forage-after (H2a+H2b) on all 15; write the nest bench runs meanwhile.
+- 07:06 forage-before 4 of 15 done (we #1, sg #1, pp #1, cpv #1): P intake / bench need median 0.012, C 0.88;
+  sg #1 (patch edge 80 BU): 189 patch prey appeared ahead of colony ants, 72 chased, 3 caught, 1 load home; the
+  other three have their nearest patch edge at 179-210 BU and saw 0-8 prey. Real-world chase probe (sg #1 hand-over,
+  H2a in, `round-3/hunt-sg1*.txt`): 5 chases in 1.8 gd, 1 caught; misses are mostly the combat hit roll (0.7 x
+  sqrt(1.5/4) = 0.43, GDD 05 §4.2) after the escape roll: GDD-consistent, not changed.
+  Tool `tools/sim/bench-table.py DIR [BEFORE]` (per-run rows + medians). Bench JSON now has `care` (per day: nurse /
+  queen-care / haul / dig / idle worker-gd, larva-gd, hungry larva-gd, untended egg+pupa gd).
+  Decision: no worldgen change this round (patch placement): it would change every world and void the 15 cached
+  hand-overs the benches stand on. Recorded as a lead (R18 reach) instead.

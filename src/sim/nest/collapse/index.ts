@@ -20,6 +20,7 @@ import {
   COLLAPSE_MAX_VOLUME_BU3, COLLAPSE_MOISTURE_DELTA, COLLAPSE_ROOF_BREACH_BU, COLLAPSE_SLOW_CHECK_TICKS, COLLAPSE_STUN_S, COLLAPSE_WARN_HARSH_S,
   COLLAPSE_WARN_S, FLOOD_STEP_TICKS, WX_STUN_KEY,
 } from '@/sim/balance/weather';
+import { difficultyValue, effectiveRule } from '@/sim/balance/difficulty';
 import { placeOnSurface } from '@/sim/locomotion';
 import { getDiagnostic, publishDiagnostic } from '@/sim/progression/diagnostics';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
@@ -174,7 +175,7 @@ function displaceContents(sim: Sim, center: Vec3, radius: number, ants: Bystande
     if (nearestOpenSample(sim, it.pos, reach, out)) it.pos = { ...out };
   }
   const stunUntil = sim.state.tick + Math.round(COLLAPSE_STUN_S * TICKS_PER_SECOND);
-  const hurt = COLLAPSE_HP_LOSS * sim.state.config.difficulty.params.damageTakenMult;
+  const hurt = COLLAPSE_HP_LOSS * difficultyValue(sim, 'damageTakenMult');
   for (const { ant, open } of ants) {
     if (!ant.alive || !buriedNow(sim, ant.pos, open)) continue;
     moveOut(sim, ant, reach, out);
@@ -194,7 +195,7 @@ function moveOut(sim: Sim, ant: Ant, reach: number, out: Vec3): void {
 
 /** Applies a due warning: collapse if still unstable (and allowed). Returns the refilled volume, BU^3. */
 export function applyCollapse(sim: Sim, nest: Nest, center: Vec3): number {
-  if (!sim.state.config.rules.collapse) return 0;
+  if (!effectiveRule(sim.state.config, 'collapse')) return 0;
   const c = chamberAt(nest, center, sim.carve.voxel * 2);
   if (!c) return 0;
   const u = unstableSet(sim, c);

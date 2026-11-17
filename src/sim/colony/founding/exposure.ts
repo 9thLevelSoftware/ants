@@ -5,6 +5,7 @@
 
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import {
   DESICC_HEAT_MULT, DESICC_OPEN_PER_GD, DESICC_SEALED_PER_GD, DESICC_SEALED_RH_MIN,
   DESICC_SHADE_MIN, DESICC_SHADE_PER_GD, DESICC_SHAFT_PER_GD, DESICC_SHAFT_REFUGE_BU, FOUND_DIG_COST_PER_BITE,
@@ -57,14 +58,14 @@ export function desiccationRate(sim: Sim, q: Ant): number {
   if (base <= 0) return base;
   const def = speciesOf(sim);
   const hot = pointTempC(sim, q.pos) >= def.thermal.shadeSeekC ? DESICC_HEAT_MULT : 1;
-  return base * sim.state.config.difficulty.params.foundingExposureRate * hot;
+  return base * difficultyValue(sim, 'foundingExposureRate') * hot;
 }
 
 /** Reserve drain per GD (upkeep, plus the surface extra while above ground), with the difficulty multiplier. */
 export function reserveDrainPerGd(sim: Sim, q: Ant): number {
   const winter = currentSeason(sim.state) === 'winter' ? FOUND_WINTER_UPKEEP_FACTOR : 1;
   const above = q.medium !== 'cavity' && depthBelowGround(sim, q) <= DESICC_SHAFT_REFUGE_BU * sim.world.bu;
-  const mult = sim.state.config.difficulty.params.reserveDrainMult;
+  const mult = difficultyValue(sim, 'reserveDrainMult');
   return (FOUND_UPKEEP_PER_GD * winter * mult) + (above ? FOUND_SURFACE_EXTRA_PER_GD * mult : 0);
 }
 

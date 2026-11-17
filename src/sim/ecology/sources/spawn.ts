@@ -6,6 +6,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { CarrionStage, FoodSource, FoodVariant } from '@/sim/types';
 import { SEASONS } from '@/sim/types';
 import { spawnSource, worldBu, type EntityCtx } from '@/sim/entities';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import {
   ECOLOGY_TIER, LARGE_CARCASS_TYPES, REF_CARRY_MG, SPILL_HALF_LIFE_GD, SPILL_SIZES, WINDFALL_FRUITS, WINDFALL_STAGES,
   type LargeCarcassType, type WindfallFruit,
@@ -41,7 +42,7 @@ export interface CreateSourceOptions {
 }
 
 function abundance(ctx: EntityCtx): number {
-  return ctx.state.config.difficulty.params.foodAbundanceMult;
+  return difficultyValue(ctx, 'foodAbundanceMult');
 }
 
 /** Creates a source of a catalogue variant (events: entity-created, food-source-spawned). */

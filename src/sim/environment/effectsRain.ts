@@ -5,7 +5,7 @@
 
 import type { Ant, PheroChannelFactors, RainClass, Sim } from '@/sim/types';
 import { rngChance } from '@/core/rng';
-import { PHERO_CELL_BU, RAIN_MIN_RATE_MMH, WIND_GROUND_FACTOR } from '@/sim/balance';
+import { difficultyValue, PHERO_CELL_BU, RAIN_MIN_RATE_MMH, WIND_GROUND_FACTOR } from '@/sim/balance';
 import {
   WX_KNOCK_PUSH_MM_S, WX_RAIN_HIT_EVERY, WX_RAIN_HIT_HP, WX_RAIN_HIT_RATE, WX_RAIN_STUN_S, WX_STEM_HEIGHT_BU,
   WX_STEM_TOPPLE_RATE, WX_STEM_TOPPLE_WIND_GROUND, WX_STUN_KEY, WX_VERTICAL_UP_Y,
@@ -82,7 +82,7 @@ export function rainHitStep(sim: Sim): HitStepResult {
   const res: HitStepResult = { exposed: 0, hits: 0, blownOff: 0 };
   const rain = rainClassNow(sim);
   const dtS = WX_RAIN_HIT_EVERY / TICKS_PER_SECOND;
-  const rate = rain ? WX_RAIN_HIT_RATE[rain] * sim.state.config.difficulty.params.rainHitMult : 0;
+  const rate = rain ? WX_RAIN_HIT_RATE[rain] * difficultyValue(sim, 'rainHitMult') : 0;
   const pHit = rate > 0 ? 1 - Math.exp(-rate * dtS) : 0;
   const bu = sim.world.bu;
   const stemMm = WX_STEM_HEIGHT_BU * bu;
@@ -113,7 +113,7 @@ export function rainHitStep(sim: Sim): HitStepResult {
       continue;
     }
     if (vertical || high) knockOff(ant);
-    ant.hp -= WX_RAIN_HIT_HP[rain] * ant.maxHp * sim.state.config.difficulty.params.damageTakenMult;
+    ant.hp -= WX_RAIN_HIT_HP[rain] * ant.maxHp * difficultyValue(sim, 'damageTakenMult');
     if (ant.hp <= 0) killAnt(sim, ant.id, 'crushed');
   }
   return res;

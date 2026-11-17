@@ -8,6 +8,7 @@ import type { Ant, OpeningState, Sim } from '@/sim/types';
 import {
   SITE_AUTO_STILL_S, SITE_KEEP_RADIUS_BU, SITE_REFRESH_S, SITE_SNIFF_HOLD_S, SITE_STILL_SPEED_BU_S,
 } from '@/sim/balance/founding';
+import { effectiveRule } from '@/sim/balance/difficulty';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { FB, bbGet, bbSet, queenOf } from './access';
 import { assessSite, type SiteReading } from './siteAssess';
@@ -54,7 +55,7 @@ export function readoutTick(sim: Sim, op: OpeningState, q: Ant): void {
   const active = readoutActive(sim, q);
   if (!active && bbGet(q, FB.siteTick, -1) >= 0) bbSet(q, FB.siteTick, -1);
   const sniffed = bbGet(q, FB.sniffTicks, 0) === Math.round(SITE_SNIFF_HOLD_S * TICKS_PER_SECOND);
-  const autoOk = sim.state.config.difficulty.preset !== 'harsh';
+  const autoOk = effectiveRule(sim.state.config, 'foundingLeniency') !== 'strict';
   const stood = autoOk && bbGet(q, FB.stillTicks, 0) === Math.round(SITE_AUTO_STILL_S * TICKS_PER_SECOND);
   if (sniffed || (stood && !active)) { start(sim, op, q); return; }
   if (active && (sim.state.tick - bbGet(q, FB.siteTick, 0)) % Math.round(SITE_REFRESH_S * TICKS_PER_SECOND) === 0) {

@@ -3,6 +3,7 @@
 
 import type { OpeningPhase, Sim, SiteWord, FoundingFailCause, SpeciesId } from '@/sim/types';
 import { SITE_FACTORS } from '@/sim/types';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { FB, bbGet, foundingNest, foundingQueen, openingOf, phaseAgeGd, queenOf, speciesOf } from './access';
 import { clutchForecast, clutchLimit, eggsLaid } from './clutch';
@@ -83,7 +84,7 @@ export function foundingView(sim: Sim): FoundingView | null {
     const fc = eggs > 0 ? clutchForecast(sim, op, q, nest, eggs) : null;
     clutch = {
       eggs, batches: op.layBatches, limit: clutchLimit(sim, q, nest),
-      forecast: fc ? { expected: fc.expected, range: fc.range, reserves: fc.reserves, safeEggs: fc.safeEggs } : null,
+      forecast: fc && difficultyValue(sim, 'forecastPanel') ? { expected: fc.expected, range: fc.range, reserves: fc.reserves, safeEggs: fc.safeEggs } : null,
     };
   }
   const tl = sim.state.player.timelapse;
@@ -101,7 +102,7 @@ export function foundingView(sim: Sim): FoundingView | null {
   const sealedTick = nest?.founding?.sealedTick ?? -1;
   return {
     phase: op.phase, attempt: op.attempt,
-    retriesLeft: Math.max(0, sim.state.config.difficulty.params.openingRetries - op.retriesUsed),
+    retriesLeft: Math.max(0, difficultyValue(sim, 'openingRetries') - op.retriesUsed),
     canUndo: undoRefusal(sim) === null,
     reserves: f ? Math.max(0, f.reserveLoads / f.R0) : null,
     desiccation: f ? f.desiccation : null,

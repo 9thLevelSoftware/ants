@@ -11,6 +11,7 @@
 import type { Ant, Brood, Colony, Sim, SpeciesDef } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { killAnt } from '@/sim/entities';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import {
   ALATE_CALLOW_GD, ALATE_EXPIRE_GD, ALATE_EXPIRE_P_RECOVERY, ALATE_P_SHARE, REPRO_DEMOTE_RATIO, REPRO_STOP_FRAC,
 } from '@/sim/balance/lifecycle';
@@ -29,11 +30,11 @@ export function evaluateRearing(sim: Sim, col: Colony, def: SpeciesDef): void {
   if (book.gateDay === day) return;
   book.gateDay = day;
   const facts = gateFacts(sim, col, def);
-  const fails = failingGates(def, facts, s.config.difficulty.params.matureGateMult);
+  const fails = failingGates(def, facts, difficultyValue(sim, 'matureGateMult'));
   book.gateFails = fails;
   const year = currentYear(s);
   if (fails.length === 0 && book.windowYear !== year) {
-    const t = alateTarget(def, facts.workers, facts.investment, s.config.difficulty.params.alateCapMult, col.directives.gyneShare);
+    const t = alateTarget(def, facts.workers, facts.investment, difficultyValue(sim, 'alateCapMult'), col.directives.gyneShare);
     book.windowYear = year;
     book.quotaGynes = t.gynes;
     book.quotaMales = t.males;
@@ -52,7 +53,7 @@ export function designateEggs(sim: Sim, col: Colony, def: SpeciesDef): void {
   const book = lifecycleOf(col).repro;
   if (col.repro.alateRearing <= 0 || book.quotaGynes + book.quotaMales <= 0) return;
   const facts = gateFacts(sim, col, def);
-  if (failingGates(def, facts, s.config.difficulty.params.matureGateMult, REPRO_STOP_FRAC).includes('gate-stores')) return;
+  if (failingGates(def, facts, difficultyValue(sim, 'matureGateMult'), REPRO_STOP_FRAC).includes('gate-stores')) return;
   const share = col.directives.gyneShare > 0 ? col.directives.gyneShare : def.reproduction.reproGyneShare;
   for (const b of s.brood) {
     if (!b.alive || b.colony !== col.id || b.stage !== 'egg' || b.destined !== 'worker' || b.laidTick < book.scanTick) continue;
