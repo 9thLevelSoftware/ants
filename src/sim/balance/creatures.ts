@@ -489,6 +489,10 @@ export const COLONY_RANGE_BU: [number, number] = [40, 140];
 export const COLONY_RANGE_P: Partial<Record<CreatureKind, number>> = {
   'wolf-spider': 1, 'jumping-spider': 1, 'ant-spider': 1, centipede: 1, 'rove-beetle': 1,
 };
+/** Food sources within this distance of the entrance define the colony's routes (entrance -> source), BU. */
+export const COLONY_ROUTE_REACH_BU = 300;
+/** A colony-range site counts as on a route within this distance of one, BU (random among those, else the nearest). */
+export const COLONY_ROUTE_NEAR_BU = 20;
 /** Candidate points examined per kind when siting (deterministic stream per world seed and kind). */
 export const COLONY_RANGE_CANDIDATES = 64;
 /** Kinds sited in the colony range and their zones (GDD 04 §8.2 / GDD 05 §2.2a). Antlions stay worldgen-only. */
