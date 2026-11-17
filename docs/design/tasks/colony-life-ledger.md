@@ -1303,3 +1303,63 @@ Tools: `tools/sim/handover-sweep.sh`, `longrun-table.py`, `longrun-life.sh` (CAC
   "before" bench ends (`... "woodland-edge:3 suburban-garden:3 playground-park:3 car-park-verge:3 kitchen-door:3"`).
 - 17:30 before bench 13/15; after (r4h) 2/10 of seeds 1-2.
 - 17:41 before bench done (15/15). After (r4h) seed-3 instance started in the free slot.
+- 17:50 after (r4h) 7/15.
+- 18:10 after (r4h) 13-14/15.
+
+### Nest bench, 15 R20 hand-overs (food as far as the nest holds it), before (r4c) vs after (r4h)
+
+`round-4/bench-nest-before/table.md`, `round-4/bench-nest-after/table.md` (medians), `round-4/bench-nest-after/causes.txt`
+(`tools/sim/bench-causes.py`). r4h = r4c + E2 + H4 + M1 + L1b only (same predator code).
+
+| | before | after |
+|---|---|---|
+| eggs laid (sum) | 538 | 508 |
+| eclosed: sum / median | 35 / **0** | 43 / **3** |
+| brood lost to hygiene: sum / median | 256 / 16 | **156 / 9** |
+| brood lost untended (sum) | 95 | 147 |
+| larvae starved (sum) | 10 | 30 |
+| workers hand-over -> winter (sum), runs held | 168 -> 111, 2 | 168 -> 106, 1 |
+| adult deaths: predation / old age | 51 / 37 | 67 / 34 |
+| haul worker-gd / worker-gd outside (sums) | 174 / 337 | 229 / 380 |
+
+Accepted on the mechanism counter: hygiene losses fall in 11 of 15 runs (median 16 -> 9), eclosions median 0 -> 3. The
+cost: hauling to the surface midden puts 43 more worker-gd outside, where the predators now act (+16 predation deaths
+over the 15 runs), so workers at winter do not improve (111 -> 106). The next losses of the after bench: pupae and eggs
+untended (147), starvation (30), hygiene still 156 (cpv #2 27, cpv #3 21, we #2 / we #3 18: two-chamber nests whose
+waste is carried; not probed this round).
+
+### Verification (18:12 UTC)
+
+- `npx tsc --noEmit`: clean.
+- Folder tests (outputs `round-4/vitest-*.txt`; see 13:28 and 15:08): every red one is known and red on the round-start
+  tree or another engineer's: `removal.verify`, `escapeDig`, `founding/reopen`, `stall.soak`, `sfaReview.verify`,
+  `ids.test`, `weather.test` streams, `layering`, `stage1a.e2e` (c), `commands*`, `services`, `time` (others' modules).
+- New tests, each red with its fix switched off (checked): `overwinter/heatedLog.verify` (review's), `colony/larder`
+  (5 cases), `overwinter/lossCap`, `outdoor/huntReturn.verify` (review's), `nest/plugFill`,
+  `colony/allocation/hygiene`, `ants/behaviours/nest/haulMidden`.
+- Determinism: new state is plain persisted data (`broodTempTicks`, `hazardAlertTicks`, `larderC/P/ChamberId`,
+  `larderRefusedTick`); no wall clock, `Math.random` or `Math.hypot` added in sim code; per-tick cost: the hazard alert
+  scan every 5 ticks over the active alerts, a brood scan per allocation pass (`broodAmongWaste`).
+- Not run: the 15-run sweep (the independent engineer's), the forage bench (no forage-side change besides L1/H3).
+
+### Next (for the independent sweep and round 5)
+
+1. **Predation** is the largest worker loss on the R20 runs with threats-live's predators in the tree: we #1 lost 15 of
+   18 workers in year one, pp #2 7-9 of 11 in 8 days, the nest bench 51-67 over 15 runs. Whether that is inside GDD 05's
+   loss bands is threats-live's call; until it is settled every growth number here carries it.
+2. **Carbohydrate in year one**: with hygiene fixed, sg #2 grew 9 -> 12 but its C was 0 from day 9 (intake/need 0.18;
+   17 of 45 forage trips came home "hungry"; nectar within 300 BU never found) and the lapse took 10 -> 3 (short stores,
+   alerted). Scouting coverage and the departure ration of a starving pool (rounds 2-3 leads).
+3. **Brood untended** (147 on the after bench) and larvae starving (30): next nest-care losses; pupa:untended dominates
+   on the growing runs (we #1 after: 14).
+4. **Year two**: the stores check at winter (proposal above: winter need + 4 gd spring need) and spring laying (no warm
+   chamber in 9-12 BU deep nests) are for the integrator's ruling.
+5. R20 cost on seed 2 (first workers 15-16 -> 8-11): for the integrator.
+6. Bench limitations: the nest bench is capacity-bound now (earlier tables were not); its predation follows whatever
+   predator code is in the frozen tree, so every bench pair must share it.
+
+Status: **round 4 complete** (18:12 UTC). In the tree: W1, L1 (+ L1b), R20, H3, WL1, E2, H4, M1 + their tests; tools
+`handover-sweep.sh`, `longrun-table.py`, `bench-causes.py`, `longrun-life.sh` (CACHE_ANY, PAR), `lifeMetrics.ts` year-two
+fields, `bench-colony.ts` capacity-bound nest top-up. Probe tools and scratch trees deleted; no processes of this round
+running. Evidence: `test-output/colony-life/round-4/` (cache = the 15 R20 hand-overs, handover, long, long-r4f,
+ab-larder, ab-hygiene, probe-*.txt, bench-nest-before/after (+ -uncapped, -after-r4g kept as superseded), vitest-*).

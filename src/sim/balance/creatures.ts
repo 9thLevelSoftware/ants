@@ -491,7 +491,9 @@ export const COLONY_RANGE_BU: [number, number] = [40, 140];
  * until NEST_EXCLUSION_WORKERS workers and is enforced where a predator picks its victim (predator.ts canPrey), and the
  * resident still appears >= 40 BU from the focus (§2.7, director spawnPointFor).
  */
-export const COLONY_RANGE_MIN_BU: Partial<Record<CreatureKind, number>> = {}; // R26: was { 'jumping-spider': 20 }
+// Calibrated empty (threats-calibrate, ruling R26): every kind keeps the 40 BU inner edge. With { 'jumping-spider': 20 }
+// the founding-year loss was ~0.2-0.4 per outside-worker gd (threats-live fix3 / fix4).
+export const COLONY_RANGE_MIN_BU: Partial<Record<CreatureKind, number>> = {};
 /**
  * Chance that a hunting kind with habitat in the ring gets its colony-range territory, at the Normal Predators
  * setting (x the setting's multiplier: Few 0.4, Many 1.6, capped at 1). One draw per world seed and kind, so the
@@ -540,8 +542,10 @@ export const COLONY_PAUSE_SOURCES = 3;
  * spider "across the paths", centipede): sited at the sources too, the ant-spider alone took 7 workers of one colony in
  * 6 gd (threats-live fix round, run fix1), far above the design's loss rate.
  */
-// Integrator ruling R26 (Nov 17): empty until the loss rate is calibrated. With the two kinds sited at the pause
-// points the Naturalist loss was 0.40 worker deaths per outside-worker game day against the design's 0.061.
+// Calibrated empty (threats-calibrate, ruling R26: the loss rate first). With the jumping spider and the rove beetle at
+// the pause points the Naturalist loss was 0.40 worker deaths per outside-worker gd (threats-live fix4) against the
+// design's 0.061 (band 0.03-0.12); with every kind on the route rule a 60-worker colony loses 0.04 (10 runs, report
+// docs/design/tasks/threats-calibrate-report.md) and the colony-size ramp (R25) keeps founding-year colonies out of it.
 export const COLONY_PAUSE_KINDS: readonly CreatureKind[] = [];
 /**
  * A resident whose territory centre is not a valid spawn point (an ant within 20 BU, the focus within 40 BU: §2.7)

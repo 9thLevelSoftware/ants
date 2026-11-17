@@ -458,14 +458,26 @@ export default async ({ page, shot, log }) => {
   const ants1 = await g(() => window.__game.query.ants());
   const byId = new Map(ants0.map((a) => [a.id, a.pos]));
   const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
-  const workers = ants1.filter((a) => a.caste === 'worker' && byId.has(a.id));
+  // the player colony's workers only (seed 1 has a neighbouring colony whose foragers are on the surface too)
+  const myCol = await g(() => window.__hud.game.session.sim.state.colonies[0]?.id ?? -1);
+  const workers = ants1.filter((a) => a.caste === 'worker' && a.colony === myCol && byId.has(a.id));
   const autonomous = workers.filter((a) => dist(a.pos, byId.get(a.id)) > 0.5 * bu).length;
   // a worker walked by the player: the real model moves (gait, pose) on the ground. A worker above ground, walked
   // along its own heading (with behaviours, some workers are already in the shaft, where any fixed heading is a wall)
   const above = await g((list) => list.filter((a) => window.__game.query.field(a.pos.x, a.pos.y, a.pos.z).substrate > 0).map((a) => a.id), workers);
-  const w = workers.find((a) => above.includes(a.id)) ?? workers[0];
-  await g((id) => window.__game.possess(id), w.id);
-  const wa = await summary();
+  // prefer workers above ground; a refused possession (recorded) moves on to the next candidate
+  const candidates = [...workers.filter((a) => above.includes(a.id)), ...workers.filter((a) => !above.includes(a.id))];
+  let w = candidates[0], wa = null;
+  result.possessTries = [];
+  for (const c of candidates.slice(0, 8)) {
+    const r = await g((id) => window.__game.possess(id), c.id);
+    await step(1);
+    wa = await summary();
+    result.possessTries.push({ id: c.id, r, possessed: wa.possessed?.id ?? null });
+    if (wa.possessed && wa.possessed.id === c.id) { w = c; break; }
+  }
+  log('possess tries', JSON.stringify(result.possessTries));
+  expect(wa?.possessed && wa.possessed.id === w.id, 'no spawned worker could be possessed', result.possessTries);
   const wFrom = wa.possessed.pos, wf = wa.possessed.fwd, wh = Math.hypot(wf[0], wf[2]) || 1;
   await g((v) => window.__game.setIntent({ dir: v }), { x: wf[0] / wh, y: 0, z: wf[2] / wh });
   await step(50);

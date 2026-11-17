@@ -32,6 +32,16 @@ Started 2026-11-17 ~17:00 UTC. No earlier progress file existed.
 ## Remaining (in order)
 1. Ramp (R25) + tests  2. Calibrate (R26)  3. Families report  4. Three core gaps repro  5. Typecheck/tests/perf  6. Report
 
+## Status 18:00 UTC
+- base-w60 DONE: Naturalist 60 workers, 10 runs: 41 deaths / 26,118 outside worker-h = 0.04 per owgd (in band) ->
+  decision: NO constant change (COLONY_PAUSE_KINDS [], COLONY_RANGE_MIN_BU {} kept, comments updated).
+- ramp-found RUNNING (4 of 10 done at 18:15). Detached chain `$SCRATCH/chain.sh` (setsid nohup, log
+  `$SCRATCH/chain.log`) runs after it: ramp-w60-gentle -> ramp-w60-harsh -> ramp-w60-off -> base-found (tree-base, r1,
+  to winter). If the machine restarted: check which dirs have DONE and relaunch only the missing ones with queue.sh
+  (first arg '' = no wait). Then perf: `$SCRATCH/perf.sh $SCRATCH/tree-base before OUT` and main tree `after`.
+- Bird: 0 events in 10 x 60-worker runs: hourly gate eligible 3-10 h/run, but the quiet share is 0 (human-event
+  warnings) so requestMajorThreat cancels birds -> report (I11 / human events).
+
 ## Findings so far
 - base-w60 interim (7 runs): 60-worker colonies lose 1-6 per 6 gd; rates ~0.02-0.07 per outside-worker gd (in band
   at the low side) with the stop-gap constants -> likely no constant change needed at 60 workers.

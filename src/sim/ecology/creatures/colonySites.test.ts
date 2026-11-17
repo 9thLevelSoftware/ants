@@ -82,7 +82,8 @@ describe('colony-range sites on a generated world (woodland-edge #1)', () => {
     for (const s of atFood) expect(s.y - sim.field.height(s.x, s.z)).toBeGreaterThanOrEqual(JUMPING_SPIDER_SURFACE_MIN_MM);
   });
 
-  // Ruling R26: no kind is sited at the pause points until the loss rate is calibrated (COLONY_PAUSE_KINDS is empty).
+  // Ruling R26 / threats-calibrate: COLONY_PAUSE_KINDS is calibrated empty (the loss rate first); the rule stays
+  // available as a lever and is checked whenever a kind is listed.
   it.skipIf(COLONY_PAUSE_KINDS.length === 0)('the pause-point kinds wait by one of the colony\'s nearest food sources, where its ants pause', () => {
     const sim = createSim(restore(base).state, world);
     const anchor = colonyAnchor(sim)!;
