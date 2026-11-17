@@ -42,6 +42,9 @@ Started 2026-11-17 ~17:00 UTC. No earlier progress file existed.
 - Bird: 0 events in 10 x 60-worker runs: hourly gate eligible 3-10 h/run, but the quiet share is 0 (human-event
   warnings) so requestMajorThreat cancels birds -> report (I11 / human events).
 
+- 18:45 ramp-found DONE: (a) met — predation deaths per colony to winter 2,0,0,0,0,0,0,0,0,0 (median 0), 10,506
+  outside worker-h. Chain now on ramp-w60-gentle.
+
 ## Findings so far
 - base-w60 interim (7 runs): 60-worker colonies lose 1-6 per 6 gd; rates ~0.02-0.07 per outside-worker gd (in band
   at the low side) with the stop-gap constants -> likely no constant change needed at 60 workers.
