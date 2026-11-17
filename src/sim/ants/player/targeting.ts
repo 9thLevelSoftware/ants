@@ -1,8 +1,8 @@
 // Context-prompt target selection (GDD 01 §9.1-9.2): candidates in reach, priority classes, scoring, and the
 // hysteresis that keeps the prompt from flickering between two equally good targets.
 
-import type { ActionFailReason, ActionId, Ant, Sim, TargetRef } from '@/sim/types';
-import { TARGET_KINDS } from '@/sim/types';
+import type { ActionFailReason, ActionId, Ant, Entrance, Sim, TargetRef } from '@/sim/types';
+import { AntFlag, TARGET_KINDS } from '@/sim/types';
 import {
   PROMPT_ANGLE_WEIGHT, PROMPT_CLASS_WEIGHT, PROMPT_DIST_WEIGHT, PROMPT_HYSTERESIS, PROMPT_QUERY_PAD_BU, PROMPT_SWITCH_REAL_S,
   REACH_CONE_DEG,
@@ -47,6 +47,26 @@ function hasProtein(sim: Sim, ant: Ant): boolean {
   return ant.cropP > 1e-9 || (it !== undefined && isFoodItem(it) && it.p > 1e-9) || ant.queen?.founding != null;
 }
 
+/** The founding queen in the opening's `seal` phase (the seal guide takes every press; dig.ts foundingSealPhase). */
+function foundingSealPhase(sim: Sim, ant: Ant): boolean {
+  return ant.caste === 'queen' && (ant.flags & AntFlag.FOUNDING) !== 0 && sim.state.player.opening?.phase === 'seal';
+}
+
+/** The nearest not-sealed entrance of the ant's colony, any distance (the seal guide's target), or null. */
+function nearestUnsealedEntrance(sim: Sim, ant: Ant): Entrance | null {
+  let best: Entrance | null = null, bestD2 = Infinity;
+  for (const nest of sim.stores.nests.list) {
+    if (!nest.alive || nest.colony !== ant.colony) continue;
+    for (const e of nest.entrances) {
+      if (e.status === 'sealed') continue;
+      const dx = ant.pos.x - e.pos.x, dy = ant.pos.y - e.pos.y, dz = ant.pos.z - e.pos.z;
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < bestD2) { best = e; bestD2 = d2; }
+    }
+  }
+  return best;
+}
+
 /** Priority class and actions for a target (null = nothing to do with it from the E key). */
 function classify(sim: Sim, ant: Ant, t: TargetRef): Classified | null {
   switch (t.kind) {
@@ -82,15 +102,29 @@ function classify(sim: Sim, ant: Ant, t: TargetRef): Classified | null {
       const e = findEntrance(sim, t.id)?.entrance;
       if (!e) return null;
       const plugged = e.status === 'sealed' || e.status === 'sealing';
+      // the founding queen in phase `seal`: any press asks the seal guide, which walks her to the leak (dig.ts
+      // deferredToGuide), so the line reads "Seal entrance" wherever she stands, with soil or without (gate S6: it
+      // read "Put down soil pellet" until she stood in the throat)
+      if (foundingSealPhase(sim, ant) && e.status !== 'sealed') return { cls: 'receiver', primary: 'seal-entrance', secondary: null };
       if (isPlugPellet(carriedItem(sim, ant)) && e.status !== 'sealed') {
         return { cls: 'receiver', primary: 'seal-entrance', secondary: 'put-down' };
       }
-      return plugged ? { cls: 'structure', primary: 'unseal-entrance', secondary: null } : null;
+      if (!plugged) return null;
+      // the claustral queen keeps her plug: reopening stays possible (GDD 06 §5.9) but is never the line offered
+      // first, so "Open entrance" does not come up right after sealing (gate S6); cycle-target reaches it
+      return ant.caste === 'queen' && (ant.flags & AntFlag.FOUNDING) !== 0
+        ? { cls: 'self', primary: 'unseal-entrance', secondary: null }
+        : { cls: 'structure', primary: 'unseal-entrance', secondary: null };
     }
     case 'none': {
-      // Class 9: the queen in a chamber lays; carrying puts down; anything else grooms itself.
+      // Class 9: the queen in a chamber lays; carrying puts down; anything else grooms itself. When she can lay now,
+      // laying outranks the brood class (deviation from GDD 01 §9.2, gate S3): the eggs she has just laid lie in
+      // reach, and "Pick up egg" took the button after the first batch, so the opening could not be played by pad.
       if (ant.caste === 'queen' && casteAllows(sim, ant, 'lay-egg') && ant.carry.kind === 'none' && inLayingPlace(sim, ant)) {
-        return { cls: 'self', primary: 'lay-egg', secondary: 'groom' };
+        // the founding queen in the opening's `lay` phase: always (a greyed "Lay egg — not yet" between eggs, rather
+        // than "Pick up egg" taking the button); an established queen while she can lay now
+        const layPhase = (ant.flags & AntFlag.FOUNDING) !== 0 && sim.state.player.opening?.phase === 'lay';
+        return { cls: layPhase || canDo(sim, ant, 'lay-egg', t).ok ? 'lay' : 'self', primary: 'lay-egg', secondary: 'groom' };
       }
       return { cls: 'self', primary: ant.carry.kind !== 'none' ? 'put-down' : 'groom', secondary: null };
     }
@@ -134,7 +168,7 @@ function considered(sim: Sim, ant: Ant): TargetRef[] {
   add('source', sim.index.querySources(m, wide('source'), ids));
   add('ant', sim.index.queryAnts(m, r, ids));
   add('creature', sim.index.queryCreatures(m, wide('creature'), ids));
-  const e = entranceAtThroat(sim, ant, () => true);
+  const e = entranceAtThroat(sim, ant, () => true) ?? (foundingSealPhase(sim, ant) ? nearestUnsealedEntrance(sim, ant) : null);
   if (e) out.push({ kind: 'entrance', id: e.id, pos: { ...e.pos } });
   out.push(selfTarget(ant));
   return out;

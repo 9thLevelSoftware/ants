@@ -14,6 +14,7 @@ import { ANTLION_REBUILD_S, CREATURE_AGENT_CAP, FEED_S } from '@/sim/balance/cre
 import { SECONDS_PER_DAY, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
 import { creatureDirectorSystem, creatureSystem, capOf, quietTracker } from './index';
 import { conditions } from './conditions';
+import { birdMaxKills } from './bird';
 import { addHerd, installFakeCombat, setClock } from './testkit';
 
 export interface SoakResult {
@@ -42,8 +43,9 @@ export interface SoakResult {
   /** Highest kills of one kind in one game day, and the chapter bound for it (see predationBoundPerGd). */
   maxKillsPerGdByKind: Record<string, number>;
   boundPerGdByKind: Record<string, number>;
-  /** Most kills in one bird event (<= BIRD_MAX_KILLS x setting). */
+  /** Most kills in one bird event, and the event's kill cap on this preset (BIRD_MAX_KILLS x Predators setting). */
   maxBirdKills: number;
+  birdKillCap: number;
   /** Forager-days outside (mean foragers out x days): predation per 100 forager-days is reported. */
   foragerDays: number;
   /** Hours of predator-near warnings among the counted hours (part of I11's loud hours). */
@@ -168,7 +170,7 @@ function soakOn(sim: Sim, days: number): SoakResult {
   const r: SoakResult = {
     days, ticks: 0, maxCount: {}, capViolations: [], maxTotal: 0, deaths: {}, deathsPerGd: [], minWindowShare: null,
     windows: 0, threats: 0, birdEvents: 0, invasions: 0, telegraphs: 0, strikes: 0, hits: 0, hitsByKind: {}, killsByKind: {},
-    maxKillsPerGdByKind: {}, boundPerGdByKind: {}, maxBirdKills: 0, foragerDays: 0, alertHours: 0, minPatchShare: null,
+    maxKillsPerGdByKind: {}, boundPerGdByKind: {}, maxBirdKills: 0, birdKillCap: birdMaxKills(sim), foragerDays: 0, alertHours: 0, minPatchShare: null,
     insideSolid: 0,
   };
   const lastStriker = new Map<number, string>();

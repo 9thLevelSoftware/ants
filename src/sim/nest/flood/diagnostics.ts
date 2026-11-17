@@ -15,7 +15,9 @@
 // The possessed ant (never moved by the flee-water rule) raises `possessed-danger` ("Under water") while submerged.
 
 import type { Chamber, Diagnostic, DiagnosticFactor, Nest, Sim } from '@/sim/types';
-import { FLOOD_ALERT_FRACTION, FLOOD_ANT_SUB_KEY, FLOOD_RIM_MIN } from '@/sim/balance/weather';
+import {
+  FLOOD_ALERT_FRACTION, FLOOD_ANT_SUB_KEY, FLOOD_RIM_MIN, FLOOD_WORD_CATCHMENT_BANDS, FLOOD_WORD_RIM_BANDS,
+} from '@/sim/balance/weather';
 import { clearAlert, raiseAlert } from '@/sim/progression/alerts';
 import { combatHoldsQueenAlert } from '@/sim/combat/alerts';
 import { publishDiagnostic } from '@/sim/progression/diagnostics';
@@ -31,6 +33,22 @@ function rainSoon(sim: Sim): boolean {
   if (w.state === 'rain' || w.state === 'storm') return true;
   const f = w.forecast?.state;
   return f === 'rain' || f === 'storm';
+}
+
+/** The entrance's rim, in plain words (rim factor 1 = no rim, FLOOD_RIM_MIN = a full one). */
+export function rimWords(rim: number): string {
+  if (rim >= FLOOD_WORD_RIM_BANDS[0]) return 'no crater rim around the entrance';
+  if (rim >= FLOOD_WORD_RIM_BANDS[1]) return 'a low crater rim around the entrance';
+  return 'a crater rim keeps most rain out';
+}
+
+/** Where rain runs off to, in plain words (catchment 1 = flat ground, more = run-off from higher ground). */
+export function catchmentWords(catchment: number, covered: boolean): string {
+  const [hollow, slope, above] = FLOOD_WORD_CATCHMENT_BANDS;
+  const w = catchment >= hollow ? 'the entrance lies in a hollow that rain runs into'
+    : catchment >= slope ? 'the ground slopes down to the entrance'
+      : catchment < above ? 'the entrance sits above the ground around it' : 'flat ground around the entrance';
+  return covered ? `${w}, under cover` : w;
 }
 
 function factor(cause: string, weight: number, detail: string): DiagnosticFactor {
@@ -58,10 +76,13 @@ export function floodDiagnostic(sim: Sim, nest: Nest, pred: FloodPrediction | nu
   const m = moistureAt(sim, nest.origin);
   const factors: DiagnosticFactor[] = [];
   if (best) {
-    factors.push(factor('exposed-entrance', (best.catchment / 4) * best.cover, `catchment x${best.catchment.toFixed(1)}${best.cover < 1 ? ', covered' : ''}`));
-    factors.push(factor('low-rim', (best.rim - FLOOD_RIM_MIN) / (1 - FLOOD_RIM_MIN), `rim factor ${best.rim.toFixed(2)}`));
+    // plain words: a factor's detail becomes the alert's cause line (gate S17)
+    factors.push(factor('exposed-entrance', (best.catchment / 4) * best.cover, catchmentWords(best.catchment, best.cover < 1)));
+    factors.push(factor('low-rim', (best.rim - FLOOD_RIM_MIN) / (1 - FLOOD_RIM_MIN), rimWords(best.rim)));
   }
-  factors.push(factor('low-brood-chamber', worstPred, lowName ? `${lowName} ${Math.round(worstPred * 100)} % in a reference storm` : 'no brood chamber at risk'));
+  const lowWord = (CHAMBER_WORD[lowName] ?? lowName).toLowerCase();
+  factors.push(factor('low-brood-chamber', worstPred,
+    lowName ? `the ${lowWord} would be ${Math.round(worstPred * 100)} % under water in a heavy storm` : 'no brood chamber at risk'));
   factors.push(factor('soil-saturation', m, `soil moisture ${Math.round(m * 100)} %`));
   factors.push(factor('rain-forecast', rainSoon(sim) ? 0.5 : 0, rainSoon(sim) ? 'rain now or next' : 'no rain forecast'));
   // the card names the chamber it is about (gate-close-app: a generic name read as the founding card after the opening)

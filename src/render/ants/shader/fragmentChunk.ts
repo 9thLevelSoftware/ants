@@ -119,9 +119,9 @@ export const WING_COLOR = /* glsl */ `#include <color_fragment>
     // hyaline membrane: four folded layers over a dark body must stay clear (0.16 read as milky white)
     diffuseColor.a = mix(0.07, 0.92, m) * mix(1.6, 1.0, edge);
     // night: a clear membrane against a dark ground and sky vanished (faint male wings, look pass 3): it takes a little more body
-    diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + 2.2 * uFillK));
+    diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + 1.4 * uFillK));
   }`;
 
 /** Wing emissive: the possession highlight and, at night, a faint cool edge light (the form light's rim) so the wings keep their outline. */
 export const WING_EMISSIVE = ANT_EMISSIVE + /* glsl */ `
-  totalEmissiveRadiance += uFillCol * uFillRim * 2.5 * (0.3 + 0.7 * pow(1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.0));`;
+  totalEmissiveRadiance += uFillCol * uFillRim * 1.5 * (0.3 + 0.7 * pow(1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.0));`;

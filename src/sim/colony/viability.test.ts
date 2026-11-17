@@ -10,6 +10,7 @@ import {
   SMALL_COLONY_N, SMALL_SPONT_MULT_MAX, STARVE_ALERT_GRACE_GD, WINTER_RESERVE_FROM_D28,
 } from '@/sim/balance';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step } from './testkit';
+import { colonySlotBit, spawnSource } from '@/sim/entities';
 import { provisionAtHandover, starvationHeld } from './handover';
 import { smallColonySpontMult } from './activation';
 import { computeDemand } from './allocation/demand';
@@ -17,7 +18,7 @@ import { censusOf } from './census';
 import { ti } from './taskIdx';
 import { layingProteinPermitted, layingReleaseShare, queenProteinCredit, queenWantsFood, winterReserveShort } from './queen';
 import { setClimateOverride } from './envAdapter';
-import { feedFromCrop, poolSpace } from './stores';
+import { feedFromCrop, poolCapacity, poolSpace } from './stores';
 import { publishWithHysteresis } from './diagFactors';
 import { SEASON_STOCK_C_KEY, daysOfStock, needRates, targetDays } from './needs';
 
@@ -70,8 +71,18 @@ describe('R2: the hand-over is provisioned', () => {
     sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: 0, p: 0 }); // room again
     sim.applyPendingCommands();
     step(sim, 20);
-    expect(q.queen!.reserveP).toBeCloseTo(HANDOVER_QUEEN_KEEP_P, 6);
-    expect(col.stores.p).toBeGreaterThan(9 - HANDOVER_QUEEN_KEEP_P - before.p - 0.5);
+    // the queen pays in what the workers' social stomachs hold (round 5: never into a larder or pile, where it spoils);
+    // the rest stays in her body for the next cycle
+    const stomachP = poolCapacity(col).stomachP;
+    expect(col.stores.p).toBeGreaterThan(Math.min(stomachP, 9 - HANDOVER_QUEEN_KEEP_P) - 0.05);
+    expect(q.queen!.reserveP + col.stores.p).toBeGreaterThan(9 - before.p - 0.05); // nothing lost on the way
+    expect(q.queen!.reserveP).toBeGreaterThanOrEqual(HANDOVER_QUEEN_KEEP_P - 1e-9);
+    // as the stomachs empty (the brood eats), more comes in
+    const p1 = q.queen!.reserveP;
+    sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: 0, p: 0 });
+    sim.applyPendingCommands();
+    step(sim, 20);
+    expect(q.queen!.reserveP).toBeLessThan(p1 - Math.min(stomachP, p1 - HANDOVER_QUEEN_KEEP_P) + 0.05);
   });
 
   it('provisioning ends HANDOVER_PROVISION_WINDOW_GD after the hand-over: a queen fat later keeps her reserve', () => {
@@ -159,6 +170,28 @@ describe('R3: small colonies forage', () => {
     const d = computeDemand(sim, col, censusOf(sim, col.id));
     expect(d[ti('scout')]).toBeGreaterThanOrEqual(SMALL_SCOUTS_MIN);
     expect(d[ti('forage')] + d[ti('scout')]).toBeGreaterThanOrEqual(Math.max(2, SMALL_OUTSIDE_FRAC * 12) - 1e-6);
+  });
+
+  it('round 5: two sugar sources known and no protein: the 2-scout floor stays while protein is needed', () => {
+    const { sim } = handedOver(3, 1, 12);
+    const col = colonyOf(sim);
+    step(sim, 200);
+    for (let i = 0; i < 2; i++) {
+      const s = spawnSource(sim, { kind: 'nectar', pos: { x: 300 + 40 * i, y: 0, z: 300 }, units: 5 });
+      s.c = 1; s.p = 0; s.discoveredBy = colonySlotBit(sim, col.id);
+      col.knownSourceIds.push(s.id);
+    }
+    col.needs.needC = 0.5; col.needs.needP = 1;
+    expect(computeDemand(sim, col, censusOf(sim, col.id))[ti('scout')]).toBeGreaterThanOrEqual(SMALL_SCOUTS_MIN);
+    // protein not needed: the old floor (2 sources known) lets the scouts go down
+    col.needs.needP = 0;
+    expect(computeDemand(sim, col, censusOf(sim, col.id))[ti('scout')]).toBeLessThan(SMALL_SCOUTS_MIN);
+    // protein known (a carcass): no floor either
+    col.needs.needP = 1;
+    const carcass = spawnSource(sim, { kind: 'carrion', pos: { x: 260, y: 0, z: 300 }, units: 4 });
+    carcass.c = 0.1; carcass.p = 1; carcass.discoveredBy = colonySlotBit(sim, col.id);
+    col.knownSourceIds.push(carcass.id);
+    expect(computeDemand(sim, col, censusOf(sim, col.id))[ti('scout')]).toBeLessThan(SMALL_SCOUTS_MIN);
   });
 
   it('no floor when the stores are at their target', () => {

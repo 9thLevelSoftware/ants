@@ -158,6 +158,13 @@ export const FLOOD_COVER_FACTOR = 0.15;
 /** Rim factor = max(RIM_MIN, 1 - rim / RIM_FULL BU). */
 export const FLOOD_RIM_FULL_BU = 3;
 export const FLOOD_RIM_MIN = 0.1;
+/**
+ * Plain words of the flood card's cause lines (gate S17: "rim factor 1.00" was model text): rim factor at or above
+ * the first band reads "no crater rim", above the second "a low crater rim"; catchment at or above the first band
+ * "lies in a hollow", above the second "ground slopes down to it", below the third "sits above the ground around".
+ */
+export const FLOOD_WORD_RIM_BANDS = [0.9, 0.5] as const;
+export const FLOOD_WORD_CATCHMENT_BANDS = [2, 1.2, 0.8] as const;
 /** Inflow factor by entrance status. */
 export const FLOOD_STATE_FACTOR: Record<'open' | 'sealing' | 'sealed' | 'reopening', number> = {
   open: 1, sealing: 0.5, sealed: 0.1, reopening: 0.1,

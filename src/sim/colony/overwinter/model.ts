@@ -149,6 +149,25 @@ export function capLapseLosses(losses: Record<string, number>, cap: number, aler
   return out;
 }
 
+/**
+ * Ruling R24 with its food: the winter C that the workers the cap kept alive eat, loads, by day (cumulative). The model
+ * charged each day's food only for the workers it expected alive that day; a worker it had drowned on day g but the
+ * cap kept eats from day g to spring. The lost-by-day curve is the model's own (`days[g].workers`, ending on the drawn
+ * total `modelLost`); `keptLost` of those losses are applied, so a share 1 - keptLost / modelLost of each day's losses
+ * lives on. Returns the cumulative extra C after each day (last entry = the whole winter's).
+ */
+export function sparedWorkersFood(out: WinterOutcome, w0: number, p: WinterParams, modelLost: number, keptLost: number): number[] {
+  const cum: number[] = [];
+  let extra = 0;
+  const spareShare = modelLost > 0 ? Math.max(0, 1 - keptLost / modelLost) : 0;
+  for (const d of out.days) {
+    const spared = Math.max(0, w0 - d.workers) * spareShare;
+    extra += spared * WINT_C_PER_WORKER * metFactor(p, d.tMean);
+    cum.push(extra);
+  }
+  return cum;
+}
+
 /** Runs the winter. `days` = the length of the input arrays (one season). */
 export function runWinterModel(input: WinterInput, p: WinterParams, rng: RngState): WinterOutcome {
   const days = input.tMean.length;

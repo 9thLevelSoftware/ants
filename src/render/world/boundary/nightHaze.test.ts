@@ -3,13 +3,28 @@
 import { describe, expect, it } from 'vitest';
 import { Color, Scene, Vector3 } from 'three';
 import { BoundaryRenderer } from './boundaryRenderer';
-import { BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, FENCE_GAP_P, FENCE_HEIGHT_VARY } from './tuning';
+import { BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, FENCE_GAP_P, FENCE_HEIGHT_VARY, SKIRT_NIGHT_ALBEDO } from './tuning';
 
 const light = (nightW: number | undefined) => ({
   skyHorizon: new Color(0.01, 0.012, 0.02), skyZenith: new Color(0.004, 0.006, 0.014), overcast: 0, sunDir: new Vector3(0, -0.5, 0.8).normalize(),
   sunGlow: 0, keyColor: new Color(0.6, 0.7, 1), nightW,
 });
 const minHaze = (b: BoundaryRenderer) => (b as unknown as { backdropLook: { minHaze: { value: number } } }).backdropLook.minHaze.value;
+
+describe('skirt at night (look pass 3)', () => {
+  it('is darkened with the night weight: day colour by day, SKIRT_NIGHT_ALBEDO at full night', () => {
+    const b = new BoundaryRenderer();
+    b.init({ scene: new Scene() });
+    const skirt = () => (b as unknown as { skirtMat: { color: Color } }).skirtMat.color;
+    b.update({}, light(0));
+    expect(skirt().r).toBeCloseTo(1, 9);
+    b.update({}, light(0.5));
+    expect(skirt().r).toBeCloseTo((1 + SKIRT_NIGHT_ALBEDO) / 2, 9);
+    b.update({}, light(1));
+    expect(skirt().r).toBeCloseTo(SKIRT_NIGHT_ALBEDO, 9);
+    b.dispose();
+  });
+});
 
 describe('backdrop haze floor', () => {
   it('rises from the day value to the night value with the night weight, and is the day value without one', () => {

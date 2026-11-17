@@ -137,7 +137,8 @@ export function triggerBird(sim: Sim, variant: CreatureVariant | null, pos: Vec3
   return true;
 }
 
-function maxKills(sim: Sim): number {
+/** Kills that end a bird event: BIRD_MAX_KILLS x the Predators setting (GDD 05 §2.6; Few counts as 0.4). */
+export function birdMaxKills(sim: Sim): number {
   return Math.max(1, Math.round(BIRD_MAX_KILLS * Math.max(conditions(sim).predatorMult, 0.4)));
 }
 
@@ -164,7 +165,7 @@ export function birdTick(sim: Sim): void {
     return;
   }
   // landed
-  if (now >= (ev.endTick ?? now) || ev.kills >= maxKills(sim)) { ev.phase = 'leaving'; ev.endTick = now + ticks(BIRD_LEAVE_S); return; }
+  if (now >= (ev.endTick ?? now) || ev.kills >= birdMaxKills(sim)) { ev.phase = 'leaving'; ev.endTick = now + ticks(BIRD_LEAVE_S); return; }
   const peck = ev.nextPeckTick ?? now;
   if (now === peck - ticks(BIRD_HEAD_COCK_S)) chooseTarget(sim, ev);
   if (now >= peck) { doPeck(sim, ev); ev.nextPeckTick = now + ticks(BIRD_PECK_EVERY_S); }

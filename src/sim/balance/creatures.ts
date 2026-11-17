@@ -463,6 +463,15 @@ export const PREDATOR_NEAR_FORAGERS = 3;
 export const PREDATOR_NEAR_COOLDOWN_GD = 0.1;
 /** predator-near clears once its condition has not held for this long, s (decision: alerts need a clearer). */
 export const PREDATOR_NEAR_CLEAR_S = 30;
+/**
+ * A predator-near card raised by a landed strike (App. C: predator-strike feeds the alert) clears this long after the
+ * strike unless the predator is seen lurking again, s. A strike is an instant: held for PREDATOR_NEAR_CLEAR_S (30 s =
+ * 1.2 game-clock hours of 25 s) every landed strike made one or two daytime hours loud for I11, so a grown colony at
+ * the design's predation rate could not meet QUIET_SHARE_MIN (creature soak 28 gd: quiet share 0 in 5 of 5 runs,
+ * threats-calibrate fix round). Kept below QUIET_ALERT_SHARE of an hour (6.25 s): one strike alone never makes an
+ * hour loud, two in the same hour do. The toast, sound and journal entry are the same as before.
+ */
+export const PREDATOR_STRUCK_CLEAR_S = 5;
 /** nest-attacked clears this long after the last invader left, s. */
 export const NEST_ATTACKED_CLEAR_S = 30;
 

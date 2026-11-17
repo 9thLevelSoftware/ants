@@ -191,9 +191,9 @@ export const PROMPT_QUERY_PAD_BU = 1;
 /** A new winner must lead this long before the prompt switches, REAL s (PROMPT_SWITCH_MS 200; 2 ticks at 1x,
  *  8 at 4x). Real s of one tick = 0.1 / speed. */
 export const PROMPT_SWITCH_REAL_S = 0.2;
-/** Class weights of the priority classes (GDD 01 §9.2). */
+/** Class weights of the priority classes (GDD 01 §9.2; `lay`: the queen who can lay now, above brood, gate S3). */
 export const PROMPT_CLASS_WEIGHT = {
-  commitment: 10, receiver: 8, brood: 7, food: 6, livestock: 5, nestmate: 4, item: 3, structure: 2, self: 1,
+  commitment: 10, receiver: 8, lay: 7.5, brood: 7, food: 6, livestock: 5, nestmate: 4, item: 3, structure: 2, self: 1,
 } as const;
 
 // ---- inspect read-outs (GDD 01 §10): word bands are upper cut-offs, one fewer than the words ----

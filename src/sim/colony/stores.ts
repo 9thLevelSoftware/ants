@@ -122,6 +122,19 @@ export function poolSpace(col: Colony): { c: number; p: number } {
   };
 }
 
+/**
+ * Free room in the workers' social stomachs alone (no larder, no chamber piles), given the current stock: what the
+ * colony can hold without anything lying on a floor, where it spoils.
+ */
+export function stomachSpace(col: Colony): { c: number; p: number } {
+  const k = poolCapacity(col);
+  const space = poolSpace(col);
+  return {
+    c: Math.min(space.c, Math.max(0, k.stomachC - col.stores.c)),
+    p: Math.min(space.p, Math.max(0, k.stomachP - col.stores.p)),
+  };
+}
+
 /** True when a delivery offered `c`, `p` and the pool took less (full), while the colony has a larder (R21 (b)). */
 export function refusedIntoLarder(col: Colony, offered: FoodAmount, got: FoodAmount): boolean {
   const k = poolCapacity(col);

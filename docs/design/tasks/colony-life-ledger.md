@@ -1363,3 +1363,214 @@ Status: **round 4 complete** (18:12 UTC). In the tree: W1, L1 (+ L1b), R20, H3, 
 fields, `bench-colony.ts` capacity-bound nest top-up. Probe tools and scratch trees deleted; no processes of this round
 running. Evidence: `test-output/colony-life/round-4/` (cache = the 15 R20 hand-overs, handover, long, long-r4f,
 ab-larder, ab-hygiene, probe-*.txt, bench-nest-before/after (+ -uncapped, -after-r4g kept as superseded), vitest-*).
+
+### Independent sweep after round 4
+
+Independent engineer, 18:15-21:10 UTC Nov 17 (cut off once by the 18:55 restart; resumed from
+`progress/colony-life-sweep-4.md`). **Table: `test-output/colony-life/round-4/sweep-table.md`** (`python3
+tools/sim/sweep-table.py test-output/colony-life/round-4/sweep test-output/colony-life/round-3/sweep`; runs by
+`tools/sim/sweep-life.sh` from a frozen copy of the tree taken at 18:16, src hash `8338ddfe`, all 15 runs on it; the live
+sim tree differs from it only by this review's test files). Naturalist, default start (R20, doy 5), flooding on, no
+player; hand-overs founded fresh (= the round's R20 hand-overs: same first workers). Predators: the 17:00 stop-gap code.
+**This table is the one the next round compares with.**
+
+**Viability bar: NOT met** - viable **1 of 15** (round 3: 8): woodland-edge 0/3, suburban-garden 1/3, playground-park 0/3,
+car-park-verge 0/3, kitchen-door 0/3. The check that fails: "starvation stage worse than lean > 1 gd" in **13 of 15**
+(round 3: 1 of 15), workers in 8, stores (C 0) in 4.
+
+**Growth bar R19: NOT met** (2 of 7), computed by `sweep-table.py`:
+
+| check | round 4 | round 3 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **2 of 15** | 4 |
+| median eclosions after hand-over >= 4 | **2** | 0 |
+| median intake/need P >= 0.7 | **0.045** | 0.044 |
+| median intake/need C >= 0.9 | **0.716** | 1.238 ok |
+| median trip success >= 50 % | **42.2 %** | 25.4 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok | 13 |
+| no `worker:lost`, >= 13 of 15 | 15 of 15 ok | 13 |
+
+Regressions against round 3 (script: all 15 runs flagged; day-9 vs day-5 start, so read them as mechanisms): viable ->
+NOT viable in 8 (we #1, sg #2, pp #2, pp #3, cpv #1, cpv #2, cpv #3, kd #1 - kd #1 and cpv #1 15 -> 7 and 11 -> 10 with
+the starvation-stage check); larvae starved 0 -> 1-7 in 13 runs (sweep total 48, round 3 21); intake C down by more
+than 0.1 in 9 (median 1.238 -> 0.716; C 0 at winter in we #3, sg #2, sg #3, kd #3); eclosions down in sg #2 5 -> 3,
+pp #2 8 -> 3, cpv #2 3 -> 0, kd #2 7 -> 1. Gains: eclosions 0 -> 2-6 in 10 runs, trip success 25 -> 42 %, no
+`worker:lost` (13 -> 15 of 15), first workers >= 9 14 of 15.
+
+**Which change: A/B on the same 15 hand-overs** (`round-4/sweep-review/ab-minus4/`, table `ab-minus4-table.md`):
+tree "minus4" = the frozen sweep tree with the round's 12 production files (haul.ts, outdoor/engine.ts,
+allocation/index.ts, targets.ts, economy.ts, colony/index.ts, overwinter/begin.ts, model.ts, system.ts, stores.ts,
+architect/needs.ts, entrances.ts) at 5c8c576; R20, types and the rest unchanged; restored from the sweep's own cached
+hand-overs (checked: restore = in-process run, the sg #1 long run's days 1-4 equal the sweep's).
+
+| 15 pairs, same hand-over | round 4 (sweep) | minus4 |
+|---|---|---|
+| viable | 1 | **4** |
+| workers at winter: sum / median / runs held | 128 / 8 / 2 | **154 / 10 / 7** |
+| eclosions: sum / median | 35 / 2 | **56 / 4** |
+| larvae starved (sum) | 48 | **7** |
+| longest stage worse than lean, median gd | 3.55 | **0.10** |
+| intake/need C / P, median | 0.716 / 0.045 | 0.857 / 0.061 |
+| brood lost to hygiene (sum) | 53 (larva 28) | 31 (larva 4) |
+| trip success, median | **42.2 %** | 30.4 % |
+| runs without `worker:lost` | **15** | 13 |
+
+Round 4 is worse on workers at winter in 10 of 15 pairs, better in 3. Second A/B, **only L1 reverted** (stores.ts,
+economy.ts, colony/index.ts, architect/needs.ts at 5c8c576; `ab-minusL1/`, 4 pairs kd #1, cpv #1, sg #2, pp #2): eclosions
+14 -> 24, larvae starved 7 -> 0, bad-stage gd 17.9 -> 5.7, P intake median 0.09 -> 0.22, workers at winter 37 -> 43;
+sg #2 becomes viable. The regression is L1's. (The minus4 tree also fails the bar, 4 of 15: the calendar and protein
+are the rest; see leads.)
+
+Review of the round (code: `git diff 5c8c576` on the files the round lists; outputs `round-4/sweep-review/`):
+- Verified: `tsc --noEmit` clean (18:24, 19:05, incl. the new tests). Folder tests on the sweep tree (vitest-*.txt):
+  colony 57/59 files (red: `founding/reopen` known, `overwinter/lossCapStores.verify` this review's), nest 55/56
+  (`escapeDig` known), ants/behaviours/nest 27/30 (`stall.soak`, `sfaReview.verify` known, `haulMidden.verify` this
+  review's), ants/behaviours/outdoor 27/28 (`removal.verify` known), species 39/39, config, simroot green; environment
+  (`weather.test` streams), types (`ids.test`), testing (`layering`: others' test files import `@/content`, `@/game` and
+  `species/modules/granary/rhythm.ts` uses `window`; `stage1a.e2e` (c)) red on others' work, as the round reported.
+  colony/allocation 4/4 with this review's test.
+- Round tests checked red with their fix taken out (scratch copy): plugFill, haulMidden, lossCap, larder (4 of 5; the
+  food-chamber case is a control), heatedLog.verify, huntReturn.verify. allocation/hygiene.test stays green with the H4
+  trigger unwired (it tests the order only); closed by this review's `hygieneWiring.verify` (below).
+- Not allowed list: no lifespan, need, bar or ruling-test change; no seed or archetype case. Start-day tests changed for
+  R20 as the ruling asks (`d7.test` now sets the natural start explicitly because test sims are pinned to TEST_START).
+  Determinism: new state is persisted (`broodTempTicks`, `hazardAlertTicks`, `larder*`); `heatedNest` writes the log
+  (drops old samples) but its only caller is the overwinter system; no wall clock, `Math.random`, `Math.hypot` added.
+  Per-tick cost: `noteHazardAlerts` per overwinter check over the active alerts, `broodAmongWaste` one brood pass per
+  allocation pass, `measureLarder` one brood pass per colony cycle: small.
+- E2, H3, H4 (logic), W1: sound. H3 opens chained chases from the way home (each up to HUNT_CHASE_S); `worker:lost` 0 in
+  the sweep, so no evidence of a cost.
+- **L1 x R2 hand-over provision (finding, blocker: the A/B above).** Before L1 a nest without a food chamber held P only
+  in the social stomachs (0.15 per worker), so `provisionAtHandover` left most of the queen's protein in her body and
+  paid it in as the larvae ate. With the larder (>= 4 loads per nutrient) the pool takes it at once as a pile on the
+  brood chamber's floor, where it spoils; the queen refills what rots until her reserve is spent. Probe on the cpv #1
+  hand-over (`sweep-review/probe-r4-cpv1.txt` vs `probe-m4-cpv1.txt`, 72 h): round 4 spoils **1.98 P** before the first
+  larva hatches (h 39) and feeds the larvae 7.9 P by h 72; minus4 spoils 0 and feeds 9.85 P; the queen is at her keep
+  by h 45 vs h 63. The 1.98 P are about 4 spoiled-food waste items among the eggs (tolerance 3): larva:hygiene 28 vs 4
+  over the A/B. New test **`src/sim/colony/larderProvision.verify.test.ts` (RED, kept)**: royal-only nest, eggs only,
+  queen reserve P 11.45, 20 C, 1.5 gd: 1.39 P spoiled and 2 spoiled-food items in the royal chamber (green on the
+  minus4 tree). R21 is for solid food carried home; the queen's body reserve was never a pile.
+- **WL1 (finding, major; this review's earlier half): the workers the cap keeps eat nothing in the lapse.**
+  `beginOverwinter` takes the model's c1/p1, computed with the drawn losses (half the cluster drowned on day d eats from
+  day d), then trims the losses to the cap. `src/sim/colony/overwinter/lossCapStores.verify.test.ts` (RED, kept): flood-
+  prone nest, 12 seeds: seed 1 keeps 17 workers vs 9 with the same C at spring (16.554 both), seed 5 17 vs 6. The
+  spring stores of every capped colony are overstated by the winter food of the workers the cap kept (about 0.2 C per
+  worker per winter at fMet 0.35): free food in effect, and it feeds R27's stores check the wrong number.
+- **M1 (finding, minor, latent): a surface midden's 2D test also takes in waste inside the nest under it.**
+  `src/sim/ants/behaviours/nest/haulMidden.verify.test.ts` (RED, kept): waste on the floor of a cavity 10 BU under the
+  midden point reads "at the midden" (haul priority 0) and is never carried out. Probe on the 15 R20 hand-overs: no
+  midden at hand-over, founding chamber 8 BU from the entrance: not seen in these nests yet.
+- H4 trigger end to end: **`src/sim/colony/allocation/hygieneWiring.verify.test.ts` (green)**: 3 workers, demand 4.8,
+  three waste items in the nursery among 6 eggs: haul 1 through `allocateColony`; the same waste in the food chamber:
+  haul 0. Red with `broodAmongWaste` unwired (scratch copy).
+
+**Year two: five long runs** (`round-4/sweep-long/`, table `longrun-table.md`; frozen tree, the sweep's hand-overs,
+`UNTIL_DAY=32`; year one identical to the sweep run). Decision (recorded): only sg #1 was viable, so for the other four
+archetypes the run with the best workers winter/first was taken (we #3, pp #2, cpv #1, kd #2).
+
+| run | first | Winter 1: workers, C, P | spring d1: workers, C | y2 eggs / eclosed | workers y2 doy 15 | deaths after winter |
+|---|---|---|---|---|---|---|
+| suburban-garden #1 | 9 | 8, 10.6, 0.2 | 4, 9.1 | 1 / 0 | 3 | drowning 3 (lapse, seed-1 flood alerted), old age 2 |
+| woodland-edge #3 | 10 | 11, **0**, 1.8 | 3, 0.1 | 0 / 0 | 1 | starvation 6 (lapse, short stores alerted), **queen starved**, old age 4 |
+| playground-park #2 | 11 | 11, 3.5, 2.3 | 9, 1.0 | 8 / 2 | 3 | old age 10 |
+| car-park-verge #1 | 10 | 10, 12.8, 0 | 8, 10.9 | 0 / 0 | 1 | old age 8, cold 1 |
+| kitchen-door #2 | 10 | 8, 4.5, 0 | 6, 2.7 | 0 / 0 | 2 | old age 5, cold 1 |
+
+R22 year two: spring >= 0.7 x winter **3 of 5** (target 4); y2 doy 15 >= 2 x first **0 of 5** (target 3). No colony
+lays before spring day 3-4 (royal 0.8-3 C on spring day 1, 12-13 C on day 6-7) and 4 of 5 lay nothing in the window;
+old age takes the overwintered workers. W1: every colony got its lapse (no heated-nest case).
+
+Leads from the failing runs' own diagnostics (most costly first):
+1. **L1 x hand-over provision** (above; -26 workers at winter, -21 eclosions, +41 starved larvae over the 15 pairs).
+   The cause is where the queen's reserve goes, not the larder's size: keep the R2 provision in the queen until a larva
+   or the queen needs it (or keep it out of the larder), with a test at the rule; the L1 unit tests and R21 (b) stand.
+2. **Protein income** (P intake median 0.045; laying permitted 0.07-0.26 of the time in 11 runs): P sources within
+   300 BU hold 0-9.3 P at start and are known in **0 of 15** (at the end in 3); carrion delivered 0.4 P over the whole
+   sweep; the P that arrives is patch prey where a patch is near (we #3 8.8 P, edge 4 BU; kd #3 6.2, 118 BU; sg #2 4.9,
+   36 BU; pp #2 3.3, 129 BU), 0 where the edge is 180-244 BU. Scouts' median farthest point is 205-208 BU in 10 of 15
+   runs (the same number: a range limit), nearest P odour edge 44-203 BU. The first larvae eat the provision in one
+   day (cpv #1: 5.6 P -> 0 in 21 h, 7 larvae x 1.2 P need) and wait at P 0 for days.
+3. **Old age**: 56 of 75 adult deaths in year one, 29 of 40 worker deaths after winter; the overwintered colony is gone before the
+   first year-two egg. Follows from 1-2 (eclosions median 2) and from spring laying (fTempQ 0 below 14 C): R11 stands.
+4. **Winter stores / R27**: C 0 at Winter 1 in 4 runs (we #3, sg #2, sg #3, kd #3); we #3's lapse kills 8 of 11 and the
+   queen. C intake median 0.716 (round 3 1.238) - partly L1 (minusL1 C 0.77 -> 1.08 median on 4 pairs).
+5. **WL1 lapse food** (finding above): fix before R27's check is computed on it.
+6. **Brood care**: egg:untended 24, pupa:untended 20, egg:flooding 24 (sg #1 11, pp #1 9), hygiene 53.
+7. **Crushed** 8 workers (kd #1 4 in one day), predation 10 (stop-gap code: in band).
+
+Scratch trees (`/home/user/frozen-sweep4`, scratchpad minus4, minusL1, rev, cache links, probe tool) deleted; no
+processes left running. A/B outputs and the probe's text kept under `round-4/sweep-review/`.
+
+## Round 5
+
+Engineer: round 5 (started 21:13 UTC Nov 17). Evidence: `test-output/colony-life/round-5/`. Order of work: sweep-4
+blocker (L1 x R2 provision) and major (WL1 lapse food), minor M1, then R27 (stores check in life tool + sweep table,
+R6 autumn target), S3 + S6 (player targeting / prompt), then direction 10 (protein first) by the method.
+
+Progress (kept current; a successor continues from here)
+- 21:13 read spec, ledger (to the sweep-4 review), STATUS (to R27). Tree = HEAD 8b4c207 + 3 doc files modified by
+  others; no round-5 change yet. Next: reproduce `colony/larderProvision.verify` (RED) and fix in stores/handover.
+- 21:16 **P1 (blocker, L1 x R2 provision) in the tree**: `colony/handover.ts` `provisionAtHandover` pays the queen's
+  reserve into the workers' social stomachs only (new `stores.ts` `stomachSpace`), never into the larder or a chamber
+  pile; the rest stays in her and is paid in as the stomachs empty (window HANDOVER_PROVISION_WINDOW_GD unchanged).
+  `larderProvision.verify` (review's, RED on the sweep tree) green; `viability.test` R2 case "moves in later" restated
+  to the stomach rule (it assumed the pre-L1 royal pile held all 8 P; it now checks: stomachs filled, nothing lost,
+  more paid in as they empty). Reproduced: red before (1.39 P spoiled, 2 items), green after.
+- 21:16 **WL2 (major, lapse food of capped workers) in the tree**: `overwinter/model.ts` `sparedWorkersFood` (pure: the
+  C the kept workers eat from the day the model had them die, share 1 - kept/drawn of each day's losses, x
+  WINT_C_PER_WORKER x fMet(day)); `begin.ts` `chargeSparedWorkers` takes it from c1/usedC/day series before the series
+  is rescaled. `lossCapStores.verify` (review's, RED) green; new case in `lossCap.test.ts` (capped flood colony eats
+  as the dry one: same RNG draws, C within one worker-day). Overwinter folder green (7 files).
+- 21:17 **M2 (minor, M1 under the midden) in the tree**: `ants/behaviours/nest/haul.ts` `atMidden`: an item inside the
+  nest is never at a surface midden. `haulMidden.verify` (review's, RED) green; haul tests 4/4.
+  Next: R27 (life tool verdict + sweep table + R6 autumn target).
+- 21:24 **R27 in the tree**: `colony/overwinter/storesNeed.ts` `winterStoresNeed` (lapse C need = season days x
+  `dayNeedC` at the cluster temperature now, eggs counted as larvae; + WINTER_STORES_SPRING_GD 4 x the adults' C need of
+  the colony cycle); `colony/economy.ts` `autumnStockMult`: the autumn C stock target is max(x2, R27 need x
+  WINTER_STORES_TARGET_MARGIN 1.25) (R6 aims for R27); `tools/sim/lifeMetrics.ts` day rows carry `winterStoresNeedC`,
+  `lapseNeedC`; `lifeViable.ts` stores check = C >= R27 need (old JSONs without the field keep the pre-R27 check);
+  `sweep-table.py` new column "stores / R27 winter need". Test `overwinter/storesNeed.test.ts` (need arithmetic; the
+  autumn target covers R27 x margin for a 30-worker colony, where x2 alone does not). viability.test 16/16.
+  Next: S3 + S6 (player targeting / prompt), then direction 10 (protein): scout range, P discovery counters.
+- 21:25 **S3 + S6 in the tree** (`ants/player/targeting.ts`, `balance/actions.ts` PROMPT_CLASS_WEIGHT.lay 7.5): S3 the
+  queen's "Lay egg" outranks the brood class (new class `lay`, between receiver 8 and brood 7) for the founding queen
+  in phase `lay` always (greyed between eggs) and for an established queen while she can lay now; S6 in phase `seal`
+  the founding queen's line is "Seal entrance" wherever she stands (nearest unsealed entrance is a target; the press
+  goes to the seal guide), and a plugged entrance is offered to the founding queen only at class `self` (her own
+  line wins; cycle-target still reaches "Open entrance", GDD 06 §5.9). GDD 01 §9.2 deviation. Test
+  `colony/founding/padPrompt.test.ts` (seal line on the cell floor; after sealing not "Open entrance"; 300 ticks after
+  a batch with eggs in reach the line stays "Lay egg"). ants/player 6/6 files green.
+- 21:25 frozen tree `r5base` (scratchpad; = tree now: P1 WL2 M2 R27 S3 S6) for the protein "before". Running
+  (background, restart-safe): `DAYS=4 PAR=1 $S/r5base/tools/sim/bench-sweep.sh forage $P/bench-forage4-before
+  $PWD/test-output/colony-life/round-4/cache` ($S scratchpad, $P = test-output/colony-life/round-5; `bench-sweep.sh`
+  takes DAYS now). Next: account the protein path (direction 10) from the sweep-4 funnels while it runs.
+- 21:33 **PR1 (protein scouting) in the tree, under test**: `colony/allocation/demand.ts` `smallColonyFloor`: the
+  SMALL_SCOUTS_MIN 2-scout floor also holds while the colony needs protein and knows none (`knownCapacity.loadsP` 0;
+  before: it ended once any 2 sources were known, sugar found first dropped the scouts to ~1);
+  `balance/foraging.ts` SMALL_SCOUT_RANGE_BU 220 -> 300 (R18's radius; sweep-4 scouts stopped at 205-208 BU in 10 of
+  15 runs; patch edges at 174-244 BU in 6 worlds). Test: `viability.test` R3 case "two sugar sources known and no
+  protein" (red before: scouts 1.6). Tools: `lifeFunnel.ts` `proteinKnownGd`, `bench-table.py` columns P known gd,
+  scout trips / maxD, gap to P odour. Frozen tree `r5p`. Running (background, restart-safe): `DAYS=4 PAR=1
+  $S/r5p/tools/sim/bench-sweep.sh forage $P/bench-forage4-p1 $PWD/test-output/colony-life/round-4/cache` next to the
+  "before" (21:25 command). Note: we #1 and sg #1 "before" lack `proteinKnownGd` (started before the tool change).
+- 21:36 **S17 in the tree**: `nest/flood/diagnostics.ts` `rimWords`, `catchmentWords` (word bands
+  FLOOD_WORD_RIM_BANDS / FLOOD_WORD_CATCHMENT_BANDS in `balance/weather.ts`): the flood card's cause lines read "no
+  crater rim around the entrance", "the ground slopes down to the entrance", "the royal chamber would be 40 % under
+  water in a heavy storm" instead of "rim factor 1.00", "catchment x1.2". Test `nest/flood/causeWords.test.ts`;
+  flood folder 11 files green. **S7 checked, not a sim defect**: the epitaph's 13 "unknown" deaths are the
+  lifecycle script's own `cheat.killAll` (tests/e2e/lifecycle.mjs line 154; the cheat books 'unknown'); no
+  `worker:unknown` death in any sweep-4 run. For the app engineer: pass a cause, or read the epitaph after a real end.
+
+### Account (round 5): the protein path, from the sweep-4 runs' own funnels (`round-4/sweep/*.json`, 15 runs)
+
+| stage | sweep 4 (15 runs, hand-over to Winter 1, ~13 gd) |
+|---|---|
+| P in reach (R18) | prey patches within 300 BU in 15 of 15 (K 50-2183 springtails x 0.25 P; nearest edge 4-244 BU); carrion at start 0-8.8 P (mostly insect-small 0.1-0.35 P each), more appears during the run |
+| found | scout trips **7-24 in ~13 gd** (one scout most days: scout ant-gd 5-17); scouts' median farthest point 205-208 BU in 10 runs = the walk bound of SMALL_SCOUT_RANGE_BU 220; nearest pass to a P odour edge median 44-203 BU; prey patches met (prey appeared) in 10 of 15, 0 in the 5 runs whose nearest patch edge is 128-244 BU (cpv #1, kd #1, kd #2, pp #1, we #1) |
+| known at the end | carrion known 0 in 13 of 15 at the end (small carrion is eaten or decays); P sources known = patches met |
+| taken | springtails appeared 23-375 where a patch was met, subdued ~10-13 % of appeared (round 3 bench: 25 % of chased) |
+| brought home | P delivered: prey 0.25-8.8 P per run (where a patch was met), carrion 0.16-0.25 P in 2 runs, else 0 |
+| fed | P intake/need median 0.045; larvae starved 48 over the sweep (L1 x provision: +41, fixed P1) |
+
+Scouting is the narrowest stage: one scout, 1-2 trips a game day, bounded at 208 BU, while sugar found first (two C
+sources known) ends the 2-scout floor of R3.

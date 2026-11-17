@@ -23,7 +23,9 @@ import { invalidateCensus, isWorkerCaste } from '../census';
 import { countStageChange } from '../population';
 import { lifecycleOf } from '../succession/lifecycleState';
 import { clusterOf, winterClimate } from './climate';
-import { capLapseLosses, dayNeedC, metFactor, runWinterModel, type WinterInput, type WinterParams } from './model';
+import {
+  capLapseLosses, dayNeedC, metFactor, runWinterModel, sparedWorkersFood, type WinterInput, type WinterOutcome, type WinterParams,
+} from './model';
 import { rankWhy } from './report';
 
 /** The model's parameters for a colony (species winter data, difficulty). */
@@ -135,6 +137,8 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
   const alerted = alertedCauses(sim, col);
   if (storesShort) alerted.add('starvation');
   const workerLosses = capLapseLosses(out.losses, WINT_LAPSE_LOSS_CAP_FRAC * difficultyValue(sim, 'winterLossMult') * workers.length, alerted);
+  // the workers the cap keeps eat through the winter (sweep-4 review: they ate nothing, spring C was overstated)
+  chargeSparedWorkers(out, workers.length, params, sumOf(out.losses), sumOf(workerLosses));
   scaleDaySeries(out.days, workers.length, sumOf(out.losses), sumOf(workerLosses));
 
   // losses on real ants: old-age takes the oldest, the other causes a random order
@@ -228,6 +232,19 @@ export function noteHazardAlerts(sim: Sim, col: Colony): void {
       if (kinds.includes(a.kind)) (life.hazardAlertTicks ??= {})[a.kind] = sim.state.tick;
     }
   }
+}
+
+/**
+ * Takes the winter food of the workers the R24 cap kept alive from the model's outcome (c1, usedC and the day series'
+ * C), as far as the stores go. Must run before the day series is rescaled to the applied losses.
+ */
+function chargeSparedWorkers(out: WinterOutcome, w0: number, params: WinterParams, modelLost: number, lost: number): void {
+  if (modelLost <= lost) return;
+  const cum = sparedWorkersFood(out, w0, params, modelLost, lost);
+  for (let g = 0; g < out.days.length; g++) out.days[g].c = Math.max(0, out.days[g].c - cum[g]);
+  const extra = Math.min(out.c1, cum.length > 0 ? cum[cum.length - 1] : 0);
+  out.c1 -= extra;
+  out.usedC += extra;
 }
 
 /** The presentation's workers by day end on the losses actually applied (the model's day series ends on its own). */

@@ -7,8 +7,13 @@
 //        --out test-output/look3/hud --timeout 300000 --script-timeout 900000
 export default async ({ page, log, out }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
+  await g(() => window.__game.command({ type: 'openingSkipIntro' }));
   await g(() => window.__game.cheat.completeFounding(10));
-  await g(() => window.__game.step(40));
+  const handedOver = () => g(() => { const op = window.__hud.game.session.sim.state.player.opening; return !op || op.done || op.phase === 'handover' || op.phase === 'done'; });
+  for (let i = 0; i < 200 && !(await handedOver()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
+  const cont = page.locator('[data-testid="founding-continue"]');
+  if (await cont.count()) await cont.first().click().catch(() => {});
+  await g(() => window.__game.step(2));
   await g(() => window.__game.setSpeed(8));
   const read = await g(async () => {
     const game = window.__hud.game, sim = game.session.sim;

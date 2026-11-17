@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { WINT_LAPSE_LOSS_CAP_FRAC } from '@/sim/balance/lifecycle';
 import { colonyOf, makeLifeSim, send } from '../succession/testLife';
 import { lifecycleOf } from '../succession/lifecycleState';
-import { capLapseLosses } from './model';
+import { rngSeed } from '@/core/rng';
+import { capLapseLosses, runWinterModel, sparedWorkersFood, type WinterInput, type WinterParams } from './model';
 
 describe('lapse loss cap (R24)', () => {
   it('trims the causes nobody was alerted to, old age first, and keeps alerted causes in full', () => {
@@ -39,4 +40,27 @@ describe('lapse loss cap (R24)', () => {
     }
     expect(floodedSeeds).toBeGreaterThan(0); // the model's floods still happen; with the alert they cost what they cost
   }, 120_000);
+
+  it('the workers the cap keeps eat their winter food (round 5): spared from a flood, the colony eats as if none drowned', () => {
+    // a winter with rain on every day and a cluster that always floods, against the same winter with no floods. The
+    // model draws its flood roll on every rainy day either way, so both runs see the same random draws.
+    const days = 7;
+    const input: WinterInput = {
+      workers: 20, oldWorkers: 0, larvae: 0, pupae: 0, c: 30, p: 5, queenAlive: true,
+      tMean: Array(days).fill(4), tMin: Array(days).fill(2), frost: Array(days).fill(false), rainMm: Array(days).fill(20),
+      floodSafety: 0, humidity: 0.3,
+    };
+    const params: WinterParams = { tColdStress: 0, baseLoss: 0, metBase: 0.35, q10: 2, lossMult: 1, queenDeathP: 0, pFungus: 0 };
+    const flooded = runWinterModel(input, { ...params, floodK: 1 }, rngSeed(3));
+    const dry = runWinterModel(input, { ...params, floodK: 0 }, rngSeed(3));
+    const modelLost = Object.values(flooded.losses).reduce((a, b) => a + b, 0);
+    expect(modelLost).toBeGreaterThan(5);
+    const extra = sparedWorkersFood(flooded, input.workers, params, modelLost, 0); // the cap keeps them all
+    expect(flooded.c1 - extra[days - 1]).toBeCloseTo(dry.c1, 0); // the day series is in whole ants: about one worker-day
+    expect(Math.abs(flooded.c1 - extra[days - 1] - dry.c1)).toBeLessThan(0.1 * (input.c - dry.c1));
+    // keeping only some of them charges a share
+    const half = sparedWorkersFood(flooded, input.workers, params, modelLost, Math.floor(modelLost / 2));
+    expect(half[days - 1]).toBeLessThan(extra[days - 1]);
+    expect(half[days - 1]).toBeGreaterThan(0);
+  });
 });

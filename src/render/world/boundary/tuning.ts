@@ -130,6 +130,11 @@ export const FENCE_GAP_P = 0.07;
  */
 export const SKIRT_ALBEDO_SCALE = 0.5;
 /**
+ * ...and at night (look pass 3, S11): the skirt's lawn-green far ground, metered by the night exposure, showed as a bright lime
+ * strip along the horizon, far lighter than the dark soil in front of it. Its albedo is multiplied by this at full night.
+ */
+export const SKIRT_NIGHT_ALBEDO = 0.3;
+/**
  * ...and it is dithered away within this many body units of the map edge, so the terrain's own continuation beyond the
  * edge (same material and light as the ground inside the map) shows through there and the skirt's ground takes over
  * gradually. A haze FLOOR on the skirt (tried first) turned the row that touches the terrain 60 % sky-coloured in one

@@ -26,12 +26,14 @@ const mid = { x: 0, y: 0, z: 0 };
  * root, a mound). Measured in 3D, a corpse put down on a stone 32 mm above the terrain at the midden point was "not at
  * the midden", priority 3 again, and the haulers carried the same two corpses back and forth for the rest of the run
  * while the waste among the brood was never taken out (colony-life round 4, suburban-garden #2). A midden chamber is
- * measured in 3D (a tunnel can run above it).
+ * measured in 3D (a tunnel can run above it). An item inside the nest is never at a surface midden, whatever lies
+ * above it (sweep-4 review: waste on a chamber floor 10 BU under the midden area read "at the midden" and stayed).
  */
 export function atMidden(sim: Sim, nest: Nest, it: Item): boolean {
   if (middenPoint(sim, nest, mid) === null) return false;
   const r = MIDDEN_RADIUS_BU * sim.world.bu;
   if (nest.chambers.some((c) => c.type === 'midden')) return dist(it.pos, mid) <= r;
+  if (it.inNest) return false;
   const dx = it.pos.x - mid.x, dz = it.pos.z - mid.z;
   return dx * dx + dz * dz <= r * r;
 }

@@ -7,7 +7,7 @@ import {
   HANDOVER_PROVISION_WINDOW_GD, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LOAD_EPS, STARVE_ALERT_GRACE_GD,
 } from '@/sim/balance/colony';
 import { daysToTicks } from '@/sim/time';
-import { deposit } from './stores';
+import { deposit, stomachSpace } from './stores';
 
 /** Tick the player's founding lapse ended (the hand-over), -1 none (no opening, or not handed over yet). */
 export function handoverTick(sim: Sim, col: Colony): number {
@@ -17,7 +17,8 @@ export function handoverTick(sim: Sim, col: Colony): number {
 
 /**
  * After the hand-over: the queen's reserve above HANDOVER_QUEEN_KEEP_C / _P is credited to the pool as C and P
- * (booked as recycled: food from a colony member's body). What the pool cannot hold stays in the queen and is moved
+ * (booked as recycled: food from a colony member's body), as far as the workers' social stomachs hold it (never into
+ * the larder or the chamber piles). What the stomachs cannot hold stays in the queen and is moved
  * on a later cycle, once there is room (the final sweep's seed 2 handed over with a full pool: the queen kept 9 P while
  * the larvae starved for protein), within HANDOVER_PROVISION_WINDOW_GD of the hand-over; after that the queen's
  * reserves are her own again (overwintering may fatten her). No loop inside the window either: an established queen
@@ -33,7 +34,11 @@ export function provisionAtHandover(sim: Sim, col: Colony): { c: number; p: numb
   const c = Math.max(0, qs.reserve - HANDOVER_QUEEN_KEEP_C);
   const p = Math.max(0, qs.reserveP - HANDOVER_QUEEN_KEEP_P);
   if (c <= LOAD_EPS && p <= LOAD_EPS) return { c: 0, p: 0 };
-  const got = deposit(col, c, p, 0, 'recycled');
+  // into the social stomachs only: the queen's body is not a pile. A larder (R21) or a chamber pile would take the
+  // whole provision at once and let it rot on the brood chamber's floor before the first larva hatches (sweep-4
+  // review: 1.98 P spoiled, larva:hygiene 28 vs 4 over 15 pairs); left in the queen it is paid in as the brood eats.
+  const room = stomachSpace(col);
+  const got = deposit(col, Math.min(c, room.c), Math.min(p, room.p), 0, 'recycled');
   qs.reserve -= got.c;
   qs.reserveP -= got.p;
   return { c: got.c, p: got.p };

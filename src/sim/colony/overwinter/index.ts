@@ -5,3 +5,4 @@ export { runWinterModel, metFactor, dayNeedC, dayNeedP, type WinterInput, type W
 export { beginOverwinter, winterParams, ticksToSpring, winterDaysLeft, heatedNest } from './begin';
 export { clusterOf, winterClimate, type ClusterInfo, type WinterClimate } from './climate';
 export { rankWhy, reportNumbers } from './report';
+export { winterStoresNeed, type WinterStoresNeed } from './storesNeed';

@@ -6,7 +6,9 @@
 // - no worker died of starvation;
 // - no starvation stage worse than lean (rationing, brood sacrifice, adult starvation) lasted over VIABLE_BAD_STAGE_GD
 //   at a stretch (sampled every StuckSampler.SAMPLE_S game seconds);
-// - the stores hold >= VIABLE_STORE_GD game days of the adults' carbohydrate need (worker upkeep + queen C).
+// - the stores (ruling R27, Nov 17 19:05) cover the winter stores need: the lapse's own C need at the cluster
+//   temperature + 4 gd of the adults' C need (overwinter/storesNeed.ts, read from the last day state); a report
+//   written before R27 has no such field and keeps the old check, >= VIABLE_STORE_GD gd of the adults' C need.
 
 import type { LifeReport } from './life';
 
@@ -59,6 +61,12 @@ export function judgeViable(r: LifeReport): ViableVerdict {
   add('starvation stage', bad <= VIABLE_BAD_STAGE_GD, `longest stretch worse than lean ${bad.toFixed(2)} gd`);
   const need = last?.adultNeedC ?? 0, c = last?.storesC ?? 0;
   const days = need > 0 ? c / need : 0;
-  add('stores', need > 0 && days >= VIABLE_STORE_GD, `C ${c} for an adult need of ${need} C/gd = ${days.toFixed(2)} gd (P ${last?.storesP ?? 0})`);
+  const r27 = last?.winterStoresNeedC;
+  if (r27 !== undefined && r27 > 0) {
+    add('stores', c >= r27, `C ${c} for the R27 winter need ${r27} (lapse ${last?.lapseNeedC ?? '-'} + 4 gd x ${need}) = ` +
+      `${(c / r27).toFixed(2)} of it (P ${last?.storesP ?? 0})`);
+  } else {
+    add('stores', need > 0 && days >= VIABLE_STORE_GD, `C ${c} for an adult need of ${need} C/gd = ${days.toFixed(2)} gd (P ${last?.storesP ?? 0}; pre-R27 check)`);
+  }
   return { viable: checks.every((x) => x.ok), checks };
 }

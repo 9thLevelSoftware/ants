@@ -36,6 +36,10 @@ def forage_row(r):
         'prey loads home': p.get('loadsHome', 0), 'prey P home': p.get('pHome', 0),
         'discovered': sum(f['scouting']['discovered'].values()),
         'patch edge BU': f['preyPatches']['nearestBu'],
+        # round 5 (direction 10): game days until protein was known (a P source or a prey patch), -1 never; scouting
+        'P known gd': f.get('proteinKnownGd') if f.get('proteinKnownGd') is not None else -1,
+        'scout trips': f['scouting']['trips'], 'scout maxD BU': f['scouting']['maxDistBu']['median'],
+        'gap to P odour BU': f['scouting']['nearestGapBu'].get('P', -1),
     }
 
 

@@ -5,7 +5,7 @@
 // have their own version so they alone are rebuilt while ants move. Label textures are kept in a small LRU cache
 // (the ghost label carries a live volume, so its text keeps changing).
 import {
-  AlwaysDepth, BufferGeometry, CanvasTexture, Float32BufferAttribute, Group, LineBasicMaterial, LineDashedMaterial, LineSegments, Points, PointsMaterial, Sprite,
+  BufferGeometry, CanvasTexture, Float32BufferAttribute, Group, LineBasicMaterial, LineDashedMaterial, LineSegments, Points, PointsMaterial, Sprite,
   SpriteMaterial, type Color, type Material, type Scene, type WebGLRenderer,
 } from 'three';
 import type { Vec3 } from '@/core';
@@ -175,10 +175,9 @@ export class MarkerRenderer {
 
   private label(l: MarkerLabel): Sprite {
     const t = this.texture(l.text, l.color);
-    // The label writes its own depth (test on, function Always: it is drawn over everything, as before) so the depth-of-field
-    // pass reads the label's distance, not the ground's behind it: with no depth of its own a label over soft ground was
-    // blurred with it (smeared chamber names in the colony view, gate-close-app S18). Blank texels are discarded, not written.
-    const m = new SpriteMaterial({ map: t.tex, transparent: true, depthTest: true, depthFunc: AlwaysDepth, depthWrite: true, alphaTest: 0.04, sizeAttenuation: false });
+    // No depth of its own (always on top). The colony view draws without depth of field (accessibility controller), so the
+    // label is not blurred with the ground behind it (smeared chamber names, gate-close-app S18).
+    const m = new SpriteMaterial({ map: t.tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
     this.materials.push(m);
     const s = new Sprite(m);
     s.position.set(l.pos.x, l.pos.y, l.pos.z);

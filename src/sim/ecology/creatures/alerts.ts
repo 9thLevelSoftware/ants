@@ -1,15 +1,17 @@
 // Alert triggers owned by this module (GDD 05 App. C, levels from GDD 08 §6.5):
 //  - `predator-near` (warning): an ant predator stalking, in ambush or winding up within 15 BU of the possessed ant
 //    or of >= 3 foragers, or a strike of it that landed on a player-colony ant; cooldown 0.1 gd per creature. Cleared once the condition has not held for
-//    PREDATOR_NEAR_CLEAR_S, or when the creature is gone (alerts stay active until their raiser clears them).
+//    PREDATOR_NEAR_CLEAR_S (a card raised by a strike: PREDATOR_STRUCK_CLEAR_S after it unless the predator lurks
+//    again), or when the creature is gone (alerts stay active until their raiser clears them).
 //  - `nest-attacked` (critical): a centipede inside the player nest (raised in invasion.ts); clears 30 s after the
 //    last invader left.
 // Bookkeeping in creature bb: `alertTick` (cooldown end), `alertOn` (1 while raised), `alertSeen` (last tick the
-// condition held).
+// condition held), `alertClearAt` (tick a strike-raised card clears; -1 once lurking holds it).
 
 import type { Creature, Sim } from '@/sim/types';
 import {
   NEST_ATTACKED_CLEAR_S, PREDATOR_NEAR_BU, PREDATOR_NEAR_CLEAR_S, PREDATOR_NEAR_COOLDOWN_GD, PREDATOR_NEAR_FORAGERS,
+  PREDATOR_STRUCK_CLEAR_S,
 } from '@/sim/balance/creatures';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { dist } from './common';
@@ -32,16 +34,24 @@ function lurkingNear(sim: Sim, c: Creature, colonyId: number): boolean {
   return n >= PREDATOR_NEAR_FORAGERS;
 }
 
-/** Raises `predator-near` for the creature unless its per-creature cooldown (0.1 gd) still runs. */
-function raisePredatorNear(sim: Sim, c: Creature): void {
+/** Raises `predator-near` for the creature unless its per-creature cooldown (0.1 gd) still runs; true if raised now. */
+function raisePredatorNear(sim: Sim, c: Creature): boolean {
   const now = sim.state.tick;
-  if (c.bb.alertOn === 1 || now < (c.bb.alertTick ?? -1)) return;
+  if (c.bb.alertOn === 1 || now < (c.bb.alertTick ?? -1)) return false;
   c.bb.alertTick = now + Math.round(PREDATOR_NEAR_COOLDOWN_GD * TICKS_PER_DAY);
   c.bb.alertOn = 1;
+  c.bb.alertClearAt = -1;
   ports.raiseAlert(sim, {
     kind: 'predator-near', level: 'warning', subjectId: c.id, title: 'Predator near foragers', cause: c.kind,
     focus: { kind: 'creature', id: c.id, pos: { ...c.pos } }, diagnosticId: 'diag-threats', tokens: { kind: c.kind },
   });
+  return true;
+}
+
+function clearPredatorNear(sim: Sim, c: Creature): void {
+  ports.clearAlert(sim, 'predator-near', c.id);
+  c.bb.alertOn = 0;
+  c.bb.alertClearAt = -1;
 }
 
 /** Director cadence: raises and clears `predator-near` per creature. */
@@ -52,12 +62,9 @@ export function predatorNearAlerts(sim: Sim): void {
   for (const c of sim.stores.creatures.list) {
     if (!c.alive) continue;
     const near = lurkingNear(sim, c, col.id);
-    if (near) c.bb.alertSeen = now;
+    if (near) { c.bb.alertSeen = now; c.bb.alertClearAt = -1; }
     if (c.bb.alertOn === 1) {
-      if (!near && now - (c.bb.alertSeen ?? now) >= PREDATOR_NEAR_CLEAR_S * TICKS_PER_SECOND) {
-        ports.clearAlert(sim, 'predator-near', c.id);
-        c.bb.alertOn = 0;
-      }
+      if (!near && now - (c.bb.alertSeen ?? now) >= PREDATOR_NEAR_CLEAR_S * TICKS_PER_SECOND) clearPredatorNear(sim, c);
       continue;
     }
     if (near) raisePredatorNear(sim, c);
@@ -66,15 +73,23 @@ export function predatorNearAlerts(sim: Sim): void {
 
 /**
  * A strike that landed on a player-colony ant (GDD 05 App. C: `predator-strike` feeds `predator-near`): the card is
- * raised at once, under the same per-creature cooldown, and clears PREDATOR_NEAR_CLEAR_S after the strike unless
- * the predator keeps lurking. In small colonies the "3 foragers within 15 BU" rule alone almost never holds, so
- * without this the player was never told a predator was taking workers (threats-live).
+ * raised at once, under the same per-creature cooldown, and clears PREDATOR_STRUCK_CLEAR_S after the strike unless
+ * the predator is seen lurking again (then the lurking rule's PREDATOR_NEAR_CLEAR_S holds it). In small colonies the
+ * "3 foragers within 15 BU" rule alone almost never holds, so without this the player was never told a predator was
+ * taking workers (threats-live). A card already raised by lurking keeps its own clearing.
  */
 export function predatorStruck(sim: Sim, c: Creature, antColony: number): void {
   const col = sim.state.colonies.find((x) => x.alive && x.isPlayer);
   if (!col || col.id !== antColony) return;
-  c.bb.alertSeen = sim.state.tick;
-  raisePredatorNear(sim, c);
+  if (c.bb.alertOn === 1) { c.bb.alertSeen = sim.state.tick; return; }
+  if (raisePredatorNear(sim, c)) c.bb.alertClearAt = sim.state.tick + Math.round(PREDATOR_STRUCK_CLEAR_S * TICKS_PER_SECOND);
+}
+
+/** Every tick (creature system): a strike-raised card whose time is up and that no lurking took over clears. */
+export function struckAlertTick(sim: Sim, c: Creature): void {
+  const at = c.bb.alertClearAt;
+  if (at === undefined || at < 0 || c.bb.alertOn !== 1 || sim.state.tick < at) return;
+  clearPredatorNear(sim, c);
 }
 
 /** A creature that is gone takes its predator-near alert with it. */

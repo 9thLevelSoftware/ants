@@ -32,6 +32,9 @@ def load(d):
                 first=fs['workers'], winter=last['workers'],
                 storesC=last['storesC'], storesP=last['storesP'],
                 storesGd=round(last['storesC'] / last['adultNeedC'], 1) if last['adultNeedC'] else 0,
+                # ruling R27: stores against the winter stores need (lapse C need + 4 gd adult need); '-' before R27
+                storesR27=(f"{round(last['storesC'] / last['winterStoresNeedC'], 2)} of {last['winterStoresNeedC']}"
+                           if last.get('winterStoresNeedC') else '-'),
                 starved=e['larvaeStarved'], tripsShort=e['tripsPerWorkerGdUnderTarget'], shortGd=e['underTargetGd'],
                 success=e['tripSuccessShare'], intakeC=e['intakeOverNeedC'], intakeP=e['intakeOverNeedP'],
                 eclosions=sum(x['events']['eclosions'] for x in r['days']),
@@ -51,12 +54,12 @@ def load(d):
 
 
 def table(rows):
-    out = ['| run | hand-over | first workers | workers at winter | stores C / P (gd of adult C need) | larvae starved '
+    out = ['| run | hand-over | first workers | workers at winter | stores C / P (gd of adult C need) | stores / R27 winter need | larvae starved '
            '| trips / worker / gd while short (gd short) | trips successful | intake / need C | intake / need P '
            '| eclosions | deaths | worker:lost | days ending with no open entrance (after day 0) | viable | failed checks |',
-           '|' + '---|' * 16]
+           '|' + '---|' * 17]
     for (a, s), r in rows.items():
-        out.append(f"| {a} #{s} | {r['handover']} | {r['first']} | {r['winter']} | {r['storesC']} / {r['storesP']} ({r['storesGd']}) "
+        out.append(f"| {a} #{s} | {r['handover']} | {r['first']} | {r['winter']} | {r['storesC']} / {r['storesP']} ({r['storesGd']}) | {r['storesR27']} "
                    f"| {r['starved']} | {r['tripsShort']} ({r['shortGd']}) | {round(r['success'] * 100)} % | {r['intakeC']} | {r['intakeP']} "
                    f"| {r['eclosions']} | {', '.join(f'{k} {v}' for k, v in r['deaths'].items()) or '-'} | {r['lost']} | {r['shutDays']} "
                    f"| {'viable' if r['viable'] else 'NOT viable'} | {'; '.join(r['fails']) or '-'} |")

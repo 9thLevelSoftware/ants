@@ -16,6 +16,7 @@ import { REASON_CODES } from '@/sim/types/ids/ants';
 import { isWorkerCaste } from '@/sim/colony/census';
 import { layingProteinPermitted, winterReserveShort } from '@/sim/colony/queen';
 import { isDiscoveredBy } from '@/sim/ecology/sources/discovery';
+import { patchKnownBy } from '@/sim/ants/behaviours/outdoor/hunt';
 import { odourRadiusMm } from '@/sim/ecology/sources/def';
 import { smelledSource } from '@/sim/ants/perception';
 import { CREATURE_STATS } from '@/sim/balance/creatures';
@@ -119,6 +120,8 @@ export interface FunnelReport {
    * prey count at start / end; patch prey that appeared (springtail, mite: they appear only ahead of a forager or
    * scout inside a patch), prey subdued by the colony's ants, and patch prey that vanished untouched.
    */
+  /** Game days from the start until the colony first knew a protein source within FUNNEL_RADIUS_BU or a prey patch (null: never). */
+  proteinKnownGd: number | null;
   preyPatches: { n: number; nearestBu: number; k: number; countStart: number; countEnd: number; appeared: Record<string, number>; subdued: Record<string, number>; vanished: Record<string, number> };
 }
 
@@ -212,6 +215,22 @@ export class FunnelObserver {
     this.startPrey = this.preyCensus();
   }
 
+  /** First tick (300-tick samples) the colony knew a live protein source within FUNNEL_RADIUS_BU or a prey patch; -1. */
+  private proteinKnownTick = -1;
+
+  /** Does the colony know a live source holding protein (carrion, prey remains, crumbs with P) or a prey patch now? */
+  private proteinKnownNow(): boolean {
+    const sim = this.sim, e = this.entrancePos();
+    if (!e) return false;
+    const r = FUNNEL_RADIUS_BU * sim.world.bu;
+    for (const s of sim.stores.sources.list) {
+      if (!s.alive || s.p <= 0 || (s.pool >= 0 ? s.pool : s.units) <= 0) continue;
+      const dx = s.pos.x - e.x, dz = s.pos.z - e.z;
+      if (dx * dx + dz * dz <= r * r && isDiscoveredBy(sim, s, this.col)) return true;
+    }
+    return sim.state.ecology.preyPatches.some((p) => patchKnownBy(sim, p, this.col));
+  }
+
   private closeStage(broodId: number, stage: string): void {
     const t = this.stageStart.get(broodId);
     if (t === undefined) return;
@@ -290,6 +309,7 @@ export class FunnelObserver {
       }
     }
     if (tick % 300 === 0) {
+      if (this.proteinKnownTick < 0 && this.proteinKnownNow()) this.proteinKnownTick = tick;
       const prey = this.preyCensus();
       this.preyAliveSum += Object.values(prey).reduce((x, y) => x + y, 0); this.preySamples++;
       const c = sim.stores.colonies.get(this.col);
@@ -464,6 +484,7 @@ export class FunnelObserver {
       deaths: this.deaths,
       stuckAntGd: round(this.stuckSamples * perGd),
       scouting: this.scoutingResult(),
+      proteinKnownGd: this.proteinKnownTick >= 0 ? round((this.proteinKnownTick - this.t0) / TICKS_PER_DAY) : null,
       preyPatches: {
         n: this.patchStart.n, nearestBu: this.patchStart.nearestBu, k: this.patchStart.k, countStart: this.patchStart.count,
         countEnd: this.patchCensus().count, appeared: this.preyAppeared, subdued: this.preySubdued, vanished: this.preyVanished,

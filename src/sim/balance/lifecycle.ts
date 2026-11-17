@@ -42,6 +42,17 @@ export const WINT_ALERTED_CAUSES: Readonly<Record<string, readonly string[]>> = 
   starvation: ['food-c-low', 'colony-starving'],
 };
 
+/**
+ * Ruling R27: the winter stores a colony needs at the first tick of winter are the lapse's own C need plus this many
+ * game days of the adults' C need (the cold first days of spring). overwinter/storesNeed.ts.
+ */
+export const WINTER_STORES_SPRING_GD = 4;
+/**
+ * The autumn stock target (viab-economy R6) aims for R27's need times this (the autumn's own use between the target
+ * and the first tick of winter is paid from the margin). economy.ts.
+ */
+export const WINTER_STORES_TARGET_MARGIN = 1.25;
+
 /** Reference cluster temperature of the metabolic factor, C. */
 export const WINT_MET_REF_C = 6;
 /** Resting upkeep, C loads per GD: per worker, queen, per dormant larva. */

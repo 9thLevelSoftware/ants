@@ -201,8 +201,11 @@ export const SCOUT_MAX_RANGE_BU = 900;
  * home beyond this many BU instead of SCOUT_MAX_RANGE_BU. Its straight-ish outward legs sweep a strip only the odour
  * range wide; out to 700 BU two scouts left a flower 53 BU from the woodland-edge #1 nest unfound for a game day
  * (closest pass 12.7 BU, smell 10 BU) while food within the C13 300 BU budget radius lay all around.
+ * colony-life round 5: 220 -> 300 BU, the radius ruling R18 puts a small colony's protein in (prey patches and
+ * carrion "within 300 BU"); at 220 (walk bound 208) the patches whose edge lies at 174-244 BU (6 of 15 sweep-4
+ * worlds) were grazed or never reached: sweep-4 scouts' median farthest point was 205-208 BU in 10 of 15 runs.
  */
-export const SMALL_SCOUT_RANGE_BU = 220;
+export const SMALL_SCOUT_RANGE_BU = 300;
 /** Correlated random walk: heading noise per s (sigma), deg; leg length, BU; candidate headings per leg. */
 export const SCOUT_TURN_SIGMA_DEG_S = 25;
 export const SCOUT_LEG_BU = 12;

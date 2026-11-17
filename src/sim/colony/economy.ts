@@ -16,8 +16,10 @@ import { expireDirectives } from './directives';
 import { updateNeeds } from './needs';
 import { updateStarvation } from './starvation';
 import { provisionAtHandover } from './handover';
-import { SEASON_STOCK_C_KEY } from './needs';
-import { AUTUMN_STOCK_TARGET_C_MULT } from '@/sim/balance/colony';
+import { SEASON_STOCK_C_KEY, needRates } from './needs';
+import { winterStoresNeed } from './overwinter/storesNeed';
+import { AUTUMN_STOCK_TARGET_C_MULT, STOCK_TARGET_C_GD, STOCK_TARGET_MULT } from '@/sim/balance/colony';
+import { WINTER_STORES_TARGET_MARGIN } from '@/sim/balance/lifecycle';
 import { currentSeason } from '@/sim/time';
 import { BroodFlag } from '@/sim/types';
 import { LARVA_C_REQ, LARVA_P_REQ, LAYING_INTAKE_EMA_GD } from '@/sim/balance';
@@ -120,6 +122,17 @@ export function colonyTick(sim: Sim, col: Colony): ColonyCoreState {
   return core;
 }
 
+/**
+ * The autumn multiplier of the carbohydrate stock target (viab-economy R6): at least AUTUMN_STOCK_TARGET_C_MULT, and
+ * as much as makes the target R27's winter stores need (overwinter/storesNeed.ts) x WINTER_STORES_TARGET_MARGIN.
+ */
+function autumnStockMult(sim: Sim, col: Colony): number {
+  // the stock target in loads at a season multiplier of 1 (needs.ts targetDays x needRates)
+  const baseLoads = STOCK_TARGET_C_GD * (STOCK_TARGET_MULT[col.directives.stockTarget] ?? 1) * needRates(col).c;
+  const want = winterStoresNeed(sim, col).needC * WINTER_STORES_TARGET_MARGIN;
+  return Math.max(AUTUMN_STOCK_TARGET_C_MULT, baseLoads > 0 ? want / baseLoads : 0);
+}
+
 /** End of a stagger cycle for one colony. `starvingAdults` comes from this cycle's physiology steps. */
 export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, def: SpeciesDef): void {
   const dtGd = PHYSIO_EVERY / TICKS_PER_DAY;
@@ -138,7 +151,7 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   // Laying protein uses the realised laying rate (GDD 02 §15 worked example), see the report on §5.5.
   const rateP = accGet(core, 'inst.queenP') + EGG_COST_P * core.layingRate + accGet(core, 'inst.larvaP') + sp.p;
   updateProteinSupply(sim, col, core, def, dtGd);
-  accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? AUTUMN_STOCK_TARGET_C_MULT : 1);
+  accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? autumnStockMult(sim, col) : 1);
   updateNeeds(col, { rateC, rateP }, dtGd);
   measureLarder(sim, col); // after the needs: the larder holds a game day of this cycle's need (R21)
   refreshCapacity(col);

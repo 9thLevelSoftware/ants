@@ -14,7 +14,7 @@ import { preyCaught } from './spawners';
 import { finishInvasion } from './invasion';
 import { quietTick } from './threat';
 import { birdTick } from './bird';
-import { possessedDangerAlerts } from './alerts';
+import { possessedDangerAlerts, struckAlertTick } from './alerts';
 import type { KindTable } from './kinds';
 import { jumpingSpider, wolfSpider } from './spiders';
 import { antSpider, centipede, roveBeetle } from './hunters';
@@ -60,6 +60,7 @@ function tickCreature(sim: Sim, c: Creature): void {
   if (hitBookkeeping(sim, c)) KINDS[c.kind]?.onHit?.(sim, c, -1, 'bite');
   if (!c.alive) return;
   if (c.hp <= 0) { killByAnts(sim, c, recentBiters(c)); return; }
+  struckAlertTick(sim, c);
   const fam = CREATURE_STATS[c.kind].family;
   if ((fam === 'prey' || fam === 'neutral' || fam === 'aphid-predator') && subdueTick(sim, c)) return;
   if ((c.flags & CreatureFlag.SUBDUED) !== 0) return; // no longer struggling

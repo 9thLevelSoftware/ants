@@ -86,3 +86,4 @@ Started 18:15 UTC 2026-11-17.
 - 20:40 A/B queue A 5/6 done; long runs 4/5 (kd #2 running). Then abL1 (4) and queue B (5).
 - 20:44 long runs 5/5 done (table round-4/sweep-long/longrun-table.md). Running in 2 slots: abL1-loop (kd1 cpv1 sg2 pp2) and ab-loop queue B (we2 sg3 pp3 cpv2 kd2); restart: re-run each.
 - 21:05 A/B minus4 12/15, minusL1 3/4 (kd #1 minusL1: stage 0.05 gd, P 0.456, eclosed 8, 11 workers). Next: tables + ledger.
+- 21:11 **DONE**: ledger section 'Independent sweep after round 4' appended; scratch trees deleted; no processes running. Verify tests added this session: colony/allocation/hygieneWiring.verify (green), colony/larderProvision.verify (RED, real bug).

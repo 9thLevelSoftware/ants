@@ -7,6 +7,7 @@ import { isWorkerCaste } from '@/sim/colony/census';
 import { stateTimeoutTicks } from '@/sim/ants/behaviours/nest/fsm';
 import { speedMult } from '@/sim/environment/thermalResponse';
 import { layingProteinPermitted } from '@/sim/colony/queen';
+import { winterStoresNeed } from '@/sim/colony/overwinter/storesNeed';
 import { currentDayOfYear, currentYear, TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 
 /** Event counts over one game day. */
@@ -177,6 +178,12 @@ export interface DayState {
   /** Adult carbohydrate need (worker upkeep + queen C) of the last colony cycle, loads/gd (viable verdict). */
   adultNeedC?: number;
   /**
+   * Ruling R27: the winter stores need now (the lapse's own C need at the cluster temperature + 4 gd of adult need),
+   * and its lapse part, loads (overwinter/storesNeed.ts). The viable verdict reads it at the first tick of Winter 1.
+   */
+  winterStoresNeedC?: number;
+  lapseNeedC?: number;
+  /**
    * Year-two readings (colony-life direction 8): calendar year and day of year at the day end; the mean temperature of
    * the royal (or founding) chambers, of the chamber the queen is in, and of the warmest dry chamber (not flooded, not
    * wet), with that chamber's type and depth, C / BU; null when there is none.
@@ -224,6 +231,7 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     for (const e of n.entrances) if (e.status === 'open') open++;
   }
   const broodTempC = broodN > 0 ? round(broodT / broodN) : cellN > 0 ? round(cellT / cellN) : null;
+  const winter = col ? winterStoresNeed(sim, col) : null; // R27
   const mine = new Set(sim.stores.nests.list.filter((n) => n.alive && n.colony === s.player.colonyId).map((n) => n.id));
   for (const it of sim.stores.items.list) {
     if (it.alive && it.kind === 'soil-pellet' && mine.has(it.nestId) && it.carrierIds.length === 0) pellets++;
@@ -239,6 +247,7 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     broodTempC,
     year: currentYear(s), doy: currentDayOfYear(s), royalTempC: cellN > 0 ? round(cellT / cellN) : null, queenChamberTempC, warmestDry,
     adultNeedC: round((col?.core?.acc['inst.upkeepC'] ?? 0) + (col?.core?.acc['inst.queenC'] ?? 0)),
+    winterStoresNeedC: round(winter?.needC ?? 0), lapseNeedC: round(winter?.lapseC ?? 0),
   };
 }
 
