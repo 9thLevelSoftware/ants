@@ -22,6 +22,7 @@ describe('HUD keep-out regions', () => {
     const hudRoot = { ownerDocument: { body }, querySelectorAll: () => [pulse] };
     stop = watchKeepOut(hudRoot as unknown as HTMLElement);
     expect(asked).toContain('.pn-panel');
+    expect(asked).toContain('.wi-banner');
     expect(keepOutRects()).toEqual([{ x: 900, y: 10, w: 300, h: 50 }, { x: 360, y: 16, w: 560, h: 48 }]);
   });
 });

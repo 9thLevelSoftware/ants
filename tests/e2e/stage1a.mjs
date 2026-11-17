@@ -326,17 +326,24 @@ export default async ({ page, shot, log }) => {
     if ((await opPhase()) === 'lay') await steerTo(centre[0], centre[2], 0.6 * bu); // back down into the cell to lay
     return log1;
   };
-  // after the clutch: Tend the brood starts the time-lapse; skipped, so the first workers are the sim's own and the
-  // opening's speed limits end before the time-control checks below (8x in the observer)
+  // after the clutch: Tend the brood starts the time-lapse, skipped (the same ticks), so the opening's speed limits end
+  // before the time-control checks below (8x in the observer). The lapse may fail on its own rules: this queen dug
+  // the whole 1A shaft and room before her opening began and enters the lapse with almost no reserves; that is the
+  // founding model's verdict (founding.mjs plays a full opening to the first workers), recorded in result.egg.lapse.
+  const openingState = () => g(() => {
+    const op = window.__hud.game.session.sim.state.player.opening;
+    return op ? { phase: op.phase, done: !!op.done, outcome: op.lapse?.outcome ?? null, failCause: window.__founding?.view()?.failCause ?? null } : null;
+  });
   const finishOpening = async () => {
-    const over = () => g(() => { const op = window.__hud.game.session.sim.state.player.opening; return !op || op.done || op.phase === 'handover' || op.phase === 'done'; });
-    if (await over()) return true;
+    const left = (o) => !o || o.done || ['handover', 'done', 'failed'].includes(o.phase);
+    if (left(await openingState())) return openingState();
     await g(() => window.__game.command({ type: 'openingBeginTimelapse' }));
-    for (let i = 0; i < 200 && !(await over()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
+    for (let i = 0; i < 200 && !left(await openingState()); i++) await g(() => { window.__founding?.skipLapse?.(); window.__game.step(500); });
     const cont = page.locator('[data-testid="founding-continue"]');
     if (await cont.count()) await cont.first().click().catch(() => {});
     await step(2);
-    return over();
+    const o = await openingState();
+    return { ...o, left: left(o) };
   };
 
   // --- 7. an egg ---------------------------------------------------------------------------------------------------
@@ -380,9 +387,10 @@ export default async ({ page, shot, log }) => {
   log('egg', JSON.stringify(result.egg));
   expect(laid > brood0, 'no eggs', result.egg);
   if (result.egg.laidInOpening !== undefined) {
-    result.egg.handedOver = await finishOpening();
-    log('opening finished', result.egg.handedOver, JSON.stringify(await g(() => window.__game.summary().colony)));
-    expect(result.egg.handedOver, 'the opening did not reach the hand-over after the clutch', result.egg);
+    result.egg.lapse = await finishOpening();
+    const q = await g(() => window.__game.summary().colony?.queen ?? null);
+    log('opening after the clutch', JSON.stringify(result.egg.lapse), 'queen', JSON.stringify(q));
+    expect(result.egg.lapse.left, 'the opening is still in its lay phase after the time-lapse', result.egg);
     if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
     await step(2);
   }

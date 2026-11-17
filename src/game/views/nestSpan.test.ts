@@ -18,20 +18,24 @@ function simWith(chambers: Ch[], entrances: { x: number; y: number; z: number }[
 
 const ROYAL: Ch = { center: { x: 1000, y: -25.1, z: 1000 }, radii: { x: 9, y: 5, z: 9 } };
 const MOUND_ENTRANCE = { x: 1003, y: 16.7, z: 1003 };
+/** The entrance as the founding cheat placed it in the browser check (32 mm to the side of the chamber centre). */
+const SIDE_ENTRANCE = { x: 1000 - 32.3, y: 16.3, z: 1000.6 };
 
 describe('nestSpanBu', () => {
-  it('a founding nest spans its chamber width, not the height from the entrance on the mound', () => {
+  it('a founding nest spans its chamber, wherever its entrance is (on the mound above, or off to the side)', () => {
     expect(nestSpanBu(simWith([ROYAL], [MOUND_ENTRANCE]))).toBeCloseTo(18 / BU, 6);
+    expect(nestSpanBu(simWith([ROYAL], [SIDE_ENTRANCE]))).toBeCloseTo(18 / BU, 6);
   });
 
-  it('entrances widen the span horizontally; chambers spread in depth count vertically', () => {
-    expect(nestSpanBu(simWith([ROYAL], [{ x: 1000 + 60, y: 0, z: 1000 }]))).toBeCloseTo((60 + 9) / BU, 6);
+  it('chambers spread apart or in depth widen the span', () => {
+    const far: Ch = { center: { x: 1000 + 60, y: -25.1, z: 1000 }, radii: { x: 9, y: 5, z: 9 } };
+    expect(nestSpanBu(simWith([ROYAL, far], [MOUND_ENTRANCE]))).toBeCloseTo((60 + 18) / BU, 6);
     const deep: Ch = { center: { x: 1000, y: -125, z: 1000 }, radii: { x: 9, y: 5, z: 9 } };
     expect(nestSpanBu(simWith([ROYAL, deep], [MOUND_ENTRANCE]))).toBeCloseTo((130 - 20.1) / BU, 6);
   });
 
-  it('no chamber and no entrance: 0 (the rig keeps the large-nest minimum)', () => {
-    expect(nestSpanBu(simWith([], []))).toBe(0);
+  it('no chamber: 0 (the rig keeps the large-nest minimum)', () => {
+    expect(nestSpanBu(simWith([], [MOUND_ENTRANCE]))).toBe(0);
   });
 });
 

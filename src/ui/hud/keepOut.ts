@@ -4,7 +4,8 @@
 import type { Rect } from './promptPlacement';
 
 // .pn-panel: the colony view's marker palette (gate-close-app: the top hint card sat on top of it)
-const REGIONS = '[data-hud]:not([data-hud="prompts"]), .fd-drawer, .pn-panel';
+// .wi-banner: the winter banner (gate-close-app fix round: the "Why?" hint chip sat on its title)
+const REGIONS = '[data-hud]:not([data-hud="prompts"]), .fd-drawer, .pn-panel, .wi-banner';
 
 let rects: Rect[] = [];
 

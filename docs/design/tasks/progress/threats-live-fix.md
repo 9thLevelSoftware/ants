@@ -39,3 +39,7 @@ Started ~15:20 UTC. No earlier progress file existed.
 - report section 12 drafted (12.1-12.4) in docs/design/tasks/threats-live-report.md; remaining: 12.5 presets table
   (after presets.sh), 12.6 harness, 12.7 acceptance update, perf note.
 - gentle done: 0.02/owgd (2 kills). waiting harsh + off.
+- harsh 0.45, off 0 events (residents gone). next: harness fix-harness
+- 17:00 harness done (fix-harness, shots looked at), perf done (perf-fix.txt), report 12.5-12.7 written.
+  Remaining: final test run of my paths, StructuredOutput.
+- 17:10 DONE: final typecheck 0 errors; creatures+perception 27 files 184 pass. Report section 12 complete. Only StructuredOutput left.

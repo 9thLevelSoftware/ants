@@ -1,0 +1,270 @@
+{
+ "impl:threats-live": {
+  "summary": "Predators now hunt in real worlds. On the five round-3 hand-over snapshots (seed 1, one per archetype, 6 game days, Naturalist) every stage of every predator family read 0 before the change. Root causes, each shown by a funnel count and a test:\nC1. Worldgen put every hunting predator's territory 511-3,000 BU from the nest. The colonies' ants stay within about 100-220 BU (90th percentile).\nC2. Ants fled from any predator within 6 BU (24 mm), including hidden ones, dormant ones and buried antlions. Strike ranges are 6-16 mm, so no predator ever got close enough to strike. GDD 05 \u00a72.4 sets detection at 4 L x stealth.\nC3. Rove beetles hunted only at night; GDD \u00a72.2a says they are also active by day in leaf litter.\nC4. The ant-spider approached at 6 mm/s, a code constant slower than any walking ant.\nC5. Small colonies never raised a `predator-near` alert, because the rule needs 3 foragers within 15 BU of the predator.\nC6. The possessed ant got no `possessed-danger` card for \"seized\" or \"stuck\".\nNot defects: zero bird visits is the GDD rule (birds only target colonies of 30 or more workers), and none of the 5 worlds has antlion habitat.\n\nFixes, all inside the creature module except one 3-line edit to ant perception:\n- After the hand-over, the director places one territory for each hunting kind that has habitat within 40-140 BU of the entrance, near the routes to food. Capped places are filled nearest the colony first.\n- Ants now detect predators at the GDD 05 \u00a72.4 range.\n- Rove beetles also hunt by day in litter; the ant-spider approaches at the GDD walk speed of 15 mm/s.\n- A landed strike raises `predator-near`; `possessed-danger` is raised for \"seized\" and \"stuck\".\n- Lowering the Predators setting (or turning it off) mid-game now removes the extra predators within 1 game day (GDD 06 \u00a714).\n\nMeasured worker deaths to predators per outside-worker game day: Gentle 0.01, Naturalist 0.07, Harsh 0.16, Off 0. The target band is derived from GDD 02 \u00a71.3 (0.061 per outside-worker game day), and all three presets fall inside it in the right order.\n\nCost to colonies, from the forage bench run to winter on the same 5 snapshots: 14 workers lost to predators across the 5 colonies, 56 \u2192 39 workers at winter, trips down 27 %. That is about 3 workers per colony of 12-16. This follows from the design's own arithmetic, so I did not rebalance; the report lists three one-constant levers for the integrator.\n\nPer-tick cost of the creature systems: 0.34 \u2192 0.30 ms at 60 workers and 0.34 \u2192 0.40 ms at 300 workers, under the 0.2 ms regression limit (machine load 10-11).\n\nBrowser harness: a jumping spider placed by the colony telegraphs and strikes a possessed worker. I looked at all three screenshots and they show the wind-up, the leap with the \"Predator near foragers\" card, and an observer close-up.\n\nPartial: AC2 is not fully met. Jumping spiders reached strike on 0 of 5 worlds in the final run (2 of 5 in an earlier round and on Harsh). Rove beetles reached it on 1 of 5. Centipedes have habitat on only 2 of 5 worlds and struck on 1.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/ecology/creatures/colonyRange.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/director.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/alerts.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/attack.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/conditions.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/hunters.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/queries.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/index.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/system.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/README.md",
+   "/home/user/foundress/src/sim/ecology/creatures/colonyRange.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/possessedDanger.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/strikeAlert.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/huntSaveLoad.test.ts",
+   "/home/user/foundress/src/sim/ecology/creatures/predatorsOff.test.ts",
+   "/home/user/foundress/src/sim/balance/creatures.ts",
+   "/home/user/foundress/src/sim/ants/perception/sense.ts (cross edit, 3 lines)",
+   "/home/user/foundress/src/sim/ants/perception/predatorDetect.test.ts (test beside the cross edit)",
+   "/home/user/foundress/tools/sim/threatFunnel.ts",
+   "/home/user/foundress/tools/sim/threatTable.ts",
+   "/home/user/foundress/tools/sim/threatSites.ts",
+   "/home/user/foundress/docs/design/tasks/threats-live-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/threats-live-impl.md",
+   "/home/user/foundress/test-output/threats-live/ (evidence: before, placement-only, after1-3, final-gentle/harsh/off, bench-forage-before/after, perf-before/after.txt, tables-*.md, cross-edits.md, harness/)"
+  ],
+  "verification": [
+   "npm run typecheck: 0 errors in the whole tree (final)",
+   "npx vitest run src/sim/ecology/creatures src/sim/ants/perception: 25 files, 171 passed, 5 skipped (LONG), final run after all changes",
+   "Also ran once mid-task: src/sim/ants/player/inspect.test.ts, src/sim/ants/behaviours/nest/reviewFixes.test.ts, src/sim/combat/predators.test.ts, src/sim/combat/determinism.test.ts: all green",
+   "threatFunnel before (5 snapshots x 6 gd naturalist): every stage 0 for every family; nearest predator territory 511-3000 BU vs worker range p90 99-221 BU",
+   "threatFunnel placement-only (2 worlds x 3 gd): ants perceived predators beyond the GDD detection range 179 worker-seconds vs 18 within it (perception cause counted)",
+   "threatFunnel final naturalist (after3): 7 kills / 103.6 outside-worker-gd = 0.07; gentle 0.01; harsh 0.16; predators off: 0 events (test-output/threats-live/tables-presets.md)",
+   "bench-colony --mode forage to winter, 5 snapshots, before vs after: predation 0 -> 14 deaths, workers at winter 56 -> 39, trips 283 -> 208, delivered C 56.2 -> 48.1",
+   "life.ts --perf 300 --workers 44/284 on woodland-edge #1, 3 repeats each before/after, minimum reported: creatures+director 0.34->0.30 ms (60), 0.34->0.40 ms (300)",
+   "Harness: node tools/harness/play.mjs --root . --query test=1&seed=1&quality=test&autostart=1&archetype=woodland-edge --script test-output/threats-live/harness/threat-shots.mjs: ok true, no errors; I looked at 01-telegraph-possessed.png (spider in wind-up facing the possessed worker), 02-attack-possessed.png (leap, 'Predator near foragers' card, workers 18->17), 03-attack-observer.png"
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Typecheck clean; tests green in src/sim/ecology/creatures",
+    "status": "met",
+    "evidence": "typecheck 0 errors; creatures + perception folders 25 files 171 passed 5 skipped"
+   },
+   {
+    "criterion": "2. Funnel table before and after; every hunting family reaches strike within 6 gd on Naturalist on >= 3 of 5 snapshots, or the report shows why not",
+    "status": "partial",
+    "evidence": "Funnel tables before/after are in report sections 1.1 and 2.1 and in tables-naturalist.md. Worlds with a strike in the final run: wolf spider 4/5; ant-spider 2/5 (3/5 in after1); jumping spider 0/5 (2/5 in after1 and on Harsh: it stalks at 8 mm/s and cannot close on walking ants); centipede habitat on 2/5, strike on 1/5 (after2); rove beetle 1/5; antlion has no habitat on any world; birds need >= 30 workers by GDD rule."
+   },
+   {
+    "criterion": "3. Loss rates per preset within the GDD bands, ordered; zero predator events with predators: off",
+    "status": "met",
+    "evidence": "Band derived from GDD 02 \u00a71.3: 0.061 deaths per outside-worker-gd, accepted range 0.03-0.12 at Naturalist. Measured 0.01 / 0.07 / 0.16 for Gentle / Naturalist / Harsh; off 0 events. Lowering the setting mid-game now also removes residents (predatorsOff.test.ts)."
+   },
+   {
+    "criterion": "4. Determinism; save -> load mid-hunt equals uninterrupted run (test)",
+    "status": "met",
+    "evidence": "huntSaveLoad.test.ts reloads through the real snapshot/restore path during the wind-up and during the hold; both runs reach the same stateHash as the uninterrupted run. colonyRange.test.ts covers idempotent, deterministic siting."
+   },
+   {
+    "criterion": "5. Per-tick cost before/after at 60 and 300 workers, no regression above 0.2 ms",
+    "status": "met",
+    "evidence": "Creature systems: 0.34 -> 0.30 ms at 60 workers, 0.34 -> 0.40 ms at 300 workers; perception +0.10 ms at 300 workers with 4 more ants outside. Load average 10-11, minimum of 3 repeats (perf-before.txt / perf-after.txt)."
+   },
+   {
+    "criterion": "6. Report docs/design/tasks/threats-live-report.md",
+    "status": "met",
+    "evidence": "Sections: causes, fixes, design target, calibration, colony cost, perf, player side, determinism, GDD deviations, notes for colony-life and others, App E coverage, acceptance."
+   }
+  ],
+  "notDone": [
+   "AC2 not fully met. Jumping spiders rarely strike in AI play: the wind-up only starts when the target ant is moving slower than 6.7 mm/s, and the stalk at 8 mm/s never closes on an ant cruising at 24 mm/s. Lead for the next round: place jumping spiders on the stems of food-host plants, where ants stop. Rove beetles (3 BU sense, lone ants only) and centipedes (night only, habitat on 2/5 worlds) also strike on only 1 of 5.",
+   "Telegraphs per colony per game day (0.4 / 0.8 / 1.5 by preset) are below the research figure of 3-6 spider hunts per game day; that figure is not a GDD number and was not chased.",
+   "The Gentle, Harsh and Off runs were made before the setting-change cull (settingCull) was added. Expected effect is none (it only removes far-away residents), but they were not re-run.",
+   "The forage benches are one run per world; colony outcomes after the first kill vary from run to run, so read the totals, not single worlds."
+  ],
+  "contractChanges": [
+   "None. No change to src/sim/types or src/core. New constants only in src/sim/balance/creatures.ts (COLONY_RANGE_*, COLONY_ROUTE_*, ROVE_DAY_ZONES, SETTING_DESPAWN_GD, JUMPING_SPIDER_SURFACE_MIN_MM, ANT_SPIDER_REGIONS); ANT_SPIDER_APPROACH_MMS changed from 6 to 15. New export predatorPerceivedBy from src/sim/ecology/creatures (index)."
+  ],
+  "needsFromOthers": [
+   "Integrator: decide whether small colonies can carry the GDD's predation rate. On the forage bench, Naturalist costs about 3 workers per 12-16 worker colony by winter. One-constant levers are in report section 5: COLONY_RANGE_P 0.5 for Naturalist, a worker threshold before predators are sited near the colony, or widening the nest exclusion radius.",
+   "colony-life: every bench and sweep made before this change ran without predation. Predation deaths carry cause 'predation'.",
+   "Human events / integrator: the I11 quiet share is 0-0.4 in every 6-game-day run because of human-event-warning alerts (14-55 raises per run), not predators. E25 will fail on that.",
+   "Locomotion / behaviours: knownHazardsNear (avoid known antlion pits) is not called by steering (GDD 05 \u00a72.4, E14); check that route costs read the danger grid.",
+   "Species data: workers in the snapshots have maxHp 7.2, while GDD 05 \u00a74.1 / E12 assume 10, so a jumping-spider leap kills outright instead of seizing."
+  ],
+  "notesForIntegrator": [
+   "All measurements use the round-3 snapshots (start day 9). Round-4 snapshots (start day 5) appeared around 13:40 UTC and were not used.",
+   "Contradictions resolved by the precedence rule: GDD 02 \u00a710.12 flee trigger of 6 BU vs GDD 05 \u00a72.4 detection range \u2014 GDD 05 wins as the owning chapter. GDD 04 \u00a78.2 map caps put predators kilometres (in BU) from the colony, which cannot give GDD 02 \u00a71.3's implied loss rate; recorded as deviation D1 (the colony-range rule). Rove beetle 'day in litter' (\u00a72.2a) vs 'night, despawn at dawn' (\u00a72.2b): both kept.",
+   "One cross edit: src/sim/ants/perception/sense.ts (3 lines) with test predatorDetect.test.ts, logged in test-output/threats-live/cross-edits.md.",
+   "Harness script: test-output/threats-live/harness/threat-shots.mjs (git-ignored location, as evidence)."
+  ]
+ },
+ "verify:threats-live": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the spec docs/design/tasks/threats-live.md, the implementer's report, the design seed, the architecture, tech-stack section 7, and GDD 05 \u00a72.2-2.4, App. C and the event tables, GDD 06 \u00a714 and GDD 02 \u00a71.3. Read the whole diff 7e968bc..HEAD in the owned paths (colonyRange, director, alerts, attack, conditions, hunters, queries, system, index, balance/creatures) and the cross edit in src/sim/ants/perception/sense.ts.",
+   "npm run typecheck: 0 errors.",
+   "npx vitest run src/sim/ecology/creatures src/sim/ants/perception: 25 files, 171 passed, 5 skipped (LONG), 55 s. This matches the implementer's numbers.",
+   "npx vitest run src/sim/ecology/creatures/threatsLive.verify.test.ts: 6 tests, 3 pass, 3 fail. The 3 failures are deliberate and show the bugs listed below.",
+   "Browser harness, one run: node tools/harness/play.mjs --root . --query 'test=1&seed=1&quality=test&autostart=1&archetype=woodland-edge' --script test-output/threats-live/harness/threat-shots.mjs --out test-output/threats-live-review/harness. Result: ok:true, 0 errors. I looked at all 3 screenshots. 01 shows the jumping spider in its wind-up with legs raised, facing the possessed worker. 02 shows the leap onto the worker with the 'Predator near foragers' card and workers 18 -> 17. 03 is an observer close-up of the spider over the dead ant. The claims hold. The worker had 7.2 hp, so the 9-damage leap killed it outright and no 'seized' card could appear.",
+   "Threat funnel with predators off, 1 game day, woodland-edge #1 (round-3 snapshot): node tools/sim/run-ts.mjs tools/sim/threatFunnel.ts --days 1 --rules '{\"predators\":\"off\"}' --out test-output/threats-live-review/off. Every hunter's average live count is about 0.02, with 0 telegraphs and 0 strikes, so settingCull works on a real world.",
+   "A temporary probe (tools/sim/threatReviewProbe.ts, since deleted) on the woodland-edge snapshot, 1 and 3 game days at Naturalist, counted creature despawn causes and how often each territory was occupied. Wolf spider 'rebalanced': 1 per game day. Jumping spider: 240 spawn + 'no-surface' despawn pairs per game day; rove beetle: 33 per game day (see the pre-existing finding below).",
+   "Layering grep on the changed sim files (Math.random, Date.now, performance.now, three): no matches. All runtime state in colonyRange is plain data, except the WeakMap memo (see the finding)."
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "AC2 not met: three hunting families reach 'strike' on fewer than 3 of 5 worlds, and the reason given is not 'no habitat'",
+    "where": "docs/design/tasks/threats-live-report.md \u00a72.1 and \u00a711; src/sim/ecology/creatures/spiders.ts (jumping-spider stalk/windup gate), hunters.ts (rove beetle)",
+    "detail": "AC2 allows a family to miss 3 of 5 only when that archetype has no habitat for it. Final run (after3): jumping spider struck on 0/5 worlds although it was sited on 4/5 and sensed ants on 4/5; ant-spider 2/5; rove beetle 1/5, sited on 5/5. The implementer's own explanation is behavioural: the stalk at 8 mm/s never closes on a cruising ant, and the wind-up only starts on an ant moving slower than 6.7 mm/s. That is not a habitat reason. The centipede (habitat on 2/5, struck on 1) and the antlion (no habitat on any world) are acceptable. The implementer reports this honestly as 'partial'. It still blocks AC2 and should go back with the lead the report already names (site jumping spiders on food-host stems where ants stop)."
+   },
+   {
+    "severity": "major",
+    "title": "The colony-range siting memo is runtime-only, so after a Predators setting change a reload diverges from the uninterrupted game, and the raised setting adds nothing until a reload",
+    "where": "src/sim/ecology/creatures/colonyRange.ts:150-172 (const settled = new WeakMap; memo.kinds.add(kind) before colonyRangeDrawn)",
+    "detail": "ensureColonyRangeTerritories marks each kind as settled in a per-Sim WeakMap before it checks colonyRangeDrawn(sim, kind), and that check depends on the current Predators setting. On a world where a kind is not drawn at Few, raising the setting Few -> Normal mid-game never sites that kind in the running game, because the memo already says it is settled. After a save -> load the memo is empty, so the kind is sited at once. Two problems follow. (a) A reload changes the simulation, against AC4 and the design seed's determinism rule. (b) It breaks GDD 06 \u00a714 ('adding threats spawns them at the normal rate'). Reproduction: threatsLive.verify.test.ts 'raising Few -> Normal sites the same territories in the running game as after a save -> load' FAILS: the reloaded sim's territory list differs from the running sim's. Its precondition test passes, so at least one kind on woodland-edge #1 is drawn at Normal but not at Few. Fix direction: memoise only the kinds that are actually settled for the current setting (or key the memo by setting), so both paths take the same decision."
+   },
+   {
+    "severity": "minor",
+    "title": "Resident rebalance churns: a far resident is despawned and respawned on every director run while the near colony site cannot be filled",
+    "where": "src/sim/ecology/creatures/director.ts:118-138 (rebalanceResidents) with occupyTerritories / spawnPointOk",
+    "detail": "rebalanceResidents despawns the farthest unseen resident whenever a nearer territory of the same kind is free. It does not check that the near territory can actually be filled now. When spawnPointOk fails (an ant within 20 BU of the site centre, or a possessed ant within 40 BU), occupyTerritories skips the near site and refills a far territory. The next run does the same again. Reproduction: threatsLive.verify.test.ts 'a far resident is not despawned and respawned over and over while an ant stands on the near site' FAILS with 19 'rebalanced' despawns in 20 director runs (1000 ticks). On the woodland-edge snapshot with AI play only, it happened once per game day. It becomes continuous when the player keeps a possessed ant near a free colony-range site. Each cycle allocates a creature and emits spawn and despawn events. Nothing visible happens, because farFromFocus protects residents in view. Fix: rebalance only when the near site passes spawnPointOk (and its surface check) in the same run."
+   },
+   {
+    "severity": "minor",
+    "title": "possessed-danger 'seized' overwrites combat's 'pinned' card, then clears it while the ant is still pinned",
+    "where": "src/sim/ecology/creatures/alerts.ts:133-149 (possessedDangerAlerts)",
+    "detail": "Alerts are keyed by kind and subject. When a card from another module already exists (combat 'pinned', flood 'under-water'), possessedDangerAlerts calls raiseAlert anyway, which overwrites cause and title with 'seized'. When the seize ends, its clear loop removes the card because the cause no longer matches. Combat has already set its PIN_ON flag, so it does not raise the card again, and a pinned possessed ant is left with no critical card. Reproduction: threatsLive.verify.test.ts 'a pinned ant keeps a possessed-danger card after a predator lets go of her' FAILS (card undefined). The flood module solves the same problem by leaving a card raised by another module alone (nest/flood/diagnostics.ts possessedFloodAlert). This is a rare combination (pinned and seized at once)."
+   },
+   {
+    "severity": "minor",
+    "title": "Pre-existing in the owned director: jumping-spider and rove-beetle worldgen territories whose centre is inside a solid are retried every director run",
+    "where": "src/sim/ecology/creatures/director.ts occupyTerritories -> spawn.ts:48 ('no-surface')",
+    "detail": "Probe on the woodland-edge round-3 snapshot at Naturalist: 240 jumping-spider spawns per game day, each despawned at once with cause 'no-surface', and 33 per game day for rove beetles. The causes are territories 319 and 320 (field at the centre -85 and -35 mm) and rove territories 32, 33 and 35. The kind stays below its cap, so every run tries them again. The 'before' funnel JSONs show the same total despawn counts, so the change did not introduce this, but it lives in the owned module and costs allocations and events every 5 s. Fix: mark a territory whose spawn fails as vacant for a while, or drop it."
+   },
+   {
+    "severity": "minor",
+    "title": "Jumping-spider site height ignores primitive rotation, so lying logs and boards count as vertical surfaces",
+    "where": "src/sim/ecology/creatures/colonyRange.ts:52-59 (objectRise)",
+    "detail": "objectRise uses pos.y + size.y for each primitive. size holds half-extents in the primitive's local frame (types/geom.ts), so the rotation is ignored and VISUAL_ONLY primitives are included. A horizontal cylinder (a fallen log) or a rotated capsule reports its half-length as height and passes the 40 mm 'vertical surface' test, which goes against GDD 05 \u00a72.2b ('vertical sunny surfaces'). Also, the site is the object's centre at ground height, which is usually inside the object. On woodland-edge the colony jumping-spider site has field -0.9 mm and only works because placeOnSurface projects it out."
+   },
+   {
+    "severity": "minor",
+    "title": "The 'stuck' sub-cause is used for ant-spider paralysis; in GDD 05, 'stuck' is the spill-trap state",
+    "where": "src/sim/ecology/creatures/alerts.ts:115-126 (OWN_DANGER.stuck = 'Paralysed')",
+    "detail": "GDD 05 \u00a71 (spill drowning) and \u00a74 list 'paralysed' and 'stuck' as separate states, each with its own event (ant-paralysed and ant-stuck). The card raises cause 'stuck' with the title 'Paralysed', so diagnostics or UI that filter on cause 'stuck' would read paralysis as a spill trap. Use cause 'paralysed', or record this as a GDD reading in the report."
+   },
+   {
+    "severity": "minor",
+    "title": "AC3 bands are the implementer's own derivation, and the Gentle, Harsh and off tables predate the final code",
+    "where": "docs/design/tasks/threats-live-report.md \u00a73-4",
+    "detail": "The GDD states no loss band. The 0.061 per outside-worker game day derived from GDD 02 \u00a71.3 is reasonable, but the Gentle (<= 0.06) and Harsh (0.06-0.2) bands are invented. The Naturalist rate (0.07) rests on 7 kills in one run per world, and two of five worlds had 0. The Gentle, Harsh and off runs were made before settingCull was added and were not repeated. My 1-game-day off run on woodland-edge is consistent (0 events, residents gone). The integrator should treat AC3 as 'consistent with the design arithmetic', not as met against a GDD band."
+   }
+  ],
+  "testsAdded": [
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts :: precondition: on this world some kind is sited at Normal but not drawn at Few (passes)",
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts :: raising Few -> Normal sites the same territories in the running game as after a save -> load (FAILS: memo/reload divergence)",
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts :: sites stay inside the ring and on the world (passes)",
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts :: a far resident is not despawned and respawned over and over while an ant stands on the near site (FAILS: 19 rebalances in 20 runs)",
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts :: a pinned ant keeps a possessed-danger card after a predator lets go of her (FAILS: card cleared)",
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts :: a card raised by another module is not re-raised (count) every tick while seized (passes)"
+  ]
+ },
+ "fix:threats-live": {
+  "summary": "I reproduced all 8 reviewer findings. Six had code fixes, one needed a GDD reading, and AC2 went from partial to better but still partial. The six code fixes:\n- Memo/reload divergence: the runtime memo is gone and siting now runs on the director's hourly runs. The creature conditions cache had a second cause, which is also fixed.\n- Rebalance churn: fixed.\n- Pinned card overwritten by \"seized\": fixed.\n- Placement retries every run: territories whose resident cannot be placed now wait 1 game day. Spawn and despawn events fell 90-94 %.\n- Jumping-spider height ignored rotation: the vertical-surface test now applies the rotation.\n- Paralysis was raised under the spill-trap cause \"stuck\": the cause is now `paralysed`.\n\nAll 6 reviewer tests pass, with one assertion adapted, and I added tests for each fix.\n\nFor AC2, predators only strike an ant that pauses, so I now site them where ants stop:\n- The jumping spider and the rove beetle are sited at the colony's nearest food sources.\n- The jumping spider goes on the food stems themselves, with an inner ring edge of 20 BU instead of 40.\n- A blocked territory may now spawn its resident at 8 nearby points and let it walk home.\n\nIn the final Naturalist run the jumping spider and the ant-spider struck on 5 of 5 worlds. Wolf spider (2 of 5 in the final run, 2-3 of 5 in fix2-fix4, 4 of 5 at review) and rove beetle (2-4 of 5) still vary from run to run. The centipede struck on 1 of its 2 habitat worlds (2 of 2 in fix3).\n\nThe cost is a much higher loss rate: 0.40 deaths per outside-worker game day on Naturalist, against the design's 0.061. The 5 colonies dropped from 69 to 32 workers in 6 game days. Gentle is 0.02, Harsh 0.45, and Predators off gives 0. I report this conflict and the levers in the report, section 12.4, without rebalancing, as the spec's step 5 requires. Typecheck is clean. The creatures and perception tests pass (27 files, 184 passed). I looked at the harness screenshots. There was no per-tick cost regression.",
+  "filesTouched": [
+   "src/sim/ecology/creatures/colonySites.ts (new)",
+   "src/sim/ecology/creatures/colonySites.test.ts (new)",
+   "src/sim/ecology/creatures/colonyRange.ts",
+   "src/sim/ecology/creatures/director.ts",
+   "src/sim/ecology/creatures/alerts.ts",
+   "src/sim/ecology/creatures/conditions.ts",
+   "src/sim/ecology/creatures/possessedDanger.test.ts",
+   "src/sim/ecology/creatures/director.test.ts",
+   "src/sim/ecology/creatures/colonyRange.test.ts",
+   "src/sim/ecology/creatures/threatsLive.verify.test.ts (one assertion adapted, see notes)",
+   "src/sim/ecology/creatures/README.md",
+   "src/sim/balance/creatures.ts",
+   "tools/sim/threatSites.ts",
+   "docs/design/tasks/threats-live-report.md (new section 12)",
+   "docs/design/tasks/progress/threats-live-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: 0 errors, whole tree (last run about 17:10 UTC)",
+   "npx vitest run src/sim/ecology/creatures src/sim/ants/perception: 27 files, 184 passed, 5 skipped (FOUNDRESS_LONG)",
+   "All 6 reviewer tests in threatsLive.verify.test.ts pass. Before the fixes, 3 failed: reload divergence, 19 rebalances in 20 runs, pinned card lost.",
+   "Funnel runs: tools/sim/threatFunnel.ts, 5 round-3 snapshots x 6 game days, run one world at a time. Naturalist: test-output/threats-live/fix2, fix3, fix4 (fix1 aborted and kept as evidence). Presets: fix-gentle, fix-harsh, fix-off (2 worlds x 3 game days). Summaries in tables.md in each folder.",
+   "Spawn/despawn churn: creature-despawned events per world in 6 game days went from 3,405-8,404 (after3) to 345-537 (fix4)",
+   "Harness: node tools/harness/play.mjs on seed 1, woodland-edge, quality=test, script test-output/threats-live/fix-harness/threat-shots.mjs. Result ok:true, no page errors. Jumping spider sited 24 BU from the entrance. Telegraph at tick 31458, strike at tick 31464 (hit). I looked at 01-telegraph-possessed.png (spider in wind-up facing the possessed worker), 02-attack-possessed.png (spider on the worker; workers 15 to 14) and 03-attack-observer.png (observer close-up). All three render correctly.",
+   "Per-tick cost (test-output/threats-live/perf-fix.txt; life.ts --perf 300, one run each, load about 8), at 60 / 300 workers: creatures 0.234 / 0.237 ms, creature-director 0.042 / 0.042 ms. Before the fix round: 0.202 + 0.093 and 0.294 + 0.103 ms. No regression; the director got cheaper.",
+   "tools/sim/threatSites.ts lists where each kind is sited and the sources near each colony"
+  ],
+  "acceptance": [
+   {
+    "criterion": "R2 (major): colony-range memo makes a reload diverge from the running game; raising the Predators setting sites nothing",
+    "status": "met",
+    "evidence": "Two causes. (a) The runtime WeakMap memo in colonyRange.ts is removed; siting is now a function of saved state only and the director calls it on its hourly runs, which are persisted through lastHourlyTick. (b) The conditions() cache in conditions.ts was keyed by tick only; it is now also keyed by the identity of the difficulty preset, params, custom settings and rules. Covered by the reviewer test 'raising Few -> Normal ...', huntSaveLoad.test.ts and colonyRange.test.ts."
+   },
+   {
+    "criterion": "R1 (major): AC2, every hunting family strikes on at least 3 of 5 worlds, or has no habitat",
+    "status": "partial",
+    "evidence": "Final run (fix4) strike worlds: jumping spider 5 of 5 (was 0), ant-spider 5 of 5, wolf spider 2 of 5 (2-3 of 5 in fix2-fix4, 4 of 5 at review), rove beetle 2 of 5 (4 of 5 in fix2 and fix3), centipede 1 of its 2 habitat worlds (2 of 2 in fix3), antlion has no habitat, bird visits need 30 workers (GDD gate). The changes are in colonySites.ts and director.spawnPointFor; report section 12.2 has the tables."
+   },
+   {
+    "criterion": "R3: resident rebalance churns",
+    "status": "met",
+    "evidence": "A near territory counts for rebalancing only if it has a spawn point in the same run (spawnPointFor). The reviewer test now sees 0 rebalances; director.test.ts covers the spawn-distance property."
+   },
+   {
+    "criterion": "R4: seized card overwrites combat's pinned card, then clears it",
+    "status": "met",
+    "evidence": "possessedDangerAlerts leaves any possessed-danger card raised by another module alone. Both reviewer tests pass."
+   },
+   {
+    "criterion": "R5: territories with no walkable surface are retried every director run",
+    "status": "met",
+    "evidence": "After a no-surface failure the territory stays vacant for TERRITORY_NO_SURFACE_RETRY_GD (1 game day). Test in colonySites.test.ts. Despawn events dropped 90-94 % on every world."
+   },
+   {
+    "criterion": "R6: jumping-spider height ignores rotation; site inside the object",
+    "status": "met",
+    "evidence": "colonySites.uprightPrim computes world-space height from the rotation and skips VISUAL_ONLY primitives. The site is at the primitive's foot, on open ground. Unit tests cover a lying post, a flat board, a visual-only primitive and a boulder, plus the generated-world site test."
+   },
+   {
+    "criterion": "R7: 'stuck' used for paralysis",
+    "status": "met",
+    "evidence": "The cause is now 'paralysed'; the GDD reading is recorded in report 12.1. New test in possessedDanger.test.ts."
+   },
+   {
+    "criterion": "R8 (AC3): loss bands self-derived; Gentle, Harsh and off runs predated settingCull",
+    "status": "not-met",
+    "evidence": "Re-run with final code: Gentle 0.02, Naturalist 0.40, Harsh 0.45 deaths per outside-worker game day, Predators off 0 with residents gone. Ordered, but Naturalist and Harsh are far above the 0.061 design arithmetic. Report 12.4 and 12.5 explain the conflict with AC2 and give the levers."
+   },
+   {
+    "criterion": "AC1: typecheck clean, tests green",
+    "status": "met",
+    "evidence": "0 errors; 27 files, 184 passed"
+   },
+   {
+    "criterion": "AC4 determinism and AC5 cost",
+    "status": "met",
+    "evidence": "Determinism tests and reviewer reload test green; perf-fix.txt shows no regression"
+   }
+  ],
+  "notDone": [
+   "AC2 is still partial. In the final run the wolf spider (2 of 5) and the rove beetle (2 of 5) struck on fewer than 3 worlds; earlier runs with the same siting reached 3-4 of 5. Each world was run once, so the per-world result is noisy. The centipede struck on 1 of its 2 habitat worlds.",
+   "The loss rate is far above the design arithmetic: 0.40 deaths per outside-worker game day on Naturalist versus 0.061; colonies of 12-16 lose about 1 worker per game day. Per spec step 5 I did not rebalance. The levers are listed for the integrator: COLONY_RANGE_MIN_BU for the jumping spider back to 40 (fix3: 0.23); COLONY_PAUSE_KINDS empty (close to the review state, about 0.07); COLONY_RANGE_P below 1. Two causes lie in other modules (see needsFromOthers).",
+   "The step-5 forage benches to winter (bench-colony.ts) were not re-run with the final code; the colony impact comes from the 6-day funnel only.",
+   "Per-tick cost was measured once per size, not 3 times, while the machine was loaded."
+  ],
+  "contractChanges": [
+   "None in src/sim/types or src/core. New constants in src/sim/balance/creatures.ts, which this task owns: TERRITORY_NO_SURFACE_RETRY_GD, UPRIGHT_MAX_TILT_DEG, JUMPING_SPIDER_SITE_MARGIN_MM, COLONY_PAUSE_SOURCES, COLONY_PAUSE_KINDS, COLONY_SOURCE_NEAR_BU, COLONY_SOURCE_CANDIDATES, SPAWN_ALT_OFFSET_BU, COLONY_RANGE_MIN_BU."
+  ],
+  "needsFromOthers": [
+   "Ant behaviours: GDD 05 \u00a72.4 says AI ants carry paralysed nestmates home with p 0.5. Nothing in src/sim/ants does this (fight.ts and patrol.ts only skip such ants), so almost every ant-spider bite ends in a kill. In fix4 the ant-spider caused 14 of the 35 deaths.",
+   "Species data: Lasius workers in the snapshots have maxHp 7.2, while GDD 05 \u00a74.1 assumes 10. The jumping-spider leap (9 damage) therefore kills outright, with no seized phase, no struggle and no possessed-danger card. The fix-harness run shows this.",
+   "Integrator: rule on AC2 versus the loss arithmetic (report 12.4). Colony-life: predation is now about 1 worker per game day per small colony on Naturalist."
+  ],
+  "notesForIntegrator": [
+   "One reviewer assertion changed: in threatsLive.verify.test.ts 'sites stay inside the ring', the inner edge is now per kind, colonyRing(t.kind)[0] instead of COLONY_RANGE_BU[0], because the jumping spider may sit 20 BU out. The test's intent (inside the ring, on the world) is unchanged.",
+   "I also changed one of my own module's tests, director.test.ts 'never spawns within 20 BU of an ant or 40 BU of the focus'. It now checks the spawn point itself, because a resident can appear 25 BU away from a blocked territory centre and walk home.",
+   "GDD readings: (1) GDD 05 \u00a75's 40 BU nest exclusion lasts only until 5 workers and is enforced in predator.ts canPrey, which is what allows the jumping spider's 20 BU inner edge. (2) App. C lists the possessed-danger sub-causes as pinned, seized and stuck, but its event table routes ant-paralysed to the same card, so I used the cause 'paralysed'.",
+   "Evidence is under test-output/threats-live/: fix1-fix4, fix-gentle, fix-harsh, fix-off (each with tables.md), fix-harness, perf-fix.txt. Report: docs/design/tasks/threats-live-report.md section 12. Progress file: docs/design/tasks/progress/threats-live-fix.md.",
+   "None of my background processes are running. The harness and node processes currently on the machine belong to another engineer (gate-close)."
+  ]
+ }
+}

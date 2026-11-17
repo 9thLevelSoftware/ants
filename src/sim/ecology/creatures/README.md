@@ -11,7 +11,8 @@ Constants: `src/sim/balance/creatures.ts` (import it directly; it is not in the 
 | `index.ts` | systems (`creature-director` every 50 ticks, `creatures` every tick, phase `creatures`), public API, cheat handlers |
 | `system.ts` | per-tick loop, kind table, deaths from hp <= 0, subduing, hit reactions |
 | `director.ts` | residents / visitors from territories (nearest the colony first, far residents give way), despawning, caps, global cap 260, winter, hourly rolls |
-| `colonyRange.ts` | colony-range residents (threats-live): after the hand-over, one territory per hunting kind with habitat in the ring `COLONY_RANGE_BU` around the player's first entrance, near the colony's routes (entrance -> food sources); `COLONY_RANGE_P` x Predators setting |
+| `colonyRange.ts` | colony-range residents (threats-live): after the hand-over, one territory per hunting kind with habitat in the ring `COLONY_RANGE_BU` around the player's first entrance, near the colony's routes (entrance -> food sources); `COLONY_RANGE_P` x Predators setting; called on the director's hourly runs, no runtime memo (reload-safe) |
+| `colonySites.ts` | where those territories go: `COLONY_PAUSE_KINDS` by the colony's nearest food sources, the jumping spider on food stems (`COLONY_RANGE_MIN_BU` inner edge 20 BU) else at the foot of an upright primitive (`uprightPrim`, rotation-aware), others near the routes |
 | `spawners.ts` | prey patches (+ regrowth), patch prey around foragers, fruit flies, caterpillars, fly larvae, stranded worms, pits |
 | `attack.ts`, `predator.ts` | telegraph / strike / seize / venom / struggle; victim choice, flee, feed, recover |
 | `spiders.ts`, `hunters.ts`, `antlion.ts`, `invasion.ts` | jumping & wolf spider; ant-spider, centipede, rove beetle; antlion pit; centipede nest raid |

@@ -351,3 +351,39 @@ jumping-spider 40 (= `fix3`: 0.23, jumping spider back to 1 of 5); `COLONY_PAUSE
 = `after3`-like 0.07-0.09, AC2 as at review); `COLONY_RANGE_P` per kind < 1; and the two cross-module items above.
 **For colony-life:** with the final code a 12-16 worker colony loses ~1 worker per game day to predators on Naturalist.
 
+### 12.5 Presets with the final code (AC3), 5 worlds x 6 gd (off: 2 worlds x 3 gd)
+
+| preset | outside worker-h | strikes | hits | worker deaths to predators | deaths / owgd | worlds with a strike (JS / wolf / ant-sp. / centipede / rove) |
+|---|---|---|---|---|---|---|
+| Gentle (`fix-gentle`) | 3,086 | 11 | 5 | 2 | **0.02** | 0 / 1 / 2 / 0 / 1 |
+| Naturalist (`fix4`) | 2,098 | 67 | 45 | 35 | **0.40** | 5 / 2 / 5 / 1 / 2 |
+| Harsh (`fix-harsh`) | 2,141 | 59 | 40 | 40 | **0.45** | 5 / 3 / 2 / 1 / 5 |
+| `predators: off` (`fix-off`, with `settingCull`) | 779 | 0 | 0 | 0 | **0** | residents gone (alive avg <= 0.01 per kind) |
+
+Order Gentle < Naturalist < Harsh holds; off is zero. Harsh is barely above Naturalist because its colonies collapse
+early (kitchen-door 15 -> 1 workers), leaving fewer ants to kill; one run per world. Against the section 3 band
+(derived, not a GDD band, as the reviewer notes): Gentle in, Naturalist and Harsh far above (see 12.4).
+
+### 12.6 Player side, determinism, cost
+
+- Browser (`test-output/threats-live/fix-harness/`, same script as section 5b, seed 1 woodland-edge): the director had
+  sited the jumping spider **24 BU** from the entrance (on a food stem, the new inner edge), wolf spider 117 BU,
+  ant-spider 64 BU. `predator-telegraph` at tick 31458, strike at 31464 (0.24 s at the test's settings), hit 9, the
+  7.2 hp worker died (workers 15 -> 14, `predator-near` card). Screenshots looked at: `01-telegraph-possessed.png`
+  (spider in its wind-up facing the possessed worker), `02-attack-possessed.png` (spider on the worker),
+  `03-attack-observer.png` (observer close-up). Harness `ok: true`, no page errors.
+- Determinism: `huntSaveLoad.test.ts`, `determinism.test.ts` green; reviewer's reload test green (12.1 R2).
+- Per-tick cost (`test-output/threats-live/perf-fix.txt`, one run each, load ~8): creatures 0.234 / 0.237 ms,
+  creature-director 0.042 / 0.042 ms at 60 / 300 workers (section 5a after: 0.202 + 0.093 / 0.294 + 0.103): no
+  regression; the director is cheaper (no retried no-surface spawns).
+
+### 12.7 Acceptance after the fix round
+
+| # | Status | Note |
+|---|---|---|
+| 1 | met | `npm run typecheck` 0 errors (whole tree); `npx vitest run src/sim/ecology/creatures src/sim/ants/perception`: 27 files, 184 passed, 5 skipped (LONG) |
+| 2 | partial | final run: jumping spider 5/5, ant-spider 5/5; wolf spider 2/5 (3-4 in other runs), rove beetle 2/5 (4 in fix2 / fix3), centipede 1 of its 2 habitat worlds (2/2 in fix3); antlion no habitat; bird GDD gate |
+| 3 | not met against the derived band | ordered, off = 0; Naturalist 0.40 / Harsh 0.45 vs 0.061 design arithmetic (12.4: AC2 and the arithmetic conflict at 12-16 workers; two cross-module causes; levers) |
+| 4 | met | 12.6 |
+| 5 | met | 12.6 |
+| 6 | met | this section |

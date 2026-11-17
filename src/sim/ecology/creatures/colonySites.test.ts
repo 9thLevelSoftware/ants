@@ -14,6 +14,7 @@ import { generateWorld } from '@/worldgen';
 import { makeTestSim } from '@/sim/testing';
 import { locomotionSystem } from '@/sim/locomotion';
 import { TICKS_PER_DAY } from '@/sim/time';
+import { COLONY_PAUSE_KINDS } from '@/sim/balance/creatures';
 import {
   COLONY_PAUSE_SOURCES, COLONY_SOURCE_NEAR_BU, JUMPING_SPIDER_SURFACE_MIN_MM, TERRITORY_NO_SURFACE_RETRY_GD,
 } from '@/sim/balance/creatures';
@@ -78,7 +79,8 @@ describe('colony-range sites on a generated world (woodland-edge #1)', () => {
     for (const s of atFood) expect(s.y - sim.field.height(s.x, s.z)).toBeGreaterThanOrEqual(JUMPING_SPIDER_SURFACE_MIN_MM);
   });
 
-  it('the pause-point kinds wait by one of the colony\'s nearest food sources, where its ants pause', () => {
+  // Ruling R26: no kind is sited at the pause points until the loss rate is calibrated (COLONY_PAUSE_KINDS is empty).
+  it.skipIf(COLONY_PAUSE_KINDS.length === 0)('the pause-point kinds wait by one of the colony\'s nearest food sources, where its ants pause', () => {
     const sim = createSim(restore(base).state, world);
     const anchor = colonyAnchor(sim)!;
     const before = sim.state.ecology.director.territories.length;

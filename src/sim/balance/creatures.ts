@@ -491,7 +491,7 @@ export const COLONY_RANGE_BU: [number, number] = [40, 140];
  * until NEST_EXCLUSION_WORKERS workers and is enforced where a predator picks its victim (predator.ts canPrey), and the
  * resident still appears >= 40 BU from the focus (§2.7, director spawnPointFor).
  */
-export const COLONY_RANGE_MIN_BU: Partial<Record<CreatureKind, number>> = { 'jumping-spider': 20 };
+export const COLONY_RANGE_MIN_BU: Partial<Record<CreatureKind, number>> = {}; // R26: was { 'jumping-spider': 20 }
 /**
  * Chance that a hunting kind with habitat in the ring gets its colony-range territory, at the Normal Predators
  * setting (x the setting's multiplier: Few 0.4, Many 1.6, capped at 1). One draw per world seed and kind, so the
@@ -540,7 +540,9 @@ export const COLONY_PAUSE_SOURCES = 3;
  * spider "across the paths", centipede): sited at the sources too, the ant-spider alone took 7 workers of one colony in
  * 6 gd (threats-live fix round, run fix1), far above the design's loss rate.
  */
-export const COLONY_PAUSE_KINDS: readonly CreatureKind[] = ['jumping-spider', 'rove-beetle'];
+// Integrator ruling R26 (Nov 17): empty until the loss rate is calibrated. With the two kinds sited at the pause
+// points the Naturalist loss was 0.40 worker deaths per outside-worker game day against the design's 0.061.
+export const COLONY_PAUSE_KINDS: readonly CreatureKind[] = [];
 /**
  * A resident whose territory centre is not a valid spawn point (an ant within 20 BU, the focus within 40 BU: §2.7)
  * may appear at one of 8 points this far from it instead and walk home, BU. Without it a site by a busy food source
