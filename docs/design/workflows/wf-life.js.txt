@@ -1,0 +1,128 @@
+export const meta = {
+  name: 'foundress-colony-life',
+  description: 'FOUNDRESS colony-life: measured rounds of diagnose-and-fix on the whole sim, each followed by an independent 15-run sweep and review, until the growth bar holds',
+  phases: [
+    { title: 'Round', detail: 'engineer: funnel accounting, rank causes, fix the top ones' },
+    { title: 'Sweep', detail: 'independent engineer: full sweep against the bars, review of the round' },
+  ],
+}
+
+// args: { maxRounds?: number, firstRound?: number, model?: string, effort?: string }
+const ROOT = '/home/user/foundress'
+const MAX = (args && args.maxRounds) || 4
+const FIRST = (args && args.firstRound) || 1
+const MODEL = (args && args.model) || 'opus'
+const EFFORT = (args && args.effort) || 'high'
+const SPEC = ROOT + '/docs/design/tasks/colony-life.md'
+const LEDGER = ROOT + '/docs/design/tasks/colony-life-ledger.md'
+
+const COMMON = `You are a senior engineer on FOUNDRESS, an original, naturalistic ant-colony sandbox game for the browser (TypeScript + Three.js, WebGL2). Project root: ${ROOT}.
+Read these before anything else, fully:
+- ${ROOT}/docs/01-design-seed.md (BINDING conventions: mm units, Y up, BU, determinism, layering)
+- ${ROOT}/docs/03-architecture.md (layout, layering rules, verification hooks)
+- ${ROOT}/docs/research/tech-stack.md section 7 (gotchas)
+- ${SPEC} (your task spec) and every document it lists, the ledger ${LEDGER} first if it exists.
+
+The game design document is in ${ROOT}/docs/design/gdd/ (digests in gdd/digests/ are maps; the chapters hold the rules). Integrator rulings in docs/STATUS.md take precedence over the GDD.
+
+Working rules (several engineers work in this same checkout at the same time):
+- Other engineers own src/sim/species/modules/** and src/sim/balance/species-*.ts, and everything outside src/sim, src/worldgen, src/core, tools/sim. Unrelated type errors or failing tests there may be their work in progress: mention them, do not fix them.
+- Verify by running, not by reasoning. Simulation code is pure (no three, no DOM, no Math.random, no Date.now, no Math.hypot). Tunables go in src/sim/balance.
+- The machine has 4 cores and 16 GB, shared: at most 2 life runs at a time, never two heavy processes besides those, never the whole vitest suite in one process (folder by folder), vitest worker cap stays. Performance numbers are noisy under load.
+- No dependencies added. Never leave background processes running. Do not run git commands that change history or the index (no commit, stash, checkout, reset); to compare with an older commit use "git archive <commit> | tar -x -C <scratch dir>" and delete the copy afterwards.
+- Do not ask questions. Decide, record the decision in the ledger, move on.
+- Write code a tired colleague can read.
+
+`
+
+const ROUND_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string' },
+    causesRanked: { type: 'array', items: { type: 'string' }, description: 'causes by measured loss, most costly first, each with its number' },
+    fixes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { cause: { type: 'string' }, files: { type: 'array', items: { type: 'string' } }, test: { type: 'string' }, beforeAfter: { type: 'string' } },
+        required: ['cause', 'files', 'beforeAfter'],
+      },
+    },
+    triedAndReverted: { type: 'array', items: { type: 'string' } },
+    gddDeviations: { type: 'array', items: { type: 'string' } },
+    verification: { type: 'array', items: { type: 'string' } },
+    next: { type: 'array', items: { type: 'string' }, description: 'what the next round should look at first' },
+    notesForIntegrator: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['summary', 'causesRanked', 'fixes', 'verification', 'next'],
+}
+
+const SWEEP_SCHEMA = {
+  type: 'object',
+  properties: {
+    viabilityMet: { type: 'boolean' },
+    growthMet: { type: 'boolean' },
+    tablePath: { type: 'string' },
+    numbers: {
+      type: 'object',
+      properties: {
+        viable: { type: 'string', description: 'n of 15 and per archetype' },
+        workersHeld: { type: 'string', description: 'runs with workers at winter >= first workers, of 15' },
+        medianEclosions: { type: 'number' },
+        medianIntakeP: { type: 'number' },
+        medianIntakeC: { type: 'number' },
+        medianTripSuccess: { type: 'number' },
+        firstWorkersAtLeast9: { type: 'string' },
+        runsWithoutLost: { type: 'string' },
+      },
+    },
+    regressions: { type: 'array', items: { type: 'string' }, description: 'runs or checks that got worse than the previous sweep, with numbers' },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['blocker', 'major', 'minor'] },
+          title: { type: 'string' },
+          where: { type: 'string' },
+          detail: { type: 'string' },
+        },
+        required: ['severity', 'title', 'detail'],
+      },
+    },
+    checksRun: { type: 'array', items: { type: 'string' } },
+    leadsForNextRound: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['viabilityMet', 'growthMet', 'tablePath', 'numbers', 'findings', 'checksRun'],
+}
+
+const roundPrompt = (n, prev) => COMMON + `YOU ARE THE ENGINEER OF ROUND ${n} of the colony-life task.
+${prev ? 'The independent sweep and review after the previous round reported (also recorded in the ledger):\n' + JSON.stringify(prev).slice(0, 30000) + '\nFix every blocker and major finding in it first (reproduce each; if one is not real, say why with evidence), then continue with the method.' : 'No independent sweep has been run for this task yet: your baseline is the sweep table named in the spec.'}
+Follow the spec's method exactly: account first, rank causes by measured loss, fix the top one to three at the cause with tests and a before/after on the affected runs, append "## Round ${n}" to the ledger. Do not run the full 15-run sweep. Evidence under test-output/colony-life/round-${n}/.`
+
+const sweepPrompt = (n, round) => COMMON + `YOU ARE NOT THE ENGINEER OF THE ROUND. You are the independent engineer who measures and reviews round ${n} of the colony-life task.
+The round's engineer reported (treat every claim as unproven):
+${JSON.stringify(round).slice(0, 20000)}
+
+Do this, in order:
+1. Run the full sweep on the current tree: seeds 1-3 x woodland-edge, suburban-garden, playground-park, car-park-verge, kitchen-door with "node tools/sim/run-ts.mjs tools/sim/life.ts --seed S --archetype A --until winter --cache test-output/viab/cache --out test-output/colony-life/round-${n}/sweep" (Naturalist, default start, flooding on, no player; at most 2 runs at a time; test-output/econ-growth/sweep.sh and table.py show how the last sweep and its table were made — reuse or adapt them under tools/sim if useful). Write the table to test-output/colony-life/round-${n}/sweep-table.md with the same columns as test-output/econ-growth-review/sweep9-table.md plus first-worker count and worker:lost.
+2. Compute both bars from the table by script, not by eye: the viability bar and the growth bar R19 exactly as written in the spec. Compare every run with the previous sweep table (the ledger names it; the first is test-output/econ-growth-review/sweep9-table.md) and list regressions with numbers.
+3. While the sweep runs (it takes over an hour), review the round's code changes ("git diff" against the last commit, plus what the ledger's round section lists): does each fix address its cause rather than a symptom; is anything forbidden by the spec's "What is not allowed" (lifespans, needs, free food, weakened bars or ruling tests, special cases for a seed or archetype); determinism (persisted triggers, memo keys, no wall clock); per-tick cost traps; tests that would not fail without the fix. Run typecheck and the tests of the folders the round touched, folder by folder. Write *.verify.test.ts tests that try to break the fixes; a failing test that shows a real bug stays in place. Do NOT modify production code.
+4. Append "### Independent sweep after round ${n}" to the ledger ${LEDGER}: the table path, the bar numbers, regressions, findings, and the leads you see in the failing runs' own diagnostics for the next round (most costly first).
+Be concrete and fair: no style nitpicks, no speculative findings without evidence.`
+
+const history = []
+let prev = null
+for (let n = FIRST; n < FIRST + MAX; n++) {
+  const round = await agent(roundPrompt(n, prev), { label: 'round:' + n, phase: 'Round', schema: ROUND_SCHEMA, model: MODEL, effort: EFFORT })
+  if (!round) { log('round ' + n + ' returned nothing; stopping'); history.push({ round: n, failed: true }); break }
+  const sweep = await agent(sweepPrompt(n, round), { label: 'sweep:' + n, phase: 'Sweep', schema: SWEEP_SCHEMA, model: MODEL, effort: 'high' })
+  history.push({ round: n, summary: round.summary, causes: round.causesRanked, fixes: (round.fixes || []).map((f) => f.cause + ' :: ' + f.beforeAfter), deviations: round.gddDeviations, notes: round.notesForIntegrator, sweep })
+  if (!sweep) { log('sweep ' + n + ' returned nothing; stopping'); break }
+  const serious = (sweep.findings || []).filter((f) => f.severity === 'blocker' || f.severity === 'major')
+  log('round ' + n + ': viability ' + sweep.viabilityMet + ', growth ' + sweep.growthMet + ', serious findings ' + serious.length + ' — ' + JSON.stringify(sweep.numbers))
+  if (sweep.viabilityMet && sweep.growthMet && !serious.length) break
+  prev = sweep
+}
+if (history.length === MAX && !(history[MAX - 1].sweep && history[MAX - 1].sweep.growthMet)) log('stopped at the round cap of ' + MAX + ' without the growth bar holding')
+return history

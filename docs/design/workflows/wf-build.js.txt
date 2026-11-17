@@ -1,0 +1,148 @@
+export const meta = {
+  name: 'foundress-build',
+  description: 'FOUNDRESS build tasks: implement from a task spec, adversarially verify by running it, then fix confirmed findings',
+  phases: [
+    { title: 'Implement', detail: 'one engineer per task spec' },
+    { title: 'Verify', detail: 'independent adversarial review + tests' },
+    { title: 'Fix', detail: 'implementer fixes confirmed findings' },
+  ],
+}
+
+// args: { tasks: [{ key, spec, model?, effort?, verifyModel?, verify?: boolean, visual?: boolean }] }
+const ROOT = '/home/user/foundress'
+const tasks = (args && args.tasks) || []
+if (!tasks.length) throw new Error('no tasks given')
+
+const COMMON = `You are a senior engineer on FOUNDRESS, an original, naturalistic ant-colony sandbox game for the browser (TypeScript + Three.js, WebGL2). Project root: ${ROOT}.
+Read these before anything else, fully:
+- ${ROOT}/docs/01-design-seed.md (BINDING conventions: mm units, Y up, BU, field f(p) positive in free space, surface walker, carve grid, layering)
+- ${ROOT}/docs/03-architecture.md (layout, layering rules, verification hooks, packaging constraints)
+- ${ROOT}/docs/design/tdd/00-contracts-guidance.md (shapes and style of shared contracts)
+- ${ROOT}/docs/research/tech-stack.md (exact versions, harness usage, and a long list of gotchas — read section 7 carefully)
+Then read your task spec and every document it lists.
+
+The game design document (GDD) is eight long chapters in ${ROOT}/docs/design/gdd/ plus ${ROOT}/docs/design/gdd/00-index.md (final identifier registry in section B, shared balance constants in section C, decision log in section E). Chapter digests in ${ROOT}/docs/design/gdd/digests/ are maps for finding things; the chapters hold the rules. Read the chapter sections your spec names IN FULL, not just the digest. Where sources disagree, precedence is: design seed > design directions (sections J and K) > GDD 00-index > the chapter that owns the topic > other chapters. If you hit a contradiction, follow the precedence, and record it in your report.
+In the listed chapters' Appendix E (acceptance checks), find every check that concerns your module: cover each with a test at your level where possible, and list in your report the ones that need other modules.
+
+Working rules (several engineers work in this same checkout at the same time):
+- FILE OWNERSHIP IS EXCLUSIVE. Create and edit only the paths your task spec says you own. Shared contracts (src/sim/types/**, src/core/**) may only be extended additively (new optional fields, new union members, new helper functions; never rename or remove) and only when your spec allows it; list every such change in your report. If you need something from another module that does not exist, write a small local adapter inside your own paths and report the need — do not edit other people's files.
+- Unrelated type errors or failing tests OUTSIDE your paths may be other engineers' work in progress: do not fix them, mention them in your report. Your own paths must be clean.
+- Verify by running, not by reasoning: "npm run typecheck" (filter the output to your paths), "npx vitest run <your paths>", and for anything visual the harness (node tools/harness/play.mjs ...) with screenshots that you LOOK at using the Read tool. A black, empty or visibly wrong screenshot is a failure to fix, not to report as success. Write harness output under test-output/ (it is git-ignored).
+- Simulation code (src/sim/**, src/worldgen/**, src/core/**) is pure: no three, no DOM, no window, no Math.random, no Date.now. All tunable numbers go in src/sim/balance or species data, not inline.
+- The machine has 4 cores and is shared with up to ten other engineers; it is often heavily loaded, especially by headless-browser rendering. Consequences: (a) performance numbers are noisy — repeat timing measurements several times and report the minimum, and treat a perf-budget test that fails only under load as a note for your report, not a defect to chase; write perf tests with generous load-tolerant limits or skip-under-load guards plus a documented strict mode; (b) keep harness runs short and few: step the simulation deterministically, screenshot once, never leave a render loop running, and do not run more than one harness process at a time yourself; (c) run only the tests in your own paths (plus the tests of any shared file you had to touch); do NOT run the whole suite — the integration gates do that, and a whole-suite run takes over half an hour here; (d) keep committed tests cheap: each test file should finish in about 20 seconds on an idle machine and use at most 3 seeds; put large sweeps (many seeds, multi-day soaks, big populations) behind the environment flag FOUNDRESS_LONG=1 (describe.skipIf(!process.env.FOUNDRESS_LONG)), run them once yourself for the numbers in your report, and say so; (e) memory is 16 GB with no swap, shared: never run two heavy processes at once yourself (a vitest run and a harness, or two vitest runs), and vitest is capped at 2 workers per run by the config — leave that alone.
+- No dependencies may be added unless the task spec says so. Never run "playwright install". Never leave background processes running (dev servers, browsers).
+- Do not run git commands that change history or the index (no commit, no stash, no checkout, no reset): the orchestrator commits.
+- Respect the originality rule in the design seed: never copy names, art, levels or UI from an existing game.
+- Do not ask questions. Decide, record the decision in your report, and move on.
+- Write code a tired colleague can read: small files, clear names, comments only where the reason is not obvious.
+
+`
+
+const IMPL_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string' },
+    filesTouched: { type: 'array', items: { type: 'string' } },
+    contractChanges: { type: 'array', items: { type: 'string' }, description: 'additive changes made to shared contracts or core' },
+    verification: { type: 'array', items: { type: 'string' }, description: 'commands run and their results, screenshots looked at' },
+    acceptance: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { criterion: { type: 'string' }, status: { type: 'string', enum: ['met', 'partial', 'not-met'] }, evidence: { type: 'string' } },
+        required: ['criterion', 'status'],
+      },
+    },
+    notDone: { type: 'array', items: { type: 'string' }, description: 'anything in the spec that is not finished, honestly' },
+    needsFromOthers: { type: 'array', items: { type: 'string' } },
+    notesForIntegrator: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['summary', 'filesTouched', 'verification', 'acceptance', 'notDone'],
+}
+
+const VERIFY_SCHEMA = {
+  type: 'object',
+  properties: {
+    verdict: { type: 'string', enum: ['pass', 'pass-with-minor', 'fail'] },
+    checksRun: { type: 'array', items: { type: 'string' } },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['blocker', 'major', 'minor'] },
+          title: { type: 'string' },
+          where: { type: 'string', description: 'file:line or command' },
+          detail: { type: 'string', description: 'what is wrong, how to reproduce, what the spec says' },
+        },
+        required: ['severity', 'title', 'detail'],
+      },
+    },
+    testsAdded: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['verdict', 'checksRun', 'findings'],
+}
+
+const implPrompt = (t) => COMMON + `YOUR TASK SPEC: ${ROOT}/${t.spec}
+Read it now and implement it completely. Work through its acceptance criteria one by one and report each honestly (met / partial / not-met with evidence).`
+
+const verifyPrompt = (t, impl) => COMMON + `YOU ARE NOT THE IMPLEMENTER. You are an independent, adversarial reviewer and tester.
+Another engineer has just implemented the task spec ${ROOT}/${t.spec}. Their report (treat every claim as unproven):
+${JSON.stringify(impl).slice(0, 16000)}
+
+Your job is to find what is wrong or missing before it costs the team time later:
+1. Read the task spec and the documents it lists, then read ALL the code in the task's owned paths.
+2. Run "npm run typecheck" and the task's tests yourself. ${t.visual ? 'Run the harness for the visual acceptance criteria, take your own screenshots and LOOK at them.' : ''}
+3. Check every acceptance criterion against the code and by running it. Hunt for: spec violations, logic and numerical bugs, edge cases (zero, negative, NaN, empty, huge), nondeterminism, layering violations (three/DOM/Math.random in sim code), state that is not plain serialisable data, magic numbers that belong in balance files, performance traps in hot paths (per-tick allocations, O(n^2) scans), missing or weak tests, files touched outside the owned paths.
+4. Write additional tests that try to break the implementation, inside the task's owned paths (name them *.verify.test.ts). Keep tests that pass as regression tests; a failing test that demonstrates a real bug stays in place for the fixer.
+5. Do NOT modify production code. Report findings with severity (blocker = wrong/unsafe to build on; major = spec criterion not met or real bug; minor = quality), a precise location and a reproduction.
+Be concrete and fair: no style nitpicks, no speculative findings without evidence. If it is good, say pass.`
+
+const fixPrompt = (t, impl, verify) => COMMON + `You are the engineer responsible for the task spec ${ROOT}/${t.spec} (already implemented; summary: ${String(impl && impl.summary).slice(0, 1500)}).
+An independent reviewer reported these findings:
+${JSON.stringify(verify.findings).slice(0, 80000)}
+Tests the reviewer added: ${JSON.stringify(verify.testsAdded || [])}
+
+For each finding: reproduce it; if it is real, fix it properly (root cause, not the symptom) and make sure a test covers it; if it is not real, say why with evidence. Then re-run typecheck and all tests in your paths${t.visual ? ' and the harness screenshots (look at them)' : ''}. Do not weaken or delete the reviewer's tests unless a test itself is wrong (explain). Report what you fixed and anything still open in notDone.`
+
+const results = await pipeline(
+  tasks,
+  (t) => {
+    // skipImpl: the task was already implemented in an earlier run; go straight to independent verification.
+    if (t.startAt === 'fix') return { summary: 'Implemented and reviewed in an earlier run. The implementer report and the full review are in ' + ROOT + '/' + t.reviewPath + ' (read it first).', filesTouched: [], verification: [], acceptance: [], notDone: [] }
+    if (t.skipImpl) return { summary: t.implSummary || 'Implemented in an earlier run; no report available — judge the code itself.', filesTouched: [], verification: [], acceptance: [], notDone: [] }
+    return agent(implPrompt(t), { label: 'impl:' + t.key, phase: 'Implement', schema: IMPL_SCHEMA, model: t.model || 'opus', effort: t.effort || 'high' })
+  },
+  async (impl, t) => {
+    if (!impl) return { impl: null, verify: null }
+    if (t.verify === false) return { impl, verify: null }
+    if (t.startAt === 'fix') return { impl, verify: { verdict: 'fail', checksRun: [], testsAdded: [], findings: [{ severity: 'major', title: 'Full review in a file', detail: 'The complete list of review findings (with locations, reproductions and the tests the reviewer added) is the "review" object in ' + ROOT + '/' + t.reviewPath + '; the implementer\'s own report is the "implReport" object there. Read the whole file and treat every finding in it as if it were listed here. An earlier fix engineer was interrupted part-way: some findings may already be fixed or half-fixed in the tree, so check the current state of each before changing code, and report on all of them.' }] } }
+    const verify = await agent(verifyPrompt(t, impl), { label: 'verify:' + t.key, phase: 'Verify', schema: VERIFY_SCHEMA, model: t.verifyModel || 'opus', effort: 'high' })
+    return { impl, verify }
+  },
+  async (r, t) => {
+    if (!r || !r.impl || !r.verify) return r
+    const real = (r.verify.findings || []).filter((f) => f.severity === 'blocker' || f.severity === 'major')
+    if (!real.length) return { ...r, fix: null }
+    const fix = await agent(fixPrompt(t, r.impl, r.verify), { label: 'fix:' + t.key, phase: 'Fix', schema: IMPL_SCHEMA, model: t.model || 'opus', effort: t.effort || 'high' })
+    return { ...r, fix }
+  },
+)
+
+return tasks.map((t, i) => {
+  const r = results[i]
+  if (!r) return { key: t.key, failed: true }
+  const last = r.fix || r.impl
+  return {
+    key: t.key,
+    summary: last && last.summary,
+    notDone: last && last.notDone,
+    acceptanceNotMet: ((last && last.acceptance) || []).filter((a) => a.status !== 'met'),
+    contractChanges: [].concat((r.impl && r.impl.contractChanges) || [], (r.fix && r.fix.contractChanges) || []),
+    needsFromOthers: [].concat((r.impl && r.impl.needsFromOthers) || [], (r.fix && r.fix.needsFromOthers) || []),
+    notesForIntegrator: [].concat((r.impl && r.impl.notesForIntegrator) || [], (r.fix && r.fix.notesForIntegrator) || []),
+    verifyVerdict: r.verify && r.verify.verdict,
+    findings: ((r.verify && r.verify.findings) || []).map((f) => f.severity + ': ' + f.title),
+    fixed: !!r.fix,
+  }
+})
