@@ -75,7 +75,26 @@ worlds x 2 gd). Naturalist was measured on `tree-base`: at 40 workers and more t
 same draws (the ramp's draw uses forked streams, not `rng`), so it is the ramp-on result; the workers never fell below
 48 in any run.
 
-PRESETS_TABLE
+| preset (60 workers, 6 gd) | runs | outside worker-h | telegraphs | strikes | hits | worker deaths to predators (jumping spider / wolf / ant-spider / centipede / rove) | **deaths / owgd** | band | workers at the end (10 colonies, from 600) |
+|---|---|---|---|---|---|---|---|---|---|
+| Gentle (`ramp-w60-gentle/`) | 10 | 24,039 | 70 | 70 | 19 | 7 (0 / 4 / 3 / 0 / 0) | **0.007** | below Naturalist | 624 |
+| Naturalist (`base-w60/`; `ramp-w60-nat-check/` on the ramp tree) | 10 | 26,118 | 132 | 131 | 80 | 41 (14 / 7 / 15 / 1 / 4) | **0.038** | 0.03-0.12: **in** | 545 |
+| Harsh (`ramp-w60-harsh/`) | 10 | 26,791 | 162 | 162 | 82 | 53 (16 / 7 / 23 / 1 / 6) | **0.047** | above Naturalist | 501 |
+| `predators: off` (`ramp-w60-off/`, 2 gd) | 5 | 3,063 | 0 | 0 | 0 | 0 | **0** | 0: **in** | 298 of 300 |
+
+Order **Gentle < Naturalist < Harsh** holds on the totals, and off is zero (the residents of the snapshot leave
+through `settingCull`; no telegraph in 10 game days of colony time). Per world and run seed (same snapshot, same run
+seed, only the preset differs) Harsh >= Naturalist in 8 of 10 pairs and Gentle <= Naturalist in 10 of 10. The
+Naturalist-Harsh gap is small (0.038 vs 0.047, each about +-0.006 from the Poisson count alone): at 60 workers both
+presets site the same kinds (the siting chance is capped at 1, Many x1.6 changes nothing there), so Harsh adds only
+its damage x1.25, AI dodge 0.2 and telegraph x0.75. Gentle's Few x0.4 sites fewer kinds near the colony (on Gentle no
+jumping spider, centipede or rove beetle struck in the ten runs), and its 0.6 damage leaves most bitten ants alive (19
+hits, 7 kills).
+
+Equivalence check for the Naturalist row: the ramp tree run on woodland-edge and car-park-verge (run seed 1) gives
+the identical funnel (every stage of every family, deaths by cause, outside worker-h) as `tree-base`; woodland-edge
+even the identical final state hash (its snapshot's territories carry no `colonyRange` flag, so the states are
+equal); car-park-verge's hash differs only by that flag.
 
 ### 2.3 Per world (Naturalist, 60 workers, sum of the two runs: strikes / hits / worker kills)
 
@@ -112,6 +131,10 @@ Worlds (of 10 runs) on which the family struck: jumping spider 7, wolf spider 7,
   because of `human-event-warning` alerts (threats-live §4 found the same). So the I11 problem of the human events also
   removes the bird event from the game. Not changed here (the rule is the GDD's; the cause is the human-event cadence):
   for the integrator / human-events owner.
+
+Other presets (same ten runs each, strikes / kills): Gentle sees only the wolf spider (38 / 4, on 5 runs) and the
+ant-spider (32 / 3, on 4 runs); Harsh every family that Naturalist has, a little more often (jumping spider 24 / 16 on
+8 runs, wolf 60 / 7 on 9, ant-spider 69 / 23 on 10, centipede 2 / 1 on 1, rove beetle 7 / 6 on 5).
 
 The band leaves no room to bring the rare families up by levers: `COLONY_PAUSE_KINDS` for the rove beetle or the
 jumping spider, or a smaller jumping-spider inner edge, add kills where the rate is already set by the ant-spider and
@@ -158,7 +181,19 @@ this costs nothing in the measured runs; it matters on worlds with sheltered dry
 
 ## 5. Per-tick cost of the creature systems
 
-PERF_TABLE
+`tools/sim/life.ts --perf 300` on woodland-edge #1 (round-4 hand-over, 18 workers raised by 42 / 282 to 60 / 299 workers),
+fastest of three 300-tick segments after 600 warm-up ticks, three repeats per case, **minimum of the repeats** (load
+average 8 on 4 cores while measuring: single numbers vary by +-30 %). `before` = `tree-base` (stop-gap, no ramp),
+`after` = this task's code. Raw: `test-output/threats-calibrate/perf.txt`.
+
+| workers (outside) | `creatures` ms / tick before -> after | `creature-director` ms / tick before -> after | whole tick ms (min) before -> after |
+|---|---|---|---|
+| 60 (11) | 0.198 -> 0.205 | 0.044 -> 0.030 | 4.65 -> 5.07 |
+| 299 (20) | 0.202 -> 0.192 | 0.031 -> 0.038 | 6.62 -> 7.22 |
+
+No change beyond the noise: the ramp adds one pass over the ant list (`playerWorkers`) and five forked draws per
+director run (every 50 ticks). The whole-tick numbers belong to the other systems and the machine load (the same
+code outside the creature module in both trees).
 
 ## 6. What the colony engineer must know
 
@@ -170,7 +205,7 @@ PERF_TABLE
   carried ~0.07 per outside-worker gd of predation on founding-year colonies; with the ramp that is gone.
 - **Established colony (60 workers, Naturalist): 0.04 worker deaths per outside-worker game day** (design 0.061, band
   0.03-0.12): about 0.7 workers per colony per game day with 12-28 workers outside (41 deaths in 10 colony-runs of 6
-  gd). Gentle GENTLE_RATE, Harsh HARSH_RATE (§2.2). Victims are foragers that stop outside: at food, tending, or pausing on
+  gd). Gentle 0.007 (about 0.1 a day), Harsh 0.047 (about 0.9 a day) (§2.2). Victims are foragers that stop outside: at food, tending, or pausing on
   a trail at dusk (ant-spider) and by day near walls and stems (jumping spider).
 - A colony that shrinks below the ramp's draw loses its colony-range hunters one game day later (not at once), and
   gets them back when it grows again.
@@ -208,4 +243,27 @@ PERF_TABLE
 | E25 quiet share | `soak.test.ts` (creature scene) | whole-game soak fails on human-event warnings (§3) - human events / integrator |
 | (R25) ramp | `predationRamp.test.ts` | - |
 
-ACCEPTANCE
+## 9. Shared contracts, cross-edits, files
+
+- Cross-edit (logged in `test-output/threats-calibrate/cross-edits.md`): `src/sim/types/ecology.ts`
+  `CreatureTerritory.colonyRange?: number` (additive optional field).
+- Owned files changed: `src/sim/balance/difficulty.ts` (ramp table + two accessors, additive), `src/sim/balance/creatures.ts`
+  (comments on the two calibrated-empty constants), `src/sim/config/presetDisplay.ts` (one row), `src/sim/ecology/creatures/`
+  `colonyRange.ts`, `director.ts`, `README.md`, tests `predationRamp.test.ts` (new), `coreGaps.repro.test.ts` (new),
+  `colonyRange.test.ts`, `colonySites.test.ts`, `threatsLive.verify.test.ts` (40 workers in the set-up);
+  `tools/sim/threatFunnel.ts`, `threatTable.ts`, `threatBatch.ts` (new; resumes a cut-off batch from the result files).
+- Nothing in `src/sim/ants/**`, `src/sim/colony/**`, `src/sim/nest/**` was touched.
+
+## 10. Acceptance (spec "Work" items)
+
+| # | Item | Status | Evidence |
+|---|---|---|---|
+| 1 | Ramp (R25) in the director's colony-range siting; unit test per preset: 0 below / 1 at the upper / linear; shrinking colony loses its colony-range residents over `SETTING_DESPAWN_GD`, not at once; save -> load equal | **met** | §1; `predationRamp.test.ts` 15 tests green (ramp, siting subset and shrink per preset; save -> load `stateHash` equal) |
+| 2a | Founding-year hand-overs to winter, Naturalist: median predation deaths per colony <= 1 | **met** | median **0** (2 deaths in 10 colony-runs), `ramp-found/` (§2.1) |
+| 2b | 60 workers: 0.03-0.12 deaths per outside-worker gd on Naturalist; Gentle < Naturalist < Harsh; zero with `predators: off`; each world twice | **met** (off: once per world) | Naturalist **0.038** (41 deaths, 26,118 outside worker-h, 10 runs), Gentle 0.007, Harsh 0.047, off 0 (§2.2). Every world twice on the three presets; `predators: off` ran once per world for 2 gd (zero events is not seed-dependent once the residents have left) |
+| 2 | Fewest constants, each change with its measured effect | **met** | no constant changed: the stop-gap values are the calibrated values (§2), measured before and after the ramp (§2.1, §2.2) |
+| 3 | Strikes per family per world (60 workers, 6 gd); which families the band leaves rarely seen | **met** | §2.3, §3 |
+| 4 | Three core gaps reproduced (not fixed); (b) source of 7.2 and which document is right | **met** | §4, `coreGaps.repro.test.ts` ((a), (c) `it.fails`; (b) pins the nanitic row) |
+| 5 | Typecheck clean; creature tests green; per-tick cost at 60 / 300 workers before / after | **met** | `npm run typecheck` 0 errors (whole tree, 19:03 and END_TC); `npx vitest run src/sim/ecology/creatures` 27 files, 187 passed, 2 expected fail, 6 skipped (LONG) (END_VT); §5 |
+| 6 | This report | **met** | - |
+

@@ -64,10 +64,22 @@ Started 18:15 UTC 2026-11-17.
   spoiled-food lead.
   Remaining: long runs (4 more), ledger section.
 - 19:55 long run sg #1 done. Decision: no viable run on we/pp/cpv/kd, so the long run per archetype is the seed with the best workers winter/first: we #3 (10->11), pp #2 (11->10), cpv #1 (11->10), kd #2 (10->8). Started PAR=1 (other slot = A/B).
-- 20:00 A/B first pairs (round 4 vs minus4, same hand-over): kd #1 viable NO -> **yes** (15->7 vs 15->14, eclosed 5 vs 6,
+- 19:58 A/B first pairs (round 4 vs minus4, same hand-over): kd #1 viable NO -> **yes** (15->7 vs 15->14, eclosed 5 vs 6,
   P intake 0.016 vs 0.389, prey P 0 vs 6.9, crushed 5 vs 2); cpv #1 NO both (stage 6.75 vs 2.85 gd, 11->10 vs 11->11).
   Mechanism seen: with L1 the queen's hand-over P (~4 above stomach) goes into the pool at once (day 1 P 5.7 vs 1.6) and
   is gone the day the larvae hatch; without L1 it stays in the queen and trickles in (handover.ts provisionAtHandover).
   Extending the A/B to all 15 hand-overs: scratchpad/ab-loop.sh (copy in round-4/sweep-review/ab-loop.sh), queue A
   (we1 we3 sg1 cpv3 kd3 pp1) after sg2/pp2; queue B (we2 sg3 pp3 cpv2 kd2) when the long runs end.
   Long runs queue (we3 cpv1 pp2 kd2) running, PAR=1.
+- 20:04 **finding (L1 x R2 provision)**: probe (scratchpad probe-p.ts, outputs probe-r4-cpv1.txt / probe-m4-cpv1.txt,
+  cpv #1 hand-over, 72 h): round-4 tree pulls 4 P of the queen's provision into the larder at once; 1.98 P spoils
+  before the first larva hatches (h39), larvae get 7.9 P by h72; minus4: queen keeps it, 0 spoiled, larvae 9.85 P.
+  New verify test `src/sim/colony/larderProvision.verify.test.ts` RED on the tree (1.39 P spoiled, 2 spoiled-food
+  items in the royal chamber in 1.5 gd at 20 C), GREEN on minus4. Earlier "correction" (P constant = no spoil) was
+  wrong: the pool stays at its cap because the queen refills what rots.
+- 20:10 A/B 4 pairs (sweep vs minus4): round 4 worse in all 4 (net workers -1/-1/-1/-8 vs 0/+1/0/-1,
+  eclosions 14 vs 21; kd #1 viable -> NOT). minus4 itself viable 1 of 4 (calendar/protein). Long run we #3: C 0 at
+  winter, 11 -> 3 in the lapse (starvation alerted), queen starves. Chain (restart: re-run): after the long runs,
+  scratchpad/abL1-loop.sh (tree minusL1 = frozen with stores/economy/colony index/architect needs at 5c8c576, tsc
+  clean) on kd1 cpv1 sg2 pp2 -> round-4/sweep-review/ab-minusL1/, then ab-loop.sh queue B (we2 sg3 pp3 cpv2 kd2).
+  Queue A (we1 we3 sg1 cpv3 kd3 pp1) running in the other slot.

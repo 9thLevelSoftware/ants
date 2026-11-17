@@ -28,3 +28,4 @@ test-output/look3/
 - PLAN for pictures: BEFORE set must use original code: back up my edited files (cp to test-output/look3/mine/), `git show HEAD:path > path` for render files, run before set (look3.mjs shots), restore. Then AFTER set. Still to run: stage1a strict, panels.mjs, photo/views/controls/firstplay, playthrough, perf draws/tris per quality.
 - tune3 (ant fill variants e0/e1/e2, night close high/test) running -> test-output/look3/tune/tune3-*.png
 - 19:53 !! BEFORE-run mechanics: test-output/look3/mine/stash.sh puts ORIGINAL render files (commit 29d44ee) in place and keeps mine in test-output/look3/mine/new/; unstash.sh restores mine. IF A RESTART HAPPENS WHILE STASHED: run unstash.sh FIRST (check 'ls test-output/look3/mine/STASHED'). Do not edit src while stashed.
+- 20:10 BEFORE run started (run-before.sh; stashed until test-output/look3/mine/before-done exists). ANT_FILL chosen night body 0.7 rim 0.22 (tune4 e1).

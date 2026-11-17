@@ -9,7 +9,7 @@ import { CUTICLE } from '../tuning';
 
 const COLORS: AntColors = {
   head: '#1c1411', mesosoma: '#1e1512', gaster: '#171110', legs: '#2c1e17', tarsi: '#4a3324', antenna: '#2c1d16',
-  mandible: '#3a2015', teeth: '#120a06', eye: '#121110', membrane: '#88775c', hair: '#8a7356',
+  mandible: '#3a2015', teeth: '#120a06', eye: '#121110', membrane: '#b3a185', hair: '#8a7356',
   wingMembrane: '#c9bea4', wingVein: '#5a4430', callow: '#b8875a',
 };
 

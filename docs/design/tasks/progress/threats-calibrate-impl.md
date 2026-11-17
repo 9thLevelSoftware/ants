@@ -78,3 +78,6 @@ Started 2026-11-17 ~17:00 UTC. No earlier progress file existed.
   ACCEPTANCE. At the end: delete $SCRATCH/tree-base and tree-ramp (spec: delete scratch trees).
 - 19:29 ramp-w60-gentle DONE: 10 runs, 24,039 owh, 7 deaths = 0.007/owgd (JS 0/0, wolf 38/4, ant-sp 32/3). Harsh running (chain3).
 - 19:58 harsh 7/10 runs done.
+- 20:08 ramp-w60-harsh DONE: 26,791 owh, 53 deaths = 0.047/owgd; paired per world/seed Harsh >= Naturalist in 7 of 10. Off running, then nat-check, perf, base-found.
+- 20:22 off DONE (0 telegraphs/strikes/deaths, 5 runs x 2 gd). nat-check DONE: tree-ramp == tree-base funnels identical (woodland-edge r1 same finalHash; car-park-verge r1 same counts, hash differs only by the colonyRange flag). Perf running (chain5).
+- 20:30 perf DONE (perf.txt). Report: PRESETS_TABLE, PERF_TABLE, rates filled; BEFORE_RAMP + ACCEPTANCE left. base-found running.

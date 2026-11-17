@@ -4,15 +4,6 @@
 // re-exports or moves them.
 
 export const CAM_UP_TAU = 0.35;
-/**
- * Slope lift (look pass 3, S10): the open-state camera sits in the surface's tangent plane behind the ant, so on a slope the
- * ant climbs the picture looks up the slope at the sky, the ant a speck at the lower edge. The orbit elevation is raised by
- * CAM_SLOPE_LIFT_K x the pitch of the heading above the horizon (at most CAM_SLOPE_LIFT_MAX_DEG, eased over
- * CAM_SLOPE_LIFT_TAU s), which levels the view. Walking downhill or on the flat adds nothing.
- */
-export const CAM_SLOPE_LIFT_K = 0.85;
-export const CAM_SLOPE_LIFT_MAX_DEG = 40;
-export const CAM_SLOPE_LIFT_TAU = 0.4;
 export const CAM_UP_TAU_REDUCED = 0.6;
 export const CAM_PIVOT_UP_L = 0.5;
 export const CAM_LOOKAHEAD_T = 0.35;
@@ -57,15 +48,6 @@ export const CAM_OBSERVER_RADIUS_BU = 0.3;
 export const CAM_RADIUS_FIELD_CAP_BU = 0.35;
 /** The guaranteed clearance of a camera centre, as a fraction of its radius (GDD 6.1). */
 export const CAM_MIN_CLEARANCE_R = 0.5;
-/**
- * Tight rooms (look pass 3, stage1a strict): in a room lower than the camera sphere (a queen's cell whose ceiling is 0.4 mm
- * above her back) no camera position can keep f >= 0.5 R, and the guard fell back to a pivot base that was itself inside
- * the clearance. The sphere now SHRINKS to what fits at the pivot base, down to this fraction of the GDD radius (never below:
- * a sphere that small has no room anywhere), so the camera always stands in free space; it grows back over
- * CAM_TIGHT_GROW_TAU seconds once the room allows.
- */
-export const CAM_TIGHT_MIN_SCALE = 0.08;
-export const CAM_TIGHT_GROW_TAU = 0.5;
 
 /** Near = clamp(0.02 x distance, 0.005 BU, 0.2 BU) (GDD 6.1), and never more than this fraction of the camera
  * radius so the near-plane corners stay inside the guaranteed clearance at FOV <= 80. */
