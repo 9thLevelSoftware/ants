@@ -4,6 +4,9 @@
 //   - Seed selection: a seed is taken with p = clamp(sizeFit x hardFit / (1 + dist / acceptDistBu), 0, 1); a visit
 //     looks at SEED_LOOKS_PER_VISIT seeds, drawn once per ant, node and day (stable across thinks); seeds heavier
 //     than the ant's carry capacity are refused.
+//   - Scouts recruit only to seed nodes some worker of the colony can carry (no L seeds before majors).
+//   - Granary call: while the granaries are short of target, a waiting forager with nowhere of her own to go takes
+//     a lead to the nearest harvestable seed node the colony knows and leaves on her own (granaryCall).
 //   - Range: no source beyond the heat-limited trip distance.
 //   - Departures: a waiting forager (or a scout about to leave) leaves only with probability (1 - heatStress) x
 //     lull x patrol gate per think; with the gate closed nobody leaves.
@@ -18,9 +21,8 @@ import { distFromHome, thinkIn } from '@/sim/ants/behaviours/outdoor/common';
 import { THINK_WAIT_TICKS } from '@/sim/balance/foraging';
 import { SEED_CALL_RATE_S, SEED_FORAGE_FRAC, SEED_LOOKS_PER_VISIT } from '@/sim/balance/species-harvester';
 import { ACTIVATION_DEPART } from '@/sim/balance/colony';
-import { TICKS_PER_SECOND } from '@/sim/time';
+import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { seedForageDemand } from './allocation';
-import { TICKS_PER_DAY } from '@/sim/time';
 import { granaryParams, nutrientsPerSeedLoad, type GranaryParams } from './params';
 import { departureFactor, heatOf } from './rhythm';
 
@@ -83,9 +85,29 @@ function accept(s: FoodSource): boolean {
 }
 
 const HARVEST_FORAGE: Flavour = { ...FORAGE, accept };
+const carryCache = new WeakMap<Sim, { tick: number; byColony: Map<number, number> }>();
+
+/** Largest carry capacity among the colony's living workers (cached per tick), loads. */
+export function colonyMaxCarry(sim: Sim, col: Colony): number {
+  let c = carryCache.get(sim);
+  if (!c || c.tick !== sim.state.tick) { c = { tick: sim.state.tick, byColony: new Map() }; carryCache.set(sim, c); }
+  const hit = c.byColony.get(col.id);
+  if (hit !== undefined) return hit;
+  let m = 0;
+  for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && a.caste !== 'queen' && a.carryCap > m) m = a.carryCap;
+  c.byColony.set(col.id, m);
+  return m;
+}
+
+/**
+ * The harvester scout's filter: food in the diet, and seed nodes only when some worker of the colony could carry
+ * the seed (GDD 07 §6.3.1: L seeds need a major; a colony without one does not recruit to them).
+ */
 function scoutAccept(s: FoodSource): boolean {
-  const col = ctx.sim && ctx.ant ? ctx.sim.stores.colonies.get(ctx.ant.colony) : undefined;
-  return ctx.sim && col ? inDiet(ctx.sim, col, s) : true;
+  const sim = ctx.sim, col = sim && ctx.ant ? sim.stores.colonies.get(ctx.ant.colony) : undefined;
+  if (!sim || !col) return true;
+  if (!inDiet(sim, col, s)) return false;
+  return s.kind !== 'seed' || s.unitBulk <= colonyMaxCarry(sim, col);
 }
 
 const HARVEST_SCOUT: Flavour = { ...SCOUT, accept: scoutAccept };

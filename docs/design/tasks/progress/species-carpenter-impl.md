@@ -44,3 +44,11 @@ State found (sessions 1-2 left no progress file):
   (kd1 lost 3 + old-age, scouts never reach food; kd2 yes 12->11; kd3 crushed 3 + lost 2). we3 3 invariant
   violations walker-stall (hauler haul.carry, loco). 0 eclosions (biology: late-summer eggs overwinter).
 - (02:46) RUNNING suburban-garden seeds 1-3 (test-output/carp/sweep3/) as candidate second archetype.
+- (03:00) sweep3 suburban-garden: sg1 NO (crushed 2, low C), sg2 yes, sg3 yes -> 2/3. Viability bar met on
+  woodland-edge (3/3) + suburban-garden (2/3); kitchen-door 1/3 reported.
+- (03:00) night probe we2 (test-output/carp/sweep3/night-we2.txt): ants OUTSIDE flat 2-3.75 at every hour (no night
+  concentration in presence). Extended probe with departures/hour + tasks outside; rerunning (night-we2b.txt).
+- (03:10) night probes done: night-we2b.txt (no forager departures in 3 d; outside = haul/dig at entrance + stuck
+  scouts, flat over the day), night-we2-hungry.txt (stores 0.3/0.1 + 30 spawned minors: still ~0 forager
+  departures). AC3 -> partial: gate unit-tested; full-sim foraging too rare to show a rhythm (forage AI, not mine).
+- (03:11) RUNNING e2e r4 (test-output/species-carpenter/r4/).

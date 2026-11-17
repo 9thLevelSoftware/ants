@@ -87,9 +87,9 @@ export const MILL_LOADS_PER_MILLER_GD = 12;
 export const SEED_FORAGE_FRAC = 0.3;
 /**
  * A waiting forager of a granary short of its target leaves on her own at this rate x the shortfall, per game
- * second (about one trip per 4 game minutes waited at an empty granary) [EST].
+ * second: at an empty granary about 10 departures per game day (600 s) of waiting [EST].
  */
-export const SEED_CALL_RATE_S = 1 / 240;
+export const SEED_CALL_RATE_S = 1 / 60;
 /** Scouts asked for while the granary is short and no seed source is known. */
 export const SEED_SCOUTS_MIN = 2;
 /** Millers asked for at most this share of the workers. */

@@ -28,12 +28,21 @@ Started 01:56 UTC Nov 17. Two earlier engineers cut off (01:24, 01:53); no progr
 - e2e edited: spawns 10 media + 6 minor `forage` at the entrance after hand-over (documented), for the trail picture.
 - 8 files / 31 tests pass at 02:42.
 
+- 03:03 (all tests: 8 files 33 pass) found why seeds were not gathered after hand-over (probe test-output/harvester/probe/rhythm.ts,
+  restore needs new Uint8Array(readFileSync()) — a Node Buffer passed to restore() aliases typed arrays: NOT a game bug):
+  a) colony forage demand follows pool need only -> allocation.ts seedForageDemand (SEED_FORAGE_FRAC 0.3 x stock shortfall) + scouts;
+  b) waiting foragers never leave with a fed pool -> behaviourForage granaryCall: lead to nearest harvestable known seed
+     node + own departure hazard SEED_CALL_RATE_S 1/60 x shortfall;
+  c) scouts reported only L-seed nodes (no major to carry) -> scoutAccept: seed only if bulk <= colony max carry.
+  Probe now: seed carriers and granary stock rising on day 1 after spawn. Tests added in forage.test.ts.
+- e2e run 1 (02:35): first workers 3 (natural), FAILED: no seed carrier in 30000 ticks (before fixes a-c).
+
 ## Evidence
 - test-output/harvester/econ/ (old code, --workers 12): 46 deliveries, mostly honeydew, seed 1-2/day, no granary.
 - test-output/harvester/life2/pp1.log : life run with the fixes (started 02:15).
 
 ## Remaining (order)
-1. e2e browser run (next, 02:45)
+1. e2e browser run 2 (03:05)
 2. viability table: playground-park + second archetype (choose: open sunny sand/lawn), seeds 1-3 (<=2 runs at once)
 3. e2e browser run tests/e2e/species-harvester.mjs + LOOK at screenshots
 4. 28-day soak (tools/sim/soak.ts) with messor
