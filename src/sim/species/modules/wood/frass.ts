@@ -3,17 +3,20 @@
 // settle into a frass pile (a mound record with material 'frass', the nest module's pile API). This file counts
 // pile units, frass visibility, the windows in each wood, and the carved fraction of a nest's wood.
 
-import type { Colony, Sim, WoodState } from '@/sim/types';
-import { BULKING, V_BITE_NOMINAL } from '@/sim/balance/nest';
+import type { Colony, Mound, Sim, WoodState } from '@/sim/types';
 import { keyCx, keyCy, keyCz } from '@/sim/nest/carve/keys';
 import { isInteriorAt } from '@/sim/environment/ground';
 import type { WoodParams } from './params';
 import { primDistance, volumeMm3 } from './primGeom';
 import { primOf, woodOf } from './woodState';
 
-/** Pile units of a frass mound: (deposited volume / BULKING) / (FRASS_PER_PILE_UNIT nominal bites). */
-export function pileUnits(volumeBu3: number, p: WoodParams): number {
-  return volumeBu3 / BULKING / (p.frassPerPileUnit * V_BITE_NOMINAL);
+/**
+ * Pile units of a frass mound (GDD 07 §6.2.3 `FRASS_PER_PILE_UNIT`): the frass items it has absorbed / 10. Items,
+ * not volume: a bite's volume scales with the biter's head (a minor's frass item is 0.61 of a nominal bite, a
+ * major's 2.2), while the chapter counts items. The pile's physical size follows the deposited volume (nest module).
+ */
+export function pileUnits(pile: Pick<Mound, 'absorbed'>, p: WoodParams): number {
+  return Math.max(0, pile.absorbed) / p.frassPerPileUnit;
 }
 
 /**
@@ -25,7 +28,7 @@ export function frassTally(sim: Sim, col: Colony, p: WoodParams): { interior: nu
   let interior = 0, outdoor = 0;
   for (const m of sim.state.worldDelta.mounds) {
     if (m.material !== 'frass' || !nests.has(m.nestId)) continue;
-    const u = pileUnits(m.volume, p);
+    const u = pileUnits(m, p);
     if (isInteriorAt(sim.world, m.centerX, m.centerZ)) interior += u; else outdoor += u;
   }
   for (const it of sim.stores.items.list) {
@@ -91,13 +94,15 @@ export function refreshSiteWood(sim: Sim, col: Colony): void {
   }
 }
 
-/** Frass items newly lying outside a colony's nests since the last pass (for `frass-ejected` and the cue). */
-export function newlyEjected(sim: Sim, col: Colony, seen: Set<number>): { id: number; pos: { x: number; y: number; z: number }; nestId: number }[] {
+/**
+ * Frass items lying outside a colony's nests that were dropped after `sinceTick` (for `frass-ejected` and the cue).
+ * Stateless: the hourly pass asks for the items dropped since its previous run, so each drop is reported once.
+ */
+export function newlyEjected(sim: Sim, col: Colony, sinceTick: number): { id: number; pos: { x: number; y: number; z: number }; nestId: number }[] {
   const out: { id: number; pos: { x: number; y: number; z: number }; nestId: number }[] = [];
   const nests = new Set(col.nestIds);
   for (const it of sim.stores.items.list) {
-    if (!it.alive || it.kind !== 'frass' || it.inNest || it.carrierIds.length > 0 || !nests.has(it.nestId) || seen.has(it.id)) continue;
-    seen.add(it.id);
+    if (!it.alive || it.kind !== 'frass' || it.inNest || it.carrierIds.length > 0 || !nests.has(it.nestId) || it.droppedTick <= sinceTick) continue;
     out.push({ id: it.id, pos: { ...it.pos }, nestId: it.nestId });
   }
   return out;

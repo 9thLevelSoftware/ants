@@ -2,7 +2,7 @@
 // (the opening phase, the movement intent, milestones) and UI state the host passes in (open drawer, overlays, which
 // prompts other presenters draw). Pure: nothing is written anywhere.
 import { foundingInProgress } from '@/sim/colony/founding/access';
-import { calendarTick, TICKS_PER_DAY } from '@/sim/time';
+import { TICKS_PER_DAY } from '@/sim/time';
 import type { HintId, Sim } from '@/sim/types';
 import type { UiSnapshot } from '@/ui/api';
 import { HINT_MOVE_MIN_INTENT } from './balance';
@@ -84,7 +84,9 @@ export function readFacts(src: FactSource): Facts {
       trailOn: poss.trailOn, colonyOrders: !!poss.colonyOrders,
     } : null,
     workers: snap.colony?.workers ?? 0,
-    daysSinceFirstWorker: firstWorker ? Math.max(0, (calendarTick(st) - firstWorker.tick) / TICKS_PER_DAY) : -1,
+    // milestone dates carry the sim tick (progression dateNow), not the calendar tick: compare like with like
+    // (gate-close-app: the calendar offset made the hint-directives fallback fire at once after the hand-over)
+    daysSinceFirstWorker: firstWorker ? Math.max(0, (st.tick - firstWorker.tick) / TICKS_PER_DAY) : -1,
     promptPickup, promptShare,
     firstFood: !!ms['ms-first-food'],
     firstTrail: !!ms['ms-first-trail'],

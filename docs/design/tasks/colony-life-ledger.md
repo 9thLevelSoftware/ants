@@ -289,3 +289,36 @@ Progress (kept current; a successor continues from here)
   `round-2/cache/*-any.bin` (suburban-garden 2/3, playground-park 2/3, kitchen-door 3, car-park-verge 1).
   Now running: `round-2/before/` suburban-garden #2 and playground-park #3 (`--cache round-2/cache --cache-any`).
 
+- 03:58 measured while the `before` runs go: prey patches (GDD 05 §2.3) within 300 BU of the nest at the hand-over
+  (probe on the cached states): suburban-garden #2 2 (nearest edge 36 BU, K 222 + 72), playground-park #3 2 (95 BU,
+  K 172 + 402), kitchen-door #3 3 (118 BU), car-park-verge #1 2 (202 BU). A springtail is 0.25 P; K 222 at r 0.8/gd
+  sustains ~44 catches (11 P) a gd. **No behaviour bites patch prey**: `fightTargets.ts` leaves "free prey to the
+  foraging behaviours" and no foraging behaviour calls `preyNear` (R18: hunting is a forage behaviour). The ecology
+  seams exist (`preyNear`, `preyEvades`, combat `bite` -> `creatureKilled` -> patch count -1, remains item).
+  Decision: implement hunting (H1) in the outdoor engine (new `outdoor/hunt.ts`), patch knowledge as additive
+  `PreyPatch.knownBy`, known patches in `knownCapacity`. Writing it now.
+- 04:12 `before` runs done (`round-2/before/`, current tree incl. G1, same hand-overs as the sweep): suburban-garden #2
+  104 trips 33 % ok, P intake/need 0.076, 7 eclosed, starvation stage 2.2 gd (not viable) - same numbers as the sweep;
+  playground-park #3 22 trips 0 % ok, C 0.064, P 0.027, 4 larvae starved. Scouting (new funnel line): sg #2 40 scout
+  trips reach median 219 BU (the 220 BU small-colony range) in 104 s; nearest approach to a P source's odour edge
+  median 106 BU; discovered 2 sources (honeydew). pp #3 26 trips, median reach 149 BU, P edge 219 BU, 0 discovered.
+- 04:12 H1 hunting in the tree (`outdoor/hunt.ts`, engine/phaseNest/phaseTravel/transitions/phaseScout/keys/flavours
+  hooks, `balance/foraging.ts` HUNT_* + PATCH_FORAGERS_MAX, `types/ecology.ts` `PreyPatch.knownBy`,
+  `colony/allocation/demand.ts` known patches as P capacity) plus H1b `combat/damage.ts`: a creature killed by the hit
+  no longer marks the attacker "fighting" (the hunter deposited alarm and fled from it before picking up the remains:
+  13 kills -> 6 deliveries in the test; after: 15 -> 11). Test `outdoor/hunt.test.ts` (3 cases; the two behaviour
+  cases red with hunting switched off: 0 deliveries / patch unknown). Now running `round-2/after1/` sg #2, pp #3.
+- 04:28 `after1` (H1 + H1b, `round-2/after1/`): suburban-garden #2 **viable** (was not): P intake/need 0.076 -> 0.254,
+  starvation stage 2.20 -> 0 gd, laying permitted 6 % -> 63 % of the time, eggs 10 -> 14, 11 springtails + 3 mites
+  subdued, 8 prey loads home (1.66 P); eclosed 7 -> 4 (3 pupae untended), workers 16 -> 16 (was 17). playground-park #3
+  unchanged in kind: C 0 from day 5 (scouts find no C source; 2 springtails caught, none home), not viable.
+  Found on the way: the funnel showed 116 "tend untracked not-reached fail" trips in sg #2 after1: an ant made forager
+  or tender in the nest with a full crop (deliver first) unloads it through `finishTrip`, which counted a trip
+  (colony counters, ant.mem.trips, recruitment contacts) and booked the crop as a delivery (false intake).
+- 04:28 C1 in the tree: `outdoor/phaseNest.ts` `finishTrip` books the delivery, the return and the route only when the
+  trip went outside (`K.wentOut`, set by the trip clock; the same rule `startReturn` already used to abandon a trip).
+  Test `outdoor/tripCount.test.ts` (red without: trips 1, deliveries 1; green). Folder tests so far (outputs
+  `round-2/vitest/`): outdoor 22/23 files (red `removal.verify`, also red on the round-start tree 151cc41 in a scratch
+  copy, same numbers), combat 12/12, nest 54/55 (red `escapeDig`, known; `plugBaseline.verify` now green), colony
+  51/52 (red `founding/reopen.test`, known).
+  Next: rank causes (below), then after2 runs (all fixes) on sg #2, pp #3, car-park-verge #1, kitchen-door #3.

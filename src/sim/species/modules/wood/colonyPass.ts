@@ -2,15 +2,13 @@
 // piles and visibility, the moisture read-out of a founding queen, satellites and diagnostics.
 
 import type { Colony, Sim } from '@/sim/types';
+import { WOOD_DIAG_TICKS } from '@/sim/balance/species-carpenter';
 import { colonyWoodParams } from './params';
 import { refreshSites } from './sites';
 import { frassTally, newlyEjected, refreshSiteWood } from './frass';
 import { publishWoodDiagnostics } from './diagnostics';
 import { woodClimateAt } from './woodState';
 import { satellitePass } from './satellites';
-
-/** Frass items seen outside per colony (derived; a repeat cue after a load is harmless). */
-const ejectedSeen = new Map<number, Set<number>>();
 
 export function colonyHourly(sim: Sim, col: Colony): void {
   const p = colonyWoodParams(sim, col);
@@ -19,9 +17,8 @@ export function colonyHourly(sim: Sim, col: Colony): void {
   refreshSites(sim, col);
   refreshSiteWood(sim, col);
   // frass
-  let seen = ejectedSeen.get(col.id);
-  if (!seen) { seen = new Set(); ejectedSeen.set(col.id, seen); }
-  const fresh = newlyEjected(sim, col, seen);
+  // the pass runs every WOOD_DIAG_TICKS: the items dropped outside since its previous run
+  const fresh = newlyEjected(sim, col, sim.state.tick - WOOD_DIAG_TICKS);
   for (const e of fresh) {
     const site = col.wood.sites.find((s) => s.nestId === e.nestId);
     sim.emit({ type: 'frass-ejected', siteId: site?.id ?? -1, pos: e.pos });

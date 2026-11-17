@@ -6,6 +6,7 @@ import { AntFlag } from '@/sim/types';
 import {
   ALT_SOURCE_BU, ARRIVE_SOURCE_BU, EXIT_CLEAR_BU, FOLLOW_MIN_PH, OUTBOUND_BASE_S, OUTBOUND_MAX_S, OUTBOUND_PER_BU_S,
   QUEUE_DIST_BU, QUEUE_NO_TRAIL_S, QUEUE_S, RETURN_LOST_S, RETURN_REPLAN_S, RETURN_STAGE_S, ROUTE_WP_ARRIVE_BU, SEARCH_ARRIVE_BU, SEARCH_S, SEARCH_STEP_RAD, TRAIL_FOLLOW_MAX_S,
+  HUNT_PATCH_SEARCH_S,
 } from '@/sim/balance/foraging';
 import { footprintMm } from '@/sim/ecology';
 import { navFollowTrail } from '@/sim/locomotion';
@@ -20,6 +21,7 @@ import { noteTrailLost } from './monitor';
 import { avoidLeg } from './avoid';
 import { arrived, destOf, distXZ, failed, goTo, moving, stop } from './nav';
 import { tryHarvest } from './phaseCollect';
+import { tripPatch } from './hunt';
 import { learnedRoute, waypoint } from './routes';
 import { startOutboundDabs, stopLaying } from './trail';
 import { checkCourse, startCourse } from './trailCourse';
@@ -61,6 +63,9 @@ function outboundTimeoutS(sim: Sim, ant: Ant): number {
 }
 
 function searchHere(sim: Sim, ant: Ant, fl: Flavour): void {
+  // a hunting trip searches its whole patch (prey appears ahead of an ant moving in it)
+  const patch = tripPatch(sim, ant);
+  if (patch) { startSearch(sim, ant, fl, patch.center, patch.radius, 'job:hunt'); return; }
   const markerId = ant.bb[K.marker] ?? -1;
   const m = markerId >= 0 ? sim.stores.markers.get(markerId) : undefined;
   startSearch(sim, ant, fl, destOf(ant, tmp), m ? m.radius : 0, m ? `marker:${m.kind}` : undefined);
@@ -186,7 +191,8 @@ function arriveOrRetry(sim: Sim, ant: Ant, fl: Flavour): void {
 
 export function updateSearch(sim: Sim, ant: Ant, fl: Flavour): void {
   if (reactToFood(sim, ant, fl)) return;
-  if (phaseS(sim, ant) >= SEARCH_S) {
+  const limitS = tripPatch(sim, ant) ? HUNT_PATCH_SEARCH_S : SEARCH_S;
+  if (phaseS(sim, ant) >= limitS) {
     const src = ant.bb[K.src] ?? -1;
     if (src >= 0) markDepleted(sim, ant, src);
     startReturn(sim, ant, fl, false, src >= 0 ? 'source-depleted' : 'timeout', src);
@@ -195,7 +201,7 @@ export function updateSearch(sim: Sim, ant: Ant, fl: Flavour): void {
   if (moving(ant)) return;
   const a = (ant.bb[K.sa] ?? 0) + SEARCH_STEP_RAD;
   ant.bb[K.sa] = a;
-  const full = (SEARCH_S * TICKS_PER_SECOND) / 2;
+  const full = (limitS * TICKS_PER_SECOND) / 2;
   const r = (ant.bb[K.sr] ?? 0) * Math.min(1, (sim.state.tick - (ant.bb[K.phase0] ?? sim.state.tick) + 1) / full);
   tmp.x = (ant.bb[K.sx] ?? ant.pos.x) + Math.cos(a) * r;
   tmp.z = (ant.bb[K.sz] ?? ant.pos.z) + Math.sin(a) * r;

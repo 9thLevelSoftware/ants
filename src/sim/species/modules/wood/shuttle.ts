@@ -57,7 +57,7 @@ function delivered(sim: Sim, ant: Ant, broodId: number): void {
     b.nestId = to.id;
     const site = (id: number) => col?.wood?.sites.find((s) => s.nestId === id)?.id ?? -1;
     sim.emit({ type: 'brood-shuttled', broodId, fromSite: site(ant.bb[SH.from]), toSite: site(to.id) });
-    if (col?.wood) col.wood.shuttled = (col.wood.shuttled ?? 0) + 1;
+    if (col?.wood && to.kind === 'satellite') col.wood.shuttled = (col.wood.shuttled ?? 0) + 1; // returns not counted
   }
   ant.bb[SH.phase] = 3;
   ant.bb[SH.leg] = 0;

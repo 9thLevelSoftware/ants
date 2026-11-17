@@ -1,17 +1,19 @@
 // Parent and satellite nests (GDD 07 §6.2.5-§6.2.7): the satellite proposal (architect rule, `satellite` marker,
 // `satelliteAuto`), founding a satellite (a nest of kind `satellite` with a starter nursery chewed into the chosen
-// wood), isolation, the late-brood shuttle rule (which brood should go, the job given to a parent nurse; the trip
+// wood), the late-brood shuttle rule (which brood should go, the job given to a parent nurse; the trip
 // itself is the nurse behaviour's, shuttle.ts) and the queen-relocation proposal.
 
 import type { Brood, Colony, Nest, NestSite, Primitive, Sim, SpeciesDef, WoodState } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { createNest } from '@/sim/entities';
 import { devRate } from '@/sim/colony/life';
-import { chamberTemp } from '@/sim/environment/chamber';
+import { chamberTempC } from '@/sim/colony/envAdapter';
 import { airTemp } from '@/sim/environment/temperature';
 import { forageGateFor } from '@/sim/environment/thermalResponse';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { SATELLITE_CELL, SATELLITE_MIN_THICK_BU } from '@/sim/balance/species-carpenter';
+import {
+  CRUMBLING_DECAY, INTERIOR_WARMTH_C, SATELLITE_CELL, SATELLITE_MARKER_REACH_BU, SATELLITE_MIN_THICK_BU,
+} from '@/sim/balance/species-carpenter';
 import type { WoodParams } from './params';
 import { adultWorkers } from './castes';
 import { dryHazardPerGd, isLateBrood } from './broodMoisture';
@@ -20,6 +22,7 @@ import { cellSiteIn, chewCell } from './woodCell';
 import { horizLen } from './primGeom';
 import { ensureWoodStates, primOf, woodClimateAt, woodOf } from './woodState';
 import { SH, isShuttling } from './shuttleKeys';
+import { siteStates } from './siteStates';
 
 /** Late-brood score of a place (GDD 07 §6.2.6): devRate(T) x 1.15 in 8-18 % wood, x 0.8 above 30 %. */
 export function lateBroodScore(def: SpeciesDef, p: WoodParams, tempC: number, mc: number): number {
@@ -33,12 +36,15 @@ function nestOf(sim: Sim, s: NestSite | undefined): Nest | undefined {
   return s ? sim.stores.nests.get(s.nestId) : undefined;
 }
 
-/** Temperature and moisture of a site's brood chamber. */
+/**
+ * Temperature and moisture of a site's brood chamber. The temperature comes through the colony's climate seam
+ * (chamberTempC), the one brood development reads, so the shuttle rule compares what the brood will really get.
+ */
 function climateOf(sim: Sim, nest: Nest): { temp: number; mc: number } | null {
   const c = broodChamberOf(nest);
   if (!c) return null;
   const mc = woodClimateAt(sim, c.center, 2 * sim.world.bu)?.mc;
-  return mc === undefined ? null : { temp: chamberTemp(sim, nest, c), mc };
+  return mc === undefined ? null : { temp: chamberTempC(sim, c.id), mc };
 }
 
 /** Score of a candidate satellite wood (GDD 07 §6.2.5): dry band, warmth, shelter, route length. */
@@ -93,52 +99,62 @@ function satelliteNeeded(sim: Sim, def: SpeciesDef, col: Colony, p: WoodParams):
   return late > 0 && cap < p.satelliteNurseryFreeMax * late;
 }
 
+/** Why a wood cannot take a new satellite of the colony (GDD 07 §6.2.2, §6.2.5), or null when it can. */
+export function satelliteWoodRefusal(sim: Sim, col: Colony, w: WoodState, p: WoodParams): 'thin' | 'crumbling' | 'used' | 'cap' | null {
+  if ((w.thicknessBu ?? 0) < SATELLITE_MIN_THICK_BU) return 'thin';
+  if (w.decay >= CRUMBLING_DECAY) return 'crumbling'; // class 4 is not nestable
+  if (col.wood?.sites.some((s) => s.state !== 'abandoned' && s.primId === w.primId)) return 'used';
+  const live = satelliteSites(col);
+  const interior = live.filter((s) => woodOf(sim, s.primId)?.interior).length;
+  if (w.interior ? interior >= p.satellitesMaxInterior : live.length - interior >= p.satellitesMaxOutdoor) return 'cap';
+  return null;
+}
+
 /** The best satellite wood within satelliteMaxRouteBu of the parent (straight-line route, §6.2.5 score). */
 function bestCandidate(sim: Sim, col: Colony, p: WoodParams): { prim: Primitive; wood: WoodState } | null {
   const parent = nestOf(sim, parentSite(col));
   if (!parent) return null;
-  const used = new Set(col.wood?.sites.filter((s) => s.state !== 'abandoned').map((s) => s.primId) ?? []);
   const bu = sim.world.bu;
   let best: { prim: Primitive; wood: WoodState; s: number } | null = null;
   for (const w of ensureWoodStates(sim)) {
-    if (used.has(w.primId) || (w.thicknessBu ?? 0) < SATELLITE_MIN_THICK_BU || w.decay >= 4) continue;
+    if (satelliteWoodRefusal(sim, col, w, p)) continue;
     const prim = primOf(sim, w.primId);
     if (!prim) continue;
     const route = horizLen(prim.pos.x - parent.origin.x, prim.pos.z - parent.origin.z) / bu;
     if (route > p.satelliteMaxRouteBu) continue;
-    const s = candidateScore(p, w, route, w.interior ? 4 : 0);
+    const s = candidateScore(p, w, route, w.interior ? INTERIOR_WARMTH_C : 0);
     if (!best || s > best.s) best = { prim, wood: w, s };
   }
   return best;
 }
 
-/** Satellite markers of the colony found a satellite in the wood under them (GDD 07 App. B), once. */
+type MarkerRefusal = NonNullable<ReturnType<typeof satelliteWoodRefusal>> | 'no-wood' | 'no-room';
+
+/** Words of a refused satellite marker (command-rejected detail). */
+const MARKER_REFUSAL: Record<MarkerRefusal, string> = {
+  'no-wood': 'no nest wood within 4 BU',
+  thin: 'the wood is too thin for a satellite',
+  crumbling: 'the wood is crumbling',
+  used: 'the colony already nests in this wood',
+  cap: 'the colony has as many satellites as it can keep',
+  'no-room': 'no room for a cell in this wood',
+};
+
+/**
+ * Satellite markers of the colony found a satellite in the wood under them (GDD 07 App. B), once. Refused (with
+ * the reason) when there is no nest wood within SATELLITE_MARKER_REACH_BU, the wood is unsuitable (§6.2.2 class 4
+ * not nestable, too thin, already a site) or the colony is at its satellite caps (§6.2.5: 4 outdoor + 2 interior).
+ */
 function markerSatellites(sim: Sim, col: Colony, p: WoodParams): void {
   for (const m of sim.stores.markers.list) {
     if (!m.alive || m.kind !== 'satellite' || m.colony !== col.id) continue;
     m.alive = false; // one-shot: the marker is the proposal and its approval
-    const hit = woodClimateAt(sim, m.pos, 4 * sim.world.bu);
+    const hit = woodClimateAt(sim, m.pos, SATELLITE_MARKER_REACH_BU * sim.world.bu);
     const w = hit ? woodOf(sim, hit.primId) : undefined;
     const prim = hit ? primOf(sim, hit.primId) : undefined;
-    const site = w && prim ? foundSatellite(sim, col, prim, w, m.pos, p) : null;
-    if (!site) sim.emit({ type: 'command-rejected', commandType: 'placeMarker', reason: 'invalid', detail: 'no suitable wood within 4 BU' });
-  }
-}
-
-/** Isolation (§6.2.5): a satellite with no open entrance is cut off; after satelliteIsolatedGd it is `isolated`. */
-function isolation(sim: Sim, col: Colony, p: WoodParams): void {
-  for (const s of satelliteSites(col)) {
-    const nest = nestOf(sim, s);
-    if (!nest) continue;
-    const open = nest.entrances.some((e) => e.status === 'open');
-    if (open) {
-      s.isolatedSinceTick = -1;
-      if (s.state === 'isolated') setSiteState(sim, s, 'active');
-      if (s.state === 'founding' && nest.chambers.length > 0) setSiteState(sim, s, 'active');
-      continue;
-    }
-    if ((s.isolatedSinceTick ?? -1) < 0) s.isolatedSinceTick = sim.state.tick;
-    if (s.state === 'active' && sim.state.tick - (s.isolatedSinceTick ?? 0) >= p.satelliteIsolatedGd * TICKS_PER_DAY) setSiteState(sim, s, 'isolated');
+    let why: MarkerRefusal | null = !w || !prim ? 'no-wood' : satelliteWoodRefusal(sim, col, w, p);
+    if (!why && w && prim && !foundSatellite(sim, col, prim, w, m.pos, p)) why = 'no-room';
+    if (why) sim.emit({ type: 'command-rejected', commandType: 'placeMarker', reason: 'invalid', detail: MARKER_REFUSAL[why] });
   }
 }
 
@@ -148,7 +164,7 @@ function relocation(sim: Sim, col: Colony, p: WoodParams): void {
   if (!site || !col.wood || site.moisture < 0) return;
   const k = Math.min(1, (1 / 24) / Math.max(1e-6, p.relocateHazardWindowGd)); // hourly EMA over the window
   site.hazardEma = (site.hazardEma ?? 0) + k * (dryHazardPerGd(p, site.moisture) - (site.hazardEma ?? 0));
-  const bad = (site.hazardEma ?? 0) > p.relocateHazardTrigger || site.decay >= 4;
+  const bad = (site.hazardEma ?? 0) > p.relocateHazardTrigger || site.decay >= CRUMBLING_DECAY;
   if (!bad || col.wood.queenMove) return;
   const target = satelliteSites(col).find((s) => s.moisture >= p.mcFullSurvivalPct && s.moisture <= p.mcMouldPct);
   if (!target) return;
@@ -156,34 +172,40 @@ function relocation(sim: Sim, col: Colony, p: WoodParams): void {
   sim.emit({ type: 'queen-relocation', fromSite: site.id, toSite: target.id, phase: 'proposed' });
 }
 
-/** The colony's hourly satellite work: markers, the architect rule, isolation, relocation proposal. */
+/** The colony's hourly satellite work: markers, the architect rule, site states (isolation, crumbling), relocation. */
 export function satellitePass(sim: Sim, def: SpeciesDef, col: Colony, p: WoodParams): void {
   if (!col.wood) return;
   markerSatellites(sim, col, p);
-  const outdoor = satelliteSites(col).filter((s) => !woodOf(sim, s.primId)?.interior).length;
-  if (col.directives.satelliteAuto && outdoor < p.satellitesMaxOutdoor && satelliteNeeded(sim, def, col, p)
+  if (col.directives.satelliteAuto && satelliteNeeded(sim, def, col, p)
     && !satelliteSites(col).some((s) => s.state === 'founding')) {
     const c = bestCandidate(sim, col, p);
     if (c) foundSatellite(sim, col, c.prim, c.wood, sitePoint(nestOf(sim, parentSite(col))!), p);
   }
-  isolation(sim, col, p);
+  siteStates(sim, col, p);
   relocation(sim, col, p);
 }
 
-/** Free late-brood places in a satellite: its nursery and rest capacity minus the brood already there. */
+/**
+ * Free late-brood places in a satellite: the brood capacity of its chambers minus the brood already there and the
+ * items shuttle nurses are carrying (or fetching) for it now.
+ */
 function freeIn(sim: Sim, col: Colony, nest: Nest): number {
   let cap = 0;
   for (const c of nest.chambers) cap += Math.max(c.capacity.brood, 0);
-  if (cap <= 0) cap = nest.chambers.length > 0 ? 1e9 : 0; // a fresh cell without a capacity record yet
   let used = 0;
   for (const b of sim.stores.brood.list) if (b.alive && b.colony === col.id && b.nestId === nest.id) used++;
-  return cap - used;
+  // items on their way: shuttle trips to this satellite still fetching or carrying (phase 0 or 1)
+  for (const a of sim.stores.ants.list) {
+    if (a.alive && a.colony === col.id && (a.bb[SH.brood] ?? -1) >= 0 && a.bb[SH.nest] === nest.id && (a.bb[SH.phase] ?? 0) < 2) used++;
+  }
+  return Math.floor(cap - used);
 }
 
 /**
- * Shuttle jobs (GDD 07 §6.2.6): late brood in the parent whose satellite score beats the parent's by the margin go,
- * one item per nurse, to the best satellite with room. Shuttling ignores the light preference but obeys the forage
- * temperature gate and heat. Returns the jobs given. Keeps the parent's `waitingSinceTick` for the diagnostic.
+ * Shuttle jobs (GDD 07 §6.2.6): late brood in the parent goes, one item per nurse, to satellites whose score beats
+ * the parent's by the margin and that have free capacity, best score first, never more items than a satellite has
+ * room for. Shuttling ignores the light preference but obeys the forage temperature gate and heat. Returns the jobs
+ * given. Keeps the parent's `waitingSinceTick` for the diagnostic.
  */
 export function assignShuttles(sim: Sim, def: SpeciesDef, col: Colony, p: WoodParams): number {
   const parentRec = parentSite(col);
@@ -196,14 +218,17 @@ export function assignShuttles(sim: Sim, def: SpeciesDef, col: Colony, p: WoodPa
   const pc = climateOf(sim, parent);
   if (!pc) return 0;
   const parentScore = lateBroodScore(def, p, pc.temp, pc.mc);
-  let target: Nest | null = null, best = -Infinity;
+  const targets: { nest: Nest; score: number; room: number }[] = [];
   for (const n of sats) {
     const c = climateOf(sim, n);
-    if (!c || freeIn(sim, col, n) <= 0) continue;
-    const s = lateBroodScore(def, p, c.temp, c.mc);
-    if (s >= parentScore + p.shuttleScoreMargin && s > best) { best = s; target = n; }
+    if (!c) continue;
+    const score = lateBroodScore(def, p, c.temp, c.mc);
+    if (score < parentScore + p.shuttleScoreMargin) continue;
+    const room = freeIn(sim, col, n);
+    if (room > 0) targets.push({ nest: n, score, room });
   }
-  if (!target) { parentRec.waitingSinceTick = -1; return 0; }
+  if (targets.length === 0) { parentRec.waitingSinceTick = -1; return 0; }
+  targets.sort((a, b) => b.score - a.score || a.nest.id - b.nest.id);
   const taken = new Set<number>();
   for (const a of sim.stores.ants.list) if (a.alive && isShuttling(a)) taken.add(a.bb[SH.brood]);
   const waiting: Brood[] = [];
@@ -211,14 +236,16 @@ export function assignShuttles(sim: Sim, def: SpeciesDef, col: Colony, p: WoodPa
     if (b.alive && b.colony === col.id && b.nestId === parent.id && b.carriedBy < 0 && isLateBrood(p, b) && !taken.has(b.id)) waiting.push(b);
   }
   if (waiting.length === 0) { parentRec.waitingSinceTick = -1; return 0; }
-  const room = target.chambers[0];
-  let given = 0;
+  let given = 0, t = 0;
   for (const a of sim.stores.ants.list) {
-    if (given >= waiting.length) break;
+    while (t < targets.length && targets[t].room <= 0) t++;
+    if (given >= waiting.length || t >= targets.length) break;
     if (!a.alive || a.colony !== col.id || a.task !== 'nurse' || a.nestId !== parent.id || a.carry.kind !== 'none') continue;
     if ((a.flags & AntFlag.POSSESSED) !== 0 || isShuttling(a)) continue;
+    const target = targets[t];
     const b = waiting[given++];
-    a.bb[SH.brood] = b.id; a.bb[SH.nest] = target.id; a.bb[SH.chamber] = room?.id ?? -1; a.bb[SH.phase] = 0;
+    target.room--;
+    a.bb[SH.brood] = b.id; a.bb[SH.nest] = target.nest.id; a.bb[SH.chamber] = broodChamberOf(target.nest)?.id ?? -1; a.bb[SH.phase] = 0;
     a.bb[SH.from] = parent.id;
   }
   if (given < waiting.length) { if ((parentRec.waitingSinceTick ?? -1) < 0) parentRec.waitingSinceTick = sim.state.tick; }

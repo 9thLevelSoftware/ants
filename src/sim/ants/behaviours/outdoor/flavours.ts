@@ -29,7 +29,7 @@ export const FORAGE: Flavour = {
     [PHASE.deliver]: 'forage.deliver',
     // a forager never explores; these keep the names valid if a phase is ever reached
     [PHASE.depart]: 'forage.outbound', [PHASE.explore]: 'forage.search', [PHASE.investigate]: 'forage.search',
-    [PHASE.assess]: 'forage.collect',
+    [PHASE.assess]: 'forage.collect', [PHASE.hunt]: 'forage.collect',
   },
 };
 
@@ -42,6 +42,7 @@ export const SCOUT: Flavour = {
     [PHASE.assess]: 'scout.assess', [PHASE.collect]: 'scout.collect', [PHASE.queue]: 'scout.collect',
     [PHASE.return]: 'scout.return', [PHASE.deliver]: 'scout.report',
     [PHASE.wait]: 'scout.depart', [PHASE.outbound]: 'scout.explore', [PHASE.search]: 'scout.investigate',
+    [PHASE.hunt]: 'scout.collect',
   },
 };
 
@@ -61,6 +62,6 @@ export const TEND: Flavour = {
     [PHASE.queue]: 'tend.solicit', [PHASE.collect]: 'tend.solicit', [PHASE.return]: 'tend.return',
     [PHASE.deliver]: 'tend.deliver',
     [PHASE.depart]: 'tend.outbound', [PHASE.explore]: 'tend.outbound', [PHASE.investigate]: 'tend.outbound',
-    [PHASE.assess]: 'tend.solicit',
+    [PHASE.assess]: 'tend.solicit', [PHASE.hunt]: 'tend.solicit',
   },
 };

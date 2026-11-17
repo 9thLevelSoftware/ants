@@ -9,8 +9,8 @@
 // because they unlock only in colony year 3), 03 the cell cut open in the colony view, 04 the frass pile at the foot
 // of the log (observer).
 
-const FRASS_STEPS = 240; // x 250 ticks: at most 1 game day of colony life to see a frass pile outside
-const FRASS_UNITS_WANTED = 1; // GDD 07 §6.2.3: 10 frass items make one pile unit
+const FRASS_STEPS = 240; // x 250 ticks: at most 10 game days of colony life to see a frass pile outside
+const FRASS_UNITS_WANTED = 1; // GDD 07 §6.2.3: 10 frass items make one pile unit (items settled INTO a pile, not loose)
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -78,7 +78,7 @@ export default async ({ page, shot, log }) => {
     const eye = { x: q.x + d.x * k * b, y: q.y + h * b, z: q.z + d.z * k * b };
     window.__game.camera.setPose(eye, q);
   }, [p, dir, bu, back, up]);
-  await outsidePose(e.pos, e.dir, 16, 7);
+  await outsidePose(e.pos, e.dir, 7, 3);
   await step(1);
   await highShot('01-log-opening');
 
@@ -99,19 +99,33 @@ export default async ({ page, shot, log }) => {
   await g(([id, p]) => window.__game.teleport(id, p), [minorId, floor]);
   await g((id) => window.__game.possess(id), minorId);
   await step(3);
-  // the media and the major stand ahead of her, one to each side, so the camera behind the minor sees all three
-  const ahead = await sim((sm, [id, ch]) => {
+  // the media and the major stand ahead of her in the camera's view, one to each side, side-on (profile) so the three
+  // sizes compare: positions from the camera's real view direction (the possession rig decides where it looks)
+  await render(0.5);
+  const cam = await g(() => window.__game.camera.pose());
+  const ahead = await sim((sm, [id, dir]) => {
     const a = sm.stores.ants.get(id);
     const b = sm.world.bu;
-    const f = a ? a.fwd : { x: 1, y: 0, z: 0 };
-    const side = { x: -f.z, y: 0, z: f.x };
-    const reach = Math.min(1.6 * b, Math.max(ch.radii.x, ch.radii.z) * 0.6);
-    const at = (k, s) => ({ x: a.pos.x + f.x * reach * k + side.x * s * b, y: a.pos.y + 0.2 * b, z: a.pos.z + f.z * reach * k + side.z * s * b });
+    const u = a.up;
+    const dot = dir.x * u.x + dir.y * u.y + dir.z * u.z;
+    let f = { x: dir.x - u.x * dot, y: dir.y - u.y * dot, z: dir.z - u.z * dot };
+    const fl = Math.sqrt(f.x * f.x + f.y * f.y + f.z * f.z) || 1;
+    f = { x: f.x / fl, y: f.y / fl, z: f.z / fl };
+    const side = { x: u.y * f.z - u.z * f.y, y: u.z * f.x - u.x * f.z, z: u.x * f.y - u.y * f.x };
+    const at = (k, s) => ({ x: a.pos.x + (f.x * k + side.x * s) * b, y: a.pos.y + (f.y * k + side.y * s) * b + 0.2 * b, z: a.pos.z + (f.z * k + side.z * s) * b });
     const big = sm.state.ants.filter((x) => x.alive && x.colony === a.colony && (x.caste === 'media' || x.caste === 'major'));
-    return big.map((x) => ({ id: x.id, pos: x.caste === 'media' ? at(1, 0.7) : at(1.4, -0.8) }));
-  }, [minorId, c]);
+    return big.map((x) => ({ id: x.id, pos: x.caste === 'media' ? at(1.6, 0.9) : at(3.0, -1.1), fwd: x.caste === 'media' ? side : { x: -side.x, y: -side.y, z: -side.z } }));
+  }, [minorId, cam.dir]);
   for (const t of ahead) await g(([id, p]) => window.__game.teleport(id, p), [t.id, t.pos]);
-  await step(2);
+  await step(1);
+  const placed = await sim((sm, [id, list]) => {
+    const a = sm.stores.ants.get(id), b = sm.world.bu;
+    return list.map((t) => { const x = sm.stores.ants.get(t.id); return x ? { caste: x.caste, lengthBu: x.lengthBu, fromMinorBu: Math.hypot(x.pos.x - a.pos.x, x.pos.y - a.pos.y, x.pos.z - a.pos.z) / b } : null; });
+  }, [minorId, ahead]);
+  log(`castes placed: ${JSON.stringify(placed)}`);
+  result.checks.castesPlaced = placed;
+  // side-on, and kept still for the picture (their own work would turn them around)
+  await sim((sm, list) => { for (const t of list) { const x = sm.stores.ants.get(t.id); if (x) x.fwd = { ...t.fwd }; } return true; }, ahead);
   const inside = await sim((sm, id) => { const a = sm.stores.ants.get(id); return a ? { nestId: a.nestId, medium: a.medium, pos: a.pos } : null; }, minorId);
   log(`possessed minor: ${JSON.stringify(inside)}`);
   result.checks.possessedInside = inside;
@@ -130,35 +144,57 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.camera.set('colony'));
   await step(1);
   await g(([ch, b]) => window.__game.views.colonyCamera({
-    x: ch.center.x, z: ch.center.z, distBu: 24, pitchDeg: 55, yawDeg: 30, cutaway: 'slice', planeYBu: ch.center.y / b + 0.3, radiusBu: 16,
+    x: ch.center.x, z: ch.center.z, distBu: 14, pitchDeg: 60, yawDeg: 30, cutaway: 'slice', planeYBu: ch.center.y / b + 0.3, radiusBu: 10,
   }), [c, bu]);
   await step(1);
   await highShot('03-cell-cutaway');
   await g(() => window.__game.camera.set('observer'));
 
   // ---- 5. frass: carried out of the wood and dropped on a pile at the foot of the log ----
-  const frassNow = () => sim((sm, nid) => {
-    const piles = sm.state.worldDelta.mounds.filter((m) => m.material === 'frass' && m.nestId === nid);
+  const frassNow = () => sim((sm) => {
+    const c0 = sm.state.colonies[0];
+    const mine = new Set(c0.nestIds);
+    const piles = sm.state.worldDelta.mounds.filter((m) => m.material === 'frass' && mine.has(m.nestId));
     const loose = sm.state.items.filter((it) => it.alive && it.kind === 'frass' && !it.inNest && it.carrierIds.length === 0);
     const inNest = sm.state.items.filter((it) => it.alive && it.kind === 'frass' && it.inNest).length;
-    const w = sm.state.colonies[0].wood;
+    // the pile's mass centre: the h-weighted centroid of its grid (the record's centre is the entrance it serves)
+    const massAt = (m) => {
+      const x0 = m.centerX - ((m.n - 1) * m.cell) / 2, z0 = m.centerZ - ((m.n - 1) * m.cell) / 2;
+      let w = 0, x = 0, z = 0, top = 0;
+      for (let i = 0; i < m.h.length; i++) {
+        const h = m.h[i];
+        if (h <= 0) continue;
+        w += h; x += (x0 + (i % m.n) * m.cell) * h; z += (z0 + Math.floor(i / m.n) * m.cell) * h; top = Math.max(top, h);
+      }
+      return w > 0 ? { x: x / w, z: z / w, topMm: top } : { x: m.centerX, z: m.centerZ, topMm: 0 };
+    };
+    const w = c0.wood;
     return {
-      piles: piles.map((m) => ({ id: m.id, x: m.centerX, z: m.centerZ, volume: m.volume })),
+      piles: piles.map((m) => ({ id: m.id, items: m.absorbed, units: m.absorbed / 10, volumeBu3: m.volume, mass: massAt(m), nestId: m.nestId })),
+      pileUnits: piles.reduce((u, m) => u + m.absorbed / 10, 0),
       loose: loose.length, loosePos: loose[0]?.pos ?? null, inNest, visibility: w?.frassVisibility ?? null,
-      units: w ? (w.frassUnitsOutdoor ?? 0) + (w.frassUnitsInterior ?? 0) : null,
+      tallyUnits: w ? (w.frassUnitsOutdoor ?? 0) + (w.frassUnitsInterior ?? 0) : null,
     };
   }, nest.id);
-  // live on until the dropped frass has settled into a pile of at least one pile unit (10 items), or the step budget
-  // runs out (then whatever lies outside is shown)
+  // live on until the dropped frass has settled INTO a pile of at least one pile unit (10 items absorbed by the
+  // pile; loose items do not count), or the step budget runs out
   let fr = await frassNow();
-  for (let i = 0; i < FRASS_STEPS && !(fr.piles.length > 0 && (fr.units ?? 0) >= FRASS_UNITS_WANTED); i++) { await step(250); fr = await frassNow(); }
+  for (let i = 0; i < FRASS_STEPS && !(fr.pileUnits >= FRASS_UNITS_WANTED); i++) { await step(250); fr = await frassNow(); }
   log(`frass: ${JSON.stringify(fr)}`);
   result.checks.frass = fr;
-  expect(fr.piles.length > 0, 'no frass pile outside the wood', fr);
-  const at = fr.piles.length > 0
-    ? await sim((sm, m) => ({ x: m.x, y: sm.field.height(m.x, m.z), z: m.z }), fr.piles[0])
-    : fr.loosePos;
-  await g(([p, b]) => window.__game.camera.setPose({ x: p.x + 9 * b, y: p.y + 7 * b, z: p.z + 9 * b }, p), [at, bu]);
+  expect(fr.pileUnits >= FRASS_UNITS_WANTED, 'no frass pile of one pile unit outside the wood', fr);
+  const best = fr.piles.reduce((a, b) => (b.items > a.items ? b : a));
+  // the pile lies at the foot of the wood: on the ground, outside the log
+  const foot = await sim((sm, [m, pid]) => {
+    const y = sm.field.height(m.x, m.z);
+    const prim = sm.world.prims.find((q) => q.id === pid);
+    const inLog = prim ? sm.field.primAt({ x: m.x, y: y + 0.3 * sm.world.bu, z: m.z }, 0)?.id === pid : false;
+    return { x: m.x, y, z: m.z, inLog };
+  }, [best.mass, nest.prim.id]);
+  result.checks.frassFoot = foot;
+  expect(!foot.inLog, 'the frass pile lies under the log, not at its foot', foot);
+  const at = foot;
+  await g(([p, b]) => window.__game.camera.setPose({ x: p.x + 5 * b, y: p.y + 4 * b, z: p.z + 5 * b }, p), [at, bu]);
   await step(1);
   await highShot('04-frass-pile');
 

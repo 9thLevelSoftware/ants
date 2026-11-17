@@ -37,3 +37,8 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 
 ## Findings / decisions
 - Species engineers add remedy ids to src/content/text/words.ts; health model needs an action per id (test enforces).
+- 04:02 controls.mjs PASS (622 s). After-shots done: night clear ant now dark w/ rim (antContrast 0.13->0.03 metric but visibly readable); night-rain UNCHANGED (fill is off at that EV; the pale glassy look there = clearcoat/sheen env reflection) -> report.
+- Seen: observer at night shows pale straight strip at horizon (after-night-observer-high.png); leaves read as flat decals.
+- 04:07 lifecycle PASS (03-flight: no groom prompt; males not visible in frame -> added result.flightAnts stats to lifecycle.mjs, rerun pending). 04:22 onboarding FAIL at B11: hint-directives engine fallback fired at once -> APP DEFECT fixed: src/game/onboarding/facts.ts daysSinceFirstWorker used calendarTick vs sim-tick milestone; test facts.firstWorker.test.ts. Rerun pending.
+- Running now (bg): founding1, foundingPad.
+- Queue after: firstplay; stage1a founding2 founding3; onboarding lifecycle; views panelsA panelsB; photo a11yA a11yB; stage2; playSeed1 playKitchen frametime; portable build.

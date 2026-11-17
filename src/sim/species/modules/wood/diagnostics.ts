@@ -11,6 +11,7 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import type { WoodParams } from './params';
 import { casteUnlocked, colonyAgeYears } from './castes';
 import { parentSite, satelliteSites } from './sites';
+import { isLateBrood } from './broodMoisture';
 import { woodOf } from './woodState';
 
 const f = (cause: string, weight: number, detail: string): DiagnosticFactor => ({ cause, weight, detail, diagId: null });
@@ -43,6 +44,18 @@ function dryingFactors(sim: Sim, col: Colony, p: WoodParams): DiagnosticFactor[]
   return out;
 }
 
+/** Share of the colony's late brood (late larvae and pupae) that lies in its satellites, or null without late brood. */
+export function lateBroodShareInSatellites(sim: Sim, col: Colony, p: WoodParams): number | null {
+  const satNests = new Set(satelliteSites(col).map((s) => s.nestId));
+  let late = 0, inSat = 0;
+  for (const b of sim.stores.brood.list) {
+    if (!b.alive || b.colony !== col.id || !isLateBrood(p, b)) continue;
+    late++;
+    if (satNests.has(b.nestId)) inSat++;
+  }
+  return late > 0 ? inSat / late : null;
+}
+
 /** Publishes the colony's wood diagnostics (player colony only: the Why view is the player's). */
 export function publishWoodDiagnostics(sim: Sim, def: SpeciesDef, col: Colony, p: WoodParams): void {
   if (!col.isPlayer || !col.wood) return;
@@ -52,7 +65,8 @@ export function publishWoodDiagnostics(sim: Sim, def: SpeciesDef, col: Colony, p
   if (site && mc >= 0) {
     const status = parentMoistureStatus(p, mc);
     const factors = status === 'ok' ? [] : dryingFactors(sim, col, p);
-    const remedies = status === 'ok' ? [] : mc > p.mcMouldPct ? ['remedy.marker.move-brood', 'remedy.marker.move-queen'] : ['remedy.toggle.hideFrass', 'remedy.marker.move-queen'];
+    // GDD 07 §6.2.9 also names `hideFrass` (fewer openings): the toggle is not built yet, so it is not offered
+    const remedies = status === 'ok' ? [] : mc > p.mcMouldPct ? ['remedy.marker.move-brood', 'remedy.marker.move-queen'] : ['remedy.marker.move-queen', 'remedy.marker.move-brood'];
     publishDiagnostic(sim, diag('diag-cp-parent-moisture', status, 'Parent nest moisture', mc, factors, remedies));
     const w = woodOf(sim, site.primId);
     publishDiagnostic(sim, diag('diag-wood', status, 'Nest wood', mc, factors.length ? factors : [f('moisture', 1, `${mc.toFixed(0)} %, decay class ${w?.decay ?? site.decay}`)], remedies));
@@ -66,6 +80,10 @@ export function publishWoodDiagnostics(sim: Sim, def: SpeciesDef, col: Colony, p
   if (sats.length === 0) satFactors.push(f('no-satellite', 1, 'no satellite nest yet'));
   if (isolated > 0) satFactors.push(f('isolated', isolated, `${isolated} satellite(s) cut off`));
   if (waiting > DIAG_SHUTTLE_WAIT_GD) satFactors.push(f('shuttle-short', waiting, `late brood waiting ${waiting.toFixed(1)} game days`));
+  const orphans = sats.filter((s) => s.orphan).length;
+  if (orphans > 0) satFactors.push(f('orphan-satellite', orphans, `${orphans} satellite(s) cut off for a week`));
+  const share = lateBroodShareInSatellites(sim, col, p);
+  if (sats.length > 0 && share !== null) satFactors.push(f('late-brood-share', share, `${Math.round(share * 100)} % of late brood in satellites`));
   publishDiagnostic(sim, diag('diag-cp-satellites', satStatus, 'Satellite nests', sats.length, satFactors,
     satStatus === 'warn' ? ['remedy.marker.satellite', 'remedy.slider.nurse'] : []));
   // growth: castes unlocked and colony age
@@ -77,5 +95,5 @@ export function publishWoodDiagnostics(sim: Sim, def: SpeciesDef, col: Colony, p
   const interior = col.wood.frassUnitsInterior ?? 0;
   publishDiagnostic(sim, diag('diag-cp-frass', interior >= DIAG_FRASS_WARN_UNITS ? 'warn' : 'ok', 'Frass', col.wood.frassVisibility,
     interior >= DIAG_FRASS_WARN_UNITS ? [f('interior-windows', 1, `${interior.toFixed(1)} pile units indoors`)] : [],
-    interior >= DIAG_FRASS_WARN_UNITS ? ['remedy.toggle.hideFrass'] : []));
+    [])); // the chapter's remedy is the `hideFrass` toggle, not built yet
 }

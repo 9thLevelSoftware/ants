@@ -75,12 +75,17 @@ export const K = {
   onTrail: 'fo.tr',
   /** Trail course check: start of the current stretch (x, z mm) and off-course stretches in a row (-1 = none on course yet). */
   courseX: 'fo.tcx', courseZ: 'fo.tcz', offCourse: 'fo.tcoff',
+  /** Hunting (hunt.ts): prey patch of this trip (-1 none), the prey chased (-1 none), where it was last seen (x, z mm),
+   * and the phase the chase interrupted (resumed after it). */
+  patch: 'fo.patch', prey: 'fo.prey', preyX: 'fo.prx', preyZ: 'fo.prz', huntFrom: 'fo.hfrom',
 } as const;
 
 /** Behaviour phases of the outdoor engine. Values are persisted; append only. */
 export const PHASE = {
   wait: 0, outbound: 1, search: 2, queue: 3, collect: 4, return: 5, deliver: 6, rest: 7,
   fleeRun: 8, fleeFreeze: 9, depart: 10, explore: 11, investigate: 12, assess: 13,
+  /** Chasing and biting patch prey, then picking up its remains (hunt.ts; R18). */
+  hunt: 14,
 } as const;
 export type Phase = (typeof PHASE)[keyof typeof PHASE];
 

@@ -270,3 +270,25 @@ export const TRAIL_LINK_REACH_BU = 8;
 /** 3 locomotion failures within this window drop the task to idle (at home) / force homing (outside), s. */
 export const STUCK_WINDOW_S = 60;
 export const STUCK_MAX = 3;
+
+// ---- hunting patch prey (R18; GDD 05 §2.3 prey patches, §1.5 subduing; colony-life round 2) ----
+/**
+ * A forager or scout outside notices patch prey (springtail; mite only under a protein deficit, GDD 05 §2.2b) within
+ * this many BU and hunts it. Patch prey appears 2-4 L ahead of an ant moving inside a patch (PATCH_SPAWN_AHEAD_L).
+ */
+export const HUNT_NOTICE_BU = 5;
+/** A chase of one prey ends after this long without a catch, s (a springtail jumps 60 mm, 15 BU, when it escapes). */
+export const HUNT_CHASE_S = 20;
+/** The remains of a kill are looked for within this distance of where the prey was last seen, BU. */
+export const HUNT_REMAINS_BU = 3;
+/** A hunting trip searches its patch this long before it turns home empty, s (the forage search is SEARCH_S 30). */
+export const HUNT_PATCH_SEARCH_S = 90;
+/**
+ * Expected time in a full patch (count = K) from arrival to a catch, s, for the departure score: prey appears at
+ * PATCH_LAMBDA 0.05 / s (one every 20 s) and escapes a bite with p 0.6 on open ground, 0.25 in litter (GDD 05 §2.2b),
+ * so ~1.7-2.5 sightings a catch: 20 s x 2 = 40 s. Scaled by K / count at lower densities.
+ */
+export const HUNT_EXPECT_S = 40;
+/** Forager-equivalents one known patch keeps busy at most (the known-capacity cap of the `forage` demand). */
+export const PATCH_FORAGERS_MAX = 6;
+

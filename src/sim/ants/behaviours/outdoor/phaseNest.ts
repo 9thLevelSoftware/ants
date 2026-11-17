@@ -17,7 +17,8 @@ import { commitDeparture, departureDue, recordForagerReturn, taskCycleDone } fro
 import { navToTarget } from '@/sim/locomotion';
 import { TICKS_PER_SECOND } from '@/sim/time';
 import { bookDelivery } from './adapters';
-import { chooseSource, departFilter } from './choice';
+import { chooseSource, departFilter, leadValid, sourceScore } from './choice';
+import { choosePatch, startHuntTrip } from './hunt';
 import { entranceChamber, foodChamber, homeNest, logDecision, phaseS, setPhase, thinkIn } from './common';
 import type { Flavour } from './flavours';
 import { K, PHASE, UNLOAD } from './keys';
@@ -56,6 +57,9 @@ export function updateWait(sim: Sim, ant: Ant, fl: Flavour): void {
   if (why) {
     const src = chooseSource(sim, ant, departFilter(sim, ant, fl));
     const s = src >= 0 ? sim.stores.sources.get(src) : undefined;
+    // a known prey patch competes with the known sources on the same score (R18 hunting trips); a recruit follows its lead
+    const hunt = s && leadValid(sim, ant) ? null : choosePatch(sim, ant, fl);
+    if (hunt && (!s || hunt.u > sourceScore(sim, ant, s))) { commitDeparture(sim, ant, why); startHuntTrip(sim, ant, fl, hunt.patch, why); return; }
     if (s) { commitDeparture(sim, ant, why); startOutbound(sim, ant, fl, s.id, s.pos, -1, why, s.id); return; }
     const m = forageMarker(sim, ant);
     if (m) { commitDeparture(sim, ant, why); startOutbound(sim, ant, fl, -1, m.pos, m.id, 'marker:forage', m.id); return; }
@@ -182,11 +186,15 @@ function finishTrip(sim: Sim, ant: Ant, fl: Flavour, c: number, p: number, store
   let success = solid ? loads > EPS : loads >= SUCCESS_CROP - EPS;
   if (fl.scout && (ant.bb[K.success] ?? 0) === 1) success = true;
   const kind = FOOD_KINDS[ant.bb[K.kind] ?? -1] ?? 'unknown';
-  if (loads > EPS) bookDelivery(sim, ant, src, kind, c, p, sim.state.tick - (ant.bb[K.unload0] ?? sim.state.tick));
+  // Only a trip that went outside is a trip and brings food in. An ant that enters this behaviour in the nest with a
+  // crop (a nurse or store worker reassigned, deliver first) unloads it, but that food was already the colony's
+  // (colony-life round 2: 116 such "tend trips" in one run, all failures, and their crops booked as deliveries)
+  const wentOut = (ant.bb[K.wentOut] ?? 0) === 1;
+  if (wentOut && loads > EPS) bookDelivery(sim, ant, src, kind, c, p, sim.state.tick - (ant.bb[K.unload0] ?? sim.state.tick));
   const trip0 = ant.bb[K.trip0] ?? -1;
-  recordForagerReturn(sim, ant, success, success ? src : -1, trip0 >= 0 ? sim.state.tick - trip0 : 0);
-  if (success && loads > EPS) commitRoute(sim, ant);
-  ant.mem.trips++;
+  if (wentOut) recordForagerReturn(sim, ant, success, success ? src : -1, trip0 >= 0 ? sim.state.tick - trip0 : 0);
+  if (wentOut && success && loads > EPS) commitRoute(sim, ant);
+  if (wentOut) ant.mem.trips++;
   ant.bb[K.trip0] = -1;
   ant.bb[K.wentOut] = 0;
   ant.bb[K.success] = 0;

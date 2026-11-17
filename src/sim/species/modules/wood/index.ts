@@ -3,8 +3,11 @@
 // into the dig-bite and founding-depth hooks (hooks.ts). Every system is inert unless a colony nests in wood.
 
 import type { Behaviour, CommandHandlerMap, SimInvariant, System } from '@/sim/types';
-import { WOOD_BROOD_TICKS, WOOD_CASTE_TICKS, WOOD_DIAG_TICKS, WOOD_SHUTTLE_TICKS, WOOD_UPDATE_TICKS } from '@/sim/balance/species-carpenter';
+import {
+  FRASS_FALL_TICKS, WOOD_BROOD_TICKS, WOOD_CASTE_TICKS, WOOD_DIAG_TICKS, WOOD_SHUTTLE_TICKS, WOOD_UPDATE_TICKS,
+} from '@/sim/balance/species-carpenter';
 import { assignShuttles } from './satellites';
+import { assignReturns } from './returns';
 import { installWoodHooks } from './hooks';
 import { playedWoodParams, woodColonies, colonyWoodParams } from './params';
 import { ensureWoodStates, woodOf } from './woodState';
@@ -12,13 +15,11 @@ import { setWood, stepAllWood } from './moisture';
 import { assignCastes, naniticLifespans } from './castes';
 import { broodMoisturePass } from './broodMoisture';
 import { colonyHourly } from './colonyPass';
+import { frassFallPass } from './frassFall';
 import { woodInvariants } from './invariants';
 import { woodBehaviours } from './behaviours';
 
 installWoodHooks();
-
-/** Castes already announced per colony (derived; the event is a journal cue, a repeat after a load is harmless). */
-const announced = new Map<number, Set<string>>();
 
 /** Systems of this module (each with a `phase`). */
 export const systems: readonly System[] = [
@@ -37,9 +38,11 @@ export const systems: readonly System[] = [
         const def = sim.getSpecies(col.species);
         const p = colonyWoodParams(sim, col);
         if (!def || !p) continue;
-        let seen = announced.get(col.id);
-        if (!seen) { seen = new Set(); announced.set(col.id, seen); }
-        for (const caste of assignCastes(sim, def, col, p, seen)) sim.emit({ type: 'caste-unlocked', colonyId: col.id, caste });
+        // castes already announced are persisted on the colony's wood record (a second game reuses colony ids)
+        const seen = new Set(col.wood?.castesAnnounced ?? []);
+        const fresh = assignCastes(sim, def, col, p, seen);
+        if (fresh.length > 0 && col.wood) col.wood.castesAnnounced = [...seen];
+        for (const caste of fresh) sim.emit({ type: 'caste-unlocked', colonyId: col.id, caste });
         naniticLifespans(sim, col);
       }
     },
@@ -60,8 +63,17 @@ export const systems: readonly System[] = [
       for (const col of woodColonies(sim)) {
         const def = sim.getSpecies(col.species);
         const p = colonyWoodParams(sim, col);
-        if (def && p && col.wood && col.wood.sites.some((s) => s.role === 'satellite')) assignShuttles(sim, def, col, p);
+        if (!def || !p || !col.wood || !col.wood.sites.some((s) => s.role === 'satellite')) continue;
+        assignReturns(sim, def, col, p); // young brood back to the parent first (priority, §6.2.6)
+        assignShuttles(sim, def, col, p);
       }
+    },
+  },
+  {
+    // frass dropped at an opening rolls off the wood and falls to the foot of it (GDD 07 §6.2.3)
+    name: 'wood-frass-fall', phase: 'nest', every: FRASS_FALL_TICKS, offset: 4,
+    run(sim) {
+      if (woodColonies(sim).length > 0) frassFallPass(sim);
     },
   },
   {

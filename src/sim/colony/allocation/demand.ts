@@ -12,6 +12,9 @@ import {
   SMALL_OUTSIDE_MIN, SMALL_SCOUTS_MIN, SOURCE_SLOT_FORAGERS, SPOILED_ITEMS_PER_STORE,
   STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD,
 } from '@/sim/balance';
+import { PATCH_FORAGERS_MAX } from '@/sim/balance/foraging';
+import { CREATURE_STATS, PATCH_IMMIGRATION_PER_GD, PATCH_R_PER_GD } from '@/sim/balance/creatures';
+import { colonySlotBit } from '@/sim/entities';
 import { accGet, coreOf } from '../core';
 import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
@@ -66,7 +69,28 @@ export function knownCapacity(sim: Sim, col: Colony): KnownCapacity {
     out.loads += c;
     out.loadsC += c;
   }
+  addKnownPatches(sim, col, out);
   return out;
+}
+
+/**
+ * Prey patches the colony knows (R18 hunting, ants/behaviours/outdoor/hunt.ts) as protein capacity: the catches a
+ * patch offers within a day (its prey now plus its logistic regrowth and immigration, GDD 05 §2.3), at one catch a
+ * trip and FORAGER_TRIPS_PER_GD trips a forager, at most PATCH_FORAGERS_MAX foragers; one springtail's protein a catch.
+ */
+function addKnownPatches(sim: Sim, col: Colony, out: KnownCapacity): void {
+  const bit = colonySlotBit(sim, col.id);
+  if (bit === 0) return;
+  const pCatch = CREATURE_STATS.springtail.deadP;
+  for (const p of sim.state.ecology.preyPatches) {
+    if (((p.knownBy ?? 0) & bit) === 0 || p.k <= 0 || p.count < 1) continue;
+    const catches = p.count + PATCH_R_PER_GD * p.count * (1 - p.count / p.k) + PATCH_IMMIGRATION_PER_GD * p.k;
+    const ants = Math.min(PATCH_FORAGERS_MAX, catches / FORAGER_TRIPS_PER_GD);
+    const loads = ants * FORAGER_TRIPS_PER_GD * pCatch;
+    out.ants += ants;
+    out.loads += loads;
+    out.loadsP += loads;
+  }
 }
 
 /**

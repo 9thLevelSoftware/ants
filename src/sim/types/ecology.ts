@@ -16,6 +16,11 @@ export interface PreyPatch {
   /** Abstract prey count and carrying capacity. */
   count: number;
   k: number;
+  /**
+   * Bitmask of colony slots that know the patch (an ant of theirs met its prey; colony-life round 2, R18 hunting).
+   * Optional and additive: absent = known by none.
+   */
+  knownBy?: number;
 }
 
 export interface Hazard {

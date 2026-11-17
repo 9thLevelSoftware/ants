@@ -36,6 +36,8 @@ export interface NestSite {
   hazardEma?: number;
   /** Additive (species-carpenter): late brood waiting in the parent for transport since this tick, -1 none. */
   waitingSinceTick?: number;
+  /** Additive (species-carpenter fix): isolated for satelliteOrphanGd, flagged "orphan satellite" (GDD 07 §6.2.5). */
+  orphan?: boolean;
 }
 
 /** wood-nesting (Camponotus): sites and satellites. */
@@ -50,6 +52,9 @@ export interface WoodModule {
   frassUnitsOutdoor?: number;
   /** Additive (species-carpenter): brood shuttled parent -> satellite so far (diagnostics, tests). */
   shuttled?: number;
+  /** Additive (species-carpenter fix): worker castes already announced by `caste-unlocked` (persisted, so a load or a
+   *  second game never repeats or loses the announcement). */
+  castesAnnounced?: string[];
 }
 
 /** One seed cohort in a granary (Messor). */

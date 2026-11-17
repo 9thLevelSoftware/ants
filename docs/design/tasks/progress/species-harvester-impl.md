@@ -47,6 +47,18 @@ Started 01:56 UTC Nov 17. Two earlier engineers cut off (01:24, 01:53); no progr
   them in a row (not yet re-run), 04 possessed minor (ok).
 - 04:00 viability runs started (background): playground-park 1, car-park-verge 1 -> test-output/harvester/viab/*.log
 
+- 04:20 viability (seed 1): playground-park VIABLE yes (2 first workers, 2 at winter, 0 trips: queen reserve carries
+  it); car-park-verge NOT viable (1 worker, stage brood-sacrifice 3.1 gd, 0 deliveries). Root: founding gives 1-2
+  workers; such a colony never forages (allocator puts them on nurse/queen-care). Not chasing further (time).
+- 04:35 e2e run 6 PASSED; shots LOOKED AT: 03-castes-side-by-side shows minor/media/major in a row (dark but
+  distinguishable), 04 possessed minor with a larger caste at the left edge. 01 unchanged (weak, dark).
+- 04:36 soak started: tools/sim/soak.ts --days 28 --species messor-barbarus --seed 1 --every 500
+  -> test-output/harvester/soak/soak28.json/.log. Then report.
+
+- 04:15 soak 28 d (seed 1, default archetype, no player): 17 violations, all walker-stuck-explosion (base issue,
+  also in Lasius life runs); granary-finite and all other invariants hold. Report written; probe files deleted.
+  STATUS: done for this session; remaining defects listed in the report (founding yield, tiny colonies do not forage).
+
 ## Evidence
 - test-output/harvester/econ/ (old code, --workers 12): 46 deliveries, mostly honeydew, seed 1-2/day, no granary.
 - test-output/harvester/life2/pp1.log : life run with the fixes (started 02:15).

@@ -71,7 +71,7 @@ describe('frass piles and diagnostics (GDD 07 §6.2.3, App. E 12)', () => {
     const sim = foundingSim();
     const p = woodParamsOf(sim.species)!;
     const vol = 10 * V_BITE_NOMINAL * BULKING;
-    expect(pileUnits(vol, p)).toBeCloseTo(1, 9);
+    expect(pileUnits({ absorbed: 10 }, p)).toBeCloseTo(1, 9);
     const col = sim.state.colonies[0];
     const nestId = col.nestIds[0];
     const m = { id: 9999, nestId, entranceId: -1, centerX: 30 * 9, centerZ: 30 * 9, cell: 4.5, n: 4, base: new Float32Array(16), h: new Float32Array(16), material: 'frass', volume: vol, absorbed: 10, lastBatchTick: 0 } as Mound;

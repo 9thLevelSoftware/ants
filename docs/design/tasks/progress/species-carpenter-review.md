@@ -27,3 +27,6 @@ Started fresh (no earlier review file).
 - (04:05) r4 run.json: frass pile volume 0.65 BU3 = 0.06 pile units (< 1 item); e2e "units>=1" counts 35 loose
   items lying outside (loosePos y 63 mm, on the log?) -> frass does not settle into a pile; e2e check weak.
   r4 shot 02: castes not readable (major is a dithered near-camera ghost); 04: dark diamond blob = soil fallback.
+- (04:25) e2e review1 DONE exit 0, ok:true, identical to r4 (deterministic); shots looked at: 01 opening not visible, 02 castes not readable, 03 slab+dashed outlines, 04 dark blob pile
+- (04:30) verify file final: 8 tests, 2 pass, 6 RED (added frass pile units: 10 minor items = 0.61 unit). Typecheck
+  clean in wood paths (unrelated: src/render/ants/swarm.test.ts TS2345, not ours). REPORT DELIVERED next.

@@ -24,6 +24,9 @@ import { systems } from './index';
 import { pileUnits } from './frass';
 import { BULKING, V_BITE_NOMINAL } from '@/sim/balance/nest';
 import { DIG_HEAD_SCALE } from '@/sim/balance/nestTemplates';
+import { MOUND_BATCH_TICKS, PELLET_SETTLE_S } from '@/sim/balance/nest';
+import { spawnPellet } from '@/sim/nest/pellets';
+import { TICKS_PER_SECOND } from '@/sim/time';
 import { BU, CP, LOG_ID, woodSim } from './testkit';
 
 installWoodHooks();
@@ -179,7 +182,7 @@ describe('review: module-level caches do not leak between sims', () => {
     for (let i = 0; i < 50; i++) spawnBrood(sim, { colony: col.id, stage: 'larva', destined: 'worker', pos: { x: 50, y: 0, z: 50 } });
     const got: string[] = [];
     sim.events.on('caste-unlocked', (e) => got.push(e.caste));
-    systems.find((s) => s.name === 'wood-castes')!.run(sim, 0.1);
+    systems.find((s) => s.name === 'wood-castes')!.run(sim);
     sim.events.flush();
     return got;
   }
@@ -194,12 +197,26 @@ describe('review: module-level caches do not leak between sims', () => {
 
 describe('review: frass pile units count items, not nominal bite volumes (GDD 07 §6.2.3, App. E 12)', () => {
   // a bite removes V_BITE_NOMINAL x headScale^3 (src/sim/nest/bite.ts); the pile receives volume x BULKING per item.
-  // A minor's frass item is 0.85^3 = 0.61 of a nominal one, so 10 minor items make only 0.61 pile units
-  // (the e2e run r4 pile of 0.65 BU^3 is exactly one minor item).
-  it('10 frass items chewed by minors make 1 pile unit (FAILS: 0.61)', () => {
-    const p = woodParamsOf(woodSim().species)!;
+  // A minor's frass item is 0.85^3 = 0.61 of a nominal one, so counting volume made 10 minor items only 0.61 units
+  // (the e2e run r4 pile of 0.65 BU^3 was exactly one minor item).
+  // Fix round: the original form of this test passed a volume to pileUnits; a volume cannot tell 10 minor items from
+  // 6 nominal ones, so pileUnits now counts the items a pile absorbed and the test goes through the real settle path.
+  it('10 frass items chewed by minors settle into a pile of 1 pile unit', () => {
+    const sim = woodSim({ systems: [nestSystem] });
+    const p = woodParamsOf(sim.species)!;
+    const col = sim.state.colonies[0];
     const hs = DIG_HEAD_SCALE.minor ?? 1;
-    const tenMinorItems = 10 * V_BITE_NOMINAL * hs ** 3 * BULKING;
-    expect(pileUnits(tenMinorItems, p)).toBeCloseTo(1, 2);
+    const old = sim.state.tick - PELLET_SETTLE_S * TICKS_PER_SECOND - 1;
+    for (let i = 0; i < 10; i++) {
+      const x = 30 * BU + i * 0.3 * BU, z = 80 * BU;
+      const it = spawnPellet(sim, { x, y: sim.field.height(x, z), z }, V_BITE_NOMINAL * hs ** 3, 'wood-decayed', col.nestIds[0], col.id, -1);
+      it.droppedTick = old;
+    }
+    for (let t = 0; t <= MOUND_BATCH_TICKS; t++) sim.tick();
+    const piles = sim.state.worldDelta.mounds.filter((m) => m.material === 'frass');
+    expect(piles.length).toBeGreaterThan(0);
+    expect(sim.state.items.filter((it) => it.alive && it.kind === 'frass').length).toBe(0);
+    expect(piles.reduce((u, m) => u + pileUnits(m, p), 0)).toBeCloseTo(1, 9);
+    expect(BULKING).toBeGreaterThan(0); // the pile's size still follows the deposited volume (nest module)
   });
 });

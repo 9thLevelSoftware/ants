@@ -96,3 +96,23 @@ export const WOOD_SHUTTLE_TICKS = 50;
 export const SHUTTLE_ARRIVE_BU = 2;
 /** A shuttle trip is given up after this long, game days (a cut trail, an unreachable satellite). */
 export const SHUTTLE_TIMEOUT_GD = 0.5;
+
+/** Frass fall (GDD 07 §6.2.3 "frass falls under gravity and joins the frass-pile below"): checked every this many ticks. */
+export const FRASS_FALL_TICKS = 10;
+/** A frass item lying outside within this distance of a wood surface rests on the wood and falls, BU. */
+export const FRASS_ON_WOOD_BU = 1;
+/** It rolls off the wood in steps of this length, BU, at most FRASS_ROLL_MAX_BU, until nothing of the wood lies below. */
+export const FRASS_ROLL_STEP_BU = 0.5;
+export const FRASS_ROLL_MAX_BU = 30;
+/** The drop is traced from this far above the item, BU, and at most FRASS_FALL_MAX_BU down. */
+export const FRASS_FALL_LIFT_BU = 0.5;
+export const FRASS_FALL_MAX_BU = 400;
+/** A landing point closer than this to the wood it fell from is still on it (the next roll step decides), BU. */
+export const FRASS_LAND_CLEAR_BU = 0.25;
+
+/** Decay class at which wood crumbles: not nestable, chambers unstable, sites abandoned (GDD 07 §6.2.2 class 4). */
+export const CRUMBLING_DECAY = 4;
+/** Warmth a satellite in interior (heated) wood gains in the candidate score, °C (Ch 06 §2.5 Tint 20-23 vs outdoors) [EST]. */
+export const INTERIOR_WARMTH_C = 4;
+/** A `satellite` marker finds the wood within this distance of its position, BU (GDD 07 App. B "within 4 BU"). */
+export const SATELLITE_MARKER_REACH_BU = 4;

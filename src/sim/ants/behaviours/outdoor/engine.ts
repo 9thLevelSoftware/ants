@@ -25,11 +25,12 @@ import { updateOutbound, updateQueue, updateReturn, updateSearch } from './phase
 import { dropAction, homePlanner, startDeliver, startOutbound, startReturn, startWait } from './transitions';
 import { stopLaying } from './trail';
 import { discoverHerdsNear } from './herdFind';
+import { huntCheck, updateHunt } from './hunt';
 
 /** Phases in which an outside ant is still heading away from home (recall and hunger turn it round). */
 function awayFromHome(p: number): boolean {
   return p === PHASE.outbound || p === PHASE.search || p === PHASE.queue || p === PHASE.collect || p === PHASE.depart
-    || p === PHASE.explore || p === PHASE.investigate || p === PHASE.assess;
+    || p === PHASE.explore || p === PHASE.investigate || p === PHASE.assess || p === PHASE.hunt;
 }
 
 function laden(ant: Ant): boolean {
@@ -121,6 +122,7 @@ function dispatch(sim: Sim, ant: Ant, fl: Flavour): void {
     case PHASE.explore: updateExplore(sim, ant, fl); return;
     case PHASE.investigate: updateInvestigate(sim, ant, fl); return;
     case PHASE.assess: updateCollect(sim, ant, fl); return;
+    case PHASE.hunt: updateHunt(sim, ant, fl); return;
     default: situate(sim, ant, fl);
   }
 }
@@ -147,6 +149,8 @@ export function makeBehaviour(fl: Flavour): Behaviour {
       if (fleeCheck(sim, ant, fl)) return;
       if (recallCheck(sim, ant, fl)) return;
       if (avoidCheck(sim, ant, fl)) return;
+      // patch prey ahead of a forager or scout with free mandibles: hunt it (R18, hunt.ts)
+      if (huntCheck(sim, ant, fl)) return;
       dispatch(sim, ant, fl);
     },
     exit(sim, ant) {

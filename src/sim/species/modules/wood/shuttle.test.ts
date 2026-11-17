@@ -12,6 +12,8 @@ import { PrimFlag } from '@/sim/types';
 import { SATELLITE_CELL } from '@/sim/balance/species-carpenter';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { airTemp } from '@/sim/environment/temperature';
+import { chamberTemp } from '@/sim/environment/chamber';
+import { setClimateOverride } from '@/sim/colony/envAdapter';
 
 const AIR_C = 20;
 import { installWoodHooks } from './hooks';
@@ -63,8 +65,9 @@ function scenario(systems?: System[]): { sim: Sim; parentId: number; satId: numb
   for (let t = 0; t < 120; t++) sim.tick(); // chamber detection (every 5 game s) registers the two cells
   const pc = parent.chambers[0];
   const sc = sim.stores.nests.get(sat.nestId)!.chambers[0];
-  sim.enqueue({ type: 'cheat.setChamberClimate', chamberId: pc.id, tempC: 22, rh: 0.8 });
-  sim.enqueue({ type: 'cheat.setChamberClimate', chamberId: sc.id, tempC: 26, rh: 0.5 });
+  // nursery 22 °C, satellite 26 °C (App. E 13), through the colony's climate seam: the temperature brood development
+  // and the shuttle rule read (cheat.setChamberClimate does not reach either)
+  setClimateOverride(sim, { chamberTemp: (id) => (id === pc.id ? 22 : id === sc.id ? 26 : chamberTemp(sim, id)) });
   const floor = { x: pc.center.x, y: pc.center.y - 1 * BU, z: pc.center.z };
   for (let i = 0; i < 20; i++) {
     const b = spawnBrood(sim, { colony: col.id, stage: 'pupa', destined: 'minor', pos: floor, nestId: parent.id, chamberId: pc.id });
@@ -124,16 +127,16 @@ describe('brood shuttling (GDD 07 §6.2.6)', () => {
       sim.tick();
       if (DEBUG && t % 100 === 0) console.log(t, sim.state.ants.filter((a) => a.alive && a.colony === col.id && a.id === nurses[0]).map((a) => `${a.id}:${a.task}:${a.state}:n${a.nestId}:sh${a.bb[SH.brood] ?? '-'}/${a.bb[SH.phase] ?? '-'}:${a.nav.status}:L${a.bb[SH.leg] ?? "-"}:${(a.pos.x / 9).toFixed(0)},${(a.pos.y / 9).toFixed(1)},${(a.pos.z / 9).toFixed(0)}:${a.medium}`).join(' '));
     }
-    console.log(`E13: shuttled ${col.wood!.shuttled ?? 0}`);
+    console.log(`E13: shuttled ${col.wood!.shuttled ?? 0}`); // eslint-disable-line no-console
     if (DEBUG) for (const b of sim.state.brood.filter((x) => x.alive)) console.log('brood', b.id, b.stage, 'nest', b.nestId, 'ch', b.chamberId, 'carried', b.carriedBy, (b.pos.x / 9).toFixed(0), (b.pos.y / 9).toFixed(1), (b.pos.z / 9).toFixed(0));
     if (DEBUG) console.log('ants', sim.state.ants.filter((a) => a.alive && a.colony === col.id).map((a) => `${a.id}:${a.caste}:${a.task}:n${a.nestId}`).join(' '));
     const brood = sim.state.brood.filter((b) => b.alive);
     const inSat = brood.filter((b) => b.stage !== 'egg' && b.nestId === satId).length;
     // eclosed callows in the satellite count as delivered pupae
     const callows = sim.state.ants.filter((a) => a.alive && a.nestId === satId && a.caste === 'minor' && a.task !== 'nurse').length;
-    // GDD 07 App. E 13 asks for >= 15. Measured on this code: 11 (a 200 BU round trip takes about 1,100 ticks and
-    // some entries into the satellite's side opening stall); the floor below guards the mechanism, the gap to 15 is
-    // reported (species-carpenter report).
+    // GDD 07 App. E 13 asks for >= 15. Measured on this code with the chapter's 22 / 26 °C set-up through the climate
+    // seam (fix round, Nov 17): 10 (a 200 BU round trip takes about 1,100 ticks; detours and stalls entering the
+    // satellite's side opening cost the rest); the floor below guards the mechanism, the gap to 15 is reported.
     expect(inSat + callows).toBeGreaterThanOrEqual(10);
     expect(brood.filter((b) => b.stage === 'egg' && b.nestId !== parentId).length).toBe(0);
   }, 600_000);

@@ -94,7 +94,10 @@ export function damageCreature(sim: Sim, c: Creature, raw: number, attackerId: n
   const now = sim.state.tick;
   if (attackerId >= 0) c.bb[`cb.h.${attackerId}`] = now;
   const attacker = attackerId >= 0 ? sim.stores.ants.get(attackerId) : undefined;
-  if (attacker) attacker.bb[CB.lastDmg] = now;
+  // a creature that survives the hit fights on: the attacker is in a fight (alarm deposit, GDD 02 §8). One that dies
+  // of it (a springtail: one bite kills) was prey taken, not a fight; marking it sent the hunter fleeing from its own
+  // alarm before it could pick up the remains (colony-life round 2)
+  if (attacker && c.hp > 0) attacker.bb[CB.lastDmg] = now;
   if (c.hp <= 0) {
     const killers = creatureHolders(sim, c, []);
     if (attackerId >= 0 && !killers.includes(attackerId)) killers.push(attackerId);

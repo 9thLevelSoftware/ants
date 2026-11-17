@@ -28,7 +28,7 @@ describe('Swarm', () => {
 
   it('the sim reader appends the swarm during the flight and not otherwise', () => {
     const flight = { phase: 'lek', lek, startTick: 0 };
-    const col = { id: 1, species: 'lasius-niger', lifecycle: { flight: null as typeof flight | null } };
+    const col = { id: 1, species: 'lasius-niger' as const, lifecycle: { flight: null as typeof flight | null } };
     const sim = { state: { tick: 20, ants: [], brood: [], items: [], colonies: [col], player: { possessedAntId: -1 } } };
     const r = new SimReader(sim);
     r.beginFrame();

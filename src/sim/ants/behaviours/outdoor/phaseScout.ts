@@ -53,6 +53,8 @@ export function startDepart(sim: Sim, ant: Ant, fl: Flavour, reason?: ReasonCode
   ant.bb[K.queuedLong] = 0;
   ant.bb[K.rationed] = 0;
   ant.bb[K.ration] = ant.nestId >= 0 ? 0 : 2;
+  ant.bb[K.patch] = -1;
+  ant.bb[K.prey] = -1;
   const markers = openForageMarkers(sim, ant);
   const m = markers.length > 0 && rngChance(rng, SCOUT_MARKER_SHARE) ? markers[Math.floor(rngFloat(rng) * markers.length)] : undefined;
   ant.bb[K.marker] = m ? m.id : -1;

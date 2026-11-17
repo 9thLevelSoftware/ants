@@ -117,6 +117,8 @@ export default async ({ page, shot, log }) => {
     if (!shotFlight && (st.mating > 0.3 || i === 60)) {
       await highShot('03-flight', 'flight-hud');
       shotFlight = true;
+      // gate-close-app: the males' swarm at the lek is drawn by the ant renderer (render-only, src/render/ants/swarm.ts)
+      result.flightAnts = await g(() => { const r = window.__game.perf().renderers; return r?.ants ?? r; });
     }
     await step(10);
   }

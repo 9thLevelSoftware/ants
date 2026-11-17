@@ -108,18 +108,20 @@ export function ensureWoodStates(sim: Sim): WoodState[] {
   const list = sim.state.worldDelta.wood;
   const species = sim.species.id as SpeciesId;
   const bu = sim.world.bu;
-  const key = `${sim.world.prims.length}:${sim.state.worldDelta.dynPrims.length}`;
-  if (ensured.get(list) === key) return list;
+  // cheap on every call (per bite, per brood item): two numbers compared, nothing allocated
+  const nPrims = sim.world.prims.length, nDyn = sim.state.worldDelta.dynPrims.length;
+  const seen = ensured.get(list);
+  if (seen && seen.prims === nPrims && seen.dyn === nDyn) return list;
   const have = indexOf(list);
   let added = false;
   for (const p of sim.world.prims) {
     if (!have.has(p.id) && isNestWood(p, species, bu)) { list.push(createWoodState(sim, p)); added = true; }
   }
   if (added) list.sort((a, b) => a.primId - b.primId);
-  ensured.set(list, key);
+  if (seen) { seen.prims = nPrims; seen.dyn = nDyn; } else ensured.set(list, { prims: nPrims, dyn: nDyn });
   return list;
 }
-const ensured = new WeakMap<WoodState[], string>();
+const ensured = new WeakMap<WoodState[], { prims: number; dyn: number }>();
 
 /** The wood record of a primitive, creating it if the primitive is nest wood; undefined otherwise. */
 export function woodOf(sim: Sim, primId: number): WoodState | undefined {

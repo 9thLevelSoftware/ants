@@ -2,12 +2,12 @@
 // eggs and young larvae die at `hazardPerGd` in dry wood and in mouldy wood; late larvae and pupae develop
 // DRY_BONUS faster in dry-warm wood (8-18 %) and suffer the mould term too.
 
-import type { Brood, Colony, Nest, Sim, SpeciesDef } from '@/sim/types';
+import type { Brood, Colony, Sim, SpeciesDef } from '@/sim/types';
 import { rngFloat } from '@/core/rng';
 import { WOOD_BROOD_TICKS } from '@/sim/balance/species-carpenter';
 import { broodDies } from '@/sim/colony/brood';
 import { devRate, stageDu } from '@/sim/colony/life';
-import { chamberTemp } from '@/sim/environment/chamber';
+import { broodTempC } from '@/sim/colony/envAdapter';
 import { TICKS_PER_DAY } from '@/sim/time';
 import type { WoodParams } from './params';
 import { woodClimateAt } from './woodState';
@@ -38,13 +38,6 @@ export function broodMoisture(sim: Sim, b: Brood): number | null {
   return woodClimateAt(sim, b.pos, sim.world.bu)?.mc ?? null;
 }
 
-function chamberOf(sim: Sim, b: Brood): { nest: Nest; temp: number } | null {
-  const nest = sim.stores.nests.get(b.nestId);
-  if (!nest) return null;
-  const c = nest.chambers.find((x) => x.id === b.chamberId);
-  return { nest, temp: c ? chamberTemp(sim, nest, c) : chamberTemp(sim, nest, nest.chambers[0]) };
-}
-
 /** One pass (every WOOD_BROOD_TICKS) over a wood-nesting colony's brood. Returns brood killed. */
 export function broodMoisturePass(sim: Sim, def: SpeciesDef, col: Colony, p: WoodParams): number {
   const dtGd = WOOD_BROOD_TICKS / TICKS_PER_DAY;
@@ -59,9 +52,8 @@ export function broodMoisturePass(sim: Sim, def: SpeciesDef, col: Colony, p: Woo
     if (isLateBrood(p, b) && mc >= p.dryBonusMcMinPct && mc <= p.dryBonusMcMaxPct && b.progress < 1) {
       // fed late larvae and pupae: the extra development the bonus adds on top of the colony's own step
       if (b.stage === 'larva' && b.hunger >= 1) continue;
-      const ch = chamberOf(sim, b);
-      if (!ch) continue;
-      const rate = devRate(def, ch.temp) / Math.max(1e-6, stageDu(def, b.stage, b.destined));
+      // the temperature the colony's own brood step uses (its climate seam), so the bonus scales the same rate
+      const rate = devRate(def, broodTempC(sim, b)) / Math.max(1e-6, stageDu(def, b.stage, b.destined));
       b.progress = Math.min(0.999, b.progress + (p.dryBonus - 1) * rate * dtGd);
     }
   }

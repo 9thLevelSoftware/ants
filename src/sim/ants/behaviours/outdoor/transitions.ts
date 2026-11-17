@@ -52,6 +52,8 @@ function newBout(sim: Sim, ant: Ant): void {
   ant.bb[K.queue0] = -1;
   ant.bb[K.onTrail] = 0;
   ant.bb[K.recall] = 0;
+  ant.bb[K.patch] = -1;
+  ant.bb[K.prey] = -1;
 }
 
 /**
@@ -141,7 +143,9 @@ export function startCollect(sim: Sim, ant: Ant, fl: Flavour, srcId: number): vo
 /** The food kind of the trip's load (for delivery statistics). */
 function noteKind(sim: Sim, ant: Ant): void {
   const s = sim.stores.sources.get(ant.bb[K.src] ?? -1);
-  ant.bb[K.kind] = s ? FOOD_KINDS.indexOf(s.kind) : -1;
+  // hunted remains (hunt.ts) come from no source: the load is prey
+  const hunted = !s && (ant.bb[K.patch] ?? -1) >= 0 && ant.carry.kind === 'item';
+  ant.bb[K.kind] = s ? FOOD_KINDS.indexOf(s.kind) : hunted ? FOOD_KINDS.indexOf('prey') : -1;
 }
 
 /**

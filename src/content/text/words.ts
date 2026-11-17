@@ -170,6 +170,9 @@ export const FACTOR_CAUSE_WORD: Readonly<Record<string, string>> = {
   castes: 'All worker sizes unlocked',
   'age-locked': 'Larger workers come with colony age',
   'interior-windows': 'Frass piling up indoors',
+  'late-brood-share': 'Late brood in satellites',
+  'orphan-satellite': 'Satellite cut off for a week',
+  'wood-crumbling': 'Nest wood crumbling',
 };
 
 /** Remedy ids in plain words (Diagnostic.remedies; each opens the control concerned and changes nothing itself). */
