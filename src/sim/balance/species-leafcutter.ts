@@ -11,6 +11,8 @@ export const GARDEN_STEP_TICKS = 25;
 export const LEAF_SITE_STEP_TICKS = 250;
 /** Ticks between diagnostics publications. */
 export const FUNGUS_DIAG_TICKS = 250;
+/** diag-garden warns for a seeded or establishing garden below this substrate supply (GDD 07 §6.4.11: 0.8). */
+export const GARDEN_DIAG_FSUB_WARN = 0.8;
 /** Ticks between labour-demand augmentations is the colony allocator's own cadence (ALLOC_EVERY). */
 
 // ---- substrate ledger (rolling windows of GDD 07 §6.4.1) ----
@@ -46,6 +48,12 @@ export const LEAF_TRAITS: Readonly<Record<string, readonly [number, number, numb
   'herb-plant': [0.6, 0.14, 0.25],
   default: [0.5, 0.15, 0.2],
 };
+/**
+ * Health recovers (GDD 07 §6.4.2 "no toxin") while the substrate's load-weighted toxin is at most this: every plant
+ * kind above carries some defence, so the literal 0 would forbid recovery on any real leaf. Ordinary herbage and
+ * clover (0.05) pass; defended plants (0.15 and more) do not [EST].
+ */
+export const HEALTH_RECOVER_TOXIN_MAX = 0.1;
 /** Spread of each plant's traits around its kind's values (hashed per object) [EST]. */
 export const LEAF_TRAIT_JITTER = 0.1;
 
@@ -81,7 +89,16 @@ export const RAIN_DROP_INTENSITY = 0.3;
 
 /** A gardener is "in the chamber" for tending within this many chamber radii of its centre. */
 export const GARDEN_ARRIVE_FRAC = 0.6;
+/** Actions a gardener chains in one garden visit before her task cycle ends (re-evaluation). */
+export const GARDEN_CHAIN_MAX = 8;
+/** Garden choice: extra need of an infected garden (weeders wanted), gardener-equivalents. */
+export const GARDEN_INFECTED_NEED = 3;
+/** Garden choice: a gardener's preference for the garden she worked last, and for the one she stands in. */
+export const GARDEN_MINE_BONUS = 1;
+export const GARDEN_HERE_BONUS = 0.5;
 /** Pulp waits at most this long before it dries (GDD 07: lost after 0.5 GD) - read from the species block. */
+/** Duration of a fungus primitive asked of an ant whose colony has no fungus block (it then fails its check), game s. */
+export const FALLBACK_ACTION_S = 6;
 /** LU a processor handles per process-leaf action (40 s per LU at work rate 1). */
 export const PROCESS_BATCH_LU = 0.5;
 /** Pulp a planter plants per tend-fungus "plant pulp" action, LU (5 s per pulp load). */
@@ -92,6 +109,10 @@ export const WEED_CYCLE_S = 6;
 export const WASTE_ITEM_LOADS = 1;
 /** Waste piles up in the garden while below this many loads before anyone is asked to haul (spare a trip) [EST]. */
 export const WASTE_HAUL_MIN_LOADS = 0.25;
+/** A garden-waste hauler has arrived at the dump within this distance, BU. */
+export const DUMP_ARRIVE_BU = 1.5;
+/** Refuse workers are found again by a full scan this often (a derived cache in between), ticks. */
+export const REFUSE_RESCAN_TICKS = 250;
 /** A garden-waste dump inside the nest is at least this far from every fungus chamber, BU (GDD 07 §5.4.6: 25). */
 export const WASTE_DUMP_MIN_BU = 25;
 
@@ -151,3 +172,35 @@ export const FOUND_AUTO_PLANT_GD = 0.5;
 export const LAY_COVER_GD = 2.5;
 /** The queen's upkeep in fungus (GDD 07 §5.4.1: 0.5 FL per GD). */
 export const QUEEN_FL_PER_GD = 0.5;
+
+// ---- moved from the module files (review: every tunable here) ----
+
+/** Days of larval demand the gardens' yield must cover for a major (GDD 07 §2.6 MAJOR_GATE_GD). */
+export const MAJOR_GATE_GD = 2;
+/** casteEmphasis +-1 shifts the major share by this fraction (GDD 07 §2.6: +-50 %). */
+export const CASTE_EMPHASIS_SPAN = 0.5;
+/** Ticks between caste-destiny passes over the brood. */
+export const CASTE_STEP_TICKS = 50;
+/** Food of a worker larva whose caste is not decided yet (egg stage), loads: the minim-to-media middle [EST]. */
+export const UNDECIDED_LARVA_FOOD: Readonly<{ c: number; p: number }> = { c: 0.1, p: 0.3 };
+/** Garden mass per display lump, GU; most and fewest lumps per garden; lump length, BU; dome height, BU. */
+export const DISPLAY_GU_PER_LUMP = 0.08;
+export const DISPLAY_LUMPS_MAX = 60;
+export const DISPLAY_MIN_LUMPS = 4;
+export const LUMP_BU: readonly [number, number] = [0.8, 1.5];
+export const DOME_BU = 1.6;
+/** Ticks between display-lump rebuilds; floor sampling step of the dome, BU. */
+export const DISPLAY_STEP_TICKS = 100;
+export const FLOOR_STEP_BU = 0.25;
+/** Leaf-site choice: a cutter's per-site preference jitter (x 1..1+J) and how long it holds, ticks. */
+export const CUT_SITE_JITTER = 0.6;
+export const CUT_SITE_JITTER_TICKS = 2500;
+/** Ticks between checks for parasitised foragers due to die. */
+export const PHORID_DEATH_STEP_TICKS = 50;
+/** diag-garden: bad at this infection (GDD 07 §6.4.11 i >= 0.4) and for this long after a garden died, GD. */
+export const GARDEN_DIAG_BAD_INFECTION = 0.4;
+export const GARDEN_DIAG_DIED_GD = 2;
+/** Health recovers only while contamination is below this (GDD 07 §6.4.2: c < 0.2). */
+export const HEALTH_RECOVER_MAX_C = 0.2;
+/** Death cause of a garden whose chamber was lost (caved in, unregistered): the epitaph's word. */
+export const CHAMBER_LOST_CAUSE = 'collapse';

@@ -16,7 +16,8 @@
 //   leaves.ts         leaf sites (plants and herbage around the nest), regrowth
 //   actions.ts        cut-leaf, process-leaf, tend-fungus, plant (founding)
 //   behaviourCut.ts   task `cut`: cut and carry fragments to a garden's cache
-//   behaviourGarden.ts task `garden`: weed, process, plant, harvest, waste (refuse workers), fungus pieces, tend
+//   behaviourGarden.ts task `garden`: weed, process, plant, harvest, fungus pieces, tend
+//   behaviourHaul.ts  task `haul` / garden-waste (then the shared haul); refuse.ts refuse workers; wasteDump.ts
 //   phorids.ts        hitchhikers and phorid strikes on laden carriers; parasitised deaths
 //   allocation.ts     garden and cut labour demand
 //   castes.ts         caste destiny (minim / small media / media / major, the major gate on garden yield)
@@ -31,6 +32,7 @@ import type { Behaviour, CommandHandlerMap, SimInvariant, System } from '@/sim/t
 import { attaFoundingSystem } from '@/sim/colony/founding/species/atta';
 import { registerFungusActions } from './actions';
 import { registerFeedRule } from './feedRule';
+import { registerDisplayGuard } from './displayGuard';
 import { gardenEconomySystem, atColonies } from './economy';
 import { leafSiteSystem } from './leaves';
 import { fungusAllocationSystem } from './allocation';
@@ -40,6 +42,8 @@ import { phoridDeathSystem } from './phorids';
 import { holdGardenLessLaying, holdLayingToFungus } from './gardenLess';
 import { cutBehaviour } from './behaviourCut';
 import { gardenBehaviour } from './behaviourGarden';
+import { attaHaulBehaviour } from './behaviourHaul';
+import { refuseGuardAfterAllocation, refuseGuardAfterBehaviours } from './refuse';
 import { fungusCheats } from './cheats';
 import { gardenDisplaySystem } from './display';
 import { chamberRhRule } from '@/sim/colony/envAdapter';
@@ -47,7 +51,14 @@ import { gardenChamberRh } from './chamberClimate';
 
 registerFungusActions();
 registerFeedRule();
-chamberRhRule.fn = gardenChamberRh;
+registerDisplayGuard();
+// chained, not replaced: another species module may own the rule for its own chambers (the slot is single)
+const previousRhRule = chamberRhRule.fn;
+if (previousRhRule !== gardenChamberRh) {
+  chamberRhRule.fn = previousRhRule
+    ? (sim, chamberId) => gardenChamberRh(sim, chamberId) ?? previousRhRule(sim, chamberId)
+    : gardenChamberRh;
+}
 
 /** Every tick: a garden-less colony's queen lays nothing (her slow tick may add to her laying budget). */
 const gardenLessLayingSystem: System = {
@@ -59,12 +70,13 @@ const gardenLessLayingSystem: System = {
 
 /** Systems of this module (each with a `phase`). */
 export const systems: readonly System[] = [
-  attaFoundingSystem, leafSiteSystem, fungusAllocationSystem, attaCasteSystem, gardenLessLayingSystem,
-  gardenEconomySystem, gardenDisplaySystem, phoridDeathSystem, fungusDiagnosticsSystem,
+  attaFoundingSystem, leafSiteSystem, fungusAllocationSystem, refuseGuardAfterAllocation, attaCasteSystem,
+  gardenLessLayingSystem, gardenEconomySystem, refuseGuardAfterBehaviours, gardenDisplaySystem, phoridDeathSystem,
+  fungusDiagnosticsSystem,
 ];
 
 /** Species-specific behaviours (set `species` on each). */
-export const behaviours: readonly Behaviour[] = [cutBehaviour, gardenBehaviour];
+export const behaviours: readonly Behaviour[] = [cutBehaviour, gardenBehaviour, attaHaulBehaviour];
 
 /** Command handlers this module owns. */
 export const commandHandlers: Partial<CommandHandlerMap> = { ...fungusCheats };

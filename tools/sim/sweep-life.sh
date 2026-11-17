@@ -2,11 +2,13 @@
 # Independent 15-run sweep (colony-life bars): life.ts --until winter, seeds 1-3 x the five Tier 1 archetypes,
 # Naturalist, default start, flooding on, no player; two runs at a time (xargs -P 2).
 #   tools/sim/sweep-life.sh OUTDIR [CACHEDIR]
+# Runs the code of the tree this script lives in, so a frozen scratch copy of the tree runs its own code (give
+# OUTDIR and CACHEDIR as absolute paths then).
 # Restart-safe: a run whose JSON already exists in OUTDIR is skipped (delete it to re-run).
 # summary.txt gets one line per run: archetype, seed, exit code, start/end UTC, a hash of src/sim + src/worldgen +
 # src/core at the run's start (other engineers edit src/sim during a sweep; runs with different hashes ran on
 # different trees), and the viable verdict.
-cd /home/user/foundress || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 out=$1
 cache=${2:-test-output/viab/cache}
 mkdir -p "$out"

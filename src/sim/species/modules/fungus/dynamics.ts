@@ -5,6 +5,7 @@
 import type { GardenRecord } from '@/sim/types';
 import type { FungusParams } from './params';
 import { climateDamagePerGd, fHumidity, fTemp } from './climate';
+import { HEALTH_RECOVER_MAX_C, HEALTH_RECOVER_TOXIN_MAX } from '@/sim/balance/species-leafcutter';
 
 export interface GardenInputs {
   tempC: number;
@@ -105,7 +106,8 @@ export function stepGarden(P: FungusParams, g: GardenRecord, inp: GardenInputs, 
   const infection = P.escHealthRate * i;
   let dh = -(dmg.heat + dmg.cold + dmg.dry + poison + infection);
   const contamination = g.contamination ?? 0;
-  if (i <= 0 && contamination < 0.2 && fclim >= P.healthRecoverFclim && subT <= 1e-6) dh += P.healthRecover;
+  // "no toxin" is read as no harmful dose: every plant carries some defence, ordinary herbage only a trace
+  if (i <= 0 && contamination < HEALTH_RECOVER_MAX_C && fclim >= P.healthRecoverFclim && subT <= HEALTH_RECOVER_TOXIN_MAX) dh += P.healthRecover;
 
   // contamination from retained waste
   let dc = 0;

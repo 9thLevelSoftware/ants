@@ -3,25 +3,25 @@
 //   weed     an infected garden (any gardener)
 //   process  fragments waiting in the cache (media and small media: process-leaf)
 //   plant    chewed pulp waiting (tend-fungus "plant pulp")
-//   waste    spent substrate to remove (small media and media; they become refuse workers for life: REFUSE flag,
-//            remaining lifespan x refuseLifespanMult; a refuse worker only ever hauls waste afterwards)
 //   harvest  standing staphylae (collected into the colony's stock: the larvae's and the queen's food)
 //   piece    a fungus piece carried to an empty fungus chamber (re-seeding; never out of a quarantined garden)
 //   tend     otherwise (presence: ftend)
-// States: garden.find (choose room and job), garden.go, garden.work (the primitive), garden.carry (waste or a
-// fungus piece to its destination), garden.dump.
+// Garden waste is not a gardener's job: it is task `haul` (behaviourHaul.ts, GDD 07 §6.4.6 stage 8), and the ants
+// that do it become refuse workers who never garden again (refuse.ts).
+// States: garden.find (choose room and job), garden.go, garden.work (the primitive), garden.carry (a fungus piece
+// to its destination).
 
-import type { Vec3 } from '@/core/math/vec3';
-import type { Ant, Behaviour, Chamber, Colony, GardenRecord, Nest, Sim } from '@/sim/types';
+import type { Ant, Behaviour, Chamber, Colony, GardenRecord, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { endCycle, releaseAll, think } from '@/sim/ants/behaviours/nest/common';
 import { setState } from '@/sim/ants/behaviours/nest/fsm';
-import { chamberIn, homeNest, middenPoint } from '@/sim/ants/behaviours/nest/places';
+import { chamberIn, homeNest } from '@/sim/ants/behaviours/nest/places';
+import { perTick } from '@/sim/ants/behaviours/nest/perTick';
 import { actEnded, busy, entity, travel, tryAct } from '@/sim/ants/behaviours/nest/travel';
-import { WASTE_HAUL_MIN_LOADS } from '@/sim/balance/species-leafcutter';
+import { GARDEN_ARRIVE_FRAC, GARDEN_CHAIN_MAX, GARDEN_INFECTED_NEED, GARDEN_MINE_BONUS, GARDEN_HERE_BONUS } from '@/sim/balance/species-leafcutter';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { fungusParams, type FungusParams } from './params';
-import { emptyFungusChambers, gardenOf, gcapOf, liveGardens, seedGarden } from './state';
+import { emptyFungusChambers, gardenOf, gcapOf, liveGardens, reusableForGarden, seedGarden } from './state';
 import { colonyChambers } from '@/sim/colony/census';
 import { gardenRh, gardenTempC } from './chamberClimate';
 import { fHumidity, fTemp } from './climate';
@@ -36,8 +36,6 @@ import { minimCutTrips } from './allocation';
 const ENTRY = 'garden.find';
 /** bb key: actions chained in this garden visit; at most GARDEN_CHAIN_MAX before the task cycle ends. */
 const CHAIN = 'at.chain';
-const GARDEN_CHAIN_MAX = 8;
-const DUMP_X = 'at.dx', DUMP_Y = 'at.dy', DUMP_Z = 'at.dz';
 /** Fungus piece carried (GU) and its source health / infection. */
 const PIECE = { g: 'at.pg', h: 'at.ph2', i: 'at.pi', to: 'at.pto' } as const;
 
@@ -49,15 +47,17 @@ function paramsOf(sim: Sim, col: Colony): FungusParams | null {
   return fungusParams(sim.getSpecies(col.species));
 }
 
-/** Gardeners (tend, weed, plant) already working each garden chamber. */
+/** Gardeners (tend, weed, plant) already working each garden chamber (computed once per tick). */
 function staffOf(sim: Sim, col: Colony): Map<number, number> {
-  const m = new Map<number, number>();
-  for (const a of sim.stores.ants.list) {
-    if (!a.alive || a.colony !== col.id || a.task !== 'garden') continue;
-    const room = a.bb[AK.room];
-    if (room !== undefined && room >= 0) m.set(room, (m.get(room) ?? 0) + 1);
-  }
-  return m;
+  return perTick(sim, `at.staff:${col.id}`, () => {
+    const m = new Map<number, number>();
+    for (const a of sim.stores.ants.list) {
+      if (!a.alive || a.colony !== col.id || a.task !== 'garden') continue;
+      const room = a.bb[AK.room];
+      if (room !== undefined && room >= 0) m.set(room, (m.get(room) ?? 0) + 1);
+    }
+    return m;
+  });
 }
 
 /** The garden this gardener should work: the one furthest below its tending need (her current one on a tie). */
@@ -65,10 +65,10 @@ function chooseGarden(sim: Sim, ant: Ant, col: Colony, P: FungusParams): GardenR
   const staff = staffOf(sim, col);
   let best: GardenRecord | undefined, bestScore = -Infinity;
   for (const g of col.fungus!.gardens) {
-    if (g.state === 'dead' && g.waste <= 1e-6) continue;
-    const need = P.gardenersPerGu * Math.max(0.5, g.biomass) + lotsLu(g.cache) + lotsLu(g.pulp) + g.waste + (g.infection > 0 ? 3 : 0);
-    const mine = (ant.bb[AK.room] ?? -1) === g.chamberId ? 1 : 0;
-    const score = need - (staff.get(g.chamberId) ?? 0) + mine + (ant.chamberId === g.chamberId ? 0.5 : 0);
+    if (g.state === 'dead') continue;
+    const need = P.gardenersPerGu * Math.max(0.5, g.biomass) + lotsLu(g.cache) + lotsLu(g.pulp) + (g.infection > 0 ? GARDEN_INFECTED_NEED : 0);
+    const mine = (ant.bb[AK.room] ?? -1) === g.chamberId ? GARDEN_MINE_BONUS : 0;
+    const score = need - (staff.get(g.chamberId) ?? 0) + mine + (ant.chamberId === g.chamberId ? GARDEN_HERE_BONUS : 0);
     if (score > bestScore) { bestScore = score; best = g; }
   }
   return best;
@@ -76,19 +76,17 @@ function chooseGarden(sim: Sim, ant: Ant, col: Colony, P: FungusParams): GardenR
 
 /** The job this ant takes at this garden now. */
 export function chooseJob(sim: Sim, ant: Ant, col: Colony, g: GardenRecord, P: FungusParams): number {
-  const refuse = (ant.flags & AntFlag.REFUSE) !== 0;
-  // small media and media; while no media works the gardens the minims do their work too (first-brood deviation)
+  // a refuse worker never gardens (GDD 07 §6.4.4; refuse.ts moves her to haul)
+  if ((ant.flags & AntFlag.REFUSE) !== 0 || g.state === 'dead') return GJ.none;
+  // small media and media process; while no media works the gardens the minims process too (first-brood deviation;
+  // never the waste: GDD 07 §6.4.6 stage 8 gives it to the media, who become refuse workers)
   const big = ant.caste === 'media' || (ant.caste === 'minor' && noProcessors(sim, col));
-  const wasteDue = g.waste > WASTE_HAUL_MIN_LOADS * Math.max(1, g.biomass) || (g.state === 'dead' && g.waste > 1e-6);
-  if (refuse) return wasteDue || g.waste > 1e-6 ? GJ.waste : GJ.none;
-  if (g.state === 'dead') return big && g.waste > 1e-6 ? GJ.waste : GJ.none;
   if (g.infection > 0) return GJ.weed;
   // the minims' first work is the brood's food (GDD 07 §6.4.6 stage 7); the larger gardeners' is the leaf
   const harvest = (g.yieldStanding ?? 0) >= P.staphylaeFl * 0.5;
   if (ant.caste === 'minor' && harvest) return GJ.harvest;
   if (big && lotsLu(g.cache) > 1e-6) return GJ.process;
   if (lotsLu(g.pulp) > 1e-6) return GJ.plant;
-  if (big && wasteDue) return GJ.waste;
   if (harvest) return GJ.harvest;
   if ((isSmallMedia(ant) || ant.caste === 'minor') && pieceTarget(sim, col, g, P)) return GJ.piece;
   return GJ.tend;
@@ -109,6 +107,7 @@ export function pieceTarget(sim: Sim, col: Colony, g: GardenRecord, P: FungusPar
       if (ch.type !== 'fungus' || ch.id === g.chamberId) continue;
       const other = gardenOf(col.fungus!, ch.id);
       if (other && other.state !== 'dead' && other.biomass + P.fungusPieceGu > gcapOf(P, ch)) continue;
+      if (other && other.state === 'dead' && !reusableForGarden(col.fungus!, ch.id)) continue; // its waste first
       const f = fTemp(P, gardenTempC(sim, ch.id)) * fHumidity(P, gardenRh(sim, ch.id));
       if (f > bestF) { bestF = f; best = ch; }
     }
@@ -123,7 +122,6 @@ function modeFor(job: number): number {
   switch (job) {
     case GJ.weed: return TM.weed;
     case GJ.plant: return TM.plant;
-    case GJ.waste: return TM.waste;
     case GJ.harvest: return TM.harvest;
     default: return TM.tend;
   }
@@ -150,17 +148,9 @@ function go(sim: Sim, ant: Ant): void {
   const ch = nest ? chamberIn(nest, ant.bb[AK.room] ?? -1) : undefined;
   if (!ch) { setState(sim, ant, ENTRY); return; }
   if (ant.chamberId === ch.id) { setState(sim, ant, 'garden.work'); return; }
-  const st = travel(sim, ant, entity('chamber', ch.id, ch.center), 0.6 * Math.min(ch.radii.x, ch.radii.z));
+  const st = travel(sim, ant, entity('chamber', ch.id, ch.center), GARDEN_ARRIVE_FRAC * Math.min(ch.radii.x, ch.radii.z));
   if (st === 'arrived') setState(sim, ant, 'garden.work');
   else if (st === 'failed') endCycle(sim, ant, ENTRY, 'stuck');
-}
-
-function becomeRefuse(sim: Sim, ant: Ant, P: FungusParams): void {
-  if ((ant.flags & AntFlag.REFUSE) !== 0) return;
-  ant.flags |= AntFlag.REFUSE;
-  // remaining lifespan x 0.5 (GDD 07 §6.4.4)
-  const left = Math.max(0, ant.lifespanGd - ant.physioAgeGd);
-  ant.lifespanGd = ant.physioAgeGd + left * P.refuseLifespanMult;
 }
 
 function work(sim: Sim, ant: Ant): void {
@@ -170,11 +160,10 @@ function work(sim: Sim, ant: Ant): void {
   if (!col || !P || !g) { setState(sim, ant, ENTRY); return; }
   const job = ant.bb[AK.job] ?? GJ.tend;
   if (actEnded(ant)) {
-    if (job === GJ.waste && ant.carry.kind === 'item') { becomeRefuse(sim, ant, P); startDump(sim, ant); return; }
     // chained work in the same garden (no walk-out-and-back between two harvests): up to GARDEN_CHAIN_MAX actions
     const n = (ant.bb[CHAIN] ?? 0) + 1;
     const next = chooseJob(sim, ant, col, g, P);
-    if (n < GARDEN_CHAIN_MAX && next !== GJ.none && next !== GJ.waste && next !== GJ.piece) {
+    if (n < GARDEN_CHAIN_MAX && next !== GJ.none && next !== GJ.piece) {
       ant.bb[CHAIN] = n;
       ant.bb[AK.job] = next;
       ant.bb[TEND_MODE] = modeFor(next);
@@ -193,26 +182,12 @@ function work(sim: Sim, ant: Ant): void {
   if (why !== null) setState(sim, ant, ENTRY);
 }
 
-/** Where garden waste goes: the midden chamber, else the surface refuse heap beside the nest. */
-function dumpPoint(sim: Sim, nest: Nest, out: Vec3): Vec3 | null {
-  return middenPoint(sim, nest, out);
-}
-
-function startDump(sim: Sim, ant: Ant): void {
-  const nest = homeNest(sim, ant);
-  const p = nest ? dumpPoint(sim, nest, { x: 0, y: 0, z: 0 }) : null;
-  if (!p) { tryAct(sim, ant, 'put-down', null); endCycle(sim, ant, ENTRY); return; }
-  ant.bb[DUMP_X] = p.x; ant.bb[DUMP_Y] = p.y; ant.bb[DUMP_Z] = p.z;
-  setState(sim, ant, 'garden.carry', 'job:waste');
-}
-
 /** A fungus piece taken from this garden (fungusPieceGu, its health and infection go with it). */
 function takePiece(sim: Sim, ant: Ant, col: Colony, g: GardenRecord, P: FungusParams): void {
   const to = pieceTarget(sim, col, g, P);
   if (!to || ant.carry.kind !== 'none') { setState(sim, ant, ENTRY); return; }
   g.biomass -= P.fungusPieceGu;
   ant.bb[PIECE.g] = P.fungusPieceGu; ant.bb[PIECE.h] = g.health; ant.bb[PIECE.i] = g.infection; ant.bb[PIECE.to] = to.id;
-  ant.bb[DUMP_X] = to.center.x; ant.bb[DUMP_Y] = to.center.y; ant.bb[DUMP_Z] = to.center.z;
   setState(sim, ant, 'garden.carry', 'job:garden');
 }
 
@@ -221,7 +196,6 @@ function carry(sim: Sim, ant: Ant): void {
   const P = col ? paramsOf(sim, col) : null;
   if (!col?.fungus || !P) { setState(sim, ant, ENTRY); return; }
   const piece = (ant.bb[PIECE.g] ?? 0) > 0;
-  const dest = { x: ant.bb[DUMP_X] ?? ant.pos.x, y: ant.bb[DUMP_Y] ?? ant.pos.y, z: ant.bb[DUMP_Z] ?? ant.pos.z };
   if (piece) {
     const to = ant.bb[PIECE.to] ?? -1;
     if (ant.chamberId === to) {
@@ -234,18 +208,10 @@ function carry(sim: Sim, ant: Ant): void {
     const nest = homeNest(sim, ant);
     const ch = nest ? chamberIn(nest, to) : undefined;
     if (!ch) { returnPiece(sim, ant, col); endCycle(sim, ant, ENTRY); return; }
-    if (travel(sim, ant, entity('chamber', ch.id, ch.center), 0.6 * Math.min(ch.radii.x, ch.radii.z)) === 'failed') { returnPiece(sim, ant, col); endCycle(sim, ant, ENTRY, 'stuck'); }
+    if (travel(sim, ant, entity('chamber', ch.id, ch.center), GARDEN_ARRIVE_FRAC * Math.min(ch.radii.x, ch.radii.z)) === 'failed') { returnPiece(sim, ant, col); endCycle(sim, ant, ENTRY, 'stuck'); }
     return;
   }
-  if (ant.carry.kind !== 'item') { endCycle(sim, ant, ENTRY); return; }
-  const st = travel(sim, ant, entity('point', -1, dest), 1.5 * sim.world.bu);
-  if (st === 'arrived' || st === 'failed') {
-    const it = sim.stores.items.get(ant.carry.id);
-    if (it) { it.droppedTick = sim.state.tick; }
-    tryAct(sim, ant, 'put-down', null);
-    sim.emit({ type: 'waste-dumped', antId: ant.id, itemId: ant.carry.id, to: 'midden' });
-    endCycle(sim, ant, ENTRY);
-  }
+  setState(sim, ant, ENTRY);
 }
 
 /** A piece that could not be delivered goes back to its garden (no mass is lost). */

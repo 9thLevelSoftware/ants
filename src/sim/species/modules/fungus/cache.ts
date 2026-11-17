@@ -4,6 +4,8 @@
 
 import type { Colony, GardenRecord, LeafLot, Sim } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
+import { removeItem } from '@/sim/entities';
+import { LEAF_TRAITS } from '@/sim/balance/species-leafcutter';
 import type { FungusParams } from './params';
 
 /** Quality of a cached lot now (halved once it is older than the spoil age). */
@@ -54,4 +56,22 @@ export function ageCache(sim: Sim, _col: Colony, g: GardenRecord, P: FungusParam
   }
   const pulp = g.pulp ?? [];
   while (pulp.length > 0 && tick - pulp[0].tick >= P.pulpDryGd * TICKS_PER_DAY) pulp.shift();
+}
+
+/**
+ * Leaf fragments lying in a garden's chamber (a possessed cutter put hers down there; the AI delivers straight into
+ * the cache) join the cache. The fragment item keeps no plant traits, so the lot takes the garden's recent substrate
+ * traits (or the default plant's): an abstraction for the player's own deliveries. Returns LU absorbed.
+ */
+export function absorbLyingFragments(sim: Sim, col: Colony, g: GardenRecord): number {
+  let lu = 0;
+  const d = LEAF_TRAITS.default;
+  for (const it of sim.stores.items.list) {
+    if (!it.alive || it.kind !== 'leaf-fragment' || it.carrierIds.length > 0 || !it.inNest || it.chamberId !== g.chamberId) continue;
+    if (it.colony !== col.id) continue;
+    addToCache(g, { lu: it.bulk, q: g.subQ ?? d[0], p: g.subP ?? d[1], t: g.subT ?? d[2], plantId: -1, tick: sim.state.tick });
+    lu += it.bulk;
+    removeItem(sim, it.id, 'delivered');
+  }
+  return lu;
 }

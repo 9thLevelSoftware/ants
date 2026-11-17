@@ -226,8 +226,13 @@ describe('review: colony scenarios (small test nest)', () => {
     run(k.sim, Math.round(0.25 * TICKS_PER_DAY), () => { k.nest.entrance.status = 'sealed'; });
     const lying = k.sim.stores.items.list.filter((it) => it.alive && it.kind === 'garden-waste' && !isDisplayLump(it, col.id)
       && it.carrierIds.length === 0 && it.chamberId === k.room.id);
-    const removed = 3 - k.garden.waste;
-    expect(removed).toBeGreaterThan(0); // the haulers did take waste out of W
+    // Fixer's note: the original precondition here was `removed > 0` (the haulers took waste out of W). The fix
+    // is that, with nowhere to dump it, nobody takes the waste out at all (as the shared haul does for nest waste):
+    // it stays in W, where contamination counts it. So the check is now that no waste is lost from W into a
+    // garden-waste item left lying in the chamber, whether or not any was taken.
+    const carried = k.sim.stores.items.list.filter((it) => it.alive && it.kind === 'garden-waste' && it.carrierIds.length > 0)
+      .reduce((a, it) => a + it.volume, 0);
+    expect(k.garden.waste + carried).toBeGreaterThan(3 - 1e-6);
     expect(lying.length).toBe(0);
   }, 120_000);
 

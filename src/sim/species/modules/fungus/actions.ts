@@ -14,8 +14,13 @@ import { ACTION_DEFS } from '@/sim/ants/actions/defs';
 import type { ActionDef } from '@/sim/ants/actions/types';
 import { takeItem } from '@/sim/ants/actions/carry';
 import { workRate } from '@/sim/ants/actions/workRate';
+import { ACTION_MIN_TICKS, WORK_RATE_MIN } from '@/sim/balance/actions';
+import { TICKS_PER_SECOND } from '@/sim/time';
 import { spawnItem } from '@/sim/entities';
-import { FRAGMENT_LENGTH_BU, MINIM_PROCESS_MULT, PLANT_BATCH_LU, PROCESS_BATCH_LU, WASTE_ITEM_LOADS, CUT_AI_S } from '@/sim/balance/species-leafcutter';
+import { perTick } from '@/sim/ants/behaviours/nest/perTick';
+import {
+  FRAGMENT_LENGTH_BU, MINIM_PROCESS_MULT, PLANT_BATCH_LU, PROCESS_BATCH_LU, WASTE_ITEM_LOADS, CUT_AI_S, FALLBACK_ACTION_S,
+} from '@/sim/balance/species-leafcutter';
 import { plantPellet, plantRefusal } from '@/sim/colony/founding/species/atta';
 import { fungusParams, type FungusParams } from './params';
 import { gardenOf } from './state';
@@ -24,6 +29,7 @@ import { plantSubstrate } from './substrate';
 import { leafSiteNear } from './leaves';
 import { chainAdd } from './chain';
 import { AK, cutsLeaves } from './work';
+import { becomeRefuse, mayHaulGardenWaste } from './refuse';
 
 /** tend-fungus modes (ant.bb at.tm). */
 export const TM = { auto: 0, tend: 1, weed: 2, plant: 3, harvest: 4, waste: 5 } as const;
@@ -62,8 +68,10 @@ export function cutTempMult(P: FungusParams, tempC: number): number {
 
 /** The colony has no worker of a cutting caste (the first-brood deviation lets minims cut then). */
 export function noCutters(sim: Sim, col: Colony): boolean {
-  for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && cutsLeaves(a)) return false;
-  return true;
+  return perTick(sim, `at.noCut:${col.id}`, () => {
+    for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && cutsLeaves(a)) return false;
+    return true;
+  });
 }
 
 /**
@@ -71,8 +79,10 @@ export function noCutters(sim: Sim, col: Colony): boolean {
  * cache and haul waste then, else the fragments the cutters bring spoil in the cache.
  */
 export function noProcessors(sim: Sim, col: Colony): boolean {
-  for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && a.caste === 'media' && a.task === 'garden') return false;
-  return true;
+  return perTick(sim, `at.noProc:${col.id}`, () => {
+    for (const a of sim.stores.ants.list) if (a.alive && a.colony === col.id && a.caste === 'media' && a.task === 'garden') return false;
+    return true;
+  });
 }
 
 /** Leaf a cut of `seconds` gives this ant (GDD 07: time/15 x carryCap, media 1 LU at 15 s). */
@@ -148,7 +158,7 @@ export const processLeafDef: ActionDef = {
     const P = paramsOf(sim, ant);
     const g = gardenHere(sim, ant);
     const lu = Math.min(PROCESS_BATCH_LU, lotsLu(g?.cache));
-    return (P?.processSPerLu ?? 40) * Math.max(0.05, lu) * (ant.caste === 'minor' ? MINIM_PROCESS_MULT : 1);
+    return (P?.processSPerLu ?? FALLBACK_ACTION_S) * Math.max(0.05, lu) * (ant.caste === 'minor' ? MINIM_PROCESS_MULT : 1);
   },
   effect(sim, ant) {
     const P = paramsOf(sim, ant);
@@ -165,11 +175,31 @@ export const processLeafDef: ActionDef = {
 
 /** The tend-fungus mode for this ant now: the AI's asked mode, else (possessed) harvest when there is yield. */
 function modeOf(sim: Sim, ant: Ant, g: GardenRecord | undefined, secondary: boolean): number {
+  // the secondary variant is always an explicit request (interact hold): it wins over a mode the AI left behind
+  if (secondary) return lotsLu(g?.pulp) > 1e-6 ? TM.plant : TM.waste;
   const m = ant.bb[TEND_MODE] ?? 0;
   if (m > 0) return m;
-  if (secondary) return lotsLu(g?.pulp) > 1e-6 ? TM.plant : TM.waste;
   if (g && g.infection > 0) return TM.weed;
   return (g?.yieldStanding ?? 0) > 1e-6 ? TM.harvest : TM.tend;
+}
+
+/** Taking garden waste out: small media, media or a refuse worker, empty mandibles, waste waiting (GDD 07 §6.4.6). */
+function wasteCheck(ant: Ant, g: GardenRecord): ActionFailReason | null {
+  if (!mayHaulGardenWaste(ant)) return 'caste';
+  if (ant.carry.kind !== 'none') return 'hands-full';
+  return g.waste > 1e-6 ? null : 'no-target';
+}
+
+/** Base seconds of one tend-fungus cycle in the mode this ant would take (plant pulp 5 s per LU, harvest 3 s, else 6 s). */
+function tendSeconds(sim: Sim, ant: Ant, secondary: boolean): number {
+  const P = paramsOf(sim, ant);
+  const g = gardenHere(sim, ant);
+  if (!P) return FALLBACK_ACTION_S;
+  switch (modeOf(sim, ant, g, secondary)) {
+    case TM.plant: return P.plantSPerPulp * Math.max(0.05, Math.min(PLANT_BATCH_LU, lotsLu(g?.pulp)));
+    case TM.harvest: return P.staphylaeS;
+    default: return P.tendCycleS;
+  }
 }
 
 export const tendFungusDef: ActionDef = {
@@ -179,30 +209,30 @@ export const tendFungusDef: ActionDef = {
     const g = gardenHere(sim, ant);
     if (!g || g.state === 'dead') {
       // a dead garden's waste can still be taken out
-      if (g && g.state === 'dead' && g.waste > 1e-6 && modeOf(sim, ant, g, secondary === true) === TM.waste) return ant.carry.kind === 'none' ? null : 'hands-full';
+      if (g && g.state === 'dead' && modeOf(sim, ant, g, secondary === true) === TM.waste) return wasteCheck(ant, g);
       return 'not-allowed-here';
     }
     const m = modeOf(sim, ant, g, secondary === true);
     if (m === TM.plant && lotsLu(g.pulp) <= 1e-6) return 'no-target';
-    if (m === TM.waste) return ant.carry.kind !== 'none' ? 'hands-full' : g.waste > 1e-6 ? null : 'no-target';
+    if (m === TM.waste) return wasteCheck(ant, g);
     return null;
   },
   durationS(sim, ant, _t) {
-    const P = paramsOf(sim, ant);
-    const g = gardenHere(sim, ant);
-    if (!P) return 6;
-    switch (modeOf(sim, ant, g, false)) {
-      case TM.plant: return P.plantSPerPulp * Math.max(0.05, Math.min(PLANT_BATCH_LU, lotsLu(g?.pulp)));
-      case TM.harvest: return P.staphylaeS;
-      default: return P.tendCycleS;
-    }
+    // the runner asks before ant.action exists, so without the variant; onBegin re-times a secondary request
+    return tendSeconds(sim, ant, false);
+  },
+  onBegin(sim, ant) {
+    const a = ant.action;
+    if (!a || !a.secondary) return;
+    const ticks = (tendSeconds(sim, ant, true) * TICKS_PER_SECOND) / Math.max(WORK_RATE_MIN, workRate(sim, ant));
+    a.durationTicks = Math.max(ACTION_MIN_TICKS, Math.ceil(ticks - 1e-9));
   },
   effect(sim, ant) {
     const P = paramsOf(sim, ant);
     const g = gardenHere(sim, ant);
     const col = colonyOf(sim, ant);
     if (!P || !g || !col?.fungus) return 'no-target';
-    const m = modeOf(sim, ant, g, false);
+    const m = modeOf(sim, ant, g, ant.action?.secondary === true);
     if (m === TM.plant) {
       const lot = takeLots(P, g.pulp ?? [], PLANT_BATCH_LU, sim.state.tick, false);
       if (!lot) return 'no-target';
@@ -221,6 +251,7 @@ export const tendFungusDef: ActionDef = {
       const loads = Math.min(g.waste, WASTE_ITEM_LOADS * Math.max(0.2, ant.carryCap));
       if (!(loads > 1e-6) || ant.carry.kind !== 'none') return 'no-target';
       g.waste -= loads;
+      becomeRefuse(sim, ant, P); // GDD 07 §6.4.4: whoever hauls garden waste is a refuse worker from now on
       const it = spawnItem(sim, {
         kind: 'garden-waste', pos: { x: ant.pos.x, y: ant.pos.y, z: ant.pos.z },
         init: { bulk: Math.min(ant.carryCap, loads), colony: col.id, volume: loads, wasteKind: null, nestId: ant.nestId },
@@ -239,7 +270,7 @@ export const plantDef: ActionDef = {
     return plantRefusal(sim, ant);
   },
   durationS(sim, ant) {
-    return paramsOf(sim, ant)?.plantHoldS ?? 4;
+    return paramsOf(sim, ant)?.plantHoldS ?? FALLBACK_ACTION_S;
   },
   effect(sim) {
     return plantPellet(sim) ? 1 : 'no-target';

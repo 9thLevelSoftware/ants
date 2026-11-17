@@ -7,19 +7,12 @@
 
 import { hash3i } from '@/core/math/noise';
 import type { Chamber, Colony, GardenRecord, Item, ItemKind, Sim, System } from '@/sim/types';
+import { DISPLAY_GU_PER_LUMP, DISPLAY_LUMPS_MAX, DISPLAY_MIN_LUMPS, LUMP_BU, DOME_BU, DISPLAY_STEP_TICKS, FLOOR_STEP_BU } from '@/sim/balance/species-leafcutter';
 import { spawnItem, removeItem } from '@/sim/entities';
 import { chamberById } from '@/sim/colony/census';
 import { floorPoint } from '@/sim/ants/behaviours/nest/places';
 import { atColonies } from './economy';
 
-/** Garden mass per display lump, GU; most lumps per garden; lump length, BU; dome height over the floor, BU. */
-const DISPLAY_GU_PER_LUMP = 0.08;
-const DISPLAY_LUMPS_MAX = 60;
-const DISPLAY_MIN_LUMPS = 4;
-const LUMP_BU: readonly [number, number] = [0.8, 1.5];
-const DOME_BU = 1.6;
-const DISPLAY_STEP_TICKS = 100;
-const FLOOR_STEP_BU = 0.25;
 
 /** A display lump of this colony (inert, in the nest, hardness 0). */
 export function isDisplayLump(it: Item, colonyId: number): boolean {

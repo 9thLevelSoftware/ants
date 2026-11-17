@@ -7,6 +7,7 @@
 
 import { rngFloat } from '@/core/rng';
 import type { Ant, Colony, Sim, System } from '@/sim/types';
+import { PHORID_DEATH_STEP_TICKS } from '@/sim/balance/species-leafcutter';
 import { processAntDeath } from '@/sim/ants/lifecycle';
 import { calendarNow } from '@/sim/environment/calendar';
 import { PHORID_PRESSURE, PHORID_ROLL_TICKS } from '@/sim/balance/species-leafcutter';
@@ -17,6 +18,8 @@ import { atColonies } from './economy';
 
 /** Rider states in ant.bb at.rider: -1 undecided, 0 none, 1 a minim rides. */
 const UNDECIDED = -1;
+/** bb: this trip's carrier is already counted among the day's laden foragers (1) or not (0). */
+const COUNTED = 'at.phCnt';
 
 function dayCounters(sim: Sim, col: Colony): void {
   const mod = col.fungus!;
@@ -41,12 +44,16 @@ export function phoridStep(sim: Sim, ant: Ant, col: Colony): void {
   if (lx !== undefined && lz !== undefined) ant.bb[AK.ladenMm] = (ant.bb[AK.ladenMm] ?? 0) + Math.sqrt((ant.pos.x - lx) ** 2 + (ant.pos.z - lz) ** 2);
   ant.bb[AK.lastX] = ant.pos.x;
   ant.bb[AK.lastZ] = ant.pos.z;
+  // every laden carrier is a forager the flies can strike (the diag-at-phorid rate's denominator), counted once a trip
+  if ((ant.bb[COUNTED] ?? 0) === 0) {
+    ant.bb[COUNTED] = 1;
+    col.fungus.phoridForagersToday = (col.fungus.phoridForagersToday ?? 0) + 1;
+  }
   const rng = sim.stream('rng.behaviour');
   if ((ant.bb[AK.rider] ?? UNDECIDED) === UNDECIDED && (ant.bb[AK.ladenMm] ?? 0) >= P.hitchMinCarryBu * bu) {
     const escort = col.directives.hitchhikerEscort === true;
     const rides = rngFloat(rng) < (escort ? P.hitchBoardPEscort : P.hitchBoardP);
     ant.bb[AK.rider] = rides ? 1 : 0;
-    col.fungus.phoridForagersToday = (col.fungus.phoridForagersToday ?? 0) + 1;
     if (rides) sim.emit({ type: 'hitchhiker-mounted', antId: -1, carrier: ant.id });
   }
   // the fly works by day and at dusk
@@ -66,11 +73,12 @@ export function phoridStep(sim: Sim, ant: Ant, col: Colony): void {
 export function resetRider(ant: Ant): void {
   ant.bb[AK.rider] = UNDECIDED;
   ant.bb[AK.ladenMm] = 0;
+  ant.bb[COUNTED] = 0;
 }
 
 /** Parasitised foragers die when their larva has eaten them (cause `parasitoid`). */
 export const phoridDeathSystem: System = {
-  name: 'fungus-phorid-deaths', phase: 'lifecycle', every: 50,
+  name: 'fungus-phorid-deaths', phase: 'lifecycle', every: PHORID_DEATH_STEP_TICKS,
   run(sim) {
     for (const { col } of atColonies(sim)) {
       for (const a of sim.stores.ants.list) {

@@ -6,6 +6,7 @@
 
 import { rngFloat } from '@/core/rng';
 import type { Brood, BroodCaste, CasteDef, Colony, Sim, SpeciesDef, System } from '@/sim/types';
+import { MAJOR_GATE_GD, CASTE_EMPHASIS_SPAN, CASTE_STEP_TICKS, UNDECIDED_LARVA_FOOD } from '@/sim/balance/species-leafcutter';
 import { BroodFlag } from '@/sim/types';
 import { ATTA_SMALL_MEDIA_SHARE } from '@/sim/species/data/atta-texana';
 import { curveAt, larvaFood } from '@/sim/colony/life';
@@ -13,10 +14,6 @@ import { atColonies } from './economy';
 import type { FungusParams } from './params';
 import { liveGardens } from './state';
 
-/** Days of larval demand the gardens' yield must cover for a major (GDD 07 §2.6 MAJOR_GATE_GD). */
-const MAJOR_GATE_GD = 2;
-const EMPHASIS_SPAN = 0.5;
-const STEP_TICKS = 50;
 const POLY = ['minor', 'media', 'major'] as const;
 
 /** Target shares (minor, media, major) at N workers: piecewise-linear over casteMixTarget rows. */
@@ -31,7 +28,7 @@ export function attaMixTarget(def: SpeciesDef, n: number, emphasis: number): [nu
     }
     out = [t[i][1], t[i][2], t[i][3]];
   }
-  const major = Math.max(0, out[2] * (1 + EMPHASIS_SPAN * Math.max(-1, Math.min(1, emphasis))));
+  const major = Math.max(0, out[2] * (1 + CASTE_EMPHASIS_SPAN * Math.max(-1, Math.min(1, emphasis))));
   const minor = Math.max(0, out[0] - (major - out[2]));
   const sum = minor + out[1] + major;
   return sum > 0 ? [minor / sum, out[1] / sum, major / sum] : out;
@@ -49,7 +46,7 @@ export function yieldCoverGd(sim: Sim, col: Colony, P: FungusParams, def: Specie
   let need = 0;
   for (const b of sim.stores.brood.list) {
     if (!b.alive || b.colony !== col.id || b.stage !== 'larva') continue;
-    const f = b.destined === 'worker' ? { c: 0.1, p: 0.3 } : larvaFood(def, b.destined, b.destinedLengthBu);
+    const f = b.destined === 'worker' ? UNDECIDED_LARVA_FOOD : larvaFood(def, b.destined, b.destinedLengthBu);
     need += f.c + f.p;
   }
   const perGd = Math.max(0.2, need) / Math.max(1e-6, def.life.stageGd.larva);
@@ -118,7 +115,7 @@ function workerCount(sim: Sim, col: Colony): number {
 }
 
 export const attaCasteSystem: System = {
-  name: 'fungus-caste-destiny', phase: 'brood', every: STEP_TICKS,
+  name: 'fungus-caste-destiny', phase: 'brood', every: CASTE_STEP_TICKS,
   run(sim) {
     for (const { col, P } of atColonies(sim)) {
       const def = sim.getSpecies(col.species);

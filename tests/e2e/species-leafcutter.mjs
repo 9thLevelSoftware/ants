@@ -9,9 +9,13 @@
 // reported; reproduced without the fungus rules), so when the opening reaches `seal` the entrance is declared sealed
 // by cheat.setFoundingState, exactly as tools/sim/life.ts does. Everything after the seal is the game's own.
 // Screenshots (each looked at): 01 leaf carriers on their way home (the natural minims of the first brood), 02 the
-// garden chamber with its pale garden mass, 03 the castes in possession view (the possessed minim with a small
-// media, a media and a major beside her; the larger castes spawned by a cheat because they come only with a larger
-// colony: majors from 400 workers), 04 the refuse heap of garden waste outside, if one exists by then.
+// garden chamber with its pale garden mass (the founding cell: GDD 07 §5.4.6 "fungus: founding 10 BU" is the first
+// fungus chamber; deeper fungus chambers come from the architect at 10 workers), 03 the castes in possession view by
+// day (the possessed minim with a small media, a media and a major beside her; the larger castes spawned by a cheat
+// because they come only with a larger colony: majors from 400 workers; their callow pallor cleared), 04 the refuse
+// heap of garden waste outside, if one exists by then (only media haul garden waste: GDD 07 §6.4.6 stage 8).
+// Checks: the pellet planted and established, first workers, leaf fragments cut, carried home and planted (the chain
+// counters), a garden mass on screen.
 
 export default async ({ page, shot, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
@@ -93,8 +97,9 @@ export default async ({ page, shot, log }) => {
   for (let i = 0; i < 120; i++) {
     const r = await carriers();
     if (r.n >= 1 && !fallback) fallback = r;
-    if (r.n >= 2 && r.near >= 1) { c = r; break; }
-    if (r.n >= 1 && i > 60) { c = r; break; }
+    if (r.n >= 3 && r.near >= 2) { c = r; break; }
+    if (r.n >= 2 && r.near >= 1 && i > 60) { c = r; break; }
+    if (r.n >= 1 && i > 100) { c = r; break; }
     if (i % 12 === 0) log(`colony t${i}: carriers ${r.n} hour ${r.hour.toFixed(1)} chain ${JSON.stringify(await chain())}`);
     await step(250);
   }
@@ -117,7 +122,12 @@ export default async ({ page, shot, log }) => {
   await highShot('01b-leaf-carrier-possessed');
   await g(() => window.__game.release());
   await g(() => window.__game.camera.set('observer'));
-  result.checks.chain = await chain();
+  // the leaf reaches the garden: carried into the cache and planted as substrate (wait up to 1 GD more)
+  let ch = await chain();
+  for (let i = 0; i < 24 && !(ch && ch.carried > 0 && ch.planted > 0); i++) { await step(250); ch = await chain(); }
+  log(`chain: ${JSON.stringify(ch)}`);
+  expect(ch && ch.carried > 0 && ch.planted > 0, 'no leaf was carried home and planted', ch);
+  result.checks.chain = ch;
 
   // ---- 3. the garden chamber ----
   await step(110); // garden display lumps follow the garden record
@@ -144,6 +154,12 @@ export default async ({ page, shot, log }) => {
   await highShot('02-garden-chamber');
 
   // ---- 4. castes in possession view (the larger castes spawned: majors come from 400 workers) ----
+  // by day, so the rusty brown shows (night light washes the colours out)
+  for (let i = 0; i < 40; i++) {
+    const h = await sim((sm) => (((sm.state.tick + sm.state.env.calendar.startTick) % 6000) / 6000) * 24);
+    if (h >= 9 && h <= 16) break;
+    await step(250);
+  }
   const colonyId = await sim((sm) => sm.state.colonies[0].id);
   const home = await sim((sm) => { const n = sm.state.nests.find((x) => x.alive && x.colony === sm.state.colonies[0].id); const e = n?.entrances[0]; return e ? e.pos : null; });
   if (home) {
@@ -155,7 +171,8 @@ export default async ({ page, shot, log }) => {
       await sim((sm, a) => {
         const c0 = sm.state.colonies[0].id;
         const ant = sm.state.ants.filter((x) => x.alive && x.colony === c0 && x.caste === a.caste).sort((x, y) => y.id - x.id)[0];
-        if (ant) { ant.lengthBu = a.len; ant.sizeClass = a.caste === 'media' && a.len < 0.8 ? 'small-media' : null; }
+        // and a grown adult's colour: a freshly spawned ant is a callow, pale for 6 game hours
+        if (ant) { ant.lengthBu = a.len; ant.sizeClass = a.caste === 'media' && a.len < 0.8 ? 'small-media' : null; ant.flags &= ~(1 << 7); }
       }, { caste, len });
     }
     await step(1);
@@ -172,10 +189,11 @@ export default async ({ page, shot, log }) => {
       const me = await sim((sm, id) => { const a = sm.stores.ants.get(id); return a ? { pos: a.pos, fwd: a.fwd } : null; }, minim.id);
       const others = four.filter((a) => a.id !== minim.id);
       if (me) {
-        const sides = [-1.5, 0, 1.5];
+        // side by side across the view, the major farthest out so her size reads against the others
+        const sides = [-2.6, 0, 1.8];
         for (let i = 0; i < others.length; i++) {
           const s = sides[i] ?? 0;
-          const p = { x: me.pos.x + me.fwd.x * 3.2 * bu + me.fwd.z * s * bu, y: me.pos.y, z: me.pos.z + me.fwd.z * 3.2 * bu - me.fwd.x * s * bu };
+          const p = { x: me.pos.x + me.fwd.x * 4.0 * bu + me.fwd.z * s * bu, y: me.pos.y, z: me.pos.z + me.fwd.z * 4.0 * bu - me.fwd.x * s * bu };
           await g(([id, q]) => window.__game.teleport(id, q), [others[i].id, p]);
         }
         await step(2);

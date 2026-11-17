@@ -8,8 +8,9 @@
 //   diag-at-phorid     phorid losses above 2 % of the laden foragers per game day.
 
 import type { Colony, Diagnostic, GardenRecord, Sim, System } from '@/sim/types';
+import { GARDEN_DIAG_DIED_GD, GARDEN_DIAG_BAD_INFECTION } from '@/sim/balance/species-leafcutter';
 import { publishWithHysteresis, weighFactors, type FactorIn } from '@/sim/colony/diagFactors';
-import { FUNGUS_DIAG_TICKS } from '@/sim/balance/species-leafcutter';
+import { FUNGUS_DIAG_TICKS, GARDEN_DIAG_FSUB_WARN } from '@/sim/balance/species-leafcutter';
 import { TICKS_PER_DAY } from '@/sim/time';
 import type { FungusParams } from './params';
 import { atColonies } from './economy';
@@ -27,9 +28,12 @@ const clampF = (x: number) => Math.max(0.02, Math.min(1, x));
 
 /** Status of one garden (GDD 07 §6.4.11). */
 export function gardenStatus(P: FungusParams, g: GardenRecord, tick: number): Diagnostic['status'] {
-  if (g.state === 'dead') return (g.diedTick ?? -1) >= 0 && tick - (g.diedTick ?? 0) < 2 * TICKS_PER_DAY ? 'bad' : 'ok';
-  if (g.state === 'collapsing' || g.infection >= 0.4) return 'bad';
-  if (g.state === 'stressed' || g.state === 'infected' || (g.state === 'establishing' && (g.fsub ?? 1) < 0.8)) return 'warn';
+  if (g.state === 'dead') return (g.diedTick ?? -1) >= 0 && tick - (g.diedTick ?? 0) < GARDEN_DIAG_DIED_GD * TICKS_PER_DAY ? 'bad' : 'ok';
+  if (g.state === 'collapsing' || g.infection >= GARDEN_DIAG_BAD_INFECTION) return 'bad';
+  // a young garden (seeded or establishing) short of substrate is shrinking towards death: warn (GDD 07 §6.4.11 names
+  // establishing; a seeded garden is the same garden earlier, and after the hand-over the colony's only one)
+  const young = g.state === 'seeded' || g.state === 'establishing';
+  if (g.state === 'stressed' || g.state === 'infected' || (young && (g.fsub ?? 1) < GARDEN_DIAG_FSUB_WARN)) return 'warn';
   return 'ok';
 }
 

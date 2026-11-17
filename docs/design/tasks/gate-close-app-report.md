@@ -115,6 +115,14 @@ What a player would call broken or ugly (fixed items marked; every picture named
 
 **Kitchen door (indoor archetype):** (pending)
 
+**look-pass-2 open items** (checked in these pictures; ant-height observer on seed 1 and the founding/firstplay beats):
+thin lime-green strip at the map-edge horizon - not seen in any of the 32 play-through shots or the founding beats
+(the horizon at night shows a pale strip instead, S11); the nearest facade and fence as pale straight-edged blocks -
+seen as pale rectangles inside the fog band (`playSeed1/day-h02.png`, `day-h22.png`, top right), consistent with the
+report; white pillar, leaf contact shadow, car underbody, ragged open-end caps, floating block - not found (no
+coordinates, and none came into these frames); the dusk (`day-h04.png`, 17:52), overcast (`day-h02.png`) and night
+rain (`antfill/after/after-night-rain-surface-high.png`) frames are re-shot here.
+
 **Day-night at 8x:** sky, fog and the HUD clock change every 2 hours; ground light changes little (P6); no frame
 was black or blown out on the surface; the HUD weather word and the moon/sun icon follow the clock.
 

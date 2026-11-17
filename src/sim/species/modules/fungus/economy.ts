@@ -6,6 +6,7 @@
 import { rngFloat } from '@/core/rng';
 import type { Ant, Colony, GardenRecord, Sim, System } from '@/sim/types';
 import { chamberById } from '@/sim/colony/census';
+import { perTick } from '@/sim/ants/behaviours/nest/perTick';
 import { deposit } from '@/sim/colony/stores';
 import { GARDEN_STEP_TICKS, FL_P_SHARE, STAPH_POOL_BUFFER_GD, YIELD_STANDING_GD } from '@/sim/balance/species-leafcutter';
 import { TICKS_PER_DAY, ticksPerYear } from '@/sim/time';
@@ -14,16 +15,19 @@ import { stepGarden, type GardenStepOut } from './dynamics';
 import { killGarden, nextState } from './states';
 import { plantSubstrate, pruneBins, substrateInputs } from './substrate';
 import { fungusColonies, liveGardens, syncGardens, totalGarden } from './state';
-import { ageCache } from './cache';
+import { absorbLyingFragments, ageCache } from './cache';
+import { chainAdd } from './chain';
 import { gardenWorkers, isFoundingGarden } from './work';
 import { gardenLessStep } from './gardenLess';
 import { checkRejection, recordHealth } from './rejection';
 import { spreadInfection } from './spread';
+import { isQuarantined } from './quarantine';
 import { feedQueenFungus } from './queenFeed';
 import { gardenRh, gardenTempC } from './chamberClimate';
 
+/** The live full-fidelity fungus colonies and their parameters (one list per tick, shared by every system). */
 export function atColonies(sim: Sim): { col: Colony; P: FungusParams }[] {
-  return fungusColonies(sim, paramsOfColony);
+  return perTick(sim, 'at.colonies', () => fungusColonies(sim, paramsOfColony));
 }
 
 /** Colony age, game years. */
@@ -84,8 +88,10 @@ export function stepColonyGardens(sim: Sim, col: Colony, P: FungusParams, dtGd: 
   const queen = sim.stores.ants.get(col.queenId);
   for (const g of mod.gardens) {
     ageCache(sim, col, g, P);
+    if (g.state !== 'dead') { const lu = absorbLyingFragments(sim, col, g); if (lu > 0) chainAdd(sim, col, 'carried', lu); }
     pruneBins(g, sim.state.tick);
     if (g.state === 'dead') continue;
+    g.quarantined = isQuarantined(sim, col, g.chamberId); // for the inspect card and the Why view
     const tempC = gardenTempC(sim, g.chamberId);
     const rh = gardenRh(sim, g.chamberId);
     const w = workers.get(g.chamberId) ?? { gardeners: 0, weeders: 0 };

@@ -24,7 +24,8 @@ function byMassAndHealth(P: FungusParams, g: GardenRecord, from: GardenState): G
 export function nextState(P: FungusParams, g: GardenRecord): GardenState {
   const s = g.state;
   if (s === 'dead') return 'dead';
-  if (g.biomass < P.deadG && s !== 'seeded') return 'dead';
+  // every live state, `seeded` included: a starved founding garden must die, or the colony never becomes garden-less
+  if (g.biomass < P.deadG) return 'dead';
   if (s === 'infected') {
     if (g.infection >= P.escDeadI) return 'dead';
     if (g.infection < P.escClearI) {

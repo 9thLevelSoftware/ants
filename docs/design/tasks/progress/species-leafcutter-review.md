@@ -37,3 +37,10 @@ Started 10:00 UTC Nov 17. Last update 10:20 UTC. No earlier review progress file
 - e2e running in background: node tools/harness/play.mjs ... --out test-output/species-leafcutter-review/e2e1
   (log e2e1.log, json e2e1.json). If cut off: check EXIT line in e2e1.log, look at the PNGs, do NOT rerun twice.
 - extra findings: refuse workers reassigned to cut/forage (seen in probe); impl r2 summary shows garden still 'seeded' G 0.62
+
+## 10:55 — e2e done, report being written
+- e2e1 EXIT 0, 8 first minims (forced seal + completeFounding); shots looked at: 01 single minim carrier (no column),
+  01b possessed carrier (prompt only Put down/Drop), 02 garden lumps in the FOUNDING cell (no fungus chamber),
+  03 castes: major/media/small media NOT distinguishable at a glance, workers pale. No refuse heap. chain carried 0,
+  planted 0 at check; garden seeded 0.71 -> 0.62 GU, staphylae 0.
+- final: verify file 16 tests (9 pass, 7 red). Nothing left but the StructuredOutput report.

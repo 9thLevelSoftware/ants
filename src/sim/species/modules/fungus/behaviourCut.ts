@@ -13,6 +13,7 @@
 
 import { hash3i } from '@/core/math/noise';
 import type { Ant, Behaviour, Chamber, Colony, LeafSite, Sim } from '@/sim/types';
+import { CUT_SITE_JITTER, CUT_SITE_JITTER_TICKS, GARDEN_ARRIVE_FRAC } from '@/sim/balance/species-leafcutter';
 import { endCycle, releaseAll, think } from '@/sim/ants/behaviours/nest/common';
 import { setState } from '@/sim/ants/behaviours/nest/fsm';
 import { busy, entity, resetTravel, travel, tryAct, actEnded } from '@/sim/ants/behaviours/nest/travel';
@@ -67,7 +68,7 @@ export function chooseSite(sim: Sim, ant: Ant, col: Colony): number {
     const d = Math.sqrt((s.pos.x - home.x) ** 2 + (s.pos.z - home.z) ** 2);
     if (d > range || !siteAcceptable(sim, col, s, minLu)) continue;
     // distance with a jitter of up to +60 % per ant and site (stable over a game hour): cutters spread out
-    const jitter = 1 + 0.6 * hash3i(ant.id, i, Math.floor(sim.state.tick / 2500), 0xc07);
+    const jitter = 1 + CUT_SITE_JITTER * hash3i(ant.id, i, Math.floor(sim.state.tick / CUT_SITE_JITTER_TICKS), 0xc07);
     const score = (d + 10 * bu) * jitter / (0.5 + s.q);
     if (score < bestScore) { bestScore = score; best = i; }
   }
@@ -181,7 +182,7 @@ function home(sim: Sim, ant: Ant): void {
   if (!ch) { endCycle(sim, ant, ENTRY, 'job:cut'); return; }
   if (ant.chamberId === ch.id) { setState(sim, ant, laden ? 'cut.drop' : ENTRY); return; }
   if (!laden && ant.nestId >= 0) { endCycle(sim, ant, ENTRY, 'job:cut'); return; }
-  const st = travel(sim, ant, entity('chamber', ch.id, ch.center), 0.6 * Math.min(ch.radii.x, ch.radii.z));
+  const st = travel(sim, ant, entity('chamber', ch.id, ch.center), GARDEN_ARRIVE_FRAC * Math.min(ch.radii.x, ch.radii.z));
   if (st === 'arrived') setState(sim, ant, laden ? 'cut.drop' : ENTRY);
   else if (st === 'failed' && ant.nestId >= 0 && ant.chamberId >= 0 && laden) setState(sim, ant, 'cut.drop');
   else if (st === 'failed' && ant.nestId < 0) {

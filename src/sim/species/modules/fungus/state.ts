@@ -3,6 +3,7 @@
 // the room of the chapter's 10 BU founding chamber (§5.4.3: "so the founding garden has room for 2 GU") because the
 // shared founding template cell is smaller (9 x 3 x 9 BU, about 0.5 GU).
 
+import { CHAMBER_LOST_CAUSE } from '@/sim/balance/species-leafcutter';
 import type { Chamber, Colony, FungusModule, GardenRecord, Sim } from '@/sim/types';
 import { chamberById, colonyChambers } from '@/sim/colony/census';
 import type { FungusParams } from './params';
@@ -79,7 +80,12 @@ export function syncGardens(sim: Sim, col: Colony, P: FungusParams): void {
   const ids = new Set(colonyChambers(sim, col).map((c) => c.id));
   for (const g of mod.gardens) {
     if (!ids.has(g.chamberId)) {
-      if (g.state !== 'dead') { g.state = 'dead'; g.biomass = 0; g.diedTick = sim.state.tick; g.lastCause = g.lastCause ?? 'collapse'; }
+      if (g.state !== 'dead') {
+        // the chamber caved in or was lost: the garden dies with it (its mass is gone, not waste)
+        g.state = 'dead'; g.biomass = 0; g.diedTick = sim.state.tick; g.lastCause = CHAMBER_LOST_CAUSE;
+        mod.lostCause = CHAMBER_LOST_CAUSE;
+        sim.emit({ type: 'garden-state', chamberId: g.chamberId, state: 'dead', cause: CHAMBER_LOST_CAUSE });
+      }
       continue;
     }
     g.gcap = gcapOf(P, chamberById(sim, g.chamberId));
@@ -88,8 +94,17 @@ export function syncGardens(sim: Sim, col: Colony, P: FungusParams): void {
   mod.gardens = mod.gardens.filter((g) => ids.has(g.chamberId) || g.waste > 1e-6);
 }
 
-/** Fungus chambers of the colony without a live garden (re-seeding targets). */
+/**
+ * A fungus chamber can take a new garden: it has none, or only a dead one whose waste is all removed (GDD 07 §6.4.3
+ * `dead`: "chamber reusable after W = 0").
+ */
+export function reusableForGarden(mod: FungusModule, chamberId: number): boolean {
+  const g = gardenOf(mod, chamberId);
+  return !g || (g.state === 'dead' && g.waste <= 1e-6);
+}
+
+/** Fungus chambers of the colony that can be seeded (re-seeding targets). */
 export function emptyFungusChambers(sim: Sim, col: Colony): Chamber[] {
   const mod = col.fungus!;
-  return colonyChambers(sim, col).filter((c) => c.type === 'fungus' && !(gardenOf(mod, c.id)?.state !== 'dead' && gardenOf(mod, c.id)));
+  return colonyChambers(sim, col).filter((c) => c.type === 'fungus' && reusableForGarden(mod, c.id));
 }

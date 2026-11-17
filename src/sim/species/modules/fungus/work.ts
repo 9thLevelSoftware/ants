@@ -2,6 +2,7 @@
 // garden is still the founding garden (GDD 07 §6.4.8: the queen tends it until the hand-over).
 
 import type { Ant, Colony, GardenRecord, Sim } from '@/sim/types';
+import { WASTE_HAUL_MIN_LOADS } from '@/sim/balance/species-leafcutter';
 
 /** bb keys of the fungus behaviours (numbers only). */
 export const AK = {
@@ -70,4 +71,12 @@ export function cutsLeaves(a: Pick<Ant, 'caste'>): boolean {
 /** Small media (GDD 07 §5.4.1: media under 0.8 BU). */
 export function isSmallMedia(a: Pick<Ant, 'caste' | 'lengthBu'>): boolean {
   return a.caste === 'media' && a.lengthBu < 0.8;
+}
+
+/**
+ * Garden waste is due for hauling: more than WASTE_HAUL_MIN_LOADS per GU waiting (a trip is worth it), or any waste
+ * of a dead garden (its chamber is reusable once W = 0, GDD 07 §6.4.3).
+ */
+export function wasteDue(g: GardenRecord): boolean {
+  return g.waste > WASTE_HAUL_MIN_LOADS * Math.max(1, g.biomass) || (g.state === 'dead' && g.waste > 1e-6);
 }

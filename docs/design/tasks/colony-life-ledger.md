@@ -756,3 +756,109 @@ Progress (kept current; a successor continues from here)
   1-3 (doy 9: 15-16 C); with food guaranteed 26 eggs, 12 hatched, **11 pupated** (doy 9: 2), but **0 eclosed: 9 pupae
   died untended**, 1 exposure. So an earlier start moves the calendar ceiling, and the next loss is pupa care
   (pupa:untended; untended egg+pupa gd 5.1 on day 7 with 2.4 nurse worker-gd). Waiting for we #3 doy 7, we #1/#3 doy 5.
+- 10:24 the background chain hit its 2 h limit at nest-after 11/15; resumed (`PAR=1 $S/n1/tools/sim/bench-sweep.sh nest
+  round-3/bench-nest-after round-3/cache`, skips finished runs). Start-day: we #1 doy 7, we #3 doy 7, we #1 doy 5 done;
+  we #3 doy 5 running.
+- 10:30 **start-day table** (direction 3; nest bench, food guaranteed, base tree, fresh foundings; doy 9 = the cached
+  default hand-overs of the nest bench before; `round-3/bench-startday/`):
+
+  | start doy | run | hand-over gd / first workers | eggs laid | pupated | eclosed | workers hand-over -> winter |
+  |---|---|---|---|---|---|---|
+  | 9 (default) | we #1 | 3.53 / 16 | 10 | 2 | 0 | 16 -> 12 |
+  | 9 (default) | we #3 | 4.57 / 7 | 9 | 0 | 0 | 7 -> 5 |
+  | 7 | we #1 | 2.74 / 18 | 26 | 11 | 0 (9 pupae untended) | 18 -> 12 |
+  | 7 | we #3 | 3.34 / 12 | 20 | 4 | 0 | 12 -> 10 |
+  | 5 | we #1 | 3.45 / 18 | 47 | 18 | **13** | 18 -> **25** |
+  | 5 | we #3 | 4.20 / 10 | 42 | 5 | 0 (egg:hygiene 22) | 10 -> 8 |
+  | 9 (default) | sg #1 | 3.91 / 12 | 10 | 0 | 0 | 12 -> 11 |
+  | 7 | sg #1 | 3.04 / 12 | 15 | 8 | 0 (7 pupae untended) | 12 -> 9 |
+  | 5 | sg #1 | 3.71 / 9 | 12 | 3 | 1 (flooding 3, exposure 3) | 9 -> 8 |
+
+  Seed 3 also improves its first workers (7 -> 12 -> 10). Earlier starts raise laying and pupation; eclosion then fails
+  on pupa care (doy 7 we #1) and hygiene (doy 5 we #3). suburban-garden #1 at doy 7 and 5 running. For the
+  integrator's ruling; the default is not changed here. (suburban-garden #1 rows added 10:42.)
+- 10:37 **nest bench after** done (`round-3/bench-nest-after/table.md`, tree n1 = hunting fixes + E1): over the 15
+  hand-overs eggs 231 -> 247, **eclosed 20 -> 7**, workers at winter 174 -> 164; losses larva:starvation 30 -> 10,
+  untended 79 -> 61, flooding 7 -> 4, but **exposure 6 -> 34** and **hygiene 42 -> 76** (pp #2: eclosed 10 -> 0,
+  hygiene 0 -> 14). Exposure rose in the one-chamber / flooding nests (cpv #3 0 -> 8, kd #1 2 -> 8, kd #3 0 -> 6): a dry
+  place 2 BU clear of the water often lies outside every chamber (exposure 1.0 / gd) or in the waste-laden royal
+  chamber. **E1 reverted** (costs more than it gains on the bench): `floodEvac.ts`, `balance/weather.ts` back to
+  e614493, `dryDrop.test.ts` deleted. The loop it addressed is real and stays a lead (fix it on the board side instead:
+  an item put down at a dry spot is evacuated again only when the water actually reaches it).
+
+### Sweep findings (round 2 review) -> what this round did
+
+- **Hunting catches little (major): real, fixed (H2a, H2b).** Reproduced: probe in a lawn test world 11 of 28 chased
+  caught; forage bench before 61 kills of 485 chases over the 15 hand-overs (median conversion 4.7 % where >= 5 chases).
+  Causes: (a) touch and bite each rolled the 0.6 escape (GDD 05 §2.3 says per bite attempt); (b) ants walking home empty
+  after a failed trip could not break off. After: 123 kills of 525 chases, median conversion 23.7 %. The remaining
+  misses are GDD rules (escape 0.6 on open ground, free-target hit 0.7 x sqrt(1.5/4) = 0.43, GDD 05 §4.2).
+- **Prey on a source trip booked as that source (minor): real, fixed (H1m).** `huntSourceTrip.verify` green.
+- Same-hand-over A/B divergence (minor): addressed by method - every before/after this round is a 15-hand-over bench
+  median on frozen trees; no single-run attribution is made.
+
+### Fixes (round 3; in the tree)
+
+H2a. **One escape roll per contact** (`src/sim/ecology/creatures/preyFauna.ts`): a springtail that stays when touched
+     (jump-on-touch roll failed) is not rolled again by a bite in the same 2 s contact window. Test
+     `src/sim/ecology/creatures/prey.test.ts` "one escape roll per contact" (bite lands on 13 % of approaches without the
+     fix; 30-50 % wanted; ~40 % with it).
+H2b. **Ants going home empty hunt the prey they meet** (`src/sim/ants/behaviours/outdoor/hunt.ts` mayBreakOff /
+     endChase, `keys.ts` K.returnWhy, `transitions.ts` startReturn records the reason): only after a failed trip
+     (timeout, source gone or crowded, trail lost, stuck), never after curfew, weather, hunger, fatigue, threat, recall;
+     after the chase the return resumes with its reason. Test `src/sim/ants/behaviours/outdoor/hunt.test.ts` case 4
+     (red without).
+H1m. Lifting the remains drops the trip's source (`hunt.ts`): delivered as `prey`, no source or route credited.
+     `src/sim/ants/behaviours/outdoor/huntSourceTrip.verify.test.ts` (round-2 review, was red) green.
+Bench before / after (forage, 15 hand-overs): kills 61 -> 123, chase conversion 4.7 -> 23.7 %, prey P booked 5.4 -> 6.4,
+refused remains 23 -> 62 trips, median P/need 0.012 -> 0.013, C/need 0.78 -> 0.79, trips 45 -> 55, success 26 -> 26 %.
+Tools: `tools/sim/bench-colony.ts`, `tools/sim/bench-sweep.sh`, `tools/sim/bench-table.py`, `tools/sim/bench-startday.sh`.
+
+### Tried and reverted
+
+- N1 (sorting destination only where a put-down lands in the chamber, `sorting.ts`) and N2 (larva with an empty gut fed
+  where it lies, `board.ts`), with `sortReach.test.ts`: written for the we #1 carry loop before the probe showed the
+  loop was flood evacuation; no effect on the we #1 probe. Reverted with the test.
+- E1 (dry drop point 2 BU clear of the water, `floodEvac.ts` + `BROOD_DRY_DROP_SLACK_BU`), `dryDrop.test.ts`: removed the
+  we #1 loop (89 carries -> 1-2; starvation 7 -> 2 in the probe) but on the 15-run nest bench exposure 6 -> 34 and
+  hygiene 42 -> 76, eclosed 20 -> 7. Reverted.
+- Solid loads put down only inside a chamber (`phaseNest.ts`): the lost prey on sg #1 was refused by the full P store,
+  not put down in a tunnel; no effect. Reverted.
+
+### GDD deviations
+
+- H2a reads GDD 05 §2.3 ("escapes per bite attempt") together with the 2.2b table's "jump on touch": one roll per
+  contact (the 2 s jump cooldown is the contact window). No constant changed.
+- H2b: GDD 05 §2.3 has prey appear for any forager/scout moving in a patch; hunting on the way home after a failed trip
+  is a behaviour choice, the reason set is listed in `hunt.ts` (HUNT_ON_RETURN). No balance change, no need, lifespan,
+  provision, bar or ruling test changed; no seed or archetype case.
+
+### Verification (10:40 UTC)
+
+- `npx tsc --noEmit`: clean (09:10 and after the reverts).
+- Folder tests (outputs `round-3/vitest/`): `ecology/creatures` 17/17 files; `ants/behaviours/outdoor` 26/27 (red
+  `removal.verify`, known since round 1; `huntSourceTrip.verify` now green); `ants/behaviours/nest` 27/29 (red
+  `sfaReview.verify`, `stall.soak`, known; run with E1 in, the folder is back to e614493 now); `balance` 2/2.
+- New tests red without their fix (each checked by taking the fix out): prey.test "one escape roll per contact" (0.13),
+  hunt.test case 4. Benches on frozen copies of the tree (`base` = e614493, `n1` = base + H2a/H2b/H1m + E1); the
+  forage-after numbers above are n1's (E1 does not touch foraging).
+
+### Next (for the integrator and round 4)
+
+1. **Start day (integrator ruling, direction 3).** Nest bench: at doy 9 no egg laid after the hand-over can eclose before
+   winter in seed-1/3 runs (calendar ceiling at the measured 11-18 C); at doy 5 woodland-edge #1 ecloses 13 and goes
+   18 -> 25 workers with food guaranteed, but 4 of the 6 earlier-start runs still eclose 0-1: pupae die untended
+   (we #1 doy 7: 9 of 11; sg #1 doy 7: 7 of 8). A start-day change alone does not reach the bar; with item 2 it may.
+2. **Brood care with food guaranteed** (nest bench before: untended 79, hygiene 42, starvation 30 of 231 eggs; at doy 7
+   9 of 11 pupae died untended): probe pupa tending (one or two nurses, rest blocks of ~100 s vs UNTENDED_GD 0.25 gd),
+   waste hauling from brood chambers, and the evacuation loop (fix on the board side, see E1).
+3. **Protein**: P storage of a nest without a food chamber (0.15 P per worker social stomach; 62 refused prey loads on
+   the forage bench); patches out of reach (nearest edge 174-244 BU on 6 of 15, worldgen R18 placement); carrion within
+   300 BU unknown in 13 of 15 (scouting coverage).
+4. Bench limitations: the nest bench's 2-gd top-up can fill the stores (foragers wait in `deliver`, 41 % of worker time on
+   sg #2); the forage bench's 30-worker demand meets the small nest's P ceiling.
+
+Status: **round 3 complete** (10:45 UTC). In the tree: H2a, H2b, H1m + their tests; bench tools. Scratch copies
+(`base`, `h2`, `n1`, scratchpad) and probe tools deleted; no processes of this round left running. Evidence:
+`test-output/colony-life/round-3/` (bench-forage-before/after, bench-nest-before/after, bench-forage-h2-partial,
+bench-startday, probe-*.txt, hunt-sg1*.txt, vitest/).
