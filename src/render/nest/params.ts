@@ -198,6 +198,12 @@ export const CUTAWAY = {
   stoneHex: '#77736C',
   /** Radiance multiplier of the cap colour (so the tone-mapped cap reads as #3A2A1E on screen). */
   capLevel: 1.8,
+  /**
+   * Exposure (EV) the cap colour and the cut fill are calibrated for (the colony view by day, 0..0.4 EV). Above it
+   * they are scaled down by 2^(refEV - EV): the night metering (+3 EV) blew the whole slice out to pale pink
+   * (gate-close-app play-through, playSeed1/x1-m14-slice.png).
+   */
+  refEV: 0.4,
 } as const;
 
 /** GDD 08 4.3: ground over the nest at alpha 0.15 -> the nest cast is drawn at 0.85 over the ground. */

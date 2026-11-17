@@ -14,7 +14,7 @@ import { requireSpecies } from '@/sim/species';
 /** Rules decided when the world is generated; the `setDifficulty` command never changes them mid-game. */
 export const GENERATION_RULES: readonly (keyof CustomRules)[] = ['seasonLengthDays', 'startSeason', 'rivals'];
 
-export type RuleIssueReason = 'unknown-or-invalid' | 'fixed-at-generation' | 'winter-start' | 'incompatible';
+export type RuleIssueReason = 'unknown-or-invalid' | 'fixed-at-generation' | 'incompatible';
 
 /** A problem with one rule; the rule is dropped (never thrown), the screen can show `detail`. */
 export interface RuleIssue {

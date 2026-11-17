@@ -40,6 +40,8 @@ export interface NestUniforms {
   /** Fill light into the cut nest (linear, x level) and its falloff from the plane, mm. */
   uCutFill: Uniform<Color>;
   uCutFillLen: Uniform<number>;
+  /** Gain on the cut face's own light (cap colour, cut fill), <= 1: holds it against a brighter surface exposure. */
+  uCutGain: Uniform<number>;
   /** X-ray cast colours (linear) near the surface and at depth, the depth (mm), opacity. */
   uXNear: Uniform<Color>;
   uXDeep: Uniform<Color>;
@@ -79,6 +81,7 @@ export function createNestUniforms(): NestUniforms {
     uCutDark: new Uniform(0.3),
     uCutFill: new Uniform(new Color(1, 1, 1)),
     uCutFillLen: new Uniform(160),
+    uCutGain: new Uniform(1),
     uXNear: new Uniform(new Color(XRAY.nearHex)),
     uXDeep: new Uniform(new Color(XRAY.deepHex)),
     uXDepth: new Uniform(160),

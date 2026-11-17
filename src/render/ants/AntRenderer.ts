@@ -206,7 +206,10 @@ export class AntRenderer {
       this.sph.center.set(smp.pos.x + smp.up.x * L * 0.1, smp.pos.y + smp.up.y * L * 0.1, smp.pos.z + smp.up.z * L * 0.1);
       this.sph.radius = L * (v.wings ? 1.3 : 0.9) + (smp.carryKind !== 'none' ? L : 0);
       if (!smp.possessed && !this.frustum.intersectsSphere(this.sph)) { trackOffscreen(st, smp); culled++; continue; }
-      if (smp.possessed) { // GDD 01 6.5 rule 2: the capsule from the camera to the possessed ant's thorax
+      // GDD 01 6.5 rule 2: the capsule from the camera to the possessed ant's thorax. Not while photo mode hides the
+      // possession rim: the shader tells the possessed ant apart by its rim, so without it she was dithered inside
+      // her own capsule (gate-close-app, e2e/photo/02-f1.4-focus-subject.png: a dotted queen)
+      if (smp.possessed && !this.hidePossessedRim) {
         this.shared.uCapA.value.copy(camPos);
         this.shared.uCapB.value.copy(this.sph.center);
         this.shared.uCapR.value = CAMERA_CAPSULE.radiusL * L;

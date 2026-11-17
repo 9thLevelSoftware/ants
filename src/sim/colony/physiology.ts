@@ -12,7 +12,7 @@ import {
   STARVE_HEALTH_RATE, TOXIN_EFFECT_GD, TOXIN_HEALTH_PER_LOAD,
 } from '@/sim/balance';
 import { killAnt } from '@/sim/entities';
-import { difficultyValue } from '@/sim/balance/difficulty';
+import { difficultyValue, workerLifespanGd } from '@/sim/balance/difficulty';
 import { daysToTicks, TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { isWorkerCaste } from './census';
 import { casteOf, fMet } from './life';
@@ -228,7 +228,7 @@ export function physiologyStep(sim: Sim, a: Ant, col: Colony, def: SpeciesDef, d
 
   acc.cropC += a.cropC;
   acc.cropP += a.cropP;
-  if (worker && a.physioAgeGd >= a.lifespanGd * difficultyValue(sim, 'workerLifespanMult')) {
+  if (worker && a.physioAgeGd >= workerLifespanGd(sim, a)) {
     _killAnt(sim, a.id, 'old-age');
     return;
   }

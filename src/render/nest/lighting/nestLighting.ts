@@ -38,7 +38,7 @@ export class NestLighting {
     u.uLanternCol.value.copy(LANTERN_BASE).multiplyScalar(this.artificialGain);
     u.uLanternR.value = NEST_LIGHT.lanternRadiusBU * bu;
     u.uLanternWrap.value = NEST_LIGHT.lanternWrap;
-    u.uCutFill.value.set(CUTAWAY.fillHex).multiplyScalar(CUTAWAY.fillLevel);
+    u.uCutFill.value.set(CUTAWAY.fillHex).multiplyScalar(CUTAWAY.fillLevel * u.uCutGain.value);
     u.uCutFillLen.value = CUTAWAY.fillFalloffBU * bu;
     u.uXDepth.value = XRAY.deepBU * bu;
   }
@@ -54,6 +54,14 @@ export class NestLighting {
     this.artificialGain = k;
     this.u.uAmb.value.copy(AMBIENT_BASE).multiplyScalar(k);
     this.u.uLanternCol.value.copy(LANTERN_BASE).multiplyScalar(k);
+  }
+
+  /** Gain on the cut face's own light (cap colour and cut fill), see CUTAWAY.refEV. */
+  setCutGain(g: number): void {
+    const k = Number.isFinite(g) ? Math.max(0, Math.min(1, g)) : 1;
+    if (k === this.u.uCutGain.value) return;
+    this.u.uCutGain.value = k;
+    this.u.uCutFill.value.set(CUTAWAY.fillHex).multiplyScalar(CUTAWAY.fillLevel * k);
   }
 
   /** Daylight as linear RGB radiance (e.g. the world's sky ambient + sun at the surface); 0 = night. */

@@ -392,7 +392,8 @@ export const FLY_PHASE_S = 2;
 export const HERD_STAND_MM = 3;
 
 // ---- bird event (§2.6) ----
-export const BIRD_RATE: Record<PredatorSetting, number> = { off: 0, few: 0.4, normal: 1.0, many: 1.6 };
+/** Bird events per game day by predators setting: the same numbers as the predator density (bird.ts reads `predatorDensityMult`). */
+export const BIRD_RATE: Record<PredatorSetting, number> = PREDATOR_SETTING_MULT;
 export const BIRD_MIN_WORKERS = 30;
 export const BIRD_GAP_GD = 0.5;
 export const BIRD_TARGET_RADIUS_BU = 25;

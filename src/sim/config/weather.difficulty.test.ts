@@ -1,16 +1,16 @@
 // Weather severity by preset and by the custom rule, over many game years of weather alone (no colony; the weather
 // state machine of the environment module stepped directly): the expected ordering of rain, storm, heat wave and frost
-// events (difficulty-rules AC3, weather part). Default run: 5 seeds x 12 years per setting.
+// events (difficulty-rules AC3, weather part). Default run: 3 seeds x 12 years per setting (LONG: 5 seeds x 40 years).
 
 import { describe, expect, it } from 'vitest';
 import type { DifficultyId, WeatherSeverity, WeatherState } from '@/sim/types';
 import { ticksPerYear } from '@/sim/time';
 import { envSim, runWeather } from '@/sim/environment/envTestKit';
 
-const SEEDS = [1, 2, 3, 4, 5];
 // default run about 10 s; FOUNDRESS_LONG=1 (200 years per setting) also holds rain, heat and frost to a strict ordering
 const LONG = !!(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.FOUNDRESS_LONG;
 const YEARS = LONG ? 40 : 12;
+const SEEDS = LONG ? [1, 2, 3, 4, 5] : [1, 2, 3];
 const KINDS: readonly WeatherState[] = ['rain', 'storm', 'heat', 'frost'];
 
 /** Events of each kind per game year (a transition into the state), summed over the seeds and years. */

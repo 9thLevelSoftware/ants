@@ -69,3 +69,10 @@ Started 2026-11-17 03:20 UTC. Evidence root: test-output/gate-close/app/
 - keepOut.ts: .pn-panel added to REGIONS (hint/prompt avoid colony palette).
 - 08:45 playSeed1 at day-night part (20/32 shots). Seen: x4-m16-possession: nearby ant fading through camera capsule looks like a pale ghost skeleton with white dots; no ants visible on the surface in any observer shot (workers stay in); brood 8 eggs -> 5 larvae, workers flat 12.
 - 09:11 playSeed1 DONE (32 shots). Seen day-night: night frames (h06 19:52, h12 01:52, h16 05:52) look like daylight with a dark-blue sky band: night exposure lift too strong at observer height; leaf decal 'shadows' constant. Next chunk: stage2 panelsB a11yA.
+- 09:20 stopped a second chunk (stage2) that overlapped the photo run (one browser rule). Day-night review: night at ground level is the calibrated look-pass-2 metering (NIGHT_LOOK target luma, tested), dark leaf shapes are soil gaps, not stale shadows. Reported, not changed.
+- 09:25 fixed night colony slice blow-out (CUTAWAY.refEV + uCutGain; cutGain.test.ts green; typecheck clean). slicenight.mjs written for the re-shot. Report section 4 drafted. Waiting for photo to end before stage2/panelsB/a11yA.
+- 09:22 fixed: hand-over banner closes when the player changes the view (src/game/flows/founding/flow.ts, flow.test.ts new case, 6/6 green, typecheck clean).
+- 09:29 photo PASS (exit 0). Next chunk: slicenight panelsB a11yA.
+- 09:35 slicenight re-shot: night slice fixed (looked at). Found keep-out never saw the palette (mounted outside HUD root) -> keepOut.ts searches the document; keepOut.test.ts; HUD tests 78/78.
+- 09:36 fixed photo-mode dotted queen (capsule off while possession rim hidden; lookFixes.test.ts 5/5). Queue: photo rerun to confirm.
+- 09:42 panelsB FAIL again at the View tap (real-ms tap threshold VIEW_TAP_MS 450 vs page frame time under load 9-10): not measured under load. a11yA running.

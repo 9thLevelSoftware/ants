@@ -5,6 +5,16 @@
 import type { CustomRules, DifficultyId, DifficultyParams } from '@/sim/types';
 import { DIFFICULTY_PARAMS, MAX_RIVALS, presetRuleValues, type DifficultyKey } from '@/sim/balance';
 
+/**
+ * Parameters and rules the design lists but no system reads yet (the owning module does not exist, or does not take
+ * the value). The New Game screen can grey their rows ("not in effect yet") so a card never promises what the game
+ * does not do. presetDisplay.test.ts checks that nothing in here is read anywhere, so wiring one removes it.
+ */
+export const UNWIRED_PARAMS: readonly DifficultyKey[] = [
+  'openingThreatsMax', 'openingGraceGd', 'queenLifespanMult', 'flightPredatorEvents', 'alertLeadWarnings',
+];
+export const UNWIRED_RULES: readonly (keyof CustomRules)[] = ['queenSenescence', 'foundingAssist'];
+
 export interface PresetRow {
   /** Group heading of GDD 06 §14. */
   group: 'Founding' | 'Weather and climate' | 'Threats, rivals, humans' | 'Food' | 'Colony' | 'Progression' | 'Time and interface';
@@ -14,6 +24,9 @@ export interface PresetRow {
   /** The value as the card prints it. */
   format: (p: DifficultyParams) => string;
 }
+
+/** False when a row shows a parameter nothing reads yet (UNWIRED_PARAMS). */
+export const rowInEffect = (r: PresetRow): boolean => !r.keys.some((k) => UNWIRED_PARAMS.includes(k));
 
 const mult = (v: number): string => `x${v}`;
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
@@ -89,7 +102,7 @@ export interface PresetCard {
   id: DifficultyId;
   name: string;
   lines: [string, string];
-  rows: { group: PresetRow['group']; label: string; value: string }[];
+  rows: { group: PresetRow['group']; label: string; value: string; inEffect: boolean }[];
   /** The rule values the preset sets (the custom-rules table shows these; editing one switches to "Custom"). */
   rules: Omit<CustomRules, 'seasonLengthDays' | 'startSeason'> & { seasonLengthDays: 7 };
 }
@@ -98,7 +111,7 @@ export function presetCard(id: DifficultyId): PresetCard {
   const p = DIFFICULTY_PARAMS[id];
   return {
     id, name: PRESET_SUMMARY[id].name, lines: PRESET_SUMMARY[id].lines,
-    rows: PRESET_ROWS.map((r) => ({ group: r.group, label: r.label, value: r.format(p) })),
+    rows: PRESET_ROWS.map((r) => ({ group: r.group, label: r.label, value: r.format(p), inEffect: rowInEffect(r) })),
     rules: { ...presetRuleValues(id), seasonLengthDays: 7 },
   };
 }
@@ -112,12 +125,14 @@ export interface RuleDisplay {
   fixedAtGeneration: boolean;
   /** One line in the design's wording of what the rule does. */
   effect: string;
+  /** False while no system reads the rule (UNWIRED_RULES). */
+  inEffect: boolean;
 }
 
 const ONOFF: RuleChoice[] = [{ value: true, label: 'On' }, { value: false, label: 'Off' }];
 
 /** The custom rules of GDD 06 §14.1 / GDD 08 §3.7, in the order of the New Game table. */
-export const RULE_DISPLAY: readonly RuleDisplay[] = [
+const RULE_DEFS: readonly Omit<RuleDisplay, 'inEffect'>[] = [
   { key: 'predators', label: 'Predators', fixedAtGeneration: false, effect: 'How many hunters roam. Off removes them, and the dangers they bring to founding and flight.',
     choices: [{ value: 'off', label: 'Off' }, { value: 'few', label: 'Few' }, { value: 'normal', label: 'Normal' }, { value: 'many', label: 'Many' }] },
   { key: 'rivals', label: 'Rival colonies', fixedAtGeneration: true, effect: 'Established colonies of other ants, settled when the locality is made.',
@@ -139,3 +154,5 @@ export const RULE_DISPLAY: readonly RuleDisplay[] = [
   { key: 'collapse', label: 'Nest collapse', fixedAtGeneration: false, effect: 'Wide dry chambers can fall in. Off means only a warning.', choices: ONOFF },
   { key: 'extinctionEndsGame', label: 'Extinction ends the game', fixedAtGeneration: false, effect: 'Off keeps the empty nest in view until you retire the colony.', choices: ONOFF },
 ];
+
+export const RULE_DISPLAY: readonly RuleDisplay[] = RULE_DEFS.map((r) => ({ ...r, inEffect: !UNWIRED_RULES.includes(r.key) }));

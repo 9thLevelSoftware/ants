@@ -7,7 +7,7 @@ import { Color, PointLight, type Material, type Mesh, type Object3D } from 'thre
 import type { FrameInfo, RenderContext, SubRenderer } from '@/render';
 import type { QualityPreset } from '@/render/app';
 import type { Sim } from '@/sim/types';
-import { NEST_LIGHT, NEST_LOOK, NestRenderer, type NestFrame } from '../nest';
+import { CUTAWAY, NEST_LIGHT, NEST_LOOK, NestRenderer, type NestFrame } from '../nest';
 import { DAYLIGHT_RGB, OCCLUSION_KEEP, SENSE_LIGHT_SCALE } from './params';
 
 const ZERO = { x: 0, y: 0, z: 0 };
@@ -66,6 +66,7 @@ export class NestSlot implements SubRenderer {
     const ev = w ? w.lighting.exposureEV : NEST_LOOK.exposureEV;
     const gain = Math.min(1, Math.pow(2, NEST_LOOK.exposureEV - ev));
     this.nest.setArtificialGain(gain);
+    this.nest.setCutGain(cutGain(ev));
     this.nest.update(n);
     this.updateSenseLight(gain);
     if (this.ctx.game.testMode) { // single settled frames: every pending chunk and the whole cap now
@@ -125,4 +126,9 @@ export class NestSlot implements SubRenderer {
     this.sense.dispose();
     this.nest.dispose();
   }
+}
+
+/** Gain on the cut face's own light for the current exposure: 1 up to CUTAWAY.refEV, then 2^(refEV - EV). */
+export function cutGain(ev: number): number {
+  return Number.isFinite(ev) ? Math.min(1, Math.pow(2, CUTAWAY.refEV - ev)) : 1;
 }

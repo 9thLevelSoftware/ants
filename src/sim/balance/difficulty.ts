@@ -60,7 +60,7 @@ export const DIFFICULTY_PARAMS: Record<DifficultyId, DifficultyParams> = {
 /** Rule values each preset implies (GDD 06 §14 / §14.1); `seasonLengthDays` and `startSeason` are not preset-bound. */
 const PRESET_RULES: Record<DifficultyId, Omit<CustomRules, 'seasonLengthDays' | 'startSeason'>> = {
   gentle: {
-    predators: 'few', rivals: 2, humanActivity: 'normal', weatherSeverity: 'normal', foundingLeniency: 'lenient',
+    predators: 'few', rivals: 2, humanActivity: 'low', weatherSeverity: 'normal', foundingLeniency: 'lenient',
     winterMode: 'timelapse', foundingAssist: true, queenSenescence: false, collapse: false, extinctionEndsGame: true,
   },
   naturalist: {
@@ -68,7 +68,7 @@ const PRESET_RULES: Record<DifficultyId, Omit<CustomRules, 'seasonLengthDays' | 
     winterMode: 'timelapse', foundingAssist: true, queenSenescence: false, collapse: true, extinctionEndsGame: true,
   },
   harsh: {
-    predators: 'many', rivals: 4, humanActivity: 'normal', weatherSeverity: 'normal', foundingLeniency: 'strict',
+    predators: 'many', rivals: 4, humanActivity: 'high', weatherSeverity: 'normal', foundingLeniency: 'strict',
     winterMode: 'timelapse', foundingAssist: false, queenSenescence: true, collapse: true, extinctionEndsGame: true,
   },
 };
@@ -126,7 +126,7 @@ export function invalidCustomRules(custom: unknown): string[] {
   if (typeof custom !== 'object' || custom === null || Array.isArray(custom)) return ['<not an object>'];
   const bad: string[] = [];
   for (const [k, v] of Object.entries(custom)) {
-    const check = (RULE_VALUES as Record<string, ((v: unknown) => boolean) | undefined>)[k];
+    const check = Object.hasOwn(RULE_VALUES, k) ? (RULE_VALUES as Record<string, (v: unknown) => boolean>)[k] : undefined;
     if (!check || (v !== undefined && !check(v))) bad.push(k);
   }
   return bad;
@@ -155,9 +155,6 @@ export const LENIENCY_PRESET: Record<CustomRules['foundingLeniency'], Difficulty
 
 /** Day of the season a game starts on when the custom rule `startSeason` names a season (GDD 06 §1.6). */
 export const START_DAY_OF_SEASON_RULE = 3;
-
-/** Season length the preset tables and the `HUMAN_GRACE_GD` constant are written for (GDD 06 §1.7). */
-export const OPENING_GRACE_REF_GD = DIFFICULTY_PARAMS.naturalist.openingGraceGd;
 
 /**
  * How a custom rule reaches a parameter. `plain`: the preset value as stored. `founding`: the Founding group of
@@ -224,6 +221,14 @@ export function difficultyValue<K extends DifficultyKey>(src: DifficultySource, 
   return valueIn(src.state.config, key);
 }
 
+/**
+ * Lifespan of a worker in game days for this game: the drawn `ant.lifespanGd` times `workerLifespanMult`. Every place
+ * that compares a worker's age with its lifespan (death, winter 'old workers', winter loss ranking) goes through here.
+ */
+export function workerLifespanGd(src: DifficultySource, ant: { lifespanGd: number }): number {
+  return ant.lifespanGd * valueIn(src.state.config, 'workerLifespanMult');
+}
+
 /** `difficultyValue` for a bare config (display, tests, the New Game screen). */
 export function valueIn<K extends DifficultyKey>(cfg: DifficultyInputs, key: K): DifficultyParams[K] {
   const base = cfg.difficulty.params[key];
@@ -253,7 +258,7 @@ export function valueIn<K extends DifficultyKey>(cfg: DifficultyInputs, key: K):
     case 'human-bait':
       if (effectiveRule(cfg, 'humanActivity') === 'off') out = 'off';
       break;
-    case 'rivals':
+    case 'rivals': // DECISION (open ruling): GDD 05 §5/§7 keeps incipients at rivals 0; the task's AC3 ("zero events") wins here
       if (effectiveRule(cfg, 'rivals') === 0) out = 0;
       break;
   }

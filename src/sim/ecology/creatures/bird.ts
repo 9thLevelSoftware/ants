@@ -111,7 +111,7 @@ export function birdHourly(sim: Sim, cond: Conditions): boolean {
   if (workers < BIRD_MIN_WORKERS) return false;
   const last = sim.state.ecology.lastBirdTick[String(col.id)] ?? -Infinity;
   if (sim.state.tick - last < BIRD_GAP_GD * TICKS_PER_DAY) return false;
-  if (!chance(sim, Math.min(1, difficultyValue(sim, 'predatorDensityMult') / windowH))) return false; // = BIRD_RATE of the setting
+  if (!chance(sim, Math.min(1, difficultyValue(sim, 'predatorDensityMult') / windowH))) return false; // = BIRD_RATE of the setting (same numbers as the density)
   const pos = birdTarget(sim, col.id);
   if (!pos) return false;
   // a blocked bird event is cancelled (§6)

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomRules, DifficultyId } from '@/sim/types';
 import { DIFFICULTY_KEYS, DIFFICULTY_PARAMS, invalidCustomRules, presetRuleValues } from '@/sim/balance';
-import { PRESET_ROWS, PRESET_SUMMARY, presetCard, RULE_DISPLAY } from './presetDisplay';
+import { PRESET_ROWS, PRESET_SUMMARY, presetCard, RULE_DISPLAY, UNWIRED_PARAMS, UNWIRED_RULES } from './presetDisplay';
 
 const PRESETS: readonly DifficultyId[] = ['gentle', 'naturalist', 'harsh'];
 const RULE_KEYS: (keyof CustomRules)[] = ['predators', 'rivals', 'humanActivity', 'weatherSeverity', 'seasonLengthDays', 'startSeason',
@@ -62,5 +62,29 @@ describe('custom rules table', () => {
     const start = RULE_DISPLAY.find((r) => r.key === 'startSeason');
     expect(start?.choices.map((c) => c.value)).toEqual(['natural', 'spring', 'summer', 'autumn']);
     expect(RULE_DISPLAY.filter((r) => r.fixedAtGeneration).map((r) => r.key).sort()).toEqual(['rivals', 'seasonLengthDays', 'startSeason']);
+  });
+});
+
+const SOURCES = import.meta.glob('/src/**/*.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+
+/** Source of every file outside the table, the display data, the types and the tests: where a value would be read. */
+function readers(): string {
+  return Object.entries(SOURCES)
+    .filter(([path]) => !/\.test\.ts$/.test(path)
+      && !/(balance\/difficulty|config\/presetDisplay|config\/rules|types\/config)\.ts$/.test(path))
+    .map(([, text]) => text).join('\n');
+}
+
+describe('values that no system reads yet are marked as not in effect', () => {
+  const code = readers();
+  it.each([...UNWIRED_PARAMS, ...UNWIRED_RULES])('%s is read nowhere (wire it and take it off the unwired list)', (key) => {
+    expect(new RegExp(`\\b${key}\\b`).test(code)).toBe(false);
+  });
+
+  it('the cards and the rules table carry the flag', () => {
+    const rows = presetCard('naturalist').rows;
+    expect(rows.find((r) => r.label === 'Grace period before threats')?.inEffect).toBe(false);
+    expect(rows.find((r) => r.label === 'Rain')?.inEffect).toBe(true);
+    expect(RULE_DISPLAY.filter((r) => !r.inEffect).map((r) => r.key).sort()).toEqual([...UNWIRED_RULES].sort());
   });
 });

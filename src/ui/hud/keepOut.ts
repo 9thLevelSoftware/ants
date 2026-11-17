@@ -13,8 +13,13 @@ export function keepOutRects(): readonly Rect[] {
   return rects;
 }
 
-/** Watches the HUD regions under `root`; returns the stop function. */
+/**
+ * Watches the HUD regions under `root` and the panel toolbars (`.pn-panel`), which the panels layer mounts outside
+ * the HUD root: the whole document is searched and observed (gate-close-app: the marker palette was never seen, so
+ * hint chips still sat on it, e2e/slicenight/slice-night.png); returns the stop function.
+ */
 export function watchKeepOut(root: HTMLElement): () => void {
+  const scope: ParentNode & Node = root.ownerDocument?.body ?? root;
   const watched = new Set<Element>();
   const measure = (): void => {
     const next: Rect[] = [];
@@ -26,13 +31,13 @@ export function watchKeepOut(root: HTMLElement): () => void {
   };
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
   const sync = (): void => {
-    const now = new Set(root.querySelectorAll(REGIONS));
+    const now = new Set(scope.querySelectorAll(REGIONS));
     watched.forEach((el) => { if (!now.has(el)) { watched.delete(el); ro?.unobserve(el); } });
     now.forEach((el) => { if (!watched.has(el)) { watched.add(el); ro?.observe(el); } });
     if (!ro) measure();
   };
   const mo = typeof MutationObserver !== 'undefined' ? new MutationObserver(sync) : null;
-  mo?.observe(root, { childList: true, subtree: true });
+  mo?.observe(scope, { childList: true, subtree: true });
   window.addEventListener('resize', measure);
   sync();
   return () => { mo?.disconnect(); ro?.disconnect(); window.removeEventListener('resize', measure); watched.clear(); rects = []; };

@@ -21,6 +21,7 @@ import { walkerPlace } from '@/sim/locomotion/walker';
 import { SAVE_VERSION } from '@/sim/save/version';
 import { createSimKernel, createStores } from '@/sim/services';
 import { requireSpecies } from '@/sim/species';
+import { naturalStart } from '@/sim/config/rules';
 import { calendarTickAt } from '@/sim/time';
 import { clonePlain } from '@/sim/entities';
 import { defaultWorldParams, generateWorld, type WorldRuleInputs } from '@/worldgen';
@@ -34,16 +35,12 @@ export function defaultGameConfig(
   seasonLengthDays: SeasonLengthDays = DEFAULT_SEASON_LENGTH_DAYS as SeasonLengthDays,
 ): GameConfig {
   const def = requireSpecies(species);
-  const doy = def.opening.startDoy.default; // default-year day of year
-  const refLen = DEFAULT_SEASON_LENGTH_DAYS;
-  const seasonIdx = Math.floor((doy - 1) / refLen);
-  const dayInSeason = ((doy - 1) % refLen) + 1;
-  const scaledDay = Math.max(1, Math.min(seasonLengthDays, Math.round(1 + ((dayInSeason - 1) * seasonLengthDays) / refLen)));
+  const start = naturalStart(species, seasonLengthDays);
   const difficulty = { preset, params: clonePlain(DIFFICULTY_PARAMS[preset]), custom: {} };
   const rules = resolveRules(preset, {}, seasonLengthDays);
   return {
     species, difficulty, rules,
-    startSeason: SEASONS[seasonIdx], startDayOfSeason: scaledDay,
+    startSeason: start.season, startDayOfSeason: start.day,
     startHour: def.opening.startHours[0] ?? DEFAULT_START_HOUR,
     world: defaultWorldParams(species, seed, preset, 'standard', worldRuleInputs({ difficulty, rules })), cheats: false,
   };

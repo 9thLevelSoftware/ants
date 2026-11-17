@@ -4,7 +4,7 @@
 import type { Vec3 } from '@/core/math/vec3';
 import type { Sim, WeatherState } from '@/sim/types';
 import {
-  AIR_PEAK_HOUR, COLD_SNAP_DAY_OFFSET_C, difficultyValue, DIURNAL_MULT, HEAT_RAMP_H, INTERIOR_AIR_W, INTERIOR_RH, INTERIOR_SET_C,
+  AIR_PEAK_HOUR, COLD_SNAP_DAY_OFFSET_C, difficultyValue, DIURNAL_MULT, effectiveRule, SEVERITY_MULT, HEAT_RAMP_H, INTERIOR_AIR_W, INTERIOR_RH, INTERIOR_SET_C,
   UNHEATED_ADD_C, UNHEATED_AIR_W, WEATHER_DEFS, WEATHER_OFFSET_C,
 } from '@/sim/balance';
 import { TICKS_PER_HOUR } from '@/sim/time';
@@ -21,6 +21,11 @@ export function diurnalShape(hour: number, sunrise: number): number {
 /** Climate of this game. */
 export function climateOf(sim: Sim): ClimateDef {
   return climateDef(sim.state.env.climateId);
+}
+
+/** Severity multiplier of the weatherSeverity rule in force (`none` = 0, mild 0.6, normal 1, severe 1.4). */
+export function severityMult(sim: Sim): number {
+  return SEVERITY_MULT[effectiveRule(sim.state.config, 'weatherSeverity')] ?? 1;
 }
 
 /** Heat wave air offset, C: climate offset * difficulty * severity (GDD 06 §2.2 `Woff`). */

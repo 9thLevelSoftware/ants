@@ -83,6 +83,9 @@ describe('camera-to-ant capsule (GDD 01 6.5 rule 2)', () => {
     expect(shared.uCapA.value.x).toBe(-20);
     expect(shared.uCapB.value.x).toBeCloseTo(0, 6);
     expect(shared.uCapB.value.y).toBeGreaterThan(0); // the thorax, above the feet
+    // photo mode with the rim hidden: no capsule (the possessed ant would read as "another ant" inside it)
+    r.update({ ...frame, hidePossessedHighlight: true });
+    expect(shared.uCapR.value).toBe(0);
     state.player.possessedAntId = -1;
     r.update(frame);
     expect(shared.uCapR.value).toBe(0);

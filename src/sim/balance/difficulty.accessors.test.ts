@@ -6,7 +6,7 @@ import type { CustomRules, DifficultyId, GameConfig } from '@/sim/types';
 import { defaultGameConfig } from '@/sim/createGame';
 import { applyRules } from '@/sim/config/rules';
 import {
-  DIFFICULTY_KEYS, DIFFICULTY_PARAMS, difficultyValue, effectiveParams, effectiveRule, resolveRules, type DifficultyKey,
+  DIFFICULTY_KEYS, DIFFICULTY_PARAMS, difficultyValue, effectiveParams, effectiveRule, resolveRules, workerLifespanGd, type DifficultyKey,
 } from './difficulty';
 
 const PRESETS: readonly DifficultyId[] = ['gentle', 'naturalist', 'harsh'];
@@ -154,5 +154,11 @@ describe('values the Appendix E checks of other chapters derive from the table',
   it('rules not tied to a parameter are read as given: winter mode, founding assist, senescence, extinction', () => {
     const config = cfgOf('harsh', { winterMode: 'realtime', foundingAssist: true, queenSenescence: false, extinctionEndsGame: false });
     expect([effectiveRule(config, 'winterMode'), effectiveRule(config, 'foundingAssist'), effectiveRule(config, 'queenSenescence'), effectiveRule(config, 'extinctionEndsGame')]).toEqual(['realtime', true, false, false]);
+  });
+});
+
+describe('workerLifespanGd', () => {
+  it.each(PRESETS)('%s: the drawn lifespan times the preset multiplier (death, winter old-age and loss ranking share it)', (preset) => {
+    expect(workerLifespanGd(src(cfgOf(preset)), { lifespanGd: 30 })).toBeCloseTo(30 * DIFFICULTY_PARAMS[preset].workerLifespanMult, 9);
   });
 });

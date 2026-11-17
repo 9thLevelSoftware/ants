@@ -67,7 +67,9 @@ export interface DifficultyReport {
   days: number;
   weather: { hoursByState: Record<string, number>; changes: number; thunder: number; rainMm: number; hoursOver30: number; minTempC: number; maxTempC: number };
   threats: {
-    creaturesSpawned: Record<string, number>; predatorsSpawned: number; predatorStrikes: number; birdVisits: number; raidsOnPlayer: number;
+    creaturesSpawned: Record<string, number>; predatorsSpawned: number; predatorTelegraphs: number; predatorStrikes: number; birdVisits: number; raidsOnPlayer: number;
+    /** Mean over the hourly samples: live ant-predator creatures in the world, and player workers outside the nest. */
+    livePredatorsAvg: number; workersOutsideAvg: number;
     rivalRaids: number; rivalEncounters: number; humanEventsStarted: number; humanEventsByKind: Record<string, number>;
     humanCasualties: number; floods: number; collapses: number;
   };
@@ -115,7 +117,7 @@ export function runDifficulty(o: Opts, fs: NodeFs): DifficultyReport {
     rules: sim.state.config.rules, issues: applied.issues, founding, days: o.days,
     weather: { hoursByState: {}, changes: 0, thunder: 0, rainMm: 0, hoursOver30: 0, minTempC: 99, maxTempC: -99 },
     threats: {
-      creaturesSpawned: {}, predatorsSpawned: 0, predatorStrikes: 0, birdVisits: 0, raidsOnPlayer: 0, rivalRaids: 0, rivalEncounters: 0,
+      creaturesSpawned: {}, predatorsSpawned: 0, predatorTelegraphs: 0, livePredatorsAvg: 0, workersOutsideAvg: 0, predatorStrikes: 0, birdVisits: 0, raidsOnPlayer: 0, rivalRaids: 0, rivalEncounters: 0,
       humanEventsStarted: 0, humanEventsByKind: {}, humanCasualties: 0, floods: 0, collapses: 0,
     },
     losses: { antDeaths: 0, antDeathsByCause: {}, broodDeaths: 0, broodDeathsByCause: {} },
@@ -128,6 +130,7 @@ export function runDifficulty(o: Opts, fs: NodeFs): DifficultyReport {
     bump(r.threats.creaturesSpawned, e.kind);
     if (CREATURE_STATS[e.kind]?.family === 'ant-predator') r.threats.predatorsSpawned++;
   });
+  on('predator-telegraph', () => { r.threats.predatorTelegraphs++; });
   on('predator-strike', () => { r.threats.predatorStrikes++; });
   on('bird-approach', () => { r.threats.birdVisits++; });
   on('rival-raid-started', (e) => { r.threats.rivalRaids++; if (e.target === col()) r.threats.raidsOnPlayer++; });
@@ -141,6 +144,7 @@ export function runDifficulty(o: Opts, fs: NodeFs): DifficultyReport {
 
   const end = sim.state.tick + o.days * TICKS_PER_DAY;
   const HOUR = TICKS_PER_DAY / 24;
+  let samples = 0, livePredatorSum = 0, outsideSum = 0;
   while (sim.state.tick < end) {
     sim.tick();
     if (sim.state.tick % HOUR === 0) {
@@ -151,6 +155,9 @@ export function runDifficulty(o: Opts, fs: NodeFs): DifficultyReport {
       if (air < r.weather.minTempC) r.weather.minTempC = Math.round(air * 10) / 10;
       if (air > r.weather.maxTempC) r.weather.maxTempC = Math.round(air * 10) / 10;
       if (air > 30) r.weather.hoursOver30++;
+      samples++;
+      for (const c of sim.state.creatures) if (CREATURE_STATS[c.kind]?.family === 'ant-predator') livePredatorSum++;
+      for (const a of sim.state.ants) if (a.alive && a.colony === col() && a.caste === 'worker' && a.nestId < 0) outsideSum++;
     }
     if (sim.state.tick % TICKS_PER_DAY === 0) {
       const n = sim.state.ants.filter((a) => a.alive && a.colony === col() && a.caste === 'worker').length;
@@ -158,6 +165,8 @@ export function runDifficulty(o: Opts, fs: NodeFs): DifficultyReport {
     }
   }
   const workers = sim.state.ants.filter((a) => a.alive && a.colony === col() && a.caste === 'worker').length;
+  r.threats.livePredatorsAvg = Math.round((livePredatorSum / Math.max(1, samples)) * 100) / 100;
+  r.threats.workersOutsideAvg = Math.round((outsideSum / Math.max(1, samples)) * 100) / 100;
   r.colony.workersEnd = workers;
   r.colony.workersMax = Math.max(r.colony.workersMax, workers);
   r.rivals.colonies = sim.state.colonies.filter((c) => c.alive && !c.isPlayer).length;

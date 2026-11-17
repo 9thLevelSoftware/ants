@@ -40,7 +40,7 @@ ${GLSL_TRIPLANAR}
 ${GLSL_NOISE3}
 uniform sampler2D tCap;
 uniform sampler2D tWrA, tWrN, tWrR; uniform float uWrScale;
-uniform vec3 uCapCol; uniform vec3 uStoneCol; uniform vec3 uEdgeCol; uniform vec3 uCutFill;
+uniform vec3 uCapCol; uniform vec3 uStoneCol; uniform vec3 uEdgeCol; uniform vec3 uCutFill; uniform float uCutGain;
 uniform float uEdgeW; uniform float uRadialLimit; uniform vec3 uCutC; uniform float uCutR; uniform float uBu;
 varying vec2 vUv;
 varying vec3 vCapW;
@@ -61,7 +61,7 @@ void main() {
   float lit = 0.75 + 0.25 * abs(dot(nw, normalize(cameraPosition - vCapW)));
   col *= lit;
   if (t.r < 0.5 + max(uEdgeW, 1.5 * fwidth(t.r))) col = uEdgeCol; // at least ~1 px wide from far away
-  gl_FragColor = vec4(col, 1.0);
+  gl_FragColor = vec4(col * uCutGain, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -88,7 +88,7 @@ export class CapMesh {
         uEdgeCol: { value: new Color(CUTAWAY.edgeHex) },
         uEdgeW: { value: CUTAWAY.edgeBU }, // solidness units: the ramp is 1 BU wide
         uRadialLimit: { value: 0 },
-        uCutC: u.uCutC, uCutR: u.uCutR, uBu: u.uBu, uCutFill: u.uCutFill,
+        uCutC: u.uCutC, uCutR: u.uCutR, uBu: u.uBu, uCutFill: u.uCutFill, uCutGain: u.uCutGain,
       } as Record<string, IUniform>,
       side: DoubleSide,
       fog: true,

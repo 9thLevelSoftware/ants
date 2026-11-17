@@ -7,7 +7,7 @@ import type { DifficultyId, Sim } from '@/sim/types';
 import { HUMAN_EVENT_KINDS } from '@/sim/types';
 import { createNewGame, defaultGameConfig } from '@/sim/createGame';
 import { createSim } from '@/sim/sim';
-import { DIFFICULTY_PARAMS } from '@/sim/balance';
+import { DIFFICULTY_PARAMS, presetRuleValues } from '@/sim/balance';
 import { HUMAN_SCHEDULE } from '@/sim/balance/human';
 import { daysPerYear } from '@/sim/time';
 import { humanEventsSystem } from './index';
@@ -31,7 +31,7 @@ function simFor(arch: 'kitchen-door' | 'playground-park', preset: DifficultyId =
   d.preset = preset;
   d.params = { ...DIFFICULTY_PARAMS[preset] };
   d.custom = humanActivity ? { humanActivity } : {};
-  s.state.config.rules.humanActivity = humanActivity ?? 'normal';
+  s.state.config.rules.humanActivity = humanActivity ?? presetRuleValues(preset).humanActivity; // what the preset implies
   return s;
 }
 

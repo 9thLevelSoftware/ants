@@ -713,3 +713,34 @@ Progress (kept current; a successor continues from here)
   ceiling, not the catch, limits booked protein where prey is in reach. In the real runs P is near 0 most of the time,
   so the ceiling there bites only in the first days (hand-over provision). Bench limitation recorded; lead for next round:
   P storage of a small nest (stomach 0.15 P/worker; first food chamber by `missing-type` only at 25 workers).
+- 09:15 **nest bench before** done (`round-3/bench-nest-before/table.md`; food guaranteed): 231 eggs laid in 15 runs
+  (median 11), eclosed median **0** (seed 1 and 3: 0 in all 10; seed 2: 1-10), workers at winter < hand-over in 12 of 15.
+  Brood losses with food guaranteed: egg:untended 61, hygiene 42 (egg 23, larva 11, pupa 8), larva:starvation 30,
+  pupa:untended 18, base 17, flooding 7, exposure 6, eclosion-failed 4. Laying potential > 0.5 egg/gd 14-51 % of the time
+  (seed 1/3 runs 14-31 %, brood 11-17 C). nest-after (n1) started 09:13.
+
+### Funnel of the studied runs (benches, round-3 start tree; medians over the 15 hand-overs)
+
+| | forage bench (demand of 30 workers) | nest bench (stores topped up to 2 gd) |
+|---|---|---|
+| trips / success | 45 / 26 % | - |
+| intake / bench need C, P | 0.78, **0.012** | (food guaranteed) |
+| protein path | patch prey met in 9 of 15 (only runs with a patch edge <= 130 BU); chased 0-144, caught 0-25 (median 0); carrion within 300 BU known 0 in 13 of 15; P stores at the social-stomach ceiling where prey is caught | - |
+| scouting | 4-30 trips in 8 gd, nearest approach to a P odour edge ~130 BU | - |
+| eggs laid / eclosed | - | 11 / **0** (seed 2: 20-30 / 1-10) |
+| brood losses (all runs) | - | egg:untended 61, hygiene 42, larva:starvation 30, pupa:untended 18 |
+| brood temperature days 1-3 | - | median 15.2 C (seed 1/3 10.6-18.3 C, seed 2 20.4-23 C), falling to 5-10 C by day 5-8 |
+| calendar ceiling | - | an egg laid on colony day 0-3 at the measured temperatures ecloses before winter in 1 of 7 runs checked (sg #2 day 0) |
+
+### Ranking by measured loss (round 3)
+
+1. **Calendar and brood temperature** (nest bench): with food guaranteed, 0 eclosions in all 10 seed-1/3 runs; at their
+   brood temperatures no egg laid after the hand-over can become a worker before winter (larvae stop at doy 19). This
+   alone holds the eclosion median at 0. Lever (direction 3): the default start day - integrator's ruling; the start-day
+   bench (doy 7, 5) is queued (`round-3/bench-startday/`).
+2. **Brood care fails with food guaranteed**: 79 eggs/pupae untended, 42 hygiene, 30 larvae starved of 231 eggs. One
+   mechanism found and fixed (E1: flood-evacuation loop, we #1); nurse rest at 2 of 2 nurses and waste in the royal
+   chamber remain (we #1 probe).
+3. **Protein**: P/need 0.012 on the forage bench. (a) patches out of reach in 6-8 of 15 runs (lead, worldgen);
+   (b) chase conversion 4-24 % where prey is met (fixed H2a, H2b); (c) carrion in reach never found (scouting);
+   (d) P storage ceiling of a nest without a food chamber (0.15 P per worker) refuses caught prey on the bench.

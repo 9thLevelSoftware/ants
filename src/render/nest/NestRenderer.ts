@@ -159,6 +159,11 @@ export class NestRenderer {
     this.lighting.setArtificialGain(g);
   }
 
+  /** Gain on the cut face's own light (cap colour, cut fill), see CUTAWAY.refEV. */
+  setCutGain(g: number): void {
+    this.lighting.setCutGain(g);
+  }
+
   /** Moisture darkening hook: wetness = clamp(soilMoisture * scale + offset) (rain soaking, flooding). */
   setMoisture(scale: number, offset = 0): void {
     this.uniforms.uMoist.value.set(scale, offset);

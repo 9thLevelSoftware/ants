@@ -118,3 +118,22 @@ describe('founding flow: the time-lapse (GDD 06 §5.11)', () => {
     expect(sim.state.env.time.speed).toBe(8);
   }, 120_000);
 });
+
+describe('founding flow: the hand-over banner (gate-close-app)', () => {
+  // playSeed1/x1-m02-observer.png: the banner still sat over the scene 5 game hours later, after the player had
+  // left the queen for another view. Changing the view answers it, like taking a worker does.
+  it('stays while the view is unchanged and closes when the player changes the view', () => {
+    const { sim, session, flow } = atLapse();
+    flow.skipLapse();
+    playFrames(flow, session, sim);
+    flow.frame(session, 1 / 60);
+    flow.closeOutcome();
+    const at = session.view;
+    for (let i = 0; i < 30; i++) flow.frame(session, 1 / 60);
+    expect(foundingUi.value!.handover).not.toBeNull();
+    session.setView(at === 'colony' ? 'observer' : 'colony', true);
+    expect(session.view).not.toBe(at);
+    flow.frame(session, 1 / 60);
+    expect(foundingUi.value!.handover).toBeNull();
+  }, 120_000);
+});

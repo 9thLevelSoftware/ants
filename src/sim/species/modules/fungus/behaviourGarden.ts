@@ -18,7 +18,6 @@ import { endCycle, releaseAll, think } from '@/sim/ants/behaviours/nest/common';
 import { setState } from '@/sim/ants/behaviours/nest/fsm';
 import { chamberIn, homeNest, middenPoint } from '@/sim/ants/behaviours/nest/places';
 import { actEnded, busy, entity, travel, tryAct } from '@/sim/ants/behaviours/nest/travel';
-import { removeItem } from '@/sim/entities';
 import { WASTE_HAUL_MIN_LOADS } from '@/sim/balance/species-leafcutter';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { fungusParams, type FungusParams } from './params';
@@ -263,14 +262,6 @@ function step(sim: Sim, ant: Ant): void {
     case 'garden.work': work(sim, ant); return;
     case 'garden.carry': carry(sim, ant); return;
     default: find(sim, ant);
-  }
-}
-
-/** Old garden waste items lying in the nest are taken out too (a carrier that dropped one). */
-export function removeStrayWaste(sim: Sim, col: Colony): void {
-  for (const it of sim.stores.items.list) {
-    if (it.alive && it.kind === 'garden-waste' && it.colony === col.id && it.carrierIds.length === 0 && it.inNest && it.hardness !== 0
-      && sim.state.tick - it.droppedTick > TICKS_PER_DAY) removeItem(sim, it.id, 'decayed');
   }
 }
 

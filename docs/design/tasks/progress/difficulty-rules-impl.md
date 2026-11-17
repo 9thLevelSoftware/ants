@@ -78,3 +78,7 @@ snapC builder: /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scr
 - 08:57 ALL 28-day runs done (w60): results in test-output/difficulty/difficulty-{gentle,naturalist,harsh}-1-w60.json + -naturalist-1-w60-custom.json (zero predators/human/rival events, 0 rival colonies). NEXT: vitest (config, balance difficulty.*, weather test), touched-module tests, report
 - 09:05 running touched-module tests: batchA (/tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scratchpad/batchA.txt) then batchB + founding + brood + physiology
 - 09:20 batchA/B done: only baseline-preexisting failures (weather.test determinism, sources drops/season (6), rivals/founding.test, founding/reopen.test: same failures in snapA). running LONG rules test then final typecheck+my tests+report
+
+## FINAL (09:17)
+All deliverables done; typecheck clean; my tests 116 pass (+2 LONG skipped; LONG rules test passed once in 6 min). Reports: see StructuredOutput of the engineer.
+Evidence: test-output/difficulty/{baseline,after,np-*,neutral-*}.json (hash proof), difficulty-*-w60.json (28-day runs), weatherStats.json (200 yr/setting), vitest-batch{A,B}.log.

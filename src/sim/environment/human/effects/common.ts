@@ -9,7 +9,6 @@ import { applyDamage } from '@/sim/combat';
 import { releaseCarried } from '@/sim/ants/actions';
 import { placeOnSurface } from '@/sim/locomotion';
 import { CRUSH_CREVICE_PROBE_BU, CRUSH_SAFE_DEPTH_BU, HUMAN_GRACE_GD, HUMAN_GRACE_RADIUS_BU } from '@/sim/balance/human';
-import { difficultyValue, OPENING_GRACE_REF_GD } from '@/sim/balance/difficulty';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { surfaceY } from '../ground';
 import { footprintRadius, inFootprint, type Footprint } from '../plan';
@@ -95,7 +94,7 @@ export function shelteredBelow(sim: Sim, ant: Ant, plane: number, floorY = NaN):
 
 /** HUMAN_GRACE_GD: no lethal effect near the founding queen at the start of a new game. */
 export function inGrace(sim: Sim, p: Vec3): boolean {
-  if (sim.state.tick > HUMAN_GRACE_GD * (difficultyValue(sim, 'openingGraceGd') / OPENING_GRACE_REF_GD) * TICKS_PER_DAY) return false; // gentle 2x, harsh 0.5x
+  if (sim.state.tick > HUMAN_GRACE_GD * TICKS_PER_DAY) return false;
   const col = sim.state.colonies[0];
   const queen = col ? sim.stores.ants.get(col.queenId) : undefined;
   if (!queen) return false;

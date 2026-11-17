@@ -7,7 +7,7 @@ import { rngFloat, rngShuffle, type RngState } from '@/core/rng';
 import type { Ant, Brood, BroodDeathCause, Colony, DeathCause, Sim, SpeciesDef, WinterRecord } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { killAnt } from '@/sim/entities';
-import { difficultyValue } from '@/sim/balance/difficulty';
+import { difficultyValue, workerLifespanGd } from '@/sim/balance/difficulty';
 import { releasePossessed } from '@/sim/ants/player/possession';
 import { timeHandlers } from '@/sim/environment';
 import { chamberTempC } from '../envAdapter';
@@ -121,14 +121,14 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
   const days = winterDaysLeft(jump);
   const climate = winterClimate(sim, cluster, days, rng);
   const input: WinterInput = {
-    workers: workers.length, oldWorkers: workers.filter((a) => a.physioAgeGd > WINT_OLD_AGE_FRAC * a.lifespanGd).length,
+    workers: workers.length, oldWorkers: workers.filter((a) => a.physioAgeGd > WINT_OLD_AGE_FRAC * workerLifespanGd(sim, a)).length,
     larvae: larvae.length, pupae: pupae0 - (broodLosses.temperature ?? 0), c: col.stores.c, p: col.stores.p,
     queenAlive: !!queen && queen.alive, ...climate, floodSafety: cluster.floodSafety, humidity: cluster.humidity,
   };
   const out = runWinterModel(input, winterParams(sim, def), rng);
 
   // losses on real ants: old-age takes the oldest, the other causes a random order
-  const byAge = [...workers].sort((a, b) => b.physioAgeGd / b.lifespanGd - a.physioAgeGd / a.lifespanGd || a.id - b.id);
+  const byAge = [...workers].sort((a, b) => b.physioAgeGd / workerLifespanGd(sim, b) - a.physioAgeGd / workerLifespanGd(sim, a) || a.id - b.id);
   const dead = new Set<number>();
   const take = (list: Ant[], n: number, cause: DeathCause): void => {
     for (const a of list) {

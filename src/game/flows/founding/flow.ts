@@ -52,6 +52,8 @@ export class FoundingFlow implements FoundingActions {
   private publishS = 0;
   /** The flow paused the clock for the intro card (it starts it again when the card goes). */
   private pausedForIntro = false;
+  /** The view the hand-over banner first showed over (null until it shows): changing it answers the banner. */
+  private handoverView: string | null = null;
   private checkpoint: { attempt: number; bytes: Uint8Array; config: GameConfig } | null = null;
   private readonly runner = new LapseRunner();
   private readonly flags: FlowFlags = { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false, reducedMotion: false };
@@ -64,6 +66,7 @@ export class FoundingFlow implements FoundingActions {
     this.lastPhase = null;
     this.introS = 0;
     this.outcomeS = 0;
+    this.handoverView = null;
     this.runner.reset();
     Object.assign(this.flags, { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false });
     const op = session.sim.state.player.opening;
@@ -100,7 +103,7 @@ export class FoundingFlow implements FoundingActions {
     const phase = op.phase;
     // the card went another way (a command, the debug path): start the clock again
     if (this.pausedForIntro && phase !== 'intro-card') { this.pausedForIntro = false; this.host.setSpeed(1); }
-    const changed = phase !== this.lastPhase;
+    let changed = phase !== this.lastPhase;
     if (changed) this.onPhase(this.lastPhase, phase);
     this.lastPhase = phase;
     let ran = 0;
@@ -126,6 +129,13 @@ export class FoundingFlow implements FoundingActions {
       const a = sim.stores.ants.get(session.possessedId);
       if (a && a.caste !== 'queen') this.flags.handoverOpen = false;
     }
+    // ... or changed the view (left the queen for the observer or the colony view, or took her back): the banner no
+    // longer sits over the scene for hours (gate-close-app play-through, playSeed1/x1-m02-observer.png: still up 5
+    // game hours later)
+    if (this.flags.handoverOpen && !this.flags.outcomeOpen) {
+      if (this.handoverView === null) this.handoverView = session.view; // the view the banner first showed over
+      else if (session.view !== this.handoverView) { this.flags.handoverOpen = false; changed = true; }
+    }
     this.publishS += dt;
     this.publish(changed || !this.host.realtime || this.publishS >= 1 / PUBLISH_HZ || ran > 0);
     return ran > 0;
@@ -147,6 +157,7 @@ export class FoundingFlow implements FoundingActions {
     if (from === 'timelapse' && to === 'handover') {
       this.flags.outcomeOpen = true;
       this.flags.handoverOpen = true;
+      this.handoverView = null;
       this.outcomeS = 0;
     }
     if (to === 'failed') this.flags.failureDismissed = false;

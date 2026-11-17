@@ -29,6 +29,13 @@ tools/sim/probe-leaf-plants.ts, probe-leaf-life.ts, probe-leaf-queen.ts, probe-l
 - viability: life.ts atta suburban-garden 1 --until winter running (test-output/viab/sg1.log), then seeds 2,3 and
   a second archetype, one at a time
 
+## 09:20
+- sg1 (before): not viable — brood hygiene cascade (brood corpses 20+ in the founding cell) from starving larvae;
+  queen laid from founding P while the founding garden (0.6-0.7 GU, fT 0.1-0.9 in a ~28-30 C cell) yields ~0.05 FL/GD
+- fixes: minims process when no media gardens (noProcessors); queen laying held to fungus cover (holdLayingToFungus,
+  LAY_COVER_GD 2.5). sg1b: stages all fed, larvae starved 0, but workers 9 -> 4 (6 minim old-age), 4 eggs laid
+- sweep sg2, sg3, pp1-3 running sequentially (scratchpad viab.sh -> test-output/viab/*.log, sweep.done)
+
 ## Next
 1. look at r1 screenshots; 2. run own tests + typecheck; 3. viability life runs (one at a time); 4. soak 28 d;
 5. delete probes; 6. report

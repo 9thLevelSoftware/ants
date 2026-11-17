@@ -117,9 +117,16 @@ describe('difficulty table against the design documents (AC2)', () => {
     expect(rules.map((r) => r.collapse)).toEqual([false, true, true]); // GDD 08 §3.7: nest collapse Off / On / On
     expect(rules.map((r) => r.foundingLeniency)).toEqual(['lenient', 'normal', 'strict']);
     expect(rules.map((r) => r.predators)).toEqual(['few', 'normal', 'many']);
+    expect(rules.map((r) => r.humanActivity)).toEqual(['low', 'normal', 'high']); // GDD 08 §3.7
+    expect(rules.map((r) => r.weatherSeverity)).toEqual(['normal', 'normal', 'normal']); // the preset's own weather multipliers carry the scaling (no double count)
     expect(rules.map((r) => r.winterMode)).toEqual(['timelapse', 'timelapse', 'timelapse']);
     expect(rules.map((r) => r.extinctionEndsGame)).toEqual([true, true, true]);
     expect(IDS.map((id) => presetRivals(id))).toEqual([2, 3, 4]);
+  });
+
+  it('the human-activity rule of each preset agrees with its humanFreqMult (custom humanActivity: low 0.5, normal 1, high 1.5)', () => {
+    const mult = { off: 0, low: 0.5, normal: 1.0, high: 1.5 } as const;
+    for (const id of IDS) expect(mult[presetRuleValues(id).humanActivity]).toBe(DIFFICULTY_PARAMS[id].humanFreqMult);
   });
 
   it('the predator rule of each preset agrees with its predatorDensityMult (custom predators: few 0.4, normal 1, many 1.6)', () => {
