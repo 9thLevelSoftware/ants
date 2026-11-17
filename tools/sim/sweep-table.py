@@ -33,6 +33,7 @@ def load(d):
                 viable=v['viable'],
                 fails=[c['name'] + ' (' + c['detail'] + ')' for c in v['checks'] if not c['ok']],
                 hash=r.get('finalHash', ''),
+                funnel=r.get('funnel'),
             )
     return rows
 
@@ -113,11 +114,38 @@ def compare(rows, prev):
     return '\n'.join(out), regs
 
 
+def funnel(rows):
+    """Brood and queen funnel after the hand-over per run (life.ts report.funnel), and totals over the sweep."""
+    out = ['\n**Funnel after the hand-over** (life.ts `funnel`):', '',
+           '| run | eggs laid | hatched | pupated | eclosed | brood losses | alive at end (diapause) | queen: potential > 0.5 / laying permitted / winter reserve short (share of time) '
+           '| worker time: nest.work / wait / nest.idle / travel | scout trips finding nothing | P fed to larvae | stuck ant-gd |',
+           '|' + '---|' * 12]
+    tot, eggs = {}, []
+    for (a, s), r in rows.items():
+        f = r['funnel']
+        if not f:
+            continue
+        b, q, w = f['brood'], f['queen'], f['workerTimeShare']
+        for k, v in b['deaths'].items(): tot[k] = tot.get(k, 0) + v
+        eggs.append(b['eggsLaid'])
+        sn = f['tripsByNutrient'].get('scout:none', {'trips': 0})['trips']
+        out.append(f"| {a} #{s} | {b['eggsLaid']} | {b['hatched']} | {b['pupated']} | {b['eclosed']} | "
+                   f"{', '.join(f'{k} {v}' for k, v in b['deaths'].items()) or '-'} | "
+                   f"{', '.join(f'{k} {v}' for k, v in b['aliveAtEnd'].items()) or '-'} ({b['diapauseAtEnd']}) | "
+                   f"{q['potentialOpenShare']} / {q['permittedShare']} / {q['winterReserveShortShare']} | "
+                   f"{w.get('nest.work', 0)} / {w.get('wait', 0)} / {w.get('nest.idle', 0)} / {round(w.get('travel.out', 0) + w.get('travel.home', 0), 3)} | "
+                   f"{sn} | {f['fedLarvae']['p']} | {f['stuckAntGd']} |")
+    out.append('\nBrood losses after the hand-over, all runs: ' + ', '.join(f'{k} {v}' for k, v in sorted(tot.items(), key=lambda x: -x[1])))
+    if eggs: out.append(f'Eggs laid after the hand-over: median {statistics.median(eggs)}, total {sum(eggs)} in {len(eggs)} runs.')
+    return '\n'.join(out)
+
+
 if __name__ == '__main__':
     rows = load(sys.argv[1])
     print(table(rows))
     text, _, _ = bars(rows)
     print(text)
+    print(funnel(rows))
     if len(sys.argv) > 2:
         prev = load(sys.argv[2])
         ctext, regs = compare(rows, prev)

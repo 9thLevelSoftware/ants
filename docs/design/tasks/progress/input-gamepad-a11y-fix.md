@@ -11,3 +11,4 @@
 - e2e full run 02:25: G,B,B2,C,C2(635s under load 10),D,E passed; script timeout (1500s) hit in E2 due to load. Re-running A11Y_SECTIONS=E2,F out test-output/a11y-fix2
 - dismiss-hint e2e: no hint came up in run (before:null), antBefore null => vacuous. Need: possess worker + make a hint show (reviewer's run saw hint-colony-view after completeFounding + possess digger + step). Fix e2e to make it a real assertion (throw if no hint).
 - added temporary hint-diag log in e2e dismiss section (remove after diagnosis); running A11Y_SECTIONS=C out a11y-fix3
+- e2e dismiss-hint now strict (reset profile, possess digger, advance; throws if no hint). Verifying in chain: A11Y_SECTIONS=G,B,C- out a11y-fix4

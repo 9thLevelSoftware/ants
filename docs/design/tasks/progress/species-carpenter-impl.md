@@ -40,3 +40,7 @@ State found (sessions 1-2 left no progress file):
 - (02:20) sweep2 round 1: we1 viable (12->?; 0 trips), kd1 NOT (lost 3 + old-age 1; scouts 0 % trips:
   "scout timeout/curfew not-reached" = forage AI, not mine). e2e edited: media+major teleported ahead of the
   possessed minor for the castes shot (not yet run).
+- (02:45) sweep2 DONE (test-output/carp/sweep2/): woodland-edge 3/3 viable (12->12, 12->11, 10->8), kitchen-door 1/3
+  (kd1 lost 3 + old-age, scouts never reach food; kd2 yes 12->11; kd3 crushed 3 + lost 2). we3 3 invariant
+  violations walker-stall (hauler haul.carry, loco). 0 eclosions (biology: late-summer eggs overwinter).
+- (02:46) RUNNING suburban-garden seeds 1-3 (test-output/carp/sweep3/) as candidate second archetype.

@@ -402,29 +402,23 @@ export default async ({ page, log, out, wait, shot }) => {
 
     // dismiss-hint: RB + View, with a teaching hint really on screen; the possessed ant stays the same
     const hintView = () => g(() => window.__onboarding?.view?.() ?? null);
-    // a hint comes up as the engine's clock runs: in play first, then (hint-speed) from the observer view
+    // Earlier sections learnt verbs (the profile is persistent): a fresh profile shows the first hint (Tab, hint-cycle) while
+    // the engine's clock runs. The clock is manual in ?test=1, so advance it.
+    await g(() => { window.__onboarding.reset(); window.__game.camera.set('possess'); window.__game.possess('digger'); });
+    await step(2); await frames(3);
     let hintBefore = await hintView();
-    const waitHint = async () => { for (let i = 0; i < 12 && !hintBefore; i++) { await g((n) => window.__onboarding.advance(n), 6); await frames(2); hintBefore = await hintView(); } };
-    await waitHint();
-    if (!hintBefore) {
-      // hint-observer (possess a worker once Cycling is learnt): reset the profile, learn `cycle`, possess a worker
-      await g(() => { window.__onboarding.reset(); window.__onboarding.use('cycle', 2); window.__game.camera.set('possess'); window.__game.possess('digger'); });
-      await step(2); await frames(3);
-      await waitHint();
-    }
-    if (!hintBefore) { await g(() => window.__game.camera.set('observer')); await step(1); await frames(3); await waitHint(); }
-    // No hint can be made to come up in this run any more (the engine's rules: one at a time, quiet after the opening, the
-    // verbs already learnt): then the pad press is still tested for what it must not do, and the missing card is reported
-    if (!hintBefore) log('hint-diag', JSON.stringify({ state: await g(() => window.__onboarding.state()), hints: await g(() => window.__onboarding.hints()), facts: await g(() => window.__onboarding.facts()), log: await g(() => window.__onboarding.log().slice(-12)), view: await g(() => window.__game.camera.view()), poss: await g(() => window.__game.summary().possessed?.id ?? null) }).slice(0, 3500));
-    if (!hintBefore) (result.notDemonstrated ??= []).push('dismiss-hint-by-pad with a hint on screen (none came up: ' + JSON.stringify(await g(() => window.__onboarding?.state?.() ?? null)) + ')');
+    for (let i = 0; i < 12 && !hintBefore; i++) { await g((n) => window.__onboarding.advance(n), 6); await frames(2); hintBefore = await hintView(); }
+    const hintDiag = async () => JSON.stringify({ state: await g(() => window.__onboarding.state()), hints: await g(() => window.__onboarding.hints()), facts: await g(() => window.__onboarding.facts()), log: await g(() => window.__onboarding.log().slice(-12)), view: await g(() => window.__game.camera.view()) }).slice(0, 3000);
+    expect(hintBefore, 'no teaching hint came up to dismiss', await hintDiag());
     const antBeforeHint = (await g(() => window.__game.summary().possessed))?.id ?? null;
+    expect(antBeforeHint !== null, 'no ant is possessed for the dismiss-hint check');
     await press(B.VIEW, { mods: [B.RB] });
     await frames(4);
     const hintAfter = await hintView();
     const antAfterHint = (await g(() => window.__game.summary().possessed))?.id ?? null;
-    if (hintBefore) expect(!hintAfter || hintAfter.id !== hintBefore.id, 'RB + View did not dismiss the hint', { hintBefore, hintAfter });
+    expect(!hintAfter || hintAfter.id !== hintBefore.id, 'RB + View did not dismiss the hint', { hintBefore, hintAfter });
     expect(antAfterHint === antBeforeHint, 'RB + View changed the possessed ant', { antBeforeHint, antAfterHint });
-    ok('dismiss-hint-by-pad', { before: hintBefore?.id ?? null, after: hintAfter?.id ?? null, possessedUnchanged: antBeforeHint });
+    ok('dismiss-hint-by-pad', { before: hintBefore.id, after: hintAfter?.id ?? null, possessedUnchanged: antBeforeHint });
     // the mouse takes the glyphs back to the keyboard
     await page.mouse.move(300, 300); await page.mouse.move(340, 330);
     await frames(4);
