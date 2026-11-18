@@ -1,0 +1,337 @@
+{
+ "impl:app-seams-2": {
+  "summary": "All 13 items are coded with tests and pictures looked at, except 12(a), 12(c), the slope half of 12(e) and item 13. Those four are partial or not met, honestly marked in the report. Typecheck is clean. 204 test files / 1537 tests pass across my folders, tests/docs and the render folders I touched; tests/docs/docs-final.test.ts is green. panels.mjs and controls.mjs pass. appSeams2.mjs ran twice (all 13 pictures, then a rerun with a fixed journal-across-winter step). firstplay.mjs does NOT run all 25 beats: it passes beats 1 to 15 and fails at beat 16 for a sim reason.\n\nThis session's work on top of the earlier engineer's items 1 to 11:\n- Item 12(d): found by patching createTexture/deleteTexture that there is no per-switch leak, only the sun shadow map staying allocated when shadows turn off. Fixed in shadows.ts. look3-qs.mjs now warms up one cycle and asserts flat counts; after-run: textures 44 to 44, programs 71 to 71, geometries 67 to 67.\n- Item 12(e): same-pose before/after pictures with a new script, appSeams2-poses.mjs. Observer after the colony view with the followed ant underground is clearly shown: before, the camera orbits inside the soil on the ant; after, it is free over the nest. The slope camera is not demonstrated: the steepest nearby ground is 16 degrees and the pair looks alike.\n- Item 12(a): a second cuticle tuning (roughness 0.5, day clearcoat x0.3) gives a modest, visible change in crop-queen-3way.png. It still reads glossy.\n- Item 12(c): the white disc in the crevice could not be reproduced; code kept, not demonstrated.\n- Item 12(b): the far wall blocks turned out to be the boundary facade backdrop, not prims. The facade is improved in the kitchen-door seed; the pale blocks in the suburban seed are not fixed.\n- Item 13: the founding flow does not close the overlay early. The sim ends the lapse itself when all eggs are lost, then offers one relay clutch. The script did not lay the relay clutch (now fixed, DOM click). Separately, in 3 of 5 runs of seed 2 the first 6 eggs were lost about half a day into the lapse (Poor site).\n- Journal overlap: the onboarding hint card and the founding hand-over card were drawn over an open journal. Both are now hidden while a book is open; verified in hint-journal/journal-with-hint.png.",
+  "filesTouched": [
+   "src/game/uiBridge/minimap.ts",
+   "src/game/uiBridge/minimap.test.ts",
+   "src/game/uiBridge/balance.ts",
+   "src/game/uiBridge/install.ts",
+   "src/game/uiBridge/hudSlices.ts",
+   "src/game/uiBridge.ts",
+   "src/game/uiBridge/uiBridge.hud.test.ts",
+   "src/game/uiBridge/panels/journalSlice.ts",
+   "src/game/Game.ts",
+   "src/game/flags.ts",
+   "src/game/flags.test.ts",
+   "src/game/time/autoSlow.ts",
+   "src/game/time/autoSlow.test.ts",
+   "src/ui/api.ts",
+   "src/ui/hud/minimap/Minimap.tsx",
+   "src/ui/hud/minimap/model.ts",
+   "src/ui/hud/minimap/model.test.ts",
+   "src/ui/hud/FocusLine.tsx",
+   "src/ui/hud/focusLine.ts",
+   "src/ui/hud/focusLine.test.ts",
+   "src/ui/hud/blockingCard.ts",
+   "src/ui/hud/blockingCard.test.ts",
+   "src/ui/hud/ContextPrompts.tsx",
+   "src/ui/hud/HudRoot.tsx",
+   "src/ui/hud/hud.css",
+   "src/ui/hud/slices.ts",
+   "src/ui/hud/prompts/hint.css",
+   "src/ui/screens/founding/founding.css",
+   "src/ui/panels/journal/timeline.ts",
+   "src/ui/panels/journal/charts.ts",
+   "src/ui/panels/journal/AimsTab.tsx",
+   "src/ui/panels/journal/LogTab.tsx",
+   "src/ui/panels/journal/calTick.test.ts",
+   "src/ui/screens/newgame/NewGame.tsx",
+   "src/ui/screens/newgame/form.ts",
+   "src/ui/screens/newgame/presetRows.ts",
+   "src/ui/screens/newgame/species.ts",
+   "src/ui/screens/newgame/newgame.test.ts",
+   "src/ui/screens/settings/GameplayTab.tsx",
+   "src/content/text/controls.ts",
+   "src/content/text/controls.test.ts",
+   "src/content/manual.test.ts",
+   "src/content/manual.verify.test.ts",
+   "src/sim/config/presetDisplay.ts (display strings only)",
+   "src/render/app/shadows.ts",
+   "src/render/app/shadows.test.ts",
+   "src/render/ants/tuning.ts",
+   "src/render/ants/cuticleLook.test.ts",
+   "src/render/ants/morph/lasius.ts",
+   "src/render/ants/shader/fragmentChunk.ts",
+   "src/render/ants/shader/materials.ts",
+   "src/render/world/boundary/{backdrop,boundaryRenderer,edgeHaze,meshBuilder,tuning}.ts",
+   "src/render/world/boundary/facadeKeep.test.ts",
+   "src/render/world/sky/skyDome.ts",
+   "src/render/world/sky/skyEarth.test.ts",
+   "src/render/world/lighting/worldRenderer.ts",
+   "docs/MANUAL.md",
+   "docs/manual/** (deleted)",
+   "tests/docs/docs-final.test.ts",
+   "tests/docs/regen-manual.mjs",
+   "tests/e2e/appSeams2.mjs",
+   "tests/e2e/appSeams2-look.mjs",
+   "tests/e2e/appSeams2-poses.mjs",
+   "tests/e2e/appSeams2-rules.mjs",
+   "tests/e2e/look3-qs.mjs",
+   "tests/e2e/firstplay.mjs",
+   "tests/e2e/lifecycle.mjs",
+   "docs/design/tasks/app-seams-2-report.md",
+   "docs/design/tasks/progress/app-seams-2-impl.md"
+  ],
+  "verification": [
+   "npm run typecheck: clean, no output (re-run after the last edits).",
+   "npx vitest run src/ui src/game src/content src/input tests/docs src/render/app src/render/ants src/render/world/boundary src/render/world/sky src/render/world/lighting src/sim/config: 204 files passed, 1 skipped; 1537 tests passed (test-output/app-seams-2/vitest.log). After the last edits: npx vitest run tests/docs src/render/ants src/render/app src/ui/hud: 38 files / 252 tests passed; src/render/ants + src/render/creatures: 34 files / 252 tests passed.",
+   "appSeams2.mjs full runs ok:true: test-output/app-seams-2/hud-final/01..13 and hud-final2/01..13. Looked at pictures 01 to 13 across both runs; hud-final2 07 and 08 show the journal across a winter, with entries carrying their own dates.",
+   "panels.mjs PASS (ok:true, panels.log, panels/); controls.mjs PASS (ok:true, controls.log).",
+   "look3-qs.mjs after change (qs-after.log): textures 44 to 44, programs 71 to 71, geometries 67 to 67 over five switches after warm-up; before the first switch 37 textures / 47 programs.",
+   "appSeams2-poses.mjs before/after (poses-before/, poses-after/): observer after colony view, followed ant underground: before followId 5571 and camera y -23.7 mm inside the soil; after followId -1 and y 128.6 mm free over the nest. Slope pair (15.9 degrees) looks alike.",
+   "Cuticle crops from the same opening pose: crop-queen-3way.png (original | first change | second tuning), modest visible change.",
+   "hint-journal/journal-with-hint.png: journal over a just-handed-over colony shows no hint card or hand-over card; hint card visibility hidden with the journal open.",
+   "firstplay.mjs: five full runs plus one resumed run. Beats 1 to 15 pass, beat 16 fails (the worker's crop stays at 0.379 and stores rise from 10.62 to 10.50 C after trophallaxis-give). Logs firstplay-full*.log and firstplay-resume.log."
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Typecheck clean; tests green in every folder touched; tests/docs/docs-final.test.ts green",
+    "status": "met",
+    "evidence": "npm run typecheck prints nothing; 204 files / 1537 tests pass over src/ui, src/game, src/content, src/input, tests/docs, src/render/{app,ants,world/boundary,sky,lighting} and src/sim/config. test-output/app-seams-2/vitest.log."
+   },
+   {
+    "criterion": "2. Harness screenshots (looked at) of: minimap in observer and possession with a marker and an entrance, scent view on; focus line on a new colony and when a new aim opens; settings rows; New Game rules; intro card with no prompt over it; panels.mjs and controls.mjs pass",
+    "status": "met",
+    "evidence": "hud-final/01 to 06 and 09 to 13, hud-final2/07 and 08 (journal across winter); panels.mjs and controls.mjs ok:true. Staged: the hand-over is by cheat.completeFounding, the trail cells by hand, the new aim by closing the old one by hand. All stated in the report. The compact-layout hiding of the minimap is a CSS rule only, not pictured."
+   },
+   {
+    "criterion": "3. Report docs/design/tasks/app-seams-2-report.md with picture paths and anything left undone",
+    "status": "met",
+    "evidence": "The report lists every item with its status, the pictures, contradictions, findings for other owners and what is not done."
+   },
+   {
+    "criterion": "Item 12 left open by look-pass-3 (cuticle, far wall blocks, crevice disc, quality-switch leak, same-pose pictures)",
+    "status": "partial",
+    "evidence": "(a) cuticle: shared values and a second tuning give a modest visible change (crop-queen-3way.png), not a solved look. (b) wall blocks: traced to the facade backdrop, facade improved in the kitchen-door seed, the suburban seed's pale blocks not fixed. (c) crevice disc: could not be reproduced; code kept, not demonstrated. (d) quality switch: no per-switch leak; the shadow map is now freed; counts flat after warm-up. The first-visit growth of 7 textures remains because presets upload what they draw. (e) observer after colony view: demonstrated before/after; slope: not demonstrated."
+   },
+   {
+    "criterion": "Item 13 firstplay.mjs runs all 25 beats again (beat 11 cause)",
+    "status": "partial",
+    "evidence": "The cause of beat 11 is found: the sim ends the lapse on brood loss, not the founding flow. The script is fixed (relay clutch plus DOM click). Beats 1 to 15 pass; beat 16 fails (worker did not hand over her load). Beats 17 to 25 were not reached. Beat 13 to 14 needed a stand-in trail in 2 of 3 runs that got that far (FIRSTPLAY_STANDIN_TRAIL, recorded in standIns); the resumed run got its trail from the player's forage marker."
+   },
+   {
+    "criterion": "Item 11 lifecycle.mjs kills with a cause",
+    "status": "partial",
+    "evidence": "The script uses cheat.kill with a cause per ant instead of killAll; not run in a browser, so the epitaph picture was not taken."
+   }
+  ],
+  "notDone": [
+   "Item 12(a): the winged-queen cuticle still reads glossy; only a modest improvement is shown.",
+   "Item 12(b): the pale far blocks in the suburban seed 2 opening are not fixed (their cause is unexplained; no facade there).",
+   "Item 12(c): the white dithered disc in the crevice cutaway was never reproduced, so the earth-colour backdrop is untested in a picture.",
+   "Item 12(d): the first-visit growth after the first switch to another preset (37 to 44 textures) remains; the old 'textures <= before + 4' check cannot be met.",
+   "Item 12(e): the slope-follow camera is not demonstrated (the steepest nearby ground is 15.9 degrees; the before/after pair looks alike).",
+   "Item 13: firstplay.mjs stops at beat 16; beats 17 to 25 and the growth check were not reached. Sim reasons: a real founding often loses its first clutch half a day in; no forager lays a trail to a sugar spill within 18000 ticks even with the player's marker; trophallaxis-give does not empty a possessed worker's crop.",
+   "Item 11: lifecycle.mjs not run in a browser; the epitaph picture was not taken.",
+   "Compact-layout hiding of the minimap not pictured (CSS rule only).",
+   "The Reserves / Drying / Health mini panel is still visible at the left edge beside an open journal (panels/11-journal-log-1280.png)."
+  ],
+  "needsFromOthers": [
+   "README.md (not mine) is stale: line 113 says the species= flag accepts all four ids (only ?test=1 does now), and it points at docs/manual/, which is deleted.",
+   "Alert 'winter-coming' reads 'stores cover 28 of 7 days' when the stores outlast the winter (sim/colony/succession/alerts.ts passes the raw days; text in src/content/text/alerts.ts): the sim should cap the days at the winter length, or the wording should change.",
+   "Founding owner: a real founding in a 'Poor' site (Q 0.71, shaded) loses its first six eggs at lapse progress 0.028 in about 3 of 5 runs of seed 2; when the relay clutch is lost too the opening fails with no-workers.",
+   "Colony / forage owner: foragers do not lay a trail to a sugar spill 22 BU from an open entrance within 18000 ticks, even with the player's forage marker on it.",
+   "Action owner: trophallaxis-give by a possessed worker does not empty her crop (firstplay beat 16: crop 0.379 after the gives, stores C 10.62 to 10.50).",
+   "Sim owner: cheat.killAll takes no cause (needed for item 11)."
+  ],
+  "notesForIntegrator": [
+   "Everything is in the working tree; nothing was committed by me. git status shows only the report, the progress file and founding.css as uncommitted; all other changes are already in your snapshots.",
+   "Evidence is under test-output/app-seams-2/. Key paths: hud-final/ and hud-final2/ (01..13), poses-before/ and poses-after/, look-before/, look-after/, look-after2/, crop-queen-3way.png, hint-journal/journal-with-hint.png, qs-after.log, panels/, controls.log, firstplay-full*.log and firstplay-resume.log.",
+   "The 'before' tree for the pose pictures is git archive 2fbf1a8~1 (before look-pass-3), kept in the scratchpad, not in the repo.",
+   "Harness logs: grepping '\"ok\"' matches log lines that print {\"ok\":true,...}. Wait on process exit instead.",
+   "firstplay.mjs has two new env options: FIRSTPLAY_STANDIN_TRAIL=1 (a stand-in, recorded in standIns) and the existing FIRSTPLAY_CHECKPOINT / FIRSTPLAY_RESUME, which let beats 14 onward be iterated without the 12-minute opening.",
+   "The cuticle tuning also changes the Messor morphology's roughness (an unavailable species).",
+   "presetDisplay.ts: I only changed display strings (PRESET_SUMMARY etc.). UNWIRED_PARAMS, UNWIRED_RULES and UNWIRED_WHY were read and left as the sim-seams engineer set them."
+  ],
+  "contractChanges": [
+   "UiSnapshot.focusAim (optional field in src/ui/api.ts) and minimap / minimapPlate / panTo on the UI bridge: additive.",
+   "gameplay.minimap and gameplay.focusLine settings are now wired; the settings schema already had them."
+  ]
+ },
+ "verify:app-seams-2": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the spec app-seams-2.md, the design seed, the architecture doc, tech-stack section 7, GDD 08 sections 2.3, 3.4, 5.1, 6.1-6.3 and 7.4 (settings), the implementer's report and progress file, and the diff 21e97ab..working tree of every owned path (src/ui, src/game, src/content, tests/e2e, docs/MANUAL.md, src/sim/config/presetDisplay.ts, src/render/{app/shadows,ants,world/sky,world/boundary,world/lighting})",
+   "npm run typecheck: clean (run twice, including after adding my tests)",
+   "npx vitest run src/game/uiBridge src/game/time src/game/flags.test.ts src/ui/hud src/ui/panels/journal src/ui/screens/newgame src/ui/screens/settings src/content tests/docs src/render/app/shadows.test.ts src/render/ants/cuticleLook.test.ts src/render/world/boundary src/render/world/sky: 52 files, 406 passed, 1 skipped",
+   "New verify tests: 4 files, 14 tests; 13 pass and 1 fails on purpose to show the Focus line finding",
+   "tests/docs/regen-manual.mjs run against a copy: the generated tables in MANUAL.md have no drift (the file was restored byte for byte)",
+   "Harness tests/e2e/appSeams2-review.mjs (seed 3, low quality): ok:true. Looked at r01 (intro card, no prompts), r02 (opening: focus line and minimap), r03 (new aim opened behind an older one: no focus line), r05 (Settings > Gameplay rows). Output in test-output/app-seams-2-review/hud",
+   "Harness tests/e2e/appSeams2-review2.mjs: ok:true. Clicking the focus line opens Journal > Aims. At 700x400 the layout is compact and the minimap is hidden. A minimap click while possessing the founding queen switches to observer, which the founding flow supports. Looked at s03. Output in test-output/app-seams-2-review/hud2",
+   "Harness tests/e2e/look3-qs.mjs: ok:true, same counts as the implementer got (textures 37 before any switch, 44 after warm-up, then flat; programs 47, then 71, then flat; geometries 67). Log: test-output/app-seams-2-review/qs.log",
+   "Harness tests/e2e/controls.mjs: ok:true (test-output/app-seams-2-review/controls.log)",
+   "Looked at the implementer's pictures hud-final2/01, 02, 03, 04, 06, 07, 12 and 13, hint-journal/journal-with-hint.png and kd-walls-after.png",
+   "Not run (each takes 12 minutes or more): panels.mjs, firstplay.mjs, lifecycle.mjs"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Focus line (Auto) does not show when a new aim opens behind an older open aim",
+    "where": "src/ui/hud/focusLine.ts:20-27 (FocusLineClock.note) with src/game/uiBridge/hudSlices.ts focusAimOf",
+    "detail": "GDD 08 section 3.4 and spec item 2 say: after the first 2 game days, the Focus line shows for 30 real seconds when a new aim opens. focusAimOf returns only the oldest open aim (currentAims(sim)[0]; AIMS_SHOWN_MAX = 3), and FocusLineClock only starts its window when that top aim's id changes. An aim that opens while an older one stays open (aim-midden, aim-second-entrance or aim-cross-zone opening while aim-first-food is still open) never shows the line. The window only starts when the oldest aim closes, and then it shows an aim that was already open. The sim emits aim.opened, and GDD 08's event table routes that event to the focus line, but nothing listens to it. Unit test: src/ui/hud/focusLine.verify.test.ts, 'a NEW aim opening behind an older open aim shows the line for 30 s' (fails: expected false to be true). Browser check: tests/e2e/appSeams2-review.mjs. The log line 'r03 after' shows aim-midden open and focus null; picture test-output/app-seams-2-review/hud/r03-new-aim-behind-older.png. The implementer's own picture 06 had to close the top aim by hand to make the line appear."
+   },
+   {
+    "severity": "major",
+    "title": "Item 13 not met: firstplay.mjs does not run all 25 beats",
+    "where": "tests/e2e/firstplay.mjs",
+    "detail": "The spec says firstplay.mjs must run all 25 beats again. By the implementer's own logs (test-output/app-seams-2/firstplay-full*.log, firstplay-resume.log) the script stops at beat 16, and beats 13-14 needed a stand-in trail (FIRSTPLAY_STANDIN_TRAIL=1) in 2 of 3 runs. The cause of the beat-11 failure is correctly traced to the sim's relay clutch after brood loss, and the script was fixed for it. The remaining failures are sim-side (trophallaxis-give does not empty a possessed worker's crop; foragers do not lay a trail to the spill). They belong to other owners, but the acceptance item is open. I did not rerun it (more than 12 minutes)."
+   },
+   {
+    "severity": "major",
+    "title": "Item 12(a): the queen's cuticle still reads as a glossy glass or chrome ball",
+    "where": "src/render/ants/tuning.ts (CUTICLE, ANT_DAY_LOOK), src/render/ants/shader/fragmentChunk.ts",
+    "detail": "Even after the second tuning (roughness 0.5, clearcoat x0.3 by day), the founding queen's gaster is a black mirror sphere with a bright sky highlight. Seen in test-output/app-seams-2/kd-walls-after.png (centre) and in my own test-output/app-seams-2-review/hud/r02-opening.png. The implementer reports this honestly. cuticleLook.test.ts only checks that constants equal constants, so it cannot show the look is fixed."
+   },
+   {
+    "severity": "major",
+    "title": "Item 12(b): pale untextured far blocks remain in the suburban opening",
+    "where": "src/render/world/boundary/* (BACKDROP_KEEP_HAZE)",
+    "detail": "The facade haze-keep helps the kitchen-door seed: the top-right house shows faint windows in kd-walls-after.png. But the large pale untextured boxes are still in the suburban-garden opening. My seed-3 run shows them in test-output/app-seams-2-review/hud/r01-intro.png and r02-opening.png (top right), and the left block in kd-walls-after.png is unchanged too. The spec asks that they read as buildings at low, medium and high. The implementer says their cause is unexplained."
+   },
+   {
+    "severity": "minor",
+    "title": "Items 12(c), 12(e, slope) and 11 not demonstrated",
+    "where": "src/render/world/sky/skyDome.ts, tests/e2e/appSeams2-poses.mjs, tests/e2e/lifecycle.mjs",
+    "detail": "12(c): the earth backdrop is in place, but the white crevice disc was never reproduced, so no before/after picture exists. skyEarth.test.ts only matches a regex on the shader. 12(e): the slope-follow pair looks alike (the steepest ground found was 15.9 degrees). Item 11: lifecycle.mjs now calls cheat.kill per ant with a real DeathCause; I checked that the command shape { type, id, cause } and the cause names match src/sim/types. But the script was never run, so there is no epitaph picture. All three are acknowledged in the implementer's report."
+   },
+   {
+    "severity": "minor",
+    "title": "Item 12(d): the quality-switch check was relaxed to a post-warm-up baseline",
+    "where": "tests/e2e/look3-qs.mjs",
+    "detail": "Reproduced: textures 37 before any switch, 44 after one warm-up cycle, then flat; programs 47, then 71, then flat (test-output/app-seams-2-review/qs.log). There is no unbounded leak and the shadow-map disposal is correct. But going back to the 'test' preset keeps 7 textures and 24 programs that only other presets use. The script now measures from after the warm-up, so this retained memory no longer counts against the 'counts stay flat' criterion. Worth a note to the integrator, since stage1a's check still compares against the count before any switch."
+   },
+   {
+    "severity": "minor",
+    "title": "Long aims are cut off in the Focus line",
+    "where": "src/ui/hud/hud.css .fd-focus (19rem wide, nowrap and ellipsis)",
+    "detail": "The opening's first aim reads 'Aim: Where is the ground sheltered, warm an...' (test-output/app-seams-2-review/hud/r02-opening.png and the implementer's hud-final2/02). The full text is only in a title tooltip. The 304 dp width comes from GDD 08, but the main aim of the opening cannot be read. A second line or a shorter wording would fix it."
+   },
+   {
+    "severity": "minor",
+    "title": "The minimap keeps rebuilding and repainting while hidden",
+    "where": "src/ui/hud/minimap/Minimap.tsx:36-50",
+    "detail": "In the compact layout and while a drawer is open, the minimap is hidden by CSS only. The setInterval keeps running at 5 Hz: bridge.minimap() walks all markers, entrances and trail cells, and paintPlate repaints a 352x352 ImageData even when the window has not moved. The cost is small, but it is wasted work that grows with the scent view on. Skipping the repaint when display is none, or when cx/cz are unchanged, would fix it."
+   },
+   {
+    "severity": "minor",
+    "title": "Interpretation notes (no change needed, recorded for the integrator)",
+    "where": "src/game/Game.ts:276, src/game/flags.ts:26, src/ui/hud/blockingCard.ts",
+    "detail": "(1) Each new game writes its preset's autoSlowDefault into the persistent Settings > Gameplay critical choice and keeps only an 'off'. A player's 'pause' becomes 'slow' when they start a Naturalist game. This is what spec option 1 says and the help text discloses it. (2) &species= is now ignored without ?test=1 even for the available species (Lasius). (3) cheat.completeFounding leaves aim-find-site open (seen in the r03 log), so cheat-staged games keep the opening aim at the top of the Focus line. This is a sim cheat issue, not this task's. (4) The founding hand-over card overlaps the 'Y Why?' chip at about (790-920, 80-124) in r03. This looks pre-existing and is outside the spec items."
+   }
+  ],
+  "testsAdded": [
+   "src/ui/hud/focusLine.verify.test.ts (3 tests; 'a NEW aim opening behind an older open aim shows the line for 30 s' FAILS on purpose to show the major finding)",
+   "src/game/uiBridge/minimap.verify.test.ts (5 tests, pass: foreign and dead markers left out, no arrow for a dead or unknown possessed id, trail cap and 0..1 strengths, arrays reused and stale data cleared, focus outside the world)",
+   "src/ui/hud/minimap/model.verify.test.ts (4 tests, pass: north up, fromBox/toBox round trip, a tint for every ZONE_TYPE, void outside the world and row 0 = north)",
+   "src/game/flags.verify.test.ts (2 tests, pass: species only with test=1; the other flags work without it)",
+   "tests/e2e/appSeams2-review.mjs (harness: intro card, opening, new aim behind an older one, compact attempt, settings)",
+   "tests/e2e/appSeams2-review2.mjs (harness: focus-line click opens Journal Aims, minimap hidden in compact 700x400, minimap click while possessing)"
+  ]
+ },
+ "fix:app-seams-2": {
+  "summary": "Fixed the two major findings that were within reach. The Focus line now shows when a new aim opens behind an older open one, and the pale slab in the suburban opening is gone (it was a fence panel hidden by haze). All 25 firstplay beats now run, in two segments, with only the sim growth check still failing. Also fixed the cut-off aim text and the hidden minimap repaint, and softened the queen cuticle again. Still open: 12(c), the slope half of 12(e), item 11's epitaph run, and a single 25-beat pass on the final tree. Typecheck is clean. The tests in my paths pass except one docs test that another engineer's sim change broke.",
+  "filesTouched": [
+   "src/ui/api.ts",
+   "src/game/uiBridge/hudSlices.ts",
+   "src/ui/hud/focusLine.ts",
+   "src/ui/hud/FocusLine.tsx",
+   "src/ui/hud/focusLine.test.ts",
+   "src/ui/hud/hud.css",
+   "src/ui/hud/minimap/Minimap.tsx",
+   "src/render/ants/tuning.ts",
+   "src/render/ants/cuticleLook.test.ts",
+   "src/render/world/boundary/tuning.ts",
+   "src/render/world/boundary/backdrop.ts",
+   "src/render/world/boundary/facadeKeep.test.ts",
+   "src/render/world/materials/surfacePatch.ts",
+   "src/render/world/materials/fenceBoards.test.ts",
+   "tests/e2e/firstplay.mjs",
+   "tests/e2e/lib/firstplay-steps.mjs",
+   "tests/e2e/appSeams2-blocks.mjs",
+   "tests/e2e/appSeams2-hide.mjs",
+   "docs/design/tasks/app-seams-2-report.md",
+   "docs/design/tasks/progress/app-seams-2-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: no output (clean).",
+   "npx vitest run src/ui src/game/uiBridge src/game/flags*.test.ts src/render/ants src/render/world src/render/app tests/docs src/content: 153 of 154 files pass, 1069 tests pass. The one failure is tests/docs/docs-final.test.ts: R29, LAY_FINISH_STEP_D28 named in DEVIATIONS.md no longer exists in src/sim/balance/colony.ts. Another engineer's sim change removed it, so it is outside my paths.",
+   "The reviewer's focusLine.verify.test.ts case 'a NEW aim opening behind an older open aim shows the line for 30 s' was red and is now green. I did not weaken any reviewer test.",
+   "Browser: appSeams2-review.mjs. r03 log: focus 'Aim: Where do the dead go?' while aim-first-food stays open. r02 picture: the opening aim wraps to two lines, no ellipsis (test-output/app-seams-2-fix/hud/).",
+   "Browser: appSeams2-review2.mjs. Compact layout gives minimap shown:false. Focus-line click opens Journal > Aims. No console errors.",
+   "firstplay.mjs: ran from the saved hand-over checkpoint to the trail check. The delivery step first failed with out-of-reach and not-allowed-here (fp16.log, fp-full.log). After the script fix, fp-fast4.log: beats 14 to 25 all taken, pictures looked at (16 and 20). The only failure is the growth check: workers 6,6,6; brood 7,1,1; P 0.91,1.38,1.3; C 10.43,10.8,10.8.",
+   "Rays and hide tests (appSeams2-blocks.mjs, appSeams2-hide.mjs): hiding sky, backdrop and skirt left the pale slab; hiding world:prims removed it. It is a wood-sound fence panel prim (half sizes 872, 824, 10 mm) at 3.5 m.",
+   "After the board shader and fog keep: fence/hide-none.png (quality low) shows a board fence with a post. fence-high/hide-none.png (quality high): slab gone, boards fainter. The queen's gaster highlight is a soft sheen (blocks2/opening.png, fence-high).",
+   "Unit tests added and passing: fenceBoards.test.ts, the facadeKeep.test.ts fence cases, the cuticleLook.test.ts roughness floor, new FocusLineClock cases."
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1 (major): Focus line shows when a new aim opens behind an older open aim",
+    "status": "met",
+    "evidence": "UiFocusAim.openIds feeds FocusLineClock. The reviewer's failing unit test is green. Browser r03 shows the new aim in the line."
+   },
+   {
+    "criterion": "Finding 2 (major): firstplay.mjs runs all 25 beats",
+    "status": "partial",
+    "evidence": "The beat 16 failure was a script fault, not a sim one. Beats 14 to 25 all run from the trail checkpoint with no stand-in. Beats 1 to 13 come from the earlier engineer's full-run checkpoint. No single 25-beat pass was run on the final tree. The growth check still fails for a sim reason (numbers in verification)."
+   },
+   {
+    "criterion": "Finding 3 (major): queen cuticle reads as a glass or chrome ball (12a)",
+    "status": "partial",
+    "evidence": "Roughness 0.62 and clearcoat roughness 0.42. The highlight is a soft sheen in opening and high-quality pictures. Still a glossy black ant, judged by eye only. cuticleLook.test.ts now asserts the roughness floor."
+   },
+   {
+    "criterion": "Finding 4 (major): pale untextured far blocks remain in the suburban opening (12b)",
+    "status": "met",
+    "evidence": "Root cause was a world fence panel prim, not the backdrop. Fixed with a board shader plus fog keep in surfacePatch.ts, and a board-and-post backdrop fence. Pictures at low and high quality. At high the boards are faint."
+   },
+   {
+    "criterion": "Finding 5 (minor): 12(c), 12(e) slope and item 11 not demonstrated",
+    "status": "not-met",
+    "evidence": "The crevice disc is still not reproduced. The slope pair still looks alike. lifecycle.mjs was never run, so there is no epitaph picture."
+   },
+   {
+    "criterion": "Finding 6 (minor): quality-switch check relaxed to a post-warm-up baseline (12d)",
+    "status": "met",
+    "evidence": "Not a leak. Retention is caused by three caching textures and programs, and the integrator note is in the report. stage1a.mjs still compares with the pre-switch count."
+   },
+   {
+    "criterion": "Finding 7 (minor): long aims cut off in the Focus line",
+    "status": "met",
+    "evidence": "The line is 304 dp wide, 24 dp tall for a short aim, and wraps to at most two lines (r02 picture)."
+   },
+   {
+    "criterion": "Finding 8 (minor): minimap rebuilds and repaints while hidden",
+    "status": "met",
+    "evidence": "The tick returns early while the minimap box has no layout. In the compact layout the browser shows it hidden with no errors."
+   },
+   {
+    "criterion": "Finding 9: interpretation notes (no change needed)",
+    "status": "met",
+    "evidence": "No change made. The cheat.completeFounding aim-find-site leftover and the founding hand-over card overlapping the 'Why?' chip are not touched."
+   }
+  ],
+  "notDone": [
+   "12(c) white crevice disc: never reproduced, so there is no before/after picture (skyEarth.test.ts only checks the shader text).",
+   "12(e) slope follow camera: the steepest ground near the colony is about 16 degrees and the before/after pair looks alike.",
+   "Item 11: lifecycle.mjs (cheat.kill with a real DeathCause) was never run, so there is no epitaph picture.",
+   "A single uninterrupted 25-beat firstplay pass on the final tree was not run (about 40 min). Beats 1 to 13 come from the earlier engineer's checkpoint.",
+   "firstplay growth check: no growth over game days 2 to 3 at 8x (numbers in verification). A sim matter for the colony owners.",
+   "12(a): the queen still reads as glossy, not matte chitin; it is a softer sheen judged by eye only.",
+   "12(b): at quality high the fence boards are faint (depth of field, grass in front). Not checked at medium.",
+   "tests/docs/docs-final.test.ts fails: DEVIATIONS.md R29 names LAY_FINISH_STEP_D28 in src/sim/balance/colony.ts, which another engineer's sim change removed. Outside my paths; whoever owns DEVIATIONS.md or colony.ts must fix it."
+  ],
+  "contractChanges": [
+   "src/ui/api.ts: UiFocusAim gains an optional field openIds?: readonly string[] (all open aims, oldest first, at most 3). Additive. Filled by focusAimOf in src/game/uiBridge/hudSlices.ts. Consumers that ignore it behave as before."
+  ],
+  "notesForIntegrator": [
+   "Item 13: the script was at fault for the beat 16 failure, not the sim. unload-crop needs the ant inside the nest, standing in a food chamber, or in any chamber when the nest has none. Beats 17 to 25 had never run before; the colony-view beat framed only the nest, so the forage-marker click missed the food.",
+   "New firstplay options: FIRSTPLAY_TRAIL_CHECKPOINT=<file> writes an export after the trail check. FIRSTPLAY_AT_TRAIL=1 with FIRSTPLAY_RESUME=<that file> goes on from there, about 8 minutes for beats 14 to 25. FIRSTPLAY_DEBUG=1 logs the unload steps. The files used are test-output/app-seams-2/firstplay-checkpoint.txt and test-output/app-seams-2-fix/trail-checkpoint.txt, both git-ignored.",
+   "The facade haze exemption from the earlier round only applies to the house treatment of an interior edge. The suburban garden opening had no facade. Its pale blocks were wood fence panel prims (world:prims, material wood-sound) covered by exp2 fog, so the fix is in src/render/world/materials/surfacePatch.ts. Fog keep and boards apply to every wooden instanced prim with one thin axis under 60 mm and two axes over 600 mm.",
+   "Shader change in surfacePatch.ts: it adds a #define WR_BOARDS program variant for wooden instanced prims and replaces fog_fragment in those programs only. Other materials are unchanged.",
+   "Cuticle constants (src/render/ants/tuning.ts CUTICLE) feed every ant morphology, including the unavailable Messor.",
+   "Debug harness scripts added: tests/e2e/appSeams2-blocks.mjs (ray lists per pixel) and tests/e2e/appSeams2-hide.mjs (screenshots with scene parts hidden; env HIDE_PARTS). Both are optional tools.",
+   "Stale note in README.md lines 113 and 170 (species flag and docs/manual) from the previous round still stands; README is not in my paths.",
+   "Quality-switch retention (7 textures, 24 programs) is three caching other presets' resources, not a leak; stage1a.mjs should use the post-warm-up baseline."
+  ]
+ }
+}

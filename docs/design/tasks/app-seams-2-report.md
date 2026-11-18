@@ -11,6 +11,32 @@ for the manual. Items 12 (a), (c) and the slope half of (e) are **not demonstrat
 item 13 is **not finished**: `firstplay.mjs` runs beats 1 to 15 and then stops at a simulation failure (beat 16), so not all 25 beats run. The far wall blocks
 of the opening shot (b) were traced to the backdrop facade, not to prims; the facade is improved, the pale blocks in the suburban seed are **not** fixed.
 
+## Fix round (after the independent review), 2026-11-18
+
+Progress log: `docs/design/tasks/progress/app-seams-2-fix.md`. Evidence: `test-output/app-seams-2-fix/`.
+
+* **Focus line, new aim behind an older one (major): fixed.** `UiFocusAim.openIds` (all open aims, oldest first; additive, optional) is filled by `focusAimOf`; `FocusLineClock.note` now starts the 30 s window
+  for any open aim it has not seen (and still for a changed top aim), `shownId` words the announced aim while the window runs. Tests: `ui/hud/focusLine.test.ts` (new cases) and the reviewer's
+  `focusLine.verify.test.ts` (now green). Picture: `hud/r03-new-aim-behind-older.png` (the line reads "Aim: Where do the dead go?" while the older aim stays open).
+* **Long aims cut off: fixed.** `.fd-focus` is 304 dp wide with `min-height` 24 dp and wraps to at most two lines (`hud/r02-opening.png`).
+* **Minimap repaint while hidden: fixed** (`Minimap.tsx` skips the frame and the paint while its box has no layout; `hud2.log`: compact layout, `shown:false`).
+* **Item 13: all 25 beats now run, in two segments.** Beat 16 was a SCRIPT fault, not a sim one: the possessed worker stood outside (`nestId -1`; `unload-crop` answers `not-allowed-here` there) and aimed at a stale
+  nestmate position (`out-of-reach`). The script now walks her down the shaft along the entrance-to-room heading into the room and unloads there (`unload-crop` needs a food chamber, or any chamber when the nest has none).
+  Beats 17 to 25 had never been run: the colony-view beat framed the camera on the nest only, so the food was off screen (the forage marker click missed); it is now framed between nest and food. New options:
+  `FIRSTPLAY_TRAIL_CHECKPOINT` / `FIRSTPLAY_AT_TRAIL=1` (continue from the trail check, no 16000-tick wait; about 8 minutes). Result `fp-fast4.log`: beats 14 to 25 all taken (`fp-fast4/`), the only failure left is
+  the growth check, a sim reason: game days 2 to 3 at 8x: workers 6, 6, 6; brood 7, 1, 1; P 0.91, 1.38, 1.30; C 10.43, 10.8, 10.8. Beats 1 to 13 are from the earlier full runs (hand-over checkpoint of run 5); no stand-in is
+  used in beats 14 to 25 (the trail came from the player's forage marker). No single 40-minute pass of all 25 beats was run on the final tree.
+* **12(a) cuticle: second look.** `CUTICLE.roughness` 0.5 -> 0.62 and `clearcoatRoughness` 0.2 -> 0.42 (test asserts the floor): in the opening shot the gaster highlight is now a soft sheen, no hot spot
+  (`blocks2/opening.png`, `fence-high/hide-none.png` at quality high). Still a glossy black ant, not matte; judged by eye only.
+* **12(b) far blocks: root cause found, two fixes.** The pale slab in the suburban opening is NOT the backdrop facade: hiding sky, backdrop and skirt one by one left it (`hide/`), hiding `world:prims` removed it. It is a
+  single garden fence panel prim (wood, 1.74 x 1.65 m x 20 mm) 3.5 m away, which the exp2 haze covers completely. (1) `surfacePatch.ts`: wooden instanced panel prims get upright boards (150 mm, dark gap, tint per board,
+  faded out where a board is under about 3 px) from the prim's own size, and keep 55 % of their colour through the fog; test `materials/fenceBoards.test.ts`; picture `fence/hide-none.png` (quality low) reads as a board fence with a post;
+  at quality high the boards are fainter (depth of field and grass in front) but the slab is gone (`fence-high/`). (2) The backdrop's garden fence is built of boards and posts and keeps part of its colour through the haze
+  (`backdrop.ts`, `BACKDROP_FENCE_KEEP`; test in `facadeKeep.test.ts`): the far fences read as fences. The house facade of the kitchen-door seed is unchanged from before.
+* **Not done / not demonstrated:** 12(c) (white crevice disc never reproduced), 12(e) slope camera pair, item 11 (`lifecycle.mjs` never run: no epitaph picture), a note for the integrator on 12(d): `stage1a.mjs`
+  compares against the count before any switch; going back to the first preset keeps 7 textures and 24 programs that only other presets use (three caches them), so the warm-up baseline is the right figure.
+* `tests/docs/docs-final.test.ts` now fails on `R29: LAY_FINISH_STEP_D28 in src/sim/balance/colony.ts`: `DEVIATIONS.md` names a symbol that another engineer's sim change removed; not in my paths.
+
 ## Acceptance criteria
 
 | # | Criterion | Status | Evidence |

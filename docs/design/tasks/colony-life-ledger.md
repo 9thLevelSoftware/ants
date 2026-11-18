@@ -2954,3 +2954,20 @@ Progress (kept current; a successor continues from here)
   (tree `/home/user/scratch-r8-r30obs` -> scratch-r8-r30, out `paired/r30obs/`): the same r30 run as 10:03 but with
   the observers, to check that they change nothing (finalHash). **If cut off: run
   `test-output/colony-life/round-8/paired/jobs4.sh jobs4b.txt`** (restart-safe).
+- 10:32 **subset with the four direction-16 arms** (`paired/subset4-table.txt`, `paired/table4.py`; we #1, sg #2,
+  pp #3, cpv #1, kd #2; first workers 63): workers at winter base 52 / r30 74 / r30r29c 76 / r30r29cr31 74;
+  eclosions 27 / 27 / 26 / 25; eggs 78 / 74 / 87 / 87; brood lost 38 / 38 / 54 / 54 (untended 12 / 14 / 30 / 20,
+  starved 6 / 6 / 1 / 4, cannibalised 6 / 6 / 1 / 2, hygiene 0 / 0 / 4 / 0); median P intake/need 0.12 / 0.13 /
+  0.26 / 0.27; old age 23 / 0 / 0 / 0; warning hours 876(4) / 1136 / 1082 / 1061; viable 0 / 0 / 2 / 3. Pairs on
+  workers at winter: r30r29c vs r30 3 better 2 worse, r30r29cr31 vs r30 2 better 3 worse, r30r29cr31 vs r30r29c 3
+  better 2 worse. Without the finish clause R29c no longer stops laying, but its eggs die untended more often (it
+  lays more, 87 vs 74, into the same one-nurse care); not decided on 5: the other 10 colonies are running.
+- 10:38 **observer check passed**: `r30obs` kd #2 (with lifeProtein / lifeNursing / lifeEclosions) against `r30` kd #2
+  (09:59, without): every day row, the funnel, econ, economy, viable and alertHours identical; only `finalHash`
+  differs (4c4c40c6 vs 3eac5749) because the r30 tree got WL4 at 10:03, whose persisted `life.noticeTick` is written
+  at the winter notice (it acts only at Begin). So the observers change nothing, and the r30 runs before and after
+  WL4 are the same games to winter.
+- 10:38 **hunt funnel, we #2 r30** (`protein.totals`): prey patch K ~50 (one patch, known from day 1), 138 hunting
+  trips, 120 patch prey appeared, 105 chases begun, 28 escapes rolled at a bite, **11 kills, 6 remains carried
+  home**, 107 prey vanished; delivered P 2.3 against a larval demand of 11.5 P. Chase -> kill 10 %, kill -> home
+  55 %. The design's expectation behind `HUNT_EXPECT_S` is ~1.7-2.5 sightings a catch (40-60 %).
