@@ -7,3 +7,4 @@ Remaining: add cooldown-log test, run tests (human/, progression/alerts*), typec
 tests for fixes added: alerts.test.ts cooldown log, quietRun.stay.test.ts; reviewer tests green. Next: typecheck, human folder, progression folder, perf LONG, report update
 perf.verify LONG passes; human/ and progression/ folders green. Running quiet.long (kitchen-door harsh case) once then update report
 report partially updated (sections 2,4,7,8); waiting for quiet.long background run (log test-output/quiet-time/long/fix-run.log), then update §5/§6 numbers + threats started, final answer
+session 2 (01:19): earlier quiet.long run was cut off by restart; 3 of 4 whole-*.json fresh (sg-nat 01:05, kd-nat 01:10, sg-gentle 01:14), kd-harsh stale (00:41). Re-running only kd-harsh via -t 'kitchen-door, harsh' -> test-output/quiet-time/long/fix-run2.log. Then finish report update.

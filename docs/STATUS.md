@@ -707,3 +707,19 @@ threats-calibrate (impl + review + fix; report `threats-calibrate-report.md`, re
 - **Whole-game quiet share (I11 / E25) fails on human-event warnings** (14–55 per 6 gd; quiet share 0–0.04), which also cancels every bird event. New task **`quiet-time.md`** (Sonnet impl + Opus review): measure loud hours per alert kind, fix human-event alert durations and re-raises and the colony alerts' bookkeeping, E25 in a whole game.
 
 Running: colony-life `w732tzrqp` (round 5), look-pass-3 `waeqyax2g`, quiet-time (new).
+
+## Nov 18 01:25 UTC — fifth container restart (01:16); round 5 result; relaunched
+
+Restart at 01:16 UTC (fifth). Disk intact; snapshot `c2bb656`. Lost in flight: the sweep after round 5 (near its start), look-pass-3 impl (about six hours in; progress file current to 01:13), quiet-time fix round (20 minutes in). Round 5, the quiet-time impl and its review had finished and are saved: `reviews/colony-life-round-5.json`, `reviews/colony-life-sweep-4.json`, `reviews/quiet-time.json`.
+
+**colony-life round 5** (ledger "## Round 5"): sweep-4 findings fixed with tests (P1 hand-over protein to the workers' stomachs only; WL2 capped workers eat in the lapse; M2 midden); R27 implemented; S3, S6, S17 fixed; scout range 220 → 300 BU kept; three scouting/pay-in experiments tried and reverted on bench numbers.
+- Forage bench (15 hand-overs, full length): P/need median 0.122 → **0.245** (target 0.3), the gain is P1's (with the provision out of the larder the pool shows its real protein shortage and foragers hunt); protein known within 1 gd 7 → 3 of 15 (target 12, **worse**); larvae starved 21 → 4; eggs 288 → 225 (unexplained).
+- Life to winter, 4 pairs on the same hand-overs: workers at winter 36 → **46**, eclosions 13 → **36**, larvae starved 9 → 2, C covers the R27 need in all four; playground-park #2 passes the viability bar; the other three fail only the starvation-stage check (1.25–2.2 gd of rationing on days 3–6, pool protein at zero).
+- Open: the day 3–6 protein gap, discovery, catch rate 20–23 %, the egg drop, year two (no long runs this round), core gaps (a) and (c), S2, founding record `reopening`. Predation 7–8 deaths in two life runs although the ramp's bench says median 0: first thing for round 6 to check.
+
+**quiet-time** (impl + review done; verdict pass-with-minor, one major: the whole-game check passes trivially because no major threat ever starts and the E25 clause requiring one is not reported; minors on the ease rule, the tool's fixed 0.60 threshold, an unrecorded GDD 06 §4.5 contradiction, per-tick list copy).
+
+Relaunched:
+- colony-life `wek2szmct` / wf_f9efc2e7-f2e: `{firstRound: 5, maxRounds: 4, firstRoundResult: <round 5 in short>, note}` → sweep 5, then rounds 6–8.
+- quiet-time `woldn0vf5` / wf_001f111a-c97: `startAt: 'fix'`, `reviewPath: reviews/quiet-time.json`.
+- look-pass-3 `w2ht0mt7m` / wf_9c9fafc0-4ed: continue from its progress file.

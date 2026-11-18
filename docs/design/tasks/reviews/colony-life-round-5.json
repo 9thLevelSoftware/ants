@@ -1,0 +1,121 @@
+{
+ "summary": "Round 5 is done, but neither bar was re-measured: the 15-run sweep is the independent engineer's job, and the direction-10 protein targets were not met. All four review findings that blocked or weakened round 4 are fixed. Each has a test that fails without the fix:\n- P1, the blocker: the queen's hand-over protein now goes only into the workers' social stomachs. Her carbohydrate goes into the pool as in round 4.\n- WL2, the major: the workers the R24 winter loss cap keeps alive now eat through the winter time-lapse.\n- M2, the minor: an item inside the nest is never counted as lying at a surface midden.\nRuling R27 is in: a pure helper computes the winter stores need, the life tool's verdict and the sweep table check it, and the autumn carbohydrate target aims for it. App-gate items S3 and S6 (pad prompts during the founding) and S17 (flood alert lines in plain words) are fixed. S7 is not a sim defect: the \"unknown\" deaths come from the lifecycle script's own cheat.killAll.\n\nOn the protein counter (full-length forage bench, 15 hand-overs), P delivered per 30-worker need went from a median of 0.122 to 0.245. The target was 0.3. A 4-run A/B shows the gain comes from P1: once the provision no longer sits in the larder looking like stored protein, foragers start hunting. Protein known within the first game day did not improve (7 of 15 before, 3 of 15 after; target 12).\n\nOn life runs to winter, same cached hand-overs, round start vs round end, four runs: workers at winter 36 \u2192 46, eclosions 13 \u2192 36, larvae starved 9 \u2192 2. Carbohydrate at winter covers the R27 need in all four. One run (playground-park #2) now passes the viability bar. The other three still fail the starvation-stage check, with 1.25\u20132.2 game days of rationing on days 3\u20136, when pool protein is at zero.\n\nScouting changes were tried and reverted on the bench numbers: a protein scout floor, and sending all spare outside workers to scout. The scout range change (220 \u2192 300 BU, ruling R18's radius) is kept. Also tried and reverted: holding the queen's carbohydrate as well as her protein, and a longer protein pay-in window.",
+ "causesRanked": [
+  "1. L1 x R2 hand-over provision (sweep-4 blocker): -26 workers at winter, -21 eclosions, +41 starved larvae over the 15 review pairs; fixed (P1): protein spoiled before the first larva 1.98 -> 0.01 P on car-park-verge #1, 0.84 -> 0.04 by h21 on kitchen-door #1",
+  "2. Protein income: P intake/need median 0.045 in sweep 4; on the forage bench 6 of 15 hand-overs know no protein for days (nearest patch edge 118-244 BU); only 20-23 % of chases end in a catch (springtail jump/escape rules in threats-calibrate's folder); the queen's provision in the larder hid the protein need, so foragers did not hunt (P1: bench median P/need 0.122 -> 0.245)",
+  "3. Carbohydrate: 4 sweep runs with 0 C at winter; there the R5 winter reserve withheld the queen's laying protein 83-93 % of the time; in carbohydrate-rich runs laying was permitted only 13-14 % of the time, by the protein gates",
+  "4. Old age: 56 of 75 adult deaths in year one; follows from 1-3 (R11 stands)",
+  "5. Winter stores / R27: check implemented; WL2 corrects spring stores that were overstated by the winter food of the workers the cap kept alive",
+  "6. Brood care: egg untended 24, pupa untended 20, egg flooding 24, hygiene 53 (about 24 of the hygiene from L1)",
+  "7. Predation 10 and crushed 8 over sweep 4; predation now follows threats-calibrate's ramp",
+  "8. Core gaps from threats-calibrate: (a) paralysed nestmates never carried home matters at 60 workers and is about 0 on founding-year colonies; (c) known antlion pits not avoided: no pit exists on the five worlds. Ranked below 1-7, not built this round"
+ ],
+ "fixes": [
+  {
+   "cause": "P1 (sweep-4 blocker): the R21 larder took the queen's R2 hand-over protein as a pile on the brood chamber floor, where it rotted",
+   "files": [
+    "src/sim/colony/handover.ts",
+    "src/sim/colony/stores.ts",
+    "src/sim/colony/viability.test.ts"
+   ],
+   "test": "src/sim/colony/larderProvision.verify.test.ts (review's test; red without the fix, green with it); the viability.test case 'moves in later' restated to the stomach rule",
+   "beforeAfter": "car-park-verge #1, 72 h: P spoiled 1.98 -> 0.01, spoiled-food items 4 -> 0. Forage bench P/need median 0.122 -> 0.245; the A/B with the old handover.ts brings it back to 0.03-0.21. Life, 4 pairs: workers at winter 36 -> 46, eclosions 13 -> 36, larvae starved 9 -> 2"
+  },
+  {
+   "cause": "WL2 (major): the workers the R24 lapse cap kept alive ate nothing over the winter",
+   "files": [
+    "src/sim/colony/overwinter/model.ts",
+    "src/sim/colony/overwinter/begin.ts",
+    "src/sim/colony/overwinter/lossCap.test.ts"
+   ],
+   "test": "src/sim/colony/overwinter/lossCapStores.verify.test.ts (review's test; red without the fix, green with it); a new lossCap.test case: a capped flood colony ends the winter with the same carbohydrate as an unflooded one, within one worker-day",
+   "beforeAfter": "Spring carbohydrate of a capped colony now includes the kept workers' winter food (sparedWorkersFood); in the review's case it had been overstated by about 0.2 C per worker"
+  },
+  {
+   "cause": "M2 (minor): waste inside the nest under a surface midden read as already at the midden and was never hauled",
+   "files": [
+    "src/sim/ants/behaviours/nest/haul.ts"
+   ],
+   "test": "src/sim/ants/behaviours/nest/haulMidden.verify.test.ts (review's test; red without the fix, green with it)",
+   "beforeAfter": "Waste on a chamber floor 10 BU under the midden is a haul job again (priority > 0, was 0)"
+  },
+  {
+   "cause": "R27 winter stores check (ruling)",
+   "files": [
+    "src/sim/colony/overwinter/storesNeed.ts",
+    "src/sim/colony/overwinter/index.ts",
+    "src/sim/colony/economy.ts",
+    "src/sim/balance/lifecycle.ts",
+    "tools/sim/lifeMetrics.ts",
+    "tools/sim/lifeViable.ts",
+    "tools/sim/sweep-table.py"
+   ],
+   "test": "src/sim/colony/overwinter/storesNeed.test.ts",
+   "beforeAfter": "The verdict now checks stores at Winter 1 against the lapse's own carbohydrate need + 4 game days of adult need (woodland-edge #1 bench: 13.6 C held against 2.8 needed). The autumn target is max(x2, R27 need x 1.25). Life after: all four runs hold 8.8-16.4 C against 3.1-3.8 needed"
+  },
+  {
+   "cause": "S3/S6: founding prompts by pad ('Pick up egg' took the button after the first batch; the seal step read 'Put down soil pellet'; 'Open entrance' came up right after sealing)",
+   "files": [
+    "src/sim/ants/player/targeting.ts",
+    "src/sim/balance/actions.ts"
+   ],
+   "test": "src/sim/colony/founding/padPrompt.test.ts (red with the old targeting)",
+   "beforeAfter": "Seal phase reads 'Seal entrance' from the cell floor; after sealing the first line is not 'Open entrance'; for 300 ticks after a batch, with eggs in reach, the line stays 'Lay egg'"
+  },
+  {
+   "cause": "S17: flood alert sub-lines showed model numbers ('rim factor 1.00', 'catchment x1.2')",
+   "files": [
+    "src/sim/nest/flood/diagnostics.ts",
+    "src/sim/balance/weather.ts"
+   ],
+   "test": "src/sim/nest/flood/causeWords.test.ts",
+   "beforeAfter": "Lines now read e.g. 'no crater rim around the entrance', 'the ground slopes down to the entrance', 'the royal chamber would be 40 % under water in a heavy storm'"
+  },
+  {
+   "cause": "SR: small-colony scout range of 220 BU is below ruling R18's 300 BU radius for a small colony's protein",
+   "files": [
+    "src/sim/balance/foraging.ts"
+   ],
+   "test": "existing scoutRange.test (green)",
+   "beforeAfter": "Scouts' median farthest point 207 -> 260 BU; car-park-verge #1 and woodland-edge #1 now find their 202 BU and 210 BU patches; the P/need median does not move from it alone"
+  }
+ ],
+ "verification": [
+  "npx tsc --noEmit: clean on the whole tree (00:46 UTC Nov 18)",
+  "Folder tests (test-output/colony-life/round-5/vitest-*.txt): colony 62/63 files (red: founding/reopen, known), nest 56/57 (escapeDig, known), ants/behaviours/outdoor 27/28 (removal.verify, known), ants/behaviours/nest 28/30 (sfaReview.verify, stall.soak, known), ants/player 6/6, nest/flood 11/11; the round's files re-run at 00:46: 18 files green",
+  "In a scratch copy with the fixed files at 8b4c207, larderProvision.verify, lossCapStores.verify, haulMidden.verify and founding/padPrompt.test are all red",
+  "Forage benches, 15 hand-overs: 4-day runs for before / PR1 / PR1b, and full length (to winter) for before (r5start) / after (r5f); attribution A/B with the old handover.ts on 4 runs",
+  "Life to winter, 4 pairs on the same cache: round start vs round end",
+  "Probes: protein ledger on car-park-verge #1 and kitchen-door #1 (round-4 code vs tree); scout paths vs prey patches on kitchen-door #1; entrance status on kitchen-door #3",
+  "No new persisted state; no Math.random, Date.now or Math.hypot added in sim code; probes and scratch trees deleted; no processes left running"
+ ],
+ "next": [
+  "Protein gap on days 3-6: the first larvae eat the provision and pool protein stays at 0 for 1-2 game days before prey arrives. This is the rationing that fails the stage check in 3 of 4 life runs. Look at when hunting starts and at the larva ration rule",
+  "Protein discovery: known within 1 game day in only 3 of 15. More scouts did not help; next try the scout walk's coverage of 50-200 BU, where most patch edges lie, and the carrion odour range",
+  "Catch rate: 20-23 % of chases end in a kill (springtail touch jumps and escape rules, threats-calibrate's folder). Ask whether the escape model is the GDD's",
+  "Eggs fell on the forage bench (288 -> 225) while larvae starved fell 21 -> 4: check the laying-protein release against the protein the queen still holds",
+  "Year two: no long runs this round; the next sweep's five long runs are the first year-two numbers with R27 and WL2",
+  "Core gaps (a) paralysed rescue and (c) pit avoidance via locomotion avoidDiscs; S2 waiting foragers; the founding record staying 'reopening' after a pad-played opening"
+ ],
+ "gddDeviations": [
+  "S3: a queen who can lay now, and the founding queen in the lay phase always, gets prompt class 'lay' (weight 7.5), above brood (7); GDD 01 \u00a79.2 puts 'Lay egg' in class 9 (weight 1)",
+  "S6: a plugged entrance is offered to the founding queen at class 'self', so her own line wins; reopening (GDD 06 \u00a75.9) stays reachable by cycle-target",
+  "R27 (ruling): the viab-economy stores check and the R6 autumn target are restated on the lapse's carbohydrate need + 4 game days of the adults' need at the first tick of winter",
+  "SMALL_SCOUT_RANGE_BU 220 -> 300 to match ruling R18's 300 BU radius (viab-economy R3 tunable)"
+ ],
+ "notesForIntegrator": [
+  "The ledger section '## Round 5' in docs/design/tasks/colony-life-ledger.md has the funnel, ranking, fixes, before/after tables, tried-and-reverted list and next steps. Evidence is under test-output/colony-life/round-5/ (bench-forage-before|after/table.md, bench-forage-ab.txt, life-ab.txt, probe-*.txt)",
+  "P1 keeps only the protein out of the larder. Holding the carbohydrate too left kitchen-door #1's pool at 0 C by day 3, so that variant was replaced",
+  "The 'after' trees carry other engineers' creature commits made after 8b4c207 (ecology/creatures alerts.ts, bird.ts, system.ts). Predation was 5 -> 9 on the forage bench and 8 workers on playground-park #2 in life, which threats-calibrate should look at",
+  "Reverted on the numbers: the protein scout floor (PR1), sending all spare outside workers to scout (PR1b, which would also address S2) and the 10-day protein pay-in window (P1c). The scout range change stays",
+  "The coreGaps.repro (a) and (c) it.fails tests in ecology/creatures remain as they are; neither gap was built this round",
+  "S7 is not a sim defect: the 13 'unknown' deaths come from tests/e2e/lifecycle.mjs cheat.killAll. For the app engineer: pass a cause, or read the epitaph after a real end",
+  "Other engineers were editing src/sim/environment/human/* and src/sim/progression/alerts.ts during the round; their files were not touched here"
+ ],
+ "triedAndReverted": [
+  "PR1, a 2-scout floor while no protein is known (scout range kept): 4-day bench P/need median 0.237 -> 0.232, protein known within 1 gd 6/13 -> 3/15",
+  "PR1b, every outside worker the known sources do not need scouts while no protein is known: P/need median 0.152 (worse)",
+  "P1 v1, holding the queen's carbohydrate in the stomachs too: kitchen-door #1 pool C 0.06 on day 2 and 0 on day 3 with no trips; replaced by v2",
+  "P1c, a 10-day window for paying in the queen's protein: identical runs in 5 of 6, playground-park #1 P/need 0.36 -> 0.20"
+ ]
+}

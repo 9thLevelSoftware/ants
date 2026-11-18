@@ -1,0 +1,73 @@
+{
+ "viabilityMet": false,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-4/sweep-table.md",
+ "numbers": {
+  "viable": "1 of 15 (woodland-edge 0/3, suburban-garden 1/3, playground-park 0/3, car-park-verge 0/3, kitchen-door 0/3); round 3: 8 of 15",
+  "workersHeld": "2 of 15",
+  "medianEclosions": 2,
+  "medianIntakeP": 0.045,
+  "medianIntakeC": 0.716,
+  "medianTripSuccess": 42.2,
+  "firstWorkersAtLeast9": "14 of 15",
+  "runsWithoutLost": "15 of 15"
+ },
+ "findings": [
+  {
+   "severity": "blocker",
+   "title": "L1 larder takes the queen's R2 hand-over protein into a rotting pile; viability 4 -> 1 of 15 on the same hand-overs",
+   "where": "src/sim/colony/stores.ts (measureLarder/poolSpace) x src/sim/colony/handover.ts provisionAtHandover",
+   "detail": "Before L1, a nest with no food chamber held P only in the social stomachs, so most of the queen's provision stayed in her body and went into the pool as larvae ate. With the larder (>= 4 loads) the pool takes it all at once, on the brood chamber floor, where it spoils; the queen refills what rots. Probe on the cpv #1 hand-over: 1.98 P spoiled before the first larva hatched (0 without L1); larvae got 7.9 P vs 9.85 by h72; about 4 spoiled-food items among the eggs. 15-pair A/B with the round's 12 production files reverted (same tree otherwise, same hand-overs): viable 1 vs 4, workers at winter 128 vs 154 (held 2 vs 7), eclosions 35 vs 56, larvae starved 48 vs 7, median bad-stage 3.55 vs 0.10 gd, larva:hygiene 28 vs 4. Reverting L1 alone (4 pairs): eclosions 14 -> 24, starved 7 -> 0. New test src/sim/colony/larderProvision.verify.test.ts is RED on the tree (1.39 P spoiled, 2 items in 1.5 gd) and green without L1."
+  },
+  {
+   "severity": "major",
+   "title": "WL1 lapse cap: the workers the cap keeps eat nothing over the winter",
+   "where": "src/sim/colony/overwinter/begin.ts beginOverwinter (takes model c1/p1, then caps losses)",
+   "detail": "The model's spring stores are computed with the drawn losses; the cap then keeps those workers alive without charging their food. In src/sim/colony/overwinter/lossCapStores.verify.test.ts (RED): seed 1 ends with 17 vs 9 workers and the same C, 16.554; seed 5 with 17 vs 6. So spring stores are overstated, which is free food in effect, and R27's stores check gets the wrong number."
+  },
+  {
+   "severity": "minor",
+   "title": "M1 2D midden test also covers waste inside the nest under the surface midden",
+   "where": "src/sim/ants/behaviours/nest/haul.ts atMidden",
+   "detail": "haulMidden.verify.test.ts (RED): waste on a cavity floor 10 BU under the midden point reads as at the midden (haul priority 0). Latent: on the 15 R20 hand-overs there is no midden at hand-over, and the founding chamber is 8 BU from the entrance."
+  },
+  {
+   "severity": "minor",
+   "title": "H4 round test did not exercise the trigger (coverage gap, now closed)",
+   "where": "src/sim/colony/allocation/hygiene.test.ts",
+   "detail": "It stays green with broodAmongWaste unwired. New hygieneWiring.verify.test.ts goes through allocateColony on a real nest: green on the tree, red with the trigger unwired. The trigger works."
+  }
+ ],
+ "checksRun": [
+  "15-run sweep on a frozen tree (hash 8338ddfe, all 15 on it); table by tools/sim/sweep-table.py vs round-3/sweep",
+  "both bars computed by script (sweep-table.py bars())",
+  "checked that restoring from the cache gives the same run as in-process (sg #1 long run days 1-4 equal the sweep's)",
+  "A/B: minus4 tree (round-4 production files at 5c8c576) on all 15 sweep hand-overs -> round-4/sweep-review/ab-minus4/ + ab-minus4-table.md",
+  "A/B: minusL1 tree (L1 files only reverted) on kd1, cpv1, sg2, pp2 -> round-4/sweep-review/ab-minusL1/",
+  "probe of the protein ledger, 72 h from the cpv #1 hand-over, both trees (sweep-review/probe-r4-cpv1.txt, probe-m4-cpv1.txt)",
+  "5 year-two long runs (UNTIL_DAY=32) -> round-4/sweep-long/longrun-table.md",
+  "npx tsc --noEmit clean (18:24, 19:05)",
+  "folder tests: colony, nest, ants/behaviours/nest, ants/behaviours/outdoor, species, environment, config, types, testing, sim root (sweep-review/vitest-*.txt); colony/allocation 4/4",
+  "round tests checked red with their fix removed (scratch copy); H4 trigger checked red when unwired",
+  "new verify tests: hygieneWiring.verify (green), larderProvision.verify (RED), plus the earlier lossCapStores.verify and haulMidden.verify (RED)",
+  "code review of W1, L1/L1b, R20, H3, WL1, E2, H4, M1: not-allowed list, determinism, per-tick cost"
+ ],
+ "regressions": [
+  "Against round 3 (day-9 start), all 15 runs are flagged by the script. 8 went from viable to NOT viable: we #1, sg #2, pp #2, pp #3, cpv #1, cpv #2, cpv #3, kd #1. Examples: kd #1 net workers -3 -> -8 and P intake 0.086 -> 0.016; we #1 net -2 -> -9",
+  "'Starvation stage worse than lean' check fails in 13 of 15 runs (round 3: 1 of 15)",
+  "Larvae starved: 21 -> 48 over the sweep; 0 -> 1-7 in 13 runs",
+  "Median C intake 1.238 -> 0.716; C is 0 at winter in we #3, sg #2, sg #3, kd #3",
+  "Eclosions down: sg #2 5 -> 3, pp #2 8 -> 3, cpv #2 3 -> 0, kd #2 7 -> 1",
+  "Against minus4 on the same hand-overs: workers at winter are lower in 10 of 15 pairs (sum 154 -> 128), eclosions 56 -> 35, brood hygiene losses 31 -> 53",
+  "Gains in round 4: trip success 25.4 -> 42.2 % (minus4 30.4 %), worker:lost-free runs 13 -> 15 of 15, eclosions 0 -> 2-6 in 10 runs vs round 3"
+ ],
+ "leadsForNextRound": [
+  "1. L1 x R2 hand-over provision (blocker; -26 workers at winter, -21 eclosions, +41 starved larvae over 15 pairs): keep the queen's R2 provision in her body until a larva or the queen needs it, or keep it out of the larder; pin it with larderProvision.verify",
+  "2. Protein income (P intake median 0.045; laying permitted only 0.07-0.26 of the time in 11 runs): P sources within 300 BU (0-9.3 P) are known in 0 of 15 runs at the start and 3 at the end; carrion delivered 0.4 P over the whole sweep; P arrives only from patch prey where a patch is near (we #3 8.8 P at a 4 BU edge, kd #3 6.2, sg #2 4.9, pp #2 3.3; none where the edge is 180-244 BU); scouts' median farthest point is 205-208 BU in 10 of 15 runs (looks like a range cap)",
+  "3. Old age: 56 of 75 adult deaths in year one and 29 of 40 after winter; in the year-two runs 4 of 5 colonies lay no egg and none ecloses a year-two worker (one run: 8 eggs, 2 eclosed); first eggs are not before spring day 3-4; royal chamber 0.8-3 C on spring day 1",
+  "4. Winter stores / R27: C 0 at Winter 1 in 4 runs; we #3's lapse kills 8 of 11 workers and the queen. Year-two R22: 3 of 5 runs hold >= 0.7 x winter workers, 0 of 5 reach >= 2 x first workers",
+  "5. WL1 lapse food (lossCapStores.verify) must be fixed before R27 relies on lapse consumption",
+  "6. Brood care: egg:untended 24, pupa:untended 20, egg:flooding 24 (sg #1 11, pp #1 9), hygiene 53",
+  "7. Crushed 8 workers (kd #1 4 in one day); predation 10 on the stop-gap code"
+ ]
+}
