@@ -44,6 +44,9 @@ import { HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P } from '@/sim/balance';
 import { AntFlag, SEASONS } from '@/sim/types';
 import { LIFESPAN_CLAMP_GD, NANITIC_LIFESPAN_MEAN_GD, NANITIC_LIFESPAN_SD_GD } from '@/sim/balance/colony';
 import { FoundingObserver, FunnelObserver, funnelMarkdown, type FunnelReport } from './lifeFunnel';
+import { ProteinLedger, type ProteinReport } from './lifeProtein';
+import { NursingObserver, type NursingHour } from './lifeNursing';
+import { EclosionObserver, type EclosionRecord } from './lifeEclosions';
 
 declare const process: { exitCode?: number };
 
@@ -208,6 +211,12 @@ export interface LifeReport {
   };
   /** colony-life funnel (tools/sim/lifeFunnel.ts): where worker time, trips, food and brood go after the hand-over. */
   funnel?: FunnelReport;
+  /** colony-life round 8: the protein ledger by game day after the hand-over (tools/sim/lifeProtein.ts). */
+  protein?: ProteinReport;
+  /** colony-life round 8: nursing per game hour after the hand-over (tools/sim/lifeNursing.ts). */
+  nursingHours?: NursingHour[];
+  /** colony-life round 8: every worker eclosion after the hand-over with the year its egg was laid (lifeEclosions.ts). */
+  eclosions?: EclosionRecord[];
   /** What the founding produced (absent for a cached hand-over): eggs, eclosions, brood and adult losses. */
   foundingFunnel?: { eggsLaid: number; eclosed: number; broodDeaths: Record<string, number>; adultDeaths: Record<string, number> };
 }
@@ -305,6 +314,9 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   fobs?.stop(); // the founding funnel ends at the hand-over (sweep 1 review: it counted colony-life deaths)
   const econ = new EconSampler(sim);
   const funnel = new FunnelObserver(sim);
+  const protein = new ProteinLedger(sim);
+  const nursing = new NursingObserver(sim);
+  const eclosions = new EclosionObserver(sim);
   if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
@@ -345,6 +357,8 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     for (let i = 0; i < ticksPerDay; i++) {
       sim.tick();
       funnel.tick();
+      protein.tick();
+      nursing.tick();
       ticksToday++;
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();
@@ -404,6 +418,9 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const starvedLarvae = report.days.reduce((a, d) => a + (d.events.broodDeathsByCause['larva:starvation'] ?? 0), 0);
   report.econ = econ.result(starvedLarvae);
   report.funnel = funnel.result();
+  report.protein = protein.result();
+  report.nursingHours = nursing.hours;
+  report.eclosions = eclosions.records;
   if (fobs) report.foundingFunnel = { eggsLaid: fobs.eggsLaid, eclosed: fobs.eclosed, broodDeaths: fobs.deaths, adultDeaths: fobs.adultDeaths };
   return report;
 }

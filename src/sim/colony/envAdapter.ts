@@ -3,15 +3,13 @@
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { Brood, ColonySpeciesId, Sim } from '@/sim/types';
-import { chamberTemp, chamberTempForecast, microTemp, rainIntensityAt, relHumidity, surfaceActivity } from '@/sim/environment';
-import { currentDefaultYearDay, DEFAULT_DAYS_PER_YEAR } from '@/sim/time';
+import { chamberTemp, microTemp, rainIntensityAt, relHumidity, surfaceActivity } from '@/sim/environment';
+import { currentDefaultYearDay } from '@/sim/time';
 import { chamberById } from './census';
 
 /** Test fake: any function given replaces the environment query of the same meaning. */
 export interface ClimateOverride {
   chamberTemp?: (chamberId: number) => number;
-  /** Forecast daily-mean temperature of a chamber at default-year day d28 (0-based), °C. */
-  chamberForecast?: (chamberId: number, d28: number) => number;
   /** Temperature at a point outside chambers (Tmicro), °C. */
   pointTemp?: (p: Vec3) => number;
   /** Relative humidity 0..1 of a chamber (-1 = outside). */
@@ -35,17 +33,6 @@ export function chamberTempC(sim: Sim, chamberId: number): number {
   const o = overrides.get(sim);
   if (o?.chamberTemp) return o.chamberTemp(chamberId);
   return chamberTemp(sim, chamberId);
-}
-
-/**
- * Forecast daily-mean temperature of a chamber at default-year day `d28Then` (environment chamberTempForecast;
- * planning rules only). With a test fake for the chamber temperature and none for the forecast: that temperature.
- */
-export function chamberForecastC(sim: Sim, chamberId: number, d28Then: number): number {
-  const o = overrides.get(sim);
-  if (o?.chamberForecast) return o.chamberForecast(chamberId, d28Then);
-  if (o?.chamberTemp) return o.chamberTemp(chamberId);
-  return chamberTempForecast(sim, chamberId, d28Then / DEFAULT_DAYS_PER_YEAR);
 }
 
 export function pointTempC(sim: Sim, p: Vec3): number {

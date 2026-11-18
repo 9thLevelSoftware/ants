@@ -17,8 +17,6 @@ import { byteAt } from '@/sim/world/terrainSample';
 import { isInteriorAt, shadeAt, surfaceSlotAt } from './ground';
 import { soilTempAtDepth } from './soil';
 import { thermalReady } from './surface';
-import { calendarNow } from './calendar';
-import { seasonalMean } from './climates';
 import { airTemp, climateOf, interiorRh, interiorTemp, relHumidity } from './temperature';
 
 /** A zeroed thermal-inputs record to fill (`thermalInputs(sim, pos, out)`). */
@@ -143,27 +141,6 @@ export function chamberTemp(sim: Sim, a: number | Nest, chamber?: Chamber): numb
 export function columnTempAt(sim: Sim, x: number, z: number, depthMm: number, covered = false): number {
   const inputs = thermalInputsAt(sim, x, z, covered, scratchInputs);
   return chamberColumnTemp(inputs, effectiveDepthMm(sim, x, z, depthMm, covered));
-}
-
-/**
- * Forecast of a chamber's daily-mean temperature at a later time of the year (`yearFracThen`, 0..1 of the year), C,
- * for planning rules (colony-life R29: can an egg laid now finish before the winter?). GDD 03 §9.1 without the day
- * and hour terms (weather and the daily cycle are not forecast; brood development is linear in T above its floor, so
- * the daily mean is what counts): the chamber's slow part now, `T_annual + (T_seasonMean - T_annual) e^(-d/DA)`,
- * moved by the change of the climate's seasonal mean air temperature from now to then, damped by depth as the
- * seasonal term is. Wood nests take the change undamped, interiors none; an unknown chamber gives the degraded constant.
- */
-export function chamberTempForecast(sim: Sim, chamberId: number, yearFracThen: number): number {
-  if (!resolve(sim, chamberId)) return DEGRADED_SOIL_C;
-  const nest = found.nest as Nest, c = found.chamber as Chamber;
-  const x = c.center.x, z = c.center.z;
-  if (isInteriorAt(sim.world, x, z)) return interiorTemp(sim);
-  const clim = climateOf(sim);
-  const change = seasonalMean(clim, yearFracThen) - seasonalMean(clim, calendarNow(sim).yearFrac);
-  if (nest.substrate === 'wood-sound' || nest.substrate === 'wood-decayed') return chamberTemp(sim, nest, c) + change;
-  const inputs = thermalInputsAt(sim, x, z, c.covered, scratchInputs);
-  const gain = Math.exp(-effectiveDepthMm(sim, x, z, c.depthMm, c.covered) / CHAMBER_DA_MM);
-  return inputs.T_annual + (inputs.T_seasonMean - inputs.T_annual) * gain + change * gain;
 }
 
 /** Soil relative humidity from moisture m (GDD 03 §9.2): `0.5 + 0.5 smoothstep(0.05, 0.30, m)`. */

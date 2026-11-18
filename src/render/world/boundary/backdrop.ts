@@ -9,7 +9,7 @@ import type { WorldData, ZoneType } from '@/sim/types';
 import { zoneTypeAt } from '../lighting/simAdapter';
 import { MeshBuilder } from './meshBuilder';
 import { makeSkirtHeight } from './skirtHeight';
-import { BACKDROP_BAND_MM, BACKDROP_DENSITY_PER_M, BACKDROP_HEX, BACKDROP_MARGIN_MM, BACKDROP_SIZE, FENCE_GAP_P, FENCE_HEIGHT_VARY, FOLIAGE_LUMP, FOLIAGE_SHADE } from './tuning';
+import { BACKDROP_BAND_MM, BACKDROP_DENSITY_PER_M, BACKDROP_FENCE_KEEP, BACKDROP_HEX, BACKDROP_MARGIN_MM, BACKDROP_SIZE, FENCE_GAP_P, FENCE_HEIGHT_VARY, FOLIAGE_LUMP, FOLIAGE_SHADE } from './tuning';
 
 export type EdgeTreatment = 'woods' | 'garden' | 'park' | 'road' | 'house';
 
@@ -202,6 +202,20 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
     // garden: the neighbour's shrubs, a fence line farther out, a few trees
     for (let i = 0, n = count(r, BACKDROP_DENSITY_PER_M.shrubs * 0.7); i < n; i++) shrub(r, band('shrubs'));
     const f = B.fencePanel, fOff = band('fence'), panels = count(r, BACKDROP_DENSITY_PER_M.fence);
+    /** One panel of upright boards with a gap between them, a post at each end: a fence reads as a fence, not as a slab. Returns the shape count. */
+    const fencePanel = (p: { x: number; y: number; z: number }, halfW: number, along: boolean, height: number): number => {
+      mb.keepNow = BACKDROP_FENCE_KEEP;
+      const n = Math.max(1, Math.round((2 * halfW) / f.board)), pitch = (2 * halfW) / n, hw = Math.max(5, pitch / 2 - f.gap / 2);
+      for (let j = 0; j < n; j++) {
+        const o = -halfW + (j + 0.5) * pitch, h = height + rngRange(rng, -f.boardJitter, 0);
+        mb.box(p.x + (along ? 0 : o), p.y + h / 2, p.z + (along ? o : 0), along ? f.thick : hw, h / 2, along ? hw : f.thick, 0, hex(BACKDROP_HEX.fence, rng, 0.1));
+      }
+      for (const o of [-halfW, halfW]) {
+        mb.box(p.x + (along ? 0 : o), p.y + (height + 80) / 2, p.z + (along ? o : 0), along ? f.post / 2 : f.post / 2, (height + 80) / 2, f.post / 2, 0, hex(BACKDROP_HEX.fencePost, rng, 0.06));
+      }
+      mb.keepNow = 0;
+      return n + 2;
+    };
     for (let i = 0; i < panels; i++) {
       const p = place(r, r.u0 + ((i + 0.5) / panels) * len, fOff, f.thick);
       const pw = len / panels / 2;
@@ -209,8 +223,7 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
       // look-pass 2: a fence is not one ruler-straight band: panels differ a little in height and the odd one is missing
       const hk = rngRange(rng, FENCE_HEIGHT_VARY[0], FENCE_HEIGHT_VARY[1]), gone = rngFloat(rng) < FENCE_GAP_P;
       if (gone) continue;
-      mb.box(p.x, p.y + (f.height * hk) / 2, p.z, along ? f.thick : pw, (f.height * hk) / 2, along ? pw : f.thick, 0, hex(BACKDROP_HEX.fence, rng, 0.05));
-      shapes++;
+      shapes += fencePanel(p, pw, along, f.height * hk);
     }
     for (let i = 0, n = count(r, BACKDROP_DENSITY_PER_M.trees * 0.4); i < n; i++) tree(r, band('gardenTrees'));
   }

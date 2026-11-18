@@ -2856,3 +2856,101 @@ Progress (kept current; a successor continues from here)
   `paired/jobs3.txt`, runner `paired/jobs3.sh jobs3.txt`** (67 runs: r30 / r29r30 subset again, the two r29r30 long
   runs, the other 10 colonies x base / r29 / r30 / r29r30, then r31 x 15; restart-safe: re-run the same command).
   Started 09:37; `chain.sh` / jobs.sh stopped (jobs3 includes r31).
+- 10:01 **third round-8 engineer** (relaunch with direction 16). `git status`: clean against HEAD 75bff80 (the
+  integrator's snapshot with the 09:37 state). jobs3.sh was stopped at 10:00; its last run (r30 kd #2, with
+  --renew-nanitics) finished 10:03, so r30 has the whole subset with renewed first workers; base has the subset
+  (identity: base draws 24 +- 10); r29r30 kd #2 was never run. Kept as they are, named: `paired/r29/` (standalone R29,
+  care + finish), `paired/r29r30/` and `paired/long-r29r30/` (R29 care + finish + R30), `paired/*-nan24/`.
+- 10:02 **R29 amended in the live tree (direction 16: the finish clause withdrawn; R29 = the care factor, "R29c")**:
+  `colony/queen.ts` `finishFactor` and the `finish` field removed (potential = GDD 02 §3.2 product x care);
+  `chamberTempForecast` (environment/chamber.ts) and `chamberForecastC` + the `chamberForecast` override
+  (colony/envAdapter.ts) removed, nothing else used them (both files now equal to the base arm's);
+  `balance/colony.ts` LAY_FINISH_STEP_D28 removed, the R29 note restated as R29c. `colony/layCapacity.test.ts`
+  restated: the five care-factor cases kept, the four finish cases replaced by one (d28 17 at 21 C with room in care:
+  the potential is the GDD product, no `finish` field). `tools/sim/probe/probe-lay8.ts` (finish-factor probe) deleted;
+  a copy is `round-8/r29/probe-lay8.ts.txt`. Typecheck clean.
+- 10:03 **frozen arm trees of direction 16**: `/home/user/scratch-r8-r30` += WL4 (begin.ts, system.ts with the
+  winter-coming seam, balance/lifecycle.ts, types/lifecycle.ts and their tests; WL4 acts only at Begin, after the
+  winter-start tick where winter runs stop, so the r30 winter runs already made are unchanged; it matters for the r30
+  year-two runs); `/home/user/scratch-r8-r30r29c` = r30 + the live R29c files (queen.ts, census.ts, balance/colony.ts,
+  layCapacity.test.ts; chamber.ts / envAdapter.ts equal to r30) = the live sim tree less FD1 (founding only);
+  `/home/user/scratch-r8-r30r29cr31` = r30r29c + `round-8/r31/r31-on-r30.patch` + queenCareR31.test.ts.
+  `/home/user/scratch-r8-{r29,r29r30,r31}` are no longer used (r31 = r30 + R31 without R29c: not an arm of direction 16).
+- 10:04 **jobs4 RUNNING** (`round-8/paired/jobs4.sh jobs4.txt`, restart-safe: re-run the same command; progress in
+  `done.txt` after the "# jobs4 started" line): (1) r30r29c and r30r29cr31 on the subset, (2) r30 on the other 10,
+  (3) r30 year-two runs cpv #1 and we #2 (`paired/long-r30/`, --until-day 32), (4) base / r30r29c / r30r29cr31 on the
+  other 10, then r30 kd #2 (exists: skipped). 53 runs, ~2.8 h at 2 at a time. Best-arm long runs are added when the
+  subset says which arm is best.
+- Now: tests of the colony folder on the live tree; then direction 16's nursing-per-hour question (cpv #1, pp #3);
+  then the protein ledger over the r30 runs.
+- 10:08 tests on the live tree (R29c + R30 + F1 + FD1 + WL4): colony folder 67/69 files green
+  (`round-8/vitest-colony-live-1005.txt`); red: `founding/reopen` (known since round 1) and `workedExample` (GDD 02
+  §15, red with R29's care factor since 08:50; decided with R29c's paired verdict). `layCapacity.test` 6/6 green.
+- 10:08 **tool-side observers added to `tools/sim/life.ts`** (copied into all four frozen trees before the runs that
+  use them; they read state and events only; `censusOf` deliberately not used because its per-tick cache, filled
+  after a tick, would be read by the next tick's systems): `tools/sim/lifeProtein.ts` (report.protein: by game day,
+  P standing in protein sources within 300 BU and of it known, prey in patches reaching 300 BU and patches known,
+  P of sources arriving / leaving the radius by cause, forage trips setting out for a P source and arrivals, P
+  delivered by kind, prey subdued, P fed to larvae and queen, the larvae's P demand (inst.larvaP integrated), P
+  spoiled (inst.spoilP integrated), stores P, larvae starved / cannibalised) and `tools/sim/lifeNursing.ts`
+  (report.nursingHours: per game hour, A, nurse-capable, nurse / queen-care demand and target, ants on nurse /
+  queen-care / idle by state and whether they stand in a chamber with overdue brood, eggs and pupae past
+  TEND_DUE_GD and past UNTENDED_GD by chamber, laying potential). Runs of jobs4 from sg #2 on have both (we #1 of the
+  two new arms started before). Check pending: an observer must not change the run (finalHash of an r30 subset
+  colony re-run against the 09:3x run).
+- 10:13 two more tool observers in `life.ts` (all four frozen trees): `lifeProtein.ts` also counts hunting trips
+  (`tripsToPatch`: forage trips setting out with a prey patch); `tools/sim/lifeEclosions.ts` (report.eclosions:
+  every worker eclosion with year, doy and the year its egg was laid; "overwintered" = laid in an earlier year) for
+  direction 16's year-two question (eclosions by day and origin). The r31-arm tree's `layCapacity.test` restated for
+  R31 (12 workers: queen-care demand 1, nurse-capable 11; `scratch-r8-r30r29cr31`: layCapacity + allocation folder
+  6/6 files green).
+- 10:17 first results with the observers (sg #2, `nursing/nursing.py`, `protein/table.py`):
+  - **nursing, sg #2 r30r29c** (283 game hours): 47 hours with overdue eggs/pupae (78 egg-hours, 51 pupa-hours past
+    UNTENDED_GD); in those hours nurse-capable 13.2 of A 15.2 (care factor 1), but the nurse demand is 1.02 (GDD 02
+    §6.2 rates: eggs / 25 + pupae / 15 + feeding), target 1.0, actual 1.0; the one nurse stood in a chamber with
+    overdue brood 15 of 47 hours (the others: tending or carrying elsewhere: eggs in the royal chamber, pupae in the
+    nursery); **queen-care 1.94 ants, 78 of their 91 ant-hours `queen-care.attend` in the very chamber with the
+    overdue eggs** (they groom the queen beside her egg pile and do not tend it). Same hand-over r30r29cr31 (R31:
+    one attendant, nurse first): 10 overdue hours (0 egg-hours, 14 pupa-hours), idle ants 0.6 on average.
+    So "capacity on paper is not care in the nest": the design's per-nurse rates give a small colony one nurse for
+    two piles in two chambers, and the attendants standing at the egg pile do not tend it.
+  - **protein, sg #2 r30r29c by day**: the larvae's P demand is 16 of its 20 P on hand-over day 3 (the day-1 batch;
+    fed 10.4 P that day from the stores the hand-over provisioning filled from the queen's reserve, 11.7 -> 1);
+    from day 6 there are no larvae (P demand 0, P stores 1.6 unused). Known P standing 4-10 P on days 5-10, 2 prey
+    patches known (~290 prey), yet only **2 forage trips set out for a protein source in 12 days** (forage trips
+    are 14 C, 28 none); prey subdued 27 (hunting on the way). Laying: potential 0 from doy 14 (royal chamber 11 C
+    at the day-row hour) and on doy 12-13, with potential 11-24, 0-3 eggs laid: the queen's gut P (`gutPShare`
+    0.03) and the laying-protein permission (0.08 in r30, 0.41 in r30r29c) hold her, i.e. no protein income on the
+    days she could lay. The r30 runs of the other 10 colonies (with the ledger) come next in jobs4.
+- 10:23 **nursing, pp #3** (r30r29c, 306 game hours; `nursing/nursing.py --hours`): 48 hours with overdue brood
+  (76 egg-hours, 67 pupa-hours); in them nurse-capable 11.2, nurse demand 1.1, target 1.0, actual 0.88. The hours
+  148-166 show the mechanism: 7 eggs lie in chamber 8068, the one nurse is in chamber 4283 carrying, feeding, then
+  `rest` for 5 game hours; the two attendants `queen-care.attend` by the queen in another chamber; nobody is idle
+  (the rest forage); the eggs die one an hour (7 -> 2) until the nurse comes back at h166. r30r29cr31 (R31) on the
+  same hand-over: 56 overdue hours (89 egg-hours, 36 pupa-hours), nurse 1.12 actual: R31 frees an attendant (idle
+  0.33 on average) but the nurse demand is still ~1, so the single-nurse gap stays. Reading: the GDD 02 §6.2 rates
+  (25 eggs or 15 pupae per nurse) give 1 nurse for any brood of a founding-year colony, and one nurse cannot be at
+  two piles, carry, feed and rest at once; a pile waits > 6 h whenever she rests or works elsewhere.
+- 10:28 **nursing, cpv #1** (r30r29c, 310 hours): 41 overdue hours (44 egg-hours, 24 pupa-hours); nurse demand 1.0,
+  target 1.0, actual 1.6 in those hours; the attendants `queen-care.attend` in the chamber with the overdue brood
+  42 of their 69 ant-hours (as in sg #2: eggs overdue beside the queen while her two attendants groom her).
+  r30r29cr31 (R31): 9 overdue hours (0 egg-hours, 10 pupa-hours), idle 1.15. **Direction 16's question answered on
+  sg #2, pp #3, cpv #1**: the care factor reads 1 (nurse-capable 10-13) because the nurse DEMAND of these broods is
+  ~1 at the GDD's rates; the loss comes from that one nurse's absences (rest, carrying, feeding in another chamber)
+  and from attendants who stand at the queen's egg pile without tending it. R31 helps where the eggs lie by the
+  queen (sg #2 78 -> 0 overdue egg-hours, cpv #1 44 -> 0) and not where they lie in another chamber (pp #3 76 -> 89).
+- 10:28 **protein, cpv #1 r30r29c by day** (the first run with the forage-choice fields): a carrion of 60 P arrives
+  in the radius on day 5 (known 21-27 P on days 6-8); on days 6-8 the waiting foragers HAVE it among their choices
+  (waitingKnowP 0.85-2.35 of 2.45-2.75 waiting), yet they set out for it once and make **60 hunting trips to a prey
+  patch whose near edge is 202 BU away (8 catches, 2 P)**. needP 0.2-0.4 (P stores ~2 the whole time, refilled by
+  the hand-over provisioning from the queen's reserve), wP 0.43-0.6. The forager's choice values a hunting trip by
+  `hunt.ts patchScore` = one catch (0.25 P) per HUNT_EXPECT_S 40 s in the patch; measured: 8 catches in 60 trips
+  (each searches HUNT_PATCH_SEARCH_S 90 s): ~0.13 catches a trip, ~700 s of patch time a catch. Lead for the
+  protein stage "known -> trips sent -> loads": the choice is mis-valued against carrion and the patch catch rate is
+  ~1/15 of the design's expectation. Added a hunt funnel to `lifeProtein.ts` (prey appeared, chases begun, escapes
+  from the colony's chasers, kills, remains carried, vanished) for the r30 runs of the other 10 colonies.
+- 10:29 runner switched (no run lost): jobs4.sh stopped between runs (the two kd #2 runs in flight finish),
+  `paired/chain4b.sh` waits for them and starts `jobs4.sh jobs4b.txt` = jobs4.txt with one run first: `r30obs kd #2`
+  (tree `/home/user/scratch-r8-r30obs` -> scratch-r8-r30, out `paired/r30obs/`): the same r30 run as 10:03 but with
+  the observers, to check that they change nothing (finalHash). **If cut off: run
+  `test-output/colony-life/round-8/paired/jobs4.sh jobs4b.txt`** (restart-safe).

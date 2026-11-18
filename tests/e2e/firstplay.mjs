@@ -488,21 +488,31 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const rooms = (await nestOf(h)).chambers;
   const room = rooms.find((c) => c.type === 'food') ?? rooms.find((c) => c.type !== 'founding') ?? rooms[0];
   expect(room, 'the nest has no chamber to unload in');
+  let lastPos = null, stuck = 0;
   for (let i = 0; i < 40; i++) {
     const a = await g((id) => window.__game.query.ant(id), worker);
     if (a.cropC < after.c * 0.5) break;
     const p = (await summary()).possessed.pos, d = Math.hypot(room.center.x - p[0], room.center.z - p[2]);
     if (a.nestId < 0 || d > 0.8 * bu) {
       // down the shaft the way the queen dug it: from the entrance along the horizontal heading to the room (a walk straight at the
-      // room centre crosses the ground above it instead)
+      // room centre crosses the ground above it instead); when she has not moved since the last round, a sidestep to unblock her
       const dx = room.center.x - ent.pos.x, dz = room.center.z - ent.pos.z, n = Math.hypot(dx, dz) || 1;
+      const moved = lastPos ? Math.hypot(p[0] - lastPos[0], p[1] - lastPos[1], p[2] - lastPos[2]) : 1;
+      stuck = moved < 0.3 ? stuck + 1 : 0;
+      lastPos = p;
       if (a.nestId < 0) await steerTo(h, ent.pos.x, ent.pos.z, 0.5 * bu, 60);
-      for (let k = 0; k < 12 && d > 0.8 * bu; k++) await walkDir(h, 3, { x: dx / n, y: 0, z: dz / n });
+      const turn = [0, 0.7, -0.7, 1.4, -1.4, Math.PI][stuck % 6], c = Math.cos(turn), sn = Math.sin(turn);
+      const hx = dx / n, hz = dz / n;
+      const deep = p[1] <= room.center.y + (room.radii?.y ?? 3 * bu);
+      for (let k = 0; k < 12; k++) {
+        if (deep) await steerTo(h, room.center.x, room.center.z, 0.5 * bu, 3); // in the room: straight at its centre
+        else await walkDir(h, 3, { x: hx * c - hz * sn, y: 0, z: hx * sn + hz * c });
+      }
       await g(() => window.__game.setIntent({}));
     }
     await g(() => window.__game.act('unload-crop'));
     await step(40);
-    if (process.env.FIRSTPLAY_DEBUG) log('unload', i, JSON.stringify(await g((id) => { const gm = window.__game, w = gm.query.ant(id); return { crop: w.cropC + w.cropP, nest: w.nestId, pos: w.pos, ev: gm.events('action-failed', 2).map((e) => `${e.action}:${e.reason}`) }; }, worker)), JSON.stringify({ d: Math.round(d), room: room.center, type: room.type }));
+    if (process.env.FIRSTPLAY_DEBUG) log('unload', i, JSON.stringify(await g((id) => { const gm = window.__game, w = gm.query.ant(id); return { crop: w.cropC + w.cropP, nest: w.nestId, pos: w.pos, ev: gm.events('action-failed', 2).map((e) => `${e.action}:${e.reason}`) }; }, worker)), JSON.stringify({ d: Math.round(d), room: room.center, radii: room.radii, stuck, type: room.type }));
     await g(() => window.__game.act({ action: 'unload-crop', phase: 'stop' }));
   }
   const delivered = await g((id) => window.__game.query.ant(id), worker);
@@ -575,7 +585,8 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const n2 = await nestOf(h);
   const ch = n2.chambers.find((c) => c.type === 'founding') ?? n2.chambers[0];
   const c0 = ch ? ch.center : ent.pos;
-  await g((o) => window.__game.views.colonyCamera(o), { x: c0.x, z: c0.z, distBu: 60, pitchDeg: 60, yawDeg: 20, cutaway: 'slice', planeYBu: c0.y / bu + 0.5, radiusBu: 50 });
+  // framed on the middle between the nest and the food, so the marker's click lands on the food
+  await g((o) => window.__game.views.colonyCamera(o), { x: (c0.x + food.pos.x) / 2, z: (c0.z + food.pos.z) / 2, distBu: 80, pitchDeg: 60, yawDeg: 20, cutaway: 'slice', planeYBu: c0.y / bu + 0.5, radiusBu: 50 });
   await g(() => window.__game.views.tool('forage'));
   await g(() => window.__game.views.radius('forage', 12));
   const fscr = await g((p) => window.__game.views.project(p), food.pos);

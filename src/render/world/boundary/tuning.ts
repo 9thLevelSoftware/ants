@@ -52,6 +52,11 @@ export const BACKDROP_MIN_HAZE_NIGHT = 0.8;
  * untextured box, the design haze hid its plinth and windows). Only the facade's vertices carry it; trees, fences and cars keep the full haze.
  */
 export const BACKDROP_KEEP_HAZE = 0.6;
+/**
+ * The garden fence's share of that exemption (0..1 of BACKDROP_KEEP_HAZE; app-seams-2-fix: in the suburban opening the fence 6 m away was
+ * the big pale slab, one box hazed to grey): its boards and posts stay readable as a fence, still well hazed (trees and shrubs keep the full haze).
+ */
+export const BACKDROP_FENCE_KEEP = 0.55;
 /** Silhouette fuzz: the outermost rim of a backdrop shape is dithered away (hashed alpha), 0..1 strength. */
 export const BACKDROP_FUZZ = 0.85;
 /** Foliage masses: radius noise amplitude and underside darkening of canopies, shrubs and hedges. */
@@ -99,7 +104,8 @@ export const BACKDROP_SIZE = {
   shrubRadius: [350, 900] as const,
   hedgeHeight: [1200, 1700] as const,
   hedgeDepth: [700, 1000] as const,
-  fencePanel: { width: 1830, height: 1800, thick: 20, post: 90 },
+  /** A neighbour's fence panel: boards of `board` mm with a `gap` between them, posts of `post` mm square at the panel ends, `boardJitter` mm of board-top variation. */
+  fencePanel: { width: 1830, height: 1800, thick: 20, post: 90, board: 150, gap: 16, boardJitter: 60 },
   car: { length: 4300, width: 1800, height: 1450 },
   facadeHeight: 6200,
   facadeDepth: 4000,
@@ -115,7 +121,7 @@ export const BACKDROP_SIZE = {
 /** Silhouette colours (sRGB hex). The haze does most of the work; these keep them believable when close. */
 export const BACKDROP_HEX = {
   bark: '#2f2820', canopy: '#34482a', shrub: '#45592f', hedge: '#3b5129', fence: '#6b5845', car: ['#5a6670', '#7a2e2a', '#c9c6be', '#2b2d30'],
-  facade: '#a8957d', roof: '#4a3b36', plinth: '#6e6458', glass: '#2a3138',
+  facade: '#a8957d', roof: '#4a3b36', plinth: '#6e6458', glass: '#2a3138', fencePost: '#4a3d30',
 } as const;
 
 /** Edge glyph (GDD 04 §14 "edge of the locality"): shown while the possessed ant presses against the hard limit. */

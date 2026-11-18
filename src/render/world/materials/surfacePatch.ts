@@ -20,6 +20,32 @@ export interface BreachList {
   spheres: Uniform<Vector4[]>;
   count: Uniform<number>;
 }
+/**
+ * Fence boards (app-seams-2-fix, far blocks): a wooden panel prim (one thin axis, two big ones: a fence panel, 20 mm thick, 1.7 m square)
+ * drew as one flat pale slab at 3 to 6 m, the 14 % wood albedo pattern lost in the haze. The shader now draws upright boards across it from the
+ * prim's own size: `boardMm` wide, with a darker gap and a per-board tint, fading out where a board is under ~3 pixels (no moire). The haze
+ * covered the panel completely at that distance (the exp2 fog is ~100 % at 3.5 m on an ant's scale), so the panel also keeps `fogKeep` of its
+ * own colour through the fog (the same exemption the boundary facade has).
+ */
+export const FENCE_BOARDS = { boardMm: 150, thinMaxMm: 60, bigMinMm: 600, gapDark: 0.55, tintVar: 0.28, fadeFrom: 0.35, fadeTo: 0.9, fogKeep: 0.55 } as const;
+export const FENCE_BOARDS_FRAG = /* glsl */ `
+#ifdef WR_BOARDS
+float wrFogKeep = 0.0;
+{
+  vec3 bsz = vWrSz * 2.0, bn = abs(vWrN);
+  float panZ = step(bsz.z, ${FENCE_BOARDS.thinMaxMm.toFixed(1)}) * step(${FENCE_BOARDS.bigMinMm.toFixed(1)}, bsz.x) * step(${FENCE_BOARDS.bigMinMm.toFixed(1)}, bsz.y) * step(0.7, bn.z);
+  float panX = step(bsz.x, ${FENCE_BOARDS.thinMaxMm.toFixed(1)}) * step(${FENCE_BOARDS.bigMinMm.toFixed(1)}, bsz.z) * step(${FENCE_BOARDS.bigMinMm.toFixed(1)}, bsz.y) * step(0.7, bn.x);
+  if (panZ + panX > 0.5) {
+    float bu = (panZ > 0.5 ? vWrP.x : vWrP.z) / ${FENCE_BOARDS.boardMm.toFixed(1)};
+    float bfw = fwidth(bu), bf = fract(bu), be = min(bf, 1.0 - bf);
+    float gap = 1.0 - smoothstep(0.02, 0.02 + max(bfw, 0.05), be);
+    float keep = 1.0 - smoothstep(${FENCE_BOARDS.fadeFrom.toFixed(2)}, ${FENCE_BOARDS.fadeTo.toFixed(2)}, bfw);
+    float tint = 1.0 - ${(FENCE_BOARDS.tintVar / 2).toFixed(3)} + ${FENCE_BOARDS.tintVar.toFixed(3)} * wrHash12(vec2(floor(bu), panZ * 3.0 + panX * 5.0));
+    wrAlb *= mix(1.0, (1.0 - ${FENCE_BOARDS.gapDark.toFixed(2)} * gap) * tint, keep);
+    wrFogKeep = ${FENCE_BOARDS.fogKeep.toFixed(2)};
+  }
+}
+#endif`;
 /** Capacity of the breach uniform list. */
 export const BREACH_UNIFORM_MAX = 16;
 
@@ -117,6 +143,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
       `#define WR_WETROUGH ${d.wetRough.toFixed(3)}`,
       `#define WR_ROUGHMIN ${d.roughMin.toFixed(3)}`,
       looks ? '#define WR_LOOKS' : '',
+      o.prim === 'rounded' && o.space === 'instance' && d.id.startsWith('wood') ? '#define WR_BOARDS' : '',
     ].join('\n');
 
     s.vertexShader = s.vertexShader
@@ -125,6 +152,9 @@ ${defs}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 #ifdef WR_LOCAL
 varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
+#endif
+#ifdef WR_BOARDS
+varying vec3 vWrSz;
 #endif
 ${looks ? LOOK_VERT_DECL : ''}
 ${o.extra?.vertDecl ?? ''}`)
@@ -137,6 +167,9 @@ ${o.extra?.vertDecl ?? ''}`)
   #endif
   wrW = modelMatrix * wrW;
   vWrW = wrW.xyz;
+  #ifdef WR_BOARDS
+  vWrSz = iSize.xyz;
+  #endif
   #ifdef WR_LOCAL
   vWrP = transformed; vWrN = objectNormal;
   vWrR0 = wrR[0]; vWrR1 = wrR[1]; vWrR2 = wrR[2];
@@ -156,6 +189,9 @@ ${GLSL_WET}
 ${GLSL_OCCLUSION}
 ${GLSL_CONTACT}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
+#ifdef WR_BOARDS
+varying vec3 vWrSz;
+#endif
 ${GLSL_DAPPLE}
 #ifdef WR_LOCAL
 varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
@@ -195,6 +231,7 @@ vec3 wrAlb; vec3 wrNw; float wrRg;
 wrTri(tWrA, tWrN, tWrR, vWrP, wrN0, uWrScale, uWrNs, wrAlb, wrNw, wrRg);
 #endif
 wrAlb *= uWrTint;
+${FENCE_BOARDS_FRAG}
 #ifdef WR_MACRO
 wrAlb *= mix(1.0 - WR_MACRO, 1.0 + WR_MACRO, wrFbm(vWrW.xz / 340.0));
 #endif
@@ -216,6 +253,18 @@ diffuseColor.rgb *= wrWetAlbedo(wrAlb, wrWet, WR_WETDARK) * wrContactAO(vWrW);
 float roughnessFactor = wrWetRough(wrRoughO >= 0.0 ? wrRoughO : max(WR_ROUGHMIN, roughness * wrRg), wrWet, WR_WETROUGH);
 ` : `
 float roughnessFactor = wrWetRough(max(WR_ROUGHMIN, roughness * wrRg), wrWet, WR_WETROUGH);
+`)
+      .replace('#include <fog_fragment>', `
+#if defined( USE_FOG ) && defined( WR_BOARDS )
+  #ifdef FOG_EXP2
+  float wrFogF = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+  #else
+  float wrFogF = smoothstep( fogNear, fogFar, vFogDepth );
+  #endif
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, wrFogF * ( 1.0 - wrFogKeep ) );
+#else
+#include <fog_fragment>
+#endif
 `)
       .replace('#include <normal_fragment_maps>', `
 normal = normalize((viewMatrix * vec4(wrNwWorld, 0.0)).xyz);
