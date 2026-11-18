@@ -2464,3 +2464,114 @@ Progress (kept current; a successor continues from here)
   untended 0.25-0.65 gd with ONE nurse (nurse demand 1.4-3.6) standing in `nurse.feed` (nav idle) 25-35 mm away while
   4-5 workers forage; 3 pupae and 2 eggs died untended in 5 gd: nurse allocation below demand, and a nurse that waits
   in a feed state does not tend the pile. Not worked this round.
+- 06:47 pair 4 (cpv #1): base 11 -> 16, l1 11 -> 13 (ecl 9 both; old age 7 vs 3; trip success 42 vs 51 %; P at
+  winter 0.7 vs 2.3). **L1 REVERTED** (subset: workers at winter base/l1 11/9, 10/10, 10/9, 16/13 = 3 worse, 1 equal,
+  eclosions 2/2, 5/5, 4/5, 9/9): its eggs are year-two brood (diapause larvae, pp #3), the protein they take leaves
+  the pool short, the colony forages harder and its workers age out faster outside (R11 stands). Back to
+  WINTER_RESERVE_FROM_D28 = 10 (comment records the trial), the L1 test removed. Note: the integrator's snapshots
+  a4ab29b / 383ea70 contain L1; the working tree after this entry does not. kd #2 pair still running (for the record).
+  Re-ranking from this: in year one after an R20 hand-over the workers at winter are the day-1 batch that survives
+  plus the adults that do not die; laying later does not add to them. So brood lost in care (rank 2) is the lever for
+  year one; protein laid late is a year-two question (it needs the long runs). Next: the nurse lead of cpv #3.
+- 06:52 pair 5 (kd #2): base = l1 = sweep 6 (10 -> 9). **Paired subset, L1 (5 colonies, same hand-overs)**: workers at
+  winter sweep6 / base / l1 = 56 / 56 / 50; eclosions 28 / 24 / 25; eggs 74 / 81 / 90 (days 2-6: 11 / 17 / 24);
+  brood lost 35 / 45 / 45; larvae starved 6 / 8 / 7; old age 24 / 24 / 30; l1 vs base 3 worse, 2 equal. base vs
+  sweep 6: 5 equal on workers (RM + SF3 change only pp #3's path, the restore case). Table: `paired/table.py`.
+- 06:52 **T1 in the live tree** (not yet accepted): `balance/nestwork.ts` JOB_PRIORITY.tendOverdue 9.6 and
+  TEND_OVERDUE_GD 0.2; `ants/behaviours/nest/board.ts` careJob: a pile untended past TEND_OVERDUE_GD gets tendOverdue
+  (above every feed at the GDD urgency cap 9.5, below rescue 10). Tests: new `nest/tendOverdue.test.ts` (3; "she
+  takes the pile" red with tendOverdue 6 = GDD's max), `nest/nurse.test.ts` board-ranking expectation restated
+  (a pile a day untended: tendOverdue instead of 2 + 4). Frozen copy `/home/user/scratch-r7-t1` (live src: seams +
+  T1, L1 reverted). Paired t1 arm RUNNING (`pairs.sh t1=/home/user/scratch-r7-t1`; restart-safe), compared with base.
+- 06:55 ants/behaviours/nest folder with T1 (`vitest-nestbeh.txt`): 31/34 files; red `sfaReview.verify` (board view
+  after save/load) and `stall.soak` (22 % stalled ant-ticks) are red on HEAD without T1 too (checked in the base copy;
+  not this round's, not touched); **red because of T1: `colony.scenario.test.ts` AC2 mean larval hunger 0.604 vs the
+  limit 0.6 (base 0.591)**: the overdue pile tends take nurse time from feeding in that 65-egg scenario. Not weakened;
+  T1's fate waits for the paired t1 arm (running).
+- 07:05 **T1 REVERTED**. Paired t1 vs base (same 5 hand-overs): workers at winter 59 vs 56 (better 2: cpv #1 17/16, kd #2
+  12/9; worse 1: sg #2 9/10; equal 2), eclosions 26 vs 24, but its own mechanism counter went the wrong way: untended
+  brood deaths 15 -> 21 (pupa 12 -> 9, egg 3 -> 12), larvae starved 8 -> 11, brood lost 45 -> 55, and the AC2
+  scenario test turned red (larval hunger 0.604). With one nurse the overdue pile only moves the neglect to another
+  pile or to the larvae: the shortage is nurses (target 2 of demand 3.6 in cpv #3: the auto split halves every
+  demand when the sum exceeds the workforce, GDD 02 §6.3), not the job order. The +3 workers are chaotic (kd #2's
+  two extra eclosions come with C intake 0.27 vs 0.67). Board, balance and tests back to HEAD; `tendOverdue.test.ts`
+  deleted.
+
+### Funnel of the studied runs (round 7; paired subset, base arm = HEAD 948fb75 from the sweep-6 hand-overs)
+
+`round-7/funnel-base.md` (`account.py paired/base`):
+
+| run | workers | ecl | eggs | brood lost (top) | P/C intake | trip ok | stuck ant-gd | P known gd | deaths |
+|---|---|---|---|---|---|---|---|---|---|
+| we #1 | 18 -> 11 | 2 | 15 | larva:starvation 6, egg:base 2, larva:cannibalised 2 | 0.122 / 0.768 | 19 % | 7.8 | 1.1 | predation 3, old-age 6 |
+| sg #2 | 11 -> 10 | 5 | 17 | larva:base 2, pupa:untended 2, egg:cannibalised 1 | 0.046 / 0.533 | 46 % | 7.9 | 3.1 | old-age 5, predation 1 |
+| pp #3 | 13 -> 10 | 4 | 19 | pupa:untended 6, egg:base 3, larva:starvation 2 | 0.357 / 1.410 | 52 % | 0.4 | 0.1 | old-age 5, predation 2 |
+| cpv #1 | 11 -> 16 | 9 | 16 | egg:base 1, larva:base 1, larva:cannibalised 1 | 0.197 / 1.485 | 51 % | 11.0 | 0.3 | old-age 3, lost 1 |
+| kd #2 | 10 -> 9 | 4 | 14 | pupa:untended 3, egg:base 1, larva:base 1 | 0.030 / 0.669 | 29 % | 3.3 | never | old-age 5 |
+
+Laying (all 15 sweep-6 runs and the probes): ~11 eggs on hand-over day 1 from the queen's gut, 0-6 on days 2-6; the
+warm window for eggs that can eclose before winter ends about day 2-3 after an R20 hand-over.
+
+### Paired comparison (round 7; 5 colonies, same sweep-6 hand-overs; `round-7/paired/`, `paired/table.py`)
+
+| arm | workers at winter | eclosions | eggs (days 2-6) | brood lost | larvae starved | old age | predation | vs base |
+|---|---|---|---|---|---|---|---|---|
+| sweep 6 (round-6 tree, in-process) | 56 | 28 | 74 (11) | 35 | 6 | 24 | 10 | 5 equal |
+| base = HEAD 948fb75 (RM + SF3) | 56 | 24 | 81 (17) | 45 | 8 | 24 | 6 | - |
+| l1 (base + L1) | 50 | 25 | 90 (24) | 45 | 7 | 30 | 7 | 3 worse, 2 equal |
+| t1 (base + T1 + the seams) | 59 | 26 | 86 (23) | 55 | 11 | 21 | 8 | 2 better, 1 worse, 2 equal |
+
+The round's tree as it ends = base + the direction-12 seams (which change no life run: same creation hash with the
+sim loaded, no paused command in a life run, same weekend arithmetic), so on this subset the round's paired result
+is the base row: 56 vs 56 workers, 5 of 5 equal. RM changes pp #3's path only (restored = in-process now).
+
+### Fixes (round 7; in the tree)
+
+- **RM** (sweep-6 finding 1, major; direction 12 "save -> load changes mound heights"): `nest/moundRelax.ts` mask key
+  includes the ground-delta stamp; a footprint is a dent, not a hole (`world/groundDelta.ts`). Test
+  `nest/moundMaskFootprint.verify.test.ts` (2 cases, each red without its half). Restore probe pp #3: 8 of 8 splits
+  equal over 1000 ticks (before: 8 of 8 differ by tick 141).
+- **SF3** (sweep-6 finding 2, minor): `ants/behaviours/outdoor/tendHerd.ts` counts tenders from their decision to
+  leave and holds a waiting tender's engine wait to no honeydew source. Test `storesFullTenders.verify.test.ts` (red
+  with round-6 code: 5 violations in 9 ticks).
+- **Seams (direction 12)**: `environment/human/schedule.ts` week constants (`time.test.ts` green); `createGame.ts`
+  imports `@/sim/systems` (test `createGame.rivals.test.ts`; probe `probe-createonly.txt`); `sim.ts`
+  `applyPendingCommands` flushes events outside a tick (test `sim.pausedEvents.test.ts`).
+- Not done of direction 12: entrance re-evaluation per carved sphere (cost), the ecology import cycle, the 670 ms
+  first tick (perf task; not looked at).
+
+### GDD deviations (round 7)
+
+None in the tree (L1 and T1, each a deviation, are reverted).
+
+### Tried and reverted (round 7)
+
+- **L1** WINTER_RESERVE_FROM_D28 10 -> 14: the gate was shut on most warm hours after the hand-over (74 / 67 hours
+  in 6 gd on we #3 / sg #3, the only shut gate with 1.5-5 P in store); opening it moved eggs as intended (eggs by gd 4
+  13 -> 18, 14 -> 18) but the eggs laid after day ~2 do not finish before winter, they take the stored protein, the
+  colony forages harder and ages out: paired 50 vs 56 workers, 3 worse, 2 equal. The R5 gate is right for year one
+  after R20; whether those eggs pay in year two needs long runs.
+- **T1** a tend-pile job past 0.2 gd untended at priority 9.6 (above the GDD's feed cap): untended deaths 15 -> 21,
+  starved 8 -> 11, AC2 scenario red; reverted (see 07:07).
+
+### Next (round 8)
+
+1. **Nurses below demand** in small colonies: cpv #3 runs one nurse against a nurse demand of 1.4-3.6 while 4-5
+   forage (`probe-untended-cpv3-alloc.txt`: target 2, actual 1); the GDD 02 §6.3 auto split halves every demand
+   first and forage's demand is large. Measure on the 15 hand-overs: nurse target vs demand vs actual over days 0-5,
+   and the brood lost untended (sweep 6: pupa 21 + egg 34) against nurse-hours; the day-1 batch is what makes the
+   year-one workers. Also why the actual count sits below the target (reassignment, `reassignable`).
+2. **Year two** (direction 8): L1 showed the colony's late eggs become diapause larvae at winter (pp #3: 6); with
+   the R5 gate as is they are not laid. Long runs are needed before anyone touches laying after day 3.
+3. **Protein income** (median P 0.197): still the limit of the day-1 batch's larvae (we #1: 6 starved).
+4. Red tests not this round's: `founding/reopen`, `escapeDig`, `removal.verify`, `services.test` diggability (carpenter),
+   `ants/behaviours/nest/sfaReview.verify` (board view after save/load) and `stall.soak` (22 % stalled ant-ticks;
+   both red on HEAD 948fb75 too).
+- 07:09 status: **round 7 complete.** In the tree: RM, SF3, the three direction-12 seams; L1 and T1 reverted (the
+  integrator's snapshots a4ab29b / 383ea70 hold L1, the working tree does not). Final checks on the live tree:
+  typecheck clean; colony 64/65 (known `reopen`), sim root 20/21 (known `services` diggability), environment/human
+  16/16, ants/behaviours/nest 31/34 with the two pre-existing reds above (AC2 scenario green again after T1's
+  revert), nest 57/58 and outdoor 29/30 (06:08, unchanged since). Scratch trees deleted; probe sources kept as
+  `round-7/probe-*7.ts.txt` and removed from `tools/sim/probe/`; the 15 sweep-6 hand-overs stay in `round-7/cache/`
+  (inputs of the paired runs; the next paired comparison can use them with `pairs.sh`); no process of this round
+  running.

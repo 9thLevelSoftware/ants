@@ -78,3 +78,15 @@ TODO next: unit tests for 1-3, harness shots (tests/e2e script app-seams-2.mjs -
 - New: tests/e2e/appSeams2-poses.mjs (observer round trip + slope climb), to run on current tree (poses-after) and on old tree 5c5fe19 (git archive into scratchpad old-look3, node_modules symlink) for poses-before.
 - Queue: poses-after, poses-before, appSeams2 rerun, panels.mjs, controls.mjs, firstplay.mjs (full 25 beats), vitest of my dirs + typecheck, report docs/design/tasks/app-seams-2-report.md.
 - NOTE: grep '"ok"' in harness logs matches log lines with "ok":true: wait on process exit instead.
+
+## Update (07:00 UTC): item 12(e) pictures taken
+- tests/e2e/appSeams2-poses.mjs; after: test-output/app-seams-2/poses-after/, before (git archive 2fbf1a8~1 = before look-pass-3, in scratchpad/old-look3): poses-before/. 
+  A (observer after colony view, followed ant underground): BEFORE A3 = orbit camera inside the nest on the ant (followId stays 5571, y=-23.7); AFTER A3 = free over the nest on the surface (followId -1, y=128.6, f=15.6). Clear pair.
+  B (slope): steepest ground within reach is 15.9 deg at 329 BU; both pictures look alike (horizon a bit higher in after); NOT convincing -> report partial; the 'before' queen sat in the shaft (teleport differs between trees).
+- NEXT: rerun appSeams2.mjs (07/08 journal across winter, script fixed), then panels.mjs, controls.mjs, firstplay.mjs, vitest of my dirs, typecheck, report.
+
+## Update (07:12 UTC): done runs
+- appSeams2.mjs rerun OK: hud-final2/ (07/08 journal across winter fine: entries keep own dates Spring Y1 ... Spring Y2; hint card "Tab Next ant" overlapped the journal -> hint.css now hides .hn-card while a .ui-book-wrap is open: NOT re-pictured yet).
+- Found string: alert 'winter-coming' reads "stores cover 28 of 7 days" when stores exceed winter (sim passes x=28; content template src/content/text/alerts.ts:37) -> report (sim clamp / wording), not fixed.
+- panels.mjs PASS (ok:true, test-output/app-seams-2/panels, log panels.log).
+- NEXT: controls.mjs, firstplay.mjs, vitest of my dirs, typecheck, report.

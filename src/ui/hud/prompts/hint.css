@@ -2,6 +2,8 @@
    screen belongs to the ant. Layered over the HUD (z-index 10) and under drawers' pointer targets. */
 .hn-card { position: fixed; z-index: 11; display: inline-flex; align-items: center; gap: var(--s-3); max-width: min(30rem, calc(100vw - 2rem)); min-height: 2.25rem; padding: 0.25rem 0.5rem 0.25rem 0.75rem; border-radius: var(--r-m); background: var(--c-scrim); color: var(--c-text); box-shadow: var(--e-0); pointer-events: none; font-size: var(--t-small); line-height: var(--t-small-lh); white-space: nowrap; animation: hn-in var(--m-fast) var(--ease-enter) both; }
 .hn-card.is-compact { padding: 0.25rem 0.5rem; opacity: 0.6; animation: none; }
+/* a book (journal, codex, settings) takes the whole screen: the card waits behind it (app-seams-2: it was drawn over the journal's text) */
+:root:has(.ui-book-wrap) .hn-card { visibility: hidden; }
 .hn-hold { color: var(--c-text-2); font-weight: 600; }
 .hn-verb { font-weight: 500; }
 .hn-close { pointer-events: auto; width: 1.5rem; height: 1.5rem; margin-left: var(--s-2); padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--c-text-2); font: inherit; line-height: 1; cursor: pointer; }
