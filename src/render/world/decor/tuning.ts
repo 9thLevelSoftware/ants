@@ -170,8 +170,8 @@ export const DECOR_LEAF = {
    * colour and the net darkens it; yellowing blotches and dark flecks; surface relief fed to the normal.
    */
   detailFadeMm: [260, 800], warpUv: 0.075, warpScale: 0.55, serration: 0.55, serrationScale: 2.2,
-  stalkUv: 0.43, ribSpread: 0.6, ribWidthUv: 0.022, netScale: [0.22, 0.6], netWidth: 0.05, veinLift: 0.5, netDark: 0.14,
-  blotch: 0.55, blotchScale: 0.075, fleck: 0.35, reliefScale: 0.9, relief: 0.9,
+  stalkUv: 0.43, ribSpread: 0.6, ribWidthUv: 0.022, netScale: [0.22, 0.6], netWidth: 0.05, veinLift: 0.65, netDark: 0.14,
+  blotch: 0.55, blotchScale: 0.075, fleck: 0.2, reliefScale: 0.9, relief: 0.9,
   /** Draw order of the draped decor within the opaque pass: after terrain, primitives, grass and ants (default 0), because the shadow is blended over what is already drawn. */
   renderOrder: 1,
 } as const;
