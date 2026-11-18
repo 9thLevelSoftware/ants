@@ -5,7 +5,12 @@ import type { QualityPreset } from './quality';
 
 export function configureSunShadow(light: DirectionalLight, q: QualityPreset, bu: number): void {
   light.castShadow = q.shadows.enabled;
-  if (!q.shadows.enabled) return;
+  if (!q.shadows.enabled) {
+    // the map's render target stays allocated until freed: a switch to a no-shadow preset gives it back
+    light.shadow.map?.dispose();
+    light.shadow.map = null;
+    return;
+  }
   const ext = q.shadows.distanceBU * bu;
   if (light.shadow.mapSize.x !== q.shadows.mapSize) {
     light.shadow.mapSize.set(q.shadows.mapSize, q.shadows.mapSize);

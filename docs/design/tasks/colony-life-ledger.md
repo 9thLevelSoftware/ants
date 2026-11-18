@@ -2422,3 +2422,12 @@ Progress (kept current; a successor continues from here)
   (`round-7/paired/pairs.sh base=... l1=...`, colony by colony, base and l1 side by side, ~20 min a pair, results
   in `round-7/paired/{base,l1}/`, progress `paired/done.txt`). If cut off: re-run the same command (restart-safe).
   Next while they run: the small seams of direction 12 (no life runs needed), then the comparison table.
+- 06:28 direction 12, three small seams done (none changes a life run: same numbers / same hash with the sim loaded):
+  (a) `environment/human/schedule.ts` weekend split from WEEK_DAYS and WEEKEND_FROM (was 7, 2, 5): `time.test.ts` green
+  (was red), environment/human 15/15. (b) `createGame.ts` imports `@/sim/systems` (importing `rivals/wiring` directly
+  enters the module cycle at the wrong end: "rivalBehaviours is not iterable"): a game created by a module that
+  imports only createGame now equals one created with the sim loaded (`round-7/probe-createonly.txt`: before 1 ant,
+  hash 349817440 vs 6 ants, 1703006705; after both 6 ants, 1703006705); test `src/sim/createGame.rivals.test.ts`
+  (red on HEAD, green). (c) `sim.ts`: `applyPendingCommands` outside a tick flushes the event queue (inside a tick the
+  tick's own flush stays); test `src/sim/sim.pausedEvents.test.ts` (case 1 red on HEAD, green). The game's driver
+  already flushed after its paused apply (`game/loop/simDriver.ts applyCommandsNow`), so this closes the sim API side.

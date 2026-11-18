@@ -47,6 +47,8 @@ export function createSim(state: SimState, world?: WorldData, opts: CreateSimOpt
   const events = new EventBus<SimEventMap>();
   const pending: Command[] = [];
   const systems = opts.systems ?? SYSTEMS;
+  /** True while tick() runs: commands applied by the commands system leave their events to the tick's own flush. */
+  let inTick = false;
 
   const sim: Sim = {
     state,
@@ -60,12 +62,17 @@ export function createSim(state: SimState, world?: WorldData, opts: CreateSimOpt
     tick() {
       svc.index.refresh(); // refreshed again after the commands system if any command was applied
       const t = state.tick;
-      for (let i = 0; i < systems.length; i++) {
-        const s = systems[i];
-        if (systemDue(s, t)) s.run(sim);
+      inTick = true;
+      try {
+        for (let i = 0; i < systems.length; i++) {
+          const s = systems[i];
+          if (systemDue(s, t)) s.run(sim);
+        }
+        sweep(sim);
+        state.tick = t + 1;
+      } finally {
+        inTick = false;
       }
-      sweep(sim);
-      state.tick = t + 1;
       events.flush();
     },
     enqueue(cmd) {
@@ -82,6 +89,9 @@ export function createSim(state: SimState, world?: WorldData, opts: CreateSimOpt
       }
       // Entities created or killed by commands must be visible to this tick's queries.
       if (applied > 0) svc.index.refresh();
+      // Applied outside a tick (paused, frozen, step 0): deliver their events now, as a tick would, so a save taken
+      // before the next tick has seen them (GDD 06 §15 rule 4: a save made while paused is the same game).
+      if (!inTick) events.flush();
     },
     setPlayerIntent(intent: PlayerIntent) {
       const next = clonePlain(intent);

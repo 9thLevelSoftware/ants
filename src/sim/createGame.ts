@@ -17,6 +17,11 @@ import {
 import { createColony, createNest, spawnAnt, type EntityCtx } from '@/sim/entities';
 import { initEcology } from '@/sim/ecology';
 import { initRivals } from '@/sim/rivals';
+// The systems list loads the heavy half of rivals (rivals/wiring.ts, through the outdoor behaviours) in the order the
+// sim loads it; with it initRivals builds the rival nests at creation, so a game is the same game however its
+// creator was imported (colony-life direction 12; sim-seams review finding 2). Importing rivals/wiring.ts directly
+// enters the module cycle at the wrong end (its behaviour list is read before it is defined).
+import '@/sim/systems';
 import { walkerPlace } from '@/sim/locomotion/walker';
 import { SAVE_VERSION } from '@/sim/save/version';
 import { createSimKernel, createStores } from '@/sim/services';

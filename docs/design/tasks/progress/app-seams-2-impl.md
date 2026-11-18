@@ -67,3 +67,8 @@ TODO next: unit tests for 1-3, harness shots (tests/e2e script app-seams-2.mjs -
 ## Update (06:20 UTC, resumed after 6th restart; tree clean apart from others' untracked reviews; everything above is committed in 948fb75)
 - Working on 12(d) quality-switch leak: qs.log (06:01) shows textures m0 37 -> 46 after first switch to low then flat (low 46, high 77, test 46). renderApp.applyRendererQuality already disposes post. Diagnosing with GL createTexture/deleteTexture stack patch (scratchpad qs-gl.mjs -> test-output/app-seams-2/qs-gl).
 - Then: appSeams2.mjs final run (script updated at 06:13), controls.mjs, panels.mjs, firstplay, report.
+
+## Update (06:35 UTC): item 12(d) DONE (partial-honest)
+- Cause found by GL createTexture/deleteTexture patching (scratchpad qs-gl2.mjs; logs test-output/app-seams-2/qs-gl2.log): no per-switch leak (created/deleted churn ~25 textures per switch, count flat after first cycle). Real retained waste: the sun shadow map stayed allocated when a preset turned shadows off -> src/render/app/shadows.ts now disposes it (test src/render/app/shadows.test.ts). Remaining first-visit growth (m0 37 -> 44; programs 47 -> 71) = lazily uploaded textures/compiled programs of the presets visited; flat afterwards.
+- tests/e2e/look3-qs.mjs: warm-up cycle, asserts flat (<= +2) over the five switches after warm-up. After-run: test-output/app-seams-2/qs-after.log (mw 44 == m1 44 textures; 71 programs; 67 geometries).
+- NEXT: same-pose pictures (12e) check state; appSeams2.mjs full run; controls.mjs; panels.mjs; firstplay; report.
