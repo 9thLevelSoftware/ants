@@ -828,3 +828,11 @@ Pictures looked at by the integrator: HUD reads well; minimap ground is a coarse
 Sim-side needs it reported (already with colony-life round 8: founding desiccation FD1, the winter-coming numbers): foragers lay no trail to a sugar spill 22 BU from the entrance within 18 000 ticks even with a forage marker; `trophallaxis-give` by a possessed worker does not empty her crop; `cheat.killAll` takes no cause; `tests/docs/docs-final.test.ts` red on a constant round 8 removed.
 
 `look-pass-4` launched 10:55 UTC as `wu0kmy6jd` (wf_e5cc2c35-2fc; Sonnet impl, Opus review, visual). The browser-met sim defects are direction 17 of `colony-life.md`.
+
+## Nov 18 11:40 UTC — first year-two runs with R30: a second spring exists
+
+Round 8 (third engineer) so far: **HB1** — hunters fled from the alarm of their own non-lethal first bite, so 84 % of 1202 chases over 10 runs ended without a catch (~250 P of prey against 222 P of larval demand); fixed, paired runs queued. Protein ledger: 348 P arrived within range over 10 runs, 13.5 known on average; larvae ate mostly the queen's founding reserve (145 P fed, 66 delivered). **R32** (direction 18): the protein need counts eggs as the larvae they become.
+
+**Year two, R30 + WL4** (cpv #1, we #2): spring 17 of 19 and 10 of 11 workers (round 7: 6 of 17, 5 of 8); day 15: **19 and 7** (round 7: 4 and 1). Doubling by day 15 not met (19 vs 22, 7 vs 16): every eclosion before day 15 is an overwintered larva (2 and 1). Direction 19: larvae taken into winter is the lever; long runs now go to the second winter (`UNTIL_DAY=40`).
+
+look-pass-4: leaf detail, inspector wording, hint overlap, site advice, minimap shapes written (pictures pending). The engineer keeps the possession camera's follow-surface default because GDD 01 §6.2 / GDD 08 §7.4 say so and a "Keep level" setting exists; the integrator will decide the default from its slope pictures.
