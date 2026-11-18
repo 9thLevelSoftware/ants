@@ -343,8 +343,10 @@ export default async ({ page, shot, log, wait, out, context }) => {
     const hash = eval(hs);
     const gm = window.__game, s = gm.summary(), c = document.getElementById('view');
     gm.renderFrame();
+    const png = c.toDataURL('image/png');
+    window.__photoAfterPng = png; // look pass 3: the dump must be of the frame that was hashed (a second toDataURL reads a cleared buffer)
     return {
-      view: s.view, possessed: s.possessed && s.possessed.id, tick: s.tick, speed: s.time.speed, paused: s.time.paused, cam: gm.camera.pose(), frame: hash(c.toDataURL('image/png')),
+      view: s.view, possessed: s.possessed && s.possessed.id, tick: s.tick, speed: s.time.speed, paused: s.time.paused, cam: gm.camera.pose(), frame: hash(png),
       hud: !!document.querySelector('[data-testid="hud-root"]'), panel: !!document.querySelector('[data-testid="photo-panel"]'),
     };
   }, hashOf);
@@ -356,7 +358,7 @@ export default async ({ page, shot, log, wait, out, context }) => {
   if (afterExit.frame !== before.frame) {
     // look pass 3: write both frames so the difference can be seen (and measured) instead of only hashed
     const fs = await import('node:fs');
-    const dumps = await g(() => ({ before: window.__photoBeforePng, after: document.getElementById('view').toDataURL('image/png') }));
+    const dumps = await g(() => ({ before: window.__photoBeforePng, after: window.__photoAfterPng }));
     for (const [k, v] of Object.entries(dumps)) fs.writeFileSync(`${out}/exit-mismatch-${k}.png`, Buffer.from(v.split(',')[1], 'base64'));
     log('exit mismatch frames written', out);
   }

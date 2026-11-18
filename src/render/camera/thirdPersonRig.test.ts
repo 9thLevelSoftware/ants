@@ -243,7 +243,19 @@ describe('ThirdPersonRig tight room (look pass 3, stage1a strict)', () => {
     expect(f).toBeGreaterThan(0);
   });
 
-  it('keeps the full GDD radius where the room is high enough, and grows back after a tight room', () => {
+  it('a restarted rig (snap) has the same radius and camera as the settled one, tight room included', () => {
+    const r = new ThirdPersonRig({ bu: BU, bodyL: 2, autoFollow: 'off' });
+    const t: CameraTarget = { pos: vec3(0, 0.4, 0), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) };
+    let out = r.update(0, t, NO_ORBIT_INPUT, tight);
+    for (let i = 0; i < 60; i++) out = r.update(1 / 30, t, NO_ORBIT_INPUT, tight);
+    const radius = r.radiusMm, pos = { x: out.pos.x, y: out.pos.y, z: out.pos.z };
+    r.snap();
+    out = r.update(1 / 30, t, NO_ORBIT_INPUT, tight);
+    expect(r.radiusMm).toBeCloseTo(radius, 9);
+    expect(v3Distance(out.pos, pos as typeof out.pos)).toBeLessThan(1e-3);
+  });
+
+  it('keeps the full GDD radius where the room is high enough, and takes it back after a tight room', () => {
     const r = new ThirdPersonRig({ bu: BU, bodyL: 2, autoFollow: 'off' });
     const open = { trace: makeSphereTracer(slab) };
     const t: CameraTarget = { pos: vec3(0, 0.4, 0), up: vec3(0, 1, 0), fwd: vec3(1, 0, 0) };

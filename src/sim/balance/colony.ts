@@ -187,12 +187,6 @@ export const QUEEN_FAT_CAP = 3.0;
 export const HANDOVER_QUEEN_KEEP_C = QUEEN_FAT_CAP;
 export const HANDOVER_QUEEN_KEEP_P = 1.0;
 export const HANDOVER_PROVISION_WINDOW_GD = 3;
-/**
- * The protein part of the provision is paid in for this long (colony-life round 5): held to the workers' social
- * stomachs (it spoils in a pile), it goes in only as the first brood eats it, which takes longer than 3 gd; the
- * queen's reserveP is never refilled after the hand-over, so a long window cannot loop.
- */
-export const HANDOVER_PROVISION_P_WINDOW_GD = 10;
 /** Health lost per gd while P upkeep is unpaid. */
 export const QUEEN_P_UNPAID_HEALTH = 0.05;
 /** Reserve refill from the gut, C per gd, while gut C exceeds QUEEN_REFILL_MIN_GUT_C. */

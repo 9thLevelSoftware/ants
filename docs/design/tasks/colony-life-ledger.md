@@ -1716,3 +1716,12 @@ Tools: `lifeFunnel.ts` `proteinKnownGd`; `bench-table.py` columns (P known gd, s
   the stomachs for 10 gd, the carbohydrate window stays 3 gd (reserveP is never refilled after the hand-over: no loop).
   `viability.test` window case extended (C 0 and P > 0 after 3 gd; both 0 after 10 gd). Frozen tree `r5g`; running
   6-run bench `PAR=2 $S/r5g/tools/sim/bench-sweep.sh forage $P/bench-forage-p1c ... "we:1 sg:1 pp:1 cpv:1 kd:1 pp:3"`.
+- 00:20 **P1c reverted**: on 6 hand-overs the 10-gd protein window changed nothing in 5 (identical runs: the queen's P
+  was paid in within 3 gd) and pp #1 P/need 0.36 -> 0.20; the egg drop (288 -> 225 on the bench) is not stranded P.
+  Tree = r5f again (diff checked; other engineers have since edited `environment/human/*`, `progression/alerts.ts`).
+- 00:20 running (restart-safe): `$S/lifepairs.sh` = life.ts to winter, same cached hand-overs, r5start vs r5f, for
+  cpv #1, sg #2, kd #1, pp #2 (two at a time) -> `round-5/life-before/`, `round-5/life-after/`.
+- 00:38 life A/B to winter (same cache; r5start vs r5f), 2 of 4 pairs: cpv #1 workers 11 -> 11 vs **11 -> 15**,
+  eclosions 6 vs 9, larvae starved 3 vs 0, P intake/need 0.025 vs 0.107, longest stage worse than lean 6.55 vs
+  1.55 gd (still fails the 1 gd check); sg #2 11 -> 5 vs **11 -> 10**, eclosions 0 vs 7, C at winter 0 vs 8.8
+  (R27 need 3.1: passes the stores check), fails only the stage check (round 4's sweep: hygiene, 0 eclosed).

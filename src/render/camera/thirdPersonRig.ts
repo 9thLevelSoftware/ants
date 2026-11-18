@@ -8,7 +8,7 @@ import {
   BOOM_SPRING_TAU, CAM_AUTOFOLLOW_DELAY_S, CAM_AUTOFOLLOW_MAX_DEG_S, CAM_AUTOFOLLOW_MAX_TURN_DEG_S, CAM_AUTOFOLLOW_MIN_SPEED_BU,
   CAM_AUTOFOLLOW_TAU, CAM_FAR_BU, CAM_LOOKAHEAD_MAX_L, CAM_LOOKAHEAD_T, CAM_PIVOT_UP_L, CAM_PUSHOUT_TAU, CAM_RADIUS_L, CAM_RADIUS_MAX_BU,
   CAM_RADIUS_MIN_BU, CAM_RECENTRE_S, CAM_REDUCED_FOV_SPREAD_DEG, CAM_STATE_BLEND_S, CAM_STATE_BLEND_S_REDUCED, CAM_TUNNEL_LOOKAHEAD_BU,
-  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_TIGHT_GROW_TAU, CAM_TIGHT_MIN_SCALE, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
+  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_TIGHT_MIN_SCALE, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
 } from './constants';
 import { boomPoint, fitsAt, solveBoom } from './boomPath';
 import { MotionGuard } from './motionGuard';
@@ -139,20 +139,20 @@ export class ThirdPersonRig {
   get clearanceMm(): number { return CAM_MIN_CLEARANCE_R * this.radiusMm; }
 
   /**
-   * Tight rooms: the camera sphere shrinks to what fits at last frame's pivot base (immediately), and grows back eased.
+   * Tight rooms: the camera sphere is the GDD radius, or what fits at last frame's pivot base when the room is lower than the sphere.
    * The guard's clearance and the reported radius follow, so "f >= 0.5 x radius" holds wherever any camera can stand.
    */
-  private fitRadius(dt: number, trace: TraceFn): void {
+  private fitRadius(trace: TraceFn, up: Vec3): void {
     if (!this.baseValid) return;
     const c = CAM_MIN_CLEARANCE_R * 1.05, R = this.nominalRadiusMm;
     let goal = 1;
-    if (!fitsAt(trace, this.base, this.out.up, c * R)) {
+    if (!fitsAt(trace, this.base, up, c * R)) {
       let lo = CAM_TIGHT_MIN_SCALE, hi = 1;
-      for (let i = 0; i < 8; i++) { const m = (lo + hi) / 2; if (fitsAt(trace, this.base, this.out.up, c * R * m)) lo = m; else hi = m; }
+      for (let i = 0; i < 8; i++) { const m = (lo + hi) / 2; if (fitsAt(trace, this.base, up, c * R * m)) lo = m; else hi = m; }
       goal = lo;
     }
-    if (goal < this.radiusScale) this.radiusScale = goal;
-    else this.radiusScale += (goal - this.radiusScale) * smoothK(dt, CAM_TIGHT_GROW_TAU);
+    // a function of the pivot base alone (no memory): a rig that restarts (a teleport, leaving photo mode) must show the same picture
+    this.radiusScale = goal;
   }
 
   setOptions(o: Partial<ThirdPersonOptions>): void {
@@ -207,6 +207,10 @@ export class ThirdPersonRig {
     this.assist = 0; this.assistOn = false;
     // a restart of the rig (a teleport, leaving photo mode) starts at the lift the heading asks for, not at zero: the picture must not jump
     this.slopeLift = s === 'open' ? this.slopeLiftFor(t) : 0; this.radiusScale = 1; this.baseValid = false;
+    // the first frame already has the pivot base and the radius that fit it (the same as a settled rig would show)
+    this.placeBase(t, this.u, this.collisionRadiusMm, this.lengthMm, env.trace);
+    this.baseValid = true;
+    this.fitRadius(env.trace, t.up);
     this.initialised = true;
   }
 
@@ -255,7 +259,7 @@ export class ThirdPersonRig {
     // a teleport (or a new subject) is not motion: start over behind it (no flight through the world, no stale trail)
     if (this.initialised && v3Distance(t.pos, this.prevPos) > CAM_SNAP_JUMP_L * this.lengthMm) this.initialised = false;
     if (!this.initialised) this.init(t, env);
-    this.fitRadius(dt, env.trace);
+    this.fitRadius(env.trace, this.out.up);
     const L = this.lengthMm, R = this.collisionRadiusMm, o = this.out, trace = env.trace;
     dt = Math.max(0, Math.min(dt, 0.25));
 

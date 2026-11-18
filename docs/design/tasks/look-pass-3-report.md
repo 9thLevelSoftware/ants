@@ -144,3 +144,43 @@ before picture of this pose, so the improvement is by construction and the check
   4. `checks/firstplay/04-queen-surface.png` shows "Spring . Day 5 . Year 1" in the clock after the opening (looked at).
   Left, not mine: `src/sim/species/data/lasius-niger.ts` still has `foundingSeason: 'summer'` (sim data), and the title screen's backdrop vignette
   (`src/game/title/titleWorld.ts`, "summer day 3") is a backdrop, not text about the founding flight.
+
+## 7. Acceptance criteria, one by one
+
+Final night numbers after the last small lift (targetE 1.9 / minEV 2.3, section 1 table is at 1.7): `after/final-night-surface-high.png` ground 0.127 / frame 0.165, `final-night-overcast-surface-high`
+0.119 / 0.154, `final-night-rain-observerlow-high` frame 0.115, `final-night-close-high` ground 0.120 (before: 0.164, 0.168, 0.166, 0.164). Pins and band tests are at 1.9 (EV 3.051 clear, 3.226 rain, ground model 0.147).
+
+| # | Criterion | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Typecheck clean; tests green folder by folder | see section 8 (filled when the last run finished) | section 8 |
+| 2 | Before/after pictures for every item, same script and pose, each looked at | **partial** | items 1, 2, 4 (leaves, horizon strip), 5 have pairs; item 3 has unit tests only (the steep slope and the colony-view round trip could not be staged by cheat); the mound foot and the backdrop house have no same-pose pair (a cheat-staged game has no mound, and the `noon:edge` pose faces no house: `before3`/`after3-noon-edge-high.png` are identical); the far world-structure blocks are not fixed |
+| 3 | `stage1a.mjs` strict, `panels.mjs` both halves, `photo.mjs` quick, `views.mjs`, `controls.mjs`, `firstplay.mjs` beats 1-20 | **partial**, see below | `test-output/look3/checks/` |
+| 4 | Draw calls and triangles at low / medium / high on the seed 1 colony not above +10 % | **met** | below |
+| 5 | Report with the picture paths | **met** | this file |
+
+Acceptance 3 in detail (`checks/<name>.log`; browser runs at load average 7-12, each alone):
+
+| Script | Result |
+|---|---|
+| `views.mjs` | **pass** (`views.log`) |
+| `controls.mjs` | **pass** (`controls.log`) |
+| `stage1a.mjs` strict (`STAGE1A_SKIP_HIGH=1`) | the chamber camera check, which was red in the gate round, **passes**; the run stops at "GPU resources grew across quality switches" (textures 44 -> 55, limit +4). That failure is **not mine**: `look3-qs.mjs` on the ORIGINAL code (`checks/qsold.log`) gives the same textures 37 -> 46 (+9) after test -> low -> high -> test -> low -> test, and the same with and without the colony view round trip. The first switch to `low` creates 9 textures that are kept; stage1a's gate round probably passed it because of a different game state. Owner: render-app (quality switch disposal) |
+| `panels.mjs` first half (health, alert, nest) | **pass** (`panels.log`: health 123 s, alertClickThrough, nest); the journal tab click then timed out at 30 s under load (not measured); `PANELS_ONLY=journal,codex` alone: **pass** (`panelsA2.log`) |
+| `panels.mjs` second half | **pass** after one fix (`panelsB2.log`): the View tap passes; the D-pad assertion "reaches an overlay button" was **red before my change too** (`panelsB-orig.log`, original readers): the marker palette and the overlay column are two roots of the pad's `tools` layer and the D-pad stopped at the edge of a root, so the overlay column could not be reached by the pad at all. `moveFocusAcross` (`src/ui/nav/focusMove.ts`, `controller.ts`) goes on to the next root of the layer. Note: with the original pad readers the View tap also passed in that run (it retries up to four times), so the browser does not demonstrate the tap fix; the unit tests with a long frame do |
+| `photo.mjs` quick | see the end of this section |
+| `firstplay.mjs` | beats 1-13 **pass** (pictures `checks/firstplay/01..13-*.png`); beat 14 fails "no forager laid a trail to the food within 18000 ticks": the sim's foraging gap (integrator note), so beats 14-20 are **not measured** |
+| `founding.mjs` | **pass** (`founding.log`, 12 pictures) |
+| `look3-hud.mjs` | **pass** (`hud2.log`) |
+
+Draw calls and triangles, same method as the gate report section 5 (`frametime.mjs`, seed 1, hand-over, one game minute, observer 25 BU back and 15 BU up over the entrance, 8 frames per quality,
+`checks/frametime.log`):
+
+| Quality | draw calls (gate round -> now) | triangles (gate round -> now) |
+|---|---|---|
+| low | 84 -> 81 (-3.6 %) | 501 195 -> 500 051 (-0.2 %) |
+| medium | 118 -> 115 (-2.5 %) | 701 837 -> 699 833 (-0.3 %) |
+| high | 127 -> 123 (-3.1 %) | 971 250 -> 966 980 (-0.4 %) |
+
+Same-pose pairs of the look3 shots agree: observer low at high quality 98 -> 98 / 0.99 -> 1.00 M (night), 103 -> 105 / 1.00 -> 1.02 M (noon), dusk 108 -> 108, dawn 106 -> 105; the
+shots with the ant in frame differ by the state of the sim between the runs (118 -> 204 draws is a different number of ants and leaves in view, not the change). The facade adds a few boxes
+to the backdrop mesh only where a house edge is built. Frame times were not measured for the report (SwiftShader under load: 6-19 s a frame, indicative only).
