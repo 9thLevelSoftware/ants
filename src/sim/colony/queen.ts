@@ -115,8 +115,10 @@ export function finishFactor(sim: Sim, q: Ant, def: SpeciesDef, d28: number): nu
   const gdPerD28 = daysPerYear(sim.state.config) / DEFAULT_DAYS_PER_YEAR;
   const outside = q.chamberId < 0 ? royalTempC(sim, q) : NaN;
   let du = 0, pupaReached = false;
-  for (let t = d28; t < WINTER_D28; t += LAY_FINISH_STEP_D28) {
-    const step = Math.min(LAY_FINISH_STEP_D28, WINTER_D28 - t);
+  for (let t = d28, step = 0; t < WINTER_D28; t += step) {
+    // steps end on the diapause day and on the winter, so no step counts development past either
+    const end = t < DIAPAUSE_D28 ? DIAPAUSE_D28 : WINTER_D28;
+    step = Math.min(LAY_FINISH_STEP_D28, end - t);
     const tempC = q.chamberId < 0 ? outside : chamberForecastC(sim, q.chamberId, t + step / 2);
     if (!pupaReached && (t >= DIAPAUSE_D28 || tempC <= DIAPAUSE_COLD_C)) return 0;
     du += devRate(def, tempC) * step * gdPerD28;

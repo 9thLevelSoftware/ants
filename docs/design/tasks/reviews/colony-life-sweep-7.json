@@ -1,0 +1,61 @@
+{
+ "viabilityMet": false,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-7/sweep-table.md",
+ "numbers": {
+  "viable": "4 of 15 (woodland-edge 2/3, suburban-garden 1/3, playground-park 0/3, car-park-verge 1/3, kitchen-door 0/3)",
+  "workersHeld": "4 of 15 (we #2, we #3, cpv #1, kd #3)",
+  "medianEclosions": 4,
+  "medianIntakeP": 0.198,
+  "medianIntakeC": 1.078,
+  "medianTripSuccess": 43.9,
+  "firstWorkersAtLeast9": "14 of 15 (we #2: 8)",
+  "runsWithoutLost": "13 of 15 (lost in sg #1, cpv #1)"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "Flood readers see a different nest shape after a load (not round 7's code; direction 12 still open)",
+   "where": "src/sim/nest/flood/runtime.ts spillForReaders (readers: drown.ts, dryPlace.ts, surface.ts, water speed)",
+   "detail": "In a running game, spillForReaders returns the flood cache as it was last built. In a loaded game that has no cache yet, it builds the current nest shape. After a dig in a wet nest, the flood model stays frozen until that nest's rebuild slot, so for that window the two games read different shapes. Restore probe on the sweep-7 playground-park #1 hand-over: split 30024 differs from +37 ticks (chamber flooded share 0.2048 vs 0.2038); the cached cache has 710 samples, a fresh build 714. Clearing the running game's caches at the split removes the difference over 200 ticks (probe-spill3-pp1.txt, probe-restore-diff3-pp1.txt). New test src/sim/nest/flood/readersRestore.verify.test.ts is RED and kept: the running game reads 3798 samples, the loaded game 3968."
+  },
+  {
+   "severity": "minor",
+   "title": "The round's claim that a save and load continues the same game is only true at the colony level",
+   "where": "round-7 report, RM",
+   "detail": "The sweep's own playground-park #3 hand-over, restored by the round-7 tree, matches the in-process run in every day sample and in the whole funnel. The final state hash still differs (f6d0fc24 vs f87348ad); the flood-reader finding above is one known cause."
+  },
+  {
+   "severity": "minor",
+   "title": "SF3 changed nothing in the sweep",
+   "where": "src/sim/ants/behaviours/outdoor/tendHerd.ts",
+   "detail": "The rule is correct and its test is red on c970361. But in the 13 unchanged runs the tend trips and the 'tend crop-full not-reached fail' counts equal sweep 6 (kd #1 29 of 77, we #2 16 of 23, cpv #1 16 of 36). The tend trips that still fail are not departures into full stores. New test storesFullRelease.verify (2 cases) is green: held tenders leave once room opens, and a save and load while tenders are held equals the uninterrupted run over 600 ticks."
+  }
+ ],
+ "checksRun": [
+  "Full 15-run sweep from a frozen copy of the tree (hash 44ff6ee0), tools/sim/sweep-life.sh, 07:11-08:03 UTC, all 15 runs on one tree",
+  "Table made with tools/sim/sweep-table.py against round-6/sweep; both bars recomputed from the Markdown table with a second script (sweep-review/bars-from-md.py): same verdicts",
+  "cmp of the 15 fresh hand-overs against the sweep-6 ones in round-7/cache: 14 byte-identical, only playground-park #3 differs",
+  "Day-by-day and funnel comparison with sweep 6 (sweep-review/daydiff.py): 13 runs identical in every day sample and in the funnel, cpv #3 diverges on day 11, pp #3 from day 1",
+  "Whole-season run of the pp #3 hand-over restored by the round-7 tree, compared with the in-process run: every day sample and the funnel equal, final hash differs",
+  "Restore probe on the pp #1 hand-over (6 splits x 600 ticks) plus a state diff and spill-cache probes on the one split that differed",
+  "npm run typecheck: clean at 07:13 and again at 08:07 with the new tests",
+  "vitest folder by folder: nest 57/58 (escapeDig, known), ants/behaviours/outdoor 29/30 (removal.verify, known), environment/human + time.test + world 21/21, sim root 21/22 (services diggability, carpenter's), colony 64/65 (founding/reopen, known), ants/behaviours/nest 28/30 (sfaReview.verify and stall.soak, known), the worldgen tests that import createGame 4/5 (maps.verify E5, also red on c970361)",
+  "Every test the round added or restated, copied into a git archive of c970361 (round start): 6 of 6 cases red",
+  "Code review of git diff c970361 on src/sim: RM (moundRelax, groundDelta, terrain re-export), SF3 (tendHerd), and the three small fixes (schedule, createGame, sim.ts); checked against the not-allowed list, determinism and per-tick cost",
+  "New review tests: storesFullRelease.verify.test.ts (2 green) and readersRestore.verify.test.ts (1 red, kept)"
+ ],
+ "regressions": [
+  "playground-park #3: workers at winter minus first workers went from -3 to -7 (13 -> 10 in sweep 6, 13 -> 6 now); eclosions 8 -> 7; P intake 0.445 -> 0.267; predation 6 -> 9. Its hand-over is the only one that changed: the mound-mask fix (RM) acts during the founding, and playground-park is the archetype with footprints. So this is a different game from day 1, not a mechanism shared by the other runs.",
+  "No other run regressed: 13 runs are identical to sweep 6 in every day sample, and cpv #3 ends at 8 -> 8 workers, 3 -> 3 eclosions, P 0.185 -> 0.198. Sweep totals: workers at winter 142 -> 138 (all of it pp #3), eclosions 66 -> 65, predation 11 -> 14."
+ ],
+ "leadsForNextRound": [
+  "1. Protein income (median P intake 0.198 of need; the starvation-stage check fails 8 runs). P delivered per run is 0.96-8.15. P intake is 0.024, 0.030 and 0.046 in kd #1, kd #2 and sg #2, where laying is permitted only 17-20 % of the time. kd #2 never found a protein source; kd #1, pp #1 and sg #2 found one only at 3.1-3.7 gd. Larvae starved: we #1 6, kd #1 4.",
+  "2. Brood lost in care: egg:untended 35, pupa:untended 24 and egg:flooding 19, against 65 eclosions (sg #3 lost 12 of 17 eggs untended and had 1 eclosion; we #3 lost 9, cpv #3 8, pp #2 7). Nursing takes 0.04-0.18 of worker task time; queen-care takes 0.11-0.17, because GDD 02 \u00a76.2 sets its demand at a flat 2 below 100 workers and \u00a76.3's first pass gives every task half its demand before nursing is topped up. Measure nurse target, demand and actual per hour on the 15 hand-overs before changing anything; a change to the split is a GDD deviation.",
+  "3. Carbohydrate in the first days (we #1, pp #1 and kd #3 fail the starvation stage on C). kd #3: C intake 0.119, C 0 at winter with 4.79 P unused, the winter-reserve rule short 88 % of the time, laying permitted 12 %.",
+  "4. Old age: 64 of 95 adult deaths. R11 stands; with 1-4 eclosions in 9 runs a colony cannot hold its count.",
+  "5. Predation on pp #3: 9 deaths at 11-13 workers on days 3-6 (6 in sweep 6, 4 in sweep 5). The sweep median is 0, so R25 holds, but find which predator kind it is and whether it is a resident placed by worldgen or one the director places in the colony's range.",
+  "6. Trip success 43.9 %: tenders' 'crop-full not-reached fail' trips are unchanged by SF3 (kd #1 29 of 77): the next look is the crop size judged a failure (round-6 lead).",
+  "7. The flood-reader restore finding: readersRestore.verify.test.ts is red and kept for the owner."
+ ]
+}

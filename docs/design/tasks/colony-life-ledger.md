@@ -2696,3 +2696,19 @@ winter-coming alert seam), then the method.
 
 Progress (kept current; a successor continues from here)
 - 08:13 read spec, ledger (to the sweep-7 review), STATUS (to 07:25, R29). Next: reproduce finding 1.
+- 08:20 **F1 in the tree** (sweep-7 finding 1, major, reproduced: `nest/flood/readersRestore.verify.test.ts` red, 3798
+  vs 3968 samples). `nest/flood/runtime.ts spillForReaders` now always answers the current geometry (`spillFor`: the
+  cache rebuilt when a carve touched the nest's box or its signature changed), in a running and a loaded game alike;
+  the flood model's throttle (`floodGeometry`) is unchanged (W, level, chamber shares from the last capture; readers
+  place that level in the cavities as they are now). The review's test green. Frozen base tree for the paired runs:
+  `/home/user/scratch-r8-base` = HEAD + F1 (runtime.ts, dryPlace.ts comment). Restore probe on the sweep-7 pp #1
+  hand-over at the review's splits (6 x 1500 + 600) running -> `round-8/probe-restore-pp1-f1.txt`.
+- 08:21 **R29 written** (direction 14; not yet accepted): `colony/queen.ts` layingFactors x `care` x `finish`:
+  care = clamp(1 - careNeed / nurseCapable, 0, 1), careNeed = eggs/25 + pupae/15 + larval food rate/4.5 (GDD 02
+  §6.2 rates, no moves, no diapause larvae), nurseCapable = available workers - queen-care demand (only with workers);
+  finish = 0 when an egg laid now cannot pupate before the diapause day (d28 18, or a forecast day <= 12 C) or
+  eclose before the winter (d28 21), summed over `environment/chamber.ts chamberTempForecast` (GDD 03 §9.1 slow part
+  moved by the climate's seasonal mean change) of the queen's chamber, steps LAY_FINISH_STEP_D28 0.25. Census
+  snapshot gets eggs / pupae / available (`cen.eggs`, `cen.pupae`, `cen.avail`; additive). Test
+  `colony/layCapacity.test.ts` (9 green). Next: colony folder tests, then the paired runs over all 15 hand-overs
+  (`round-8/paired/`, base = scratch-r8-base, r29 = frozen copy of the live tree).

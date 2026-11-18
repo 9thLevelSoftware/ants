@@ -1,0 +1,86 @@
+{
+ "summary": "Round 7 is finished and recorded under '## Round 7' in /home/user/foundress/docs/design/tasks/colony-life-ledger.md. The first engineer's two fixes were already in the tree when I took over and I left them as they were: RM (the mound-mask restore fix; a save and load now continues the same game in 8 of 8 tests on playground-park #3) and SF3 (tenders leaving the nest together). I added three of the small owner-less seams from direction 12. The round went to protein, not year two. In the sweep-6 runs the queen lays about 11 eggs on hand-over day 1 and almost none after, while 26 P sits unused in the colonies' stores at winter and 25.5 P more is still held by six queens. The laying probe found the cause: the winter-reserve rule (WINTER_RESERVE_FROM_D28 = 10) shuts the protein supply to the queen on most warm hours after a start-day-5 hand-over. I tested two fixes on five colonies (one per archetype), each run to winter from the same sweep-6 hand-overs, and reverted both. L1 (move that rule to the start of autumn) did make the queen lay more eggs earlier, but those eggs cannot hatch into workers before winter. They used up the stored protein, the colony foraged harder and lost more workers to old age: 50 workers at winter against 56 (3 colonies worse, 2 equal). T1 (an unvisited egg or pupa pile outranks feeding larvae) made untended brood deaths worse (15 to 21) and turned the colony scenario test red. The round therefore ends with the base result on this subset: 56 against 56 workers, all 5 colonies equal. The next lever for year one is the number of nurses in small colonies, not the order of their jobs.",
+ "causesRanked": [
+  "1. Eggs not laid in the warm window while protein sits in store: 238 eggs in 15 sweep-6 runs, about 170 of them on hand-over day 1; 0-6 per run on days 2-6 although the queen could lay 15-37 eggs a day; at winter 26 P left in the stores and 25.5 P still held by 6 queens (about 40 larvae). The probes show the winter-reserve rule (viab-economy R5, from d28 10) is the only closed gate on gd 1.3-4. Paired runs then showed those eggs cannot become workers before winter after a start-day-5 hand-over, so this costs year-two brood, not year-one workers.",
+  "2. Brood lost in care: 34 eggs and 21 pupae died untended and 19 eggs drowned in sweep 6. In year one, only the day-1 batch becomes workers, so this is the lever there. Causes found: on suburban-garden #3, nurses stuck in a pocket of the nest the navigation does not reach (4.5 of 15.2 ant-days spent in the nest); on car-park-verge #3, one nurse working against a nurse demand of 1.4-3.6.",
+  "3. Protein income: median protein intake 0.197 of need, 1-8 P delivered per run; it limits the larvae of the day-1 batch (woodland-edge #1: 6 larvae starved).",
+  "4. Old age: 65 of 92 adult deaths. Workers age faster outside the nest, so more foraging trips mean more old-age deaths before winter (the R11 ruling stands)."
+ ],
+ "fixes": [
+  {
+   "cause": "Sweep-6 finding 1 (major): a game restored from a save diverges because the mound-mask cache ignores footprints (done by the first engineer of round 7)",
+   "files": [
+    "src/sim/nest/moundRelax.ts",
+    "src/sim/world/groundDelta.ts",
+    "src/sim/environment/human/effects/terrain.ts"
+   ],
+   "test": "src/sim/nest/moundMaskFootprint.verify.test.ts (2 cases, each red without its half of the fix)",
+   "beforeAfter": "Restore probe on the playground-park #3 hand-over: 8 of 8 restore points diverged within 141 ticks before; 8 of 8 equal over 1000 ticks after. On the paired subset only playground-park #3 changes path (the restore case)."
+  },
+  {
+   "cause": "Sweep-6 finding 2 (minor): tenders leave together while the stores are full (done by the first engineer of round 7)",
+   "files": [
+    "src/sim/ants/behaviours/outdoor/tendHerd.ts"
+   ],
+   "test": "src/sim/ants/behaviours/outdoor/storesFullTenders.verify.test.ts (red with the round-6 code: 5 violations in 9 ticks)",
+   "beforeAfter": "Departures go from 6 in 9 ticks to spaced at t1, t27, t195. Paired base against sweep 6: 5 of 5 colonies equal on workers at winter."
+  },
+  {
+   "cause": "Direction 12 seam: schedule.ts hard-coded the week length (7, 2, 5)",
+   "files": [
+    "src/sim/environment/human/schedule.ts"
+   ],
+   "test": "src/sim/time.test.ts (red before, green now)",
+   "beforeAfter": "Same numbers as before. environment/human folder 16/16."
+  },
+  {
+   "cause": "Direction 12 seam: a game created by a module that imports only createGame differs from one created with the sim loaded",
+   "files": [
+    "src/sim/createGame.ts",
+    "src/sim/createGame.rivals.test.ts"
+   ],
+   "test": "src/sim/createGame.rivals.test.ts (red on HEAD, green now)",
+   "beforeAfter": "probe-createonly.txt: before, createGame alone gave 1 ant and hash 349817440 against 6 ants and 1703006705 with the sim loaded; after, both give 6 ants and 1703006705. Games created with the sim loaded are unchanged."
+  },
+  {
+   "cause": "Direction 12 seam: applyPendingCommands while paused never delivers its commands' events, so a save taken before the next tick misses them",
+   "files": [
+    "src/sim/sim.ts",
+    "src/sim/sim.pausedEvents.test.ts"
+   ],
+   "test": "src/sim/sim.pausedEvents.test.ts (case 1 red on HEAD, green now)",
+   "beforeAfter": "Events are now delivered once, right away, outside a tick; inside a tick they still come with the tick. No life run changes."
+  }
+ ],
+ "verification": [
+  "npm run typecheck: clean on the live tree",
+  "src/sim/colony: 64 of 65 files green; the one red is founding/reopen, red before this round (test-output/colony-life/round-7/vitest-colony.txt)",
+  "src/sim root tests: 20 of 21 green; the red one is services.test diggability, which belongs to the carpenter engineer (vitest-simroot.txt)",
+  "src/sim/environment/human with time.test.ts: 16 of 16 green",
+  "src/sim/ants/behaviours/nest: 31 of 34 files green (vitest-nestbeh.txt, run while T1 was in). Two reds, sfaReview.verify and stall.soak, are also red on HEAD 948fb75 without any of my changes. The third, colony.scenario, was red only because of T1 and passes again after the revert.",
+  "src/sim/nest 57/58 (escapeDig, red before) and ants/behaviours/outdoor 29/30 (removal.verify, red before), run at 06:08 by the first engineer; those folders were not touched afterwards",
+  "Paired runs to winter from the same sweep-6 hand-overs, 5 colonies (woodland-edge #1, suburban-garden #2, playground-park #3, car-park-verge #1, kitchen-door #2), table in test-output/colony-life/round-7/paired/table.py. Workers at winter: sweep 6 56, base 56, l1 50, t1 59. Eclosions: 28, 24, 25, 26. Brood lost: 35, 45, 45, 55.",
+  "Laying probe with and without L1 (probe-lay-{we3,sg3}{,-l1}.txt): hours with the winter-reserve gate shut went from 74 and 67 to 0; eggs laid by game day 4 went from 13 to 18 and from 14 to 18.",
+  "The new tests were checked red against the old code (the HEAD copy, or the old constant set back in place) and green with the change."
+ ],
+ "next": [
+  "Nurses below demand in small colonies. On car-park-verge #3 the colony targets 2 nurses against a demand of 3.6 and actually has 1, while 4-5 workers forage: the auto split (GDD 02 \u00a76.3) halves every demand when their sum exceeds the workforce. Measure nurse target against demand against actual over days 0-5 on all 15 hand-overs, compare with the eggs and pupae lost untended, and find why the actual count stays below the target. The day-1 batch is what makes the year-one workers.",
+  "Year two (direction 8): with L1 the late eggs became larvae that sat out the winter (playground-park #3: 6). Decide on laying after day 3 only from long runs.",
+  "Protein income (median 0.197 of need), which limits the larvae of the day-1 batch.",
+  "The rest of direction 12: entrance re-evaluation after every carved sphere, the ecology import cycle, and the first tick of a new game (perf task)."
+ ],
+ "triedAndReverted": [
+  "L1: WINTER_RESERVE_FROM_D28 moved from 10 to 14 (start of autumn). The queen laid more eggs on days 1-4, but those eggs do not become workers before winter; they used up the stored protein, the colony foraged harder and lost more workers to old age. Paired result: 50 against 56 workers (3 worse, 2 equal); old-age deaths 30 against 24.",
+  "T1: an egg or pupa pile left untended past 0.2 game days got job priority 9.6, above any feed of a hungry larva. Untended deaths rose from 15 to 21, starved larvae from 8 to 11, and the beh-nest colony scenario test went red (mean larval hunger 0.604 against the 0.6 limit). With one nurse it only moved the neglect elsewhere. Workers at winter 59 against 56, judged chance: two of the three extra came from one colony whose eclosions went up while its carbohydrate intake fell from 0.67 to 0.27 of need."
+ ],
+ "gddDeviations": [
+  "None in the tree: L1 and T1, each a deviation, were reverted."
+ ],
+ "notesForIntegrator": [
+  "Your snapshots a4ab29b and 383ea70 contain L1 (WINTER_RESERVE_FROM_D28 = 14, plus its test in viability.test.ts). L1 is reverted in the working tree, so the next paired comparison must use the tree as it ends this round, not those commits.",
+  "The 15 sweep-6 hand-overs stay in test-output/colony-life/round-7/cache (116 MB). test-output/colony-life/round-7/paired/pairs.sh ARM=TREE runs the 5-colony paired subset from them (restart-safe, two runs at a time).",
+  "Red tests outside this round's changes, not touched: founding/reopen, nest escapeDig, outdoor removal.verify, services.test diggability (carpenter), and in ants/behaviours/nest sfaReview.verify (board view after save/load) and stall.soak (22 % of in-nest walker ticks stalled). The last two are red on HEAD 948fb75 too.",
+  "The game driver already delivered events after a paused command (game/loop/simDriver.ts applyCommandsNow); the sim.ts change closes the same gap for any caller of the sim API.",
+  "My first ledger timestamps were written before checking date -u. I corrected them; every '## Round 7' entry now carries the actual UTC time."
+ ]
+}

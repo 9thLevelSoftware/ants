@@ -58,6 +58,15 @@ export function storeDays(sim: Sim, col: Colony): number {
   return need > 0 ? Math.floor(col.stores.c / need) : 0;
 }
 
+/**
+ * Tokens of the `winter-coming` alert ("stores cover {x} of {winterDays} days"): `x` = days of cover clamped to the
+ * length of the winter (stores for 28 days read "28 of 7" before), `more` = 1 when the stores last longer than the
+ * winter (the interface may say "more than the winter"), `coverDays` = the unclamped days for a detail line.
+ */
+export function winterNoticeTokens(coverDays: number, winterDays: number): { x: number; winterDays: number; more: number; coverDays: number } {
+  return { x: Math.min(coverDays, winterDays), winterDays, more: coverDays > winterDays ? 1 : 0, coverDays };
+}
+
 /** Shows the banner (or resolves the winter as active when the nest is heated). */
 function openBanner(sim: Sim): void {
   const s = sim.state;
@@ -202,7 +211,7 @@ export const overwinterSystem: System = {
       if (lapseWanted(sim)) {
         w.phase = 'notice';
         sim.emit({ type: 'overwinter.notice' });
-        raiseLifecycleAlert(sim, col, 'winter-coming', { x: storeDays(sim, col), winterDays: seasonLength(s) }, 'diag-overwinter-readiness');
+        raiseLifecycleAlert(sim, col, 'winter-coming', winterNoticeTokens(storeDays(sim, col), seasonLength(s)), 'diag-overwinter-readiness');
       }
     }
     // banner: winter, not yet resolved this year, no delay running

@@ -792,3 +792,17 @@ Running: colony-life `w09el0k35` (round 7), app-seams-2 `w9b7zmcaw`.
 **R29 — the queen lays what the colony can raise**: laying potential × a care factor that reaches zero when the brood in care equals what the nurse-capable workforce can tend at the design's care rates; eggs that cannot finish before winter are not laid. Accepted only on the paired comparison over all 15 hand-overs. Direction 14 of `colony-life.md`. Year two: long runs are mandatory in every sweep (sweep 6 ran none); round 8 runs two itself and answers the spring-temperature lead.
 
 Running: colony-life `w09el0k35` (sweep 7), app-seams-2 `w9b7zmcaw`.
+
+## Nov 18 08:35 UTC — sweep 7; year two is worse; rulings R30, R31 (R11 withdrawn)
+
+**Sweep 7**: viable 4 of 15 (we 2, sg 1, pp 0, cpv 1, kd 0); R19 4 of 7 (held 4/15, eclosions median 4, P 0.198, C 1.078, trips 43.9 %, first workers ≥ 9 in 14/15, no `lost` in 13/15). 13 runs identical to sweep 6 in every day sample (round 7 changed little by design); pp #3 worse (its founding changed with the mound fix). Review: one major, pre-existing — flood readers saw a different nest after a load (round 8 fixed it first: F1). Saved `reviews/colony-life-round-7.json`, `-sweep-7.json`.
+
+**Year two, integrator's own long runs on the round-7 tree** (`test-output/colony-life/round-7/sweep-long/`; the sweep engineer skipped them again; the workflow script now makes them a numbered step): cpv #1 17 → 6 over the lapse (8 drowned inside it) → 4 on day 15; sg #2 11 → 6 (starved, queen starved) → 2; we #2 8 → 5 → 1. Round 5 had 17 → 15, 12 → 11, 8 → 8. So the lapse regressed in rounds 6–7, and no colony has ever had a second year.
+
+**Why, by arithmetic rather than another round**: first workers live 24 ± 10 gd and age × 3 outside → 4–11 gd of foraging in a year that has 12 gd after the hand-over; 64 of 95 adult deaths in sweep 7 are old age. In spring the nest reaches laying temperature about day 6 and new workers eclose about day 11–13; the overwintered workers are dead by then. R11 (leave ageing alone, feed the brood) was my ruling and it was wrong; seven rounds were spent inside a budget that cannot close.
+
+- **R30** (replaces R11): worker lifespan 33 → 42 gd (sd 8), first workers 24 → 34 (sd 8), clamp floor 10 → 16, ageing outside × 3 → × 1.5 (the dangers of foraging are simulated one by one now; the multiplier counted them twice and is not ramped for small colonies). Other species: data only, same factor.
+- **R31**: queen-care demand 1 below 20 workers; nursing served in full before any task's second ant. Paired evidence required.
+- R29, R30 measured as separate arms on the 15 hand-overs and on long runs. Winter-lapse regression and the browser founding failure on seed 2 (3 of 4 runs lose every egg at 2.8 % of the lapse on a "Poor" start site) go to round 8 as well. Direction 15 of `colony-life.md`.
+
+Stopped `w09el0k35` at 08:22 (round 8 was 10 minutes in: F1 and R29 written, in the tree, ledger current) and relaunched with direction 15.
