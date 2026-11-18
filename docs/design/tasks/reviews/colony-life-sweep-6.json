@@ -1,0 +1,66 @@
+{
+ "viabilityMet": false,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-6/sweep-table.md",
+ "numbers": {
+  "viable": "4 of 15 (woodland-edge 2/3, suburban-garden 1/3, playground-park 0/3, car-park-verge 1/3, kitchen-door 0/3); round 5: 6 of 15",
+  "workersHeld": "4 of 15 (round 5: 8)",
+  "medianEclosions": 4,
+  "medianIntakeP": 0.197,
+  "medianIntakeC": 0.985,
+  "medianTripSuccess": 43.9,
+  "firstWorkersAtLeast9": "14 of 15",
+  "runsWithoutLost": "13 of 15"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "Save -> load still changes the run: RS fixed one path, not the defect (sweep-5 finding 2 / direction 12)",
+   "where": "src/sim/nest/moundRelax.ts moundMask (nest runtime moundMasks cache); src/sim/nest/runtime.ts dropMoundMasks",
+   "detail": "On the playground-park #3 hand-over, at 8 save points 1000 ticks apart, the loaded sim drifts away from the live one within 141 ticks of every load. The first difference is mound 4060's relaxation state, then the ants walking on it. On woodland-edge #1, 6 splits of 300 ticks stay equal. Cause: the mound-mask cache is dropped on carves and on entrance or breach changes, but not when a human footprint presses the ground on the pile grid. buildMask probes 0.4 mm (MOUND_HOLE_PROBE_DEPTH_BU) under the pile base, so a 2.8 mm print reads as an open hole in a fresh build. The live game keeps the mask from before the print (744 hole cells); a loaded game builds it after (782). Test src/sim/nest/moundMaskFootprint.verify.test.ts is RED and kept: cached 32 hole cells against 112 for a fresh build and for the loaded game. In this review it flipped a verdict: pp #3 restored from the sweep's own hand-over ends at 11 workers and viable, the in-process sweep run at 10 and not viable. The round's probe compared only 20 ticks after each split."
+  },
+  {
+   "severity": "minor",
+   "title": "SF v2 still lets tenders leave together into room for one crop",
+   "where": "src/sim/ants/behaviours/outdoor/tendHerd.ts tendersOut/departForHerd",
+   "detail": "tendersOut counts only tenders with nestId < 0. A tender who has decided to leave and is still walking up the tunnel is not counted, so every waiting tender that thinks before she reaches the surface sees the same room. Test src/sim/ants/behaviours/outdoor/storesFullTenders.verify.test.ts is RED and kept: with room for 1.5 crops, 6 tenders leave within 9 ticks. Across the sweep the mechanism still moved: failed full-crop trips fell from 265 of 1,493 to 146 of 1,349, tend trips 240 -> 118."
+  },
+  {
+   "severity": "minor",
+   "title": "Run-by-run regressions against sweep 5 are hand-over noise, not round-6 code",
+   "where": "test-output/colony-life/round-6/sweep-review/ab/",
+   "detail": "14 runs are flagged, 4 of them viable -> not viable. The sweep-6 hand-overs differ from sweep 5's (every RNG stream, env.human, carve grid, ants) even though first workers, hand-over gd and queen reserves are equal; sim-seams and quiet-time changed founding-time systems. Over 3 game days the round-6 tree, the same tree with SF, P1d or R28 each reverted, b2809f0, and b2809f0 plus round 6's files all give 0 trips on day 2 and C 0 by days 2-3 on we #1 and pp #1. The round-6 tree run from sweep 5's hand-over makes 13 trips on day 2. To winter, round-6 tree vs b2809f0, workers at winter: sg #2 10/9, pp #3 11/9, cpv #1 16/15, kd #3 10/9, kd #1 9/9."
+  }
+ ],
+ "checksRun": [
+  "Full 15-run sweep: frozen copy of the tree (src hash 7d9f0409), tools/sim/sweep-life.sh, 2 at a time, 04:03-05:11 UTC",
+  "tools/sim/sweep-table.py against round-5/sweep, plus an independent bar computation from the Markdown table (sweep-review/bars-from-md.py); both agree",
+  "tsc --noEmit on the live tree: clean",
+  "vitest by folder on the live tree: colony 64/65 (founding/reopen red, known); ecology/creatures 30/30; ants/behaviours/outdoor 28/30 (removal.verify known red + new storesFullTenders.verify red); sim root files green",
+  "All of the round's new or restated tests are red on b2809f0 code: heightDeltaRestore, sparedStarve.verify, handoverStomach.verify case 2, loudAlert 3/3, storesFull 2/2",
+  "Save/load determinism probe (stateHash after restore) on the pp #3 and we #1 hand-overs, plus a probe locating the first state difference and a mound-mask staleness probe",
+  "Forager-wait and scout-trace probes on the we #1 hand-over",
+  "A/B to game day 7 from the sweep-6 hand-overs (we #1, pp #1): round-6 tree, each of SF/P1d/R28 reverted, b2809f0, b2809f0 + round 6, and the round-6 tree from the sweep-5 hand-over",
+  "A/B to winter, round-6 tree vs b2809f0, on sg #2, pp #3, cpv #1, kd #3, kd #1",
+  "Read of the round's diff: P1d, RS, WL3, R28, SF (not-allowed list, determinism, per-tick cost)"
+ ],
+ "leadsForNextRound": [
+  "Protein income (largest loss): the starvation-stage check fails with protein empty in 5 runs (kd #1 6 bad days, sg #2 4, kd #2 4, cpv #3 3, cpv #1 2). P intake/need is 0.024-0.046 in kd #1, kd #2 and sg #2; kd #2 never found a protein source. Median 0.197 against 0.7.",
+  "The first two game days after the hand-over decide the year. No source is known at hand-over and the queen's carbohydrate lasts about one game day. In we #1, 12 of 18 workers were idle with 2 scouts out; it found only a carcass by gd 6, rationed on days 2-3 and ended with 2 eclosions. In kd #3 there was no tender until day 8 and C was 0 at winter. Lead: scout effort and coverage in the first game day while the provision lasts, measured on the forage bench over the 15 hand-overs.",
+  "Old age: 65 of 92 adult deaths. With 1-4 eclosions in 9 runs a colony cannot hold its count (R11 stands; this follows from the protein and first-days leads).",
+  "Brood lost in care: egg:untended 34, pupa:untended 21, egg:flooding 19. Examples: sg #3 lost 12 of 17 eggs untended (1 eclosion), sg #1 lost 12 eggs to flooding, cpv #3 lost 7 pupae untended.",
+  "Trip success 43.9 %: failed full-crop trips remain in cpv #1 (24), kd #1 (31) and cpv #3 (18). Two causes: tenders coming home with small crops, and the SF tender gap.",
+  "Fix the mound-mask restore defect (drop the mask when a height-delta tile touches the grid; decide whether a footprint counts as a hole). Every cached-hand-over comparison carries this noise until then.",
+  "Predation in pp #3: 6 deaths at 10-19 workers on days 5-13 (4 in sweep 5); the median per run is 0, so R25 holds."
+ ],
+ "regressions": [
+  "viable -> NOT viable: suburban-garden #2 (net workers +1 -> -1, P intake 0.244 -> 0.046), playground-park #3 (net -2 -> -3, C 1.305 -> 0.985), car-park-verge #1 (net +6 -> +5, P 0.308 -> 0.197, worker:lost 0 -> 1), kitchen-door #3 (C intake 1.182 -> 0.119, C 0 at winter)",
+  "woodland-edge #1: net workers -5 -> -7, eclosions 9 -> 2, C 1.878 -> 0.768, trip success 53 -> 19 %, larvae starved 0 -> 6",
+  "kitchen-door #1: net workers +1 -> -6, eclosions 11 -> 4, larvae starved 0 -> 4",
+  "suburban-garden #3: net workers +4 -> -3, eclosions 8 -> 1",
+  "car-park-verge #3: net workers 0 -> -3, eclosions 5 -> 3; playground-park #2: net -3 -> -4",
+  "Sweep level: viable 6 -> 4, workers held 8 -> 4 of 15, workers at winter 156 -> 142, eclosions 72 -> 66, median P 0.244 -> 0.197, median C 1.285 -> 0.985, trip success 45.0 -> 43.9 %, old-age deaths 56 -> 65",
+  "Gains: suburban-garden #1 and car-park-verge #2 NOT viable -> viable (sg #1 eclosions 0 -> 6, P 0.006 -> 0.307)",
+  "Attribution: A/B from the same sweep-6 hand-overs shows these are not caused by round 6's code. The round-6 tree is equal to or better than b2809f0 on all 5 tested runs."
+ ]
+}

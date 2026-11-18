@@ -1,0 +1,71 @@
+{
+ "viabilityMet": false,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-5/sweep-table.md",
+ "numbers": {
+  "viable": "6 of 15: woodland-edge 2/3, suburban-garden 1/3, playground-park 1/3, car-park-verge 1/3, kitchen-door 1/3 (round 4: 1 of 15)",
+  "workersHeld": "8 of 15 (round 4: 2)",
+  "medianEclosions": 5,
+  "medianIntakeP": 0.244,
+  "medianIntakeC": 1.285,
+  "medianTripSuccess": 45,
+  "firstWorkersAtLeast9": "14 of 15",
+  "runsWithoutLost": "14 of 15"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "P1 leaves the hand-over protein stuck in the queen",
+   "where": "src/sim/colony/handover.ts provisionAtHandover (stomach-only pay-in, HANDOVER_PROVISION_WINDOW_GD 3) together with src/sim/colony/queen.ts (an established queen never draws reserveP)",
+   "detail": "Protein is paid in only as fast as the workers' stomachs empty, and the pay-in stops when the 3-gd window closes. Whatever is left stays in queen.reserveP for good. Probe on the sweep's own hand-overs (test-output/colony-life/round-5/sweep-review/probe-provision/): queen P above her 1.0 keep when the window closed was suburban-garden #1 9.72, playground-park #1 6.41, woodland-edge #2 5.32, car-park-verge #1 1.61, kitchen-door #1 0 and woodland-edge #1 0 (those two spent it on 9-11 larvae by gd 2). In suburban-garden #1 the 7 larvae hatched at gd 3.0-3.25 into pool P 0 while the queen held 10.7 P: 6 starved, 0 eclosed, and the stage check failed for 4.25 gd. This run went from viable to not viable. RED test kept: src/sim/colony/handoverStomach.verify.test.ts case 2 (queen keeps 7.37 of 8.6 P). P1c, the reverted try with a 10-gd window, was judged on the forage bench, where the tool holds demand up and empties the stomachs anyway, so the bench cannot show this."
+  },
+  {
+   "severity": "major",
+   "title": "Save then load changes the ground height near the nest (mound overlay), so runs diverge",
+   "where": "the field height overlay vs the Mound state on restore (src/sim/nest/mounds.ts, moundBatch.ts, field overlay); older code, not changed this round",
+   "detail": "On the playground-park #3 hand-over, 2000 ticks in, snapshot then restore: field.height under 4 ants differs by 0.8-2.4 mm. Their micro temperature and body temperature then differ, and the state hash differs within 10 ticks (sweep-review/probe-restore-pp3.txt, probe-restore2-pp3.txt). No mound relaxation was running at the split. The year-two long run of pp #3 (restored hand-over) leaves the sweep's in-process run on day 1: 7 vs 11 workers at winter. The other four long runs match the sweep up to winter. Every --cache run and bench restores; fresh sweep runs do not."
+  },
+  {
+   "severity": "minor",
+   "title": "Workers kept by the R24 cap (WL2) never starve",
+   "where": "src/sim/colony/overwinter/begin.ts chargeSparedWorkers / model.ts sparedWorkersFood",
+   "detail": "The kept workers' food is charged after the winter model has run, and only as far as the stores go, so these workers draw no starvation. RED test kept: src/sim/colony/overwinter/sparedStarve.verify.test.ts. Setup: 20 workers, C 1.5, a nest that floods on every rainy day vs the same nest dry. On seed 5 the flooded colony wakes with 13 workers and the dry one with 9."
+  }
+ ],
+ "checksRun": [
+  "15-run sweep to Winter 1 (seeds 1-3 x 5 archetypes, Naturalist, default start, flooding on, no player) from a frozen copy of the round's code (hash fe11a0ad); 6 runs finished before the 01:16 restart and were kept, 9 run after it",
+  "sweep-table.py against the round-4 sweep: both bars and run-by-run regressions; bars recomputed from the Markdown table by a second script, same numbers",
+  "five year-two long runs (UNTIL_DAY=32; we #2, sg #2, pp #3, cpv #1, kd #3) and longrun-table.py -> test-output/colony-life/round-5/sweep-long/longrun-table.md",
+  "tsc --noEmit clean (00:51 and 01:40, live tree)",
+  "folder tests on the round's tree: colony 62/63 (founding/reopen red, known), nest 56/57 (escapeDig, known), ants/behaviours/nest 28/30 (sfaReview.verify and stall.soak, known), ants/player 6/6, balance 3/3",
+  "overwinter folder plus the round's verify files on the live tree: green except this review's two RED tests",
+  "the round's fix tests turn red with each fix removed (scratch copy at 8b4c207): larderProvision.verify, lossCapStores.verify, haulMidden.verify, padPrompt.test",
+  "code review of P1, WL2, M2, R27, S3/S6, S17 and SR against the not-allowed list, determinism and per-tick cost",
+  "provision probe on 6 cached hand-overs (queen reserveP every 6 game hours, 5 gd)",
+  "save/load probe on the pp #3 hand-over (first differing state field, then the micro-temperature parts)",
+  "new tests src/sim/colony/overwinter/sparedStarve.verify.test.ts (RED, kept); src/sim/colony/handoverStomach.verify.test.ts (written by the earlier engineer in this role, case 2 RED, kept)",
+  "ledger section '### Independent sweep after round 5' appended; progress file closed; scratch tree and probes deleted; no process of this review left running"
+ ],
+ "regressions": [
+  "suburban-garden #1: viable -> NOT viable; workers 8 -> 7; eclosions 2 -> 0; P intake 0.126 -> 0.006; larvae starved 1 -> 6 (P1 left 9.72 P in the queen; also egg:flooding 11 of 22)",
+  "playground-park #1: net workers -3 -> -6; eclosions 2 -> 1; worker:lost 0 -> 3; egg:flooding 9 of 16 on days 1-2",
+  "playground-park #2: net workers -1 -> -3; eclosions 3 -> 1 (pupa:untended 8 of 9 pupated)",
+  "kitchen-door #2: net workers -2 -> -4 (egg:untended 5, pupa:untended 4, predation 2)",
+  "woodland-edge #3: eclosions 3 -> 2 (still viable)",
+  "suburban-garden #3: C intake 0.322 -> 0.155; trip success 31 -> 11 % (85 scout trips of median 2 s, no trips days 1-3, C 0 from day 5)",
+  "car-park-verge #2: trip success 49 -> 33 %",
+  "car-park-verge #3: C intake 0.977 -> 0.862; trip success 42 -> 29 %",
+  "kitchen-door #1: trip success 45 -> 34 % (48 of 155 trips came home with a full crop and were refused by full stores)",
+  "kitchen-door #3: trip success 59 -> 39 %"
+ ],
+ "leadsForNextRound": [
+  "Protein income where the prey patch is far or empty: P intake/need 0.006-0.086 in sg #1, cpv #2, cpv #3, kd #1, kd #2, kd #3 (others 0.19-0.57); protein found at 3.4-7.8 gd or never; kd #1 rations on days 3-9. This fails the stage check in kd #1, kd #2, cpv #3 and leaves cpv #2 with 0 eclosions",
+  "Fix P1 at the rule: the provision belongs to the first larvae (pay in by their need, or start the window at the first larva), not to how fast the stomachs empty; handoverStomach.verify case 2 is the test",
+  "Brood lost in care: pupa:untended 28, egg:untended 28, pupa:hygiene 11 and egg:flooding 28 across the sweep; decisive in pp #2 (8 of 9 pupae), cpv #2 (8 pupae, 0 eclosions) and kd #2 (9); each of these misses the workers check by 0.2-2 workers",
+  "Foraging stuck on carbohydrate: tenders keep bringing honeydew to full stores while protein is short (refused full-crop trips: kd #1 48 of 155, kd #2 43 of 79, cpv #1 30 of 140, pp #3 27 of 168); this also holds trip success at 45 %",
+  "Year two: spring survival 5 of 5 (met), but y2 day-15 workers >= 2 x first workers 0 of 5; laying potential 0 until spring day 4-8 (royal chamber 1.4-7 C on days 1-4); old age takes 4-14 overwintered workers; first year-two egg by spring day 4 in only 1 of 5",
+  "sg #3 scouts do not leave the nest: 85 trips of 2 s, 57 ending 'untracked', no trip on days 1-3, C 0 from day 5",
+  "Fix restore determinism (mound overlay vs Mound state) before comparing cached benches with life runs",
+  "Predation: 15 deaths in 5 runs (we #1 7 at 18-26 workers; R25 expects about 0 for colonies this size); worker:lost 3 (pp #1); crushed 6 (kd #1)"
+ ]
+}

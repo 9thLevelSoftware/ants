@@ -1,0 +1,103 @@
+{
+ "summary": "Round 6 of colony-life is finished. The ledger section \"## Round 6\" in /home/user/foundress/docs/design/tasks/colony-life-ledger.md records each step with times. All three sweep-5 findings are fixed, each with a test that fails on the old code and passes on the new.\n\n- **Finding 1 (P1d):** the queen now pays her hand-over protein into the workers' social stomachs for as long as she holds it, with no time window. On sg #1 the stores' protein used to drop to 0.09 on day 4; it now stays at 1.4\u20134.1 through day 13, and the run goes from not viable to viable.\n- **Finding 2 (RS):** the review blamed the mound overlay, but the cause is the footprint terrain overlays. They were registered only at the human-events system's first tick, and ant-thermal runs before it, so on the first tick after a load an ant under a footprint read the wrong ground depth. They are now registered when the sim is built.\n- **Finding 3 (WL3):** when the R24 cap cuts winter losses, the winter model now runs again from the same random state with those causes scaled down. The workers it keeps eat and can starve inside the model.\n\nAlso done:\n- **R28:** a warning counts as loud for 30 s after it is raised or its level rises; a critical alert counts for as long as it stands. In the long test, failing quiet-share windows fell from 96\u2013110 of 126\u2013128 to 0\u20131.\n- **SF:** forager trips are valued by what the stores can still take, and herd tenders stay in the nest while the stores cannot take their crop. On kd #2 refused trips fell 26\u219215 and worker-days outside 61.6\u219229.0. kd #1 and cpv #1 were unchanged.\n\nAnalyses for the integrator:\n- **Predation:** the R25 ramp works. The woodland-edge #1 run founded fresh still lost 7 workers to predators at 18\u201326 workers: the ramp lowers the chance that a hunter is placed near the colony, not its kill rate once placed.\n- **Year two:** spring nests are cold because of how the season temperature average is started, not because of weather. Year one's founding chamber runs 7\u201311 \u00b0C above the model's steady state; year two is at it.\n- **Trip failures:** the review's \"refused by full stores\" holds only where the stores are really full (kd #2). On cpv #1 those tenders came home almost empty.\n\nNone of the bars was rerun (no sweep, as the spec says). Typecheck is clean and the folder tests are green except tests that were already red or belong to other engineers.",
+ "causesRanked": [
+  "P1 stranding (sweep-5 finding 1): suburban-garden #1 lost 6 larvae to starvation with 0 eclosions and failed the stage check over 4.25 game days; 5-10 P sat idle in the queen in playground-park #1, woodland-edge #2 and car-park-verge #1. Fixed (P1d).",
+  "Protein income where the prey patch is far (protein intake/need 0.006-0.086 in 6 of 15 sweep-5 runs; stage check failed in kitchen-door #1, kitchen-door #2 and car-park-verge #3; 0 eclosions in car-park-verge #2). It is limited by discovery: car-park-verge #2's scouts spent 10 ant-seconds inside a 57-BU patch in 3 game days (0.5 expected prey spawns), and medium carcasses holding 3.5-7 P were never found in 8 runs. Measured; not fixed.",
+  "Trips home that fail on a full crop: 265 of 1,493 sweep-5 trips (18 %) end 'crop-full ... fail'. Only part of these are refusals by full stores (kitchen-door #2, whose stores sat at 13-15 of about 14 C all season); the rest are tenders coming home nearly empty. Each costs outside time, where workers age 3x faster, and old age caused 56 of the sweep's 86 adult deaths. Partly fixed (SF).",
+  "Brood lost in care: pupa:untended 28, egg:untended 28, egg:flooding 28, pupa:hygiene 11 across the sweep; each of playground-park #2, car-park-verge #2 and kitchen-door #2 misses the workers check by 0.2-2 workers. Not addressed.",
+  "Predation at 18-26 workers: woodland-edge #1 lost 7 (reproduced on a fresh founding: 5 kills by one hunter placed in the colony's range, at the midden); the R25 ramp works as ruled. Reported to the integrator.",
+  "Year two: the cold spring nest comes from how the season temperature average is started; the analysis is recorded for an integrator ruling.",
+  "Restore determinism (sweep-5 finding 2) and the winter workers who never starved (finding 3): both fixed (RS, WL3)."
+ ],
+ "fixes": [
+  {
+   "cause": "Hand-over protein stuck in the queen after the 3-game-day window (sweep-5 finding 1, major)",
+   "files": [
+    "/home/user/foundress/src/sim/colony/handover.ts",
+    "/home/user/foundress/src/sim/balance/colony.ts",
+    "/home/user/foundress/src/sim/colony/handoverStomach.verify.test.ts",
+    "/home/user/foundress/src/sim/colony/viability.test.ts"
+   ],
+   "test": "handoverStomach.verify case 2, restated to the rule: while the queen holds protein, no larva meets an empty pool, no larva starves, and what larvae eat after the window still comes out of her. Red on the old code (pool P 0 from game day 4, queen flat at 7.37 P). viability.test window case restated: carbohydrate stops at the window, protein is still paid in. All 16 pass.",
+   "beforeAfter": "suburban-garden #1, life run to winter from the cached hand-over, before vs after: stores' protein on day 4 0.09 vs 1.4-4.1 through day 13; eclosions 2 vs 5; protein intake/need 0.164 vs 0.351; trip success 41 vs 69 %; viable no vs yes. playground-park #1: workers at winter 12 vs 13, eclosions 4 vs 5."
+  },
+  {
+   "cause": "Save then load changes the ground height (sweep-5 finding 2, major). The cause is the human-event footprint overlays: they were registered only at the human-events system's first tick, after ant-thermal had already read the ground.",
+   "files": [
+    "/home/user/foundress/src/sim/wiring.ts",
+    "/home/user/foundress/src/sim/heightDeltaRestore.test.ts"
+   ],
+   "test": "heightDeltaRestore.test: the ground under a footprint reads the same in the loaded sim before its first tick. Red on the old code (0 vs -2.64 mm).",
+   "beforeAfter": "Probe on the playground-park #3 cached hand-over, 8 save points: the restored sim had only its 5-6 mound overlays against the live sim's 52-59; every mound overlay matched cell for cell. With the fix, both sims have the same overlays from creation."
+  },
+  {
+   "cause": "Workers kept alive by the R24 cap never starve in the winter (sweep-5 finding 3, minor)",
+   "files": [
+    "/home/user/foundress/src/sim/colony/overwinter/begin.ts",
+    "/home/user/foundress/src/sim/colony/overwinter/model.ts",
+    "/home/user/foundress/src/sim/colony/overwinter/sparedStarve.verify.test.ts"
+   ],
+   "test": "sparedStarve.verify, restated to allow the one-worker spread of integer draws and checked over 12 seeds. Red on the old code.",
+   "beforeAfter": "Seed 5, workers at spring, flooded vs dry nest: 13 vs 9 before, 10 vs 9 after. The overwinter folder passes."
+  },
+  {
+   "cause": "Ruling R28: what counts as a loud hour (direction 11)",
+   "files": [
+    "/home/user/foundress/src/sim/ecology/creatures/threat.ts",
+    "/home/user/foundress/src/sim/balance/creatures.ts",
+    "/home/user/foundress/src/sim/types/ecology.ts",
+    "/home/user/foundress/src/sim/ecology/creatures/loudAlert.test.ts"
+   ],
+   "test": "loudAlert.test (3 cases): a standing warning makes 1 loud hour (17 on the old rule); an escalation is loud until it eases; save then load mid-warning gives equal results.",
+   "beforeAfter": "quietRun over 6 game days: share 0.72 on suburban-garden #1 (lowest window 0.59, held down by the nest-flood critical) and 0.92 on woodland-edge #2. Long test to winter: 0-1 failing windows in each of the 4 cases (quiet-time's report had 96-110 of 126-128 failing)."
+  },
+  {
+   "cause": "Carbohydrate trips made while the stores cannot take the crop (GDD 02 \u00a75.5 item 5)",
+   "files": [
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/choice.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/tendHerd.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/storesFull.test.ts"
+   ],
+   "test": "storesFull.test (2 cases): a sugar source scores 0 when the stores have no room for carbohydrate, while a carcass still scores; herd tenders stay inside while the stores are full and go out once there is room. Red on the old code.",
+   "beforeAfter": "kitchen-door #2: refused full-crop trips 26 -> 15, worker-days outside 61.6 -> 29.0, trip success 29 -> 32 %, workers at winter unchanged at 8. kitchen-door #3: worker-days outside 40.7 -> 33.1. kitchen-door #1 and car-park-verge #1: identical runs (the stores never filled)."
+  }
+ ],
+ "verification": [
+  "typecheck (`tsc --noEmit`) on the live tree: clean; the only error was my probe file, which is now deleted",
+  "colony folder on the live tree: 64 of 65 files pass; founding/reopen fails, as it has since round 1",
+  "ecology/creatures: 30 of 30 files pass",
+  "ants/behaviours/outdoor: 28 of 29 pass; removal.verify fails, as before",
+  "nest: 57 of 58 pass; escapeDig fails, as before",
+  "ants/player: 6 of 6 pass",
+  "save and environment/human tests: 16 pass, 3 skipped",
+  "environment: 29 of 30 pass; weather.test 'uses only the weather stream' fails because the ecology random stream is created when the test world is built \u2014 my changes draw no random numbers",
+  "sim root files: 6 of 7 pass; services.test diggability fails (Camponotus on loam reads 0: the carpenter engineer's wood-only digging)",
+  "Every new or restated test fails with my fix removed (checked on scratch copies of HEAD)",
+  "Life runs to winter on the cached round-4 hand-overs, at most 2 at a time: suburban-garden #1 and playground-park #1 (P1d before/after); kitchen-door #1/#2/#3 and car-park-verge #1 (stores-full rule before/after)",
+  "Probes: restore overlays (playground-park #3), predation from a cached and a fresh founding (woodland-edge #1), scout time and coverage (car-park-verge #2), trip-unload outcomes (car-park-verge #1)",
+  "R28: quietRun on 2 worlds, and the long quiet test with FOUNDRESS_LONG=1 (4 pass; 3 fail on the 'a major threat started' clause, because no threat is ever eligible for colonies of 7-15 workers)",
+  "No background processes, scratch copies or probe files left; evidence is in test-output/colony-life/round-6/"
+ ],
+ "next": [
+  "Protein discovery (the stage check in kitchen-door #1, kitchen-door #2 and car-park-verge #3): change where the scout walk goes and how long it stays on litter, not the number of scouts. First measure coverage and time spent inside patches on the forage bench across all 15 hand-overs; car-park-verge #2's scouts spent 10 s inside a patch in 3 game days.",
+  "Tenders per herd against what the herd yields: most 'crop-full ... fail' trips on car-park-verge #1 come home with 0.05 C. Tend demand is the herd's slot count (GDD 02 \u00a76.2) whatever its yield, and these trips cost outside ageing.",
+  "Year two: get the integrator's ruling on how the season temperature average is started (the current air at 14:00 / 00:00 instead of the day's mean) and on the average's time constant of one season; then spring laying.",
+  "Predation at 18-26 workers under R25 (woodland-edge #1: 5 deaths from one hunter placed in the colony's range, at the midden): integrator decision.",
+  "Brood lost in care (untended eggs and pupae, flooding) in playground-park #2, car-park-verge #2 and kitchen-door #2."
+ ],
+ "gddDeviations": [
+  "P1d: GDD 06 \u00a75.13 (c) / ruling R2 \u2014 the queen's hand-over protein above her keep belongs to the first brood for as long as she holds it, not only for 3 game days. The provision is no larger.",
+  "SF: GDD 07 \u00a76.1.4 sends a tender back to her herd after she delivers ('delivered -> travel (same herd)'); she now waits in the nest while the stores cannot take her crop, because GDD 02 \u00a75.5 item 5 takes precedence.",
+  "R28: the ruling's own deviation from the GDD 05 \u00a76 invariant I11 wording \u2014 a warning counts as loud for 30 s, not for as long as it stands."
+ ],
+ "triedAndReverted": [
+  "Stores-full rule v1 (a tender checked room for her own crop only): on kitchen-door #2 refused trips went 24 -> 30 and trip success 29 -> 23 %. Replaced by v2, which also counts the crops of tenders already outside."
+ ],
+ "notesForIntegrator": [
+  "Integrator snapshot commits 8093757, d84818d and 4401702 already contain my changes. Still uncommitted: the comment edit in outdoor/choice.ts and the deletion of tools/sim/probe/probe-restore6.ts.",
+  "For a while sim-seams' in-progress work made the live tree fail on import with `modules is not iterable` (commands.ts); that is why my runs used scratch copies of HEAD. It works again now.",
+  "Year two: the spring chamber cold is an artefact of how the season temperature average is started. A new game starts it from the 14:00 air, the spring after the winter jump from the 00:00 air. Year one's founding is warmed by that start, and the start-day evidence for R20 was measured with it. On top of that, a one-season time constant damps the yearly temperature swing to 0.54 of its size and delays it by 4.5 game days. The table is in the ledger; this needs a ruling and I did not build anything.",
+  "E25 / long quiet test: no major threat can start for colonies under about 20-30 workers (the bird needs 30 workers; centipedes are placed near the colony only by the R25 ramp), so the 'a major threat must start' clause cannot hold in the founding year.",
+  "Not mine, left as they are: services.test diggability (carpenter's wood-only digging); weather.test ecology random stream; walker-stuck-explosion violations late in autumn in kitchen-door #2 (seen with and without my changes, and in sweep 5)."
+ ]
+}

@@ -760,3 +760,18 @@ look-pass-3 (impl ×3 engineers across two restarts + review + fix; report `look
 - GLSL note for this code base: no texture read inside a per-pixel `if` on sampled data (undefined derivatives; software GL renders differently each time); `tests/e2e/look3-det.mjs` checks it.
 
 Launched: **app-seams-2** (Sonnet impl + Opus review, visual). Running: colony-life `wek2szmct` (sweep 6), audio-provenance `wexmqilmx`.
+
+## Nov 18 06:20 UTC — sixth container restart (06:12); sweep 6; relaunched
+
+Restart at 06:12 UTC (sixth). Disk intact; snapshot `948fb75`. Cut off: colony-life round 7 (30 min in), audio-provenance fix round (minutes in; impl and review saved: `reviews/audio-provenance.json`), app-seams-2 impl (an hour in). Saved from the journal: `reviews/colony-life-round-6.json`, `colony-life-sweep-5.json`, `colony-life-sweep-6.json`.
+
+**Round 6**: sweep-5 findings fixed with tests — P1d (the queen pays her hand-over protein into the stomachs for as long as she holds it, no window), RS (footprint terrain overlays registered when the sim is built: the save → load ground-depth difference), WL3 (lapse model re-run under the cap so kept workers eat and can starve); R28 built (long test: failing quiet-share windows 96–110 of ≈127 → 0–1); SF (tenders stay in while the stores cannot take their crop). Predation analysis: the R25 ramp works; woodland-edge #1 still lost 7 workers at 18–26 workers (worldgen-placed residents near the nest).
+
+**Sweep 6** (fresh hand-overs, `test-output/colony-life/round-6/sweep-table.md`): viable **4 of 15** (round 5: 6); R19 4 of 7 (held 4/15, eclosions 4, P 0.197, C 0.985, trips 43.9 %). Paired comparison on five colonies from the same hand-overs, round 6 vs the tree before it: 10/9, 11/9, 16/15, 10/9, 9/9 workers at winter — **round 6 is not the regression**; the fresh hand-overs differ from sweep 5's (rival nests at creation and the opening grace changed every opening). Direction 13 of `colony-life.md`: the paired comparison on the same hand-overs is the primary evidence of a round from now; only colony-life changes sim code.
+
+audio-provenance review: fail (2 major: the always-on provenance test red on a level-match slack; new MP3s lack the gapless header, so decoders keep encoder delay and padding — loop seams) + 3 minor.
+
+Relaunched:
+- colony-life `w09el0k35` / wf_d2795bd9-5e2: `{firstRound: 7, maxRounds: 4, note}` (round 7 continues from the ledger).
+- audio-provenance `w0771p982` / wf_7abc08a6-282: `startAt: 'fix'`, `reviewPath: reviews/audio-provenance.json`.
+- app-seams-2 `w9b7zmcaw` / wf_ec7ed4b8-503: continue from its progress file.
