@@ -5,6 +5,7 @@ import type { PreyPatch } from '@/sim/types';
 import { colonySlotBit } from '@/sim/entities';
 import { forageScenario, run } from './testkit';
 import { K, PHASE } from './keys';
+import { threatCode } from '@/sim/ants/perception';
 
 function addPatch(sim: ReturnType<typeof forageScenario>['sim'], at: { x: number; z: number }, distBu: number, rBu: number, k: number) {
   const bu = sim.world.bu, x = at.x + distBu * bu, z = at.z;
@@ -58,6 +59,7 @@ describe('probe: chase outcomes', () => {
         const carry = a.carry.kind === 'item' ? 'carrying' : 'empty';
         const dur = s >= 19.5 ? 'timeout' : s < 2 ? '<2s' : '2-20s';
         bump(`${preyState} ${carry} ${dur} from${tr.from} -> ph${ph}`);
+        if (ph === PHASE.fleeRun) bump(`flee threat ${threatCode(a)} alarm ${Math.round((a.bb['pc.alarm'] ?? -1) * 100) / 100} req ${a.bb['fo.fReq'] ?? 0}`);
         bump(`minD ${tr.minD < 0.5 ? '<0.5' : tr.minD < 1 ? '0.5-1' : tr.minD < 2 ? '1-2' : tr.minD < 5 ? '2-5' : '>=5'} BU`);
         if (dist >= 0) bump(`end dist ${dist < 2 ? '<2' : dist < 10 ? '2-10' : '>=10'} BU`);
       }
