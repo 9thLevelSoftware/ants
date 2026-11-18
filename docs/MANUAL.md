@@ -308,6 +308,53 @@ Notation: `LMB`, `RMB`, `MMB` are the left, right and middle mouse buttons; "tap
 
 The Photo mode row lists `F2` for the keyboard and two chords for the gamepad: press both sticks in, in either order (`LS+RS` or `RS+LS`).
 
+#### The essentials
+
+| To do this | Press |
+| --- | --- |
+| Walk | `W A S D`<!--key:move--> |
+| Look around | `RMB drag`<!--key:orbit--> (or the arrow keys) |
+| Hurry | hold `Shift`<!--key:hurry--> |
+| Interact: pick up, put down, feed a larva, seal, lay | `E`<!--key:interact--> |
+| Dig, cut, chew | hold `F`<!--key:dig--> |
+| Antennate: read what is in front of the ant | `T`<!--key:inspect--> |
+| Bite | `Q`<!--key:bite--> |
+| Lay or stop laying a trail | `R`<!--key:trail-toggle--> |
+| Share food with a nestmate | `G`<!--key:share-food--> |
+| Let go or drop | `Space`<!--key:foot--> |
+| Let go of the ant and watch | `X`<!--key:release--> |
+| Take the next ant near you | `Tab`<!--key:possess-next--> |
+| Take a forager, a digger, a nurse, the queen | `5`<!--key:possess-forager--> `6`<!--key:possess-digger--> `7`<!--key:possess-nurse--> `8`<!--key:possess-queen--> |
+| Colony view | `M`<!--key:colony-view--> |
+| Colony orders | `I`<!--key:directives--> |
+| Pause, or resume | `P`<!--key:pause-toggle--> |
+| Speed 1x, 2x, 4x, 8x | `1`<!--key:speed-1--> `2`<!--key:speed-2--> `3`<!--key:speed-4--> `4`<!--key:speed-8--> |
+| Pause menu | `Esc`<!--key:menu--> |
+
+Pressing a key twice within a short time, or holding it, can mean a different thing: tap `E`<!--key:interact--> to pick up, hold it for the second action. Hold `T`<!--key:inspect--> for an antennal sweep. A prompt near the ant always names the action that is available.
+
+
+#### Looking around without pointer lock
+
+By default you turn the camera by dragging with the right mouse button; the middle button also drags in the observer and colony views. Nothing needs the mouse to be captured. Pointer lock is an option (`F8`<!--key:pointer-lock-toggle--> toggles it): if the browser refuses it, the game says so and the drag controls keep working.
+
+#### Browser keys
+
+`F5`<!--key:quick-save--> and `F9`<!--key:quick-load--> are quick save and quick load, and `F2`<!--key:photo-mode--> is photo mode. The game stops the browser from acting on these keys only while the game itself has focus and no text field is active. Some pages that embed the game swallow function keys. Every one of those actions is also in a menu.
+
+#### Rebinding
+
+Select a binding in Settings > Controls, press the new key, and the game tells you if the key is already in use in the same layer. Escape, F11 and F12 cannot be bound, and neither can Ctrl, Alt or Meta; Shift can. Reset all returns every key to its default and keeps your other settings. `Shift+/`<!--key:controls-reminder--> shows a reminder of the controls at any time, and the pause menu has a Controls item.
+
+#### Gamepad
+
+Every action can be played from a gamepad with the standard mapping, and every menu can be used with it: the D-pad or left stick moves between controls, A chooses, B goes back, LB and RB switch tabs, LT and RT scroll, X and Y are the second and third action of a row (for example Possess and Follow in the roster). The key hints in the game switch to controller glyphs (letters on an Xbox-style pad, shapes on a PlayStation pad) as soon as you use the pad, and back to keys when you use the keyboard or mouse again. The gamepad column of the tables below is the standard mapping; it was not checked against a real controller.
+
+#### Every control
+
+The tables below are generated from the bindings (section 20 says how to regenerate them).
+
+<!-- controls-table:start -->
 #### Anywhere in play
 
 | Action | Keyboard and mouse | Gamepad |
@@ -451,6 +498,7 @@ The Photo mode row lists `F2` for the keyboard and two chords for the gamepad: p
 | Menu tertiary action | none | Y |
 | Scroll up | PageUp | LT |
 | Scroll down | PageDown | RT |
+<!-- controls-table:end -->
 
 ## 14. What the colony needs
 
@@ -476,7 +524,270 @@ This section follows the rules as built; the numbers live in `src/sim/balance/` 
 
 **Succession.** If the queen dies the colony declines and lays nothing more; winged brood can still fly. The game ends when no living ant is left; an epitaph screen shows the history. Winged queens that fly in a nuptial flight start a lineage; you can found a new colony as a daughter queen in a new locality.
 
-## 15. Known problems
+## 15. The screen and its parts
+
+### 15.1 The heads-up display
+
+The heads-up display (HUD) shows a few small panels at the edges of the screen; the middle of the screen stays free. `H`<!--key:hide-hud--> hides all of them at once; only critical alerts stay. A number that can be read off an ant or a chamber is not repeated here.
+
+| Part | Where | What it shows |
+| --- | --- | --- |
+| Time cluster | top left | The season and date ("Spring · Day 3 · Year 1"), the clock, the weather, the surface air temperature, and the speed control. |
+| Focus line | under the time cluster | The current top aim ("Aim: ..."). Click it to open Journal > Aims. Settings > Gameplay > Focus line: Auto (the first 2 game days of a colony, then 30 real seconds whenever a new aim opens), Always, Never. |
+| Colony pulse | top right | Workers, brood (eggs, larvae, pupae), stores of C and P with trend arrows, and an overall status. Hover or focus it to see workers by task, the queen's state and the worst problem. Before the first egg it shows only the queen's reserves. |
+| Alerts feed | right, under the pulse | Up to three cards. A card has a title, a cause line and a jump button. Click a card to open the colony health view at its cause and move the camera to the place. |
+| Context prompts | next to the controlled ant | The actions available now, as a key cap and a verb: `[E] Pick up crumb`. Up to three at a time. They are not drawn while a card that waits for you (the intro card, a time-lapse, the winter or flight cards) is on screen. |
+| Possessed-ant panel | bottom left | While you control an ant: its identity and age, health, crop (C and P), what it carries, the acid reserve of formicine species, and a compass arrow to the nearest entrance. |
+| Minimap | bottom right | Optional; see below. |
+
+### 15.2 The minimap
+
+Settings > Gameplay > Minimap (Never or Always, Never by default) shows a 176 x 176 dp square at the bottom right. It is a top-down map, north up, of a window 256 body lengths wide round the camera target (round the ant while you control one):
+
+- the ground as flat tints: forest and lawn greens, garden-bed brown, pavement grey, asphalt dark grey, sand tan, rubber red-brown, interior beige; the area outside the locality is black;
+- your colony's entrances as rings (a dashed ring is an entrance that is sealed or being sealed);
+- your markers as the palette's icons;
+- the ant you control as a yellow arrow that points the way it faces;
+- with the scent view on (`V`), your colony's trail cells as amber squares.
+
+A click on the map moves the observer camera there (in the colony view it moves the view's target). The minimap is hidden in the compact layout (a small window or a large UI scale), while a drawer is open and while the HUD is hidden. Its data is read from the game four or five times a second; nothing about it is saved.
+
+### 15.3 Skipping ahead and time-lapses
+
+In the observer and colony views `N`<!--key:skip-ahead--> runs the game at the highest allowed speed until something worth a look happens: an alert of warning level or above, a milestone, dawn or dusk or a change of weather or season. It stops after one game day at most and does not run while you control an ant or while a critical alert is active.
+
+Two periods are played as time-lapses. The first brood plays when the queen has laid her first eggs and lasts about a minute and a quarter. A stage bar shows egg, larva, pupa and worker with counts, a gauge shows the queen's reserves, and a column shows losses. Winter is a time-lapse that shows temperature by day, the stores draining and the workers lost to cold or hunger, and ends in a Winter Report that explains what happened. Both can be skipped by holding `Space`<!--key:tl-skip--> for a second, and the result of skipping is the result of watching. In the first brood the lapse can stop and ask you to step in, with `E`<!--key:tl-dropout-->, or to let it play.
+
+### 15.4 Every screen
+
+Each screen of the game has an identifier. This table lists all of them.
+
+| Screen | Id | What it is |
+| --- | --- | --- |
+| Boot gate | `boot` | A dark page that waits for a click or key, then goes to the title. |
+| Unsupported browser | `unsupported` | A plain page that says the game needs WebGL 2 and what to try (see section 19). |
+| Title | `title` | The main menu. |
+| New colony | `new-game` | Species, locality, rules. |
+| Loading | `loading` | Generation progress. |
+| Credits | `credits` | Assets, fonts and libraries. |
+| HUD | `hud` | The heads-up display described above. |
+| Pause menu | `pause` | Resume, Save, Load, Settings, Journal, Codex, Controls, Return to title. |
+| Colony orders | `directives` | The colony's priorities, in a drawer. Opened with `I`<!--key:directives-->. |
+| Markers | `markers` | The marker palette and dig planner of colony view. |
+| Roster | `roster` | A list of the colony's ants, in a drawer. Opened with `L`<!--key:roster-->. |
+| Colony health | `colony-health` | The "why" view, in a drawer. Opened with `Y`<!--key:why-view-->. |
+| Nest overview | `nest` | A side view of the nest and a table of chambers, in a drawer. Opened with `U`<!--key:nest-overview-->. |
+| Journal | `journal` | Aims, milestones, graphs and the event log. Opened with `J`<!--key:journal-->. |
+| Codex | `codex` | Field notes. Opened with `K`<!--key:codex-->. |
+| Settings | `settings` | Graphics, audio, controls, accessibility, gameplay. |
+| Load | `load` | The Load tab of the save page, opened from the title. |
+| Save and load | `save-load` | Slots, export and import. |
+| Lineage | `lineage` | Colonies you have founded, and their daughters. |
+| Epitaph | `epitaph` | The record of a colony that has ended. |
+| Photo mode | `photo` | A free camera for pictures. |
+| First brood time-lapse | `timelapse-founding` | The first brood. |
+| Winter time-lapse | `timelapse-winter` | Overwintering. |
+
+Drawers open on the right, one at a time, and `Esc` closes them before anything else. Book pages (journal, codex, lineage, settings, save and load) pause the game, and `Q` and `E` change tabs in them.
+
+## 16. The colony in more detail
+
+### 16.1 Who does what
+
+A colony is made of a queen, workers, brood (eggs, larvae and pupae) and, in season, winged queens and males. Workers change task as they age and as the colony's needs change. The tasks fall into four groups.
+
+| Group | Work |
+| --- | --- |
+| Forage | Scouting, foraging, tending aphids and, for leafcutters, cutting. |
+| Nurse | Feeding and warming brood, attending the queen, storing food. |
+| Dig | Excavating chambers and tunnels, and hauling the soil out. |
+| Defend | Guarding the entrances and patrolling the edge of the nest. |
+
+Routine work goes on without you. Your leverage is threefold: priorities (Colony orders, section 5), markers (places, section 6), and doing any job yourself by taking control of an ant.
+
+No ant is in command of a real colony. A colony coordinates through each ant's local encounters and chemical cues, and the queen has little part in it beyond laying the eggs. Colony orders and markers are therefore a simplification for play, and the codex says so (see "Orders without a commander"). Each worker still decides, one at a time, whether to take up the work.
+
+### 16.2 The roster
+
+`L`<!--key:roster--> lists the colony's ants. Filter by caste, task group or whether they are in the nest, search by ant number, sort any column, and Follow or Possess a row. The quick buttons take the nearest forager, digger, nurse or the queen.
+
+### 16.3 The journal
+
+`J`<!--key:journal--> opens the journal: the current aims, a timeline of milestones with dates, graphs of population, brood, stores, intake, deaths, nest volume and temperature, and an event log. A milestone records a moment, with a line of text, and nothing else; there is no score. Examples are the first egg, the first worker, the first food brought home, a second chamber, and the first winter survived. Entries are dated from the calendar tick they were written at, so an entry from before a winter keeps its own day (section 20 lists what is still wrong with the dates).
+
+### 16.4 The colony health view
+
+`Y`<!--key:why-view--> opens the colony health view, the answer to "why?". It lists parts of the colony (food intake, stores, brood growth, egg laying, the queen, workforce, foraging trails, defence, nest space, nest climate, digging) ranked Failing, Strained, Note or Good. Open a line to see its causes, ranked by weight, each with its measurement and unit. A cause may lead to another line, and the Show button moves the camera to the place concerned. Remedies are links that open the control that would help. They never change anything by themselves.
+
+### 16.5 Seasons, weather and heat
+
+The year begins at the spring equinox and has four seasons of seven game days (section 0). A day has dawn, midday, dusk and night, and ants are affected by temperature: they slow in the cold, shelter from heat, and stop foraging on ground that is too hot to cross. Weather has states (clear, overcast, rain, storm, heat, frost) and brings dew, wind and puddles. Rain washes trails and can flood a nest. Shade, stone and soil keep temperatures moderate.
+
+### 16.6 People, predators and rivals
+
+People are never shown. Their activity arrives as events at ant scale: a shoe, a mower, a broom, a sprinkler, a car. A tremor and a shadow come first, then the event. Predators include spiders, antlions, birds and parasitic flies. Rival colonies of other species hold their own ground. Contests between colonies are described as boundary disputes, never as human conflicts, and a rival that is driven off is "repelled".
+
+### 16.7 Winged ants, lineage and the end of a colony
+
+A mature, well-fed colony can rear winged queens and males in its species' season. A flight leaves on a day with the right weather: warm, with light wind. An alert says when. Queens that land and found a nest are recorded in your lineage as daughter colonies, and you can later found a new colony as a daughter in a freshly generated locality.
+
+The death of the queen does not end the game: the colony is orphaned and declines, because no new eggs are laid, but brood already in the nest will mature, and winged ants can still fly. The game ends when no ants of your colony are alive. The epitaph page then records the colony: its species and locality, when it was founded and ended, a chart of its population, the main figures, the milestones with dates, and how it ended, as a short chain of causes. The record is added to your lineage, and the last autosave is kept, so an earlier state can still be loaded.
+
+## 17. The nest
+
+### 17.1 Digging
+
+Ants dig the nest by taking a bite of soil at a time. Hold `F`<!--key:dig--> on diggable ground to dig. The soil becomes pellets, which a worker carries out and drops beside the entrance, where they build a mound. The possessed ant digs exactly as the colony's diggers do, and the colony can also dig by itself from dig plans and from the nest architect.
+
+How fast a bite goes depends on the material and on its moisture. The table is relative to loam at middling damp, which has speed 1.
+
+| Material | Dig speed | Roof it can hold | Notes |
+| --- | --- | --- | --- |
+| Loam | 1 | about 16 body lengths | The reference soil. |
+| Humus | 1.3 | about 10 | Soft, holds only short roofs. |
+| Sand | 1.6 | about 8, only 2.5 when dry | Fast to dig, slumps when dry or saturated. |
+| Clay | 0.45 | about 24 | Slow, holds water. |
+| Gravel | 0.35 | about 12 | Drains freely. |
+| Decayed wood | 1 | never falls | Carpenter ants; the black garden ant digs it at half speed. |
+| Sound wood | 0.4 | never falls | Carpenter ants only. Half speed again when dry. |
+| Insulation | 1.5 | about 12 | Carpenter ants, and the black garden ant at half speed. |
+| Concrete, asphalt, stone, brick, tile, glass, metal, plastic, rubber, plaster, mortar and similar | not diggable | never falls | Ants use the joints and cracks, not the material. |
+
+Moisture matters: loam digs at 60 percent of the usual speed when dry and 80 percent when saturated, and sand hardly changes. A wet clay surface is slippery. A crust of hard soil at the surface digs at a fraction of the speed of what lies under it.
+
+The codex has a note for every material.
+
+### 17.2 Chambers
+
+A chamber is a registered room of the nest. Each has a type, a size, a temperature and a humidity, and the nest overview lists them.
+
+| Type | Used for |
+| --- | --- |
+| Nursery | Brood. The colony keeps it in the warmest chamber. |
+| Food | Stores of C and P. |
+| Rest | Resting workers and the queen's retinue. |
+| General | Everything else, and the default. |
+| Midden | Waste, corpses and refuse. |
+| Granary | Seed stores (harvester ants). |
+| Fungus | The fungus garden (leafcutters). |
+
+A chamber that holds more than it was made for is crowded, and the colony alerts you. A second chamber lets brood be kept apart from stores.
+
+### 17.3 The dig planner
+
+In colony view, the Dig marker opens the planner.
+
+1. Choose a template: Chamber (with a type), Tunnel, Shaft to the surface, or Entrance.
+2. Hover a wall of the nest in cutaway. A ghost of the template appears anchored on the wall.
+3. Rotate the ghost with `Q` and `E` in steps of 15 degrees, and change its size with Shift and the wheel (Small, Medium or Large; for the black garden ant, 8, 12 or 16 body lengths on the long axis). For a tunnel, click the start and the end.
+4. Click to place it.
+
+A valid ghost is drawn with a dashed outline and an invalid one is cross-hatched, with the reason beside it. Reasons include "Concrete or stone cannot be dug", "Too wide a ceiling for this soil", "Leaves too thin a wall", "Would break into a neighbouring nest" and "Too deep or too far from the nest". Plans are shown in the dig-plans overlay with their status: proposed (by the architect), queued, active, stalled (with the reason), complete, paused or cancelled. Select a plan and press `Delete`<!--key:cv-delete--> to cancel it.
+
+The nest architect proposes and digs rooms and tunnels itself when it is on: Auto digs without asking, Suggest is greyed in this build (section 5), and Off leaves digging to you.
+
+### 17.4 Entrances and sealing
+
+An entrance is a shaft to the surface with a mound of the dug soil beside it. A founding queen seals her entrance with a plug of soil, and the first workers open it. A second entrance makes the nest harder to block. An entrance can close without a plug when soil piles over the opening or loose soil slumps into the passage, and the colony alerts you when that happens. Workers dig the way out again.
+
+### 17.5 Water, heat and collapse
+
+- **Temperature.** Soil lags behind the air: a chamber deep in the ground barely feels the day. Brood is kept in the warmest chamber the nest has, and a stone over a nest warms the soil beneath it in the sun.
+- **Humidity.** Brood needs high humidity. A dry brood chamber slows its development. In wood nests the wood's moisture matters: carpenter ant eggs and young larvae need damp wood.
+- **Flooding.** Rain can flood a nest, lower chambers first. An alert says so, and workers carry brood uphill. A nest in free-draining gravel floods less than one in clay.
+- **Collapse.** A ceiling that is too wide for its soil can fall, and the game warns of this as "Ceiling may collapse". Dry sand with a wide room is the usual case. Rock, concrete and wood roofs never fall.
+
+### 17.6 The nest overview
+
+`U`<!--key:nest-overview--> opens a drawer with a side view of the nest: chambers as rounded rectangles at their depth and distance, tunnels as lines, entrances as notches on the ground line and mounds as humps. Under it a table lists each chamber with its type, volume, occupancy, temperature, humidity and risk (flooded, flood risk, dry, crowded). Click a chamber to open colony view at its depth. You can change a chamber's type there.
+
+## 18. Species
+
+FOUNDRESS has four playable species. Each has its own biology, and the four are different ways to play. Only the black garden ant can be chosen; the other three appear on the setup page as "Not yet available" (section 1.3).
+
+Real colonies are larger than the game's. One simulated ant is one ant, and the game caps a colony at 1,500 workers (1,200 for the carpenter ant) so that the whole colony can be simulated. The codex gives the real sizes.
+
+### Black garden ant (*Lasius niger*)
+
+**Playstyle.** A generalist of soil and paving that ranches aphids for honeydew. This is the reference species, and the one to begin with. **Complexity:** 1 of 3. **Founding:** dig, seal, lay, wait. **Natural founding day:** day 5 of spring (ruling R20).
+
+Workers are about 4 mm long and come in one size. A queen founds alone in a sealed chamber, from her own reserves (claustral founding), and may live many years. The colony nests under stones, paving and wood that the sun warms, or builds a mound in soil or turf. Food is aphid honeydew and nectar for carbohydrate, and insects and carrion for protein. It forages along scent trails and remembers routes. In defence a worker bites and sprays formic acid; it has no sting.
+
+### Black carpenter ant (*Camponotus pennsylvanicus*)
+
+**Playstyle.** Nests in damp wood and works by night along trunk trails. Slow to grow. **Complexity:** 2 of 3. **Founding:** find damp wood, chew a cell, seal. **Natural founding day:** spring.
+
+The queen picks moist, softened wood and raises a first brood of small workers. Larger workers appear only from the third season. The ants chew wood and carry the shavings out; they do not eat it. The shavings gather below the openings and are also the colony's midden. A colony lives in a damp parent nest with the queen, and in drier, warmer satellite nests where older brood develops faster. Foraging is mostly at night. Carpenter ants alarm by drumming on the gallery walls, and phorid flies are a danger.
+
+### European harvester ant (*Messor barbarus*)
+
+**Playstyle.** Gathers seed, mills it into paste and keeps granaries through the dry months. **Complexity:** 2 of 3. **Founding:** dig deep in dry ground after autumn rain. **Natural founding day:** autumn.
+
+Workers vary continuously in size, and the game uses three bins: minors, media and majors. Media lay and follow trails and do most foraging, minors carry small seeds, and majors take big seeds and crack hard ones. Seed is stored in granary chambers, and empty husks go to a refuse pile by each entrance. Permanent trunk trails lead out from the nest. The colony needs a little animal protein, so someone has to bring in insects. Granary humidity has to be managed: damp seed sprouts or rots. Workers are hybrids between two lineages, and winged queens and males carry a lineage tag.
+
+### Texas leafcutter ant (*Atta texana*)
+
+**Playstyle.** Cuts leaves to grow a fungus garden; the fungus is all the brood eats. **Complexity:** 3 of 3. **Founding:** dig, plant the fungus pellet, tend it. **Natural founding day:** spring.
+
+The queen carries a pellet of her mother's fungus and plants it in her chamber. The workers do not eat leaves: they cut them and carry them home to feed the fungus, and larvae and the queen eat only the fungus. The garden is a living chamber with its own health: too much protein in the leaves, heat, or contamination can make it fail, and a colony without a garden starves. Workers are strongly polymorphic. Minims tend the fungus and can ride on carried leaves to ward off flies; larger workers cut and carry; the largest dig and guard. Foraging is mostly at night in summer.
+
+### Field notes in the codex
+
+Each species has a field note, and the codex has notes on the behaviours that set them apart: claustral founding, trophallaxis, trail pheromones, route memory, polyethism, nuptial flights, satellite nests, trunk trails, seed size, hybridogenesis, the fungus garden, cutting and hitchhikers. The notes state what the research supports, and say where it is silent.
+
+## 19. Troubleshooting
+
+### The game does not start
+
+**"This browser cannot run the game."** FOUNDRESS draws its world with WebGL 2. Use a current Chrome, Edge, Firefox or Safari, and turn on hardware acceleration in the browser's settings. If the game is embedded in another page, open it in its own tab; some embedding pages block graphics, storage or sound.
+
+**"Window too small."** Make the window larger. The game is paused meanwhile.
+
+**"This locality could not be completed."** A very few seeds do not make a world that is fit to play. Choose Try another seed, which moves to the next seed, or enter a different one.
+
+**"Something went wrong."** The game stopped unexpectedly. Reload the page. Your last save is intact, and the error text on the page shows what happened if you wish to report it.
+
+### It runs slowly
+
+1. Lower the quality preset on the Graphics tab, or leave it on Auto.
+2. Lower the resolution scale on the Graphics tab; the game draws fewer pixels and scales the picture up.
+3. Turn depth of field to Subtle or Off, and shadows to Low.
+4. Close other tabs and programs. A game with a large mature colony costs more than a young one.
+
+If the simulation cannot keep up at a high speed, the game steps the speed down and says so. This is the game protecting its timekeeping, not a fault.
+
+### There is no sound
+
+Browsers allow sound only after you click or press a key on the page, so the first page asks for one. A gamepad button does not count. If an alert says "Sound is off", click anywhere. Check the volume sliders and the Mute settings, and whether the browser or the tab is muted.
+
+### Saving does not work
+
+- **"Saving to this browser is not available here. Use Export to keep your colony."** The browser blocks storage, which happens in private windows and in some embedded pages. Export a colony to a file, or as text that you copy, and import it later.
+- **"The browser storage is full."** Delete an old save or export your colony.
+- **"The pasted text is incomplete or damaged."** Copy the whole text again, from the first letter of `FOUNDRESS1:` to the end.
+- **"This save is from a newer version of FOUNDRESS."** Update the game to open it.
+- **Quick save or quick load does nothing.** `F5` and `F9` are sometimes swallowed by the browser or the page that embeds the game. Use Save and Load from the pause menu.
+
+The game saves again by itself, and it tells you if it had to switch autosave off because saving failed twice.
+
+### The mouse and keys
+
+- **The camera does not turn.** Drag with the right mouse button. Mouse capture is optional, and the game says so when the browser refuses it.
+- **A key does nothing.** The browser may reserve it, or the page that embeds the game may swallow it. Function keys are the usual cases. Every action that has a function key can also be reached from a menu. Check Settings, Controls, to see if the key was rebound.
+- **Two actions share a key.** The same key can be used in different layers, such as possession and colony view. Within one layer, the game asks whether to swap the two bindings.
+- **A controller is not recognised.** The game uses the standard gamepad mapping. A controller that reports another mapping is shown as non-standard and may not work.
+
+### The game seems stuck
+
+- **An ant will not move.** Soil too hard to dig, a surface with too little grip, or a space smaller than the ant can stop it. A prompt gives the reason. Try the other way, or take another ant with `Tab`<!--key:possess-next-->.
+- **Nothing is happening.** The game may be paused: `P`<!--key:pause-toggle--> resumes. Opening a book page, the settings or the pause menu pauses the game.
+- **The colony has gone quiet.** In heat, cold or rain, ants stay in. This is the biology. Open the colony health view, or wait for the weather to change.
+
+### Reporting a problem
+
+Give the version shown on the title screen, the seed code of the locality (it is displayed on the setup and loading pages), the species and difficulty, and what you were doing. A saved colony or an export lets the problem be reproduced exactly, because the simulation is deterministic: the same seed and the same commands give the same result.
+
+## 20. Known problems
 
 From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-close-app-report.md`, section 7), as of 2026-11-18. These may change while the work goes on.
 
@@ -485,13 +796,13 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 - **Colonies do not reliably grow.** In unattended test runs, few colonies met the survival bar at the first winter, and growth in the second year was not shown. The first workers often live on the queen's provision; protein intake is low. A colony you play may stagnate or die in the first year.
 - Foragers often wait at the entrance ("waiting to leave - timeout") and few ants are on the surface.
 - Predation was recalibrated on 2026-11-17 and is lower for small colonies; the stop-gap values are in force.
-- Death causes in the epitaph are sometimes "unknown".
+- Death causes in the epitaph are sometimes "unknown" (a colony ended with the test cheat `cheat.killAll` now shows the cause that cheat is given).
 - The entrance can stay in a "reopening" state for days after a pad-played opening, which keeps the hints silent.
 - Three rulings are not built: reopening time after hand-over (R14), stacked-rain flooding on a safe site (R13) and the "loud hour" definition (R28). See `docs/design/gdd/DEVIATIONS.md`.
 
-**Not available.** The carpenter, harvester and leafcutter species (section 1.3). Six difficulty parameters (five marked on the New Game screen, and the automatic slow-down at an alert) and two custom rules have no effect (section 1.6). The Minimap and Focus line settings have no effect (section 12). Winter and "extinction ends the game" are rules with no control on the New Game screen. The nest architect's "Suggest" mode, thief ants and some human-event effects are not built.
+**Not available.** The carpenter, harvester and leafcutter species (section 1.3). Four difficulty parameters and two custom rules have no effect: the New Game screen greys them and labels them "Not in this build" (section 1.6). The rule "Extinction ends the game" works in the simulation but is listed greyed on the screen: no screen retires a colony, so a game that does not end when the last ant dies could not be ended. The nest architect's "Suggest" mode, thief ants and some human-event effects are not built. The minimap and the focus line show only what the simulation reports; they have no keyboard control, and the minimap is a pointer affordance.
 
-**Settings and wrong strings.** The auto-slow settings have no control (section 8). The New Game screen lists "Automatic slow-down at an alert" as working; it has no effect (section 1.6). The Minimap and Focus line controls in Settings > Gameplay do nothing. The New Game help text for the natural start says day 3; it is day 5. In the controls tables, the Photo mode row shows `LS+RS` next to the keyboard key: it is a gamepad chord (section 13).
+**Settings and strings.** The wrong strings listed in the first version of this manual (the "day 3" help text, the preset descriptions that claimed outcomes, the Photo mode row, the "1 young rivals" plural) were corrected on 2026-11-18. The README line about the `species=` flag still says that the flag accepts all four ids; it works only in test mode.
 
 **Rendering.** Night at ground level reads like an overcast day; leaves read as flat decals; the entrance mound has square edges at its foot; the follow camera can tip toward the sky on a slope; ants can look pale or milky at night and in night rain; chamber labels in colony view are sometimes smeared; a pale strip shows at the horizon at night. A look pass (look-pass-3) is in progress and some of these may change.
 
@@ -501,4 +812,4 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 
 If something is wrong that is not listed here, the debug flags in README.md (`?test=1` and the `window.__game` API) can reproduce a state quickly.
 
-Footer: written at commit `fb15f3d`, 2026-11-18. The controls tables in section 13 were generated on that day by `node tools/sim/run-ts.mjs` over `controlsMarkdown()`; if the bindings change, regenerate them (or run `src/content/text/controls.test.ts`).
+**Regenerating the tables.** Section 1.3 (species), section 1.6 (the preset and rule tables) and section 13 (the controls) sit between `<!-- generated:... -->` comments and are written from the code by `npm run sim -- tests/docs/regen-manual.ts`. Run it after a change to the species cards, `src/sim/config/presetDisplay.ts` or the bindings; `tests/docs/docs-final.test.ts` and `src/content/text/controls.test.ts` fail while the file is out of date.
