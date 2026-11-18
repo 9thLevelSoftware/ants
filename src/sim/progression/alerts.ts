@@ -65,6 +65,8 @@ export function raiseAlert(sim: Sim, req: AlertRequest): number {
   const cur = p.alerts.find((a) => a.kind === req.kind && a.subjectId === req.subjectId);
   if (cur) {
     const escalated = rank(req.level) > rank(cur.level);
+    // compared before the card takes the new diagnostic: only the diagnostic that holds the card may ease it
+    const eased = rank(req.level) < rank(cur.level) && req.diagnosticId !== null && req.diagnosticId === cur.diagnosticId;
     cur.count++;
     cur.updatedTick = now;
     cur.title = req.title;
@@ -72,8 +74,7 @@ export function raiseAlert(sim: Sim, req: AlertRequest): number {
     cur.focus = req.focus;
     cur.diagnosticId = req.diagnosticId;
     if (req.tokens) cur.tokens = { ...req.tokens };
-    // the same diagnostic asks for a lower level: its cause eased (bad -> warn), so the card falls back with it
-    const eased = rank(req.level) < rank(cur.level) && req.diagnosticId !== null && req.diagnosticId === cur.diagnosticId;
+    // `eased`: the same diagnostic asks for a lower level, its cause eased (bad -> warn), so the card falls back
     if (escalated) {
       cur.level = req.level;
       cur.acknowledged = false;

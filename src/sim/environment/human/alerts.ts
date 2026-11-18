@@ -3,11 +3,13 @@
 // impact is due within the look-ahead and one of the player's ants on the surface is in its path. It clears
 // HUMAN_ALERT_IDLE_S after the ants were last in the path (impact passed, ants gone) or after HUMAN_ALERT_MAX_S,
 // and when its event ends. One card per site (key `human-event-warning:<siteId>`): the alert engine's warning
-// cooldown keeps a busy site from raising it again within a game hour, and the journal keeps every raise and clear.
+// cooldown keeps a busy site from raising it again within a game hour, and the journal keeps every raise and clear,
+// and one 'alert.cooldown' line per event and site for a card the cooldown refused.
 // State: the engine's own marks (alerts.ts touchAlert), saved with the game.
 
 import type { HumanEventInst, Sim } from '@/sim/types';
 import { alertRefusal, clearAlert, expireAlert, raiseAlert, touchAlert } from '@/sim/progression/alerts';
+import { memGet, memSet } from '@/sim/progression/engine';
 import {
   HUMAN_ALERT_EVERY, HUMAN_ALERT_IDLE_S, HUMAN_ALERT_LOOKAHEAD_S, HUMAN_ALERT_MARGIN_MM, HUMAN_ALERT_MAX_IMPACTS, HUMAN_ALERT_MAX_S,
 } from '@/sim/balance/human';
@@ -55,12 +57,24 @@ export function checkHumanAlert(sim: Sim, inst: HumanEventInst, plan: HumanPlan)
     focus: { kind: 'point' as const, id: -1, pos: { x: imp.fp.x, y: imp.fp.y, z: imp.fp.z } },
     diagnosticId: 'diag-human-pressure', tokens: { area: siteById(sim.world, plan.siteId)?.area ?? 'garden', event: inst.kind },
   };
-  if (alertRefusal(sim, req) === null && raiseAlert(sim, req) >= 0) touchAlert(sim, KIND, plan.siteId);
+  const refused = alertRefusal(sim, req);
+  if (refused === null) {
+    if (raiseAlert(sim, req) >= 0) touchAlert(sim, KIND, plan.siteId);
+    return;
+  }
+  // refused (cooldown, full list): raiseAlert puts it in the event log, but only once per event and site, not every check
+  const mark = `hrefused:${plan.siteId}`;
+  if (memGet(sim, mark, -1) !== inst.id) {
+    memSet(sim, mark, inst.id);
+    raiseAlert(sim, req);
+  }
 }
 
 /** Every tick (cheap): clears the cards whose lifetime is over. */
 export function expireHumanAlerts(sim: Sim): void {
-  for (const a of [...sim.state.progression.alerts]) if (a.kind === KIND) expireAlert(sim, KIND, a.subjectId, LIFE);
+  const list = sim.state.progression.alerts;
+  // backwards: expireAlert removes the card it clears from the list
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].kind === KIND) expireAlert(sim, KIND, list[i].subjectId, LIFE);
 }
 
 /** An event ended: its site's card goes unless another running event on the site still holds it. */

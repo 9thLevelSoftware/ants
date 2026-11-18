@@ -1719,9 +1719,76 @@ Tools: `lifeFunnel.ts` `proteinKnownGd`; `bench-table.py` columns (P known gd, s
 - 00:20 **P1c reverted**: on 6 hand-overs the 10-gd protein window changed nothing in 5 (identical runs: the queen's P
   was paid in within 3 gd) and pp #1 P/need 0.36 -> 0.20; the egg drop (288 -> 225 on the bench) is not stranded P.
   Tree = r5f again (diff checked; other engineers have since edited `environment/human/*`, `progression/alerts.ts`).
-- 00:20 running (restart-safe): `$S/lifepairs.sh` = life.ts to winter, same cached hand-overs, r5start vs r5f, for
+- 00:20 (the partial kd #1 run of the stomach-only variant, `round-5/life-r5base/`, was stopped on day 3 and deleted; its day rows are quoted in the 22:26 entry.) Running (restart-safe): `$S/lifepairs.sh` = life.ts to winter, same cached hand-overs, r5start vs r5f, for
   cpv #1, sg #2, kd #1, pp #2 (two at a time) -> `round-5/life-before/`, `round-5/life-after/`.
 - 00:38 life A/B to winter (same cache; r5start vs r5f), 2 of 4 pairs: cpv #1 workers 11 -> 11 vs **11 -> 15**,
   eclosions 6 vs 9, larvae starved 3 vs 0, P intake/need 0.025 vs 0.107, longest stage worse than lean 6.55 vs
   1.55 gd (still fails the 1 gd check); sg #2 11 -> 5 vs **11 -> 10**, eclosions 0 vs 7, C at winter 0 vs 8.8
   (R27 need 3.1: passes the stores check), fails only the stage check (round 4's sweep: hygiene, 0 eclosed).
+
+### Before / after on the affected runs (round 5)
+
+Forage bench, full length (hand-over to winter), 15 R20 hand-overs, r5start (round start) vs r5f (round end);
+`round-5/bench-forage-before|after/table.md`, per run `round-5/bench-forage-ab.txt` (`bench-compare.py`):
+
+| | before | after |
+|---|---|---|
+| **P delivered / 30-worker need, median** | 0.122 | **0.245** (direction-10 target 0.3: not met) |
+| C / need, median | 0.86 | 0.84 |
+| prey loads home / prey P home, median | 6 / 1.25 | 10 / 2.5 |
+| protein known within 1 gd | 7 of 15 | 3 of 15 (target 12: not met) |
+| larvae starved (sum) | 21 | 4 |
+| eggs / eclosed (sum) | 288 / 55 | 225 / 48 |
+| worker deaths (sum): old age, predation, crushed | 60, 5, 11 | 66, 9, 12 |
+
+Attribution (`bench-forage-noP1/`, r5f with the round-start `handover.ts`, 4 runs): P/need returns to the before
+level (0.03-0.21): the gain is P1's.
+
+Life to winter, same cached hand-overs, r5start vs r5f (`round-5/life-before|after/`, `life-ab.txt`):
+
+| run | workers hand-over -> winter | eclosions | larvae starved | P / C intake per need | longest stage worse than lean, gd | viable |
+|---|---|---|---|---|---|---|
+| car-park-verge #1 | 11 -> 11 / **11 -> 15** | 6 / 9 | 3 / 0 | 0.025, 1.51 / 0.107, 1.22 | 6.55 / 1.55 | no / no (stage) |
+| suburban-garden #2 | 11 -> 5 / **11 -> 10** | 0 / 7 | 0 / 2 | 0.146, 0.52 / 0.061, 0.94 | 5.3 / 2.2 | no / no (stage) |
+| kitchen-door #1 | 15 -> 8 / **15 -> 12** | 2 / 10 | 1 / 0 | 0.05, 0.65 / 0.22, 1.31 | 3.7 / 1.25 | no / no (stage) |
+| playground-park #2 | 11 -> 12 / 11 -> 9 | 5 / 10 | 5 / 0 | 0.093, 0.46 / 0.193, 1.35 | 2.95 / 0.15 | no / **yes** |
+
+Sum: workers at winter 36 -> 46, eclosions 13 -> 36, larvae starved 9 -> 2; C at winter above the R27 need in all
+four after (3.1-3.8 needed, 8.8-16.4 held). pp #2 after lost 8 workers to predation (the creature code in the tree
+since 8b4c207 is threats-calibrate's). The stage check fails on 1.25-2.2 gd of `rationing` on days 3-6 in the three
+others: the pool's protein is 0 when the first larvae eat (P stores 0.0-0.1 on days 3-4), before hunting delivers.
+
+### Verification (00:47 UTC Nov 18)
+
+- `npx tsc --noEmit`: clean (whole tree).
+- Folder tests: colony 62/63 files (red `founding/reopen`, known), nest 56/57 (`escapeDig`, known),
+  ants/behaviours/outdoor 27/28 (`removal.verify`, known), ants/behaviours/nest 28/30 (`sfaReview.verify`,
+  `stall.soak`, known), ants/player 6/6, nest/flood 11/11 + the round's files again at 00:46 (18 files green).
+- Round tests red with the fix removed (scratch copy): `larderProvision.verify`, `lossCapStores.verify`,
+  `haulMidden.verify`, `founding/padPrompt.test`.
+- Determinism: no new persisted state (P1 and WL2 change amounts only; R27 is a pure function of state); no
+  `Math.random`, `Date.now` or `Math.hypot` added in sim code. Per-tick cost: `winterStoresNeed` runs on the colony
+  cycle in autumn only (census + cluster lookup) and in the tool's day rows.
+- Not run: the 15-run sweep (the independent engineer's), long runs to year two (none this round).
+
+### Next (round 6)
+
+1. **The protein gap of days 3-6**: the first larvae eat the queen's provision and the pool P is 0 for 1-2 gd before
+   prey arrives (rationing 1.25-2.2 gd in 3 of 4 life runs: the viability stage check). Look at when hunting starts
+   (protein need index vs the queen's held P, first patch known 1.7 gd median) and at the larva ration rule.
+2. **Discovery** (protein known within 1 gd 3 of 15; 6 runs know no patch for days): more scouts did not help (PR1,
+   PR1b reverted). Next to try: the scout walk's coverage of 50-200 BU (where most patch edges lie) rather than its
+   number; carrion odour range.
+3. **The catch**: 20-23 % of chases end in a kill (springtail touch jumps, creature-side rules in threats-calibrate's
+   folder): ask the integrator whether the escape model is the GDD's.
+4. **Eggs fell on the forage bench** (288 -> 225) though larvae starved 21 -> 4: laying protein permitted reads pool P
+   days; check the laying release against the queen's held provision.
+5. Year two (directions 8-9): no long runs this round; R27 and WL2 change spring stores, so the five long runs of the
+   next sweep are the first honest year-two numbers.
+6. Core gaps (a) paralysed rescue and (c) pit avoidance (ranking above); S2 waiting foragers; the founding record
+   `reopening` after a pad-played opening.
+
+Status: **round 5 complete** (00:47 UTC Nov 18). In the tree: P1 (v2), WL2, M2, R27, S3, S6, S17, SR (scout range
+300) + tests; tools: `lifeFunnel` protein clock, `bench-table` columns, `bench-sweep` DAYS, `lifeMetrics` R27 fields,
+`lifeViable` R27 check, `sweep-table` R27 column. Reverted: PR1, PR1b, P1c. Probes and scratch trees deleted; no
+process of this round running. Evidence: `test-output/colony-life/round-5/`.

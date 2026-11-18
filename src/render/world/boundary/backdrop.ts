@@ -137,30 +137,32 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
   for (const r of edgeRuns(world)) {
     const len = r.u1 - r.u0;
     if (r.treatment === 'house') {
-      const p = place(r, (r.u0 + r.u1) / 2, band('facade') + B.facadeDepth / 2, B.facadeDepth / 2);
-      const hw = len / 2 + 600, hh = B.facadeHeight / 2;
-      const yaw = alongYaw(r);
-      mb.box(p.x, p.y + hh, p.z, hw, hh, B.facadeDepth / 2, yaw, hex(BACKDROP_HEX.facade, rng, 0.05));
-      shapes++;
-      // look pass 3: a bare box read as a pale slab. A plinth, a roof with eaves, two storeys of windows and a door give it
-      // the structure of a house wall (sizes in mm, true scale; every part sits on or just in front of the face toward the map)
-      const face = B.facadeFaceOffset;
-      const put = (u: number, y: number, hx: number, hy: number, hz: number, col: string, dz = 0) => {
-        const q = place(r, u, face + dz, 0);
-        mb.box(q.x, q.y + y, q.z, hx, hy, hz, yaw, hex(col, rng, 0.05));
+      // look pass 3: a bare box read as a pale slab. A dark body behind a thin wall skin with window openings (two storeys), a plinth and a
+      // roof with eaves. Nothing is layered over a face (parts closer than the depth buffer resolves at that distance flicker, and the
+      // picture then changes between two renders of the same frame): the skin has real gaps and the glass is the recessed body.
+      const yaw = alongYaw(r), face = band('facade'), D = B.facadeDepth, H = B.facadeHeight, SKIN = B.facadeSkin;
+      const cu = (r.u0 + r.u1) / 2, hw = len / 2 + 600;
+      /** A box between along-edge offsets [a, b] from the centre line, heights [y0, y1] and depths [d0, d1] beyond the face. */
+      const slab = (a: number, b: number, y0: number, y1: number, d0: number, d1: number, col: string) => {
+        const q = place(r, cu + (a + b) / 2, face + (d0 + d1) / 2, 0);
+        mb.box(q.x, q.y + (y0 + y1) / 2, q.z, (b - a) / 2, (y1 - y0) / 2, (d1 - d0) / 2, yaw, hex(col, rng, 0.04));
         shapes++;
       };
-      const u0 = (r.u0 + r.u1) / 2 - len / 2, nWin = Math.max(1, Math.round(len / B.facadeWindowPitch));
-      put((r.u0 + r.u1) / 2, B.facadePlinth / 2, hw, B.facadePlinth / 2, 60, BACKDROP_HEX.plinth, -20);
-      put((r.u0 + r.u1) / 2, B.facadeHeight + 160, hw + 260, 160, B.facadeDepth / 2 + 260, BACKDROP_HEX.roof, B.facadeDepth / 2);
-      for (let i = 0; i < nWin; i++) {
-        const u = u0 + ((i + 0.5) / nWin) * len;
-        for (const y of B.facadeWindowY) {
-          put(u, y, B.facadeWindow[0] / 2, B.facadeWindow[1] / 2, 50, BACKDROP_HEX.glass, -10);
-          put(u, y - B.facadeWindow[1] / 2 - 40, B.facadeWindow[0] / 2 + 80, 40, 90, BACKDROP_HEX.trim, -30); // sill
-        }
+      const nWin = Math.max(1, Math.round(len / B.facadeWindowPitch)), ww = B.facadeWindow[0], wh = B.facadeWindow[1];
+      const centres = Array.from({ length: nWin }, (_, i) => -len / 2 + ((i + 0.5) / nWin) * len);
+      const rows = B.facadeWindowY.map((y) => [y - wh / 2, y + wh / 2] as const);
+      slab(-hw + 100, hw - 100, 0, H, SKIN, D, BACKDROP_HEX.glass);
+      slab(-hw - 260, hw + 260, H, H + 320, -260, D + 260, BACKDROP_HEX.roof);
+      slab(-hw, hw, 0, B.facadePlinth, 0, SKIN, BACKDROP_HEX.plinth);
+      let y: number = B.facadePlinth;
+      for (const [lo, hi] of rows) {
+        slab(-hw, hw, y, lo, 0, SKIN, BACKDROP_HEX.facade); // the band under this row of windows
+        let x = -hw;
+        for (const c of centres) { slab(x, c - ww / 2, lo, hi, 0, SKIN, BACKDROP_HEX.facade); x = c + ww / 2; } // the piers between them
+        slab(x, hw, lo, hi, 0, SKIN, BACKDROP_HEX.facade);
+        y = hi;
       }
-      put(u0 + len * 0.2, B.facadeDoor[1] / 2, B.facadeDoor[0] / 2, B.facadeDoor[1] / 2, 60, BACKDROP_HEX.door, -20);
+      slab(-hw, hw, y, H, 0, SKIN, BACKDROP_HEX.facade);
       continue;
     }
     if (r.treatment === 'road') {

@@ -18,6 +18,7 @@ import { TICKS_PER_DAY, TICKS_PER_HOUR, TICKS_PER_SECOND } from '@/sim/time';
 import { stateHash } from '@/sim/save';
 import { calendarNow } from '@/sim/environment/calendar';
 import { isWorkerCaste } from '@/sim/colony/census';
+import { difficultyValue } from '@/sim/balance/difficulty';
 import { QUIET_ALERT_SHARE, QUIET_SAMPLE_EVERY, QUIET_WINDOW_GD } from '@/sim/balance/creatures';
 import { canStartMajorThreat, quietTracker } from '@/sim/ecology/creatures';
 import { rngFork } from '@/core/rng';
@@ -131,27 +132,40 @@ export class QuietObserver {
   private hourSamples = 0; private hourAlertSamples = 0; private hourOutsideSamples = 0; private hourThreat = false;
   private hourKinds: Record<string, number> = {};
   private blockedSeen = false; private blockedShare = false;
-  private since = new Map<number, number>();
+  /** Alerts on screen now: id -> tick they were first seen (raised in the run, or standing at its start) and label. */
+  private since = new Map<number, { t: number; label: string }>();
   private firstHour = 0;
   private prevActive: string | null = null;
 
   constructor(private readonly sim: Sim) {
     this.lastTotal = quietTracker(sim).total;
     this.firstHour = Math.floor(sim.state.tick / TICKS_PER_HOUR);
+    for (const a of sim.state.progression.alerts) this.since.set(a.id, { t: sim.state.tick, label: alertLabel(a) });
     const on = (t: string, f: (e: never) => void) => sim.events.on(t as never, f as never);
     on('alert', (e: { op: string; alert: { id: number; kind: string; level: string; tokens?: Record<string, string | number> } }) => {
-      const k = this.kind(alertLabel(e.alert));
-      if (e.op === 'raise') { k.raised++; this.since.set(e.alert.id, this.sim.state.tick); }
+      const label = alertLabel(e.alert), k = this.kind(label);
+      if (e.op === 'raise') { k.raised++; this.since.set(e.alert.id, { t: this.sim.state.tick, label }); }
       else if (e.op === 'update') k.updated++;
       else if (e.op === 'clear') {
         k.cleared++;
-        const t0 = this.since.get(e.alert.id);
-        if (t0 !== undefined) k.longestS = Math.max(k.longestS, (this.sim.state.tick - t0) / TICKS_PER_SECOND);
-        this.since.delete(e.alert.id);
+        this.closeStay(e.alert.id);
       }
     });
     on('human.start', (e: { kind: string }) => bump(this.humanStarts, e.kind));
     on('human.cancelled', (e: { kind: string }) => bump(this.humanCancelled, e.kind));
+  }
+
+  private closeStay(id: number): void {
+    const st = this.since.get(id);
+    if (!st) return;
+    const k = this.kind(st.label);
+    k.longestS = Math.max(k.longestS, (this.sim.state.tick - st.t) / TICKS_PER_SECOND);
+    this.since.delete(id);
+  }
+
+  /** End of the run: alerts still standing count their stay up to now (a warning that never clears is the longest one). */
+  finish(): void {
+    for (const id of [...this.since.keys()]) this.closeStay(id);
   }
 
   private kind(label: string): KindStats { return (this.kinds[label] ??= emptyKind()); }
@@ -230,6 +244,7 @@ export class QuietObserver {
       }
     }
     const W = QUIET_WINDOW_GD * 24;
+    const target = difficultyValue(this.sim, 'quietShareMin');
     const win = (from: number, minCounted: number, codeOf: (h: HourRecord) => number = (h) => h.code) => {
       let n = 0, min: number | null = null, at: number | null = null, failing = 0, minCounted0 = 0;
       for (let i = Math.max(1, from); i <= rec.length; i++) {
@@ -239,7 +254,7 @@ export class QuietObserver {
         const share = w.reduce((a, b) => a + codeOf(b), 0) / w.length;
         n++;
         if (min === null || share < min) { min = share; at = i; minCounted0 = w.length; }
-        if (share < 0.6) failing++;
+        if (share < target) failing++;
       }
       return { n, min: min === null ? null : r2(min), at: at === null ? null : r2((startTick + at * TICKS_PER_HOUR) / TICKS_PER_DAY), failing, minCounted: minCounted0 };
     };
@@ -282,6 +297,7 @@ export function observe(sim: Sim, o: QuietOpts, log: (s: string) => void, t0 = D
     obs.tick();
     if (sim.state.tick % TICKS_PER_DAY === 0) log(`gd ${r2((sim.state.tick - startTick) / TICKS_PER_DAY)}: workers ${workers()}, quiet ${quietTracker(sim).quiet}/${quietTracker(sim).counted}`);
   }
+  obs.finish();
   const r = obs.result(startTick);
   const q = quietTracker(sim);
   return {

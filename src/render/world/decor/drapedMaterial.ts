@@ -50,7 +50,7 @@ float dcShade;
 vec3 dcSat(vec3 c, float s) { float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); return max(mix(vec3(l), c, s), 0.0); }
 // colour (rgb), alpha, roughness, transmission and a tangent-space bump (x along the card, y across)
 // the resolved point on the hugging surface (dcResolve) and its card coordinates
-vec2 dcUv; vec3 dcWp; bool dcIn;
+vec2 dcUv; vec3 dcWp; bool dcIn; bool dcNear; // dcNear: within the resolve distance (uDcFix.x) of the camera
 void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 bump) {
   float k = vDcInfo.x, ra = vDcInfo.y, rb = vDcInfo.z; vec2 uv = dcUv;
   bump = vec2(0.0); tr = 0.0; rough = 0.7; dcShade = 0.0;
@@ -79,7 +79,7 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     rough = 0.62; tr = fresh ? 1.0 : 0.45;
     // thickness (look pass 3): the cut margin is a lit edge, and the leaf leaves a soft dark fringe on the ground beside it
     col *= 1.0 + ${DECOR_LEAF.edgeLight.toFixed(2)} * (smoothstep(0.5, 0.56, a) * (1.0 - smoothstep(0.56, 0.7, a)));
-    if (a < 0.5) {
+    if (a < 0.5 && dcNear) { // near leaves only: far away the fringe is sub-pixel noise that flips pixels with the smallest camera change
       const float SD = ${DECOR_LEAF.shadowReachUv.toFixed(3)};
       dcShade = ${DECOR_LEAF.shadowDensity.toFixed(2)} * 0.25 * (dcLeafAlpha(ra, fresh, uv + vec2(SD, 0.0)) + dcLeafAlpha(ra, fresh, uv - vec2(SD, 0.0))
         + dcLeafAlpha(ra, fresh, uv + vec2(0.0, SD)) + dcLeafAlpha(ra, fresh, uv - vec2(0.0, SD)));
@@ -151,7 +151,7 @@ export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): 
       .replace('#include <project_vertex>', '#include <project_vertex>\ngl_Position = drapedBias(gl_Position, mvPosition.xyz, iC.w);');
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', `#include <common>\n${DRAPE_GLSL}\nvarying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;\nuniform vec2 uDcBias; uniform vec3 uCamPos; uniform float uDcBu;\n${GLSL_OCCLUSION}\n${FRAG_DECL}`)
-      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\ndcIn = dcResolve(dcUv, dcWp);\ngl_FragDepth = length(vDcW - uCamPos) > uDcFix.x ? gl_FragCoord.z : dcDepth(dcWp);')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\ndcIn = dcResolve(dcUv, dcWp);\ndcNear = length(vDcW - uCamPos) <= uDcFix.x;\ngl_FragDepth = length(vDcW - uCamPos) > uDcFix.x ? gl_FragCoord.z : dcDepth(dcWp);')
       .replace('#include <map_fragment>', `
 if (!dcIn || vDcFade <= 0.0 || wrHoleMask(dcWp.xz) > 0.5) discard;
 wrOccDither(dcWp, ${WORLD_OCCLUSION_TERRAIN_TMAX.toFixed(3)}); // lies on the ground: like the terrain

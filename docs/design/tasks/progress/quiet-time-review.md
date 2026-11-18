@@ -1,2 +1,13 @@
 # quiet-time review progress
 - Started (reviewer). Reading spec + code.
+- Read spec, code (human/alerts.ts, runner.ts diff, progression/alerts.ts diff, quietRun.ts, tests, report). typecheck clean 00:48.
+- Candidate findings: (1) ease rule's same-diagnostic check vacuous (cur.diagnosticId overwritten before compare) progression/alerts.ts:~74; (2) GDD 06 §4.5 footfall-warning 120 BU rule not recorded; (3) refusals not journaled; (4) quiet.long MIN hard-coded + silent skip
+- Next: run human + progression tests, write *.verify.test.ts
+- 00:52 Tests: human folder 12 pass/3 skip; progression 13 pass. Added src/sim/environment/human/alerts.verify.test.ts (6 pass) and src/sim/progression/alerts.ease.verify.test.ts (6 tests, 1 RED by design: ease rule lowers a card on a lower raise from a DIFFERENT diagnostic; cause alerts.ts raiseAlert sets cur.diagnosticId before comparing).
+- Tool note: quietRun longestS = 0 for never-cleared alerts (food-c-low 2491 s shows longest 0).
+- Next: stress run quietRun kitchen-door high activity 60 workers 3 days -> test-output/quiet-time/review/
+- 01:05 Stress run kitchen-door high activity 60 w 3 gd: human cards 5, max 5 s, 0 loud hours -> test-output/quiet-time/review/. Counts table re-run matches.
+- Added src/sim/environment/human/quietRun.verify.test.ts (2 RED: quietRun `failing` uses fixed 0.6, not preset QUIET_SHARE_MIN).
+- Finding: whole-game long runs had threats.started = 0 in all 4 (director refused every hour by share) -> outsideOnly 1.00 is trivially met; E25 'at least one major threat' clause unmet and not stated.
+- perf.verify.test.ts is LONG-gated (skipped in the implementer's run); I ran it with FOUNDRESS_LONG=1: passes.
+- DONE: review complete, final report submitted.

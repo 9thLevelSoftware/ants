@@ -30,7 +30,7 @@ QUIET_SHARE_MIN + 0.05 for the colony's reasons.
 | `src/sim/environment/human/alerts.ts` (new) | the card: `checkHumanAlert` (every `HUMAN_ALERT_EVERY` = 5 ticks per run: first impact due within the look-ahead with a player ant of the surface inside its footprint + 60 mm; raise or keep the site's card), `expireHumanAlerts` (every tick: lifetime), `endHumanAlert` (event end clears the site's card unless another running event of the site holds it) |
 | `src/sim/environment/human/runner.ts` | `warn()` (raise at the first cue, anywhere on the area, clear at event end) removed; the three calls above |
 | `src/sim/balance/human.ts` | `HUMAN_ALERT_LOOKAHEAD_S` 3 (x `HUMAN_TELEGRAPH_MULT`), `HUMAN_ALERT_MARGIN_MM` 60, `HUMAN_ALERT_IDLE_S` 1, `HUMAN_ALERT_MAX_S` 5, `HUMAN_ALERT_EVERY` 5, `HUMAN_ALERT_MAX_IMPACTS` 24, with the reasoning |
-| `src/sim/progression/alerts.ts` | additive: `touchAlert`, `expireAlert`, `AlertLifetime` (a card held by a condition; the marks are in `progression.engine.mem`, saved); and the **ease rule**: a repeat raise of an active key with a lower level from the same `diagnosticId` lowers the card (op `update`, journal `alert.ease`) |
+| `src/sim/progression/alerts.ts` | additive: `touchAlert`, `expireAlert`, `AlertLifetime` (a card held by a condition; the marks are in `progression.engine.mem`, saved); and the **ease rule**: a repeat raise of an active key with a lower level from the same `diagnosticId` lowers the card (op `update`, journal `alert.ease`); review fix: the comparison is made against the diagnostic that holds the card BEFORE the repeat overwrites it, so a different diagnostic's lower raise no longer lowers a card (it did, for any non-null diagnostic) |
 | `tools/sim/quietRun.ts` (new) | the observer (below) and `--counts 1` (human events per game day at off/low/normal/high) |
 | tests | `src/sim/environment/human/alerts.test.ts` (5), `src/sim/progression/alerts.life.test.ts` (4), `src/sim/environment/human/quiet.long.test.ts` (4, `FOUNDRESS_LONG=1`) |
 
@@ -46,7 +46,11 @@ Harsh 2.25 s, like the cues' leads) has a player-colony ant with `nestId < 0` wi
 query, at most 24 impacts looked at per check). Cleared 1 s after the ants were last in a path (impact passed, ants left),
 at 5 s at the latest (below `QUIET_ALERT_SHARE` of an hour, 6.25 s: one card never makes an hour loud on its own), or when
 the event ends. One card per site; after it clears, the alert engine's own cooldown (warning: 1 game hour) turns the next
-raise into a journal line, and `alertRefusal` is asked first so a busy site does not write a log line per check. The
+raise into a journal line (`alert.cooldown`), written once per event and site (a mark in the engine's `mem`), not at
+every 5-tick check. **Decision (review):** "one alert per event" is kept as "one card per site and game hour": a mowing run
+of up to ten clock hours can raise a further card an hour after the previous one cleared, because ants that walk into a
+later stripe are in real danger and the cue alone would not tell the player; each card is at most 5 s, under the loud-hour
+share, so the quiet share is not affected (checked: 0 loud hours from human cards in every run). The
 journal keeps `alert.raise` / `alert.clear` for every card; the telegraph events (`human.telegraph`, `human.impact`) are
 untouched, so audio, tremor relay and perception are as before. Save -> load in the middle of a card equals the
 uninterrupted run (test).
@@ -174,12 +178,22 @@ Spec items not in the table: determinism (save -> load mid-card equals uninterru
 
 - `npm run typecheck`: clean (whole tree, 00:43 UTC).
 - `npx vitest run src/sim/environment/human src/sim/progression`: 25 files passed, 3 skipped (the LONG ones), 284 tests, 79 s
-  (includes `perf.verify.test.ts` of the human folder; the card's own cost, a spatial query per run per 5 ticks, was
-  not measured separately). `npx vitest run src/sim/balance`: 99 passed.
+  (includes `perf.verify.test.ts` of the human folder is `describe.skipIf(!FOUNDRESS_LONG)`, so in that run it was one of the 3
+  skipped files: the earlier statement that it passed was wrong). Run with `FOUNDRESS_LONG=1` in the review fix round it passes
+  its 2 ms/tick limit. `npx vitest run src/sim/balance`: 99 passed.
 - `FOUNDRESS_LONG=1 npx vitest run src/sim/environment/human/quiet.long.test.ts` (from a frozen copy): 4 passed, 19 min.
 - Under load the batches took 3-6 min per 6-gd run; no timing numbers are reported because none were measured for a budget.
 
 ## 8. Decisions, contradictions, notes for others
+
+- **GDD 06 §4.5 (recorded in the review round).** The auto-slow table maps `footfall-warning` to `human-event-warning`
+  (warning) as "human `footsteps` warning active within 120 BU of a trail or entrance". The card here is raised only for a
+  player ant on the surface within footprint + 60 mm of an impact due in 3 s (the task spec's narrower rule). Followed:
+  the task spec and GDD 04 §15.3 / GDD 08 (what the player can act on); so the §4.5 trigger "a footsteps warning active
+  near a trail or entrance" is true less often than the table implies, and a footstep pass over an entrance with every ant
+  inside (sand or loam, block chance 0.5, GDD 04 §15.4) raises no card and therefore no auto-slow. The old `warn()` also
+  needed exposed surface ants, so this is not a regression. The integrator should either accept this or rewrite the §4.5
+  row as "a `human-event-warning` card is active" (which it effectively is already, by key).
 
 - **Precedence note.** GDD 04 §15.3 ("Alerts use chapter 08's `human-event-warning`") and GDD 08 §6.5 (focus: event area)
   leave the duration open; GDD 08 §6.1 (warning "until resolved") and I11 (an alert counts while active) collide for any

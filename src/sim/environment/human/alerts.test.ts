@@ -101,6 +101,9 @@ describe('human-event warning card', () => {
       expect(c.cleared - c.raised).toBeLessThanOrEqual(HUMAN_ALERT_MAX_S * TICKS_PER_SECOND + 1);
     }
     for (let i = 1; i < cards.length; i++) expect(cards[i].raised - cards[i - 1].cleared).toBeGreaterThanOrEqual(TICKS_PER_HOUR - 1);
+    // a card the site's cooldown refused is journalled once for this event and site, not at every check
+    const refused = sim.state.progression.eventLog.filter((e) => e.kind === 'alert.cooldown' && e.key === 'human-event-warning');
+    expect(refused.length).toBe(1);
   });
 
   it('a save in the middle of a card loads and continues identically', () => {
