@@ -251,3 +251,22 @@ Pictures taken on the final code: `shots2/fix-<light>-<view>-high.png` (seed 1, 
 10. **Report mismatches (minor):** (a) no easing existed: corrected above; (b) the backdrop door does not exist: comment in `boundary/tuning.ts` and the text above corrected; (c) the observer fix is covered by `observerAfterColony.test.ts` (flags and call order) only: the observer pose after a colony view round trip is **not** shown in a picture.
 11. **Inline numbers (minor):** moved to the tuning files: wings (`WING_LOOK`), cuticle at night (`ANT_NIGHT_LOOK`), gaster membrane (`GASTER_MEMBRANE`), leaf margin band, shadow colour and cut (`DECOR_LEAF`), mound noise (`MOUND_RAG_*`, `MOUND_FOOT_MOTTLE`). The form light's pre-existing weights (0.9 / 0.6) stay in the GLSL (look-pass 2).
 12. **autoSlowDefault (minor): fixed in the game.** `withGameRule` (src/game/time/autoSlow.ts, used by `Game.ts`): the preset's rule (`env.time.autoSlow`) lifts the player's default 'slow' to a pause for critical alerts (Gentle), never switches off a player's 'off', never weakens a 'pause'. Test in `autoSlow.test.ts`. The sim's UNWIRED list is therefore right as it is; docs that call the row "not in effect" (MANUAL 1.6, DEVIATIONS D21) should say it is now read.
+
+## 12. Browser runs on the final code (this round; each alone; logs under `test-output/look3fix/`)
+
+| Script | Result |
+|---|---|
+| `stage1a.mjs` `STAGE1A_STRICT=1`, full (high shots included) | **pass**, exit 0, no stand-ins (`stage1a.log`) |
+| `photo.mjs` `PHOTO_QUICK=1` | **pass** (`checks/photo.log`, again after the wing-surface change: `checks/photo2.log`); exit-restores dpos 0 |
+| `views.mjs` `VIEWS_QUICK=1` (the full run's high shots were not repeated) | **pass** (`checks/views.log`) |
+| `controls.mjs` | **pass** (`checks/controls.log`) |
+| `panels.mjs` first half (health alert nest journal codex) and second half (markers hudfix keys tools sizes) | **pass** both (`checks/panelsA.log`, `panelsB.log`) |
+| `look3-hud.mjs` | **pass** (`checks/hud.log`) |
+| `firstplay.mjs` | beats 1-10 **pass** (`firstplay/01..10-*.png`, looked at 04); beat 11 fails "founding-lapse not on screen" (`firstplay.log`): the time-lapse overlay was gone after the stepping loop (the lapse had ended), a founding-flow / sim timing matter (founding and sim-seams engineers are in that code), not a render result. Beats 11-20 are **not measured** this round. |
+| `playthrough.mjs` | not re-run (80 minutes; the shortened run of section 10 predates the leaf, wing and camera changes) |
+
+Unit tests on the final code, folder by folder: `src/render` 829 passed / 2 skipped, `src/game` 583 passed; `npm run typecheck` clean. `src/ui`, `src/input`, `src/content` were not touched in this round (green in section 8). New tests: `camera/closePose.test.ts`, `ants/lookReview3.test.ts`, `world/decor/leafFringe.test.ts`, `game/time/autoSlow.test.ts` (withGameRule); the reviewer's `lookPass3.verify.test.ts` and `moundRag.verify.test.ts` are green and unchanged.
+
+Draw calls and triangles (acceptance 4), same poses as section 7: noon observer low at high quality 100 draws / 1.017 M triangles (section 7: 103-105 / 1.00-1.02 M), noon queen start 115 / 1.10 M: no rise (the leaf shadow is blended in the existing mesh; no new draws).
+
+Still open after this round: the winged founding queen by day (grey glass gaster, 5); the pale far wall blocks (6, tried and reverted); the white cutaway disc in the crevice state (2); leaf curl (3); firstplay beats 11-20 and the full play-through (above); the observer pose after a colony view round trip has no picture.

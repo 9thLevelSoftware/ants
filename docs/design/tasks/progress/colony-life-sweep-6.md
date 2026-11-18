@@ -44,3 +44,14 @@ Started 04:03 UTC Nov 18. No earlier progress file; fresh start.
   threat 69. A/B running (`round-6/sweep-review/ab/ab.sh`, restart-safe; scratch trees /home/user/scratch-r6-{nosf,
   nop1d,nor28} + cache copies /home/user/scratch-r6-cache): we1, pp1 to game day 7, each fix reverted alone.
 - Delete at the end: /home/user/frozen-sweep6, /home/user/scratch-r6-*, scratch-r6-cache.
+
+## 05:01 UTC
+- Sweep 12 of 15 (viable: sg1, we2, cpv2, we3).
+- A/B result (`round-6/sweep-review/ab/`, abtable.py): the early C crash of we1/pp1 is NOT round 6's code: from the
+  sweep-6 hand-over the round-6 tree, each fix reverted alone (nosf/nop1d/nor28), b2809f0 and b2809f0+round-6 all
+  give 0 trips on day 2 and C 0 by day 2-3; the round-6 tree from the sweep-5 hand-over (cache 532b26d6, r6h5)
+  gives 13 trips on day 2 like sweep 5. Hand-overs differ (RNG streams, human events, carve) though first workers,
+  gd and queen reserves are equal: founding-time changes by other engineers move the RNG. Run-by-run regressions vs
+  sweep 5 are hand-over noise; read mechanisms and medians.
+- Lead: no source known at hand-over in either; C provision lasts ~1 gd; 12 of 18 idle, 2 scouts; whether C is found
+  by day 2 decides rationing.

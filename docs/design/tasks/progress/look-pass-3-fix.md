@@ -24,3 +24,4 @@
 04:42 chain ALL DONE exit 0 for views(quick), controls, panelsA, panelsB, hud. Next: photo quick again (wing roughness), firstplay 1-20 (long).
 04:55 queen day look still partial (grey glass gaster = sky reflection, not wings); veinAlpha 0.45. Starting firstplay UNTIL=13 (bg) log test-output/look3fix/firstplay.log
 05:05 report items 5,6 corrected (far walls reverted, farFacade.ts deleted; queen day look still open). Waiting firstplay UNTIL=13 then write report section 12 (browser results) + final summary.
+05:25 FINISHED: report sections 11-12 written; render 829 / game 583 green, typecheck clean. firstplay beat 11 fails (flow, not render). Remaining only StructuredOutput.

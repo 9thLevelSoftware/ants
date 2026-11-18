@@ -3,6 +3,9 @@ import { SR, fade, hp, hp4, squash } from './dsp.mjs';
 import { decodeMp3, encodeMp3, integratedLufs, normalizeLufs, normalizePeak } from './finish.mjs';
 import { meanLufs } from './lufs.mjs';
 
+/** The 96 kbps encode lowers the decoded level by this much (measured on noise and sines); old-levels.json was measured on decoded files. */
+const ENCODER_LOSS_DB = 0.45;
+
 /**
  * Spec fields: id ('audio/sfx/name'), seed, render({ rng }) -> Float64Array[] (1 or 2 channels), and one of
  *   loop: true  - periodic by construction, left untouched, normalised to `lufs` integrated
@@ -22,7 +25,7 @@ export function renderPcm(spec, makeRng) {
     normalizePeak(chs, spec.peakDb ?? -3);
     // keep the loudness of the file this replaces (the cue gains were tuned against it); never above the -3 dBFS peak
     if (spec.matchMeanLufs !== undefined) {
-      const over = meanLufs(chs, SR) - spec.matchMeanLufs;
+      const over = meanLufs(chs, SR) - (spec.matchMeanLufs + ENCODER_LOSS_DB);
       if (over > 0) for (const c of chs) for (let i = 0; i < c.length; i++) c[i] *= Math.pow(10, -over / 20);
     }
   } else {

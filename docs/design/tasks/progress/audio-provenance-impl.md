@@ -44,3 +44,8 @@ Started 2026-11-18 04:25 UTC (first engineer; no earlier progress file).
 - Done: final render in public/assets/audio, sync-records run, CREDITS.md, public/assets/CREDITS.md, docs/CREDITS-AUDIT.md, MANIFEST.md prose edited. tools/audio/check.mjs (judges all 36: all ok), src/audio/provenance.test.ts (11 pass + LONG block).
 - Squash/matching tuned (thud drive 10, car 3/4, click_03 6, drip_01 3, switch 3). Re-render + sync after any further sound change: node tools/audio/render.mjs && node tools/audio/sync-records.mjs
 - Remaining: src/audio/README.md + assetIds.ts comment, run audio tests (packaging loudness audioPass engine eventMap lifecycle) + credits parse test (expect fail: src/ui/screens/credits/parse.test.ts line 25 wants 'archive.org' group -> report one-line change), FOUNDRESS_LONG run of provenance test, portable build+verify, measure tables (old.json vs new.json via measure.ts on public/assets), spectrogram look, report.
+
+## Update 05:08 UTC
+- Report written: docs/design/tasks/audio-provenance-report.md (one placeholder left: VERIFY_STATUS_PLACEHOLDER = result of npm run verify:portable browser stages, running in background via /tmp/verify.sh -> test-output/audio-provenance/verify-portable.log; it waits for other engineers' headless browsers).
+- All code, tests (provenance.test.ts 13 pass LONG), docs (CREDITS x2, AUDIT, MANIFEST, README) done. build:portable OK (audio pack 8.14 MB), static verify PASS.
+- Remaining: fill the placeholder from verify log, final StructuredOutput. Do not re-render sounds (final).
