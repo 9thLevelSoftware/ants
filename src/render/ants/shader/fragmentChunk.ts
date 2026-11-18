@@ -1,6 +1,6 @@
 // Fragment-side GLSL: per-part roughness, cuticle micro-variation, compound-eye facets, and the selection highlight
 // (a faint rim term; GDD 08 §11.8 forbids cartoon outlines). The look numbers live in ../tuning.ts.
-import { ANT_NIGHT_LOOK, WING_LOOK } from '../tuning';
+import { ANT_DAY_LOOK, ANT_NIGHT_LOOK, WING_LOOK } from '../tuning';
 
 export const ANT_FRAG_PARS = /* glsl */ `
 varying vec3 vAntMat;
@@ -90,6 +90,7 @@ export const ANT_SHEEN = /* glsl */ `#include <lights_physical_fragment>
 #ifdef USE_CLEARCOAT
   material.clearcoat *= vAntK.x; // a stretched membrane is dull, not lacquered (white rings on a full gaster)
   material.clearcoat *= 1.0 - ${ANT_NIGHT_LOOK.clearcoatCut.toFixed(2)} * uFillK; // at night the mirror would only show the sky: chrome
+  material.clearcoat *= mix(${ANT_DAY_LOOK.clearcoatMul.toFixed(2)}, 1.0, uFillK); // by day it mirrors the overcast sky: glass, not chitin
 #endif`;
 
 export const WING_FRAG_PARS = /* glsl */ `

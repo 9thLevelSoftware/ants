@@ -140,6 +140,7 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
       // look pass 3: a bare box read as a pale slab. A dark body behind a thin wall skin with window openings (two storeys), a plinth and a
       // roof with eaves. Nothing is layered over a face (parts closer than the depth buffer resolves at that distance flicker, and the
       // picture then changes between two renders of the same frame): the skin has real gaps and the glass is the recessed body.
+      mb.keepNow = 1; // the facade keeps part of its colour through the haze (BACKDROP_KEEP_HAZE)
       const yaw = alongYaw(r), face = band('facade'), D = B.facadeDepth, H = B.facadeHeight, SKIN = B.facadeSkin;
       const cu = (r.u0 + r.u1) / 2, hw = len / 2 + 600;
       /** A box between along-edge offsets [a, b] from the centre line, heights [y0, y1] and depths [d0, d1] beyond the face. */
@@ -163,6 +164,7 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
         y = hi;
       }
       slab(-hw, hw, y, H, 0, SKIN, BACKDROP_HEX.facade);
+      mb.keepNow = 0;
       continue;
     }
     if (r.treatment === 'road') {

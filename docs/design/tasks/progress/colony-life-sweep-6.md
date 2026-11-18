@@ -64,3 +64,8 @@ Started 04:03 UTC Nov 18. No earlier progress file; fresh start.
 - Running: A/B to winter `round-6/sweep-review/ab/abw.sh` (restart-safe), r6 vs b2809f0 from the sweep-6
   hand-overs, sg2 pp3 cpv1 kd3 kd1 -> `ab/r6-winter`, `ab/b280-winter`.
 - Still to do: read the failing runs' diagnostics for leads, write ledger section, delete scratch trees.
+
+## 05:45 UTC — done
+- A/B to winter (`ab/abw-table.txt`): round-6 tree vs b2809f0 from the sweep-6 hand-overs: 10/9, 11/9, 16/15, 10/9,
+  9/9 workers at winter (sg2, pp3, cpv1, kd3, kd1): round 6 is not the regression.
+- Ledger section "### Independent sweep after round 6" written. Scratch trees deleted; no process running.

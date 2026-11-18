@@ -17,7 +17,7 @@ export function LogTab({ j }: { j: UiJournal }) {
         const st = ALERT_LEVEL_STATUS[level];
         return (
           <li key={`${e.tick}-${i}`} class="pn-log-row" data-level={level}>
-            <span class="pn-log-time">{timeLine(j, e.tick)}</span>
+            <span class="pn-log-time">{timeLine(j, e.tick, e.calTick)}</span>
             <span class={`pn-shape is-${st}`} title={ALERT_WORDS[level]}><Icon name={`status-${st}`} size={16} label={ALERT_WORDS[level]} /></span>
             <span class="pn-log-text">{eventWording(e)}</span>
             {e.focus && bridge ? <button type="button" class="pn-iconbtn" aria-label="Show" title="Show" onClick={() => bridge.jumpTo(e.focus!)}><Icon name="jump-to" size={16} decorative /></button> : <span />}

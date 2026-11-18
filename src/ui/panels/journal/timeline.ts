@@ -22,8 +22,8 @@ export interface Pin {
 }
 
 /** Date line of a tick: "Summer · Day 3 · Year 1". */
-export function dateLine(j: Pick<UiJournal, 'startTick' | 'seasonLength'>, tick: number): string {
-  const { year, season, day } = dateParts(j.seasonLength, calDay(j, tick));
+export function dateLine(j: Pick<UiJournal, 'startTick' | 'seasonLength'>, tick: number, calTick?: number): string {
+  const { year, season, day } = dateParts(j.seasonLength, calDay(j, tick, calTick));
   return `${SEASON_WORD[season]} · Day ${day} · Year ${year}`;
 }
 
@@ -37,7 +37,7 @@ export function entryWording(e: UiJournalEntry): { title: string; text: string }
 export function milestonePins(j: UiJournal): Pin[] {
   return j.entries.filter((e) => e.kind === 'milestone').map((e) => {
     const w = entryWording(e);
-    return { id: e.id, key: e.key, tick: e.tick, day: calDay(j, e.tick), title: w.title, text: w.text, thumb: j.thumbs[e.key] ?? null, lane: 0, date: dateLine(j, e.tick) };
+    return { id: e.id, key: e.key, tick: e.tick, day: calDay(j, e.tick, e.calTick), title: w.title, text: w.text, thumb: j.thumbs[e.key] ?? null, lane: 0, date: dateLine(j, e.tick, e.calTick) };
   }).sort((a, b) => a.tick - b.tick || a.id - b.id);
 }
 
@@ -108,9 +108,9 @@ export const AIM_CODEX: Readonly<Record<string, string>> = {
 };
 
 /** "Summer · Day 3 · 14:20": date and clock of a tick (event log rows). */
-export function timeLine(j: Pick<UiJournal, 'startTick' | 'seasonLength'>, tick: number): string {
-  const cal = tick + j.startTick;
+export function timeLine(j: Pick<UiJournal, 'startTick' | 'seasonLength'>, tick: number, calTick?: number): string {
+  const cal = calTick ?? tick + j.startTick;
   const h = ((cal % TICKS_PER_DAY) / TICKS_PER_DAY) * 24;
   const hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
-  return `${dateLine(j, tick)} · ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  return `${dateLine(j, tick, calTick)} · ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }

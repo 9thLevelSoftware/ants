@@ -251,7 +251,30 @@ export default async (ctx) => {
         await click('founding-tend');
         await step(1);
         expect(await phase() === 'timelapse', 'Tend the brood did not start the time-lapse', await phase());
-        for (let i = 0; i < 400; i++) { const t = (await view()).timelapse; if (!t || t.counters.larvae > 0) break; await step(200); }
+        // Step until the overlay shows brood (larvae), in short steps. The lapse is NOT closed by the founding flow: the simulation ends it
+        // itself when every brood item is gone before a worker eclosed ("brood lost", fnd-review rule): the opening then goes back to the
+        // lay phase for ONE relay clutch (colony/founding/failure.ts broodLost). The overlay is then legitimately gone, and the way to a
+        // lapse that shows brood is to tend the new clutch. `lapseTrace` records what the lapse looked like, for the report.
+        const lapseTrace = [];
+        result.checks.relayClutches = 0;
+        for (let i = 0; i < 400; i++) {
+          const t = (await view()).timelapse;
+          lapseTrace.push(t ? { i, progress: Math.round(t.progress * 1000) / 1000, stage: t.stage, counters: t.counters } : { i, over: true, phase: await phase() });
+          if (t && t.counters.larvae > 0) break;
+          if (!t) {
+            const ph = await phase();
+            if (ph !== 'lay' || result.checks.relayClutches >= 2) break; // handed over, failed, or a second relay: let the beat report it
+            result.checks.relayClutches++;
+            log('the lapse ended in brood lost; relay clutch', result.checks.relayClutches, JSON.stringify(lapseTrace[lapseTrace.length - 2] ?? null));
+            for (let k = 0; k < 120 && !(await visible('founding-tend')); k++) await step(25);
+            await click('founding-tend');
+            await step(1);
+            continue;
+          }
+          await step(50);
+        }
+        result.checks.lapseTrace = lapseTrace.filter((_, k) => k % 10 === 0 || k === lapseTrace.length - 1);
+        log('lapse trace', JSON.stringify(lapseTrace[lapseTrace.length - 1]), 'relay clutches', result.checks.relayClutches);
         await beat('11-timelapse', ['founding-lapse']);
         done('11');
         await click('founding-skip');

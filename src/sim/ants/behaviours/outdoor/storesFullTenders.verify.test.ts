@@ -6,6 +6,9 @@
 //
 // Check: pool room for 1.5 crops, tenders assigned and waiting in the nest. Every departure is checked against the
 // rule at the tick it happens, counting as out every tender already on her way (left the nest or in the herd branch).
+// Round 7: each tender's own crop (CROP_RETURN_FRACTION x her crop capacity; workers differ in size) is summed, as the
+// rule reads; the review's version used the first worker's crop for every tender, which flags a small tender whose
+// own crop fits the room.
 
 import { describe, expect, it } from 'vitest';
 import { colonySlotBit } from '@/sim/entities';
@@ -46,13 +49,14 @@ describe('SF review: tenders do not leave together into room for one crop', () =
         const roomBefore = poolSpace(col).c;
         stepTicks(sim, 1);
         const now = new Set(sim.state.ants.filter(onWay).map((a) => a.id));
-        let already = [...prev].filter((id) => now.has(id)).length;
+        const cropOf = (id: number): number => CROP_RETURN_FRACTION * sim.state.ants.find((a) => a.id === id)!.cropCap;
+        let already = [...prev].filter((id) => now.has(id)).reduce((sum, id) => sum + cropOf(id), 0);
         for (const id of now) {
           if (prev.has(id)) continue;
-          const ok = roomBefore >= (already + 1) * crop - 1e-9;
+          const ok = roomBefore >= already + cropOf(id) - 1e-9;
           if (!ok) violations++;
-          departures.push(`t${t} ant ${id}: room ${roomBefore.toFixed(2)} already on the way ${already}${ok ? '' : ' VIOLATION'}`);
-          already++;
+          departures.push(`t${t} ant ${id}: room ${roomBefore.toFixed(2)} crops on the way ${already.toFixed(2)} hers ${cropOf(id).toFixed(2)}${ok ? '' : ' VIOLATION'}`);
+          already += cropOf(id);
         }
         prev = now;
       }

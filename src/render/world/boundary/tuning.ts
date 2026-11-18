@@ -47,6 +47,11 @@ export const BACKDROP_RIM_HAZE = 0.7;
 export const BACKDROP_MIN_HAZE = 0.3;
 /** ...and at night (look-pass 2): moonlit panels and canopies against the dark horizon band must not read as pale slabs. */
 export const BACKDROP_MIN_HAZE_NIGHT = 0.8;
+/**
+ * Share of its own colour the house facade keeps through the haze (look pass 3 review, firstplay beat 4: the far wall read as a pale
+ * untextured box, the design haze hid its plinth and windows). Only the facade's vertices carry it; trees, fences and cars keep the full haze.
+ */
+export const BACKDROP_KEEP_HAZE = 0.6;
 /** Silhouette fuzz: the outermost rim of a backdrop shape is dithered away (hashed alpha), 0..1 strength. */
 export const BACKDROP_FUZZ = 0.85;
 /** Foliage masses: radius noise amplitude and underside darkening of canopies, shrubs and hedges. */

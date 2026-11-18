@@ -6,6 +6,10 @@ export class MeshBuilder {
   readonly positions: number[] = [];
   readonly normals: number[] = [];
   readonly colors: number[] = [];
+  /** Per vertex: 0..1 share of its own colour a shape keeps through the haze (the house facade, so its plinth and windows read from afar). */
+  readonly keep: number[] = [];
+  /** The `keep` value given to the vertices appended from now on. */
+  keepNow = 0;
   readonly index: number[] = [];
 
   get vertexCount(): number { return this.positions.length / 3; }
@@ -15,6 +19,7 @@ export class MeshBuilder {
     this.positions.push(x, y, z);
     this.normals.push(nx, ny, nz);
     this.colors.push(c.r, c.g, c.b);
+    this.keep.push(this.keepNow);
     return this.vertexCount - 1;
   }
 

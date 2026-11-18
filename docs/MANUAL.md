@@ -2,7 +2,7 @@
 
 This manual describes the game as it is on 2026-11-18. It says what the game does today. Where something is unfinished or not in the game yet, it says so. The game is a first playable and has known problems: they are listed in section 20.
 
-This is the only manual. An older draft that lived in `docs/manual/` has been merged into this file (sections 15 to 19 and the notes in section 13) and removed. The tables marked "generated" are written by `tests/docs/regen-manual.ts` from the code that the game reads (section 20 says how to run it); `tests/docs/docs-final.test.ts` fails when they drift.
+This is the only manual. An older draft that lived in `docs/manual/` has been merged into this file (sections 15 to 19 and the notes in section 13) and removed. The tables marked "generated" are written by `tests/docs/regen-manual.mjs` from the code that the game reads (section 20 says how to run it); `tests/docs/docs-final.test.ts` fails when they drift.
 
 ## 0. Conventions
 
@@ -60,7 +60,7 @@ Natural, Spring, Summer or Autumn. Winter is greyed out. Natural is the species'
 
 Gentle, Naturalist (the default) and Harsh are presets. Under each card, "What ... changes" lists every parameter the preset sets. Changing any custom rule turns the card into Custom.
 
-The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROWS`, `presetCard`). A row marked **not in effect** has no consumer in the game: nothing reads that value. The New Game screen greys out and labels "Not in this build" the first five of these rows only. The sixth, "Automatic slow-down at an alert", is shown on the screen as if it worked, and does not: the preset value is stored in the game state but nothing reads it. What the game does at an alert is set by the Settings value described in section 8, whatever the preset. This is a wrong string of the game; see section 15.
+The text of each card says what the preset changes (it is `PRESET_SUMMARY` in `src/sim/config/presetDisplay.ts`; it makes no claim about how a game goes). The table below is generated from the same file (`PRESET_ROWS`, `presetCard`). A row marked **not in effect** has no consumer in the game: nothing reads that value. The New Game screen greys out every such row and labels it "Not in this build". The row "Automatic slow-down at an alert" is in effect: when a new game begins, its value (pause for Gentle, slow for the others) becomes the starting value of Settings > Gameplay > "Slow down at a critical alert" (section 8). The row "Grace period before threats" is in effect too: for that long at the start of a game no human event and no predator (ants' predators, bird visits) is spawned.
 
 <!-- generated:presets:start -->
 | Group | Parameter | Gentle | Naturalist | Harsh |
@@ -110,7 +110,7 @@ The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROW
 | Time and interface | Warnings before trouble **(not in effect)** | strong | normal | minimal |
 <!-- generated:presets:end -->
 
-Custom rules. Seven rules are offered under "Custom rules" on the New Game screen, and an eighth, Starting season, sits in the Locality column: these are the eight rows marked "on screen" below. The two rules marked "greyed" are listed on the screen with the words "Not in this build". The rules marked "not on screen" exist in the game's rule table (`src/sim/config/presetDisplay.ts`, `RULE_DISPLAY`) but the New Game screen has no control for them. Season length, starting season and the number of rivals are fixed when the world is made.
+Custom rules. Eight rules are offered under "Custom rules" on the New Game screen (predators, rival colonies, human activity, weather severity, season length, founding leniency, winter and nest collapse), and a ninth, Starting season, sits in the Locality column: these are the nine rows marked "on screen" below. The three rules marked "greyed" are listed on the screen with the words "Not in this build": two because nothing reads them, and "Extinction ends the game" because the game could not be ended once the last ant has died (no screen retires a colony). Each rule has a one-line help text; where the effect it names includes a part that nothing reads yet (predators: threats during the opening and predator events on the nuptial flight; founding leniency: threats during the opening), the text says "Not in this build" for that part. Season length, starting season and the number of rivals are fixed when the world is made.
 
 The Gentle, Naturalist and Harsh columns show the value each preset sets (`presetRuleValues` in `src/sim/balance/difficulty.ts`). Season length is 7 days and starting season is Natural in all three presets. The `rivals` rule counts established rival colonies. It is not the same as the preset row "Rival colonies" in the table above, which counts the young rival colonies nearby (1, 2 or 3): the rule value 0 removes both (ruling R23).
 
@@ -143,7 +143,7 @@ Making the world takes some seconds. The loading page shows the stages. If gener
 
 You begin as a single founding queen, playing by hand. The game teaches one verb at a time with a prompt near the queen. A prompt stops showing once you have used its verb a few times. The key on the prompt is the key you have bound. The journal's aims ask one question at a time ("Where is the ground sheltered, warm and diggable?"). The **Focus line** under the clock shows the current top aim ("Aim: ..."); a click on it opens Journal > Aims (`J`). In Settings > Gameplay > Focus line, Auto shows it through the first 2 game days of a colony and for 30 real seconds each time a new aim opens, Always keeps it on, Never hides it. The aims also appear on the hand-over banner. They never block play.
 
-The steps (hint and aim wording: `src/content/text/hints.ts`):
+The steps (hint and aim wording: `src/content/text/hints.ts`). First an intro card names the species, the locality, the season and the day; it fades on any input, and no prompt is drawn over it.
 
 1. **Search.** Walk with `W A S D`; look around by dragging with the right or middle mouse button (or the arrow keys). Antennate the ground with `T` (Inspect) to read the soil. Sheltered ground that is neither dry nor flooded is better than open lawn. The speed is limited to 2x in the search, dig, seal and lay phases.
 2. **Dig.** Hold `F` on diggable ground. The queen carries the soil out as pellets and drops them beside the shaft. A readiness bar shows when the shaft is deep enough and the chamber large enough.
@@ -153,6 +153,13 @@ The steps (hint and aim wording: `src/content/text/hints.ts`):
 6. **Hand-over.** The first workers open the plug. A hint offers `Tab` to possess a worker; you may stay with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
 
 If the founding fails, a card says why and, depending on the difficulty, offers another site (Gentle: 3 tries, Naturalist: 1, Harsh: 0).
+
+After the hand-over:
+
+- `Tab`<!--key:possess-next--> takes a worker. Possessing changes who you control, not the biology: the ant still gets hungry, ages and can die.
+- `X`<!--key:release--> lets go and lets you watch the colony. In the observer view you can fly, click an ant to inspect it, and take control of any ant of your colony.
+- `M`<!--key:colony-view--> surveys the colony from above, with a cutaway of the nest, and places markers. `I`<!--key:directives--> opens Colony orders, the priorities of the whole colony.
+- `P`<!--key:pause-toggle--> pauses. Orders, markers and panels work while the game is paused. `Esc`<!--key:menu--> opens the pause menu, which has Save, Load, Settings and Controls.
 
 ## 3. The views
 
@@ -314,7 +321,7 @@ Notation: `LMB`, `RMB`, `MMB` are the left, right and middle mouse buttons; "tap
 
 The Photo mode row lists `F2` for the keyboard and two chords for the gamepad: press both sticks in, in either order (`LS+RS` or `RS+LS`).
 
-#### The essentials
+### The essentials
 
 | To do this | Press |
 | --- | --- |
@@ -340,23 +347,23 @@ The Photo mode row lists `F2` for the keyboard and two chords for the gamepad: p
 Pressing a key twice within a short time, or holding it, can mean a different thing: tap `E`<!--key:interact--> to pick up, hold it for the second action. Hold `T`<!--key:inspect--> for an antennal sweep. A prompt near the ant always names the action that is available.
 
 
-#### Looking around without pointer lock
+### Looking around without pointer lock
 
 By default you turn the camera by dragging with the right mouse button; the middle button also drags in the observer and colony views. Nothing needs the mouse to be captured. Pointer lock is an option (`F8`<!--key:pointer-lock-toggle--> toggles it): if the browser refuses it, the game says so and the drag controls keep working.
 
-#### Browser keys
+### Browser keys
 
 `F5`<!--key:quick-save--> and `F9`<!--key:quick-load--> are quick save and quick load, and `F2`<!--key:photo-mode--> is photo mode. The game stops the browser from acting on these keys only while the game itself has focus and no text field is active. Some pages that embed the game swallow function keys. Every one of those actions is also in a menu.
 
-#### Rebinding
+### Rebinding
 
 Select a binding in Settings > Controls, press the new key, and the game tells you if the key is already in use in the same layer. Escape, F11 and F12 cannot be bound, and neither can Ctrl, Alt or Meta; Shift can. Reset all returns every key to its default and keeps your other settings. `Shift+/`<!--key:controls-reminder--> shows a reminder of the controls at any time, and the pause menu has a Controls item.
 
-#### Gamepad
+### Gamepad
 
 Every action can be played from a gamepad with the standard mapping, and every menu can be used with it: the D-pad or left stick moves between controls, A chooses, B goes back, LB and RB switch tabs, LT and RT scroll, X and Y are the second and third action of a row (for example Possess and Follow in the roster). The key hints in the game switch to controller glyphs (letters on an Xbox-style pad, shapes on a PlayStation pad) as soon as you use the pad, and back to keys when you use the keyboard or mouse again. The gamepad column of the tables below is the standard mapping; it was not checked against a real controller.
 
-#### Every control
+### Every control
 
 The tables below are generated from the bindings (section 20 says how to regenerate them).
 
@@ -802,7 +809,7 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 - **Colonies do not reliably grow.** In unattended test runs, few colonies met the survival bar at the first winter, and growth in the second year was not shown. The first workers often live on the queen's provision; protein intake is low. A colony you play may stagnate or die in the first year.
 - Foragers often wait at the entrance ("waiting to leave - timeout") and few ants are on the surface.
 - Predation was recalibrated on 2026-11-17 and is lower for small colonies; the stop-gap values are in force.
-- Death causes in the epitaph are sometimes "unknown" (a colony ended with the test cheat `cheat.killAll` now shows the cause that cheat is given).
+- Death causes in the epitaph are sometimes "unknown" (the test cheat `cheat.killAll` books every death as unknown; `tests/e2e/lifecycle.mjs` now ends its colony with `cheat.kill` and a cause per ant).
 - The entrance can stay in a "reopening" state for days after a pad-played opening, which keeps the hints silent.
 - Three rulings are not built: reopening time after hand-over (R14), stacked-rain flooding on a safe site (R13) and the "loud hour" definition (R28). See `docs/design/gdd/DEVIATIONS.md`.
 
@@ -818,4 +825,4 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 
 If something is wrong that is not listed here, the debug flags in README.md (`?test=1` and the `window.__game` API) can reproduce a state quickly.
 
-**Regenerating the tables.** Section 1.3 (species), section 1.6 (the preset and rule tables) and section 13 (the controls) sit between `<!-- generated:... -->` comments and are written from the code by `npm run sim -- tests/docs/regen-manual.ts`. Run it after a change to the species cards, `src/sim/config/presetDisplay.ts` or the bindings; `tests/docs/docs-final.test.ts` and `src/content/text/controls.test.ts` fail while the file is out of date.
+**Regenerating the tables.** Section 1.3 (species), section 1.6 (the preset and rule tables) and section 13 (the controls) sit between `<!-- generated:... -->` comments and are written from the code by `npm run sim -- tests/docs/regen-manual.mjs`. Run it after a change to the species cards, `src/sim/config/presetDisplay.ts` or the bindings; `tests/docs/docs-final.test.ts` and `src/content/text/controls.test.ts` fail while the file is out of date.

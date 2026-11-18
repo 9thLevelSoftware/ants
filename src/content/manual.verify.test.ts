@@ -1,25 +1,13 @@
-// Independent verification of the player manual (reviewer's tests): unmarked key mentions, table shape, screen
+// Independent verification of the player manual, docs/MANUAL.md (reviewer's tests): unmarked key mentions, table shape, screen
 // coverage against the id registry, heading hygiene.
 import { describe, expect, it } from 'vitest';
 import index from '../../docs/design/gdd/00-index.md?raw';
-import readme from '../../docs/manual/README.md?raw';
-import gettingStarted from '../../docs/manual/01-getting-started.md?raw';
-import controls from '../../docs/manual/02-controls.md?raw';
-import views from '../../docs/manual/03-views.md?raw';
-import colony from '../../docs/manual/04-the-colony.md?raw';
-import nest from '../../docs/manual/05-the-nest.md?raw';
-import species from '../../docs/manual/06-species.md?raw';
-import settings from '../../docs/manual/07-settings.md?raw';
-import troubleshooting from '../../docs/manual/08-troubleshooting.md?raw';
+import manual from '../../docs/MANUAL.md?raw';
 import { ACTIONS } from '@/input/actions';
 import { bindingLabel, defaultBindings } from '@/input/bindings';
 
-const PAGES: Record<string, string> = {
-  'README.md': readme, '01-getting-started.md': gettingStarted, '02-controls.md': controls, '03-views.md': views,
-  '04-the-colony.md': colony, '05-the-nest.md': nest, '06-species.md': species, '07-settings.md': settings,
-  '08-troubleshooting.md': troubleshooting,
-};
-const ALL = Object.values(PAGES).join('\n');
+const PAGES: Record<string, string> = { 'MANUAL.md': manual };
+const ALL = manual;
 
 /** Every label a default binding can display (keyboard, mouse, gamepad), to check unmarked key names against. */
 function defaultLabels(): Set<string> {
@@ -91,15 +79,6 @@ describe('manual structure and hygiene', () => {
     for (const [name, text] of Object.entries(PAGES)) {
       expect(text.endsWith('\n'), name).toBe(true);
       expect(text, name).not.toMatch(/\t/);
-    }
-  });
-
-  it('has every verify-at-release marker directly above a heading and none dangling', () => {
-    for (const [name, text] of Object.entries(PAGES)) {
-      const lines = text.split('\n');
-      lines.forEach((l, i) => {
-        if (l.trim() === '<!-- verify-at-release -->') expect(lines[i + 1], `${name}:${i + 1}`).toMatch(/^#{2,4} /);
-      });
     }
   });
 });

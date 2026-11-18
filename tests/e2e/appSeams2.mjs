@@ -84,6 +84,7 @@ export default async ({ page, log, out }) => {
   await g(() => window.__game.release());
   await g(() => window.__game.step(3));
   await g(() => window.__game.camera.set('observer'));
+  await g(() => window.__game.camera.free()); // fly free above the entrance: the staging put the camera in the mound
   await g(() => window.__game.renderFrame());
   await frames(8);
   const obs = await hudBoxes();
@@ -102,19 +103,68 @@ export default async ({ page, log, out }) => {
   expect(Math.hypot(after.x - before.x, after.z - before.z) > 100, 'the click panned the camera', { before, after });
   await shot('05-observer-after-click');
 
-  // 4. the focus line after the hand-over: a new aim opens, 30 real s window (auto)
-  const focus = await g(() => window.__hud.game.lastSnapshot?.focusAim ?? null);
-  log('focus aim', JSON.stringify(focus), JSON.stringify(await hudBoxes()));
+  // 4. the focus line when a new aim opens: the colony is past its first 2 days (the hand-over lapse), the top aim is closed by hand
+  //    (staging: no milestone fired in the cheat run) and the next one opens: Auto shows it for 30 real seconds
   await g(() => window.__game.fx.overlay('scent', false));
+  const aimBefore = await g(() => window.__hud.game.lastSnapshot?.focusAim ?? null);
+  await g(() => {
+    const sim = window.__hud.game.session.sim, top = sim.state.progression.aims.filter((a) => a.state === 'open').sort((a, b) => a.openedTick - b.openedTick)[0];
+    if (top) { top.state = 'done'; top.doneTick = sim.state.tick; }
+    window.__game.step(2);
+    window.__hud.game.refreshUi();
+  });
+  await frames(6);
+  const aimAfter = await g(() => window.__hud.game.lastSnapshot?.focusAim ?? null);
+  const hudFocus = await hudBoxes();
+  log('focus aim aimBefore/aimAfter', JSON.stringify(aimBefore), JSON.stringify(aimAfter), JSON.stringify(hudFocus));
+  expect(aimAfter && aimAfter.newColony === false && hudFocus.focus && hudFocus.focus.startsWith('Aim:'), 'the focus line shows a newly opened aim', { aimAfter, hudFocus });
+  await shot('06-focus-line-new-aim');
 
-  // 5. Settings > Gameplay (pause menu)
+  // 5. the journal across a winter: the clock is set into the winter, entries written aimBefore keep their own dates
+  await g(() => window.__game.cheat.setTime(22 * 6000 + 3000));
+  await g(() => window.__game.step(300));
+  await page.keyboard.press('KeyJ');
+  await page.waitForSelector('[data-testid="journal-aims"], .pn-book', { timeout: 60000 });
+  await page.locator('.pn-book [role="tab"]', { hasText: 'Log' }).click().catch(() => {});
+  await frames(4);
+  await shot('07-journal-log-across-winter');
+  const rows = await g(() => Array.from(document.querySelectorAll('.pn-log-time')).slice(-8).map((e) => e.textContent));
+  log('log times', JSON.stringify(rows));
+  await page.locator('.pn-book [role="tab"]', { hasText: 'Milestones' }).click().catch(() => {});
+  await frames(4);
+  await shot('08-journal-milestones-across-winter');
+  await page.keyboard.press('Escape');
+
+  // 6. Settings > Gameplay (pause menu), the rows and then the bottom of the tab
   await g(() => window.__game.ui.open('pause'));
   await page.waitForSelector('[data-testid="pause-settings"]', { timeout: 60000 });
   await page.locator('[data-testid="pause-settings"]').click();
   await page.locator('.ui-book [role="tab"]', { hasText: 'Gameplay' }).click();
   await frames(5);
-  await shot('06-settings-gameplay');
-  const rows = await g(() => Array.from(document.querySelectorAll('.ui-book .ui-field, .ui-book [class*="field"] label')).map((e) => e.textContent?.slice(0, 40)));
-  log('rows', JSON.stringify(rows));
+  await shot('09-settings-gameplay-top');
+  await page.evaluate(() => { const sc = document.querySelector('.ui-book .ui-scroll, .ui-book [class*="scroll"]'); if (sc) sc.scrollTop = sc.scrollHeight; });
+  await frames(4);
+  await shot('10-settings-gameplay-bottom');
+
+  // 7. New colony: species, locality, the rules with the preset text, then the custom rules and the preset table
+  await g(() => window.__game.endGame());
+  await frames(6);
+  await page.locator('[data-testid="menu-new"]').click();
+  await frames(6);
+  await shot('11-new-game');
+  const help = await g(() => document.querySelector('[data-testid="start-help"]')?.textContent ?? null);
+  log('start help', help);
+  expect(help && /day 5 of Spring/.test(help), 'the start help names the species day (5), not 3', help);
+  await page.locator('[data-testid="custom-toggle"]').click();
+  await frames(3);
+  await page.evaluate(() => { const cols = document.querySelectorAll('.ui-column-scroll'); const c = cols[cols.length - 1]; if (c) c.scrollTop = c.scrollHeight; });
+  await frames(4);
+  await shot('12-new-game-custom-rules');
+  await page.locator('[data-testid="preset-toggle"]').click();
+  await frames(3);
+  await shot('13-new-game-preset-rows');
+  const rivals = await g(() => Array.from(document.querySelectorAll('[data-testid="preset-rows"] .ui-preset-row')).map((e) => e.textContent).filter((t) => /rival/i.test(t ?? '')));
+  log('rival rows', JSON.stringify(rivals));
+  expect(rivals.every((t) => !/\b1 young rivals\b/.test(t)), 'plural rule on the rival row', rivals);
   return { intro, open1, poss, obs };
 };

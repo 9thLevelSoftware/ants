@@ -79,7 +79,7 @@ export interface AntMatOptions { physical?: boolean; roughness?: number; sheen?:
 export function makeAntMaterial(rig: AntRig, shared: SharedAntUniforms, o: AntMatOptions = {}): Material {
   const common = { vertexColors: true, roughness: o.roughness ?? CUTICLE.roughness, metalness: 0.0, transparent: o.transparent ?? false, opacity: o.opacity ?? 1 };
   const mat = o.physical
-    ? new MeshPhysicalMaterial({ ...common, sheen: o.sheen ?? 0.5, sheenRoughness: 0.6, sheenColor: new Color('#5f5a50'), clearcoat: o.clearcoat ?? CUTICLE.clearcoat, clearcoatRoughness: o.clearcoatRoughness ?? CUTICLE.clearcoatRoughness })
+    ? new MeshPhysicalMaterial({ ...common, sheen: o.sheen ?? 0.5, sheenRoughness: 0.6, sheenColor: new Color(CUTICLE.sheenColor), clearcoat: o.clearcoat ?? CUTICLE.clearcoat, clearcoatRoughness: o.clearcoatRoughness ?? CUTICLE.clearcoatRoughness })
     : new MeshStandardMaterial(common);
   const u = rigUniforms(rig, shared);
   mat.onBeforeCompile = (shader) => {

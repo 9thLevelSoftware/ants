@@ -18,6 +18,7 @@
 
 import type { Entrance, Mound, Sim } from '@/sim/types';
 import { heightAt } from '@/sim/world/terrainSample';
+import { groundDeltaAt, groundDeltaStamp } from '@/sim/world/groundDelta';
 import {
   MOUND_BREACH_PROBE_BU, MOUND_CAP_REACH_BU, MOUND_CLEAR_PAD_BU, MOUND_HOLE_PROBE_BU, MOUND_HOLE_PROBE_DEPTH_BU, MOUND_MAX_SWEEPS, MOUND_SWEEP_PAD,
   MOUND_TRANSFER_EPS_BU,
@@ -77,9 +78,11 @@ export function moundMask(sim: Sim, m: Mound): MoundMask {
 
 /**
  * Every input of buildMask that is not the carve grid (whose near-surface changes drop the entry in the nest
- * runtime's carve listener) or the static base: the entrances on the grid and the breach records it probes around
- * (positions and radii, the ones near the grid only). Keyed on the breach count alone, a breach replaced by another
- * elsewhere kept a stale mask (nest-fix3 item 3, weather-fix2's restore divergence).
+ * runtime's carve listener) or the static base: the entrances on the grid, the breach records it probes around
+ * (positions and radii, the ones near the grid only) and the terrain deltas over the grid (footprints and sand play
+ * move the ground the hole probe reads; they are edited in place). Keyed on the breach count alone, a breach replaced
+ * by another elsewhere kept a stale mask (nest-fix3 item 3, weather-fix2's restore divergence); without the deltas a
+ * print kept the mask built before it while a loaded game built it after (colony-life round 7, sweep-6 finding 1).
  */
 function maskSignature(sim: Sim, m: Mound): string {
   let sig = '';
@@ -89,6 +92,7 @@ function maskSignature(sim: Sim, m: Mound): string {
     if (!breachNearGrid(b, x0, z0, span, pad)) continue;
     sig += `|b${b.pos.x}:${b.pos.z}:${b.r}`;
   }
+  sig += `|d${groundDeltaStamp(sim, x0, z0, x0 + span, z0 + span)}`;
   return sig;
 }
 
@@ -111,11 +115,13 @@ function buildMask(sim: Sim, m: Mound): MoundMask {
       if (Math.hypot(x - cx, z - cz) <= r) fn(iz * n + ix, x, z);
     }
   };
-  // the cavity reaches the ground surface at the grid point (the pile's own height does not hide it: the cavity wins)
+  // the cavity reaches the ground surface at the grid point (the pile's own height does not hide it: the cavity wins).
+  // The ground is the base as pressed or heaped by human events now (a footprint is a dent, not a hole: probed from
+  // the base alone, a 3 mm print read as an open column and its pile was pushed off; colony-life round 7).
   const probe = (idx: number, x: number, z: number): void => {
     if (probed[idx] === 1 || clear[idx] !== 0) return;
     probed[idx] = 1;
-    const g = Number.isNaN(m.base[idx]) ? heightAt(sim.world.terrain, x, z) : m.base[idx];
+    const g = (Number.isNaN(m.base[idx]) ? heightAt(sim.world.terrain, x, z) : m.base[idx]) + groundDeltaAt(sim, x, z);
     if (sim.field.sampleXYZ(x, g - depth, z) > 0) clear[idx] = CLEAR_HOLE;
   };
   const entrances = entrancesOnGrid(sim, m);

@@ -86,6 +86,8 @@ export interface EdgeHazeLook {
    * lighting: no seam) and the skirt's ground takes over gradually. Needs `alphaHash` on the material.
    */
   blend: Uniform<number>;
+  /** Share of its own colour a vertex with `aBdKeep` = 1 keeps through the fog and the edge haze (the house facade); absent = 0. */
+  keepHaze?: Uniform<number>;
 }
 
 /** Fragment code replacing three's <fog_fragment> in the boundary materials. */
@@ -95,6 +97,7 @@ export const EDGE_FOG_FRAGMENT = /* glsl */ `
   // (BOUNDARY_FOG_SCALE): the edge haze below is the aerial perspective of what lies beyond the map, and the full
   // ant-height fog (about 1.2 m visibility on a lawn) would leave nothing of a fence or a tree line to see
   float bdFog = 0.0;
+  float bdKeep = vBdKeep * uBdKeepHaze;
   #ifdef USE_FOG
     float bdFogDepth = vFogDepth * ${BOUNDARY_FOG_SCALE.toFixed(3)};
     #ifdef FOG_EXP2
@@ -102,12 +105,12 @@ export const EDGE_FOG_FRAGMENT = /* glsl */ `
     #else
       bdFog = smoothstep(fogNear, fogFar, bdFogDepth);
     #endif
-    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, bdFog);
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, bdFog * (1.0 - bdKeep));
   #endif
   // then the edge haze toward the sky behind the fragment
   float bdK = max(bdEdgeHaze(vBdW), uBdMin);
   float bdRim = bdRimOf(vNormal, vViewPosition);
-  bdK = clamp(bdK + uBdRim * bdRim * bdRim * (1.0 - bdK), 0.0, 1.0);
+  bdK = clamp(bdK + uBdRim * bdRim * bdRim * (1.0 - bdK), 0.0, 1.0) * (1.0 - bdKeep);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, bdSky(normalize(vBdW - cameraPosition)), bdK);
 }
 `;
@@ -117,21 +120,21 @@ export function patchEdgeHaze(m: MeshStandardMaterial, u: EdgeHazeUniforms, look
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, {
       uBdBox: u.uBdBox, uBdHazeMm: u.uBdHazeMm, uBdHorizon: u.uBdHorizon, uBdZenith: u.uBdZenith, uBdOvercast: u.uBdOvercast,
-      uBdSunDir: u.uBdSunDir, uBdSunGlow: u.uBdSunGlow, uBdRim: look.rim, uBdMin: look.minHaze, uBdFuzz: look.fuzz, uBdBlend: look.blend,
+      uBdSunDir: u.uBdSunDir, uBdSunGlow: u.uBdSunGlow, uBdRim: look.rim, uBdMin: look.minHaze, uBdFuzz: look.fuzz, uBdBlend: look.blend, uBdKeepHaze: look.keepHaze ?? { value: 0 },
     });
     s.vertexShader = s.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBdW;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvBdW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBdW; varying float vBdKeep; attribute float aBdKeep;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvBdW = (modelMatrix * vec4(transformed, 1.0)).xyz; vBdKeep = aBdKeep;');
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform vec4 uBdBox; uniform float uBdHazeMm; uniform vec3 uBdHorizon; uniform vec3 uBdZenith; uniform float uBdOvercast;
-uniform vec3 uBdSunDir; uniform vec3 uBdSunGlow; uniform float uBdRim; uniform float uBdMin; uniform float uBdFuzz; uniform float uBdBlend;
-varying vec3 vBdW;\n${EDGE_HAZE_GLSL}
+uniform vec3 uBdSunDir; uniform vec3 uBdSunGlow; uniform float uBdRim; uniform float uBdMin; uniform float uBdFuzz; uniform float uBdBlend; uniform float uBdKeepHaze;
+varying vec3 vBdW; varying float vBdKeep;\n${EDGE_HAZE_GLSL}
 float bdRimOf(vec3 n, vec3 v) { return 1.0 - abs(dot(normalize(n), normalize(v))); }`)
       .replace('#include <alphahash_fragment>', `diffuseColor.a *= 1.0 - uBdFuzz * pow(bdRimOf(vNormal, vViewPosition), 3.0);
 diffuseColor.a *= uBdBlend > 0.0 ? smoothstep(0.0, uBdBlend, bdOutside(vBdW)) : 1.0;
 #include <alphahash_fragment>`)
       .replace('#include <fog_fragment>', EDGE_FOG_FRAGMENT);
   };
-  m.customProgramCacheKey = () => 'boundary-edge-haze-v6';
+  m.customProgramCacheKey = () => 'boundary-edge-haze-v7';
 }

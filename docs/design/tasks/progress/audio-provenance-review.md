@@ -41,3 +41,7 @@ Reviewer for docs/design/tasks/audio-provenance.md. Started 2026-11-18.
 - Prepared browser decode check: test-output/audio-provenance-review/decode/ + decode-script.mjs (run with
   play.mjs --static --root test-output/audio-provenance-review/decode --script test-output/audio-provenance-review/decode-script.mjs).
 - Then (browser free): spikes/audio-demo loudness.mjs (label=review) and analyse.mjs ?skip=all (loops) -> out test-output/audio-provenance-review/.
+- DONE browser: decode check (Chrome decodes old to exact length, new +1548..2061 samples, thud onset sample 1118 vs 224)
+  -> test-output/audio-provenance-review/decode-out; loudness scenes all ok (footstep short-max -14.6, target -14+-3)
+  -> test-output/audio-provenance-review/loudness/review.json + loudness.png (looked at).
+- Next: analyse.mjs ?skip=all (loop boundaries), then final report.

@@ -1,9 +1,9 @@
 // The controls reference is generated from the bindings table (task codex-content, acceptance 3): the generated table
-// is compared with the one embedded in docs/manual/02-controls.md, and covers every action and axis.
+// is compared with the one embedded in docs/MANUAL.md (section 13), and covers every action and axis.
 import { describe, expect, it } from 'vitest';
 import { ACTIONS, AXES, BUTTON_ACTIONS } from '@/input/actions';
 import { defaultBindings } from '@/input/bindings';
-import controlsPage from '../../../docs/manual/02-controls.md?raw';
+import controlsPage from '../../../docs/MANUAL.md?raw';
 import { CONTROLS_TABLE_END, CONTROLS_TABLE_START, buildControlsReference, controlsMarkdown, describeBinding, groupOf } from './controls';
 
 function embeddedTable(): string {

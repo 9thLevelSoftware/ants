@@ -7,7 +7,7 @@ import type { WorldData } from '@/sim/types';
 import { buildBackdrop } from './backdrop';
 import { applyEdgeHazeLight, createEdgeHazeUniforms, patchEdgeHaze, type EdgeHazeLight, type EdgeHazeUniforms } from './edgeHaze';
 import { buildSkirt } from './skirt';
-import { BACKDROP_FUZZ, BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM, SKIRT_BLEND_BU, SKIRT_NIGHT_ALBEDO } from './tuning';
+import { BACKDROP_FUZZ, BACKDROP_KEEP_HAZE, BACKDROP_MIN_HAZE, BACKDROP_MIN_HAZE_NIGHT, BACKDROP_RIM_HAZE, EDGE_HAZE_K_L, EDGE_HAZE_MIN_MM, SKIRT_BLEND_BU, SKIRT_NIGHT_ALBEDO } from './tuning';
 
 export interface BoundaryStats {
   skirtTriangles: number;
@@ -16,11 +16,12 @@ export interface BoundaryStats {
   drawCalls: number;
 }
 
-function geometry(positions: ArrayLike<number>, normals: ArrayLike<number>, colors: ArrayLike<number>, index: ArrayLike<number>): BufferGeometry {
+function geometry(positions: ArrayLike<number>, normals: ArrayLike<number>, colors: ArrayLike<number>, index: ArrayLike<number>, keep?: ArrayLike<number>): BufferGeometry {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(Float32Array.from(positions), 3));
   g.setAttribute('normal', new BufferAttribute(Float32Array.from(normals), 3));
   g.setAttribute('color', new BufferAttribute(Float32Array.from(colors), 3));
+  g.setAttribute('aBdKeep', new BufferAttribute(keep ? Float32Array.from(keep) : new Float32Array(positions.length / 3), 1));
   g.setIndex(new BufferAttribute(Uint32Array.from(index), 1));
   g.computeBoundingSphere();
   return g;
@@ -31,7 +32,7 @@ export class BoundaryRenderer {
   readonly group = new Group();
   readonly uniforms: EdgeHazeUniforms = createEdgeHazeUniforms();
   private readonly skirtLook = { rim: new Uniform(0), minHaze: new Uniform(0), fuzz: new Uniform(0), blend: new Uniform(0) };
-  private readonly backdropLook = { rim: new Uniform(BACKDROP_RIM_HAZE), minHaze: new Uniform(BACKDROP_MIN_HAZE), fuzz: new Uniform(BACKDROP_FUZZ), blend: new Uniform(0) };
+  private readonly backdropLook = { rim: new Uniform(BACKDROP_RIM_HAZE), minHaze: new Uniform(BACKDROP_MIN_HAZE), fuzz: new Uniform(BACKDROP_FUZZ), blend: new Uniform(0), keepHaze: new Uniform(BACKDROP_KEEP_HAZE) };
   private skirtMat!: MeshStandardMaterial;
   private backdropMat!: MeshStandardMaterial;
   private skirt: Mesh | null = null;
@@ -64,7 +65,7 @@ export class BoundaryRenderer {
     this.skirt.name = 'boundary:skirt';
     this.skirt.receiveShadow = false;
     const bd = buildBackdrop(world);
-    this.backdrop = new Mesh(geometry(bd.mesh.positions, bd.mesh.normals, bd.mesh.colors, bd.mesh.index), this.backdropMat);
+    this.backdrop = new Mesh(geometry(bd.mesh.positions, bd.mesh.normals, bd.mesh.colors, bd.mesh.index, bd.mesh.keep), this.backdropMat);
     this.backdrop.name = 'boundary:backdrop';
     this.group.add(this.skirt, this.backdrop);
     this.st = { skirtTriangles: sk.index.length / 3, backdropShapes: bd.stats.shapes, backdropTriangles: bd.stats.triangles, drawCalls: 2 };

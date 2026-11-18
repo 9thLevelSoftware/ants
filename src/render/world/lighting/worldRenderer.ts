@@ -277,6 +277,8 @@ export class WorldRenderer {
     this.rig.apply(this.lighting, this.ctx.scene, q.fog.enabled);
     const dof = q.post.enabled && q.post.dof.enabled && q.post.dof.bokehScale > 0;
     applySky(this.sky, this.lighting, this.env.moonDir, this.env.moonIllum, this.lighting.keyColor, dof ? STARS_DOF_GAIN : 1);
+    // the occlusion cutaway dithers the ground away round the ant: behind it is the inside of the earth, not the sky's haze
+    this.sky.earthAmt.value = frame.occlusion && frame.occlusion.occlusion > 0 ? Math.min(1, frame.occlusion.occlusion) : 0;
     this.skyMesh.position.copy(this.camPos);
     // real time for the throttle (the animation clock may be frozen); a settle frame (dt 0) bakes at once
     const nowS = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;

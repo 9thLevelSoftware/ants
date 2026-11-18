@@ -27,7 +27,7 @@ export function AimsTab({ j }: { j: UiJournal }) {
                 <div>
                   <p class="pn-aim-text">{aimLine(a.id, j.species)}</p>
                   <p class="pn-muted pn-small">
-                    Since {dateLine(j, a.openedTick)}{a.hint === 'out-of-season' ? ' · this has to wait for the right season' : ''}
+                    Since {dateLine(j, a.openedTick, a.openedCal)}{a.hint === 'out-of-season' ? ' · this has to wait for the right season' : ''}
                     {cx && getCodexEntry(cx) && <> · <button type="button" class="pn-link" onClick={() => openCodexAt(cx)} data-testid="aim-codex">Open codex</button></>}
                   </p>
                 </div>
@@ -42,7 +42,7 @@ export function AimsTab({ j }: { j: UiJournal }) {
           {[...j.aims.done].sort((a, b) => b.doneTick - a.doneTick).map((a) => (
             <li key={a.id} class="pn-aim is-done" data-aim={a.id}>
               <Icon name="check" size={20} decorative />
-              <div><p class="pn-aim-text">{aimLine(a.id, j.species)}</p><p class="pn-muted pn-small">{dateLine(j, a.doneTick)}</p></div>
+              <div><p class="pn-aim-text">{aimLine(a.id, j.species)}</p><p class="pn-muted pn-small">{dateLine(j, a.doneTick, a.doneCal)}</p></div>
             </li>
           ))}
         </ul>

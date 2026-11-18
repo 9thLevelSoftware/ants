@@ -14,13 +14,6 @@ import deviations from '../../docs/design/gdd/DEVIATIONS.md?raw';
 import schemaSource from '../../src/game/settings/schema.ts?raw';
 import modelSource from '../../src/game/settings/model.ts?raw';
 
-/**
- * Preset rows the manual marks "not in effect" although `UNWIRED_PARAMS` does not list them yet: `autoSlowDefault` is
- * copied to `env.time.autoSlow` and nothing reads it (the watcher reads the settings). If the integrator adds it to
- * `UNWIRED_PARAMS`, the union below stays right; if it is wired to the watcher, remove it here and from the manual.
- */
-const MANUAL_ONLY_UNWIRED_LABELS = ['Automatic slow-down at an alert'];
-
 const section = (text: string, from: string, to: string): string => {
   const a = text.indexOf(from), b = text.indexOf(to, a + from.length);
   expect(a, `section start ${from}`).toBeGreaterThan(-1);
@@ -43,7 +36,7 @@ describe('MANUAL.md difficulty tables (section 1.6)', () => {
 
   it('has one row per preset parameter, in order, with the screen text and the not-in-effect mark', () => {
     cards[0].rows.forEach((row, j) => {
-      const unwired = !row.inEffect || MANUAL_ONLY_UNWIRED_LABELS.includes(row.label);
+      const unwired = !row.inEffect;
       const want = `| ${row.group} | ${row.label}${unwired ? ' **(not in effect)**' : ''} | ${cards.map((c) => c.rows[j].value).join(' | ')} |`;
       expect(lines, row.label).toContain(want);
     });

@@ -2225,3 +2225,159 @@ time / coverage, unload ends.
 - 04:01 status: **round 6 complete.** Everything above is in the tree (committed by the integrator's snapshots
   8093757 / d84818d / 4401702 except the last comment edit of `choice.ts`); scratch trees, probes and scripts deleted
   (probe outputs kept in `round-6/`); no process of this round running.
+
+### Independent sweep after round 6
+
+Independent engineer, 04:03-05:40 UTC Nov 18 (no restart). **Table: `test-output/colony-life/round-6/sweep-table.md`**
+(`python3 tools/sim/sweep-table.py test-output/colony-life/round-6/sweep test-output/colony-life/round-5/sweep`; runs by
+`tools/sim/sweep-life.sh` from a frozen copy of the tree taken at 04:03, src hash `7d9f0409`, all 15 runs on it; the copy
+= the live tree then, round 6 complete). Naturalist, default start, flooding on, no player, hand-overs founded fresh.
+Bars recomputed from the Markdown table by a second script (`round-6/sweep-review/bars-from-md.py`): same numbers.
+**This table is the one the next round compares with.** Review outputs: `round-6/sweep-review/`.
+
+**Viability bar: NOT met** - viable **4 of 15** (round 5: 6): woodland-edge 2/3 (ok), suburban-garden 1/3,
+playground-park 0/3, car-park-verge 1/3, kitchen-door 0/3. Failed checks: starvation stage in 8 (we #1, sg #2, pp #1,
+cpv #1, cpv #3, kd #1 4.3 gd, kd #2 3.6, kd #3; protein empty in sg #2, cpv #1, cpv #3, kd #1, kd #2, carbohydrate empty
+in we #1, pp #1, kd #3), workers in 6 (we #1, sg #3, pp #2, pp #3, cpv #3, kd #1; short by 0.4-3.4), stores (R27) in 4
+(sg #2, pp #1, pp #3, kd #3 with C 0).
+
+**Growth bar R19: NOT met** (4 of 7):
+
+| check | round 6 | round 5 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **4 of 15** | 8 |
+| median eclosions after hand-over >= 4 | 4 ok | 5 |
+| median intake/need P >= 0.7 | **0.197** | 0.244 |
+| median intake/need C >= 0.9 | 0.985 ok | 1.285 |
+| median trip success >= 50 % | **43.9 %** | 45.0 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok | 14 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok | 14 |
+
+Sums: workers at winter 156 -> 142 (first workers 168 both), eclosions 72 -> 66, larvae starved 9 -> 13; deaths old age
+56 -> 65, crushed 10 -> 13, predation 15 -> 11, lost 3 -> 2, drowning 0 -> 1. Year-two long runs were not part of this
+review (R22's year-two checks not measured).
+
+**Regressions against round 5** (script: 14 runs flagged; viable -> NOT in sg #2, pp #3, cpv #1, kd #3; NOT -> viable in
+sg #1, cpv #2; net workers lower in we #1 -5 -> -7, sg #2 +1 -> -1, sg #3 +4 -> -3, pp #2 -3 -> -4, pp #3 -2 -> -3, cpv #1
++6 -> +5, cpv #3 0 -> -3, kd #1 +1 -> -6; eclosions we #1 9 -> 2, sg #3 8 -> 1, kd #1 11 -> 4; C intake kd #3 1.18 ->
+0.12, we #1 1.88 -> 0.77; full list in the table). **They are not round 6's code**, measured:
+- The hand-overs are not the same as sweep 5's although first workers, hand-over gd and the queen's reserves are equal in
+  every run (e.g. we #1: 18 workers, 3.452 gd, reserve 10.32 / 10.32 in both): the snapshots differ in every RNG stream,
+  `env.human`, the carve grid and every ant (`probe-diffcache-r6.ts.txt`; sim-seams builds rival nests at game creation
+  and wires the opening grace gate, quiet-time changed the human events). Day-by-day comparisons with sweep 5 compare
+  different games.
+- A/B from the sweep-6 hand-overs to game day 7 (`sweep-review/ab/`, `abtable.py`; we #1, pp #1, the two runs whose C
+  crashed on days 2-3): round-6 tree, the same with SF, P1d or R28 reverted alone, b2809f0 (before round 6), b2809f0 +
+  round 6's files: all six give 0 trips started on day 2 and C 0 by day 2-3 (we #1: 0t / 0.0C / 0.0 stores on day 2
+  in all six). The round-6 tree from the **sweep-5** hand-over (cache 532b26d6): 13 trips on day 2 (we #1), as sweep 5.
+- A/B to winter from the sweep-6 hand-overs, round-6 tree vs b2809f0 (`ab/abw-table.txt`), on five of the regressed
+  runs: workers at winter sg #2 10 vs 9, pp #3 11 vs 9, cpv #1 16 vs 15, kd #3 10 vs 9, kd #1 9 vs 9; viable in neither
+  except pp #3 on the round-6 tree. Round 6 is worth about +1 worker a run on these hand-overs, not a loss.
+- So the drop 6 -> 4 viable and 8 -> 4 held is the new set of hand-overs (a different draw, through other engineers'
+  founding-time changes), not a mechanism round 6 broke. What it shows is how much a colony's year depends on luck in
+  its first two days (lead 2).
+
+Mechanism counters of the round's fixes in the sweep (all 15 runs): full-crop failed trips 265 of 1,493 (18 %) -> 146 of
+1,349 (11 %), tend ones 240 -> 118 (SF); sg #1 (P1d's case) 0 -> 6 eclosions, viable. P1d in the day rows: 6 queens
+still hold 2.1-8.5 P above their keep at winter (sg #3 8.5, we #3 4.7, sg #1 4.3, cpv #2 3.7, kd #3 2.2, we #2 2.1), each
+with pool P 1.5-5.9 all season (paid in as the stomachs empty, as ruled); in the other 9 the queen is at her keep by day
+2-5. Larvae starved 13 (sweep 5: 9): we #1 6 on days 3-4 and kd #1 4 on days 8-9 (queen at keep, pool P empty), cpv #3 1
+(day 9), we #3 and pp #2 1 each on day 3 with pool P 2.1 and 1.4 (not an empty pool: a feeding miss).
+
+Review of the round (code: `git diff b2809f0` on the files of "Fixes (round 6)"; outputs `round-6/sweep-review/`):
+- Verified: `tsc --noEmit` clean on the live tree (04:22). Folder tests on the live tree: colony 64/65 files (red
+  `founding/reopen`, known), ecology/creatures 30/30, ants/behaviours/outdoor 28/30 (red `removal.verify`, known, and
+  this review's `storesFullTenders.verify`), sim root (`heightDeltaRestore`, `wiring`, `sim`, `sim.verify`) green. Every
+  test the round added or restated is red with the old code (b2809f0 tree with the round's tests copied in):
+  `heightDeltaRestore`, `sparedStarve.verify`, `handoverStomach.verify` case 2, `loudAlert` (3 of 3: 17 / 3 / 3 loud hours
+  instead of 1), `storesFull` (2 of 2).
+- Not allowed list: no lifespan, need, bar or ruling-test change; no seed or archetype case; P1d moves no more protein
+  than R2's provision (an established queen never refills `reserveP`; the only other writer, `layEgg`, draws it only when
+  her gut has the egg's P, so it is not a hidden source). The restated `sparedStarve.verify` tolerates one worker (integer
+  draws) and adds a sum over the 12 seeds; it is a review test, not a ruling test, and the WL3 model change is sound
+  (second run from a cloned RNG state, same flood draws, cut causes scaled, cap applied again).
+- Determinism and cost: R28's `alertLevels` is persisted plain data in the quiet tracker, sampled every 10 ticks, O(alerts)
+  (the ruling asked for a `levelTick` on the alert record; the tracker triples are equivalent and leave the alerts module
+  to its owner). SF's `tendersOut` is a per-tick runtime cache (WeakMap keyed on the tick, rebuilt from the ant list the
+  first time a waiting tender asks in a tick): deterministic, O(ants) per tick only while tenders wait; no trap.
+- **Finding 1 (major, determinism): save -> load still changes the run; RS fixed one path, not the defect.** Probe
+  (`probe-restore-r6.ts.txt`, `probe-restore-review-pp3.txt`): playground-park #3 hand-over, 8 save points 1000 ticks apart:
+  the loaded sim leaves the live one 21-141 ticks after **every** load (woodland-edge #1: 6 x 300 ticks equal). First
+  difference (`probe-restore-diff-pp3.txt`): mound 4060's relaxation (`relaxFlags`, `relaxRow`, `h`), then the walkers on
+  it. Cause: the mound mask cache (`nest/moundRelax.ts` `moundMask`, nest runtime `moundMasks`) is dropped on carves,
+  entrance and breach changes, **not when a footprint presses the ground on the grid**; `buildMask` probes the field
+  MOUND_HOLE_PROBE_DEPTH_BU (0.4 mm) under the pile base, so a 2.8 mm print reads as an open hole in a fresh build. The
+  live game keeps the mask built before the print (744 hole cells), a loaded game builds it after (782). Test
+  **`src/sim/nest/moundMaskFootprint.verify.test.ts`** (RED, kept): a print beside a breach on the grid; cached mask 32
+  hole cells, fresh build and the loaded game 112. Effect seen in this review: the pp #3 life run restored from the
+  sweep's own hand-over ends at 11 workers and viable, the in-process sweep run at 10 and not viable. Two questions for
+  the owner: drop the mask when a height delta tile touches the grid (determinism), and whether a footprint should count
+  as a hole at all (MOUND_HOLE_PROBE_DEPTH_BU against FOOT_PRINT_MM). Direction 12's "save -> load changes mound heights"
+  is this defect.
+- **Finding 2 (minor): SF v2 still lets tenders leave together.** `tendersOut` counts tenders with `nestId < 0`; a tender
+  who has decided to go and is walking up the tunnel is not counted, so every waiting tender that thinks before she
+  reaches the surface sees the same room. Test **`src/sim/ants/behaviours/outdoor/storesFullTenders.verify.test.ts`**
+  (RED, kept): room for 1.5 crops, 6 tenders depart within 9 ticks (the first is allowed). The rule's own aim (v1's
+  failure: "the 3 tenders left together whenever a crop's room opened") is not met in the first seconds after room
+  opens; count tenders from their departure (herd branch active or phase outbound) instead.
+- P1d, WL3, R28: sound; each addresses its cause. P1d did not cost early protein foraging measurably (A/B nop1d
+  identical to the round-6 tree through day 3 on we #1 and pp #1).
+- Round 6's own engineer reported "Restore determinism (finding 2): fixed": not so (finding 1 above); its probe
+  compared only 20 ticks after each split, the divergence comes later.
+
+Leads from the failing runs' own diagnostics (most costly first; `sweep-review/diag.py`, `probe-wait-we1.txt`,
+`probe-scout-we1.txt`):
+1. **Protein income** stays the largest loss: starvation-stage failures with protein empty in 5 runs (kd #1 6 bad days,
+   sg #2 4, kd #2 4, cpv #3 3, cpv #1 2), P intake/need 0.024-0.046 in kd #1, kd #2, sg #2; kd #2 never knew a protein
+   source; protein known at 3.1-3.7 gd in sg #2, pp #1, kd #1. Median P 0.197 against 0.7.
+2. **The first two days after the hand-over decide the year** (we #1, pp #1, kd #3 failed on carbohydrate): no source is
+   known at the hand-over in any run; the queen's carbohydrate lasts about a game day; 12 of 18 workers idle and 2 scouts
+   out (we #1). Whether a carbohydrate source is found by day 2 decides: we #1 found only a carcass by gd 6 (scouts
+   freezing repeatedly on one threat), 0 trips on day 2, rationing days 2-3, 6 larvae starved, 2 eclosions; kd #3 no
+   tender until day 8, C intake 0.12, C 0 at winter; the same code from sweep 5's we #1 hand-over found it (13 trips on
+   day 2). Lead: scouting effort and coverage in the first game day while the stores still hold the provision (idle
+   workers as scouts, GDD 02 §10.2 scout demand), measured over the 15 hand-overs on the forage bench.
+3. **Old age** 65 of 92 adult deaths (5-6 per run in 9 runs): with 1-4 eclosions in 9 runs a colony cannot hold its count;
+   it falls with leads 1-2 (R11 stands).
+4. **Brood lost in care**: egg:untended 34, pupa:untended 21, egg:flooding 19 (sg #1 12 eggs flooded, cpv #3 7 pupae
+   untended, sg #3 12 eggs untended of 17 laid: 1 eclosion).
+5. **Trip success 43.9 %**: full-crop failures fell to 11 % (SF) but cpv #1 24, kd #1 31, cpv #3 18 remain (tenders home
+   with small crops, round 6's lead 2; and finding 2).
+6. **Finding 1** (restore determinism): every cached-hand-over comparison carries it until fixed.
+7. Predation 11 (pp #3 6 at 10-19 workers on days 5-13, we #1 3); median 0 per run (R25's median holds; pp #3 is above
+   the 10-16-worker expectation as in sweep 5, 4). Crushed 13 (kd #1 4, sg #1 3).
+
+Scratch trees (`/home/user/frozen-sweep6`, `/home/user/scratch-r6-*`) deleted; probe sources kept as text under
+`round-6/sweep-review/` (`probe-*.ts.txt`); no process left running.
+
+## Round 7
+
+Engineer: round 7 (started 05:42 UTC Nov 18). Evidence: `test-output/colony-life/round-7/`. Tree at start = HEAD c970361
++ other engineers' app/render/docs work in progress (nothing of theirs under src/sim, src/worldgen, src/core, tools/sim).
+Order of work: sweep-6 finding 1 (mound-mask restore, major), finding 2 (SF tender gap, minor), then the method (account,
+rank, fix 1-3 with paired before/after on a subset).
+
+Progress (kept current; a successor continues from here)
+- 05:42 read spec, ledger (to the sweep-6 review), STATUS (to 05:10 entry). Next: reproduce finding 1.
+- 05:58 **RM in the tree** (sweep-6 finding 1, major, reproduced: the review's `moundMaskFootprint.verify` red, 32 vs 112
+  hole cells). Two causes, both fixed in `nest/moundRelax.ts`: (a) the mask key had no input for the terrain deltas
+  (footprints, sand play are edited in place) -> `maskSignature` adds `groundDeltaStamp` over the grid; (b) the owner's
+  question, answered: a print is a dent, not a hole: `buildMask`'s hole probe now reads the ground as pressed now (base
+  + `groundDeltaAt`), so a 3 mm print no longer clears the pile under it; a print that opens a cavity just under the
+  ground still makes a hole. New read-side helper `src/sim/world/groundDelta.ts` (HEIGHT_TILE / HEIGHT_UNIT_MM moved
+  there, re-exported by `environment/human/effects/terrain.ts`). The review test is restated into two cases (a plain
+  print leaves the mask unchanged; a print over a cavity 1.5 mm down changes it; in both cached = fresh = loaded): 2/2
+  green; case 2 red without (a) (cached 32, fresh 52), case 1 red without (b) (112 vs 32). Restore probe
+  (`round-7/probe-restore-pp3.txt`, the review's probe, sweep-6 pp #3 hand-over, splits at the review's ticks 22816 +
+  2000 k, 1000 ticks compared, hash every 10): equal at every split so far (review: all 8 differ by tick 141).
+- 05:58 **SF3 in the tree** (sweep-6 finding 2, minor, reproduced: the review's `storesFullTenders.verify` red, 6
+  departures in 9 ticks). `ants/behaviours/outdoor/tendHerd.ts`: the room rule counts the crops of the tenders on their
+  way from the decision to leave (herd branch active or outbound, not only `nestId < 0`), adds a tender who leaves to
+  the per-tick cache at once (several think in one tick), sums each tender's own crop; and a held tender runs the
+  engine's wait with no honeydew source acceptable (`heldEngine`), because the engine's own wait departure took her
+  to the same herd's source past the rule. The review test is restated to each tender's own crop (it used the first
+  worker's 0.80 crop for all; tenders' crops are 0.63-0.80); red with the round-6 tendHerd.ts (5 violations in 9 ticks),
+  green now (departures at t1, t27, t195, ...). Next: folder tests (nest, outdoor), then the account.
+- Cache for this round: the 15 sweep-6 hand-overs copied to `round-7/cache/*-d-any.bin` (life.ts `--cache
+  test-output/colony-life/round-7/cache --cache-any`), so before/after runs start from the hand-overs the sweep-6 table
+  was made from.

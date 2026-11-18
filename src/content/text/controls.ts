@@ -148,7 +148,7 @@ export function buildControlsReference(set: BindingSet = defaultBindings()): Con
   return GROUP_ORDER.map((id) => ({ id, title: GROUP_TITLE[id], rows: groups.get(id)! })).filter((g) => g.rows.length > 0);
 }
 
-/** The reference as Markdown (one table per group), the text embedded in docs/manual/controls.md. */
+/** The reference as Markdown (one table per group), the text embedded in docs/MANUAL.md. */
 export function controlsMarkdown(set: BindingSet = defaultBindings()): string {
   const lines: string[] = [];
   for (const g of buildControlsReference(set)) {
@@ -159,6 +159,6 @@ export function controlsMarkdown(set: BindingSet = defaultBindings()): string {
   return lines.join('\n').trimEnd() + '\n';
 }
 
-/** Marker comments that delimit the generated table in docs/manual/controls.md. */
+/** Marker comments that delimit the generated table in docs/MANUAL.md. */
 export const CONTROLS_TABLE_START = '<!-- controls-table:start -->';
 export const CONTROLS_TABLE_END = '<!-- controls-table:end -->';

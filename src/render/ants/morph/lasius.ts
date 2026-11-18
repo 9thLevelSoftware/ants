@@ -30,7 +30,7 @@ export const LASIUS_WORKER: AntMorphology = {
   hairs: 70, gasterHairs: 1,
   rearWeapon: 'acidopore',
   colors: LASIUS_COLORS,
-  roughness: CUTICLE.roughness, sheen: 0.35, clearcoat: CUTICLE.clearcoat,
+  roughness: CUTICLE.roughness, sheen: CUTICLE.sheen, clearcoat: CUTICLE.clearcoat,
   gait: { stride: 0.5, lift: 0.065, duty: 0.55 },
 };
 
@@ -51,7 +51,7 @@ export const LASIUS_QUEEN: AntMorphology = {
   wings: 'stubs', wingLength: 0,
   hairs: 110,
   colors: { ...LASIUS_COLORS, mesosoma: '#2a1f1a', gaster: '#201a17', head: '#251d19' },
-  roughness: CUTICLE.roughness - 0.03, sheen: 0.45, clearcoat: CUTICLE.clearcoat,
+  roughness: CUTICLE.roughness, sheen: CUTICLE.sheen, clearcoat: CUTICLE.clearcoat,
   gait: { stride: 0.36, lift: 0.045, duty: 0.6 },
 };
 
@@ -75,5 +75,5 @@ export const LASIUS_MALE: AntMorphology = {
   wings: 'full', wingLength: 1.02,
   hairs: 40,
   colors: { ...LASIUS_COLORS, head: '#1d1917', mesosoma: '#1f1a17', gaster: '#221c19', legs: '#5a4634', tarsi: '#7a644c', antenna: '#5b4836', mandible: '#6a4a2c' },
-  roughness: CUTICLE.roughness, sheen: 0.4, clearcoat: CUTICLE.clearcoat,
+  roughness: CUTICLE.roughness, sheen: CUTICLE.sheen, clearcoat: CUTICLE.clearcoat,
 };

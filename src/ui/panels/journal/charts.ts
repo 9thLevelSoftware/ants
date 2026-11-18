@@ -93,9 +93,12 @@ export interface ChartModel {
   startDay: number;
 }
 
-/** Calendar day (fractional) of a tick. */
-export function calDay(j: Pick<UiJournal, 'startTick'>, tick: number): number {
-  return (tick + j.startTick) / TICKS_PER_DAY;
+/**
+ * Calendar day (fractional) of a tick. A journal entry or log row passes its own `calTick`: the calendar can have been moved
+ * on since (a winter lapse), so `tick + startTick` is right only for "now".
+ */
+export function calDay(j: Pick<UiJournal, 'startTick'>, tick: number, calTick?: number): number {
+  return (calTick ?? tick + j.startTick) / TICKS_PER_DAY;
 }
 
 /** Year, season (0..3) and day of the season (1-based) of a whole calendar day; the season length comes from the game config. */

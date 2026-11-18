@@ -35,3 +35,25 @@ TODO next: unit tests for 1-3, harness shots (tests/e2e script app-seams-2.mjs -
 - newgame.test.ts updated+passing; controls.test.ts RED until item 8 (points at docs/manual).
 - item 8 plan: merge old docs/manual content (HUD table, every-screen table, roster/journal/health, nest sections, species, settings extras, troubleshooting, pointer-lock/browser keys/rebinding) as new sections 16-20 in docs/MANUAL.md; move tests (src/content/manual.test.ts, manual.verify.test.ts, text/controls.test.ts) to MANUAL.md; delete docs/manual/; keep key markers <!--key:id-->; update MANUAL for items 1-5,7,10 facts; regenerate generated tables (section 1.3 species, 1.6 presets+rules, 13 controls) with a script tests/docs/regen-manual.ts (npm run sim -- ...). tests/docs/docs-final.test.ts: drop MANUAL_ONLY_UNWIRED_LABELS (autoSlowDefault now in effect).
 - Still to run: full appSeams2.mjs again (add: observer free cam, aim-done staging for new-aim focus line, scroll settings, NewGame screenshot w/ rules expanded).
+
+## Update (~05:50): items 8, 10 DONE (manual)
+- docs/MANUAL.md is the only manual (sections 0-20; new 15-19 merged from old folder; generated tables between <!-- generated:NAME --> markers via `npm run sim -- tests/docs/regen-manual.ts`); docs/manual/ deleted; tests re-pointed: src/content/manual.test.ts, manual.verify.test.ts, text/controls.test.ts; tests/docs/docs-final.test.ts dropped MANUAL_ONLY_UNWIRED_LABELS. `npx vitest run src/content tests/docs` green (117).
+- README.md lines 113 & 170 are stale (species flag, docs/manual) -> README not mine, report it.
+- NEXT: item 9 (journal calTick), 11 (lifecycle.mjs killAll cause), 12 (render), 13 (firstplay beat 11), then rerun appSeams2.mjs w/ improvements + NewGame shots, run panels.mjs + controls.mjs, report.
+
+## Update (~05:58): items 9, 11 DONE in code
+- 9: calTick through journalSlice (entries, events, aims via journal entries), timeline.ts dateLine/timeLine/milestonePins + charts.calDay take calTick; AimsTab/LogTab pass it. Test src/ui/panels/journal/calTick.test.ts. Harness picture of the journal across a winter: TODO (script step in appSeams2.mjs: cheat.setTime into winter then open Journal > Milestones/Log).
+- 11: tests/e2e/lifecycle.mjs kills with cheat.kill + cause per ant (killAll can't take a cause: sim file; report). Not run in browser (long).
+- NEXT: item 12 (render, 5 sub-items), 13 firstplay beat 11; then big harness run + panels.mjs + controls.mjs + report.
+
+## Update (~06:05): item 13 investigation running; item 12 reading
+- firstplay beat 11: added lapseTrace logging to tests/e2e/firstplay.mjs and step(50); run FIRSTPLAY_UNTIL=11 -> test-output/app-seams-2/firstplay-11.log (running in background at 06:00; check).
+- item 12 plan (in order): (d) quality-switch dispose (look3-qs.mjs counts), (c) crevice earth backdrop = sky dome below-horizon dark when fade.occlusion>0 (skyDome.ts uniform earth/earthAmt, worldRenderer.ts sets), (a) cuticle: ANT day clearcoat cut + dark sheen colour (tuning.ts/fragmentChunk.ts/materials.ts), (b) far wall silhouette in prim material, (e) same-pose pictures. Be honest: partial where not proven by pictures.
+
+## Update (~05:45 UTC by the machine clock): item 12 code in place for (a),(b),(c); pictures pending
+- (c) sky dome earth backdrop: src/render/world/sky/skyDome.ts (EARTH_BACKDROP, earthAmt/earthColor), worldRenderer.ts sets earthAmt from frame.occlusion; test skyEarth.test.ts
+- (b) far structures: STRUCTURE_LOOK in src/render/world/lighting/constants.ts; materials/surfacePatch.ts (WR_STRUCT: plinth, storey window bands, trim, haze keep via fog_fragment); test in worldRenderer.test.ts
+- (a) cuticle: ants/tuning.ts (ANT_DAY_LOOK, CUTICLE.sheenColor/sheen, GASTER_MEMBRANE.clearcoatCut 1.0), fragmentChunk.ts, materials.ts, morph/lasius.ts unified; test ants/cuticleLook.test.ts
+- BEFORE tree for pictures: /tmp/claude-0/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/scratchpad/old-root (git archive HEAD c970361 + node_modules symlink): run harness with --root <that> for before, --root . for after. Script tests/e2e/appSeams2-look.mjs (needs LOOK_TAG only for naming; use --out).
+- firstplay beat 11 run still in progress in background (test-output/app-seams-2/firstplay-11.log); beat 06 reached at 05:36.
+- STILL TODO: (d) quality-switch disposal check via look3-qs.mjs, (e) same-pose slope + observer-after-colony pictures, run old/new look pictures, rerun appSeams2.mjs w/ NewGame+journal shots, panels.mjs + controls.mjs, report.

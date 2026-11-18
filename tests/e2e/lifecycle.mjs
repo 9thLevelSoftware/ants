@@ -151,7 +151,12 @@ export default async ({ page, shot, log }) => {
   });
   expect(orphan.orphanedAt >= 0 && orphan.queenId === -1 && orphan.eggsLaidAfter === 0, 'not orphaned / eggs after the queen died', orphan);
   result.checks.orphan = { ...orphan, broodBefore: eggsBefore };
-  await raw({ type: 'cheat.killAll', colonyId });
+  // `cheat.killAll` books every death as "unknown", which made the epitaph's cause list read as unknown: each ant is killed
+  // with a cause instead (cheat.kill), cycling through four real ones, so the epitaph shows what a colony's deaths look like.
+  const causes = ['starvation', 'cold', 'predation', 'desiccation'];
+  const living = await sim((sm, id) => sm.state.ants.filter((a) => a.alive && a.colony === id).map((a) => a.id), colonyId);
+  for (const [i, antId] of living.entries()) await raw({ type: 'cheat.kill', id: antId, cause: causes[i % causes.length] });
+  result.checks.killedWith = { ants: living.length, causes };
   await step(320);
   await render();
   await frames();

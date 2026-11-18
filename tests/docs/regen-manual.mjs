@@ -1,5 +1,5 @@
 // Writes the generated tables of docs/MANUAL.md from the code the game reads (task app-seams-2, item 8):
-//   npm run sim -- tests/docs/regen-manual.ts
+//   npm run sim -- tests/docs/regen-manual.mjs
 // Species (1.3), the preset and rule tables (1.6) and the controls (13) sit between `<!-- generated:NAME:start -->` and
 // `<!-- generated:NAME:end -->` comments (the controls between their own `controls-table` markers). Prose around them is
 // written by hand. tests/docs/docs-final.test.ts and src/content/text/controls.test.ts check the result.
@@ -12,14 +12,14 @@ import { SPECIES_CARDS, foundingSeasonOf, isSpeciesAvailable } from '@/ui/screen
 
 const PATH = 'docs/MANUAL.md';
 
-function replaceBlock(text: string, start: string, end: string, body: string): string {
+function replaceBlock(text, start, end, body) {
   const a = text.indexOf(start), b = text.indexOf(end);
   if (a < 0 || b < a) throw new Error(`markers not found: ${start}`);
   return `${text.slice(0, a + start.length)}\n${body.trimEnd()}\n${text.slice(b)}`;
 }
-const block = (name: string) => [`<!-- generated:${name}:start -->`, `<!-- generated:${name}:end -->`] as const;
+const block = (name) => [`<!-- generated:${name}:start -->`, `<!-- generated:${name}:end -->`];
 
-function speciesTable(): string {
+function speciesTable() {
   const rows = ['| Species | Common name | Playable now | Natural start season | The card says |', '|---|---|---|---|---|'];
   for (const c of SPECIES_CARDS) {
     const ok = isSpeciesAvailable(c.id);
@@ -28,20 +28,20 @@ function speciesTable(): string {
   return rows.join('\n');
 }
 
-const IDS = ['gentle', 'naturalist', 'harsh'] as const;
+const IDS = ['gentle', 'naturalist', 'harsh'];
 
-function presetTable(): string {
+function presetTable() {
   const cards = IDS.map((id) => presetCard(id));
   const rows = ['| Group | Parameter | Gentle | Naturalist | Harsh |', '|---|---|---|---|---|'];
   cards[0].rows.forEach((r, i) => rows.push(`| ${r.group} | ${r.label}${r.inEffect ? '' : ' **(not in effect)**'} | ${cards.map((c) => c.rows[i].value).join(' | ')} |`));
   return rows.join('\n');
 }
 
-function ruleTable(): string {
-  const show = (v: unknown): string => (typeof v === 'boolean' ? (v ? 'on' : 'off') : v === 'timelapse' ? 'time-lapse' : String(v));
+function ruleTable() {
+  const show = (v) => (typeof v === 'boolean' ? (v ? 'on' : 'off') : v === 'timelapse' ? 'time-lapse' : String(v));
   const rows = ['| Rule | Choices | Gentle | Naturalist | Harsh | New Game screen | In effect |', '|---|---|---|---|---|---|---|'];
   for (const r of RULE_DISPLAY) {
-    const vals = IDS.map((id) => (r.key === 'seasonLengthDays' ? 7 : r.key === 'startSeason' ? 'Natural' : presetRuleValues(id)[r.key as keyof ReturnType<typeof presetRuleValues>]));
+    const vals = IDS.map((id) => (r.key === 'seasonLengthDays' ? 7 : r.key === 'startSeason' ? 'Natural' : presetRuleValues(id)[r.key]));
     const kind = ruleOnScreen(r.key);
     const screen = kind === 'greyed' ? 'greyed: "Not in this build"' : kind === 'none' ? 'not on screen' : r.key === 'startSeason' ? 'on screen (Starting season, in the Locality column)' : 'on screen';
     rows.push(`| ${r.label} (\`${r.key}\`${r.fixedAtGeneration ? ', fixed at world generation' : ''}) | ${r.choices.map((c) => c.label).join(', ')} | ${vals.map(show).join(' | ')} | ${screen} | ${r.inEffect ? 'yes' : '**no**'} |`);
@@ -49,7 +49,7 @@ function ruleTable(): string {
   return rows.join('\n');
 }
 
-export default async function regen(): Promise<void> {
+export default async function regen() {
   let t = readFileSync(PATH, 'utf8');
   t = replaceBlock(t, ...block('species'), speciesTable());
   t = replaceBlock(t, ...block('presets'), presetTable());

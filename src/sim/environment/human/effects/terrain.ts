@@ -11,9 +11,9 @@ import { FOOT_ENTRANCE_BLOCK_P, FOOT_ENTRANCE_FILL_BU } from '@/sim/balance/huma
 import { rngChance } from '@/core/rng';
 import { inFootprint, footprintRadius, type Footprint } from '../plan';
 import { humanRng } from './common';
+import { HEIGHT_TILE, HEIGHT_UNIT_MM } from '@/sim/world/groundDelta';
 
-export const HEIGHT_TILE = 32;
-export const HEIGHT_UNIT_MM = 1 / 16;
+export { HEIGHT_TILE, HEIGHT_UNIT_MM };
 /** Kernel height-overlay ids of the delta tiles (far from mound ids). */
 const OVERLAY_ID_BASE = 0x40000000;
 

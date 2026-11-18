@@ -360,6 +360,9 @@ export interface UiAimLine {
   id: string;
   openedTick: number;
   doneTick: number;
+  /** Calendar ticks of the opening / the completion, from the journal entries that recorded them (absent = unknown: the UI falls back to the state tick). */
+  openedCal?: number;
+  doneCal?: number;
   /** 'out-of-season' for an aim that cannot be worked on yet. */
   hint: string | null;
 }
@@ -367,6 +370,8 @@ export interface UiAimLine {
 export interface UiJournalEntry {
   id: number;
   tick: number;
+  /** Calendar tick the entry was written at (JournalEntry.calTick; absent = the UI uses tick + startTick). A winter lapse moves the calendar on, so this is the entry's own date. */
+  calTick?: number;
   kind: string;
   key: string;
   tokens: Record<string, string | number>;
@@ -374,6 +379,8 @@ export interface UiJournalEntry {
 
 export interface UiEventLogLine {
   tick: number;
+  /** Calendar tick of the row (EventLogEntry.calTick); see UiJournalEntry.calTick. */
+  calTick?: number;
   kind: string;
   level: string;
   /** Text as the sim wrote it; '' when the interface words `key` with `tokens`. */
