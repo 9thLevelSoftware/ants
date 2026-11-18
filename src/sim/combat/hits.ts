@@ -6,6 +6,7 @@ import {
   HIT_CHANCE_HELPLESS, HIT_CHANCE_HOLDING, HIT_MULT_DISORIENTED, HIT_MULT_DODGED, OUTNUMBER_MAX, OUTNUMBER_STEP,
   OUTNUMBER_WINDOW_S,
 } from '@/sim/balance/combat';
+import { ONE_BITE_PREY } from '@/sim/balance/creatures';
 import { creatureArmour } from '@/sim/ecology/creatures/queries';
 import { noteCreatureHit, preyEvades } from '@/sim/ecology/creatures';
 import { creatureHitters, damageAnt, damageCreature } from './damage';
@@ -13,6 +14,9 @@ import { noteFightActivity } from './fightRecord';
 import { freeHitChance, frontHolder, isHelpless, roll } from './grapple';
 import { combatStats } from './stats';
 import { type Body, bodyOf, ensureCombat, isDisoriented, isStunned, ticksOf } from './state';
+
+/** Margin above the prey's HP so a one-bite kill leaves no floating-point remainder. */
+const ONE_BITE_EPS = 1e-9;
 
 /** M(n) = min(2.0, 1 + 0.25 (n - 1)). */
 export function outnumberMult(n: number): number {
@@ -71,7 +75,9 @@ export function resolveBite(sim: Sim, attacker: Ant, kind: 'ant' | 'creature', i
     sim.emit({ type: 'cue', cue: 'bite', pos, strength: 0 });
     return 0;
   }
-  const raw = combatStats(sim, attacker).bite * outnumberMult(hittersNow(sim, b, attacker));
+  let raw = combatStats(sim, attacker).bite * outnumberMult(hittersNow(sim, b, attacker));
+  // patch prey dies of one landed bite (GDD 05 §2.2, balance ONE_BITE_PREY): the bite deals what it has left
+  if (b.kind === 'creature' && ONE_BITE_PREY.has(b.c.kind)) raw = Math.max(raw, (b.c.hp + ONE_BITE_EPS) / Math.max(1e-6, 1 - creatureArmour(b.c)));
   let dealt: number;
   if (b.kind === 'creature') {
     noteCreatureHit(sim, id, attacker.id, 'bite');

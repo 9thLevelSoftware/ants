@@ -163,6 +163,15 @@ export const DECOR_LEAF = {
   shadowRgb: [0.012, 0.010, 0.008],
   /** Leaf albedo at full night weight, x the day value: a cream dry leaf stayed the brightest thing in a dark night frame. */
   nightAlbedo: { dry: 0.4, fresh: 0.75 },
+  /**
+   * Look pass 4: detail made in the shader because the scan (256 texels a leaf) is a flat blur at an ant's eye. Distances in mm
+   * (full detail up to [0], gone by [1]); the outline warp (card units, noise cells per mm); serration of the margin (alpha units);
+   * stalk position and rib fan; the net of fine veins (noise cells per mm for two scales, contour width); how much veins lift the
+   * colour and the net darkens it; yellowing blotches and dark flecks; surface relief fed to the normal.
+   */
+  detailFadeMm: [260, 800], warpUv: 0.075, warpScale: 0.55, serration: 0.55, serrationScale: 2.2,
+  stalkUv: 0.43, ribSpread: 0.6, ribWidthUv: 0.022, netScale: [0.22, 0.6], netWidth: 0.05, veinLift: 0.5, netDark: 0.14,
+  blotch: 0.55, blotchScale: 0.075, fleck: 0.35, reliefScale: 0.9, relief: 0.9,
   /** Draw order of the draped decor within the opaque pass: after terrain, primitives, grass and ants (default 0), because the shadow is blended over what is already drawn. */
   renderOrder: 1,
 } as const;

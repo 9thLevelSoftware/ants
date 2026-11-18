@@ -56,18 +56,43 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
   bump = vec2(0.0); tr = 0.0; rough = 0.7; dcShade = 0.0;
   if (k < ${K.needle - 0.5}) {
     bool fresh = vDcInfo.w > 0.5;
-    vec2 t = fresh ? dcCell(ra, ${crop(LEAF_ATLAS.fresh)}, uv) : dcCell(ra, ${crop(LEAF_ATLAS.dry)}, vec2(-uv.x, uv.y));
+    // Look pass 4: the scanned atlas holds 256 texels per leaf, a blurry flat green at an ant's eye. The detail the scan
+    // cannot hold is made here from the leaf's own world position, faded out with distance (no derivative-free noise far away).
+    vec2 lp = dcWp.xz;
+    float dcLd = 1.0 - smoothstep(${DECOR_LEAF.detailFadeMm[0].toFixed(1)}, ${DECOR_LEAF.detailFadeMm[1].toFixed(1)}, length(vDcW - uCamPos));
+    // a wavering outline: the card coordinates are warped before the atlas is read, so the margin is neither the scan's smooth blob nor a straight cell cut
+    vec2 wuv = uv + (vec2(wrFbm(lp * ${DECOR_LEAF.warpScale.toFixed(2)} + ra * 40.0), wrFbm(lp.yx * ${DECOR_LEAF.warpScale.toFixed(2)} + rb * 17.0)) - 0.5) * ${DECOR_LEAF.warpUv.toFixed(3)} * dcLd;
+    vec2 t = fresh ? dcCell(ra, ${crop(LEAF_ATLAS.fresh)}, wuv) : dcCell(ra, ${crop(LEAF_ATLAS.dry)}, vec2(-wuv.x, wuv.y));
     col = fresh ? texture2D(tDcFresh, t).rgb * uDcFreshTint : texture2D(tDcDry, t).rgb * uDcDry.rgb;
     a = fresh ? texture2D(tDcFreshA, t).r : texture2D(tDcDryA, t).r;
+    a += (wrNoise(lp * ${DECOR_LEAF.serrationScale.toFixed(2)} + ra * 7.0) - 0.5) * ${DECOR_LEAF.serration.toFixed(2)} * dcLd; // fine teeth on the cut margin
     col = dcSat(col, uDcDry.w) * (0.85 + 0.3 * rb);
+    // veins: five palmate ribs from the stalk and a reticulate net of fine ones, lighter and slightly sunk
+    vec2 lq = vec2((uv.x + ${DECOR_LEAF.stalkUv.toFixed(2)}) * 1.45, uv.y);
+    float lr = length(lq), la = atan(lq.y, lq.x), rib = 0.0;
+    for (int i = 0; i < 5; i++) {
+      float ak = (float(i) - 2.0) * ${DECOR_LEAF.ribSpread.toFixed(2)} + (ra - 0.5) * 0.25;
+      float dl = abs(sin(la - ak)) * lr;
+      rib = max(rib, step(0.0, cos(la - ak)) * (1.0 - smoothstep(0.004, ${DECOR_LEAF.ribWidthUv.toFixed(3)} * (1.2 - 0.6 * smoothstep(0.2, 1.1, lr)), dl)));
+    }
+    rib *= 1.0 - smoothstep(0.75, 1.2, lr);
+    float net = max(1.0 - smoothstep(0.0, ${DECOR_LEAF.netWidth.toFixed(3)}, abs(wrNoise(lp * ${DECOR_LEAF.netScale[0].toFixed(2)} + ra * 41.0) - 0.5)),
+      0.7 * (1.0 - smoothstep(0.0, ${DECOR_LEAF.netWidth.toFixed(3)}, abs(wrNoise(lp * ${DECOR_LEAF.netScale[1].toFixed(2)} + rb * 29.0) - 0.5))));
+    float fineVein = max(rib, net * 0.7) * dcLd;
+    col = mix(col, col * vec3(1.16, 1.18, 0.88) + vec3(0.025, 0.035, 0.0), fineVein * ${DECOR_LEAF.veinLift.toFixed(2)});
+    col *= 1.0 - ${DECOR_LEAF.netDark.toFixed(2)} * net * dcLd;
+    // yellowing blotches and a few dark flecks: no two leaves of one scan cell look alike
+    col = mix(col, col * vec3(1.22, 1.06, 0.62), smoothstep(0.55, 0.8, wrFbm(lp * ${DECOR_LEAF.blotchScale.toFixed(3)} + ra * 9.0)) * ${DECOR_LEAF.blotch.toFixed(2)} * dcLd);
+    col *= 1.0 - ${DECOR_LEAF.fleck.toFixed(2)} * smoothstep(0.82, 0.9, wrNoise(lp * 1.6 + rb * 50.0)) * dcLd;
     // fine detail the atlas cannot hold at an ant's distance: mottling, a pale midrib, a darker dry rim
-    vec2 lp = dcWp.xz;
     float mot = wrFbm(lp * 0.35 + ra * 40.0);
     col *= (0.72 + 0.56 * mot) * (0.94 + 0.12 * wrNoise(lp * 3.0));
     float mid = 1.0 - smoothstep(0.0, 0.03, abs(uv.y));
     col *= 1.0 + 0.18 * mid;
     col *= mix(0.75, 1.0, smoothstep(0.35, 0.75, a));
     bump = vec2(wrNoise(lp * 1.3) - 0.5, wrNoise(lp.yx * 1.3 + 5.0) - 0.5) * 0.7 + vec2(0.0, sign(uv.y) * mid * 0.6);
+    bump += (vec2(wrNoise(lp * ${DECOR_LEAF.reliefScale.toFixed(2)} + ra * 3.0), wrNoise(lp.yx * ${DECOR_LEAF.reliefScale.toFixed(2)} + rb * 5.0)) - 0.5) * ${DECOR_LEAF.relief.toFixed(2)} * dcLd
+      + vec2(0.0, sign(uv.y) * (rib * 0.6 - net * 0.25) * dcLd);
     // thickness and relief (look-pass 2): the cut edge is a thin dark margin that turns up (the leaf is a body, not
     // paper), and secondary veins run from the midrib toward the margin as shallow grooves
     float edgeW = 1.0 - smoothstep(0.52, 0.86, a);
@@ -84,10 +109,10 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     // Eight taps on a ring (axes and diagonals) so the falloff has nine steps, not a diamond of four.
     const float SD = ${DECOR_LEAF.shadowReachUv.toFixed(3)};
     const float SQ = 0.7071 * SD;
-    float dcRing = 0.125 * (dcLeafAlpha(ra, fresh, uv + vec2(SD, 0.0)) + dcLeafAlpha(ra, fresh, uv - vec2(SD, 0.0))
-      + dcLeafAlpha(ra, fresh, uv + vec2(0.0, SD)) + dcLeafAlpha(ra, fresh, uv - vec2(0.0, SD))
-      + dcLeafAlpha(ra, fresh, uv + vec2(SQ, SQ)) + dcLeafAlpha(ra, fresh, uv - vec2(SQ, SQ))
-      + dcLeafAlpha(ra, fresh, uv + vec2(SQ, -SQ)) + dcLeafAlpha(ra, fresh, uv + vec2(-SQ, SQ)));
+    float dcRing = 0.125 * (dcLeafAlpha(ra, fresh, wuv + vec2(SD, 0.0)) + dcLeafAlpha(ra, fresh, wuv - vec2(SD, 0.0))
+      + dcLeafAlpha(ra, fresh, wuv + vec2(0.0, SD)) + dcLeafAlpha(ra, fresh, wuv - vec2(0.0, SD))
+      + dcLeafAlpha(ra, fresh, wuv + vec2(SQ, SQ)) + dcLeafAlpha(ra, fresh, wuv - vec2(SQ, SQ))
+      + dcLeafAlpha(ra, fresh, wuv + vec2(SQ, -SQ)) + dcLeafAlpha(ra, fresh, wuv + vec2(-SQ, SQ)));
     if (a < 0.5 && dcNear) dcShade = ${DECOR_LEAF.shadowAlpha.toFixed(2)} * dcRing;
   } else if (k < ${K.needle + 0.5}) {
     a = (1.0 - smoothstep(0.55, 1.0, abs(uv.y))) * (1.0 - smoothstep(0.9, 1.0, abs(uv.x)));

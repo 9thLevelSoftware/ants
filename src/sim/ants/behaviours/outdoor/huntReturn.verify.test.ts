@@ -38,7 +38,9 @@ function watch(reason: 'timeout' | 'trail-lost', ageS: number): Watch {
   for (let t = 0; t < 6000 && !ant; t += 20) {
     run(sim, 20);
     ant = sim.stores.ants.list.find((a) => a.alive && a.colony === col.id && a.task === 'forage' && a.nestId < 0
-      && a.bb[K.phase] === PHASE.outbound && a.carry.kind === 'none' && a.cropC + a.cropP < 0.05);
+      && a.bb[K.phase] === PHASE.outbound && a.carry.kind === 'none' && a.cropC + a.cropP < 0.2);
+      // (crop < 0.2: a departing forager carries its ~0.1 travel ration; until colony-life round 8 (HB1) the fixture
+      // could ask for < 0.05 because failed chases left foragers with their ration spent)
   }
   expect(ant, 'an outbound forager').toBeTruthy();
   const a = ant!;

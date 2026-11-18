@@ -281,6 +281,13 @@ export const PATCH_COMPOST_FACTOR = 2.0;
 export const PATCH_R_PER_GD = 0.8;
 export const PATCH_IMMIGRATION_PER_GD = 0.05;
 export const PATCH_LAMBDA: Partial<Record<CreatureKind, number>> = { springtail: 0.05, mite: 0.01 };
+/**
+ * GDD 05 §2.2 creature table, patch prey: "springtail: one bite kills" (mite: as springtail). A bite that lands kills
+ * it whatever the biter's bite damage. Without this rule a 0.88 mg Lasius worker's bite (0.92) left a springtail at
+ * 0.08 of its 1 HP: the hunter counted as fighting (combat/damage.ts), laid fight alarm on itself and fled from it
+ * before the second bite (colony-life round 8: 6 of 11 chases in the hunt probe ended in flight from own alarm).
+ */
+export const ONE_BITE_PREY: ReadonlySet<CreatureKind> = new Set<CreatureKind>(['springtail', 'mite']);
 export const PATCH_SPAWN_AHEAD_L: [number, number] = [2, 4];
 export const PATCH_RADIUS_BU_DEFAULT = 30;
 /**

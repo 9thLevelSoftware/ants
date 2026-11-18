@@ -2971,3 +2971,44 @@ Progress (kept current; a successor continues from here)
   trips, 120 patch prey appeared, 105 chases begun, 28 escapes rolled at a bite, **11 kills, 6 remains carried
   home**, 107 prey vanished; delivered P 2.3 against a larval demand of 11.5 P. Chase -> kill 10 %, kill -> home
   55 %. The design's expectation behind `HUNT_EXPECT_S` is ~1.7-2.5 sightings a catch (40-60 %).
+- 10:42 **cause of the hunt drop found and fixed (HB1)**. Probe `src/sim/ants/behaviours/outdoor/huntProbe8.test.ts`
+  (temporary; copy `round-8/protein/huntProbe8.test.ts.txt`, outputs `protein/huntProbe8-{before,after}.out`; the
+  outdoor test scenario, 14 workers, a known full patch 60 BU out, one game day, every chase traced to its end):
+  before, 11 chases -> 4 kills; **6 chases ended with the hunter in `flee.run` from alarm pheromone (threat alarm,
+  1.1-1.5 ph where it stood)**. Every landed bite did 0.92 to a springtail of 1 HP (a 0.88 mg Lasius worker,
+  `combat/stats.ts` bite = mass^(2/3) x mandible factor; nanitics bite less): the springtail survives at 0.08,
+  `combat/damage.ts damageCreature` marks the attacker of a surviving creature as fighting (`cb.dmgT`), and
+  `selfDefence.ts fightAlarmDeposit` lays ALARM_FIGHT_RATE 1.5 ph/s on the hunter, which flees from its own alarm
+  before its second bite. GDD 05 §2.2 (creature table): "springtail ... prey: one bite kills" (mite: as springtail);
+  round 2 had already stopped the kill itself from marking a fight, assuming one bite kills. **Fix HB1**:
+  `balance/creatures.ts ONE_BITE_PREY` (springtail, mite) and `combat/hits.ts resolveBite`: a landed bite on patch
+  prey deals what it has left (escape and mite evasion rolls unchanged). Not a GDD deviation (it is the GDD's rule).
+  Test `combat/preyOneBite.test.ts` (3: a 0.85 BU worker, bite < 1 HP, kills a springtail with one bite and is not
+  marked as fighting; a mite likewise once a bite lands; a fly larva keeps its HP and the biter is in a fight; the
+  first two red on the r30r29c tree without HB1, all green with it). Probe after: 7 chases -> 7 kills -> 7 remains
+  carried home, 0 flights. Paired arm `r30hb1` (= scratch-r8-r30 + HB1, `/home/user/scratch-r8-r30hb1`) on the
+  subset, against r30: queued first in `paired/jobs4c.txt` (`paired/chain4c.sh`; if cut off run
+  `paired/jobs4.sh jobs4c.txt`).
+- 10:48 HB1 tests: combat folder 13/13 files green (`round-8/vitest-combat-hb1.txt`); ants/behaviours/outdoor 28/31
+  (`vitest-outdoor-hb1.txt`): red `removal.verify` (known, red since round 7) and two fixtures that HB1 broke:
+  `hunt.test` case 4 and `huntReturn.verify` look for "an outbound forager with crop < 0.05" in the 24-worker patch
+  scenario; a departing forager carries its ~0.1 travel ration, and before HB1 the fixture found one only because
+  failed chases had used up a forager's ration. Fixture restated to crop < 0.2 (the rule under test, a hunter's free
+  mandibles and room below the return mark 0.8, is unchanged), with the reason in a comment; both files 6/6 green
+  with HB1 and on the r30r29c tree without it.
+- 10:48 **protein ledger, r30, first 10 colonies** (`round-8/protein/r30-ledger.tsv`, `protein/table.py`; the 5
+  subset runs have the funnel only, we #2, we #3, sg #1, sg #3, pp #1 the full ledger), medians: P standing in
+  protein sources within 300 BU 1.6 (sg #1 17, a carrion field of 140 P arriving), known 0 (sg #1 11); **forage trips
+  set out for a protein source 2 per run** (sg #1: 3 with 11 P known); hunting trips 117; patch prey appeared 160,
+  chased 107, **killed 17 (chase -> kill 10-21 %)**, remains home 13; P delivered 4.8 (prey 2.5, carrion 0, liquids
+  0.4) against a larval P demand of ~12; spoiled in the stores 0.7-2.4 P a run (~30 % of what is delivered); larvae
+  fed 9.8 P, most of it the queen's founding reserve moved to the stores at the hand-over. Stage with the largest
+  drop: **chase -> kill** (~90 chases a run end without a catch, ~22 P at 0.25 P a springtail); cause found (HB1,
+  10:42). Next stages: known carrion not visited (sg #1), spoilage.
+- 10:53 **known carrion not visited (sg #1 r30, the one big carrion of the 10)**: a large insect carcass (~100 P)
+  arrives within 300 BU on day 1 and is known on day 2 (107 P known); on days 1-3 the colony's P need index is 0
+  (stores 1.3-1.4 P cover 1.5 gd of a P rate that has no larvae in it yet: the day-1 eggs hatch on day 3), so
+  wP = wC = 0.2 and 1 forage trip in 3 days goes to it; on day 4 the larvae's demand arrives (7.2 P that day,
+  needP 0.88) and the carcass has decayed (35.7 P gone, `decayed`). The need signal follows the larvae, not the
+  eggs that will become larvae two days later. Lead for a later round (it is GDD 02 §5.5's need definition, i.e. a
+  deviation if changed): not worked this round.
