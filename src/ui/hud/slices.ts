@@ -17,3 +17,4 @@ export const toastsSlice = computed(() => snapshot.value.toasts);
 export const directivesSlice = computed(() => snapshot.value.directives ?? null);
 export const rosterSlice = computed(() => snapshot.value.roster ?? null);
 export const inspectSlice = computed(() => snapshot.value.inspect ?? null);
+export const focusAimSlice = computed(() => snapshot.value.focusAim ?? null);

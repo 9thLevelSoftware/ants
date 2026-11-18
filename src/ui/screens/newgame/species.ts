@@ -2,6 +2,8 @@
 // (`SpeciesDef.available`), so a species becomes selectable as soon as its data is registered. Wording from GDD 07 1.1.
 import type { Season, SpeciesId } from '@/sim/types';
 import { getSpecies } from '@/sim/species';
+import { startFor } from '@/sim/config/rules';
+import type { CustomRules } from '@/sim/types';
 
 export interface SpeciesCard {
   id: SpeciesId;
@@ -57,6 +59,11 @@ export function foundingSeasonOf(id: SpeciesId): Season {
   const doy = getSpecies(id)?.opening?.startDoy?.default;
   if (doy === undefined) return speciesCard(id).foundingSeason;
   return SEASON_ORDER[Math.min(3, Math.max(0, Math.floor((doy - 1) / STANDARD_SEASON_DAYS)))];
+}
+
+/** The season and day of the game's first day for a start rule at a season length (the species' own day for `natural`). */
+export function startOf(id: SpeciesId, rule: CustomRules['startSeason'], seasonLengthDays: number): { season: Season; day: number } {
+  return startFor(id, rule, seasonLengthDays);
 }
 
 /** Selectable now? (registry data present and flagged available). */

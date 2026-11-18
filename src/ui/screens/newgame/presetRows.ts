@@ -21,9 +21,26 @@ export function presetGroups(id: DifficultyId): ShownGroup[] {
   return groups;
 }
 
+/** One rule's help line: its effect in the design's words, and which parts of it the game does not carry out yet. */
+export function ruleHelp(key: string): string {
+  const r = RULE_DISPLAY.find((x) => x.key === key);
+  if (!r) return '';
+  return r.notInEffect.length ? `${r.effect} Not in this build: ${r.notInEffect.join(', ')}.` : r.effect;
+}
+
 export interface UnwiredRule { label: string; effect: string }
 
-/** Custom rules the design lists that the game does not apply yet: shown disabled, with the design's one-line effect. */
+/**
+ * Rules the simulation reads but the game cannot use yet, so the screen does not offer them. `extinctionEndsGame` off would
+ * keep an empty nest on screen "until you retire the colony" (GDD 06 13.4), and no screen retires a colony: such a game
+ * could not be ended (the `retireColony` command has no button).
+ */
+const NOT_OFFERED: Readonly<Record<string, string>> = {
+  extinctionEndsGame: 'There is no way to retire a colony yet, so a game that does not end when the last ant dies could not be ended.',
+};
+
+/** Custom rules the design lists that the game does not offer or apply yet: shown disabled, with the design's one-line effect. */
 export function unwiredRules(): UnwiredRule[] {
-  return RULE_DISPLAY.filter((r) => !r.inEffect).map((r) => ({ label: r.label, effect: r.effect }));
+  return RULE_DISPLAY.filter((r) => !r.inEffect || r.key in NOT_OFFERED)
+    .map((r) => ({ label: r.label, effect: `${ruleHelp(r.key)}${NOT_OFFERED[r.key] ? ` ${NOT_OFFERED[r.key]}` : ''}` }));
 }

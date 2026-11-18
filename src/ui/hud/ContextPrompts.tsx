@@ -14,6 +14,7 @@ import { hudBridge } from './state';
 import { ACTION_OF, visibleLines } from './promptLines';
 import { keepOutRects } from './keepOut';
 import { placeAvoiding } from './promptPlacement';
+import { blockingCardUp } from './blockingCard';
 
 function Line({ line }: { line: UiPromptLine }) {
   const label = hintLabel(currentBindings.value, ACTION_OF[line.input] ?? line.input);
@@ -77,7 +78,8 @@ export function ContextPrompts() {
   const all: UiPromptLine[] = prompt?.lines ?? (prompt?.primary ? [{ slot: 'primary', input: 'interact', text: prompt.primary, ok: true }] : []);
   const shown = visibleLines(all).filter((l) => mode !== 'never' || l.input === 'directives');
   const observerText = !possessed && prompt?.primary && !prompt.lines ? prompt.primary : null;
-  const active = shown.length > 0 || observerText !== null;
+  const blocked = blockingCardUp(); // a card waits for the player: nothing is drawn over it
+  const active = !blocked && (shown.length > 0 || observerText !== null);
   useAnchor(ref, active);
   if (!active) return null;
   return (

@@ -22,7 +22,8 @@ export function parseGameFlags(search: string): GameFlags {
   const seed = q.get('seed');
   if (seed !== null && seed !== '') opts.seed = /^\d+$/.test(seed) ? Number(seed) : seed;
   const str = (k: string) => q.get(k) ?? undefined;
-  if (str('species')) opts.species = str('species') as NewGameOptions['species'];
+  // species that are not released yet can be tried only in test mode (GDD 08 3.7 greys their cards out)
+  if (str('species') && r.test) opts.species = str('species') as NewGameOptions['species'];
   if (str('archetype')) opts.archetype = str('archetype') as NewGameOptions['archetype'];
   if (str('size')) opts.size = str('size') as NewGameOptions['size'];
   if (str('difficulty')) opts.difficulty = str('difficulty') as NewGameOptions['difficulty'];

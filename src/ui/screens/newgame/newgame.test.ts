@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applyPreset, buildRequest, defaultForm, isCustom, LOCALITY_ARCHETYPES, presetRules, ruleOverrides, setRule } from './form';
+import { applyPreset, buildRequest, defaultForm, isCustom, LOCALITY_ARCHETYPES, presetRules, RULE_KEYS, ruleOverrides, setRule } from './form';
 import { suitability, zoneChips } from './locality';
 import { formatSeedCode, fnv1a32, nextSeedText, randomSeedText, resolveSeed, SEED_MAX_CHARS } from './seed';
-import { SPECIES_CARDS, foundingSeasonOf, isSpeciesAvailable } from './species';
-import { NOT_IN_BUILD, presetGroups, unwiredRules } from './presetRows';
-import { PRESET_ROWS, rowInEffect, UNWIRED_RULES } from '@/sim/config/presetDisplay';
+import { SPECIES_CARDS, foundingSeasonOf, isSpeciesAvailable, startOf } from './species';
+import { NOT_IN_BUILD, presetGroups, ruleHelp, unwiredRules } from './presetRows';
+import { PRESET_ROWS, PRESET_SUMMARY, rowInEffect, UNWIRED_RULES } from '@/sim/config/presetDisplay';
 
 describe('seed field (GDD 08 3.7)', () => {
   it('an 8-hex code is the seed itself, with or without the hyphen, any case', () => {
@@ -103,10 +103,17 @@ describe('presets and rules that the sim does not read yet are marked, not offer
       }
     }
   });
-  it('lists the unwired custom rules (and only those) with the design\'s wording', () => {
+  it('lists the unwired custom rules, and the one the screen cannot offer, with the design\'s wording', () => {
     const u = unwiredRules();
-    expect(u.length).toBe(UNWIRED_RULES.length);
+    expect(u.length).toBe(UNWIRED_RULES.length + 1); // + extinctionEndsGame: no way to retire a colony
     for (const r of u) expect(r.effect.length).toBeGreaterThan(10);
+    expect(u.find((r) => r.label === 'Extinction ends the game')?.effect).toMatch(/retire/);
+  });
+  it('a rule whose effect names a parameter nothing reads says so, in the help line', () => {
+    expect(ruleHelp('predators')).toContain('Not in this build: threats during the opening, predator events on the nuptial flight.');
+    expect(ruleHelp('foundingLeniency')).toContain('Not in this build: threats during the opening.');
+    expect(ruleHelp('foundingLeniency')).not.toMatch(/forgiving the opening is:.*threats,/);
+    expect(ruleHelp('collapse')).not.toContain('Not in this build');
   });
 });
 
@@ -119,5 +126,37 @@ describe('natural start season (ruling R20: the reference species starts on day 
   });
   it('the static card agrees with the data (no screen keeps a season of its own)', () => {
     for (const c of SPECIES_CARDS) expect(c.foundingSeason, c.id).toBe(foundingSeasonOf(c.id));
+  });
+});
+
+describe('start day in the help line (derived from the species data, not a literal 3)', () => {
+  it('Natural: day 5 for the reference species at 7-day seasons; the chosen season starts on day 3', () => {
+    expect(startOf('lasius-niger', 'natural', 7)).toEqual({ season: 'spring', day: 5 });
+    expect(startOf('lasius-niger', 'summer', 7)).toEqual({ season: 'summer', day: 3 });
+    expect(startOf('messor-barbarus', 'natural', 7).season).toBe('autumn');
+  });
+  it('the natural day follows the season length', () => {
+    expect(startOf('lasius-niger', 'natural', 10).day).toBeGreaterThan(startOf('lasius-niger', 'natural', 5).day);
+  });
+});
+
+describe('preset wording', () => {
+  it('one summary text per preset, two lines, naming no outcome the game does not measure', () => {
+    for (const id of ['gentle', 'naturalist', 'harsh'] as const) {
+      const { lines } = PRESET_SUMMARY[id];
+      expect(lines).toHaveLength(2);
+      for (const l of lines) expect(l).not.toMatch(/recover|usual outcome|forgiving|losing colonies|losses are real/i);
+    }
+  });
+  it('the rival row has a plural rule', () => {
+    const row = (n: number) => PRESET_ROWS.find((r) => r.label === 'Rival colonies')!.format({ incipientRivals: n } as never);
+    expect(row(1)).toBe('1 young rival nearby');
+    expect(row(2)).toBe('2 young rivals nearby');
+    expect(row(0)).toBe('no young rivals nearby');
+  });
+  it('winter is a custom rule the screen edits', () => {
+    expect(RULE_KEYS).toContain('winterMode');
+    expect(presetRules('naturalist').winterMode).toBe('timelapse');
+    expect(ruleOverrides({ preset: 'naturalist', rules: { ...presetRules('naturalist'), winterMode: 'realtime' } })).toEqual({ winterMode: 'realtime' });
   });
 });

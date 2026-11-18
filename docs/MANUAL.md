@@ -1,8 +1,8 @@
 # FOUNDRESS player's manual
 
-This manual describes the game as it is at commit `fb15f3d` on 2026-11-18. It says what the game does today. Where something is unfinished or not in the game yet, it says so. The game is a first playable and has known problems: they are listed in section 15.
+This manual describes the game as it is on 2026-11-18. It says what the game does today. Where something is unfinished or not in the game yet, it says so. The game is a first playable and has known problems: they are listed in section 20.
 
-An earlier draft is in `docs/manual/`. It was written before the game was finished and has not been checked against it. Where the two disagree, this file is the one that was checked.
+This is the only manual. An older draft that lived in `docs/manual/` has been merged into this file (sections 15 to 19 and the notes in section 13) and removed. The tables marked "generated" are written by `tests/docs/regen-manual.ts` from the code that the game reads (section 20 says how to run it); `tests/docs/docs-final.test.ts` fails when they drift.
 
 ## 0. Conventions
 
@@ -41,7 +41,7 @@ New colony opens one page with three columns: Species, Locality and Rules. Begin
 | *Messor barbarus* (`messor-barbarus`) | Harvester ant | no: "Not yet available" | autumn | Gathers seed, mills it into paste and keeps granaries through the dry months. Founding: Dig deep in dry ground after autumn rain. |
 | *Atta texana* (`atta-texana`) | Texas leafcutter ant | no: "Not yet available" | spring | Cuts leaves to grow a fungus garden; the fungus is all the brood eats. Founding: Dig, plant the fungus pellet, tend it. |
 
-Only the black garden ant can be started. The other three cards are greyed with the words "Not yet available". Their simulation modules exist, but their colonies did not meet the survival bar in the test runs (README, "State of the game today"). The `species=` URL flag (README) accepts their ids for testing, so a maintainer can start one, but those games are not playable in the sense of this manual: the colonies did not survive the test runs.
+Only the black garden ant can be started. The other three cards are greyed with the words "Not yet available". Their simulation modules exist, but their colonies did not meet the survival bar in the test runs (README, "State of the game today"). The `species=` URL flag starts one of them only in test mode (`?test=1&species=<id>`); on an ordinary page the flag is ignored. Those games are not playable in the sense of this manual: the colonies did not survive the test runs.
 
 ### 1.4 Locality
 
@@ -52,7 +52,7 @@ Choose Woodland Edge, Suburban Garden, Playground Park, Car Park Verge, Kitchen 
 
 ### 1.5 Starting season
 
-Natural, Spring, Summer or Autumn. Winter is greyed out. Natural is the species' own founding day: for the black garden ant, day 5 of the year, in spring. (The help text under the control says "on day 3"; that is a wrong string, see section 15.) The other choices start on day 3 of the chosen season.
+Natural, Spring, Summer or Autumn. Winter is greyed out. Natural is the species' own founding day, read from the species data: for the black garden ant, day 5 of spring (ruling R20), at 7-day seasons; the day moves with the season length. The other choices start on day 3 of the chosen season. The help text under the control names the season and the day of the choice you have made.
 
 ### 1.6 Difficulty and rules
 
@@ -135,7 +135,7 @@ Making the world takes some seconds. The loading page shows the stages. If gener
 
 ## 2. The opening, step by step
 
-You begin as a single founding queen, playing by hand. The game teaches one verb at a time with a prompt near the queen. A prompt stops showing once you have used its verb a few times. The key on the prompt is the key you have bound. The journal's aims ask one question at a time ("Where is the ground sheltered, warm and diggable?"). You read them in Journal > Aims (`J`) and on the hand-over banner. There is no always-visible focus line on the screen in this build. The aims never block play.
+You begin as a single founding queen, playing by hand. The game teaches one verb at a time with a prompt near the queen. A prompt stops showing once you have used its verb a few times. The key on the prompt is the key you have bound. The journal's aims ask one question at a time ("Where is the ground sheltered, warm and diggable?"). The **Focus line** under the clock shows the current top aim ("Aim: ..."); a click on it opens Journal > Aims (`J`). In Settings > Gameplay > Focus line, Auto shows it through the first 2 game days of a colony and for 30 real seconds each time a new aim opens, Always keeps it on, Never hides it. The aims also appear on the hand-over banner. They never block play.
 
 The steps (hint and aim wording: `src/content/text/hints.ts`):
 
@@ -240,7 +240,7 @@ Alerts come in four levels: info, notice, warning and critical. The feed at the 
 
 **Colony health** lists every diagnostic worst first with a value, a trend and a chain of causes ("why") and, where one exists, a remedy button. This is the place to ask why food intake fell or brood slowed.
 
-**Auto-slow.** When a critical alert is raised, the game drops the speed to 1x (or pauses). The setting `gameplay.autoSlowCritical` has three values (`pause`, `slow`, `off`); `autoSlowWarning` has two (`slow`, `off`). Default: critical slows, warnings do nothing. The winter warning and the flight weather prompt slow time whatever their level. There is one slow-down per alert kind and level per 0.25 game days, never while paused, and never a speed increase. The game flashes the speed control once when it acts. **These two settings are in the settings file but have no control in the Settings screen in this build.** The difficulty preset does not change them: the preset row "Automatic slow-down at an alert" (section 1.6) has no effect, so Gentle does not pause at a critical alert unless you edit the settings file.
+**Auto-slow.** When a critical alert is raised, the game drops the speed to 1x (or pauses). Settings > Gameplay has the two controls: "Slow down at a critical alert" (`gameplay.autoSlowCritical`: Pause, Slow to 1x, Off) and "Slow down at a warning" (`gameplay.autoSlowWarning`: Slow to 1x, Off). The values start at critical slows, warnings do nothing. A new game takes its preset's row "Automatic slow-down at an alert" (section 1.6) as the starting value of the critical choice: Gentle pauses, Naturalist and Harsh slow. A choice of Off is kept. You can change it at any time; it stays until the next new game. The winter warning and the flight weather prompt slow time whatever their level, by the critical choice. There is one slow-down per alert kind and level per 0.25 game days, never while paused, and never a speed increase. The game flashes the speed control once when it acts.
 
 ## 9. Time controls
 
@@ -298,7 +298,7 @@ Settings has five tabs: Graphics, Audio, Controls, Accessibility, Gameplay. The 
 | Sound-cue indicators (`soundCues`) | on-screen pips with icons for sounds |
 | Flash reduction (`flashReduction`) | on by default: lightning becomes a soft glow |
 
-**Gameplay** (`gameplay.*`): autosave, prompts (always, while learning, never), hints and aims, milestone notices (full, quiet, off), return to 1x when taking control (`dropTo1xOnPossess`), take over a nestmate when your ant dies (`autoRepossessOnDeath`), pause when the window loses focus (`pauseOnBlur`), pause after loading (`pauseOnLoad`), pause while a panel is open (`pauseWhenPanelOpen`), camera follow (`camera.autoFollow`: off, gentle, strong). Settings > Gameplay also has a "Reset hints" button. Three settings in this tab or the settings file have **no effect in this build**: Minimap (`gameplay.minimap`) and Focus line (`gameplay.focusLine`) have a control, but nothing reads them (there is no minimap and no focus line in the game); the two auto-slow fields (`gameplay.autoSlowCritical`, `gameplay.autoSlowWarning`) work but have no control (section 8).
+**Gameplay** (`gameplay.*`): autosave, prompts (always, while learning, never), hints and aims, minimap (`gameplay.minimap`: never or always, section 15), focus line (`gameplay.focusLine`: auto, always, never, section 2), milestone notices (full, quiet, off), slow down at a critical alert and at a warning (`gameplay.autoSlowCritical`, `gameplay.autoSlowWarning`, section 8), return to 1x when taking control (`dropTo1xOnPossess`), take over a nestmate when your ant dies (`autoRepossessOnDeath`), pause when the window loses focus (`pauseOnBlur`), pause after loading (`pauseOnLoad`), pause while a panel is open (`pauseWhenPanelOpen`), camera follow (`camera.autoFollow`: off, gentle, strong). Settings > Gameplay also has a "Reset hints" button. Every setting in this tab has a control and is read by the game.
 
 ## 13. Keyboard, mouse and gamepad
 
@@ -306,7 +306,7 @@ The tables are generated by `controlsMarkdown()` in `src/content/text/controls.t
 
 Notation: `LMB`, `RMB`, `MMB` are the left, right and middle mouse buttons; "tap" and "hold" are pad gestures; `LB+Dpad up` means hold LB and press the D-pad up. In menus the pad uses A to confirm, B to go back, LB and RB to change tabs. Pad buttons are written as Xbox letters; with a PlayStation pad the game prints the PlayStation shapes.
 
-One entry is misleading: the Photo mode row shows `F2 or LS+RS` in the keyboard column. `LS+RS` is a gamepad chord (press both sticks in); it is listed there because the generator puts every fixed binding of an action in the keyboard column. This is a wrong string in the generator (section 15). The same row appears in the earlier draft `docs/manual/02-controls.md`.
+The Photo mode row lists `F2` for the keyboard and two chords for the gamepad: press both sticks in, in either order (`LS+RS` or `RS+LS`).
 
 #### Anywhere in play
 
@@ -470,7 +470,7 @@ This section follows the rules as built; the numbers live in `src/sim/balance/` 
 
 **Digging.** Workers dig the plans you place and, with the architect on, the chambers the nest needs. Soil becomes pellets carried out to a mound. Soil, wet weather and water matter: a chamber can flood in heavy rain, and ants flee rising water; a site read as "flood-safe" at the start is lower risk.
 
-**Winter.** The year has four seasons. Host plants (and so aphid herds) decline from about day 10 of the 28-day year, and cold slows the brood. A winter warning appears about 1.5 game days before the winter banner. Winter is resolved as a time-lapse that can be skipped. (The rule table has a real-time winter option, but no screen offers it.) The lapse loses workers by cold, disease, flooding and old age, and the colony needs stores that cover its carbohydrate need through winter plus a few days of spring (ruling R27). The queen stops laying in the cold. A colony without stores starves in the lapse.
+**Winter.** The year has four seasons. Host plants (and so aphid herds) decline from about day 10 of the 28-day year, and cold slows the brood. A winter warning appears about 1.5 game days before the winter banner. Winter is resolved as a time-lapse that can be skipped. (New colony > Custom rules > Winter can turn the time-lapse off and play every winter day instead; a run of this option was checked in a browser on 2026-11-18: no banner, no time-lapse, the days pass at the chosen speed.) The lapse loses workers by cold, disease, flooding and old age, and the colony needs stores that cover its carbohydrate need through winter plus a few days of spring (ruling R27). The queen stops laying in the cold. A colony without stores starves in the lapse.
 
 **Other threats.** Predators (spiders, beetles, centipedes and others, scaled by difficulty and by the size of your colony), rival colonies, birds, weather (rain, heat, frost) and humans (feet, mowers, brooms, hoses, cars) change what is safe. Alerts name the cause.
 

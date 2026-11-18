@@ -35,6 +35,8 @@ import { hudBridge, openDrawer, rosterQuery } from './state';
 import { installHudStyles } from './styles';
 import { TimeCluster } from './TimeCluster';
 import { Toasts } from './Toasts';
+import { FocusLine } from './FocusLine';
+import { Minimap } from './minimap/Minimap';
 import { SoundCuePips } from './SoundCuePips';
 
 /** Wires everything the HUD needs once: styles, keys, feed, requests, bridge, gamepad, debug hook. */
@@ -122,11 +124,13 @@ function HudLayer() {
       onMouseDown={onChipMouseDown} onClick={onChipClick} onKeyDown={onLeaveKey}
     >
       {!hidden && <TimeCluster />}
+      {!hidden && <FocusLine />}
       {!hidden && drawer === null && <ColonyPulse />}
       {(!hidden ? drawer === null : true) && <AlertsFeed />}
       {!hidden && <PossessedPanel />}
       {!hidden && <InspectCard />}
       {!hidden && <ContextPrompts />}
+      {!hidden && <Minimap />}
       <Toasts />
       <SoundCuePips />
       {hidden && <div class="fd-hiddenhint fd-chip" data-testid="hidden-hint"><KeyHint action="hide-hud">HUD hidden</KeyHint></div>}

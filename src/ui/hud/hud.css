@@ -236,3 +236,20 @@ body:has(.fo-clutch) .fd-alerts { top: 12.5rem; }
 .fd-cuepip { transform: translate(-50%, -50%); padding: var(--s-1) var(--s-3); font-size: var(--t-small); font-weight: 600;
   pointer-events: none; border: 1px solid var(--c-border-strong); display: inline-flex; align-items: center; gap: var(--s-1); }
 .fd-cuepip.is-onscreen { opacity: 0.8; }
+
+/* ---- Minimap: 176 x 176 dp at (1088, 528), i.e. the bottom right corner (GDD 08 3.4); hidden in the compact layout ---- */
+.fd-minimap { right: 1rem; bottom: 1rem; width: 11rem; height: 11rem; padding: 0; overflow: hidden; }
+:root[data-layout="compact"] .fd-minimap, .fd-root.has-drawer .fd-minimap { display: none; }
+.fd-minimap-box { position: relative; width: 100%; height: 100%; cursor: pointer; border-radius: var(--r-m); overflow: hidden; border: 1px solid var(--c-border-strong); box-sizing: border-box; }
+.fd-minimap-plate { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: auto; }
+.fd-mm-ring { position: absolute; width: 0.75rem; height: 0.75rem; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7); box-sizing: border-box; pointer-events: none; }
+.fd-mm-ring.is-closed { border-style: dashed; opacity: 0.8; }
+.fd-mm-marker { position: absolute; width: 0.875rem; height: 0.875rem; transform: translate(-50%, -50%); color: #fff; filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 2px #000); pointer-events: none; }
+.fd-mm-ant { position: absolute; width: 1rem; height: 1rem; color: #ffd24a; pointer-events: none; }
+.fd-mm-ant svg { display: block; fill: currentColor; stroke: #000; stroke-width: 1; stroke-linejoin: round; }
+.fd-mm-north { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: var(--t-caption); font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 3px #000; pointer-events: none; }
+
+/* ---- Focus line: 304 x 24 dp at (16, 76), under the time cluster (GDD 08 3.4) ---- */
+.fd-focus { left: 1rem; top: 4.75rem; width: 19rem; height: 1.5rem; padding: 0 var(--s-3); display: flex; align-items: center; border: 0; font: inherit; font-size: var(--t-small); line-height: var(--t-small-lh); text-align: left; cursor: pointer; }
+.fd-focus:hover { background: var(--c-panel-raised); }
+.fd-focus-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

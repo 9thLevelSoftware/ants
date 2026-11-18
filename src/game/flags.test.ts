@@ -9,10 +9,16 @@ describe('URL flags (architecture §5)', () => {
   });
 
   it('reads species, archetype, size, view and quality', () => {
-    const f = parseGameFlags('?seed=abc&quality=low&species=lasius-niger&archetype=kitchen-door&size=large&view=observer&render=debug');
+    const f = parseGameFlags('?seed=abc&quality=low&archetype=kitchen-door&size=large&view=observer&render=debug');
     expect(f.quality).toBe('low');
     expect(f.forceDebugRender).toBe(true);
-    expect(f.newGame).toEqual({ seed: 'abc', species: 'lasius-niger', archetype: 'kitchen-door', size: 'large', view: 'observer' });
+    expect(f.newGame).toEqual({ seed: 'abc', archetype: 'kitchen-door', size: 'large', view: 'observer' });
+  });
+
+  it('the species flag works only in test mode (unreleased species stay out of a normal page)', () => {
+    expect(parseGameFlags('?test=1&species=atta-texana').newGame.species).toBe('atta-texana');
+    expect(parseGameFlags('?species=atta-texana').newGame.species).toBeUndefined();
+    expect(parseGameFlags('?autostart=1&species=messor-barbarus&seed=3').newGame).toEqual({ seed: 3 });
   });
 
   it('defaults without flags', () => {

@@ -2,6 +2,7 @@
 // the directives slice, the inspect card, and the refresh cost with 1,500 ants.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { makeTestSim } from '@/sim/testing';
+import { TICKS_PER_DAY } from '@/sim/time';
 import type { Sim } from '@/sim/types';
 import { defaultQuery } from '@/ui/panels/roster/rosterModel';
 import { SnapshotBuilder, type SnapshotSource } from '../uiBridge';
@@ -32,6 +33,23 @@ describe('speed slice', () => {
     const b = new SnapshotBuilder();
     expect(b.build(src(sim), 0, 0).speed?.autoSlowFlash).toBe(0);
     expect(b.build(src(sim, { autoSlowFlashes: 2 }), 1, 0).speed?.autoSlowFlash).toBe(2);
+  });
+});
+
+describe('focus aim slice (Focus line)', () => {
+  it('is the oldest open aim and marks a colony in its first game days as new', () => {
+    const sim = simWith(2);
+    sim.state.progression.aims.push({ id: 'aim-dig-chamber', state: 'open', openedTick: 5, doneTick: -1 }, { id: 'aim-find-site', state: 'open', openedTick: 1, doneTick: -1 });
+    const b = new SnapshotBuilder();
+    const f = b.build(src(sim), 0, 0).focusAim;
+    expect(f).toMatchObject({ id: 'aim-find-site', species: sim.state.config.species, openedTick: 1, newColony: true });
+    sim.state.tick = 3 * TICKS_PER_DAY;
+    expect(b.build(src(sim), 1, 0).focusAim?.newColony).toBe(false);
+  });
+  it('is null with no open aim', () => {
+    const sim = simWith(2);
+    sim.state.progression.aims.length = 0;
+    expect(new SnapshotBuilder().build(src(sim), 0, 0).focusAim).toBeNull();
   });
 });
 

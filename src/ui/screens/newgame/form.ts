@@ -9,7 +9,7 @@ import type { NewGameRequest } from '../../api';
 import { randomSeedText, resolveSeed } from './seed';
 
 /** The custom rules the screen edits (GDD 08 3.7 table); the others keep the preset's value. */
-export const RULE_KEYS = ['predators', 'rivals', 'humanActivity', 'weatherSeverity', 'seasonLengthDays', 'foundingLeniency', 'collapse'] as const;
+export const RULE_KEYS = ['predators', 'rivals', 'humanActivity', 'weatherSeverity', 'seasonLengthDays', 'foundingLeniency', 'winterMode', 'collapse'] as const;
 export type RuleKey = (typeof RULE_KEYS)[number];
 export type EditableRules = Pick<CustomRules, RuleKey>;
 
@@ -33,7 +33,7 @@ export function presetRules(preset: DifficultyId): EditableRules {
   const r = resolveRules(preset, {}, 7);
   return {
     predators: r.predators, rivals: r.rivals, humanActivity: r.humanActivity, weatherSeverity: r.weatherSeverity,
-    seasonLengthDays: r.seasonLengthDays, foundingLeniency: r.foundingLeniency, collapse: r.collapse,
+    seasonLengthDays: r.seasonLengthDays, foundingLeniency: r.foundingLeniency, winterMode: r.winterMode, collapse: r.collapse,
   };
 }
 

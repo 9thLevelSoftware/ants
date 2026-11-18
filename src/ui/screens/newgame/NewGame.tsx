@@ -12,8 +12,9 @@ import { markGenerating } from '../loadFlow';
 import { applyPreset, buildRequest, isCustom, lastRequest, LOCALITY_ARCHETYPES, newGameForm, setRule, type NewGameForm } from './form';
 import { randomSeedText, resolveSeed, SEED_MAX_CHARS } from './seed';
 import { suitability, zoneChips } from './locality';
-import { NOT_IN_BUILD, presetGroups, unwiredRules } from './presetRows';
-import { foundingSeasonOf, isSpeciesAvailable, SHOW_UNRELEASED_SPECIES, SPECIES_CARDS, speciesCard } from './species';
+import { PRESET_SUMMARY } from '@/sim/config/presetDisplay';
+import { NOT_IN_BUILD, presetGroups, ruleHelp, unwiredRules } from './presetRows';
+import { isSpeciesAvailable, SHOW_UNRELEASED_SPECIES, SPECIES_CARDS, speciesCard, startOf } from './species';
 
 const ARCHETYPE_NAMES: Record<ArchetypeId | 'random', string> = {
   'woodland-edge': 'Woodland Edge', 'suburban-garden': 'Suburban Garden', 'playground-park': 'Playground Park',
@@ -21,12 +22,6 @@ const ARCHETYPE_NAMES: Record<ArchetypeId | 'random', string> = {
 };
 
 const SIZE_BU = { compact: 3000, standard: 4000, large: 5000 } as const;
-
-const PRESET_TEXT: Record<DifficultyId, { name: string; text: string }> = {
-  gentle: { name: 'Gentle', text: 'Fewer predators and rivals, kinder weather and a lenient first season. Mistakes can be recovered from.' },
-  naturalist: { name: 'Naturalist', text: 'Close to the biology. The first season is risky, the seasons are real and the colony is yours to keep alive.' },
-  harsh: { name: 'Harsh', text: 'Dense predators and rivals, severe weather and a strict founding. Losing colonies is the usual outcome.' },
-};
 
 function Complexity({ n }: { n: number }) {
   return (
@@ -73,8 +68,9 @@ function LocalityColumn({ form, set }: { form: NewGameForm; set: (f: NewGameForm
   const ids: (ArchetypeId | 'random')[] = [...LOCALITY_ARCHETYPES, 'random'];
   const options: RadioCardOption<ArchetypeId | 'random'>[] = ids.map((value) => ({ value }));
   const card = speciesCard(form.species);
-  const season = foundingSeasonOf(card.id);
-  const seasonWord = season[0].toUpperCase() + season.slice(1);
+  // the day is the species' own (ruling R20: 5 for the reference species) or day 3 of a chosen season, at the chosen season length
+  const start = startOf(card.id, form.startSeason, form.rules.seasonLengthDays);
+  const seasonWord = start.season[0].toUpperCase() + start.season.slice(1);
   return (
     <>
       <RadioCards
@@ -115,7 +111,11 @@ function LocalityColumn({ form, set }: { form: NewGameForm; set: (f: NewGameForm
             { value: 'autumn', label: 'Autumn' }, { value: 'winter' as never, label: 'Winter', disabled: true, reason: 'Queens do not found in frost.' },
           ]}
         />
-        <span class="ui-field-help">Natural begins in {seasonWord}, on day 3, the season {card.commonName.toLowerCase()} queens found in.</span>
+        <span class="ui-field-help" data-testid="start-help">
+          {form.startSeason === 'natural'
+            ? <>Natural begins on day {start.day} of {seasonWord}, when {card.commonName.toLowerCase()} queens found.</>
+            : <>Begins on day {start.day} of {seasonWord}.</>}
+        </span>
       </Field>
     </>
   );
@@ -132,25 +132,28 @@ function CustomRules({ form, set }: { form: NewGameForm; set: (f: NewGameForm) =
       </button>
       {open && (
         <div id="custom-rules" class="ui-custom-body">
-          <Field label="Predators" layout="stack">
+          <Field label="Predators" layout="stack" help={ruleHelp('predators')}>
             <SegmentedControl value={r.predators} onChange={(v) => set(setRule(form, 'predators', v))} options={[{ value: 'off', label: 'Off' }, { value: 'few', label: 'Few' }, { value: 'normal', label: 'Normal' }, { value: 'many', label: 'Many' }]} />
           </Field>
-          <Field label="Rival colonies">
+          <Field label="Rival colonies" help={ruleHelp('rivals')}>
             <Stepper value={r.rivals} min={0} max={4} step={1} onChange={(v) => set(setRule(form, 'rivals', v))} />
           </Field>
-          <Field label="Human activity" layout="stack">
+          <Field label="Human activity" layout="stack" help={ruleHelp('humanActivity')}>
             <SegmentedControl value={r.humanActivity} onChange={(v) => set(setRule(form, 'humanActivity', v))} options={[{ value: 'off', label: 'Off' }, { value: 'low', label: 'Low' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'High' }]} />
           </Field>
-          <Field label="Weather severity" layout="stack">
+          <Field label="Weather severity" layout="stack" help={ruleHelp('weatherSeverity')}>
             <SegmentedControl value={r.weatherSeverity} onChange={(v) => set(setRule(form, 'weatherSeverity', v))} options={[{ value: 'none', label: 'None' }, { value: 'mild', label: 'Mild' }, { value: 'normal', label: 'Normal' }, { value: 'severe', label: 'Severe' }]} />
           </Field>
-          <Field label="Season length (days)" layout="stack">
+          <Field label="Season length (days)" layout="stack" help={ruleHelp('seasonLengthDays')}>
             <SegmentedControl value={r.seasonLengthDays} onChange={(v) => set(setRule(form, 'seasonLengthDays', v))} options={[{ value: 5, label: '5' }, { value: 7, label: '7' }, { value: 10, label: '10' }]} />
           </Field>
-          <Field label="Founding leniency" layout="stack">
+          <Field label="Founding leniency" layout="stack" help={ruleHelp('foundingLeniency')}>
             <SegmentedControl value={r.foundingLeniency} onChange={(v) => set(setRule(form, 'foundingLeniency', v))} options={[{ value: 'lenient', label: 'Lenient' }, { value: 'normal', label: 'Normal' }, { value: 'strict', label: 'Strict' }]} />
           </Field>
-          <Field label="Nest collapse">
+          <Field label="Winter" layout="stack" help={ruleHelp('winterMode')}>
+            <SegmentedControl value={r.winterMode} onChange={(v) => set(setRule(form, 'winterMode', v))} options={[{ value: 'timelapse', label: 'Time-lapse' }, { value: 'realtime', label: 'Real time' }]} />
+          </Field>
+          <Field label="Nest collapse" help={ruleHelp('collapse')}>
             <Toggle checked={r.collapse} onChange={(v) => set(setRule(form, 'collapse', v))} />
           </Field>
           {unwiredRules().map((u) => (
@@ -172,7 +175,7 @@ function PresetDetails({ preset }: { preset: DifficultyId }) {
     <div class="ui-custom">
       <button type="button" class="ui-disclosure" aria-expanded={open ? 'true' : 'false'} aria-controls="preset-details" onClick={() => setOpen(!open)} data-testid="preset-toggle">
         <Icon name={open ? 'chevron-down' : 'chevron-right'} size={18} decorative />
-        <span>What {PRESET_TEXT[preset].name} changes</span>
+        <span>What {PRESET_SUMMARY[preset].name} changes</span>
       </button>
       {open && (
         <div id="preset-details" class="ui-custom-body" data-testid="preset-rows">
@@ -206,8 +209,8 @@ function RulesColumn({ form, set }: { form: NewGameForm; set: (f: NewGameForm) =
         onChange={(v) => { if (v !== 'custom') set(applyPreset(form, v)); }}
         render={(o, selected) => (
           <div class="ui-difficulty">
-            <span class="ui-difficulty-name">{o.value === 'custom' ? 'Custom' : PRESET_TEXT[o.value].name}</span>
-            <span class="ui-difficulty-text">{o.value === 'custom' ? `Your own rules, starting from ${PRESET_TEXT[form.preset].name}.` : PRESET_TEXT[o.value].text}</span>
+            <span class="ui-difficulty-name">{o.value === 'custom' ? 'Custom' : PRESET_SUMMARY[o.value].name}</span>
+            <span class="ui-difficulty-text">{o.value === 'custom' ? `Your own rules, starting from ${PRESET_SUMMARY[form.preset].name}.` : PRESET_SUMMARY[o.value].lines.join(' ')}</span>
             {selected && <Icon name="check" size={18} class="ui-card-check" decorative />}
           </div>
         )}

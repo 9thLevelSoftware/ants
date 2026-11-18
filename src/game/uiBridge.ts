@@ -8,7 +8,7 @@ import type { Sim } from '@/sim/types';
 import type { UiLoading, UiSnapshot, UiSoundCue, UiSpeed, UiToast } from '@/ui/api';
 import { RosterBuilder } from './uiBridge/rosterSlice';
 import { directivesOf } from './uiBridge/directivesSlice';
-import { alertsOf, colonyOf, possessedOf, promptOf, timeOf } from './uiBridge/hudSlices';
+import { alertsOf, colonyOf, focusAimOf, possessedOf, promptOf, timeOf } from './uiBridge/hudSlices';
 import { inspectOf } from './uiBridge/inspectSlice';
 import { codexOf, healthOf, journalOf, markerCountsOf, nestOf } from './uiBridge/panels';
 import { hudRequests } from './uiBridge/requests';
@@ -16,7 +16,7 @@ import { share } from './uiBridge/share';
 import type { SpeedReport } from './loop/speedMeter';
 import { allowedSpeeds, type GameMode, type ViewId } from './time/speedRules';
 
-export { alertsOf, colonyOf, possessedOf, promptOf, timeOf };
+export { alertsOf, colonyOf, focusAimOf, possessedOf, promptOf, timeOf };
 export { installHudBridge, type HudBridge } from './uiBridge/install';
 export { hudRequests } from './uiBridge/requests';
 
@@ -78,6 +78,7 @@ export class SnapshotBuilder {
       colony: inGame ? share(p?.colony ?? undefined, colonyOf(sim)) : null,
       possessed: inGame ? share(p?.possessed ?? undefined, possessedOf(sim, src.underground)) : null,
       prompt: inGame ? share(p?.prompt ?? undefined, promptOf(sim) ?? observerPromptOf(src)) : null,
+      focusAim: inGame ? share(p?.focusAim ?? undefined, focusAimOf(sim)) : null,
       alerts: inGame ? share(p?.alerts, alertsOf(sim)) : [],
       toasts: share(p?.toasts, [...src.toasts]), hudHidden: src.hudHidden, error: src.error, epitaph: share(p?.epitaph ?? undefined, src.epitaph),
       directives: inGame && req.directivesOpen ? share(p?.directives ?? undefined, directivesOf(sim)) : null,

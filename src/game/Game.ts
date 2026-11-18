@@ -32,7 +32,7 @@ import { collectRefusals, type Rejection } from './refusals';
 import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
 import { SoundCueTracker } from './soundCues';
-import { AutoSlowWatcher, withGameRule, type AutoSlowWhy } from './time/autoSlow';
+import { AutoSlowWatcher, presetAutoSlow, type AutoSlowWhy } from './time/autoSlow';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
 import { generationPhase, loadingPhases, type LoadingPhase } from './newGame/loading';
@@ -136,7 +136,7 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
     level: () => this.session?.driver.level ?? 0,
     choice: () => {
       const g = this.settings.get().gameplay;
-      return withGameRule({ critical: g.autoSlowCritical, warning: g.autoSlowWarning }, this.session?.sim.state.env.time.autoSlow ?? 'slow');
+      return { critical: g.autoSlowCritical, warning: g.autoSlowWarning };
     },
     apply: (to, _trigger, why) => this.onAutoSlow(to, why),
   });
@@ -272,6 +272,8 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
       attempt = created?.world.meta.attempts ?? 1;
       await show(phases.simulate);
       const sim = wake(resolved, created);
+      // the preset's "Automatic slow-down at an alert" is the starting value of the setting (Gentle pauses)
+      this.setSettings({ gameplay: { autoSlowCritical: presetAutoSlow(this.settings.get().gameplay.autoSlowCritical, sim.state.env.time.autoSlow) } });
       await show(phases.render);
       // the renderers build the world (textures, terrain, nest meshes) before the first frame of play
       await this.registry.onGameStart(sim);

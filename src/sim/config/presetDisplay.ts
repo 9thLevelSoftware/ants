@@ -44,6 +44,7 @@ const mult = (v: number): string => `x${v}`;
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
 const onOff = (v: boolean): string => (v ? 'shown' : 'hidden');
 const gd = (v: number): string => `${v} day${v === 1 ? '' : 's'}`;
+const youngRivals = (n: number): string => (n === 0 ? 'no young rivals nearby' : `${n} young ${n === 1 ? 'rival' : 'rivals'} nearby`);
 
 /** The preset whose table `p` is (rows that show a per-preset value kept outside the parameter table). */
 const presetIdOf = (p: DifficultyParams): DifficultyId =>
@@ -74,7 +75,7 @@ export const PRESET_ROWS: readonly PresetRow[] = [
   { group: 'Weather and climate', label: 'Heat tolerance of ants', keys: ['heatToleranceOffsetC'], format: (p) => `${p.heatToleranceOffsetC > 0 ? '+' : ''}${p.heatToleranceOffsetC} C` },
   { group: 'Threats, rivals, humans', label: 'Predators', keys: ['predatorDensityMult'], format: (p) => mult(p.predatorDensityMult) },
   { group: 'Threats, rivals, humans', label: 'Hunters settling by a growing colony', keys: [], format: (p) => rampText(presetIdOf(p)) },
-  { group: 'Threats, rivals, humans', label: 'Rival colonies', keys: ['incipientRivals'], format: (p) => `${p.incipientRivals} young rivals nearby` },
+  { group: 'Threats, rivals, humans', label: 'Rival colonies', keys: ['incipientRivals'], format: (p) => youngRivals(p.incipientRivals) },
   { group: 'Threats, rivals, humans', label: 'Rival aggression', keys: ['rivalAggMult'], format: (p) => mult(p.rivalAggMult) },
   { group: 'Threats, rivals, humans', label: 'Rival colony size', keys: ['rivalKMult'], format: (p) => mult(p.rivalKMult) },
   { group: 'Threats, rivals, humans', label: 'Time between raids on you', keys: ['raidCooldownGd'], format: (p) => gd(p.raidCooldownGd) },
@@ -101,22 +102,25 @@ export const PRESET_ROWS: readonly PresetRow[] = [
   { group: 'Time and interface', label: 'Warnings before trouble', keys: ['alertLeadWarnings'], format: (p) => p.alertLeadWarnings },
 ];
 
-/** Two-line card text per preset (GDD 08 §3.7). */
+/**
+ * The text of a preset's card (GDD 08 §3.7): two lines saying what the preset changes, in words that follow the signs
+ * of the table above (no claim about how a game goes: nothing measures that). The one summary the screen uses.
+ */
 export const PRESET_SUMMARY: Record<DifficultyId, { name: string; lines: [string, string] }> = {
   gentle: {
     name: 'Gentle',
-    lines: ['Quiet weather, few predators, two rivals and careful people, with generous food and a second chance at founding.',
-      'A forgiving way to learn how a colony lives.'],
+    lines: ['Rain, storms, heat and frost come less often, with fewer predators and people about, and two rival colonies in the locality.',
+      'More food and better brood survival; the founding queen burns less of her reserves and may try three more sites.'],
   },
   naturalist: {
     name: 'Naturalist',
-    lines: ['The colony as the field guides describe it: ordinary weather and predators, three rival colonies, people going about their day.',
-      'The balance everything else in the game is tuned for.'],
+    lines: ['The reference setting: ordinary weather, predators and people, and three rival colonies in the locality.',
+      'One more try at another site if the founding fails. The other presets are set against these numbers.'],
   },
   harsh: {
     name: 'Harsh',
-    lines: ['Storms and heat waves come often, predators are many, four rivals crowd the locality and there is no forecast.',
-      'Losses are real, and winter takes its share.'],
+    lines: ['Storms, heat waves and frost come more often, with more predators and people about, and four rival colonies in the locality.',
+      'Less food and lower brood survival; the founding queen burns more of her reserves, with no second site and no brood forecast, and winters cost more.'],
   },
 };
 
@@ -149,13 +153,16 @@ export interface RuleDisplay {
   effect: string;
   /** False while no system reads the rule (UNWIRED_RULES). */
   inEffect: boolean;
+  /** Parts of the rule's effect that name a parameter nothing reads yet (UNWIRED_PARAMS): the screen says so. */
+  notInEffect: string[];
 }
 
 const ONOFF: RuleChoice[] = [{ value: true, label: 'On' }, { value: false, label: 'Off' }];
 
 /** The custom rules of GDD 06 §14.1 / GDD 08 §3.7, in the order of the New Game table. */
-const RULE_DEFS: readonly Omit<RuleDisplay, 'inEffect'>[] = [
-  { key: 'predators', label: 'Predators', fixedAtGeneration: false, effect: 'How many hunters roam. Off removes them, and the dangers they bring to founding and flight.',
+const RULE_DEFS: readonly (Omit<RuleDisplay, 'inEffect' | 'notInEffect'> & { parts?: readonly { key: DifficultyKey; text: string }[] })[] = [
+  { key: 'predators', label: 'Predators', fixedAtGeneration: false, effect: 'How many hunters roam. Off removes them.',
+    parts: [{ key: 'openingThreatsMax', text: 'threats during the opening' }, { key: 'flightPredatorEvents', text: 'predator events on the nuptial flight' }],
     choices: [{ value: 'off', label: 'Off' }, { value: 'few', label: 'Few' }, { value: 'normal', label: 'Normal' }, { value: 'many', label: 'Many' }] },
   { key: 'rivals', label: 'Rival colonies', fixedAtGeneration: true, effect: 'Established colonies of other ants, settled when the locality is made.',
     choices: Array.from({ length: MAX_RIVALS + 1 }, (_, i) => ({ value: i, label: String(i) })) },
@@ -167,7 +174,8 @@ const RULE_DEFS: readonly Omit<RuleDisplay, 'inEffect'>[] = [
     choices: [{ value: 5, label: '5 days' }, { value: 7, label: '7 days' }, { value: 10, label: '10 days' }] },
   { key: 'startSeason', label: 'Starting season', fixedAtGeneration: true, effect: 'Natural is the species\' own founding day; otherwise day 3 of the chosen season. Never winter.',
     choices: [{ value: 'natural', label: 'Natural' }, { value: 'spring', label: 'Spring' }, { value: 'summer', label: 'Summer' }, { value: 'autumn', label: 'Autumn' }] },
-  { key: 'foundingLeniency', label: 'Founding leniency', fixedAtGeneration: false, effect: 'How forgiving the opening is: sun exposure, brood losses, reserves, threats, retries and the forecast.',
+  { key: 'foundingLeniency', label: 'Founding leniency', fixedAtGeneration: false, effect: 'How forgiving the opening is: sun exposure, brood losses, reserves, retries and the forecast.',
+    parts: [{ key: 'openingThreatsMax', text: 'threats during the opening' }],
     choices: [{ value: 'lenient', label: 'Lenient' }, { value: 'normal', label: 'Normal' }, { value: 'strict', label: 'Strict' }] },
   { key: 'winterMode', label: 'Winter', fixedAtGeneration: false, effect: 'Skip the cold months as a time-lapse, or play every winter day.',
     choices: [{ value: 'timelapse', label: 'Time-lapse' }, { value: 'realtime', label: 'Real time' }] },
@@ -177,4 +185,6 @@ const RULE_DEFS: readonly Omit<RuleDisplay, 'inEffect'>[] = [
   { key: 'extinctionEndsGame', label: 'Extinction ends the game', fixedAtGeneration: false, effect: 'Off keeps the empty nest in view until you retire the colony.', choices: ONOFF },
 ];
 
-export const RULE_DISPLAY: readonly RuleDisplay[] = RULE_DEFS.map((r) => ({ ...r, inEffect: !UNWIRED_RULES.includes(r.key) }));
+export const RULE_DISPLAY: readonly RuleDisplay[] = RULE_DEFS.map(({ parts, ...r }) => ({
+  ...r, inEffect: !UNWIRED_RULES.includes(r.key), notInEffect: (parts ?? []).filter((x) => UNWIRED_PARAMS.includes(x.key)).map((x) => x.text),
+}));

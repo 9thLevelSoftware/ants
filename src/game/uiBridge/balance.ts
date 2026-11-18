@@ -18,3 +18,13 @@ export const FOUNDING_RESERVE_BAD = 0.1;
 export const OPENING_QUIET_DIAGNOSTICS: readonly string[] = ['diag-stores', 'diag-foraging-trails', 'diag-food-intake-c', 'diag-food-intake-p'];
 /** Alerts the feed holds back until the hand-over (the lone founding queen; her empty stores by design). */
 export const OPENING_QUIET_ALERTS: readonly string[] = ['last-ants', 'food-c-low', 'food-p-low'];
+
+/** Minimap (GDD 08 3.4): the window it shows round the camera target, in BU (256 x 256, north up). */
+export const MINIMAP_WINDOW_BU = 256;
+/** Trail cells drawn at most (a window holds 64 x 64 pheromone cells; most of them are empty). */
+export const MINIMAP_MAX_TRAIL_CELLS = 1200;
+/** A trail cell at this pheromone value or above draws at full strength (the scent view's own `FULL_PH.trail`). */
+export const MINIMAP_TRAIL_FULL_PH = 10;
+
+/** Focus line (GDD 08 3.4): a colony counts as new for its first this many game days. */
+export const FOCUS_NEW_COLONY_GD = 2;

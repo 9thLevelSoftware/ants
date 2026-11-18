@@ -1,6 +1,6 @@
 // The controls reference, generated from the bindings table (src/input/actions.ts) and a BindingSet, so the manual,
 // the in-game "Show controls" list and the key hints can never disagree with the actual bindings. Pure: no DOM.
-// `docs/manual/controls.md` embeds the default-bindings output between two marker comments; `controls.test.ts`
+// `docs/MANUAL.md` (section 13) embeds the default-bindings output between two marker comments; `controls.test.ts`
 // compares them.
 import { ACTIONS, AXES, BUTTON_ACTIONS } from '@/input/actions';
 import { bindingLabel, defaultBindings } from '@/input/bindings';
@@ -70,22 +70,33 @@ export function describeBinding(b: Binding): string {
   return b.kind === 'padAxis' ? padAxisLabel(b) : bindingLabel(b);
 }
 
+const isPadBinding = (b: Binding): boolean => b.kind === 'pad' || b.kind === 'padAxis';
+
+/** Keyboard and mouse bindings: the user's slots and the fixed ones that are not gamepad chords. */
 function keyboardOf(set: BindingSet, a: ActionDef): Binding[] {
   const out: Binding[] = [];
   for (const b of set.kbm[a.id] ?? []) if (b) out.push(b);
-  if (a.fixed) out.push(...a.fixed);
+  if (a.fixed) out.push(...a.fixed.filter((b) => !isPadBinding(b)));
+  return out;
+}
+
+/** Gamepad bindings: the slot and the fixed gamepad chords (photo mode takes either stick click first). */
+function padBindingsOf(set: BindingSet, a: ActionDef): Binding[] {
+  const out: Binding[] = [];
+  const slot = set.pad[a.id];
+  if (slot) out.push(slot);
+  if (a.fixed) out.push(...a.fixed.filter(isPadBinding));
   return out;
 }
 
 const joinOr = (labels: string[]): string => (labels.length === 0 ? NONE : labels.join(' or '));
 
 function buttonRow(set: BindingSet, a: ActionDef): ControlRow {
-  const pad = set.pad[a.id];
   return {
     id: a.id,
     label: a.label,
     keyboard: joinOr(keyboardOf(set, a).map(describeBinding)),
-    gamepad: pad ? describeBinding(pad) : NONE,
+    gamepad: joinOr(padBindingsOf(set, a).map(describeBinding)),
     contexts: a.contexts,
   };
 }

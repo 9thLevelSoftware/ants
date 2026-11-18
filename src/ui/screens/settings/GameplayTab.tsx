@@ -28,8 +28,10 @@ export function GameplayTab() {
           {done && <span class="ui-note-inline" role="status">Hints reset.</span>}
         </div>
       </Field>
-      <Field label="Minimap"><Toggle checked={g.minimap} onChange={(v) => set({ minimap: v })} /></Field>
-      <Field label="Focus line" help="The current aim, shown at the top left.">
+      <Field label="Minimap" help="A small map at the bottom right: zones, your entrances and markers, and your ant. Click it to look there. Not shown in a small window.">
+        <SegmentedControl value={g.minimap ? 'always' : 'never'} onChange={(v: 'never' | 'always') => set({ minimap: v === 'always' })} options={[{ value: 'never', label: 'Never' }, { value: 'always', label: 'Always' }]} />
+      </Field>
+      <Field label="Focus line" help="The current aim, under the clock. Auto shows it in a new colony's first 2 days and for 30 seconds when a new aim opens.">
         <SegmentedControl value={g.focusLine} onChange={(v: FocusLineMode) => set({ focusLine: v })} options={[{ value: 'auto', label: 'Auto' }, { value: 'always', label: 'Always' }, { value: 'never', label: 'Never' }]} />
       </Field>
       <Field label="Milestone notices" help="The journal always records every milestone.">
@@ -37,6 +39,12 @@ export function GameplayTab() {
       </Field>
       {settings && (
         <>
+          <Field label="Slow down at a critical alert" help="What the game does to the speed when a critical alert appears. A new game starts with its preset's choice (Gentle pauses).">
+            <SegmentedControl value={settings.gameplay.autoSlowCritical} onChange={(v) => setSettings({ gameplay: { autoSlowCritical: v } })} options={[{ value: 'pause', label: 'Pause' }, { value: 'slow', label: 'Slow to 1x' }, { value: 'off', label: 'Off' }]} />
+          </Field>
+          <Field label="Slow down at a warning" help="The same for warnings. Winter's arrival and flying weather always follow the critical choice.">
+            <SegmentedControl value={settings.gameplay.autoSlowWarning} onChange={(v) => setSettings({ gameplay: { autoSlowWarning: v } })} options={[{ value: 'slow', label: 'Slow to 1x' }, { value: 'off', label: 'Off' }]} />
+          </Field>
           <Field label="Return to 1x when taking control" help="Possessing an ant sets the speed to 1x. Off keeps up to 4x.">
             <Toggle checked={settings.gameplay.dropTo1xOnPossess} onChange={(v) => setSettings({ gameplay: { dropTo1xOnPossess: v } })} />
           </Field>

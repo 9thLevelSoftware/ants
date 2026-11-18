@@ -6,14 +6,14 @@ import type { Ant, Colony, Sim, Task } from '@/sim/types';
 import { AntFlag, REASON_CODES } from '@/sim/types';
 import { promptView } from '@/sim/ants/player';
 import { daysOfStock } from '@/sim/colony';
-import { activeAlerts, queenHandedOver } from '@/sim/progression';
+import { activeAlerts, currentAims, queenHandedOver } from '@/sim/progression';
 import { alertText } from '@/content/text';
 import { GROUP_TASKS } from '@/sim/colony/allocation';
 import { airTemp, calendarNow } from '@/sim/environment';
-import { currentDayOfSeason, currentHour, currentSeason, currentYear, seasonLength } from '@/sim/time';
-import type { UiAlert, UiColony, UiPossessed, UiPrompt, UiPromptLine, UiTime } from '@/ui/api';
+import { TICKS_PER_DAY, currentDayOfSeason, currentHour, currentSeason, currentYear, seasonLength } from '@/sim/time';
+import type { UiAlert, UiColony, UiFocusAim, UiPossessed, UiPrompt, UiPromptLine, UiTime } from '@/ui/api';
 import {
-  FOUNDING_RESERVE_BAD, FOUNDING_RESERVE_WARN, HEAT_STRESS_LOAD, OPENING_QUIET_ALERTS, OPENING_QUIET_DIAGNOSTICS, SPARK_SAMPLES,
+  FOCUS_NEW_COLONY_GD, FOUNDING_RESERVE_BAD, FOUNDING_RESERVE_WARN, HEAT_STRESS_LOAD, OPENING_QUIET_ALERTS, OPENING_QUIET_DIAGNOSTICS, SPARK_SAMPLES,
   TREND_WINDOW_GAME_H,
 } from './balance';
 import { antName, stateWord, WEATHER_WORDS } from './words';
@@ -35,6 +35,13 @@ export function timeOf(sim: Sim): UiTime {
     weather: { state: w.state, word: WEATHER_WORDS[w.state] ?? cap(w.state), tempC: Math.round(airTemp(sim)), isDay: cal.hour >= cal.sunrise && cal.hour < cal.sunset },
     seasonLength: seasonLength(s),
   };
+}
+
+/** The Focus line's aim: the oldest open one (the Journal's first "Current focus" row), or null. */
+export function focusAimOf(sim: Sim): UiFocusAim | null {
+  const a = currentAims(sim)[0];
+  if (!a) return null;
+  return { id: a.id, species: sim.state.config.species, openedTick: a.openedTick, newColony: sim.state.tick < FOCUS_NEW_COLONY_GD * TICKS_PER_DAY };
 }
 
 const WORKER_CASTES = new Set(['worker', 'minor', 'media', 'major']);

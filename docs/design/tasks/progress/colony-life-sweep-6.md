@@ -55,3 +55,12 @@ Started 04:03 UTC Nov 18. No earlier progress file; fresh start.
   sweep 5 are hand-over noise; read mechanisms and medians.
 - Lead: no source known at hand-over in either; C provision lasts ~1 gd; 12 of 18 idle, 2 scouts; whether C is found
   by day 2 decides rationing.
+
+## 05:14 UTC
+- **Sweep done** 05:11, 15/15 on tree 7d9f0409. Table `test-output/colony-life/round-6/sweep-table.md`
+  (sweep-table.py vs round-5/sweep). Bars (both scripts agree): viability NOT met, 4 of 15 (we 2, sg 1, pp 0,
+  cpv 1, kd 0); R19 4 of 7 (held 4/15 FAIL, ecl 4 ok, P 0.197 FAIL, C 0.985 ok, trips 43.9 % FAIL, first>=9 14 ok,
+  no lost 13 ok). 14 runs flagged by the script; 5 viable -> NOT (sg2, pp3, cpv1, kd3) + ... (see table).
+- Running: A/B to winter `round-6/sweep-review/ab/abw.sh` (restart-safe), r6 vs b2809f0 from the sweep-6
+  hand-overs, sg2 pp3 cpv1 kd3 kd1 -> `ab/r6-winter`, `ab/b280-winter`.
+- Still to do: read the failing runs' diagnostics for leads, write ledger section, delete scratch trees.

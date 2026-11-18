@@ -221,8 +221,18 @@ export interface UiSnapshot {
   codex?: UiCodexSeen | null;
   /** ui-panels: markers of the player colony and plan counts against their caps (colony view palette). */
   markers?: UiMarkerCounts | null;
+  /** ui-hud: the colony's top aim for the Focus line (GDD 08 3.4); null when no aim is open. */
+  focusAim?: UiFocusAim | null;
   /** Sound-cue indicator pips (only while Settings > Accessibility > Sound-cue indicators is on; absent = none). */
   soundCues?: UiSoundCue[];
+}
+
+/** The oldest open aim, worded by the interface from `id` and `species`; `newColony` = the colony is in its first game days. */
+export interface UiFocusAim {
+  id: string;
+  species: string;
+  openedTick: number;
+  newColony: boolean;
 }
 
 // ---- ui-panels: Colony health, Nest overview, Journal, Codex, marker palette (GDD 08 4.3, 4.4, 4.6, 7.2, 7.3) ----

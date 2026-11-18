@@ -26,14 +26,12 @@ export type AutoSlowAction = 'slow' | 'pause';
 export interface AutoSlowChoice { critical: AutoSlowCritical; warning: AutoSlowWarning }
 
 /**
- * The critical choice with the game's rule applied. The rule is the preset's `autoSlowDefault` (sim: `env.time.autoSlow`; Gentle pauses
- * at an alert, the others slow): it can only make the player's own Settings choice stronger ('slow' -> 'pause'), never switch off a
- * choice of 'off' or weaken a 'pause'. Without it the New Game card's row "Automatic slow-down at an alert" promised something the
- * watcher never read (look-pass-3 review).
+ * The critical choice a NEW game starts with: the preset's `autoSlowDefault` (sim: `env.time.autoSlow`; Gentle pauses at an alert,
+ * the others slow). It is written into Settings > Gameplay, where the player sees and changes it; a player's 'off' is kept.
+ * (The preset card's row "Automatic slow-down at an alert" promises exactly this.)
  */
-export function withGameRule(choice: AutoSlowChoice, rule: AutoSlowMode): AutoSlowChoice {
-  if (choice.critical === 'slow' && rule === 'pause') return { ...choice, critical: 'pause' };
-  return choice;
+export function presetAutoSlow(current: AutoSlowCritical, rule: AutoSlowMode): AutoSlowCritical {
+  return current === 'off' ? 'off' : rule;
 }
 
 /** What a newly raised alert of this kind and level asks for, or null. */
