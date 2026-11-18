@@ -805,4 +805,4 @@ Running: colony-life `w09el0k35` (sweep 7), app-seams-2 `w9b7zmcaw`.
 - **R31**: queen-care demand 1 below 20 workers; nursing served in full before any task's second ant. Paired evidence required.
 - R29, R30 measured as separate arms on the 15 hand-overs and on long runs. Winter-lapse regression and the browser founding failure on seed 2 (3 of 4 runs lose every egg at 2.8 % of the lapse on a "Poor" start site) go to round 8 as well. Direction 15 of `colony-life.md`.
 
-Stopped `w09el0k35` at 08:22 (round 8 was 10 minutes in: F1 and R29 written, in the tree, ledger current) and relaunched with direction 15.
+Stopped `w09el0k35` at 08:22 (round 8 was 10 minutes in: F1 and R29 written, in the tree, ledger current) and relaunched with direction 15 as `w72m08zl2` (wf_e2eea569-54f; firstRound 8, maxRounds 3).

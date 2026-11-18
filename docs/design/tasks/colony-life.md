@@ -14,7 +14,7 @@ All of `src/sim/**`, `src/worldgen/**`, `src/core/**` (contracts additive only),
 `src/sim/locomotion/**` is yours too: the loco-fix3 fix round was cut off twice by container restarts near its end; its code is in the tree, its review is `docs/design/tasks/reviews/loco-fix3.json` (findings on descent planning, edge gates on the homeward flow field, relocation repeats, climbs to food, kernel crossings). Check the state of each finding before you change that folder, treat the unfinished ones as leads ranked like any other cause, and compare with the locomotion of commit f2b9eeb where the A/B lead points there.
 
 ## What is not allowed
-- No change to lifespans or ageing (R11). No lowering of needs, no free food, no larger hand-over provision than R2, no weakening of the bars or of a test that checks a ruling.
+- No change to lifespans or ageing beyond ruling R30 (direction 15, which replaces R11: the numbers there are the integrator's; do not tune them further). No lowering of needs, no free food, no larger hand-over provision than R2, no weakening of the bars or of a test that checks a ruling.
 - Balance changes only where you show, with numbers, that a constant is inconsistent with the design's own worked example or with a ruling; list each as a GDD deviation in the ledger.
 - No fix that is a special case for one seed or archetype.
 
