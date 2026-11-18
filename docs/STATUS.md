@@ -784,3 +784,11 @@ audio-provenance (impl + review + fix; report `audio-provenance-report.md`, resu
 - To do at the next gate: `npm run verify:portable` with the browser stage (not re-run after the fix round; build and static scan pass).
 
 Running: colony-life `w09el0k35` (round 7), app-seams-2 `w9b7zmcaw`.
+
+## Nov 18 07:25 UTC — round 7 complete; ruling R29
+
+**Round 7** (ledger "## Round 7"): in the tree — RM (mound mask after restore: the mask key now includes terrain deltas; a footprint is a dent, not a hole), SF3 (tender gap), three owner-less seams (week constants in the human schedule → `time.test` green; `createGame.ts` imports the systems so a game is the same however created; `applyPendingCommands` flushes events outside a tick). **Tried on paired runs and reverted**: L1 (winter-reserve gate from day 14: gate-shut hours 70 → 0 and eggs a day earlier, but workers at winter 11/9, 10/10, 10/9 — the extra eggs are diapausing brood paid from the winter stores) and T1 (overdue-pile tending: untended deaths 15 → 21, larvae starved 8 → 11, a scenario test red). Finding: the shortage is nurses (target 2 of demand 3.6 at 9–16 workers; the automatic split halves demands), and eggs laid more than ≈ 3 gd after hand-over cannot finish before winter.
+
+**R29 — the queen lays what the colony can raise**: laying potential × a care factor that reaches zero when the brood in care equals what the nurse-capable workforce can tend at the design's care rates; eggs that cannot finish before winter are not laid. Accepted only on the paired comparison over all 15 hand-overs. Direction 14 of `colony-life.md`. Year two: long runs are mandatory in every sweep (sweep 6 ran none); round 8 runs two itself and answers the spring-temperature lead.
+
+Running: colony-life `w09el0k35` (sweep 7), app-seams-2 `w9b7zmcaw`.
