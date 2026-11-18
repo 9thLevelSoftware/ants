@@ -81,7 +81,7 @@ Then look at the PNG files in the output folder. Scripts that drive the page liv
 node tools/harness/play.mjs --root . --query "test=1&seed=1&autostart=1&quality=low" --script tests/e2e/smoke.mjs
 ```
 
-Software rendering is slow (seconds per frame). Step the simulation with the `window.__game` debug API instead of waiting in real time. Run one harness at a time. Options and the script contract: `tools/harness/README.md`.
+Software rendering is slow (seconds per frame): the smoke script above took about 3 minutes on a loaded machine. Step the simulation with the `window.__game` debug API instead of waiting in real time. Run one harness at a time. Options and the script contract: `tools/harness/README.md`.
 
 ## Build
 

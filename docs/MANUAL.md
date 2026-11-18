@@ -142,7 +142,7 @@ The steps (hint and aim wording: `src/content/text/hints.ts`):
 3. **Seal.** At the shaft, hold `E` to plug the entrance with soil. From then on the queen lives on her own reserves, and a gauge shows how much is left.
 4. **Lay.** In the chamber, press `E` to lay the first eggs.
 5. **First brood.** A time-lapse shows the eggs become larvae, pupae and workers while her reserves fall. It can be skipped by holding the skip key (Space or A). It can stop for a choice: step in (`E`) or let it play.
-6. **Hand-over.** The first workers open the plug. The game offers a worker (`Tab`) or stays with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
+6. **Hand-over.** The first workers open the plug. A hint offers `Tab` to possess a worker; you may stay with the queen. The workers are small first-brood workers; the queen's remaining reserve is passed to the colony as a provision (ruling R2).
 
 If the founding fails, a card says why and, depending on the difficulty, offers another site (Gentle: 3 tries, Naturalist: 1, Harsh: 0).
 
@@ -161,7 +161,7 @@ Moving between them:
 
 - `X` releases the ant you control; it goes back to its own work and you are in the observer view.
 - `Tab` and `Shift+Tab` possess the next or previous nearby ant. `Backspace` returns to the previous ant.
-- `5` forager, `6` digger, `7` nurse, `8` the queen: possess the nearest ant of that job (any play view).
+- `5` forager, `6` digger, `7` nurse, `8` the queen: possess an ant with that job (any play view).
 - In the observer view: `E`, holding the left mouse button, or a double click possesses the selected ant; `F` follows it; right click deselects.
 - Possessing changes who you control, not the biology: the ant still ages and can die. If your ant dies, the camera stays on the body and the prompt offers `Tab` to take another ant; or the game takes over a nestmate if you set "Take over a nestmate when your ant dies" (section 12).
 
@@ -480,7 +480,7 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 
 **Settings.** The auto-slow settings have no control (section 8). The New Game help text for the natural start says day 3; it is day 5.
 
-**Look and feel (render).** Night at ground level reads like an overcast day; leaves read as flat decals; the entrance mound has square edges at its foot; the follow camera can tip toward the sky on a slope; ants can look pale or milky at night and in night rain; chamber labels in colony view are sometimes smeared; a pale strip shows at the horizon at night. A look pass (look-pass-3) is in progress and some of these may change.
+**Rendering.** Night at ground level reads like an overcast day; leaves read as flat decals; the entrance mound has square edges at its foot; the follow camera can tip toward the sky on a slope; ants can look pale or milky at night and in night rain; chamber labels in colony view are sometimes smeared; a pale strip shows at the horizon at night. A look pass (look-pass-3) is in progress and some of these may change.
 
 **Performance.** Frame time has not been measured on a real GPU. All rendering tests used software rendering. 
 

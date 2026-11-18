@@ -21,3 +21,5 @@ README.md, docs/MANUAL.md, DEVIATIONS.md, CREDITS.md, CREDITS-AUDIT.md, report
 - 02:25 DEVIATIONS.md generated (dev-build.mjs); needs review of claims; README done; MANUAL next
 - 02:40 MANUAL.md built (manual-template.md + manual-build.mjs + gen.ts). README, DEVIATIONS, CREDITS, AUDIT written. NEXT: verify manual tables vs bindings (script), harness run + verify:portable + build:classic, wrong-strings list, final report.
 - 02:55 harness play.mjs shot OK (test-output/readme-shot/page.png: intro card, Spring Day 5 14:00; note overlap 'Groom yourself'/'F Dig' prompts over intro card). Next: verify:portable full (bg), build:classic, final checks.
+- 03:10 verify:portable full OK (exit 0, strict, sub-path + iframe); build:classic OK. Next: run README's smoke.mjs command; final report.
+- 03:35 smoke.mjs OK (176 s, exit 0). All README commands run. Remaining: final report only.

@@ -146,6 +146,12 @@ export const DRAPE = {
   resolveMm: 600,
 } as const;
 
+/**
+ * Look pass 3 (S9, leaves read as flat decals at ant height): a lit cut margin and a stippled dark contact fringe on the
+ * ground beside the leaf (density 0..1 at the margin, reach in card units), so a leaf is a thin body lying on the soil.
+ */
+export const DECOR_LEAF = { edgeLight: 0.45, shadowDensity: 1.0, shadowReachUv: 0.11 } as const;
+
 /** GDD 04 §9 decor-leaf. Seasonal forest density per m²: index = season (spring, summer, autumn, winter). */
 export const LEAF = {
   forestDensity: [400, 250, 600, 400] as const,

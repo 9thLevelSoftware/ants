@@ -22,6 +22,13 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
   (rationing from 3.25, pool P 0), pp1 6.41, we2 5.32, cpv1 1.61, kd1 0, we1 0 (kd1/we1: 9-11 larvae ate it all by
   gd 2, then rationing = real income gap). Sweep: 10 of 15 done at 01:40.
 
+- 01:53 **sweep done** (15/15, all tree fe11a0ad); table `test-output/colony-life/round-5/sweep-table.md` (sweep-table.py
+  vs round-4/sweep): viable 6/15 (we 2/3, others 1/3) -> viability NOT met; R19 4 of 7 (fails: workers held 8/15, P
+  0.244, trip success 45 %). tsc clean 01:40 (`sweep-review/tsc-0140.txt`).
+- 02:00 long runs (year two, R22) started: `UNTIL_DAY=32 frozen-sweep5/tools/sim/longrun-life.sh
+  .../round-5/sweep-long .../viab/cache "woodland-edge:2 suburban-garden:2 playground-park:3 car-park-verge:1
+  kitchen-door:3"` (viable seed per archetype, lowest seed on ties). Restart-safe: re-run the same command.
+
 ## Review findings so far (00:58)
 - Round diff = `git diff 8b4c207` (commits after it are snapshots; round's files listed in ledger "Fixes (round 5)").
 - tsc clean 00:51 (`sweep-review/tsc.txt`). colony folder 62/63 files (red founding/reopen, known), `sweep-review/vitest-colony.txt`.
@@ -38,6 +45,13 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
 - Predation: we #1 lost 7 workers to predation (days 6-10, 23 -> 15 workers); threats-calibrate said median 0. Check
   across sweep.
 - Running: folder tests ants/behaviours/nest, ants/player, nest, balance (`sweep-review/vitest-*.txt`, folders.done).
+
+- 02:00 **FINDING (minor) WL2 residual**: new `colony/overwinter/sparedStarve.verify.test.ts` RED (kept): 20 workers,
+  C 1.5, flood-prone vs dry, 12 seeds: seed 5 flooded colony wakes with 13 workers vs 9 dry (drowning capped 3,
+  starvation 4 vs 9): the kept workers eat "as far as the stores go" and never starve.
+- Leads gathered: kd1/kd2 crop-full trips refused stores-full (48/155, 43/79) = trip-success drop in C-rich runs;
+  pupa:untended pp2 8, cpv2 hygiene 5 + untended 3; sg3 scouts 85 trips median 2 s out (57 untracked), 0 trips days 1-3;
+  pp1 worker:lost 3 + egg:flooding 9; we1 predation 7.
 
 ## Remains
 - sweep (15 runs), table, bars, regressions vs previous sweep (ledger names it)
