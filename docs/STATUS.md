@@ -723,3 +723,13 @@ Relaunched:
 - colony-life `wek2szmct` / wf_f9efc2e7-f2e: `{firstRound: 5, maxRounds: 4, firstRoundResult: <round 5 in short>, note}` → sweep 5, then rounds 6–8.
 - quiet-time `woldn0vf5` / wf_001f111a-c97: `startAt: 'fix'`, `reviewPath: reviews/quiet-time.json`.
 - look-pass-3 `w2ht0mt7m` / wf_9c9fafc0-4ed: continue from its progress file.
+
+## Nov 18 02:00 UTC — quiet-time landed; R28
+
+quiet-time (impl + review + fix; report `quiet-time-report.md`, results `reviews/quiet-time.json`, `reviews/quiet-time-fix.json`):
+- Human-event alert raised only while player-relevant ants are in the predicted impact area, one per event, site cooldown; colony alerts ease to a lower level when the same diagnostic asks for it; `quietRun.ts` tool; 300 tests green in `environment/human` and `progression`.
+- Whole-game E25 still fails (96–110 of 126–128 windows): the colony's own standing warnings (`food-c-low`, `food-p-low`, `brood-stalled`), `nest-flooding` (critical, real), `heat-danger` (AI foragers cross hot ground at 11:00–16:00), `nest-crowded`. No major threat started in any whole-game run (director starved of quiet budget); the long test's threat cases are red by design.
+- **R28 — a loud hour**: a warning is loud for 30 s of sim time after it is raised or its level rises; a critical alert for as long as it stands (`alertActive` in `ecology/creatures/threat.ts`). Direction 11 in `colony-life.md` (start of the next round).
+- Leads for colony-life: `heat-danger` from foragers crossing hot ground at midday (heat avoidance of the AI), flood criticals lasting 650 s.
+
+Running: colony-life `wek2szmct` (sweep 5), look-pass-3 `w2ht0mt7m`.

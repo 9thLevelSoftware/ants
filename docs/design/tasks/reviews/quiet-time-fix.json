@@ -1,0 +1,80 @@
+{
+ "summary": "All nine review findings are handled. Eight are fixed, with tests that pass; the major one (finding 1) is a colony-side limit, so it is now stated honestly and asserted by a deliberately red LONG test. Typecheck is clean, and `npx vitest run src/sim/environment/human src/sim/progression` gives 29 files passed, 3 skipped (LONG-gated), 300 tests passed. The reviewer's red tests are now green and I did not weaken them. In every whole-game run no major threat started: the director refused a threat in every counted hour because the colony's own standing warnings kept the quiet share low. So the outside-alerts share of 1.00 is not evidence for E25, and the threat clause is not met.",
+ "filesTouched": [
+  "src/sim/progression/alerts.ts",
+  "src/sim/environment/human/alerts.ts",
+  "src/sim/environment/human/alerts.test.ts",
+  "src/sim/environment/human/quietRun.stay.test.ts",
+  "src/sim/environment/human/quiet.long.test.ts",
+  "tools/sim/quietRun.ts",
+  "docs/design/tasks/quiet-time-report.md",
+  "docs/design/tasks/progress/quiet-time-fix.md"
+ ],
+ "verification": [
+  "npm run typecheck: clean, whole tree.",
+  "npx vitest run src/sim/environment/human src/sim/progression: 29 files passed, 3 skipped (LONG-gated), 300 passed and 10 skipped. This includes the reviewer's alerts.verify, alerts.ease.verify and quietRun.verify tests, all green now, plus the new cooldown-log test in alerts.test.ts and quietRun.stay.test.ts.",
+  "FOUNDRESS_LONG=1 npx vitest run src/sim/environment/human/perf.verify.test.ts: passes the 2 ms/tick limit (run earlier in this fix effort).",
+  "FOUNDRESS_LONG=1 quiet.long.test.ts: the earlier run was cut off by a machine restart. Three of four whole-game snapshots had been refreshed; I re-ran kitchen-door Harsh. Result: the outside-alerts case passes, the threat-started case fails with 'director refused a threat in 111 of 111 hours: expected 0 to be greater than 0'. This is the intended red. Numbers for all four runs are in report \u00a75, from test-output/quiet-time/long/whole-*.json."
+ ],
+ "acceptance": [
+  {
+   "criterion": "Finding 1 (major): whole-game outside-only share of 1.00 met trivially, and the E25 threat clause is neither reported nor asserted",
+   "status": "partial",
+   "evidence": "Reproduced from the whole-*.json files: threats.started is 0 in all four runs, and blockedHours equals blockedByShareHours (111-167). The report (\u00a71, \u00a75, \u00a76 row 2) now says the 1.00 is not evidence and the threat clause is unmet. quiet.long.test.ts now asserts started > 0 for Naturalist and Harsh, and those cases are red by design. The cause is the colony's standing food, brood and nest warnings, which belong to other owners, so the clause stays open."
+  },
+  {
+   "criterion": "Finding 2: ease rule ignores its own same-diagnostic condition",
+   "status": "met",
+   "evidence": "progression/alerts.ts now compares against the diagnostic that holds the card before overwriting it. alerts.ease.verify.test.ts is all green, including the case that was red."
+  },
+  {
+   "criterion": "Finding 3: quietRun counts failing windows against a fixed 0.6",
+   "status": "met",
+   "evidence": "The target is now the preset's quietShareMin. quietRun.verify.test.ts is green. The report's windows-failing column is recomputed (110/109/96/99 of 126-128)."
+  },
+  {
+   "criterion": "Finding 4: longest stay is 0 s for alerts that never clear",
+   "status": "met",
+   "evidence": "finish() closes open stays at the end of the run. New test quietRun.stay.test.ts. The Harsh run now shows longest 2366 s for food-p-low."
+  },
+  {
+   "criterion": "Finding 5: report claimed perf.verify passed when it was skipped",
+   "status": "met",
+   "evidence": "Report \u00a77 corrected; the test was run with FOUNDRESS_LONG=1 and passes."
+  },
+  {
+   "criterion": "Finding 6: GDD 06 \u00a74.5 human-event-warning trigger not recorded",
+   "status": "met",
+   "evidence": "Recorded in report \u00a78 as a contradiction for the integrator. The task spec's narrower rule is followed, and the integrator should accept it or reword the \u00a74.5 row."
+  },
+  {
+   "criterion": "Finding 7: card refused by the site cooldown leaves no record; a long event raises several cards",
+   "status": "met",
+   "evidence": "human/alerts.ts logs one 'alert.cooldown' line per event and site, marked in the engine's mem; test added in alerts.test.ts. The several-cards-per-long-event behaviour is kept and recorded as a decision in report \u00a72: each card lasts at most 5 s, so none makes an hour loud."
+  },
+  {
+   "criterion": "Finding 8: weak spots in the LONG whole-game test",
+   "status": "met",
+   "evidence": "The minimum shares now come from DIFFICULTY_PARAMS. A missing snapshot is a skipped case (it.skipIf), never a silent pass."
+  },
+  {
+   "criterion": "Finding 9: expireHumanAlerts copies the alert list every tick",
+   "status": "met",
+   "evidence": "The loop now iterates backwards with no copy."
+  }
+ ],
+ "notDone": [
+  "E25 as written (all alerts, AI-only colony, whole game) is still not met: 96-110 of 126-128 trailing windows fail per run. The failing windows are owned by the colony engineer (food-c-low and food-p-low, brood-stalled) and the nest/weather owner (nest-flooding, heat-danger).",
+  "The E25 clause 'at least one major threat in each Naturalist and Harsh run' is unmet. Zero threats started because the director is starved by those standing warnings. The new threat cases in quiet.long.test.ts stay red until the colony side is quiet; I did not weaken them.",
+  "The integrator still needs to rule on I11 against GDD 08 \u00a76.1: whether an acknowledged or old standing warning counts as loud. The one line is `alertActive` in ecology/creatures/threat.ts, which is not in my paths. Report \u00a74 states the options.",
+  "The 'spring start' half of E25 is not driven; the tool stops at winter. Gentle and Harsh are checked on one world each.",
+  "Bird events with 30 or more workers could not be checked, because no run had a colony of 30 workers that was not also in standing trouble.",
+  "The 60-worker six-day runs have empty stores by the cheat, so food-c-low stands the whole run. I did not re-run them with --food."
+ ],
+ "notesForIntegrator": [
+  "The ease rule is the only change to a shared module (progression/alerts.ts), and it is additive: a repeat raise at a lower level from the same non-null diagnosticId now lowers the card. A different diagnostic's lower raise no longer lowers it.",
+  "Auto-slow in GDD 06 \u00a74.5 keys on a human-event-warning card; that card now exists less often, so see report \u00a78.",
+  "One machine restart interrupted the LONG run. The earlier engineer's progress file shows which work finished and which was re-run.",
+  "The quiet.long.test.ts threat cases fail by design under FOUNDRESS_LONG=1 until the colony side improves; the default suite skips that file."
+ ]
+}

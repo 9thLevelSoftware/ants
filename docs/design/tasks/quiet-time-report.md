@@ -18,7 +18,7 @@ made by a human card in all 8 runs, longest card 5 s**. The telegraph (cues, sou
 frequencies and the lethal effects are unchanged. What remains loud is **not the people, the creatures or the director**: it
 is the colony's own standing warnings (food, brood), a nest flood, a heat warning, nest crowding. With only the outside
 alerts (people, predators, rivals) and the major threats counted, every trailing 3-game-day window is quiet at 0.94-1.00
-(needs 0.60), and over a whole game to winter at 1.00 on four runs including Gentle (0.75) and Harsh (0.40). With all
+(needs 0.60), and over a whole game to winter at 1.00 on four runs including Gentle (0.75) and Harsh (0.40), **but no major threat started in any of those four runs (the director was starved by the colony's alerts), so that 1.00 does not show the E25 threat clause (§5)**. With all
 alerts counted the share is 0.04-0.60 per run and the full E25 target is **not met**: the failing windows are named in §3
 with their owners. Bird events are still refused in 85-95 % of daytime hours because the trailing share stays under
 QUIET_SHARE_MIN + 0.05 for the colony's reasons.
@@ -138,22 +138,33 @@ as not loud in `quietTick`, or keep I11 as is and take it as the colony engineer
 
 ## 5. Step 4: E25 in a whole game
 
-`quiet.long.test.ts` (`FOUNDRESS_LONG=1`, 4 cases, 19 min here): from the cached hand-over (calendar day about 8.5) to the
-first tick of winter (12.3-12.7 game days), AI only, `humanActivity: normal`, one run per case, every trailing 3-gd window
-ending at a counted hour (126-128 windows per run, window sizes from the first counted hour: partial windows early on).
+`quiet.long.test.ts` (`FOUNDRESS_LONG=1`, 7 cases, about 6.5 min per run here under load): from the cached hand-over
+(calendar day about 8.5) to the first tick of winter (12.3-12.7 game days), AI only, `humanActivity: normal`, one run per
+case, every trailing 3-gd window ending at a counted hour (126-128 windows per run, partial windows early on). Windows are
+counted against the preset's own `quietShareMin` (review fix: the tool used a fixed 0.60 before, so the earlier Gentle and
+Harsh "windows failing" counts were wrong).
 
-| case | preset (min) | workers | share (run) | min window, all alerts | windows failing | min window, outside alerts + threats | what makes the failing windows loud |
-|---|---|---|---|---|---|---|---|
-| suburban-garden | Naturalist (0.60) | 9 -> 8 | 0.61 | 0.16 | 63 of 126 | **1.00** | nest-flooding (2 cards, 850 s critical, 21 h), brood-stalled (1550 s, 29 h), food-p-low (519 s, 12 h), heat-danger (11 h) |
-| kitchen-door | Naturalist (0.60) | 15 -> 12 | 0.40 | 0 | 109 of 128 | **1.00** | food-c-low (2680 s, 66 h), brood-stalled (4 cards, 2650 s, 64 h), heat-danger (14 h), nest-flooding (7 h) |
-| suburban-garden | Gentle (0.75) | 9 -> 10 | 0.58 | 0 | 63 of 126 | **1.00** | brood-stalled (2300 s, 62 h), nest-flooding (8 h), food-p-low (11 h) |
-| kitchen-door | Harsh (0.40) | 15 -> 9 | 0.36 | 0 | 121 of 128 | **1.00** | food-p-low (2 cards, 3774 s, 88 h), brood-stalled (70 h), nest-flooding (3 cards, 1150 s critical, 30 h), heat-danger (17 h) |
+| case | preset (min) | workers | share (run) | min window, all alerts | windows failing (all alerts) | min window, outside alerts + threats | **major threats started** | what makes the failing windows loud |
+|---|---|---|---|---|---|---|---|---|
+| suburban-garden | Naturalist (0.60) | 9 -> 9 | 0.28 | 0 | 110 of 126 | 1.00 | **0** (refused 167 of 167 hours) | food-p-low (3 cards, 4964 s, 104 h), brood-stalled (3250 s, 72 h), nest-flooding (875 s critical, 21 h), heat-danger (12 h) |
+| kitchen-door | Naturalist (0.60) | 15 -> 12 | 0.40 | 0 | 109 of 128 | 1.00 | **0** (121 of 121) | food-c-low (2680 s, 66 h), brood-stalled (4 cards, 2650 s, 64 h), heat-danger (14 h), nest-flooding (7 h) |
+| suburban-garden | Gentle (0.75) | 9 -> 9 | 0.64 | 0.08 | 96 of 126 | 1.00 | 0 (147 of 147) | brood-stalled (1575 s, 51 h), food-p-low (1257 s, 34 h), nest-flooding (8 h) |
+| kitchen-door | Harsh (0.40) | 15 -> 9 | 0.36 | 0 | 99 of 128 | 1.00 | **0** (111 of 111) | food-p-low (2 cards, 3774 s, 88 h), brood-stalled (70 h), nest-flooding (3 cards, 1150 s critical, 30 h), heat-danger (17 h) |
 
-The test asserts the outside-alerts-and-threats share >= `QUIET_SHARE_MIN` in every window (passes, 4 of 4); the all-alerts
-share is asserted only with `FOUNDRESS_QUIET_STRICT=1`. **E25 as written (all alerts, the AI colony) is not met**, and its
-failing windows belong to the colony engineer (food, brood), the nest/weather owner (flood, heat) as in §4. Not done:
-the "spring start" half (the tool stops at winter; the overwintering lapse is not driven), and Gentle/Harsh on one world
-each rather than both.
+(The numbers differ a little from the first version of this table: the runs were repeated after the review fixes and the
+colony diverges between runs; the colony-side owners and causes are the same.)
+
+**The outside-alerts-and-threats share of 1.00 is not evidence of E25, and the E25 threat clause is NOT met.** In all four
+whole-game runs not one major threat started: the director refused a threat in every counted hour (`blockedByShareHours`
+equals `blockedHours`, 111-167) because the trailing all-alerts share stayed under `QUIET_SHARE_MIN + 0.05`, which the
+colony's own standing warnings cause. The outside-only share is therefore quiet because the director was starved, not
+because it was shown to be quiet under normal threat pressure. GDD 05 App. E 25 requires "at least one major threat
+occurred in each Naturalist and Harsh run" and this is not shown. `quiet.long.test.ts` now asserts it
+(`r.threats.started > 0` for Naturalist and Harsh), and **those cases are RED (3 of 3 Naturalist and Harsh runs started 0)
+until the colony side is quiet**; the outside-alerts share assertion passes in all four. The all-alerts share is asserted
+only with `FOUNDRESS_QUIET_STRICT=1`. **E25 as written (all alerts, the AI colony) is not met**, and its failing windows
+belong to the colony engineer (food, brood), the nest/weather owner (flood, heat) as in §4. Not done: the "spring start"
+half (the tool stops at winter; the overwintering lapse is not driven), and Gentle/Harsh on one world each rather than both.
 
 **Bird events** (the criterion "> 0 once the colony has 30 workers"): not met by these runs. 8 six-day runs: one bird event
 in all (suburban-garden, 60 workers, after); the director refused a new threat in 54-95 of ~97 daytime hours in every run,
@@ -166,7 +177,7 @@ the two causes the task named (the human cards); the second (the colony's own) i
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
 | 1 | The step-1 table before and after | met | §3, `test-output/quiet-time/{before1,after2}/` (8 runs each: 4 worlds x hand-over and 60 workers, 6 gd, Naturalist) |
-| 2 | I11 met on the four worlds in 6-gd runs and the whole-game check, or each failing window named with its alert and owner | partial | met for everything this task owns (outside alerts + threats: min window 0.94-1.00 in 8 of 8 six-day runs, 1.00 in 4 of 4 whole-game runs incl. Gentle 0.75 and Harsh 0.40); not met for all alerts (0.04-0.60 per run), failing windows named in §3-§5 with owners (colony, nest/weather); ruling asked in §4 |
+| 2 | I11 met on the four worlds in 6-gd runs and the whole-game check, or each failing window named with its alert and owner | partial | the human and creature side makes no loud hour (human cards: 0 loud hours in all 8 six-day runs, longest card 5 s). Not demonstrated for the threats: no major threat started in any whole-game run (director starved by the colony's alerts), so the outside-only 1.00 is not proof and the E25 threat clause is unmet (§5). Not met for all alerts (0.04-0.64 per run, 96-110 of 126-128 whole-game windows failing); failing windows named in §3-§5 with owners (colony, nest/weather); ruling asked in §4 |
 | 3 | Human-event counts per game day by kind match GDD 04 at off/low/normal/high, unchanged | met | `test-output/quiet-time/counts/counts-{suburban-garden,kitchen-door}-1.md` (drawn over a default year vs expected, e.g. suburban normal: footsteps 11.3/11.4, car 2/2, watering 0.54/0.38; kitchen normal: footsteps 18.0/17.9, sweeping 3.9/4.0, food-drop 5.0/5.1; off = 0 everywhere, low about half, high about 1.5x); scheduler untouched; `schedule.test.ts` E22-E24 pass |
 | 4 | No player-relevant event loses its telegraph; possessed-ant scenarios pass unchanged | met | cues, `human.telegraph`, impacts untouched (only `warn()` removed); `telegraph.test.ts`, `crush.test.ts`, `kitchen*.test.ts` unchanged and passing (human folder: all files pass, 48 tests before this task's 5 new ones); new test: telegraph plays with no card when no ants are near |
 | 5 | Report | met | this file |
@@ -181,7 +192,7 @@ Spec items not in the table: determinism (save -> load mid-card equals uninterru
   (includes `perf.verify.test.ts` of the human folder is `describe.skipIf(!FOUNDRESS_LONG)`, so in that run it was one of the 3
   skipped files: the earlier statement that it passed was wrong). Run with `FOUNDRESS_LONG=1` in the review fix round it passes
   its 2 ms/tick limit. `npx vitest run src/sim/balance`: 99 passed.
-- `FOUNDRESS_LONG=1 npx vitest run src/sim/environment/human/quiet.long.test.ts` (from a frozen copy): 4 passed, 19 min.
+- `FOUNDRESS_LONG=1 npx vitest run src/sim/environment/human/quiet.long.test.ts` (review-fix round): outside-alerts cases pass; the threat-started cases for Naturalist and Harsh are RED by design (0 threats started, §5). Gentle has no threat clause.
 - Under load the batches took 3-6 min per 6-gd run; no timing numbers are reported because none were measured for a budget.
 
 ## 8. Decisions, contradictions, notes for others

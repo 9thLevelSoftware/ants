@@ -13,6 +13,11 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
 - 6 runs done (we1 su1 pp1 cv1 ki1 we2, tree fe11a0ad); sweep restarted 01:19 with same command (Bash background).
 - Live tree changed after 00:49 only in src/sim/environment/human/alerts*, progression/alerts* (other engineers); frozen copy = round 5.
 
+- 01:35 probe `frozen-sweep5/tools/sim/probe/probe-provision.ts` (cache restore, 5 gd, queen reserveP every 6 h) ->
+  `round-5/sweep-review/probe-provision/`. sg #1: queen reserveP 13.31 -> 10.72 at gd 3 (window closes), stays 10.72
+  (keep 1.0) while pool P 0 and 7 larvae ration from gd 3.25: **9.7 P stranded = the round's own cause #1**. Running
+  (background, sequential): we1 pp1 kd1 cpv1 we2 (done.txt lists finished ones).
+
 ## Review findings so far (00:58)
 - Round diff = `git diff 8b4c207` (commits after it are snapshots; round's files listed in ledger "Fixes (round 5)").
 - tsc clean 00:51 (`sweep-review/tsc.txt`). colony folder 62/63 files (red founding/reopen, known), `sweep-review/vitest-colony.txt`.
