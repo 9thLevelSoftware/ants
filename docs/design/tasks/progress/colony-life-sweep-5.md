@@ -9,6 +9,10 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
   (restart-safe: skips runs whose JSON exists; summary.txt has tree hash per run).
 - If cut off: re-run the same command (frozen copy survives on disk); delete /home/user/frozen-sweep5 at the end.
 
+## Resumed 01:19 UTC after restart (second engineer)
+- 6 runs done (we1 su1 pp1 cv1 ki1 we2, tree fe11a0ad); sweep restarted 01:19 with same command (Bash background).
+- Live tree changed after 00:49 only in src/sim/environment/human/alerts*, progression/alerts* (other engineers); frozen copy = round 5.
+
 ## Review findings so far (00:58)
 - Round diff = `git diff 8b4c207` (commits after it are snapshots; round's files listed in ledger "Fixes (round 5)").
 - tsc clean 00:51 (`sweep-review/tsc.txt`). colony folder 62/63 files (red founding/reopen, known), `sweep-review/vitest-colony.txt`.
