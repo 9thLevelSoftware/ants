@@ -2788,3 +2788,38 @@ Progress (kept current; a successor continues from here)
   a cause; starvation was alerted (and stores short), so uncapped by R24 in both. sg #2's year-two loss is its winter
   stores (C 1.2 here, 1.3 in the integrator's run, 7.6 in round 5's run of a different hand-over: sweep 6 changed the
   hand-overs), not the lapse; such a colony fails the R27 stores check, so R24's cap does not apply to it.
+- 09:13 **cpv #1 winter lapse** (base arm's winter-start snapshot: 16 workers, C 17.4, P 2.3; cluster = royal +
+  nursery 40 mm deep, royal floodRisk 0.17 and flooded 0.03 (wet to tick 104290), floodSafety 0.83;
+  `hazardAlertTicks` nest-flooding 80610 = a live flood 3 gd before winter, before the notice; alerts at Begin:
+  winter-coming only). Base tree: 16 -> 6 (drowning 8, old-age 1, cold 1; one lapse flood on day 4 at 4.4 mm of
+  rain: p = 0.3 x 0.17 x 4.4/16 = 1.4 % and it takes WINT_FLOOD_LOSS 0.5 of the cluster). Round-5 tree on the same
+  snapshot: 16 -> 8 (drowning 6): the lapse code of rounds 6-7 adds 2 (WL3: the cap trims old-age / cold, the
+  second model run keeps those workers in the cluster and the uncapped flood takes half of a larger cluster); the
+  rest is the same in both trees: **the 8 drowned are uncapped because a live autumn flood the colony survived
+  counted as "alerted"** (R24's window is the whole autumn), not a change of the flood model. Round 5's 17 -> 15 was
+  a different hand-over (no lapse flood draw). F1 is not involved (the integrator's round-7 run, without F1, lost the
+  same 8).
+- 09:13 **WL4 in the tree** (direction 15: "against R24 unless they were alerted before choosing"):
+  `balance/lifecycle.ts WINT_ALERTED_AT_CHOICE = ['drowning']`; `overwinter/begin.ts alertedCauses`: a drowning alert
+  counts only when it stood from this year's winter notice on (`life.noticeTick`, new optional persisted field
+  written by `overwinter/system.ts` at the notice; no notice recorded -> the moment of Begin) or stands at Begin;
+  starvation keeps the season window (short stores do describe the winter). Tests restated: `overwinter/lossCap.test`
+  (the alerted case sets the alert after the notice; new case: an alert 3000 ticks before the notice -> capped;
+  that case is red with HEAD's begin.ts: "seed 1 (alert before the notice): 12 > 3"), `lossCapStores.verify` (alerted
+  = after the notice). overwinter folder 9/9 files green. Before/after on the snapshots (`round-8/lapse/`): cpv #1
+  16 -> 6 (base) / 16 -> 14 (live, WL4: old-age 2); sg #2 10 -> 6 both (starvation alerted, stores short: R24 does
+  not cover a colony that fails the R27 stores check). we #2's snapshot comes later in the jobs (rest of the 15).
+- 09:15 WL4's files copied into the frozen arms `scratch-r8-r29r30` and `scratch-r8-r31` (it acts only at Begin,
+  after the winter-start tick where the winter runs stop, so the winter arms are unchanged; `noticeTick` is a new
+  state field written at the notice). So the two **r29r30 long runs = R29 + R30 + WL4** (the round's tree but FD1,
+  which acts only before the hand-over). Year-two base = the integrator's round-7 runs (no WL4).
+- 09:18 **GDD 02 §15 growth line re-derived for R30** (arithmetic; record for the GDD amendment). The chapter's
+  "60 / 26 gd realised lifespan" with lifespan 33 (N < 100) and outside ageing x3 implies a mean ageing rate
+  33 / 26 = 1.27, i.e. 13.5 % of worker time outside (1 + 0.135 x 2). With R30 at the same share: rate 1 + 0.135 x
+  0.5 = 1.07, lifespan 42 -> realised 39 gd; deaths 60 / 39 = 1.5 / gd (was 2.3); net growth 8.7 - 1.5 = +7.2
+  workers / gd (was +6.4). Plateau: at N >= 250 the mean is 30, realised 30 / 1.07 = 28 gd (was 24 / 1.27 = 18.9);
+  the queen's maximum ~100 eggs / gd x 0.73 survival = 73 / gd balances deaths at N = 73 x 28 = 2050 (was 73 x 18.9
+  = 1380, the chapter's 1200-1500): with R30 a colony in good conditions reaches WORKER_CAP 1500 before deaths
+  balance laying, so the cap, not mortality, sets the mature plateau. (The small colonies of the paired runs spend
+  ~0.3 of worker time outside: realised 42 / 1.15 = 36 gd; the diag-mortality reference is re-derived from the r30
+  arm's measured share when it is complete.)

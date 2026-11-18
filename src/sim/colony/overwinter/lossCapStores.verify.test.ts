@@ -14,7 +14,8 @@ describe('R24 review: the workers the cap keeps eat through the winter', () => {
       const sim = makeLifeSim({ chamberC: 4, workers: 20, c: 20, p: 6, seed });
       const col = colonyOf(sim);
       for (const ch of sim.state.nests[0].chambers) ch.floodRisk = 1; // every rain end may flood the cluster
-      if (alerted) lifecycleOf(col).hazardAlertTicks = { 'nest-flooding': sim.state.tick };
+      // alerted at the winter choice (round 8: the flood alert counts from the notice on)
+      if (alerted) { lifecycleOf(col).noticeTick = sim.state.tick; lifecycleOf(col).hazardAlertTicks = { 'nest-flooding': sim.state.tick }; }
       send(sim, { type: 'cheat.triggerWinter' });
       send(sim, { type: 'overwinterChoice', choice: 'begin' });
       return col.lifecycle!.winters[0];

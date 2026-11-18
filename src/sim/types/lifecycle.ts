@@ -215,6 +215,8 @@ export interface ColonyLifecycleState {
    * (ruling R24, overwinter/begin.ts). Missing: none seen.
    */
   hazardAlertTicks?: Record<string, number>;
+  /** Simulation tick of this year's winter notice (overwinter/system.ts). Missing (older saves, no notice yet): -1. */
+  noticeTick?: number;
   repro: ReproBook;
   flight: PossessedFlight | null;
   /** This game's flights and the daughters they produced (copied into the device Lineage by the game layer). */

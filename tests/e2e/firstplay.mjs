@@ -482,6 +482,7 @@ async function colonyBeats(h, result, { page, click, done, log }) {
     await steerTo(h, mate.pos.x, mate.pos.z, 0.9 * bu, 60);
     await g((m) => window.__game.act({ action: 'trophallaxis-give', target: { kind: 'ant', id: m.id, pos: m.pos } }), mate);
     await step(40);
+    if (process.env.FIRSTPLAY_DEBUG) log('give', i, JSON.stringify(await g((id) => { const gm = window.__game, a = gm.query.ant(id); return { crop: a.cropC + a.cropP, nest: a.nestId, act: a.action, ev: gm.events('action-failed', 2).map((e) => `${e.action}:${e.reason}`) }; }, worker)));
     await g(() => window.__game.act({ action: 'trophallaxis-give', phase: 'stop' }));
     if (i % 4 === 3) { await g(() => window.__game.act('unload-crop')); await step(40); await g(() => window.__game.act({ action: 'unload-crop', phase: 'stop' })); }
   }

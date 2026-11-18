@@ -15,7 +15,7 @@ import { calendarTick, currentYear, HOURS_PER_DAY, seasonLength, TICKS_PER_DAY, 
 import {
   OVERWINTER_OUTDOOR_DEATH_P, OVERWINTER_OUTDOOR_SAFE_BU, WINT_OLD_AGE_FRAC, WINT_PUPA_COLD_C, WINT_PUPA_COLD_DEATH,
   WINT_REPORT_SPRING_C_PER_WORKER, WINT_C_QUEEN, WINT_C_PER_LARVA, WINTER_ACTIVE_BROOD_SHARE, WINTER_ACTIVE_WINDOW_GD,
-  WINT_ALERTED_CAUSES, WINT_HAZARD_WINDOW_SEASONS, WINT_LAPSE_LOSS_CAP_FRAC,
+  WINT_ALERTED_AT_CHOICE, WINT_ALERTED_CAUSES, WINT_HAZARD_WINDOW_SEASONS, WINT_LAPSE_LOSS_CAP_FRAC,
 } from '@/sim/balance/lifecycle';
 import { book } from '../core';
 import { broodDies } from '../brood';
@@ -218,15 +218,26 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
 const sumOf = (r: Record<string, number>): number => Object.values(r).reduce((a, b) => a + b, 0);
 
 /**
- * The model causes whose hazard the player was alerted to within WINT_HAZARD_WINDOW_SEASONS before Begin (R24): their
+ * The model causes whose hazard the player was alerted to within WINT_HAZARD_WINDOW_SEASONS before Begin (R24), or for
+ * WINT_ALERTED_AT_CHOICE causes (drowning) from the winter notice on or standing at Begin (round 8, direction 15): their
  * losses follow the model in full.
  */
 function alertedCauses(sim: Sim, col: Colony): Set<string> {
-  const seen = lifecycleOf(col).hazardAlertTicks ?? {};
-  const since = sim.state.tick - WINT_HAZARD_WINDOW_SEASONS * seasonLength(sim.state) * TICKS_PER_DAY;
+  const life = lifecycleOf(col);
+  const seen = life.hazardAlertTicks ?? {};
+  const seasonSince = sim.state.tick - WINT_HAZARD_WINDOW_SEASONS * seasonLength(sim.state) * TICKS_PER_DAY;
+  // at the choice: from this year's notice on (no notice recorded: the moment of Begin)
+  const choiceSince = (life.noticeTick ?? -1) >= seasonSince ? (life.noticeTick as number) : sim.state.tick;
   const out = new Set<string>();
   for (const [cause, kinds] of Object.entries(WINT_ALERTED_CAUSES)) {
+    const since = WINT_ALERTED_AT_CHOICE.includes(cause) ? choiceSince : seasonSince;
     if (kinds.some((k) => (seen[k] ?? -Infinity) >= since)) out.add(cause);
+  }
+  // an alert standing at Begin itself (raised while the banner showed, when noteHazardAlerts does not run)
+  if (col.isPlayer) {
+    for (const a of sim.state.progression.alerts) {
+      for (const [cause, kinds] of Object.entries(WINT_ALERTED_CAUSES)) if (kinds.includes(a.kind)) out.add(cause);
+    }
   }
   return out;
 }

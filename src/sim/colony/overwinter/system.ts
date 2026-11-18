@@ -208,6 +208,7 @@ export const overwinterSystem: System = {
     if (season === 'autumn' && life.noticeYear < year && currentDayOfSeason(s) >= seasonLength(s) - OVERWINTER_NOTICE_DAYS_BEFORE_END
       && currentHour(s) >= OVERWINTER_NOTICE_HOUR) {
       life.noticeYear = year;
+      life.noticeTick = s.tick;
       if (lapseWanted(sim)) {
         w.phase = 'notice';
         sim.emit({ type: 'overwinter.notice' });

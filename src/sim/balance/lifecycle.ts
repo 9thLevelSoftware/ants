@@ -41,6 +41,13 @@ export const WINT_ALERTED_CAUSES: Readonly<Record<string, readonly string[]>> = 
   drowning: ['nest-flooding', 'founding-flooding'],
   starvation: ['food-c-low', 'colony-starving'],
 };
+/**
+ * Causes whose alert counts only when it stood at the player's choice: from the winter notice to Begin (colony-life
+ * round 8, direction 15: "a flood that drowns a dormant cluster during a lapse the player cannot act in is against
+ * R24 unless they were alerted before choosing"). A live autumn flood the colony got through days earlier says
+ * nothing about the winter; short stores do (the colony enters winter with them), so starvation keeps the season.
+ */
+export const WINT_ALERTED_AT_CHOICE: readonly string[] = ['drowning'];
 
 /**
  * Ruling R27: the winter stores a colony needs at the first tick of winter are the lapse's own C need plus this many

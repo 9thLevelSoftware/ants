@@ -8,18 +8,41 @@ import type { FocusLineMode } from '../styles/prefs';
 /** Real seconds a newly opened aim stays on the line (Auto). */
 export const FOCUS_LINE_REAL_S = 30;
 
+const openIdsOf = (aim: UiFocusAim | null): readonly string[] => (aim ? aim.openIds ?? [aim.id] : []);
+
 export class FocusLineClock {
-  private seen: string | null | undefined;
+  private seenTop: string | null | undefined;
+  private seenOpen: ReadonlySet<string> = new Set();
+  private announced: string | null = null;
   private shownUntilMs = 0;
 
-  /** Feed the current aim; call whenever it may have changed (cheap). */
+  /**
+   * Feed the current aim; call whenever it may have changed (cheap). A window starts when the top aim changes or when
+   * any aim not seen before is open (an aim usually opens BEHIND an older one that stays open).
+   */
   note(aim: UiFocusAim | null, nowMs: number): void {
-    const id = aim ? aim.id : null;
-    if (this.seen === undefined) { this.seen = id; return; } // the aim already open when we first look is not new
-    if (id !== this.seen) {
-      this.seen = id;
-      if (id !== null) this.shownUntilMs = nowMs + FOCUS_LINE_REAL_S * 1000;
+    const top = aim ? aim.id : null;
+    const open = openIdsOf(aim);
+    if (this.seenTop === undefined) { // the aims already open when we first look are not new
+      this.seenTop = top;
+      this.seenOpen = new Set(open);
+      return;
     }
+    let fresh: string | null = top !== null && top !== this.seenTop ? top : null;
+    for (const id of open) if (!this.seenOpen.has(id)) fresh = id; // the newest of several wins
+    this.seenTop = top;
+    this.seenOpen = new Set(open);
+    if (fresh !== null) {
+      this.announced = fresh;
+      this.shownUntilMs = nowMs + FOCUS_LINE_REAL_S * 1000;
+    }
+  }
+
+  /** The aim the line words: the one just announced while its window runs and it is still open, else the top aim. */
+  shownId(aim: UiFocusAim, nowMs: number): string {
+    const announced = this.announced;
+    if (announced !== null && nowMs < this.shownUntilMs && openIdsOf(aim).includes(announced)) return announced;
+    return aim.id;
   }
 
   /** Whether the line shows now; `msLeft` is how long a real-time window has left (for the re-check timer). */

@@ -22,7 +22,7 @@ export function FocusLine() {
     return () => clearTimeout(id);
   }, [left, aim?.id]);
   if (!aim || !clock.current.visible(mode, aim, now)) return null;
-  const text = `Aim: ${aimLine(aim.id, aim.species)}`;
+  const text = `Aim: ${aimLine(clock.current.shownId(aim, now), aim.species)}`;
   return (
     <button
       type="button" class="fd-focus fd-chip" data-hud="focus" data-testid="focus-line" title={`${text} (open the Journal)`} tabIndex={-1}

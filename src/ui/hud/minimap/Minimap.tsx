@@ -39,6 +39,9 @@ export function Minimap() {
   useEffect(() => {
     if (!on || !bridge) return;
     const tick = (): void => {
+      // hidden by CSS (compact layout, a drawer open): no frame to build or paint
+      const el = canvas.current;
+      if (el && el.getClientRects().length === 0) return;
       const f = bridge.minimap(scent);
       if (!f) { setDrawn(null); return; }
       plate.current = bridge.minimapPlate();

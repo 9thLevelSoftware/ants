@@ -36,4 +36,26 @@ describe('Focus line visibility', () => {
     expect(c.msLeft(20_000)).toBe(11_000);
     expect(c.visible('auto', null, 2000)).toBe(false);
   });
+  it('Auto: an aim opening behind the top one is announced and worded while its window runs', () => {
+    const withOpen = (top: string, ...open: string[]): UiFocusAim => ({ ...aim(top), openIds: open });
+    const c = new FocusLineClock();
+    c.note(withOpen('aim-a', 'aim-a'), 0);
+    c.note(withOpen('aim-a', 'aim-a', 'aim-b'), 5000);
+    expect(c.visible('auto', withOpen('aim-a', 'aim-a', 'aim-b'), 6000)).toBe(true);
+    expect(c.shownId(withOpen('aim-a', 'aim-a', 'aim-b'), 6000)).toBe('aim-b');
+    // window over: back to the top aim; a closed announced aim is not worded either
+    expect(c.shownId(withOpen('aim-a', 'aim-a', 'aim-b'), 5000 + FOCUS_LINE_REAL_S * 1000)).toBe('aim-a');
+    expect(c.shownId(withOpen('aim-a', 'aim-a'), 6000)).toBe('aim-a');
+    // a repeated note does not restart the window; a second new aim does
+    c.note(withOpen('aim-a', 'aim-a', 'aim-b'), 20_000);
+    expect(c.msLeft(20_000)).toBe(15_000);
+    c.note(withOpen('aim-a', 'aim-a', 'aim-b', 'aim-c'), 20_000);
+    expect(c.shownId(withOpen('aim-a', 'aim-a', 'aim-b', 'aim-c'), 21_000)).toBe('aim-c');
+  });
+  it('Auto: aims already open at the first look (a loaded game) are not new', () => {
+    const c = new FocusLineClock();
+    const a: UiFocusAim = { ...aim('aim-a'), openIds: ['aim-a', 'aim-b'] };
+    c.note(a, 0);
+    expect(c.visible('auto', a, 100)).toBe(false);
+  });
 });

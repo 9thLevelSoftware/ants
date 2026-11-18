@@ -233,6 +233,8 @@ export interface UiFocusAim {
   species: string;
   openedTick: number;
   newColony: boolean;
+  /** Ids of every open aim shown in the Journal (at most 3), oldest first; lets the line notice an aim opening behind the top one. */
+  openIds?: readonly string[];
 }
 
 // ---- ui-panels: Colony health, Nest overview, Journal, Codex, marker palette (GDD 08 4.3, 4.4, 4.6, 7.2, 7.3) ----

@@ -20,12 +20,16 @@ describe('lapse loss cap (R24)', () => {
     expect(capLapseLosses({}, 3, new Set())).toEqual({});
   });
 
-  it('in a flood-prone nest, floods take more than the cap only when the player saw a flood alert before winter', () => {
-    const outcome = (seed: number, alerted: boolean): { lost: number; drowned: number } => {
+  // Restated in round 8 (direction 15: "against R24 unless they were alerted before choosing"): the flood alert counts
+  // when it stood at the choice, from the winter notice to Begin; one from an earlier autumn flood does not.
+  it('in a flood-prone nest, floods take more than the cap only when a flood alert stood at the winter choice', () => {
+    const outcome = (seed: number, alerted: boolean | 'earlier'): { lost: number; drowned: number } => {
       const sim = makeLifeSim({ chamberC: 4, workers: 20, c: 20, p: 6, seed });
       const col = colonyOf(sim);
       for (const ch of sim.state.nests[0].chambers) ch.floodRisk = 1; // every rain end may flood the cluster
-      if (alerted) lifecycleOf(col).hazardAlertTicks = { 'nest-flooding': sim.state.tick };
+      const life = lifecycleOf(col);
+      if (alerted === true) { life.noticeTick = sim.state.tick; life.hazardAlertTicks = { 'nest-flooding': sim.state.tick }; }
+      if (alerted === 'earlier') { life.hazardAlertTicks = { 'nest-flooding': sim.state.tick - 3000 }; life.noticeTick = sim.state.tick; }
       send(sim, { type: 'cheat.triggerWinter' });
       send(sim, { type: 'overwinterChoice', choice: 'begin' });
       const rec = col.lifecycle!.winters[0];
@@ -36,6 +40,7 @@ describe('lapse loss cap (R24)', () => {
     let floodedSeeds = 0;
     for (let seed = 1; seed <= 12; seed++) {
       expect(outcome(seed, false).lost, `seed ${seed}`).toBeLessThanOrEqual(cap);
+      expect(outcome(seed, 'earlier').lost, `seed ${seed} (alert before the notice)`).toBeLessThanOrEqual(cap);
       if (outcome(seed, true).drowned > cap) floodedSeeds++;
     }
     expect(floodedSeeds).toBeGreaterThan(0); // the model's floods still happen; with the alert they cost what they cost

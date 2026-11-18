@@ -37,11 +37,16 @@ export function timeOf(sim: Sim): UiTime {
   };
 }
 
-/** The Focus line's aim: the oldest open one (the Journal's first "Current focus" row), or null. */
+/** The Focus line's aim: the oldest open one (the Journal's first "Current focus" row), or null; `openIds` lists all open ones. */
 export function focusAimOf(sim: Sim): UiFocusAim | null {
-  const a = currentAims(sim)[0];
+  const open = currentAims(sim);
+  const a = open[0];
   if (!a) return null;
-  return { id: a.id, species: sim.state.config.species, openedTick: a.openedTick, newColony: sim.state.tick < FOCUS_NEW_COLONY_GD * TICKS_PER_DAY };
+  return {
+    id: a.id, species: sim.state.config.species, openedTick: a.openedTick,
+    newColony: sim.state.tick < FOCUS_NEW_COLONY_GD * TICKS_PER_DAY,
+    openIds: open.map((o) => o.id),
+  };
 }
 
 const WORKER_CASTES = new Set(['worker', 'minor', 'media', 'major']);
