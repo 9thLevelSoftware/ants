@@ -30,4 +30,3 @@ browser verification of 2/3 (shader compile), cost, item 4/6/7 pictures, item 8 
 - faceDetail.ts also does boards on thick wooden bodies (shed). 
 - Cost batch (bg): tests/e2e/look4-cost.sh TAG=after OUT=test-output/look4/cost -> after-<tier>.log 'COST' lines; BEFORE numbers still to take (revert GRIT_QUALITY test/low + NEAR_GROUND to old values temporarily: test max0, low max700 radius90; NEAR_GROUND.mm=0), then restore!
 - COST (opening pose seed 1, draws/tris before -> after): test 21/259200 -> 23/271700; low 47/490790 -> 47/525924 (+7.2% tris); medium 82/606509 -> 82/622117 (+2.6%); high 91/875694 -> 91/875694. Constants restored (verified).
-!! TEMP: faceDetail.ts FACE.minFaceMm set to 1e6 for BEFORE item-2 pictures: restore to 250 (sed) after test-output/look4/item2/before-medium.done

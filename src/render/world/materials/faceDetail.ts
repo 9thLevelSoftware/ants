@@ -11,7 +11,7 @@ import type { MaterialDef } from './materialDefs';
 
 export const FACE = {
   /** A face is detailed when both its sides are at least this long, mm (a 150 mm kerb is not). */
-  minFaceMm: 1e6,
+  minFaceMm: 250,
   /** Plinth: height of the band and the shortest face that gets one, mm; albedo multiplier; greenish damp tint. */
   plinthMm: 150, plinthMinHeightMm: 600, plinthDark: 0.7, plinthDamp: 0.5,
   /** Brick course height and brick length, mm; share of mortar colour. */

@@ -359,6 +359,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       funnel.tick();
       protein.tick();
       nursing.tick();
+      eclosions.tick();
       ticksToday++;
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();

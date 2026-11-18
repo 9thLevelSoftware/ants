@@ -3061,3 +3061,9 @@ Progress (kept current; a successor continues from here)
 - 11:31 environment folder on the live tree (chamberTempForecast removed): 29/30 files (`round-8/vitest-environment.txt`);
   red `weather.test` "uses only the weather stream" (`rng.ecology` drawn too): red on the base arm tree as well, not
   this round's.
+- 11:42 `tools/sim/lifeEclosions.ts` rewritten (tool only, copied into the frozen trees for later runs): pupae are
+  tracked from their larva -> pupa change with the brood's own `laidTick`, the year of a tick from sampled year
+  starts; origin `unknown` when the eclosed pupa is not found (the first version filed those as same-year).
+- 12:03 status: jobs4c at the arm runs of the 10 non-subset colonies (woodland-edge and suburban-garden #1 done for
+  all arms; playground-park onward running); 7-colony partial table (base / r30 / r30r29c / r30r29cr31): workers at
+  winter 70 / 97 / 104 / 96, eclosions 33 / 32 / 39 / 30, brood lost 65 / 58 / 72 / 88. Waiting for the rest.
