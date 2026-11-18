@@ -268,8 +268,9 @@ export default async (ctx) => {
             log('the lapse ended in brood lost; relay clutch', result.checks.relayClutches, JSON.stringify(lapseTrace[lapseTrace.length - 2] ?? null));
             // the relay clutch is laid by the player like the first one (the queen is in the chamber, the entrance sealed)
             for (let b = 0; b < 4; b++) await layBatch();
-            for (let k = 0; k < 120 && !(await visible('founding-tend')); k++) { await layBatch(); await step(25); }
-            await click('founding-tend');
+            for (let k = 0; k < 120 && !(await visible('founding-tend')) && (await phase()) === 'lay'; k++) { await layBatch(); await step(25); }
+            // a DOM click, not Playwright's: the relay screen re-renders the button while it is being laid under
+            if ((await phase()) === 'lay') await g(() => document.querySelector('[data-testid="founding-tend"]')?.click());
             await step(1);
             continue;
           }
