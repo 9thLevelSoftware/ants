@@ -2098,3 +2098,13 @@ carcass (3.5-4 P) within 300 BU at the end, never known, in 8 runs.
   tender leaves only when the room covers her crop and the crops of the colony's tenders already outside (per-tick
   runtime count `tendersOut`). storesFull + tendHerd tests 6/6 (+1 long skipped). Running: kd #2 on v2, then cpv #1 and
   kd #3 (nosf vs sf2) -> `round-6/life-sf2/`, `life-nosf/`; quietRun (R28) sg #1 and we #2 -> `round-6/quiet/`.
+- 03:22 **R28 check, quietRun** (`round-6/quiet/`, `tools/sim/quietRun.ts`, 6 gd from the cached hand-overs, tree r6c
+  with R28): suburban-garden #1: counted daytime hours 95, quiet 68, run share 0.72, full 3-gd windows 45 with min
+  **0.59** (QUIET_SHARE_MIN 0.60 Naturalist); what is still loud is the `nest-flooding` **critical** (one, 650 s =
+  19 loud hours: a critical is loud while it stands, R28) and heat-danger; `food-p-low` standing 519 s now makes 3-4
+  hours loud instead of all of them. woodland-edge #2: hours 91, quiet 84, share 0.92, window min **0.84**. Major
+  threats started: 0 and 0 (sg #1: the director refused 56 hours on the share, all in the flood's window; we #2: refused
+  1). Before R28 (quiet-time report) whole games failed 96-110 of 126-128 windows on the colony's standing warnings.
+  `quiet.long.test.ts` (FOUNDRESS_LONG, four runs to winter) not run yet: needs the machine without life runs.
+- 03:22 typecheck of r6c (HEAD + this round's files): only error is the probe file's `node:fs` (probes are deleted at
+  the end of the round).
