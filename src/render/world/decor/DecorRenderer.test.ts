@@ -67,8 +67,9 @@ describe('DecorRenderer', () => {
       counts[q] = r.d.stats().blades;
       r.d.dispose();
     }
-    expect(counts.medium).toBeLessThan(counts.high * 0.6);
-    expect(counts.low).toBeLessThan(counts.medium * 0.6);
+    // the blocks next to the camera keep a near-ground floor (look pass 4, NEAR_GROUND) so the tiers differ less than x0.5 / x0.25 here
+    expect(counts.medium).toBeLessThan(counts.high * 0.8);
+    expect(counts.low).toBeLessThan(counts.medium * 0.85);
   });
 
   it('seasons change forest leaf density without regenerating blocks', async () => {

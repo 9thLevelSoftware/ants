@@ -2,12 +2,17 @@
 // the sun rises in +X). Pure reads of the sim into a reused plain object; the HUD paints it on a canvas a few times a
 // second and never keeps it. The zone plate (flat tints) comes from the static zone map, which never changes in a game.
 import type { ByteMap, Marker, MarkerKind, Sim } from '@/sim/types';
-import { MINIMAP_MAX_TRAIL_CELLS, MINIMAP_TRAIL_FULL_PH, MINIMAP_WINDOW_BU } from './balance';
+import { MINIMAP_MAX_FOOD, MINIMAP_MAX_TRAIL_CELLS, MINIMAP_TRAIL_FULL_PH, MINIMAP_WINDOW_BU } from './balance';
 
 export interface MinimapEntrance { x: number; z: number; open: boolean }
 export interface MinimapMarker { x: number; z: number; kind: MarkerKind }
 export interface MinimapAnt { x: number; z: number; /** Heading on the map, radians; 0 = north (up), clockwise. */ yaw: number | null }
 export interface MinimapTrailCell { x: number; z: number; /** 0..1 */ v: number }
+export interface MinimapFood { x: number; z: number }
+/** A built thing's footprint on the ground: centre, half extents and heading about Y, mm and radians. */
+export interface MinimapRect { x: number; z: number; hx: number; hz: number; yaw: number }
+/** A water body's footprint, mm. */
+export interface MinimapDisc { x: number; z: number; r: number; id: number }
 
 /** What the HUD draws: world mm in, nothing else. Arrays are reused between calls (read them at once). */
 export interface MinimapFrame {
@@ -20,6 +25,8 @@ export interface MinimapFrame {
   markers: MinimapMarker[];
   ant: MinimapAnt | null;
   trail: MinimapTrailCell[];
+  /** Food sources this colony has found (a source nobody found yet stays off the map), in the window. */
+  food: MinimapFood[];
 }
 
 /** The zone plate: the zone byte map and the zone type of each byte value. */
@@ -29,16 +36,35 @@ export interface MinimapPlate {
   typeById: string[];
   /** World edge, mm. */
   size: number;
+  /** Footprints of the static structures (fences, walls, kerbs, sheds, equipment, cars) and the water bodies: they never change in a game. */
+  structures: MinimapRect[];
+  water: MinimapDisc[];
 }
 
+/** Most structure footprints kept (a locality holds a few hundred pieces at most). */
+const MAX_STRUCTURES = 1200;
+
 export function newMinimapFrame(): MinimapFrame {
-  return { cx: 0, cz: 0, windowMm: 0, entrances: [], markers: [], ant: null, trail: [] };
+  return { cx: 0, cz: 0, windowMm: 0, entrances: [], markers: [], ant: null, trail: [], food: [] };
 }
 
 export function minimapPlate(sim: Sim): MinimapPlate {
   const typeById: string[] = [];
   for (const z of sim.world.zones) typeById[z.id] = z.type;
-  return { map: sim.world.maps.zone, typeById, size: sim.world.size };
+  const structures: MinimapRect[] = [];
+  for (const o of sim.world.objects) {
+    if (!o.tags.includes('structure')) continue;
+    for (let i = o.primStart; i < o.primStart + o.primCount && structures.length < MAX_STRUCTURES; i++) {
+      const p = sim.world.prims[i];
+      if (!p) continue;
+      // half extents in the prim's own frame; a cylinder has its radius in x. Heading about Y from the quaternion.
+      const round = p.shape === 'cylinder' || p.shape === 'capsule', hx = p.size.x, hz = round ? p.size.x : p.size.z;
+      if (Math.max(hx, hz) < sim.world.bu * 0.5) continue;
+      structures.push({ x: p.pos.x, z: p.pos.z, hx, hz, yaw: 2 * Math.atan2(p.rot.y, p.rot.w) });
+    }
+  }
+  const water = sim.world.waterBodies.map((w) => ({ x: w.pos.x, z: w.pos.z, r: w.radius, id: w.id }));
+  return { map: sim.world.maps.zone, typeById, size: sim.world.size, structures, water };
 }
 
 /** Heading of a forward vector on the map (0 = north = -Z, clockwise); null when it points (almost) straight up or down. */
@@ -79,6 +105,13 @@ export function buildMinimapFrame(sim: Sim, focus: { x: number; z: number }, pos
       if (out.trail.length >= MINIMAP_MAX_TRAIL_CELLS || Math.abs(x - focus.x) > half || Math.abs(z - focus.z) > half) return;
       out.trail.push({ x, z, v: Math.min(1, value / MINIMAP_TRAIL_FULL_PH) });
     });
+  }
+
+  out.food.length = 0;
+  const slot = sim.stores.colonies.get(playerColony)?.rival?.territorySlot ?? 0;
+  for (const f of sim.stores.sources.list) {
+    if (!f.alive || (f.discoveredBy & (1 << slot)) === 0 || Math.abs(f.pos.x - focus.x) > margin || Math.abs(f.pos.z - focus.z) > margin) continue;
+    if (out.food.length < MINIMAP_MAX_FOOD) out.food.push({ x: f.pos.x, z: f.pos.z });
   }
   return out;
 }

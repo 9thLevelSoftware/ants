@@ -20,7 +20,7 @@ export interface FoundingUi {
   /** The queen's meters (null after hand-over or death). */
   queen: { reserves: number; desiccation: number; health: number; reservesFalling: boolean; drying: boolean } | null;
   /** Site read-out; `chamberQ` from the dig on (the actual chamber's Q). */
-  site: { active: boolean; rows: FoundingSiteRow[]; q: number; word: string | null; chamberQ: number | null } | null;
+  site: { active: boolean; rows: FoundingSiteRow[]; q: number; word: string | null; chamberQ: number | null; /** Weakest factor in words and what to look for (Poor or Fair ground only). */ advice?: string | null } | null;
   readiness: { r: number; depth: number; volume: number; ready: boolean } | null;
   /** Glyph prompts of the opening script: input action id (binding lookup) and its short label. */
   prompts: { action: string; text: string }[];

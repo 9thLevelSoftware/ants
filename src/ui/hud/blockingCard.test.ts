@@ -11,6 +11,10 @@ describe('isBlockingCardUp (context prompts stay hidden under a card)', () => {
     expect(isBlockingCardUp(founding({ phase: 'timelapse' }), null, null)).toBe(true);
     for (const phase of ['dealation', 'search', 'dig', 'seal', 'lay', 'handover']) expect(isBlockingCardUp(founding({ phase }), null, null)).toBe(false);
   });
+  it('the hand-over banner blocks while it is up (the hint and prompt cards share its band)', () => {
+    expect(isBlockingCardUp(founding({ phase: 'handover', handover: { aims: ['x'] } }), null, null)).toBe(true);
+    expect(isBlockingCardUp(founding({ phase: 'handover', handover: null }), null, null)).toBe(false);
+  });
   it('the result and failure cards block', () => {
     expect(isBlockingCardUp(founding({ outcome: { workers: 3, reserves: 0.2 } }), null, null)).toBe(true);
     expect(isBlockingCardUp(founding({ failure: { cause: 'x', text: 'y', retriesLeft: 1 } }), null, null)).toBe(true);

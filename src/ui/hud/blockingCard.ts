@@ -1,5 +1,5 @@
 // Cards that take the middle of the screen and wait for the player: the opening's intro card, its time-lapse and result
-// cards, the winter banner / lapse / report, the flight prompts. The context prompts ("Groom yourself", "F Dig") stay
+// cards, the hand-over banner, the winter banner / lapse / report, the flight prompts. The context prompts ("Groom yourself", "F Dig") stay
 // hidden while one is up: they used to be drawn over the intro card's text (docs-final, test-output/readme-shot).
 import type { FlightUi } from '../screens/flight/store';
 import { flightUi } from '../screens/flight/store';
@@ -10,6 +10,8 @@ import { winterUi } from '../screens/overwinter/store';
 
 export function isBlockingCardUp(founding: FoundingUi | null, winter: WinterUi | null, flight: FlightUi | null): boolean {
   if (founding && (founding.phase === 'intro-card' || founding.phase === 'timelapse' || founding.outcome || founding.failure)) return true;
+  // the hand-over banner sits in the same top-centre band as the prompt and hint cards (look pass 4: "Why?" was drawn under it)
+  if (founding?.handover) return true;
   if (winter) return true;
   if (flight && (flight.ask || flight.launch || flight.ended)) return true;
   return false;

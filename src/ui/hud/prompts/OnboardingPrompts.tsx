@@ -10,6 +10,7 @@ import { overlays } from '../../overlays/state';
 import { screenSlice } from '../slices';
 import { matchesAction } from '../hotkeys';
 import { openDrawer } from '../state';
+import { blockingCardUp } from '../blockingCard';
 import { installOnboardingDebug } from './debug';
 import { foundingPromptHints, foundingShownHints } from './foundingShown';
 import { HintCard } from './HintCard';
@@ -149,5 +150,6 @@ export function OnboardingPrompts() {
   const view = hintView.value;
   const screen = screenSlice.value;
   if (!view || screen !== 'playing') return null;
+  if (blockingCardUp()) return null; // the hint waits for the card that holds the top centre (intro, hand-over, winter, flight)
   return <HintCard view={view} onDismiss={() => onboarding.peek()?.dismiss()} />;
 }

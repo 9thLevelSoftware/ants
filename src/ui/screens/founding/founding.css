@@ -37,6 +37,7 @@
 .fo-site-word { font-size: 1.25rem; font-weight: 600; }
 .fo-site-word.is-poor { color: var(--c-status-bad); } .fo-site-word.is-fair { color: var(--c-status-watch); }
 .fo-site-word.is-good { color: var(--c-status-ok); } .fo-site-word.is-excellent { color: var(--c-info); }
+.fo-site-advice { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--c-border, rgba(255,255,255,0.14)); font-size: var(--t-small); line-height: 1.35; color: var(--c-text); }
 .fo-site-row { display: grid; grid-template-columns: 6.5rem 4.5rem 1fr; gap: 0.5rem; align-items: center; font-size: var(--t-small); line-height: 1.5rem; }
 .fo-dots { letter-spacing: 0.1em; color: var(--c-accent); white-space: nowrap; }
 .fo-dots .off { color: rgba(255, 255, 255, 0.25); }

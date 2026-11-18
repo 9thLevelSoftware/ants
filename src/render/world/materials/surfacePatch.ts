@@ -8,6 +8,7 @@ import type { MeshStandardMaterial, Uniform, Vector4, WebGLProgramParametersWith
 import { dappledLightsChunk, GLSL_DAPPLE } from './dapple';
 import { foliageLightsChunk } from '../decor/foliageLight';
 import { LOOK_FRAG_DECL, LOOK_VERT_DECL, LOOK_VERT_MAIN, lookFragMain } from '../dressing/finishGlsl';
+import { FACE_DETAIL_FRAG, faceKindOf } from './faceDetail';
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
 import { LEAF_BEND_GLSL } from './leafBend';
 import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms } from './occlusion';
@@ -115,8 +116,9 @@ export { LEAF_BEND } from './leafBend';
 export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOptions): void {
   const d = o.def;
   const looks = !!(o.looks && o.prim);
+  const face = o.prim === 'rounded' && o.space === 'instance' ? faceKindOf(d) : null;
   const rustScan = d.texture === 'metal_painted';
-  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|v4`;
+  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|${face ?? '-'}|v5`;
   addPatch(mat, key, (s) => {
     if (o.prim) primVertexPatch(s, o.prim, looks);
     s.uniforms.tWrA = { value: o.set.albedo };
@@ -144,6 +146,8 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
       `#define WR_ROUGHMIN ${d.roughMin.toFixed(3)}`,
       looks ? '#define WR_LOOKS' : '',
       o.prim === 'rounded' && o.space === 'instance' && d.id.startsWith('wood') ? '#define WR_BOARDS' : '',
+      face ? '#define WR_FACE' : '',
+      face === 'brick' ? '#define WR_FACE_BRICK' : face === 'metal' ? '#define WR_FACE_METAL' : '',
     ].join('\n');
 
     s.vertexShader = s.vertexShader
@@ -153,7 +157,7 @@ varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 #ifdef WR_LOCAL
 varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
 #endif
-#ifdef WR_BOARDS
+#if defined( WR_BOARDS ) || defined( WR_FACE )
 varying vec3 vWrSz;
 #endif
 ${looks ? LOOK_VERT_DECL : ''}
@@ -167,7 +171,7 @@ ${o.extra?.vertDecl ?? ''}`)
   #endif
   wrW = modelMatrix * wrW;
   vWrW = wrW.xyz;
-  #ifdef WR_BOARDS
+  #if defined( WR_BOARDS ) || defined( WR_FACE )
   vWrSz = iSize.xyz;
   #endif
   #ifdef WR_LOCAL
@@ -189,7 +193,7 @@ ${GLSL_WET}
 ${GLSL_OCCLUSION}
 ${GLSL_CONTACT}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
-#ifdef WR_BOARDS
+#if defined( WR_BOARDS ) || defined( WR_FACE )
 varying vec3 vWrSz;
 #endif
 ${GLSL_DAPPLE}
@@ -232,6 +236,7 @@ wrTri(tWrA, tWrN, tWrR, vWrP, wrN0, uWrScale, uWrNs, wrAlb, wrNw, wrRg);
 #endif
 wrAlb *= uWrTint;
 ${FENCE_BOARDS_FRAG}
+${FACE_DETAIL_FRAG}
 #ifdef WR_MACRO
 wrAlb *= mix(1.0 - WR_MACRO, 1.0 + WR_MACRO, wrFbm(vWrW.xz / 340.0));
 #endif
@@ -255,7 +260,7 @@ float roughnessFactor = wrWetRough(wrRoughO >= 0.0 ? wrRoughO : max(WR_ROUGHMIN,
 float roughnessFactor = wrWetRough(max(WR_ROUGHMIN, roughness * wrRg), wrWet, WR_WETROUGH);
 `)
       .replace('#include <fog_fragment>', `
-#if defined( USE_FOG ) && defined( WR_BOARDS )
+#if defined( USE_FOG ) && ( defined( WR_BOARDS ) || defined( WR_FACE ) )
   #ifdef FOG_EXP2
   float wrFogF = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
   #else

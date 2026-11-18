@@ -23,6 +23,8 @@ export const OPENING_QUIET_ALERTS: readonly string[] = ['last-ants', 'food-c-low
 export const MINIMAP_WINDOW_BU = 256;
 /** Trail cells drawn at most (a window holds 64 x 64 pheromone cells; most of them are empty). */
 export const MINIMAP_MAX_TRAIL_CELLS = 1200;
+/** Known food sources drawn at most (the window is small). */
+export const MINIMAP_MAX_FOOD = 40;
 /** A trail cell at this pheromone value or above draws at full strength (the scent view's own `FULL_PH.trail`). */
 export const MINIMAP_TRAIL_FULL_PH = 10;
 

@@ -28,7 +28,7 @@ describe('minimap mapping (review)', () => {
     const data = new Uint8Array(nx * nz);
     data.fill(1);
     for (let i = 0; i < nx; i++) data[0 * nx + i] = 2; // the northern row (z 0..1000) is another zone
-    const plate = { map: { cell, nx, nz, data }, typeById: ['', 'lawn', 'asphalt'], size: 4000 };
+    const plate = { map: { cell, nx, nz, data }, typeById: ['', 'lawn', 'asphalt'], size: 4000, structures: [], water: [] };
     const size = 16;
     const px = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 2000, cz: 1000, windowMm: 4000 });
     const at = (x: number, y: number) => Array.from(px.slice((y * size + x) * 4, (y * size + x) * 4 + 3));

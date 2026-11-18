@@ -47,9 +47,20 @@ describe('inspect row wording', () => {
   });
   it('shows the number only where it carries a unit or is a count', () => {
     expect(rowValue({ key: 'moisture', word: 'damp', value: 34.2, unit: '%' })).toBe('damp (34 %)');
-    expect(rowValue({ key: 'temperature', word: 'surface', value: 21.46, unit: '°C' })).toBe('surface (21.5 °C)');
+    expect(rowValue({ key: 'temperature', word: 'surface', value: 21.46, unit: '°C' })).toBe('21.5 °C surface');
+    expect(rowValue({ key: 'temperature', word: 'too cool', value: 21.46, unit: '°C' })).toBe('too cool (21.5 °C)');
     expect(rowValue({ key: 'target', word: 'source', value: 23, unit: '' })).toBe('source');
-    expect(rowValue({ key: 'users', word: 'ours using it', value: 3, unit: '' })).toBe('ours using it (3)');
+    expect(rowValue({ key: 'users', word: 'ours using it', value: 3, unit: '' })).toBe('3');
+    // the number leads when the word only describes it (brood inspector, look pass 4)
+    expect(rowValue({ key: 'progress', word: 'of stage', value: 64.2, unit: '%' })).toBe('64 % of stage');
+    expect(rowValue({ key: 'eta', word: 'at current conditions', value: 0.12, unit: 'game days' })).toBe('0.1 game days at current conditions');
+    expect(rowValue({ key: 'eta', word: 'stalled (too cold)', value: null, unit: 'game days' })).toBe('stalled (too cold)');
+    expect(rowValue({ key: 'amount', word: 'left', value: 1.2, unit: 'loads' })).toBe('1.2 loads left');
+    expect(rowValue({ key: 'adults', word: 'occupancy / capacity', value: 3, unit: '/ 12' })).toBe('3 / 12');
+    expect(rowValue({ key: 'traffic', word: 'per game hour', value: 4, unit: '' })).toBe('4 per game hour');
+    expect(rowValue({ key: 'depth', word: 'below ground', value: 12, unit: 'BU' })).toBe('12 BU below ground');
+    expect(rowValue({ key: 'temperature-deep', word: '4 BU down', value: 18, unit: '°C' })).toBe('18 °C, 4 BU down');
+    expect(rowValue({ key: 'size', word: 'relative to us', value: 0.5, unit: 'x L' })).toBe('0.5 \u00d7 our length');
     expect(rowValue({ key: 'crop-c', word: 'carbohydrate', value: 0.66, unit: 'loads' })).toBe('0.7 loads');
     expect(rowValue({ key: 'task', word: 'forage', value: null, unit: '' })).toBe('forage');
   });

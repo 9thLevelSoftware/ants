@@ -22,7 +22,7 @@ interface Drawn {
 
 /** A detached copy of the reused frame (the bridge reuses its arrays). */
 function copy(f: MinimapFrame): MinimapFrame {
-  return { ...f, entrances: f.entrances.map((e) => ({ ...e })), markers: f.markers.map((m) => ({ ...m })), ant: f.ant ? { ...f.ant } : null, trail: f.trail.map((t) => ({ ...t })) };
+  return { ...f, entrances: f.entrances.map((e) => ({ ...e })), markers: f.markers.map((m) => ({ ...m })), ant: f.ant ? { ...f.ant } : null, trail: f.trail.map((t) => ({ ...t })), food: f.food.map((p) => ({ ...p })) };
 }
 
 const pct = (v: number): string => `${(v * 100).toFixed(2)}%`;
@@ -94,7 +94,7 @@ export function Minimap() {
   );
 }
 
-/** Repaints the zone plate and the trail cells on the canvas. */
+/** Repaints the zone plate, the water and the structures (shapes, to scale), the known food and the trail cells on the canvas. */
 function paint(cv: HTMLCanvasElement | null, plate: MinimapPlate | null, f: MinimapFrame): void {
   if (!cv || !plate) return;
   const dpr = Math.min(MAX_DPR, Math.max(1, window.devicePixelRatio || 1));
@@ -105,6 +105,34 @@ function paint(cv: HTMLCanvasElement | null, plate: MinimapPlate | null, f: Mini
   const img = ctx.createImageData(size, size);
   paintPlate(img.data, size, plate, f);
   ctx.putImageData(img, 0, 0);
+  const px = size / f.windowMm; // canvas pixels per mm
+  const half = f.windowMm / 2 + 2000; // anything farther than this from the centre is outside the window
+  const at = (x: number, z: number): [number, number] => [(x - f.cx) * px + size / 2, (z - f.cz) * px + size / 2];
+  for (const w of plate.water) {
+    if (Math.abs(w.x - f.cx) > half + w.r || Math.abs(w.z - f.cz) > half + w.r) continue;
+    const [cx, cy] = at(w.x, w.z);
+    ctx.beginPath();
+    for (let k = 0; k <= 24; k++) { // an uneven pool outline, the same every repaint (seeded by the body's id)
+      const a = (k % 24) * (Math.PI / 12), wob = 1 + 0.12 * Math.sin(a * 3 + w.id * 1.7) + 0.06 * Math.sin(a * 5 + w.id * 0.9);
+      const x = cx + Math.cos(a) * w.r * px * wob, y = cy + Math.sin(a) * w.r * px * wob;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(88, 146, 196, 0.95)'; ctx.fill();
+    ctx.lineWidth = Math.max(1, dpr); ctx.strokeStyle = 'rgba(190, 224, 248, 0.8)'; ctx.stroke();
+  }
+  ctx.lineWidth = Math.max(1, dpr * 0.8);
+  for (const s of plate.structures) {
+    if (Math.abs(s.x - f.cx) > half + s.hx + s.hz || Math.abs(s.z - f.cz) > half + s.hx + s.hz) continue;
+    const [cx, cy] = at(s.x, s.z);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-s.yaw); // a prim's yaw turns x toward -z; the canvas y axis is +z
+    const w = Math.max(s.hx * px, 0.8 * dpr), h = Math.max(s.hz * px, 0.8 * dpr);
+    ctx.fillStyle = 'rgba(52, 50, 54, 0.95)'; ctx.fillRect(-w, -h, 2 * w, 2 * h);
+    ctx.strokeStyle = 'rgba(236, 228, 214, 0.75)'; ctx.strokeRect(-w, -h, 2 * w, 2 * h);
+    ctx.restore();
+  }
   if (f.trail.length) {
     const cell = (4 * size) / 256; // a pheromone cell is 4 BU of the 256 BU window
     for (const t of f.trail) {
@@ -112,5 +140,13 @@ function paint(cv: HTMLCanvasElement | null, plate: MinimapPlate | null, f: Mini
       ctx.fillStyle = `rgba(255, 196, 64, ${(0.25 + 0.65 * t.v).toFixed(2)})`;
       ctx.fillRect(b.u * size - cell / 2, b.v * size - cell / 2, cell, cell);
     }
+  }
+  // known food: a small diamond with a dark rim, so it reads on every tint
+  const d = 3.2 * dpr;
+  for (const p of f.food) {
+    const [x, y] = at(p.x, p.z);
+    ctx.beginPath(); ctx.moveTo(x, y - d); ctx.lineTo(x + d, y); ctx.lineTo(x, y + d); ctx.lineTo(x - d, y); ctx.closePath();
+    ctx.fillStyle = '#e8c9ff'; ctx.fill();
+    ctx.lineWidth = Math.max(1, dpr * 0.9); ctx.strokeStyle = 'rgba(30, 20, 40, 0.9)'; ctx.stroke();
   }
 }

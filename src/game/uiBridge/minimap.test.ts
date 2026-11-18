@@ -84,3 +84,27 @@ describe('mapYaw', () => {
     expect(mapYaw(0.01, 0.02)).toBeNull();
   });
 });
+
+describe('static shapes and known food (look pass 4)', () => {
+  it('the plate carries the footprints of structure-tagged objects and the water bodies', () => {
+    const { sim } = setup();
+    const plate = minimapPlate(sim);
+    const tagged = sim.world.objects.filter((o) => o.tags.includes('structure')).length;
+    expect(plate.structures.length > 0).toBe(tagged > 0);
+    for (const s of plate.structures) { expect(s.hx).toBeGreaterThan(0); expect(Number.isFinite(s.yaw)).toBe(true); }
+    expect(plate.water.length).toBe(sim.world.waterBodies.length);
+  });
+
+  it('lists only the food the player colony has discovered, inside the window', () => {
+    const { sim } = setup();
+    const src = sim.stores.sources.list.find((s) => s.alive);
+    if (!src) return; // the small test world has none: nothing to check
+    const slot = sim.stores.colonies.get(sim.state.player.colonyId)?.rival?.territorySlot ?? 0;
+    src.discoveredBy = 0;
+    expect(buildMinimapFrame(sim, src.pos, -1, false, newMinimapFrame()).food).toEqual([]);
+    src.discoveredBy = 1 << slot;
+    const f = buildMinimapFrame(sim, src.pos, -1, false, newMinimapFrame());
+    expect(f.food).toContainEqual({ x: src.pos.x, z: src.pos.z });
+    expect(buildMinimapFrame(sim, { x: src.pos.x + 9000, z: src.pos.z }, -1, false, newMinimapFrame()).food).toEqual([]);
+  });
+});

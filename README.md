@@ -110,7 +110,7 @@ Given after `?` and joined with `&`. They exist so that scripted runs are fast a
 | `quality=` | `auto`, `low`, `medium`, `high`, `ultra` (and `test`) | Graphics preset. |
 | `post=` | `0` or `1` | Switch the post-processing chain off or on. |
 | `autostart=1` | | Skip the title screen and begin a generated game at once. |
-| `species=` | `lasius-niger` (default), `camponotus-pennsylvanicus`, `messor-barbarus`, `atta-texana` | Species. The flag accepts all four ids, but only the black garden ant is playable today. The other three start a game for testing only: their colonies did not meet the survival bar and the New Game screen greys them out. |
+| `species=` | `lasius-niger` (default), `camponotus-pennsylvanicus`, `messor-barbarus`, `atta-texana` | Species. Honoured only together with `test=1` (`src/game/flags.ts`): a normal page ignores it and starts the black garden ant, the one playable species. The other three are for testing only (their colonies did not meet the survival bar and the New Game screen greys them out). |
 | `archetype=` | `woodland-edge`, `suburban-garden`, `playground-park`, `car-park-verge`, `kitchen-door` | Locality type. |
 | `size=` | `compact`, `standard`, `large` | World size (3000, 4000 or 5000 body units). |
 | `difficulty=` | `gentle`, `naturalist`, `harsh` | Difficulty preset. |
@@ -167,7 +167,7 @@ Layering rule: `core` imports nothing from the project; `sim` and `worldgen` imp
 | `docs/design/tasks/` | One spec per task, task reports, the colony-life ledger. |
 | `docs/research/` | Technology and biology research, including `tech-stack.md`. |
 | `docs/STATUS.md` | The running log of the build, with every ruling. |
-| `docs/MANUAL.md` | The player's manual. (`docs/manual/` holds an earlier draft that has not been checked against the game.) |
+| `docs/MANUAL.md` | The player's manual: the one manual (sections 0 to 20; the tables between `<!-- generated:NAME -->` markers are regenerated from the code by `npm run sim -- tests/docs/regen-manual.mjs`). The old `docs/manual/` folder is gone. |
 | `docs/CREDITS-AUDIT.md` | How the credits were checked and what could not be shown. |
 
 Where sources disagree, the order is: design seed, design directions (sections J and K), GDD index, the chapter that owns the topic, other chapters.

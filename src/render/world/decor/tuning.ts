@@ -124,6 +124,21 @@ export const WIND = {
 // ------------------------------------------------------------------------------------------------- draped decor
 
 /** Hug rules: draped decor stays within this band above the ground, so an ant (feet on the ground) is on top. */
+/**
+ * Look pass 4 (bare ground at worker height on the lowest tiers): within `mm` of the camera (30 BU at BU 4) the quality density of
+ * grass and of draped litter never drops below these shares, easing back to the tier's own density over the next `mm`. The
+ * lowest tiers (x0.25) left the ground round the nest an empty plane; the floor costs a few hundred blades and cards in the one or two
+ * blocks next to the camera, not a draw call.
+ */
+export const NEAR_GROUND = { mm: 120, grass: 0.6, litter: 0.7 } as const;
+
+/** Quality density with the near floor: `d` = distance from the camera, mm. Twin of the GLSL in bladeShape.ts and drapedShape.ts. */
+export function nearFloorDensity(q: number, floor: number, d: number): number {
+  const t = Math.min(1, Math.max(0, (d - NEAR_GROUND.mm) / NEAR_GROUND.mm));
+  const w = t * t * (3 - 2 * t);
+  return Math.max(q, floor) * (1 - w) + q * w;
+}
+
 export const DRAPE = {
   /** Base lift above the ground, BU (the walker's foot offset is 0.15 BU). */
   liftBU: 0.004,
@@ -170,7 +185,7 @@ export const DECOR_LEAF = {
    * colour and the net darkens it; yellowing blotches and dark flecks; surface relief fed to the normal.
    */
   detailFadeMm: [260, 800], warpUv: 0.075, warpScale: 0.55, serration: 0.55, serrationScale: 2.2,
-  stalkUv: 0.43, ribSpread: 0.6, ribWidthUv: 0.022, netScale: [0.22, 0.6], netWidth: 0.05, veinLift: 0.65, netDark: 0.14,
+  stalkUv: 0.43, ribSpread: 0.6, ribWidthUv: 0.022, netScale: [0.22, 0.6], netWidth: 0.06, veinLift: 0.9, netDark: 0.26,
   blotch: 0.55, blotchScale: 0.075, fleck: 0.2, reliefScale: 0.9, relief: 0.9,
   /** Draw order of the draped decor within the opaque pass: after terrain, primitives, grass and ants (default 0), because the shadow is blended over what is already drawn. */
   renderOrder: 1,

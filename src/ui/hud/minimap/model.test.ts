@@ -20,7 +20,7 @@ describe('minimap geometry', () => {
 
 describe('zone plate', () => {
   // a 2 x 2 world of 100 mm cells: forest | lawn / pavement | outside is the void
-  const plate: MinimapPlate = { map: { cell: 100, nx: 2, nz: 2, data: Uint8Array.from([1, 2, 3, 1]) }, typeById: ['', 'forest', 'lawn', 'pavement'], size: 200 };
+  const plate: MinimapPlate = { map: { cell: 100, nx: 2, nz: 2, data: Uint8Array.from([1, 2, 3, 1]) }, typeById: ['', 'forest', 'lawn', 'pavement'], size: 200, structures: [], water: [] };
   const at = (px: Uint8ClampedArray, size: number, x: number, y: number) => Array.from(px.slice((y * size + x) * 4, (y * size + x) * 4 + 3));
 
   it('paints each zone its flat tint and the area outside the world the void colour', () => {
@@ -39,5 +39,30 @@ describe('zone plate', () => {
     const seen = new Set(Object.values(ZONE_TINTS).map((t) => t.join(',')));
     expect(seen.size).toBe(Object.keys(ZONE_TINTS).length);
     expect(tintOfZone('nonsense')).toBeDefined();
+  });
+});
+
+describe('paintPlate smooths the class borders (look pass 4)', () => {
+  it('a diagonal border is a line at the pixel resolution, not the zone cells\' staircase', () => {
+    const nx = 8, nz = 8, cell = 1000;
+    const data = new Uint8Array(nx * nz);
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) data[z * nx + x] = x >= z ? 1 : 2; // lawn above the diagonal, asphalt below
+    const plate = { map: { cell, nx, nz, data }, typeById: ['', 'lawn', 'asphalt'], size: 8000, structures: [], water: [] };
+    const size = 128;
+    const px = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 4000, cz: 4000, windowMm: 8000 });
+    // the first pixel of each row that is closer to lawn than to asphalt
+    const lawn = ZONE_TINTS.lawn, asph = ZONE_TINTS.asphalt;
+    const edge: number[] = [];
+    for (let y = 0; y < size; y++) {
+      let e = size;
+      for (let x = 0; x < size; x++) {
+        const i = (y * size + x) * 4;
+        if (Math.abs(px[i] - lawn[0]) < Math.abs(px[i] - asph[0])) { e = x; break; }
+      }
+      edge.push(e);
+    }
+    const distinct = new Set(edge.slice(16, 112)).size;
+    expect(distinct).toBeGreaterThan(60); // a staircase of 8 cells would give 8 values; a line gives about one per row
+    for (let y = 17; y < 112; y++) expect(Math.abs(edge[y] - edge[y - 1])).toBeLessThanOrEqual(2);
   });
 });

@@ -8,6 +8,7 @@ import { currentDayOfSeason, currentHour, currentSeason } from '@/sim/time';
 import { WEATHER_WORDS } from '@/game/uiBridge/words';
 import type { FoundingUi } from '@/ui/screens/founding/store';
 import { placeName } from './placeName';
+import { siteAdvice } from './siteAdvice';
 
 const cap = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -105,8 +106,9 @@ export function buildFoundingUi(sim: Sim, flags: FlowFlags): FoundingUi | null {
   const site: FoundingUi['site'] = v.site ? {
     active: v.site.active,
     rows: v.site.factors.map((f) => ({ id: f.id, label: FACTOR_LABELS[f.id] ?? f.id, value: f.value, dots: factorDots(f.value), word: f.word })),
-    q: v.site.q, word: v.site.word, chamberQ: v.phase !== 'search' ? v.site.q : null,
+    q: v.site.q, word: v.site.word, chamberQ: v.phase !== 'search' ? v.site.q : null, advice: null,
   } : null;
+  if (site) site.advice = siteAdvice(site);
   const fc = v.clutch?.forecast ?? null;
   const clutch: FoundingUi['clutch'] = v.clutch ? {
     eggs: v.clutch.eggs, limit: v.clutch.limit, batches: v.clutch.batches,

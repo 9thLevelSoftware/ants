@@ -1,10 +1,7 @@
 export default async ({ page, log }) => {
   const g = (fn, arg) => page.evaluate(fn, arg);
   await g(() => window.__game.command({ type: 'openingSkipIntro' }));
-  await g(() => window.__game.step(30));
-  const r = await g(() => { let o2 = null; window.__hud.game.scene.traverse((o) => { if (!o2 && o.name?.startsWith('decor:draped')) o2 = o; });
-    const u = o2.material.userData, tex = {};
-    const sh = o2.material; return { keys: Object.keys(sh), ud: Object.keys(u), prog: sh.customProgramCacheKey?.() };
-  });
+  const r = await g(() => { const w = window.__hud.game.session.sim.world; const c = {}; for (const o of w.objects) c[o.templateId] = (c[o.templateId] || 0) + 1;
+    const p = w.prims[0]; return { c, prim: JSON.stringify(p), water: w.waterBodies.length, wk: w.waterBodies[0]?.kind, zoneCell: w.maps.zone.cell, nx: w.maps.zone.nx, tags: [...new Set(w.objects.flatMap((o) => o.tags))].slice(0, 40) }; });
   log(JSON.stringify(r));
 };

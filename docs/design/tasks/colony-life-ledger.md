@@ -3012,3 +3012,52 @@ Progress (kept current; a successor continues from here)
   needP 0.88) and the carcass has decayed (35.7 P gone, `decayed`). The need signal follows the larvae, not the
   eggs that will become larvae two days later. Lead for a later round (it is GDD 02 §5.5's need definition, i.e. a
   deviation if changed): not worked this round.
+- 11:04 **HB1 on the subset, paired with r30** (`paired/subset-hb1-table.txt`, ledgers `protein/r30hb1-ledger.tsv`):
+  we #1 and kd #2 have no patch within reach (no chase in either arm): identical runs. On the three that hunt:
+  chases -> kills sg #2 32 -> 29 (r30r29c without HB1: 10 %), pp #3 34 -> 29, cpv #1 19 -> 16 (85-90 %); prey P
+  delivered sg #2 1.23 -> 5.82, pp #3 4.50 -> 6.07, cpv #1 3.08 -> 3.16; hunting trips fall where a few catches fill
+  the need (cpv #1 26). Subset sums r30 / r30hb1: workers at winter 74 / 70 (4 equal, 1 worse: sg #2 16 -> 12, 4
+  predation deaths on days 5-7 against 0), eclosions 27 / 25, eggs 74 / 80, brood lost 38 / 48, median P intake/need
+  0.128 / 0.152, median trip success 34 / 50 %, warning hours 1136 / 856. The mechanism counter moved as intended; the
+  subset does not show a gain in workers at winter (3 hunting colonies, one predation swing). Not decided on this:
+  HB1 on the other 10 colonies is queued after jobs4c (`paired/jobs5.txt`, `paired/chain5.sh` waits for jobs4c's
+  ALLDONE; if cut off run `paired/jobs4.sh jobs5.txt` after jobs4c). HB1 stays in the live tree meanwhile (it is
+  the GDD's rule; it goes out again if the 15 say it costs workers).
+- 11:16 **protein ledger over all 15 r30 runs** (`protein/r30-ledger.tsv`; full by-day ledger on the 10 non-subset
+  colonies, funnel totals on all 15). Per colony over ~12 gd to winter, median (sum):
+  | stage | median | sum |
+  |---|---|---|
+  | P standing in protein sources within 300 BU (mean over days; 10 runs) | 1.9 | 40 |
+  | of it known to the colony (10) | 0.04 | 13.5 |
+  | P arriving in the radius (new carrion etc.; 10) / leaving it unused (decayed, eaten) | 9.3 / 1.0 | 348 / 46 |
+  | forage trips set out for a protein source (10) | 2.5 | 37 |
+  | hunting trips to a known patch (10) | 113 | 1296 |
+  | patch prey appeared / chased / **killed** / remains home (10) | 140 / 106 / **15.5** / 10.5 | 1589 / 1202 / **191** / 149 |
+  | P delivered (15): prey / carrion / liquids / all | 2.0 / 0 / 0.44 / 4.5 | 42 / 10.5 / 6.9 / 66 |
+  | larval P demand (10) / P fed to larvae (15) | 11.9 / 9.5 | 222 / 145 |
+  | P spoiled in the stores (10) | 0.8 | 13 |
+  | larvae starved / cannibalised (15) | 0 / 0 | 10 / 4 |
+  Largest drop: **chase -> kill (1202 chases, 191 kills: 84 % of the colonies' chases end without a catch)**, i.e.
+  ~250 P of springtails over the 10 runs at 0.25 P each against 222 P of larval demand: fixed by HB1 (10:42; the
+  hunters fled from the alarm of their own non-lethal first bite). Second: protein that arrives is barely known
+  (348 P arrived, 13.5 known on average) and known carrion gets 37 trips in 10 runs (sg #1: the need index is 0
+  until the larvae hatch, 10:53). Larvae ate mostly the queen's founding reserve (145 P fed against 66 delivered).
+- 11:28 **year two, r30 (+WL4), cpv #1 and we #2 to year-two day 15** (`paired/long-r30/`, `paired/long-r30-table.txt`,
+  `longrun.py`): cpv #1: first workers 11, last year-one row 19, first tick of spring 17 (queen alive, C 18.3), first
+  year-two egg doy 4, first year-two eclosion doy 11 (4 by doy 13), workers on year-two day 15 **19**, year-two deaths
+  5 old age; ages on doy 10: 17 workers at physiological 17-29 of lifespans 19-53. we #2: 8 -> 11 -> 10 (C 9.1),
+  first egg doy 5, first eclosion doy 12 (1), day 15 **7** (old age 3, cold 1, crushed 1); ages on doy 10: 9 workers
+  at 18-27 of 29-59. R22: alive in spring with >= 0.7 x winter workers 2 of 2; day 15 >= 2 x first workers 0 of 2
+  (19 vs 22, 7 vs 16). Royal chamber spring days 1-9: 1.4 -> 14.4 C (cpv #1), 1.6 -> 15.3 (we #2).
+  **Year-two eclosions by origin** (direction 16): every year-two eclosion by day 15 is overwintered brood: a doy-4
+  egg gets ~1.5 of its 3.9 DU by doy 13 at the royal chamber's 1-15 C (r = (T - 10) / 11); brood on the last
+  year-one row: 2 larvae (cpv #1), 1 larva (we #2). The overwintering larvae are what the colony has in spring: 2
+  and 1 here, against 17 and 10 overwintered workers ageing out from day ~12. The `lifeEclosions` origin label read
+  "laid in year 2" for all five (it identifies the eclosed pupa as the one brood gone without a death event, which
+  the winter lapse makes ambiguous): do not use its origin field; fix it next round (map brood ids through the lapse).
+- 11:29 status: jobs4c running the 30 remaining arm runs (base / r30r29c / r30r29cr31 on the 10 non-subset colonies,
+  ~12:55), then jobs5 (r30hb1 x 10, ~13:25). Remaining work: the 15-colony arms table, the HB1 verdict, the
+  results section; final typecheck / folder tests; clean-up (probes, scratch trees, runners).
+- 11:31 environment folder on the live tree (chamberTempForecast removed): 29/30 files (`round-8/vitest-environment.txt`);
+  red `weather.test` "uses only the weather stream" (`rng.ecology` drawn too): red on the base arm tree as well, not
+  this round's.

@@ -39,7 +39,7 @@ import { blockKeysOverlapping, blocksAround, rectDistance } from './tiles';
 import { WorldWatch, type Rect } from './worldWatch';
 import {
   DECOR_BUDGET_MS, DECOR_CHANGE_MARGIN_MM, DECOR_DISPOSE_K, DECOR_QUALITY_FACTOR, DECOR_RADIUS_MM, DECOR_WATCH_FRAMES,
-  DECOR_LEAF, DEW, DRAPE, GRASS, PARTING, WIND,
+  DECOR_LEAF, DEW, DRAPE, GRASS, NEAR_GROUND, PARTING, WIND,
 } from './tuning';
 import { QUALITY_PRESETS } from '@/render/app';
 
@@ -285,15 +285,17 @@ export class DecorRenderer {
 
   private applyLod(cx: number, cz: number, q: QualityPreset): void {
     const g = this.ground!, d = this.shared.decor;
-    const qd = d.uGrLod.value.z, keepMax = Math.max(d.uDcKeep.value.x, d.uDcKeep.value.y, d.uDcKeep.value.z) * d.uDcKeep.value.w;
+    const qd = d.uGrLod.value.z, keepSeason = Math.max(d.uDcKeep.value.x, d.uDcKeep.value.y, d.uDcKeep.value.z), keepMax = keepSeason * d.uDcKeep.value.w;
     const qm = this.densityFactor(q, 'litter');
     const dew = d.uDew.value;
     for (const b of this.blocks.values()) {
       const dist = rectDistance(cx, cz, b.ref);
       const near = dist < GRASS.nearBlockMm;
-      const gk = qd * grassLodKeep(dist);
+      // within the near-ground floor the block draws the floor's share (the shader fades each blade/card out by its own distance)
+      const nearBlock = dist < 2 * NEAR_GROUND.mm;
+      const gk = (nearBlock ? Math.max(qd, NEAR_GROUND.grass) : qd) * grassLodKeep(dist);
       b.setGrass(countBelow(b.grass, BLADE_STRIDE, BLADE_RANK, gk), near ? this.bladeBase!.near : this.bladeBase!.far, near && q.shadows.enabled);
-      const dk = keepMax * (dist <= DRAPE.lodFullMm ? 1 : Math.pow(DRAPE.lodFullMm / dist, DRAPE.lodPow));
+      const dk = (nearBlock ? Math.max(keepMax, NEAR_GROUND.litter * keepSeason) : keepMax) * (dist <= DRAPE.lodFullMm ? 1 : Math.pow(DRAPE.lodFullMm / dist, DRAPE.lodPow));
       const lod = dist < DRAPE.lodMm[0] ? 0 : dist < DRAPE.lodMm[1] ? 1 : 2;
       b.setDraped(countBelow(b.draped, DRAPED_STRIDE, DRAPED_RANK, dk), this.cardBase[lod]);
       // baked moss on solids: the quality density only (GDD 04 §9), the patches are few and small

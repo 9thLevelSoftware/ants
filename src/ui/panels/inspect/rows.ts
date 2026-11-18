@@ -32,13 +32,36 @@ function unitText(unit: string): string {
   return unit;
 }
 
-/** "damp (34 %)", "sweet", "2 loads left": the word, then the number in brackets when it carries a unit. */
+/**
+ * Words that describe the number rather than classify it ("of stage", "left", "per game hour"): the number leads and the word
+ * follows, "64 % of stage", "0.1 game days at current conditions". The other words classify it and keep the older order,
+ * "damp (34 %)". A card must never read "Progress   of stage (64 %)".
+ */
+const TAIL_WORDS: ReadonlySet<string> = new Set([
+  'of stage', 'at current conditions', 'left', 'surface', 'air', 'below ground', 'open', 'per game hour', 'in the mound', 'linked',
+]);
+const isTail = (word: string): boolean => TAIL_WORDS.has(word) || /^\d+ BU down$/.test(word);
+
+/** Rows whose word only repeats the label or the unit: the number alone ("Adults   3 / 12", "Ours using it   2"). */
+const NUMBER_ONLY = new Set(['users', 'rivals', 'entrances', 'adults', 'brood', 'food']);
+
+function numberText(r: UiInspectRow & { value: number }): string {
+  return r.unit === '%' ? String(Math.round(r.value)) : r.unit === 'game days' || r.unit === '°C' ? (Math.round(r.value * 10) / 10).toString() : loads(r.value);
+}
+
+/** "damp (34 %)", "sweet", "2 loads left", "64 % of stage": the number goes first when the word only describes it. */
 export function rowValue(r: UiInspectRow): string {
   const word = r.word;
   // the label already says which nutrient: "Crop C   0.7 loads"
   if ((r.key === 'crop-c' || r.key === 'crop-p') && r.value !== null) return `${loads(r.value)} loads`;
-  if (r.value === null || (!r.unit && !COUNT_KEYS.has(r.key))) return word;
-  if (COUNT_KEYS.has(r.key) && !r.unit) return `${word} (${Math.round(r.value)})`;
-  const n = r.unit === '%' ? String(Math.round(r.value)) : r.unit === 'game days' || r.unit === '°C' ? (Math.round(r.value * 10) / 10).toString() : loads(r.value);
-  return `${word} (${n}${r.unit === '%' ? ' %' : ` ${unitText(r.unit)}`})`;
+  if (r.value === null) return word;
+  const v = r as UiInspectRow & { value: number };
+  if (!r.unit && !COUNT_KEYS.has(r.key)) return word;
+  if (NUMBER_ONLY.has(r.key)) return r.unit ? `${Math.round(r.value)} ${r.unit}` : String(Math.round(r.value)); // occupancy counts: whole animals
+  if (r.key === 'size' && r.unit === 'x L') return `${numberText(v)} \u00d7 our length`;
+  const count = !r.unit;
+  const n = count ? String(Math.round(r.value)) : numberText(v);
+  const num = count ? n : `${n}${r.unit === '%' ? ' %' : ` ${unitText(r.unit)}`}`;
+  if (isTail(word)) return /BU down$/.test(word) ? `${num}, ${word}` : `${num} ${word}`;
+  return `${word} (${num})`;
 }

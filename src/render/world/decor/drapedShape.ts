@@ -5,7 +5,7 @@
 import { drapeHeight } from './drape';
 import { sampleHeight } from '../terrain/terrainData';
 import { DRAPED_KIND, NO_FIXED_Y } from './instances';
-import { DRAPE } from './tuning';
+import { DRAPE, NEAR_GROUND } from './tuning';
 import type { ClipmapLayout } from '../terrain/clipmap';
 import type { TerrainSource } from '../lighting/simAdapter';
 
@@ -55,14 +55,14 @@ export const DRAPED_VERT_GLSL = /* glsl */ `
 attribute vec4 iA; attribute vec4 iB; attribute vec4 iC;
 uniform vec4 uDcKeep; uniform vec4 uDcLod; uniform float uDcFresh; uniform float uDcBu; uniform vec2 uDcBias; uniform vec3 uCamPos;
 varying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;
-float dcKeep(float kind) {
+float dcKeep(float kind, float d) {
   float k = kind < ${DRAPED_KIND.needle - 0.5} ? uDcKeep.x : (kind < ${DRAPED_KIND.petal + 0.5} && kind > ${DRAPED_KIND.petal - 0.5} ? uDcKeep.y : uDcKeep.z);
-  return k * uDcKeep.w;
+  return k * mix(max(uDcKeep.w, ${NEAR_GROUND.litter.toFixed(3)}), uDcKeep.w, smoothstep(${NEAR_GROUND.mm.toFixed(1)}, ${(2 * NEAR_GROUND.mm).toFixed(1)}, d));
 }
 void drapedShape(out vec3 P, out vec3 N) {
   float kind = iC.x;
   float d = length(iA.xy - uCamPos.xz);
-  float keep = dcKeep(kind) * (d <= uDcLod.x ? 1.0 : pow(uDcLod.x / d, uDcLod.y));
+  float keep = dcKeep(kind, d) * (d <= uDcLod.x ? 1.0 : pow(uDcLod.x / d, uDcLod.y));
   bool fresh = iC.z < uDcFresh;
   vDcInfo = vec4(kind, iC.y, iC.z, fresh ? 1.0 : 0.0);
   vDcUv = position.xy;

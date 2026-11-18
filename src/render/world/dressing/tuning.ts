@@ -44,8 +44,10 @@ export const GRIT: Partial<Record<MaterialId, GritSpec>> = {
  * around the camera focus (mm at BU 4).
  */
 export const GRIT_QUALITY: Record<QualityId, { max: number; near: number; radiusMm: number }> = {
-  test: { max: 0, near: 0, radiusMm: 0 },
-  low: { max: 700, near: 0, radiusMm: 90 },
+  // look pass 4: the first-play quality (test) had no grit at all, and low only the nearest 22 BU: both read as an empty plane at worker
+  // height. Both now fill 30 BU (120 mm) round the camera focus (grains are instanced: no new draw call, about 0.02 grains per mm2)
+  test: { max: 700, near: 0, radiusMm: 120 },
+  low: { max: 1000, near: 0, radiusMm: 120 },
   medium: { max: 1800, near: 400, radiusMm: 130 },
   high: { max: 4000, near: 900, radiusMm: 180 },
   ultra: { max: 6500, near: 1500, radiusMm: 240 },

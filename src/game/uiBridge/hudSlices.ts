@@ -44,7 +44,8 @@ export function focusAimOf(sim: Sim): UiFocusAim | null {
   if (!a) return null;
   return {
     id: a.id, species: sim.state.config.species, openedTick: a.openedTick,
-    newColony: sim.state.tick < FOCUS_NEW_COLONY_GD * TICKS_PER_DAY,
+    // the opening aim stays on the line while no site has been chosen, however long the player looks around (look pass 4)
+    newColony: sim.state.tick < FOCUS_NEW_COLONY_GD * TICKS_PER_DAY || a.id === 'aim-find-site',
     openIds: open.map((o) => o.id),
   };
 }

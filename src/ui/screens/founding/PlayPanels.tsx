@@ -40,6 +40,7 @@ export function SiteReadout({ site }: { site: NonNullable<FoundingUi['site']> })
           <span class="fo-label">{r.label}</span><Dots n={r.dots} /><span>{r.word}</span>
         </div>
       ))}
+      {site.advice && <div class="fo-site-advice" data-testid="founding-site-advice">{site.advice}</div>}
     </div>
   );
 }

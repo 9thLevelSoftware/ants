@@ -34,7 +34,7 @@ describe('draped leaf contact shadow', () => {
   it('is soft: a low peak opacity, a short reach and a smooth eight-tap falloff, all from DECOR_LEAF', () => {
     expect(DECOR_LEAF.shadowAlpha).toBeLessThanOrEqual(0.6);
     expect(DECOR_LEAF.shadowReachUv).toBeLessThanOrEqual(0.1);
-    expect((frag.match(/dcLeafAlpha\(ra, fresh, uv/g) ?? []).length).toBe(8);
+    expect((frag.match(/dcLeafAlpha\(ra, fresh, wuv/g) ?? []).length).toBe(8);
   });
   it('reads every texel unconditionally (a read inside a per-pixel branch has undefined derivatives)', () => {
     const at = frag.indexOf('float dcRing');

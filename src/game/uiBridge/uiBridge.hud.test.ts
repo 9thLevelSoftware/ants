@@ -44,7 +44,10 @@ describe('focus aim slice (Focus line)', () => {
     const f = b.build(src(sim), 0, 0).focusAim;
     expect(f).toMatchObject({ id: 'aim-find-site', species: sim.state.config.species, openedTick: 1, newColony: true });
     sim.state.tick = 3 * TICKS_PER_DAY;
-    expect(b.build(src(sim), 1, 0).focusAim?.newColony).toBe(false);
+    // the opening aim stays on the line while no site has been chosen, however many days pass (look pass 4)
+    expect(b.build(src(sim), 1, 0).focusAim?.newColony).toBe(true);
+    sim.state.progression.aims[1]!.state = 'done';
+    expect(b.build(src(sim), 2, 0).focusAim).toMatchObject({ id: 'aim-dig-chamber', newColony: false });
   });
   it('is null with no open aim', () => {
     const sim = simWith(2);

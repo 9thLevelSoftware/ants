@@ -1,7 +1,7 @@
 // One grass blade, as the vertex shader builds it (spike-look 2.8), plus parting and fading around the line of
 // sight (GDD 04 §9). BLADE_GLSL and bladeVertex (CPU) are twins: keep them in sync. The CPU twin exists for tests
 // ("no blade through the camera", "the subject stays visible") and for dew droplets.
-import { GRASS, PARTING, WIND } from '../decor/tuning';
+import { GRASS, NEAR_GROUND, PARTING, WIND } from '../decor/tuning';
 
 export interface BladeView {
   cam: { x: number; y: number; z: number };
@@ -114,7 +114,8 @@ vec3 grRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c
 void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
   float H = iShape.x, W = iShape.y, yaw = iShape.z, rnd = iShape.w;
   float dCam = length(iRoot.xz - uCamPos.xz);
-  float keep = uGrLod.z * (dCam <= uGrLod.x ? 1.0 : pow(uGrLod.x / dCam, uGrLod.y));
+  float qNear = mix(max(uGrLod.z, ${NEAR_GROUND.grass.toFixed(3)}), uGrLod.z, smoothstep(${NEAR_GROUND.mm.toFixed(1)}, ${(2 * NEAR_GROUND.mm).toFixed(1)}, dCam));
+  float keep = qNear * (dCam <= uGrLod.x ? 1.0 : pow(uGrLod.x / dCam, uGrLod.y));
   vBH = h; vBS = s; vBInfo = vec3(iBend.z, iBend.w, rnd); vBW = iRoot.xyz;
   vBNrm = vec3(0.0, 1.0, 0.0); vBSide = vec3(1.0, 0.0, 0.0);
   if (iRoot.w >= keep) { P = iRoot.xyz; N = vec3(0.0, 1.0, 0.0); vBFade = 0.0; return; }
