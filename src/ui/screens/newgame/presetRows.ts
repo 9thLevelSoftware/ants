@@ -3,6 +3,7 @@
 // "Not in this build": the screen never offers a value as working when no system uses it.
 import type { DifficultyId } from '@/sim/types';
 import { presetCard, RULE_DISPLAY, type PresetRow } from '@/sim/config/presetDisplay';
+import { RULE_KEYS } from './form';
 
 /** The words that replace the value of a row (or the control of a rule) that nothing reads yet. */
 export const NOT_IN_BUILD = 'Not in this build';
@@ -43,4 +44,12 @@ const NOT_OFFERED: Readonly<Record<string, string>> = {
 export function unwiredRules(): UnwiredRule[] {
   return RULE_DISPLAY.filter((r) => !r.inEffect || r.key in NOT_OFFERED)
     .map((r) => ({ label: r.label, effect: `${ruleHelp(r.key)}${NOT_OFFERED[r.key] ? ` ${NOT_OFFERED[r.key]}` : ''}` }));
+}
+
+/** How the New Game screen treats a rule: a control, a greyed "Not in this build" line, or nothing at all. */
+export function ruleOnScreen(key: string): 'control' | 'greyed' | 'none' {
+  const r = RULE_DISPLAY.find((x) => x.key === key);
+  if (!r) return 'none';
+  if (!r.inEffect || key in NOT_OFFERED) return 'greyed';
+  return (RULE_KEYS as readonly string[]).includes(key) || key === 'startSeason' ? 'control' : 'none';
 }

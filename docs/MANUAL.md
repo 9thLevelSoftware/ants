@@ -34,12 +34,14 @@ New colony opens one page with three columns: Species, Locality and Rules. Begin
 
 ### 1.3 Species
 
+<!-- generated:species:start -->
 | Species | Common name | Playable now | Natural start season | The card says |
 |---|---|---|---|---|
 | *Lasius niger* (`lasius-niger`) | Black garden ant | yes | spring | A generalist of soil and paving that ranches aphids for honeydew. Founding: Dig, seal, lay, wait. |
 | *Camponotus pennsylvanicus* (`camponotus-pennsylvanicus`) | Black carpenter ant | no: "Not yet available" | spring | Nests in damp wood and works by night along trunk trails. Slow to grow. Founding: Find damp wood, chew a cell, seal. |
 | *Messor barbarus* (`messor-barbarus`) | Harvester ant | no: "Not yet available" | autumn | Gathers seed, mills it into paste and keeps granaries through the dry months. Founding: Dig deep in dry ground after autumn rain. |
 | *Atta texana* (`atta-texana`) | Texas leafcutter ant | no: "Not yet available" | spring | Cuts leaves to grow a fungus garden; the fungus is all the brood eats. Founding: Dig, plant the fungus pellet, tend it. |
+<!-- generated:species:end -->
 
 Only the black garden ant can be started. The other three cards are greyed with the words "Not yet available". Their simulation modules exist, but their colonies did not meet the survival bar in the test runs (README, "State of the game today"). The `species=` URL flag starts one of them only in test mode (`?test=1&species=<id>`); on an ordinary page the flag is ignored. Those games are not playable in the sense of this manual: the colonies did not survive the test runs.
 
@@ -60,6 +62,7 @@ Gentle, Naturalist (the default) and Harsh are presets. Under each card, "What .
 
 The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROWS`, `presetCard`). A row marked **not in effect** has no consumer in the game: nothing reads that value. The New Game screen greys out and labels "Not in this build" the first five of these rows only. The sixth, "Automatic slow-down at an alert", is shown on the screen as if it worked, and does not: the preset value is stored in the game state but nothing reads it. What the game does at an alert is set by the Settings value described in section 8, whatever the preset. This is a wrong string of the game; see section 15.
 
+<!-- generated:presets:start -->
 | Group | Parameter | Gentle | Naturalist | Harsh |
 |---|---|---|---|---|
 | Founding | Exposure to the sun while founding | x0.5 | x1 | x1.3 |
@@ -67,7 +70,7 @@ The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROW
 | Founding | Queen reserves burned | x0.85 | x1 | x1.15 |
 | Founding | Threats during the opening (at most) **(not in effect)** | 0 | 2 | 4 |
 | Founding | Interruptions of the first-brood time-lapse (at most) | 0 | 2 | 3 |
-| Founding | Grace period before threats **(not in effect)** | 0.6 days | 0.3 days | 0.15 days |
+| Founding | Grace period before threats | 0.6 days | 0.3 days | 0.15 days |
 | Founding | Tries at another site | 3 | 1 | 0 |
 | Founding | Brood forecast | shown | shown | hidden |
 | Weather and climate | Rain | x0.8 | x1 | x1.2 |
@@ -80,7 +83,7 @@ The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROW
 | Weather and climate | Heat tolerance of ants | +2 C | 0 C | -1 C |
 | Threats, rivals, humans | Predators | x0.4 | x1 | x1.6 |
 | Threats, rivals, humans | Hunters settling by a growing colony | from 20 workers, all by 60 | from 10 workers, all by 40 | from the first workers, all by 20 |
-| Threats, rivals, humans | Rival colonies | 1 young rivals nearby | 2 young rivals nearby | 3 young rivals nearby |
+| Threats, rivals, humans | Rival colonies | 1 young rival nearby | 2 young rivals nearby | 3 young rivals nearby |
 | Threats, rivals, humans | Rival aggression | x0.7 | x1 | x1.2 |
 | Threats, rivals, humans | Rival colony size | x0.6 | x1 | x1.3 |
 | Threats, rivals, humans | Time between raids on you | 4 days | 2 days | 1 day |
@@ -103,13 +106,15 @@ The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROW
 | Progression | Winged queens and males reared | x1.2 | x1 | x0.9 |
 | Progression | Losses on the nuptial flight | x0.7 | x1 | x1.25 |
 | Progression | Predator events on the flight **(not in effect)** | 0-1 | 1-3 | 3-5 |
-| Time and interface | Automatic slow-down at an alert **(not in effect)** | pause | slow | slow |
+| Time and interface | Automatic slow-down at an alert | pause | slow | slow |
 | Time and interface | Warnings before trouble **(not in effect)** | strong | normal | minimal |
+<!-- generated:presets:end -->
 
 Custom rules. Seven rules are offered under "Custom rules" on the New Game screen, and an eighth, Starting season, sits in the Locality column: these are the eight rows marked "on screen" below. The two rules marked "greyed" are listed on the screen with the words "Not in this build". The rules marked "not on screen" exist in the game's rule table (`src/sim/config/presetDisplay.ts`, `RULE_DISPLAY`) but the New Game screen has no control for them. Season length, starting season and the number of rivals are fixed when the world is made.
 
 The Gentle, Naturalist and Harsh columns show the value each preset sets (`presetRuleValues` in `src/sim/balance/difficulty.ts`). Season length is 7 days and starting season is Natural in all three presets. The `rivals` rule counts established rival colonies. It is not the same as the preset row "Rival colonies" in the table above, which counts the young rival colonies nearby (1, 2 or 3): the rule value 0 removes both (ruling R23).
 
+<!-- generated:rules:start -->
 | Rule | Choices | Gentle | Naturalist | Harsh | New Game screen | In effect |
 |---|---|---|---|---|---|---|
 | Predators (`predators`) | Off, Few, Normal, Many | few | normal | many | on screen | yes |
@@ -119,11 +124,12 @@ The Gentle, Naturalist and Harsh columns show the value each preset sets (`prese
 | Season length (`seasonLengthDays`, fixed at world generation) | 5 days, 7 days, 10 days | 7 | 7 | 7 | on screen | yes |
 | Starting season (`startSeason`, fixed at world generation) | Natural, Spring, Summer, Autumn | Natural | Natural | Natural | on screen (Starting season, in the Locality column) | yes |
 | Founding leniency (`foundingLeniency`) | Lenient, Normal, Strict | lenient | normal | strict | on screen | yes |
-| Winter (`winterMode`) | Time-lapse, Real time | time-lapse | time-lapse | time-lapse | not on screen | yes |
+| Winter (`winterMode`) | Time-lapse, Real time | time-lapse | time-lapse | time-lapse | on screen | yes |
 | Founding assist (`foundingAssist`) | On, Off | on | on | off | greyed: "Not in this build" | **no** |
 | Queen ageing (`queenSenescence`) | On, Off | off | off | on | greyed: "Not in this build" | **no** |
 | Nest collapse (`collapse`) | On, Off | off | on | on | on screen | yes |
-| Extinction ends the game (`extinctionEndsGame`) | On, Off | on | on | on | not on screen | yes |
+| Extinction ends the game (`extinctionEndsGame`) | On, Off | on | on | on | greyed: "Not in this build" | yes |
+<!-- generated:rules:end -->
 
 The ruling R23 is in `docs/design/gdd/DEVIATIONS.md`.
 
@@ -387,7 +393,7 @@ The tables below are generated from the bindings (section 20 says how to regener
 | --- | --- | --- |
 | Colony view | M | View hold |
 | Scent overlay | V | Dpad left |
-| Photo mode | F2 or LS+RS | RS+LS |
+| Photo mode | F2 | RS+LS or LS+RS |
 | Cycle overlays | O | RB+B |
 | Possess a forager | 5 | LB+X |
 | Possess a digger | 6 | LB+A |
