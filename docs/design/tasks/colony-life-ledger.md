@@ -2575,3 +2575,124 @@ None in the tree (L1 and T1, each a deviation, are reverted).
   `round-7/probe-*7.ts.txt` and removed from `tools/sim/probe/`; the 15 sweep-6 hand-overs stay in `round-7/cache/`
   (inputs of the paired runs; the next paired comparison can use them with `pairs.sh`); no process of this round
   running.
+
+### Independent sweep after round 7
+
+Independent engineer, 07:11-08:10 UTC Nov 18 (no restart). **Table: `test-output/colony-life/round-7/sweep-table.md`**
+(`python3 tools/sim/sweep-table.py test-output/colony-life/round-7/sweep test-output/colony-life/round-6/sweep`; runs by
+`tools/sim/sweep-life.sh` from a frozen copy of the tree taken at 07:11, src hash `44ff6ee0` = the live tree then, round 7
+complete with L1 and T1 reverted; all 15 runs on it). Naturalist, default start, flooding on, no player, hand-overs
+founded fresh. Bars recomputed from the Markdown table by a second script (`round-7/sweep-review/bars-from-md.py`, output
+`bars-from-md.txt`): same verdicts. Review outputs: `round-7/sweep-review/`. **This table is the one the next round
+compares with.**
+
+**Viability bar: NOT met** - viable **4 of 15** (round 6: 4): woodland-edge 2/3 (ok), suburban-garden 1/3,
+playground-park 0/3, car-park-verge 1/3, kitchen-door 0/3. Failed checks: starvation stage in 8 (we #1, sg #2, pp #1,
+cpv #1, cpv #3, kd #1, kd #2, kd #3), workers in 6 (we #1, sg #3, pp #2, pp #3, cpv #3, kd #1), stores (R27) in 3 (sg #2,
+pp #1, kd #3 with C 0).
+
+**Growth bar R19: NOT met** (4 of 7):
+
+| check | round 7 | round 6 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **4 of 15** (we #2, we #3, cpv #1, kd #3) | 4 |
+| median eclosions after hand-over >= 4 | 4 ok | 4 |
+| median intake/need P >= 0.7 | **0.198** | 0.197 |
+| median intake/need C >= 0.9 | 1.078 ok | 0.985 |
+| median trip success >= 50 % | **43.9 %** | 43.9 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok (we #2: 8) | 14 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok (sg #1, cpv #1) | 13 |
+
+Sums: first workers 168 (both), workers at winter 142 -> 138, eclosions 66 -> 65, larvae starved 13 -> 13; deaths old
+age 65 -> 64, predation 11 -> 14, crushed 13 -> 14, lost 2, drowning 1. The C median moved only because pp #3 (the
+median run of sweep 6) changed (below). Year-two long runs were not part of this review.
+
+**Paired reading (direction 13).** 14 of the 15 fresh hand-overs are **byte-identical** to sweep 6's (`cmp` against
+`round-7/cache/*-any.bin`), so this sweep against sweep 6 is the paired comparison on the same snapshots (round-6 tree vs
+round-7 tree, both in-process); I did not run a separate 30-run pairing. Per run (`sweep-review/daydiff.py`,
+`daydiff.txt`, funnel compared as a whole):
+- 13 of 15 runs: every end-of-day sample (state, events, stuck, violations) and the whole `funnel` equal to sweep 6;
+  final state hash equal in 5 of them, different in 8 (a state detail that never reaches a day sample or the funnel).
+- cpv #3: same hand-over, first difference on day 11; workers 8 -> 8, eclosions 3 -> 3, P intake 0.185 -> 0.198.
+- pp #3: the only hand-over that changed (RM is the only round-7 change that acts during a founding; playground-park is
+  the archetype with footprints): a different game from day 1. 13 -> 10 (sweep 6) vs 13 -> 6 (now), eclosions 8 -> 7,
+  predation 6 -> 9 (11-13 workers, days 3-6), P intake 0.445 -> 0.267.
+- Paired result: 14 equal on workers at winter, 1 worse (pp #3, a different game, not a shared mechanism). Round 7 is
+  neutral on the bars, as its own subset said (56 vs 56).
+- SF3 changed no tender trip in the 13 identical runs (tend trips and the `tend ... crop-full ... fail` counts equal,
+  e.g. kd #1 29 of 77, we #2 16 of 23, cpv #1 16 of 36): the tend trips that still fail are not stores-full departures.
+- RM, whole-run restore check: the sweep's own pp #3 hand-over restored by the round-7 tree (`--cache-any`,
+  `sweep-review/restored/`) gives every day sample and the funnel equal to the in-process sweep run (before RM: the
+  restored pp #3 left the in-process run within 141 ticks); the final state hash still differs (f6d0fc24 vs f87348ad).
+
+**Regressions against round 6** (script: 1 run flagged): **pp #3** net workers -3 -> -7, eclosions 8 -> 7, P intake
+0.445 -> 0.267: a different hand-over (above), not a regression of a shared mechanism. No other run changed outcome.
+
+Review of the round (code: `git diff c970361` on src/sim, round-start commit; outputs `round-7/sweep-review/`):
+- Verified: `tsc --noEmit` clean (07:13, and 08:07 with this review's tests). Folder tests on the live tree (= 44ff6ee0):
+  nest 57/58 files (red `escapeDig`, known), ants/behaviours/outdoor 29/30 (red `removal.verify`, known), environment/
+  human + `time.test` + world 21/21, sim root 21/22 (red `services.test` diggability, the carpenter's), colony 64/65 (red
+  `founding/reopen`, known), ants/behaviours/nest 28/30 (red `sfaReview.verify`, `stall.soak`, known, red on 948fb75
+  too); the five worldgen tests that import createGame (createGame now loads `@/sim/systems`) 4/5, red
+  `maps.verify` E5 Camponotus door order, red on c970361 too (not this round's). Every test the round added or restated
+  is red on c970361 with the test copied in (6 of 6 cases: both `moundMaskFootprint.verify` cases,
+  `storesFullTenders.verify`, `sim.pausedEvents` case 1, `createGame.rivals`, `time.test`).
+- Not-allowed list: no lifespan, need, food, provision, bar or ruling-test change; no seed or archetype case; L1 and
+  T1 are out of the tree (`balance/colony.ts` differs from HEAD by a comment only; nestwork/board/nurse.test equal HEAD).
+- Each fix addresses its cause: RM keys the mound mask on the terrain deltas over its grid (`groundDeltaStamp`) and
+  reads the ground as pressed (`m.base` is the static terrain, so base + `groundDeltaAt` is the pressed ground, no
+  double count); SF3 counts tenders from the decision to leave and holds the engine's own wait departure. Determinism:
+  both caches are derived (key = persisted deltas; per-tick WeakMap rebuilt from the ant list); no wall clock. Cost:
+  `maskSignature` walks the delta grid points under a pile's 64 BU grid on every `moundMask` call (deposit, relax
+  batch) only where a delta tile overlaps the grid; nest ms/tick in the sweep is not higher than sweep 6's.
+- New review tests: `ants/behaviours/outdoor/storesFullRelease.verify.test.ts` (2 cases, **green**: a tender held while
+  the pool is full leaves once the room opens; save -> load while tenders are held and leaving equals the uninterrupted
+  run over 600 ticks).
+- **Finding 1 (minor-major, determinism, not round 7's code; direction 12 "a save and load continues the same game" is
+  not closed): flood readers read another geometry after a load.** Restore probe on the sweep-7 pp #1 hand-over
+  (`probe-restore-pp1.txt`, 6 splits): all equal at +600 ticks, but split 30024 differs from +37 ticks (chamber
+  `flooded` 0.2048 vs 0.2038; `probe-restore-diff2-pp1.txt`). Cause (`probe-spill3-pp1.txt`, `probe-restore-diff3-pp1
+  .txt`): `nest/flood/runtime.ts spillForReaders` returns the cache *as last built* in a running game but builds the
+  *current* geometry in a loaded game; after a carve in a wet nest the flood model is frozen until the nest's rebuild
+  slot, so in that window the running game reads 710 samples and the loaded one 714; clearing the running game's flood
+  caches at the split removes the difference over 200 ticks. Test **`src/sim/nest/flood/readersRestore.verify.test.ts`
+  (RED, kept)**: right after a carve in a wet test nest, running 3798 samples vs loaded 3968. Readers: drowning, flee
+  water, water speed, `dryPlace`. Fix direction for the owner: readers must not depend on whether a cache exists
+  (persist the capture tick and rebuild "as of the capture" deterministically, or let readers use the current geometry
+  in both games).
+- Minor: the round's report says "a save and load now continues the same game"; on pp #3 the colony does (every day
+  sample), the state hash does not (finding 1 is one known cause).
+
+Leads from the failing runs' own diagnostics (most costly first; numbers from `round-7/sweep/*.json` funnels):
+1. **Protein income** (median P 0.198 of need; the starvation stage fails 8 runs): P delivered per run 0.96-8.15; P
+   intake 0.024 / 0.030 / 0.046 in kd #1, kd #2, sg #2 (P 0.0-0.02 at winter, laying permitted only 17-20 % of the
+   time); kd #2 never knew a protein source, kd #1 / pp #1 / sg #2 knew one only at 3.1-3.7 gd; we #1 6 larvae starved,
+   kd #1 4.
+2. **Brood lost in care**: egg:untended 35 + pupa:untended 24 + egg:flooding 19 against 65 eclosions (sg #3 12 untended
+   of 17 eggs laid -> 1 eclosion; we #3 9, cpv #3 8, pp #2 7). Allocation: nurse share of worker task time 0.04-0.18
+   (pp #1 0.04, we #1 0.06, sg #1 0.07) while queen-care holds 0.11-0.17 (GDD 02 §6.2 queen-care demand is a flat 2 below
+   100 workers; §6.3 pass 1 gives every task ceil(0.5 D) before pass 2 tops nurse up), on top of round 7's cpv #3 probe
+   (target 2, demand 3.6, actual 1). Measure target / demand / actual nurse per hour on the 15 hand-overs before any
+   change; a change to the §6.3 split or the queen-care demand is a GDD deviation.
+3. **Carbohydrate in the first days** (we #1, pp #1, kd #3 fail the starvation stage on C): kd #3 C intake 0.119, C 0 at
+   winter with P 4.79 unused, winter reserve short 88 % of the time (the R5 gate shut, laying permitted 12 %).
+4. **Old age** 64 of 95 adult deaths (R11 stands); with 1-4 eclosions in 9 runs a colony cannot hold its count.
+5. **Predation on pp #3**: 9 deaths at 11-13 workers on days 3-6 (sweep 6: 6, sweep 5: 4 on the same seed); the sweep
+   median is 0 (R25 holds), but this world has a hunter in the colony's range every sweep: check which kind and whether
+   it is a worldgen resident (R25 keeps those) or director-sited.
+6. **Trip success 43.9 %**: `tend crop-full not-reached fail` trips (kd #1 29 of 77, we #2 16 of 23, cpv #1 16 of 36)
+   are unchanged by SF3: tenders come home with a crop judged a failure; round 6's lead (small crops) is the next look.
+7. Finding 1 (flood readers after a load).
+
+Scratch trees (`/home/user/frozen-sweep7`, `/home/user/scratch-r7rev-c97`) deleted; probe sources kept as
+`round-7/sweep-review/probe-*.ts.txt`; no process left running.
+
+## Round 8
+
+Engineer: round 8 (started 08:13 UTC Nov 18). Evidence: `test-output/colony-life/round-8/`. Tree at start = HEAD cf2d312
+(src/sim, src/worldgen, src/core, tools/sim clean against HEAD; other engineers' app/test/docs files modified).
+Order of work: sweep-7 finding 1 (flood readers after a load, major), then direction 14 (R29, the two long runs, the
+winter-coming alert seam), then the method.
+
+Progress (kept current; a successor continues from here)
+- 08:13 read spec, ledger (to the sweep-7 review), STATUS (to 07:25, R29). Next: reproduce finding 1.

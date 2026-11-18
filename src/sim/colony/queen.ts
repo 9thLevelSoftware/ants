@@ -11,15 +11,16 @@ import {
   NO_WORKER_CLUTCH_MIN_RESERVE_P, PROJECTED_EGG_WEIGHT, QUEEN_FAT_CAP, QUEEN_LAY_MIN_HEALTH, QUEEN_P_UNPAID_HEALTH,
   QUEEN_GUT_CAP, QUEEN_RATION_BASE, QUEEN_RATION_BASE_P, QUEEN_RATION_P_SHARE_WITHHELD, QUEEN_REFILL_MIN_GUT_C,
   QUEEN_RESERVE_REFILL, QUEEN_STARVE_GD, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P, WORKER_CAP_TAPER, LOAD_EPS,
-  DEFAULT_SEASON_LENGTH_DAYS, SMALL_COLONY_N, WINTER_RESERVE_FROM_D28, WINTER_RESERVE_MULT,
+  DEFAULT_SEASON_LENGTH_DAYS, SMALL_COLONY_N, WINTER_RESERVE_FROM_D28, WINTER_RESERVE_MULT, DIAPAUSE_COLD_C, DIAPAUSE_DOY,
+  EGGS_PER_NURSE, LAY_FINISH_STEP_D28, NURSE_FEED_CAPACITY, PUPAE_PER_NURSE,
 } from '@/sim/balance';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { killAnt, spawnBrood } from '@/sim/entities';
 import { currentDayOfYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY } from '@/sim/time';
 import { accAdd, accSet, coreOf } from './core';
-import { censusOf, cycleCensus } from './census';
-import { chamberTempC, d28Now, pointTempC } from './envAdapter';
-import { curveAt, fMet } from './life';
+import { censusOf, cycleCensus, type CensusSnapshot } from './census';
+import { chamberForecastC, chamberTempC, d28Now, pointTempC } from './envAdapter';
+import { curveAt, devRate, fMet, stageDu } from './life';
 import { daysOfStock, targetDays } from './needs';
 
 /** Phases of the opening in which the founding queen may lay her clutch. */
@@ -35,6 +36,10 @@ export interface LayingFactors {
   temp: number;
   health: number;
   cap: number;
+  /** R29 care factor: room left in what the nurse-capable workforce can tend (balance LAY_FINISH_STEP_D28 notes). */
+  care: number;
+  /** R29: 1 if an egg laid now can become a worker before the winter at the forecast chamber temperature, else 0. */
+  finish: number;
 }
 
 export function queenOf(sim: Sim, col: Colony): Ant | undefined {
@@ -47,7 +52,7 @@ export function royalTempC(sim: Sim, q: Ant): number {
   return q.chamberId >= 0 ? chamberTempC(sim, q.chamberId) : pointTempC(sim, q.pos);
 }
 
-/** Laying potential and its factors (GDD 02 §3.2). */
+/** Laying potential and its factors (GDD 02 §3.2, with R29's care and finish factors). */
 export function layingFactors(sim: Sim, col: Colony, q: Ant, def: SpeciesDef): LayingFactors {
   const cen = cycleCensus(sim, col);
   const life = def.life;
@@ -64,7 +69,61 @@ export function layingFactors(sim: Sim, col: Colony, q: Ant, def: SpeciesDef): L
   const cap = clamp((capN - projected) / (WORKER_CAP_TAPER * capN), 0, 1);
   const fec = q.queen ? q.queen.fecundity : 1;
   const ref = life.qMax * size * fec;
-  return { potential: ref * season * temp * health * cap, ref, size, season, temp, health, cap };
+  // R29 applies to a queen with workers (a worker-less queen raises her clutch alone, GDD 02 §3.4)
+  const care = n > 0 ? careFactor(sim, col, cen) : 1;
+  const finish = n > 0 && season * temp * health * cap * care > 0 ? finishFactor(sim, q, def, d28) : 1;
+  return { potential: ref * season * temp * health * cap * care * finish, ref, size, season, temp, health, cap, care, finish };
+}
+
+/**
+ * Brood in care in nurse-equivalents at the design's care rates (GDD 02 §6.2's nurse demand without brood moves and
+ * diapause larvae, which need no feeding): eggs, pupae, and the larvae's food rate at their temperatures.
+ */
+export function broodCareNeed(sim: Sim, col: Colony, cen: CensusSnapshot): number {
+  const acc = coreOf(col).acc;
+  const larval = (acc['inst.larvaC'] ?? 0) + (acc['inst.larvaP'] ?? 0);
+  return larval / NURSE_FEED_CAPACITY + cen.eggs / EGGS_PER_NURSE + cen.pupae / PUPAE_PER_NURSE;
+}
+
+/**
+ * Workers the allocation could put on nursing if nursing and queen care came first (R29): the available workforce
+ * (GDD 02 §6.3 `A`) less the queen-care demand, not today's nurse target (which §6.3 halves when demand exceeds `A`).
+ */
+export function nurseCapable(col: Colony, cen: CensusSnapshot): number {
+  return Math.max(0, cen.available - col.alloc.demand[ti('queen-care')]);
+}
+
+/** R29 care factor: `clamp(1 - broodCareNeed / nurseCapable, 0, 1)` (0 with nobody to nurse). */
+export function careFactor(sim: Sim, col: Colony, cen: CensusSnapshot): number {
+  const capable = nurseCapable(col, cen);
+  return capable > 0 ? clamp(1 - broodCareNeed(sim, col, cen) / capable, 0, 1) : 0;
+}
+
+/** Default-year day (d28) from which larvae enter diapause (GDD 02 §2.8: doy28 >= DIAPAUSE_DOY). */
+const DIAPAUSE_D28 = DIAPAUSE_DOY - 1;
+
+/**
+ * R29 finish factor: can an egg laid now (d28) become a worker before the winter? Development is summed over the
+ * forecast daily-mean temperature of the queen's chamber (where her eggs lie): egg and larva must be done before
+ * larvae enter diapause (the diapause day, or the first forecast day at or below DIAPAUSE_COLD_C), egg, larva and pupa
+ * before the winter begins. 1 if so, else 0. Out of a chamber the queen's own spot stands for the chamber, unchanged.
+ */
+export function finishFactor(sim: Sim, q: Ant, def: SpeciesDef, d28: number): number {
+  if (d28 >= WINTER_D28) return 0;
+  const toPupa = stageDu(def, 'egg', 'worker') + stageDu(def, 'larva', 'worker');
+  const toAdult = toPupa + stageDu(def, 'pupa', 'worker');
+  const gdPerD28 = daysPerYear(sim.state.config) / DEFAULT_DAYS_PER_YEAR;
+  const outside = q.chamberId < 0 ? royalTempC(sim, q) : NaN;
+  let du = 0, pupaReached = false;
+  for (let t = d28; t < WINTER_D28; t += LAY_FINISH_STEP_D28) {
+    const step = Math.min(LAY_FINISH_STEP_D28, WINTER_D28 - t);
+    const tempC = q.chamberId < 0 ? outside : chamberForecastC(sim, q.chamberId, t + step / 2);
+    if (!pupaReached && (t >= DIAPAUSE_D28 || tempC <= DIAPAUSE_COLD_C)) return 0;
+    du += devRate(def, tempC) * step * gdPerD28;
+    if (du >= toPupa) pupaReached = true;
+    if (du >= toAdult) return 1;
+  }
+  return 0;
 }
 
 /**

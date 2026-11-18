@@ -36,3 +36,24 @@ Started 07:11 UTC Nov 18. No earlier progress file; fresh start.
   the current geometry in a loaded one; between a carve and the next rebuild slot of a wet nest they differ (710 vs
   714 samples); clearing the live caches at the split removes the difference. Pre-existing (not round 7), lead.
 - Probes in /home/user/frozen-sweep7/tools/sim/probe/ (copy sources to sweep-review as .ts.txt before deleting).
+
+## 07:59 UTC
+- Sweep 14 of 15 (kd #3 running). Hand-overs are byte-identical to sweep 6's (`cmp` against round-7/cache): the
+  sweep against sweep 6 is a paired comparison on the same hand-overs (round-6 tree vs round-7 tree, both in-process),
+  so the 30-run direction-13 pairing is not run separately (decision; see ledger). 10 of the first 10 runs: same
+  workers, eclosions, intakes, every day sample equal (`sweep-review/daydiff.py`); final hash equal in 4, differs in
+  6 (a state detail that never reaches the day samples, e.g. mound shapes after RM).
+- Verify tests written: `ants/behaviours/outdoor/storesFullRelease.verify.test.ts` (2 cases, green: held tenders
+  leave once room opens; save/load while held equal over 600 ticks), `nest/flood/readersRestore.verify.test.ts`
+  (RED, kept: running game reads 3798 spill samples, loaded game 3968 right after a carve in a wet nest).
+- Lead: queen-care 0.11-0.17 of worker task time vs nurse 0.04-0.18 (GDD 02 §6.2 queen-care demand 2 fixed; §6.3
+  pass 1 gives every task ceil(0.5 D) first).
+- Remaining: kd #3, table, bars (two scripts), ledger section, delete /home/user/frozen-sweep7 and
+  /home/user/scratch-r7rev-c97 (copy probe sources to sweep-review/*.ts.txt first).
+
+## 08:10 UTC — done
+- Sweep 15/15 (tree 44ff6ee0), table `test-output/colony-life/round-7/sweep-table.md`; bars by both scripts: viability
+  NOT met 4/15 (we 2, sg 1, pp 0, cpv 1, kd 0); R19 4 of 7. 14 of 15 hand-overs = sweep 6's; 13 runs identical in every
+  day sample; regression flagged only pp #3 (changed hand-over).
+- Ledger section "### Independent sweep after round 7" written. Scratch trees deleted (probe sources kept in
+  sweep-review/*.ts.txt; restored-run cache copy deleted); no process running.

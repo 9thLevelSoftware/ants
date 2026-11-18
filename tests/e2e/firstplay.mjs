@@ -13,6 +13,7 @@
 //   FIRSTPLAY_RESUME=<file>        skip the opening: import that export (written by an earlier run) and go on from it
 //   FIRSTPLAY_SEED=<hex code>      seed typed into the New colony screen (default 00000002: seed 2, warm summer)
 //   FIRSTPLAY_AUTOFOUND=1          STAND-IN: complete the opening by cheat after beat 04 (recorded in result.standIns)
+//   FIRSTPLAY_STANDIN_TRAIL=1      STAND-IN: lay the trail to the food by hand when no forager has (beat 13 -> 14; recorded in result.standIns)
 //   FIRSTPLAY_SHORT=1              the short run (portable build): title, new colony, intro, queen, workers, save
 import fs from 'node:fs';
 import {
@@ -406,8 +407,23 @@ async function colonyBeats(h, result, { page, click, done, log }) {
     via = 'forage-marker';
     await waitTrail(30);
   }
+  if (trail <= 0 && process.env.FIRSTPLAY_STANDIN_TRAIL) {
+    // STAND-IN (the colony does not reliably send foragers out in this build: see the app-seams-2 report): a trail from the entrance to the food is laid by hand, so
+    // the beats that follow it (14 to 25) can still be run. Recorded in result.standIns; a run with it is not a full run.
+    (result.standIns ??= []).push('trail: phero.deposit by hand from the entrance to the food (no forager laid one)');
+    await g(([a, b]) => {
+      const sim = window.__hud.game.session.sim, col = sim.state.colonies.find((c) => c.isPlayer).id;
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        sim.phero.deposit(col, 'trail', { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t + 1, z: a.z + (b.z - a.z) * t }, 8);
+      }
+    }, [ent.pos, food.pos]);
+    trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 });
+    via = 'stand-in';
+  }
   const g0 = await g(() => window.__game.query.growth());
   result.checks.trail = { trail, via, waited, growth: g0 };
+  log('trail check', JSON.stringify(result.checks.trail));
   expect(trail > 0, 'no forager laid a trail to the food within 18000 ticks');
   // possess a worker near the entrance (Tab cycles from the observer focus; the API by id keeps it deterministic)
   const worker = await g((e) => {

@@ -1,7 +1,7 @@
 // Where the water is, for the ants that must get out of it (GDD 03 §11.3 "flee water along D_exit until dry",
 // "everything flooded: ants gather at the highest non-flooded voxels, including the throat and the mound surface";
 // task nest-fix3). Pure reads of the nest's flood state (FloodState.level) and its spill cache as the last flood step
-// left it (runtime.ts spillForReaders: the last built cache; built only in a Sim that has none yet, after a load).
+// left it, placed in the current cavities (runtime.ts spillForReaders).
 //   waterView      the wet nest's level and cache, or null when the nest is dry or has no cache yet
 //   depthOver      water over a body's feet, by the drowning rule (drown.ts): the level minus the higher of the feet
 //                  and the bottom of the column floor's spill layer

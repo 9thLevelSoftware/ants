@@ -112,12 +112,15 @@ export function spillPeek(sim: Sim, nestId: number): SpillCache | undefined {
 }
 
 /**
- * The cache the flood model last used for a wet nest, for readers between flood steps (locomotion's water speed,
- * submersion queries, the flee-water rule): the cache as last built, or, in a Sim that has not built one yet (a
- * restored game before its first flood step), the one for the current geometry. Without the second case a restored
- * game read "dry" where the uninterrupted one read water until its next flood step (nest-fix3: ants in water walked at
- * full speed for one tick after a load). Only for nests holding water.
+ * The spill geometry for readers between flood steps (locomotion's water speed, submersion queries, the flee-water
+ * rule, dryPlace): always the nest's current geometry (`spillFor`), the same answer in a running game and in one just
+ * loaded. The flood model's own throttle (`floodGeometry`) is unchanged: W, the level and the chambers' flooded shares
+ * still come from the last capture; readers place that level in the cavities as they are now (a pocket dug under the
+ * water reads wet at once). History: nest-fix3 answered "the cache as last built, else the current geometry"; after a
+ * carve in a wet nest a running game then read the old cavities until the nest's rebuild slot while a loaded game read
+ * the new ones (review after colony-life round 7, `readersRestore.verify.test.ts`). The rebuild is per carve that
+ * touches the nest's box (carve listener). Only for nests holding water.
  */
 export function spillForReaders(sim: Sim, nest: Nest): SpillCache {
-  return spillPeek(sim, nest.id) ?? spillFor(sim, nest);
+  return spillFor(sim, nest);
 }

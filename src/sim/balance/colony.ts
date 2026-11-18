@@ -202,6 +202,17 @@ export const WORKER_CAP_TAPER = 0.15;
 export const PROJECTED_EGG_WEIGHT = 0.9;
 /** No-worker queen may start a new clutch only with this protein reserve. */
 export const NO_WORKER_CLUTCH_MIN_RESERVE_P = 3;
+/**
+ * R29 (colony-life, integrator ruling Nov 18; a deviation from GDD 02 §3.2): the queen lays what the colony can raise.
+ * Care factor `fCare = clamp(1 - careNeed / nurseCapable, 0, 1)`: careNeed = the brood in care weighted by the
+ * design's care rates (GDD 02 §6.2 nurse demand without moves and diapause larvae: eggs / EGGS_PER_NURSE + pupae /
+ * PUPAE_PER_NURSE + larval food rate / NURSE_FEED_CAPACITY), nurseCapable = the available workers less the queen-care
+ * demand (what the allocation could put on nursing if nursing and queen care came first). Finish factor `fFinish`:
+ * 0 while an egg laid now cannot become a worker before the winter at the forecast temperature of the queen's
+ * chamber (egg and larva done before the diapause day, the pupa before the winter), else 1. The forecast is summed
+ * in steps of LAY_FINISH_STEP_D28 default-year days.
+ */
+export const LAY_FINISH_STEP_D28 = 0.25;
 /** Laying-protein permission (GDD 02 §3.3). */
 export const LAYING_P_MIN_DAYS = 0.25;
 export const LAYING_LARVAL_HUNGER_MAX = 0.6;

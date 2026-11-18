@@ -287,6 +287,10 @@ export interface CensusSnapshot {
   workerPupae: number;
   nurses: number;
   meanLarvalHunger: number;
+  /** All eggs and pupae (any destined caste) and the workforce `A` (R29's care factor). */
+  eggs: number;
+  pupae: number;
+  available: number;
 }
 
 const NURSE_I = ti('nurse');
@@ -304,6 +308,9 @@ export function storeCycleSnapshot(sim: Sim, col: Colony, core: ColonyCoreState)
   a['cen.wPupae'] = c.workerPupae;
   a['cen.nurses'] = c.byTask[NURSE_I];
   a['cen.hunger'] = c.meanLarvalHunger;
+  a['cen.eggs'] = c.eggs;
+  a['cen.pupae'] = c.pupae;
+  a['cen.avail'] = c.available;
   const waste = itemCounts(sim).wasteByChamber;
   for (const ch of colonyChambers(sim, col)) {
     const n = waste.get(ch.id) ?? 0;
@@ -315,15 +322,19 @@ export function storeCycleSnapshot(sim: Sim, col: Colony, core: ColonyCoreState)
 export function cycleCensus(sim: Sim, col: Colony): CensusSnapshot {
   const a = col.core?.acc;
   if (a && a['cen.valid'] === 1) {
+    // a snapshot stored before colony-life round 8 has no eggs / pupae / available: those from a census until the next cycle
+    const c = a['cen.avail'] === undefined ? censusOf(sim, col.id) : undefined;
     return {
       workers: a['cen.workers'], larvae: a['cen.larvae'], diapause: a['cen.diapause'], workerEggs: a['cen.wEggs'],
       workerLarvae: a['cen.wLarvae'], workerPupae: a['cen.wPupae'], nurses: a['cen.nurses'], meanLarvalHunger: a['cen.hunger'],
+      eggs: c ? c.eggs : a['cen.eggs'], pupae: c ? c.pupae : a['cen.pupae'], available: c ? c.available : a['cen.avail'],
     };
   }
   const c = censusOf(sim, col.id);
   return {
     workers: c.workers, larvae: c.larvae, diapause: c.diapause, workerEggs: c.workerEggs, workerLarvae: c.workerLarvae,
     workerPupae: c.workerPupae, nurses: c.byTask[NURSE_I], meanLarvalHunger: c.meanLarvalHunger,
+    eggs: c.eggs, pupae: c.pupae, available: c.available,
   };
 }
 
