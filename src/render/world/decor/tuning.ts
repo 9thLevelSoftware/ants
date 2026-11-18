@@ -163,6 +163,8 @@ export const DECOR_LEAF = {
   shadowRgb: [0.012, 0.010, 0.008],
   /** Leaf albedo at full night weight, x the day value: a cream dry leaf stayed the brightest thing in a dark night frame. */
   nightAlbedo: { dry: 0.4, fresh: 0.75 },
+  /** Draw order of the draped decor within the opaque pass: after terrain, primitives, grass and ants (default 0), because the shadow is blended over what is already drawn. */
+  renderOrder: 1,
 } as const;
 
 /** GDD 04 §9 decor-leaf. Seasonal forest density per m²: index = season (spring, summer, autumn, winter). */

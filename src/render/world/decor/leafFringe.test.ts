@@ -41,6 +41,9 @@ describe('draped leaf contact shadow', () => {
     const before = frag.slice(Math.max(0, at - 400), at);
     expect(before).not.toMatch(/if\s*\(\s*a\s*<\s*0\.5/);
   });
+  it('is drawn after the ground it is blended over (a blend is order dependent: before the terrain it showed the clear colour as a white halo)', () => {
+    expect(DECOR_LEAF.renderOrder).toBeGreaterThan(0);
+  });
   it('dry leaves go dark at night, fresh ones less (the cream leaf was the brightest thing in a night frame)', () => {
     expect(DECOR_LEAF.nightAlbedo.dry).toBeLessThan(DECOR_LEAF.nightAlbedo.fresh);
     expect(DECOR_LEAF.nightAlbedo.dry).toBeLessThanOrEqual(0.5);

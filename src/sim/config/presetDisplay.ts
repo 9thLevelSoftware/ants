@@ -3,7 +3,7 @@
 // card can never drift from the numbers; presetDisplay.test.ts checks that every parameter appears in a row.
 
 import type { CustomRules, DifficultyId, DifficultyParams } from '@/sim/types';
-import { DIFFICULTY_PARAMS, MAX_RIVALS, presetRuleValues, type DifficultyKey } from '@/sim/balance';
+import { DEFAULT_SEASON_LENGTH_DAYS, DIFFICULTY_PARAMS, MAX_RIVALS, presetRuleValues, type DifficultyKey } from '@/sim/balance';
 import { PREDATION_RAMP_WORKERS } from '@/sim/balance/difficulty';
 
 /**
@@ -126,7 +126,7 @@ export interface PresetCard {
   lines: [string, string];
   rows: { group: PresetRow['group']; label: string; value: string; inEffect: boolean }[];
   /** The rule values the preset sets (the custom-rules table shows these; editing one switches to "Custom"). */
-  rules: Omit<CustomRules, 'seasonLengthDays' | 'startSeason'> & { seasonLengthDays: 7 };
+  rules: Omit<CustomRules, 'seasonLengthDays' | 'startSeason'> & { seasonLengthDays: typeof DEFAULT_SEASON_LENGTH_DAYS };
 }
 
 export function presetCard(id: DifficultyId): PresetCard {
@@ -134,7 +134,7 @@ export function presetCard(id: DifficultyId): PresetCard {
   return {
     id, name: PRESET_SUMMARY[id].name, lines: PRESET_SUMMARY[id].lines,
     rows: PRESET_ROWS.map((r) => ({ group: r.group, label: r.label, value: r.format(p), inEffect: rowInEffect(r) })),
-    rules: { ...presetRuleValues(id), seasonLengthDays: 7 },
+    rules: { ...presetRuleValues(id), seasonLengthDays: DEFAULT_SEASON_LENGTH_DAYS },
   };
 }
 

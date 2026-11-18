@@ -13,6 +13,7 @@ import { placeDraped } from './placement';
 import { mossGeometry } from './mossMaterial';
 import { MOSS_PATCH_INDICES, placePrimMoss } from './primMoss';
 import type { BlockRef } from './tiles';
+import { DECOR_LEAF } from './tuning';
 
 export interface BaseGeometry {
   position: BufferAttribute;
@@ -99,6 +100,7 @@ export class DecorBlock {
       const m = new Mesh(g, mats.draped);
       m.name = `decor:draped:${ref.key}`;
       m.receiveShadow = true;
+      m.renderOrder = DECOR_LEAF.renderOrder; // after the ground it is blended over (the contact shadow is not order independent)
       this.drapedMesh = m;
     }
   }

@@ -65,5 +65,5 @@ describe('opening grace (GDD 06 §5.2)', () => {
     expect(open.list.some((k) => at(k) < graced.end)).toBe(true); // the grace had something to remove
     expect(graced.list.every((k) => at(k) >= graced.end)).toBe(true);
     expect(graced.list).toEqual(open.list.filter((k) => at(k) >= graced.end)); // and removed nothing else
-  }, 60_000);
+  }, 240_000); // three generated-world games (~20 s idle; far longer at load 10)
 });

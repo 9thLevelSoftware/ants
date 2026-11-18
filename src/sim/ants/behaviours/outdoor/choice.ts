@@ -88,9 +88,9 @@ export function sourceScore(sim: Sim, ant: Ant, s: FoodSource): number {
   const q = sourceQuality(sim, ant.colony, s.id); // 0 inside an avoid marker, exhausted or unavailable
   if (q <= 0) return 0;
   // a trip is worth what the stores can take of it when the forager is home: crop food the pool has no room for is
-  // refused at the unload and the trip fails (GDD 02 §5.5 item 5, "stores full: need = 0"). Sweep 5: 48 of kitchen-door
-  // #1's 155 trips came home with honeydew to full stores while its protein stores were 0, and every one of them aged
-  // its forager outside at 3x the nest rate
+  // refused at the unload and the trip fails (GDD 02 §5.5 item 5, "stores full: need = 0"). Kitchen-door #2 (round 6)
+  // kept its pool at 13-15 of ~14 C all season and sent foragers and tenders out for carbohydrate it could not take,
+  // each trip ageing its ant outside at 3x the nest rate
   // (Before the colony cycle has first counted the workers, a new game's first tick or a test fixture, the pool's room
   // is not measured yet: the trip is valued whole.)
   const n = tripNutrients(sim, ant, s);

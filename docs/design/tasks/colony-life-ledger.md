@@ -1990,16 +1990,18 @@ Progress (kept current; a successor continues from here)
 | pp #2 | 35.0 | 16 / 27 / 13 | 70 / 40 / 2 | 4.77 | 0.38 | - | old age 4 |
 | pp #3 | 77.2 | 37 / 59 / 11 | 168 / 89 / 27 | 13.51 | 0.86 | carrion medium 4.0 | predation 4, old age 5 |
 | cpv #1 | 62.8 | 27 / 49 / 13 | 140 / 65 / 30 | 6.33 | 0.81 | carrion medium 4.0 | old age 3 |
-| cpv #2 | 30.4 | 21 / 19 / 9 | 61 / 20 / 11 | 0.69 | never | 3 carrion medium 7.2; patch at 128 BU (K 408) never entered | old age 2 |
+| cpv #2 | 30.4 | 21 / 19 / 9 | 61 / 20 / 11 | 0.69 | never | 3 carrion medium 7.2; patch edge at 128 BU (K 408), no prey met | old age 2 |
 | cpv #3 | 72.5 | 24 / 46 / 13 | 113 / 33 / 13 | 1.99 | 5.14 | carrion large 6.8 | old age 5 |
-| kd #1 | 75.0 | 51 / 38 / 16 | 155 / 53 / 48 | 3.43 | 3.58 | carrion medium 4.0; 2 patches from 129 BU never entered | crushed 6, old age 4 |
+| kd #1 | 75.0 | 51 / 38 / 16 | 155 / 53 / 48 | 3.43 | 3.58 | carrion medium 4.0; 2 patches from 129 BU, no prey met | crushed 6, old age 4 |
 | kd #2 | 47.0 | 33 / 19 / 9 | 79 / 18 / 43 | 1.99 | 0.53 | carrion medium 3.5 | old age 6, predation 2 |
 | kd #3 | 49.4 | 31 / 13 / 9 | 54 / 21 / 19 | 1.11 | 3.41 | - | old age 3 |
 
 Over the sweep: 265 of 1,493 trips (18 %) came home with a full crop of carbohydrate and were refused by full stores
 (`crop-full ... fail`), most of them tenders: kd #1 tend 51 worker-gd against forage 38; kd #2 43 of its 79 trips.
+(Corrected at 03:39 below: `crop-full ... fail` is a trip that turned home on its crop and failed; only where the pool
+is really full, as in kd #2, is it a refusal by full stores; in cpv #1 those tenders came home nearly empty.)
 Workers age 3x outside (`ageRateOutside` 3.0) and old age is 56 of the sweep's 86 adult deaths. Scouting: 9-23 scout
-trips in 13 gd (one scout most of the day); prey patches 128-244 BU away never entered in cpv #2 and kd #1; a medium
+trips in 13 gd (one scout most of the day); prey patches 128-244 BU away with no prey met in cpv #2 and kd #1; a medium
 carcass (3.5-4 P) within 300 BU at the end, never known, in 8 runs.
 
 ### Ranking by measured loss (round 6)
@@ -2108,3 +2110,105 @@ carcass (3.5-4 P) within 300 BU at the end, never known, in 8 runs.
   `quiet.long.test.ts` (FOUNDRESS_LONG, four runs to winter) not run yet: needs the machine without life runs.
 - 03:22 typecheck of r6c (HEAD + this round's files): only error is the probe file's `node:fs` (probes are deleted at
   the end of the round).
+- 03:27 **SF v2 on kd #2** (`round-6/sf-compare.py`): nosf / v1 / v2: refused full-crop trips 26 / 31 / **15**, outside
+  worker-gd 61.6 / 35.4 / **29.0**, trip success 29 / 23 / **32 %**, workers at winter 8 / 10 / 8, eclosions 1 / 4 / 1,
+  P intake/need 0.037 / 0.039 / 0.022 (protein never known in this world, all three). The mechanism moves (half the
+  refusals, half the outside time); the worker count does not, on this protein-starved run. Running: cpv #1, kd #3.
+- 03:27 folder tests on the **live tree** (HEAD 8093757 + this round's SF + others' work in progress): colony 64/65 files
+  (red: `founding/reopen`, known since round 1; `handoverStomach.verify`, `sparedStarve.verify`, `viability`,
+  overwinter all green), ecology/creatures 30/30 (`loudAlert` included).
+- 03:39 **cpv #1, nosf vs SF v2: identical** (same day rows; the gates never bit). Probe `probe-unload6.ts` (cached
+  cpv #1, 4 gd; `round-6/probe-unload-cpv1.txt`): the 8 failed tend/forage trips that ended at home in 4 gd came home
+  with **0.05 C in the crop** while the pool had 9-10.5 C of room: they are not refusals by full stores but tenders
+  that left the herd with less than SUCCESS_CROP 0.5 (the herd's yield shared among its tenders; GDD 07 §6.1.4 `wait`
+  300 s -> `return`). The sweep-5 review's "came home with a full crop and were refused by full stores" holds where the
+  pool is really full (kd #2: C 13-15 of ~14 all season; SF v2 halves those refusals) and not in general: the
+  `crop-full ... fail` key of the funnel names the reason the ant turned home (its crop was "full enough" for the herd
+  branch) and the trip's success, not the unload. Lead for the next round: tenders per herd against its yield (tend
+  demand is the herd's slot count, GDD 02 §6.2, whatever the yield).
+- 03:43 kd #3, nosf vs SF v2: workers 9 -> 6 both, eclosions 0 both, outside worker-gd 40.7 -> 33.1, refused 13 -> 12,
+  trip success 54 -> 56 %, P intake 0.354 -> 0.364. nest folder on the live tree 57/58 files (red: `escapeDig`, known);
+  `tsc --noEmit` on the live tree: clean except the probe file, which is now deleted (`tools/sim/probe/`). Running:
+  `FOUNDRESS_LONG=1 quiet.long.test.ts` (R28), output `round-6/vitest-quiet-long.txt`.
+
+### Funnel of the studied runs (round 6; life to winter on the round-4 cached hand-overs)
+
+| run | tree | workers hand-over -> winter | eclosions | P / C intake per need | trip success | refused full crop | outside worker-gd | viable |
+|---|---|---|---|---|---|---|---|---|
+| sg #1 | HEAD (before) | 9 -> 9 | 2 | 0.164 / 0.55 | 41 % | - | - | no (stage, stores) |
+| sg #1 | + P1d RS WL3 R28 | 9 -> 8 | 5 | 0.351 / 0.97 | 69 % | - | - | **yes** |
+| pp #1 | HEAD (before) | 13 -> 12 | 4 | 0.539 / 0.99 | 52 % | - | - | yes |
+| pp #1 | + P1d RS WL3 R28 | 13 -> 13 | 5 | 0.533 / 1.51 | 45 % | - | - | yes |
+| kd #1 | round 6 without SF / with SF | 15 -> 12 / same | 8 / same | 0.314 / 0.89 | 59 % | 6 | 69.3 | no (stage) / same |
+| kd #2 | without SF / SF v1 / SF v2 | 10 -> 8 / 10 / 8 | 1 / 4 / 1 | 0.037 / 0.039 / 0.022 | 29 / 23 / 32 % | 26 / 31 / 15 | 61.6 / 35.4 / 29.0 | yes (all) |
+| kd #3 | without SF / SF v2 | 9 -> 6 / 6 | 0 / 0 | 0.354 / 0.364 | 54 / 56 % | 13 / 12 | 40.7 / 33.1 | no (workers) |
+| cpv #1 | without SF / SF v2 | 11 -> 15 / same | 9 / same | 0.107 / 1.22 | 44 % | 24 | 57.9 | no (stage) / same |
+
+Caveat: one run per tree per hand-over; runs diverge after a day or two, so only mechanism counters are read here
+(pool P by day, refusals, outside time), not single worker counts.
+
+### Fixes (round 6; in the tree)
+
+R28. **A loud hour** (ruling, direction 11): `ecology/creatures/threat.ts` `alertActive` (warning loud for ALERT_LOUD_S
+     30 s after its raise or a level rise, critical while it stands; level ticks kept by the quiet sampler in the new
+     optional `QuietTracker.alertLevels`, `types/ecology.ts`; `balance/creatures.ts` ALERT_LOUD_S). Test
+     `ecology/creatures/loudAlert.test.ts` (3; red with the old rule: 17 loud hours for a standing warning). quietRun:
+     share 0.72 / 0.92 on sg #1 / we #2, the rest of the loudness is the flood critical.
+P1d. **The hand-over protein is paid in for as long as the queen holds it** (sweep-5 finding 1): `colony/handover.ts`
+     `provisionAtHandover` (no window for P; the C window of 3 gd stays; P only into the stomachs, as P1). Tests:
+     `handoverStomach.verify` case 2 restated to the rule (red before), `viability.test` window case restated.
+     sg #1: pool P 0.09 on day 4 -> 1.4-4.1 through day 13, viable no -> yes.
+RS.  **Terrain deltas registered at sim creation** (sweep-5 finding 2; the cause is the human-event footprint overlays,
+     not the mounds): `src/sim/wiring.ts` `installRuntimeHooks` -> `syncHeightOverlays`. Test
+     `src/sim/heightDeltaRestore.test.ts` (red before: 0 vs -2.64 mm).
+WL3. **The workers the R24 cap keeps starve inside the winter model** (sweep-5 finding 3): `overwinter/begin.ts`
+     second model run from the same RNG state with `WinterParams.causeMult` = `cappedCauseMults` (`model.ts`). Test
+     `sparedStarve.verify` restated to the integer-draw tolerance (red before: 13 vs 9).
+SF.  **Stores full suppresses carbohydrate trips** (GDD 02 §5.5 item 5): `ants/behaviours/outdoor/choice.ts`
+     `sourceScore` values a trip by what the pool has room for (once the census has run); `tendHerd.ts`
+     `departForHerd` holds a tender in the nest while the pool's C room does not cover her crop and those of the
+     tenders already out (`tendersOut`, per-tick runtime cache). Test `outdoor/storesFull.test.ts` (2; red before).
+     kd #2: refused trips 26 -> 15, outside worker-gd 61.6 -> 29.0; identical runs where the pool never fills.
+Tools: `lifeMetrics.ts` day rows `queenReserveP`; probes (deleted): restore overlays, predation attribution, scout
+time / coverage, unload ends.
+
+### GDD deviations (round 6)
+
+- P1d: GDD 06 §5.13 (c) / viab-economy R2: the queen's hand-over protein above her keep is the first brood's for as
+  long as she holds it (it was paid in for 3 gd only, then hers). No larger provision, no loop.
+- SF: GDD 07 §6.1.4 sends a tender back to her herd after delivering ("delivered -> travel (same herd)"); she now waits
+  in the nest while the stores cannot take her crop (GDD 02 §5.5 item 5 takes precedence).
+- WL3: none (R24 as ruled; the capped workers now share the winter's food inside the model).
+- R28: GDD 05 §6 I11 wording (the ruling's own deviation): a warning is loud for 30 s, not for as long as it stands.
+
+### Tried and reverted (round 6)
+
+- SF v1 (room for the tender's own crop only): kd #2 refusals 24 -> 30, trip success 29 -> 23 %; replaced by v2
+  (room for the crops already out too).
+
+### Next (round 7)
+
+1. **Protein discovery** (the stage check in kd #1, kd #2, cpv #3; protein never known in cpv #2 and kd #2): the walk,
+   not the scout count: cpv #2's scouts walked 19-30 % of the 100-300 BU rings in 3 gd but spent 10 s inside a 57-BU
+   patch (lambda 0.05 x count/K per ant-second: 0.5 spawns). Measure coverage and time-in-patch on the forage bench
+   across the 15 hand-overs before changing the walk; carcasses of 3.5-7 P sit unknown at the end of 8 runs.
+2. **Tenders per herd against its yield**: most `tend crop-full ... fail` trips (cpv #1) come home with 0.05 C, not
+   refused: tend demand is the herd's slot count (GDD 02 §6.2) whatever its yield, and those trips cost outside age.
+3. **Year two**: the integrator's ruling on the thermal seed (instantaneous air at 14:00 / 00:00 vs the day mean) and
+   on tau of T_seasonMean (table above); then spring laying.
+4. **Predation at 18-26 workers** (we #1: 7 deaths, 5 by one colony-range rove beetle 42 BU from the nest, at the
+   midden): R25 as built scales the siting chance, not the rate; the integrator decides whether that is the intent.
+5. The day 3-6 protein gap after the provision: kd #1 (cached) 10 larvae eat 10 P in a day (needRateP 13.9 on day
+   3) and the colony rations for 2 gd with 1-3 larvae left; the lever is income (1), not the ration rule.
+6. Known red tests untouched: `founding/reopen`, `escapeDig`, `removal.verify`; walker-stuck-explosion violations at
+   the end of autumn in kd #2 (both trees).
+
+- 03:46 sim root tests touching services / wiring on the live tree (`round-6/vitest-simroot.txt`): 6/7 files; red:
+  `services.test` "diggability follows the GDD 03 §2.1 table per species" (Camponotus on loam 0 instead of 0.6: the
+  carpenter engineer's wood-only digging, not this round's; reported, not touched). `heightDeltaRestore`, `wiring`,
+  `sim`, `sim.verify`, `services.verify`, `integration.verify` green.
+- 03:50 environment folder (without the long test) on the live tree: 29/30 files; red: `weather.test` "uses only the
+  weather stream" (`rng.ecology` exists: it is created when the test world is built, before the year of weather;
+  plants/sources init draw from it at creation; this round's wiring draws no random number). ants/player 6/6.
+- 03:44 status: everything above is in the tree; scratch trees and probes deleted (probe outputs kept in
+  `round-6/`). Running only `FOUNDRESS_LONG=1 quiet.long.test.ts` (R28); its result is the last entry to add.

@@ -1,11 +1,21 @@
-# look-pass-3-fix progress
-Started 03:09 (Nov 18). Nothing done yet. Reading docs.
-03:15 DONE: (F7) slope lift by camera offset (thirdPersonRig.ts slopeLiftFor, constants), camera tests green. (F8) mound rag: MOUND_RIM_RAG_MM 0.3 + colour mottle, moundRenderer.ts, test green; need browser look later.
-TODO order: leaf fringe soft (F3), wing night (F4), queen day look/night chrome (F5), radiusMm + chamber camera (F2), GPU disposal (F1), far blocks / dry leaf night albedo / leaf thickness (F6), GLSL numbers to tuning (F11), autoSlow wiring (F13), report fix (F10), browser reruns (F9).
-03:20 DONE: leaf fringe now blended alpha (CustomBlending opaque pass) in drapedMaterial.ts, DECOR_LEAF tuning extended; decor tests green; needs picture.
-03:35 DONE: F13 withGameRule in src/game/time/autoSlow.ts + Game.ts + test. qs3 harness run (test-output/look3fix/qs3.log) = quality cycles + texture survivors; running.
-03:42 DONE (code, not yet pictured): wings/cuticle look -> tuning.ts WING_LOOK, ANT_NIGHT_LOOK, ANT_FILL rim night 0.15; fragmentChunk.ts reads them; ants tests green.
-03:52 DONE: F2 camera: radiusMm nominal restored; collisionScale; closePose.ts (findClosePose, centreInGap) + motionGuard rescue + rig.guardCamera, out.clearanceHonoured; src/render/camera tests green (closePose.test.ts new). F1: stage1a.mjs memory check now warm-cycle (qs3 proved cycles 2,3 exact same: textures 46/77/46 programs 71/86/71). F3: slope lift by camera. TODO: run src/game/views tests, typecheck, then browser: stage1a strict, look3 shots (leaf, wings, night worker, queen), photo/views/controls/panels/firstplay, tests for new constants, report.
-03:53 starting stage1a STRICT browser run -> test-output/look3fix/stage1a.log (bg)
-03:58 DONE (code): far facade weathering (materials/farFacade.ts, surfacePatch macro block, plaster tint 0.9), dry-leaf night albedo (DECOR_LEAF.nightAlbedo, DecorFrame.nightW, worldSlot sets it). Not yet pictured. stage1a strict browser run in background (test-output/look3fix/stage1a.log).
-04:05 DONE: GASTER_MEMBRANE tuning; tests lookReview3.test.ts (ants), leafFringe.test.ts (decor); backdrop comment fixed (no door). WAITING for stage1a strict (monitor). NEXT: look3 shots batch (LOOK3_TAG=fix, set list in notes), views/controls/photo/panels/firstplay, full folder vitest, report.
+# look-pass-3-fix progress (started 03:09 UTC Nov 18; times below are real `date -u`)
+## Done (code + unit tests green unless noted; pictures still to take)
+- F7 slope lift follows the camera offset not the heading: src/render/camera/thirdPersonRig.ts slopeLiftFor(), constants.ts (MIN_SPEED removed). lookPass3.verify.test.ts GREEN.
+- F8 mound foot: MOUND_RIM_RAG_MM 0.3 + albedo mottle (moundRenderer.ts, uses wrNoise); moundRag.verify.test.ts GREEN.
+- F3 leaf fringe: blended alpha (CustomBlending in the OPAQUE pass), 8 taps, DECOR_LEAF in decor/tuning.ts (drapedMaterial.ts). Test src/render/world/decor/leafFringe.test.ts.
+- F4/F5 wings + cuticle: tuning.ts WING_LOOK, ANT_NIGHT_LOOK, GASTER_MEMBRANE, ANT_FILL.rim.night 0.15; fragmentChunk/vertexChunk read them. Test src/render/ants/lookReview3.test.ts.
+- F2 chamber camera: radiusMm is the GDD radius again; collision sphere shrinks separately (collisionScale); src/render/camera/closePose.ts (findClosePose, centreInGap) + motionGuard rescue + rig.guardCamera; out.clearanceHonoured; test closePose.test.ts. Reported radius shrinks ONLY in a room lower than 2x clearance.
+- F1 stage1a memory check: tests/e2e/stage1a.mjs measures after one warm cycle (+ programs). Evidence test-output/look3fix/qs3.log: cycle 1,2,3 identical (textures 46/77/46, programs 71/86/71): first-visit cache, not a leak.
+- F6 far walls: materials/farFacade.ts + surfacePatch macro block (streaks, storey lines, grime), plaster tint 0.9; dry-leaf night albedo DECOR_LEAF.nightAlbedo via DecorFrame.nightW (worldSlot sets it).
+- F11 inline numbers moved to tuning (wings, gaster membrane, fringe, mound). F13 autoSlowDefault: src/game/time/autoSlow.ts withGameRule + Game.ts + test.
+- backdrop tuning comment: no door.
+## Running / next
+- stage1a STRICT browser run in background since 03:2x -> test-output/look3fix/stage1a.log (ends with exit=N). Monitor armed.
+- THEN (one harness at a time): look3.mjs shots (LOOK3_TAG=fix; noon:queenstart, noon:observerlow, night:observerlow, night:close, night:gyne, night:edge, dusk:observerlow) -> test-output/look3fix/shots; photo.mjs quick, views.mjs, controls.mjs, panels.mjs, firstplay 1-20 if time; look at pictures.
+- THEN full folder vitest: src/render, src/game, src/ui(not touched), src/input(not touched). typecheck (only tools/sim/probe error is not mine).
+- THEN report: append section to docs/design/tasks/look-pass-3-report.md (fix the wrong claims: CAM_TIGHT easing, backdrop door, 'finished').
+## Do not repeat
+- the quality-switch investigation (done). Do not run vitest at the same time as a harness run (short single-file runs were ok).
+03:40 stage1a STRICT PASSED (exit 0, no stand-ins): test-output/look3fix/stage1a.log. 04-chamber-queen shows queen in room (camera ok) but a white dithered cutaway halo (sky dome seen through discarded terrain in crevice state) - open, report.
+03:50 look3 batch (test-output/look3fix/shots.log, tag fix) running; run_checks.sh queued (photo quick, views quick, controls, panelsA/B, hud) -> test-output/look3fix/checks/_order.log. firstplay not queued (long).
+04:05 FOUND: leaf fringe blend was order dependent (white halo: drawn before terrain). Fixed with DECOR_LEAF.renderOrder=1 (decorBlock.ts). Restarted look3 batch (out shots2/, log shots.log) + run_checks.sh. Do NOT pkill play.mjs (shared machine; use TaskStop / kill own pid). Old shots/ dir = BROKEN white halo (keep as evidence of the bug only).

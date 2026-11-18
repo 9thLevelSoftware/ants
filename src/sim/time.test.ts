@@ -77,7 +77,8 @@ const SIM_SOURCES = import.meta.glob('/src/sim/**/*.ts', { query: '?raw', import
  * which the GDD writes day numbers, the week and the rule's options.
  */
 const ALLOWED = [
-  /DEFAULT_SEASON_LENGTH_DAYS = 7;/, /REFERENCE_DAYS_PER_YEAR = 28;/, /WEEK_DAYS = 7;/, /SEASON_LENGTHS = \[5, 7, 10\]/,
+  /DEFAULT_SEASON_LENGTH_DAYS = 7;/, /\bW\(\d+, \d+/, // W(from, to): an hour window, not a length
+  /REFERENCE_DAYS_PER_YEAR = 28;/, /WEEK_DAYS = 7;/, /SEASON_LENGTHS = \[5, 7, 10\]/,
 ];
 
 function codeOnly(src: string): string {
