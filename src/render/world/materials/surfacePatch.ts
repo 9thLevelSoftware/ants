@@ -8,7 +8,6 @@ import type { MeshStandardMaterial, Uniform, Vector4, WebGLProgramParametersWith
 import { dappledLightsChunk, GLSL_DAPPLE } from './dapple';
 import { foliageLightsChunk } from '../decor/foliageLight';
 import { LOOK_FRAG_DECL, LOOK_VERT_DECL, LOOK_VERT_MAIN, lookFragMain } from '../dressing/finishGlsl';
-import { FAR_FACADE_GLSL } from './farFacade';
 import { GLSL_NOISE, GLSL_TRIPLANAR, GLSL_WET } from './glsl';
 import { LEAF_BEND_GLSL } from './leafBend';
 import { GLSL_CONTACT, GLSL_OCCLUSION, occlusionUniforms } from './occlusion';
@@ -91,7 +90,7 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
   const d = o.def;
   const looks = !!(o.looks && o.prim);
   const rustScan = d.texture === 'metal_painted';
-  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|v5`;
+  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|v4`;
   addPatch(mat, key, (s) => {
     if (o.prim) primVertexPatch(s, o.prim, looks);
     s.uniforms.tWrA = { value: o.set.albedo };
@@ -198,7 +197,6 @@ wrTri(tWrA, tWrN, tWrR, vWrP, wrN0, uWrScale, uWrNs, wrAlb, wrNw, wrRg);
 wrAlb *= uWrTint;
 #ifdef WR_MACRO
 wrAlb *= mix(1.0 - WR_MACRO, 1.0 + WR_MACRO, wrFbm(vWrW.xz / 340.0));
-${FAR_FACADE_GLSL}
 #endif
 // detail fade where a texel is smaller than a few pixels (far, or grazing views): the normal map and the
 // albedo contrast fall toward their mean instead of sparkling, and the lost micro-relief turns into roughness

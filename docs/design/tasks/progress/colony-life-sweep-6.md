@@ -33,3 +33,14 @@ Started 04:03 UTC Nov 18. No earlier progress file; fresh start.
 - Probes live in /home/user/frozen-sweep6/tools/sim/probe/ (deleted with the frozen copy at the end).
 - Remaining: rest of sweep, table, bars, regressions, tsc + folder tests (colony, ecology/creatures,
   ants/behaviours/outdoor, nest, sim root, overwinter), ledger section.
+
+## 04:36 UTC
+- Sweep 6 of 15 done. tsc clean 04:22. Folder tests (live tree, `round-6/sweep-review/vitest-*.txt`): colony 64/65
+  (red founding/reopen, known), ecology/creatures 30/30, ants/behaviours/outdoor 28/30 (red removal.verify known +
+  my storesFullTenders.verify), sim root (heightDeltaRestore, wiring, sim) green.
+- Lead under study: in we1, pp1, cpv1 the C stores crash to 0 on days 2-5 after the hand-over (round 5 on the SAME
+  hand-over, identical day 0, rose); 0 trips started on day 2 (we1) / days 2-4 (pp1). Probe `probe-wait-we1.txt`:
+  no C source known to the colony until gd 6; scouts (probe-scout-we1.txt) explore normally, repeatedly freeze on
+  threat 69. A/B running (`round-6/sweep-review/ab/ab.sh`, restart-safe; scratch trees /home/user/scratch-r6-{nosf,
+  nop1d,nor28} + cache copies /home/user/scratch-r6-cache): we1, pp1 to game day 7, each fix reverted alone.
+- Delete at the end: /home/user/frozen-sweep6, /home/user/scratch-r6-*, scratch-r6-cache.

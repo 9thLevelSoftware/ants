@@ -1,6 +1,8 @@
 # Credits audit
 
-Audit of `CREDITS.md`: what the repository itself can show about the origin and licence of every third-party file the portable build ships. Written 2026-11-18 at commit `fb15f3d`. Nothing was fetched from the network. A source page that is quoted in a record was not opened again, so the audit cannot say whether that page still reads the same today.
+Audit of `CREDITS.md`: what the repository itself can show about the origin and licence of every third-party file the portable build ships. Written 2026-11-18 at commit `fb15f3d`. Nothing was fetched from the network.
+
+**Update, 2026-11-18 (provenance pass):** the audio entries below were true at `fb15f3d`. The 26 archive.org files and the ten second-hand OpenGameArt files named in entries 1 and 2 of the list further down have since been **removed and replaced by original sounds** rendered in this repository (`tools/audio/`; report `docs/design/tasks/audio-provenance-report.md`). Entries 1 and 2 are kept as the record of what was removed and why; the audio "cannot be shown" list is now empty. The 'Checks that were run' section describes the audit at `fb15f3d` and still counts 45 audio files from third parties; today 36 of the 45 are original. A source page that is quoted in a record was not opened again, so the audit cannot say whether that page still reads the same today.
 
 ## What "checked" means here
 
@@ -31,8 +33,9 @@ All run on 2026-11-18 with scripts kept in `test-output/docs-final/` (git-ignore
 |---|---|---|---|
 | Poly Haven textures | 12 sets, 36 files | R, S, M | Site statement quoted in `MANIFEST.md`: "Our assets are all licensed as CC0." Authors agree with the download metadata. No licence text for Poly Haven is in the repository; the claim rests on the quoted statement. |
 | ambientCG textures | 7 sets, 24 files | R, S | Site-wide statement quoted in `MANIFEST.md`. The records credit "ambientCG" and name no individual author, because the asset pages do not. Downloaded metadata (M) exists but says nothing about licence or author. |
-| OpenGameArt audio | 19 files | R, S (page badge read) | The CC0 claim is the uploader's, made on each page. The author names are the names on those pages; `public/assets/CREDITS.md` says OpenGameArt cannot prove the uploader is the original recorder. See the second-hand entries below. |
-| archive.org audio (USC "Red Library" and "SSE Library" items) | 26 files | R, S (page `licenseurl` read) | **Unverified.** See the list below. |
+| OpenGameArt audio | 19 files at `fb15f3d`; **9 today** | R, S (page badge read) | The CC0 claim is the uploader's, made on each page. The author names are the names on those pages; `public/assets/CREDITS.md` says OpenGameArt cannot prove the uploader is the original recorder. The ten second-hand files were removed on 2026-11-18; the nine that remain are on the page of the author who uploaded them (`birdsong_day`, `rain_light`, `wind_leaves`, `room_fridge_hum`, `gravel_grit_01`, `crunch_01`, `crunch_02`, `wet_splat_01`, `wet_splat_02`). Their evidence is the recorded page badge, not a saved copy of the page: residual risk, see the end of this file. |
+| archive.org audio (USC "Red Library" and "SSE Library" items) | 26 files at `fb15f3d`; **0 today** | R, S (page `licenseurl` read) | **Unverified; removed 2026-11-18** and replaced by original sounds. See the list below. |
+| Original audio (`tools/audio/`) | 36 files | code | Rendered from seeded noise, filters, envelopes and resonators; no input recordings. `node tools/audio/render.mjs` twice gives byte-identical files; the records say `provenance: original`. |
 | Fonts (Inter, Source Serif 4, Atkinson Hyperlegible, JetBrains Mono) | 12 font files inlined in the game script | L, H (`src/ui/styles/fonts.ts`) | OFL 1.1 text ships in each package. The copyright line of the Source Serif 4 package is only "Google Inc." |
 | three, postprocessing, preact, @preact/signals, @preact/signals-core, fflate | bundled code | L | MIT, except postprocessing (Zlib). Versions are pinned in `package.json` and `package-lock.json`. |
 | Icon set | inline SVG paths in the game script | H | `src/ui/icons/paths.ts` says "The set is original line work." Nothing else in the repository supports or contradicts that. |
@@ -40,15 +43,17 @@ All run on 2026-11-18 with scripts kept in `test-output/docs-final/` (git-ignore
 
 ## Assets whose provenance cannot be shown from the repository
 
+**Audio: none any more (2026-11-18).** Entries 1 and 2 below name files that could not be shown; all of them were replaced by original sounds in the provenance pass and are listed here only as the record of what was removed (the files, the sources and the removal date are in `assets-src/records_audio.json`, field `replaces`). Entries 3 and 4 (SMAA lookup images, statements nobody can re-check) are unchanged and not audio.
+
 These are named plainly. The repository holds no document that proves the licence of any of them. Replace or remove them if a conservative posture is required.
 
-### 1. Twenty-six archive.org audio files
+### 1. Twenty-six archive.org audio files (REMOVED 2026-11-18, replaced by original sounds)
 
 The records and `public/assets/CREDITS.md` mark these as provenance tier B. The only evidence is the `licenseurl` field read from each Internet Archive item. The items are digitised studio effect libraries, uploaded by an Internet Archive account. The repository does not document who owned the rights to the original tapes or whether the uploader could release them. The raw WAV downloads are in `assets-src/raw/archive/` (local only) and carry no licence file.
 
 `ambience/crickets_night`, `ambience/rain_heavy`, `ambience/street_suburban`, `ambience/traffic_distant`, `ambience/playground_distant`, `sfx/soil_scrape_01`, `sfx/soil_scrape_02`, `sfx/gravel_grit_02`, `sfx/gravel_grit_03`, `sfx/wood_creak_01`, `sfx/wood_creak_02`, `sfx/wood_rasp_01`, `sfx/wood_rasp_02`, `sfx/crunch_03`, `sfx/thud_giant_step_01`, `sfx/thud_giant_step_02`, `sfx/lawnmower_loop`, `sfx/lawnmower_push_loop`, `sfx/car_pass_01`, `sfx/car_pass_02`, `sfx/broom_sweep_01`, `sfx/broom_sweep_02`, `sfx/insect_wing_buzz_01`, `sfx/insect_wing_buzz_02`, `sfx/cricket_chirp_01`, `sfx/cricket_chirp_02`.
 
-### 2. OpenGameArt files that came second-hand
+### 2. OpenGameArt files that came second-hand (REMOVED 2026-11-18, replaced by original sounds)
 
 For these the page the record names is not the original source, so the repository cannot show who made the sound.
 
@@ -82,3 +87,9 @@ npm run build:portable                                        # fails if a libra
 ```
 
 The record check (every shipped file has a record of the right size) is a short script over `planAssets()` from `tools/build/assetPlan.mjs`, `assets-src/records_*.json` and the files in `public/assets/`. It is not kept in the repository.
+
+## After the provenance pass (2026-11-18): what audio still rests on a statement
+
+- 36 of 45 audio files are original work: nothing to check beyond the code that renders them.
+- 9 files remain from OpenGameArt: `ambience/birdsong_day` (Thimras; isaiah658), `ambience/rain_light` and `ambience/room_fridge_hum` (Kresiek The Furry), `ambience/wind_leaves` (Thimras), `sfx/gravel_grit_01` (TinyWorlds), `sfx/crunch_01` and `sfx/crunch_02` (StarNinjas), `sfx/wet_splat_01` (EZduzziteh), `sfx/wet_splat_02` (rubberduck). Evidence level R and S only: the record names the author and the page, and the page showed a CC0 badge when it was read (2026-11-12). The repository does not hold a saved copy of those pages, and OpenGameArt cannot prove that an uploader recorded what they uploaded. These are not on the integrator's list of second-hand files and were kept; the same renderers could replace them if the posture is tightened further.
+- A first-hand source was not recorded for any file: all replaced files were replaced, none was kept on new evidence. (The network was not used.)

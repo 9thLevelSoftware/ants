@@ -38,6 +38,28 @@ hidden), `idle(dt)` on every other frame (title, loading, epitaph: the world fad
 
 `?test=1` silences audio (App. E 15). Scripted checks that must hear the game add `&audio=on` (`gameAudio.ts`): the game stays deterministic and stepped, only the audio ignores the flag, and the gesture rule is unchanged.
 
+## Sound files and where they come from
+
+The game ships 45 audio files. 36 are **original**: rendered offline by `tools/audio/` (seeded noise, filters, envelopes,
+modal resonators, circular synthesis for loops; no input recordings; ffmpeg's libmp3lame at 96 kbps for the MP3s). The
+other 9 are CC0 uploads on their authors' OpenGameArt pages (`CREDITS.md`, `docs/CREDITS-AUDIT.md`). Ids, roles, loop flags
+and level conventions are unchanged by the replacement, so the cue table, the ambience matrix and the tuning need nothing.
+
+- Render: `node tools/audio/render.mjs` (all) or `--only name,name`; then `node tools/audio/sync-records.mjs` (records,
+  pack manifest, `assets-src/MANIFEST.md` rows). Rendering twice gives byte-identical files.
+- Registry: `tools/audio/sounds/index.mjs` (id, seed, channels, level convention, and the spectral range each sound's job
+  calls for, with the reason). Sounds: `beds`, `foley`, `wood`, `giants`, `creatures`, `ui`. DSP kit: `tools/audio/lib/`.
+- Levels (as before): beds -24 LUFS integrated (underground rumble -26, mowers -22) measured on the decoded MP3;
+  one-shots peak -3 dBFS, lowered where needed so their mean K-weighted loudness does not exceed the replaced file's
+  (`tools/audio/sounds/old-levels.json`), so the cue gains tuned in the audio pass keep their meaning. True peak < -1 dBFS.
+- Loops are periodic by construction (the last sample flows into the first); the loop player's 30 ms trim and 1.5 s
+  crossfade still apply and hide the MP3 encoder's delay.
+- Design loop: `node tools/audio/quick.mjs [name]` (PCM only: centroid, loudness against the old file);
+  `node tools/audio/check.mjs [name]` (the full judgement); `node tools/sim/run-ts.mjs tools/audio/measure.ts <dir> <out.json>`
+  (the table in `docs/design/tasks/audio-provenance-report.md`, with `src/audio/loudness.ts`). Nobody can listen on the
+  build machine: a person's ear check of the 36 files is still advisable.
+- Test: `src/audio/provenance.test.ts` (cheap checks always; `FOUNDRESS_LONG=1` measures all 36 as shipped).
+
 ## Synthesised sounds (§13.7)
 
 All built from oscillators, noise buffers generated once per context (white, pink, brown), biquad filters and gain

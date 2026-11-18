@@ -60,7 +60,7 @@ export const WING_LOOK = {
   membraneScatter: 0.1, iridescence: 0.2,
   /** Surface of the membrane: rougher and less reflective than glass, so a folded wing does not mirror the sky as a pale glassy shell over the gaster. */
   roughness: 0.5, specularIntensity: 0.3,
-  alpha: 0.06, veinAlpha: 0.6, edgeBoost: 1.5,
+  alpha: 0.06, veinAlpha: 0.45, edgeBoost: 1.5,
   nightAlphaGain: 0.3,
   nightRim: 0.45, nightRimPow: 3.0,
   highlightRim: 0.35,

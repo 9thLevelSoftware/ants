@@ -21,3 +21,6 @@
 04:05 FOUND: leaf fringe blend was order dependent (white halo: drawn before terrain). Fixed with DECOR_LEAF.renderOrder=1 (decorBlock.ts). Restarted look3 batch (out shots2/, log shots.log) + run_checks.sh. Do NOT pkill play.mjs (shared machine; use TaskStop / kill own pid). Old shots/ dir = BROKEN white halo (keep as evidence of the bug only).
 04:30 report section 11 drafted (sections 9-12 numbers: finalize 12 with browser results)
 04:20 photo quick PASSED; unit render 829 / game 583 passed (before wing roughness tweak; ants re-run green). wing roughness/specular tweak added after: re-run photo quick at the end for the queen picture. Chain continuing (views, controls, panelsA/B, hud).
+04:42 chain ALL DONE exit 0 for views(quick), controls, panelsA, panelsB, hud. Next: photo quick again (wing roughness), firstplay 1-20 (long).
+04:55 queen day look still partial (grey glass gaster = sky reflection, not wings); veinAlpha 0.45. Starting firstplay UNTIL=13 (bg) log test-output/look3fix/firstplay.log
+05:05 report items 5,6 corrected (far walls reverted, farFacade.ts deleted; queen day look still open). Waiting firstplay UNTIL=13 then write report section 12 (browser results) + final summary.

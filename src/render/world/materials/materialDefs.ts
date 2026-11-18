@@ -110,7 +110,7 @@ export const MATERIAL_DEFS: Record<MaterialId, MaterialDef> = withIds({
   paper: { ...HARD, texture: null, procedural: { base: '#d6cfbd', alt: '#c9c1ad', grain: 0.08, bump: 0.15, rough: 0.9, fibre: 0.5 }, scaleMm: 40, tint: [1, 1, 1], roughness: 1, normalScale: 0.5, wetDarken: 0.7, wetRough: 0.6, dualScale: 0 },
   food: { ...HARD, texture: null, procedural: { base: '#c79a5c', alt: '#a8783e', grain: 0.15, bump: 0.6, rough: 0.75, speckle: 0.3, pores: 0.3 }, scaleMm: 20, tint: [1, 1, 1], roughness: 1, normalScale: 0.8, wetDarken: 0.85, wetRough: 0.4, dualScale: 0 },
   water: { ...HARD, texture: null, procedural: { base: '#2f3c3f', alt: '#34454a', grain: 0.5, bump: 0.03, rough: 0.05 }, scaleMm: 200, tint: [1, 1, 1], roughness: 1, normalScale: 0.2, wetDarken: 1, wetRough: 0.04, dualScale: 0 },
-  plaster: { ...HARD, texture: 'plaster_wall', scaleMm: 500, tint: [0.9, 0.89, 0.86], roughness: 1, normalScale: 0.8, wetDarken: 0.7, wetRough: 0.5, dualScale: 0 },
+  plaster: { ...HARD, texture: 'plaster_wall', scaleMm: 500, tint: [1, 1, 1], roughness: 1, normalScale: 0.8, wetDarken: 0.7, wetRough: 0.5, dualScale: 0 },
   insulation: { ...HARD, texture: null, procedural: { base: '#d1b86f', alt: '#e0cb88', grain: 0.05, bump: 0.7, rough: 1, fibre: 0.7 }, scaleMm: 60, tint: [1, 1, 1], roughness: 1, normalScale: 1, wetDarken: 0.7, wetRough: 0.8, dualScale: 0 },
   mortar: { ...HARD, texture: 'plaster_wall', scaleMm: 120, tint: [0.95, 0.92, 0.86], roughness: 1, normalScale: 0.8, wetDarken: 0.7, wetRough: 0.4, dualScale: 0 },
 });

@@ -62,5 +62,7 @@ export const ALL_BED_IDS: BedFileId[] = Object.values(BED_FILES);
 /**
  * Files recorded near people must pass the §13.7 intelligibility check before they may play. The manifest marks a
  * passed file with `speechCheck: "passed"`; nothing carries that mark yet, so `playground_distant` never plays.
+ * (Since the provenance pass `playground_distant` is a rendered, voice-less bed, tools/audio/sounds/beds.mjs; the gate
+ * is kept as it was: lifting it would change what the Distant voices setting plays, which is not that pass's call.)
  */
 export const SPEECH_CHECKED_FILES: AudioFileId[] = [BED_FILES.playground_distant];

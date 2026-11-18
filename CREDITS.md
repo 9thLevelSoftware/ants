@@ -8,9 +8,9 @@ This file lists every third-party file or package that the portable build ships:
 - `tools/build/config.mjs` (`SOFTWARE_LICENCES`), `src/ui/styles/fonts.ts` and `package.json`: the libraries and fonts.
 - `node_modules/<package>/LICENSE`: the licence text of each package, copied into the build's own `CREDITS.md` by `tools/build/credits.mjs`.
 
-`docs/CREDITS-AUDIT.md` says how each entry was checked and lists the entries whose source cannot be shown from the repository. Nothing was fetched from the network to write either file.
+`docs/CREDITS-AUDIT.md` says how each entry was checked and lists the entries whose source cannot be shown from the repository. Nothing was fetched from the network to write either file. The audio section was rewritten on 2026-11-18 after the provenance pass (original sounds replaced the archive.org and second-hand files).
 
-The game's own code, its procedural ant and creature models, the icon set (`src/ui/icons/paths.ts`), the synthesised sound recipes (`src/audio/`) and the text are original work of this project.
+The game's own code, its procedural ant and creature models, the icon set (`src/ui/icons/paths.ts`), the synthesised sound recipes (`src/audio/`), the 36 rendered sound files (`tools/audio/`) and the text are original work of this project.
 
 ## Textures
 
@@ -41,63 +41,62 @@ The portable build ships 19 texture sets (78 files in the source tree; the build
 
 ## Audio
 
-All 45 audio files in `public/assets/audio/` are shipped. They are excerpts, loops or layers of the recordings named below, normalised and encoded to MP3. Most rows are CC0 as declared on the source page. The rows whose source page is on archive.org (the "Red Library" and "SSE Library" items) are **provenance tier B**: the CC0 mark is the uploader's assertion over old studio effect libraries, and the repository holds no document that shows the rights chain. See `docs/CREDITS-AUDIT.md`.
+All 45 audio files in `public/assets/` are shipped. **Nine are third-party** (table below): excerpts, loops or layers of OpenGameArt uploads, normalised and encoded to MP3, CC0 as declared on the page of the author who uploaded them. **The other 36 are original sounds of this project**, rendered by `tools/audio/` from seeded noise, filters, envelopes and resonators; they contain no third-party recording, so they need no credit and have no source page. They replaced, on 2026-11-18, the 26 files from Internet Archive items (provenance tier B) and ten second-hand OpenGameArt files; `docs/CREDITS-AUDIT.md` lists what was removed and why.
 
 | File | Work | Author as recorded | Source page | Licence as recorded |
 |---|---|---|---|---|
 | `audio/ambience/birdsong_day.mp3` | Park ambiences - birds + Ambient Bird Sounds | Thimras; isaiah658 | https://opengameart.org/content/park-ambiences ; https://opengameart.org/content/ambient-bird-sounds | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/ambience/crickets_night.mp3` | R24-14 Cricket Chirps Outside | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Animals_Misc | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
 | `audio/ambience/rain_light.mp3` | AMB Rain Loop 1 | Kresiek The Furry | https://opengameart.org/content/amb-rain-loop-1 | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/ambience/rain_heavy.mp3` | R30-25a Steady Heavy Rain | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Nature_Rain | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
 | `audio/ambience/wind_leaves.mp3` | Park ambiences - wind | Thimras | https://opengameart.org/content/park-ambiences | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/ambience/street_suburban.mp3` | R10-01 Suburban Ambience-Noise | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Ambience_1 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/ambience/traffic_distant.mp3` | R20-05 Distant Traffic in City | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Ambience_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/ambience/playground_distant.mp3` | AMBSchl Kids play on school playground outdoors | USC Sound Effect Archive / Sunset Editorial Collection (SSE Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/SSE_Library_AMBIENCE | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
 | `audio/ambience/room_fridge_hum.mp3` | Fridge Loop 1 | Kresiek The Furry | https://opengameart.org/content/fridge-loop-1 | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/ambience/underground_rumble.mp3` | underwater or space engine rumble (deep_rumble) | gmason | https://opengameart.org/content/underwater-or-space-engine-rumble | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/soil_scrape_01.mp3` | DIRTMisc Digging with shovel; poking ground | USC Sound Effect Archive / Sunset Editorial Collection (SSE Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/SSE_Library_DIRT_SAND | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/soil_scrape_02.mp3` | R08-57 Digging with Shovel | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Tools | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
 | `audio/sfx/gravel_grit_01.mp3` | Different steps on wood, stone, leaves, gravel and mud - gravel | TinyWorlds | https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/gravel_grit_02.mp3` | R10-10 Sliding Steps on Gravel | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Footsteps_1 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/gravel_grit_03.mp3` | R10-10 Sliding Steps on Gravel | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Footsteps_1 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/wood_creak_01.mp3` | R22-34 Light Wood Creaks | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Foley_Props_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/wood_creak_02.mp3` | R04-51 Creaky Wood | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Creaks | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/wood_creak_03.mp3` | Tree Creaking | Department64 (original recording, per OGA description); cleaned up by AntumDeluge (OGA uploader) | https://opengameart.org/content/tree-creaking | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/wood_rasp_01.mp3` | R18-40 Scrape or Sweep Wood Surface | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Foley_Props_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/wood_rasp_02.mp3` | R18-40 Scrape or Sweep Wood Surface | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Foley_Props_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
 | `audio/sfx/crunch_01.mp3` | 7 Eating Crunches - crunch.1 | StarNinjas | https://opengameart.org/content/7-eating-crunches | CC0 1.0 (as declared on the OpenGameArt page) |
 | `audio/sfx/crunch_02.mp3` | 7 Eating Crunches - crunch.3 | StarNinjas | https://opengameart.org/content/7-eating-crunches | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/crunch_03.mp3` | R04-38 Crackling and Crunching | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Foley_Props_4 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/water_drip_01.mp3` | Dripping water loop | Independent.nu (credited on the OGA page; submitted to OGA by qubodup) | https://opengameart.org/content/dripping-water-loop | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/water_drip_02.mp3` | Dripping water loop | Independent.nu (credited on the OGA page; submitted to OGA by qubodup) | https://opengameart.org/content/dripping-water-loop | CC0 1.0 (as declared on the OpenGameArt page) |
 | `audio/sfx/wet_splat_01.mp3` | Squish Sounds Effects - squishsplat_impact | EZduzziteh | https://opengameart.org/content/squish-sounds-effects | CC0 1.0 (as declared on the OpenGameArt page) |
 | `audio/sfx/wet_splat_02.mp3` | 40 CC0 water / splash / slime SFX - slime_03 | rubberduck | https://opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/thud_giant_step_01.mp3` | R28-56 Sand Bags Dropped onto Wood Floor | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Impacts | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/thud_giant_step_02.mp3` | R28-55 Thumps on Large Hollow Wooden Surface | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Impacts | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/lawnmower_loop.mp3` | VEHAtv go cart or lawnmower idling | USC Sound Effect Archive / Sunset Editorial Collection (SSE Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/SSE_Library_VEHICLES | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/lawnmower_push_loop.mp3` | MACHGrdn-MOWER Manual push lawn mower | USC Sound Effect Archive / Sunset Editorial Collection (SSE Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/SSE_Library_MACHINES | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/car_pass_01.mp3` | R03-50 Auto Drive By | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Cars_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/car_pass_02.mp3` | R20-14 Car Passes By in Low Gear | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Cars_3 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/broom_sweep_01.mp3` | R18-41 Push Broom, Dirty Floor | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Foley_Props_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/broom_sweep_02.mp3` | R18-41 Push Broom, Dirty Floor | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Foley_Props_2 | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/insect_wing_buzz_01.mp3` | R01-30 Buzzing Sound | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Animals_Misc | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/insect_wing_buzz_02.mp3` | ANMLInsc Bees swarming | USC Sound Effect Archive / Sunset Editorial Collection (SSE Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/SSE_Library_ANIMALS | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/cricket_chirp_01.mp3` | R28-16 Two Competing Crickets | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Animals_Misc | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/cricket_chirp_02.mp3` | R28-16 Two Competing Crickets | USC Sound Effect Archive / Sunset Editorial Collection (Red Library); digitised tapes provided by Craig Smith (USC), uploaded to the Internet Archive | https://archive.org/details/Red_Library_Animals_Misc | CC0 1.0 (item licenseurl on archive.org: creativecommons.org/publicdomain/zero/1.0/); uploader-asserted, see provenance caveat |
-| `audio/sfx/stridulation_grasshopper_01.mp3` | Grasshopper (stridulation; original recording by straget, freesound.org/s/401939, CC0) | AntumDeluge (trim) / straget (recording) | https://opengameart.org/content/grasshopper | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/ui_click_01.mp3` | 51 UI sound effects - click1 | Kenney | https://opengameart.org/content/51-ui-sound-effects-buttons-switches-and-clicks | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/ui_click_02.mp3` | 51 UI sound effects - click3 | Kenney | https://opengameart.org/content/51-ui-sound-effects-buttons-switches-and-clicks | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/ui_click_03.mp3` | 51 UI sound effects - mouseclick1 | Kenney | https://opengameart.org/content/51-ui-sound-effects-buttons-switches-and-clicks | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/ui_hover_01.mp3` | 51 UI sound effects - rollover5 | Kenney | https://opengameart.org/content/51-ui-sound-effects-buttons-switches-and-clicks | CC0 1.0 (as declared on the OpenGameArt page) |
-| `audio/sfx/ui_switch_01.mp3` | 51 UI sound effects - switch10 | Kenney | https://opengameart.org/content/51-ui-sound-effects-buttons-switches-and-clicks | CC0 1.0 (as declared on the OpenGameArt page) |
 
-Notes taken from `public/assets/CREDITS.md`:
+Original sounds (`tools/audio/sounds/index.mjs` is the registry; `node tools/audio/render.mjs` renders them, byte-identical every time):
 
-- `sfx/stridulation_grasshopper_01` is a trim of freesound.org/s/401939 (recorded by straget, CC0), as republished on OpenGameArt by AntumDeluge.
-- `sfx/wood_creak_03` is a Department64 tree-creak recording, cleaned up and republished by AntumDeluge on OpenGameArt.
-- `sfx/water_drip_01` and `sfx/water_drip_02` are credited on OpenGameArt to Independent.nu (submitted by qubodup).
-- The Kenney UI sounds come from Kenney's own upload on OpenGameArt.
-- The OpenGameArt clip "Digging Underground" (Almitory) was removed from the build because its page listed several licences with no provenance. `sfx/soil_dig_01` is not shipped.
+- `ambience/crickets_night`: night insects, dense and steady.
+- `ambience/playground_distant`: voice-less distant play-area activity.
+- `ambience/rain_heavy`: steady heavy rain.
+- `ambience/street_suburban`: suburban street wash with far cars and birds.
+- `ambience/traffic_distant`: distant city traffic, low rumble character.
+- `ambience/underground_rumble`: deep earth rumble.
+- `sfx/broom_sweep_01`: push broom on a dirty floor.
+- `sfx/broom_sweep_02`: push broom, second take.
+- `sfx/car_pass_01`: car driving past (older car, steady).
+- `sfx/car_pass_02`: car passing in low gear.
+- `sfx/cricket_chirp_01`: two crickets chirping.
+- `sfx/cricket_chirp_02`: a cricket chirping three times.
+- `sfx/crunch_03`: dry brittle crackle and crunch.
+- `sfx/gravel_grit_02`: stone ticks from three sliding steps.
+- `sfx/gravel_grit_03`: stone ticks, second take.
+- `sfx/insect_wing_buzz_01`: a fly flying past.
+- `sfx/insect_wing_buzz_02`: a swarm of bees.
+- `sfx/lawnmower_loop`: petrol mower running (engine loop).
+- `sfx/lawnmower_push_loop`: push reel mower (blade clicks and whirr).
+- `sfx/soil_scrape_01`: blade scraping dry soil (played pitched up 12-19 semitones for ant scale).
+- `sfx/soil_scrape_02`: shovel in soil: plunge, then two coarser strokes.
+- `sfx/stridulation_grasshopper_01`: grasshopper stridulation, three phrases.
+- `sfx/thud_giant_step_01`: giant footfall: heavy boom on a wooden floor.
+- `sfx/thud_giant_step_02`: giant footfall: hollow wooden surface.
+- `sfx/ui_click_01`: soft UI click.
+- `sfx/ui_click_02`: softer, lower UI click.
+- `sfx/ui_click_03`: short sharp UI tick.
+- `sfx/ui_hover_01`: UI hover blip.
+- `sfx/ui_switch_01`: UI toggle: two clicks.
+- `sfx/water_drip_01`: a drip in a hollow room, with a second smaller drop.
+- `sfx/water_drip_02`: a higher drip and two smaller ones.
+- `sfx/wood_creak_01`: light wood creak.
+- `sfx/wood_creak_02`: creaky wood, two long strokes.
+- `sfx/wood_creak_03`: tree creak, long and low.
+- `sfx/wood_rasp_01`: rough tooth drawn over wood (stand-in for gnawing).
+- `sfx/wood_rasp_02`: finer, faster rasp (ant-scale gnaw).
+
+Removed in the provenance pass (2026-11-18), no longer shipped: the 26 archive.org files (`ambience/crickets_night`, `rain_heavy`, `street_suburban`, `traffic_distant`, `playground_distant`, `sfx/soil_scrape_01/02`, `gravel_grit_02/03`, `wood_creak_01/02`, `wood_rasp_01/02`, `crunch_03`, `thud_giant_step_01/02`, `lawnmower_loop`, `lawnmower_push_loop`, `car_pass_01/02`, `broom_sweep_01/02`, `insect_wing_buzz_01/02`, `cricket_chirp_01/02`) and the second-hand OpenGameArt files (`sfx/stridulation_grasshopper_01`, `wood_creak_03`, `water_drip_01/02`, `ui_click_01/02/03`, `ui_hover_01`, `ui_switch_01`, `ambience/underground_rumble`). The ids are unchanged: each now plays an original sound.
+
+The OpenGameArt clip "Digging Underground" (Almitory) was removed earlier because its page listed several licences with no provenance. `sfx/soil_dig_01` is not shipped.
 
 ## Fonts
 
