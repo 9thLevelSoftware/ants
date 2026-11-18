@@ -2431,3 +2431,36 @@ Progress (kept current; a successor continues from here)
   (red on HEAD, green). (c) `sim.ts`: `applyPendingCommands` outside a tick flushes the event queue (inside a tick the
   tick's own flush stays); test `src/sim/sim.pausedEvents.test.ts` (case 1 red on HEAD, green). The game's driver
   already flushed after its paused apply (`game/loop/simDriver.ts applyCommandsNow`), so this closes the sim API side.
+
+### Ranking by measured loss (round 7; sweep-6 runs, the laying probes, the trap probe)
+
+1. **Eggs not laid in the warm window with protein in store** (L1): 238 eggs in 15 runs, ~170 on hand-over day 1 (the
+   queen's hand-over gut P), 0-6 per run on days 2-6 at potentials of 15-37 eggs/gd; protein left unused at winter:
+   pool 26 P in 15 runs + queens 25.5 P above their keep in 6 runs (~40 larvae at 1.24 P each, against 66
+   eclosions). The probes name the gate: R5's winter reserve, alone shut on gd 1.3-4 with 1.5-5 P in store.
+2. **Brood lost in care**: egg:untended 34, pupa:untended 21, egg:flooding 19 (`account-sweep6.md`). Only one cause
+   found so far: sg #3's nurses trapped in a nest-nav pocket (4.48 of 15.2 in-nest ant-gd in 2 gd); the other 7
+   probed hand-overs have no trapped ant time, so the remaining untended losses have another cause (not found).
+3. **Protein income** (median P intake/need 0.197; 1-8 P delivered per run): after L1 the next limit of laying
+   (the R4 supply gate on days 0-1 is protein-limited by design: 13 P of brood need against 1.5-2.4 P of supply).
+4. Old age 65 of 92 adult deaths (R11 stands; faster outside: `physiology.ts` ageRateOutside, so more trips, more
+   old-age deaths before winter, seen in we #1 l1: 8 vs 6).
+- 06:34 live tree: `npm run typecheck` clean; colony 64/65 files (red `founding/reopen`, known; `vitest-colony.txt`);
+  sim root 20/21 (red `services.test` diggability, the carpenter engineer's, known; `vitest-simroot.txt`; the new
+  `createGame.rivals` and `sim.pausedEvents` green); environment/human 16/16 with `time.test` (green now).
+  Paired runs: pair 1 (we #1) done, 2-5 running. Now: the laying probe on we #3 / sg #3 with L1 (mechanism counter).
+- 06:39 mechanism counter of L1 (laying probe, same hand-overs, 6 gd; `probe-lay-{we3,sg3}{,-l1}.txt`): hours with
+  the winter gate shut 74 -> 0 (we #3), 67 -> 0 (sg #3); eggs laid by gd 4: 13 -> 18, 14 -> 18; by gd 6: 19 -> 19,
+  15 -> 25 (we #3 catches up on gd 4-5 when its pool C rose over the threshold; the eggs come ~1 gd earlier with L1).
+  Paired pairs 1-2: we #1 11 -> 9 (base -> l1; C crashes on day 2 in both, L1 adds 1 egg on days 2-6; l1 made
+  more trips, 0.39 vs 0.21 per worker-gd, and lost 2 more to old age: outside ageing), sg #2 10 -> 10 identical
+  (the gate never bound: pool P empty, pDays gate). base = sweep 6 exactly on both (RM + SF3 change nothing here).
+- 06:42 pair 3 (pp #3): base 13 -> 10 (ecl 4; differs from sweep 6's 10/ecl 8: pp #3 is the restore-defect case RM
+  fixed, so sweep 6's in-process run is not its restored continuation), l1 13 -> 9 (ecl 5, eggs 26 vs 19, days 2-6
+  12 vs 7; 1 crushed + 1 more predation). The 11 eggs l1 laid on day 4 are 6 diapausing larvae at winter (base: 0):
+  eggs laid after ~day 3 of an R20 hand-over do not finish before winter (egg-to-adult 3.9 DU at r 0.5-0.6 in the
+  cooling chambers), so L1's eggs are year-two brood, paid from the winter pool (C at winter 13.8 -> 7.2).
+  Lead for brood care (`probe-untended-cpv3.txt`, `tools/sim/probe/probe-untended7.ts`, cpv #3, 5 gd): pupa piles
+  untended 0.25-0.65 gd with ONE nurse (nurse demand 1.4-3.6) standing in `nurse.feed` (nav idle) 25-35 mm away while
+  4-5 workers forage; 3 pupae and 2 eggs died untended in 5 gd: nurse allocation below demand, and a nurse that waits
+  in a feed state does not tend the pile. Not worked this round.

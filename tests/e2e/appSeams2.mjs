@@ -122,19 +122,27 @@ export default async ({ page, log, out }) => {
 
   // 5. the journal across a winter: the clock is set into the winter, entries written aimBefore keep their own dates
   await g(() => window.__game.cheat.setTime(20 * 6000 + 3000));
-  for (let i = 0; i < 40; i++) await g(() => window.__game.step(300)); // the winter banner, the lapse and its report
-  const springBtn = page.locator('text=Continue into spring');
-  if (await springBtn.count()) await springBtn.first().click();
-  await g(() => window.__game.step(600));
-  await frames(4);
+  // the winter banner, the lapse (Skip) and its report (Continue into spring): played through before the journal is opened
+  let spring = false;
+  for (let i = 0; i < 80 && !spring; i++) {
+    await g(() => window.__game.step(200));
+    await frames(2);
+    const cont = page.locator('text=Continue into spring');
+    if (await cont.count()) { await cont.first().click(); spring = true; break; }
+    const skip = page.locator('button:has-text("Skip")');
+    if (await skip.count()) await skip.first().click().catch(() => {});
+  }
+  log('winter played through', spring, JSON.stringify(await g(() => ({ mode: window.__game.summary().mode, day: window.__game.summary().calendar ?? null }))));
+  await g(() => window.__game.step(60));
+  await frames(6);
   await page.keyboard.press('KeyJ');
-  await page.waitForSelector('[data-testid="journal-aims"], .pn-book', { timeout: 60000 });
-  await page.locator('.pn-book [role="tab"]', { hasText: 'Event log' }).click().catch(() => {});
+  await page.waitForSelector('.ui-book', { timeout: 60000 });
+  await page.locator('.ui-book [role="tab"]', { hasText: 'Event log' }).click().catch(() => {});
   await frames(4);
   await shot('07-journal-log-across-winter');
   const rows = await g(() => Array.from(document.querySelectorAll('.pn-log-time')).slice(-8).map((e) => e.textContent));
   log('log times', JSON.stringify(rows));
-  await page.locator('.pn-book [role="tab"]', { hasText: 'Milestones' }).click().catch(() => {});
+  await page.locator('.ui-book [role="tab"]', { hasText: 'Milestones' }).click().catch(() => {});
   await frames(4);
   await shot('08-journal-milestones-across-winter');
   await page.keyboard.press('Escape');
