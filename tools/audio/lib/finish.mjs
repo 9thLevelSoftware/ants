@@ -1,6 +1,9 @@
 // Turning a rendered signal into a shipped file: level normalisation (the same conventions as the files they replace)
 // and the encoder.
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { SR, dbToGain, gainToDb, hp, peak } from './dsp.mjs';
 import { integratedLufs, meanLufs, samplePeak, truePeakDb } from './lufs.mjs';
 
@@ -46,19 +49,41 @@ function interleave(chs) {
 
 export const MP3_ARGS = ['-c:a', 'libmp3lame', '-b:a', '96k', '-ar', String(SR), '-map_metadata', '-1', '-fflags', '+bitexact', '-flags:a', '+bitexact', '-write_id3v1', '0', '-id3v2_version', '0'];
 
-/** MP3 bytes (96 kbps CBR, 44.1 kHz) with ffmpeg's libmp3lame; deterministic for the same ffmpeg build. */
-export function encodeMp3(chs) {
-  const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'f32le', '-ar', String(SR), '-ac', String(chs.length), '-i', 'pipe:0', ...MP3_ARGS, '-f', 'mp3', 'pipe:1'],
-    { input: interleave(chs), maxBuffer: 1 << 28 });
-  if (r.status !== 0) throw new Error(`ffmpeg failed: ${r.stderr}`);
-  return r.stdout;
+/** Runs `fn(filePath)` with a path inside a fresh temporary directory, removed afterwards. */
+function withTempDir(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'foundress-mp3-'));
+  try { return fn(dir); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-/** Decodes an MP3 (bytes) to channels of Float32Array at SR. */
+/**
+ * MP3 bytes (96 kbps CBR, 44.1 kHz) with ffmpeg's libmp3lame; deterministic for the same ffmpeg build.
+ * The encoder writes to a real file, not a pipe: only a seekable output lets the muxer go back and fill in the Info
+ * (Xing/LAME) frame that carries the encoder delay and padding. Without it a decoder plays the 1105-sample lead-in and
+ * the padding as silence, which delays every one-shot by about 25 ms and breaks plain loop=true. The old files had it.
+ */
+export function encodeMp3(chs) {
+  return withTempDir((dir) => {
+    const file = path.join(dir, 'out.mp3');
+    const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'f32le', '-ar', String(SR), '-ac', String(chs.length), '-i', 'pipe:0', ...MP3_ARGS, '-f', 'mp3', file],
+      { input: interleave(chs), maxBuffer: 1 << 28 });
+    if (r.status !== 0) throw new Error(`ffmpeg failed: ${r.stderr}`);
+    return fs.readFileSync(file);
+  });
+}
+
+/**
+ * Decodes an MP3 (bytes) to channels of Float32Array at SR, the way a browser does: delay and padding trimmed by the
+ * Info frame. Decoded from a file for the same reason as the encoder: from a pipe ffmpeg cannot trim the end padding.
+ */
 export function decodeMp3(bytes, channels) {
-  const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-f', 'f32le', '-ar', String(SR), '-ac', String(channels), 'pipe:1'], { input: bytes, maxBuffer: 1 << 28 });
-  if (r.status !== 0) throw new Error(`ffmpeg decode failed: ${r.stderr}`);
-  const buf = r.stdout, n = Math.floor(buf.length / 4 / channels);
+  const buf = withTempDir((dir) => {
+    const file = path.join(dir, 'in.mp3');
+    fs.writeFileSync(file, bytes);
+    const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', file, '-f', 'f32le', '-ar', String(SR), '-ac', String(channels), 'pipe:1'], { maxBuffer: 1 << 28 });
+    if (r.status !== 0) throw new Error(`ffmpeg decode failed: ${r.stderr}`);
+    return r.stdout;
+  });
+  const n = Math.floor(buf.length / 4 / channels);
   const out = Array.from({ length: channels }, () => new Float32Array(n));
   for (let i = 0; i < n; i++) for (let c = 0; c < channels; c++) out[c][i] = buf.readFloatLE((i * channels + c) * 4);
   return out;

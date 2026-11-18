@@ -3,8 +3,12 @@ import { SR, fade, hp, hp4, squash } from './dsp.mjs';
 import { decodeMp3, encodeMp3, integratedLufs, normalizeLufs, normalizePeak } from './finish.mjs';
 import { meanLufs } from './lufs.mjs';
 
-/** The 96 kbps encode lowers the decoded level by this much (measured on noise and sines); old-levels.json was measured on decoded files. */
-const ENCODER_LOSS_DB = 0.45;
+/**
+ * Where a level-matched one-shot is aimed above the old level before encoding: the 96 kbps encode lowers the decoded
+ * level by about this much (measured on the decoded files, delay and padding trimmed by the Info frame), and
+ * old-levels.json was measured on decoded files. renderMp3 then corrects the remainder on the decoded file.
+ */
+export const ENCODER_LOSS_DB = 0.45;
 
 /**
  * Spec fields: id ('audio/sfx/name'), seed, render({ rng }) -> Float64Array[] (1 or 2 channels), and one of
@@ -37,19 +41,30 @@ export function renderPcm(spec, makeRng) {
 export const secondsOf = (chs) => chs[0].length / SR;
 export { hp };
 
+/** The file as a browser decodes it must have exactly the rendered length: the Info frame trims delay and padding. */
+function decodeChecked(bytes, chs, id) {
+  const dec = decodeMp3(bytes, chs.length);
+  if (dec[0].length !== chs[0].length) throw new Error(`${id}: decodes to ${dec[0].length} samples, rendered ${chs[0].length} (no gapless header?)`);
+  return dec;
+}
+
+const scale = (chs, dB) => { const g = Math.pow(10, dB / 20); for (const c of chs) for (let i = 0; i < c.length; i++) c[i] *= g; };
+
 /**
- * Final MP3 bytes of a spec. A loudness-normalised bed is encoded, decoded again and nudged by the encoder's own
- * level change (about -0.45 dB at 96 kbps), so the file as the browser decodes it reads its target.
+ * Final MP3 bytes of a spec. The levels are judged on the file as the browser decodes it: a loudness-normalised bed is
+ * encoded, decoded again and nudged by the encoder's own level change, so it reads its target; a level-matched one-shot
+ * is nudged down if the decoded file is still louder than the file it replaces (never up: it stays under its peak).
  */
 export function renderMp3(spec, makeRng) {
   const chs = renderPcm(spec, makeRng);
   let bytes = encodeMp3(chs);
   if (spec.loop) {
-    const trim = chs[0].length;
-    const dec = decodeMp3(bytes, chs.length).map((c) => c.subarray(1105, 1105 + trim));
-    const off = spec.lufs - integratedLufs(dec, SR);
-    for (const c of chs) for (let i = 0; i < c.length; i++) c[i] *= Math.pow(10, off / 20);
+    scale(chs, spec.lufs - integratedLufs(decodeChecked(bytes, chs, spec.id), SR));
     bytes = encodeMp3(chs);
+  } else if (spec.matchMeanLufs !== undefined) {
+    const over = meanLufs(decodeChecked(bytes, chs, spec.id), SR) - spec.matchMeanLufs;
+    if (over > 0) { scale(chs, -over); bytes = encodeMp3(chs); }
   }
+  decodeChecked(bytes, chs, spec.id);
   return { bytes, chs };
 }

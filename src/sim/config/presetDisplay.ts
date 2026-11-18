@@ -109,18 +109,18 @@ export const PRESET_ROWS: readonly PresetRow[] = [
 export const PRESET_SUMMARY: Record<DifficultyId, { name: string; lines: [string, string] }> = {
   gentle: {
     name: 'Gentle',
-    lines: ['Rain, storms, heat and frost come less often, with fewer predators and people about, and two rival colonies in the locality.',
-      'More food and better brood survival; the founding queen burns less of her reserves and may try three more sites.'],
+    lines: ['Milder weather, fewer predators and people about, two rival colonies.',
+      'More food, better brood survival, three more tries at founding.'],
   },
   naturalist: {
     name: 'Naturalist',
-    lines: ['The reference setting: ordinary weather, predators and people, and three rival colonies in the locality.',
-      'One more try at another site if the founding fails. The other presets are set against these numbers.'],
+    lines: ['The reference setting: ordinary weather, predators and people, three rival colonies.',
+      'One more try at another site if the founding fails.'],
   },
   harsh: {
     name: 'Harsh',
-    lines: ['Storms, heat waves and frost come more often, with more predators and people about, and four rival colonies in the locality.',
-      'Less food and lower brood survival; the founding queen burns more of her reserves, with no second site and no brood forecast, and winters cost more.'],
+    lines: ['Storms, heat and frost more often, more predators and people, four rival colonies.',
+      'Less food, lower brood survival, no second site, no brood forecast.'],
   },
 };
 

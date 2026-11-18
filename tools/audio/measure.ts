@@ -12,7 +12,6 @@ import { decodeMp3 } from './lib/finish.mjs';
 import { SOUNDS } from './sounds/index.mjs';
 
 const FS = 44100;
-const ENCODER_DELAY = 1105; // libmp3lame / mp3 decoder delay at 44.1 kHz
 
 export interface Row {
   id: string; channels: number; seconds: number; bytes: number;
@@ -32,12 +31,11 @@ export function measureFile(dir: string, id: string, channels: number, loop: boo
   const spec = spectralSummary(chs);
   const bands: Record<string, number> = {};
   BAND_NAMES.forEach((n: string, i: number) => { bands[n] = Math.round(spec.bands[i] * 1000) / 1000; });
-  // The decoder returns the encoder's delay (1105 samples) and padding around the content, so the wrap is measured on
-  // the content only: every loop (old and new) is a whole number of seconds long. This is what a sample-accurate loop
-  // of the file would play; the engine itself skips 30 ms at both ends and crossfades, which hides any residue.
-  const content = Math.round(seconds) * FS;
-  const seam = loop ? loopSeam(chs[0].subarray(ENCODER_DELAY, ENCODER_DELAY + content)) : null;
-  const join = loop ? engineJoin(chs[0].subarray(ENCODER_DELAY, ENCODER_DELAY + content)) : null;
+  // Every file (old and new) carries an Info frame, so the decoder already trims the encoder delay and padding and the
+  // decoded buffer is the content. The wrap is measured as a sample-accurate loop of the file would play it; the engine
+  // itself skips 30 ms at both ends and crossfades, which hides any residue.
+  const seam = loop ? loopSeam(chs[0]) : null;
+  const join = loop ? engineJoin(chs[0]) : null;
   return {
     id, channels, seconds, bytes: bytes.length,
     integratedLufs: long ? integratedLoudness(chs, FS) : null,

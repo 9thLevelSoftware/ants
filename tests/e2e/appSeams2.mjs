@@ -121,11 +121,15 @@ export default async ({ page, log, out }) => {
   await shot('06-focus-line-new-aim');
 
   // 5. the journal across a winter: the clock is set into the winter, entries written aimBefore keep their own dates
-  await g(() => window.__game.cheat.setTime(22 * 6000 + 3000));
-  await g(() => window.__game.step(300));
+  await g(() => window.__game.cheat.setTime(20 * 6000 + 3000));
+  for (let i = 0; i < 40; i++) await g(() => window.__game.step(300)); // the winter banner, the lapse and its report
+  const springBtn = page.locator('text=Continue into spring');
+  if (await springBtn.count()) await springBtn.first().click();
+  await g(() => window.__game.step(600));
+  await frames(4);
   await page.keyboard.press('KeyJ');
   await page.waitForSelector('[data-testid="journal-aims"], .pn-book', { timeout: 60000 });
-  await page.locator('.pn-book [role="tab"]', { hasText: 'Log' }).click().catch(() => {});
+  await page.locator('.pn-book [role="tab"]', { hasText: 'Event log' }).click().catch(() => {});
   await frames(4);
   await shot('07-journal-log-across-winter');
   const rows = await g(() => Array.from(document.querySelectorAll('.pn-log-time')).slice(-8).map((e) => e.textContent));

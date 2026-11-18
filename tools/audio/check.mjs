@@ -3,14 +3,14 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { makeRng } from './lib/rng.mjs';
-import { renderMp3, renderPcm } from './lib/pipeline.mjs';
+import { ENCODER_LOSS_DB, renderMp3, renderPcm } from './lib/pipeline.mjs';
 import { decodeMp3 } from './lib/finish.mjs';
 import { correlation, loopSeam, spectralSummary } from './lib/analysis.mjs';
 import { integratedLufs, meanLufs, truePeakDb } from './lib/lufs.mjs';
 import { SOUNDS } from './sounds/index.mjs';
 
 const OLD = JSON.parse(fs.readFileSync(new URL('./sounds/old-levels.json', import.meta.url), 'utf8')).files;
-const FS = 44100, ENCODER_DELAY = 1105;
+const FS = 44100;
 const PUBLIC_ASSETS = fileURLToPath(new URL('../../public/assets/', import.meta.url));
 
 /** True when the file in public/assets is exactly what a fresh render of the spec gives (nobody edited it, the seeds are current). */
@@ -46,7 +46,8 @@ export function checkSpec(spec, { encode = true } = {}) {
     const { bytes } = renderMp3(spec, makeRng);
     m.bytes = bytes.length;
     const dec = decodeMp3(bytes, pcm.length);
-    chs = spec.loop ? dec.map((c) => c.subarray(ENCODER_DELAY, ENCODER_DELAY + pcm[0].length)) : dec;
+    chs = dec; // the Info frame makes the decoded file exactly as long as the rendered sound
+    if (dec[0].length !== pcm[0].length) problems.push(`decodes to ${dec[0].length} samples, rendered ${pcm[0].length}`);
     m.decodedSeconds = dec[0].length / FS;
   }
   m.truePeakDb = truePeakDb(chs);
@@ -57,7 +58,9 @@ export function checkSpec(spec, { encode = true } = {}) {
   } else {
     m.meanLufs = meanLufs(chs, FS);
     const old = OLD[spec.id].meanLufs;
-    if (m.meanLufs > old + LIMITS.matchSlackLu) problems.push(`mean ${m.meanLufs.toFixed(1)} LUFS louder than the file it replaces (${old})`);
+    // without the encoder the PCM is aimed ENCODER_LOSS_DB above the old level on purpose (see pipeline.mjs)
+    const slack = LIMITS.matchSlackLu + (encode ? 0 : ENCODER_LOSS_DB);
+    if (m.meanLufs > old + slack) problems.push(`mean ${m.meanLufs.toFixed(1)} LUFS louder than the file it replaces (${old})`);
     if (m.truePeakDb > (spec.peakDb ?? -3) + LIMITS.peakSlackDb) problems.push(`peak ${m.truePeakDb.toFixed(1)} dBFS above ${(spec.peakDb ?? -3)} + slack`);
   }
   return { id: spec.id, problems, metrics: m };

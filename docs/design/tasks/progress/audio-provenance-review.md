@@ -45,3 +45,7 @@ Reviewer for docs/design/tasks/audio-provenance.md. Started 2026-11-18.
   -> test-output/audio-provenance-review/decode-out; loudness scenes all ok (footstep short-max -14.6, target -14+-3)
   -> test-output/audio-provenance-review/loudness/review.json + loudness.png (looked at).
 - Next: analyse.mjs ?skip=all (loop boundaries), then final report.
+- DONE analyse.mjs ?skip=all: 45 assets decodable, all 12 loops ok with the engine crossfade; naive wrap of every new loop
+  has rmsDipRatio 0 (silent gap = delay+padding, supports F1). Log: bg task output; screenshot
+  test-output/audio-provenance-review/analyse/audio-demo.png.
+- REVIEW COMPLETE (06:05 UTC). Verdict fail: F-test (own always-on test red), F1 gapless header; minors F2-F4 + tier label.

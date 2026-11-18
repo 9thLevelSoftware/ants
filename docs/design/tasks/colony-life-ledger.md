@@ -2381,3 +2381,14 @@ Progress (kept current; a successor continues from here)
 - Cache for this round: the 15 sweep-6 hand-overs copied to `round-7/cache/*-d-any.bin` (life.ts `--cache
   test-output/colony-life/round-7/cache --cache-any`), so before/after runs start from the hand-overs the sweep-6 table
   was made from.
+- 06:08 folder tests on the live tree after RM + SF3: nest 57/58 files (red: `escapeDig`, known), ants/behaviours/outdoor
+  29/30 (red: `removal.verify`, known), environment/human 15/15 (+3 skipped). Restore probe pp #3: **8 of 8 splits
+  equal over 1000 ticks** (`round-7/probe-restore-pp3.txt`; review: 8 of 8 differ by tick 141). RM done.
+- 06:08 account of the sweep-6 runs (`round-7/account.py` -> `round-7/account-sweep6.md`): brood lost in care is the
+  largest loss in workers: egg:untended 34 + pupa:untended 21 + egg:flooding 19 against 66 eclosions. Probe on sg #3's
+  hand-over (`round-7/probe-care-sg3.txt`, `probe-nurse-sg3.txt`, `probe-comp-sg3.txt`): the 9 eggs of the founding
+  die untended on day 1 with 3-4 nurses claiming their tend / carry jobs: the nurses stand 11-14 BU away, on the throat
+  wall 6-10 mm under the entrance, nav `field/failed leg` for 0.25+ gd; their nearest nest-nav sample lies in a pocket
+  of the voxel graph (components 5 and 52) that no field reaches, while a hauler 8 mm away is in the main component.
+  The funnel's `stuckAntGd` does not see them (it counts `moving` walkers only). Measuring how much ant time this
+  costs across hand-overs (`tools/sim/probe/probe-trap7.ts`, 2 gd each, 8 hand-overs) before ranking.
