@@ -101,15 +101,15 @@ defect, so it is unchanged. The gaster of a night ant still has a soft grey high
 * **Leaves (S9)**: the draped leaf layer is held within 0.034 BU of the ground by a hug rule that the verify tests pin (a lift of 0.048 BU made one ray sample fall off the card in
   `drapedShape.verify.test.ts`), so the card cannot get a thickness of its own. Instead (`drapedMaterial.ts`, `DECOR_LEAF` in `decor/tuning.ts`): the cut margin is a lit edge
   (+45 %), and the ground beside the margin gets a stippled dark contact fringe (density 1.0 at the margin, reach 0.11 of the card, four alpha taps, leaves only, near leaves only). Picture:
-  `before/before-noon-observerlow-high.png` -> `after/after2-noon-observerlow-high.png` (the leaves now sit in a dark rim instead of lying on the soil like stickers). **Partial**: a
+  `before/before-noon-observerlow-high.png` -> `after/after2-noon-observerlow-high.png` and, after the derivative fix of section 9, `after/final-noon-observerlow-high.png` (the leaves now sit in a dark rim instead of lying on the soil like stickers). **Partial**: a
   leaf is still flat, the fringe is a 2-4 px dither at this size; a real curl would need the hug rule changed (draped-decor owner).
 * **Horizon strip at night (S11)**: the first rows of the skirt are lawn green and, metered by the night exposure, a lime strip along the horizon. `SKIRT_NIGHT_ALBEDO` 0.3 darkens the skirt with the
   night weight (`boundaryRenderer.update`, test `nightHaze.test.ts`). Picture: `before/before-night-edge-high.png` -> `after/after2-night-edge-high.png` (a dark soft horizon, no strip).
 * **Mound foot (S13)**: the footprint edge is where the interpolated pile crosses `MOUND_MIN_PILE_MM`, a straight line per cell. The cut-off is now raised by up to
   `MOUND_RIM_RAG_MM` (1.3 mm of pile) by a two-octave world-space noise: a ragged scatter of crumbs. Picture: `checks/firstplay/13-first-workers-entrance.png` and `checks/founding/09-handover-entrance.png`
-  against the gate round's `founding1/09-handover-entrance.png` (see section 5 for what was looked at). A cheat-staged game has no mound, so no look3 shot.
+  against the gate round's `founding1/09-handover-entrance.png` (`firstplay/13` and `founding/09` were looked at). A cheat-staged game has no mound, so no look3 shot.
 * **Far structures**: the backdrop house (`boundary/backdrop.ts`) was one pale box; it has a plinth, a roof with eaves, two storeys of windows with sills and a door now
-  (`BACKDROP_SIZE.facade*`, `BACKDROP_HEX`). Picture: see section 5 (`after/after3-noon-edge-high.png` against `before/before3-noon-edge-high.png`, if the run finished).
+  (`BACKDROP_SIZE.facade*`, `BACKDROP_HEX`). Picture: (`after/after3-noon-edge-high.png` against `before/before3-noon-edge-high.png`: identical, the pose faces no house).
   **Not fixed**: the pale flat blocks of `firstplay/04-queen-surface.png` are worldgen structures (plaster prims) drawn by the primitive layer, hazed and sunlit to a flat white at
   that distance; they need windows and trim in the worldgen catalogue or a prim-material change that I did not make (reproduction: `checks/firstplay/04-queen-surface.png`, seed 2, quality test).
 
@@ -152,7 +152,7 @@ Final night numbers after the last small lift (targetE 1.9 / minEV 2.3, section 
 
 | # | Criterion | Verdict | Evidence |
 |---|---|---|---|
-| 1 | Typecheck clean; tests green folder by folder | see section 8 (filled when the last run finished) | section 8 |
+| 1 | Typecheck clean; tests green folder by folder | **met** | `npm run typecheck` clean; `npx vitest run` per folder: `src/render` 807 passed / 2 skipped, `src/game` 582, `src/ui` 402, `src/content` 114, `src/input` 106 (`test-output/look3/test-*.log`, `tests-summary.txt`) |
 | 2 | Before/after pictures for every item, same script and pose, each looked at | **partial** | items 1, 2, 4 (leaves, horizon strip), 5 have pairs; item 3 has unit tests only (the steep slope and the colony-view round trip could not be staged by cheat); the mound foot and the backdrop house have no same-pose pair (a cheat-staged game has no mound, and the `noon:edge` pose faces no house: `before3`/`after3-noon-edge-high.png` are identical); the far world-structure blocks are not fixed |
 | 3 | `stage1a.mjs` strict, `panels.mjs` both halves, `photo.mjs` quick, `views.mjs`, `controls.mjs`, `firstplay.mjs` beats 1-20 | **partial**, see below | `test-output/look3/checks/` |
 | 4 | Draw calls and triangles at low / medium / high on the seed 1 colony not above +10 % | **met** | below |
@@ -167,7 +167,7 @@ Acceptance 3 in detail (`checks/<name>.log`; browser runs at load average 7-12, 
 | `stage1a.mjs` strict (`STAGE1A_SKIP_HIGH=1`) | the chamber camera check, which was red in the gate round, **passes**; the run stops at "GPU resources grew across quality switches" (textures 44 -> 55, limit +4). That failure is **not mine**: `look3-qs.mjs` on the ORIGINAL code (`checks/qsold.log`) gives the same textures 37 -> 46 (+9) after test -> low -> high -> test -> low -> test, and the same with and without the colony view round trip. The first switch to `low` creates 9 textures that are kept; stage1a's gate round probably passed it because of a different game state. Owner: render-app (quality switch disposal) |
 | `panels.mjs` first half (health, alert, nest) | **pass** (`panels.log`: health 123 s, alertClickThrough, nest); the journal tab click then timed out at 30 s under load (not measured); `PANELS_ONLY=journal,codex` alone: **pass** (`panelsA2.log`) |
 | `panels.mjs` second half | **pass** after one fix (`panelsB2.log`): the View tap passes; the D-pad assertion "reaches an overlay button" was **red before my change too** (`panelsB-orig.log`, original readers): the marker palette and the overlay column are two roots of the pad's `tools` layer and the D-pad stopped at the edge of a root, so the overlay column could not be reached by the pad at all. `moveFocusAcross` (`src/ui/nav/focusMove.ts`, `controller.ts`) goes on to the next root of the layer. Note: with the original pad readers the View tap also passed in that run (it retries up to four times), so the browser does not demonstrate the tap fix; the unit tests with a long frame do |
-| `photo.mjs` quick | see the end of this section |
+| `photo.mjs` quick | **pass** (`checks/photo10.log`: exit-restores dpos 0, the picture after leaving equals the one before) after a long hunt, see section 9: the first nine runs of my code failed the hash |
 | `firstplay.mjs` | beats 1-13 **pass** (pictures `checks/firstplay/01..13-*.png`); beat 14 fails "no forager laid a trail to the food within 18000 ticks": the sim's foraging gap (integrator note), so beats 14-20 are **not measured** |
 | `founding.mjs` | **pass** (`founding.log`, 12 pictures) |
 | `look3-hud.mjs` | **pass** (`hud2.log`) |
@@ -184,3 +184,31 @@ Draw calls and triangles, same method as the gate report section 5 (`frametime.m
 Same-pose pairs of the look3 shots agree: observer low at high quality 98 -> 98 / 0.99 -> 1.00 M (night), 103 -> 105 / 1.00 -> 1.02 M (noon), dusk 108 -> 108, dawn 106 -> 105; the
 shots with the ant in frame differ by the state of the sim between the runs (118 -> 204 draws is a different number of ants and leaves in view, not the change). The facade adds a few boxes
 to the backdrop mesh only where a house edge is built. Frame times were not measured for the report (SwiftShader under load: 6-19 s a frame, indicative only).
+
+
+## 8. Tests (acceptance 1)
+
+New or changed tests: `src/render/camera/thirdPersonRig.test.ts` (slope lift, restarted rig, standing ant does not drift, tight room), `src/render/world/lighting/lookPass2.test.ts` and `lighting.test.ts`
+(night pins), `src/render/world/boundary/nightHaze.test.ts`, `src/game/views/observerAfterColony.test.ts`, `src/game/accessibility/accessibility.test.ts`, `src/game/time/autoSlow.test.ts`,
+`src/ui/uiBridge.hud.test.ts`, `src/input/inputState.test.ts`, `src/ui/nav/nav.test.ts`, `src/ui/screens/newgame/newgame.test.ts`. Results (this session, after the last code change): typecheck clean; render 807 passed (2 skipped),
+game 582, ui 402, content 114, input 106, all passed. Nothing under `src/sim/**` was run or touched by me.
+
+## 9. What the browser runs found that the unit tests could not (and what to know)
+
+* **The `photo.mjs` hash mismatch was a real render defect, not a flaky test.** Nine runs of my code failed "the picture after leaving differs from the one before" by 400-650 pixels of at most 5 levels in the far
+  soil band; the original code passed. New script `tests/e2e/look3-det.mjs` renders the same frame back to back and counts differing pixels: original code 0 px, my code 560 px (max 2 levels), also after reverting every other render file
+  (bisect: reverting only `src/render/world/decor` made it 0). Cause: the four extra texture reads of the leaf contact fringe (`dcLeafAlpha` in `drapedMaterial.ts`) sat inside a per-pixel branch, so their derivatives (mip level) were
+  undefined and the software rasteriser gave a different answer on each render. Fix: the four reads are unconditional, only the use of the result is branched (`det-fix`: 0 px). Lesson for GLSL in this code base: no texture reads
+  inside a per-pixel `if` that depends on the sampled data.
+  Along the way I made the rig restart without memory (`radiusScale` is a function of the pivot base; `slopeLift` starts at its goal) and made the slope lift ease only while the ant moves
+  (`CAM_SLOPE_LIFT_MIN_SPEED_BU`, test "a standing ant that turns on a slope does not make the picture drift"); both are harmless and kept. The facade of the backdrop house was rebuilt as a skin with real gaps because layered faces z-fought at distance.
+* **`stage1a.mjs` strict still stops at "GPU resources grew across quality switches"**, which is **not caused by this task as far as I can show**: the original code gives the same textures 37 -> 46 (+9, limit +4) in `look3-qs.mjs`
+  (`checks/qsold.log`). With the colony-view round trip my code showed more new programs than the original in one sample (47 -> 71 against 46 -> 56) and the same without the round trip (30 -> 51 both); the DoF change is not the cause
+  (`checks/qsnodof.log`). I did not find the source of the extra programs; a one-sample difference of that size may be game-state timing. Owner: render-app (quality switch and colony view disposal).
+* `firstplay.mjs` beat 14 ("no forager laid a trail") is the sim's forager gap; beats 14-20 are therefore not measured (not a render or UI result).
+* The pale flat blocks of `firstplay/04-queen-surface.png` are world-structure primitives (plaster) of the worldgen catalogue, not the backdrop; not fixed (needs windows or trim in the catalogue: worldgen-outdoor).
+* Season strings after R20: species card, Loading summary, New Game natural start, alerts sample are all spring now (item 6 list); `src/sim/species/data/lasius-niger.ts` `foundingSeason: 'summer'` is sim data and still says summer.
+
+## 10. Play-through (item 7)
+
+PLAYTHROUGH_PLACEHOLDER

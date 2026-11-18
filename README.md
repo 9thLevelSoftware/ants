@@ -46,7 +46,10 @@ Run tests by folder, not the whole suite:
 npx vitest run src/core
 npx vitest run src/input
 npx vitest run src/sim/colony
+npx vitest run tests/docs
 ```
+
+`tests/docs` checks the written documents against the code: the controls and difficulty tables of `docs/MANUAL.md`, the settings it names, and the rulings and code pointers of `docs/design/gdd/DEVIATIONS.md`. It runs in about two seconds.
 
 Notes:
 
@@ -107,7 +110,7 @@ Given after `?` and joined with `&`. They exist so that scripted runs are fast a
 | `quality=` | `auto`, `low`, `medium`, `high`, `ultra` (and `test`) | Graphics preset. |
 | `post=` | `0` or `1` | Switch the post-processing chain off or on. |
 | `autostart=1` | | Skip the title screen and begin a generated game at once. |
-| `species=` | `lasius-niger` | Species. Only the black garden ant is playable today; the others are flagged unavailable. |
+| `species=` | `lasius-niger` (default), `camponotus-pennsylvanicus`, `messor-barbarus`, `atta-texana` | Species. The flag accepts all four ids, but only the black garden ant is playable today. The other three start a game for testing only: their colonies did not meet the survival bar and the New Game screen greys them out. |
 | `archetype=` | `woodland-edge`, `suburban-garden`, `playground-park`, `car-park-verge`, `kitchen-door` | Locality type. |
 | `size=` | `compact`, `standard`, `large` | World size (3000, 4000 or 5000 body units). |
 | `difficulty=` | `gentle`, `naturalist`, `harsh` | Difficulty preset. |
@@ -136,6 +139,7 @@ With `test=1` the page also exposes `window.__game` (new game, step N ticks, rea
 | `src/ui/` | Menus, HUD and panels (Preact and signals). |
 | `src/audio/` | Web Audio engine: ambience, positional sounds, synthesised fallbacks, music. |
 | `src/content/` | Text: alerts, journal, hints, codex entries, controls reference. |
+| `tests/docs/` | A test that checks the manual and the deviations list against the code. |
 | `tests/e2e/` | Browser scripts run through the harness. |
 | `tools/harness/` | `play.mjs`, the headless browser runner. |
 | `tools/sim/` | Node runners for long simulation runs, benches and sweeps. |

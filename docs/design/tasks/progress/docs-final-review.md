@@ -16,3 +16,9 @@ Evidence/scripts: test-output/docs-final-review/
 - MAJOR: preset param autoSlowDefault (Gentle "pause") has no behaviour consumer: only written to state.env.time.autoSlow (src/sim/createGame.ts:108), AutoSlowWatcher reads settings.gameplay.autoSlowCritical (src/game/Game.ts:137). MANUAL 1.6 shows it in effect.
 - MAJOR: MANUAL 2 "journal's focus line (top left)" and 12 "minimap, focus line" settings: no HUD focus line or minimap exists; settings gameplay.minimap/focusLine have no consumer (only prefs.ts mapping).
 - minor: DEVIATIONS R2/C row says GDD 06 5.13 specifies nothing about food; 5.13(c) says queen keeps her reserves. C row R20 says GDD "around day 9"; GDD 06 1.6 says default 10 (window 9-12).
+- 02:55 npx vitest run src/core src/content/text/controls.test.ts: 21 files, 194 tests pass. Harness NOT re-run (another engineer's chrome-headless running); implementer logs test-output/docs-final/{smoke,verify-portable}.log and readme-shot/page.png checked.
+- minor: DEVIATIONS B misses recorded deviations: threats-live D4 (rove beetle by day), quiet-time report 8 (GDD 06 4.5 footfall trigger), gate-1A-sim loco (1)-(3) (edge latch, retrace stuck rule), ledger round 2 S1 (small-colony scout range bounds the walk).
+- minor: controls table "Photo mode | F2 or LS+RS" puts a pad chord in the keyboard column (generator src/content/text/controls.ts keyboardOf adds a.fixed pad bindings).
+- minor: weak code pointers (R13 `FLOOD_`, R14 REOPEN_MAX_GD is a passage length, D23 points at dev mult, R16 `cycle`).
+- No tests added in repo: owned paths are Markdown only; scripts kept in test-output/docs-final-review/.
+## DONE: verdict fail (2 major doc-accuracy findings), report returned.

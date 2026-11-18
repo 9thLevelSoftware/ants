@@ -53,6 +53,13 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
   pupa:untended pp2 8, cpv2 hygiene 5 + untended 3; sg3 scouts 85 trips median 2 s out (57 untracked), 0 trips days 1-3;
   pp1 worker:lost 3 + egg:flooding 9; we1 predation 7.
 
+- 02:25 **FINDING (major, determinism, not this round's change)**: save -> load changes the ground height near the
+  nest: pp3 hand-over, 2000 ticks in, snapshot -> restore: `field.height` at 4 ants differs by 0.8-2.4 mm (mound
+  overlay), so microTemp / tb differ and the state hash differs within 10 ticks (`sweep-review/probe-restore*-pp3.txt`).
+  Long-run pp3 (restored) diverges from the sweep's pp3 (in-process) on day 1: 7 vs 11 workers at winter.
+  cpv1, sg2, we2 long runs equal the sweep through winter start.
+- Long runs: we2 sg2 pp3 cpv1 done, kd3 running (02:20).
+
 ## Remains
 - sweep (15 runs), table, bars, regressions vs previous sweep (ledger names it)
 - code review of round 5, typecheck, folder tests, verify tests

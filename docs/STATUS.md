@@ -733,3 +733,12 @@ quiet-time (impl + review + fix; report `quiet-time-report.md`, results `reviews
 - Leads for colony-life: `heat-danger` from foragers crossing hot ground at midday (heat avoidance of the AI), flood criticals lasting 650 s.
 
 Running: colony-life `wek2szmct` (sweep 5), look-pass-3 `w2ht0mt7m`.
+
+## Nov 18 02:35 UTC — docs-final landed; sim-seams launched; app-seams-2 queued
+
+docs-final (impl + review + fix; results `reviews/docs-final.json`): `README.md` (every command run), `docs/MANUAL.md` (504 lines; control tables generated from the bindings), `docs/design/gdd/DEVIATIONS.md` (R1–R28 + recorded deviations, code pointers), `CREDITS.md`, `docs/CREDITS-AUDIT.md`; `tests/docs/docs-final.test.ts` (8 tests) fails when bindings, presets or rules drift from the manual. Documents name commit fb15f3d.
+- **Unverified provenance**: 26 audio files from archive.org items (USC "Red Library", "SSE Library") — licence not shown by the repository. `assets-src/raw/` (626 MB, git-ignored) holds the only evidence for some sets. To settle before the final build: verify each from its source page or replace with synthesized cues.
+- **Design pieces the game lacks** (settings exist, nothing reads them): the Minimap and the Focus line of GDD 08 §3; `autoSlowDefault`; Settings controls for `autoSlowCritical` / `autoSlowWarning`; rules `winterMode`, `extinctionEndsGame` not offered. Wrong strings listed in the result.
+- New specs: **`sim-seams.md`** (Opus; progression listeners table, journal year, rivals at tick 1, red command test, `time.auto-slow`, unwired difficulty parameters incl. the opening grace gate, map-edge parking, save round-trips in eight states) — launched; **`app-seams-2.md`** (Sonnet/Opus, visual; minimap, focus line, auto-slow settings, rules, strings, one manual) — queued behind look-pass-3 (same folders).
+
+Running: colony-life `wek2szmct` (sweep 5), look-pass-3 `w2ht0mt7m`, sim-seams (new).

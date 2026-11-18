@@ -10,7 +10,7 @@ An earlier draft is in `docs/manual/`. It was written before the game was finish
 - **Game day.** One game day is 10 minutes at normal speed (1x). A year has four seasons of 7 days each (the season length can be set to 5, 7 or 10 days when you start a game, section 1.5). Ants walk at real speed; growth, ageing and the seasons run on the game calendar.
 - **C and P.** The colony tracks two kinds of food: carbohydrate (C: sugars, honeydew, nectar) and protein (P: insects and carrion).
 - **Possess.** To take control of an ant is to possess it.
-- **Key names** are the defaults. Every key can be changed in Settings > Controls. The tables in section 13 are generated from the bindings in the code.
+- **Key names** are the defaults. The keys in the tables of section 13 can be changed in Settings > Controls; those tables are generated from the bindings in the code. A few keys are fixed and cannot be changed: they are listed in section 6 (marker tools, undo, plan rotation and resize) and are not in section 13.
 
 ## 1. Starting a game
 
@@ -41,7 +41,7 @@ New colony opens one page with three columns: Species, Locality and Rules. Begin
 | *Messor barbarus* (`messor-barbarus`) | Harvester ant | no: "Not yet available" | autumn | Gathers seed, mills it into paste and keeps granaries through the dry months. Founding: Dig deep in dry ground after autumn rain. |
 | *Atta texana* (`atta-texana`) | Texas leafcutter ant | no: "Not yet available" | spring | Cuts leaves to grow a fungus garden; the fungus is all the brood eats. Founding: Dig, plant the fungus pellet, tend it. |
 
-Only the black garden ant can be started. The other three cards are greyed with the words "Not yet available". Their simulation modules exist, but their colonies did not meet the survival bar in the test runs (README, "State of the game today"). Starting one by URL flag is not supported.
+Only the black garden ant can be started. The other three cards are greyed with the words "Not yet available". Their simulation modules exist, but their colonies did not meet the survival bar in the test runs (README, "State of the game today"). The `species=` URL flag (README) accepts their ids for testing, so a maintainer can start one, but those games are not playable in the sense of this manual: the colonies did not survive the test runs.
 
 ### 1.4 Locality
 
@@ -58,7 +58,7 @@ Natural, Spring, Summer or Autumn. Winter is greyed out. Natural is the species'
 
 Gentle, Naturalist (the default) and Harsh are presets. Under each card, "What ... changes" lists every parameter the preset sets. Changing any custom rule turns the card into Custom.
 
-The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROWS`, `presetCard`). A row marked **not in effect** is shown on the New Game screen as "Not in this build": nothing in the game reads that value yet.
+The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROWS`, `presetCard`). A row marked **not in effect** has no consumer in the game: nothing reads that value. The New Game screen greys out and labels "Not in this build" the first five of these rows only. The sixth, "Automatic slow-down at an alert", is shown on the screen as if it worked, and does not: the preset value is stored in the game state but nothing reads it. What the game does at an alert is set by the Settings value described in section 8, whatever the preset. This is a wrong string of the game; see section 15.
 
 | Group | Parameter | Gentle | Naturalist | Harsh |
 |---|---|---|---|---|
@@ -80,7 +80,7 @@ The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROW
 | Weather and climate | Heat tolerance of ants | +2 C | 0 C | -1 C |
 | Threats, rivals, humans | Predators | x0.4 | x1 | x1.6 |
 | Threats, rivals, humans | Hunters settling by a growing colony | from 20 workers, all by 60 | from 10 workers, all by 40 | from the first workers, all by 20 |
-| Threats, rivals, humans | Rival colonies | 1 young colonies nearby | 2 young colonies nearby | 3 young colonies nearby |
+| Threats, rivals, humans | Rival colonies | 1 young rivals nearby | 2 young rivals nearby | 3 young rivals nearby |
 | Threats, rivals, humans | Rival aggression | x0.7 | x1 | x1.2 |
 | Threats, rivals, humans | Rival colony size | x0.6 | x1 | x1.3 |
 | Threats, rivals, humans | Time between raids on you | 4 days | 2 days | 1 day |
@@ -103,10 +103,12 @@ The table below is generated from `src/sim/config/presetDisplay.ts` (`PRESET_ROW
 | Progression | Winged queens and males reared | x1.2 | x1 | x0.9 |
 | Progression | Losses on the nuptial flight | x0.7 | x1 | x1.25 |
 | Progression | Predator events on the flight **(not in effect)** | 0-1 | 1-3 | 3-5 |
-| Time and interface | Automatic slow-down at an alert | pause | slow | slow |
+| Time and interface | Automatic slow-down at an alert **(not in effect)** | pause | slow | slow |
 | Time and interface | Warnings before trouble **(not in effect)** | strong | normal | minimal |
 
-Custom rules. The New Game screen offers the seven rules marked "on screen" below. The two rules marked "greyed" are listed on the screen with the words "Not in this build". The rules marked "not on screen" exist in the game's rule table (`src/sim/config/presetDisplay.ts`, `RULE_DISPLAY`) but the New Game screen has no control for them. Season length and the number of rivals are fixed when the world is made.
+Custom rules. Seven rules are offered under "Custom rules" on the New Game screen, and an eighth, Starting season, sits in the Locality column: these are the eight rows marked "on screen" below. The two rules marked "greyed" are listed on the screen with the words "Not in this build". The rules marked "not on screen" exist in the game's rule table (`src/sim/config/presetDisplay.ts`, `RULE_DISPLAY`) but the New Game screen has no control for them. Season length, starting season and the number of rivals are fixed when the world is made.
+
+The Gentle, Naturalist and Harsh columns show the value each preset sets (`presetRuleValues` in `src/sim/balance/difficulty.ts`). Season length is 7 days and starting season is Natural in all three presets. The `rivals` rule counts established rival colonies. It is not the same as the preset row "Rival colonies" in the table above, which counts the young rival colonies nearby (1, 2 or 3): the rule value 0 removes both (ruling R23).
 
 | Rule | Choices | Gentle | Naturalist | Harsh | New Game screen | In effect |
 |---|---|---|---|---|---|---|
@@ -117,13 +119,13 @@ Custom rules. The New Game screen offers the seven rules marked "on screen" belo
 | Season length (`seasonLengthDays`, fixed at world generation) | 5 days, 7 days, 10 days | 7 | 7 | 7 | on screen | yes |
 | Starting season (`startSeason`, fixed at world generation) | Natural, Spring, Summer, Autumn | Natural | Natural | Natural | on screen (Starting season, in the Locality column) | yes |
 | Founding leniency (`foundingLeniency`) | Lenient, Normal, Strict | lenient | normal | strict | on screen | yes |
-| Winter (`winterMode`) | Time-lapse, Real time | - | - | - | not on screen | yes |
-| Founding assist (`foundingAssist`) | On, Off | - | - | - | greyed: "Not in this build" | **no** |
-| Queen ageing (`queenSenescence`) | On, Off | - | - | - | greyed: "Not in this build" | **no** |
+| Winter (`winterMode`) | Time-lapse, Real time | time-lapse | time-lapse | time-lapse | not on screen | yes |
+| Founding assist (`foundingAssist`) | On, Off | on | on | off | greyed: "Not in this build" | **no** |
+| Queen ageing (`queenSenescence`) | On, Off | off | off | on | greyed: "Not in this build" | **no** |
 | Nest collapse (`collapse`) | On, Off | off | on | on | on screen | yes |
-| Extinction ends the game (`extinctionEndsGame`) | On, Off | - | - | - | not on screen | yes |
+| Extinction ends the game (`extinctionEndsGame`) | On, Off | on | on | on | not on screen | yes |
 
-A value for `rivals: 0` also removes the young conspecific colonies of the preset (ruling R23 in `docs/design/gdd/DEVIATIONS.md`).
+The ruling R23 is in `docs/design/gdd/DEVIATIONS.md`.
 
 "Hints" switches the quiet teaching hints of the first days on or off.
 
@@ -133,7 +135,7 @@ Making the world takes some seconds. The loading page shows the stages. If gener
 
 ## 2. The opening, step by step
 
-You begin as a single founding queen, playing by hand. The game teaches one verb at a time with a prompt near the queen. A prompt stops showing once you have used its verb a few times. The key on the prompt is the key you have bound. The journal's focus line (top left) asks one question at a time ("Where is the ground sheltered, warm and diggable?"). These aims never block play.
+You begin as a single founding queen, playing by hand. The game teaches one verb at a time with a prompt near the queen. A prompt stops showing once you have used its verb a few times. The key on the prompt is the key you have bound. The journal's aims ask one question at a time ("Where is the ground sheltered, warm and diggable?"). You read them in Journal > Aims (`J`) and on the hand-over banner. There is no always-visible focus line on the screen in this build. The aims never block play.
 
 The steps (hint and aim wording: `src/content/text/hints.ts`):
 
@@ -165,7 +167,7 @@ Moving between them:
 - In the observer view: `E`, holding the left mouse button, or a double click possesses the selected ant; `F` follows it; right click deselects.
 - Possessing changes who you control, not the biology: the ant still ages and can die. If your ant dies, the camera stays on the body and the prompt offers `Tab` to take another ant; or the game takes over a nestmate if you set "Take over a nestmate when your ant dies" (section 12).
 
-The nest cutaway in colony view has a slice: `R` and `F` (or `Shift` with the mouse wheel) move it up and down; `G` changes the cutaway mode. In colony view `W A S D` pan, `Q` and `E` rotate, the wheel zooms.
+The nest cutaway in colony view has a slice: `R` and `F` (or `Shift` with the mouse wheel) move it up and down; `G` changes the cutaway mode. In colony view `W A S D` pan, `Q` and `E` rotate the camera, the wheel zooms. While the Dig or Entrance tool is active, `Q` and `E` rotate the plan instead of the camera (section 6).
 
 ## 4. Controlling an ant
 
@@ -215,6 +217,15 @@ In colony view the marker palette offers seven tools, chosen with the palette or
 | `Shift+6` | Move brood | The brood is carried to the chamber you click. |
 | `Shift+7` | Move queen | The queen is escorted to the chamber you click. |
 
+**Fixed keys.** These keys are read directly and cannot be changed in Settings > Controls, so they are not in the tables of section 13 (`src/game/views/colony/colonyControl.ts`, `colonyKeys`):
+
+| Key | What it does |
+| --- | --- |
+| `Shift+1` to `Shift+7` | Select a marker tool, as in the table above. |
+| `Ctrl+Z` (or `Cmd+Z`) | Undo the last marker placement. |
+| `Q` and `E` with the Dig or Entrance tool active | Rotate the plan. They do not turn the camera while the tool is active. |
+| `Shift` + mouse wheel with the Dig or Entrance tool active | Make the plan larger or smaller. With another marker tool active it changes that marker's radius. With no tool it moves the cutaway slice. |
+
 Each tool has a cap on how many may exist; the palette shows the count ("3/8"). With no tool active, click a marker or a dig plan to select it; `Delete` removes it and `Ctrl+Z` undoes the last placement. Markers are a game abstraction: the ants carry them out by themselves, so the result is not instant. Dig plans are drawn in the nest in every view; Photo mode can hide them.
 
 ## 7. Scent view and overlays
@@ -229,7 +240,7 @@ Alerts come in four levels: info, notice, warning and critical. The feed at the 
 
 **Colony health** lists every diagnostic worst first with a value, a trend and a chain of causes ("why") and, where one exists, a remedy button. This is the place to ask why food intake fell or brood slowed.
 
-**Auto-slow.** When a critical alert is raised, the game drops the speed to 1x (or pauses). The setting `gameplay.autoSlowCritical` has three values (`pause`, `slow`, `off`); `autoSlowWarning` has two (`slow`, `off`). Default: critical slows, warnings do nothing. The winter warning and the flight weather prompt slow time whatever their level. There is one slow-down per alert kind and level per 0.25 game days, never while paused, and never a speed increase. The game flashes the speed control once when it acts. **These two settings are in the settings file but have no control in the Settings screen in this build.**
+**Auto-slow.** When a critical alert is raised, the game drops the speed to 1x (or pauses). The setting `gameplay.autoSlowCritical` has three values (`pause`, `slow`, `off`); `autoSlowWarning` has two (`slow`, `off`). Default: critical slows, warnings do nothing. The winter warning and the flight weather prompt slow time whatever their level. There is one slow-down per alert kind and level per 0.25 game days, never while paused, and never a speed increase. The game flashes the speed control once when it acts. **These two settings are in the settings file but have no control in the Settings screen in this build.** The difficulty preset does not change them: the preset row "Automatic slow-down at an alert" (section 1.6) has no effect, so Gentle does not pause at a critical alert unless you edit the settings file.
 
 ## 9. Time controls
 
@@ -287,13 +298,15 @@ Settings has five tabs: Graphics, Audio, Controls, Accessibility, Gameplay. The 
 | Sound-cue indicators (`soundCues`) | on-screen pips with icons for sounds |
 | Flash reduction (`flashReduction`) | on by default: lightning becomes a soft glow |
 
-**Gameplay** (`gameplay.*`): autosave, prompts (always, while learning, never), hints and aims, minimap, focus line (auto, always, never), milestone notices (full, quiet, off), return to 1x when taking control (`dropTo1xOnPossess`), take over a nestmate when your ant dies (`autoRepossessOnDeath`), pause when the window loses focus (`pauseOnBlur`), pause after loading (`pauseOnLoad`), pause while a panel is open (`pauseWhenPanelOpen`), camera follow (`camera.autoFollow`: off, gentle, strong). The two auto-slow fields have no control (section 8). Settings > Gameplay also has a "Reset hints" button.
+**Gameplay** (`gameplay.*`): autosave, prompts (always, while learning, never), hints and aims, milestone notices (full, quiet, off), return to 1x when taking control (`dropTo1xOnPossess`), take over a nestmate when your ant dies (`autoRepossessOnDeath`), pause when the window loses focus (`pauseOnBlur`), pause after loading (`pauseOnLoad`), pause while a panel is open (`pauseWhenPanelOpen`), camera follow (`camera.autoFollow`: off, gentle, strong). Settings > Gameplay also has a "Reset hints" button. Three settings in this tab or the settings file have **no effect in this build**: Minimap (`gameplay.minimap`) and Focus line (`gameplay.focusLine`) have a control, but nothing reads them (there is no minimap and no focus line in the game); the two auto-slow fields (`gameplay.autoSlowCritical`, `gameplay.autoSlowWarning`) work but have no control (section 8).
 
 ## 13. Keyboard, mouse and gamepad
 
 The tables are generated by `controlsMarkdown()` in `src/content/text/controls.ts` from the default bindings in `src/input/actions.ts` (button actions `BUTTON_ACTIONS`, axes `AXES` and their components), with pad glyph names from `src/input/glyphs.ts`. Default values from `src/input/defaults.ts`: stick dead zone 0.15, trigger threshold 0.3, hold-and-tap threshold 250 ms, interact hold 400 ms, alarm hold 500 ms.
 
 Notation: `LMB`, `RMB`, `MMB` are the left, right and middle mouse buttons; "tap" and "hold" are pad gestures; `LB+Dpad up` means hold LB and press the D-pad up. In menus the pad uses A to confirm, B to go back, LB and RB to change tabs. Pad buttons are written as Xbox letters; with a PlayStation pad the game prints the PlayStation shapes.
+
+One entry is misleading: the Photo mode row shows `F2 or LS+RS` in the keyboard column. `LS+RS` is a gamepad chord (press both sticks in); it is listed there because the generator puts every fixed binding of an action in the keyboard column. This is a wrong string in the generator (section 15). The same row appears in the earlier draft `docs/manual/02-controls.md`.
 
 #### Anywhere in play
 
@@ -476,9 +489,9 @@ From `docs/STATUS.md` and the application gate report (`docs/design/tasks/gate-c
 - The entrance can stay in a "reopening" state for days after a pad-played opening, which keeps the hints silent.
 - Three rulings are not built: reopening time after hand-over (R14), stacked-rain flooding on a safe site (R13) and the "loud hour" definition (R28). See `docs/design/gdd/DEVIATIONS.md`.
 
-**Not available.** The carpenter, harvester and leafcutter species (section 1.3). Five difficulty parameters and two custom rules have no effect (section 1.6). Winter and "extinction ends the game" are rules with no control on the New Game screen. The nest architect's "Suggest" mode, thief ants and some human-event effects are not built.
+**Not available.** The carpenter, harvester and leafcutter species (section 1.3). Six difficulty parameters (five marked on the New Game screen, and the automatic slow-down at an alert) and two custom rules have no effect (section 1.6). The Minimap and Focus line settings have no effect (section 12). Winter and "extinction ends the game" are rules with no control on the New Game screen. The nest architect's "Suggest" mode, thief ants and some human-event effects are not built.
 
-**Settings.** The auto-slow settings have no control (section 8). The New Game help text for the natural start says day 3; it is day 5.
+**Settings and wrong strings.** The auto-slow settings have no control (section 8). The New Game screen lists "Automatic slow-down at an alert" as working; it has no effect (section 1.6). The Minimap and Focus line controls in Settings > Gameplay do nothing. The New Game help text for the natural start says day 3; it is day 5. In the controls tables, the Photo mode row shows `LS+RS` next to the keyboard key: it is a gamepad chord (section 13).
 
 **Rendering.** Night at ground level reads like an overcast day; leaves read as flat decals; the entrance mound has square edges at its foot; the follow camera can tip toward the sky on a slope; ants can look pale or milky at night and in night rain; chamber labels in colony view are sometimes smeared; a pale strip shows at the horizon at night. A look pass (look-pass-3) is in progress and some of these may change.
 
