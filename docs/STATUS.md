@@ -751,3 +751,12 @@ sim-seams (impl + review + fix; report `sim-seams-report.md`, results `reviews/s
 - `tests/docs/docs-final.test.ts` and `src/sim/time.test.ts` are red until those hand-ons land.
 
 Running: colony-life `wek2szmct` (round 6 closing → sweep 6), look-pass-3 `w2ht0mt7m` (fix round). Queued: app-seams-2 (after look-pass-3).
+
+## Nov 18 05:10 UTC — look-pass-3 landed (partial); app-seams-2 launched; audio-provenance running
+
+look-pass-3 (impl ×3 engineers across two restarts + review + fix; report `look-pass-3-report.md`, results `reviews/look-pass-3.json`). Pictures looked at by the integrator: night at ground level now reads as night (dark, cool, grass and the entrance readable: `test-output/look3fix/shots2/fix-night-observerlow-high.png`); night worker dark with a rim, no chrome (`fix-night-close-high.png`).
+- Done: `NIGHT_LOOK` re-metered; `STAGE1A_STRICT=1 stage1a.mjs` passes in full (camera rescue pose `closePose.ts`, GDD radius and clearance restored); leaf contact shadow as a soft blended fringe; gyne night wings; slope lift of the follow camera; mound foot; dry-leaf night albedo; `autoSlowDefault` read by the game; pad View tap counted in polls; inEffect marking; R20 strings. Browser: stage1a strict, photo quick, views quick, controls, panels A and B pass; firstplay beats 1–10.
+- Open (added to `app-seams-2.md` items 12–13): founding queen by day still a grey glass bulb; far wall blocks in the opening shot; white sky disc in the crevice cutaway; quality-switch disposal leak; `firstplay.mjs` beat 11 (time-lapse overlay gone before the script looks); leaf thickness (blocked by the hug rule in `drapedShape`); play-through not re-run on the final code.
+- GLSL note for this code base: no texture read inside a per-pixel `if` on sampled data (undefined derivatives; software GL renders differently each time); `tests/e2e/look3-det.mjs` checks it.
+
+Launched: **app-seams-2** (Sonnet impl + Opus review, visual). Running: colony-life `wek2szmct` (sweep 6), audio-provenance `wexmqilmx`.
