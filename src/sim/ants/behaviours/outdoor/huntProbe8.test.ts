@@ -62,6 +62,6 @@ describe('probe: chase outcomes', () => {
         if (dist >= 0) bump(`end dist ${dist < 2 ? '<2' : dist < 10 ? '2-10' : '>=10'} BU`);
       }
     }
-    console.log(JSON.stringify({ spawned, vanished, kills, escEv, jumpCount, patchCount: Math.round(patch.count), out }, null, 1));
+    throw new Error("PROBE " + JSON.stringify({ spawned, vanished, kills, escEv, jumpCount, patchCount: Math.round(patch.count), out }));
   }, 300_000);
 });

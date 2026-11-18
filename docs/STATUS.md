@@ -826,3 +826,5 @@ Round 8 so far (ledger "## Round 8"): **F1** (flood readers after a load), **FD1
 Pictures looked at by the integrator: HUD reads well; minimap ground is a coarse staircase; the possession camera rolls the horizon ~60° on a slope; a flat pale-green slab lies under the queen at quality high; far structures are untextured slabs in the worker shots; "Why?" card under the Tab prompt; brood inspector label/value inverted; the first site read-out says "Poor" with no guidance. → **`look-pass-4`** (spec written from these pictures).
 
 Sim-side needs it reported (already with colony-life round 8: founding desiccation FD1, the winter-coming numbers): foragers lay no trail to a sugar spill 22 BU from the entrance within 18 000 ticks even with a forage marker; `trophallaxis-give` by a possessed worker does not empty her crop; `cheat.killAll` takes no cause; `tests/docs/docs-final.test.ts` red on a constant round 8 removed.
+
+`look-pass-4` launched 10:55 UTC as `wu0kmy6jd` (wf_e5cc2c35-2fc; Sonnet impl, Opus review, visual). The browser-met sim defects are direction 17 of `colony-life.md`.
