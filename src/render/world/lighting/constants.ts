@@ -40,11 +40,11 @@ export const ENV_INTENSITY = 0.55;
 export const LIGHT_KEYS: readonly LightKey[] = [
   { // deep night (moon)
     elevDeg: -18, sunHex: '#C9D6FF', sunRel: 0.06, ambientHex: '#28324A', ambientRel: 0.15, hazeHex: '#1E2433', hazeLevel: 0.3,
-    zenith: [0.002, 0.0035, 0.009], glow: 0.02, disc: 0, stars: 0.6, exposureEV: 1.2, saturation: 0.5, gain: [0.92, 0.98, 1.1],
+    zenith: [0.002, 0.0035, 0.009], glow: 0.02, disc: 0, stars: 0.6, exposureEV: 1.2, saturation: 0.7, gain: [0.92, 0.98, 1.1],
   },
   { // night begins
     elevDeg: -6, sunHex: '#C9D6FF', sunRel: 0.06, ambientHex: '#28324A', ambientRel: 0.15, hazeHex: '#1E2433', hazeLevel: 0.4,
-    zenith: [0.003, 0.005, 0.012], glow: 0.05, disc: 0, stars: 0.35, exposureEV: 1.2, saturation: 0.55, gain: [0.94, 0.98, 1.08],
+    zenith: [0.003, 0.005, 0.012], glow: 0.05, disc: 0, stars: 0.35, exposureEV: 1.2, saturation: 0.75, gain: [0.94, 0.98, 1.08],
   },
   { // dawn / dusk
     elevDeg: 0, sunHex: '#FFC08A', sunRel: 0.45, ambientHex: '#7E8AA6', ambientRel: 0.25, hazeHex: '#E3B98F', hazeLevel: 0.62,
@@ -178,8 +178,7 @@ export const AUTO_EXPOSURE_MAX_EV = 2.0;
  *    storm's extra -0.7 EV, GDD 08 11.4, is kept through WeatherLook.nightEV, so a night storm is darker than a
  *    night rain: recorded departure from "metering replaces the weather EV").
  * `nightFromDeg`..`nightToDeg`: the sun elevations over which the dusk blends into this night look (smoothstep).
- * Target (acceptance): median luminance of the ground within 20 body lengths 9..17 % of the display range (look pass 3:
- * the first target, 12..25 %, left the night looking like an overcast day; now a dark, cool, low-saturation scene).
+ * Target (acceptance): median luminance of the ground within 20 body lengths 12..25 % of the display range.
  * Tuned by tests/e2e/lib/look2.mjs measurements; pinned by lighting.test.ts (night numbers) and lookPass2.test.ts.
  */
 export interface NightLook {
@@ -199,12 +198,6 @@ export interface NightLook {
   nightToDeg: number;
   /** Extra haze at night (fraction of the day density): the horizon hides what is beyond the map in a soft band. */
   hazeMult: number;
-  /**
-   * Share of the sky-environment (PMREM) light kept at night. The night exposure (+3 EV and more) multiplies the
-   * dome's reflection on every glossy surface (cuticle clearcoat, wet leaves, pebbles): at full strength a black
-   * ant read as grey glass and pebbles as white chips (look-pass 3). The moon key and the fill still light the form.
-   */
-  envKeep: number;
 }
 export const NIGHT_LOOK: NightLook = {
   moonRel: 0.06,
@@ -212,15 +205,14 @@ export const NIGHT_LOOK: NightLook = {
   fillHex: '#6E86C0',
   fillRel: 0.3,
   groundRgb: [0.05, 0.06, 0.09],
-  overcastSkyRgb: [0.003, 0.0037, 0.0075],
+  overcastSkyRgb: [0.0045, 0.0055, 0.011],
   penumbra: 2.5,
-  targetE: 1.9,
-  minEV: 2.3,
+  targetE: 2.45,
+  minEV: 2.6,
   maxEV: 5.5,
   nightFromDeg: 2,
   nightToDeg: -6,
   hazeMult: 1,
-  envKeep: 0.35,
 };
 
 /** GDD 08 11.3 interior: warm tungsten from above, daylight only through windows and doors. */
@@ -257,4 +249,4 @@ export const ENV_REBAKE_MIN_S = 1.5;
  * a real macro photograph shows them as faint, soft blobs at most. Full-strength stars became large bright bokeh
  * discs that read as falling snow (review of the High preset at night).
  */
-export const STARS_DOF_GAIN = 0.05;
+export const STARS_DOF_GAIN = 0.08;

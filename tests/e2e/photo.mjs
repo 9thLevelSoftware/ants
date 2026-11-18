@@ -362,7 +362,7 @@ export default async ({ page, shot, log, wait, out, context }) => {
     for (const [k, v] of Object.entries(dumps)) fs.writeFileSync(`${out}/exit-mismatch-${k}.png`, Buffer.from(v.split(',')[1], 'base64'));
     log('exit mismatch frames written', out);
   }
-  expect(afterExit.frame === before.frame, 'the picture after leaving differs from the one before (exposure / look / depth of field not restored)', { before: before.frame, after: afterExit.frame });
+  expect(afterExit.frame === before.frame, 'the picture after leaving differs from the one before (exposure / look / depth of field not restored)', { before: before.frame, after: afterExit.frame, camBefore: before.cam, camAfter: afterExit.cam });
   await shot('12-after-exit'); // before time runs again: software GL must not be left with a backlog of frames
   await g(() => window.__game.realtime(true));
   await wait(700);

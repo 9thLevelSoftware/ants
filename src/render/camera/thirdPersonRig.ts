@@ -8,7 +8,7 @@ import {
   BOOM_SPRING_TAU, CAM_AUTOFOLLOW_DELAY_S, CAM_AUTOFOLLOW_MAX_DEG_S, CAM_AUTOFOLLOW_MAX_TURN_DEG_S, CAM_AUTOFOLLOW_MIN_SPEED_BU,
   CAM_AUTOFOLLOW_TAU, CAM_FAR_BU, CAM_LOOKAHEAD_MAX_L, CAM_LOOKAHEAD_T, CAM_PIVOT_UP_L, CAM_PUSHOUT_TAU, CAM_RADIUS_L, CAM_RADIUS_MAX_BU,
   CAM_RADIUS_MIN_BU, CAM_RECENTRE_S, CAM_REDUCED_FOV_SPREAD_DEG, CAM_STATE_BLEND_S, CAM_STATE_BLEND_S_REDUCED, CAM_TUNNEL_LOOKAHEAD_BU,
-  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_TIGHT_MIN_SCALE, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
+  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_SLOPE_LIFT_MIN_SPEED_BU, CAM_TIGHT_MIN_SCALE, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
 } from './constants';
 import { boomPoint, fitsAt, solveBoom } from './boomPath';
 import { MotionGuard } from './motionGuard';
@@ -320,7 +320,8 @@ export class ThirdPersonRig {
     if (sp.framing !== 'boom') this.elev = clampN(this.elev, lo, hi);
     // slope lift: open state only (tunnels and chambers are underground, falling and flight have their own chase pitch)
     const liftGoal = state === 'open' && sp.framing === 'orbit' ? this.slopeLiftFor(t) : 0;
-    this.slopeLift += (liftGoal - this.slopeLift) * smoothK(dt, CAM_SLOPE_LIFT_TAU);
+    // it eases only while the target moves: a standing target (a photo, a pause) must not make the picture drift frame by frame
+    if (this.speed > CAM_SLOPE_LIFT_MIN_SPEED_BU * this.opts.bu) this.slopeLift += (liftGoal - this.slopeLift) * smoothK(dt, CAM_SLOPE_LIFT_TAU);
 
     // --- pivot: above the target (clear of solid by R), plus look-ahead (traced)
     this.placeBase(t, u, R, L, trace);

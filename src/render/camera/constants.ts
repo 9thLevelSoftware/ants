@@ -13,6 +13,8 @@ export const CAM_UP_TAU = 0.35;
 export const CAM_SLOPE_LIFT_K = 0.85;
 export const CAM_SLOPE_LIFT_MAX_DEG = 40;
 export const CAM_SLOPE_LIFT_TAU = 0.4;
+/** The lift only eases while the target moves faster than this (BU/s): a standing target keeps the picture still. */
+export const CAM_SLOPE_LIFT_MIN_SPEED_BU = 0.05;
 export const CAM_UP_TAU_REDUCED = 0.6;
 export const CAM_PIVOT_UP_L = 0.5;
 export const CAM_LOOKAHEAD_T = 0.35;

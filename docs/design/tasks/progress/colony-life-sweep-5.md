@@ -18,6 +18,10 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
   (keep 1.0) while pool P 0 and 7 larvae ration from gd 3.25: **9.7 P stranded = the round's own cause #1**. Running
   (background, sequential): we1 pp1 kd1 cpv1 we2 (done.txt lists finished ones).
 
+- 01:40 probes done (6 hand-overs, 5 gd): queen P above her keep (1.0) when the 3-gd window closes: sg1 9.72
+  (rationing from 3.25, pool P 0), pp1 6.41, we2 5.32, cpv1 1.61, kd1 0, we1 0 (kd1/we1: 9-11 larvae ate it all by
+  gd 2, then rationing = real income gap). Sweep: 10 of 15 done at 01:40.
+
 ## Review findings so far (00:58)
 - Round diff = `git diff 8b4c207` (commits after it are snapshots; round's files listed in ledger "Fixes (round 5)").
 - tsc clean 00:51 (`sweep-review/tsc.txt`). colony folder 62/63 files (red founding/reopen, known), `sweep-review/vitest-colony.txt`.
