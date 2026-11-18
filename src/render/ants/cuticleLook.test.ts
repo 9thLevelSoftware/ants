@@ -25,4 +25,9 @@ describe('one cuticle look by day', () => {
     const c = new Color(CUTICLE.sheenColor);
     expect(c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722).toBeLessThan(0.05);
   });
+  // a picture (test-output/app-seams-2-fix/queen-*.png) decided these: below them the full gaster shows a sharp sky hot spot (glass bulb)
+  it('the cuticle is satin, not a mirror: roughness and clearcoat roughness stay above the glass-bulb values', () => {
+    expect(CUTICLE.roughness).toBeGreaterThanOrEqual(0.6);
+    expect(CUTICLE.clearcoatRoughness).toBeGreaterThanOrEqual(0.4);
+  });
 });

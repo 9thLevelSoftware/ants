@@ -10,6 +10,7 @@ import { restore } from '@/sim/save';
 import { TICKS_PER_DAY } from '@/sim/time';
 import * as Q from '@/sim/colony/queen';
 import * as E from '@/sim/colony/envAdapter';
+import { devRate, stageDu } from '@/sim/colony/life';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
@@ -21,6 +22,21 @@ export default async function main(args: string[]): Promise<void> {
   const sim = createSim(restore(new Uint8Array(fs.readFileSync(file))).state, world);
   const col = sim.stores.colonies.get(sim.state.player.colonyId)!;
   const def = sim.getSpecies(col.species)!;
+  // the finish factor's own walk from now (queen.ts finishFactor), printed step by step once
+  {
+    for (let i = 0; i < 600; i++) sim.tick();
+    const q = sim.stores.ants.get(col.queenId)!;
+    const toPupa = stageDu(def, 'egg', 'worker') + stageDu(def, 'larva', 'worker');
+    const toAdult = toPupa + stageDu(def, 'pupa', 'worker');
+    let du = 0;
+    const walk: string[] = [];
+    for (let t = E.d28Now(sim); t < 21 && du < toAdult; t += 0.25) {
+      const tc = E.chamberForecastC(sim, q.chamberId, t + 0.125);
+      du += devRate(def, tc) * 0.25;
+      walk.push(`${r2(t)}:${r2(tc)}C/${r2(du)}`);
+    }
+    console.log(JSON.stringify({ toPupa, toAdult, walk: walk.join(' ') }));
+  }
   for (let k = 0; k < 12; k++) {
     for (let i = 0; i < 600; i++) sim.tick();
     const q = sim.stores.ants.get(col.queenId)!;

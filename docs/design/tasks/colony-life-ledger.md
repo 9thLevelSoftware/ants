@@ -2823,3 +2823,36 @@ Progress (kept current; a successor continues from here)
   balance laying, so the cap, not mortality, sets the mature plateau. (The small colonies of the paired runs spend
   ~0.3 of worker time outside: realised 42 / 1.15 = 36 gd; the diag-mortality reference is re-derived from the r30
   arm's measured share when it is complete.)
+- 09:30 **paired subset done** (one per archetype: we #1, sg #2, pp #3, cpv #1, kd #2; `round-8/paired/subset-table.txt`,
+  `table.py`): workers at winter (sum of 5, first workers 63) base 52 / r29 42 / r30 66 / r29r30 59; eclosions 27 /
+  11 / 27 / 12; eggs 78 / 46 / 73 / 46; brood lost 38 / 34 / 37 / 32 (untended 12 / 15 / 12 / 14, starved 6 / 0 / 6 /
+  1, cannibalised 6 / 0 / 6 / 0, hygiene 0 / 5 / 0 / 6); old age 23 of 38 adult deaths / 23 of 32 / 10 of 24 / 11 of
+  16; median P intake/need 0.12 / 0.37 / 0.13 / 0.37; warning hours (brood-stalled + food, 4 runs with the counter)
+  876 / 95 / 1021 / 148; viable 0 / 2 / 0 / 4. Pairs: r30 vs base 5 better; r29 vs base 4 worse 1 better; r29r30 vs
+  r30 3 worse 2 better.
+- 09:30 **R29: the forecast is wrong** (its acceptance rule: "if eclosions fall, the care rate or the forecast is
+  wrong: show which"). In sg #2 and kd #2 the r29 queen lays 0 eggs after the hand-over (base: 17 and 14, which gave
+  5 and 4 eclosions); the care factor reads 1 the whole time and the finish factor 0 (`round-8/r29/probe-lay-sg2.txt`,
+  `tools/sim/probe/probe-lay8.ts`, r29 tree, sg #2 hand-over): at d28 9.3 (the seasonal peak) the walk of
+  `finishFactor` over `chamberTempForecast` of the royal chamber (18.8 C now, 16.0 at +4 d, 12 at d28 15.5) reaches
+  3.84 of the 3.9 DU egg-to-adult before development stops: no egg may be laid. In the base run the eggs laid on
+  doy 11 became 5 pupae by doy 13 and 5 workers by doy 15: realised development ~0.9 DU / gd (egg+larva 2.0 DU in
+  ~2.2 gd, pupa 1.9 DU in ~2 gd) against the forecast walk's 0.72 average over the same days. The forecast (the
+  chamber model's slow seasonal part of the queen's chamber) under-reads what the brood gets by ~25 %, and the rule
+  is a knife edge (0.06 DU short = no laying at the peak of summer). Not fixed this round (a re-anchored forecast is
+  a new trial); the R29 verdict waits for the 15 colonies.
+- 09:35 Decision: the **r31 arm is rebuilt on r30** (`/home/user/scratch-r8-r31` = r30 + R31 + WL4; WL4 does not act
+  before the winter tick), because the subset already shows R29 losing eclosions and workers: R31 is compared with
+  r30. Patch `round-8/r31/r31-on-r30.patch` (balance/colony.ts, allocation/demand.ts, allocation/targets.ts) + test
+  `round-8/r31/queenCareR31.test.ts` (allocation folder 6/6 files green in the r31 tree). Still chained after jobs.txt.
+- 09:37 **Measurement defect found and fixed, paired runs restarted.** A cached hand-over keeps its first workers'
+  lifespans as drawn by the founding code (24 +- 10): the r30 / r29r30 arms ran R30's slower outside ageing and new
+  eclosions' lifespans, but NOT its first-worker lifespans (34 +- 8). The r29r30 we #2 long run showed it: its 8
+  first workers had lifespans 25-27 and all died of age by year-two day 23 (`long-r29r30-nan24/`). New tool option
+  `tools/sim/life.ts --renew-nanitics` (tool-side, before the first tick, cached hand-overs only): each first worker's
+  lifespan is mapped to the tree's own nanitic draw by the same normal deviate (L' = 34 + 8 (L - 24) / 10, clamped
+  [16, 85]); in a tree that still draws 24 +- 10 it does nothing (base, r29). Outputs before the fix kept as
+  `paired/{r30,r29r30,long-r29r30}-nan24/` (base and r29 are unaffected and kept). **New job list
+  `paired/jobs3.txt`, runner `paired/jobs3.sh jobs3.txt`** (67 runs: r30 / r29r30 subset again, the two r29r30 long
+  runs, the other 10 colonies x base / r29 / r30 / r29r30, then r31 x 15; restart-safe: re-run the same command).
+  Started 09:37; `chain.sh` / jobs.sh stopped (jobs3 includes r31).

@@ -41,7 +41,8 @@ import { deathsByCause, judgeViable, tripsPerForagerDay, tripsPerWorkerDay, type
 import { stageRank } from '@/sim/colony/starvation';
 import { surfaceActivityOf } from '@/sim/colony/envAdapter';
 import { HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P } from '@/sim/balance';
-import { SEASONS } from '@/sim/types';
+import { AntFlag, SEASONS } from '@/sim/types';
+import { LIFESPAN_CLAMP_GD, NANITIC_LIFESPAN_MEAN_GD, NANITIC_LIFESPAN_SD_GD } from '@/sim/balance/colony';
 import { FoundingObserver, FunnelObserver, funnelMarkdown, type FunnelReport } from './lifeFunnel';
 
 declare const process: { exitCode?: number };
@@ -69,6 +70,8 @@ export interface LifeOptions {
    * model drowned dry nests; weather-fix2 owns it). Never in a verdict without saying so.
    */
   noFlood: boolean;
+  /** With a cached hand-over: map its first workers' lifespans to this tree's nanitic draw (`--renew-nanitics`). */
+  renewNanitics?: boolean;
   /** `--stores C,P`: the stores set to these loads after the --workers spawn (economy check), null = untouched. */
   stores: [number, number] | null;
   /** Start on this default-year day (1-based doy, `--start-doy`), season and day of season derived; null = default. */
@@ -83,6 +86,7 @@ export function parseLifeArgs(args: readonly string[]): LifeOptions {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--cache-any') { o.cacheAny = true; continue; }
     if (args[i] === '--no-flood') { o.noFlood = true; continue; }
+    if (args[i] === '--renew-nanitics') { o.renewNanitics = true; continue; }
     const k = args[i], v = args[++i];
     if (v === undefined) throw new Error(`life: ${k} needs a value`);
     if (k === '--seed') o.seed = Number(v);
@@ -238,6 +242,28 @@ function found(sim: Sim, maxDays: number, forceSeal = false): string {
  */
 export interface LifeIO { read(path: string): Uint8Array | null; write(path: string, data: Uint8Array): void; codeTag: string }
 
+/** The first-worker lifespan draw the cached hand-overs were founded with (before ruling R30): mean, sd, clamp floor. */
+const HANDOVER_NANITIC_DRAW = { mean: 24, sd: 10 } as const;
+
+/**
+ * `--renew-nanitics` (colony-life round 8, ruling R30 on cached hand-overs): a hand-over founded by older code keeps its
+ * first workers' lifespans as drawn then (24 +- 10 gd). Each one is mapped to this tree's nanitic draw by the same
+ * normal deviate (z = (L - 24) / 10, L' = mean + sd z, clamped), as if the founding had run with this tree. An
+ * identity in a tree that still draws 24 +- 10. Tool-side, applied once before the first tick. Returns how many.
+ */
+function renewNanitics(state: { ants: { alive: boolean; caste: string; flags: number; lifespanGd: number }[] }): number {
+  let n = 0;
+  // the same draw rule: nothing to map (and no rounding of the lifespans by the round trip)
+  if ((NANITIC_LIFESPAN_MEAN_GD as number) === HANDOVER_NANITIC_DRAW.mean && (NANITIC_LIFESPAN_SD_GD as number) === HANDOVER_NANITIC_DRAW.sd) return 0;
+  for (const a of state.ants) {
+    if (!a.alive || a.caste !== 'worker' || (a.flags & AntFlag.NANITIC) === 0) continue;
+    const z = (a.lifespanGd - HANDOVER_NANITIC_DRAW.mean) / HANDOVER_NANITIC_DRAW.sd;
+    a.lifespanGd = Math.max(LIFESPAN_CLAMP_GD[0], Math.min(LIFESPAN_CLAMP_GD[1], NANITIC_LIFESPAN_MEAN_GD + NANITIC_LIFESPAN_SD_GD * z));
+    n++;
+  }
+  return n;
+}
+
 export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io: LifeIO | null = null): LifeReport {
   const base = defaultGameConfig(o.species, o.seed, o.difficulty);
   const config = {
@@ -253,6 +279,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const times: SysTime[] = [];
   const systems = o.noFlood ? SYSTEMS.filter((s) => s.name !== 'nest-flood') : SYSTEMS;
   let state = cached ? restore(cached).state : createNewGame(config, world).state;
+  if (cached && o.renewNanitics) log(`renewed ${renewNanitics(state)} first-worker lifespans to the tree's nanitic draw`);
   let sim = createSim(state, world, { systems: timed(systems, times) });
   const invariants = collectInvariants();
   const violations: InvariantViolation[] = [];

@@ -11,6 +11,8 @@
 //   FIRSTPLAY_UNTIL=<beat prefix>  stop after that beat (iterating)
 //   FIRSTPLAY_CHECKPOINT=<file>    write the game exported right after the hand-over to this file
 //   FIRSTPLAY_RESUME=<file>        skip the opening: import that export (written by an earlier run) and go on from it
+//   FIRSTPLAY_TRAIL_CHECKPOINT=<file> write the game exported right after the trail check of beat 13 -> 14 (the slow part)
+//   FIRSTPLAY_AT_TRAIL=1           with FIRSTPLAY_RESUME=<that file>: go on from the trail check (beats 14 to 25) without the 16000-tick wait
 //   FIRSTPLAY_SEED=<hex code>      seed typed into the New colony screen (default 00000002: seed 2, warm summer)
 //   FIRSTPLAY_AUTOFOUND=1          STAND-IN: complete the opening by cheat after beat 04 (recorded in result.standIns)
 //   FIRSTPLAY_STANDIN_TRAIL=1      STAND-IN: lay the trail to the food by hand when no forager has (beat 13 -> 14; recorded in result.standIns)
@@ -359,8 +361,15 @@ async function colonyBeats(h, result, { page, click, done, log }) {
 
   // ---- 12. food near the nest; foragers find it and lay a trail; a worker is possessed and follows it ----------------
   // setup, not a stand-in: a sugar spill a short walk from the entrance so the trip fits a scripted run
+  let spot = null, food = null, trail = 0, via = 'scouts', waited = 0;
+  if (process.env.FIRSTPLAY_AT_TRAIL) {
+    // iterating on beats 14+: the game was exported right after the trail check (FIRSTPLAY_TRAIL_CHECKPOINT), the spill and its trail are in it
+    food = (await g(() => window.__game.query.sources())).filter((x) => Math.hypot(x.pos.x - ent.pos.x, x.pos.z - ent.pos.z) < 40 * bu).sort((p, q) => q.id - p.id)[0];
+    expect(food, 'no food source in the trail checkpoint');
+    trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 });
+    via = 'checkpoint';
+  } else {
   const dirOut = { x: Math.cos(0.7), z: Math.sin(0.7) };
-  let spot = null;
   for (let k = 0; k < 16 && !spot; k++) {
     const th = 0.7 + (k * Math.PI) / 8, x = ent.pos.x + Math.cos(th) * 22 * bu, z = ent.pos.z + Math.sin(th) * 22 * bu;
     const f = await g(([x, z]) => window.__game.query.field(x, 0, z), [x, z]);
@@ -371,9 +380,8 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const sp = await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'sugar', variant: 'sugary-spill', pos: p, units: 400, stage: null }), spot);
   log('food', JSON.stringify(sp), JSON.stringify(spot), dirOut);
   const srcs = await g(() => window.__game.query.sources());
-  let food = srcs.filter((s) => Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
+  food = srcs.filter((s) => Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
   expect(food, 'the spawned food source is missing', srcs.length);
-  let trail = 0, via = 'scouts', waited = 0;
   const waitTrail = async (n) => {
     for (let i = 0; i < n && trail <= 0; i++) {
       await step(300);
@@ -425,10 +433,15 @@ async function colonyBeats(h, result, { page, click, done, log }) {
     trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 });
     via = 'stand-in';
   }
+  }
   const g0 = await g(() => window.__game.query.growth());
   result.checks.trail = { trail, via, waited, growth: g0 };
   log('trail check', JSON.stringify(result.checks.trail));
   expect(trail > 0, 'no forager laid a trail to the food within 18000 ticks');
+  if (process.env.FIRSTPLAY_TRAIL_CHECKPOINT && !process.env.FIRSTPLAY_AT_TRAIL) {
+    const x = await g(() => window.__game.saves.export('current', 'text'));
+    if (x?.ok && typeof x.text === 'string') { fs.writeFileSync(process.env.FIRSTPLAY_TRAIL_CHECKPOINT, x.text); log('trail checkpoint written'); } else log('trail checkpoint export failed', JSON.stringify(x).slice(0, 200));
+  }
   // possess a worker near the entrance (Tab cycles from the observer focus; the API by id keeps it deterministic)
   const worker = await g((e) => {
     const gm = window.__game, bu = gm.query.world().bu;
@@ -470,21 +483,27 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   // back home: into the entrance; a nestmate takes the load (trophallaxis-give) or it goes to the chamber pool
   const g1 = await g(() => window.__game.query.growth());
   await steerTo(h, ent.pos.x, ent.pos.z, 1.0 * bu, 900);
+  // unload-crop (crop -> the colony pool) needs her standing in a food chamber (any chamber when the nest has none): walk her down
+  // the shaft to the room, then unload; the first version tried trophallaxis with the nearest nestmate, who is never in reach there
+  const rooms = (await nestOf(h)).chambers;
+  const room = rooms.find((c) => c.type === 'food') ?? rooms.find((c) => c.type !== 'founding') ?? rooms[0];
+  expect(room, 'the nest has no chamber to unload in');
   for (let i = 0; i < 40; i++) {
     const a = await g((id) => window.__game.query.ant(id), worker);
     if (a.cropC < after.c * 0.5) break;
-    const mate = await g((id) => {
-      const gm = window.__game, me = gm.query.ant(id);
-      const near = gm.query.ants().filter((o) => o.id !== id && o.caste === 'worker' && o.colony === gm.query.colony()?.id).sort((a, b) => Math.hypot(a.pos.x - me.pos.x, a.pos.y - me.pos.y, a.pos.z - me.pos.z) - Math.hypot(b.pos.x - me.pos.x, b.pos.y - me.pos.y, b.pos.z - me.pos.z))[0];
-      return near ? { id: near.id, pos: near.pos } : null;
-    }, worker);
-    if (!mate) break;
-    await steerTo(h, mate.pos.x, mate.pos.z, 0.9 * bu, 60);
-    await g((m) => window.__game.act({ action: 'trophallaxis-give', target: { kind: 'ant', id: m.id, pos: m.pos } }), mate);
+    const p = (await summary()).possessed.pos, d = Math.hypot(room.center.x - p[0], room.center.z - p[2]);
+    if (a.nestId < 0 || d > 0.8 * bu) {
+      // down the shaft the way the queen dug it: from the entrance along the horizontal heading to the room (a walk straight at the
+      // room centre crosses the ground above it instead)
+      const dx = room.center.x - ent.pos.x, dz = room.center.z - ent.pos.z, n = Math.hypot(dx, dz) || 1;
+      if (a.nestId < 0) await steerTo(h, ent.pos.x, ent.pos.z, 0.5 * bu, 60);
+      for (let k = 0; k < 12 && d > 0.8 * bu; k++) await walkDir(h, 3, { x: dx / n, y: 0, z: dz / n });
+      await g(() => window.__game.setIntent({}));
+    }
+    await g(() => window.__game.act('unload-crop'));
     await step(40);
-    if (process.env.FIRSTPLAY_DEBUG) log('give', i, JSON.stringify(await g((id) => { const gm = window.__game, a = gm.query.ant(id); return { crop: a.cropC + a.cropP, nest: a.nestId, act: a.action, ev: gm.events('action-failed', 2).map((e) => `${e.action}:${e.reason}`) }; }, worker)));
-    await g(() => window.__game.act({ action: 'trophallaxis-give', phase: 'stop' }));
-    if (i % 4 === 3) { await g(() => window.__game.act('unload-crop')); await step(40); await g(() => window.__game.act({ action: 'unload-crop', phase: 'stop' })); }
+    if (process.env.FIRSTPLAY_DEBUG) log('unload', i, JSON.stringify(await g((id) => { const gm = window.__game, w = gm.query.ant(id); return { crop: w.cropC + w.cropP, nest: w.nestId, pos: w.pos, ev: gm.events('action-failed', 2).map((e) => `${e.action}:${e.reason}`) }; }, worker)), JSON.stringify({ d: Math.round(d), room: room.center, type: room.type }));
+    await g(() => window.__game.act({ action: 'unload-crop', phase: 'stop' }));
   }
   const delivered = await g((id) => window.__game.query.ant(id), worker);
   const g2 = await g(() => window.__game.query.growth());
