@@ -775,3 +775,12 @@ Relaunched:
 - colony-life `w09el0k35` / wf_d2795bd9-5e2: `{firstRound: 7, maxRounds: 4, note}` (round 7 continues from the ledger).
 - audio-provenance `w0771p982` / wf_7abc08a6-282: `startAt: 'fix'`, `reviewPath: reviews/audio-provenance.json`.
 - app-seams-2 `w9b7zmcaw` / wf_ec7ed4b8-503: continue from its progress file.
+
+## Nov 18 06:30 UTC — audio-provenance landed
+
+audio-provenance (impl + review + fix; report `audio-provenance-report.md`, results `reviews/audio-provenance.json`, `reviews/audio-provenance-fix.json`): **36 sounds replaced by original sounds** rendered by deterministic scripts under `tools/audio/` (byte-identical on re-render; provenance tests always on; gapless headers; loudness targets met; seams measured). No archive.org file ships. `public/assets/CREDITS.md` has a group "Original sounds (36 files)". Nine OpenGameArt files are kept, labelled `A-badge` (CC0 on the author's own page, no saved copy of the page): residual risk, named in the audit.
+- Nobody has heard the replacements: checked by measurement only. For the final report.
+- Integrator edit: `src/ui/screens/credits/parse.test.ts` no longer expects the archive.org group (green).
+- To do at the next gate: `npm run verify:portable` with the browser stage (not re-run after the fix round; build and static scan pass).
+
+Running: colony-life `w09el0k35` (round 7), app-seams-2 `w9b7zmcaw`.

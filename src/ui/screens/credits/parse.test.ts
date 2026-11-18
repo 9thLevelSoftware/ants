@@ -22,7 +22,8 @@ describe('credits parsing', () => {
     const p = parseCredits(creditsMd);
     expect(p.title.toLowerCase()).toContain('credits');
     const groups = p.sections.filter((s) => s.rows.length > 0);
-    expect(groups.map((g) => g.title.split(' (')[0])).toEqual(['Poly Haven', 'ambientCG', 'OpenGameArt', 'archive.org']);
+    expect(groups.map((g) => g.title.split(' (')[0])).toEqual(expect.arrayContaining(['Poly Haven', 'ambientCG', 'OpenGameArt']));
+    expect(groups.map((g) => g.title.split(' (')[0])).not.toContain('archive.org'); // removed by the audio-provenance task: those sounds are original now
     const total = groups.reduce((n, g) => n + g.rows.length, 0);
     expect(total).toBeGreaterThan(30);
     for (const g of groups) for (const r of g.rows) { expect(r.work.length).toBeGreaterThan(0); expect(r.source).toMatch(/^https?:\/\//); }

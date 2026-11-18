@@ -29,7 +29,7 @@ const { checkSpec, shippedMatchesRender } = (await import(/* @vite-ignore */ `${
 };
 const { integratedLufs } = (await import(/* @vite-ignore */ `${TOOLS}lib/lufs.mjs`)) as { integratedLufs: (c: Float32Array[], fs: number) => number };
 
-interface AudioRecord { id: string; path: string; bytes: number; provenance?: string; tier?: string; source_page: string; download_url: string; license: string; processing: string; note?: string; author: string; replaces?: { source_page: string } }
+interface AudioRecord { id: string; path: string; bytes: number; seconds: number; provenance?: string; tier?: string; evidence?: string; source_page: string; download_url: string; license: string; processing: string; note?: string; author: string; replaces?: { source_page: string } }
 const records = JSON.parse(recordsRaw) as AudioRecord[];
 const manifest = JSON.parse(manifestRaw) as { assets: { id: string; kind: string; bytes: number; license: string; note?: string }[] };
 const replacedIds = SOUNDS.map((s) => s.id);
@@ -64,8 +64,15 @@ describe('provenance: records and credits say what is true', () => {
   it('no shipped audio record is tier B: every record has a provenance, the replaced ones are "original" and cite no outside source', () => {
     expect(records.length).toBe(45);
     for (const r of records) {
-      expect(r.tier, r.id).toBe('A');
       expect(r.provenance, r.id).toBeTruthy();
+      expect(r.tier, r.id).not.toBe('B');
+      // 'A' = first-hand source with licence evidence the repository can show (original work: nothing to show);
+      // the nine kept files hold only a recorded badge string, which the record says in its own tier label.
+      if (replacedIds.includes(r.id)) expect(r.tier, r.id).toBe('A');
+      else {
+        expect(r.tier, r.id).toBe('A-badge');
+        expect(r.evidence, r.id).toMatch(/no saved copy/);
+      }
     }
     for (const id of replacedIds) {
       const r = records.find((x) => x.id === id)!;
@@ -74,6 +81,11 @@ describe('provenance: records and credits say what is true', () => {
       expect(text, id).not.toMatch(/archive\.org|opengameart|freesound|kenney|uploader-asserted|tier B/i);
       expect(r.replaces?.source_page, `${id} keeps the removed source for the audit trail`).toBeTruthy();
     }
+  });
+
+  it('the records give the duration a decoder plays (the Info frame trims delay and padding), not ffprobe\'s padded one', () => {
+    const click = records.find((r) => r.id === 'audio/sfx/ui_click_01')!;
+    expect(click.seconds).toBeCloseTo(4851 / 44100, 2); // 0.11 s; ffprobe's format duration reads 0.16 s
   });
 
   it('the pack manifest carries no archive.org claim and calls the replaced files original', () => {
@@ -129,6 +141,14 @@ describe('provenance: rendering is deterministic and the loudness estimator agre
 
   it('three cheap one-shots keep the level convention and their spectral role (without the encoder)', () => {
     for (const id of cheap) expect(checkSpec(spec(id), { encode: false }).problems, id).toEqual([]);
+  });
+
+  it('three cheap one-shots meet the level convention on the decoded file, which is exactly as long as the rendered sound', () => {
+    for (const id of cheap) {
+      const r = checkSpec(spec(id));
+      expect(r.problems, id).toEqual([]);
+      expect(r.metrics.decodedSeconds, id).toBeCloseTo(renderPcm(spec(id), makeRng)[0].length / 44100, 6);
+    }
   });
 });
 

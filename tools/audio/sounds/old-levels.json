@@ -1,16 +1,16 @@
 {
- "_note": "Measured on 2026-11-18 from the 36 files that tools/audio replaced (decoded MP3, 44.1 kHz, tools/audio/measure.ts). meanLufs is the ungated whole-file K-weighted level; the renderers match it (never above a -3 dBFS peak) so the cue gains tuned in the audio pass keep their meaning.",
+ "_note": "Measured on 2026-11-18 from the 36 files that tools/audio replaced, as a decoder plays them (delay and padding trimmed by the Info frame; tools/audio/measure.ts). meanLufs is the ungated whole-file K-weighted level; the renderers match it (never above a -3 dBFS peak) so the cue gains tuned in the audio pass keep their meaning. Re-measured after the first version, which was taken on a window shifted by the encoder delay (short clips read up to 1.1 LU too quiet).",
  "files": {
   "audio/ambience/crickets_night": {
-   "seconds": 45.01,
+   "seconds": 45,
    "bytes": 540734,
    "meanLufs": -24.45,
    "integratedLufs": -24.46,
    "truePeakDb": -10.22,
-   "centroidHz": 3639.99
+   "centroidHz": 3640.26
   },
   "audio/ambience/rain_heavy": {
-   "seconds": 42.01,
+   "seconds": 42,
    "bytes": 504685,
    "meanLufs": -24.38,
    "integratedLufs": -24.38,
@@ -18,7 +18,7 @@
    "centroidHz": 1795.39
   },
   "audio/ambience/street_suburban": {
-   "seconds": 29.02,
+   "seconds": 29,
    "bytes": 348891,
    "meanLufs": -24.43,
    "integratedLufs": -24.42,
@@ -26,127 +26,127 @@
    "centroidHz": 491.78
   },
   "audio/ambience/traffic_distant": {
-   "seconds": 45.01,
+   "seconds": 45,
    "bytes": 540734,
    "meanLufs": -24.51,
    "integratedLufs": -24.41,
    "truePeakDb": -5.83,
-   "centroidHz": 257.27
+   "centroidHz": 257.28
   },
   "audio/ambience/playground_distant": {
-   "seconds": 45.01,
+   "seconds": 45,
    "bytes": 540734,
    "meanLufs": -24.47,
    "integratedLufs": -24.46,
    "truePeakDb": -3.19,
-   "centroidHz": 1546.43
+   "centroidHz": 1546.61
   },
   "audio/ambience/underground_rumble": {
-   "seconds": 40.02,
+   "seconds": 40,
    "bytes": 480862,
-   "meanLufs": -26.44,
+   "meanLufs": -26.43,
    "integratedLufs": -26.43,
    "truePeakDb": -13.21,
    "centroidHz": 70.89
   },
   "audio/sfx/soil_scrape_01": {
-   "seconds": 1.18,
+   "seconds": 1.17,
    "bytes": 14733,
-   "meanLufs": -26.27,
+   "meanLufs": -26.25,
    "integratedLufs": -25.01,
    "truePeakDb": -3.18,
    "centroidHz": 2621.78
   },
   "audio/sfx/soil_scrape_02": {
-   "seconds": 1.41,
+   "seconds": 1.4,
    "bytes": 17554,
-   "meanLufs": -20.59,
+   "meanLufs": -20.55,
    "integratedLufs": -18.84,
    "truePeakDb": -3.52,
    "centroidHz": 2713.39
   },
   "audio/sfx/gravel_grit_02": {
-   "seconds": 0.92,
+   "seconds": 0.9,
    "bytes": 11598,
-   "meanLufs": -21.71,
+   "meanLufs": -21.63,
    "integratedLufs": null,
    "truePeakDb": -3.56,
    "centroidHz": 1723.46
   },
   "audio/sfx/gravel_grit_03": {
-   "seconds": 0.92,
+   "seconds": 0.9,
    "bytes": 11598,
-   "meanLufs": -22.96,
+   "meanLufs": -22.89,
    "integratedLufs": null,
    "truePeakDb": -3.36,
    "centroidHz": 1838.44
   },
   "audio/sfx/crunch_03": {
-   "seconds": 1.02,
+   "seconds": 1,
    "bytes": 12852,
-   "meanLufs": -19.02,
+   "meanLufs": -18.93,
    "integratedLufs": -21.46,
    "truePeakDb": -3.71,
    "centroidHz": 2903.59
   },
   "audio/sfx/wood_creak_01": {
-   "seconds": 1.2,
+   "seconds": 1.18,
    "bytes": 15046,
-   "meanLufs": -19.64,
-   "integratedLufs": -17.62,
+   "meanLufs": -19.55,
+   "integratedLufs": -16.89,
    "truePeakDb": -3.53,
    "centroidHz": 769.4
   },
   "audio/sfx/wood_creak_02": {
-   "seconds": 2.22,
+   "seconds": 2.2,
    "bytes": 27271,
-   "meanLufs": -28.37,
-   "integratedLufs": -28.64,
+   "meanLufs": -28.33,
+   "integratedLufs": -28.45,
    "truePeakDb": -3.44,
    "centroidHz": 348.85
   },
   "audio/sfx/wood_creak_03": {
-   "seconds": 4.02,
+   "seconds": 4.0,
    "bytes": 48901,
-   "meanLufs": -30.15,
+   "meanLufs": -30.12,
    "integratedLufs": -28.19,
    "truePeakDb": -3.22,
    "centroidHz": 1786.88
   },
   "audio/sfx/wood_rasp_01": {
-   "seconds": 1.31,
+   "seconds": 1.3,
    "bytes": 16300,
-   "meanLufs": -19.47,
+   "meanLufs": -19.45,
    "integratedLufs": -17.85,
    "truePeakDb": -3.45,
-   "centroidHz": 475.94
+   "centroidHz": 475.45
   },
   "audio/sfx/wood_rasp_02": {
-   "seconds": 1.15,
+   "seconds": 1.13,
    "bytes": 14419,
-   "meanLufs": -27.94,
+   "meanLufs": -27.87,
    "integratedLufs": -29.9,
    "truePeakDb": -3.45,
    "centroidHz": 606.49
   },
   "audio/sfx/thud_giant_step_01": {
-   "seconds": 1.62,
+   "seconds": 1.6,
    "bytes": 20062,
-   "meanLufs": -16.33,
-   "integratedLufs": -16.63,
+   "meanLufs": -16.27,
+   "integratedLufs": -16.74,
    "truePeakDb": -3.45,
    "centroidHz": 234.58
   },
   "audio/sfx/thud_giant_step_02": {
-   "seconds": 1.62,
+   "seconds": 1.6,
    "bytes": 20062,
-   "meanLufs": -19.63,
-   "integratedLufs": -18.61,
+   "meanLufs": -19.57,
+   "integratedLufs": -18.14,
    "truePeakDb": -3.44,
    "centroidHz": 171.63
   },
   "audio/sfx/lawnmower_loop": {
-   "seconds": 20.01,
+   "seconds": 20,
    "bytes": 240744,
    "meanLufs": -22.42,
    "integratedLufs": -22.42,
@@ -154,7 +154,7 @@
    "centroidHz": 2142.07
   },
   "audio/sfx/lawnmower_push_loop": {
-   "seconds": 20.01,
+   "seconds": 20,
    "bytes": 240744,
    "meanLufs": -22.53,
    "integratedLufs": -22.47,
@@ -162,7 +162,7 @@
    "centroidHz": 2856.27
   },
   "audio/sfx/car_pass_01": {
-   "seconds": 9.01,
+   "seconds": 9,
    "bytes": 108773,
    "meanLufs": -21.95,
    "integratedLufs": -21.08,
@@ -170,7 +170,7 @@
    "centroidHz": 572.93
   },
   "audio/sfx/car_pass_02": {
-   "seconds": 10.01,
+   "seconds": 10,
    "bytes": 120685,
    "meanLufs": -16.8,
    "integratedLufs": -16.62,
@@ -178,113 +178,113 @@
    "centroidHz": 510.16
   },
   "audio/sfx/broom_sweep_01": {
-   "seconds": 3.01,
+   "seconds": 3,
    "bytes": 36675,
-   "meanLufs": -16.91,
+   "meanLufs": -16.9,
    "integratedLufs": -16.22,
    "truePeakDb": -3.27,
    "centroidHz": 3652.11
   },
   "audio/sfx/broom_sweep_02": {
-   "seconds": 3.01,
+   "seconds": 3.0,
    "bytes": 36675,
    "meanLufs": -17.47,
-   "integratedLufs": -16.93,
+   "integratedLufs": -16.92,
    "truePeakDb": -2.85,
    "centroidHz": 3734.63
   },
   "audio/sfx/insect_wing_buzz_01": {
-   "seconds": 1.62,
+   "seconds": 1.6,
    "bytes": 20062,
-   "meanLufs": -13.71,
+   "meanLufs": -13.66,
    "integratedLufs": -13.44,
    "truePeakDb": -3.28,
    "centroidHz": 3062.87
   },
   "audio/sfx/insect_wing_buzz_02": {
-   "seconds": 1.62,
+   "seconds": 1.6,
    "bytes": 20062,
-   "meanLufs": -15.72,
+   "meanLufs": -15.67,
    "integratedLufs": -15.53,
    "truePeakDb": -3.4,
    "centroidHz": 1474.63
   },
   "audio/sfx/cricket_chirp_01": {
-   "seconds": 0.81,
+   "seconds": 0.8,
    "bytes": 10344,
-   "meanLufs": -12.53,
+   "meanLufs": -12.47,
    "integratedLufs": null,
    "truePeakDb": -3.27,
    "centroidHz": 2765.52
   },
   "audio/sfx/cricket_chirp_02": {
-   "seconds": 0.81,
+   "seconds": 0.8,
    "bytes": 10344,
-   "meanLufs": -12.22,
+   "meanLufs": -12.16,
    "integratedLufs": null,
    "truePeakDb": -3.37,
    "centroidHz": 3122.51
   },
   "audio/sfx/stridulation_grasshopper_01": {
-   "seconds": 1.86,
+   "seconds": 1.83,
    "bytes": 22883,
-   "meanLufs": -24.01,
+   "meanLufs": -23.95,
    "integratedLufs": -23.78,
    "truePeakDb": -3.34,
    "centroidHz": 9514.94
   },
   "audio/sfx/ui_click_01": {
-   "seconds": 0.11,
+   "seconds": 0.09,
    "bytes": 1880,
-   "meanLufs": -25.6,
+   "meanLufs": -25.04,
    "integratedLufs": null,
    "truePeakDb": -4.23,
-   "centroidHz": 1126.66
+   "centroidHz": 1353.37
   },
   "audio/sfx/ui_click_02": {
-   "seconds": 0.11,
+   "seconds": 0.08,
    "bytes": 1880,
-   "meanLufs": -29.07,
+   "meanLufs": -27.97,
    "integratedLufs": null,
    "truePeakDb": -3.18,
-   "centroidHz": 2692.41
+   "centroidHz": 2645.86
   },
   "audio/sfx/ui_click_03": {
    "seconds": 0.05,
    "bytes": 1253,
-   "meanLufs": -18.9,
+   "meanLufs": -18.21,
    "integratedLufs": null,
    "truePeakDb": -2.34,
-   "centroidHz": 7853.99
+   "centroidHz": 7981.62
   },
   "audio/sfx/ui_hover_01": {
-   "seconds": 0.11,
+   "seconds": 0.1,
    "bytes": 1880,
-   "meanLufs": -23.27,
+   "meanLufs": -22.99,
    "integratedLufs": null,
    "truePeakDb": -3.24,
    "centroidHz": 713.63
   },
   "audio/sfx/ui_switch_01": {
-   "seconds": 0.21,
+   "seconds": 0.2,
    "bytes": 3134,
-   "meanLufs": -26.54,
+   "meanLufs": -26.26,
    "integratedLufs": null,
    "truePeakDb": -3.73,
    "centroidHz": 2270.0
   },
   "audio/sfx/water_drip_01": {
-   "seconds": 0.92,
+   "seconds": 0.9,
    "bytes": 11598,
-   "meanLufs": -24.64,
+   "meanLufs": -24.57,
    "integratedLufs": null,
    "truePeakDb": -3.47,
    "centroidHz": 1178.51
   },
   "audio/sfx/water_drip_02": {
-   "seconds": 0.92,
+   "seconds": 0.9,
    "bytes": 11598,
-   "meanLufs": -30.77,
+   "meanLufs": -30.7,
    "integratedLufs": null,
    "truePeakDb": -3.6,
    "centroidHz": 1484.33

@@ -2,7 +2,6 @@
 // does not: that the replaced set is exactly the audit's list, that the kept files are not relabelled, that the two
 // loudness estimators agree on stereo and gated signals, and that the shipped MP3s keep the gapless header the old
 // files had (so a decoder trims the encoder delay and padding instead of playing them).
-// A failing test here marks a real defect and stays in place for the fixer.
 import { describe, expect, it } from 'vitest';
 import auditRaw from '../../docs/CREDITS-AUDIT.md?raw';
 import recordsRaw from '../../assets-src/records_audio.json?raw';
@@ -104,9 +103,9 @@ describe('provenance review: shipped MP3 format matches what the old files had',
     }
   });
 
-  // FAILS at review time: tools/audio/lib/finish.mjs encodes to `pipe:1`, where ffmpeg cannot seek back to write the
-  // Xing/Info frame, so the decoder keeps the 1105-sample encoder delay and the end padding (about 25 ms of silence
-  // before every replaced one-shot, and every buffer longer than the sound).
+  // Regression (fixed): finish.mjs once encoded to `pipe:1`, where ffmpeg cannot seek back to write the Xing/Info
+  // frame, so the decoder kept the 1105-sample encoder delay and the end padding (about 25 ms of silence before every
+  // replaced one-shot, and every buffer longer than the sound). It now encodes to a temporary file.
   it('every replaced file carries a Xing/Info gapless header too', () => {
     const missing = SOUNDS.filter((s) => !hasGaplessTag(fs.readFileSync(new URL(`${s.id}.mp3`, PUBLIC)))).map((s) => s.id);
     expect(missing).toEqual([]);

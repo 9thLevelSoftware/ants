@@ -296,14 +296,20 @@ export const STOCK_TARGET_MULT = { low: 0.5, normal: 1, high: 2 } as const;
  */
 export const AUTUMN_STOCK_TARGET_C_MULT = 2;
 /**
- * Winter reserve of a small colony (viab-economy R5 "the queen may stop laying"): from default-year day
- * WINTER_RESERVE_FROM_D28 (0-based d28; host plants start to decline there, GDD 05 §1.4 HOST_DECLINE_FROM_DOY) until
- * the winter, a colony below SMALL_COLONY_N workers releases laying protein only while its pool carbohydrate covers
- * WINTER_RESERVE_MULT x the adults' carbohydrate need (worker upkeep + queen) for the game days left until the winter.
- * The 1B sweeps: the brood laid at a late-summer hand-over ate the provisioned pool, flowers close at doy 18 and the
- * herds decline, and the first workers entered winter with an empty pool.
+ * Winter reserve of a small colony (viab-economy R5 "autumn for a first-year colony ... the queen may stop laying"):
+ * from default-year day WINTER_RESERVE_FROM_D28 (0-based d28) until the winter, a colony below SMALL_COLONY_N workers
+ * releases laying protein only while its pool carbohydrate covers WINTER_RESERVE_MULT x the adults' carbohydrate need
+ * (worker upkeep + queen) for the game days left until the winter. The 1B sweeps: the brood laid at a late-summer
+ * hand-over ate the provisioned pool, flowers close at doy 18 and the herds decline, and the first workers entered
+ * winter with an empty pool.
+ * The gate opens with the autumn (d28 14 = 2 x DEFAULT_SEASON_LENGTH_DAYS), the season R5 names and the day the
+ * colony's own stock target starts hoarding for the winter (AUTUMN_STOCK_TARGET_C_MULT): from then a colony that keeps
+ * its target (2 x STOCK_TARGET_C_GD = 6 gd of need) about covers the 7 gd left. It began at d28 10 when the hand-over
+ * came at d28 12-13 (day-9 start); after R20 (start day 5, hand-over at d28 8.5-9.5) d28 10 asked a colony keeping its
+ * summer target (3 gd) for 11 gd of adult carbohydrate, so laying protein was withheld on most of the warm days after
+ * the hand-over (colony-life round 7, `probe-lay-*.txt`).
  */
-export const WINTER_RESERVE_FROM_D28 = 10;
+export const WINTER_RESERVE_FROM_D28 = 14;
 export const WINTER_RESERVE_MULT = 1;
 export const STOCK_REFILL_GD = 2;
 export const NEED_RATE_C_MIN = 0.5;

@@ -7,7 +7,7 @@ import type { Diagnostic, Sim } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import {
   AUTUMN_STOCK_TARGET_C_MULT, HANDOVER_PROVISION_WINDOW_GD, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LAYING_RELEASE_FLOOR_DAYS, SMALL_OUTSIDE_FRAC, SMALL_SCOUTS_MIN,
-  SMALL_COLONY_N, SMALL_SPONT_MULT_MAX, STARVE_ALERT_GRACE_GD, WINTER_RESERVE_FROM_D28,
+  SMALL_COLONY_N, SMALL_SPONT_MULT_MAX, STARVE_ALERT_GRACE_GD, WINTER_RESERVE_FROM_D28, DEFAULT_SEASON_LENGTH_DAYS, STOCK_TARGET_C_GD,
 } from '@/sim/balance';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { provisionAtHandover, starvationHeld } from './handover';
@@ -216,6 +216,20 @@ describe('R5: a small colony keeps its carbohydrate for the winter', () => {
     sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: 40, p: 10 });
     sim.applyPendingCommands();
     expect(winterReserveShort(sim, col, 14)).toBe(false);
+  });
+
+  it('the gate opens with the autumn: late summer after a day-5 start lays on a pool at its summer stock target', () => {
+    // colony-life round 7: the warm days after an R20 hand-over (d28 8.5-9.5) run to about d28 13; a colony holding
+    // its summer stock target (STOCK_TARGET_C_GD of need) must not have laying protein withheld there
+    expect(WINTER_RESERVE_FROM_D28).toBe(2 * DEFAULT_SEASON_LENGTH_DAYS);
+    const sim = small(1, 12);
+    const col = colonyOf(sim);
+    sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: STOCK_TARGET_C_GD * needRates(col).c, p: 10 });
+    sim.applyPendingCommands();
+    expect(winterReserveShort(sim, col, 14)).toBe(false);
+    // the same pool in the autumn does not cover the adults to the winter: the gate shuts
+    setClimateOverride(sim, { d28: () => 2 * DEFAULT_SEASON_LENGTH_DAYS + 0.5 });
+    expect(winterReserveShort(sim, col, 14)).toBe(true);
   });
 
   it('not before WINTER_RESERVE_FROM_D28, and not from SMALL_COLONY_N workers on', () => {

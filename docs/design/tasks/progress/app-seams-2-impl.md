@@ -63,3 +63,7 @@ TODO next: unit tests for 1-3, harness shots (tests/e2e script app-seams-2.mjs -
 - (a) cuticle: crops crop-queen-before/after.png near identical (specular highlight stays): NOT demonstrated; code kept (tests).
 - (c) earth backdrop: could not reproduce the white disc (crevice shots look-before/after 03/04 same); code kept + test; NOT demonstrated.
 - NEXT: look3-qs (d), appSeams2.mjs final run (script extended: new-aim focus line, journal across winter, settings bottom, New Game + custom rules + preset rows), controls.mjs, panels.mjs, firstplay full run (relay clutch handling added), report.
+
+## Update (06:20 UTC, resumed after 6th restart; tree clean apart from others' untracked reviews; everything above is committed in 948fb75)
+- Working on 12(d) quality-switch leak: qs.log (06:01) shows textures m0 37 -> 46 after first switch to low then flat (low 46, high 77, test 46). renderApp.applyRendererQuality already disposes post. Diagnosing with GL createTexture/deleteTexture stack patch (scratchpad qs-gl.mjs -> test-output/app-seams-2/qs-gl).
+- Then: appSeams2.mjs final run (script updated at 06:13), controls.mjs, panels.mjs, firstplay, report.

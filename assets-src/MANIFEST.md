@@ -2,7 +2,7 @@
 
 All textures and 9 of the 45 audio files under `public/assets/` are derived from **CC0 1.0 / public-domain-dedicated** sources. The other 36 audio files are **original sounds rendered by code in this repository** (`tools/audio/`, provenance pass of 2026-11-18); no third-party recording is in them. Raw downloads live in `assets-src/raw/<source>/` (not shipped). Processing scripts: `tools/assets/` (`fetch_polyhaven.py`, `fetch_ambientcg.sh`, `download_list.py` + `downloads.tsv`, `process_textures.py`, `process_audio.py`, `build_manifest.py`). Machine-readable list: `public/assets/manifest.json`.
 
-Totals: 78 texture files (25 materials), 45 audio files, **19.90 MB** in `public/assets` (budget 25 MB; hosting cap 64 MB).
+Totals: 78 texture files (25 materials), 45 audio files, **19.91 MB** in `public/assets` (budget 25 MB; hosting cap 64 MB).
 
 ## Licence verification notes
 

@@ -2392,3 +2392,33 @@ Progress (kept current; a successor continues from here)
   of the voxel graph (components 5 and 52) that no field reaches, while a hauler 8 mm away is in the main component.
   The funnel's `stuckAntGd` does not see them (it counts `moving` walkers only). Measuring how much ant time this
   costs across hand-overs (`tools/sim/probe/probe-trap7.ts`, 2 gd each, 8 hand-overs) before ranking.
+- 06:14 container restart at 06:12 cut the first engineer off during the trap probe (output `round-7/probe-trap.txt`, 8
+  hand-overs x 2 gd: trapped in-nest ant time only in sg #3, 4.48 of 15.2 in-nest ant-gd; 0 in the other 7). Second
+  engineer continues from here; `git status`: RM and SF3 files present as recorded.
+- 06:16 laying account from the sweep-6 day rows (all 15 runs): the queen lays her ~11-12 eggs on hand-over day 1 and
+  then 0-6 in total over days 2-6 (the only days whose eggs can eclose before winter) while the laying potential reads
+  15-37 eggs/gd on those days (kd #3: 0 eggs on days 2-6 at potential 36 with P 2-5.9 in store; we #3 0 on days 2-4 at
+  36.7). Funnel `queen`: gut P for an egg 2-10 % of the time; laying protein permitted 12-70 %; winter reserve short
+  23-88 %. Eggs laid, not brood lost, bound the eclosions: 238 eggs in 15 runs, ~170 of them on day 1. Probing the
+  gates hour by hour (`tools/sim/probe/probe-lay7.ts`, we #3 and sg #3, 6 gd) before ranking.
+- 06:19 laying probe (`round-7/probe-lay-we3.txt`, `probe-lay-sg3.txt`, hourly, 6 gd): on day 0 the queen lays her 11
+  eggs from the hand-over gut P, then the R4 supply gate (store + 0.5 gd intake <= the brood's remaining P, 1.2 per
+  egg) holds release at 0 for the rest of day 0-1; from d28 10.07 (gd 1.3 after a d28 8.8 hand-over) the viab-economy
+  R5 gate `winterReserveShort` (pool C < adult C x gd left to winter, from WINTER_RESERVE_FROM_D28 = 10) is shut in
+  most hours of days 1-4 and is the ONLY shut gate in we #3 on gd 3.0-4.1 (P 2.2-5.0 in store, brood need ~0) and in
+  sg #3 on gd 1.3-2.5 and 3.5-4.0; from gd ~4.2 the royal chamber is too cold by night (potential 0) and from d28 14
+  the season ends laying. So the warm window after an R20 hand-over is days 0-4 and R5's gate, built for the day-9
+  start (hand-over at d28 12-13, when it began at the hand-over anyway), now shuts most of it.
+  Stranded protein at winter in the sweep: pool P 26 in 15 runs + queens above their keep 25.5 in 6 runs.
+- Decision: the round goes to protein (direction 10's last stage, "is it fed" -> the queen), not year two: these are
+  workers lost in year one on every hand-over, and the fix is small. Fix L1 = the R5 gate starts at autumn (d28 14),
+  the season R5 names. Paired subset (one per archetype, seed rule (archetype index mod 3) + 1, fixed before any
+  run): we #1, sg #2, pp #3, cpv #1, kd #2. Arms: sweep-6 runs (round-6 tree), base = HEAD 948fb75 (RM + SF3; frozen
+  copy `/home/user/scratch-r7-base`), live tree with L1.
+- 06:22 **L1 in the live tree** (not yet accepted): `balance/colony.ts` WINTER_RESERVE_FROM_D28 10 -> 14 (comment
+  gives the numbers); test `colony/viability.test.ts` "the gate opens with the autumn: late summer after a day-5
+  start lays on a pool at its summer stock target" (red with 10: short = true at d28 12 on 3 gd of stock; green with
+  14); viability + econGrowth tests 28/28. Frozen copy with L1 = `/home/user/scratch-r7-l1`. Paired runs RUNNING
+  (`round-7/paired/pairs.sh base=... l1=...`, colony by colony, base and l1 side by side, ~20 min a pair, results
+  in `round-7/paired/{base,l1}/`, progress `paired/done.txt`). If cut off: re-run the same command (restart-safe).
+  Next while they run: the small seams of direction 12 (no life runs needed), then the comparison table.

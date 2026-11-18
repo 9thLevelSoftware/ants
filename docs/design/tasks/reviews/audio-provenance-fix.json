@@ -1,0 +1,78 @@
+{
+ "summary": "All five review findings were real and are fixed at the root; none was rejected. The two major ones (provenance test failing; no gapless header) are closed with regression tests. typecheck has 0 errors, `npx vitest run src/audio` gives 231 passed and 2 skipped, and `FOUNDRESS_LONG=1 npx vitest run src/audio/provenance` gives 24 passed (all 36 judged, shipped files byte-identical to a fresh render). All 36 sounds were re-rendered and `check.mjs` passes on every one. The browser stage of `verify:portable` was not re-run after the fixes (another engineer's headless Chrome was running).",
+ "filesTouched": [
+  "/home/user/foundress/tools/audio/lib/finish.mjs",
+  "/home/user/foundress/tools/audio/lib/pipeline.mjs",
+  "/home/user/foundress/tools/audio/check.mjs",
+  "/home/user/foundress/tools/audio/measure.ts",
+  "/home/user/foundress/tools/audio/sync-records.mjs",
+  "/home/user/foundress/tools/audio/sounds/old-levels.json",
+  "/home/user/foundress/tools/audio/README.md",
+  "/home/user/foundress/src/audio/provenance.test.ts",
+  "/home/user/foundress/src/audio/provenance.verify.test.ts",
+  "/home/user/foundress/public/assets/audio/ (all 36 replaced mp3 files re-rendered)",
+  "/home/user/foundress/public/assets/manifest.json",
+  "/home/user/foundress/assets-src/records_audio.json",
+  "/home/user/foundress/assets-src/MANIFEST.md",
+  "/home/user/foundress/docs/design/tasks/audio-provenance-report.md",
+  "/home/user/foundress/docs/design/tasks/progress/audio-provenance-fix.md"
+ ],
+ "verification": [
+  "npm run typecheck: 0 errors (nothing reported for src/audio or tools/audio).",
+  "npx vitest run src/audio: 14 files, 231 passed, 2 skipped (the LONG blocks).",
+  "FOUNDRESS_LONG=1 npx vitest run src/audio/provenance (after the final render): 24 passed in 77 s. This covers all 36 checkSpec judgements, the byte-identity of the shipped files against a fresh render, and the reviewer's Xing/Info and decoded-length tests that failed before.",
+  "node tools/audio/check.mjs: all 36 ok. Every decoded length equals its rendered length, true peaks are at or below -3.0 dBFS, loops are at their LUFS targets, and seams are inside the limits (test-output/audio-provenance-fix/check2.txt).",
+  "measure.ts re-run on the old and new files with no delay offset: no out-of-range centroids. Tables regenerated in test-output/audio-provenance-fix/tables.md and spliced into the report.",
+  "ffmpeg decode of ui_click_01.mp3 gives 19404 bytes of float32, which is 4851 samples, the rendered length. It was 6912 samples before the fix.",
+  "npm run build:portable: OK, audio pack 8.15 MB with 45 assets, total 27.77 MB. verify-portable.mjs --scan-only --no-build: PASS (logs in test-output/audio-provenance-fix/)."
+ ],
+ "acceptance": [
+  {
+   "criterion": "Finding 1: always-on provenance test fails (level slack against the encoder compensation)",
+   "status": "met",
+   "evidence": "check.mjs allows ENCODER_LOSS_DB when it judges PCM only, and judges the decoded file otherwise. New test 'three cheap one-shots meet the level convention on the decoded file' passes, and the whole src/audio suite is green."
+  },
+  {
+   "criterion": "Finding 2: new MP3s lack the Xing/Info gapless header",
+   "status": "met",
+   "evidence": "encodeMp3 and decodeMp3 now go through a temporary file. renderMp3 throws if a decoded length differs from the rendered length. The reviewer's two failing tests pass, and the LONG byte-identity test passes."
+  },
+  {
+   "criterion": "Finding 3: one-shot loudness metric counted encoder delay and padding; the report blamed the peak for the wrong sounds",
+   "status": "met",
+   "evidence": "The metric is taken on the gapless decoded file. old-levels.json was re-measured (short clips were up to 1.1 LU too quiet) and the sounds were re-rendered, so ui_click_01/02, ui_hover_01 and ui_switch_01 now match the old loudness. The report's peak-limited list is corrected to thud_01, chirp_01/02, ui_click_03 and broom_01/02."
+  },
+  {
+   "criterion": "Finding 4: 'before' seam and join numbers measured on a window shifted by 1105 samples",
+   "status": "met",
+   "evidence": "measure.ts no longer applies ENCODER_DELAY. The old files were re-measured and the report tables regenerated (traffic_distant before: jump 2.8, kink 28.2)."
+  },
+  {
+   "criterion": "Finding 5: nine kept files labelled tier A without the evidence tier A needs",
+   "status": "met",
+   "evidence": "sync-records.mjs writes tier 'A-badge' plus an evidence field for the nine kept files. provenance.test.ts asserts this and that no record is B. Criterion 1 (no tier B) still holds."
+  },
+  {
+   "criterion": "Records 'seconds' read 0.16 s for a 0.11 s click",
+   "status": "met",
+   "evidence": "Records now use the decoded duration; a test asserts ui_click_01 is 0.11 s."
+  },
+  {
+   "criterion": "Do not weaken the reviewer's tests",
+   "status": "met",
+   "evidence": "All 9 of the reviewer's tests are kept. Only a stale 'FAILS at review time' comment was updated."
+  }
+ ],
+ "notDone": [
+  "The browser stage of `npm run verify:portable` was not re-run on the re-rendered files because another engineer's headless Chrome was running. The build and the static scan pass; the fixes change file bytes only, not names, count or the pack mechanism. The integration gate should re-run it.",
+  "The reviewer's browser loudness scenes were not re-run after the fix (the reviewer ran them on the first version and all passed). The fix changes only the gapless header and the levels of five short clips.",
+  "Still open and not in my paths: src/ui/screens/credits/parse.test.ts line 25 still expects the archive.org group. tools/assets/build_manifest.py and process_audio.py are stale for audio. No ear check is possible here.",
+  "Not changed: the nine kept OpenGameArt files are labelled A-badge with no saved copy of the author pages. That residual risk is documented, not removed."
+ ],
+ "notesForIntegrator": [
+  "Audio file bytes changed again: all 36 replaced mp3 files were re-rendered, and the manifest, records and MANIFEST.md totals were re-synced (public/assets total 19,914,641 B). The portable build was rebuilt (audio pack 8.15 MB), so a fresh `npm run verify:portable` is advisable when no other headless browser is running.",
+  "The record field `tier` for the nine kept files is now 'A-badge' (new `evidence` field). Nothing in src or tools reads it besides the provenance tests.",
+  "ffmpeg must stay able to write seekable mp3 files to the temp directory (os.tmpdir()). The encoder no longer uses a pipe.",
+  "Evidence is in test-output/audio-provenance-fix/ (check2.txt, old.json, new.json, tables.md, build-portable.log, verify-scan.log). The report is docs/design/tasks/audio-provenance-report.md, with a new section 10 covering this review."
+ ]
+}

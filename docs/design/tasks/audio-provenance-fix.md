@@ -1,0 +1,3 @@
+- 06:30 measured old.json/new.json/tables.md in test-output/audio-provenance-fix; checking old-levels.json vs correct-decode old (ui clicks differ ~0.6). Then report rewrite
+- 06:35 old-levels.json re-measured (correct window). NEXT: render.mjs all, sync, check.mjs, measure new again, tables, report, tests
+- 06:50 typecheck clean, vitest src/audio 231 pass. NEXT: LONG provenance, build:portable (+ scan), report @@TESTS@@ + section 10

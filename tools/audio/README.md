@@ -15,6 +15,7 @@ node tools/audio/report-tables.mjs <old.json> <new.json>     # markdown tables f
 
 - `sounds/index.mjs`: the registry (id, seed, channels, level convention, the spectral range the sound's job calls for).
 - `sounds/old-levels.json`: levels of the files that were replaced; one-shots keep their mean loudness (never above -3 dBFS peak).
+- The encoder writes to a temporary file, not a pipe: only a seekable output gets the Info (Xing/LAME) frame, without which a decoder keeps the 1105-sample delay and the padding. `renderMp3` throws if a decoded file is not exactly as long as the render.
 - `lib/`: rng, dsp kit, BS.1770 (`lufs.mjs`, a port of `src/audio/loudness.ts`, checked by `src/audio/provenance.test.ts`), encoder, analysis.
 - Seeds are part of the sound: change one and the file changes. After any change run render, then sync-records, then `npx vitest run src/audio/provenance.test.ts`.
 - Report: `docs/design/tasks/audio-provenance-report.md`.

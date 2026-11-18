@@ -5,7 +5,7 @@
 
 import { rngChance, rngFloat, rngInt, rngRange, type RngState } from '@/core/rng';
 import type { HumanEventInst, HumanEventKind, HumanVariant, Sim } from '@/sim/types';
-import { WEEKEND_FROM } from '@/sim/balance';
+import { WEEK_DAYS, WEEKEND_FROM } from '@/sim/balance';
 import {
   CHILDREN_HEAT_AVOID_H, HUMAN_NIGHT_CAR_MULT, HUMAN_NIGHT_INTERIOR_P, HUMAN_QUIET_HOURS, HUMAN_SAME_KIND_SPACING_H,
   HUMAN_SCHEDULE, HUMAN_WATER_VARIANT_W, type HumanScheduleRow, type HumanWindow,
@@ -45,7 +45,11 @@ export function rowFrequency(row: HumanScheduleRow, ctx: DayContext): number {
   if (row.weekendOnly && !ctx.weekend) return 0;
   let f = row.freq * ctx.freqMult;
   if (weekendLike && row.weekendMult !== undefined) f *= row.weekendMult;
-  if (row.weekendShare !== undefined) f *= ctx.weekend ? (row.weekendShare * 7) / 2 : ((1 - row.weekendShare) * 7) / 5;
+  if (row.weekendShare !== undefined) {
+    // the row's weekly count split weekend / weekdays (weekdays 0..WEEKEND_FROM-1 are workdays)
+    const weekendDays = WEEK_DAYS - WEEKEND_FROM;
+    f *= ctx.weekend ? (row.weekendShare * WEEK_DAYS) / weekendDays : ((1 - row.weekendShare) * WEEK_DAYS) / WEEKEND_FROM;
+  }
   if (row.heatMult !== undefined && ctx.heat) f *= row.heatMult;
   return f;
 }
