@@ -175,6 +175,8 @@ export class MarkerRenderer {
 
   private label(l: MarkerLabel): Sprite {
     const t = this.texture(l.text, l.color);
+    // No depth of its own (always on top). The colony view draws without depth of field (accessibility controller), so the
+    // label is not blurred with the ground behind it (smeared chamber names, gate-close-app S18).
     const m = new SpriteMaterial({ map: t.tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
     this.materials.push(m);
     const s = new Sprite(m);

@@ -100,7 +100,9 @@ export default async ({ page, shot, log, wait, out, context }) => {
     const gm = window.__game, s = gm.summary();
     const c = document.getElementById('view');
     gm.renderFrame();
-    return { view: s.view, possessed: s.possessed.id, tick: s.tick, speed: s.time.speed, cam: gm.camera.pose(), frame: hash(c.toDataURL('image/png')), hud: !!document.querySelector('[data-testid="hud-root"]') };
+    const png = c.toDataURL('image/png');
+    window.__photoBeforePng = png; // look pass 3: kept so a mismatch after leaving can be looked at (written below)
+    return { view: s.view, possessed: s.possessed.id, tick: s.tick, speed: s.time.speed, cam: gm.camera.pose(), frame: hash(png), hud: !!document.querySelector('[data-testid="hud-root"]') };
   }, hashOf);
   expect(before.view === 'possess' && before.possessed === setup.worker, 'queen not possessed', before);
   expect(before.hud, 'HUD should be on in the possession view');
@@ -351,6 +353,13 @@ export default async ({ page, shot, log, wait, out, context }) => {
   expect(afterExit.hud && !afterExit.panel, 'HUD not back or panel still shown', afterExit);
   const dpos = Math.hypot(afterExit.cam.pos.x - before.cam.pos.x, afterExit.cam.pos.y - before.cam.pos.y, afterExit.cam.pos.z - before.cam.pos.z);
   expect(dpos < 0.05 && Math.abs(afterExit.cam.fov - before.cam.fov) < 0.01, 'camera pose not restored', { dpos, fov: [before.cam.fov, afterExit.cam.fov] });
+  if (afterExit.frame !== before.frame) {
+    // look pass 3: write both frames so the difference can be seen (and measured) instead of only hashed
+    const fs = await import('node:fs');
+    const dumps = await g(() => ({ before: window.__photoBeforePng, after: document.getElementById('view').toDataURL('image/png') }));
+    for (const [k, v] of Object.entries(dumps)) fs.writeFileSync(`${out}/exit-mismatch-${k}.png`, Buffer.from(v.split(',')[1], 'base64'));
+    log('exit mismatch frames written', out);
+  }
   expect(afterExit.frame === before.frame, 'the picture after leaving differs from the one before (exposure / look / depth of field not restored)', { before: before.frame, after: afterExit.frame });
   await shot('12-after-exit'); // before time runs again: software GL must not be left with a backlog of frames
   await g(() => window.__game.realtime(true));

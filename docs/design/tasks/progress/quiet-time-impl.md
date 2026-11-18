@@ -28,3 +28,4 @@
 - Remaining: run new tests, perf check of checkHumanAlert, E25 whole game runs (--until-winter, 2 worlds nat + gentle/harsh), LONG test, report, folder tests (human, progression), typecheck.
 - 23:31 new tests pass (9). after1 batch done (test-output/quiet-time/after1; no outsideOnly field - old tool). Started base batch -> before1 (new tool, has outsideOnly). Then run final after batch -> after2 with final code.
 - 23:33 tool: added outsideOnly + --counts mode; wrote human/quiet.long.test.ts (LONG, strict mode env FOUNDRESS_QUIET_STRICT). Waiting for before1 batch (log test-output/quiet-time/before1.log). Next: counts table (--counts 1 on suburban/kitchen), after2 batch with final code (copy src+tools to scratchpad/quiet-after2), LONG test run, folder tests human+progression, report.
+- 23:56 before1 batch done. after2 batch started (frozen final tree scratchpad/quiet-after) -> test-output/quiet-time/after2 / after2.log

@@ -8,7 +8,7 @@ import {
   BOOM_SPRING_TAU, CAM_AUTOFOLLOW_DELAY_S, CAM_AUTOFOLLOW_MAX_DEG_S, CAM_AUTOFOLLOW_MAX_TURN_DEG_S, CAM_AUTOFOLLOW_MIN_SPEED_BU,
   CAM_AUTOFOLLOW_TAU, CAM_FAR_BU, CAM_LOOKAHEAD_MAX_L, CAM_LOOKAHEAD_T, CAM_PIVOT_UP_L, CAM_PUSHOUT_TAU, CAM_RADIUS_L, CAM_RADIUS_MAX_BU,
   CAM_RADIUS_MIN_BU, CAM_RECENTRE_S, CAM_REDUCED_FOV_SPREAD_DEG, CAM_STATE_BLEND_S, CAM_STATE_BLEND_S_REDUCED, CAM_TUNNEL_LOOKAHEAD_BU,
-  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
+  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_TIGHT_GROW_TAU, CAM_TIGHT_MIN_SCALE, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
 } from './constants';
 import { boomPoint, fitsAt, solveBoom } from './boomPath';
 import { MotionGuard } from './motionGuard';
@@ -81,6 +81,11 @@ export class ThirdPersonRig {
   private ref = vec3(-1, 0, 0);
   private yaw = 0;
   private elev = 20 * DEG;
+  /** Extra orbit elevation that levels the view while the ant climbs a slope (constants.ts CAM_SLOPE_LIFT_*), rad. */
+  private slopeLift = 0;
+  /** Share of the GDD camera radius in use: below 1 in a room lower than the sphere (constants.ts CAM_TIGHT_*). */
+  private radiusScale = 1;
+  private baseValid = false;
   /** Player zoom per state, L: starts at each state's default distance (possessionStates.ts is the one table). */
   private zoomL = Object.fromEntries(Object.entries(STATE_PARAMS).map(([k, p]) => [k, p.dist[0]])) as Record<PossessionCamState, number>;
   private dist = 0;
@@ -122,7 +127,9 @@ export class ThirdPersonRig {
 
   get lengthMm(): number { return this.opts.bodyL * this.opts.bu; }
   /** GDD 6.1 camera radius clamp(0.25 L, 0.1, 0.5) BU, mm: the centre always keeps f >= 0.5 x this (clearanceMm). */
-  get radiusMm(): number { return clampN(CAM_RADIUS_L * this.opts.bodyL, CAM_RADIUS_MIN_BU, CAM_RADIUS_MAX_BU) * this.opts.bu; }
+  get radiusMm(): number { return this.nominalRadiusMm * this.radiusScale; }
+  /** The GDD radius before the tight-room shrink, mm. */
+  get nominalRadiusMm(): number { return clampN(CAM_RADIUS_L * this.opts.bodyL, CAM_RADIUS_MIN_BU, CAM_RADIUS_MAX_BU) * this.opts.bu; }
   /**
    * Sphere used for the collision traces, mm: the GDD radius capped at CAM_RADIUS_FIELD_CAP_BU. The carve field
    * saturates at 0.5 BU inside cavities, so a 0.5 BU sphere (queens) can never travel through a tunnel at all.
@@ -131,9 +138,31 @@ export class ThirdPersonRig {
   /** The guaranteed clearance of the camera centre (GDD 6.1), mm. */
   get clearanceMm(): number { return CAM_MIN_CLEARANCE_R * this.radiusMm; }
 
+  /**
+   * Tight rooms: the camera sphere shrinks to what fits at last frame's pivot base (immediately), and grows back eased.
+   * The guard's clearance and the reported radius follow, so "f >= 0.5 x radius" holds wherever any camera can stand.
+   */
+  private fitRadius(dt: number, trace: TraceFn): void {
+    if (!this.baseValid) return;
+    const c = CAM_MIN_CLEARANCE_R * 1.05, R = this.nominalRadiusMm;
+    let goal = 1;
+    if (!fitsAt(trace, this.base, this.out.up, c * R)) {
+      let lo = CAM_TIGHT_MIN_SCALE, hi = 1;
+      for (let i = 0; i < 8; i++) { const m = (lo + hi) / 2; if (fitsAt(trace, this.base, this.out.up, c * R * m)) lo = m; else hi = m; }
+      goal = lo;
+    }
+    if (goal < this.radiusScale) this.radiusScale = goal;
+    else this.radiusScale += (goal - this.radiusScale) * smoothK(dt, CAM_TIGHT_GROW_TAU);
+  }
+
   setOptions(o: Partial<ThirdPersonOptions>): void {
     Object.assign(this.opts, o);
     this.crumbs.spacing = BOOM_SAMPLE_L * this.lengthMm;
+  }
+
+  /** Orbit elevation that levels the view for the pitch of the target's heading above the horizon (constants.ts CAM_SLOPE_LIFT_*), rad. */
+  private slopeLiftFor(t: CameraTarget): number {
+    return Math.min(CAM_SLOPE_LIFT_MAX_DEG * DEG, CAM_SLOPE_LIFT_K * Math.max(0, Math.asin(clampN(t.fwd.y, -1, 1))));
   }
 
   /** Snap behind the target (after possession or teleport). */
@@ -176,6 +205,8 @@ export class ThirdPersonRig {
     this.pinch.reset();
     this.guard.reset();
     this.assist = 0; this.assistOn = false;
+    // a restart of the rig (a teleport, leaving photo mode) starts at the lift the heading asks for, not at zero: the picture must not jump
+    this.slopeLift = s === 'open' ? this.slopeLiftFor(t) : 0; this.radiusScale = 1; this.baseValid = false;
     this.initialised = true;
   }
 
@@ -224,6 +255,7 @@ export class ThirdPersonRig {
     // a teleport (or a new subject) is not motion: start over behind it (no flight through the world, no stale trail)
     if (this.initialised && v3Distance(t.pos, this.prevPos) > CAM_SNAP_JUMP_L * this.lengthMm) this.initialised = false;
     if (!this.initialised) this.init(t, env);
+    this.fitRadius(dt, env.trace);
     const L = this.lengthMm, R = this.collisionRadiusMm, o = this.out, trace = env.trace;
     dt = Math.max(0, Math.min(dt, 0.25));
 
@@ -282,9 +314,13 @@ export class ThirdPersonRig {
     const prevP = STATE_PARAMS[this.prevState];
     const lo = (prevP.pitch[1] + (sp.pitch[1] - prevP.pitch[1]) * e) * DEG, hi = (prevP.pitch[2] + (sp.pitch[2] - prevP.pitch[2]) * e) * DEG;
     if (sp.framing !== 'boom') this.elev = clampN(this.elev, lo, hi);
+    // slope lift: open state only (tunnels and chambers are underground, falling and flight have their own chase pitch)
+    const liftGoal = state === 'open' && sp.framing === 'orbit' ? this.slopeLiftFor(t) : 0;
+    this.slopeLift += (liftGoal - this.slopeLift) * smoothK(dt, CAM_SLOPE_LIFT_TAU);
 
     // --- pivot: above the target (clear of solid by R), plus look-ahead (traced)
     this.placeBase(t, u, R, L, trace);
+    this.baseValid = true;
     v3Copy(this.pivot, this.base);
     const la = sp.framing === 'boom' ? CAM_TUNNEL_LOOKAHEAD_BU * this.opts.bu * Math.min(1, this.speed / (CAM_AUTOFOLLOW_MIN_SPEED_BU * this.opts.bu * 4))
       : Math.min(this.speed * CAM_LOOKAHEAD_T, CAM_LOOKAHEAD_MAX_L * L);
@@ -458,8 +494,9 @@ export class ThirdPersonRig {
       return v3AddScaled(out, out, this.pivot, 1);
     }
     rotateAboutAxis(this.h, this.ref, u, this.yaw);
-    v3Scale(out, this.h, Math.cos(this.elev) * dist);
-    v3AddScaled(out, out, u, Math.sin(this.elev) * dist);
+    const el = Math.min(85 * DEG, this.elev + this.slopeLift);
+    v3Scale(out, this.h, Math.cos(el) * dist);
+    v3AddScaled(out, out, u, Math.sin(el) * dist);
     return v3AddScaled(out, out, this.pivot, 1);
   }
 

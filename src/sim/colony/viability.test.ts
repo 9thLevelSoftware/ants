@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { Diagnostic, Sim } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import {
-  AUTUMN_STOCK_TARGET_C_MULT, HANDOVER_PROVISION_WINDOW_GD, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LAYING_RELEASE_FLOOR_DAYS, SMALL_OUTSIDE_FRAC, SMALL_SCOUTS_MIN,
+  AUTUMN_STOCK_TARGET_C_MULT, HANDOVER_PROVISION_P_WINDOW_GD, HANDOVER_PROVISION_WINDOW_GD, HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P, LAYING_RELEASE_FLOOR_DAYS, SMALL_OUTSIDE_FRAC, SMALL_SCOUTS_MIN,
   SMALL_COLONY_N, SMALL_SPONT_MULT_MAX, STARVE_ALERT_GRACE_GD, WINTER_RESERVE_FROM_D28,
 } from '@/sim/balance';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step } from './testkit';
@@ -91,6 +91,12 @@ describe('R2: the hand-over is provisioned', () => {
     step(sim, 20); // pool capacity set by the colony cycle; the queen at her keep gives nothing
     sim.state.tick = endTick + Math.ceil(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY) + 1;
     q.queen!.reserve = HANDOVER_QUEEN_KEEP_C + 4; // e.g. fattened for the winter
+    q.queen!.reserveP = HANDOVER_QUEEN_KEEP_P + 4;
+    // the carbohydrate window is over; the protein one (round 5) runs on, into the stomachs
+    const late = provisionAtHandover(sim, col);
+    expect(late.c).toBe(0);
+    expect(late.p).toBeGreaterThan(0); // as far as the stomachs hold it
+    sim.state.tick = endTick + Math.ceil(HANDOVER_PROVISION_P_WINDOW_GD * TICKS_PER_DAY) + 1;
     q.queen!.reserveP = HANDOVER_QUEEN_KEEP_P + 4;
     expect(provisionAtHandover(sim, col)).toEqual({ c: 0, p: 0 });
     sim.state.tick = endTick + Math.floor(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY) - 1;

@@ -20,8 +20,8 @@ import { foundingActions, foundingUi } from '../screens/founding/store';
 import { updateNav } from '../screens/nav';
 import { facade, snapshot } from '../store';
 import { noteKbm, notePad } from './device';
-import { focusFirst, isTextField, moveFocusIn, scrollerOf } from './focusMove';
-import { activeLayer, type LiveLayer } from './layers';
+import { focusFirst, isTextField, moveFocusAcross, moveFocusIn, scrollerOf } from './focusMove';
+import { activeLayer, liveLayers, type LiveLayer } from './layers';
 import { PadReader, type PadFrame } from './padReader';
 import { modifiedCombos, shortcutsOf, ShortcutMatcher, type PadShortcut } from './shortcuts';
 
@@ -112,7 +112,11 @@ export class NavController {
     const root = layer.root;
     const a = document.activeElement as HTMLElement | null;
     const inside = !!a && root.contains(a);
-    if (f.move) moveFocusIn(root, f.move, layer.spec.initial);
+    if (f.move && !moveFocusIn(root, f.move, layer.spec.initial)) {
+      // the edge of this root: a layer with more than one root (the colony view's palette and overlay column) goes on to the next one
+      const others = liveLayers().filter((l) => l.spec.id === layer.spec.id && l.root !== root).map((l) => l.root);
+      if (others.length > 0) moveFocusAcross(others, f.move);
+    }
     if (f.edge(uiButton('ui-confirm', PAD.A))) {
       if (inside && a) { if (!isTextField(a) && a.getAttribute('role') !== 'slider') a.click(); else if (isTextField(a)) a.focus(); }
       else focusFirst(root, layer.spec.initial);

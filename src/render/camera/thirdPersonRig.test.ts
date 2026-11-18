@@ -206,6 +206,18 @@ describe('ThirdPersonRig slope lift (look pass 3)', () => {
       expect(up, `${slope} deg slope, uphill`).toBeLessThan(slope * 0.45);
     }
   });
+  it('a restarted rig (snap: a teleport, leaving photo mode) shows the same view as the settled one', () => {
+    const open = { trace: makeSphereTracer(() => 1e6) };
+    const r = new ThirdPersonRig({ bu: DEMO_BU, bodyL: 1, autoFollow: 'off' });
+    const s = 25 * DEG;
+    const t: CameraTarget = { pos: vec3(0, 0.5, 0), up: vec3(-Math.sin(s), Math.cos(s), 0), fwd: vec3(Math.cos(s), Math.sin(s), 0) };
+    let out = r.update(0, t, NO_ORBIT_INPUT, open);
+    for (let i = 0; i < 90; i++) out = r.update(1 / 30, t, NO_ORBIT_INPUT, open);
+    const settled = { x: out.pos.x, y: out.pos.y, z: out.pos.z };
+    r.snap();
+    out = r.update(1 / 30, t, NO_ORBIT_INPUT, open);
+    expect(v3Distance(out.pos, settled as typeof out.pos)).toBeLessThan(0.05);
+  });
   it('adds nothing on the flat and nothing downhill', () => {
     const flat = viewPitchDeg(0, true);
     expect(Math.abs(flat - viewPitchDeg(0, false))).toBeLessThan(1e-6);

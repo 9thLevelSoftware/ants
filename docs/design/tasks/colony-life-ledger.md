@@ -1702,3 +1702,17 @@ Tools: `lifeFunnel.ts` `proteinKnownGd`; `bench-table.py` columns (P known gd, s
 - 23:20 folder tests after the revert (`round-5/vitest-*.txt`): colony 62/63 files (red: `founding/reopen`, known),
   ants/behaviours/outdoor 27/28 (red: `removal.verify`, known), nest 56/57 (red: `escapeDig`, known),
   ants/behaviours/nest 28/30 (red: `sfaReview.verify`, `stall.soak`, known), ants/player 6/6, nest/flood 11/11.
+- 23:58 **full-length forage bench, 15 hand-overs** (`round-5/bench-forage-before/` = r5start, `bench-forage-after/` =
+  r5f; `table.md` in each): **P/need median 0.122 -> 0.245**; prey loads home 6 -> 10, prey P home 1.25 -> 2.5 (medians);
+  catch % of chased 20.7 -> 22.5; protein known within 1 gd 7 -> 3 of 15 (median P known 0.51 -> 1.68 gd); larvae
+  starved 21 -> 4 (sums); eggs 288 -> 225, eclosed 55 -> 48 (sums); worker deaths 77 -> 92 (old age 60 -> 66,
+  predation 5 -> 9, crushed 11 -> 12). **Attribution A/B** (`bench-forage-noP1/`: r5f with `handover.ts` at 8b4c207,
+  4 hand-overs): P/need sg #1 0.03, pp #1 0.05, cpv #2 0.16, pp #3 0.21 (before 0.08 / 0.05 / 0.22 / 0.16; after
+  0.25 / 0.36 / 0.85 / 0.56): **the protein gain is P1's**. Mechanism: with the provision in the larder the pool's P
+  stock days read high, the protein need index low, and foragers did not value prey; held in the queen, the pool
+  shows the colony's real protein and hunting starts. Target (>= 0.3) not reached; protein-known target not met.
+- 23:58 **P1c in the tree**: the eggs fell (288 -> 225): the P left in the queen after the 3-gd window stayed in her
+  body (nothing pays it in later). `HANDOVER_PROVISION_P_WINDOW_GD` 10 (`balance/colony.ts`): the protein is paid into
+  the stomachs for 10 gd, the carbohydrate window stays 3 gd (reserveP is never refilled after the hand-over: no loop).
+  `viability.test` window case extended (C 0 and P > 0 after 3 gd; both 0 after 10 gd). Frozen tree `r5g`; running
+  6-run bench `PAR=2 $S/r5g/tools/sim/bench-sweep.sh forage $P/bench-forage-p1c ... "we:1 sg:1 pp:1 cpv:1 kd:1 pp:3"`.

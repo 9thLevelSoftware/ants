@@ -53,6 +53,22 @@ export function moveFocusIn(root: HTMLElement, dir: Dir, initial?: string): bool
   return true;
 }
 
+/**
+ * Moves focus from the focused control to the nearest control of ANOTHER root in `dir` (look pass 3). The colony view's tool UI is
+ * two roots of one pad layer, the marker palette and the overlay column: inside one root the D-pad stops at its edge, so without
+ * this the overlay buttons could not be reached from the palette by the pad at all.
+ */
+export function moveFocusAcross(roots: readonly HTMLElement[], dir: Dir): boolean {
+  const cur = document.activeElement as HTMLElement | null;
+  if (!cur || cur === document.body) return false;
+  const items = roots.flatMap((r) => focusableIn(r));
+  if (items.length === 0) return false;
+  const i = pickSpatial(rectOf(cur), items.map(rectOf), dir);
+  if (i < 0) return false;
+  items[i].focus();
+  return true;
+}
+
 const SCROLLABLE = /(auto|scroll)/;
 
 /** The element that scrolls for the focused control: the nearest scrollable ancestor inside `root`, else the layer's first scroll area. */
