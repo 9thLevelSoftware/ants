@@ -90,3 +90,14 @@ TODO next: unit tests for 1-3, harness shots (tests/e2e script app-seams-2.mjs -
 - Found string: alert 'winter-coming' reads "stores cover 28 of 7 days" when stores exceed winter (sim passes x=28; content template src/content/text/alerts.ts:37) -> report (sim clamp / wording), not fixed.
 - panels.mjs PASS (ok:true, test-output/app-seams-2/panels, log panels.log).
 - NEXT: controls.mjs, firstplay.mjs, vitest of my dirs, typecheck, report.
+
+## Update (07:25 UTC)
+- controls.mjs PASS (test-output/app-seams-2/controls.log). typecheck clean (no output). vitest of my dirs + tests/docs + src/render/{app,ants,world/boundary,sky,lighting} + src/sim/config: 204 files / 1537 tests pass (log test-output/app-seams-2/vitest.log).
+- Started firstplay.mjs full run 07:25 (test-output/app-seams-2/firstplay-full, log firstplay-full.log; ~40 min). While it runs: write report docs/design/tasks/app-seams-2-report.md (no heavy processes!).
+
+## Update (07:40 UTC)
+- Report written: docs/design/tasks/app-seams-2-report.md with two placeholders to fill: CUTICLE_RESULT_PLACEHOLDER (12a), FIRSTPLAY_RESULT_PLACEHOLDER (13). firstplay full run in progress (started 07:25; log firstplay-full.log).
+- After firstplay: try 12(a) once more (CUTICLE.roughness 0.35 -> ~0.5 and clearcoatMul 0.45 -> 0.3), crops via tests/e2e/appSeams2-look.mjs (LOOK_TAG naming only; --out test-output/app-seams-2/look-after2, seed 2 quality high, ~2 min); keep only if the crop changes visibly; rerun src/render/ants tests.
+
+## Update (07:50): firstplay run 1 failed at beat 11 relay: finding
+- Beat 11 cause (reported): the founding flow does NOT close the overlay; the SIM ends the lapse at progress 0.028 because all 6 eggs were lost (counters eggs 6 / lost 6, reserves 0.95; site read-out "Poor", Q 0.71, Warmth shaded) -> broodLost() -> relay clutch (back to phase 'lay'). The script's relay handling then waited for founding-tend without laying again -> timeout. Fixed: layBatch x4 then loop layBatch+step until founding-tend visible (tests/e2e/firstplay.mjs). Rerunning full firstplay (log firstplay-full2.log).

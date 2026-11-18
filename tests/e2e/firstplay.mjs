@@ -266,7 +266,9 @@ export default async (ctx) => {
             if (ph !== 'lay' || result.checks.relayClutches >= 2) break; // handed over, failed, or a second relay: let the beat report it
             result.checks.relayClutches++;
             log('the lapse ended in brood lost; relay clutch', result.checks.relayClutches, JSON.stringify(lapseTrace[lapseTrace.length - 2] ?? null));
-            for (let k = 0; k < 120 && !(await visible('founding-tend')); k++) await step(25);
+            // the relay clutch is laid by the player like the first one (the queen is in the chamber, the entrance sealed)
+            for (let b = 0; b < 4; b++) await layBatch();
+            for (let k = 0; k < 120 && !(await visible('founding-tend')); k++) { await layBatch(); await step(25); }
             await click('founding-tend');
             await step(1);
             continue;
