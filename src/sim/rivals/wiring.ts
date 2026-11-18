@@ -5,9 +5,10 @@ import { raidBehaviour } from './behaviours/behaviour';
 import { rivalCheats } from './cheats';
 import { rivalsHourly } from './hourly';
 import { provideRivals } from './late';
+import { prepareRivalNests } from './prepare';
 import { rivalsTick } from './tick';
 
-provideRivals({ tick: rivalsTick, hourly: rivalsHourly, behaviour: raidBehaviour, handlers: rivalCheats });
+provideRivals({ tick: rivalsTick, hourly: rivalsHourly, behaviour: raidBehaviour, handlers: rivalCheats, prepare: prepareRivalNests });
 
 /** Behaviours of the rivals module (task `raid`: rival agents, rival queens, player raid parties). */
 export const rivalBehaviours = [raidBehaviour];

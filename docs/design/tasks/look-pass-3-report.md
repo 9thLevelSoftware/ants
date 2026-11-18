@@ -157,6 +157,7 @@ Final night numbers after the last small lift (targetE 1.9 / minEV 2.3, section 
 | 3 | `stage1a.mjs` strict, `panels.mjs` both halves, `photo.mjs` quick, `views.mjs`, `controls.mjs`, `firstplay.mjs` beats 1-20 | **partial**, see below | `test-output/look3/checks/` |
 | 4 | Draw calls and triangles at low / medium / high on the seed 1 colony not above +10 % | **met** | below |
 | 5 | Report with the picture paths | **met** | this file |
+| 7 (task item) | play-through re-run and looked at | **partial** (shortened to 8 min per speed, 8 pictures) | section 10 |
 
 Acceptance 3 in detail (`checks/<name>.log`; browser runs at load average 7-12, each alone):
 
@@ -211,4 +212,14 @@ game 582, ui 402, content 114, input 106, all passed. Nothing under `src/sim/**`
 
 ## 10. Play-through (item 7)
 
-PLAYTHROUGH_PLACEHOLDER
+`tests/e2e/playthrough.mjs` re-run once (seed 1, quality high, opening by the founding cheat; `PLAY_MINUTES=8` per speed instead of 20 to keep it to 8.5 minutes on this machine: the full run is about 80 minutes,
+so this is a **shortened** run: 4 pictures at 1x and 4 at 4x, game days 2 to 6, observer / possession / colony slice / scent in turn). Pictures `test-output/look3/play/seed1/x1-r02-observer.png ... x4-r08-scent.png` (log `test-output/look3/play.log`,
+colony numbers per shot in it: 9 workers throughout, brood 1-7). All eight were looked at:
+* `x1-r02-observer` (day, overcast): leaves have a dark contact fringe; the fringe is a stipple and at this near distance reads as a fine grain along some leaf edges (a known partial of item 4). Pale distant backdrop is hazed, no bleached blocks.
+* `x1-r04-possession` (dusk, in the nest): a dull dark-bodied worker in the warm underground light, legs dull brass, not glassy; the sim's worker health 13 % is shown in the card (sim state).
+* `x1-r06-slice` (night, rain): the chamber label "Royal chamber" is sharp (no depth of field in the colony view), chamber outline and tunnel readable.
+* `x1-r08-scent` (04:18 overcast, scent view): home-smell dots and the trail chevrons read on the ground; dark cool dawn-ish light.
+* `x4-r02-observer` (23:30 clear): reads as night at a glance (dark, cool, grass and soil dim). **New finding:** the dry (cream) leaves stay near white against the dark ground; a moonlit pale leaf is plausible, but they are the brightest thing in the frame and pull the eye.
+  The dry-leaf albedo could take a night multiplier like the skirt (`SKIRT_NIGHT_ALBEDO`); not done (render-decor owner, or a next look pass).
+* `x4-r04-possession` (dusk, surface): warm light, small worker from behind, soil crumbs; fine. `x4-r06-slice` (heat): label sharp. `x4-r08-scent`: trail and home smell over leaves and grass; fine.
+Nothing in the eight pictures is black, empty or broken. The run had no script errors (`"ok":true`).

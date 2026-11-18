@@ -48,8 +48,10 @@ function broodInCold(sim: Sim): boolean {
   return false;
 }
 
+/** First sight of a rival species: the colony discovers its nest or meets one of its workers (GDD 06 §10 "seen"). */
 function rivalSeen(prefix: string): TriggerRule<CodexId>['on'] {
   return {
+    'rival-discovered': (sim, e) => when(isPlayerColonyId(sim, e.by) && e.species.startsWith(prefix)),
     'rival-encounter': (sim, e) => {
       const other = isPlayerColonyId(sim, e.a) ? e.b : isPlayerColonyId(sim, e.b) ? e.a : -1;
       return when(other >= 0 && colonySpecies(sim, other).startsWith(prefix));

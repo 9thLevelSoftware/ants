@@ -84,15 +84,20 @@ describe('R2: the hand-over is provisioned', () => {
     expect(q.queen!.reserveP).toBeLessThan(p1 - Math.min(stomachP, p1 - HANDOVER_QUEEN_KEEP_P) + 0.05);
   });
 
-  it('provisioning ends HANDOVER_PROVISION_WINDOW_GD after the hand-over: a queen fat later keeps her reserve', () => {
+  it('the carbohydrate provision ends HANDOVER_PROVISION_WINDOW_GD after the hand-over (her fat is hers), the protein is paid in while she holds it', () => {
     const { sim, endTick } = handedOver(HANDOVER_QUEEN_KEEP_C, HANDOVER_QUEEN_KEEP_P);
     const col = colonyOf(sim);
     const q = sim.stores.ants.get(col.queenId)!;
     step(sim, 20); // pool capacity set by the colony cycle; the queen at her keep gives nothing
     sim.state.tick = endTick + Math.ceil(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY) + 1;
     q.queen!.reserve = HANDOVER_QUEEN_KEEP_C + 4; // e.g. fattened for the winter
-    q.queen!.reserveP = HANDOVER_QUEEN_KEEP_P + 4;
-    expect(provisionAtHandover(sim, col)).toEqual({ c: 0, p: 0 });
+    q.queen!.reserveP = HANDOVER_QUEEN_KEEP_P + 4; // what the first larvae have not eaten yet (round 6, P1d)
+    sim.enqueue({ type: 'cheat.setStores', colonyId: col.id, c: 0, p: 0 });
+    sim.applyPendingCommands();
+    const late = provisionAtHandover(sim, col);
+    expect(late.c).toBe(0);
+    expect(late.p).toBeGreaterThan(0); // into the empty stomachs
+    expect(col.stores.p).toBeLessThanOrEqual(poolCapacity(col).stomachP + 1e-9); // never past the stomachs (P1)
     sim.state.tick = endTick + Math.floor(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY) - 1;
     expect(provisionAtHandover(sim, col).c).toBeGreaterThan(3.9);
   });

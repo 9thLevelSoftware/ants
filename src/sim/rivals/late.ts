@@ -3,13 +3,15 @@
 // may not import the ecology, colony, ant or nest barrels. wiring.ts (loaded through the one behaviour
 // registration line in src/sim/ants/behaviours/outdoor/index.ts) provides the implementation.
 
-import type { Behaviour, CommandHandlerMap, Sim } from '@/sim/types';
+import type { Behaviour, CommandHandlerMap, Sim, SimState, WorldData } from '@/sim/types';
 
 export interface RivalsImpl {
   tick(sim: Sim): void;
   hourly(sim: Sim): void;
   behaviour: Behaviour;
   handlers: Partial<CommandHandlerMap>;
+  /** Builds the real rival nests of a new game's state (called by initRivals; see prepare.ts). */
+  prepare(state: SimState, world: WorldData): void;
 }
 
 let impl: RivalsImpl | null = null;

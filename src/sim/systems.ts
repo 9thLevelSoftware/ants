@@ -50,12 +50,21 @@ export const SIM_MODULES: readonly { key: SimModuleKey; mod: SimModule }[] = [
 /** First system of every tick: applies the commands queued since the previous tick. */
 export const commandsSystem: System = { name: 'commands', phase: 'commands', run: (sim) => sim.applyPendingCommands() };
 
+/**
+ * The corpse pass (ants/lifecycle.ts) gives every ant killed this tick its corpse, puts down what it carried and ends
+ * its claims before the end-of-tick sweep removes it. It must run after every other system, including the other
+ * `lifecycle`-phase systems of later modules (nest flooding, phorid deaths), or an ant those kill is swept without a
+ * body and the brood it carried stays `carriedBy` a removed id (architecture §3: "... lifecycle -> flush events").
+ */
+export const END_OF_TICK_SYSTEM = 'lifecycle';
+
 /** Systems of the given modules in tick order. Systems without a phase are rejected (listed in `unphased`). */
 export function assembleSystems(modules: readonly { mod: SimModule }[]): { systems: System[]; unphased: string[] } {
   const all: System[] = [commandsSystem];
   for (const m of modules) all.push(...m.mod.systems);
   const unphased = all.filter((s) => s.phase === undefined).map((s) => s.name);
-  const rank = (s: System): number => SYSTEM_PHASES.indexOf(s.phase ?? 'lifecycle');
+  const rank = (s: System): number =>
+    s.name === END_OF_TICK_SYSTEM ? SYSTEM_PHASES.length : SYSTEM_PHASES.indexOf(s.phase ?? 'lifecycle');
   const systems = all
     .map((s, i) => ({ s, i }))
     .sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i)

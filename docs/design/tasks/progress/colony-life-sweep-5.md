@@ -61,6 +61,5 @@ Started 00:50 UTC Nov 18. No earlier progress file; fresh start.
 - Long runs: we2 sg2 pp3 cpv1 done, kd3 running (02:20).
 
 ## Remains
-- sweep (15 runs), table, bars, regressions vs previous sweep (ledger names it)
-- code review of round 5, typecheck, folder tests, verify tests
-- ledger section "### Independent sweep after round 5"
+- Nothing. 02:40 UTC: sweep, table, bars, long runs, review and ledger section "### Independent sweep after round 5"
+  done; frozen tree and probes deleted; no process running.

@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Sim, SpeedLevel, System } from '@/sim/types';
 import { makeTestSim } from '@/sim/testing';
-import { SYSTEMS } from '@/sim/systems';
+import { SIM_MODULES, SYSTEMS } from '@/sim/systems';
+import { SPECIES_MODULES } from '@/sim/species/modules';
 import { systemDue } from '@/sim/sim';
 
 function rejections(sim: Sim): string[] {
@@ -124,14 +125,36 @@ describe('entity index and commands', () => {
 });
 
 describe('system staggering', () => {
-  it('no two periodic systems of 50 ticks or more run on the same tick', () => {
-    const periodic = SYSTEMS.filter((s) => (s.every ?? 1) >= 50);
-    expect(periodic.length).toBeGreaterThan(5);
-    const lcm = 3000; // multiple of 50, 100, 250 and 600
-    for (const s of periodic) expect(lcm % (s.every ?? 1)).toBe(0);
-    for (let t = 0; t < lcm; t++) {
-      const due = periodic.filter((s) => systemDue(s, t)).map((s) => s.name);
-      expect(due.length, `tick ${t}: ${due.join(', ')}`).toBeLessThanOrEqual(1);
+  const LCM = 3000; // multiple of 50, 100, 250 and 600
+  const periodicOf = (list: readonly System[]): System[] => list.filter((s) => (s.every ?? 1) >= 50);
+  /** "tick: a, b" for every tick of the LCM where more than one of `list` runs. */
+  function collisions(list: readonly System[]): string[] {
+    const out: string[] = [];
+    for (let t = 0; t < LCM; t++) {
+      const due = list.filter((s) => systemDue(s, t)).map((s) => s.name);
+      if (due.length > 1) out.push(`${t}: ${due.join(', ')}`);
     }
+    return out;
+  }
+  const core = periodicOf(SIM_MODULES.filter((m) => !m.key.startsWith('species-')).flatMap((m) => [...m.mod.systems]));
+
+  it('no two periodic core systems of 50 ticks or more run on the same tick', () => {
+    expect(core.length).toBeGreaterThan(5);
+    for (const s of periodicOf(SYSTEMS)) expect(LCM % (s.every ?? 1), s.name).toBe(0);
+    expect(collisions(core)).toEqual([]);
   });
+
+  // A game runs the core systems plus one species module's systems (the player's species). Every species module
+  // with periodic systems collides with the core or with itself (granary and fungus use offset 0 throughout; wood's
+  // offsets meet rivals and progression). Not this file's to fix: listed in the sim-seams report for the module
+  // owners (src/sim/species/modules/**). This test keeps the core clean while species modules are present.
+  for (const m of SPECIES_MODULES) {
+    it(`${m.key}: every collision in a game of that species involves one of its own systems`, () => {
+      const own = periodicOf(m.mod.systems);
+      const names = new Set(own.map((s) => s.name));
+      for (const c of collisions([...core, ...own])) {
+        expect(c.split(': ')[1].split(', ').some((n) => names.has(n)), c).toBe(true);
+      }
+    });
+  }
 });

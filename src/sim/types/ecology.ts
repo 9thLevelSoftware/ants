@@ -156,6 +156,12 @@ export interface QuietTracker {
   quiet: number;
   /** Major threats started so far, for reports. */
   threats: number;
+  /**
+   * R28: when each active alert reached its current level, as flat triples [alert id, level rank, tick], kept by the
+   * quiet sampler (a warning is loud for ALERT_LOUD_S after it is raised or its level rises). Additive (colony-life
+   * round 6); created on first use, absent in older saves.
+   */
+  alertLevels?: number[];
 }
 
 export interface RivalsState {

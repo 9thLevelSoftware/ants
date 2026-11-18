@@ -3,7 +3,7 @@
 // snapshot, its losses are applied to real ants and brood, the stores are set, the survivors age at the dormant rate
 // and the clock moves to the first tick of spring. Everything after is presentation (the game's time-lapse).
 
-import { rngFloat, rngShuffle, type RngState } from '@/core/rng';
+import { rngClone, rngFloat, rngShuffle, type RngState } from '@/core/rng';
 import type { Ant, Brood, BroodDeathCause, Colony, DeathCause, Sim, SpeciesDef, WinterRecord } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
 import { killAnt } from '@/sim/entities';
@@ -24,7 +24,7 @@ import { countStageChange } from '../population';
 import { lifecycleOf } from '../succession/lifecycleState';
 import { clusterOf, winterClimate } from './climate';
 import {
-  capLapseLosses, dayNeedC, metFactor, runWinterModel, sparedWorkersFood, type WinterInput, type WinterOutcome, type WinterParams,
+  capLapseLosses, cappedCauseMults, dayNeedC, metFactor, runWinterModel, sparedWorkersFood, type WinterInput, type WinterOutcome, type WinterParams,
 } from './model';
 import { rankWhy } from './report';
 
@@ -129,15 +129,26 @@ export function beginOverwinter(sim: Sim, col: Colony, def: SpeciesDef): WinterR
     queenAlive: !!queen && queen.alive, ...climate, floodSafety: cluster.floodSafety, humidity: cluster.humidity,
   };
   const params = winterParams(sim, def);
-  const out = runWinterModel(input, params, rng);
+  const rngAtModel = rngClone(rng);
+  let out = runWinterModel(input, params, rng);
   // R24: what the lapse may take of the workers, and the presentation's day series scaled to it. Short stores are an
   // alerted hazard when the winter notice's own arithmetic (overwinter/system.ts storeDays) showed fewer days of
   // stores than the winter has
   const storesShort = col.stores.c < days * dayNeedC(input.workers, input.larvae, input.queenAlive, metFactor(params, cluster.tNow));
   const alerted = alertedCauses(sim, col);
   if (storesShort) alerted.add('starvation');
-  const workerLosses = capLapseLosses(out.losses, WINT_LAPSE_LOSS_CAP_FRAC * difficultyValue(sim, 'winterLossMult') * workers.length, alerted);
-  // the workers the cap keeps eat through the winter (sweep-4 review: they ate nothing, spring C was overstated)
+  const cap = WINT_LAPSE_LOSS_CAP_FRAC * difficultyValue(sim, 'winterLossMult') * workers.length;
+  let workerLosses = capLapseLosses(out.losses, cap, alerted);
+  if (sumOf(workerLosses) < sumOf(out.losses)) {
+    // the workers the cap keeps are in the winter: the model runs again from the same draws with the causes the cap
+    // cut scaled to what it applies, so they eat and, when the stores run out, starve like any other worker
+    // (sweep-5 review finding 3: charged after the model, they ate only as far as the stores went and never starved,
+    // and a nest that flooded all winter woke with more workers than the same nest dry)
+    for (let i = 0; i < rng.length; i++) rng[i] = rngAtModel[i];
+    out = runWinterModel(input, { ...params, causeMult: cappedCauseMults(out.losses, workerLosses) }, rng);
+    workerLosses = capLapseLosses(out.losses, cap, alerted);
+  }
+  // what the cap still keeps of the second run eats through the winter (sweep-4 review: they ate nothing)
   chargeSparedWorkers(out, workers.length, params, sumOf(out.losses), sumOf(workerLosses));
   scaleDaySeries(out.days, workers.length, sumOf(out.losses), sumOf(workerLosses));
 

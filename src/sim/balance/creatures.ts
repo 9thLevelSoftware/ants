@@ -452,6 +452,12 @@ export const QUIET_MARGIN = 0.05;
 export const LOUD_HOURS_PER_THREAT = 2;
 /** Alert samples per hour (every 10 ticks). */
 export const QUIET_SAMPLE_EVERY = 10;
+/**
+ * R28 (Nov 18): a warning counts as loud for this long, s of sim time, after it is raised or its level rises (GDD 08
+ * §6.1: a warning stays on screen for at most 30 s, then collapses into the "+n" chip). A critical alert is loud for
+ * as long as it stands.
+ */
+export const ALERT_LOUD_S = 30;
 /** Major threat ids this module starts. */
 export const THREAT_BIRD = 'bird';
 export const THREAT_CENTIPEDE = 'centipede-invasion';

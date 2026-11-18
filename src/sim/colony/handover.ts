@@ -17,29 +17,29 @@ export function handoverTick(sim: Sim, col: Colony): number {
 
 /**
  * After the hand-over: the queen's reserve above HANDOVER_QUEEN_KEEP_C / _P is credited to the pool as C and P
- * (booked as recycled: food from a colony member's body); the protein only as far as the workers' social stomachs
- * hold it (never into the larder or the chamber piles, where it spoils). What the pool cannot hold stays in the queen and is moved
- * on a later cycle, once there is room (the final sweep's seed 2 handed over with a full pool: the queen kept 9 P while
- * the larvae starved for protein), within HANDOVER_PROVISION_WINDOW_GD of the hand-over; after that the queen's
- * reserves are her own again (overwintering may fatten her). No loop inside the window either: an established queen
- * never draws her reserveP and refills her reserve only up to QUEEN_FAT_CAP (= HANDOVER_QUEEN_KEEP_C). Returns the
- * loads moved.
+ * (booked as recycled: food from a colony member's body), as she goes on feeding the first brood from her body until
+ * foragers return (R2).
+ * - Protein goes into the workers' social stomachs only (never into the larder or a chamber pile, where it spoils:
+ *   P half-life 3 gd; sweep-4 review: 1.98 P spoiled, larva:hygiene 28 vs 4 over 15 pairs). What they cannot hold
+ *   stays in her and is paid in as the stomachs empty, i.e. as the brood eats, for as long as she holds it: the
+ *   provision belongs to the first larvae, not to a time window (sweep-5 review finding 1: with a 3-gd window
+ *   suburban-garden #1's larvae hatched on day 3 into pool P 0 while she kept 9.7 P; 6 starved).
+ * - Carbohydrate goes in as far as the pool holds it (larder included; it keeps, half-life 10 gd), within
+ *   HANDOVER_PROVISION_WINDOW_GD of the hand-over; after that her fat is her own again. Kept in the queen too, it left
+ *   kitchen-door #1's pool at 0.06 C on day 2 and 0 on day 3 (round-5 life run on the stomach-only variant).
+ * No loop: an established queen never draws or refills her reserveP, and refills her fat only up to QUEEN_FAT_CAP
+ * (= HANDOVER_QUEEN_KEEP_C). A queen without workers (mode founding again) keeps both. Returns the loads moved.
  */
 export function provisionAtHandover(sim: Sim, col: Colony): { c: number; p: number } {
   const end = handoverTick(sim, col);
-  if (end < 0 || sim.state.tick - end > daysToTicks(HANDOVER_PROVISION_WINDOW_GD)) return { c: 0, p: 0 };
+  if (end < 0) return { c: 0, p: 0 };
   const q = sim.stores.ants.get(col.queenId);
-  if (!q || !q.alive || !q.queen || q.queen.founding) return { c: 0, p: 0 };
+  if (!q || !q.alive || !q.queen || q.queen.founding || q.queen.mode !== 'established') return { c: 0, p: 0 };
   const qs = q.queen;
-  const c = Math.max(0, qs.reserve - HANDOVER_QUEEN_KEEP_C);
+  const inWindow = sim.state.tick - end <= daysToTicks(HANDOVER_PROVISION_WINDOW_GD);
+  const c = inWindow ? Math.max(0, qs.reserve - HANDOVER_QUEEN_KEEP_C) : 0;
   const p = Math.max(0, qs.reserveP - HANDOVER_QUEEN_KEEP_P);
   if (c <= LOAD_EPS && p <= LOAD_EPS) return { c: 0, p: 0 };
-  // protein into the social stomachs only: a larder (R21) or a chamber pile would take the whole provision at once
-  // and let it rot on the brood chamber's floor before the first larva hatches (P half-life 3 gd; sweep-4 review:
-  // 1.98 P spoiled, larva:hygiene 28 vs 4 over 15 pairs); left in the queen it is paid in as the brood eats.
-  // Carbohydrate goes in as far as the pool holds it (larder included), as in round 4: it keeps (half-life 10 gd).
-  // Kept in the queen too, it left kitchen-door #1's pool at 0.06 C on day 2 and 0 on day 3 (round-5 life run on the
-  // stomach-only variant, 0 trips that day) against 1.3 and 0.5 C with this rule
   const room = stomachSpace(col);
   const got = deposit(col, c, Math.min(p, room.p), 0, 'recycled');
   qs.reserve -= got.c;

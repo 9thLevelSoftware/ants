@@ -29,6 +29,11 @@ export interface WinterParams {
   pFungus?: number;
   /** Flood factor k (default WINT_FLOOD_K; tests pin it to 0). */
   floodK?: number;
+  /**
+   * Multiplier on the worker losses of a cause (default 1): the R24 cap's second run (begin.ts) scales the causes the
+   * cap cut to what it applies, so the workers it keeps are in the winter, eat, and starve when the stores run out.
+   */
+  causeMult?: Readonly<Record<string, number>>;
 }
 
 export interface WinterInput {
@@ -150,6 +155,19 @@ export function capLapseLosses(losses: Record<string, number>, cap: number, aler
 }
 
 /**
+ * The multipliers of the R24 cap's second model run: for each cause the cap cut, the share of the drawn losses it
+ * applies (0 when it applies none). Causes it did not cut are absent (multiplier 1).
+ */
+export function cappedCauseMults(drawn: Record<string, number>, applied: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const cause of Object.keys(drawn).sort()) {
+    const n = drawn[cause], k = applied[cause] ?? 0;
+    if (n > 0 && k < n) out[cause] = k / n;
+  }
+  return out;
+}
+
+/**
  * Ruling R24 with its food: the winter C that the workers the cap kept alive eat, loads, by day (cumulative). The model
  * charged each day's food only for the workers it expected alive that day; a worker it had drowned on day g but the
  * cap kept eats from day g to spring. The lost-by-day curve is the model's own (`days[g].workers`, ending on the drawn
@@ -181,8 +199,9 @@ export function runWinterModel(input: WinterInput, p: WinterParams, rng: RngStat
   const exp: Record<string, number> = {};
   const expBrood: Record<string, number> = {};
   const out: WinterDayOut[] = [];
-  const baseYoung = dailyOf(p.baseLoss * mult, days);
-  const baseOld = dailyOf(p.baseLoss * WINT_OLD_LOSS_MULT * mult, days);
+  const causeMult = (cause: string): number => p.causeMult?.[cause] ?? 1;
+  const baseYoung = dailyOf(p.baseLoss * mult, days) * causeMult('old-age');
+  const baseOld = dailyOf(p.baseLoss * WINT_OLD_LOSS_MULT * mult, days) * causeMult('old-age');
   const baseLarva = dailyOf(WINT_BASE_LOSS_LARVAE * mult, days);
   const fungusP = (p.pFungus ?? P_WINTER_FUNGUS) * (input.humidity > WINT_FUNGUS_HUMIDITY ? WINT_FUNGUS_HUMID_MULT : 1);
   // the outbreak (if any) and its day are drawn first, so the rest of the draws do not depend on them
@@ -192,7 +211,7 @@ export function runWinterModel(input: WinterInput, p: WinterParams, rng: RngStat
 
   // one pass removes `frac` of the workers (young and old alike) for a cause
   const loseWorkers = (cause: string, frac: number): void => {
-    const f = Math.min(1, Math.max(0, frac));
+    const f = Math.min(1, Math.max(0, frac * causeMult(cause)));
     add(exp, cause, (young + old) * f);
     young *= 1 - f;
     old *= 1 - f;

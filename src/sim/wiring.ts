@@ -7,11 +7,17 @@
 //  - locomotion: the nest module's clutter speed factor for walkers in cavities (GDD 03 §10, loose pellets).
 //  - nest: its runtime (carve listener) exists from the start, so no carve of a tick is missed by the persisted
 //    chamber-detection flag (Nest.detectDue), whichever module carves first after a load.
+//  - world field: the human-event terrain deltas (footprints, sand craters; WorldDelta.heightDeltas) are registered as
+//    height overlays now, as the mound piles are by createServices. The human-events system would register them at its
+//    first tick, but ant-thermal runs before it in the environment phase and reads the ground: after a load an ant
+//    in a cavity under a footprint felt a 0.8-2.4 mm different depth on that tick, and the restored game left the
+//    live one within 10 ticks (sweep-5 review finding 2). Registering twice is a no-op (unchanged tiles are skipped).
 
 import type { ColonySpeciesId, PheroChannel, SignalsDef, Sim } from '@/sim/types';
 import { PHERO_POROUS_MATERIALS, PHERO_SUNLIT_SHADE_MAX } from '@/sim/balance';
 import { microTemp, surfaceTemp } from '@/sim/environment';
 import { isInteriorAt, shadeAt } from '@/sim/environment/ground';
+import { syncHeightOverlays } from '@/sim/environment/human/effects/terrain';
 import { registerSpeedFactor } from '@/sim/locomotion';
 import { clutterSpeedMult } from '@/sim/nest';
 import { nestRuntime } from '@/sim/nest/runtime';
@@ -22,6 +28,7 @@ export function installRuntimeHooks(sim: Sim): void {
   installPheromoneHooks(sim);
   registerSpeedFactor(sim, (s, w) => (w.medium === 'cavity' ? clutterSpeedMult(s, w.pos) : 1));
   nestRuntime(sim);
+  syncHeightOverlays(sim);
 }
 
 const POROUS: ReadonlySet<string> = new Set(PHERO_POROUS_MATERIALS);

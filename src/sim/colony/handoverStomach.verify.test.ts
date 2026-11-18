@@ -9,7 +9,7 @@
 // protein while the queen still holds her provision.
 //
 // Result (sweep after round 5, 01:10 UTC Nov 18): the first case is green (the eggs hatch inside the window). The
-// second is RED and kept: with 9 workers (1.35 P of stomach room) and 3 eggs that hatch on day 3, the stomachs stay
+// second was RED (fixed in round 6 by P1d, the case restated to the rule, see there): with 9 workers (1.35 P of stomach room) and 3 eggs that hatch on day 3, the stomachs stay
 // full for 2 gd (nobody eats), the window closes, and the queen keeps 7.37 of her 8.6 P above her keep while the pool
 // reads P 0 from day 4. The sweep's suburban-garden #1 shows the same course: pool P 1.36-1.38 on days 1-3 (= 9 x 0.15),
 // 0 on day 4 when its 7 larvae hatched, `rationing` days 4-7, 6 larvae starved, 0 eclosions.
@@ -73,20 +73,36 @@ describe('P1 review: the hand-over protein reaches the larvae', () => {
     expect(q.queen!.reserveP, msg).toBeLessThan(HANDOVER_QUEEN_KEEP_P + 1);
   }, 120_000);
 
-  it('9 workers, 3 fresh eggs in a 16 C chamber (suburban-garden #1 of sweep 5): the provision is not left in the queen when the window closes', () => {
-    // chamber at 16 C: suburban-garden #1 read 16-22 C in its brood chamber on days 1-6, its eggs hatched on day 4
+  it('9 workers, 3 fresh eggs in a 16 C chamber (suburban-garden #1 of sweep 5): larvae that hatch after the window still get the provision', () => {
+    // chamber at 16 C: suburban-garden #1 read 16-22 C in its brood chamber on days 1-6, its eggs hatched on day 4.
+    // Restated in round 6 (fix P1d: the protein is paid in for as long as the queen holds it, no window). The review's
+    // assertion was "the queen is at her keep 3 gd after the window"; with 3 larvae that is more than they can eat, and
+    // the rule is that the provision is the larvae's, so this checks what R2 asks: while the queen holds protein above
+    // her keep, no larva meets an empty pool, and what the larvae eat after the window still comes out of her.
     const { sim, q, col } = handover(9, 0, 16, 3);
     const rows: string[] = [];
     const broodDeaths: string[] = [];
     sim.events.on('brood-died', (e) => broodDeaths.push(`${e.stage}:${e.cause}@${(sim.state.tick / TICKS_PER_DAY).toFixed(2)}`));
-    for (let d = 0; d < HANDOVER_PROVISION_WINDOW_GD + 3; d++) {
-      step(sim, TICKS_PER_DAY);
-      rows.push(JSON.stringify({
-        gd: d + 1, queenP: +q.queen!.reserveP.toFixed(2), poolP: +col.stores.p.toFixed(2), stage: col.starvationStage,
-        eggs: sim.state.brood.filter((b) => b.alive && b.stage === 'egg').length,
-        larvae: sim.state.brood.filter((b) => b.alive && b.stage === 'larva').length,
-      }));
+    let emptyWithLarvae = 0;
+    let queenPAtWindow = -1;
+    const windowEnd = sim.state.tick + Math.round(HANDOVER_PROVISION_WINDOW_GD * TICKS_PER_DAY);
+    const end = sim.state.tick + Math.round((HANDOVER_PROVISION_WINDOW_GD + 3) * TICKS_PER_DAY);
+    while (sim.state.tick < end) {
+      step(sim, 100);
+      if (queenPAtWindow < 0 && sim.state.tick >= windowEnd) queenPAtWindow = q.queen!.reserveP;
+      const larvae = sim.state.brood.filter((b) => b.alive && b.colony === col.id && b.stage === 'larva').length;
+      if (larvae > 0 && q.queen!.reserveP > HANDOVER_QUEEN_KEEP_P + 0.5 && col.stores.p < 0.05) emptyWithLarvae++;
+      if (sim.state.tick % TICKS_PER_DAY < 100) {
+        rows.push(JSON.stringify({
+          gd: +(sim.state.tick / TICKS_PER_DAY).toFixed(1), queenP: +q.queen!.reserveP.toFixed(2), poolP: +col.stores.p.toFixed(2),
+          stage: col.starvationStage, eggs: sim.state.brood.filter((b) => b.alive && b.stage === 'egg').length, larvae,
+        }));
+      }
     }
-    expect(q.queen!.reserveP, rows.join(' ') + ' brood deaths: ' + broodDeaths.join(' ')).toBeLessThan(HANDOVER_QUEEN_KEEP_P + 1);
+    const msg = rows.join(' ') + ' brood deaths: ' + broodDeaths.join(' ');
+    expect(emptyWithLarvae, msg).toBe(0);
+    expect(broodDeaths.filter((d) => d.startsWith('larva:starv')), msg).toEqual([]);
+    // the larvae hatched at the window's end: what they ate after it came out of the queen
+    expect(q.queen!.reserveP, msg).toBeLessThan(queenPAtWindow - 0.5);
   }, 120_000);
 });

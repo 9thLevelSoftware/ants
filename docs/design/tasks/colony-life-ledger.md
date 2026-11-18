@@ -1792,3 +1792,186 @@ Status: **round 5 complete** (00:47 UTC Nov 18). In the tree: P1 (v2), WL2, M2, 
 300) + tests; tools: `lifeFunnel` protein clock, `bench-table` columns, `bench-sweep` DAYS, `lifeMetrics` R27 fields,
 `lifeViable` R27 check, `sweep-table` R27 column. Reverted: PR1, PR1b, P1c. Probes and scratch trees deleted; no
 process of this round running. Evidence: `test-output/colony-life/round-5/`.
+
+### Independent sweep after round 5
+
+Independent engineer, 00:50-02:40 UTC Nov 18 (cut off once by the 01:16 restart; resumed from
+`progress/colony-life-sweep-5.md`). **Table: `test-output/colony-life/round-5/sweep-table.md`** (`python3
+tools/sim/sweep-table.py test-output/colony-life/round-5/sweep test-output/colony-life/round-4/sweep`; runs by
+`tools/sim/sweep-life.sh` from a frozen copy of the tree taken at 00:49, src hash `fe11a0ad`, all 15 runs on it; the live
+tree differs from it only in other engineers' `environment/human/*`, `progression/alerts*` and this review's tests).
+Naturalist, default start (doy 5), flooding on, no player, hand-overs founded fresh. **This table is the one the next
+round compares with.** Bars recomputed from the Markdown table by a second script: same numbers.
+
+**Viability bar: NOT met** - viable **6 of 15** (round 4: 1): woodland-edge 2/3 (ok), suburban-garden 1/3, playground-park
+1/3, car-park-verge 1/3, kitchen-door 1/3. Failed checks: workers in 6 (we #1, sg #1, pp #1, pp #2, cpv #2, kd #2;
+short by 0.2-3.4 workers), starvation stage in 5 (sg #1 4.25 gd, sg #3, cpv #3, kd #1 3.2, kd #2), stores (R27) in 1
+(sg #3, C 0).
+
+**Growth bar R19: NOT met** (4 of 7):
+
+| check | round 5 | round 4 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | **8 of 15** | 2 |
+| median eclosions after hand-over >= 4 | 5 ok | 2 |
+| median intake/need P >= 0.7 | **0.244** | 0.045 |
+| median intake/need C >= 0.9 | 1.285 ok | 0.716 |
+| median trip success >= 50 % | **45.0 %** | 42.2 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok | 14 |
+| no `worker:lost`, >= 13 of 15 | 14 of 15 ok | 15 |
+
+Larvae starved 48 -> 9 (sum); protein known within 1 gd of hand-over 7 of 15 (target 12; sg #1 7.8 gd, cpv #3 5.1,
+kd #1 3.6, kd #3 3.4, sg #3 3.8, pp #1 2.1, cpv #2 never).
+
+Regressions against round 4 (script; 10 runs flagged), with the run's own cause:
+- **sg #1 viable -> NOT** (workers 8 -> 7, eclosions 2 -> 0, P 0.126 -> 0.006, larvae starved 1 -> 6): the P1 provision
+  is stranded in the queen (finding 1: 9.72 P above her keep when the window closes, pool P 0 from gd 3.25 as the 7
+  larvae hatch); also egg:flooding 11 of 22 eggs on days 1-2.
+- pp #1 net workers -3 -> -6, eclosions 2 -> 1: `worker:lost` 0 -> 3 (days 8 and 11), egg:flooding 9 of 16 on days 1-2.
+- pp #2 net -1 -> -3, eclosions 3 -> 1: pupa:untended 8 of the 9 that pupated (days 4-7, 11 workers).
+- kd #2 net -2 -> -4: egg:untended 5, pupa:untended 4, eclosion-failed 1; predation 2, old age 6.
+- we #3 eclosions 3 -> 2 (still viable): pupa:hygiene 2, pupa:exposure 2, eclosion-failed 1.
+- sg #3 C 0.322 -> 0.155, trip success 31 -> 11 %: 85 scout trips (round 4: 24) with median 2 s outside and 1.1 BU
+  of path, 57 of them ending `untracked`; no trip started on days 1-3 (round 4 the same); C 0 from day 5, laying
+  permitted 0.10 of the time (winter reserve short 0.90).
+- Trip success cpv #2 49 -> 33 %, cpv #3 42 -> 29, kd #1 45 -> 34, kd #3 59 -> 39 (cpv #3 also C 0.977 -> 0.862): trips
+  that come home with a full crop and are refused by full stores count as failures (`crop-full ... fail`: 11 of 61,
+  13 of 113, 48 of 155, 19 of 54; C at winter 11.5, 8.1, 22.2, 13.7).
+Gains: viable 1 -> 6, eclosions 35 -> 72 (sum), workers at winter 128 -> 156 (sum), P 0.045 -> 0.244, C 0.716 -> 1.285.
+
+Review of the round (code: `git diff 8b4c207` on the files of "Fixes (round 5)"; outputs `round-5/sweep-review/`):
+- Verified: `tsc --noEmit` clean (00:51, 01:40). Folder tests on the round's tree: colony 62/63 files (red
+  `founding/reopen`, known), nest 56/57 (`escapeDig`, known), ants/behaviours/nest 28/30 (`sfaReview.verify`,
+  `stall.soak`, known), ants/player 6/6, balance 3/3; overwinter + the round's verify files again at 01:57 on the live
+  tree: green except this review's two RED tests. The round's tests are red with their fix taken out (scratch copy,
+  files at 8b4c207): `larderProvision.verify`, `lossCapStores.verify`, `haulMidden.verify`, `founding/padPrompt.test`.
+  `viability.test` (the restated R2 case) is green on both trees: it does not pin P1, and it no longer asserts that
+  the queen ends at her keep.
+- Not allowed list: no lifespan, need, bar or ruling-test weakening; no seed or archetype case; SR's 300 BU is R18's
+  radius. Determinism of the round's changes: no new persisted state, no wall clock, `Math.random` or `Math.hypot`;
+  `winterStoresNeed` runs on the colony cycle in autumn only (census + cluster temperature): no per-tick trap.
+- WL2, M2, R27, S3/S6, S17: sound. R27's lapse need uses the cluster temperature at the first tick of winter, so it
+  is above the lapse model's own use (colder days, lower metabolic factor); no run failed the stores check by that
+  margin (only sg #3, with C 0).
+- **Finding 1 (major): P1 strands the hand-over protein in the queen.** The stomach-only pay-in runs only as fast as
+  the stomachs empty, i.e. as fast as larvae eat, and stops when HANDOVER_PROVISION_WINDOW_GD (3 gd) closes; what is
+  left stays in `queen.reserveP`, which an established queen never draws again (`queen.ts`: `canLay` and the upkeep
+  read `reserveP` only in mode `founding`). Probe on the sweep's own hand-overs (cache restore, 5 gd, `sweep-review/
+  probe-provision/*.txt`): queen P above her keep (1.0) when the window closes: **sg #1 9.72, pp #1 6.41, we #2 5.32,
+  cpv #1 1.61**, kd #1 0, we #1 0 (kd #1 / we #1: 9-11 larvae hatched by gd 1.5-2 and ate the whole provision, then
+  rationed = the real income gap). sg #1: pool P 1.36-1.38 (= 9 stomachs x 0.15) for 3 gd while its eggs develop, its 7
+  larvae hatch at gd 3.0-3.25 into pool P 0 with 10.7 P in the queen; 6 starve, 0 eclose, the stage check fails. Test
+  **`src/sim/colony/handoverStomach.verify.test.ts`** (case 2 RED, kept; case 1 green): 9 workers, 3 eggs hatching on
+  day 3: the queen keeps 7.37 of 8.6 P above her keep after the window. The round's P1c (10-gd P window) was judged on
+  the forage bench, whose tool-held demand empties the stomachs regardless; the life sim does not. Fix at the rule:
+  the provision belongs to the first larvae (pay in by their need, or count the window from the first larva), not
+  to the stomachs' emptying rate.
+- **Finding 2 (major, determinism, not this round's code): save -> load changes the ground height near the nest.**
+  `sweep-review/probe-restore-pp3.txt`, `probe-restore2-pp3.txt`: pp #3 hand-over, 2000 ticks, snapshot -> restore:
+  `field.height` under 4 ants differs by 0.8-2.4 mm (mound overlay), so their micro temperature and `tb` differ and the
+  state hash differs within 10 ticks. No mound relaxation was running at the split (`relaxSweep` -1 on all 5 piles),
+  so the gap is elsewhere between the published overlay and the `Mound` state. Effect seen: the year-two long run of
+  pp #3 (restored hand-over) leaves the sweep's pp #3 (in-process) on day 1 (7 vs 11 workers at winter); the other
+  four long runs equal the sweep through the first tick of winter. Every `--cache` run and bench restores, every
+  fresh sweep run does not: comparisons that mix them carry this noise.
+- **Finding 3 (minor): WL2's spared workers never starve.** `chargeSparedWorkers` charges the kept workers' food after
+  the model ran, "as far as the stores go": when it empties the stores they stop eating and draw no starvation.
+  **`src/sim/colony/overwinter/sparedStarve.verify.test.ts`** (RED, kept): 20 workers, C 1.5, nest flooding on every
+  rainy day vs the same nest dry, 12 seeds: seed 5 wakes with 13 workers flooded vs 9 dry (drowning capped 3,
+  starvation 4 vs 9), seed 1 11 vs 10. Small (needs a capped flood loss and short stores together), but a flood
+  should never leave a colony better off.
+- Noted, not this round's: `Math.hypot` in `src/sim/nest/mounds.ts` (crater-rim read), against the layering rule.
+
+**Year two: five long runs** (`round-5/sweep-long/`, table `longrun-table.md`; frozen tree, the sweep's hand-overs,
+`UNTIL_DAY=32`; the viable seed of each archetype, the lowest on ties: we #2, sg #2, pp #3, cpv #1, kd #3):
+
+| run | first | Winter 1: workers, C, P | spring d1: workers, C | y2 first egg (doy) / eggs / eclosed | workers y2 doy 15 | deaths after winter |
+|---|---|---|---|---|---|---|
+| woodland-edge #2 | 8 | 8, 9.1, 1.0 | 8, 7.4 | 5 / 5 / 0 | 3 | old age 5 |
+| suburban-garden #2 | 11 | 12, 7.6, 0.7 | 11, 5.3 | 5 / 10 / 3 | 4 | old age 9, crushed 1 |
+| playground-park #3 | 13 | 7, 16.6, 2.5 (restore, finding 2) | 6, 14.0 | 5 / 7 / 1 | 4 | old age 4 |
+| car-park-verge #1 | 11 | 17, 25.8, 0.0 | 15, 22.5 | 4 / 13 / 1 | 3 | old age 14, cold 1 |
+| kitchen-door #3 | 9 | 9, 13.7, 0.9 | 8, 11.4 | 6 / 21 / 0 | 2 | old age 7 |
+
+R22 year two: spring >= 0.7 x winter **5 of 5** (target 4: met; WL2 and R27 hold the lapse); y2 doy 15 >= 2 x first
+**0 of 5** (target 3). First y2 egg by spring day 4 in 1 of 5. Laying potential 0 on spring days 1-7 in cpv #1 (royal
+chamber 1.4, 2.6, 4.6, 7.1 C on days 1-4, 11.7 on day 6); old age takes the overwintered workers (cpv #1 15 -> 3) before
+the year-two brood ecloses; spring protein income 0-0.8 P a day (cpv #1 rationing or brood sacrifice on 6 of spring days 8-16 with C
+19-29); kd #3 lost 9 spring eggs and 2 larvae to hygiene and 4 eggs to flooding with 4-6 workers.
+
+Leads from the failing runs' own diagnostics (most costly first):
+1. **Protein income where the patch is far or empty** (stage check in kd #1, kd #2, cpv #3; 0 eclosions in cpv #2):
+   P intake/need 0.006-0.086 in sg #1, cpv #2, cpv #3, kd #1, kd #2, kd #3 against 0.19-0.57 in the others; protein
+   known at 3.4-7.8 gd or never; nearest prey patch 80-244 BU with 0-9 prey appeared (kd #1, kd #2, cpv #2: 0), except cpv #3 (187 appeared, 9 subdued); kd #1
+   rations on days 3-9 with 0.02-1.3 P delivered a day. Kitchen-door and car-park-verge are the protein-poor archetypes.
+2. **Finding 1 (P1 stranding)**: decisive in sg #1 (-6 larvae, 0 eclosions), 5-6 P idle in pp #1 and we #2.
+3. **Brood lost in care**: pupa:untended 28, egg:untended 28, pupa:hygiene 11, egg:flooding 28 over the sweep;
+   decisive in pp #2 (8 of 9 pupae), cpv #2 (pupa:hygiene 5 + untended 3: 0 eclosions), kd #2 (9), pp #1 (9 eggs
+   flooded). Each of pp #2, cpv #2, kd #2 misses the workers check by 0.2-2 workers.
+4. **Carbohydrate-saturated foraging**: tenders keep bringing honeydew to full stores while protein is short:
+   refused full-crop trips kd #1 48 of 155, kd #2 43 of 79, cpv #1 30 of 140, pp #3 27 of 168; kd #1 51 tend worker-gd
+   vs 38 forage, C 22 and P 0.01 at winter. This also holds trip success at 45 % (R19).
+5. **Year two**: cold spring nest (laying potential 0 until spring day 4-8) and the age of the overwintered workers
+   (4-14 old-age deaths by y2 doy 15); the integrator's year-one vs year-two royal-chamber comparison is still owed.
+6. **sg #3 scouts that do not leave** (85 trips of 2 s, 57 `untracked`, no trip on days 1-3, C 0 from day 5).
+7. **Finding 2 (restore changes the mound overlay)**: fix before trusting cached benches against life runs.
+8. Predation 15 deaths in 5 runs (we #1 7 at 18-26 workers, pp #3 4, kd #2 2; R25's expectation is about 0 for
+   founding colonies), `worker:lost` 3 (pp #1), crushed 6 (kd #1).
+
+Scratch tree `/home/user/frozen-sweep5` (with the probes `probe-provision.ts`, `probe-restore*.ts`) deleted; no process
+left running. Probe outputs kept under `round-5/sweep-review/`.
+
+## Round 6
+
+Engineer: round 6 (started 02:33 UTC Nov 18). Evidence: `test-output/colony-life/round-6/`. Tree at start = HEAD b2809f0
++ other engineers' edits (sim-seams: `src/sim/systems.ts` corpse pass last, `commands.test.ts`; docs). Order of work:
+R28 (direction 11, small), sweep-5 finding 1 (P1 stranding, major), finding 2 (restore changes the mound overlay,
+major), finding 3 (WL2 spared workers never starve, minor), predation check (integrator note), then protein by the
+method (direction 10: discovery, the days 3-6 gap), then year two.
+
+Progress (kept current; a successor continues from here)
+- 02:33 read spec, ledger (to the sweep-5 review), STATUS (to 02:35 entry). Next: R28.
+- 02:37 **R28 in the tree** (direction 11): `ecology/creatures/threat.ts` `alertActive`: a warning is loud for
+  ALERT_LOUD_S 30 s (`balance/creatures.ts`) after it is raised or its level rises, a critical while it stands. The
+  alert record has no level tick and `progression/alerts*.ts` is quiet-time's / sim-seams' (not edited): the quiet
+  sampler keeps [id, level rank, tick] triples in the new optional `QuietTracker.alertLevels` (additive,
+  `types/ecology.ts`); a new alert is dated by its own `updatedTick`, a rise by the sample that sees it (<= 10 ticks
+  late). Test `ecology/creatures/loudAlert.test.ts` (a warning re-raised every minute for a game day = 1 loud hour, was
+  17; escalation loud until eased, the eased warning not loud again; save -> load mid-warning equal): 3/3 green, 3/3
+  red with the HEAD threat.ts. Still to do for R28: quietRun.ts on two worlds, `quiet.long.test.ts`.
+- 02:42 **P1d in the tree** (sweep-5 finding 1, major): `colony/handover.ts` `provisionAtHandover`: the protein is paid
+  into the stomachs for as long as the queen holds it above her keep (no window; the C window of 3 gd stays). No loop
+  (an established queen never draws or refills reserveP). Reproduced first: `handoverStomach.verify` case 2 red
+  (queen 7.37 P, pool P 0 from gd 4 with 3 larvae). Case 2 restated to the rule (the review's "queen at her keep 3 gd
+  after the window" is more than 3 larvae can eat; it now checks no larva meets an empty pool while she holds P above
+  keep, no larva starves, and the larvae's food after the window comes out of her): green; red with HEAD handover.ts
+  (pool P 0 from gd 4, queen 7.37 flat). `viability.test` window case restated (C ends at the window, P still paid in,
+  never past the stomachs): 16/16. Next: finding 2 (restore vs mound overlay), then before/after life runs.
+- 02:48 **RS (sweep-5 finding 2, restore determinism) in the tree**: the cause is not the mound overlay but the
+  human-event terrain deltas (footprints, `FOOT_PRINT_MM` 3; the review's 0.8-2.4 mm, live ground lower). They are
+  registered as field overlays lazily by `runHumanEvents` at its first tick, and `ant-thermal` runs before it in the
+  environment phase, so on the first tick after a load an ant in a cavity under a print reads another depth. Probe
+  `tools/sim/probe/probe-restore6.ts` (pp #3 cached hand-over, 8 splits every 1000 ticks from 22816): at every split
+  the restored sim has 5-6 overlays (the mounds), the live one 52-59 (mounds + 47-53 delta tiles); every mound overlay
+  equal cell for cell to the live one and to `Mound.h`; after one tick both have the same list. (No hash divergence in
+  20 ticks at those splits on today's code nor on a HEAD copy at the review's split 23816: it needs an ant under a
+  print at the split; quiet-time's human-event changes since the frozen sweep tree move the prints.) Fix:
+  `src/sim/wiring.ts` `installRuntimeHooks` calls `syncHeightOverlays(sim)` (read-only use of quiet-time's
+  `environment/human/effects/terrain.ts`; a second call at the human system's first tick skips unchanged tiles).
+  Test `src/sim/heightDeltaRestore.test.ts` (ground under a print equal in the loaded sim before its first tick):
+  green; red with HEAD wiring.ts (0 vs -2.64 mm). Next: finding 3 (spared workers starve).
+- 02:50 **WL3 in the tree** (sweep-5 finding 3, minor): `overwinter/begin.ts`: when the R24 cap cuts the drawn losses,
+  the winter model runs again from the same RNG state with the causes the cap cut scaled to what it applies
+  (`model.ts` new `WinterParams.causeMult`, `cappedCauseMults`), so the kept workers eat and starve inside the model;
+  `chargeSparedWorkers` stays for what the cap still keeps of the second run. `sparedStarve.verify` (review's): seed 5
+  13 vs 9 (before) -> 10 vs 9 flooded vs dry; restated from "never 1 ahead on any seed" to "never more than 1 ahead
+  (integer draw) and not ahead over the 12 seeds" (drowning 2 early = 2 fewer mouths, starvation 7 vs 9): green; red
+  with HEAD begin/model. Overwinter folder (scratch tree HEAD + this round's files): 8 files green + 1 skipped (long).
+- 02:50 NOTE: the live tree does not run whole-sim tests right now: `TypeError: modules is not iterable`
+  (`commands.ts` `buildCommandTable(SIM_MODULES)` at import; an import cycle from sim-seams' work in progress:
+  `rivals/prepare.ts`, `progression/*`, `systems.ts`; not mine, not touched). Tests and runs of this round go on a
+  scratch tree = HEAD + this round's files (list in the scratchpad `myfiles.txt`): `r6a` (after), `r6b` (clean HEAD,
+  before).
+- 02:50 running (restart-safe, scratchpad `lifepairs.sh`): life to winter on the round-4 cached hand-overs, before (r6b)
+  vs after (r6a), sg #1 and pp #1 -> `round-6/life-before/`, `round-6/life-after/`. Next while they run: predation
+  check (integrator note), then the protein account.

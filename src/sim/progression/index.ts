@@ -19,6 +19,7 @@ import { checkLastAnts } from './deaths';
 import { sampleProgressionHour } from './stats';
 import { acknowledgeAlert } from './alerts';
 import { refreshDiagnostics } from './diagnostics';
+import { detectDiscoveries } from './discovery';
 
 export { raiseAlert, clearAlert, acknowledgeAlert, activeAlerts, alertKey, type AlertRequest } from './alerts';
 export { recordMilestone, unlockCodex, hasMilestone } from './milestones';
@@ -44,6 +45,7 @@ function poll(sim: Sim): void {
   const p = sim.state.progression;
   if (census.workers > p.peakWorkers) p.peakWorkers = census.workers;
   evaluateStage(sim, census);
+  detectDiscoveries(sim);
   triggersOnPoll(sim, { census });
   evaluateAims(sim, census);
   checkLastAnts(sim, census);

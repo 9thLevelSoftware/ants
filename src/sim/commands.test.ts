@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { Behaviour, System } from '@/sim/types';
 import { COMMAND_TYPES, SYSTEM_PHASES } from '@/sim/types';
 import { buildCommandTable, commandHandler, commandTableReport, COMMAND_OWNERS } from '@/sim/commands';
-import { assembleSystems, BEHAVIOURS, createBehaviourTable, duplicateBehaviours, SIM_MODULES, SYSTEMS } from '@/sim/systems';
+import {
+  assembleSystems, BEHAVIOURS, createBehaviourTable, duplicateBehaviours, END_OF_TICK_SYSTEM, SIM_MODULES, SYSTEMS,
+} from '@/sim/systems';
+import { killAnt } from '@/sim/entities';
+import { makeTestSim } from '@/sim/testing/testWorld';
 
 describe('command handlers (contributed by module indexes, ruling 9)', () => {
   it('every command type has exactly one handler, from its owner module', () => {
@@ -33,7 +37,7 @@ describe('system list (assembled from module exports, ruling 13)', () => {
   });
 
   it('is sorted by phase, starts with commands and ends with lifecycle (architecture §3)', () => {
-    const ranks = SYSTEMS.map((s) => SYSTEM_PHASES.indexOf(s.phase!));
+    const ranks = SYSTEMS.map((s) => (s.name === END_OF_TICK_SYSTEM ? SYSTEM_PHASES.length : SYSTEM_PHASES.indexOf(s.phase!)));
     expect([...ranks].sort((a, b) => a - b)).toEqual(ranks);
     expect(SYSTEMS[0].name).toBe('commands');
     expect(SYSTEMS[SYSTEMS.length - 1].name).toBe('lifecycle');
@@ -54,7 +58,29 @@ describe('system list (assembled from module exports, ruling 13)', () => {
     const late: System = { name: 'late-module-early-phase', phase: 'environment', run: () => {} };
     const { systems } = assembleSystems([...SIM_MODULES, { mod: { systems: [late], commandHandlers: {} } }]);
     const names = systems.map((s) => s.name);
-    expect(names.indexOf('late-module-early-phase')).toBe(names.indexOf('environment-effects') + 1);
+    // after every environment-phase system of the listed modules (species modules add some), before ecology
+    const at = names.indexOf('late-module-early-phase');
+    const lastEnv = systems.reduce((m, s, i) => (s.phase === 'environment' && s !== late ? i : m), -1);
+    expect(at).toBe(lastEnv + 1);
+    expect(systems[at + 1].phase).toBe('ecology');
+  });
+
+  it('runs the corpse pass after lifecycle-phase systems of later modules (a flood-drowned ant keeps its body)', () => {
+    // nest-flood (nest module) and fungus-phorid-deaths (species module) share the lifecycle phase but come from
+    // modules listed after `ants`; a stable phase sort alone put them after the corpse pass.
+    const killer: System = { name: 'test-late-killer', phase: 'lifecycle', run: (sim) => {
+      const ant = sim.stores.ants.list.find((a) => a.alive && a.caste === 'worker');
+      if (ant) killAnt(sim, ant.id, 'drowning');
+    } };
+    const { systems } = assembleSystems([...SIM_MODULES, { mod: { systems: [killer], commandHandlers: {} } }]);
+    const sim = makeTestSim({ nest: 'small', workers: 1, systems });
+    const id = sim.state.ants.find((a) => a.caste === 'worker')!.id;
+    sim.tick();
+    const corpse = sim.state.items.find((it) => it.kind === 'corpse');
+    expect(sim.state.ants.some((a) => a.id === id)).toBe(false);
+    expect(corpse, 'corpse of the ant killed in the lifecycle phase').toBeDefined();
+    const names = SYSTEMS.map((s) => s.name);
+    for (const n of ['nest-flood', 'succession']) expect(names.indexOf(n), n).toBeLessThan(names.indexOf('lifecycle'));
   });
 });
 

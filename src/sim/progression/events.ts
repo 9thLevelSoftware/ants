@@ -4,6 +4,7 @@
 // notable events, and the game-over record.
 
 import type { Sim, SimEvent, TargetRef } from '@/sim/types';
+import { SEASONS } from '@/sim/types';
 import { currentYear, seasonIndexOf, calendarTick } from '@/sim/time';
 import { censusOf, engineOf, isPlayerColonyId, memGet, memSet, playerColony } from './engine';
 import { addJournal, logEvent } from './journal';
@@ -58,6 +59,9 @@ function bookkeeping(sim: Sim, ev: SimEvent): void {
     case 'overwinter.report':
       if (queenAlive(sim)) countWinter(sim, lastWinterYear(sim));
       winterReportEntry(sim, ev.report);
+      // The lapse moved the calendar to spring day 1 in one step, so the calendar never sees a season change and
+      // emits no `time.season`: the spring return gets its season note here (once per season, see seasonEntry).
+      seasonEntry(sim);
       break;
     case 'time.season':
       if (ev.season === 'spring' && ev.year > 1 && queenAlive(sim)) countWinter(sim, ev.year - 1);
@@ -112,16 +116,23 @@ function gameOver(sim: Sim, chain: string[]): void {
   logEvent(sim, 'game-over', 'critical', 'colony.extinct', { cause: p.finalCauses[0] ?? 'unknown' });
 }
 
+/** Trigger memory key: year × 4 + season index of the last season note written (one note per season). */
+const SEASON_ENTRY_MEM = 'seasonEntryKey';
+
 /** Season note (journal kind `season`): tokens {workers} {brood} {c} {p} {weather} (weather = state id). */
 function seasonEntry(sim: Sim): void {
   const col = playerColony(sim);
   if (!col) return;
+  const ct = calendarTick(sim.state);
+  const seasonKey = currentYear(sim.state) * SEASONS.length + seasonIndexOf(ct, sim.state.config);
+  if (memGet(sim, SEASON_ENTRY_MEM, -1) === seasonKey) return;
+  memSet(sim, SEASON_ENTRY_MEM, seasonKey);
   const eng = engineOf(sim);
   const sw = eng.seasonWeather;
   const weather = Object.keys(sw).sort((a, b) => sw[b] - sw[a] || a.localeCompare(b))[0] ?? sim.state.env.weather.state;
   let brood = 0;
   for (const b of sim.stores.brood.list) if (b.alive && b.colony === col.id) brood++;
-  const idx = seasonIndexOf(calendarTick(sim.state), sim.state.config);
+  const idx = seasonIndexOf(ct, sim.state.config);
   addJournal(sim, 'season', `season.${idx}`, {
     workers: censusOf(sim).workers, brood, c: Math.round(col.stores.c * 10) / 10, p: Math.round(col.stores.p * 10) / 10, weather,
   });

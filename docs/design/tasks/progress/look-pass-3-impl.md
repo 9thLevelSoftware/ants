@@ -59,3 +59,4 @@ test-output/look3/
 - 02:19 tests green: render 807, game 582, ui 402, content 114, input 106; typecheck clean. NEXT: leaf pic re-shot (tag after4), playthrough, report
 - 02:22 leaf final pic OK (after/final-noon-observerlow-high.png). Playthrough running: PLAY_MINUTES=8 per speed, out test-output/look3/play/seed1, log test-output/look3/play.log, marker test-output/look3/play-done. If restart: not re-run again unless time; report the partial shots.
 - 02:23 report sections 8-10 written; only section 10 (playthrough) placeholder left (PLAYTHROUGH_PLACEHOLDER)
+- 02:32 playthrough done + looked at, report finished. Only the final StructuredOutput is left.

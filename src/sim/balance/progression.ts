@@ -84,3 +84,10 @@ export const ALERTS_ACTIVE_MAX = 64;
 export const CAUSE_CHAIN_DEPTH = 3;
 /** A diagnostic value that is not finite (e.g. a ratio over a zero capacity) is clamped to this magnitude. */
 export const DIAG_VALUE_MAX = 1e6;
+
+// ---- world discovery stand-in (sim-seams item 1; GDD 04 `world.zone-first-entry`, `world.micro-discovered`) ----
+
+/** An ant of the colony this close to a micro-connection's centreline has passed through it, BU. */
+export const MICRO_DISCOVER_BU = 1.0;
+/** Cell of the static lookup grid of micro-connection centrelines, BU. */
+export const MICRO_GRID_CELL_BU = 16;

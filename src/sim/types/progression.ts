@@ -40,6 +40,12 @@ export interface JournalEntry {
   key?: string;
   /** Token values for `key`'s wording (ids and numbers, never words). Additive (progression). */
   tokens?: Record<string, string | number>;
+  /**
+   * Calendar tick when the entry was written (`tick + env.calendar.startTick` at that moment). The winter lapse moves
+   * `startTick` forward without moving `tick`, so a date derived later from `tick` alone is wrong after a winter.
+   * Date entries from this field. Missing in saves made before it existed. Additive (sim-seams).
+   */
+  calTick?: number;
 }
 
 export interface AimRecord {

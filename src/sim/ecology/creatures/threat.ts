@@ -4,10 +4,12 @@
 // ended, and while the trailing quiet share is below QUIET_SHARE_MIN + 0.05 it is refused as if that time had not
 // passed. The hourly record lives in state.rivals.threatDirector.quiet (plain data).
 
-import type { QuietTracker, Sim, ThreatDirector } from '@/sim/types';
-import { LOUD_HOURS_PER_THREAT, QUIET_ALERT_SHARE, QUIET_MARGIN, QUIET_SAMPLE_EVERY, QUIET_WINDOW_GD } from '@/sim/balance/creatures';
+import type { ActiveAlert, QuietTracker, Sim, ThreatDirector } from '@/sim/types';
+import {
+  ALERT_LOUD_S, LOUD_HOURS_PER_THREAT, QUIET_ALERT_SHARE, QUIET_MARGIN, QUIET_SAMPLE_EVERY, QUIET_WINDOW_GD,
+} from '@/sim/balance/creatures';
 import { difficultyValue } from '@/sim/balance/difficulty';
-import { calendarTick, TICKS_PER_DAY, TICKS_PER_HOUR } from '@/sim/time';
+import { calendarTick, TICKS_PER_DAY, TICKS_PER_HOUR, TICKS_PER_SECOND } from '@/sim/time';
 import { conditions } from './conditions';
 
 const RING = QUIET_WINDOW_GD * 24;
@@ -75,9 +77,37 @@ function counts(sim: Sim): boolean {
   return sim.state.progression.stage.id !== 'founding';
 }
 
-function alertActive(sim: Sim): boolean {
-  for (const a of sim.state.progression.alerts) if (a.level === 'warning' || a.level === 'critical') return true;
-  return false;
+const ALERT_LOUD_TICKS = ALERT_LOUD_S * TICKS_PER_SECOND;
+
+function levelRank(a: ActiveAlert): number {
+  return a.level === 'critical' ? 2 : a.level === 'warning' ? 1 : 0;
+}
+
+/**
+ * Ruling R28: is any alert loud now? A critical alert is loud while it stands; a warning for ALERT_LOUD_S after it was
+ * raised or its level rose (an update that only bumps its count does not restart it; easing from critical does not
+ * either). The tick each alert reached its level is kept in `q.alertLevels` ([id, rank, tick] triples): the alert
+ * record has no such tick, and the alerts module belongs to another task. A new alert is dated by its own
+ * `updatedTick` (its raise, or a later level change before this sampler first saw it); a rise seen here by this tick,
+ * at most QUIET_SAMPLE_EVERY ticks late.
+ */
+function alertActive(sim: Sim, q: QuietTracker): boolean {
+  const now = sim.state.tick;
+  const prev = q.alertLevels ?? [];
+  const next: number[] = [];
+  let loud = false;
+  for (const a of sim.state.progression.alerts) {
+    const rank = levelRank(a);
+    let since = -1;
+    for (let i = 0; i < prev.length; i += 3) if (prev[i] === a.id) { since = i; break; }
+    let tick: number;
+    if (since < 0) tick = a.updatedTick;
+    else tick = rank > prev[since + 1] ? now : prev[since + 2];
+    next.push(a.id, rank, tick);
+    if (rank === 2 || (rank === 1 && now - tick < ALERT_LOUD_TICKS)) loud = true;
+  }
+  q.alertLevels = next;
+  return loud;
 }
 
 /** Every tick: closes the previous clock hour when a new one starts and samples the current one. */
@@ -95,7 +125,7 @@ export function quietTick(sim: Sim): void {
   if (director(sim).activeKind !== null) q.curThreat = 1;
   if (sim.state.tick % QUIET_SAMPLE_EVERY === 0) {
     q.curSamples++;
-    if (alertActive(sim)) q.curAlertSamples++;
+    if (alertActive(sim, q)) q.curAlertSamples++;
   }
 }
 

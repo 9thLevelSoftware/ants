@@ -182,7 +182,8 @@ export const QUEEN_FAT_CAP = 3.0;
  * and workers from her body until foragers return. She keeps HANDOVER_QUEEN_KEEP_C of fat (her own refill cap: a
  * keep below QUEEN_FAT_CAP would move the fat she refills from the pool back into it every cycle) and
  * HANDOVER_QUEEN_KEEP_P of protein (her P upkeep for 10 gd), loads. What a full pool cannot take is moved on later
- * cycles, for HANDOVER_PROVISION_WINDOW_GD after the hand-over only.
+ * cycles: the carbohydrate for HANDOVER_PROVISION_WINDOW_GD after the hand-over only, the protein (into the workers'
+ * stomachs only) for as long as she holds it (colony/handover.ts).
  */
 export const HANDOVER_QUEEN_KEEP_C = QUEEN_FAT_CAP;
 export const HANDOVER_QUEEN_KEEP_P = 1.0;

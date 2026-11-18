@@ -66,4 +66,6 @@ export interface EventLogEntry {
   key?: string;
   /** Token values for `key`'s wording. Additive (progression). */
   tokens?: Record<string, string | number>;
+  /** Calendar tick when the row was written (see JournalEntry.calTick). Additive (sim-seams). */
+  calTick?: number;
 }
