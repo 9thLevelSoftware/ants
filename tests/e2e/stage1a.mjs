@@ -515,6 +515,15 @@ export default async ({ page, shot, log }) => {
   // --- 11. runtime quality switches without errors or leaks --------------------------------------------------------
   const mem = async () => (await g(() => window.__game.perf())).memory;
   result.quality = [];
+  // The first visit to each quality uploads what only that quality draws (the shadow map, the post chain's targets, the textures of
+  // materials first drawn there, their programs) and three keeps it: a one-off warm-up, measured in test-output/look3fix/qs3.log (textures
+  // 37 -> 46 and programs 47 -> 71 on the FIRST cycle, then 46 / 71 / 77 / 86 on the second and third, to the unit). A leak is growth that
+  // goes on, so the baseline is taken after one full warm cycle, and the checked cycle must add nothing.
+  for (const q of ['low', 'high', 'test']) {
+    const r = await g((id) => window.__game.quality(id), q);
+    expect(r.ok && r.quality === q, `quality warm-up switch to ${q} failed`, r);
+    await render(0.25);
+  }
   const m0 = await mem();
   for (const q of ['low', 'high', 'test', 'low', 'test']) {
     const r = await g((id) => window.__game.quality(id), q);
@@ -524,7 +533,7 @@ export default async ({ page, shot, log }) => {
   }
   const m1 = await mem();
   result.memory = { before: m0, after: m1 };
-  expect(m1.geometries <= m0.geometries + 8 && m1.textures <= m0.textures + 4, 'GPU resources grew across quality switches', result.memory);
+  expect(m1.geometries <= m0.geometries + 8 && m1.textures <= m0.textures + 4 && m1.programs <= m0.programs + 4, 'GPU resources grew across quality switches', result.memory);
   expect((await g(() => window.__game.quality('ultra-max'))).ok === false, 'an unknown quality id was accepted');
 
   // --- 12. high-quality beauty shots: surface and underground ------------------------------------------------------

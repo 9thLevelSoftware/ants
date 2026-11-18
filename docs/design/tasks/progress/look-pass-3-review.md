@@ -28,3 +28,9 @@ Started 2026-11-18 02:30 UTC. Reviewer (adversarial), no production edits. Base 
 - observerAfterColony test checks follow flag only, not the camera pose (the actual bug)
 - wing alpha x2.4 at night: membrane 0.07 -> 0.168 (their own comment: 0.16 read as milky)
 - time.auto-slow GDD 06 payload {trigger, action}; contract type has alertKind/level/action (OK by contract)
+- 03:00 verify tests WRITTEN (not yet run; run after stage1a finishes): src/render/camera/lookPass3.verify.test.ts, src/render/world/terrain/moundRag.verify.test.ts (expected RED: 1.35 mm hidden pile > 0.4 mm foot offset)
+- noted: views/controls logs (22:05/22:12) predate last camera edits; stage1a 'GPU resources' failure is pre-existing (qsold.log) but in owned src/render/**
+- noted: Gentle 'autoSlowDefault' row shown as working, nothing reads env.time.autoSlow (DEVIATIONS D21) - minor, game/sim
+- 03:05 stage1a STRICT (full) FAILED: GPU resources grew (textures 45->56, programs 64->99); my 04-chamber-queen.png is all brown soil (no queen), check passed only via shrunk radius (shaft radius 0.361 of 2 mm)
+- 03:07 verify tests run: lookPass3.verify (slope-lift front view RED: -55.5 vs -29.2 deg; tight room + NaN PASS), moundRag.verify RED (1.35 > 0.4 mm). typecheck clean for my files.
+- DONE: only StructuredOutput left. Verdict fail.

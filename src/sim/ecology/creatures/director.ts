@@ -18,6 +18,7 @@ import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { chance, cue, dist, inStateS, rng, setState, stop } from './common';
 import { conditions, nightActive, roveBeetleActive, type Conditions } from './conditions';
 import { capOf } from './caps';
+import { inOpeningGrace } from '@/sim/timeGrace';
 import { spawnKind } from './spawn';
 import { aphidPredatorArrivals, countKind, trackAphids } from './aphidPredators';
 import {
@@ -197,6 +198,8 @@ function occupyTerritories(sim: Sim, cond: Conditions): void {
     t.occupantId = -1;
     if (suspended(sim, i, drawn)) continue;
     if (sim.state.tick < t.vacantUntilTick) continue;
+    // GDD 06 §5.2 opening grace: no predator spawns yet (sim-seams cross-edit, src/sim/timeGrace.ts)
+    if (CREATURE_STATS[t.kind].family === 'ant-predator' && inOpeningGrace(sim)) continue;
     if (visitor && (!visitorActive(sim, t.kind, cond, t.center) || !chance(sim, VISITOR_SPAWN_P))) continue;
     if (countKind(sim, t.kind) >= capOf(sim, t.kind)) continue;
     const at = spawnPointFor(sim, t);
@@ -332,7 +335,7 @@ export function runDirector(sim: Sim): void {
     if (!cond.winter) {
       aphidPredatorArrivals(sim, cond);
       spawnCaterpillars(sim, cond);
-      birdHourly(sim, cond);
+      if (!inOpeningGrace(sim)) birdHourly(sim, cond); // GDD 06 §5.2 opening grace (sim-seams cross-edit)
     }
   }
   trackAphids(sim, isEngaged);

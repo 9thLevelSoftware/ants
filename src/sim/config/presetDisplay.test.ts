@@ -4,7 +4,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomRules, DifficultyId } from '@/sim/types';
 import { DIFFICULTY_KEYS, DIFFICULTY_PARAMS, invalidCustomRules, presetRuleValues } from '@/sim/balance';
-import { PRESET_ROWS, PRESET_SUMMARY, presetCard, RULE_DISPLAY, UNWIRED_PARAMS, UNWIRED_RULES } from './presetDisplay';
+import {
+  PRESET_ROWS, PRESET_SUMMARY, presetCard, RULE_DISPLAY, UNWIRED_PARAMS, UNWIRED_RULES, UNWIRED_WHY,
+} from './presetDisplay';
 
 const PRESETS: readonly DifficultyId[] = ['gentle', 'naturalist', 'harsh'];
 const RULE_KEYS: (keyof CustomRules)[] = ['predators', 'rivals', 'humanActivity', 'weatherSeverity', 'seasonLengthDays', 'startSeason',
@@ -76,14 +78,22 @@ function readers(): string {
 }
 
 describe('values that no system reads yet are marked as not in effect', () => {
-  const code = readers();
   it.each([...UNWIRED_PARAMS, ...UNWIRED_RULES])('%s is read nowhere (wire it and take it off the unwired list)', (key) => {
+    const code = readers();
     expect(new RegExp(`\\b${key}\\b`).test(code)).toBe(false);
+    expect(UNWIRED_WHY[key].length, `${key}: say what is missing`).toBeGreaterThan(20);
+  });
+
+  it('the opening grace is read by the human-event scheduler and the creature director (GDD 06 §5.2)', () => {
+    expect(UNWIRED_PARAMS).not.toContain('openingGraceGd');
+    expect(SOURCES['/src/sim/timeGrace.ts']).toMatch(/difficultyValue\(sim, 'openingGraceGd'\)/);
+    expect(SOURCES['/src/sim/environment/human/index.ts']).toContain('openingGraceEndTick(sim)');
+    expect(SOURCES['/src/sim/ecology/creatures/director.ts']).toContain('inOpeningGrace(sim)');
   });
 
   it('the cards and the rules table carry the flag', () => {
     const rows = presetCard('naturalist').rows;
-    expect(rows.find((r) => r.label === 'Grace period before threats')?.inEffect).toBe(false);
+    expect(rows.find((r) => r.label === 'Grace period before threats')?.inEffect).toBe(true); // wired by sim-seams
     expect(rows.find((r) => r.label === 'Rain')?.inEffect).toBe(true);
     expect(RULE_DISPLAY.filter((r) => !r.inEffect).map((r) => r.key).sort()).toEqual([...UNWIRED_RULES].sort());
   });

@@ -152,6 +152,8 @@ export interface DayState {
   workers: number;
   byCaste: Record<string, number>;
   queenAlive: boolean;
+  /** The queen's protein reserve, loads (the hand-over provision she still holds; colony-life round 6). */
+  queenReserveP?: number;
   eggs: number;
   larvae: number;
   pupae: number;
@@ -198,11 +200,11 @@ export interface DayState {
 export function readState(sim: Sim, day: number, season: string): DayState {
   const s = sim.state, col = sim.stores.colonies.get(s.player.colonyId);
   const byCaste: Record<string, number> = {}, byState: Record<string, number> = {}, byTask: Record<string, number> = {};
-  let workers = 0, outside = 0, queenAlive = false;
+  let workers = 0, outside = 0, queenAlive = false, queenReserveP = 0;
   for (const a of sim.stores.ants.list) {
     if (!a.alive || a.colony !== s.player.colonyId) continue;
     bump(byCaste, a.caste);
-    if (a.caste === 'queen') { queenAlive = true; continue; }
+    if (a.caste === 'queen') { queenAlive = true; queenReserveP = a.queen?.reserveP ?? 0; continue; }
     if (isWorkerCaste(a.caste)) workers++;
     bump(byState, a.state);
     bump(byTask, a.task);
@@ -237,7 +239,7 @@ export function readState(sim: Sim, day: number, season: string): DayState {
     if (it.alive && it.kind === 'soil-pellet' && mine.has(it.nestId) && it.carrierIds.length === 0) pellets++;
   }
   return {
-    day, tick: s.tick, season, workers, byCaste, queenAlive, eggs, larvae, pupae,
+    day, tick: s.tick, season, workers, byCaste, queenAlive, queenReserveP: round(queenReserveP), eggs, larvae, pupae,
     meanLarvalHunger: larvae > 0 ? round(hunger / larvae) : 0,
     storesC: round(col?.stores.c ?? 0), storesP: round(col?.stores.p ?? 0), starvationStage: col?.starvationStage ?? '-',
     layPotential: round(col?.core?.acc['lay.potential'] ?? 0),

@@ -100,7 +100,7 @@ export const BACKDROP_SIZE = {
   facadeDepth: 4000,
   /** Thickness of the facade's wall skin (the recessed body behind it is the glass), mm. */
   facadeSkin: 150,
-  /** Facade structure (look pass 3): plinth height, window size (w, h), window centre heights (two storeys), pitch along the edge, door (w, h). */
+  /** Facade structure (look pass 3): plinth height, window size (w, h), window centre heights (two storeys), pitch along the edge. (No door: the facade has none.) */
   facadePlinth: 700,
   facadeWindow: [1300, 1500] as const,
   facadeWindowY: [2200, 4900] as const,

@@ -3,18 +3,20 @@
 // and a real fight); outside rival territory, on gentle, or once she has workers, she is not.
 import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
-import { DIG_P } from '@/sim/balance/rivals';
+// the sim through the testkit first: entering at ecology/creatures leaves two ecology systems undefined (an import
+// cycle in ecology, reported by sim-seams)
+import { player, record, rivalSim, rivalsOf } from './testkit';
 import { quietTracker } from '@/sim/ecology/creatures';
+import { DIG_P } from '@/sim/balance/rivals';
 import { foundingDigChance, foundingThreatHour } from './founding';
 import { claimAt } from './territory';
 import { chamberFloor, placeOnFloor } from './setup';
 import { JOB, rmod } from './state';
-import { player, record, rivalSim, rivalsOf } from './testkit';
 
 /** A sealed founding queen in the small test nest's royal chamber; one rival dx BU away. */
 function sealed(dx: number, preset: 'gentle' | 'naturalist' | 'harsh' = 'naturalist'): Sim {
   const sim = rivalSim({ preset, sizeBu: 512, nest: 'small', workers: 0, rivals: [{ species: 'tetramorium-immigrans', dx, dz: 0 }] });
-  sim.tick(); // builds the rival nest
+  sim.tick(); // the rival nest is built at creation (rivals/prepare.ts); one tick settles the index
   const col = player(sim);
   const nest = sim.stores.nests.get(col.nestIds[0])!;
   const royal = nest.chambers.find((c) => c.type === 'royal') ?? nest.chambers[0];

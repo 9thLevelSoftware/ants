@@ -147,10 +147,23 @@ export const DRAPE = {
 } as const;
 
 /**
- * Look pass 3 (S9, leaves read as flat decals at ant height): a lit cut margin and a stippled dark contact fringe on the
- * ground beside the leaf (density 0..1 at the margin, reach in card units), so a leaf is a thin body lying on the soil.
+ * Look pass 3 (S9, leaves read as flat decals at ant height): a lit cut margin and a soft contact shadow on the ground beside
+ * the leaf, so a leaf is a thin body lying on the soil. The shadow is blended over the ground (it darkens what is under it
+ * by `shadowAlpha` at the margin, falling off over `shadowReachUv` card units): a dithered discard read as black pepper
+ * between the lobes (review of look-pass 3). Every number of the leaf's look lives here, the shader only reads them.
  */
-export const DECOR_LEAF = { edgeLight: 0.45, shadowDensity: 1.0, shadowReachUv: 0.11 } as const;
+export const DECOR_LEAF = {
+  /** Brightening of the cut margin (the alpha band [edgeBand0, edgeBand1] rising, falling to edgeBand2). */
+  edgeLight: 0.45, edgeBand: [0.5, 0.56, 0.7],
+  /** Darkening of the ground at the leaf's margin (0..1) and the reach of the shadow in card units (a leaf is 2 across). */
+  shadowAlpha: 0.5, shadowReachUv: 0.09,
+  /** Fringe pixels fainter than this are dropped (saves the blend, no visible step). */
+  shadowCut: 0.03,
+  /** Colour of the shadow (linear): a near-black warm brown, lit like the ground. */
+  shadowRgb: [0.012, 0.010, 0.008],
+  /** Leaf albedo at full night weight, x the day value: a cream dry leaf stayed the brightest thing in a dark night frame. */
+  nightAlbedo: { dry: 0.4, fresh: 0.75 },
+} as const;
 
 /** GDD 04 §9 decor-leaf. Seasonal forest density per m²: index = season (spring, summer, autumn, winter). */
 export const LEAF = {

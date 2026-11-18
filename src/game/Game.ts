@@ -32,7 +32,7 @@ import { collectRefusals, type Rejection } from './refusals';
 import { GameSession } from './session';
 import { SettingsStore, type SettingsPatch } from './settings/settings';
 import { SoundCueTracker } from './soundCues';
-import { AutoSlowWatcher, type AutoSlowWhy } from './time/autoSlow';
+import { AutoSlowWatcher, withGameRule, type AutoSlowWhy } from './time/autoSlow';
 import { isFrozen, refusalFor, type GameMode, type ViewId } from './time/speedRules';
 import { buildSnapshot } from './uiBridge';
 import { generationPhase, loadingPhases, type LoadingPhase } from './newGame/loading';
@@ -134,7 +134,10 @@ export class Game implements GameFacade, GlobalControls, ViewSwitchHost {
   /** GDD 06 §4.5 automatic slow-downs on raised alerts (src/game/time/autoSlow.ts). */
   private readonly autoSlow = new AutoSlowWatcher({
     level: () => this.session?.driver.level ?? 0,
-    choice: () => { const g = this.settings.get().gameplay; return { critical: g.autoSlowCritical, warning: g.autoSlowWarning }; },
+    choice: () => {
+      const g = this.settings.get().gameplay;
+      return withGameRule({ critical: g.autoSlowCritical, warning: g.autoSlowWarning }, this.session?.sim.state.env.time.autoSlow ?? 'slow');
+    },
     apply: (to, _trigger, why) => this.onAutoSlow(to, why),
   });
   /** Counts the automatic slow-downs of this game: the speed control flashes once per count (GDD 06 4.5). */

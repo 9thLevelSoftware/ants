@@ -17,6 +17,7 @@ import { crushPAt } from './effects/ground';
 import { syncHeightOverlays } from './effects/terrain';
 import { humanPlan } from './plans';
 import { humanActivityOff } from './rules';
+import { openingGraceEndTick } from '@/sim/timeGrace';
 
 export { humanPlan } from './plans';
 export { humanSites, siteById, sitesOf, type HumanSite, type HumanSites } from './sites';
@@ -34,7 +35,8 @@ function newDay(sim: Sim, day: number): void {
   reactiveNewDay(sim, day, dayStart);
   // instances pushed past midnight by the spacing rule carry over; long-overdue ones are dropped
   const carry = h.scheduled.filter((i) => !i.cancelled && i.startTick >= now - TICKS_PER_HOUR);
-  const fresh = scheduleDay(sim, day, h.dayIndex < 0 ? now : dayStart);
+  // GDD 06 §5.2 opening grace: nothing is scheduled before it ends (sim-seams cross-edit, src/sim/timeGrace.ts)
+  const fresh = scheduleDay(sim, day, Math.max(h.dayIndex < 0 ? now : dayStart, openingGraceEndTick(sim)));
   h.scheduled = [...carry, ...fresh].sort((a, b) => a.startTick - b.startTick || a.id - b.id);
   h.dayIndex = day;
   sim.emit({ type: 'human.scheduled', day, instIds: fresh.map((i) => i.id) });

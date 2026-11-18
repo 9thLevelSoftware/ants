@@ -39,7 +39,7 @@ import { blockKeysOverlapping, blocksAround, rectDistance } from './tiles';
 import { WorldWatch, type Rect } from './worldWatch';
 import {
   DECOR_BUDGET_MS, DECOR_CHANGE_MARGIN_MM, DECOR_DISPOSE_K, DECOR_QUALITY_FACTOR, DECOR_RADIUS_MM, DECOR_WATCH_FRAMES,
-  DEW, DRAPE, GRASS, PARTING, WIND,
+  DECOR_LEAF, DEW, DRAPE, GRASS, PARTING, WIND,
 } from './tuning';
 import { QUALITY_PRESETS } from '@/render/app';
 
@@ -60,6 +60,8 @@ export interface DecorFrame extends WorldFrame {
   windMs?: number;
   /** Frost: no sway (GDD 08 11.4). */
   still?: boolean;
+  /** 0 by day .. 1 at night (LightingState.nightW): the leaves' albedo follows it (DECOR_LEAF.nightAlbedo). Absent = day. */
+  nightW?: number;
 }
 
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -209,8 +211,10 @@ export class DecorRenderer {
     d.uDcKeep.value.set(se.leafDensity / LEAF_MAX_DENSITY, se.petals, 1, ql);
     d.uDcLod.value.set(DRAPE.lodFullMm, DRAPE.lodPow, 0, 0);
     d.uDcFresh.value = se.freshShare;
-    d.uDcDry.value.set(se.dryTint[0], se.dryTint[1], se.dryTint[2], se.saturation);
-    d.uDcFreshTint.value.set(se.freshTint[0], se.freshTint[1], se.freshTint[2]);
+    // a pale dry leaf under the moon would be the brightest thing in a dark scene (look-pass-3 review): the leaf albedo follows the night weight
+    const n = Math.min(1, Math.max(0, frame.nightW ?? 0)), kd = 1 + (DECOR_LEAF.nightAlbedo.dry - 1) * n, kf = 1 + (DECOR_LEAF.nightAlbedo.fresh - 1) * n;
+    d.uDcDry.value.set(se.dryTint[0] * kd, se.dryTint[1] * kd, se.dryTint[2] * kd, se.saturation);
+    d.uDcFreshTint.value.set(se.freshTint[0] * kf, se.freshTint[1] * kf, se.freshTint[2] * kf);
     d.uDcBias.value.set(DRAPE.viewBiasLinK, DRAPE.viewBiasDepthUnits / (Math.max(cam.near, 1e-3) * 16777216));
     d.uDcFix.value.set(DRAPE.resolveMm, 0, 0, 0);
     const simDew = (this.sim?.state.env as { weather?: { dew?: { level?: number } } } | undefined)?.weather?.dew?.level;

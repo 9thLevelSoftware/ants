@@ -77,6 +77,7 @@ export class WorldSlot implements SubRenderer {
     if (frame.sim) this.updateWetness(frame.sim, frame.dt);
     this.world.update(w);
     if (this.hasWorld) {
+      w.nightW = this.world.lighting.nightW;
       this.decor.update(w);
       this.boundary.update(w, this.world.lighting);
     }

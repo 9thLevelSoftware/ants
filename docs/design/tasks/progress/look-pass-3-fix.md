@@ -1,0 +1,11 @@
+# look-pass-3-fix progress
+Started 03:09 (Nov 18). Nothing done yet. Reading docs.
+03:15 DONE: (F7) slope lift by camera offset (thirdPersonRig.ts slopeLiftFor, constants), camera tests green. (F8) mound rag: MOUND_RIM_RAG_MM 0.3 + colour mottle, moundRenderer.ts, test green; need browser look later.
+TODO order: leaf fringe soft (F3), wing night (F4), queen day look/night chrome (F5), radiusMm + chamber camera (F2), GPU disposal (F1), far blocks / dry leaf night albedo / leaf thickness (F6), GLSL numbers to tuning (F11), autoSlow wiring (F13), report fix (F10), browser reruns (F9).
+03:20 DONE: leaf fringe now blended alpha (CustomBlending opaque pass) in drapedMaterial.ts, DECOR_LEAF tuning extended; decor tests green; needs picture.
+03:35 DONE: F13 withGameRule in src/game/time/autoSlow.ts + Game.ts + test. qs3 harness run (test-output/look3fix/qs3.log) = quality cycles + texture survivors; running.
+03:42 DONE (code, not yet pictured): wings/cuticle look -> tuning.ts WING_LOOK, ANT_NIGHT_LOOK, ANT_FILL rim night 0.15; fragmentChunk.ts reads them; ants tests green.
+03:52 DONE: F2 camera: radiusMm nominal restored; collisionScale; closePose.ts (findClosePose, centreInGap) + motionGuard rescue + rig.guardCamera, out.clearanceHonoured; src/render/camera tests green (closePose.test.ts new). F1: stage1a.mjs memory check now warm-cycle (qs3 proved cycles 2,3 exact same: textures 46/77/46 programs 71/86/71). F3: slope lift by camera. TODO: run src/game/views tests, typecheck, then browser: stage1a strict, look3 shots (leaf, wings, night worker, queen), photo/views/controls/panels/firstplay, tests for new constants, report.
+03:53 starting stage1a STRICT browser run -> test-output/look3fix/stage1a.log (bg)
+03:58 DONE (code): far facade weathering (materials/farFacade.ts, surfacePatch macro block, plaster tint 0.9), dry-leaf night albedo (DECOR_LEAF.nightAlbedo, DecorFrame.nightW, worldSlot sets it). Not yet pictured. stage1a strict browser run in background (test-output/look3fix/stage1a.log).
+04:05 DONE: GASTER_MEMBRANE tuning; tests lookReview3.test.ts (ants), leafFringe.test.ts (decor); backdrop comment fixed (no door). WAITING for stage1a strict (monitor). NEXT: look3 shots batch (LOOK3_TAG=fix, set list in notes), views/controls/photo/panels/firstplay, full folder vitest, report.

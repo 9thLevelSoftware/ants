@@ -12,7 +12,7 @@ import { rivalsImpl } from './late';
 import { rivalColonies, rmod } from './state';
 import { rivalProfile } from '@/sim/species/rivals/profiles';
 
-/** Per tick: real nests on the first tick, deaths, territory deposits, fielding and raids, alerts, the ant cap. */
+/** Per tick: real nests not built at creation (older saves), deaths, territory deposits, fielding and raids, alerts, the ant cap. */
 export const rivalsTickSystem: System = { name: 'rivals-agents', phase: 'rivals', run: (sim) => rivalsImpl().tick(sim) };
 
 /** Hourly: abstract model, territory decay and scan, escalation, raid launches, destruction, foundations. */

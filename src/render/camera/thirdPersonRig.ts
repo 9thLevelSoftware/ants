@@ -8,9 +8,10 @@ import {
   BOOM_SPRING_TAU, CAM_AUTOFOLLOW_DELAY_S, CAM_AUTOFOLLOW_MAX_DEG_S, CAM_AUTOFOLLOW_MAX_TURN_DEG_S, CAM_AUTOFOLLOW_MIN_SPEED_BU,
   CAM_AUTOFOLLOW_TAU, CAM_FAR_BU, CAM_LOOKAHEAD_MAX_L, CAM_LOOKAHEAD_T, CAM_PIVOT_UP_L, CAM_PUSHOUT_TAU, CAM_RADIUS_L, CAM_RADIUS_MAX_BU,
   CAM_RADIUS_MIN_BU, CAM_RECENTRE_S, CAM_REDUCED_FOV_SPREAD_DEG, CAM_STATE_BLEND_S, CAM_STATE_BLEND_S_REDUCED, CAM_TUNNEL_LOOKAHEAD_BU,
-  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_SLOPE_LIFT_MIN_SPEED_BU, CAM_TIGHT_MIN_SCALE, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
+  CAM_UP_TAU, CAM_UP_TAU_REDUCED, CAM_MIN_CLEARANCE_R, CAM_RADIUS_FIELD_CAP_BU, BOOM_CLEAR_R, CAM_SLOPE_LIFT_K, CAM_SLOPE_LIFT_MAX_DEG, CAM_SLOPE_LIFT_TAU, CAM_TIGHT_MIN_SCALE, CAM_CLOSE_DIST_FRACTIONS, CAM_SNAP_JUMP_L, PATH_ASSIST_BLEND_S, PATH_ASSIST_OFF, PATH_ASSIST_ON,
 } from './constants';
 import { boomPoint, fitsAt, solveBoom } from './boomPath';
+import { findClosePose } from './closePose';
 import { MotionGuard } from './motionGuard';
 import type { FieldFn } from './sphereTrace';
 import { creviceForcesCutaway, OcclusionTracker, writeFade } from './fade';
@@ -64,6 +65,8 @@ export interface ThirdPersonOutput extends CameraPose {
   /** The clearance guard (f >= 0.5 R) had to move the camera this frame; otherwise its motion relative to the
    * pivot base stayed within CAM_MAX_REL_SPEED_L. */
   guarded: boolean;
+  /** The camera stands where a sphere of the GDD clearance fits (always, unless the room is lower than twice the clearance: see CAM_TIGHT_MIN_SCALE). */
+  clearanceHonoured: boolean;
   /** The pivot base this frame (above the target, clear of solid), mm. */
   base: Vec3;
 }
@@ -83,7 +86,9 @@ export class ThirdPersonRig {
   private elev = 20 * DEG;
   /** Extra orbit elevation that levels the view while the ant climbs a slope (constants.ts CAM_SLOPE_LIFT_*), rad. */
   private slopeLift = 0;
-  /** Share of the GDD camera radius in use: below 1 in a room lower than the sphere (constants.ts CAM_TIGHT_*). */
+  /** Share of the GDD camera radius the collision traces use: what fits at the pivot base (constants.ts CAM_TIGHT_*). */
+  private collisionScale = 1;
+  /** Share of the GDD radius the REPORTED radius and the clearance use: 1, except in a room with no place for the GDD clearance at all. */
   private radiusScale = 1;
   private baseValid = false;
   /** Player zoom per state, L: starts at each state's default distance (possessionStates.ts is the one table). */
@@ -113,36 +118,38 @@ export class ThirdPersonRig {
   private assistOn = false;
   private guard = new MotionGuard();
   // scratch
-  private pivot = vec3(); private base = vec3(); private tmp = vec3(); private tmp2 = vec3(); private h = vec3(); private dir = vec3();
+  private lastFwd = vec3(1, 0, 0); private lh = vec3(); private pivot = vec3(); private base = vec3(); private tmp = vec3(); private tmp2 = vec3(); private h = vec3(); private dir = vec3();
   private posA = vec3(); private posB = vec3(); private goal = vec3(); private bUp = vec3(); private thorax = vec3();
 
   constructor(opts: ThirdPersonOptions) {
     this.opts = { autoFollow: 'gentle', reducedMotion: false, worldUpLock: false, fovOffset: 0, far: CAM_FAR_BU * opts.bu, ceilingComfort: false, ...opts };
     this.crumbs = new Breadcrumbs(BOOM_ENTRIES, BOOM_SAMPLE_L * this.lengthMm);
     this.out = {
-      ...makePose(), state: 'open', focusDistance: 0, distance: 0, desired: 0, pinch: 0, occludedFor: 0, guarded: false, base: vec3(),
+      ...makePose(), state: 'open', focusDistance: 0, distance: 0, desired: 0, pinch: 0, occludedFor: 0, guarded: false, clearanceHonoured: true, base: vec3(),
       fade: { target: 1, occlusion: 0, capsuleA: vec3(), capsuleB: vec3(), capsuleRadius: 0 },
     };
   }
 
   get lengthMm(): number { return this.opts.bodyL * this.opts.bu; }
-  /** GDD 6.1 camera radius clamp(0.25 L, 0.1, 0.5) BU, mm: the centre always keeps f >= 0.5 x this (clearanceMm). */
+  /** GDD 6.1 camera radius clamp(0.25 L, 0.1, 0.5) BU, mm: the centre keeps f >= 0.5 x this (clearanceMm). Smaller only in a room too low for any camera (clearanceHonoured false). */
   get radiusMm(): number { return this.nominalRadiusMm * this.radiusScale; }
-  /** The GDD radius before the tight-room shrink, mm. */
+  /** The GDD radius, mm. */
   get nominalRadiusMm(): number { return clampN(CAM_RADIUS_L * this.opts.bodyL, CAM_RADIUS_MIN_BU, CAM_RADIUS_MAX_BU) * this.opts.bu; }
   /**
    * Sphere used for the collision traces, mm: the GDD radius capped at CAM_RADIUS_FIELD_CAP_BU. The carve field
    * saturates at 0.5 BU inside cavities, so a 0.5 BU sphere (queens) can never travel through a tunnel at all.
    */
-  get collisionRadiusMm(): number { return Math.min(this.radiusMm, CAM_RADIUS_FIELD_CAP_BU * this.opts.bu); }
+  get collisionRadiusMm(): number { return Math.min(this.nominalRadiusMm * this.collisionScale, CAM_RADIUS_FIELD_CAP_BU * this.opts.bu); }
   /** The guaranteed clearance of the camera centre (GDD 6.1), mm. */
   get clearanceMm(): number { return CAM_MIN_CLEARANCE_R * this.radiusMm; }
+  /** True while the camera stands where a sphere of the GDD clearance fits (false only in a room too low for any camera). */
+  get clearanceHonoured(): boolean { return this.radiusScale === 1; }
 
   /**
-   * Tight rooms: the camera sphere is the GDD radius, or what fits at last frame's pivot base when the room is lower than the sphere.
-   * The guard's clearance and the reported radius follow, so "f >= 0.5 x radius" holds wherever any camera can stand.
+   * Tight rooms: the collision sphere is the GDD radius, or what fits at last frame's pivot base when the room is lower than the sphere
+   * (the traces could not leave the pivot otherwise). Only the traces use it; the guard keeps the GDD clearance (see `closePose.ts`).
    */
-  private fitRadius(trace: TraceFn, up: Vec3): void {
+  private fitCollision(trace: TraceFn, up: Vec3): void {
     if (!this.baseValid) return;
     const c = CAM_MIN_CLEARANCE_R * 1.05, R = this.nominalRadiusMm;
     let goal = 1;
@@ -152,7 +159,7 @@ export class ThirdPersonRig {
       goal = lo;
     }
     // a function of the pivot base alone (no memory): a rig that restarts (a teleport, leaving photo mode) must show the same picture
-    this.radiusScale = goal;
+    this.collisionScale = goal;
   }
 
   setOptions(o: Partial<ThirdPersonOptions>): void {
@@ -160,9 +167,14 @@ export class ThirdPersonRig {
     this.crumbs.spacing = BOOM_SAMPLE_L * this.lengthMm;
   }
 
-  /** Orbit elevation that levels the view for the pitch of the target's heading above the horizon (constants.ts CAM_SLOPE_LIFT_*), rad. */
-  private slopeLiftFor(t: CameraTarget): number {
-    return Math.min(CAM_SLOPE_LIFT_MAX_DEG * DEG, CAM_SLOPE_LIFT_K * Math.max(0, Math.asin(clampN(t.fwd.y, -1, 1))));
+  /**
+   * Orbit elevation that levels the view (constants.ts CAM_SLOPE_LIFT_*), rad. It follows where the camera stands, not where the ant
+   * faces: the orbit's horizontal offset `lh` (pivot to camera, in the surface plane) points downhill of the pivot exactly when the
+   * view looks up the slope, and only then does the view need lifting. A camera uphill of the ant already looks down.
+   */
+  private slopeLiftFor(): number {
+    rotateAboutAxis(this.lh, this.ref, this.u, this.yaw);
+    return Math.min(CAM_SLOPE_LIFT_MAX_DEG * DEG, CAM_SLOPE_LIFT_K * Math.max(0, -Math.asin(clampN(this.lh.y, -1, 1))));
   }
 
   /** Snap behind the target (after possession or teleport). */
@@ -206,11 +218,11 @@ export class ThirdPersonRig {
     this.guard.reset();
     this.assist = 0; this.assistOn = false;
     // a restart of the rig (a teleport, leaving photo mode) starts at the lift the heading asks for, not at zero: the picture must not jump
-    this.slopeLift = s === 'open' ? this.slopeLiftFor(t) : 0; this.radiusScale = 1; this.baseValid = false;
+    this.slopeLift = s === 'open' ? this.slopeLiftFor() : 0; this.collisionScale = 1; this.radiusScale = 1; this.baseValid = false;
     // the first frame already has the pivot base and the radius that fit it (the same as a settled rig would show)
     this.placeBase(t, this.u, this.collisionRadiusMm, this.lengthMm, env.trace);
     this.baseValid = true;
-    this.fitRadius(env.trace, t.up);
+    this.fitCollision(env.trace, t.up);
     this.initialised = true;
   }
 
@@ -259,7 +271,7 @@ export class ThirdPersonRig {
     // a teleport (or a new subject) is not motion: start over behind it (no flight through the world, no stale trail)
     if (this.initialised && v3Distance(t.pos, this.prevPos) > CAM_SNAP_JUMP_L * this.lengthMm) this.initialised = false;
     if (!this.initialised) this.init(t, env);
-    this.fitRadius(env.trace, this.out.up);
+    this.fitCollision(env.trace, this.out.up);
     const L = this.lengthMm, R = this.collisionRadiusMm, o = this.out, trace = env.trace;
     dt = Math.max(0, Math.min(dt, 0.25));
 
@@ -273,6 +285,7 @@ export class ThirdPersonRig {
     }
     v3Copy(this.prevPos, t.pos);
     v3Copy(this.prevFwd, t.fwd);
+    v3Copy(this.lastFwd, t.fwd);
 
     // --- environment state with hold and blend
     const probe = probeSurroundings(trace, t.pos, t.up, t.fwd, L);
@@ -319,9 +332,10 @@ export class ThirdPersonRig {
     const lo = (prevP.pitch[1] + (sp.pitch[1] - prevP.pitch[1]) * e) * DEG, hi = (prevP.pitch[2] + (sp.pitch[2] - prevP.pitch[2]) * e) * DEG;
     if (sp.framing !== 'boom') this.elev = clampN(this.elev, lo, hi);
     // slope lift: open state only (tunnels and chambers are underground, falling and flight have their own chase pitch)
-    const liftGoal = state === 'open' && sp.framing === 'orbit' ? this.slopeLiftFor(t) : 0;
-    // it eases only while the target moves: a standing target (a photo, a pause) must not make the picture drift frame by frame
-    if (this.speed > CAM_SLOPE_LIFT_MIN_SPEED_BU * this.opts.bu) this.slopeLift += (liftGoal - this.slopeLift) * smoothK(dt, CAM_SLOPE_LIFT_TAU);
+    // the goal depends on the camera's own yaw and the smoothed up only, not on the heading, so a standing ant that turns
+    // (a photo, a pause) leaves the picture still
+    const liftGoal = state === 'open' && sp.framing === 'orbit' ? this.slopeLiftFor() : 0;
+    this.slopeLift += (liftGoal - this.slopeLift) * smoothK(dt, CAM_SLOPE_LIFT_TAU);
 
     // --- pivot: above the target (clear of solid by R), plus look-ahead (traced)
     this.placeBase(t, u, R, L, trace);
@@ -359,8 +373,9 @@ export class ThirdPersonRig {
     this.pinch.apply(o.pos, o.up, this.base, u, t.fwd, L, R, trace);
     // no jumps, and GDD 6.1's f >= 0.5 R on every frame (motionGuard.ts)
     v3Copy(this.goal, o.pos);
-    o.guarded = this.guard.apply(o.pos, this.goal, this.base, u, dt, L, this.clearanceMm, trace);
+    o.guarded = this.guardCamera(o.pos, this.goal, u, dt, L, trace, desired);
     v3Copy(o.base, this.base);
+    o.clearanceHonoured = this.radiusScale === 1;
     const origin = sp.framing === 'boom' ? this.base : this.pivot;
     if (!useOrbit) this.dist = v3Distance(o.pos, origin);
 
@@ -388,6 +403,34 @@ export class ThirdPersonRig {
 
     this.checkBoomReversal(dt, t, trace, sp.framing);
     return o;
+  }
+
+  /**
+   * The last two steps on the camera (motionGuard.ts), with the GDD clearance; where the pivot base has no room for it the close pose
+   * search finds a place that has (closePose.ts). Only when the room has no such place at all does the clearance (and the reported
+   * radius) fall back to what fits at the pivot base: then the camera is the base itself.
+   */
+  private guardCamera(p: Vec3, goal: Vec3, u: Vec3, dt: number, L: number, trace: TraceFn, desired: number): boolean {
+    const R = this.nominalRadiusMm;
+    this.radiusScale = 1;
+    const rescue = (out: Vec3, wanted: Vec3, r: number): boolean => {
+      // the side the framing wants the camera on, in the tangent plane (straight behind the target when it wants none)
+      v3Sub(this.tmp, wanted, this.pivot);
+      v3AddScaled(this.tmp, this.tmp, u, -v3Dot(this.tmp, u));
+      if (v3Normalize(this.tmp, this.tmp) < 1e-9) { v3Scale(this.tmp, this.lastFwd, -1); v3AddScaled(this.tmp, this.tmp, u, -v3Dot(this.tmp, u)); v3Normalize(this.tmp, this.tmp); }
+      // the place the framing wants is the full distance out on that side (not where a pull-in left the camera, which is on the pivot in a room this low)
+      const far = Math.max(desired, 2 * L) * CAM_CLOSE_DIST_FRACTIONS[0];
+      v3AddScaled(this.tmp2, this.pivot, this.tmp, far);
+      return findClosePose(out, trace, this.pivot, u, this.tmp, this.tmp2, far, r);
+    };
+    let guarded = this.guard.apply(p, goal, this.base, u, dt, L, this.clearanceMm, trace, rescue);
+    if (!fitsAt(trace, p, u, this.clearanceMm * 1.05)) {
+      // no place for the GDD clearance in this room: the clearance follows what the pivot base has (the old tight-room rule)
+      this.radiusScale = this.collisionScale;
+      v3Copy(p, this.base);
+      guarded = true;
+    }
+    return guarded;
   }
 
   /**

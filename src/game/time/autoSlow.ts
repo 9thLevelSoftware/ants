@@ -8,6 +8,7 @@
 // One slow-down per trigger per AUTO_SLOW_COOLDOWN_GD game days; never while paused; never raises the speed.
 import type { ActiveAlert, AlertKind, AlertLevel, Sim, SpeedLevel } from '@/sim/types';
 import { ALERT_LEVELS } from '@/sim/types';
+import type { AutoSlowMode } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import type { AutoSlowCritical, AutoSlowWarning } from '../settings/model';
 
@@ -23,6 +24,17 @@ export const OVERWINTER_PROMPT = 'overwinter-prompt';
 export type AutoSlowAction = 'slow' | 'pause';
 
 export interface AutoSlowChoice { critical: AutoSlowCritical; warning: AutoSlowWarning }
+
+/**
+ * The critical choice with the game's rule applied. The rule is the preset's `autoSlowDefault` (sim: `env.time.autoSlow`; Gentle pauses
+ * at an alert, the others slow): it can only make the player's own Settings choice stronger ('slow' -> 'pause'), never switch off a
+ * choice of 'off' or weaken a 'pause'. Without it the New Game card's row "Automatic slow-down at an alert" promised something the
+ * watcher never read (look-pass-3 review).
+ */
+export function withGameRule(choice: AutoSlowChoice, rule: AutoSlowMode): AutoSlowChoice {
+  if (choice.critical === 'slow' && rule === 'pause') return { ...choice, critical: 'pause' };
+  return choice;
+}
 
 /** What a newly raised alert of this kind and level asks for, or null. */
 export function autoSlowAction(kind: AlertKind, level: AlertLevel, choice: AutoSlowChoice): AutoSlowAction | null {

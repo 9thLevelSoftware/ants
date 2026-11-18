@@ -15,7 +15,7 @@ every rival species, the four playable species included as conspecific rivals).
 | `late.ts`, `wiring.ts` | the heavy half bound late (combat imports this index; see "Import cycles") and the `raid` behaviour export |
 | `state.ts` | module state (`state.rivals.module`), per-colony / per-pair records, territory slots, agent bb keys and jobs |
 | `init.ts` | New Game: one abstract colony per world rival site, its nest record, slot and core marks |
-| `setup.ts` | first rivals tick: nest carved by the nest module's template layout, entrances 1 + [N >= 300] + [N >= 800] (one more when N first crosses a step), queens, display brood (min(24, ceil(B/10))) |
+| `setup.ts` | at game creation (`prepare.ts`; first rivals tick for older saves): nest carved by the nest module's template layout, entrances 1 + [N >= 300] + [N >= 800] (one more when N first crosses a step), queens, display brood (min(24, ceil(B/10))) |
 | `model.ts` | the abstract model (pure): births, maturation, deaths, harvest, upkeep, caps, aggression, winter, strength, virtual tendedness |
 | `env.ts` | season, day phase and the activity factor a |
 | `territory.ts`, `claims.ts` | deposits (1 per ant-second on the surface), core deposit, decay, rain halving, hourly scan, claims |

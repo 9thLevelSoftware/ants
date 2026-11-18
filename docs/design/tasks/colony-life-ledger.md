@@ -1975,3 +1975,126 @@ Progress (kept current; a successor continues from here)
 - 02:50 running (restart-safe, scratchpad `lifepairs.sh`): life to winter on the round-4 cached hand-overs, before (r6b)
   vs after (r6a), sg #1 and pp #1 -> `round-6/life-before/`, `round-6/life-after/`. Next while they run: predation
   check (integrator note), then the protein account.
+
+### Account (round 6): the sweep-5 runs' own funnels (`round-5/sweep/*.json`, 15 runs, hand-over to Winter 1)
+
+| run | outside worker-gd | tend / forage / scout task-gd | trips home / ok / refused full crop | P delivered | P known gd | P in reach never known at the end | adult deaths |
+|---|---|---|---|---|---|---|---|
+| we #1 | 91.5 | 48 / 72 / 14 | 164 / 87 / 21 | 7.06 | 1.10 | - | old age 6, predation 7, crushed 1 |
+| we #2 | 31.1 | 19 / 21 / 9 | 64 / 22 / 11 | 4.63 | 0.13 | carrion medium 4.0 | old age 4, crushed 1 |
+| we #3 | 37.0 | 12 / 45 / 9 | 82 / 39 / 11 | 8.34 | 0.35 | - | old age 2 |
+| sg #1 | 52.2 | 24 / 22 / 11 | 60 / 27 / 17 | 0.28 | 7.79 | - | old age 2 |
+| sg #2 | 51.7 | 48 / 32 / 8 | 84 / 42 / 8 | 5.44 | 0.03 | carrion medium 4.0 | old age 4, crushed 1, predation 1 |
+| sg #3 | 38.0 | 10 / 52 / 18 | 122 / 13 / 1 | 2.96 | 3.80 | - | old age 2, crushed 1, predation 1 |
+| pp #1 | 66.0 | 31 / 33 / 12 | 77 / 53 / 3 | 4.88 | 2.15 | 4 carrion medium 11.8 | old age 4, lost 3 |
+| pp #2 | 35.0 | 16 / 27 / 13 | 70 / 40 / 2 | 4.77 | 0.38 | - | old age 4 |
+| pp #3 | 77.2 | 37 / 59 / 11 | 168 / 89 / 27 | 13.51 | 0.86 | carrion medium 4.0 | predation 4, old age 5 |
+| cpv #1 | 62.8 | 27 / 49 / 13 | 140 / 65 / 30 | 6.33 | 0.81 | carrion medium 4.0 | old age 3 |
+| cpv #2 | 30.4 | 21 / 19 / 9 | 61 / 20 / 11 | 0.69 | never | 3 carrion medium 7.2; patch at 128 BU (K 408) never entered | old age 2 |
+| cpv #3 | 72.5 | 24 / 46 / 13 | 113 / 33 / 13 | 1.99 | 5.14 | carrion large 6.8 | old age 5 |
+| kd #1 | 75.0 | 51 / 38 / 16 | 155 / 53 / 48 | 3.43 | 3.58 | carrion medium 4.0; 2 patches from 129 BU never entered | crushed 6, old age 4 |
+| kd #2 | 47.0 | 33 / 19 / 9 | 79 / 18 / 43 | 1.99 | 0.53 | carrion medium 3.5 | old age 6, predation 2 |
+| kd #3 | 49.4 | 31 / 13 / 9 | 54 / 21 / 19 | 1.11 | 3.41 | - | old age 3 |
+
+Over the sweep: 265 of 1,493 trips (18 %) came home with a full crop of carbohydrate and were refused by full stores
+(`crop-full ... fail`), most of them tenders: kd #1 tend 51 worker-gd against forage 38; kd #2 43 of its 79 trips.
+Workers age 3x outside (`ageRateOutside` 3.0) and old age is 56 of the sweep's 86 adult deaths. Scouting: 9-23 scout
+trips in 13 gd (one scout most of the day); prey patches 128-244 BU away never entered in cpv #2 and kd #1; a medium
+carcass (3.5-4 P) within 300 BU at the end, never known, in 8 runs.
+
+### Ranking by measured loss (round 6)
+
+1. **P1 stranding** (sweep-5 finding 1): sg #1 6 larvae starved, 0 eclosions, the stage check (4.25 gd); 5-10 P idle
+   in pp #1, we #2, cpv #1 for the rest of the year. Fixed first (P1d).
+2. **Protein income where the patch is far** (P/need 0.006-0.086 in 6 runs; stage check in kd #1, kd #2, cpv #3; 0
+   eclosions in cpv #2): discovery (patches never entered, carcasses never known) and the share of the outside
+   workforce that works carbohydrate the stores cannot take (rank 3).
+3. **Trips to full stores** (265 refused, 18 % of all trips; trip success 45 % against the 50 % bar; kd #1/#2 34 /
+   23 %); each costs a forager outside time at 3x the ageing rate. Rule: GDD 02 §5.5 item 5. Fix SF.
+4. **Brood lost in care**: pupa:untended 28, egg:untended 28, egg:flooding 28, pupa:hygiene 11 (pp #2, cpv #2, kd #2
+   miss the workers check by 0.2-2 workers).
+5. **Predation** we #1 7 (18-26 workers: R25 ramp 0.27-0.53), pp #3 4, kd #2 2: being checked (integrator note).
+6. Year two: no laying until spring day 4-8 (royal chamber temperature lead still to check); old age of the
+   overwintered workers.
+7. Restore determinism (finding 2): fixed (RS). WL2 spared starvation (finding 3): fixed (WL3).
+- 03:00 **SF in the tree** (rank 3): `ants/behaviours/outdoor/choice.ts` `sourceScore` values a trip by what the pool
+  has room for (`poolSpace`, nutrient by nutrient); `tendHerd.ts` `departForHerd`: a herd tender does not leave while
+  the pool has no room for a crop (CROP_RETURN_FRACTION x cropCap). Test `outdoor/storesFull.test.ts`: a sugar spill
+  scores 0 with C room 0 while a carcass still scores; tenders assigned to a known herd stay inside while the C pool
+  is full (max out 0 in 0.15 gd) and go out once it has room: 2/2 green; 2/2 red with HEAD choice/tendHerd (score
+  0.032, 6 tenders out). Folder tests and before/after (kd #1, kd #2) next.
+- 03:02 **sg #1 life to winter, before (HEAD) vs after (P1d + RS + WL3 + R28)**, round-4 cached hand-over
+  (`round-6/life-before|after/`, `round-6/life-compare.py`): workers 9 -> 9 vs **9 -> 8**, eclosions 2 vs **5**, P
+  intake/need 0.164 vs **0.351**, C 0.55 vs 0.97, trip success 41 vs **69 %**, C at winter 0.6 vs 9.2 (R27 need 2.6),
+  viable **no (stage, stores) vs yes**. Mechanism, pool P by day end: before 1.36-1.46 on days 1-3, **0.09 on day 4**
+  (window closed, 5 larvae), lean/rationing days 4-13; after 1.4-4.1 on days 1-13, `fed` from day 5 (larvae fed from
+  the queen's provision as they hatch on days 4-7). (Deaths after: crushed 2, predation 2, old age 2.) Tool:
+  `lifeMetrics.ts` day rows now carry `queenReserveP`.
+- 03:02 **Predation check (integrator note)**, probe `tools/sim/probe/probe-predation6.ts` (every predation death with
+  killer, its territory, colonyRange flag, distance, workers and the R25 ramp then): we #1 from the round-4 cached
+  hand-over to winter (16.4 gd) on the round-6 tree: **0 predation deaths**; the 5 colony-range territories of the
+  pre-ramp snapshot (wolf/jumping/ant spider, centipede, rove beetle, 53-136 BU from the nest) are flagged
+  `colonyRange` and stay unoccupied; the worldgen territories within 600 BU are earthworm, snail, woodlouse, aphid,
+  lacewing, springtail/mite patches only (no hunter). So the ramp is active on restored runs. The sweep's we #1 (7
+  deaths at 18-26 workers) was founded fresh: same probe on a fresh founding running (`probe-predation-we1-fresh.txt`).
+- 03:02 **Year two: royal chamber in spring (integrator lead), term by term.** The chamber model is GDD 03 §9.1 with
+  T_seasonMean = EMA of T_top, tau = one season (7 gd); at 36-48 mm the seasonal term carries ~0.97 of it (D_A 1500 mm).
+  `environment/surface.ts` `initThermal` seeds the day and season EMAs from the **instantaneous air** (its comment says
+  "the day's mean equilibrium"): at a new game that is 14:00 of doy 5 (`startHours` [14, 16], the day's warm peak), and
+  after the winter lapse (`cheat.setTime` -> `resetThermal`) 00:00 of spring day 1 (the night minimum). The seasonal
+  air mean is the same on the same doy in both years (12 + 8.5 cos(2 pi (d - 9.5) / 28): 16.5 on day 5, 20.4 on day 9),
+  so the year-one / year-two gap is the seed, not the weather. EMA of the seasonal air curve (sun gain left out, same in
+  every case), days 5 / 7 / 9:
+
+  | seed | day 5 | day 7 | day 9 |
+  |---|---|---|---|
+  | year one as now (14:00 air of doy 5) | 21.3 (d6) | 20.9 | 20.7 |
+  | year two as now (00:00 air of spring day 1) | 8.7 | 11.0 | 13.2 |
+  | year one, seeded at the day-mean air | 16.6 (d6) | 16.9 | 17.6 |
+  | year two, seeded at the day-mean air | 11.0 | 12.7 | 14.5 |
+  | the GDD model in steady state (EMA run for years) | 10.0 | 12.0 | 14.0 |
+
+  Observed royal chamber, sweep-5 long runs, year two days 5 / 7 / 9: cpv #1 10.3 / 11.0 / 14.4, pp #3 10.3 / 14.0 /
+  14.6, sg #2 9.5 / 12.4 / 15.2, we #2 10.0 / 12.6 / 15.3 (kd #3, an indoor nest, 13.5 / 18.4 / 23.0): the year-two
+  numbers are the GDD model's own steady state. **Year one is the outlier**: its founding chamber runs 7-11 C above the
+  model's steady state because the EMA is seeded at the afternoon peak, and R20's start-day evidence was measured on
+  that seed. Decision (recorded, not built this round, it moves year one's founding and R20's basis): for the
+  integrator. Two separate questions: (a) the seed defect (instantaneous air vs day mean; fix = day-mean air, both
+  years move toward each other: year one -4 C, year two +2 C); (b) the design's tau = one season damps the annual wave
+  to 0.54 of its amplitude and lags it 4.5 gd (on a 28-day year: a season-long EMA of a quarter-year), so year-two
+  spring nests sit 5-7 C below the seasonal mean on days 5-9 whatever the seed. A shorter tau (or the calendar's
+  seasonal mean itself as T_seasonMean) would put both years on the curve (16.5-20.4 on days 5-9).
+- 03:05 **Predation, fresh founding** (`round-6/probe-predation-we1-fresh.txt`, we #1 founded on the round-6 tree, to
+  winter): **7 predation deaths, as in the sweep**: 5 by rove beetles of one colony-range territory 42 BU from the
+  nest (killed at 7-27 BU from the nest: 3 haulers, 1 tender, 1 scout), 1 by an ant-spider of a colony-range territory
+  126 BU out, 1 unattributed (no strike recorded on it); workers 25 -> 15 over gd 8.5-13.4, ramp 0.50 -> 0.17. The
+  colony-range siting was drawn because the colony had 25 workers (ramp (25 - 10) / 30 = 0.5); the ramp scales the
+  chance that a hunter is sited, not its kill rate once sited, so a colony of 18-26 workers either meets no hunter or
+  one at the full rate (here 0.077 deaths per outside worker-gd over the run, above the band's 0.03-0.12 x ramp 0.3).
+  This is R25 as ruled and built (the 10-16-worker median-0 target is for smaller colonies); not changed. For the
+  integrator: if the founding-year target is meant for 18-26 workers too, the lever is the ramp's upper end or making
+  the ramp scale the resident's strike rate (a rule change). Restored runs: the pre-ramp snapshots' colony-range
+  territories are recognised and stay empty (cached we #1: 0 deaths).
+- 03:09 outdoor folder on r6c (round-6 files incl. SF; `round-6/vitest-outdoor.txt`): 3 new failures, all fixtures that
+  score sources before the colony cycle has counted the workers (pool capacity 0, so P room 0): `claims.test` x2,
+  `memory.test` "picks the protein source". SF amended: the room clamp applies once the census has run
+  (`col.core.workers > 0`); before that a trip is valued whole. claims + memory + storesFull: 12/12 green. The 4th
+  failure, `removal.verify`, is the known red one (round 5).
+- 03:16 **Discovery probe, cpv #2** (protein never known in sweep 5; `round-6/probe-scouttime-cpv2.txt`, probe
+  `probe-scouttime6.ts`, cached hand-over, 3 gd, round-6 tree): scouts are out working, not idle: 3.65 scout worker-gd,
+  of it 2.27 exploring and 0.75 returning outside, 0.39 resting; surface activity >= 0.1 all day. 10-BU cells walked by
+  scouts or foragers in 3 gd: 0-50 BU 50 %, 50-100 30 %, 100-150 27 %, 150-200 26 %, 200-250 19 %, 250-300 22 %. The one
+  patch (springtail, centre 185 BU, r 57 BU, edge at 128 BU, count = K 408) was entered (15 BU inside its edge) but
+  for **10 ant-seconds in 3 gd** in all; at lambda 0.05 x count/K per ant-second inside (GDD 05 §2.3) that is 0.5
+  expected spawns: 0 appeared, the patch stays unknown. At the walked share of its ring the patch (about 5 % of the
+  100-250 BU ring) should have had ~70 s. Discovery is limited by where the walk goes and how long it stays on
+  litter, not by scout numbers (as round 5 found with PR1/PR1b): lead for the next round (needs the forage bench).
+- 03:19 **SF v1 before/after** (life to winter, cached hand-overs; before = r6a: round-6 fixes without SF, after = r6c;
+  `round-6/life-nosf|sf/`): kd #1 **identical** (final hash fdc2c8bd both: on the cached hand-over the pool never ran
+  full of C while a forager chose, 6 refused trips; the sweep's fresh kd #1 had 48). kd #2: workers 10 -> 8 vs **10 ->
+  10**, eclosions 1 vs 4, outside worker-gd 61.6 -> **35.4**, C intake 1.11 -> 1.63, but refused full-crop tend trips
+  24 -> 30 and trip success 29 -> 23 %: pool C 13-15 of ~14 all season (stomachs 10 + larder), so a crop's room opens
+  ~3 times a day and the 3 tenders, each checking room for her own crop, left together. **SF v2** (`tendHerd.ts`): a
+  tender leaves only when the room covers her crop and the crops of the colony's tenders already outside (per-tick
+  runtime count `tendersOut`). storesFull + tendHerd tests 6/6 (+1 long skipped). Running: kd #2 on v2, then cpv #1 and
+  kd #3 (nosf vs sf2) -> `round-6/life-sf2/`, `life-nosf/`; quietRun (R28) sg #1 and we #2 -> `round-6/quiet/`.

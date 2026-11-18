@@ -22,7 +22,7 @@
  * body's motion (forward, sideways, turning), so a stance foot here is just R(angle) * restFoot + offset. In swing the
  * placement is the frozen lift-off point and the foot travels to the predicted touchdown point.
  */
-import { ANT_FILL_RIM_THIN, CUTICLE } from '../tuning';
+import { ANT_FILL_RIM_THIN, CUTICLE, GASTER_MEMBRANE } from '../tuning';
 
 export const ANT_VERT_PARS = /* glsl */ `
 attribute vec4 aRig;
@@ -210,14 +210,14 @@ void antDeform(vec3 P, vec3 N, out vec3 oP, out vec3 oN) {
  */
 export const ANT_COLOR_VERTEX = /* glsl */ `#include <color_vertex>
 #ifdef USE_COLOR
-  if (aRig.x > 5.5 && aRig.x < 6.5) vColor.rgb = mix(vColor.rgb, uMembrane, aRig.w * smoothstep(0.05, 0.6, aPose.z));
+  if (aRig.x > 5.5 && aRig.x < 6.5) vColor.rgb = mix(vColor.rgb, uMembrane, aRig.w * smoothstep(${GASTER_MEMBRANE.fullFrom.toFixed(2)}, ${GASTER_MEMBRANE.fullTo.toFixed(2)}, aPose.z));
   bool antEye = aRig.x > 0.5 && aRig.x < 1.5 && aRig.w > 0.5;
   if ((aRig.x < 6.5 || aRig.x > 8.5) && !antEye) vColor.rgb = mix(vColor.rgb, uCallow, clamp(aExtra.z, 0.0, 1.0));
   if (aRig.x < 7.5 || aRig.x > 8.5) vColor.rgb *= aTint.rgb;
 #endif
   vAntHi = aExtra.y;
   vAntK = vec2(1.0, 1.0);
-  if (aRig.x > 5.5 && aRig.x < 6.5) vAntK.x = 1.0 - 0.9 * aRig.w * smoothstep(0.05, 0.6, aPose.z);
+  if (aRig.x > 5.5 && aRig.x < 6.5) vAntK.x = 1.0 - ${GASTER_MEMBRANE.clearcoatCut.toFixed(2)} * aRig.w * smoothstep(${GASTER_MEMBRANE.fullFrom.toFixed(2)}, ${GASTER_MEMBRANE.fullTo.toFixed(2)}, aPose.z);
   if (aRig.x > 2.5 && aRig.x < 5.5) vAntK.y = ${ANT_FILL_RIM_THIN.toFixed(3)};
   vCapIn = 0.0;
   if (uCapR > 0.0 && aExtra.y <= 0.0) {

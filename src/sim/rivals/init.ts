@@ -1,6 +1,6 @@
 // New Game: one abstract colony per world rival site (GDD 05 §3.1, §3.2, §3.8) with its nest record, territory
 // slot and core territory marks. Light (entity helpers only): the real nest (carving, queens, display brood) is
-// built on the first rivals tick, when a full Sim exists (setup.ts).
+// built right after, on a short-lived set-up Sim (prepare.ts, setup.ts).
 
 import type { Colony, RivalAbstract, RivalSite, SimState, WorldData } from '@/sim/types';
 import { createColony, createNest, type EntityCtx } from '@/sim/entities';

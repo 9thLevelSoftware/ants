@@ -37,7 +37,12 @@ export type TimeWeatherEvent =
   /** Running speed or pause changed (`to` 0 = paused). reason: 'command' | 'possession' | 'opening' | 'auto-slow'. */
   | { type: 'time.speed-changed'; from: SpeedLevel; to: SpeedLevel; reason: string }
   | { type: 'time.speed-limited'; requested: SpeedLevel; effective: number; droppedTicks: number }
-  /** Auto-slow fired for an alert (D6.8: keyed on alert kind and level). */
+  /**
+   * Auto-slow fired for an alert (D6.8: keyed on alert kind and level). Emitted by the GAME LAYER, not by a sim system:
+   * the trigger (GDD 06 §4.5: raised alerts by level, the winter banner) and the speed belong to the game loop
+   * (src/game/time/autoSlow.ts AutoSlowWatcher -> Game.onAutoSlow, which emits it into the sim's bus for the HUD and
+   * audio). No sim system may emit it (sim-seams item 5; src/sim/time.autoSlow.test.ts).
+   */
   | { type: 'time.auto-slow'; alertKind: AlertKind; level: AlertLevel; action: 'slow' | 'pause' }
   | { type: 'weather.changed'; from: WeatherState; to: WeatherState; intensityClass: RainClass | null; reason: string }
   | { type: 'weather.gust'; windMs: number }

@@ -1,5 +1,7 @@
 // Fragment-side GLSL: per-part roughness, cuticle micro-variation, compound-eye facets, and the selection highlight
-// (a faint rim term; GDD 08 §11.8 forbids cartoon outlines).
+// (a faint rim term; GDD 08 §11.8 forbids cartoon outlines). The look numbers live in ../tuning.ts.
+import { ANT_NIGHT_LOOK, WING_LOOK } from '../tuning';
+
 export const ANT_FRAG_PARS = /* glsl */ `
 varying vec3 vAntMat;
 varying vec3 vRest;
@@ -87,6 +89,7 @@ export const ANT_SHEEN = /* glsl */ `#include <lights_physical_fragment>
 #endif
 #ifdef USE_CLEARCOAT
   material.clearcoat *= vAntK.x; // a stretched membrane is dull, not lacquered (white rings on a full gaster)
+  material.clearcoat *= 1.0 - ${ANT_NIGHT_LOOK.clearcoatCut.toFixed(2)} * uFillK; // at night the mirror would only show the sky: chrome
 #endif`;
 
 export const WING_FRAG_PARS = /* glsl */ `
@@ -117,11 +120,11 @@ export const WING_COLOR = /* glsl */ `#include <color_fragment>
     float edge = smoothstep(0.0, 0.04, w.y) * smoothstep(1.0, 0.94, w.y);
     diffuseColor.rgb = mix(diffuseColor.rgb, uVein, m);
     // hyaline membrane: four folded layers over a dark body must stay clear (0.16 read as milky white)
-    diffuseColor.a = mix(0.07, 0.92, m) * mix(1.6, 1.0, edge);
+    diffuseColor.a = mix(${WING_LOOK.alpha.toFixed(3)}, ${WING_LOOK.veinAlpha.toFixed(2)}, m) * mix(${WING_LOOK.edgeBoost.toFixed(2)}, 1.0, edge);
     // night: a clear membrane against a dark ground and sky vanished (faint male wings, look pass 3): it takes a little more body
-    diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + 1.4 * uFillK));
+    diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + ${WING_LOOK.nightAlphaGain.toFixed(2)} * uFillK));
   }`;
 
 /** Wing emissive: the possession highlight and, at night, a faint cool edge light (the form light's rim) so the wings keep their outline. */
-export const WING_EMISSIVE = ANT_EMISSIVE + /* glsl */ `
-  totalEmissiveRadiance += uFillCol * uFillRim * 1.5 * (0.3 + 0.7 * pow(1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.0));`;
+export const WING_EMISSIVE = ANT_EMISSIVE.replace('(fr * vAntK.y + 0.015)', `(fr * vAntK.y + 0.015) * ${WING_LOOK.highlightRim.toFixed(2)}`) + /* glsl */ `
+  totalEmissiveRadiance += uFillCol * uFillRim * ${WING_LOOK.nightRim.toFixed(2)} * pow(1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), ${WING_LOOK.nightRimPow.toFixed(1)});`;

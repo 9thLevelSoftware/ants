@@ -23,9 +23,9 @@ export class MotionGuard {
    * Applies both steps to `p` (in place): `goal` is the framing result before the limit, `base` the pivot base this
    * frame, `clearance` the guaranteed f (mm). Returns true when the clearance step had to move the camera.
    */
-  apply(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, dt: number, lengthMm: number, clearance: number, trace: TraceFn): boolean {
+  apply(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, dt: number, lengthMm: number, clearance: number, trace: TraceFn, rescue?: Rescue): boolean {
     this.limit(p, base, dt, lengthMm);
-    const guarded = this.clear(p, goal, base, up, clearance * 1.05, trace);
+    const guarded = this.clear(p, goal, base, up, clearance * 1.05, trace, rescue);
     v3Copy(this.lastCam, p);
     v3Copy(this.lastBase, base);
     this.hasLast = true;
@@ -43,22 +43,29 @@ export class MotionGuard {
     if (d > max) v3AddScaled(p, this.tmp, this.dir, max / d);
   }
 
-  private clear(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, r: number, trace: TraceFn): boolean {
-    return pullIntoClearance(p, goal, base, up, r, trace);
+  private clear(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, r: number, trace: TraceFn, rescue?: Rescue): boolean {
+    return pullIntoClearance(p, goal, base, up, r, trace, rescue);
   }
 }
 
-const _t = vec3(), _from = vec3(), _to = vec3();
+const _t = vec3(), _from = vec3(), _to = vec3(), _want = vec3();
+
+/** Last resort when neither the framing's place nor the pivot base has room: writes a place where a sphere of `r` fits into `p` and returns true, or returns false. `wanted` is where the camera was meant to be. */
+export type Rescue = (p: Vec3, wanted: Vec3, r: number) => boolean;
 
 /**
  * GDD 6.1 clearance for any camera: if a sphere of `r` does not fit at `p`, moves `p` toward an anchor that fits -
- * `goal` when it does, else `base` - by bisection, as close as possible to where it was. When neither fits, `p`
- * becomes `base`. Returns true when `p` was moved.
+ * `goal` when it does, else `base` - by bisection, as close as possible to where it was. When neither fits, `rescue`
+ * (the close pose search) is asked for a place; without one, or when it finds none, `p` becomes `base`. Returns true when `p` was moved.
  */
-export function pullIntoClearance(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, r: number, trace: TraceFn): boolean {
+export function pullIntoClearance(p: Vec3, goal: Vec3, base: Vec3, up: Vec3, r: number, trace: TraceFn, rescue?: Rescue): boolean {
   if (fitsAt(trace, p, up, r)) return false;
   const anchor = fitsAt(trace, goal, up, r) ? goal : base;
-  if (anchor === base && !fitsAt(trace, base, up, r)) { v3Copy(p, base); return true; }
+  if (anchor === base && !fitsAt(trace, base, up, r)) {
+    v3Copy(_want, p);
+    if (!rescue || !rescue(p, _want, r)) v3Copy(p, base);
+    return true;
+  }
   v3Copy(_to, p);
   v3Copy(_from, anchor);
   let lo = 0, hi = 1; // fraction of the way from the anchor to p

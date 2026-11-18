@@ -12,9 +12,20 @@ import { PREDATION_RAMP_WORKERS } from '@/sim/balance/difficulty';
  * does not do. presetDisplay.test.ts checks that nothing in here is read anywhere, so wiring one removes it.
  */
 export const UNWIRED_PARAMS: readonly DifficultyKey[] = [
-  'openingThreatsMax', 'openingGraceGd', 'queenLifespanMult', 'flightPredatorEvents', 'alertLeadWarnings',
+  'openingThreatsMax', 'queenLifespanMult', 'flightPredatorEvents', 'alertLeadWarnings',
 ];
 export const UNWIRED_RULES: readonly (keyof CustomRules)[] = ['queenSenescence', 'foundingAssist'];
+
+/** What is missing for each unwired value (GDD rule, and the piece that would read it). sim-seams item 6. */
+export const UNWIRED_WHY: Readonly<Record<string, string>> = {
+  openingThreatsMax: 'GDD 06 §5.6 founding threat director (max per founding, 0.15 GD gap, kinds by hour): no such director exists',
+  queenLifespanMult: 'GDD 06 §13.2 queen lifespan: no system kills a queen of old age (colony.queens[].lifespanDays is never drawn)',
+  flightPredatorEvents: 'GDD 06 §11.6 possessed nuptial flight (T3) with its predator events: not built',
+  alertLeadWarnings: 'GDD 06 §14 lead of warning alerts (strong / normal / minimal): the alert engine has one lead for every preset',
+  queenSenescence: 'GDD 06 §13.2 Lasius queen senescence draw (10-20 years): no queen old-age death exists',
+  foundingAssist: 'GDD 06 §5.7 / §5.16 founding hints (scent haze at the best site, automatic read-out): the hint layer does '
+    + 'not read the rule',
+};
 
 export interface PresetRow {
   /** Group heading of GDD 06 §14. */

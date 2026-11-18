@@ -1,5 +1,5 @@
-// The per-tick rivals system body: real nests built on the first tick, deaths watched every tick, territory
-// deposits every second, the fielding pass and its observers every FIELD_EVERY_TICKS, and the hard ant cap.
+// The per-tick rivals system body: real nests not built at creation (saves from before prepare.ts), deaths watched
+// every tick, territory deposits every second, the fielding pass and its observers every FIELD_EVERY_TICKS, and the hard ant cap.
 
 import type { Sim } from '@/sim/types';
 import { FIELD_EVERY_TICKS, FIELD_OFFSET, TERR_DEPOSIT_EVERY_TICKS, TERR_DEPOSIT_OFFSET } from '@/sim/balance/rivals';

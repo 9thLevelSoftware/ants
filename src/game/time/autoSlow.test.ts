@@ -2,13 +2,23 @@
 import { describe, expect, it } from 'vitest';
 import type { ActiveAlert, AlertKind, AlertLevel, SpeedLevel } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
-import { AUTO_SLOW_COOLDOWN_GD, AutoSlowWatcher, autoSlowAction, OVERWINTER_PROMPT, slowedLevel, type AutoSlowChoice } from './autoSlow';
+import { AUTO_SLOW_COOLDOWN_GD, AutoSlowWatcher, autoSlowAction, OVERWINTER_PROMPT, slowedLevel, withGameRule, type AutoSlowChoice } from './autoSlow';
 
 const alert = (kind: AlertKind, level: AlertLevel): ActiveAlert => ({
   id: 1, kind, level, subjectId: 1, title: '', cause: '', focus: null, diagnosticId: null, raisedTick: 0, updatedTick: 0, count: 1, acknowledged: false,
 });
 
 const DEFAULTS: AutoSlowChoice = { critical: 'slow', warning: 'off' };
+
+describe('withGameRule (the preset row "Automatic slow-down at an alert" is read)', () => {
+  it("a preset that pauses (Gentle) lifts the default 'slow' to a pause, and only that", () => {
+    expect(withGameRule(DEFAULTS, 'pause')).toEqual({ critical: 'pause', warning: 'off' });
+    expect(withGameRule(DEFAULTS, 'slow')).toEqual(DEFAULTS);
+    expect(withGameRule({ critical: 'off', warning: 'slow' }, 'pause').critical).toBe('off'); // the player's own 'off' wins
+    expect(withGameRule({ critical: 'pause', warning: 'off' }, 'slow').critical).toBe('pause'); // never weakened
+    expect(autoSlowAction('queen-in-danger', 'critical', withGameRule(DEFAULTS, 'pause'))).toBe('pause');
+  });
+});
 
 describe('autoSlowAction', () => {
   it('critical by the critical choice, warning by the warning choice, notices never', () => {

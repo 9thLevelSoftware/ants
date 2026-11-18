@@ -16,7 +16,7 @@
 import type { Ant, Behaviour, Sim } from '@/sim/types';
 import { REST_ENTER } from '@/sim/balance';
 import { CROP_RETURN_FRACTION } from '@/sim/balance/actions';
-import { taskCycleDone } from '@/sim/colony';
+import { poolSpace, taskCycleDone } from '@/sim/colony';
 import { herdOfSource, herdSourceOf } from '@/sim/ecology';
 import { curfewNow, num, phaseOf } from './common';
 import { makeBehaviour } from './engine';
@@ -43,6 +43,22 @@ function reclaim(sim: Sim, ant: Ant): boolean {
   return herdActive(ant);
 }
 
+/** Tenders of each colony outside the nest this tick (runtime cache, rebuilt once per tick). */
+const outCache = new WeakMap<Sim, { tick: number; byColony: Map<number, number> }>();
+
+function tendersOut(sim: Sim, colonyId: number): number {
+  let c = outCache.get(sim);
+  if (!c || c.tick !== sim.state.tick) {
+    const byColony = new Map<number, number>();
+    for (const a of sim.stores.ants.list) {
+      if (a.alive && a.task === 'tend' && a.nestId < 0) byColony.set(a.colony, (byColony.get(a.colony) ?? 0) + 1);
+    }
+    c = { tick: sim.state.tick, byColony };
+    outCache.set(sim, c);
+  }
+  return c.byColony.get(colonyId) ?? 0;
+}
+
 /** A tender waiting in the nest leaves for its herd (after booking the end of the last cycle). */
 function departForHerd(sim: Sim, ant: Ant): boolean {
   if (ant.nestId < 0 || phaseOf(ant) !== PHASE.wait || ant.task !== 'tend') return false;
@@ -52,6 +68,12 @@ function departForHerd(sim: Sim, ant: Ant): boolean {
   }
   const col = sim.stores.colonies.get(ant.colony);
   if (ant.fatigue >= REST_ENTER || (col && curfewNow(sim, col))) return false;
+  // stores full (GDD 02 §5.5 item 5: failed unloads suppress activation): no herd trip while the pool has no room for
+  // the crop she brings home, after the crops of the tenders already out; she waits in the nest (ageing at the nest
+  // rate, not 3x outside) until there is. (Kitchen-door #2, pool C at 13-15 of ~14 all season: with room checked for
+  // her crop alone, the 3 tenders left together whenever a crop's room opened and 30 of 64 trips were still refused.)
+  const crop = CROP_RETURN_FRACTION * ant.cropCap;
+  if (col && poolSpace(col).c < (tendersOut(sim, col.id) + 1) * crop) return false;
   const h = chooseHerd(sim, ant);
   if (!h || !herdSourceOf(sim, h)) return false;
   return startTravel(sim, ant, h);

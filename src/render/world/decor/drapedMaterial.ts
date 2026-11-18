@@ -4,7 +4,7 @@
 //    season's fresh share), procedural needles, petals, plain wrappers and receipts (no text, no logos: GDD 08 11.8),
 //    moss over the moss scan, bark chips and grains; wetness, the forest dapple and back-lit transmission;
 //  - the depth written is the ground-hugging point under the fragment (drapedFragDepth), so ants are always on top.
-import { DoubleSide, MeshStandardMaterial, Uniform, type Texture } from 'three';
+import { AddEquation, CustomBlending, DoubleSide, MeshStandardMaterial, OneFactor, OneMinusSrcAlphaFactor, SrcAlphaFactor, Uniform, ZeroFactor, type Texture } from 'three';
 import { GLSL_DAPPLE } from '../materials/dapple';
 import { GLSL_NOISE, GLSL_WET } from '../materials/glsl';
 import { addPatch } from '../materials/surfacePatch';
@@ -45,7 +45,7 @@ float dcLeafAlpha(float ra, bool fresh, vec2 uv) {
   vec2 t = fresh ? dcCell(ra, ${crop(LEAF_ATLAS.fresh)}, uv) : dcCell(ra, ${crop(LEAF_ATLAS.dry)}, vec2(-uv.x, uv.y));
   return fresh ? texture2D(tDcFreshA, t).r : texture2D(tDcDryA, t).r;
 }
-// contact shadow: 0..1 density of the dark fringe a leaf leaves on the ground beside its margin (leaves only), drawn stippled
+// contact shadow: 0..1 opacity of the dark fringe a leaf leaves on the ground beside its margin (leaves only), blended over the ground
 float dcShade;
 vec3 dcSat(vec3 c, float s) { float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); return max(mix(vec3(l), c, s), 0.0); }
 // colour (rgb), alpha, roughness, transmission and a tangent-space bump (x along the card, y across)
@@ -77,14 +77,18 @@ void dcItem(out vec3 col, out float a, out float rough, out float tr, out vec2 b
     col *= 1.0 - 0.1 * vein;
     bump += vec2(0.0, sign(uv.y) * (vein * 0.5 - edgeW * 0.4));
     rough = 0.62; tr = fresh ? 1.0 : 0.45;
-    // thickness (look pass 3): the cut margin is a lit edge, and the leaf leaves a soft dark fringe on the ground beside it
-    col *= 1.0 + ${DECOR_LEAF.edgeLight.toFixed(2)} * (smoothstep(0.5, 0.56, a) * (1.0 - smoothstep(0.56, 0.7, a)));
-    // The four taps are taken unconditionally: a texture read inside a per-pixel branch has undefined derivatives (the mip level
-    // flickered between two renders of the same frame on a software rasteriser). Near leaves only: far away the fringe is sub-pixel noise.
+    // thickness (look pass 3): the cut margin is a lit edge, and the leaf leaves a soft shadow on the ground beside it
+    col *= 1.0 + ${DECOR_LEAF.edgeLight.toFixed(2)} * (smoothstep(${DECOR_LEAF.edgeBand[0].toFixed(2)}, ${DECOR_LEAF.edgeBand[1].toFixed(2)}, a) * (1.0 - smoothstep(${DECOR_LEAF.edgeBand[1].toFixed(2)}, ${DECOR_LEAF.edgeBand[2].toFixed(2)}, a)));
+    // The taps are taken unconditionally: a texture read inside a per-pixel branch has undefined derivatives (the mip level
+    // flickered between two renders of the same frame on a software rasteriser). Near leaves only: far away the fringe is sub-pixel.
+    // Eight taps on a ring (axes and diagonals) so the falloff has nine steps, not a diamond of four.
     const float SD = ${DECOR_LEAF.shadowReachUv.toFixed(3)};
-    float dcRing = 0.25 * (dcLeafAlpha(ra, fresh, uv + vec2(SD, 0.0)) + dcLeafAlpha(ra, fresh, uv - vec2(SD, 0.0))
-      + dcLeafAlpha(ra, fresh, uv + vec2(0.0, SD)) + dcLeafAlpha(ra, fresh, uv - vec2(0.0, SD)));
-    if (a < 0.5 && dcNear) dcShade = ${DECOR_LEAF.shadowDensity.toFixed(2)} * dcRing;
+    const float SQ = 0.7071 * SD;
+    float dcRing = 0.125 * (dcLeafAlpha(ra, fresh, uv + vec2(SD, 0.0)) + dcLeafAlpha(ra, fresh, uv - vec2(SD, 0.0))
+      + dcLeafAlpha(ra, fresh, uv + vec2(0.0, SD)) + dcLeafAlpha(ra, fresh, uv - vec2(0.0, SD))
+      + dcLeafAlpha(ra, fresh, uv + vec2(SQ, SQ)) + dcLeafAlpha(ra, fresh, uv - vec2(SQ, SQ))
+      + dcLeafAlpha(ra, fresh, uv + vec2(SQ, -SQ)) + dcLeafAlpha(ra, fresh, uv + vec2(-SQ, SQ)));
+    if (a < 0.5 && dcNear) dcShade = ${DECOR_LEAF.shadowAlpha.toFixed(2)} * dcRing;
   } else if (k < ${K.needle + 0.5}) {
     a = (1.0 - smoothstep(0.55, 1.0, abs(uv.y))) * (1.0 - smoothstep(0.9, 1.0, abs(uv.x)));
     col = mix(vec3(0.33, 0.17, 0.07), vec3(0.18, 0.11, 0.06), rb) * (0.85 + 0.3 * wrNoise(uv * vec2(30.0, 2.0)));
@@ -132,6 +136,12 @@ ${DRAPED_RESOLVE_GLSL}
 export function createDrapedMaterial(shared: DecorShared, tex: DrapedTextures): MeshStandardMaterial {
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0, side: DoubleSide });
   m.name = 'decor:draped';
+  // Plain alpha blending, but kept in the opaque pass (transparent stays false: no sorting, one pass for the double side, depth as before):
+  // three applies a blend mode other than NormalBlending even to opaque materials. Only the leaf's contact shadow has alpha < 1.
+  m.blending = CustomBlending;
+  m.blendEquation = AddEquation;
+  m.blendSrc = SrcAlphaFactor; m.blendDst = OneMinusSrcAlphaFactor;
+  m.blendSrcAlpha = ZeroFactor; m.blendDstAlpha = OneFactor; // the destination alpha is left as it is
   const w = shared.world, d = shared.decor, dr = shared.drape, h = shared.hole;
   addPatch(m, 'decor-draped-occ', (s) => {
     Object.assign(s.uniforms, {
@@ -159,8 +169,9 @@ wrOccDither(dcWp, ${WORLD_OCCLUSION_TERRAIN_TMAX.toFixed(3)}); // lies on the gr
 vec3 dcCol; float dcA, dcRough, dcTr; vec2 dcBump;
 dcItem(dcCol, dcA, dcRough, dcTr, dcBump);
 if (dcA < 0.5) {
-  if (dcShade <= wrHash12(floor(gl_FragCoord.xy) + 17.0)) discard;
-  dcCol = vec3(0.012, 0.010, 0.008); dcRough = 1.0; dcTr = 0.0; dcBump = vec2(0.0);
+  if (dcShade <= ${DECOR_LEAF.shadowCut.toFixed(3)}) discard;
+  dcCol = vec3(${DECOR_LEAF.shadowRgb.map((v) => v.toFixed(3)).join(', ')}); dcRough = 1.0; dcTr = 0.0; dcBump = vec2(0.0);
+  diffuseColor.a = dcShade; // blended over the ground (the material's custom blending); every other pixel stays opaque
 }
 if (wrHash12(floor(gl_FragCoord.xy)) > vDcFade) discard;
 diffuseColor.rgb *= wrWetAlbedo(dcCol, uWet, 0.7);

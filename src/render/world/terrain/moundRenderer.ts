@@ -16,9 +16,16 @@ export const MOUND_RIM_BLEND_MM = 2.5;
 /**
  * Look pass 3 (S13): the footprint edge is where the interpolated pile height crosses MOUND_MIN_PILE_MM, a straight line
  * per grid cell, so the foot of a mound ended in square steps. The cut-off is raised by up to this many mm of pile by a
- * two-octave noise in world space: the edge becomes a ragged scatter of crumbs.
+ * two-octave noise in world space. It must stay within the walker's foot offset (0.1 BU, 0.4 mm for the smallest species):
+ * the walkers stand on the pile (src/sim/world/field.ts), so soil hidden by the cut-off would leave ants standing on thin air
+ * (moundRag.verify.test.ts). The rest of the ragged look is colour, not discard: see MOUND_FOOT_MOTTLE.
  */
-export const MOUND_RIM_RAG_MM = 1.3;
+export const MOUND_RIM_RAG_MM = 0.3;
+/** World-space frequency (1/mm) of the two noise octaves of the foot, and the weight of the first. */
+export const MOUND_RAG_FREQ = [1.7, 5.3] as const;
+export const MOUND_RAG_WEIGHT = 0.6;
+/** Swing of the albedo (+-) over the thin foot of a mound (pile below MOUND_RIM_BLEND_MM): loose crumbs against the pressed ground. */
+export const MOUND_FOOT_MOTTLE = 0.22;
 
 interface MoundMesh {
   /** moundSignature at the last build; NaN forces a rebuild. */
@@ -97,18 +104,13 @@ export class MoundRenderer {
         vertDecl: 'attribute float aPile; varying float vPile;',
         vertMain: 'vPile = aPile;',
         fragDecl: `varying float vPile;
-float mdHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float mdNoise(vec2 p) {
-  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mdHash(i), mdHash(i + vec2(1.0, 0.0)), f.x), mix(mdHash(i + vec2(0.0, 1.0)), mdHash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
 ${HOLE_MASK_GLSL}`,
         fragMain: `
-float mdRag = 0.6 * mdNoise(vWrW.xz * 1.7) + 0.4 * mdNoise(vWrW.xz * 5.3);
+float mdRag = ${MOUND_RAG_WEIGHT.toFixed(2)} * wrNoise(vWrW.xz * ${MOUND_RAG_FREQ[0].toFixed(2)}) + ${(1 - MOUND_RAG_WEIGHT).toFixed(2)} * wrNoise(vWrW.xz * ${MOUND_RAG_FREQ[1].toFixed(2)});
 if (vPile < ${MOUND_MIN_PILE_MM.toFixed(3)} + ${MOUND_RIM_RAG_MM.toFixed(2)} * mdRag || wrHoleMask(vWrW.xz) > 0.5) discard;
 // thin rim: flatter, lighter soil like the surrounding ground; thick pile: dark fresh crumbs
 float wrRim = smoothstep(0.0, ${MOUND_RIM_BLEND_MM.toFixed(2)}, vPile);
-wrAlb *= mix(1.2, 1.0, wrRim);
+wrAlb *= mix(1.2, 1.0, wrRim) * (1.0 + ${MOUND_FOOT_MOTTLE.toFixed(2)} * (mdRag - 0.5) * 2.0 * (1.0 - wrRim));
 wrWet = max(wrWet, 0.25 * wrRim);`,
       },
     });

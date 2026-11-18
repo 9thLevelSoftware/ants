@@ -47,8 +47,33 @@ export const HIGHLIGHT = { warm: '#ffd9a0', warmGain: 0.35, cool: '#bcd8ff', coo
  * Hyaline wing membrane (GDD 08 §11.6): clear chitin scatters little light, so its diffuse albedo is the species
  * membrane tint x membraneScatter; the glassy look comes from the specular and thin-film terms. At full albedo the
  * sunlit membrane, folded four times over the dark gaster, read as a milky veil (finding int-1A review 3).
+ * Look pass 3 review (the founding queen read as a glass bulb with pale veins by day, the gyne's wings as a white cloud at night):
+ *  - `alpha`: opacity of the clear membrane, `veinAlpha` of the veins and pterostigma, `edgeBoost` of the margin (x alpha);
+ *  - `iridescence`: thin-film strength (0.7 coloured every layer; the layers add up over a folded wing);
+ *  - `nightAlphaGain`: extra opacity at full night weight (uFillK) so a clear wing does not vanish against a dark ground. It stays small:
+ *    0.07 -> 0.17 made four folded layers an opaque white tuft;
+ *  - `nightRim` x `nightRimPow`: a faint cool edge light, grazing angles only (no baseline over the whole membrane);
+ *  - `highlightRim`: share of the possession highlight the wings take (the rim of four folded layers drew a bright shell round the body).
  */
-export const WING_LOOK = { membraneScatter: 0.12 };
+export const WING_LOOK = {
+  membraneScatter: 0.1, iridescence: 0.3,
+  alpha: 0.06, veinAlpha: 0.6, edgeBoost: 1.5,
+  nightAlphaGain: 0.3,
+  nightRim: 0.45, nightRimPow: 3.0,
+  highlightRim: 0.35,
+};
+
+/**
+ * A stretched gaster (a replete worker): the membrane between the sclerites shows. It takes the dull membrane colour as the crop fill
+ * (aPose.z) goes from `fullFrom` to `fullTo`, and loses `clearcoatCut` of its clearcoat (a taut membrane is dull, not lacquered).
+ */
+export const GASTER_MEMBRANE = { fullFrom: 0.05, fullTo: 0.6, clearcoatCut: 0.9 };
+
+/**
+ * Body cuticle at night (review of look pass 3: the worker read as chrome with bright edge lines): the clearcoat is the
+ * mirror that reflects what little sky is left, so its strength is cut by this share at full night weight (uFillK).
+ */
+export const ANT_NIGHT_LOOK = { clearcoatCut: 0.55 };
 
 /** GDD 01 6.5 rule 2: other ants inside the camera-to-possessed-ant capsule (radius in body lengths) are dithered. */
 export const CAMERA_CAPSULE = { radiusL: 0.6, opacity: 0.4 };
@@ -90,7 +115,7 @@ export const TINT_VARIATION = 0.12;
  */
 export const ANT_FILL = {
   body: { underground: 0.9, night: 0.7 },
-  rim: { underground: 0.025, night: 0.22 },
+  rim: { underground: 0.025, night: 0.15 },
   fromEV: 1.6,
   toEV: 3.0,
   warm: [1.0, 0.62, 0.34] as [number, number, number],

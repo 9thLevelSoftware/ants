@@ -1,6 +1,7 @@
 // The real nest of a rival colony (GDD 05 §3.4): carved through the nest module's template layout, the queen(s)
 // in the royal chamber, and the display brood in the nursery (min(24, ceil(B / 10)) real items standing for the
-// abstract brood B). Built on the first rivals tick (the New Game context has no Sim) and for new foundations.
+// abstract brood B). Built at game creation (prepare.ts), on the first rivals tick for older saves, and for new
+// foundations.
 
 import type { Vec3 } from '@/core/math/vec3';
 import { rngFloat, rngRange } from '@/core/rng';

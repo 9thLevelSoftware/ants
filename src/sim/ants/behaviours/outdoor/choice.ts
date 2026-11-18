@@ -7,7 +7,7 @@ import { LEAD_VALID_S } from '@/sim/balance';
 import {
   CHOICE_COLLECT_S, CHOICE_CROWD_MIN, CHOICE_MIN_TRIP_S, DEPLETED_GD, FORAGE_MARKER_SCORE_MULT,
 } from '@/sim/balance/foraging';
-import { sourceWeight } from '@/sim/colony';
+import { poolSpace, sourceWeight } from '@/sim/colony';
 import { harvestForm, slotUsers, sourceQuality } from '@/sim/ecology';
 import { casteSpeeds } from '@/sim/locomotion';
 import { daysToTicks, secondsToTicks } from '@/sim/time';
@@ -87,8 +87,16 @@ export function sourceScore(sim: Sim, ant: Ant, s: FoodSource): number {
   if (!col || isDepletedFor(sim, ant, s.id)) return 0;
   const q = sourceQuality(sim, ant.colony, s.id); // 0 inside an avoid marker, exhausted or unavailable
   if (q <= 0) return 0;
+  // a trip is worth what the stores can take of it when the forager is home: crop food the pool has no room for is
+  // refused at the unload and the trip fails (GDD 02 §5.5 item 5, "stores full: need = 0"). Sweep 5: 48 of kitchen-door
+  // #1's 155 trips came home with honeydew to full stores while its protein stores were 0, and every one of them aged
+  // its forager outside at 3x the nest rate
+  // (Before the colony cycle has first counted the workers, a new game's first tick or a test fixture, the pool's room
+  // is not measured yet: the trip is valued whole.)
   const n = tripNutrients(sim, ant, s);
-  const w = sourceWeight(col, n.c, n.p);
+  const measured = (col.core?.workers ?? 0) > 0;
+  const room = measured ? poolSpace(col) : n;
+  const w = sourceWeight(col, Math.min(n.c, room.c), Math.min(n.p, room.p));
   const slots = Math.max(1, s.slots);
   const crowd = Math.max(CHOICE_CROWD_MIN, 1 - slotUsers(sim, s).length / slots);
   const speed = Math.max(1e-3, casteSpeeds(col.species, ant.caste, sim.world.bu).cruise);

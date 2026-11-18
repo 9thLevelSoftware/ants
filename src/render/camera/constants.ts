@@ -7,14 +7,13 @@ export const CAM_UP_TAU = 0.35;
 /**
  * Slope lift (look pass 3, S10): the open-state camera sits in the surface's tangent plane behind the ant, so on a slope the
  * ant climbs the picture looks up the slope at the sky, the ant a speck at the lower edge. The orbit elevation is raised by
- * CAM_SLOPE_LIFT_K x the pitch of the heading above the horizon (at most CAM_SLOPE_LIFT_MAX_DEG, eased over
- * CAM_SLOPE_LIFT_TAU s), which levels the view. Walking downhill or on the flat adds nothing.
+ * CAM_SLOPE_LIFT_K x the slope of the camera's own offset below the pivot (the camera stands downhill of the ant, so the view looks up
+ * the slope; at most CAM_SLOPE_LIFT_MAX_DEG, eased over CAM_SLOPE_LIFT_TAU s), which levels the view. A camera on the flat or uphill
+ * of the ant adds nothing, whichever way the ant faces.
  */
 export const CAM_SLOPE_LIFT_K = 0.85;
 export const CAM_SLOPE_LIFT_MAX_DEG = 40;
 export const CAM_SLOPE_LIFT_TAU = 0.4;
-/** The lift only eases while the target moves faster than this (BU/s): a standing target keeps the picture still. */
-export const CAM_SLOPE_LIFT_MIN_SPEED_BU = 0.05;
 export const CAM_UP_TAU_REDUCED = 0.6;
 export const CAM_PIVOT_UP_L = 0.5;
 export const CAM_LOOKAHEAD_T = 0.35;
@@ -60,13 +59,22 @@ export const CAM_RADIUS_FIELD_CAP_BU = 0.35;
 /** The guaranteed clearance of a camera centre, as a fraction of its radius (GDD 6.1). */
 export const CAM_MIN_CLEARANCE_R = 0.5;
 /**
- * Tight rooms (look pass 3, stage1a strict): in a room lower than the camera sphere (a queen's cell whose ceiling is 0.4 mm
- * above her back) no camera position can keep f >= 0.5 R, and the guard fell back to a pivot base that was itself inside
- * the clearance. The sphere now SHRINKS to what fits at the pivot base, down to this fraction of the GDD radius (never below:
- * a sphere that small has no room anywhere), so the camera always stands in free space. The radius is a function of the pivot base
- * alone (no easing, no memory), so a restarted rig shows the same picture as a settled one.
+ * Tight rooms (look pass 3, stage1a strict). In a room barely higher than the camera sphere (a queen's cell whose ceiling is 0.4 mm
+ * above her back) the pivot base, which sits just above the ant, has no room for a sphere. Two things follow:
+ *  - the COLLISION sphere of the traces shrinks to what fits at the pivot base, down to this fraction of the GDD radius
+ *    (never below: a sphere that small has no room anywhere), so the orbit and the boom can leave the pivot at all. This is a
+ *    function of the pivot base alone (no easing, no memory), so a restarted rig shows the same picture as a settled one;
+ *  - the camera is placed by `findClosePose` (closePose.ts) where a sphere of the GDD clearance does fit, so `radiusMm` and
+ *    GDD 6.1's f >= 0.5 R stay the GDD's. Only when the room has no such place at all (lower than twice the clearance: no camera
+ *    could stand in it) does the reported radius fall back to the shrunk one, and the rig says so (`ThirdPersonRig.clearanceHonoured`).
  */
 export const CAM_TIGHT_MIN_SCALE = 0.08;
+/** The close pose search: candidate distances (fractions of the wanted distance, nearest to the framing's first), yaws round the wanted side and elevations (degrees above the tangent plane). */
+export const CAM_CLOSE_DIST_FRACTIONS = [1, 0.8, 0.62, 0.46, 0.34, 0.24] as const;
+export const CAM_CLOSE_YAWS_DEG = [0, 20, -20, 45, -45, 75, -75, 110, -110, 150, -150, 180] as const;
+export const CAM_CLOSE_ELEVS_DEG = [0, 12, 28, -12] as const;
+/** A candidate place is centred between floor and ceiling when the free gap through it is below this many camera radii. */
+export const CAM_CLOSE_GAP_R = 6;
 
 /** Near = clamp(0.02 x distance, 0.005 BU, 0.2 BU) (GDD 6.1), and never more than this fraction of the camera
  * radius so the near-plane corners stay inside the guaranteed clearance at FOV <= 80. */

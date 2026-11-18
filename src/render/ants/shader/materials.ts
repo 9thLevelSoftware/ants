@@ -95,7 +95,7 @@ export function makeAntMaterial(rig: AntRig, shared: SharedAntUniforms, o: AntMa
 export function makeWingMaterial(rig: AntRig, shared: SharedAntUniforms, membraneHex: string, veinHex: string): Material {
   const mat = new MeshPhysicalMaterial({
     vertexColors: false, color: new Color(membraneHex).multiplyScalar(WING_LOOK.membraneScatter), roughness: 0.25, metalness: 0, transparent: true, opacity: 1, depthWrite: false,
-    side: DoubleSide, iridescence: 0.7, iridescenceIOR: 1.35, iridescenceThicknessRange: [250, 520],
+    side: DoubleSide, iridescence: WING_LOOK.iridescence, iridescenceIOR: 1.35, iridescenceThicknessRange: [250, 520],
   });
   const u = { ...rigUniforms(rig, shared), uVein: { value: new Color(veinHex) } };
   mat.onBeforeCompile = (shader) => {
