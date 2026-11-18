@@ -178,6 +178,8 @@ export interface LifeReport {
   tool: 'life';
   /** Game hours each alert kind stood (the player colony's, sampled every SAMPLE_TICKS; R29 "hours with a warning"). */
   alertHours?: Record<string, number>;
+  /** Workers alive on year-two day 10 (first day row at doy >= 10 of year 2): physiological age, lifespan, game days since born. */
+  agesY2d10?: { doy: number; workers: { physioGd: number; lifespanGd: number; bornGdAgo: number }[] };
   options: LifeOptions;
   world: { fingerprint: string | number; genMs: number; sizeMm: number; bu: number; sources: number };
   /** `forcedSeal`: the real founding failed (phase and gd given) and the hand-over came from a forced seal. */
@@ -308,6 +310,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const lifeT0 = sim.state.tick;
   let badSince = -1, longestBad = 0, winter = false;
   const alertSamples: Record<string, number> = {};
+  let agesY2: LifeReport['agesY2d10'] = undefined;
   for (let d = 1; d <= nDays && !winter; d++) {
     let dayViol = 0;
     const r0 = performance.now();
@@ -341,6 +344,12 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     days.push(row);
     for (const t of times) { t.dayTotal = 0; t.dayMax = 0; }
     const s = row.state;
+    // year two, day 10: the ages of the workers alive (direction 14: do the overwintered workers bridge to spring?)
+    if (!agesY2 && s.year === 2 && (s.doy ?? 0) >= 10) {
+      const pc = playerCol();
+      agesY2 = { doy: s.doy ?? 0, workers: sim.state.ants.filter((a) => a.alive && pc && a.colony === pc.id && a.caste === 'worker')
+        .map((a) => ({ physioGd: round(a.physioAgeGd), lifespanGd: round(a.lifespanGd), bornGdAgo: round((sim.state.tick - a.bornTick) / TICKS_PER_DAY) })) };
+    }
     log(`day ${d} ${s.season}: ${s.workers} workers, brood ${s.eggs}/${s.larvae}/${s.pupae}, C ${s.storesC} P ${s.storesP}, ` +
       `trips ${row.events.tripsStarted} deliveries ${row.events.deliveries}, chambers ${JSON.stringify(s.chambers)}, ` +
       `stuck ${row.stuck.stuckAnts}, viol ${dayViol}, ${row.msPerTick} ms/tick`);
@@ -361,6 +370,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     verdict: { healthy: false, netGrowth: false, checks: [] },
   };
   report.alertHours = Object.fromEntries(Object.entries(alertSamples).sort().map(([k, n]) => [k, round((n * SAMPLE_TICKS * 24) / TICKS_PER_DAY)]));
+  report.agesY2d10 = agesY2;
   report.verdict = judge(report);
   report.economy = { longestBadStageGd: round(longestBad), tripsPerWorkerDay: round(tripsPerWorkerDay(report)), tripsPerForagerDay: round(tripsPerForagerDay(report)), deaths: deathsByCause(report) };
   report.viable = judgeViable(report);

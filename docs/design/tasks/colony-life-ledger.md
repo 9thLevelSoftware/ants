@@ -2742,3 +2742,49 @@ Progress (kept current; a successor continues from here)
   `tools/sim/life.ts` (all trees, tool only): `--until winter --out` also writes the winter-start snapshot
   `winter-<species>-<archetype>-<seed>.bin` (before Begin), for the lapse replays. New probe
   `tools/sim/probe/probe-lapse8.ts SNAP ARCH SEED` (lapse inputs + the winter record Begin writes).
+- 08:50 status. Paired runs: we #1 4 arms, sg #2 base/r29 done (6-7 min a run). First pair: we #1 workers at winter
+  base 11, r29 10, r30 14, r29r30 19. **R31 written, NOT in the live tree**: frozen arm `/home/user/scratch-r8-r31`
+  (= r29r30 + R31), patch `round-8/r31/r31.patch` + test `round-8/r31/queenCareR31.test.ts` (4 cases green there;
+  `allocation/hygiene.test` stays green). R31 as built: `demand.ts queenCareDemand(n)` = 1 below
+  QUEEN_CARE_SMALL_COLONY_N 20, else the GDD 2 + n/100 (max 10); `targets.ts` §6.3 short of workers: tasks ranked
+  before nurse (guard under threat) get their first ant, then nurse its whole demand, then GDD pass 1 (ceil D/2) and
+  pass 2. R29's `layCapacity.test` restated in the patch (12 workers: 11 nurse-capable). The r31 arm runs after the
+  62 jobs (`paired/chain.sh` waits for ALLDONE, then `jobsN.sh jobs2.txt`; if cut off: run
+  `round-8/paired/jobsN.sh jobs2.txt` after jobs.sh). `tools/sim/life.ts` now also reports `alertHours` (game hours
+  each alert kind stood; runs started after 08:37 have it).
+- 08:50 tests on the live tree (R29 + R30): colony 66/68 files: red `founding/reopen` (known) and
+  **`workedExample.test` (GDD 02 §15): red because of R29, not R30** (red in scratch-r8-r29 = HEAD, green in
+  scratch-r8-base): larval C 4.24 vs 3.99 (6.3 % > 5 %), larval P 12.73 vs 11.99; eggs 12.3 (in range). R29's care
+  factor is part of that test's colony now (60 workers: care need 4.9 of 58 nurse-capable); decide with R29's paired
+  verdict. species 37/39: red `modules/granary/rhythm`, `modules/granary/scenario` (the harvester engineer's; red in
+  scratch-r8-base too, not R30's).
+- 08:50 browser founding failure (direction 15), first Node reproduction (`tools/sim/probe/probe-found8.ts`, output
+  `round-8/found/`): suburban-garden #2, the real dig at the start pose (sweepKit's player dig, E to seal): sealed,
+  lapse started, then **the queen dies of desiccation at 1.54 gd of the lapse** (`failed:desiccation`). She is in her
+  cavity (medium cavity, nestId set) but in no chamber (chamberId -1 by both lookups, locomotion's chamberAt and the
+  registry's chamberAtIn; the founding cell 3470's centre reads 7.66 BU deep under a cover primitive, she sits 2.56
+  BU under the terrain); `exposure.ts desiccationBase` gives the sealed humid-cell rate only with q.chamberId >= 0 and
+  otherwise the shade rate (0.4 / gd) while depth < DESICC_SHAFT_REFUGE_BU 3: desiccation 0.40 -> 1.00 over the
+  lapse. Her eggs are laid with her chamberId (-1, `queen.ts layEgg`) until the founding care pass moves them into
+  the cell. Variants (wait 300 / 1200 ticks, the nearest good map cell) running: `round-8/found/variants.sh`.
+- 08:55 founding probe variants (live tree before FD1): wait 300 ticks before laying -> `failed:desiccation` at
+  1.49 gd of the lapse; wait 1200 -> at 0.22 gd (the desiccation clock runs at 0.4 / gd from the seal, so the
+  outcome depends on how long the player takes to lay: the browser's real-time waits). **FD1 in the tree**
+  (founding, cause): `colony/founding/exposure.ts sealedAirOf` - a queen sealed in her nest breathes the founding
+  cell's air wherever in the sealed cavity she stands (her chamber, else the founding cell when q.nestId is the
+  founding nest); `desiccationBase` uses it instead of `q.chamberId >= 0`. Test `founding/sealedAir.test.ts` (2:
+  sealed in the shaft end in no chamber -> rate <= 0, was 1.2 on HEAD (red, checked in scratch-r8-r29); plug open
+  -> the shaft rules again). FD1 acts only before the hand-over: the paired runs (cached hand-overs) are untouched.
+  Re-run of the probe with FD1 queued (`round-8/found/variants2.sh`). The start pose reads "fair" Q 0.77 (cover
+  "beside", warmth 0) and the nearest good cell 91 BU away reads "good" Q 0.88: by worldgen's own start rule
+  (`worldgen/maps/start.ts`: the start is on fair-or-worse ground with good sites within reach) a player who digs
+  where she is put gets fair or poor ground on purpose; Poor (Q 0.71) means mu 0.16 / gd of brood hazard (exp(-0.16
+  x ~3 gd) ~ 0.6 survival per egg), so losing all 6 eggs at 2.8 % of the lapse is not the site's hazard.
+- 08:55 winter lapse (direction 15), first replays (`tools/sim/probe/probe-lapse8.ts` on winter-start snapshots written
+  by the paired runs; `round-8/lapse/`): **sg #2** (base arm's own winter state: 10 workers, C 1.17, P 0.02,
+  `colony-starving` alerted at tick 70785): the lapse takes 1 old-age + 3 starvation and the queen (starvation), C 0.
+  The **round-5 tree** (8cf26c2, `/home/user/scratch-r5`) on the same snapshot gives the identical record. The lapse
+  code differs between round 5 and round 7 only by WL3 (begin.ts / model.ts), which acts only when the R24 cap cuts
+  a cause; starvation was alerted (and stores short), so uncapped by R24 in both. sg #2's year-two loss is its winter
+  stores (C 1.2 here, 1.3 in the integrator's run, 7.6 in round 5's run of a different hand-over: sweep 6 changed the
+  hand-overs), not the lapse; such a colony fails the R27 stores check, so R24's cap does not apply to it.

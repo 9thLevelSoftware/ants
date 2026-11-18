@@ -83,7 +83,7 @@ export const ANT_NIGHT_LOOK = { clearcoatCut: 0.55 };
  * clearcoat is a mirror of the overcast sky, so it keeps only `clearcoatMul` of its strength (at night `ANT_NIGHT_LOOK` takes over; the two
  * meet at the same level). The queen, the gyne, the male and the worker share this and the base values below: one cuticle.
  */
-export const ANT_DAY_LOOK = { clearcoatMul: 0.45 };
+export const ANT_DAY_LOOK = { clearcoatMul: 0.3 };
 
 /** GDD 01 6.5 rule 2: other ants inside the camera-to-possessed-ant capsule (radius in body lengths) are dithered. */
 export const CAMERA_CAPSULE = { radiusL: 0.6, opacity: 0.4 };
@@ -100,7 +100,7 @@ export const GAIT = { turnLever: 0.45, cruiseBodyLengthsPerS: 6, teleportBodyLen
  * (dull black) and Atta (matte) are rougher, as §11.6 describes them.
  */
 /** `sheenColor` is the dark brown of the hairs' rim: the beige it was drawn pale wire on thin legs (look pass 3). */
-export const CUTICLE = { roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.2, hairRimSheen: 1.3, sheenColor: '#3a342d', sheen: 0.35 };
+export const CUTICLE = { roughness: 0.5, clearcoat: 0.6, clearcoatRoughness: 0.2, hairRimSheen: 1.3, sheenColor: '#3a342d', sheen: 0.35 };
 
 /** Callow adults darken over CALLOW_DARKEN_GAME_H = 6 game hours (GDD 08 §11.6): 6 x 25 s x 10 ticks. */
 export const CALLOW_DARKEN_TICKS = 1500;

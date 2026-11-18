@@ -19,14 +19,14 @@ export default async ({ page, log, out }) => {
   await shot('02-far-walls');
 
   // 1. the queen close: the camera zoomed in, the picture cropped round the queen's screen position
-  await g(() => window.__game.camera.zoom(0.3));
+  await g(() => window.__game.camera.zoom(0.55));
   await render(1);
   const at = await g(() => { const gm = window.__game, p = gm.summary().possessed; return gm.views.project({ x: p.pos[0], y: p.pos[1], z: p.pos[2] }); });
   const cx = Math.round(at?.x ?? 640), cy = Math.round(at?.y ?? 560);
   const clip = { x: Math.max(0, Math.min(1280 - 520, cx - 260)), y: Math.max(0, Math.min(720 - 340, cy - 190)), width: 520, height: 340 };
   log('queen at', cx, cy, JSON.stringify(clip));
   await shot('01-queen-close', clip);
-  await g(() => window.__game.camera.zoom(1 / 0.3));
+  await g(() => window.__game.camera.zoom(1 / 0.55));
 
   // 3. crevice: teleport into a cavity until the camera says so
   const cav = await g(() => window.__hud.game.session.sim.world.cavities.slice(0, 8).map((c) => ({ id: c.id, kind: c.kind, p: c.min && c.max ? { x: (c.min.x + c.max.x) / 2, y: (c.min.y + c.max.y) / 2, z: (c.min.z + c.max.z) / 2 } : null })));

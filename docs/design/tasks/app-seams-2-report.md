@@ -7,8 +7,8 @@ Evidence root (git-ignored): `test-output/app-seams-2/`. The machine had a load 
 ## Summary
 
 All thirteen items are done in code with tests. Pictures were taken and looked at for items 1, 2, 3, 4, 5, 6, 9, 12 (observer, quality, backdrop facade) and
-for the manual. Three things in item 12 are **not demonstrated by a picture** and are marked partial below: the cuticle look (a), the white disc in the crevice
-(c; could not be reproduced) and the slope camera (e; the steepest ground near the colony is 16 degrees and the before/after pair looks alike). The far wall blocks
+for the manual. Items 12 (a), (c) and the slope half of (e) are **not demonstrated by a picture** as fixes (a: a modest change only; c: the disc could not be reproduced; e: the steepest ground near the colony is 16 degrees and the pair looks alike), and
+item 13 is **not finished**: `firstplay.mjs` runs beats 1 to 15 and then stops at a simulation failure (beat 16), so not all 25 beats run. The far wall blocks
 of the opening shot (b) were traced to the backdrop facade, not to prims; the facade is improved, the pale blocks in the suburban seed are **not** fixed.
 
 ## Acceptance criteria
@@ -59,7 +59,9 @@ of the opening shot (b) were traced to the backdrop facade, not to prims; the fa
 12. **Left open by look-pass-3**:
     * (a) cuticle, **partial / not demonstrated**: one set of values for queen, gyne, male and worker (`ants/tuning.ts` `CUTICLE`, `ANT_DAY_LOOK`: clearcoat x0.45 by day, a full gaster has no clearcoat, dark brown hair rim
       instead of beige, `morph/lasius.ts` unified, `fragmentChunk.ts`, `materials.ts`; test `ants/cuticleLook.test.ts`). The same-pose crops `crop-queen-before.png` / `crop-queen-after.png` are almost identical:
-      the sky highlight on the gaster stays. CUTICLE_RESULT_PLACEHOLDER
+      the sky highlight on the gaster stays. A second tuning (`CUTICLE.roughness` 0.35 -> 0.5, `ANT_DAY_LOOK.clearcoatMul` 0.45 -> 0.3) was then taken in the same pose from the opening shot
+      (`crop-queen-3way.png`: original | first change | second tuning; `look-before/`, `look-after/`, `look-after2/` `02-far-walls.png`): the highlight on the gaster is smaller and softer and the body is a little more matte;
+      it still reads glossy, not matte chitin, and the legs were already dark in this seed. A modest, visible change, not a solved look. The same constants feed the Messor morphology (an unavailable species).
     * (b) far wall blocks, **partial**: they are not prims (no tall box prims exist): they are the boundary facade backdrop. `boundary/{meshBuilder,backdrop,edgeHaze,boundaryRenderer,tuning}.ts` now keep part of
       the facade's detail out of the haze (`BACKDROP_KEEP_HAZE`); test `facadeKeep.test.ts`. Kitchen-door seed 2, `kd-walls-before.png` vs `kd-walls-after.png`: the house at top right has windows and edges now. The
       pale blocks in the suburban seed 2 opening are something else (no facade in that backdrop, `keepOnes 0`) and are **not fixed**. The first attempt (a prim shader treatment) was reverted.
@@ -73,7 +75,20 @@ of the opening shot (b) were traced to the backdrop facade, not to prims; the fa
     * (e) same-pose pictures: `tests/e2e/appSeams2-poses.mjs`, run on the current tree (`poses-after/`) and on the tree before look pass 3 (`poses-before/`, `git archive 2fbf1a8~1`).
       Observer after the colony view (followed worker underground): BEFORE `A3` the orbit camera sits in the soil on the ant (`followId` 5571, camera y -23.7 mm); AFTER `A3` the observer is free above the nest
       (`followId` -1, y 128.6 mm). **Demonstrated.** Slope: the steepest ground within reach is 15.9 degrees, 329 BU from the entrance; `B1`/`B2` before and after look alike (the horizon sits a little higher after); **not demonstrated**.
-13. **`firstplay.mjs` beat 11**: FIRSTPLAY_RESULT_PLACEHOLDER
+13. **`firstplay.mjs` beat 11**: **cause found and fixed in the script; the 25 beats do not all run: beats 1 to 15 pass, beat 16 fails for a sim reason.**
+    * Cause of beat 11: the founding flow (`src/game/flows/founding/**`) does not close the overlay. The simulation ends the lapse itself when every egg of the clutch is lost before an eclosion
+      (`colony/founding/failure.ts` `broodLost`, rule of the fnd-review): the opening goes back to the lay phase for ONE relay clutch and the overlay is rightly gone. The script then waited for "Tend the brood"
+      without laying the relay clutch. Now it logs the trace, lays the relay clutch with the same lay batches as the first one, and presses the button with a DOM click (Playwright's click kept losing the re-rendered button).
+      The numbers: in 3 of my 5 full runs of seed 2 (1, 2 and 4) the first six eggs were all lost at lapse progress 0.028 (counters `eggs 6, lost 6`, queen reserves 0.95, site read-out "Poor", Q 0.71, warmth "Shaded"); in the
+      first two the script failed before the relay outcome showed (the bugs above), in the fourth the relay clutch was lost too and the opening failed (`no-workers`, `phase: failed`); in runs 3 and 5 nothing was lost at the start
+      (lapse trace at progress 0.32: eggs 3, larvae 6, lost 3) and beats 11 and 12 passed. The outcome differs from run to run
+      on the same seed: that is a finding for the founding owner (a real founding in a "Poor" site loses its first clutch half a day in).
+    * With that fixed, runs reached: beats 1 to 13 (run 3), then "no forager laid a trail to the food within 18000 ticks" even though the player placed a forage marker on the food: the colony does not send foragers out reliably (sim). Option
+      `FIRSTPLAY_STANDIN_TRAIL=1` (new; listed in `result.standIns`) lays the trail by hand and re-spawns the food (the first spill is used up after 18000 ticks). Run 5 with it: beats 1 to 14 passed; a resumed run (checkpoint written after beat 13 with
+      `FIRSTPLAY_CHECKPOINT`, `FIRSTPLAY_RESUME`) passed 14 and 15 (trail came from the player's forage marker this time, `via: forage-marker`, scent 0.022 mid-way) and fails at beat 16: "the worker did not hand over her load"
+      (crop 0.379 after the gives; stores C 10.62 -> 10.50, deliveries 6 -> 9). Beats 17 to 25 were not reached.
+    * The growth numbers at beat 14 (runs 5 and 6, tick 47016 to 49116): queen 1, workers 6, brood 5 to 9, stores C 10.5 to 10.7 / P 0.9 to 1.3, deliveries 6 to 9. The growth check itself (a late beat) was not reached.
+    * Logs: `firstplay-full*.log`, `firstplay-resume.log`; pictures `firstplay-full*/`, `firstplay-resume/` (beats 1 to 15).
 
 ## Contradictions and decisions
 
@@ -89,6 +104,8 @@ of the opening shot (b) were traced to the backdrop facade, not to prims; the fa
   pass the days capped at the winter length, or the text should say "stores last 28 days, winter lasts 7". Not changed (sim file, and the design's wording is "stores cover 6 of 7 days").
 * The queen status mini panel (Reserves / Drying / Health) is still visible at the left edge beside an open journal (`panels/11-journal-log-1280.png`).
 * `tests/e2e/lifecycle.mjs` was not run (see item 11).
+* Sim findings from `firstplay.mjs` (above): first clutch lost half a day into the lapse in about 3 of 5 runs of seed 2 (founding owner); no forager lays a trail to a sugar spill 22 BU from an open entrance within 18000 ticks even with the player's marker on it (colony/forage owner);
+  `trophallaxis-give` by a possessed worker does not empty her crop (action owner).
 * Several sim changes by other engineers were in the tree during my runs (`src/sim/createGame.ts`, `sim.ts`); I did not touch or test them.
 
 ## Pictures (all under `test-output/app-seams-2/`)

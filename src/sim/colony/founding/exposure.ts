@@ -34,14 +34,29 @@ export function nestSealed(sim: Sim): boolean {
   return !!f && f.state === 'sealed';
 }
 
+/**
+ * The chamber whose air the queen breathes while the founding nest is sealed, -1 when she is not sealed in: the
+ * chamber she stands in, else the founding cell when she is anywhere inside the sealed nest. The plug closes the whole
+ * cavity (shaft end and cell), so its air is the cell's (GDD 06 §5.5 "sealed in a humid chamber"); a queen sealed in
+ * the shaft just above her cell is not on the surface (colony-life round 8: on suburban-garden #2 the player's own dig
+ * left her 2.6 BU under the terrain outside both chamber lookups, at the shade rate, dead of desiccation in the lapse).
+ */
+export function sealedAirOf(sim: Sim, q: Ant): number {
+  if (!nestSealed(sim)) return -1;
+  if (q.chamberId >= 0) return q.chamberId;
+  const nest = foundingNest(sim);
+  if (!nest || q.nestId !== nest.id) return -1;
+  const cell = nest.chambers.find((c) => c.type === 'founding');
+  return cell ? cell.id : -1;
+}
+
 /** Desiccation rate per GD at the queen's place (before the difficulty and heat multipliers). */
 export function desiccationBase(sim: Sim, q: Ant): number {
   const bu = sim.world.bu;
   const depth = depthBelowGround(sim, q);
   if (q.medium === 'cavity' || depth > DESICC_SHAFT_REFUGE_BU * bu) {
-    if (nestSealed(sim) && q.chamberId >= 0) {
-      return chamberHumidity(sim, q.chamberId) >= DESICC_SEALED_RH_MIN ? DESICC_SEALED_PER_GD : 0;
-    }
+    const cell = sealedAirOf(sim, q);
+    if (cell >= 0) return chamberHumidity(sim, cell) >= DESICC_SEALED_RH_MIN ? DESICC_SEALED_PER_GD : 0;
     if (depth > DESICC_SHAFT_REFUGE_BU * bu) return DESICC_SHAFT_PER_GD;
   }
   // "in shade or under cover (cover score >= 0.6)": under or beside a roof, or in dense litter (GDD 06 §5.5; the
