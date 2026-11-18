@@ -49,6 +49,7 @@ export const HIGHLIGHT = { warm: '#ffd9a0', warmGain: 0.35, cool: '#bcd8ff', coo
  * sunlit membrane, folded four times over the dark gaster, read as a milky veil (finding int-1A review 3).
  * Look pass 3 review (the founding queen read as a glass bulb with pale veins by day, the gyne's wings as a white cloud at night):
  *  - `alpha`: opacity of the clear membrane, `veinAlpha` of the veins and pterostigma, `edgeBoost` of the margin (x alpha);
+ *  - `roughness` / `specularIntensity`: the sky reflection on the layers (the founding queen read as a glass bulb by day at 0.25 / 1);
  *  - `iridescence`: thin-film strength (0.7 coloured every layer; the layers add up over a folded wing);
  *  - `nightAlphaGain`: extra opacity at full night weight (uFillK) so a clear wing does not vanish against a dark ground. It stays small:
  *    0.07 -> 0.17 made four folded layers an opaque white tuft;
@@ -56,7 +57,9 @@ export const HIGHLIGHT = { warm: '#ffd9a0', warmGain: 0.35, cool: '#bcd8ff', coo
  *  - `highlightRim`: share of the possession highlight the wings take (the rim of four folded layers drew a bright shell round the body).
  */
 export const WING_LOOK = {
-  membraneScatter: 0.1, iridescence: 0.3,
+  membraneScatter: 0.1, iridescence: 0.2,
+  /** Surface of the membrane: rougher and less reflective than glass, so a folded wing does not mirror the sky as a pale glassy shell over the gaster. */
+  roughness: 0.5, specularIntensity: 0.3,
   alpha: 0.06, veinAlpha: 0.6, edgeBoost: 1.5,
   nightAlphaGain: 0.3,
   nightRim: 0.45, nightRimPow: 3.0,

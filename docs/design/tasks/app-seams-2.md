@@ -19,6 +19,10 @@ GDD 08 (`docs/design/gdd/08-ui-ux-art-audio.md`): §3 HUD (element table with th
 7. **Species flag**: `&species=<id>` accepts unavailable species outside test mode: restrict it to `?test=1`.
 8. **One manual**: `docs/manual/` (older draft, partly test-covered) and `docs/MANUAL.md` both exist: make `docs/MANUAL.md` the manual, move what is only in the old folder and still true into it, delete the old folder, and point the controls test at the one file.
 
+9. **Journal dates** (from `sim-seams`): journal and event-log entries now carry `calTick` (`JournalEntry.calTick`, `EventLogEntry.calTick`; helpers `entryCalTick`, `entryDate` in `src/sim/progression/journal.ts`). Pass it through `src/game/uiBridge/panels/journalSlice.ts` and date entries from it in `src/ui/panels/journal/timeline.ts` (`dateLine`, `timeLine`) and `charts.ts` (`calDay`): today every entry from before a winter shows on the wrong day. Harness picture of the journal across a winter.
+10. **Manual drift** (from `sim-seams`): the opening grace period is in effect now — `docs/MANUAL.md` must drop "(not in effect)" from that row and correct the count of rows not in effect; `tests/docs/docs-final.test.ts` is red until then. Re-read `UNWIRED_PARAMS`, `UNWIRED_RULES` and the new `UNWIRED_WHY` in `src/sim/config/presetDisplay.ts` and make the New Game screen and the manual agree with them.
+11. **Epitaph by cheat**: `tests/e2e/lifecycle.mjs` kills the colony with `cheat.killAll`, which books deaths as "unknown": pass a cause, so the epitaph screenshot shows real causes.
+
 ## Acceptance criteria
 1. Typecheck clean; tests green in every folder you touched; `tests/docs/docs-final.test.ts` green.
 2. Harness screenshots (looked at) of: the minimap in observer and possession views with a marker and an entrance visible, with scent view on; the focus line on a new colony and when a new aim opens; the settings rows; the New Game rules; the opening intro card with no prompt over it. `panels.mjs` and `controls.mjs` pass.

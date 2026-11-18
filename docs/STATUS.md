@@ -742,3 +742,12 @@ docs-final (impl + review + fix; results `reviews/docs-final.json`): `README.md`
 - New specs: **`sim-seams.md`** (Opus; progression listeners table, journal year, rivals at tick 1, red command test, `time.auto-slow`, unwired difficulty parameters incl. the opening grace gate, map-edge parking, save round-trips in eight states) — launched; **`app-seams-2.md`** (Sonnet/Opus, visual; minimap, focus line, auto-slow settings, rules, strings, one manual) — queued behind look-pass-3 (same folders).
 
 Running: colony-life `wek2szmct` (sweep 5), look-pass-3 `w2ht0mt7m`, sim-seams (new).
+
+## Nov 18 04:15 UTC — sim-seams landed
+
+sim-seams (impl + review + fix; report `sim-seams-report.md`, results `reviews/sim-seams.json`):
+- Milestone/aim/codex trigger table test (every id has a listener and a reachable emitter, or is reported); `ms-zone-crossed` now needs a worker (the queen's search no longer fires it); journal entries carry `calTick` (dates right across winters — the app must read it); rival nests built at game creation (no multi-second first tick from rivals; new-game hashes differ from before); `commands.test` "ends with lifecycle" fixed (corpse pass ranked last; drowned ants leave corpses and drop what they carry); `time.auto-slow` documented as emitted by the game layer; **opening grace gate wired** (human events, ant predators and bird visits wait for `openingGraceGd` in real openings); `UNWIRED_WHY` names the missing piece of each parameter still not in effect; save round-trip table over the eight states.
+- Open, handed on: journal dates in the UI and manual drift (added to `app-seams-2.md` items 9–11); small owner-less seams (direction 12 of `colony-life.md`: mound heights after load, `applyPendingCommands` flush, createGame import of rivals wiring, human schedule week constants, entrance re-evaluation cost, ecology import cycle); species modules' periodic systems collide in their stagger offsets (wood 7 pairs, granary 11, fungus 11: for the species viability pass); first tick of a new game ≈ 670 ms outside rivals (perf task); aims `aim-find-wood`, `aim-plant-garden` have no opener (species pass).
+- `tests/docs/docs-final.test.ts` and `src/sim/time.test.ts` are red until those hand-ons land.
+
+Running: colony-life `wek2szmct` (round 6 closing → sweep 6), look-pass-3 `w2ht0mt7m` (fix round). Queued: app-seams-2 (after look-pass-3).

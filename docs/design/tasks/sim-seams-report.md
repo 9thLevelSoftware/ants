@@ -95,7 +95,7 @@ module paths under `src/sim/`):
 | `ms-first-aphid-herd` | all | poll |
 | `ms-first-possession` | all | possession-started <- ants/player/possession.ts; poll |
 | `ms-first-trophallaxis` | all | trophallaxis <- ants/actions/defs/food.ts / ants/behaviours/nest/idle.ts; action-completed <- ants/actions/runner.ts |
-| `ms-zone-crossed` | all | world.zone-first-entry <- progression/discovery.ts |
+| `ms-zone-crossed` | all | world.zone-first-entry <- progression/discovery.ts (worker only); poll (first worker crossing, discovery.ts memory) |
 | `ms-micro-connection` | all | world.micro-discovered <- progression/discovery.ts |
 | `ms-workers-25` | all | poll |
 | `ms-workers-100` | all | poll |
@@ -289,8 +289,8 @@ to "after the last environment system, before the first ecology system".
 `commands.robust.test.ts` "no two periodic systems of 50 ticks or more run on the same tick" was red as well (not
 mentioned in the spec): the species modules' periodic systems collide (`test-output/sim-seams/stagger.txt`: granary 5
 systems at offset 0 together, 66 collision ticks per 3000; fungus 5 together, 90; wood meets `rivals` and progression,
-61). The core is staggered. The test now checks the core strictly and, per species module, that every collision
-involves one of that module's own systems. **Owner:** species modules (`src/sim/species/modules/{granary,fungus,wood}`):
+61). The core is staggered. The test now checks the core strictly and, per species module, that no pair of
+systems meets on one tick except the pairs known today (`KNOWN_PAIRS`, review fix). **Owner:** species modules (`src/sim/species/modules/{granary,fungus,wood}`):
 give each periodic system its own offset. Robust, validation and verify command tests: 28 of 28 green.
 
 ## 5. `time.auto-slow` (item 5)
@@ -349,7 +349,7 @@ opening by `cheat.completeFounding`), and the round-4 hand-over caches of woodla
 |---|---|---|---|
 | mid-opening: search (queen on the surface, 300 ticks in) | 380 | **differs after <= 80 ticks** | `worldDelta.mounds[2].h[6865]` 17.956179 vs 17.956177 mm (a **rival** colony's mound) |
 | mid-opening: dig | 1,584 | equal for 1,200 ticks | - |
-| mid-opening: seal, lay | - | not reached as a state: the auto-founding passes them within one tick | - |
+| mid-opening: seal, lay | - | not reached in the live game (the auto-founding passes them within one tick); on the test world equal for 300 ticks mid-seal and at the start of lay (`save/foundingPhases.verify.test.ts`, review) | - |
 | mid-time-lapse (founding) | 2,935 | equal for 1,200 ticks (first run, save at tick 422: differs after <= 200 ticks, same rival-mound path and `nests[3].volumeOpen` 414.55224 vs 414.55226) | see first row |
 | at hand-over (first tick) | 22,208 | equal for 1,200 ticks (first run, tick 21,911: equal) | - |
 | mid-human-event (footsteps running) | 39,952 | equal for 1,200 ticks | - |
@@ -429,3 +429,40 @@ lapse, early opening with all systems: equal for 300 ticks.
   `progression/discovery.ts`'s two events if it prefers (item 1).
 - The first tick of a new game still costs about 670 ms in systems other than rivals (perf task).
 
+
+## Review fixes (sim-seams-fix, Nov 18)
+
+Progress file `docs/design/tasks/progress/sim-seams-fix.md`; evidence `test-output/sim-seams-fix/`.
+
+1. **`ms-zone-crossed` taken by the queen (major, real).** Reproduced by the reviewer's red test
+   (`progression/discovery.verify.test.ts`). Cause: the stand-in emitter counted every colony ant, and the rule only
+   checked the colony. Fix: the world event keeps its meaning (first entry of the colony into a zone type: GDD 06 §10
+   and GDD 08 §9.4 "first entry into each zone type", so the habitat codex entries still unlock from the queen's
+   search); the milestone requires a worker caste (GDD 06 §8). Because the zone may already have had its first-entry
+   event from the queen, `discovery.ts` records the first worker crossing out of the nest zone in trigger memory
+   (`zoneCrossedTo`, saved with the state) and the rule fires from it on the poll; the event path stays for a
+   worker's own first entry. No second first-entry event is emitted. Tests: the reviewer's 4 (green) and
+   `triggerTable.test.ts` "the queen and a male entering another zone unlock its habitat entry but not
+   ms-zone-crossed; a worker later does". `WORKER_CASTES` moved to `progression/triggers.ts` (shared by the rules).
+2. **createNewGame threw without `rivals/wiring.ts` (minor, real).** Reproduced: `test-output/sim-seams-fix/createOnly.ts`
+   (imports only `@/sim/createGame`, generated world with 5 rival sites) printed "THROWS"; after the fix it creates the
+   game. Fix: `initRivals(ctx, world, impl = rivalsImplIfLoaded())` builds the nests only when the heavy half is
+   loaded, otherwise leaves them to the first rivals tick (the path older saves use). Importing `wiring.ts` from the
+   light index was rejected: the index must stay light (combat imports it; README "Import cycles") and the cycle
+   would only show in the production bundle order. Remaining trap, reported: a game created that way hands out
+   entity ids in another order than one created with the sim loaded (valid, deterministic per process, but a
+   different game for the same seed). No caller does this today. Clean fix for the createGame.ts owner: import
+   `@/sim/rivals/wiring` (or a creation hook that calls `createSim`). Test: `rivals/creation.test.ts` "creating a game
+   without the heavy half loaded leaves the nests to the first rivals tick instead of throwing".
+3. **Per-species stagger tests checked nothing (minor, real).** Replaced by an allowlist of the colliding pairs known
+   today (`KNOWN_PAIRS`, generated by `test-output/sim-seams-fix/staggerPairs.ts` into `staggerPairs.txt`): wood 7
+   pairs, granary 11, fungus 11, honeydew 0. Any other pair (species with core, or within a module) fails; a test
+   checks that a cloned core system is caught, and one that every species module has a list.
+4. **Seal and lay save states (minor, gap).** The reviewer's `save/foundingPhases.verify.test.ts` is green and is now
+   the evidence for those rows of the item 8 table. Mid-hunt still relies on the hunt save/load tests of the
+   behaviour and creature modules.
+
+Runs after the fixes: typecheck clean (no error in the whole tree at 04:17 UTC); `src/sim/progression`,
+`src/sim/save`, root `commands*`, `time*`, `timeGrace` tests: 303 passed, 1 skipped, 1 failed (`time.test.ts`, the
+known `environment/human/schedule.ts:48` line, not mine); `src/sim/rivals` and `src/sim/config`: 156 passed, 5
+skipped (FOUNDRESS_LONG). Load average 8-10 on 4 cores.

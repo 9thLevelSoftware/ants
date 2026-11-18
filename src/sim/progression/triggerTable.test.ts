@@ -118,6 +118,43 @@ describe('world discovery stand-in (zone first entry, micro-connection passage)'
     expect(sim.state.progression.codexSeen[`cx-habitat-${other}`]).toBeDefined();
   });
 
+  it('the queen and a male entering another zone unlock its habitat entry but not ms-zone-crossed; a worker later does', () => {
+    // GDD 06 §8 "a worker first enters ..."; GDD 06 §10 / 08 §9.4 habitat entries: "first entry into each zone type"
+    const sim = makeProgSim({ workers: 2 });
+    const half = sim.world.size / 2;
+    sim.world.zones.push({ id: 7, type: 'pavement', variant: null, rects: [[half, 0, sim.world.size, sim.world.size]], areaMm2: 1 });
+    const m = sim.world.maps.zone;
+    for (let iz = 0; iz < m.nz; iz++) for (let ix = 0; ix < m.nx; ix++) if ((ix + 0.5) * m.cell > half) m.data[iz * m.nx + ix] = 7;
+    const nest = sim.state.nests[0];
+    const x = nest.origin.x < half ? half * 1.5 : half * 0.5;
+    const other = nest.origin.x < half ? 'pavement' : 'lawn';
+    const ants = sim.stores.ants.list.filter((a) => a.alive);
+    const queen = ants.find((a) => a.caste === 'queen')!;
+    const male = ants.find((a) => a.caste === 'worker')!;
+    male.caste = 'male';
+    for (const a of [queen, male]) {
+      a.nestId = -1;
+      a.chamberId = -1;
+      a.medium = 'surface';
+      a.pos = { x, y: sim.field.height(x, half), z: half };
+    }
+    const ev = recordEvents(sim, ['world.zone-first-entry']);
+    pollOnce(sim);
+    expect(sim.state.progression.codexSeen[`cx-habitat-${other}`]).toBeDefined();
+    expect(sim.state.progression.milestones['ms-zone-crossed']).toBeUndefined();
+    const worker = ants.find((a) => a.caste === 'worker')!;
+    worker.nestId = -1;
+    worker.chamberId = -1;
+    worker.medium = 'surface';
+    worker.pos = { x, y: sim.field.height(x, half * 0.9), z: half * 0.9 };
+    pollOnce(sim);
+    pollOnce(sim);
+    const entries = sim.state.progression.journal.entries.filter((e) => e.key === 'ms-zone-crossed');
+    expect(entries.map((e) => e.tokens)).toEqual([{ zone_from: other === 'pavement' ? 'lawn' : 'pavement', zone_to: other }]);
+    // one first-entry event per zone type: the worker's crossing is not announced as a second first entry
+    expect(ev.filter((e) => (e as Extract<SimEvent, { type: 'world.zone-first-entry' }>).zoneType === other)).toHaveLength(1);
+  });
+
   it('the first rival of a Formica-type species the colony discovers unlocks cx-formica (rival-discovered)', () => {
     const sim = makeProgSim({ workers: 2 });
     const col = sim.state.colonies[0];

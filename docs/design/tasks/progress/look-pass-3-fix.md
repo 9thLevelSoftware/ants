@@ -19,3 +19,5 @@
 03:40 stage1a STRICT PASSED (exit 0, no stand-ins): test-output/look3fix/stage1a.log. 04-chamber-queen shows queen in room (camera ok) but a white dithered cutaway halo (sky dome seen through discarded terrain in crevice state) - open, report.
 03:50 look3 batch (test-output/look3fix/shots.log, tag fix) running; run_checks.sh queued (photo quick, views quick, controls, panelsA/B, hud) -> test-output/look3fix/checks/_order.log. firstplay not queued (long).
 04:05 FOUND: leaf fringe blend was order dependent (white halo: drawn before terrain). Fixed with DECOR_LEAF.renderOrder=1 (decorBlock.ts). Restarted look3 batch (out shots2/, log shots.log) + run_checks.sh. Do NOT pkill play.mjs (shared machine; use TaskStop / kill own pid). Old shots/ dir = BROKEN white halo (keep as evidence of the bug only).
+04:30 report section 11 drafted (sections 9-12 numbers: finalize 12 with browser results)
+04:20 photo quick PASSED; unit render 829 / game 583 passed (before wing roughness tweak; ants re-run green). wing roughness/specular tweak added after: re-run photo quick at the end for the queen picture. Chain continuing (views, controls, panelsA/B, hud).

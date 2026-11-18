@@ -4,6 +4,11 @@
 // the first ant of the colony outside the nest in each zone type, and the first ant of the colony on the centreline of
 // each micro-connection. Both are recorded in state (trigger memory, worldDelta.microState), so a load does not
 // re-announce them.
+//
+// `ms-zone-crossed` is narrower than the world event (GDD 06 §8: "a worker first enters a zone type other than the
+// nest zone"): the foundress searching the surface during the opening, or a male, must not take it. The first such
+// worker entry is kept apart in trigger memory (WORKER_CROSS_KEY), because the zone may already have had its
+// first-entry event from the queen.
 
 import type { Vec3 } from '@/core/math/vec3';
 import type { MicroConn, Sim } from '@/sim/types';
@@ -11,10 +16,13 @@ import { ZONE_TYPES } from '@/sim/types';
 import { MICRO_DISCOVER_BU, MICRO_GRID_CELL_BU } from '@/sim/balance';
 import { zoneAt } from '@/sim/world';
 import { memGet, memSet, playerColony } from './engine';
+import { playerNests, WORKER_CASTES } from './triggers';
 
 /** Trigger memory key: bit i set = ZONE_TYPES[i] entered by an ant of the colony. */
 const ZONES_SEEN = 'zonesSeen';
 const ALL_ZONES = (1 << ZONE_TYPES.length) - 1;
+/** Trigger memory key: 1 + index in ZONE_TYPES of the zone a worker first entered other than the nest zone; 0 = none. */
+export const WORKER_CROSS_KEY = 'zoneCrossedTo';
 
 /** Static lookup of micro-connection centrelines by plan-view cell (derived from the world, never persisted). */
 interface MicroGrid { cell: number; byCell: Map<number, MicroConn[]>; nx: number }
@@ -70,20 +78,27 @@ export function detectDiscoveries(sim: Sim): void {
   const col = playerColony(sim);
   if (!col) return;
   let zones = memGet(sim, ZONES_SEEN);
+  const nest = playerNests(sim)[0];
+  let crossLeft = !!nest && memGet(sim, WORKER_CROSS_KEY) === 0;
   const states = sim.state.worldDelta.microState;
   const microLeft = sim.world.micro.length > 0 && states.some((s) => !s.discovered);
-  if (zones === ALL_ZONES && !microLeft) return;
+  if (zones === ALL_ZONES && !crossLeft && !microLeft) return;
+  const nestZone = nest ? zoneAt(sim.world, nest.origin.x, nest.origin.z) : null;
   const grid = microLeft ? microGrid(sim) : null;
   const r2 = (MICRO_DISCOVER_BU * sim.world.bu) ** 2;
   for (const a of sim.stores.ants.list) {
     if (!a.alive || a.colony !== col.id || a.nestId >= 0) continue;
-    if (zones !== ALL_ZONES) {
+    if (zones !== ALL_ZONES || crossLeft) {
       const z = zoneAt(sim.world, a.pos.x, a.pos.z);
       const bit = 1 << ZONE_TYPES.indexOf(z);
       if ((zones & bit) === 0) {
         zones |= bit;
         memSet(sim, ZONES_SEEN, zones);
         sim.emit({ type: 'world.zone-first-entry', zoneType: z, antId: a.id });
+      }
+      if (crossLeft && z !== nestZone && WORKER_CASTES.has(a.caste)) {
+        crossLeft = false;
+        memSet(sim, WORKER_CROSS_KEY, 1 + ZONE_TYPES.indexOf(z));
       }
     }
     if (!grid) continue;

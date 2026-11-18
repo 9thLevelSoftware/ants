@@ -3,7 +3,7 @@
 // PROGRESSION_POLL_EVERY ticks), or right after a milestone (`afterMilestone`). A predicate returns the token values
 // of the journal text when the rule fires, or null.
 
-import type { Ant, Chamber, MilestoneId, Nest, Sim, SimEventOf, SimEventType, SpeciesId } from '@/sim/types';
+import type { Ant, Caste, Chamber, MilestoneId, Nest, Sim, SimEventOf, SimEventType, SpeciesId } from '@/sim/types';
 import type { Census } from './engine';
 import { playerColony } from './engine';
 import type { Tokens } from './journal';
@@ -45,6 +45,9 @@ export function speciesAllows(sim: Sim, rule: { species?: readonly SpeciesId[] }
 }
 
 // ---- state helpers ----
+
+/** Worker castes (GDD 06 milestones that say "a worker" exclude the queen, gynes and males). */
+export const WORKER_CASTES: ReadonlySet<Caste> = new Set<Caste>(['worker', 'minor', 'media', 'major']);
 
 export function playerNests(sim: Sim): Nest[] {
   const col = playerColony(sim);

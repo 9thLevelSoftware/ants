@@ -12,7 +12,7 @@ import { rivalProfile } from '@/sim/species/rivals/profiles';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
 import { aggressionOf, storeCaps, upkeepOf } from './model';
 import { assignSlot, colExt, hasFreeSlot } from './state';
-import { rivalsImpl } from './late';
+import { rivalsImplIfLoaded, type RivalsImpl } from './late';
 
 /** Plain territory grid allocation (first use). */
 export function ensureTerritory(state: SimState): void {
@@ -81,8 +81,13 @@ export function createRivalColony(ctx: EntityCtx, site: RivalSite, bu: number): 
 /**
  * Creates the rival colonies of the world's rival sites at New Game (GDD 05 §3.1; sites from worldgen, GDD 04 §12.5)
  * and builds their real nests now, so no tick of the new game pays for it (prepare.ts).
+ *
+ * The build is in the heavy half (late.ts), which only the systems list loads. A caller that creates a game without
+ * having the sim in its import graph (a tool that imports only createGame) gets the colonies without their nests:
+ * the first rivals tick builds them, as for a save made before creation-time building. Such a game is valid but
+ * hands out entity ids in another order than one created with the sim loaded (every caller today loads it first).
  */
-export function initRivals(ctx: EntityCtx, world: WorldData): void {
+export function initRivals(ctx: EntityCtx, world: WorldData, impl: RivalsImpl | null = rivalsImplIfLoaded()): void {
   for (const site of world.placements.rivalSites) createRivalColony(ctx, site, world.bu);
-  if (world.placements.rivalSites.length > 0) rivalsImpl().prepare(ctx.state, world);
+  if (impl && world.placements.rivalSites.length > 0) impl.prepare(ctx.state, world);
 }

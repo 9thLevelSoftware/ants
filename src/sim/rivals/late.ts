@@ -20,6 +20,11 @@ export function provideRivals(i: RivalsImpl): void {
   impl = i;
 }
 
+/** The heavy half if wiring.ts is in the import graph, else null (only New Game asks: see init.ts). */
+export function rivalsImplIfLoaded(): RivalsImpl | null {
+  return impl;
+}
+
 export function rivalsImpl(): RivalsImpl {
   if (!impl) throw new Error('rivals: src/sim/rivals/wiring.ts was not loaded (the outdoor behaviour list imports it)');
   return impl;

@@ -17,6 +17,8 @@ describe('wing look', () => {
   it('veins stay see-through and the film is weak', () => {
     expect(WING_LOOK.veinAlpha).toBeLessThanOrEqual(0.7);
     expect(WING_LOOK.iridescence).toBeLessThanOrEqual(0.4);
+    expect(WING_LOOK.roughness).toBeGreaterThanOrEqual(0.4);
+    expect(WING_LOOK.specularIntensity).toBeLessThanOrEqual(0.5);
   });
   it('the night edge light is grazing only and the possession rim is cut on wings', () => {
     expect(WING_EMISSIVE).toContain(`* ${WING_LOOK.highlightRim.toFixed(2)}`);

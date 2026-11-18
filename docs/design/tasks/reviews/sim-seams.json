@@ -1,0 +1,232 @@
+{
+ "impl:sim-seams": {
+  "summary": "I finished all eight sim-seams items: six fixed with tests, two (bounds and parts of the save table) investigated and handed to their owners with reproductions. The report is /home/user/foundress/docs/design/tasks/sim-seams-report.md.\n\n1. Milestones and codex: a table test checks that every milestone, codex entry and aim has a trigger whose event some module really emits. It found that nothing emitted `world.zone-first-entry` or `world.micro-discovered`, so `ms-zone-crossed`, `ms-micro-connection`, `aim-cross-zone` and the habitat and joint codex entries could never fire. I added a stand-in emitter, `progression/discovery.ts`, and hooked the never-used `rival-discovered` event into `cx-formica` / `cx-pavement-wars`.\n2. Journal: the winter jump moves the calendar start but not the tick, so every older entry was dated wrong, and after the jump no spring event fires. Entries now store the calendar tick they were written at (`calTick`), and the spring return gets its own entry.\n3. Rivals at tick 1: almost all of the cost is inside nest-module carving, where one call takes 100-400 ms, so spreading it over ticks could not get under 50 ms. The rival nests are now built when the game is created (`rivals/prepare.ts`). The worst rivals tick went from 1475-1956 ms to under 4 ms on three archetypes, and new-game creation takes 1.7-2.4 s longer. The 2-game-day state hash changes because entity ids are handed out in a different order; the first differences are only shifted ids. With `rivals: 0` (R23) there are still no rivals and no foundations.\n4. Commands: the system order was wrong, not the test. `nest-flood` and the phorid deaths ran after the end-of-tick corpse pass, so drowned ants vanished without a corpse and brood they carried stayed attached to a removed ant. Fixed in `systems.ts`; one test was out of date and is rewritten.\n5. `time.auto-slow`: the event is not dead. The game layer owns the trigger and already emits it into the sim's event bus. I documented this on the type and added a test; the app needs to do nothing for the event.\n6. Difficulty: the opening grace (`openingGraceGd`) is now wired: no scheduled human events, ant predators or bird visits during the first 0.3 game days of a played opening. That is two small logged cross-edits. The other unwired values stay flagged, each with the missing piece named. `autoSlowDefault` is left off the unwired list because the app is wiring it right now (uncommitted).\n7. Bounds: no entity sat within 2 BU of the map limit after 2 game days, in five runs on three archetypes. No fix was needed.\n8. Saves: dig, mid-time-lapse, hand-over, mid-human-event, mid-flood, the winter prompt and the first tick of spring all round-trip equal for 0.2 game days. Two cases differ, neither in my files: a rival colony's mound heights drift slightly after a load, and a save taken while paused, right after a command, loses that command's queued events.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/systems.ts",
+   "/home/user/foundress/src/sim/commands.test.ts",
+   "/home/user/foundress/src/sim/commands.robust.test.ts",
+   "/home/user/foundress/src/sim/time.test.ts",
+   "/home/user/foundress/src/sim/time.autoSlow.test.ts",
+   "/home/user/foundress/src/sim/timeGrace.ts",
+   "/home/user/foundress/src/sim/timeGrace.test.ts",
+   "/home/user/foundress/src/sim/progression/journal.ts",
+   "/home/user/foundress/src/sim/progression/events.ts",
+   "/home/user/foundress/src/sim/progression/index.ts",
+   "/home/user/foundress/src/sim/progression/codexRules.ts",
+   "/home/user/foundress/src/sim/progression/discovery.ts",
+   "/home/user/foundress/src/sim/progression/journalYear.test.ts",
+   "/home/user/foundress/src/sim/progression/triggerTable.test.ts",
+   "/home/user/foundress/src/sim/rivals/init.ts",
+   "/home/user/foundress/src/sim/rivals/late.ts",
+   "/home/user/foundress/src/sim/rivals/wiring.ts",
+   "/home/user/foundress/src/sim/rivals/prepare.ts",
+   "/home/user/foundress/src/sim/rivals/tick.ts",
+   "/home/user/foundress/src/sim/rivals/setup.ts",
+   "/home/user/foundress/src/sim/rivals/index.ts",
+   "/home/user/foundress/src/sim/rivals/README.md",
+   "/home/user/foundress/src/sim/rivals/creation.test.ts",
+   "/home/user/foundress/src/sim/rivals/founding.test.ts",
+   "/home/user/foundress/src/sim/save/roundTrip.test.ts",
+   "/home/user/foundress/src/sim/balance/progression.ts",
+   "/home/user/foundress/src/sim/config/presetDisplay.ts",
+   "/home/user/foundress/src/sim/config/presetDisplay.test.ts",
+   "/home/user/foundress/src/sim/types/progression.ts",
+   "/home/user/foundress/src/sim/types/diagnostics.ts",
+   "/home/user/foundress/src/sim/types/eventsWorld.ts",
+   "/home/user/foundress/src/sim/environment/human/index.ts (cross-edit, item 6, +3 lines)",
+   "/home/user/foundress/src/sim/ecology/creatures/director.ts (cross-edit, item 6, +4 lines)",
+   "/home/user/foundress/docs/design/tasks/sim-seams-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/sim-seams-impl.md",
+   "/home/user/foundress/test-output/sim-seams/cross-edits.md"
+  ],
+  "verification": [
+   "npm run typecheck (npx tsc --noEmit): 0 errors at the end (earlier the only error was someone else's tools/sim/probe/probe-restore6.ts)",
+   "npx vitest run src/sim/progression: 16 files, 246 passed (before the final edits; later progression edits were rerun file by file)",
+   "npx vitest run src/sim/rivals: 14 files, 104 passed, 3 skipped (FOUNDRESS_LONG)",
+   "npx vitest run src/sim/config + src/sim/time.test.ts: config green; time.test red only from environment/human/schedule.ts:48",
+   "npx vitest run src/sim/ecology/creatures: 30 files, 206 passed, 2 expected fail (after the grace cross-edit)",
+   "npx vitest run src/sim/environment/human: 15 files, 63 passed, 9 skipped",
+   "npx vitest run src/sim/save: 2 passed; src/sim/commands*.test.ts: 28 passed",
+   "Red-without-fix checks: commands.test corpse-pass test and both journalYear tests fail with the fixes reverted",
+   "Probes (test-output/sim-seams/): rivalCost.txt (before/after, 3 archetypes, load 5.5-7.1), rivalHash-before/after-we1.txt (2 gd), rivalDiff-we1.txt, prof/*.cpuprofile, trigger-table.tsv/.md, stagger.txt, edge-*.json (5 runs), save-table-*.md and save-*.log, rivalSave-we1.txt",
+   "ants/behaviours/outdoor/huntSaveLoad.verify.test.ts and ecology/creatures/huntSaveLoad.test.ts rerun: 3 passed (used for the mid-hunt row)"
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Typecheck clean; tests green in every folder you touched",
+    "status": "partial",
+    "evidence": "Typecheck clean. All my tests pass. Folders progression, rivals, config, save, creatures and human are green. Still red in folders I touched: src/sim/time.test.ts (my file, red only because of environment/human/schedule.ts:48), types/ids.test.ts and services.test.ts (other engineers' unfinished work), and tests/docs/docs-final.test.ts (MANUAL.md still calls the grace 'not in effect')."
+   },
+   {
+    "criterion": "2. Each item fixed with a test or reported with reproduction and owner; tables of items 1 and 8 in the report",
+    "status": "met",
+    "evidence": "Items 1-6 fixed with tests. Item 7: no reproduction in 5 runs. Item 8: table in the report, two diverging states reported with reproductions and owners."
+   },
+   {
+    "criterion": "3. No tick over 50 ms from rivals set-up in a new game (measured, before/after, load stated)",
+    "status": "met",
+    "evidence": "Worst rivals tick: woodland-edge 1615 -> 0.4 ms, suburban-garden 1956 -> 4.0 ms, car-park-verge 1475 -> 0.7 ms (600 ticks, before and after in one process, load 5.5-7.1); 11.9 ms worst over 2 game days on woodland-edge #1."
+   },
+   {
+    "criterion": "4. Report docs/design/tasks/sim-seams-report.md",
+    "status": "met",
+    "evidence": "Written: per-item sections, both tables, Appendix E coverage, red-test table, decisions, needs."
+   }
+  ],
+  "contractChanges": [
+   "src/sim/types/progression.ts: JournalEntry.calTick?: number (new optional field)",
+   "src/sim/types/diagnostics.ts: EventLogEntry.calTick?: number (new optional field)",
+   "src/sim/types/eventsWorld.ts: doc comment on time.auto-slow saying the game layer emits it (no type change)",
+   "src/sim/rivals/late.ts: RivalsImpl.prepare(state, world) (rivals-internal interface)",
+   "New exports: entryCalTick and entryDate (progression/journal.ts); inOpeningGrace and openingGraceEndTick (src/sim/timeGrace.ts); END_OF_TICK_SYSTEM (systems.ts); UNWIRED_WHY (config/presetDisplay.ts); MICRO_DISCOVER_BU and MICRO_GRID_CELL_BU (balance/progression.ts)"
+  ],
+  "needsFromOthers": [
+   "App (app-seams-2): pass calTick through src/game/uiBridge/panels/journalSlice.ts and date journal entries from it in src/ui/panels/journal/timeline.ts (dateLine, timeLine) and charts.ts (calDay); today every entry from before a winter shows on the wrong day.",
+   "Docs: docs/MANUAL.md line 70 must drop '(not in effect)' from the grace row, and line 61's 'first five' becomes four. tests/docs/docs-final.test.ts stays red until then.",
+   "Nest (colony-life): a rival colony's mound heights drift after a load (reproduce with test-output/sim-seams/probe/rivalSave.ts; it happens with the old first-tick order too). Also: re-evaluating entrances after every carved sphere makes instant plan carves 100-400 ms each.",
+   "Owner of src/sim/sim.ts: applyPendingCommands should flush the event queue, as a tick does; otherwise a save taken while paused loses the commands' events (seen as progression.engine.mem.stageDirty 1 vs 0 after closing the Winter Report). A createNewGame hook would also let rivals/prepare.ts use createSim instead of building its own set-up Sim.",
+   "Human events: src/sim/environment/human/schedule.ts:48 hard-codes the week length (7, 2 and 5 days); use WEEK_DAYS and a weekend-days constant. This keeps src/sim/time.test.ts red.",
+   "Species modules (granary, fungus, wood): give each periodic system its own offset; counts in test-output/sim-seams/stagger.txt.",
+   "Ecology: import cycle \u2014 entering the import graph at ecology/creatures leaves two ecology systems undefined (test-output/sim-seams/probe/order.ts).",
+   "Founding species modules: openers for aim-find-wood and aim-plant-garden. World module: may take over progression/discovery.ts.",
+   "Perf task: the first tick of a new game still costs about 670 ms in systems other than rivals."
+  ],
+  "notDone": [
+   "Item 8: seal and lay were never saved mid-phase: the cheat-driven founding passes through them within one tick.",
+   "Item 8: mid-hunt not measured by my probe (no hunting trip within 4 game days on two hand-over caches); the existing hunt save/load tests, rerun green, stand in.",
+   "Item 8: the two diverging states (rival mound drift, events lost in a paused save) are not fixed; both causes are outside my paths.",
+   "Item 6: openingThreatsMax, queenLifespanMult, queenSenescence, flightPredatorEvents, alertLeadWarnings and foundingAssist stay unwired; the systems that would read them do not exist.",
+   "Item 3: the 670 ms first tick from other systems is measured but not broken down by system."
+  ],
+  "notesForIntegrator": [
+   "Behaviour changes in the main tree: drowned ants now leave corpses and drop what they carry (item 4); the opening grace delays human events, ant predators and bird visits in real openings (item 6); rival nests are built at game creation, so new-game hashes differ from before (item 3). The colony-life sweep runs on a frozen copy and does not see these.",
+   "The opening grace does not apply while a game is still on the intro card; every module-test scene sits there, and applying it there turned 13 creature tests red.",
+   "systems.ts is the composition root; my change ranks the 'lifecycle' corpse pass last, and nothing else changes there.",
+   "rivals/prepare.ts builds its own minimal set-up Sim from createServices, because importing sim.ts from rivals breaks the module cycle. A createNewGame hook would be cleaner.",
+   "Progress file: docs/design/tasks/progress/sim-seams-impl.md. Probes in test-output/sim-seams/probe/ (rerun with node tools/sim/run-ts.mjs <probe> ...)."
+  ]
+ },
+ "verify:sim-seams": {
+  "verdict": "fail",
+  "checksRun": [
+   "npm run typecheck: clean, including the three new verify tests",
+   "npx vitest run src/sim/commands* src/sim/time* src/sim/timeGrace* src/sim/config/presetDisplay* src/sim/save: 66 of 67 pass. The one failure is src/sim/time.test.ts, caused by environment/human/schedule.ts:48, as the implementer reported; that file is not theirs.",
+   "npx vitest run src/sim/progression: 16 files, 246 pass, 1 skipped",
+   "npx vitest run src/sim/rivals: 14 files, 104 pass, 3 skipped (FOUNDRESS_LONG)",
+   "Tests next to the two item-6 cross-edits (src/sim/ecology/creatures/director.test.ts, bird.test.ts, src/sim/environment/human): 17 files pass, 3 skipped",
+   "Printed the system order (test-output/sim-seams-review/order.ts): succession, nest-flood, fungus-phorid-deaths, then lifecycle last. The item 4 fix is real.",
+   "Checked that autoSlowDefault is consumed in HEAD (src/game/Game.ts:139 withGameRule reads env.time.autoSlow), so leaving it off UNWIRED_PARAMS is correct. Searched for every value still marked unwired (openingThreatsMax, queenLifespanMult, flightPredatorEvents, alertLeadWarnings, queenSenescence, foundingAssist): none is read anywhere.",
+   "Item 6 grace: realtime path checked. FoundingFlow.attach sets speed 0 at the intro card before any tick, and openingSkipIntro is applied in the commands phase before the human scheduler draws day 0. Checked that scheduleDay drops instances before fromTick and every ant-predator spawn path (territories, bird, centipede invasion from existing centipedes, cheats) is covered.",
+   "test-output/sim-seams-review/lateBind.ts: importing only @/sim/createGame and calling rivalsImpl() throws 'wiring.ts was not loaded'",
+   "New tests run: discovery.verify (3 pass, 1 fails as intended and shows the bug), prepare.verify (3 pass), foundingPhases.verify (1 pass)"
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Zone-crossing milestone fires for the queen during the opening, not for a worker",
+    "where": "src/sim/progression/discovery.ts:76-87 (detectDiscoveries loop); milestoneRules.ts:153-161",
+    "detail": "GDD 06 (\u00a78 milestone table) defines ms-zone-crossed as 'a worker first enters a zone type other than the nest zone' ('A forager has crossed from {zone_from} onto {zone_to}'). The new stand-in emitter counts every ant of the player colony outside a nest, and the rule only checks isPlayerAntId.\n\nIn a real opening, createNewGame makes the founding nest record at the queen's landing point at tick 0. The foundress then walks the surface with nestId -1, usually possessed by the player. If her search crosses a zone edge, ms-zone-crossed completes during the founding with the forager text. The zone is marked seen, so no worker can trigger it later. aim-cross-zone opens at stage 'growing' and is never opened when already done, so that continuing aim is lost too.\n\nRepro: src/sim/progression/discovery.verify.test.ts 'the queen walking into another zone is not \"a worker\" crossing' fails: the milestone is recorded at tick 4 by the queen.\n\nFix in the owned path: count only workers (caste !== 'queen'/'male'), or keep separate seen-bits for workers. The codex habitat entries can stay per colony."
+   },
+   {
+    "severity": "minor",
+    "title": "createNewGame now throws unless rivals/wiring.ts has been loaded",
+    "where": "src/sim/rivals/init.ts:87 (initRivals -> rivalsImpl().prepare)",
+    "detail": "Before this change initRivals only used entity helpers. Now it calls the late-bound rivalsImpl(), which is only provided once ants/behaviours/outdoor/index.ts, and through it rivals/wiring.ts, is in the import graph (normally via sim.ts / systems.ts).\n\nA module or tool that imports only @/sim/createGame and creates a game on a world with rival sites now throws 'rivals: src/sim/rivals/wiring.ts was not loaded'. Repro: node tools/sim/run-ts.mjs test-output/sim-seams-review/lateBind.ts.\n\nNo caller is affected today: every current createNewGame caller also imports sim or testing. It is a hidden import-order trap, the same kind as the ecology cycle the report describes. Either import './wiring' from prepare's entry (if the cycle allows), or fall back to the first-tick path when no implementation is provided."
+   },
+   {
+    "severity": "minor",
+    "title": "Per-species-module stagger tests check nothing",
+    "where": "src/sim/commands.robust.test.ts:150-158",
+    "detail": "'<module>: every collision in a game of that species involves one of its own systems' passes for any collision that involves one of the module's own systems. Every collision that does not is a core-against-core collision, which the core test already asserts is empty.\n\nSo these tests can never fail, and any new collision between a species system and a core system (or within the module) is now accepted silently. The original guard 'no two periodic systems of 50+ ticks on one tick' is effectively removed for species modules.\n\nBetter: keep an explicit allowlist of today's known collisions (granary, fungus and wood counts from test-output/sim-seams/stagger.txt) and fail on anything new."
+   },
+   {
+    "severity": "minor",
+    "title": "Item 8 table leaves states untested (seal, lay, mid-hunt); seal and lay now have a reviewer test",
+    "where": "docs/design/tasks/sim-seams-report.md \u00a78; src/sim/save/roundTrip.test.ts",
+    "detail": "The spec asks for each founding phase and mid-hunt. The report lists seal and lay as 'not reached' and mid-hunt as 'not measured'. Both phases can be reached cheaply with colony/founding/sealKit.ts throatCase.\n\nAdded src/sim/save/foundingPhases.verify.test.ts: saves mid-seal and at the start of lay round-trip equal for 300 ticks each (green, about 2 s). Mid-hunt still relies on other modules' huntSaveLoad tests. Not a defect in the code; it fills the gap."
+   }
+  ],
+  "testsAdded": [
+   "/home/user/foundress/src/sim/progression/discovery.verify.test.ts (4 tests; 'the queen walking into another zone is not \"a worker\" crossing' is RED on purpose and shows the major finding; the other 3 pass: no re-announcement after save/load, ants inside a nest and other colonies' ants discover nothing, a micro-connection with no microState row is skipped without throwing)",
+   "/home/user/foundress/src/sim/rivals/prepare.verify.test.ts (3 pass: same seed gives the same state hash at creation and after 100 ticks; running prepare again changes nothing; a save of the freshly created game with prepared rivals loads equal and runs equal for 300 ticks)",
+   "/home/user/foundress/src/sim/save/foundingPhases.verify.test.ts (1 pass: save round trips mid-seal and at the start of lay, 300 ticks each)"
+  ]
+ },
+ "fix:sim-seams": {
+  "summary": "I reproduced all four review findings. The three code findings were real and are fixed with tests; the fourth was a test gap that the reviewer's own new test closes. Typecheck is clean. Every test in my folders passes except one test in time.test.ts, which fails because of another module's line.\n\n(1) Major, the zone milestone fired for the queen. The stand-in emitter counted every ant of the colony, and the rule only checked the colony. The world event `world.zone-first-entry` keeps its meaning: the colony's first entry into a zone type, so the habitat codex entries still unlock from the queen's search. `ms-zone-crossed` now needs a worker caste, as GDD 06 \u00a78 says (\"a worker first enters\"). The zone may already have had its first-entry event from the queen, so discovery.ts saves the first worker crossing out of the nest zone in trigger memory (`zoneCrossedTo`, saved with the state). The rule fires from that memory on the poll, and the event path stays for a worker's own first entry. No second first-entry event is sent. The reviewer's test that was red on purpose is now green.\n\n(2) Minor, createNewGame threw unless rivals/wiring.ts was loaded. Reproduced with test-output/sim-seams-fix/createOnly.ts: it printed THROWS before the fix and creates the game after. initRivals now takes the heavy half only if it is loaded (`rivalsImplIfLoaded()`); otherwise the first rivals tick builds the nests, the same path older saves use. I did not import wiring.ts from the rivals index, because the index has to stay light: combat imports it, and an import loop there might only break in the browser build.\n\n(3) Minor, the per-species stagger tests could never fail. They are replaced by an exact list of the system pairs that collide today (`KNOWN_PAIRS`: wood 7, granary 11, fungus 11, honeydew 0). Any other pair fails, and a self-check proves a new collision with a core system is caught.\n\n(4) The reviewer's foundingPhases.verify.test.ts passes. It now covers the seal and lay rows of the item 8 table in the report.",
+  "filesTouched": [
+   "/home/user/foundress/src/sim/progression/discovery.ts",
+   "/home/user/foundress/src/sim/progression/milestoneRules.ts",
+   "/home/user/foundress/src/sim/progression/triggers.ts",
+   "/home/user/foundress/src/sim/progression/triggerTable.test.ts",
+   "/home/user/foundress/src/sim/rivals/late.ts",
+   "/home/user/foundress/src/sim/rivals/init.ts",
+   "/home/user/foundress/src/sim/rivals/creation.test.ts",
+   "/home/user/foundress/src/sim/rivals/README.md",
+   "/home/user/foundress/src/sim/commands.robust.test.ts",
+   "/home/user/foundress/docs/design/tasks/sim-seams-report.md",
+   "/home/user/foundress/docs/design/tasks/progress/sim-seams-fix.md",
+   "/home/user/foundress/test-output/sim-seams-fix/createOnly.ts",
+   "/home/user/foundress/test-output/sim-seams-fix/staggerPairs.ts",
+   "/home/user/foundress/test-output/sim-seams-fix/staggerPairs.txt"
+  ],
+  "verification": [
+   "npm run typecheck: no errors anywhere in the tree (04:17 UTC)",
+   "npx vitest run src/sim/progression/discovery.verify.test.ts triggerTable.test.ts milestones.test.ts: 74 passed. The reviewer's queen test was red before the fix and is green now.",
+   "npx vitest run src/sim/progression src/sim/save src/sim/commands src/sim/time src/sim/timeGrace: 27 files, 303 passed, 1 skipped, 1 failed. The failure is time.test.ts 'never writes 7 or 28', caused by src/sim/environment/human/schedule.ts:48, which is not mine; it was already listed in the earlier report.",
+   "npx vitest run src/sim/rivals src/sim/config: 20 files passed, 1 skipped; 156 tests passed, 5 skipped (the long tests behind FOUNDRESS_LONG)",
+   "npx vitest run src/sim/commands.robust.test.ts: 14 passed, including the new known-pair and self-check tests",
+   "node tools/sim/run-ts.mjs test-output/sim-seams-fix/createOnly.ts: before the fix 'THROWS rivals: src/sim/rivals/wiring.ts was not loaded'; after it 'ok; sites 5 rival colonies 5'",
+   "node tools/sim/run-ts.mjs test-output/sim-seams-fix/staggerPairs.ts: produced the colliding pairs per species module (staggerPairs.txt)",
+   "Load average 8-10 on 4 cores during the runs"
+  ],
+  "acceptance": [
+   {
+    "criterion": "Finding 1 (major): ms-zone-crossed must not fire for the queen; a worker crossing later must still complete it",
+    "status": "met",
+    "evidence": "discovery.verify.test.ts 4/4 green; new triggerTable.test.ts test: the queen and a male in another zone unlock cx-habitat but not the milestone, a later worker completes it once, and only one first-entry event is sent"
+   },
+   {
+    "criterion": "Finding 2: createNewGame must not throw without rivals/wiring.ts loaded",
+    "status": "met",
+    "evidence": "createOnly.ts probe before/after; creation.test.ts 'creating a game without the heavy half loaded leaves the nests to the first rivals tick instead of throwing'"
+   },
+   {
+    "criterion": "Finding 3: the per-species stagger tests must be able to fail on a new collision",
+    "status": "met",
+    "evidence": "KNOWN_PAIRS allowlist in commands.robust.test.ts plus a self-check test that a cloned core system is reported"
+   },
+   {
+    "criterion": "Finding 4: seal and lay save round trips covered",
+    "status": "met",
+    "evidence": "reviewer's save/foundingPhases.verify.test.ts green; item 8 table in the report updated"
+   },
+   {
+    "criterion": "Typecheck and the tests in my paths re-run",
+    "status": "partial",
+    "evidence": "typecheck clean; everything in my folders green except time.test.ts, which fails only because of another module's line (human/schedule.ts:48)"
+   }
+  ],
+  "notDone": [
+   "Finding 2 leaves a smaller trap that I could only report. A game created without the sim in the import graph gets its rival nests on the first tick, so entity ids come out in a different order than for the same seed created with the sim loaded. Such a game is valid and repeats the same way every run, but it is a different game. No caller does this today. The clean fix is in createGame.ts, which is not mine: import @/sim/rivals/wiring there, or add a creation hook that calls createSim.",
+   "The mid-hunt save state still relies on other modules' huntSaveLoad tests; I did not measure it at my level.",
+   "The species-module stagger collisions themselves (wood, granary, fungus) still need offsets from their owners. KNOWN_PAIRS only stops new ones being added.",
+   "time.test.ts is still red because of src/sim/environment/human/schedule.ts:48 (human events owner)."
+  ],
+  "contractChanges": [
+   "None in the shared contracts (src/sim/types/**, src/core/**).",
+   "Inside the rivals module: late.ts gains rivalsImplIfLoaded(); initRivals gains an optional third parameter `impl` (defaults to the loaded implementation or null).",
+   "Inside progression: triggers.ts exports WORKER_CASTES; discovery.ts exports WORKER_CROSS_KEY ('zoneCrossedTo' trigger memory, saved with the state)."
+  ],
+  "needsFromOthers": [
+   "Owner of src/sim/createGame.ts / sim.ts: import @/sim/rivals/wiring from createGame, or add a creation hook, so that a game is the same however it was created.",
+   "Species modules (granary, fungus, wood): give each periodic system its own offset, then remove its pairs from KNOWN_PAIRS in src/sim/commands.robust.test.ts.",
+   "Human events owner: use week constants in environment/human/schedule.ts:48 (time.test.ts is red until then)."
+  ],
+  "notesForIntegrator": [
+   "The world event `world.zone-first-entry` still fires for the colony's first ant in a zone, the queen included, as GDD 06 \u00a710 and GDD 08 \u00a79.4 ('first entry into each zone type') say. Only the milestone ms-zone-crossed is limited to workers (GDD 06 \u00a78). No document disagreed here; the event and the milestone simply have different rules.",
+   "The reviewer's probe test-output/sim-seams-review/lateBind.ts still reports that rivalsImpl() is not provided after importing only createGame. That is expected: it checks the late binding itself, not createNewGame, which no longer throws.",
+   "Old saves where ms-zone-crossed already fired keep scanning for a worker crossing until one happens. The cost is one zone lookup per outside ant every 10 ticks."
+  ]
+ }
+}

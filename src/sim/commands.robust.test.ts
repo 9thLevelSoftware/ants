@@ -144,17 +144,57 @@ describe('system staggering', () => {
     expect(collisions(core)).toEqual([]);
   });
 
-  // A game runs the core systems plus one species module's systems (the player's species). Every species module
-  // with periodic systems collides with the core or with itself (granary and fungus use offset 0 throughout; wood's
-  // offsets meet rivals and progression). Not this file's to fix: listed in the sim-seams report for the module
-  // owners (src/sim/species/modules/**). This test keeps the core clean while species modules are present.
+  // A game runs the core systems plus one species module's systems (the player's species). The species modules'
+  // periodic systems collide today (granary and fungus use offset 0 throughout; wood's offsets meet core systems):
+  // not this file's to fix, listed in the sim-seams report for the module owners (src/sim/species/modules/**).
+  // KNOWN_PAIRS is that list as of Nov 18 (test-output/sim-seams-fix/staggerPairs.txt); any other pair of systems
+  // meeting on one tick fails. Remove a pair when its owner staggers it.
+  const KNOWN_PAIRS: Record<string, readonly string[]> = {
+    'species-honeydew': [],
+    'species-wood': [
+      'colony-stats + wood-brood', 'diagnostics + wood-brood', 'outdoor-marker-response + wood-castes',
+      'outdoor-trail-monitor + wood-state', 'plants + wood-brood', 'rivals + wood-brood', 'sources + wood-brood',
+    ],
+    'species-granary': [
+      'allocation + granary-allocation', 'granary-diagnostics + granary-display', 'granary-diagnostics + granary-middens',
+      'granary-diagnostics + granary-seed-sources', 'granary-diagnostics + granary-winter',
+      'granary-display + granary-middens', 'granary-display + granary-seed-sources', 'granary-display + granary-winter',
+      'granary-middens + granary-seed-sources', 'granary-middens + granary-winter', 'granary-seed-sources + granary-winter',
+    ],
+    'species-fungus': [
+      'allocation + fungus-allocation', 'fungus-caste-destiny + fungus-diagnostics', 'fungus-caste-destiny + fungus-display',
+      'fungus-caste-destiny + fungus-leaf-sites', 'fungus-caste-destiny + fungus-phorid-deaths',
+      'fungus-diagnostics + fungus-display', 'fungus-diagnostics + fungus-leaf-sites', 'fungus-diagnostics + fungus-phorid-deaths',
+      'fungus-display + fungus-leaf-sites', 'fungus-display + fungus-phorid-deaths', 'fungus-leaf-sites + fungus-phorid-deaths',
+    ],
+  };
+  /** "a + b" (names sorted) for every pair of `list` that runs on one tick of the LCM. */
+  function collidingPairs(list: readonly System[]): Set<string> {
+    const pairs = new Set<string>();
+    for (let t = 0; t < LCM; t++) {
+      const due = list.filter((s) => systemDue(s, t)).map((s) => s.name).sort();
+      for (let i = 0; i < due.length; i++) for (let j = i + 1; j < due.length; j++) pairs.add(`${due[i]} + ${due[j]}`);
+    }
+    return pairs;
+  }
+
+  it('the known-collision list names every species module', () => {
+    expect(Object.keys(KNOWN_PAIRS).sort()).toEqual(SPECIES_MODULES.map((m) => m.key).sort());
+  });
+
   for (const m of SPECIES_MODULES) {
-    it(`${m.key}: every collision in a game of that species involves one of its own systems`, () => {
-      const own = periodicOf(m.mod.systems);
-      const names = new Set(own.map((s) => s.name));
-      for (const c of collisions([...core, ...own])) {
-        expect(c.split(': ')[1].split(', ').some((n) => names.has(n)), c).toBe(true);
-      }
+    it(`${m.key}: no periodic systems meet on one tick in a game of that species except the known pairs`, () => {
+      const known = new Set(KNOWN_PAIRS[m.key] ?? []);
+      const fresh = [...collidingPairs([...core, ...periodicOf(m.mod.systems)])].filter((p) => !known.has(p));
+      expect(fresh).toEqual([]);
     });
   }
+
+  it('the pair check catches a new collision between a species system and a core system', () => {
+    const m = SPECIES_MODULES.find((x) => x.key === 'species-honeydew')!;
+    const clash: System = { ...core[0], name: 'probe-clash' };
+    const known = new Set(KNOWN_PAIRS[m.key]);
+    const fresh = [...collidingPairs([...core, ...periodicOf(m.mod.systems), clash])].filter((p) => !known.has(p));
+    expect(fresh).toContain([core[0].name, 'probe-clash'].sort().join(' + '));
+  });
 });

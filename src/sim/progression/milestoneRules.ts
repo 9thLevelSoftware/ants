@@ -3,7 +3,8 @@
 // ms-zone-crossed; every other row has none. Rows that read a counter another module does not emit yet use the
 // nearest event that exists (listed in the task report).
 
-import type { MilestoneId, Sim } from '@/sim/types';
+import type { MilestoneId, Sim, ZoneType } from '@/sim/types';
+import { ZONE_TYPES } from '@/sim/types';
 import {
   MS_FOOTFALL_NEAR_BU, MS_HERD_TEND_GD, MS_POSSESSION_S, MS_TRAIL_FOLLOWERS, MS_TRUNK_TRAIL_BU, MS_TRUNK_TRAIL_GD,
   MS_WINTERS, MS_YEARS, PROGRESSION_POLL_EVERY,
@@ -12,21 +13,29 @@ import { currentSeason, currentYear, daysPerYear, daysToTicks, secondsToTicks } 
 import { calendarNow } from '@/sim/environment';
 import { zoneAt } from '@/sim/world';
 import { colonyAgeDays, engineOf, isPlayerColonyId, memAdd, memGet, memSet, playerColony } from './engine';
+import { WORKER_CROSS_KEY } from './discovery';
 import {
-  antOf, broodIsPlayer, isPlayerAntId, isPlayerWoodSite, playerChambers, playerNests, possessedAnt, type TriggerRule, when, yes,
+  antOf, broodIsPlayer, isPlayerAntId, isPlayerWoodSite, playerChambers, playerNests, possessedAnt, type TriggerRule, when,
+  WORKER_CASTES, yes,
 } from './triggers';
 
 const CP = ['camponotus-pennsylvanicus'] as const;
 const MB = ['messor-barbarus'] as const;
 const AT = ['atta-texana'] as const;
 const POLYMORPHIC = ['camponotus-pennsylvanicus', 'messor-barbarus', 'atta-texana'] as const;
-const WORKER = new Set(['worker', 'minor', 'media', 'major']);
 
 /** Winters the colony has come through (counted by the winter rules below). */
 export const WINTERS_KEY = 'winters';
 
 function deliveredKind(sim: Sim, colonyId: number, kind: string, c: number, p: number, kinds: readonly string[]): boolean {
   return isPlayerColonyId(sim, colonyId) && c + p > 0 && kinds.includes(kind);
+}
+
+/** Tokens of ms-zone-crossed when `to` is not the nest's zone, else null. */
+function zoneCrossing(sim: Sim, to: ZoneType): { zone_from: ZoneType; zone_to: ZoneType } | null {
+  const nest = playerNests(sim)[0];
+  const from = nest ? zoneAt(sim.world, nest.origin.x, nest.origin.z) : null;
+  return from && from !== to ? { zone_from: from, zone_to: to } : null;
 }
 
 function shaftTokens(sim: Sim): { depth_mm: number } {
@@ -74,7 +83,7 @@ export const MILESTONE_RULES: readonly TriggerRule<MilestoneId>[] = [
   { id: 'ms-first-eggs', on: { 'egg-laid': (sim, e) => when(isPlayerAntId(sim, e.queenId)) } },
   { id: 'ms-first-larva', on: { 'brood-stage': (sim, e) => when(e.to === 'larva' && broodIsPlayer(sim, e.broodId)) } },
   { id: 'ms-first-pupa', on: { 'brood-stage': (sim, e) => when(e.to === 'pupa' && broodIsPlayer(sim, e.broodId)) } },
-  { id: 'ms-first-worker', on: { 'ant-eclosed': (sim, e) => when(WORKER.has(e.caste) && isPlayerColonyId(sim, e.colonyId)) } },
+  { id: 'ms-first-worker', on: { 'ant-eclosed': (sim, e) => when(WORKER_CASTES.has(e.caste) && isPlayerColonyId(sim, e.colonyId)) } },
   { id: 'ms-nest-reopened', on: { 'founding-reopened': (sim, e) => when(playerNests(sim).some((n) => n.id === e.nestId)) } },
   { id: 'ms-first-food', on: { delivery: (sim, e) => when(isPlayerColonyId(sim, e.colonyId) && e.c + e.p > 0) } },
   { id: 'ms-first-honeydew', on: { delivery: (sim, e) => when(deliveredKind(sim, e.colonyId, e.kind, e.c, e.p, ['honeydew'])) } },
@@ -150,14 +159,18 @@ export const MILESTONE_RULES: readonly TriggerRule<MilestoneId>[] = [
     },
   },
   {
+    // "a worker first enters a zone type other than the nest zone": the event path when the colony's first entry is
+    // a worker's; the poll path (discovery.ts memory) when the queen or a male entered that zone first.
     id: 'ms-zone-crossed',
     on: {
       'world.zone-first-entry': (sim, e) => {
-        if (!isPlayerAntId(sim, e.antId)) return null;
-        const nest = playerNests(sim)[0];
-        const from = nest ? zoneAt(sim.world, nest.origin.x, nest.origin.z) : null;
-        return from && from !== e.zoneType ? { zone_from: from, zone_to: e.zoneType } : null;
+        const a = antOf(sim, e.antId);
+        return a && isPlayerAntId(sim, e.antId) && WORKER_CASTES.has(a.caste) ? zoneCrossing(sim, e.zoneType) : null;
       },
+    },
+    poll: (sim) => {
+      const to = memGet(sim, WORKER_CROSS_KEY);
+      return to > 0 ? zoneCrossing(sim, ZONE_TYPES[to - 1]) : null;
     },
   },
   { id: 'ms-micro-connection', on: { 'world.micro-discovered': (sim, e) => when(isPlayerAntId(sim, e.antId)) } },

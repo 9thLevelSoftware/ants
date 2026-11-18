@@ -8,6 +8,7 @@ import { player, rivalSim, rivalsOf, run } from './testkit';
 import { colExt } from './state';
 import { homeNest } from './setup';
 import { newFoundations } from './lifecycle';
+import { initRivals } from './init';
 
 describe('rival nests at game creation', () => {
   it('every rival colony has its nest, entrance and queen before the first tick', () => {
@@ -41,6 +42,19 @@ describe('rival nests at game creation', () => {
     run(sim, 1);
     expect(colExt(sim.state, col.id).setupDone).toBe(true);
     expect(sim.state.ants.length).toBeGreaterThan(before); // a second queen: the tick path ran
+  });
+
+  it('creating a game without the heavy half loaded leaves the nests to the first rivals tick instead of throwing', () => {
+    // a tool that imports only createGame has no wiring.ts in its graph (sim-seams review finding 2)
+    const sim = rivalSim({ nest: 'small', workers: 0, rivals: [] });
+    const x = sim.world.size * 0.3;
+    sim.world.placements.rivalSites.push({ species: 'lasius-niger', origin: { x, y: sim.field.height(x, x), z: x }, incipient: true });
+    expect(() => initRivals(sim, sim.world, null)).not.toThrow();
+    const col = rivalsOf(sim)[0];
+    expect(colExt(sim.state, col.id).setupDone).toBe(false);
+    run(sim, 1);
+    expect(colExt(sim.state, col.id).setupDone).toBe(true);
+    expect(homeNest(sim, col)!.entrances.length).toBeGreaterThan(0);
   });
 
   /** Rival colonies after the foundation roll at 16:00 of every day of one year, with the given rival setting. */

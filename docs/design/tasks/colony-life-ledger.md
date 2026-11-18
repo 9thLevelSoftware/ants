@@ -2210,5 +2210,18 @@ time / coverage, unload ends.
 - 03:50 environment folder (without the long test) on the live tree: 29/30 files; red: `weather.test` "uses only the
   weather stream" (`rng.ecology` exists: it is created when the test world is built, before the year of weather;
   plants/sources init draw from it at creation; this round's wiring draws no random number). ants/player 6/6.
-- 03:44 status: everything above is in the tree; scratch trees and probes deleted (probe outputs kept in
-  `round-6/`). Running only `FOUNDRESS_LONG=1 quiet.long.test.ts` (R28); its result is the last entry to add.
+- 04:01 **R28, `FOUNDRESS_LONG=1 quiet.long.test.ts`** (`round-6/vitest-quiet-long.txt`; per-case JSON in
+  `test-output/quiet-time/long/whole-*.json`, the test's own output folder), hand-over to winter, 126-128 full 3-gd
+  windows each: sg #1 Naturalist min **0.59**, 1 failing window (the nest-flood critical, 650 s), run share 0.84;
+  kd #1 Naturalist min 0.75, 0 failing, share 0.91; sg #1 Gentle min 0.76 (target 0.75), 0 failing, share 0.92; kd #1
+  Harsh min 0.58 (target 0.40), 0 failing, share 0.78. Outside alerts alone 1.0 everywhere. Before R28 (quiet-time
+  report): 96-110 of 126-128 windows failed. The test file: 4 passed (outside-only share in all four cases), 3 failed
+  = the E25 clause "a major threat started" in the Naturalist and Harsh cases: **0 major threats in all four**, and in
+  the two kitchen-door runs the director never refused one (blockedHours 0): no threat was ever eligible, not the
+  quiet budget. The colonies have 7-15 workers: the bird needs BIRD_MIN_WORKERS 30 (`bird.ts`) and the centipede
+  invasion a centipede at the nest, which R25's ramp does not site below 10 workers and rarely below 20. For the
+  integrator: E25's "a major threat must start" cannot hold for a founding-year colony under R25 and the bird's 30;
+  it needs a colony size in its premise (or the long test a `--workers` raise, as threatBatch has).
+- 04:01 status: **round 6 complete.** Everything above is in the tree (committed by the integrator's snapshots
+  8093757 / d84818d / 4401702 except the last comment edit of `choice.ts`); scratch trees, probes and scripts deleted
+  (probe outputs kept in `round-6/`); no process of this round running.
