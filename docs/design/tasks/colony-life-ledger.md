@@ -2687,6 +2687,9 @@ Leads from the failing runs' own diagnostics (most costly first; numbers from `r
 Scratch trees (`/home/user/frozen-sweep7`, `/home/user/scratch-r7rev-c97`) deleted; probe sources kept as
 `round-7/sweep-review/probe-*.ts.txt`; no process left running.
 
+**Integrator's year-two long runs on the round-7 tree (hash 44ff6ee0), finished 08:37 UTC Nov 18** — `test-output/colony-life/round-7/sweep-long/longrun-table.md` (five runs, `longrun-life.sh` with `UNTIL_DAY=32`). R22 year two: alive in spring with ≥ 0.7 × winter workers in **1 of 5** (bar 4); workers on day 15 ≥ 2 × first workers in **0 of 5** (bar 3). Over the lapse: cpv #1 17 → 6 (8 drowned inside the lapse), kd #3 10 → 3 (6 starved, the queen starved; C 0 at winter), pp #3 7 → 6, sg #2 11 → 6 (3 starved, the queen starved; C 1.3 at winter), we #2 8 → 5. Workers on year-two day 15: 4, 0 (colony dead by day 10), 1, 2, 1. Round 5 on the same colonies: lapse 17 → 15, 9 → 8, 7 → 6, 12 → 11, 8 → 8. This is the year-two baseline for round 8 (direction 15).
+
+
 ## Round 8
 
 Engineer: round 8 (started 08:13 UTC Nov 18). Evidence: `test-output/colony-life/round-8/`. Tree at start = HEAD cf2d312
@@ -2712,3 +2715,30 @@ Progress (kept current; a successor continues from here)
   snapshot gets eggs / pupae / available (`cen.eggs`, `cen.pupae`, `cen.avail`; additive). Test
   `colony/layCapacity.test.ts` (9 green). Next: colony folder tests, then the paired runs over all 15 hand-overs
   (`round-8/paired/`, base = scratch-r8-base, r29 = frozen copy of the live tree).
+- 08:30 **second round-8 engineer** (relaunch with direction 15). `git status`: F1 and R29 are committed in the
+  integrator's snapshots (4a16cdb / 291c083); src/sim, tools/sim clean against HEAD. `/home/user/scratch-r8-base`
+  checked: differs from the live src only in R29's files (balance/colony.ts, census.ts, envAdapter.ts, queen.ts,
+  environment/chamber.ts, overwinter/system.ts, layCapacity.test.ts, winterNotice.test.ts) = HEAD + F1 - R29, as
+  recorded; trusted as the base arm. The integrator's year-two runs of the round-7 tree are still running
+  (pp #3 to day 32, pid 1851). Order (integrator): (1) R30 in the tree, (2) paired arms base / r29 / r30 / r29r30
+  on the 15 sweep-7 hand-overs (`round-8/cache`) + 2 long runs each for base... (base long runs = the integrator's
+  round-7 runs) and r29r30, (3) winter-lapse regression, (4) the rest of directions 14-15. Now: R30.
+- 08:30 **R30 in the tree** (direction 15, numbers the integrator's): `species/data/lasius-niger.ts` worker lifespan
+  {42, sd 8}, lifespanBySize [[100, 42], [250, 30]], ageRateOutside 1.5 (dormant 0.15 kept); `balance/colony.ts`
+  NANITIC_LIFESPAN_MEAN_GD 34, _SD_GD 8, LIFESPAN_CLAMP_GD [16, 85]. Other species (data only; their modules are
+  another engineer's): Camponotus, Messor, Atta worker castes mean and sd x1.27 rounded (107/38, 127/44; 15/4, 20/5,
+  25/6; 51/15, 64/19) and ageRateOutside 1.5; their separate nanitic first-brood rows (Camponotus 40/15, Messor 6/2)
+  are NOT scaled (decision: the ruling names worker castes; the wood module's own test pins its nanitic draw).
+  Queens, gynes, males unchanged; LIFESPAN_MIN/MAX_FRAC (regular-worker clamp 0.3-2.6 x mean) unchanged.
+  Tests: new `colony/lifespanR30.test.ts` (4: data, nanitic draw mean 34 / min >= 16 over 200 eclosions, regular
+  draw 42 under N 100, the first-season arithmetic); restated with the reasoning: `species/data/{lasius,camponotus,
+  messor,atta}.table.test.ts` (rows tagged R30), `colony/physiology.verify.test.ts` (1.5 / gd outside). Typecheck
+  clean. Deviation rows R29, R30 (and R11 withdrawn) in `docs/design/gdd/DEVIATIONS.md` sections A and C.
+- 08:33 **paired runs RUNNING**: `round-8/paired/jobs.sh` (jobs in `jobs.txt`: the one-per-archetype subset we #1,
+  sg #2, pp #3, cpv #1, kd #2 x arms base / r29 / r30 / r29r30, then the two r29r30 long runs cpv #1 and we #2 to
+  day 32, then the other 10 colonies x 4 arms; 62 runs, 2 at a time, ~9 min each, restart-safe: if cut off, run
+  `test-output/colony-life/round-8/paired/jobs.sh` again). Frozen arms: `/home/user/scratch-r8-{base,r29,r30,r29r30}`.
+  Year-two base = the integrator's round-7 long runs (`round-7/sweep-long/`, same hand-overs: day rows equal).
+  `tools/sim/life.ts` (all trees, tool only): `--until winter --out` also writes the winter-start snapshot
+  `winter-<species>-<archetype>-<seed>.bin` (before Begin), for the lapse replays. New probe
+  `tools/sim/probe/probe-lapse8.ts SNAP ARCH SEED` (lapse inputs + the winter record Begin writes).

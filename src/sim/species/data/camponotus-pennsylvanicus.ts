@@ -21,20 +21,22 @@ const NOT_MY_TASKS = { garden: 0, cut: 0, mill: 0 } as const;
 // Large castes unlock at colony age 2 years (= start of colony year 3) and N >= 60 (§5.2.2, E-159).
 const LARGE_UNLOCK: CasteDef['unlock'] = { minWorkers: 60, minColonyAgeYears: 2 };
 
+  // Ruling R30 (Nov 18): worker castes' lifespans (mean and sd) x1.27 and ageing outside 1.5, as for Lasius; the
+  // separate nanitic first-brood row is unchanged (the ruling names the castes).
 const CASTES: CasteDef[] = [
   {
     // Nanitic first brood: 0.55 / 0.65 / 0.8 BU, 1.2 mg, lifespan 40 sd 15 [EST]: see NANITIC_MINOR below.
     caste: 'minor', sizeClasses: [{ id: 'nanitic', minBu: 0.55, maxBu: 0.8 }],
     lengthBu: { min: 0.7, mean: 0.78, max: 0.9 }, casteMassMg: 2.0, cropMax: null, carryOverride: null,
     mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
-    lifespanGd: { mean: 84, sd: 30 }, lifespanBySize: [], ageRateOutside: 2.0, ageRateDormant: 0.15,
+    lifespanGd: { mean: 107, sd: 38 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 0.15,
     fixedStats: null, upkeepOverride: null, devMult: 1.0, actions: MINOR_ACTIONS,
     taskWeights: { ...NOT_MY_TASKS }, unlock: NO_UNLOCK,
   },
   {
     caste: 'media', sizeClasses: [], lengthBu: { min: 1.0, mean: 1.1, max: 1.25 }, casteMassMg: 7, cropMax: null,
     carryOverride: null, mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
-    lifespanGd: { mean: 84, sd: 30 }, lifespanBySize: [], ageRateOutside: 2.0, ageRateDormant: 0.15,
+    lifespanGd: { mean: 107, sd: 38 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 0.15,
     fixedStats: null, upkeepOverride: null, devMult: 1.05, actions: MEDIA_ACTIONS,
     taskWeights: { ...NOT_MY_TASKS }, unlock: LARGE_UNLOCK,
   },
@@ -42,7 +44,7 @@ const CASTES: CasteDef[] = [
     // Majors incl. rare super majors to 1.9 BU. Carry 2.0 and crop 2.3 are table values (the m^0.6 rule gives 1.64).
     caste: 'major', sizeClasses: [], lengthBu: { min: 1.3, mean: 1.5, max: 1.9 }, casteMassMg: 16, cropMax: null,
     carryOverride: 2.0, mandibleFactor: 1.5, macrocephalic: true, cruiseMult: 0.9, sprintBuS: 9,
-    lifespanGd: { mean: 100, sd: 35 }, lifespanBySize: [], ageRateOutside: 2.0, ageRateDormant: 0.15,
+    lifespanGd: { mean: 127, sd: 44 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 0.15,
     fixedStats: null, upkeepOverride: null, devMult: 1.15, actions: MAJOR_ACTIONS,
     // No aphid tending; poor nurses [EST]; guards and chews hard wood (GDD 07 §5.2.8).
     taskWeights: { ...NOT_MY_TASKS, tend: 0, nurse: 0.3, 'queen-care': 0.3, forage: 0.5 }, unlock: LARGE_UNLOCK,

@@ -371,7 +371,7 @@ async function colonyBeats(h, result, { page, click, done, log }) {
   const sp = await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'sugar', variant: 'sugary-spill', pos: p, units: 400, stage: null }), spot);
   log('food', JSON.stringify(sp), JSON.stringify(spot), dirOut);
   const srcs = await g(() => window.__game.query.sources());
-  const food = srcs.filter((s) => Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
+  let food = srcs.filter((s) => Math.hypot(s.pos.x - spot.x, s.pos.z - spot.z) < 3 * bu)[0];
   expect(food, 'the spawned food source is missing', srcs.length);
   let trail = 0, via = 'scouts', waited = 0;
   const waitTrail = async (n) => {
@@ -418,6 +418,10 @@ async function colonyBeats(h, result, { page, click, done, log }) {
         sim.phero.deposit(col, 'trail', { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t + 1, z: a.z + (b.z - a.z) * t }, 8);
       }
     }, [ent.pos, food.pos]);
+    // 18000 ticks on, the first spill is used up or dried: a fresh one at the same spot for the player's harvest (beat 15)
+    await g((p) => window.__game.cheat.raw({ type: 'cheat.spawnFood', kind: 'sugar', variant: 'sugary-spill', pos: p, units: 400, stage: null }), spot);
+    const fresh = (await g(() => window.__game.query.sources())).filter((x) => Math.hypot(x.pos.x - spot.x, x.pos.z - spot.z) < 3 * bu).sort((a, b) => b.id - a.id)[0];
+    if (fresh) food = fresh;
     trail = await g((m) => window.__game.query.scent(m.x, m.y, m.z), { x: (ent.pos.x + food.pos.x) / 2, y: (ent.pos.y + food.pos.y) / 2, z: (ent.pos.z + food.pos.z) / 2 });
     via = 'stand-in';
   }

@@ -17,6 +17,8 @@ const MAJOR_ACTIONS = actions(WORKER_BASE_ACTIONS, ['sting', 'stridulate', 'mill
 /** Tasks a harvester never does: fungus, leaf cutting, aphid tending. */
 const NOT_MY_TASKS = { garden: 0, cut: 0, tend: 0 } as const;
 
+  // Ruling R30 (Nov 18): worker castes' lifespans (mean and sd) x1.27 and ageing outside 1.5, as for Lasius; the
+  // separate nanitic first-brood row is unchanged (the ruling names the castes).
 const CASTES: CasteDef[] = [
   {
     // Nanitic first brood: 0.5 / 0.6 / 0.7 BU, 1.3 mg, lifespan 6 sd 2 GD ("a few months" [D]): see NANITIC_MINOR.
@@ -24,14 +26,14 @@ const CASTES: CasteDef[] = [
     lengthBu: { min: 0.55, mean: 0.7, max: 0.85 }, casteMassMg: 2.0, cropMax: null, carryOverride: null,
     mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
     // Lifespans are shortened design values (GDD 07 §5.3.1 deviation): foraging is the lethal task [D].
-    lifespanGd: { mean: 12, sd: 3 }, lifespanBySize: [], ageRateOutside: 3.5, ageRateDormant: 0.3,
+    lifespanGd: { mean: 15, sd: 4 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 0.3,
     fixedStats: null, upkeepOverride: null, devMult: 0.95, actions: MINOR_ACTIONS,
     taskWeights: { ...NOT_MY_TASKS, mill: 0 }, unlock: NO_UNLOCK,
   },
   {
     caste: 'media', sizeClasses: [], lengthBu: { min: 0.85, mean: 1.05, max: 1.3 }, casteMassMg: 7, cropMax: null,
     carryOverride: null, mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
-    lifespanGd: { mean: 16, sd: 4 }, lifespanBySize: [], ageRateOutside: 3.5, ageRateDormant: 0.3,
+    lifespanGd: { mean: 20, sd: 5 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 0.3,
     fixedStats: null, upkeepOverride: null, devMult: 1.0, actions: MEDIA_ACTIONS,
     taskWeights: { ...NOT_MY_TASKS, mill: 0.3 }, unlock: NO_UNLOCK,
   },
@@ -40,7 +42,7 @@ const CASTES: CasteDef[] = [
     // 3.14 and 1.98).
     caste: 'major', sizeClasses: [], lengthBu: { min: 1.3, mean: 1.55, max: 1.85 }, casteMassMg: 22, cropMax: 2.0,
     carryOverride: 2.5, mandibleFactor: 1.5, macrocephalic: true, cruiseMult: 1, sprintBuS: 10,
-    lifespanGd: { mean: 20, sd: 5 }, lifespanBySize: [], ageRateOutside: 3.5, ageRateDormant: 0.3,
+    lifespanGd: { mean: 25, sd: 6 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 0.3,
     fixedStats: null, upkeepOverride: null, devMult: 1.2, actions: MAJOR_ACTIONS,
     taskWeights: { ...NOT_MY_TASKS, nurse: 0.3, 'queen-care': 0.3 }, // [EST]: majors mill, cut seed heads and guard
     unlock: { minWorkers: 40, minColonyAgeYears: 0 },

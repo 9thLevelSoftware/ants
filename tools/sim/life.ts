@@ -176,6 +176,8 @@ export interface DayRow { state: DayState; events: DayEvents; stuck: { maxStuck:
 
 export interface LifeReport {
   tool: 'life';
+  /** Game hours each alert kind stood (the player colony's, sampled every SAMPLE_TICKS; R29 "hours with a warning"). */
+  alertHours?: Record<string, number>;
   options: LifeOptions;
   world: { fingerprint: string | number; genMs: number; sizeMm: number; bu: number; sources: number };
   /** `forcedSeal`: the real founding failed (phase and gd given) and the hand-over came from a forced seal. */
@@ -305,6 +307,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const playerCol = () => sim.stores.colonies.get(sim.state.player.colonyId);
   const lifeT0 = sim.state.tick;
   let badSince = -1, longestBad = 0, winter = false;
+  const alertSamples: Record<string, number> = {};
   for (let d = 1; d <= nDays && !winter; d++) {
     let dayViol = 0;
     const r0 = performance.now();
@@ -316,6 +319,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();
         econ.sample();
+        for (const a of sim.state.progression.alerts) alertSamples[a.kind] = (alertSamples[a.kind] ?? 0) + 1;
         // a stage worse than lean (rationing and on), the stretch measured in game days (viable verdict)
         const st = playerCol()?.starvationStage;
         if (st && stageRank(st) >= 2) { if (badSince < 0) badSince = sim.state.tick; }
@@ -342,6 +346,9 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       `stuck ${row.stuck.stuckAnts}, viol ${dayViol}, ${row.msPerTick} ms/tick`);
     if (!s.queenAlive && s.workers === 0) break;
   }
+  // --until winter with --out: the winter-start snapshot (before the lapse's Begin) next to the JSON, so the lapse can
+  // be replayed from the same state by any tree (colony-life round 8, winter-lapse regression).
+  if (winter && o.out && io) io.write(`${o.out}/winter-${o.species}-${o.archetype}-${o.seed}.bin`, snapshot(sim));
   const ticks = Math.max(1, sim.state.tick - lifeT0);
   const report: LifeReport = {
     tool: 'life', options: o,
@@ -353,6 +360,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     finalHash: stateHash(sim.state),
     verdict: { healthy: false, netGrowth: false, checks: [] },
   };
+  report.alertHours = Object.fromEntries(Object.entries(alertSamples).sort().map(([k, n]) => [k, round((n * SAMPLE_TICKS * 24) / TICKS_PER_DAY)]));
   report.verdict = judge(report);
   report.economy = { longestBadStageGd: round(longestBad), tripsPerWorkerDay: round(tripsPerWorkerDay(report)), tripsPerForagerDay: round(tripsPerForagerDay(report)), deaths: deathsByCause(report) };
   report.viable = judgeViable(report);

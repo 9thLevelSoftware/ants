@@ -94,9 +94,13 @@ export const HEALTH_REGEN_MAX_THERMAL_LOAD = 0.05;
 export const INJURED_HEALTH = 0.4;
 export const INJURED_RECOVER_HEALTH = 0.6;
 export const AGE_RATE_IN_NEST = 1.0;
-export const NANITIC_LIFESPAN_MEAN_GD = 24;
-export const NANITIC_LIFESPAN_SD_GD = 10;
-export const LIFESPAN_CLAMP_GD: readonly [number, number] = [10, 85];
+/**
+ * First workers' (nanitics') lifespan draw, gd, and its clamp. Ruling R30 (replaces R11; GDD 02 §1.3 deviation):
+ * mean 34 (was 24), sd 8 (was 10), clamp floor 16 (was 10), so a first worker outlives the first season.
+ */
+export const NANITIC_LIFESPAN_MEAN_GD = 34;
+export const NANITIC_LIFESPAN_SD_GD = 8;
+export const LIFESPAN_CLAMP_GD: readonly [number, number] = [16, 85];
 /** Fatigue per game second by class, recovery per second while resting (GDD 02 §1.7). */
 export const FATIGUE_GAIN_ACTIVE_S = 1 / 900;
 export const FATIGUE_GAIN_LIGHT_S = 1 / 1800;

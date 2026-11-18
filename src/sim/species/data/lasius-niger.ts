@@ -15,8 +15,10 @@ const CASTES: CasteDef[] = [
     caste: 'worker', sizeClasses: [{ id: 'nanitic', minBu: 0.8, maxBu: 0.9 }],
     lengthBu: { min: 0.9, mean: 1.0, max: 1.15 }, casteMassMg: 1.0, cropMax: 1.0, carryOverride: null,
     mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 12,
-    lifespanGd: { mean: 33, sd: 10 }, lifespanBySize: [[100, 33], [250, 24]],
-    ageRateOutside: 3.0, ageRateDormant: 0.15, fixedStats: null, upkeepOverride: null, devMult: 1,
+    // Ruling R30 (replaces R11; GDD 02 §1.3 deviation): 42 gd (1.5 of the 28-day years), sd 8, 30 at N >= 250; ageing
+    // outside x1.5 (was 3.0: the dangers of foraging are simulated one by one now, the multiplier counted them twice).
+    lifespanGd: { mean: 42, sd: 8 }, lifespanBySize: [[100, 42], [250, 30]],
+    ageRateOutside: 1.5, ageRateDormant: 0.15, fixedStats: null, upkeepOverride: null, devMult: 1,
     actions: WORKER_ACTIONS, taskWeights: { garden: 0, cut: 0, mill: 0 }, unlock: NO_UNLOCK,
   },
   {

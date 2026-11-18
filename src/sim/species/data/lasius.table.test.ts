@@ -11,8 +11,8 @@ const ROWS: ValueRow[] = [
   // castes (§5.1.1)
   ['§5.1.1', 'castes.worker.lengthBu.min', 0.9], ['§5.1.1', 'castes.worker.lengthBu.mean', 1.0],
   ['§5.1.1', 'castes.worker.lengthBu.max', 1.15], ['§5.1.1', 'castes.worker.casteMassMg', 1.0],
-  ['§5.1.1', 'castes.worker.sprintBuS', 12], ['§5.1.1', 'castes.worker.lifespanGd.sd', 10],
-  ['§5.1.1', 'castes.worker.lifespanBySize', [[100, 33], [250, 24]]], ['§5.1.1', 'castes.worker.sizeClasses.nanitic.minBu', 0.8],
+  ['§5.1.1', 'castes.worker.sprintBuS', 12], ['R30', 'castes.worker.lifespanGd.sd', 8],
+  ['R30', 'castes.worker.lifespanBySize', [[100, 42], [250, 30]]], ['§5.1.1', 'castes.worker.sizeClasses.nanitic.minBu', 0.8],
   ['§5.1.1', 'castes.worker.sizeClasses.nanitic.maxBu', 0.9],
   ['§5.1.1', 'castes.queen.lengthBu.mean', 2.1], ['§5.1.1', 'castes.queen.casteMassMg', 30],
   ['§5.1.1', 'castes.queen.fixedStats.maxHp', 50], ['§5.1.1', 'castes.queen.fixedStats.foundingMaxHp', 40],
@@ -23,7 +23,7 @@ const ROWS: ValueRow[] = [
   ['§5.1.1', 'castes.gyne.upkeepOverride.restC', 0.15], ['§5.1.1', 'castes.gyne.sprintBuS', 10],
   ['§5.1.1', 'castes.male.casteMassMg', 0.8], ['§5.1.1', 'castes.male.fixedStats.maxHp', 6],
   ['§5.1.1', 'castes.male.fixedStats.bite', 0.2], ['§5.1.1', 'castes.male.upkeepOverride.restC', 0.06],
-  ['§5.1.1', 'castes.worker.ageRateOutside', 3.0], ['§5.1.1', 'castes.worker.ageRateDormant', 0.15],
+  ['R30', 'castes.worker.ageRateOutside', 1.5], ['§5.1.1', 'castes.worker.ageRateDormant', 0.15],
   // life history (§5.1.2)
   ['§5.1.2', 'life.stageGd.egg', 1.4], ['§5.1.2', 'life.stageGd.larva', 0.6], ['§5.1.2', 'life.stageGd.pupa', 1.9],
   ['§5.1.2', 'life.devRefC', 21],

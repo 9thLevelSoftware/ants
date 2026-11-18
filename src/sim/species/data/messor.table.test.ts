@@ -11,10 +11,10 @@ const ROWS: ValueRow[] = [
   ['C3', 'loadSpeedMult', 0.75], ['§5.3.1', 'cruiseBuS', 5],
   // castes (§5.3.1)
   ['§5.3.1', 'castes.minor.lengthBu', { min: 0.55, mean: 0.7, max: 0.85 }], ['§5.3.1', 'castes.minor.casteMassMg', 2.0],
-  ['§5.3.1', 'castes.minor.lifespanGd', { mean: 12, sd: 3 }], ['§5.3.1', 'castes.minor.sizeClasses.nanitic', { id: 'nanitic', minBu: 0.5, maxBu: 0.7 }],
+  ['R30', 'castes.minor.lifespanGd', { mean: 15, sd: 4 }], ['§5.3.1', 'castes.minor.sizeClasses.nanitic', { id: 'nanitic', minBu: 0.5, maxBu: 0.7 }],
   ['§5.3.1', 'castes.media.lengthBu', { min: 0.85, mean: 1.05, max: 1.3 }], ['§5.3.1', 'castes.media.casteMassMg', 7],
-  ['§5.3.1', 'castes.media.lifespanGd', { mean: 16, sd: 4 }], ['§5.3.1', 'castes.major.lengthBu', { min: 1.3, mean: 1.55, max: 1.85 }],
-  ['§5.3.1', 'castes.major.casteMassMg', 22], ['§5.3.1', 'castes.major.lifespanGd', { mean: 20, sd: 5 }],
+  ['R30', 'castes.media.lifespanGd', { mean: 20, sd: 5 }], ['§5.3.1', 'castes.major.lengthBu', { min: 1.3, mean: 1.55, max: 1.85 }],
+  ['§5.3.1', 'castes.major.casteMassMg', 22], ['R30', 'castes.major.lifespanGd', { mean: 25, sd: 6 }],
   ['§5.3.1', 'castes.major.cropMax', 2.0], ['§5.3.1', 'castes.major.carryOverride', 2.5], ['§5.3.1', 'castes.major.macrocephalic', true],
   ['§5.3.1', 'castes.major.mandibleFactor', 1.5], ['§5.3.4', 'castes.major.unlock', { minWorkers: 40, minColonyAgeYears: 0 }],
   ['§5.3.1', 'castes.queen.lengthBu', { min: 2.0, mean: 2.3, max: 2.6 }], ['§5.3.1', 'castes.queen.casteMassMg', 80],
@@ -22,7 +22,7 @@ const ROWS: ValueRow[] = [
   ['§5.3.1', 'castes.gyne.casteMassMg', 80], ['§5.3.1', 'castes.gyne.fixedStats.maxHp', 107], ['§5.3.1', 'castes.gyne.upkeepOverride.restC', 0.15],
   ['§5.3.1', 'castes.male.lengthBu', { min: 1.2, mean: 1.3, max: 1.45 }], ['§5.3.1', 'castes.male.casteMassMg', 10],
   ['§5.3.1', 'castes.male.fixedStats', { maxHp: 19, bite: 0.95, foundingMaxHp: null }], ['§5.3.1', 'castes.male.upkeepOverride.restC', 0.08],
-  ['§2.5', 'castes.media.ageRateOutside', 3.5], ['§2.5', 'castes.media.ageRateDormant', 0.3],
+  ['R30', 'castes.media.ageRateOutside', 1.5], ['§2.5', 'castes.media.ageRateDormant', 0.3],
   ['§5.3.1', 'castes.media.actions', ['move', 'let-go', 'grip', 'pick-up', 'put-down', 'drop', 'dig-bite', 'seal-entrance', 'unseal-entrance', 'feed-larva', 'trophallaxis-give', 'trophallaxis-receive', 'groom', 'antennate', 'sniff', 'lay-trail', 'harvest-liquid', 'harvest-solid', 'bite', 'bite-hold', 'release-alarm', 'drag', 'dodge', 'sting', 'gnaw-radicle', 'stridulate', 'mill-seed', 'cut-seed-head']],
   // life history (§5.3.2)
   ['§5.3.2', 'life.stageGd', { egg: 1.1, larva: 2.3, pupa: 1.2 }], ['§5.3.2', 'life.devRefC', 26],

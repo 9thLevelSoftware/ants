@@ -806,3 +806,7 @@ Running: colony-life `w09el0k35` (sweep 7), app-seams-2 `w9b7zmcaw`.
 - R29, R30 measured as separate arms on the 15 hand-overs and on long runs. Winter-lapse regression and the browser founding failure on seed 2 (3 of 4 runs lose every egg at 2.8 % of the lapse on a "Poor" start site) go to round 8 as well. Direction 15 of `colony-life.md`.
 
 Stopped `w09el0k35` at 08:22 (round 8 was 10 minutes in: F1 and R29 written, in the tree, ledger current) and relaunched with direction 15 as `w72m08zl2` (wf_e2eea569-54f; firstRound 8, maxRounds 3).
+
+## Nov 18 08:40 UTC — year-two baseline complete (round-7 tree)
+
+All five long runs done (`test-output/colony-life/round-7/sweep-long/longrun-table.md`). R22 year two: spring ≥ 0.7 × winter in 1 of 5 (bar 4); doubled by day 15 in 0 of 5 (bar 3). Lapse: cpv #1 17 → 6 (8 drowned), kd #3 10 → 3 (starved, queen starved, C 0 at winter), pp #3 7 → 6, sg #2 11 → 6 (starved, queen starved), we #2 8 → 5. Day 15: 4, 0, 1, 2, 1 workers. Two queens starve in a lapse the player accepted with stores that could not cover it: the winter notice must say so (R27 check) — for round 8. Baseline written into the ledger above "## Round 8".

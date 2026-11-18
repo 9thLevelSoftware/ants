@@ -26,12 +26,14 @@ const MAJOR_ACTIONS = actions(ATTA_COMMON, ['dig-bite', 'block-opening', 'drag',
 // `feed-larva` to the founding queen, from her reserves; for Atta the precondition is a garden that yields staphylae).
 const QUEEN_ACTIONS = actions(QUEEN_BASE_ACTIONS, ['plant', 'tend-fungus']);
 
+  // Ruling R30 (Nov 18): worker castes' lifespans (mean and sd) x1.27 and ageing outside 1.5, as for Lasius; the
+  // separate nanitic first-brood row is unchanged (the ruling names the castes).
 const CASTES: CasteDef[] = [
   {
     caste: 'minor', sizeClasses: [], // the minim: first brood, gardener, nurse, hitchhiker
     lengthBu: { min: 0.3, mean: 0.35, max: 0.45 }, casteMassMg: 0.3, cropMax: null, carryOverride: null,
     mandibleFactor: 0.8, macrocephalic: false, cruiseMult: 0.8, sprintBuS: 8, // minims walk x 0.8
-    lifespanGd: { mean: 40, sd: 12 }, lifespanBySize: [], ageRateOutside: 3.0,
+    lifespanGd: { mean: 51, sd: 15 }, lifespanBySize: [], ageRateOutside: 1.5,
     ageRateDormant: 1, // not dormant in winter (winter mode `active`): dormancy never applies
     fixedStats: null, upkeepOverride: null, devMult: 0.83, actions: MINIM_ACTIONS,
     taskWeights: { forage: 0, scout: 0, cut: 0, mill: 0, tend: 0, dig: 0 }, // minims stay in the nest; no `dig-bite` (GDD 01 §7)
@@ -42,7 +44,7 @@ const CASTES: CasteDef[] = [
     caste: 'media', sizeClasses: [{ id: 'small-media', minBu: 0.6, maxBu: 0.8 }],
     lengthBu: { min: 0.6, mean: 1.0, max: 1.3 }, casteMassMg: 5, cropMax: null, carryOverride: null,
     mandibleFactor: 1.0, macrocephalic: false, cruiseMult: 1, sprintBuS: 10,
-    lifespanGd: { mean: 40, sd: 12 }, lifespanBySize: [], ageRateOutside: 3.0, ageRateDormant: 1,
+    lifespanGd: { mean: 51, sd: 15 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 1,
     fixedStats: null, upkeepOverride: null, devMult: 1.0, actions: MEDIA_ACTIONS,
     taskWeights: { mill: 0, tend: 0, garden: 0.5 }, // [EST]: only small media garden; media cut
     unlock: NO_UNLOCK,
@@ -51,7 +53,7 @@ const CASTES: CasteDef[] = [
     // Majors unlock at N >= 400 [D first majors at ~11 months in an analog]. Crop 2.5 is the table value (m = 6).
     caste: 'major', sizeClasses: [], lengthBu: { min: 1.6, mean: 1.8, max: 1.9 }, casteMassMg: 30, cropMax: 2.5,
     carryOverride: null, mandibleFactor: 2.0, macrocephalic: true, cruiseMult: 0.9, sprintBuS: 9,
-    lifespanGd: { mean: 50, sd: 15 }, lifespanBySize: [], ageRateOutside: 3.0, ageRateDormant: 1,
+    lifespanGd: { mean: 64, sd: 19 }, lifespanBySize: [], ageRateOutside: 1.5, ageRateDormant: 1,
     fixedStats: null, upkeepOverride: null, devMult: 1.19, actions: MAJOR_ACTIONS,
     // Majors cut 10 % of the time (§6.4.6), never garden, nurse or tend.
     taskWeights: { garden: 0, mill: 0, tend: 0, nurse: 0, 'queen-care': 0, cut: 0.1 },

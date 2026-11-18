@@ -24,7 +24,9 @@ describe('physiology timelines (reviewer)', () => {
     expect(cause).toBe('starvation');
   });
 
-  it('§1.3: physiological age accrues 1 / gd inside, 3 / gd outside, 0.15 / gd dormant', () => {
+  // Outside ageing restated by ruling R30 (Nov 18, replaces R11): 1.5 / gd (GDD 02 §1.3 had 3; the dangers of foraging
+  // are simulated one by one now). Inside and dormant rates unchanged.
+  it('§1.3 / R30: physiological age accrues 1 / gd inside, 1.5 / gd outside, 0.15 / gd dormant', () => {
     const sim = makeColonySim({ noAllocation: true });
     const ch = addChamber(sim, 'general', { x: 100, y: -40, z: 100 });
     const [inside] = addWorkers(sim, 1, { chamber: ch, ageGd: 2, task: 'rest', state: 'rest' });
@@ -35,7 +37,7 @@ describe('physiology timelines (reviewer)', () => {
     outside.cropC = 1; // enough to keep her fed for 0.5 gd
     step(sim, TICKS_PER_DAY / 2);
     expect(inside.physioAgeGd - 2).toBeCloseTo(0.5, 2);
-    expect(outside.physioAgeGd - 2).toBeCloseTo(1.5, 2);
+    expect(outside.physioAgeGd - 2).toBeCloseTo(0.75, 2);
     expect(dormant.physioAgeGd - 2).toBeCloseTo(0.075, 3);
   });
 
