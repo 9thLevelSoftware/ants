@@ -354,3 +354,22 @@ gives up 3 % of its protein. So, in this order (R38, GDD deviations to record: 0
 
 Round 10 closes after item 6. If you do not have the room for R38, close without it and put "R38 NOT BUILT" as the
 first words of the round result's notes for the integrator: I then hold the sweep and give R38 to round 11.
+
+## Direction 24a (integrator, Nov 22 15:51 UTC) — R37b: a hunter that has eaten does not hunt
+
+Your 15:07 reading is accepted: scaling each strike's landing barely slows a hunter that stands at a herd and
+strikes again after every miss (pp #3: 8 predation deaths, 6 of them tenders at the one herd). The cause under it:
+a spider feeds for `FEED_S` 120 s and hunts again, so one spider can take five workers in a 600 s game day. No
+spider eats five ants a day. R37b, added to direction 24 as item 0 (build it first, it is small):
+
+- **Satiation.** After a kill a predator feeds (`FEED_S` as now) and is then *sated*: it takes no victim (ant of any
+  colony, the possessed ant included) for `SATED_GD`: spiders (jumping, wolf, ant-spider) 1.0 gd, centipede and rove
+  beetle 0.5 gd. Sated, it keeps its other behaviour (rests at home, flees, defends itself when attacked). Antlion,
+  bird and anything whose rule is not "hunt, kill, feed" are unchanged. Balance constants; save field additive.
+  Test: a spider with a line of workers walking past takes one in a game day, the next no sooner than `SATED_GD`
+  after the feed ends.
+- **The ramp applies to the hunt, not only the strike.** Keep `colonyRangeStrikeShare` and also draw it once when a
+  colony-range hunter would take a player worker as its victim (`findVictim`): on a refusal that hunter ignores
+  that colony's workers for 0.25 gd. One draw per acquisition, creatures stream.
+- Bar as R37: median <= 1 predation death per colony over the 15 runs to winter, no colony loses more than a quarter
+  of its workers to predation in one game day. Measured in direction 24's one arm (item 6), no arm of its own.

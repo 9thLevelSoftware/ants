@@ -4010,3 +4010,9 @@ Progress (kept current; a successor continues from here)
   hygiene deaths, 7 flooded): second winter 2 -> 1.
 - 15:26 final arm 12 of 20 done (winter: we #1-3, sg #2-3, pp #2-3, kd #1-2; long: kd #3, cpv #1, we #2); sg #2
   predation 7 -> 0. Remaining: sg #1, pp #1, cpv #1-3, kd #3 to winter; long pp #3, sg #2.
+- 15:51 **INTEGRATOR NOTE:** 15:07 reading accepted (a per-strike share does not slow a hunter standing at a herd).
+  `colony-life.md` **direction 24a = R37b**, item 0 of direction 24: a predator that has killed is sated (spiders 1.0 gd,
+  centipede / rove beetle 0.5 gd: no victim in that time), and the ramp's share is also drawn once per victim
+  acquisition by a colony-range hunter (refusal: ignores that colony's workers 0.25 gd). **Direction 24 (R38, written
+  14:49) is still to be built before this round closes** — no ledger entry of yours mentions it yet.
+
