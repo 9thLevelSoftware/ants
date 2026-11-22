@@ -944,7 +944,7 @@ Round 9 (still running) so far, from the ledger:
 If sweep 9 starts on a tree without R35: let it run (it still judges founding, lost workers and winter-1 viability on
 fresh foundings); its R34 result is then known in advance and round 10 does R35.
 
-## Nov 22 12:45 UTC — round 9 closed (result saved), without R35; sweep 9 running on that tree
+## Nov 22 12:42 UTC — round 9 closed (result saved), without R35; sweep 9 running on that tree
 
 `docs/design/tasks/reviews/colony-life-round-9.json`; ledger "### Round 9 results".
 - 15 paired hand-overs to winter 1, base -> final: workers 190 -> 239 (better 14, equal 1, worse 0), viable 9 -> 13,
