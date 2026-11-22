@@ -959,7 +959,7 @@ fresh foundings); its R34 result is then known in advance and round 10 does R35.
   new defects). Its R34 result is known in advance. Round 10 starts when the workflow ends: R35 first, then brood
   drowned after the hand-over (sg #1, cpv #1), predation per outside-worker day against R25, sweep-9 findings.
 
-## Nov 22 13:27 UTC — sweep 9 closed; round 10 launched (R35, R36, R37)
+## Nov 22 13:25 UTC — sweep 9 closed; round 10 launched (R35, R36, R37)
 
 Sweep 9 (`reviews/colony-life-sweep-9.json`, table `test-output/colony-life/round-9/sweep-table.md`), fresh foundings,
 round-9 tree without R35:
