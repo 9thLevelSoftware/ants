@@ -1,0 +1,89 @@
+{
+ "viabilityMet": false,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-8/sweep-table.md",
+ "numbers": {
+  "viable": "9 of 15: woodland-edge 2/3, suburban-garden 2/3, playground-park 1/3, car-park-verge 3/3, kitchen-door 1/3 (sweep 7: 4 of 15)",
+  "workersHeld": "12 of 15 (below: we #1 18->16, pp #1 13->6, pp #3 13->11)",
+  "medianEclosions": 5,
+  "medianIntakeP": 0.269,
+  "medianIntakeC": 1.162,
+  "medianTripSuccess": 45.9,
+  "firstWorkersAtLeast9": "14 of 15 (we #2: 8)",
+  "runsWithoutLost": "12 of 15 (we #1 3, pp #1 6, sg #2 1)"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "worker:lost rose from 2 to 10, so the 'no worker:lost' growth check fails (12 of 15)",
+   "where": "locomotion / homing (ants/behaviours/outdoor phaseTravel.ts RETURN_LOST_S); probe test-output/colony-life/round-8/sweep-review/probe-lost-pp1.txt, probe-lost-we1b.txt",
+   "detail": "The lost workers are caught in traps, not out on long trips. In pp #1 all 6 lost foragers die at the same point (~920, -11.3, 3593 BU), 82.5 BU from the open entrance. They are in forage.return and shuffle within 3 BU for 1000-1400 s until RETURN_LOST_S. The point is the bottom of a shallow terrain bowl (height -11.33 BU, nav cells not blocked). In we #1, 2 of the 3 lost foragers die 0.1-0.4 BU from their own open entrance (plugVoxelCount 4, nav still 'moving') after 1290 s. No stuck report fires for any of them. Restoring the cached hand-over reproduces each run's deaths exactly. Round 8 did not change locomotion, but R30 keeps workers alive long enough to die this way."
+  },
+  {
+   "severity": "major",
+   "title": "Inert colony after the hand-over: sg #3 made 2 trips in 12 gd (intake 0, 0 eclosions, fails R27)",
+   "where": "colony/founding hand-over reopen + nest locomotion legs; probe test-output/colony-life/round-8/sweep-review/probe-idle-sg3.txt",
+   "detail": "The entrance reads 'open' but 29-33 plug voxels are still left in it. The scout's depart nav fails with 'leg' every game hour, and foragers wait because they know no source. By 5.6 gd all 10 workers report nav failed:leg, inside the nest too (queen-care, haul, store, idle). This is the failure the known red founding/reopen.test pins (plug soil left in the throat), now seen in a sweep run, plus a nest-wide leg failure that the red test does not cover."
+  },
+  {
+   "severity": "minor",
+   "title": "F1 readers bypass the GDD 03 \u00a711.2 spill rebuild throttle",
+   "where": "src/sim/nest/flood/runtime.ts spillForReaders; test src/sim/nest/flood/readersCost.verify.test.ts (RED, kept)",
+   "detail": "Over 300 ticks, with a carve every 10 ticks in a wet nest and one reader call per tick: 30 buildSpill calls against 6 for the throttled flood model (which allows 7), 2.5-3.1 ms each on the small test nest. In the sweep, flee-water rose from 0.014 to 0.055 ms/tick (median) and the total from 4.05 to 4.34 ms/tick (timings are noisy under load). Determinism is fine."
+  },
+  {
+   "severity": "minor",
+   "title": "Round numbers not reproduced on fresh foundings",
+   "where": "round-8 paired arms vs sweep 8",
+   "detail": "Trip success 45.9 % here against 50.4 % in the r30hb1 arm. Viable 9 against 10 in the r30r29c arm. Median P 0.269 against 0.287. The R19 trip-success check is still failed."
+  },
+  {
+   "severity": "minor",
+   "title": "R30 item not done: DIAG_MORTALITY_REF_LIFESPAN_GD still 26",
+   "where": "src/sim/balance/colony.ts",
+   "detail": "Direction 15 says this constant should be re-derived by measurement. The ledger's 09:18 entry derives a realised lifespan of 36-39 gd under R30 and defers the change. As a result diag-mortality judges deaths against a reference turnover that is 1.4-1.5 x the natural one (diagnostics only)."
+  },
+  {
+   "severity": "minor",
+   "title": "workedExample red is noise in a 10-seed test, not an R29c rule change; FD1 overclaimed",
+   "where": "src/sim/colony/workedExample.test.ts; round-8 cause list",
+   "detail": "With the care factor forced to 1 (scratch copy) the test passes. Larval C per larva is identical (0.909 in both runs). Only the larvae count moves, 4.55 -> 4.67, because the factor changes the RNG trajectory of the laying draws. The base already sits at 3.7 % of the 5 % bound. Separately, the round says FD1 fixed the browser founding, but direction 20.1 records that founding still failing after FD1."
+  }
+ ],
+ "checksRun": [
+  "15-run sweep from a frozen tree (hash edfbf82a = live tree = HEAD src/sim), sweep-table.py against round-7/sweep",
+  "Both bars from a second script (bars-from-md.py on the Markdown table): same verdicts",
+  "Five year-two long runs (PAR=2 UNTIL_DAY=40) from the same frozen copy, then longrun-table.py and the round's table.py",
+  "npm run typecheck: clean, before and after the new verify test",
+  "vitest folder by folder: combat 13/13, nest/flood 12/12, colony 67/69 (known reds founding/reopen, workedExample), ants/behaviours/outdoor 30/31 (known red removal.verify), species/data 4/4, tests/docs/docs-final 8/8",
+  "Round's new or restated tests run on the round-start tree 8f72185 with the tests copied in: 18 of 21 cases red",
+  "workedExample with the care factor forced to 1 (scratch copy): green, larval C per larva identical",
+  "Lost-worker probe on pp #1 and we #1, idle probe on sg #3, terrain probe at the pp #1 trap",
+  "Per-system ms/tick compared between sweep 7 and sweep 8",
+  "Code review of git diff 8f72185 HEAD against the not-allowed list, determinism and per-tick cost",
+  "New verify test readersCost.verify.test.ts (red, kept)"
+ ],
+ "leadsForNextRound": [
+  "Protein income: median P is 0.269 of need (bar 0.7). The starvation stage fails we #1, pp #3, kd #1 and kd #3. P intake is 0.059 in kd #2 and 0.146-0.168 in kd #1, we #2 and cpv #1. Work on R32 and on known carrion against hunting (direction 20.3-4).",
+  "Brood lost in care: 80 untended (43 eggs, 37 pupae) and 34 flooded out of 247 eggs laid, against 60 eclosions. kd #2 had 0 eclosions with 8 pupae untended; kd #3 had 0 with 4 pupae untended and 4 lost to hygiene (direction 20.5).",
+  "Carbohydrate while hunting pays: kd #3 had C intake 0.006 and C 0 at winter, 45 of its 54 forage trips were hunts (P 9.0), and it never found the 4 nectar flowers within 300 BU. It then starved in the lapse along with its queen.",
+  "worker:lost traps: 6 lost at one terrain bowl in pp #1, and 2 that reached their own open entrance and never got in (we #1).",
+  "Inert colony after the hand-over (sg #3): plug remnants in an 'open' entrance, and every worker's nav reports failed:leg by 5.6 gd.",
+  "Year two: the day-15 doubling check passes 0 of 5. The first workers' lifespans (24-38 gd) end on year-two days 10-21. The only overwintered brood (cpv #1) died inside the lapse of hygiene, temperature and lack of tending."
+ ],
+ "regressions": [
+  "pp #1: net workers -2 -> -7, eclosions 6 -> 1, intake C 0.64 -> 0.338, worker:lost 0 -> 6",
+  "sg #3: intake C 1.078 -> 0, intake P 0.556 -> 0, trip success 31 -> 0 %, eclosions 1 -> 0",
+  "kd #3: eclosions 6 -> 0, intake C 0.119 -> 0.006, net workers +1 -> 0",
+  "kd #2: eclosions 4 -> 0",
+  "cpv #1: eclosions 9 -> 4, trip success 51 -> 35 %, net workers +5 -> +4",
+  "pp #3: eclosions 7 -> 5, trip success 54 -> 46 %",
+  "pp #2: eclosions 2 -> 1, trip success 66 -> 58 %",
+  "sg #2: eclosions 5 -> 3, worker:lost 0 -> 1",
+  "we #1: worker:lost 0 -> 3",
+  "cpv #2: intake P 0.332 -> 0.194",
+  "we #2: intake C 1.494 -> 1.217",
+  "Bar counts: no-worker:lost 13 -> 12 of 15 (now FAIL). Every other bar count improved: viable 4 -> 9, held 4 -> 12, eclosions median 4 -> 5, P 0.198 -> 0.269, C 1.078 -> 1.162, trip success 43.9 -> 45.9 %",
+  "Sums: eclosions 65 -> 60 and worker:lost 2 -> 10, while workers at winter rose 138 -> 194 and old-age deaths fell 64 -> 1. Hand-overs differ from sweep 7, so these are different games."
+ ]
+}

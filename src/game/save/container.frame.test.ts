@@ -48,9 +48,8 @@ describe('sealed save frame', () => {
 describe('saves written before the frame was sealed', () => {
   it('still open, by file bytes and by pasted text, and keep their wall-clock header time', () => {
     const viaText = parseText(LEGACY_SAVE_TEXT);
-    // a later bump of the simulation's minimum save version is a different, announced message, not a container error
-    if (!viaText.ok) expect(viaText.code).toBe('too-old');
-    else expect(viaText.state.ants.length).toBeGreaterThanOrEqual(0);
+    // if the simulation ever raises its minimum save version this fixture becomes 'too-old': the container still reads it
+    expect(viaText.ok || (!viaText.ok && viaText.code === 'too-old')).toBe(true);
     const bytes = Uint8Array.from(atob(LEGACY_SAVE_TEXT.slice('FOUNDRESS1:'.length).split(':')[0]), (c) => c.charCodeAt(0));
     expect(bytes[3]).toBe(0); // plain header, no extra field
     expect(bytes[4] | bytes[5] | bytes[6] | bytes[7]).not.toBe(0); // fflate wrote the wall clock
