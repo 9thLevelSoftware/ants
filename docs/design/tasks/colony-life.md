@@ -517,3 +517,91 @@ added:
 
 Order of the round: 26a.0, 26.3, 26a.2, 26a.1, 26.1 (R39), 26.2 (trace), 26a.3 + 26.4 (hygiene), 26.5 (the one arm,
 against `round-11/arm-final11`). Bars as direction 26 item 5.
+
+## Direction 27 (integrator, Nov 22 22:14 UTC) — round 13 is the year-two round (R40)
+
+Round 12 met its four arm bars (ledger "### Round 12 results"); sweep 12's fresh foundings: viable 14 of 15, winter
+workers 239 -> 249, brood hygiene 56 -> 23, egg flooding 35 -> 7, behaviours 0.224 ms a tick median (kd #1 0.256: the
+cost bar is met on fresh runs). Accepted as built: D32, R38b, R39 with the double-count subtraction, 26.2 "no change"
+(knowledge, not the value form). `TEND_HEADROOM` stays 1.25.
+
+**Year one is finished for this task unless the sweep's findings say otherwise (direction 27a).** It is one cohort
+by the calendar: hand-over ~doy 10, a clutch of 11-12 on doy 11, eclosion doy 14-16, laying potential 0 from doy 16.
+Its "P intake / need" is one day on which the synchronous clutch asks 8-11 P / gd of 9-11 workers; 10 of 12 hatched
+still eclose. Do not add year-one foraging rules to chase R19's 0.7.
+
+**Year two is where the growth bar fails (R34).** Integrator's model-free read of the long runs (`layingGates`,
+`eclosions`, day states, `protein.days`; year split at the doy wrap):
+
+| run (tree) | winter 1 -> winter 2 | eggs y2 | eclosed y2 | P delivered y2 | fed to larvae y2 | old age |
+|---|---|---|---|---|---|---|
+| cpv #1 (r11) | 15 -> 13 | 19 | 6 | 21.6 | 16.6 | 9 |
+| kd #3 (r11) | 12 -> 7 | 19 | 6 | 15.8 | 11.3 | 7 |
+| pp #3 (r11) | 19 -> 24 | 40 | 23 | 47.0 | 30.3 | 12 (+ 7 predation) |
+| sg #2 (r11) | 16 -> 20 | 25 | 14 | 28.2 | 18.7 | 6 |
+| we #2 (r11) | 6 -> 3 | 20 | 1 | 1.1 | 3.6 | 6 |
+| sg #2 (r12) | 19 -> 13 | 19 | 7 | 26.7 | 12.8 | 10 |
+| we #2 (r12) | 13 -> 12 | 23 | 8 | 20.8 | 17.4 | 8 |
+
+A queen whose laying potential stands at 20-35 eggs / gd on doy 10-14 lays 19-25 eggs in the whole second year. The
+founding cohort (9-12 workers, lifespan 34 +- 8 gd, ageing 1.5 x outside) dies of old age inside year two, so a colony
+of 13-19 needs ~20-25 eclosions to stand at 1.5 x and gets 6-14. The lifespans stay (turnover is the design); the
+eggs are the lever. What holds the eggs, by the gate shares of the summer days:
+- **`winter-reserve` shuts the peak.** sg #2 (r12) doy 12-14: share 1.0 / 0.85 / 0.85 at potential 35 / 27 / 22 with
+  4-7 P in store and no larvae; eggs 0, 0, 1. kd #3 (r11) doy 12-14: 0.85 / 0.7 / 0.55 at potential 33 / 16 / 13 with
+  5.5-7 P in store; eggs 0. Both colonies then held 14-20 C by doy 16-18, two to three times their winter need. The
+  gate was made for a first-year colony handed over late (R5); in a colony that has wintered it stops the one window
+  in which eggs still eclose before the cold. R39 moved it earlier: carbohydrate now sits near its stock target, not
+  at two or three times it.
+- **The prospective protein demand is off by construction since R39.** `queen.ts prospectiveProteinRate` scales by
+  clamp(daysC / targetDays.c - 1, 0, 1): nothing at 1 x the carbohydrate target, all at 2 x. R39's tenders refill
+  carbohydrate to 1 x the target and stop. So the rule that should bring protein in before the eggs are laid asks for
+  none, the intake EMA stays low without larvae, and `brood-need` (store + 1.5 gd of intake against LARVA_P_REQ per
+  egg) lets 3-6 eggs through per batch (doy 5-9 shares: brood-need 0.2-0.85, larval-hunger 0.15-0.5, p-days
+  0.25-0.55).
+- **Late brood dies in the autumn.** we #2 (r12): 7 pupae `untended`, 3 `temperature`; sg #2: 5 eggs `temperature`.
+
+### R40 (rulings; build in this order)
+
+a. **`winterReserveShort` applies only until the colony's first winter** (a colony that has not yet wintered: use
+   the founding year against the current year, or a flag set at the first lapse; not the worker count). After it,
+   the gate is off, and R39's carbohydrate want (`forageWant.c` as `tendDemand` and the forage side read it) counts
+   the shortfall to `winterPathC` from its start day as stock still wanted: max(0, max(target x rate, winterPathC) -
+   stock) / STOCK_REFILL_GD. One rule asks for the carbohydrate, none withholds eggs for it. Tests: a wintered
+   colony of 12 at d28 12 with carbohydrate under the R5 reserve -> laying protein permitted; a first-year colony in
+   the same state -> withheld (as now); tend demand rises when stock < winterPathC and stock >= target x rate.
+b. **Prospective protein ramps on the carbohydrate target, not on twice it:** carbRamp =
+   clamp((daysC / targetDays.c - 0.5) / 0.5, 0, 1) (nothing at half the target, all at the target). The
+   `winterPathC` condition stays. First trace it (two year-two colonies, doy 5-15, hourly: potential, release share,
+   carbRamp, prospective rate, forage P share, stores) on the round-12 tree to confirm the rate is ~0 at carbRamp 0;
+   if it is not ~0, write the numbers and still build b (the pairing with R39 is wrong either way). Test restated in
+   `colony/prospectiveProtein.test.ts`.
+c. **Late brood (trace, then fix only a defect):** for we #2 and sg #2 year two, the fate of every egg laid after doy
+   11 and of the 7 untended pupae: stage and temperature day by day, who was nursing, whether `DIAPAUSE_DOY` 19 /
+   `DIAPAUSE_COLD_C` 12 took the larvae into diapause before they pupated into the cold. GDD 02 §2.8: larvae
+   overwinter, pupae do not. If larvae pupate after the brood chamber has fallen under DIAPAUSE_COLD_C, that is the
+   defect: a larva that would pupate while the chamber is under it (or from DIAPAUSE_DOY on) diapauses instead. If
+   pupae are simply untended because nurses are reassigned in the cold, say who should have tended them and stop: I
+   rule.
+d. **Not ruled, measure only:** per year-two colony, eggs laid by day against potential and the gate that held each
+   share (your `lifeLaying` table), protein delivered / fed / spoiled by day, old-age deaths by day. If after a-c the
+   eggs are still under ~40 a year with potential open, name the gate and the numbers; do not move
+   `LAYING_SUPPLY_HORIZON_GD`, `LARVA_P_REQ`, lifespans or prey values: those are mine.
+
+### Harness and arms
+
+- **A year-two cache first.** Save the five long-run colonies (we #2, sg #2, cpv #1, pp #3, kd #3) at year 2 doy 1
+  on the round-12 tree (the founding cache's save / load; `life.ts` option if it needs one), so a year-two arm is
+  five runs of doy 1 -> second winter (doy 22 of year 2), not five whole lives. Check identity: the cached start
+  continued on the round-12 tree gives the same final hash as sweep 12's long run of that colony (or say why it
+  cannot and how close the day states are).
+- **Arms (model-free, no more than these):** base = round-12 tree from the cache; arm A = R40 a + b; arm B = A + c
+  (only if c changes code); then the round's year-one arm on all 15 hand-overs against `round-12/arm-final12`.
+- **Bars.** Year two (5 colonies): second winter >= 1.0 x first winter in >= 3 of 5 and the five second winters
+  together >= the five first winters together (interim; R34's 4 of 5 at 1.0 x and 3 of 5 at 1.5 x stand); eggs in
+  year two >= 35 in >= 3 of 5; no colony that met R27's carbohydrate at its second winter in the base misses it.
+  Year one (15): viable >= 14, median P intake / need >= 0.45, brood hygiene <= 15, no colony that met R27 in the
+  base misses it. If the year-two carbohydrate bar fails, report stock against winter need by day: I rule.
+
+Direction 27a (sweep 12's findings: lost workers, the kd #2 nursing gap, we #3's winter carbohydrate) follows when the
+sweep returns; re-read the tail of this file before you start and each time an arm or trace finishes.
