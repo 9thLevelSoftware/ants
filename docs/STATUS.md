@@ -1194,3 +1194,9 @@ gate only before the first winter, carbohydrate want counts the winter path; b: 
 to 1 x the target; c: late brood trace; d: measure only) and **R41** (one carbohydrate stock wanted for the forage
 want, the nutrient weights and the scout floor). Lifespans, LARVA_P_REQ, prey values, the laying supply horizon and
 base brood mortality are not to be moved by the engineer.
+
+Round 13 launched 22:37 UTC: task `wd6okprj0`, run `wf_ce6fb9e5-2fd` (`wf-life.js {maxRounds: 1, firstRound: 13, model:
+opus, effort: high}`, directions 27 + 27a). After a restart: if the journal
+(`/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_ce6fb9e5-2fd/journal.jsonl`)
+holds the round's result, relaunch with `firstRound 13` + `firstRoundResult`; if cut off mid-round, relaunch
+`firstRound 13` with a note that the ledger's "## Round 13" progress and directions 27, 27a say what is in the tree.
