@@ -23,7 +23,7 @@ export const FACE = {
   /** Lines fade out between these fractions of a pattern period per pixel. */
   fadeFrom: 0.35, fadeTo: 0.9,
   /** Share of the face's own colour that survives the fog. */
-  fogKeep: 0.45,
+  fogKeep: 0.7,
   /** Wooden bodies that are not thin panels (a shed, a bin, a table): board width, mm, and the share of gap darkening / tint spread (as FENCE_BOARDS). */
   woodBoardMm: 150, woodGapDark: 0.5, woodTintVar: 0.26,
 } as const;
