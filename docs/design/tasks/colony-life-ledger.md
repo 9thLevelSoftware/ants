@@ -4439,3 +4439,15 @@ deleted; profile files deleted; no process of this review left running. Kept red
 (case 1), `ants/behaviours/outdoor/noticeCost.verify.test.ts`. Kept green: `ants/behaviours/outdoor/noticeSaveLoad.verify.test.ts`.
 Note: the restart of `run-all.sh` before the long runs (to give them a fresh 2 h background limit) appended "skipped
 (done)" lines and a second DONE to `round-11/sweep/summary.txt`.
+
+## Round 12
+
+Engineer: round 12 (started 19:38 UTC Nov 22). Evidence: `test-output/colony-life/round-12/`. Tree at start = HEAD
+c2ed6cb (working tree clean; src = da0cfa6 = round-11 final 4c9d17a9). Order (direction 26a's closing order): 26a.0
+cost trap; 26.3 scout floor ahead of forage; 26a.2 floor in two levels; 26a.1 scouts report smelled food; 26.1 R39;
+26.2 trace; 26a.3 switch-off probe (cpv #2, 5 runs to day 6) + 26.4 hygiene fixes; 26.5 one arm vs
+`round-11/arm-final11` on all 15 (cache `round-10/cache`). Baseline table: `round-11/sweep-table.md`.
+
+Progress (kept current; a successor continues from here)
+- 19:39 read spec (directions 26, 26a), round-11 ledger and sweep 11. No process running. Now: 26a.0 (notice.ts /
+  lookup.ts cost trap).
