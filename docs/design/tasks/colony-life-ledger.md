@@ -4909,3 +4909,17 @@ Progress (kept current; a successor continues from here)
   15 / 3 (we, sg, cpv, pp, kd) = 71 against 82 at winter 1, >= 1.0 x in 2 of 5; eggs y2 23 / 33 / 27 / 26 / 13 (0 of 5
   >= 35); R27 carbohydrate at the second winter 5 of 5 (C / need 19.5 / 2.8, 13.2 / 4.3, 22.9 / 7.4, 6.0 / 3.8, 8.4 /
   1.5). Arm A running (both slots).
+- 23:45 **Arm A complete** (R40 a + b; `round-13/table-y2-A.md`, `account-y2-A.txt`), against base from the cache:
+  | | we #2 | sg #2 | cpv #1 | pp #3 | kd #3 | sum |
+  |---|---|---|---|---|---|---|
+  | second winter, base -> A (winter 1) | 12 -> 9 (13) | 19 -> 18 (19) | 22 -> 21 (19) | 15 -> 12 (21) | 3 -> 4 (10) | 71 -> 64 (82) |
+  | eggs y2 | 23 -> 19 | 33 -> 41 | 27 -> 34 | 26 -> 31 | 13 -> 18 | 122 -> 143 |
+  | eclosions y2 | 8 -> 8 | 13 -> 12 | 14 -> 12 | 9 -> 7 | 3 -> 3 | 47 -> 42 |
+  | C / need at winter 2 | 19.5 -> 21.6 / 2.2 | 13.2 -> 4.8 / 4.2 | 22.9 -> 31.7 / 6.7 | 6.0 -> 8.0 / 3.2 | 8.4 -> 3.6 / 1.8 | R27 5 -> 5 |
+  Gate game days while potential > 0 (5 colonies): winter-reserve 7.8 -> 0 (R40 a), brood-need 8.5 -> 13.7, larval
+  hunger 10.05 -> 10.65, p-days 8.7 -> 8.4, released 7.0 -> 7.3. Brood: larva starvation 9 -> 19 (pp #3 7 -> 11, cpv #1
+  0 -> 7), larva hygiene 5 -> 17, pupa untended 10 -> 10 (c not in A), egg untended 11 -> 2. Reading: R40 a releases 21
+  more eggs, but they hatch into a protein shortage (brood-need and larval hunger take the winter-reserve gate's days)
+  and the extra larvae starve; eclosions fall 47 -> 42. Bars on A: >= 1.0 x 1 of 5, sum 64 < 82, eggs >= 35 1 of 5,
+  R27 kept 5 of 5. Running: probes (nurse kd #2, lost pp #1), then arm B. The sg #2 no-trace check ran only 2 days
+  (`--until-day 19` from tick 99748): to be rerun to day 23.
