@@ -16,21 +16,27 @@ export default async ({ page, log, out }) => {
   const startPos = await g(() => window.__game.query.world().queenStart.pos);
   await g((p) => window.__game.cheat.spawnAnts(12, 'worker', null, p), startPos);
   await g(() => window.__game.step(100));
+  const click = (id) => g((t) => { const e = document.querySelector(`[data-testid="${t}"]`); if (e) e.click(); return !!e; }, id);
+  await click('founding-continue'); await g(() => window.__game.step(2)); await click('founding-worker'); await g(() => window.__game.step(2));
+  const wid = await g(() => { const gm = window.__game; return (gm.query.ants().find((a) => a.caste === 'worker' && a.colony === gm.query.colony()?.id) ?? {}).id ?? -1; });
+  await g((id) => window.__game.possess(id), wid);
   await g(() => window.__hud.game.setSettings({ gameplay: { minimap: 'always', focusLine: 'never' } }));
-  // where: a spot 150 mm beside the nearest structure footprint (a fence run or a wall) within 2 m of the start
+  // where: the nearest zone border (a cell whose east or south neighbour is another class) within 4 m of the start, so the plate shows a class edge
   const spot = await g((p) => {
-    const w = window.__hud.game.session.sim.world;
+    const w = window.__hud.game.session.sim.world, z = w.maps.zone;
     let best = null;
-    for (const o of w.objects) {
-      if (!o.tags.includes('structure')) continue;
-      const pr = w.prims[o.primStart];
-      const d = Math.hypot(pr.pos.x - p.x, pr.pos.z - p.z);
-      if (!best || d < best.d) best = { d, x: pr.pos.x, y: pr.pos.y, z: pr.pos.z, tpl: o.templateId };
+    const i0 = Math.floor(p.x / z.cell), k0 = Math.floor(p.z / z.cell), R = 250;
+    for (let k = Math.max(1, k0 - R); k < Math.min(z.nz - 1, k0 + R); k++) for (let i = Math.max(1, i0 - R); i < Math.min(z.nx - 1, i0 + R); i++) {
+      const c = z.data[k * z.nx + i];
+      if (c === z.data[k * z.nx + i + 1] && c === z.data[(k + 1) * z.nx + i]) continue;
+      const d = Math.hypot((i - i0) * z.cell, (k - k0) * z.cell);
+      if (!best || d < best.d) best = { d, x: (i + 0.5) * z.cell, z: (k + 0.5) * z.cell };
     }
+    if (best) best.y = window.__game.query.field(best.x, 0, best.z).height + 1;
     return best;
   }, startPos);
-  log('structure', JSON.stringify(spot));
-  await g((s) => window.__game.teleport('possessed', { x: s.x + 150, y: s.y, z: s.z + 150 }), spot);
+  log('border', JSON.stringify(spot));
+  await g((s) => window.__game.teleport('possessed', { x: s.x, y: s.y, z: s.z }), spot);
   await g(() => window.__game.step(5));
   await page.keyboard.press('KeyV');
   await g(() => window.__game.renderFrame({ settle: 1 }));

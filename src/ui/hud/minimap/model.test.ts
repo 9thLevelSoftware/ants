@@ -66,3 +66,25 @@ describe('paintPlate smooths the class borders (look pass 4)', () => {
     for (let y = 17; y < 112; y++) expect(Math.abs(edge[y] - edge[y - 1])).toBeLessThanOrEqual(2);
   });
 });
+
+describe('paintPlate smooths a curved border made of cell steps (look pass 4)', () => {
+  it('a disc of zone cells has an outline that moves about once per pixel row, not once per cell row', () => {
+    const nx = 24, nz = 24, cell = 1000, data = new Uint8Array(nx * nz);
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) data[z * nx + x] = Math.hypot(x + 0.5 - 12, z + 0.5 - 12) < 9 ? 1 : 2;
+    const plate = { map: { cell, nx, nz, data }, typeById: ['', 'lawn', 'asphalt'], size: 24000, structures: [], water: [] };
+    const size = 192; // 8 pixels per cell
+    const px = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 12000, cz: 12000, windowMm: 24000 });
+    const lawn = ZONE_TINTS.lawn, asph = ZONE_TINTS.asphalt;
+    const edge: number[] = [];
+    for (let y = 30; y < 162; y++) {
+      for (let x = 0; x < size; x++) {
+        const i = (y * size + x) * 4;
+        if (Math.abs(px[i] - lawn[0]) < Math.abs(px[i] - asph[0])) { edge.push(x); break; }
+      }
+    }
+    expect(new Set(edge).size).toBeGreaterThan(40); // cell steps would give about 12 values over these rows
+    let big = 0;
+    for (let k = 1; k < edge.length; k++) if (Math.abs(edge[k] - edge[k - 1]) > 3) big++;
+    expect(big).toBeLessThan(6); // only the top and bottom of the disc, where the outline is almost flat, may jump
+  });
+});
