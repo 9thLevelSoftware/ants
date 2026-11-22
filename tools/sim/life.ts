@@ -45,6 +45,7 @@ import { AntFlag, SEASONS } from '@/sim/types';
 import { LIFESPAN_CLAMP_GD, NANITIC_LIFESPAN_MEAN_GD, NANITIC_LIFESPAN_SD_GD } from '@/sim/balance/colony';
 import { FoundingObserver, FunnelObserver, funnelMarkdown, type FunnelReport } from './lifeFunnel';
 import { ProteinLedger, type ProteinReport } from './lifeProtein';
+import { PredationRecorder, type PredationReport } from './lifePredation';
 import { NursingObserver, type NursingHour } from './lifeNursing';
 import { EclosionObserver, type EclosionRecord } from './lifeEclosions';
 
@@ -213,6 +214,8 @@ export interface LifeReport {
   funnel?: FunnelReport;
   /** colony-life round 8: the protein ledger by game day after the hand-over (tools/sim/lifeProtein.ts). */
   protein?: ProteinReport;
+  /** colony-life round 10: who kills the colony's workers (tools/sim/lifePredation.ts). */
+  predation?: PredationReport;
   /** colony-life round 8: nursing per game hour after the hand-over (tools/sim/lifeNursing.ts). */
   nursingHours?: NursingHour[];
   /** colony-life round 8: every worker eclosion after the hand-over with the year its egg was laid (lifeEclosions.ts). */
@@ -315,6 +318,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const econ = new EconSampler(sim);
   const funnel = new FunnelObserver(sim);
   const protein = new ProteinLedger(sim);
+  const predation = new PredationRecorder(sim);
   const nursing = new NursingObserver(sim);
   const eclosions = new EclosionObserver(sim);
   if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
@@ -358,6 +362,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       sim.tick();
       funnel.tick();
       protein.tick();
+      predation.tick();
       nursing.tick();
       eclosions.tick();
       ticksToday++;
@@ -420,6 +425,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   report.econ = econ.result(starvedLarvae);
   report.funnel = funnel.result();
   report.protein = protein.result();
+  report.predation = predation.result();
   report.nursingHours = nursing.hours;
   report.eclosions = eclosions.records;
   if (fobs) report.foundingFunnel = { eggsLaid: fobs.eggsLaid, eclosed: fobs.eclosed, broodDeaths: fobs.deaths, adultDeaths: fobs.adultDeaths };

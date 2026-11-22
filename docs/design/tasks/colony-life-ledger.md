@@ -3832,3 +3832,18 @@ protein; (3) R37 predation; (4) sweep-9 defects (sealLongShaft, tendDraft, start
 Progress (kept current; a successor continues from here)
 - 13:25 read spec (directions 22-23), round-9 ledger and sweep-9 section. Now: reading R32b code, probes (no src edits
   that break compilation before 14:05: browser first-play run loads the live tree).
+- 13:28 round-10 cache `round-10/cache/*-any.bin` = hard links of the 15 sweep-9 hand-overs (tag ce00ecb4). Base tree
+  `/home/user/scratch-r10-base` = git archive HEAD 30944ea. Runner `round-10/run-one.sh`, `jobs.sh JOBLIST` (one slot,
+  restart-safe; stop file JOBLIST.stop). Base arm on all 15 running in one slot (`jobs-base.txt` -> `round-10/arm-base/`,
+  R35 cases first): it is item 1's base and the closing pair's base.
+- 13:34 **R35 point 5 traced (pp #3, the sweep-8 hand-over of round 9's long run; probe `tools/sim/probe/probe-tend10.ts`,
+  outputs `round-10/probe-tend-pp3-{live2,r8tree}.txt`, 2 gd each, live tree vs dd966f1 = the sweep-8 tree):** the herds
+  were **never found**, not starved by the allocator. Within 300 BU of the entrance there is one herd (248 BU out, 64
+  aphids, on a plant 9.3 BU up); it is found only by an ant on a trip that comes within its 6 BU odour (herdFind.ts).
+  dd966f1 found it at hour ~30 (tend demand 2 -> 6, 3 tenders); the live tree had 0 of 45 herds known after 48 h,
+  tend demand 0 all along. Scouting is the base 1-2 in both (C in store over its target, so the C shortfall reads 0).
+  The allocator is a second, latent cause: `forage` comes before `tend` in GDD 02 §6.3's order, so when demand exceeds
+  the workforce R32b's prospective forage demand (forage demand 9.3 against 2.6 at h24 on the live tree) is served
+  ahead of the tenders. Fix for that: the prospective part of the forage demand is filled last (test: tend head-count
+  equal with and without the prospective term). Discovery stays a lead for item 5's table (no rule change this round).
+- 13:35 now: writing R35 (src edits after 14:05).

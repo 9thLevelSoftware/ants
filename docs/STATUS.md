@@ -1011,3 +1011,11 @@ Pictures looked at: 12 (outcome card), 13 (entrance at night with the mound and 
 - The alert "Founding chamber flooding - Resolved" is still on screen at the outcome card: the cell did take water in
   the lapse at a site whose read-out says flood-safe (direction 21b's question stays open; FD2 saves the clutch).
 Seed 1 running now (`test-output/firstplay-r9/seed1`).
+
+## Nov 22 13:41 UTC — browser first play, seed 1: founding passes through the hand-over
+
+`test-output/firstplay-r9/seed1` (my run, `FIRSTPLAY_UNTIL=13`, no stand-ins): beats 01-13 pass, `ok: true`, no
+console errors; 5 first workers, entrance `open:0`, a worker on the mound's rim (picture 13 looked at: crater mound,
+pellets, open hole, daylight). Before round 9 this seed stuck at `reopening` with plug soil in the throat.
+Both seeds that failed the founding in the browser now pass it. Not yet done: an uninterrupted full `firstplay.mjs`
+(beats 14-25: trail, joining, directing, saving) on the final sim tree.

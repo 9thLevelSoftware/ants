@@ -14,6 +14,9 @@
 //   delivered  P brought home (delivery events, by kind), prey subdued by the colony's ants;
 //   eaten      P fed to larvae and to the queen (feed events), the larvae's own P demand (inst.larvaP integrated);
 //   lost       P spoiled in the stores (inst.spoilP integrated), larvae starved or cannibalised.
+// Per arrival (colony-life round 10, direction 23 items 2 and 5): every protein source that appears in the radius, by
+// kind and variant: found by the colony or not, game days from arrival to discovery, P the colony brought home from
+// it, how it left (the removal cause), and the nearest any worker of the colony came to it while it stood (sampled).
 
 import type { Ant, Sim } from '@/sim/types';
 import { isWorkerCaste } from '@/sim/colony/census';
@@ -47,9 +50,24 @@ export interface ProteinDay {
   larvaeStarved: number; larvaeCannibalised: number;
 }
 
+/** One protein source that appeared in the radius after the hand-over (round 10). */
+interface Arrival {
+  id: number; kind: string; p: number; day: number; tick: number;
+  foundGd: number; homeP: number; fate: string; nearestBu: number;
+}
+
+/** Arrivals summed by source kind (and variant). */
+export interface ArrivalKind {
+  n: number; arrivedP: number; foundN: number; foundP: number; medianFoundGd: number; homeP: number;
+  fates: Record<string, number>; medianNearestBuNotFound: number;
+}
+
 export interface ProteinReport {
   radiusBu: number;
   days: ProteinDay[];
+  /** Round 10: arrivals by kind; the game days the report covers (for loads per gd). */
+  arrivalsByKind?: Record<string, ArrivalKind>;
+  arrivalDays?: number;
   totals: Omit<ProteinDay, 'day' | 'standP' | 'knownP' | 'sourcesP' | 'patchPrey' | 'patchesKnown' | 'storesP' | 'foragers' | 'waiting' | 'waitingKnowP' | 'needP' | 'wP' | 'wC' | 'roomP'> & {
     meanStandP: number; meanKnownP: number;
   };
@@ -77,6 +95,8 @@ export class ProteinLedger {
   private readonly lastP = new Map<number, number>();
   private readonly lastPhase = new Map<number, number>();
   private readonly ids: number[] = [];
+  /** Round 10: protein sources that appeared in the radius, by source id. */
+  private readonly arrivals = new Map<number, Arrival>();
   /** Patch prey some ant of the colony has chased (creature ids). */
   private readonly chased = new Set<number>();
 
@@ -88,6 +108,12 @@ export class ProteinLedger {
     sim.events.on('delivery', (e) => {
       if (e.colonyId !== this.col) return;
       bump(this.cur.delivered, e.kind, e.p); this.cur.deliveredP += e.p;
+      const a = this.arrivals.get(e.sourceId);
+      if (a) a.homeP += e.p;
+    });
+    sim.events.on('food-source-discovered', (e) => {
+      const a = this.arrivals.get(e.sourceId);
+      if (a && e.colonyId === this.col && a.foundGd < 0) a.foundGd = (sim.state.tick - a.tick) / TICKS_PER_DAY;
     });
     sim.events.on('feed', (e) => {
       if (!mine(e.giverId)) return;
@@ -108,12 +134,18 @@ export class ProteinLedger {
     sim.events.on('food-source-spawned', (e) => {
       const s = sim.stores.sources.get(e.sourceId);
       const p = s ? this.heldP(s) : 0;
-      if (s && p > 0 && this.inRadius(s.pos)) { this.cur.arrivedP += p; this.lastP.set(s.id, p); }
+      if (s && p > 0 && this.inRadius(s.pos)) {
+        this.cur.arrivedP += p; this.lastP.set(s.id, p);
+        const kind = e.variant ? `${e.kind}:${e.variant}` : e.kind;
+        this.arrivals.set(s.id, { id: s.id, kind, p, day: this.cur.day, tick: sim.state.tick, foundGd: isDiscoveredBy(sim, s, this.col) ? 0 : -1, homeP: 0, fate: 'standing', nearestBu: Infinity });
+      }
     });
     sim.events.on('food-source-removed', (e) => {
       const p = this.lastP.get(e.sourceId);
       if (p === undefined) return;
       bump(this.cur.gone, e.cause, p); this.lastP.delete(e.sourceId);
+      const a = this.arrivals.get(e.sourceId);
+      if (a) a.fate = e.cause;
     });
   }
 
@@ -188,6 +220,7 @@ export class ProteinLedger {
       if (isDiscoveredBy(sim, s, this.col)) known += p;
     }
     d.standP += stand; d.knownP += known; d.sourcesP += n;
+    this.sampleNearest();
     const e = this.entrancePos(), bu = sim.world.bu;
     let prey = 0, kn = 0;
     if (e) {
@@ -218,6 +251,41 @@ export class ProteinLedger {
     }
   }
 
+  /** Nearest approach of any outside worker of the colony to each standing arrival not yet found (round 10). */
+  private sampleNearest(): void {
+    const sim = this.sim, bu = sim.world.bu;
+    const open: Arrival[] = [];
+    for (const a of this.arrivals.values()) if (a.fate === 'standing' && a.foundGd < 0) open.push(a);
+    if (open.length === 0) return;
+    for (const ant of sim.stores.ants.list) {
+      if (!ant.alive || ant.colony !== this.col || ant.nestId >= 0 || !isWorkerCaste(ant.caste)) continue;
+      for (const a of open) {
+        const s = sim.stores.sources.get(a.id);
+        if (!s) continue;
+        const dx = ant.pos.x - s.pos.x, dz = ant.pos.z - s.pos.z, dBu = Math.sqrt(dx * dx + dz * dz) / bu;
+        if (dBu < a.nearestBu) a.nearestBu = dBu;
+      }
+    }
+  }
+
+  private arrivalSummary(): Record<string, ArrivalKind> {
+    const by = new Map<string, Arrival[]>();
+    for (const a of this.arrivals.values()) { const l = by.get(a.kind) ?? []; l.push(a); by.set(a.kind, l); }
+    const med = (xs: number[]) => { const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b); return v.length ? round(v[Math.floor(v.length / 2)]) : -1; };
+    const out: Record<string, ArrivalKind> = {};
+    for (const [k, l] of [...by.entries()].sort()) {
+      const found = l.filter((a) => a.foundGd >= 0), fates: Record<string, number> = {};
+      for (const a of l) bump(fates, a.fate, round(a.p));
+      out[k] = {
+        n: l.length, arrivedP: round(l.reduce((x, a) => x + a.p, 0)), foundN: found.length,
+        foundP: round(found.reduce((x, a) => x + a.p, 0)), medianFoundGd: med(found.map((a) => a.foundGd)),
+        homeP: round(l.reduce((x, a) => x + a.homeP, 0)), fates,
+        medianNearestBuNotFound: med(l.filter((a) => a.foundGd < 0).map((a) => a.nearestBu)),
+      };
+    }
+    return out;
+  }
+
   private closeDay(): void {
     const d = this.cur, k = Math.max(1, this.samples);
     d.standP /= k; d.knownP /= k; d.sourcesP /= k; d.patchPrey /= k;
@@ -246,7 +314,7 @@ export class ProteinLedger {
     };
     const nd = Math.max(1, this.rows.length);
     return {
-      radiusBu: FUNNEL_RADIUS_BU, days,
+      radiusBu: FUNNEL_RADIUS_BU, days, arrivalsByKind: this.arrivalSummary(), arrivalDays: this.rows.length,
       totals: {
         meanStandP: r(sum((d) => d.standP) / nd), meanKnownP: r(sum((d) => d.knownP) / nd),
         arrivedP: sum((d) => d.arrivedP), gone: merge((d) => d.gone), tripsToP: sum((d) => d.tripsToP), tripsToPatch: sum((d) => d.tripsToPatch),
