@@ -12,7 +12,7 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import { liveInputs, missingType } from '@/sim/nest/architect/needs';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { depositFood, poolSpace } from './index';
-import { needRates } from './needs';
+import { FORAGE_RATE_P_KEY, PROSPECTIVE_P_KEY, needRates } from './needs';
 import { measureLarder } from './stores';
 
 /** 10 workers, a royal chamber with the queen, a nursery with 6 larvae (or pupae); no food chamber unless asked. */
@@ -52,8 +52,10 @@ describe('the larder of a small nest (R21)', () => {
 
   it('(a) the larder is sized on what the colony eats, not on its own spoilage', () => {
     const { col, sim } = smallNest();
-    col.needs.rateP = 10; // a need of 10 P/gd of which 8 is the pile rotting
+    col.needs.rateP = 10; // GDD 02 §5.5's need of 10 P/gd of which 8 is the pile rotting ...
     col.core!.acc['inst.spoilP'] = 8;
+    col.core!.acc[FORAGE_RATE_P_KEY] = 2; // ... and the forage side's rate without the rot (R35 point 4)
+    col.core!.acc[PROSPECTIVE_P_KEY] = 0;
     measureLarder(sim, col);
     expect(col.core!.larderP).toBeCloseTo(Math.max(LARDER_MIN_LOADS, 2), 9);
   });

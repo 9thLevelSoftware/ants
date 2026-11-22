@@ -96,14 +96,13 @@ export function measureLarder(sim: Sim, col: Colony): void {
     core.larderC = 0; core.larderP = 0; core.larderChamberId = -1;
     return;
   }
-  // the colony's own need: the protein need rate counts spoilage (economy.ts), and spoilage grows with the pile, so a
-  // larder sized on it would grow with its own rot (seen on the round-4 nest bench: P stores 89 loads, the top-up
-  // chasing a need that was mostly the larder spoiling)
-  // the forage side's rates (R32b): the prospective protein demand makes room for the eggs the queen could lay
+  // the colony's own need on the forage side's rates: no spoilage in them (R35 point 4; spoilage grows with the pile,
+  // so a larder sized on it would grow with its own rot: round-4 nest bench, P stores 89 loads, the top-up chasing a
+  // need that was mostly the larder spoiling), and R32b's prospective protein demand makes room for the eggs the queen
+  // could lay
   const need = forageRates(col);
-  const spoilP = core.acc['inst.spoilP'] ?? 0;
   core.larderC = Math.max(LARDER_MIN_LOADS, need.c * LARDER_NEED_GD);
-  core.larderP = Math.max(LARDER_MIN_LOADS, Math.max(0, need.p - spoilP) * LARDER_NEED_GD);
+  core.larderP = Math.max(LARDER_MIN_LOADS, need.p * LARDER_NEED_GD);
   core.larderChamberId = room.id;
 }
 

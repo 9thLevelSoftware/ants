@@ -33,8 +33,10 @@ export interface ColonySimOptions {
   /** Extra systems run after the colony systems (scripted behaviour fakes). */
   extra?: readonly System[];
   climate?: ClimateOverride;
-  /** Start day of summer (default 2 = doy 9), hour 0. */
+  /** Start day of summer (default 2 = doy 9), hour 0 (of `season` when that is given). */
   summerDay?: number;
+  /** Start season (default summer). */
+  season?: 'spring' | 'summer' | 'autumn';
   /** Leave the allocation systems out (tests that pin tasks by hand). */
   noAllocation?: boolean;
 }
@@ -44,7 +46,7 @@ export function makeColonySim(o: ColonySimOptions = {}): Sim {
   const sim = makeTestSim({
     seed: o.seed ?? 1,
     systems: [...COLONY_SYSTEMS.filter((s) => !o.noAllocation || (s !== allocationSystem && s !== taskReevalSystem)), ...(o.extra ?? [])],
-    config: { startSeason: 'summer', startDayOfSeason: o.summerDay ?? 2, startHour: 0 },
+    config: { startSeason: o.season ?? 'summer', startDayOfSeason: o.summerDay ?? 2, startHour: 0 },
   });
   setClimateOverride(sim, { chamberTemp: () => 25, pointTemp: () => 25, rh: () => 0.8, surfaceActivity: () => 1, ...o.climate });
   return sim;

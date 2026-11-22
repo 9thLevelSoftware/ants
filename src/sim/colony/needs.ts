@@ -12,8 +12,14 @@ import { clamp } from '@/core/math/scalar';
 /** Instantaneous need rates of one physiology cycle, loads/gd. */
 export interface NeedInputs {
   rateC: number;
+  /** GDD 02 §5.5 needRateP: queen + laying + larvae + the store's P spoilage. */
   rateP: number;
+  /** R35 point 4: the same without the spoilage term (the forage side's protein rate). Defaults to rateP. */
+  rateForageP?: number;
 }
+
+/** core.acc key: R35's forage-side protein rate EMA (needRateP without the store's spoilage), loads/gd. */
+export const FORAGE_RATE_P_KEY = 'need.rateForageP';
 
 /** Updates the need-rate EMAs with dtGd of new data and recomputes needC, needP and the protein share. */
 export function updateNeeds(col: Colony, inst: NeedInputs, dtGd: number): void {
@@ -24,6 +30,11 @@ export function updateNeeds(col: Colony, inst: NeedInputs, dtGd: number): void {
   else n.rateC += (inst.rateC - n.rateC) * k;
   if (n.rateP <= 0) n.rateP = inst.rateP;
   else n.rateP += (inst.rateP - n.rateP) * k;
+  const acc = col.core?.acc;
+  if (acc) {
+    const f = inst.rateForageP ?? inst.rateP, prev = acc[FORAGE_RATE_P_KEY] ?? 0;
+    acc[FORAGE_RATE_P_KEY] = prev <= 0 ? f : prev + (f - prev) * k;
+  }
   refreshNeedIndices(col);
 }
 
@@ -36,15 +47,18 @@ export function needRates(col: Colony): { c: number; p: number } {
 export const PROSPECTIVE_P_KEY = 'need.prospP';
 
 /**
- * Need rates of the forage side (ruling R32b): the protein rate plus the prospective demand of the laying the gates
- * withhold, so the colony forages for the brood its queen could have, not only the brood it has. Read by the desired
- * protein share, the need indices, the intake target, the scouts' shortfall and the protein larder. The laying gates
- * and the starvation stage keep the plain rates (daysOfStock): counting the eggs not yet laid there would shut
+ * Need rates of the forage side (rulings R32b, R35): the protein rate is the forage side's own (GDD 02 §5.5's needRateP
+ * without the store's spoilage term, R35 point 4: a stocked larder is no appetite) plus the prospective demand of the
+ * laying the gates withhold, so the colony forages for the brood its queen could have. Read by the desired protein
+ * share, the need indices, the intake target, the scouts' shortfall and the protein larder. The laying gates and the
+ * starvation stage keep the plain rates (daysOfStock, with spoilage): counting the eggs not yet laid there would shut
  * laying by itself.
  */
 export function forageRates(col: Colony): { c: number; p: number } {
   const r = needRates(col);
-  return { c: r.c, p: r.p + (col.core?.acc[PROSPECTIVE_P_KEY] ?? 0) };
+  const acc = col.core?.acc;
+  const plainP = Math.max(NEED_RATE_P_MIN, acc?.[FORAGE_RATE_P_KEY] ?? col.needs.rateP);
+  return { c: r.c, p: plainP + (acc?.[PROSPECTIVE_P_KEY] ?? 0) };
 }
 
 export function daysOfStock(col: Colony): { c: number; p: number } {
@@ -91,11 +105,14 @@ export function refreshNeedIndices(col: Colony): void {
   col.needs.proteinDeficit = col.needs.needP >= PROTEIN_DEFICIT_NEED;
 }
 
-/** Nutrient weights foragers use to score sources (GDD 02 §5.5). */
+/**
+ * Nutrient weights foragers use to score sources (GDD 02 §5.5). R35 point 3: a colony short of sugar values sugar
+ * whatever its protein demand, wC = base + needC x max(1 - sP, needC) x gain (at needC 1: base + gain for any sP).
+ */
 export function nutrientWeights(col: Colony): { wC: number; wP: number } {
-  const sP = col.needs.sP;
+  const sP = col.needs.sP, needC = col.needs.needC;
   return {
-    wC: NUTRIENT_W_BASE + col.needs.needC * (1 - sP) * NUTRIENT_W_GAIN,
+    wC: NUTRIENT_W_BASE + needC * Math.max(1 - sP, needC) * NUTRIENT_W_GAIN,
     wP: NUTRIENT_W_BASE + col.needs.needP * sP * NUTRIENT_W_GAIN,
   };
 }
@@ -113,9 +130,13 @@ export function recruitAcceptance(col: Colony, cPerLoad: number, pPerLoad: numbe
   return clamp(RECRUIT_ACCEPT_BASE + (RECRUIT_ACCEPT_GAIN * lead) / Math.max(w.wC, w.wP), RECRUIT_ACCEPT_BASE, 1);
 }
 
-/** Loads per gd the colony should take in (GDD 02 §5.5 `intakeTarget`). */
-export function intakeTarget(col: Colony): number {
+/**
+ * Loads per gd the colony should take in (GDD 02 §5.5 `intakeTarget`). `prospective` false: without R32b's prospective
+ * protein demand (the allocation serves that part of the forage demand last, R35 point 5).
+ */
+export function intakeTarget(col: Colony, prospective = true): number {
   const r = forageRates(col);
+  if (!prospective) r.p -= col.core?.acc[PROSPECTIVE_P_KEY] ?? 0;
   const t = targetDays(col);
   const s = col.stores;
   return r.c + r.p + Math.max(0, t.c * r.c - s.c) / STOCK_REFILL_GD + Math.max(0, t.p * r.p - s.p) / STOCK_REFILL_GD;

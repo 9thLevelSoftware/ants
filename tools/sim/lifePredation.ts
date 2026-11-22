@@ -36,9 +36,11 @@ export class PredationRecorder {
   constructor(private readonly sim: Sim) {
     this.col = sim.state.player.colonyId;
     this.t0 = sim.state.tick;
+    // the killing strike's event follows the death, when the ant is already gone from the store: record every
+    // ant's last attacker (the death record filters by colony)
     const by = (antId: number, creatureId: number) => {
       const a = sim.stores.ants.get(antId);
-      if (!a || a.colony !== this.col) return;
+      if (a && a.colony !== this.col) return;
       this.lastBy.set(antId, creatureId);
       const c = sim.stores.creatures.get(creatureId);
       if (c) this.who.set(creatureId, { kind: c.kind, origin: c.territoryId < 0 ? 'visitor' : isColonyRangeTerritory(sim, c.territoryId) ? 'colony-range' : 'resident' });

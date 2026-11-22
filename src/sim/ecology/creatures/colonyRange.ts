@@ -130,3 +130,18 @@ export function anchorDist2(anchor: Vec3 | null, p: Vec3): number {
   if (!anchor) return Infinity;
   return (p.x - anchor.x) ** 2 + (p.z - anchor.z) ** 2;
 }
+
+/**
+ * Ruling R37 (direction 23 item 3; a defect of the R25 ramp): the share of a colony-range hunter's strikes on the
+ * player colony's workers that land, = the colony-size ramp now. R25 multiplied only the siting draw, a fixed draw per
+ * world and kind: at a ramp of 0.17 (15 workers) one world in six got a full-strength hunter where the colony walks, and
+ * suburban-garden #2 lost 6 of 15 workers in one day to one colony-range ant-spider (sweep 9). The ramp now also
+ * scales what a sited hunter takes, so a founding-year colony meets a hunter that mostly misses; at the upper worker
+ * count (1) nothing changes. Residents of worldgen's own territories and visitors are not ramped.
+ */
+export function colonyRangeStrikeShare(sim: Sim, c: { territoryId: number }, antColony: number): number {
+  if (c.territoryId < 0 || !isColonyRangeTerritory(sim, c.territoryId)) return 1;
+  const col = sim.state.colonies.find((x) => x.alive && x.isPlayer);
+  if (!col || col.id !== antColony) return 1;
+  return predationRamp(sim, playerWorkers(sim));
+}

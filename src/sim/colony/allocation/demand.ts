@@ -27,6 +27,12 @@ import { typicalForager, unitsPerTripOf } from '../tripLoad';
 
 const T = (t: Task): number => ti(t);
 
+/**
+ * core.acc key: worker-equivalents of the forage demand that only R32b's prospective protein demand asks for (R35
+ * point 5); the allocation fills them after every other task (targets.ts autoTargets).
+ */
+export const PROSPECTIVE_FORAGE_KEY = 'alloc.prospForage';
+
 /** Known foraging capacity: forager-equivalents and loads per gd (C + P, and each) the known sources can absorb. */
 export interface KnownCapacity { ants: number; loads: number; loadsC: number; loadsP: number }
 
@@ -184,9 +190,10 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
   const q = queenOf(sim, col);
   d[T('queen-care')] = q && !q.queen?.founding ? Math.min(QUEEN_CARE_MAX, QUEEN_CARE_BASE + Math.floor(n / QUEEN_CARE_PER_WORKERS)) : 0;
 
-  const intake = intakeTarget(col);
   const known = knownCapacity(sim, col);
-  d[T('forage')] = Math.min(intake / Math.max(col.yieldPerForager, 1e-6), known.ants + 1);
+  const perForager = Math.max(col.yieldPerForager, 1e-6);
+  const forageFull = Math.min(intakeTarget(col) / perForager, known.ants + 1);
+  d[T('forage')] = Math.min(intakeTarget(col, false) / perForager, known.ants + 1);
   const foragers = cen.byTask[T('forage')];
   const items = itemCounts(sim).byColony.get(col.id);
   d[T('store')] = (foragers >= 1 ? Math.max(1, STORE_PER_FORAGER * foragers) : 0) + (items ? items.spoiled / SPOILED_ITEMS_PER_STORE : 0);
@@ -196,6 +203,10 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
   smallColonyFloor(sim, col, n, d);
+  // R35 point 5: the prospective part of the forage demand, on top of the plain demand and the small-colony floor
+  const plainForage = d[T('forage')];
+  d[T('forage')] = Math.max(plainForage, forageFull);
+  core.acc[PROSPECTIVE_FORAGE_KEY] = d[T('forage')] - plainForage;
   // GDD 02 §6.2: Σ tenderSlots over the colony's workable herds (the plants module owns the herd rules)
   d[T('tend')] = herdTendDemand(sim, col.id);
   d[T('dig')] = digDemand(sim, col);

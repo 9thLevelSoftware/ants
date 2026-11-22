@@ -150,12 +150,13 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   accSet(core, 'cyc.eggs', 0);
   const rateC = accGet(core, 'inst.upkeepC') + accGet(core, 'inst.alateC') + accGet(core, 'inst.queenC') + accGet(core, 'inst.larvaC');
   // Laying protein uses the realised laying rate (GDD 02 §15 worked example), see the report on §5.5.
-  const rateP = accGet(core, 'inst.queenP') + EGG_COST_P * core.layingRate + accGet(core, 'inst.larvaP') + sp.p;
+  const rateForageP = accGet(core, 'inst.queenP') + EGG_COST_P * core.layingRate + accGet(core, 'inst.larvaP');
+  const rateP = rateForageP + sp.p; // GDD 02 §5.5 counts the store's spoilage; the forage side does not (R35 point 4)
   updateProteinSupply(sim, col, core, def, dtGd);
   accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? autumnStockMult(sim, col) : 1);
-  // R32b: the forage side asks protein for the eggs the gates withhold (read through needs.ts forageRates)
+  // R32b / R35: the forage side asks protein for the eggs the gates withhold (read through needs.ts forageRates)
   accSet(core, PROSPECTIVE_P_KEY, prospectiveProteinRate(sim, col));
-  updateNeeds(col, { rateC, rateP }, dtGd);
+  updateNeeds(col, { rateC, rateP, rateForageP }, dtGd);
   measureLarder(sim, col); // after the needs: the larder holds a game day of this cycle's need (R21)
   refreshCapacity(col);
   col.stores.inCrops.c = accGet(core, 'inst.cropC');

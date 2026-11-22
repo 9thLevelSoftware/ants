@@ -13,7 +13,10 @@ import {
   QUEEN_RESERVE_REFILL, QUEEN_STARVE_GD, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P, WORKER_CAP_TAPER, LOAD_EPS,
   DEFAULT_SEASON_LENGTH_DAYS, SMALL_COLONY_N, WINTER_RESERVE_FROM_D28, WINTER_RESERVE_MULT,
   EGGS_PER_NURSE, NURSE_FEED_CAPACITY, PUPAE_PER_NURSE, LARVA_P_REQ,
+  PROSPECTIVE_P_PER_WORKER, PROSPECTIVE_WINTER_FROM_DOY, PROSPECTIVE_WINTER_RAMP_DAYS,
 } from '@/sim/balance';
+import { WINTER_STORES_TARGET_MARGIN } from '@/sim/balance/lifecycle';
+import { winterStoresNeed } from './overwinter/storesNeed';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { killAnt, spawnBrood } from '@/sim/entities';
 import { currentDayOfYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY } from '@/sim/time';
@@ -147,19 +150,35 @@ export function layingReleaseShare(sim: Sim, col: Colony): number {
 }
 
 /**
- * Ruling R32b: the protein the colony should forage for the laying its gates withhold, loads/gd: LARVA_P_REQ per egg
- * of the laying potential (season, temperature, health, size and the R29 care factor already in it, so it never asks
- * for more than the nurses could raise; 0 outside the laying season) less the share the carers release. Carbohydrate
- * comes first: 0 while the carbohydrate in store is under the adults' need for the days of stock target. Feeds the
- * forage side only (needs.ts forageRates), never the laying gates.
+ * Ruling R32b as amended by R35 (direction 22): the protein the colony should forage for the laying its gates withhold,
+ * loads/gd. LARVA_P_REQ per egg of the laying potential (season, temperature, health, size and the R29 care factor
+ * already in it; 0 outside the laying season) less the share the carers release, then:
+ *  - bounded by the workforce: at most PROSPECTIVE_P_PER_WORKER x workers;
+ *  - scaled by how far the carbohydrate in store stands over its stock target: clamp(daysC / targetDays.c - 1, 0, 1)
+ *    (nothing at 1 x the target, all of it at 2 x; daysC on the plain C rate);
+ *  - 0 while the carbohydrate in store is under the path to the winter need (winterPathC).
+ * Feeds the forage side only (needs.ts forageRates), never the laying gates.
  */
 export function prospectiveProteinRate(sim: Sim, col: Colony): number {
-  const acc = coreOf(col).acc;
-  const potential = acc['lay.potential'] ?? 0;
+  const core = coreOf(col);
+  const potential = core.acc['lay.potential'] ?? 0;
   if (potential <= 0) return 0;
-  const adultC = (acc['inst.upkeepC'] ?? 0) + (acc['inst.queenC'] ?? 0);
-  if (col.stores.c < adultC * targetDays(col).c) return 0;
-  return LARVA_P_REQ * potential * (1 - layingReleaseShare(sim, col));
+  const carbRamp = clamp(daysOfStock(col).c / targetDays(col).c - 1, 0, 1);
+  if (carbRamp <= 0 || col.stores.c < winterPathC(sim, col)) return 0;
+  const withheld = LARVA_P_REQ * potential * (1 - layingReleaseShare(sim, col));
+  return Math.min(withheld, PROSPECTIVE_P_PER_WORKER * core.workers) * carbRamp;
+}
+
+/**
+ * R35 point 2: carbohydrate the colony should hold by now on its way to the winter, loads: R27's winter need x
+ * WINTER_STORES_TARGET_MARGIN x a ramp over the year (0 until PROSPECTIVE_WINTER_FROM_DOY, 1 after
+ * PROSPECTIVE_WINTER_RAMP_DAYS more days).
+ */
+export function winterPathC(sim: Sim, col: Colony): number {
+  const doy = currentDayOfYear(sim.state);
+  const ramp = clamp((doy - PROSPECTIVE_WINTER_FROM_DOY) / PROSPECTIVE_WINTER_RAMP_DAYS, 0, 1);
+  if (ramp <= 0) return 0;
+  return winterStoresNeed(sim, col).needC * WINTER_STORES_TARGET_MARGIN * ramp;
 }
 
 /** P share of a queen-carer's ration (GDD 02 §5.4.2), for the released share of the laying potential. */

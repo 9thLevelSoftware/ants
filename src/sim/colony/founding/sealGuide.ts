@@ -30,6 +30,11 @@ import { cavityEntrances } from './dig';
 import { aimReachMm } from './plugPredict';
 import { SEAL_STRATEGIES, entranceToSeal, inSealReach, planSeal, plugKeepsQueenInside, queenInCavity, type SealPlan } from './sealPlan';
 
+/** Length of a vector (Math.hypot is not used in the sim: its result may differ between engines). */
+function len(x: number, y: number, z = 0): number {
+  return Math.sqrt(x * x + y * y + z * z);
+}
+
 /** ant.bb key the seal-entrance primitive sets when a press was handed to this guide (src/sim/ants/actions/defs/dig.ts). */
 const SEAL_DEFERRED_KEY = 'act.sealDefer';
 
@@ -111,8 +116,8 @@ function setIntent(sim: Sim, q: Ant, d: Vec3 | null): void {
 function playerTookOver(sim: Sim, q: Ant): boolean {
   if (!possessed(sim, q)) return false;
   const d = sim.state.player.intent.dir;
-  if (Math.hypot(d.x, d.y, d.z) <= INPUT_DEADZONE) return false;
-  return Math.hypot(d.x - bbGet(q, SG.dx, 0), d.y - bbGet(q, SG.dy, 0), d.z - bbGet(q, SG.dz, 0)) > INPUT_DEADZONE;
+  if (len(d.x, d.y, d.z) <= INPUT_DEADZONE) return false;
+  return len(d.x - bbGet(q, SG.dx, 0), d.y - bbGet(q, SG.dy, 0), d.z - bbGet(q, SG.dz, 0)) > INPUT_DEADZONE;
 }
 
 function stop(sim: Sim, q: Ant, state: number): void {
@@ -153,7 +158,7 @@ function plugHere(sim: Sim, q: Ant, aim: Vec3): boolean {
   // the aim within her plug reach (a little inside it: the command starts the plug at the next tick)
   const e = entranceToSeal(sim, nest);
   const reach = aimReachMm(sim, q.lengthBu * sim.world.bu) - SEAL_COMMAND_MARGIN_BU * sim.world.bu;
-  if (!e || Math.hypot(aim.x - q.pos.x, aim.y - q.pos.y, aim.z - q.pos.z) > reach) return false;
+  if (!e || len(aim.x - q.pos.x, aim.y - q.pos.y, aim.z - q.pos.z) > reach) return false;
   // and settled (not sliding or falling: on a steep wall she may still be moving when the input stops)
   if (q.medium === 'air' || q.speed > SEAL_SETTLED_SPEED_BU_S * sim.world.bu) return false;
   // stand still for it: movement input would cancel the plug (GDD 01 §7.2 movement interrupt)
@@ -262,10 +267,10 @@ function steer(sim: Sim, q: Ant, nest: Nest, to: Vec3): void {
   let best: Vec3 | null = null, bestT = 0;
   for (const k of route) {
     keyPos(sim, k, p);
-    const d = Math.hypot(p.x - q.pos.x, p.y - q.pos.y, p.z - q.pos.z);
+    const d = len(p.x - q.pos.x, p.y - q.pos.y, p.z - q.pos.z);
     if (d < SEAL_WAYPOINT_BU * bu - v) continue;
     const u = unit(q.pos, p), n = u.x * q.up.x + u.y * q.up.y + u.z * q.up.z;
-    const t = { x: u.x - n * q.up.x, y: u.y - n * q.up.y, z: u.z - n * q.up.z }, tl = Math.hypot(t.x, t.y, t.z);
+    const t = { x: u.x - n * q.up.x, y: u.y - n * q.up.y, z: u.z - n * q.up.z }, tl = len(t.x, t.y, t.z);
     if (tl > bestT) { bestT = tl; best = { x: t.x / tl, y: t.y / tl, z: t.z / tl }; }
     if (tl >= SEAL_WAYPOINT_TANGENT) break;
   }
@@ -277,7 +282,7 @@ function diff(a: Vec3, b: Vec3): [number, number, number] {
 }
 
 function unit(from: Vec3, to: Vec3): Vec3 {
-  const x = to.x - from.x, y = to.y - from.y, z = to.z - from.z, l = Math.hypot(x, y, z) || 1;
+  const x = to.x - from.x, y = to.y - from.y, z = to.z - from.z, l = len(x, y, z) || 1;
   return { x: x / l, y: y / l, z: z / l };
 }
 
@@ -340,7 +345,7 @@ function wayIn(sim: Sim, nest: Nest): Vec3 | null {
 function nearestOpening(sim: Sim, nest: Nest, q: Ant): Entrance | null {
   let best: Entrance | null = null, bestD = Infinity;
   for (const e of cavityEntrances(sim, nest)) {
-    const d = Math.hypot(e.pos.x - q.pos.x, e.pos.y - q.pos.y, e.pos.z - q.pos.z);
+    const d = len(e.pos.x - q.pos.x, e.pos.y - q.pos.y, e.pos.z - q.pos.z);
     if (d < bestD) { best = e; bestD = d; }
   }
   return best;
@@ -372,7 +377,7 @@ function backTick(sim: Sim, q: Ant, nest: Nest): void {
     // possessed, stood still for 5600 ticks and the seal never finished; suburban-garden #4 at the start pose): no
     // progress toward the way in over SEAL_STALL_TICKS, and she bites toward it (loose plug soil gives way), then walks
     // on. Only in the throat of her opening: a bite from the ground beside it would start a new hole.
-    const d = Math.hypot(way.x - q.pos.x, way.y - q.pos.y, way.z - q.pos.z);
+    const d = len(way.x - q.pos.x, way.y - q.pos.y, way.z - q.pos.z);
     if (t === 0 || bbGet(q, SG.lx, -1) < 0) bbSet(q, SG.lx, d);
     else if (t % SEAL_STALL_TICKS === 0) {
       const before = bbGet(q, SG.lx, d);
@@ -390,7 +395,7 @@ function backTick(sim: Sim, q: Ant, nest: Nest): void {
   if (!e) { stop(sim, q, STUCK); return; }
   // over the opening itself (on the fill that shut her out) first, never anywhere in the throat sphere around it: a
   // bite from the ground beside the opening would start a new hole; from there on down the cut while in the throat
-  const over = Math.hypot(q.pos.x - e.pos.x, q.pos.z - e.pos.z) <= e.radius + SEAL_STAND_TOL_BU * sim.world.bu;
+  const over = len(q.pos.x - e.pos.x, q.pos.z - e.pos.z) <= e.radius + SEAL_STAND_TOL_BU * sim.world.bu;
   if (over) bbSet(q, SG.mouth, 1);
   if (bbGet(q, SG.mouth, 0) !== 1 || !inThroatOf(sim, q, e)) { bbSet(q, SG.mouth, 0); headFor(sim, q, e.pos, t === 0); return; }
   const face = innerFace(sim, nest, e.pos);
@@ -408,7 +413,7 @@ function innerFace(sim: Sim, nest: Nest, p: Vec3): Vec3 {
   let best = floodStart(sim, nest), bestD = Infinity;
   for (const k of floodCavity(sim, floodStart(sim, nest)).cavity.keys()) {
     keyPos(sim, k, at);
-    const d = Math.hypot(at.x - p.x, at.y - p.y, at.z - p.z);
+    const d = len(at.x - p.x, at.y - p.y, at.z - p.z);
     if (d < bestD) { bestD = d; best = { x: at.x, y: at.y, z: at.z }; }
   }
   return best;
@@ -417,7 +422,7 @@ function innerFace(sim: Sim, nest: Nest, p: Vec3): Vec3 {
 function walkTick(sim: Sim, q: Ant, nest: Nest): void {
   const s = { x: bbGet(q, SG.sx, q.pos.x), y: bbGet(q, SG.sy, q.pos.y), z: bbGet(q, SG.sz, q.pos.z) };
   const t = sim.state.tick - bbGet(q, SG.since, sim.state.tick);
-  const d = Math.hypot(s.x - q.pos.x, s.y - q.pos.y, s.z - q.pos.z);
+  const d = len(s.x - q.pos.x, s.y - q.pos.y, s.z - q.pos.z);
   const arrived = d <= SEAL_STAND_TOL_BU * sim.world.bu || (!possessed(sim, q) && q.nav.status === 'arrived');
   if (arrived) {
     if (!hasPellet(sim, q)) {
@@ -436,7 +441,7 @@ function walkTick(sim: Sim, q: Ant, nest: Nest): void {
     return;
   }
   // on the way, a pose that already reaches a plug across the passage is taken (the walker rarely settles exactly)
-  if (t % SEAL_OPPORTUNITY_TICKS === 0 && hasPellet(sim, q) && Math.hypot(...diff(q.pos, aimOf(q))) <= aimReachMm(sim, q.lengthBu * sim.world.bu)) {
+  if (t % SEAL_OPPORTUNITY_TICKS === 0 && hasPellet(sim, q) && len(...diff(q.pos, aimOf(q))) <= aimReachMm(sim, q.lengthBu * sim.world.bu)) {
     const p = planNow(sim, q);
     if (p && p.here.ok && plugHere(sim, q, p.aim)) return;
   }

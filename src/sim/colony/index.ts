@@ -107,6 +107,9 @@ export function requestTask(sim: Sim, ant: Ant, task: Task, reason: ReasonCode):
   return allocRequestTask(sim, ant, task, reason);
 }
 
+/** Whether requestTask would give her this task now (caste weight, age band, health; no side effects). */
+export { mayTakeTask } from './allocation';
+
 /** Current demand for a task in worker-equivalents (GDD 02 §6.2), from the last allocation pass. */
 export function colonyDemand(sim: Sim, colonyId: number, task: Task): number {
   const c = sim.stores.colonies.get(colonyId);

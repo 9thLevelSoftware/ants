@@ -78,14 +78,30 @@ export function apportion(total: number, weights: number[]): number[] {
   return out;
 }
 
-/** Auto targets (GDD 02 §6.3). `hygiene`: brood lies among waste (withHygiene). */
-function autoTargets(demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean): void {
+/**
+ * Auto targets (GDD 02 §6.3). `hygiene`: brood lies among waste (withHygiene). `prospForage`: the part of the forage
+ * demand that is R32b's prospective protein demand (R35 point 5): it is served last, from the workers no other task
+ * wants, so the head-count of every other task (the herds' tenders first) is the same with and without it.
+ */
+function autoTargets(
+  demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean, prospForage: number,
+): void {
+  const fi = ti('forage');
+  const extra = Math.max(0, Math.min(prospForage, demand[fi]));
+  demand[fi] -= extra;
+  const free = new Free(w.all, w.adult, w.outside);
+  planTargets(demand, free, threat, target, hygiene);
+  demand[fi] += extra;
+  if (extra > 0) target[fi] += free.take(poolOfTask('forage'), Math.max(0, Math.round(demand[fi]) - target[fi]));
+}
+
+/** GDD 02 §6.3's two passes: full demands when they fit, else half of each in order, then the rest in order. */
+function planTargets(demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean): void {
   let sum = 0;
   for (const t of PRIORITY) sum += demand[ti(t)];
   const base = threat ? PRIORITY_THREAT : PRIORITY;
   const order = hygiene ? withHygiene(base) : base;
-  const free = new Free(w.all, w.adult, w.outside);
-  if (sum <= w.all) {
+  if (sum <= free.room('all')) {
     for (const t of order) target[ti(t)] = free.take(poolOfTask(t), Math.round(demand[ti(t)]));
     return;
   }
@@ -139,13 +155,13 @@ function manualTargets(
  */
 export function computeTargets(
   col: Colony, available: number, threat: boolean,
-  workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false,
+  workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false, prospForage = 0,
 ): number {
   const target = col.alloc.target;
   target.fill(0);
   const a = col.directives.allocation;
   const w = { ...workforce, all: available };
-  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene);
+  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage);
   else manualTargets(col.alloc.demand, w, a, col.directives.taskShares, target);
   let assigned = 0;
   for (let i = 0; i < target.length; i++) assigned += target[i];

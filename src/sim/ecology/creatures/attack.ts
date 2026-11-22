@@ -18,6 +18,7 @@ import { conditions } from './conditions';
 import { noteDangerEvent, noteDangerFor } from './danger';
 import { ports } from './ports';
 import { predatorStruck } from './alerts';
+import { colonyRangeStrikeShare } from './colonyRange';
 
 const TICK_S = 1 / TICKS_PER_SECOND;
 /** ant.bb key (namespaced) holding the tick until which the ant cannot be struck again (§2.4: 1 s after freedom). */
@@ -90,6 +91,11 @@ export function landStrike(sim: Sim, c: Creature, seize: boolean, dmgOverride?: 
   const lv = conditions(sim).levers;
   if (hit && !isPossessed(sim, ant) && dist(ant.pos, c.pos) <= detectRangeMm(sim, c, ant)) {
     if (rngFloat(rng(sim)) < lv.aiDodgeP) hit = false;
+  }
+  // R37: a colony-range hunter's strike on a small player colony lands at the colony-size ramp's share
+  if (hit) {
+    const share = colonyRangeStrikeShare(sim, c, ant.colony);
+    if (share < 1 && rngFloat(rng(sim)) >= share) hit = false;
   }
   // the predator lands where it aimed (a short lunge); a hit holds the ant at its mouth
   lungeTo(sim, c, aim);

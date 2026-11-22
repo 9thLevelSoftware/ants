@@ -4,12 +4,14 @@
 // the shaft, lays four batches with lay-egg and presses "Tend the brood"; a relay clutch after a total loss is laid
 // the same way. The run goes through the lapse and the hand-over until a first worker is out on the surface.
 //
-// Required (per archetype): first workers out of the nest on all but at most one of the seeds whose start reads Fair
-// or better (4 of 5 when all five do).
+// Required (per archetype, direction 20.1's bar as direction 23 item 4 restates it): every start pose seals (the
+// scripted player's one press of E; a seal that never closes is a defect of the guide, not a hazard of the site:
+// SG1-SG3 of round 9 took 3 of 25 start poses from "no seal" to sealed, so reverting one of them fails here), and
+// >= 4 of 5 start poses hand over with a worker out on the surface, whatever the site grade.
 // Poor: the designed rate. GDD 06 §5.12 caps the brood hazard at mu 0.6 / GD; over the ~4.2 GD of a lapse an egg
 // survives with p >= e^(-0.6 x 4.2) = 0.08, so a 24-egg clutch gives no worker with probability <= 0.92^24 = 0.14:
-// the design promises first workers on >= 86 % of Poor starts. The test asks >= 60 % of the Poor cases (pooled over
-// the archetypes run; asserted from 3 Poor cases on) to leave room for sampling.
+// the design promises first workers on >= 86 % of Poor starts; asserted on the Poor cases pooled over the archetypes
+// run, from 5 Poor cases on.
 //
 //   FOUNDRESS_LONG=1 npx vitest run src/sim/colony/founding/startPose.long.test.ts
 //   FOUNDRESS_ARCHETYPES=suburban-garden,woodland-edge FOUNDRESS_SEEDS=1,2,3,4,5 (defaults: all five Tier 1, seeds 1-5)
@@ -87,23 +89,22 @@ const FAIR_OR_BETTER = new Set(['fair', 'good', 'excellent']);
 describe.skipIf(!LONG)('the founding at the start pose (first-play script), seeds 1-5 of each Tier 1 archetype', () => {
   const poor: Case[] = [];
   for (const arch of ARCHETYPES) {
-    it(`${arch}: first workers out of the nest on >= 4 of the Fair-or-better starts`, () => {
+    it(`${arch}: every start pose seals, >= 4 of 5 hand over with a worker out`, () => {
       const cases = SEEDS.map((seed) => {
         const c = foundAtStart(arch, seed);
         log(JSON.stringify(c));
         return c;
       });
-      const fair = cases.filter((c) => FAIR_OR_BETTER.has(c.word));
       poor.push(...cases.filter((c) => !FAIR_OR_BETTER.has(c.word)));
-      const ok = fair.filter((c) => c.out).length;
-      log(`${arch}: ${ok} of ${fair.length} Fair-or-better starts got workers out; Poor ${cases.length - fair.length}`);
-      // at most one Fair-or-better start without workers out (4 of 5 when all five read Fair or better)
-      expect(ok).toBeGreaterThanOrEqual(fair.length - 1);
+      const ok = cases.filter((c) => c.out).length;
+      log(`${arch}: ${ok} of ${cases.length} start poses got workers out (Fair or better ${cases.filter((c) => FAIR_OR_BETTER.has(c.word)).length})`);
+      expect(cases.filter((c) => c.end.startsWith('no seal')).map((c) => `seed ${c.seed}: ${c.end}`)).toEqual([]);
+      expect(ok).toBeGreaterThanOrEqual(Math.ceil(0.8 * cases.length));
     }, 3_600_000);
   }
-  it('Poor starts: first workers out on >= 60 % (the design: >= 86 %)', () => {
+  it('Poor starts: first workers out on >= 86 % (the design rate)', () => {
     const ok = poor.filter((c) => c.out).length;
     log(`Poor: ${ok} of ${poor.length}`);
-    if (poor.length >= 3) expect(ok / poor.length).toBeGreaterThanOrEqual(0.6);
+    if (poor.length >= 5) expect(ok / poor.length).toBeGreaterThanOrEqual(0.86);
   });
 });

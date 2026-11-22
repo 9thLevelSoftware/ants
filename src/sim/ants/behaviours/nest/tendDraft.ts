@@ -11,7 +11,7 @@
 import type { Ant, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import { isWorkerCaste } from '@/sim/colony/census';
-import { requestTask } from '@/sim/colony';
+import { mayTakeTask, requestTask } from '@/sim/colony';
 import { TEND_PILE_RADIUS_BU } from '@/sim/balance/nestwork';
 import { openTendJobs } from './board';
 import { needsRest } from './common';
@@ -20,12 +20,16 @@ import { perTick } from './perTick';
 /** bb key on a drafted worker: the brood id of the overdue pile she tends next (nurse select reads it). */
 export const DRAFT_BROOD = 'nu.draft';
 
-/** The states a worker may be drafted from: idle, resting (unless exhausted), waiting to forage. */
-function draftable(ant: Ant): boolean {
+/**
+ * The workers a pile may be given to: idle, resting (unless exhausted) or waiting to forage, and allowed to nurse
+ * (the allocation's own eligibility: a caste with nurse weight 0, Atta's majors, is never given a pile, or the pile
+ * would be hers on every tick while her nurse request is refused; sweep-9 review finding 3).
+ */
+function draftable(sim: Sim, ant: Ant): boolean {
   if (!ant.alive || !isWorkerCaste(ant.caste) || ant.nestId < 0 || (ant.flags & AntFlag.POSSESSED) !== 0) return false;
   if (ant.carry.kind !== 'none' || ant.task === 'nurse') return false;
-  if (ant.state === 'idle' || ant.state === 'forage.wait') return true;
-  return ant.state === 'rest' && !needsRest(ant);
+  const free = ant.state === 'idle' || ant.state === 'forage.wait' || (ant.state === 'rest' && !needsRest(ant));
+  return free && mayTakeTask(sim, ant, 'nurse');
 }
 
 /** Ant id -> brood id of the colony's drafts this tick. */
@@ -35,7 +39,7 @@ function draftsOf(sim: Sim, colonyId: number): Map<number, number> {
     const jobs = openTendJobs(sim, colonyId);
     if (jobs.length === 0) return out;
     const free: Ant[] = [];
-    for (const a of sim.stores.ants.list) if (a.colony === colonyId && draftable(a)) free.push(a);
+    for (const a of sim.stores.ants.list) if (a.colony === colonyId && draftable(sim, a)) free.push(a);
     // one hand per pile: a tend round grooms the whole pile within TEND_PILE_RADIUS_BU (nurse.ts), so a job whose
     // brood lies within that of a pile already given a hand is left to her
     const pile = (TEND_PILE_RADIUS_BU * sim.world.bu) ** 2;
@@ -59,7 +63,7 @@ function draftsOf(sim: Sim, colonyId: number): Map<number, number> {
  * nurse for it (her next nurse select tends that pile) and true is returned (her current behaviour stops here).
  */
 export function takeOverdueTend(sim: Sim, ant: Ant): boolean {
-  if (!draftable(ant)) return false;
+  if (!draftable(sim, ant)) return false;
   const broodId = draftsOf(sim, ant.colony).get(ant.id);
   if (broodId === undefined) return false;
   if (!requestTask(sim, ant, 'nurse', 'job:tend-overdue')) return false;

@@ -8,7 +8,7 @@ import { BROOD_HAZARD, IDLE_REEVAL_S, SURPLUS_CHECK_S } from '@/sim/balance';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { censusOf, cycleWaste, isWorkerCaste } from '../census';
 import { coreOf } from '../core';
-import { computeDemand } from './demand';
+import { PROSPECTIVE_FORAGE_KEY, computeDemand } from './demand';
 import { computeTargets } from './targets';
 import { eligible, groupOf, GROUP_TASKS, thresholdBand } from './groups';
 import { gainExperience, reassignable, reevaluate, surplusCheck, switchTask } from './assign';
@@ -45,7 +45,8 @@ export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPa
   refreshActual(sim, col);
   computeDemand(sim, col, cen);
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
-  computeTargets(col, cen.available, (coreOf(col).acc['threat'] ?? 0) > 0, workforce, broodAmongWaste(sim, col));
+  const acc = coreOf(col).acc;
+  computeTargets(col, cen.available, (acc['threat'] ?? 0) > 0, workforce, broodAmongWaste(sim, col), acc[PROSPECTIVE_FORAGE_KEY] ?? 0);
   col.alloc.lastTick = sim.state.tick;
   if (!surplusPass) return;
   for (const a of sim.stores.ants.list) if (a.colony === col.id && isWorkerCaste(a.caste)) surplusCheck(sim, col, a, def);
@@ -86,13 +87,18 @@ export function taskCycleDone(sim: Sim, a: Ant): Task {
  * non-workers, possessed ants (unless the reason is `released`), and tasks the ant is not eligible for.
  */
 export function requestTask(sim: Sim, a: Ant, task: Task, reason: ReasonCode): boolean {
+  if (!mayTakeTask(sim, a, task, reason)) return false;
+  switchTask(sim, sim.stores.colonies.get(a.colony)!, a, task, reason);
+  return true;
+}
+
+/** Whether requestTask(sim, a, task, reason) would switch her (no side effects). */
+export function mayTakeTask(sim: Sim, a: Ant, task: Task, reason: ReasonCode = 'job:tend-overdue'): boolean {
   const col = sim.stores.colonies.get(a.colony);
   const def = col ? sim.getSpecies(col.species) : undefined;
   if (!col || !def || !a.alive || !isWorkerCaste(a.caste)) return false;
   if ((a.flags & AntFlag.POSSESSED) && reason !== 'released') return false;
-  if (task !== 'idle' && task !== 'rest' && !eligible(a, task, thresholdBand(a, sim.state.tick), def)) return false;
-  switchTask(sim, col, a, task, reason);
-  return true;
+  return task === 'idle' || task === 'rest' || eligible(a, task, thresholdBand(a, sim.state.tick), def);
 }
 
 export { reassignable, switchTask };

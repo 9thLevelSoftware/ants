@@ -21,6 +21,11 @@ export interface CavityFlood {
   path: number[] | null;
   /** Every carved open sample of the cavity reached (key -> parent key), the air samples excluded. */
   cavity: Map<number, number>;
+  /**
+   * The flood stopped somewhere short of the cavity's end: an open sample past SEAL_FLOOD_RADIUS_BU, or the sample
+   * cap. A null path then does not rule out a leak (sweep-9 review finding 2: a 46 BU shaft read as sealed).
+   */
+  cut?: boolean;
 }
 
 // sample keys: a world of 5000 BU at 0.5 BU samples spans 10 000 samples per axis (< SPAN), exact in a double
@@ -95,23 +100,31 @@ function floodNow(sim: Sim, from: Vec3, fill: readonly Sphere[]): CavityFlood {
   if (seed < 0) return { path: null, cavity };
   cavity.set(seed, -1);
   const queue = [seed];
-  let path: number[] | null = null;
-  for (let q = 0; q < queue.length && cavity.size < SEAL_FLOOD_MAX_SAMPLES; q++) {
+  let path: number[] | null = null, cut = false;
+  for (let q = 0; q < queue.length; q++) {
+    if (cavity.size >= SEAL_FLOOD_MAX_SAMPLES) { cut = true; break; }
     const n = queue[q], i = keyI(n), j = keyJ(n), k = keyK(n);
     for (let d = 0; d < 18; d += 3) {
       const ni = i + DIRS[d], nj = j + DIRS[d + 1], nk = k + DIRS[d + 2];
       const nk2 = key(ni, nj, nk);
       if (cavity.has(nk2)) continue;
       const x = ni * v, y = nj * v, z = nk * v;
-      if ((x - from.x) ** 2 + (y - from.y) ** 2 + (z - from.z) ** 2 > maxR * maxR) continue;
-      if (isAirSample(sim, ni, nj, nk)) { if (!path) path = pathTo(cavity, n, nk2); continue; }
+      if (isAirSample(sim, ni, nj, nk)) {
+        if (!path && (x - from.x) ** 2 + (y - from.y) ** 2 + (z - from.z) ** 2 <= maxR * maxR) path = pathTo(cavity, n, nk2);
+        else if (!path) cut = true; // the way out lies past the radius
+        continue;
+      }
+      if ((x - from.x) ** 2 + (y - from.y) ** 2 + (z - from.z) ** 2 > maxR * maxR) {
+        if (!(fill.length > 0 && inSpheres(x, y, z, fill)) && isOpenSample(sim, ni, nj, nk)) cut = true;
+        continue;
+      }
       if (fill.length > 0 && inSpheres(x, y, z, fill)) continue; // a plug fills carved soil, never the air
       if (!isOpenSample(sim, ni, nj, nk)) continue;
       cavity.set(nk2, n);
       queue.push(nk2);
     }
   }
-  return { path, cavity };
+  return { path, cavity, cut };
 }
 
 function pathTo(parents: Map<number, number>, last: number, air: number): number[] {

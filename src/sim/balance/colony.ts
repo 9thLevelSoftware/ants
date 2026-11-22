@@ -248,6 +248,19 @@ export const LAYING_CREDIT_FEED_MIN = 0.04;
  * its 1.4 DU, so the intake over that time counts).
  */
 export const LAYING_SUPPLY_HORIZON_GD = 1.5;
+/**
+ * Ruling R35 (direction 22, amends R32b): the prospective protein demand of the laying the gates withhold is at most
+ * this many loads per gd per worker. R32b's LARVA_P_REQ x withheld laying was 19-36 loads/gd at a lay potential of
+ * 16-30 against a carbohydrate rate near 0.6, which made the desired protein share ~0.97 in colonies of 10-15.
+ */
+export const PROSPECTIVE_P_PER_WORKER = 0.5;
+/**
+ * Ruling R35 point 2: the carbohydrate a colony keeps on the path to its winter need before it asks protein for eggs
+ * not yet laid ramps in from this day of the year (nothing asked in spring) and reaches the whole winter need
+ * PROSPECTIVE_WINTER_RAMP_DAYS later (half of it by doy 14, all of it by doy 21).
+ */
+export const PROSPECTIVE_WINTER_FROM_DOY = 7;
+export const PROSPECTIVE_WINTER_RAMP_DAYS = 14;
 export const LAYING_INTAKE_EMA_GD = 0.5;
 /** Retinue target: queen gut C and P (GDD 02 §3.3). */
 export const QUEEN_TARGET_GUT_C = 0.3;

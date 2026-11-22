@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step } from './testkit';
 import { depositFood, poolSpace, withdrawFood } from './index';
-import { daysOfStock, desiredProteinShare, intakeTarget, nutrientWeights } from './needs';
+import { FORAGE_RATE_P_KEY, PROSPECTIVE_P_KEY, daysOfStock, desiredProteinShare, intakeTarget, nutrientWeights } from './needs';
 import { fMet } from './life';
 
 describe('worker upkeep and starvation of an individual (GDD 02 §1.4, E5, E10)', () => {
@@ -72,6 +72,10 @@ describe('pool capacity, deposits and demand signals (GDD 02 §5.1, §5.5)', () 
     step(sim, 20);
     col.needs.rateC = 10.71;
     col.needs.rateP = 12.9;
+    // the worked example's 12.9 P/gd is what its eaters need (no store spoiling), so the forage side's rate (R35 point
+    // 4) is the same; no laying withheld (no prospective demand)
+    col.core!.acc[FORAGE_RATE_P_KEY] = 12.9;
+    col.core!.acc[PROSPECTIVE_P_KEY] = 0;
     const d = daysOfStock(col);
     expect(d.c).toBeCloseTo(2.8, 1);
     expect(d.p).toBeCloseTo(0.78, 2);

@@ -3851,3 +3851,144 @@ Progress (kept current; a successor continues from here)
   point 5). `colony-life.md` **direction 23a** adds three things to item 5's table (herds found / not found with
   nearest approach, ground coverage at 6 and 30 BU for the first 5 gd, the perception radii in force). Measurement
   only; I rule from it.
+- 13:49 **R35 written** (in the dev copy `/home/user/scratch-r10-dev`, copied into the live tree after 14:05; arm tree
+  `/home/user/scratch-r10-r35` = that copy frozen at 13:49):
+  (1) `queen.ts prospectiveProteinRate`: min(LARVA_P_REQ x withheld, `PROSPECTIVE_P_PER_WORKER` 0.5 x workers);
+  (2) x clamp(daysC / targetDays.c - 1, 0, 1), and 0 while C < `winterPathC` = R27 needC x margin x
+  clamp((doy - 7) / 14, 0, 1) (balance `PROSPECTIVE_WINTER_FROM_DOY` 7, `PROSPECTIVE_WINTER_RAMP_DAYS` 14); R32b's
+  switch removed; (3) `needs.ts nutrientWeights` wC = base + needC x max(1 - sP, needC) x gain; (4) `forageRates().p` =
+  its own EMA `need.rateForageP` of queenP + egg cost + larvaP (economy.ts passes it, no spoilage), floored, +
+  prospective; `stores.ts measureLarder` no longer subtracts spoilage (it is out of that rate now); (5) allocation:
+  `demand.ts` stores the forage demand only the prospective term asks (`alloc.prospForage`), `targets.ts autoTargets`
+  plans every task on the plain demands and fills that part last. Test `colony/prospectiveProtein.test.ts` (7: bound,
+  carbohydrate ramp, winter path doy 5/14/21, no demand at potential 0, wC at needC 1 for sP 0.1/0.5/0.97, spoilage not
+  appetite, tenders' head-count equal at 8/12/16/30 workers). Restated with reasons: `economy.test` (§5.5 case: the
+  worked example's 12.9 P/gd is its eaters', so the forage rate is set equal), `larder.test` (a) (forage rate set
+  without the rot). Colony folder (dev copy): 50 of 51 files green, red `workedExample` = the base tree's value exactly
+  (0.0659 > 0.05, known). DEVIATIONS.md row R35.
+- 13:49 **item 4 written** (dev copy, same arm tree; none of it acts on a cached hand-over except the draft check, which
+  changes nothing for Lasius): `tendDraft.ts draftable` asks `mayTakeTask(sim, ant, 'nurse')` (new, `colony/allocation`
+  `requestTask`'s own checks without the switch): `tendDraft.verify` GREEN (was red). `founding/leak.ts floodNow` records
+  `cut` (an open sample past SEAL_FLOOD_RADIUS_BU, an air sample past it, or the sample cap) and `dig.ts
+  cutOffBelowThroat` needs !cut: `sealLongShaft.verify` GREEN (was red), `sealBelowThroat` green. `sealGuide.ts`: the
+  12 `Math.hypot` -> local `len` (sqrt). `startPose.long.test.ts`: per archetype every start pose must seal and >= 4 of
+  5 hand over with a worker out, any grade; Poor pooled >= 86 % (design) from 5 cases (round 9's pre-SG1-SG3 trees had
+  3 of 25 "no seal": they fail the seal check). Not re-run this round (25 foundings, ~50 min CPU).
+- 13:49 tool side (live tree; tools/sim only): `lifeProtein.ts` arrivals by source kind (found, days to discovery, P
+  brought home, fate, nearest approach of a worker when never found); `lifePredation.ts` (killer kind, resident /
+  colony-range / visitor, distance from the entrance, workers that day, worst day); `lifeLaying.ts` (per warm day the
+  game days per laying gate). All three in the life JSON (`protein.arrivalsByKind`, `predation`, `layingGates`).
+- 13:49 running: base arm (one slot, `jobs-base.txt`); R35 arm (one slot): `jobs-r35.txt` (pp #3, sg #3, we #1, we #3,
+  kd #1, kd #2 to winter on sweep-9 hand-overs -> `arm-r35/`), then `jobs-r35-long.txt` (pp #3, sg #2, we #2, cpv #1,
+  kd #3 to day 40 on the sweep-8 hand-overs of `round-9/cache` -> `long-r35/`; base = `round-9/long`).
+- 13:52 **a cached hand-over now continues exactly as the fresh run**: base-tree runs of pp #3, sg #3, kd #1, kd #2 from
+  the sweep-9 hand-overs end with the same `finalHash` as sweep 9's own runs (0e29c0b0, 3928155f, a2da7ee8, 0d3cd8e2).
+  So the sweep-9 run files (`round-9/sweep/`) ARE the base arm for all 15 (sweep tree src = HEAD 30944ea src); the base
+  job list was stopped after those four (`round-10/arm-base/` keeps them as the proof). Freed slot: R35 long runs.
+- 13:58 **R35 arm, pp #3 (sweep-9 hand-over) done** (`round-10/arm-r35`; base = `round-9/sweep`, linked as
+  `round-10/arm-sweep9`; table `round-10/table10.py`): 13 -> 15 both; C / P at winter base 1.5 / 8.0, R35 **1.0 / 7.0**,
+  not viable either way (R27 stores 0.18 of the need). R35 does what it says (autumn wP falls to the base 0.2, wC rises
+  to 1.1-1.8, C held 4-6 mg to day 7 against 1.2-1.5 in base) but no carbohydrate comes in after day 6 in either arm
+  (honeydew 0.0-0.1, nectar 0-0.1 a day): the foragers' trips are 73 of 112 sourceless (hunting / search, `forage:none`),
+  2 of 4 flowers known, the one herd (97 BU) tended by 1-3 ants, and **all 9 predation deaths fall 97 BU from the
+  entrance on tenders** (the herd). So pp #3's carbohydrate shortfall is supply and danger at its only herd, not the
+  weights R35 changed. Lead for R37 and for item 5's table.
+- 13:58 tool fixes: `lifePredation.ts` lost the killer when the killing strike's event follows the death (the ant is
+  already out of the store): 8 of 9 pp #3 deaths read `unknown`. Fixed (record every ant's last attacker; the death
+  filters by colony); runs started after 13:57 have it. New `lifeHerds.ts` (direction 23a: herds within 300 BU with
+  hour found, finder's task, nearest approach, aphids, height; ground coverage within 6 / 30 BU per day for the first
+  5 gd and scouts' head-count), in the life JSON as `herds`. Smoke-tested on a 1-day kd #2 run (kd #2: three herds
+  within 300 BU at 11 / 107 / 246 BU, 48 / 55 / 42 BU up their plants; day-1 coverage 13 % within 6 BU, 40 % within 30).
+  Perception radii in force (code, `balance/ecology.ts` odourBu x SOURCE_ODOUR_REF_BU scale, BU): aphid herd 6, scale
+  herd 6, honeydew film 12, flower 10, extrafloral nectary 6, berry 20, windfall 40, carrion insect small 8 / medium 20 /
+  large 30 / large carcass 60, crumbs 15 (a single starch crumb 6), crust 25, sugar granules 10, sugary spill 30,
+  kibble 40, wet pet food 50, bait gel 60, water 10, dew 4; patch prey (springtail, mite) HUNT_NOTICE_BU 5.
+- 14:05 live tree = dev copy (R35 + item 4 + tools); `tsc --noEmit` clean. Browser window over.
+- 14:10 R35 arm so far (base = sweep 9's own runs):
+  - sg #3: 10 -> 15 / 16; C intake 0.13 -> 0.47, worst stretch 4.8 -> 1.25 gd, C at winter 0 both (not viable both).
+    Probe on the live tree (`round-10/probe-tend-sg3-r35.txt`, 4 gd): the three herds within 300 BU lie 204, 217 and
+    270 BU out (14, 12, 64 aphids, 5-20 BU up their plants); none known in 4 gd; base found one by chance (tend 10 gd).
+  - we #1: **regression** 18 -> 20 / 17; P intake 0.64 -> 0.03, worst stretch 7.75 gd, 4 larvae starved, trip success
+    57 -> 28 %, forage time 106 -> 48 worker-gd, hunting trips 66 -> 9, C at winter 3.2 -> 7.8 / P 9.0 -> 0. Days 2-6
+    both nutrients at 0 (rationing): with needC 1 the R35 weights put wC 2.2 over wP 1.6, and the known nectar
+    sources (trips valued at a full crop whatever the flower holds, `choice.ts tripNutrients`) win over the prey patch;
+    the flowers are empty on arrival (source-depleted 26) and no patch is learnt from chases on the way.
+  - long pp #3 (sweep-8 hand-over, the round-9 long run's): winter 1 C / P 2.6 / 12.2 -> **8.6 / 6.7**, spring 10 ->
+    15 workers, second winter 6 -> **16** (R34 >= 1.0 x: no -> yes; >= 1.5 x: no), y2 eggs / eclosed 29 / 3 -> 18 / 11.
+  Running: we #3, kd #1, kd #2, then the predation diagnostics on the base tree + tools (sg #2, pp #3, pp #2 ->
+  `arm-base-diag/`); long sg #2, we #2, cpv #1, kd #3.
+- 14:20 R35 arm, we #3: 10 -> 13 / **17**, viable no -> **yes**, C / P at winter 5.2 / 5.8 -> 10.8 / 5.0, eclosions 3 -> 7,
+  tend 0 -> 14 worker-gd.
+- 14:20 **R37 diagnosis (base tree + fixed recorder, `round-10/arm-base-diag/`, same final hash as sweep 9):** sg #2's 7
+  predation deaths are all one **colony-range ant-spider** (6 on day 6 at 15 -> 10 workers, 6-57 BU from the entrance,
+  fleeing or hauling). R35 arm runs say the same where they recorded it: we #1 2 x colony-range rove beetle, pp #3 1 x
+  colony-range jumping spider (+ 8 unattributed before the recorder fix). So the second case of direction 23 item 3:
+  colony-range hunters at a ramp near 0. **Cause: R25's ramp multiplies only the siting draw**, a fixed draw per world
+  and kind; at 15 workers (ramp 0.17) about one world in six gets a full-strength hunter sited where the colony walks.
+  **R37 fix** (`ecology/creatures/colonyRange.ts colonyRangeStrikeShare`, used in `attack.ts landStrike`, the one path of
+  every strike): a colony-range hunter's strike on a player worker lands at the ramp's share (a second draw on the
+  creatures stream, only for colony-range strikes on player workers); residents of worldgen's own territories and
+  visitors unchanged; at the upper count (40 on Naturalist) unchanged. Expected colony-range predation goes as ramp^2
+  instead of ramp, with far less spread. Test `creatures/colonyRangeStrike.test.ts` (3: ramp 0 never lands, resident
+  lands; 41 workers lands; share = (16 - 10) / 30 at 16 workers). The resident-memory rule of item 3's first case is
+  not built (residents are not the killers in the records).
+- 14:20 **LV1 (found on R35's we #1 regression)**: `choice.ts sourceScore` valued a liquid trip at a full crop whatever
+  the source held (a flower holds 1.5 crops, 2 slots, refills 4 a day: at 0.05 units it scored as full). New
+  `liquidOnArrival`: the pool now, less the crops of trips already on their way, plus the refill during the walk,
+  capped at a crop. Test `outdoor/liquidOnArrival.test.ts` (2; both red on the HEAD choice.ts, green now). Restated:
+  `outdoor/appendixE23` App E 18 counts the ten foragers' successful trips (the colony counter also counted a scout
+  that drank at the spill and came home to report: trips 1 / ok 1 with no forager departure; on the R35 arm tree and
+  live, not base). Outdoor folder 31 of 32 files green (red `removal.verify`, known).
+- 14:27 **R36 measurement from sweep 9's own runs (protein ledger, sources that appeared within 300 BU, loads per gd
+  after the hand-over):** kitchen-door #1 9.9, #2 0.96, #3 0.12 (median **0.96**); the twelve outdoor runs median
+  **0.40** (0.19-2.5). The outdoor colonies' protein is patch prey (4-21 loads delivered per run, 0.2-4.6 from
+  carrion); kd #1 and kd #2 deliver no prey at all: **no patch prey ever appeared for them** (preyAppeared 0: patch prey
+  appears only for a forager or scout walking inside a patch, `spawners.ts spawnPatchPrey`), though patches holding a
+  mean 283 and 80 springtails reach their 300 BU radius; kd #1 knew a mean 1.1 of the 19.6 P standing (5 %), 31 of
+  128 P arrived rotted. So the kitchen door is **not short of protein arriving** (more than the outdoor median): its
+  protein is **not found** (patches never entered, carrion not discovered). No R36 flow change (the ruling's
+  condition is not met); the discovery side is item 5's question, on which the integrator rules (no scouting rule
+  change this round). The R35 arm's kd #1 / kd #2 runs carry the per-kind arrival table and the patch records
+  (`herds.patches`: edge distance, capacity, hour known, nearest approach) for that table.
+- 14:27 **final tree frozen** `/home/user/scratch-r10-final` (src hash 880fe1af = live: R35, item 4, LV1, R37, tools).
+  Final arm: 15 sweep-9 hand-overs to winter + the five long runs on sweep 9's hand-overs (we #2, sg #2, cpv #1, pp #3,
+  kd #3; base = `round-9/sweep-long`, same hand-overs, the cached restore being exact) -> `arm-final/`, `long-final/`.
+  Two runners (`jobs-final.txt` forward, `jobs-final-rev.txt` reverse; markers keep them apart), each starting when
+  the R35 runner of its slot ends (R35 long list stopped after we #2: sg #2 and pp #3, the two the direction names
+  first, are done; the final tree's long runs carry R35 for the other three). R37 and LV1 have no arm of their own
+  (budget: one arm per change; they are measured in the final pair only).
+- 14:34 folder tests on the live (= final) tree, one worker: colony 50 of 51 files (red `workedExample`, base value),
+  founding 25 / 25 (+3 long skipped; `sealLongShaft.verify` green), behaviours/nest 31 of 33 (red `sfaReview.verify`,
+  `stall.soak`, both known; `tendDraft.verify` green), behaviours/outdoor 31 of 32 (red `removal.verify`, known),
+  ecology/creatures 31 / 31, docs-final 8 / 8 (DEVIATIONS rows R35, R37). `tsc --noEmit` clean.
+- 14:34 R35 long sg #2 (sweep-8 hand-over, base `round-9/long`): winter 1 workers 12 -> 18, C / P 0.6 / 3.5 -> **7.9 /
+  4.1**; spring 6 -> 16 (queen starved -> alive); y2 eggs / eclosed 0 / 0 -> 28 / 10; second winter 2 -> **14** (R34:
+  14 / 18 = 0.78, no). pp #3 above (6 -> 16, R34 yes). Running: final arm (2 runners), R35 kd #1 / kd #2 and the pp
+  diagnostics in the other slot first.
+- 14:34 **R37 diagnosis complete** (`arm-base-diag/`, base tree, sweep 9's trajectories): sg #2 7 of 7 colony-range
+  ant-spider; pp #3 7 of 7 colony-range jumping spider (all 97 BU out, 6 on tenders at the colony's one herd, the
+  spider sited at it); pp #2 5 colony-range ant-spider + 1 colony-range rove beetle (29-79 BU). **20 of 20 predation
+  deaths in the three runs are colony-range hunters at 10-19 workers (ramp 0-0.3); none is a resident.** Item 5 table
+  script `round-10/item5.py DIR` (laying gates per warm day, arrivals by kind, herds, patches, coverage).
+- 14:36 R35 arm kd #1: 15 -> 16 / **20**, viable no -> **yes**, P intake 0.125 -> 0.244, C at winter 27 / 26. Its
+  protein table (`item5.py`): 124 P arrived in 13 gd, 120 of it **one large carcass** found 0.53 gd after it appeared
+  (day 2): 27 trips to protein on day 3, 20 arrivals, **3.2 P brought home, 120 rotted**: each trip carries one torn
+  piece (tear form, `carryCap / unitBulk 500`, ~0.09 P), so a colony of 15-20 takes ~3 % of a large carcass before it
+  decays. Small insect carrion: 3 of 7 found (median 0.37 gd), 1.2 P home. Both patches reaching 300 BU (K 50 at
+  129 BU, K 232 at 299 BU) never known; workers came to 0 and 25 BU of them (no prey spawned for them). Herds: 2,
+  found at hour 4 and 153. So kd #1: arrives, found, **not taken** (piece size of a large carcass) - a supply-form
+  number for the integrator (`balance/ecology.ts` large-carcass unitBulk / tear piece), not changed here.
+- 14:41 R35 arm kd #2: 10 -> 15 both, not viable both (P intake 0.025 -> 0.015; starvation stage). Protein table: 8.5 P
+  arrived in 12 gd (0.71 / gd: 1 medium + 9 small insect carcasses), **0 found** (a worker passed 1.8 BU (x, z) from
+  the medium carcass without discovering it: likely on another level, e.g. a sill; 2-D distance), the one patch (K
+  80, edge 244 BU) entered by a worker but never known; scouts' head-count 1.5 -> 0.02 by day 5, ground within 6 BU of
+  a worker 14 % -> 2.5 %. So kd #2: arrives (below the 1.5 / gd of the ruling's test but above the outdoor median
+  of 0.40), **not found**. R36 verdict over kd #1-#3: not a short world by the outdoor archetypes' own measure (kd median
+  0.96 / gd against 0.40); kd #1 loses its protein to the carry form of a large carcass, kd #2 to discovery (scouting
+  collapses once the colony knows its sugar). Both are item 5's questions; no flow raised, no scouting rule changed.
+- 14:42 R35 arm summary on its six sweep-9 colonies (`round-10/r35-table.txt`): workers at winter 94 -> 100 (better 3 /
+  worse 1 (we #1) / equal 2), viable 0 -> 2 of 6 (we #3, kd #1), median C intake 1.00 -> 1.11, median P 0.66 -> 0.42
+  (we #1's collapse), larvae starved 1 -> 7 (we #1 4, kd #2 3). R35 long runs (sweep-8 hand-overs, base round-9/long):
+  second winter pp #3 6 -> 16, sg #2 2 -> 14, we #2 19 -> 12 (`long-r35/longrun-table.md`, `long-r35-detail.txt`).
+  Final arm running (both slots); scripts for the close: `table10.py`, `pred10.py` (R37 bar), `item5.py`,
+  `longdetail.py`, `tools/sim/sweep-table.py`, `tools/sim/longrun-table.py`.

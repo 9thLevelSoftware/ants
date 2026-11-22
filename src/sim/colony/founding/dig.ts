@@ -7,7 +7,6 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, OpeningState, Sim, SpeciesId } from '@/sim/types';
 import {
   FOUND_ABANDON_BU, FOUND_ABANDON_RECORD_MAX, FOUND_IN_CELL_MARGIN_BU, FOUND_READINESS_EVERY_TICKS, FOUND_THROAT_PROBE_BU,
-  SEAL_FLOOD_MAX_SAMPLES,
 } from '@/sim/balance/founding';
 import { canDigAt, foundingReadiness, type FoundingReadiness } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround, foundingQueen, setPhase, speciesOf } from './access';
@@ -150,11 +149,12 @@ function openedElsewhere(sim: Sim, nest: Nest): boolean {
  * throat sphere the throat test looks at (colony-life round 9, playground-park #1 at the start pose: ten plugs down a
  * template shaft, the cell cut off, the opening's throat open above them; the guide found nothing left to plug and the
  * seal never ended). The cell is sealed; the workers dig a plug past the throat out at the hand-over (reopen.ts
- * closingPlugPlan). Not when the flood stopped at its sample cap (a leak beyond it is not ruled out).
+ * closingPlugPlan). Not when the flood stopped short of the cavity's end, at its sample cap or at its radius (a leak
+ * beyond it is not ruled out: sweep-9 review finding 2, an open 46 BU shaft read as sealed).
  */
 function cutOffBelowThroat(sim: Sim, nest: Nest): boolean {
   const flood = floodCavity(sim, floodStart(sim, nest));
-  return flood.path === null && flood.cavity.size > 0 && flood.cavity.size < SEAL_FLOOD_MAX_SAMPLES;
+  return flood.path === null && flood.cavity.size > 0 && !flood.cut;
 }
 
 /** Is the founding queen in the cavity of her cell (not shut out above a plug)? */

@@ -10,8 +10,8 @@ import {
 import { poolSpace, sourceWeight } from '@/sim/colony';
 import { harvestForm, slotUsers, sourceQuality } from '@/sim/ecology';
 import { casteSpeeds } from '@/sim/locomotion';
-import { daysToTicks, secondsToTicks } from '@/sim/time';
-import { foodLeftFor } from './claims';
+import { TICKS_PER_DAY, daysToTicks, secondsToTicks } from '@/sim/time';
+import { claimsOn, foodLeftFor, unitsPerTrip } from './claims';
 import { distFromHome } from './common';
 import type { Flavour } from './flavours';
 
@@ -20,6 +20,21 @@ export function tripNutrients(sim: Sim, ant: Ant, s: FoodSource): { c: number; p
   const form = harvestForm(sim, s);
   const k = form === 'liquid' ? ant.cropCap : form === 'tear' ? Math.min(1, ant.carryCap / Math.max(s.unitBulk, 1e-6)) : 1;
   return { c: s.c * k, p: s.p * k };
+}
+
+/**
+ * A liquid trip is worth what the source will hold when the ant gets there, not a full crop (colony-life round 10):
+ * its pool now, less what the trips already on their way take, plus what it refills during the walk. A flower
+ * drunk dry was valued at a full crop of nectar, and once R35 let a colony short of sugar weigh sugar at its full
+ * weight, woodland-edge #1's foragers walked to empty flowers (26 trips found them empty) instead of hunting.
+ */
+function liquidOnArrival(sim: Sim, ant: Ant, s: FoodSource, n: { c: number; p: number }, walkS: number): { c: number; p: number } {
+  if (s.herdId >= 0 || harvestForm(sim, s) !== 'liquid') return n;
+  const crop = unitsPerTrip(sim, ant, s);
+  const refill = Math.max(0, s.refillPerGd) * (secondsToTicks(walkS) / TICKS_PER_DAY);
+  const there = Math.max(0, s.units) - claimsOn(sim, ant.colony, s.id, ant) * crop + refill;
+  const k = Math.max(0, Math.min(1, there / Math.max(ant.cropCap, 1e-6)));
+  return { c: n.c * k, p: n.p * k };
 }
 
 /** Whether the ant remembers the source as found empty (GDD 02 §9.3 depleted entries). */
@@ -93,14 +108,14 @@ export function sourceScore(sim: Sim, ant: Ant, s: FoodSource): number {
   // each trip ageing its ant outside at 3x the nest rate
   // (Before the colony cycle has first counted the workers, a new game's first tick or a test fixture, the pool's room
   // is not measured yet: the trip is valued whole.)
-  const n = tripNutrients(sim, ant, s);
+  const speed = Math.max(1e-3, casteSpeeds(col.species, ant.caste, sim.world.bu).cruise);
+  const walkS = distFromHome(sim, ant, s.pos) / speed;
+  const n = liquidOnArrival(sim, ant, s, tripNutrients(sim, ant, s), walkS);
   const measured = (col.core?.workers ?? 0) > 0;
   const room = measured ? poolSpace(col) : n;
   const w = sourceWeight(col, Math.min(n.c, room.c), Math.min(n.p, room.p));
   const slots = Math.max(1, s.slots);
   const crowd = Math.max(CHOICE_CROWD_MIN, 1 - slotUsers(sim, s).length / slots);
-  const speed = Math.max(1e-3, casteSpeeds(col.species, ant.caste, sim.world.bu).cruise);
-  const walkS = distFromHome(sim, ant, s.pos) / speed;
   // food the trips already on their way will take is not there for this one (econ-growth, claims.ts)
   if (!foodLeftFor(sim, ant, s, walkS)) return 0;
   const trip = Math.max(CHOICE_MIN_TRIP_S, 2 * walkS + CHOICE_COLLECT_S);

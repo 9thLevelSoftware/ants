@@ -53,7 +53,10 @@ describe('GDD 02 App. E 18: full stores suppress departures', () => {
       run(sim, 1200, 1, keep);
       const before = ev.n['forager-departed'] ?? 0;
       run(sim, 600, 1, keep); // 0.1 gd
-      return { n: (ev.n['forager-departed'] ?? 0) - before, trips: col.counters.trips, ok: col.counters.tripSuccesses, needC: col.needs.needC };
+      // successful trips of the ten foragers (colony-life round 10: the colony's counters also count a scout that found
+      // the spill and came home to report with a crop, which is not a forager's unload; R35 changed the scout demand)
+      const ok = ten.filter((a) => a.mem.trips > 0 && a.mem.lastSuccessTick >= 0).length;
+      return { n: (ev.n['forager-departed'] ?? 0) - before, trips: col.counters.trips, ok, needC: col.needs.needC };
     };
     const hungry = departures(false), full = departures(true);
     console.log(`App. E 18: departures in 0.1 gd: hungry colony ${hungry.n}, full stores ${full.n};`,
