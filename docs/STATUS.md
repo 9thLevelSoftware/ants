@@ -919,3 +919,27 @@ Pictures I looked at: `test-output/app-seams-3/alerts/queen-danger-cards.png`, `
 - Still open for sim: `lay-egg` returns reason `budget` outside the opening's lay phase (direction 21b list).
 
 Running: colony-life round 9 (arms + long runs), then sweep 9. Check-in 10:36 UTC.
+
+## Nov 22 11:41 UTC — round 9 mid-way: R32b + R33 help to winter 1, R32b starves two colonies of sugar; R35 ruled
+
+Round 9 (still running) so far, from the ledger:
+- **Founding at the start pose: 25 of 25** (5 archetypes x seeds 1-5) hand over and get a worker outside, after the
+  reopen fix and three seal fixes (SG1 stall in the throat, SG2 SOIL/BACK cycle, SG3 plugs laid below the throat).
+  Before: 22 of 25. Not yet re-run in the browser.
+- **Arms on sweep 8's hand-overs to winter 1, base -> final (10 pairs):** workers at winter 117 -> 150 on the first 9,
+  eclosions 40 -> 74, brood lost untended 49 -> 13, `worker:lost` 11 -> 3, viable 6 -> 8 of 9. Predation 8 -> 14 and
+  crushed 8 -> 12 (more workers outside).
+- **Five long runs vs R34:** >= 1.0 x winter 1 on 2 of 5 (was 0 of 5; bar 4 of 5), >= 1.5 x on 0 of 5 (bar 3 of 5);
+  spring check 3 of 5 (was 4 of 5). cpv #1 18 -> 22, we #2 15 -> 19; kd #3 12 -> 8; pp #3 17 -> 6 and sg #2 12 -> 2
+  (queen starved) enter winter 1 with protein in store and no carbohydrate.
+- **Cause, my ruling's own terms** (R32b): the prospective protein rate (19-36 loads/gd) swamps the carbohydrate rate
+  (0.6), so the desired protein share is >= 0.97 and the carbohydrate weight falls to its base; the C-first switch sits
+  at 1 x the stock target; and the GDD's spoilage-in-need term makes a protein store ask for more protein in autumn.
+- **R35 (direction 22):** prospective rate <= 0.5 loads/gd x workers; a carbohydrate ramp (0 at 1 x, full at 2 x the
+  stock target) and 0 while C is under the path to the winter need; `wC = base + needC x max(1 - sP, needC) x gain`;
+  spoilage out of the forage-side protein rate; tend head-count unchanged by the prospective term (pp #3's zero
+  tenders to be traced); one arm = the five long runs. A note in the ledger asks this round's engineer to do it before
+  returning; if the round has closed it is the next round's first item.
+
+If sweep 9 starts on a tree without R35: let it run (it still judges founding, lost workers and winter-1 viability on
+fresh foundings); its R34 result is then known in advance and round 10 does R35.

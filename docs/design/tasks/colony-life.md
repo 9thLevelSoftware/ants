@@ -188,7 +188,7 @@ A colony of 12 loses about 8 workers a year to age (R30 lifespans against ~28 gd
 ## Machine rules
 4 cores shared with other engineers and a headless browser. At most 2 life runs at a time; never the whole vitest suite in one process; long tests behind `FOUNDRESS_LONG=1`; no `process` in test files (no `@types/node`); delete probe files and scratch copies of the tree before you finish; `date -u` before writing a timestamp. Evidence under `test-output/colony-life/round-N/`.
 
-## Direction 22 (integrator, Nov 22 11:45 UTC) — R35: the prospective protein demand may not cost the colony its carbohydrate
+## Direction 22 (integrator, Nov 22 11:41 UTC) — R35: the prospective protein demand may not cost the colony its carbohydrate
 
 Round 9's long runs (ledger 11:08) show what R32b as I worded it does: R34 improved from 0 of 5 to 2 of 5 at
 >= 1.0 x, and the two colonies it loses (pp #3, sg #2) go into winter 1 with protein in store and no carbohydrate
