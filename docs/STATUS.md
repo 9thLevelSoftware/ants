@@ -881,3 +881,5 @@ look-pass-4 (`reviews/look-pass-4.json`, `look-pass-4-report.md`): review failed
 Not done there: backdrop cars never pictured; plastic play equipment has no face pattern; brood-inspector picture (needs firstplay past beat 12).
 Browser facts for the sim: seed 2 founding floods in rain at a site whose read-out says flood safety 5 of 5 (direction 21b); seed 1 entrance stays `reopening`.
 Launched **app-seams-3** (Sonnet / Opus verify; `docs/design/tasks/app-seams-3.md`): corrupted save loads (red `save.verify.test.ts`), flood alert titled "Queen under attack", backdrop cars picture, stage1a strict egg beat, epitaph cause, queen gloss.
+
+app-seams-3 launched 07:55 UTC Nov 22 as `wknx0224r` (wf_ecf2efc5-423; wf-build.js, key app-seams-3, sonnet/opus). After a restart: relaunch with the same args and a note pointing at `progress/app-seams-3-impl.md`.
