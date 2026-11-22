@@ -1019,3 +1019,24 @@ console errors; 5 first workers, entrance `open:0`, a worker on the mound's rim 
 pellets, open hole, daylight). Before round 9 this seed stuck at `reopening` with plug soil in the throat.
 Both seeds that failed the founding in the browser now pass it. Not yet done: an uninterrupted full `firstplay.mjs`
 (beats 14-25: trail, joining, directing, saving) on the final sim tree.
+
+## Nov 22 14:49 UTC — round 10 mid-way; R38 ruled (discovery and carry form)
+
+Round 10 (running, `w8ztuxf6y` / wf_ac58d774-66a) has R35, the sweep-9 defects, R37 and LV1 in the tree
+(frozen final tree src hash 880fe1af; final arm on the 15 sweep-9 hand-overs + five long runs running).
+- R35 on its six colonies: workers at winter 94 -> 100, viable 0 -> 2 of 6 (we #3, kd #1); we #1 regressed (flowers
+  valued as full when empty: fixed as LV1). Long runs: second winter pp #3 6 -> 16, sg #2 2 -> 14, we #2 19 -> 12.
+- R36: the kitchen door is not short of arriving protein (kd median 0.96 loads/gd, outdoor 0.40). No flow raised.
+- R37: 20 of 20 recorded predation deaths are colony-range hunters at ramp 0-0.3 (R25's ramp scaled only the siting
+  draw). Fix: a colony-range hunter's strike on a player worker lands at the ramp's share.
+- Tables (`test-output/colony-life/round-10/item5.py DIR`): a scout covers ~10 % of the 300 BU disc a day at 6 BU;
+  scouts fall to 0.02-0.1 by day 3-5 (allocator fills forage and tend first; the small-colony floor counts sources of
+  any nutrient); small carrion found 0-3 times in 7-11; entered prey patches never learnt; kd #1 took 3.2 of a large
+  carcass's 120 P (0.09 P per trip); laying is held by protein's gates and the winter reserve after day 1.
+
+**R38 (direction 24):** (1) scouts for a missing nutrient: >= max(2, 0.2 x workers), cap 0.25, filled before
+`forage`; (2) herd sign radius clamp(6 + 2 sqrt(aphids), 6, 24) BU, any outside worker; (3) prey patches learnt on
+notice / catch, or after 5 s walked inside by a scout or forager; (4) torn carrion >= 0.75 P per load, and trips to a
+known source with food left continue; (5) kd #2's unreached medium carcass traced (drop reachability); (6) one arm on
+all 15 vs `arm-final`. Laying gates unchanged this round. To be built in round 10 before it closes; if the round
+result's notes start with "R38 NOT BUILT", stop the workflow before sweep 10 and launch round 11 with R38.

@@ -301,7 +301,7 @@ For item 5 (measurement, no rule change this round), add to the table per colony
 - the perception radii in force for each food kind (herd odour, carrion, prey, crumbs, nectar), from the code.
 I rule on the radii, on honeydew sign under a herd's plant and on the scouts' pattern from those numbers.
 
-## Direction 24 (integrator, Nov 22 14:50 UTC) — R38: the colony finds and takes the protein that is already there
+## Direction 24 (integrator, Nov 22 14:49 UTC) — R38: the colony finds and takes the protein that is already there
 
 Read from your tables (`round-10/item5.py arm-r35`, ledger 13:58-14:42). Accepted as measured:
 - R36's condition is not met: the kitchen door is not short of protein arriving (kd median 0.96 loads/gd against the
