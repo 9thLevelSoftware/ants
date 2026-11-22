@@ -3847,3 +3847,7 @@ Progress (kept current; a successor continues from here)
   ahead of the tenders. Fix for that: the prospective part of the forage demand is filled last (test: tend head-count
   equal with and without the prospective term). Discovery stays a lead for item 5's table (no rule change this round).
 - 13:35 now: writing R35 (src edits after 14:05).
+- 13:46 **INTEGRATOR NOTE:** 13:34 trace accepted; fill the prospective part of the forage demand last (that is R35
+  point 5). `colony-life.md` **direction 23a** adds three things to item 5's table (herds found / not found with
+  nearest approach, ground coverage at 6 and 30 BU for the first 5 gd, the perception radii in force). Measurement
+  only; I rule from it.

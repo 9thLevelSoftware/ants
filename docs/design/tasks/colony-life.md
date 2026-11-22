@@ -286,3 +286,17 @@ sugar (kd #1 P intake 0.125, kd #2 0.025). With both mended the bar is in reach,
 
 Budget: one arm per change; items 1-4 are the round. Close with the 15 paired runs to winter (sweep 9's hand-overs,
 base = HEAD at the round's start, final = live) and the five long runs of the final tree against R34.
+
+## Direction 23a (integrator, Nov 22 13:46 UTC) — item 5's table also covers the herds and the ground the colony sees
+
+Your 13:34 trace is accepted: the tenders were not starved, the herds were never found (0 of 45 known after 48 h; one
+herd within 300 BU, found only inside its 6 BU odour), and the allocator's fill order is a second, latent cause.
+"The prospective part of the forage demand is filled last" is the right reading of R35 point 5: do that.
+
+For item 5 (measurement, no rule change this round), add to the table per colony:
+- every aphid herd within 300 BU of the entrance: found or not, hour found, by a worker on which task, nearest
+  approach of any worker if never found, the herd's size and height above the ground;
+- coverage: the share of the ground within 300 BU that came within 6 BU and within 30 BU of any outside worker, per
+  game day, for the first 5 gd after the hand-over, and the scouts' head-count on those days;
+- the perception radii in force for each food kind (herd odour, carrion, prey, crumbs, nectar), from the code.
+I rule on the radii, on honeydew sign under a herd's plant and on the scouts' pattern from those numbers.
