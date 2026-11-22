@@ -1062,3 +1062,6 @@ hygiene deaths if room. Then the independent sweep (15 + five long runs).
 Recovery after a restart or limit: journal of the new workflow (id in the next entry); round result present ->
 relaunch wf-life.js with firstRound 11 + firstRoundResult; cut off -> firstRound 11 with a note that the ledger's
 "## Round 11" progress and directions 24, 24a, 25 say what is in the tree.
+
+Round 11 launch (16:29 UTC): task `wl5j3j19w`, run `wf_e00051e5-a07` (wf-life.js {maxRounds: 1, firstRound: 11,
+model opus, effort high}, journal under `subagents/workflows/wf_e00051e5-a07/journal.jsonl`).
