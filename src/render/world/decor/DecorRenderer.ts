@@ -39,7 +39,7 @@ import { blockKeysOverlapping, blocksAround, rectDistance } from './tiles';
 import { WorldWatch, type Rect } from './worldWatch';
 import {
   DECOR_BUDGET_MS, DECOR_CHANGE_MARGIN_MM, DECOR_DISPOSE_K, DECOR_QUALITY_FACTOR, DECOR_RADIUS_MM, DECOR_WATCH_FRAMES,
-  DECOR_LEAF, DEW, DRAPE, GRASS, NEAR_GROUND, PARTING, WIND,
+  DECOR_LEAF, DEW, DRAPE, GRASS, NEAR_GROUND, nearGroundMm, PARTING, WIND,
 } from './tuning';
 import { QUALITY_PRESETS } from '@/render/app';
 
@@ -292,7 +292,7 @@ export class DecorRenderer {
       const dist = rectDistance(cx, cz, b.ref);
       const near = dist < GRASS.nearBlockMm;
       // within the near-ground floor the block draws the floor's share (the shader fades each blade/card out by its own distance)
-      const nearBlock = dist < 2 * NEAR_GROUND.mm;
+      const nearBlock = dist < 2 * nearGroundMm(g.bu);
       const gk = (nearBlock ? Math.max(qd, NEAR_GROUND.grass) : qd) * grassLodKeep(dist);
       b.setGrass(countBelow(b.grass, BLADE_STRIDE, BLADE_RANK, gk), near ? this.bladeBase!.near : this.bladeBase!.far, near && q.shadows.enabled);
       const dk = (nearBlock ? Math.max(keepMax, NEAR_GROUND.litter * keepSeason) : keepMax) * (dist <= DRAPE.lodFullMm ? 1 : Math.pow(DRAPE.lodFullMm / dist, DRAPE.lodPow));

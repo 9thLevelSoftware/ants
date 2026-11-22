@@ -9,7 +9,7 @@ import { Icon } from '../../icons';
 import { overlays } from '../../overlays/state';
 import { uiPrefs } from '../../styles/prefs';
 import { hudBridge } from '../state';
-import { fromBox, MINIMAP_REFRESH_MS, MINIMAP_SIZE_DP, paintPlate, toBox } from './model';
+import { fromBox, MINIMAP_REFRESH_MS, MINIMAP_SIZE_DP, minimapPaintStats, paintPlate, toBox } from './model';
 
 /** Canvas pixels per dp (a sharp plate on dense screens, bounded so the repaint stays cheap). */
 const MAX_DPR = 2;
@@ -48,7 +48,11 @@ export function Minimap() {
       if (f.ant?.yaw != null) yaw.current = f.ant.yaw;
       const next = copy(f);
       setDrawn({ frame: next, yaw: yaw.current });
+      const t0 = performance.now();
       paint(canvas.current, plate.current, next);
+      const ms = performance.now() - t0;
+      minimapPaintStats.last = ms; minimapPaintStats.count++;
+      if (ms < minimapPaintStats.min) minimapPaintStats.min = ms;
     };
     tick();
     const id = setInterval(tick, MINIMAP_REFRESH_MS);

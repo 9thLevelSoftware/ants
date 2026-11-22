@@ -79,4 +79,7 @@ export default async ({ page, log, out }) => {
     return { min: Math.min(...t), canvas: cv.width };
   });
   log('repaint-ish', JSON.stringify(cost));
+  // the real repaints (plate + water + structures + trail + food), timed inside the widget: last and least of every 200 ms repaint so far
+  await page.waitForTimeout(3000);
+  log('minimap-paint-ms', JSON.stringify(await g(() => window.__hud.minimapPaint())));
 };

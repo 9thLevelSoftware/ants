@@ -6,10 +6,10 @@ import { materialDef } from './materialDefs';
 import { applySurfacePatch } from './surfacePatch';
 import type { WorldUniforms } from './uniforms';
 
-function patched(id: string, prim: 'rounded' | null, space: 'instance' | 'world') {
+function patched(id: string, prim: 'rounded' | null, space: 'instance' | 'world', curved = false) {
   const mat = new MeshStandardMaterial();
   const u = new Proxy({}, { get: () => new Uniform(new Vector3()) }) as unknown as WorldUniforms;
-  applySurfacePatch(mat, { def: materialDef(id), set: { albedo: null, normal: null, rough: null, procedural: true } as never, uniforms: u, space, prim, looks: false });
+  applySurfacePatch(mat, { def: materialDef(id), set: { albedo: null, normal: null, rough: null, procedural: true } as never, uniforms: u, space, prim, curved, looks: false });
   const shader = {
     uniforms: {} as Record<string, unknown>,
     vertexShader: '#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>\n#include <project_vertex>',
@@ -20,11 +20,12 @@ function patched(id: string, prim: 'rounded' | null, space: 'instance' | 'world'
 }
 
 describe('face detail by material kind', () => {
-  it('brick, render, concrete, stone and mortar get masonry detail, metal gets seams, wood keeps its boards', () => {
+  it('brick, render, concrete, stone and mortar get masonry detail, metal gets seams, sawn wood gets boards, natural wood nothing', () => {
     expect(faceKindOf(materialDef('brick'))).toBe('brick');
     for (const id of ['plaster', 'concrete', 'stone', 'mortar']) expect(faceKindOf(materialDef(id)), id).toBe('panel');
     expect(faceKindOf(materialDef('metal'))).toBe('metal');
-    for (const id of ['wood-sound', 'loam', 'plastic', 'glass', 'asphalt', 'rubber']) expect(faceKindOf(materialDef(id)), id).toBeNull();
+    expect(faceKindOf(materialDef('wood-sound'))).toBe('wood');
+    for (const id of ['wood-decayed', 'bark', 'loam', 'plastic', 'glass', 'asphalt', 'rubber']) expect(faceKindOf(materialDef(id)), id).toBeNull();
   });
   it('the patch is on instanced primitives only and carries the prim size to the fragment stage', () => {
     for (const id of ['brick', 'concrete', 'metal']) {
@@ -37,8 +38,27 @@ describe('face detail by material kind', () => {
     expect(patched('brick', 'rounded', 'instance').vertexShader).toContain('#define WR_FACE_BRICK');
     expect(patched('metal', 'rounded', 'instance').vertexShader).toContain('#define WR_FACE_METAL');
     expect(patched('concrete', 'rounded', 'instance').vertexShader).not.toContain('WR_FACE_BRICK');
-    for (const [id, prim, space] of [['concrete', null, 'world'], ['loam', 'rounded', 'instance'], ['wood-sound', 'rounded', 'instance']] as const) {
+    expect(patched('wood-sound', 'rounded', 'instance').vertexShader).toContain('#define WR_FACE_WOOD');
+    for (const [id, prim, space] of [['concrete', null, 'world'], ['loam', 'rounded', 'instance'], ['wood-decayed', 'rounded', 'instance']] as const) {
       expect(patched(id, prim, space).vertexShader, id).not.toContain('#define WR_FACE');
+    }
+  });
+  it('the object foot reaches the fragment stage, and the patterns are laid out from it and from the world, not from the prim', () => {
+    const s = patched('brick', 'rounded', 'instance');
+    expect(s.vertexShader).toContain('attribute float iFoot;');
+    expect(s.vertexShader).toContain('vWrFoot = iFoot;');
+    expect(FACE_DETAIL_FRAG).toContain('vWrW.y - vWrFoot');
+    expect(FACE_DETAIL_FRAG).toContain('dot(vWrW.xz, tg)');
+    // the procedural bricks fade in as the scan's own bricks fade out: never both
+    expect(FACE_DETAIL_FRAG).toContain('own = smoothstep(');
+    expect(FACE.scanFadeFrom).toBeGreaterThanOrEqual(1.5);
+    expect(FACE.scanFadeTo).toBeLessThanOrEqual(7);
+  });
+  it('cylinders and capsules (round logs, stumps, posts) get no flat-face pattern whatever the material', () => {
+    for (const id of ['wood-sound', 'wood-decayed', 'brick', 'concrete', 'metal']) {
+      const s = patched(id, 'rounded', 'instance', true);
+      expect(s.vertexShader, id).not.toContain('#define WR_FACE');
+      expect(s.vertexShader, id).not.toContain('#define WR_BOARDS');
     }
   });
   it('the numbers are sane: lines fade before they alias, some colour survives the fog, a kerb is not a wall', () => {

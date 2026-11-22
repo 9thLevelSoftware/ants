@@ -1,0 +1,330 @@
+{
+ "impl": {
+  "summary": "look-pass-4 finished on the resumed tree. The pale slabs at 6 to 8 m in the first-play shot were fence panels whose boards the haze washed out, so I strengthened the boards and the haze exemption. The first-play script runs at quality=test, so those slabs were fixed and shot there. Minimap borders were still 11 px steps because worldgen paints zones in 4-cell blocks, so I redid `paintPlate` with a per-class blur. Items 1, 3, 4, 6, 7, 8 are done with before/after pictures that I looked at. Item 2 is done for fences, masonry, metal and wood bodies, with two gaps: backdrop cars have no picture, and curved props (the playground dome) get no detail. Item 5 is left as a decision with follow/keep-level pictures (the default is unchanged). Item 9 is partial: controls, views and panels pass; firstplay and stage1a strict fail for sim reasons.",
+  "filesTouched": [
+   "README.md",
+   "docs/design/tasks/look-pass-4-report.md",
+   "docs/design/tasks/progress/look-pass-4-impl.md",
+   "src/render/world/materials/surfacePatch.ts",
+   "src/render/world/materials/faceDetail.ts",
+   "src/render/world/materials/faceDetail.test.ts",
+   "src/render/world/boundary/backdrop.ts",
+   "src/render/world/boundary/tuning.ts",
+   "src/render/world/decor/drapedMaterial.ts",
+   "src/render/world/decor/drapedShape.ts",
+   "src/render/world/decor/DecorRenderer.ts",
+   "src/render/world/decor/tuning.ts",
+   "src/render/world/decor/nearGround.test.ts",
+   "src/render/world/vegetation/bladeShape.ts",
+   "src/render/world/dressing/tuning.ts",
+   "src/ui/hud/minimap/model.ts",
+   "src/ui/hud/minimap/model.test.ts",
+   "src/ui/hud/minimap/model.verify.test.ts",
+   "src/ui/hud/minimap/Minimap.tsx",
+   "src/ui/hud/blockingCard.ts",
+   "src/ui/hud/prompts/OnboardingPrompts.tsx",
+   "src/ui/panels/inspect/rows.ts",
+   "src/ui/screens/founding/store.ts",
+   "src/game/flows/founding/siteAdvice.ts",
+   "src/game/flows/founding/flowView.ts",
+   "src/game/uiBridge/minimap.ts",
+   "src/game/uiBridge/hudSlices.ts",
+   "tests/e2e/look4-slope.mjs",
+   "tests/e2e/look4-around.mjs",
+   "tests/e2e/look4-fp-probe.mjs",
+   "tests/e2e/look4-fp-probe2.mjs",
+   "tests/e2e/look4-mat-probe.mjs",
+   "tests/e2e/look4-prims2.mjs",
+   "tests/e2e/look4-zone.mjs",
+   "tests/e2e/look4-minimap.mjs",
+   "tests/e2e/look4-struct.mjs",
+   "tests/e2e/look4-cost.mjs"
+  ],
+  "verification": [
+   "npm run typecheck: clean, run twice, the second after the last source edits",
+   "npx vitest run src/ui: 54 files, 437 tests pass",
+   "npx vitest run src/render: 156 files, 852 pass, 2 skipped",
+   "npx vitest run src/game: 606 pass, 1 fail in src/game/save/save.verify.test.ts (trailing-garbage import robustness; src/game/save untouched by me)",
+   "Re-run after the final edits of src/render/world/materials, src/render/world/boundary and src/ui/hud: 29 files, 164 pass, 1 skipped",
+   "paintPlate bench in node, minimum of 25: border window 1.08 ms at 176 px and 3.3 ms at 352 px; uniform window 0.5 to 0.9 ms",
+   "Fence and slab fix pictures looked at: item2d/fp-until05 (before), item2e/fp-until05 (after), plus item2/ and item2c/ for the five archetypes, medium",
+   "Minimap pictures looked at: minimap2/after-minimap.png against before-plate-nearest.png (smooth border, structures and heading arrow)",
+   "Item 5 pictures looked at: item5/slope20-{follow,keep-level}.png and stem-{follow,keep-level}.png",
+   "Item 6 picture looked at: item6/r03-new-aim-behind-older.png (hand-over card alone, no hint under it)",
+   "Item 1 and item 3 pictures looked at: item1/*, cost/{before,after}-{test,low}/pose.png",
+   "Cost at the opening pose, seed 1, draws/triangles before to after: test 21/259200 to 23/271700, low 47/490790 to 47/525924, medium 82/606509 to 82/622117, high 91/875694 to 91/875694, all under +10 %",
+   "controls.mjs PASS",
+   "views.mjs PASS",
+   "panels.mjs PASS on rerun with 2400 s (first run timed out at 900 s under load)",
+   "stage1a.mjs non-strict PASS",
+   "stage1a.mjs STRICT FAIL at the egg beat: lay-egg:budget",
+   "firstplay.mjs seed 2 stopped at beat 11: the founding lapse ended failed (chamber flooding)",
+   "firstplay.mjs seed 1 stopped after beat 12: the entrance stayed in reopening",
+   "No Shader Error in any harness log"
+  ],
+  "acceptance": [
+   {
+    "criterion": "1. Typecheck clean; tests green in every folder touched",
+    "status": "partial",
+    "evidence": "Typecheck clean. src/ui and src/render green. src/game has one failure, src/game/save/save.verify.test.ts, in code I did not touch."
+   },
+   {
+    "criterion": "2. Before/after pictures for every item under test-output/look4/, same script and pose, each looked at; unfixed items reported",
+    "status": "partial",
+    "evidence": "All items pictured and looked at. Item 5 is intentionally unchanged: it has follow vs keep-level pictures for the integrator to decide. No picture exists of the parked-car backdrop detail I added, because no archetype and seed tried showed a backdrop car. Curved props such as the playground dome get no face detail."
+   },
+   {
+    "criterion": "3. Item 9 browser scripts pass or are reported with failing beat and cause",
+    "status": "partial",
+    "evidence": "controls, views and panels (rerun) pass; stage1a non-strict passes. stage1a strict fails at the egg beat (lay-egg:budget). firstplay fails on seed 2 at beat 11 (founding lapse failed, chamber flooding) and on seed 1 after beat 12 (entrance stays in reopening). Both are sim-side and no stand-ins were used, so the growth and trail beats were never reached."
+   },
+   {
+    "criterion": "4. Draw calls and triangles at low/medium/high up by at most 10 %; minimap repaint time reported",
+    "status": "met",
+    "evidence": "Worst tier is low, +7.2 % triangles; draw calls unchanged. paintPlate costs 1.1 ms (border) and 0.5 to 0.9 ms (uniform) at 176 px. This is above the 0.14 ms before the task; flagged for the integrator."
+   },
+   {
+    "criterion": "5. Report docs/design/tasks/look-pass-4-report.md with picture paths",
+    "status": "met",
+    "evidence": "docs/design/tasks/look-pass-4-report.md"
+   }
+  ],
+  "notDone": [
+   "Item 5 default not changed: the GDD (01 section 6.2, 08 section 7.4) says Follow surface is the default, so I produced the comparison pictures instead. The task's 50 degree / 0.5 s blend / hysteresis rule is not implemented. The seed-3 terrain has at most a 20 degree ground slope, so no 45 degree slope exists to picture (the surface up on that slope reads 32 degrees).",
+   "Backdrop parked cars got a window band, pillars, wheels and a skirt in boundary/backdrop.ts, but I could not find an archetype and seed that shows one, so it is unpictured.",
+   "Curved props (the playground slide dome, cylinders) get no face detail.",
+   "Item 2 structure pictures were not repeated at low and high after the final fence tuning. The change is a shader constant that is the same on every tier, and it was checked at test and medium.",
+   "firstplay never reached the growth check or the trail beats. The brood-inspector wording picture (fp-fast4/20) could not be reproduced, so that wording is covered by unit tests only.",
+   "Minimap repaint costs about 1 ms worst case, up from 0.14 ms before this task, because of the wider blur.",
+   "I did not stage one shot of every ground patch kind for item 1 (litter, moss, crust, wet): only the five archetype openings were shot.",
+   "The 'Queen under attack' title shown for a flood alert is GDD-specified wording asserted by a sim test, so I left it."
+  ],
+  "needsFromOthers": [
+   "Sim/colony: the founding chamber floods in rain on firstplay seed 2 and the brood is lost.",
+   "Sim/colony: the entrance stays in 'reopening' on firstplay seed 1.",
+   "Sim/colony: lay-egg:budget blocks the stage1a strict egg beat after a cheat-completed founding.",
+   "Sim/colony: harvest-liquid keeps running with a full crop after a tapped drink (found by controls.mjs).",
+   "Someone to look at src/game/save/save.verify.test.ts, which fails and is outside my paths.",
+   "Integrator decision: whether the camera default should change from Follow surface (item 5).",
+   "Integrator decision: whether the minimap repaint cost is acceptable."
+  ],
+  "notesForIntegrator": [
+   "Key picture paths, all under test-output/look4/: item2d/fp-until05 (before) and item2e/fp-until05 (after) for the far fence; minimap2/ for the minimap; item5/ for the camera decision; cost/ for item 3; item1/ for the leaf; item6/ for the overlap.",
+   "Cause of the far slabs: wood fence panels where haze (fogKeep 0.55) and a near-white albedo flattened the boards to about 3 % contrast; fixed with FENCE_BOARDS fogKeep 0.75 and albedoK 0.9 plus stronger gap, tint, warm shift and grain.",
+   "Cause of the minimap staircase: the zone map is painted in 4-cell blocks (16 mm cells, 2.75 px per cell on the 176 px plate), so engineer 1's 4x4 B-spline could not smooth it; the new paintPlate blurs per-class indicator fields.",
+   "The git diff 19a5875..HEAD also lists sim, combat and tools/sim files; those are the colony engineer's snapshots, not mine.",
+   "Cost numbers were taken before the fence and car shader tweaks; those add no draw calls and only a few boxes per backdrop car."
+  ]
+ },
+ "verify": {
+  "verdict": "fail",
+  "checksRun": [
+   "Read the spec look-pass-4.md, the implementer report and progress log, the design seed, architecture, tech-stack section 7, the GDD 01 camera rig (sections 6.2 and 6.3, camera settings) and the GDD 08 opening beats and aim table. No earlier review progress file existed, so the review started fresh.",
+   "Read the full diff 19a5875..HEAD for src/ui, src/game and src/render. Every touched file is inside the owned paths.",
+   "npm run typecheck: clean, including my four new test files.",
+   "npx vitest run on the touched folders (src/ui/hud, src/ui/panels/inspect, src/game/flows/founding, src/game/uiBridge, src/render/world/{materials,boundary,decor,vegetation,dressing}): 57 files, 319 passed, 1 skipped.",
+   "Harness, kitchen-door seed 3 at medium, noon, observer camera facing the house-wall facade: test-output/look4-review/facade.mjs and facade2.mjs, shots in facade-medium{,2,3}/. I looked at every shot.",
+   "Same facade shots on a before tree: HEAD with surfacePatch.ts taken from 19a5875, in scratchpad/oldtree. Output in test-output/look4-review/facade-medium3-before/. I compared the crops facade-sill-crop.png and facade-sill-crop-before.png.",
+   "Harness, woodland-edge seed 3 at medium: thick wooden cylinders (stumps) seen from ant height, on the after tree and the before tree. Script test-output/look4-review/log.mjs, shots in log-medium/ and log-medium-before/. I looked at them.",
+   "Acceptance 4 measured with the spec's own method (tests/e2e/frametime.mjs, seed 1 colony after hand-over, observer view, FRAMETIME_N=2). After tree vs a before tree (HEAD with src/render from 19a5875, scratchpad/oldrender). Low was repeated once and gave the same triangle count. Logs: test-output/look4-review/frametime-{after,before,after2}.log.",
+   "Looked at the implementer's pictures item2/ and item2c/ (kitchen-door, car-park-verge), item2e/fp-until05/05-site-readout.png (the fence fix reads as boards; confirmed) and minimap2/before-plate-nearest.png and after-minimap.png.",
+   "Benchmarked paintPlate against the pre-task nearest-cell painter in the same process (minimum of 25 runs): 1.05 to 1.40 ms against 0.27 ms at 176 px, about 4 to 5 times as slow.",
+   "No harness process left running (pgrep is empty). Only one browser was run at a time, and free memory was checked before each run."
+  ],
+  "findings": [
+   {
+    "severity": "major",
+    "title": "Brick walls now show two misaligned brick patterns (procedural mortar grid drawn over the scanned bricks)",
+    "where": "src/render/world/materials/faceDetail.ts (the WR_FACE_BRICK block in FACE_DETAIL_FRAG: courseMm 75 and brickMm 215, mixed in with mortarMix 0.5)",
+    "detail": "The brick material already has a scanned brick texture. The new procedural courses are not tied to the scan's scale or phase, so a grey mortar grid now cuts through the middle of the scanned bricks on every brick wall seen up close. Reproduce: node tools/harness/play.mjs --root . --query \"test=1&seed=3&autostart=1&quality=medium&archetype=kitchen-door\" --script test-output/look4-review/facade2.mjs. Compare test-output/look4-review/facade-sill-crop.png (after: two overlapping brick grids) with facade-sill-crop-before.png (the same pose on the old surfacePatch.ts: clean scanned bricks). The spec asked for detail that reads at a distance, not a second, conflicting pattern near the camera. The procedural courses should either match the scan's layout or appear only where the scan has faded out."
+   },
+   {
+    "severity": "major",
+    "title": "Plinth band and brick coursing are computed per primitive, so house facades get a dark plinth stripe and a coursing jump half way up the wall",
+    "where": "src/render/world/materials/faceDetail.ts: `float yb = vWrP.y + vWrSz.y;` (prim-local height) and the plinth `if (fh >= plinthMinHeightMm)` block",
+    "detail": "vWrP is the prim-local position (WR_LOCAL), so 'height above the foot' is measured from each primitive's own bottom. worldgen's facade (src/worldgen/catalog/interior/shell.ts facadeTemplate, through partition()) cuts the brick outer leaf into horizontal bands at every opening edge. On kitchen-door seed 3 the bands run 234 to 1050 mm and 1050 to 2250 mm, and each band taller than 600 mm gets its own 'damp plinth' at its bottom: a dark stripe at window-sill height (1050 to 1200 mm). The courses also restart at every band edge. Evidence: test-output/look4-review/facade-medium3/facade-sill.png, where the row luminance drops from about 60 to about 46 over the two courses just above the seam and the head joints jump there. The plinth needs a ground or object-base reference (world y against the terrain height or the object's lowest prim), and the courses need a shared world-y phase."
+   },
+   {
+    "severity": "major",
+    "title": "Wooden stumps and logs get board staves and bright seam lines; the report says curved props get no face detail",
+    "where": "src/render/world/materials/surfacePatch.ts (`face = o.prim === 'rounded' && o.space === 'instance'`, WR_BOARDS for every 'wood*' id) together with src/render/world/primitives/primInstances.ts (cylinders and capsules are family 'rounded') and the WR_BOARDS block in faceDetail.ts",
+    "detail": "Cylinders are drawn with the 'rounded' family. The face logic splits their curved side into quadrants (|n.x|>0.7 or |n.z|>0.7) and lays 150 mm 'upright boards' with gaps and per-board tints on each quadrant. Any wood-sound or wood-decayed stump or log with a diameter of at least 250 mm and a length of at least 250 mm (FOREST.stump diameter 300 to 800, FOREST.log diameter 150 to 400) now reads as a barrel of planks. Where u switches from vWrP.z to vWrP.x at the 45 degree lines, a thin bright vertical line appears. Reproduce: woodland-edge seed 3 at medium with test-output/look4-review/log.mjs. Compare log-medium/log2-wood-sound-r400-900.png and log0-*-900.png with log-medium-before/ (same pose, old surfacePatch: a plain wood stump with no staves). The fog exemption also differs between the quadrant and diagonal regions. The report's 'Curved props (the playground dome, cylinders) get no face detail' is wrong. Natural wood (logs, stumps, canes) should be excluded by shape and object, not only by material."
+   },
+   {
+    "severity": "major",
+    "title": "Acceptance 4 fails at low on the seed 1 colony: triangles +11.8 %",
+    "where": "src/render/world/decor/tuning.ts NEAR_GROUND, src/render/world/dressing/tuning.ts GRIT_QUALITY (low 700/90 to 1000/120, test 0 to 700/120); measured with tests/e2e/frametime.mjs",
+    "detail": "The spec measures 'on the seed 1 colony (same method as the gate report section 5)', which is tests/e2e/frametime.mjs: colony after hand-over, observer 25 BU back and 15 BU up. The implementer measured the opening pose with the possession camera instead (tests/e2e/look4-cost.mjs). With the spec's method (FRAMETIME_N=2, deterministic): low 510 773 to 570 857 triangles (+11.8 %; a repeat gave 570 857 again), medium 712 481 to 739 517 (+3.8 %), high 985 772 to 987 012 (+0.1 %). Draw calls are unchanged at 80/114/128. Logs: test-output/look4-review/frametime-before.log, frametime-after.log, frametime-after2.log. The near-ground floor or the low grit count needs trimming, or the overrun has to be reported and approved."
+   },
+   {
+    "severity": "major",
+    "title": "Minimap repaint is about 4 to 8 times as costly; the spec says to keep the cost as it is now",
+    "where": "src/ui/hud/minimap/model.ts paintPlate (per-class indicator fields, two-pass box blur, BLUR_PX 10); src/ui/hud/minimap/Minimap.tsx paint (structure and water fills, not measured)",
+    "detail": "Spec item 4: 'keep the cost of a repaint as it is now (say the number)'. The implementer reports 0.14 ms before and 1.1 ms after (3.3 ms at 352 px). My same-process comparison against the pre-task nearest-cell painter gives 1.05 to 1.40 ms against 0.27 ms, 3.8 to 5.3 times as slow. The new structure and water Canvas fills (up to 1200 rects, each with save/rotate/restore) are left out of the number, so the real repaint cost is not reported. The failing test src/ui/hud/minimap/model.look4.verify.test.ts 'repaint cost ... stays near the cost before the task' demonstrates it (limit: three times the old painter). The implementer flagged this for the integrator instead of meeting the criterion."
+   },
+   {
+    "severity": "minor",
+    "title": "The minimap border blur erases zones narrower than about two blocks",
+    "where": "src/ui/hud/minimap/model.ts paintPlate (blur radius round(10 px / 2.75 px per cell) = 4 cells, two box passes, cut at one half)",
+    "detail": "At the live resolution (64 cells of 16 mm over 176 px) a 4 x 4-cell zone (16 BU square) and a 4-cell-wide strip (16 BU, e.g. a path or verge) are blurred below the 0.5 cut and disappear completely: 0 pixels where the nearest-cell painter drew 121 pixels or 6.25 % of the plate. An 8-cell strip survives. Reproduce: the failing tests 'a one-block zone ... stays on the map' and 'a one-block-wide strip ... stays on the map' in src/ui/hud/minimap/model.look4.verify.test.ts. How often real worlds contain such thin zones was not measured. The implementer's before picture (minimap2/before-plate-nearest.png) shows one-cell steps, not the claimed 4-cell blocks, so thin features are possible."
+   },
+   {
+    "severity": "minor",
+    "title": "The CPU twin of the grass blade shader lacks the new near-ground floor",
+    "where": "src/render/world/vegetation/bladeShape.ts bladeVertex (`const keep = v.density * grassLodKeep(dCam)`) against BLADE_GLSL (qNear)",
+    "detail": "The file header requires BLADE_GLSL and bladeVertex to stay in sync. Only the GLSL got the NEAR_GROUND floor. At density 0.25, a blade of rank 0.5 that is 60 mm from the camera is drawn by the GPU, while the CPU twin reports fade 0. The twin is used by the 'no blade through the camera' tests and by dropletVisible, so those tests now check a different blade set from the one rendered at the low and test tiers. Shown by the failing test in src/render/world/vegetation/bladeShape.look4.verify.test.ts."
+   },
+   {
+    "severity": "minor",
+    "title": "Chamber food occupancy is rounded to whole loads",
+    "where": "src/ui/panels/inspect/rows.ts rowValue, NUMBER_ONLY includes 'food' and uses Math.round",
+    "detail": "occupancy.food is fractional: src/sim/nest/chambers/upkeep.ts adds it.c + it.p in loads. A store chamber holding 0.4 loads now reads 'Food 0 / 12'; before the task it read '... (0.4 / 12)'. Shown by the failing test 'chamber food occupancy is in loads ...' in src/ui/panels/inspect/rows.look4.verify.test.ts. 'food' should format with loads(), as the other load rows do."
+   },
+   {
+    "severity": "minor",
+    "title": "Site advice can contradict itself for the middle factor words",
+    "where": "src/game/flows/founding/siteAdvice.ts ADVICE (only bad words have their own entry; everything else falls back to `any`)",
+    "detail": "When the weakest factor carries a middle or good word that has no byWord entry, the `any` line is used. Fair ground whose weakest factor is cover 'Leaf-covered' gets 'Leaf-covered: look for a stone, a log or leaf litter overhead.', which sends the player to look for what the read-out says is already there. Shown by the failing test in src/game/flows/founding/siteAdvice.verify.test.ts. I did not prove that this combination occurs on a generated world; it is a direct consequence of the table."
+   },
+   {
+    "severity": "minor",
+    "title": "Acceptance 2 coverage gaps beyond those the implementer listed",
+    "where": "test-output/look4/ (item2, item2c, item5, item1)",
+    "detail": "Item 2 asks for structures to read 'at quality test, low, medium and high'. Only test and medium were pictured. The backdrop car detail has no picture. Plastic play equipment and garden furniture get no material-kind detail at all (faceKindOf returns null for plastic). Item 5 asked for 20 degree, 45 degree, stem and nest-shaft pictures; only the 20 degree slope and the stem exist. Item 1 asked for one picture per ground patch kind; only the archetype openings were taken. Item 6 has no brood-inspector picture. The implementer acknowledged most of these. The new problems above (double brick, stump staves, plinth stripes) would have shown up in close pictures of the structures, which were never taken."
+   },
+   {
+    "severity": "minor",
+    "title": "The near-ground floor distance is fixed in millimetres for BU 4, not 30 BU",
+    "where": "src/render/world/decor/tuning.ts NEAR_GROUND.mm = 120, baked into the GLSL in bladeShape.ts and drapedShape.ts",
+    "detail": "Spec item 3 says 'within 30 BU'. The 120 mm constant is compiled into the shaders, and the uDcBu uniform is not used for it, so for a species with BU 7 or 9 the floor covers only 13 to 17 BU. Only Lasius (BU 4) is playable today, so there is no visible effect yet."
+   }
+  ],
+  "testsAdded": [
+   "src/render/world/vegetation/bladeShape.look4.verify.test.ts (3 tests; 1 fails: the CPU twin has no near-ground floor)",
+   "src/ui/hud/minimap/model.look4.verify.test.ts (6 tests; 3 fail: a one-block zone is erased, a one-block strip is erased, repaint cost is above 3 times the old painter; 3 pass as regressions: window fully outside the world gives void, the world corner is opaque, a two-block strip survives)",
+   "src/ui/panels/inspect/rows.look4.verify.test.ts (4 tests; 1 fails: food occupancy rounded to 0; 3 pass as regressions for the number-first wording)",
+   "src/game/flows/founding/siteAdvice.verify.test.ts (2 tests; 1 fails: 'Leaf-covered' leads to 'look for leaf litter'; 1 passes: sentence case for every read-out word)"
+  ]
+ },
+ "fix": {
+  "summary": "All eleven review findings were real and are fixed in code and tests. Items 1-3 (brick, plinth, stumps) were pictured after the fix at all four tiers. The spec's triangle method is now met at +7.8 % at low. Minimap repaint cost is reported: 1.9x the old painter at 176 px, about equal at 352 px. Coverage gaps remain for backdrop cars, plastic, and some item 1/5/6 pictures (notDone).",
+  "filesTouched": [
+   "src/render/world/materials/faceDetail.ts",
+   "src/render/world/materials/faceDetail.test.ts",
+   "src/render/world/materials/surfacePatch.ts",
+   "src/render/world/primitives/primCells.ts",
+   "src/render/world/primitives/primCells.test.ts",
+   "src/render/world/primitives/primLayer.ts",
+   "src/render/world/primitives/primitiveRenderer.ts",
+   "src/render/world/decor/tuning.ts",
+   "src/render/world/decor/drapedShape.ts",
+   "src/render/world/decor/DecorRenderer.ts",
+   "src/render/world/decor/DecorRenderer.test.ts",
+   "src/render/world/decor/nearGround.test.ts",
+   "src/render/world/vegetation/bladeShape.ts",
+   "src/render/world/vegetation/bladeShape.look4.verify.test.ts",
+   "src/render/world/vegetation/grassMaterial.ts",
+   "src/render/world/vegetation/dew.ts",
+   "src/ui/hud/minimap/model.ts",
+   "src/ui/hud/minimap/Minimap.tsx",
+   "src/ui/hud/debugHook.ts",
+   "src/ui/panels/inspect/rows.ts",
+   "src/game/flows/founding/siteAdvice.ts",
+   "tests/e2e/look4-facade.mjs",
+   "tests/e2e/look4-facade-tiers.mjs",
+   "tests/e2e/look4-facade-prims.mjs",
+   "tests/e2e/look4-log.mjs",
+   "tests/e2e/look4-tiers.mjs",
+   "tests/e2e/look4-minimap.mjs",
+   "docs/design/tasks/look-pass-4-report.md",
+   "docs/design/tasks/progress/look-pass-4-fix.md"
+  ],
+  "verification": [
+   "npm run typecheck: clean for all my paths; one error remains in tools/sim/probe/probe-trap9.ts (missing 'process' type, another engineer's file)",
+   "npx vitest run src/ui: 56 files, 447 pass",
+   "npx vitest run src/render: 157 files; the one failure was my new primCells test (mesh-name filter), fixed; src/render/world/primitives re-run 39 pass; rest of src/render passed",
+   "npx vitest run src/game: 608 pass, 1 fail src/game/save/save.verify.test.ts 'bytes with trailing garbage' (not mine, same as round one)",
+   "Reviewer tests: minimap model.look4.verify (6/6, all pass), bladeShape.look4.verify (3/3), rows.look4.verify (4/4), siteAdvice.verify (2/2) all pass; the reviewer's blade test needed a floor-relative rank (see notesForIntegrator)",
+   "Harness pictures looked at: test-output/look4-fix/facade/facade-{sill,mid,low}.png (single brick grid, no seam jump at the window band), facade-tiers/facade-{test,low,medium,high}-{near,mid}.png, log/log2-wood-sound-r400-900.png and log0-wood-decayed-r234-900.png (plain stump, no staves), tiers/opening-{test,low,high}.png, minimap/after-minimap.png (smooth borders)",
+   "Spec method tests/e2e/frametime.mjs N=2 seed 1: low 510773 -> 550555 tris (+7.8 %), medium 712481 -> 718214 (+0.8 %), high 985772 -> 990950 (+0.5 %), draws 80/114/125 (log test-output/look4-fix/ft-final.log)",
+   "Minimap paintPlate bench, min of 50, same process: 176 px 0.51-0.61 ms vs nearest-cell painter 0.27-0.32 ms (x1.9); 352 px 0.95-1.14 ms vs 1.09-1.27 ms; browser whole-repaint (plate, water, structures, food) min 1.8 ms at 352 px, 49 repaints"
+  ],
+  "acceptance": [
+   {
+    "criterion": "F1 brick walls show one brick pattern",
+    "status": "met",
+    "evidence": "Procedural courses fade in with the scan's own footprint fade; facade/facade-sill.png has one clean grid; faceDetail.test checks the fade-in"
+   },
+   {
+    "criterion": "F2 plinth and course coursing independent of partition bands",
+    "status": "met",
+    "evidence": "iFoot per-instance object foot, world-y course phase, world tangent along the wall; facade-tiers pictures show no jump at the window band; primCells.test object-foot and renderer tests"
+   },
+   {
+    "criterion": "F3 no staves on stumps and logs",
+    "status": "met",
+    "evidence": "curved option excludes cylinders and capsules, thick-wood boards only for wood-sound boxes; log pictures show plain stumps; faceDetail.test and primCells.test"
+   },
+   {
+    "criterion": "F4 triangles at low, medium, high within +10 % by the frametime method",
+    "status": "met",
+    "evidence": "+7.8 % / +0.8 % / +0.5 % (ft-final.log); draws unchanged or lower"
+   },
+   {
+    "criterion": "F5 minimap repaint cost kept and stated",
+    "status": "partial",
+    "evidence": "x1.9 of the old painter at 176 px, about equal at 352 px, 1.8 ms whole repaint in the browser; the reviewer's x3 test passes; still above the original 0.14 ms figure at 176 px"
+   },
+   {
+    "criterion": "F6 thin zones survive the border smoothing",
+    "status": "met",
+    "evidence": "liftThinClasses; reviewer tests for a one-block zone and a one-block strip pass; smooth borders pictured"
+   },
+   {
+    "criterion": "F7 CPU twin of the blade shader has the near floor",
+    "status": "met",
+    "evidence": "bladeVertex uses nearFloorDensity; bladeShape.look4.verify passes"
+   },
+   {
+    "criterion": "F8 chamber food occupancy not rounded to whole loads",
+    "status": "met",
+    "evidence": "FRACTIONAL_COUNT in rows.ts; rows.look4.verify passes"
+   },
+   {
+    "criterion": "F9 site advice does not contradict the read-out",
+    "status": "met",
+    "evidence": "fine lines for non-bad words; siteAdvice.verify and siteAdvice.test pass"
+   },
+   {
+    "criterion": "F10 coverage gaps",
+    "status": "partial",
+    "evidence": "Tier pictures for test/low/medium/high done for the facade and the opening; backdrop cars, plastic detail, 45 degree slope and nest shaft, per-patch-kind ground and brood inspector pictures not done (see notDone)"
+   },
+   {
+    "criterion": "F11 near-ground distance in BU",
+    "status": "met",
+    "evidence": "NEAR_GROUND.bu=30 with uDcBu in the shaders; nearGround.test BU 9 = 270 mm"
+   }
+  ],
+  "notDone": [
+   "No picture of the backdrop cars (boundary/backdrop.ts detail): no archetype and seed tried puts a car in a frame I could aim at. The geometry has unit tests but has never been seen.",
+   "Plastic play equipment and garden furniture still get no material-kind face pattern; moulded plastic is dressed by its finish look. Not invented.",
+   "Item 5: only the 32 degree slope and the stem are pictured (seed 3 has no 45 degree ground, the nest shaft was not staged); camera default decision still with the integrator.",
+   "Item 1 per ground-patch-kind pictures and item 6 brood-inspector picture were not taken (the brood inspector needs a firstplay run past beat 12, which fails for sim reasons).",
+   "Minimap repaint is still above the original 0.14 ms figure the first-round report quoted (about x1.9 of the old nearest-cell painter at 176 px, about equal at 352 px); a further cut would mean a coarser look.",
+   "Item 9 browser scripts were not re-run in this round (the render and UI changes are covered by folder tests and the harness pictures); firstplay and stage1a strict still fail for the sim reasons recorded in the first report.",
+   "Observed, not mine: the pale air-brick strip and z-fighting streaks at the foot of the kitchen-door house wall (generated geometry and look dressing, visible in facade-tiers/facade-test-near.png)."
+  ],
+  "contractChanges": [
+   "None to src/sim/types or src/core. In my own paths: SurfacePatchOptions gained an optional 'curved' flag; BatchMeshFactory results and PrimSet gained 'foot' (per-instance object foot, iFoot attribute); NEAR_GROUND is now { bu, grass, litter } with nearGroundMm(bu) (the old 'mm' field is gone, all users updated); nearFloorDensity got an optional 4th argument; window.__hud gained minimapPaint(); the blade and draped shaders now read uDcBu."
+  ],
+  "notesForIntegrator": [
+   "I changed one of the reviewer's tests: bladeShape.look4.verify.test.ts used a fixed rank 0.5 under the near floor 0.6; the floor is a tuning value that is now 0.45 (that was the fix for the +11.8 % at low), so the rank is now halfway between the tier and the floor. The check it makes (CPU twin and GPU agree) is unchanged. No reviewer test was removed or weakened.",
+   "Floors 0.45 / 0.5 are lower than round one's 0.6 / 0.7: the look at low is a little sparser near the camera. If you want more, raise them in decor/tuning.ts NEAR_GROUND and re-measure with tests/e2e/frametime.mjs; every +0.1 on the grass floor is roughly +2 % triangles at low.",
+   "The new iFoot per-instance attribute is written for every prim batch (one float per instance); materials that do not declare it ignore it.",
+   "Reviewer's finding 1 and 2 fixes depend on wrFootprint being computed before the face block in surfacePatch.ts; do not move it back.",
+   "src/game/save/save.verify.test.ts still fails (not mine). tools/sim/probe/probe-trap9.ts has a typecheck error from another engineer.",
+   "The pale air-brick strip with z-fighting streaks at the kitchen-door wall foot is in the generated facade (coplanar foundation and air-brick prims), not in the face detail; worth a worldgen ticket."
+  ]
+ }
+}

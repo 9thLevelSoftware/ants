@@ -38,13 +38,40 @@ export type StuckAction = 'none' | 'replan' | 'fail' | 'fail-repeat';
 export function trackProgress(s: NavScratch, metric: number, advanced: boolean, tick: number, r: LocoRuntime, w: Walker): void {
   if (advanced) { s.best = metric; s.bestTick = tick; s.ladder = 0; s.anchor.y = w.pos.y; return; }
   if (s.best === NO_PROGRESS) { s.best = metric; return; }
-  if (metric < s.best - r.P.stuckProgress) { s.best = metric; s.bestTick = tick; s.ladder = 0; return; }
+  if (metric < s.best - r.P.stuckProgress) {
+    s.best = metric;
+    if (!beyondEpisode(s, w, metric, r)) return;
+    s.bestTick = tick; s.ladder = 0;
+    return;
+  }
   // climbing counts (viab-loco, int-1B Addendum 3 item 11): on a steep face a new highest point (anchor.y: the
   // highest point since the leg, waypoint or ladder rung began) re-baselines the metric, so a tall board is climbed
   // and descended, not laddered mid-climb; going up and down the same wall is not progress
   if (Math.abs(w.up.y) < r.P.pinnedUpY && w.pos.y > s.anchor.y + r.P.stuckProgress) {
-    s.best = metric; s.bestTick = tick; s.ladder = 0; s.anchor.y = w.pos.y;
+    s.best = metric; s.anchor.y = w.pos.y;
+    if (!beyondEpisode(s, w, metric, r)) return;
+    s.bestTick = tick; s.ladder = 0;
   }
+}
+
+/** Leg signature of the stuck-episode record (NavScratch.epLeg). */
+function legKey(w: Walker, s: NavScratch): string {
+  return `${w.nav.mode}|${s.flowKey}|${s.legField}|${s.legNest}`;
+}
+
+/**
+ * A walker on a rung of the ladder made real progress: on the leg it got stuck on, its metric is below the best it
+ * had reached before the episode began, or it stands higher than it had climbed; on another leg (the replan changed
+ * the way, so the metrics differ) any progress counts. Without this a walker jittering at the foot of an undercut
+ * root (sweep 8, playground-park #1: six foragers lost at one point 82 BU from home) beat the fresh baseline that
+ * each rung's replan set by the stuckProgress margin every few seconds, the rung went back to 0 at every window, and
+ * the ladder never reached the rungs that move the walker; its walk failed by episodes, the forager asked again,
+ * and so on until RETURN_LOST_S.
+ */
+function beyondEpisode(s: NavScratch, w: Walker, metric: number, r: LocoRuntime): boolean {
+  if (s.ladder === 0 || s.epBest === undefined || s.epLeg !== legKey(w, s)) return true;
+  const P = r.P;
+  return metric < s.epBest - P.stuckProgress || w.pos.y > (s.epTop ?? Infinity) + P.stuckProgress;
 }
 
 /**
@@ -102,6 +129,8 @@ export function checkStuck(sim: Sim, w: Walker, s: NavScratch, r: LocoRuntime, i
     s.episodes++;
     st.stuckEpisodes++;
     if (s.episodes > P.episodesMax) return 'fail';
+    // what the walker had reached before this episode (trackProgress: the bar for progress while on a rung)
+    s.epBest = s.best; s.epTop = s.anchor.y; s.epLeg = legKey(w, s);
   }
   s.ladder++;
   s.bestTick = tick;

@@ -30,8 +30,10 @@ export interface BreachList {
  */
 export const FENCE_BOARDS = { boardMm: 150, thinMaxMm: 60, bigMinMm: 600, gapDark: 0.7, tintVar: 0.4, warmVar: 0.3, grain: 0.22, grainMm: [22, 420], fadeFrom: 0.35, fadeTo: 0.9, fogKeep: 0.75, albedoK: 0.9 } as const;
 export const FENCE_BOARDS_FRAG = /* glsl */ `
-#ifdef WR_BOARDS
+#if defined( WR_BOARDS ) || defined( WR_FACE )
 float wrFogKeep = 0.0;
+#endif
+#ifdef WR_BOARDS
 {
   vec3 bsz = vWrSz * 2.0, bn = abs(vWrN);
   float panZ = step(bsz.z, ${FENCE_BOARDS.thinMaxMm.toFixed(1)}) * step(${FENCE_BOARDS.bigMinMm.toFixed(1)}, bsz.x) * step(${FENCE_BOARDS.bigMinMm.toFixed(1)}, bsz.y) * step(0.7, bn.z);
@@ -72,6 +74,8 @@ export interface SurfacePatchOptions {
   /** Mapping space: primitive-local (instanced primitives) or world. */
   space: 'instance' | 'world';
   prim?: 'rounded' | 'ellipsoid' | null;
+  /** The instances are cylinders or capsules (a round log, a post, a pipe): no flat-face patterns (boards, courses, seams) on their curved side. */
+  curved?: boolean;
   breaches?: BreachList;
   /** Macro albedo noise strength (0 = off). */
   macro?: number;
@@ -119,9 +123,10 @@ export { LEAF_BEND } from './leafBend';
 export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOptions): void {
   const d = o.def;
   const looks = !!(o.looks && o.prim);
-  const face = o.prim === 'rounded' && o.space === 'instance' ? faceKindOf(d) : null;
+  const flat = o.prim === 'rounded' && o.space === 'instance' && !o.curved;
+  const face = flat ? faceKindOf(d) : null;
   const rustScan = d.texture === 'metal_painted';
-  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|${face ?? '-'}|v5`;
+  const key = `surf|${d.id}|${d.texture}|${d.roughMin}|${o.space}|${o.prim ?? '-'}|${o.breaches ? 'b' : '-'}|${o.extra?.key ?? '-'}|${d.dualScale}|${o.macro ?? 0}|${looks ? 'L' : '-'}|${face ?? '-'}|${flat ? 'F' : '-'}|v6`;
   addPatch(mat, key, (s) => {
     if (o.prim) primVertexPatch(s, o.prim, looks);
     s.uniforms.tWrA = { value: o.set.albedo };
@@ -148,9 +153,9 @@ export function applySurfacePatch(mat: MeshStandardMaterial, o: SurfacePatchOpti
       `#define WR_WETROUGH ${d.wetRough.toFixed(3)}`,
       `#define WR_ROUGHMIN ${d.roughMin.toFixed(3)}`,
       looks ? '#define WR_LOOKS' : '',
-      o.prim === 'rounded' && o.space === 'instance' && d.id.startsWith('wood') ? '#define WR_BOARDS' : '',
+      flat && d.id.startsWith('wood') ? '#define WR_BOARDS' : '',
       face ? '#define WR_FACE' : '',
-      face === 'brick' ? '#define WR_FACE_BRICK' : face === 'metal' ? '#define WR_FACE_METAL' : '',
+      face ? `#define WR_FACE_${face.toUpperCase()}` : '',
     ].join('\n');
 
     s.vertexShader = s.vertexShader
@@ -162,6 +167,9 @@ varying vec3 vWrR0; varying vec3 vWrR1; varying vec3 vWrR2;
 #endif
 #if defined( WR_BOARDS ) || defined( WR_FACE )
 varying vec3 vWrSz;
+#endif
+#ifdef WR_FACE
+attribute float iFoot; varying float vWrFoot;
 #endif
 ${looks ? LOOK_VERT_DECL : ''}
 ${o.extra?.vertDecl ?? ''}`)
@@ -176,6 +184,9 @@ ${o.extra?.vertDecl ?? ''}`)
   vWrW = wrW.xyz;
   #if defined( WR_BOARDS ) || defined( WR_FACE )
   vWrSz = iSize.xyz;
+  #endif
+  #ifdef WR_FACE
+  vWrFoot = iFoot;
   #endif
   #ifdef WR_LOCAL
   vWrP = transformed; vWrN = objectNormal;
@@ -198,6 +209,9 @@ ${GLSL_CONTACT}
 varying vec3 vWrP; varying vec3 vWrN; varying vec3 vWrW;
 #if defined( WR_BOARDS ) || defined( WR_FACE )
 varying vec3 vWrSz;
+#endif
+#ifdef WR_FACE
+varying float vWrFoot;
 #endif
 ${GLSL_DAPPLE}
 #ifdef WR_LOCAL
@@ -238,6 +252,8 @@ vec3 wrAlb; vec3 wrNw; float wrRg;
 wrTri(tWrA, tWrN, tWrR, vWrP, wrN0, uWrScale, uWrNs, wrAlb, wrNw, wrRg);
 #endif
 wrAlb *= uWrTint;
+// how many texels of the scan one pixel covers: the scan's own detail fades out with it (below), the procedural face detail fades in
+float wrFootprint = length(fwidth(vWrW)) / (uWrScale / float(textureSize(tWrA, 0).x));
 ${FENCE_BOARDS_FRAG}
 ${FACE_DETAIL_FRAG}
 #ifdef WR_MACRO
@@ -245,7 +261,6 @@ wrAlb *= mix(1.0 - WR_MACRO, 1.0 + WR_MACRO, wrFbm(vWrW.xz / 340.0));
 #endif
 // detail fade where a texel is smaller than a few pixels (far, or grazing views): the normal map and the
 // albedo contrast fall toward their mean instead of sparkling, and the lost micro-relief turns into roughness
-float wrFootprint = length(fwidth(vWrW)) / (uWrScale / float(textureSize(tWrA, 0).x));
 float wrFade = smoothstep(1.5, 7.0, wrFootprint);
 wrNw = normalize(mix(wrNw, wrN0, 0.7 * wrFade));
 wrAlb = mix(wrAlb, textureLod(tWrA, vec2(0.5), 12.0).rgb * uWrTint, 0.35 * wrFade);

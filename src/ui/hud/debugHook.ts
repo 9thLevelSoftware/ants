@@ -5,6 +5,7 @@ import { snapshot, facade } from '../store';
 import { inspectHover, inspectPin, openDrawer, type DrawerId } from './state';
 import { alertFeed, feedView } from './alerts/store';
 import { pinInspect } from '../panels/inspect/inspectState';
+import { minimapPaintStats } from './minimap/model';
 
 interface Box { id: string; x: number; y: number; w: number; h: number }
 
@@ -34,6 +35,8 @@ export function installHudDebug(): () => void {
     hover: (ref: { kind: string; id: number } | null) => { inspectHover.value = ref; facade.peek()?.refreshUi?.(); return inspectHover.peek(); },
     alerts: () => ({ cards: feedView.peek().cards, more: feedView.peek().more, toasts: alertFeed.toastLog.slice() }),
     prompts: () => Array.from(document.querySelectorAll('[data-testid="prompt-line"]')).map((el) => ({ input: (el as HTMLElement).dataset.input ?? '', text: el.textContent ?? '' })),
+    /** Wall time of the minimap's canvas repaints so far: last and least ms, and how many. */
+    minimapPaint: () => ({ ...minimapPaintStats }),
     /** The facade the UI calls (the Game in the real page): for scripted stand-ins only. */
     get game() { return facade.peek(); },
   };

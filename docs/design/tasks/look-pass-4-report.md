@@ -98,3 +98,67 @@ What I see in the firstplay pictures, besides the above:
 - Sim: founding chamber flooding in rain at seed 2 (firstplay), entrance reopening stalls at seed 1, `lay-egg:budget` in stage1a strict, `harvest-liquid` running with a full crop; "Queen under attack" title for a flood alert.
 - `src/game/save/save.verify.test.ts` fails (not mine).
 - Decision for you: camera default (item 5); minimap repaint cost (item 4).
+
+---
+
+# Fix round: the independent review of look-pass-4
+
+An independent reviewer reported eleven findings (five major, six minor). Each was reproduced or checked against the code; all eleven are real. Pictures are under `test-output/look4-fix/` (git-ignored), every one looked at. Progress log: `docs/design/tasks/progress/look-pass-4-fix.md`. This section supersedes the statements above where they differ (item 2 "curved props get no detail" was wrong in its wording: cylinders were drawn with the same family as boxes and did get boards, which was the stump finding; item 3's table and item 4's cost are replaced by the numbers below).
+
+| # | Finding | Root cause | Fix | Evidence |
+|---|---|---|---|---|
+| 1 | Brick walls show two brick grids | The procedural courses (75 x 215 mm) were laid over the scan, which has its own, differently phased bricks | `faceDetail.ts`: the courses fade IN with `smoothstep(3.5, 7, wrFootprint)`, the same quantity that fades the scan's own detail out (`wrFootprint` is now computed before the face block in `surfacePatch.ts`), so near the wall there is only the scan and far away only the procedural courses | `facade/facade-sill.png` (one clean brick grid; the reviewer's picture had two), `facade-tiers/facade-{test,low,medium,high}-{near,mid}.png` |
+| 2 | Plinth stripe and course jumps at partition band edges | Height and course phase were prim-local (`vWrP.y + size.y`); the facade is cut into bands at every window | New per-instance attribute `iFoot` = world y of the lowest bottom among the prims of the same object (`PrimSet.foot` in `primCells.ts`, carried by `PrimLayer` and `PrimitiveRenderer`). Courses, panel seams and the plinth use `vWrW.y - iFoot`; the position along the wall is the world coordinate along the face tangent, so head joints line up across bands. Plinth is 250 mm from the foot (the generated foundation course is sunk 100 mm). Tilted prims (roofs) are skipped | `facade-tiers/*` (no seam at the window band), `primCells.test.ts` "object foot" and "PrimitiveRenderer feeds the face detail" |
+| 3 | Stumps and logs get staves and bright seam lines | Cylinders are family `rounded` like boxes; thick-wood boards ran on their curved side by quadrant, for every `wood*` material | `SurfacePatchOptions.curved` (set for cylinder and capsule buckets, which now have their own material variant `...-cyl`): no boards, courses or seams on curved prims. Thick-wood boards are now their own face kind `wood`, for `wood-sound` only (decayed wood and bark are natural and get none) | `log/log2-wood-sound-r400-900.png`, `log/log0-wood-decayed-r234-900.png` (plain grained stump, no staves), `faceDetail.test.ts` "cylinders and capsules ..." |
+| 4 | Low tier +11.8 % triangles by the spec's method | `DecorRenderer.applyLod` raises the WHOLE block count to the near floor for every block within 2 x 30 BU of the camera; the shader culls per blade but the triangles are still submitted | `NEAR_GROUND` floors 0.6 / 0.7 -> 0.45 / 0.5 (still 30 BU, still easing back over the next 30 BU). Guard in `DecorRenderer.test.ts` (low < 0.4 x high blades) | below |
+| 5 | Minimap repaint 4 to 8 times as costly | Per-pixel bilinear blend of every class field over the whole plate | `paintPlate` fills whole quads whose four corner shares are all at least `PURE_SHARE` (the shares at which `sharpen` is already 1) as plain spans; only the pixels near a border pay for the blend. Output identical to the full blend | below |
+| 6 | The border blur erases zones under about two blocks | Blur radius ~10 px with a cut at one half: a 4 x 4 cell block peaks at 0.16 | `liftThinClasses`: a class whose own peak share nearby is under 0.8 is lifted (up to 8x, eased in from 0.8 down to 0.3) and the shares are renormalised, so a thin class stays present, about its own width; borders between wide classes are exactly the plain blur | reviewer tests (all pass), `minimap/after-minimap.png` |
+| 7 | CPU twin of the blade shader lacks the near floor | Only the GLSL got it | `bladeVertex` uses `nearFloorDensity(...)`, the twin of `qNear` | `bladeShape.look4.verify.test.ts` passes |
+| 8 | Chamber food shown as whole loads ("Food 0 / 12" for 0.4) | `food` was in `NUMBER_ONLY` (rounded) | New `FRACTIONAL_COUNT` in `rows.ts`: whole numbers print as integers, part loads with one decimal | `rows.look4.verify.test.ts` passes |
+| 9 | Site advice contradicts the read-out ("Leaf-covered: look for leaf litter") | Only bad words had entries; everything else fell back to one `any` line | `siteAdvice.ts`: every factor has `byWord` for its bad words and a `fine` line (always starts "look ...") for all the others that never asks for what the word says is there | `siteAdvice.verify.test.ts` passes |
+| 10 | Coverage gaps | | see below | |
+| 11 | Near-ground distance fixed at 120 mm, not 30 BU | The mm value was baked into the GLSL | `NEAR_GROUND.bu = 30`; the shaders take `uDcBu` (already bound for the draped layer, now also for blades and dew); `nearGroundMm(bu)`, `nearFloorDensity(q, floor, d, nearMm)` (default BU 4); `DecorRenderer.applyLod` uses the world's BU | `nearGround.test.ts` (BU 9 = 270 mm) |
+
+## Acceptance 4 by the spec's method (finding 4)
+
+`tests/e2e/frametime.mjs`, `FRAMETIME_N=2`, seed 1 colony after hand-over, observer 25 BU back and 15 BU up (`test-output/look4-fix/ft-final.log`; before-numbers are the reviewer's, taken on the tree before the task):
+
+| tier | draws before / after | triangles before | triangles after | change |
+|---|---|---|---|---|
+| low | 80 / 80 | 510 773 | 550 555 | +7.8 % |
+| medium | 114 / 114 | 712 481 | 718 214 | +0.8 % |
+| high | 128 / 125 | 985 772 | 990 950 | +0.5 % |
+
+An earlier run with the same constants gave 546 875 at low (+7.1 %); the spread is the colony's state. The test tier (first-play quality) is not in the criterion; its picture still shows grit, litter and tufts (`tiers/opening-test.png`, `tiers/opening-low.png`: low draws 65 calls / 469 528 triangles at the opening pose, test 37 / 226 226).
+
+## Minimap repaint cost (finding 5)
+
+The spec says "keep the cost of a repaint as it is now (say the number)". Same-process comparison, minimum of 50, a worst-case checker of 4-cell blocks (a border through most of the window), `paintPlate` against the nearest-cell painter that was there before the task:
+
+| plate | new | nearest-cell (before the task) |
+|---|---|---|
+| 176 px | 0.51 to 0.61 ms | 0.27 to 0.32 ms (x1.9) |
+| 352 px (dpr 2, the real size on dense screens) | 0.95 to 1.14 ms | 1.09 to 1.27 ms (about equal) |
+| single-class window, 176 / 352 px | 0.08 / 0.22 ms | |
+
+Whole repaint in the browser, including the plate, water, structures, trail and food, measured inside the widget (`window.__hud.minimapPaint()`, new; `tests/e2e/look4-minimap.mjs`, 49 repaints at dpr 2, 352 px, machine load 5 to 8): least 1.8 ms, last 2.6 ms, every 200 ms, so about 1 % of one core. The reviewer's test "repaint cost ... stays near the cost before the task" (limit three times the old painter) passes, with the usual caveat that it is a same-process timing on a shared machine.
+
+## Finding 10: coverage gaps
+
+Done: facade at `test`, `low`, `medium`, `high`, near and mid (`facade-tiers/`); the opening at all four tiers (`tiers/`).
+Not done, and why:
+- Backdrop cars (`boundary/backdrop.ts`): still no picture; no archetype and seed tried puts a backdrop car in a frame I could aim at without a scene-graph hook. The geometry has unit tests (boundary suite) but is unseen.
+- Plastic play equipment and garden furniture get no material-kind pattern: moulded plastic is dressed by its finish look (`dressing/looks.ts`), which gives colour, gloss and wear; adding seams would be a new look, and I did not invent one for it.
+- Item 5 pictures: only the 32 degree slope and the stem exist; the generated terrain of seed 3 has no 45 degree ground and the nest shaft was not staged. The decision (GDD default Follow surface kept) is unchanged.
+- Item 1 per patch kind and item 6 brood inspector: no new pictures (the brood inspector needs a firstplay run past beat 12, which fails for sim reasons).
+- Observed, not mine: at the wall foot of the kitchen-door house the air-brick row (y 150 to 215) is a flat pale strip and the rows below it show z-fighting streaks where coplanar foundation prims overlap (`facade-tiers/facade-test-near.png`). It is in the generated geometry and the look dressing, and was masked by haze before this task.
+
+## Tests added or changed in this round
+
+New: `primCells.test.ts` (object foot, `iFoot` reaches the meshes, cylinder buckets get a curved material), `faceDetail.test.ts` (world-based phase, scan fade-in, cylinders excluded, wood kind), `nearGround.test.ts` (BU scaling), `DecorRenderer.test.ts` (low tier bound). Changed (my paths): the wood expectations of `faceDetail.test.ts`; `bladeShape.look4.verify.test.ts` (reviewer's) picks its test rank between the tier and the floor instead of the fixed 0.5, because the floor is a tuning value that went from 0.6 to 0.45 (the check it makes, GPU and CPU twin agree, is unchanged). No reviewer test was weakened or removed.
+
+Verification (all in `test-output/look4-fix/`): `npm run typecheck` clean for every path of mine (one error remains in `tools/sim/probe/probe-trap9.ts`, another engineer's file: missing `process` type); `src/ui` 56 files, 447 pass; `src/render` all pass (157 files; the one failure of that run was my new test's mesh-name filter, fixed and re-run: `src/render/world/primitives` 39 pass); `src/game` 608 pass and the one known failure `src/game/save/save.verify.test.ts` "bytes with trailing garbage" (not mine, unchanged since the first round).
+
+## Files touched in this round
+
+`src/render/world/materials/{faceDetail,faceDetail.test,surfacePatch}.ts`, `src/render/world/primitives/{primCells,primCells.test,primLayer,primitiveRenderer}.ts`, `src/render/world/decor/{tuning,drapedShape,DecorRenderer,DecorRenderer.test,nearGround.test}.ts`, `src/render/world/vegetation/{bladeShape,bladeShape.look4.verify.test,grassMaterial,dew}.ts`, `src/ui/hud/minimap/{model,Minimap}.ts(x)`, `src/ui/hud/debugHook.ts`, `src/ui/panels/inspect/rows.ts`, `src/game/flows/founding/siteAdvice.ts`, `tests/e2e/look4-{facade,facade-tiers,facade-prims,log,tiers,minimap}.mjs`. No shared contract changed.

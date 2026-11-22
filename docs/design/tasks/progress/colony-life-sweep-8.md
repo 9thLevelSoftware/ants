@@ -57,3 +57,7 @@ Started 05:57 UTC Nov 22. No earlier progress file; fresh start.
 - F1 cost in the sweep: flee-water ms/tick median 0.014 -> 0.055 (x4), nest-flood 0.084 -> 0.042, total 4.05 -> 4.34.
 - Next: we #1 lost probe running; then the five long runs (PAR=2, UNTIL_DAY=40) from the frozen copy.
 - 07:26 long runs: we #2, sg #2 done (sweep-long/); cpv #1, pp #3 running, kd #3 next. Then longrun-table.py + round-8/long-final/table.py (copied), ledger.
+- 07:55 DONE. Long runs 5/5 (R22 spring 4/5 met, day-15 0/5 not met; R24: viable-at-winter we #2 8 %, sg #2 8 %,
+  cpv #1 13 %; kd #3 C 0 -> starved with queen). Ledger section "### Independent sweep after round 8" written.
+  Scratch trees deleted, probe sources in round-8/sweep-review/*.ts.txt, no process running. Kept red test:
+  src/sim/nest/flood/readersCost.verify.test.ts.

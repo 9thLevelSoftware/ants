@@ -43,7 +43,9 @@ const TAIL_WORDS: ReadonlySet<string> = new Set([
 const isTail = (word: string): boolean => TAIL_WORDS.has(word) || /^\d+ BU down$/.test(word);
 
 /** Rows whose word only repeats the label or the unit: the number alone ("Adults   3 / 12", "Ours using it   2"). */
-const NUMBER_ONLY = new Set(['users', 'rivals', 'entrances', 'adults', 'brood', 'food']);
+const NUMBER_ONLY = new Set(['users', 'rivals', 'entrances', 'adults', 'brood']);
+/** Chamber food occupancy is in loads and fractional (sim/nest/chambers/upkeep.ts adds item c + p): 0.4 of 12, not 0 of 12. */
+const FRACTIONAL_COUNT = new Set(['food']);
 
 function numberText(r: UiInspectRow & { value: number }): string {
   return r.unit === '%' ? String(Math.round(r.value)) : r.unit === 'game days' || r.unit === '°C' ? (Math.round(r.value * 10) / 10).toString() : loads(r.value);
@@ -57,6 +59,7 @@ export function rowValue(r: UiInspectRow): string {
   if (r.value === null) return word;
   const v = r as UiInspectRow & { value: number };
   if (!r.unit && !COUNT_KEYS.has(r.key)) return word;
+  if (FRACTIONAL_COUNT.has(r.key)) return `${Number.isInteger(r.value) ? r.value : loads(r.value)}${r.unit ? ` ${r.unit}` : ''}`;
   if (NUMBER_ONLY.has(r.key)) return r.unit ? `${Math.round(r.value)} ${r.unit}` : String(Math.round(r.value)); // occupancy counts: whole animals
   if (r.key === 'size' && r.unit === 'x L') return `${numberText(v)} \u00d7 our length`;
   const count = !r.unit;

@@ -6,16 +6,25 @@
 //     staggered joints; panel or render seams (1.2 x 0.6 m) on the other masonry;
 //   metal: standing seams with a tint per panel and a fold line half way up;
 // each fading out where a line would be under about 3 pixels (no moire), and keeping part of its colour through the fog so the haze
-// tints the face instead of bleaching it to the sky colour. Wood keeps its boards (FENCE_BOARDS).
+// tints the face instead of bleaching it to the sky colour. Thin wooden panels keep their boards (FENCE_BOARDS).
+//
+// Phase and reference (look-pass-4 fix): a facade is cut into bands at every window and door, so the patterns cannot be laid out in each
+// prim's own frame. Height is measured from the foot of the prim's OBJECT (iFoot, primitives/primCells.ts: the lowest bottom among the
+// object's prims), so the plinth sits at the foot of the wall and the courses run on through every band; the position along the face
+// is the world coordinate along the wall, so the head joints line up from band to band. Brick courses also fade IN as the scan's own
+// bricks fade out (the scan has its own brick layout; two grids at the same time read as a double pattern), and cylinders, capsules and
+// natural wood (logs, stumps, decayed wood) never get any of it (surfacePatch.ts `curved`, kind table below).
 import type { MaterialDef } from './materialDefs';
 
 export const FACE = {
   /** A face is detailed when both its sides are at least this long, mm (a 150 mm kerb is not). */
   minFaceMm: 250,
-  /** Plinth: height of the band and the shortest face that gets one, mm; albedo multiplier; greenish damp tint. */
-  plinthMm: 150, plinthMinHeightMm: 600, plinthDark: 0.7, plinthDamp: 0.5,
+  /** Plinth: height of the band above the object foot (a foundation is sunk about 100 mm, so 250 reads as ~150 above the ground) and the shortest face that gets one, mm; albedo multiplier; greenish damp tint. */
+  plinthMm: 250, plinthMinHeightMm: 400, plinthDark: 0.7, plinthDamp: 0.5,
   /** Brick course height and brick length, mm; share of mortar colour. */
   courseMm: 75, brickMm: 215, mortarMix: 0.5, mortarRgb: [0.62, 0.58, 0.5],
+  /** The procedural courses fade in between these scan footprints (texels of the scan per pixel; the scan itself fades out between 1.5 and 7). */
+  scanFadeFrom: 3.5, scanFadeTo: 7,
   /** Other masonry: seam grid (across, up), mm; seam width as a fraction of a panel; darkening. */
   panelMm: [1200, 600], seamW: 0.025, seamDark: 0.5,
   /** Metal: standing seam spacing, mm; seam width fraction; darkening; panel tint spread; fold line height share. */
@@ -28,15 +37,16 @@ export const FACE = {
   woodBoardMm: 150, woodGapDark: 0.5, woodTintVar: 0.26,
 } as const;
 
-export type FaceKind = 'brick' | 'panel' | 'metal' | null;
+export type FaceKind = 'brick' | 'panel' | 'metal' | 'wood' | null;
 
 const PANEL_MATERIALS: ReadonlySet<string> = new Set(['plaster', 'concrete', 'stone', 'mortar']);
 
-/** Which face detail a material gets (wood has its own boards). */
+/** Which face detail a material gets. Only sawn, sound wood is boarded; decayed wood and bark are natural and get none. */
 export function faceKindOf(def: Pick<MaterialDef, 'id'>): FaceKind {
   if (def.id === 'brick') return 'brick';
   if (PANEL_MATERIALS.has(def.id)) return 'panel';
   if (def.id === 'metal') return 'metal';
+  if (def.id === 'wood-sound') return 'wood';
   return null;
 }
 
@@ -44,14 +54,15 @@ const f = (n: number) => n.toFixed(3);
 
 export const FACE_DETAIL_FRAG = /* glsl */ `
 #ifdef WR_FACE
-float wrFogKeep = 0.0;
 {
-  vec3 an = abs(vWrN);
+  vec3 an = abs(vWrN), nW = wrRot * wrN0;
   float fx = step(0.7, an.x), fz = step(0.7, an.z) * (1.0 - fx);
   float fw = 2.0 * (fx > 0.5 ? vWrSz.z : vWrSz.x), fh = 2.0 * vWrSz.y;
-  if (fx + fz > 0.5 && fw >= ${f(FACE.minFaceMm)} && fh >= ${f(FACE.minFaceMm)}) {
-    float u = fx > 0.5 ? vWrP.z : vWrP.x;
-    float yb = vWrP.y + vWrSz.y;
+  // upright walls only (a tilted prim's face is a roof or a lid), and not a panel the fence boards already claimed
+  if (fx + fz > 0.5 && fw >= ${f(FACE.minFaceMm)} && fh >= ${f(FACE.minFaceMm)} && abs(nW.y) < 0.5 && wrFogKeep <= 0.0) {
+    vec2 tg = normalize(vec2(-nW.z, nW.x));
+    float u = dot(vWrW.xz, tg);          // along the wall, shared by every prim of the facade
+    float yb = vWrW.y - vWrFoot;         // above the foot of the object
     #ifdef WR_FACE_BRICK
     {
       float cy = yb / ${f(FACE.courseMm)}, row = floor(cy), cu = u / ${f(FACE.brickMm)} + 0.5 * mod(row, 2.0);
@@ -59,17 +70,27 @@ float wrFogKeep = 0.0;
       float bed = 1.0 - smoothstep(0.1, 0.1 + max(fy, 0.05), fract(cy));
       float head = 1.0 - smoothstep(0.04, 0.04 + max(fu, 0.04), min(hf, 1.0 - hf));
       float k = 1.0 - smoothstep(${f(FACE.fadeFrom)}, ${f(FACE.fadeTo)}, max(fy, fu));
-      wrAlb = mix(wrAlb, vec3(${FACE.mortarRgb.map(f).join(', ')}), max(bed, head) * k * ${f(FACE.mortarMix)});
+      float own = smoothstep(${f(FACE.scanFadeFrom)}, ${f(FACE.scanFadeTo)}, wrFootprint); // 1 once the scan's bricks have blurred away
+      wrAlb = mix(wrAlb, vec3(${FACE.mortarRgb.map(f).join(', ')}), max(bed, head) * k * own * ${f(FACE.mortarMix)});
     }
     #elif defined( WR_FACE_METAL )
     {
       float mx = u / ${f(FACE.metalSeamMm)}, fm = fwidth(mx), mf = fract(mx);
       float k = 1.0 - smoothstep(${f(FACE.fadeFrom)}, ${f(FACE.fadeTo)}, fm);
       float seam = 1.0 - smoothstep(${f(FACE.metalSeamW)}, ${f(FACE.metalSeamW)} + max(fm, 0.02), min(mf, 1.0 - mf));
-      float fy = yb / max(fh, 1.0) - ${f(FACE.foldAt)}, ff = fwidth(fy);
+      float fy = (vWrP.y + vWrSz.y) / max(fh, 1.0) - ${f(FACE.foldAt)}, ff = fwidth(fy);
       float fold = (1.0 - smoothstep(0.004, 0.004 + max(ff, 0.01), abs(fy))) * (1.0 - smoothstep(${f(FACE.fadeFrom)}, ${f(FACE.fadeTo)}, ff * fh / ${f(FACE.metalSeamMm)}));
       float tint = 1.0 - ${f(FACE.metalTint / 2)} + ${f(FACE.metalTint)} * wrHash12(vec2(floor(mx), 7.0));
       wrAlb *= mix(1.0, tint, k) * (1.0 - ${f(FACE.metalSeamDark)} * max(seam * k, fold));
+    }
+    #elif defined( WR_FACE_WOOD )
+    { // a sawn wooden body that is not a thin panel (shed, bin, table): upright boards
+      float bu = u / ${f(FACE.woodBoardMm)};
+      float bfw = fwidth(bu), bf = fract(bu), be = min(bf, 1.0 - bf);
+      float gap = 1.0 - smoothstep(0.02, 0.02 + max(bfw, 0.05), be);
+      float keep = 1.0 - smoothstep(${f(FACE.fadeFrom)}, ${f(FACE.fadeTo)}, bfw);
+      float tint = 1.0 - ${f(FACE.woodTintVar / 2)} + ${f(FACE.woodTintVar)} * wrHash12(vec2(floor(bu), 11.0));
+      wrAlb *= mix(1.0, (1.0 - ${f(FACE.woodGapDark)} * gap) * tint, keep);
     }
     #else
     {
@@ -80,28 +101,12 @@ float wrFogKeep = 0.0;
       wrAlb *= 1.0 - ${f(FACE.seamDark)} * max(sx, sy) * k;
     }
     #endif
-    #ifndef WR_FACE_METAL
-    if (fh >= ${f(FACE.plinthMinHeightMm)}) {
+    #if defined( WR_FACE_BRICK ) || !( defined( WR_FACE_METAL ) || defined( WR_FACE_WOOD ) )
+    if (fh >= ${f(FACE.plinthMinHeightMm)}) { // damp, dark foot of the wall, at the foot of the OBJECT (not of this band)
       float pl = 1.0 - smoothstep(${f(FACE.plinthMm)}, ${f(FACE.plinthMm + 25)}, yb);
       wrAlb *= mix(vec3(1.0), vec3(${f(FACE.plinthDark * 0.94)}, ${f(FACE.plinthDark)}, ${f(FACE.plinthDark * 0.9)}), pl * ${f(FACE.plinthDamp + 0.5)});
     }
     #endif
-    wrFogKeep = ${f(FACE.fogKeep)};
-  }
-}
-#endif
-#ifdef WR_BOARDS
-if (wrFogKeep <= 0.0) { // a wooden body that is not a thin panel: upright boards on its big faces
-  vec3 an = abs(vWrN);
-  float fx = step(0.7, an.x), fz = step(0.7, an.z) * (1.0 - fx);
-  float fw = 2.0 * (fx > 0.5 ? vWrSz.z : vWrSz.x), fh = 2.0 * vWrSz.y;
-  if (fx + fz > 0.5 && fw >= ${f(FACE.minFaceMm)} && fh >= ${f(FACE.minFaceMm)}) {
-    float bu = (fx > 0.5 ? vWrP.z : vWrP.x) / ${f(FACE.woodBoardMm)};
-    float bfw = fwidth(bu), bf = fract(bu), be = min(bf, 1.0 - bf);
-    float gap = 1.0 - smoothstep(0.02, 0.02 + max(bfw, 0.05), be);
-    float keep = 1.0 - smoothstep(${f(FACE.fadeFrom)}, ${f(FACE.fadeTo)}, bfw);
-    float tint = 1.0 - ${f(FACE.woodTintVar / 2)} + ${f(FACE.woodTintVar)} * wrHash12(vec2(floor(bu), fx * 3.0 + fz * 5.0 + 11.0));
-    wrAlb *= mix(1.0, (1.0 - ${f(FACE.woodGapDark)} * gap) * tint, keep);
     wrFogKeep = ${f(FACE.fogKeep)};
   }
 }

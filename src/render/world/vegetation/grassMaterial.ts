@@ -48,7 +48,7 @@ function bindBlade(s: { uniforms: Record<string, unknown> }, shared: DecorShared
   const w = shared.world, d = shared.decor, h = shared.hole;
   Object.assign(s.uniforms, {
     uTime: w.uTime, uCamPos: w.uCamPos, uSubject: w.uSubject, uWindDir: d.uWindDir, uWet: w.uWet,
-    uGrWind: d.uGrWind, uGrPart: d.uGrPart, uGrLod: d.uGrLod, uGrPartP: d.uGrPartP, uGrEye: d.uGrEye, uTransl: d.uTransl,
+    uGrWind: d.uGrWind, uGrPart: d.uGrPart, uGrLod: d.uGrLod, uGrPartP: d.uGrPartP, uGrEye: d.uGrEye, uDcBu: d.uDcBu, uTransl: d.uTransl,
     tHoleIdx: h.tHoleIdx, tHoleAtlas: h.tHoleAtlas, uHoleP: h.uHoleP,
     uWrDapple: w.uDapple, uWrDappleMm: w.uDappleMm, tWrCanopy: w.tDappleMask, uWrCanopyInv: w.uDappleMaskInv,
   });

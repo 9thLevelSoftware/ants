@@ -3249,3 +3249,188 @@ R29 (amended: care factor only; GDD 02 §3.2), R30 (GDD 02 §1.3 and §15; R11 w
 - 05:56 **round 8 closed.** Live tree = F1 + FD1 + WL4 + R30 + R29c + HB1 (no R31); typecheck clean (after
   the probe removal too, `round-8/typecheck-final2.txt`); folder tests as at 05:22; `docs-final.test` green. Scratch
   trees all deleted; probes archived under `round-8/probes/`; no background process left.
+
+### Independent sweep after round 8
+
+Independent engineer, 05:57-07:55 UTC Nov 22 (no restart; progress file `docs/design/tasks/progress/colony-life-sweep-8.md`).
+**Table: `test-output/colony-life/round-8/sweep-table.md`** (`python3 tools/sim/sweep-table.py round-8/sweep
+round-7/sweep`; columns as `econ-growth-review/sweep9-table.md` plus first workers, `worker:lost`, R27 stores and shut
+days). Runs by `tools/sim/sweep-life.sh` from a frozen copy of the tree taken at 05:58 (src hash `edfbf82a` = the live
+tree = HEAD 2a8b227 for src/sim, src/worldgen, src/core: F1 + FD1 + WL4 + R30 + R29c + HB1); all 15 runs on it,
+05:58-06:55. Naturalist, default start, flooding on, no player, hand-overs founded fresh (they are NOT byte-equal to
+sweep 7's: R30 changes the founding's nanitic draws; first workers are equal in 15 of 15). Bars recomputed from the
+Markdown table by a second script (`round-8/sweep-review/bars-from-md.py`, `bars-from-md.txt`): same verdicts.
+Review outputs: `round-8/sweep-review/`. **This table is the one the next round compares with.**
+
+**Viability bar: NOT met** - viable **9 of 15** (sweep 7: 4): woodland-edge 2/3 (ok), suburban-garden 2/3 (ok),
+playground-park 1/3, car-park-verge 3/3 (ok), kitchen-door 1/3. Failed checks: starvation stage in 4 (we #1, pp #3,
+kd #1, kd #3), workers in 1 (pp #1), stores (R27) in 3 (sg #3 C 1.6 of 3.5, pp #1 C 0.45 of 2.0, kd #3 C 0).
+
+**Growth bar R19: NOT met** (4 of 7):
+
+| check | sweep 8 | sweep 7 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | 12 of 15 ok (below: we #1 18 -> 16, pp #1 13 -> 6, pp #3 13 -> 11) | 4 |
+| median eclosions after hand-over >= 4 | 5 ok | 4 |
+| median intake/need P >= 0.7 | **0.269** | 0.198 |
+| median intake/need C >= 0.9 | 1.162 ok | 1.078 |
+| median trip success >= 50 % | **45.9 %** | 43.9 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok (we #2: 8) | 14 |
+| no `worker:lost`, >= 13 of 15 | **12 of 15** (we #1 3, pp #1 6, sg #2 1) | 13 |
+
+Sums (15 runs): first workers 168 (both), workers at winter 138 -> 194, eclosions 65 -> 60, larvae starved 13 -> 1;
+adult deaths old age 64 -> 1, predation 14 -> 14, crushed 14 -> 9, **lost 2 -> 10**, drowning 1 -> 0. Brood losses
+after the hand-over: egg:untended 43, pupa:untended 37, egg:flooding 32, larva:base 17, egg:base 16, hygiene 9 (247
+eggs laid). Against the round's own arms: trip success 45.9 % (r30hb1 arm 50.4 %), viable 9 (r30r29c arm 10), median
+P 0.269 (r30hb1 0.287): the round's numbers are not reproduced on fresh foundings, but are close.
+
+**Year two** (five long runs, `PAR=2 UNTIL_DAY=40 tools/sim/longrun-life.sh round-8/sweep-long ...` from the same frozen
+copy, 07:09-07:50; no JSON was there before; tables `round-8/sweep-long/longrun-table.md` (longrun-table.py) and
+`round-8/sweep-long/table.txt` (round 8's `long-final/table.py`, copied to `sweep-review/long-table.py`). The runs start
+from the sweep's own fresh hand-overs (same tree tag), so their winter-1 rows equal the sweep's. Every run reaches the
+first row of the second winter (game day 35-36 = year-two doy 22-24) except kd #3 (dead at doy 17).
+
+| run | first | winter 1 (C, R27 need) | larvae last autumn row | spring tick 1 | lapse loss | y2 d15 | y2 d21 | 2nd winter (C) | y2 eclosions (doy: n, all same-year eggs) |
+|---|---|---|---|---|---|---|---|---|---|
+| we #2 | 8 | 13 (C 11.0 / 3.4) | 0 | 12 | 8 % (cold 1) | 10 | 8 | 8 (C 34) | 10:1 11:2 14:1 15:1 |
+| sg #2 | 11 | 12 (C 6.3 / 3.6) | 0 | 11 | 8 % (cold 1) | 9 | 10 | 10 (C 0.8) | 11:1 13:1 16:1 17:1 |
+| cpv #1 | 11 | 15 (C 18.6 / 4.2) | 3 (+2 pupae) | 13 | 13 % (old age 1, cold 1) | 12 | 9 | 9 (C 40) | 12:1 15:1 16:1 |
+| pp #3 | 13 | 11 (C 14.1 / 4.5) | 0 (3 eggs, 2 pupae) | 11 | 0 % | 8 | 6 | 6 (C 29) | 11:1 12:3 16:1 |
+| kd #3 | 9 | 9 (**C 0** / 3.9) | 0 | 4, **queen dead** | 56 % (starvation 5 + queen) | 1 | - | dead at doy 17 | none |
+
+- **R22 year two**: spring alive with >= 0.7 x winter workers **4 of 5** (bar 4: met; kd #3 fails); workers on year-two
+  day 15 >= 2 x first workers **0 of 5** (bar 3: not met; 10/16, 9/22, 12/22, 8/26, 1/18).
+- **R24** (lapse loss <= 15 % for a colony viable at winter): the three viable at winter (we #2, sg #2, cpv #1) lose
+  8 %, 8 %, 13 %; pp #3 (not viable: starvation stage) 0 %. kd #3 enters winter with C 0 (fails R27, not viable), so
+  the cap does not apply and the lapse starves it with its queen; it is not a "viable at winter, dead in spring" case.
+- Larvae into winter: only cpv #1 (3 larvae, 2 pupae); none of them became a worker: 2 larvae died of hygiene and 2
+  pupae (temperature, untended) in the lapse, the last larva pupated on spring doy 8. Year-two eclosions 17, all
+  from year-two eggs (doy 10-17).
+- Workers fall from spring to the second winter in all four survivors (old age 6-9 each after the lapse): at year-two
+  day 10 the first workers are 28-29 gd old with drawn lifespans 24-38 gd (`agesY2d10`), so they age out on days
+  10-21 while 3-5 year-two workers eclose.
+- Against round 8's own long runs (cached hand-overs, `long-final/`): we #2 12/11/11/8/7 there vs 13/12/10/8/8 here;
+  sg #2 there entered winter with C 0 and lost its queen, here C 6.3 and 12 -> 11; kd #3 there 9/8/7/1/1, here starved
+  in the lapse. Different hand-overs; the R22 verdicts are the same (4 of 5, 0 of 5).
+
+**Regressions against sweep 7** (script, 11 runs flagged; the hand-overs differ, so these are different games and only
+the bar counts compare directly; the bar counts all moved up except `worker:lost`):
+- **pp #1**: net workers -2 -> -7, eclosions 6 -> 1, C 0.64 -> 0.34, `worker:lost` 0 -> 6 (finding 1).
+- **sg #3**: intake C 1.078 -> 0, P 0.556 -> 0, trip success 31 -> 0 %, eclosions 1 -> 0: 2 trips in 12 gd (finding 2).
+- kd #3: eclosions 6 -> 0, C 0.119 -> 0.006 (lead 3); kd #2: eclosions 4 -> 0 (pupa:untended 8); cpv #1: eclosions
+  9 -> 4, trip success 51 -> 35 %; pp #3: eclosions 7 -> 5, trip 54 -> 46 %; pp #2: eclosions 2 -> 1, trip 66 -> 58 %;
+  sg #2: eclosions 5 -> 3, lost 0 -> 1; we #1: lost 0 -> 3 (finding 1); cpv #2: P 0.332 -> 0.194; we #2: C 1.49 -> 1.22.
+
+Review of the round (code: `git diff 8f72185 HEAD` on src/sim; 8f72185 has the sweep-7 tree hash 44ff6ee0, so it is
+the round-start commit; outputs `round-8/sweep-review/`):
+- Verified: `tsc --noEmit` clean (`tsc.txt`, and `tsc-after-verify.txt` with this review's test). Folder tests on the
+  live tree: combat 13/13, nest/flood 12/12 (+1 skipped), colony 67/69 (red `founding/reopen`, `workedExample`:
+  known), ants/behaviours/outdoor 30/31 (red `removal.verify`, known), species/data 4/4, `tests/docs/docs-final` 8/8.
+- The round's tests on the round-start tree with the tests copied in (`vitest-roundtests-on-8f72185.txt`, scratch copy,
+  deleted): 18 of 21 cases red (assertion failures for HB1, R30, WL4 `lossCap`, F1 `readersRestore`, the notice tokens;
+  missing exports for the new R29c and FD1 functions); the 3 green are guards (other prey keeps its HP etc.).
+- Not-allowed list: lifespans changed only to R30's numbers (lasius-niger.ts, NANITIC_*, LIFESPAN_CLAMP_GD; the other
+  species' worker castes x1.27 and ageing 1.5, data only); no need, food, provision, bar change; ruling tests restated
+  only where a ruling changed them (`lossCap` / `lossCapStores.verify` for WL4, `physiology.verify` and the species
+  tables for R30); the hunt fixtures' crop filter (< 0.05 -> < 0.2) only selects the observed ant; no seed or archetype
+  case. Determinism: WL4's `noticeTick` is persisted lifecycle state, R29c reads the persisted census snapshot and
+  `col.alloc`, FD1 and HB1 are pure; no wall clock.
+- Each fix against its cause: F1 removes the cache-existence dependence (cause, not symptom); HB1 restores GDD 05 §2.2's
+  rule and covers every hunt target (`hunt.ts` hunts springtails and mites only), so no multi-bite hunt is left with
+  the self-alarm flight; WL4 implements direction 15's "alerted before choosing"; R30 is the integrator's data. FD1
+  fixes the shaft-end desiccation, but the round's cause list calls the browser founding failure "fixed by FD1" while
+  direction 20.1 records the first-play founding still failing after it (6 eggs at 2.8 % of the lapse).
+- `workedExample` red explained (scratch with the care factor forced to 1: green): larval C per larva is identical
+  (0.909 in both), the larvae count differs 4.55 -> 4.67 (a different RNG trajectory with a factor of 0.92 in the
+  laying draw), and without R29c the test already sits at 3.7 % of its 5 % bound. It is a noise-limited test (10
+  seeds), not a rule change of R29c; the integrator decides whether more seeds is a restatement or a weakening.
+- R30 item not done: `balance/colony.ts DIAG_MORTALITY_REF_LIFESPAN_GD` is still 26 (direction 15: "re-derived by
+  measurement"; the 09:18 entry derives a realised 36-39 gd under R30 and defers it). diag-mortality now judges deaths
+  against a turnover 1.4-1.5 x the natural one (minor; diagnostics only).
+- **New review test `src/sim/nest/flood/readersCost.verify.test.ts` (RED, kept; finding 4).**
+
+**Findings**
+1. **Major: `worker:lost` 2 -> 10, the growth check fails (12 of 15).** These are traps, not long trips. Probe
+   `probe-lost8.ts` (tool-side; restoring the cached hand-over reproduces each run's deaths exactly):
+   pp #1 (`probe-lost-pp1.txt`): all 6 lost foragers die at one point (~920, -11.3, 3593 BU), 82.5 BU from the open
+   entrance, in `forage.return` (home mode 2), jittering within 3 BU for 1000-1400 s until RETURN_LOST_S; the point is
+   the bottom of a shallow terrain bowl (height -11.33 BU, -10.95..-11.29 within 8 BU; nav cells not blocked;
+   `probe-spot8.ts`). we #1 (`probe-lost-we1b.txt`): 2 of 3 lost foragers die *at their own entrance* (0.1-0.4 BU from
+   it, status `open`, plugVoxelCount 4, nav `moving`) after 1290 s of return; the third carries an item 52 BU out.
+   No stuck report fires for any of them (they move a little). Not a round-8 rule, but R30 keeps the workers alive
+   long enough to die this way; the round did not change locomotion.
+2. **Major: an inert colony after the hand-over (sg #3: 2 trips in 12 gd, intake 0, 0 eclosions, fails R27).**
+   Probe `probe-idle8.ts` (`probe-idle-sg3.txt`, every game hour for 2 gd): the entrance reads `open` with
+   plugVoxelCount 33 -> 29 left; the scout's depart nav fails `leg` every hour, foragers wait (no source known), and
+   by 5.6 gd all 10 workers, also inside the nest (queen-care, haul, store, idle), report nav `failed:leg`. This is the
+   failure `founding/reopen.test` pins (plug soil left in the throat; red since round 1) met in a sweep, plus a nest-wide
+   leg failure that the red test does not cover. A player sees a colony that never leaves its nest.
+3. Minor-major: the round's numbers are close to but not reproduced on fresh foundings (trip success 45.9 vs 50.4 %;
+   viable 9 vs 10): R19's trip-success check is still failed.
+4. Minor (cost): F1 lets every flood reader rebuild the spill cache after each carve in a wet nest, bypassing GDD 03
+   §11.2's 5 s throttle: `readersCost.verify.test.ts` 300 ticks, a carve every 10 ticks, one reader a tick: 30
+   `buildSpill` vs 6 for the throttled model (allows 7), 2.5-3.1 ms each on the small test nest. In the sweep the
+   flee-water system costs 0.055 ms/tick median (sweep 7: 0.014); total 4.05 -> 4.34 ms/tick (load-noisy). Determinism
+   is fine (readers and the model share one cache). Fix direction: readers place the level in the cache of the last
+   capture rebuilt deterministically at the capture tick, or rebuild at most once per FLOOD_REBUILD_TICKS.
+5. Minor: `DIAG_MORTALITY_REF_LIFESPAN_GD` not re-derived (above); FD1 reported as fixing the browser founding (above).
+
+**Leads from the failing runs' own diagnostics** (most costly first; numbers from `round-8/sweep/*.json`):
+1. **Protein income** (median P 0.269 of need, bar 0.7): starvation stage fails we #1, pp #3, kd #1, kd #3; P intake
+   0.059 (kd #2), 0.146 (kd #1), 0.148 (we #2), 0.168 (cpv #1). R32 and known carrion against hunting (direction 20.3-4).
+2. **Brood lost in care**: untended 80 (egg 43, pupa 37) + flooding 34 of 247 eggs laid against 60 eclosions; kd #2
+   0 eclosions with 8 pupae untended, kd #3 0 with pupa untended 4 + hygiene 4, sg #3 11 eggs untended (direction 20.5).
+3. **Carbohydrate while hunting pays** (kd #3: C intake 0.006, C 0 at winter, winter reserve short 0.88 of the time,
+   45 of 54 forage trips were hunts bringing P 9.0; 4 nectar flowers within 300 BU never known; trip success 69 % from
+   the hunts). HB1 makes the hunt the easy trip; the departure choice does not weigh the C shortage against it.
+   kd #3 then starves in the lapse with its queen (year two).
+4. **`worker:lost` traps** (finding 1): 10 workers, the growth check.
+5. **The inert colony** (finding 2): 1 of 15 runs, all its season.
+6. **Year two**: day-15 doubling 0 of 5; the first workers' drawn lifespans (24-38 gd) end on year-two days 10-21;
+   the only overwintered brood (cpv #1) died of hygiene / temperature / untended inside the lapse; sg #2 ends year
+   two with C 0.8 (below its R27 need again).
+7. Predation 14 (we #1 6, pp #3 7; equal to sweep 7's sum): not HB1-amplified on fresh foundings.
+
+Scratch trees (`/home/user/frozen-sweep8`, `/home/user/scratch-r8start`, `/home/user/scratch-r8nocare`) deleted;
+probe sources kept as `round-8/sweep-review/probe-*8.ts.txt`; no process of this review left running.
+
+## Round 9
+
+Engineer: round 9 (started 07:53 UTC Nov 22). Evidence: `test-output/colony-life/round-9/`. Tree at start = HEAD dd966f1
+(src/sim, src/worldgen, src/core, tools/sim clean against HEAD; other engineers' render/ui/game/docs files modified).
+Order of work (direction 21): (1) direction 20.1 + 21a: the hand-over reopen (sg #3 inert colony, red
+`founding/reopen.test`, seed-1 browser "first workers did not reopen"), the homeward trap (pp #1 / we #1 `worker:lost`),
+the seed-2 founding failure, the seeds 1-5 founding test; (2) R32b; (3) R33; (4) five long runs of the final tree (R34);
+(5) if time: direction 20 items 4, 6, 7, and the minors of sweep 8 (F1 reader cost, DIAG_MORTALITY_REF_LIFESPAN_GD).
+
+Progress (kept current; a successor continues from here)
+- 07:53 read spec, ledger (round 8 + sweep 8 review), STATUS to 07:35. Now: reproduce sweep-8 finding 2 (reopen).
+- 08:05 **sweep-8 finding 2 reproduced** (sg #3 hand-over, tag 40bc6741; probes `tools/sim/probe/probe-leg9.ts`,
+  `probe-throat9.ts`, temporary): after the reopen the entrance reads `open` with 29 plug-soil samples left right
+  under the opening (y 3.0-3.5 BU, ground 3.75); the shaft the reopen plan dug surfaces 0.75-1.75 BU beside it, so
+  `throatPassage` finds a passage (mouth -> air -> shaft) and the state machine says `open`. Over the plug a carved
+  bowl (nest-nav component 7, 21 samples) is cut off from the nest (component 3): every ant that comes home to the
+  opening lands in it and its nest legs fail `leg` (4 of the first 6 failures stand there). Cause in the nest's
+  `reopening -> open` rule (GDD 03 §4.2: "passage exists" was read without "plug removed"). **RO1** (in the tree,
+  `nest/entrances.ts evaluateEntrance` + `exposedPlugCount`): a reopening throat goes `open` only when no plug soil
+  the workers can bite is left in it (closed PLUG samples below the ground with a free face neighbour); until then it
+  stays `reopening` and `entranceToUnplug` keeps sending diggers. `founding/reopen.test.ts` GREEN (red since round 1).
+  sg #3 hand-over after RO1 (`round-9/probe-idle-sg3-after.txt`): open with 0 plug soil at 4.3 gd, workers forage,
+  tend, scout. Base arm tree `/home/user/scratch-r9-base` = HEAD dd966f1 (git archive). Round-9 cache
+  `round-9/cache/*-any.bin` = the 15 sweep-8 hand-overs (tag 40bc6741). Next: before/after life runs sg #3.
+- 08:14 **RO1 before/after, sg #3** (cached sweep-8 hand-over, `round-9/ro1/{base,ro1}`, `round-9/pair.py`; base =
+  scratch-r9-base, ro1 = scratch-r9-ro1): workers 10 -> 10 / 10 -> 11, trips 2 / 91, trip success 0 / 33 %, eclosions
+  0 / 4, intake C 0 / 1.37, P 0 / 0.24, viable no / yes (brood lost: base 11 egg:untended; ro1 4 pupa:untended).
+  RO1 unit test `nest/reopenPlugLeft.test.ts` (red on base: "expected 'open' to be 'reopening'", green live).
+- 08:16 **sweep-8 finding 1 reproduced** (pp #1 trap, base tree; `tools/sim/probe/probe-trap9.ts`, `probe-spot9.ts`,
+  outputs `round-9/probe-trap-pp1-base.txt`, `-fine.txt`): the point is the foot of a park-tree root (capsule r 16.9
+  BU, axis along x 10.8 BU above the ground, CLIMBABLE, not NAV_BLOCK, top ~27 BU < the nav grid's 40 BU): its north
+  flank meets the ground as an overhang, so a forager homing south on the flow field climbs the undercut, slides back,
+  climbs again. The stuck ladder never escalates: each rung-1 replan sets a fresh baseline and the walker's jitter beats
+  it by the 0.5 BU margin within the window (ladder 1 -> 0 every ~3.4 s, episodes 1 -> 16, then the walk fails
+  `stuck`, the forager asks again: a new request, a new ladder) until RETURN_LOST_S. **LD1** (in the tree,
+  `locomotion/stuck.ts trackProgress / beyondEpisode`, `types/navScratch.ts` epBest/epTop/epLeg, optional, additive):
+  while a stuck episode runs, progress on the same leg must beat the best metric (or the highest point) the walker had
+  reached before the episode; on another leg any progress counts as before. Test `locomotion/ladderJitter.test.ts` (2;
+  case 1 red on base: rung reset by jitter). pp #1 base vs LD1 life runs running (`round-9/ro1/base`, `round-9/lad/lad`;
+  tree `/home/user/scratch-r9-lad` = base + LD1).

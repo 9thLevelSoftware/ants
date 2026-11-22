@@ -142,3 +142,64 @@ describe('tiny level of detail', () => {
     }
   });
 });
+
+describe('PrimSet object foot (the reference of plinths and brick courses)', () => {
+  const box = (id: number, y: number, hy: number, objectId: number): Primitive => (
+    { id, shape: 'box', pos: { x: id * 100, y, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, size: { x: 50, y: hy, z: 5 }, round: 0, material: 'brick', flags: 0, objectId }
+  );
+  it('every prim of an object shares the lowest bottom of the object, so a facade cut into bands has one plinth line', () => {
+    // bands 234..1050 and 1050..2250 of one wall, and a lone prim of another object
+    const set = new PrimSet([box(1, 642, 408, 7), box(2, 1650, 600, 7), box(3, 5000, 100, 8)], () => false, 560);
+    expect(set.foot[0]).toBeCloseTo(234, 3);
+    expect(set.foot[1]).toBeCloseTo(234, 3);
+    expect(set.foot[2]).toBeCloseTo(4900, 3);
+  });
+  it('a prim without an object uses its own bottom, a rotated box its rotated extent', () => {
+    const lone = new PrimSet([box(1, 300, 100, -1)], () => false, 560);
+    expect(lone.foot[0]).toBeCloseTo(200, 3);
+    const s = Math.SQRT1_2;
+    const tilted: Primitive = { ...box(2, 500, 100, -1), rot: { x: 0, y: 0, z: s, w: s }, size: { x: 300, y: 100, z: 5 } }; // turned 90 degrees about z: x extent is now vertical
+    expect(new PrimSet([tilted], () => false, 560).foot[0]).toBeCloseTo(200, 2);
+  });
+});
+
+describe('PrimitiveRenderer feeds the face detail (look-pass-4 fix)', () => {
+  const lib = new MaterialLibrary(null, createWorldUniforms(), { anisotropy: 1 });
+  const wall = (id: number, y: number, hy: number): Primitive => (
+    { id, shape: 'box', pos: { x: 100, y, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, size: { x: 50, y: hy, z: 800 }, round: 0, material: 'brick', flags: 0, objectId: 5 }
+  );
+  const log: Primitive = { id: 9, shape: 'cylinder', pos: { x: 400, y: 100, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, size: { x: 300, y: 300, z: 300 }, round: 0, material: 'wood-sound', flags: 0, objectId: 6 };
+
+  it('writes the object foot per instance (iFoot) so the bands of one wall share one plinth line', () => {
+    const r = new PrimitiveRenderer(lib, 280);
+    r.setStatic([wall(1, 642, 408), wall(2, 1650, 600), log]);
+    r.update(new Vector3(0, 100, 0), 50_000);
+    const brick = r.group.children.filter((c) => c.name.includes('|brick|') && (c as InstancedMesh).count > 0) as InstancedMesh[];
+    expect(brick.length).toBeGreaterThan(0);
+    for (const m of brick) {
+      const foot = m.geometry.getAttribute('iFoot').array as Float32Array;
+      for (let i = 0; i < m.count; i++) expect(foot[i]).toBeCloseTo(234, 3);
+    }
+    r.dispose();
+  });
+
+  it('a cylinder log never gets the flat-face patterns: its material is a separate, curved variant', () => {
+    const r = new PrimitiveRenderer(lib, 280);
+    r.setStatic([log, { ...log, id: 10, shape: 'box', size: { x: 300, y: 300, z: 300 }, objectId: 7 }]);
+    r.update(new Vector3(0, 100, 0), 50_000);
+    const meshes = r.group.children.filter((c) => c.name.includes('wood-sound')) as InstancedMesh[];
+    const cyl = meshes.find((m) => m.name.includes(':cyl|')), box = meshes.find((m) => m.name.includes(':box|'));
+    expect(cyl).toBeDefined(); expect(box).toBeDefined();
+    expect(cyl!.material).not.toBe(box!.material);
+    const defines = (m: InstancedMesh): string => {
+      const mat = m.material as { onBeforeCompile: (s: unknown, r: unknown) => void };
+      const s = { uniforms: {}, vertexShader: '#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>\n#include <lights_fragment_begin>\n#include <fog_fragment>' };
+      mat.onBeforeCompile(s, null);
+      return s.vertexShader;
+    };
+    expect(defines(cyl!)).not.toContain('#define WR_BOARDS');
+    expect(defines(cyl!)).not.toContain('#define WR_FACE');
+    expect(defines(box!)).toContain('#define WR_FACE_WOOD');
+    r.dispose();
+  });
+});

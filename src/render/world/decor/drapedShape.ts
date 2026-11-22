@@ -57,7 +57,7 @@ uniform vec4 uDcKeep; uniform vec4 uDcLod; uniform float uDcFresh; uniform float
 varying vec2 vDcUv; varying vec4 vDcInfo; varying vec3 vDcW; varying float vDcFade; varying vec3 vDcN; varying vec4 vDcC; varying vec4 vDcS;
 float dcKeep(float kind, float d) {
   float k = kind < ${DRAPED_KIND.needle - 0.5} ? uDcKeep.x : (kind < ${DRAPED_KIND.petal + 0.5} && kind > ${DRAPED_KIND.petal - 0.5} ? uDcKeep.y : uDcKeep.z);
-  return k * mix(max(uDcKeep.w, ${NEAR_GROUND.litter.toFixed(3)}), uDcKeep.w, smoothstep(${NEAR_GROUND.mm.toFixed(1)}, ${(2 * NEAR_GROUND.mm).toFixed(1)}, d));
+  return k * mix(max(uDcKeep.w, ${NEAR_GROUND.litter.toFixed(3)}), uDcKeep.w, smoothstep(${NEAR_GROUND.bu.toFixed(1)} * uDcBu, ${(2 * NEAR_GROUND.bu).toFixed(1)} * uDcBu, d));
 }
 void drapedShape(out vec3 P, out vec3 N) {
   float kind = iC.x;

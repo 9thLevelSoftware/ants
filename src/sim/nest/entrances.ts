@@ -283,6 +283,27 @@ function forgetGhostPlugs(sim: Sim, e: Entrance): void {
   });
 }
 
+/**
+ * Plug soil in the throat that the workers can still bite (colony-life round 9, sweep 8 suburban-garden #3): closed
+ * PLUG samples below the ground with a face neighbour that is free (carved open, or open air above the ground). A
+ * plug sample walled in by plain soil on every side is no longer part of the way out and is not counted; one walled in
+ * by other plug samples is reached as they are dug.
+ */
+function exposedPlugCount(sim: Sim, e: Entrance): number {
+  const flags = nestRuntime(sim).flags;
+  const b = sphereBox(sim, e.pos, throatR(sim, e), 0);
+  if (flags.noneIn(b.i0, b.j0, b.k0, b.i1, b.j1, b.k1)) return 0;
+  const carve = sim.carve, v = carve.voxel;
+  const free = (i: number, j: number, k: number) => carve.sampleAt(i, j, k) >= OPEN_MIN || sim.field.substrateXYZ(i * v, j * v, k * v) > 0;
+  let n = 0;
+  forThroatSamples(sim, e, (i, j, k) => {
+    if ((flags.get(i, j, k) & VoxelFlag.PLUG) === 0 || carve.sampleAt(i, j, k) >= OPEN_MIN) return;
+    if (sim.field.substrateXYZ(i * v, j * v, k * v) >= 0) return;
+    if (free(i + 1, j, k) || free(i - 1, j, k) || free(i, j + 1, k) || free(i, j - 1, k) || free(i, j, k + 1) || free(i, j, k - 1)) n++;
+  });
+  return n;
+}
+
 function forThroatSamples(sim: Sim, e: Entrance, fn: (i: number, j: number, k: number) => void): void {
   const v = sim.carve.voxel, R = throatR(sim, e), b = sphereBox(sim, e.pos, R, 0);
   for (let k = b.k0; k <= b.k1; k++) for (let j = b.j0; j <= b.j1; j++) for (let i = b.i0; i <= b.i1; i++) {
@@ -480,7 +501,13 @@ export function evaluateEntrance(sim: Sim, nest: Nest, e: Entrance): void {
     if (next === 'sealing') e.plugBaseline = e.plugVoxelCount;
   } else if (prev === 'sealing') next = !pass ? 'sealed' : plug <= (e.plugBaseline ?? 0) ? 'open' : 'sealing';
   else if (prev === 'sealed' || prev === 'reopening') {
-    if (pass) next = throatPassage(sim, e, true, nest) ? 'open' : 'reopening';
+    // GDD 03 §4.2 `reopening` -> `open`: the plug is dug out, not only a way past it. A passage that surfaces beside
+    // plug soil left under the opening (the reopen's shaft through the edge of the plug) read `open` with 29 plug
+    // samples left: D_exit is seeded at the opening, every ant coming home stood on the plug in a carved bowl cut
+    // off from the nest, and the colony ended with every worker's walk failing (colony-life round 9, sweep 8
+    // suburban-garden #3: 2 trips in 12 gd). So the throat stays `reopening` (the diggers keep unplugging it)
+    // while plug soil they can bite is left in it.
+    if (pass) next = throatPassage(sim, e, true, nest) && exposedPlugCount(sim, e) === 0 ? 'open' : 'reopening';
     // a reopening throat that had a passage and lost it again (fill, tamping, a new plug) is closed again
     // (founding-close request 3); one still being dug through (no passage yet) stays `reopening`
     else if (prev === 'reopening' && e.passSeen) next = 'sealed';

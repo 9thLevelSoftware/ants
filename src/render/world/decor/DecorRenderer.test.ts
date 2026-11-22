@@ -70,6 +70,9 @@ describe('DecorRenderer', () => {
     // the blocks next to the camera keep a near-ground floor (look pass 4, NEAR_GROUND) so the tiers differ less than x0.5 / x0.25 here
     expect(counts.medium).toBeLessThan(counts.high * 0.8);
     expect(counts.low).toBeLessThan(counts.medium * 0.85);
+    // the floor is paid for by the whole block next to the camera (the shader culls per blade, the triangles are still submitted): it must
+    // not lift the low tier far above its x0.25 (look-pass-4 fix: +11.8 % triangles at low with the floor at 0.6 / 0.7; now 0.45 / 0.5)
+    expect(counts.low).toBeLessThan(counts.high * 0.4);
   });
 
   it('seasons change forest leaf density without regenerating blocks', async () => {

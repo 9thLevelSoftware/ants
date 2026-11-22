@@ -58,7 +58,7 @@ export function createDewMaterial(shared: DecorShared): MeshStandardMaterial {
   addPatch(m, 'decor-dew', (s) => {
     Object.assign(s.uniforms, {
       uTime: w.uTime, uCamPos: w.uCamPos, uSubject: w.uSubject, uWindDir: d.uWindDir, uHaze: w.uHaze,
-      uGrWind: d.uGrWind, uGrPart: d.uGrPart, uGrLod: d.uGrLod, uGrPartP: d.uGrPartP, uGrEye: d.uGrEye, uDew: d.uDew,
+      uGrWind: d.uGrWind, uGrPart: d.uGrPart, uGrLod: d.uGrLod, uGrPartP: d.uGrPartP, uGrEye: d.uGrEye, uDcBu: d.uDcBu, uDew: d.uDew,
       tHoleIdx: h.tHoleIdx, tHoleAtlas: h.tHoleAtlas, uHoleP: h.uHoleP,
     });
     s.vertexShader = s.vertexShader

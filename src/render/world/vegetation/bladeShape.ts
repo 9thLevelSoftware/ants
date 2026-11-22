@@ -1,7 +1,7 @@
 // One grass blade, as the vertex shader builds it (spike-look 2.8), plus parting and fading around the line of
 // sight (GDD 04 §9). BLADE_GLSL and bladeVertex (CPU) are twins: keep them in sync. The CPU twin exists for tests
 // ("no blade through the camera", "the subject stays visible") and for dew droplets.
-import { GRASS, NEAR_GROUND, PARTING, WIND } from '../decor/tuning';
+import { GRASS, NEAR_GROUND, nearFloorDensity, nearGroundMm, PARTING, WIND } from '../decor/tuning';
 
 export interface BladeView {
   cam: { x: number; y: number; z: number };
@@ -48,7 +48,7 @@ export function bladeVertex(b: Float32Array, o: number, s: number, h: number, v:
   const H = b[o + 4], yaw = b[o + 6], rnd = b[o + 7], a = b[o + 8], k = b[o + 9];
   let W = b[o + 5];
   const dCam = Math.hypot(rx - v.cam.x, rz - v.cam.z);
-  const keep = v.density * grassLodKeep(dCam);
+  const keep = nearFloorDensity(v.density, NEAR_GROUND.grass, dCam, nearGroundMm(v.bu)) * grassLodKeep(dCam); // twin of qNear in BLADE_GLSL
   if (rank >= keep) return { x: rx, y: ry, z: rz, fade: 0 };
   W *= Math.min(GRASS.lodMaxWiden, Math.pow(Math.max(keep, 1e-3), -GRASS.lodWidenPow));
   const fx = Math.sin(yaw), fz = Math.cos(yaw), sx = Math.cos(yaw), sz = -Math.sin(yaw);
@@ -104,7 +104,7 @@ export function bladeFragFade(x: number, y: number, z: number, v: BladeView): nu
 export const BLADE_GLSL = /* glsl */ `
 attribute vec4 iRoot; attribute vec4 iShape; attribute vec4 iBend;
 uniform float uTime; uniform vec2 uWindDir; uniform float uGrWind; uniform vec3 uCamPos; uniform vec3 uSubject;
-uniform float uGrPart; uniform vec4 uGrLod; uniform vec4 uGrPartP;
+uniform float uGrPart; uniform vec4 uGrLod; uniform vec4 uGrPartP; uniform float uDcBu;
 varying float vBH; varying float vBS; varying float vBFade; varying vec3 vBInfo; varying vec3 vBW;
 // the blade's own frame (world space), so the fragment shader can curve the normal across the blade (look-pass 2)
 varying vec3 vBNrm; varying vec3 vBSide;
@@ -114,7 +114,7 @@ vec3 grRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c
 void bladeShapeAt(float s, float h, out vec3 P, out vec3 N) {
   float H = iShape.x, W = iShape.y, yaw = iShape.z, rnd = iShape.w;
   float dCam = length(iRoot.xz - uCamPos.xz);
-  float qNear = mix(max(uGrLod.z, ${NEAR_GROUND.grass.toFixed(3)}), uGrLod.z, smoothstep(${NEAR_GROUND.mm.toFixed(1)}, ${(2 * NEAR_GROUND.mm).toFixed(1)}, dCam));
+  float qNear = mix(max(uGrLod.z, ${NEAR_GROUND.grass.toFixed(3)}), uGrLod.z, smoothstep(${NEAR_GROUND.bu.toFixed(1)} * uDcBu, ${(2 * NEAR_GROUND.bu).toFixed(1)} * uDcBu, dCam));
   float keep = qNear * (dCam <= uGrLod.x ? 1.0 : pow(uGrLod.x / dCam, uGrLod.y));
   vBH = h; vBS = s; vBInfo = vec3(iBend.z, iBend.w, rnd); vBW = iRoot.xyz;
   vBNrm = vec3(0.0, 1.0, 0.0); vBSide = vec3(1.0, 0.0, 0.0);

@@ -125,16 +125,19 @@ export const WIND = {
 
 /** Hug rules: draped decor stays within this band above the ground, so an ant (feet on the ground) is on top. */
 /**
- * Look pass 4 (bare ground at worker height on the lowest tiers): within `mm` of the camera (30 BU at BU 4) the quality density of
- * grass and of draped litter never drops below these shares, easing back to the tier's own density over the next `mm`. The
+ * Look pass 4 (bare ground at worker height on the lowest tiers): within `bu` (30 BU) of the camera the quality density of
+ * grass and of draped litter never drops below these shares, easing back to the tier's own density over the next `bu`. The
  * lowest tiers (x0.25) left the ground round the nest an empty plane; the floor costs a few hundred blades and cards in the one or two
  * blocks next to the camera, not a draw call.
  */
-export const NEAR_GROUND = { mm: 120, grass: 0.6, litter: 0.7 } as const;
+export const NEAR_GROUND = { bu: 30, grass: 0.45, litter: 0.5 } as const;
 
-/** Quality density with the near floor: `d` = distance from the camera, mm. Twin of the GLSL in bladeShape.ts and drapedShape.ts. */
-export function nearFloorDensity(q: number, floor: number, d: number): number {
-  const t = Math.min(1, Math.max(0, (d - NEAR_GROUND.mm) / NEAR_GROUND.mm));
+/** The near-ground distance in mm for a world's BU (the shaders take it from uDcBu, so a species with another BU keeps 30 BU). */
+export const nearGroundMm = (bu: number): number => NEAR_GROUND.bu * bu;
+
+/** Quality density with the near floor: `d` = distance from the camera, mm. Twin of the GLSL in bladeShape.ts and drapedShape.ts. `nearMm` defaults to 30 BU at BU 4. */
+export function nearFloorDensity(q: number, floor: number, d: number, nearMm = nearGroundMm(4)): number {
+  const t = Math.min(1, Math.max(0, (d - nearMm) / nearMm));
   const w = t * t * (3 - 2 * t);
   return Math.max(q, floor) * (1 - w) + q * w;
 }

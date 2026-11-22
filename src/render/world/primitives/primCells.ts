@@ -52,6 +52,8 @@ export class PrimSet {
   /** Per-instance finish vector (dressing/looks.ts iLook), 4 floats each. */
   readonly looks: Float32Array;
   readonly sizes: Float32Array;
+  /** World y of the foot of the primitive's object (the lowest bottom of its primitives), mm: the reference for plinths and brick courses. */
+  readonly foot: Float32Array;
   readonly pos: Float32Array;
   readonly radius: Float32Array;
   readonly batchOf: Uint16Array;
@@ -73,6 +75,7 @@ export class PrimSet {
     this.colors = new Float32Array(n * 3);
     this.looks = new Float32Array(n * 4);
     this.sizes = new Float32Array(n * 4);
+    this.foot = new Float32Array(n);
     this.pos = new Float32Array(n * 3);
     this.radius = new Float32Array(n);
     this.batchOf = new Uint16Array(n);
@@ -107,7 +110,27 @@ export class PrimSet {
       this.pos[i * 3] = p.pos.x; this.pos[i * 3 + 1] = p.pos.y; this.pos[i * 3 + 2] = p.pos.z;
       this.radius[i] = Number.isFinite(shape.radius) ? Math.max(0, shape.radius) : 0;
     });
+    this.computeFeet(prims);
     this.buildCells(cellMm);
+  }
+
+  /** foot[i] = the lowest bottom among the primitives of i's object (its own bottom without an object). */
+  private computeFeet(prims: readonly Primitive[]): void {
+    const m = this.matrices, bottom = this.foot;
+    const lowest = new Map<number, number>();
+    for (let i = 0; i < prims.length; i++) {
+      const s = this.sizes, o = i * 16;
+      // half extent along world y of the rotated box (the bounding box of a cylinder or an ellipsoid is looser, which only lowers the foot a little)
+      const ext = Math.abs(m[o + 1]) * s[i * 4] + Math.abs(m[o + 5]) * s[i * 4 + 1] + Math.abs(m[o + 9]) * s[i * 4 + 2];
+      const b = prims[i].pos.y - (Number.isFinite(ext) ? ext : 0);
+      bottom[i] = b;
+      const id = prims[i].objectId;
+      if (id >= 0) lowest.set(id, Math.min(lowest.get(id) ?? Infinity, b));
+    }
+    for (let i = 0; i < prims.length; i++) {
+      const id = prims[i].objectId;
+      if (id >= 0) bottom[i] = lowest.get(id)!;
+    }
   }
 
   get size(): number {

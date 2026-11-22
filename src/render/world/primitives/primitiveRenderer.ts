@@ -182,7 +182,7 @@ export class PrimitiveRenderer {
     return m;
   }
 
-  private makeMesh(def: BatchDef, lod: Lod, capacity: number, name: string): { mesh: InstancedMesh; size: InstancedBufferAttribute; look: InstancedBufferAttribute } {
+  private makeMesh(def: BatchDef, lod: Lod, capacity: number, name: string): { mesh: InstancedMesh; size: InstancedBufferAttribute; look: InstancedBufferAttribute; foot: InstancedBufferAttribute } {
     const base = this.baseGeometry(def.geom, lod);
     const g = new BufferGeometry();
     for (const attr of ['position', 'normal', 'aCorner']) g.setAttribute(attr, base.getAttribute(attr));
@@ -191,10 +191,12 @@ export class PrimitiveRenderer {
     g.setAttribute('iSize', size);
     const look = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
     g.setAttribute('iLook', look);
+    const foot = new InstancedBufferAttribute(new Float32Array(capacity), 1);
+    g.setAttribute('iFoot', foot);
     const family = def.geom === 'sphere' ? 'ellipsoid' : 'rounded';
     const mat = this.lib.surfaceMaterialFor(
       primMaterialDef(def.material),
-      { key: `prim-${family}${def.diggable ? '-dig' : ''}-looks`, space: 'instance', prim: family, macro: PRIM_MACRO, looks: true },
+      { key: `prim-${family}${def.diggable ? '-dig' : ''}-looks${def.geom === 'cyl' ? '-cyl' : ''}`, space: 'instance', prim: family, curved: def.geom === 'cyl', macro: PRIM_MACRO, looks: true },
       def.diggable ? this.breaches : undefined,
     );
     const mesh = new InstancedMesh(g, mat, capacity);
@@ -204,7 +206,7 @@ export class PrimitiveRenderer {
     mesh.customDepthMaterial = this.depthMaterial(family);
     mesh.boundingSphere = new Sphere();
     mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
-    return { mesh, size, look };
+    return { mesh, size, look, foot };
   }
 
   /** Draw statistics (visible meshes and instances). */

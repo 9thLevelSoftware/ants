@@ -59,6 +59,15 @@ export interface NavScratch {
   /** Ladder stage of the current stuck episode (0 = not stuck) and the tick the current stage ends. */
   ladder: number;
   ladderUntil: number;
+  /**
+   * What the walker had reached when its current stuck episode began (rung 1): the best metric, the highest point
+   * climbed and the leg they were measured on (mode | flow key | nest field | leg nest). While the ladder is on a
+   * rung, progress on the same leg must beat these, not the fresh baseline the rung's replan set (colony-life
+   * round 9). Optional: saves from before have none (then any progress counts, as before).
+   */
+  epBest?: number;
+  epTop?: number;
+  epLeg?: string;
   /** Sidestep side (+1 / -1), alternating. */
   side: number;
   episodes: number;

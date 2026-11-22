@@ -2,15 +2,19 @@
 // (GDD 06 §5.7 words, GDD 08 §9.3 "one-word labels"; look pass 4: the card used to say "Poor" and nothing else). Pure text.
 import type { FoundingUi } from '@/ui/screens/founding/store';
 
-/** What to look for, by factor id and the factor's own word. A word with no entry falls back to the factor's `any` line. */
-const ADVICE: Record<string, { any: string; byWord?: Record<string, string> }> = {
-  diggability: { any: 'look for looser soil', byWord: { Unbreakable: 'look for bare soil, not stone or paving', Hard: 'look for looser soil' } },
-  moisture: { any: 'look for ground that is damp, not soaked', byWord: { Dry: 'look for damper ground, in shade or by plants', 'Slightly damp': 'look for damper ground', Wet: 'look for drier ground', Waterlogged: 'look for drier, higher ground' } },
-  warmth: { any: 'look for open, sun-warmed soil', byWord: { Shaded: 'look for open, sun-warmed soil', Mild: 'look for a sunnier spot', 'Sun-baked': 'look for some shade' } },
-  cover: { any: 'look for a stone, a log or leaf litter overhead', byWord: { Open: 'look under a stone, a log or leaf litter' } },
-  floodSafety: { any: 'look for higher ground', byWord: { 'Low-lying': 'look for higher ground, water pools here', Sloped: 'look for higher, flatter ground' } },
-  rivalScent: { any: 'look further from the other colony', byWord: { Strong: 'another colony is close: look elsewhere', Faint: 'another colony is near: look further away' } },
-  exposure: { any: 'look for a quieter corner', byWord: { Busy: 'people walk here: look for a quieter corner', Open: 'look for a more sheltered corner' } },
+/**
+ * What to look for, by factor id. `byWord` holds the words that say something is wrong (they are the read-out's own words, siteScore.ts
+ * FACTOR_WORDS); every other word of the factor says it is fine, and the line must not send the player to look for what the word says
+ * the ground already has ("Leaf-covered: look for leaf litter"), so those get `fine`, a line about doing better still (always "look ...").
+ */
+const ADVICE: Record<string, { fine: string; byWord: Record<string, string> }> = {
+  diggability: { fine: 'look for bare, loose soil: easier to dig', byWord: { Unbreakable: 'look for bare soil, not stone or paving', Hard: 'look for looser soil' } },
+  moisture: { fine: 'look at the other readings: the moisture is right', byWord: { Dry: 'look for damper ground, in shade or by plants', 'Slightly damp': 'look for damper ground', Wet: 'look for drier ground', Waterlogged: 'look for drier, higher ground' } },
+  warmth: { fine: 'look for a little more sun', byWord: { Shaded: 'look for open, sun-warmed soil', Mild: 'look for a sunnier spot', 'Sun-baked': 'look for some shade' } },
+  cover: { fine: 'look for a stone or a log overhead, for more cover', byWord: { Open: 'look under a stone, a log or leaf litter' } },
+  floodSafety: { fine: 'look for slightly higher ground, safer still', byWord: { 'Low-lying': 'look for higher ground, water pools here', Sloped: 'look for higher, flatter ground' } },
+  rivalScent: { fine: 'look at the other readings: no other colony is close', byWord: { Strong: 'another colony is close: look elsewhere', Faint: 'another colony is near: look further away' } },
+  exposure: { fine: 'look for a more sheltered corner', byWord: { Busy: 'people walk here: look for a quieter corner', Open: 'look for a more sheltered corner' } },
 };
 
 /** The factor with the fewest dots (the first of equals, in the card's order). */
@@ -29,5 +33,5 @@ export function siteAdvice(site: Pick<NonNullable<FoundingUi['site']>, 'rows' | 
   const a = ADVICE[w.id];
   if (!a) return null;
   const word = (full as { word?: string }).word ?? '';
-  return `${word}: ${a.byWord?.[word] ?? a.any}.`.replace(/^: /, '');
+  return `${word}: ${a.byWord[word] ?? a.fine}.`.replace(/^: /, '');
 }
