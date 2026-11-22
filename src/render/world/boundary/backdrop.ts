@@ -174,9 +174,25 @@ export function buildBackdrop(world: WorldData): { mesh: MeshBuilder; stats: Bac
         const p = place(r, r.u0 + ((i + 0.5) / n) * len + rngRange(rng, -400, 400), band('cars'), car.width / 2 + 0.08 * car.length / 2); // yaw jitter swings a corner inward
         const cols = BACKDROP_HEX.car, col = cols[Math.floor(rngFloat(rng) * cols.length) % cols.length];
         const yaw = alongYaw(r) + rngRange(rng, -0.08, 0.08);
-        mb.box(p.x, p.y + car.height * 0.32, p.z, car.length / 2, car.height * 0.3, car.width / 2, yaw, hex(col, rng, 0.06));
+        const body = hex(col, rng, 0.06);
+        mb.keepNow = BACKDROP_FENCE_KEEP; // the haze tints a parked car, it does not bleach it to the sky
+        mb.box(p.x, p.y + car.height * 0.32, p.z, car.length / 2, car.height * 0.3, car.width / 2, yaw, body);
         mb.box(p.x, p.y + car.height * 0.78, p.z, car.length * 0.3, car.height * 0.2, car.width * 0.45, yaw, hex(col, rng, 0.06));
-        shapes += 2;
+        // look pass 4 (far structures were slabs): a window band round the cabin with its pillars, four dark wheels, a dark lower skirt
+        const cs = Math.cos(yaw), sn = Math.sin(yaw), at = (lx: number, lz: number): [number, number] => [p.x + lx * cs + lz * sn, p.z - lx * sn + lz * cs];
+        const cabinY = p.y + car.height * 0.8, cabinHalfW = car.width * 0.45, glassHalfH = car.height * 0.13, bump = B.carDetail.bump;
+        const glass = hex(BACKDROP_HEX.glass, rng, 0.04);
+        for (const [lx, hx] of [[0, car.length * 0.3 * 0.93]] as const) { const [gx, gz] = at(lx, 0); mb.box(gx, cabinY, gz, hx, glassHalfH, cabinHalfW + bump, yaw, glass); }
+        for (const lx of [-car.length * 0.1, car.length * 0.1]) { const [px, pz] = at(lx, 0); mb.box(px, cabinY, pz, B.carDetail.pillar, glassHalfH * 1.05, cabinHalfW + 2 * bump, yaw, body); }
+        const tyre = hex(BACKDROP_HEX.tyre, rng, 0.03), wr = B.carDetail.wheelRadius;
+        for (const lx of [-car.length * 0.3, car.length * 0.3]) for (const sz of [-1, 1]) {
+          const [wx, wz] = at(lx, sz * (car.width / 2 - B.carDetail.wheelHalfWidth));
+          mb.box(wx, p.y + wr, wz, wr, wr, B.carDetail.wheelHalfWidth + bump, yaw, tyre);
+        }
+        const [kx, kz] = at(0, 0);
+        mb.box(kx, p.y + car.height * 0.1, kz, car.length / 2 - 60, car.height * 0.06, car.width / 2 + bump, yaw, tyre); // the dark lower skirt and bumpers
+        mb.keepNow = 0;
+        shapes += 2 + 1 + 2 + 4 + 1;
       }
       for (let i = 0, n2 = count(r, BACKDROP_DENSITY_PER_M.trees * 0.5); i < n2; i++) tree(r, band('roadTrees'));
       continue;

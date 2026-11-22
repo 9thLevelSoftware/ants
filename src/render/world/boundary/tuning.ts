@@ -107,6 +107,8 @@ export const BACKDROP_SIZE = {
   /** A neighbour's fence panel: boards of `board` mm with a `gap` between them, posts of `post` mm square at the panel ends, `boardJitter` mm of board-top variation. */
   fencePanel: { width: 1830, height: 1800, thick: 20, post: 90, board: 150, gap: 16, boardJitter: 60 },
   car: { length: 4300, width: 1800, height: 1450 },
+  /** Parked-car detail (look pass 4): how far window bands and wheels stand proud of the body, pillar half width, wheel radius and half width, mm. */
+  carDetail: { bump: 14, pillar: 45, wheelRadius: 310, wheelHalfWidth: 110 },
   facadeHeight: 6200,
   facadeDepth: 4000,
   /** Thickness of the facade's wall skin (the recessed body behind it is the glass), mm. */
@@ -121,7 +123,7 @@ export const BACKDROP_SIZE = {
 /** Silhouette colours (sRGB hex). The haze does most of the work; these keep them believable when close. */
 export const BACKDROP_HEX = {
   bark: '#2f2820', canopy: '#34482a', shrub: '#45592f', hedge: '#3b5129', fence: '#6b5845', car: ['#5a6670', '#7a2e2a', '#c9c6be', '#2b2d30'],
-  facade: '#a8957d', roof: '#4a3b36', plinth: '#6e6458', glass: '#2a3138', fencePost: '#4a3d30',
+  facade: '#a8957d', roof: '#4a3b36', plinth: '#6e6458', glass: '#2a3138', fencePost: '#4a3d30', tyre: '#17181b',
 } as const;
 
 /** Edge glyph (GDD 04 §14 "edge of the locality"): shown while the possessed ant presses against the hard limit. */

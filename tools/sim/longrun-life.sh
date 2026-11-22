@@ -6,15 +6,17 @@
 # Restart-safe: a run whose JSON exists in OUTDIR is skipped. summary.txt: one line per run (exit code, start/end UTC).
 # CACHE_ANY=1: start from the CACHEDIR/founded-...-d-any.bin hand-overs (handover-sweep.sh) whatever code founded them.
 # UNTIL_DAY: simulated game days from the game start (default 34; with the R20 start, doy 5, 32 reaches year-2 doy 15).
+# RENEW_NANITICS=1: pass --renew-nanitics (cached hand-overs' first workers get the tree's own nanitic lifespans, as the
+# round-8 paired runner does).
 cd "$(dirname "$0")/../.." || exit 1
-out=$1; cache=$2; runs=$3; until=${UNTIL_DAY:-34}; any=${CACHE_ANY:+--cache-any}
+out=$1; cache=$2; runs=$3; until=${UNTIL_DAY:-34}; any=${CACHE_ANY:+--cache-any}; renew=${RENEW_NANITICS:+--renew-nanitics}
 mkdir -p "$out"
-export out cache until any
+export out cache until any renew
 for r in $runs; do echo "${r%%:*} ${r##*:}"; done |
   xargs -P "${PAR:-2}" -L 1 bash -c '
     a=$0; s=$1
     if [ -f "$out/life-lasius-niger-$a-$s.json" ]; then exit 0; fi
     t0=$(date -u +%H:%M)
-    node tools/sim/run-ts.mjs tools/sim/life.ts --seed $s --archetype $a --until-day $until --cache "$cache" $any --out "$out" > "$out/$a-$s.log" 2>&1
+    node tools/sim/run-ts.mjs tools/sim/life.ts --seed $s --archetype $a --until-day $until --cache "$cache" $any $renew --out "$out" > "$out/$a-$s.log" 2>&1
     echo "$a $s exit $? start $t0 end $(date -u +%H:%M)" >> "$out/summary.txt"'
 echo "DONE $(date -u +%H:%M)" >> "$out/summary.txt"

@@ -3081,7 +3081,53 @@ Progress (kept current; a successor continues from here)
   Pairs on workers at winter: r30 vs base 15 better; r30r29c vs r30 10 better, 5 worse; r30r29cr31 vs r30r29c 7 better, 7 worse, 1 equal; r30hb1 vs r30 3 better, 4 worse, 8 equal.
   **Integrator's verdicts**: **R30 accepted** (15 of 15; old-age deaths 62 → 0 in year one). **R29c accepted** (viable 7 → 10, workers 203 → 214, starved 10 → 6; its hygiene deaths 2 → 15 and untended 54 → 74 are the next thing to explain). **R31 not accepted** (7 better, 7 worse; untended 74 → 76: it does not close the single-nurse gap the 10:28 entries describe; keep the patch under `round-8/r31/`, not in the tree). **HB1 accepted as a defect fix** (trip success 36.8 → 50.4 %, median P 0.221 → 0.287, eclosions 66 → 73), with one question for the fourth engineer: adult deaths rise 31 → 42 in that arm — by what cause.
 
-- 05:15 Nov 22 **fourth round-8 engineer** (close the round). `git status`: clean against HEAD efdd374. Order (the
+- 05:11 Nov 22 **fourth round-8 engineer** (close the round). `git status`: clean against HEAD efdd374. Order (the
   integrator's): (1) live tree = F1, FD1, WL4, R30, R29c, HB1 (no R31), checked against the frozen arms; typecheck;
   folder tests; DEVIATIONS.md for docs-final.test; (2) the r30hb1 adult-death question; (3) five year-two runs of a
   frozen final tree to the second winter; (4) results section; clean-up. Now: (1).
+- 05:13 (1) checked: live src/sim = scratch-r8-r30r29c + HB1 (hits.ts, creatures.ts, preyOneBite.test, the two hunt
+  fixtures; identical to scratch-r8-r30hb1's) + FD1 (founding/exposure.ts, sealedAir.test); live vs r30hb1 differs
+  only in R29c's files (queen.ts, census.ts, balance/colony.ts, layCapacity.test) and FD1; R31's demand.ts /
+  targets.ts equal to the r30r29c arm (no R31); WL4 (begin.ts WINT_ALERTED_AT_CHOICE) and F1 (spillForReaders) in;
+  src/worldgen, src/core equal to the arms. Typecheck clean (`round-8/typecheck-final.txt`).
+  `tools/sim/longrun-life.sh`: new RENEW_NANITICS=1 (passes --renew-nanitics). Frozen final tree
+  `/home/user/scratch-r8-final` (= live, 05:12). **(3) RUNNING**: `cd /home/user/scratch-r8-final && PAR=2
+  UNTIL_DAY=40 CACHE_ANY=1 RENEW_NANITICS=1 tools/sim/longrun-life.sh .../round-8/long-final .../round-8/cache
+  "woodland-edge:2 suburban-garden:2 car-park-verge:1 playground-park:3 kitchen-door:3"` (restart-safe: re-run the same
+  command; progress `round-8/long-final/summary.txt`). Now: folder tests, the r30hb1 death question, DEVIATIONS.md.
+- 05:14 **(2) answered: r30hb1's extra adult deaths are predation.** Sums over 15 (`funnel.deaths`), r30 -> r30hb1:
+  predation 19 -> 33, crushed 9 -> 7, lost 3 -> 2 (31 -> 42; old age 0 in both). By colony (predation): cpv #2 0 -> 6,
+  cpv #3 0 -> 4, sg #2 0 -> 4, pp #1 1 -> 4, pp #2 0 -> 1; down: cpv #1 1 -> 0, kd #3 3 -> 1, pp #3 9 -> 8; equal in 7
+  (we #1 5 = 5, the rest 0). Predation days (days with >= 1 death) 12 -> 20. It is NOT more time outside: worker time
+  travelling out + home 466 -> 412 gd, search 81 -> 78, handling 13 -> 12; flee time 23 -> 14 gd (the hunters' flights
+  from their own alarm are gone). The four colonies that carry it are the ones whose hunting HB1 turned on (kills cpv #2
+  6 -> 38, cpv #3 34 -> 57, sg #2 -> 29, pp #1 24 -> 26 with 109 -> 29 trips). The JSONs do not name the predator or
+  where the ant died, so the mechanism is not shown here; candidate (unmeasured): before HB1 the alarm laid at the
+  patch by every failed hunter kept workers away from it and from the predators that hunt there. Size: +14 over 15
+  runs, clustered (one predator encounter takes several), about 2 SD of a Poisson count: real enough to measure, not
+  enough to withdraw HB1 (the integrator's verdict stands: defect fix, the GDD's rule). For round 9: a predation
+  counter by predator kind and place (patch / trail / nest mouth) in the funnel. Now: folder tests.
+- 05:16 `docs/design/gdd/DEVIATIONS.md` corrected (docs-final.test was red: "R29: LAY_FINISH_STEP_D28 in
+  src/sim/balance/colony.ts"): R29 restated as amended (care factor only, finish clause withdrawn, pointers
+  `queen.ts layingFactors / careFactor`, `census.ts avail`), status "accepted on the paired trial"; R30 status
+  accepted; R24's row names WL4 (`WINT_ALERTED_AT_CHOICE`, `begin.ts alertedCauses`); new table-B rows D29 = FD1
+  (GDD 06 §5.5, `exposure.ts sealedAirOf`, `sealedAir.test`) and D30 = HB1 (GDD 05 §2.2 "one bite kills" over the
+  bite formula, `ONE_BITE_PREY`, `hits.ts resolveBite`, `preyOneBite.test`); section C: GDD 02 §3.2 row.
+  `tests/docs/docs-final.test.ts` 8/8 green. Folder tests running (colony first); long runs at we #2 / sg #2.
+- 05:22 **folder tests on the final live tree** (`round-8/vitest-final-*.txt`): colony (incl. allocation,
+  overwinter) 67/69 files (red: `founding/reopen`, known since round 1; `workedExample` GDD 02 §15, larval C 4.24 vs
+  3.99 = 6.3 % > 5 %, red with R29's care factor since 08:50 and unchanged); combat 13/13; ants/behaviours/outdoor
+  30/31 (red: `removal.verify`, known since round 7); nest/flood 12/12 (+1 skipped long); environment 29/30 (red:
+  `weather.test` "uses only the weather stream", red on the base arm too). No new red. Decision on `workedExample`:
+  left red and recorded, not restated: R29c is accepted, but a laying factor of 0.92 should lower, not raise, the
+  day's larval C, so the 6 % is not yet explained and restating the test's numbers would hide it (round 9).
+- 05:23 status: (1) and (2) done; long runs at the first pair (started 05:12); evaluation script
+  `round-8/long-final/table.py` (checked on `paired/long-r30`). Remaining: the five runs' table, the results section,
+  clean-up (scratch trees, probes).
+- 05:23 **(4) clean-up, first part**: scratch trees deleted: `/home/user/scratch-r5`, `scratch-r8-{base,r29,
+  r29r30,r30,r30hb1,r30obs (a link),r30r29c,r30r29cr31,r31}` (their outputs stay under `round-8/paired/`; the R31 patch and
+  test under `round-8/r31/`; the paired runner scripts in `paired/` name those trees and cannot be re-run without
+  rebuilding them from git + the patches). Probe sources `tools/sim/probe/probe-{found8,lapse8,restore8}.ts` moved to
+  `round-8/probes/*.ts.txt` and `tools/sim/probe/` removed (as in round 7). Kept as tools: `tools/sim/life.ts`
+  options `--renew-nanitics` and the winter-start snapshot, the observers `lifeProtein.ts`, `lifeNursing.ts`,
+  `lifeEclosions.ts`, and `longrun-life.sh RENEW_NANITICS`. Left: `/home/user/scratch-r8-final` (the long runs).
