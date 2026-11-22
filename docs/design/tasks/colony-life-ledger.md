@@ -4016,3 +4016,79 @@ Progress (kept current; a successor continues from here)
   acquisition by a colony-range hunter (refusal: ignores that colony's workers 0.25 gd). **Direction 24 (R38, written
   14:49) is still to be built before this round closes** — no ledger entry of yours mentions it yet.
 
+- 15:58 **final arm complete** (final tree src 880fe1af = R35 + item 4 + LV1 + R37; base = sweep 9's own runs, exact;
+  `round-10/table10-final.txt`, `pred10-final.txt`, `final-table.md` (= `tools/sim/sweep-table.py arm-final
+  round-9/sweep`), `long-final/longrun-table.md`):
+  | | sweep 9 (base) | final |
+  |---|---|---|
+  | workers at winter (15) | 208 | **222** (better 9 / worse 3 / equal 3) |
+  | viable | 9 (we 1, sg 2, pp 2, cpv 3, kd 1) | **10** (we 2, sg 2, pp 3, cpv 2, kd 1); bar not met (kd) |
+  | eclosions / eggs | 100 / 284 | 91 / 299 |
+  | median P / C intake over need | 0.478 / 1.109 | **0.298** / 1.174 |
+  | P delivered, hunting trips | 176 / 1167 | 134 / 783 |
+  | larvae starved | 1 | **16** (we #2 9) |
+  | median trip success | 56.8 % | 52.1 % |
+  | adult deaths | 60 | 37 |
+  | predation deaths: total, median per colony, worst day share | 41, 2, 0.55 | **22, 0, 0.14** (R37 bar met) |
+  | no `worker:lost` | 13 of 15 | 11 of 15 (4 runs with 1) |
+  R19: 5 of 7 (P intake fails, no-lost fails). Long runs (sweep-9 hand-overs, base `round-9/sweep-long`): spring 4 ->
+  **5** of 5; R34 >= 1.0 x: 3 -> **1** of 5; >= 1.5 x: 0 -> 0. Second winter cpv #1 15 -> 17, pp #3 2 -> 6 (queen
+  alive, was starved), kd #3 2 -> 1 (y2 eggs 32, 19 hygiene), sg #2 10 -> 6, we #2 15 -> 1 (winter 1 already 8 against
+  13: 9 larvae starved, 9 eggs hygiene in year 1). R35 point 6 per run: `round-10/longdetail.py long-final`.
+- 15:58 read directions 24 (R38, 14:49) and 24a (R37b, 15:51) only now (they were added while the final arm ran).
+  Building R37b, then R38 in the integrator's order, then its one arm against `arm-final`.
+- 16:02 **R37b built** (direction 24a, item 0 of direction 24): `ecology/creatures/predator.ts findVictim` returns no
+  victim while `c.bb.satedUntil` (set by `startFeed`: the feed's `FEED_S` + `SATED_GD`: spiders 1.0 gd, centipede /
+  rove beetle 0.5 gd; antlion and bird have no entry) lies ahead; and a colony-range hunter's acquisition of a player
+  worker is drawn once at the ramp's share (refused: `c.bb.ignoreColony / ignoreUntil` for `COLONY_RANGE_REFUSE_GD`
+  0.25 gd; `bb` is persisted). Test `creatures/sated.test.ts` (3); `colonyRangeStrike.test.ts` restated (at ramp 0 the
+  victim is now refused at acquisition, so the strike may not come at all). Creatures folder 32 / 32 files green,
+  docs-final 8 / 8, `tsc` clean. **Not measured in a life run** (direction 24a measures it in R38's arm, which is not run).
+- 16:02 **R38 NOT BUILT** (direction 24, written 14:49, seen at 15:58 when the final arm ended): no room left in this
+  round for its five code items, two traces and a 15-run arm. Closing.
+
+### Round 10 results
+
+**Accounting (sweep-9 hand-overs to winter, paired; base = sweep 9's own runs, which a cached restore reproduces to
+the final hash).** Final tree (R35 + R37 + LV1 + item 4; R37b came after the arm) against base: workers at winter 208 ->
+222 (better 9 / worse 3 / equal 3), viable 9 -> 10 (we 2, sg 2, pp 3, cpv 2, kd 1: kitchen door still fails the bar),
+adult deaths 60 -> 37, predation 41 -> 22 (median per colony 2 -> 0, worst one-day share 0.55 -> 0.14: R37's bar met),
+median C intake 1.11 -> 1.17, **median P intake 0.478 -> 0.298**, P delivered 176 -> 134, hunting trips 1167 -> 783,
+larvae starved 1 -> 16, trip success 56.8 -> 52.1 %, eclosions 100 -> 91. R19 5 of 7 (P intake and no-lost fail).
+Long runs (sweep-9 hand-overs): spring 4 -> 5 of 5; R34 >= 1.0 x 3 -> 1 of 5. R35's own arm (sweep-8 long runs): pp #3
+and sg #2 from losing the colony to 16 and 14 workers at the second winter.
+
+**Causes ranked by measured loss (this round's evidence):**
+1. Carbohydrate behind a protein store (R35's case): 4 of 6 non-viable sweep-9 colonies; long pp #3 / sg #2 lost in
+   year two. R35 built as ruled: winter-1 C up in every R35 and final run (pp #3 long 2.6 -> 8.6, sg #2 0.6 -> 7.9),
+   we #3, kd #1, pp #3 viable. Cost: protein (median P intake 0.48 -> 0.30, larvae starved 1 -> 16).
+2. Predation by colony-range hunters at a ramp near 0 (sweep 9: 41 deaths; 20 of 20 recorded in sg #2 / pp #2 / pp #3
+   are colony-range): R37 41 -> 22; one herd-sitting spider still takes 6-8 tenders (pp #3) -> R37b.
+3. Protein not found / not taken (kd #1 3 of 120 P of a found large carcass, kd #2 0 of 8.5 P found, prey patches
+   entered and never learnt, we #1's patch never met under R35): measured (`item5.py`), ruled into R38 (not built).
+4. Herds never found (pp #3 sweep-8, sg #3): one-off 6 BU odour; measured; ruled into R38 item 2 (not built).
+5. Brood hygiene in year two (kd #3 long 19 of 32 y2 eggs; we #2 9 in year one): measured only.
+
+**Fixes (unit tests red before, green after):** R35 (`colony/queen.ts`, `needs.ts`, `economy.ts`, `stores.ts`,
+`allocation/demand.ts`, `targets.ts`, `allocation/index.ts`, balance `PROSPECTIVE_*`; test `prospectiveProtein.test.ts`
+7); R37 (`creatures/colonyRange.ts`, `attack.ts`; `colonyRangeStrike.test.ts`); R37b (`predator.ts`, balance `SATED_GD`,
+`COLONY_RANGE_REFUSE_GD`; `sated.test.ts`); LV1 (`outdoor/choice.ts liquidOnArrival`; `liquidOnArrival.test.ts`);
+item 4: `tendDraft.ts` + `allocation mayTakeTask` (`tendDraft.verify` green), `founding/leak.ts` cut + `dig.ts`
+(`sealLongShaft.verify` green), `sealGuide.ts` no `Math.hypot`, `startPose.long.test.ts` strengthened (not re-run).
+Tools: `lifeProtein.ts` arrivals by kind, `lifePredation.ts`, `lifeLaying.ts`, `lifeHerds.ts` (herds, patches,
+coverage). Restated tests: `economy.test` §5.5, `larder.test` (a), `appendixE23` App E 18 (reasons in place).
+
+**Tried and reverted:** none reverted. The base arm was stopped after four runs once their final hashes matched sweep
+9's (not needed). R37's per-strike share alone is kept but is shown insufficient (pp #3), R37b added on top.
+
+**GDD deviations recorded (DEVIATIONS.md):** R35 (GDD 02 §5.5, §6.3), R37 + R37b (GDD 05 §5, §2.4, and R25). R36: no
+change (its condition not met). LV1 implements GDD 02 §5.5's "C_s" per trip as what the trip can get (no deviation).
+
+**Known red, not mine or kept:** `colony/workedExample.test` (base value), `nest/readersCost.verify`, `nest/escapeDig`,
+`behaviours/nest/sfaReview.verify`, `stall.soak`, `behaviours/outdoor/removal.verify` (all red on the base tree).
+
+**Next (round 11):** R38 (direction 24) in full, then its arm against `round-10/arm-final`, which also measures R37b;
+the protein cost of R35 (larvae starved 16, we #2 9: read with R38's discovery fixes before touching R35's terms);
+year-two brood hygiene (kd #3). Evidence: `test-output/colony-life/round-10/`.
+- 16:04 closing: `tsc` clean; scratch trees `/home/user/scratch-r10-*` deleted; probe archived to
+  `round-10/probes/probe-tend10.ts.txt` and `tools/sim/probe/` removed; no process of this round left running.

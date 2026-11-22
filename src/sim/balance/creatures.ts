@@ -195,6 +195,14 @@ export const LONE_ANT_L = 3;
 /** Feed after a kill: retreat distance (mm) and duration (s). */
 export const FEED_RETREAT_MM: Partial<Record<CreatureKind, number>> = { 'jumping-spider': 12, 'wolf-spider': 16, 'ant-spider': 16, centipede: 12, 'rove-beetle': 6 };
 export const FEED_S: Partial<Record<CreatureKind, number>> = { 'jumping-spider': 120, 'wolf-spider': 120, 'ant-spider': 120, centipede: 60, 'rove-beetle': 60, antlion: 120 };
+/**
+ * Ruling R37b (direction 24a): after the feed that follows a kill a hunter is sated and takes no victim for this
+ * long, game days (a spider fed 120 s and hunted again: one spider took five workers in a 600 s game day). Kinds
+ * without an entry (antlion, bird) are unchanged.
+ */
+export const SATED_GD: Partial<Record<CreatureKind, number>> = { 'jumping-spider': 1.0, 'wolf-spider': 1.0, 'ant-spider': 1.0, centipede: 0.5, 'rove-beetle': 0.5 };
+/** R37b: a colony-range hunter whose ramp draw refused a player worker ignores that colony's workers this long, gd. */
+export const COLONY_RANGE_REFUSE_GD = 0.25;
 /** After a missed strike or a lost target, s. */
 export const RECOVER_S = 2;
 /** A predator gives up a stalk after this long, s. */

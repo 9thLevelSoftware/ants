@@ -3,9 +3,13 @@
 import type { Ant, Creature, Sim } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  FEED_RETREAT_MM, FEED_S, FLEE_DIST_MM, FLEE_RULE, FLEE_S, LONE_ANT_L, NEST_EXCLUSION_WORKERS, PREY_MAX_MG, RECOVER_S,
-  REF_BU_MM,
+  COLONY_RANGE_REFUSE_GD, FEED_RETREAT_MM, FEED_S, FLEE_DIST_MM, FLEE_RULE, FLEE_S, LONE_ANT_L, NEST_EXCLUSION_WORKERS,
+  PREY_MAX_MG, RECOVER_S, REF_BU_MM, SATED_GD,
 } from '@/sim/balance/creatures';
+import { rngFloat } from '@/core/rng';
+import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
+import { colonyRangeStrikeShare } from './colonyRange';
+import { rng } from './common';
 import {
   antLen, awayPoint, dist, holdersOf, nestmateWithin, onSurface, setState, stop, timerDone, walkTo,
 } from './common';
@@ -59,15 +63,29 @@ const _ids: number[] = [];
 
 /** Nearest eligible victim within the rule's range (ties by id), or null. */
 export function findVictim(sim: Sim, c: Creature, rule: VictimRule): Ant | null {
+  // R37b: a sated hunter takes no victim (c.bb.satedUntil, set by startFeed)
+  const now = sim.state.tick;
+  if ((c.bb.satedUntil ?? -1) > now) return null;
+  const ignoring = (c.bb.ignoreUntil ?? -1) > now ? c.bb.ignoreColony ?? -1 : -1;
   sim.index.queryAnts(c.pos, rule.rangeMm, _ids);
   let best: Ant | null = null, bestD = Infinity;
   for (let i = 0; i < _ids.length; i++) {
     const a = sim.stores.ants.get(_ids[i]);
-    if (!a || !canPrey(sim, c, a, rule.inNest)) continue;
+    if (!a || a.colony === ignoring || !canPrey(sim, c, a, rule.inNest)) continue;
     const d = dist(a.pos, c.pos);
     if (d > rule.rangeMm) continue;
     if (rule.lone && nestmateWithin(sim, a, LONE_ANT_L * antLen(sim, a))) continue;
     if (d < bestD || (d === bestD && best && a.id < best.id)) { best = a; bestD = d; }
+  }
+  // R37b: a colony-range hunter takes a small player colony's worker at the colony-size ramp's share, one draw per
+  // acquisition; refused, it leaves that colony's workers alone for COLONY_RANGE_REFUSE_GD
+  if (best) {
+    const share = colonyRangeStrikeShare(sim, c, best.colony);
+    if (share < 1 && rngFloat(rng(sim)) >= share) {
+      c.bb.ignoreColony = best.colony;
+      c.bb.ignoreUntil = now + Math.round(COLONY_RANGE_REFUSE_GD * TICKS_PER_DAY);
+      return null;
+    }
   }
   return best;
 }
@@ -105,6 +123,9 @@ export function startFlee(sim: Sim, c: Creature, speedMmS: number, distMm = FLEE
 export function startFeed(sim: Sim, c: Creature): void {
   c.eaten++;
   c.bb.tgt = -1;
+  // R37b: sated from the end of this feed for SATED_GD (kinds without an entry hunt again after the feed)
+  const sated = SATED_GD[c.kind];
+  if (sated !== undefined) c.bb.satedUntil = sim.state.tick + Math.round((FEED_S[c.kind] ?? 60) * TICKS_PER_SECOND + sated * TICKS_PER_DAY);
   const r = FEED_RETREAT_MM[c.kind] ?? 10;
   const to = awayPoint(c.pos, c.homeCenter, -Math.min(r, dist(c.pos, c.homeCenter)), { x: 0, y: 0, z: 0 });
   setState(sim, c, 'feed', FEED_S[c.kind] ?? 60);
