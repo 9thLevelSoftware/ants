@@ -187,3 +187,47 @@ A colony of 12 loses about 8 workers a year to age (R30 lifespans against ~28 gd
 
 ## Machine rules
 4 cores shared with other engineers and a headless browser. At most 2 life runs at a time; never the whole vitest suite in one process; long tests behind `FOUNDRESS_LONG=1`; no `process` in test files (no `@types/node`); delete probe files and scratch copies of the tree before you finish; `date -u` before writing a timestamp. Evidence under `test-output/colony-life/round-N/`.
+
+## Direction 22 (integrator, Nov 22 11:45 UTC) — R35: the prospective protein demand may not cost the colony its carbohydrate
+
+Round 9's long runs (ledger 11:08) show what R32b as I worded it does: R34 improved from 0 of 5 to 2 of 5 at
+>= 1.0 x, and the two colonies it loses (pp #3, sg #2) go into winter 1 with protein in store and no carbohydrate
+(C 2.6 / P 12.2 and C 0.6 / P 3.5 mg; sweep 8 on the same hand-overs: 14.1 / 2.7 and 6.3 / 4.2). The ruling's own
+terms cause it, so they are mine to change:
+
+- **Size.** The prospective rate is `LARVA_P_REQ` x withheld laying = 19-36 loads/gd at a lay potential of 16-30,
+  against a carbohydrate rate near 0.6. In `desiredProteinShare` that is sP >= 0.97, and in `nutrientWeights`
+  wC = base + needC x (1 - sP) x gain: a colony with no sugar at all values sugar at the base weight.
+- **Gate.** "Carbohydrate first while C is under the stock target" is a switch at 1 x the target: the colony sits
+  just over it (0.7-1.7 mg) all summer.
+- **Spoilage.** GDD 02 §5.5 counts the store's spoilage in `rateP`. A 13 mg protein store therefore asks for more
+  protein by itself, in autumn too (lay potential 0, no prospective demand): sP near 0.5, prey 16 of 20 deliveries on
+  day 8 while C stands at 1.6-3.9 mg against a winter need of 6-11.
+
+### R35 (amends R32b; GDD 02 §5.5 deviation rows)
+
+1. **Bounded by the workforce.** Prospective rate <= `PROSPECTIVE_P_PER_WORKER` (0.5 loads/gd, balance) x workers.
+2. **Carbohydrate sufficiency is a ramp, and it looks at the winter.** The prospective rate is multiplied by
+   `clamp(daysC / targetDays.c - 1, 0, 1)` (daysC = C in store over the plain C rate; nothing at 1 x the stock target,
+   all of it at 2 x), and it is 0 while C in store is under the path to the winter need:
+   `stores.c < winterStoresNeed(sim, col).needC x WINTER_STORES_TARGET_MARGIN x clamp((doy - 7) / 14, 0, 1)`
+   (nothing asked in spring, half the winter need by doy 14, all of it by doy 21). This replaces R32b's
+   "C in store < adults' need x target days" switch.
+3. **A colony short of sugar values sugar whatever its protein demand.** `nutrientWeights`:
+   `wC = base + needC x max(1 - sP, needC) x gain` (wP unchanged). At needC 1 the carbohydrate weight is
+   base + gain for any sP.
+4. **Spoilage is not appetite on the forage side.** `forageRates().p` = the plain protein rate without the store's
+   spoilage term (its own EMA of queenP + egg cost + larvaP, floored at `NEED_RATE_P_MIN`) + the prospective rate.
+   `needRates` / `daysOfStock` / the laying gates / the starvation stage keep the GDD's rate with spoilage. With no
+   larvae and no laying season the forage side's protein rate is then the floor and a stocked larder reads needP 0.
+5. **Tenders.** On the same state, the tend head-count with and without the prospective term must be equal (test).
+   pp #3 had no aphid tender all year against 2-4 in sweep 8: trace why (tend demand is `herdTendDemand`, not a
+   function of sP, so either the herds were never found - `scoutShortfall` and what scouts look for - or the
+   allocator's fill order starved the tend demand) and fix that cause. Report it by name.
+6. **One arm, the five long runs** (same hand-overs as `round-9/long`; pp #3 and sg #2 first), against R34 and the
+   spring check. No new arm on the 15: the long runs pass through winter 1. Report per run: C and P in store at
+   winter 1, tenders by day, year-two eggs / eclosed, and the year-two brood losses by cause (the best run turns
+   30 eggs into 15 workers: say where the other half goes, do not fix it in this round).
+
+If this round's engineer has not returned yet: do R35 in this round, before closing it, so that sweep 9 judges a
+tree with it. If the round has closed, it is the first item of the next.

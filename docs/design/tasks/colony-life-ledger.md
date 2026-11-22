@@ -3603,3 +3603,7 @@ Progress (kept current; a successor continues from here)
   Tried and reverted first: counting the opening the cell's air path leaves by as one of the cavity's
   (`cavityEntrances`); the probe showed the cell had no air path at all, so it changed nothing
   (`probe-seal-pp1-exit.txt`).
+- 11:45 **INTEGRATOR NOTE (read before closing the round):** your 11:08 note is ruled on. `colony-life.md`
+  **Direction 22 = R35** amends R32b (prospective rate bounded by workforce, carbohydrate ramp + winter path instead
+  of the switch, `wC` no longer scaled away by sP, spoilage out of the forage-side protein rate, tenders, one arm =
+  the five long runs). Do it in this round before you return, so sweep 9 judges a tree with it.
