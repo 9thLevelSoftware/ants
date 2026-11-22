@@ -7,6 +7,7 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Entrance, Nest, OpeningState, Sim, SpeciesId } from '@/sim/types';
 import {
   FOUND_ABANDON_BU, FOUND_ABANDON_RECORD_MAX, FOUND_IN_CELL_MARGIN_BU, FOUND_READINESS_EVERY_TICKS, FOUND_THROAT_PROBE_BU,
+  SEAL_FLOOD_MAX_SAMPLES,
 } from '@/sim/balance/founding';
 import { canDigAt, foundingReadiness, type FoundingReadiness } from '@/sim/nest';
 import { FB, bbGet, bbSet, depthBelowGround, foundingQueen, setPhase, speciesOf } from './access';
@@ -144,6 +145,18 @@ function openedElsewhere(sim: Sim, nest: Nest): boolean {
   return true;
 }
 
+/**
+ * A throat still reads open, yet the cell no longer reaches the air: the plugs went in down the shaft, past the
+ * throat sphere the throat test looks at (colony-life round 9, playground-park #1 at the start pose: ten plugs down a
+ * template shaft, the cell cut off, the opening's throat open above them; the guide found nothing left to plug and the
+ * seal never ended). The cell is sealed; the workers dig a plug past the throat out at the hand-over (reopen.ts
+ * closingPlugPlan). Not when the flood stopped at its sample cap (a leak beyond it is not ruled out).
+ */
+function cutOffBelowThroat(sim: Sim, nest: Nest): boolean {
+  const flood = floodCavity(sim, floodStart(sim, nest));
+  return flood.path === null && flood.cavity.size > 0 && flood.cavity.size < SEAL_FLOOD_MAX_SAMPLES;
+}
+
 /** Is the founding queen in the cavity of her cell (not shut out above a plug)? */
 function queenSealedIn(sim: Sim, nest: Nest): boolean {
   const q = foundingQueen(sim);
@@ -169,7 +182,8 @@ export function sealTick(sim: Sim, op: OpeningState, nest: Nest): boolean {
     // sealed with the queen inside (a plug between her and the cell is no seal of her cell)
     // no registered opening at all (a shaft closed under a crust, or one that broke into a natural cavity whose
     // openings the nest module has not registered): nothing the nest module counts as open, so sealed, as it sees it
-    const closed = mine.every((e) => throatClosed(sim, e)) && !openedElsewhere(sim, nest);
+    const throatsClosed = mine.every((e) => throatClosed(sim, e));
+    const closed = throatsClosed ? !openedElsewhere(sim, nest) : cutOffBelowThroat(sim, nest);
     const done = closed && queenSealedIn(sim, nest);
     if (done && f.state === 'ready') {
       f.state = 'sealed';

@@ -3551,3 +3551,55 @@ Progress (kept current; a successor continues from here)
   median P intake 0.19 -> 0.41 mg/h; viable 6 -> 8 of 9. Frozen long-run tree `/home/user/scratch-r9-long` (live at
   10:16: all round-9 fixes incl. SG1/SG2); five long runs (`jobs-long.txt`, `run-long.sh`, UNTIL_DAY 40, sweep-8
   hand-overs we #2, sg #2, cpv #1, pp #3, kd #3) start when the two running arms end.
+- 10:37 founding long test, car-park-verge and kitchen-door seeds 1-5 (`round-9/startPose-cpv-kd.txt`, live tree with
+  SG1 + SG2): all ten hand over with workers out (cpv Fair 2 of 2, 14 / 5 workers; kd Fair 1 of 1, 16; Poor 7 of 7,
+  5-9 workers). sg #4 and we #4 rerun with SG1 + SG2 (`startPose-seed4-sg12.txt`): both hand over, 7 and 8 workers,
+  out. Tally over the 25 start poses: Fair-or-better 9 of 10 with workers out (the one failure pp #1, template dig,
+  no seal), Poor 15 of 15. Rerunning sg, we, pp seeds 1-5 on the final tree (`startPose-final-sg-we-pp.txt`) so the
+  table is one tree's. Long runs: we #2 done (10:19-10:32), sg #2 and cpv #1 running.
+- 10:48 long runs so far (`round-9/long`, `python3 tools/sim/longrun-table.py round-9/long`; sweep 8's own long runs
+  of the same hand-overs in `round-8/sweep-long`): cpv #1 winter 1 18 -> winter 2 **22** (sweep 8: 15 -> 9), we #2
+  15 -> **19** (13 -> 8), sg #2 12 -> **2, queen starved in winter** (12 -> 10). sg #2 went into winter 1 with C 0.6 mg
+  (sweep 8: 6.3); its arm pair to winter shows the same (stores C at winter base 6.1 / final 0.4, viable yes / no):
+  from day 5 the base colony had 5 aphid tenders, the final one 1-3, while three eggs that did not hatch kept 2-5
+  nurses busy; lay potential was 0 from day 4, so R32b's prospective demand was 0 then. Queued `arm-r32b` sg #2 first
+  (`jobs4.txt`) to tell R32b from R33 on it. Brood accounting on the 10 paired runs (`round-9/account9.py`): base
+  115 brood deaths = flooding 36, untended 49, base mortality 20, other 10; final 106 = flooding 30, base 32,
+  untended 13, hygiene 14, exposure 10, other 7. Workers lost to `worker:lost` 11 -> 3; predation 8 -> 14 and
+  crushed 8 -> 12 with more workers outside for longer.
+- 11:05 **founding at the start pose on the final tree** (`round-9/startPose-final-sg-we-pp.txt` + `startPose-cpv-kd.txt`,
+  both with SG1 + SG2): 24 of 25 start poses hand over and get a first worker out within 1.5 gd of the hand-over.
+  Fair-or-better 9 of 10 (sg 2/2, we 2/2, pp 2/3, cpv 2/2, kd 1/1; required: all but one per archetype - met by
+  every archetype), Poor 15 of 15 (design rate >= 86 %, test floor 60 %). Workers at hand-over 4-18 (median 8). The one
+  failure: pp #1, the template dig that does not seal (lead above). Before SG1/SG2 (09:20-10:08 runs): 22 of 25 (sg #4,
+  we #4, pp #1 no seal). Founding folder 23 files green (3 long ones skipped), 77 tests.
+- 11:05 long runs: kd #3 done (10:47-11:03), pp #3 running; `arm-r32b` sg #2 running (jobs4.txt).
+- 11:08 **five long runs of the final tree, R34** (`round-9/long/longrun-table.md`; same hand-overs as sweep 8's
+  `round-8/sweep-long`, which had 0 of 5 / 0 of 5): winter 1 -> winter 2 workers: cpv #1 18 -> 22 (yes / no), we #2
+  15 -> 19 (yes / no), kd #3 12 -> 8 (no; sweep 8: 9 -> dead), pp #3 17 -> 6 (no; 11 -> 6), sg #2 12 -> 2, queen starved
+  (no; 12 -> 10). R34: >= 1.0 x winter 1 on **2 of 5** (bar 4 of 5), >= 1.5 x on **0 of 5** (bar 3 of 5). R22 spring
+  3 of 5. Year-2 eclosions 15 / 12 / 6 / 3 / 0 (sweep 8: 3 / 5 / 0 / 5 / 4). Both failures that lose the colony go into
+  winter 1 short of carbohydrate with protein in store: pp #3 C 2.6 / P 12.2 mg (sweep 8: 14.1 / 2.7), sg #2 C 0.6 /
+  P 3.5 (6.3 / 4.2). pp #3 day rows: in summer (lay potential 16-30) the prospective demand sends the foragers to prey
+  (deliveries prey 14 / 9 / 8 of 16 / 13 / 13 on days 2-4) while C sits at 0.7-1.7 mg, just over R32b's carbohydrate
+  gate (adults' C x the stock target's days); no worker tended aphids all year (sweep 8: 2-4 tenders from day 2). In
+  autumn (lay potential 0, so no prospective demand) the protein rate stays 0.9-1.25 against 0.2-0.6 in sweep 8:
+  GDD 02 §5.5 counts P spoilage in `needRateP`, so the 13 mg protein store itself keeps the desired protein share near
+  0.5 and prey deliveries going (16 of 20 on day 8) while C stays at 1.6-3.9 mg against a winter need of 6-11. Note for
+  the integrator (a ruling's terms, not changed here): R32b's gate is the ruling's own words; the autumn loop is the
+  GDD's spoilage-in-need term meeting a protein store R32b built.
+- 11:19 **SG3 (seal check, plug past the throat)**: pp #1 (template dig) traced further (`probe-seal-pp1-leak.txt`): at
+  the end of the seal budget the cell does **not** reach the air (flood: 247 samples, no path), the queen is inside,
+  yet the opening reads `sealing:159` and `throatClosed` false: the ten plugs went in down the shaft (y -11 -> -19
+  BU), past the throat sphere the nest module and the throat test read, so neither ever called it sealed, and the
+  guide's plan found nothing left to plug (no leak). Fix (`colony/founding/dig.ts sealTick`, `cutOffBelowThroat`): a
+  throat that still reads open with the cell cut off from the air (flood path null, below its sample cap) and the
+  queen inside is a sealed cell; the hand-over's reopen already digs plugs past the throat out (reopen.ts
+  closingPlugPlan). Test `colony/founding/sealBelowThroat.test.ts` (fill 8 BU down the shaft, opening `sealing`:
+  sealed and phase `lay`; red on the tree without the rule, which stays in phase `seal`; second case: open cell not
+  sealed). pp #1 at the start pose (`startPose-pp1-below.txt`): no seal -> sealed at tick 9338, hand-over with 18
+  workers, out. **Founding at the start pose: 25 of 25** (Fair-or-better 10 of 10, Poor 15 of 15) with SG1-SG3 (sg,
+  we, pp seeds 1-5 and cpv, kd seeds 1-5 as above; pp #1 rerun alone after SG3).
+  Tried and reverted first: counting the opening the cell's air path leaves by as one of the cavity's
+  (`cavityEntrances`); the probe showed the cell had no air path at all, so it changed nothing
+  (`probe-seal-pp1-exit.txt`).
