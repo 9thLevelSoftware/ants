@@ -1065,3 +1065,25 @@ relaunch wf-life.js with firstRound 11 + firstRoundResult; cut off -> firstRound
 
 Round 11 launch (16:29 UTC): task `wl5j3j19w`, run `wf_e00051e5-a07` (wf-life.js {maxRounds: 1, firstRound: 11,
 model opus, effort high}, journal under `subagents/workflows/wf_e00051e5-a07/journal.jsonl`).
+
+### Nov 22 18:35 UTC — round 11 returned (R38 built and measured); sweep 11 running; R39 ruled for round 12
+
+- Round 11 (run `wf_e00051e5-a07`, result saved `docs/design/tasks/reviews/colony-life-round-11.json`): tree 4c9d17a9
+  = R37b + R35b + R38 items 1-5. Arm on the 15 sweep-9 hand-overs vs `round-10/arm-final`: workers at winter 222 ->
+  243, viable 10 -> 13 (kitchen door 1 -> 3 of 3; pp 3 -> 2: pp #3 C store 0.92 of R27's need), median P intake / need
+  0.298 -> 0.329 (bar 0.7 not met), predation 22 -> 0 (R37 / R37b bar met), larvae starved 16 -> 10, brood hygiene
+  deaths 31 -> 60, no-lost 11 -> 13. R35b moved nothing (sP >= needP in these colonies); kept.
+- Sweep 11 (independent, tree be38bf9e = da0cfa6) started 17:54; frozen copy `/home/user/frozen-sweep11`, progress
+  `docs/design/tasks/progress/colony-life-sweep-11.md`. Its one finding so far: `colony/scoutsFirst.verify` red (the
+  whole scout demand is served ahead of forage, not only the floor).
+- **R39 (direction 26)**: `tend` demand = min(herd slots, tenders the carbohydrate want needs x 1.25), keep 1 a herd.
+  Evidence (my read of `round-11/arm-final11`): tend takes 15-35 % of worker task time at 20-40 % trip success, seven
+  colonies hold winter carbohydrate by day 4-8 and go on tending; 848 hunting trips bring 102 P (0.12 P a trip, ~3
+  trips a hunter a day) against a larval demand of 326 P; the three best-fed colonies hunt most. Direction 26 also
+  orders: the forage-choice trace (C trips at wP / wC 7 : 1), the scout floor's order, brood hygiene (flood hold on
+  the hauler; haul cap 0.4 and nurses carrying waste while a brood chamber is over tolerance), one arm vs
+  `round-11/arm-final11` (interim bar: median P >= 0.45, hygiene <= 31, viable >= 13).
+- Next: when sweep 11 returns (journal count 2) -> save `reviews/colony-life-sweep-11.json`, read it against the bars,
+  add direction 26a if it found defects, launch round 12 (`wf-life.js {maxRounds: 1, firstRound: 12, model: 'opus',
+  effort: 'high'}`). After a restart: sweep cut off -> rerun `/home/user/frozen-sweep11/run-all.sh` is the sweep
+  agent's job; relaunch `wf-life.js` with `firstRound 11` + `firstRoundResult` = the saved round-11 JSON.
