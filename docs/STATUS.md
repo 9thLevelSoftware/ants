@@ -872,3 +872,12 @@ Running at 06:30: colony-life `wy25pjnh7` (sweep 8 in progress: 6 of 15 at 06:22
 ## Nov 22 07:35 UTC — sweep 8 (fresh 15 runs) first numbers
 
 `test-output/colony-life/round-8/sweep-table.md`: **viable 9 of 15** (sweep 7: 4; bar ≥ 2 of 3 per archetype fails on playground-park and kitchen-door); R19 4 of 7 (held 12 of 15 ok, eclosions median 5 ok, C 1.162 ok, first workers ok; protein 0.269 FAIL, trips 45.9 % FAIL, no-lost 12 of 15 FAIL). Sums vs sweep 7: workers at winter 138 → 194, old age 64 → 1, starved 13 → 1, lost 2 → 10, predation 14 → 14. Probes by the sweep engineer: pp #1's six lost foragers stop at one point 82.5 BU from the door (homeward trap); sg #3 made no trip all year because the hand-over reopen left plug soil in the throat (= red `founding/reopen.test`, likely the seed-1 browser failure). Both added to round 9's first item (direction 21a). Long runs of the sweep in progress. look-pass-4: implementation done 06:57 (report written), Opus review in progress (candidates: minimap repaint cost 0.14 → 1.1 ms, brick courses doubled over scanned bricks, stumps drawn with boards). `reviews/colony-life-round-8.json` saved.
+
+
+## Nov 22 07:50 UTC — look-pass-4 landed; camera default decided; app-seams-3 launched
+
+look-pass-4 (`reviews/look-pass-4.json`, `look-pass-4-report.md`): review failed with 11 findings (brick lines drawn over scanned bricks, plinth stripe mid-wall, stumps with boards, triangles +11.8 % at low, minimap repaint cost), all fixed; triangles now +7.8 % at low; minimap repaint 1.9 × the old painter at 176 px (accepted: 1.8 ms every 200 ms). Integrator looked at `item2e/fp-until05/05-site-readout.png` (fence reads as boards, ground has grit) and `item5/*` (slope and stem, Follow surface vs Keep level).
+**Camera default: stays Follow surface** (GDD 01 §6.2). On the 32° slope Keep level puts the slope between camera and ant (ant half hidden); Follow frames the ant on both the slope and the stem. Keep level remains a setting.
+Not done there: backdrop cars never pictured; plastic play equipment has no face pattern; brood-inspector picture (needs firstplay past beat 12).
+Browser facts for the sim: seed 2 founding floods in rain at a site whose read-out says flood safety 5 of 5 (direction 21b); seed 1 entrance stays `reopening`.
+Launched **app-seams-3** (Sonnet / Opus verify; `docs/design/tasks/app-seams-3.md`): corrupted save loads (red `save.verify.test.ts`), flood alert titled "Queen under attack", backdrop cars picture, stage1a strict egg beat, epitaph cause, queen gloss.

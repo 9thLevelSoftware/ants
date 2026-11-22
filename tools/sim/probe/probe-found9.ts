@@ -54,10 +54,11 @@ function layLikeFirstplay(sim: Sim): void {
 }
 
 export default async function main(args: string[]): Promise<void> {
-  const [arch, seedS, siteKind = 'start'] = args;
+  const [arch, seedS, siteKind = 'start', waitS = '0'] = args;
   const { world, config } = generatedWorld(arch as ArchetypeId, Number(seedS));
   const sim = sweepSim(world, config);
   const bu = sim.world.bu, q = queen(sim);
+  stepUntil(sim, () => false, Number(waitS));
   const site = siteKind === 'browser' ? findSite(sim, q.pos, 2, 120, 1) : null;
   const read = assessSite(sim, site ?? { ...q.pos });
   console.log(JSON.stringify({ site: site ? { rBu: site.rBu, x: r2(site.x / bu), z: r2(site.z / bu) } : 'start' }));
@@ -89,7 +90,12 @@ export default async function main(args: string[]): Promise<void> {
   const intent = sim.state.player.intent;
   for (let i = 0; i < 40 && depth(q.pos) < 8; i++) { intent.dir.x = H.x; intent.dir.z = H.z; stepUntil(sim, () => false, 3); }
   intent.dir.x = 0; intent.dir.z = 0;
-  console.log(JSON.stringify({ layAt: { depthBu: depth(q.pos), ch: q.chamberId } }));
+  const t = sim.state.env.time as unknown as Record<string, unknown>;
+  console.log(JSON.stringify({ layAt: { depthBu: depth(q.pos), ch: q.chamberId, tick: sim.state.tick, time: t } }));
+  const floodLog: Record<string, unknown>[] = [];
+  const mo = sim.state.env.moisture;
+  const theta = () => { if (!cell || mo.nx <= 0) return -1; const ix = Math.floor(cell.center.x / mo.cell), iz = Math.floor(cell.center.z / mo.cell); return r2(mo.theta1[iz * mo.nx + ix] / 255); };
+  const flood = () => { const c = nestOf(sim).chambers.find((x) => x.id === cell?.id) as unknown as { flooded?: number } | undefined; floodLog.push({ t: sim.state.tick, flooded: r2(c?.flooded ?? -1), theta1: theta(), rain: r2((sim.state.env.weather as unknown as { rainRateMmH?: number }).rainRateMmH ?? -1) }); };
   let relays = 0;
   const t0 = sim.state.tick;
   for (;;) {
@@ -97,7 +103,7 @@ export default async function main(args: string[]): Promise<void> {
     note();
     console.log(JSON.stringify({ laid, phase: phase(sim), eggs: [...where.values()].slice(-12) }));
     if (phase(sim) === 'lay') sim.enqueue({ type: 'openingBeginTimelapse' });
-    stepUntil(sim, () => { if (sim.state.tick % 10 === 0) note(); return ['handover', 'done', 'failed', 'lay'].includes(phase(sim)); }, 8 * TICKS_PER_DAY);
+    stepUntil(sim, () => { if (sim.state.tick % 10 === 0) note(); if (sim.state.tick % 600 === 0) flood(); return ['handover', 'done', 'failed', 'lay'].includes(phase(sim)); }, 8 * TICKS_PER_DAY);
     if (phase(sim) !== 'lay' || relays >= 2) break;
     relays++;
   }
@@ -107,4 +113,5 @@ export default async function main(args: string[]): Promise<void> {
   console.log(JSON.stringify({ end: phase(sim), gd: r2((sim.state.tick - t0) / TICKS_PER_DAY), outcome: op?.lapse?.outcome ?? null, laid, relays, deathsBy: by,
     workers: sim.state.ants.filter((a) => a.alive && a.colony === colId && a.caste === 'worker').length }));
   for (const d of deaths.slice(0, 40)) console.log(JSON.stringify(d));
+  for (const f of floodLog.slice(0, 20)) console.log(JSON.stringify(f));
 }
