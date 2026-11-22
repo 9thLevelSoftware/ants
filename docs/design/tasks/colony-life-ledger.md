@@ -3821,3 +3821,14 @@ round's ledger names; src/core's one change, gzip mtime 0, is app-seams-3's):
 Scratch trees (`/home/user/frozen-sweep9`, `/home/user/scratch-sweep9-nosg3`) deleted; no process of this review left
 running. Kept red: `src/sim/colony/founding/sealLongShaft.verify.test.ts` (case 1),
 `src/sim/ants/behaviours/nest/tendDraft.verify.test.ts` (case 1). Kept green: `tendDraftSave.verify.test.ts`.
+
+## Round 10
+
+Engineer: round 10 (started 13:25 UTC Nov 22). Evidence: `test-output/colony-life/round-10/`. Tree at start = HEAD 30944ea
+(working tree clean). Order (direction 23): (1) R35 as direction 22 rules it, six points, long runs; (2) R36 kitchen-door
+protein; (3) R37 predation; (4) sweep-9 defects (sealLongShaft, tendDraft, startPose test strength, Math.hypot);
+(5) laying-gate / protein-discovery tables (measurement); (6) if time.
+
+Progress (kept current; a successor continues from here)
+- 13:25 read spec (directions 22-23), round-9 ledger and sweep-9 section. Now: reading R32b code, probes (no src edits
+  that break compilation before 14:05: browser first-play run loads the live tree).

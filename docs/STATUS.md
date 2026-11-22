@@ -999,3 +999,15 @@ in the tree.
 
 **Mine, model-free:** browser first play on seed 2 through the hand-over (`test-output/firstplay-r9/seed2`,
 background `b0r48rvug`), to see whether round 9's founding fixes hold in the browser.
+
+## Nov 22 13:33 UTC — browser first play, seed 2: founding passes through the hand-over
+
+`test-output/firstplay-r9/seed2` (my run, `FIRSTPLAY_UNTIL=13`, HEAD 4ab0ebd, no stand-ins): beats 01-13 all pass,
+`ok: true`, no console errors; the lapse lost 3 of the first clutch, 7 first workers, queen's reserves 67 %, entrance
+reopened (`open:0`), a worker outside. Before round 9 this seed lost the whole clutch to flooding and ended `failed`.
+Pictures looked at: 12 (outcome card), 13 (entrance at night with the mound and a worker).
+- Visual defect seen in picture 12: behind the outcome card the camera sits against the queen inside the cell; the
+  wall texture is smeared and her body fills the frame cut off. For the next app pass (outcome-card framing).
+- The alert "Founding chamber flooding - Resolved" is still on screen at the outcome card: the cell did take water in
+  the lapse at a site whose read-out says flood-safe (direction 21b's question stays open; FD2 saves the clutch).
+Seed 1 running now (`test-output/firstplay-r9/seed1`).
