@@ -1,8 +1,9 @@
 // The gzip frame of an exported save: any single-byte change or trailing byte is rejected, and a save written by the
 // build before the frame was sealed still opens (see gzipFrame.ts for what can and cannot be checked on those).
 import { describe, expect, it } from 'vitest';
-import { gzip } from '@/core/serialize';
+import { decode, gunzip, gzip } from '@/core/serialize';
 import { bytesToText, packContainer, parseBytes, parseText } from './container';
+import { crc32 } from './crc32';
 import { LEGACY_SAVE_TEXT } from './fixtures/legacySave.fixture';
 import { makeRig } from './testkit';
 
@@ -32,6 +33,14 @@ describe('sealed save frame', () => {
       expect(parseBytes(longer).ok, `+${extra.length}`).toBe(false);
     }
     expect(parseBytes(bytes.subarray(0, bytes.length - 1)).ok).toBe(false);
+  });
+
+  it('is still a plain gzip member: the unsealed reader of an earlier build (gunzip, CRC of the data) can open it', async () => {
+    const bytes = await exported();
+    const raw = gunzip(bytes);
+    const t = bytes.length - 8;
+    expect(((bytes[t] | (bytes[t + 1] << 8) | (bytes[t + 2] << 16) | (bytes[t + 3] << 24)) >>> 0)).toBe(crc32(raw));
+    expect((decode(raw) as { format: string }).format).toBe('foundress-save');
   });
 
   it('is reproducible: the same save packs to the same bytes (no wall-clock time in the header)', async () => {

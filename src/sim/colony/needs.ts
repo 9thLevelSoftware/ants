@@ -32,6 +32,21 @@ export function needRates(col: Colony): { c: number; p: number } {
   return { c: Math.max(NEED_RATE_C_MIN, col.needs.rateC), p: Math.max(NEED_RATE_P_MIN, col.needs.rateP) };
 }
 
+/** core.acc key: R32b's prospective protein demand, loads/gd (queen.ts prospectiveProteinRate, set each cycle). */
+export const PROSPECTIVE_P_KEY = 'need.prospP';
+
+/**
+ * Need rates of the forage side (ruling R32b): the protein rate plus the prospective demand of the laying the gates
+ * withhold, so the colony forages for the brood its queen could have, not only the brood it has. Read by the desired
+ * protein share, the need indices, the intake target, the scouts' shortfall and the protein larder. The laying gates
+ * and the starvation stage keep the plain rates (daysOfStock): counting the eggs not yet laid there would shut
+ * laying by itself.
+ */
+export function forageRates(col: Colony): { c: number; p: number } {
+  const r = needRates(col);
+  return { c: r.c, p: r.p + (col.core?.acc[PROSPECTIVE_P_KEY] ?? 0) };
+}
+
 export function daysOfStock(col: Colony): { c: number; p: number } {
   const r = needRates(col);
   return { c: col.stores.c / r.c, p: col.stores.p / r.p };
@@ -48,9 +63,18 @@ export function targetDays(col: Colony): { c: number; p: number } {
 /** core.acc key: the season's multiplier of the carbohydrate stock target (AUTUMN_STOCK_TARGET_C_MULT in autumn). */
 export const SEASON_STOCK_C_KEY = 'stock.seasonC';
 
+/**
+ * The protein need index on the plain rates (GDD 02 §5.5 before R32b): how short the stores are of what the brood
+ * and queen eat now. The shortage responses read it (the minim pupation clock, GDD 02 §2.6): eggs not yet laid are no
+ * shortage of the larvae there are.
+ */
+export function plainNeedP(col: Colony): number {
+  return clamp(1 - daysOfStock(col).p / targetDays(col).p, 0, 1);
+}
+
 /** Desired protein share sP' (GDD 02 §5.5), after diet emphasis. */
 export function desiredProteinShare(col: Colony): number {
-  const r = needRates(col);
+  const r = forageRates(col);
   const sP = r.p / (r.c + r.p);
   const diet = col.directives.diet;
   if (diet === 'auto') return sP;
@@ -61,7 +85,8 @@ export function refreshNeedIndices(col: Colony): void {
   const d = daysOfStock(col);
   const t = targetDays(col);
   col.needs.needC = clamp(1 - d.c / t.c, 0, 1);
-  col.needs.needP = clamp(1 - d.p / t.p, 0, 1);
+  // protein against the forage side's stock target (R32b: the prospective demand counts)
+  col.needs.needP = clamp(1 - col.stores.p / (t.p * forageRates(col).p), 0, 1);
   col.needs.sP = desiredProteinShare(col);
   col.needs.proteinDeficit = col.needs.needP >= PROTEIN_DEFICIT_NEED;
 }
@@ -90,7 +115,7 @@ export function recruitAcceptance(col: Colony, cPerLoad: number, pPerLoad: numbe
 
 /** Loads per gd the colony should take in (GDD 02 §5.5 `intakeTarget`). */
 export function intakeTarget(col: Colony): number {
-  const r = needRates(col);
+  const r = forageRates(col);
   const t = targetDays(col);
   const s = col.stores;
   return r.c + r.p + Math.max(0, t.c * r.c - s.c) / STOCK_REFILL_GD + Math.max(0, t.p * r.p - s.p) / STOCK_REFILL_GD;

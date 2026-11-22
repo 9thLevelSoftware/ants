@@ -16,7 +16,7 @@ import { expireDirectives } from './directives';
 import { updateNeeds } from './needs';
 import { updateStarvation } from './starvation';
 import { provisionAtHandover } from './handover';
-import { SEASON_STOCK_C_KEY, needRates } from './needs';
+import { PROSPECTIVE_P_KEY, SEASON_STOCK_C_KEY, needRates, plainNeedP } from './needs';
 import { winterStoresNeed } from './overwinter/storesNeed';
 import { AUTUMN_STOCK_TARGET_C_MULT, STOCK_TARGET_C_GD, STOCK_TARGET_MULT } from '@/sim/balance/colony';
 import { WINTER_STORES_TARGET_MARGIN } from '@/sim/balance/lifecycle';
@@ -24,7 +24,7 @@ import { currentSeason } from '@/sim/time';
 import { BroodFlag } from '@/sim/types';
 import { LARVA_C_REQ, LARVA_P_REQ, LAYING_INTAKE_EMA_GD } from '@/sim/balance';
 import { larvaRemainingNeed } from './brood';
-import { BROOD_NEED_P_KEY, PROTEIN_INTAKE_KEY, PROTEIN_LIFE_KEY } from './queen';
+import { BROOD_NEED_P_KEY, PROTEIN_INTAKE_KEY, PROTEIN_LIFE_KEY, prospectiveProteinRate } from './queen';
 import { measureLarder, measurePileCap, poolSpace, refreshCapacity, spoil } from './stores';
 import { fileDay } from './stats';
 import { dailyRecount } from './population';
@@ -56,7 +56,8 @@ function updateYield(sim: Sim, col: Colony, core: ColonyCoreState, dtGd: number)
 
 function updateTimers(sim: Sim, col: Colony, core: ColonyCoreState): void {
   const now = sim.state.tick;
-  if (col.needs.needP >= MINIM_NEED_P) { if (core.minimSinceTick < 0) core.minimSinceTick = now; } else core.minimSinceTick = -1;
+  // a real protein shortage of the larvae there are (R32b's prospective demand is no shortage: plainNeedP)
+  if (plainNeedP(col) >= MINIM_NEED_P) { if (core.minimSinceTick < 0) core.minimSinceTick = now; } else core.minimSinceTick = -1;
   const space = poolSpace(col);
   const full = space.c < STORES_FULL_SPACE;
   if (full) {
@@ -152,6 +153,8 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   const rateP = accGet(core, 'inst.queenP') + EGG_COST_P * core.layingRate + accGet(core, 'inst.larvaP') + sp.p;
   updateProteinSupply(sim, col, core, def, dtGd);
   accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? autumnStockMult(sim, col) : 1);
+  // R32b: the forage side asks protein for the eggs the gates withhold (read through needs.ts forageRates)
+  accSet(core, PROSPECTIVE_P_KEY, prospectiveProteinRate(sim, col));
   updateNeeds(col, { rateC, rateP }, dtGd);
   measureLarder(sim, col); // after the needs: the larder holds a game day of this cycle's need (R21)
   refreshCapacity(col);

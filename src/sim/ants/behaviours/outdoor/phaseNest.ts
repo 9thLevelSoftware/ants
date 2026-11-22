@@ -26,6 +26,7 @@ import { arrived, goToChamber, moving, stop } from './nav';
 import { commitRoute, forgetStaleRoutes } from './routes';
 import { startDepart } from './phaseScout';
 import { homePlanner, resumeOutboundNav, startDeliver, startOutbound, startRest, startReturn, startWait } from './transitions';
+import { takeOverdueTend } from '../nest/tendDraft';
 
 const EPS = 1e-6;
 const ids: number[] = [];
@@ -49,6 +50,8 @@ export function updateWait(sim: Sim, ant: Ant, fl: Flavour): void {
   thinkIn(sim, ant, THINK_WAIT_TICKS);
   if (ant.nestId < 0) { startReturn(sim, ant, fl, ant.cropC + ant.cropP >= SUCCESS_CROP, 'job:home'); return; }
   if (ant.fatigue >= REST_ENTER) { startRest(sim, ant, fl, 'fatigue'); return; }
+  // R33: a forager waiting in the nest is a hand for an overdue egg or pupa pile (forage.wait only)
+  if (takeOverdueTend(sim, ant)) return;
   const nest = homeNest(sim, ant);
   const room = nest ? entranceChamber(nest) : undefined;
   if (room && ant.chamberId !== room.id && !moving(ant)) goToChamber(sim, ant, room, WAIT_SPREAD_BU);

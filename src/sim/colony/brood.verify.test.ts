@@ -2,6 +2,7 @@
 // (GDD 02 §2.4-§2.6, §3.2) beyond the original suite.
 
 import { describe, expect, it } from 'vitest';
+import { UNTENDED_GD } from '@/sim/balance/colony';
 import { BroodFlag } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim, step } from './testkit';
@@ -47,10 +48,12 @@ describe('larval starvation clocks (reviewer, §2.4-2.5)', () => {
     for (const d of starved) expect(d.t).toBeGreaterThan(2.0);
   });
 
-  it('eggs left untended for > 0.25 gd die at about 2.0 per gd (cause untended)', () => {
+  // ruling R33 (colony-life round 9): UNTENDED_GD 0.25 -> 1.0, the hazard past it unchanged. Measured on pupae: an
+  // egg at 25 C hatches after 1.4 / r(25) = 1.03 gd, before a whole day of neglect has passed
+  it('pupae left untended for > UNTENDED_GD (1.0 gd) die at about 2.0 per gd (cause untended)', () => {
     const { sim, ch } = nursery();
-    addBrood(sim, 'egg', 300, ch, 0);
-    step(sim, Math.round(0.26 * TICKS_PER_DAY));
+    addBrood(sim, 'pupa', 300, ch, 0);
+    step(sim, Math.round((UNTENDED_GD + 0.01) * TICKS_PER_DAY));
     const alive0 = sim.state.brood.filter((b) => b.alive).length;
     const causes: string[] = [];
     sim.events.on('brood-died', (e) => causes.push(e.cause));

@@ -23,6 +23,7 @@ import { act, actResult, busy, entity, resetTravel, travel, tryAct } from './tra
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { perTick } from './perTick';
 import { dryDropPoint, DRY_SPOT } from './floodEvac';
+import { DRAFT_BROOD } from './tendDraft';
 
 const ENTRY = 'nurse.select';
 /** bb key: 1 = pick-up started, 2 = carrying the job's brood (a put-down then delivers). */
@@ -81,6 +82,17 @@ function select(sim: Sim, ant: Ant): void {
     claim(sim, ant, Job.rescue, victim.id); // claim kind only blocks others; the state says what is done
     setState(sim, ant, 'nurse.cannibalise', 'job:cannibalise');
     return;
+  }
+  // R33: drafted for an overdue egg or pupa pile (tendDraft.ts): that pile first, if nobody holds it meanwhile
+  const drafted = bbv(ant, DRAFT_BROOD, -1);
+  if (drafted >= 0) {
+    ant.bb[DRAFT_BROOD] = -1;
+    const b = sim.stores.brood.get(drafted);
+    if (b && b.alive && b.carriedBy < 0 && b.stage !== 'larva' && freeFor(sim, ant, b.id)) {
+      claim(sim, ant, Job.tend, b.id);
+      setState(sim, ant, 'nurse.tend', 'job:tend-overdue');
+      return;
+    }
   }
   const job = selectJob(sim, ant, nest.id, bbv(ant, B.feedBlock) > sim.state.tick);
   if (!job) {

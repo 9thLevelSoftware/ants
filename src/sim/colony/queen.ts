@@ -12,7 +12,7 @@ import {
   QUEEN_GUT_CAP, QUEEN_RATION_BASE, QUEEN_RATION_BASE_P, QUEEN_RATION_P_SHARE_WITHHELD, QUEEN_REFILL_MIN_GUT_C,
   QUEEN_RESERVE_REFILL, QUEEN_STARVE_GD, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P, WORKER_CAP_TAPER, LOAD_EPS,
   DEFAULT_SEASON_LENGTH_DAYS, SMALL_COLONY_N, WINTER_RESERVE_FROM_D28, WINTER_RESERVE_MULT,
-  EGGS_PER_NURSE, NURSE_FEED_CAPACITY, PUPAE_PER_NURSE,
+  EGGS_PER_NURSE, NURSE_FEED_CAPACITY, PUPAE_PER_NURSE, LARVA_P_REQ,
 } from '@/sim/balance';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { killAnt, spawnBrood } from '@/sim/entities';
@@ -144,6 +144,22 @@ export function layingReleaseShare(sim: Sim, col: Colony): number {
   }
   const target = targetDays(col).p;
   return clamp((daysOfStock(col).p - LAYING_RELEASE_FLOOR_DAYS) / Math.max(1e-6, target - LAYING_RELEASE_FLOOR_DAYS), 0, 1);
+}
+
+/**
+ * Ruling R32b: the protein the colony should forage for the laying its gates withhold, loads/gd: LARVA_P_REQ per egg
+ * of the laying potential (season, temperature, health, size and the R29 care factor already in it, so it never asks
+ * for more than the nurses could raise; 0 outside the laying season) less the share the carers release. Carbohydrate
+ * comes first: 0 while the carbohydrate in store is under the adults' need for the days of stock target. Feeds the
+ * forage side only (needs.ts forageRates), never the laying gates.
+ */
+export function prospectiveProteinRate(sim: Sim, col: Colony): number {
+  const acc = coreOf(col).acc;
+  const potential = acc['lay.potential'] ?? 0;
+  if (potential <= 0) return 0;
+  const adultC = (acc['inst.upkeepC'] ?? 0) + (acc['inst.queenC'] ?? 0);
+  if (col.stores.c < adultC * targetDays(col).c) return 0;
+  return LARVA_P_REQ * potential * (1 - layingReleaseShare(sim, col));
 }
 
 /** P share of a queen-carer's ration (GDD 02 §5.4.2), for the released share of the laying potential. */

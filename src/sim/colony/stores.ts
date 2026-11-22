@@ -12,7 +12,7 @@ import { colonyChambers } from './census';
 import { chamberTempC } from './envAdapter';
 import { larvaRemainingNeed } from './brood';
 import { queenProteinCredit, spendQueenProteinCredit } from './queen';
-import { needRates } from './needs';
+import { forageRates } from './needs';
 
 /**
  * A caller-supplied amount as a safe non-negative number: NaN and negatives become 0. +Infinity is kept (it means
@@ -99,7 +99,8 @@ export function measureLarder(sim: Sim, col: Colony): void {
   // the colony's own need: the protein need rate counts spoilage (economy.ts), and spoilage grows with the pile, so a
   // larder sized on it would grow with its own rot (seen on the round-4 nest bench: P stores 89 loads, the top-up
   // chasing a need that was mostly the larder spoiling)
-  const need = needRates(col);
+  // the forage side's rates (R32b): the prospective protein demand makes room for the eggs the queen could lay
+  const need = forageRates(col);
   const spoilP = core.acc['inst.spoilP'] ?? 0;
   core.larderC = Math.max(LARDER_MIN_LOADS, need.c * LARDER_NEED_GD);
   core.larderP = Math.max(LARDER_MIN_LOADS, Math.max(0, need.p - spoilP) * LARDER_NEED_GD);

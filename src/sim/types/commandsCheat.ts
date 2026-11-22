@@ -20,7 +20,8 @@ export type CheatCommand =
   | { type: 'cheat.injectReturn'; entranceId: number; success: boolean; sourceId: number }
   // GDD 01 / 06 general
   | { type: 'cheat.kill'; id: number; cause: string }
-  | { type: 'cheat.killAll'; colonyId: number }
+  /** `cause`: a DeathCause for every death (optional, additive: colony-life round 9, direction 17); default 'unknown'. */
+  | { type: 'cheat.killAll'; colonyId: number; cause?: string }
   | { type: 'cheat.killQueen'; colonyId: number; cause: string }
   | { type: 'cheat.teleport'; antId: number; pos: Vec3 }
   // GDD 03 nest

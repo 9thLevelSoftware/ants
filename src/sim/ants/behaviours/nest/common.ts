@@ -18,6 +18,7 @@ import { B, clearJob, noteStuck, setState, skip, timedOut } from './fsm';
 import { deliverHeldBrood } from './deliver';
 import { chamberIn, dist, homeNest, restChamber } from './places';
 import { act, actEnded, busy, entity, resetTravel, travel } from './travel';
+import { takeOverdueTend } from './tendDraft';
 
 export type ReachStatus = 'moving' | 'started' | 'failed';
 
@@ -200,6 +201,8 @@ export function releaseAll(sim: Sim, ant: Ant): void {
 
 /** One think of an in-nest behaviour: rest, then a running primitive, the state timeout, then `step`. */
 export function think(sim: Sim, ant: Ant, entry: string, step: (sim: Sim, ant: Ant) => void): void {
+  // R33: an idle or resting (not exhausted) worker is the nearest hand for an overdue egg or pupa pile
+  if (takeOverdueTend(sim, ant)) return;
   if (restStep(sim, ant, entry)) return;
   const late = timedOut(sim, ant);
   if (busy(ant)) {

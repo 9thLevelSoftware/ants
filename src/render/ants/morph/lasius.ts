@@ -50,7 +50,9 @@ export const LASIUS_QUEEN: AntMorphology = {
   legs: { length: 0.72, thickness: 1.25 },
   wings: 'stubs', wingLength: 0,
   hairs: 110,
-  colors: { ...LASIUS_COLORS, mesosoma: '#2a1f1a', gaster: '#201a17', head: '#251d19' },
+  // app-seams-3 item 5: the queen was darker than her workers (albedo about 0.012) and read as a flat dark disc from behind, the view a
+  // player sees first; one step lighter than the worker's brown-black, so the key light models her gaster and thorax.
+  colors: { ...LASIUS_COLORS, mesosoma: '#382a22', gaster: '#2e241e', head: '#30251f' },
   roughness: CUTICLE.roughness, sheen: CUTICLE.sheen, clearcoat: CUTICLE.clearcoat,
   gait: { stride: 0.36, lift: 0.045, duty: 0.6 },
 };

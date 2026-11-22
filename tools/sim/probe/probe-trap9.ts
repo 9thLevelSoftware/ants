@@ -41,7 +41,7 @@ export default async function main(args: string[]): Promise<void> {
     sim.tick();
     const a = sim.stores.ants.get(id);
     if (!a || !a.alive) { console.log(JSON.stringify({ tick: sim.state.tick, gone: id })); break; }
-    if (t % (Number(process.env.EVERY ?? 20)) !== 0) continue;
+    if (t % Number(args[8] ?? 20) !== 0) continue;
     const s = scratchOf(a);
     const c = g.cellOf(a.pos.x, a.pos.z);
     console.log(JSON.stringify({ t: t / 10, ant: id, st: a.state, home: a.bb['fo.home'] ?? a.bb['fo.hm'], pos: P(a.pos), nest: a.nestId, nav: a.nav.status + (a.nav.failReason ? ':' + a.nav.failReason : ''), mode: a.nav.mode, req: s.req, flowKey: s.flowKey, legNest: s.legNest, legExit: s.legExit,

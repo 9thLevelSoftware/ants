@@ -3434,3 +3434,83 @@ Progress (kept current; a successor continues from here)
   reached before the episode; on another leg any progress counts as before. Test `locomotion/ladderJitter.test.ts` (2;
   case 1 red on base: rung reset by jitter). pp #1 base vs LD1 life runs running (`round-9/ro1/base`, `round-9/lad/lad`;
   tree `/home/user/scratch-r9-lad` = base + LD1).
+- 08:42 **LD1 before/after, pp #1** (cached sweep-8 hand-over; `round-9/ro1/base` vs `round-9/lad/lad`): the base tree
+  reproduces the sweep (6 `worker:lost`, 13 -> 6 workers); LD1: lost 6 -> 1, workers 13 -> 15, eclosions 1 -> 4, trips
+  74 -> 121, trip success 45.9 -> 54.5 %, intake C 0.34 -> 2.25, P 0.58 -> 0.22, viable no -> yes.
+- 08:42 **direction 20.1 / 21b, the seed-2 founding** (probes `tools/sim/probe/probe-found9.ts` (the first-play
+  laying: down the shaft, 4 batches of lay-egg, then Tend), `probe-rain9.ts`; outputs `round-9/found-*.txt`,
+  `rain-sg2.txt`): seed code "00000002" is world seed 2 = suburban-garden #2. Its weather: rain from game day 5 0:20 to
+  10:00 (UI "Day 6", ticks 2500-5000, up to 5 mm/h). The browser's queen dug through that rain (its clutch picture is
+  UI Day 6 11:17, alert "Founding chamber flooding 24 %"). Headless at the start pose (`found-sg2-start-tl.txt`): the
+  open shaft takes the rain (water 0 -> 4.6 BU^3 by tick 5100), the seal at ~6000 traps it (cell 11 % flooded), and it
+  drains over 1.3 gd. So of direction 21b's three: (2) in its first half - the water is not seepage into a sealed
+  cell but rain caught by the open shaft during the dig (GDD 03 §11.1, a legitimate inflow), which the seal then
+  keeps; the read-out's flood safety (world hydrology, the GDD 06 §5.12 hazard) is not wrong, and the lapse applies
+  rain as live play does. Eggs laid into it drown after FLOOD_BROOD_DROWN_S 75 s (the browser: 6 lost by 700 ticks
+  into the lapse). Headless the cell was 11 % wet and the eggs sat above it (handover, 13 workers); the browser's
+  site (2 BU off, a shallower cell) held 24-26 %. Fix next: FD2 (founding care keeps the clutch out of the water).
+- 08:47 **FD2 in the tree** (`colony/founding/dryPile.ts keepClutchDry / dryFloorAbove`, called at the top of
+  `care.ts careTick`, which runs every 10 ticks while the cell is sealed, in `lay` and `timelapse`): brood of the
+  founding colony that the flood's submersion pass marked (submergedS > 0) is put down on the dry floor of the cavity
+  nearest the cell's centre (an open sample with soil under it, floor above the water level). GDD 06 §5.11 names it as
+  the response to water in the chamber ("carry eggs/larvae to the highest alcove"); here the queen, the only carer,
+  does it herself (deviation D31, to record in DEVIATIONS.md). Test `founding/dryClutch.test.ts` (eggs under a level
+  half a BU over them are moved above it at her next care period, onto soil). Long test written:
+  `founding/startPose.long.test.ts` (FOUNDRESS_LONG; seeds 1-5 x Tier 1 archetypes, founded as the first-play script
+  does at the start pose, through the hand-over to a worker out on the surface; Fair-or-better: all but one per
+  archetype; Poor: >= 60 % pooled against the design's >= 86 % for a 24-egg clutch at mu 0.6). Runs pending (CPU).
+- 08:47 we #1 base vs c1 running (`round-9/ro1/base`, `round-9/c1`; tree `/home/user/scratch-r9-c1` = RO1 + LD1 at
+  08:40, no FD2: acts only before the hand-over). Runner for the 15-colony arms: `round-9/jobs.sh JOBFILE`
+  (restart-safe). Next: R32b (direction 21), then R33, then the arms.
+- 09:05 **R32b in the tree** (direction 21): `colony/queen.ts prospectiveProteinRate` = LARVA_P_REQ x laying potential
+  (season, temperature, health, size and the R29c care factor in it) x (1 - layingReleaseShare); 0 while C in store <
+  (inst.upkeepC + inst.queenC) x targetDays.c (carbohydrate first). Stored each colony cycle in core.acc
+  `need.prospP` (economy.ts closeColonyCycle). `colony/needs.ts forageRates` = plain rates + it, read by the desired
+  protein share, the need indices (needP against the forage stock target), intakeTarget, the scouts' shortfall
+  (allocation/demand.ts) and the protein larder (stores.ts measureLarder: "a store of 2 loads is not full"); the
+  laying gates (daysOfStock), the starvation stage and the minim pupation clock (new `plainNeedP`: the first version
+  let the prospective need start GDD 02 §2.6's early pupation, and the §15 worked example lost 0.7 larvae; restored,
+  the example reads exactly the base tree's numbers) keep the plain rates. LAYING_SUPPLY_HORIZON_GD 0.5 -> 1.5. Test
+  `colony/prospectiveProtein.test.ts` (3). Hunt and carrion valuation read needP / nutrientWeights, so they follow.
+- 09:05 **R33 in the tree**: `balance/colony.ts UNTENDED_GD` 0.25 -> 1.0; `ants/behaviours/nest/tendDraft.ts`
+  (`takeOverdueTend`, called at the top of `common.ts think` and in `outdoor/phaseNest.ts updateWait`): per tick and
+  colony, each overdue egg/pupa pile (an unclaimed tend job of the nursery board, `board.ts openTendJobs`; one hand per
+  TEND_PILE_RADIUS pile) takes the nearest worker in its nest that is idle, waiting to forage (`forage.wait`) or
+  resting and not exhausted (needsRest false); she becomes a nurse and her next select tends that pile (`nurse.ts`,
+  bb `nu.draft`). Tests: `nest/tendDraft.test.ts` (nearest drafted, exhausted / farther / waiting-far not; then
+  `nurse.tend`); restated for R33 with reasons: `colony/brood.verify.test` untended case (on pupae: an egg at 25 C
+  hatches after 1.03 gd), `colony/broodCarried.test` (ten pupae held 1.1 gd: base mortality runs meanwhile).
+  Colony folder before these restatements: 3 red = the two R33 tests above + `workedExample` (known; with R32b's
+  minim leak fixed its numbers equal the base tree's: larvae 4.68, needP 13.47).
+- 09:04 **arms on the 15 sweep-8 hand-overs** (cached, `round-9/cache`, no --renew-nanitics: these hand-overs already
+  have R30 first workers): frozen trees `/home/user/scratch-r9-{base,c1,r32b,final}` (base = HEAD dd966f1; c1 = RO1 +
+  LD1; r32b = c1 + FD2 + R32b (live at 09:02 with UNTENDED_GD 0.25 and the R33 draft switched off); final = live at
+  09:02 = RO1 + LD1 + FD2 + R32b + R33). Outputs `round-9/arm-{base,c1,r32b,final}/`. Runner: job list `jobs2.txt`
+  (base + final per colony first, then c1 + r32b); `round-9/next2.sh jobs2.txt` starts the next two missing runs
+  (call it again when they finish; restart-safe; a stale `*.running` marker after a restart must be deleted).
+  Background job runners are refused by the session's permission classifier, so pairs are started one by one.
+  Folder tests (live, 08:51-09:03): colony 68/71 then the R33 restatements green (workedExample known red); nest
+  behaviours 29/34 files, red `sfaReview.verify` (board view save/load, 11 vs 12) and `stall.soak` (23 % stalled) - both
+  red on the base tree too; locomotion 24/26, red `perf.test` criterion 7 (6.3 ms vs 5, under two life runs of load);
+  nest 59/62, red `escapeDig.test` (open after 870 ticks > 625; on base it never opens: red there too) and
+  `readersCost.verify` (sweep-8 finding 4, kept red).
+- 09:10 small items: `cheat.killAll` takes an optional death cause (direction 17; `types/commandsCheat.ts` additive,
+  `colony/index.ts`; test `colony/killAllCause.test.ts`); `balance/colony.ts DIAG_MORTALITY_REF_LIFESPAN_GD` 26 -> 36
+  (sweep-8 minor finding; R30 re-derived by measurement: median outside share 0.32 of worker time over the 14 sweep-8
+  runs that foraged -> mean ageing 1.16 -> 42 / 1.16 = 36 gd; diagnostics only, not in the frozen arm trees);
+  `tools/sim/longrun-table.py` reports R34 (second winter >= 1.0 x and >= 1.5 x winter 1, with counts; on sweep 8's
+  long runs: 0 of 5 and 0 of 5). DEVIATIONS.md rows R32b, R33 (table A) and D31 = FD2 (table B); docs-final 8/8.
+  Sweep-8 finding 4 (F1 readers rebuild the spill cache per carve): not changed. A throttle on the readers' rebuild
+  gives a running and a just-loaded game different geometry inside a window (the defect F1 fixed); the cost measured
+  by the sweep is 0.04 ms/tick. Left red (`readersCost.verify`), for a determinism-preserving design later.
+- 09:10 running: arms (`jobs3.txt`: base + final first, then r32b; c1 only on sg #3 / pp #1 besides we #1 / sg #1 done)
+  and the founding long test on suburban-garden seeds 1-5 (`round-9/startPose-sg.txt`).
+- 09:20 **founding long test, suburban-garden seeds 1-5** (`round-9/startPose-sg.txt`, live tree): seed 1 Poor
+  (Q 0.71) -> 13 workers, out; seed 2 Fair -> 12, out; seed 3 Poor -> 10, out; seed 4 Fair -> **no seal** (the scripted
+  player's E press at the start pose did not seal within SEAL_BUDGET_TICKS); seed 5 Poor (0.62) -> 7, out. Test green
+  (Fair 1 of 2 = all but one; Poor 3 of 3). Seed 4's seal failure is a lead (founding-close's seal guide), not fixed.
+  Seed 1, which failed in the browser at the reopen ("[reopening:116]"), hands over and gets a worker out here.
+- 09:20 first arm pairs (base vs final): we #1 18 -> 16 / 18 -> 24 (lost 3 / 0, trip success 45 / 51 %, viable no /
+  yes); **sg #1 9 -> 11 / 9 -> 12 but trips 107 -> 48, trip success 68 -> 38 %, P intake 0.59 -> 0.07: hunting trips
+  95 -> 0** (task time forage 27.6 -> 15.6 gd, nurse 9.6 -> 19.1, idle 0.7 -> 6.2). Running r32b sg #1 to tell
+  R32b from R33 (R33 drafts `forage.wait` foragers; the colony has forage demand 1).

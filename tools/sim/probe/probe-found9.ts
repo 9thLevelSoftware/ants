@@ -58,6 +58,17 @@ export default async function main(args: string[]): Promise<void> {
   const { world, config } = generatedWorld(arch as ArchetypeId, Number(seedS));
   const sim = sweepSim(world, config);
   const bu = sim.world.bu, q = queen(sim);
+  // every 300 ticks from the start: phase, rain, the founding nest's water and its cell's flooded share
+  const timeline: string[] = [];
+  const tick0 = sim.tick.bind(sim);
+  (sim as unknown as { tick: () => void }).tick = () => {
+    tick0();
+    if (sim.state.tick % 300 !== 0) return;
+    const n = sim.state.nests.find((x) => x.alive && x.colony === q.colony && x.founding);
+    const fc = n?.chambers.find((c) => c.type === 'founding');
+    const fl = (n as unknown as { flood?: { water: number } } | undefined)?.flood;
+    timeline.push(`${sim.state.tick} ${phase(sim)} rain ${r2(sim.state.env.weather.rainRateMmH)} water ${r2(fl?.water ?? -1)} cell ${fc ? r2(fc.flooded) : '-'} ents ${n ? n.entrances.map((e) => e.status).join('/') : '-'}`);
+  };
   stepUntil(sim, () => false, Number(waitS));
   const site = siteKind === 'browser' ? findSite(sim, q.pos, 2, 120, 1) : null;
   const read = assessSite(sim, site ?? { ...q.pos });
@@ -68,6 +79,8 @@ export default async function main(args: string[]): Promise<void> {
   const depth = (p: { x: number; y: number; z: number }) => r2((sim.field.height(p.x, p.z) - p.y) / bu);
   console.log(JSON.stringify({ arch, seed: Number(seedS), reading: { q: r2(read.q), word: read.word }, seal: { ok: seal.ok, phase: seal.phase, note: seal.note, template: seal.template },
     cell: cell ? { id: cell.id, depthBu: depth(cell.center), radii: [r2(cell.radii.x / bu), r2(cell.radii.y / bu), r2(cell.radii.z / bu)] } : null, queen: { depthBu: depth(q.pos), ch: q.chamberId } }));
+  { const c = cell as unknown as { flooded?: number } | undefined; const fl = (nestOf(sim) as unknown as { flood?: { w?: number } }).flood;
+    console.log(JSON.stringify({ atSeal: { tick: sim.state.tick, flooded: r2(c?.flooded ?? -1), nestFlood: fl ?? null } })); }
   if (phase(sim) !== 'lay') { console.log(JSON.stringify({ end: phase(sim) })); return; }
   const colId = q.colony;
   const where = new Map<number, Record<string, unknown>>();
@@ -114,4 +127,5 @@ export default async function main(args: string[]): Promise<void> {
     workers: sim.state.ants.filter((a) => a.alive && a.colony === colId && a.caste === 'worker').length }));
   for (const d of deaths.slice(0, 40)) console.log(JSON.stringify(d));
   for (const f of floodLog.slice(0, 20)) console.log(JSON.stringify(f));
+  for (const l of timeline.slice(0, 60)) console.log(l);
 }

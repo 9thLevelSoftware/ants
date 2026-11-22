@@ -364,31 +364,32 @@ export default async ({ page, shot, log }) => {
   await g(() => window.__game.act({ action: 'dig-bite', phase: 'stop' }));
   await step(20);
   if (!(await summary()).possessed) await g(() => window.__game.possess('queen'));
+  // A founding queen lays only in the opening's lay phase (GDD 06 §5, claustral founding): asked outside it the game must refuse.
+  // That refusal is the rule working, not a stand-in (its reason id is `budget`, the colony's canLay saying no), so it is a check here
+  // and the egg itself comes from the real opening below. (app-seams-3 item 4: the strict stand-in message used to quote this refusal.)
   await g(() => window.__game.act('lay-egg'));
   await step(300);
   s = await summary();
   let laid = await ownBrood();
-  result.egg = { before: brood0, laid, refusals: await refusals() };
-  if (laid <= brood0) {
-    // Since founding (GDD 06 §5), a founding queen lays only in the opening's lay phase, after she has sealed her cell
-    // (claustral founding); the 1A script dug its shaft with the opening still on the intro card. Play the real
-    // opening from where the queen stands: close the card, shed the wings, take the dig over in this shaft, deepen
-    // it until the founding cell is ready, seal (E), lay (the real lay-egg). No cheat on this path.
-    result.egg.phaseBefore = await opPhase();
-    result.egg.opening = await playOpeningToLay();
-    if ((await opPhase()) === 'lay') {
-      await g(() => window.__game.act('lay-egg'));
-      await step(50);
-      await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));
-      await step(5);
-      laid = await ownBrood();
-      result.egg.laidInOpening = laid;
-    }
-    log('egg path', JSON.stringify(result.egg));
+  result.egg = { before: brood0, refusedOutsideLayPhase: laid <= brood0, refusals: await refusals() };
+  expect(laid <= brood0, 'a founding queen laid an egg outside the opening\'s lay phase', result.egg);
+  // Play the real opening from where the queen stands: close the card, shed the wings, take the dig over in this shaft, deepen
+  // it until the founding cell is ready, seal (E), lay (the real lay-egg). No cheat on this path.
+  result.egg.phaseBefore = await opPhase();
+  result.egg.opening = await playOpeningToLay();
+  result.egg.phaseAtLay = await opPhase();
+  if (result.egg.phaseAtLay === 'lay') {
+    await g(() => window.__game.act('lay-egg'));
+    await step(50);
+    await g(() => window.__game.act({ action: 'lay-egg', phase: 'stop' }));
+    await step(5);
+    laid = await ownBrood();
+    result.egg.laidInOpening = laid;
   }
+  log('egg path', JSON.stringify(result.egg));
   if (laid <= brood0) {
-    // lay-egg needs a registered chamber or the founding cell (nestops chamber detection / the 1B founding flow)
-    standIn('egg', `lay-egg refused (${result.egg.refusals.filter((r) => r.startsWith('lay-egg')).join(', ') || 'no egg'}); 6 eggs cheat-spawned at the queen`, 'founding (1B)');
+    const why = `the real opening did not reach a laid clutch (phase at lay: ${result.egg.phaseAtLay}; steps: ${result.egg.opening.join(' | ')}; refusals: ${(await refusals()).join(', ') || 'none'})`;
+    standIn('egg', `${why}; 6 eggs cheat-spawned at the queen`, 'founding (1B)');
     const col = await g(() => window.__game.query.colony()?.id ?? -1);
     await g((c) => window.__game.cheat.raw({ type: 'cheat.spawnBrood', colonyId: c, stage: 'egg', n: 6, chamberId: -1, progress: 0, destined: null }), col);
     s = await summary();

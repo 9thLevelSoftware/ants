@@ -276,7 +276,10 @@ export const commandHandlers: Partial<CommandHandlerMap> = {
   'cheat.setQueen': cheatSetQueen,
   'cheat.injectReturn': (sim, c) => { injectReturn(sim, c.entranceId, c.success, c.sourceId); },
   'cheat.killAll': (sim, c) => {
-    for (const a of sim.stores.ants.list) if (a.alive && a.colony === c.colonyId) killAnt(sim, a.id, 'unknown');
+    // an optional real cause (the epitaph screen names it; direction 17), else 'unknown' as before
+    const cause = String(c.cause ?? 'unknown');
+    const death = isOneOf(DEATH_CAUSES, cause) ? cause : 'unknown';
+    for (const a of sim.stores.ants.list) if (a.alive && a.colony === c.colonyId) killAnt(sim, a.id, death);
   },
   'cheat.killQueen': (sim, c) => {
     const col = sim.stores.colonies.get(c.colonyId);

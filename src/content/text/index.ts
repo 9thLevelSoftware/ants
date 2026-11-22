@@ -2,7 +2,9 @@
 // Nothing here changes an id; the UI and the sim read words through these functions, so wording can be revised
 // without touching code that owns the ids.
 import type { AimId, AlertKind, HintId, HumanEventKind, MilestoneId, SpeciesId, WeatherState } from '@/sim/types';
-import { ALERT_TEXT, HUMAN_EVENT_WARNING, WEATHER_CHANGE_TITLE } from './alerts';
+import {
+  ALERT_TEXT, HUMAN_EVENT_WARNING, QUEEN_DANGER_BY_CAUSE, QUEEN_DANGER_CALM_TITLE, WATER_ATTACKER_TOKEN, WEATHER_CHANGE_TITLE,
+} from './alerts';
 import type { AlertText } from './alerts';
 import { formatText } from './format';
 import type { TextTokens } from './format';
@@ -37,6 +39,12 @@ export function milestoneText(id: MilestoneId, tokens: TextTokens = {}): { title
 /** Title and cause of an alert kind, filled from the tokens; the level is the default of GDD 08 §6.5. */
 export function alertText(kind: AlertKind, tokens: TextTokens = {}): { level: AlertText['level']; title: string; cause: string } {
   const a = ALERT_TEXT[kind];
+  if (kind === 'queen-in-danger') {
+    const byCause = typeof tokens.cause === 'string' ? QUEEN_DANGER_BY_CAUSE[tokens.cause] : undefined;
+    if (byCause && tokens.attacker === undefined) return { level: a.level, ...byCause };
+    // water is not an attack: the same card, titled for the danger rather than for an attacker
+    if (tokens.attacker === WATER_ATTACKER_TOKEN) return { level: a.level, title: QUEEN_DANGER_CALM_TITLE, cause: formatText(a.cause, tokens) };
+  }
   return { level: a.level, title: formatText(a.title, tokens), cause: formatText(a.cause, tokens) };
 }
 

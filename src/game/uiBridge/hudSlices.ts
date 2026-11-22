@@ -209,8 +209,10 @@ export function alertsOf(sim: Sim): UiAlert[] {
   // queen and `food-c-low` / `food-p-low` for the empty colony stores (she lives on her reserves). That is the
   // expected state, not news: these kinds are not shown until the hand-over.
   return activeAlerts(sim).filter((a) => !(opening && OPENING_QUIET.has(a.kind))).map((a) => {
-    const words = a.title ? null : alertText(a.kind, a.tokens ?? {});
-    return { ...alertCard(a), title: words ? words.title : a.title, cause: words && !a.cause ? words.cause : a.cause };
+    // the queen's card has several causes (water, an attacker, a close enemy): its title and cause line follow the tokens
+    const reword = a.kind === 'queen-in-danger' && !!a.tokens;
+    const words = a.title && !reword ? null : alertText(a.kind, a.tokens ?? {});
+    return { ...alertCard(a), title: words ? words.title : a.title, cause: words && (reword || !a.cause) ? words.cause : a.cause };
   });
 }
 

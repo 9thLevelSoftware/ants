@@ -13,6 +13,19 @@ export interface AlertText {
   sample: TextTokens;
 }
 
+/**
+ * `queen-in-danger` is one sim kind with several causes (GDD 08 deviation D-APP3-1): the table title below fits an
+ * attacker ("Queen under attack"), not rising water or an enemy that has only come close. `alertText` picks the title
+ * from the alert's tokens: `attacker` (flood module: "rising water", or a creature), or `cause` (combat module:
+ * `damage` or `hostile-near`). The sim's token values are matched here, not renamed there.
+ */
+export const WATER_ATTACKER_TOKEN = 'rising water';
+export const QUEEN_DANGER_CALM_TITLE = 'Queen in danger';
+export const QUEEN_DANGER_BY_CAUSE: Record<string, { title: string; cause: string }> = {
+  damage: { title: 'Queen under attack', cause: 'she has been hurt' },
+  'hostile-near': { title: QUEEN_DANGER_CALM_TITLE, cause: 'an enemy is close to her' },
+};
+
 export const ALERT_TEXT: Record<AlertKind, AlertText> = {
   'queen-reserves-low': { level: 'warning', title: 'Queen\'s reserves low', cause: '{pct} % left — founding chamber {temp} °C', sample: { pct: 38, temp: 21 } },
   'queen-in-danger': { level: 'critical', title: 'Queen under attack', cause: '{attacker}, {where}', sample: { attacker: 'wolf spider', where: 'royal chamber' } },

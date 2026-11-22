@@ -136,7 +136,12 @@ export const FEED_URGENCY_HUNGER_GD = 0.1;
 /** Protein priority (GDD 02 §5.4.3): below this daysP, urgency x (1 + bonus x progress). */
 export const PROTEIN_PRIORITY_DAYS_P = 0.5;
 export const PRIORITY_PROGRESS_BONUS = 1.0;
-export const UNTENDED_GD = 0.25;
+/**
+ * Egg / pupa dies of neglect after this long without a visit, gd. Ruling R33 (direction 21): 0.25 -> 1.0 (a full day,
+ * not six hours; 36 of 71 year-two eggs of the round-8 long runs died untended). The tend job is still raised at
+ * TEND_DUE_GD (balance/nestwork.ts), and idle, waiting or resting workers are drafted for it (tendDraft.ts).
+ */
+export const UNTENDED_GD = 1.0;
 export const ECLOSE_WAIT_GD = 0.3;
 /** Extra brood hazards per gd (GDD 02 §2.5). */
 export const BROOD_HAZARD = {
@@ -239,9 +244,10 @@ export const LAYING_CREDIT_FEED_MIN = 0.04;
  * released only while the protein in store plus LAYING_SUPPLY_HORIZON_GD of intake (EMA, LAYING_INTAKE_EMA_GD)
  * covers what the brood still needs (feeding larvae's remaining protein, LARVA_P_REQ per egg). Without it a
  * provisioned first-year colony laid 20 eggs into an autumn with no protein coming in, and the larvae it could not
- * feed sent it into brood sacrifice for days.
+ * feed sent it into brood sacrifice for days. Ruling R32b (direction 21): 0.5 -> 1.5 GD (an egg needs no protein for
+ * its 1.4 DU, so the intake over that time counts).
  */
-export const LAYING_SUPPLY_HORIZON_GD = 0.5;
+export const LAYING_SUPPLY_HORIZON_GD = 1.5;
 export const LAYING_INTAKE_EMA_GD = 0.5;
 /** Retinue target: queen gut C and P (GDD 02 §3.3). */
 export const QUEEN_TARGET_GUT_C = 0.3;
@@ -535,8 +541,13 @@ export const TRAIL_IGNORE_P = 0.2;
 export const DIAG_TRAIL_LOST_REF_PER_GD = 4;
 /** diag-stores `capacity` factor while the pool is at capacity. Tuning value. */
 export const DIAG_STORES_FULL_F = 0.5;
-/** diag-mortality reference: natural turnover N / this lifespan, gd (GDD 02 §15 realised lifespan 26 gd). */
-export const DIAG_MORTALITY_REF_LIFESPAN_GD = 26;
+/**
+ * diag-mortality reference: natural turnover N / this lifespan, gd. GDD 02 §15's realised lifespan was 26 gd (lifespan
+ * 33, outside ageing x 3). Re-derived under ruling R30 (colony-life round 9, direction 15) by measurement: sweep 8's
+ * colonies spend a median 0.32 of worker time outside (`funnel.workerTimeShare`, 14 runs that foraged), so the mean
+ * ageing rate is 1 + (1.5 - 1) x 0.32 = 1.16 and a regular worker's 42 gd last 42 / 1.16 = 36 gd.
+ */
+export const DIAG_MORTALITY_REF_LIFESPAN_GD = 36;
 /** diag-hygiene: waste items per chamber at which the value reaches 0 (GDD 02 §11 brood score uses waste / 10). */
 export const DIAG_WASTE_PER_CHAMBER = 10;
 /** Stagger offset of the colony diagnostics system (never on the same tick as another >= 50-tick system). */

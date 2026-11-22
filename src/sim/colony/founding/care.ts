@@ -28,6 +28,7 @@ import { FB, bbGet, bbSet, playerColonyOf, speciesOf } from './access';
 import { colonyBaseHazardPerGd, foundingMu } from './model';
 import { deepMoisture, footTrafficAt } from './siteAssess';
 import { queenDies } from './failure';
+import { keepClutchDry } from './dryPile';
 
 const CARE_DT_GD = FOUND_CARE_EVERY_TICKS / TICKS_PER_DAY;
 
@@ -183,6 +184,8 @@ export function careTick(sim: Sim, op: OpeningState, q: Ant, nest: Nest): CareRe
   const core = col.core;
   if (core) core.minimSinceTick = -1;
   const list = colonyBrood(sim, col.id);
+  // water in the cell (rain caught by the shaft before the seal): she puts the brood down on dry floor (FD2)
+  keepClutchDry(sim, nest, list);
   const def = speciesOf(sim);
   const mu = foundingMu(op.siteQ, def.id as Parameters<typeof foundingMu>[1], difficultyValue(sim, 'foundingBroodMortalityMult'),
     deepMoisture(sim, nest.origin.x, nest.origin.z));

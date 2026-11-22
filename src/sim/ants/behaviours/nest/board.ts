@@ -393,6 +393,23 @@ export function nextTendNear(sim: Sim, ant: Ant, p: Vec3, radiusMm: number): Bro
   return best;
 }
 
+/**
+ * Tend jobs of a colony that nobody has claimed and that were not tended since this window's board was built (the
+ * overdue egg and pupa piles of ruling R33): brood id, nest and where it lies. Highest priority first.
+ */
+export function openTendJobs(sim: Sim, colonyId: number): { id: number; nestId: number; pos: Vec3 }[] {
+  const board = boardOf(sim, colonyId);
+  if (!board) return [];
+  const out: { id: number; nestId: number; pos: Vec3; prio: number }[] = [];
+  for (const j of board.jobs) {
+    if (j.kind !== Job.tend || board.claims.has(j.id)) continue;
+    const b = jobLive(sim, j, undefined);
+    if (!b || tendedSince(sim, b)) continue;
+    out.push({ id: b.id, nestId: j.nestId, pos: b.pos, prio: j.prio });
+  }
+  return out.sort((a, b) => b.prio - a.prio || a.id - b.id);
+}
+
 /** Number of nurses counted this tick. */
 export function nurseCount(sim: Sim, colonyId: number): number {
   return liveOf(sim, colonyId).nurses;

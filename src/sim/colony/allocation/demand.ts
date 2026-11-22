@@ -18,7 +18,7 @@ import { colonySlotBit } from '@/sim/entities';
 import { accGet, coreOf } from '../core';
 import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
-import { intakeTarget, needRates, targetDays } from '../needs';
+import { forageRates, intakeTarget, targetDays } from '../needs';
 import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
 import { herdTendDemand, herdWorkable } from '@/sim/ecology/plants/demand';
@@ -99,7 +99,7 @@ function addKnownPatches(sim: Sim, col: Colony, out: KnownCapacity): void {
  * larger of the two nutrients' shortfalls, each counted only while the colony needs that nutrient.
  */
 export function scoutShortfall(col: Colony, known: KnownCapacity): number {
-  const r = needRates(col), t = targetDays(col), st = col.stores;
+  const r = forageRates(col), t = targetDays(col), st = col.stores;
   const short = (rate: number, target: number, stock: number, loads: number, need: number): number => {
     if (need <= 0) return 0;
     const want = rate + Math.max(0, target * rate - stock) / STOCK_REFILL_GD;
