@@ -958,3 +958,44 @@ fresh foundings); its R34 result is then known in advance and round 10 does R35.
   Sweep 9 started on the tree without R35: left to run (independent check of the numbers above on fresh foundings,
   new defects). Its R34 result is known in advance. Round 10 starts when the workflow ends: R35 first, then brood
   drowned after the hand-over (sg #1, cpv #1), predation per outside-worker day against R25, sweep-9 findings.
+
+## Nov 22 13:27 UTC — sweep 9 closed; round 10 launched (R35, R36, R37)
+
+Sweep 9 (`reviews/colony-life-sweep-9.json`, table `test-output/colony-life/round-9/sweep-table.md`), fresh foundings,
+round-9 tree without R35:
+
+| | sweep 8 | sweep 9 | bar |
+|---|---|---|---|
+| viable | 9 of 15 | 9 of 15 (we 1/3, sg 2/3, pp 2/3, cpv 3/3, kd 1/3) | 2 of 3 each |
+| workers at winter (sum) | 194 | 208 | |
+| eclosions (sum) | 60 | 100 | |
+| protein intake / need (median) | 0.269 | 0.478 | 0.7 |
+| trip success (median) | 45.9 % | 56.8 % | 50 % (met) |
+| `worker:lost` | 10 | 5 | 0 |
+| untended brood deaths | 80 | 6 | |
+| predation deaths | 14 | 41 | median <= 1 per colony (is 2) |
+| brood hygiene / exposure deaths | 9 / 6 | 41 / 25 | |
+| spring check (long runs) | 4 of 5 | 4 of 5 | 4 of 5 (met) |
+| R34 >= 1.0 x / >= 1.5 x | 0 / 0 of 5 | 3 / 0 of 5 | 4 / 3 of 5 |
+
+- The six non-viable: four are the R35 case (protein in store, carbohydrate short at winter), two are kitchen-door
+  colonies starving of protein beside a full sugar store.
+- Sweep findings: SG3 calls a long open shaft sealed (red verify test kept); the founding long test would not fail
+  if the seal fixes were reverted; predation; R33 draft picks a worker who cannot nurse (Atta only); a new
+  `Math.hypot` in sim code.
+- Year two, best run: 35 eggs -> 13 workers against 12 old-age deaths. Growth needs both more eggs (the gates
+  release about a sixth of the warm days' potential) and better brood survival; round 10 measures the gates and the
+  protein discovery (direction 23 item 5) and I rule from the table.
+
+**Direction 23** (`colony-life.md`): round 10 = R35 (direction 22) -> R36 kitchen-door protein (measure; raise the
+`src/sim/ecology` flows to the outdoor median if under 1.5 loads/gd arrive within 300 BU) -> R37 predation (record
+the killer; residents: the colony remembers the place, steering reads `knownHazardsNear`; bar median <= 1 per colony
+and no more than a quarter of the workers in one day) -> sweep-9 defects -> gate and discovery tables.
+
+**Launched:** `w8ztuxf6y` / wf_ac58d774-66a (`wf-life.js` `{maxRounds: 1, firstRound: 10, model: 'opus', effort:
+'high'}`), round 10 then sweep 10. Recovery as before: round result in the journal -> relaunch with `firstRound: 10`
+and `firstRoundResult`; cut off -> plain `firstRound: 10` with a note that the ledger's Round 10 progress says what is
+in the tree.
+
+**Mine, model-free:** browser first play on seed 2 through the hand-over (`test-output/firstplay-r9/seed2`,
+background `b0r48rvug`), to see whether round 9's founding fixes hold in the browser.
