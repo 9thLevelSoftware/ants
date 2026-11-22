@@ -1109,3 +1109,4 @@ model opus, effort high}, journal under `subagents/workflows/wf_e00051e5-a07/jou
 - Recovery after a restart: round 12 result in the journal -> relaunch `wf-life.js` with `firstRound 12` +
   `firstRoundResult`; cut off mid-round -> `firstRound 12` with a note that the ledger's "## Round 12" progress and
   directions 26, 26a say what is in the tree.
+- Round 12 launched 19:38 UTC: task `w6r0ml01a`, run `wf_cf4b8e67-f2f` (`wf-life.js {maxRounds: 1, firstRound: 12, model: 'opus', effort: 'high'}`).
