@@ -44,6 +44,8 @@ export interface AntMorphology {
   /** Formicines: acidopore with coronula; myrmicines: sting. */
   rearWeapon: 'acidopore' | 'sting';
   colors: AntColors;
+  /** This caste keeps its own body and gaster colours: the species appearance does not overwrite them (the queen, lifted one step from her workers). */
+  ownColours?: boolean;
   roughness: number; sheen: number; clearcoat: number;
   /** Clearcoat roughness (default CUTICLE.clearcoatRoughness). */
   clearcoatRoughness?: number;

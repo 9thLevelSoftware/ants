@@ -99,8 +99,8 @@ export function resolveMorph(species: string, caste: MorphCaste, appearance: App
 }
 
 function applyAppearance(m: AntMorphology, caste: MorphCaste, a: AppearanceLike): void {
-  if (a.bodyColour) m.colors = { ...m.colors, head: a.bodyColour, mesosoma: a.bodyColour };
-  if (a.gasterColour) m.colors = { ...m.colors, gaster: a.gasterColour };
+  if (a.bodyColour && !m.ownColours) m.colors = { ...m.colors, head: a.bodyColour, mesosoma: a.bodyColour };
+  if (a.gasterColour && !m.ownColours) m.colors = { ...m.colors, gaster: a.gasterColour };
   if (a.alateWingTint) m.colors = { ...m.colors, wingMembrane: a.alateWingTint };
   if (a.waistNodes) m.petiole = { ...m.petiole, nodes: a.waistNodes, shape: a.waistNodes === 1 && m.rearWeapon === 'acidopore' ? 'scale' : 'node' };
   if (a.rearWeapon) m.rearWeapon = a.rearWeapon;

@@ -3514,3 +3514,8 @@ Progress (kept current; a successor continues from here)
   yes); **sg #1 9 -> 11 / 9 -> 12 but trips 107 -> 48, trip success 68 -> 38 %, P intake 0.59 -> 0.07: hunting trips
   95 -> 0** (task time forage 27.6 -> 15.6 gd, nurse 9.6 -> 19.1, idle 0.7 -> 6.2). Running r32b sg #1 to tell
   R32b from R33 (R33 drafts `forage.wait` foragers; the colony has forage demand 1).
+- 09:40 sg #1 hunting 95 -> 0 checked (`tools/sim/probe/probe-draft9.ts`, `round-9/probe-draft-sg1-final.txt`,
+  `probe-idle-sg1-{r32b,final}.txt`): R33 drafted nobody there in 3 gd (0 `job:tend-overdue` task changes); r32b on
+  the same hand-over hunted 103 times (kills 31, eggs 35, egg:untended 16, eclosions 0, 9 -> 7 workers). Hourly
+  states of r32b and final are alike (the colony freezes under alarm for much of days 4-5 in both); the final run's
+  missing departures are trajectory noise of one colony, not a drafting effect. Judged on the 15, not on sg #1.

@@ -888,3 +888,34 @@ app-seams-3 launched 07:55 UTC Nov 22 as `wknx0224r` (wf_ecf2efc5-423; wf-build.
 
 `reviews/colony-life-sweep-8.json`. Verdict: viability bar not met (9 of 15; pp 1/3, kd 1/3), growth bar not met (protein 0.269, trips 45.9 %, no-lost 12 of 15). Findings: 2 major (lost workers in traps: a terrain bowl 82.5 BU from the door in pp #1, and two workers 0.1–0.4 BU from their own open entrance in we #1; inert colony sg #3 with plug soil left in an `open` entrance and every worker's nav `failed:leg`), 4 minor (F1 reader cost, `DIAG_MORTALITY_REF_LIFESPAN_GD` 26, round numbers not reproduced on fresh foundings, workedExample red is 10-seed noise). Brood: 80 untended + 34 flooded of 247 eggs, 60 eclosions. kd #3 hunted 45 of 54 trips and starved of sugar with 4 flowers in range (C must not be dropped for protein: R32b's "C first while short" clause covers it). Sweep long runs (`round-8/sweep-long/table.txt`): spring check 4 of 5; all shrink again by the second winter (e.g. 11 → 6, 12 → 10, 13 → 8): the R34 baseline is 0 of 5.
 Round 9 started 07:53 (engineer 1): reopen defect reproduced 08:05; a locomotion fix for the bowl trap (LD1: progress during a stuck episode must beat the best reached before it) is on a paired run. app-seams-3 running (first edits under `src/game/save`).
+
+## Nov 22 10:10 UTC — app-seams-3 landed (verify failed with 3 findings, all fixed)
+
+Result saved: `docs/design/tasks/reviews/app-seams-3.json`; report `docs/design/tasks/app-seams-3-report.md`.
+Pictures I looked at: `test-output/app-seams-3/alerts/queen-danger-cards.png`, `cars/meta-edge.png`, `cars/ant-0.png`,
+`queen-fix-compare-side.png`.
+
+- **Saves:** a damaged save no longer loads. New saves are a gzip member with an `FC` subfield (CRC-32 of the deflate
+  body), MTIME 0 and a checked length; every single-byte change and trailing bytes are rejected (test over every byte).
+  Saves written before the change still open, with weaker checks (MTIME and deflate-equivalent flips in them cannot be
+  detected; a limit of the old format).
+- **Alert title:** "Queen in danger" for rising water and an enemy that is only close; "Queen under attack" for a
+  creature or damage. Worded on the UI side from the alert's tokens (sim text table untouched); GDD 08 deviation
+  D-APP3-1.
+- **Backdrop cars:** exist in 7 of 18 compact worlds tried (road edge runs: car-park-verge, field-margin, one
+  woodland-edge). From a raised camera they read as box cars with a window band and wheels. **Open visual defect, my
+  reading of the pictures:** the hashed-alpha fuzz (`BACKDROP_FUZZ` 0.85) sprinkles white dots over every large backdrop
+  face, plainly visible both raised and at ant height. Left for the next look pass (per-vertex fuzz attribute, or fuzz
+  on silhouette edges only).
+- **`stage1a.mjs` egg beat:** script fault (a blind `lay-egg` before the opening, refused correctly; the stand-in then
+  quoted that refusal). Now an asserted check; the full strict gate incl. the high-quality part passed once.
+- **Queen colours:** the first change was dead data (species appearance overwrote every caste); fixed with an additive
+  render-local `AntMorphology.ownColours`. The lift is barely visible in the compare sheet; she is still a dark disc
+  from behind. Accepted as is.
+- **Epitaph:** `tests/e2e/lifecycle.mjs` already kills per ant with real causes; round 9 added an optional cause to
+  `cheat.killAll`. Nothing further.
+- **Mine (trivial):** `src/core/serialize.ts gzip()` passes `mtime: 0` (a pure module was stamping the wall clock into
+  the gzip header); `src/core` + `src/game/save` 303 tests green.
+- Still open for sim: `lay-egg` returns reason `budget` outside the opening's lay phase (direction 21b list).
+
+Running: colony-life round 9 (arms + long runs), then sweep 9. Check-in 10:36 UTC.

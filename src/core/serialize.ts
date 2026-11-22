@@ -282,9 +282,9 @@ export function decode(bytes: Uint8Array): unknown {
   return value;
 }
 
-/** gzip (level 0-9, default 6). */
+/** gzip (level 0-9, default 6). The header's MTIME is fixed at 0: this module is pure, so no wall clock goes into the bytes. */
 export function gzip(bytes: Uint8Array, level: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = 6): Uint8Array {
-  return gzipSync(bytes, { level });
+  return gzipSync(bytes, { level, mtime: 0 });
 }
 
 export function gunzip(bytes: Uint8Array): Uint8Array {

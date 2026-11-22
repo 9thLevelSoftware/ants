@@ -311,6 +311,7 @@ function soilTick(sim: Sim, q: Ant, nest: Nest): void {
 /** Out of her cavity: walk back in (backTick) before anything else. */
 function toBack(sim: Sim, q: Ant): void {
   bbSet(q, SG.state, BACK);
+  bbSet(q, SG.lx, -1);
   bbSet(q, SG.mouth, 0);
   bbSet(q, SG.bit, 0);
   bbSet(q, SG.since, sim.state.tick);
@@ -356,7 +357,25 @@ function backTick(sim: Sim, q: Ant, nest: Nest): void {
   }
   const t = sim.state.tick - bbGet(q, SG.since, sim.state.tick);
   const way = wayIn(sim, nest);
-  if (way) { headFor(sim, q, way, t === 0); return; }
+  if (way) {
+    // stalled in the throat on the way in (colony-life round 9: a queen wedged beside her own half-laid plug,
+    // possessed, stood still for 5600 ticks and the seal never finished; suburban-garden #4 at the start pose): no
+    // progress toward the way in over SEAL_STALL_TICKS, and she bites toward it (loose plug soil gives way), then walks
+    // on. Only in the throat of her opening: a bite from the ground beside it would start a new hole.
+    const d = Math.hypot(way.x - q.pos.x, way.y - q.pos.y, way.z - q.pos.z);
+    if (t === 0 || bbGet(q, SG.lx, -1) < 0) bbSet(q, SG.lx, d);
+    else if (t % SEAL_STALL_TICKS === 0) {
+      const before = bbGet(q, SG.lx, d);
+      bbSet(q, SG.lx, d);
+      const e = nearestOpening(sim, nest, q);
+      if (before - d < SEAL_STALL_BU * sim.world.bu && e && inThroatOf(sim, q, e)) {
+        if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
+        if (biteToward(sim, q, way)) return;
+      }
+    }
+    headFor(sim, q, way, t === 0);
+    return;
+  }
   const e = nearestOpening(sim, nest, q);
   if (!e) { stop(sim, q, STUCK); return; }
   // over the opening itself (on the fill that shut her out) first, never anywhere in the throat sphere around it: a
