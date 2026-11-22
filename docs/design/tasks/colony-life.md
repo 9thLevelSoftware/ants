@@ -300,3 +300,57 @@ For item 5 (measurement, no rule change this round), add to the table per colony
   game day, for the first 5 gd after the hand-over, and the scouts' head-count on those days;
 - the perception radii in force for each food kind (herd odour, carrion, prey, crumbs, nectar), from the code.
 I rule on the radii, on honeydew sign under a herd's plant and on the scouts' pattern from those numbers.
+
+## Direction 24 (integrator, Nov 22 14:50 UTC) — R38: the colony finds and takes the protein that is already there
+
+Read from your tables (`round-10/item5.py arm-r35`, ledger 13:58-14:42). Accepted as measured:
+- R36's condition is not met: the kitchen door is not short of protein arriving (kd median 0.96 loads/gd against the
+  outdoor 0.40). No flow is raised.
+- R37: 20 of 20 recorded predation deaths are colony-range hunters at ramp 0-0.3. The strike-share fix stands; the
+  resident-memory rule is not built and is not wanted now.
+- LV1 (a liquid trip valued by what the source will hold on arrival) stands.
+- Laying gates: after day 1 the gates that hold are protein's (days of protein stock, larval hunger, stage) and the
+  winter reserve. No gate is changed this round: a colony at 0.2-0.5 of its protein need should not lay more. I read
+  the gates again once R38 is measured.
+
+What the tables say about discovery: a scout covers about 10 % of the 300 BU disc a day at 6 BU (she walks all day:
+the bound is the day's length, not her pattern), the scouts' head-count falls from 1.4 to 0.02-0.1 by day 3-5 because
+the allocator fills `forage` and `tend` before `scout` and the small-colony floor counts known sources of any
+nutrient, small carrion is found 0-3 times in 7-11, entered prey patches are never learnt, and a found large carcass
+gives up 3 % of its protein. So, in this order (R38, GDD deviations to record: 02 §6.2-6.3, 05 §1.1-1.2, 05 §2.3):
+
+1. **Scouts for a missing nutrient.** A nutrient is *missing* while the colony needs it (need index > 0) and its
+   known capacity covers under half of its forage want (`scoutShortfall`'s own `short()` term >= 0.5). While any
+   nutrient is missing: scout demand >= max(`SCOUTS_MISSING_MIN` 2 (1 below 8 workers), `SCOUT_MISSING_FRAC` 0.2 x
+   workers), capped at 0.25 x workers (`SCOUT_MAX_FRAC` stays 0.15 otherwise), and `autoTargets` fills that floor
+   directly after `nurse` and `queen-care`, before `forage`. `smallColonyFloor`'s known-sources test counts only
+   sources that carry a nutrient the colony needs, per nutrient. Tests: 15 workers, sugar known, no protein known,
+   needP > 0 -> 3 scouts in the targets; everything known -> the present base; 6 workers -> 1.
+2. **A herd's sign grows with the herd.** Plan-distance radius `clamp(6 + 2 x sqrt(aphids), 6, 24)` BU (7 aphids 11,
+   14 -> 13.5, 64 -> 22: honeydew falls under the whole colony of aphids, not at a point), and any outside worker of
+   the colony discovers it, on a trip or not. Test on `discoverHerdsNear`.
+3. **Prey patches are learnt.** First say why kd #1's and kd #2's entered patches stayed unknown (task of the worker
+   inside, time inside, spawn rolls, notices, what "known" needs today). If that is a defect, fix it. Then the rule:
+   a patch becomes known to the colony the first time one of its workers notices or catches prey in it, whatever her
+   trip's target; and a scout or forager who has walked `PATCH_NOTICE_S` 5 s inside a patch holding >= 0.2 of its
+   capacity learns it without a spawn roll (litter alive with springtails is seen when walked on). A known patch is
+   reported at home and chosen like any protein source. The spawn rule itself (who makes prey appear) is unchanged.
+4. **Torn carrion is worth carrying.** A torn piece of any carrion carries >= 0.75 P per load of carry capacity (the
+   density of `insect-medium`, which the colonies do bring home: 5.8 of 6 P); total P per carcass unchanged. Smallest
+   change that does it (`insect-large` unitBulk 40 -> 20, `large-carcass` 500 -> 150, or a piece rule): your choice,
+   say which and what else reads unitBulk. And trace why trips to a found large insect (pp #3: 0.56 of 15 P home) and
+   to the large carcass (kd #1: 27 trips on one day, 3.2 of 120 P home) ended with food left: a known source with
+   food left, while the colony is short of that nutrient, draws trips until it is empty or gone. Fix the cause.
+5. **kd #2's medium carcass passed at 1.8 BU.** Trace it. If carrion (or crumbs) lands where no walkable route
+   leads (a sill, a table top with no climb, inside a closed prim), fix the drop rule in `src/sim/ecology` so indoor
+   and outdoor flows land on ground a worker can reach from the entrance, and give the share of kitchen-door
+   arrivals out of reach before and after. If she was simply on a trip that does not perceive (laden, homing), say
+   so: a homing or laden worker that smells food still reports it.
+6. **One arm:** the R38 tree against `arm-final` (R35 + R37 + LV1) on all 15 sweep-9 hand-overs to winter. Per colony:
+   P intake / need, found share and P home by kind, scouts' head-count by day, outside deaths by cause (scouts' cost:
+   predation, old age, lost), workers at winter, viable. Long runs are not repeated on the R38 tree (the sweep runs
+   them). Bars to read against: P intake / need median >= 0.7, kitchen-door viable >= 2 of 3, no archetype worse
+   than in `arm-final`.
+
+Round 10 closes after item 6. If you do not have the room for R38, close without it and put "R38 NOT BUILT" as the
+first words of the round result's notes for the integrator: I then hold the sweep and give R38 to round 11.

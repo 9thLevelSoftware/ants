@@ -3992,3 +3992,10 @@ Progress (kept current; a successor continues from here)
   second winter pp #3 6 -> 16, sg #2 2 -> 14, we #2 19 -> 12 (`long-r35/longrun-table.md`, `long-r35-detail.txt`).
   Final arm running (both slots); scripts for the close: `table10.py`, `pred10.py` (R37 bar), `item5.py`,
   `longdetail.py`, `tools/sim/sweep-table.py`, `tools/sim/longrun-table.py`.
+- 14:50 **INTEGRATOR NOTE:** tables read (`item5.py arm-r35`). R36: no flow raised (accepted). R37 strike share and LV1
+  accepted. Laying gates: no change this round. **`colony-life.md` direction 24 = R38, six items, to build before the
+  round closes** while the final arm runs: (1) scouts for a missing nutrient, filled before `forage`; (2) herd sign
+  radius clamp(6 + 2 sqrt(aphids), 6, 24) BU for any outside worker; (3) prey patches learnt (trace kd #1 / kd #2
+  first); (4) torn carrion >= 0.75 P per load, and why trips to a found large carcass end with food left; (5) kd #2's
+  medium carcass at 1.8 BU (reachability of the drop); (6) one arm, R38 tree vs `arm-final`, all 15 to winter. If
+  there is no room: close with "R38 NOT BUILT" as the first words of the notes for the integrator.
