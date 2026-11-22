@@ -4648,3 +4648,153 @@ herd and patch checks and the grid's per-tick list pass on kd #1 (`life.ts --per
 fell (cpv #3 0.31 -> 0.25, kd #3 0.67 -> 0.55, pp #1 0.56 -> 0.48): the 26.2 trace says unknown protein, so discovery,
 and the value form where both are known (ruling); (3) R35 point 5's last-place fill of the prospective forage demand
 now decides where R39's freed workers go (ruling); (4) the sweep's five long runs judge year two (R34) on this tree.
+
+### Independent sweep after round 12
+
+Independent engineer, 21:00-22:40 UTC Nov 22 (no restart; progress file `docs/design/tasks/progress/colony-life-sweep-12.md`).
+**Table: `test-output/colony-life/round-12/sweep-table.md`** (`python3 tools/sim/sweep-table.py round-12/sweep
+round-11/sweep`: columns of `econ-growth-review/sweep9-table.md` plus first workers, `worker:lost`, R27 stores, shut
+days). Previous sweep = sweep 11 (`round-11/sweep`). Runs by `tools/sim/sweep-life.sh` and `PAR=2 UNTIL_DAY=40
+tools/sim/longrun-life.sh` from a frozen copy of the tree taken at 21:00 (`/home/user/frozen-sweep12`, deleted): the
+round's own hash recipe gives `925f45e8` = `round-12/final-tree-hash.txt`, sweep-life.sh's recipe `90126ef7`; live tree
+= HEAD b4dce8c (git status: only the ledger and the deleted tools/sim/probe files differ). All 15 runs on it
+21:00-21:50, long runs 21:50-22:32 (no JSON existed in `sweep-long`). Naturalist, default start, flooding on, no player,
+fresh foundings (first workers equal to sweep 11's in 15 of 15). Bars recomputed from the Markdown by a second script
+(`round-12/sweep-review/bars-from-md.py` -> `bars-from-md.txt`): same verdicts. Review outputs: `round-12/sweep-review/`.
+**This table is the one the next round compares with.**
+
+**Viability bar: MET** - viable **14 of 15** (sweep 11: 14): woodland-edge 2/3, suburban-garden 3/3, playground-park
+3/3, car-park-verge 3/3, kitchen-door 3/3. The failure moved: we #2 is viable now (6 -> 13 workers), **we #3 is not**
+(R27 stores: C 1.07 for a winter need of 6.16 = 0.17 of it; sweep 11: C 11.0, 1.85 of it).
+
+**Growth bar R19: NOT met** (5 of 7; sweep 11: 6 of 7):
+
+| check | sweep 12 | sweep 11 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | 15 of 15 ok | 14 |
+| median eclosions after hand-over >= 4 | 7 ok | 5 |
+| median intake/need P >= 0.7 | **0.419** FAIL | 0.353 |
+| median intake/need C >= 0.9 | 1.296 ok | 1.441 |
+| median trip success >= 50 % | 57.5 % ok (57.0 from the rounded Markdown) | 51.4 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok (we #2: 8) | 14 |
+| no `worker:lost`, >= 13 of 15 | **11 of 15 FAIL** (we #1 1, sg #2 1, pp #1 2, cpv #3 1) | 13 |
+
+Sums (15 runs; `sweep-review/sums.txt`, also for `round-12/arm-final12` and `round-11/arm-final11`; `tasktime.txt`):
+first workers 168, workers at winter 239 -> **249**, eclosions 87 -> 97, eggs laid 326 -> 303, larvae starved 12 -> 11;
+adult deaths: crushed 10 -> 5, lost 2 -> **5**, drowning 0 -> 2, predation 2 -> 2, old age 2 -> 2. Brood losses: **hygiene
+56 -> 23**, base 51 -> 64, flooding 35 -> 7, exposure 23 -> 16, temperature 8 -> 15, starvation 12 -> 11, untended 10 -> 10.
+Delivered P 136.9 -> 152.5 (prey 105 -> 114), C 387 -> 371. Worker task time (wgd): tend 520 -> **248**, forage 516 ->
+607, nurse 437 -> 595, **idle 137 -> 257**, scout 242 -> 237 (scout trips that found nothing 252 of 299 -> 264 of 304).
+Cost (`sweep-review/cost.txt`, `cost12.py`): behaviours system median 0.629 -> **0.224 ms per tick**, kd #1 0.68 ->
+**0.256** (26a.0's bar <= 0.30 met in this sweep; the round's arm read 0.351 on kd #1 under heavier load: timings are
+noisy), total median ms/tick 4.13 -> 3.77.
+
+**Year two** (five long runs to the second winter; `round-12/sweep-long/longrun-table.md`, detail
+`sweep-review/long-detail.txt`; the long runs reproduce the sweep's day rows exactly up to doy 21, so "winter 1" below is
+the sweep's winter tick, doy 22; longrun-table.py's own "winter 1" column is the doy-21 row):
+
+| run | first | winter 1 (C / P) | spring (lapse loss) | y2 d15 | y2 d21 | 2nd winter (C) | y2 eggs / eclosed | y2 brood deaths, largest | sweep 11 2nd winter |
+|---|---|---|---|---|---|---|---|---|---|
+| we #2 | 8 | 13 (10.8 / 1.6) | 12 (8 %) | 15 | 12 | 12 (19.5) | 23 / 8 | pupa untended 7, egg flooding 4 | 3 |
+| sg #2 | 11 | 19 (7.1 / 2.9) | 17 (11 %) | 17 | 14 | 13 (15.3) | 19 / 7 | larva base 5, egg temperature 5 | 20 |
+| cpv #1 | 11 | 18 (16.4 / 2.0) | 16 (11 %) | 25 | 22 | 22 (22.9) | 27 / 14 | egg / larva base 3 each, pupa hygiene 3 | 13 |
+| pp #3 | 13 | 20 (15.3 / 0.2) | 18 (10 %) | 22 | 18 | 15 (6.0) | 26 / 9 | **larva starvation 7**, larva base 4 | 24 |
+| kd #3 | 9 | 10 (6.4 / 3.3) | 9 (10 %) | 8 | 3 | 3 (8.4) | 13 / 3 | **egg hygiene 5**, larva hygiene 2 | 7 |
+
+- **R22 spring check**: queen alive and >= 0.7 x winter workers **5 of 5** (bar 4: met; sweep 11 5 of 5). R22's day-15
+  check (superseded by R34): 1 of 5 (cpv #1 25 >= 22).
+- **R34**: second winter >= 1.0 x winter 1 **1 of 5** (bar 4: NOT met; cpv #1 22/18; sweep 11: 2 of 5), >= 1.5 x **0 of
+  5** (bar 3: NOT met; best cpv #1 1.22).
+- **R24**: the five colonies are viable at winter and lose 8-11 % in the lapse (cap 15 %): met (against the doy-21 row
+  cpv #1 reads 19 -> 16 = 16 %; it lost one worker between that row and the winter tick, before the lapse).
+- Year-two adult deaths: old age 8-14 a colony (cpv #1 11, pp #3 14) against 3-14 year-two eclosions.
+
+**Regressions against sweep 11** (script, 12 runs flagged):
+- **we #3: viable -> NOT viable**, C intake 1.441 -> 0.84, trip success 72 -> 58 %, R27 1.85 -> 0.17 (finding 2).
+- **kd #2**: workers 14 -> 10, eclosions 4 -> 0, C 1.733 -> 0.81, larvae starved 0 -> 6, pupa hygiene 0 -> 6
+  (P 0.052 -> 0.267 the other way). **kd #3**: 12 -> 10, eclosions 3 -> 1, C 0.965 -> 0.797, P 0.673 -> 0.547, larvae
+  starved 0 -> 2. **kd #1**: 26 -> 19, eclosions 14 -> 9 (2 drowned, 4 pupae dead of temperature on doy 21-22).
+  **sg #3**: 15 -> 12, eclosions 5 -> 2 (4 pupae eclosion-failed, hygiene 6), C 1.836 -> 1.038.
+- **cpv #3**: 19 -> 18, C 1.622 -> 1.267, P 0.309 -> 0.251, trip success 43 -> 37 %, lost 0 -> 1. **pp #1**: lost 0 -> 2.
+  **pp #3**: larvae starved 1 -> 3. Smaller: we #1 eclosions 10 -> 9, C 1.722 -> 1.549, trips 51 -> 43 %; we #2 trips 58
+  -> 32 %; sg #1 C 1.322 -> 1.035; cpv #1 trips 55 -> 46 %.
+- C intake over need lower by > 0.1 in 7 of 15; median 1.441 -> 1.296; median R27 ratio 2.89 -> 2.56 (only we #3 under 1).
+- Long runs: R34 2 -> 1 of 5 (sg #2 20 -> 13, pp #3 24 -> 15, kd #3 7 -> 3 at the second winter; we #2 3 -> 12 and cpv #1
+  13 -> 22 the other way).
+- Improvements: we #2 NOT viable -> viable (6 -> 13), sg #1 11 -> 14, sg #2 15 -> 19, pp #2 18 -> 22, cpv #1 15 -> 18,
+  cpv #2 11 -> 16; hygiene 56 -> 23, flooding 35 -> 7, crushed 10 -> 5, median P 0.353 -> 0.419.
+
+**Review of the round** (code `git diff c2ed6cb HEAD` on src/sim + tools/sim; the round's snapshots 27a7661 + b4dce8c;
+the live tree had no further src change).
+- Verified: `tsc --noEmit` clean (`sweep-review/tsc.txt`). Folder tests, one worker each (`sweep-review/vitest-*.txt`):
+  colony 77 of 78 files + 4 skipped (red: `workedExample`, known), behaviours/nest 32 of 35 (red `sfaReview.verify`,
+  `stall.soak`, known), behaviours/outdoor 37 of 37 (`noticeCost.verify` now green), ecology/sources 7 of 13 files (the
+  same 12 known-red tests; `lookup.test` green), plants 5 of 5, tests/docs 8 of 8.
+- Not-allowed list: no lifespan, need, food, provision, bar or ruling-test change; the new constants (`SCOUT_SHORT_KNOWN_FRAC`,
+  `TEND_HEADROOM`, `TEND_KEEP`, `FLEE_HOLD_MAX_GD`, `HAUL_BROOD_MAX_FRAC`) carry the ruled values with DEVIATIONS rows;
+  no seed or archetype special case. The two restated tests are sound: `scoutsFirst.verify` changes only its call (the
+  floor number instead of the flag), its assertions are unchanged; `tendHerd.test`'s fixture now starts short of sugar,
+  as R39 requires for the tending mechanics it checks.
+- Determinism: the hold limit's keys (`fw.h0`, `fw.hl`) and the nurses' waste states live in `ant.bb` (persisted);
+  `notice.ts checking` is scratch. 26a.0's incremental grid makes the order of ids inside a bucket depend on history
+  (swap-remove), so a running sim and a restored one hold different orders: checked that all three callers of
+  `forEachSourceNear` (`sourcesSmelledFrom`, `nearestSmelledFrom`, `findSources`) sort by (distance, id) or break ties by
+  id, so no result depends on it.
+- Each fix against its cause: 26a.0 at the cause (the rebuild), result identical (the round's identity run) and the
+  cost bar met in this sweep; R39 as ruled, including the double-count subtraction the round reports finding; 26.3 /
+  26a.2 as ruled; D32's hold depth is the defect the round traced. The nurses' "eggs first" re-check in `cannibalise`
+  counts carried eggs, as `select` already does by its own comment ("even one being carried"): consistent, not a
+  defect (a verify test I wrote against it was withdrawn and deleted; the base tree behaves the same).
+
+**Findings**
+1. **Major (bar): `worker:lost` rose, the R19 check fails again** (no-lost 13 -> 11 of 15; 5 workers in 4 runs, all on doy
+   19-22). The round's own paired arm shows the same (runs with a loss 2 -> 4: we #1 and cpv #3 added), so it is this
+   tree's. Probe `sweep-review/probe-lost12.ts.txt` on pp #1's cached hand-over (frozen tree, 13 gd; output
+   `probe-lost-pp1.txt`): both lost workers (a forager and a tender) went into `forage.return` / `tend.return` at the same
+   tick (gd 12.36) and never changed state again until `RETURN_LOST_S` 2 gd later; neither was ever held by the flood
+   hold or handed back by it (0 and 0), so D32 is not the mechanism. What changed is how many workers are outside in
+   the last days of the season (forage 516 -> 607 wgd); why a homing worker makes no progress for 2 gd was not traced.
+2. **Major (viability): we #3 goes into winter without its carbohydrate** (C 1.07 of 6.16). It never found a herd (one
+   at 160 BU, nearest approach 60 BU, as in sweep 11); its sugar is crumbs and nectar. From doy 15 to winter C fell 7.1
+   -> 1.1 while P rose 4.4 -> 6.4 and the foragers brought 1.6-2.8 P a day against 0.1-0.5 C (`round-12/sweep` day rows),
+   with C under R35's winter path the whole time. R39 is not involved (no herd, tend 0). In sweep 11 the same colony
+   made 29 C forage trips (26 ok) and found nectar; here 14 and none.
+3. **Major (test strength, D32): two of the round's four hygiene tests do not need the fix.** `hygiene26.test.ts` case 1
+   (8 meconium, the hauler away) and case 3 (a film does not hold) pass unchanged on the round's base c2ed6cb
+   (`vitest-base-c2ed6cb-verify.txt`, git-archive copy, deleted). Probe (`burstProbe.test.ts.txt`, `burst-*.txt`): 8
+   items clear in 600 ticks on both trees; 16 items in 1050-1100 ticks on the round's tree and 1450-2150 on the base.
+   New tests, both **GREEN** on the round's tree and **RED** on the base: `src/sim/ants/behaviours/nest/hold26.verify.test.ts`
+   (measures the water over the destination with the hold's own reader, requires 0 < depth < FLEE_WATER_DEPTH_BU, then
+   no hold: base held 4 of 4 checks) and `nest/burst26.verify.test.ts` (16 meconium items under tolerance within 1250
+   ticks on seeds 5 and 6: base 2150).
+4. **Minor (claim): the freed tenders did not all go to forage.** The round's "nobody is idle" (3 gd on cpv #3 and
+   kd #2) does not hold over the season: idle 137 -> 257 wgd in the sweep, 136 -> 278 in the round's own arm (tend -269,
+   forage +112). Probe `probe-r39.ts` on pp #2's cached hand-over, 8 gd (`sweep-review/probe-r39-pp2.txt`): most idle
+   hours are the season's last days (P want 1.5 -> 0.1 loads/gd, C 15-17 in store: nothing wanted); but on day 4 3-5 of
+   20 are idle while P want is 4.3, P stores 0.8 and the forage demand of 7 is fully staffed (cap 31): the forage
+   demand (intake target / `yieldPerForager` 0.96-1.27) asks for fewer foragers than the realised yield needs (0.6-1.2
+   loads a forager-day in that run).
+5. **Minor: kd #2's larvae starve with protein in store while the nurse target is unstaffed.** Hours 51-65 after the
+   hand-over: nurse demand 7-10, target 5, nursing 2, 2-3 workers idle; 6 larvae dead of starvation on doy 13 with P 1.5
+   and C 12 in store (`nursegap.txt`: hours with target - nursing >= 2 and an idle worker, 0 in sweep 11, 13 here, 9 of
+   them kd #2).
+6. Minor (test strength): `outdoor/scoutSmellReport.test.ts` case 3 calls `rememberSmelled` directly, so it does not fail
+   if `phaseScout.ts updateInvestigate` stops calling it.
+7. Pre-existing: the 12 red `ecology/sources` tests, `workedExample`, `sfaReview.verify`, `stall.soak`.
+
+**Leads from the failing runs' own diagnostics** (most costly first):
+1. **Protein** (P 0.419, the R19 check furthest off; kd #2's 6 starved larvae): P delivered 137 -> 152 (prey 105 -> 114);
+   264 of 304 scout trips found nothing (the two-level floor did not lower scout time: 242 -> 237 wgd);
+   idle 257 wgd, part of it during laying days (finding 4: forage demand sized by an optimistic yield per forager).
+2. **Year two, R34 1 of 5**: second winter sg #2 20 -> 13, pp #3 24 -> 15, kd #3 7 -> 3; old age 8-14 a colony after the
+   lapse against 3-14 year-two eclosions; pp #3 loses 7 year-two larvae to starvation (P 0.2 at winter 1), kd #3 7 brood
+   to hygiene, we #2 7 pupae untended.
+3. **Carbohydrate where no herd is found** (we #3, finding 2): late-season protein trips while C is under the winter
+   path; C intake fell in 7 of 15.
+4. **Autumn `worker:lost`** (finding 1): 5 workers stuck in their return for 2 gd on doy 19-22.
+5. **Brood hygiene 23** (pupa 13: kd #2 6, kd #3 3, sg #3 2, cpv #1 1, cpv #2 1) and the kd #2 nurse-staffing gap
+   (finding 5); base mortality 51 -> 64 and temperature 8 -> 15 (late eggs dying as pupae on doy 21-22, kd #1 4).
+
+Scratch trees (`/home/user/frozen-sweep12`, `/home/user/scratch-sweep12-base`) deleted; the probes ran only in the frozen
+copy (archived as `sweep-review/*.ts.txt`); no process of this review left running. Kept green:
+`ants/behaviours/nest/hold26.verify.test.ts`, `ants/behaviours/nest/burst26.verify.test.ts` (both red on the base tree).

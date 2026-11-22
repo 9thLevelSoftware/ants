@@ -1164,3 +1164,33 @@ Known red now: `colony/workedExample`, `nest/sfaReview.verify`, `nest/stall.soak
 `nest/escapeDig.test`, `locomotion/perf.test` criterion 7 under load, 12 tests in `ecology/sources`,
 `ants/actions/runner.test.ts` "failure codes" (expected 'species', got 'caste'; predates round 12).
 `colony/scoutsFirst.verify` and `outdoor/noticeCost.verify` are green again.
+
+### Nov 22 22:37 UTC — sweep 12 returned: viability holds (14 of 15), year two worse (R34 1 of 5); round 13 = year two
+
+Workflow `w6r0ml01a` / `wf_cf4b8e67-f2f` completed (round 12 + sweep 12). Saved
+`docs/design/tasks/reviews/colony-life-sweep-12.json`; ledger "### Independent sweep after round 12".
+
+| bar | sweep 11 | sweep 12 |
+|---|---|---|
+| viable (>= 2 of 3 per archetype) | 14 of 15, met | 14 of 15, met (we 2, sg 3, pp 3, cpv 3, kd 3; we #3 fails: winter C 1.07 of 6.16) |
+| workers at winter (sum) | 239 | 249 |
+| R19 | 6 of 7 | 5 of 7: P 0.419 (0.7), runs without a lost worker 11 (13); C 1.296, trips 57.5 %, eclosions 7 |
+| brood hygiene / egg flooding | 56 / 35 | 23 / 7 |
+| R22 spring, R24 | met | met (5 of 5; lapse loss 8-11 %) |
+| R34 second winter >= 1.0 x / >= 1.5 x | 2 of 5 / 0 of 5 | **1 of 5 / 0 of 5** (cpv #1 19 -> 22, kd #3 10 -> 3, pp #3 21 -> 15, sg #2 19 -> 13, we #2 13 -> 12) |
+| behaviours ms / tick (median; kd #1) | 0.63-0.70 | 0.224; 0.256 (bar 0.30 met) |
+
+Sweep findings carried into round 13 (direction 27a): autumn `worker:lost` 5 in 4 colonies (stuck homing for 2 gd,
+not the flood hold); we #3 forages protein while carbohydrate is under the winter path; idle time doubled (forage
+demand sized by an optimistic yield); kd #2 nurse places unfilled with workers idle (6 larvae starved); two of the
+round's hygiene tests passed on the base (the sweep added `hold26.verify`, `burst26.verify`, green on the round's
+tree and red on the base).
+
+Year two (integrator's read, tables in directions 27 and 27a): a queen with potential 20-35 eggs / gd in summer lays
+13-27 eggs in the second year, 3-14 eclose, and 8-14 founding workers die of old age. The `winter-reserve` gate
+shuts laying on the peak days in colonies that later hold 1.6-7 x their winter carbohydrate; the prospective protein
+rule (R32b / R35) ramps from 1 x to 2 x the carbohydrate target while R39's tenders stop at 1 x. Rulings **R40** (a:
+gate only before the first winter, carbohydrate want counts the winter path; b: prospective protein ramps from 0.5 x
+to 1 x the target; c: late brood trace; d: measure only) and **R41** (one carbohydrate stock wanted for the forage
+want, the nutrient weights and the scout floor). Lifespans, LARVA_P_REQ, prey values, the laying supply horizon and
+base brood mortality are not to be moved by the engineer.

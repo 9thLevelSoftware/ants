@@ -1,0 +1,84 @@
+{
+ "viabilityMet": true,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-12/sweep-table.md",
+ "numbers": {
+  "viable": "14 of 15: woodland-edge 2/3, suburban-garden 3/3, playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3 (we #3 fails: R27 stores C 1.07 of 6.16)",
+  "workersHeld": "15 of 15",
+  "medianEclosions": 7,
+  "medianIntakeP": 0.419,
+  "medianIntakeC": 1.296,
+  "medianTripSuccess": 57.5,
+  "firstWorkersAtLeast9": "14 of 15",
+  "runsWithoutLost": "11 of 15 (we #1 1, sg #2 1, pp #1 2, cpv #3 1)"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "worker:lost rose and the R19 no-lost check fails again (13 -> 11 of 15)",
+   "where": "round-12/sweep; round-12/sweep-review/probe-lost-pp1.txt, probe-lost12.ts.txt",
+   "detail": "5 workers were lost in 4 runs, all on doy 19-22. The round's own paired arm shows the same rise (runs with a loss went 2 -> 4), so the round-12 tree causes it. The probe on pp #1's cached hand-over shows both lost workers entering forage.return / tend.return at the same tick (gd 12.36). Neither changed state again until RETURN_LOST_S, 2 gd later. Neither was ever held by the flood hold or handed back by it (0 and 0), so D32 is not the mechanism. What changed is that more workers are outside late in the season (forage 516 -> 607 worker game days). Why a homing worker makes no progress for 2 gd was not traced."
+  },
+  {
+   "severity": "major",
+   "title": "we #3 viable -> NOT viable: goes into winter without its carbohydrate",
+   "where": "round-12/sweep/life-lasius-niger-woodland-edge-3.json",
+   "detail": "R27 stores C 1.07 of 6.16 (sweep 11: 11.0). It never found a herd (one 160 BU out, nearest approach 60 BU). From doy 15 to winter C fell 7.1 -> 1.1 while P rose 4.4 -> 6.4: foragers brought 1.6-2.8 P a day against 0.1-0.5 C, with C under R35's winter path the whole time. R39 is not involved (no herd, tend 0). It made 14 C forage trips against 29 in sweep 11, and found no nectar. C intake fell by more than 0.1 in 7 of 15 runs; median C 1.441 -> 1.296."
+  },
+  {
+   "severity": "major",
+   "title": "Two of the round's four hygiene tests (hygiene26 cases 1 and 3) pass on the base tree",
+   "where": "src/sim/ants/behaviours/nest/hygiene26.test.ts; new hold26.verify.test.ts, burst26.verify.test.ts",
+   "detail": "Case 1 (8 meconium items, the hauler away) and case 3 (a film does not hold) pass unchanged on c2ed6cb. A probe found 8 items clear in 600 ticks on both trees; 16 items clear in 1050-1100 ticks on the round's tree and in 1450-2150 on the base. I added two tests that are green on the round's tree and red on the base. hold26.verify measures 0 < depth < FLEE_WATER_DEPTH_BU over the destination with the hold's own reader and requires no hold (the base held at 4 of 4 checks). burst26.verify requires 16 items under tolerance within 1250 ticks on seeds 5 and 6 (base: 2150)."
+  },
+  {
+   "severity": "minor",
+   "title": "The freed tenders did not all reach forage: idle worker time doubled",
+   "where": "round-12/sweep-review/tasktime.txt, probe-r39-pp2.txt",
+   "detail": "Idle went 137 -> 257 worker game days in the sweep and 136 -> 278 in the round's own arm (tend -269, forage +112). That contradicts the round's 'nobody is idle' reading from 3 gd on two colonies. Over 8 gd on pp #2, most idle hours fall at the end of the season, when nothing is wanted. But on day 4, 3-5 of 20 workers were idle while P want was 4.3 and the forage demand of 7 was fully staffed (cap 31). The forage demand, sized by yieldPerForager (0.96-1.27), asks for fewer foragers than the realised yield (0.6-1.2) needs."
+  },
+  {
+   "severity": "minor",
+   "title": "kd #2: larvae starve with protein in store while the nurse target is understaffed",
+   "where": "round-12/sweep-review/nursegap.txt",
+   "detail": "In hours 51-65 the nurse demand was 7-10 and the target 5, but only 2 nursed while 2-3 workers were idle. 6 larvae starved on doy 13 with P 1.5 and C 12 in store. Hours with target - nursing >= 2 and an idle worker: 0 in sweep 11, 13 here (9 of them kd #2)."
+  },
+  {
+   "severity": "minor",
+   "title": "scoutSmellReport case 3 bypasses phaseScout's timeout wiring",
+   "where": "src/sim/ants/behaviours/outdoor/scoutSmellReport.test.ts",
+   "detail": "It calls rememberSmelled directly, so it would not fail if updateInvestigate stopped calling it."
+  }
+ ],
+ "checksRun": [
+  "Frozen copy of the tree taken at 21:00 UTC: round recipe 925f45e8 = final-tree-hash.txt, sweep-life recipe 90126ef7; the copy was deleted afterwards",
+  "15-run sweep (sweep-life.sh) 21:00-21:50, all runs on 90126ef7; table built with sweep-table.py against round-11/sweep",
+  "Bars recomputed from the Markdown by bars-from-md.py: same verdicts",
+  "Five long runs (PAR=2 UNTIL_DAY=40) 21:50-22:32, then longrun-table.py and long11.py. R22 spring check 5 of 5 (met). R22 day-15 check (superseded) 1 of 5. R34 >= 1.0x 1 of 5 and >= 1.5x 0 of 5 (both not met). R24 met: 8-11 % lost in the lapse against the winter tick",
+  "tsc --noEmit clean",
+  "Folder tests with 1 worker: colony 77/78 files (workedExample known red), nest 32/35 (sfaReview.verify and stall.soak known red), outdoor 37/37, sources 7/13 files (the 12 known red tests), plants 5/5, docs 8/8",
+  "Base-tree (c2ed6cb, git archive) runs of hygiene26, hold26.verify and burst26.verify",
+  "Probes on the frozen tree: probe-lost12 on pp #1 and probe-r39 on pp #2; burst clear-time probe on both trees",
+  "Code review of git diff c2ed6cb..HEAD: determinism (source-grid bucket order vs caller sorting), the not-allowed list, the restated tests",
+  "Cost: behaviours median 0.224 ms/tick, kd #1 0.256 (bar <= 0.30 met in the fresh sweep; the round's arm under load read 0.351)"
+ ],
+ "regressions": [
+  "we #3: viable -> NOT viable, C intake 1.441 -> 0.84, R27 1.85 -> 0.17, trip success 72 -> 58 %",
+  "kd #2: workers 14 -> 10, eclosions 4 -> 0, C 1.733 -> 0.81, larvae starved 0 -> 6, pupa hygiene 0 -> 6",
+  "kd #3: workers 12 -> 10, eclosions 3 -> 1, C 0.965 -> 0.797, P 0.673 -> 0.547, larvae starved 0 -> 2",
+  "kd #1: workers 26 -> 19, eclosions 14 -> 9 (2 drowned, 4 pupae dead of temperature)",
+  "sg #3: workers 15 -> 12, eclosions 5 -> 2, C 1.836 -> 1.038",
+  "cpv #3: net workers +8 -> +7, C 1.622 -> 1.267, P 0.309 -> 0.251, trip success 43 -> 37 %, worker:lost 0 -> 1",
+  "pp #1: worker:lost 0 -> 2; pp #3: larvae starved 1 -> 3",
+  "we #1: eclosions 10 -> 9, C 1.722 -> 1.549, trip success 51 -> 43 %; we #2: trip success 58 -> 32 %; sg #1: C 1.322 -> 1.035; cpv #1: trip success 55 -> 46 %",
+  "R19 no-lost check: 13 -> 11 of 15",
+  "Year two R34 >= 1.0x: 2 -> 1 of 5 (second winter sg #2 20 -> 13, pp #3 24 -> 15, kd #3 7 -> 3)"
+ ],
+ "leadsForNextRound": [
+  "Protein (P 0.419 against 0.7, the R19 check furthest off): P delivered 137 -> 152; 264 of 304 scout trips found nothing (scout time 242 -> 237 worker game days); 257 worker game days idle, some of it during laying days, because the forage demand is sized by an optimistic yieldPerForager",
+  "Year two, R34 1 of 5: old age kills 8-14 workers a colony after the lapse, against 3-14 year-two eclosions. In year two pp #3 loses 7 larvae to starvation (P 0.2 at winter 1), kd #3 loses 7 brood to hygiene, we #2 loses 7 pupae untended",
+  "Carbohydrate where no herd is found (we #3): protein trips late in the season while C is under the winter path",
+  "Autumn worker:lost: 5 workers stuck in their return for 2 gd on doy 19-22, never held by the flood hold",
+  "Brood hygiene still 23 (13 of them pupae: kd #2 6, kd #3 3) and kd #2's understaffed nurse target. Base brood mortality 51 -> 64 and temperature deaths 8 -> 15 (late pupae dying on doy 21-22)"
+ ]
+}

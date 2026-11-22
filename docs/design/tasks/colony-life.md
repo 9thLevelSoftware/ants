@@ -605,3 +605,57 @@ d. **Not ruled, measure only:** per year-two colony, eggs laid by day against po
 
 Direction 27a (sweep 12's findings: lost workers, the kd #2 nursing gap, we #3's winter carbohydrate) follows when the
 sweep returns; re-read the tail of this file before you start and each time an arm or trace finishes.
+
+## Direction 27a (integrator, Nov 22 22:37 UTC) — sweep 12 read; additions to round 13
+
+Sweep 12 (ledger "### Independent sweep after round 12", `round-12/sweep-table.md`,
+`docs/design/tasks/reviews/colony-life-sweep-12.json`): viability met, 14 of 15 (we #3 fails on winter carbohydrate);
+R19 5 of 7 (P 0.419; no-lost 11 of 15); R22 spring 5 of 5; R24 met; **R34 1 of 5 at >= 1.0 x, 0 of 5 at >= 1.5 x**
+(sweep 11: 2 of 5); behaviours 0.224 ms a tick median, kd #1 0.256 (cost bar met). Year two of the five long runs on
+the round-12 tree (integrator's split at the doy wrap):
+
+| run | winter 1 -> 2 | eggs y2 | eclosed y2 | P delivered y2 | old age | C at winter 2 / need | summer gate shares (doy 8-15, mean a day) |
+|---|---|---|---|---|---|---|---|
+| cpv #1 | 19 -> 22 | 27 | 14 | 29.5 | 11 | 22.9 / 7.4 | p-days 0.25, winter-reserve 0.17, larval-hunger 0.16, released 0.14 |
+| kd #3 | 10 -> 3 | 13 | 3 | 4.9 | 8 | 8.4 / 1.5 | winter-reserve 0.32, larval-hunger 0.14, brood-need 0.13, released 0.05 |
+| pp #3 | 21 -> 15 | 26 | 9 | 34.6 | 14 | 6.0 / 3.8 | larval-hunger 0.26, winter-reserve 0.17, brood-need 0.16, p-days 0.16, released 0.08 |
+| sg #2 | 19 -> 13 | 19 | 7 | 26.7 | 10 | 15.3 / 3.2 | winter-reserve 0.41, larval-hunger 0.17, released 0.09 |
+| we #2 | 13 -> 12 | 23 | 8 | 20.8 | 8 | 19.5 / 2.8 | brood-need 0.24, p-days 0.21, larval-hunger 0.12, released 0.10 |
+
+Every colony stands at 1.6-7 x its winter carbohydrate need at the second winter: the `winter-reserve` gate
+withheld eggs for carbohydrate the colony got anyway. Direction 27 (R40 a-d, the year-two cache, the arms and bars)
+stands and comes first. Added, in this order after R40 a-c:
+
+1. **One carbohydrate stock wanted (R41; joins R40a).** we #3 went into winter with 1.07 C of 6.16: from doy 15 its
+   foragers brought 1.6-2.8 P a day against 0.1-0.5 C while carbohydrate stood under `winterPathC` the whole time
+   and protein in store rose 4.4 -> 6.4. Rule: the carbohydrate stock the colony wants is one function,
+   max(target days x rate, winterPathC), read by `forageWant` (R40a), by the carbohydrate need / urgency behind
+   `nutrientWeights` (needC counts the shortfall to it, so a colony under its winter path with protein over its own
+   target weights carbohydrate above protein unless larvae are hungry), and by the scout floor's "short" test (a
+   colony under the path that knows no live carbohydrate source has carbohydrate missing). Tests: doy 16, C under the
+   path, P over target, no hungry larvae -> wC > wP; the same with mean larval hunger over
+   `LAYING_LARVAL_HUNGER_MAX` -> protein is not starved of foragers (state the split you get); scout floor counts
+   carbohydrate missing.
+2. **The forage demand is sized by a yield foragers do not realise** (sweep finding: idle 137 -> 257 worker gd; pp #2
+   day 4: 3-5 of 20 idle with P want 4.3 and the forage demand of 7 fully staffed, cap 31; `yieldPerForager`
+   0.96-1.27 against a realised 0.6-1.2). Trace how `col.yieldPerForager` is measured (per successful trip? per
+   forager-day? does waiting count?). Rule: the demand divides the want by the loads a forager assigned to `forage`
+   actually brought home per game day over the last game day (all assigned foragers, failed trips and waits
+   included; keep the existing floor and the known-capacity cap). Fix that measure if it is not that; no new
+   multiplier. Test with a colony whose foragers succeed on half their trips: demand is twice the all-succeed case
+   (up to the cap).
+3. **kd #2's nursing gap:** hours 51-65, nurse demand 7-10, target 5, 2 nursing, 2-3 idle, 6 larvae starved with 1.5
+   P and 12 C in store (`round-12/sweep-review/nursegap.txt`). Trace why idle workers do not take the open nurse
+   places (threshold, age band, a held task, D32's nurse waste states counted as nursing?). Fix the defect; test.
+4. **Autumn `worker:lost`** (5 in 4 colonies, doy 19-22; `round-12/sweep-review/probe-lost-pp1.txt`): both of
+   pp #1's entered `forage.return` / `tend.return` at the same tick and did not change state for 2 gd until
+   RETURN_LOST_S. Trace what stops a homing worker for 2 gd (cold torpor on the surface, the entrance, a path). Fix
+   only a defect; if it is the cold catching workers outside, say at what surface temperature and stop: I rule.
+5. **Tests:** `scoutSmellReport` case 3 goes through `updateInvestigate`; `hygiene26` cases 1 and 3 are replaced by
+   the sweep's `hold26.verify` and `burst26.verify` (keep those two files as they are).
+
+Must-haves if the round runs long: R40 a-c with the year-two arms, then items 1 and 3; report 2, 4, 5 as not done
+rather than half done. The year-one arm (15 hand-overs, against `round-12/arm-final12`) judges items 1-4 with R40:
+bars as direction 27, and in addition we #3's kind of colony: no colony ends under its R27 carbohydrate that met it
+in the base. Not this round's: the 12 red `ecology/sources` tests, lifespans, `LARVA_P_REQ`, prey values,
+`LAYING_SUPPLY_HORIZON_GD`, base brood mortality.

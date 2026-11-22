@@ -49,3 +49,6 @@ Started 21:00 UTC Nov 22. No earlier progress file; fresh start.
 - 21:51 long runs started (`/home/user/frozen-sweep12/run-long.sh`, background). Probe written (frozen tree only):
   `/home/user/frozen-sweep12/tools/sim/probe-lost12.ts` (states before each worker:lost) - run on pp #1 cache after
   the long runs (cache test-output/viab/cache/founded-...-playground-park-1-naturalist-d-211d103b.bin).
+- 22:32 long runs done (R22 spring 5/5, R34 1/5 and 0/5, R24 met by the winter-tick count). Probes: probe-lost12 on
+  pp #1 (2 lost, both stuck in return 2 gd, 0 flood holds), probe-r39 on pp #2 (idle mostly end of season).
+- 22:40 ledger section "### Independent sweep after round 12" written. Scratch trees deleted, no process left. DONE.
