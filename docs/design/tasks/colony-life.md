@@ -231,3 +231,58 @@ terms cause it, so they are mine to change:
 
 If this round's engineer has not returned yet: do R35 in this round, before closing it, so that sweep 9 judges a
 tree with it. If the round has closed, it is the first item of the next.
+
+## Direction 23 (integrator, Nov 22 13:25 UTC) — sweep 9 read; round 10's order; R36, R37
+
+Sweep 9 (`test-output/colony-life/round-9/sweep-table.md`, `reviews/colony-life-sweep-9.json`), fresh foundings on the
+round-9 tree (no R35): viable **9 of 15** (we 1/3, sg 2/3, pp 2/3, cpv 3/3, kd 1/3; bar 2 of 3 each: not met), workers
+held 12 of 15, eclosions median 6 (sum 60 -> 100), protein intake / need 0.478 (bar 0.7), carbohydrate 1.109, trip
+success **56.8 %** (bar 50: met), first workers >= 9 in 14, no-lost 13 of 15 (lost 10 -> 5), untended brood 80 -> 6.
+Long runs: spring check 4 of 5 (met), R34 3 of 5 at >= 1.0 x (bar 4), 0 of 5 at >= 1.5 x (bar 3). Worse than sweep 8:
+predation 14 -> 41, brood hygiene 9 -> 41, exposure 6 -> 25.
+
+The six that are not viable: four hold protein and lack carbohydrate at winter (we #1 C 3.2 / P 9.0, we #3 5.2 / 5.8,
+sg #3 0 / 7.0, pp #3 1.5 / 8.0) = the R35 case; two kitchen-door colonies starve of protein with the larder full of
+sugar (kd #1 P intake 0.125, kd #2 0.025). With both mended the bar is in reach, so they come first.
+
+### Round 10, in this order
+
+1. **R35** as direction 22 rules it (all six points; the five long runs, pp #3 and sg #2 first, plus the four
+   colonies above to winter on sweep 9's hand-overs, cached, base vs R35).
+2. **Protein at the kitchen door (R36).** Measure on kd #1 and kd #2 (sweep 9's hand-overs): protein loads that
+   arrive within 300 BU of the entrance per game day, by source kind, and how much of it the colony ever knows.
+   - If under 1.5 loads/gd arrive (the outdoor archetypes' figure in the round-8 ledger is about 2.9): the world is
+     short. R36: the kitchen-door flows (`src/sim/ecology`, not worldgen placement) are raised so that the median
+     over kd seeds 1-3 matches the outdoor archetypes' median within 300 BU; sources that fit the place (dead flies
+     under the window and at the door, moths at the light, kibble at a pet bowl where the world has one, the crumbs'
+     own protein share). Record as a GDD 05 deviation row.
+   - If it arrives and is not found or not taken: say which, and fix that (it is then item 5's question on a small
+     map).
+3. **Predation (R37).** Sweep 9: median 2 predation deaths per founding-year colony (R25's target: <= 1), 0.050 per
+   outside worker-gd, 6 deaths in one day at 10 workers (sg #2 day 6). The run files do not say who kills. First add
+   the killer's kind, whether it is a resident or a colony-range hunter, and the distance from the entrance to the
+   death records (diagnostics, additive), and read sg #2, pp #2, pp #3. Then:
+   - if residents in their own territories do it: R37 = the colony remembers the place. A worker attacked or killed
+     by a resident marks the spot (the existing avoid marker / `knownHazardsNear`, radius = that creature's attack
+     reach + 10 BU, 3 gd); foragers, hunters and scouts do not path through or choose targets inside a marked spot
+     (steering reads `knownHazardsNear`, which nothing reads today), and a hunter breaks off a chase that enters one.
+   - if colony-range hunters do it at a ramp near 0: that is a defect of the ramp; fix it.
+   Bar: median <= 1 predation death per colony over the 15 paired runs to winter, and no colony loses more than a
+   quarter of its workers to predation in one game day.
+4. **Sweep-9 defects, small:** SG3 reads a long open shaft as sealed (`sealLongShaft.verify` red: treat the flood's
+   radius cut like its sample cap: a leak is not ruled out); R33's draft hands a pile to a worker who cannot nurse
+   (`tendDraft.verify` red: `draftable` checks nurse eligibility); `startPose.long.test.ts` must fail when a seal fix
+   is reverted (per archetype >= 4 of 5 start poses hand over with a worker out, whatever the site grade; direction
+   20.1's bar); the new `Math.hypot` in `sealGuide.ts backTick` (and the file's others) replaced per the purity rule.
+5. **Where the eggs are not laid - measurement, no fix unless it is a defect.** On the five long runs after R35, for
+   each warm day (lay potential > 0): the released share and which gate held it (stage, days of protein stock,
+   larval hunger, larvae per nurse, winter reserve, release share's brood-need term), as game days per gate; and for
+   every protein load that arrives within 300 BU: found or not, time from arrival to discovery, taken or lost
+   (spoiled, taken by others, expired), nearest approach of any worker if never found. One table per colony. I rule
+   on scouting and on the gates from that table; do not tune either.
+6. **If time, measurement only:** brood hygiene deaths on cpv #1 (19 in year one, 7 eggs in one day in a
+   one-chamber nest: what makes the chamber dirty, who should have cleaned) and exposure deaths (where the brood
+   lay); year-two flooded eggs on we #2 and kd #3.
+
+Budget: one arm per change; items 1-4 are the round. Close with the 15 paired runs to winter (sweep 9's hand-overs,
+base = HEAD at the round's start, final = live) and the five long runs of the final tree against R34.

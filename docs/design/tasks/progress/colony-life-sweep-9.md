@@ -49,3 +49,5 @@ Started 11:50 UTC Nov 22. No earlier progress file; fresh start.
   exposure 6 -> 25. 4 of 6 non-viable fail R27 carbohydrate stores while holding P (we1, we3, sg3, pp3) = R35's case;
   kd1/kd2 starvation stage with P intake 0.125/0.025. Leads: `sweep-review/leads9.txt`.
 - 12:40 long runs started (sweep-long), we2 + sg2 first.
+- 13:13 long runs 4/5 done (kd3 running).
+- 13:22 DONE: ledger section written, scratch trees deleted, no process running.

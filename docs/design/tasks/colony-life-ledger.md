@@ -3682,3 +3682,142 @@ finding 4, kept red: a throttle breaks save/load determinism; 0.04 ms/tick), `ne
 - 11:49 closing: typecheck clean (`round-9/typecheck-final.txt`); founding folder 24 files green (`vitest-founding-2.txt`),
   colony folder 49 of 50 (workedExample, known; `vitest-colony-final.txt`). Probes archived to `round-9/probes/*.ts.txt`
   and `tools/sim/probe/` removed; scratch trees `/home/user/scratch-r9-*` deleted; no background process left.
+
+### Independent sweep after round 9
+
+Independent engineer, 11:50-13:25 UTC Nov 22 (no restart; progress file `docs/design/tasks/progress/colony-life-sweep-9.md`).
+**Table: `test-output/colony-life/round-9/sweep-table.md`** (`python3 tools/sim/sweep-table.py round-9/sweep
+round-8/sweep`; columns as `econ-growth-review/sweep9-table.md` plus first workers, `worker:lost`, R27 stores and shut
+days). Runs by `tools/sim/sweep-life.sh` from a frozen copy of the tree taken at 11:50 (src/sim + worldgen + core hash
+`6b9881e1` = live tree = HEAD a642e00: RO1, LD1, FD2, SG1-SG3, R32b, R33; **not R35**, see finding 1); all 15 on it,
+11:50-12:40. Naturalist, default start, flooding on, no player, fresh foundings (first workers equal to sweep 8's in
+15 of 15). Bars recomputed from the Markdown by a second script (`round-9/sweep-review/bars-from-md.py`,
+`bars-from-md.txt`): same verdicts. Review outputs: `round-9/sweep-review/`. **This table is the one the next round
+compares with.**
+
+**Viability bar: NOT met** - viable **9 of 15** (sweep 8: 9): woodland-edge **1/3**, suburban-garden 2/3, playground-park
+2/3, car-park-verge 3/3, kitchen-door **1/3**. Failed checks: R27 stores in 4 (we #1 C 0.61 of the need, we #3 0.99,
+sg #3 0.00, pp #3 0.27 - each holding 5.8-9.0 mg P), starvation stage in 3 (sg #3 4.8 gd, kd #1 1.2, kd #2 3.7).
+
+**Growth bar R19: NOT met** (6 of 7; sweep 8: 4 of 7):
+
+| check | sweep 9 | sweep 8 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | 12 of 15 ok (below: sg #2 11 -> 9, pp #1 13 -> 11, kd #3 9 -> 8) | 12 |
+| median eclosions after hand-over >= 4 | 6 ok | 5 |
+| median intake/need P >= 0.7 | **0.478** | 0.269 |
+| median intake/need C >= 0.9 | 1.109 ok | 1.162 |
+| median trip success >= 50 % | 56.8 % ok | 45.9 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok (we #2: 8) | 14 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok (we #1 2, pp #1 3) | 12 |
+
+Sums (15 runs, `sweep-review/sums.txt`): first workers 168 (both), workers at winter 194 -> 208, eclosions 60 -> 100,
+eggs laid 247 -> 284; adult deaths lost 10 -> 5, **predation 14 -> 41** (0.020 -> 0.050 per outside worker-gd;
+`sweep-review/leads9.txt`), crushed 9 -> 13, old age 1 -> 1. Brood losses after the hand-over: untended 80 -> **6**,
+flooding 34 -> 10, **hygiene 9 -> 41**, exposure 6 -> 25, base 35 -> 56. Days ending with no open entrance: 0 of 15.
+Median ms/tick 4.34 -> 3.67 (load-noisy; no cost trap visible).
+
+**Year two** (five long runs, `PAR=2 UNTIL_DAY=40 tools/sim/longrun-life.sh round-9/sweep-long ...` from the same frozen
+copy, 12:40-13:20; no JSON was there before; the round's own `round-9/long` runs are on the 10:16 tree, before SG3, from
+sweep 8's hand-overs, so not reused); table `round-9/sweep-long/longrun-table.md`, detail `sweep-review/long-detail.txt`.
+All five reach the first row of the second winter (year-two doy 22).
+
+| run | first | winter 1 (C / P) | spring tick 1 | lapse loss | y2 d15 | y2 d21 | 2nd winter (C) | y2 eggs / eclosed | y2 brood deaths |
+|---|---|---|---|---|---|---|---|---|---|
+| we #2 | 8 | 13 (13.1 / 2.9) | 12 | 8 % | 15 | 16 | 15 (13.0) | 22 / 9 | flooding 8, larva base 5, temperature 3 |
+| sg #2 | 11 | 9 (7.5 / 2.8) | 8 | 11 % | 12 | 10 | 10 (9.7) | 15 / 7 | hygiene 3, flooding 2 |
+| cpv #1 | 11 | 15 (15.7 / 0) | 13 | 13 % | 19 | 15 | 15 (31.6) | 35 / 13 | **hygiene 14**, base 9 |
+| pp #3 | 13 | 15 (**1.7** / 8.4) | 8, **queen starved** | 47 % (starvation 6) | 4 | 2 | 2 (15.1) | 0 / 0 | - |
+| kd #3 | 9 | 8 (5.5 / 3.9) | 8 | 0 % | 4 | 2 | 2 (1.6) | 10 / 1 | flooding 5, starvation 2 |
+
+- **R22 year two**: spring alive with >= 0.7 x winter workers **4 of 5** (bar 4: met; pp #3 fails, queen dead);
+  workers on year-two day 15 >= 2 x first workers **0 of 5** (superseded by R34; 15/16, 12/22, 19/22, 4/26, 4/18).
+- **R34**: second winter >= 1.0 x winter 1 **3 of 5** (bar 4: NOT met; we #2 15/13, sg #2 10/9, cpv #1 15/15), >= 1.5 x
+  **0 of 5** (bar 3: NOT met). Sweep 8: 0 / 0; round 9's own long runs: 2 / 0.
+- **R24** (lapse loss <= 15 % for a colony viable at winter): we #2 8 %, sg #2 11 %, cpv #1 13 %, kd #3 0 % - met. pp #3
+  is not viable at winter (R27 stores 0.27, C 1.7 mg against 5.6), so the cap does not apply; it is the R35 case (C
+  short, P 8.4 in store) and the lapse starves it with its queen. Not a "viable at winter, dead in spring" blocker.
+- Larvae into winter: 1 (cpv #1); all year-two eclosions from year-two eggs (doy 11-17). Old age takes 4-12 per
+  colony after the lapse.
+
+**Regressions against sweep 8** (script; fresh foundings in both with equal first workers, so the runs compare
+closely, but each is one chaotic run):
+- **we #3: viable -> NOT viable** (R27 stores 0.99 of the need: C 5.16 against 5.19, P 5.8), net workers +5 -> +3,
+  eclosions 5 -> 3, intake C 1.162 -> 0.908, P 0.853 -> 0.741.
+- **kd #2: viable -> NOT viable** (starvation stage 3.7 gd; P intake 0.059 -> 0.025, P 0.009 at winter), trip success
+  43 -> 36 %, larvae starved 0 -> 1.
+- sg #1 net +6 -> +2 (eclosions 8 -> 6, C 1.155 -> 0.84); sg #2 net +1 -> -2 (7 predation deaths, 6 on day 6);
+  kd #1 +3 -> +1 (6 crushed); kd #3 +0 -> -1; intake C down on pp #3 1.478 -> 0.829, pp #2 1.279 -> 1.109, cpv #1
+  1.645 -> 1.476; intake P down on pp #1 0.575 -> 0.496, cpv #3 0.427 -> 0.319.
+- Improvements for balance: pp #1 and kd #3 NOT viable -> viable; sg #3 0 -> 8 eclosions (RO1); pp #2 1 -> 9.
+
+Review of the round (code: `git diff dd966f1 HEAD` on src/sim + tools/sim; dd966f1 is the round-start commit the
+round's ledger names; src/core's one change, gzip mtime 0, is app-seams-3's):
+- Verified: `tsc --noEmit` clean (`tsc.txt`, `tsc-after-verify.txt`). Folder tests, one worker each
+  (`vitest-*.txt`): founding 24/24 (+3 long skipped), colony without founding 49/50 (red `workedExample`, known),
+  nest 58/61 (red `escapeDig` known, `readersCost.verify` kept, `architect/layout.test` perf 57-70 ms > 50 under two
+  life runs; untouched by the round), locomotion 25/25, behaviours/nest 29/32 (red `sfaReview.verify`, `stall.soak`
+  known, plus this review's `tendDraft.verify`), behaviours/outdoor 30/31 (red `removal.verify`, known), docs-final 8/8.
+- The round's red-before claims hold: on a scratch tree with the dd966f1 versions of `entrances.ts`, `stuck.ts`,
+  `navScratch.ts`, `sealGuide.ts` swapped in, `reopenPlugLeft`, `ladderJitter`, both `sealBackStall` cases and
+  `founding/reopen.test` are red (5 of 6 cases; the green one is ladderJitter's guard case).
+- Not-allowed list: `UNTENDED_GD` and `LAYING_SUPPLY_HORIZON_GD` moved exactly as direction 21 rules; no lifespan, need,
+  food, provision or bar change; the restated `brood.verify` / `broodCarried` cases follow R33 (pupae because an egg at
+  25 C hatches in 1.03 gd); `DIAG_MORTALITY_REF_LIFESPAN_GD` 26 -> 36 is diagnostics and directed by direction 15; no
+  seed or archetype special case. Determinism: LD1's episode record lives in the persisted `nav.loco` scratch, R32b's
+  rate in `core.acc`, R33's draft is a per-tick memo derived from the board and ant states - new guard
+  `src/sim/ants/behaviours/nest/tendDraftSave.verify.test.ts` (GREEN): save -> load at a window's first tick and in
+  mid-window while piles are overdue, 4 windows on, hashes equal, drafts made.
+- Each fix against its cause: RO1 (the reopen's state rule, GDD 03 §4.2), LD1 (the ladder baseline), SG1-SG2 (the guide's
+  missing stall / cycle exits) and FD2 are at the cause. SG3 widens a seal test and introduces finding 2. R33's draft
+  has finding 3. R32b is the ruling's wording, which direction 22 amended.
+
+**Findings**
+1. **Major: R35 (direction 22) is not in the tree.** The integrator's 11:41 note asked for it "before you return, so
+   sweep 9 judges a tree with it"; the round closed at 11:49 without it (no `PROSPECTIVE_P_PER_WORKER`, `forageRates().p`
+   still includes the spoilage term, `nutrientWeights` unchanged), and the round's report still asks the integrator to
+   rule on the gate it had already ruled on. This sweep therefore judges R32b as worded, and its failures are R35's
+   case: 4 of the 6 non-viable colonies fail on carbohydrate stores while holding 5.8-9.0 mg protein, and the long-run
+   colony that dies (pp #3) enters winter with C 1.7 / P 8.4.
+2. **Major (latent, new with SG3): an open cell reads sealed when its way to the air is longer than the flood radius.**
+   `colony/founding/dig.ts cutOffBelowThroat` takes "flood path null" as "cut off", but `floodNow` stops at
+   SEAL_FLOOD_RADIUS_BU (40 BU) without recording a leak. New test `src/sim/colony/founding/sealLongShaft.verify.test.ts`
+   (**RED, kept**): a 15-degree shaft 12 BU deep (~46 BU long), no plug anywhere, throat open -> `sealed`, phase `lay`;
+   green on the tree without SG3; the 55-degree control is green. The lapse then runs as sealed in an open cell. Fix
+   direction: count the radius cut as "not ruled out" (as the sample cap already is), or flood to the throat's air.
+3. **Minor-major: R33's draft can block a pile.** `tendDraft.ts draftsOf` gives each overdue pile to the nearest
+   draftable worker before asking the allocator; a worker whose caste may not nurse (Atta major, nurse weight 0) is
+   draftable, her `requestTask` is refused on every think, and no other idle worker is drafted for that pile. New test
+   `src/sim/ants/behaviours/nest/tendDraft.verify.test.ts` (**RED case 1, kept**; control case with the major busy is
+   green). Lasius is not affected (every worker may nurse). Fix direction: `draftable` checks eligibility for `nurse`.
+4. **Major (test strength): the founding long test does not guard the fixes it reports.** `startPose.long.test.ts`
+   requires "all but one" Fair-or-better start per archetype, over 1-3 Fair starts each (kitchen-door: 0 of 1 passes),
+   and Poor >= 60 % against the >= 86 % the test itself derives. It was green on the 09:20 / 10:08 trees with 3 of 25
+   start poses failing at the seal (sg #4, we #4, pp #1), so it would not fail if SG1-SG3 were reverted. Direction
+   20.1's "4 of 5 on Fair-or-better" read per archetype over five seeds is not what it checks. (Not re-run in this
+   review: 25 foundings x ~2 min CPU.)
+5. **Major: predation 14 -> 41 in the fresh sweep** (0.020 -> 0.050 per outside worker-gd; the round's paired arms had
+   15 -> 26). sg #2 lost 6 workers on day 6 alone at 10-11 workers, pp #2 6 and pp #3 7 at 11-15 workers (0.10-0.18
+   per outside worker-gd, above R25's band for an *established* colony, and R25's ramp is near 0 below 16 workers).
+   More workers outside for longer explains part; the per-colony rates in colonies the ramp should spare do not.
+6. Minor: hygiene brood deaths 9 -> 41 (cpv #1 19 in year one, 14 more in year two; 7 eggs in one day in a one-chamber
+   nest); exposure 6 -> 25. More brood lives long enough to meet these causes now that untended is gone (80 -> 6).
+7. Minor: a new `Math.hypot` in `sealGuide.ts backTick` (SG1) against the project rule (the file already used it).
+
+**Leads from the failing runs' own diagnostics** (most costly first):
+1. **Carbohydrate behind a protein store (R35)**: we #1 (C 3.2 / P 9.0), we #3 (5.2 / 5.8), sg #3 (0 / 7.0, starvation
+   stage 4.8 gd), pp #3 (1.5 / 8.0; then queen starved in the lapse). 4 of 6 non-viable runs, 1 of 2 long-run losses.
+2. **Protein at kitchen-door**: kd #1 P intake 0.125 (deliveries: no prey at all, carrion 1.8, P 0.3 at winter), kd #2
+   0.025 (P delivered 0.8 in 12 gd, no prey or carrion delivered); both fail the starvation stage. The colony-wide P
+   median 0.478 is the only R19 check left.
+3. **Predation** (finding 5): 41 workers, the largest adult loss; check R25's ramp against what kills sg #2 / pp #2 /
+   pp #3 (resident territories vs colony-range siting) per outside worker-gd.
+4. **Hygiene and exposure of the brood** (finding 6): 41 + 25 of 149 brood deaths in year one, hygiene the largest
+   year-two cause on cpv #1 (35 eggs -> 13 workers).
+5. **Year-two flooding of eggs**: we #2 8, kd #3 5 of their year-two brood deaths.
+6. **The R29c/release lock**: laying permitted 0 on most warm days in the runs that did not grow (pp #1, sg #1, we #1:
+   "laying permitted gd per day ... 0,0,0" with potential 19-30).
+
+Scratch trees (`/home/user/frozen-sweep9`, `/home/user/scratch-sweep9-nosg3`) deleted; no process of this review left
+running. Kept red: `src/sim/colony/founding/sealLongShaft.verify.test.ts` (case 1),
+`src/sim/ants/behaviours/nest/tendDraft.verify.test.ts` (case 1). Kept green: `tendDraftSave.verify.test.ts`.
