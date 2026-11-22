@@ -836,3 +836,13 @@ Round 8 (third engineer) so far: **HB1** — hunters fled from the alarm of thei
 **Year two, R30 + WL4** (cpv #1, we #2): spring 17 of 19 and 10 of 11 workers (round 7: 6 of 17, 5 of 8); day 15: **19 and 7** (round 7: 4 and 1). Doubling by day 15 not met (19 vs 22, 7 vs 16): every eclosion before day 15 is an overwintered larva (2 and 1). Direction 19: larvae taken into winter is the lever; long runs now go to the second winter (`UNTIL_DAY=40`).
 
 look-pass-4: leaf detail, inspector wording, hint overlap, site advice, minimap shapes written (pictures pending). The engineer keeps the possession camera's follow-surface default because GDD 01 §6.2 / GDD 08 §7.4 say so and a "Keep level" setting exists; the integrator will decide the default from its slope pictures.
+
+## Nov 22 04:30 UTC — resumed after the account's weekly usage limit (Nov 18 12:37 → Nov 22 04:00); container restart 7
+
+Both workflows died on the usage limit at about 12:37 UTC Nov 18 (round 8's third engineer mid-way through the arms; look-pass-4's engineer with code for items 1–4, 6–8 written and most pictures missing). The machine restarted; disk and the frozen arm trees `/home/user/scratch-r8-*` survived.
+
+Recovery, with cost in mind (the limit was spent in four days):
+- The integrator resumed the paired runner itself (`round-8/paired/jobs4.sh jobs4c.txt`, then `jobs5.txt` = the HB1 arm on all 15; background command; about an hour). **The Opus engineer for the rest of round 8 is launched only when the runs are done**, so it does not wait on them.
+- look-pass-4 relaunched (Sonnet) as `wveg3e7vs` (wf_15b7c326-705), continuing from its progress file.
+- Check-ins go from every 30 minutes to every 60, and only while something runs.
+- After a restart: `git add -A` commit + push; paired runner is restart-safe (same two commands); colony-life relaunch = `wf-life.js` `{maxRounds: 3, firstRound: 8}` with a note that directions 15–19 are binding and the ledger's Round 8 section says what is in the tree; look-pass-4 = `wf-build.js` with a note pointing at its progress file.
