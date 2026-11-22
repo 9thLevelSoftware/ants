@@ -1110,3 +1110,57 @@ model opus, effort high}, journal under `subagents/workflows/wf_e00051e5-a07/jou
   `firstRoundResult`; cut off mid-round -> `firstRound 12` with a note that the ledger's "## Round 12" progress and
   directions 26, 26a say what is in the tree.
 - Round 12 launched 19:38 UTC: task `w6r0ml01a`, run `wf_cf4b8e67-f2f` (`wf-life.js {maxRounds: 1, firstRound: 12, model: 'opus', effort: 'high'}`).
+
+### Nov 22 21:08 UTC — round 12 returned: arm bars met; sweep 12 running; year two is the next lead
+
+Round 12 (directions 26 + 26a) built everything in order; result saved in
+`docs/design/tasks/reviews/colony-life-round-12.json`; ledger "## Round 12" + "### Round 12 results". Final tree hash
+925f45e8. Sweep 12 (15 fresh foundings + five long runs) started at ~20:58 UTC in the same workflow
+(`w6r0ml01a` / `wf_cf4b8e67-f2f`); do not edit `src/sim` until it returns.
+
+Paired arm (15 sweep-9 hand-overs to winter, base `round-11/arm-final11` -> `round-12/arm-final12`):
+
+| | round 11 | round 12 | bar (direction 26.5) |
+|---|---|---|---|
+| workers at winter (sum) | 243 | 266 (better 10, worse 4) | |
+| viable | 13 | 14 (kd 3 of 3; only pp #3 fails, winter C) | >= 13, kd >= 2: met |
+| median P intake / need | 0.329 | 0.482 | >= 0.45: met |
+| median C intake / need | 1.424 | 1.386 | no colony lost R27: met |
+| trip success | 51.6 % | 62.2 % | |
+| brood hygiene deaths | 60 | 9 | <= 31: met |
+| task time forage / tend / scout (worker gd) | 532 / 518 / 255 | 643 / 249 / 239 | |
+| behaviours ms / tick, kd #1 | 0.728 | 0.351 | <= 0.30: not met |
+
+Rulings recorded (no code change needed):
+- **26.2 (forage choice at wP / wC 7:1): no change.** The trace shows no protein candidate was known at those
+  departures; where both were known the rate form (value / trip seconds) chose an 8 BU flower over a 154 BU carcass,
+  which is the intended central-place rule. The lever is knowledge of protein, not the value form.
+- **Hygiene mechanism (26a.3): accepted as D32.** No R38 item caused it; `walkingIntoWater` held an outside ant for
+  any water > 0 on the destination floor (0.01-0.17 BU films) while ants inside flee only at 0.15 BU. Reading "way
+  passes a flooded cell" as the destination floor is accepted (all 65 traced holds were there).
+- **R39 double-count subtraction (known non-herd C capacity and marked herds left out of the tenders' want):
+  accepted.** `TEND_HEADROOM` stays 1.25.
+- **R35 point 5 (prospective-protein forage filled last): stays** for now; forage time rose 532 -> 643 worker gd
+  with it in place. Revisit only if sweep 12 shows freed workers idle in summer.
+
+Integrator's read of the arm and of sweep 11's long runs (model-free, `funnel`, `layingGates`, day states):
+- **Year one is one cohort by the calendar.** Hand-over ~doy 10, one clutch of 11-12 on doy 11, larvae doy 12-13,
+  eclosion doy 14-16, laying potential 0 from doy 16 (autumn, brood chamber 12 -> 3 C). After doy 15 a third to a
+  half of the workers are idle and protein stores sit at 2-4 P: that is the season, not a defect. Year-one "P intake /
+  need" is dominated by one day on which the synchronous clutch asks 8-11 P / gd of 9-11 workers (larval stage
+  0.74-1.0 gd x LARVA_P_REQ 1.2); 10 of 12 hatched still eclose. R19's 0.7 measures that spike; keep the bar but do
+  not chase it with more year-one foraging rules.
+- **Year two is where growth is lost (R34: 2 of 5 at >= 1.0x in sweep 11).** Laying potential is 0 until doy 4-5,
+  small through spring, 15-33 eggs / gd on doy 8-15, 0 from doy 17-18. Eggs laid in the year 41-67 (mean potential
+  ~8 / gd, gates open 40-50 % of the time: `brood-need`, `p-days`, `larval-hunger`, `winter-reserve`, `stage`).
+  Egg -> adult survival: cpv #1 10 of 44, kd #3 9 of 41, pp #3 31 of 67, sg #2 20 of 44, we #2 1 of 42 (hygiene 14,
+  14, 4, 0, 26 of those deaths; flooding 3, 6, 0, 4, 2; untended 0, 2, 4, 8, 0). Old age takes 6-12 workers a colony.
+  So a colony of 13-17 needs ~20 eclosions to reach 1.5x and gets 1-31.
+- Next direction (27) is written after sweep 12's long runs show what D32 (hygiene) and R39 (protein) changed in
+  year two: candidates are (a) the spring gap (no brood before doy 8), (b) the laying gates in summer, (c) egg
+  losses (hygiene / flooding / untended), (d) the old-age cliff of the founding cohort.
+
+Known red now: `colony/workedExample`, `nest/sfaReview.verify`, `nest/stall.soak`, `nest/readersCost.verify`,
+`nest/escapeDig.test`, `locomotion/perf.test` criterion 7 under load, 12 tests in `ecology/sources`,
+`ants/actions/runner.test.ts` "failure codes" (expected 'species', got 'caste'; predates round 12).
+`colony/scoutsFirst.verify` and `outdoor/noticeCost.verify` are green again.

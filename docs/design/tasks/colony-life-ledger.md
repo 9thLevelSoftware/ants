@@ -4565,3 +4565,86 @@ Progress (kept current; a successor continues from here)
   cpv #3: see table at the end). Running ~35 min more. Remaining after it: table (`round-12/table12.py`), the
   round's result section, scratch tree `/home/user/scratch-r12-final` and `tools/sim/probe/` to delete (probes
   archived in `round-12/probes/`).
+- 20:41 arm 10 of 15: hygiene so far 36 -> 7 deaths on those 10 (we #2 10 -> 0, cpv #1 9 -> 0, sg #1 6 -> 0, kd #3
+  10 -> 6); **we #2 6 -> 13 workers, not viable -> viable**; tend time down 25-60 % everywhere, forage time up in 8
+  of 10; P intake mixed (cpv #1 0.25 -> 0.56, kd #1 0.28 -> 0.50; cpv #3 0.31 -> 0.25, kd #3 0.67 -> 0.55, pp #1 0.56 ->
+  0.48); R27 winter C held in all 10. Behaviours 0.65-0.79 -> 0.28-0.37 ms / tick. Waiting for cpv #2, sg #3, pp #2,
+  pp #3, we #3.
+- 20:56 **arm complete** (15 of 15, `round-12/arm-final12/`, table `round-12/table12-final.txt` = `table12.py`); all four
+  bars of direction 26 item 5 met (below). Scratch tree `/home/user/scratch-r12-final` deleted; `tools/sim/probe/`
+  removed from the working tree (the integrator's snapshot b4dce8c had committed the four probes; copies in
+  `round-12/probes/*.ts.txt`); no process of this round running; `tsc` clean; spec tail re-read (no direction after
+  26a).
+
+### Round 12 results
+
+**Baseline and accounting.** Bar table: sweep 11 (`round-11/sweep-table.md`; viable 14 of 15, R19 6 of 7, median P
+0.353). Paired base: `round-11/arm-final11` (tree 4c9d17a9, the same 15 sweep-9 hand-overs, cache `round-10/cache`).
+Final tree 925f45e8 = round 11 + 26a.0 + 26.3 + 26a.2 + 26a.1 + R39 + D32 (hold + burst).
+
+**Causes ranked by measured loss (sweep 11 / arm-final11, before fixing):**
+1. Protein not taken (median P intake 0.329-0.353 of need; P delivered 155 against a larval demand of 326 P): worker
+   time held in `tend` (518 wgd in the arm, 15-35 % of task time in colonies whose winter carbohydrate was in by day
+   4-8) and in scouting that found nothing (84 % of scout trips) -> R39, 26a.2, 26.3, 26a.1.
+2. Brood hygiene, 60 deaths in the arm (56 in the sweep), the largest brood loss: the switch-off probe shows no R38
+   item causes it; the hold traces show the mechanism (a film of 0.01-0.17 BU on the brood chamber floor holding the
+   one hauler outside for 58 of 71 dirty hours) plus the burst (haul cap 0.2 N, nurses grooming) -> D32.
+3. Per-tick cost: behaviours 0.25 -> 0.70 ms / tick from the per-tick grid rebuild -> 26a.0.
+
+**Paired arm (15 hand-overs to winter; base arm-final11 -> final):**
+| | arm-final11 | round 12 |
+|---|---|---|
+| workers at winter (sum) | 243 | **266** (better 10, worse 4, equal 1) |
+| viable | 13 (kd 3 of 3) | **14** (kd 3 of 3; we #2 6 -> 13 workers, viable; pp #3 not viable in both, R27 stores) |
+| median P / C intake over need | 0.329 / 1.424 | **0.482** / 1.386 |
+| median trip success | 51.6 % | **62.2 %** |
+| brood hygiene deaths | 60 | **9** |
+| other brood losses: flooding / exposure / starvation / untended / temperature / base | 25 / 24 / 10 / 12 / 9 / 53 | 9 / 13 / 7 / 15 / 15 / 49 |
+| adult deaths: crushed / lost / predation / old age | 12 / 2 / 0 / 1 | 10 / 4 / 1 / 0 |
+| task time, worker gd: forage / tend / scout / haul | 532 / 518 / 255 / 234 | 643 / 249 / 239 / 218 |
+| behaviours ms / tick (median of 15; kd #1) | 0.703; 0.728 | 0.325; **0.351** |
+Bars: median P >= 0.45 **met (0.482)**; hygiene <= 31 **met (9)**; viable >= 13 with kd >= 2 of 3 **met (14, kd 3)**;
+no colony that met R27's winter carbohydrate in the base misses it **met (14 of 14 that met it still do; pp #3 misses
+in both)**. Carbohydrate: C / need under 1.0 in kd #3 (0.96 -> 0.80; it was under 1 in the base) and fell from 1.24
+to 1.03 in sg #1; no colony lost R27. Not met: 26a.0's behaviours bar on kd #1, 0.351 against <= 0.30 (0.728 before;
+the identity run of the grid fix alone read 0.341; round-10's arm 0.256). Worse colonies: we #1 25 -> 20, we #3 17 ->
+15, cpv #3 19 -> 18, kd #3 12 -> 10 (P 0.67 -> 0.55, C 0.96 -> 0.80).
+
+**Fixes (each with its unit test):**
+- 26a.0 `ecology/sources/lookup.ts` incremental grid sync; `discovery.ts nearestSmelledFrom`; `notice.ts` uses it.
+  Tests `ecology/sources/lookup.test.ts`, `outdoor/noticeCost.verify` **green**. Identity: kd #1 final hash equal
+  (7f52b151) with the grid change alone.
+- 26.3 + 26a.2 `allocation/targets.ts` (floor only ahead of forage, `scoutFloorSlot`), `allocation/demand.ts`
+  (`scoutFloor`, `shortKnownScoutFloor`, `knownLiveSources`), `allocation/index.ts`, balance `SCOUT_SHORT_KNOWN_FRAC`.
+  Tests `colony/scoutsFirst.verify` **green**, `colony/scoutsMissing.test.ts` (restated + 2).
+- 26a.1 `outdoor/notice.ts` (scouts outside explore / investigate; `rememberSmelled`), `phaseScout.ts`. Test
+  `outdoor/scoutSmellReport.test.ts`.
+- 26.1 R39 `allocation/demand.ts tendDemand` / `forageWant` / `tendKeep`, `plants/demand.ts herdMarked`, balance
+  `TEND_HEADROOM`, `TEND_KEEP`. Test `colony/tendDemand.test.ts`; `outdoor/tendHerd.test.ts` fixture restated (C 0.5).
+- 26.4 (D32) `nest/fleeWater.ts` (hold depth, `holdExpired`), `nest/nurse.ts` (`takeChamberWaste`, waste states,
+  the eggs-first re-check in `cannibalise`), `nest/haul.ts findChamberWaste`, `allocation/demand.ts` haul cap,
+  balance `FLEE_HOLD_MAX_GD`, `HAUL_BROOD_MAX_FRAC`. Test `nest/hygiene26.test.ts`.
+
+**Traces (no change, numbers for the integrator):** 26.2 (cpv #3, 2 gd): the C trips at wP / wC 7-9 : 1 happen with
+no protein candidate known (no patch, the one carcass empty); where both were known the value form decides: a sugar
+crop 8 BU away U 4.34 against a carcass 154 BU away U 0.88 (value 0.12 against 0.21 a trip, trip time 19x). 26.1's
+"freed workers reach forage": nobody idle; the forage cap is not binding them; on days 0-1 the forage demand is
+mostly R32b's prospective protein, which R35 point 5 fills last, so the freed tenders go to the other tasks first;
+the arm's forage time rose 532 -> 643 wgd all the same.
+
+**Tried and reverted:** none (the first try at 26a.0 with a Map lookup per source each tick cost 146 ms for 2000
+checks, replaced in place before any run by the per-index compare).
+
+**GDD deviations recorded (DEVIATIONS.md):** R38b (scout floor order and levels, scouts' smelled food), R39 (tend
+demand), D32 (hold depth and limit, haul cap, nurses carrying waste); the R38 row's pointers updated (`nutrientMissing`
+and `withScoutsFirst` no longer exist).
+
+**Known red, not this round's:** `colony/workedExample`, `nest/sfaReview.verify`, `nest/stall.soak`, 12 tests in
+`ecology/sources` (as before), `ants/actions/runner.test.ts` "failure codes" (expected 'species', got 'caste'; red on
+HEAD c2ed6cb too, checked on a git-archive copy since deleted).
+
+**Next (round 13):** (1) behaviours cost still 0.33-0.35 ms / tick against the 0.30 bar: profile `noticeOutside`'s
+herd and patch checks and the grid's per-tick list pass on kd #1 (`life.ts --perf`); (2) protein in the colonies that
+fell (cpv #3 0.31 -> 0.25, kd #3 0.67 -> 0.55, pp #1 0.56 -> 0.48): the 26.2 trace says unknown protein, so discovery,
+and the value form where both are known (ruling); (3) R35 point 5's last-place fill of the prospective forage demand
+now decides where R39's freed workers go (ruling); (4) the sweep's five long runs judge year two (R34) on this tree.

@@ -1,0 +1,98 @@
+{
+ "summary": "Round 12 did everything in direction 26a's closing order, then ran its one arm: the round-12 tree against round-11/arm-final11 on all 15 sweep-9 hand-overs to winter. All four of direction 26's bars are met. Median protein intake / need went 0.329 -> 0.482 (bar 0.45). Brood hygiene deaths went 60 -> 9 (bar 31). Viable went 13 -> 14, with the kitchen door at 3 of 3 (we #2 went from 6 to 13 workers and is now viable). Every colony that met R27's winter carbohydrate in the base still meets it. Workers at winter 243 -> 266 (10 better, 4 worse), trip success 51.6 % -> 62.2 %, tend time 518 -> 249 worker game days, forage time 532 -> 643. One bar is not met: the behaviours system on kd #1 fell from 0.728 to 0.351 ms a tick, against a bar of 0.30. Direction 26a item 3's switch-off probe found that no single R38 item caused the hygiene rise. The mechanism was a defect in the flood hold: a hauler was held outside for any water at all on the brood-chamber floor (0.01-0.17 BU). That is fixed together with the ruled hold limit, the haul cap and nurses carrying waste. The 26.2 trace found no defect in the forage choice; the numbers are written down for the integrator's ruling. Everything is recorded in the ledger under \"## Round 12\" (progress log plus \"### Round 12 results\"). Evidence is in /home/user/foundress/test-output/colony-life/round-12/.",
+ "causesRanked": [
+  "1. Protein not taken: median P intake 0.329 (arm) / 0.353 (sweep 11). The arm delivered 155 P against a larval demand of 326 P. Worker time went to tend (518 worker game days in the arm, 15-35 % of task time in colonies that had their winter carbohydrate by day 4-8) and to scouting that found nothing (252 of 299 scout trips in sweep 11). Fixes: R39, 26a.2, 26.3, 26a.1.",
+  "2. Brood hygiene: 60 deaths in the arm, 56 in sweep 11, the largest brood loss. On cpv #2 (6 gd), switching off R38 item 1, 2 or 4 changed the trajectory and removed the burst: 0-6 dirty hours, 0 deaths, against 71 hours and 14 deaths with all items on; items 3+5 changed nothing. The mechanism: the colony's one hauler was held outside by the flood hold (65 holds in 6 gd, all for a brood-chamber floor with 0.01-0.17 BU of water, 58 of 71 dirty hours), while a first pupation left a burst of meconium. Fixed as D32.",
+  "3. Per-tick cost: R38 item 5's smell check made ecology/sources/lookup.ts rebuild its whole grid on nearly every tick. Behaviours went from 0.25 to 0.70 ms a tick. Fixed in 26a.0 (0.728 -> 0.351 on kd #1).",
+  "4. Scout floor order (minor): a colony of 6 sent 2 scouts ahead of forage. Fixed in 26.3."
+ ],
+ "fixes": [
+  {
+   "cause": "26a.0: the source lookup grid was rebuilt every tick",
+   "files": [
+    "/home/user/foundress/src/sim/ecology/sources/lookup.ts",
+    "/home/user/foundress/src/sim/ecology/sources/discovery.ts",
+    "/home/user/foundress/src/sim/ecology/sources/index.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/notice.ts"
+   ],
+   "test": "src/sim/ecology/sources/lookup.test.ts (the grid answers as a full scan does through moves, deaths, adds and sweeps); outdoor/noticeCost.verify.test.ts now GREEN",
+   "beforeAfter": "kd #1 to winter with the grid fix alone: final hash 7f52b151 in both runs, every non-timing JSON field equal; behaviours 0.728 -> 0.341 ms a tick. Final arm: kd #1 0.351, median over the 15 colonies 0.703 -> 0.325. Bar 0.30 not met."
+  },
+  {
+   "cause": "26.3 + 26a.2: the whole scout demand was served ahead of forage, and the full floor never lifted",
+   "files": [
+    "/home/user/foundress/src/sim/colony/allocation/targets.ts",
+    "/home/user/foundress/src/sim/colony/allocation/demand.ts",
+    "/home/user/foundress/src/sim/colony/allocation/index.ts",
+    "/home/user/foundress/src/sim/balance/colony.ts"
+   ],
+   "test": "colony/scoutsFirst.verify.test.ts now GREEN (it passes the floor number, no longer a flag); colony/scoutsMissing.test.ts restated plus 2 new cases (15 workers, no protein known -> 3; a known patch with prey and protein still short -> 2; 6 workers -> 1)",
+   "beforeAfter": "Scout time over the 15 colonies 255 -> 239 worker game days. Median P intake 0.329 -> 0.482 together with the other fixes."
+  },
+  {
+   "cause": "26a.1: a scout that smelled food and did not investigate reported nothing",
+   "files": [
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/notice.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/outdoor/phaseScout.ts"
+   ],
+   "test": "src/sim/ants/behaviours/outdoor/scoutSmellReport.test.ts (3 cases)",
+   "beforeAfter": "Trace on kd #2's cached hand-over (5 gd): one unknown carrion was smelled while exploring and investigating and was never known. Its effect in the arm is part of the combined result; it was not measured separately."
+  },
+  {
+   "cause": "26.1 R39: tend demand was the herds' slots, whatever carbohydrate the colony had",
+   "files": [
+    "/home/user/foundress/src/sim/colony/allocation/demand.ts",
+    "/home/user/foundress/src/sim/ecology/plants/demand.ts",
+    "/home/user/foundress/src/sim/ecology/plants/index.ts",
+    "/home/user/foundress/src/sim/balance/colony.ts"
+   ],
+   "test": "src/sim/colony/tendDemand.test.ts (6 cases: the ruled 2 / 4 / 2, an unworkable surface, the forage marker, the keep); outdoor/tendHerd.test.ts fixture restated (its colony now starts short of carbohydrate)",
+   "beforeAfter": "Tend demand, mean over 72 h: cpv #3 7.6 -> 2.8, kd #2 6.4 -> 3.5. Arm: tend time 518 -> 249 worker game days, forage 532 -> 643. Carbohydrate median 1.42 -> 1.39; R27 held in every colony that met it in the base."
+  },
+  {
+   "cause": "26.4 / D32: the flood hold fired for a film of water on the brood-chamber floor; the haul cap and nurses could not clear a pupation burst",
+   "files": [
+    "/home/user/foundress/src/sim/ants/behaviours/nest/fleeWater.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/nest/nurse.ts",
+    "/home/user/foundress/src/sim/ants/behaviours/nest/haul.ts",
+    "/home/user/foundress/src/sim/colony/allocation/demand.ts",
+    "/home/user/foundress/src/sim/colony/allocation/index.ts",
+    "/home/user/foundress/src/sim/colony/index.ts",
+    "/home/user/foundress/src/sim/balance/weather.ts",
+    "/home/user/foundress/src/sim/balance/colony.ts"
+   ],
+   "test": "src/sim/ants/behaviours/nest/hygiene26.test.ts (4 cases: 8 meconium items with the hauler away are under tolerance within 0.25 gd; haul cap 0.2 -> 0.4 N; a film does not hold a worker outside; a hold hands the task back after FLEE_HOLD_MAX_GD). Side fix: the cannibalise step re-checks eggs first (starvation.test.ts was green on HEAD, went red, and is green again).",
+   "beforeAfter": "Brood hygiene deaths 60 -> 9 over the 15 colonies: cpv #2 14 -> 1, kd #3 10 -> 6, we #2 10 -> 0, sg #3 9 -> 0, cpv #1 9 -> 0, sg #1 6 -> 0."
+  }
+ ],
+ "verification": [
+  "Typecheck (tsc --noEmit) clean after the last change; the final tree is frozen at hash 925f45e8.",
+  "Test folders run one at a time. colony: 77 of 78 files green (workedExample red, already known). ants/behaviours/nest: 34 of 37 files green (sfaReview.verify and stall.soak red, already known). ants/behaviours/outdoor: 37 of 37. ecology/plants + sources: the same 12 known-red sources tests. tests/docs: 8 of 8. ants/actions: runner.test.ts 'failure codes' is red, and also red on an unmodified copy of HEAD, so it predates this round.",
+  "Arm: 15 of 15 runs on the frozen tree, base round-11/arm-final11, table at test-output/colony-life/round-12/table12-final.txt.",
+  "Identity check of 26a.0: kd #1 to winter gives the same final hash as the base.",
+  "Clean-up: scratch trees deleted; tools/sim/probe removed from the working tree (the integrator's snapshot b4dce8c had committed it; copies in round-12/probes); no background process left running."
+ ],
+ "next": [
+  "Behaviours cost is 0.33-0.35 ms a tick against the 0.30 bar. Profile the herd and patch checks in noticeOutside, and the grid's per-tick list pass, on kd #1.",
+  "Protein fell in some colonies: cpv #3 0.31 -> 0.25, kd #3 0.67 -> 0.55, pp #1 0.56 -> 0.48. The 26.2 trace points to protein that is not known (discovery), plus the value form where both nutrients are known, which is for the integrator to rule.",
+  "R35 point 5 fills the prospective protein forage demand last, so that order now decides where R39's freed workers go. Integrator's ruling.",
+  "The sweep's five long runs judge year two (R34) on this tree."
+ ],
+ "gddDeviations": [
+  "R38b (GDD 02 \u00a76.2-6.3): only the scout floor is served ahead of forage. The floor has two levels: the full floor while nothing of the nutrient is known, and max(1, ceil(0.1 N)) once a live source is known but the colony is still short. Scouts report food they smell in every phase except explore and investigate.",
+  "R39 (GDD 02 \u00a76.2): tend demand = min(sum of slots, max(keep, ceil(1.25 x wantC / carbohydrate one tender brings a gd))). wantC leaves out what known non-herd sources and marked herds supply. The keep is 1 tender a herd, more for herds over 200 aphids so that tend stays above RIVAL_TEND_GUARD.",
+  "D32 (GDD 03 \u00a711.3, GDD 02 \u00a76.2, \u00a710.4): the surface hold needs water at least FLEE_WATER_DEPTH_BU deep and never lasts longer than FLEE_HOLD_MAX_GD 0.1. While brood lies among waste the haul cap is 0.4 N, and a nurse with no job carries waste out of a brood chamber that is over tolerance.",
+  "The R38 row's pointers were updated: nutrientMissing and withScoutsFirst were removed."
+ ],
+ "notesForIntegrator": [
+  "All four bars of direction 26 item 5 are met. Not met: 26a.0's behaviours bar on kd #1 (0.351 against 0.30). The identity run with the grid fix alone read 0.341.",
+  "26a.3: no single R38 item raised hygiene. Switching off any of items 1, 2 or 4 removed cpv #2's burst only because it changed the trajectory. The mechanism is the flood hold: walkingIntoWater held an ant for water > 0, while an ant inside only flees at 0.15 BU. I read 'the way to her destination passes a flooded cell' as the destination floor, because all 65 holds were there; no path test was built.",
+  "26.2 is a stop-and-write-numbers case. In the 2 gd traced on cpv #3 there was no known protein when the colony took its carbohydrate trips. The one case with both nutrients known shows the value form: U = value / trip seconds favours an 8 BU flower 4.9x over a 154 BU carcass, although the protein load is worth 1.7x per trip.",
+  "26.1: the forage cap is not what holds the freed workers (nobody is idle). The prospective part of the forage demand is filled last (R35 point 5), so on days 0-1 the freed tenders go to other tasks first.",
+  "R39 uses the double-count subtraction: the forage demand already asks foragers for the carbohydrate that known non-herd sources give, so that carbohydrate is left out of the tenders' want. TEND_HEADROOM was not tuned.",
+  "Two test changes: the tendHerd.test fixture's colony now starts with C 0.5 instead of 30, because under R39 a colony with its carbohydrate covered keeps 1 tender a herd (tend 0.49); the test checks tending mechanics. The scoutsFirst.verify call now passes the floor number instead of a flag."
+ ],
+ "triedAndReverted": [
+  "26a.0's first version looked up a Map entry for every source on every tick: 146 ms per 2000 checks, still 10x the same-tick cost. Replaced in place, before any run, by a compare per list index."
+ ]
+}
