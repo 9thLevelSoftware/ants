@@ -1087,3 +1087,25 @@ model opus, effort high}, journal under `subagents/workflows/wf_e00051e5-a07/jou
   add direction 26a if it found defects, launch round 12 (`wf-life.js {maxRounds: 1, firstRound: 12, model: 'opus',
   effort: 'high'}`). After a restart: sweep cut off -> rerun `/home/user/frozen-sweep11/run-all.sh` is the sweep
   agent's job; relaunch `wf-life.js` with `firstRound 11` + `firstRoundResult` = the saved round-11 JSON.
+
+### Nov 22 19:38 UTC — sweep 11: viability bar met (14 of 15); growth bar not; round 12 launched under directions 26 + 26a
+
+- Sweep 11 (tree be38bf9e = commit da0cfa6; saved `docs/design/tasks/reviews/colony-life-sweep-11.json`; ledger
+  "### Independent sweep after round 11"; table `test-output/colony-life/round-11/sweep-table.md`): viable **14 of 15**
+  (sweep 9: 9; every archetype >= 2 of 3; we #2 fails 8 -> 6); R19 6 of 7 (median P intake 0.353 < 0.7; C 1.44; trip
+  success 51.4 %; no-lost 13 of 15); workers at winter 208 -> 239; predation 41 -> 2 (median 0); brood hygiene 41 ->
+  56 (largest brood loss); egg flooding 10 -> 35 (fresh foundings); R22 spring 5 of 5; **R34 2 of 5 at >= 1.0 x, 0 of 5
+  at >= 1.5 x** (we #2 second winter 3, 14 of 20 year-two eggs dead of hygiene).
+- Sweep findings: (1) per-tick cost trap in R38 item 5 (`lookup.ts` grid rebuilt nearly every tick; behaviours 0.25
+  -> 0.63-0.70 ms / tick; `outdoor/noticeCost.verify` red, kept); (2) scout demand served whole ahead of forage
+  (`colony/scoutsFirst.verify` red, kept); (3) protein fell against sweep 9 as worker time moved from forage to tend
+  and scout (R39's reading); (4) hygiene grew with round 11 in four colonies at once, mechanism not shown.
+- Direction 26a adds to round 12: cost trap first; scouts report smelled food too; R38's scout floor in two levels
+  (0.2 n only while nothing of the nutrient is known, 0.1 n while one is known and still short); a five-run switch-off
+  probe on cpv #2 to name what raised hygiene. Left out on purpose: the 12 red `ecology/sources` tests (red since
+  e299de5; for gate-close-sim), egg flooding in fresh foundings, year two (R34).
+- Known red now: `colony/workedExample`, `nest/sfaReview.verify`, `stall.soak`, `colony/scoutsFirst.verify`,
+  `outdoor/noticeCost.verify`, 12 tests in `ecology/sources`. `outdoor/removal.verify` is green.
+- Recovery after a restart: round 12 result in the journal -> relaunch `wf-life.js` with `firstRound 12` +
+  `firstRoundResult`; cut off mid-round -> `firstRound 12` with a note that the ledger's "## Round 12" progress and
+  directions 26, 26a say what is in the tree.

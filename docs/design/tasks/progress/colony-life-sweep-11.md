@@ -42,3 +42,20 @@ Started 17:54 UTC Nov 22. No earlier progress file; fresh start.
   scratch copy deleted), creatures 34/34, plants 5/5, tests/docs 8/8, ants top-level 4/4. Sweep 4 of 15 done.
 - 18:12 tools ready: sweep-table.py works on partial sweep; wrote round-11/sweep-review/sums11.py (sums + per-run leads,
   several dirs). First 4 runs viable, P intake lower than sweep 9 in all four (0.51/0.31/0.35/0.36). Waiting for sweep.
+- 18:39 sweep 12 of 15 done (all viable except we #2: 8 -> 6, 2 crushed, as the round's arm); pp3, cpv3, kd3 left.
+- 18:50 **sweep done** (17:54-18:49, all 15 on be38bf9e). Table round-11/sweep-table.md (sweep-table.py vs round-9/sweep);
+  bars-from-md.txt: viability MET 14/15 (we 2/3), R19 6/7 (P 0.353 fails). sums.txt (sweep, sweep 9, arm-final11,
+  round-10 arm-final). Long runs: restarted run-all.sh at 18:50 (killed the first one 1 min into the long runs: its
+  background limit of 2 h would have cut them; sweep part skipped, re-run adds "skipped" lines to sweep/summary.txt).
+- 18:54 Findings so far: (1) per-tick cost trap: behaviours system 0.25 -> 0.63-0.70 ms/tick median (round-10 arm-final
+  -> arm-final11 / sweep, sweep-review/cost.txt); CPU profile kd #1 --perf 3000 (scratchpad): noticeOutside 69 % of
+  runBehaviour, almost all in sourcesSmelledFrom -> lookup.ts grid build (rebuilt once per tick on first query; now
+  queried nearly every tick). New verify test outdoor/noticeCost.verify.test.ts RED (kept): 2000 checks 1186 ms on new
+  ticks vs 16 ms on one tick. (2) scoutsFirst minor (red). (3) sweep reproduces arm-final11 exactly on we2, sg2, cpv2,
+  cpv3, kd3 (sweep-vs-arm.txt); kd #2 diverges (P 0.318 arm -> 0.052 fresh: smelled carrion 6, discovered 1).
+  (4) P delivered 176 (sw9) -> 137; forage wgd 655 -> 516, tend 402 -> 520, scout 150 -> 242 (protein11.txt).
+  Long runs running since 18:50.
+- 19:05 long runs: we2, sg2 in year two; review of failing runs' leads in progress (we #2: 120 P large carcass never known; kd #2: carrion smelled by scouts 6x, found 1).
+- 19:25 long runs: we2, sg2, cpv1 done; pp3, kd3 running. we #2 collapses in year two (3 at doy 15, 3 at winter 2).
+- 19:36 long runs done 19:34 (longrun-table.md, long-detail.txt): spring 5/5, R34 2/5 and 0/5, R24 met. Ledger section
+  "### Independent sweep after round 11" written. Scratch trees deleted, no process left. DONE.

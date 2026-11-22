@@ -480,3 +480,40 @@ worker time, at 20-40 % trip success.
 
 Laying gates stay as they are. Re-read the tail of this file and of your ledger section each time an arm or a trace
 finishes and before you close.
+
+## Direction 26a (integrator, Nov 22 19:37 UTC) — sweep 11 read; additions to round 12's order
+
+Sweep 11 (ledger "### Independent sweep after round 11", table `round-11/sweep-table.md`): **viability bar met for
+the first time, 14 of 15** (we #2 the one failure); R19 6 of 7 (median P 0.353 against 0.7); R22 spring 5 of 5;
+R34 2 of 5 at >= 1.0 x and 0 of 5 at >= 1.5 x; predation median 0. It bears out direction 26's R39 (forage 655 -> 516
+worker game days, tend 402 -> 520, scout 150 -> 242 against sweep 9). Direction 26 stands; these come first or are
+added:
+
+0. **First, the cost trap (sweep finding 1).** `notice.ts noteSmelledFood` -> `sourcesSmelledFrom` makes
+   `ecology/sources/lookup.ts` rebuild its whole grid on nearly every tick (behaviours 0.25 -> 0.63-0.70 ms a tick).
+   Keep the grid current as sources are added, removed or moved, or give the smell check a query that does not force
+   the rebuild; results identical. `outdoor/noticeCost.verify.test.ts` goes green; report the behaviours system's
+   median ms a tick on kd #1 before and after (bar: <= 0.30).
+1. **A scout that smells food and does not investigate reports it too** (kd #2 fresh: scouts inside carrion odour 6
+   times, 1 discovery; R38 item 5 exempted scouts). Trace in which phase those scouts were (return, curfew, timeout);
+   `noteSmelledFood` then covers a scout in every phase in which she does not investigate. Test beside
+   `smellReport.test.ts`.
+2. **R38 item 1's floor has two levels.** The full floor (`missingScoutFloor`, 0.2 x workers) holds only while the
+   colony knows **no** live source of the nutrient (no source with it, no workable herd for carbohydrate, no known
+   patch holding prey for protein). While it knows one and is still short by >= 0.5, the floor is
+   `SCOUT_SHORT_KNOWN_FRAC` 0.1 x workers, at least 1. Evidence: scout time 150 -> 242 worker game days with 252 of
+   299 scout trips finding nothing (sweep 9: 140 of 165): the share that finds nothing did not move, the head-count
+   did, and protein is short by >= 0.5 in every colony on every day, so the floor never lifted. Tests restated: 15
+   workers, sugar known, no protein -> 3; a patch with prey known and protein still short -> 2 (ceil of 1.5); all
+   covered -> base. This is in the one arm with direction 26 (read scout time, patches known, small carrion found).
+3. **Hygiene, before direction 26 item 4's fixes:** show which change raised it in four colonies at once (cpv #2 2 ->
+   14, kd #3 0 -> 10, sg #1 0 -> 7, sg #3 0 -> 5-9). On cpv #2's hand-over, run to day 6 with R38's items switched off
+   one at a time by a probe flag (items 1, 2, 3 + 5 together, none): five short runs, model-free, not an arm. Name
+   the item and the mechanism (who is no longer in `haul`, or what the hauler does instead), then apply direction 26
+   item 4 as ruled if the mechanism is the hold and the burst, or say what else it is and fix that defect.
+4. Not this round's: the 12 red `ecology/sources` tests (red since e299de5), egg flooding 10 -> 35 in fresh foundings,
+   year two (R34; old age 6-12 a colony after the lapse against 1-23 eclosions). Leave them; do not let them take the
+   round.
+
+Order of the round: 26a.0, 26.3, 26a.2, 26a.1, 26.1 (R39), 26.2 (trace), 26a.3 + 26.4 (hygiene), 26.5 (the one arm,
+against `round-11/arm-final11`). Bars as direction 26 item 5.

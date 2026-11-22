@@ -4300,3 +4300,142 @@ Tools: `round-11/table11.py`.
 **Next (round 12):** brood hygiene (item 4's lead: the flood hold on a hauler, the haul cap at a pupation burst); the
 protein / sugar balance in colonies that now know sugar (cpv #1, cpv #3, sg #3); P intake bar 0.7 still far (median
 0.33); the independent sweep with the five long runs judges R38 for year two.
+
+### Independent sweep after round 11
+
+Independent engineer, 17:53-19:36 UTC Nov 22 (no restart; progress file `docs/design/tasks/progress/colony-life-sweep-11.md`).
+**Table: `test-output/colony-life/round-11/sweep-table.md`** (`python3 tools/sim/sweep-table.py round-11/sweep
+round-9/sweep`: columns of `econ-growth-review/sweep9-table.md` plus first workers, `worker:lost`, R27 stores, shut days).
+Previous sweep = sweep 9 (`round-9/sweep`; sweep 10 was stopped, direction 25). Runs by `tools/sim/sweep-life.sh` and
+`PAR=2 UNTIL_DAY=40 tools/sim/longrun-life.sh` from a frozen copy of the tree taken at 17:54 (`/home/user/frozen-sweep11`,
+deleted): src/sim + worldgen + core hash `be38bf9e` (sweep-life.sh's recipe) = live tree = commit da0cfa6 (round 11:
+R37b + R35b + R38 items 1-5); all 15 runs on it 17:54-18:49, long runs 18:50-19:34 (no JSON existed in `sweep-long`).
+Naturalist, default start, flooding on, no player, fresh foundings (first workers equal to sweep 9's in 15 of 15).
+Bars recomputed from the Markdown by a second script (`round-11/sweep-review/bars-from-md.py` -> `bars-from-md.txt`):
+same verdicts. Review outputs: `round-11/sweep-review/`. **This table is the one the next round compares with.**
+
+**Viability bar: MET for the first time** - viable **14 of 15** (sweep 9: 9): woodland-edge 2/3, suburban-garden 3/3,
+playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3. The one failure: we #2, workers 8 -> 6 (check 6.4).
+
+**Growth bar R19: NOT met** (6 of 7; sweep 9: 6 of 7):
+
+| check | sweep 11 | sweep 9 |
+|---|---|---|
+| workers at winter >= first workers, >= 10 of 15 | 14 of 15 ok (we #2 8 -> 6) | 12 |
+| median eclosions after hand-over >= 4 | 5 ok | 6 |
+| median intake/need P >= 0.7 | **0.353** FAIL | 0.478 |
+| median intake/need C >= 0.9 | 1.441 ok | 1.109 |
+| median trip success >= 50 % | 51.4 % ok (51.0 from the rounded Markdown) | 56.8 % |
+| first workers >= 9, >= 13 of 15 | 14 of 15 ok (we #2: 8) | 14 |
+| no `worker:lost`, >= 13 of 15 | 13 of 15 ok (we #1, sg #2: 1 each) | 13 |
+
+Sums (15 runs; `sweep-review/sums.txt`, which also sums `round-10/arm-final` and `round-11/arm-final11`): first workers
+168, workers at winter 208 -> **239**, eclosions 100 -> 87, eggs laid 284 -> 326, larvae starved 1 -> 12 (we #2 10);
+adult deaths: predation 41 -> **2**, crushed 13 -> 10, lost 5 -> 2, old age 1 -> 2. Brood losses: **hygiene 41 -> 56**
+(the largest cause), base 56 -> 51, flooding 10 -> 35, exposure 25 -> 23, untended 6 -> 10, starvation 1 -> 12.
+Delivered: P 176 -> 137 (prey 141 -> 105, carrion 11.4 -> 5.8), C 332 -> 387. Worker task time: forage 655 -> 516 wgd,
+tend 402 -> 520, scout 150 -> 242 (scout trips that found nothing: 252 of 299; sweep 9 140 of 165); hunting / forage
+trips 821 -> 587 (`sweep-review/protein11.txt`). R37 bar: predation median 0 per colony, worst day 1 death of 27.
+The fresh sweep reproduces the round's paired arm: we #2, sg #2, cpv #2, cpv #3, kd #3 equal on every column to
+`arm-final11`, the rest within 1-3 workers, except **kd #2** (P intake 0.318 in the arm, 0.052 fresh)
+(`sweep-review/sweep-vs-arm.txt`, `three-way.txt` = sweep 9 / round-10 arm / round-11 arm / sweep 11 per run).
+
+**Year two** (five long runs to the second winter; `round-11/sweep-long/longrun-table.md`, detail
+`sweep-review/long-detail.txt` = `long11.py`; "winter 1" = the sweep run's winter tick):
+
+| run | first | winter 1 (C / P) | spring (lapse loss) | y2 d15 | y2 d21 | 2nd winter (C) | y2 eggs / eclosed | y2 brood deaths, largest |
+|---|---|---|---|---|---|---|---|---|
+| we #2 | 8 | 6 (10.2 / 2.2), not viable | 6 (0 %) | 3 | 3 | 3 (5.9) | 20 / 1 | **egg hygiene 14** |
+| sg #2 | 11 | 15 (10.1 / 3.6) | 13 (13 %) | 16 | 20 | 20 (15.8) | 25 / 14 | untended 8, flooding 4 |
+| cpv #1 | 11 | 15 (13.2 / 0.0) | 13 (13 %) | 15 | 13 | 13 (19.3) | 19 / 6 | hygiene 6, base 5 |
+| pp #3 | 13 | 19 (13.6 / 1.2) | 17 (11 %) | 31 | 25 | 24 (19.8) | 40 / 23 | untended 4, base 9 |
+| kd #3 | 9 | 12 (6.6 / 3.9) | 11 (8 %) | 13 | 8 | 7 (8.5) | 19 / 6 | hygiene 4, starvation 3 |
+
+- **R22 spring check**: queen alive and >= 0.7 x winter workers **5 of 5** (bar 4: met; sweep 9 4 of 5). R22's day-15
+  check (superseded by R34): 1 of 5 (pp #3 31 >= 26).
+- **R34**: second winter >= 1.0 x winter 1 **2 of 5** (bar 4: NOT met; sg #2 20/16, pp #3 24/19; sweep 9: 3 of 5),
+  >= 1.5 x **0 of 5** (bar 3: NOT met; best pp #3 1.26).
+- **R24**: the four colonies viable at winter lose 8-13 % in the lapse (cap 15 %): met. (longrun-table's "winter 1"
+  column reads the doy-21 row, one row before the winter tick: sg #2 16 there, 15 at the tick.)
+- Year-two adult deaths are mostly old age (6-12 a colony); pp #3 loses 6 to predation in year two at 17-31 workers
+  (the R25 ramp is meant to bite there).
+
+**Regressions against sweep 9** (script, 13 runs flagged; attribution from the arms in `three-way.txt`):
+- **we #2: viable -> NOT viable**, workers at winter 13 -> 6, eclosions 6 -> 0, P 0.371 -> 0.128, C 1.718 -> 0.82,
+  larvae starved 0 -> 10, egg hygiene 2 -> 10, 2 crushed. Mostly round 10's (round-10 arm 8, P 0.16); round 11 8 -> 6
+  (2 crushed). Long run: second winter 15 (sweep 9) -> **3**, 14 of 20 year-two eggs dead of hygiene.
+- **cpv #2: net +6 -> +2** (15 -> 11), eclosions 8 -> 2, P 0.596 -> 0.218, hygiene 7 -> 14. Round 11's: round-10 arm
+  16 workers / hygiene 2, round-11 arm and sweep 11 / 14.
+- **kd #3**: eclosions 5 -> 3, trip success 74 -> 48 % (round-10 arm 64), hygiene 1 -> 10 (round-10 arm 0): round 11's.
+- **sg #1**: eclosions 6 -> 2 (11 eggs flooded, hygiene 7; round-10 arm hygiene 0). **sg #3**: eclosions 8 -> 5, P 0.681
+  -> 0.446, trip success 47 -> 36 %, hygiene 0 -> 5 (round-11 arm 9).
+- P intake lower in 11 of 15 (pp #3 0.835 -> 0.581, pp #1 0.496 -> 0.353, cpv #2 above); trip success lower in 9
+  (pp #1-#3 62-66 -> 52-53 %, kd #2 36 -> 26 %). Median P 0.478 -> 0.353.
+- Long runs: R34 3 -> 2 of 5 (we #2 15 -> 3, cpv #1 15 -> 13 at the second winter; kd #3 2 -> 7, sg #2 10 -> 20, pp #3
+  2 -> 24 the other way).
+- Improvements for balance: we #1, we #3, sg #3, pp #3, kd #1, kd #2 NOT viable -> viable; predation 41 -> 2.
+
+**Review of the round** (code `git diff 9c1b728 da0cfa6` on src/sim + tools/sim; the live tree had no further src change).
+- Verified: `tsc --noEmit` clean (`sweep-review/tsc.txt`). Folder tests, one worker each (`sweep-review/vitest-*.txt`):
+  colony 75 of 77 files + 4 skipped (red: `workedExample`, known; this review's `scoutsFirst.verify`),
+  behaviours/outdoor 34 of 34 (+ this review's three files, below), behaviours/nest 31 of 33 (red `sfaReview.verify`,
+  `stall.soak`, known), ecology/creatures 34 of 34, plants 5 of 5, ants top level 4 of 4, tests/docs 8 of 8,
+  ecology/sources 6 of 12 files (12 tests red: **the same 12 are red on 30944ea and on e299de5, the commit that
+  launched colony-life**, checked on git-archive copies, deleted: older than this task, never named in a round's
+  known-red list before round 11; they are in `src/sim`, so this task's).
+- Not-allowed list: no lifespan, need, food, provision, bar or ruling-test change; R38 item 4's bulk change and
+  R35b are the ruled ones, with DEVIATIONS rows; no seed or archetype special case. Determinism: the new state is in
+  `ant.bb` (`notice.next`, `notice.report`, `notice.patch`, `notice.patch0`) and `core.acc['alloc.scoutFloor']`, all
+  persisted; the module-level `smelled` array is scratch. Guard: `noticeSaveLoad.verify.test.ts` (below) GREEN.
+- Each fix against its cause: R35b is the ruled formula (neutral, as the round says). R38 items 1-3 and 5 are at the
+  discovery rules the round traced; item 4 at the carry density (kd #1 traced; the pp #3 insect-large trace the ruling
+  also asked for was not made). The round's own tests for items 2, 3 and 5 call `noticeOutside` directly, so none of
+  them fails if `behaviourRunner.ts` stops calling it; the new `noticeSaveLoad.verify` covers the wiring on real ticks.
+
+**Findings**
+1. **Major (per-tick cost trap, R38 item 5): every tick now rebuilds the world's food-source grid.** `notice.ts
+   noteSmelledFood` calls `sourcesSmelledFrom` for each outside worker every 20 ticks; `ecology/sources/lookup.ts`
+   rebuilds its grid (every bucket of the 4000 BU world cleared, every source re-bucketed) on the first query of a
+   tick, and with staggered workers some worker queries on nearly every tick. Behaviours system median 0.19 (sweep 9) /
+   0.25 (round-10 arm) -> **0.70 (round-11 arm) / 0.63 ms per tick (sweep 11)**, total median ms/tick 3.67 -> 4.13
+   (`sweep-review/cost.txt`); CPU profile of kd #1 (`life.ts --perf 3000`): `noticeOutside` 69 % of `runBehaviour`,
+   4.9 s of it in `sourcesSmelledFrom`, 4.7 s in the grid's `build` / `gridOf`. New test
+   `src/sim/ants/behaviours/outdoor/noticeCost.verify.test.ts` (**RED, kept**): 2000 checks cost 1186 ms on new ticks
+   against 16 ms on one tick (2500 sources). Fix direction: keep the grid current incrementally (sources added, removed,
+   moved) instead of per tick, or let the smell check use a query that does not force the rebuild.
+2. **Minor (ruled already: direction 26 item 3): R38 item 1 serves the whole scout demand ahead of forage, not the
+   floor.** `targets.ts` takes `Math.round(demand)` for `scout` in the first pass; where the small-colony rule asks 2
+   scouts, a colony of 6 sends 2 scouts before forage (ruling: the floor, 1.2 -> 1, cap 0.25 x 6). Test
+   `src/sim/colony/scoutsFirst.verify.test.ts` case 1 **RED, kept** (scouts 2, forage 2 of 6); control case green.
+3. **Major (bar): protein fell in the fresh sweep against sweep 9** (median 0.478 -> 0.353; P delivered 176 -> 137).
+   Worker time moved from forage (655 -> 516 wgd) to tending (402 -> 520) and scouting (150 -> 242; 84 % of scout
+   trips find nothing). The arm's carrion gain did not reproduce fresh: carrion P 24.8 (arm, of which pp #1's large
+   carcass 12.3) vs 5.8 (sweep). Direction 26's R39 reading of the tenders is borne out by the sweep's task times.
+4. **Major: brood hygiene is the largest brood loss and grew with round 11** (sweep 41 -> 56; paired 31 -> 60):
+   cpv #2 2 -> 14, kd #3 0 -> 10, sg #1 0 -> 7, sg #3 0 -> 5-9 in both the round's arm and this sweep; in year two
+   it takes 14 of we #2's 20 eggs and 6 of cpv #1's 19. The round's trace (one hauler held outside by the flood hold)
+   is one colony's mechanism; which R38 item raised it in four colonies at once is not shown (direction 26 item 4 rules).
+5. Minor (test strength): noted above; `noticeSaveLoad.verify.test.ts` added (GREEN: a non-scout holds a smelled
+   report through the runner on real ticks; save -> load in that state, hashes equal after 1500 ticks).
+6. Pre-existing: the 12 red `ecology/sources` tests (budget C13 x3, drops x4, integration, lifecycle T1 carrion,
+   season T1 flowers, tier1 static spill x2) predate colony-life (red at e299de5).
+
+**Leads from the failing runs' own diagnostics** (most costly first):
+1. **Protein** (the one R19 check failing; we #2's 10 starved larvae): forage time lost to tend and scout (finding 3,
+   R39). kd #2 (P 0.052, no prey delivered): its one patch 244 BU out never entered; scouts were in odour range of
+   carrion 6 times and discovered 1 (`funnel.scouting`): R38 item 5 exempts scouts ("scouts keep their own
+   investigate"), so a scout that smells and does not investigate reports nothing. we #2: a 120 P large carcass
+   appeared within 300 BU and was never known (`sources at end`, known 0).
+2. **Brood hygiene** (finding 4): 56 brood in year one, the largest year-two cause in we #2 and cpv #1.
+3. **Year two, R34 2 of 5**: old age 6-12 per colony after the lapse against 1-23 year-two eclosions; kd #3 12 -> 7
+   (old age 7, crushed 3, 6 of 19 eggs eclosed), cpv #1 15 -> 13 (old age 9, 6 of 19), we #2 6 -> 3 (1 of 20).
+4. **Egg flooding 10 -> 35** (sg #1 11, pp #1 8, kd #1 6, kd #3 6): not round 11's (paired arms 26 -> 25); fresh
+   foundings' nest siting and weather.
+5. **Per-tick cost** (finding 1): 0.4 ms per tick at 10-26 workers, before the colony grows.
+6. **Crushed workers 10** (we #2 2 of its 8 decide its viability).
+
+Scratch trees (`/home/user/frozen-sweep11`, and `/home/user/frozen-sweep10` left by sweep 10; two git-archive copies)
+deleted; profile files deleted; no process of this review left running. Kept red: `colony/scoutsFirst.verify.test.ts`
+(case 1), `ants/behaviours/outdoor/noticeCost.verify.test.ts`. Kept green: `ants/behaviours/outdoor/noticeSaveLoad.verify.test.ts`.
+Note: the restart of `run-all.sh` before the long runs (to give them a fresh 2 h background limit) appended "skipped
+(done)" lines and a second DONE to `round-11/sweep/summary.txt`.

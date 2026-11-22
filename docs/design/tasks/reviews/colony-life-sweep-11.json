@@ -1,0 +1,90 @@
+{
+ "viabilityMet": true,
+ "growthMet": false,
+ "tablePath": "/home/user/foundress/test-output/colony-life/round-11/sweep-table.md",
+ "numbers": {
+  "viable": "14 of 15 (sweep 9: 9): woodland-edge 2/3, suburban-garden 3/3, playground-park 3/3, car-park-verge 3/3, kitchen-door 3/3; only failure we #2 (workers 8 -> 6, check 6.4)",
+  "workersHeld": "14 of 15 (we #2 8 -> 6)",
+  "medianEclosions": 5,
+  "medianIntakeP": 0.353,
+  "medianIntakeC": 1.441,
+  "medianTripSuccess": 51.4,
+  "firstWorkersAtLeast9": "14 of 15 (we #2: 8)",
+  "runsWithoutLost": "13 of 15 (we #1 and sg #2 lost 1 each)"
+ },
+ "findings": [
+  {
+   "severity": "major",
+   "title": "Per-tick cost trap: R38 item 5's smell check makes the world food-source grid rebuild on nearly every tick",
+   "where": "src/sim/ants/behaviours/outdoor/notice.ts noteSmelledFood -> src/sim/ecology/sources/discovery.ts sourcesSmelledFrom -> lookup.ts gridOf/build",
+   "detail": "Each outside worker calls sourcesSmelledFrom every 20 ticks. lookup.ts rebuilds its whole-world grid on the first query of each tick, and with staggered workers some worker queries on almost every tick. Median behaviours cost went from 0.19 ms/tick (sweep 9) and 0.25 (round-10 arm) to 0.70 (round-11 arm) and 0.63 (sweep 11). Median total went from 3.67 to 4.13 ms/tick. In a CPU profile of kd #1 (life.ts --perf 3000), noticeOutside is 69 % of runBehaviour, and 4.7 of its 4.9 s are in the grid's build/gridOf. New test src/sim/ants/behaviours/outdoor/noticeCost.verify.test.ts is RED and kept: 2000 checks take 1186 ms on new ticks against 16 ms on one tick (2500 sources)."
+  },
+  {
+   "severity": "major",
+   "title": "Protein intake fell against sweep 9 (median 0.478 -> 0.353), the only R19 check that fails",
+   "where": "sweep-review/protein11.txt, three-way.txt",
+   "detail": "P delivered fell from 176 to 137 (prey 141 -> 105, carrion 11.4 -> 5.8). Worker time moved from forage (655 -> 516 worker-gd) to tend (402 -> 520) and scout (150 -> 242). 252 of 299 scout trips found nothing. The round arm's carrion gain did not repeat in fresh runs: 24.8 P in the arm, 12.3 of it from pp #1's large carcass, against 5.8 P in the sweep. P intake is lower than in sweep 9 in 11 of 15 runs."
+  },
+  {
+   "severity": "major",
+   "title": "Brood hygiene is the largest brood loss and grew with round 11",
+   "where": "sweep-review/sums.txt, three-way.txt, long-detail.txt",
+   "detail": "Hygiene brood deaths: sweep 41 -> 56, paired arms 31 -> 60. In both the round's arm and this sweep they rose in cpv #2 (2 -> 14), kd #3 (0 -> 10), sg #1 (0 -> 7) and sg #3 (0 -> 5-9). In year two they kill 14 of we #2's 20 eggs and 6 of cpv #1's 19. The round's trace (one hauler held outside by the flood hold) explains cpv #2 only. Nothing yet shows which R38 item raised hygiene deaths in four colonies at once."
+  },
+  {
+   "severity": "minor",
+   "title": "R38 item 1 serves the whole scout demand ahead of forage, not only the floor",
+   "where": "src/sim/colony/allocation/targets.ts planTargets (Math.round(demand) for scout when scoutsFirst)",
+   "detail": "The ruling fills the missing-nutrient floor (min(0.25 n, max(1 or 2, 0.2 n))) before forage. Where the small-colony rule asks for 2 scouts, a 6-worker colony sends 2 scouts before forage, more than the floor (1) and the 0.25 x 6 cap. src/sim/colony/scoutsFirst.verify.test.ts case 1 is RED and kept (scouts 2, forage 2 of 6). The integrator already put this in direction 26 item 3."
+  },
+  {
+   "severity": "minor",
+   "title": "The round's tests for R38 items 2, 3 and 5 do not cover the runner wiring",
+   "where": "herdFind.test.ts, patchNotice.test.ts, smellReport.test.ts",
+   "detail": "All three call noticeOutside directly, so none fails if behaviourRunner.ts stops calling it. New test src/sim/ants/behaviours/outdoor/noticeSaveLoad.verify.test.ts is GREEN. It shows a non-scout taking a smelled-food report through the runner on real ticks, and that a save -> load with pending notice state gives equal hashes after 1500 ticks."
+  },
+  {
+   "severity": "minor",
+   "title": "R38 item 4's second trace (pp #3 insect-large) was not made",
+   "where": "ledger Round 11",
+   "detail": "Direction 24 item 4 asked for traces of both the large carcass (kd #1) and the large insect (pp #3). Only kd #1 was traced. The density fix covers both kinds, but the trip-continuation question for pp #3 is unanswered."
+  },
+  {
+   "severity": "minor",
+   "title": "12 ecology/sources tests have been red since before colony-life began",
+   "where": "src/sim/ecology/sources (budget C13 x3, drops x4, integration, lifecycle T1 carrion, season T1 flowers, tier1 static spill x2)",
+   "detail": "The same 12 are red on 30944ea and on e299de5, the commit that launched colony-life (checked on git-archive copies, now deleted). No round's known-red list named them before round 11. They are in src/sim, so they belong to this task."
+  }
+ ],
+ "checksRun": [
+  "Fresh 15-run sweep, tools/sim/sweep-life.sh from frozen copy (hash be38bf9e = da0cfa6), 17:54-18:49",
+  "Five long runs PAR=2 UNTIL_DAY=40 longrun-life.sh (we:2 sg:2 cpv:1 pp:3 kd:3), 18:50-19:34; longrun-table.py + long11.py",
+  "sweep-table.py against round-9/sweep; bars recomputed by bars-from-md.py (same verdicts)",
+  "sums11.py / protein11.py / three-way comparison sweep 9 vs round-10 arm-final vs round-11 arm-final11 vs sweep 11",
+  "Behaviours-system cost per run from the JSONs; CPU profile of life.ts --perf 3000 on kd #1",
+  "tsc --noEmit clean",
+  "vitest one worker per folder: colony 75/77 + 4 skipped (red workedExample known, scoutsFirst.verify new); behaviours/outdoor 34/34; behaviours/nest 31/33 (known reds); ecology/creatures 34/34; plants 5/5; ants top-level 4/4; tests/docs 8/8; ecology/sources 6/12 files (12 red, also red on 30944ea and e299de5)",
+  "New verify tests: noticeSaveLoad.verify GREEN; scoutsFirst.verify case 1 RED (kept); noticeCost.verify RED (kept)",
+  "Code review of git diff 9c1b728 da0cfa6 against the spec's not-allowed list, determinism and the rulings"
+ ],
+ "regressions": [
+  "we #2: viable -> NOT viable; workers at winter 13 -> 6, eclosions 6 -> 0, P intake 0.371 -> 0.128, C 1.718 -> 0.82, larvae starved 0 -> 10, egg hygiene 2 -> 10, 2 crushed. Mostly from round 10 (round-10 arm 8 workers); round 11 took it 8 -> 6. Long run: second winter 15 (sweep 9) -> 3",
+  "cpv #2: workers 15 -> 11 (net +6 -> +2), eclosions 8 -> 2, P 0.596 -> 0.218, hygiene 7 -> 14. Round 11's change: round-10 arm had 16 workers and 2 hygiene deaths",
+  "kd #3: eclosions 5 -> 3, trip success 74 -> 48 % (round-10 arm 64 %), hygiene 1 -> 10 (round-10 arm 0)",
+  "sg #1: eclosions 6 -> 2 (11 eggs flooded, 7 hygiene deaths), P 0.386 -> 0.306",
+  "sg #3: eclosions 8 -> 5, P 0.681 -> 0.446, trip success 47 -> 36 %, hygiene 0 -> 5",
+  "playground-park: trip success 66/62/65 -> 52/52/53 %; P pp #1 0.496 -> 0.353, pp #3 0.835 -> 0.581",
+  "kd #2: trip success 36 -> 26 %; P 0.052, against 0.318 in the round's arm on the same tree",
+  "Median P intake 0.478 -> 0.353 (lower in 11 of 15 runs); median trip success 56.8 -> 51.4 %; eclosions sum 100 -> 87; larvae starved 1 -> 12; brood hygiene 41 -> 56; egg flooding 10 -> 35 (not from round 11: paired arms 26 -> 25)",
+  "Long runs: R34 >= 1.0 x went 3 -> 2 of 5 (we #2 15 -> 3, cpv #1 15 -> 13 at the second winter); the spring check improved 4 -> 5 of 5",
+  "Per-tick cost: behaviours system 0.19 -> 0.63 ms/tick median (sweep 9 -> sweep 11)"
+ ],
+ "leadsForNextRound": [
+  "Protein, the one R19 check that fails (0.353): worker time moved from forage to tend and scout (R39 in direction 26 targets tend). kd #2: its one patch 244 BU out was never entered, and scouts came within odour range of carrion 6 times but discovered it once. R38 item 5 exempts scouts, so a scout that smells food and does not investigate reports nothing. we #2: a 120 P large carcass appeared within 300 BU and was never known",
+  "Brood hygiene, 56 brood deaths in year one (the largest cause); it rose in cpv #2, kd #3, sg #1 and sg #3 with round 11, and kills 14 of 20 year-two eggs in we #2. A/B the R38 items on cpv #2 to find which one turns it on, alongside direction 26 item 4 (flood hold, haul cap)",
+  "Year two, R34 2 of 5: 6-12 old-age deaths per colony after the lapse against 1-23 year-two eclosions; kd #3 12 -> 7 (7 old age, 3 crushed), cpv #1 15 -> 13 (6 of 19 eggs eclosed), we #2 6 -> 3 (1 of 20)",
+  "Egg flooding 10 -> 35 in fresh foundings (sg #1 11, pp #1 8, kd #1 6, kd #3 6), not from round 11 (arms 26 -> 25): look at nest siting and depth against the rain days",
+  "Per-tick cost trap (noticeCost.verify red): keep the source grid current incrementally, or give the smell check a query that does not force a rebuild",
+  "Crushed workers 10 (2 of we #2's 8 decide its viability)"
+ ]
+}
