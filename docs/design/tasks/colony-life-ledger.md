@@ -3067,3 +3067,17 @@ Progress (kept current; a successor continues from here)
 - 12:03 status: jobs4c at the arm runs of the 10 non-subset colonies (woodland-edge and suburban-garden #1 done for
   all arms; playground-park onward running); 7-colony partial table (base / r30 / r30r29c / r30r29cr31): workers at
   winter 70 / 97 / 104 / 96, eclosions 33 / 32 / 39 / 30, brood lost 65 / 58 / 72 / 88. Waiting for the rest.
+
+- **Nov 22 05:15 UTC (integrator, after the pause of Nov 18 12:37 → Nov 22 04:00: the third engineer was cut off by the account's usage limit; the machine restarted).** The integrator re-ran the paired runner (`paired/jobs4.sh jobs4c.txt`, then `jobs5.txt`); **all five arms now have all 15 colonies** (`paired/arms15-table.txt`, made with `ARMS="base r30 r30hb1 r30r29c r30r29cr31" python3 table4.py`). Sums over 15 (first workers 168):
+
+  | arm | workers at winter | eclosions | eggs | brood lost | untended | starved | old age / adult deaths | median P | median C | median trips ok | viable |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | base | 139 | 65 | 242 | 152 | 60 | 13 | 62 / 94 | 0.198 | 1.078 | 43.9 % | 4 |
+  | r30 | 203 | 66 | 237 | 142 | 54 | 10 | 0 / 31 | 0.221 | 1.059 | 36.8 % | 7 |
+  | r30hb1 | 199 | 73 | 248 | 153 | 49 | 15 | 0 / 42 | 0.287 | 0.945 | 50.4 % | 8 |
+  | r30r29c | 214 | 73 | 257 | 166 | 74 | 6 | 0 / 27 | 0.215 | 1.315 | 38.4 % | 10 |
+  | r30r29cr31 | 209 | 70 | 265 | 173 | 76 | 10 | 0 / 29 | 0.245 | 1.196 | 45.1 % | 10 |
+
+  Pairs on workers at winter: r30 vs base 15 better; r30r29c vs r30 10 better, 5 worse; r30r29cr31 vs r30r29c 7 better, 7 worse, 1 equal; r30hb1 vs r30 3 better, 4 worse, 8 equal.
+  **Integrator's verdicts**: **R30 accepted** (15 of 15; old-age deaths 62 → 0 in year one). **R29c accepted** (viable 7 → 10, workers 203 → 214, starved 10 → 6; its hygiene deaths 2 → 15 and untended 54 → 74 are the next thing to explain). **R31 not accepted** (7 better, 7 worse; untended 74 → 76: it does not close the single-nurse gap the 10:28 entries describe; keep the patch under `round-8/r31/`, not in the tree). **HB1 accepted as a defect fix** (trip success 36.8 → 50.4 %, median P 0.221 → 0.287, eclosions 66 → 73), with one question for the fourth engineer: adult deaths rise 31 → 42 in that arm — by what cause.
+

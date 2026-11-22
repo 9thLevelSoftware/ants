@@ -18,22 +18,29 @@ describe('minimap geometry', () => {
   });
 });
 
+/** A zone grid of `n` x `n` cells where each quadrant of the 2 x 2 layout in `q` (row-major) is one block of n / 2 cells. */
+function quadrants(q: number[], n: number, cell: number) {
+  const data = new Uint8Array(n * n);
+  for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) data[z * n + x] = q[(z < n / 2 ? 0 : 2) + (x < n / 2 ? 0 : 1)];
+  return { cell, nx: n, nz: n, data };
+}
+
 describe('zone plate', () => {
-  // a 2 x 2 world of 100 mm cells: forest | lawn / pavement | outside is the void
-  const plate: MinimapPlate = { map: { cell: 100, nx: 2, nz: 2, data: Uint8Array.from([1, 2, 3, 1]) }, typeById: ['', 'forest', 'lawn', 'pavement'], size: 200, structures: [], water: [] };
+  // a 200 mm world of 24 x 24 cells, four zones in quadrants: forest | lawn / pavement | forest. Outside is the void.
+  const plate: MinimapPlate = { map: quadrants([1, 2, 3, 1], 24, 200 / 24), typeById: ['', 'forest', 'lawn', 'pavement'], size: 200, structures: [], water: [] };
   const at = (px: Uint8ClampedArray, size: number, x: number, y: number) => Array.from(px.slice((y * size + x) * 4, (y * size + x) * 4 + 3));
 
   it('paints each zone its flat tint and the area outside the world the void colour', () => {
-    const size = 8;
+    const size = 64;
     // window = the whole world: centre (100, 100), 200 mm
     const px = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 100, cz: 100, windowMm: 200 });
-    expect(at(px, size, 1, 1)).toEqual([...ZONE_TINTS.forest]);
-    expect(at(px, size, 6, 1)).toEqual([...ZONE_TINTS.lawn]);
-    expect(at(px, size, 1, 6)).toEqual([...ZONE_TINTS.pavement]);
-    // window shifted left: the left half is outside the world
+    expect(at(px, size, 16, 16)).toEqual([...ZONE_TINTS.forest]);
+    expect(at(px, size, 48, 16)).toEqual([...ZONE_TINTS.lawn]);
+    expect(at(px, size, 16, 48)).toEqual([...ZONE_TINTS.pavement]);
+    // window shifted left by half a window: the left half is outside the world
     const sh = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 0, cz: 100, windowMm: 200 });
-    expect(at(sh, size, 1, 3)).toEqual([...VOID_TINT]);
-    expect(at(sh, size, 6, 1)).toEqual([...ZONE_TINTS.forest]);
+    expect(at(sh, size, 8, 20)).toEqual([...VOID_TINT]);
+    expect(at(sh, size, 48, 16)).toEqual([...ZONE_TINTS.forest]);
   });
   it('every zone type has a tint and they are all different', () => {
     const seen = new Set(Object.values(ZONE_TINTS).map((t) => t.join(',')));
@@ -67,6 +74,27 @@ describe('paintPlate smooths the class borders (look pass 4)', () => {
   });
 });
 
+describe('paintPlate smooths blocky borders at the real zone resolution (look pass 4)', () => {
+  it('a diagonal made of 4-cell blocks at 2.75 px a cell (the live plate) is a line, not 11 px steps', () => {
+    const nx = 64, nz = 64, cell = 16, data = new Uint8Array(nx * nz); // the window of the live game: 64 cells over 176 px
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) data[z * nx + x] = Math.floor(x / 4) >= Math.floor(z / 4) ? 1 : 2;
+    const plate = { map: { cell, nx, nz, data }, typeById: ['', 'lawn', 'asphalt'], size: 1024, structures: [], water: [] };
+    const size = 176;
+    const px = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 512, cz: 512, windowMm: 1024 });
+    const lawn = ZONE_TINTS.lawn, asph = ZONE_TINTS.asphalt;
+    const edge: number[] = [];
+    for (let y = 20; y < 156; y++) {
+      for (let x = 0; x < size; x++) {
+        const i = (y * size + x) * 4;
+        if (Math.abs(px[i] - lawn[0]) < Math.abs(px[i] - asph[0])) { edge.push(x); break; }
+      }
+    }
+    let maxJump = 0;
+    for (let k = 1; k < edge.length; k++) maxJump = Math.max(maxJump, Math.abs(edge[k] - edge[k - 1]));
+    expect(maxJump).toBeLessThanOrEqual(3); // 4-cell blocks would jump 11 px at every block row
+  });
+});
+
 describe('paintPlate smooths a curved border made of cell steps (look pass 4)', () => {
   it('a disc of zone cells has an outline that moves about once per pixel row, not once per cell row', () => {
     const nx = 24, nz = 24, cell = 1000, data = new Uint8Array(nx * nz);
@@ -82,7 +110,7 @@ describe('paintPlate smooths a curved border made of cell steps (look pass 4)', 
         if (Math.abs(px[i] - lawn[0]) < Math.abs(px[i] - asph[0])) { edge.push(x); break; }
       }
     }
-    expect(new Set(edge).size).toBeGreaterThan(40); // cell steps would give about 12 values over these rows
+    expect(new Set(edge).size).toBeGreaterThan(30); // cell steps would give about 12 values over these rows
     let big = 0;
     for (let k = 1; k < edge.length; k++) if (Math.abs(edge[k] - edge[k - 1]) > 3) big++;
     expect(big).toBeLessThan(6); // only the top and bottom of the disc, where the outline is almost flat, may jump

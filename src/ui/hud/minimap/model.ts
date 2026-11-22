@@ -36,66 +36,102 @@ export function fromBox(f: Pick<MinimapFrame, 'cx' | 'cz' | 'windowMm'>, u: numb
   return { x: f.cx + (u - 0.5) * f.windowMm, z: f.cz + (v - 0.5) * f.windowMm };
 }
 
-/** Weight 0..1 of a class given its blurred share: a short ramp about one half, so a border is a clean smooth line about a pixel or two wide. */
+/** Weight 0..1 of a class given its blurred share: a short ramp about one half, so a border is a clean smooth line a few pixels wide. */
 const sharpen = (w: number): number => {
   const t = Math.min(1, Math.max(0, (w - 0.5) * 6 + 0.5));
   return t * t * (3 - 2 * t);
 };
 
-/** Cubic B-spline weights of the four cells round a sample at fraction f (0..1) between the two middle cells. */
-function bspline(f: number, out: number[]): void {
-  const f2 = f * f, f3 = f2 * f;
-  out[0] = (1 - 3 * f + 3 * f2 - f3) / 6;
-  out[1] = (4 - 6 * f2 + 3 * f3) / 6;
-  out[2] = (1 + 3 * f + 3 * f2 - 3 * f3) / 6;
-  out[3] = f3 / 6;
+/**
+ * How far a class border is blurred, in plate pixels, before it is cut at one half. The zone map is made of blocks a few cells wide
+ * (worldgen paints it at 4 cells), so at 2.75 px a cell the blocks are 11 px steps: the blur has to cover a block to turn the steps into
+ * a curve. Where cells are large on the plate (a close window) the radius shrinks to whole cells, down to one.
+ */
+const BLUR_PX = 10;
+const BLUR_MAX_CELLS = 5;
+
+/** In-place triangle blur (two box passes of radius r) of a w x h field along x, then y, through `tmp`. */
+function blurField(a: Float32Array, tmp: Float32Array, w: number, h: number, r: number): void {
+  const n = 2 * r + 1;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) { // along x: a -> tmp
+      let acc = 0;
+      for (let x = -r; x <= r; x++) acc += a[y * w + Math.min(w - 1, Math.max(0, x))];
+      for (let x = 0; x < w; x++) {
+        tmp[y * w + x] = acc / n;
+        acc += a[y * w + Math.min(w - 1, x + r + 1)] - a[y * w + Math.max(0, x - r)];
+      }
+    }
+    for (let x = 0; x < w; x++) { // along y: tmp -> a
+      let acc = 0;
+      for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+      for (let y = 0; y < h; y++) {
+        a[y * w + x] = acc / n;
+        acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+      }
+    }
+  }
 }
 
 /**
- * Fills RGBA `px` (size x size) with the zone plate under the window; returns it. Each pixel reads the 4 x 4 zone cells round it
- * and weights every class with a cubic B-spline (the blurred class indicator), sharpens the weights around one half and blends
- * the tints: class borders are smooth curves at the plate's own pixel resolution, not the zone map's cell staircase (look pass 4:
- * a plain bilinear blend still left the cell steps). Pixels whose 16 cells are all one class (nearly all of them) take the tint at once.
+ * Fills RGBA `px` (size x size) with the zone plate under the window; returns it. A window of one class (nearly always) is one fill.
+ * Otherwise the cells under the window (plus the blur margin) are split into one indicator field per class, each blurred (BLUR_PX), and
+ * every pixel reads the fields bilinearly, sharpens the weights around one half and blends the tints: class borders are smooth curves
+ * at the plate's own pixel resolution, not the zone map's cell and block staircase (look pass 4). Cost follows the window's cell
+ * count and the classes in it, not the pixels times a kernel.
  */
 export function paintPlate(px: Uint8ClampedArray, size: number, plate: MinimapPlate, f: Pick<MinimapFrame, 'cx' | 'cz' | 'windowMm'>): Uint8ClampedArray {
   const { map, typeById } = plate;
   const x0 = f.cx - f.windowMm / 2, z0 = f.cz - f.windowMm / 2, step = f.windowMm / size;
   const tints = typeById.map((t) => tintOfZone(t));
-  const classAt = (ix: number, iz: number): number => (ix >= 0 && iz >= 0 && ix < map.nx && iz < map.nz ? map.data[iz * map.nx + ix] : -1);
-  const wx = [0, 0, 0, 0], wz = [0, 0, 0, 0];
-  const cls = new Array<number>(16), wt = new Array<number>(16);
-  let i = 0;
+  const tintOf = (c: number): readonly [number, number, number] => (c < 0 ? VOID_TINT : (tints[c] ?? UNKNOWN_TINT));
+  const pxPerCell = size * map.cell / f.windowMm;
+  const r = Math.min(BLUR_MAX_CELLS, Math.max(1, Math.round(BLUR_PX / pxPerCell)));
+  const i0 = Math.floor(x0 / map.cell) - r - 1, k0 = Math.floor(z0 / map.cell) - r - 1;
+  const w = Math.ceil((x0 + f.windowMm) / map.cell) + r + 2 - i0, h = Math.ceil((z0 + f.windowMm) / map.cell) + r + 2 - k0;
+  const cls = new Int16Array(w * h);
+  const present: number[] = [];
+  for (let k = 0; k < h; k++) for (let i = 0; i < w; i++) {
+    const ix = i0 + i, iz = k0 + k;
+    const c = ix >= 0 && iz >= 0 && ix < map.nx && iz < map.nz ? map.data[iz * map.nx + ix] : -1;
+    cls[k * w + i] = c;
+    if (!present.includes(c)) present.push(c);
+  }
+  if (present.length === 1) {
+    const t = tintOf(present[0]);
+    for (let i = 0; i < size * size * 4; i += 4) { px[i] = t[0]; px[i + 1] = t[1]; px[i + 2] = t[2]; px[i + 3] = 255; }
+    return px;
+  }
+  const tmp = new Float32Array(w * h);
+  const fields = present.map((c) => {
+    const a = new Float32Array(w * h);
+    for (let j = 0; j < w * h; j++) a[j] = cls[j] === c ? 1 : 0;
+    blurField(a, tmp, w, h, r);
+    return a;
+  });
+  const wts = new Float32Array(present.length);
+  let o = 0;
   for (let py = 0; py < size; py++) {
-    const gz = (z0 + (py + 0.5) * step) / map.cell - 0.5, iz = Math.floor(gz);
-    for (let pxl = 0; pxl < size; pxl++, i += 4) {
-      const gx = (x0 + (pxl + 0.5) * step) / map.cell - 0.5, ix = Math.floor(gx);
-      let same = true;
-      const c0 = classAt(ix, iz);
-      for (let k = 0; k < 4 && same; k++) for (let m = 0; m < 4; m++) {
-        const c = classAt(ix - 1 + m, iz - 1 + k);
-        cls[k * 4 + m] = c;
-        if (c !== c0) { same = false; if (m === 3 && k === 3) break; }
+    const gz = (z0 + (py + 0.5) * step) / map.cell - 0.5 - k0, kz = Math.floor(gz), fz = gz - kz;
+    for (let pxl = 0; pxl < size; pxl++, o += 4) {
+      const gx = (x0 + (pxl + 0.5) * step) / map.cell - 0.5 - i0, kx = Math.floor(gx), fx = gx - kx;
+      const a = kz * w + kx, b = a + w;
+      let best = 0, bestW = -1, rr = 0, gg = 0, bb = 0, sum = 0;
+      for (let q = 0; q < present.length; q++) {
+        const fq = fields[q];
+        const v = (fq[a] * (1 - fx) + fq[a + 1] * fx) * (1 - fz) + (fq[b] * (1 - fx) + fq[b + 1] * fx) * fz;
+        wts[q] = v;
+        if (v > bestW) { bestW = v; best = q; }
       }
-      if (same) { // away from a border: one class, no blending
-        const t = c0 < 0 ? VOID_TINT : (tints[c0] ?? UNKNOWN_TINT);
-        px[i] = t[0]; px[i + 1] = t[1]; px[i + 2] = t[2]; px[i + 3] = 255;
-        continue;
+      if (bestW >= 0.999) { const t = tintOf(present[best]); px[o] = t[0]; px[o + 1] = t[1]; px[o + 2] = t[2]; px[o + 3] = 255; continue; }
+      for (let q = 0; q < present.length; q++) {
+        const s = sharpen(wts[q]);
+        if (s <= 0) continue;
+        const t = tintOf(present[q]);
+        rr += t[0] * s; gg += t[1] * s; bb += t[2] * s; sum += s;
       }
-      // the loop above stops filling at the first mismatch: fill the rest
-      for (let k = 0; k < 4; k++) for (let m = 0; m < 4; m++) cls[k * 4 + m] = classAt(ix - 1 + m, iz - 1 + k);
-      bspline(gx - ix, wx); bspline(gz - iz, wz);
-      for (let k = 0; k < 4; k++) for (let m = 0; m < 4; m++) wt[k * 4 + m] = wz[k] * wx[m];
-      let r = 0, g = 0, b = 0, sum = 0;
-      for (let a = 0; a < 16; a++) {
-        if (wt[a] <= 0) continue;
-        let w = wt[a];
-        for (let m = a + 1; m < 16; m++) if (cls[m] === cls[a]) { w += wt[m]; wt[m] = 0; }
-        const s = sharpen(w);
-        const t = cls[a] < 0 ? VOID_TINT : (tints[cls[a]] ?? UNKNOWN_TINT);
-        r += t[0] * s; g += t[1] * s; b += t[2] * s; sum += s;
-      }
-      if (sum <= 0) { const t = c0 < 0 ? VOID_TINT : (tints[c0] ?? UNKNOWN_TINT); r = t[0]; g = t[1]; b = t[2]; sum = 1; }
-      px[i] = r / sum; px[i + 1] = g / sum; px[i + 2] = b / sum; px[i + 3] = 255;
+      if (sum <= 0) { const t = tintOf(present[best]); rr = t[0]; gg = t[1]; bb = t[2]; sum = 1; }
+      px[o] = rr / sum; px[o + 1] = gg / sum; px[o + 2] = bb / sum; px[o + 3] = 255;
     }
   }
   return px;

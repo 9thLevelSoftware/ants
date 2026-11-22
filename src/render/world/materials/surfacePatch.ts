@@ -28,7 +28,7 @@ export interface BreachList {
  * covered the panel completely at that distance (the exp2 fog is ~100 % at 3.5 m on an ant's scale), so the panel also keeps `fogKeep` of its
  * own colour through the fog (the same exemption the boundary facade has).
  */
-export const FENCE_BOARDS = { boardMm: 150, thinMaxMm: 60, bigMinMm: 600, gapDark: 0.55, tintVar: 0.28, fadeFrom: 0.35, fadeTo: 0.9, fogKeep: 0.55 } as const;
+export const FENCE_BOARDS = { boardMm: 150, thinMaxMm: 60, bigMinMm: 600, gapDark: 0.7, tintVar: 0.4, warmVar: 0.3, grain: 0.22, grainMm: [22, 420], fadeFrom: 0.35, fadeTo: 0.9, fogKeep: 0.55 } as const;
 export const FENCE_BOARDS_FRAG = /* glsl */ `
 #ifdef WR_BOARDS
 float wrFogKeep = 0.0;
@@ -42,7 +42,10 @@ float wrFogKeep = 0.0;
     float gap = 1.0 - smoothstep(0.02, 0.02 + max(bfw, 0.05), be);
     float keep = 1.0 - smoothstep(${FENCE_BOARDS.fadeFrom.toFixed(2)}, ${FENCE_BOARDS.fadeTo.toFixed(2)}, bfw);
     float tint = 1.0 - ${(FENCE_BOARDS.tintVar / 2).toFixed(3)} + ${FENCE_BOARDS.tintVar.toFixed(3)} * wrHash12(vec2(floor(bu), panZ * 3.0 + panX * 5.0));
-    wrAlb *= mix(1.0, (1.0 - ${FENCE_BOARDS.gapDark.toFixed(2)} * gap) * tint, keep);
+    float hb = wrHash12(vec2(floor(bu) + 17.0, panZ * 3.0 + panX * 5.0));
+    vec3 warm = mix(vec3(1.0), vec3(1.12, 0.96, 0.78), ${FENCE_BOARDS.warmVar.toFixed(2)} * 2.0 * hb); // weathered boards run from silver to brown
+    float grainK = 1.0 - ${FENCE_BOARDS.grain.toFixed(2)} + ${(FENCE_BOARDS.grain * 2).toFixed(2)} * wrNoise(vec2(vWrP.x + vWrP.z, vWrP.y * 0.0) / ${FENCE_BOARDS.grainMm[0].toFixed(1)} + vec2(0.0, vWrP.y / ${FENCE_BOARDS.grainMm[1].toFixed(1)}) + vec2(floor(bu) * 3.7, 0.0));
+    wrAlb *= mix(vec3(1.0), (1.0 - ${FENCE_BOARDS.gapDark.toFixed(2)} * gap) * tint * grainK * warm, keep);
     wrFogKeep = ${FENCE_BOARDS.fogKeep.toFixed(2)};
   }
 }

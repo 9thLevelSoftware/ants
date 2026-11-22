@@ -846,3 +846,8 @@ Recovery, with cost in mind (the limit was spent in four days):
 - look-pass-4 relaunched (Sonnet) as `wveg3e7vs` (wf_15b7c326-705), continuing from its progress file.
 - Check-ins go from every 30 minutes to every 60, and only while something runs.
 - After a restart: `git add -A` commit + push; paired runner is restart-safe (same two commands); colony-life relaunch = `wf-life.js` `{maxRounds: 3, firstRound: 8}` with a note that directions 15–19 are binding and the ledger's Round 8 section says what is in the tree; look-pass-4 = `wf-build.js` with a note pointing at its progress file.
+
+## Nov 22 05:15 UTC — round 8 arms complete on 15 colonies; verdicts
+
+`test-output/colony-life/round-8/paired/arms15-table.txt` (cached hand-overs, to winter; first workers 168): workers at winter base 139, R30 203, R30+HB1 199, R30+R29c 214, R30+R29c+R31 209; viable 4 / 7 / 8 / 10 / 10; old-age deaths 62 / 0 / 0 / 0 / 0; median P 0.198 / 0.221 / 0.287 / 0.215 / 0.245; trips ok 43.9 / 36.8 / 50.4 / 38.4 / 45.1 %.
+**R30 accepted** (15 of 15 better). **R29c accepted**. **R31 not accepted** (no gain). **HB1 accepted** (defect fix). Untended brood (54–76 of ~250 eggs) is unchanged by all of them: the single-nurse gap is the next brood loss. Fourth engineer of round 8 launched to put the accepted set in the tree, run the year-two runs to the second winter, and close the round; then the fresh sweep 8.

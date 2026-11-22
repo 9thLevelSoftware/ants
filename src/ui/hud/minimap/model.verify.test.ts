@@ -24,17 +24,17 @@ describe('minimap mapping (review)', () => {
     for (const z of ZONE_TYPES) expect(ZONE_TINTS[z], z).toBeDefined();
   });
   it('the plate is void outside the world and the zone tint inside, row 0 = north', () => {
-    const nx = 4, nz = 4, cell = 1000;
+    const nx = 64, nz = 64, cell = 62.5; // 4000 mm square
     const data = new Uint8Array(nx * nz);
     data.fill(1);
-    for (let i = 0; i < nx; i++) data[0 * nx + i] = 2; // the northern row (z 0..1000) is another zone
+    for (let z = 0; z < 16; z++) for (let i = 0; i < nx; i++) data[z * nx + i] = 2; // the northern quarter (z 0..1000) is another zone
     const plate = { map: { cell, nx, nz, data }, typeById: ['', 'lawn', 'asphalt'], size: 4000, structures: [], water: [] };
-    const size = 16;
+    const size = 128;
     const px = paintPlate(new Uint8ClampedArray(size * size * 4), size, plate, { cx: 2000, cz: 1000, windowMm: 4000 });
     const at = (x: number, y: number) => Array.from(px.slice((y * size + x) * 4, (y * size + x) * 4 + 3));
-    expect(at(8, 0)).toEqual([...VOID_TINT]); // z < 0: outside the world
-    expect(at(8, 5)).toEqual([...ZONE_TINTS.asphalt]); // z in 0..1000: the northern row
-    expect(at(8, 12)).toEqual([...ZONE_TINTS.lawn]);
+    expect(at(64, 2)).toEqual([...VOID_TINT]); // z < 0: outside the world
+    expect(at(64, 50)).toEqual([...ZONE_TINTS.asphalt]); // z in 0..1000: the northern quarter
+    expect(at(64, 100)).toEqual([...ZONE_TINTS.lawn]);
     expect(MINIMAP_SIZE_DP).toBe(176);
   });
 });
