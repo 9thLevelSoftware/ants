@@ -158,7 +158,7 @@ The integrator stopped round 8's second engineer at 10:00 UTC on reading the 09:
 6. Direction 17's defects (no trail to sugar 22 BU from the door; a possessed worker's mouth-to-mouth gift; `cheat.killAll` cause).
 7. Larvae taken into winter (direction 19) and the spring: only after 1–5.
 
-**21. The yearly production budget does not close; rulings R32b, R33, R34 (Nov 22 06:50 UTC, binding; goes before items 3–7 of direction 20; item 1 of direction 20 stays first).** The integrator read the five final-tree runs to the second winter day by day (`round-8/long-final/*.json`). The four colonies that kept their queen:
+**21. The yearly production budget does not close; rulings R32b, R33, R34 (Nov 22 06:30 UTC, binding; goes before items 3–7 of direction 20; item 1 of direction 20 stays first).** The integrator read the five final-tree runs to the second winter day by day (`round-8/long-final/*.json`). The four colonies that kept their queen:
 
 | | cpv #1 | kd #3 | pp #3 | we #2 |
 |---|---|---|---|---|

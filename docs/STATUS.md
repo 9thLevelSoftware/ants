@@ -855,7 +855,7 @@ Recovery, with cost in mind (the limit was spent in four days):
 Colony-life relaunched 05:20 UTC Nov 22 as `wy25pjnh7` (wf_378a44f5-031; firstRound 8, maxRounds 2: closes round 8, then sweep 8, round 9, sweep 9). After a restart: plain firstRound 8 with a note that the ledger entry of Nov 22 05:15 holds the verdicts and the round only needs closing; if round 8 result is in the journal, firstRoundResult.
 
 
-## Nov 22 06:55 UTC — round 8 closed; year two to the second winter; rulings R32b, R33, R34 (direction 21)
+## Nov 22 06:30 UTC — round 8 closed; year two to the second winter; rulings R32b, R33, R34 (direction 21)
 
 Round 8 closed 05:56 (tree = F1 + FD1 + WL4 + R30 + R29c + HB1). Five long runs to the second winter (`test-output/colony-life/round-8/long-final/table.txt`): spring check **4 of 5** (met; sg #2 entered winter with C 0 and lost its queen), but every colony shrinks through year two (workers at winter 1 → winter 2: 14 → 10, 9 → 1, 13 → 5, 17 → 3, 12 → 7).
 
@@ -866,4 +866,4 @@ The integrator's reading of the daily rows (four colonies with a queen): **eggs 
 
 Browser: firstplay fails on seed 2 (6 eggs lost at 2.8 % of the lapse) **and on seed 1** (first workers never reopen the entrance). Both are round 9's first item.
 
-Running at 06:55: colony-life `wy25pjnh7` (sweep 8 in progress: 6 of 15 at 06:22; then round 9 under directions 20 + 21, sweep 9); look-pass-4 `wveg3e7vs` (impl at item 9 browser scripts). Not yet weighed: `walker-stuck-explosion` violations (9–59 a run, mostly autumn; possibly cold-slowed walkers flagged) and worker time on queen-care (14 %) and store/haul (27 %).
+Running at 06:30: colony-life `wy25pjnh7` (sweep 8 in progress: 6 of 15 at 06:22; then round 9 under directions 20 + 21, sweep 9); look-pass-4 `wveg3e7vs` (impl at item 9 browser scripts). Not yet weighed: `walker-stuck-explosion` violations (9–59 a run, mostly autumn; possibly cold-slowed walkers flagged) and worker time on queen-care (14 %) and store/haul (27 %).
