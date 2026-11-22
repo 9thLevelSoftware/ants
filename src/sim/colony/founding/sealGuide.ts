@@ -23,7 +23,7 @@ import {
 import { navStop, navTo } from '@/sim/locomotion';
 import { isPlugPellet } from '@/sim/ants/actions/defs/dig';
 import { TICKS_PER_DAY, TICKS_PER_SECOND } from '@/sim/time';
-import { bbGet, bbSet, foundingQueen, openingOf, phaseAgeGd } from './access';
+import { bbGet, bbSet, depthBelowGround, foundingQueen, openingOf, phaseAgeGd } from './access';
 import { cavityRoute, floodCavity, floodStart, keyPos } from './leak';
 import { biteToward, inThroatOf } from './seal';
 import { cavityEntrances } from './dig';
@@ -289,8 +289,18 @@ function giveUp(sim: Sim, q: Ant, s: Vec3): void {
   plan(sim, q);
 }
 
+/**
+ * Below the ground in the throat of one of her cavity's openings. A queen there with no soil in her mandibles goes on
+ * with the soil rule (SOIL) even when a plug has narrowed the throat so far that she counts as out of the cavity
+ * (colony-life round 9, woodland-edge #4 at the start pose: SOIL sent her BACK, BACK found her in again and planned
+ * SOIL, every 5-12 ticks for 5500 ticks; the soil bite's SEAL_SOIL_WAIT_TICKS never came and the seal never ended).
+ */
+function inOwnThroat(sim: Sim, nest: Nest, q: Ant): boolean {
+  return depthBelowGround(sim, q) > 0 && cavityEntrances(sim, nest).some((e) => inThroatOf(sim, q, e));
+}
+
 function soilTick(sim: Sim, q: Ant, nest: Nest): void {
-  if (!queenInCavity(sim, nest, q)) { toBack(sim, q); return; }
+  if (!queenInCavity(sim, nest, q) && !inOwnThroat(sim, nest, q)) { toBack(sim, q); return; }
   if (hasPellet(sim, q)) {
     if (possessed(sim, q)) setIntent(sim, q, null); else navStop(sim, q);
     plan(sim, q);

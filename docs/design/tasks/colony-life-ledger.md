@@ -3519,3 +3519,35 @@ Progress (kept current; a successor continues from here)
   the same hand-over hunted 103 times (kills 31, eggs 35, egg:untended 16, eclosions 0, 9 -> 7 workers). Hourly
   states of r32b and final are alike (the colony freezes under alarm for much of days 4-5 in both); the final run's
   missing departures are trajectory noise of one colony, not a drafting effect. Judged on the 15, not on sg #1.
+- 10:08 **founding long test, woodland-edge and playground-park seeds 1-5** (`round-9/startPose-we-pp.txt`, live tree
+  at 09:37): we 1 Fair -> 18 workers, out; we 2 Poor -> 7, out; we 3 Poor -> 11, out; **we 4 Fair -> no seal**; we 5
+  Poor -> 4, out. pp 1 Fair (dig by template) -> **no seal**; pp 2 Fair -> 13, out; pp 3 Fair -> 9, out; pp 4 Poor ->
+  4, out; pp 5 Poor -> 6, out. Test green (we Fair 1 of 2, pp 2 of 3, Poor 5 of 5 pooled with sg's 3 of 3). Three of
+  the 15 start poses fail at the seal: sg 4, we 4, pp 1.
+- 10:08 **SG1 (seal guide, BACK stall)**: traced sg #4 (`tools/sim/probe/probe-seal9.ts`): the queen leaves her
+  cavity while plugging (state 4 BACK from tick 6091), wedged in the throat beside her half-laid plug (`sealing:63`),
+  possessed, her movement input pointed at the way in; she stands still until the seal's budget runs out. The
+  watchdog's new strategy (SEAL_STRATEGY_TICKS) plans her straight back into BACK, so nothing gets her out. The walk
+  to a stand has a stall rule (SEAL_STALL_TICKS / SEAL_STALL_BU); the way back in had none. Fix
+  (`colony/founding/sealGuide.ts backTick`): the same stall check toward the way in; stalled in the throat of her
+  opening (never from the ground beside it: no new hole), she bites toward the way in (the loose plug soil) and walks
+  on. Test `colony/founding/sealBackStall.test.ts` (a pocket in the throat beside the shaft top: red on the tree
+  without the rule, green with it). sg #4 at the start pose (`round-9/probe-seal-sg4-stall.txt`): no seal -> sealed
+  at tick 6198, 7 plugs (BACK 5921-5961, then the walk to the stand). we #4 and pp #1 next.
+- 10:13 **SG2 (seal guide, SOIL/BACK cycle)**: we #4 with SG1 still did not seal (`round-9/probe-seal-we4-stall.txt`):
+  after four plugs the queen, empty-mandibled, cycled SOIL -> BACK -> SOIL every 5-12 ticks from tick 8240 to the
+  budget (13735): a plug had narrowed the throat so far that at its edge she counted as out of the cavity, SOIL sent
+  her BACK, BACK found her in again and planned SOIL; the soil bite (after SEAL_SOIL_WAIT_TICKS 20) never came. Fix
+  (`sealGuide.ts soilTick`, `inOwnThroat`): below the ground in the throat of one of her cavity's openings she stays
+  on the soil rule (its bite is down toward the cell, never toward the opening). Test: second case of
+  `sealBackStall.test.ts` (SOIL in the pocket: stays SOIL and bites; red without the rule). we #4 at the start pose
+  (`probe-seal-we4-soil.txt`): no seal -> sealed at tick 8578, 10 plugs, one opening. pp #1 (dig by template) still
+  does not seal with SG1 + SG2 (`probe-seal-pp1-soil.txt`): ten plugs down the shaft (y -11 -> -19 BU), then the plan
+  finds nothing to plug (guide IDLE at 9342) while the opening reads `sealing:159`; the template's cell has a second,
+  open entrance (4648) outside the cavity's list. Not fixed this round (lead for the next: what the leak test and the
+  entrance list disagree on in a template dig).
+- 10:13 arms base vs final, 9 pairs done (`ARMS="arm-base arm-final" python3 round-9/table9.py`): workers at winter
+  117 -> 150, better 8 / equal 1 / worse 0; eclosions 40 -> 74; brood lost untended 41 -> 10; workers lost 11 -> 3;
+  median P intake 0.19 -> 0.41 mg/h; viable 6 -> 8 of 9. Frozen long-run tree `/home/user/scratch-r9-long` (live at
+  10:16: all round-9 fixes incl. SG1/SG2); five long runs (`jobs-long.txt`, `run-long.sh`, UNTIL_DAY 40, sweep-8
+  hand-overs we #2, sg #2, cpv #1, pp #3, kd #3) start when the two running arms end.

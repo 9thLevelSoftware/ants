@@ -1,45 +1,60 @@
 // Colony-life round 9 (direction 20 item 1, the founding at the start pose): a queen out of her cavity on the way back
 // in, wedged in the throat beside her own half-laid plug, stood still in the guide's BACK state until the seal's
-// budget ran out (suburban-garden #4: 5600 ticks frozen, no seal). The way in has the same stall rule as the walk to
-// the stand: no progress over SEAL_STALL_TICKS and, in the throat of her opening, she bites toward the way in.
+// budget ran out (suburban-garden #4: 5600 ticks frozen, no seal; the watchdog's new strategy planned her straight back
+// into BACK). The way in now has the same stall rule as the walk to the stand: no progress toward it over
+// SEAL_STALL_TICKS and, in the throat of her opening, she bites toward the way in. And a queen looking for soil in
+// that throat stays on the soil rule while a plug has narrowed the throat so far that she counts as out of the cavity.
 import { describe, expect, it } from 'vitest';
-import type { Vec3 } from '@/core/math/vec3';
-import { SEAL_STALL_TICKS } from '@/sim/balance/founding';
+import type { Sim } from '@/sim/types';
+import { SEAL_SOIL_WAIT_TICKS, SEAL_STALL_TICKS, SEAL_UNPOCKET_EVERY_TICKS } from '@/sim/balance/founding';
+import { bbSet } from './access';
 import { FB } from './access';
 import { SG } from './sealGuide';
 import { throatCase } from './sealKit';
-import { nestOf, pinTemperature, queen, stepUntil } from './testkit';
 import { cellReachesAir, queenInCavity } from './sealPlan';
+import { nestOf, pinTemperature, queen, stepUntil } from './testkit';
 
-const BACK = 4;
+const BACK = 4, SOIL = 5;
+
+/** Her cell's throat with a pocket in it, 1 BU under the ground and 0.6 BU of soil away from the shaft: in the throat
+ * of her opening, below the ground, and not part of her cavity (she cannot walk from it to the way in). */
+function inPocket(): { sim: Sim; c: ReturnType<typeof throatCase> } {
+  const c = throatCase({ pitchDeg: 55, widthBu: 2.1, soil: 'loam' });
+  const sim = c.sim, bu = sim.world.bu, q = queen(sim), nest = nestOf(sim);
+  pinTemperature(sim, 22);
+  const pocket = { x: c.mouth.x - 2.5 * bu, y: c.mouth.y - 1.0 * bu, z: c.mouth.z };
+  sim.enqueue({ type: 'cheat.carveSphere', pos: pocket, r: 0.8 * bu });
+  sim.tick();
+  sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: { ...pocket, y: pocket.y - 0.4 * bu } });
+  sim.enqueue({ type: 'possess', antId: q.id });
+  sim.tick();
+  expect({ inCavity: queenInCavity(sim, nest, q), air: cellReachesAir(sim, nest) }).toEqual({ inCavity: false, air: true });
+  sim.enqueue({ type: 'action', actionId: 'seal-entrance', phase: 'start' });
+  stepUntil(sim, () => (q.bb[SG.state] ?? 0) === BACK, 50);
+  expect(q.bb[SG.state]).toBe(BACK);
+  return { sim, c };
+}
 
 describe('the seal guide on the way back in (BACK)', () => {
-  it('wedged at the lip of her opening, she bites toward the way in after SEAL_STALL_TICKS without progress', () => {
-    const c = throatCase({ pitchDeg: 55, widthBu: 2.1, soil: 'loam' });
-    const sim = c.sim, bu = sim.world.bu, q = queen(sim), nest = nestOf(sim);
-    pinTemperature(sim, 22);
-    // on the ground 2 BU from the opening, outside the cavity and inside the throat (SEAL_THROAT_BU)
-    const lip: Vec3 = { x: c.mouth.x - 2 * bu, y: sim.field.height(c.mouth.x - 2 * bu, c.mouth.z) + 0.5 * bu, z: c.mouth.z };
-    // a lump of loose soil (her half-laid plug) at the lip between her and the shaft; the shaft beside it stays open
-    sim.enqueue({ type: 'cheat.fillSphere', pos: { x: c.mouth.x - 1.1 * bu, y: sim.field.height(c.mouth.x - 1.1 * bu, c.mouth.z), z: c.mouth.z }, r: 0.7 * bu, loose: true });
-    sim.enqueue({ type: 'cheat.teleport', antId: q.id, pos: lip });
-    sim.enqueue({ type: 'possess', antId: q.id });
-    sim.tick();
-    expect(queenInCavity(sim, nest, q)).toBe(false);
-    expect(cellReachesAir(sim, nest)).toBe(true);
-    sim.enqueue({ type: 'action', actionId: 'seal-entrance', phase: 'start' });
-    stepUntil(sim, () => (q.bb[SG.state] ?? 0) === BACK, 50);
-    expect(q.bb[SG.state]).toBe(BACK);
-    // wedged: whatever she is told, she stays where she is
-    const at = { ...q.pos }, bites0 = q.bb[FB.bites] ?? 0;
-    let bitAt = -1;
-    for (let t = 0; t < SEAL_STALL_TICKS + 20 && bitAt < 0; t++) {
-      sim.tick();
-      if ((q.bb[SG.state] ?? 0) !== BACK) break;
-      q.pos.x = at.x; q.pos.y = at.y; q.pos.z = at.z;
-      if ((q.bb[FB.bites] ?? 0) > bites0 || q.action?.id === 'dig-bite') bitAt = t;
-    }
-    expect(bitAt).toBeGreaterThanOrEqual(0);
-    expect(bitAt).toBeLessThanOrEqual(SEAL_STALL_TICKS + 2);
+  it('shut in a pocket beside the top of her shaft, she bites toward the way in once she makes no progress', () => {
+    const { sim } = inPocket();
+    const q = queen(sim), bites0 = q.bb[FB.bites] ?? 0;
+    // two stall checks: the first may still see her slide in the pocket, the second finds her stuck
+    stepUntil(sim, () => (q.bb[FB.bites] ?? 0) > bites0 || q.action?.id === 'dig-bite', 2 * SEAL_STALL_TICKS + 2);
+    expect((q.bb[FB.bites] ?? 0) > bites0 || q.action?.id === 'dig-bite').toBe(true);
+  }, 90_000);
+
+  it('looking for soil (SOIL) in the throat of her opening, out of the cavity, she stays on the soil rule and bites', () => {
+    // woodland-edge #4 at the start pose: SOIL -> BACK -> SOIL every 5-12 ticks, the soil bite never came
+    const { sim } = inPocket();
+    const q = queen(sim), bites0 = q.bb[FB.bites] ?? 0;
+    bbSet(q, SG.state, SOIL);
+    bbSet(q, SG.since, sim.state.tick);
+    let left = false;
+    stepUntil(sim, () => {
+      if ((q.bb[SG.state] ?? 0) !== SOIL && (q.bb[FB.bites] ?? 0) === bites0) left = true;
+      return left || (q.bb[FB.bites] ?? 0) > bites0 || q.action?.id === 'dig-bite';
+    }, SEAL_SOIL_WAIT_TICKS + 3 * SEAL_UNPOCKET_EVERY_TICKS);
+    expect({ left, bit: (q.bb[FB.bites] ?? 0) > bites0 || q.action?.id === 'dig-bite' }).toEqual({ left: false, bit: true });
   }, 90_000);
 });
