@@ -15,7 +15,7 @@ export {
 export { slotUsers, hasSlot, freeSlotsOf, queuePosition, holdsSlotAction, SLOT_ACTIONS } from './slots';
 export { cropToxin, cropWater, cropFill, cropRoom, BB_CROP_TOXIN, BB_CROP_WATER } from './crop';
 export {
-  discoverSource, isDiscoveredBy, isAvoidedBy, isExhaustedFor, isAvailable, sourceQuality, sourcesSmelledFrom,
+  discoverSource, isDiscoveredBy, isAvoidedBy, isExhaustedFor, isAvailable, sourceQuality, sourcesSmelledFrom, nearestSmelledFrom,
   findSources, nearestSource, nutrientsLeft, isCarrion, type SourceFilter,
 } from './discovery';
 export { recordHarvest, recordDelivery, sourceIntake, type SourceIntake } from './ledger';

@@ -14,11 +14,22 @@ import { isAvoidedBy } from '../sources/discovery';
 import { tendSlots } from './herdMath';
 import { herdSourceOf } from './links';
 
+function planDist(a: { x: number; z: number }, b: { x: number; z: number }): number {
+  const dx = a.x - b.x, dz = a.z - b.z;
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
 function inForageMarker(sim: Sim, colonyId: number, s: FoodSource): boolean {
   for (const m of sim.stores.markers.list) {
-    if (m.alive && m.kind === 'forage' && m.colony === colonyId && Math.hypot(s.pos.x - m.pos.x, s.pos.z - m.pos.z) <= m.radius) return true;
+    if (m.alive && m.kind === 'forage' && m.colony === colonyId && planDist(s.pos, m.pos) <= m.radius) return true;
   }
   return false;
+}
+
+/** Whether the player's (or the colony's) forage marker lies over this herd (its tenders wanted are multiplied). */
+export function herdMarked(sim: Sim, col: Colony, h: Herd): boolean {
+  const src = herdSourceOf(sim, h);
+  return !!src && inForageMarker(sim, col.id, src);
 }
 
 function homeOf(sim: Sim, col: Colony): { x: number; z: number } | null {
@@ -39,7 +50,7 @@ export function herdWorkable(sim: Sim, col: Colony, h: Herd): boolean {
   if (isAvoidedBy(sim, src, col.id)) return false;
   if (h.tenderColony >= 0 && h.tenderColony !== col.id && h.tend > RIVAL_TEND_GUARD) return false;
   const home = homeOf(sim, col);
-  return !home || Math.hypot(src.pos.x - home.x, src.pos.z - home.z) <= TEND_SITE_RANGE_BU * sim.world.bu;
+  return !home || planDist(src.pos, home) <= TEND_SITE_RANGE_BU * sim.world.bu;
 }
 
 /** Tenders the colony wants at this herd (0 when it does not work it). */

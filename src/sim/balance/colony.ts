@@ -406,6 +406,25 @@ export const SCOUTS_MISSING_MIN = 2;
 export const SCOUTS_MISSING_SMALL_N = 8;
 export const SCOUT_MISSING_FRAC = 0.2;
 export const SCOUT_MISSING_MAX_FRAC = 0.25;
+/**
+ * Direction 26a item 2 (round 12; GDD 02 §6.2 deviation, with R38 item 1): the floor has two levels. The full floor
+ * above holds only while the colony knows no live source of the missing nutrient; while it knows one and is still
+ * short by >= SCOUT_MISSING_SHORT, the floor is SCOUT_SHORT_KNOWN_FRAC x workers, rounded up, at least 1. Sweep 11:
+ * scout time 150 -> 242 worker game days with 252 of 299 scout trips finding nothing, because protein was short by
+ * >= 0.5 in every colony on every day and the full floor never lifted.
+ */
+export const SCOUT_SHORT_KNOWN_FRAC = 0.1;
+
+/**
+ * R39 (direction 26 item 1, round 12; GDD 02 §6.2 deviation): the `tend` demand is asked for by the carbohydrate the
+ * colony wants, not by the herds' slots alone: min(Σ slots, max(keep, ceil(TEND_HEADROOM x wantC / C a tender brings a
+ * gd))). The keep is TEND_KEEP tenders a workable herd while the surface is workable (more for a herd so large that
+ * one tender cannot hold its tend above RIVAL_TEND_GUARD). Round 11's arm: seven colonies held their winter
+ * carbohydrate by day 4-8 and went on tending at 15-35 % of their worker time while protein stood at 0.22-0.51 of need.
+ * TEND_HEADROOM is the integrator's (not to be tuned).
+ */
+export const TEND_HEADROOM = 1.25;
+export const TEND_KEEP = 1;
 export const SCOUT_MIN_ACTIVITY = 0.1;
 /**
  * Small colonies forage (viab-economy R3; GDD 02 §6.2 gives an incipient colony 1-2 scouts and a forage demand
@@ -425,6 +444,13 @@ export const HAUL_PER_PELLET = 6;
 export const HAUL_PER_WASTE = 6;
 export const HAUL_PER_CORPSE = 2;
 export const HAUL_MAX_FRAC = 0.2;
+/**
+ * Direction 26 item 4b (round 12; GDD 02 §6.2 deviation): while a chamber holding brood has waste at or over the
+ * hygiene tolerance (the allocation's withHygiene test), the haul demand is capped at this share of the workers
+ * instead of HAUL_MAX_FRAC: a first cohort's pupation leaves 6-9 meconium items in one chamber at once (round 11,
+ * cpv #2 / kd #3), and 1-2 haulers cannot carry that out before the corpses it kills add to it.
+ */
+export const HAUL_BROOD_MAX_FRAC = 0.4;
 export const CORPSE_HAUL_RADIUS_BU = 60;
 /**
  * `midden-blocked` (GDD 02 §10.8, §14 diag-hygiene): a hauler that had to drop waste or soil at the internal dump

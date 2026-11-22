@@ -43,12 +43,13 @@ function broodAmongWaste(sim: Sim, col: Colony): boolean {
 export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPass: boolean): void {
   const cen = censusOf(sim, col.id);
   refreshActual(sim, col);
-  computeDemand(sim, col, cen);
+  const hygiene = broodAmongWaste(sim, col);
+  computeDemand(sim, col, cen, hygiene);
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
   const acc = coreOf(col).acc;
   computeTargets(
-    col, cen.available, (acc['threat'] ?? 0) > 0, workforce, broodAmongWaste(sim, col), acc[PROSPECTIVE_FORAGE_KEY] ?? 0,
-    (acc[SCOUT_FLOOR_KEY] ?? 0) > 0,
+    col, cen.available, (acc['threat'] ?? 0) > 0, workforce, hygiene, acc[PROSPECTIVE_FORAGE_KEY] ?? 0,
+    acc[SCOUT_FLOOR_KEY] ?? 0,
   );
   col.alloc.lastTick = sim.state.tick;
   if (!surplusPass) return;

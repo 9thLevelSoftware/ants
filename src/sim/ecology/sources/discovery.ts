@@ -82,6 +82,24 @@ export function sourcesSmelledFrom(sim: Sim, p: Vec3, out: number[] = []): numbe
   return out;
 }
 
+/**
+ * The nearest source an ant at p can smell now that passes `accept` (ties broken by id), -1 none: the first id of
+ * sourcesSmelledFrom that passes `accept`, without building and sorting the list (colony-life round 12: every outside
+ * worker runs this check, R38 item 5).
+ */
+export function nearestSmelledFrom(sim: Sim, p: Vec3, accept: (s: FoodSource) => boolean): number {
+  const bu = sim.world.bu;
+  let best = -1, bestD2 = Infinity;
+  forEachSourceNear(sim, p.x, p.z, maxOdourMm(bu), (s) => {
+    const d2 = dist2(p, s.pos);
+    if (d2 > bestD2 || (d2 === bestD2 && s.id > best)) return;
+    const r = odourRadiusMm(s, bu);
+    if (d2 > r * r || !isAvailable(sim, s) || !accept(s)) return;
+    best = s.id; bestD2 = d2;
+  });
+  return best;
+}
+
 /** Optional constraints of nearestSource / findSources. */
 export interface SourceFilter {
   kind?: FoodKind;

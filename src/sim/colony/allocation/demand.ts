@@ -6,13 +6,14 @@ import { clamp } from '@/core/math/scalar';
 import { harvestForm } from '@/sim/ecology';
 import {
   BROOD_MOVE_NURSE, DEFEND_MIN_WORKERS, DIAPAUSE_LARVAE_PER_NURSE, EGGS_PER_NURSE, ENTRANCE_ALARM_ALERT_PH,
-  GUARDS_PER_ENTRANCE, HAUL_MAX_FRAC, HAUL_PER_CORPSE, HAUL_PER_PELLET, HAUL_PER_WASTE, NURSE_FEED_CAPACITY,
+  GUARDS_PER_ENTRANCE, HAUL_BROOD_MAX_FRAC, HAUL_MAX_FRAC, HAUL_PER_CORPSE, HAUL_PER_PELLET, HAUL_PER_WASTE, NURSE_FEED_CAPACITY,
   PATROL_FRAC, PUPAE_PER_NURSE, QUEEN_CARE_BASE, QUEEN_CARE_MAX, QUEEN_CARE_PER_WORKERS, SCOUT_BASE_FRAC,
   SCOUT_MAX_FRAC, SCOUT_MIN_ACTIVITY, SCOUT_MISSING_FRAC, SCOUT_MISSING_MAX_FRAC, SCOUT_MISSING_SHORT,
-  SCOUT_SHORTFALL_FRAC, SCOUTS_MISSING_MIN, SCOUTS_MISSING_SMALL_N, SMALL_COLONY_N, SMALL_KNOWN_SOURCES, SMALL_OUTSIDE_FRAC,
+  SCOUT_SHORTFALL_FRAC, SCOUT_SHORT_KNOWN_FRAC, SCOUTS_MISSING_MIN, SCOUTS_MISSING_SMALL_N, SMALL_COLONY_N, SMALL_KNOWN_SOURCES, SMALL_OUTSIDE_FRAC,
   SMALL_OUTSIDE_MIN, SMALL_SCOUTS_MIN, SOURCE_SLOT_FORAGERS, SPOILED_ITEMS_PER_STORE,
-  STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD,
+  STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD, TEND_HEADROOM, TEND_KEEP,
 } from '@/sim/balance';
+import { RIVAL_TEND_GUARD } from '@/sim/balance/ecology';
 import { PATCH_FORAGERS_MAX } from '@/sim/balance/foraging';
 import { CREATURE_STATS, PATCH_IMMIGRATION_PER_GD, PATCH_R_PER_GD } from '@/sim/balance/creatures';
 import { colonySlotBit } from '@/sim/entities';
@@ -22,8 +23,8 @@ import { surfaceActivityOf } from '../envAdapter';
 import { forageRates, intakeTarget, targetDays } from '../needs';
 import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
-import { herdTendDemand, herdWorkable } from '@/sim/ecology/plants/demand';
-import { productionPerGd } from '@/sim/ecology/plants/herdMath';
+import { herdMarked, herdWorkable, tendersWanted } from '@/sim/ecology/plants/demand';
+import { productionPerGd, tendersNeeded, tendSlots } from '@/sim/ecology/plants/herdMath';
 import { typicalForager, unitsPerTripOf } from '../tripLoad';
 
 const T = (t: Task): number => ti(t);
@@ -35,8 +36,8 @@ const T = (t: Task): number => ti(t);
 export const PROSPECTIVE_FORAGE_KEY = 'alloc.prospForage';
 
 /**
- * core.acc key: the scout demand R38 item 1 asks for a missing nutrient (0 when no nutrient is missing); the auto
- * allocation fills it before `forage` (targets.ts autoTargets).
+ * core.acc key: the scout floor R38 item 1 (in direction 26a item 2's two levels) asks for a missing nutrient (0 when
+ * no nutrient is missing); the auto allocation fills it before `forage` (targets.ts planTargets).
  */
 export const SCOUT_FLOOR_KEY = 'alloc.scoutFloor';
 
@@ -111,16 +112,57 @@ function addKnownPatches(sim: Sim, col: Colony, out: KnownCapacity): void {
  * a nutrient the colony does not need now.
  */
 export function nutrientShortfalls(col: Colony, known: KnownCapacity): { c: number; p: number } {
+  const want = forageWant(col);
+  const short = (w: number, loads: number, need: number): number => (need > 0 && w > 0 ? clamp(1 - loads / w, 0, 1) : 0);
+  return { c: short(want.c, known.loadsC, col.needs.needC), p: short(want.p, known.loadsP, col.needs.needP) };
+}
+
+/**
+ * Each nutrient's forage want, loads per gd: today's rate plus the refill of the stock target over STOCK_REFILL_GD
+ * (the forage side's rates, so it carries the season's stock target and R32b / R35's prospective protein).
+ */
+export function forageWant(col: Colony): { c: number; p: number } {
   const r = forageRates(col), t = targetDays(col), st = col.stores;
-  const short = (rate: number, target: number, stock: number, loads: number, need: number): number => {
-    if (need <= 0) return 0;
-    const want = rate + Math.max(0, target * rate - stock) / STOCK_REFILL_GD;
-    return want > 0 ? clamp(1 - loads / want, 0, 1) : 0;
-  };
   return {
-    c: short(r.c, t.c, st.c, known.loadsC, col.needs.needC),
-    p: short(r.p, t.p, st.p, known.loadsP, col.needs.needP),
+    c: r.c + Math.max(0, t.c * r.c - st.c) / STOCK_REFILL_GD,
+    p: r.p + Math.max(0, t.p * r.p - st.p) / STOCK_REFILL_GD,
   };
+}
+
+/**
+ * Tenders that keep a herd's claim: TEND_KEEP, or as many as hold its `tend` above RIVAL_TEND_GUARD for a herd that
+ * needs more than 1 / RIVAL_TEND_GUARD tenders at full tending (tend = present / tendersNeeded, plants/tending.ts).
+ */
+export function tendKeep(aphids: number): number {
+  return Math.max(TEND_KEEP, Math.floor(RIVAL_TEND_GUARD * tendersNeeded(aphids)) + 1);
+}
+
+/**
+ * R39 (direction 26 item 1): the `tend` demand, worker-equivalents. Herds under the colony's forage marker get their
+ * (multiplied) slots as before. The others get min(their slots, max(keep, tenders the carbohydrate want needs)), where
+ * tenders needed = ceil(TEND_HEADROOM x wantC / carbohydrate one tender brings a gd); one tender's carbohydrate is the
+ * herds' production at full tending over their slots (plants/herdMath), and wantC is the forage want (forageWant) less
+ * what the known non-herd sources and the marked herds supply: the forage demand already asks foragers for the
+ * carbohydrate those sources can give (intakeTarget, capped by their forager-equivalents), so counting it again for
+ * the tenders would ask for the same sugar twice. The keep holds only while the surface is workable.
+ */
+export function tendDemand(sim: Sim, col: Colony, known: KnownCapacity, workable: boolean): number {
+  let marked = 0, markedC = 0, slots = 0, prod = 0, keep = 0, herdC = 0;
+  for (const h of sim.stores.herds.list) {
+    if (!herdWorkable(sim, col, h)) continue;
+    const full = productionPerGd(h.a, 1, 1);
+    herdC += full;
+    if (herdMarked(sim, col, h)) { marked += tendersWanted(sim, col, h); markedC += full; continue; }
+    slots += tendSlots(h.a);
+    prod += full;
+    keep += tendKeep(h.a);
+  }
+  if (slots <= 0) return marked;
+  const nonHerdC = Math.max(0, known.loadsC - herdC);
+  const wantC = Math.max(0, forageWant(col).c - nonHerdC - markedC);
+  const perTender = prod / slots;
+  const needed = perTender > 0 ? Math.ceil((TEND_HEADROOM * wantC) / perTender) : slots;
+  return marked + Math.min(slots, Math.max(workable ? keep : 0, needed));
 }
 
 /**
@@ -132,16 +174,30 @@ export function scoutShortfall(col: Colony, known: KnownCapacity): number {
   return Math.max(s.c, s.p);
 }
 
-/** R38 item 1: a nutrient is missing while the colony needs it and what it knows covers under half of its want. */
-export function nutrientMissing(col: Colony, known: KnownCapacity): boolean {
-  const s = nutrientShortfalls(col, known);
-  return Math.max(s.c, s.p) >= SCOUT_MISSING_SHORT;
-}
-
 /** R38 item 1: the scout floor while a nutrient is missing, in worker-equivalents, for a colony of `n` workers. */
 export function missingScoutFloor(n: number): number {
   const min = n < SCOUTS_MISSING_SMALL_N ? 1 : SCOUTS_MISSING_MIN;
   return Math.min(SCOUT_MISSING_MAX_FRAC * n, Math.max(min, SCOUT_MISSING_FRAC * n));
+}
+
+/** Direction 26a item 2: the lower floor while the colony knows a live source of the nutrient and is still short. */
+export function shortKnownScoutFloor(n: number): number {
+  return Math.max(1, Math.ceil(SCOUT_SHORT_KNOWN_FRAC * n));
+}
+
+/**
+ * The scout floor (R38 item 1 in direction 26a item 2's two levels), worker-equivalents; 0 while no nutrient is
+ * missing. Per missing nutrient: the full floor while the colony knows no live source of it, the lower floor while it
+ * knows one; the larger over the nutrients.
+ */
+export function scoutFloor(col: Colony, known: KnownCapacity, live: { c: number; p: number }, n: number): number {
+  const s = nutrientShortfalls(col, known);
+  let floor = 0;
+  for (const k of ['c', 'p'] as const) {
+    if (s[k] < SCOUT_MISSING_SHORT) continue;
+    floor = Math.max(floor, live[k] > 0 ? shortKnownScoutFloor(n) : missingScoutFloor(n));
+  }
+  return floor;
 }
 
 /** Worker-equivalents of open dig work: the nest module's digDemand over the colony's plans (GDD 03 §7.7). */
@@ -172,12 +228,10 @@ export function entranceCount(sim: Sim, col: Colony): number {
 }
 
 /**
- * Live sources the colony knows that carry a nutrient it needs now, the fewest over those nutrients (R38 item 1: a
- * colony that knows two sugar sources and no protein still has protein to find). Carbohydrate: known sources with
- * food and carbohydrate in it, and the herds it works; protein: known sources with protein, and its known prey
- * patches holding prey. Infinity while it needs neither.
+ * Live sources the colony knows, per nutrient. Carbohydrate: known sources with food and carbohydrate in it, and the
+ * herds it works; protein: known sources with protein, and its known prey patches holding prey.
  */
-function knownSourcesOfNeeded(sim: Sim, col: Colony): number {
+export function knownLiveSources(sim: Sim, col: Colony): { c: number; p: number } {
   let c = 0, p = 0;
   for (const id of col.knownSourceIds) {
     const s = sim.stores.sources.get(id);
@@ -188,6 +242,15 @@ function knownSourcesOfNeeded(sim: Sim, col: Colony): number {
   for (const h of sim.stores.herds.list) if (herdWorkable(sim, col, h)) c++;
   const bit = colonySlotBit(sim, col.id);
   if (bit !== 0) for (const pt of sim.state.ecology.preyPatches) if (((pt.knownBy ?? 0) & bit) !== 0 && pt.count >= 1) p++;
+  return { c, p };
+}
+
+/**
+ * Live sources the colony knows that carry a nutrient it needs now, the fewest over those nutrients (R38 item 1: a
+ * colony that knows two sugar sources and no protein still has protein to find). Infinity while it needs neither.
+ */
+function knownSourcesOfNeeded(live: { c: number; p: number }, col: Colony): number {
+  const { c, p } = live;
   let fewest = Infinity;
   if (col.needs.needC > 0) fewest = Math.min(fewest, c);
   if (col.needs.needP > 0) fewest = Math.min(fewest, p);
@@ -200,11 +263,13 @@ function knownSourcesOfNeeded(sim: Sim, col: Colony): number {
  * SMALL_KNOWN_SOURCES live sources of each nutrient it needs are known (R38 item 1); the rest of the outside share
  * forages.
  */
-function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array): void {
+function smallColonyFloor(
+  sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array, live: { c: number; p: number },
+): void {
   if (n >= SMALL_COLONY_N || surfaceActivityOf(sim, col.species) < SCOUT_MIN_ACTIVITY) return;
   if (col.needs.needC <= 0 && col.needs.needP <= 0) return;
   const outside = Math.min(n, Math.max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC * n));
-  const scoutsMin = knownSourcesOfNeeded(sim, col) < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
+  const scoutsMin = knownSourcesOfNeeded(live, col) < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
   d[T('scout')] = Math.max(d[T('scout')], scoutsMin);
   // the rest of the outside share forages, at least one forager (a 7-worker colony's 2.45 - 2 scouts rounded to no
   // forager at all). With nothing known yet those foragers wait inside for news, where they age at a third of the
@@ -213,8 +278,11 @@ function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Fl
   d[T('forage')] = Math.max(d[T('forage')], outside - scoutsMin, 1);
 }
 
-/** Fills col.alloc.demand (Float32Array by TASKS order). */
-export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array {
+/**
+ * Fills col.alloc.demand (Float32Array by TASKS order). `broodAmongWaste`: a brood chamber holds waste at the hygiene
+ * tolerance (allocation/index.ts): the haul cap is HAUL_BROOD_MAX_FRAC then (direction 26 item 4b).
+ */
+export function computeDemand(sim: Sim, col: Colony, cen: Census, broodAmongWaste = false): Float32Array {
   const d = col.alloc.demand;
   d.fill(0);
   const n = cen.workers;
@@ -243,23 +311,25 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
     const shortfall = scoutShortfall(col, known);
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
-  smallColonyFloor(sim, col, n, d);
-  // R38 item 1: scouts for a missing nutrient, filled before `forage` (targets.ts)
-  const scoutFloor = workable && nutrientMissing(col, known) ? missingScoutFloor(n) : 0;
-  d[T('scout')] = Math.max(d[T('scout')], scoutFloor);
-  core.acc[SCOUT_FLOOR_KEY] = scoutFloor;
+  const live = knownLiveSources(sim, col);
+  smallColonyFloor(sim, col, n, d, live);
+  // R38 item 1 / direction 26a item 2: scouts for a missing nutrient; this floor (not the rest of the scout demand) is
+  // filled before `forage` (targets.ts, direction 26 item 3)
+  const floor = workable ? scoutFloor(col, known, live, n) : 0;
+  d[T('scout')] = Math.max(d[T('scout')], floor);
+  core.acc[SCOUT_FLOOR_KEY] = floor;
   // R35 point 5: the prospective part of the forage demand, on top of the plain demand and the small-colony floor
   const plainForage = d[T('forage')];
   d[T('forage')] = Math.max(plainForage, forageFull);
   core.acc[PROSPECTIVE_FORAGE_KEY] = d[T('forage')] - plainForage;
-  // GDD 02 §6.2: Σ tenderSlots over the colony's workable herds (the plants module owns the herd rules)
-  d[T('tend')] = herdTendDemand(sim, col.id);
+  // R39: tenders for the carbohydrate the colony wants, at most Σ tenderSlots over its workable herds (GDD 02 §6.2)
+  d[T('tend')] = tendDemand(sim, col, known, workable);
   d[T('dig')] = digDemand(sim, col);
   // pellets: the nest's lying in-nest pellets weighted by haul urgency (spoil nearing tamping age counts more)
   const pellets = haulPelletLoad(sim, col.id);
   if (items || pellets > 0) {
     const w = items ? items.waste / HAUL_PER_WASTE + items.corpses / HAUL_PER_CORPSE : 0;
-    d[T('haul')] = Math.min(HAUL_MAX_FRAC * n, pellets / HAUL_PER_PELLET + w);
+    d[T('haul')] = Math.min((broodAmongWaste ? HAUL_BROOD_MAX_FRAC : HAUL_MAX_FRAC) * n, pellets / HAUL_PER_PELLET + w);
   }
   if (n >= DEFEND_MIN_WORKERS) {
     const m = threatMult(sim, col);

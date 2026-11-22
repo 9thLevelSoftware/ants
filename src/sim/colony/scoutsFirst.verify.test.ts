@@ -28,7 +28,7 @@ describe('colony-life round 11 review: R38 item 1 fills the floor, not more, bef
     col.alloc.demand.fill(0);
     col.alloc.demand[T('nurse')] = 2; col.alloc.demand[T('queen-care')] = 1;
     col.alloc.demand[T('forage')] = 12; col.alloc.demand[T('scout')] = 2;
-    computeTargets(col, 6, false, undefined, false, 0, true);
+    computeTargets(col, 6, false, undefined, false, 0, missingScoutFloor(6)); // round 12: the floor, not a flag
     const scouts = col.alloc.target[T('scout')];
     // ruling: the floor (1.2 -> 1, and never above 0.25 x 6 = 1.5) is served before forage; the rest of the scout
     // demand waits for its place in the GDD order, where forage takes the remaining workers first
@@ -40,7 +40,7 @@ describe('colony-life round 11 review: R38 item 1 fills the floor, not more, bef
     col.alloc.demand.fill(0);
     col.alloc.demand[T('nurse')] = 2; col.alloc.demand[T('queen-care')] = 1;
     col.alloc.demand[T('forage')] = 15; col.alloc.demand[T('tend')] = 15; col.alloc.demand[T('scout')] = 3;
-    computeTargets(col, 15, false, undefined, false, 0, true);
+    computeTargets(col, 15, false, undefined, false, 0, missingScoutFloor(15));
     expect(col.alloc.target[T('scout')]).toBe(3);
   });
 });

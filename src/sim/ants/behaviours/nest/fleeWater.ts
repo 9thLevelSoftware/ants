@@ -26,10 +26,11 @@ import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Nest, Sim, System } from '@/sim/types';
 import { AntFlag } from '@/sim/types';
 import {
-  FLEE_ARRIVE_BU, FLEE_CHECK_TICKS, FLEE_DRY_MARGIN_BU, FLEE_QUERY_PAD_BU, FLEE_RESUME_MARGIN_BU, FLEE_RETRY_S,
+  FLEE_ARRIVE_BU, FLEE_CHECK_TICKS, FLEE_DRY_MARGIN_BU, FLEE_HOLD_MAX_GD, FLEE_QUERY_PAD_BU, FLEE_RESUME_MARGIN_BU, FLEE_RETRY_S,
   FLEE_NURSE_MAX_SUB_S, FLEE_WATER_DEPTH_BU, FLOOD_ANT_SUB_KEY, FLOOD_SUBMERGE_DEPTH_BU,
 } from '@/sim/balance/weather';
-import { secondsToTicks } from '@/sim/time';
+import { secondsToTicks, TICKS_PER_DAY } from '@/sim/time';
+import { switchTask } from '@/sim/colony/allocation/assign';
 import { navFollowField, navStop, navTo } from '@/sim/locomotion';
 import { cancel, interruptible } from '@/sim/ants/actions';
 import { exitBehaviour } from '@/sim/ants/behaviourRunner';
@@ -193,12 +194,41 @@ function checkFleeing(sim: Sim, a: Ant, w: WaterView | null): void {
   if (a.bb[FW.phase] === 1 || stalled || !isDryAt(sim, w, target(a, tmp), FLEE_RESUME_MARGIN_BU * bu)) retarget(sim, a, w);
 }
 
-/** Is the walk's destination on a floor under water (an ant about to walk into the flooded part)? */
+/**
+ * Is the walk's destination on a floor under water deep enough to flee from (an ant about to walk into the flooded
+ * part)? The depth is the one at which an ant inside leaves (FLEE_WATER_DEPTH_BU): round 12's trace on cpv #2 held its
+ * hauler outside 65 times in 6 gd for a destination in the brood chamber with 0.01-0.17 BU of water on the floor
+ * (median 0.05, 1-10 % of the chamber wet), where the nurses inside worked on; the rule asked for any water (> 0).
+ */
 function walkingIntoWater(sim: Sim, a: Ant, w: WaterView): boolean {
   if (a.nav.status !== 'moving' || a.nestId === w.nest.id) return false;
   const d = a.nav.dest;
   if (sim.field.substrate(d) >= 0) return false; // a surface destination (the opening itself) is not the water
-  return waterDepthOver(w.cache, sim.carve.voxel, d.x, d.y, d.z, w.level, -Infinity) > 0;
+  return waterDepthOver(w.cache, sim.carve.voxel, d.x, d.y, d.z, w.level, -Infinity) >= FLEE_WATER_DEPTH_BU * sim.world.bu;
+}
+
+/** ant.bb keys of the hold limit (kept across holds, unlike FW): first and last tick of a run of holds. */
+const HOLD0 = 'fw.h0', HOLDLAST = 'fw.hl';
+
+/**
+ * Direction 26 item 4a: a hold never outlasts FLEE_HOLD_MAX_GD over a run of holds (one hold, its FLEE_RETRY_S
+ * re-plan into the task, held again...). Past that her task is handed back to the allocator: she goes idle where she
+ * is and the task's target is refilled by whoever the allocator picks. Returns true when the task was handed back.
+ */
+function holdExpired(sim: Sim, a: Ant): boolean {
+  const tick = sim.state.tick;
+  const last = a.bb[HOLDLAST];
+  if (last === undefined || tick - last > 2 * secondsToTicks(FLEE_RETRY_S) + FLEE_CHECK_TICKS) a.bb[HOLD0] = tick;
+  a.bb[HOLDLAST] = tick;
+  if (tick - (a.bb[HOLD0] ?? tick) < FLEE_HOLD_MAX_GD * TICKS_PER_DAY) return false;
+  delete a.bb[HOLD0]; delete a.bb[HOLDLAST];
+  const col = sim.stores.colonies.get(a.colony);
+  exitBehaviour(sim, a);
+  if (a.action && interruptible(a)) cancel(sim, a, null);
+  navStop(sim, a);
+  if (col) switchTask(sim, col, a, 'idle', 'threat');
+  a.thinkTick = tick;
+  return true;
 }
 
 const ids: number[] = [];
@@ -228,7 +258,7 @@ function checkNest(sim: Sim, w: WaterView, set: Set<number>): void {
       // no dry place anywhere (a full sump with no way out): she stays, and the water decides (no cheating)
       if (place) startFlee(sim, a, w.nest, place, { x: a.pos.x, y: feetY(a), z: a.pos.z }, 'wet');
     } else if (walkingIntoWater(sim, a, w)) {
-      startFlee(sim, a, w.nest, null, a.nav.dest, 'hold');
+      if (!holdExpired(sim, a)) startFlee(sim, a, w.nest, null, a.nav.dest, 'hold');
     }
   }
 }

@@ -67,15 +67,15 @@ function withHygiene(order: readonly Task[]): Task[] {
 }
 
 /**
- * R38 item 1 (a deviation from GDD 02 §6.3's fixed order): while a nutrient is missing, `scout` moves up to just after
- * the brood's care (nurse, queen-care and, when brood lies among waste, haul) and is served its whole demand in the
- * first pass, before `forage`. Round 10: once a colony knew its sugar, forage and tend took every free worker and
- * the scouts' head-count fell to 0.02-0.1, so its protein was never found.
+ * R38 item 1 (a deviation from GDD 02 §6.3's fixed order): while a nutrient is missing, the scout floor (demand.ts
+ * scoutFloor, rounded) is served right after the brood's care (nurse, queen-care and, when brood lies among waste,
+ * haul), before `forage`. Only the floor: the rest of the scout demand keeps its GDD place after `tend` (direction 26
+ * item 3; sweep 11's review found the whole demand served first, 2 scouts ahead of forage in a colony of 6). Round 10:
+ * once a colony knew its sugar, forage and tend took every free worker and the scouts' head-count fell to 0.02-0.1,
+ * so its protein was never found. Returns the index in `order` after which the floor is served.
  */
-function withScoutsFirst(order: readonly Task[], hygiene: boolean): Task[] {
-  const rest = order.filter((t) => t !== 'scout');
-  const at = rest.indexOf(hygiene ? 'haul' : 'queen-care') + 1;
-  return [...rest.slice(0, at), 'scout', ...rest.slice(at)];
+function scoutFloorSlot(order: readonly Task[], hygiene: boolean): number {
+  return order.indexOf(hygiene ? 'haul' : 'queen-care');
 }
 
 /** Splits `total` over weights with largest remainders (integers summing to total). */
@@ -97,33 +97,40 @@ export function apportion(total: number, weights: number[]): number[] {
  */
 function autoTargets(
   demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean, prospForage: number,
-  scoutsFirst: boolean,
+  scoutFloor: number,
 ): void {
   const fi = ti('forage');
   const extra = Math.max(0, Math.min(prospForage, demand[fi]));
   demand[fi] -= extra;
   const free = new Free(w.all, w.adult, w.outside);
-  planTargets(demand, free, threat, target, hygiene, scoutsFirst);
+  planTargets(demand, free, threat, target, hygiene, scoutFloor);
   demand[fi] += extra;
   if (extra > 0) target[fi] += free.take(poolOfTask('forage'), Math.max(0, Math.round(demand[fi]) - target[fi]));
 }
 
-/** GDD 02 §6.3's two passes: full demands when they fit, else half of each in order, then the rest in order. */
+/**
+ * GDD 02 §6.3's two passes: full demands when they fit, else half of each in order, then the rest in order.
+ * `scoutFloor` > 0: that many scouts (at most the scout demand) are served after the brood's care in the first pass
+ * (scoutFloorSlot); the scout entry at its own place then tops up to half its demand as any task does.
+ */
 function planTargets(
-  demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean, scoutsFirst = false,
+  demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean, scoutFloor = 0,
 ): void {
   let sum = 0;
   for (const t of PRIORITY) sum += demand[ti(t)];
   const base = threat ? PRIORITY_THREAT : PRIORITY;
-  const withHaul = hygiene ? withHygiene(base) : base;
-  const order = scoutsFirst ? withScoutsFirst(withHaul, hygiene) : withHaul;
+  const order = hygiene ? withHygiene(base) : base;
   if (sum <= free.room('all')) {
     for (const t of order) target[ti(t)] = free.take(poolOfTask(t), Math.round(demand[ti(t)]));
     return;
   }
-  for (const t of order) {
-    const full = scoutsFirst && t === 'scout';
-    target[ti(t)] = free.take(poolOfTask(t), full ? Math.round(demand[ti(t)]) : Math.ceil(0.5 * demand[ti(t)]));
+  const si = ti('scout');
+  const floorAfter = scoutFloor > 0 ? scoutFloorSlot(order, hygiene) : -1;
+  const floorScouts = Math.min(Math.round(scoutFloor), Math.round(demand[si]));
+  for (let k = 0; k < order.length; k++) {
+    const i = ti(order[k]);
+    target[i] += free.take(poolOfTask(order[k]), Math.max(0, Math.ceil(0.5 * demand[i]) - target[i]));
+    if (k === floorAfter) target[si] += free.take(poolOfTask('scout'), Math.max(0, floorScouts - target[si]));
   }
   for (const t of order) {
     const i = ti(t);
@@ -170,19 +177,19 @@ function manualTargets(
 /**
  * Recomputes col.alloc.target; returns the idle target (available workers not given a task). `workforce` splits
  * `available` by eligibility (default: every available worker fits every group). `hygiene`: waste in a brood chamber
- * at the hygiene tolerance (auto mode ranks `haul` after `queen-care`). `scoutsFirst`: a nutrient is missing (R38
- * item 1, demand.ts SCOUT_FLOOR_KEY): auto mode serves `scout` before `forage`.
+ * at the hygiene tolerance (auto mode ranks `haul` after `queen-care`). `scoutFloor`: the scout floor while a
+ * nutrient is missing (R38 item 1, demand.ts SCOUT_FLOOR_KEY): auto mode serves that many scouts before `forage`.
  */
 export function computeTargets(
   col: Colony, available: number, threat: boolean,
   workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false, prospForage = 0,
-  scoutsFirst = false,
+  scoutFloor = 0,
 ): number {
   const target = col.alloc.target;
   target.fill(0);
   const a = col.directives.allocation;
   const w = { ...workforce, all: available };
-  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutsFirst);
+  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutFloor);
   else manualTargets(col.alloc.demand, w, a, col.directives.taskShares, target);
   let assigned = 0;
   for (let i = 0; i < target.length; i++) assigned += target[i];

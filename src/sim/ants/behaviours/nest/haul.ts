@@ -97,6 +97,23 @@ export function findHaulJob(sim: Sim, ant: Ant, nest: Nest): Item | null {
   return best;
 }
 
+/**
+ * Direction 26 item 4b: the nearest waste item or corpse lying in `chamberId` that the ant can carry to the midden
+ * (unclaimed, light enough, a midden to take it to), or null. A nurse with nothing to do in a brood chamber over the
+ * hygiene tolerance carries one out with the haul primitive (nurse.ts).
+ */
+export function findChamberWaste(sim: Sim, ant: Ant, nest: Nest, chamberId: number): Item | null {
+  let best: Item | null = null, bestD = Infinity;
+  for (const { it } of haulCandidates(sim, nest)) {
+    if (it.chamberId !== chamberId || (it.kind !== 'waste' && it.kind !== 'corpse')) continue;
+    if (!it.alive || it.carrierIds.length > 0 || it.bulk > ant.carryCap || !freeFor(sim, ant, it.id) || skipped(sim, ant, it.id)) continue;
+    if (it.reservedBy >= 0 && it.reservedBy !== ant.id && sim.stores.ants.has(it.reservedBy)) continue;
+    const d = dist(it.pos, ant.pos);
+    if (d < bestD || (d === bestD && best && it.id < best.id)) { best = it; bestD = d; }
+  }
+  return best;
+}
+
 function claimStep(sim: Sim, ant: Ant): void {
   if (ant.carry.kind === 'item') { setState(sim, ant, 'haul.carry'); return; }
   const nest = homeNest(sim, ant);

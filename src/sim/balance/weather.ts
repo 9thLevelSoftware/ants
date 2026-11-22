@@ -274,6 +274,12 @@ export const FLEE_RESUME_MARGIN_BU = 0.25;
  * slow-draining site; if her task leads back into it she flees again). One game hour.
  */
 export const FLEE_RETRY_S = 25;
+/**
+ * Direction 26 item 4a (round 12): an ant outside held back from walking into a wet nest is held at most this long,
+ * gd, over its successive holds (each ends after FLEE_RETRY_S and her task re-plans): then her task is handed back to
+ * the allocator (she goes idle where she is). Round 11's cpv #2 hauler was held for 58 of 74 hours.
+ */
+export const FLEE_HOLD_MAX_GD = 0.1;
 /** Exit-field samples followed looking for a dry one (0.5 BU each: 150 BU of tunnel). */
 export const FLEE_ROUTE_MAX_STEPS = 300;
 /** Basin samples scanned for high ground when no exit field reaches the ant. */

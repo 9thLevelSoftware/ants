@@ -40,7 +40,9 @@ interface Colony60 {
 function colony60(seed = 1): Colony60 {
   const { sim, plants } = plantSim({ workers: 60, sizeBu: 200, herbs: HERBS, seed });
   const col = sim.state.colonies[0];
-  sim.enqueue({ type: 'cheat.addFood', colonyId: col.id, c: 30, p: 15, toxin: 0 });
+  // R39 (colony-life round 12): the colony asks for tenders by the carbohydrate it wants, so the fixture's colony is
+  // short of it (with C 30 in store it kept one tender a herd and `tend` sat at 0.5, as R39 intends)
+  sim.enqueue({ type: 'cheat.addFood', colonyId: col.id, c: 0.5, p: 15, toxin: 0 });
   const herds = plants.map((p) => addHerd(sim, p, 100));
   for (const h of herds) herdSourceOf(sim, h)!.discoveredBy |= colonySlotBit(sim, col.id); // reported by scouts
   const avoided = herds[2];

@@ -4451,3 +4451,117 @@ cost trap; 26.3 scout floor ahead of forage; 26a.2 floor in two levels; 26a.1 sc
 Progress (kept current; a successor continues from here)
 - 19:39 read spec (directions 26, 26a), round-11 ledger and sweep 11. No process running. Now: 26a.0 (notice.ts /
   lookup.ts cost trap).
+- 19:48 **26a.0 built** (`ecology/sources/lookup.ts`): the grid is synced incrementally (one pass over the list
+  comparing id / alive / x / z per index with what the last sync saw; only changed sources are re-bucketed; a full
+  rebuild only when a swept id went unseen). Test `ecology/sources/lookup.test.ts` (grid == full scan through moves,
+  deaths, adds, sweeps). `outdoor/noticeCost.verify` **green** (2000 checks on new ticks 146 ms after the first try with a
+  Map lookup per source, then < 5x the same-tick cost with the per-index compare). Identity: kd #1 to winter on the
+  frozen tree `/home/user/scratch-r12-a0` (live tree at 19:41 = HEAD + lookup.ts only) vs `round-11/arm-final11` kd #1:
+  **final hash 7f52b151 both, every non-timing field of the JSON equal** (`round-12/a0-check/`). Behaviours system
+  0.728 -> **0.341 ms / tick** (whole run; round-10 arm 0.256; bar 0.30 not yet met): the rest is noticeOutside's own
+  scan (sourcesSmelledFrom allocates and sorts per call), next.
+- 19:48 **26.3 + 26a.2 built** (`allocation/targets.ts`, `allocation/demand.ts`, `allocation/index.ts`, balance
+  `SCOUT_SHORT_KNOWN_FRAC` 0.1): `computeTargets` takes the floor (a number) instead of a flag; `planTargets` serves
+  min(round(floor), round(scout demand)) right after queen-care (haul when brood lies among waste) in the first pass,
+  and the scout entry keeps its GDD place after tend for the rest. `scoutFloor(col, known, live, n)`: per missing
+  nutrient (short >= 0.5), the full floor (`missingScoutFloor`) while no live source of it is known, else
+  max(1, ceil(0.1 n)); `knownLiveSources` shared with the small-colony floor. Tests: `scoutsFirst.verify` **green**
+  (call passes the floor now: `missingScoutFloor(6)` / `(15)`); `scoutsMissing.test.ts` restated (6 workers: scout
+  demand 2, 1 scout in a busy colony; the second waits in the GDD order) + 2 new (known patch with prey, protein short
+  -> floor 2 at 15 workers; 6 workers -> 1; nothing known -> 3). Colony allocation tests green.
+  Running: probe `tools/sim/probe/probe-scoutsmell12.ts` (26a.1 trace: scout-seconds in odour of unknown food by
+  phase) on kd #2, 5 gd, on the a0 tree -> `round-12/probe-scoutsmell-kd2.txt`. Now: the rest of the behaviours cost.
+- 19:52 26a.0 continued: `noteSmelledFood` uses a new non-allocating `ecology nearestSmelledFrom(sim, p, accept)` (the
+  first id of sourcesSmelledFrom that passes, without building and sorting the list; same answer). Behaviours cost
+  to be read on the final arm's kd #1 (the 19:48 identity run is the "after" of the grid fix alone: 0.341 ms / tick).
+- 19:52 **26a.1 traced and built.** Probe (`round-12/probe-scoutsmell-kd2.txt`, kd #2 cached hand-over, R38 tree, 5 gd,
+  scouts' seconds inside the odour of unknown food): 31 scout-seconds in all: collect 21 + return 4 (a honeydew film,
+  known at h 26 by the scout's own return), investigate 5, explore 1; the one unknown carrion (insect-small, h 9) was
+  smelled for 1 s exploring and 1 s investigating and **never known** (investigation ended without contact). On the
+  cached hand-over the case is small (the fresh sweep's kd #2 had 6 trips in carrion odour). Rule built
+  (`outdoor/notice.ts`): `noteSmelledFood` covers a scout in every phase except explore / investigate (where she
+  investigates herself); `rememberSmelled` keeps the source of an investigation given up on INVESTIGATE_S
+  (`phaseScout.ts updateInvestigate`). Test `outdoor/scoutSmellReport.test.ts` (3: homing scout -> known at home;
+  exploring scout -> no report; given-up investigation -> known at home).
+- 19:52 **26.1 R39 built** (`allocation/demand.ts tendDemand`, `forageWant`, `tendKeep`; `plants/demand.ts herdMarked`
+  exported, its two `Math.hypot` replaced; balance `TEND_HEADROOM` 1.25, `TEND_KEEP` 1). tend = marked herds' slots +
+  min(Σ slots, max(keep, ceil(1.25 x wantC / C per tender))), C per tender = Σ production at full tending / Σ slots,
+  wantC = forageWant.c - known non-herd C capacity - marked herds' production. **The double count exists**: the forage
+  demand (`intakeTarget`, capped at known.ants + 1, which counts only non-herd sources) already asks foragers for the
+  carbohydrate those sources give, so it is subtracted. Keep: `RIVAL_TEND_GUARD` needs tend > 0.2 with tend = present /
+  ceil(A / 50), so 1 tender holds a herd up to 200 aphids; `tendKeep` = max(1, floor(0.2 x needed) + 1) (2 at 250, 3 at
+  600), only while the surface is workable. Test `colony/tendDemand.test.ts` (6: the three ruled cases 2 / 4 / 2, the
+  unworkable surface, the marker, the keep). Now: 26a.3 switch-off probe set-up (scratch trees from HEAD).
+- 19:57 colony folder (live tree): 77 / 78 files green (red `workedExample`, known); `tsc` clean. **26a.3 switch-off
+  probe running**: scratch `/home/user/scratch-r12-hyg` = git archive HEAD (R38 tree) + an `R12_OFF` env switch in the
+  copy only (1 scout floor; 2 herd sign radius + outside herd notice; 3 + 5 patch notice + smelled-food report; 4
+  carrion carry density), round-11 probe `probe-hyg11.ts` on cpv #2's cached hand-over for 6 gd, runner
+  `round-12/hyg-off/run.sh`, summary `hyg-off/summ.py`. First two: **none: 71 dirty hours, 14 hygiene deaths, hauler
+  in flee.freeze 58 h** (round 11's trace reproduced); **off-2: 6 dirty hours, 0 deaths** (hauler carrying). off-1,
+  off-35, off-4 running. Probes waiting for a slot: `probe-hold12.ts` (what the held hauler walks to, water over that
+  floor), `probe-choice12.ts` (26.2: cpv #3 forage choices, 2 gd).
+- 19:59 **26a.3 switch-off probe done** (cpv #2, 6 gd from the cached hand-over, HEAD = R38 tree; `round-12/hyg-off/`,
+  `summ.py`):
+  | run | dirty hours (waste > tolerance in a brood chamber) | hygiene deaths | hauler state-hours while dirty |
+  |---|---|---|---|
+  | none (R38 all on) | 71 | **14** (7 pupae, 6 eggs, 1 larva) | flee.freeze 58, haul.travel 8, carry 7, rest 3 |
+  | off 1 (scout floor) | 3 | 0 | carry 1, claim 1 |
+  | off 2 (herd sign + outside notice) | 6 | 0 | carry 4, pick 1, return 1 |
+  | off 3 + 5 (patch notice, smelled report) | 71 | 14 (identical run to "none") | as none |
+  | off 4 (carrion density) | 0 | 0 | - |
+  Reading: **no R38 item is the mechanism.** Switching off any of items 1, 2 or 4 (3 + 5 change nothing here in 6 gd)
+  moves the trajectory and the burst is carried out in 0-6 hours; with all on, the colony's one hauler is held
+  outside by the flood hold for 58 of the 71 dirty hours and the pupation burst (meconium) cascades into corpses.
+  The mechanism is the hold and the burst (direction 26 item 4): it is applied as ruled. Running now:
+  `probe-hold-cpv2.txt` (what the held hauler walks to) and `probe-choice-cpv3.txt` (26.2), both on HEAD.
+- 20:11 **26.4a traced** (probe `probe-hold12.ts`, HEAD tree, cpv #2 6 gd, `round-12/probe-hold-cpv2.txt`): 65 holds of
+  an outside worker, **every one for a destination in the royal chamber** (the colony's one brood chamber, 4-12 brood)
+  whose floor had **0.01-0.17 BU of water (median 0.05; 1-10 % of the chamber wet)**; 56 of the 65 were the hauler on
+  `haul.travel` / `haul.return`; held-outside ant-hours: haul 96, queen-care 11, dig 4, store 4. The defect:
+  `fleeWater.ts walkingIntoWater` held for any water over the destination's floor (> 0), while an ant inside leaves
+  only at `FLEE_WATER_DEPTH_BU` 0.15 and the nurses worked on in that film. **Fixed** (D32): the hold needs water >=
+  FLEE_WATER_DEPTH_BU over the destination's floor, and a run of holds (each ends after FLEE_RETRY_S and re-plans
+  into the task) never outlasts `FLEE_HOLD_MAX_GD` 0.1: then `holdExpired` hands the task back (`switchTask` -> idle).
+  "The way passes a flooded cell" is read as the destination floor (all 65 holds were there; no path test built).
+- 20:11 **26.4b built** (D32): `HAUL_BROOD_MAX_FRAC` 0.4 while `broodAmongWaste` (computed once in
+  `allocation/index.ts`, passed to `computeDemand` and `computeTargets`); `nurse.ts takeChamberWaste`: a nurse whose
+  select finds no job, while a chamber holding brood has waste > tolerance, claims the nearest waste item / corpse
+  there (`haul.ts findChamberWaste`) and runs `nurse.waste` -> `nurse.wastePick` -> `nurse.dump` (carryTo midden, the
+  haul primitive's carry). Test `nest/hygiene26.test.ts` (4: 8 meconium, 10 workers, the hauler away -> under tolerance
+  within 0.25 gd; cap 0.2 -> 0.4 N; a film (half the flee depth) on the brood floor holds nobody; deep water holds,
+  and the task is handed back within FLEE_HOLD_MAX_GD + slack). Side fix: `nurse.ts cannibalise` re-checks "eggs
+  first" before eating a larva (the timing change exposed a larva eaten beside a fresh egg in `starvation.test.ts`,
+  green on HEAD, red after 26.4b, green again).
+- 20:11 **26.2 traced** (probe `probe-choice12.ts`, HEAD tree, cpv #3 2 gd from the cached hand-over,
+  `round-12/probe-choice-cpv3.txt`): 15 departures (13 C, 2 P, 0 hunts); wP / wC 7.3-8.8 : 1 (wC 0.2 throughout).
+  **No patch was known on either day** (patchU null at every departure) and after day 0 h 10 no protein candidate
+  with food was known (the one insect-medium carcass read 0 C / 0 P). So the C trips are not a choice defect: the
+  forager's candidate list (lead, route slots, entrance news) held no protein. The one co-presence (day 0 h 10)
+  shows the value form: flower 8 BU away, 0.614 C x 0.2 = 0.12 a trip, U 4.34; carcass 154 BU, 0.14 P x 1.48 = 0.21
+  a trip, U 0.88 (U = value / trip seconds: the 19x longer walk outweighs the 1.7x value); that departure followed a
+  recruitment lead to the carcass. **Stop and numbers** (ruling): no change made; per trip a protein load is worth
+  1.7-2x a crop of sugar at these weights, per second of trip 0.2x when the protein is 19x farther.
+- 20:11 tests: nest 34 / 37 files (red `sfaReview.verify`, `stall.soak`: known), outdoor 37 / 37 (`tendHerd.test`
+  fixture restated: its colony now starts short of carbohydrate, C 0.5 instead of 30, because under R39 a colony with
+  its sugar covered keeps 1 tender a herd and tend 0.49; the test checks tending mechanics), ecology plants + sources
+  12 red (the known 12), docs 8 / 8 (DEVIATIONS: R38 row's removed symbols `nutrientMissing` / `withScoutsFirst`
+  replaced; rows R38b, R39, D32 added), colony 77 / 78 (workedExample). `tsc` clean. **Final tree frozen**
+  `/home/user/scratch-r12-final` (hash `round-12/final-tree-hash.txt` 925f45e8; recipe: sha256 of src + tools *.ts /
+  *.mjs without probes). Running: `probe-r39.ts` on cpv #3 and kd #2 (3 gd, final tree). Next: the 15-run arm.
+- 20:12 **26.1 trace: do the freed workers reach forage?** (probe `probe-r39.ts`, final tree, 3 gd, hourly allocation
+  rows; `round-12/probe-r39-cpv3.txt`, `-kd2.txt`). Mean over 72 h, demand Σ slots -> R39: cpv #3 (11 workers) 7.6 ->
+  2.8, kd #2 (10) 6.4 -> 3.5. Mean actual: cpv #3 forage 2.8, tend 1.5, scout 1.9, idle 0; kd #2 forage 1.8, tend 0.7,
+  scout 1.3, idle 0. **Nobody is idle, so the forage cap does not hold the freed workers idle** (kd #2: its known
+  K 80 patch with 80 prey from day 0 h 16, forage demand 7 = cap 7 = PATCH_FORAGERS_MAX's share, forage target 1-2).
+  What holds forage at 1-2 on days 0-1 is the fill order: the forage demand is almost all R32b's prospective protein
+  (want P 8-9 against C 0.8-1.2), and R35 point 5 serves that part last, after every other task (store, haul, dig,
+  the scout floor...). On day 2 the freed workers do reach it in cpv #3 (forage target 5 of 11, tend 0-2). In kd #2 on
+  day 2 the carbohydrate want rose to 10-15 (stores falling 11 -> 7.7 C) and R39 asked all 10 slots again (= the old
+  demand), as ruled. No change made: the cap is not the defect; the order is R35 point 5's (ruled). Noted for the
+  integrator. **Arm running** (20:12): 15 sweep-9 hand-overs, final tree 925f45e8, `round-12/jobs-final.txt` +
+  `jobs-final-rev.txt` -> `round-12/arm-final12/`, base `round-11/arm-final11`. Restart-safe: delete stale
+  `arm-final12/*.running`, rerun both lists with `jobs.sh` (finished runs are skipped).
+- 20:24 arm 4 of 15 done (we #1 25 -> 20 workers, P 0.506 -> 0.518, tend 54 -> 21 wgd, haul 17 -> 28; kd #3, kd #1,
+  cpv #3: see table at the end). Running ~35 min more. Remaining after it: table (`round-12/table12.py`), the
+  round's result section, scratch tree `/home/user/scratch-r12-final` and `tools/sim/probe/` to delete (probes
+  archived in `round-12/probes/`).

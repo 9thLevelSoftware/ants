@@ -9,7 +9,8 @@ import { addChamber, addWorkers, colonyOf, establishQueen, makeColonySim, step }
 import { coreOf } from './core';
 import { censusOf } from './census';
 import { surfaceActivityOf } from './envAdapter';
-import { SCOUT_FLOOR_KEY, computeDemand, missingScoutFloor } from './allocation/demand';
+import { PROSPECTIVE_P_KEY } from './needs';
+import { SCOUT_FLOOR_KEY, computeDemand, missingScoutFloor, nutrientShortfalls, knownCapacity } from './allocation/demand';
 import { computeTargets } from './allocation/targets';
 import { ti } from './taskIdx';
 
@@ -35,7 +36,7 @@ function demandAndTargets(sim: ReturnType<typeof setup>['sim'], col: ReturnType<
   const floor = coreOf(col).acc[SCOUT_FLOOR_KEY] ?? 0;
   // a busy colony: herds and sugar ask for more workers than it has, so the fill order decides
   col.alloc.demand[T('tend')] = workers; col.alloc.demand[T('forage')] = Math.max(col.alloc.demand[T('forage')], workers);
-  computeTargets(col, workers, false, undefined, false, 0, floor > 0);
+  computeTargets(col, workers, false, undefined, false, 0, floor);
   return { floor, scoutDemand: col.alloc.demand[T('scout')], scouts: col.alloc.target[T('scout')] };
 }
 
@@ -53,14 +54,17 @@ describe('R38 item 1: scouts for a missing nutrient', () => {
     const { sim, col } = setup(6);
     const r = demandAndTargets(sim, col, 6);
     expect(r.floor).toBeCloseTo(1.2, 9);
-    // the small-colony rule (viab-economy R3) still asks 2 scouts until 2 sources of each needed nutrient are known
-    expect(r.scouts).toBe(SMALL_SCOUTS_MIN);
+    // the small-colony rule (viab-economy R3) still asks 2 scouts until 2 sources of each needed nutrient are known;
+    // in this busy colony only the floor's one is served ahead of forage, the second waits in the GDD order after
+    // tend (direction 26 item 3) and forage and tend take the rest first
+    expect(r.scoutDemand).toBe(SMALL_SCOUTS_MIN);
+    expect(r.scouts).toBe(1);
     // the floor alone, in a busy colony: 1 scout, served before forage
     col.alloc.demand.fill(0);
     col.alloc.demand[T('nurse')] = 2; col.alloc.demand[T('forage')] = 12; col.alloc.demand[T('scout')] = 1.2;
-    computeTargets(col, 6, false, undefined, false, 0, true);
+    computeTargets(col, 6, false, undefined, false, 0, 1.2);
     expect(col.alloc.target[T('scout')]).toBe(1);
-    computeTargets(col, 6, false, undefined, false, 0, false);
+    computeTargets(col, 6, false, undefined, false, 0, 0);
     expect(col.alloc.target[T('scout')]).toBe(0); // GDD order: forage took them first
   });
 
@@ -86,5 +90,31 @@ describe('R38 item 1: scouts for a missing nutrient', () => {
     const { sim, col } = setup(15);
     col.needs.needP = 0;
     expect(demandAndTargets(sim, col, 15).floor).toBe(0);
+  });
+
+  // direction 26a item 2: the floor has two levels
+  it('a known patch holding prey and protein still short by >= 0.5: the lower floor, ceil(0.1 x 15) = 2', () => {
+    const { sim, col } = setup(15);
+    sim.state.ecology.preyPatches.push({
+      id: 999200, center: { x: 400, y: 0, z: 400 }, radius: 40, kind: 'springtail', count: 3, k: 3, knownBy: 1,
+    });
+    // a laying season's protein want (R32b's prospective part, 2 loads / gd): the known patch (3 springtails, about
+    // 0.8 loads / gd) is live and covers under half of it
+    coreOf(col).acc[PROSPECTIVE_P_KEY] = 2;
+    expect(nutrientShortfalls(col, knownCapacity(sim, col)).p).toBeGreaterThanOrEqual(0.5);
+    const r = demandAndTargets(sim, col, 15);
+    expect(r.floor).toBe(2);
+    expect(r.scouts).toBe(2);
+  });
+
+  it('nothing of the nutrient known: the full floor stays (15 workers -> 3); the lower floor is at least 1', () => {
+    const { sim, col } = setup(15);
+    expect(demandAndTargets(sim, col, 15).floor).toBeCloseTo(3, 9);
+    const small = setup(6);
+    small.sim.state.ecology.preyPatches.push({
+      id: 999201, center: { x: 400, y: 0, z: 400 }, radius: 40, kind: 'springtail', count: 2, k: 2, knownBy: 1,
+    });
+    coreOf(small.col).acc[PROSPECTIVE_P_KEY] = 2;
+    expect(demandAndTargets(small.sim, small.col, 6).floor).toBe(1);
   });
 });

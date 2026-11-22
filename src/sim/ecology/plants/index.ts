@@ -17,7 +17,7 @@ export { herdPoint, herdSourceOf, herdOfSource, isHerdSource, ensureLinks } from
 export { foundHerd, dropHerd, freeSite, freeSitesNear, herdSites, isAphidHost, plantOfObject } from './hosts';
 export { kEff, poolCap, tendSlots, tendersNeeded, productionPerGd } from './herdMath';
 export { tendersPresent, isTenderOf } from './tending';
-export { herdTendDemand, tendersWanted, herdWorkable } from './demand';
+export { herdTendDemand, tendersWanted, herdWorkable, herdMarked } from './demand';
 export { releaseDroplet } from './droplet';
 export { herdDiagInputs, herdDiagnostic, type HerdDiagInputs } from './diagnostics';
 export { yieldToday } from './yield';

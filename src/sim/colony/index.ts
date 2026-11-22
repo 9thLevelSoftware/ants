@@ -144,7 +144,7 @@ export function killColonyBrood(sim: Sim, broodId: number, cause: BroodDeathCaus
   return !b.alive;
 }
 export { setClimateOverride, type ClimateOverride } from './envAdapter';
-export { censusOf } from './census';
+export { censusOf, cycleWaste } from './census';
 export { isMiddenBlocked, reportMiddenBlocked } from './midden';
 
 /**

@@ -4,7 +4,8 @@
 
 import type { Ant, Behaviour, Brood, Nest, Sim, SpeciesDef } from '@/sim/types';
 import { BroodFlag } from '@/sim/types';
-import { larvaRemainingNeed, nextCannibalVictim, wantsFeed } from '@/sim/colony';
+import { cycleWaste, larvaRemainingNeed, nextCannibalVictim, wantsFeed } from '@/sim/colony';
+import { BROOD_HAZARD } from '@/sim/balance/colony';
 import { FEED_LARVA_LOADS } from '@/sim/balance/actions';
 import { LARVA_GUT_CAP } from '@/sim/balance/colony';
 import {
@@ -24,6 +25,8 @@ import { cancel, interruptible } from '@/sim/ants/actions';
 import { perTick } from './perTick';
 import { dryDropPoint, DRY_SPOT } from './floodEvac';
 import { DRAFT_BROOD } from './tendDraft';
+import { findChamberWaste } from './haul';
+import { carryTo } from './carry';
 
 const ENTRY = 'nurse.select';
 /** bb key: 1 = pick-up started, 2 = carrying the job's brood (a put-down then delivers). */
@@ -95,6 +98,7 @@ function select(sim: Sim, ant: Ant): void {
     }
   }
   const job = selectJob(sim, ant, nest.id, bbv(ant, B.feedBlock) > sim.state.tick);
+  if (!job && takeChamberWaste(sim, ant, nest)) return;
   if (!job) {
     // nothing to do now: with larvae in the nest, load the crop ahead of the next feed request (a request is
     // then served at once instead of after a trip to the food chamber), else groom
@@ -262,6 +266,13 @@ function cannibalise(sim: Sim, ant: Ant): void {
   if (primitiveDone(ant)) { ant.bb[B.began] = 0; roundDone(sim, ant); return; }
   const b = jobBrood(sim, ant);
   if (!b || b.carriedBy >= 0 || b.stage === 'pupa') { endCycle(sim, ant, ENTRY); return; }
+  // eggs first (GDD 02 §5.7 S3), also when an egg was laid after this larva was chosen (round 12: the nurses'
+  // waste carrying moved the timing and the starvation test caught a larva eaten beside a fresh egg)
+  if (b.stage === 'larva' && sim.stores.brood.list.some((e) => e.alive && e.colony === ant.colony && e.stage === 'egg')) {
+    if (ant.action && interruptible(ant)) cancel(sim, ant, null);
+    endCycle(sim, ant, ENTRY);
+    return;
+  }
   const st = reachAndAct(sim, ant, entity('brood', b.id, b.pos), 'cannibalise');
   if (st === 'failed') recover(sim, ant, ENTRY, 'job:cannibalise', ant.nav.status === 'failed');
 }
@@ -277,6 +288,55 @@ function larvaChamber(sim: Sim, colonyId: number): number {
     for (const [id, k] of n) if (k > bestN || (k === bestN && id < best)) { best = id; bestN = k; }
     return best;
   });
+}
+
+/**
+ * Direction 26 item 4b (round 12): a nurse with no feeding or moving job, while a chamber holding brood has more waste
+ * than the hygiene tolerance, carries one waste item (or corpse) out of it to the midden with the haul primitive, then
+ * selects again. Round 11's cpv #2 / kd #3 day states: nurses grooming (`nurse.groom`) in a chamber whose pupation
+ * burst of meconium was killing its brood while the one hauler was held outside.
+ */
+function takeChamberWaste(sim: Sim, ant: Ant, nest: Nest): boolean {
+  const col = sim.stores.colonies.get(ant.colony);
+  if (!col) return false;
+  for (const ch of nest.chambers) {
+    if (cycleWaste(col, ch.id) <= BROOD_HAZARD.wasteTolerance) continue;
+    if (!sim.stores.brood.list.some((b) => b.alive && b.colony === ant.colony && b.chamberId === ch.id)) continue;
+    const it = findChamberWaste(sim, ant, nest, ch.id);
+    if (!it) continue;
+    claim(sim, ant, Job.haul, it.id);
+    setState(sim, ant, 'nurse.waste', it.kind === 'corpse' ? 'job:corpse' : 'job:waste');
+    return true;
+  }
+  return false;
+}
+
+/** nurse.waste: walk to the waste item and pick it up. */
+function wasteFetch(sim: Sim, ant: Ant): void {
+  const it = sim.stores.items.get(bbv(ant, B.jobId));
+  if (!it || it.carrierIds.length > 0) { setState(sim, ant, ENTRY); return; }
+  const st = reachAndAct(sim, ant, entity('item', it.id, it.pos), 'pick-up');
+  if (st === 'started') setState(sim, ant, 'nurse.wastePick');
+  else if (st === 'failed') recover(sim, ant, ENTRY, 'stuck', ant.nav.status === 'failed');
+}
+
+/** nurse.wastePick: the pick-up ends; with the item in her mandibles she takes it out. */
+function wastePick(sim: Sim, ant: Ant): void {
+  if (!primitiveDone(ant) && bbv(ant, B.began, 0) === 1) return;
+  if (ant.carry.kind === 'item' && ant.carry.id === bbv(ant, B.jobId)) { setState(sim, ant, 'nurse.dump', 'item-collected'); return; }
+  setState(sim, ant, ENTRY);
+}
+
+/** nurse.dump: carry it to the midden (haul.ts's carry rule), then select again. */
+function wasteDump(sim: Sim, ant: Ant): void {
+  const itemId = ant.carry.kind === 'item' ? ant.carry.id : bbv(ant, B.jobId);
+  const kind = sim.stores.items.get(itemId)?.kind;
+  const st = carryTo(sim, ant, 'midden');
+  if (st === 'failed') { recover(sim, ant, ENTRY, 'stuck', true); return; }
+  if (st !== 'dropped') return;
+  if (kind === 'corpse') sim.emit({ type: 'corpse-removed', antId: ant.id, itemId, to: 'midden' });
+  else sim.emit({ type: 'waste-dumped', antId: ant.id, itemId, to: 'midden' });
+  endCycle(sim, ant, ENTRY);
 }
 
 /** nurse.groom: nothing to do; wait by the larvae (so the next request is near) and groom. */
@@ -319,6 +379,9 @@ function step(sim: Sim, ant: Ant): void {
     case 'nurse.assist': return assist(sim, ant);
     case 'nurse.cannibalise': return cannibalise(sim, ant);
     case 'nurse.groom': return groom(sim, ant);
+    case 'nurse.waste': return wasteFetch(sim, ant);
+    case 'nurse.wastePick': return wastePick(sim, ant);
+    case 'nurse.dump': return wasteDump(sim, ant);
     default: return select(sim, ant);
   }
 }

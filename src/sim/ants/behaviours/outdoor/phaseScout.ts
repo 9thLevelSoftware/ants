@@ -24,6 +24,7 @@ import { K, PHASE } from './keys';
 import { atSource, distXZ, failed, goTo, goToSource, moving, stop } from './nav';
 import { rationStep } from './phaseNest';
 import { assessFind } from './phaseCollect';
+import { rememberSmelled } from './notice';
 import { dropAction, startReturn } from './transitions';
 import { stopLaying } from './trail';
 
@@ -195,6 +196,8 @@ export function updateInvestigate(sim: Sim, ant: Ant, fl: Flavour): void {
   if (usableFor(sim, ant, touch, fl.accept)) { setPhase(sim, ant, fl.names, PHASE.assess); assessFind(sim, ant, fl, touch); return; }
   const s = sim.stores.sources.get(src);
   if (!s || !usableFor(sim, ant, src, fl.accept) || phaseS(sim, ant) > INVESTIGATE_S) {
+    // gave up without reaching it: she still knows where she smelled it (direction 26a item 1)
+    if (s && phaseS(sim, ant) > INVESTIGATE_S) rememberSmelled(sim, ant, src);
     ant.bb[K.src] = -1;
     setPhase(sim, ant, fl.names, PHASE.explore, 'timeout');
     nextLeg(sim, ant);
