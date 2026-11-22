@@ -11,7 +11,7 @@ Quality note: the first-play script (`tests/e2e/firstplay.mjs`) runs at `quality
 |---|---|---|---|
 | 1 | Typecheck clean; tests green folder by folder | met for my paths, one failure outside them | `npm run typecheck` clean (whole project). `src/ui` 437 pass; `src/render` 852 pass, 2 skipped; `src/game` 606 pass, 1 fails: `src/game/save/save.verify.test.ts` "bytes with trailing garbage..." (byte 11560 flipped still parses). I did not touch `src/game/save` (git: last change `eedb1b7`); it looks like another engineer's save-format work. `src/content`, `src/input`, `tools/harness` untouched. |
 | 2 | Before/after pictures per item, same pose, looked at | met (see per item; item 2 cars not pictured) | below |
-| 3 | Browser scripts of item 9 | partial: see item 9 | below |
+| 3 | Browser scripts of item 9 | partial: controls, views, panels pass; firstplay and stage1a strict fail for sim reasons | item 9 |
 | 4 | Draws and triangles at low/medium/high up by at most 10 % | met | table in item 3; minimap repaint cost in item 4 |
 | 5 | This report | met | |
 
@@ -79,8 +79,8 @@ Machine load was 6 to 10 during these runs (colony engineer's life runs).
 - `firstplay.mjs`, one uninterrupted run, default seed 2: stopped at beat 11 (time-lapse) with "founding-lapse not on screen": the founding lapse ended in phase `failed` (6 eggs lost, one relay clutch; pictures 09 and 10 show the founding chamber flooding in rain, "Founding chamber flooding... 26 %"). Sim reason. Seed 1 (`FIRSTPLAY_SEED=00000001`): beats 1 to 12 pass, then "the first workers did not reopen the entrance and walk out ['reopening:116']" (entrance stays in `reopening`, `eggs 5 larvae 5 lost 2` at the lapse). Also a sim reason. No stand-ins used. Logs `firstplay.log`, `firstplay-s1.log`; pictures `firstplay/01..11`, `firstplay-s1/01..12`. The growth check and the trail beats (13 to 25) were never reached, so no growth numbers.
 - `controls.mjs`: PASS (`e2e/controls.log`); its own finding: after a tapped drink the action `harvest-liquid` keeps running with a full crop (sim/action).
 - `views.mjs`: PASS (`e2e/views.log`).
-- `stage1a.mjs` strict: FAIL at the egg beat: "stand-in needed for egg: lay-egg refused (lay-egg:budget); 6 eggs cheat-spawned at the queen" (the queen's lay budget is spent in the harness's cheat-completed founding; sim rule). Non-strict run: see `e2e/stage1a-loose.log` (result appended below if it finished).
-- `panels.mjs`: first run timed out at the 900 s script timeout under load after 14 beats passed (last OK: tools at 766 s); rerun with 2400 s: see below.
+- `stage1a.mjs` strict: FAIL at the egg beat: "stand-in needed for egg: lay-egg refused (lay-egg:budget); 6 eggs cheat-spawned at the queen" (the harness's cheat-completed founding leaves the queen's daily lay budget spent; sim rule). The same script without strict passes (`e2e/stage1a-loose.log`, `ok` true, 762 s) using that egg stand-in.
+- `panels.mjs`: first run timed out at the 900 s script timeout under load (14 beats had passed); rerun with 2400 s: PASS (`e2e/panels2.log`, `ok` true, 949 s), with the two stand-ins the script records itself (hand-over written directly because the test world starts after founding; an alert with a chamber focus written into progression). `PANELS_STRICT` was not set.
 
 What I see in the firstplay pictures, besides the above:
 - 04, 05: the opening ground and the boarded fence read well after the fix; the far car-park backdrop and lamp posts are hazy silhouettes, which is intended.

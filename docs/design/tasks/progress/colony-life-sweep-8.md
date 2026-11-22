@@ -44,3 +44,16 @@ Started 05:57 UTC Nov 22. No earlier progress file; fresh start.
   pp #1 6 (days 8-11 autumn; sweep 7 had 2 in all). Probe written: /home/user/frozen-sweep8/tools/sim/probe/probe-lost8.ts
   (logs each lost worker's last trip); run on pp #1 cached hand-over (test-output/viab/cache/*-40bc6741.bin) after
   the sweep (life-run slots).
+- 07:05 SWEEP DONE 15/15 (tree edfbf82a, 05:58-06:55). Table `round-8/sweep-table.md` (sweep-table.py vs round-7/sweep);
+  second script `sweep-review/bars-from-md.txt`: viability NOT met 9/15 (we 2, sg 2, pp 1, cpv 3, kd 1); R19 4 of 7
+  (held 12 ok, ecl median 5 ok, P 0.269 FAIL, C 1.162 ok, trip 45.9 % FAIL, first>=9 14 ok, no-lost 12 FAIL).
+  Sums vs sweep 7: winter 138 -> 194, eclosions 65 -> 60, old age 64 -> 1, lost 2 -> 10, predation 14 -> 14, starved 13 -> 1.
+- pp #1 lost probe (`sweep-review/probe-lost-pp1.txt`, restore reproduces the sweep's deaths exactly): all 6 lost
+  foragers end at one point (~920, -11, 3593 BU), 82.5 BU from the entrance, forage.return home-mode 2, jittering in
+  place 1000+ s until RETURN_LOST_S. A homeward trap, not distance.
+- sg #3 (0 trips all year): probe `probe-idle-sg3.txt`: entrance status `open` but plugVoxelCount 29 after the
+  hand-over reopen; scout depart nav fails `leg` every hour; foragers wait (no source known). = the known red
+  `founding/reopen.test` (plug soil left in the throat) met in a sweep run.
+- F1 cost in the sweep: flee-water ms/tick median 0.014 -> 0.055 (x4), nest-flood 0.084 -> 0.042, total 4.05 -> 4.34.
+- Next: we #1 lost probe running; then the five long runs (PAR=2, UNTIL_DAY=40) from the frozen copy.
+- 07:26 long runs: we #2, sg #2 done (sweep-long/); cpv #1, pp #3 running, kd #3 next. Then longrun-table.py + round-8/long-final/table.py (copied), ledger.

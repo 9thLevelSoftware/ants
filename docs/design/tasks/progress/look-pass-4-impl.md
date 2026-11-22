@@ -52,3 +52,4 @@ browser verification of 2/3 (shader compile), cost, item 4/6/7 pictures, item 8 
 - 06:16 controls PASS (finding: harvest-liquid keeps running with full crop after tapped drink); panels TIMED OUT at 900 s script-timeout at the 'tools' beat done 766 s (machine load 10) -> rerun with 2400000 after batch; stage1a/views running
 - 06:27 views PASS; stage1a STRICT FAIL at egg: 'lay-egg refused (lay-egg:budget); 6 eggs cheat-spawned' (sim reason, stand-in needed). Re-running panels (2400 s) then stage1a non-strict in bg: e2e/panels2.log, e2e/stage1a-loose.log
 - 06:28 report written docs/design/tasks/look-pass-4-report.md; waiting panels2 + stage1a-loose, then append results
+- 06:57 DONE: report finalized; typecheck + targeted tests re-run clean
