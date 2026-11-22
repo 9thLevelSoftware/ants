@@ -3999,3 +3999,14 @@ Progress (kept current; a successor continues from here)
   first); (4) torn carrion >= 0.75 P per load, and why trips to a found large carcass end with food left; (5) kd #2's
   medium carcass at 1.8 BU (reachability of the drop); (6) one arm, R38 tree vs `arm-final`, all 15 to winter. If
   there is no room: close with "R38 NOT BUILT" as the first words of the notes for the integrator.
+- 14:56 final arm so far: we #1 18 -> 20 / 18 (P 0.64 -> 0.06: as in the R35 arm, the colony never learns the one prey
+  patch (K 50, edge 210 BU; nearest worker 8.6 BU) that the base run learnt on day 3 and hunted 66 times; LV1 did not
+  change that: it is discovery, item 5), we #3 13 -> 18 viable no -> yes, sg #3 (see table). Running.
+- 15:07 final arm: pp #3 13 -> 15 / 14, viable no -> **yes** (C 1.5 -> 5.9), but **predation 7 -> 8**: the colony-range
+  jumping spider sited at the herd still takes 6 tenders (97 BU out, 12-17 workers, ramp 0.07-0.23). R37 as built
+  scales each strike's landing; a tender standing at a herd is the slow target a wind-up waits for, and the spider
+  simply strikes again after each miss, so a per-strike share barely slows it. kd #1 15 -> 16 / 20 (P 0.125 -> 0.265;
+  not viable on the starvation-stage check). kd #3 long: winter C 5.5 -> 11.5, but y2 32 eggs -> 0 eclosed (19 egg
+  hygiene deaths, 7 flooded): second winter 2 -> 1.
+- 15:26 final arm 12 of 20 done (winter: we #1-3, sg #2-3, pp #2-3, kd #1-2; long: kd #3, cpv #1, we #2); sg #2
+  predation 7 -> 0. Remaining: sg #1, pp #1, cpv #1-3, kd #3 to winter; long pp #3, sg #2.
