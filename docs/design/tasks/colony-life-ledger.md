@@ -3081,3 +3081,7 @@ Progress (kept current; a successor continues from here)
   Pairs on workers at winter: r30 vs base 15 better; r30r29c vs r30 10 better, 5 worse; r30r29cr31 vs r30r29c 7 better, 7 worse, 1 equal; r30hb1 vs r30 3 better, 4 worse, 8 equal.
   **Integrator's verdicts**: **R30 accepted** (15 of 15; old-age deaths 62 → 0 in year one). **R29c accepted** (viable 7 → 10, workers 203 → 214, starved 10 → 6; its hygiene deaths 2 → 15 and untended 54 → 74 are the next thing to explain). **R31 not accepted** (7 better, 7 worse; untended 74 → 76: it does not close the single-nurse gap the 10:28 entries describe; keep the patch under `round-8/r31/`, not in the tree). **HB1 accepted as a defect fix** (trip success 36.8 → 50.4 %, median P 0.221 → 0.287, eclosions 66 → 73), with one question for the fourth engineer: adult deaths rise 31 → 42 in that arm — by what cause.
 
+- 05:15 Nov 22 **fourth round-8 engineer** (close the round). `git status`: clean against HEAD efdd374. Order (the
+  integrator's): (1) live tree = F1, FD1, WL4, R30, R29c, HB1 (no R31), checked against the frozen arms; typecheck;
+  folder tests; DEVIATIONS.md for docs-final.test; (2) the r30hb1 adult-death question; (3) five year-two runs of a
+  frozen final tree to the second winter; (4) results section; clean-up. Now: (1).
