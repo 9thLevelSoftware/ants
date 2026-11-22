@@ -66,6 +66,18 @@ function withHygiene(order: readonly Task[]): Task[] {
   return [...rest.slice(0, at), 'haul', ...rest.slice(at)];
 }
 
+/**
+ * R38 item 1 (a deviation from GDD 02 §6.3's fixed order): while a nutrient is missing, `scout` moves up to just after
+ * the brood's care (nurse, queen-care and, when brood lies among waste, haul) and is served its whole demand in the
+ * first pass, before `forage`. Round 10: once a colony knew its sugar, forage and tend took every free worker and
+ * the scouts' head-count fell to 0.02-0.1, so its protein was never found.
+ */
+function withScoutsFirst(order: readonly Task[], hygiene: boolean): Task[] {
+  const rest = order.filter((t) => t !== 'scout');
+  const at = rest.indexOf(hygiene ? 'haul' : 'queen-care') + 1;
+  return [...rest.slice(0, at), 'scout', ...rest.slice(at)];
+}
+
 /** Splits `total` over weights with largest remainders (integers summing to total). */
 export function apportion(total: number, weights: number[]): number[] {
   const sum = weights.reduce((a, b) => a + b, 0);
@@ -85,27 +97,34 @@ export function apportion(total: number, weights: number[]): number[] {
  */
 function autoTargets(
   demand: Float32Array, w: Workforce, threat: boolean, target: Int16Array, hygiene: boolean, prospForage: number,
+  scoutsFirst: boolean,
 ): void {
   const fi = ti('forage');
   const extra = Math.max(0, Math.min(prospForage, demand[fi]));
   demand[fi] -= extra;
   const free = new Free(w.all, w.adult, w.outside);
-  planTargets(demand, free, threat, target, hygiene);
+  planTargets(demand, free, threat, target, hygiene, scoutsFirst);
   demand[fi] += extra;
   if (extra > 0) target[fi] += free.take(poolOfTask('forage'), Math.max(0, Math.round(demand[fi]) - target[fi]));
 }
 
 /** GDD 02 §6.3's two passes: full demands when they fit, else half of each in order, then the rest in order. */
-function planTargets(demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean): void {
+function planTargets(
+  demand: Float32Array, free: Free, threat: boolean, target: Int16Array, hygiene: boolean, scoutsFirst = false,
+): void {
   let sum = 0;
   for (const t of PRIORITY) sum += demand[ti(t)];
   const base = threat ? PRIORITY_THREAT : PRIORITY;
-  const order = hygiene ? withHygiene(base) : base;
+  const withHaul = hygiene ? withHygiene(base) : base;
+  const order = scoutsFirst ? withScoutsFirst(withHaul, hygiene) : withHaul;
   if (sum <= free.room('all')) {
     for (const t of order) target[ti(t)] = free.take(poolOfTask(t), Math.round(demand[ti(t)]));
     return;
   }
-  for (const t of order) target[ti(t)] = free.take(poolOfTask(t), Math.ceil(0.5 * demand[ti(t)]));
+  for (const t of order) {
+    const full = scoutsFirst && t === 'scout';
+    target[ti(t)] = free.take(poolOfTask(t), full ? Math.round(demand[ti(t)]) : Math.ceil(0.5 * demand[ti(t)]));
+  }
   for (const t of order) {
     const i = ti(t);
     target[i] += free.take(poolOfTask(t), Math.max(0, Math.round(demand[i]) - target[i]));
@@ -151,17 +170,19 @@ function manualTargets(
 /**
  * Recomputes col.alloc.target; returns the idle target (available workers not given a task). `workforce` splits
  * `available` by eligibility (default: every available worker fits every group). `hygiene`: waste in a brood chamber
- * at the hygiene tolerance (auto mode ranks `haul` after `queen-care`).
+ * at the hygiene tolerance (auto mode ranks `haul` after `queen-care`). `scoutsFirst`: a nutrient is missing (R38
+ * item 1, demand.ts SCOUT_FLOOR_KEY): auto mode serves `scout` before `forage`.
  */
 export function computeTargets(
   col: Colony, available: number, threat: boolean,
   workforce: Workforce = { all: available, adult: available, outside: available }, hygiene = false, prospForage = 0,
+  scoutsFirst = false,
 ): number {
   const target = col.alloc.target;
   target.fill(0);
   const a = col.directives.allocation;
   const w = { ...workforce, all: available };
-  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage);
+  if (a === 'auto') autoTargets(col.alloc.demand, w, threat, target, hygiene, prospForage, scoutsFirst);
   else manualTargets(col.alloc.demand, w, a, col.directives.taskShares, target);
   let assigned = 0;
   for (let i = 0; i < target.length; i++) assigned += target[i];

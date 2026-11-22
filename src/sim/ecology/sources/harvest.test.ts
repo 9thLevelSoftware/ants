@@ -10,6 +10,7 @@ import { freeSlotsOf, queuePosition } from './slots';
 import { cropToxin } from './crop';
 import { addWorker, centre, fakeAction, makeSourceSim } from './testkit';
 import { harvest, freeSlots } from '@/sim/ecology';
+import { CARRION_TEAR_P_PER_BULK_MIN, LARGE_CARCASS_TYPES } from '@/sim/balance/ecology';
 
 function events(sim: ReturnType<typeof makeSourceSim>): SimEvent[] {
   const out: SimEvent[] = [];
@@ -146,6 +147,25 @@ describe('pick and tear', () => {
     }
     expect(pieces).toBe(25);
     expect(totalP).toBeCloseTo(20, 6);
+  });
+
+  it('R38 item 4: a torn piece of any carrion carries >= 0.75 P per load of carry capacity; P per carcass unchanged', () => {
+    const cases = [
+      { variant: 'insect-medium' as const, p: 4 }, { variant: 'insect-large' as const, p: 15 },
+      ...(['worm', 'slug', 'vertebrate'] as const).map((carcass) => ({ variant: 'large-carcass' as const, carcass, p: LARGE_CARCASS_TYPES[carcass].p })),
+    ];
+    for (const k of cases) {
+      const sim = makeSourceSim();
+      const p = centre(sim);
+      const s = createSource(sim, { variant: k.variant, pos: p, tier: 2, units: 1, carcass: 'carcass' in k ? k.carcass : undefined });
+      expect(s.p * s.units, k.variant).toBeCloseTo(k.p, 9);
+      const ant = addWorker(sim, p);
+      ant.carryCap = 1;
+      const r = takeFromSource(sim, ant, s.id, 1);
+      expect(r.status).toBe('ok');
+      const it = sim.stores.items.get(r.itemId)!;
+      expect(it.p / it.bulk, `${k.variant} ${'carcass' in k ? k.carcass : ''}`).toBeGreaterThanOrEqual(CARRION_TEAR_P_PER_BULK_MIN - 1e-9);
+    }
   });
 
   it('a scrap under 0.5 bulk is left as a final lying piece and the carcass is gone (§1.5 rule 6)', () => {

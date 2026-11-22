@@ -228,8 +228,17 @@ export const INVESTIGATE_S = 30;
 /** Explored bitmap cell edge, BU (the coarse nav cell, seed §3). */
 export const EXPLORED_CELL_BU = 16;
 
-/** Foragers and tenders out on a trip check for undiscovered aphid herds by smell this often, ticks (herdFind.ts). */
+/** Every worker outside the nest checks for undiscovered aphid herds this often, ticks (herdFind.ts, R38 item 2). */
 export const HERD_NOTICE_EVERY_TICKS = 20;
+/**
+ * R38 item 2 (direction 24; GDD 05 §1.2 deviation): a herd's sign grows with the herd. Honeydew falls under the whole
+ * colony of aphids, not at a point, so a herd is found within a plan distance of clamp(HERD_SIGN_BASE_BU +
+ * HERD_SIGN_PER_SQRT_APHID_BU x sqrt(aphids), HERD_SIGN_BASE_BU, HERD_SIGN_MAX_BU) BU of its source (7 aphids 11 BU,
+ * 14 -> 13.5, 64 -> 22), against the 6 BU odour before. Round 10: herds 204-270 BU out stayed unknown for 4 gd.
+ */
+export const HERD_SIGN_BASE_BU = 6;
+export const HERD_SIGN_PER_SQRT_APHID_BU = 2;
+export const HERD_SIGN_MAX_BU = 24;
 
 // ---- tend, Tier 1 static honeydew sites (GDD 02 §10.3; herds are Tier 2) ----
 /** Tenders look for a known honeydew site within this of the entrance, BU. */
@@ -280,6 +289,12 @@ export const STUCK_MAX = 3;
  * this many BU and hunts it. Patch prey appears 2-4 L ahead of an ant moving inside a patch (PATCH_SPAWN_AHEAD_L).
  */
 export const HUNT_NOTICE_BU = 5;
+/**
+ * R38 item 3 (hunt.ts noticePatches): a forager or scout who has walked this long inside an unknown prey patch holding
+ * at least PATCH_NOTICE_MIN_FILL of its capacity learns the patch without a spawn roll, s.
+ */
+export const PATCH_NOTICE_S = 5;
+export const PATCH_NOTICE_MIN_FILL = 0.2;
 /** A chase of one prey ends after this long without a catch, s (a springtail jumps 60 mm, 15 BU, when it escapes). */
 export const HUNT_CHASE_S = 20;
 /** The remains of a kill are looked for within this distance of where the prey was last seen, BU. */

@@ -15,6 +15,7 @@ import { DELIVER_FIRST_EXEMPT_TASKS, DELIVER_FIRST_MAX_S } from '@/sim/balance/a
 import { secondsToTicks } from '@/sim/time';
 import { ports } from './actions/ports';
 import { reinferAfterLanding } from './player/release';
+import { noticeOutside } from './behaviours/outdoor/notice';
 
 /** Used for every task without a registered behaviour: stand still, keeping the current (tangent) heading. */
 export const defaultBehaviour: Behaviour = {
@@ -101,7 +102,11 @@ export function runBehaviour(sim: Sim, ant: Ant): void {
   if (!ant.alive || (ant.flags & AntFlag.POSSESSED) !== 0) return;
   behaviourFor(sim, ant, ant.task).update(sim, ant);
   if (ant.thinkTick <= tick) ant.thinkTick = tick + BEHAVIOUR_THINK_TICKS;
+  // R38 items 2-3: any worker outside, on whatever task, notices the aphid herds and prey patches she passes
+  if (ant.alive && WORKER_CASTES.has(ant.caste)) noticeOutside(sim, ant);
 }
+
+const WORKER_CASTES: ReadonlySet<string> = new Set(['worker', 'minor', 'media', 'major']);
 
 export const behaviourSystem: System = {
   name: 'behaviours',

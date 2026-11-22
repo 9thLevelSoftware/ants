@@ -120,6 +120,7 @@ export function colonyDemand(sim: Sim, colonyId: number, task: Task): number {
 export { taskCycleDone } from './allocation';
 export {
   recordDelivery, recordDeliveryCount, recordForagerReturn, shouldDepart, departureDue, commitDeparture, curfew, fEnv, isWaitingForager, injectReturn,
+  reportSmelledSource,
 } from './activation';
 export {
   ecloseBrood, feedUrgency, larvaHunger, larvaRemainingNeed, setBroodDiapause, tendBrood, tendBroodAt, wantsFeed,

@@ -6,7 +6,7 @@
 import type { Ant, Behaviour, Sim } from '@/sim/types';
 import { CROP_RETURN_FRACTION, CROP_RETURN_MIN } from '@/sim/balance/actions';
 import {
-  HERD_NOTICE_EVERY_TICKS, HUNGER_RETURN_CROP, HUNGER_RETURN_POOL_MIN_C, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS,
+  HUNGER_RETURN_CROP, HUNGER_RETURN_POOL_MIN_C, HUNGER_RETURN_RESERVE_FRAC, SUCCESS_CROP, THINK_TRAVEL_TICKS,
   TRIP_LOST_S, TRIP_TURN_S, UNLOAD_CROP_MARGIN,
 } from '@/sim/balance/foraging';
 import { processAntDeath } from '@/sim/ants/lifecycle';
@@ -24,7 +24,6 @@ import { startDepart, updateDepart, updateExplore, updateInvestigate } from './p
 import { updateOutbound, updateQueue, updateReturn, updateSearch } from './phaseTravel';
 import { dropAction, homePlanner, startDeliver, startOutbound, startReturn, startWait } from './transitions';
 import { stopLaying } from './trail';
-import { discoverHerdsNear } from './herdFind';
 import { huntCheck, updateHunt } from './hunt';
 
 /** Phases in which an outside ant is still heading away from home (recall and hunger turn it round). */
@@ -154,8 +153,7 @@ export function makeBehaviour(fl: Flavour): Behaviour {
       // the task was changed while this trip is not over (deliver first, the runner keeps this behaviour): home now
       if (ant.task !== fl.task && ant.nestId < 0) ant.bb[K.recall] = 1;
       if (tripClock(sim, ant, fl)) return;
-      // any ant out on a trip notices the aphid herds it passes (econ-growth R10, herdFind.ts; scouts every think)
-      if (ant.nestId < 0 && !fl.scout && (sim.state.tick + ant.id) % HERD_NOTICE_EVERY_TICKS < THINK_TRAVEL_TICKS) discoverHerdsNear(sim, ant);
+      // (every worker outside notices the aphid herds it passes: behaviourRunner.ts noticeHerdsOutside, R38 item 2)
       if (fleeCheck(sim, ant, fl)) return;
       if (recallCheck(sim, ant, fl)) return;
       if (avoidCheck(sim, ant, fl)) return;

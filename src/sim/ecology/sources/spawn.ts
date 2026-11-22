@@ -8,7 +8,7 @@ import { SEASONS } from '@/sim/types';
 import { spawnSource, worldBu, type EntityCtx } from '@/sim/entities';
 import { difficultyValue } from '@/sim/balance/difficulty';
 import {
-  ECOLOGY_TIER, LARGE_CARCASS_TYPES, REF_CARRY_MG, SPILL_HALF_LIFE_GD, SPILL_SIZES, WINDFALL_FRUITS, WINDFALL_STAGES,
+  CARRION_TEAR_P_PER_BULK_MIN, ECOLOGY_TIER, LARGE_CARCASS_TYPES, REF_CARRY_MG, SPILL_HALF_LIFE_GD, SPILL_SIZES, WINDFALL_FRUITS, WINDFALL_STAGES,
   type LargeCarcassType, type WindfallFruit,
 } from '@/sim/balance/ecology';
 import { odourFromRadiusBu, sourceDef, spillSlots } from './def';
@@ -87,7 +87,8 @@ function applyCarcass(init: Partial<FoodSource>, type: LargeCarcassType): void {
   const t = LARGE_CARCASS_TYPES[type];
   init.c = t.c;
   init.p = t.p;
-  init.unitBulk = t.massMg / REF_CARRY_MG;
+  // R38 item 4: no lighter than CARRION_TEAR_P_PER_BULK_MIN P per load of carry capacity
+  init.unitBulk = Math.min(t.massMg / REF_CARRY_MG, t.p / CARRION_TEAR_P_PER_BULK_MIN);
   init.hardness = t.hardness;
   init.slots = t.slots;
   init.odour = odourFromRadiusBu(t.odourBu);

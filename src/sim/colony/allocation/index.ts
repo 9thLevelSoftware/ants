@@ -8,7 +8,7 @@ import { BROOD_HAZARD, IDLE_REEVAL_S, SURPLUS_CHECK_S } from '@/sim/balance';
 import { secondsToTicks, TICKS_PER_SECOND } from '@/sim/time';
 import { censusOf, cycleWaste, isWorkerCaste } from '../census';
 import { coreOf } from '../core';
-import { PROSPECTIVE_FORAGE_KEY, computeDemand } from './demand';
+import { PROSPECTIVE_FORAGE_KEY, SCOUT_FLOOR_KEY, computeDemand } from './demand';
 import { computeTargets } from './targets';
 import { eligible, groupOf, GROUP_TASKS, thresholdBand } from './groups';
 import { gainExperience, reassignable, reevaluate, surplusCheck, switchTask } from './assign';
@@ -46,7 +46,10 @@ export function allocateColony(sim: Sim, col: Colony, def: SpeciesDef, surplusPa
   computeDemand(sim, col, cen);
   const workforce = { all: cen.available, adult: cen.availableAdult, outside: cen.availableOutside };
   const acc = coreOf(col).acc;
-  computeTargets(col, cen.available, (acc['threat'] ?? 0) > 0, workforce, broodAmongWaste(sim, col), acc[PROSPECTIVE_FORAGE_KEY] ?? 0);
+  computeTargets(
+    col, cen.available, (acc['threat'] ?? 0) > 0, workforce, broodAmongWaste(sim, col), acc[PROSPECTIVE_FORAGE_KEY] ?? 0,
+    (acc[SCOUT_FLOOR_KEY] ?? 0) > 0,
+  );
   col.alloc.lastTick = sim.state.tick;
   if (!surplusPass) return;
   for (const a of sim.stores.ants.list) if (a.colony === col.id && isWorkerCaste(a.caste)) surplusCheck(sim, col, a, def);

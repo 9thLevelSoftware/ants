@@ -93,7 +93,8 @@ describe('source catalogue: later tiers present as data', () => {
   });
 
   it('nutrients of the later-tier solids match §1.2', () => {
-    expect([sourceDef('insect-large').c, sourceDef('insect-large').p, sourceDef('insect-large').unitBulk]).toEqual([0.5, 15, 40]);
+    // R38 item 4 (GDD 05 §1.2 deviation, DEVIATIONS.md R38): 15 P in 20 bulk, not 40, so a torn piece carries 0.75 P
+    expect([sourceDef('insect-large').c, sourceDef('insect-large').p, sourceDef('insect-large').unitBulk]).toEqual([0.5, 15, 20]);
     expect([sourceDef('crust').c, sourceDef('crust').p, sourceDef('crust').unitBulk]).toEqual([20, 1.5, 30]);
     expect([sourceDef('kibble').c, sourceDef('kibble').p, sourceDef('kibble').hardness]).toEqual([2.5, 4, 2]);
     expect([sourceDef('bait-gel').c, sourceDef('bait-gel').toxin, sourceDef('bait-gel').units[0]]).toEqual([1, 1, 40]);

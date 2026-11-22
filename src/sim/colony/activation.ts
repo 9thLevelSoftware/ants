@@ -246,6 +246,15 @@ function updateNews(sim: Sim, col: Colony, sourceId: number): void {
 }
 
 /**
+ * R38 item 5: a worker back home reports a source she smelled on the way (ants/behaviours/outdoor/notice.ts): the
+ * colony knows it and its news can lead waiting foragers there, as after a scout's return.
+ */
+export function reportSmelledSource(sim: Sim, colonyId: number, sourceId: number): void {
+  const col = sim.stores.colonies.get(colonyId);
+  if (col) updateNews(sim, col, sourceId);
+}
+
+/**
  * Antennal contacts of a returner at `pos` with up to RECRUIT_CONTACTS_MAX nearest waiting foragers within
  * `radiusBu` (default RECRUIT_RADIUS_BU). A successful return adds activation and may pass on the source as a
  * lead. Returns the ids contacted.

@@ -16,7 +16,9 @@ import { REASON_CODES } from '@/sim/types/ids/ants';
 import { CROP_RETURN_FRACTION } from '@/sim/balance/actions';
 import {
   CHOICE_CROWD_MIN, CHOICE_MIN_TRIP_S, HUNT_CHASE_S, HUNT_EXPECT_S, HUNT_NOTICE_BU, HUNT_REMAINS_BU, PATCH_FORAGERS_MAX,
+  PATCH_NOTICE_MIN_FILL, PATCH_NOTICE_S,
 } from '@/sim/balance/foraging';
+import { secondsToTicks } from '@/sim/time';
 import { CREATURE_STATS } from '@/sim/balance/creatures';
 import { begin, canDo } from '@/sim/ants/actions';
 import { sourceWeight } from '@/sim/colony';
@@ -54,6 +56,45 @@ export function notePatch(sim: Sim, colonyId: number, patchId: number): void {
   const p = patchOf(sim, patchId);
   const bit = colonySlotBit(sim, colonyId);
   if (p && bit !== 0) p.knownBy = (p.knownBy ?? 0) | bit;
+}
+
+/** ant.bb keys: the patch this forager or scout is walking in (-1 none) and the tick she entered it (noticePatches). */
+const PATCH_IN = 'notice.patch';
+const PATCH_IN0 = 'notice.patch0';
+
+/**
+ * R38 item 3 (direction 24; GDD 05 §2.3 deviation): what an outside worker learns of prey patches, whatever her trip.
+ * (a) Patch prey within HUNT_NOTICE_BU of any worker: the colony knows its patch (before, only an ant free to break off
+ * and chase taught it: a tender, a laden forager or one homing for another reason walked past and nothing was learnt).
+ * (b) A forager or scout who has walked PATCH_NOTICE_S inside an unknown patch holding >= PATCH_NOTICE_MIN_FILL of its
+ * capacity learns it without a spawn roll (litter alive with springtails is seen when walked on). Run every
+ * HERD_NOTICE_EVERY_TICKS from notice.ts; the spawn rule (who makes prey appear) is unchanged.
+ */
+export function noticePatches(sim: Sim, ant: Ant): void {
+  const bit = colonySlotBit(sim, ant.colony);
+  if (bit === 0) return;
+  for (const q of preyNear(sim, ant.pos, HUNT_NOTICE_BU * sim.world.bu, ant.colony)) {
+    const c = sim.stores.creatures.get(q.creatureId);
+    if (c && c.bb.patch !== undefined) notePatch(sim, ant.colony, c.bb.patch);
+  }
+  const walker = ant.task === 'forage' || ant.task === 'scout';
+  const p = walker ? unknownFullPatchAt(sim, ant, bit) : undefined;
+  if (!p) { ant.bb[PATCH_IN] = -1; return; }
+  if ((ant.bb[PATCH_IN] ?? -1) !== p.id) { ant.bb[PATCH_IN] = p.id; ant.bb[PATCH_IN0] = sim.state.tick; return; }
+  if (sim.state.tick - (ant.bb[PATCH_IN0] ?? sim.state.tick) >= secondsToTicks(PATCH_NOTICE_S)) {
+    notePatch(sim, ant.colony, p.id);
+    ant.bb[PATCH_IN] = -1;
+  }
+}
+
+/** The unknown patch holding >= PATCH_NOTICE_MIN_FILL of its capacity whose disc the ant stands in (plan distance). */
+function unknownFullPatchAt(sim: Sim, ant: Ant, bit: number): PreyPatch | undefined {
+  for (const p of sim.state.ecology.preyPatches) {
+    if (((p.knownBy ?? 0) & bit) !== 0 || p.k <= 0 || p.count < PATCH_NOTICE_MIN_FILL * p.k) continue;
+    const dx = ant.pos.x - p.center.x, dz = ant.pos.z - p.center.z;
+    if (dx * dx + dz * dz <= p.radius * p.radius) return p;
+  }
+  return undefined;
 }
 
 // ---- part 1: noticing prey on the way ----

@@ -113,7 +113,8 @@ export function nutrientWeights(col: Colony): { wC: number; wP: number } {
   const sP = col.needs.sP, needC = col.needs.needC;
   return {
     wC: NUTRIENT_W_BASE + needC * Math.max(1 - sP, needC) * NUTRIENT_W_GAIN,
-    wP: NUTRIENT_W_BASE + col.needs.needP * sP * NUTRIENT_W_GAIN,
+    // R35b: the symmetric twin of R35 point 3: a colony starving of protein weighs it at full weight whatever sP.
+    wP: NUTRIENT_W_BASE + col.needs.needP * Math.max(sP, col.needs.needP) * NUTRIENT_W_GAIN,
   };
 }
 

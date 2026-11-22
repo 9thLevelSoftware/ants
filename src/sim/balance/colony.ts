@@ -392,6 +392,20 @@ export const FORAGER_TRIPS_PER_GD = 2.5;
 export const SCOUT_BASE_FRAC = 0.02;
 export const SCOUT_SHORTFALL_FRAC = 0.05;
 export const SCOUT_MAX_FRAC = 0.15;
+/**
+ * R38 item 1 (direction 24; GDD 02 §6.2-6.3 deviation): scouts for a missing nutrient. A nutrient is missing while the
+ * colony needs it and its known capacity covers under SCOUT_MISSING_SHORT of its forage want (scoutShortfall's own
+ * per-nutrient term >= this). While one is, the scout demand is at least max(SCOUTS_MISSING_MIN (1 below
+ * SCOUTS_MISSING_SMALL_N workers), SCOUT_MISSING_FRAC x workers), that floor capped at SCOUT_MISSING_MAX_FRAC x workers,
+ * and the auto allocation fills it directly after the brood's care, before `forage` (allocation/targets.ts).
+ * Round 10 measured why: the scouts' head-count fell from 1.4 to 0.02-0.1 by day 3-5 once a colony knew its sugar,
+ * and its protein (prey patches, carrion) stayed unfound.
+ */
+export const SCOUT_MISSING_SHORT = 0.5;
+export const SCOUTS_MISSING_MIN = 2;
+export const SCOUTS_MISSING_SMALL_N = 8;
+export const SCOUT_MISSING_FRAC = 0.2;
+export const SCOUT_MISSING_MAX_FRAC = 0.25;
 export const SCOUT_MIN_ACTIVITY = 0.1;
 /**
  * Small colonies forage (viab-economy R3; GDD 02 §6.2 gives an incipient colony 1-2 scouts and a forage demand

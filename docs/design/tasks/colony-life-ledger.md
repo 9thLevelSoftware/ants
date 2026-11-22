@@ -4092,3 +4092,116 @@ the protein cost of R35 (larvae starved 16, we #2 9: read with R38's discovery f
 year-two brood hygiene (kd #3). Evidence: `test-output/colony-life/round-10/`.
 - 16:04 closing: `tsc` clean; scratch trees `/home/user/scratch-r10-*` deleted; probe archived to
   `round-10/probes/probe-tend10.ts.txt` and `tools/sim/probe/` removed; no process of this round left running.
+
+## Round 11
+
+Engineer: round 11 (started 16:29 UTC Nov 22). Evidence: `test-output/colony-life/round-11/`. Tree at start = HEAD
+9c1b728 (working tree clean) = round-10 final (880fe1af) + R37b. Order (direction 25): (1) R35b + its four-colony arm;
+(2) R38 items 1-5 (direction 24); (3) one arm of the final tree vs `round-10/arm-final` on all 15 sweep-9 hand-overs;
+(4) hygiene deaths if room. Bases: `round-10/arm-final` (exact for cached hand-overs, cache `round-10/cache`).
+
+Progress (kept current; a successor continues from here)
+- 16:30 read spec (directions 24, 24a, 25), round-10 ledger. No process running. Now: R35b in `colony/needs.ts`.
+- 16:33 **R35b built** (`colony/needs.ts nutrientWeights`: wP = base + needP x max(sP, needP) x gain); test added to
+  `colony/prospectiveProtein.test.ts` (needP 1 at sP 0.1 -> base + gain; needP 0 -> base; both needs 1 -> equal at sP
+  0.05 / 0.5 / 0.95; sP larger -> unchanged): 8 / 8 green; `tsc` clean. Arm tree `/home/user/scratch-r11-r35b` (copy of
+  the live tree at 16:31 = R37b + R35b). **R35b arm running** (two slots, `round-11/jobs-r35b-{a,b}.txt` ->
+  `round-11/arm-r35b/`): the four colonies whose P intake fell most from sweep 9 to `arm-final`: we #1 (0.643 -> 0.064),
+  cpv #2 (0.596 -> 0.297), sg #2 (0.478 -> 0.223), we #2 (0.371 -> 0.161; pp #2 -0.212 is a hair ahead of we #2's -0.210,
+  the direction names we #2). Base `round-10/arm-final`. Runner scripts copied from round 10 (cache = `round-10/cache`).
+  Now: R38 item 1 (scouts for a missing nutrient) in the live tree.
+- 16:35 **R38 item 1 built** (live tree): `allocation/demand.ts` `nutrientShortfalls` (scoutShortfall's per-nutrient
+  term), `nutrientMissing` (any term >= `SCOUT_MISSING_SHORT` 0.5), `missingScoutFloor(n)` = min(0.25 n, max(2 (1 below
+  8), 0.2 n)); scout demand >= that floor while a nutrient is missing (stored as `alloc.scoutFloor`); `smallColonyFloor`
+  counts known live sources per needed nutrient (C: sources with C + workable herds; P: sources with P + known patches
+  holding prey), the fewest. `targets.ts withScoutsFirst`: while the floor stands, `scout` goes right after the brood's
+  care (nurse, queen-care, and hygiene haul when brood lies among waste: decision, brood care first) and gets its whole
+  demand in the first pass, before `forage`. Balance `SCOUT_MISSING_*`, `SCOUTS_MISSING_*` (`balance/colony.ts`).
+  Test `colony/scoutsMissing.test.ts` (5): 15 workers, sugar known, no protein -> floor 3, 3 scouts with forage and tend
+  each asking 15; 6 workers -> floor 1.2 -> 1 scout before forage (0 under the GDD order; the small-colony rule's 2
+  scouts stay on top of it at 6 workers); caps; everything known -> no floor; nothing needed -> no floor.
+- 16:35 **R38 item 2 built**: `outdoor/herdFind.ts herdSignRadiusMm` = clamp(6 + 2 sqrt(aphids), 6, 24) BU (balance
+  `HERD_SIGN_*`), plan distance; `noticeHerdsOutside` (every `HERD_NOTICE_EVERY_TICKS`, per-ant `bb['herd.next']`) is
+  run by `behaviourRunner.runBehaviour` for every autonomous worker outside the nest, on any task (the forage / tend
+  engine's own check removed; scouts still check every think). Test `herdFind.test.ts` (4; the R10 case restated to the
+  sign radius). Now: item 3 (prey patches: trace why kd #1 / kd #2 patches stayed unknown).
+- 16:39 **R38 item 4, the density half, built**: `balance/ecology.ts CARRION_TEAR_P_PER_BULK_MIN` 0.75; `insect-large`
+  unitBulk 40 -> 20 (15 P: 0.75 P a load); `large-carcass` catalogue unitBulk 500 -> 160 and `spawn.ts applyCarcass`
+  bulk = min(mass / REF_CARRY_MG, P / 0.75) (worm 500 -> 160, slug 250 -> 80, vertebrate 4000 -> 533; the catalogue
+  density now equals every type's, so `carrion.ts startP` (husk threshold) reads each type's own P, which it did not
+  for slug / vertebrate). Other readers of unitBulk checked: corpse carrion (`carrionFromItem`) keeps the item's own bulk
+  and P; fly larvae need >= 5 bulk (20 / 160 still pass); demand / claims / choice read P per trip from it (richer
+  trips, the intent). Tests: `harvest.test.ts` R38 item 4 (every carrion kind and carcass type >= 0.75 P per torn load,
+  P per carcass unchanged), `catalogue.test.ts` restated (15 P in 20). The trip-continuation half needs the trace (probe
+  `scratch-r11-r35b/tools/sim/probe/probe-patch11.ts`, kd #1 / kd #2, runs once the R35b arm frees its slots).
+  R35b arm: we #1 and cpv #2 done (16:36), sg #2 and we #2 running.
+- 16:42 **R35b arm done** (`round-11/arm-r35b`, table `round-11/r35b-table.txt`; tree = R37b + R35b; base `arm-final`):
+  | run | workers at winter | P intake / need | C intake / need | hunting trips | P delivered | larvae starved | predation |
+  |---|---|---|---|---|---|---|---|
+  | we #1 | 18 -> **23** | 0.064 -> 0.059 | 0.563 -> 0.497 | 0 -> 0 | 4.7 -> 4.8 | 0 -> 0 | 6 -> **0** |
+  | cpv #2 | 16 -> 16 | 0.297 -> 0.272 | 1.521 -> 1.496 | 39 -> 40 | 5.4 -> 5.0 | 0 -> 0 | 0 -> 0 |
+  | sg #2 | 11 -> 11 (identical run) | 0.223 | 0.955 | 40 | 7.0 | 4 | 0 |
+  | we #2 | 8 -> 8 (identical run) | 0.161 | 1.016 | 41 | 3.8 | 9 | 0 |
+  Read: **R35b moves no protein** (median P 0.192 both; sg #2 and we #2 are the same trajectory to the final tick: the
+  weight change never altered a choice there). The premise "sP is small in a small colony" does not hold in these
+  runs: the kd #1 probe (below) reads sP 0.75-0.88 against needP 0.75-0.84 on days 2-3, so max(sP, needP) = sP almost
+  always. Carbohydrate did not fall under 1.0 where it was over (cpv #2 1.52 -> 1.50, we #2 1.02 -> 1.02): no stop. we
+  #1's gain is R37b (its 6 predation deaths -> 0); its protein stays at 0.06 because it knows no protein source (no
+  weight can choose an unknown source): the R38 case. R35b kept (as ruled; neutral, harmless).
+- 16:42 **R38 items 3-4 trace, kd #1** (probe `probe-patch11.ts` on the R35b tree = no R38, 4 gd from the sweep-9
+  hand-over; `round-11/probe-patch-kd1.txt`):
+  - *Patches*: the K 50 patch 129 BU out had **14 worker-seconds inside in 4 gd, all scouts** (7 s explore, 7 s return,
+    day 2), 0 prey spawned (spawn needs a moving forager / scout inside: lambda 0.05 / s x fill per ant, expected 0.7
+    in 14 s), so nothing to notice; the K 232 patch at 299 BU was never entered. "Known" today needs a chase
+    (`huntCheck`: free mandibles, a phase that may break off, not a tender), which needs a spawned prey, which needs
+    time inside. Not a code defect: the rule asked too much. Item 3's rule built (below): 5 s inside a patch at >= 0.2
+    fill teaches it (this scout would have learnt it), and any outside worker within 5 BU of patch prey teaches it.
+  - *The large carcass* (worm, 120 P, 176 BU out, appeared day 1 h21, known day 2 h12): trips did **not** stop with food
+    left: the forage target rose 2 -> 12 (actual 8-10 of 15-17 workers, demand 18-55) and ants worked it until it was a
+    husk on day 4 h19. It lost its P to rot (ripe -> putrid on day 2 h23, then ~2-5 P / h: 120 -> 37 by day 4 h0) while
+    the ants took **24 bulk-loads = 24 x 0.24 P = 5.8 P**. So the cause is the carry density (0.24 P a load) against the
+    putrid clock, not trip continuation; item 4's density rule is the fix (the same 24 loads now carry 18 P). The pp #3
+    insect-large case was not traced separately (budget): same tear rule, 0.375 P a load before.
+  Now: kd #2 probe (item 5, carrion heights; patches) running; then item 3 / 4 tests in the colony and outdoor folders.
+- 16:45 **R38 item 3 built**: `outdoor/hunt.ts noticePatches` (run from the new `outdoor/notice.ts noticeOutside`, which
+  the behaviour runner calls for every autonomous worker outside the nest after its think, every
+  `HERD_NOTICE_EVERY_TICKS`; the herd check of item 2 moved there too): (a) patch prey within `HUNT_NOTICE_BU` of any
+  outside worker (tender, laden or homing forager included) -> the colony knows its patch; (b) a forager or scout who
+  stays `PATCH_NOTICE_S` 5 s inside an unknown patch holding >= `PATCH_NOTICE_MIN_FILL` 0.2 of its capacity learns it
+  (per-ant `bb['notice.patch' / 'notice.patch0']`). Spawn rule unchanged; a known patch is chosen by `choosePatch` and
+  counted by `knownCapacity` as before. Test `outdoor/patchNotice.test.ts` (3: a tender 2 BU from patch prey teaches
+  the patch; a forager 3 s inside: not yet, 7 s: known; a 0.1-full patch or a hauler: not). Colony folder: 75 of 76
+  files green (red `workedExample`, base value 0.0659, known). DEVIATIONS.md rows R35b and R38 added (docs-final 8 / 8).
+  Running: `probe-near11.ts` (seconds a worker spent inside an unknown carrion's odour radius, by task / state) on kd
+  #1 and kd #2, 5 gd each -> `round-11/probe-near-kd{1,2}.txt` (item 5 and the "laden / homing worker" question).
+- 16:49 **R38 item 5 traced and built.** Probe `probe-near11.ts` (5 gd, R35b tree; `round-11/probe-near-kd{1,2}.txt`):
+  kd #2's insect-medium carcass (4 P, appeared day 2 h8, **60 BU** from the entrance) lies **on the floor** (0.0 BU above
+  the terrain under it, normal up; the probe's carrion list on kd #1 / kd #2: 13 of 13 drops at 0-1.2 BU, i.e. on the
+  ground: no drop out of reach found, so no drop-rule change and the "share out of reach" is 0 of 13 before). Workers
+  were inside its 20 BU odour for 142 s in 5 gd: forage outbound 46 s, tend outbound 24 s, tend / forage homing with a
+  full crop 72 s (nearest 1.2 BU) and **no scout**: a source became known only by a scout's investigate / collect or a
+  forager's collect. So "simply on a trip that does not perceive". Rule built (`outdoor/notice.ts noteSmelledFood`): a
+  non-scout worker outside remembers the nearest unknown source with food whose odour reaches her (one at a time,
+  `bb['notice.report']`) and reports it when back in the nest (`colony/activation.ts reportSmelledSource` = the news
+  path a scout's return takes: known, news for recruitment; plus the discovery bit). Test `outdoor/smellReport.test.ts`
+  (2: homing with a full crop past it -> known only once home; outside the radius -> not). kd #1's carcass for
+  comparison was found by a scout (investigate 9 s, collect 4 s) 15 h after it appeared.
+  Now: outdoor / ants folder tests, then freeze the final tree and start the 15-run arm.
+- 16:55 folder tests on the live (= final) tree, two workers: colony 75 / 76 files (red `workedExample`, known);
+  behaviours/outdoor 34 / 34 (`removal.verify` now green); behaviours/nest 31 / 33 (red `sfaReview.verify`,
+  `stall.soak`: both known from round 10); ecology/creatures + plants 39 / 39; ecology/sources 6 of 12 files red, **the
+  same 12 tests red on HEAD 9c1b728** (checked on a git-archive copy, deleted: anchors / T1 crumbs / budget C13 /
+  drops / spills; not this round's); ants top-level 4 / 4; docs-final 8 / 8. `tsc` clean.
+- 16:55 **final tree frozen** `/home/user/scratch-r11-final` (src + tools hash `round-11/final-tree-hash.txt` 4c9d17a9 =
+  R37b + R35b + R38 items 1-5; probes not in it). **Final arm running** (direction 25 item 3): all 15 sweep-9 hand-overs
+  to winter, two runners (`jobs-final.txt` forward, `jobs-final-rev.txt` reverse; run-one.sh markers keep them apart)
+  -> `round-11/arm-final11/`; base `round-10/arm-final` (linked as `round-11/arm-final`). ~45 min. Restart-safe: rerun
+  both job lists (finished runs are skipped; delete stale `*.running` markers first).
+- 17:02 final arm, first two (base `arm-final`): **we #1 18 -> 18 / 25, viable no -> yes, P intake 0.064 -> 0.506**, C
+  0.563 -> 1.646, hunting trips 0 -> 18, P delivered 4.7 -> 10.0, its K 50 patch learnt at hour 67 (never before), its
+  one herd found (never before), predation 6 -> 0. kd #3 8 -> 12 (eclosions 0 -> 3), P 0.668 -> 0.673, **C 1.402 ->
+  0.965** (under 1.0 where it was over: watch), hunting trips 47 -> 70, **brood hygiene 0 -> 10** (lead for item 4).
+  13 runs to go (~35 min).
+- 17:13 final arm, 6 of 15: kd #1 20 -> 19, viable no -> **yes** (P 0.265 -> 0.281); **kd #2 15 -> 17, viable no -> yes,
+  P 0.037 -> 0.318**, larvae starved 3 -> 0; cpv #3 20 -> 19, viable no -> **yes** (C 1.01 -> 1.62, P 0.52 -> 0.31);
+  cpv #1 17 -> 16 (P 0.41 -> 0.25, viable both). Kitchen door so far viable 3 of 3 (base 1 of 3).

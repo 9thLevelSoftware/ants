@@ -8,7 +8,8 @@ import {
   BROOD_MOVE_NURSE, DEFEND_MIN_WORKERS, DIAPAUSE_LARVAE_PER_NURSE, EGGS_PER_NURSE, ENTRANCE_ALARM_ALERT_PH,
   GUARDS_PER_ENTRANCE, HAUL_MAX_FRAC, HAUL_PER_CORPSE, HAUL_PER_PELLET, HAUL_PER_WASTE, NURSE_FEED_CAPACITY,
   PATROL_FRAC, PUPAE_PER_NURSE, QUEEN_CARE_BASE, QUEEN_CARE_MAX, QUEEN_CARE_PER_WORKERS, SCOUT_BASE_FRAC,
-  SCOUT_MAX_FRAC, SCOUT_MIN_ACTIVITY, SCOUT_SHORTFALL_FRAC, SMALL_COLONY_N, SMALL_KNOWN_SOURCES, SMALL_OUTSIDE_FRAC,
+  SCOUT_MAX_FRAC, SCOUT_MIN_ACTIVITY, SCOUT_MISSING_FRAC, SCOUT_MISSING_MAX_FRAC, SCOUT_MISSING_SHORT,
+  SCOUT_SHORTFALL_FRAC, SCOUTS_MISSING_MIN, SCOUTS_MISSING_SMALL_N, SMALL_COLONY_N, SMALL_KNOWN_SOURCES, SMALL_OUTSIDE_FRAC,
   SMALL_OUTSIDE_MIN, SMALL_SCOUTS_MIN, SOURCE_SLOT_FORAGERS, SPOILED_ITEMS_PER_STORE,
   STORE_PER_FORAGER, THREAT_DEMAND_MULT, FORAGER_TRIPS_PER_GD, STOCK_REFILL_GD,
 } from '@/sim/balance';
@@ -32,6 +33,12 @@ const T = (t: Task): number => ti(t);
  * point 5); the allocation fills them after every other task (targets.ts autoTargets).
  */
 export const PROSPECTIVE_FORAGE_KEY = 'alloc.prospForage';
+
+/**
+ * core.acc key: the scout demand R38 item 1 asks for a missing nutrient (0 when no nutrient is missing); the auto
+ * allocation fills it before `forage` (targets.ts autoTargets).
+ */
+export const SCOUT_FLOOR_KEY = 'alloc.scoutFloor';
 
 /** Known foraging capacity: forager-equivalents and loads per gd (C + P, and each) the known sources can absorb. */
 export interface KnownCapacity { ants: number; loads: number; loadsC: number; loadsP: number }
@@ -100,21 +107,41 @@ function addKnownPatches(sim: Sim, col: Colony, out: KnownCapacity): void {
 }
 
 /**
- * Share of the intake target the known sources cannot supply (GDD 02 §6.2 `shortfall`), per nutrient (econ-growth
- * R9: a colony short of protein that knows only sugar keeps scouting for protein, whatever its carbohydrate): the
- * larger of the two nutrients' shortfalls, each counted only while the colony needs that nutrient.
+ * Share of each nutrient's forage want the known sources cannot supply (GDD 02 §6.2 `shortfall`, per nutrient), 0 for
+ * a nutrient the colony does not need now.
  */
-export function scoutShortfall(col: Colony, known: KnownCapacity): number {
+export function nutrientShortfalls(col: Colony, known: KnownCapacity): { c: number; p: number } {
   const r = forageRates(col), t = targetDays(col), st = col.stores;
   const short = (rate: number, target: number, stock: number, loads: number, need: number): number => {
     if (need <= 0) return 0;
     const want = rate + Math.max(0, target * rate - stock) / STOCK_REFILL_GD;
     return want > 0 ? clamp(1 - loads / want, 0, 1) : 0;
   };
-  return Math.max(
-    short(r.c, t.c, st.c, known.loadsC, col.needs.needC),
-    short(r.p, t.p, st.p, known.loadsP, col.needs.needP),
-  );
+  return {
+    c: short(r.c, t.c, st.c, known.loadsC, col.needs.needC),
+    p: short(r.p, t.p, st.p, known.loadsP, col.needs.needP),
+  };
+}
+
+/**
+ * Share of the intake target the known sources cannot supply (GDD 02 §6.2 `shortfall`; econ-growth R9: a colony short
+ * of protein that knows only sugar keeps scouting for protein, whatever its carbohydrate): the larger of the two.
+ */
+export function scoutShortfall(col: Colony, known: KnownCapacity): number {
+  const s = nutrientShortfalls(col, known);
+  return Math.max(s.c, s.p);
+}
+
+/** R38 item 1: a nutrient is missing while the colony needs it and what it knows covers under half of its want. */
+export function nutrientMissing(col: Colony, known: KnownCapacity): boolean {
+  const s = nutrientShortfalls(col, known);
+  return Math.max(s.c, s.p) >= SCOUT_MISSING_SHORT;
+}
+
+/** R38 item 1: the scout floor while a nutrient is missing, in worker-equivalents, for a colony of `n` workers. */
+export function missingScoutFloor(n: number): number {
+  const min = n < SCOUTS_MISSING_SMALL_N ? 1 : SCOUTS_MISSING_MIN;
+  return Math.min(SCOUT_MISSING_MAX_FRAC * n, Math.max(min, SCOUT_MISSING_FRAC * n));
 }
 
 /** Worker-equivalents of open dig work: the nest module's digDemand over the colony's plans (GDD 03 §7.7). */
@@ -144,27 +171,40 @@ export function entranceCount(sim: Sim, col: Colony): number {
   return k;
 }
 
-/** Live food sources the colony knows (units left). */
-function liveKnownSources(sim: Sim, col: Colony): number {
-  let k = 0;
+/**
+ * Live sources the colony knows that carry a nutrient it needs now, the fewest over those nutrients (R38 item 1: a
+ * colony that knows two sugar sources and no protein still has protein to find). Carbohydrate: known sources with
+ * food and carbohydrate in it, and the herds it works; protein: known sources with protein, and its known prey
+ * patches holding prey. Infinity while it needs neither.
+ */
+function knownSourcesOfNeeded(sim: Sim, col: Colony): number {
+  let c = 0, p = 0;
   for (const id of col.knownSourceIds) {
     const s = sim.stores.sources.get(id);
-    if (s && s.units > 0) k++;
+    if (!s || s.units <= 0) continue;
+    if (s.c > 0) c++;
+    if (s.p > 0) p++;
   }
-  return k;
+  for (const h of sim.stores.herds.list) if (herdWorkable(sim, col, h)) c++;
+  const bit = colonySlotBit(sim, col.id);
+  if (bit !== 0) for (const pt of sim.state.ecology.preyPatches) if (((pt.knownBy ?? 0) & bit) !== 0 && pt.count >= 1) p++;
+  let fewest = Infinity;
+  if (col.needs.needC > 0) fewest = Math.min(fewest, c);
+  if (col.needs.needP > 0) fewest = Math.min(fewest, p);
+  return fewest;
 }
 
 /**
  * Small colonies forage (R3, balance SMALL_*): under the stock target on a workable surface, forage + scout demand
  * is at least max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC x N). Scouts are at least SMALL_SCOUTS_MIN until
- * SMALL_KNOWN_SOURCES live sources are known; the rest of the outside share forages.
+ * SMALL_KNOWN_SOURCES live sources of each nutrient it needs are known (R38 item 1); the rest of the outside share
+ * forages.
  */
 function smallColonyFloor(sim: Sim, col: Colony, n: number, d: Float64Array | Float32Array): void {
   if (n >= SMALL_COLONY_N || surfaceActivityOf(sim, col.species) < SCOUT_MIN_ACTIVITY) return;
   if (col.needs.needC <= 0 && col.needs.needP <= 0) return;
   const outside = Math.min(n, Math.max(SMALL_OUTSIDE_MIN, SMALL_OUTSIDE_FRAC * n));
-  const live = liveKnownSources(sim, col);
-  const scoutsMin = live < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
+  const scoutsMin = knownSourcesOfNeeded(sim, col) < SMALL_KNOWN_SOURCES ? Math.min(outside, SMALL_SCOUTS_MIN) : 0;
   d[T('scout')] = Math.max(d[T('scout')], scoutsMin);
   // the rest of the outside share forages, at least one forager (a 7-worker colony's 2.45 - 2 scouts rounded to no
   // forager at all). With nothing known yet those foragers wait inside for news, where they age at a third of the
@@ -198,11 +238,16 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census): Float32Array 
   const items = itemCounts(sim).byColony.get(col.id);
   d[T('store')] = (foragers >= 1 ? Math.max(1, STORE_PER_FORAGER * foragers) : 0) + (items ? items.spoiled / SPOILED_ITEMS_PER_STORE : 0);
 
-  if (surfaceActivityOf(sim, col.species) >= SCOUT_MIN_ACTIVITY) {
+  const workable = surfaceActivityOf(sim, col.species) >= SCOUT_MIN_ACTIVITY;
+  if (workable) {
     const shortfall = scoutShortfall(col, known);
     d[T('scout')] = Math.min(SCOUT_MAX_FRAC * n, Math.max(1, SCOUT_BASE_FRAC * n) + SCOUT_SHORTFALL_FRAC * n * shortfall);
   }
   smallColonyFloor(sim, col, n, d);
+  // R38 item 1: scouts for a missing nutrient, filled before `forage` (targets.ts)
+  const scoutFloor = workable && nutrientMissing(col, known) ? missingScoutFloor(n) : 0;
+  d[T('scout')] = Math.max(d[T('scout')], scoutFloor);
+  core.acc[SCOUT_FLOOR_KEY] = scoutFloor;
   // R35 point 5: the prospective part of the forage demand, on top of the plain demand and the small-colony floor
   const plainForage = d[T('forage')];
   d[T('forage')] = Math.max(plainForage, forageFull);

@@ -146,15 +146,17 @@ export const SOURCE_CATALOGUE: Record<FoodVariant, SourceDef> = {
     unitBulk: 5, unitMm: 9, units: [1, 1], slots: [3, 3], hardness: 1.5, odourBu: 20, quality: 0.9, carrion: true,
     footprintBu: 1.5, t1: { lifetimeGd: T1_CARRION_REMOVE_GD },
   }),
+  // R38 item 4 (GDD 05 §1.2 deviation): bulk 40 -> 20 so a torn piece carries CARRION_TEAR_P_PER_BULK_MIN P per load
   'insect-large': def({
     variant: 'insect-large', kind: 'carrion', tier: 2, form: 'tear', item: 'food-piece', c: 0.5, p: 15,
-    unitBulk: 40, unitMm: 18, units: [1, 1], slots: [4, 4], hardness: 3.0, odourBu: 30, quality: 0.8, carrion: true,
+    unitBulk: 20, unitMm: 18, units: [1, 1], slots: [4, 4], hardness: 3.0, odourBu: 30, quality: 0.8, carrion: true,
     footprintBu: 3,
   }),
-  // Default profile = earthworm; slug / vertebrate in LARGE_CARCASS_TYPES. Bulk = mass / REF_CARRY_MG.
+  // Default profile = earthworm; slug / vertebrate in LARGE_CARCASS_TYPES. Bulk = mass / REF_CARRY_MG, at most
+  // P / CARRION_TEAR_P_PER_BULK_MIN (R38 item 4: the worm's 500 -> 160, so the catalogue density is the worm's).
   'large-carcass': def({
     variant: 'large-carcass', kind: 'carrion', tier: 2, form: 'tear', item: 'food-piece', c: 5, p: 120,
-    unitBulk: 500, unitMm: 100, units: [1, 1], slots: [12, 12], hardness: 1.0, odourBu: 60, quality: 0.9,
+    unitBulk: 160, unitMm: 100, units: [1, 1], slots: [12, 12], hardness: 1.0, odourBu: 60, quality: 0.9,
     carrion: true, footprintBu: 12,
   }),
   // Seeds. Elaiosome seeds left more than 2 gd germinate (removed).
@@ -327,6 +329,13 @@ export const CARRION_FREEZE_C = 2;
 // ---- other schedules (Tier 2 data) ----
 
 /** Large carcasses (§1.2): nutrients, mass (mg), length (mm), hardness, slots, odour (BU). */
+/**
+ * R38 item 4 (direction 24; GDD 05 §1.2 deviation): a torn piece of any carrion carries at least this much protein per
+ * load of carry capacity, the density of `insect-medium` (4 P in 5 bulk), which colonies do bring home. Total P per
+ * carcass is unchanged; the carcass is fewer, richer pieces. Round 10: a found 120 P worm carcass (bulk 500, 0.24 P a
+ * load) gave a colony of 15-20 3.2 P before it decayed, a found insect-large (15 P in 40) 0.2-0.6 P.
+ */
+export const CARRION_TEAR_P_PER_BULK_MIN = 0.75;
 export const LARGE_CARCASS_TYPES = {
   worm: { c: 5, p: 120, massMg: 1000, mm: 100, hardness: 1.0, slots: 12, odourBu: 60 },
   // Slug and vertebrate masses are estimates (the GDD gives none).

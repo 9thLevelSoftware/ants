@@ -116,6 +116,23 @@ describe('R32b / R35 prospective protein demand', () => {
     expect(nutrientWeights(col).wC).toBeCloseTo(NUTRIENT_W_BASE + 0.6 * 0.6 * NUTRIENT_W_GAIN, 9);
   });
 
+  it('R35b: a colony short of protein values protein at base + gain whatever its protein share', () => {
+    const { col } = setup();
+    col.needs.needC = 0; col.needs.needP = 1; col.needs.sP = 0.1;
+    expect(nutrientWeights(col).wP).toBeCloseTo(NUTRIENT_W_BASE + NUTRIENT_W_GAIN, 9);
+    col.needs.needP = 0;
+    expect(nutrientWeights(col).wP).toBeCloseTo(NUTRIENT_W_BASE, 9);
+    // both needs at 1: equal weights, whatever the share
+    for (const sP of [0.05, 0.5, 0.95]) {
+      col.needs.needC = 1; col.needs.needP = 1; col.needs.sP = sP;
+      const w = nutrientWeights(col);
+      expect(w.wP).toBeCloseTo(w.wC, 9);
+    }
+    // unchanged where sP is the larger term
+    col.needs.needP = 0.3; col.needs.sP = 0.7;
+    expect(nutrientWeights(col).wP).toBeCloseTo(NUTRIENT_W_BASE + 0.3 * 0.7 * NUTRIENT_W_GAIN, 9);
+  });
+
   it('R35 point 4: the store spoiling is no appetite on the forage side (a stocked larder, no larvae, no laying)', () => {
     const { col } = setup();
     const acc = coreOf(col).acc;
