@@ -943,3 +943,18 @@ Round 9 (still running) so far, from the ledger:
 
 If sweep 9 starts on a tree without R35: let it run (it still judges founding, lost workers and winter-1 viability on
 fresh foundings); its R34 result is then known in advance and round 10 does R35.
+
+## Nov 22 12:45 UTC — round 9 closed (result saved), without R35; sweep 9 running on that tree
+
+`docs/design/tasks/reviews/colony-life-round-9.json`; ledger "### Round 9 results".
+- 15 paired hand-overs to winter 1, base -> final: workers 190 -> 239 (better 14, equal 1, worse 0), viable 9 -> 13,
+  eclosions 57 -> 113, untended brood deaths 78 -> 13, `worker:lost` 11 -> 3, trip success 45.9 -> 50.8 %, protein
+  intake / need 0.269 -> 0.366 (bar 0.7). Predation 15 -> 26, crushed 8 -> 13. Flooding is now the largest brood
+  loss (34 of 143).
+- **R32b measure:** protein brought home / protein that arrived within 300 BU = 0.33 base, 0.20 final (150 of 743
+  loads). The world's supply is not the limit; no ruling on supply rate or `LARVA_P_REQ`.
+- Founding at the start pose 25 of 25 (headless). R34 2 of 5 / 0 of 5.
+- The engineer closed at 11:49 with R35 unread or untaken (its "next" asks for the ruling direction 22 gives).
+  Sweep 9 started on the tree without R35: left to run (independent check of the numbers above on fresh foundings,
+  new defects). Its R34 result is known in advance. Round 10 starts when the workflow ends: R35 first, then brood
+  drowned after the hand-over (sg #1, cpv #1), predation per outside-worker day against R25, sweep-9 findings.

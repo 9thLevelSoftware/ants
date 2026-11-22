@@ -1,0 +1,149 @@
+{
+ "label": null,
+ "result": {
+  "summary": "Round 9 (colony-life). Both sweep-8 blocker/major findings are fixed: the worker:lost homeward trap (LD1) and the inert colony with plug soil left in the throat (RO1). founding/reopen.test is green for the first time since round 1. Direction 20.1 is done: a new long test (startPose.long.test.ts) founds the game at the start pose the way the first-play script does, for seeds 1-5 of all five Tier-1 archetypes, through the hand-over to a first worker outside. On the final tree all 25 pass: Fair-or-better 10 of 10, Poor 15 of 15. Before the three seal fixes SG1, SG2 and SG3 it was 22 of 25. The seed-2 flood (21b) is cause (2): rain came into the open shaft during the dig and the seal kept it in. The read-out was right. FD2 makes the queen move drowning brood onto dry floor in her sealed cell. R32b and R33 are implemented and recorded as GDD deviations. Paired arms on all 15 sweep-8 hand-overs, base HEAD dd966f1 against the final tree: workers at winter 190 -> 239 (14 better, 1 equal, 0 worse), viable 9 -> 13, eclosions 57 -> 113, untended brood deaths 78 -> 13, worker:lost 11 -> 3. Five long runs of the final tree against R34: 2 of 5 reach >= 1.0 x winter 1 and 0 of 5 reach >= 1.5 x (sweep 8: 0 and 0). R34 is not met. Both colonies lost in year 2 went into winter 1 short of carbohydrate while holding a protein store. The \"## Round 9\" section of docs/design/tasks/colony-life-ledger.md holds progress, accounting, ranking, fixes, what was tried and reverted, deviations and next steps. Evidence is in test-output/colony-life/round-9/.",
+  "causesRanked": [
+   "1. Brood left untended: 78 of 174 brood deaths in the base arm (45 %). With R33: 13. On the six colonies run in all three arms, R33 alone (final vs r32b) adds +22 workers at winter (4 better, 2 equal).",
+   "2. The founding never hands over from the start pose: 3 of 25 start poses failed at the seal (sg #4, we #4, pp #1), and each is a lost game. With SG1-SG3: 25 of 25.",
+   "3. Inert colony after the hand-over reopen: sg #3 made 0 trips all year. With RO1: trips 2 -> 91, eclosions 0 -> 4, viable.",
+   "4. Not fixed. Colonies go into winter 1 short of carbohydrate while holding a protein store, and 2 of the 5 long runs lose the colony in year 2: pp #3 has C 2.6 / P 12.2 mg, sg #2 has C 0.6 mg and its queen starves. Arm sg #2 carbohydrate stores at winter: base 6.1, r32b 3.2, final 0.4 mg.",
+   "5. Not investigated. Brood drowned after the hand-over is the largest brood cause left in the final arm: 34 of 143 deaths.",
+   "6. Homeward traps: worker:lost 11 in the base arm. With LD1: 3 (pp #1 6 -> 1, we #1 3 -> 1).",
+   "7. Eggs drowned in the sealed founding cell (seed-2 first play, 21b cause 2). Fixed by FD2."
+  ],
+  "fixes": [
+   {
+    "cause": "RO1: the reopen called the entrance open while plug soil was still in the throat, because a shaft surfaced beside it (sg #3, the seed-1 browser reopen failure)",
+    "files": [
+     "src/sim/nest/entrances.ts",
+     "src/sim/nest/reopenPlugLeft.test.ts",
+     "src/sim/colony/founding/reopen.test.ts"
+    ],
+    "beforeAfter": "sg #3: trips 2 -> 91, trip success 0 -> 33 %, eclosions 0 -> 4, viable no -> yes. founding/reopen.test turned green.",
+    "test": "nest/reopenPlugLeft.test.ts: red on base ('expected open to be reopening'), green on the final tree"
+   },
+   {
+    "cause": "LD1: on a stuck rung, walker jitter beat the fresh progress baseline, so the stuck ladder never escalated (pp #1 park-tree root undercut)",
+    "files": [
+     "src/sim/locomotion/stuck.ts",
+     "src/sim/types/navScratch.ts",
+     "src/sim/locomotion/ladderJitter.test.ts"
+    ],
+    "beforeAfter": "pp #1: lost 6 -> 1, workers 13->6 -> 13->15. we #1: lost 3 -> 1. Over the 15 arms: worker:lost 11 -> 3.",
+    "test": "locomotion/ladderJitter.test.ts, 2 cases: case 1 red on base"
+   },
+   {
+    "cause": "FD2: in a cell dug in the rain, sealed-in water drowned the eggs (seed-2 first play)",
+    "files": [
+     "src/sim/colony/founding/dryPile.ts",
+     "src/sim/colony/founding/care.ts",
+     "src/sim/colony/founding/dryClutch.test.ts",
+     "docs/design/gdd/DEVIATIONS.md"
+    ],
+    "beforeAfter": "At each care period, submerged brood is moved to the highest dry floor (GDD 06 \u00a75.11). Recorded as D31.",
+    "test": "founding/dryClutch.test.ts"
+   },
+   {
+    "cause": "SG1: in the BACK state (way back in) a queen wedged in the throat stood still until the seal budget ran out, and the watchdog re-planned her straight back into BACK (sg #4)",
+    "files": [
+     "src/sim/colony/founding/sealGuide.ts",
+     "src/sim/colony/founding/sealBackStall.test.ts"
+    ],
+    "beforeAfter": "sg #4 at the start pose: no seal -> sealed at tick 6198 with 7 plugs, then hand-over with 7 workers, out",
+    "test": "sealBackStall.test.ts case 1: red on the tree without the rule"
+   },
+   {
+    "cause": "SG2: a SOIL -> BACK -> SOIL cycle every 5-12 ticks at the edge of a plug-narrowed throat, so the soil bite never fired (we #4)",
+    "files": [
+     "src/sim/colony/founding/sealGuide.ts",
+     "src/sim/colony/founding/sealBackStall.test.ts"
+    ],
+    "beforeAfter": "we #4: no seal -> sealed at tick 8578 with 10 plugs and one opening, then hand-over with 8 workers, out",
+    "test": "sealBackStall.test.ts case 2: red without the rule"
+   },
+   {
+    "cause": "SG3: plugs laid deep in the shaft cut the cell off from the air, but the throat test still read open, so the seal never ended (pp #1, template dig)",
+    "files": [
+     "src/sim/colony/founding/dig.ts",
+     "src/sim/colony/founding/sealBelowThroat.test.ts"
+    ],
+    "beforeAfter": "pp #1: no seal -> sealed at tick 9338, then hand-over with 18 workers, out. Founding at the start pose: 22/25 -> 25/25.",
+    "test": "sealBelowThroat.test.ts: red on the old tree (stays in phase seal), green on the final tree"
+   },
+   {
+    "cause": "R32b: prospective protein demand on the forage side only; LAYING_SUPPLY_HORIZON_GD 0.5 -> 1.5",
+    "files": [
+     "src/sim/colony/needs.ts",
+     "src/sim/colony/queen.ts",
+     "src/sim/colony/economy.ts",
+     "src/sim/colony/allocation/demand.ts",
+     "src/sim/colony/stores.ts",
+     "src/sim/balance/colony.ts",
+     "src/sim/colony/prospectiveProtein.test.ts"
+    ],
+    "beforeAfter": "Six colonies, RO1+LD1+FD2+R32b against base: workers 78 -> 84 (2 better, 2 worse, 2 equal), median P intake 0.354 -> 0.478, delivered P 45 -> 54. Costs carbohydrate in autumn on sg #2.",
+    "test": "colony/prospectiveProtein.test.ts, 3 cases"
+   },
+   {
+    "cause": "R33: UNTENDED_GD 0.25 -> 1.0, plus a draft of idle, waiting or resting nest workers onto overdue tend piles",
+    "files": [
+     "src/sim/balance/colony.ts",
+     "src/sim/ants/behaviours/nest/tendDraft.ts",
+     "src/sim/ants/behaviours/nest/board.ts",
+     "src/sim/ants/behaviours/nest/nurse.ts",
+     "src/sim/ants/behaviours/common.ts",
+     "src/sim/ants/behaviours/outdoor/phaseNest.ts",
+     "src/sim/ants/behaviours/nest/tendDraft.test.ts",
+     "src/sim/colony/brood.verify.test.ts",
+     "src/sim/colony/broodCarried.test.ts"
+    ],
+    "beforeAfter": "Six colonies, final vs r32b: workers 84 -> 106 (4 better, 2 equal), untended deaths 42 -> 4. All 15, final vs base: 190 -> 239 workers, untended deaths 78 -> 13.",
+    "test": "tendDraft.test.ts; untended case in brood.verify restated on pupae; broodCarried restated with ten pupae"
+   },
+   {
+    "cause": "Minor items: killAll death cause (dir. 17), DIAG_MORTALITY_REF_LIFESPAN_GD 26 -> 36 from measurement, R34 columns in longrun-table, founding long test",
+    "files": [
+     "src/sim/types/commandsCheat.ts",
+     "src/sim/colony/index.ts",
+     "src/sim/colony/killAllCause.test.ts",
+     "src/sim/balance/colony.ts",
+     "tools/sim/longrun-table.py",
+     "src/sim/colony/founding/startPose.long.test.ts"
+    ],
+    "beforeAfter": "Diagnostics and tooling only",
+    "test": "colony/killAllCause.test.ts; founding/startPose.long.test.ts (FOUNDRESS_LONG=1): 25/25"
+   }
+  ],
+  "verification": [
+   "Typecheck (tsc --noEmit) clean: test-output/colony-life/round-9/typecheck-final.txt",
+   "Founding folder: 24 files green, 3 long tests skipped, 79 tests (vitest-founding-2.txt)",
+   "Colony folder without founding: 49 of 50 files green. workedExample.test is red, and was red on base too (vitest-colony-final.txt)",
+   "Nest, locomotion and ants/behaviours/nest folders run earlier this round. Red: escapeDig.test, sfaReview.verify, stall.soak (all red on base too), readersCost.verify (kept red as sweep-8 finding 4), locomotion/perf.test criterion 7 (fails while two life runs load the machine)",
+   "Founding long test at the start pose, final tree: 25 of 25 (startPose-final-sg-we-pp.txt, startPose-cpv-kd.txt, startPose-pp1-below.txt)",
+   "Arms base vs final on all 15 cached sweep-8 hand-overs (table9-base-final.txt, account9-base-final.txt); r32b arm on six colonies (table9-three-arms.txt); R32b protein measure in protein9.py",
+   "Five long runs to UNTIL_DAY 40 (long/longrun-table.md): R34 2/5 at >= 1.0 x, 0/5 at >= 1.5 x",
+   "New unit tests fail on the earlier tree and pass on the final tree: reopenPlugLeft, ladderJitter, sealBackStall (both cases), sealBelowThroat"
+  ],
+  "next": [
+   "Winter-1 carbohydrate shortfall (pp #3, sg #2 long runs): the integrator should rule on R32b's carbohydrate gate in summer (adults' C x 3 gd still lets a colony with 1-2 mg C hunt) and on GDD 02 \u00a75.5 counting P spoilage in needRateP (a large protein store keeps the desired protein share near 0.5 in autumn). Also find out why pp #3 tended no aphids all year.",
+   "Brood drowned after the hand-over (34 of 143 brood deaths in the final arm): start with sg #1 and cpv #1.",
+   "Predation (15 -> 26) and crushing (8 -> 13) rose with more workers outside for longer: check the rate per outside-worker gd against R25's band.",
+   "Re-measure R34 (bars 4 of 5 and 3 of 5) once the items above are done."
+  ],
+  "gddDeviations": [
+   "R32b: prospective protein demand on the forage side; LAYING_SUPPLY_HORIZON_GD 0.5 -> 1.5 (DEVIATIONS.md table A)",
+   "R33: UNTENDED_GD 0.25 -> 1.0, plus the overdue-tend draft (table A)",
+   "D31 = FD2: the founding queen moves submerged brood to the highest dry floor of her sealed cell (table B)",
+   "RO1, LD1 and SG1-SG3 implement GDD 03 \u00a74.2 and GDD 06 \u00a75.9 as written, so they are not deviations"
+  ],
+  "notesForIntegrator": [
+   "R34 is not met (2/5 at >= 1.0 x, 0/5 at >= 1.5 x). Both colonies lost go into winter 1 low on C and high on P. R32b's gate follows the ruling's own words, so I did not change it.",
+   "The workflow snapshot commits took in all round-9 code. The working tree now differs from HEAD only by the ledger and the deleted tools/sim/probe/ directory. The probes are archived in test-output/colony-life/round-9/probes/.",
+   "readersCost.verify (sweep-8 finding 4) stays red on purpose: throttling the readers' spill rebuild makes a running game and a just-loaded game see different geometry. The measured cost is 0.04 ms/tick.",
+   "Known red tests outside this round's fixes, all red on base too: colony/workedExample, nest/escapeDig, ants/behaviours/nest sfaReview.verify and stall.soak. locomotion/perf.test criterion 7 fails under load."
+  ],
+  "triedAndReverted": [
+   "Counting the opening that the cell's air path leaves by as one of the cavity's openings (founding/dig.ts cavityEntrances), aimed at pp #1. The probe showed the cell had no air path at all, so it changed nothing. Reverted, and SG3 replaced it."
+  ]
+ }
+}
