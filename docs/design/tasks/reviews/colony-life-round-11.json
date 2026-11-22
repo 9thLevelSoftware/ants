@@ -1,0 +1,104 @@
+{
+ "summary": "Round 11 is done. I built R35b, built all five R38 items with tests, and ran the one arm of the final tree (R37b + R35b + R38, src hash 4c9d17a9) against round-10/arm-final on all 15 sweep-9 hand-overs. Compared with that base: workers at winter rose from 222 to 243 (7 colonies better, 8 worse), viable colonies from 10 to 13, and the kitchen door went from 1 to 3 of 3 viable. Median protein intake over need rose from 0.298 to 0.329, still well under the 0.7 bar. Larvae starved fell from 16 to 10, and predation deaths fell from 22 to 0, so R37's bar is met. Brood hygiene deaths rose from 31 to 60; I measured that loss but did not fix it. R35b on its own four-colony arm changed no protein: two of its runs are identical to the base, because in these colonies the protein share sP is already at or above the protein need. Each fix has a unit test that fails on the old rule. Typecheck is clean, and the red tests left are all known or also red on HEAD. Progress and results are in docs/design/tasks/colony-life-ledger.md under '## Round 11' and '### Round 11 results'.",
+ "causesRanked": [
+  "1. Protein not found: an entered prey patch was never learnt (kd #1: 14 worker-seconds inside in 4 game days, no prey spawned, nothing noticed). A 4 P carcass 60 BU from kd #2's door had foragers and tenders inside its odour for 142 s and stayed unknown, because only a scout or a forager collecting could make a source known. Scouts had fallen to 0.02-0.1 by day 5. Fixed by R38 items 1, 2, 3 and 5: we #1 protein 0.064 -> 0.506, kd #2 0.037 -> 0.318; kd #1, kd #2, we #1, cpv #3 and sg #3 became viable.",
+  "2. Carry form of carrion: on kd #1 the ants took 24 loads at 0.24 P each (5.8 P) from a 120 P carcass before it rotted, and trips did continue until it was a husk. Fixed by R38 item 4: large-carcass protein brought home 3.2 -> 15.0.",
+  "3. Predation: 22 deaths in the base arm, 0 now. This is R37b's measurement (built in round 10, measured here).",
+  "4. Brood hygiene, the largest new loss (31 -> 60): the first cohort pupates all at once and leaves 6-9 meconium items in one chamber against a tolerance of 3, and each dead brood adds a corpse. The one hauler on cpv #2 stood outside, stopped by the rule that keeps ants out of a wet nest, in 58 of the 74 dirty hours. Measured only.",
+  "5. Protein fell where colonies now forage more sugar: cpv #1 0.41 -> 0.25, cpv #3 0.52 -> 0.31, sg #3 0.62 -> 0.47, with carbohydrate up in each. Not fixed."
+ ],
+ "fixes": [
+  {
+   "cause": "R35b: protein weight made symmetric with R35's carbohydrate weight: wP = base + needP x max(sP, needP) x gain",
+   "files": [
+    "src/sim/colony/needs.ts",
+    "src/sim/colony/prospectiveProtein.test.ts",
+    "docs/design/gdd/DEVIATIONS.md"
+   ],
+   "beforeAfter": "Four colonies (we #1, cpv #2, sg #2, we #2) vs arm-final: median protein 0.192 -> 0.192; sg #2 and we #2 identical to the tick; we #1 workers 18 -> 23 come from R37b (6 predation deaths -> 0). Carbohydrate did not fall under 1.0 where it was over.",
+   "test": "prospectiveProtein.test.ts 'R35b': needP 1 at sP 0.1 gives full weight, needP 0 gives base, both needs 1 give equal weights"
+  },
+  {
+   "cause": "R38 item 1: scouts for a missing nutrient, served after brood care and before forage; the small-colony floor counts known sources per needed nutrient",
+   "files": [
+    "src/sim/colony/allocation/demand.ts",
+    "src/sim/colony/allocation/targets.ts",
+    "src/sim/colony/allocation/index.ts",
+    "src/sim/balance/colony.ts"
+   ],
+   "beforeAfter": "Scouts on days 1-5 (median colony mean) 0.88 -> 1.59",
+   "test": "src/sim/colony/scoutsMissing.test.ts (15 workers -> 3 scouts ahead of forage and tend; 6 workers -> 1; caps; nothing missing -> no floor)"
+  },
+  {
+   "cause": "R38 item 2: a herd's sign radius is clamp(6 + 2 sqrt(aphids), 6, 24) BU, and any worker outside the nest finds it",
+   "files": [
+    "src/sim/ants/behaviours/outdoor/herdFind.ts",
+    "src/sim/ants/behaviours/outdoor/notice.ts",
+    "src/sim/ants/behaviourRunner.ts",
+    "src/sim/ants/behaviours/outdoor/engine.ts",
+    "src/sim/balance/foraging.ts"
+   ],
+   "beforeAfter": "Herds found within 300 BU: 25 -> 30 of 38",
+   "test": "herdFind.test.ts (radius values; a hauler outside finds a 64-aphid herd 20 BU away; a worker inside does not)"
+  },
+  {
+   "cause": "R38 item 3: patch prey within 5 BU of any outside worker teaches the colony the patch; a forager or scout who stays 5 s inside an unknown patch at >= 0.2 of its capacity learns it",
+   "files": [
+    "src/sim/ants/behaviours/outdoor/hunt.ts",
+    "src/sim/balance/foraging.ts"
+   ],
+   "beforeAfter": "Prey patches known: 19 -> 25 of 31; kd #1 hunting trips 0 -> 82, kd #2 0 -> 29, we #1 0 -> 18",
+   "test": "src/sim/ants/behaviours/outdoor/patchNotice.test.ts"
+  },
+  {
+   "cause": "R38 item 4: a torn piece of any carrion carries >= 0.75 P per load (insect-large bulk 40 -> 20; large carcasses bulk = min(mass / 2 mg, P / 0.75)); total protein per carcass unchanged",
+   "files": [
+    "src/sim/balance/ecology.ts",
+    "src/sim/ecology/sources/spawn.ts",
+    "src/sim/ecology/sources/harvest.test.ts",
+    "src/sim/ecology/sources/catalogue.test.ts"
+   ],
+   "beforeAfter": "Large-carcass protein brought home 3.2 -> 15.0 across the 15 runs",
+   "test": "harvest.test.ts 'R38 item 4' (every carrion kind and carcass type)"
+  },
+  {
+   "cause": "R38 item 5: kd #2's carcass lay on the floor within reach; it stayed unknown because the workers passing it were on trips that do not perceive. A non-scout worker now remembers the nearest unknown food she smells and reports it when back in the nest",
+   "files": [
+    "src/sim/ants/behaviours/outdoor/notice.ts",
+    "src/sim/colony/activation.ts",
+    "src/sim/colony/index.ts"
+   ],
+   "beforeAfter": "Small carrion found 11 -> 21 of 91, medium 4/24 -> 7/17; kd #2 viable no -> yes",
+   "test": "src/sim/ants/behaviours/outdoor/smellReport.test.ts"
+  }
+ ],
+ "verification": [
+  "tsc --noEmit clean on the live tree.",
+  "Folder tests, two workers each: colony 75 of 76 files green (red workedExample, the base value 0.0659, known); behaviours/outdoor 34 of 34; behaviours/nest 31 of 33 (red sfaReview.verify and stall.soak, both known from round 10); ecology/creatures and plants 39 of 39; ants top level 4 of 4; docs-final 8 of 8.",
+  "ecology/sources has 12 red tests in 6 files (anchors, T1 crumbs, budget C13, drops, spills). The same 12 are red on HEAD 9c1b728, checked on a git-archive copy that was then deleted.",
+  "Arms and tables: R35b arm in test-output/colony-life/round-11/arm-r35b (r35b-table.txt); final arm in test-output/colony-life/round-11/arm-final11 (table11-final.txt, table11-percolony.txt, pred11-final.txt); traces in probe-patch-kd1.txt, probe-near-kd1.txt, probe-near-kd2.txt, probe-hyg-cpv2.txt, probe-hyg-cpv2b.txt, probe-hyg-kd3.txt.",
+  "No background process left running; scratch trees deleted; probe sources archived to test-output/colony-life/round-11/probes/."
+ ],
+ "next": [
+  "Brood hygiene (+29 deaths): find which wet place keeps the wet-nest stop rule (fleeWater.ts) holding cpv #2's only hauler outside for two game days while its brood chamber is dry, and whether that rule should stop a hauler whose job is in a dry chamber. Then look at the haul cap (HAUL_MAX_FRAC 0.2 x workers = 1-2 haulers) against a burst of 8 meconium items at the first pupation.",
+  "Protein against sugar in colonies that now know more sugar sources (cpv #1, cpv #3, sg #3: protein down, carbohydrate up): compare the nutrient weights with what is known.",
+  "Median protein intake is still 0.33 against the 0.7 bar.",
+  "Find why pp #3 fails the stores check (C 6.8 against R27's winter need of 7.4 = 0.92) and why we #2 still finds no protein (10 larvae starved).",
+  "The independent sweep and the five long runs judge R38 for year two."
+ ],
+ "gddDeviations": [
+  "R35b (GDD 02 \u00a75.5 nutrient weights): wP = base + needP x max(sP, needP) x gain. Row in docs/design/gdd/DEVIATIONS.md.",
+  "R38 (GDD 02 \u00a76.2-6.3: scout demand and fill order; GDD 05 \u00a71.2: herd odour radius and insect-large 15 P in 40 bulk; GDD 05 \u00a72.3: when a prey patch counts as known; and food smelled on the way is reported). Row in docs/design/gdd/DEVIATIONS.md."
+ ],
+ "notesForIntegrator": [
+  "R38 is built and measured. Bars against arm-final: kitchen door viable >= 2 of 3 is met (3 of 3). Median protein >= 0.7 is not met (0.329). 'No archetype worse' fails on playground-park, 3 -> 2: pp #3 has 20 workers but carbohydrate in store is 0.92 of R27's winter need. R37's predation bar is met (0 deaths).",
+  "R35b moved no protein: in these colonies sP is already at or above needP (kd #1 probe: sP 0.75-0.88 against needP 0.75-0.84), so the change rarely binds. I kept it as ruled; it does no harm.",
+  "Decisions you may want to rule on: (1) the missing-nutrient scouts are served after the hygiene haul when brood lies among waste, i.e. after all brood care rather than strictly 'directly after nurse and queen-care'. (2) The small-colony rule still asks 2 scouts at 6 workers, so the '6 workers -> 1' test checks the floor on its own. (3) A herd found by its sign, a patch noticed, or smelled food reported changes only colony knowledge; spawning is unchanged. Smelled food is reported when the worker is back in the nest, through the same news path as a scout's return. (4) The smelled-food rule applies to every food kind, so colonies also learn more sugar; this is likely why protein fell in cpv #1, cpv #3 and sg #3.",
+  "Your 17:30 snapshot commit da0cfa6 included tools/sim/probe/probe-hyg11.ts. I deleted it per the machine rules and archived it in test-output/colony-life/round-11/probes, so the working tree shows the deletion.",
+  "The 12 red ecology/sources tests are also red on HEAD 9c1b728; they are another owner's work in progress or a pre-existing break, not this round's.",
+  "Pre-existing, not touched: herdWorkable in src/sim/ecology/plants/demand.ts still uses Math.hypot, which the purity rule forbids."
+ ],
+ "triedAndReverted": [
+  "Nothing was reverted. R35b alone moved no protein; it was kept as ruled."
+ ]
+}

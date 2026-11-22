@@ -4205,3 +4205,98 @@ Progress (kept current; a successor continues from here)
 - 17:13 final arm, 6 of 15: kd #1 20 -> 19, viable no -> **yes** (P 0.265 -> 0.281); **kd #2 15 -> 17, viable no -> yes,
   P 0.037 -> 0.318**, larvae starved 3 -> 0; cpv #3 20 -> 19, viable no -> **yes** (C 1.01 -> 1.62, P 0.52 -> 0.31);
   cpv #1 17 -> 16 (P 0.41 -> 0.25, viable both). Kitchen door so far viable 3 of 3 (base 1 of 3).
+- 17:28 final arm, 10 of 15: sg #2 11 -> 15 (eclosions 0 -> 6, hygiene 11 -> 0, larvae starved 4 -> 0, P 0.22 -> 0.32);
+  pp #1 14 -> 19 (P 0.34 -> 0.56); sg #1 12 -> 10 (13 eggs flooded against 3: weather, viable both); **we #2 8 -> 6,
+  viable yes -> no** (2 workers crushed, none in base: the workers check 6 < 6.4; P 0.16 -> 0.13, larvae starved 9 ->
+  10, egg hygiene 9 -> 10: its protein is still not found: scouting 6 -> 7 trips, no patch or carrion in odour range of
+  a scout). Remaining: pp #2, pp #3, sg #3, we #3, cpv #2 (running).
+- 17:41 **final arm complete** (tree 4c9d17a9 = R37b + R35b + R38 items 1-5; base `round-10/arm-final` = tree 880fe1af;
+  same 15 sweep-9 hand-overs; tables `round-11/table11-final.txt` (= table10.py), `round-11/table11-percolony.txt`
+  (`table11.py`: per colony P / C, hygiene, starvation, predation / old age / lost, hunts, patches known, scouts by day,
+  P home by kind), `round-11/pred11-final.txt`):
+  | | arm-final (base) | round-11 final |
+  |---|---|---|
+  | workers at winter (15) | 222 | **243** (better 7 / worse 8; sum +21) |
+  | viable | 10 (we 2, sg 2, pp 3, cpv 2, kd 1) | **13** (we 2, sg 3, pp 2, cpv 3, kd **3**) |
+  | median P / C intake over need | 0.298 / 1.174 | **0.329** / 1.424 |
+  | P delivered, hunting trips | 133.5 / 783 | 155.4 / 848 |
+  | larvae starved | 16 | 10 |
+  | brood hygiene deaths | 31 | **60** (cpv #2 2 -> 14, kd #3 0 -> 10, sg #3 0 -> 9, sg #1 0 -> 6) |
+  | adult deaths (old age) | 37 (0) | 15 (1) |
+  | predation: total, median, worst one-day share | 22, 0, 0.14 | **0, 0, 0.00** (R37 / R37b bar met) |
+  | no `worker:lost` | 11 of 15 | 13 of 15 |
+  | median trip success | 52.1 % | 51.6 % |
+  | scouts' head-count, days 1-5 (median colony mean) | 0.88 | 1.59 |
+  | prey patches known (of 31 reaching 300 BU) / herds found (of 38) | 19 / 25 | 25 / 30 |
+  | carrion found / P home: medium, small, large carcass | 4 of 24 / 7.3; 11 of 92 / 4.4; 1 of 1 / 3.2 | 7 of 17 / 6.3; 21 of 91 / 8.3; 2 of 3 / 15.0 |
+  Bars (direction 24 item 6): P intake / need median >= 0.7: **not met (0.329)**; kitchen door viable >= 2 of 3: **met
+  (3 of 3)**; no archetype worse than in arm-final: **pp 3 -> 2 fails** (pp #3: stores check, C 6.8 for an R27 winter
+  need of 7.4 = 0.92, 14 -> 20 workers; it was 0.99 / viable in base); we 2 -> 2 (we #1 gained, we #2 lost: 2 workers
+  crushed, 8 -> 6 under the 6.4 check). R37's bar met. R19: P intake fails, the rest as before. Not every colony gained
+  protein: P fell where the colony now hunts less and forages carbohydrate more (cpv #1 0.41 -> 0.25, cpv #3 0.52 ->
+  0.31, sg #3 0.62 -> 0.47; C rose 1.0 -> 1.6 in cpv #3 and 0.40 -> 1.63 in sg #3: the smelled-food reports and the
+  larger herd sign bring sugar too). Next largest measured loss is brood hygiene (+29): item 4 probe running on cpv #2
+  and kd #3 (final tree, `round-11/probe-hyg-{cpv2,kd3}.txt`).
+- 17:50 **direction 25 item 4, brood hygiene, measured (no fix)**: probe `probe-hyg11.ts` on the final tree, cpv #2 (2
+  -> 14 hygiene deaths in the arm) and kd #3 (0 -> 10), sweep-9 hand-overs, to winter (`round-11/probe-hyg-cpv2.txt`,
+  `-kd3.txt`, `-cpv2b.txt` = cpv #2 days 1-6 with the haulers named). One brood chamber in each (the founding / royal
+  chamber, 8 brood). **What dirties it**: the first cohort's pupation, all at once: 6-9 meconium items in the chamber
+  by day 3-4 (tolerance 3 items, then 0.1 / gd per item over), then the dead brood's own corpses (up to 5-6), cocoons
+  and 1-4 spoiled food items: a cascade (each death adds an item). **Who should clean it**: `haul` (withHygiene ranks it
+  after queen-care): demand 1.8-2.2 (= `HAUL_MAX_FRAC` 0.2 x 9-11 workers, the cap), target 1-2. **Why it did not**:
+  cpv #2's only hauler (ant 4623) stood **outside in `flee.freeze` in 58 of the 74 dirty hours** (y 7.6-8.5 BU, outside
+  the nest, `run.task` -1): fleeWater's surface hold ("an ant on the surface walking into the wet part of a nest stops
+  where she is", GDD 03 §11.3), retried every `FLEE_RETRY_S` and held again, for two game days, while the brood
+  chamber itself was not flooded (no brood flooding deaths there). kd #3: the hauler spent 67 of 140 dirty hours in
+  `haul.claim`, 35 in `flee.freeze`, 20 resting, 15 carrying. Lead for round 12, not fixed here (a rule question, not a
+  proven defect): what wet place keeps the hold on for two days with the brood chamber dry (the throat? a puddle at
+  the mound?), and whether the hold should apply to a hauler whose job is in a dry chamber; and the 0.2 N haul cap (1-2
+  haulers for a pupation burst of 8 items).
+- 17:52 closing: scratch trees `/home/user/scratch-r11-*` deleted; probes archived to `round-11/probes/*.ts.txt` and
+  `tools/sim/probe/` removed (the integrator's 17:30 snapshot da0cfa6 had committed `probe-hyg11.ts`: its deletion is in
+  the working tree); no process of this round left running; `tsc` clean. Spec tail re-read (no direction after 25).
+
+### Round 11 results
+
+**Accounting (15 sweep-9 hand-overs to winter, paired; base = `round-10/arm-final`, exact for cached hand-overs).**
+Final tree 4c9d17a9 (R37b + R35b + R38 items 1-5) against base: workers at winter 222 -> **243** (better 7 / worse 8),
+viable 10 -> **13** (kitchen door 1 -> **3 of 3**; pp 3 -> 2: pp #3 fails the stores check at 0.92 of R27's need),
+median P intake / need 0.298 -> **0.329** (bar 0.7: not met), C 1.17 -> 1.42, P delivered 134 -> 155, larvae starved
+16 -> 10, predation 22 -> **0** (R37 / R37b bar met), adult deaths 37 -> 15, no-lost 11 -> 13 of 15, brood hygiene 31 ->
+**60**. Discovery moved: scouts days 1-5 0.88 -> 1.59 (median), patches known 19 -> 25 of 31, herds found 25 -> 30 of
+38, small carrion found 11 -> 21 of 91, large-carcass P home 3.2 -> 15.0. R35b's own arm (4 colonies): no protein
+change (two runs identical to the tick; sP >= needP in these colonies).
+
+**Causes ranked by measured loss (this round's evidence):**
+1. Protein not found (round 10's item 5 tables; this round's traces: kd #1 patch 14 worker-s inside in 4 gd, no spawn,
+   no notice; kd #2 carcass 142 s inside its odour by foragers / tenders that do not perceive; scouts 0.02-0.1 by day
+   5): R38 items 1-3, 5 built. we #1 P 0.06 -> 0.51, kd #2 0.04 -> 0.32, kd #1 / kd #2 / we #1 / cpv #3 / sg #3 viable.
+2. Carry form of carrion (kd #1: 24 loads x 0.24 P from a 120 P carcass before it rotted): R38 item 4 built; large
+   carcass P home 3.2 -> 15.0.
+3. Predation (R37b, built in round 10, measured here): 22 -> 0.
+4. Brood hygiene (now the largest new loss, +29): measured (pupation burst + corpse cascade; the one hauler held
+   outside by the flood hold); not fixed.
+5. Protein where colonies now forage sugar: cpv #1 0.41 -> 0.25, cpv #3 0.52 -> 0.31, sg #3 0.62 -> 0.47 (C up): the
+   smelled-food and herd-sign rules bring carbohydrate sources too; the nutrient weights then pick sugar. Not fixed.
+
+**Fixes (each with its unit test; red on the old rule, green now):** R35b (`colony/needs.ts`;
+`prospectiveProtein.test.ts`); R38.1 (`allocation/demand.ts` `nutrientShortfalls` / `nutrientMissing` /
+`missingScoutFloor` / per-nutrient small floor, `targets.ts withScoutsFirst`, `allocation/index.ts`, balance
+`SCOUT_MISSING_*`; `colony/scoutsMissing.test.ts`); R38.2 (`outdoor/herdFind.ts herdSignRadiusMm`, `outdoor/notice.ts`,
+`behaviourRunner.ts`, `engine.ts`, balance `HERD_SIGN_*`; `herdFind.test.ts`); R38.3 (`outdoor/hunt.ts noticePatches`,
+balance `PATCH_NOTICE_*`; `outdoor/patchNotice.test.ts`); R38.4 (`balance/ecology.ts CARRION_TEAR_P_PER_BULK_MIN`,
+insect-large / large-carcass bulk, `sources/spawn.ts applyCarcass`; `harvest.test.ts`, `catalogue.test.ts` restated);
+R38.5 (`outdoor/notice.ts noteSmelledFood`, `colony/activation.ts reportSmelledSource`; `outdoor/smellReport.test.ts`).
+Tools: `round-11/table11.py`.
+
+**Tried and reverted:** none.
+
+**GDD deviations recorded (DEVIATIONS.md):** R35b (GDD 02 §5.5); R38 (GDD 02 §6.2-6.3 scout demand and order; GDD 05
+§1.2 herd odour and insect-large bulk; §2.3 patch knowledge; smelled food reported).
+
+**Known red, not this round's:** `colony/workedExample` (base value), `behaviours/nest/sfaReview.verify`, `stall.soak`,
+`ecology/sources` 12 tests in 6 files (anchors, T1 crumbs, budget C13, drops, spills; same on HEAD 9c1b728).
+
+**Next (round 12):** brood hygiene (item 4's lead: the flood hold on a hauler, the haul cap at a pupation burst); the
+protein / sugar balance in colonies that now know sugar (cpv #1, cpv #3, sg #3); P intake bar 0.7 still far (median
+0.33); the independent sweep with the five long runs judges R38 for year two.

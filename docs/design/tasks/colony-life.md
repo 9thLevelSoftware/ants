@@ -401,3 +401,82 @@ protein. Order:
 
 Laying gates stay as they are this round. **Re-read the tail of this file and of your ledger section each time an
 arm finishes and before you close**: round 10 saw directions 24 and 24a an hour late.
+
+## Direction 26 (integrator, Nov 22 18:35 UTC) — round 12: R39 sugar labour follows the carbohydrate need; brood hygiene; the scout floor's order
+
+Written while sweep 11 runs (its findings may add a direction 26a: read the tail). Round 11's arm is accepted:
+viable 10 -> 13, kitchen door 3 of 3, predation 22 -> 0 (R37 / R37b closed), median P intake / need 0.298 -> 0.329
+(bar 0.7 not met), brood hygiene 31 -> 60. R35b stays (neutral). Rulings on your four questions: (1) scouts after
+the hygiene haul when brood lies among waste: accepted; (2) see item 3 below; (3) and (4) accepted as built.
+Your base is `round-11/arm-final11` (tree 4c9d17a9) and sweep 11's long runs.
+
+**Evidence for R39 (my read of `round-11/arm-final11`, funnel `taskTimeGd`, `tripsByNutrient`, day states):**
+
+| run | workers | forage % | tend % | wait % | C / need | P / need | C stores / winter need, day 4, 8, last | tend trips (ok) | hunts |
+|---|---|---|---|---|---|---|---|---|---|
+| cpv #1 | 16 | 22 | 16 | 21 | 1.61 | 0.25 | 14/13, 20/11, 19/4 | 44 (14) | 43 |
+| cpv #2 | 11 | 12 | 24 | 22 | 1.61 | 0.22 | 9/10, 11/5, 12/3 | 28 (8) | 11 |
+| cpv #3 | 19 | 23 | 23 | 23 | 1.62 | 0.31 | 15/11, 19/13, 20/7 | 51 (21) | 36 |
+| kd #1 | 19 | 22 | 19 | 18 | 1.73 | 0.28 | 15/17, 23/12, 24/5 | 69 (22) | 40 |
+| kd #2 | 17 | 10 | 35 | 22 | 1.50 | 0.32 | 9/11, 14/8, 13/4 | 60 (8) | 28 |
+| sg #3 | 16 | 18 | 25 | 14 | 1.63 | 0.47 | 2/13, 9/12, 14/6 | 53 (12) | 23 |
+| we #1 | 25 | 21 | 18 | 20 | 1.65 | 0.51 | 3/20, 17/17, 19/6 | 53 (26) | 22 |
+| kd #3 | 12 | 22 | 15 | 12 | 0.96 | 0.67 | 2/12, 8/9, 6/5 | 26 (6) | 59 |
+| pp #3 | 20 | 34 | 15 | 20 | 1.09 | 0.64 | 8/11, 10/13, 7/7 | 46 (11) | 97 |
+| we #3 | 17 | 24 | 0 | 15 | 1.42 | 0.82 | 5/13, 3/12, 10/6 | 0 | 74 |
+
+(percentages are shares of worker task time; the other five runs lie between.) Over the 15 runs: 848 patch trips
+brought 102 P (0.12 P a trip, 0.21 P a carried springtail), all protein delivered 155 P against a larval demand of
+326 P. Travel is 0.24 gd a round trip (cpv #3: 44 gd of travel over 183 trips), so a hunter makes about 3 trips a
+game day: a colony's 2-2.5 P / gd needs 3-4 workers that do nothing but hunt. They are there and they tend:
+`tend` demand is the sum of the herds' slots (`herdTendDemand`, 2 + floor(A / 25) a herd) whatever the colony
+holds, R38 item 2 found five more herds, and the three colonies fed best are the three that hunt most (we #3 with
+no herd at all). Seven colonies hold their winter carbohydrate by day 4-8 and go on tending at 15-35 % of their
+worker time, at 20-40 % trip success.
+
+1. **R39: tenders are asked for by the carbohydrate the colony wants, not by the slots the herds have.**
+   `tend` demand = min(sum of the herds' tender slots, tenders needed), tenders needed = ceil(`TEND_HEADROOM` 1.25
+   x wantC / carbohydrate one tender brings a game day), where wantC is the carbohydrate forage want of
+   `nutrientShortfalls` (rate + max(0, target x rate - stock) / STOCK_REFILL_GD, so it carries the winter path and
+   R35's prospective part exactly as the forage demand does) less what the colony's known non-herd carbohydrate
+   sources already count for in `knownCapacity` only if you find that double count in the code; otherwise leave that
+   term out. One tender's carbohydrate a day: the herd's production at full tending over its slots (the plants
+   module's own numbers; no new constant if one exists). Floor: `TEND_KEEP` 1 tender for each workable herd while
+   the surface is workable, so the claim and the herd's tending level are kept (check what `h.tend` and
+   `RIVAL_TEND_GUARD` need to hold a herd against a rival: if one tender does not hold it, say what does and use
+   that). The player's forage marker multiplier stays on top (a marked herd gets its slots).
+   The freed workers must reach `forage`: trace in cpv #3 and kd #2 that the forage demand takes them (it is capped
+   at `known.ants + 1`; `PATCH_FORAGERS_MAX` and the patch's catches a day bound a patch's share). If the cap holds
+   them idle while protein is short and a known patch still has prey, the cap is the next defect: say so with the
+   numbers and raise the patch term to what the patch's prey supports that day (no new rule beyond that).
+   Tests: 15 workers, two herds (4 slots), carbohydrate stock over target -> tend demand 2 (the keep), not 4; stock at
+   zero with a need -> 4; one herd of 100 aphids and a small want -> the want, not 6.
+2. **Why a forager takes a carbohydrate trip at wP / wC of 7 to 1** (cpv #3: forage:C 37 trips, hunts 36, wC 0.2 on
+   every day I read). Trace 2 game days of cpv #3's forage choices (candidates, their values, the winner). If the
+   patch loses on its per-trip value (0.25 P against a full crop), on its claims, or on distance, report which. Fix
+   only what is a defect against the stated rule ("weights decide between nutrients"); if it is the value form
+   itself, stop and write the numbers: I rule.
+3. **The scout floor's order (sweep 11's `colony/scoutsFirst.verify`, red):** only R38's floor
+   (`missingScoutFloor`) is served ahead of `forage`; the rest of the scout demand keeps its place after `tend`.
+   6 workers with a missing nutrient: 1 scout ahead of forage, the small-colony rule's second scout in the usual
+   order. The verify test goes green.
+4. **Brood hygiene (your trace is accepted as the cause):**
+   a. The flood hold. Trace what wet place held cpv #2's hauler outside for 58 of 74 hours with the brood chamber
+      dry. Rule: the surface hold applies only while the ant's own way to her destination passes a flooded cell; a
+      held ant re-plans every `FLEE_RETRY_S` to any dry destination of her task, and a hold never outlasts
+      `FLEE_HOLD_MAX_GD` 0.1 without that re-plan finding the way dry or her task being handed back to the allocator
+      (she goes `idle` inside or outside and the task's target is refilled). If the trace shows a different defect
+      (the wet cell is a puddle on the mound, a stale flood flag), fix that and say so.
+   b. The burst. While any brood chamber holds waste over its tolerance, the haul cap is `HAUL_BROOD_MAX_FRAC` 0.4 x
+      workers instead of 0.2, and a nurse whose think finds no feeding or moving job in such a chamber carries one
+      waste item out of it by the haul primitive (kd / cpv day states show nurses in `nurse.groom` while the chamber
+      kills brood). No change to the tolerance or the death rate.
+   Tests: 8 meconium items in a brood chamber, 10 workers, one hauler held outside -> the chamber is under tolerance
+   within 0.25 gd; a hauler outside with a dry way in is not held.
+5. **One arm:** items 1-4 against `round-11/arm-final11` on all 15 to winter. Bars: median P intake / need >= 0.45
+   (interim; R19's 0.7 stands), brood hygiene deaths <= 31, viable >= 13 with kitchen door >= 2 of 3, and no colony
+   that met R27's winter carbohydrate in the base misses it. If the carbohydrate bar fails, report which colonies and
+   their day-by-day stock against target: I rule on `TEND_HEADROOM`, you do not tune it.
+
+Laying gates stay as they are. Re-read the tail of this file and of your ledger section each time an arm or a trace
+finishes and before you close.
