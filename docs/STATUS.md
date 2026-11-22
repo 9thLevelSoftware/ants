@@ -889,7 +889,7 @@ app-seams-3 launched 07:55 UTC Nov 22 as `wknx0224r` (wf_ecf2efc5-423; wf-build.
 `reviews/colony-life-sweep-8.json`. Verdict: viability bar not met (9 of 15; pp 1/3, kd 1/3), growth bar not met (protein 0.269, trips 45.9 %, no-lost 12 of 15). Findings: 2 major (lost workers in traps: a terrain bowl 82.5 BU from the door in pp #1, and two workers 0.1–0.4 BU from their own open entrance in we #1; inert colony sg #3 with plug soil left in an `open` entrance and every worker's nav `failed:leg`), 4 minor (F1 reader cost, `DIAG_MORTALITY_REF_LIFESPAN_GD` 26, round numbers not reproduced on fresh foundings, workedExample red is 10-seed noise). Brood: 80 untended + 34 flooded of 247 eggs, 60 eclosions. kd #3 hunted 45 of 54 trips and starved of sugar with 4 flowers in range (C must not be dropped for protein: R32b's "C first while short" clause covers it). Sweep long runs (`round-8/sweep-long/table.txt`): spring check 4 of 5; all shrink again by the second winter (e.g. 11 → 6, 12 → 10, 13 → 8): the R34 baseline is 0 of 5.
 Round 9 started 07:53 (engineer 1): reopen defect reproduced 08:05; a locomotion fix for the bowl trap (LD1: progress during a stuck episode must beat the best reached before it) is on a paired run. app-seams-3 running (first edits under `src/game/save`).
 
-## Nov 22 10:10 UTC — app-seams-3 landed (verify failed with 3 findings, all fixed)
+## Nov 22 10:05 UTC — app-seams-3 landed (verify failed with 3 findings, all fixed)
 
 Result saved: `docs/design/tasks/reviews/app-seams-3.json`; report `docs/design/tasks/app-seams-3-report.md`.
 Pictures I looked at: `test-output/app-seams-3/alerts/queen-danger-cards.png`, `cars/meta-edge.png`, `cars/ant-0.png`,
