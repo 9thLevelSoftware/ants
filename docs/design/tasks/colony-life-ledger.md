@@ -3607,3 +3607,78 @@ Progress (kept current; a successor continues from here)
   **Direction 22 = R35** amends R32b (prospective rate bounded by workforce, carbohydrate ramp + winter path instead
   of the switch, `wC` no longer scaled away by sP, spoilage out of the forage-side protein rate, tenders, one arm =
   the five long runs). Do it in this round before you return, so sweep 9 judges a tree with it.
+- 11:48 arms complete: base vs final on all 15 sweep-8 hand-overs (`round-9/table9-base-final.txt`,
+  `account9-base-final.txt`); r32b arm on six (we #1, sg #1, sg #2, pp #1, cpv #1, kd #1; `table9-three-arms.txt`).
+
+### Round 9 results
+
+**Accounting (the 15 sweep-8 hand-overs to winter, base = HEAD dd966f1, final = live tree; paired, cached).**
+Workers at winter 190 -> **239** (+26 %; better 14, equal 1, worse 0); viable 9 -> **13** of 15 (final's two: pp #3,
+sg #2); eclosions 57 -> 113; eggs 249 -> 301; median P intake / need 0.269 -> 0.366, C 1.22 -> 1.32; trip success
+45.9 -> 50.8 %; protein delivered 98 -> 150 loads (+53 %); hunting trips 633 -> 1016. Brood deaths 174 -> 143:
+untended 78 -> 13, flooding 38 -> 34 (now the largest single cause), base mortality 35 -> 55 (more brood alive for
+longer), exposure 4 -> 19, hygiene 9 -> 14. Adult deaths 35 -> 42: `worker:lost` 11 -> **3**, predation 15 -> 26 and
+crushed 8 -> 13 (more workers, outside for longer).
+
+**Founding at the start pose (direction 20.1, `startPose.long.test.ts`, final tree): 25 of 25** hand over and get
+a first worker out within 1.5 gd (before SG1-SG3: 22 of 25). Required: Fair-or-better all but one per archetype
+(10 of 10), Poor at the designed rate >= 86 % (15 of 15; test floor 60 %).
+
+**Long runs to the second winter (R34, five, final tree at 10:16):** >= 1.0 x winter 1 on 2 of 5 (bar 4), >= 1.5 x on
+0 of 5 (bar 3); sweep 8 had 0 and 0. R34 is not met. Both colony losses (sg #2 queen starved, pp #3 6 workers) went
+into winter 1 short of carbohydrate with protein in store (see 11:08).
+
+**Causes ranked by measured loss (this round's evidence):**
+1. Brood left untended (sweep-8 arms: 78 brood deaths, 45 % of all) - R33 (UNTENDED_GD 1.0 + overdue-tend draft):
+   78 -> 13. On the six three-arm colonies R33 alone (final vs r32b) is +22 workers at winter, better 4 / equal 2.
+2. The founding that never hands over at the start pose (3 of 25 seal failures; a lost game each) - SG1, SG2, SG3:
+   25 of 25.
+3. The inert colony after the reopen (sg #3: 0 trips all year) - RO1: trips 2 -> 91, eclosions 0 -> 4, viable.
+4. Winter-1 carbohydrate shortfall behind protein stores (2 of the 5 long runs lose the colony in year 2; arm sg #2
+   stores C at winter 6.1 / 3.2 / 0.4 mg base / r32b / final) - not fixed: R32b's gate is the ruling's wording and the
+   autumn loop is GDD 02 §5.5's spoilage-in-need term (note for the integrator).
+5. Brood drowned after the hand-over (flooding 34 of 143 brood deaths in the final arm; sg #1 13, cpv #1 7, pp #1 5,
+   kd #1 5) - not investigated this round.
+6. Homeward traps (`worker:lost` 11 in the base arm) - LD1: 11 -> 3 (pp #1 6 -> 1; we #1 3 -> 1).
+7. Eggs drowned in the sealed cell (seed-2 first play) - FD2.
+
+**Fixes (all with unit tests, red before):** RO1 (`nest/entrances.ts`, test `nest/reopenPlugLeft.test.ts`, and
+`founding/reopen.test.ts` green after 8 rounds red); LD1 (`locomotion/stuck.ts`, `types/navScratch.ts`, test
+`locomotion/ladderJitter.test.ts`); FD2 (`colony/founding/dryPile.ts`, `care.ts`, test `founding/dryClutch.test.ts`);
+SG1 + SG2 (`colony/founding/sealGuide.ts backTick / soilTick / inOwnThroat`, test `founding/sealBackStall.test.ts`);
+SG3 (`colony/founding/dig.ts sealTick / cutOffBelowThroat`, test `founding/sealBelowThroat.test.ts`); R32b
+(`colony/needs.ts forageRates / plainNeedP`, `queen.ts prospectiveProteinRate`, `economy.ts`, `allocation/demand.ts`,
+`stores.ts`, `balance/colony.ts LAYING_SUPPLY_HORIZON_GD` 0.5 -> 1.5, test `colony/prospectiveProtein.test.ts`); R33
+(`balance/colony.ts UNTENDED_GD` 0.25 -> 1.0, `ants/behaviours/nest/tendDraft.ts`, `board.ts openTendJobs`, hooks in
+`common.ts`, `outdoor/phaseNest.ts`, `nurse.ts`, test `tendDraft.test.ts`; restated `brood.verify` untended case and
+`broodCarried.test` for the 1.0 gd window); `cheat.killAll` cause; `DIAG_MORTALITY_REF_LIFESPAN_GD` 26 -> 36;
+`longrun-table.py` R34 columns; the founding long test `startPose.long.test.ts`.
+
+**R32b measure:** protein delivered over protein that arrived within 300 BU, the 15 pairs: base 98 / 300 = 0.33,
+final 150 / 743 = 0.20 (more prey appears around the busier colonies; `protein9.py`). The world's supply is not the
+limit (delivered well under 60 % of what arrived). r32b vs base on six (RO1 + LD1 + FD2 + R32b against base): workers
+78 -> 84, better 2 / worse 2 / equal 2, median P intake 0.354 -> 0.478, delivered P 45 -> 54. Kept: R32b's protein
+gain is real and R33 builds on it; its carbohydrate cost in autumn is item 4 above.
+
+**Tried and reverted:** counting the opening the cell's air path leaves by among the cavity's openings
+(`founding/dig.ts cavityEntrances`, for pp #1): the cell had no air path at all, so it changed nothing; reverted,
+SG3 took its place. Checked and kept: R33's draft on sg #1 (hunts 95 -> 0 in the first pair) - `probe-draft9` shows
+no draft there in 3 gd; trajectory noise of one colony.
+
+**GDD deviations recorded (DEVIATIONS.md):** R32b, R33 (table A), D31 = FD2 (table B). RO1, LD1, SG1-SG3 implement
+GDD 03 §4.2 / GDD 06 §5.9 as written (no deviation).
+
+**Known red, not mine or kept:** `colony/workedExample.test` (red on base too), `nest/readersCost.verify` (sweep-8
+finding 4, kept red: a throttle breaks save/load determinism; 0.04 ms/tick), `nest/escapeDig.test` (red on base),
+`ants/behaviours/nest/sfaReview.verify` and `stall.soak` (red on base), `locomotion/perf.test` criterion 7 under load.
+
+**Next (for round 10):**
+1. Winter-1 carbohydrate (item 4): pp #3 / sg #2 long runs. The integrator to rule on R32b's carbohydrate gate in
+   summer (adults' C x 3 gd lets a colony with 1-2 mg C hunt) and on GDD 02 §5.5's P spoilage in `needRateP` (a big
+   protein store keeps the desired protein share near 0.5 in autumn). Also why no aphids were tended on pp #3 all year.
+2. Brood drowned after the hand-over (34 of 143 brood deaths): sg #1, cpv #1 first.
+3. Predation 15 -> 26 and crushing 8 -> 13 with more workers outside: within R25's band? (per outside-worker gd).
+4. R34 bars (4 of 5, 3 of 5) after 1-3.
+- 11:49 closing: typecheck clean (`round-9/typecheck-final.txt`); founding folder 24 files green (`vitest-founding-2.txt`),
+  colony folder 49 of 50 (workedExample, known; `vitest-colony-final.txt`). Probes archived to `round-9/probes/*.ts.txt`
+  and `tools/sim/probe/` removed; scratch trees `/home/user/scratch-r9-*` deleted; no background process left.
