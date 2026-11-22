@@ -867,3 +867,8 @@ The integrator's reading of the daily rows (four colonies with a queen): **eggs 
 Browser: firstplay fails on seed 2 (6 eggs lost at 2.8 % of the lapse) **and on seed 1** (first workers never reopen the entrance). Both are round 9's first item.
 
 Running at 06:30: colony-life `wy25pjnh7` (sweep 8 in progress: 6 of 15 at 06:22; then round 9 under directions 20 + 21, sweep 9); look-pass-4 `wveg3e7vs` (impl at item 9 browser scripts). Not yet weighed: `walker-stuck-explosion` violations (9–59 a run, mostly autumn; possibly cold-slowed walkers flagged) and worker time on queen-care (14 %) and store/haul (27 %).
+
+
+## Nov 22 07:35 UTC — sweep 8 (fresh 15 runs) first numbers
+
+`test-output/colony-life/round-8/sweep-table.md`: **viable 9 of 15** (sweep 7: 4; bar ≥ 2 of 3 per archetype fails on playground-park and kitchen-door); R19 4 of 7 (held 12 of 15 ok, eclosions median 5 ok, C 1.162 ok, first workers ok; protein 0.269 FAIL, trips 45.9 % FAIL, no-lost 12 of 15 FAIL). Sums vs sweep 7: workers at winter 138 → 194, old age 64 → 1, starved 13 → 1, lost 2 → 10, predation 14 → 14. Probes by the sweep engineer: pp #1's six lost foragers stop at one point 82.5 BU from the door (homeward trap); sg #3 made no trip all year because the hand-over reopen left plug soil in the throat (= red `founding/reopen.test`, likely the seed-1 browser failure). Both added to round 9's first item (direction 21a). Long runs of the sweep in progress. look-pass-4: implementation done 06:57 (report written), Opus review in progress (candidates: minimap repaint cost 0.14 → 1.1 ms, brick courses doubled over scanned bricks, stumps drawn with boards). `reviews/colony-life-round-8.json` saved.

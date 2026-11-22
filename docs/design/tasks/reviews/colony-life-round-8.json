@@ -1,0 +1,124 @@
+{
+ "summary": "Round 8 is closed. The live tree is now exactly the accepted set: F1, FD1, WL4, R30, R29c (the care factor only, no finish clause) and HB1. R31 is not in it. I checked this file by file against the frozen arm trees: the live src/sim equals scratch-r8-r30r29c plus HB1 plus FD1, the HB1 files match the r30hb1 arm, and R31's demand.ts and targets.ts are absent. src/worldgen and src/core match the arms. Typecheck is clean. The folder tests show no new red. The only reds are four known ones: founding/reopen, workedExample, removal.verify and weather.test's stream test. workedExample has been red since R29's care factor went in, and I left it red rather than adjust its numbers, because the 6 % rise in larval C is not explained yet. tests/docs/docs-final.test.ts is green after correcting DEVIATIONS.md: R29 restated as amended, R30 marked accepted, R24's row now names WL4, and new rows D29 (FD1) and D30 (HB1). The extra adult deaths in the r30hb1 arm (31 -> 42) are all predation: 19 -> 33, while crushed went 9 -> 7 and lost 3 -> 2. They fall in the colonies where HB1 turned hunting on (cpv #2 0->6, cpv #3 0->4, sg #2 0->4, pp #1 1->4). Time spent outside fell (466 -> 412 worker-gd travelling), so the cause is not more exposure. The run files do not record which predator or where, so the mechanism is not shown. I ran the five year-two runs from a frozen copy of the final tree; every run stops at the first row of the second winter (game day 35-36, year-two day 22). Spring check of R22: 4 of 5 (met). Day-15 check of R22: 0 of 5 (not met). R24 holds for the 4 colonies that pass the winter stores check (lapse loss 8-14 %). sg #2 went into winter with no sugar stores and starved in the lapse, queen included. No colony took larvae into winter. All 12 year-two eclosions come from eggs laid in year two. Workers fall from spring to the second winter in every run, mostly from old age. The round's results section, the year-two table and the progress entries are appended to docs/design/tasks/colony-life-ledger.md under '## Round 8'. All scratch trees are deleted, the probe sources are moved to test-output/colony-life/round-8/probes/, and no process of this round is still running.",
+ "causesRanked": [
+  "1. Old age in year one: 62 of 94 adult deaths in the base arm, and every overwintered worker died before the first spring eclosion. Fixed by R30: old age 62 -> 0, workers at winter 139 -> 203, 15 of 15 colonies better.",
+  "2. Hunts ending without a catch: 1202 chases but 191 kills on 10 colonies (84 % fail), about 250 P of springtails lost against 222 P of larval demand. Cause: a non-lethal first bite set off the hunter's own alarm and she fled. Fixed by HB1: trip success 36.8 -> 50.4 %, median protein intake/need 0.221 -> 0.287, eclosions 66 -> 73. Cost: predation deaths 19 -> 33.",
+  "3. Brood lost untended: 54-60 eggs and pupae per arm over 15 colonies. At the GDD rates a young colony gets one nurse for two piles in two chambers, and the queen's attendants stand at the egg pile without tending it. R31 was tried and not accepted (7 better, 7 worse; untended 74 -> 76). Not fixed this round.",
+  "4. More brood than the colony can care for. R29c: viable 7 -> 10, workers at winter 203 -> 214, starved 10 -> 6, but untended 54 -> 74 and hygiene deaths 2 -> 15. The original finish clause stopped all laying at the peak of summer and was withdrawn.",
+  "5. Winter lapse drownings not capped (cpv #1 16 -> 6): a live autumn flood the colony had survived counted as 'alerted' for R24. Fixed by WL4: 16 -> 14 on the same winter-start snapshot.",
+  "6. Browser founding failure: a queen sealed in the shaft end of her dig stood in no chamber and dried out (0.4 per game day) until she died in the lapse. Fixed by FD1.",
+  "7. Flood readers after a load (sweep-7 finding 1, major): reproduced as 3798 vs 3968 samples. Fixed by F1.",
+  "8. Known protein left unused: 348 P arrived within reach on 10 runs, about 13.5 P of it known, 37 trips to it. The need index follows the larvae, not the eggs. This is R32, round 9."
+ ],
+ "fixes": [
+  {
+   "cause": "Flood readers answer stale geometry after a load (F1)",
+   "files": [
+    "src/sim/nest/flood/runtime.ts"
+   ],
+   "beforeAfter": "readersRestore.verify: 3798 vs 3968 samples before, equal after.",
+   "test": "src/sim/nest/flood/readersRestore.verify.test.ts"
+  },
+  {
+   "cause": "A queen sealed in her nest but outside any chamber dries out (FD1)",
+   "files": [
+    "src/sim/colony/founding/exposure.ts"
+   ],
+   "beforeAfter": "Desiccation rate sealed in the shaft end: 1.2 on HEAD -> <= 0. Acts only before the hand-over.",
+   "test": "src/sim/colony/founding/sealedAir.test.ts"
+  },
+  {
+   "cause": "An autumn flood alert raised before the winter notice uncapped R24 (WL4)",
+   "files": [
+    "src/sim/balance/lifecycle.ts",
+    "src/sim/colony/overwinter/begin.ts",
+    "src/sim/colony/overwinter/system.ts"
+   ],
+   "beforeAfter": "cpv #1 winter-start snapshot: 16 -> 6 before, 16 -> 14 after.",
+   "test": "src/sim/colony/overwinter/lossCap.test.ts"
+  },
+  {
+   "cause": "Old age in year one (R30)",
+   "files": [
+    "src/sim/species/data/lasius-niger.ts",
+    "src/sim/balance/colony.ts"
+   ],
+   "beforeAfter": "15 colonies: workers at winter 139 -> 203, old-age deaths 62 -> 0, viable 4 -> 7.",
+   "test": "src/sim/colony/lifespanR30.test.ts"
+  },
+  {
+   "cause": "Brood laid beyond what the colony can care for (R29c, care factor)",
+   "files": [
+    "src/sim/colony/queen.ts",
+    "src/sim/colony/census.ts",
+    "src/sim/balance/colony.ts"
+   ],
+   "beforeAfter": "15 colonies, against r30: workers at winter 203 -> 214, viable 7 -> 10, starved 10 -> 6; untended 54 -> 74.",
+   "test": "src/sim/colony/layCapacity.test.ts"
+  },
+  {
+   "cause": "Hunters flee their own alarm after a non-lethal first bite (HB1)",
+   "files": [
+    "src/sim/balance/creatures.ts",
+    "src/sim/combat/hits.ts",
+    "src/sim/ants/behaviours/outdoor/hunt.test.ts",
+    "src/sim/ants/behaviours/outdoor/huntReturn.verify.test.ts"
+   ],
+   "beforeAfter": "15 colonies, against r30: trip success 36.8 -> 50.4 %, median protein 0.221 -> 0.287, eclosions 66 -> 73, workers at winter 203 -> 199, predation 19 -> 33.",
+   "test": "src/sim/combat/preyOneBite.test.ts"
+  },
+  {
+   "cause": "docs-final.test red: DEVIATIONS.md named the removed LAY_FINISH_STEP_D28",
+   "files": [
+    "docs/design/gdd/DEVIATIONS.md"
+   ],
+   "beforeAfter": "docs-final.test: 1 failed -> 8/8 green. R29 restated as amended, R30 marked accepted, R24 names WL4, new rows D29 (FD1) and D30 (HB1), section C row for GDD 02 \u00a73.2.",
+   "test": "tests/docs/docs-final.test.ts"
+  },
+  {
+   "cause": "Long-run script could not renew the first workers' lifespans as the paired runner does",
+   "files": [
+    "tools/sim/longrun-life.sh"
+   ],
+   "beforeAfter": "New option RENEW_NANITICS=1 passes --renew-nanitics. Used for the five year-two runs."
+  }
+ ],
+ "gddDeviations": [
+  "R29 as amended (GDD 02 \u00a73.2): laying potential is multiplied by the care factor 1 - careNeed / nurseCapable. The finish-before-winter clause is withdrawn.",
+  "R30 (GDD 02 \u00a71.3 and \u00a715; replaces R11): workers 42 / 30 gd, sd 8; first workers 34 gd, clamp floor 16; outside ageing x1.5.",
+  "WL4, an amendment of R24 (GDD 06 \u00a76.3): a drowning alert counts only from this year's winter notice on, or if it stands at the start of winter.",
+  "D29 = FD1 (GDD 06 \u00a75.5): the sealed founding queen breathes the founding cell's air anywhere in her sealed cavity.",
+  "D30 = HB1 (GDD 05 \u00a72.2 'one bite kills' takes precedence over the bite-damage formula): a landed bite on a springtail or mite kills it."
+ ],
+ "triedAndReverted": [
+  "R29's finish clause: sg #2 and kd #2 laid 0 eggs after the hand-over (base arm: 17 and 14). Its temperature forecast under-read the brood's development by about 25 %. Withdrawn by direction 16.",
+  "R31 (one queen attendant below 20 workers; nurse served first when short of workers): 7 better, 7 worse, untended 74 -> 76 on 15 colonies. Not in the tree; the patch is kept at test-output/colony-life/round-8/r31/r31-on-r30.patch."
+ ],
+ "verification": [
+  "Tree check: diff -rq of live src/sim against the frozen arms. Live = scratch-r8-r30r29c + HB1 files + FD1 files; live vs r30hb1 differs only in R29c's files and FD1; R31 files absent; src/worldgen and src/core equal to the arms.",
+  "Typecheck clean: test-output/colony-life/round-8/typecheck-final.txt and typecheck-final2.txt (the second run after removing the probes).",
+  "Folder tests (test-output/colony-life/round-8/vitest-final-*.txt). colony, including allocation and overwinter: 67/69 files; red founding/reopen and workedExample, both known.",
+  "Folder tests: combat 13/13 and nest/flood 12/12 green.",
+  "Folder tests: ants/behaviours/outdoor 30/31 (red removal.verify, known since round 7); environment 29/30 (red weather.test stream test, red on the base arm too).",
+  "tests/docs/docs-final.test.ts 8/8 green.",
+  "Five year-two runs, test-output/colony-life/round-8/long-final/table.txt (made by table.py): we #2 12/11/11/8/7; sg #2 17 (stores C 0)/6, queen dead/4/3/3; cpv #1 14/12/13/10/10; pp #3 13/12/10/5/5; kd #3 9/8/7/1/1. Order of the five figures: workers at winter 1 / spring tick 1 / year-two day 15 / day 21 / second winter.",
+  "Year-two runs: larvae 0 on the last autumn row of every run. Year-two eclosions 12 in total, all from eggs laid in year two (doy 10-16).",
+  "Year-two runs: R22 spring check 4 of 5 (met), day-15 check 0 of 5 (not met). R24: the 4 colonies that pass the stores check lose 8-14 % in the lapse.",
+  "Day count checked: with UNTIL_DAY=40 each run stops at the first row of the second winter, game day 35-36 = year-two doy 22."
+ ],
+ "next": [
+  "Direction 20, the integrator's binding order for round 9: the founding on the default seed first (6 eggs lost at the start of the lapse), then sweep 8's blocker and major findings.",
+  "R32 together with the larder question (30 % of delivered protein spoils), and known carrion against hunting, re-measured on the HB1 tree.",
+  "The single-nurse gap, together with R29c's untended 54 -> 74 and hygiene 2 -> 15, and the red workedExample test (a laying factor of 0.92 raises the day's larval C by 6 %).",
+  "HB1's predation 19 -> 33: add predator kind and place to the death record before judging it.",
+  "Year two: no colony takes larvae into winter (laying potential 0 from year-one doy 14-16), the overwintered workers age out by the second winter, and sg #2 stops foraging with empty stores late in autumn."
+ ],
+ "notesForIntegrator": [
+  "Three files changed besides the ledger: docs/design/gdd/DEVIATIONS.md, tools/sim/longrun-life.sh (new RENEW_NANITICS option) and the deleted tools/sim/probe/ (sources archived as test-output/colony-life/round-8/probes/*.ts.txt). Your snapshot commits 804b5ea / 7f9cc5c already contain them.",
+  "No arm with R30 + R29c + HB1 together was run on the 15 winter runs; only the five year-two runs measure the final tree.",
+  "workedExample.test.ts (GDD 02 \u00a715) is still red and was left that way on purpose, not restated.",
+  "The runner scripts under test-output/colony-life/round-8/paired/ name scratch trees that are now deleted. Re-running them means rebuilding those trees from git and the patches under round-8/r31/.",
+  "src/sim/ants/behaviours/nest/node_modules/.vite (dated Nov 12) is a stray vitest cache, not from this round; left in place.",
+  "Other engineers' work in progress, not touched: src/render/world/materials/*, tests/e2e/look4-*.mjs, docs/design/tasks/progress/look-pass-4-impl.md."
+ ]
+}
