@@ -50,3 +50,5 @@ browser verification of 2/3 (shader compile), cost, item 4/6/7 pictures, item 8 
 - 05:54 item 9 batch started: scratchpad item9.sh -> test-output/look4/e2e/{panels,controls,stage1a,views}.log, progress.txt
 - 06:10 panels done (check ok in e2e/panels.log); controls running
 - 06:16 controls PASS (finding: harvest-liquid keeps running with full crop after tapped drink); panels TIMED OUT at 900 s script-timeout at the 'tools' beat done 766 s (machine load 10) -> rerun with 2400000 after batch; stage1a/views running
+- 06:27 views PASS; stage1a STRICT FAIL at egg: 'lay-egg refused (lay-egg:budget); 6 eggs cheat-spawned' (sim reason, stand-in needed). Re-running panels (2400 s) then stage1a non-strict in bg: e2e/panels2.log, e2e/stage1a-loose.log
+- 06:28 report written docs/design/tasks/look-pass-4-report.md; waiting panels2 + stage1a-loose, then append results

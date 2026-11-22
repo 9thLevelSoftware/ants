@@ -853,3 +853,17 @@ Recovery, with cost in mind (the limit was spent in four days):
 **R30 accepted** (15 of 15 better). **R29c accepted**. **R31 not accepted** (no gain). **HB1 accepted** (defect fix). Untended brood (54–76 of ~250 eggs) is unchanged by all of them: the single-nurse gap is the next brood loss. Fourth engineer of round 8 launched to put the accepted set in the tree, run the year-two runs to the second winter, and close the round; then the fresh sweep 8.
 
 Colony-life relaunched 05:20 UTC Nov 22 as `wy25pjnh7` (wf_378a44f5-031; firstRound 8, maxRounds 2: closes round 8, then sweep 8, round 9, sweep 9). After a restart: plain firstRound 8 with a note that the ledger entry of Nov 22 05:15 holds the verdicts and the round only needs closing; if round 8 result is in the journal, firstRoundResult.
+
+
+## Nov 22 06:55 UTC — round 8 closed; year two to the second winter; rulings R32b, R33, R34 (direction 21)
+
+Round 8 closed 05:56 (tree = F1 + FD1 + WL4 + R30 + R29c + HB1). Five long runs to the second winter (`test-output/colony-life/round-8/long-final/table.txt`): spring check **4 of 5** (met; sg #2 entered winter with C 0 and lost its queen), but every colony shrinks through year two (workers at winter 1 → winter 2: 14 → 10, 9 → 1, 13 → 5, 17 → 3, 12 → 7).
+
+The integrator's reading of the daily rows (four colonies with a queen): **eggs laid in all of year two 16, 12, 25, 18; eclosions 5, 1, 3, 3; worker deaths 8, 8, 10, 7.** A colony of 12 needs ~8 eclosions a year to hold and ~20 to double. Causes:
+1. A lock on laying: potential 23–34 eggs/day on warm days, laid 0–8. The release gate needs `LARVA_P_REQ` 1.2 loads in store per egg and larva (stores hold 1–3), and protein demand counts only larvae that exist, so foragers gather carbohydrate (C 26–46 loads unused) and the queen is never released. → **R32b**: prospective protein demand from withheld laying drives diet share, forager choice, hunt valuation and the protein stock target; supply horizon 0.5 → 1.5 gd.
+2. Neglect: 36 of 71 year-two eggs died untended as eggs or pupae (`UNTENDED_GD` 0.25). → **R33**: 1.0 gd, and no idle/waiting worker in the nest while brood is overdue.
+3. **R34**: R22's "≥ 2 × first workers by year-two day 15" tested a day before any same-year worker can eclose; replaced by workers at the second winter ≥ 1.0 × first winter in ≥ 4 of 5 and ≥ 1.5 × in ≥ 3 of 5.
+
+Browser: firstplay fails on seed 2 (6 eggs lost at 2.8 % of the lapse) **and on seed 1** (first workers never reopen the entrance). Both are round 9's first item.
+
+Running at 06:55: colony-life `wy25pjnh7` (sweep 8 in progress: 6 of 15 at 06:22; then round 9 under directions 20 + 21, sweep 9); look-pass-4 `wveg3e7vs` (impl at item 9 browser scripts). Not yet weighed: `walker-stuck-explosion` violations (9–59 a run, mostly autumn; possibly cold-slowed walkers flagged) and worker time on queen-care (14 %) and store/haul (27 %).
