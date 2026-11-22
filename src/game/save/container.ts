@@ -8,6 +8,7 @@ import {
   EXPORT_FORMAT_TAG, EXPORT_FORMAT_VERSION, EXPORT_TEXT_PREFIX, IMPORT_MAX_BYTES,
 } from './constants';
 import { crc32, crc32Hex } from './crc32';
+import { frameProblem, lengthMatches, sealGzip } from './gzipFrame';
 import { isValidMeta } from './meta';
 import type { SaveCode, SaveMeta } from './types';
 
@@ -23,7 +24,7 @@ const bad = (code: SaveCode, message: string): ParseResult => ({ ok: false, code
 
 /** The `.foundress` bytes of a save. Throws (with the encoder's path message) when the state is not plain data. */
 export function packContainer(meta: SaveMeta, state: SimState): Uint8Array {
-  return gzip(encode({ format: EXPORT_FORMAT_TAG, formatVersion: EXPORT_FORMAT_VERSION, meta, state }));
+  return sealGzip(gzip(encode({ format: EXPORT_FORMAT_TAG, formatVersion: EXPORT_FORMAT_VERSION, meta, state })));
 }
 
 export function bytesToText(bytes: Uint8Array): string {
@@ -56,12 +57,13 @@ export function parseText(input: string): ParseResult {
   return parseBytes(bytes);
 }
 
-/** Magic, size, gzip checksum, decode, format tag, version, meta and state shape, in that order. */
+/** Magic, size, frame (see gzipFrame.ts), gzip checksum, decode, format tag, version, meta and state shape, in that order. */
 export function parseBytes(bytes: Uint8Array): ParseResult {
   if (bytes.length > IMPORT_MAX_BYTES) return bad('too-large', 'This file is far too large to be a FOUNDRESS save.');
   if (bytes.length < 18 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) {
     return bad('foreign', 'This is not a FOUNDRESS save file (it is not a .foundress file).');
   }
+  if (frameProblem(bytes) !== null) return bad('corrupt', 'This save file is damaged: its header or contents were changed.');
   let raw: Uint8Array;
   try {
     raw = gunzip(bytes);
@@ -70,7 +72,7 @@ export function parseBytes(bytes: Uint8Array): ParseResult {
   }
   const t = bytes.length - 8;
   const stored = (bytes[t] | (bytes[t + 1] << 8) | (bytes[t + 2] << 16) | (bytes[t + 3] << 24)) >>> 0;
-  if (stored !== crc32(raw)) return bad('corrupt', 'This save file is damaged: its checksum does not match.');
+  if (stored !== crc32(raw) || !lengthMatches(bytes, raw.length)) return bad('corrupt', 'This save file is damaged: its checksum does not match.');
   let value: unknown;
   try {
     value = decode(raw);
