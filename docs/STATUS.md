@@ -851,3 +851,5 @@ Recovery, with cost in mind (the limit was spent in four days):
 
 `test-output/colony-life/round-8/paired/arms15-table.txt` (cached hand-overs, to winter; first workers 168): workers at winter base 139, R30 203, R30+HB1 199, R30+R29c 214, R30+R29c+R31 209; viable 4 / 7 / 8 / 10 / 10; old-age deaths 62 / 0 / 0 / 0 / 0; median P 0.198 / 0.221 / 0.287 / 0.215 / 0.245; trips ok 43.9 / 36.8 / 50.4 / 38.4 / 45.1 %.
 **R30 accepted** (15 of 15 better). **R29c accepted**. **R31 not accepted** (no gain). **HB1 accepted** (defect fix). Untended brood (54–76 of ~250 eggs) is unchanged by all of them: the single-nurse gap is the next brood loss. Fourth engineer of round 8 launched to put the accepted set in the tree, run the year-two runs to the second winter, and close the round; then the fresh sweep 8.
+
+Colony-life relaunched 05:20 UTC Nov 22 as `wy25pjnh7` (wf_378a44f5-031; firstRound 8, maxRounds 2: closes round 8, then sweep 8, round 9, sweep 9). After a restart: plain firstRound 8 with a note that the ledger entry of Nov 22 05:15 holds the verdicts and the round only needs closing; if round 8 result is in the journal, firstRoundResult.
