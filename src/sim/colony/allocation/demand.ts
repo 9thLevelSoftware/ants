@@ -20,7 +20,7 @@ import { colonySlotBit } from '@/sim/entities';
 import { accGet, coreOf } from '../core';
 import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
-import { forageRates, intakeTarget, targetDays } from '../needs';
+import { carbStockWanted, forageRates, intakeTarget, targetDays } from '../needs';
 import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
 import { herdMarked, herdWorkable, tendersWanted } from '@/sim/ecology/plants/demand';
@@ -118,13 +118,14 @@ export function nutrientShortfalls(col: Colony, known: KnownCapacity): { c: numb
 }
 
 /**
- * Each nutrient's forage want, loads per gd: today's rate plus the refill of the stock target over STOCK_REFILL_GD
- * (the forage side's rates, so it carries the season's stock target and R32b / R35's prospective protein).
+ * Each nutrient's forage want, loads per gd: today's rate plus the refill of the stock wanted over STOCK_REFILL_GD
+ * (the forage side's rates, so it carries the season's stock target and R32b / R35's prospective protein; for
+ * carbohydrate the stock wanted also covers the path to the winter need, R40 a / R41 carbStockWanted).
  */
 export function forageWant(col: Colony): { c: number; p: number } {
   const r = forageRates(col), t = targetDays(col), st = col.stores;
   return {
-    c: r.c + Math.max(0, t.c * r.c - st.c) / STOCK_REFILL_GD,
+    c: r.c + Math.max(0, carbStockWanted(col) - st.c) / STOCK_REFILL_GD,
     p: r.p + Math.max(0, t.p * r.p - st.p) / STOCK_REFILL_GD,
   };
 }

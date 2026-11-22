@@ -2,8 +2,8 @@
 // the brood it has. A prospective protein demand = LARVA_P_REQ x the laying the gates withhold (potential less what
 // is released), loads per gd, enters the forage side (desired protein share, protein need index, intake target,
 // scouts' shortfall, the protein larder) and never the laying gates' days of stock. R35: it is bounded by the
-// workforce (PROSPECTIVE_P_PER_WORKER x workers), it ramps in with the carbohydrate in store over its stock target
-// (none at 1 x, all at 2 x) and is 0 under the path to the winter need; a colony short of sugar values sugar whatever
+// workforce (PROSPECTIVE_P_PER_WORKER x workers), it ramps in with the carbohydrate in store against its stock target
+// (R40 b: none at 0.5 x, all at 1 x; R35 had 1 x -> 2 x) and is 0 under the path to the winter need; a colony short of sugar values sugar whatever
 // its protein demand; the store's spoilage is no appetite on the forage side; and its forage demand is served after
 // every other task, so the tenders' head-count does not depend on it.
 import { describe, expect, it } from 'vitest';
@@ -58,19 +58,20 @@ describe('R32b / R35 prospective protein demand', () => {
     expect(daysOfStock(col)).toEqual(daysBefore);
   });
 
-  it('carbohydrate ramp: nothing at 1 x the C stock target, half at 1.5 x, all of it at 2 x', () => {
-    const { sim, col } = setup();
+  it('carbohydrate ramp (R40 b): nothing at 0.5 x the C stock target, half at 0.75 x, all of it at 1 x', () => {
+    const { sim, col } = setup({ season: 'spring', summerDay: 5 }); // doy 5: no winter path yet, the ramp alone
     accSet(coreOf(col), 'lay.potential', 20);
     col.stores.p = 0.5;
     const full = () => { col.stores.c = cAt(col, 3); return prospectiveProteinRate(sim, col); };
     const f = full();
     expect(f).toBeGreaterThan(0);
-    col.stores.c = cAt(col, 1);
+    col.stores.c = cAt(col, 0.5);
+    expect(winterPathC(sim, col)).toBe(0);
     expect(prospectiveProteinRate(sim, col)).toBe(0);
-    col.stores.c = cAt(col, 1.5);
-    expect(winterPathC(sim, col)).toBeLessThan(col.stores.c); // doy 10: the winter path asks little yet
+    col.stores.c = cAt(col, 0.75);
     expect(prospectiveProteinRate(sim, col)).toBeCloseTo(0.5 * f, 6);
-    col.stores.c = cAt(col, 2);
+    // R39's tenders hold carbohydrate near 1 x the target: R35's ramp (1 x -> 2 x) asked nothing there, R40 b all of it
+    col.stores.c = cAt(col, 1);
     expect(prospectiveProteinRate(sim, col)).toBeCloseTo(f, 6);
   });
 

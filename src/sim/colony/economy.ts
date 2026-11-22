@@ -16,7 +16,7 @@ import { expireDirectives } from './directives';
 import { updateNeeds } from './needs';
 import { updateStarvation } from './starvation';
 import { provisionAtHandover } from './handover';
-import { PROSPECTIVE_P_KEY, SEASON_STOCK_C_KEY, needRates, plainNeedP } from './needs';
+import { PROSPECTIVE_P_KEY, SEASON_STOCK_C_KEY, WINTER_PATH_C_KEY, needRates, plainNeedP } from './needs';
 import { winterStoresNeed } from './overwinter/storesNeed';
 import { AUTUMN_STOCK_TARGET_C_MULT, STOCK_TARGET_C_GD, STOCK_TARGET_MULT } from '@/sim/balance/colony';
 import { WINTER_STORES_TARGET_MARGIN } from '@/sim/balance/lifecycle';
@@ -24,7 +24,7 @@ import { currentSeason } from '@/sim/time';
 import { BroodFlag } from '@/sim/types';
 import { LARVA_C_REQ, LARVA_P_REQ, LAYING_INTAKE_EMA_GD } from '@/sim/balance';
 import { larvaRemainingNeed } from './brood';
-import { BROOD_NEED_P_KEY, PROTEIN_INTAKE_KEY, PROTEIN_LIFE_KEY, prospectiveProteinRate } from './queen';
+import { BROOD_NEED_P_KEY, PROTEIN_INTAKE_KEY, PROTEIN_LIFE_KEY, prospectiveProteinRate, winterPathC } from './queen';
 import { measureLarder, measurePileCap, poolSpace, refreshCapacity, spoil } from './stores';
 import { fileDay } from './stats';
 import { dailyRecount } from './population';
@@ -44,14 +44,27 @@ function closeCycle(core: ColonyCoreState): void {
 function updateYield(sim: Sim, col: Colony, core: ColonyCoreState, dtGd: number): void {
   const foragers = col.alloc.actual[ti('forage')];
   const decay = Math.exp(-dtGd / YIELD_EMA_GD);
-  // Exponentially weighted delivered loads and forager-days; a one forager-day prior keeps the default early on.
+  // Exponentially weighted delivered loads and forager-days (yieldEstimate: the prior only until one forager-day exists).
   const loads = accGet(core, 'yield.ewLoads') * decay + accGet(core, 'yield.loads');
   const gd = accGet(core, 'yield.ewGd') * decay + foragers * dtGd;
   accSet(core, 'yield.ewLoads', loads);
   accSet(core, 'yield.ewGd', gd);
   accSet(core, 'yield.loads', 0);
-  col.yieldPerForager = Math.max(YIELD_PER_FORAGER_MIN, (loads + YIELD_PER_FORAGER_DEFAULT) / (gd + 1));
+  col.yieldPerForager = yieldEstimate(loads, gd);
   void sim;
+}
+
+/**
+ * Loads a forager on `forage` brings home per game day (direction 27a item 2): the exponentially weighted loads the
+ * colony's foragers delivered over the forager-days of everyone assigned to `forage` (failed trips and waits
+ * included), over about the last game day (YIELD_EMA_GD), floored at YIELD_PER_FORAGER_MIN. Until one forager-day of
+ * data exists a prior of YIELD_PER_FORAGER_DEFAULT fills the rest of that day; after it the realised yield alone
+ * (before round 13 the prior kept one forager-day of weight for good: 12-25 % of the estimate in a colony with 3-7
+ * foragers, which held it near 1.5 loads while the foragers realised 0.6-1.2, so the forage demand asked too few).
+ */
+export function yieldEstimate(ewLoads: number, ewForagerGd: number): number {
+  const prior = Math.max(0, 1 - ewForagerGd);
+  return Math.max(YIELD_PER_FORAGER_MIN, (ewLoads + YIELD_PER_FORAGER_DEFAULT * prior) / Math.max(1e-9, ewForagerGd + prior));
 }
 
 function updateTimers(sim: Sim, col: Colony, core: ColonyCoreState): void {
@@ -154,6 +167,8 @@ export function closeColonyCycle(sim: Sim, col: Colony, core: ColonyCoreState, d
   const rateP = rateForageP + sp.p; // GDD 02 §5.5 counts the store's spoilage; the forage side does not (R35 point 4)
   updateProteinSupply(sim, col, core, def, dtGd);
   accSet(core, SEASON_STOCK_C_KEY, currentSeason(sim.state) === 'autumn' ? autumnStockMult(sim, col) : 1);
+  // R40 a / R41: the path to the winter's carbohydrate, read by the forage want (needs.ts carbStockWanted)
+  accSet(core, WINTER_PATH_C_KEY, winterPathC(sim, col));
   // R32b / R35: the forage side asks protein for the eggs the gates withhold (read through needs.ts forageRates)
   accSet(core, PROSPECTIVE_P_KEY, prospectiveProteinRate(sim, col));
   updateNeeds(col, { rateC, rateP, rateForageP }, dtGd);

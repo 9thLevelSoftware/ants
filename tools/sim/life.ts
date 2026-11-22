@@ -22,6 +22,11 @@
 //            --cache DIR (development: reuse a snapshot taken at the hand-over for the same world, options and
 //                      simulation code: the file name carries a hash of src/sim, src/worldgen and src/core, so any
 //                      code change founds afresh)
+//            --save-y2 FILE (year-two cache, colony-life round 13: write a snapshot to FILE at the end of the first
+//                      day row of year 2 (doy 1, after the winter lapse) and stop there)
+//            --from FILE (start from a snapshot written by --save-y2 instead of founding; whatever code wrote it)
+//            --trace13 (round 13 traces, tools/sim/lifeTrace13.ts: hourly laying / prospective protein on doy 5-15,
+//                      the fate of late brood and of every pupa; report.trace13)
 //
 // Wall clock and console live here, never in src/sim.
 
@@ -50,6 +55,7 @@ import { LayingGateRecorder, type LayingDay } from './lifeLaying';
 import { HerdCoverageRecorder, type HerdReport } from './lifeHerds';
 import { NursingObserver, type NursingHour } from './lifeNursing';
 import { EclosionObserver, type EclosionRecord } from './lifeEclosions';
+import { Trace13Observer, type LateBrood, type TraceHour } from './lifeTrace13';
 
 declare const process: { exitCode?: number };
 
@@ -82,6 +88,12 @@ export interface LifeOptions {
   stores: [number, number] | null;
   /** Start on this default-year day (1-based doy, `--start-doy`), season and day of season derived; null = default. */
   startDoy: number | null;
+  /** `--save-y2 FILE`: snapshot at the end of the first day row of year 2, then stop (year-two cache). */
+  saveY2?: string | null;
+  /** `--from FILE`: start from this snapshot (a `--save-y2` file) instead of founding or the hand-over cache. */
+  from?: string | null;
+  /** `--trace13`: the round-13 traces (lifeTrace13.ts) in report.trace13. */
+  trace13?: boolean;
 }
 
 export function parseLifeArgs(args: readonly string[]): LifeOptions {
@@ -93,6 +105,7 @@ export function parseLifeArgs(args: readonly string[]): LifeOptions {
     if (args[i] === '--cache-any') { o.cacheAny = true; continue; }
     if (args[i] === '--no-flood') { o.noFlood = true; continue; }
     if (args[i] === '--renew-nanitics') { o.renewNanitics = true; continue; }
+    if (args[i] === '--trace13') { o.trace13 = true; continue; }
     const k = args[i], v = args[++i];
     if (v === undefined) throw new Error(`life: ${k} needs a value`);
     if (k === '--seed') o.seed = Number(v);
@@ -111,6 +124,8 @@ export function parseLifeArgs(args: readonly string[]): LifeOptions {
     else if (k === '--perf') o.perf = Number(v);
     else if (k === '--until' && v === 'winter') o.untilWinter = true;
     else if (k === '--until-day') o.untilDay = Number(v);
+    else if (k === '--save-y2') o.saveY2 = v;
+    else if (k === '--from') o.from = v;
     else throw new Error(`life: unknown option ${k}`);
   }
   return o;
@@ -227,6 +242,8 @@ export interface LifeReport {
   /** colony-life round 8: every worker eclosion after the hand-over with the year its egg was laid (lifeEclosions.ts). */
   eclosions?: EclosionRecord[];
   /** What the founding produced (absent for a cached hand-over): eggs, eclosions, brood and adult losses. */
+  /** colony-life round 13 traces (--trace13). */
+  trace13?: { hours: TraceHour[]; late: LateBrood[] };
   foundingFunnel?: { eggsLaid: number; eclosed: number; broodDeaths: Record<string, number>; adultDeaths: Record<string, number> };
 }
 
@@ -293,7 +310,8 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const genMs = performance.now() - g0;
   const cacheFile = o.cache && io
     ? `${o.cache}/founded-${o.species}-${o.archetype}-${o.seed}-${o.difficulty}-${o.startDoy ? `doy${o.startDoy}` : o.startDay ?? 'd'}-${o.cacheAny ? 'any' : io.codeTag}.bin` : null;
-  const cached = cacheFile ? io!.read(cacheFile) : null;
+  const cached = o.from && io ? io.read(o.from) : cacheFile ? io!.read(cacheFile) : null;
+  if (o.from && !cached) throw new Error(`life: --from ${o.from}: no such snapshot`);
   const times: SysTime[] = [];
   const systems = o.noFlood ? SYSTEMS.filter((s) => s.name !== 'nest-flood') : SYSTEMS;
   let state = cached ? restore(cached).state : createNewGame(config, world).state;
@@ -329,7 +347,8 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   const herds = new HerdCoverageRecorder(sim);
   const nursing = new NursingObserver(sim);
   const eclosions = new EclosionObserver(sim);
-  if (cacheFile && !cached && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
+  const trace13 = o.trace13 ? new Trace13Observer(sim) : null;
+  if (cacheFile && !cached && !o.from && !realFailure && (phase === 'handover' || phase === 'done')) io!.write(cacheFile, snapshot(sim)); // never a failed founding
   const foundMs = performance.now() - f0;
   const workers0 = readState(sim, 0, currentSeason(sim.state)).workers;
   const expected = requireSpecies(o.species).opening.expectedFirstWorkers;
@@ -375,6 +394,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
       herds.tick();
       nursing.tick();
       eclosions.tick();
+      trace13?.tick();
       ticksToday++;
       if (sim.state.tick % SAMPLE_TICKS === 0) {
         stuck.sample();
@@ -410,6 +430,12 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
     log(`day ${d} ${s.season}: ${s.workers} workers, brood ${s.eggs}/${s.larvae}/${s.pupae}, C ${s.storesC} P ${s.storesP}, ` +
       `trips ${row.events.tripsStarted} deliveries ${row.events.deliveries}, chambers ${JSON.stringify(s.chambers)}, ` +
       `stuck ${row.stuck.stuckAnts}, viol ${dayViol}, ${row.msPerTick} ms/tick`);
+    // year-two cache (round 13): the state at the end of the first day row of year 2, then the run ends
+    if (o.saveY2 && io && s.year === 2) {
+      io.write(o.saveY2, snapshot(sim));
+      log(`year-two snapshot at tick ${sim.state.tick} (doy ${s.doy}) -> ${o.saveY2}, hash ${stateHash(sim.state)}`);
+      break;
+    }
     if (!s.queenAlive && s.workers === 0) break;
   }
   // --until winter with --out: the winter-start snapshot (before the lapse's Begin) next to the JSON, so the lapse can
@@ -440,6 +466,7 @@ export function runLife(o: LifeOptions, log: (s: string) => void = () => {}, io:
   report.herds = herds.result();
   report.nursingHours = nursing.hours;
   report.eclosions = eclosions.records;
+  if (trace13) report.trace13 = trace13.result();
   if (fobs) report.foundingFunnel = { eggsLaid: fobs.eggsLaid, eclosed: fobs.eclosed, broodDeaths: fobs.deaths, adultDeaths: fobs.adultDeaths };
   return report;
 }

@@ -13,13 +13,13 @@ import {
   QUEEN_RESERVE_REFILL, QUEEN_STARVE_GD, QUEEN_TARGET_GUT_C, QUEEN_TARGET_GUT_P, WORKER_CAP_TAPER, LOAD_EPS,
   DEFAULT_SEASON_LENGTH_DAYS, SMALL_COLONY_N, WINTER_RESERVE_FROM_D28, WINTER_RESERVE_MULT,
   EGGS_PER_NURSE, NURSE_FEED_CAPACITY, PUPAE_PER_NURSE, LARVA_P_REQ,
-  PROSPECTIVE_P_PER_WORKER, PROSPECTIVE_WINTER_FROM_DOY, PROSPECTIVE_WINTER_RAMP_DAYS,
+  PROSPECTIVE_CARB_RAMP_FROM, PROSPECTIVE_P_PER_WORKER, PROSPECTIVE_WINTER_FROM_DOY, PROSPECTIVE_WINTER_RAMP_DAYS,
 } from '@/sim/balance';
 import { WINTER_STORES_TARGET_MARGIN } from '@/sim/balance/lifecycle';
 import { winterStoresNeed } from './overwinter/storesNeed';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { killAnt, spawnBrood } from '@/sim/entities';
-import { currentDayOfYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY } from '@/sim/time';
+import { currentDayOfYear, currentYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY, yearOf } from '@/sim/time';
 import { accAdd, accSet, coreOf } from './core';
 import { censusOf, cycleCensus, type CensusSnapshot } from './census';
 import { chamberTempC, d28Now, pointTempC } from './envAdapter';
@@ -118,11 +118,23 @@ export function layingProteinPermitted(sim: Sim, col: Colony): boolean {
 const WINTER_D28 = 3 * DEFAULT_SEASON_LENGTH_DAYS;
 
 /**
+ * Ruling R40 a: has the colony lived through a winter? True from the first year after the one it was founded in
+ * (founding year against the current year; the winter lapse moves foundedTick and the calendar anchor together, so the
+ * calendar tick of the founding stays put).
+ */
+export function colonyHasWintered(sim: Sim, col: Colony): boolean {
+  return yearOf(col.foundedTick + sim.state.env.calendar.startTick, sim.state.config) < currentYear(sim.state);
+}
+
+/**
  * Late in the season a small colony keeps its pool carbohydrate for the adults until the winter (balance
  * WINTER_RESERVE_*, viab-economy R5): true while the pool holds less than that, so no laying protein is released.
+ * Only until the colony's first winter (R40 a): the gate was made for a first-year colony handed over late; a colony
+ * that has wintered asks for its winter carbohydrate through the forage want instead (needs.ts carbStockWanted).
  */
 export function winterReserveShort(sim: Sim, col: Colony, workers: number): boolean {
   if (workers >= SMALL_COLONY_N) return false;
+  if (colonyHasWintered(sim, col)) return false;
   const d28 = d28Now(sim);
   if (d28 < WINTER_RESERVE_FROM_D28 || d28 >= WINTER_D28) return false;
   const gdLeft = (WINTER_D28 - d28) * (daysPerYear(sim.state.config) / DEFAULT_DAYS_PER_YEAR);
@@ -154,8 +166,10 @@ export function layingReleaseShare(sim: Sim, col: Colony): number {
  * loads/gd. LARVA_P_REQ per egg of the laying potential (season, temperature, health, size and the R29 care factor
  * already in it; 0 outside the laying season) less the share the carers release, then:
  *  - bounded by the workforce: at most PROSPECTIVE_P_PER_WORKER x workers;
- *  - scaled by how far the carbohydrate in store stands over its stock target: clamp(daysC / targetDays.c - 1, 0, 1)
- *    (nothing at 1 x the target, all of it at 2 x; daysC on the plain C rate);
+ *  - scaled by the carbohydrate in store against its stock target (R40 b, which replaces R35's "over twice the
+ *    target"): clamp((daysC / targetDays.c - 0.5) / 0.5, 0, 1), nothing at half the target, all of it at the target
+ *    (daysC on the plain C rate). R39's tenders refill carbohydrate to 1 x the target and stop, so a ramp that began
+ *    there asked for no protein at all;
  *  - 0 while the carbohydrate in store is under the path to the winter need (winterPathC).
  * Feeds the forage side only (needs.ts forageRates), never the laying gates.
  */
@@ -163,7 +177,7 @@ export function prospectiveProteinRate(sim: Sim, col: Colony): number {
   const core = coreOf(col);
   const potential = core.acc['lay.potential'] ?? 0;
   if (potential <= 0) return 0;
-  const carbRamp = clamp(daysOfStock(col).c / targetDays(col).c - 1, 0, 1);
+  const carbRamp = clamp((daysOfStock(col).c / targetDays(col).c - PROSPECTIVE_CARB_RAMP_FROM) / (1 - PROSPECTIVE_CARB_RAMP_FROM), 0, 1);
   if (carbRamp <= 0 || col.stores.c < winterPathC(sim, col)) return 0;
   const withheld = LARVA_P_REQ * potential * (1 - layingReleaseShare(sim, col));
   return Math.min(withheld, PROSPECTIVE_P_PER_WORKER * core.workers) * carbRamp;

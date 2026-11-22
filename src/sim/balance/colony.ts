@@ -255,6 +255,12 @@ export const LAYING_SUPPLY_HORIZON_GD = 1.5;
  */
 export const PROSPECTIVE_P_PER_WORKER = 0.5;
 /**
+ * Ruling R40 b (direction 27, replaces R35 point 2's ramp from 1 x to 2 x the target): the prospective protein demand
+ * ramps in with the carbohydrate in store from this share of its stock target (in days of stock) to all of it at the
+ * target. R39's tenders hold carbohydrate near 1 x the target, where R35's ramp asked for nothing.
+ */
+export const PROSPECTIVE_CARB_RAMP_FROM = 0.5;
+/**
  * Ruling R35 point 2: the carbohydrate a colony keeps on the path to its winter need before it asks protein for eggs
  * not yet laid ramps in from this day of the year (nothing asked in spring) and reaches the whole winter need
  * PROSPECTIVE_WINTER_RAMP_DAYS later (half of it by doy 14, all of it by doy 21).

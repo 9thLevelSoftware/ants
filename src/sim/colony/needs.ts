@@ -66,6 +66,20 @@ export function daysOfStock(col: Colony): { c: number; p: number } {
   return { c: col.stores.c / r.c, p: col.stores.p / r.p };
 }
 
+/** core.acc key: R35's path to the winter carbohydrate need (queen.ts winterPathC), loads, set each colony cycle. */
+export const WINTER_PATH_C_KEY = 'need.winterPathC';
+
+/**
+ * Rulings R40 a and R41: the carbohydrate stock the colony wants, loads: the larger of its stock target (target days x
+ * the C rate) and the path to its winter need (winterPathC). One function, read by the forage want (and so by the
+ * tenders and the scouts' shortfall), the intake target and the carbohydrate need index needC (so the nutrient weights
+ * and the scout floor's "short" test), so one rule asks for the winter's carbohydrate and none withholds eggs for it
+ * once the colony has wintered (queen.ts winterReserveShort).
+ */
+export function carbStockWanted(col: Colony): number {
+  return Math.max(targetDays(col).c * needRates(col).c, col.core?.acc[WINTER_PATH_C_KEY] ?? 0);
+}
+
 /** Target days of stock (stockTarget directive). */
 export function targetDays(col: Colony): { c: number; p: number } {
   const m = STOCK_TARGET_MULT[col.directives.stockTarget] ?? 1;
@@ -98,7 +112,10 @@ export function desiredProteinShare(col: Colony): number {
 export function refreshNeedIndices(col: Colony): void {
   const d = daysOfStock(col);
   const t = targetDays(col);
-  col.needs.needC = clamp(1 - d.c / t.c, 0, 1);
+  // R41: carbohydrate against the stock the colony wants (its target or the path to its winter need, the larger), so
+  // a colony under its winter path is short of carbohydrate whatever its days of stock (we #3 in sweep 12)
+  const wantC = carbStockWanted(col);
+  col.needs.needC = wantC > 0 ? clamp(1 - col.stores.c / wantC, 0, 1) : clamp(1 - d.c / t.c, 0, 1);
   // protein against the forage side's stock target (R32b: the prospective demand counts)
   col.needs.needP = clamp(1 - col.stores.p / (t.p * forageRates(col).p), 0, 1);
   col.needs.sP = desiredProteinShare(col);
@@ -140,5 +157,5 @@ export function intakeTarget(col: Colony, prospective = true): number {
   if (!prospective) r.p -= col.core?.acc[PROSPECTIVE_P_KEY] ?? 0;
   const t = targetDays(col);
   const s = col.stores;
-  return r.c + r.p + Math.max(0, t.c * r.c - s.c) / STOCK_REFILL_GD + Math.max(0, t.p * r.p - s.p) / STOCK_REFILL_GD;
+  return r.c + r.p + Math.max(0, carbStockWanted(col) - s.c) / STOCK_REFILL_GD + Math.max(0, t.p * r.p - s.p) / STOCK_REFILL_GD;
 }

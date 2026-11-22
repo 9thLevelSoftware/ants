@@ -5,6 +5,8 @@
 // (a) The surface hold: an ant outside is held back only from water deep enough to flee from (FLEE_WATER_DEPTH_BU),
 //     and never for longer than FLEE_HOLD_MAX_GD over successive holds (round 12's trace: 65 holds in 6 gd for a
 //     brood-chamber destination with 0.01-0.17 BU of water on its floor).
+// Round 13 (direction 27a item 5): the burst and the film cases live in burst26.verify / hold26.verify, which fail on
+// the tree before D32; this file keeps the haul cap and the hold limit.
 import { describe, expect, it } from 'vitest';
 import type { Sim } from '@/sim/types';
 import { AntFlag, taskIndex } from '@/sim/types';
@@ -37,23 +39,8 @@ function meconium(k: NestColony, n: number): void {
 }
 
 describe('direction 26 item 4b: a pupation burst in a brood chamber', () => {
-  it('8 meconium items, 10 workers, the one hauler away outside: under tolerance within 0.25 gd', () => {
-    const k = makeNestColony({
-      workers: 10, seed: 5, stores: { c: 100, p: 100 },
-      brood: [{ stage: 'egg', n: 3, chamber: 'royal' }, { stage: 'pupa', n: 4, chamber: 'royal', progress: 0.2 }],
-    });
-    const { sim } = k;
-    run(sim, 200);
-    meconium(k, 8);
-    // the colony's hauler is away (a stand-in for the held one): possessed and parked outside, no autonomy
-    const hauler = sim.stores.ants.list.find((a) => a.alive && a.caste === 'worker')!;
-    hauler.task = 'haul'; hauler.flags |= AntFlag.POSSESSED; hauler.nestId = -1;
-    let t = 0;
-    const limit = Math.round(0.25 * TICKS_PER_DAY);
-    for (; t < limit && wasteIn(k, k.royal.id) > BROOD_HAZARD.wasteTolerance; t += 50) run(sim, 50);
-    expect(wasteIn(k, k.royal.id), `waste left after ${t} ticks`).toBeLessThanOrEqual(BROOD_HAZARD.wasteTolerance);
-  }, 120_000);
-
+  // The burst itself (meconium cleared with the hauler away) is checked by burst26.verify.test.ts (sweep 12: the
+  // former 8-item case here passed on the tree before the fix too; direction 27a item 5).
   it('the haul cap doubles while brood lies among waste', () => {
     const k = makeNestColony({ workers: 10, seed: 5, brood: [{ stage: 'egg', n: 3, chamber: 'royal' }] });
     const { sim } = k;
@@ -97,15 +84,8 @@ describe('direction 26 item 4a: the surface hold', () => {
     return k;
   }
 
-  it('a film on the brood chamber floor (under the flee depth) does not hold a worker outside', () => {
-    const k = colony();
-    wetRoyal(k, 0.5 * FLEE_WATER_DEPTH_BU);
-    run(k.sim, 2 * FLOOD_STEP_TICKS);
-    const w = workerOutsideTo(k, k.sim);
-    run(k.sim, 2 * FLOOD_STEP_TICKS);
-    expect(isFleeingWater(w)).toBe(false);
-  }, 60_000);
-
+  // A film under the flee depth holding nobody is checked by hold26.verify.test.ts (sweep 12: the former film case
+  // here passed on the tree before the fix too; direction 27a item 5).
   it('deep water holds her, but not for longer than FLEE_HOLD_MAX_GD: then her task is handed back', () => {
     const k = colony();
     const { sim } = k;

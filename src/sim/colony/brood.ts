@@ -240,6 +240,18 @@ function updateDiapause(sim: Sim, b: Brood, tempC: number, dtTicks: number): voi
   }
 }
 
+/**
+ * Ruling R40 c (GDD 02 §2.8: larvae overwinter, pupae do not): would a larva pupating now go into the cold? From
+ * DIAPAUSE_DOY on, or while its chamber is at or under DIAPAUSE_COLD_C outside spring. Round 13's trace (we #2, year
+ * two): larvae of doy 12 pupated on doy 16-18 as the chamber fell 12.0 -> 10.5 C (before DIAPAUSE_ENTER_GD of cold had
+ * passed), sat at 2-5 C with their development stopped and died `untended` on doy 20-21. In spring the nest is warming
+ * and a grown larva pupates as before.
+ */
+function pupationIntoCold(sim: Sim, tempC: number): boolean {
+  if (_currentDefaultYearDoy(sim.state) >= _DIAPAUSE_DOY) return true;
+  return tempC <= _DIAPAUSE_COLD_C && _currentSeason(sim.state) !== 'spring';
+}
+
 /** Per-run sums of one colony's brood steps (flushed into Colony.core.acc by the brood system). */
 export interface BroodAcc {
   larvaC: number; larvaP: number; larvae: number;
@@ -335,13 +347,20 @@ export function broodStep(sim: Sim, b: Brood, col: Colony, core: ColonyCoreState
   if (progressDu > 0) b.progress += progressDu / du;
   if (b.stage === 'larva' && !diapause && b.progress >= _MINIM_MIN_PROGRESS && b.progress < 1
     && core.minimSinceTick >= 0 && sim.state.tick - core.minimSinceTick >= _daysToTicks(_MINIM_TRIGGER_GD)) {
+    if (pupationIntoCold(sim, tempC)) { setBroodDiapause(b, true); return; }
     b.flags |= _BroodFlag.MINIM;
     setStage(sim, b, 'pupa');
     return;
   }
   if (b.progress >= 1 - PROGRESS_EPS) {
     if (b.stage === 'egg') setStage(sim, b, 'larva');
-    else if (b.stage === 'larva') setStage(sim, b, 'pupa');
+    else if (b.stage === 'larva') {
+      // a grown larva in diapause waits for the spring exit (updateDiapause); one that would pupate into the cold
+      // diapauses instead (R40 c)
+      if (diapause) return;
+      if (pupationIntoCold(sim, tempC)) { setBroodDiapause(b, true); return; }
+      setStage(sim, b, 'pupa');
+    }
     else if (!(b.flags & _BroodFlag.READY)) {
       b.progress = 1;
       b.flags |= _BroodFlag.READY;

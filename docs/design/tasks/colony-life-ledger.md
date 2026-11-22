@@ -4798,3 +4798,114 @@ the live tree had no further src change).
 Scratch trees (`/home/user/frozen-sweep12`, `/home/user/scratch-sweep12-base`) deleted; the probes ran only in the frozen
 copy (archived as `sweep-review/*.ts.txt`); no process of this review left running. Kept green:
 `ants/behaviours/nest/hold26.verify.test.ts`, `ants/behaviours/nest/burst26.verify.test.ts` (both red on the base tree).
+
+## Round 13
+
+Engineer: round 13 (started 22:37 UTC Nov 22). Evidence: `test-output/colony-life/round-13/`. Tree at start = HEAD
+5be00d8 (working tree clean; src/sim, src/worldgen, src/core = round-12 final 925f45e8 + the sweep's two verify tests).
+Order (directions 27 + 27a): year-two cache (5 long-run colonies at year 2 doy 1, identity vs `round-12/sweep-long`);
+R40 a, b (trace first), c (trace, fix only a defect), d (measure); 27a items 1 (R41), 2, 3, 4, 5. Arms: year two base /
+A (a + b) / B (A + c, if c changes code) / final; year one: closing tree on the 15 sweep-9 hand-overs against
+`round-12/arm-final12`. Baseline table: `round-12/sweep-table.md`.
+
+Progress (kept current; a successor continues from here)
+- 22:40 read spec (directions 27, 27a), round-12 ledger and sweep 12. No process running. Now: year-two cache
+  (`life.ts --save-y2 FILE` = write the snapshot at the end of the first day row of year 2 and stop; `--from FILE` =
+  start from such a snapshot). Sweep 12's long runs restored their hand-over from `test-output/viab/cache/*-211d103b.bin`
+  (the round-12 tree's code tag).
+- 22:47 **Year-two cache running** (`round-13/run13.sh`, `jobs13.sh`, `chain.sh`; two slots): frozen base tree
+  `/home/user/scratch-r13-base` = git archive HEAD + the new life.ts options (tools only; src = round-12 tree, code tag
+  211d103b, so the save runs restore sweep 12's own hand-overs). `save` runs: hand-over -> end of the first day row of
+  year 2 (tick 100003 for we #2) -> `round-13/cache-y2/y2-<arch>-<seed>.bin`. we #2 done 22:44: every day row equal to
+  `round-12/sweep-long` (day 11 C 10.956 P 1.634, day 12 spring 12 workers C 8.448 P 1.445). Then `y2` runs from the
+  cache to game day 40 (as sweep 12's UNTIL_DAY=40): base arm on the base tree = the identity check (final hash vs
+  sweep 12's), with `--trace13` (new tool-side observer `tools/sim/lifeTrace13.ts`: hourly laying / carbRamp /
+  prospective rate / weights / deliveries on doy 5-15 = R40 b's trace; daily fate of every egg laid after doy 11 and
+  of every pupa = R40 c's trace). Chained after it: arm A (`/home/user/scratch-r13-A`, frozen 22:47) -> `round-13/y2-A`.
+  Restart: delete stale `*.running`, rerun `chain.sh` lines as in this entry (finished runs are skipped).
+- 22:47 **R40 a + b built** (arm A's tree): `queen.ts colonyHasWintered` (founding year < current year; the lapse
+  moves foundedTick and the calendar anchor together) -> `winterReserveShort` false once wintered;
+  `needs.ts carbStockWanted` = max(targetDays.c x rateC, acc `need.winterPathC`) (set each colony cycle in
+  `economy.ts` from `winterPathC`), read by `forageWant.c` (so by R39's `tendDemand` and the scouts' shortfall) and by
+  `intakeTarget`'s carbohydrate refill (the forage demand). Decision: the winter path enters the want for every colony,
+  not only wintered ones (that is R41's "one function"; first-year colonies are measured in the year-one arm).
+  R40 b: `prospectiveProteinRate` carbRamp = clamp((daysC / target - 0.5) / 0.5, 0, 1), balance
+  `PROSPECTIVE_CARB_RAMP_FROM` 0.5. Tests: new `colony/r40.test.ts` (5: first-year colony of 12 at d28 12 short ->
+  withheld; same colony wintered -> permitted; the lapse keeps the founding year; stock over target but under the path
+  -> want and tenders rise; over both -> unchanged); `prospectiveProtein.test.ts` ramp case restated (0.5 x -> 0,
+  0.75 x -> half, 1 x -> all; at doy 5 so the winter path is 0). Colony folder 78 / 79 files green (red:
+  `workedExample`, known); tsc clean.
+- 22:53 cache: we #2, kd #3, sg #2, pp #3 written (cpv #1 running); base y2 kd #3 running. Note for a successor: never
+  edit `run13.sh` / `jobs13.sh` / `chain.sh` while a slot runs them (bash reads scripts as it goes; the 22:45 edit
+  garbled pp #3's summary line, the run itself is complete). **R41 built** in the live tree (not in arm A's frozen
+  tree): `needs.ts refreshNeedIndices` needC = clamp(1 - C in store / carbStockWanted, 0, 1) (equal to the old
+  days-of-stock form whenever the winter path is under target x rate); its readers are the forage-side urgencies only
+  (nutrientWeights, nutrientShortfalls -> scout floor / small-colony floor, trail strength, activation). Test
+  `colony/r41.test.ts` (4): doy 16 C at 0.3 x path, P over target -> wC > wP; doy 14 C between target x rate and the
+  path -> needC > 0 (was 0) and wC > wP; the same with 6 hungry larvae (mean hunger 1 > LAYING_LARVAL_HUNGER_MAX) ->
+  the split: protein want = its rate (no refill, base weight), carbohydrate want = rate + the refill to the path,
+  wC > wP (protein keeps its rate in the want and the intake target: not starved of foragers, but not preferred); scout
+  floor = missingScoutFloor(12) for a colony under its path knowing no live C source. **27a item 5 done**:
+  `outdoor/scoutSmellReport.test.ts` case 3 goes through `updateInvestigate` (fails when the `rememberSmelled` call is
+  removed: checked by a mutant, restored) + a case "within INVESTIGATE_S no report"; `nest/hygiene26.test.ts` cases 1
+  and 3 removed with a pointer to `burst26.verify` / `hold26.verify` (both green, kept as they are).
+  Probe written for 27a item 3 (`tools/sim/probe/probe-nurse13.ts`, kd #2 hours 48-68, sweep-12 hand-over); it waits
+  for a slot (after the A arm).
+- 23:00 all five year-two caches written (cpv #1 22:55); base y2 runs on both slots (~12 min a run, ~30 s a game
+  day). **27a item 2 traced and built** (live tree): `col.yieldPerForager` = (EW loads delivered by ants on `forage`
+  + YIELD_PER_FORAGER_DEFAULT 1.5) / (EW forager-days of `alloc.actual[forage]` + 1), EMA YIELD_EMA_GD 1 gd. The
+  forager-days already count every assigned forager (waits and failed trips included); the defect is the prior: one
+  forager-day at 1.5 loads kept for good, 12-25 % of the weight at 3-7 foragers, so the estimate sits between the
+  realised yield and 1.5 (5 foragers realising 0.8 read 0.92; sweep finding: 0.96-1.27 against a realised 0.6-1.2).
+  Fix `economy.ts yieldEstimate`: the prior only fills the first forager-day of data (weight max(0, 1 - forager-gd)),
+  then the realised loads per forager-day alone; floor YIELD_PER_FORAGER_MIN and the known-capacity cap unchanged.
+  Test `colony/yield27a.test.ts` (2: the estimate; half-successful foragers -> forage demand x 2 under the cap).
+  Probe for item 4 written (`tools/sim/probe/probe-lost13.ts`, pp #1 sweep-12 hand-over, gd 12.3-14.4) - waits for a
+  slot.
+- 23:03 **identity check, kd #3**: the cached start continued on the base tree to game day 40 gives final hash
+  **0cdbe566 = sweep 12's long run**; every day-row state field equal; event counts differ in 2 of 23 rows (the
+  restored run's first rows: deaths / pellets counted in a different row; state identical). R40 b trace, kd #3 (base):
+  carbRamp (1 x -> 2 x) is already 0.9-1.0 on doy 5-9 and 13-14 in this colony (9 workers, C rate low: 4-8 days of C
+  against a 3-day target), prospective rate 1.3-2.3 loads/gd on doy 6-9 (so NOT ~0 here); it is 0 on doy 10-11 (C fell
+  to 1.8-2.0 days: carbRamp 0, R40 b's ramp 0.24-0.36) and 0 on doy 14 with carbRamp 1 (the winter path). Release share
+  0 on doy 8-12 at potential 13-29 (gates). Late brood kd #3: 2 eggs laid doy 14-15 stall at 0.28-0.58 of their
+  development as the chamber falls 13.7 -> 5.8 C and die `untended` on doy 19 (28 h since tended); 3 pupae of doy 6-7
+  eclosed.
+- 23:15 **identity check, we #2**: final hash a502b493 = sweep 12's. **R40 c traced** (base, `round-13/trace13.py
+  y2-base/...woodland-edge-2.json`): the 7 untended pupae of sweep 12's we #2 are the 7 eggs laid on doy 12-13: they
+  hatch on doy 14-15, the larvae grow at a chamber of 14.2 -> 12.0 C and **pupate on doy 16-18 while the chamber falls
+  12.0 -> 10.5 -> 5.4 C** (e.g. id 22276: doy 17 larva 0.79 at 10.5 C, doy 18 pupa 0.07 at 5.4 C): fewer than
+  DIAPAUSE_ENTER_GD 0.5 gd of continuous cold had passed, so `updateDiapause` had not taken them in. As pupae they sit
+  at 0.6-4.8 C with development stopped at 0.04-0.24 and die `untended` on doy 20-21 (tended 0-36 h before; nurses were
+  there, the pupae simply cannot finish). Two later larvae entered diapause on doy 19 (DIAPAUSE_DOY) and died of
+  hygiene / temperature; one pupa of doy 11 died of temperature at -1.8 C on doy 23. That is the ruled defect.
+  **Fixed** (`colony/brood.ts pupationIntoCold`): a larva that would pupate (normal or minim) from DIAPAUSE_DOY on, or
+  while its chamber is at or under DIAPAUSE_COLD_C outside spring, enters diapause instead; a grown larva in diapause
+  waits for the spring exit and pupates then. Decision: "outside spring" because the exit rule only lets a larva out in
+  spring, and a grown larva in a cold spring nest is warming toward its pupation anyway. Test `colony/r40c.test.ts`
+  (4: doy 16 at 11 C -> diapause and stays; doy 16 at 18 C -> pupa; doy 19 at 18 C -> diapause; spring at 11 C ->
+  pupa; case 1 fails without the fix: checked by a mutant). Tree B = A + this (`/home/user/scratch-r13-B`), chained
+  after A (`chainB.sh`), each slot first runs one probe on the base tree: nurse (27a item 3, kd #2) and lost (item 4,
+  pp #1) -> `round-13/probe-*.txt`.
+- 23:20 **identity, pp #3**: final hash 5e144311 = sweep 12's. **sg #2 does not reproduce**: its restored run equals
+  sweep 12's day rows through doy 5 and diverges from the doy-6 row (larval hunger, stores, tasks first), final
+  06f67e0f against 8bec43b5, second winter 19 workers against 13. Being checked: the same restore without `--trace13`
+  to game day 19 (`probe-notrace.txt`, queued before the nurse probe), to tell an observer side effect from a restore
+  gap. The arms all start from the same cache file, so base / A / B remain paired among themselves either way.
+  **Account (base y2, 4 colonies, cpv #1 running)** (`round-13/account13.py y2-base`): laying potential summed over
+  the year 182-197 egg-days a colony (kd #3 138), eggs laid 13-33 (95 of ~700); game days the gates held while the
+  potential was > 0: larval-hunger 8.05, brood-need 7.25, **winter-reserve 6.45**, p-days 5.70, released 5.38, ramp
+  1.67, stage 1.55. Brood lost in year two: untended 21 (egg 11, pupa 10: the autumn pupae of R40 c and late eggs
+  stalled in the cold, kd #3 / sg #2), hygiene 17, starvation 9 (pp #3 7), base 13, flooding 8. Adults: old age 31
+  against 33 eclosions; crushed 7.
+  **Ranking by measured loss (year two):** (1) eggs not laid on warm days: winter-reserve is the one gate a colony with
+  carbohydrate at 1.6-7 x its winter need passes through for nothing (R40 a); the protein gates (larval hunger,
+  brood need, p-days) hold the rest and are protein supply (R40 b's prospective demand, which in these colonies was
+  not ~0 under the old ramp: carbRamp 0.9-1.0 on most days in we #2 and kd #3, 0-0.8 in sg #2); (2) the late brood
+  that pupates into the cold and dies untended (R40 c; 10 pupae); (3) larvae starved with protein short (pp #3, 7).
+- 23:21 **Base y2 arm complete** (`round-13/table-y2-base.md`, `account-y2-base.txt`). Identity: we #2, cpv #1, pp #3,
+  kd #3 give sweep 12's final hashes exactly (a502b493, fee09efe, 5e144311, 0cdbe566); sg #2 equal through doy 5,
+  then diverges (06f67e0f; second winter 19 against the sweep's 13). Base from the cache: second winter 12 / 19 / 22 /
+  15 / 3 (we, sg, cpv, pp, kd) = 71 against 82 at winter 1, >= 1.0 x in 2 of 5; eggs y2 23 / 33 / 27 / 26 / 13 (0 of 5
+  >= 35); R27 carbohydrate at the second winter 5 of 5 (C / need 19.5 / 2.8, 13.2 / 4.3, 22.9 / 7.4, 6.0 / 3.8, 8.4 /
+  1.5). Arm A running (both slots).
