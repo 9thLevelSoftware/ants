@@ -373,3 +373,31 @@ spider eats five ants a day. R37b, added to direction 24 as item 0 (build it fir
   that colony's workers for 0.25 gd. One draw per acquisition, creatures stream.
 - Bar as R37: median <= 1 predation death per colony over the 15 runs to winter, no colony loses more than a quarter
   of its workers to predation in one game day. Measured in direction 24's one arm (item 6), no arm of its own.
+
+## Direction 25 (integrator, Nov 22 16:28 UTC) — round 11: R35b, then R38, one arm; no sweep ran after round 10
+
+Round 10 closed at 16:04 with "R38 NOT BUILT"; I stopped the sweep that followed it (six of its runs exist under
+`round-10/sweep/`, tree 465af0d7 = R35 + R37 + R37b + LV1 + item 4; they are not a sweep and are not a base). Your
+base is `round-10/arm-final` (the 15 sweep-9 hand-overs on tree 880fe1af: R35 + R37 + LV1 + item 4, no R37b) and
+`round-10/long-final`. The live tree = that + R37b (unit-tested, unmeasured). Round 10's closing table is accepted:
+workers at winter 208 -> 222, viable 9 -> 10, predation 41 -> 22 (R37's bar met), but **median P intake 0.478 ->
+0.298, larvae starved 1 -> 16, hunting trips 1167 -> 783, R34 >= 1.0 x 3 -> 1 of 5**. R35 bought carbohydrate with
+protein. Order:
+
+1. **R35b: a nutrient at full need gets its full weight, both ways.** R35 point 3 gave carbohydrate
+   `wC = base + needC x max(1 - sP, needC) x gain` and left `wP = base + needP x sP x gain`: with the prospective
+   term capped, sP is small in a small colony (its protein rate is a fraction of its carbohydrate rate), so a colony
+   starving of protein weighs protein at 0.2 + sP x 2, under carbohydrate at any need. Make it symmetric:
+   `wP = base + needP x max(sP, needP) x gain`. Test beside R35's (needP 1 at sP 0.1 -> full weight; needP 0 -> base;
+   both needs 1 -> equal weights). **Its own small arm:** the four colonies of `arm-final` whose P intake fell most
+   against sweep 9 (we #2 and we #1 among them), to winter, live tree (R37b + R35b) against `arm-final`. Read protein
+   (P intake / need, hunting trips, larvae starved) as R35b's and predation as R37b's; carbohydrate must not fall
+   under 1.0 of need in a colony where it was over. If C falls so, stop and write the numbers: I rule.
+2. **R38 in full** (direction 24, items 1-5, in its order; R37b is item 0 and is built).
+3. **One arm:** the tree with R35b + R37b + R38 against `arm-final` on all 15 to winter (direction 24 item 6's
+   read-outs, plus R37's bar). No long runs in the round: the sweep runs them.
+4. **If there is room, measurement first:** brood hygiene deaths (kd #3 long: 19 of 32 year-two eggs; we #2: 9 eggs in
+   year one): what dirties the chamber, which task should have cleaned it and why it did not. Fix only a defect.
+
+Laying gates stay as they are this round. **Re-read the tail of this file and of your ledger section each time an
+arm finishes and before you close**: round 10 saw directions 24 and 24a an hour late.

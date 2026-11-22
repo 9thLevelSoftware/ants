@@ -1040,3 +1040,25 @@ notice / catch, or after 5 s walked inside by a scout or forager; (4) torn carri
 known source with food left continue; (5) kd #2's unreached medium carcass traced (drop reachability); (6) one arm on
 all 15 vs `arm-final`. Laying gates unchanged this round. To be built in round 10 before it closes; if the round
 result's notes start with "R38 NOT BUILT", stop the workflow before sweep 10 and launch round 11 with R38.
+
+## Nov 22 16:28 UTC — round 10 closed without R38; sweep 10 stopped; round 11 launched
+
+Round 10 result saved (`docs/design/tasks/reviews/colony-life-round-10.json`). Closing pair on the 15 sweep-9
+hand-overs (tree 880fe1af: R35 + R37 strike share + LV1 + sweep-9 defects; base = sweep 9's own runs):
+workers at winter 208 -> 222 (better 9 / worse 3 / equal 3), viable 9 -> 10 (we 2, sg 2, pp 3, cpv 2, kd 1: bar not
+met at the kitchen door), predation 41 -> 22 (median per colony 2 -> 0, worst one-day share 0.55 -> 0.14: R37's bar
+met), adult deaths 60 -> 37; **median P intake 0.478 -> 0.298, larvae starved 1 -> 16, hunting trips 1167 -> 783**;
+long runs: spring 4 -> 5 of 5, **R34 >= 1.0 x 3 -> 1 of 5**. R35 bought carbohydrate with protein.
+R37b (predator satiation, ramp share per acquisition) is built and unit-tested, unmeasured. R38 not built (the
+engineer saw directions 24 / 24a only when its final arm ended).
+
+Sweep 10 was stopped 23 minutes in (workflow `w8ztuxf6y` stopped; six runs under `round-10/sweep/` kept, not a
+sweep): it would have judged a tree without R38.
+
+**R35b (direction 25):** `wP = base + needP x max(sP, needP) x gain` (the symmetric twin of R35 point 3), own arm of
+four colonies. Round 11 order: R35b -> R38 (direction 24) -> one arm on all 15 against `round-10/arm-final` ->
+hygiene deaths if room. Then the independent sweep (15 + five long runs).
+
+Recovery after a restart or limit: journal of the new workflow (id in the next entry); round result present ->
+relaunch wf-life.js with firstRound 11 + firstRoundResult; cut off -> firstRound 11 with a note that the ledger's
+"## Round 11" progress and directions 24, 24a, 25 say what is in the tree.

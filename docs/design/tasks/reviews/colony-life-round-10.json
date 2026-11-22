@@ -1,0 +1,94 @@
+{
+ "summary": "R38 NOT BUILT. Round 10 is closed, and the round-10 ledger section is complete. What it built:\n- R35, all six points as direction 22 rules them.\n- R37 (an incomplete fix, see below) and R37b. R37b is the satiation and ramp-per-victim rule from direction 24a. Its tests pass, but it has not been measured in a life run: directions 24 and 24a, with R38 inside them, were added while the final arm ran, and I only saw them at 15:58.\n- LV1, a fix found on R35's woodland-edge #1 regression: a liquid trip is now valued at what the source will hold on arrival, not a full crop.\n- All four sweep-9 defects (item 4).\n- New measuring tools for items 5 and 23a: protein arrivals by kind, who kills each worker, laying gates per day, herds, prey patches and ground coverage.\n\nFor R36, I measured kitchen-door protein and did not raise any flow. The kitchen door gets more protein arriving than the outdoor maps (median 0.96 loads/gd against 0.40). Its colonies fail to find the protein or to take it away.\n\nR37 diagnosis: all 20 recorded predation deaths in suburban-garden #2 and playground-park #2 and #3 come from colony-range hunters at a ramp of 0 to 0.3. The cause is that R25's ramp scaled only a fixed per-world siting draw.\n\nFinal paired comparison on sweep 9's 15 hand-overs (sweep 9's own runs serve as base, because a cached restore reproduces them to the same final hash):\n- Workers at winter rose from 208 to 222 (9 better, 3 worse, 3 equal), and viable colonies from 9 to 10.\n- Predation fell from 41 to 22 deaths; the median per colony went from 2 to 0, so R37's bar is met.\n- Median protein intake over need fell from 0.478 to 0.298, and larvae starved rose from 1 to 16. That is R35's cost.\n- Long runs: the spring check passes on 5 of 5, but R34 (second winter at least the first) fell from 3 of 5 to 1 of 5.",
+ "causesRanked": [
+  "1. Carbohydrate stuck behind a protein store (R35's case). In sweep 9 it accounts for 4 of the 6 non-viable colonies, and two long runs lost the colony in year two. With R35, the long runs of playground-park #3 and suburban-garden #2 reach the second winter with 16 and 14 workers instead of 6 and 2. In the 15-colony comparison, viable colonies rose from 9 to 10 and workers at winter from 208 to 222. The cost is protein: median intake over need fell from 0.478 to 0.298 and larvae starved rose from 1 to 16.",
+  "2. Predation by colony-range hunters at a colony-size ramp near 0. Sweep 9 had 41 deaths, and all 20 deaths recorded in suburban-garden #2 and playground-park #2 and #3 are colony-range hunters. R37 brought the total to 22 and the median per colony from 2 to 0, but playground-park #3 still lost 8 workers to one spider at its only herd, which R37b addresses.",
+  "3. Protein that arrives but is not found or not taken. On kitchen-door #1, 3 of a found 120 P carcass reached home. On kitchen-door #2, none of 8.5 P was found. Prey patches that workers walked into were never learnt, and woodland-edge #1 never learnt its one patch under R35, so its protein intake fell from 0.64 to 0.06. Measured only; ruled into R38, which was not built.",
+  "4. Aphid herds never found. Their scent reaches only 6 BU and the herds lie 200 BU or more out (playground-park #3, suburban-garden #3). Measured only; this is R38 item 2.",
+  "5. Year-two brood lost to hygiene: kitchen-door #3's long run lost 19 of its 32 year-two eggs. Measured only."
+ ],
+ "fixes": [
+  {
+   "cause": "R35: the prospective protein demand was costing colonies their carbohydrate (direction 22, six points).",
+   "files": [
+    "src/sim/colony/queen.ts",
+    "src/sim/colony/needs.ts",
+    "src/sim/colony/economy.ts",
+    "src/sim/colony/stores.ts",
+    "src/sim/colony/allocation/demand.ts",
+    "src/sim/colony/allocation/targets.ts",
+    "src/sim/colony/allocation/index.ts",
+    "src/sim/balance/colony.ts",
+    "src/sim/colony/testkit/index.ts"
+   ],
+   "test": "src/sim/colony/prospectiveProtein.test.ts, 7 cases: the workforce bound, the carbohydrate ramp, the winter path on days 5, 14 and 21, the sugar weight at full carbohydrate need, spoilage not counted as appetite, and the tenders' head-count equal with and without the prospective term. economy.test and larder.test were restated, with the reasons written next to them.",
+   "beforeAfter": "In R35's own arm of 6 sweep-9 colonies, workers at winter rose from 94 to 100 and viable from 0 to 2 (woodland-edge #3, kitchen-door #1), but woodland-edge #1 regressed (protein intake 0.64 to 0.03). Long runs from sweep-8 hand-overs, second winter: playground-park #3 6 to 16, suburban-garden #2 2 to 14, woodland-edge #2 19 to 12."
+  },
+  {
+   "cause": "R37: the colony-size ramp only scaled the siting draw, which is fixed per world and kind. A small colony could get a full-strength hunter.",
+   "files": [
+    "src/sim/ecology/creatures/colonyRange.ts",
+    "src/sim/ecology/creatures/attack.ts"
+   ],
+   "test": "src/sim/ecology/creatures/colonyRangeStrike.test.ts (3 cases)",
+   "beforeAfter": "Over the 15 final pairs: predation deaths 41 to 22, median per colony 2 to 0, worst one-day share of workers 0.55 to 0.14. Suburban-garden #2: 7 to 0. Playground-park #3: 7 to 8, because the spider sitting at the herd simply strikes again after each miss."
+  },
+  {
+   "cause": "R37b: a spider fed for 120 s and hunted again, and the ramp was not applied when a hunter picked its victim.",
+   "files": [
+    "src/sim/ecology/creatures/predator.ts",
+    "src/sim/balance/creatures.ts"
+   ],
+   "test": "src/sim/ecology/creatures/sated.test.ts (3 cases)",
+   "beforeAfter": "Not measured in a life run. It was built after the final arm, and direction 24a measures it in R38's arm."
+  },
+  {
+   "cause": "LV1: a liquid trip was valued as a full crop whatever the source still held. A flower with 0.05 units scored as if full.",
+   "files": [
+    "src/sim/ants/behaviours/outdoor/choice.ts"
+   ],
+   "test": "src/sim/ants/behaviours/outdoor/liquidOnArrival.test.ts: both cases fail on the old choice.ts and pass now. The App E 18 test (appendixE23) was restated to count the ten foragers' trips only.",
+   "beforeAfter": "Only in the final pair; no arm of its own. Woodland-edge #1's protein intake stayed low (0.06), because its real problem is that the colony never learns its prey patch."
+  },
+  {
+   "cause": "The four sweep-9 defects (item 4): the tend draft could pick a worker who cannot nurse; the seal check read a long open shaft as sealed because its flood stopped at a radius; a new Math.hypot in sealGuide.ts; and a long founding test that would not fail if the seal fixes were reverted.",
+   "files": [
+    "src/sim/ants/behaviours/nest/tendDraft.ts",
+    "src/sim/colony/index.ts",
+    "src/sim/colony/allocation/index.ts",
+    "src/sim/colony/founding/leak.ts",
+    "src/sim/colony/founding/dig.ts",
+    "src/sim/colony/founding/sealGuide.ts",
+    "src/sim/colony/founding/startPose.long.test.ts"
+   ],
+   "test": "tendDraft.verify.test and sealLongShaft.verify.test now pass (both failed before). The founding folder passes 25 of 25 files. startPose.long now requires every start pose to seal and at least 4 of 5 to hand over with a worker out on each archetype; it was not re-run.",
+   "beforeAfter": "These act only on foundings or on species other than Lasius, so they do not change cached-hand-over runs."
+  }
+ ],
+ "verification": [
+  "npx tsc --noEmit is clean on the live tree.",
+  "Folder tests, one worker at a time: colony 50 of 51 files, the failing one being workedExample with the same value as on the base tree. Founding 25 of 25 (3 long tests skipped). Behaviours/nest 31 of 33 (sfaReview.verify and stall.soak, both failing on base too). Behaviours/outdoor 31 of 32 (removal.verify, failing on base too). Ecology/creatures 32 of 32, including R37b. docs-final 8 of 8.",
+  "Base runs of playground-park #3, suburban-garden #3, kitchen-door #1 and #2 from the cached sweep-9 hand-overs end with the same final hash as sweep 9's own runs, so sweep 9's runs serve as the base arm.",
+  "Paired final arm on all 15 sweep-9 hand-overs to winter, plus 5 long runs to day 40: tables in test-output/colony-life/round-10/table10-final.txt, pred10-final.txt, final-table.md and long-final/longrun-table.md.",
+  "R35 arm: arm-r35/ (6 colonies, in r35-table.txt) and long-r35/ (3 long runs); predation diagnosis runs in arm-base-diag/."
+ ],
+ "next": [
+  "Build R38 (direction 24) in full: scouts for a missing nutrient, a herd's scent radius growing with the herd, prey patches learnt, torn carrion worth carrying plus why trips to a found carcass stop with food left, and the reachability trace of kitchen-door #2's carcass. Then run its one arm against round-10/arm-final, which also measures R37b.",
+  "Look at R35's protein cost (median intake 0.30, larvae starved 16; woodland-edge #2 lost 9 larvae) together with R38's discovery fixes before changing any of R35's terms.",
+  "Year-two brood hygiene: kitchen-door #3's long run lost 19 of 32 year-two eggs, and woodland-edge #2 lost 9 eggs to hygiene in year one."
+ ],
+ "gddDeviations": [
+  "R35: GDD 02 \u00a75.5. On the forage side the protein rate has no spoilage term, and the carbohydrate weight is base + needC \u00d7 max(1 \u2212 sP, needC) \u00d7 gain. The prospective demand is capped by the workforce and ramped by carbohydrate in store and the path to the winter need. GDD 02 \u00a76.3: the forage demand that only the prospective term asks for is filled last. Recorded in DEVIATIONS.md.",
+  "R37 and R37b: GDD 05 \u00a75 / R25 and \u00a72.4. A colony-range hunter's strikes, and its choice of a player worker as victim, succeed at the colony-size ramp's share. Hunters stay sated after a feed (SATED_GD). Recorded in DEVIATIONS.md."
+ ],
+ "notesForIntegrator": [
+  "R38 NOT BUILT. Directions 24 and 24a were seen only at 15:58, when the final arm finished. R37b is built and its unit tests pass, but it is unmeasured: it is in the live tree but was not in the final arm's frozen tree.",
+  "Sweep 9's own run files are an exact base for cached-hand-over comparisons (same final hash), so base arms do not need re-running while the base tree is unchanged.",
+  "Kitchen-door #1's large carcass: each trip carries one torn piece, about 0.09 P (unitBulk 500), so the colony took 3 of 120 P before it rotted. This is R38 item 4's question.",
+  "Since the round-9 commit, HEAD carries the round-10 snapshot; the remaining working-tree changes are R37b, the deviations row, the ledger and the deleted probe file.",
+  "Every number for a colony in the final arm reflects R35, R37, LV1 and item 4 together; R37 and LV1 have no arm of their own, as the one-arm-per-change budget allowed."
+ ],
+ "triedAndReverted": [
+  "Nothing was reverted. The base arm was stopped after 4 runs once their final hashes matched sweep 9's runs. R37's per-strike share is kept but proved insufficient against a spider sitting at a herd (playground-park #3), so R37b was added on top."
+ ]
+}
