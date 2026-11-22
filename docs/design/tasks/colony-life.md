@@ -287,7 +287,7 @@ sugar (kd #1 P intake 0.125, kd #2 0.025). With both mended the bar is in reach,
 Budget: one arm per change; items 1-4 are the round. Close with the 15 paired runs to winter (sweep 9's hand-overs,
 base = HEAD at the round's start, final = live) and the five long runs of the final tree against R34.
 
-## Direction 23a (integrator, Nov 22 13:46 UTC) — item 5's table also covers the herds and the ground the colony sees
+## Direction 23a (integrator, Nov 22 13:44 UTC) — item 5's table also covers the herds and the ground the colony sees
 
 Your 13:34 trace is accepted: the tenders were not starved, the herds were never found (0 of 45 known after 48 h; one
 herd within 300 BU, found only inside its 6 BU odour), and the allocator's fill order is a second, latent cause.
