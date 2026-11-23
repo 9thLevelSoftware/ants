@@ -24,6 +24,7 @@ import { broodTempC, chamberRh } from './envAdapter';
 import { devRate, larvaFood, stageDu } from './life';
 import { daysOfStock } from './needs';
 import { countBroodDeath, countStageChange } from './population';
+import { restingPointUnder } from './wasteFall';
 
 // Imported bindings are accessor reads under Vite's SSR module runner (tests, headless tools); the hot per-entity
 // steps below read these module-local copies instead.
@@ -136,8 +137,10 @@ export function setBroodDiapause(b: Brood, on: boolean): void {
 
 function spawnWaste(sim: Sim, b: Brood, wasteKind: 'meconium' | 'cocoon' | 'brood-corpse'): void {
   const bulk = wasteKind === 'brood-corpse' ? WASTE_BULK['brood-corpse'][b.stage] : WASTE_BULK[wasteKind];
+  // dropped where the brood is; it falls to the floor if nothing holds it there (round 14, wasteFall.ts)
+  const pos = restingPointUnder(sim, b.pos) ?? b.pos;
   _spawnItem(sim, {
-    kind: 'waste', pos: b.pos,
+    kind: 'waste', pos,
     init: { wasteKind, bulk, nestId: b.nestId, chamberId: b.chamberId, inNest: b.chamberId >= 0, colony: b.colony },
   });
 }

@@ -255,12 +255,6 @@ export const LAYING_SUPPLY_HORIZON_GD = 1.5;
  */
 export const PROSPECTIVE_P_PER_WORKER = 0.5;
 /**
- * Ruling R40 b (direction 27, replaces R35 point 2's ramp from 1 x to 2 x the target): the prospective protein demand
- * ramps in with the carbohydrate in store from this share of its stock target (in days of stock) to all of it at the
- * target. R39's tenders hold carbohydrate near 1 x the target, where R35's ramp asked for nothing.
- */
-export const PROSPECTIVE_CARB_RAMP_FROM = 0.5;
-/**
  * Ruling R35 point 2: the carbohydrate a colony keeps on the path to its winter need before it asks protein for eggs
  * not yet laid ramps in from this day of the year (nothing asked in spring) and reaches the whole winter need
  * PROSPECTIVE_WINTER_RAMP_DAYS later (half of it by doy 14, all of it by doy 21).
@@ -432,6 +426,14 @@ export const SCOUT_SHORT_KNOWN_FRAC = 0.1;
 export const TEND_HEADROOM = 1.25;
 export const TEND_KEEP = 1;
 export const SCOUT_MIN_ACTIVITY = 0.1;
+/**
+ * Colony-life round 14 (colony/wasteFall.ts): a waste item or corpse lying in the nest with nothing under it within
+ * WASTE_SUPPORTED_BU (under a ceiling, on a wall) falls straight down to the first surface within WASTE_FALL_MAX_BU.
+ * WASTE_SUPPORTED_BU is below the haulers' reach above a surface (nestwork REACHABLE_ABOVE_BU 0.5), so what stays put
+ * is reachable.
+ */
+export const WASTE_SUPPORTED_BU = 0.25;
+export const WASTE_FALL_MAX_BU = 6;
 /**
  * Ruling R42 (colony-life direction 28): no worker starts an outdoor trip while the surface air at the entrance gives
  * a thermal speed multiplier under this (Lasius: about 10.8 C on SPEED_CURVE; direction 28b lowered 0.5 -> 0.3), and

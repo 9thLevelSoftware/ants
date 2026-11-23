@@ -5333,3 +5333,106 @@ Progress (kept current; a successor continues from here)
   R44, R41, R40 a's want and R40 b out of the live tree (round-12 forms), keep R40 a's gate, R40 c, R42, the point-field
   and mound-mask fixes; then the confirming year-one arm of 15; Part B accepted on the 36000-tick check; Part C base
   arm on the fixed tree.
+- 06:05 **INTEGRATOR NOTE read** (direction 29a, 06:00): bisect stopped (r40a's three control runs killed; r40b not run),
+  no pairs. **Bisect table as it stood** (`round-14/table-off.md`, `table14off.py`; cell = winter C / R27 need, viable,
+  workers; all runs to winter from the round-10 hand-overs on `/home/user/scratch-r14-off`):
+  | arm | we #3 | sg #2 | kd #3 | kd #2 | we #1 | cpv #1 |
+  |---|---|---|---|---|---|---|
+  | v3 all on (`arm-final13c`) | 3.3/6.4 MISS v0 w18 | 3.3/4.9 MISS v0 w21 | 3.6/4.5 MISS v0 w11 | 10.1/4.1 v0 w17 | 20.4/6.5 v1 w27 | 22.0/5.5 v1 w22 |
+  | round 12 (`arm-final12`) | 13.9/5.5 v1 w15 | 7.1/4.5 v1 w19 | 6.4/4.1 v1 w10 | 11.1/4.7 v1 w19 | 15.0/5.3 v1 w20 | 22.0/5.1 v1 w21 |
+  | d33 off | 11.1/6.5 v1 w18 | 4.4/4.7 MISS v0 w19 | 7.9/4.2 v1 w11 | 9.6/4.5 v1 w19 | 15.2/5.8 **v0** w23 | 23.9/5.4 v1 w22 |
+  | r44 off | 2.5/6.4 MISS v0 w18 | 2.0/4.2 MISS v0 w18 | 8.7/4.4 v1 w12 | 9.2/4.3 v1 w17 | 23.0/6.8 v1 w28 | 21.3/4.8 v1 w19 |
+  | r42 off | 4.5/6.4 MISS v0 w17 | 1.3/4.7 MISS v0 w20 | 3.9/4.0 MISS v0 w10 | 8.1/4.1 v1 w17 | 24.9/7.1 v1 w28 | 21.8/5.1 v1 w21 |
+  | r41 off | 4.6/6.3 MISS v0 w17 | 3.1/4.5 MISS v0 w19 | 5.7/4.5 v1 w11 | 10.1/4.1 v0 w17 | 23.2/6.2 v1 w25 | 19.2/6.0 v1 w22 |
+  | r40a off | 13.1/6.3 v1 w18 | 2.9/4.4 MISS v0 w19 | 3.5/4.3 MISS v0 w11 | killed | killed | killed |
+  By the rule no switch-off passes (d33 off: 2 of 3 restored, control we #1 loses viability, starvation stage worse than
+  lean 1.60 gd). R42 off restores none of the three (the hypothesis "R42 ends the late carbohydrate trips" does not hold
+  on these runs); kd #3 and kd #2 flip with most switches (noise).
+- 06:15 **Direction 29a items 2-3 built (live tree):** D33, R44, R41, R40 a's want half and R40 b taken out, code back to
+  round 12's form: `colony/needs.ts` and `colony/economy.ts` = round 12's files (no `carbStockWanted`,
+  `WINTER_PATH_C_KEY`, `yieldEstimate`); `colony/allocation/demand.ts` = round 12's file + R42's three hunks (import,
+  `outdoorOk` / `workable`, the zeroing block) - `KnownCapacity.antsC / antsP` removed (computed each cycle, never
+  persisted); `colony/queen.ts` carbRamp back to clamp(daysC / target - 1, 0, 1), `colonyHasWintered` gate kept;
+  `balance/colony.ts` `PROSPECTIVE_CARB_RAMP_FROM` removed. Tests: `r41`, `r44`, `yield27a` removed; `r40.test` keeps
+  its three gate cases (the want cases removed); `prospectiveProtein.test` and `outdoor/appendixE23.test` back to round
+  12's files (both were restated for the removed rules). Kept: R40 a's gate, R40 c, R42 0.3 / 0.25, the point-field
+  fixes, the mound-mask fix, the round-13 tooling and restated tests (homeRange, scoutSmellReport, hygiene26).
+  `DEVIATIONS.md`: R40 (a's want half and b withdrawn), R41 and D33 withdrawn, an R44 row added as withdrawn (round 13
+  had not added it). tsc clean; colony folder 79 / 80 files (red `workedExample`, known).
+  **Part B accepted** (direction 29a item 5): `probe-restore-sg2-r12fixed.txt` = **equal for 36000 ticks** (round-12
+  copy + the mask fix, sg #2 saved at tick 99748). The life-state save -> load test it asks for: next.
+- 06:17 **Year-one confirming arm running**: tree `/home/user/scratch-r14-A` (frozen copy of the live tree, hash
+  **49bcb915** = sha256 of src/sim, src/worldgen, src/core, tools/sim *.ts without tests and probes,
+  `round-14/treeA-hash.txt`), 15 round-10 hand-overs to winter, three slots (`jobs-y1A-{0,1,2}.txt`) ->
+  `round-14/arm-y1A`; table `round-13/table13y1.py ../round-12/arm-final12 ../round-13/arm-final13c ../round-14/arm-y1A`.
+- 06:40 **Part B test added** (direction 29a item 5): `nest/moundRestore14.test.ts` - a pile of 1200 pellets relaxing
+  over 48 open pits (breach records), nest system only: unsaved run 30 ticks in (mask cached), snapshot -> restore,
+  both 600 ticks on: equal state hash. Red with the old hole probe (`3f8a7c44` vs `aad2f964`), green with the fix.
+  Folder tests on the live tree (one folder at a time, three life runs alongside, so timing tests are noise): colony
+  79 / 80 files (`workedExample`, known); nest 61 / 64 (`escapeDig` "open after 870 ticks <= 625",
+  `flood/readersCost.verify` "30 builds <= 7" - both red on the round-12 tree and on v3 too, not this round's;
+  `architect/layout` timing); behaviours/nest 37 / 40 (`perf` timing; `sfaReview.verify`, `stall.soak` known);
+  locomotion 27 / 28 (`perf` timing); tests/docs 1 / 1 (DEVIATIONS rows check green). **New red: `outdoor/removal.verify`**
+  ("visits per ant <= 2" after the spill is removed: one ant 3): green on the round-12 tree and on v3, red with the
+  round-12 economy + the wide point fields (also red with v3's `nests.ts`, so not this round's point-field edit).
+  Trace: the 3-visit ant is a **scout on `scout.return` that, after a `flee.run` interruption 201 BU from the entrance,
+  walks back out (entrance distance 201 -> 337 BU in 30 s) and crosses the old spill's zone 3 times in 52 s** -
+  `flee.ts endFlee` -> `startReturn` sends her the wrong way. A homing defect, not traced further this round (lead for
+  round 15); the test is left as it was.
+- 06:40 **Year-one arm, 9 of 15** (`round-13/table13y1.py ../round-12/arm-final12 arm-final13c ../round-14/arm-y1A`):
+  viable 6 of 9 (sg #2: C 0 at winter, starvation stage 3.4 gd; kd #2: C 1.20 / 4.23; pp #3: C 7.45 / 8.13, failed in
+  round 12 too); we #3 and kd #3 back over R27 (18 and 14 workers); median P 0.457; no worker lost in 9 of 9. Viable
+  >= 14 can no longer be met (at most 12). By direction 29a item 4: the failing colonies rerun with R42 off, queued
+  after the arm's slots 0 / 1 (`/home/user/scratch-r14-A-r42off` = tree A with `tooColdToDepart` / `tooColdToStayOut`
+  false; `jobs-r42off-{0,1}.txt` -> `round-14/arm-y1A-r42off`); colonies failing in the last 6 runs get added. Slot 2
+  then runs the Part C item 2 hygiene trace (`hyg-cpv1.sh`: cpv #1 year two from the cache on
+  `/home/user/scratch-r14-A-dose` = tree A with LARVA_P_REQ 0.8, probe-hygiene14 -> `hyg-cpv1-dose.json`).
+- 06:50 **Year-one arm complete** (tree A 49bcb915; `round-14/table-y1A.md`):
+  | arm | workers | viable | median P | median C | hygiene | R27 met | runs no lost | lost | larvae starved | trips C / P | too-cold | curfew |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | arm-final12 (round 12) | 266 | 14 | 0.482 | 1.386 | 9 | 14 | 11 | 4 | 7 | 502 / 49 | 0 | 236 |
+  | arm-final13c (v3) | 273 | 11 | 0.370 | 1.302 | 10 | 12 | 13 | 2 | 3 | 537 / 38 | 102 | 157 |
+  | **arm-y1A (tree A)** | **266** | **12** | **0.456** | **1.373** | **11** | **12** | **14** | **2** | 5 | 563 / 69 | 117 | 158 |
+  Bars (direction 29): viable >= 14 **NOT met (12)**; R27 kept **NOT met** (sg #2: C 0 / 4.62 with a 3.4 gd starvation
+  stretch; kd #2: 1.20 / 4.23; pp #3 failed in round 12 too: 7.45 / 8.13); runs without a lost worker >= 12 met (14);
+  median P >= 0.45 met (0.456). we #3 (18 workers) and kd #3 (14) are back over R27. sg #2 day rows (`daysC.py`):
+  doy 13-17 its foragers bring 2.3-2.5 P a day against 0.5-1.8 C while C stands at 0.8-1.9 (round 12 on the same
+  hand-over: 3.5-4.1 C a day on doy 14-16, C 4.5 -> 8.1). By direction 29a item 4 the three failing colonies run with
+  R42 off now (`arm-y1A-r42off`).
+- 06:52 **R42-off reruns of the failing colonies** (direction 29a item 4; `/home/user/scratch-r14-A-r42off`,
+  `round-14/arm-y1A-r42off`): **pp #3: R42 is what costs it** - R27 7.45 / 8.13 (viable 0) -> **14.09 / 7.56 (viable
+  1)**; with the gate on, C delivered on doy 15-18 is 3.41 / 3.13 / 1.72 / 1.55 against 4.89 / 4.02 / 0.94 / 3.50 off,
+  12 trips end too-cold (0 off). **sg #2: not R42** - 0 / 4.62 -> 1.80 / 4.39, still short (its foragers bring protein
+  on doy 13-17 while C is under 2, above). **kd #2: not R42** - 1.20 / 4.23 -> 2.76 / 3.97, still short. So Part A stops here for the ruling (item 4): with R42 off
+  pp #3 is viable, which makes 13 of 15, still under 14; sg #2's shortfall is the protein-trips-at-low-carbohydrate
+  pattern of round 13 (now with round 12's demand rules), not the cold. Going on with Part C on tree A as item 4 allows
+  (base arm `round-14/y2-baseA`, queued; hygiene trace running).
+- 06:54 sg #2 trace (direction 29a item 4, "report the failing colonies' traces"): forage trips by outcome, round 12 ->
+  tree A -> tree A R42 off: `crop-full` (sugar loads) 16 -> 2 -> (5 forage:C ok), `item-collected` (prey carried) 18 ->
+  39; tree A's 9 C forage trips: 7 end `too-cold not-reached` or `untracked not-reached`; tend C trips 19 / 16 / 18
+  (9 / 10 / 11 ok). Task time: idle 31.6 -> 57.4 worker gd (R42 off: 9.8), forage 43 -> 28.5 (R42 off: 61). So in
+  tree A sg #2's sugar comes almost only from its herds; its forage trips go to prey, and R42 keeps many foragers in
+  (idle 57 gd); with R42 off it forages twice as long and still brings too little sugar (C 1.8 / 4.4).
+- 06:58 **Part C item 2 traced and fixed (live tree).** Hygiene trace `round-14/hyg-cpv1-dose.json` / `.txt` (`hyg14.py`;
+  cpv #1 year two from the cache, tree A at LARVA_P_REQ 0.8): 16 -> 24 workers at the second winter (winter 1: 19),
+  35 eggs all laid in the royal chamber 2164, brood deaths base 12, hygiene 2, flooding 1, untended 1, temperature 1
+  (this trajectory does not repeat round 13's 21 egg hygiene deaths). But **the royal chamber holds 8 waste items all
+  year** (4 meconium, 2 cocoons, 2 dead brood; dirty brood-chamber hours on doy 2-4 and 14-18) while the 2-3 haulers
+  sit in `haul.claim` 59-145 state-hours a day. Probe `probe-waste14.ts` (in the dose copy): all 8 lie at one point
+  (-0.1, +1.0, -0.1) BU from the chamber centre, **0.11 mm under the ceiling, 8.06 mm above the floor**, made at ticks
+  28803-44871 (the founding and first brood of year one); `onSurface` false (nothing below within REACHABLE_ABOVE_BU)
+  -> `haulPriority` 0 -> no haul job and no nurse waste job (`findChamberWaste` reads the same candidates). Every egg
+  laid in that chamber lies among 8 waste items against a tolerance of 3; kd #3's dirty royal chamber (round 13) is
+  most likely the same. **Fix** `colony/wasteFall.ts`: waste is spawned on the floor under the brood
+  (`restingPointUnder`: straight down to the first surface within WASTE_FALL_MAX_BU 6 when nothing holds it within
+  WASTE_SUPPORTED_BU 0.25), and once a colony cycle (`economy.ts closeColonyCycle`, before the waste census) loose waste
+  and corpses in the colony's nests that hang where nothing holds them fall the same way (so saves and caches that
+  hold such items are cured too). Balance `WASTE_SUPPORTED_BU`, `WASTE_FALL_MAX_BU` (new, `balance/colony.ts`). Test
+  `colony/wasteFall.test.ts` (2: an item under the royal ceiling has haul priority 0, falls, then is a haul job on the
+  floor and stays; 8 items under the ceiling with 4 haulers -> chamber under tolerance within 0.5 gd: red without the
+  cycle hook "expected 8 <= 3", green with it). tsc clean.
+  Part C base arm running (tree A, `round-14/y2-baseA`; kd #3 done: 12 min a run).
+- 07:03 **INTEGRATOR NOTE:** Direction 29b is at the tail of `colony-life.md` (ruling on Part A after tree A): R42's
+  depart gate withdrawn; sg #2 / kd #2: day-row comparison first, then one batch on tree A depart-gate-off: R40 c off,
+  round-12 `pointField`, turn-back-only (pp #3, sg #2, kd #2); rule by the batch as written there; then freeze the Part A
+  tree (+ `wasteFall`, accepted) and run Part C's base and dose arms on that tree, not on tree A.

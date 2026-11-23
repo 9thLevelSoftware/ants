@@ -20,9 +20,9 @@ import { colonySlotBit } from '@/sim/entities';
 import { accGet, coreOf } from '../core';
 import { type Census, itemCounts } from '../census';
 import { surfaceActivityOf } from '../envAdapter';
-import { carbStockWanted, forageRates, PROSPECTIVE_P_KEY, targetDays } from '../needs';
-import { queenOf } from '../queen';
+import { forageRates, intakeTarget, targetDays } from '../needs';
 import { tooColdToDepart } from '../coldGate';
+import { queenOf } from '../queen';
 import { digDemand as nestDigDemand, entranceToUnplug, haulPelletLoad } from '@/sim/nest';
 import { herdMarked, herdWorkable, tendersWanted } from '@/sim/ecology/plants/demand';
 import { productionPerGd, tendersNeeded, tendSlots } from '@/sim/ecology/plants/herdMath';
@@ -42,12 +42,8 @@ export const PROSPECTIVE_FORAGE_KEY = 'alloc.prospForage';
  */
 export const SCOUT_FLOOR_KEY = 'alloc.scoutFloor';
 
-/**
- * Known foraging capacity: forager-equivalents and loads per gd (C + P, and each) the known sources can absorb.
- * `antsC` / `antsP`: the forager-equivalents split by nutrient (R44; a source carrying both counts toward each by its
- * share of loads, a prey patch toward protein).
- */
-export interface KnownCapacity { ants: number; loads: number; loadsC: number; loadsP: number; antsC: number; antsP: number }
+/** Known foraging capacity: forager-equivalents and loads per gd (C + P, and each) the known sources can absorb. */
+export interface KnownCapacity { ants: number; loads: number; loadsC: number; loadsP: number }
 
 /**
  * Forager-equivalents one known source keeps busy (GDD 02 §6.2 feedSlots x trips/gd): its slots (SOURCE_SLOT_FORAGERS
@@ -70,7 +66,7 @@ function sourceForagers(sim: Sim, col: Colony, s: FoodSource): number {
  * carbohydrate scout shortfall of 1 for good).
  */
 export function knownCapacity(sim: Sim, col: Colony): KnownCapacity {
-  const out: KnownCapacity = { ants: 0, loads: 0, loadsC: 0, loadsP: 0, antsC: 0, antsP: 0 };
+  const out: KnownCapacity = { ants: 0, loads: 0, loadsC: 0, loadsP: 0 };
   for (const id of col.knownSourceIds) {
     const s = sim.stores.sources.get(id);
     // a renewable source counts while it refills, even when it is empty this minute; a herd's own source holds no
@@ -80,10 +76,7 @@ export function knownCapacity(sim: Sim, col: Colony): KnownCapacity {
     const loads = ants * col.yieldPerForager, tot = s.c + s.p;
     out.ants += ants;
     out.loads += loads;
-    if (tot > 0) {
-      out.loadsC += (loads * s.c) / tot; out.loadsP += (loads * s.p) / tot;
-      out.antsC += (ants * s.c) / tot; out.antsP += (ants * s.p) / tot;
-    }
+    if (tot > 0) { out.loadsC += (loads * s.c) / tot; out.loadsP += (loads * s.p) / tot; }
   }
   for (const h of sim.stores.herds.list) {
     if (!herdWorkable(sim, col, h)) continue;
@@ -110,33 +103,9 @@ function addKnownPatches(sim: Sim, col: Colony, out: KnownCapacity): void {
     const ants = Math.min(PATCH_FORAGERS_MAX, catches / FORAGER_TRIPS_PER_GD);
     const loads = ants * FORAGER_TRIPS_PER_GD * pCatch;
     out.ants += ants;
-    out.antsP += ants;
     out.loads += loads;
     out.loadsP += loads;
   }
-}
-
-/**
- * Ruling R44 (colony-life direction 28a): the forage demand counted per nutrient, worker-equivalents. Each nutrient's
- * forage want over the yield a forager realises, capped by the forager-equivalents of the known sources that carry
- * it, summed; plus at most one forager for the want the known sources cannot take (the single +1 of the old cap). A
- * carbohydrate want with no carbohydrate source known asks for scouts (the scout floor), not for foragers who would
- * then go to the only sources there are (prey patches) and burn carbohydrate on every trip (round 13: we #3 and sg #2
- * brought 0.6-2.7 P a day against 0-2 C with wC > wP while their carbohydrate fell to 0). `prospective` false:
- * without R32b / R35's prospective protein (it is protein want, capped by the protein side only).
- */
-export function forageDemand(col: Colony, known: KnownCapacity, prospective = true): number {
-  const y = Math.max(col.yieldPerForager, 1e-6), w = forageWant(col);
-  const wantC = w.c / y;
-  let wantP = w.p;
-  if (!prospective) {
-    const pros = col.core?.acc[PROSPECTIVE_P_KEY] ?? 0, r = forageRates(col), t = targetDays(col);
-    const plainP = Math.max(0, r.p - pros);
-    wantP = plainP + Math.max(0, t.p * plainP - col.stores.p) / STOCK_REFILL_GD;
-  }
-  wantP /= y;
-  const sideC = Math.min(wantC, known.antsC), sideP = Math.min(wantP, known.antsP);
-  return sideC + sideP + Math.min(1, wantC - sideC + (wantP - sideP));
 }
 
 /**
@@ -150,14 +119,13 @@ export function nutrientShortfalls(col: Colony, known: KnownCapacity): { c: numb
 }
 
 /**
- * Each nutrient's forage want, loads per gd: today's rate plus the refill of the stock wanted over STOCK_REFILL_GD
- * (the forage side's rates, so it carries the season's stock target and R32b / R35's prospective protein; for
- * carbohydrate the stock wanted also covers the path to the winter need, R40 a / R41 carbStockWanted).
+ * Each nutrient's forage want, loads per gd: today's rate plus the refill of the stock target over STOCK_REFILL_GD
+ * (the forage side's rates, so it carries the season's stock target and R32b / R35's prospective protein).
  */
 export function forageWant(col: Colony): { c: number; p: number } {
   const r = forageRates(col), t = targetDays(col), st = col.stores;
   return {
-    c: r.c + Math.max(0, carbStockWanted(col) - st.c) / STOCK_REFILL_GD,
+    c: r.c + Math.max(0, t.c * r.c - st.c) / STOCK_REFILL_GD,
     p: r.p + Math.max(0, t.p * r.p - st.p) / STOCK_REFILL_GD,
   };
 }
@@ -332,9 +300,9 @@ export function computeDemand(sim: Sim, col: Colony, cen: Census, broodAmongWast
   d[T('queen-care')] = q && !q.queen?.founding ? Math.min(QUEEN_CARE_MAX, QUEEN_CARE_BASE + Math.floor(n / QUEEN_CARE_PER_WORKERS)) : 0;
 
   const known = knownCapacity(sim, col);
-  // R44: counted per nutrient (forageDemand); the prospective part is protein and capped by the protein side only
-  const forageFull = forageDemand(col, known);
-  d[T('forage')] = forageDemand(col, known, false);
+  const perForager = Math.max(col.yieldPerForager, 1e-6);
+  const forageFull = Math.min(intakeTarget(col) / perForager, known.ants + 1);
+  d[T('forage')] = Math.min(intakeTarget(col, false) / perForager, known.ants + 1);
   const foragers = cen.byTask[T('forage')];
   const items = itemCounts(sim).byColony.get(col.id);
   d[T('store')] = (foragers >= 1 ? Math.max(1, STORE_PER_FORAGER * foragers) : 0) + (items ? items.spoiled / SPOILED_ITEMS_PER_STORE : 0);

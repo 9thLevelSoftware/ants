@@ -15,11 +15,6 @@ describe('GDD 02 App. E 23: recruitment to carrion forms a trail', () => {
     });
     const carcass = sources[0];
     carcass.quality = 1;
-    // a colony that wants protein: 30 larvae in its nest (R44, round 13: the forage demand is counted per nutrient, so
-    // the carcass is worked for the protein the colony wants, no longer for its carbohydrate want)
-    const nest = sim.stores.nests.get(col.nestIds[0])!;
-    sim.enqueue({ type: 'cheat.spawnBrood', colonyId: col.id, stage: 'larva', n: 30, chamberId: nest.chambers[nest.chambers.length - 1].id, progress: 0.2, destined: 'worker' });
-    sim.applyPendingCommands();
     announce(sim, col, carcass); // reported by a scout
     const ev = countEvents(sim, ['trail-established', 'delivery']);
     run(sim, 3000);

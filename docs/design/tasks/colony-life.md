@@ -944,3 +944,37 @@ winters 60 to 70 against round 12's 71). So:
    Part C's base arm must be rerun on the fixed tree; round 13's year-two numbers are not its baseline.
 6. Part C item 1: accepted as not reproducing; keep the gate test; read the in-game case from the base arm's trace
    as you planned.
+
+## Direction 29b (integrator, 07:03 UTC Nov 23) — Part A ruling after tree A (12 of 15): R42, and what still costs sg #2 / kd #2
+
+Read: tree A (round-12 economy + R42 + R40 c + the fixes) viable 12; with R42 off pp #3 is back (14.09 / 7.56) and
+sg #2 forages twice as long (idle 57 -> 10 worker gd); sg #2 and kd #2 stay short with R42 off although round 12 had
+them at 7.11 / 4.54 and 11.10 / 4.70. sg #2 has failed in every tree of rounds 13 and 14 and only there, so the cause
+is something all of them share and round 12 lacks. With the economy rules and R42 out, that leaves **R40 c**
+(`pupationIntoCold`) and **the wide point field**. R40 c fits the trace: larvae held as larvae keep a protein need
+through doy 13-17, and sg #2's foragers bring 2.3-2.5 P a day while C stands under 2.
+
+1. **R42: the depart gate is withdrawn.** It saves about 2 workers over 15 colonies and costs pp #3 its winter store
+   and sg #2 half its forager time; viability outranks the lost-worker bar. The turn-back half
+   (`tooColdToStayOut`) stays only if run (c) below shows it free; otherwise all of R42 goes (code removed, the
+   `DEVIATIONS.md` row marked withdrawn, `coldGate42.test` removed or cut to what stays).
+2. **Before any run** (model-free, from the runs you have): for sg #2 and kd #2, round 12 against tree A R42 off, per
+   day doy 11-19: larvae, pupae, larvae in diapause, colony P need, P and C delivered, foragers by nutrient. Is the
+   extra protein demand R40 c's held larvae? Are larvae in diapause counted in the protein need and fed?
+3. **One batch, base = tree A with the depart gate off** (three slots, 7 to 9 runs to winter):
+   (a) R40 c off: sg #2, kd #2. (b) round 12's `pointField` (no wide field): sg #2, kd #2. (c) turn-back half
+   on, depart gate off: pp #3, sg #2, kd #2. (d) a + b on sg #2, kd #2 only if neither alone restores both.
+4. **Rule by the batch:**
+   - R40 c restores them: if step 2 shows larvae in diapause are counted in the protein need or fed, fix that
+     (a larva in diapause needs and takes nothing) and keep R40 c; else cut R40 c to its calendar clause (from
+     `DIAPAUSE_DOY` on, no cold-chamber clause); if neither is small, withdraw R40 c.
+   - The point field restores them: it is a correctness fix and stays; report what the reachable nurses now do that
+     costs the sugar (more brood raised -> more protein need?) and leave year one to round 15.
+   - Neither: it is trajectory noise at this sample; record it and go on.
+   - (c): turn-back stays only if all three are no worse than with it off.
+5. **Then freeze the Part A tree** (those rulings + `wasteFall`, which is accepted: a real defect, good find) and run
+   Part C on *that* tree: base arm from the cache, then the dose arms of direction 29 in order. Runs of
+   `y2-baseA` already going may finish, but tree A is not the base of the dose arms. The one year-one arm of 15 is
+   run once, on the round's final tree; bars: viable >= 14 (primary), R27 kept, median P >= 0.45, runs without a lost
+   worker >= 11 (round 12's figure; the >= 12 bar is dropped with the depart gate).
+6. `outdoor/removal.verify` (scout sent the wrong way by `endFlee` -> `startReturn`): accepted as a round-15 lead.
