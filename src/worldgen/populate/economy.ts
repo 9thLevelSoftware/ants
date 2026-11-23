@@ -16,7 +16,7 @@ import {
   CARRION_DROP_PER_PLOT_GD, CARRION_DROP_TIER, CARRION_DROP_VARIANTS, CARRION_MULT, CARRION_SEASON_MULT, CARRION_ZONE_MULT,
   CRUMB_REPLACE_FRACTION, ECOLOGY_TIER, PLOT_BU, SOURCE_CATALOGUE, T1_CARRION_MULT, type SourceDef,
 } from '@/sim/balance';
-import { HERD_INITIAL_OCCUPANCY, HERD_K, HONEYDEW_PER_APHID } from '@/sim/balance/ecology';
+import { HERD_INITIAL_OCCUPANCY, HERD_K, HONEYDEW_PER_APHID } from '@/sim/balance';
 import { HERD_OFFER } from './tuning';
 import type { GenContext } from '../kit/context';
 import { anchorAccess, type AnchorAccess } from './access';

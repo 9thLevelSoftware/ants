@@ -75,7 +75,7 @@ vec3 bdSky(vec3 d) {
 }
 `;
 
-/** Per-material look of the haze: extra rim haze, a haze floor, and silhouette fuzz (hashed alpha); all 0 for the skirt. */
+/** Per-material look of the haze: extra rim haze, a haze floor, and silhouette fuzz (hashed alpha, on the vertices flagged `aBdFuzz`: curved shapes only); all 0 for the skirt. */
 export interface EdgeHazeLook {
   rim: Uniform<number>;
   minHaze: Uniform<number>;
@@ -123,18 +123,18 @@ export function patchEdgeHaze(m: MeshStandardMaterial, u: EdgeHazeUniforms, look
       uBdSunDir: u.uBdSunDir, uBdSunGlow: u.uBdSunGlow, uBdRim: look.rim, uBdMin: look.minHaze, uBdFuzz: look.fuzz, uBdBlend: look.blend, uBdKeepHaze: look.keepHaze ?? { value: 0 },
     });
     s.vertexShader = s.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBdW; varying float vBdKeep; attribute float aBdKeep;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvBdW = (modelMatrix * vec4(transformed, 1.0)).xyz; vBdKeep = aBdKeep;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBdW; varying float vBdKeep; varying float vBdFuzz; attribute float aBdKeep; attribute float aBdFuzz;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvBdW = (modelMatrix * vec4(transformed, 1.0)).xyz; vBdKeep = aBdKeep; vBdFuzz = aBdFuzz;');
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform vec4 uBdBox; uniform float uBdHazeMm; uniform vec3 uBdHorizon; uniform vec3 uBdZenith; uniform float uBdOvercast;
 uniform vec3 uBdSunDir; uniform vec3 uBdSunGlow; uniform float uBdRim; uniform float uBdMin; uniform float uBdFuzz; uniform float uBdBlend; uniform float uBdKeepHaze;
-varying vec3 vBdW; varying float vBdKeep;\n${EDGE_HAZE_GLSL}
+varying vec3 vBdW; varying float vBdKeep; varying float vBdFuzz;\n${EDGE_HAZE_GLSL}
 float bdRimOf(vec3 n, vec3 v) { return 1.0 - abs(dot(normalize(n), normalize(v))); }`)
-      .replace('#include <alphahash_fragment>', `diffuseColor.a *= 1.0 - uBdFuzz * pow(bdRimOf(vNormal, vViewPosition), 3.0);
+      .replace('#include <alphahash_fragment>', `diffuseColor.a *= 1.0 - uBdFuzz * vBdFuzz * pow(bdRimOf(vNormal, vViewPosition), 3.0);
 diffuseColor.a *= uBdBlend > 0.0 ? smoothstep(0.0, uBdBlend, bdOutside(vBdW)) : 1.0;
 #include <alphahash_fragment>`)
       .replace('#include <fog_fragment>', EDGE_FOG_FRAGMENT);
   };
-  m.customProgramCacheKey = () => 'boundary-edge-haze-v7';
+  m.customProgramCacheKey = () => 'boundary-edge-haze-v8';
 }

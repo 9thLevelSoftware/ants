@@ -14,7 +14,7 @@ import { registerMovementOverride } from '@/sim/locomotion/runtime';
 import { perceiveNow, smelledSource } from '@/sim/ants/perception';
 import { fleeBehaviour } from '@/sim/ants/behaviours/outdoor/fleeTask';
 import { feedQueenFromReserve } from '@/sim/colony/queen';
-import { computeDemand } from '@/sim/colony/allocation/demand';
+import { computeDemand, tendKeep } from '@/sim/colony/allocation/demand';
 import { censusOf } from '@/sim/colony/census';
 import { SYSTEMS } from '@/sim/systems';
 import { TICKS_PER_DAY } from '@/sim/time';
@@ -93,7 +93,10 @@ describe('gate 1B seams', () => {
     const h = addHerd(sim, plants[0], 120);
     herdSourceOf(sim, h)!.discoveredBy |= colonySlotBit(sim, col.id);
     const d = computeDemand(sim, col, censusOf(sim, col.id));
-    expect(d[taskIndex('tend')]).toBe(herdTendDemand(sim, col.id));
+    // R39 (direction 26 item 1, after this test was written): tenders follow the carbohydrate the colony wants, at most
+    // the herds' slots and at least their keep while the surface is workable (restated gate-sim-2; was "= the slots")
+    expect(d[taskIndex('tend')]).toBeLessThanOrEqual(herdTendDemand(sim, col.id));
+    expect(d[taskIndex('tend')]).toBeGreaterThanOrEqual(Math.min(herdTendDemand(sim, col.id), tendKeep(h.a)));
     expect(d[taskIndex('tend')]).toBeGreaterThan(0);
   });
 

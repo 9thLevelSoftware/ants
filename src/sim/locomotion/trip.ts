@@ -65,7 +65,7 @@ const SNAP_MAX_BU = 16;
  * ground) drops onto the surface below it, a point inside a solid (y = 0 under a mound) rises to the surface above.
  * Walkers stand on the level set, so a goal off it could never satisfy the arrival test.
  */
-export function snapToSurface(sim: Sim, p: Vec3, bu: number): void {
+export function snapToSurface(sim: Sim, p: Vec3, bu: number, inNest = false): void {
   const f = sim.field.sample(p);
   if (!Number.isFinite(f) || Math.abs(f) <= SNAP_TOL_BU * bu) return;
   const maxD = SNAP_MAX_BU * bu;
@@ -74,19 +74,46 @@ export function snapToSurface(sim: Sim, p: Vec3, bu: number): void {
     if (t < maxD) p.y -= t;
     return;
   }
+  if (inNest && climbToFree(sim, p, maxD, bu)) return;
   let y = p.y, g = f;
   for (let i = 0; i < 64 && g < 0 && y - p.y < maxD; i++) { y += Math.max(-g, 0.05 * bu); g = sim.field.sample(set3(_d, p.x, y, p.z)); }
   if (g >= 0) p.y = y;
 }
 
+const _gr: Vec3 = { x: 0, y: 0, z: 0 }, _q: Vec3 = { x: 0, y: 0, z: 0 };
+const CLIMB_STEPS = 16;
+
+/**
+ * An item or brood goal lying in a nest, inside the soil next to its cavity, moves to the nearest carved space along the
+ * field's gradient (other goals rise straight up as before: a rival's home, a point in a stem or a stone). gate-sim-2 item 4: a larva lying 1.3 mm inside a chamber floor was a goal on the ground 46 mm above
+ * it (straight up through the soil), so its nurses walked out of the nest and back for game days and the larvae
+ * starved. False if no carved space lies within maxD that way (the caller then rises straight up).
+ */
+function climbToFree(sim: Sim, p: Vec3, maxD: number, bu: number): boolean {
+  copy3(_q, p);
+  for (let i = 0; i < CLIMB_STEPS; i++) {
+    const f = sim.field.gradient(_q, _gr);
+    // only into carved space (a chamber or passage below the substrate surface): a point inside a stem or a stone
+    // keeps the old rule (straight up), which the climb planner expects (locoFix3.review)
+    if (f >= 0) { if (sim.field.substrate(_q) >= 0) return false; copy3(p, _q); return true; }
+    const l = Math.hypot(_gr.x, _gr.y, _gr.z);
+    if (!(l > 1e-6)) return false;
+    const step = Math.max(-f, 0.05 * bu) / l;
+    _q.x += _gr.x * step; _q.y += _gr.y * step; _q.z += _gr.z * step;
+    if (dist3(_q, p) > maxD) return false;
+  }
+  return false;
+}
+
 /** Resolves where a target ref is now; false if it is gone. Also sets the goal nest / field for nest targets. */
 export function resolveTarget(sim: Sim, kind: TargetKind, id: number, fallback: Vec3, s: NavScratch, r: LocoRuntime, out: Vec3): boolean {
   s.goalNest = -1; s.goalField = '';
+  let inNest = false; // an item or brood lying in a nest (its goal may sit a little inside the chamber's wall)
   switch (kind) {
     case 'ant': { const e = sim.stores.ants.get(id); if (!e) return false; copy3(out, e.pos); break; }
     case 'creature': { const e = sim.stores.creatures.get(id); if (!e) return false; copy3(out, e.pos); break; }
-    case 'item': { const e = sim.stores.items.get(id); if (!e) return false; copy3(out, e.pos); break; }
-    case 'brood': { const e = sim.stores.brood.get(id); if (!e) return false; copy3(out, e.pos); break; }
+    case 'item': { const e = sim.stores.items.get(id); if (!e) return false; copy3(out, e.pos); inNest = e.nestId >= 0; break; }
+    case 'brood': { const e = sim.stores.brood.get(id); if (!e) return false; copy3(out, e.pos); inNest = e.nestId >= 0; break; }
     case 'source': { const e = sim.stores.sources.get(id); if (!e) return false; copy3(out, e.pos); break; }
     case 'marker': { const e = sim.stores.markers.get(id); if (!e) return false; copy3(out, e.pos); break; }
     case 'entrance': { const h = entranceById(sim, id); if (!h) return false; copy3(out, h.entrance.pos); return true; }
@@ -123,7 +150,7 @@ export function resolveTarget(sim: Sim, kind: TargetKind, id: number, fallback: 
     default: copy3(out, fallback); break;
   }
   if (!finite3(out)) return false;
-  snapToSurface(sim, out, sim.world.bu);
+  snapToSurface(sim, out, sim.world.bu, inNest);
   if (isBelowGround(sim, out)) {
     const n = nestContaining(sim, out);
     if (n >= 0) { s.goalNest = n; s.goalField = pointField(sim, r, out); }

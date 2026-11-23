@@ -49,6 +49,7 @@ export const millSeedDef: ActionDef = {
   // minors are not given mill-seed by the species data; they may mill sprouted seed (GDD 07 §6.3.4) and soft seed
   // up to their crack limit (paste.ts millSecondsPerLoad, deviation)
   who: (sim, ant) => ant.caste === 'minor' && canMillHere(sim, ant),
+  whoWithinSpecies: true,
   check(sim, ant): ActionFailReason | null {
     const g = paramsOf(sim, ant);
     if (!g) return 'species';

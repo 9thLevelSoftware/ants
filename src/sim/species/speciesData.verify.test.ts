@@ -6,6 +6,7 @@ import { ANT_SIZE_CLASSES } from '@/sim/types';
 import { PLAYABLE_SPECIES, requireSpecies } from './index';
 import { deriveAntStats, entranceCapOf, larvalCost } from './derive';
 import { validateSpecies } from './validate';
+import { LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
 
 const WORKER_CASTES: readonly Caste[] = ['worker', 'minor', 'media', 'major'];
 const isWorker = (c: CasteDef): boolean => WORKER_CASTES.includes(c.caste);
@@ -40,11 +41,13 @@ describe('derived stats stay finite and positive over every caste length range',
     }
   });
 
-  it('Atta: the larval FL cost of a gyne by the mass rule (42) is above the Ch 06 multiplier value kept (24 FL)', () => {
+  it('Atta: the larval FL cost of a gyne by the mass rule (42 at 1.2 P; R43) is above the Ch 06 multiplier value kept (24 FL)', () => {
     const at = requireSpecies('atta-texana');
     const m = caste(at, 'gyne').casteMassMg / at.stdMassMg;
     const rule = larvalCost(m);
-    expect(rule.p + rule.c).toBeCloseTo(42, -1);
+    // 42 FL at the GDD's 1.6 FL per larva; at R43's LARVA_P_REQ 0.8 it is 42 x 1.2 / 1.6 = 31.5 (gate-sim-2)
+    expect(rule.p + rule.c).toBeCloseTo((42 * (LARVA_P_REQ + LARVA_C_REQ)) / 1.6, -1);
+    expect(rule.p + rule.c).toBeGreaterThan(24);
     expect(at.reproduction.sexualCostMult.gyne * 1.6).toBeCloseTo(24, 9);
   });
 });

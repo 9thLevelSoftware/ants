@@ -1,0 +1,78 @@
+// The founding chamber shot (look pass 5, constants.ts FSHOT_*): a pure pose and slice for the time-lapse, the outcome card
+// and the failure card. Millimetres, Y up. No three, no sim types: the Game hands in the subject's bounding sphere.
+import { DEG } from './frameMath';
+import { CAM_FAR_BU, FSHOT_CUT_REACH, FSHOT_FILL, FSHOT_FOV_DEG, FSHOT_MIN_RADIUS_BU, FSHOT_PITCH_DEG } from './constants';
+import type { CutawayParams } from './colonyRig';
+import { makePose, type CameraPose } from './types';
+
+/** What the shot frames: the queen, her brood and workers as one sphere, and the height of the cell's roof. */
+export interface FoundingShotSubject {
+  x: number;
+  y: number;
+  z: number;
+  /** Bounding radius of everything to be seen, mm. */
+  radius: number;
+  /** World height of the slice plane, mm: above the animals' backs, below the roof, so the cut cap has the cell as a hole in it. */
+  cutY: number;
+  /**
+   * The subject is shown this far above the middle of the frame (0..1 of the half height) and fills `fill` of it: the outcome and
+   * failure cards stand in the middle of the screen, so behind them the cell goes into the upper part. Default 0 and FSHOT_FILL.
+   */
+  lift?: number;
+  fill?: number;
+}
+
+export interface FoundingShot {
+  pose: CameraPose;
+  cutaway: CutawayParams;
+  /** Distance camera to subject, mm (the depth-of-field focus). */
+  distance: number;
+}
+
+export function makeFoundingShot(): FoundingShot {
+  return {
+    pose: makePose(),
+    cutaway: { mode: 'slice', planeY: 0, radius: 0, center: { x: 0, z: 0 }, outsideDarken: 0.3, minPlaneY: -1e9 },
+    distance: 0,
+  };
+}
+
+/** Camera distance that fits a sphere of `radius` into FSHOT_FILL of the frame height. */
+export function foundingShotDistance(radiusMm: number, fill = FSHOT_FILL): number {
+  return radiusMm / (fill * Math.sin((FSHOT_FOV_DEG * DEG) / 2));
+}
+
+/** Fills `out` for the subject seen from `yawRad` (0 = from +Z). Allocation-free. */
+export function foundingShotAt(out: FoundingShot, s: FoundingShotSubject, yawRad: number, bu: number): FoundingShot {
+  const r = Math.max(s.radius, FSHOT_MIN_RADIUS_BU * bu);
+  const d = foundingShotDistance(r, s.fill), p = FSHOT_PITCH_DEG * DEG, cp = Math.cos(p);
+  const o = out.pose;
+  o.pos.x = s.x + Math.sin(yawRad) * cp * d;
+  o.pos.y = s.y + Math.sin(p) * d;
+  o.pos.z = s.z + Math.cos(yawRad) * cp * d;
+  o.look.x = s.x; o.look.y = s.y; o.look.z = s.z;
+  const lift = s.lift ?? 0;
+  if (lift !== 0) {
+    // look lower than the subject by the angle that puts it `lift` above the middle of the frame: the view axis tilts down
+    // about the camera's right axis, the subject (the old look point) rises in the picture
+    const tilt = Math.atan(lift * Math.tan((FSHOT_FOV_DEG * DEG) / 2));
+    const dx = s.x - o.pos.x, dy = s.y - o.pos.y, dz = s.z - o.pos.z, dl = Math.hypot(dx, dy, dz) || 1;
+    // up in the view = world up made perpendicular to the view direction
+    const ux0 = 0 - (dy / dl) * (dx / dl), uy0 = 1 - (dy / dl) * (dy / dl), uz0 = 0 - (dy / dl) * (dz / dl), ul = Math.hypot(ux0, uy0, uz0) || 1;
+    const c = Math.cos(tilt), sn = Math.sin(tilt);
+    o.look.x = o.pos.x + (dx / dl * c - ux0 / ul * sn) * dl;
+    o.look.y = o.pos.y + (dy / dl * c - uy0 / ul * sn) * dl;
+    o.look.z = o.pos.z + (dz / dl * c - uz0 / ul * sn) * dl;
+  }
+  o.up.x = 0; o.up.y = 1; o.up.z = 0;
+  o.fov = FSHOT_FOV_DEG;
+  o.near = Math.max(0.02 * d, 0.05 * bu);
+  o.far = CAM_FAR_BU * bu;
+  out.distance = d;
+  const c = out.cutaway;
+  c.mode = 'slice';
+  c.planeY = s.cutY;
+  c.center.x = s.x; c.center.z = s.z;
+  c.radius = Math.max(cp * d * FSHOT_CUT_REACH, 8 * bu);
+  return out;
+}

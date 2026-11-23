@@ -1430,3 +1430,15 @@ Saved: `docs/design/tasks/reviews/colony-life-sweep-15.json`. Tables: `test-outp
 - Disk: rounds 1-9 of `test-output/colony-life` and scratch trees r13 / r14-P deleted (9.5 GB free).
 - wf-build launched 16:50 UTC Nov 23: task `wbtrdcamz`, run `wf_5841f9f2-9a7` (args: gate-sim-2 opus / opus; look-pass-5
   sonnet / opus verify, visual). Journal: `/root/.claude/projects/-home-user/5d615ab8-0e9f-5b70-a250-dd35942c7bf1/subagents/workflows/wf_5841f9f2-9a7/journal.jsonl`.
+
+### Nov 23 ~18:21 UTC — check-in: gate-sim-2 close sweep running; look-pass-5 on item 3
+
+- gate-sim-2 (impl): red-test table worked (restated: workedExample, handoverStomach to R2's intent, derive /
+  speciesData for R43, weather, ids; load guards on two perf tests; `runner.test` failure codes fixed); retrace
+  variant f in; **item 4 found and fixed**: a larva left inside soil made nurses climb straight up out of the nest
+  (`locomotion/trip.ts climbToFree`): kd #3 larvae starved 7 -> 0, eclosions 0 -> 7, workers 9 -> 16, but then short of
+  winter sugar (C 4.15 for 6.23); item 5 = not a defect (the diggers dig the architect's tunnel plan); stagger offsets
+  tried and reverted. Close sweep started 17:40 from `/home/user/frozen-gate2` (hash 55c4dfff).
+- Integrator ruling 1 (tail of `gate-sim-2.md`): the 12 `ecology/sources` reds get a tier argument, not left red.
+- look-pass-5 (impl): outcome-card shot (new founding shot with a slice cutaway), resolved alerts leave when a card is
+  up, backdrop fuzz only on rounded prims; on the kitchen-door wall foot now.

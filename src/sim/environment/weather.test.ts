@@ -248,9 +248,16 @@ describe('determinism', () => {
   it('uses only the weather stream: other streams are untouched', () => {
     const sim = envSim({ seed: 3 });
     const before = JSON.stringify(sim.state.rng);
+    // a new game draws its food sources from `rng.ecology` at creation (populate, after this test was written): the
+    // streams that exist before the weather runs must come out of a year of weather unchanged (gate-sim-2)
+    const others = JSON.stringify(sim.state.rngStreams);
+    expect(Object.keys(sim.state.rngStreams)).not.toContain('rng.weather');
     runWeather(sim, YEAR_TICKS);
     expect(JSON.stringify(sim.state.rng)).toBe(before);
-    expect(Object.keys(sim.state.rngStreams)).toEqual(['rng.weather']);
+    const after = { ...sim.state.rngStreams };
+    delete after['rng.weather'];
+    expect(JSON.stringify(after)).toBe(others);
+    expect(Object.keys(sim.state.rngStreams).filter((k) => !(k in JSON.parse(others)))).toEqual(['rng.weather']);
   });
 });
 

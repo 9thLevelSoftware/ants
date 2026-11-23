@@ -232,3 +232,31 @@ export const PHOTO_EXPOSURE_EV: [number, number] = [-3, 3];
 export const PHOTO_ROLL_DEG: [number, number] = [-45, 45];
 export const PHOTO_ROLL_DEG_S = 45;
 export const PHOTO_EXPOSURE_STEP_EV = 0.25;
+
+/**
+ * The founding chamber shot (look pass 5): behind the time-lapse, the outcome card and the failure card the camera hangs
+ * above the cell and looks down into it through a slice cut (GDD 08 §7.10 "X-ray cutaway", GDD 06 §5.11 "a macro cutaway of
+ * the sealed chamber"), so the queen, her brood and the first workers are all in view. The possession camera cannot make
+ * this picture: the cell is barely higher than the queen, so the rig can only stand against her.
+ */
+export const FSHOT_FOV_DEG = 40;
+/** Camera elevation over the horizontal, degrees. */
+export const FSHOT_PITCH_DEG = 52;
+/** The subject's bounding sphere fills 1 / this much of the frame height. */
+export const FSHOT_FILL = 0.92;
+/** Behind a card in the middle of the screen (outcome, failure): the cell is shown this far above the middle of the frame, filling this much. */
+export const FSHOT_CARD_LIFT = 0.5;
+export const FSHOT_CARD_FILL = 0.78;
+/** The subject sphere never counts as smaller than this radius (BU): a lone queen still gets a chamber-sized frame. */
+export const FSHOT_MIN_RADIUS_BU = 4.5;
+/**
+ * The slice plane sits this far above the highest animal (BU) and never above FSHOT_CUT_MAX_OF_RADIUS of the chamber's vertical
+ * radius over its centre: the cut cap is a soil face with the cell as a hole in it, so the plane has to pass through the cell.
+ */
+export const FSHOT_CUT_ABOVE_BU = 0.9;
+export const FSHOT_CUT_MAX_OF_RADIUS = 0.8;
+/** Slice radius as a multiple of the camera's horizontal reach (the cut must contain the line of sight). */
+export const FSHOT_CUT_REACH = 1.8;
+/** Opening yaw of the orbit (degrees) and its rate (GDD 08 §7.10: 0.02 revolutions per real second). */
+export const FSHOT_YAW_DEG = 35;
+export const FSHOT_ORBIT_REV_PER_S = 0.02;

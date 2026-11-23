@@ -3,6 +3,8 @@
 import { signal } from '@preact/signals';
 import { alertsSlice, hudHiddenSlice } from '../slices';
 import { snapshot } from '../../store';
+import { blockingCardUp } from '../blockingCard';
+import { foundingUi } from '../../screens/founding/store';
 import { AlertFeed, type FeedView } from './feed';
 
 export const alertFeed = new AlertFeed();
@@ -21,14 +23,15 @@ export function refreshFeed(): void {
   if (!time) alertFeed.reset();
   const tick = time?.tick ?? 0;
   const compact = document.documentElement.dataset.layout === 'compact';
-  feedView.value = alertFeed.update(alertsSlice.peek(), { nowS: nowS(), tick, hudHidden: hudHiddenSlice.peek(), maxVisible: compact ? 2 : 3 });
+  feedView.value = alertFeed.update(alertsSlice.peek(), { nowS: nowS(), tick, hudHidden: hudHiddenSlice.peek(), cardUp: blockingCardUp(), maxVisible: compact ? 2 : 3 });
 }
 
 /** Subscribes the feed to the snapshot; returns the uninstaller. */
 export function startFeed(): () => void {
   const stopA = alertsSlice.subscribe(refreshFeed);
   const stopH = hudHiddenSlice.subscribe(refreshFeed);
+  const stopF = foundingUi.subscribe(refreshFeed); // a card opening clears the "Resolved" cards at once
   timer = window.setInterval(refreshFeed, 1000);
   refreshFeed();
-  return () => { stopA(); stopH(); if (timer !== undefined) window.clearInterval(timer); timer = undefined; };
+  return () => { stopA(); stopH(); stopF(); if (timer !== undefined) window.clearInterval(timer); timer = undefined; };
 }

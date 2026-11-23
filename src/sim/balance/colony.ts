@@ -1,4 +1,5 @@
 import type { MarkerKind } from '@/sim/types';
+import { DEFAULT_SEASON_LENGTH_DAYS } from './environment';
 
 // Colony and queen defaults used by createColony / createNewGame (GDD 02 §3, §5; GDD 06 §5). A founding queen
 // starts with the single reserve pool `SpeciesDef.opening.R0` (GDD 06 model, E-19); her `reserve` / `reserveP` stay
@@ -262,9 +263,10 @@ export const PROSPECTIVE_P_PER_WORKER = 0.5;
 /**
  * Ruling R35 point 2: the carbohydrate a colony keeps on the path to its winter need before it asks protein for eggs
  * not yet laid ramps in from this day of the year (nothing asked in spring) and reaches the whole winter need
- * PROSPECTIVE_WINTER_RAMP_DAYS later (half of it by doy 14, all of it by doy 21).
+ * PROSPECTIVE_WINTER_RAMP_DAYS later (half of it by doy 14, all of it by doy 21). Days of the default year (doy28):
+ * the ramp starts at the end of the default year's first season.
  */
-export const PROSPECTIVE_WINTER_FROM_DOY = 7;
+export const PROSPECTIVE_WINTER_FROM_DOY = DEFAULT_SEASON_LENGTH_DAYS;
 export const PROSPECTIVE_WINTER_RAMP_DAYS = 14;
 export const LAYING_INTAKE_EMA_GD = 0.5;
 /** Retinue target: queen gut C and P (GDD 02 §3.3). */

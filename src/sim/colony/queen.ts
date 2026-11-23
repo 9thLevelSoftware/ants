@@ -19,7 +19,7 @@ import { WINTER_STORES_TARGET_MARGIN } from '@/sim/balance/lifecycle';
 import { winterStoresNeed } from './overwinter/storesNeed';
 import { EGG_COST_P } from '@/sim/balance/actions';
 import { killAnt, spawnBrood } from '@/sim/entities';
-import { currentDayOfYear, currentYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY, yearOf } from '@/sim/time';
+import { currentDayOfYear, currentDefaultYearDoy, currentYear, daysPerYear, DEFAULT_DAYS_PER_YEAR, TICKS_PER_DAY, yearOf } from '@/sim/time';
 import { accAdd, accSet, coreOf } from './core';
 import { censusOf, cycleCensus, type CensusSnapshot } from './census';
 import { chamberTempC, d28Now, pointTempC } from './envAdapter';
@@ -189,10 +189,17 @@ export function prospectiveProteinRate(sim: Sim, col: Colony): number {
  * PROSPECTIVE_WINTER_RAMP_DAYS more days).
  */
 export function winterPathC(sim: Sim, col: Colony): number {
-  const doy = currentDayOfYear(sim.state);
-  const ramp = clamp((doy - PROSPECTIVE_WINTER_FROM_DOY) / PROSPECTIVE_WINTER_RAMP_DAYS, 0, 1);
+  const ramp = winterPathRamp(currentDefaultYearDoy(sim.state));
   if (ramp <= 0) return 0;
   return winterStoresNeed(sim, col).needC * WINTER_STORES_TARGET_MARGIN * ramp;
+}
+
+/**
+ * The ramp of winterPathC at a default-year day (doy28; gate-sim-2: it read the calendar's own doy, so with 5- or
+ * 10-day seasons the winter path began in another season than the default year's).
+ */
+export function winterPathRamp(doy28: number): number {
+  return clamp((doy28 - PROSPECTIVE_WINTER_FROM_DOY) / PROSPECTIVE_WINTER_RAMP_DAYS, 0, 1);
 }
 
 /** P share of a queen-carer's ration (GDD 02 §5.4.2), for the released share of the laying potential. */

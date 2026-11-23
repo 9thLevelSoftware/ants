@@ -12,17 +12,14 @@ import { TICKS_PER_DAY } from '@/sim/time';
 import { foundingActions, publishFounding, type FoundingActions } from '@/ui/screens/founding/store';
 import type { GameSession } from '../../session';
 import type { GameMode } from '../../time/speedRules';
+import { FSHOT_CARD_FILL, FSHOT_CARD_LIFT, FSHOT_FILL, type FoundingShotSubject } from '@/render/camera';
 import { buildFoundingUi, type FlowFlags } from './flowView';
+import { foundingShotSubject } from './shotSubject';
 import { LapseRunner } from './lapseRunner';
 
 /** Real-time budget of the lapse per frame while watching / skipping, ms (GDD 06 §4.3 SIM_FRAME_BUDGET_MS = 10). */
 const WATCH_BUDGET_MS = 10;
 const SKIP_BUDGET_MS = 30;
-/** Camera orbit during the lapse, revolutions per real second (GDD 08 §7.10). */
-const ORBIT_REV_PER_S = 0.02;
-/** Camera at the start of the lapse: round to the front of the queen (deg) and pull back (factor) a little. */
-const LAPSE_CAMERA_YAW_DEG = 150;
-const LAPSE_CAMERA_ZOOM = 1.3;
 /** UI refresh of the founding screens in real time, Hz. */
 const PUBLISH_HZ = 15;
 /**
@@ -63,6 +60,10 @@ export class FoundingFlow implements FoundingActions {
   private handoverS = 0;
   private checkpoint: { attempt: number; bytes: Uint8Array; config: GameConfig } | null = null;
   private readonly runner = new LapseRunner();
+  /** The chamber shot behind the lapse and the cards (render/camera/foundingShot.ts) is on for this session. */
+  private shotOn = false;
+  private lapseSeen = false;
+  private readonly shotSubject: FoundingShotSubject = { x: 0, y: 0, z: 0, radius: 0, cutY: 0, lift: 0, fill: FSHOT_FILL };
   private readonly flags: FlowFlags = { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false, reducedMotion: false };
 
   constructor(private readonly host: FoundingHost) {}
@@ -76,6 +77,8 @@ export class FoundingFlow implements FoundingActions {
     this.handoverView = null;
     this.handoverS = 0;
     this.runner.reset();
+    this.shotOn = false;
+    this.lapseSeen = false;
     Object.assign(this.flags, { skipping: false, outcomeOpen: false, handoverOpen: false, failureDismissed: false });
     const op = session.sim.state.player.opening;
     // GDD 06 §5.1: the simulation waits while the intro card shows (only real time would move it)
@@ -87,6 +90,7 @@ export class FoundingFlow implements FoundingActions {
 
   detach(): void {
     this.session = null;
+    this.shotOn = false;
     publishFounding(null);
     foundingActions.value = null;
   }
@@ -127,7 +131,6 @@ export class FoundingFlow implements FoundingActions {
         running: () => this.phase() === 'timelapse',
       });
       if (ran > 0) this.host.afterStep(session, ran);
-      if (!this.flags.reducedMotion && session.view === 'possess') session.views.nudge(ORBIT_REV_PER_S * 360 * dt, 0);
     } else if (this.flags.outcomeOpen && this.flags.skipping && this.host.realtime) {
       this.outcomeS += dt;
       if (this.outcomeS >= TIMELAPSE_SKIP_CARD_S) this.closeOutcome();
@@ -160,8 +163,7 @@ export class FoundingFlow implements FoundingActions {
     if (to === 'timelapse' && from !== null) {
       this.flags.skipping = false;
       this.runner.reset();
-      // the brood in view: from in front of the queen, a little further back than the possession boom keeps her
-      this.session?.views.nudge(LAPSE_CAMERA_YAW_DEG, 0, Math.log(LAPSE_CAMERA_ZOOM));
+      this.lapseSeen = true;
     }
     if (from === 'timelapse' && to === 'handover') {
       this.flags.outcomeOpen = true;
@@ -173,8 +175,31 @@ export class FoundingFlow implements FoundingActions {
     if (to === 'failed') this.flags.failureDismissed = false;
   }
 
+  /**
+   * The chamber shot (GDD 08 §7.10 "X-ray cutaway") stays on from the start of the lapse through the outcome card, or through
+   * the failure card of a lapse that failed; the possession camera is back the moment the card goes.
+   */
+  private syncShot(): void {
+    const phase = this.phase();
+    const want = this.lapseSeen && (phase === 'timelapse' || (phase === 'handover' && this.flags.outcomeOpen) || (phase === 'failed' && !this.flags.failureDismissed));
+    if (want === this.shotOn) return;
+    this.shotOn = want;
+    this.session?.views.setFoundingShot(want ? () => this.shotSubjectNow() : null);
+  }
+
+  /** The shot's subject this frame: the cell centred while the lapse plays, shifted up behind the card once there is one. */
+  private shotSubjectNow(): FoundingShotSubject | null {
+    const s = this.sim ? foundingShotSubject(this.sim, this.shotSubject) : null;
+    if (!s) return null;
+    const card = this.phase() !== 'timelapse';
+    s.lift = card ? FSHOT_CARD_LIFT : 0;
+    s.fill = card ? FSHOT_CARD_FILL : FSHOT_FILL;
+    return s;
+  }
+
   private publish(force: boolean): void {
     const sim = this.sim;
+    this.syncShot();
     if (!force) return;
     this.publishS = 0;
     this.flags.reducedMotion = this.host.settings.get().camera.reducedMotion;

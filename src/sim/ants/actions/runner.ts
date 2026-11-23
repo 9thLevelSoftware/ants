@@ -46,7 +46,12 @@ function fail(reason: ActionFailReason, target: TargetRef | null = null): Valida
 function validate(sim: Sim, ant: Ant, id: ActionId, target: TargetRef | null, secondary = false): Validation {
   if (!ant.alive) return fail('conditions');
   const def = actionDef(id);
-  if (!casteAllows(sim, ant, id) && !def?.who?.(sim, ant)) return fail(speciesHasAction(sim, ant, id) || def?.who ? 'caste' : 'species');
+  if (!casteAllows(sim, ant, id) && !def?.who?.(sim, ant)) {
+    // a `who` hook of a primitive newer than the species tables makes it every species' (refused by caste); a species
+    // module's caste exception (whoWithinSpecies) does not
+    const generic = !!def?.who && !def.whoWithinSpecies;
+    return fail(speciesHasAction(sim, ant, id) || generic ? 'caste' : 'species');
+  }
   if (!def) return fail('conditions'); // a later tier's primitive (fly, sting, cut-leaf ...)
   const t = target ?? def.autoTarget?.(sim, ant) ?? (def.targets.includes('none') ? selfTarget(ant) : null);
   if (!t || !def.targets.includes(t.kind)) return fail('no-target', t);

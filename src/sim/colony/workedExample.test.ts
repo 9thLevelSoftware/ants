@@ -6,14 +6,24 @@
 // at 60, so ready pupae are not helped to eclose during the day (no callow upkeep or reserve refills).
 // The components are checked one by one too, so a match of the totals cannot come from offsetting errors:
 // worker upkeep, larval C and P, laying P (E25 egg range), and (separate test) the spoilage formula on the chapter's
-// start-of-day pile (P 1.0 above the stomach). The day's mean spoilage is lower than the chapter's static 0.33:
-// nurses carry about a load of P in their crops, so the pool's pile P sits near 0.15 for most of the day.
+// start-of-day pile (P 1.0 above the stomach).
+//
+// gate-sim-2 restatement (red since colony-life round 8): the chapter's larval terms follow from 1.2 P per larva and a
+// 0.5 gd larval stage at 25 C (r(25) = 1.2). Today's constants give 0.8 P (R43) and r(25) = 1.364 (the species'
+// devRate curve), a 0.44 gd stage: per larva 0.909 C and 1.819 P per gd (chapter 0.80 / 2.40). The expectations below
+// derive the larval terms, the totals and the stock changes from those constants with the chapter's other terms
+// (upkeep 6.42 C, queen 0.30 C, eggs 12 x 0.04 P, spoilage 0.33 P, intake 12.10 C / 12.95 P) and its 5 larvae; old ->
+// new in DEVIATIONS R43. The larval components are checked per larva (the fixture's base brood mortality leaves a
+// mean of about 4.7 of the 5 larvae over the day). With the need lower than the scripted intake, the pile P grows and
+// the day's mean spoilage is above the chapter's static 0.33 (its own formula is case 2).
 
 import { describe, expect, it } from 'vitest';
 import type { Ant, Sim, System, Task } from '@/sim/types';
 import { TICKS_PER_DAY } from '@/sim/time';
 import { addBrood, addChamber, addWorkers, careSystem, colonyOf, establishQueen, makeColonySim } from './testkit';
 import { depositFood } from './index';
+import { requireSpecies } from '@/sim/species';
+import { devRate, larvaFood, stageDu } from './life';
 
 /** Task, number of ants, share of time active / light (the rest is resting), from the §15 table. */
 const MIX: [Task, number, number, number][] = [
@@ -102,22 +112,31 @@ describe('GDD 02 §15 worked example (AC3, E25)', () => {
     const mean = (k: keyof DayResult) => runs.reduce((s, r) => s + r[k], 0) / runs.length;
     // eslint-disable-next-line no-console
     console.log('worked example', JSON.stringify({ upkeep: mean('upkeep'), larvaC: mean('larvaC'), larvaP: mean('larvaP'), larvae: mean('larvae'), spoilP: mean('spoilP'), layP: mean('layP'), needC: mean('needC'), needP: mean('needP'), dC: mean('dC'), dP: mean('dP'), eggs: mean('eggs'), runs: runs.map((r) => [r.deaths, r.larvae.toFixed(2), r.needC.toFixed(2), r.needP.toFixed(2), r.dC.toFixed(2), r.dP.toFixed(2)]) }));
-    expect(Math.abs(mean('needC') - 10.71) / 10.71).toBeLessThan(0.05);
-    expect(Math.abs(mean('needP') - 12.9) / 12.9).toBeLessThan(0.05);
-    expect(Math.abs(mean('dC') - 1.39)).toBeLessThan(0.05 * 10.71);
-    expect(Math.abs(mean('dP') - 0.05)).toBeLessThan(0.05 * 12.9);
-    // Components (chapter: upkeep 6.42 C; larvae 3.67 + 0.32 C, 11.02 + 0.97 P; eggs 12 x 0.04 P; spoilage 0.33 P).
+    // the chapter's day with today's larval constants (see the header)
+    const def = requireSpecies('lasius-niger'), food = larvaFood(def, 'worker', 1);
+    const stageGd = stageDu(def, 'larva', 'worker') / devRate(def, 25);
+    const rateC = food.c / stageGd, rateP = food.p / stageGd, LARVAE = 5;
+    const needC = 6.42 + 0.3 + LARVAE * rateC, needP = LARVAE * rateP + 12 * 0.04 + 0.33;
+    // eslint-disable-next-line no-console
+    console.log('worked example derived', JSON.stringify({ rateC, rateP, needC, needP, dC: 12.1 - needC, dP: 12.95 - needP }));
+    expect(Math.abs(mean('needC') - needC) / needC).toBeLessThan(0.05);
+    expect(Math.abs(mean('needP') - needP) / needP).toBeLessThan(0.05);
+    expect(Math.abs(mean('dC') - (12.1 - needC))).toBeLessThan(0.05 * needC);
+    expect(Math.abs(mean('dP') - (12.95 - needP))).toBeLessThan(0.05 * needP);
+    // Components (chapter: upkeep 6.42 C; larvae per larva rateC, rateP; eggs 12 x 0.04 P; spoilage in case 2).
     expect(Math.abs(mean('upkeep') - 6.42) / 6.42).toBeLessThan(0.05);
-    expect(Math.abs(mean('larvaC') - 3.99) / 3.99).toBeLessThan(0.05);
-    expect(Math.abs(mean('larvaP') - 11.99) / 11.99).toBeLessThan(0.05);
+    expect(mean('larvae')).toBeGreaterThan(0.9 * LARVAE);
+    expect(Math.abs(mean('larvaC') / mean('larvae') - rateC) / rateC).toBeLessThan(0.05);
+    expect(Math.abs(mean('larvaP') / mean('larvae') - rateP) / rateP).toBeLessThan(0.05);
     expect(mean('layP')).toBeGreaterThanOrEqual(8 * 0.04);
     expect(mean('layP')).toBeLessThanOrEqual(16 * 0.04);
     for (const r of runs) {
       // E25 ranges per run.
       expect(r.eggs).toBeGreaterThanOrEqual(8);
       expect(r.eggs).toBeLessThanOrEqual(16);
-      expect(Math.abs(r.dC)).toBeLessThan(3);
-      expect(Math.abs(r.dP)).toBeLessThan(3);
+      // per run within 3 loads of the day's expected stock change (the chapter's +1.39 / +0.05; see the header)
+      expect(Math.abs(r.dC - (12.1 - needC))).toBeLessThan(3);
+      expect(Math.abs(r.dP - (12.95 - needP))).toBeLessThan(3);
     }
   });
 

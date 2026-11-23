@@ -8,6 +8,7 @@ import {
   carryCapOf, cropCapOf, deriveAntStats, findCaste, larvalCost, minPassageBu, upkeepOfCaste, upkeepRestOf, upkeepActiveOf,
 } from './derive';
 import { requireSpecies } from './index';
+import { LARVA_C_REQ, LARVA_P_REQ } from '@/sim/balance';
 
 interface Row {
   label: string;
@@ -100,19 +101,24 @@ describe('derived stats reproduce the caste tables within rounding', () => {
     expect(carryCapOf(8, 2.5)).toBe(2.5);
   });
 
-  it('larval cost = 1.2 P + 0.4 C at m = 1, scaling with m^0.8 (GDD 07 §2.3, §5.2.2)', () => {
+  it('larval cost = LARVA_P_REQ P + LARVA_C_REQ C at m = 1, scaling with m^0.8 (GDD 07 §2.3, §5.2.2)', () => {
+    // GDD 07 writes the table at 1.2 P per larva; R43 (DEVIATIONS) set LARVA_P_REQ to 0.8, so the protein figures are
+    // the GDD's times LARVA_P_REQ / 1.2 (gate-sim-2): CP major 2.33 -> 1.55 P, CP gyne 10.1 -> 6.7 P, MB major 3.0 ->
+    // 2.0 P, AT major 6.7 -> 5.0 FL; carbohydrate unchanged
+    const k = LARVA_P_REQ / 1.2;
     const one = larvalCost(1);
-    expect(one.p).toBeCloseTo(1.2, 12);
+    expect(one.p).toBeCloseTo(LARVA_P_REQ, 12);
+    expect(one.c).toBeCloseTo(LARVA_C_REQ, 12);
     expect(one.c).toBeCloseTo(0.4, 12);
-    const major = larvalCost(2.29); // Camponotus major: 2.33 P + 0.78 C
-    expect(major.p).toBeCloseTo(2.33, 1);
+    const major = larvalCost(2.29); // Camponotus major: 2.33 P (at 1.2) + 0.78 C
+    expect(major.p).toBeCloseTo(2.33 * k, 1);
     expect(major.c).toBeCloseTo(0.78, 1);
-    const gyne = larvalCost(14.3); // Camponotus gyne 10.1 P + 3.4 C
-    expect(gyne.p).toBeCloseTo(10.1, 0);
-    const mbMajor = larvalCost(3.14); // Messor major 3.0 P + 1.0 C
-    expect(mbMajor.p).toBeCloseTo(3.0, 1);
-    const atMajor = larvalCost(6.0); // Atta major 6.7 FL = (1.2 + 0.4) x 6^0.8
-    expect(atMajor.p + atMajor.c).toBeCloseTo(6.7, 1);
+    const gyne = larvalCost(14.3); // Camponotus gyne 10.1 P (at 1.2) + 3.4 C
+    expect(gyne.p).toBeCloseTo(10.1 * k, 0);
+    const mbMajor = larvalCost(3.14); // Messor major 3.0 P (at 1.2) + 1.0 C
+    expect(mbMajor.p).toBeCloseTo(3.0 * k, 1);
+    const atMajor = larvalCost(6.0); // Atta major FL = (P + C per larva) x 6^0.8 (6.7 at 1.2 + 0.4)
+    expect(atMajor.p + atMajor.c).toBeCloseTo((LARVA_P_REQ + LARVA_C_REQ) * Math.pow(6, 0.8), 1);
   });
 
   it('is the same arithmetic as the entity layer (entities/antStats deriveAntStats) for every species and caste', () => {

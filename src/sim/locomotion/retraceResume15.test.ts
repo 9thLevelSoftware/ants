@@ -2,7 +2,8 @@
 // trail where the ant stands. A scout homing by her crumbs fled 64 BU from home; the retrace she resumed began at the
 // newest crumb - one she had recorded on her way home - and walked her way home backwards, out to 107 BU. Now a
 // retrace consumes the crumbs behind it (those after its target: the way out beyond her and what she recorded walking
-// it back), and starts at the crumb nearest the ant.
+// it back), and starts at the crumb nearest the ant. gate-sim-2 ("variant f"): the consumption is gone (it broke
+// App. E 23's carrion trail); the nearest-crumb start alone keeps the resumed retrace walking home.
 import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '@/core/math/vec3';
 import type { Ant, Sim } from '@/sim/types';
@@ -29,7 +30,7 @@ function lShape(home: Vec3, bu: number): Vec3[] {
   return pts;
 }
 
-describe('retrace resumed part-way home (round 15)', () => {
+describe('retrace resumed part-way home (round 15; variant f, gate-sim-2)', () => {
   it('after a flee half-way home the resumed retrace walks on home, not back out', () => {
     const sim = locoSim({ sizeBu: 400 });
     const bu = sim.world.bu, c = sim.world.size / 2;
@@ -43,7 +44,9 @@ describe('retrace resumed part-way home (round 15)', () => {
     expect(navRetrace(sim, ant, { speed: 6 * bu })).toBe(true);
     for (let t = 0; t < 3000 && from(ant.pos) > 45 * bu; t++) sim.tick();
     expect(from(ant.pos)).toBeLessThan(46 * bu);
-    // the crumbs behind her are gone: none lies farther from home than she does (plus a crumb's spacing)
+    // the crumbs behind her are kept (variant f; variant e cut the list at her target): the trail still reaches
+    // past her by more than a crumb's spacing (her own loop erasure trims it to about the L's corner, 60 BU), so a
+    // retrace resumed after the flee has crumbs beyond her to walk the wrong way - and must not
     const c3 = v3(0, 0, 0);
     let farCrumb = 0;
     for (let i = 0; i < crumbCount(ant); i++) {
@@ -51,7 +54,7 @@ describe('retrace resumed part-way home (round 15)', () => {
       c3.x = m[3 * i]; c3.z = m[3 * i + 2];
       farCrumb = Math.max(farCrumb, from(c3));
     }
-    expect(farCrumb).toBeLessThan(from(ant.pos) + 7 * bu);
+    expect(farCrumb).toBeGreaterThan(from(ant.pos) + 7 * bu);
     // a flee: 5 BU aside, then the retrace resumes
     const at = from(ant.pos);
     teleport(sim, ant, v3(ant.pos.x + 5 * bu, 0, ant.pos.z - 5 * bu));

@@ -166,6 +166,30 @@ describe('AlertFeed: another game in the same page', () => {
   });
 });
 
+describe('AlertFeed: a card in the middle of the screen clears the Resolved cards', () => {
+  it('a card that resolved while a card is up leaves at once, and one already resolved goes when the card opens', () => {
+    const f = new AlertFeed();
+    const flood = alert('queen-in-danger', 'critical', 1);
+    f.update([flood], ctx(0));
+    const during = f.update([], ctx(1));
+    expect(during.cards[0].resolved).toBe(true);
+    // the outcome card opens one second later: the resolved card goes with it, well before its 4 s
+    expect(f.update([], { ...ctx(2), cardUp: true }).cards).toHaveLength(0);
+    // the same, when the clear itself happens under the card
+    f.update([alert('queen-in-danger', 'critical', 2)], { ...ctx(10), cardUp: true });
+    expect(f.update([], { ...ctx(11), cardUp: true }).cards).toHaveLength(0);
+  });
+
+  it('a live alert is not touched by the card, and a later clear after the card closed still shows Resolved for 4 s', () => {
+    const f = new AlertFeed();
+    f.update([alert('food-c-low', 'warning', 3)], { ...ctx(0), cardUp: true });
+    expect(f.update([alert('food-c-low', 'warning', 3)], { ...ctx(1), cardUp: true }).cards).toHaveLength(1);
+    const gone = f.update([], ctx(2));
+    expect(gone.cards[0].resolved).toBe(true);
+    expect(f.update([], ctx(2 + ALERT_BALANCE.resolvedRealS + 0.1)).cards).toHaveLength(0);
+  });
+});
+
 describe('AlertFeed: Resolved only for a card that is on screen', () => {
   const a = (kind: string, subjectId: number, level: UiAlert['level'] = 'warning'): UiAlert => ({ id: subjectId, kind, level, title: kind, cause: 'c', count: 1, subjectId, raisedTick: subjectId });
 

@@ -16,12 +16,13 @@ export interface BoundaryStats {
   drawCalls: number;
 }
 
-function geometry(positions: ArrayLike<number>, normals: ArrayLike<number>, colors: ArrayLike<number>, index: ArrayLike<number>, keep?: ArrayLike<number>): BufferGeometry {
+function geometry(positions: ArrayLike<number>, normals: ArrayLike<number>, colors: ArrayLike<number>, index: ArrayLike<number>, keep?: ArrayLike<number>, fuzz?: ArrayLike<number>): BufferGeometry {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(Float32Array.from(positions), 3));
   g.setAttribute('normal', new BufferAttribute(Float32Array.from(normals), 3));
   g.setAttribute('color', new BufferAttribute(Float32Array.from(colors), 3));
   g.setAttribute('aBdKeep', new BufferAttribute(keep ? Float32Array.from(keep) : new Float32Array(positions.length / 3), 1));
+  g.setAttribute('aBdFuzz', new BufferAttribute(fuzz ? Float32Array.from(fuzz) : new Float32Array(positions.length / 3), 1));
   g.setIndex(new BufferAttribute(Uint32Array.from(index), 1));
   g.computeBoundingSphere();
   return g;
@@ -65,7 +66,7 @@ export class BoundaryRenderer {
     this.skirt.name = 'boundary:skirt';
     this.skirt.receiveShadow = false;
     const bd = buildBackdrop(world);
-    this.backdrop = new Mesh(geometry(bd.mesh.positions, bd.mesh.normals, bd.mesh.colors, bd.mesh.index, bd.mesh.keep), this.backdropMat);
+    this.backdrop = new Mesh(geometry(bd.mesh.positions, bd.mesh.normals, bd.mesh.colors, bd.mesh.index, bd.mesh.keep, bd.mesh.fuzz), this.backdropMat);
     this.backdrop.name = 'boundary:backdrop';
     this.group.add(this.skirt, this.backdrop);
     this.st = { skirtTriangles: sk.index.length / 3, backdropShapes: bd.stats.shapes, backdropTriangles: bd.stats.triangles, drawCalls: 2 };

@@ -41,28 +41,42 @@ function handover(workers: number, eggProgress: number, tempC = 20, eggs = 13) {
 }
 
 describe('P1 review: the hand-over protein reaches the larvae', () => {
-  it('7 workers, 13 fresh eggs: no stage worse than lean while the queen holds it; paid in by the end of the window', () => {
+  it('7 workers, 13 fresh eggs: nobody starves and the pool has protein while the queen holds it; paid in by the end of the window', () => {
+    // gate-sim-2 (restated to R2's intent): this case read "no starvation stage worse than lean while the queen holds
+    // her provision". At LARVA_P_REQ 0.8 (R43) the nurse load carries more carbohydrate (P share 0.75 -> 0.67), the
+    // fixture's 4 C (no foragers) runs out at gd 2.05, and the colony enters `rationing` on its EMPTY CARBOHYDRATE
+    // pool while its protein pool is full (pool P 1.05 = the 7 stomachs' room; the queen's last 0.6 P above her keep
+    // waits for room). The queen holds no carbohydrate above her keep in this fixture (reserve 6 = her fat cap), so
+    // nothing of R2's is withheld. R2 asks that her provision reaches the larvae and that nobody goes short of it
+    // while she holds it: checked here as no starvation death and no empty protein pool with larvae while she holds it.
     const { sim, q, col } = handover(7, 0);
     const larvaP = (): number => sim.state.brood.filter((b) => b.alive && b.colony === col.id).reduce((s, b) => s + b.gutP + b.fedP, 0);
-    // every 100 ticks: the colony in a starvation stage worse than lean (the viable verdict's stage check) while the
-    // queen still holds her provision is R2 broken
+    let held = true;
+    const starved: string[] = [];
+    sim.events.on('brood-died', (e) => { if (held && e.cause === 'starvation') starved.push(`${e.stage}@${(sim.state.tick / TICKS_PER_DAY).toFixed(2)}`); });
+    sim.events.on('ant-died', (e) => { if (held && e.cause === 'starvation') starved.push(`${e.caste}@${(sim.state.tick / TICKS_PER_DAY).toFixed(2)}`); });
+    // every 100 ticks: larvae meeting an empty protein pool while the queen still holds her provision is R2 broken
     let shortWhileHeld = 0;
     const seen: string[] = [];
     const end = sim.state.tick + Math.round((HANDOVER_PROVISION_WINDOW_GD + 0.5) * TICKS_PER_DAY);
     while (sim.state.tick < end) {
       step(sim, 100);
-      const held = q.queen!.reserveP > HANDOVER_QUEEN_KEEP_P + 0.5;
-      const short = stageRank(col.starvationStage) >= 2;
+      held = q.queen!.reserveP > HANDOVER_QUEEN_KEEP_P + 0.5;
+      const larvae = sim.state.brood.filter((b) => b.alive && b.colony === col.id && b.stage === 'larva').length;
+      // a starvation stage worse than lean while she holds it may only come from the carbohydrate pool (see above)
+      const protRationing = stageRank(col.starvationStage) >= 2 && col.stores.c > 0.05;
+      const short = (larvae > 0 && col.stores.p < 0.05) || protRationing;
       if (held && short) {
         shortWhileHeld++;
         if (seen.length < 4) {
           seen.push(JSON.stringify({
-            gd: +(sim.state.tick / TICKS_PER_DAY).toFixed(2), stage: col.starvationStage, larvae: sim.state.brood.filter((b) => b.alive && b.stage === 'larva').length,
+            gd: +(sim.state.tick / TICKS_PER_DAY).toFixed(2), stage: col.starvationStage, larvae, poolC: +col.stores.c.toFixed(3),
             queenP: +q.queen!.reserveP.toFixed(2), poolP: +col.stores.p.toFixed(3), stomachP: +poolCapacity(col).stomachP.toFixed(2),
           }));
         }
       }
     }
+    expect(starved, 'starved while the queen held her provision').toEqual([]);
     expect(shortWhileHeld, seen.join(' ')).toBe(0);
     const larvae = sim.state.brood.filter((b) => b.alive && b.stage === 'larva').length;
     const msg = JSON.stringify({

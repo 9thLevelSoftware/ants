@@ -180,8 +180,8 @@ export function stepGate(sim: Sim, col: Colony, g: GranaryParams): void {
     if (a.alive && a.colony === col.id && a.task === 'patrol' && a.nestId < 0 && !gate.out.includes(a.id)) gate.out.push(a.id);
   }
   if (alarmAtEntrance(sim, col)) gate.holdUntilTick = now + PATROL_HOLD_TICKS;
-  const window = pg.windowS * TICKS_PER_SECOND;
-  gate.returns = gate.returns.filter((t) => now - t <= window);
+  const windowTicks = pg.windowS * TICKS_PER_SECOND;
+  gate.returns = gate.returns.filter((t) => now - t <= windowTicks);
   const needed = Math.min(pg.returnsNeeded, patrollersWanted(sim, col));
   if (gate.returns.length >= needed) { gate.open = true; gate.openedTick = now; return; }
   if (now - gate.closedTick >= PATROL_FAILSAFE_TICKS) {

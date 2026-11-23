@@ -39,7 +39,13 @@ describe('reviewer: nursery board view after save / load (sim-fix-ants item 2)',
     // some nurses read the board on every think (the allocator may need a while to make them)
     sim.stores.ants.list.filter((a) => a.caste === 'worker').slice(0, 6).forEach((a) => { a.task = 'nurse'; });
     for (let i = 0; i < 200; i++) sim.tick();
-    tickUntil(k, () => sim.state.tick % PERIOD === 2, PERIOD + 1);
+    // the board is built on its first read in a window, and nurses think on their own cadence (no longer every
+    // tick): wait for a window whose board is built while most of the window is still to come (gate-sim-2)
+    const builtNow = () => {
+      const b = sim.state.nurseryBoards?.find((x) => x.colonyId === col.id);
+      return !!b && Math.floor(b.builtTick / PERIOD) === Math.floor(sim.state.tick / PERIOD);
+    };
+    tickUntil(k, () => builtNow() && sim.state.tick % PERIOD >= 2 && sim.state.tick % PERIOD < PERIOD / 2, 4 * PERIOD);
     const board = sim.state.nurseryBoards?.find((b) => b.colonyId === col.id);
     expect(board).toBeDefined();
     expect(Math.floor(board!.builtTick / PERIOD)).toBe(Math.floor(sim.state.tick / PERIOD));

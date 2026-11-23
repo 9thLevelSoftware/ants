@@ -8,6 +8,12 @@ export class MeshBuilder {
   readonly colors: number[] = [];
   /** Per vertex: 0..1 share of its own colour a shape keeps through the haze (the house facade, so its plinth and windows read from afar). */
   readonly keep: number[] = [];
+  /**
+   * Per vertex: 1 where the silhouette fuzz (hashed alpha at grazing angles) may act, 0 where it must not. Only a curved surface
+   * (foliage, trunk) is at its silhouette where it is seen at a grazing angle; a flat face (a wall, a car's side, a fence board) seen
+   * at a grazing angle is a whole face, and fuzzing it sprinkled white dots over it (look pass 5, app-seams-3/cars/ant-0.png).
+   */
+  readonly fuzz: number[] = [];
   /** The `keep` value given to the vertices appended from now on. */
   keepNow = 0;
   readonly index: number[] = [];
@@ -15,11 +21,12 @@ export class MeshBuilder {
   get vertexCount(): number { return this.positions.length / 3; }
   get triangleCount(): number { return this.index.length / 3; }
 
-  private vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number, c: Color): number {
+  private vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number, c: Color, fuzz = 0): number {
     this.positions.push(x, y, z);
     this.normals.push(nx, ny, nz);
     this.colors.push(c.r, c.g, c.b);
     this.keep.push(this.keepNow);
+    this.fuzz.push(fuzz);
     return this.vertexCount - 1;
   }
 
@@ -53,8 +60,8 @@ export class MeshBuilder {
     const slope = (r - rTop) / Math.max(1e-6, y1 - y0), nl = Math.hypot(1, slope);
     for (let i = 0; i <= segments; i++) {
       const a = (i / segments) * Math.PI * 2, x = Math.cos(a), z = Math.sin(a);
-      this.vertex(cx + x * r, y0, cz + z * r, x / nl, slope / nl, z / nl, c);
-      this.vertex(cx + x * rTop, y1, cz + z * rTop, x / nl, slope / nl, z / nl, c);
+      this.vertex(cx + x * r, y0, cz + z * r, x / nl, slope / nl, z / nl, c, 1);
+      this.vertex(cx + x * rTop, y1, cz + z * rTop, x / nl, slope / nl, z / nl, c, 1);
     }
     for (let i = 0; i < segments; i++) {
       const a = base + i * 2, b = a + 2;
@@ -85,7 +92,7 @@ export class MeshBuilder {
         const m = i === lon ? lump(Math.cos(0) * sr, sy, 0) : lump(ux, sy, uz); // the seam closes
         const nx = ux / rx, ny = sy / ry, nz = uz / rz, nl = Math.hypot(nx, ny, nz) || 1;
         k.copy(c).multiplyScalar(1 - shade * 0.5 * (1 - sy));
-        this.vertex(cx + ux * rx * m, cy + sy * ry * m, cz + uz * rz * m, nx / nl, ny / nl, nz / nl, k);
+        this.vertex(cx + ux * rx * m, cy + sy * ry * m, cz + uz * rz * m, nx / nl, ny / nl, nz / nl, k, 1);
       }
     }
     for (let j = 0; j < lat; j++) for (let i = 0; i < lon; i++) {

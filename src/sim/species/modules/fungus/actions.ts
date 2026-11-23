@@ -97,6 +97,7 @@ function cutSeconds(P: FungusParams, ant: Ant): number {
 
 export const cutLeafDef: ActionDef = {
   id: 'cut-leaf', kind: 'timed', targets: ['none'], cancellable: true, pose: 'cut', cue: 'leaf-cut',
+  whoWithinSpecies: true,
   // minims are not given cut-leaf by the species data; the first brood may cut while the colony has no media
   who: (sim, ant) => {
     const col = colonyOf(sim, ant);
@@ -143,6 +144,7 @@ export const cutLeafDef: ActionDef = {
 
 export const processLeafDef: ActionDef = {
   id: 'process-leaf', kind: 'timed', targets: ['none'], cancellable: true, pose: 'tend-fungus', cue: 'garden-tend',
+  whoWithinSpecies: true,
   // first-brood deviation: minims process (at MINIM_PROCESS_MULT x the time) while no media works the gardens
   who: (sim, ant) => {
     const col = colonyOf(sim, ant);

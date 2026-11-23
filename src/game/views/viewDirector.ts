@@ -5,8 +5,8 @@
 import { vec3, type Vec3 } from '@/core';
 import type { InputState } from '@/input';
 import {
-  CAM_HANDOVER_KEEP_MAX_L, CAM_SWITCH_DIP_HALF_S, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
-  copyPose, fitsAt, makePose, planTransition, type TransitionPlan,
+  CAM_HANDOVER_KEEP_MAX_L, CAM_SWITCH_DIP_HALF_S, FSHOT_ORBIT_REV_PER_S, FSHOT_YAW_DEG, foundingShotAt, makeFoundingShot, CAM_TO_COLONY_S, CAM_TREMOR_AMP_L, CAM_TREMOR_HZ, CAM_TREMOR_S, CameraTransition, ColonyRig, ObserverRig, PhotoRig, ThirdPersonRig,
+  copyPose, fitsAt, makePose, planTransition, type FoundingShotSubject, type TransitionPlan,
   type CameraPose, type CameraTarget, type CutawayParams, type FadeOutput, type FieldFn, type PossessionCamState, type TraceFn,
 } from '@/render/camera';
 import { SLICE_REPEAT_HZ } from '@/input';
@@ -125,6 +125,10 @@ export class ViewDirector {
   private nudgeYaw = 0;
   private nudgePitch = 0;
   private nudgeZoom = 0;
+  /** The founding chamber shot (render/camera/foundingShot.ts): while a source is set the possess view shows it instead of the ant's rig. */
+  private shotSource: (() => FoundingShotSubject | null) | null = null;
+  private readonly shot = makeFoundingShot();
+  private shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
   private readonly frameOut: ViewFrame = {
     pose: makePose(), dip: 0, focus: 100, subjectOpacity: 1, possessionState: null, fade: null, cutaway: null, observerMode: null,
   };
@@ -266,6 +270,22 @@ export class ViewDirector {
     this.subjectLengthBu = s.lengthBu;
   }
 
+  /**
+   * The founding chamber shot on (a source of the subject sphere) or off (null): behind the time-lapse and the outcome and
+   * failure cards (GDD 08 §7.10). The camera flies, or dip-fades where the flight would cross soil (it nearly always does).
+   */
+  setFoundingShot(source: (() => FoundingShotSubject | null) | null): void {
+    if ((source === null) === (this.shotSource === null)) { this.shotSource = source; return; }
+    const from = copyPose(makePose(), this.last);
+    this.shotSource = source;
+    if (source) this.shotYaw = FSHOT_YAW_DEG * Math.PI / 180;
+    else this.third.snap();
+    const plan = handoverPlan('possess', 'possess', from, this.peekPose(), this.world.bu, !!this.third.opts.reducedMotion, this.world.trace, this.minClearanceMm);
+    this.transition.start(from, plan);
+  }
+
+  get foundingShotOn(): boolean { return this.shotSource !== null; }
+
   private peekPose(): CameraPose {
     return this.updateRig(0, null).pose;
   }
@@ -280,7 +300,12 @@ export class ViewDirector {
     };
     const zoom = (axis: string) => (input ? input.zoom(axis) : 0) + nz;
     f.possessionState = null; f.fade = null; f.cutaway = null; f.observerMode = null; f.subjectOpacity = 1;
-    if (this.view === 'possess') {
+    // the queen is possessed through the lapse and released (observer, following her) at the hand-over: the shot holds across both
+    const subject = (this.view === 'possess' || this.view === 'observer') && this.shotSource ? this.shotSource() : null;
+    if (subject) {
+      foundingShotAt(this.shot, subject, this.shotYaw, w.bu);
+      f.pose = this.shot.pose; f.focus = this.shot.distance; f.cutaway = this.shot.cutaway;
+    } else if (this.view === 'possess') {
       const l = look('orbit');
       const o = this.third.update(dt, this.followTarget, { yawDeg: l.x, pitchDeg: l.y, zoomLog: zoom('zoom'), recentre: !!input && input.pressed('recentre') },
         { trace: w.trace, field: w.field, underground: this.subjectUnderground, airborne: this.subjectAirborne, flying: this.subjectFlying });
@@ -328,6 +353,7 @@ export class ViewDirector {
 
   /** One frame of the active rig (real dt) blended through any running transition. */
   update(dt: number, input: InputState | null): ViewFrame {
+    if (this.shotSource && !this.third.opts.reducedMotion) this.shotYaw += FSHOT_ORBIT_REV_PER_S * 2 * Math.PI * dt;
     const f = this.updateRig(dt, input);
     if (input) releaseClaims(input);
     let t = this.transition.update(dt, f.pose);

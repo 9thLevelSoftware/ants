@@ -21,6 +21,11 @@ export interface ActionDef {
    * the species tables). Omitted: only the species data decides.
    */
   who?(sim: Sim, ant: Ant): boolean;
+  /**
+   * `who` only widens the castes of a species whose data list the primitive (a species module's caste exception,
+   * e.g. Messor minors milling); for any other species the refusal is 'species', not 'caste' (GDD 01 §7.1).
+   */
+  whoWithinSpecies?: boolean;
   /** Target kinds accepted ('none' = the ant itself). */
   targets: readonly TargetKind[];
   /** Picks a target when the caller gives none (AI shortcut, debug `act()` without target); null = none fits. */

@@ -49,7 +49,11 @@ describe('contract adapters over the kernel', () => {
     const sim = makeTestSim();
     const below = v(100, -8, 100); // loam ground
     expect(sim.field.diggability(below, 'lasius-niger')).toBe(1);
-    expect(sim.field.diggability(below, 'camponotus-pennsylvanicus')).toBeCloseTo(0.6);
+    // GDD 03 §2.1 gave Camponotus 0.6 on loam; GDD 07 §5.2.6 ("no soil nests", the species chapter owns nesting)
+    // overrides it: DIG_SPECIES_MULT lists only wood and insulation for CP (species-carpenter; DEVIATIONS D36)
+    expect(sim.field.diggability(below, 'camponotus-pennsylvanicus')).toBe(digFactor('camponotus-pennsylvanicus', 'loam'));
+    expect(digFactor('camponotus-pennsylvanicus', 'loam')).toBe(0);
+    expect(digFactor('camponotus-pennsylvanicus', 'wood-decayed')).toBeGreaterThan(0);
     expect(digFactor('lasius-niger', 'humus')).toBeCloseTo(1.3);
     expect(digFactor('lasius-niger', 'wood-sound')).toBe(0);
     expect(digFactor('camponotus-pennsylvanicus', 'gravel')).toBe(0);

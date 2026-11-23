@@ -143,10 +143,8 @@ export function retraceTarget(sim: Sim, ant: Ant, s: NavScratch, r: LocoRuntime,
       if (shortcutOk(sim, ant, r, ant.pos, _c)) { s.crumbIdx = j; break; }
     }
   }
-  // the crumbs after the target lie behind her on this walk (the way out beyond this point, and what she recorded
-  // walking it back): consumed, so a retrace resumed after a flee does not walk them again in reverse (round 15)
-  ant.mem.crumbLen = s.crumbIdx + 1;
-  ant.mem.crumbHead = ant.mem.crumbLen;
+  // The crumbs behind the target are kept (gate-sim-2, "variant f"): consuming them (round 15's variant e) broke the
+  // carrion trail of App. E 23; the nearest-crumb start alone keeps a resumed retrace from walking them in reverse.
   crumbAt(ant, s.crumbIdx, out);
   return true;
 }

@@ -124,3 +124,16 @@ at the same time and runs a headless browser: do not touch those paths.
    colonies.
 4. No new state outside the save; `outdoor/determinism.perf` green.
 5. Report complete.
+
+## Integrator ruling 1 (18:21 UTC Nov 23)
+- **`ecology/sources`, 12 reds (Tier 1 rules behind `ECOLOGY_TIER` = 2):** do not leave them red. After the close
+  sweep's runs are done, give the rules under test the tier as an argument that defaults to `ECOLOGY_TIER` (the game
+  passes nothing, so no game behaviour changes) and let the 12 tests pass tier 1 explicitly. Check with one cached Lasius
+  run that the final state hash is unchanged. If a Tier 1 rule cannot be reached even so, say which and why, and mark
+  that test `describe.skip` with a one-line reason naming R1 - a skipped test with a reason is better than a red one.
+- **Item 4 (buried larva / nurses walking out):** accepted as a defect of execution, as you ruled. kd #3 turning
+  non-viable with 16 workers instead of viable with 9 is the sugar limit of the known-limits list, not a reason to
+  revert; the close sweep's kitchen-door count decides only if the archetype falls under 2 of 3.
+- **Item 5:** accepted as not a defect of allocation. The diggers held in `dig.stow` with pellets (gd 9.5-11) are worth
+  one trace after the sweep if a run slot is free; no fix unless it is a plain execution fault.
+- `winterPathRamp` on the default-year day: accepted (no change on the 28-day year).

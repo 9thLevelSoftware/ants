@@ -69,6 +69,12 @@ export interface FeedContext {
   hudHidden: boolean;
   /** Cards that fit (3; 2 in the compact layout, GDD 08 2.3). */
   maxVisible?: number;
+  /**
+   * A card that takes the middle of the screen is up (the time-lapse, its outcome or failure card, the winter report):
+   * a "Resolved" card is leaving anyway and nobody can read it behind the card, so it goes at once instead of after
+   * `resolvedRealS` (look pass 5: "Founding chamber flooding - Resolved" stayed up under the outcome card). Live alerts stay.
+   */
+  cardUp?: boolean;
 }
 
 const keyOf = (a: UiAlert): string => `${a.kind}:${a.subjectId ?? -1}`;
@@ -92,6 +98,7 @@ export class AlertFeed {
   update(alerts: readonly UiAlert[], ctx: FeedContext): FeedView {
     if (ctx.tick < this.lastTick) this.reset();
     this.lastTick = ctx.tick;
+    if (ctx.cardUp) for (const [key, e] of this.entries) if (e.resolvedUntilS >= 0) this.entries.delete(key);
     const incoming = new Map<string, UiAlert>();
     for (const a of alerts) incoming.set(keyOf(a), a);
     this.clearGone(incoming, ctx);
@@ -134,7 +141,7 @@ export class AlertFeed {
       if (incoming.has(key)) continue;
       if (e.resolvedUntilS >= 0) { if (ctx.nowS >= e.resolvedUntilS) this.entries.delete(key); continue; }
       this.clearedTick.set(key, ctx.tick);
-      if (this.onScreen(e, ctx)) e.resolvedUntilS = ctx.nowS + ALERT_BALANCE.resolvedRealS;
+      if (this.onScreen(e, ctx) && !ctx.cardUp) e.resolvedUntilS = ctx.nowS + ALERT_BALANCE.resolvedRealS;
       else this.entries.delete(key);
     }
   }
