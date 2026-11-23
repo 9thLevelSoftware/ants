@@ -5066,3 +5066,9 @@ Progress (kept current; a successor continues from here)
 - 02:04 closing-tree-v2 arms running (5 of 20 done).
 - 02:25 closing-tree-v2 arms 9 of 20 done.
 - 02:35 closing-tree-v2 arms 13 of 20 done.
+- 02:38 **INTEGRATOR NOTE:** directions **28a and 28b** are at the tail of `colony-life.md` (28a was written at 01:35 and
+  is not in your 01:43 entry). In short: (1) R42's thresholds become 0.3 / 0.25 (0.5 / 0.35 cut forage time 43 %);
+  kill the unfinished `arm-final13b` runs; (2) **R44** (forage demand per nutrient) must be built before the next
+  freeze; (3) R40 c2 accepted as reverted, its lead under "Next"; (4) the dose: freeze v3 at
+  `/home/user/scratch-r13-final3`, write "v3 frozen" here, start `y2-final3`; I make
+  `/home/user/scratch-r13-final3-dose1` and write "dose tree ready" here; three slots allowed.

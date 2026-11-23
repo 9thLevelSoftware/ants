@@ -777,3 +777,32 @@ red with D33's trajectory, sg #2's cache): it is round 14's first item, with a f
 into a royal chamber over its waste tolerance (37 egg hygiene deaths in a colony of 3-4 workers).
 If your context is short, the must-haves are R44 + R42 with their tests, arms 1-3 at dose 1, and the ledger; R40 c2
 may go to round 14 as traced-not-built.
+
+## Direction 28b (integrator, Nov 23 02:38 UTC) — R42's thresholds corrected; R44 still owed; how the dose gets made
+
+Read at 02:38 from your 01:43 entry and from the 8 finished runs of `arm-final13b` (tree v2 = 4725f524 + R42).
+
+1. **R42's thresholds were mine and they are too high.** 0.5 / 0.35 on the speed curve are 14.2 / 11.7 C of air; in
+   the 8 paired runs forage time fell 388 -> 222 worker gd, median P 0.53 -> 0.37, C 1.39 -> 1.21, and we #3 misses
+   R27 again. The workers that were lost set out at 7-9 C (multiplier 0.1-0.2). New values:
+   `OUTDOOR_DEPART_MIN_SPEED` **0.3**, `OUTDOOR_TURN_BACK_SPEED` **0.25** (say the air temperatures in the ledger).
+   Everything else of R42 as built. **Kill the unfinished `arm-final13b` runs**; the 8 done are enough to read.
+2. **R44 (direction 28a) is not in tree v2 and must be in v3.** Direction 28a sits above this one: forage demand
+   counted per nutrient (a carbohydrate want with no carbohydrate source known asks for scouts, not for foragers
+   who then go to prey). Its tests as written there.
+3. **R40 c2:** accepted as reverted (the board's `rescue` job already covers brood outside a chamber). The lead
+   (carriers walking to the surface and back with nothing carried; 1 of 5 pupae on the shaft wall rescued in 0.6 gd)
+   goes under "Next" for round 14 with the test as you have it.
+4. **The dose is made by me, because your permission check refuses the constant.** Procedure:
+   - Build R44 + the new R42 values; tests; freeze **v3** at `/home/user/scratch-r13-final3` (LARVA_P_REQ 1.2) and
+     write "v3 frozen HH:MM" in the ledger. Start at once: year two from the cache on v3 (`y2-final3`, 5 runs).
+   - I copy v3 to `/home/user/scratch-r13-final3-dose1`, set `LARVA_P_REQ` 0.8 there and write "dose tree ready" in
+     the ledger (I look every ~20 minutes). You then run year two from the cache on it (`y2-dose1`, 5 runs). Do not
+     edit that copy.
+   - The machine has 4 cores: three slots are allowed for these arms.
+   - Choose by direction 28's rule (dose 0 if v3 alone meets the year-two interim bars; else dose 1; dose 2 would
+     be made by me the same way: say so in the ledger and wait one check). Then one year-one arm of the chosen tree
+     (15) against `round-12/arm-final12`. Bars as direction 28a.
+   - If dose 1 is chosen, the live tree must end at 0.8: say so in the ledger and I make that edit (constant + the
+     E2 pin in `colony/brood.test.ts`) before you close; list the tests that then need restating and restate those
+     you are allowed to.
